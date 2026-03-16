@@ -1,22 +1,21 @@
 #!/usr/bin/env python3
 """
 TDGPT Windows Uninstallation Script
-Windows 平台的 TDGPT 卸载脚本
 
 Usage:
     python uninstall.py [options]
 
 Options:
-    --keep-all          保留所有数据（cfg、model、data、venv）
-    --remove-venv       删除虚拟环境（默认保留）
-    --remove-data       删除数据目录（默认保留）
-    --remove-model      删除模型目录（默认保留）
-    -h, --help          显示帮助信息
+    --keep-all          Keep all data (cfg, model, data, venv)
+    --remove-venv       Remove virtual environment (kept by default)
+    --remove-data       Remove data directory (kept by default)
+    --remove-model      Remove model directory (kept by default)
+    -h, --help          Show help information
 
 Examples:
-    python uninstall.py                 # 标准卸载（保留 cfg、model、data、venv）
-    python uninstall.py --remove-venv   # 卸载并删除虚拟环境
-    python uninstall.py --keep-all      # 仅停止服务，保留所有文件
+    python uninstall.py                 # Standard uninstall (keep cfg, model, data, venv)
+    python uninstall.py --remove-venv   # Uninstall and remove virtual environment
+    python uninstall.py --keep-all      # Only stop services, keep all files
 """
 
 import os
@@ -30,12 +29,12 @@ import time
 from pathlib import Path
 from typing import List
 
-# 确保是 Windows 平台
+# Ensure this is a Windows platform
 if platform.system().lower() != "windows":
     print("Error: This script is for Windows only.")
     sys.exit(1)
 
-# 配置日志
+# Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
@@ -43,7 +42,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# 颜色输出
+# Color output
 try:
     import ctypes
     kernel32 = ctypes.windll.kernel32
@@ -53,19 +52,19 @@ except:
     COLORS_ENABLED = False
 
 class Colors:
-    """ANSI 颜色代码"""
+    """ANSI color codes"""
     RED = '\033[0;31m' if COLORS_ENABLED else ''
     GREEN = '\033[1;32m' if COLORS_ENABLED else ''
     YELLOW = '\033[1;33m' if COLORS_ENABLED else ''
     BLUE = '\033[0;34m' if COLORS_ENABLED else ''
     NC = '\033[0m' if COLORS_ENABLED else ''
 
-# 默认安装路径
+# Default installation path
 INSTALL_DIR = Path(r"C:\TDengine\taosanode")
 
 
 class WindowsUninstaller:
-    """Windows 卸载器"""
+    """Windows uninstaller"""
 
     def __init__(self, keep_all: bool = False, remove_venv: bool = False,
                  remove_data: bool = False, remove_model: bool = False):
@@ -76,30 +75,30 @@ class WindowsUninstaller:
         self.install_dir = INSTALL_DIR
 
     def print_info(self, message: str):
-        """打印信息"""
+        """Print info message"""
         print(f"{Colors.GREEN}[INFO]{Colors.NC} {message}")
         logger.info(message)
 
     def print_warning(self, message: str):
-        """打印警告"""
+        """Print warning message"""
         print(f"{Colors.YELLOW}[WARNING]{Colors.NC} {message}")
         logger.warning(message)
 
     def print_error(self, message: str):
-        """打印错误"""
+        """Print error message"""
         print(f"{Colors.RED}[ERROR]{Colors.NC} {message}")
         logger.error(message)
 
     def print_success(self, message: str):
-        """打印成功"""
+        """Print success message"""
         print(f"{Colors.GREEN}[SUCCESS]{Colors.NC} {message}")
         logger.info(message)
 
     def stop_services(self) -> bool:
-        """停止所有服务"""
-        self.print_info("停止 TDGPT 服务...")
+        """Stop all services"""
+        self.print_info("Stopping TDGPT services...")
 
-        # 停止主服务
+        # Stop main service
         try:
             service_script = self.install_dir / "bin" / "taosanode_service.py"
             if service_script.exists():
@@ -110,11 +109,11 @@ class WindowsUninstaller:
                         timeout=30,
                         capture_output=True
                     )
-                    self.print_info("主服务已停止")
+                    self.print_info("Main service stopped")
         except Exception as e:
-            self.print_warning(f"停止主服务失败：{e}")
+            self.print_warning(f"Failed to stop main service: {e}")
 
-        # 停止模型服务
+        # Stop model services
         try:
             service_script = self.install_dir / "bin" / "taosanode_service.py"
             if service_script.exists():
@@ -125,11 +124,11 @@ class WindowsUninstaller:
                         timeout=30,
                         capture_output=True
                     )
-                    self.print_info("模型服务已停止")
+                    self.print_info("Model services stopped")
         except Exception as e:
-            self.print_warning(f"停止模型服务失败：{e}")
+            self.print_warning(f"Failed to stop model services: {e}")
 
-        # 强制终止残留进程
+        # Force kill remaining processes
         time.sleep(2)
         try:
             subprocess.run(
@@ -143,8 +142,8 @@ class WindowsUninstaller:
         return True
 
     def uninstall_service(self) -> bool:
-        """卸载 Windows 服务"""
-        self.print_info("卸载 Windows 服务...")
+        """Uninstall Windows service"""
+        self.print_info("Uninstalling Windows service...")
 
         try:
             service_script = self.install_dir / "bin" / "taosanode_service.py"
@@ -156,20 +155,20 @@ class WindowsUninstaller:
                         timeout=30,
                         capture_output=True
                     )
-                    self.print_success("Windows 服务已卸载")
+                    self.print_success("Windows service uninstalled")
         except Exception as e:
-            self.print_warning(f"卸载服务失败：{e}")
+            self.print_warning(f"Failed to uninstall service: {e}")
 
         return True
 
     def remove_from_path(self) -> bool:
-        """从 PATH 环境变量中移除"""
-        self.print_info("从 PATH 中移除安装目录...")
+        """Remove from PATH environment variable"""
+        self.print_info("Removing install directory from PATH...")
 
         try:
             bin_path = str(self.install_dir / "bin")
 
-            # 读取当前 PATH
+            # Read current PATH
             result = subprocess.run(
                 ["reg", "query", "HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment", "/v", "Path"],
                 capture_output=True,
@@ -178,47 +177,47 @@ class WindowsUninstaller:
             )
 
             if result.returncode == 0:
-                # 解析 PATH
+                # Parse PATH
                 for line in result.stdout.split('\n'):
                     if 'Path' in line and 'REG_' in line:
                         parts = line.split('REG_EXPAND_SZ', 1)
                         if len(parts) == 2:
                             current_path = parts[1].strip()
 
-                            # 移除我们的路径
+                            # Remove our path
                             path_list = [p.strip() for p in current_path.split(';') if p.strip()]
                             new_path_list = [p for p in path_list if bin_path.lower() not in p.lower()]
 
                             if len(new_path_list) < len(path_list):
                                 new_path = ';'.join(new_path_list)
 
-                                # 更新 PATH
+                                # Update PATH
                                 subprocess.run(
                                     ["setx", "/M", "Path", new_path],
                                     capture_output=True,
                                     timeout=10
                                 )
-                                self.print_success("已从 PATH 中移除")
+                                self.print_success("Removed from PATH")
                             else:
-                                self.print_info("PATH 中未找到安装目录")
+                                self.print_info("Install directory not found in PATH")
 
         except Exception as e:
-            self.print_warning(f"从 PATH 中移除失败：{e}")
+            self.print_warning(f"Failed to remove from PATH: {e}")
 
         return True
 
     def remove_files(self) -> bool:
-        """删除文件"""
-        self.print_info("删除文件...")
+        """Remove files"""
+        self.print_info("Removing files...")
 
         if self.keep_all:
-            self.print_info("保留所有文件（--keep-all 模式）")
+            self.print_info("Keeping all files (--keep-all mode)")
             return True
 
-        # 要删除的目录
+        # Directories to remove
         dirs_to_remove = ["bin", "lib", "resource", "log"]
 
-        # 根据选项决定是否删除
+        # Decide whether to remove based on options
         if self.remove_venv:
             dirs_to_remove.extend(["venv", "timesfm_venv", "moirai_venv", "chronos_venv", "momentfm_venv"])
         if self.remove_data:
@@ -226,17 +225,17 @@ class WindowsUninstaller:
         if self.remove_model:
             dirs_to_remove.append("model")
 
-        # 删除目录
+        # Remove directories
         for dir_name in dirs_to_remove:
             dir_path = self.install_dir / dir_name
             if dir_path.exists():
                 try:
                     shutil.rmtree(dir_path)
-                    self.print_info(f"删除目录：{dir_name}")
+                    self.print_info(f"Removed directory: {dir_name}")
                 except Exception as e:
-                    self.print_warning(f"删除目录 {dir_name} 失败：{e}")
+                    self.print_warning(f"Failed to remove directory {dir_name}: {e}")
 
-        # 删除根目录下的文件
+        # Remove files in root directory
         files_to_remove = ["install.log", "taosanode.pid", "*.txt"]
         for pattern in files_to_remove:
             if '*' in pattern:
@@ -244,7 +243,7 @@ class WindowsUninstaller:
                     if file_path.is_file():
                         try:
                             file_path.unlink()
-                            self.print_info(f"删除文件：{file_path.name}")
+                            self.print_info(f"Removed file: {file_path.name}")
                         except:
                             pass
             else:
@@ -252,57 +251,57 @@ class WindowsUninstaller:
                 if file_path.exists():
                     try:
                         file_path.unlink()
-                        self.print_info(f"删除文件：{pattern}")
+                        self.print_info(f"Removed file: {pattern}")
                     except:
                         pass
 
         return True
 
     def show_preserved_files(self):
-        """显示保留的文件"""
+        """Show preserved files"""
         self.print_info("=" * 60)
-        self.print_info("以下目录已保留：")
+        self.print_info("The following directories have been preserved:")
 
         preserved = []
         if not self.remove_venv:
             if (self.install_dir / "venv").exists():
-                preserved.append("  - venv（虚拟环境）")
+                preserved.append("  - venv (virtual environment)")
         if not self.remove_data:
             if (self.install_dir / "data").exists():
-                preserved.append("  - data（数据目录）")
+                preserved.append("  - data (data directory)")
         if not self.remove_model:
             if (self.install_dir / "model").exists():
-                preserved.append("  - model（模型目录）")
+                preserved.append("  - model (model directory)")
         if (self.install_dir / "cfg").exists():
-            preserved.append("  - cfg（配置文件）")
+            preserved.append("  - cfg (configuration files)")
 
         if preserved:
             for item in preserved:
                 self.print_info(item)
             self.print_info("")
-            self.print_info("如需完全删除，请手动删除以下目录：")
+            self.print_info("To completely remove, manually delete the following directory:")
             self.print_info(f"  {self.install_dir}")
         else:
-            self.print_info("  无保留文件")
+            self.print_info("  No preserved files")
 
         self.print_info("=" * 60)
 
     def generate_uninstall_report(self) -> bool:
-        """生成卸载报告"""
+        """Generate uninstall report"""
         report_file = self.install_dir / "uninstall.log"
 
         try:
             with open(report_file, "w", encoding="utf-8") as f:
                 f.write("=" * 60 + "\n")
-                f.write("TDGPT Windows 卸载报告\n")
+                f.write("TDGPT Windows Uninstall Report\n")
                 f.write("=" * 60 + "\n\n")
-                f.write(f"卸载目录：{self.install_dir}\n")
-                f.write(f"保留模式：{'是' if self.keep_all else '否'}\n")
-                f.write(f"删除 venv：{'是' if self.remove_venv else '否'}\n")
-                f.write(f"删除 data：{'是' if self.remove_data else '否'}\n")
-                f.write(f"删除 model：{'是' if self.remove_model else '否'}\n")
+                f.write(f"Uninstall directory: {self.install_dir}\n")
+                f.write(f"Keep-all mode: {'Yes' if self.keep_all else 'No'}\n")
+                f.write(f"Remove venv: {'Yes' if self.remove_venv else 'No'}\n")
+                f.write(f"Remove data: {'Yes' if self.remove_data else 'No'}\n")
+                f.write(f"Remove model: {'Yes' if self.remove_model else 'No'}\n")
                 f.write("\n")
-                f.write("保留的目录：\n")
+                f.write("Preserved directories:\n")
                 if (self.install_dir / "cfg").exists():
                     f.write("  ✓ cfg\n")
                 if not self.remove_venv and (self.install_dir / "venv").exists():
@@ -314,99 +313,99 @@ class WindowsUninstaller:
                 f.write("\n")
                 f.write("=" * 60 + "\n")
 
-            self.print_success(f"卸载报告已保存：{report_file}")
+            self.print_success(f"Uninstall report saved: {report_file}")
             return True
         except Exception as e:
-            self.print_warning(f"生成卸载报告失败：{e}")
+            self.print_warning(f"Failed to generate uninstall report: {e}")
             return True
 
     def run(self) -> bool:
-        """执行卸载"""
+        """Run uninstall"""
         self.print_info("=" * 60)
-        self.print_info("TDGPT Windows 卸载程序")
+        self.print_info("TDGPT Windows Uninstaller")
         self.print_info("=" * 60)
-        self.print_info(f"安装目录：{self.install_dir}")
-        self.print_info(f"保留模式：{'是' if self.keep_all else '否'}")
-        self.print_info(f"删除 venv：{'是' if self.remove_venv else '否'}")
-        self.print_info(f"删除 data：{'是' if self.remove_data else '否'}")
-        self.print_info(f"删除 model：{'是' if self.remove_model else '否'}")
+        self.print_info(f"Install directory: {self.install_dir}")
+        self.print_info(f"Keep-all mode: {'Yes' if self.keep_all else 'No'}")
+        self.print_info(f"Remove venv: {'Yes' if self.remove_venv else 'No'}")
+        self.print_info(f"Remove data: {'Yes' if self.remove_data else 'No'}")
+        self.print_info(f"Remove model: {'Yes' if self.remove_model else 'No'}")
         self.print_info("=" * 60)
 
-        # 1. 停止服务
+        # 1. Stop services
         self.stop_services()
 
-        # 2. 卸载服务
+        # 2. Uninstall service
         self.uninstall_service()
 
-        # 3. 从 PATH 中移除
+        # 3. Remove from PATH
         self.remove_from_path()
 
-        # 4. 删除文件
+        # 4. Remove files
         self.remove_files()
 
-        # 6. 生成卸载报告
+        # 6. Generate uninstall report
         self.generate_uninstall_report()
 
-        # 7. 显示保留的文件
+        # 7. Show preserved files
         self.show_preserved_files()
 
-        # 完成
+        # Done
         self.print_info("=" * 60)
-        self.print_success("TDGPT 卸载完成！")
+        self.print_success("TDGPT uninstall complete!")
         self.print_info("=" * 60)
 
         return True
 
 
 def main():
-    """主函数"""
+    """Main function"""
     parser = argparse.ArgumentParser(
-        description="TDGPT Windows 卸载脚本",
+        description="TDGPT Windows Uninstall Script",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-示例：
-  python uninstall.py                 # 标准卸载（保留 cfg、model、data、venv）
-  python uninstall.py --remove-venv   # 卸载并删除虚拟环境
-  python uninstall.py --keep-all      # 仅停止服务，保留所有文件
+Examples:
+  python uninstall.py                 # Standard uninstall (keep cfg, model, data, venv)
+  python uninstall.py --remove-venv   # Uninstall and remove virtual environment
+  python uninstall.py --keep-all      # Only stop services, keep all files
 
-注意：
-  默认情况下，卸载会保留以下目录：
-    - cfg（配置文件）
-    - model（模型文件）
-    - data（数据目录）
-    - venv（虚拟环境）
+Note:
+  By default, uninstall preserves the following directories:
+    - cfg (configuration files)
+    - model (model files)
+    - data (data directory)
+    - venv (virtual environment)
 
-  这与 Linux 的卸载行为一致，确保用户数据不会丢失。
+  This is consistent with the Linux uninstall behavior, ensuring user data is not lost.
         """
     )
 
     parser.add_argument(
         "--keep-all",
         action="store_true",
-        help="保留所有数据（cfg、model、data、venv）"
+        help="Keep all data (cfg, model, data, venv)"
     )
 
     parser.add_argument(
         "--remove-venv",
         action="store_true",
-        help="删除虚拟环境（默认保留）"
+        help="Remove virtual environment (kept by default)"
     )
 
     parser.add_argument(
         "--remove-data",
         action="store_true",
-        help="删除数据目录（默认保留）"
+        help="Remove data directory (kept by default)"
     )
 
     parser.add_argument(
         "--remove-model",
         action="store_true",
-        help="删除模型目录（默认保留）"
+        help="Remove model directory (kept by default)"
     )
 
     args = parser.parse_args()
 
-    # 创建卸载器并执行
+    # Create uninstaller and run
     uninstaller = WindowsUninstaller(
         keep_all=args.keep_all,
         remove_venv=args.remove_venv,
@@ -418,10 +417,10 @@ def main():
         success = uninstaller.run()
         sys.exit(0 if success else 1)
     except KeyboardInterrupt:
-        print("\n\n卸载被用户中断")
+        print("\n\nUninstall interrupted by user")
         sys.exit(1)
     except Exception as e:
-        print(f"\n\n卸载过程中发生错误：{e}")
+        print(f"\n\nError occurred during uninstall: {e}")
         import traceback
         traceback.print_exc()
         sys.exit(1)

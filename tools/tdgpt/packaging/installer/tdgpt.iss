@@ -28,7 +28,7 @@ UninstallDisplayIcon={#MyAppIco}
 Compression=lzma
 SolidCompression=yes
 CloseApplications=force
-DisableDirPage=yes
+DisableDirPage=no
 Uninstallable=yes
 ArchitecturesAllowed=x64
 ArchitecturesInstallIn64BitMode=x64
@@ -88,9 +88,6 @@ Name: "{app}\log"; Type: filesandordirs
 Name: "{group}\Start Taosanode"; Filename: "{app}\bin\start-taosanode.bat"
 Name: "{group}\Stop Taosanode"; Filename: "{app}\bin\stop-taosanode.bat"
 Name: "{group}\Status Taosanode"; Filename: "{app}\bin\status-taosanode.bat"
-Name: "{group}\Log Viewer"; Filename: "{app}\bin\log-viewer.bat"; Comment: "View TDGPT logs"
-Name: "{group}\Configuration Wizard"; Filename: "{app}\bin\config-wizard.bat"; Comment: "Configure TDGPT settings"
-Name: "{group}\Check for Updates"; Filename: "{app}\bin\check-update.bat"; Comment: "Check for new versions"
 Name: "{group}\Uninstall {#MyAppName}"; Filename: "{uninstallexe}"
 Name: "{commondesktop}\Start Taosanode"; Filename: "{app}\bin\start-taosanode.bat"; Tasks: desktopicon
 
@@ -108,7 +105,10 @@ var
   InstallModePage: TInputOptionWizardPage;
   ModelSelectionPage: TInputOptionWizardPage;
   IsOnlineMode: Boolean;
-  InstallAllModels: Boolean;
+  InstallChronos: Boolean;
+  InstallTimesfm: Boolean;
+  InstallMoirai: Boolean;
+  InstallMoment: Boolean;
 
 function NeedsAddPath(Param: string): boolean;
 var
@@ -139,18 +139,23 @@ begin
   // Set default to Online Mode
   InstallModePage.Values[0] := True;
 
-  // Create another page for model selection
+  // Create another page for model selection (checkboxes, not radio buttons)
   ModelSelectionPage := CreateInputOptionPage(InstallModePage.ID,
-    'Model Selection', 'Select which models to install',
-    'Choose the models you want to install:',
-    True, False);
+    'Model Selection', 'Select which optional models to install',
+    'Required models (TDTSFM, TimeMoE) are always installed. Select additional models:',
+    False, False);
 
-  // Add model selection options
-  ModelSelectionPage.Add('Install required models only (tdtsfm, timemoe)');
-  ModelSelectionPage.Add('Install all models (includes chronos, timesfm, moirai, moment)');
+  // Add model selection options (checkboxes)
+  ModelSelectionPage.Add('Chronos (amazon/chronos-bolt-base)');
+  ModelSelectionPage.Add('TimesFM (google/timesfm-2.0-500m-pytorch)');
+  ModelSelectionPage.Add('Moirai (Salesforce/moirai-moe-1.0-R-base)');
+  ModelSelectionPage.Add('MomentFM (AutonLab/MOMENT-1-large)');
 
-  // Set default to required models only
-  ModelSelectionPage.Values[0] := True;
+  // Default: check Moirai and MomentFM
+  ModelSelectionPage.Values[0] := False;   // Chronos
+  ModelSelectionPage.Values[1] := False;   // TimesFM
+  ModelSelectionPage.Values[2] := True;    // Moirai
+  ModelSelectionPage.Values[3] := True;    // MomentFM
 end;
 
 function NextButtonClick(CurPageID: Integer): Boolean;
@@ -166,7 +171,10 @@ begin
   // Save user selections when leaving the model selection page
   if CurPageID = ModelSelectionPage.ID then
   begin
-    InstallAllModels := ModelSelectionPage.Values[1];
+    InstallChronos := ModelSelectionPage.Values[0];
+    InstallTimesfm := ModelSelectionPage.Values[1];
+    InstallMoirai := ModelSelectionPage.Values[2];
+    InstallMoment := ModelSelectionPage.Values[3];
   end;
 end;
 
@@ -178,9 +186,16 @@ begin
   if not IsOnlineMode then
     Result := Result + '-o ';
 
-  // Add all models flag if selected
-  if InstallAllModels then
-    Result := Result + '-a ';
+  // Build model list from checkbox selections
+  // Required models (tdtsfm, timemoe) are always included by install.py
+  if InstallChronos then
+    Result := Result + '--model chronos ';
+  if InstallTimesfm then
+    Result := Result + '--model timesfm ';
+  if InstallMoirai then
+    Result := Result + '--model moirai ';
+  if InstallMoment then
+    Result := Result + '--model moment ';
 
   // Trim trailing space
   Result := Trim(Result);

@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
 """
 TDGPT Taosanode Unified Service Manager
-统一的服务管理脚本，支持 Linux 和 Windows
+Cross-platform service management for Linux and Windows
 
 Usage:
     python taosanode_service.py [command] [options]
 
 Commands:
-    start               启动 taosanode 主服务
-    stop                停止 taosanode 主服务
-    status              查看服务状态
-    model-start [name]  启动模型服务 (name: tdtsfm, timemoe, chronos, moirai, moment, timesfm, all)
-    model-stop [name]   停止模型服务
-    model-status        查看模型服务状态
-    install             安装为系统服务（Windows: 服务, Linux: systemd）
-    uninstall           卸载系统服务
+    start               Start taosanode main service
+    stop                Stop taosanode main service
+    status              Show service status
+    model-start [name]  Start model service (name: tdtsfm, timemoe, chronos, moirai, moment, timesfm, all)
+    model-stop [name]   Stop model service
+    model-status        Show model service status
+    install             Install as system service (Windows: winsw, Linux: systemd)
+    uninstall           Uninstall system service
 
 Examples:
     python taosanode_service.py start
@@ -62,30 +62,30 @@ _logger = None
 
 
 def setup_logger(name: str, log_file: str, level=logging.INFO) -> logging.Logger:
-    """创建并配置logger实例
+    """Create and configure a logger instance
 
     Args:
-        name: logger名称
-        log_file: 日志文件路径
-        level: 日志级别
+        name: Logger name (used to distinguish log sources)
+        log_file: Log file path
+        level: Log level
 
     Returns:
-        配置好的logger实例
+        Configured logger instance
     """
     logger = logging.getLogger(name)
 
-    # 避免重复添加handler
+    # Avoid adding duplicate handlers
     if logger.handlers:
         return logger
 
     logger.setLevel(level)
 
-    # 确保日志目录存在
+    # Ensure log directory exists
     log_dir = os.path.dirname(log_file)
     if log_dir:
         os.makedirs(log_dir, exist_ok=True)
 
-    # 文件handler（带轮转）
+    # File handler with rotation
     file_handler = RotatingFileHandler(
         log_file,
         maxBytes=10*1024*1024,  # 10MB
@@ -98,7 +98,7 @@ def setup_logger(name: str, log_file: str, level=logging.INFO) -> logging.Logger
     )
     file_handler.setFormatter(file_formatter)
 
-    # 控制台handler
+    # Console handler
     console_handler = logging.StreamHandler()
     console_handler.setLevel(level)
     console_formatter = logging.Formatter('%(levelname)s: %(message)s')
@@ -111,16 +111,16 @@ def setup_logger(name: str, log_file: str, level=logging.INFO) -> logging.Logger
 
 
 def get_logger(name: str = "taosanode_service") -> logging.Logger:
-    """获取全局logger实例"""
+    """Get global logger instance"""
     global _logger
     if _logger is None:
-        log_file = os.path.join(DEFAULT_LOG_DIR, "taosanode_service.log")
+        log_file = os.path.join(DEFAULT_LOG_DIR, "taosanode.log")
         _logger = setup_logger(name, log_file)
     return _logger
 
 
 class Config:
-    """配置管理类"""
+    """Configuration manager"""
 
     def __init__(self, config_path: Optional[str] = None):
         self.install_dir = DEFAULT_INSTALL_DIR
@@ -128,10 +128,10 @@ class Config:
         self.log_dir = DEFAULT_LOG_DIR
         self.cfg_dir = os.path.join(self.install_dir, "cfg")
 
-        # Initialize logger
+        # All management loggers write to the same taosanode.log
         self.logger = setup_logger(
             'Config',
-            os.path.join(self.log_dir, 'config.log')
+            os.path.join(self.log_dir, 'taosanode.log')
         )
 
         # Try to load from taosanode.config.py
@@ -273,24 +273,24 @@ class Config:
 
 
 class ProcessManager:
-    """进程管理类"""
+    """Process lifecycle manager"""
 
     def __init__(self, config: Config):
         self.config = config
         self.logger = setup_logger(
             'ProcessManager',
-            os.path.join(config.log_dir, 'process_manager.log')
+            os.path.join(config.log_dir, 'taosanode.log')
         )
         self._ensure_dirs()
 
     def _ensure_dirs(self):
-        """确保必要的目录存在"""
+        """Ensure required directories exist"""
         os.makedirs(self.config.log_dir, exist_ok=True)
         os.makedirs(self.config.data_dir, exist_ok=True)
         os.makedirs(MODEL_PID_DIR, exist_ok=True)
 
     def _get_python_exe(self, venv_dir: Optional[str] = None) -> str:
-        """获取 Python 解释器路径"""
+        """Get Python interpreter path"""
         if venv_dir is None:
             venv_dir = self.config.venv_dir
 
@@ -308,14 +308,14 @@ class ProcessManager:
         return python_exe
 
     def _get_pid_file(self, service_name: str = "taosanode") -> str:
-        """获取 PID 文件路径"""
+        """Get PID file path"""
         if service_name == "taosanode":
             return self.config.pid_file
         else:
             return os.path.join(MODEL_PID_DIR, f"{service_name}.pid")
 
     def read_pid(self, service_name: str = "taosanode") -> Optional[int]:
-        """读取 PID"""
+        """Read PID from file"""
         pid_file = self._get_pid_file(service_name)
         try:
             if os.path.exists(pid_file):
@@ -326,20 +326,20 @@ class ProcessManager:
         return None
 
     def write_pid(self, pid: int, service_name: str = "taosanode"):
-        """写入 PID"""
+        """Write PID to file"""
         pid_file = self._get_pid_file(service_name)
         os.makedirs(os.path.dirname(pid_file), exist_ok=True)
         with open(pid_file, 'w') as f:
             f.write(str(pid))
 
     def remove_pid(self, service_name: str = "taosanode"):
-        """删除 PID 文件"""
+        """Remove PID file"""
         pid_file = self._get_pid_file(service_name)
         if os.path.exists(pid_file):
             os.remove(pid_file)
 
     def is_running(self, service_name: str = "taosanode") -> bool:
-        """检查服务是否运行"""
+        """Check if service is running"""
         pid = self.read_pid(service_name)
         if pid is None:
             return False
@@ -374,7 +374,7 @@ class ProcessManager:
             return False
 
     def wait_for_service(self, service_name: str, timeout: int = 10) -> bool:
-        """等待服务启动，使用轮询检查"""
+        """Wait for service to start using polling"""
         start_time = time.time()
         while time.time() - start_time < timeout:
             if self.is_running(service_name):
@@ -383,7 +383,7 @@ class ProcessManager:
         return False
 
     def kill_process(self, pid: int, force: bool = False):
-        """终止进程"""
+        """Kill a process by PID"""
         try:
             if IS_WINDOWS:
                 if force:
@@ -400,18 +400,18 @@ class ProcessManager:
 
 
 class TaosanodeService:
-    """Taosanode 主服务管理"""
+    """Taosanode main service manager"""
 
     def __init__(self, config: Config, process_mgr: ProcessManager):
         self.config = config
         self.process_mgr = process_mgr
         self.logger = setup_logger(
             'TaosanodeService',
-            os.path.join(config.log_dir, 'taosanode_service.log')
+            os.path.join(config.log_dir, 'taosanode.log')
         )
 
     def start(self) -> bool:
-        """启动 taosanode 服务"""
+        """Start taosanode service"""
         if self.process_mgr.is_running("taosanode"):
             self.logger.info("Taosanode is already running")
             return True
@@ -473,7 +473,7 @@ class TaosanodeService:
         try:
             if IS_WINDOWS:
                 # Windows: redirect output to log file for debugging
-                log_file = os.path.join(self.config.log_dir, "taosanode_startup.log")
+                log_file = os.path.join(self.config.log_dir, "taosanode_stdout.log")
                 with open(log_file, 'a') as log:
                     proc = subprocess.Popen(
                         cmd,
@@ -511,7 +511,7 @@ class TaosanodeService:
             return False
 
     def stop(self) -> bool:
-        """停止 taosanode 服务"""
+        """Stop taosanode service"""
         if not self.process_mgr.is_running("taosanode"):
             self.logger.info("Taosanode is not running")
             self.process_mgr.remove_pid("taosanode")
@@ -535,7 +535,7 @@ class TaosanodeService:
         return True
 
     def status(self) -> Dict:
-        """获取服务状态"""
+        """Get service status"""
         is_running = self.process_mgr.is_running("taosanode")
         pid = self.process_mgr.read_pid("taosanode")
 
@@ -547,7 +547,7 @@ class TaosanodeService:
         }
 
     def install_service(self) -> bool:
-        """安装Windows服务"""
+        """Install Windows service"""
         if not IS_WINDOWS:
             self.logger.error("Service installation is only supported on Windows")
             return False
@@ -558,7 +558,7 @@ class TaosanodeService:
             return False
 
         try:
-            # 安装服务
+            # Install service
             subprocess.run([service_exe, "install"], check=True, cwd=self.config.install_dir)
             self.logger.info("Service installed successfully")
             self.logger.info("To start the service: net start Taosanode")
@@ -569,7 +569,7 @@ class TaosanodeService:
             return False
 
     def uninstall_service(self) -> bool:
-        """卸载Windows服务"""
+        """Uninstall Windows service"""
         if not IS_WINDOWS:
             self.logger.error("Service uninstallation is only supported on Windows")
             return False
@@ -580,11 +580,11 @@ class TaosanodeService:
             return True
 
         try:
-            # 先停止服务
+            # Stop service first
             subprocess.run([service_exe, "stop"], capture_output=True)
             time.sleep(2)
 
-            # 卸载服务
+            # Uninstall service
             subprocess.run([service_exe, "uninstall"], check=True, cwd=self.config.install_dir)
             self.logger.info("Service uninstalled successfully")
             return True
@@ -593,7 +593,7 @@ class TaosanodeService:
             return False
 
     def start_service(self) -> bool:
-        """启动Windows服务"""
+        """Start Windows service"""
         if not IS_WINDOWS:
             self.logger.error("Service management is only supported on Windows")
             return False
@@ -607,7 +607,7 @@ class TaosanodeService:
             return False
 
     def stop_service(self) -> bool:
-        """停止Windows服务"""
+        """Stop Windows service"""
         if not IS_WINDOWS:
             self.logger.error("Service management is only supported on Windows")
             return False
@@ -622,18 +622,18 @@ class TaosanodeService:
 
 
 class ModelService:
-    """模型服务管理"""
+    """Model service manager"""
 
     def __init__(self, config: Config, process_mgr: ProcessManager):
         self.config = config
         self.process_mgr = process_mgr
         self.logger = setup_logger(
             'ModelService',
-            os.path.join(config.log_dir, 'model_service.log')
+            os.path.join(config.log_dir, 'taosanode.log')
         )
 
     def _get_model_venv(self, model_name: str) -> str:
-        """获取模型对应的虚拟环境"""
+        """Get virtual environment path for a model"""
         if model_name == "timesfm":
             return self.config.timesfm_venv
         elif model_name == "moirai":
@@ -662,7 +662,7 @@ class ModelService:
         return args
 
     def start(self, model_name: str) -> bool:
-        """启动模型服务"""
+        """Start model service"""
         if model_name == "all":
             return self._start_all()
 
@@ -708,7 +708,7 @@ class ModelService:
 
         # Log file with rotation
         log_file = os.path.join(
-            self.config.log_dir, f"taosanode_service_{model_name}.log"
+            self.config.log_dir, f"model_{model_name}.log"
         )
 
         # Setup rotating file handler for logging
@@ -765,7 +765,7 @@ class ModelService:
             return False
 
     def _start_all(self) -> bool:
-        """启动所有模型 - 并发启动以提高效率"""
+        """Start all models concurrently"""
         from concurrent.futures import ThreadPoolExecutor, as_completed
 
         self.logger.info("Starting all models...")
@@ -828,7 +828,7 @@ class ModelService:
         return len(failed_models) == 0
 
     def stop(self, model_name: str) -> bool:
-        """停止模型服务"""
+        """Stop model service"""
         if model_name == "all":
             return self._stop_all()
 
@@ -861,7 +861,7 @@ class ModelService:
         return True
 
     def _stop_all(self) -> bool:
-        """停止所有模型 - 并发停止"""
+        """Stop all models concurrently"""
         from concurrent.futures import ThreadPoolExecutor, as_completed
 
         self.logger.info("Stopping all models...")
@@ -892,7 +892,7 @@ class ModelService:
         return all(results.values())
 
     def status(self) -> List[Dict]:
-        """获取所有模型状态"""
+        """Get all model statuses"""
         statuses = []
         for model_name in self.config.models.keys():
             service_name = f"model-{model_name}"
@@ -908,8 +908,8 @@ class ModelService:
         return statuses
 
 
-def print_status(status: Dict or List):
-    """打印状态信息"""
+def print_status(status):
+    """Print service status"""
     if isinstance(status, list):
         print("-" * 50)
         print(f"{'Model':<15} {'Status':<10} {'PID':<10}")
@@ -935,16 +935,16 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-    %(prog)s start                    # 启动 taosanode
-    %(prog)s stop                     # 停止 taosanode
-    %(prog)s status                   # 查看状态
-    %(prog)s model-start tdtsfm       # 启动 tdtsfm 模型
-    %(prog)s model-start all          # 启动所有模型
-    %(prog)s model-stop all           # 停止所有模型
-    %(prog)s install-service          # 安装Windows服务
-    %(prog)s uninstall-service        # 卸载Windows服务
-    %(prog)s start-service            # 启动Windows服务
-    %(prog)s stop-service             # 停止Windows服务
+    %(prog)s start                    # Start taosanode
+    %(prog)s stop                     # Stop taosanode
+    %(prog)s status                   # Show status
+    %(prog)s model-start tdtsfm       # Start tdtsfm model
+    %(prog)s model-start all          # Start all models
+    %(prog)s model-stop all           # Stop all models
+    %(prog)s install-service          # Install Windows service
+    %(prog)s uninstall-service        # Uninstall Windows service
+    %(prog)s start-service            # Start Windows service
+    %(prog)s stop-service             # Stop Windows service
         """
     )
 

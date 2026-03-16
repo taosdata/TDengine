@@ -342,15 +342,6 @@ def copy_service_scripts():
         shutil.copy2(src_uninstall, dst_uninstall)
         logging.info("Copied uninstall.py")
 
-    # Copy GUI tools (log viewer, config wizard, update checker)
-    gui_tools = ["log_viewer.py", "config_wizard.py", "check_update.py"]
-    for tool in gui_tools:
-        src_tool = os.path.join(source_script_dir, tool)
-        dst_tool = os.path.join(bin_dir, tool)
-        if os.path.exists(src_tool):
-            shutil.copy2(src_tool, dst_tool)
-            logging.info(f"Copied {tool}")
-
     # Create wrapper batch scripts for Windows
     create_service_wrappers(bin_dir)
 
@@ -447,37 +438,6 @@ python "%~dp0taosanode_service.py" model-status %*
 pause
 """)
     logging.info("Created status-model.bat")
-
-    # log-viewer.bat
-    log_viewer_bat = os.path.join(bin_dir, "log-viewer.bat")
-    with open(log_viewer_bat, 'w') as f:
-        f.write("""@echo off
-chcp 65001 >nul
-REM Launch log viewer
-python "%~dp0log_viewer.py"
-""")
-    logging.info("Created log-viewer.bat")
-
-    # config-wizard.bat
-    config_wizard_bat = os.path.join(bin_dir, "config-wizard.bat")
-    with open(config_wizard_bat, 'w') as f:
-        f.write("""@echo off
-chcp 65001 >nul
-REM Launch configuration wizard
-python "%~dp0config_wizard.py"
-""")
-    logging.info("Created config-wizard.bat")
-
-    # check-update.bat
-    check_update_bat = os.path.join(bin_dir, "check-update.bat")
-    with open(check_update_bat, 'w') as f:
-        f.write("""@echo off
-chcp 65001 >nul
-REM Check for updates
-python "%~dp0check_update.py"
-pause
-""")
-    logging.info("Created check-update.bat")
 
 
 def create_install_script():
