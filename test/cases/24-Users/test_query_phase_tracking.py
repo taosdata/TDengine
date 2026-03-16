@@ -262,6 +262,12 @@ class TestQueryPhaseTracking:
                         tid_str, status, start_time = fields
                         assert tid_str.isdigit(), f"tid should be numeric, got: {tid_str}"
                         assert len(status) > 0, f"status should not be empty"
+                        assert "/" in status, \
+                            f"status should be fine-grained (type/state), got: {status}"
+                        type_part, state_part = status.split("/", 1)
+                        valid_types = ["scan", "merge", "modify", "compute", "partial", "task"]
+                        assert type_part in valid_types, \
+                            f"task type should be one of {valid_types}, got: {type_part}"
                         if start_time != "-":
                             assert "." in start_time, \
                                 f"startTime should be human-readable (YYYY-MM-DD HH:MM:SS.ms) or '-', got: {start_time}"
