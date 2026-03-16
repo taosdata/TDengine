@@ -7067,7 +7067,6 @@ int32_t tSerializeSCreateDbReq(void *buf, int32_t bufLen, SCreateDbReq *pReq) {
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->pageSize));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->pages));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->cacheLastSize));
-  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->cacheLastShards));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->daysPerFile));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->daysToKeep0));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->daysToKeep1));
@@ -7119,6 +7118,8 @@ int32_t tSerializeSCreateDbReq(void *buf, int32_t bufLen, SCreateDbReq *pReq) {
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->isAudit));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->secureDelete));
 
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->cacheLastShards));
+
   tEndEncode(&encoder);
 
 _exit:
@@ -7145,7 +7146,6 @@ int32_t tDeserializeSCreateDbReq(void *buf, int32_t bufLen, SCreateDbReq *pReq) 
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->pageSize));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->pages));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->cacheLastSize));
-  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->cacheLastShards));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->daysPerFile));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->daysToKeep0));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->daysToKeep1));
@@ -7237,6 +7237,11 @@ int32_t tDeserializeSCreateDbReq(void *buf, int32_t bufLen, SCreateDbReq *pReq) 
   } else {
     pReq->secureDelete = TSDB_DEFAULT_DB_SECURE_DELETE;
   }
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->cacheLastShards));
+  } else {
+    pReq->cacheLastShards = -1;
+  }
 
   tEndDecode(&decoder);
 
@@ -7265,7 +7270,6 @@ int32_t tSerializeSAlterDbReq(void *buf, int32_t bufLen, SAlterDbReq *pReq) {
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->pageSize));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->pages));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->cacheLastSize));
-  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->cacheLastShards));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->daysPerFile));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->daysToKeep0));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->daysToKeep1));
@@ -7299,6 +7303,7 @@ int32_t tSerializeSAlterDbReq(void *buf, int32_t bufLen, SAlterDbReq *pReq) {
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->isAudit));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->allowDrop));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->secureDelete));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->cacheLastShards));
   tEndEncode(&encoder);
 
 _exit:
@@ -7323,7 +7328,6 @@ int32_t tDeserializeSAlterDbReq(void *buf, int32_t bufLen, SAlterDbReq *pReq) {
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->pageSize));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->pages));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->cacheLastSize));
-  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->cacheLastShards));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->daysPerFile));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->daysToKeep0));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->daysToKeep1));
@@ -7399,6 +7403,12 @@ int32_t tDeserializeSAlterDbReq(void *buf, int32_t bufLen, SAlterDbReq *pReq) {
     TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->secureDelete));
   } else {
     pReq->secureDelete = -1;
+  } 
+
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->cacheLastShards));
+  } else {
+    pReq->cacheLastShards = -1;
   }
 
   tEndDecode(&decoder);
@@ -10833,7 +10843,6 @@ int32_t tSerializeSCreateVnodeReq(void *buf, int32_t bufLen, SCreateVnodeReq *pR
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->pageSize));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->pages));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->cacheLastSize));
-  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->cacheLastShards));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->daysPerFile));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->daysToKeep0));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->daysToKeep1));
@@ -10925,7 +10934,6 @@ int32_t tDeserializeSCreateVnodeReq(void *buf, int32_t bufLen, SCreateVnodeReq *
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->pageSize));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->pages));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->cacheLastSize));
-  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->cacheLastShards));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->daysPerFile));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->daysToKeep0));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->daysToKeep1));
@@ -11018,6 +11026,12 @@ int32_t tDeserializeSCreateVnodeReq(void *buf, int32_t bufLen, SCreateVnodeReq *
     TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->secureDelete));
   } else {
     pReq->secureDelete = TSDB_DEFAULT_DB_SECURE_DELETE;
+  }
+
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->cacheLastShards));
+  } else {
+    pReq->cacheLastShards = -1;
   }
 
   tEndDecode(&decoder);
@@ -11364,7 +11378,6 @@ int32_t tSerializeSAlterVnodeConfigReq(void *buf, int32_t bufLen, SAlterVnodeCon
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->pageSize));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->pages));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->cacheLastSize));
-  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->cacheLastShards));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->daysPerFile));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->daysToKeep0));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->daysToKeep1));
@@ -11390,6 +11403,8 @@ int32_t tSerializeSAlterVnodeConfigReq(void *buf, int32_t bufLen, SAlterVnodeCon
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->allowDrop));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->secureDelete));
 
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->cacheLastShards));
+
   tEndEncode(&encoder);
 
 _exit:
@@ -11414,7 +11429,6 @@ int32_t tDeserializeSAlterVnodeConfigReq(void *buf, int32_t bufLen, SAlterVnodeC
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->pageSize));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->pages));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->cacheLastSize));
-  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->cacheLastShards));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->daysPerFile));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->daysToKeep0));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->daysToKeep1));
@@ -11464,6 +11478,12 @@ int32_t tDeserializeSAlterVnodeConfigReq(void *buf, int32_t bufLen, SAlterVnodeC
     TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->secureDelete));
   } else {
     pReq->secureDelete = TSDB_DEFAULT_DB_SECURE_DELETE;
+  }
+
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->cacheLastShards));
+  } else {
+    pReq->cacheLastShards = -1;
   }
 
   tEndDecode(&decoder);
