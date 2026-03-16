@@ -74,19 +74,19 @@ bin/
 
 ```bash
 # Community 版本（生产打包，需要模型文件）
-python packaging/win_release.py -e community -v 3.3.6.0 -m D:\workspace\models
+python packaging/win_release.py -e community -v 3.4.0.11.0316 -m D:\workspace\models
 
 # Enterprise 版本
-python packaging/win_release.py -e enterprise -v 3.3.6.0 -m D:\workspace\models
+python packaging/win_release.py -e enterprise -v 3.4.0.11.0316 -m D:\workspace\models
 
 # 包含所有模型
-python packaging/win_release.py -e community -v 3.3.6.0 -m D:\workspace\models -a
+python packaging/win_release.py -e community -v 3.4.0.11.0316 -m D:\workspace\models -a
 
 # 自定义输出目录
-python packaging/win_release.py -e community -v 3.3.6.0 -m D:\workspace\models -o D:\workspace\main\release
+python packaging/win_release.py -e community -v 3.4.0.11.0316 -m D:\workspace\models -o D:\workspace\main\release
 
 # 测试模式（快速验证打包流程，无需模型文件）
-python packaging/win_release.py -e community -v 3.3.6.0 --skip-model-check
+python packaging/win_release.py -e community -v 3.4.0.11.0316 --skip-model-check
 ```
 
 ### 模型文件要求
@@ -108,7 +108,7 @@ python packaging/win_release.py -e community -v 3.3.6.0 --skip-model-check
 | 参数 | 简写 | 说明 | 必填 |
 |------|------|------|------|
 | `--edition` | `-e` | 版本类型: enterprise 或 community | 是 |
-| `--version` | `-v` | 版本号 (如 3.3.6.0) | 是 |
+| `--version` | `-v` | 版本号 (如 3.4.0.11.0316) | 是 |
 | `--model-dir` | `-m` | 模型文件目录（生产必需） | 生产必需 |
 | `--all-models` | `-a` | 打包所有模型 | 否 |
 | `--output` | `-o` | 输出目录 (默认: D:\tdgpt-release) | 否 |

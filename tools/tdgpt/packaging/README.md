@@ -74,19 +74,19 @@ bin/
 
 ```bash
 # Community edition (production packaging, requires model files)
-python packaging/win_release.py -e community -v 3.3.6.0 -m D:\models
+python packaging/win_release.py -e community -v 3.4.0.11.0316 -m D:\models
 
 # Enterprise edition
-python packaging/win_release.py -e enterprise -v 3.3.6.0 -m D:\models
+python packaging/win_release.py -e enterprise -v 3.4.0.11.0316 -m D:\models
 
 # Include all models
-python packaging/win_release.py -e community -v 3.3.6.0 -m D:\models -a
+python packaging/win_release.py -e community -v 3.4.0.11.0316 -m D:\models -a
 
 # Custom output directory
-python packaging/win_release.py -e community -v 3.3.6.0 -m D:\models -o D:\release
+python packaging/win_release.py -e community -v 3.4.0.11.0316 -m D:\models -o D:\release
 
 # Testing mode (quick workflow validation, no model files needed)
-python packaging/win_release.py -e community -v 3.3.6.0 --skip-model-check
+python packaging/win_release.py -e community -v 3.4.0.11.0316 --skip-model-check
 ```
 
 ### Model Files Requirements
@@ -108,7 +108,7 @@ python packaging/win_release.py -e community -v 3.3.6.0 --skip-model-check
 | Parameter | Short | Description | Required |
 |-----------|-------|-------------|----------|
 | `--edition` | `-e` | Edition type: enterprise or community | Yes |
-| `--version` | `-v` | Version number (e.g., 3.3.6.0) | Yes |
+| `--version` | `-v` | Version number (e.g., 3.4.0.11.0316) | Yes |
 | `--model-dir` | `-m` | Model files directory (required for production) | Production only |
 | `--all-models` | `-a` | Package all models | No |
 | `--output` | `-o` | Output directory (default: D:\tdgpt-release) | No |

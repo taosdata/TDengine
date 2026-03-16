@@ -72,7 +72,7 @@ def parse_arguments():
     parser.add_argument('-e', '--edition', type=str, required=True,
                         help='Set edition type (enterprise or community)')
     parser.add_argument('-v', '--version', type=str, required=True,
-                        help='Set version number (e.g., 3.3.6.0)')
+                        help='Set version number (e.g., 3.4.0.11)')
     parser.add_argument('-m', '--model-dir', type=str, default="",
                         help='Set model files directory')
     parser.add_argument('-a', '--all-models', action='store_true',
