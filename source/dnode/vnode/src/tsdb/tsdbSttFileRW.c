@@ -912,6 +912,8 @@ int32_t tsdbSttFileWriterOpen(const SSttFileWriterConfig *config, SSttFileWriter
 }
 
 int32_t tsdbSttFileWriterClose(SSttFileWriter **writer, int8_t abort, TFileOpArray *opArray) {
+  if (writer == NULL || writer[0] == NULL) return 0;
+
   int32_t code = 0;
   int32_t lino = 0;
 
