@@ -56,8 +56,11 @@ int32_t mndInitTxn(SMnode *pMnode) {
   };
 
   mndSetMsgHandle(pMnode, TDMT_MND_BEGIN_TRANS, mndProcessBeginTxnReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_BEGIN_TRANS_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_COMMIT_TRANS, mndProcessCommitTxnReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_COMMIT_TRANS_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_ROLLBACK_TRANS, mndProcessRollbackTxnReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_ROLLBACK_TRANS_RSP, mndTransProcessRsp);
 
   //   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_TXN, mndRetrieveTxn);
   //   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_TXN, mndCancelRetrieveTxn);
@@ -136,7 +139,7 @@ static SSdbRaw *mndTxnActionEncode(STxnObj *pObj) {
   }
 
   int32_t size = sizeof(int32_t) + tlen;
-  pRaw = sdbAllocRaw(SDB_RSMA, MND_TXN_VER_NUMBER, size);
+  pRaw = sdbAllocRaw(SDB_TXN, MND_TXN_VER_NUMBER, size);
   if (pRaw == NULL) {
     TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
   }
@@ -410,7 +413,7 @@ static int32_t mndSetCreateTxnRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj
 
   TAOS_RETURN(code);
 }
-
+#endif
 static int32_t mndSetCreateTxnCommitLogs(SMnode *pMnode, STrans *pTrans, STxnObj *pTxn) {
   int32_t  code = 0;
   SSdbRaw *pCommitRaw = mndTxnActionEncode(pTxn);
@@ -424,7 +427,7 @@ static int32_t mndSetCreateTxnCommitLogs(SMnode *pMnode, STrans *pTrans, STxnObj
 
   TAOS_RETURN(code);
 }
-
+#if 0
 static int32_t mndSetDropTxnPrepareLogs(SMnode *pMnode, STrans *pTrans, STxnObj *pTxn) {
   int32_t  code = 0;
   SSdbRaw *pRedoRaw = mndTxnActionEncode(pTxn);
@@ -616,67 +619,48 @@ _exit:
   TAOS_RETURN(code);
 }
 
-static int32_t mndCreateTxn(SMnode *pMnode, SRpcMsg *pReq, SUserObj *pUser, SDbObj *pDb, SStbObj *pStb,
-                             SMCreateTxnReq *pCreate) {
-  int32_t  code = 0, lino = 0;
+#endif
+
+static int32_t mndBeginTxn(SMnode *pMnode, SRpcMsg *pReq, SUserObj *pUser, SMTransReq *pTransReq) {
+  int32_t code = 0, lino = 0;
   STxnObj obj = {0};
-  STrans  *pTrans = NULL;
+  STrans *pTrans = NULL;
 
-  (void)snprintf(obj.name, TSDB_TABLE_NAME_LEN, "%s", pCreate->name);
-  (void)snprintf(obj.dbFName, TSDB_DB_FNAME_LEN, "%s", pDb->name);
-
-  const char *tbName = strrchr(pCreate->tbFName, '.');
-  (void)snprintf(obj.tbName, TSDB_TABLE_NAME_LEN, "%s", tbName ? tbName + 1 : pCreate->tbFName);
   (void)snprintf(obj.createUser, TSDB_USER_LEN, "%s", pUser->user);
   obj.ownerId = pUser->uid;
-  obj.createdTime = taosGetTimestampMs();
-  obj.updateTime = obj.createdTime;
-  obj.uid = mndGenerateUid(obj.name, strlen(obj.name));
-  obj.tbUid = pCreate->tbUid;
-  obj.dbUid = pDb->uid;
-  obj.interval[0] = pCreate->interval[0];
-  obj.interval[1] = pCreate->interval[1];
-  obj.version = 1;
-  obj.tbType = pCreate->tbType;  // ETableType: 1 stable. Only super table supported currently.
-  obj.intervalUnit = pCreate->intervalUnit;
-  obj.nFuncs = pCreate->nFuncs;
-  if (obj.nFuncs > 0) {
-    TSDB_CHECK_NULL((obj.funcColIds = taosMemoryCalloc(obj.nFuncs, sizeof(col_id_t))), code, lino, _exit, terrno);
-    TSDB_CHECK_NULL((obj.funcIds = taosMemoryCalloc(obj.nFuncs, sizeof(func_id_t))), code, lino, _exit, terrno);
-    for (int16_t i = 0; i < obj.nFuncs; ++i) {
-      obj.funcColIds[i] = pCreate->funcColIds[i];
-      obj.funcIds[i] = pCreate->funcIds[i];
-    }
-  }
+  obj.id = pTransReq->txnId;
+  obj.createTime = taosGetTimestampMs();
+  obj.lastActiveTime = obj.createTime;
+  obj.timeoutSec = 30;  // pReq->timeoutSec;
+  obj.stage = UTXN_STAGE_BEGIN;
 
-  TSDB_CHECK_NULL((pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB_INSIDE, pReq, "create-rsma")),
-                  code, lino, _exit, terrno);
-  mInfo("trans:%d, used to create rsma %s on tb %s.%s", pTrans->id, obj.name, obj.dbFName, obj.tbName);
+  TSDB_CHECK_NULL((pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pReq, "begin-txn")), code,
+                  lino, _exit, terrno);
+  mInfo("trans:%d, used to create txn %" PRIu64, pTrans->id, obj.id);
 
-  mndTransSetDbName(pTrans, obj.dbFName, obj.name);
+  // mndTransSetDbName(pTrans, obj.dbFName, obj.name);
   mndTransSetKillMode(pTrans, TRN_KILL_MODE_SKIP);
   TAOS_CHECK_EXIT(mndTransCheckConflict(pMnode, pTrans));
 
-  mndTransSetOper(pTrans, MND_OPER_CREATE_RSMA);
-  TAOS_CHECK_EXIT(mndSetCreateRsmaPrepareActions(pMnode, pTrans, &obj));
-  TAOS_CHECK_EXIT(mndSetCreateRsmaRedoActions(pMnode, pTrans, pDb, pStb, &obj, pCreate));
-  TAOS_CHECK_EXIT(mndSetCreateRsmaCommitLogs(pMnode, pTrans, &obj));
+  mndTransSetOper(pTrans, MND_OPER_BEGIN_TXN);
+  // TAOS_CHECK_EXIT(mndSetCreateRsmaPrepareActions(pMnode, pTrans, &obj));
+  // TAOS_CHECK_EXIT(mndSetCreateRsmaRedoActions(pMnode, pTrans, pDb, pStb, &obj, pReq));
+  TAOS_CHECK_EXIT(mndSetCreateTxnCommitLogs(pMnode, pTrans, &obj));
   TAOS_CHECK_EXIT(mndTransPrepare(pMnode, pTrans));
 _exit:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("rsma:%s, failed at line %d to create rsma, since %s", obj.name, lino, tstrerror(code));
+    mError("txn:%" PRIu64 ", failed at line %d to begin txn, since %s", obj.id, lino, tstrerror(code));
   }
   mndTransDrop(pTrans);
-  mndRsmaFreeObj(&obj);
   TAOS_RETURN(code);
 }
-#endif
 
 static int32_t mndProcessBeginTxnReq(SRpcMsg *pReq) {
   int32_t code = 0, lino = 0;
 
   SMnode    *pMnode = pReq->info.node;
   STxnObj   *pTxn = NULL;
+  SUserObj  *pOperUser = NULL;
   int64_t    mTraceId = TRACE_GET_ROOTID(&pReq->info.traceId);
   SMTransReq txnReq = {0};
   int64_t    tss = taosGetTimestampMs();
@@ -691,11 +675,12 @@ static int32_t mndProcessBeginTxnReq(SRpcMsg *pReq) {
     txnReq.txnId = mndGenTxnId(pMnode->selfDnodeId);
   }
   mInfo("start to begin txn: %" PRIu64, txnReq.txnId);
+  TAOS_CHECK_EXIT(mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOperUser));
   if ((pTxn = mndAcquireTxn(pMnode, txnReq.txnId))) {
     TAOS_CHECK_EXIT(TSDB_CODE_TXN_ALREADY_EXISTS);
   }
 
-  // TAOS_CHECK_EXIT(mndCreateTxn(pMnode, &txnReq));
+  TAOS_CHECK_EXIT(mndBeginTxn(pMnode, pReq, pOperUser, &txnReq));
 
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
@@ -710,7 +695,7 @@ _exit:
     mError("txn:%" PRIu64 ", failed at line %d to begin since %s", txnReq.txnId, lino, tstrerror(code));
   }
   if (pTxn) mndReleaseTxn(pMnode, pTxn);
-  // tFreeSMTransReq(&txnReq);
+  mndReleaseUser(pMnode, pOperUser);
 
   TAOS_RETURN(code);
 }
@@ -760,6 +745,7 @@ static int32_t mndProcessRollbackTxnReq(SRpcMsg *pReq) {
 
   SMnode    *pMnode = pReq->info.node;
   STxnObj   *pTxn = NULL;
+  SUserObj  *pOperUser = NULL;
   int64_t    mTraceId = TRACE_GET_ROOTID(&pReq->info.traceId);
   SMTransReq txnReq = {0};
   int64_t    tss = taosGetTimestampMs();
@@ -791,7 +777,7 @@ _exit:
     mError("txn:%" PRIu64 ", failed at line %d to rollback since %s", txnReq.txnId, lino, tstrerror(code));
   }
   if (pTxn) mndReleaseTxn(pMnode, pTxn);
-  // tFreeSMTransReq(&txnReq);
+  mndReleaseUser(pMnode, pOperUser);
 
   TAOS_RETURN(code);
 }

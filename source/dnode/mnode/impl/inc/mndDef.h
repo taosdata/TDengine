@@ -123,8 +123,12 @@ typedef enum {
   MND_OPER_CREATE_XNODE_AGENT,
   MND_OPER_UPDATE_XNODE_AGENT,
   MND_OPER_DROP_XNODE_AGENT,
+  MND_OPER_BEGIN_TXN,
+  MND_OPER_COMMIT_TXN,
+  MND_OPER_ROLLBACK_TXN,
   MND_OPER_MAX  // the max operation type
-} EOperType;
+}
+EOperType;
 
 typedef enum {
   MND_AUTH_ACCT_START = 0,
