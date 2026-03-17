@@ -1,7 +1,7 @@
 <p align="center">
   <a href="https://www.taosdata.com" target="_blank">
   <img
-    src="tdengin-logo.svg"
+    src="tdengine-logo.svg"
     alt="TDengine"
     width="500"
   />
