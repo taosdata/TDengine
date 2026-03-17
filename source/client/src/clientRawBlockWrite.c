@@ -1804,10 +1804,6 @@ static int32_t taosAlterTable(TAOS* taos, void* meta, uint32_t metaLen) {
       vgReq.source = TD_REQ_FROM_TAOX;
       vgReq.tables = pTables;
 
-      if (strlen(tmqWriteRefDB) > 0) {
-        vgReq.refDbName = tmqWriteRefDB;
-      }
-
       // Encode request
       int tlen = 0;
       tEncodeSize(tEncodeSVAlterTbReq, &vgReq, tlen, code);
@@ -1901,18 +1897,6 @@ static int32_t taosAlterTable(TAOS* taos, void* meta, uint32_t metaLen) {
 
       int tlen = 0;
       req.source = TD_REQ_FROM_TAOX;
-
-      if (strlen(tmqWriteRefDB) > 0) {
-        req.refDbName = tmqWriteRefDB;
-      }
-
-      if (req.action == TSDB_ALTER_TABLE_ALTER_COLUMN_REF && tmqWriteCheckRef) {
-        RAW_RETURN_CHECK(checkColRefForAlter(pCatalog, &conn, pTscObj->acctId, req.refDbName, req.refTbName, req.refColName,
-          pRequest->pDb, req.tbName, req.colName));
-      }else if (req.action == TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COLUMN_REF && tmqWriteCheckRef) {
-        RAW_RETURN_CHECK(checkColRefForAdd(pCatalog, &conn, pTscObj->acctId, req.refDbName, req.refTbName, req.refColName,
-          pRequest->pDb, req.tbName, req.colName, req.type, req.bytes));
-      }
 
       tEncodeSize(tEncodeSVAlterTbReq, &req, tlen, code);
       RAW_RETURN_CHECK(code);
