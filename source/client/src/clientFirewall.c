@@ -5,12 +5,12 @@
 #include <ctype.h>
 #include <regex.h>
 #include <string.h>
-#include <stdatomic.h>
 #include "cJSON.h"
 #include "clientInt.h"
 #include "clientLog.h"
 #include "nodes.h"
 #include "querynodes.h"
+#include "os.h"
 
 #include "tglobal.h"
 #define SQL_SEC_MAX_RULES        128
@@ -80,8 +80,8 @@ typedef struct {
   int32_t       nextRuleId;
   // Thread related
   TdThread      thread;
-  atomic_bool   threadRunning;
-  atomic_bool   threadStop;
+  int8_t        threadRunning;  // atomic, use atomic_load_8/atomic_store_8
+  int8_t        threadStop;     // atomic, use atomic_load_8/atomic_store_8
   TdThreadCond  cond;
   TdThreadMutex threadLock;
 } SSqlLearningCtx;
@@ -183,14 +183,18 @@ static int32_t sqlSecSaveLearnedRules(const char* ruleFile) {
 
   if (pRoot == NULL) {
     pRoot = cJSON_CreateObject();
-    cJSON_AddStringToObject(pRoot, "version", "1.0");
+    (void)cJSON_AddStringToObject(pRoot, "version", "1.0");
     pRules = cJSON_CreateArray();
-    cJSON_AddItemToObject(pRoot, "rules", pRules);
+    if(pRules != NULL) {
+      (void)cJSON_AddItemToObject(pRoot, "rules", pRules);
+    }
   } else {
     pRules = cJSON_GetObjectItemCaseSensitive(pRoot, "rules");
     if (!cJSON_IsArray(pRules)) {
       pRules = cJSON_CreateArray();
-      cJSON_AddItemToObject(pRoot, "rules", pRules);
+      if(pRules != NULL) {
+        (void)cJSON_AddItemToObject(pRoot, "rules", pRules);
+      }
     }
   }
 
@@ -209,7 +213,9 @@ static int32_t sqlSecSaveLearnedRules(const char* ruleFile) {
           // This is a learned rule, mark it as existing
           // We use description as a simple way to identify duplicates
           // Better approach: store original pattern in description
-          taosHashPut(existingPatterns, desc, strlen(desc), &i, sizeof(i));
+          if (taosHashPut(existingPatterns, desc, strlen(desc), &i, sizeof(i)) != 0) {
+            tscError("sql security: failed to add existing pattern to hash");
+          }
         }
       }
     }
@@ -246,13 +252,15 @@ static int32_t sqlSecSaveLearnedRules(const char* ruleFile) {
       }
 
       cJSON* pRule = cJSON_CreateObject();
-      cJSON_AddNumberToObject(pRule, "ruleId", gLearningCtx.nextRuleId++);
+      if (pRule == NULL) continue;
+
+      (void)cJSON_AddNumberToObject(pRule, "ruleId", gLearningCtx.nextRuleId++);
 
       char ruleName[128];
       snprintf(ruleName, sizeof(ruleName), "LEARNED_RULE_%d", gLearningCtx.nextRuleId - 1);
-      cJSON_AddStringToObject(pRule, "ruleName", ruleName);
-      cJSON_AddStringToObject(pRule, "action", "ALLOW");
-      cJSON_AddStringToObject(pRule, "priority", "MEDIUM");
+      (void)cJSON_AddStringToObject(pRule, "ruleName", ruleName);
+      (void)cJSON_AddStringToObject(pRule, "action", "ALLOW");
+      (void)cJSON_AddStringToObject(pRule, "priority", "MEDIUM");
 
       // Convert pattern to regex
       // Replace ? with regex pattern for any value
@@ -279,13 +287,15 @@ static int32_t sqlSecSaveLearnedRules(const char* ruleFile) {
       }
       *dst = '\0';
 
-      cJSON_AddStringToObject(pRule, "pattern", regexPattern);
+      (void)cJSON_AddStringToObject(pRule, "pattern", regexPattern);
 
       snprintf(desc, sizeof(desc), "Learned pattern (count:%d) - Pattern: %s", pPattern->count, pPattern->pattern);
-      cJSON_AddStringToObject(pRule, "description", desc);
-      cJSON_AddBoolToObject(pRule, "enabled", true);
+      (void)cJSON_AddStringToObject(pRule, "description", desc);
+      (void)cJSON_AddBoolToObject(pRule, "enabled", true);
 
-      cJSON_AddItemToArray(pRules, pRule);
+      if(!cJSON_AddItemToArray(pRules, pRule)) {
+        tscError("sql security: failed to add rule to array");
+      }
       pPattern->exported = true;
       added++;
     }
@@ -301,7 +311,9 @@ static int32_t sqlSecSaveLearnedRules(const char* ruleFile) {
     if (jsonStr != NULL) {
       fp = taosOpenFile(ruleFile, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC);
       if (fp != NULL) {
-        taosWriteFile(fp, jsonStr, strlen(jsonStr));
+        if (taosWriteFile(fp, jsonStr, strlen(jsonStr)) != strlen(jsonStr)) {
+          tscError("sql security: failed to write learned rules to %s", ruleFile);
+        }
         TAOS_UNUSED(taosCloseFile(&fp));
         tscInfo("sql security: saved %d learned rules to %s", added, ruleFile);
 
@@ -332,8 +344,8 @@ static void sqlSecInitLearningOnce(void) {
   gLearningCtx.numOfPatterns = 0;
   gLearningCtx.startTs       = taosGetTimestampMs();
   gLearningCtx.nextRuleId    = 1000;  // Start from 1000 for learned rules
-  atomic_store(&gLearningCtx.threadRunning, false);
-  atomic_store(&gLearningCtx.threadStop, false);
+  atomic_store_8((int8_t volatile *)&gLearningCtx.threadRunning, 0);
+  atomic_store_8((int8_t volatile *)&gLearningCtx.threadStop, 0);
   tscInfo("sql security: learning mode initialized");
 }
 
@@ -399,7 +411,7 @@ static void* sqlSecLearningThreadFunc(void* arg) {
 
   (void)taosThreadMutexLock(&gLearningCtx.threadLock);
 
-  while (!atomic_load(&gLearningCtx.threadStop)) {
+  while (!atomic_load_8((int8_t volatile *)&gLearningCtx.threadStop)) {
     // Wait for 10 seconds or until signaled to stop
     struct timespec ts = {0};
     int64_t         nowMs = taosGetTimestampMs();
@@ -409,7 +421,7 @@ static void* sqlSecLearningThreadFunc(void* arg) {
 
     int ret = taosThreadCondTimedWait(&gLearningCtx.cond, &gLearningCtx.threadLock, &ts);
 
-    if (atomic_load(&gLearningCtx.threadStop)) {
+    if (atomic_load_8((int8_t volatile *)&gLearningCtx.threadStop)) {
       break;
     }
 
@@ -446,17 +458,17 @@ void sqlSecurityStartLearningThread() {
 
   (void)taosThreadMutexLock(&gLearningCtx.threadLock);
 
-  if (atomic_load(&gLearningCtx.threadRunning)) {
+  if (atomic_load_8((int8_t volatile *)&gLearningCtx.threadRunning)) {
     (void)taosThreadMutexUnlock(&gLearningCtx.threadLock);
     tscInfo("sql security: learning thread already running");
     return;
   }
 
-  atomic_store(&gLearningCtx.threadStop, false);
+  atomic_store_8((int8_t volatile *)&gLearningCtx.threadStop, 0);
 
   TdThreadAttr attr;
-  taosThreadAttrInit(&attr);
-  taosThreadAttrSetDetachState(&attr, PTHREAD_CREATE_JOINABLE);
+  (void)taosThreadAttrInit(&attr);
+  (void)taosThreadAttrSetDetachState(&attr, PTHREAD_CREATE_JOINABLE);
 
   if (taosThreadCreate(&gLearningCtx.thread, &attr, sqlSecLearningThreadFunc, NULL) != 0) {
     tscError("sql security: failed to create learning thread");
@@ -464,8 +476,8 @@ void sqlSecurityStartLearningThread() {
     return;
   }
 
-  taosThreadAttrDestroy(&attr);
-  atomic_store(&gLearningCtx.threadRunning, true);
+  (void)taosThreadAttrDestroy(&attr);
+  atomic_store_8((int8_t volatile *)&gLearningCtx.threadRunning, 1);
 
   (void)taosThreadMutexUnlock(&gLearningCtx.threadLock);
 
@@ -475,13 +487,13 @@ void sqlSecurityStartLearningThread() {
 void sqlSecurityStopLearningThread() {
   (void)taosThreadMutexLock(&gLearningCtx.threadLock);
 
-  if (!atomic_load(&gLearningCtx.threadRunning)) {
+  if (!atomic_load_8((int8_t volatile *)&gLearningCtx.threadRunning)) {
     (void)taosThreadMutexUnlock(&gLearningCtx.threadLock);
     tscInfo("sql security: learning thread not running");
     return;
   }
 
-  atomic_store(&gLearningCtx.threadStop, true);
+  atomic_store_8((int8_t volatile *)&gLearningCtx.threadStop, 1);
 
   // Signal the thread to wake up
   (void)taosThreadCondSignal(&gLearningCtx.cond);
@@ -489,10 +501,10 @@ void sqlSecurityStopLearningThread() {
   (void)taosThreadMutexUnlock(&gLearningCtx.threadLock);
 
   // Wait for thread to finish
-  taosThreadJoin(gLearningCtx.thread, NULL);
+  (void)taosThreadJoin(gLearningCtx.thread, NULL);
 
   (void)taosThreadMutexLock(&gLearningCtx.threadLock);
-  atomic_store(&gLearningCtx.threadRunning, false);
+  atomic_store_8((int8_t volatile *)&gLearningCtx.threadRunning, 0);
   (void)taosThreadMutexUnlock(&gLearningCtx.threadLock);
 
   tscInfo("sql security: learning thread stopped");
@@ -576,20 +588,28 @@ static void sqlSecLoadDefaultRules(SSqlSecCtx* pCtx) {
   if (pRules == NULL) return;
 
   cJSON* p1 = cJSON_CreateObject();
-  cJSON_AddNumberToObject(p1, "ruleId", 1);
-  cJSON_AddStringToObject(p1, "ruleName", "DENY_UNION_SELECT");
-  cJSON_AddStringToObject(p1, "action", "DENY");
-  cJSON_AddStringToObject(p1, "pattern", "union[[:space:]]+select");
-  cJSON_AddBoolToObject(p1, "enabled", true);
-  cJSON_AddItemToArray(pRules, p1);
+  if (p1 != NULL) {
+    (void)cJSON_AddNumberToObject(p1, "ruleId", 1);
+    (void)cJSON_AddStringToObject(p1, "ruleName", "DENY_UNION_SELECT");
+    (void)cJSON_AddStringToObject(p1, "action", "DENY");
+    (void)cJSON_AddStringToObject(p1, "pattern", "union[[:space:]]+select");
+    (void)cJSON_AddBoolToObject(p1, "enabled", true);
+    if(!cJSON_AddItemToArray(pRules, p1)) {
+      tscError("sql security: failed to add rule to array");
+    }
+  }
 
   cJSON* p2 = cJSON_CreateObject();
-  cJSON_AddNumberToObject(p2, "ruleId", 2);
-  cJSON_AddStringToObject(p2, "ruleName", "DENY_DROP_TABLE");
-  cJSON_AddStringToObject(p2, "action", "DENY");
-  cJSON_AddStringToObject(p2, "pattern", "drop[[:space:]]+table");
-  cJSON_AddBoolToObject(p2, "enabled", true);
-  cJSON_AddItemToArray(pRules, p2);
+  if (p2 != NULL) {
+    (void)cJSON_AddNumberToObject(p2, "ruleId", 2);
+    (void)cJSON_AddStringToObject(p2, "ruleName", "DENY_DROP_TABLE");
+    (void)cJSON_AddStringToObject(p2, "action", "DENY");
+    (void)cJSON_AddStringToObject(p2, "pattern", "drop[[:space:]]+table");
+    (void)cJSON_AddBoolToObject(p2, "enabled", true);
+    if(!cJSON_AddItemToArray(pRules, p2)) {
+      tscError("sql security: failed to add rule to array");
+    }
+  }
 
   int32_t n = cJSON_GetArraySize(pRules);
   for (int32_t i = 0; i < n; ++i) {
@@ -768,13 +788,13 @@ int32_t sqlSecurityCheckStringLevel(SRequestObj* pRequest, const char* sql, int3
   // Manage learning thread based on tsWhitelistLearning
   if (tsWhitelistLearning) {
     // Learning mode enabled, ensure thread is running
-    if (!atomic_load(&gLearningCtx.threadRunning)) {
+    if (!atomic_load_8((int8_t volatile *)&gLearningCtx.threadRunning)) {
       sqlSecurityStartLearningThread();
     }
     sqlSecRecordPattern(sql);
   } else {
     // Learning mode disabled, ensure thread is stopped
-    if (atomic_load(&gLearningCtx.threadRunning)) {
+    if (atomic_load_8((int8_t volatile *)&gLearningCtx.threadRunning)) {
       sqlSecurityStopLearningThread();
     }
   }

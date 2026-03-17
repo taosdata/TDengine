@@ -74,16 +74,16 @@ class TestWhitelistLearning:
             - 2025-03-16 Created based on 6670404791
         """
 
-        self.prepare()
-        self.test_learning_basic()
-        self.test_learning_with_different_values()
-        self.test_learning_threshold()
+        self.do_prepare()
+        self.basic_check()
+        self.different_values_check()
+        self.threshold_check()
 
         tdLog.success("%s successfully executed" % __file__)
 
-    def prepare(self):
+    def do_prepare(self):
         tdLog.info("Preparing test environment...")
-            # delete the rules_path file
+        # delete the rules_path file
         if os.path.exists(self._rules_path):
             os.remove(self._rules_path)
         tdLog.info("Rules path deleted")
@@ -117,7 +117,7 @@ class TestWhitelistLearning:
             raise Exception("Rules path not created")
         tdLog.info("Waiting for learning to complete...")
 
-    def test_learning_basic(self):
+    def basic_check(self):
         """Test basic learning functionality."""
         tdLog.info("=== Test 1: Basic Learning ===")
         tdSql.execute("alter local 'whitelistLearning' '0'")
@@ -131,7 +131,7 @@ class TestWhitelistLearning:
         tdSql.error("drop database db_learn")
         tdLog.success("Basic learning test passed")
 
-    def test_learning_with_different_values(self):
+    def different_values_check(self):
         """Test that different literal values map to same pattern."""
         tdLog.info("=== Test 2: Learning with different values ===")
         # Execute similar queries with different values
@@ -149,7 +149,7 @@ class TestWhitelistLearning:
 
         tdLog.success("Learning with different values test passed")
 
-    def test_learning_threshold(self):
+    def threshold_check(self):
         """Test that only frequent patterns are learned."""
         tdLog.info("=== Test 3: Learning threshold ===")
         # these sql only executed once, should not be learned since threshold is 3

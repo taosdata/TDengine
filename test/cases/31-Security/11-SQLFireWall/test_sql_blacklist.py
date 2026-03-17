@@ -53,7 +53,7 @@ class TestSqlFirewall:
     def setup_class(cls):
         tdLog.debug("start to execute %s" % __file__)
 
-    def test_mode2_blacklist_union_select_denied(self):
+    def union_select_denied(self):
         """Blacklist: UNION SELECT denied (string layer)."""
         tdSql.prepare(dbname="db_fw", drop=True)
         tdSql.execute("use db_fw")
@@ -65,7 +65,7 @@ class TestSqlFirewall:
         tdSql.error("SELECT * FROM t1 UNION SELECT * FROM t1")
         tdSql.execute("drop database db_fw")
 
-    def test_mode2_blacklist_drop_table_denied(self):
+    def drop_table_denied(self):
         """Blacklist: DROP TABLE denied (string layer from rule file)."""
         tdSql.prepare(dbname="db_fw", drop=True)
         tdSql.execute("use db_fw")
@@ -74,7 +74,7 @@ class TestSqlFirewall:
         tdSql.error("DROP TABLE t1")
         tdSql.execute("drop database db_fw")
 
-    def test_mode2_blacklist_normal_sql_allowed(self):
+    def drop_table_denied(self):
         """Blacklist: normal SQL not matching rules is allowed."""
         tdSql.prepare(dbname="db_fw", drop=True)
         tdSql.execute("use db_fw")
@@ -85,7 +85,7 @@ class TestSqlFirewall:
         tdSql.query("select avg(temp) from sensors")
         tdSql.execute("drop database db_fw")
 
-    def test_sql_firewall(self):
+    def test_sql_blacklist(self):
         """ Test sql blacklist features
 
         1. UNION SELECT denied (string layer)
@@ -102,7 +102,7 @@ class TestSqlFirewall:
             - 2025-03-16 Created based on 6670404791
         """
 
-        self.test_mode2_blacklist_union_select_denied()
-        self.test_mode2_blacklist_drop_table_denied()
-        self.test_mode2_blacklist_normal_sql_allowed()
+        self.union_select_denied()
+        self.drop_table_denied()
+        self.drop_table_denied()
         tdLog.success("%s successfully executed" % __file__)
