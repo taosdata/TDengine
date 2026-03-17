@@ -227,6 +227,7 @@ export function getParser(data: Record<string, any>) {
   });
 }
 export function getMetricsDesc() {
+  const language = getLocalLang();
   return request({
     baseURL: pathDetector.getXApiBasePath(),
     url: `/metrics/description?lang=${language}`,
