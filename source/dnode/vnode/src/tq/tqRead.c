@@ -225,7 +225,7 @@ static void processAlterTbMsg(SDecoder* dcoder, SWalCont* pHead, STqReader* pRea
       }
       (void)memcpy(pHead->body + sizeof(SMsgHead), buf, tlen);
       pHead->bodyLen = tlen + sizeof(SMsgHead);
-      tqInfo("vgId:%d, processAlterTbMsg Type 1 rebuilt message with %d/% tables",
+      tqInfo("vgId:%d, processAlterTbMsg Type 1 rebuilt message with %d/%d tables",
              TD_VID(pReader->pVnode), needRebuild, (int)taosArrayGetSize(req.tables));
     }
 
