@@ -2093,6 +2093,8 @@ typedef struct {
     };
   };
   SColRef* pColRefs;
+  int32_t  numOfTagRefs;
+  SColRef* pTagRefs;
   int8_t   secureDelete;
 } STableCfg;
 

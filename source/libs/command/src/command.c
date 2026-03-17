@@ -764,6 +764,20 @@ static int32_t appendTagValues(char* buf, int32_t* len, STableCfg* pCfg, void* c
                        ", ");
     }
 
+    if (pCfg->pTagRefs && i < pCfg->numOfTagRefs) {
+      SColRef* pTagRef = pCfg->pTagRefs + i;
+      if (pTagRef->hasRef) {
+        char expandRefTable[(SHOW_CREATE_TB_RESULT_FIELD1_LEN << 1) + 1] = {0};
+        char expandRefCol[(SHOW_CREATE_TB_RESULT_FIELD1_LEN << 1) + 1] = {0};
+        *len += snprintf(buf + VARSTR_HEADER_SIZE + *len,
+                         SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
+                         "FROM `%s`.`%s`.`%s`", pTagRef->refDbName,
+                         expandIdentifier(pTagRef->refTableName, expandRefTable),
+                         expandIdentifier(pTagRef->refColName, expandRefCol));
+        continue;
+      }
+    }
+
     if (j >= valueNum) {
       *len += snprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
                        "NULL");

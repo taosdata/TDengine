@@ -1587,6 +1587,7 @@ STableCfg* tableCfgDup(STableCfg* pCfg) {
   pNew->pSchemas = NULL;
   pNew->pSchemaExt = NULL;
   pNew->pColRefs = NULL;
+  pNew->pTagRefs = NULL;
   if (NULL != pCfg->pComment) {
     pNew->pComment = taosMemoryCalloc(pNew->commentLen + 1, 1);
     if (!pNew->pComment) goto err;
@@ -1629,6 +1630,15 @@ STableCfg* tableCfgDup(STableCfg* pCfg) {
 
   pNew->pColRefs = pColRef;
 
+  SColRef *pTagRef = NULL;
+  if (hasRefCol(pCfg->tableType) && pCfg->pTagRefs && pCfg->numOfTagRefs > 0) {
+    int32_t tagRefSize = pCfg->numOfTagRefs * sizeof(SColRef);
+    pTagRef = taosMemoryMalloc(tagRefSize);
+    if (!pTagRef) goto err;
+    memcpy(pTagRef, pCfg->pTagRefs, tagRefSize);
+  }
+  pNew->pTagRefs = pTagRef;
+
   return pNew;
 err:
   if (pNew->pComment) taosMemoryFreeClear(pNew->pComment);
@@ -1636,6 +1646,8 @@ err:
   if (pNew->pTags) taosMemoryFreeClear(pNew->pTags);
   if (pNew->pSchemas) taosMemoryFreeClear(pNew->pSchemas);
   if (pNew->pSchemaExt) taosMemoryFreeClear(pNew->pSchemaExt);
+  if (pNew->pColRefs) taosMemoryFreeClear(pNew->pColRefs);
+  if (pNew->pTagRefs) taosMemoryFreeClear(pNew->pTagRefs);
   taosMemoryFreeClear(pNew);
   return NULL;
 }

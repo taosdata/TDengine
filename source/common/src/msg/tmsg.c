@@ -6905,6 +6905,12 @@ int32_t tSerializeSTableCfgRsp(void *buf, int32_t bufLen, STableCfgRsp *pRsp) {
       SColRef *pColRef = &pRsp->pColRefs[i];
       TAOS_CHECK_EXIT(tEncodeSColRef(&encoder, pColRef));
     }
+
+    TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->numOfTagRefs));
+    for (int32_t i = 0; i < pRsp->numOfTagRefs; ++i) {
+      SColRef *pTagRef = &pRsp->pTagRefs[i];
+      TAOS_CHECK_EXIT(tEncodeSColRef(&encoder, pTagRef));
+    }
   }
 
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->keep));
@@ -6997,6 +7003,8 @@ int32_t tDeserializeSTableCfgRsp(void *buf, int32_t bufLen, STableCfgRsp *pRsp) 
 
   if (!tDecodeIsEnd(&decoder)) {
     TAOS_CHECK_EXIT(tDecodeU8(&decoder, &pRsp->flag));
+    pRsp->numOfTagRefs = 0;
+    pRsp->pTagRefs = NULL;
     if (hasRefCol(pRsp->tableType) && pRsp->numOfColumns > 0) {
       pRsp->pColRefs = taosMemoryMalloc(sizeof(SColRef) * pRsp->numOfColumns);
       if (pRsp->pColRefs == NULL) {
@@ -7006,6 +7014,21 @@ int32_t tDeserializeSTableCfgRsp(void *buf, int32_t bufLen, STableCfgRsp *pRsp) 
       for (int32_t i = 0; i < pRsp->numOfColumns; ++i) {
         SColRef *pColRef = &pRsp->pColRefs[i];
         TAOS_CHECK_EXIT(tDecodeSColRef(&decoder, pColRef));
+      }
+
+      if (!tDecodeIsEnd(&decoder)) {
+        TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pRsp->numOfTagRefs));
+        if (pRsp->numOfTagRefs > 0) {
+          pRsp->pTagRefs = taosMemoryMalloc(sizeof(SColRef) * pRsp->numOfTagRefs);
+          if (pRsp->pTagRefs == NULL) {
+            TAOS_CHECK_EXIT(terrno);
+          }
+
+          for (int32_t i = 0; i < pRsp->numOfTagRefs; ++i) {
+            SColRef *pTagRef = &pRsp->pTagRefs[i];
+            TAOS_CHECK_EXIT(tDecodeSColRef(&decoder, pTagRef));
+          }
+        }
       }
     } else {
       pRsp->pColRefs = NULL;
@@ -7046,6 +7069,7 @@ void tFreeSTableCfgRsp(STableCfgRsp *pRsp) {
   taosMemoryFreeClear(pRsp->pSchemas);
   taosMemoryFreeClear(pRsp->pSchemaExt);
   taosMemoryFreeClear(pRsp->pColRefs);
+  taosMemoryFreeClear(pRsp->pTagRefs);
   taosMemoryFreeClear(pRsp->pTags);
 
   taosArrayDestroy(pRsp->pFuncs);
@@ -14674,8 +14698,12 @@ int32_t tDecodeSColRefWrapperEx(SDecoder *pDecoder, SColRefWrapper *pWrapper, bo
 
 _exit:
   if (code) {
-    taosMemoryFree(pWrapper->pColRef);
-    taosMemoryFree(pWrapper->pTagRef);
+    // When decoderMalloc is true, buffers come from tDecoderMalloc and are released
+    // by tDecoderClear; freeing here with taosMemoryFree would cause invalid free.
+    if (!decoderMalloc) {
+      taosMemoryFree(pWrapper->pColRef);
+      taosMemoryFree(pWrapper->pTagRef);
+    }
   }
   return code;
 }

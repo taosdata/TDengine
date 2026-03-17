@@ -437,6 +437,8 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   cfgRsp.pSchemas = (SSchema *)taosMemoryMalloc(sizeof(SSchema) * (cfgRsp.numOfColumns + cfgRsp.numOfTags));
   cfgRsp.pSchemaExt = (SSchemaExt *)taosMemoryMalloc(cfgRsp.numOfColumns * sizeof(SSchemaExt));
   cfgRsp.pColRefs = (SColRef *)taosMemoryMalloc(sizeof(SColRef) * cfgRsp.numOfColumns);
+  cfgRsp.numOfTagRefs = 0;
+  cfgRsp.pTagRefs = NULL;
 
   if (NULL == cfgRsp.pSchemas || NULL == cfgRsp.pSchemaExt || NULL == cfgRsp.pColRefs) {
     code = terrno;
@@ -474,6 +476,30 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
         tstrncpy(cfgRsp.pColRefs[i].refDbName, pRef->refDbName, TSDB_DB_NAME_LEN);
         tstrncpy(cfgRsp.pColRefs[i].refTableName, pRef->refTableName, TSDB_TABLE_NAME_LEN);
         tstrncpy(cfgRsp.pColRefs[i].refColName, pRef->refColName, TSDB_COL_NAME_LEN);
+      }
+    }
+
+    cfgRsp.numOfTagRefs = pColRef->nTagRefs;
+    if (cfgRsp.numOfTagRefs > 0) {
+      if (NULL == pColRef->pTagRef) {
+        code = TSDB_CODE_APP_ERROR;
+        goto _exit;
+      }
+      cfgRsp.pTagRefs = (SColRef *)taosMemoryMalloc(sizeof(SColRef) * cfgRsp.numOfTagRefs);
+      if (NULL == cfgRsp.pTagRefs) {
+        code = terrno;
+        goto _exit;
+      }
+
+      for (int32_t i = 0; i < cfgRsp.numOfTagRefs; i++) {
+        SColRef *pRef = &pColRef->pTagRef[i];
+        cfgRsp.pTagRefs[i].hasRef = pRef->hasRef;
+        cfgRsp.pTagRefs[i].id = pRef->id;
+        if (cfgRsp.pTagRefs[i].hasRef) {
+          tstrncpy(cfgRsp.pTagRefs[i].refDbName, pRef->refDbName, TSDB_DB_NAME_LEN);
+          tstrncpy(cfgRsp.pTagRefs[i].refTableName, pRef->refTableName, TSDB_TABLE_NAME_LEN);
+          tstrncpy(cfgRsp.pTagRefs[i].refColName, pRef->refColName, TSDB_COL_NAME_LEN);
+        }
       }
     }
   }
