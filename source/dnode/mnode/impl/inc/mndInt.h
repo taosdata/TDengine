@@ -114,6 +114,11 @@ typedef struct {
   int16_t nFailed;
 } SEncryptMgmt;
 
+typedef struct {
+  SHashObj *pTxnHash;
+} STxnMgmt;
+
+
 typedef struct SMnode {
   int32_t        selfDnodeId;
   int64_t        clusterId;
@@ -139,6 +144,7 @@ typedef struct SMnode {
   STelemMgmt     telemMgmt;
   SSyncMgmt      syncMgmt;
   SEncryptMgmt   encryptMgmt;
+  STxnMgmt       txnMgmt;
   SGrantInfo     grant;
   MndMsgFp       msgFp[TDMT_MAX];
   MndMsgFpExt    msgFpExt[TDMT_MAX];

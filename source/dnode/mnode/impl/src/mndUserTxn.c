@@ -781,3 +781,34 @@ _exit:
 
   TAOS_RETURN(code);
 }
+
+
+
+#if 0
+// 伪代码：处理 VNode 的心跳反馈
+void mndOnVnodeHeartbeat(STxnCtx *pCtx, int32_t vnodeId, EUtxnStatus vnodeStatus) {
+    switch (pCtx->status) {
+        case UTXN_STATUS_PREPARING:
+            if (vnodeStatus == VNODE_PREPARED) {
+                markAck(pCtx, vnodeId);
+                if (isAllAcked(pCtx)) {
+                    // 只有这里，才触发一次 MNode 的 WAL 写入
+                    pCtx->status = UTXN_STATUS_PREPARED;
+                    mndPersistTxn(pCtx); 
+                }
+            }
+            break;
+
+        case UTXN_STATUS_COMMITTING:
+            if (vnodeStatus == VNODE_COMMITTED) {
+                markAck(pCtx, vnodeId);
+                if (isAllAcked(pCtx)) {
+                    // 事务彻底完成，记录终态，移除 Hash
+                    pCtx->status = UTXN_STATUS_COMMITTED;
+                    mndFinalizeTxn(pCtx); 
+                }
+            }
+            break;
+    }
+}
+#endif
