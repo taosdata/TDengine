@@ -140,25 +140,33 @@ bool raftStoreHasVoted(SSyncNode *pNode) {
 }
 
 void raftStoreVote(SSyncNode *pNode, SRaftId *pRaftId) {
-  (void)taosThreadMutexLock(&pNode->raftStore.mutex);
-  sInfo("vgId:%d, vote for 0x%" PRIx64 ":%d", pNode->vgId, pRaftId->addr, pRaftId->vgId);
-  pNode->raftStore.voteFor = *pRaftId;
   int32_t code = 0;
-  if ((code = raftStoreWriteFile(pNode)) != 0) {
-    sError("vgId:%d, failed to write raft store file since %s", pNode->vgId, tstrerror(code));
-  }
+  SRaftId voteForCopy;
+  int32_t vgId;
+
+  (void)taosThreadMutexLock(&pNode->raftStore.mutex);
+  voteForCopy = *pRaftId;
+  vgId = pNode->vgId;
+  code = raftStoreWriteFile(pNode);
   (void)taosThreadMutexUnlock(&pNode->raftStore.mutex);
+  sInfo("vgId:%d, vote for 0x%" PRIx64 ":%d", vgId, voteForCopy.addr, voteForCopy.vgId);
+  if (code != 0) {
+    sError("vgId:%d, failed to write raft store file since %s", vgId, tstrerror(code));
+  }
 }
 
 void raftStoreClearVote(SSyncNode *pNode) {
-  (void)taosThreadMutexLock(&pNode->raftStore.mutex);
-  sInfo("vgId:%d, clear vote", pNode->vgId);
-  pNode->raftStore.voteFor = EMPTY_RAFT_ID;
   int32_t code = 0;
-  if ((code = raftStoreWriteFile(pNode)) != 0) {
-    sError("vgId:%d, failed to write raft store file since %s", pNode->vgId, tstrerror(code));
-  }
+  int32_t vgId;
+
+  (void)taosThreadMutexLock(&pNode->raftStore.mutex);
+  vgId = pNode->vgId;
+  code = raftStoreWriteFile(pNode);
   (void)taosThreadMutexUnlock(&pNode->raftStore.mutex);
+  sInfo("vgId:%d, clear vote", vgId);
+  if (code != 0) {
+    sError("vgId:%d, failed to write raft store file since %s", vgId, tstrerror(code));
+  }
 }
 
 void raftStoreNextTerm(SSyncNode *pNode) {

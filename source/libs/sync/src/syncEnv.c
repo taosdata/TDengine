@@ -30,7 +30,7 @@ int32_t syncInit() {
   if (syncIsInit()) return 0;
 
   uint32_t seed = (uint32_t)(taosGetTimestampNs() & 0x00000000FFFFFFFF);
-  sInfo("init rand seed:%d in syncInit", seed);
+  sInfo("init rand seed:%u in syncInit", seed);
   taosSeedRand(seed);
 
   (void)memset(&gSyncEnv, 0, sizeof(SSyncEnv));
