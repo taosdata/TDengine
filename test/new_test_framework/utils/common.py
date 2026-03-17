@@ -36,7 +36,7 @@ from decimal import Decimal, InvalidOperation
 from typing import List
 from datetime import datetime, timedelta
 import re
-
+import tempfile
 
 @dataclass
 class DataSet:
@@ -2990,14 +2990,29 @@ class TDCom:
             tdLog.error(f"SQL执行失败: {sql}\n{e}")
 
     def execute_query_file(self, inputfile, max_workers=8):
+        # 规范化路径以支持 Windows
+        inputfile = os.path.normpath(inputfile)
+
         if not os.path.exists(inputfile):
             tdLog.exit(f"Input file '{inputfile}' does not exist.")
             return
 
         tdLog.info(f"Executing query file: {inputfile}")
 
-        with open(inputfile, "r") as f:
-            lines = [line.strip() for line in f if line.strip()]
+        # 尝试多种编码以支持不同平台
+        lines = []
+        for encoding in ['utf-8', 'gbk', 'utf-8-sig', 'latin-1']:
+            try:
+                with open(inputfile, "r", encoding=encoding, newline=None) as f:
+                    lines = [line.strip() for line in f if line.strip()]
+                break
+            except (UnicodeDecodeError, LookupError):
+                continue
+
+        if not lines:
+            tdLog.exit(f"Failed to read file '{inputfile}' with supported encodings.")
+            return
+
         # 假设第一行是 use 语句
         db = lines[0].split()[1].rstrip(";")
         sql_lines = [line.replace("\\G", "").rstrip(";") + ";" for line in lines[1:]]
@@ -3017,7 +3032,7 @@ class TDCom:
             if platform.system().lower() == "windows":
                 # 过滤 taos> 行
                 os.system(
-                    f"taos -c {cfgPath} -f {inputfile} | grep -v 'Query OK'|grep -v 'Copyright'| grep -v 'Welcome to the TDengine TSDB Command' > {self.query_result_file}.raw "
+                    f"taos -c {cfgPath} -f {inputfile} | grep -v 'Query OK'|grep -v 'Copyright'| grep -v 'Welcome to the TDengine TSDB Command' | sed 's/([0-9]\+\.[0-9]\+s)//g' | sed 's/cost=[0-9]\+\.[0-9]\+\.\.[0-9]\+\.[0-9]\+//g' | sed 's/Planning Time: [0-9]\+\.[0-9]\+ ms//g' | sed 's/Execution Time: [0-9]\+\.[0-9]\+ ms//g' | sed 's/max_row_task=[0-9]\+, //g' > {self.query_result_file}.raw "
                 )
                 time.sleep(1)
                 with (
@@ -3182,18 +3197,40 @@ class TDCom:
                 cmd = "fc"
                 file1 = os.path.abspath(os.path.normpath(file1))
                 file2 = os.path.abspath(os.path.normpath(file2))
-                # /W 参数忽略结尾空格和空白字符
-                result = subprocess.run(
-                    [cmd, "/W", file1, file2],
-                    text=True,
-                    capture_output=True,
-                    encoding="utf-8",
-                    errors="ignore",
-                )
-                # Windows: 只要 returncode==0 就认为一致
+
+                # 创建临时文件，过滤空行
+                with tempfile.NamedTemporaryFile(mode='w', delete=False, encoding='utf-8') as tmp1, \
+                    tempfile.NamedTemporaryFile(mode='w', delete=False, encoding='utf-8') as tmp2:
+
+                    # 复制非空行到临时文件
+                    with open(file1, 'r', encoding='utf-8', errors='ignore') as f:
+                        tmp1.writelines(line for line in f if line.strip())
+                    temp1 = tmp1.name
+
+                    with open(file2, 'r', encoding='utf-8', errors='ignore') as f:
+                        tmp2.writelines(line for line in f if line.strip())
+                    temp2 = tmp2.name
+
+                try:
+                    result = subprocess.run(
+                        [cmd, "/W", temp1, temp2],
+                        text=True,
+                        capture_output=True,
+                        encoding="utf-8",
+                        errors="replace",  # 改为 replace，避免编码错误
+                    )
+                finally:
+                    os.unlink(temp1)
+                    os.unlink(temp2)
                 if result.returncode == 0:
                     return True
-            # if result is not empty, print the differences and files name. Otherwise, the files are identical.
+                else:
+                    tdLog.info(f"{cmd} result.returncode: {result.returncode}")
+                    tdLog.info(f"{cmd} result.stdout: {result.stdout}")
+                    tdLog.info(f"{cmd} result.stderr: {result.stderr}")
+                    return False
+                
+            # 统一的结果检查逻辑（移到 if/else 外面）
             if result.returncode != 0:
                 if self._compare_normalized_result_lines(file1, file2):
                     tdLog.info("Result files matched after output normalization.")
@@ -3225,6 +3262,7 @@ class TDCom:
             tdLog.debug(
                 "The 'diff' command is not found. Please make sure it's installed and available in your PATH."
             )
+            return False
         except Exception as e:
             tdLog.debug(f"An error occurred: {e}")
         finally:
