@@ -1,14 +1,9 @@
 import os
 import subprocess
 import logging
+import signal
 import psutil
 from time import sleep
-
-try:
-    import signal
-    HAS_SIGNAL = True
-except ImportError:
-    HAS_SIGNAL = False
 
 logger = logging.getLogger(__name__)
 
