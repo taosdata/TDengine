@@ -264,8 +264,8 @@ const char *queryPhaseStr(int32_t phase) {
     case QUERY_PHASE_SCHEDULE: return "schedule";
     case QUERY_PHASE_EXECUTE:  return "execute";
     case QUERY_PHASE_FETCH:    return "fetch";
-    case QUERY_PHASE_DONE:     return "done";
-
+    case QUERY_PHASE_DONE:
+      return "done";
     /* SCHEDULE sub-phases: 4x */
     case QUERY_PHASE_SCHEDULE_ANALYSIS:       return "schedule/analysis";
     case QUERY_PHASE_SCHEDULE_PLANNING:       return "schedule/planning";
