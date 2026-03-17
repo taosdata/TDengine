@@ -811,4 +811,134 @@ void mndOnVnodeHeartbeat(STxnCtx *pCtx, int32_t vnodeId, EUtxnStatus vnodeStatus
             break;
     }
 }
+
+// 这是一个专门用来打印“谁在拖后腿”的工具函数
+void mndLogTxnProgress(SUserTxn *pTxn) {
+  int64_t now = taosGetTimestampMs();
+  
+  // 只有处于中间态（COMMITTING/ROLLBACKING）且超过 30 秒没动静才报警
+  if (pTxn->status != UTXN_STATUS_COMMITTING && pTxn->status != UTXN_STATUS_ROLLBACKING) {
+    return;
+  }
+  
+  if (now - pTxn->startTime < 30000) return; // 事务还没执行满 30 秒，不急着报警
+
+  // 控制日志频率：每 30 秒打印一次警告
+  if (now - pTxn->lastWarnTime > 30000) {
+    char waitingList[512] = {0};
+    int32_t offset = 0;
+
+    int32_t numVgs = taosArrayGetSize(pTxn->pVgList);
+    for (int32_t i = 0; i < numVgs; ++i) {
+      // 检查位图，看这个 VGroup 是否已经全员 ACK
+      if (!bmIsSet(pTxn->pAckBitmap, i)) {
+        int32_t vgId = *(int32_t*)taosArrayGet(pTxn->pVgList, i);
+        
+        // 进一步获取该 VGroup 对应的 DNode 信息（方便运维定位）
+        // 假设通过现有元数据接口找到该 VGroup 的 Leader 或所有成员所在的 DNode
+        char dnodeIds[64] = {0};
+        mndGetDnodesByVgId(vgId, dnodeIds, sizeof(dnodeIds)); 
+
+        offset += snprintf(waitingList + offset, sizeof(waitingList) - offset, 
+                           "vgId:%d(on dnodes:%s) ", vgId, dnodeIds);
+        
+        if (offset >= sizeof(waitingList) - 32) break; // 缓冲区快满了
+      }
+    }
+
+    uWarn("txn:0x%llx has been %s for %llds, still waiting for: [%s]",
+          pTxn->txnId, 
+          (pTxn->status == UTXN_STATUS_COMMITTING ? "committing" : "rollbacking"),
+          (now - pTxn->startTime) / 1000,
+          waitingList);
+
+    pTxn->lastWarnTime = now;
+  }
+}
+
+void mndOnVnodeAck(SUserTxn *pTxn, int32_t dnodeId, int32_t vgId, int32_t code) {
+  if (code == TSDB_CODE_SUCCESS) {
+    // 成功逻辑：置位，检查全员 ACK
+    mndMarkBitAndCheckNextStep(pTxn, dnodeId, vgId);
+  } else {
+    // 失败逻辑
+    if (pTxn->status == UTXN_STATUS_PREPARING) {
+      uError("txn:0x%lx prepare failed on dnode:%d vgId:%d, code:%d. Rolling back...", 
+             pTxn->txnId, dnodeId, vgId, code);
+      
+      // 1. 切换到回滚态
+      pTxn->status = UTXN_STATUS_ROLLBACKING;
+      // 2. 重置位图，准备收集回滚的 ACK
+      bmClearAll(pTxn->pAckBitmap);
+      // 3. (可选) 记录一条日志，标记事务已失败
+    } else if (pTxn->status == UTXN_STATUS_COMMITTING) {
+      // 决策已定，不准回滚，只能硬抗
+      uFatal("txn:0x%lx commit failed on dnode:%d vgId:%d, code:%d. System Inconsistent!", 
+             pTxn->txnId, dnodeId, vgId, code);
+      // 继续重试，不改变状态
+    }
+  }
+}
+
+void mndOnVnodeAck(SUserTxn *pTxn, int32_t vgId, int32_t dnodeId) {
+  // 1. 在 SArray 中定位下标 (假设下标为 idx)
+  int32_t idx = mndFindParticipantIdx(pTxn, vgId, dnodeId);
+  if (idx < 0) return; 
+
+  // 2. 幂等检查：只有位图里是 0，才处理
+  if (bmIsSet(pTxn->pBitMap, idx) == 0) {
+    bmSet(pTxn->pBitMap, idx);  // 标记为已收到
+    pTxn->nAck++;               // 只有第一次收到时，计数器才加 1
+    
+    // 3. 检查是否全员到齐
+    if (pTxn->nAck == taosArrayGetSize(pTxn->pParticipants)) {
+      mndTransitionStatus(pTxn); // 状态跃迁
+    }
+  }
+}
+
+void mndOnDnodeDropped(int32_t droppedDnodeId) {
+  // 遍历哈希表中的所有活跃事务
+  SUserTxn* pTxn = NULL;
+  while ((pTxn = mndGetNextActiveTxn(&iter)) != NULL) {
+    TdThreadLock(&pTxn->lock);
+    
+    bool changed = false;
+    for (int i = 0; i < taosArrayGetSize(pTxn->pParticipants); ++i) {
+      STxnParticipant* p = taosArrayGet(pTxn->pParticipants, i);
+      if (p->dnodeId == droppedDnodeId && !bmIsSet(pTxn->pAckBitmap, i)) {
+        bmSet(pTxn->pAckBitmap, i); // 强制置位
+        changed = true;
+      }
+    }
+    
+    if (changed && bmIsAllSet(pTxn->pAckBitmap)) {
+       // 触发状态跃迁逻辑
+       mndTransitionTxnStatus(pTxn); 
+    }
+    
+    TdThreadUnlock(&pTxn->lock);
+  }
+}
+
+void mndHandleDnodeDropInTxn(SUserTxn *pTxn, int32_t droppedDnodeId) {
+  int32_t size = taosArrayGetSize(pTxn->pParticipants);
+  for (int32_t i = 0; i < size; ++i) {
+    STxnParticipant *p = taosArrayGet(pTxn->pParticipants, i);
+    
+    // 如果这个参与者属于被删掉的节点，且还没回 ACK
+    if (p->dnodeId == droppedDnodeId && bmIsSet(pTxn->pBitMap, i) == 0) {
+      bmSet(pTxn->pBitMap, i);
+      pTxn->nAck++;
+      uInfo("txn:0x%lx, force ack for dropped dnode:%d", pTxn->txnId, droppedDnodeId);
+    }
+  }
+  
+  // 补偿完后，再次检查是否可以闭环
+  if (pTxn->nAck == size) {
+    mndTransitionStatus(pTxn);
+  }
+}
+
+
 #endif

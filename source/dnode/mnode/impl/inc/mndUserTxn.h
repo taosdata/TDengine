@@ -48,7 +48,8 @@ typedef struct SUserTxn {
   SArray* pActions;  // Array of STransAction
 
   // 涉及到的 VNode 列表，COMMIT 时需要通知它们
-  SArray* pVgList;  // Array of int32_t (vgId)
+  SArray* pVgList;       // Array of int32_t (vgId)
+  int64_t lastWarnTime;  // 上次打印警告的时间戳
 } SUserTxn;
 
 int32_t mndInitTxn(SMnode* pMnode);
