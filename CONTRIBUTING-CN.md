@@ -15,37 +15,6 @@
    将代码提交到我们的存储库时，请创建**包含问题编号的 PR**。
 3. 将TDengine仓库库fork到自己的账户中并创建分支(branch)。
    注意：默认分支`main`不能直接接受PR，请基于开发分支`3.0`创建自己的分支。
-   注意：修改文档的分支要以`docs/`为开头，以免进行不必要的测试。
 4. 创建pull request，将自己的分支合并到开发分支`3.0`，我们开发团队将尽快审核。
 
 如遇任何问题，请添加官方微信 tdengine1。我们的团队会帮忙解决。
-
-## 给贡献者的礼品
-
-只要您是为 TDengine 做贡献的开发者，不管是代码贡献、修复 bug 或功能请求，还是文档更改，您都将会获得一份**特别的贡献者纪念品礼物**！
-
-<p align="left">
-  <img
-    src="docs/assets/contributing-cup.jpg"
-    alt=""
-    width="200"
-  />
-  <img
-    src="docs/assets/contributing-notebook.jpg"
-    alt=""
-    width="200"
-  />
-  <img
-    src="docs/assets/contributing-shirt.jpg"
-    alt=""
-    width="200"
-    />
-
-TDengine 社区致力于让更多的开发者理解和使用它。
-请填写**贡献者提交表**以选择您想收到的礼物。
-
-- [贡献者提交表](https://page.ma.scrmtech.com/form/index?pf_uid=27715_2095&id=12100)
-
-## 联系我们
-
-如果您有什么问题需要解决，或者有什么问题需要解答，可以添加微信：tdengine1。
