@@ -399,11 +399,13 @@ static void *tWWorkerThreadFp(SWWorker *worker) {
   worker->pid = taosGetSelfPthreadId();
   uInfo("worker:%s:%d is running, thread:%08" PRId64, pool->name, worker->id, worker->pid);
 
+#ifdef WINDOWS
   if (worker->initSeed) {
     uint32_t seed = (uint32_t)(taosGetTimestampNs() & 0x00000000FFFFFFFF);
     uInfo("worker:%s:%d, seed:%u, init seed rand", pool->name, worker->id, seed);
-    taosSeedRand(seed);
+    taosRandR(&seed);
   }
+#endif
 
   while (1) {
     numOfMsgs = taosReadAllQitemsFromQset(worker->qset, worker->qall, &qinfo);

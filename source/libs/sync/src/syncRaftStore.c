@@ -145,6 +145,7 @@ void raftStoreVote(SSyncNode *pNode, SRaftId *pRaftId) {
   int32_t vgId;
 
   (void)taosThreadMutexLock(&pNode->raftStore.mutex);
+  pNode->raftStore.voteFor = *pRaftId;
   voteForCopy = *pRaftId;
   vgId = pNode->vgId;
   code = raftStoreWriteFile(pNode);
@@ -160,6 +161,7 @@ void raftStoreClearVote(SSyncNode *pNode) {
   int32_t vgId;
 
   (void)taosThreadMutexLock(&pNode->raftStore.mutex);
+  pNode->raftStore.voteFor = EMPTY_RAFT_ID;
   vgId = pNode->vgId;
   code = raftStoreWriteFile(pNode);
   (void)taosThreadMutexUnlock(&pNode->raftStore.mutex);
