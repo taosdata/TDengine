@@ -22,6 +22,9 @@
 extern "C" {
 #endif
 
+#define UTXN_ID_MASK   0xFFFFFFFF00000000ULL
+#define IS_UTXN_ID(id) (((id) & UTXN_ID_MASK) != 0)
+
 // 用户事务状态
 typedef enum {
   UTXN_STATUS_NONE = 0,

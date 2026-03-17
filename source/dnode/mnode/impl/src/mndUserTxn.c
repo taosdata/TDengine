@@ -265,42 +265,42 @@ void mndReleaseTxn(SMnode *pMnode, STxnObj *pTxn) {
 }
 
 /**
- * @brief Non thread safe. Return unique id with format: 40(sec) + 12(nodeId) + 12(seqId)
+ * @brief Non thread safe. Return unique id with format: 40(sec) + 12(nodeId) + 4(reserved) + 8(seqId)  bits.
  *
  */
 int64_t mndGenTxnId(int32_t nodeId) {
   static int64_t lastSec = 0;
   static int32_t seqId = 0;
 
-  while (true) {
-    int64_t sec = taosGetTimestampSec();
+  int64_t sec = taosGetTimestampSec();
 
-    if (sec < lastSec) {
-      sec = lastSec;
-    }
-
-    if (sec == lastSec) {
-      if (seqId >= 4095) {
-        taosMsleep(1);
-        continue;
-      }
-      ++seqId;
-    } else {
-      seqId = 0;
-      lastSec = sec;
-    }
-
-    int64_t x = (sec & 0xFFFFFFFFFFLL) << 24;
-    int64_t n = (int64_t)(nodeId & 0xFFF) << 12;
-    int64_t s = (int64_t)(seqId & 0xFFF);
-
-    int64_t uuid = x | n | s;
-    if (uuid == 0) {
-      ++seqId;
-      continue;
-    }
-    return uuid;
+  // Make sure upper 32 bits is not all 0 to avoid conflicts with id in STrans(mndDef.h)
+  if (((sec & 0xFFFFFFFFFFLL) >> 8) == 0) {
+    sec += 0x100;
   }
+
+  if (sec < lastSec) {
+    sec = lastSec;
+  }
+
+  if (sec == lastSec) {
+    if (seqId >= 255) {
+      ++sec;
+      seqId = 0;
+    } else {
+      ++seqId;
+    }
+  } else {
+    seqId = 0;
+  }
+  lastSec = sec;
+
+  uint64_t x = (uint64_t)(sec & 0xFFFFFFFFFFLL) << 24;
+  uint64_t n = (uint64_t)(nodeId & 0xFFF) << 12;
+  uint64_t s = (uint64_t)(seqId & 0xFF);
+
+  int64_t uuid = x | n | s;
+  return uuid;
 }
 
 static int32_t mndSetCreateTxnRedoLogs(SMnode *pMnode, STrans *pTrans, STxnObj *pTxn) {
