@@ -630,6 +630,9 @@ typedef enum EQuantifyType {
 #define TSDB_DEFAULT_DB_ALLOW_DROP      1
 #define TSDB_MIN_DB_ALLOW_DROP          0
 #define TSDB_MAX_DB_ALLOW_DROP          1
+#define TSDB_DEFAULT_DB_SECURE_DELETE   0
+#define TSDB_MIN_DB_SECURE_DELETE       0
+#define TSDB_MAX_DB_SECURE_DELETE       1
 
 #define TSDB_MIN_ROLLUP_MAX_DELAY       1  // unit millisecond
 #define TSDB_MAX_ROLLUP_MAX_DELAY       (15 * 60 * 1000)

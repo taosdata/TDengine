@@ -49,7 +49,7 @@
 #define DB_VER_SUPPORT_ADVANCED_SECURITY 2
 #define DB_VER_NUMBER                    DB_VER_SUPPORT_ADVANCED_SECURITY
 
-#define DB_RESERVE_SIZE 13
+#define DB_RESERVE_SIZE 12
 
 static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw);
 static int32_t  mndDbActionInsert(SSdb *pSdb, SDbObj *pDb);
@@ -173,6 +173,7 @@ SSdbRaw *mndDbActionEncode(SDbObj *pDb) {
   SDB_SET_INT32(pRaw, dataPos, pDb->cfg.compactEndTime, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pDb->cfg.compactInterval, _OVER)
   SDB_SET_INT8(pRaw, dataPos, pDb->cfg.isAudit, _OVER)
+  SDB_SET_INT8(pRaw, dataPos, pDb->cfg.secureDelete, _OVER)
 
   SDB_SET_RESERVE(pRaw, dataPos, DB_RESERVE_SIZE, _OVER)
   SDB_SET_UINT8(pRaw, dataPos, pDb->cfg.flags, _OVER)
@@ -280,6 +281,9 @@ static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.compactEndTime, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.compactInterval, _OVER)
   SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.isAudit, _OVER)
+  if (dataPos + sizeof(int8_t) <= pRaw->dataLen) {
+    SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.secureDelete, _OVER)
+  }
   SDB_GET_RESERVE(pRaw, dataPos, DB_RESERVE_SIZE, _OVER)
   if (dataPos + sizeof(uint8_t) <= pRaw->dataLen) {
     SDB_GET_UINT8(pRaw, dataPos, &pDb->cfg.flags, _OVER)
@@ -412,6 +416,7 @@ static int32_t mndDbActionUpdate(SSdb *pSdb, SDbObj *pOld, SDbObj *pNew) {
   pOld->compactStartTime = pNew->compactStartTime;
   pOld->tsmaVersion = pNew->tsmaVersion;
   pOld->cfg.isAudit = pNew->cfg.isAudit;
+  pOld->cfg.secureDelete = pNew->cfg.secureDelete;
   pOld->cfg.flags = pNew->cfg.flags;
   pOld->ownerId = pNew->ownerId;
   taosWUnLockLatch(&pOld->lock);
@@ -982,6 +987,7 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
       .compactEndTime = pCreate->compactEndTime,
       .compactTimeOffset = pCreate->compactTimeOffset,
       .isAudit = pCreate->isAudit,
+      .secureDelete = pCreate->secureDelete,
   };
   if (strlen(pCreate->encryptAlgrName) > 0) {
     if (strncasecmp(pCreate->encryptAlgrName, "none", TSDB_ENCRYPT_ALGR_NAME_LEN) == 0) {
@@ -1289,6 +1295,11 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
       mError("db:%s, audit db already exist, %s", createReq.db, pAuditDb->name);
       TAOS_CHECK_GOTO(TSDB_CODE_AUDIT_DB_ALREADY_EXIST, &lino, _OVER);
     }
+    char *realDbName = strchr(createReq.db, '.');
+    if (realDbName && strcmp(realDbName + 1, "log") == 0) {
+      mError("db:%s, failed to create, db name not allowed for audit db, %s", createReq.db, realDbName + 1);
+      TAOS_CHECK_GOTO(TSDB_CODE_MND_INVALID_DB, &lino, _OVER);
+    }
   }
 
   TAOS_CHECK_GOTO(mndCreateDb(pMnode, pReq, &createReq, pUser, dnodeList), &lino, _OVER);
@@ -1478,6 +1489,12 @@ static int32_t mndSetDbCfgFromAlterDbReq(SDbObj *pDb, SAlterDbReq *pAlter) {
 
   if(pAlter->allowDrop > -1 && pAlter->allowDrop != pDb->cfg.allowDrop) {
     pDb->cfg.allowDrop = pAlter->allowDrop;
+    code = 0;
+  }
+
+  if (pAlter->secureDelete > -1 && pAlter->secureDelete != pDb->cfg.secureDelete) {
+    pDb->cfg.secureDelete = pAlter->secureDelete;
+    pDb->vgVersion++;
     code = 0;
   }
 
@@ -1787,6 +1804,7 @@ static void mndDumpDbCfgInfo(SDbCfgRsp *cfgRsp, SDbObj *pDb, char *algorithmsId)
   cfgRsp->flags = pDb->cfg.flags;
   tstrncpy(cfgRsp->algorithmsId, algorithmsId, sizeof(cfgRsp->algorithmsId));
   cfgRsp->isAudit = pDb->cfg.isAudit;
+  cfgRsp->secureDelete = pDb->cfg.secureDelete;
 }
 
 static int32_t mndProcessGetDbCfgReq(SRpcMsg *pReq) {

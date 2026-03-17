@@ -339,6 +339,7 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
 
   cfgRsp.tableType = mer1.me.type;
   cfgRsp.isAudit = pVnode->config.isAudit ? 1 : 0;
+  cfgRsp.secureDelete = pVnode->config.secureDelete;
 
   if (mer1.me.type == TSDB_SUPER_TABLE) {
     code = TSDB_CODE_VND_HASH_MISMATCH;
@@ -1228,7 +1229,50 @@ const char *tkLogStb[] = {"cluster_info",
                           "taosadapter_system_mem_percent",
                           "temp_dir",
                           "vgroups_info",
-                          "vnodes_role"};
+                          "vnodes_role",
+                          "taosd_dnodes_status",
+                          "adapter_conn_pool",
+                          "taosd_vnodes_info",
+                          "taosd_dnodes_metrics",
+                          "taosd_vgroups_info",
+                          "taos_sql_req",
+                          "taosd_mnodes_info",
+                          "adapter_c_interface",
+                          "taosd_cluster_info",
+                          "taosd_sql_req",
+                          "taosd_dnodes_info",
+                          "adapter_requests",
+                          "taosd_write_metrics",
+                          "adapter_status",
+                          "taos_slow_sql",
+                          "taos_slow_sql_detail",
+                          "taosd_cluster_basic",
+                          "taosd_dnodes_data_dirs",
+                          "taosd_dnodes_log_dirs",
+                          "xnode_agent_activities",
+                          "xnode_task_activities",
+                          "xnode_task_metrics",
+                          "taosx_task_csv",
+                          "taosx_task_progress",
+                          "taosx_task_kinghist",
+                          "taosx_task_tdengine2",
+                          "taosx_task_tdengine3",
+                          "taosx_task_opc_da",
+                          "taosx_task_opc_ua",
+                          "taosx_task_kafka",
+                          "taosx_task_influxdb",
+                          "taosx_task_mqtt",
+                          "taosx_task_avevahistorian",
+                          "taosx_task_opentsdb",
+                          "taosx_task_mysql",
+                          "taosx_task_postgres",
+                          "taosx_task_oracle",
+                          "taosx_task_mssql",
+                          "taosx_task_mongodb",
+                          "taosx_task_sparkplugb",
+                          "taosx_task_orc",
+                          "taosx_task_pulsar",
+                          "taosx_task_pspace"};
 const char *tkAuditStb[] = {"operations"};
 const int   tkLogStbNum = ARRAY_SIZE(tkLogStb);
 const int   tkAuditStbNum = ARRAY_SIZE(tkAuditStb);
@@ -1245,7 +1289,7 @@ static int32_t vnodeGetTimeSeriesBlackList(SVnode *pVnode, int32_t *tbSize) {
   if (0 == strncmp(++dbName, "log", TSDB_DB_NAME_LEN)) {
     tbNum = tkLogStbNum;
     pTbArr = (const char **)&tkLogStb;
-  } else if (0 == strncmp(dbName, "audit", TSDB_DB_NAME_LEN)) {
+  } else if (0 == strncmp(dbName, "audit", TSDB_DB_NAME_LEN) || pVnode->config.isAudit) {
     tbNum = tkAuditStbNum;
     pTbArr = (const char **)&tkAuditStb;
   }

@@ -127,7 +127,7 @@ Additional Notes:
 
 1. Method to modify global configuration parameters via SQL: `alter all dnodes 'parameter_name' 'parameter_value';`, Whether the modifications take effect immediately, please refer to the "Dynamic Modification" description for each parameter.
 2. Method to modify local configuration parameters via SQL: `alter dnode <dnode_id> 'parameter_name' 'parameter_value';`, Whether the modifications take effect immediately, please refer to the "Dynamic Modification" description for each parameter.
-3. From 3.4.0.0, to prevent configuration file tampering, the `forceReadConfig` parameter has been removed. Except for the first startup, configuration will not be loaded from the configuration file.
+3. From 3.4.0.0, to prevent configuration file tampering, the `forceReadConfig` parameter has been removed. Except for the first startup, configuration items will not be loaded from the configuration file. If you need to modify configuration parameters, use the `ALTER` command and modify them via SQL.
 4. For dynamic modification methods of configuration parameters, please refer to [Node Management](../../sql-manual/manage-nodes/).
 5. Some parameters exist in both the client (taosc) and server (taosd), with different scopes and meanings in different contexts. For details, please refer to [TDengine Configuration Parameter Scope Comparison](../../components/configuration-scope/).
 
@@ -399,7 +399,8 @@ The effective value of charset is UTF-8.
 | Parameter Name          | Supported Version | Dynamic Modification               | Description                                                  |
 | ----------------------- | ----------------- | ---------------------------------- | ------------------------------------------------------------ |
 | enableStrongPassword    | After 3.3.6.0     | Supported, effective after restart | The password include at least three types of characters from the following: uppercase letters, lowercase letters, numbers, and special characters, special characters include `! @ # $ % ^ & * ( ) - _ + = [ ] { } : ; > < ? \| ~ , .`; 0: disable, 1: enable; default value 1 |
-| enableAdvancedSecurity  | After 3.4.0.10    | Supported, effective immediately   | Whether advanced security features are enabled by default, used to control whether security policies such as password expiration and password rotation are enabled by default for newly created users (but the default behavior can be changed by explicitly specifying relevant parameters when creating a user); 0: disable, 1: enable; the default value varies by version. Since 3.4.0.11, it is also used to control the default privilege objects expanded by the grant/revoke authorization syntax when no privilege object is explicitly specified. |
+| enableAdvancedSecurity  | After 3.4.0.10    | Supported, effective immediately   | Whether advanced security features are enabled by default, used to control whether security policies such as password expiration and password rotation are enabled by default for newly created users (but the default behavior can be changed by explicitly specifying relevant parameters when creating a user); 0: disable, 1: enable; the default value varies by version. |
+| enableGrantLegacySyntax | After 3.4.0.11    | Supported, effective immediately   | Whether to enable compatibility with the `grant`/`revoke` syntax of version 3.3.x.y. When enabled (1), if no privilege object is specified, the authorization syntax adaptively expands privileges to `database`, `table`, `view`, `index`, `tsma`, `rsma`, `topic`, and `stream` based on the privilege type and `priv_level`. When disabled (0), it only expands privileges to `table` and `view`. 0: disable, 1: enable; default value 0 |
 
 ### Stream Computing Parameters
 
@@ -459,7 +460,7 @@ The effective value of charset is UTF-8.
 | -------------------- | ----------------- | -------------------------------- | ------------------------------------------------------------ |
 | enableCoreFile       |                   | Supported, effective immediately | Whether to generate a core file when crashing, 0: do not generate, 1: generate; default value is 1 |
 | configDir            |                   | Not supported                    | Directory where the configuration files are located          |
-| forceReadConfig        | After 3.3.5.0, Before 3.4.0.0      | Not supported                                                | Force read configuration file; default value false |
+| forceReadConfig        | After 3.3.5.0, Before 3.4.0.0      | Not supported                                                | Whether to use persisted local configuration parameters: modifying configuration parameters via the configuration file has been deprecated since v3.4.0.0. For v3.4.0.0 and later, please modify configuration parameters via SQL. |
 | scriptDir            |                   | Not supported                    | Directory for internal test tool scripts                     |
 | assert               |                   | Not supported                    | Assertion control switch, default value is 0                 |
 | randErrorChance      |                   | Supported, effective immediately | Internal parameter, used for random failure testing          |

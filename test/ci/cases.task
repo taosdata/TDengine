@@ -265,6 +265,7 @@
 
 ,,y,.,./ci/pytest.sh pytest cases/07-DataDeletion/test_delete.py
 ,,y,.,./ci/pytest.sh pytest cases/07-DataDeletion/test_delete_childtable.py
+,,y,.,./ci/pytest.sh pytest cases/07-DataDeletion/test_delete_secure_delete.py
 ,,y,.,./ci/pytest.sh pytest cases/07-DataDeletion/test_delete_stable.py
 
 # 08-DataCompression
@@ -725,6 +726,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/03-TriggerMode/test_event_new.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/03-TriggerMode/test_event.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/03-TriggerMode/test_fill_history.py
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/03-TriggerMode/test_interval_const_filter_twstart.py
 ,,n,.,pytest cases/18-StreamProcessing/03-TriggerMode/test_period_1.py
 ,,n,.,pytest cases/18-StreamProcessing/03-TriggerMode/test_sliding.py
 ,,n,.,pytest cases/18-StreamProcessing/03-TriggerMode/test_state_new.py
@@ -936,6 +938,9 @@
 ,,y,.,./ci/pytest.sh pytest cases/31-Security/04-TransparentEncryption/test_transparent_encryption.py
 ,,y,.,./ci/pytest.sh pytest cases/31-Security/06-EncryptionStatus/test_encryption_status.py
 ,,y,.,./ci/pytest.sh pytest cases/31-Security/10-SecurityTest/test_plaintext_check.py
+
+# 32-Grants
+,,n,.,./ci/pytest.sh pytest cases/32-Grants/test_grant_basic.py
 
 # 42-xnode
 ,,y,.,./ci/pytest.sh pytest cases/42-Xnode/test_xnode.py
