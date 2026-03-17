@@ -4618,7 +4618,7 @@ static bool lastRowScanOptCheckFuncList(SLogicNode* pNode, int8_t cacheLastModel
       needSplitFuncCount++;
     }
   }
-  if (needSplitFuncCount >= ((SAggLogicNode*)pNode)->pAggFuncs->length) {
+  if (needSplitFuncCount >= LIST_LENGTH(((SAggLogicNode*)pNode)->pAggFuncs)) {
     return false;
   }
 
