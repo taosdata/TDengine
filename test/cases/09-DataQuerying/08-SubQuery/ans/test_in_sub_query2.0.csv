@@ -1626,8 +1626,8 @@ taos> create stream stm1 interval(1d) sliding(1d) from tb1 partition by 1 in (se
 
 DB error: syntax error near "in (select 1 from tb3) into out1 as select * from tb3;" [0x80002600] 
 taos> create stream stm1 interval(1d) sliding(1d) from tb1 into out2 as select ts, 1 in (select 1 from tb3) from tb3;
+Create OK, 0 row(s) affected 
 
-DB error: Expr subquery not supported in current clause [0x800026A8] 
 taos> create topic topic1 as select 1 in (select 1 from tb3) from tb3;
 
 DB error: Expr subquery not supported in current clause [0x800026A8] 

@@ -122,6 +122,7 @@ int vnodeEncodeConfig(const void *pObj, SJson *pJson) {
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "tsdbPageSize", pCfg->tsdbPageSize));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "isAudit", pCfg->isAudit));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "allowDrop", pCfg->allowDrop));
+  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "secureDelete", pCfg->secureDelete));
   if (pCfg->tsdbCfg.retentions[0].keep > 0) {
     int32_t nRetention = 1;
     if (pCfg->tsdbCfg.retentions[1].freq > 0) {
@@ -211,7 +212,7 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   if (code) return code;
   tjsonGetNumberValue(pJson, "mountVgId", pCfg->mountVgId, code);
   if (code) return code;
-  if ((code = tjsonGetStringValue(pJson, "dbname", pCfg->dbname))) return code;
+  if ((code = tjsonGetStringValue1(pJson, "dbname", pCfg->dbname, sizeof(pCfg->dbname)))) return code;
   tjsonGetNumberValue(pJson, "dbId", pCfg->dbId, code);
   if (code) return code;
   tjsonGetNumberValue(pJson, "szPage", pCfg->szPage, code);
@@ -272,7 +273,8 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   }
   tjsonGetNumberValue(pJson, "tsdb.encryptAlgorithm", pCfg->tsdbCfg.encryptAlgr, code);
   if (code) return code;
-  code = tjsonGetStringValue(pJson, "tsdb.encryptAlgrName", pCfg->tsdbCfg.encryptData.encryptAlgrName);
+  code = tjsonGetStringValue1(pJson, "tsdb.encryptAlgrName", pCfg->tsdbCfg.encryptData.encryptAlgrName,
+                              sizeof(pCfg->tsdbCfg.encryptData.encryptAlgrName));
   if (code) return code;
   if (pCfg->tsdbCfg.encryptAlgr == DND_CA_SM4 && pCfg->tsdbCfg.encryptData.encryptAlgrName[0] == '\0') {
     tstrncpy(pCfg->tsdbCfg.encryptData.encryptAlgrName, TSDB_ENCRYPT_ALGR_SM4_NAME, TSDB_ENCRYPT_ALGR_NAME_LEN);
@@ -304,7 +306,8 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   if (code) return code;
   tjsonGetNumberValue(pJson, "wal.encryptAlgorithm", pCfg->walCfg.encryptAlgr, code);
   if (code) return code;
-  code = tjsonGetStringValue(pJson, "wal.encryptAlgrName", pCfg->walCfg.encryptData.encryptAlgrName);
+  code = tjsonGetStringValue1(pJson, "wal.encryptAlgrName", pCfg->walCfg.encryptData.encryptAlgrName,
+                              sizeof(pCfg->walCfg.encryptData.encryptAlgrName));
   if (code) return code;
   if (pCfg->walCfg.encryptAlgr == DND_CA_SM4 && pCfg->walCfg.encryptData.encryptAlgrName[0] == '\0') {
     tstrncpy(pCfg->walCfg.encryptData.encryptAlgrName, TSDB_ENCRYPT_ALGR_SM4_NAME, TSDB_ENCRYPT_ALGR_NAME_LEN);
@@ -320,7 +323,8 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
 #endif
   tjsonGetNumberValue(pJson, "tdbEncryptAlgorithm", pCfg->tdbEncryptAlgr, code);
   if (code) return code;
-  code = tjsonGetStringValue(pJson, "tdbEncryptAlgrName", pCfg->tdbEncryptData.encryptAlgrName);
+  code = tjsonGetStringValue1(pJson, "tdbEncryptAlgrName", pCfg->tdbEncryptData.encryptAlgrName,
+                              sizeof(pCfg->tdbEncryptData.encryptAlgrName));
   if (code) return code;
   if (pCfg->tdbEncryptAlgr == DND_CA_SM4 && pCfg->tdbEncryptData.encryptAlgrName[0] == '\0') {
     tstrncpy(pCfg->tdbEncryptData.encryptAlgrName, TSDB_ENCRYPT_ALGR_SM4_NAME, TSDB_ENCRYPT_ALGR_NAME_LEN);
@@ -381,13 +385,13 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
     if (info == NULL) return -1;
     tjsonGetNumberValue(info, "nodePort", pNode->nodePort, code);
     if (code) return code;
-    code = tjsonGetStringValue(info, "nodeFqdn", pNode->nodeFqdn);
+    code = tjsonGetStringValue1(info, "nodeFqdn", pNode->nodeFqdn, sizeof(pNode->nodeFqdn));
     tjsonGetNumberValue(info, "nodeId", pNode->nodeId, code);
     if (code) return code;
     tjsonGetNumberValue(info, "clusterId", pNode->clusterId, code);
     if (code) return code;
     char role[10] = {0};
-    code = tjsonGetStringValue(info, "isReplica", role);
+    code = tjsonGetStringValue1(info, "isReplica", role, sizeof(role));
     if (code) return code;
     if (strlen(role) != 0) {
       pNode->nodeRole = vnodeStrToRole(role);
@@ -405,6 +409,14 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   tjsonGetNumberValue(pJson, "isAudit", pCfg->isAudit, code);
   if (pCfg->isAudit < TSDB_MIN_DB_IS_AUDIT || pCfg->isAudit > TSDB_MAX_DB_IS_AUDIT) {
     pCfg->isAudit = 0;
+  }
+  if (tjsonGetObjectItem(pJson, "secureDelete") != NULL) {
+    tjsonGetNumberValue(pJson, "secureDelete", pCfg->secureDelete, code);
+    if (pCfg->secureDelete < TSDB_MIN_DB_SECURE_DELETE || pCfg->secureDelete > TSDB_MAX_DB_SECURE_DELETE) {
+      pCfg->secureDelete = TSDB_DEFAULT_DB_SECURE_DELETE;
+    }
+  } else {
+    pCfg->secureDelete = TSDB_DEFAULT_DB_SECURE_DELETE;
   }
   if (tjsonGetObjectItem(pJson, "allowDrop") == NULL) {
     pCfg->allowDrop = TSDB_DEFAULT_DB_ALLOW_DROP;

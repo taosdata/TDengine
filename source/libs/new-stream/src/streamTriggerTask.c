@@ -287,9 +287,38 @@ _exit:
   return code;
 }
 
-static STimeWindow stTriggerTaskGetTimeWindow(SStreamTriggerTask *pTask, int64_t ts) {
+/**
+ * @brief Get the time window containing the given timestamp
+ *
+ * For natural time units (week/month/year), this function aligns the window
+ * to natural boundaries (Monday for weeks, 1st of month, Jan 1st for years).
+ * For other units, it uses standard interval truncation.
+ *
+ * @param pTask Trigger task containing interval configuration
+ * @param ts Timestamp to find the window for (in configured precision)
+ * @return STimeWindow Window containing the timestamp [skey, ekey] (closed interval)
+ *
+ * @note Window semantics: [boundary + 1, nextBoundary] closed interval
+ *       - skey: start of window (previous boundary + 1)
+ *       - ekey: end of window (next boundary, trigger time)
+ *
+ * @note For natural units (week/month/year):
+ *       - Week: Window aligns to Monday 00:00:00 + offset
+ *       - Month: Window aligns to 1st of month 00:00:00 + offset
+ *       - Year: Window aligns to Jan 1st 00:00:00 + offset
+ *       - Multi-period: Aligns to epoch-based boundaries (e.g., 2w, 3n, 2y)
+ *
+ * @note For regular units (a/s/m/h/d):
+ *       - Window aligns based on interval and sliding configuration
+ *
+ * @example PERIOD(1w): Returns window [last Monday + 1, next Monday]
+ * @example PERIOD(1w, 1d): Returns window [last Tuesday + 1, next Tuesday]
+ * @example PERIOD(1n): Returns window [1st of last month + 1, 1st of next month]
+ */
+STimeWindow stTriggerTaskGetTimeWindow(SStreamTriggerTask *pTask, int64_t ts) {
   SInterval  *pInterval = &pTask->interval;
   STimeWindow win = {0};
+
   if (pInterval->interval > 0) {
     win.skey = taosTimeTruncate(ts, pInterval);
     win.ekey = taosTimeGetIntervalEnd(win.skey, pInterval);
@@ -297,24 +326,70 @@ static STimeWindow stTriggerTaskGetTimeWindow(SStreamTriggerTask *pTask, int64_t
       win.ekey = INT64_MAX;
     }
   } else {
+    char    unit = pInterval->intervalUnit;
     int64_t day = convertTimePrecision(24 * 60 * 60 * 1000, TSDB_TIME_PRECISION_MILLI, pInterval->precision);
-    // truncate to the start of day
-    SInterval interval = {.intervalUnit = 'd',
-                          .slidingUnit = 'd',
-                          .offsetUnit = pInterval->offsetUnit,
-                          .precision = pInterval->precision,
-                          .interval = day,
-                          .sliding = day};
-    int64_t   first = taosTimeTruncate(ts, &interval) + pInterval->offset;
-    if (pInterval->sliding > day) {
-      if (first >= ts) {
-        win.skey = first - pInterval->sliding + 1;
-        win.ekey = first;
+    if (unit == 'w' || unit == 'n' || unit == 'y') {
+      // Use natural boundary alignment for week/month/year units
+      // For week: pInterval->sliding is time value (in precision units)
+      // For month/year: pInterval->sliding is period count (month/year count)
+      int64_t periodCount = (unit == 'w') ? 1 : pInterval->sliding;
+      if (unit == 'w') {
+        // Calculate week count from time value
+        int64_t week = 7 * day;
+        periodCount = pInterval->sliding / week;
+        if (periodCount < 1) periodCount = 1;
+      }
+
+      int64_t boundary =
+          alignToNaturalBoundary(ts, unit, periodCount, pInterval->offset, pInterval->precision, pInterval->timezone);
+      if (boundary == ts) {
+        // ts is exactly on boundary, return previous window [prevBoundary + 1, boundary]
+        int64_t prevBoundary = 0;
+        if (unit == 'w') {
+          prevBoundary = boundary - pInterval->sliding;
+        } else {
+          prevBoundary = taosTimeAdd(boundary, -1 * periodCount, unit, pInterval->precision, pInterval->timezone);
+        }
+        win.skey = prevBoundary + 1;
+        win.ekey = boundary;
       } else {
-        win.skey = first + 1;
-        win.ekey = first + pInterval->sliding;
+        // ts is between boundaries, return current window [boundary + 1, nextBoundary]
+        int64_t nextBoundary = 0;
+        if (unit == 'w') {
+          nextBoundary = boundary + pInterval->sliding;
+        } else {
+          nextBoundary = taosTimeAdd(boundary, periodCount, unit, pInterval->precision, pInterval->timezone);
+        }
+        win.skey = boundary + 1;
+        win.ekey = nextBoundary;
+      }
+    } else if (pInterval->sliding > day) {
+      SInterval interval = {.intervalUnit = pInterval->slidingUnit,
+                            .slidingUnit = pInterval->slidingUnit,
+                            .offsetUnit = pInterval->offsetUnit,
+                            .precision = pInterval->precision,
+                            .interval = pInterval->sliding,
+                            .sliding = pInterval->sliding,
+                            .offset = pInterval->offset};
+      int64_t   boundary = taosTimeTruncate(ts, &interval);
+      if (boundary == ts) {
+        int64_t prevBoundary = boundary - pInterval->sliding;
+        win.skey = prevBoundary + 1;
+        win.ekey = boundary;
+      } else {
+        int64_t nextBoundary = boundary + pInterval->sliding;
+        win.skey = boundary + 1;
+        win.ekey = nextBoundary;
       }
     } else {
+      // truncate to the start of day
+      SInterval interval = {.intervalUnit = 'd',
+                            .slidingUnit = 'd',
+                            .offsetUnit = pInterval->offsetUnit,
+                            .precision = pInterval->precision,
+                            .interval = day,
+                            .sliding = day};
+      int64_t   first = taosTimeTruncate(ts, &interval) + pInterval->offset;
       if (first >= ts) {
         int64_t prev = first - day;
         win.skey = (ts - prev - 1) / pInterval->sliding * pInterval->sliding + prev + 1;
@@ -328,8 +403,9 @@ static STimeWindow stTriggerTaskGetTimeWindow(SStreamTriggerTask *pTask, int64_t
   return win;
 }
 
-static void stTriggerTaskPrevTimeWindow(SStreamTriggerTask *pTask, STimeWindow *pWindow) {
+void stTriggerTaskPrevTimeWindow(SStreamTriggerTask *pTask, STimeWindow *pWindow) {
   SInterval *pInterval = &pTask->interval;
+
   if (pInterval->interval > 0) {
     TSKEY prevStart =
         taosTimeAdd(pWindow->skey, -1 * pInterval->offset, pInterval->offsetUnit, pInterval->precision, NULL);
@@ -338,8 +414,30 @@ static void stTriggerTaskPrevTimeWindow(SStreamTriggerTask *pTask, STimeWindow *
     pWindow->skey = prevStart;
     pWindow->ekey = taosTimeGetIntervalEnd(prevStart, pInterval);
   } else {
+    char    unit = pInterval->intervalUnit;
     int64_t day = convertTimePrecision(24 * 60 * 60 * 1000, TSDB_TIME_PRECISION_MILLI, pInterval->precision);
-    if (pInterval->sliding > day) {
+    // Window semantics: [boundary + 1, nextBoundary]
+    // Prev window: [prevBoundary + 1, boundary]
+    if (unit == 'w' || unit == 'n' || unit == 'y') {
+      // For week: pInterval->sliding is time value
+      // For month/year: pInterval->sliding is period count
+      int64_t periodCount = (unit == 'w') ? 1 : pInterval->sliding;
+      if (unit == 'w') {
+        int64_t week = 7 * day;
+        periodCount = pInterval->sliding / week;
+        if (periodCount < 1) periodCount = 1;
+      }
+
+      int64_t boundary = pWindow->skey - 1;
+      int64_t prevBoundary = 0;
+      if (unit == 'w') {
+        prevBoundary = boundary - pInterval->sliding;
+      } else {
+        prevBoundary = taosTimeAdd(boundary, -1 * periodCount, unit, pInterval->precision, pInterval->timezone);
+      }
+      pWindow->skey = prevBoundary + 1;
+      pWindow->ekey = boundary;
+    } else if (pInterval->sliding > day) {
       pWindow->skey -= pInterval->sliding;
       pWindow->ekey -= pInterval->sliding;
     } else {
@@ -361,8 +459,36 @@ static void stTriggerTaskPrevTimeWindow(SStreamTriggerTask *pTask, STimeWindow *
   }
 }
 
-static void stTriggerTaskNextTimeWindow(SStreamTriggerTask *pTask, STimeWindow *pWindow) {
+/**
+ * @brief Advance the time window to the next period
+ *
+ * For natural time units (week/month/year), this function advances the window
+ * by one period using calendar calculation to handle variable-length periods
+ * (e.g., months with different days, leap years).
+ * For other units, it uses standard interval sliding.
+ *
+ * @param pTask Trigger task containing interval configuration
+ * @param pWindow[in,out] Window to advance (modified in place)
+ *
+ * @note Window semantics: [boundary + 1, nextBoundary] closed interval
+ *       - Current window: [currentBoundary + 1, nextBoundary]
+ *       - Next window: [nextBoundary + 1, nextNextBoundary]
+ *
+ * @note For natural units (week/month/year):
+ *       - Week: Adds N * 7 days to boundaries
+ *       - Month: Uses calendar calculation (handles 28/29/30/31 day months)
+ *       - Year: Uses calendar calculation (handles leap years)
+ *       - new skey = old ekey + 1
+ *       - new ekey = old ekey + N periods (calendar-based)
+ *
+ * @note For regular units (a/s/m/h/d):
+ *       - Advances by sliding interval
+ *
+ * @example Current window [2026-03-01 + 1, 2026-04-01] → Next window [2026-04-01 + 1, 2026-05-01]
+ */
+void stTriggerTaskNextTimeWindow(SStreamTriggerTask *pTask, STimeWindow *pWindow) {
   SInterval *pInterval = &pTask->interval;
+
   if (pInterval->interval > 0) {
     TSKEY nextStart =
         taosTimeAdd(pWindow->skey, -1 * pInterval->offset, pInterval->offsetUnit, pInterval->precision, NULL);
@@ -371,8 +497,30 @@ static void stTriggerTaskNextTimeWindow(SStreamTriggerTask *pTask, STimeWindow *
     pWindow->skey = nextStart;
     pWindow->ekey = taosTimeGetIntervalEnd(nextStart, pInterval);
   } else {
+    char    unit = pInterval->intervalUnit;
     int64_t day = convertTimePrecision(24 * 60 * 60 * 1000, TSDB_TIME_PRECISION_MILLI, pInterval->precision);
-    if (pInterval->sliding > day) {
+    // Window semantics: [boundary + 1, nextBoundary]
+    // Next window: [nextBoundary + 1, nextNextBoundary]
+    if (unit == 'w' || unit == 'n' || unit == 'y') {
+      // For week: pInterval->sliding is time value
+      // For month/year: pInterval->sliding is period count
+      int64_t periodCount = (unit == 'w') ? 1 : pInterval->sliding;
+      if (unit == 'w') {
+        int64_t week = 7 * day;
+        periodCount = pInterval->sliding / week;
+        if (periodCount < 1) periodCount = 1;
+      }
+
+      int64_t nextBoundary = pWindow->ekey;
+      int64_t nextNextBoundary = 0;
+      if (unit == 'w') {
+        nextNextBoundary = nextBoundary + pInterval->sliding;
+      } else {
+        nextNextBoundary = taosTimeAdd(nextBoundary, periodCount, unit, pInterval->precision, pInterval->timezone);
+      }
+      pWindow->skey = nextBoundary + 1;
+      pWindow->ekey = nextNextBoundary;
+    } else if (pInterval->sliding > day) {
       pWindow->skey += pInterval->sliding;
       pWindow->ekey += pInterval->sliding;
     } else {
@@ -1835,7 +1983,7 @@ static int32_t stTriggerTaskParseVirtScan(SStreamTriggerTask *pTask, void *trigg
   }
 
   if (infoBuf && bufLen < bufCap) {
-    bufLen += tsnprintf(infoBuf + bufLen, bufCap - bufLen, "columnId in the datablock: {");
+    bufLen += snprintf(infoBuf + bufLen, bufCap - bufLen, "columnId in the datablock: {");
   }
   // create the data block for virtual table
   int32_t nTotalCols = TARRAY_SIZE(pVirColIds);
@@ -1864,14 +2012,14 @@ static int32_t stTriggerTaskParseVirtScan(SStreamTriggerTask *pTask, void *trigg
     code = blockDataAppendColInfo(pTask->pVirDataBlock, &col);
     QUERY_CHECK_CODE(code, lino, _end);
     if (infoBuf && bufLen < bufCap) {
-      bufLen += tsnprintf(infoBuf + bufLen, bufCap - bufLen, "%d,", id);
+      bufLen += snprintf(infoBuf + bufLen, bufCap - bufLen, "%d,", id);
     }
   }
   pTask->nVirDataCols = nDataCols;
 
   if (infoBuf && bufLen < bufCap) {
     infoBuf[bufLen - 1] = '}';
-    bufLen += tsnprintf(infoBuf + bufLen, bufCap - bufLen, "; slotId of trigger data:{");
+    bufLen += snprintf(infoBuf + bufLen, bufCap - bufLen, "; slotId of trigger data:{");
   }
 
   // get new slot id of trig data block and calc data block
@@ -1890,13 +2038,13 @@ static int32_t stTriggerTaskParseVirtScan(SStreamTriggerTask *pTask, void *trigg
     void *px = taosArrayPush(pTrigSlotids, &slotid);
     QUERY_CHECK_NULL(px, code, lino, _end, terrno);
     if (infoBuf && bufLen < bufCap) {
-      bufLen += tsnprintf(infoBuf + bufLen, bufCap - bufLen, "%d,", slotid);
+      bufLen += snprintf(infoBuf + bufLen, bufCap - bufLen, "%d,", slotid);
     }
   }
 
   if (infoBuf && bufLen < bufCap) {
     infoBuf[bufLen - 1] = '}';
-    bufLen += tsnprintf(infoBuf + bufLen, bufCap - bufLen, "; slotId of calc data:{");
+    bufLen += snprintf(infoBuf + bufLen, bufCap - bufLen, "; slotId of calc data:{");
   }
 
   pCalcSlotids = taosArrayInit(nCalcCols, sizeof(int32_t));
@@ -1914,7 +2062,7 @@ static int32_t stTriggerTaskParseVirtScan(SStreamTriggerTask *pTask, void *trigg
     void *px = taosArrayPush(pCalcSlotids, &slotid);
     QUERY_CHECK_NULL(px, code, lino, _end, terrno);
     if (infoBuf && bufLen < bufCap) {
-      bufLen += tsnprintf(infoBuf + bufLen, bufCap - bufLen, "%d,", slotid);
+      bufLen += snprintf(infoBuf + bufLen, bufCap - bufLen, "%d,", slotid);
     }
   }
   if (infoBuf && bufLen < bufCap) {
@@ -3667,8 +3815,8 @@ static int32_t stRealtimeContextSendPullReq(SSTriggerRealtimeContext *pContext, 
               char       *colName = tSimpleHashGetKey(px2, NULL);
               OTableInfo *pInfo = taosArrayReserve(pReq->cols, 1);
               QUERY_CHECK_NULL(pInfo, code, lino, _end, terrno);
-              (void)strncpy(pInfo->refTableName, tbName, sizeof(pInfo->refTableName));
-              (void)strncpy(pInfo->refColName, colName, sizeof(pInfo->refColName));
+              tstrncpy(pInfo->refTableName, tbName, sizeof(pInfo->refTableName));
+              tstrncpy(pInfo->refColName, colName, sizeof(pInfo->refColName));
               px2 = tSimpleHashIterate(pTbInfo->pColumns, px2, &iter3);
             }
           }
@@ -5691,7 +5839,7 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
           SStreamDbTableName *pName = taosArrayReserve(pOrigTableNames, 1);
           QUERY_CHECK_NULL(pName, code, lino, _end, terrno);
           (void)snprintf(pName->dbFName, sizeof(pName->dbFName), "%d.%s", 1, dbName);
-          (void)strncpy(pName->tbName, tbName, sizeof(pName->tbName));
+          tstrncpy(pName->tbName, tbName, sizeof(pName->tbName));
           pTbInfo = tSimpleHashIterate(pDbInfo, pTbInfo, &iter2);
         }
         px = tSimpleHashIterate(pTask->pOrigTableCols, px, &iter1);
@@ -6403,7 +6551,7 @@ static int32_t stHistoryContextSendPullReq(SSTriggerHistoryContext *pContext, ES
         buf[0] = '\0';
         for (int32_t i = 0; i < TARRAY_SIZE(pReq->cids); i++) {
           col_id_t colId = *(col_id_t *)TARRAY_GET_ELEM(pReq->cids, i);
-          bufLen += tsnprintf(buf + bufLen, sizeof(buf) - bufLen, "%d,", colId);
+          bufLen += snprintf(buf + bufLen, sizeof(buf) - bufLen, "%d,", colId);
         }
         if (bufLen > 0) {
           buf[bufLen - 1] = '\0';

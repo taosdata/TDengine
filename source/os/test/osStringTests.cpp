@@ -785,3 +785,11 @@ TEST(osStringTests, strtransform) {
   ret64 = tsnprintf(z, 1, "ab");
   EXPECT_EQ(ret64, 0);
 }
+
+TEST(osStringTests, truncateTimezoneStringRemovesAllLeadingSlashes) {
+  char tz[] = "///Asia/Shanghai CST";
+
+  truncateTimezoneString(tz);
+
+  EXPECT_STREQ(tz, "Asia/Shanghai");
+}

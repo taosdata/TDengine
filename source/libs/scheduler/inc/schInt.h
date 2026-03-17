@@ -326,6 +326,7 @@ typedef struct SSchJob {
   char                *sql;
   SQueryProfileSummary summary;
   int8_t               source;
+  int8_t               secureDelete;
   void                *pWorkerCb;
 } SSchJob;
 
