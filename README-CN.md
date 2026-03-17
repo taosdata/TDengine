@@ -1,13 +1,12 @@
 <p align="center">
   <a href="https://www.taosdata.com" target="_blank">
   <img
-    src="TDengine.svg"
+    src="tdengin-logo.svg"
     alt="TDengine"
     width="500"
   />
   </a>
 </p>
-
 <div align="center">
 
 简体中文 | [English](README.md) | [TDengine 云服务](https://cloud.taosdata.com/?utm_medium=cn&utm_source=github) | 很多职位正在热招中，请看 [这里](https://www.taosdata.com/careers/)
