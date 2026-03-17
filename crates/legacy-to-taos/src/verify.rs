@@ -1,6 +1,6 @@
 use std::{collections::HashSet, sync::LazyLock};
 
-pub const CLIENT_OPTIONS: [&str; 71] = [
+pub const CLIENT_OPTIONS: [&str; 74] = [
     // taos.cfg options
     "shellActivityTimer",
     "firstEp",
@@ -75,6 +75,9 @@ pub const CLIENT_OPTIONS: [&str; 71] = [
     "conn_timeout",
     "read_timeout",
     "version_prefer",
+    "bearerToken",
+    "bearer_token",
+    "totp_code",
 ];
 
 static TAOS_PARAMS: LazyLock<HashSet<&'static str>> =

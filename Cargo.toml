@@ -251,7 +251,7 @@ fake-data.path = "./crates/fake_data"
 
 [workspace.dependencies.taos]
 # path = "../taos-connector-rust/taos"
-rev = "72fa638a"
+rev = "0cd531df"
 git = "https://github.com/taosdata/taos-connector-rust.git"
 default-features = false
 features = ["ws", "optin", "deadpool"]
