@@ -559,9 +559,8 @@ static void extWinSetCurWinIdx(SOperatorInfo* pOperator, int32_t idx) {
     SStreamRuntimeFuncInfo* pInfo = &pTaskInfo->pStreamRuntimeInfo->funcInfo;
     if (pInfo->isMultiGroupCalc) {
       ((SExtWinTrigGrpCtx*)pInfo->curGrpCalc->pRunnerGrpCtx)->pCCtx->curIdx = idx;
-    } else {
-      pInfo->curIdx = idx;
     }
+    pInfo->curIdx = idx;
   }
 }
 
@@ -574,9 +573,8 @@ static void extWinIncCurWinOutIdx(SStreamRuntimeInfo* pStreamRuntimeInfo) {
   SStreamRuntimeFuncInfo* pInfo = &pStreamRuntimeInfo->funcInfo;
   if (pInfo->isMultiGroupCalc && pInfo->curGrpCalc && pInfo->curGrpCalc->pRunnerGrpCtx) {
     ((SExtWinTrigGrpCtx*)pInfo->curGrpCalc->pRunnerGrpCtx)->pCCtx->curIdx++;
-  } else {
-    pInfo->curIdx++;
   }
+  pInfo->curIdx++;
 }
 
 
@@ -683,6 +681,7 @@ _exit:
 static int32_t extWinInitCGrpCtx(SExternalWindowOperator* pExtW, SExecTaskInfo* pTaskInfo, SExtWinCalcGrpCtx* pCtx) {
   int32_t code = 0, lino = 0;
 
+  pCtx->curIdx = 0;
   pCtx->lastSKey = INT64_MIN;
   pCtx->lastWinId = -1;
   pCtx->lastWinIdx = -1;
@@ -715,9 +714,13 @@ static int32_t extWinInitCGrpCtx(SExternalWindowOperator* pExtW, SExecTaskInfo* 
 
       pWin[i].tw.skey = pParam->wstart;
       pWin[i].tw.ekey = pParam->wstart + 1;
+      pWin[i].resWinIdx = -1;
     }
   } else if (pExtW->timeRangeExpr && pExtW->timeRangeExpr->needCalc) {
     TAOS_CHECK_EXIT(scalarCalculateExtWinsTimeRange(pExtW->timeRangeExpr, pInfo, pWin));
+    for (int32_t i = 0; i < size; ++i) {
+      pWin[i].resWinIdx = -1;
+    }
     if (qDebugFlag & DEBUG_DEBUG) {
       for (int32_t i = 0; i < size; ++i) {
         qDebug("%s the %d/%d ext window calced initialized, TR[%" PRId64 ", %" PRId64 ")", 
@@ -2654,6 +2657,7 @@ static int32_t extWinAggOutputSingleCGrpRes(SOperatorInfo* pOperator, SExternalW
              pBlock->info.capacity, GET_TASKID(pTaskInfo));
     }
 
+    updateTimeWindowInfo(&pExtW->twAggSup.timeWindowData, &pRow->win, 0);
     TAOS_CHECK_EXIT(copyResultrowToDataBlock(pExprInfo, numOfExprs, pRow, pCtx, pBlock, rowEntryOffset, pTaskInfo));
 
     pBlock->info.rows += pRow->numOfRows;
@@ -3171,19 +3175,30 @@ static int32_t extWinOpen(SOperatorInfo* pOperator) {
     qInfo("%s ext window mode:%s baseGrp:%" PRIu64 " grp:%" PRIu64 " got %" PRId64 " rows from downstream",
         GET_TASKID(pTaskInfo), extWinModeStr(pExtW->mode), pBlock->info.id.baseGId, pBlock->info.id.groupId, pBlock->info.rows);
 
-    // Fallback: if downstream block lost baseGId but we are in multi-group (from subquery)
-    // and there is exactly one t-group, assign that gid to baseGId so we can locate calc info.
+    // Fallback for non-stream grouped external-window:
+    // 1) if outer calc is partitioned and downstream only carries groupId,
+    //    treat groupId as the corresponding trigger-group id;
+    // 2) otherwise, if there is exactly one trigger group from subquery,
+    //    use that singleton gid.
     if (pBlock->info.id.baseGId == 0 && pTaskInfo->pStreamRuntimeInfo &&
         pTaskInfo->pStreamRuntimeInfo->funcInfo.isMultiGroupCalc &&
         pTaskInfo->pStreamRuntimeInfo->funcInfo.pGroupCalcInfos) {
-      int32_t __iter = 0;
-      int32_t __size = tSimpleHashGetSize(pTaskInfo->pStreamRuntimeInfo->funcInfo.pGroupCalcInfos);
-      if (__size == 1) {
-        SSTriggerGroupCalcInfo* __one = tSimpleHashIterate(pTaskInfo->pStreamRuntimeInfo->funcInfo.pGroupCalcInfos, NULL, &__iter);
-        if (__one) {
-          uint64_t __gid = *(uint64_t*)tSimpleHashGetKey(__one, NULL);
-          pBlock->info.id.baseGId = __gid;
-          qDebug("%s extWin fallback baseGId set to single gid %" PRIu64, GET_TASKID(pTaskInfo), __gid);
+      if (pExtW->calcWithPartition && pBlock->info.id.groupId != 0 &&
+          tSimpleHashGet(pTaskInfo->pStreamRuntimeInfo->funcInfo.pGroupCalcInfos,
+                         &pBlock->info.id.groupId, sizeof(pBlock->info.id.groupId)) != NULL) {
+        pBlock->info.id.baseGId = pBlock->info.id.groupId;
+        qDebug("%s extWin fallback baseGId <- matched groupId %" PRIu64,
+               GET_TASKID(pTaskInfo), pBlock->info.id.groupId);
+      } else {
+        int32_t __iter = 0;
+        int32_t __size = tSimpleHashGetSize(pTaskInfo->pStreamRuntimeInfo->funcInfo.pGroupCalcInfos);
+        if (__size == 1) {
+          SSTriggerGroupCalcInfo* __one = tSimpleHashIterate(pTaskInfo->pStreamRuntimeInfo->funcInfo.pGroupCalcInfos, NULL, &__iter);
+          if (__one) {
+            uint64_t __gid = *(uint64_t*)tSimpleHashGetKey(__one, NULL);
+            pBlock->info.id.baseGId = __gid;
+            qDebug("%s extWin fallback baseGId set to single gid %" PRIu64, GET_TASKID(pTaskInfo), __gid);
+          }
         }
       }
     }

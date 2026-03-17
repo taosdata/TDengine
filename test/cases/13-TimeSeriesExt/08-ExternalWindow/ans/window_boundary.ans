@@ -37,11 +37,21 @@ taos> select cast(_wstart as bigint) as ws, cast(_wend as bigint) as we, count(*
          1700200900000 |         1700200960000 |                     1 |
 
 taos> select cast(_wstart as bigint) as ws, cast(_wend as bigint) as we, count(*) as c from ext_bnd_src partition by t1 external_window((select ts, endtime, mark from ext_bnd_win_part partition by t1) w) order by t1, ws;
+          ws           |          we           |           c           |
+========================================================================
+         1700200000000 |         1700200180000 |                     2 |
+         1700200600000 |         1700200720000 |                     1 |
+         1700200120000 |         1700200480000 |                     2 |
+         1700200840000 |         1700200960000 |                     1 |
 
-DB error: Stream internal error [0x80004107] 
 taos> select t1, cast(_wstart as bigint) as ws, cast(_wend as bigint) as we, count(*) as c from ext_bnd_src partition by t1 external_window((select ts, endtime, mark from ext_bnd_win_part partition by t1) w) order by t1, ws;
+     t1      |          ws           |          we           |           c           |
+======================================================================================
+           1 |         1700200000000 |         1700200180000 |                     2 |
+           1 |         1700200600000 |         1700200720000 |                     1 |
+           2 |         1700200120000 |         1700200480000 |                     2 |
+           2 |         1700200840000 |         1700200960000 |                     1 |
 
-DB error: Stream internal error [0x80004107] 
 taos> select cast(_wstart as bigint) as ws, cast(_wend as bigint) as we, sum(v) as sv from ext_bnd_src external_window((select ts, endtime, mark from ext_bnd_win) w) order by ws;
           ws           |          we           |          sv           |
 ========================================================================
