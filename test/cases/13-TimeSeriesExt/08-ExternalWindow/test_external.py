@@ -748,15 +748,12 @@ class TestExternal:
             "order by t1, ws"
         )
 
-        # todo
-        # tdSql.error(
-        #     "select cast(_wstart as bigint) as ws, top(v, 2) "
-        #     "from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w) "
-        #     "order by ws",
-        #     fullMatched=False,
-        # )
-        
-        return
+        tdSql.error(
+            "select cast(_wstart as bigint) as ws, top(v, 2) "
+            "from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w) "
+            "order by ws",
+            fullMatched=False,
+        )
 
         tdSql.error(
             "select cast(_wstart as bigint) as ws, bottom(v, 2) "
@@ -767,13 +764,6 @@ class TestExternal:
 
         tdSql.error(
             "select cast(_wstart as bigint) as ws, percentile(v, 50) "
-            "from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w) "
-            "order by ws",
-            fullMatched=False,
-        )
-
-        tdSql.error(
-            "select cast(_wstart as bigint) as ws, stddev(v) "
             "from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w) "
             "order by ws",
             fullMatched=False,

@@ -110,3 +110,15 @@ taos> select t1, cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv from
            2 |         1700400600000 |                     1 |                    23 |
            2 |         1700400900000 |                     1 |                    24 |
 
+taos> select cast(_wstart as bigint) as ws, stddev(v) vv from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w) order by ws, vv;
+          ws           |            vv             |
+====================================================
+         1700400000000 |                         0 |
+         1700400000000 |                       0.5 |
+         1700400300000 |                       0.5 |
+         1700400300000 |                       0.5 |
+         1700400600000 |                         0 |
+         1700400600000 |                         0 |
+         1700400900000 |                         0 |
+         1700400900000 |                         0 |
+

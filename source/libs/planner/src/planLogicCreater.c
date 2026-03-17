@@ -23,6 +23,8 @@
 #include "systable.h"
 #include "tglobal.h"
 
+#include <stdarg.h>
+
 // primary key column always the second column if exists
 #define PRIMARY_COLUMN_SLOT 1
 
@@ -194,6 +196,16 @@ static EDealRes doNameExpr(SNode* pNode, void* pContext) {
   }
 
   return DEAL_RES_CONTINUE;
+}
+
+static int32_t generatePlanErrMsg(SLogicPlanContext* pCxt, int32_t errCode, const char* pFormat, ...) {
+  if (pCxt && pCxt->pPlanCxt && pCxt->pPlanCxt->pMsg && pCxt->pPlanCxt->msgLen > 0 && pFormat) {
+    va_list args;
+    va_start(args, pFormat);
+    (void)vsnprintf(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, pFormat, args);
+    va_end(args);
+  }
+  return errCode;
 }
 
 static int32_t rewriteExprForSelect(SNode* pExpr, SSelectStmt* pSelect, ESqlClause clause) {
@@ -2715,9 +2727,21 @@ bool hasExternalWindowDerivedFromSubquery(SSelectStmt* pSelect) {
   return false;
 }
 
+static int32_t checkExprListForExternalWin(SLogicPlanContext* pCxt, SSelectStmt* pSelect) {
+  if (pSelect->hasIndefiniteRowsFunc) {
+    return generatePlanErrMsg(pCxt, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
+                              "Indefinite rows functions are not allowed in EXTERNAL_WINDOW query");
+  }
+  if (pSelect->hasMultiRowsFunc) {
+    return generatePlanErrMsg(pCxt, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
+                              "Multi-rows functions are not allowed in EXTERNAL_WINDOW query");
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t checkExternalWindow(SLogicPlanContext* pCxt, SSelectStmt* pSelect) {
   if (hasExternalWindowDerivedFromSubquery(pSelect)) {
-    return TSDB_CODE_SUCCESS;
+    return checkExprListForExternalWin(pCxt, pSelect);
   }
 
   bool hasPlaceHolderCond = false;
