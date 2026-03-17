@@ -41,3 +41,6 @@ cases/32-Grants/test_grant_basic.py
 # tsma rsma
 cases/19-TSMAs/test_tsma.py
 cases/20-RSMAs/test_rsma.py
+
+# timeout
+cases/81-Tools/02-Taos/test_tool_taos_cli.py
