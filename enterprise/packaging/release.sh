@@ -305,12 +305,7 @@ else
     CORES=$(grep -c ^processor /proc/cpuinfo)
 fi
 
-if [[ "$allocator" == "jemalloc" ]]; then
-  # jemalloc need compile first, so disable parallel build
-  make -j ${CORES} && ${csudo}make install
-else
-  make -j ${CORES} && ${csudo}make install
-fi
+make -j ${CORES} && ${csudo}make install || exit 1
 
 cd ${curr_dir}
 
