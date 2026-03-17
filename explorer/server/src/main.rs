@@ -229,11 +229,6 @@ async fn main() -> anyhow::Result<()> {
     args.instance_id =
         Some(*INSTANCE_ID.get_or_init(|| args.instance_id.unwrap_or(DEFAULT_INSTANCE_ID)));
 
-    // validate configs loaded from TOML/env/CLI
-    if let Err(e) = args.security.validate() {
-        bail!("Invalid [security] configuration: {e}");
-    }
-
     let log_level = args
         .log
         .as_ref()
