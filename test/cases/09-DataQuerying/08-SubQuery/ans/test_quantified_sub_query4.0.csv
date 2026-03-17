@@ -1846,17 +1846,17 @@ taos> explain select f1 from st1 where 1 < all (select 0 from st1)\G;
 *************************** 1.row ***************************
 QUERY_PLAN: -> Data Exchange 2:1 (width=4)
 *************************** 2.row ***************************
-QUERY_PLAN:    -> Projection (columns=1 width=4 input_order=asc )
+QUERY_PLAN:    -> Projection (columns=1 width=4 input_order=asc)
 *************************** 3.row ***************************
 QUERY_PLAN:       -> Table Scan on st1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 4.row ***************************
 QUERY_PLAN:    InitPlan 1
 *************************** 5.row ***************************
-QUERY_PLAN:       -> Aggregate (functions=2 width=9 input_order=unknown )
+QUERY_PLAN:       -> Aggregate (functions=2 width=9 input_order=unknown)
 *************************** 6.row ***************************
 QUERY_PLAN:          -> Data Exchange 2:1 (width=16)
 *************************** 7.row ***************************
-QUERY_PLAN:             -> Projection (columns=1 width=8 input_order=asc )
+QUERY_PLAN:             -> Projection (columns=1 width=8 input_order=asc)
 *************************** 8.row ***************************
 QUERY_PLAN:                -> Table Scan on st1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 
@@ -1864,17 +1864,17 @@ taos> explain select f1 from st1 where 1 > all (select 0 from st1)\G;
 *************************** 1.row ***************************
 QUERY_PLAN: -> Data Exchange 2:1 (width=4)
 *************************** 2.row ***************************
-QUERY_PLAN:    -> Projection (columns=1 width=4 input_order=asc )
+QUERY_PLAN:    -> Projection (columns=1 width=4 input_order=asc)
 *************************** 3.row ***************************
 QUERY_PLAN:       -> Table Scan on st1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 4.row ***************************
 QUERY_PLAN:    InitPlan 1
 *************************** 5.row ***************************
-QUERY_PLAN:       -> Aggregate (functions=2 width=9 input_order=unknown )
+QUERY_PLAN:       -> Aggregate (functions=2 width=9 input_order=unknown)
 *************************** 6.row ***************************
 QUERY_PLAN:          -> Data Exchange 2:1 (width=16)
 *************************** 7.row ***************************
-QUERY_PLAN:             -> Projection (columns=1 width=8 input_order=asc )
+QUERY_PLAN:             -> Projection (columns=1 width=8 input_order=asc)
 *************************** 8.row ***************************
 QUERY_PLAN:                -> Table Scan on st1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 
@@ -1882,7 +1882,7 @@ taos> explain select f1 from st1 where NULL = any (select 2 from st1)\G;
 *************************** 1.row ***************************
 QUERY_PLAN: -> Data Exchange 2:1 (width=4)
 *************************** 2.row ***************************
-QUERY_PLAN:    -> Projection (columns=1 width=4 input_order=asc )
+QUERY_PLAN:    -> Projection (columns=1 width=4 input_order=asc)
 *************************** 3.row ***************************
 QUERY_PLAN:       -> Table Scan on st1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 4.row ***************************
@@ -1890,7 +1890,7 @@ QUERY_PLAN:    InitPlan 1
 *************************** 5.row ***************************
 QUERY_PLAN:       -> Data Exchange 2:1 (width=8)
 *************************** 6.row ***************************
-QUERY_PLAN:          -> Projection (columns=1 width=8 input_order=asc )
+QUERY_PLAN:          -> Projection (columns=1 width=8 input_order=asc)
 *************************** 7.row ***************************
 QUERY_PLAN:             -> Table Scan on st1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 
@@ -1898,7 +1898,7 @@ taos> explain select f1 from st1 where exists (select f1 from db2.tbx)\G;
 *************************** 1.row ***************************
 QUERY_PLAN: -> Data Exchange 2:1 (width=4)
 *************************** 2.row ***************************
-QUERY_PLAN:    -> Projection (columns=1 width=4 input_order=asc )
+QUERY_PLAN:    -> Projection (columns=1 width=4 input_order=asc)
 *************************** 3.row ***************************
 QUERY_PLAN:       -> Table Scan on st1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 4.row ***************************
@@ -1924,7 +1924,7 @@ QUERY_PLAN: -> Data Exchange 2:1 (width=4)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=1 width=4
 *************************** 3.row ***************************
-QUERY_PLAN:    -> Projection (columns=1 width=4 input_order=asc )
+QUERY_PLAN:    -> Projection (columns=1 width=4 input_order=asc)
 *************************** 4.row ***************************
 QUERY_PLAN:          Output: columns=1 width=4
 *************************** 5.row ***************************
@@ -1942,7 +1942,7 @@ QUERY_PLAN:             Filter: (1 < $(InitPlan 1))
 *************************** 11.row ***************************
 QUERY_PLAN:    InitPlan 1
 *************************** 12.row ***************************
-QUERY_PLAN:       -> Aggregate (functions=2 width=9 input_order=unknown )
+QUERY_PLAN:       -> Aggregate (functions=2 width=9 input_order=unknown)
 *************************** 13.row ***************************
 QUERY_PLAN:             Output: columns=2 width=9 blocking=1
 *************************** 14.row ***************************
@@ -1952,7 +1952,7 @@ QUERY_PLAN:          -> Data Exchange 2:1 (width=16)
 *************************** 16.row ***************************
 QUERY_PLAN:                Output: columns=2 width=16
 *************************** 17.row ***************************
-QUERY_PLAN:             -> Projection (columns=1 width=8 input_order=asc )
+QUERY_PLAN:             -> Projection (columns=1 width=8 input_order=asc)
 *************************** 18.row ***************************
 QUERY_PLAN:                   Output: columns=1 width=8
 *************************** 19.row ***************************
@@ -1972,7 +1972,7 @@ QUERY_PLAN: -> Data Exchange 2:1 (width=4)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=1 width=4
 *************************** 3.row ***************************
-QUERY_PLAN:    -> Projection (columns=1 width=4 input_order=asc )
+QUERY_PLAN:    -> Projection (columns=1 width=4 input_order=asc)
 *************************** 4.row ***************************
 QUERY_PLAN:          Output: columns=1 width=4
 *************************** 5.row ***************************
@@ -1990,7 +1990,7 @@ QUERY_PLAN:             Filter: (1 > $(InitPlan 1))
 *************************** 11.row ***************************
 QUERY_PLAN:    InitPlan 1
 *************************** 12.row ***************************
-QUERY_PLAN:       -> Aggregate (functions=2 width=9 input_order=unknown )
+QUERY_PLAN:       -> Aggregate (functions=2 width=9 input_order=unknown)
 *************************** 13.row ***************************
 QUERY_PLAN:             Output: columns=2 width=9 blocking=1
 *************************** 14.row ***************************
@@ -2000,7 +2000,7 @@ QUERY_PLAN:          -> Data Exchange 2:1 (width=16)
 *************************** 16.row ***************************
 QUERY_PLAN:                Output: columns=2 width=16
 *************************** 17.row ***************************
-QUERY_PLAN:             -> Projection (columns=1 width=8 input_order=asc )
+QUERY_PLAN:             -> Projection (columns=1 width=8 input_order=asc)
 *************************** 18.row ***************************
 QUERY_PLAN:                   Output: columns=1 width=8
 *************************** 19.row ***************************
@@ -2020,7 +2020,7 @@ QUERY_PLAN: -> Data Exchange 2:1 (width=4)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=1 width=4
 *************************** 3.row ***************************
-QUERY_PLAN:    -> Projection (columns=1 width=4 input_order=asc )
+QUERY_PLAN:    -> Projection (columns=1 width=4 input_order=asc)
 *************************** 4.row ***************************
 QUERY_PLAN:          Output: columns=1 width=4
 *************************** 5.row ***************************
@@ -2042,7 +2042,7 @@ QUERY_PLAN:       -> Data Exchange 2:1 (width=8)
 *************************** 13.row ***************************
 QUERY_PLAN:             Output: columns=1 width=8
 *************************** 14.row ***************************
-QUERY_PLAN:          -> Projection (columns=1 width=8 input_order=asc )
+QUERY_PLAN:          -> Projection (columns=1 width=8 input_order=asc)
 *************************** 15.row ***************************
 QUERY_PLAN:                Output: columns=1 width=8
 *************************** 16.row ***************************
@@ -2062,7 +2062,7 @@ QUERY_PLAN: -> Data Exchange 2:1 (width=4)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=1 width=4
 *************************** 3.row ***************************
-QUERY_PLAN:    -> Projection (columns=1 width=4 input_order=asc )
+QUERY_PLAN:    -> Projection (columns=1 width=4 input_order=asc)
 *************************** 4.row ***************************
 QUERY_PLAN:          Output: columns=1 width=4
 *************************** 5.row ***************************
@@ -2090,7 +2090,7 @@ taos> explain analyze select f1 from st1 where 1 < all (select 0 from st1)\G;
 *************************** 1.row ***************************
 QUERY_PLAN: -> Data Exchange 2:1 ( rows=0 width=4)
 *************************** 2.row ***************************
-QUERY_PLAN:    -> Projection ( rows=0 columns=1 width=4 input_order=asc )
+QUERY_PLAN:    -> Projection ( rows=0 columns=1 width=4 input_order=asc)
 *************************** 3.row ***************************
 QUERY_PLAN:       -> Table Scan on st1 ( rows=0 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 4.row ***************************
@@ -2100,11 +2100,11 @@ QUERY_PLAN:              total_rows:0, ep:tbd ()
 *************************** 6.row ***************************
 QUERY_PLAN:    InitPlan 1
 *************************** 7.row ***************************
-QUERY_PLAN:       -> Aggregate ( rows=1 functions=2 width=9 input_order=unknown )
+QUERY_PLAN:       -> Aggregate ( rows=1 functions=2 width=9 input_order=unknown)
 *************************** 8.row ***************************
 QUERY_PLAN:          -> Data Exchange 2:1 ( rows=6 width=16)
 *************************** 9.row ***************************
-QUERY_PLAN:             -> Projection ( rows=4 columns=1 width=8 input_order=asc )
+QUERY_PLAN:             -> Projection ( rows=4 columns=1 width=8 input_order=asc)
 *************************** 10.row ***************************
 QUERY_PLAN:                -> Table Scan on st1 ( rows=4 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 11.row ***************************
@@ -2122,7 +2122,7 @@ taos> explain analyze select f1 from st1 where 1 > all (select 0 from st1)\G;
 *************************** 1.row ***************************
 QUERY_PLAN: -> Data Exchange 2:1 ( rows=6 width=4)
 *************************** 2.row ***************************
-QUERY_PLAN:    -> Projection ( rows=4 columns=1 width=4 input_order=asc )
+QUERY_PLAN:    -> Projection ( rows=4 columns=1 width=4 input_order=asc)
 *************************** 3.row ***************************
 QUERY_PLAN:       -> Table Scan on st1 ( rows=4 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 4.row ***************************
@@ -2132,11 +2132,11 @@ QUERY_PLAN:              total_rows:4, ep:tbd ()
 *************************** 6.row ***************************
 QUERY_PLAN:    InitPlan 1
 *************************** 7.row ***************************
-QUERY_PLAN:       -> Aggregate ( rows=1 functions=2 width=9 input_order=unknown )
+QUERY_PLAN:       -> Aggregate ( rows=1 functions=2 width=9 input_order=unknown)
 *************************** 8.row ***************************
 QUERY_PLAN:          -> Data Exchange 2:1 ( rows=6 width=16)
 *************************** 9.row ***************************
-QUERY_PLAN:             -> Projection ( rows=4 columns=1 width=8 input_order=asc )
+QUERY_PLAN:             -> Projection ( rows=4 columns=1 width=8 input_order=asc)
 *************************** 10.row ***************************
 QUERY_PLAN:                -> Table Scan on st1 ( rows=4 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 11.row ***************************
@@ -2154,7 +2154,7 @@ taos> explain analyze select f1 from st1 where NULL = any (select 2 from st1)\G;
 *************************** 1.row ***************************
 QUERY_PLAN: -> Data Exchange 2:1 ( rows=0 width=4)
 *************************** 2.row ***************************
-QUERY_PLAN:    -> Projection ( rows=0 columns=1 width=4 input_order=asc )
+QUERY_PLAN:    -> Projection ( rows=0 columns=1 width=4 input_order=asc)
 *************************** 3.row ***************************
 QUERY_PLAN:       -> Table Scan on st1 ( rows=0 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 4.row ***************************
@@ -2166,7 +2166,7 @@ QUERY_PLAN:    InitPlan 1
 *************************** 7.row ***************************
 QUERY_PLAN:       -> Data Exchange 2:1 ( rows=6 width=8)
 *************************** 8.row ***************************
-QUERY_PLAN:          -> Projection ( rows=4 columns=1 width=8 input_order=asc )
+QUERY_PLAN:          -> Projection ( rows=4 columns=1 width=8 input_order=asc)
 *************************** 9.row ***************************
 QUERY_PLAN:             -> Table Scan on st1 ( rows=4 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 10.row ***************************
@@ -2184,7 +2184,7 @@ taos> explain analyze select f1 from st1 where exists (select f1 from db2.tbx)\G
 *************************** 1.row ***************************
 QUERY_PLAN: -> Data Exchange 2:1 ( rows=6 width=4)
 *************************** 2.row ***************************
-QUERY_PLAN:    -> Projection ( rows=4 columns=1 width=4 input_order=asc )
+QUERY_PLAN:    -> Projection ( rows=4 columns=1 width=4 input_order=asc)
 *************************** 3.row ***************************
 QUERY_PLAN:       -> Table Scan on st1 ( rows=4 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 4.row ***************************
@@ -2212,7 +2212,7 @@ QUERY_PLAN: -> Data Exchange 2:1 ( rows=0 width=4)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=1 width=4
 *************************** 3.row ***************************
-QUERY_PLAN:    -> Projection ( rows=0 columns=1 width=4 input_order=asc )
+QUERY_PLAN:    -> Projection ( rows=0 columns=1 width=4 input_order=asc)
 *************************** 4.row ***************************
 QUERY_PLAN:          Output: columns=1 width=4
 *************************** 5.row ***************************
@@ -2234,7 +2234,7 @@ QUERY_PLAN:             Filter: (1 < $(InitPlan 1))
 *************************** 13.row ***************************
 QUERY_PLAN:    InitPlan 1
 *************************** 14.row ***************************
-QUERY_PLAN:       -> Aggregate ( rows=1 functions=2 width=9 input_order=unknown )
+QUERY_PLAN:       -> Aggregate ( rows=1 functions=2 width=9 input_order=unknown)
 *************************** 15.row ***************************
 QUERY_PLAN:             Output: columns=2 width=9 blocking=1
 *************************** 16.row ***************************
@@ -2244,7 +2244,7 @@ QUERY_PLAN:          -> Data Exchange 2:1 ( rows=6 width=16)
 *************************** 18.row ***************************
 QUERY_PLAN:                Output: columns=2 width=16
 *************************** 19.row ***************************
-QUERY_PLAN:             -> Projection ( rows=4 columns=1 width=8 input_order=asc )
+QUERY_PLAN:             -> Projection ( rows=4 columns=1 width=8 input_order=asc)
 *************************** 20.row ***************************
 QUERY_PLAN:                   Output: columns=1 width=8
 *************************** 21.row ***************************
@@ -2274,7 +2274,7 @@ QUERY_PLAN: -> Data Exchange 2:1 ( rows=6 width=4)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=1 width=4
 *************************** 3.row ***************************
-QUERY_PLAN:    -> Projection ( rows=4 columns=1 width=4 input_order=asc )
+QUERY_PLAN:    -> Projection ( rows=4 columns=1 width=4 input_order=asc)
 *************************** 4.row ***************************
 QUERY_PLAN:          Output: columns=1 width=4
 *************************** 5.row ***************************
@@ -2296,7 +2296,7 @@ QUERY_PLAN:             Filter: (1 > $(InitPlan 1))
 *************************** 13.row ***************************
 QUERY_PLAN:    InitPlan 1
 *************************** 14.row ***************************
-QUERY_PLAN:       -> Aggregate ( rows=1 functions=2 width=9 input_order=unknown )
+QUERY_PLAN:       -> Aggregate ( rows=1 functions=2 width=9 input_order=unknown)
 *************************** 15.row ***************************
 QUERY_PLAN:             Output: columns=2 width=9 blocking=1
 *************************** 16.row ***************************
@@ -2306,7 +2306,7 @@ QUERY_PLAN:          -> Data Exchange 2:1 ( rows=6 width=16)
 *************************** 18.row ***************************
 QUERY_PLAN:                Output: columns=2 width=16
 *************************** 19.row ***************************
-QUERY_PLAN:             -> Projection ( rows=4 columns=1 width=8 input_order=asc )
+QUERY_PLAN:             -> Projection ( rows=4 columns=1 width=8 input_order=asc)
 *************************** 20.row ***************************
 QUERY_PLAN:                   Output: columns=1 width=8
 *************************** 21.row ***************************
@@ -2336,7 +2336,7 @@ QUERY_PLAN: -> Data Exchange 2:1 ( rows=0 width=4)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=1 width=4
 *************************** 3.row ***************************
-QUERY_PLAN:    -> Projection ( rows=0 columns=1 width=4 input_order=asc )
+QUERY_PLAN:    -> Projection ( rows=0 columns=1 width=4 input_order=asc)
 *************************** 4.row ***************************
 QUERY_PLAN:          Output: columns=1 width=4
 *************************** 5.row ***************************
@@ -2362,7 +2362,7 @@ QUERY_PLAN:       -> Data Exchange 2:1 ( rows=6 width=8)
 *************************** 15.row ***************************
 QUERY_PLAN:             Output: columns=1 width=8
 *************************** 16.row ***************************
-QUERY_PLAN:          -> Projection ( rows=4 columns=1 width=8 input_order=asc )
+QUERY_PLAN:          -> Projection ( rows=4 columns=1 width=8 input_order=asc)
 *************************** 17.row ***************************
 QUERY_PLAN:                Output: columns=1 width=8
 *************************** 18.row ***************************
@@ -2392,7 +2392,7 @@ QUERY_PLAN: -> Data Exchange 2:1 ( rows=6 width=4)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=1 width=4
 *************************** 3.row ***************************
-QUERY_PLAN:    -> Projection ( rows=4 columns=1 width=4 input_order=asc )
+QUERY_PLAN:    -> Projection ( rows=4 columns=1 width=4 input_order=asc)
 *************************** 4.row ***************************
 QUERY_PLAN:          Output: columns=1 width=4
 *************************** 5.row ***************************
@@ -2432,77 +2432,77 @@ QUERY_PLAN:
 
 taos> explain select avg(f1), 1 < all (select 0 from st1) from st1 group by f1 having 1 < all (select 0 from st1)\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection (columns=2 width=9 input_order=unknown )
+QUERY_PLAN: -> Projection (columns=2 width=9 input_order=unknown)
 *************************** 2.row ***************************
-QUERY_PLAN:    -> GroupAggregate (functions=1 width=12 groups=1 input_order=asc )
+QUERY_PLAN:    -> GroupAggregate (functions=1 width=12 groups=1 input_order=asc)
 *************************** 3.row ***************************
 QUERY_PLAN:       -> Data Exchange 2:1 (width=62)
 *************************** 4.row ***************************
-QUERY_PLAN:          -> GroupAggregate (functions=1 width=62 groups=1 input_order=asc )
+QUERY_PLAN:          -> GroupAggregate (functions=1 width=62 groups=1 input_order=asc)
 *************************** 5.row ***************************
 QUERY_PLAN:             -> Table Scan on st1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 6.row ***************************
 QUERY_PLAN:    InitPlan 2
 *************************** 7.row ***************************
-QUERY_PLAN:       -> Aggregate (functions=2 width=9 input_order=unknown )
+QUERY_PLAN:       -> Aggregate (functions=2 width=9 input_order=unknown)
 *************************** 8.row ***************************
 QUERY_PLAN:          -> Data Exchange 2:1 (width=16)
 *************************** 9.row ***************************
-QUERY_PLAN:             -> Projection (columns=1 width=8 input_order=asc )
+QUERY_PLAN:             -> Projection (columns=1 width=8 input_order=asc)
 *************************** 10.row ***************************
 QUERY_PLAN:                -> Table Scan on st1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 11.row ***************************
 QUERY_PLAN:    InitPlan 1
 *************************** 12.row ***************************
-QUERY_PLAN:       -> Aggregate (functions=2 width=9 input_order=unknown )
+QUERY_PLAN:       -> Aggregate (functions=2 width=9 input_order=unknown)
 *************************** 13.row ***************************
 QUERY_PLAN:          -> Data Exchange 2:1 (width=16)
 *************************** 14.row ***************************
-QUERY_PLAN:             -> Projection (columns=1 width=8 input_order=asc )
+QUERY_PLAN:             -> Projection (columns=1 width=8 input_order=asc)
 *************************** 15.row ***************************
 QUERY_PLAN:                -> Table Scan on st1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 
 taos> explain select avg(f1), 1 > all (select 0 from st1) from st1 group by f1 having 1 > all (select 0 from st1)\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection (columns=2 width=9 input_order=unknown )
+QUERY_PLAN: -> Projection (columns=2 width=9 input_order=unknown)
 *************************** 2.row ***************************
-QUERY_PLAN:    -> GroupAggregate (functions=1 width=12 groups=1 input_order=asc )
+QUERY_PLAN:    -> GroupAggregate (functions=1 width=12 groups=1 input_order=asc)
 *************************** 3.row ***************************
 QUERY_PLAN:       -> Data Exchange 2:1 (width=62)
 *************************** 4.row ***************************
-QUERY_PLAN:          -> GroupAggregate (functions=1 width=62 groups=1 input_order=asc )
+QUERY_PLAN:          -> GroupAggregate (functions=1 width=62 groups=1 input_order=asc)
 *************************** 5.row ***************************
 QUERY_PLAN:             -> Table Scan on st1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 6.row ***************************
 QUERY_PLAN:    InitPlan 2
 *************************** 7.row ***************************
-QUERY_PLAN:       -> Aggregate (functions=2 width=9 input_order=unknown )
+QUERY_PLAN:       -> Aggregate (functions=2 width=9 input_order=unknown)
 *************************** 8.row ***************************
 QUERY_PLAN:          -> Data Exchange 2:1 (width=16)
 *************************** 9.row ***************************
-QUERY_PLAN:             -> Projection (columns=1 width=8 input_order=asc )
+QUERY_PLAN:             -> Projection (columns=1 width=8 input_order=asc)
 *************************** 10.row ***************************
 QUERY_PLAN:                -> Table Scan on st1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 11.row ***************************
 QUERY_PLAN:    InitPlan 1
 *************************** 12.row ***************************
-QUERY_PLAN:       -> Aggregate (functions=2 width=9 input_order=unknown )
+QUERY_PLAN:       -> Aggregate (functions=2 width=9 input_order=unknown)
 *************************** 13.row ***************************
 QUERY_PLAN:          -> Data Exchange 2:1 (width=16)
 *************************** 14.row ***************************
-QUERY_PLAN:             -> Projection (columns=1 width=8 input_order=asc )
+QUERY_PLAN:             -> Projection (columns=1 width=8 input_order=asc)
 *************************** 15.row ***************************
 QUERY_PLAN:                -> Table Scan on st1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 
 taos> explain select avg(f1), NULL = any (select 2 from st1) from st1 group by f1 having NULL = any (select 2 from st1)\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection (columns=2 width=9 input_order=unknown )
+QUERY_PLAN: -> Projection (columns=2 width=9 input_order=unknown)
 *************************** 2.row ***************************
-QUERY_PLAN:    -> GroupAggregate (functions=1 width=12 groups=1 input_order=asc )
+QUERY_PLAN:    -> GroupAggregate (functions=1 width=12 groups=1 input_order=asc)
 *************************** 3.row ***************************
 QUERY_PLAN:       -> Data Exchange 2:1 (width=62)
 *************************** 4.row ***************************
-QUERY_PLAN:          -> GroupAggregate (functions=1 width=62 groups=1 input_order=asc )
+QUERY_PLAN:          -> GroupAggregate (functions=1 width=62 groups=1 input_order=asc)
 *************************** 5.row ***************************
 QUERY_PLAN:             -> Table Scan on st1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 6.row ***************************
@@ -2510,7 +2510,7 @@ QUERY_PLAN:    InitPlan 2
 *************************** 7.row ***************************
 QUERY_PLAN:       -> Data Exchange 2:1 (width=8)
 *************************** 8.row ***************************
-QUERY_PLAN:          -> Projection (columns=1 width=8 input_order=asc )
+QUERY_PLAN:          -> Projection (columns=1 width=8 input_order=asc)
 *************************** 9.row ***************************
 QUERY_PLAN:             -> Table Scan on st1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 10.row ***************************
@@ -2518,19 +2518,19 @@ QUERY_PLAN:    InitPlan 1
 *************************** 11.row ***************************
 QUERY_PLAN:       -> Data Exchange 2:1 (width=8)
 *************************** 12.row ***************************
-QUERY_PLAN:          -> Projection (columns=1 width=8 input_order=asc )
+QUERY_PLAN:          -> Projection (columns=1 width=8 input_order=asc)
 *************************** 13.row ***************************
 QUERY_PLAN:             -> Table Scan on st1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 
 taos> explain select avg(f1), exists (select f1 from db2.tbx) from st1 group by f1 having exists (select f1 from db2.tbx)\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection (columns=2 width=9 input_order=unknown )
+QUERY_PLAN: -> Projection (columns=2 width=9 input_order=unknown)
 *************************** 2.row ***************************
-QUERY_PLAN:    -> GroupAggregate (functions=1 width=12 groups=1 input_order=asc )
+QUERY_PLAN:    -> GroupAggregate (functions=1 width=12 groups=1 input_order=asc)
 *************************** 3.row ***************************
 QUERY_PLAN:       -> Data Exchange 2:1 (width=62)
 *************************** 4.row ***************************
-QUERY_PLAN:          -> GroupAggregate (functions=1 width=62 groups=1 input_order=asc )
+QUERY_PLAN:          -> GroupAggregate (functions=1 width=62 groups=1 input_order=asc)
 *************************** 5.row ***************************
 QUERY_PLAN:             -> Table Scan on st1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 6.row ***************************
@@ -2544,7 +2544,7 @@ QUERY_PLAN:       -> Table Scan on tbx (columns=2 width=12 order=[asc|1 desc|0] 
 
 taos> explain verbose true select avg(f1), 1 < all (select 0 from st1) from st1 group by f1 having 1 < all (select 0 from st1)\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection (columns=2 width=9 input_order=unknown )
+QUERY_PLAN: -> Projection (columns=2 width=9 input_order=unknown)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=2 width=9
 *************************** 3.row ***************************
@@ -2552,7 +2552,7 @@ QUERY_PLAN:       Output: Ignore Group Id: true
 *************************** 4.row ***************************
 QUERY_PLAN:       Merge ResBlocks: True
 *************************** 5.row ***************************
-QUERY_PLAN:    -> GroupAggregate (functions=1 width=12 groups=1 input_order=asc )
+QUERY_PLAN:    -> GroupAggregate (functions=1 width=12 groups=1 input_order=asc)
 *************************** 6.row ***************************
 QUERY_PLAN:          Output: columns=1 width=8 blocking=1
 *************************** 7.row ***************************
@@ -2562,7 +2562,7 @@ QUERY_PLAN:       -> Data Exchange 2:1 (width=62)
 *************************** 9.row ***************************
 QUERY_PLAN:             Output: columns=2 width=62
 *************************** 10.row ***************************
-QUERY_PLAN:          -> GroupAggregate (functions=1 width=62 groups=1 input_order=asc )
+QUERY_PLAN:          -> GroupAggregate (functions=1 width=62 groups=1 input_order=asc)
 *************************** 11.row ***************************
 QUERY_PLAN:                Output: columns=2 width=62 blocking=1
 *************************** 12.row ***************************
@@ -2578,7 +2578,7 @@ QUERY_PLAN:                   Filter: (1 < $(InitPlan 1))
 *************************** 17.row ***************************
 QUERY_PLAN:    InitPlan 2
 *************************** 18.row ***************************
-QUERY_PLAN:       -> Aggregate (functions=2 width=9 input_order=unknown )
+QUERY_PLAN:       -> Aggregate (functions=2 width=9 input_order=unknown)
 *************************** 19.row ***************************
 QUERY_PLAN:             Output: columns=2 width=9 blocking=1
 *************************** 20.row ***************************
@@ -2588,7 +2588,7 @@ QUERY_PLAN:          -> Data Exchange 2:1 (width=16)
 *************************** 22.row ***************************
 QUERY_PLAN:                Output: columns=2 width=16
 *************************** 23.row ***************************
-QUERY_PLAN:             -> Projection (columns=1 width=8 input_order=asc )
+QUERY_PLAN:             -> Projection (columns=1 width=8 input_order=asc)
 *************************** 24.row ***************************
 QUERY_PLAN:                   Output: columns=1 width=8
 *************************** 25.row ***************************
@@ -2604,7 +2604,7 @@ QUERY_PLAN:                      Time Range: [-9223372036854775808, 922337203685
 *************************** 30.row ***************************
 QUERY_PLAN:    InitPlan 1
 *************************** 31.row ***************************
-QUERY_PLAN:       -> Aggregate (functions=2 width=9 input_order=unknown )
+QUERY_PLAN:       -> Aggregate (functions=2 width=9 input_order=unknown)
 *************************** 32.row ***************************
 QUERY_PLAN:             Output: columns=2 width=9 blocking=1
 *************************** 33.row ***************************
@@ -2614,7 +2614,7 @@ QUERY_PLAN:          -> Data Exchange 2:1 (width=16)
 *************************** 35.row ***************************
 QUERY_PLAN:                Output: columns=2 width=16
 *************************** 36.row ***************************
-QUERY_PLAN:             -> Projection (columns=1 width=8 input_order=asc )
+QUERY_PLAN:             -> Projection (columns=1 width=8 input_order=asc)
 *************************** 37.row ***************************
 QUERY_PLAN:                   Output: columns=1 width=8
 *************************** 38.row ***************************
@@ -2630,7 +2630,7 @@ QUERY_PLAN:                      Time Range: [-9223372036854775808, 922337203685
 
 taos> explain verbose true select avg(f1), 1 > all (select 0 from st1) from st1 group by f1 having 1 > all (select 0 from st1)\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection (columns=2 width=9 input_order=unknown )
+QUERY_PLAN: -> Projection (columns=2 width=9 input_order=unknown)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=2 width=9
 *************************** 3.row ***************************
@@ -2638,7 +2638,7 @@ QUERY_PLAN:       Output: Ignore Group Id: true
 *************************** 4.row ***************************
 QUERY_PLAN:       Merge ResBlocks: True
 *************************** 5.row ***************************
-QUERY_PLAN:    -> GroupAggregate (functions=1 width=12 groups=1 input_order=asc )
+QUERY_PLAN:    -> GroupAggregate (functions=1 width=12 groups=1 input_order=asc)
 *************************** 6.row ***************************
 QUERY_PLAN:          Output: columns=1 width=8 blocking=1
 *************************** 7.row ***************************
@@ -2648,7 +2648,7 @@ QUERY_PLAN:       -> Data Exchange 2:1 (width=62)
 *************************** 9.row ***************************
 QUERY_PLAN:             Output: columns=2 width=62
 *************************** 10.row ***************************
-QUERY_PLAN:          -> GroupAggregate (functions=1 width=62 groups=1 input_order=asc )
+QUERY_PLAN:          -> GroupAggregate (functions=1 width=62 groups=1 input_order=asc)
 *************************** 11.row ***************************
 QUERY_PLAN:                Output: columns=2 width=62 blocking=1
 *************************** 12.row ***************************
@@ -2664,7 +2664,7 @@ QUERY_PLAN:                   Filter: (1 > $(InitPlan 1))
 *************************** 17.row ***************************
 QUERY_PLAN:    InitPlan 2
 *************************** 18.row ***************************
-QUERY_PLAN:       -> Aggregate (functions=2 width=9 input_order=unknown )
+QUERY_PLAN:       -> Aggregate (functions=2 width=9 input_order=unknown)
 *************************** 19.row ***************************
 QUERY_PLAN:             Output: columns=2 width=9 blocking=1
 *************************** 20.row ***************************
@@ -2674,7 +2674,7 @@ QUERY_PLAN:          -> Data Exchange 2:1 (width=16)
 *************************** 22.row ***************************
 QUERY_PLAN:                Output: columns=2 width=16
 *************************** 23.row ***************************
-QUERY_PLAN:             -> Projection (columns=1 width=8 input_order=asc )
+QUERY_PLAN:             -> Projection (columns=1 width=8 input_order=asc)
 *************************** 24.row ***************************
 QUERY_PLAN:                   Output: columns=1 width=8
 *************************** 25.row ***************************
@@ -2690,7 +2690,7 @@ QUERY_PLAN:                      Time Range: [-9223372036854775808, 922337203685
 *************************** 30.row ***************************
 QUERY_PLAN:    InitPlan 1
 *************************** 31.row ***************************
-QUERY_PLAN:       -> Aggregate (functions=2 width=9 input_order=unknown )
+QUERY_PLAN:       -> Aggregate (functions=2 width=9 input_order=unknown)
 *************************** 32.row ***************************
 QUERY_PLAN:             Output: columns=2 width=9 blocking=1
 *************************** 33.row ***************************
@@ -2700,7 +2700,7 @@ QUERY_PLAN:          -> Data Exchange 2:1 (width=16)
 *************************** 35.row ***************************
 QUERY_PLAN:                Output: columns=2 width=16
 *************************** 36.row ***************************
-QUERY_PLAN:             -> Projection (columns=1 width=8 input_order=asc )
+QUERY_PLAN:             -> Projection (columns=1 width=8 input_order=asc)
 *************************** 37.row ***************************
 QUERY_PLAN:                   Output: columns=1 width=8
 *************************** 38.row ***************************
@@ -2716,7 +2716,7 @@ QUERY_PLAN:                      Time Range: [-9223372036854775808, 922337203685
 
 taos> explain verbose true select avg(f1), NULL = any (select 2 from st1) from st1 group by f1 having NULL = any (select 2 from st1)\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection (columns=2 width=9 input_order=unknown )
+QUERY_PLAN: -> Projection (columns=2 width=9 input_order=unknown)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=2 width=9
 *************************** 3.row ***************************
@@ -2724,7 +2724,7 @@ QUERY_PLAN:       Output: Ignore Group Id: true
 *************************** 4.row ***************************
 QUERY_PLAN:       Merge ResBlocks: True
 *************************** 5.row ***************************
-QUERY_PLAN:    -> GroupAggregate (functions=1 width=12 groups=1 input_order=asc )
+QUERY_PLAN:    -> GroupAggregate (functions=1 width=12 groups=1 input_order=asc)
 *************************** 6.row ***************************
 QUERY_PLAN:          Output: columns=1 width=8 blocking=1
 *************************** 7.row ***************************
@@ -2734,7 +2734,7 @@ QUERY_PLAN:       -> Data Exchange 2:1 (width=62)
 *************************** 9.row ***************************
 QUERY_PLAN:             Output: columns=2 width=62
 *************************** 10.row ***************************
-QUERY_PLAN:          -> GroupAggregate (functions=1 width=62 groups=1 input_order=asc )
+QUERY_PLAN:          -> GroupAggregate (functions=1 width=62 groups=1 input_order=asc)
 *************************** 11.row ***************************
 QUERY_PLAN:                Output: columns=2 width=62 blocking=1
 *************************** 12.row ***************************
@@ -2754,7 +2754,7 @@ QUERY_PLAN:       -> Data Exchange 2:1 (width=8)
 *************************** 19.row ***************************
 QUERY_PLAN:             Output: columns=1 width=8
 *************************** 20.row ***************************
-QUERY_PLAN:          -> Projection (columns=1 width=8 input_order=asc )
+QUERY_PLAN:          -> Projection (columns=1 width=8 input_order=asc)
 *************************** 21.row ***************************
 QUERY_PLAN:                Output: columns=1 width=8
 *************************** 22.row ***************************
@@ -2774,7 +2774,7 @@ QUERY_PLAN:       -> Data Exchange 2:1 (width=8)
 *************************** 29.row ***************************
 QUERY_PLAN:             Output: columns=1 width=8
 *************************** 30.row ***************************
-QUERY_PLAN:          -> Projection (columns=1 width=8 input_order=asc )
+QUERY_PLAN:          -> Projection (columns=1 width=8 input_order=asc)
 *************************** 31.row ***************************
 QUERY_PLAN:                Output: columns=1 width=8
 *************************** 32.row ***************************
@@ -2790,7 +2790,7 @@ QUERY_PLAN:                   Time Range: [-9223372036854775808, 922337203685477
 
 taos> explain verbose true select avg(f1), exists (select f1 from db2.tbx) from st1 group by f1 having exists (select f1 from db2.tbx)\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection (columns=2 width=9 input_order=unknown )
+QUERY_PLAN: -> Projection (columns=2 width=9 input_order=unknown)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=2 width=9
 *************************** 3.row ***************************
@@ -2798,7 +2798,7 @@ QUERY_PLAN:       Output: Ignore Group Id: true
 *************************** 4.row ***************************
 QUERY_PLAN:       Merge ResBlocks: True
 *************************** 5.row ***************************
-QUERY_PLAN:    -> GroupAggregate (functions=1 width=12 groups=1 input_order=asc )
+QUERY_PLAN:    -> GroupAggregate (functions=1 width=12 groups=1 input_order=asc)
 *************************** 6.row ***************************
 QUERY_PLAN:          Output: columns=1 width=8 blocking=1
 *************************** 7.row ***************************
@@ -2808,7 +2808,7 @@ QUERY_PLAN:       -> Data Exchange 2:1 (width=62)
 *************************** 9.row ***************************
 QUERY_PLAN:             Output: columns=2 width=62
 *************************** 10.row ***************************
-QUERY_PLAN:          -> GroupAggregate (functions=1 width=62 groups=1 input_order=asc )
+QUERY_PLAN:          -> GroupAggregate (functions=1 width=62 groups=1 input_order=asc)
 *************************** 11.row ***************************
 QUERY_PLAN:                Output: columns=2 width=62 blocking=1
 *************************** 12.row ***************************
@@ -2840,13 +2840,13 @@ QUERY_PLAN:             Time Range: [-9223372036854775808, 9223372036854775807]
 
 taos> explain analyze select avg(f1), 1 < all (select 0 from st1) from st1 group by f1 having 1 < all (select 0 from st1)\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection ( rows=0 columns=2 width=9 input_order=unknown )
+QUERY_PLAN: -> Projection ( rows=0 columns=2 width=9 input_order=unknown)
 *************************** 2.row ***************************
-QUERY_PLAN:    -> GroupAggregate ( rows=0 functions=1 width=12 groups=1 input_order=asc )
+QUERY_PLAN:    -> GroupAggregate ( rows=0 functions=1 width=12 groups=1 input_order=asc)
 *************************** 3.row ***************************
 QUERY_PLAN:       -> Data Exchange 2:1 ( rows=0 width=62)
 *************************** 4.row ***************************
-QUERY_PLAN:          -> GroupAggregate ( rows=0 functions=1 width=62 groups=1 input_order=asc )
+QUERY_PLAN:          -> GroupAggregate ( rows=0 functions=1 width=62 groups=1 input_order=asc)
 *************************** 5.row ***************************
 QUERY_PLAN:             -> Table Scan on st1 ( rows=0 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 6.row ***************************
@@ -2856,11 +2856,11 @@ QUERY_PLAN:                    total_rows:0, ep:tbd ()
 *************************** 8.row ***************************
 QUERY_PLAN:    InitPlan 2
 *************************** 9.row ***************************
-QUERY_PLAN:       -> Aggregate ( rows=1 functions=2 width=9 input_order=unknown )
+QUERY_PLAN:       -> Aggregate ( rows=1 functions=2 width=9 input_order=unknown)
 *************************** 10.row ***************************
 QUERY_PLAN:          -> Data Exchange 2:1 ( rows=6 width=16)
 *************************** 11.row ***************************
-QUERY_PLAN:             -> Projection ( rows=4 columns=1 width=8 input_order=asc )
+QUERY_PLAN:             -> Projection ( rows=4 columns=1 width=8 input_order=asc)
 *************************** 12.row ***************************
 QUERY_PLAN:                -> Table Scan on st1 ( rows=4 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 13.row ***************************
@@ -2870,11 +2870,11 @@ QUERY_PLAN:                       total_rows:4, ep:tbd ()
 *************************** 15.row ***************************
 QUERY_PLAN:    InitPlan 1
 *************************** 16.row ***************************
-QUERY_PLAN:       -> Aggregate ( rows=1 functions=2 width=9 input_order=unknown )
+QUERY_PLAN:       -> Aggregate ( rows=1 functions=2 width=9 input_order=unknown)
 *************************** 17.row ***************************
 QUERY_PLAN:          -> Data Exchange 2:1 ( rows=6 width=16)
 *************************** 18.row ***************************
-QUERY_PLAN:             -> Projection ( rows=4 columns=1 width=8 input_order=asc )
+QUERY_PLAN:             -> Projection ( rows=4 columns=1 width=8 input_order=asc)
 *************************** 19.row ***************************
 QUERY_PLAN:                -> Table Scan on st1 ( rows=4 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 20.row ***************************
@@ -2890,13 +2890,13 @@ QUERY_PLAN:
 
 taos> explain analyze select avg(f1), 1 > all (select 0 from st1) from st1 group by f1 having 1 > all (select 0 from st1)\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection ( rows=6 columns=2 width=9 input_order=unknown )
+QUERY_PLAN: -> Projection ( rows=6 columns=2 width=9 input_order=unknown)
 *************************** 2.row ***************************
-QUERY_PLAN:    -> GroupAggregate ( rows=6 functions=1 width=12 groups=1 input_order=asc )
+QUERY_PLAN:    -> GroupAggregate ( rows=6 functions=1 width=12 groups=1 input_order=asc)
 *************************** 3.row ***************************
 QUERY_PLAN:       -> Data Exchange 2:1 ( rows=6 width=62)
 *************************** 4.row ***************************
-QUERY_PLAN:          -> GroupAggregate ( rows=4 functions=1 width=62 groups=1 input_order=asc )
+QUERY_PLAN:          -> GroupAggregate ( rows=4 functions=1 width=62 groups=1 input_order=asc)
 *************************** 5.row ***************************
 QUERY_PLAN:             -> Table Scan on st1 ( rows=4 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 6.row ***************************
@@ -2906,11 +2906,11 @@ QUERY_PLAN:                    total_rows:4, ep:tbd ()
 *************************** 8.row ***************************
 QUERY_PLAN:    InitPlan 2
 *************************** 9.row ***************************
-QUERY_PLAN:       -> Aggregate ( rows=1 functions=2 width=9 input_order=unknown )
+QUERY_PLAN:       -> Aggregate ( rows=1 functions=2 width=9 input_order=unknown)
 *************************** 10.row ***************************
 QUERY_PLAN:          -> Data Exchange 2:1 ( rows=6 width=16)
 *************************** 11.row ***************************
-QUERY_PLAN:             -> Projection ( rows=4 columns=1 width=8 input_order=asc )
+QUERY_PLAN:             -> Projection ( rows=4 columns=1 width=8 input_order=asc)
 *************************** 12.row ***************************
 QUERY_PLAN:                -> Table Scan on st1 ( rows=4 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 13.row ***************************
@@ -2920,11 +2920,11 @@ QUERY_PLAN:                       total_rows:4, ep:tbd ()
 *************************** 15.row ***************************
 QUERY_PLAN:    InitPlan 1
 *************************** 16.row ***************************
-QUERY_PLAN:       -> Aggregate ( rows=1 functions=2 width=9 input_order=unknown )
+QUERY_PLAN:       -> Aggregate ( rows=1 functions=2 width=9 input_order=unknown)
 *************************** 17.row ***************************
 QUERY_PLAN:          -> Data Exchange 2:1 ( rows=6 width=16)
 *************************** 18.row ***************************
-QUERY_PLAN:             -> Projection ( rows=4 columns=1 width=8 input_order=asc )
+QUERY_PLAN:             -> Projection ( rows=4 columns=1 width=8 input_order=asc)
 *************************** 19.row ***************************
 QUERY_PLAN:                -> Table Scan on st1 ( rows=4 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 20.row ***************************
@@ -2940,13 +2940,13 @@ QUERY_PLAN:
 
 taos> explain analyze select avg(f1), NULL = any (select 2 from st1) from st1 group by f1 having NULL = any (select 2 from st1)\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection ( rows=0 columns=2 width=9 input_order=unknown )
+QUERY_PLAN: -> Projection ( rows=0 columns=2 width=9 input_order=unknown)
 *************************** 2.row ***************************
-QUERY_PLAN:    -> GroupAggregate ( rows=0 functions=1 width=12 groups=1 input_order=asc )
+QUERY_PLAN:    -> GroupAggregate ( rows=0 functions=1 width=12 groups=1 input_order=asc)
 *************************** 3.row ***************************
 QUERY_PLAN:       -> Data Exchange 2:1 ( rows=0 width=62)
 *************************** 4.row ***************************
-QUERY_PLAN:          -> GroupAggregate ( rows=0 functions=1 width=62 groups=1 input_order=asc )
+QUERY_PLAN:          -> GroupAggregate ( rows=0 functions=1 width=62 groups=1 input_order=asc)
 *************************** 5.row ***************************
 QUERY_PLAN:             -> Table Scan on st1 ( rows=0 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 6.row ***************************
@@ -2958,7 +2958,7 @@ QUERY_PLAN:    InitPlan 2
 *************************** 9.row ***************************
 QUERY_PLAN:       -> Data Exchange 2:1 ( rows=6 width=8)
 *************************** 10.row ***************************
-QUERY_PLAN:          -> Projection ( rows=4 columns=1 width=8 input_order=asc )
+QUERY_PLAN:          -> Projection ( rows=4 columns=1 width=8 input_order=asc)
 *************************** 11.row ***************************
 QUERY_PLAN:             -> Table Scan on st1 ( rows=4 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 12.row ***************************
@@ -2970,7 +2970,7 @@ QUERY_PLAN:    InitPlan 1
 *************************** 15.row ***************************
 QUERY_PLAN:       -> Data Exchange 2:1 ( rows=6 width=8)
 *************************** 16.row ***************************
-QUERY_PLAN:          -> Projection ( rows=4 columns=1 width=8 input_order=asc )
+QUERY_PLAN:          -> Projection ( rows=4 columns=1 width=8 input_order=asc)
 *************************** 17.row ***************************
 QUERY_PLAN:             -> Table Scan on st1 ( rows=4 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 18.row ***************************
@@ -2986,13 +2986,13 @@ QUERY_PLAN:
 
 taos> explain analyze select avg(f1), exists (select f1 from db2.tbx) from st1 group by f1 having exists (select f1 from db2.tbx)\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection ( rows=6 columns=2 width=9 input_order=unknown )
+QUERY_PLAN: -> Projection ( rows=6 columns=2 width=9 input_order=unknown)
 *************************** 2.row ***************************
-QUERY_PLAN:    -> GroupAggregate ( rows=6 functions=1 width=12 groups=1 input_order=asc )
+QUERY_PLAN:    -> GroupAggregate ( rows=6 functions=1 width=12 groups=1 input_order=asc)
 *************************** 3.row ***************************
 QUERY_PLAN:       -> Data Exchange 2:1 ( rows=6 width=62)
 *************************** 4.row ***************************
-QUERY_PLAN:          -> GroupAggregate ( rows=4 functions=1 width=62 groups=1 input_order=asc )
+QUERY_PLAN:          -> GroupAggregate ( rows=4 functions=1 width=62 groups=1 input_order=asc)
 *************************** 5.row ***************************
 QUERY_PLAN:             -> Table Scan on st1 ( rows=4 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 6.row ***************************
@@ -3024,7 +3024,7 @@ QUERY_PLAN:
 
 taos> explain analyze verbose true select avg(f1), 1 < all (select 0 from st1) from st1 group by f1 having 1 < all (select 0 from st1)\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection ( rows=0 columns=2 width=9 input_order=unknown )
+QUERY_PLAN: -> Projection ( rows=0 columns=2 width=9 input_order=unknown)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=2 width=9
 *************************** 3.row ***************************
@@ -3032,7 +3032,7 @@ QUERY_PLAN:       Output: Ignore Group Id: true
 *************************** 4.row ***************************
 QUERY_PLAN:       Merge ResBlocks: True
 *************************** 5.row ***************************
-QUERY_PLAN:    -> GroupAggregate ( rows=0 functions=1 width=12 groups=1 input_order=asc )
+QUERY_PLAN:    -> GroupAggregate ( rows=0 functions=1 width=12 groups=1 input_order=asc)
 *************************** 6.row ***************************
 QUERY_PLAN:          Output: columns=1 width=8 blocking=1
 *************************** 7.row ***************************
@@ -3042,7 +3042,7 @@ QUERY_PLAN:       -> Data Exchange 2:1 ( rows=0 width=62)
 *************************** 9.row ***************************
 QUERY_PLAN:             Output: columns=2 width=62
 *************************** 10.row ***************************
-QUERY_PLAN:          -> GroupAggregate ( rows=0 functions=1 width=62 groups=1 input_order=asc )
+QUERY_PLAN:          -> GroupAggregate ( rows=0 functions=1 width=62 groups=1 input_order=asc)
 *************************** 11.row ***************************
 QUERY_PLAN:                Output: columns=2 width=62 blocking=1
 *************************** 12.row ***************************
@@ -3062,7 +3062,7 @@ QUERY_PLAN:                   Filter: (1 < $(InitPlan 1))
 *************************** 19.row ***************************
 QUERY_PLAN:    InitPlan 2
 *************************** 20.row ***************************
-QUERY_PLAN:       -> Aggregate ( rows=1 functions=2 width=9 input_order=unknown )
+QUERY_PLAN:       -> Aggregate ( rows=1 functions=2 width=9 input_order=unknown)
 *************************** 21.row ***************************
 QUERY_PLAN:             Output: columns=2 width=9 blocking=1
 *************************** 22.row ***************************
@@ -3072,7 +3072,7 @@ QUERY_PLAN:          -> Data Exchange 2:1 ( rows=6 width=16)
 *************************** 24.row ***************************
 QUERY_PLAN:                Output: columns=2 width=16
 *************************** 25.row ***************************
-QUERY_PLAN:             -> Projection ( rows=4 columns=1 width=8 input_order=asc )
+QUERY_PLAN:             -> Projection ( rows=4 columns=1 width=8 input_order=asc)
 *************************** 26.row ***************************
 QUERY_PLAN:                   Output: columns=1 width=8
 *************************** 27.row ***************************
@@ -3092,7 +3092,7 @@ QUERY_PLAN:                      Time Range: [-9223372036854775808, 922337203685
 *************************** 34.row ***************************
 QUERY_PLAN:    InitPlan 1
 *************************** 35.row ***************************
-QUERY_PLAN:       -> Aggregate ( rows=1 functions=2 width=9 input_order=unknown )
+QUERY_PLAN:       -> Aggregate ( rows=1 functions=2 width=9 input_order=unknown)
 *************************** 36.row ***************************
 QUERY_PLAN:             Output: columns=2 width=9 blocking=1
 *************************** 37.row ***************************
@@ -3102,7 +3102,7 @@ QUERY_PLAN:          -> Data Exchange 2:1 ( rows=6 width=16)
 *************************** 39.row ***************************
 QUERY_PLAN:                Output: columns=2 width=16
 *************************** 40.row ***************************
-QUERY_PLAN:             -> Projection ( rows=4 columns=1 width=8 input_order=asc )
+QUERY_PLAN:             -> Projection ( rows=4 columns=1 width=8 input_order=asc)
 *************************** 41.row ***************************
 QUERY_PLAN:                   Output: columns=1 width=8
 *************************** 42.row ***************************
@@ -3128,7 +3128,7 @@ QUERY_PLAN:
 
 taos> explain analyze verbose true select avg(f1), 1 > all (select 0 from st1) from st1 group by f1 having 1 > all (select 0 from st1)\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection ( rows=6 columns=2 width=9 input_order=unknown )
+QUERY_PLAN: -> Projection ( rows=6 columns=2 width=9 input_order=unknown)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=2 width=9
 *************************** 3.row ***************************
@@ -3136,7 +3136,7 @@ QUERY_PLAN:       Output: Ignore Group Id: true
 *************************** 4.row ***************************
 QUERY_PLAN:       Merge ResBlocks: True
 *************************** 5.row ***************************
-QUERY_PLAN:    -> GroupAggregate ( rows=6 functions=1 width=12 groups=1 input_order=asc )
+QUERY_PLAN:    -> GroupAggregate ( rows=6 functions=1 width=12 groups=1 input_order=asc)
 *************************** 6.row ***************************
 QUERY_PLAN:          Output: columns=1 width=8 blocking=1
 *************************** 7.row ***************************
@@ -3146,7 +3146,7 @@ QUERY_PLAN:       -> Data Exchange 2:1 ( rows=6 width=62)
 *************************** 9.row ***************************
 QUERY_PLAN:             Output: columns=2 width=62
 *************************** 10.row ***************************
-QUERY_PLAN:          -> GroupAggregate ( rows=4 functions=1 width=62 groups=1 input_order=asc )
+QUERY_PLAN:          -> GroupAggregate ( rows=4 functions=1 width=62 groups=1 input_order=asc)
 *************************** 11.row ***************************
 QUERY_PLAN:                Output: columns=2 width=62 blocking=1
 *************************** 12.row ***************************
@@ -3166,7 +3166,7 @@ QUERY_PLAN:                   Filter: (1 > $(InitPlan 1))
 *************************** 19.row ***************************
 QUERY_PLAN:    InitPlan 2
 *************************** 20.row ***************************
-QUERY_PLAN:       -> Aggregate ( rows=1 functions=2 width=9 input_order=unknown )
+QUERY_PLAN:       -> Aggregate ( rows=1 functions=2 width=9 input_order=unknown)
 *************************** 21.row ***************************
 QUERY_PLAN:             Output: columns=2 width=9 blocking=1
 *************************** 22.row ***************************
@@ -3176,7 +3176,7 @@ QUERY_PLAN:          -> Data Exchange 2:1 ( rows=6 width=16)
 *************************** 24.row ***************************
 QUERY_PLAN:                Output: columns=2 width=16
 *************************** 25.row ***************************
-QUERY_PLAN:             -> Projection ( rows=4 columns=1 width=8 input_order=asc )
+QUERY_PLAN:             -> Projection ( rows=4 columns=1 width=8 input_order=asc)
 *************************** 26.row ***************************
 QUERY_PLAN:                   Output: columns=1 width=8
 *************************** 27.row ***************************
@@ -3196,7 +3196,7 @@ QUERY_PLAN:                      Time Range: [-9223372036854775808, 922337203685
 *************************** 34.row ***************************
 QUERY_PLAN:    InitPlan 1
 *************************** 35.row ***************************
-QUERY_PLAN:       -> Aggregate ( rows=1 functions=2 width=9 input_order=unknown )
+QUERY_PLAN:       -> Aggregate ( rows=1 functions=2 width=9 input_order=unknown)
 *************************** 36.row ***************************
 QUERY_PLAN:             Output: columns=2 width=9 blocking=1
 *************************** 37.row ***************************
@@ -3206,7 +3206,7 @@ QUERY_PLAN:          -> Data Exchange 2:1 ( rows=6 width=16)
 *************************** 39.row ***************************
 QUERY_PLAN:                Output: columns=2 width=16
 *************************** 40.row ***************************
-QUERY_PLAN:             -> Projection ( rows=4 columns=1 width=8 input_order=asc )
+QUERY_PLAN:             -> Projection ( rows=4 columns=1 width=8 input_order=asc)
 *************************** 41.row ***************************
 QUERY_PLAN:                   Output: columns=1 width=8
 *************************** 42.row ***************************
@@ -3232,7 +3232,7 @@ QUERY_PLAN:
 
 taos> explain analyze verbose true select avg(f1), NULL = any (select 2 from st1) from st1 group by f1 having NULL = any (select 2 from st1)\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection ( rows=0 columns=2 width=9 input_order=unknown )
+QUERY_PLAN: -> Projection ( rows=0 columns=2 width=9 input_order=unknown)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=2 width=9
 *************************** 3.row ***************************
@@ -3240,7 +3240,7 @@ QUERY_PLAN:       Output: Ignore Group Id: true
 *************************** 4.row ***************************
 QUERY_PLAN:       Merge ResBlocks: True
 *************************** 5.row ***************************
-QUERY_PLAN:    -> GroupAggregate ( rows=0 functions=1 width=12 groups=1 input_order=asc )
+QUERY_PLAN:    -> GroupAggregate ( rows=0 functions=1 width=12 groups=1 input_order=asc)
 *************************** 6.row ***************************
 QUERY_PLAN:          Output: columns=1 width=8 blocking=1
 *************************** 7.row ***************************
@@ -3250,7 +3250,7 @@ QUERY_PLAN:       -> Data Exchange 2:1 ( rows=0 width=62)
 *************************** 9.row ***************************
 QUERY_PLAN:             Output: columns=2 width=62
 *************************** 10.row ***************************
-QUERY_PLAN:          -> GroupAggregate ( rows=0 functions=1 width=62 groups=1 input_order=asc )
+QUERY_PLAN:          -> GroupAggregate ( rows=0 functions=1 width=62 groups=1 input_order=asc)
 *************************** 11.row ***************************
 QUERY_PLAN:                Output: columns=2 width=62 blocking=1
 *************************** 12.row ***************************
@@ -3274,7 +3274,7 @@ QUERY_PLAN:       -> Data Exchange 2:1 ( rows=6 width=8)
 *************************** 21.row ***************************
 QUERY_PLAN:             Output: columns=1 width=8
 *************************** 22.row ***************************
-QUERY_PLAN:          -> Projection ( rows=4 columns=1 width=8 input_order=asc )
+QUERY_PLAN:          -> Projection ( rows=4 columns=1 width=8 input_order=asc)
 *************************** 23.row ***************************
 QUERY_PLAN:                Output: columns=1 width=8
 *************************** 24.row ***************************
@@ -3298,7 +3298,7 @@ QUERY_PLAN:       -> Data Exchange 2:1 ( rows=6 width=8)
 *************************** 33.row ***************************
 QUERY_PLAN:             Output: columns=1 width=8
 *************************** 34.row ***************************
-QUERY_PLAN:          -> Projection ( rows=4 columns=1 width=8 input_order=asc )
+QUERY_PLAN:          -> Projection ( rows=4 columns=1 width=8 input_order=asc)
 *************************** 35.row ***************************
 QUERY_PLAN:                Output: columns=1 width=8
 *************************** 36.row ***************************
@@ -3324,7 +3324,7 @@ QUERY_PLAN:
 
 taos> explain analyze verbose true select avg(f1), exists (select f1 from db2.tbx) from st1 group by f1 having exists (select f1 from db2.tbx)\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection ( rows=6 columns=2 width=9 input_order=unknown )
+QUERY_PLAN: -> Projection ( rows=6 columns=2 width=9 input_order=unknown)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=2 width=9
 *************************** 3.row ***************************
@@ -3332,7 +3332,7 @@ QUERY_PLAN:       Output: Ignore Group Id: true
 *************************** 4.row ***************************
 QUERY_PLAN:       Merge ResBlocks: True
 *************************** 5.row ***************************
-QUERY_PLAN:    -> GroupAggregate ( rows=6 functions=1 width=12 groups=1 input_order=asc )
+QUERY_PLAN:    -> GroupAggregate ( rows=6 functions=1 width=12 groups=1 input_order=asc)
 *************************** 6.row ***************************
 QUERY_PLAN:          Output: columns=1 width=8 blocking=1
 *************************** 7.row ***************************
@@ -3342,7 +3342,7 @@ QUERY_PLAN:       -> Data Exchange 2:1 ( rows=6 width=62)
 *************************** 9.row ***************************
 QUERY_PLAN:             Output: columns=2 width=62
 *************************** 10.row ***************************
-QUERY_PLAN:          -> GroupAggregate ( rows=4 functions=1 width=62 groups=1 input_order=asc )
+QUERY_PLAN:          -> GroupAggregate ( rows=4 functions=1 width=62 groups=1 input_order=asc)
 *************************** 11.row ***************************
 QUERY_PLAN:                Output: columns=2 width=62 blocking=1
 *************************** 12.row ***************************
