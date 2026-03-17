@@ -575,14 +575,13 @@ function lcovFunc {
         # echo "扫描 exclude.txt 文件..."
         
         while IFS= read -r file_pattern; do
+            # 去除首尾空格
+            file_pattern=$(echo "$file_pattern" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
             # 跳过空行和注释行
             [[ -z "$file_pattern" || "$file_pattern" =~ ^[[:space:]]*# ]] && continue
-            
-            # 如果是相对路径，转换为绝对路径
-            if [[ "$file_pattern" != /* ]]; then
-                file_pattern="$TDENGINE_DIR/$file_pattern"
-            fi
-            
+
+            file_pattern="*/${file_pattern}"
+
             # 打印当前处理的模式
             # echo "处理排除模式 $exclude_count: $file_pattern"
             exclude_patterns="$exclude_patterns '$file_pattern'"
@@ -591,11 +590,16 @@ function lcovFunc {
         
         # echo "加载了 $exclude_count 个排除模式"
         
+        # 追加排除所有 .cpp 文件
+        exclude_patterns="$exclude_patterns '*.cpp'"
+        ((exclude_count++))
+        echo "处理排除模式 $exclude_count: *.cpp (排除所有 C++ 文件)"
+
         if [ -n "$exclude_patterns" ]; then
             # 使用 lcov --remove 排除指定的文件
             # echo "执行排除过滤..."
             # echo "排除命令: lcov --quiet --remove coverage_tdengine_raw.info $exclude_patterns --rc lcov_branch_coverage=0 -o coverage_tdengine.info"
-            
+
             eval "lcov --quiet --remove coverage_tdengine_raw.info $exclude_patterns \
                 --rc lcov_branch_coverage=0 \
                 -o coverage_tdengine.info"
