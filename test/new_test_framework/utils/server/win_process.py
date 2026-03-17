@@ -77,6 +77,7 @@ def _find_taosd_pid(dnode_index=None, config_dir=None):
     - config_dir: 在 cmdline 中匹配 config 目录路径（精确）
     - dnode_index: 在 cmdline 中匹配 dnode{index}（兼容）
     """
+    match_key = config_dir.replace('\\', '/').lower() if config_dir else None
     for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
         try:
             if 'taosd' not in (proc.info['name'] or '').lower():
@@ -84,8 +85,9 @@ def _find_taosd_pid(dnode_index=None, config_dir=None):
             cmdline = proc.info['cmdline']
             if not cmdline:
                 continue
-            cmdline_str = str(cmdline)
-            if config_dir and config_dir in cmdline_str:
+            # 将 cmdline 各参数用空格拼接，统一为正斜杠并转小写，避免 Windows 路径格式不一致
+            cmdline_str = ' '.join(cmdline).replace('\\', '/').lower()
+            if match_key and match_key in cmdline_str:
                 return proc.info['pid']
             if dnode_index is not None and f'dnode{dnode_index}' in cmdline_str:
                 return proc.info['pid']
