@@ -78,11 +78,13 @@ def _find_taosd_pid(dnode_index=None, config_dir=None):
     - dnode_index: 在 cmdline 中匹配 dnode{index}（兼容）
     """
     match_key = config_dir.replace('\\', '/').lower() if config_dir else None
-    for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+    # 先只按 name 快速过滤，避免遍历所有进程的 cmdline（Windows 上获取 cmdline 很慢）
+    for proc in psutil.process_iter(['pid', 'name']):
         try:
             if 'taosd' not in (proc.info['name'] or '').lower():
                 continue
-            cmdline = proc.info['cmdline']
+            # 只对 taosd 进程获取 cmdline
+            cmdline = proc.cmdline()
             if not cmdline:
                 continue
             # 将 cmdline 各参数用空格拼接，统一为正斜杠并转小写，避免 Windows 路径格式不一致
