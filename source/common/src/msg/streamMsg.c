@@ -622,6 +622,7 @@ int32_t tEncodeSStreamTriggerDeployMsg(SEncoder* pEncoder, const SStreamTriggerD
   TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pMsg->fillHistoryStartTime));
   TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pMsg->watermark));
   TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pMsg->expiredTime));
+  TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pMsg->idleTimeoutMs));
 
   switch (pMsg->triggerType) {
     case WINDOW_TYPE_SESSION: {
@@ -1206,6 +1207,7 @@ int32_t tDecodeSStreamTriggerDeployMsg(SDecoder* pDecoder, SStreamTriggerDeployM
   TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pMsg->fillHistoryStartTime));
   TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pMsg->watermark));
   TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pMsg->expiredTime));
+  TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pMsg->idleTimeoutMs));
 
   switch (pMsg->triggerType) {
     case WINDOW_TYPE_SESSION:

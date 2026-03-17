@@ -98,6 +98,12 @@ typedef struct SSTriggerRealtimeGroup {
 
   int64_t  nextExecTime;  // used for max delay and batch window mode
   HeapNode heapNode;      // used for max delay and batch window mode
+
+  // Idle trigger fields
+  int64_t lastRecvTimeMono;                        // last receive time (monotonic clock ms)
+  int64_t lastRecvTimeWall;                        // last receive time (wall clock ns)
+  uint8_t idleState;                               // 0=ACTIVE, 1=IDLE
+  TD_DLIST_NODE(SSTriggerRealtimeGroup) idleNode;  // for groupsToCheckIdle list
 } SSTriggerRealtimeGroup;
 
 typedef struct SSTriggerHistoryGroup {
@@ -188,6 +194,7 @@ typedef struct SSTriggerRealtimeContext {
 
   SSHashObj *pGroups;  // SSHashObj<gid, SSTriggerRealtimeGroup*>
   TD_DLIST(SSTriggerRealtimeGroup) groupsToCheck;
+  TD_DLIST(SSTriggerRealtimeGroup) groupsToCheckIdle;  // groups to check for idle timeout
   Heap                   *pMaxDelayHeap;
   SSTriggerRealtimeGroup *pMinGroup;
   SArray                 *groupsToDelete;
@@ -308,7 +315,9 @@ typedef enum ESTriggerEventType {
   STRIGGER_EVENT_WINDOW_NONE = 0,
   STRIGGER_EVENT_WINDOW_CLOSE = 1 << 0,
   STRIGGER_EVENT_WINDOW_OPEN = 1 << 1,
-  STRIGGER_EVENT_ON_TIME = 1 << 2,
+  STRIGGER_EVENT_IDLE = 1 << 2,
+  STRIGGER_EVENT_RESUME = 1 << 3,
+  STRIGGER_EVENT_ON_TIME = 1 << 15,
 } ESTriggerEventType;
 
 typedef struct SSTriggerCalcSlot {
@@ -372,6 +381,7 @@ typedef struct SStreamTriggerTask {
   int64_t fillHistoryStartTime;
   int64_t watermark;
   int64_t expiredTime;
+  int64_t idleTimeoutMs;  // idle timeout in milliseconds (0 = disabled)
   bool    ignoreDisorder;
   bool    fillHistory;
   bool    fillHistoryFirst;

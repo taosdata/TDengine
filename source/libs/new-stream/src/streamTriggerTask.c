@@ -43,6 +43,8 @@
 
 #define IS_TRIGGER_GROUP_TO_CHECK(pGroup) \
   (TD_DLIST_NODE_NEXT(pGroup) != NULL || TD_DLIST_TAIL(&pContext->groupsToCheck) == pGroup)
+#define IS_TRIGGER_GROUP_IN_IDLE_LIST(pGroup) \
+  (TD_DLIST_NODE_NEXT_WITH_FIELD(pGroup, idleNode) != NULL || TD_DLIST_TAIL(&pContext->groupsToCheckIdle) == pGroup)
 #define IS_TRIGGER_GROUP_NONE_WINDOW(pGroup) (TRINGBUF_CAPACITY(&(pGroup)->winBuf) == 0)
 #define IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup) (TRINGBUF_SIZE(&(pGroup)->winBuf) > 0)
 #define TRIGGER_GROUP_UNCLOSED_WINDOW_MASK   ((int64_t)1 << 62)
@@ -2355,6 +2357,11 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *
   pTask->fillHistoryStartTime = pMsg->fillHistoryStartTime;
   pTask->watermark = pMsg->watermark;
   pTask->expiredTime = pMsg->expiredTime;
+  pTask->idleTimeoutMs = pMsg->idleTimeoutMs;
+  if (!(pTask->calcEventType & (STRIGGER_EVENT_IDLE | STRIGGER_EVENT_RESUME)) &&
+      !(pTask->notifyEventType & (STRIGGER_EVENT_IDLE | STRIGGER_EVENT_RESUME))) {
+    pTask->idleTimeoutMs = 0;  // disable idle timeout if no idle/resume event configured
+  }
   pTask->ignoreDisorder = pMsg->igDisorder;
   if (pTask->triggerType == STREAM_TRIGGER_COUNT) {
     pTask->ignoreDisorder = true;  // count window trigger has no recalculation
@@ -3268,6 +3275,7 @@ static int32_t stRealtimeContextInit(SSTriggerRealtimeContext *pContext, SStream
   QUERY_CHECK_NULL(pContext->pGroups, code, lino, _end, terrno);
   tSimpleHashSetFreeFp(pContext->pGroups, stRealtimeGroupDestroy);
   TD_DLIST_INIT(&pContext->groupsToCheck);
+  TD_DLIST_INIT(&pContext->groupsToCheckIdle);
   pContext->pMaxDelayHeap = heapCreate(stRealtimeContextCompareGroup);
   QUERY_CHECK_NULL(pContext->pMaxDelayHeap, code, lino, _end, terrno);
   pContext->groupsToDelete = taosArrayInit(0, sizeof(int64_t));
@@ -4533,6 +4541,93 @@ _end:
   return code;
 }
 
+static int32_t stRealtimeContextAppendIdleList(SSTriggerRealtimeContext *pContext, SSTriggerRealtimeGroup *pGroup) {
+  if (IS_TRIGGER_GROUP_IN_IDLE_LIST(pGroup) || pGroup->lastRecvTimeMono <= 0 || pGroup->idleState != 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  SSTriggerRealtimeGroup *pCur = TD_DLIST_TAIL(&pContext->groupsToCheckIdle);
+  while (pCur != NULL && pCur->lastRecvTimeMono > pGroup->lastRecvTimeMono) {
+    pCur = TD_DLIST_NODE_PREV_WITH_FIELD(pCur, idleNode);
+  }
+  if (pCur == NULL) {
+    // Insert at head
+    TD_DLIST_PREPEND_WITH_FIELD(&pContext->groupsToCheckIdle, pGroup, idleNode);
+  } else if (TD_DLIST_NODE_NEXT_WITH_FIELD(pCur, idleNode) == NULL) {
+    // pCur is tail, append after it
+    TD_DLIST_APPEND_WITH_FIELD(&pContext->groupsToCheckIdle, pGroup, idleNode);
+  } else {
+    // Insert after pCur
+    SSTriggerRealtimeGroup *pNext = TD_DLIST_NODE_NEXT_WITH_FIELD(pCur, idleNode);
+    TD_DLIST_NODE_PREV_WITH_FIELD(pGroup, idleNode) = pCur;
+    TD_DLIST_NODE_NEXT_WITH_FIELD(pGroup, idleNode) = pNext;
+    TD_DLIST_NODE_NEXT_WITH_FIELD(pCur, idleNode) = pGroup;
+    TD_DLIST_NODE_PREV_WITH_FIELD(pNext, idleNode) = pGroup;
+    TD_DLIST_NELES(&pContext->groupsToCheckIdle) += 1;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t stRealtimeContextCheckIdleGroup(SSTriggerRealtimeContext *pContext) {
+  int32_t                 code = TSDB_CODE_SUCCESS;
+  int32_t                 lino = 0;
+  SStreamTriggerTask     *pTask = pContext->pTask;
+  SSTriggerRealtimeGroup *pGroup = TD_DLIST_HEAD(&pContext->groupsToCheckIdle);
+
+  if (pTask->idleTimeoutMs <= 0 || pGroup == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int64_t nowMono = taosGetMonoTimestampMs();
+  int64_t nowWall = taosGetTimestampNs();
+  bool    calcIdle = (pTask->calcEventType & STRIGGER_EVENT_IDLE);
+  bool    notifyIdle = (pTask->notifyEventType & STRIGGER_EVENT_IDLE);
+
+  // List is sorted ascending by lastRecvTimeMono; groups at the head timeout first.
+  while (pGroup != NULL) {
+    QUERY_CHECK_CONDITION(pGroup->idleState == 0 && pGroup->lastRecvTimeMono > 0, code, lino, _end,
+                          TSDB_CODE_INTERNAL_ERROR);
+    int64_t idleDuration = nowMono - pGroup->lastRecvTimeMono;
+    char   *pExtraNotifyContent = NULL;
+    if (idleDuration < pTask->idleTimeoutMs) {
+      // Since the list is sorted, we can break early if the current group hasn't timed out yet.
+      break;
+    }
+
+    if (calcIdle || notifyIdle) {
+      code = streamBuildIdleNotifyContent(STRIGGER_EVENT_IDLE, idleDuration, &pExtraNotifyContent);
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
+
+    SSTriggerCalcParam param = {
+        .triggerTime = nowWall,
+        .notifyType = (notifyIdle ? STRIGGER_EVENT_IDLE : STRIGGER_EVENT_WINDOW_NONE),
+        .extraNotifyContent = pExtraNotifyContent,
+        .idlestart = convertTimePrecision(pGroup->lastRecvTimeWall, TSDB_TIME_PRECISION_NANO, pTask->precision),
+        .idleend = convertTimePrecision(nowWall, TSDB_TIME_PRECISION_NANO, pTask->precision)};
+    if (calcIdle) {
+      code = taosObjListAppend(&pGroup->pPendingCalcParams, &param);
+      if (code != TSDB_CODE_SUCCESS) {
+        taosMemoryFreeClear(pExtraNotifyContent);
+      }
+      QUERY_CHECK_CODE(code, lino, _end);
+    } else if (notifyIdle) {
+      code = streamSendNotifyContent(&pTask->task, pTask->streamName, NULL, pTask->triggerType, pGroup->gid,
+                                     pTask->pNotifyAddrUrls, pTask->addOptions, &param, 1);
+      taosMemoryFreeClear(pExtraNotifyContent);
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
+    pGroup->idleState = 1;
+    ST_TASK_DLOG("Group %" PRId64 " became IDLE after %" PRId64 "ms, triggered event", pGroup->gid, idleDuration);
+
+    TD_DLIST_POP_WITH_FIELD(&pContext->groupsToCheckIdle, pGroup, idleNode);
+    pGroup = TD_DLIST_HEAD(&pContext->groupsToCheckIdle);
+  }
+
+_end:
+  return code;
+}
+
 static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
   int32_t             code = TSDB_CODE_SUCCESS;
   int32_t             lino = 0;
@@ -4697,6 +4792,10 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
       goto _end;
     }
   }
+
+  // Check for idle groups
+  code = stRealtimeContextCheckIdleGroup(pContext);
+  QUERY_CHECK_CODE(code, lino, _end);
 
   while (TD_DLIST_NELES(&pContext->groupsToCheck) > 0) {
     SSTriggerRealtimeGroup *pGroup = TD_DLIST_HEAD(&pContext->groupsToCheck);
@@ -8027,6 +8126,13 @@ static int32_t stRealtimeGroupInit(SSTriggerRealtimeGroup *pGroup, SSTriggerReal
   code = taosObjListInit(&pGroup->pPendingCalcParams, &pContext->calcParamPool);
   QUERY_CHECK_CODE(code, lino, _end);
 
+  // Initialize idle trigger fields
+  pGroup->lastRecvTimeMono = 0;
+  pGroup->lastRecvTimeWall = 0;
+  pGroup->idleState = 0;  // ACTIVE
+  TD_DLIST_NODE_PREV_WITH_FIELD(pGroup, idleNode) = NULL;
+  TD_DLIST_NODE_NEXT_WITH_FIELD(pGroup, idleNode) = NULL;
+
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
@@ -8162,6 +8268,55 @@ static int32_t stRealtimeGroupAddMeta(SSTriggerRealtimeGroup *pGroup, int32_t vg
   SSTriggerRealtimeContext *pContext = pGroup->pContext;
   SStreamTriggerTask       *pTask = pContext->pTask;
   SObjList                 *pMetas = NULL;
+
+  // Update idle trigger timestamps when receiving data
+  if (pTask->idleTimeoutMs > 0) {
+    int64_t prevRecvTimeMono = pGroup->lastRecvTimeMono;
+    int64_t prevRecvTimeWall = pGroup->lastRecvTimeWall;
+    pGroup->lastRecvTimeMono = taosGetMonoTimestampMs();
+    pGroup->lastRecvTimeWall = taosGetTimestampNs();
+
+    // If group was IDLE, trigger RESUME event and transition to ACTIVE
+    if (pGroup->idleState == 1) {
+      bool    calcResume = (pTask->calcEventType & STRIGGER_EVENT_RESUME) != 0;
+      bool    notifyResume = (pTask->notifyEventType & STRIGGER_EVENT_RESUME) != 0;
+      int64_t idleDuration = pGroup->lastRecvTimeMono - prevRecvTimeMono;
+      char   *pExtraNotifyContent = NULL;
+      if (calcResume || notifyResume) {
+        code = streamBuildIdleNotifyContent(STRIGGER_EVENT_RESUME, idleDuration, &pExtraNotifyContent);
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
+      SSTriggerCalcParam param = {
+          .triggerTime = pGroup->lastRecvTimeWall,
+          .notifyType = (notifyResume ? STRIGGER_EVENT_RESUME : STRIGGER_EVENT_WINDOW_NONE),
+          .extraNotifyContent = pExtraNotifyContent,
+          .idlestart = convertTimePrecision(prevRecvTimeWall, TSDB_TIME_PRECISION_NANO, pTask->precision),
+          .idleend = convertTimePrecision(pGroup->lastRecvTimeWall, TSDB_TIME_PRECISION_NANO, pTask->precision)};
+
+      if (calcResume) {
+        code = taosObjListAppend(&pGroup->pPendingCalcParams, &param);
+        if (code != TSDB_CODE_SUCCESS) {
+          taosMemoryFreeClear(pExtraNotifyContent);
+        }
+        QUERY_CHECK_CODE(code, lino, _end);
+      } else if (notifyResume) {
+        code = streamSendNotifyContent(&pTask->task, pTask->streamName, NULL, pTask->triggerType, pGroup->gid,
+                                       pTask->pNotifyAddrUrls, pTask->addOptions, &param, 1);
+        taosMemoryFreeClear(pExtraNotifyContent);
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
+
+      pGroup->idleState = 0;
+      ST_TASK_DLOG("Group %" PRId64 " RESUMED, triggered event", pGroup->gid);
+    } else {
+      // ACTIVE: already in list, pop first to re-insert at correct sorted position
+      if (IS_TRIGGER_GROUP_IN_IDLE_LIST(pGroup)) {
+        TD_DLIST_POP_WITH_FIELD(&pContext->groupsToCheckIdle, pGroup, idleNode);
+      }
+    }
+    code = stRealtimeContextAppendIdleList(pContext, pGroup);
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
 
   if (!pTask->isVirtualTable) {
     pGroup->vgId = vgId;

@@ -444,7 +444,39 @@ int32_t streamBuildStateNotifyContent(ESTriggerEventType eventType, SColumnInfo*
     QUERY_CHECK_CODE(code, lino, _end);
     code = jsonAddColumnField("nextState", colInfo, false, pToState, obj);
     QUERY_CHECK_CODE(code, lino, _end);
+  } else if (eventType == STRIGGER_EVENT_IDLE || eventType == STRIGGER_EVENT_RESUME) {
+    // For IDLE/RESUME events, add idle-specific fields
+    // TODO: Add idleTimeoutMs, prevRecvTime, idleDurationMs from SSTriggerCalcParam
+    cJSON_AddStringToObject(obj, "eventType", eventType == STRIGGER_EVENT_IDLE ? "IDLE" : "RESUME");
   }
+
+  *ppContent = cJSON_PrintUnformatted(obj);
+  QUERY_CHECK_NULL(*ppContent, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+
+_end:
+  if (obj != NULL) {
+    cJSON_Delete(obj);
+  }
+  if (code != TSDB_CODE_SUCCESS) {
+    stError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+int32_t streamBuildIdleNotifyContent(ESTriggerEventType eventType, int64_t idleDurationMs, char** ppContent) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  cJSON*  obj = NULL;
+
+  *ppContent = NULL;
+
+  QUERY_CHECK_CONDITION(eventType == STRIGGER_EVENT_IDLE || eventType == STRIGGER_EVENT_RESUME, code, lino, _end,
+                        TSDB_CODE_INVALID_PARA);
+
+  obj = cJSON_CreateObject();
+  QUERY_CHECK_NULL(obj, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+  QUERY_CHECK_NULL(cJSON_AddNumberToObject(obj, "idleDurationMs", idleDurationMs), code, lino, _end,
+                   TSDB_CODE_OUT_OF_MEMORY);
 
   *ppContent = cJSON_PrintUnformatted(obj);
   QUERY_CHECK_NULL(*ppContent, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
