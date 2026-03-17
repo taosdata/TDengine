@@ -60,7 +60,7 @@ class TDDnode:
             "stDebugFlag": "135",
             "smaDebugFlag": "135",
             "jniDebugFlag": "131",
-            "qDebugFlag": "143",
+            "qDebugFlag": "135",
             "rpcDebugFlag": "135",
             "tmrDebugFlag": "131",
             "uDebugFlag": "131",
