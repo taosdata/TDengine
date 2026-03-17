@@ -99,6 +99,9 @@ ADD_EXECUTABLE(
         restore.c
         restoreMeta.c
         restoreData.c
+        restoreCkpt.c
+        restoreStmt.c
+        restoreStmt2.c
         bckUtil.c
         bckArgs.c
         bckLog.c
