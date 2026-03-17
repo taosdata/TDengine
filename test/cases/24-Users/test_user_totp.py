@@ -3,6 +3,7 @@ from new_test_framework.utils import tdLog, tdSql, TDSql, TDCom, etool
 
 import datetime
 import os
+import platform
 import pyotp
 import time
 
@@ -46,7 +47,10 @@ class TestUserSecurity:
     def check_login(self, userName, password, totpCode):
         # TODO: use connect_with_totp api after add the support
         taosFile = etool.taosFile()
-        command = f"echo '{totpCode}' | {taosFile} -u{userName} -p{password} -s 'show databases;' "
+        if platform.system().lower() == "windows":
+            command = f'echo {totpCode} | {taosFile} -u{userName} -p{password} -s "show databases;" '
+        else:
+            command = f"echo '{totpCode}' | {taosFile} -u{userName} -p{password} -s 'show databases;' "
         rlist = etool.runRetList(command, checkRun=True, show= True)
         self.checkListString(rlist, "Query OK,")
         
