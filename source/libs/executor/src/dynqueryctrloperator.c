@@ -561,7 +561,9 @@ static int32_t buildExchangeOperatorParamImpl(SOperatorParam** ppRes, int32_t do
   SOperatorParam*              pParam = NULL;
   SExchangeOperatorParam*      pExc = NULL;
 
-  pParam = taosMemoryMalloc(sizeof(SOperatorParam));
+  *ppRes = NULL;
+
+  pParam = taosMemoryCalloc(1, sizeof(SOperatorParam));
   QUERY_CHECK_NULL(pParam, code, lino, _return, terrno)
 
   pParam->opType = QUERY_NODE_PHYSICAL_PLAN_EXCHANGE;
@@ -577,6 +579,7 @@ static int32_t buildExchangeOperatorParamImpl(SOperatorParam** ppRes, int32_t do
   code = buildExchangeOperatorBasicParam(&pExc->basic, srcOpType, exchangeType, vgId, groupId,
                                          pUidList, pOrgTbInfo, pTagList, pOrgTbInfoArray,
                                          window, pDownstreamSourceNode, tableSeq, isNewParam, isNewDeployed);
+  QUERY_CHECK_CODE(code, lino, _return);
 
   *ppRes = pParam;
   return code;
@@ -2866,6 +2869,7 @@ int32_t vtbScanNext(SOperatorInfo* pOperator, SSDataBlock** pRes) {
     pVtbScan->curTableIdx = 0;
     pVtbScan->lastTableIdx = -1;
     pVtbScan->window = ((SDynQueryCtrlOperatorParam *)(pOperator->pOperatorGetParam)->value)->window;
+    freeOperatorParam(pOperator->pOperatorGetParam, OP_GET_PARAM);
     pOperator->pOperatorGetParam = NULL;
   } else {
     pVtbScan->window.skey = INT64_MAX;

@@ -923,6 +923,61 @@ SSDataBlock* getNextBlockFromDownstreamRemain(struct SOperatorInfo* pOperator, i
   return (code == 0)? p:NULL;
 }
 
+/*
+ * Fetch one block from downstream without preserving reused get-param ownership.
+ *
+ * If a downstream get-param is marked as reusable, the ownership is typically meant to be
+ * transferred to the downstream operator rather than freed at the parent layer.
+ * This helper detaches the param from the parent operator and clears the reuse flag so
+ * downstream can own/free it safely.
+ */
+static FORCE_INLINE int32_t getNextBlockFromDownstreamRemainDetachImpl(struct SOperatorInfo* pOperator, int32_t idx,
+                                                                       SSDataBlock** pResBlock) {
+  QRY_PARAM_CHECK(pResBlock);
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  if (pOperator->pDownstreamGetParams && pOperator->pDownstreamGetParams[idx]) {
+    SOperatorParam* pGetParam = pOperator->pDownstreamGetParams[idx];
+    pOperator->pDownstreamGetParams[idx] = NULL;
+    // Once detached from the parent operator, downstream must own/free this param.
+    pGetParam->reUse = false;
+
+    qDebug("DynOp: op %s start to get block from downstream %s", pOperator->name, pOperator->pDownstream[idx]->name);
+    code = pOperator->pDownstream[idx]->fpSet.getNextExtFn(pOperator->pDownstream[idx], pGetParam, pResBlock);
+    QUERY_CHECK_CODE(code, lino, _return);
+  } else {
+    code = pOperator->pDownstream[idx]->fpSet.getNextFn(pOperator->pDownstream[idx], pResBlock);
+    QUERY_CHECK_CODE(code, lino, _return);
+  }
+
+_return:
+  if (code) {
+    qError("failed to get next data block from upstream at %s, line:%d code:%s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+SSDataBlock* getNextBlockFromDownstreamRemainDetach(struct SOperatorInfo* pOperator, int32_t idx) {
+  SSDataBlock* p = NULL;
+  int32_t      code = TSDB_CODE_SUCCESS;
+  int32_t      lino = 0;
+
+  code = getNextBlockFromDownstreamRemainDetachImpl(pOperator, idx, &p);
+  QUERY_CHECK_CODE(code, lino, _return);
+
+  code = blockDataCheck(p);
+  QUERY_CHECK_CODE(code, lino, _return);
+
+_return:
+  if (code) {
+    qError("failed to get next data block from downstream at %s, line:%d code:%s", __func__, lino, tstrerror(code));
+    return NULL;
+  }
+  return p;
+}
+
 int32_t optrDefaultGetNextExtFn(struct SOperatorInfo* pOperator, SOperatorParam* pParam, SSDataBlock** pRes) {
   QRY_PARAM_CHECK(pRes);
 
@@ -1054,4 +1109,3 @@ _return:
   qError("failed to copy columns value, line:%d code:%s", lino, tstrerror(code));
   return code;
 }
-
