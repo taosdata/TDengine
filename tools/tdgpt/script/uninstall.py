@@ -1,429 +1,352 @@
 #!/usr/bin/env python3
 """
-TDGPT Windows Uninstallation Script
-
-Usage:
-    python uninstall.py [options]
-
-Options:
-    --keep-all          Keep all data (cfg, model, data, venv)
-    --remove-venv       Remove virtual environment (kept by default)
-    --remove-data       Remove data directory (kept by default)
-    --remove-model      Remove model directory (kept by default)
-    -h, --help          Show help information
-
-Examples:
-    python uninstall.py                 # Standard uninstall (keep cfg, model, data, venv)
-    python uninstall.py --remove-venv   # Uninstall and remove virtual environment
-    python uninstall.py --keep-all      # Only stop services, keep all files
+TDGPT Windows uninstallation script.
 """
 
-import os
-import sys
-import platform
-import subprocess
 import argparse
-import logging
+import os
+import platform
 import shutil
+import subprocess
+import sys
 import time
 from pathlib import Path
-from typing import List
 
-# Ensure this is a Windows platform
+
 if platform.system().lower() != "windows":
-    print("Error: This script is for Windows only.")
+    print("Error: this script is for Windows only.")
     sys.exit(1)
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
-)
-logger = logging.getLogger(__name__)
 
-# Color output
 try:
     import ctypes
-    kernel32 = ctypes.windll.kernel32
-    kernel32.SetConsoleMode(kernel32.GetStdHandle(-11), 7)
+
+    _kernel32 = ctypes.windll.kernel32
+    _kernel32.SetConsoleMode(_kernel32.GetStdHandle(-11), 7)
     COLORS_ENABLED = True
-except:
+except Exception:
     COLORS_ENABLED = False
 
-class Colors:
-    """ANSI color codes"""
-    RED = '\033[0;31m' if COLORS_ENABLED else ''
-    GREEN = '\033[1;32m' if COLORS_ENABLED else ''
-    YELLOW = '\033[1;33m' if COLORS_ENABLED else ''
-    BLUE = '\033[0;34m' if COLORS_ENABLED else ''
-    NC = '\033[0m' if COLORS_ENABLED else ''
 
-# Default installation path
-INSTALL_DIR = Path(r"C:\TDengine\taosanode")
+class Colors:
+    RED = "\033[0;31m" if COLORS_ENABLED else ""
+    GREEN = "\033[1;32m" if COLORS_ENABLED else ""
+    YELLOW = "\033[1;33m" if COLORS_ENABLED else ""
+    NC = "\033[0m" if COLORS_ENABLED else ""
+
+
+INSTALL_DIR = Path(__file__).resolve().parent
+LOG_DIR = INSTALL_DIR / "log"
+VENVS_DIR = INSTALL_DIR / "venvs"
 
 
 class WindowsUninstaller:
-    """Windows uninstaller"""
-
-    def __init__(self, keep_all: bool = False, remove_venv: bool = False,
-                 remove_data: bool = False, remove_model: bool = False):
+    def __init__(
+        self,
+        keep_all: bool = False,
+        remove_venv: bool = False,
+        remove_data: bool = False,
+        remove_model: bool = False,
+        log_file: str = "",
+    ):
         self.keep_all = keep_all
         self.remove_venv = remove_venv
         self.remove_data = remove_data
         self.remove_model = remove_model
         self.install_dir = INSTALL_DIR
+        self.log_dir = LOG_DIR
+        self.venvs_dir = VENVS_DIR
+        self.log_file = Path(log_file) if log_file else self.log_dir / "uninstall.log"
+        self.console_is_tty = bool(getattr(sys.stdout, "isatty", lambda: False)())
 
-    def print_info(self, message: str):
-        """Print info message"""
-        print(f"{Colors.GREEN}[INFO]{Colors.NC} {message}")
-        logger.info(message)
+    def _append_file_log(self, level: str, message: str) -> None:
+        if not self.console_is_tty:
+            return
 
-    def print_warning(self, message: str):
-        """Print warning message"""
-        print(f"{Colors.YELLOW}[WARNING]{Colors.NC} {message}")
-        logger.warning(message)
+        self.log_dir.mkdir(parents=True, exist_ok=True)
+        with self.log_file.open("a", encoding="utf-8") as file_obj:
+            file_obj.write(f"{level}: {message}\n")
 
-    def print_error(self, message: str):
-        """Print error message"""
-        print(f"{Colors.RED}[ERROR]{Colors.NC} {message}")
-        logger.error(message)
+    def _emit(self, level: str, prefix: str, color: str, message: str) -> None:
+        print(f"{color}{prefix}{Colors.NC} {message}")
+        self._append_file_log(level, message)
 
-    def print_success(self, message: str):
-        """Print success message"""
-        print(f"{Colors.GREEN}[SUCCESS]{Colors.NC} {message}")
-        logger.info(message)
+    def print_info(self, message: str) -> None:
+        self._emit("INFO", "[INFO]", Colors.GREEN, message)
 
-    def stop_services(self) -> bool:
-        """Stop all services"""
+    def print_warning(self, message: str) -> None:
+        self._emit("WARNING", "[WARNING]", Colors.YELLOW, message)
+
+    def print_error(self, message: str) -> None:
+        self._emit("ERROR", "[ERROR]", Colors.RED, message)
+
+    def print_success(self, message: str) -> None:
+        self._emit("SUCCESS", "[SUCCESS]", Colors.GREEN, message)
+
+    def stop_services(self) -> None:
         self.print_info("Stopping TDGPT services...")
+        service_script = self.install_dir / "bin" / "taosanode_service.py"
+        python_exe = self.venvs_dir / "venv" / "Scripts" / "python.exe"
 
-        # Stop main service
-        try:
-            service_script = self.install_dir / "bin" / "taosanode_service.py"
-            if service_script.exists():
-                venv_python = self.install_dir / "venv" / "Scripts" / "python.exe"
-                if venv_python.exists():
+        if service_script.exists() and python_exe.exists():
+            for command in (["stop"], ["model-stop", "all"]):
+                try:
                     subprocess.run(
-                        [str(venv_python), str(service_script), "stop"],
-                        timeout=30,
-                        capture_output=True
+                        [str(python_exe), str(service_script), *command],
+                        capture_output=True,
+                        timeout=60,
+                        check=False,
                     )
-                    self.print_info("Main service stopped")
-        except Exception as e:
-            self.print_warning(f"Failed to stop main service: {e}")
+                except Exception as exc:
+                    self.print_warning(f"Failed to run {' '.join(command)}: {exc}")
 
-        # Stop model services
-        try:
-            service_script = self.install_dir / "bin" / "taosanode_service.py"
-            if service_script.exists():
-                venv_python = self.install_dir / "venv" / "Scripts" / "python.exe"
-                if venv_python.exists():
-                    subprocess.run(
-                        [str(venv_python), str(service_script), "model-stop", "all"],
-                        timeout=30,
-                        capture_output=True
-                    )
-                    self.print_info("Model services stopped")
-        except Exception as e:
-            self.print_warning(f"Failed to stop model services: {e}")
-
-        # Force kill remaining processes
         time.sleep(2)
+
+        pid_files = [self.install_dir / "taosanode.pid"]
+        pid_dir = self.install_dir / "data" / "pids"
+        if pid_dir.exists():
+            pid_files.extend(pid_dir.glob("*.pid"))
+
+        for pid_file in pid_files:
+            try:
+                if not pid_file.exists():
+                    continue
+                pid = pid_file.read_text(encoding="utf-8").strip()
+                if pid.isdigit():
+                    subprocess.run(
+                        ["taskkill", "/F", "/T", "/PID", pid],
+                        capture_output=True,
+                        timeout=15,
+                        check=False,
+                    )
+            except Exception as exc:
+                self.print_warning(f"Failed to terminate PID from {pid_file.name}: {exc}")
+
+    def uninstall_service(self) -> None:
+        self.print_info("Uninstalling Windows service...")
+        service_script = self.install_dir / "bin" / "taosanode_service.py"
+        python_exe = self.venvs_dir / "venv" / "Scripts" / "python.exe"
+
+        if not service_script.exists() or not python_exe.exists():
+            self.print_info("Service wrapper or Python runtime is missing, skip service uninstall.")
+            return
+
         try:
             subprocess.run(
-                ["taskkill", "/F", "/IM", "python.exe", "/T"],
+                [str(python_exe), str(service_script), "uninstall-service"],
                 capture_output=True,
-                timeout=10
+                timeout=120,
+                check=False,
             )
-        except:
-            pass
+        except Exception as exc:
+            self.print_warning(f"Service uninstall command failed: {exc}")
 
-        return True
-
-    def uninstall_service(self) -> bool:
-        """Uninstall Windows service"""
-        self.print_info("Uninstalling Windows service...")
-
-        try:
-            service_script = self.install_dir / "bin" / "taosanode_service.py"
-            if service_script.exists():
-                venv_python = self.install_dir / "venv" / "Scripts" / "python.exe"
-                if venv_python.exists():
-                    subprocess.run(
-                        [str(venv_python), str(service_script), "uninstall"],
-                        timeout=30,
-                        capture_output=True
-                    )
-                    self.print_success("Windows service uninstalled")
-        except Exception as e:
-            self.print_warning(f"Failed to uninstall service: {e}")
-
-        return True
-
-    def remove_from_path(self) -> bool:
-        """Remove from PATH environment variable"""
+    def remove_from_path(self) -> None:
         self.print_info("Removing install directory from PATH...")
+        bin_path = str(self.install_dir / "bin")
 
         try:
-            bin_path = str(self.install_dir / "bin")
-
-            # Read current PATH
             result = subprocess.run(
-                ["reg", "query", "HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment", "/v", "Path"],
+                [
+                    "reg",
+                    "query",
+                    "HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment",
+                    "/v",
+                    "Path",
+                ],
                 capture_output=True,
                 text=True,
-                timeout=10
+                timeout=15,
+                check=False,
             )
+            if result.returncode != 0:
+                self.print_warning("Unable to read system PATH.")
+                return
 
-            if result.returncode == 0:
-                # Parse PATH
-                for line in result.stdout.split('\n'):
-                    if 'Path' in line and 'REG_' in line:
-                        parts = line.split('REG_EXPAND_SZ', 1)
-                        if len(parts) == 2:
-                            current_path = parts[1].strip()
+            current_path = ""
+            for line in result.stdout.splitlines():
+                if "REG_" in line and "Path" in line:
+                    parts = line.split("REG_EXPAND_SZ", 1)
+                    if len(parts) == 2:
+                        current_path = parts[1].strip()
+                        break
 
-                            # Remove our path
-                            path_list = [p.strip() for p in current_path.split(';') if p.strip()]
-                            new_path_list = [p for p in path_list if bin_path.lower() not in p.lower()]
+            if not current_path:
+                return
 
-                            if len(new_path_list) < len(path_list):
-                                new_path = ';'.join(new_path_list)
+            path_items = [item.strip() for item in current_path.split(";") if item.strip()]
+            new_items = [item for item in path_items if item.lower() != bin_path.lower()]
+            if len(new_items) == len(path_items):
+                self.print_info("Install directory is not present in PATH.")
+                return
 
-                                # Update PATH
-                                subprocess.run(
-                                    ["setx", "/M", "Path", new_path],
-                                    capture_output=True,
-                                    timeout=10
-                                )
-                                self.print_success("Removed from PATH")
-                            else:
-                                self.print_info("Install directory not found in PATH")
+            subprocess.run(
+                ["setx", "/M", "Path", ";".join(new_items)],
+                capture_output=True,
+                timeout=30,
+                check=False,
+            )
+            self.print_success("Removed install directory from PATH.")
+        except Exception as exc:
+            self.print_warning(f"Failed to update PATH: {exc}")
 
-        except Exception as e:
-            self.print_warning(f"Failed to remove from PATH: {e}")
-
-        return True
-
-    def remove_files(self) -> bool:
-        """Remove files"""
-        self.print_info("Removing files...")
+    def remove_files(self) -> None:
+        self.print_info("Removing packaged files...")
 
         if self.keep_all:
-            self.print_info("Keeping all files (--keep-all mode)")
-            return True
+            self.print_info("Keep-all mode enabled, skip file deletion.")
+            return
 
-        # Directories to remove
-        dirs_to_remove = ["bin", "lib", "resource", "log"]
+        directories = [
+            self.install_dir / "bin",
+            self.install_dir / "lib",
+            self.install_dir / "resource",
+            self.install_dir / "requirements",
+        ]
 
-        # Decide whether to remove based on options
         if self.remove_venv:
-            dirs_to_remove.extend(["venv", "timesfm_venv", "moirai_venv", "chronos_venv", "momentfm_venv"])
+            directories.append(self.venvs_dir)
         if self.remove_data:
-            dirs_to_remove.append("data")
+            directories.append(self.install_dir / "data")
         if self.remove_model:
-            dirs_to_remove.append("model")
+            directories.append(self.install_dir / "model")
 
-        # Remove directories
-        for dir_name in dirs_to_remove:
-            dir_path = self.install_dir / dir_name
-            if dir_path.exists():
-                try:
-                    shutil.rmtree(dir_path)
-                    self.print_info(f"Removed directory: {dir_name}")
-                except Exception as e:
-                    self.print_warning(f"Failed to remove directory {dir_name}: {e}")
+        for directory in directories:
+            if not directory.exists():
+                continue
+            try:
+                shutil.rmtree(directory, ignore_errors=False)
+                self.print_info(f"Removed directory: {directory.name}")
+            except Exception as exc:
+                self.print_warning(f"Failed to remove {directory}: {exc}")
 
-        # Remove files in root directory
-        files_to_remove = ["install.log", "taosanode.pid", "*.txt"]
-        for pattern in files_to_remove:
-            if '*' in pattern:
-                for file_path in self.install_dir.glob(pattern):
-                    if file_path.is_file():
-                        try:
-                            file_path.unlink()
-                            self.print_info(f"Removed file: {file_path.name}")
-                        except:
-                            pass
-            else:
-                file_path = self.install_dir / pattern
+        root_files = [
+            self.install_dir / "install.bat",
+            self.install_dir / "install.py",
+            self.install_dir / "uninstall.bat",
+            self.install_dir / "taosanode.pid",
+            self.install_dir / "favicon.ico",
+        ]
+
+        for file_path in root_files:
+            try:
                 if file_path.exists():
-                    try:
-                        file_path.unlink()
-                        self.print_info(f"Removed file: {pattern}")
-                    except:
-                        pass
+                    file_path.unlink()
+                    self.print_info(f"Removed file: {file_path.name}")
+            except Exception:
+                continue
 
-        return True
+    def append_uninstall_summary(self) -> None:
+        lines = [
+            "",
+            "=" * 72,
+            "TDGPT Windows Uninstall Summary",
+            "=" * 72,
+            f"Install directory: {self.install_dir}",
+            f"Keep all: {'Yes' if self.keep_all else 'No'}",
+            f"Remove venvs: {'Yes' if self.remove_venv else 'No'}",
+            f"Remove data: {'Yes' if self.remove_data else 'No'}",
+            f"Remove model: {'Yes' if self.remove_model else 'No'}",
+            "Preserved directories:",
+        ]
+        for name, path in (
+            ("cfg", self.install_dir / "cfg"),
+            ("log", self.log_dir),
+            ("venvs", self.venvs_dir),
+            ("data", self.install_dir / "data"),
+            ("model", self.install_dir / "model"),
+        ):
+            if path.exists():
+                lines.append(f"  [OK] {name}")
+        lines.append("=" * 72)
 
-    def show_preserved_files(self):
-        """Show preserved files"""
-        self.print_info("=" * 60)
-        self.print_info("The following directories have been preserved:")
-
-        preserved = []
-        if not self.remove_venv:
-            if (self.install_dir / "venv").exists():
-                preserved.append("  - venv (virtual environment)")
-        if not self.remove_data:
-            if (self.install_dir / "data").exists():
-                preserved.append("  - data (data directory)")
-        if not self.remove_model:
-            if (self.install_dir / "model").exists():
-                preserved.append("  - model (model directory)")
-        if (self.install_dir / "cfg").exists():
-            preserved.append("  - cfg (configuration files)")
-
-        if preserved:
-            for item in preserved:
-                self.print_info(item)
-            self.print_info("")
-            self.print_info("To completely remove, manually delete the following directory:")
-            self.print_info(f"  {self.install_dir}")
+        if self.console_is_tty:
+            self.log_dir.mkdir(parents=True, exist_ok=True)
+            with self.log_file.open("a", encoding="utf-8") as file_obj:
+                file_obj.write("\n".join(lines) + "\n")
         else:
-            self.print_info("  No preserved files")
-
-        self.print_info("=" * 60)
-
-    def generate_uninstall_report(self) -> bool:
-        """Generate uninstall report"""
-        report_file = self.install_dir / "uninstall.log"
-
-        try:
-            with open(report_file, "w", encoding="utf-8") as f:
-                f.write("=" * 60 + "\n")
-                f.write("TDGPT Windows Uninstall Report\n")
-                f.write("=" * 60 + "\n\n")
-                f.write(f"Uninstall directory: {self.install_dir}\n")
-                f.write(f"Keep-all mode: {'Yes' if self.keep_all else 'No'}\n")
-                f.write(f"Remove venv: {'Yes' if self.remove_venv else 'No'}\n")
-                f.write(f"Remove data: {'Yes' if self.remove_data else 'No'}\n")
-                f.write(f"Remove model: {'Yes' if self.remove_model else 'No'}\n")
-                f.write("\n")
-                f.write("Preserved directories:\n")
-                if (self.install_dir / "cfg").exists():
-                    f.write("  ✓ cfg\n")
-                if not self.remove_venv and (self.install_dir / "venv").exists():
-                    f.write("  ✓ venv\n")
-                if not self.remove_data and (self.install_dir / "data").exists():
-                    f.write("  ✓ data\n")
-                if not self.remove_model and (self.install_dir / "model").exists():
-                    f.write("  ✓ model\n")
-                f.write("\n")
-                f.write("=" * 60 + "\n")
-
-            self.print_success(f"Uninstall report saved: {report_file}")
-            return True
-        except Exception as e:
-            self.print_warning(f"Failed to generate uninstall report: {e}")
-            return True
+            for line in lines:
+                print(line)
 
     def run(self) -> bool:
-        """Run uninstall"""
+        self.log_dir.mkdir(parents=True, exist_ok=True)
+
         self.print_info("=" * 60)
         self.print_info("TDGPT Windows Uninstaller")
         self.print_info("=" * 60)
         self.print_info(f"Install directory: {self.install_dir}")
-        self.print_info(f"Keep-all mode: {'Yes' if self.keep_all else 'No'}")
-        self.print_info(f"Remove venv: {'Yes' if self.remove_venv else 'No'}")
-        self.print_info(f"Remove data: {'Yes' if self.remove_data else 'No'}")
-        self.print_info(f"Remove model: {'Yes' if self.remove_model else 'No'}")
+        self.print_info(f"Uninstall log: {self.log_file}")
         self.print_info("=" * 60)
 
-        # 1. Stop services
         self.stop_services()
-
-        # 2. Uninstall service
         self.uninstall_service()
-
-        # 3. Remove from PATH
         self.remove_from_path()
-
-        # 4. Remove files
         self.remove_files()
-
-        # 6. Generate uninstall report
-        self.generate_uninstall_report()
-
-        # 7. Show preserved files
-        self.show_preserved_files()
-
-        # Done
-        self.print_info("=" * 60)
-        self.print_success("TDGPT uninstall complete!")
-        self.print_info("=" * 60)
-
+        self.append_uninstall_summary()
+        self.print_success("TDGPT uninstall flow completed.")
         return True
 
 
-def main():
-    """Main function"""
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="TDGPT Windows Uninstall Script",
+        description="TDGPT Windows uninstallation script",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python uninstall.py                 # Standard uninstall (keep cfg, model, data, venv)
-  python uninstall.py --remove-venv   # Uninstall and remove virtual environment
-  python uninstall.py --keep-all      # Only stop services, keep all files
-
-Note:
-  By default, uninstall preserves the following directories:
-    - cfg (configuration files)
-    - model (model files)
-    - data (data directory)
-    - venv (virtual environment)
-
-  This is consistent with the Linux uninstall behavior, ensuring user data is not lost.
-        """
+  python uninstall.py
+  python uninstall.py --remove-venv
+  python uninstall.py --remove-data --remove-model
+  python uninstall.py --keep-all
+        """.strip(),
     )
-
     parser.add_argument(
         "--keep-all",
         action="store_true",
-        help="Keep all data (cfg, model, data, venv)"
+        help="Only stop services and keep all files.",
     )
-
     parser.add_argument(
         "--remove-venv",
         action="store_true",
-        help="Remove virtual environment (kept by default)"
+        help="Remove the venvs directory.",
     )
-
     parser.add_argument(
         "--remove-data",
         action="store_true",
-        help="Remove data directory (kept by default)"
+        help="Remove the data directory.",
     )
-
     parser.add_argument(
         "--remove-model",
         action="store_true",
-        help="Remove model directory (kept by default)"
+        help="Remove the model directory.",
     )
+    parser.add_argument(
+        "--log-file",
+        help="Uninstall log file path. Defaults to <install_dir>\\log\\uninstall.log.",
+    )
+    return parser
 
+
+def main() -> None:
+    parser = build_parser()
     args = parser.parse_args()
 
-    # Create uninstaller and run
     uninstaller = WindowsUninstaller(
         keep_all=args.keep_all,
         remove_venv=args.remove_venv,
         remove_data=args.remove_data,
-        remove_model=args.remove_model
+        remove_model=args.remove_model,
+        log_file=args.log_file or "",
     )
 
     try:
         success = uninstaller.run()
         sys.exit(0 if success else 1)
     except KeyboardInterrupt:
-        print("\n\nUninstall interrupted by user")
+        print("\nUninstall interrupted by user.")
         sys.exit(1)
-    except Exception as e:
-        print(f"\n\nError occurred during uninstall: {e}")
-        import traceback
-        traceback.print_exc()
-        sys.exit(1)
+    except Exception as exc:
+        print(f"\nUnexpected uninstall failure: {exc}")
+        raise
 
 
 if __name__ == "__main__":

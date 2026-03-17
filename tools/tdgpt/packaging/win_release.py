@@ -52,6 +52,7 @@ class InstallInfo:
 
 tdgpt_version = TDGPTVersion("community", "1.0.0")
 install_info = InstallInfo()
+WINSW_BASENAME = "taosanode-winsw"
 
 
 def check_python_version():
@@ -223,12 +224,20 @@ def copy_resource_files():
 def copy_requirements():
     """Copy requirements files"""
     source_dir = install_info.source_dir
+    requirements_dir = os.path.join(install_info.install_dir, "requirements")
+    os.makedirs(requirements_dir, exist_ok=True)
 
-    for req_file in ["requirements.txt", "requirements_ess.txt", "requirements_docker.txt"]:
-        src = os.path.join(source_dir, req_file)
-        if os.path.exists(src):
-            shutil.copy2(src, install_info.install_dir)
-            logging.info(f"Copied {req_file}")
+    copied = 0
+    for req_file in os.listdir(source_dir):
+        if req_file.startswith("requirements") and req_file.endswith(".txt"):
+            src = os.path.join(source_dir, req_file)
+            if os.path.isfile(src):
+                shutil.copy2(src, requirements_dir)
+                copied += 1
+                logging.info(f"Copied {req_file}")
+
+    if copied == 0:
+        logging.warning("No requirements*.txt files found to package")
 
 
 def prepare_offline_packages():
@@ -371,8 +380,15 @@ def create_service_wrappers(bin_dir):
     with open(start_bat, 'w') as f:
         f.write("""@echo off
 chcp 65001 >nul
+set "PYTHON_EXE=%~dp0..\\venvs\\venv\\Scripts\\python.exe"
+if not exist "%PYTHON_EXE%" set "PYTHON_EXE=python"
 REM Start taosanode service
-python "%~dp0taosanode_service.py" start %*
+sc query Taosanode >nul 2>&1
+if not errorlevel 1 (
+    "%PYTHON_EXE%" "%~dp0taosanode_service.py" start-service %*
+) else (
+    "%PYTHON_EXE%" "%~dp0taosanode_service.py" start %*
+)
 """)
     logging.info("Created start-taosanode.bat")
 
@@ -381,8 +397,15 @@ python "%~dp0taosanode_service.py" start %*
     with open(stop_bat, 'w') as f:
         f.write("""@echo off
 chcp 65001 >nul
+set "PYTHON_EXE=%~dp0..\\venvs\\venv\\Scripts\\python.exe"
+if not exist "%PYTHON_EXE%" set "PYTHON_EXE=python"
 REM Stop taosanode service
-python "%~dp0taosanode_service.py" stop %*
+sc query Taosanode >nul 2>&1
+if not errorlevel 1 (
+    "%PYTHON_EXE%" "%~dp0taosanode_service.py" stop-service %*
+) else (
+    "%PYTHON_EXE%" "%~dp0taosanode_service.py" stop %*
+)
 """)
     logging.info("Created stop-taosanode.bat")
 
@@ -391,8 +414,16 @@ python "%~dp0taosanode_service.py" stop %*
     with open(status_bat, 'w') as f:
         f.write("""@echo off
 chcp 65001 >nul
+set "PYTHON_EXE=%~dp0..\\venvs\\venv\\Scripts\\python.exe"
+if not exist "%PYTHON_EXE%" set "PYTHON_EXE=python"
 REM Show taosanode status
-python "%~dp0taosanode_service.py" status %*
+sc query Taosanode >nul 2>&1
+if not errorlevel 1 (
+    echo Windows service status:
+    sc query Taosanode
+    echo.
+)
+"%PYTHON_EXE%" "%~dp0taosanode_service.py" status %*
 pause
 """)
     logging.info("Created status-taosanode.bat")
@@ -402,6 +433,8 @@ pause
     with open(start_model_bat, 'w') as f:
         f.write("""@echo off
 chcp 65001 >nul
+set "PYTHON_EXE=%~dp0..\\venvs\\venv\\Scripts\\python.exe"
+if not exist "%PYTHON_EXE%" set "PYTHON_EXE=python"
 REM Start model service
 REM Usage: start-model.bat [model_name|all]
 if "%~1"=="" (
@@ -409,7 +442,7 @@ if "%~1"=="" (
     echo Supported models: tdtsfm, timesfm, timemoe, moirai, chronos, moment
     exit /b 1
 )
-python "%~dp0taosanode_service.py" model-start %*
+"%PYTHON_EXE%" "%~dp0taosanode_service.py" model-start %*
 """)
     logging.info("Created start-model.bat")
 
@@ -418,13 +451,15 @@ python "%~dp0taosanode_service.py" model-start %*
     with open(stop_model_bat, 'w') as f:
         f.write("""@echo off
 chcp 65001 >nul
+set "PYTHON_EXE=%~dp0..\\venvs\\venv\\Scripts\\python.exe"
+if not exist "%PYTHON_EXE%" set "PYTHON_EXE=python"
 REM Stop model service
 REM Usage: stop-model.bat [model_name|all]
 if "%~1"=="" (
     echo Usage: stop-model.bat [model_name^|all]
     exit /b 1
 )
-python "%~dp0taosanode_service.py" model-stop %*
+"%PYTHON_EXE%" "%~dp0taosanode_service.py" model-stop %*
 """)
     logging.info("Created stop-model.bat")
 
@@ -433,8 +468,10 @@ python "%~dp0taosanode_service.py" model-stop %*
     with open(status_model_bat, 'w') as f:
         f.write("""@echo off
 chcp 65001 >nul
+set "PYTHON_EXE=%~dp0..\\venvs\\venv\\Scripts\\python.exe"
+if not exist "%PYTHON_EXE%" set "PYTHON_EXE=python"
 REM Show model status
-python "%~dp0taosanode_service.py" model-status %*
+"%PYTHON_EXE%" "%~dp0taosanode_service.py" model-status %*
 pause
 """)
     logging.info("Created status-model.bat")
@@ -453,58 +490,34 @@ def create_install_script():
 chcp 65001 >nul
 setlocal enabledelayedexpansion
 
-echo ==========================================
-echo TDGPT Installation Script
-echo ==========================================
-echo.
-
 set INSTALL_DIR=%~dp0
 set INSTALL_DIR=%INSTALL_DIR:~0,-1%
+set "LOG_DIR=%INSTALL_DIR%\\log"
+if not exist "%LOG_DIR%" mkdir "%LOG_DIR%"
+set "LOG_FILE=%LOG_DIR%\\install.log"
 
 REM Check if Python is available
 python --version >nul 2>&1
 if errorlevel 1 (
     echo ERROR: Python not found in PATH
     echo Please install Python 3.10/3.11/3.12 from https://www.python.org/
-    pause
     exit /b 1
 )
 
-echo.
-echo Running installation script...
-echo.
+> "%LOG_FILE%" echo [%date% %time%] TDGPT installation started
+>> "%LOG_FILE%" echo Install directory: %INSTALL_DIR%
+>> "%LOG_FILE%" echo PIP_INDEX_URL=%PIP_INDEX_URL%
+>> "%LOG_FILE%" echo Command args: %*
 
-REM Call install.py with appropriate flags
-python "%INSTALL_DIR%\\install.py" {offline_flag} {all_models_flag}
+python "%INSTALL_DIR%\\install.py" --log-file "%LOG_FILE%" {offline_flag} {all_models_flag} %* >> "%LOG_FILE%" 2>&1
 
 if errorlevel 1 (
-    echo.
-    echo ERROR: Installation failed
-    echo Please check the error messages above
-    pause
+    >> "%LOG_FILE%" echo [%date% %time%] Installation failed
     exit /b 1
 )
 
-echo.
-echo ==========================================
-echo Installation completed successfully!
-echo ==========================================
-echo.
-echo Quick Start Commands:
-echo   Start taosanode: %INSTALL_DIR%\\bin\\start-taosanode.bat
-echo   Stop taosanode:  %INSTALL_DIR%\\bin\\stop-taosanode.bat
-echo   Check status:    %INSTALL_DIR%\\bin\\status-taosanode.bat
-echo.
-echo Model Commands:
-echo   Start all models: %INSTALL_DIR%\\bin\\start-model.bat all
-echo   Stop all models:  %INSTALL_DIR%\\bin\\stop-model.bat all
-echo   Model status:     %INSTALL_DIR%\\bin\\status-model.bat
-echo.
-echo Configuration file: %INSTALL_DIR%\\cfg\\taosanode.config.py
-echo Log file: %INSTALL_DIR%\\install.log
-echo ==========================================
-
-pause
+>> "%LOG_FILE%" echo [%date% %time%] Installation completed successfully
+exit /b 0
 """)
     logging.info("Created install.bat")
 
@@ -516,32 +529,32 @@ def create_uninstall_script():
         f.write("""@echo off
 chcp 65001 >nul
 
-REM TDGPT Pre-Uninstall Script
-REM This script is called by Inno Setup before uninstalling files
-
-echo Stopping TDGPT services...
-
 set INSTALL_DIR=%~dp0
 set INSTALL_DIR=%INSTALL_DIR:~0,-1%
+set "LOG_DIR=%INSTALL_DIR%\\log"
+if not exist "%LOG_DIR%" mkdir "%LOG_DIR%"
+set "LOG_FILE=%LOG_DIR%\\uninstall.log"
+
+> "%LOG_FILE%" echo [%date% %time%] TDGPT uninstall started
 
 REM Check if Python is available
 python --version >nul 2>&1
 if errorlevel 1 (
-    echo WARNING: Python not found, skipping graceful shutdown
+    >> "%LOG_FILE%" echo Python not found in PATH, skip uninstall.py
     goto FORCE_KILL
 )
 
 REM Check if uninstall.py exists
 if exist "%INSTALL_DIR%\\uninstall.py" (
-    echo Running uninstall script...
-    python "%INSTALL_DIR%\\uninstall.py" >nul 2>&1
-    goto END
+    python "%INSTALL_DIR%\\uninstall.py" --log-file "%LOG_FILE%" >> "%LOG_FILE%" 2>&1
+    >> "%LOG_FILE%" echo [%date% %time%] uninstall.py completed
+    exit /b 0
 )
 
 REM Fallback: Stop services using taosanode_service.py
 if exist "%INSTALL_DIR%\\bin\\taosanode_service.py" (
-    python "%INSTALL_DIR%\\bin\\taosanode_service.py" stop 2>nul
-    python "%INSTALL_DIR%\\bin\\taosanode_service.py" model-stop all 2>nul
+    python "%INSTALL_DIR%\\bin\\taosanode_service.py" stop >> "%LOG_FILE%" 2>&1
+    python "%INSTALL_DIR%\\bin\\taosanode_service.py" model-stop all >> "%LOG_FILE%" 2>&1
 )
 
 :FORCE_KILL
@@ -551,8 +564,8 @@ for /f "tokens=2" %%i in ('tasklist /FI "IMAGENAME eq python.exe" /FO LIST ^| fi
 )
 
 :END
-echo Services stopped.
-REM Exit without pause - this script is run by the installer silently
+>> "%LOG_FILE%" echo [%date% %time%] Uninstall helper completed
+exit /b 0
 """)
     logging.info("Created uninstall.bat")
 
@@ -643,7 +656,7 @@ def download_winsw():
     bin_dir = os.path.join(install_info.install_dir, "bin")
     os.makedirs(bin_dir, exist_ok=True)
 
-    winsw_dest = os.path.join(bin_dir, "taosanode-service.exe")
+    winsw_dest = os.path.join(bin_dir, f"{WINSW_BASENAME}.exe")
 
     # Check local cache first
     local_cache = os.path.join(os.path.dirname(__file__), "bin", "WinSW.exe")
@@ -683,7 +696,7 @@ def create_winsw_config():
         config_content = f.read()
 
     # Write to destination
-    config_path = os.path.join(bin_dir, "taosanode-service.xml")
+    config_path = os.path.join(bin_dir, f"{WINSW_BASENAME}.xml")
     with open(config_path, 'w', encoding='utf-8') as f:
         f.write(config_content)
     logging.info(f"Created winsw config: {config_path}")

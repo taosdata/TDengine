@@ -199,3 +199,38 @@ python bin\taosanode_service.py model-start all
 - [TDGPT Linux 打包脚本](../script/release.sh)
 - [TDGPT Linux 安装脚本](../script/install.sh)
 - [TDengine Windows 打包流程](../../../../enterprise/packaging/new_win_release.py)
+
+## 2026-03-17 补充说明
+
+- 安装向导在在线安装模式下新增了 pip 源选择页。
+- 默认使用官方 PyPI，不会默认勾选国内镜像。
+- 可选预置镜像包括清华镜像和阿里云镜像，也支持手工填写自定义镜像 URL。
+- 标准卸载会保留 `cfg`、`model`、`data`、`venv` 目录。
+- 只有显式使用 `--remove-model` 时，才会删除 `model` 目录。
+
+## 2026-03-17 目录与安装向导补充
+
+- `requirements*.txt` 现在统一打到 `<安装目录>\requirements\`。
+- 所有 Windows venv 现在统一放到 `<安装目录>\venvs\` 下面。
+- 安装向导最后阶段新增“安装并注册 Windows 服务”选项，默认勾选。
+- 安装完成页会提示以下启动/停止方式：
+  - `net start Taosanode`
+  - `net stop Taosanode`
+  - `<安装目录>\bin\start-taosanode.bat`
+  - `<安装目录>\bin\stop-taosanode.bat`
+- 非静默安装完成后会自动打开 `<安装目录>\log\install.log`。
+
+### 日志文件说明
+
+- `<安装目录>\log\install.log`：安装全过程输出和安装摘要。
+- `<安装目录>\log\uninstall.log`：卸载全过程输出和卸载摘要。
+- `<安装目录>\log\taosanode-service.log`：服务注册、服务管理、启停生命周期日志。
+- `<安装目录>\log\taosanode-service.wrapper.log`：WinSW wrapper 生命周期日志。
+- `<安装目录>\log\taosanode-service.out.log`：Windows 服务 stdout。
+- `<安装目录>\log\taosanode-service.err.log`：Windows 服务 stderr。
+- `<安装目录>\log\taosanode.app.log`：taosanode 应用日志。
+
+### 标准卸载策略
+
+- 标准卸载默认保留 `cfg`、`data`、`model`、`venvs`、`log`。
+- 只有显式执行 `uninstall.py --remove-model` 时，才会删除 `model`。

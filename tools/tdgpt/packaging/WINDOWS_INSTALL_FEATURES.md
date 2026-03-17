@@ -563,3 +563,68 @@ python packaging/win_release.py -e community -v 1.0.0 -m D:\models --offline -a
 **文档版本：** 2.0
 **最后更新：** 2026-03-16
 **维护者：** TDGPT 开发团队
+
+## 2026-03-17 补充说明
+
+- 在线安装模式下，安装向导支持选择 pip 源。
+- 默认使用官方 PyPI，不默认勾选国内镜像。
+- 可选预置镜像包括清华镜像、阿里云镜像，也支持填写自定义镜像 URL。
+- 标准卸载默认保留 `cfg`、`model`、`data`、`venv`。
+- 只有显式使用 `--remove-model` 时，才会删除 `model` 目录。
+
+## 2026-03-17 目录、日志与安装向导补充
+
+### 当前 Windows 目录布局
+
+```text
+<安装目录>\
+├── bin\
+├── cfg\
+├── data\
+├── log\
+├── model\
+├── requirements\
+└── venvs\
+    ├── venv\
+    ├── timesfm_venv\
+    ├── moirai_venv\
+    ├── chronos_venv\
+    └── momentfm_venv\
+```
+
+### 安装向导补充
+
+- 在线安装时支持选择 pip 源，默认仍然是官方 PyPI。
+- 完成安装前新增“安装并注册 Windows 服务”选项，默认勾选。
+- 安装完成页会提示以下命令：
+  - `net start Taosanode`
+  - `net stop Taosanode`
+  - `<安装目录>\bin\start-taosanode.bat`
+  - `<安装目录>\bin\stop-taosanode.bat`
+- 非静默安装完成后会自动打开 `<安装目录>\log\install.log`。
+
+### Current log files and purpose
+
+- `<安装目录>\log\install.log`
+  - 安装器调用 `install.bat/install.py` 的完整输出和安装摘要。
+- `<安装目录>\log\uninstall.log`
+  - 卸载器调用 `uninstall.bat/uninstall.py` 的完整输出和卸载摘要。
+- `<安装目录>\log\taosanode-service.log`
+  - 服务注册、服务管理脚本、主服务启动生命周期日志。
+- `<安装目录>\log\taosanode-winsw.wrapper.log`
+  - WinSW wrapper lifecycle log.
+- `<安装目录>\log\taosanode.app.log`
+  - taosanode 应用日志。
+
+### 合并策略说明
+
+- 安装日志已经合并为一个文件：`log\install.log`。
+- 卸载日志已经合并为一个文件：`log\uninstall.log`。
+- 服务管理日志已经统一写入 `log\taosanode-service.log`。
+- WinSW stdout/stderr 已关闭，只保留一个明确命名的 wrapper 日志：`log\taosanode-winsw.wrapper.log`。
+
+### 标准卸载保留策略
+
+- 默认保留：`cfg`、`data`、`model`、`venvs`、`log`。
+- 默认删除：`bin`、`lib`、`resource`、`requirements` 和安装脚本。
+- `model` 只有在显式执行 `uninstall.py --remove-model` 时才会删除。

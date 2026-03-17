@@ -199,3 +199,28 @@ Modify the `bind` setting in the configuration file `C:\TDengine\taosanode\cfg\t
 - [TDGPT Linux Packaging Script](../script/release.sh)
 - [TDGPT Linux Installation Script](../script/install.sh)
 - [TDengine Windows Packaging Process](../../../../enterprise/packaging/new_win_release.py)
+
+## 2026-03-17 Layout And Installer UX Update
+
+- Requirements files are now packaged under `<install_dir>\requirements\`.
+- All Windows virtual environments are now created under `<install_dir>\venvs\`.
+- The installer finish flow now includes a default-enabled checkbox to install/register the Windows service.
+- The finish page now shows both service commands and script commands:
+  - `net start Taosanode`
+  - `net stop Taosanode`
+  - `<install_dir>\bin\start-taosanode.bat`
+  - `<install_dir>\bin\stop-taosanode.bat`
+- In non-silent mode the finish page automatically opens `<install_dir>\log\install.log`.
+
+### Log Files
+
+- `<install_dir>\log\install.log`: full install output and install summary.
+- `<install_dir>\log\uninstall.log`: full uninstall output and uninstall summary.
+- `<install_dir>\log\taosanode-service.log`: service manager lifecycle log.
+- `<install_dir>\log\taosanode-winsw.wrapper.log`: WinSW wrapper log.
+- `<install_dir>\log\taosanode.app.log`: taosanode application log.
+
+### Standard Uninstall
+
+- Standard uninstall preserves `cfg`, `data`, `model`, `venvs`, and `log`.
+- `model` is removed only when `uninstall.py --remove-model` is used explicitly.

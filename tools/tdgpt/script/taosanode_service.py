@@ -49,6 +49,9 @@ else:
     DEFAULT_INSTALL_DIR = _script_parent if os.path.basename(_script_dir) == "bin" else "/usr/local/taos/taosanode"
 DEFAULT_DATA_DIR = os.path.join(DEFAULT_INSTALL_DIR, "data")
 DEFAULT_LOG_DIR = os.path.join(DEFAULT_INSTALL_DIR, "log")
+SERVICE_LOG_FILE = os.path.join(DEFAULT_LOG_DIR, "taosanode-service.log")
+WINSW_EXE_NAME = "taosanode-winsw.exe"
+_redirect_stream = None
 
 # PID file paths
 PID_FILE = os.path.join(DEFAULT_INSTALL_DIR, "taosanode.pid")
@@ -98,23 +101,36 @@ def setup_logger(name: str, log_file: str, level=logging.INFO) -> logging.Logger
     )
     file_handler.setFormatter(file_formatter)
 
-    # Console handler
-    console_handler = logging.StreamHandler()
-    console_handler.setLevel(level)
-    console_formatter = logging.Formatter('%(levelname)s: %(message)s')
-    console_handler.setFormatter(console_formatter)
-
     logger.addHandler(file_handler)
-    logger.addHandler(console_handler)
+
+    if os.environ.get("TAOSANODE_DISABLE_CONSOLE_LOG") != "1":
+        console_handler = logging.StreamHandler()
+        console_handler.setLevel(level)
+        console_formatter = logging.Formatter('%(levelname)s: %(message)s')
+        console_handler.setFormatter(console_formatter)
+        logger.addHandler(console_handler)
 
     return logger
+
+
+def redirect_stdio_if_needed():
+    """Redirect stdout/stderr to a file when running under WinSW."""
+    global _redirect_stream
+    target = os.environ.get("TAOSANODE_REDIRECT_STDIO", "").strip()
+    if not target or _redirect_stream is not None:
+        return
+
+    os.makedirs(os.path.dirname(target), exist_ok=True)
+    _redirect_stream = open(target, "a", encoding="utf-8", buffering=1)
+    sys.stdout = _redirect_stream
+    sys.stderr = _redirect_stream
 
 
 def get_logger(name: str = "taosanode_service") -> logging.Logger:
     """Get global logger instance"""
     global _logger
     if _logger is None:
-        log_file = os.path.join(DEFAULT_LOG_DIR, "taosanode.log")
+        log_file = SERVICE_LOG_FILE
         _logger = setup_logger(name, log_file)
     return _logger
 
@@ -128,10 +144,10 @@ class Config:
         self.log_dir = DEFAULT_LOG_DIR
         self.cfg_dir = os.path.join(self.install_dir, "cfg")
 
-        # All management loggers write to the same taosanode.log
+        # All management loggers write to the same service log.
         self.logger = setup_logger(
             'Config',
-            os.path.join(self.log_dir, 'taosanode.log')
+            SERVICE_LOG_FILE
         )
 
         # Try to load from taosanode.config.py
@@ -146,13 +162,13 @@ class Config:
         self.pid_file = PID_FILE
         self.app_log = os.path.join(self.log_dir, "taosanode.app.log")
         self.model_dir = os.path.join(self.data_dir, "model")
-        self.venv_dir = os.path.join(self.install_dir, "venv")
+        self.venv_dir = os.path.join(self.install_dir, "venvs", "venv")
         self.bind = "0.0.0.0:6035"
         self.workers = 2
-        self.timesfm_venv = os.path.join(self.install_dir, "timesfm_venv")
-        self.moirai_venv = os.path.join(self.install_dir, "moirai_venv")
-        self.chronos_venv = os.path.join(self.install_dir, "chronos_venv")
-        self.moment_venv = os.path.join(self.install_dir, "momentfm_venv")
+        self.timesfm_venv = os.path.join(self.install_dir, "venvs", "timesfm_venv")
+        self.moirai_venv = os.path.join(self.install_dir, "venvs", "moirai_venv")
+        self.chronos_venv = os.path.join(self.install_dir, "venvs", "chronos_venv")
+        self.moment_venv = os.path.join(self.install_dir, "venvs", "momentfm_venv")
         self.models = self._get_default_models()
 
         if not os.path.exists(config_path):
@@ -189,7 +205,7 @@ class Config:
             if hasattr(config_module, 'virtualenv'):
                 self.venv_dir = config_module.virtualenv
             else:
-                self.venv_dir = os.path.join(self.install_dir, "venv")
+                self.venv_dir = os.path.join(self.install_dir, "venvs", "venv")
 
             # Bind address
             if hasattr(config_module, 'bind'):
@@ -205,13 +221,13 @@ class Config:
 
             # Model venv paths from config
             self.timesfm_venv = getattr(config_module, 'timesfm_venv',
-                                       os.path.join(self.install_dir, "timesfm_venv"))
+                                       os.path.join(self.install_dir, "venvs", "timesfm_venv"))
             self.moirai_venv = getattr(config_module, 'moirai_venv',
-                                       os.path.join(self.install_dir, "moirai_venv"))
+                                       os.path.join(self.install_dir, "venvs", "moirai_venv"))
             self.chronos_venv = getattr(config_module, 'chronos_venv',
-                                        os.path.join(self.install_dir, "chronos_venv"))
+                                        os.path.join(self.install_dir, "venvs", "chronos_venv"))
             self.moment_venv = getattr(config_module, 'momentfm_venv',
-                                       os.path.join(self.install_dir, "momentfm_venv"))
+                                       os.path.join(self.install_dir, "venvs", "momentfm_venv"))
 
             # Load model configurations from config file
             if hasattr(config_module, 'models'):
@@ -225,7 +241,7 @@ class Config:
             self.pid_file = PID_FILE
             self.app_log = os.path.join(self.log_dir, "taosanode.app.log")
             self.model_dir = os.path.join(self.data_dir, "model")
-            self.venv_dir = os.path.join(self.install_dir, "venv")
+            self.venv_dir = os.path.join(self.install_dir, "venvs", "venv")
             self.bind = "0.0.0.0:6035"
             self.workers = 2
             self.models = self._get_default_models()
@@ -279,7 +295,7 @@ class ProcessManager:
         self.config = config
         self.logger = setup_logger(
             'ProcessManager',
-            os.path.join(config.log_dir, 'taosanode.log')
+            os.path.join(config.log_dir, 'taosanode-service.log')
         )
         self._ensure_dirs()
 
@@ -407,16 +423,80 @@ class TaosanodeService:
         self.process_mgr = process_mgr
         self.logger = setup_logger(
             'TaosanodeService',
-            os.path.join(config.log_dir, 'taosanode.log')
+            os.path.join(config.log_dir, 'taosanode-service.log')
         )
 
-    def start(self) -> bool:
+    def _get_waitress_settings(self) -> tuple:
+        """Build the waitress launch settings for Windows."""
+        bind_host, bind_port = self.config.bind.split(':')
+        wc = getattr(self.config, 'waitress_config', {
+            'threads': 4,
+            'channel_timeout': 1200,
+            'connection_limit': 1000,
+            'cleanup_interval': 30,
+            'log_socket_errors': True
+        })
+        return bind_host, int(bind_port), wc
+
+    def _ensure_waitress(self, python_exe: str):
+        """Ensure waitress is available in the main virtual environment."""
+        try:
+            subprocess.run([python_exe, "-c", "import waitress"],
+                         capture_output=True, check=True)
+        except subprocess.CalledProcessError:
+            self.logger.info("Installing waitress...")
+            subprocess.run([python_exe, "-m", "pip", "install", "waitress"],
+                         capture_output=True, check=True)
+
+    def _run_windows_foreground(self) -> bool:
+        """Run taosanode in the current process for WinSW-managed service mode."""
+        redirect_stdio_if_needed()
+        python_exe = self.process_mgr._get_python_exe()
+        self._ensure_waitress(python_exe)
+
+        lib_root = os.path.join(self.config.install_dir, "lib")
+        if lib_root not in sys.path:
+            sys.path.insert(0, lib_root)
+        os.environ["PYTHONPATH"] = lib_root
+
+        bind_host, bind_port, wc = self._get_waitress_settings()
+
+        try:
+            from waitress import serve
+            from taosanalytics.app import app
+
+            pid = os.getpid()
+            self.process_mgr.write_pid(pid, "taosanode")
+            self.logger.info(f"Taosanode started in foreground with PID {pid}")
+            self.logger.info(f"Listening on {self.config.bind}")
+
+            serve(
+                app,
+                host=bind_host,
+                port=bind_port,
+                threads=wc.get('threads', 4),
+                channel_timeout=wc.get('channel_timeout', 1200),
+                connection_limit=wc.get('connection_limit', 1000),
+                cleanup_interval=wc.get('cleanup_interval', 30),
+                log_socket_errors=wc.get('log_socket_errors', True),
+            )
+            return True
+        except Exception as e:
+            self.logger.error(f"Error starting taosanode in foreground: {e}")
+            return False
+        finally:
+            self.process_mgr.remove_pid("taosanode")
+
+    def start(self, foreground: bool = False) -> bool:
         """Start taosanode service"""
         if self.process_mgr.is_running("taosanode"):
             self.logger.info("Taosanode is already running")
             return True
 
         self.logger.info("Starting taosanode service...")
+
+        if IS_WINDOWS and foreground:
+            return self._run_windows_foreground()
 
         # Prepare environment
         env = os.environ.copy()
@@ -427,27 +507,8 @@ class TaosanodeService:
         lib_dir = os.path.join(self.config.install_dir, "lib", "taosanalytics")
 
         if IS_WINDOWS:
-            # Windows: use waitress
-            try:
-                # Check if waitress is installed
-                subprocess.run([python_exe, "-c", "import waitress"],
-                             capture_output=True, check=True)
-            except subprocess.CalledProcessError:
-                self.logger.info("Installing waitress...")
-                subprocess.run([python_exe, "-m", "pip", "install", "waitress"],
-                             capture_output=True)
-
-            # Parse bind address
-            bind_host, bind_port = self.config.bind.split(':')
-
-            # Get waitress configuration from config file
-            wc = getattr(self.config, 'waitress_config', {
-                'threads': 4,
-                'channel_timeout': 1200,
-                'connection_limit': 1000,
-                'cleanup_interval': 30,
-                'log_socket_errors': True
-            })
+            self._ensure_waitress(python_exe)
+            bind_host, bind_port, wc = self._get_waitress_settings()
 
             cmd = [
                 python_exe, "-c",
@@ -473,7 +534,7 @@ class TaosanodeService:
         try:
             if IS_WINDOWS:
                 # Windows: redirect output to log file for debugging
-                log_file = os.path.join(self.config.log_dir, "taosanode_stdout.log")
+                log_file = os.path.join(self.config.log_dir, "taosanode-service.log")
                 with open(log_file, 'a') as log:
                     proc = subprocess.Popen(
                         cmd,
@@ -552,7 +613,7 @@ class TaosanodeService:
             self.logger.error("Service installation is only supported on Windows")
             return False
 
-        service_exe = os.path.join(self.config.install_dir, "bin", "taosanode-service.exe")
+        service_exe = os.path.join(self.config.install_dir, "bin", WINSW_EXE_NAME)
         if not os.path.exists(service_exe):
             self.logger.error("ERROR: Service wrapper not found. Please reinstall.")
             return False
@@ -574,7 +635,7 @@ class TaosanodeService:
             self.logger.error("Service uninstallation is only supported on Windows")
             return False
 
-        service_exe = os.path.join(self.config.install_dir, "bin", "taosanode-service.exe")
+        service_exe = os.path.join(self.config.install_dir, "bin", WINSW_EXE_NAME)
         if not os.path.exists(service_exe):
             self.logger.warning("Service wrapper not found")
             return True
@@ -629,7 +690,7 @@ class ModelService:
         self.process_mgr = process_mgr
         self.logger = setup_logger(
             'ModelService',
-            os.path.join(config.log_dir, 'taosanode.log')
+            os.path.join(config.log_dir, 'taosanode-service.log')
         )
 
     def _get_model_venv(self, model_name: str) -> str:
@@ -980,7 +1041,7 @@ Examples:
 
     # Execute command
     if args.command == "start":
-        success = taosanode.start()
+        success = taosanode.start(foreground=args.foreground)
         sys.exit(0 if success else 1)
 
     elif args.command == "stop":

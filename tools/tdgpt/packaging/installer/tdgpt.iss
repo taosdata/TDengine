@@ -27,7 +27,7 @@ SetupIconFile={#MyAppIco}
 UninstallDisplayIcon={#MyAppIco}
 Compression=lzma
 SolidCompression=yes
-CloseApplications=force
+CloseApplications=no
 DisableDirPage=no
 Uninstallable=yes
 ArchitecturesAllowed=x64
@@ -35,25 +35,14 @@ ArchitecturesInstallIn64BitMode=x64
 SetupLogging=yes
 
 [Languages]
-Name: "chinesesimp"; MessagesFile: "compiler:Default.isl"
+Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Files]
-; Configuration files
 Source: "{#MyAppSourceDir}\cfg\*"; DestDir: "{app}\cfg"; Flags: ignoreversion recursesubdirs createallsubdirs onlyifdoesntexist uninsneveruninstall
-
-; Library files (Python)
 Source: "{#MyAppSourceDir}\lib\*"; DestDir: "{app}\lib"; Flags: ignoreversion recursesubdirs createallsubdirs
-
-; Resource files
 Source: "{#MyAppSourceDir}\resource\*"; DestDir: "{app}\resource"; Flags: ignoreversion recursesubdirs createallsubdirs
-
-; Model files (required for production)
 Source: "{#MyAppSourceDir}\model\*"; DestDir: "{app}\model"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
-
-; Requirements files
-Source: "{#MyAppSourceDir}\requirements*.txt"; DestDir: "{app}"; Flags: ignoreversion
-
-; Service management scripts
+Source: "{#MyAppSourceDir}\requirements\*"; DestDir: "{app}\requirements"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#MyAppSourceDir}\bin\*"; DestDir: "{app}\bin"; Flags: ignoreversion
 Source: "{#MyAppSourceDir}\install.bat"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#MyAppSourceDir}\install.py"; DestDir: "{app}"; Flags: ignoreversion
@@ -61,28 +50,24 @@ Source: "{#MyAppSourceDir}\uninstall.bat"; DestDir: "{app}"; Flags: ignoreversio
 Source: "{#MyAppSourceDir}\uninstall.py"; DestDir: "{app}"; Flags: ignoreversion
 
 [Dirs]
-Name: "{app}\log"; Permissions: everyone-modify
-Name: "{app}\model"; Permissions: everyone-modify
-Name: "{app}\data"; Permissions: everyone-modify
-Name: "{app}\data\pids"; Permissions: everyone-modify
-Name: "{app}\venv"; Permissions: everyone-modify
-Name: "{app}\timesfm_venv"; Permissions: everyone-modify
-Name: "{app}\moirai_venv"; Permissions: everyone-modify
-Name: "{app}\chronos_venv"; Permissions: everyone-modify
-Name: "{app}\momentfm_venv"; Permissions: everyone-modify
+Name: "{app}\cfg"; Permissions: everyone-modify; Flags: uninsneveruninstall
+Name: "{app}\log"; Permissions: everyone-modify; Flags: uninsneveruninstall
+Name: "{app}\model"; Permissions: everyone-modify; Flags: uninsneveruninstall
+Name: "{app}\data"; Permissions: everyone-modify; Flags: uninsneveruninstall
+Name: "{app}\data\pids"; Permissions: everyone-modify; Flags: uninsneveruninstall
+Name: "{app}\venvs"; Permissions: everyone-modify; Flags: uninsneveruninstall
+Name: "{app}\venvs\venv"; Permissions: everyone-modify; Flags: uninsneveruninstall
+Name: "{app}\venvs\timesfm_venv"; Permissions: everyone-modify; Flags: uninsneveruninstall
+Name: "{app}\venvs\moirai_venv"; Permissions: everyone-modify; Flags: uninsneveruninstall
+Name: "{app}\venvs\chronos_venv"; Permissions: everyone-modify; Flags: uninsneveruninstall
+Name: "{app}\venvs\momentfm_venv"; Permissions: everyone-modify; Flags: uninsneveruninstall
 
 [Run]
-; Run install script after installation with user-selected flags
-Filename: "{app}\install.bat"; Parameters: "{code:GetInstallFlags}"; Description: "Run installation script"; Flags: postinstall runascurrentuser waituntilidle
+Filename: "{cmd}"; Parameters: "/C call ""{app}\install.bat"" {code:GetInstallFlags}"; StatusMsg: "Installing Python dependencies and configuring service..."; Description: "Run installation script"; Flags: runhidden waituntilterminated
+Filename: "notepad.exe"; Parameters: """{app}\log\install.log"""; Description: "Open installation log"; Flags: postinstall nowait skipifsilent
 
 [UninstallRun]
-; Run uninstall script before uninstallation
-Filename: "{app}\uninstall.bat"; Flags: runhidden
-
-[UninstallDelete]
-; Only delete log files during uninstall
-; Preserve: cfg, model, data, venv (consistent with Linux behavior)
-Name: "{app}\log"; Type: filesandordirs
+Filename: "{cmd}"; Parameters: "/C call ""{app}\uninstall.bat"" & exit /b 0"; Flags: runhidden waituntilterminated
 
 [Icons]
 Name: "{group}\Start Taosanode"; Filename: "{app}\bin\start-taosanode.bat"
@@ -95,7 +80,6 @@ Name: "{commondesktop}\Start Taosanode"; Filename: "{app}\bin\start-taosanode.ba
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: checkablealone
 
 [Registry]
-; Add to PATH environment variable
 Root: HKLM; Subkey: "SYSTEM\CurrentControlSet\Control\Session Manager\Environment"; \
     ValueType: expandsz; ValueName: "Path"; ValueData: "{olddata};{app}\bin"; \
     Check: NeedsAddPath('{app}\bin')
@@ -103,72 +87,181 @@ Root: HKLM; Subkey: "SYSTEM\CurrentControlSet\Control\Session Manager\Environmen
 [Code]
 var
   InstallModePage: TInputOptionWizardPage;
+  PipSourcePage: TInputOptionWizardPage;
+  CustomPipPage: TInputQueryWizardPage;
   ModelSelectionPage: TInputOptionWizardPage;
+  ServiceOptionsPage: TInputOptionWizardPage;
+  FinishNotesLabel: TNewStaticText;
   IsOnlineMode: Boolean;
+  UseCustomPip: Boolean;
+  PipIndexUrl: String;
+  PipTrustedHost: String;
   InstallChronos: Boolean;
   InstallTimesfm: Boolean;
   InstallMoirai: Boolean;
   InstallMoment: Boolean;
+  InstallServiceOption: Boolean;
 
-function NeedsAddPath(Param: string): boolean;
+function NeedsAddPath(Param: string): Boolean;
 var
   OrigPath: string;
 begin
-  if not RegQueryStringValue(HKEY_LOCAL_MACHINE,
+  if not RegQueryStringValue(
+    HKEY_LOCAL_MACHINE,
     'SYSTEM\CurrentControlSet\Control\Session Manager\Environment',
-    'Path', OrigPath)
-  then begin
+    'Path',
+    OrigPath
+  ) then
+  begin
     Result := True;
     exit;
   end;
+
   Result := Pos(';' + Param + ';', ';' + OrigPath + ';') = 0;
+end;
+
+function GetHostFromUrl(Url: string): string;
+var
+  NormalizedUrl: string;
+  SchemePos: Integer;
+  SlashPos: Integer;
+begin
+  NormalizedUrl := Trim(Url);
+  SchemePos := Pos('://', NormalizedUrl);
+  if SchemePos > 0 then
+    Delete(NormalizedUrl, 1, SchemePos + 2);
+
+  SlashPos := Pos('/', NormalizedUrl);
+  if SlashPos > 0 then
+    Result := Copy(NormalizedUrl, 1, SlashPos - 1)
+  else
+    Result := NormalizedUrl;
 end;
 
 procedure InitializeWizard();
 begin
-  // Create custom page for installation mode selection
-  InstallModePage := CreateInputOptionPage(wpSelectDir,
-    'Installation Mode', 'Select installation options',
-    'Choose how you want to install TDGPT:',
-    True, False);
+  IsOnlineMode := True;
+  UseCustomPip := False;
+  PipIndexUrl := '';
+  PipTrustedHost := '';
+  InstallServiceOption := True;
 
-  // Add installation mode options
-  InstallModePage.Add('Online Mode (Recommended)');
-  InstallModePage.Add('Offline Mode');
-
-  // Set default to Online Mode
+  InstallModePage := CreateInputOptionPage(
+    wpSelectDir,
+    'Installation Mode',
+    'Select installation mode',
+    'Choose how TDGPT should install Python dependencies.',
+    True,
+    False
+  );
+  InstallModePage.Add('Online mode (recommended)');
+  InstallModePage.Add('Offline mode');
   InstallModePage.Values[0] := True;
 
-  // Create another page for model selection (checkboxes, not radio buttons)
-  ModelSelectionPage := CreateInputOptionPage(InstallModePage.ID,
-    'Model Selection', 'Select which optional models to install',
-    'Required models (TDTSFM, TimeMoE) are always installed. Select additional models:',
-    False, False);
+  PipSourcePage := CreateInputOptionPage(
+    InstallModePage.ID,
+    'Python Package Source',
+    'Select a pip source',
+    'Online mode uses the selected pip source. The default keeps the official PyPI source.',
+    True,
+    False
+  );
+  PipSourcePage.Add('Official PyPI (default)');
+  PipSourcePage.Add('Tsinghua mirror');
+  PipSourcePage.Add('Aliyun mirror');
+  PipSourcePage.Add('Custom mirror URL');
+  PipSourcePage.Values[0] := True;
 
-  // Add model selection options (checkboxes)
+  CustomPipPage := CreateInputQueryPage(
+    PipSourcePage.ID,
+    'Custom Python Package Source',
+    'Enter a pip index URL',
+    'This value is used only when "Custom mirror URL" is selected.'
+  );
+  CustomPipPage.Add('pip index URL:', False);
+
+  ModelSelectionPage := CreateInputOptionPage(
+    CustomPipPage.ID,
+    'Model Selection',
+    'Select optional models',
+    'Required models are always kept. Select optional model environments if needed.',
+    False,
+    False
+  );
   ModelSelectionPage.Add('Chronos (amazon/chronos-bolt-base)');
   ModelSelectionPage.Add('TimesFM (google/timesfm-2.0-500m-pytorch)');
   ModelSelectionPage.Add('Moirai (Salesforce/moirai-moe-1.0-R-base)');
   ModelSelectionPage.Add('MomentFM (AutonLab/MOMENT-1-large)');
 
-  // Default: check Moirai and MomentFM
-  ModelSelectionPage.Values[0] := False;   // Chronos
-  ModelSelectionPage.Values[1] := False;   // TimesFM
-  ModelSelectionPage.Values[2] := True;    // Moirai
-  ModelSelectionPage.Values[3] := True;    // MomentFM
+  ServiceOptionsPage := CreateInputOptionPage(
+    ModelSelectionPage.ID,
+    'Service Registration',
+    'Select final installation actions',
+    'Choose whether setup should register the Windows service automatically after Python dependencies are installed.',
+    False,
+    False
+  );
+  ServiceOptionsPage.Add('Install and register the Taosanode Windows service');
+  ServiceOptionsPage.Values[0] := True;
+
+  FinishNotesLabel := TNewStaticText.Create(WizardForm.FinishedPage);
+  FinishNotesLabel.Parent := WizardForm.FinishedPage;
+  FinishNotesLabel.Left := WizardForm.FinishedLabel.Left;
+  FinishNotesLabel.Top := WizardForm.FinishedLabel.Top + WizardForm.FinishedLabel.Height + ScaleY(6);
+  FinishNotesLabel.Width := ScaleX(420);
+  FinishNotesLabel.Height := ScaleY(110);
+  FinishNotesLabel.AutoSize := False;
+  FinishNotesLabel.WordWrap := True;
+  FinishNotesLabel.Visible := False;
+end;
+
+function ShouldSkipPage(PageID: Integer): Boolean;
+begin
+  Result := False;
+
+  if (PageID = PipSourcePage.ID) and (not IsOnlineMode) then
+    Result := True
+  else if (PageID = CustomPipPage.ID) and ((not IsOnlineMode) or (not UseCustomPip)) then
+    Result := True;
 end;
 
 function NextButtonClick(CurPageID: Integer): Boolean;
 begin
   Result := True;
 
-  // Save user selections when leaving the installation mode page
   if CurPageID = InstallModePage.ID then
-  begin
     IsOnlineMode := InstallModePage.Values[0];
+
+  if CurPageID = PipSourcePage.ID then
+  begin
+    UseCustomPip := PipSourcePage.Values[3];
+    PipIndexUrl := '';
+    PipTrustedHost := '';
+
+    if PipSourcePage.Values[1] then
+    begin
+      PipIndexUrl := 'https://pypi.tuna.tsinghua.edu.cn/simple';
+      PipTrustedHost := 'pypi.tuna.tsinghua.edu.cn';
+    end
+    else if PipSourcePage.Values[2] then
+    begin
+      PipIndexUrl := 'https://mirrors.aliyun.com/pypi/simple';
+      PipTrustedHost := 'mirrors.aliyun.com';
+    end;
   end;
 
-  // Save user selections when leaving the model selection page
+  if CurPageID = CustomPipPage.ID then
+  begin
+    PipIndexUrl := Trim(CustomPipPage.Values[0]);
+    if PipIndexUrl = '' then
+    begin
+      MsgBox('Please enter a valid pip index URL.', mbError, MB_OK);
+      Result := False;
+      exit;
+    end;
+    PipTrustedHost := GetHostFromUrl(PipIndexUrl);
+  end;
+
   if CurPageID = ModelSelectionPage.ID then
   begin
     InstallChronos := ModelSelectionPage.Values[0];
@@ -176,18 +269,18 @@ begin
     InstallMoirai := ModelSelectionPage.Values[2];
     InstallMoment := ModelSelectionPage.Values[3];
   end;
+
+  if CurPageID = ServiceOptionsPage.ID then
+    InstallServiceOption := ServiceOptionsPage.Values[0];
 end;
 
 function GetInstallFlags(Param: String): String;
 begin
   Result := '';
 
-  // Add offline flag if offline mode is selected
   if not IsOnlineMode then
     Result := Result + '-o ';
 
-  // Build model list from checkbox selections
-  // Required models (tdtsfm, timemoe) are always included by install.py
   if InstallChronos then
     Result := Result + '--model chronos ';
   if InstallTimesfm then
@@ -197,18 +290,69 @@ begin
   if InstallMoment then
     Result := Result + '--model moment ';
 
-  // Trim trailing space
+  if IsOnlineMode and (PipIndexUrl <> '') then
+  begin
+    Result := Result + '--pip-index-url ' + AddQuotes(PipIndexUrl) + ' ';
+    if PipTrustedHost <> '' then
+      Result := Result + '--pip-trusted-host ' + AddQuotes(PipTrustedHost) + ' ';
+  end;
+
+  if not InstallServiceOption then
+    Result := Result + '--skip-service-install ';
+
   Result := Trim(Result);
+end;
+
+procedure UpdateFinishedPageText();
+var
+  Notes: String;
+begin
+  WizardForm.FinishedLabel.AutoSize := False;
+  WizardForm.FinishedLabel.Height := ScaleY(44);
+
+  Notes :=
+    'Installation log:' + #13#10 +
+    '  ' + ExpandConstant('{app}\log\install.log') + #13#10 + #13#10;
+
+  if InstallServiceOption then
+  begin
+    Notes := Notes +
+      'Windows service commands:' + #13#10 +
+      '  Start: net start Taosanode' + #13#10 +
+      '  Stop:  net stop Taosanode' + #13#10 +
+      '  Status: ' + ExpandConstant('{app}\bin\status-taosanode.bat') + #13#10 + #13#10;
+  end
+  else
+  begin
+    Notes := Notes +
+      'Service registration was skipped.' + #13#10 +
+      'Manual install later:' + #13#10 +
+      '  ' + ExpandConstant('{app}\venvs\venv\Scripts\python.exe') + ' ' +
+      ExpandConstant('{app}\bin\taosanode_service.py') + ' install-service' + #13#10 + #13#10;
+  end;
+
+  Notes := Notes +
+    'Script commands:' + #13#10 +
+    '  Start: ' + ExpandConstant('{app}\bin\start-taosanode.bat') + #13#10 +
+    '  Stop:  ' + ExpandConstant('{app}\bin\stop-taosanode.bat');
+
+  FinishNotesLabel.Caption := Notes;
+  FinishNotesLabel.Visible := True;
+end;
+
+procedure CurPageChanged(CurPageID: Integer);
+begin
+  if CurPageID = wpFinished then
+    UpdateFinishedPageText()
+  else
+    FinishNotesLabel.Visible := False;
 end;
 
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 begin
-  case CurUninstallStep of
-    usPostUninstall:
-      begin
-        // Clean up any remaining files
-        if FileExists(ExpandConstant('{app}\taosanode.pid')) then
-          DeleteFile(ExpandConstant('{app}\taosanode.pid'));
-      end;
+  if CurUninstallStep = usPostUninstall then
+  begin
+    if FileExists(ExpandConstant('{app}\taosanode.pid')) then
+      DeleteFile(ExpandConstant('{app}\taosanode.pid'));
   end;
 end;

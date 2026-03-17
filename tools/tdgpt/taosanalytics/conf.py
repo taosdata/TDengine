@@ -33,16 +33,17 @@ class Configure:
 
     def _get_default_conf(self):
         if platform.system().lower() == "windows":
-            # raw_path = r"%PROGRAMDATA%"
-            # base_path = os.path.join(os.path.expandvars(raw_path), "tdgpt")
-            # keep inline with the TDengine installation configuration
-            base_path = "c:/TDengine/taosanode/"
+            package_dir = Path(__file__).resolve().parent
+            if package_dir.name == "taosanalytics" and package_dir.parent.name == "lib":
+                base_path = str(package_dir.parent.parent).replace("\\", "/")
+            else:
+                base_path = "c:/TDengine/taosanode"
 
             default = {
                 "log_dir": os.path.join(base_path, "log"),
                 "log_file": "taosanode.app.log",
                 "model_dir": os.path.join(base_path, "model"),
-                "conf_path": os.path.join(base_path, "conf/taosanode.config.py"),
+                "conf_path": os.path.join(base_path, "cfg", "taosanode.config.py"),
                 "log_level": logging.DEBUG,
                 "draw_result": False,
             }

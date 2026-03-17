@@ -40,7 +40,7 @@ accesslog = '/var/log/taos/taosanode/access.log'
 errorlog = '/var/log/taos/taosanode/error.log'
 
 # only valid on the Windows system.
-waitresslog = _os.path.join(_install_dir, 'log', 'waitress.log').replace('\\', '/') if on_windows else '/var/log/taos/taosanode/waitress.log'
+waitresslog = _os.path.join(_install_dir, 'log', 'taosanode-service.log').replace('\\', '/') if on_windows else '/var/log/taos/taosanode/waitress.log'
 
 # log level: debug, info, warning, error, critical
 loglevel = 'debug'
@@ -52,7 +52,7 @@ proc_name = 'tdgpt_taosanode_app'
 pidfile = _os.path.join(_install_dir, 'taosanode.pid').replace('\\', '/') if on_windows else '/usr/local/taos/taosanode/taosanode.pid'
 
 # virtual environment directory
-virtualenv = _os.path.join(_install_dir, 'venv').replace('\\', '/') if on_windows else '/usr/local/taos/taosanode/venv'
+virtualenv = _os.path.join(_install_dir, 'venvs', 'venv').replace('\\', '/') if on_windows else '/usr/local/taos/taosanode/venv'
 
 # set the taosanoded basic python library directory
 pythonpath = (_os.path.join(_install_dir, 'lib', 'taosanalytics') + '/').replace('\\', '/') if on_windows else '/usr/local/taos/taosanode/lib/taosanalytics/'
@@ -122,6 +122,11 @@ models = {
         "required": False,  # Optional
     },
 }
+
+timesfm_venv = _os.path.join(_install_dir, 'venvs', 'timesfm_venv').replace('\\', '/') if on_windows else '/var/lib/taos/taosanode/timesfm_venv'
+moirai_venv = _os.path.join(_install_dir, 'venvs', 'moirai_venv').replace('\\', '/') if on_windows else '/var/lib/taos/taosanode/moirai_venv'
+chronos_venv = _os.path.join(_install_dir, 'venvs', 'chronos_venv').replace('\\', '/') if on_windows else '/var/lib/taos/taosanode/chronos_venv'
+momentfm_venv = _os.path.join(_install_dir, 'venvs', 'momentfm_venv').replace('\\', '/') if on_windows else '/var/lib/taos/taosanode/momentfm_venv'
 
 # Windows下waitress服务器配置（仅在Windows系统上使用）
 waitress_config = {
