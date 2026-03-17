@@ -4,11 +4,11 @@ import os
 from new_test_framework.utils import tdLog, tdSql, tdCom
 import datetime
 
-class TestScalarSubQuery4a1:
+class TestScalarSubQuery4a4:
     updatecfgDict = {'debugFlag': 131, 'asyncLog': 1, 'qDebugFlag': 131, 'cDebugFlag': 131, 'rpcDebugFlag': 131}
     clientCfgDict = {'debugFlag': 131, 'asyncLog': 1, 'qDebugFlag': 131, 'cDebugFlag': 131, 'rpcDebugFlag': 131}
     updatecfgDict["clientCfg"] = clientCfgDict
-    caseName = "test_scalar_sub_query4a1"
+    caseName = "test_scalar_sub_query4a4"
     currentDir = os.path.dirname(os.path.abspath(__file__))
     mainIdx = 0
     secondIdx = 0
@@ -17,7 +17,7 @@ class TestScalarSubQuery4a1:
     saved_count = 0  # total number of queries saved so far
     maxFileQueryNum = 10000000  # max number of queries to save in a single file
     # tableNames = ["tb1"] #["tb1", "tb3", "tbe", "st1"]
-    tableNames = ["tb1"]
+    tableNames = ["st1"]
 
     subSqls = [
         # select 
@@ -106,7 +106,7 @@ class TestScalarSubQuery4a1:
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_scalar_sub_query4a1(self):
+    def test_scalar_sub_query4a4(self):
         """scalar sub query test case
         
         1. Prepare data.
