@@ -58,6 +58,7 @@ typedef struct SWWorker {
   STaosQall    *qall;
   STaosQset    *qset;
   SWWorkerPool *pool;
+  int8_t        initSeed;
 } SWWorker;
 
 struct SWWorkerPool {
@@ -67,6 +68,7 @@ struct SWWorkerPool {
   const char   *name;
   SWWorker     *workers;
   TdThreadMutex mutex;
+  int8_t        initSeed;
 };
 
 int32_t     tQWorkerInit(SQWorkerPool *pool);
@@ -112,6 +114,7 @@ typedef struct {
   int32_t     max;
   FItems      fp;
   void       *param;
+  int8_t      initSeed;
 } SMultiWorkerCfg;
 
 typedef struct {

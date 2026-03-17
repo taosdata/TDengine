@@ -348,6 +348,7 @@ int32_t tWWorkerInit(SWWorkerPool *pool) {
     worker->qall = NULL;
     worker->qset = NULL;
     worker->pool = pool;
+    worker->initSeed = pool->initSeed;
   }
 
   uInfo("worker:%s is initialized, max:%d", pool->name, pool->max);
@@ -397,6 +398,14 @@ static void *tWWorkerThreadFp(SWWorker *worker) {
   setThreadName(pool->name);
   worker->pid = taosGetSelfPthreadId();
   uInfo("worker:%s:%d is running, thread:%08" PRId64, pool->name, worker->id, worker->pid);
+
+#ifdef WINDOWS
+  if (worker->initSeed) {
+    uint32_t seed = (uint32_t)(taosGetTimestampNs() & 0x00000000FFFFFFFF);
+    uInfo("worker:%s:%d, seed:%u, init seed rand", pool->name, worker->id, seed);
+    taosRandR(&seed);
+  }
+#endif
 
   while (1) {
     numOfMsgs = taosReadAllQitemsFromQset(worker->qset, worker->qall, &qinfo);
@@ -562,6 +571,7 @@ int32_t tMultiWorkerInit(SMultiWorker *pWorker, const SMultiWorkerCfg *pCfg) {
   SWWorkerPool *pPool = &pWorker->pool;
   pPool->name = pCfg->name;
   pPool->max = pCfg->max;
+  pPool->initSeed = pCfg->initSeed;
 
   int32_t code = tWWorkerInit(pPool);
   if (code) return code;
