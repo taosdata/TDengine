@@ -1,0 +1,62 @@
+
+taos> use test;
+Database changed.
+
+taos> select cast(_wstart as bigint) as ws, count(*) as c from ext_path_src external_window((select _wstart, _wend, count(*) as wc from ext_path_win interval(10m)) w) order by ws;
+          ws           |           c           |
+================================================
+         1700299800000 |                     2 |
+         1700300400000 |                     2 |
+         1700301600000 |                     1 |
+
+taos> select t1, cast(_wstart as bigint) as ws, count(*) as c from ext_path_src partition by t1 external_window((select _wstart, _wend, count(*) as wc from ext_path_win interval(10m)) w) order by t1, ws;
+     t1      |          ws           |           c           |
+==============================================================
+           1 |         1700299800000 |                     2 |
+           1 |         1700300400000 |                     2 |
+           2 |         1700301000000 |                     2 |
+           2 |         1700301600000 |                     1 |
+
+taos> select tbname, cast(_wstart as bigint) as ws, count(*) as c from ext_path_src partition by tbname external_window((select _wstart, _wend, count(*) as wc from ext_path_win interval(10m)) w) order by tbname, ws;
+             tbname             |          ws           |           c           |
+=================================================================================
+ ext_path_src_1                 |         1700299800000 |                     2 |
+ ext_path_src_1                 |         1700300400000 |                     2 |
+ ext_path_src_2                 |         1700301000000 |                     2 |
+ ext_path_src_2                 |         1700301600000 |                     1 |
+
+taos> select t1, cast(_wstart as bigint) as ws, count(*) as c from ext_path_src partition by t1 external_window((select _wstart, _wend, count(*) as wc from ext_path_win partition by t1 interval(10m)) w) order by t1, ws;
+
+DB error: External window subquery must return time-ordered rows [0x80000120] 
+taos> select t1, cast(_wstart as bigint) as ws, w.wc from ext_path_src partition by t1 external_window((select _wstart, _wend, count(*) as wc from ext_path_win partition by t1 interval(10m)) w) order by t1, ws;
+
+DB error: External window subquery must return time-ordered rows [0x80000120] 
+taos> select t1, cast(_wstart as bigint) as ws from ext_path_src partition by t1 external_window((select _wstart, _wend, count(*) as wc from ext_path_win partition by t1 interval(10m)) w) order by t1, ws;
+
+DB error: External window subquery must return time-ordered rows [0x80000120] 
+taos> select t1, cast(_wstart as bigint) as ws, cast(ts as bigint) as ts64 from ext_path_src partition by t1 external_window((select _wstart, _wend from ext_path_win partition by t1 interval(10m)) w) order by t1, ts;
+
+DB error: External window subquery must return time-ordered rows [0x80000120] 
+taos> select tbname, cast(_wstart as bigint) as ws, cast(ts as bigint) as ts64 from ext_path_src partition by tbname external_window((select _wstart, _wend from ext_path_win interval(10m)) w) order by tbname, ts;
+             tbname             |          ws           |         ts64          |
+=================================================================================
+ ext_path_src_1                 |         1700299800000 |         1700300060000 |
+ ext_path_src_1                 |         1700299800000 |         1700300120000 |
+ ext_path_src_1                 |         1700300400000 |         1700300660000 |
+ ext_path_src_1                 |         1700300400000 |         1700300720000 |
+
+taos> select _wstart, _wend, count(*), (select count(*) from (select ts from ext_path_src) t) as total_rows from ext_path_src external_window((select _wstart, _wend, count(*) as wc from ext_path_win interval(10m)) w) order by _wstart;
+         _wstart         |          _wend          |       count(*)        |      total_rows       |
+====================================================================================================
+ 2023-11-18 17:30:00.000 | 2023-11-18 17:40:00.000 |                     2 |                     7 |
+ 2023-11-18 17:40:00.000 | 2023-11-18 17:50:00.000 |                     2 |                     7 |
+ 2023-11-18 18:00:00.000 | 2023-11-18 18:10:00.000 |                     1 |                     7 |
+
+taos> select tbname, cast(_wstart as bigint) as ws, count(*), (select count(*) from (select ts from ext_path_src) t) as total_rows from ext_path_src partition by tbname external_window((select _wstart, _wend, count(*) as wc from ext_path_win interval(10m)) w) order by tbname, ws;
+             tbname             |          ws           |       count(*)        |      total_rows       |
+=========================================================================================================
+ ext_path_src_1                 |         1700299800000 |                     2 |                     7 |
+ ext_path_src_1                 |         1700300400000 |                     2 |                     7 |
+ ext_path_src_2                 |         1700301000000 |                     2 |                     7 |
+ ext_path_src_2                 |         1700301600000 |                     1 |                     7 |
+

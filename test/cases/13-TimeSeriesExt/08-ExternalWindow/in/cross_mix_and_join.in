@@ -1,0 +1,11 @@
+use test;
+
+select t1, cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv from ext_cx_src where v >= 11 partition by t1 external_window((select ts, endtime, mark from ext_cx_win where mark <= 104) w) having count(*) >= 1 order by c desc, t1, ws limit 8;
+select tbname, cast(_wstart as bigint) as ws, cast(ts as bigint) as ts64 from ext_cx_src where v >= 20 partition by tbname external_window((select ts, endtime, mark from ext_cx_win where mark >= 102) w) order by tbname, ts desc limit 8;
+select t1, cast(_wstart as bigint) as ws, w.wc, count(*) as c, sum(v2) as sv2 from ext_cx_src partition by t1 external_window((select _wstart, _wend, count(*) as wc from ext_cx_win_part partition by t1 interval(10m)) w) having sum(v2) > 0 order by t1, ws;
+
+select cast(_wstart as bigint) as ws, w.tagv, count(*) as c from ext_join_src external_window((select jw.ts, jw.endtime, jd.tagv from ext_join_win jw join ext_join_dim jd on jw.k = jd.k) w) order by ws, w.tagv;
+select cast(_wstart as bigint) as ws, w.tagv, sum(v) as sv from ext_join_src external_window((select jw.ts, jw.endtime, jd.tagv from ext_join_win jw join ext_join_dim jd on jw.k = jd.k where jd.tagv >= 20) w) order by ws, w.tagv;
+select tbname, cast(_wstart as bigint) as ws, count(*) as c from ext_join_src partition by tbname external_window((select jw.ts, jw.endtime, jd.tagv from ext_join_win jw join ext_join_dim jd on jw.k = jd.k) w) order by tbname, ws;
+select t1, cast(_wstart as bigint) as ws, count(*) as c from ext_join_src partition by t1 external_window((select jw.ts, jw.endtime, jd.tagv from ext_join_win jw join ext_join_dim jd on jw.k = jd.k) w) order by t1, ws;
+select cast(_wstart as bigint) as ws, count(*) as c, (select count(*) from (select ts from ext_join_src) t) as total_rows from ext_join_src external_window((select jw.ts, jw.endtime, jd.tagv from ext_join_win jw join ext_join_dim jd on jw.k = jd.k) w) order by ws;

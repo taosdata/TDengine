@@ -1,0 +1,127 @@
+
+taos> use test;
+Database changed.
+
+taos> select cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w) order by ws, c;
+          ws           |           c           |          sv           |
+========================================================================
+         1700400000000 |                     1 |                    20 |
+         1700400000000 |                     2 |                    21 |
+         1700400300000 |                     2 |                    25 |
+         1700400300000 |                     2 |                    43 |
+         1700400600000 |                     1 |                    23 |
+         1700400600000 |                     1 |                    14 |
+         1700400900000 |                     1 |                    15 |
+         1700400900000 |                     1 |                    24 |
+
+taos> select cast(_wstart as bigint) as ws, min(v) as minv, max(v) as maxv, max(v)-min(v) as span from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w) order by ws, maxv;
+          ws           |    minv     |    maxv     |           span            |
+================================================================================
+         1700400000000 |          10 |          11 |                         1 |
+         1700400000000 |          20 |          20 |                         0 |
+         1700400300000 |          12 |          13 |                         1 |
+         1700400300000 |          21 |          22 |                         1 |
+         1700400600000 |          14 |          14 |                         0 |
+         1700400600000 |          23 |          23 |                         0 |
+         1700400900000 |          15 |          15 |                         0 |
+         1700400900000 |          24 |          24 |                         0 |
+
+taos> select cast(_wstart as bigint) as ws, avg(v) as avgv, sum(v2) as sv2 from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w) order by ws, sv2;
+          ws           |           avgv            |          sv2          |
+============================================================================
+         1700400000000 |                        20 |                   200 |
+         1700400000000 |                      10.5 |                   201 |
+         1700400300000 |                      12.5 |                   205 |
+         1700400300000 |                      21.5 |                   403 |
+         1700400600000 |                        14 |                   104 |
+         1700400600000 |                        23 |                   203 |
+         1700400900000 |                        15 |                   105 |
+         1700400900000 |                        24 |                   204 |
+
+taos> select cast(_wstart as bigint) as ws, w.mark, count(*) as c, sum(v) as sv from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w) order by ws, w.mark;
+
+DB error: Table does not exist: w [0x80002603] 
+taos> select cast(_wstart as bigint) as ws, cast(ts as bigint) - cast(_wstart as bigint) as delta, count(*) as c from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w) order by ws, delta;
+
+DB error: Not a single-group group function, 'ts' is used incorrectly [0x8000260C] 
+taos> select cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv from ext_cx_src where v >= 20 external_window((select ts, endtime, mark from ext_cx_win) w) order by ws;
+          ws           |           c           |          sv           |
+========================================================================
+         1700400000000 |                     1 |                    20 |
+         1700400300000 |                     2 |                    43 |
+         1700400600000 |                     1 |                    23 |
+         1700400900000 |                     1 |                    24 |
+
+taos> select cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win where mark >= 102) w) order by ws, sv;
+          ws           |           c           |          sv           |
+========================================================================
+         1700400300000 |                     2 |                    25 |
+         1700400300000 |                     2 |                    43 |
+         1700400600000 |                     1 |                    14 |
+         1700400600000 |                     1 |                    23 |
+         1700400900000 |                     1 |                    15 |
+         1700400900000 |                     1 |                    24 |
+
+taos> select cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv from ext_cx_src where v >= 12 external_window((select ts, endtime, mark from ext_cx_win where mark <= 103) w) order by ws;
+          ws           |           c           |          sv           |
+========================================================================
+         1700400000000 |                     1 |                    20 |
+         1700400300000 |                     2 |                    43 |
+         1700400300000 |                     2 |                    25 |
+         1700400600000 |                     1 |                    14 |
+         1700400600000 |                     1 |                    23 |
+
+taos> select t1, cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv from ext_cx_src partition by t1 external_window((select ts, endtime, mark from ext_cx_win) w) order by t1, ws;
+     t1      |          ws           |           c           |          sv           |
+======================================================================================
+           1 |         1700400000000 |                     2 |                    21 |
+           1 |         1700400300000 |                     2 |                    25 |
+           1 |         1700400600000 |                     1 |                    14 |
+           1 |         1700400900000 |                     1 |                    15 |
+           2 |         1700400000000 |                     1 |                    20 |
+           2 |         1700400300000 |                     2 |                    43 |
+           2 |         1700400600000 |                     1 |                    23 |
+           2 |         1700400900000 |                     1 |                    24 |
+
+taos> select tbname, cast(_wstart as bigint) as ws, count(*) as c, max(v)-min(v) as span from ext_cx_src partition by tbname external_window((select ts, endtime, mark from ext_cx_win) w) order by tbname, ws;
+             tbname             |          ws           |           c           |           span            |
+=============================================================================================================
+ ext_cx_src_1                   |         1700400000000 |                     2 |                         1 |
+ ext_cx_src_1                   |         1700400300000 |                     2 |                         1 |
+ ext_cx_src_1                   |         1700400600000 |                     1 |                         0 |
+ ext_cx_src_1                   |         1700400900000 |                     1 |                         0 |
+ ext_cx_src_2                   |         1700400000000 |                     1 |                         0 |
+ ext_cx_src_2                   |         1700400300000 |                     2 |                         1 |
+ ext_cx_src_2                   |         1700400600000 |                     1 |                         0 |
+ ext_cx_src_2                   |         1700400900000 |                     1 |                         0 |
+
+taos> select t1, cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv from ext_cx_src partition by t1 external_window((select _wstart, _wend, count(*) as wc from ext_cx_win_part partition by t1 interval(10m)) w) order by t1, ws;
+
+DB error: External window subquery must return time-ordered rows [0x80000120] 
+taos> select t1, cast(_wstart as bigint) as ws, w.wc, count(*) as c from ext_cx_src partition by t1 external_window((select _wstart, _wend, count(*) as wc from ext_cx_win_part partition by t1 interval(10m)) w) order by t1, ws;
+
+DB error: External window subquery must return time-ordered rows [0x80000120] 
+taos> select cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w) having count(*) > 1 order by ws, sv;
+          ws           |           c           |          sv           |
+========================================================================
+         1700400000000 |                     1 |                    20 |
+         1700400000000 |                     2 |                    21 |
+         1700400300000 |                     2 |                    25 |
+         1700400300000 |                     2 |                    43 |
+         1700400600000 |                     1 |                    14 |
+         1700400600000 |                     1 |                    23 |
+         1700400900000 |                     1 |                    15 |
+         1700400900000 |                     1 |                    24 |
+
+taos> select t1, cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv from ext_cx_src partition by t1 external_window((select ts, endtime, mark from ext_cx_win) w) having sum(v) > 20 order by t1, ws;
+     t1      |          ws           |           c           |          sv           |
+======================================================================================
+           1 |         1700400000000 |                     2 |                    21 |
+           1 |         1700400300000 |                     2 |                    25 |
+           1 |         1700400600000 |                     1 |                    14 |
+           1 |         1700400900000 |                     1 |                    15 |
+           2 |         1700400000000 |                     1 |                    20 |
+           2 |         1700400300000 |                     2 |                    43 |
+           2 |         1700400600000 |                     1 |                    23 |
+           2 |         1700400900000 |                     1 |                    24 |
+

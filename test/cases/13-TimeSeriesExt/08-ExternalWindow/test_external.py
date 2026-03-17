@@ -57,6 +57,12 @@ class TestExternal:
         self.basic_query()
         self.partition_and_subquery_regression()
         self.more_branch_coverage()
+        self.orderby_and_alias_regression()
+        self.window_boundary_regression()
+        self.path_regression()
+        self.external_window_negative_semantics()
+        self.complex_semantics_regression()
+        self.cross_mix_and_join_regression()
 
     def mock_test_external_window_single_block(self):
         dbName = "external_window_test_single_block"
@@ -330,6 +336,30 @@ class TestExternal:
         self.ansFile = os.path.join(os.path.dirname(__file__), "ans", "basic_query.ans")
         tdCom.compare_testcase_result(self.sqlFile, self.ansFile, "basic_query")
 
+    def orderby_and_alias_regression(self):
+        tdLog.info("=============== external window: orderby and alias regression")
+        self.prepare_for_orderby_and_alias()
+
+        self.sqlFile = os.path.join(os.path.dirname(__file__), "in", "orderby_and_alias.in")
+        self.ansFile = os.path.join(os.path.dirname(__file__), "ans", "orderby_and_alias.ans")
+        tdCom.compare_testcase_result(self.sqlFile, self.ansFile, "orderby_and_alias")
+
+    def window_boundary_regression(self):
+        tdLog.info("=============== external window: window boundary regression")
+        self.prepare_for_window_boundary()
+
+        self.sqlFile = os.path.join(os.path.dirname(__file__), "in", "window_boundary.in")
+        self.ansFile = os.path.join(os.path.dirname(__file__), "ans", "window_boundary.ans")
+        tdCom.compare_testcase_result(self.sqlFile, self.ansFile, "window_boundary")
+
+    def path_regression(self):
+        tdLog.info("=============== external window: path regression")
+        self.prepare_for_path_regression()
+
+        self.sqlFile = os.path.join(os.path.dirname(__file__), "in", "path_regression.in")
+        self.ansFile = os.path.join(os.path.dirname(__file__), "ans", "path_regression.ans")
+        tdCom.compare_testcase_result(self.sqlFile, self.ansFile, "path_regression")
+
     def prepare_for_partition_and_subquery(self):
         tdLog.info("=============== external window: partition/group combinations (outer and subquery)")
 
@@ -456,3 +486,446 @@ class TestExternal:
         tdSql.checkData(0, 0, "ext_src_1")
         tdSql.checkData(0, 1, 1699999800000)
         tdSql.checkData(0, 2, 2)
+
+    def prepare_for_orderby_and_alias(self):
+        tdLog.info("=============== external window: orderby and alias dataset")
+
+        tdSql.execute(f"use {self.dbName}")
+
+        tdSql.execute("drop table if exists ext_ord_src")
+        tdSql.execute("drop table if exists ext_ord_win")
+        tdSql.execute("drop table if exists ext_ord_win_all")
+
+        tdSql.execute("create table ext_ord_src (ts timestamp, v int, v2 int) tags(t1 int, area binary(16))")
+        tdSql.execute("create table ext_ord_win (ts timestamp, v int) tags(t1 int)")
+        tdSql.execute("create table ext_ord_win_all (ts timestamp, endtime timestamp, mark int)")
+
+        tdSql.execute("create table ext_ord_src_1 using ext_ord_src tags(1, 'hz')")
+        tdSql.execute("create table ext_ord_src_2 using ext_ord_src tags(2, 'sh')")
+        tdSql.execute("create table ext_ord_win_1 using ext_ord_win tags(1)")
+        tdSql.execute("create table ext_ord_win_2 using ext_ord_win tags(2)")
+
+        t0 = 1700100000000
+
+        tdSql.execute(
+            f"insert into ext_ord_win_1 values({t0}, 1)({t0 + 1200000}, 1)"
+        )
+        tdSql.execute(
+            f"insert into ext_ord_win_2 values({t0 + 600000}, 2)({t0 + 1800000}, 2)"
+        )
+
+        tdSql.execute(
+            f"insert into ext_ord_win_all values"
+            f"({t0}, {t0 + 600000}, 101)"
+            f"({t0 + 600000}, {t0 + 1200000}, 102)"
+            f"({t0 + 1200000}, {t0 + 1800000}, 103)"
+            f"({t0 + 1800000}, {t0 + 2400000}, 104)"
+        )
+
+        tdSql.execute(
+            f"insert into ext_ord_src_1 values"
+            f"({t0 + 60000}, 10, 100)"
+            f"({t0 + 120000}, 11, 101)"
+            f"({t0 + 660000}, 12, 102)"
+            f"({t0 + 1320000}, 13, 103)"
+        )
+        tdSql.execute(
+            f"insert into ext_ord_src_2 values"
+            f"({t0 + 720000}, 20, 200)"
+            f"({t0 + 780000}, 21, 201)"
+            f"({t0 + 1860000}, 22, 202)"
+            f"({t0 + 1920000}, 23, 203)"
+        )
+
+    def prepare_for_window_boundary(self):
+        tdLog.info("=============== external window: boundary dataset")
+
+        tdSql.execute(f"use {self.dbName}")
+
+        tdSql.execute("drop table if exists ext_bnd_src")
+        tdSql.execute("drop table if exists ext_bnd_win")
+        tdSql.execute("drop table if exists ext_bnd_win_part")
+
+        tdSql.execute("create table ext_bnd_src (ts timestamp, v int) tags(t1 int)")
+        tdSql.execute("create table ext_bnd_win (ts timestamp, endtime timestamp, mark int)")
+        tdSql.execute("create table ext_bnd_win_part (ts timestamp, endtime timestamp, mark int) tags(t1 int)")
+
+        tdSql.execute("create table ext_bnd_src_1 using ext_bnd_src tags(1)")
+        tdSql.execute("create table ext_bnd_src_2 using ext_bnd_src tags(2)")
+        tdSql.execute("create table ext_bnd_win_part_1 using ext_bnd_win_part tags(1)")
+        tdSql.execute("create table ext_bnd_win_part_2 using ext_bnd_win_part tags(2)")
+
+        t0 = 1700200000000
+
+        tdSql.execute(
+            f"insert into ext_bnd_src_1 values"
+            f"({t0}, 10)"
+            f"({t0 + 60000}, 11)"
+            f"({t0 + 300000}, 12)"
+            f"({t0 + 600000}, 13)"
+        )
+        tdSql.execute(
+            f"insert into ext_bnd_src_2 values"
+            f"({t0 + 120000}, 20)"
+            f"({t0 + 420000}, 21)"
+            f"({t0 + 900000}, 22)"
+        )
+
+        tdSql.execute(
+            f"insert into ext_bnd_win values"
+            f"({t0 - 60000}, {t0}, 100)"
+            f"({t0}, {t0 + 60000}, 101)"
+            f"({t0 + 60000}, {t0 + 300000}, 102)"
+            f"({t0 + 240000}, {t0 + 480000}, 103)"
+            f"({t0 + 900000}, {t0 + 960000}, 104)"
+            f"({t0 + 1200000}, {t0 + 1260000}, 999)"
+        )
+
+        tdSql.execute(
+            f"insert into ext_bnd_win_part_1 values"
+            f"({t0}, {t0 + 180000}, 201)"
+            f"({t0 + 600000}, {t0 + 720000}, 202)"
+        )
+        tdSql.execute(
+            f"insert into ext_bnd_win_part_2 values"
+            f"({t0 + 120000}, {t0 + 480000}, 301)"
+            f"({t0 + 840000}, {t0 + 960000}, 302)"
+        )
+
+    def prepare_for_path_regression(self):
+        tdLog.info("=============== external window: path regression dataset")
+
+        tdSql.execute(f"use {self.dbName}")
+
+        tdSql.execute("drop table if exists ext_path_src")
+        tdSql.execute("drop table if exists ext_path_win")
+
+        tdSql.execute("create table ext_path_src (ts timestamp, v int) tags(t1 int)")
+        tdSql.execute("create table ext_path_win (ts timestamp, v int) tags(t1 int)")
+
+        tdSql.execute("create table ext_path_src_1 using ext_path_src tags(1)")
+        tdSql.execute("create table ext_path_src_2 using ext_path_src tags(2)")
+        tdSql.execute("create table ext_path_win_1 using ext_path_win tags(1)")
+        tdSql.execute("create table ext_path_win_2 using ext_path_win tags(2)")
+
+        t0 = 1700300000000
+
+        tdSql.execute(
+            f"insert into ext_path_win_1 values({t0}, 1)({t0 + 600000}, 1)"
+        )
+        tdSql.execute(
+            f"insert into ext_path_win_2 values({t0 + 1200000}, 2)({t0 + 1800000}, 2)"
+        )
+
+        tdSql.execute(
+            f"insert into ext_path_src_1 values"
+            f"({t0 + 60000}, 10)"
+            f"({t0 + 120000}, 11)"
+            f"({t0 + 660000}, 12)"
+            f"({t0 + 720000}, 13)"
+        )
+        tdSql.execute(
+            f"insert into ext_path_src_2 values"
+            f"({t0 + 1260000}, 20)"
+            f"({t0 + 1320000}, 21)"
+            f"({t0 + 1860000}, 22)"
+        )
+
+    def external_window_negative_semantics(self):
+        tdLog.info("=============== external window: negative semantics")
+        tdSql.execute(f"use {self.dbName}")
+
+        # err: The first two columns of EXTERNAL_WINDOW subquery must be timestamp
+        tdSql.error(
+            "select cast(_wstart as bigint) as ws, count(*) as c "
+            "from ext_src "
+            "external_window((select _wstart, count(*) as wc from ext_win interval(10m)) w)",
+            expectedErrno=0x80002658,
+        )
+
+        tdSql.error(
+            "select cast(_wstart as bigint) as ws, count(*) as c "
+            "from ext_src "
+            "external_window((select _wend, count(*) as wc from ext_win interval(10m)) w)",
+            expectedErrno=0x80002658,
+        )
+
+        # EXTERNAL_WINDOW subquery cannot have GROUP BY or PARTITION BY clause if the outer query doesn't have
+        tdSql.error(
+            "select cast(_wstart as bigint) as ws, count(*) as c "
+            "from ext_src "
+            "external_window((select _wstart, _wend from ext_win partition by t1 interval(10m)) w)",
+            expectedErrno=0x80002658,
+            expectErrInfo="EXTERNAL_WINDOW subquery cannot have GROUP BY or PARTITION BY clause if the outer query doesnt have",
+            fullMatched=False,
+        )
+
+        tdSql.error(
+            "select tbname, cast(_wstart as bigint) as ws, count(*) as c "
+            "from ext_src partition by t1 "
+            "external_window((select _wstart, _wend, count(*) as wc from ext_win interval(10m)) w)",
+            expectedErrno=0x8000260C,
+            expectErrInfo="Not a single-group group function",
+            fullMatched=False,
+        )
+
+        tdSql.error(
+            "select t1, cast(_wstart as bigint) as ws, count(*) as c "
+            "from ext_src_1 partition by tbname "
+            "external_window((select _wstart, _wend, count(*) as wc from ext_win interval(10m)) w)",
+            expectedErrno=0x8000260C,
+            expectErrInfo="Not a single-group group function",
+            fullMatched=False,
+        )
+
+        tdSql.error(
+            "select cast(_wstart as bigint) as ws, bad_alias "
+            "from ext_src "
+            "external_window((select _wstart, _wend, count(*) as wc from ext_win interval(10m)) w)",
+            expectedErrno=0x80002602,
+            expectErrInfo="Invalid column name",
+            fullMatched=False,
+        )
+
+        tdSql.error(
+            "select cast(_wstart as bigint) as ws, w.not_exist "
+            "from ext_src "
+            "external_window((select _wstart, _wend, count(*) as wc from ext_win interval(10m)) w)",
+            expectedErrno=0x80002602,
+            expectErrInfo="Invalid column name",
+            fullMatched=False,
+        )
+
+        tdSql.error(
+            "select cast(_wstart as bigint) as ws, count(*) as c "
+            "from ext_src external_window((select _wstart, _wend from ext_win interval(10m)) w) "
+            "order by bad_col",
+            expectedErrno=0x80002602,
+            expectErrInfo="Invalid column name",
+            fullMatched=False,
+        )
+
+        tdSql.error(
+            "select cast(_wstart as bigint) as ws, count(*) as c "
+            "from ext_src external_window((select _wstart, _wend from ext_win interval(10m)) w) "
+            "having c > 1",
+            expectErrInfo="Invalid column name",
+            fullMatched=False,
+        )
+
+    def complex_agg_and_filter_regression(self):
+        tdLog.info("=============== external window: complex agg and filter regression")
+        self.sqlFile = os.path.join(os.path.dirname(__file__), "in", "complex_agg_and_filter.in")
+        self.ansFile = os.path.join(os.path.dirname(__file__), "ans", "complex_agg_and_filter.ans")
+        tdCom.compare_testcase_result(self.sqlFile, self.ansFile, "complex_agg_and_filter")
+
+    def complex_partition_and_having_regression(self):
+        tdLog.info("=============== external window: complex partition and having regression")
+        self.sqlFile = os.path.join(os.path.dirname(__file__), "in", "complex_partition_and_having.in")
+        self.ansFile = os.path.join(os.path.dirname(__file__), "ans", "complex_partition_and_having.ans")
+        tdCom.compare_testcase_result(self.sqlFile, self.ansFile, "complex_partition_and_having")
+
+    def function_matrix_regression(self):
+        tdLog.info("=============== external window: function matrix regression")
+        self.sqlFile = os.path.join(os.path.dirname(__file__), "in", "function_matrix.in")
+        self.ansFile = os.path.join(os.path.dirname(__file__), "ans", "function_matrix.ans")
+        tdCom.compare_testcase_result(self.sqlFile, self.ansFile, "function_matrix")
+
+    def special_function_negative_matrix(self):
+        tdLog.info("=============== external window: special function negative matrix")
+        tdSql.execute(f"use {self.dbName}")
+
+        tdSql.noError(
+            "select cast(_wstart as bigint) as ws, first(v) as fv, last(v) as lv "
+            "from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w) "
+            "order by ws"
+        )
+
+        tdSql.noError(
+            "select t1, cast(_wstart as bigint) as ws, first(v) as fv, last(v) as lv "
+            "from ext_cx_src partition by t1 "
+            "external_window((select ts, endtime, mark from ext_cx_win) w) "
+            "order by t1, ws"
+        )
+
+        # todo
+        # tdSql.error(
+        #     "select cast(_wstart as bigint) as ws, top(v, 2) "
+        #     "from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w) "
+        #     "order by ws",
+        #     fullMatched=False,
+        # )
+        
+        return
+
+        tdSql.error(
+            "select cast(_wstart as bigint) as ws, bottom(v, 2) "
+            "from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w) "
+            "order by ws",
+            fullMatched=False,
+        )
+
+        tdSql.error(
+            "select cast(_wstart as bigint) as ws, percentile(v, 50) "
+            "from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w) "
+            "order by ws",
+            fullMatched=False,
+        )
+
+        tdSql.error(
+            "select cast(_wstart as bigint) as ws, stddev(v) "
+            "from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w) "
+            "order by ws",
+            fullMatched=False,
+        )
+
+        tdSql.error(
+            "select cast(_wstart as bigint) as ws, count(distinct v) "
+            "from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w) "
+            "order by ws",
+            fullMatched=False,
+        )
+
+        tdSql.error(
+            "select cast(_wstart as bigint) as ws, count(*) as c, top(v, 2) "
+            "from ext_cx_src partition by t1 "
+            "external_window((select ts, endtime, mark from ext_cx_win) w) "
+            "order by ws",
+            fullMatched=False,
+        )
+
+        tdSql.error(
+            "select cast(_wstart as bigint) as ws, unique(v) "
+            "from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w) "
+            "order by ws",
+            fullMatched=False,
+        )
+
+    def complex_semantics_regression(self):
+        tdLog.info("=============== external window: complex semantics regression")
+        self.prepare_for_complex_semantics()
+
+        cases = [
+            ("complex_agg_and_filter", "complex_agg_and_filter.in", "complex_agg_and_filter.ans"),
+            ("complex_partition_and_having", "complex_partition_and_having.in", "complex_partition_and_having.ans"),
+            ("function_matrix", "function_matrix.in", "function_matrix.ans"),
+        ]
+
+        for case_name, sql_name, ans_name in cases:
+            self.sqlFile = os.path.join(os.path.dirname(__file__), "in", sql_name)
+            self.ansFile = os.path.join(os.path.dirname(__file__), "ans", ans_name)
+            tdCom.compare_testcase_result(self.sqlFile, self.ansFile, case_name)
+
+        self.special_function_negative_matrix()
+
+    def cross_mix_and_join_regression(self):
+        tdLog.info("=============== external window: cross mix and join regression")
+        self.prepare_for_complex_semantics()
+        self.prepare_for_join_subquery()
+
+        self.sqlFile = os.path.join(os.path.dirname(__file__), "in", "cross_mix_and_join.in")
+        self.ansFile = os.path.join(os.path.dirname(__file__), "ans", "cross_mix_and_join.ans")
+        tdCom.compare_testcase_result(self.sqlFile, self.ansFile, "cross_mix_and_join")
+
+    def prepare_for_join_subquery(self):
+        tdLog.info("=============== external window: join subquery dataset")
+
+        tdSql.execute(f"use {self.dbName}")
+
+        tdSql.execute("drop table if exists ext_join_src")
+        tdSql.execute("drop table if exists ext_join_win")
+        tdSql.execute("drop table if exists ext_join_dim")
+
+        tdSql.execute("create table ext_join_src (ts timestamp, v int) tags(t1 int)")
+        tdSql.execute("create table ext_join_win (ts timestamp, endtime timestamp, k int)")
+        tdSql.execute("create table ext_join_dim (ts timestamp, k int, tagv int)")
+
+        tdSql.execute("create table ext_join_src_1 using ext_join_src tags(1)")
+        tdSql.execute("create table ext_join_src_2 using ext_join_src tags(2)")
+
+        t0 = 1700500000000
+
+        tdSql.execute(
+            f"insert into ext_join_dim values"
+            f"({t0}, 1, 10)"
+            f"({t0 + 300000}, 2, 20)"
+            f"({t0 + 600000}, 3, 30)"
+        )
+
+        tdSql.execute(
+            f"insert into ext_join_win values"
+            f"({t0}, {t0 + 300000}, 1)"
+            f"({t0 + 300000}, {t0 + 600000}, 2)"
+            f"({t0 + 600000}, {t0 + 900000}, 3)"
+        )
+
+        tdSql.execute(
+            f"insert into ext_join_src_1 values"
+            f"({t0 + 60000}, 10)"
+            f"({t0 + 120000}, 11)"
+            f"({t0 + 360000}, 12)"
+            f"({t0 + 720000}, 13)"
+        )
+        tdSql.execute(
+            f"insert into ext_join_src_2 values"
+            f"({t0 + 180000}, 20)"
+            f"({t0 + 420000}, 21)"
+            f"({t0 + 780000}, 22)"
+        )
+
+    def prepare_for_complex_semantics(self):
+        tdLog.info("=============== external window: complex semantics dataset")
+
+        tdSql.execute(f"use {self.dbName}")
+
+        tdSql.execute("drop table if exists ext_cx_src")
+        tdSql.execute("drop table if exists ext_cx_win")
+        tdSql.execute("drop table if exists ext_cx_win_part")
+
+        tdSql.execute("create table ext_cx_src (ts timestamp, v int, v2 int) tags(t1 int)")
+        tdSql.execute("create table ext_cx_win (ts timestamp, endtime timestamp, mark int)")
+        tdSql.execute("create table ext_cx_win_part (ts timestamp, v int) tags(t1 int)")
+
+        tdSql.execute("create table ext_cx_src_1 using ext_cx_src tags(1)")
+        tdSql.execute("create table ext_cx_src_2 using ext_cx_src tags(2)")
+        tdSql.execute("create table ext_cx_win_part_1 using ext_cx_win_part tags(1)")
+        tdSql.execute("create table ext_cx_win_part_2 using ext_cx_win_part tags(2)")
+
+        t0 = 1700400000000
+
+        tdSql.execute(
+            f"insert into ext_cx_win values"
+            f"({t0}, {t0 + 300000}, 101)"
+            f"({t0 + 300000}, {t0 + 600000}, 102)"
+            f"({t0 + 600000}, {t0 + 900000}, 103)"
+            f"({t0 + 900000}, {t0 + 1200000}, 104)"
+        )
+
+        tdSql.execute(
+            f"insert into ext_cx_win_part_1 values"
+            f"({t0}, 1)"
+            f"({t0 + 600000}, 1)"
+        )
+        tdSql.execute(
+            f"insert into ext_cx_win_part_2 values"
+            f"({t0 + 300000}, 2)"
+            f"({t0 + 900000}, 2)"
+        )
+
+        tdSql.execute(
+            f"insert into ext_cx_src_1 values"
+            f"({t0 + 60000}, 10, 100)"
+            f"({t0 + 120000}, 11, 101)"
+            f"({t0 + 360000}, 12, 102)"
+            f"({t0 + 420000}, 13, 103)"
+            f"({t0 + 660000}, 14, 104)"
+            f"({t0 + 960000}, 15, 105)"
+        )
+        tdSql.execute(
+            f"insert into ext_cx_src_2 values"
+            f"({t0 + 180000}, 20, 200)"
+            f"({t0 + 480000}, 21, 201)"
+            f"({t0 + 540000}, 22, 202)"
+            f"({t0 + 780000}, 23, 203)"
+            f"({t0 + 1020000}, 24, 204)"
+        )

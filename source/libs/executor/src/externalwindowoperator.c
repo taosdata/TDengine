@@ -2054,6 +2054,9 @@ static bool extWinLastWinClosed(SExternalWindowOperator* pExtW) {
   }
 
   SList* pList = taosArrayGetP(pExtW->pOutputBlocks, pExtW->pTGrpCtx->pCCtx->lastWinIdx);
+  if (pList == NULL) {
+    return false;
+  }
   if (0 == listNEles(pList)) {
     return true;
   }
@@ -2080,17 +2083,37 @@ static SList** extWinReserveGetBlockList(SExternalWindowOperator* pExtW, SArray*
   return ppList;
 }
 
+static int32_t extWinEnsureBlockList(SExternalWindowOperator* pExtW, int32_t winIdx, SList** ppList) {
+  int32_t code = TSDB_CODE_SUCCESS, lino = 0;
+
+  *ppList = taosArrayGetP(pExtW->pOutputBlocks, winIdx);
+  if (*ppList != NULL) {
+    return code;
+  }
+
+  SList** ppSlot = extWinReserveGetBlockList(pExtW, pExtW->pOutputBlocks, winIdx);
+  TSDB_CHECK_NULL(ppSlot, code, lino, _exit, terrno);
+
+  *ppList = tdListNew(POINTER_BYTES * 2);
+  TSDB_CHECK_NULL(*ppList, code, lino, _exit, terrno);
+
+  *ppSlot = *ppList;
+
+_exit:
+  return code;
+}
+
 static int32_t extWinGetWinResBlock(SOperatorInfo* pOperator, int32_t rows, SExtWinTimeWindow* pWin, SSDataBlock** ppRes, SArray** ppIdx) {
   SExternalWindowOperator* pExtW = pOperator->info;
   SList*                   pList = NULL;
   int32_t                  code = TSDB_CODE_SUCCESS, lino = 0;
   
   if (pWin->resWinIdx >= 0) {
-    pList = taosArrayGetP(pExtW->pOutputBlocks, pWin->resWinIdx);
+    TAOS_CHECK_EXIT(extWinEnsureBlockList(pExtW, pWin->resWinIdx, &pList));
   } else {
     if (extWinLastWinClosed(pExtW)) {
       pWin->resWinIdx = pExtW->pTGrpCtx->pCCtx->lastWinIdx;
-      pList = taosArrayGetP(pExtW->pOutputBlocks, pWin->resWinIdx);
+      TAOS_CHECK_EXIT(extWinEnsureBlockList(pExtW, pWin->resWinIdx, &pList));
     } else {
       pWin->resWinIdx = pExtW->resWinIdx++;
       pList = tdListNew(POINTER_BYTES * 2);
@@ -2258,12 +2281,12 @@ static int32_t extWinGetSetWinResBlockBuf(SOperatorInfo* pOperator, int32_t rows
   int32_t                  code = TSDB_CODE_SUCCESS, lino = 0;
   
   if (pWin->resWinIdx >= 0) {
-    pList = taosArrayGetP(pExtW->pOutputBlocks, pWin->resWinIdx);
+    TAOS_CHECK_EXIT(extWinEnsureBlockList(pExtW, pWin->resWinIdx, &pList));
     TAOS_CHECK_EXIT(extWinIndefRowsSetWinOutputBuf(pExtW, pWin, &pOperator->exprSupp, &pExtW->aggSup, pOperator->pTaskInfo, false));
   } else {
     if (extWinLastWinClosed(pExtW)) {
       pWin->resWinIdx = pExtW->pTGrpCtx->pCCtx->lastWinIdx;
-      pList = taosArrayGetP(pExtW->pOutputBlocks, pWin->resWinIdx);
+      TAOS_CHECK_EXIT(extWinEnsureBlockList(pExtW, pWin->resWinIdx, &pList));
     } else {
       pWin->resWinIdx = pExtW->resWinIdx++;
       pList = tdListNew(POINTER_BYTES * 2);
