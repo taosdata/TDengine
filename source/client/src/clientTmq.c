@@ -2407,14 +2407,10 @@ static int32_t tmqPollImpl(tmq_t* tmq) {
         continue;
       }
 
-      // set status = idle if no response from vnode in a long time to avoid not polling data from vnode
-      if (atomic_load_32(&pVg->vgSkipCnt) == 100000) {        
-        atomic_store_32(&pVg->vgStatus, TMQ_VG_STATUS__IDLE);
-      }
       int32_t vgStatus = atomic_val_compare_exchange_32(&pVg->vgStatus, TMQ_VG_STATUS__IDLE, TMQ_VG_STATUS__WAIT);
       if (vgStatus == TMQ_VG_STATUS__WAIT) {
         int32_t vgSkipCnt = atomic_add_fetch_32(&pVg->vgSkipCnt, 1);
-        if (vgSkipCnt % 1000 == 0) {
+        if (vgSkipCnt % 10000 == 0) {
           tqInfoC("consumer:0x%" PRIx64 " epoch %d, vgId:%d has skipped poll %d times in a row", tmq->consumerId,
                   tmq->epoch, pVg->vgId, vgSkipCnt);
         }
