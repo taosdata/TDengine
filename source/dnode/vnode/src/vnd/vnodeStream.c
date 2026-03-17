@@ -837,7 +837,7 @@ static SArray* getTableListForAlterChildTable(SStreamTriggerReaderInfo* sStreamR
 
   uidList = taosArrayInit(8, sizeof(tb_uid_t));
   STREAM_CHECK_NULL_GOTO(uidList, terrno);
-  STREAM_CHECK_RET_GOTO(metaGetChildUidsByWhere(sStreamReaderInfo->pVnode, suid, pWhere, uidList));
+  STREAM_CHECK_RET_GOTO(metaGetChildUidsByWhere(((SVnode*)sStreamReaderInfo->pVnode)->pMeta, suid, pWhere, uidList));
 
 end:
   if (code != 0) {

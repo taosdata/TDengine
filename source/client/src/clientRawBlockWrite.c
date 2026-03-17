@@ -847,7 +847,6 @@ static int32_t processAlterTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
       }
 
       if (vAlterTbReq.whereLen > 0) {
-        ADD_TO_JSON_NUMBER(json, "whereLen", vAlterTbReq.whereLen);
         buf1 = taosMemoryCalloc(vAlterTbReq.whereLen, 1);
         RAW_NULL_CHECK(buf1);
         buf2 = taosMemoryCalloc(vAlterTbReq.whereLen, 1);
@@ -1995,7 +1994,7 @@ static int32_t taosAlterTable(TAOS* taos, void* meta, uint32_t metaLen) {
   pArray = NULL;
 
   code = pRequest->code;
-  if (code == TSDB_CODE_TDB_TABLE_NOT_EXIST) {
+  if (code == TSDB_CODE_TDB_TABLE_NOT_EXIST || code == TSDB_CODE_NOT_FOUND) {
     code = TSDB_CODE_SUCCESS;
   }
 
