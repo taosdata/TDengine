@@ -11,7 +11,7 @@ All users can report bugs to us through the **[GitHub issue tracker](https://git
 
 ## Code contributions
 
-Developers are encouraged to submit patches to the project, and all contributions, from minor documentation changes to bug fixes, are appreciated by our team. To ensure that your code can be merged successfully and improve the experience for other community members, we ask that you go through the following procedure before submitting a pull request: 
+Developers are encouraged to submit patches to the project, and all contributions, from minor documentation changes to bug fixes, are appreciated by our team. To ensure that your code can be merged successfully and improve the experience for other community members, we ask that you go through the following procedure before submitting a pull request:
 
 1. Read and accept the terms of the TAOS Data Contributor License Agreement (CLA) located at [https://cla-assistant.io/taosdata/TDengine](https://cla-assistant.io/taosdata/TDengine).
 
@@ -19,10 +19,10 @@ Developers are encouraged to submit patches to the project, and all contribution
    - If the bug that you want to fix already exists in the issue tracker, review the previous discussion before submitting your patch.
    - If the bug that you want to fix does not exist in the issue tracker, click **New issue** and file a report.
    - Ensure that you note the issue number in your pull request when you submit your patch.
-	
+
 3. Fork our repository to your GitHub account and create a branch for your patch.
    **Important:** The `main` branch is for stable versions and cannot accept patches directly. For all code and documentation changes, create your own branch from the development branch `3.0` and not from `main`.
-   
+
 4. Create a pull request to merge your changes into the development branch `3.0`, and our team members will review the request as soon as possible.
 
 If you encounter any difficulties or problems in contributing your code, you can join our [Discord server](https://discord.com/invite/VZdSuUg4pS) and receive assistance from members of the TDengine Team.
