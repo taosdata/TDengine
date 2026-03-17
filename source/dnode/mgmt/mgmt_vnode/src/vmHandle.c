@@ -289,6 +289,7 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
 
   pCfg->isAudit = pCreate->isAudit;
   pCfg->allowDrop = pCreate->allowDrop;
+  pCfg->secureDelete = pCreate->secureDelete;
 
   pCfg->standby = 0;
   pCfg->syncCfg.replicaNum = 0;
@@ -759,6 +760,7 @@ static int32_t vmRetrieveMountVnodes(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *p
           .walLevel = pVgCfg->config.walCfg.level,
           .isAudit = pVgCfg->config.isAudit,
           .allowDrop = pVgCfg->config.allowDrop,
+          .secureDelete = pVgCfg->config.secureDelete,
           //.encryptAlgorithm = pVgCfg->config.walCfg.encryptAlgorithm,
           .committed = pVgCfg->state.committed,
           .commitID = pVgCfg->state.commitID,
@@ -835,6 +837,7 @@ static int32_t vmRetrieveMountStbs(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *pRe
                  .config.ssCompact = pVgInfo->ssCompact,
                  .config.isAudit = pVgInfo->isAudit,
                  .config.allowDrop = pVgInfo->allowDrop,
+                 .config.secureDelete = pVgInfo->secureDelete,
                  .config.walCfg.fsyncPeriod = pVgInfo->walFsyncPeriod,
                  .config.walCfg.retentionPeriod = pVgInfo->walRetentionPeriod,
                  .config.walCfg.rollPeriod = pVgInfo->walRollPeriod,
@@ -1047,8 +1050,8 @@ static int32_t vmRetrieveMountPathImpl(SVnodeMgmt *pMgmt, SRpcMsg *pMsg, SRetrie
   int32_t code = 0, lino = 0;
   pMountInfo->dnodeId = pReq->dnodeId;
   pMountInfo->mountUid = pReq->mountUid;
-  (void)tsnprintf(pMountInfo->mountName, sizeof(pMountInfo->mountName), "%s", pReq->mountName);
-  (void)tsnprintf(pMountInfo->mountPath, sizeof(pMountInfo->mountPath), "%s", pReq->mountPath);
+  (void)snprintf(pMountInfo->mountName, sizeof(pMountInfo->mountName), "%s", pReq->mountName);
+  (void)snprintf(pMountInfo->mountPath, sizeof(pMountInfo->mountPath), "%s", pReq->mountPath);
   pMountInfo->ignoreExist = pReq->ignoreExist;
   pMountInfo->valLen = pReq->valLen;
   pMountInfo->pVal = pReq->pVal;
@@ -1963,6 +1966,8 @@ SArray *vmGetMsgHandles() {
 
   if (dmSetMgmtHandle(pArray, TDMT_STREAM_FETCH, vmPutMsgToStreamReaderQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_STREAM_TRIGGER_PULL, vmPutMsgToStreamReaderQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_VND_AUDIT_RECORD, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
+
   code = 0;
 
 _OVER:

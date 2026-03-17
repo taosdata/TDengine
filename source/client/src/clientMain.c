@@ -68,8 +68,10 @@ static void freeTz(void *p) {
   timezone_t tz = *(timezone_t *)p;
   tzfree(tz);
 }
+#endif
 
 int32_t tzInit() {
+#if !defined(WINDOWS) && !defined(TD_ASTRA)
   pTimezoneMap = taosHashInit(0, MurmurHash3_32, false, HASH_ENTRY_LOCK);
   if (pTimezoneMap == NULL) {
     return terrno;
@@ -80,14 +82,18 @@ int32_t tzInit() {
   if (pTimezoneNameMap == NULL) {
     return terrno;
   }
+#endif
   return 0;
 }
 
 void tzCleanup() {
+#if !defined(WINDOWS) && !defined(TD_ASTRA)
   taosHashCleanup(pTimezoneMap);
   taosHashCleanup(pTimezoneNameMap);
+#endif
 }
 
+#if !defined(WINDOWS) && !defined(TD_ASTRA)
 static timezone_t setConnnectionTz(const char *val) {
   timezone_t  tz = NULL;
   timezone_t *tmp = taosHashGet(pTimezoneMap, val, strlen(val));
@@ -401,7 +407,7 @@ TAOS *taos_connect_with(const OPTIONS *options) {
       } else if (strcmp(key, "db") == 0) {
         db = value;
       } else if (strcmp(key, "port") == 0) {
-        port = (uint16_t)atoi(value);
+        port = (uint16_t)taosStr2Int32(value, NULL, 10);
       } else if (strcmp(key, "charset") == 0) {
         charset = value;
       } else if (strcmp(key, "timezone") == 0) {
@@ -1145,41 +1151,41 @@ int taos_print_row_with_size(char *str, uint32_t size, TAOS_ROW row, TAOS_FIELD 
     }
 
     if (row[i] == NULL) {
-      len += tsnprintf(str + len, size - len, "%s", TSDB_DATA_NULL_STR);
+      len += snprintf(str + len, size - len, "%s", TSDB_DATA_NULL_STR);
       continue;
     }
 
     switch (fields[i].type) {
       case TSDB_DATA_TYPE_TINYINT:
-        len += tsnprintf(str + len, size - len, "%d", *((int8_t *)row[i]));
+        len += snprintf(str + len, size - len, "%d", *((int8_t *)row[i]));
         break;
 
       case TSDB_DATA_TYPE_UTINYINT:
-        len += tsnprintf(str + len, size - len, "%u", *((uint8_t *)row[i]));
+        len += snprintf(str + len, size - len, "%u", *((uint8_t *)row[i]));
         break;
 
       case TSDB_DATA_TYPE_SMALLINT:
-        len += tsnprintf(str + len, size - len, "%d", *((int16_t *)row[i]));
+        len += snprintf(str + len, size - len, "%d", *((int16_t *)row[i]));
         break;
 
       case TSDB_DATA_TYPE_USMALLINT:
-        len += tsnprintf(str + len, size - len, "%u", *((uint16_t *)row[i]));
+        len += snprintf(str + len, size - len, "%u", *((uint16_t *)row[i]));
         break;
 
       case TSDB_DATA_TYPE_INT:
-        len += tsnprintf(str + len, size - len, "%d", *((int32_t *)row[i]));
+        len += snprintf(str + len, size - len, "%d", *((int32_t *)row[i]));
         break;
 
       case TSDB_DATA_TYPE_UINT:
-        len += tsnprintf(str + len, size - len, "%u", *((uint32_t *)row[i]));
+        len += snprintf(str + len, size - len, "%u", *((uint32_t *)row[i]));
         break;
 
       case TSDB_DATA_TYPE_BIGINT:
-        len += tsnprintf(str + len, size - len, "%" PRId64, *((int64_t *)row[i]));
+        len += snprintf(str + len, size - len, "%" PRId64, *((int64_t *)row[i]));
         break;
 
       case TSDB_DATA_TYPE_UBIGINT:
-        len += tsnprintf(str + len, size - len, "%" PRIu64, *((uint64_t *)row[i]));
+        len += snprintf(str + len, size - len, "%" PRIu64, *((uint64_t *)row[i]));
         break;
 
       case TSDB_DATA_TYPE_FLOAT: {
@@ -1244,11 +1250,11 @@ int taos_print_row_with_size(char *str, uint32_t size, TAOS_ROW row, TAOS_FIELD 
       } break;
 
       case TSDB_DATA_TYPE_TIMESTAMP:
-        len += tsnprintf(str + len, size - len, "%" PRId64, *((int64_t *)row[i]));
+        len += snprintf(str + len, size - len, "%" PRId64, *((int64_t *)row[i]));
         break;
 
       case TSDB_DATA_TYPE_BOOL:
-        len += tsnprintf(str + len, size - len, "%d", *((int8_t *)row[i]));
+        len += snprintf(str + len, size - len, "%d", *((int8_t *)row[i]));
         break;
       case TSDB_DATA_TYPE_DECIMAL64:
       case TSDB_DATA_TYPE_DECIMAL: {
@@ -1817,6 +1823,9 @@ void handleQueryAnslyseRes(SSqlCallbackWrapper *pWrapper, SMetaData *pResultMeta
     pRequest->stableQuery = pQuery->stableQuery;
     if (pQuery->pRoot) {
       pRequest->stmtType = pQuery->pRoot->type;
+      if (nodeType(pQuery->pRoot) == QUERY_NODE_DELETE_STMT) {
+        pRequest->secureDelete = ((SDeleteStmt*)pQuery->pRoot)->secureDelete;
+      }
     }
 
     if (pQuery->haveResultSet) {

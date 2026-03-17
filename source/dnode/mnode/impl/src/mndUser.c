@@ -33,6 +33,8 @@
 #include "mndToken.h"
 #include "tbase64.h"
 #include "totp.h"
+#include "mndDnode.h"
+#include "mndVgroup.h"
 
 // clang-format on
 
@@ -599,7 +601,7 @@ static int32_t ipRangeListToStr(SIpRange *range, int32_t num, char *buf, int64_t
       mError("%s failed to convert ip range to str, code: %d", __func__, code);
     }
 
-    len += tsnprintf(buf + len, bufLen - len, "%c%s/%d, ", pRange->neg ? '-' : '+', IP_ADDR_STR(&addr), addr.mask);
+    len += snprintf(buf + len, bufLen - len, "%c%s/%d, ", pRange->neg ? '-' : '+', IP_ADDR_STR(&addr), addr.mask);
   }
   if (len > 0) {
     len -= 2;
@@ -686,7 +688,7 @@ static int32_t convertIpWhiteListToStr(SUserObj *pUser, char **buf) {
   }
 
   if (pList->num == 0) {
-    return tsnprintf(*buf, bufLen, "+ALL");
+    return snprintf(*buf, bufLen, "+ALL");
   }
 
   int32_t len = ipRangeListToStr(pList->pIpRanges, pList->num, *buf, bufLen - 2);
@@ -871,7 +873,7 @@ static int32_t convertTimeRangesToStr(SUserObj *pUser, char **buf) {
 
   int32_t pos = 0;
   if (pUser->pTimeWhiteList->num == 0) {
-    pos += tsnprintf(*buf + pos, bufLen - pos, "+ALL");
+    pos += snprintf(*buf + pos, bufLen - pos, "+ALL");
     return pos;
   }
 
@@ -3449,8 +3451,8 @@ static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
 
   if (tsAuditLevel >= AUDIT_LEVEL_CLUSTER) {
     char detail[1000] = {0};
-    (void)tsnprintf(detail, sizeof(detail), "enable:%d, superUser:%d, sysInfo:%d, password:xxx", createReq.enable,
-                    createReq.superUser, createReq.sysInfo);
+    (void)snprintf(detail, sizeof(detail), "enable:%d, superUser:%d, sysInfo:%d, password:xxx", createReq.enable,
+                   createReq.superUser, createReq.sysInfo);
     char operation[15] = {0};
     if (createReq.isImport == 1) {
       tstrncpy(operation, "importUser", sizeof(operation));
@@ -3461,6 +3463,7 @@ static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
     int64_t tse = taosGetTimestampMs();
     double  duration = (double)(tse - tss);
     duration = duration / 1000;
+
     auditRecord(pReq, pMnode->clusterId, operation, "", createReq.user, detail, strlen(detail), duration, 0);
   }
 
@@ -4055,7 +4058,7 @@ static int32_t mndProcessAlterUserBasicInfoReq(SRpcMsg *pReq, SAlterUserReq *pAl
   TAOS_CHECK_GOTO(mndUserDupObj(pUser, &newUser), &lino, _OVER);
 
   if (pAlterReq->hasPassword) {
-    auditLen += tsnprintf(auditLog, sizeof(auditLog), "password,");
+    auditLen += snprintf(auditLog, sizeof(auditLog), "password,");
 
     TAOS_CHECK_GOTO(mndCheckPasswordFmt(pAlterReq->pass), &lino, _OVER);
     if (newUser.salt[0] == 0) {
@@ -4093,7 +4096,7 @@ static int32_t mndProcessAlterUserBasicInfoReq(SRpcMsg *pReq, SAlterUserReq *pAl
   }
 
   if (pAlterReq->hasTotpseed) {
-    auditLen += tsnprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "totpseed,");
+    auditLen += snprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "totpseed,");
 
     if (pAlterReq->totpseed[0] == 0) {  // clear totp secret
       memset(newUser.totpsecret, 0, sizeof(newUser.totpsecret));
@@ -4103,7 +4106,7 @@ static int32_t mndProcessAlterUserBasicInfoReq(SRpcMsg *pReq, SAlterUserReq *pAl
   }
 
   if (pAlterReq->hasEnable) {
-    auditLen += tsnprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "enable:%d,", pAlterReq->enable);
+    auditLen += snprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "enable:%d,", pAlterReq->enable);
 
     newUser.enable = pAlterReq->enable;  // lock or unlock user manually
     if (newUser.enable) {
@@ -4113,12 +4116,12 @@ static int32_t mndProcessAlterUserBasicInfoReq(SRpcMsg *pReq, SAlterUserReq *pAl
   }
 
   if (pAlterReq->hasSysinfo) {
-    auditLen += tsnprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "sysinfo:%d,", pAlterReq->sysinfo);
+    auditLen += snprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "sysinfo:%d,", pAlterReq->sysinfo);
     newUser.sysInfo = pAlterReq->sysinfo;
   }
 
   if (pAlterReq->hasCreatedb) {
-    auditLen += tsnprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "createdb:%d,", pAlterReq->createdb);
+    auditLen += snprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "createdb:%d,", pAlterReq->createdb);
     newUser.createdb = pAlterReq->createdb;
     if (newUser.createdb == 1) {
       privAddType(&newUser.sysPrivs, PRIV_DB_CREATE);
@@ -4129,7 +4132,7 @@ static int32_t mndProcessAlterUserBasicInfoReq(SRpcMsg *pReq, SAlterUserReq *pAl
 
 #ifdef TD_ENTERPRISE
   if (pAlterReq->hasChangepass) {
-    auditLen += tsnprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "changepass:%d,", pAlterReq->changepass);
+    auditLen += snprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "changepass:%d,", pAlterReq->changepass);
     newUser.changePass = pAlterReq->changepass;
   }
 
@@ -4140,7 +4143,7 @@ static int32_t mndProcessAlterUserBasicInfoReq(SRpcMsg *pReq, SAlterUserReq *pAl
   }
 
   if (pAlterReq->hasConnectTime) {
-    auditLen += tsnprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "connectTime:%d,", pAlterReq->connectTime);
+    auditLen += snprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "connectTime:%d,", pAlterReq->connectTime);
     newUser.connectTime = pAlterReq->connectTime;
   }
 
@@ -5210,13 +5213,13 @@ static int32_t mndLoopHash(SHashObj *hash, char *priType, SSDataBlock *pBlock, i
 
       if (nodesStringToNode(value, &pAst) == 0) {
         if (nodesNodeToSQLFormat(pAst, *sql, bufSz, &sqlLen, true) != 0) {
-          sqlLen = tsnprintf(*sql, bufSz, "error");
+          sqlLen = snprintf(*sql, bufSz, "error");
         }
         nodesDestroyNode(pAst);
       }
 
       if (sqlLen == 0) {
-        sqlLen = tsnprintf(*sql, bufSz, "error");
+        sqlLen = snprintf(*sql, bufSz, "error");
       }
 
       STR_WITH_MAXSIZE_TO_VARSTR((*condition), (*sql), pShow->pMeta->pSchemas[cols].bytes);
@@ -5625,7 +5628,7 @@ int32_t mndShowTablePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
       // update_time
       if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
         char updateTime[40] = {0};
-        (void)formatTimestampLocal(updateTime, tbPolicy->updateUs, TSDB_TIME_PRECISION_MICRO);
+        (void)formatTimestampLocal(updateTime, sizeof(updateTime), tbPolicy->updateUs, TSDB_TIME_PRECISION_MICRO);
         STR_WITH_MAXSIZE_TO_VARSTR(pBuf, updateTime, pShow->pMeta->pSchemas[cols].bytes);
         COL_DATA_SET_VAL_GOTO((const char *)pBuf, false, pObj, pShow->pIter, _exit);
       }

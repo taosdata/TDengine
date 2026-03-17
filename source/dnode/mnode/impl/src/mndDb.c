@@ -49,7 +49,7 @@
 #define DB_VER_SUPPORT_ADVANCED_SECURITY 2
 #define DB_VER_NUMBER                    DB_VER_SUPPORT_ADVANCED_SECURITY
 
-#define DB_RESERVE_SIZE 13
+#define DB_RESERVE_SIZE 12
 
 static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw);
 static int32_t  mndDbActionInsert(SSdb *pSdb, SDbObj *pDb);
@@ -173,6 +173,7 @@ SSdbRaw *mndDbActionEncode(SDbObj *pDb) {
   SDB_SET_INT32(pRaw, dataPos, pDb->cfg.compactEndTime, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pDb->cfg.compactInterval, _OVER)
   SDB_SET_INT8(pRaw, dataPos, pDb->cfg.isAudit, _OVER)
+  SDB_SET_INT8(pRaw, dataPos, pDb->cfg.secureDelete, _OVER)
 
   SDB_SET_RESERVE(pRaw, dataPos, DB_RESERVE_SIZE, _OVER)
   SDB_SET_UINT8(pRaw, dataPos, pDb->cfg.flags, _OVER)
@@ -280,6 +281,9 @@ static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.compactEndTime, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.compactInterval, _OVER)
   SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.isAudit, _OVER)
+  if (dataPos + sizeof(int8_t) <= pRaw->dataLen) {
+    SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.secureDelete, _OVER)
+  }
   SDB_GET_RESERVE(pRaw, dataPos, DB_RESERVE_SIZE, _OVER)
   if (dataPos + sizeof(uint8_t) <= pRaw->dataLen) {
     SDB_GET_UINT8(pRaw, dataPos, &pDb->cfg.flags, _OVER)
@@ -412,6 +416,7 @@ static int32_t mndDbActionUpdate(SSdb *pSdb, SDbObj *pOld, SDbObj *pNew) {
   pOld->compactStartTime = pNew->compactStartTime;
   pOld->tsmaVersion = pNew->tsmaVersion;
   pOld->cfg.isAudit = pNew->cfg.isAudit;
+  pOld->cfg.secureDelete = pNew->cfg.secureDelete;
   pOld->cfg.flags = pNew->cfg.flags;
   pOld->ownerId = pNew->ownerId;
   taosWUnLockLatch(&pOld->lock);
@@ -982,6 +987,7 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
       .compactEndTime = pCreate->compactEndTime,
       .compactTimeOffset = pCreate->compactTimeOffset,
       .isAudit = pCreate->isAudit,
+      .secureDelete = pCreate->secureDelete,
   };
   if (strlen(pCreate->encryptAlgrName) > 0) {
     if (strncasecmp(pCreate->encryptAlgrName, "none", TSDB_ENCRYPT_ALGR_NAME_LEN) == 0) {
@@ -1132,6 +1138,13 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
     }
   }
 
+  if (dbObj.cfg.isAudit) {
+    if (dbObj.cfg.numOfVgroups > 1) {
+      code = TSDB_CODE_AUDIT_DB_NOT_MULTI_VGROUP;
+      TAOS_CHECK_GOTO(code, NULL, _OVER);
+    }
+  }
+
   mndTransSetOper(pTrans, MND_OPER_CREATE_DB);
   TAOS_CHECK_GOTO(mndSetCreateDbPrepareAction(pMnode, pTrans, &dbObj), NULL, _OVER);
   TAOS_CHECK_GOTO(mndSetCreateDbRedoActions(pMnode, pTrans, &dbObj, pVgroups), NULL, _OVER);
@@ -1139,6 +1152,13 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
   TAOS_CHECK_GOTO(mndSetCreateDbUndoLogs(pMnode, pTrans, &dbObj, pVgroups), NULL, _OVER);
   TAOS_CHECK_GOTO(mndSetCreateDbCommitLogs(pMnode, pTrans, &dbObj, pVgroups, pNewUserDuped, auditOwnedDbs), NULL, _OVER);
   TAOS_CHECK_GOTO(mndSetCreateDbUndoActions(pMnode, pTrans, &dbObj, pVgroups), NULL, _OVER);
+
+  if (dbObj.cfg.isAudit) {
+    if (tsAuditSaveInSelf) {
+      // when create audit database, pVgroups num always is 1
+      TAOS_CHECK_GOTO(mndCreateAuditStb(pMnode, &dbObj, pUser, pTrans, pVgroups), NULL, _OVER);
+    }
+  }
   TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), NULL, _OVER);
 
 _OVER:
@@ -1274,6 +1294,11 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
       mndReleaseDb(pMnode, pAuditDb);
       mError("db:%s, audit db already exist, %s", createReq.db, pAuditDb->name);
       TAOS_CHECK_GOTO(TSDB_CODE_AUDIT_DB_ALREADY_EXIST, &lino, _OVER);
+    }
+    char *realDbName = strchr(createReq.db, '.');
+    if (realDbName && strcmp(realDbName + 1, "log") == 0) {
+      mError("db:%s, failed to create, db name not allowed for audit db, %s", createReq.db, realDbName + 1);
+      TAOS_CHECK_GOTO(TSDB_CODE_MND_INVALID_DB, &lino, _OVER);
     }
   }
 
@@ -1464,6 +1489,12 @@ static int32_t mndSetDbCfgFromAlterDbReq(SDbObj *pDb, SAlterDbReq *pAlter) {
 
   if(pAlter->allowDrop > -1 && pAlter->allowDrop != pDb->cfg.allowDrop) {
     pDb->cfg.allowDrop = pAlter->allowDrop;
+    code = 0;
+  }
+
+  if (pAlter->secureDelete > -1 && pAlter->secureDelete != pDb->cfg.secureDelete) {
+    pDb->cfg.secureDelete = pAlter->secureDelete;
+    pDb->vgVersion++;
     code = 0;
   }
 
@@ -1773,6 +1804,7 @@ static void mndDumpDbCfgInfo(SDbCfgRsp *cfgRsp, SDbObj *pDb, char *algorithmsId)
   cfgRsp->flags = pDb->cfg.flags;
   tstrncpy(cfgRsp->algorithmsId, algorithmsId, sizeof(cfgRsp->algorithmsId));
   cfgRsp->isAudit = pDb->cfg.isAudit;
+  cfgRsp->secureDelete = pDb->cfg.secureDelete;
 }
 
 static int32_t mndProcessGetDbCfgReq(SRpcMsg *pReq) {
@@ -2978,24 +3010,24 @@ static char *buildRetension(SArray *pRetension) {
 
   int64_t v1 = getValOfDiffPrecision(p->freqUnit, p->freq);
   int64_t v2 = getValOfDiffPrecision(p->keepUnit, p->keep);
-  len += tsnprintf(p1 + len, 100 - len, "%" PRId64 "%c:%" PRId64 "%c", v1, p->freqUnit, v2, p->keepUnit);
+  len += snprintf(p1 + len, 100 - len, "%" PRId64 "%c:%" PRId64 "%c", v1, p->freqUnit, v2, p->keepUnit);
 
   if (size > 1) {
-    len += tsnprintf(p1 + len, 100 - len, ",");
+    len += snprintf(p1 + len, 100 - len, ",");
     p = taosArrayGet(pRetension, 1);
 
     v1 = getValOfDiffPrecision(p->freqUnit, p->freq);
     v2 = getValOfDiffPrecision(p->keepUnit, p->keep);
-    len += tsnprintf(p1 + len, 100 - len, "%" PRId64 "%c:%" PRId64 "%c", v1, p->freqUnit, v2, p->keepUnit);
+    len += snprintf(p1 + len, 100 - len, "%" PRId64 "%c:%" PRId64 "%c", v1, p->freqUnit, v2, p->keepUnit);
   }
 
   if (size > 2) {
-    len += tsnprintf(p1 + len, 100 - len, ",");
+    len += snprintf(p1 + len, 100 - len, ",");
     p = taosArrayGet(pRetension, 2);
 
     v1 = getValOfDiffPrecision(p->freqUnit, p->freq);
     v2 = getValOfDiffPrecision(p->keepUnit, p->keep);
-    len += tsnprintf(p1 + len, 100 - len, "%" PRId64 "%c:%" PRId64 "%c", v1, p->freqUnit, v2, p->keepUnit);
+    len += snprintf(p1 + len, 100 - len, "%" PRId64 "%c:%" PRId64 "%c", v1, p->freqUnit, v2, p->keepUnit);
   }
 
   varDataSetLen(p1, len);
@@ -3173,9 +3205,11 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
     int32_t lenKeep2 = formatDurationOrKeep(keep2Str, sizeof(keep2Str), pDb->cfg.daysToKeep2);
 
     if (pDb->cfg.daysToKeep0 > pDb->cfg.daysToKeep1 || pDb->cfg.daysToKeep0 > pDb->cfg.daysToKeep2) {
-      len = tsnprintf(&keepVstr[VARSTR_HEADER_SIZE], sizeof(keepVstr), "%s,%s,%s", keep1Str, keep2Str, keep0Str);
+      len = snprintf(&keepVstr[VARSTR_HEADER_SIZE], sizeof(keepVstr) - VARSTR_HEADER_SIZE, "%s,%s,%s", keep1Str,
+                     keep2Str, keep0Str);
     } else {
-      len = tsnprintf(&keepVstr[VARSTR_HEADER_SIZE], sizeof(keepVstr), "%s,%s,%s", keep0Str, keep1Str, keep2Str);
+      len = snprintf(&keepVstr[VARSTR_HEADER_SIZE], sizeof(keepVstr) - VARSTR_HEADER_SIZE, "%s,%s,%s", keep0Str,
+                     keep1Str, keep2Str);
     }
     varDataSetLen(keepVstr, len);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -3263,7 +3297,8 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
     TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.ssChunkSize, false), &lino, _OVER);
 
     char keeplocalVstr[128] = {0};
-    len = tsnprintf(&keeplocalVstr[VARSTR_HEADER_SIZE], sizeof(keeplocalVstr), "%dm", pDb->cfg.ssKeepLocal);
+    len = snprintf(&keeplocalVstr[VARSTR_HEADER_SIZE], sizeof(keeplocalVstr) - VARSTR_HEADER_SIZE, "%dm",
+                   pDb->cfg.ssKeepLocal);
     varDataSetLen(keeplocalVstr, len);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)keeplocalVstr, false), &lino, _OVER);

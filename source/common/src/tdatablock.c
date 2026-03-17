@@ -2723,7 +2723,7 @@ int32_t dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf
   }
 
   for (int32_t j = 0; j < rows; j++) {
-    len += tsnprintf(dumpBuf + len, size - len, "%" PRIx64 " %s|", qId, flag);
+    len += snprintf(dumpBuf + len, size - len, "%" PRIx64 " %s|", qId, flag);
     if (len >= size - 1) {
       goto _exit;
     }
@@ -2737,7 +2737,7 @@ int32_t dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf
       }
 
       if (colDataIsNull(pColInfoData, rows, j, NULL) || !pColInfoData->pData) {
-        len += tsnprintf(dumpBuf + len, size - len, " %15s |", "NULL");
+        len += snprintf(dumpBuf + len, size - len, " %15s |", "NULL");
         if (len >= size - 1) goto _exit;
         continue;
       }
@@ -2748,53 +2748,53 @@ int32_t dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf
           memset(pBuf, 0, sizeof(pBuf));
           code = formatTimestamp(pBuf, sizeof(pBuf), *(uint64_t*)var, pColInfoData->info.precision);
           if (code != TSDB_CODE_SUCCESS) {
-            TAOS_UNUSED(tsnprintf(pBuf, sizeof(pBuf), "NaN"));
+            TAOS_UNUSED(snprintf(pBuf, sizeof(pBuf), "NaN"));
           }
-          len += tsnprintf(dumpBuf + len, size - len, " %25s |", pBuf);
+          len += snprintf(dumpBuf + len, size - len, " %25s |", pBuf);
           if (len >= size - 1) goto _exit;
           break;
         case TSDB_DATA_TYPE_TINYINT:
-          len += tsnprintf(dumpBuf + len, size - len, " %15d |", *(int8_t*)var);
+          len += snprintf(dumpBuf + len, size - len, " %15d |", *(int8_t*)var);
           if (len >= size - 1) goto _exit;
           break;
         case TSDB_DATA_TYPE_UTINYINT:
-          len += tsnprintf(dumpBuf + len, size - len, " %15d |", *(uint8_t*)var);
+          len += snprintf(dumpBuf + len, size - len, " %15d |", *(uint8_t*)var);
           if (len >= size - 1) goto _exit;
           break;
         case TSDB_DATA_TYPE_SMALLINT:
-          len += tsnprintf(dumpBuf + len, size - len, " %15d |", *(int16_t*)var);
+          len += snprintf(dumpBuf + len, size - len, " %15d |", *(int16_t*)var);
           if (len >= size - 1) goto _exit;
           break;
         case TSDB_DATA_TYPE_USMALLINT:
-          len += tsnprintf(dumpBuf + len, size - len, " %15d |", *(uint16_t*)var);
+          len += snprintf(dumpBuf + len, size - len, " %15d |", *(uint16_t*)var);
           if (len >= size - 1) goto _exit;
           break;
         case TSDB_DATA_TYPE_INT:
-          len += tsnprintf(dumpBuf + len, size - len, " %15d |", *(int32_t*)var);
+          len += snprintf(dumpBuf + len, size - len, " %15d |", *(int32_t*)var);
           if (len >= size - 1) goto _exit;
           break;
         case TSDB_DATA_TYPE_UINT:
-          len += tsnprintf(dumpBuf + len, size - len, " %15u |", *(uint32_t*)var);
+          len += snprintf(dumpBuf + len, size - len, " %15u |", *(uint32_t*)var);
           if (len >= size - 1) goto _exit;
           break;
         case TSDB_DATA_TYPE_BIGINT:
-          len += tsnprintf(dumpBuf + len, size - len, " %15" PRId64 " |", *(int64_t*)var);
+          len += snprintf(dumpBuf + len, size - len, " %15" PRId64 " |", *(int64_t*)var);
           if (len >= size - 1) goto _exit;
           break;
         case TSDB_DATA_TYPE_UBIGINT:
-          len += tsnprintf(dumpBuf + len, size - len, " %15" PRIu64 " |", *(uint64_t*)var);
+          len += snprintf(dumpBuf + len, size - len, " %15" PRIu64 " |", *(uint64_t*)var);
           if (len >= size - 1) goto _exit;
           break;
         case TSDB_DATA_TYPE_FLOAT:
-          len += tsnprintf(dumpBuf + len, size - len, " %15f |", *(float*)var);
+          len += snprintf(dumpBuf + len, size - len, " %15f |", *(float*)var);
           if (len >= size - 1) goto _exit;
           break;
         case TSDB_DATA_TYPE_DOUBLE:
-          len += tsnprintf(dumpBuf + len, size - len, " %15f |", *(double*)var);
+          len += snprintf(dumpBuf + len, size - len, " %15f |", *(double*)var);
           if (len >= size - 1) goto _exit;
           break;
         case TSDB_DATA_TYPE_BOOL:
-          len += tsnprintf(dumpBuf + len, size - len, " %15d |", *(bool*)var);
+          len += snprintf(dumpBuf + len, size - len, " %15d |", *(bool*)var);
           if (len >= size - 1) goto _exit;
           break;
         case TSDB_DATA_TYPE_VARCHAR:
@@ -2805,7 +2805,7 @@ int32_t dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf
           int32_t dataSize = TMIN(sizeof(pBuf), varDataLen(pData));
           dataSize = TMIN(dataSize, 50);
           memcpy(pBuf, varDataVal(pData), dataSize);
-          len += tsnprintf(dumpBuf + len, size - len, " %15s |", pBuf);
+          len += snprintf(dumpBuf + len, size - len, " %15s |", pBuf);
           if (len >= size - 1) goto _exit;
         } break;
         case TSDB_DATA_TYPE_NCHAR: {
@@ -2820,7 +2820,7 @@ int32_t dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf
           } else {  // reset the length value
             code = TSDB_CODE_SUCCESS;
           }
-          len += tsnprintf(dumpBuf + len, size - len, " %15s |", pBuf);
+          len += snprintf(dumpBuf + len, size - len, " %15s |", pBuf);
           if (len >= size - 1) goto _exit;
         } break;
         case TSDB_DATA_TYPE_MEDIUMBLOB:
@@ -2830,16 +2830,16 @@ int32_t dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf
           int32_t dataSize = TMIN(sizeof(pBuf), blobDataLen(pData));
           dataSize = TMIN(dataSize, 50);
           memcpy(pBuf, blobDataVal(pData), dataSize);
-          len += tsnprintf(dumpBuf + len, size - len, " %15s |", pBuf);
+          len += snprintf(dumpBuf + len, size - len, " %15s |", pBuf);
           if (len >= size - 1) goto _exit;
           break;
         }
       }
     }
-    len += tsnprintf(dumpBuf + len, size - len, "%d\n", j);
+    len += snprintf(dumpBuf + len, size - len, "%d\n", j);
     if (len >= size - 1) goto _exit;
   }
-  len += tsnprintf(dumpBuf + len, size - len, "%s |end\n", flag);
+  len += snprintf(dumpBuf + len, size - len, "%s |end\n", flag);
 
 _exit:
   if (code == TSDB_CODE_SUCCESS) {

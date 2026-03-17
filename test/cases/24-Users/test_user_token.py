@@ -115,7 +115,7 @@ class TestUserSecurity:
         ]
         
         # arg
-        command = f"{taosFile} -q{token} {options} -s 'show tokens;' "
+        command = f'{taosFile} -q{token} {options} -s "show tokens;" '
         rlist = etool.runRetList(command, checkRun=True, show= True)
         self.checkManyString(rlist, success)
 
@@ -125,7 +125,7 @@ class TestUserSecurity:
         failed = "Connect with token ...... [ FAILED ]"
         
         # arg
-        command = f"{taosFile} -q{token} {options} -s 'show tokens;' "
+        command = f'{taosFile} -q{token} {options} -s "show tokens;" '
         rlist = etool.runRetList(command, checkRun=False, show= True)
         self.checkManyString(rlist, failed)
 

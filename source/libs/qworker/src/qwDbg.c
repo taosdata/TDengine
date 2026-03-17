@@ -257,11 +257,11 @@ void qwDbgSimulateRedirect(SQWMsg *qwMsg, SQWTaskCtx *ctx, bool *rsped) {
       SEpSet epSet = {0};
       epSet.inUse = 1;
       epSet.numOfEps = 3;
-      TAOS_STRCPY(epSet.eps[0].fqdn, "localhost");
+      tstrncpy(epSet.eps[0].fqdn, "localhost", sizeof(epSet.eps[0].fqdn));
       epSet.eps[0].port = 7100;
-      TAOS_STRCPY(epSet.eps[1].fqdn, "localhost");
+      tstrncpy(epSet.eps[1].fqdn, "localhost", sizeof(epSet.eps[1].fqdn));
       epSet.eps[1].port = 7200;
-      TAOS_STRCPY(epSet.eps[2].fqdn, "localhost");
+      tstrncpy(epSet.eps[2].fqdn, "localhost", sizeof(epSet.eps[2].fqdn));
       epSet.eps[2].port = 7300;
 
       ctx->phase = QW_PHASE_POST_QUERY;

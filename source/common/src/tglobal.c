@@ -66,6 +66,7 @@ int8_t        tsEnableAdvancedSecurity = 1;
 #else
 int8_t        tsEnableAdvancedSecurity = 0;
 #endif
+int8_t        tsEnableGrantLegacySyntax = 0;
 
 char          tsEncryptPassAlgorithm[16] = {0};
 EEncryptAlgor tsiEncryptPassAlgorithm = 0;
@@ -145,6 +146,7 @@ int32_t tsNumOfStreamRunnerThreads = 4;
 
 int32_t tsNumOfCompactThreads = 2;
 int32_t tsNumOfRetentionThreads = 1;
+int32_t tsSecureEraseMode = 0;
 
 // sync raft
 int32_t tsElectInterval = 4000;
@@ -241,6 +243,7 @@ int32_t tsAuditInterval = 5000;
 int32_t tsAuditLevel = AUDIT_LEVEL_DATABASE;
 bool    tsAuditHttps = false;
 bool    tsAuditUseToken = true;
+bool    tsAuditSaveInSelf = false;
 #else
 bool    tsEnableAudit = false;
 bool    tsEnableAuditCreateTable = false;
@@ -251,6 +254,7 @@ int32_t tsAuditInterval = 200000;
 int32_t tsAuditLevel = AUDIT_LEVEL_NONE;
 bool    tsAuditHttps = false;
 bool    tsAuditUseToken = true;
+bool    tsAuditSaveInSelf = false;
 #endif
 
 // telem
@@ -953,6 +957,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddDir(pCfg, "encryptExtDir", tsEncryptExtDir, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_LOCAL, CFG_PRIV_SECURITY));
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "enableStrongPassword", tsEnableStrongPassword, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SECURITY));
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "enableAdvancedSecurity", tsEnableAdvancedSecurity, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SECURITY));
+  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "enableGrantLegacySyntax", tsEnableGrantLegacySyntax, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SECURITY));
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "encryptPassAlgorithm", tsEncryptPassAlgorithm, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY, CFG_CATEGORY_GLOBAL, CFG_PRIV_SECURITY));
 
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "statusInterval", tsStatusInterval, 1, 30, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
@@ -968,6 +973,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "queryRspPolicy", tsQueryRspPolicy, 0, 1, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "numOfCommitThreads", tsNumOfCommitThreads, 1, 1024, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY,CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "numOfCompactThreads", tsNumOfCompactThreads, 1, 16, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "secureEraseMode", tsSecureEraseMode, 0, 1, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "retentionSpeedLimitMB", tsRetentionSpeedLimitMB, 0, 1024, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "queryUseMemoryPool", tsQueryUseMemoryPool, CFG_SCOPE_SERVER, CFG_DYN_BOTH_LAZY,CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM) != 0);
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "memPoolFullFunc", tsMemPoolFullFunc, CFG_SCOPE_SERVER, CFG_DYN_NONE,CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM) != 0);
@@ -1041,6 +1047,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "auditInterval", tsAuditInterval, 500, 200000, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_AUDIT));
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "auditHttps", tsAuditHttps, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_AUDIT));
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "auditUseToken", tsAuditUseToken, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_AUDIT));
+  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "auditSaveInSelf", tsAuditSaveInSelf, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER, CFG_CATEGORY_GLOBAL, CFG_PRIV_AUDIT));
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "telemetryReporting", tsEnableTelem, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "telemetryInterval", tsTelemInterval, 1, 200000, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "telemetryServer", tsTelemServer, CFG_SCOPE_SERVER, CFG_DYN_BOTH,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
@@ -1726,6 +1733,9 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableAdvancedSecurity");
   tsEnableAdvancedSecurity = pItem->i32;
 
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableGrantLegacySyntax");
+  tsEnableGrantLegacySyntax = pItem->i32;
+
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "encryptPassAlgorithm");
   TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, 16));
   tstrncpy(tsEncryptPassAlgorithm, pItem->str, 16);
@@ -1758,6 +1768,9 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "numOfCompactThreads");
   tsNumOfCompactThreads = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "secureEraseMode");
+  tsSecureEraseMode = pItem->i32;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableIpv6");
   tsEnableIpv6 = pItem->bval;
@@ -1882,6 +1895,9 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "auditUseToken");
   tsAuditUseToken = pItem->bval;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "auditSaveInSelf");
+  tsAuditSaveInSelf = pItem->bval;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "auditInterval");
   tsAuditInterval = pItem->i32;
@@ -2924,6 +2940,7 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
                                          {"auditLevel", &tsAuditLevel},
                                          {"auditHttps", &tsAuditHttps},
                                          {"auditUseToken", &tsAuditUseToken},
+                                         {"auditSaveInSelf", &tsAuditSaveInSelf},
                                          {"slowLogThreshold", &tsSlowLogThreshold},
                                          {"compressMsgSize", &tsCompressMsgSize},
                                          {"compressor", &tsCompressor},
@@ -3007,6 +3024,7 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
                                          {"queryNoFetchTimeoutSec", &tsQueryNoFetchTimeoutSec},
                                          {"enableStrongPassword", &tsEnableStrongPassword},
                                          {"enableAdvancedSecurity", &tsEnableAdvancedSecurity},
+                                         {"enableGrantLegacySyntax", &tsEnableGrantLegacySyntax},
                                          {"enableMetrics", &tsEnableMetrics},
                                          {"metricsInterval", &tsMetricsInterval},
                                          {"metricsLevel", &tsMetricsLevel},
@@ -3431,12 +3449,12 @@ int32_t globalConfigSerialize(int32_t version, SArray *array, char **serialized)
           if (cJSON_AddNumberToObject(cField, item->name, item->i32) == NULL) goto _exit;
           break;
         case CFG_DTYPE_INT64:
-          (void)sprintf(buf, "%" PRId64, item->i64);
+          (void)snprintf(buf, sizeof(buf), "%" PRId64, item->i64);
           if (cJSON_AddStringToObject(cField, item->name, buf) == NULL) goto _exit;
           break;
         case CFG_DTYPE_FLOAT:
         case CFG_DTYPE_DOUBLE:
-          (void)sprintf(buf, "%f", item->fval);
+          (void)snprintf(buf, sizeof(buf), "%f", item->fval);
           if (cJSON_AddStringToObject(cField, item->name, buf) == NULL) goto _exit;
           break;
         case CFG_DTYPE_STRING:
@@ -3498,7 +3516,7 @@ int32_t localConfigSerialize(SArray *array, char **serialized) {
             goto _exit;
           }
         }
-        (void)sprintf(buf, "%" PRId64, disk->diskId);
+        (void)snprintf(buf, sizeof(buf), "%" PRId64, disk->diskId);
         if (cJSON_AddStringToObject(dataDir, "disk_id", buf) == NULL) goto _exit;
         if (cJSON_AddNumberToObject(dataDir, "primary", disk->primary) == NULL) goto _exit;
         if (cJSON_AddNumberToObject(dataDir, "disable", disk->disable) == NULL) goto _exit;
@@ -3516,12 +3534,12 @@ int32_t localConfigSerialize(SArray *array, char **serialized) {
           if (cJSON_AddNumberToObject(cField, item->name, item->i32) == NULL) goto _exit;
           break;
         case CFG_DTYPE_INT64:
-          (void)sprintf(buf, "%" PRId64, item->i64);
+          (void)snprintf(buf, sizeof(buf), "%" PRId64, item->i64);
           if (cJSON_AddStringToObject(cField, item->name, buf) == NULL) goto _exit;
           break;
         case CFG_DTYPE_FLOAT:
         case CFG_DTYPE_DOUBLE:
-          (void)sprintf(buf, "%f", item->fval);
+          (void)snprintf(buf, sizeof(buf), "%f", item->fval);
           if (cJSON_AddStringToObject(cField, item->name, buf) == NULL) goto _exit;
           break;
         case CFG_DTYPE_STRING:
