@@ -2020,12 +2020,13 @@ end:
   }
 
   for (int i = 0; i < taosArrayGetSize(pArray); ++i) {
-    SVgDataBlocks* pData = (SVgDataBlocks*)taosArrayGet(pArray, i);
+    SVgDataBlocks* pData = (SVgDataBlocks*)taosArrayGetP(pArray, i);
     if (pData && pData->pData) {
       taosMemoryFreeClear(pData->pData);
       taosMemoryFreeClear(pData);
     }
   }
+  taosArrayDestroy(pArray);
   
   if (pVgData) {
     taosMemoryFreeClear(pVgData->pData);

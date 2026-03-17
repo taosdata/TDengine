@@ -967,12 +967,6 @@ static int32_t scanAlterTableNew(SStreamTriggerReaderInfo* sStreamReaderInfo, SS
   ST_TASK_DLOG("%s stream reader scan alter table", __func__);
 
 end:
-  taosArrayDestroy(req.pMultiTag);
-  for (int32_t i = 0; i < taosArrayGetSize(req.tables); i++) {
-    SUpdateTableTagVal* pTable = taosArrayGet(req.tables, i);
-    taosArrayDestroy(pTable->tags);
-  }
-  taosArrayDestroy(req.tables);
   destroyAlterTbReq(&req);
 
   taosArrayDestroy(uidList);

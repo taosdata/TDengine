@@ -173,16 +173,7 @@ static int32_t vnodePreProcessAlterTableMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   int64_t      ctimeMs = taosGetTimestampMs();
   code = tDecodeSVAlterTbReqSetCtime(&dc, &vAlterTbReq, ctimeMs);
 
-  taosArrayDestroy(vAlterTbReq.pMultiTag);
-  vAlterTbReq.pMultiTag = NULL;
-
-  for (int32_t i = 0; i < taosArrayGetSize(vAlterTbReq.tables); i++) {
-    SUpdateTableTagVal* pTable = taosArrayGet(vAlterTbReq.tables, i);
-    taosArrayDestroy(pTable->tags);
-  }
-  taosArrayDestroy(vAlterTbReq.tables);
-  vAlterTbReq.tables = NULL;
-
+  destroyAlterTbReq(&vAlterTbReq);
 
 _exit:
   tDecoderClear(&dc);

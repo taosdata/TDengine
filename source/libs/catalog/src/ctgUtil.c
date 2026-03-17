@@ -1310,7 +1310,7 @@ int32_t ctgGetVgInfoFromHashValue(SCatalog* pCtg, SEpSet* pMgmtEps, SDBVgInfo* d
 
   *pVgroup = *vgInfo;
 
-  ctgError("tb:%s, get hash vgroup, vgId:%d, epNum:%d, current ep:%s:%u, hashVal:%u", tbFullName, vgInfo->vgId,
+  ctgTrace("tb:%s, get hash vgroup, vgId:%d, epNum:%d, current ep:%s:%u, hashVal:%u", tbFullName, vgInfo->vgId,
            vgInfo->epSet.numOfEps, vgInfo->epSet.eps[vgInfo->epSet.inUse].fqdn,
            vgInfo->epSet.eps[vgInfo->epSet.inUse].port, hashValue);
 
