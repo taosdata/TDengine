@@ -141,6 +141,7 @@ bool raftStoreHasVoted(SSyncNode *pNode) {
 
 void raftStoreVote(SSyncNode *pNode, SRaftId *pRaftId) {
   (void)taosThreadMutexLock(&pNode->raftStore.mutex);
+  sInfo("vgId:%d, vote for 0x%" PRIx64 ":%d", pNode->vgId, pRaftId->addr, pRaftId->vgId);
   pNode->raftStore.voteFor = *pRaftId;
   int32_t code = 0;
   if ((code = raftStoreWriteFile(pNode)) != 0) {
@@ -151,6 +152,7 @@ void raftStoreVote(SSyncNode *pNode, SRaftId *pRaftId) {
 
 void raftStoreClearVote(SSyncNode *pNode) {
   (void)taosThreadMutexLock(&pNode->raftStore.mutex);
+  sInfo("vgId:%d, clear vote", pNode->vgId);
   pNode->raftStore.voteFor = EMPTY_RAFT_ID;
   int32_t code = 0;
   if ((code = raftStoreWriteFile(pNode)) != 0) {
