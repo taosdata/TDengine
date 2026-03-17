@@ -1927,7 +1927,7 @@ int32_t cliConnSetSockInfo(SCliConn* pConn) {
     code = TSDB_CODE_THIRDPARTY_ERROR;
     return code;
   }
-  transSockInfo2Str((struct sockaddr*)&peername, pConn->dst);
+  transSockInfo2Str((struct sockaddr*)&peername, pConn->dst, sizeof(pConn->dst));
 
   addrlen = sizeof(sockname);
   code = uv_tcp_getsockname((uv_tcp_t*)pConn->stream, (struct sockaddr*)&sockname, &addrlen);
@@ -1936,7 +1936,7 @@ int32_t cliConnSetSockInfo(SCliConn* pConn) {
     code = TSDB_CODE_THIRDPARTY_ERROR;
     return code;
   }
-  transSockInfo2Str((struct sockaddr*)&sockname, pConn->src);
+  transSockInfo2Str((struct sockaddr*)&sockname, pConn->src, sizeof(pConn->src));
   return 0;
 };
 
@@ -4370,7 +4370,7 @@ int32_t transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, S
   taosHashPut(pTransInst->seqTable, &pReq->info.seq, sizeof(pReq->info.seq), &pReq->msgType, sizeof(pReq->msgType));
   taosThreadMutexUnlock(&pTransInst->seqMutex);
 
-  sprintf(RPC_MSG_USER(pReq), "root");
+  snprintf(RPC_MSG_USER(pReq), sizeof(RPC_MSG_USER(pReq)) - 1, "root");
 
   code = transSendReq(pTransInst, pReq, NULL);
   TAOS_UNUSED(transReleaseExHandle(transGetInstMgt(), (int64_t)shandle));
