@@ -7867,7 +7867,6 @@ static int32_t stRealtimeGroupInit(SSTriggerRealtimeGroup *pGroup, SSTriggerReal
     }
   }
   pGroup->newThreshold = pGroup->oldThreshold;
-  ST_TASK_DLOG("[trigger debug] oldThreshold: %" PRId64 ", newThreshold: %" PRId64, pGroup->oldThreshold, pGroup->newThreshold);
 
   if (pTask->triggerType == STREAM_TRIGGER_STATE) {
     pGroup->pendingNullStart = INT64_MIN;
@@ -8062,7 +8061,6 @@ static int32_t stRealtimeGroupAddMeta(SSTriggerRealtimeGroup *pGroup, int32_t vg
     code = taosObjListAppend(pMetas, pMeta);
     QUERY_CHECK_CODE(code, lino, _end);
     pGroup->newThreshold = TMAX(pGroup->newThreshold, pMeta->ekey - pTask->watermark);
-    ST_TASK_DLOG("[trigger debug] metaEkey: %" PRId64 ", newTreshold: %" PRId64, pMeta->ekey, pGroup->newThreshold);
   }
 
 _end:
@@ -8996,11 +8994,9 @@ static int32_t stRealtimeGroupGenCalcParams(SSTriggerRealtimeGroup *pGroup, int3
     if (pWin->range.ekey + gap <= pGroup->newThreshold) {
       break;
     }
-    ST_TASK_DLOG("[trigger debug] skey: %" PRId64 ", ekey: %" PRId64, pWin->range.skey, pWin->range.ekey);
     numUnclosed++;
   }
   int64_t numClosed = numWin - numUnclosed;
-  ST_TASK_DLOG("[trigger debug] numClosed: %" PRId64 ", newTrehshold: %" PRId64, numClosed, pGroup->newThreshold);
 
   int64_t       initPendingSize = pGroup->pPendingCalcParams.neles + pGroup->pPendingParWinCalcParams.neles;
   STrueForInfo *pTrueForInfo = NULL;
