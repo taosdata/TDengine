@@ -36,12 +36,12 @@
 
 ## 执法
 
-可以通过 <support@taosdata.com> 联系项目团队来报告辱骂、骚扰或其他不可接受的行为。 所有投诉都将被审查和调查，并将产生被认为必要且适合具体情况的回应。 项目团队有义务对事件的报告者保密。 具体执行政策的更多细节可能会单独发布。
+可以通过 [support@taosdata.com](mailto:support@taosdata.com) 联系项目团队来报告辱骂、骚扰或其他不可接受的行为。 所有投诉都将被审查和调查，并将产生被认为必要且适合具体情况的回应。 项目团队有义务对事件的报告者保密。 具体执行政策的更多细节可能会单独发布。
 
 不善意遵守或执行行为准则的项目维护者可能会面临由项目领导的其他成员确定的临时或永久影响。
 
 ## 来源
 
-本行为准则改编自贡献者公约 1.4 版，可在 <https://www.contributor-covenant.org/version/1/4/code-of-conduct.html> 获取
+本行为准则改编自贡献者公约 1.4 版，可在 [https://www.contributor-covenant.org/version/1/4/code-of-conduct.html](https://www.contributor-covenant.org/version/1/4/code-of-conduct.html) 获取
 
-有关此行为准则的常见问题的答案，请参阅 <https://www.contributor-covenant.org/faq>
+有关此行为准则的常见问题的答案，请参阅 [https://www.contributor-covenant.org/faq](https://www.contributor-covenant.org/faq)
