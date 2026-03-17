@@ -149,25 +149,25 @@ ALTER TABLE tb_name MODIFY COLUMN field_name data_type(length);
 ### Change column name
 
 ```sql
-ALTER TABLE tb_name RENAME COLUMN old_col_name new_col_name
+ALTER TABLE tb_name RENAME COLUMN old_col_name new_col_name;
 ```
 
 ### Modify table lifespan
 
 ```sql
-ALTER TABLE tb_name TTL value
+ALTER TABLE tb_name TTL value;
 ```
 
 ### Modify Table Comment
 
 ```sql
-ALTER TABLE tb_name COMMENT 'string_value'
+ALTER TABLE tb_name COMMENT 'string_value';
 ```
 
 ## Modify Subtable
 
 ```sql
-ALTER TABLE [db_name.]tb_name alter_table_clause
+ALTER TABLE [db_name.]tb_name alter_table_clause;
 
 alter_table_clause: {
     alter_table_options
@@ -201,19 +201,19 @@ ALTER TABLE tb_name SET TAG tag_name1=new_tag_value1, tag_name2=new_tag_value2 .
 ### Batch Modify Subtable Tag Value
 
 ```sql
-ALTER TABLE tb_name1 SET TAG tag_name1=new_tag_value1, tag_name2=new_tag_value2 tb_name2 SET TAG tag_name3=new_tag_value3 ...
+ALTER TABLE tb_name1 SET TAG tag_name1=new_tag_value1, tag_name2=new_tag_value2 tb_name2 SET TAG tag_name3=new_tag_value3 ...;
 ```
 
 ### Modify Table Lifespan
 
 ```sql
-ALTER TABLE tb_name TTL value
+ALTER TABLE tb_name TTL value;
 ```
 
 ### Modify Table Comment
 
 ```sql
-ALTER TABLE tb_name COMMENT 'string_value'
+ALTER TABLE tb_name COMMENT 'string_value';
 ```
 
 ## Delete Table
@@ -221,7 +221,7 @@ ALTER TABLE tb_name COMMENT 'string_value'
 You can delete one or more regular tables or subtables in a single SQL statement.
 
 ```sql
-DROP TABLE [IF EXISTS] [db_name.]tb_name [, [IF EXISTS] [db_name.]tb_name] ...
+DROP TABLE [IF EXISTS] [db_name.]tb_name [, [IF EXISTS] [db_name.]tb_name] ...;
 ```
 
 **Note**: Deleting a table does not immediately free up the disk space occupied by the table. Instead, the table's data is marked as deleted. This data will not appear in queries, but freeing up disk space is delayed until the system automatically or the user manually reorganizes the data.

@@ -15401,6 +15401,78 @@ static int32_t tDecodeSVAlterTbReqCommon(SDecoder *pDecoder, SVAlterTbReq *pReq)
       TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &pReq->colName));
       TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &pReq->colNewName));
       break;
+    case TSDB_ALTER_TABLE_UPDATE_TAG_VAL: {
+      // covert this action to TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL with one table and one tag
+      pReq->tables = taosArrayInit(1, sizeof(SUpdateTableTagVal));
+      if (pReq->tables == NULL) {
+        TAOS_CHECK_EXIT(terrno);
+      }
+
+      SUpdateTableTagVal table = {0};
+      table.tbName = pReq->tbName;
+      table.tags = taosArrayInit(1, sizeof(SUpdatedTagVal));
+      if (table.tags == NULL) {
+        TAOS_CHECK_EXIT(terrno);
+      }
+
+      SUpdatedTagVal     tag = {0};
+      tag.colId = pReq->colId;
+      TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &tag.tagName));
+      TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &tag.isNull));
+      TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &tag.tagType));
+      if (!tag.isNull) {
+        TAOS_CHECK_EXIT(tDecodeBinary(pDecoder, &tag.pTagVal, &tag.nTagVal));
+      }
+
+      if (taosArrayPush(table.tags, &tag) == NULL) {
+        TAOS_CHECK_EXIT(terrno);
+      }
+
+      if (taosArrayPush(pReq->tables, &table) == NULL) {
+        taosArrayDestroy(table.tags);
+        TAOS_CHECK_EXIT(terrno);
+      }
+
+      pReq->action = TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL;
+      break;
+    }
+    case TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL: {
+      // covert this action to TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL with one table and multiple tags
+      pReq->tables = taosArrayInit(1, sizeof(SUpdateTableTagVal));
+      if (pReq->tables == NULL) {
+        TAOS_CHECK_EXIT(terrno);
+      }
+
+      SUpdateTableTagVal table = {0};
+      table.tbName = pReq->tbName;
+      int32_t            nTags;
+      TAOS_CHECK_EXIT(tDecodeI32v(pDecoder, &nTags));
+      table.tags = taosArrayInit(nTags, sizeof(SUpdatedTagVal));
+      if (table.tags == NULL) {
+        TAOS_CHECK_EXIT(terrno);
+      }
+
+      for (int32_t i = 0; i < nTags; i++) {
+        SUpdatedTagVal tag = {0};
+        TAOS_CHECK_EXIT(tDecodeI32v(pDecoder, &tag.colId));
+        TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &tag.tagName));
+        TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &tag.isNull));
+        TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &tag.tagType));
+        if (!tag.isNull) {
+          TAOS_CHECK_EXIT(tDecodeBinary(pDecoder, &tag.pTagVal, &tag.nTagVal));
+        }
+        if (taosArrayPush(table.tags, &tag) == NULL) {
+          TAOS_CHECK_EXIT(terrno);
+        }
+      }
+
+      if (taosArrayPush(pReq->tables, &table) == NULL) {
+        TAOS_CHECK_EXIT(terrno);
+      }
+
+      pReq->action = TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL;
+      break;
+    }
     case TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL: {
       int32_t nTables;
       TAOS_CHECK_EXIT(tDecodeI32v(pDecoder, &nTables));
