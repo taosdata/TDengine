@@ -13,6 +13,19 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
+def _send_ctrl_break_event(pid):
+    """通过独立子进程发送 CTRL_BREAK_EVENT，避免信号泄漏到当前 Python 进程"""
+    # 在独立 console 中执行，这样 CTRL_BREAK_EVENT 不会影响当前进程
+    script = f"import os, signal; os.kill({pid}, signal.CTRL_BREAK_EVENT)"
+    p = subprocess.Popen(
+        ["python", "-c", script],
+        creationflags=subprocess.CREATE_NEW_CONSOLE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE
+    )
+    p.wait(timeout=5)
+
+
 def start_taosd_windows(taosd_path, config_dir, log=None):
     """Windows 平台启动 taosd，使用 CREATE_NEW_PROCESS_GROUP 以支持优雅停止"""
     _log = log or logger
@@ -50,7 +63,7 @@ def stop_taosd_windows(dnode_index=None, config_dir=None, timeout=30, log=None):
             return False
 
         _log.info(f"Sending CTRL_BREAK_EVENT to taosd process (PID: {pid})")
-        os.kill(pid, signal.CTRL_BREAK_EVENT)
+        _send_ctrl_break_event(pid)
 
         waited = 0
         interval = 0.5
