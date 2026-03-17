@@ -240,7 +240,7 @@ QUERY_PLAN: -> Sort input_order=unknown output_order=asc  (columns=1 width=8)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=1 width=8
 *************************** 3.row ***************************
-QUERY_PLAN:    -> Aggregate (functions=1 width=8 input_order=unknown )
+QUERY_PLAN:    -> Aggregate (functions=1 width=8 input_order=unknown)
 *************************** 4.row ***************************
 QUERY_PLAN:          Output: columns=1 width=8 blocking=1
 *************************** 5.row ***************************
@@ -316,7 +316,7 @@ QUERY_PLAN: -> Sort input_order=unknown output_order=desc  (columns=1 width=8)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=1 width=8
 *************************** 3.row ***************************
-QUERY_PLAN:    -> Aggregate (functions=1 width=8 input_order=unknown )
+QUERY_PLAN:    -> Aggregate (functions=1 width=8 input_order=unknown)
 *************************** 4.row ***************************
 QUERY_PLAN:          Output: columns=1 width=8 blocking=1
 *************************** 5.row ***************************
@@ -392,7 +392,7 @@ QUERY_PLAN: -> Sort input_order=unknown output_order=asc  (columns=1 width=8)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=1 width=8
 *************************** 3.row ***************************
-QUERY_PLAN:    -> Aggregate (functions=1 width=8 input_order=asc )
+QUERY_PLAN:    -> Aggregate (functions=1 width=8 input_order=asc)
 *************************** 4.row ***************************
 QUERY_PLAN:          Output: columns=1 width=8 blocking=1
 *************************** 5.row ***************************
@@ -468,7 +468,7 @@ QUERY_PLAN: -> Sort input_order=unknown output_order=asc  (columns=1 width=8)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=1 width=8
 *************************** 3.row ***************************
-QUERY_PLAN:    -> Aggregate (functions=1 width=8 input_order=desc )
+QUERY_PLAN:    -> Aggregate (functions=1 width=8 input_order=desc)
 *************************** 4.row ***************************
 QUERY_PLAN:          Output: columns=1 width=8 blocking=1
 *************************** 5.row ***************************
@@ -544,7 +544,7 @@ QUERY_PLAN: -> Sort input_order=unknown output_order=desc  (columns=1 width=8)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=1 width=8
 *************************** 3.row ***************************
-QUERY_PLAN:    -> Aggregate (functions=1 width=8 input_order=asc )
+QUERY_PLAN:    -> Aggregate (functions=1 width=8 input_order=asc)
 *************************** 4.row ***************************
 QUERY_PLAN:          Output: columns=1 width=8 blocking=1
 *************************** 5.row ***************************
@@ -620,7 +620,7 @@ QUERY_PLAN: -> Sort input_order=unknown output_order=desc  (columns=1 width=8)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=1 width=8
 *************************** 3.row ***************************
-QUERY_PLAN:    -> Aggregate (functions=1 width=8 input_order=desc )
+QUERY_PLAN:    -> Aggregate (functions=1 width=8 input_order=desc)
 *************************** 4.row ***************************
 QUERY_PLAN:          Output: columns=1 width=8 blocking=1
 *************************** 5.row ***************************
@@ -696,7 +696,7 @@ QUERY_PLAN: -> Sort input_order=unknown output_order=asc  (columns=1 width=8)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=1 width=8
 *************************** 3.row ***************************
-QUERY_PLAN:    -> Aggregate (functions=1 width=8 input_order=asc )
+QUERY_PLAN:    -> Aggregate (functions=1 width=8 input_order=asc)
 *************************** 4.row ***************************
 QUERY_PLAN:          Output: columns=1 width=8 blocking=1
 *************************** 5.row ***************************
@@ -772,7 +772,7 @@ QUERY_PLAN: -> Sort input_order=unknown output_order=asc  (columns=1 width=8)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=1 width=8
 *************************** 3.row ***************************
-QUERY_PLAN:    -> Aggregate (functions=1 width=8 input_order=desc )
+QUERY_PLAN:    -> Aggregate (functions=1 width=8 input_order=desc)
 *************************** 4.row ***************************
 QUERY_PLAN:          Output: columns=1 width=8 blocking=1
 *************************** 5.row ***************************
@@ -848,7 +848,7 @@ QUERY_PLAN: -> Sort input_order=unknown output_order=desc  (columns=1 width=8)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=1 width=8
 *************************** 3.row ***************************
-QUERY_PLAN:    -> Aggregate (functions=1 width=8 input_order=asc )
+QUERY_PLAN:    -> Aggregate (functions=1 width=8 input_order=asc)
 *************************** 4.row ***************************
 QUERY_PLAN:          Output: columns=1 width=8 blocking=1
 *************************** 5.row ***************************
@@ -924,7 +924,7 @@ QUERY_PLAN: -> Sort input_order=unknown output_order=desc  (columns=1 width=8)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=1 width=8
 *************************** 3.row ***************************
-QUERY_PLAN:    -> Aggregate (functions=1 width=8 input_order=desc )
+QUERY_PLAN:    -> Aggregate (functions=1 width=8 input_order=desc)
 *************************** 4.row ***************************
 QUERY_PLAN:          Output: columns=1 width=8 blocking=1
 *************************** 5.row ***************************
@@ -1000,7 +1000,7 @@ QUERY_PLAN: -> Sort input_order=unknown output_order=asc  (columns=1 width=8)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=1 width=8
 *************************** 3.row ***************************
-QUERY_PLAN:    -> GroupAggregate (functions=1 width=16 groups=1 input_order=asc )
+QUERY_PLAN:    -> GroupAggregate (functions=1 width=16 groups=1 input_order=asc)
 *************************** 4.row ***************************
 QUERY_PLAN:          Output: columns=1 width=8 blocking=1
 *************************** 5.row ***************************
@@ -1076,7 +1076,7 @@ QUERY_PLAN: -> Sort input_order=unknown output_order=asc  (columns=1 width=8)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=1 width=8
 *************************** 3.row ***************************
-QUERY_PLAN:    -> GroupAggregate (functions=1 width=16 groups=1 input_order=desc )
+QUERY_PLAN:    -> GroupAggregate (functions=1 width=16 groups=1 input_order=desc)
 *************************** 4.row ***************************
 QUERY_PLAN:          Output: columns=1 width=8 blocking=1
 *************************** 5.row ***************************
@@ -1152,7 +1152,7 @@ QUERY_PLAN: -> Sort input_order=unknown output_order=desc  (columns=1 width=8)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=1 width=8
 *************************** 3.row ***************************
-QUERY_PLAN:    -> GroupAggregate (functions=1 width=16 groups=1 input_order=asc )
+QUERY_PLAN:    -> GroupAggregate (functions=1 width=16 groups=1 input_order=asc)
 *************************** 4.row ***************************
 QUERY_PLAN:          Output: columns=1 width=8 blocking=1
 *************************** 5.row ***************************
@@ -1228,7 +1228,7 @@ QUERY_PLAN: -> Sort input_order=unknown output_order=desc  (columns=1 width=8)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=1 width=8
 *************************** 3.row ***************************
-QUERY_PLAN:    -> GroupAggregate (functions=1 width=16 groups=1 input_order=desc )
+QUERY_PLAN:    -> GroupAggregate (functions=1 width=16 groups=1 input_order=desc)
 *************************** 4.row ***************************
 QUERY_PLAN:          Output: columns=1 width=8 blocking=1
 *************************** 5.row ***************************

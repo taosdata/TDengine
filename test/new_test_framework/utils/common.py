@@ -3054,11 +3054,29 @@ class TDCom:
                 os.system(
                     f"taos -c {cfgPath} -f {inputfile} "
                     "| grep -v 'Query OK'|grep -v 'Copyright'| grep -v 'Welcome to the TDengine TSDB Command' "
+                    "| grep -v 'Exec cost:' " 
                     "| sed -E 's/[[:space:]]*\\([0-9]+\\.[0-9]+s\\)/ /g' "
+                    # cost=0.000..1.111
                     "| sed -E 's/cost=[0-9]+\\.[0-9]+\\.\\.[0-9]+\\.[0-9]+//g' "
+                    # cost=0.000(0.000)..1.111(1.111)
+                    "| sed -E 's/cost=[0-9]+\\.[0-9]+\\([0-9]+\\.[0-9]+\\)\\.\\.[0-9]+\\.[0-9]+\\([0-9]+\\.[0-9]+\\)//g' "
+                    "| sed -E 's/file_load_elapsed=[0-9]+\\.[0-9]+\\([0-9]+\\.[0-9]+\\)//g' "
+                    "| sed -E 's/file_load_elapsed=[0-9]+\\.[0-9]+//g' "
+                    "| sed -E 's/stt_load_elapsed=[0-9]+\\.[0-9]+\\([0-9]+\\.[0-9]+\\)//g' "
+                    "| sed -E 's/stt_load_elapsed=[0-9]+\\.[0-9]+//g' "
+                    "| sed -E 's/mem_load_elapsed=[0-9]+\\.[0-9]+\\([0-9]+\\.[0-9]+\\)//g' "
+                    "| sed -E 's/mem_load_elapsed=[0-9]+\\.[0-9]+//g' "
+                    "| sed -E 's/sma_load_elapsed=[0-9]+\\.[0-9]+\\([0-9]+\\.[0-9]+\\)//g' "
+                    "| sed -E 's/sma_load_elapsed=[0-9]+\\.[0-9]+//g' "
+                    "| sed -E 's/composed_elapsed=[0-9]+\\.[0-9]+\\([0-9]+\\.[0-9]+\\)//g' "
+                    "| sed -E 's/composed_elapsed=[0-9]+\\.[0-9]+//g' "
+                    "| sed -E 's/slowest_vgroup_id=[0-9]+//g' "
+                    "| sed -E 's/fetch_cost=[0-9]+\\.[0-9]+\\([0-9]+\\.[0-9]+\\)//g' "
+                    "| sed -E 's/slow_deviation=[0-9]+%//g' "
+                    "| sed -E 's/cost_ratio=[0-9]+\\.[0-9]+//g' "
+                    "| sed -E 's/data_deviation=-?[0-9]+%//g' "
                     "| sed -E 's/Planning Time: [0-9]+\\.[0-9]+ ms//g' "
                     "| sed -E 's/Execution Time: [0-9]+\\.[0-9]+ ms//g' "
-                    "| sed -E 's/max_row_task=[0-9]+, //g' "
                     f"> {self.query_result_file}"
                 )
             return self.query_result_file
