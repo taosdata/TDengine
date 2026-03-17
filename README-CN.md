@@ -1,14 +1,18 @@
 <p align="center">
   <a href="https://www.taosdata.com" target="_blank">
   <img
-    src="docs/assets/tdengine.svg"
+    src="tdengine.svg"
     alt="TDengine"
     width="500"
   />
   </a>
 </p>
 
+<div align="center">
+
 简体中文 | [English](README.md) | [TDengine 云服务](https://cloud.taosdata.com/?utm_medium=cn&utm_source=github) | 很多职位正在热招中，请看 [这里](https://www.taosdata.com/careers/)
+
+</div>
 
 # 目录
 
@@ -65,7 +69,7 @@ TDengine 是一款开源、高性能、云原生、AI 驱动的时序数据库 (
 关于完整的使用手册，系统架构和更多细节，请参考 [TDengine](https://www.taosdata.com/) 或者 [TDengine 官方文档](https://docs.taosdata.com)。
 
 用户可根据需求选择通过 [容器](https://docs.taosdata.com/get-started/docker/)、[安装包](https://docs.taosdata.com/get-started/package/)、[Kubernetes](https://docs.taosdata.com/deployment/k8s/) 来安装或直接使用无需安装部署的 [云服务](https://cloud.taosdata.com/)。本快速指南是面向想自己编译、打包、测试的开发者的。
-  
+
 如果想编译或测试 TDengine 连接器，请访问以下仓库：[JDBC 连接器](https://github.com/taosdata/taos-connector-jdbc)、[Go 连接器](https://github.com/taosdata/driver-go)、[Python 连接器](https://github.com/taosdata/taos-connector-python)、[Node.js 连接器](https://github.com/taosdata/taos-connector-node)、[C#连接器](https://github.com/taosdata/taos-connector-dotnet)、[Rust 连接器](https://github.com/taosdata/taos-connector-rust)。
 
 # 3. 前置条件

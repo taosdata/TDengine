@@ -31,6 +31,7 @@
 
 English | [简体中文](README-CN.md) | [TDengine Cloud](https://cloud.tdengine.com) | [Learn more about TSDB](https://tdengine.com/time-series-database/)
 
+<br />
 </div>
 
 # Table of Contents
