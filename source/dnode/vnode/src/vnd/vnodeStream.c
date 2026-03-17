@@ -824,31 +824,6 @@ end:
   return code;
 }
 
-static SArray* getTableListForAlterChildTable(SStreamTriggerReaderInfo* sStreamReaderInfo, SVAlterTbReq* pReq, uint64_t suid){
-  int32_t code = 0;
-  int32_t lino = 0;
-  SNode*  pWhere = NULL;
-  SArray* uidList = NULL;
-  void* pTask = sStreamReaderInfo->pTask;
-
-  if (pReq->whereLen > 0) {
-    STREAM_CHECK_RET_GOTO(nodesMsgToNode(pReq->where, pReq->whereLen, &pWhere));
-  }
-
-  uidList = taosArrayInit(8, sizeof(tb_uid_t));
-  STREAM_CHECK_NULL_GOTO(uidList, terrno);
-  STREAM_CHECK_RET_GOTO(metaGetChildUidsByWhere(((SVnode*)sStreamReaderInfo->pVnode)->pMeta, suid, pWhere, uidList));
-
-end:
-  if (code != 0) {
-    ST_TASK_ELOG("%s failed,code:%d", __func__, code);
-    taosArrayDestroy(uidList);
-    uidList = NULL;
-  }
-  nodesDestroyNode(pWhere);
-  return uidList;
-}
-
 static SArray* getTableListForAlterSuperTable(SStreamTriggerReaderInfo* sStreamReaderInfo, SVAlterTbReq* pReq){
   int32_t code = 0;
   int32_t lino = 0;
@@ -959,8 +934,9 @@ static int32_t scanAlterTableNew(SStreamTriggerReaderInfo* sStreamReaderInfo, SS
       code = 0;
       goto end;
     }
-    uidList = getTableListForAlterChildTable(sStreamReaderInfo, &req, uid);
+    uidList = taosArrayInit(8, sizeof(uint64_t));
     STREAM_CHECK_NULL_GOTO(uidList, terrno);
+    STREAM_CHECK_RET_GOTO(vnodeGetCtbIdList(sStreamReaderInfo->pVnode, uid, uidList));
     STREAM_CHECK_RET_GOTO(scanAlterTableTagVal(sStreamReaderInfo, rsp, uidList, ver));
   }
 

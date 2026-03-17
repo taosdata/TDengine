@@ -38,9 +38,9 @@ class TestStreamSchema:
         # 创建一个 stream
         self.createOneStream()
         self.insertCheckData1()
-        # self.insertCheckData2()
-        # self.insertCheckData3()
-        # self.insertCheckData4()
+        self.insertCheckData2()
+        self.insertCheckData3()
+        self.insertCheckData4()
 
     def prepareData(self):
         tdLog.info(f"prepare data")
