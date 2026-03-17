@@ -467,15 +467,15 @@ async fn main() -> anyhow::Result<()> {
             .route("/api/x/ds/in/sample", web::post().to(get_sample))
             // websockets
             .route(
-                "/api/x/activities/tasks/{token}",
+                "/api/x/activities/tasks",
                 web::get().to(get_ws_tasks_activities),
             )
             .route(
-                "/api/x/activities/agents/{token}",
+                "/api/x/activities/agents",
                 web::get().to(get_ws_agents_activities),
             )
             .route(
-                "/api/x/metrics/task/{task_id}/{token}",
+                "/api/x/metrics/task/{task_id}",
                 web::get().to(get_ws_metrics),
             )
             // Transform APIs

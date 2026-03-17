@@ -152,8 +152,7 @@ import { getTimeParser } from '../../model/util';
 import { ElMessage, FormInstance } from 'element-plus';
 import { getDataInProps } from '../../model/useDataIn';
 import { t } from 'locales';
-import { base64Utils } from 'utils';
-import { instance } from 'config';
+import { useMetricsSubscription } from '../../model/useWebSocket';
 
 const METRIC_IN_ORDER = [
   'start_time',
@@ -204,7 +203,8 @@ const loading = ref<boolean>(true);
 const requesting = ref<boolean>(false);
 const requesting_q = ref<boolean>(false);
 const update_time = ref<string>('');
-const socket = ref<Recordable>();
+const wsUrl = computed(() => dataInProps.metrics.webSocketUrl + props.taskId);
+const wsConnection = ref<ReturnType<typeof useMetricsSubscription> | null>(null);
 const formInline = reactive({
   table: '',
   timeRange: ''
@@ -297,23 +297,22 @@ function connect() {
   disconnect();
   loading.value = false;
   activeName.value = 'current';
-  const user = instance.user;
-  const pass = instance.password;
-  const token = base64Utils.encode(user + ':' + pass);
-  socket.value = new WebSocket(dataInProps.metrics.webSocketUrl + props.taskId + '/' + token);
 
-  if (socket.value) {
-    socket.value.onerror = (err: any) => {
-      console.log('Error', err);
-      metricsArray.value = [];
-    };
-    socket.value.onmessage = (ev: any) => {
-      const data = JSON.parse(ev.data);
+  // Initialize WebSocket connection
+  console.log('Connecting to WebSocket:', wsUrl.value, 'taskId:', props.taskId);
+  wsConnection.value = useMetricsSubscription(wsUrl.value);
 
-      handleMetricsData(data);
-    };
-  }
+  // Watch for WebSocket data
+  watch(
+    () => wsConnection.value?.metricsData,
+    newData => {
+      if (!newData || Object.keys(newData).length === 0) return;
+      handleMetricsData(newData);
+    },
+    { deep: true }
+  );
 }
+
 function handleMetricsData(metricsData: Recordable) {
   const array = Object.keys(metricsData).map(item => ({
     name: item,
@@ -343,13 +342,13 @@ function handleMetricsData(metricsData: Recordable) {
 }
 
 function disconnect() {
-  if (socket.value) {
-    console.log('Disconnecting...');
-    metricsArray.value = [];
-    socket.value.close();
-    socket.value = undefined;
-    loading.value = false;
+  console.log('Disconnecting...');
+  metricsArray.value = [];
+  if (wsConnection.value) {
+    wsConnection.value.close(wsUrl.value);
+    wsConnection.value = null;
   }
+  loading.value = false;
 }
 
 async function handleRefresh() {

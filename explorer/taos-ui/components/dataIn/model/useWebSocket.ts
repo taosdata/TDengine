@@ -110,3 +110,45 @@ export function useActivitySubscription(url: string, message?: Recordable[]) {
     close: wsManager.close
   };
 }
+
+export function useMetricsSubscription(url: string) {
+  // WebSocket 状态和消息
+  const wsManager = WebSocketManager.getInstance();
+  const { data, status } = wsManager.connect(url, {
+    heartbeat: {
+      message: 'ping',
+      interval: 2000,
+      pongTimeout: 2000
+    }
+  });
+
+  const error = ref<string | null>(null);
+  const metricsData = ref<Recordable>({});
+
+  // 监听接收到的消息
+  watch(
+    data,
+    newMessages => {
+      if (!newMessages) return;
+      try {
+        const parsed = JSON.parse(newMessages as string);
+        metricsData.value = parsed;
+      } catch (err) {
+        console.error('Failed to parse metrics data:', err);
+        error.value = err instanceof Error ? err.message : 'Parse error';
+      }
+    },
+    {
+      deep: true,
+      immediate: true
+    }
+  );
+
+  // 返回数据和方法
+  return {
+    metricsData,
+    error,
+    status,
+    close: wsManager.close
+  };
+}

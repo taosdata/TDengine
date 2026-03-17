@@ -7,7 +7,6 @@ use actix_web::{
 use actix_ws::{CloseCode, CloseReason, Message, MessageStream, Session};
 use anyhow::Context;
 use arrow_flight::error::FlightError;
-use base64::{Engine, engine::general_purpose};
 use futures::StreamExt;
 use futures_ext::select::{Select3, select3};
 use ha_core::{
@@ -22,12 +21,11 @@ use tokio_util::sync::CancellationToken;
 
 use crate::{
     Args,
-    oauth::middleware::{AuthType, TsdbCredential},
     sql::query,
     x_api::{
         FlightResult, Result, get_client,
         tasks::get_all_task_job_metrics,
-        types::{ActivityLog, TaskWsId, Xnode},
+        types::{ActivityLog, Xnode},
     },
 };
 
@@ -37,11 +35,10 @@ const CLIENT_TIMEOUT: Duration = Duration::from_secs(60);
 
 pub async fn get_ws_tasks_activities(
     args: Data<Args>,
-    token: Path<String>,
     req: HttpRequest,
     stream: Payload,
 ) -> Result<HttpResponse> {
-    let dsn = build_dsn_from_ws_token(&args, &token)?;
+    let dsn = super::get_dsn(&args, &req).await?;
 
     let xnodes = get_xnode_ids(&dsn).await?;
 
@@ -80,11 +77,10 @@ pub async fn get_ws_tasks_activities(
 
 pub async fn get_ws_agents_activities(
     args: Data<Args>,
-    token: Path<String>,
     req: HttpRequest,
     stream: Payload,
 ) -> Result<HttpResponse> {
-    let dsn = build_dsn_from_ws_token(&args, &token)?;
+    let dsn = super::get_dsn(&args, &req).await?;
 
     let xnodes = get_xnode_ids(&dsn).await?;
 
@@ -122,23 +118,25 @@ pub async fn get_ws_agents_activities(
 
 pub async fn get_ws_metrics(
     args: Data<Args>,
-    ws_id: Path<TaskWsId>,
+    task_id: Path<i64>,
     req: HttpRequest,
     stream: Payload,
 ) -> Result<HttpResponse> {
-    let task_id = ws_id.task_id;
-    let dsn = build_dsn_from_ws_token(&args, &ws_id.token)?;
+    let task_id = *task_id;
+    let dsn = super::get_dsn(&args, &req).await?;
 
     let xnodes = get_xnode_ids(&dsn).await?;
 
-    let (resp, session, msg_stream) =
+    let (resp, mut session, msg_stream) =
         actix_ws::handle(&req, stream).map_err(|e| anyhow::anyhow!("handle ws error: {e}"))?;
 
-    handle_ws(&dsn, &xnodes, session, msg_stream, {
-        let dsn = dsn.clone();
-        move |event| process_metrics_batch(event, task_id, dsn.clone())
-    })
-    .await?;
+    // Send initial metrics data
+    let initial_metrics = get_all_task_job_metrics(dsn.clone(), task_id).await?;
+    if session.text(initial_metrics).await.is_err() {
+        return Ok(resp);
+    }
+
+    handle_ws_metrics(&dsn, &xnodes, session, msg_stream, task_id).await?;
 
     Ok(resp)
 }
@@ -184,56 +182,73 @@ async fn process_agents_activities_batch(event: FlightResult) -> anyhow::Result<
     Ok(Some(record.context.to_string()))
 }
 
-async fn process_metrics_batch(
-    event: FlightResult,
-    task_id: i64,
-    dsn: Dsn,
-) -> anyhow::Result<Option<String>> {
-    let batch = event.context("Failed to receive metrics")?;
-    let mut iter = BatchIter::new(&batch).context("Failed to iterate over metrics batch")?;
-
-    let Some(record) = iter.next() else {
-        return Ok(None);
+fn is_target_task_metrics(event: &FlightResult, task_id: i64) -> bool {
+    let Ok(batch) = event.as_ref() else {
+        return false;
     };
-
+    let Ok(mut iter) = BatchIter::new(batch) else {
+        return false;
+    };
+    let Some(record) = iter.next() else {
+        return false;
+    };
     if record.action != TASK_METRICS {
-        return Ok(None);
+        return false;
     }
-
-    let metrics =
-        serde_json::from_str::<TaskMetrics>(record.context).context("Failed to parse metrics")?;
-
-    if metrics.task_id != task_id {
-        return Ok(None);
-    }
-
-    Ok(Some(
-        get_all_task_job_metrics(dsn, task_id)
-            .await
-            .context("Failed to get metrics")?,
-    ))
+    serde_json::from_str::<TaskMetrics>(record.context)
+        .map(|m| m.task_id == task_id)
+        .unwrap_or(false)
 }
 
-fn build_dsn_from_ws_token(args: &Args, token: &str) -> Result<Dsn> {
-    let decoded = general_purpose::STANDARD
-        .decode(token)
-        .context("decode websocket token error")?;
-    let user_pass = String::from_utf8(decoded).context("websocket token not valid utf8")?;
-    let mut user_pass = user_pass.split(":").collect::<Vec<_>>();
-    let (Some(password), Some(username)) = (user_pass.pop(), user_pass.pop()) else {
-        return Err(anyhow::anyhow!("username or password not found").into());
-    };
-    if username.is_empty() || password.is_empty() {
-        return Err(anyhow::anyhow!("username or password empty").into());
+/// Listens for metric events; when no event arrives within 2s, falls back to polling.
+async fn send_metrics_message(
+    mut session: Session,
+    event_rx: flume::Receiver<FlightResult>,
+    cancel: CancellationToken,
+    task_id: i64,
+    dsn: Dsn,
+) {
+    tracing::info!("ws send metrics message loop start");
+    let _guard = cancel.drop_guard_ref();
+    let _exit_guard = taosx_core::utils::defer::defer(|| {
+        tracing::info!("ws send metrics message loop exit");
+    });
+
+    loop {
+        let should_send = tokio::select! {
+            result = cancel.run_until_cancelled(event_rx.recv_async()) => {
+                match result {
+                    Some(Ok(event)) => is_target_task_metrics(&event, task_id),
+                    // channel closed or cancelled
+                    _ => break,
+                }
+            }
+            _ = tokio::time::sleep(Duration::from_secs(2)) => {
+                // Timeout with no event, poll actively
+                true
+            }
+        };
+
+        if !should_send {
+            continue;
+        }
+
+        match get_all_task_job_metrics(dsn.clone(), task_id).await {
+            Ok(text) => {
+                if cancel
+                    .run_until_cancelled(session.text(text))
+                    .await
+                    .is_none_or(|r| r.is_err())
+                {
+                    break;
+                }
+            }
+            Err(e) => {
+                tracing::error!("Failed to get metrics: {e:#}");
+            }
+        }
     }
-    let dsn = args
-        .build_dsn(&TsdbCredential {
-            auth_type: AuthType::Basic,
-            username: username.into(),
-            password: password.into(),
-        })
-        .map_err(|e| anyhow::anyhow!("build dns error: {e}"))?;
-    Ok(dsn)
+    session.close(None).await.ok();
 }
 
 async fn handle_ws<F, Fut>(
@@ -259,6 +274,44 @@ where
         )
         .await?;
     }
+
+    tokio::task::spawn_local(heartbeat_ws(session, msg_stream, cancel));
+
+    Ok(())
+}
+
+async fn handle_ws_metrics(
+    dsn: &Dsn,
+    xnode_ids: &[i32],
+    session: Session,
+    msg_stream: MessageStream,
+    task_id: i64,
+) -> Result<()> {
+    let cancel = CancellationToken::new();
+    let (event_tx, event_rx) = flume::bounded(100);
+
+    for xnode_id in xnode_ids {
+        let client = get_client(
+            Some(*xnode_id),
+            dsn,
+            None,
+            Some(event_tx.clone()),
+            cancel.child_token(),
+        )
+        .await?
+        .context("no available xnode found")?;
+        tokio::spawn(ha_client_hb(client, cancel.clone()));
+    }
+    drop(event_tx);
+
+    tokio::spawn({
+        let session = session.clone();
+        let cancel = cancel.clone();
+        let dsn = dsn.clone();
+        async move {
+            send_metrics_message(session, event_rx, cancel, task_id, dsn).await;
+        }
+    });
 
     tokio::task::spawn_local(heartbeat_ws(session, msg_stream, cancel));
 

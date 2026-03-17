@@ -886,11 +886,12 @@ function onTaskTableMouseEnter(d1: any) {
 }
 
 function onTaskTableMouseLeave(d1: any) {
-  if (hoverTimeout[d1.id]) {
-    clearTimeout(hoverTimeout[d1.id]);
-    delete hoverTimeout[d1.id];
+  const id = d1.id.toString();
+  if (hoverTimeout[id]) {
+    clearTimeout(hoverTimeout[id]);
+    delete hoverTimeout[id];
   }
-  hoverTimeout[d1.id] = setTimeout(() => {
+  hoverTimeout[id] = setTimeout(() => {
     d1.hover = false;
   }, 100); // 100ms delay
 }

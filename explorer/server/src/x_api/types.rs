@@ -276,12 +276,6 @@ pub struct ActivityLog {
 }
 
 #[derive(Debug, serde::Deserialize)]
-pub struct TaskWsId {
-    pub task_id: i64,
-    pub token: String,
-}
-
-#[derive(Debug, serde::Deserialize)]
 pub struct JobRecord {
     pub via: Option<i64>,
     pub status: Option<TaskStatus>,
