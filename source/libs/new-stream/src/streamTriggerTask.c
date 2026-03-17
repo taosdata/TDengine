@@ -45,7 +45,7 @@
   (TD_DLIST_NODE_NEXT(pGroup) != NULL || TD_DLIST_TAIL(&pContext->groupsToCheck) == pGroup)
 #define IS_TRIGGER_GROUP_NONE_WINDOW(pGroup) (TRINGBUF_CAPACITY(&(pGroup)->winBuf) == 0)
 #define IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup) (TRINGBUF_SIZE(&(pGroup)->winBuf) > 0)
-#define TRIGGER_GROUP_UNCLOSED_WINDOW_MASK   (1L << 62)
+#define TRIGGER_GROUP_UNCLOSED_WINDOW_MASK   ((int64_t)1 << 62)
 #define container_of(ptr, type, member)      ((type *)((char *)(ptr) - offsetof(type, member)))
 
 static int32_t stRealtimeGroupInit(SSTriggerRealtimeGroup *pGroup, SSTriggerRealtimeContext *pContext, int64_t gid,
