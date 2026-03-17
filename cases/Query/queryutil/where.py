@@ -159,7 +159,7 @@ class TDWhere():
         # t_like_match = column + like  + condition
         t_like = ['t_binary like \'binary%\' and','t_nchar like \'nchar%\' and','(t_binary like \'binary%\'  or t_nchar = \'0\' ) and','(t_nchar like \'nchar%\' or t_binary = \'0\' ) and',]
         t_match = ['t_binary match \'binary\' and','t_binary nmatch \'binarynchar\' and','t_nchar match \'nchar\' and','t_nchar nmatch \'binarynchar\' and',]
-        t_match_regular = ['loc match \'<table>\' and', 'loc match \'<^qwryuiop>\' and','loc nmatch \'<qwryuiop>\' and', 'loc nmatch \'<t>\' and', #[abc] 匹配[...]的所有字符
+        t_match_regular = ['loc match \'<table>\' and', 'loc match \'<^qwryuiop>\' and','loc nmatch \'<qwryuiop>\' and', 'loc nmatch \'<t>\' or', #[abc] 匹配[...]的所有字符
                            't_binary match \'<binary>\' and', 't_binary match \'<^爨龘>\' and','t_binary nmatch \'<爨龘>\' and', #, 't_binary nmatch \'<^z>\' and' [^abc] 取反，除了[...]的其他字符
                            't_nchar match \'<nchar>\' and', 't_nchar match \'<^爨龘>\' and','t_nchar nmatch \'<爨龘>\' and', 't_nchar nmatch \'<b>\' and',
                            'loc match \'<a-z>\' and','t_binary match \'<a-z>\' and','t_nchar match \'<a-z>\' and', #[A-Z] 区间字母A到Z
@@ -171,9 +171,9 @@ class TDWhere():
                            't_binary match \'a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z\' and','t_binary match \'a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z|A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z\' and',
                            't_nchar match \'a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z\' and','t_nchar match \'a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z|A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z\' and',
                            '(loc match \'\\s\' or loc match \'\\S\' ) and','(t_binary match \'\\s\' or t_binary match \'\\S\' ) and','(t_nchar match \'\\s\' or t_nchar match \'\\S\' ) and', # \s \S 匹配所有，\s所有空白符，包括换行 \S非空白符，不包括换行
-                           '(loc nmatch \'\\s\' ) and','(t_binary nmatch \'\\s\') and','(t_nchar nmatch \'\\s\' ) and', 
+                           '(loc nmatch \'\\s\' ) or','(t_binary nmatch \'\\s\') and','(t_nchar nmatch \'\\s\' ) and', 
                            '(loc match \'\\w\' or loc match \'\\W\' ) and','(t_binary match \'\\w\' or t_binary match \'\\W\' ) and','(t_nchar match \'\\w\' or t_nchar match \'\\W\' ) and', # \w 匹配字母数字及下划线  \W 匹配非字母数字及下划线
-                           '(loc match \'\\w\') and','(t_binary match \'\\w\') and','(t_nchar match \'\\w\') and',] # \w 匹配字母数字及下划线  \W 匹配非字母数字及下划线
+                           '(loc match \'\\w\') or','(t_binary match \'\\w\') and','(t_nchar match \'\\w\') and',] # \w 匹配字母数字及下划线  \W 匹配非字母数字及下划线
                            #'(loc match \'\d\' or loc match \'\D\' ) and','(t_binary match \'\d\' or t_binary match \'\D\' ) and','(t_nchar match \'\d\' or t_nchar match \'\D\' ) and',] # \d匹配任意数字，等价于 [0-9]. \D	匹配任意非数字
                             # < > repalce [ ]
                             #我们现在支持的是POSIX标准的正则表达式，POSXI标准里是没有/s/d/w等的支持，同时因为我们用的是GNU的库，GNU又有自己的正则表达式扩展，在它的扩展里支持/s/w，但是不支持/d，所以目前就是这个样子
