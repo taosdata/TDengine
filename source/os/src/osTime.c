@@ -425,26 +425,21 @@ int64_t user_mktime64(const uint32_t year, const uint32_t mon, const uint32_t da
   return _res + time_zone;
 }
 
-// ÉùÃ÷ Windows Ê±ÇøÆ«ÒÆÈ«¾Ö±äÁ¿
-#ifdef WINDOWS
-extern int64_t g_windows_timezone_offset;
-#endif
-
 time_t taosMktime(struct tm *timep, timezone_t tz) {
 #ifdef WINDOWS
-  // Windows: µ÷ÓÃ getWindowsTimezoneOffset »ñÈ¡Ê±ÇøÆ«ÒÆ
+  // Windows: è°ƒç”¨ getWindowsTimezoneOffset è·å–æ—¶åŒºåç§»
   int64_t tzw = getWindowsTimezoneOffset();
 
-  // Ê¹ÓÃ user_mktime64 ¼ÆËãÊ±¼ä´Á
+  // ä½¿ç”¨ user_mktime64 è®¡ç®—æ—¶é—´æˆ³
   time_t result = user_mktime64(timep->tm_year + 1900, timep->tm_mon + 1, timep->tm_mday,
                                  timep->tm_hour, timep->tm_min, timep->tm_sec, tzw);
 
-  // Èç¹û½á¹ûºÏÀí£¬Ö±½Ó·µ»Ø
+  // å¦‚æœç»“æœåˆç†ï¼Œç›´æ¥è¿”å›
   if (result > 0) {
     return result;
   }
 
-  // ·ñÔò»ØÍËµ½ÏµÍ³ mktime
+  // å¦åˆ™å›é€€åˆ°ç³»ç»Ÿ mktime
   return mktime(timep);
 #elif defined(TD_ASTRA)
   time_t r =  mktime(timep);
@@ -508,7 +503,7 @@ struct tm *taosLocalTime(const time_t *timep, struct tm *result, char *buf, int3
     return NULL;
   }
 #ifdef WINDOWS
-  // Windows: Ö±½Óµ÷ÓÃº¯Êı»ñÈ¡Ê±ÇøÆ«ÒÆ£¬±ÜÃâ¿ç DLL µÄÖ¸ÕëÎÊÌâ
+  // Windows: ç›´æ¥è°ƒç”¨å‡½æ•°è·å–æ—¶åŒºåç§»ï¼Œé¿å…è·¨ DLL çš„æŒ‡é’ˆé—®é¢˜
   time_t adjusted_time = *timep;
   int64_t tz_offset = getWindowsTimezoneOffset();
 
