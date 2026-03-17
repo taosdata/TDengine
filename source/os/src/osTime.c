@@ -425,20 +425,27 @@ int64_t user_mktime64(const uint32_t year, const uint32_t mon, const uint32_t da
   return _res + time_zone;
 }
 
+// 声明 Windows 时区偏移全局变量
+#ifdef WINDOWS
+extern int64_t g_windows_timezone_offset;
+#endif
+
 time_t taosMktime(struct tm *timep, timezone_t tz) {
 #ifdef WINDOWS
-  time_t result = mktime(timep);
-  if (result != -1) {
+  // Windows: 调用 getWindowsTimezoneOffset 获取时区偏移
+  int64_t tzw = getWindowsTimezoneOffset();
+
+  // 使用 user_mktime64 计算时间戳
+  time_t result = user_mktime64(timep->tm_year + 1900, timep->tm_mon + 1, timep->tm_mday,
+                                 timep->tm_hour, timep->tm_min, timep->tm_sec, tzw);
+
+  // 如果结果合理，直接返回
+  if (result > 0) {
     return result;
   }
-  int64_t tzw = 0;
-#ifdef _MSC_VER
-#if _MSC_VER >= 1900
-  tzw = _timezone;
-#endif
-#endif
-  return user_mktime64(timep->tm_year + 1900, timep->tm_mon + 1, timep->tm_mday, timep->tm_hour, timep->tm_min,
-                       timep->tm_sec, tzw);
+
+  // 否则回退到系统 mktime
+  return mktime(timep);
 #elif defined(TD_ASTRA)
   time_t r =  mktime(timep);
   if (r == (time_t)-1) {
@@ -503,19 +510,27 @@ struct tm *taosLocalTime(const time_t *timep, struct tm *result, char *buf, int3
     return NULL;
   }
 #ifdef WINDOWS
-  if (*timep < -2208988800LL) {
+  // Windows: 直接调用函数获取时区偏移，避免跨 DLL 的指针问题
+  time_t adjusted_time = *timep;
+  int64_t tz_offset = getWindowsTimezoneOffset();
+
+  if (tz_offset != 0) {
+    adjusted_time = *timep + (-tz_offset);
+  }
+
+  if (adjusted_time < -2208988800LL) {
     if (buf != NULL) {
       snprintf(buf, bufSize, "NaN");
     }
     return NULL;
-  } else if (*timep < 0) {
+  } else if (adjusted_time < 0) {
     SYSTEMTIME ss, s;
     FILETIME   ff, f;
 
     LARGE_INTEGER offset;
     struct tm     tm1;
     time_t        tt = 0;
-    if (localtime_s(&tm1, &tt) != 0) {
+    if (gmtime_s(&tm1, &tt) != 0) {
       if (buf != NULL) {
         snprintf(buf, bufSize, "NaN");
       }
@@ -532,7 +547,7 @@ struct tm *taosLocalTime(const time_t *timep, struct tm *result, char *buf, int3
     offset.QuadPart = ff.dwHighDateTime;
     offset.QuadPart <<= 32;
     offset.QuadPart |= ff.dwLowDateTime;
-    offset.QuadPart += *timep * 10000000;
+    offset.QuadPart += adjusted_time * 10000000;
     f.dwLowDateTime = offset.QuadPart & 0xffffffff;
     f.dwHighDateTime = (offset.QuadPart >> 32) & 0xffffffff;
     FileTimeToSystemTime(&f, &s);
@@ -546,7 +561,7 @@ struct tm *taosLocalTime(const time_t *timep, struct tm *result, char *buf, int3
     result->tm_yday = calcDayOfYear(s.wYear, s.wMonth, s.wDay);
     result->tm_isdst = 0;
   } else {
-    if (localtime_s(result, timep) != 0) {
+    if (gmtime_s(result, &adjusted_time) != 0) {
       if (buf != NULL) {
         snprintf(buf, bufSize, "NaN");
       }

@@ -2178,7 +2178,7 @@ static int32_t extWinOpen(SOperatorInfo* pOperator) {
     pExtW->blkWinStartSet = false;
     pExtW->blkRowStartIdx = 0;
 
-    SSDataBlock* pBlock = getNextBlockFromDownstream(pOperator, 0);
+    SSDataBlock* pBlock = getNextBlockFromDownstreamRemainDetach(pOperator, 0);
     if (pBlock == NULL) {
       if (EEXT_MODE_AGG == pExtW->mode) {
         TAOS_CHECK_EXIT(extWinAggHandleEmptyWins(pOperator, pBlock, true, NULL));
