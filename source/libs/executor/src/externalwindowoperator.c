@@ -3941,7 +3941,12 @@ static int32_t extWinInitNonStreamWindowDataFromBlock(SExternalWindowPhysiNode* 
   pBlocks = pRemote->pResBlks;
 #endif
 
-  bool groupedRemoteResult = hasGroupedRemoteResult(pBlocks);
+  // For non-stream external_window, whether trigger windows should be built as
+  // grouped calc infos must follow the OUTER query partition semantics instead of
+  // raw remote block ids. Remote subquery result blocks may carry non-zero ids
+  // even when the subquery is semantically non-grouped, which would incorrectly
+  // split one logical external window into multiple TGrps.
+  bool groupedRemoteResult = pPhynode->calcWithPartition && hasGroupedRemoteResult(pBlocks);
 
   pRt->isMultiGroupCalc = groupedRemoteResult ? 1 : 0;
   pRt->curGrpCalc = NULL;

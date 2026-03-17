@@ -5,38 +5,26 @@ Database changed.
 taos> select cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w) order by ws, c;
           ws           |           c           |          sv           |
 ========================================================================
-         1700400000000 |                     1 |                    20 |
-         1700400000000 |                     2 |                    21 |
-         1700400300000 |                     2 |                    25 |
-         1700400300000 |                     2 |                    43 |
-         1700400600000 |                     1 |                    23 |
-         1700400600000 |                     1 |                    14 |
-         1700400900000 |                     1 |                    15 |
-         1700400900000 |                     1 |                    24 |
+         1700400000000 |                     3 |                    41 |
+         1700400300000 |                     4 |                    68 |
+         1700400600000 |                     2 |                    37 |
+         1700400900000 |                     2 |                    39 |
 
 taos> select cast(_wstart as bigint) as ws, min(v) as minv, max(v) as maxv, max(v)-min(v) as span from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w) order by ws, maxv;
           ws           |    minv     |    maxv     |           span            |
 ================================================================================
-         1700400000000 |          10 |          11 |                         1 |
-         1700400000000 |          20 |          20 |                         0 |
-         1700400300000 |          12 |          13 |                         1 |
-         1700400300000 |          21 |          22 |                         1 |
-         1700400600000 |          14 |          14 |                         0 |
-         1700400600000 |          23 |          23 |                         0 |
-         1700400900000 |          15 |          15 |                         0 |
-         1700400900000 |          24 |          24 |                         0 |
+         1700400000000 |          10 |          20 |                        10 |
+         1700400300000 |          12 |          22 |                        10 |
+         1700400600000 |          14 |          23 |                         9 |
+         1700400900000 |          15 |          24 |                         9 |
 
 taos> select cast(_wstart as bigint) as ws, avg(v) as avgv, sum(v2) as sv2 from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w) order by ws, sv2;
           ws           |           avgv            |          sv2          |
 ============================================================================
-         1700400000000 |                        20 |                   200 |
-         1700400000000 |                      10.5 |                   201 |
-         1700400300000 |                      12.5 |                   205 |
-         1700400300000 |                      21.5 |                   403 |
-         1700400600000 |                        14 |                   104 |
-         1700400600000 |                        23 |                   203 |
-         1700400900000 |                        15 |                   105 |
-         1700400900000 |                        24 |                   204 |
+         1700400000000 |          13.6666666666667 |                   401 |
+         1700400300000 |                        17 |                   608 |
+         1700400600000 |                      18.5 |                   307 |
+         1700400900000 |                      19.5 |                   309 |
 
 taos> select cast(_wstart as bigint) as ws, w.mark, count(*) as c, sum(v) as sv from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w) order by ws, w.mark;
 
@@ -55,21 +43,16 @@ taos> select cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv from ext
 taos> select cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win where mark >= 102) w) order by ws, sv;
           ws           |           c           |          sv           |
 ========================================================================
-         1700400300000 |                     2 |                    25 |
-         1700400300000 |                     2 |                    43 |
-         1700400600000 |                     1 |                    14 |
-         1700400600000 |                     1 |                    23 |
-         1700400900000 |                     1 |                    15 |
-         1700400900000 |                     1 |                    24 |
+         1700400300000 |                     4 |                    68 |
+         1700400600000 |                     2 |                    37 |
+         1700400900000 |                     2 |                    39 |
 
 taos> select cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv from ext_cx_src where v >= 12 external_window((select ts, endtime, mark from ext_cx_win where mark <= 103) w) order by ws;
           ws           |           c           |          sv           |
 ========================================================================
          1700400000000 |                     1 |                    20 |
-         1700400300000 |                     2 |                    43 |
-         1700400300000 |                     2 |                    25 |
-         1700400600000 |                     1 |                    14 |
-         1700400600000 |                     1 |                    23 |
+         1700400300000 |                     4 |                    68 |
+         1700400600000 |                     2 |                    37 |
 
 taos> select t1, cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv from ext_cx_src partition by t1 external_window((select ts, endtime, mark from ext_cx_win) w) order by t1, ws;
      t1      |          ws           |           c           |          sv           |
@@ -104,14 +87,10 @@ DB error: External window subquery must return time-ordered rows [0x80000120]
 taos> select cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w) having count(*) > 1 order by ws, sv;
           ws           |           c           |          sv           |
 ========================================================================
-         1700400000000 |                     1 |                    20 |
-         1700400000000 |                     2 |                    21 |
-         1700400300000 |                     2 |                    25 |
-         1700400300000 |                     2 |                    43 |
-         1700400600000 |                     1 |                    14 |
-         1700400600000 |                     1 |                    23 |
-         1700400900000 |                     1 |                    15 |
-         1700400900000 |                     1 |                    24 |
+         1700400000000 |                     3 |                    41 |
+         1700400300000 |                     4 |                    68 |
+         1700400600000 |                     2 |                    37 |
+         1700400900000 |                     2 |                    39 |
 
 taos> select t1, cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv from ext_cx_src partition by t1 external_window((select ts, endtime, mark from ext_cx_win) w) having sum(v) > 20 order by t1, ws;
      t1      |          ws           |           c           |          sv           |

@@ -378,6 +378,15 @@ static bool stbSplNeedSplit(SFindSplitNodeCtx* pCtx, SLogicNode* pNode) {
     case QUERY_NODE_LOGIC_PLAN_WINDOW:
       return stbSplNeedSplitWindow(pNode);
     case QUERY_NODE_LOGIC_PLAN_SORT:
+      if (1 == LIST_LENGTH(pNode->pChildren)) {
+        SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pNode->pChildren, 0);
+        if (QUERY_NODE_LOGIC_PLAN_WINDOW == nodeType(pChild) &&
+            WINDOW_TYPE_EXTERNAL == ((SWindowLogicNode*)pChild)->winType &&
+            !((SWindowLogicNode*)pChild)->calcWithPartition &&
+            stbSplNeedSplitWindow(pChild)) {
+          return false;
+        }
+      }
       return stbSplHasMultiTbScan(pNode);
 
     default:
@@ -617,10 +626,13 @@ static int32_t stbSplCreatePartWindowNode(SSplitContext* pCxt, SWindowLogicNode*
   }
   if (pMergeWindow->winType == WINDOW_TYPE_EXTERNAL) {
     /**
-      For external window query, we need the _wstart placeholder for the merged INTERVAL window to do aggregation. 
-      It's always equal zero.
+      For external window query, we still need an explicit _wstart placeholder
+      on the partial window output so merged external-window aggregation can
+      bind pTspk to window-start, instead of accidentally using the first
+      aggregate output column (e.g. count/sum).
     */
-    index = 0;
+    PLAN_ERR_JRET(stbSplAppendWStart(&pPartWin->pFuncs, &index,
+                                     pMergeTspk->node.resType.precision));
   } else if (!pCxt->pPlanCxt->streamCxt.hasExtWindow) {
     /**
       If the query is not an external window query, we need the _wstart
