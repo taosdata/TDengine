@@ -27,71 +27,167 @@
 // -------------------------------------- RESTORE CHECKPOINT -----------------------------------------
 //
 
+// Hash table for O(1) checkpoint lookup
+typedef struct CkptHashEntry {
+    char *filePath;
+    struct CkptHashEntry *next;
+} CkptHashEntry;
+
+typedef struct {
+    CkptHashEntry **buckets;
+    int capacity;
+    int count;
+} CkptHashTable;
+
 static pthread_mutex_t g_ckptMutex = PTHREAD_MUTEX_INITIALIZER;
 static char  g_ckptPath[MAX_PATH_LEN] = "";
-static char **g_ckptDone = NULL;   // loaded completed file paths
-static int   g_ckptCount = 0;
+static CkptHashTable g_ckptHash = {0};
+static TdFilePtr g_ckptFp = NULL;  // keep checkpoint file open
 static bool  g_allowWriteCP = true;  // false when output dir is read-only
+
+// Thread-local checkpoint buffer
+typedef struct {
+    char buf[16384];  // 16KB buffer
+    int used;
+} CkptBuffer;
+
+static __thread CkptBuffer t_ckptBuf = {0};
+
+static uint32_t hashString(const char *str) {
+    uint32_t hash = 5381;
+    int c;
+    while ((c = *str++)) {
+        hash = ((hash << 5) + hash) + c;
+    }
+    return hash;
+}
+
+static int nextPowerOf2(int n) {
+    if (n <= 0) return 1;
+    n--;
+    n |= n >> 1;
+    n |= n >> 2;
+    n |= n >> 4;
+    n |= n >> 8;
+    n |= n >> 16;
+    return n + 1;
+}
+
+static void initCkptHashTable(int estimatedFiles) {
+    int capacity = nextPowerOf2(estimatedFiles * 2);
+    if (capacity < 256) capacity = 256;
+
+    g_ckptHash.buckets = (CkptHashEntry **)taosMemoryCalloc(capacity, sizeof(CkptHashEntry *));
+    g_ckptHash.capacity = capacity;
+    g_ckptHash.count = 0;
+}
+
+static void insertCkptHash(const char *filePath) {
+    if (!g_ckptHash.buckets) return;
+
+    uint32_t hash = hashString(filePath);
+    int idx = hash & (g_ckptHash.capacity - 1);
+
+    CkptHashEntry *entry = (CkptHashEntry *)taosMemoryMalloc(sizeof(CkptHashEntry));
+    entry->filePath = taosStrdup(filePath);
+    entry->next = g_ckptHash.buckets[idx];
+    g_ckptHash.buckets[idx] = entry;
+    g_ckptHash.count++;
+}
+
+static bool lookupCkptHash(const char *filePath) {
+    if (!g_ckptHash.buckets) return false;
+
+    uint32_t hash = hashString(filePath);
+    int idx = hash & (g_ckptHash.capacity - 1);
+
+    for (CkptHashEntry *e = g_ckptHash.buckets[idx]; e; e = e->next) {
+        if (strcmp(e->filePath, filePath) == 0) return true;
+    }
+    return false;
+}
+
+static void freeCkptHashTable() {
+    if (!g_ckptHash.buckets) return;
+
+    for (int i = 0; i < g_ckptHash.capacity; i++) {
+        CkptHashEntry *e = g_ckptHash.buckets[i];
+        while (e) {
+            CkptHashEntry *next = e->next;
+            taosMemoryFree(e->filePath);
+            taosMemoryFree(e);
+            e = next;
+        }
+    }
+    taosMemoryFree(g_ckptHash.buckets);
+    g_ckptHash.buckets = NULL;
+    g_ckptHash.capacity = 0;
+    g_ckptHash.count = 0;
+}
 
 static void loadRestoreCheckpoint(const char *dbName) {
     snprintf(g_ckptPath, sizeof(g_ckptPath), "%s/%s/restore_checkpoint.txt", argOutPath(), dbName);
     g_allowWriteCP = true;
 
     // free previous
-    if (g_ckptDone) {
-        for (int i = 0; i < g_ckptCount; i++) taosMemoryFree(g_ckptDone[i]);
-        taosMemoryFree(g_ckptDone);
-        g_ckptDone = NULL;
-        g_ckptCount = 0;
+    freeCkptHashTable();
+    if (g_ckptFp) {
+        taosCloseFile(&g_ckptFp);
+        g_ckptFp = NULL;
     }
 
-    // Probe write access first. If the output directory is read-only we cannot
-    // save progress — disable checkpoint entirely and treat as a fresh start.
-    {
-        TdFilePtr wfp = taosOpenFile(g_ckptPath, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_APPEND);
-        if (wfp) {
-            taosCloseFile(&wfp);
-            // file was created/opened successfully; it may now be empty (0 bytes) which
-            // is fine — the read below will just find no entries.
-        } else {
-            logInfo("restore checkpoint disabled: cannot write to %s (read-only directory), restoring without checkpoint", g_ckptPath);
-            g_allowWriteCP = false;
-            return;  // skip loading — no checkpoint entries, start fresh
-        }
+    // Open checkpoint file for append (keep it open for the entire restore)
+    g_ckptFp = taosOpenFile(g_ckptPath, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_APPEND);
+    if (!g_ckptFp) {
+        logInfo("restore checkpoint disabled: cannot write to %s (read-only directory), restoring without checkpoint", g_ckptPath);
+        g_allowWriteCP = false;
+        return;
     }
 
     // Without -C the caller never calls isRestoreDone(), so there is no need
-    // to load previous entries into memory.  The write-access probe above is
-    // still required so that saveRestoreCheckpoint() works for the current run.
+    // to load previous entries into memory.
     if (!argCheckpoint()) return;
 
-    // read entire checkpoint file
-    TdFilePtr fp = taosOpenFile(g_ckptPath, TD_FILE_READ);
-    if (!fp) return;
+    // Read existing checkpoint file to populate hash table
+    TdFilePtr rfp = taosOpenFile(g_ckptPath, TD_FILE_READ);
+    if (!rfp) {
+        // File doesn't exist yet or can't be read - start fresh
+        initCkptHashTable(1024);
+        return;
+    }
 
     int64_t fileSize = 0;
-    if (taosFStatFile(fp, &fileSize, NULL) != 0 || fileSize <= 0) {
-        taosCloseFile(&fp);
+    if (taosFStatFile(rfp, &fileSize, NULL) != 0 || fileSize <= 0) {
+        taosCloseFile(&rfp);
+        initCkptHashTable(1024);
         return;
     }
 
     char *buf = (char *)taosMemoryMalloc(fileSize + 1);
     if (!buf) {
-        taosCloseFile(&fp);
+        taosCloseFile(&rfp);
+        initCkptHashTable(1024);
         return;
     }
 
-    int64_t readLen = taosReadFile(fp, buf, fileSize);
-    taosCloseFile(&fp);
+    int64_t readLen = taosReadFile(rfp, buf, fileSize);
+    taosCloseFile(&rfp);
     if (readLen <= 0) {
         taosMemoryFree(buf);
+        initCkptHashTable(1024);
         return;
     }
     buf[readLen] = '\0';
 
-    // parse lines
-    int capacity = 256;
-    g_ckptDone = (char **)taosMemoryCalloc(capacity, sizeof(char *));
+    // Count lines for hash table sizing
+    int lineCount = 0;
+    for (int64_t i = 0; i < readLen; i++) {
+        if (buf[i] == '\n') lineCount++;
+    }
+
+    initCkptHashTable(lineCount);
+
+    // Parse lines and insert into hash table
     char *line = buf;
     while (*line) {
         char *eol = strchr(line, '\n');
@@ -103,46 +199,70 @@ static void loadRestoreCheckpoint(const char *dbName) {
             len = strlen(line);
         }
         if (len > 0) {
-            if (g_ckptCount >= capacity) {
-                capacity *= 2;
-                g_ckptDone = (char **)taosMemoryRealloc(g_ckptDone, capacity * sizeof(char *));
+            char path[MAX_PATH_LEN];
+            if (len < MAX_PATH_LEN) {
+                memcpy(path, line, len);
+                path[len] = '\0';
+                insertCkptHash(path);
             }
-            g_ckptDone[g_ckptCount++] = tstrndup(line, len);
         }
         if (!eol) break;
         line = eol + 1;
     }
+
     taosMemoryFree(buf);
-    logInfo("loaded restore checkpoint: %d files already done", g_ckptCount);
+    logInfo("loaded restore checkpoint: %d files already done", g_ckptHash.count);
 }
 
 static bool isRestoreDone(const char *filePath) {
-    for (int i = 0; i < g_ckptCount; i++) {
-        if (strcmp(g_ckptDone[i], filePath) == 0) return true;
+    return lookupCkptHash(filePath);
+}
+
+// Flush thread-local checkpoint buffer to file
+static void flushCkptBuffer() {
+    if (t_ckptBuf.used == 0) return;
+    if (!g_allowWriteCP || !g_ckptFp) return;
+
+    pthread_mutex_lock(&g_ckptMutex);
+    if (g_ckptFp) {
+        taosWriteFile(g_ckptFp, t_ckptBuf.buf, t_ckptBuf.used);
+        taosFsyncFile(g_ckptFp);  // ensure data is written
     }
-    return false;
+    pthread_mutex_unlock(&g_ckptMutex);
+
+    t_ckptBuf.used = 0;
 }
 
 static void saveRestoreCheckpoint(const char *filePath) {
     if (!g_allowWriteCP) return;
-    pthread_mutex_lock(&g_ckptMutex);
-    TdFilePtr fp = taosOpenFile(g_ckptPath, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_APPEND);
-    if (fp) {
-        char line[MAX_PATH_LEN + 2];
-        int len = snprintf(line, sizeof(line), "%s\n", filePath);
-        taosWriteFile(fp, line, len);
-        taosCloseFile(&fp);
+
+    char line[MAX_PATH_LEN + 2];
+    int len = snprintf(line, sizeof(line), "%s\n", filePath);
+
+    // If buffer would overflow, flush first
+    if (t_ckptBuf.used + len > sizeof(t_ckptBuf.buf)) {
+        flushCkptBuffer();
     }
-    pthread_mutex_unlock(&g_ckptMutex);
+
+    // Append to thread-local buffer
+    if (t_ckptBuf.used + len <= sizeof(t_ckptBuf.buf)) {
+        memcpy(t_ckptBuf.buf + t_ckptBuf.used, line, len);
+        t_ckptBuf.used += len;
+    }
 }
 
 static void freeRestoreCheckpoint() {
-    if (g_ckptDone) {
-        for (int i = 0; i < g_ckptCount; i++) taosMemoryFree(g_ckptDone[i]);
-        taosMemoryFree(g_ckptDone);
-        g_ckptDone = NULL;
-        g_ckptCount = 0;
+    // Flush any remaining buffered checkpoint data
+    flushCkptBuffer();
+
+    // Close the global checkpoint file
+    if (g_ckptFp) {
+        taosCloseFile(&g_ckptFp);
+        g_ckptFp = NULL;
     }
+
+    // Free hash table
+    freeCkptHashTable();
 }
 
 // Delete the checkpoint file after a fully successful restore so that the
@@ -213,7 +333,34 @@ typedef struct {
 
     StbChange   *stbChange;
     bool         prepared;         // stmt2 has been prepared (once per thread lifetime)
+
+    // Multi-table batch accumulation (native mode only; not used for WebSocket/DSN).
+    // Each PendingTableSlot holds one CTB's column buffers after sealing from ctx.
+    // Flush is triggered when numPending == STMT2_MULTI_TABLE_PENDING or
+    // totalPendingRows >= effective batchCap.
+    bool             multiTable;          // true when batching multiple CTBs
+    struct Stmt2TableSlot *pendingSlots;  // dynamic array [STMT2_MULTI_TABLE_PENDING]
+    int              numPending;          // slots currently filled
+    int64_t          totalPendingRows;    // sum of numRows across all pending slots
 } Stmt2RestoreCtx;
+
+// Maximum number of CTBs (child-table files) accumulated into a single
+// TAOS_STMT2_BINDV call before flushing to the server.
+#define STMT2_MULTI_TABLE_PENDING  64
+
+// One pending slot: holds the accumulated colBinds for a single CTB file
+// that has been sealed (read from disk) but not yet sent to the server.
+// Buffer ownership is transferred from Stmt2RestoreCtx on sealing and
+// returned to the heap after stmt2FlushMultiTableSlots.
+typedef struct Stmt2TableSlot {
+    char              fqn[TSDB_DB_NAME_LEN + TSDB_TABLE_NAME_LEN + 8]; // `db`.`tbl`
+    TAOS_STMT2_BIND  *colBinds;       // per-column arrays (owns all buffer/length/is_null)
+    int               colBindsCap;    // allocated column count in colBinds
+    int               numCols;        // rows' column binding count (<= colBindsCap)
+    int32_t           numRows;        // accumulated rows in this slot
+    int32_t          *varWriteOffsets;// packed byte-write offsets per var-type column
+    int32_t          *varBufCapacity; // byte capacity per var-type column
+} Stmt2TableSlot;
 
 
 //
@@ -232,6 +379,7 @@ typedef struct {
     FieldInfo  *fieldInfos;
     int64_t     totalRows;
     int64_t     batchRows;
+    int64_t     pendingRows;   // cross-file accumulated rows (threshold for multi-table batch flush)
     bool        prepared;
     TAOS_MULTI_BIND *bindArray;
     int              bindArrayCap;
@@ -340,8 +488,9 @@ static bool stmtResetOnError(StmtRestoreCtx *ctx) {
         taos_stmt_close(ctx->stmt);
         ctx->stmt = NULL;
     }
-    ctx->prepared  = false;
-    ctx->batchRows = 0;
+    ctx->prepared    = false;
+    ctx->batchRows   = 0;
+    ctx->pendingRows = 0;
     TAOS_STMT *newStmt = initStmt(ctx->conn, true);
     if (newStmt == NULL) {
         logError("stmtResetOnError: initStmt failed — connection may be broken");
@@ -680,17 +829,21 @@ static int dataBlockCallback(void *userData,
 
     ctx->totalRows += blockRows;
     ctx->batchRows += blockRows;
+    ctx->pendingRows += blockRows;   /* cross-file/cross-table row accumulator */
 
-    // Execute when accumulated enough rows or this is the last opportunity
+    // Execute when cross-file accumulated rows reach the batch threshold.
+    // Using pendingRows (not batchRows) ensures sparse CTBs with 1-2 rows each
+    // are batched across many files before an execute RPC is issued.
     int64_t batchThreshold = (argDataBatch() > 0) ? (int64_t)argDataBatch() : STMT_BATCH_THRESHOLD;
-    if (ctx->batchRows >= batchThreshold) {
+    if (ctx->pendingRows >= batchThreshold) {
         code = taos_stmt_execute(ctx->stmt);
         if (code != 0) {
             logError("taos_stmt_execute failed: %s, table: %s.%s, batchRows: %" PRId64, 
                      taos_stmt_errstr(ctx->stmt), ctx->dbName, ctx->tbName, ctx->batchRows);
             return code;
         }
-        ctx->batchRows = 0;
+        ctx->batchRows   = 0;
+        ctx->pendingRows = 0;  /* reset cross-file counter after execute */
     }
 
     return TSDB_CODE_SUCCESS;
@@ -743,6 +896,13 @@ static int stmt2AllocColBuffers(Stmt2RestoreCtx *ctx, int64_t numRows,
     int64_t batchCap = (argDataBatch() > 0) ? (int64_t)argDataBatch() : (int64_t)STMT2_BATCH_DEFAULT;
     /* clamp requested row count so we never exceed the effective batch cap */
     int64_t targetCap = (numRows < batchCap) ? numRows : batchCap;
+    /* Multi-table mode: the entire file must fit in one buffer without any
+     * mid-file flush (the ? placeholder SQL cannot be used with tbnames=NULL).
+     * Use numRows directly, capped at STMT2_BATCH_MAX to bound memory per slot. */
+    if (ctx->multiTable) {
+        int64_t mtCap = (numRows < (int64_t)STMT2_BATCH_MAX) ? numRows : (int64_t)STMT2_BATCH_MAX;
+        if (targetCap < mtCap) targetCap = mtCap;
+    }
     /* The buffer must be large enough to hold at least one complete raw TDengine
      * block (≤ STMT2_MIN_ROW_BUF_CAP rows).  When --data-batch is smaller than
      * that, stmt2AccBlock uses batchCap as the flush trigger instead; the buffer
@@ -878,15 +1038,23 @@ static int stmt2PrepareOnce(Stmt2RestoreCtx *ctx, int numCols, FieldInfo *fieldI
     sprintf(p, ")");
     logDebug("stmt2 prepare: %s", sql);
 
-    /* Close any existing STMT2 handle (re-prepare per file) */
-    if (ctx->stmt2) { taos_stmt2_close(ctx->stmt2); ctx->stmt2 = NULL; }
-
-    /* init STMT2 */  
-    ctx->stmt2 = initStmt2(ctx->conn, true);
+    /* In WebSocket/DSN mode (multiTable=false) the same handle is always
+     * singleTableBindOnce=true and can be reused across files — just call
+     * taos_stmt2_prepare again with the new table-specific SQL instead of
+     * closing and re-initialising the handle.
+     * taosBenchmark's autoTblCreating path does the same: it calls
+     * taos_stmt2_prepare once per child-table on the same handle.
+     *
+     * In native multi-table mode (multiTable=true) the caller already closed
+     * the multi-table handle (different singleTableBindOnce option), so
+     * ctx->stmt2 will be NULL here and we init a fresh single-table handle. */
     if (!ctx->stmt2) {
-        logError("initStmt2 failed for %s", ctx->dbName);
-        taosMemoryFree(sql);
-        return TSDB_CODE_BCK_STMT_FAILED;
+        ctx->stmt2 = initStmt2(ctx->conn, true);   /* singleTableBindOnce=true */
+        if (!ctx->stmt2) {
+            logError("initStmt2 failed for %s", ctx->dbName);
+            taosMemoryFree(sql);
+            return TSDB_CODE_BCK_STMT_FAILED;
+        }
     }
 
     int ret = taos_stmt2_prepare(ctx->stmt2, sql, 0);
@@ -902,6 +1070,9 @@ static int stmt2PrepareOnce(Stmt2RestoreCtx *ctx, int numCols, FieldInfo *fieldI
     return TSDB_CODE_SUCCESS;
 }
 
+/* forward declaration: stmt2ResetOnError calls stmt2FreeSlot (defined below) */
+static void stmt2FreeSlot(Stmt2TableSlot *slot);
+
 //
 // Close and re-initialise STMT2 after a failure.
 // Sets prepared=false so the next file triggers stmt2PrepareOnce().
@@ -910,6 +1081,13 @@ static bool stmt2ResetOnError(Stmt2RestoreCtx *ctx) {
     if (ctx->stmt2) { taos_stmt2_close(ctx->stmt2); ctx->stmt2 = NULL; }
     ctx->prepared  = false;
     ctx->accRows   = 0;
+    /* discard pending multi-table slots — they may contain partial data from a
+     * failed state; flushing them risks duplicate or corrupt rows */
+    if (ctx->numPending > 0) {
+        for (int i = 0; i < ctx->numPending; i++) stmt2FreeSlot(&ctx->pendingSlots[i]);
+        ctx->numPending       = 0;
+        ctx->totalPendingRows = 0;
+    }
     return true;   /* caller will retry prepare on next file */
 }
 
@@ -926,8 +1104,13 @@ static int stmt2AccBlock(Stmt2RestoreCtx *ctx, void *blockData, int32_t blockRow
      *   (a) the block would overflow the row buffer, OR
      *   (b) the user's --data-batch threshold has already been reached.
      * Case (b) is needed when --data-batch < STMT2_MIN_ROW_BUF_CAP: the buffer
-     * can still hold more rows, but we honour the user's requested batch size. */
-    int64_t batchThresh = (argDataBatch() > 0) ? (int64_t)argDataBatch() : ctx->rowBufCap;
+     * can still hold more rows, but we honour the user's requested batch size.
+     * In multi-table mode both triggers are suppressed: the buffer is sized to
+     * hold all rows of a single file (numRows ≤ STMT2_BATCH_MAX), so overflow
+     * cannot occur, and batchThresh flushing would call stmt2FlushBatch with
+     * tbnames=NULL which is incompatible with the ? placeholder SQL. */
+    int64_t batchThresh = (ctx->multiTable) ? ctx->rowBufCap
+                        : (argDataBatch() > 0) ? (int64_t)argDataBatch() : ctx->rowBufCap;
     if (ctx->accRows + blockRows > ctx->rowBufCap ||
         (ctx->accRows > 0 && ctx->accRows >= batchThresh)) {
         int flushCode = stmt2FlushBatch(ctx);
@@ -1124,10 +1307,186 @@ static int stmt2ExecFile(Stmt2RestoreCtx *ctx) {
     return stmt2FlushBatch(ctx);
 }
 
+// =====================================================================
+//  STMT2 multi-table batch helpers  (native mode, STB CTBs only)
+// =====================================================================
+
+//
+// Free all buffers in one pending slot (does not zero the slot itself for
+// compatibility with memset-based cleanup in stmt2FlushMultiTableSlots).
+//
+static void stmt2FreeSlot(Stmt2TableSlot *slot) {
+    if (!slot->colBinds) return;
+    for (int c = 0; c < slot->colBindsCap; c++) {
+        TAOS_STMT2_BIND *b = &slot->colBinds[c];
+        taosMemoryFree(b->buffer);  b->buffer  = NULL;
+        taosMemoryFree(b->length);  b->length  = NULL;
+        taosMemoryFree(b->is_null); b->is_null = NULL;
+    }
+    taosMemoryFree(slot->varWriteOffsets); slot->varWriteOffsets = NULL;
+    taosMemoryFree(slot->varBufCapacity);  slot->varBufCapacity  = NULL;
+    taosMemoryFree(slot->colBinds);        slot->colBinds        = NULL;
+    memset(slot, 0, sizeof(*slot));
+}
+
+//
+// Prepare STMT2 once for the whole thread using INSERT INTO ? VALUES(?,...)
+// with singleStbInsert=true, singleTableBindOnce=false (multi-table mode).
+// This is used for native connections only; WebSocket/DSN falls back to the
+// per-file approach (INSERT INTO db.tbl VALUES(?)).
+//
+static int stmt2PrepareOnceMulti(Stmt2RestoreCtx *ctx, int numCols,
+                                  FieldInfo *fieldInfos) {
+    const char *partCols  = "";
+    int         bindCount = numCols;
+    if (ctx->stbChange && ctx->stbChange->schemaChanged && ctx->stbChange->partColsStr) {
+        partCols   = ctx->stbChange->partColsStr;
+        bindCount  = ctx->stbChange->matchColCount;
+        logInfo("stmt2 multi-table partial column write: %s (bind %d of %d cols)",
+                partCols, bindCount, numCols);
+    }
+
+    char *sql = (char *)taosMemoryMalloc(TSDB_MAX_SQL_LEN);
+    if (!sql) return TSDB_CODE_BCK_MALLOC_FAILED;
+    char *p = sql;
+    p += snprintf(p, TSDB_MAX_SQL_LEN, "INSERT INTO ? %s VALUES(?", partCols);
+    for (int i = 1; i < bindCount; i++) p += sprintf(p, ",?");
+    sprintf(p, ")");
+    logDebug("stmt2 multi-table prepare: %s", sql);
+
+    if (ctx->stmt2) { taos_stmt2_close(ctx->stmt2); ctx->stmt2 = NULL; }
+
+    /* singleTableBindOnce=false enables multi-table binding in one TAOS_STMT2_BINDV */
+    TAOS_STMT2_OPTION op2;
+    memset(&op2, 0, sizeof(op2));
+    op2.singleStbInsert     = true;
+    op2.singleTableBindOnce = false;
+    ctx->stmt2 = taos_stmt2_init(ctx->conn, &op2);
+    if (!ctx->stmt2) {
+        logError("stmt2 multi-table init failed for %s", ctx->dbName);
+        taosMemoryFree(sql);
+        return TSDB_CODE_BCK_STMT_FAILED;
+    }
+
+    int ret = taos_stmt2_prepare(ctx->stmt2, sql, 0);
+    taosMemoryFree(sql);
+    if (ret != 0) {
+        logError("stmt2 multi-table prepare failed: %s", taos_stmt2_error(ctx->stmt2));
+        taos_stmt2_close(ctx->stmt2); ctx->stmt2 = NULL;
+        return ret;
+    }
+    ctx->prepared = true;
+    (void)fieldInfos;
+    return TSDB_CODE_SUCCESS;
+}
+
+//
+// Seal: transfer ctx->colBinds ownership into a new pending slot, then reset
+// ctx so that the next stmt2AllocColBuffers call allocates fresh buffers.
+//
+static void stmt2SealSlot(Stmt2RestoreCtx *ctx, const char *fqn) {
+    Stmt2TableSlot *slot = &ctx->pendingSlots[ctx->numPending];
+    strncpy(slot->fqn, fqn, sizeof(slot->fqn) - 1);
+    slot->fqn[sizeof(slot->fqn) - 1] = '\0';
+
+    /* Transfer buffer ownership: ctx → slot */
+    slot->colBinds        = ctx->colBinds;
+    slot->colBindsCap     = ctx->colBindsCap;
+    slot->numCols         = ctx->numFields;
+    slot->numRows         = (int32_t)ctx->accRows;
+    slot->varWriteOffsets = ctx->varWriteOffsets;
+    slot->varBufCapacity  = ctx->varBufCapacity;
+
+    /* Detach from ctx so the next alloc creates fresh per-slot buffers */
+    ctx->colBinds        = NULL;
+    ctx->colBindsCap     = 0;
+    ctx->rowBufCap       = 0;
+    ctx->accRows         = 0;
+    ctx->varWriteOffsets = NULL;
+    ctx->varBufCapacity  = NULL;
+
+    ctx->totalPendingRows += slot->numRows;
+    ctx->numPending++;
+}
+
+//
+// Flush all pending slots as a single multi-table TAOS_STMT2_BINDV call
+// (one taos_stmt2_bind_param + one taos_stmt2_exec for N child tables).
+// Frees all slot buffers after the call regardless of success/failure.
+//
+static int stmt2FlushMultiTableSlots(Stmt2RestoreCtx *ctx) {
+    if (ctx->numPending == 0) return TSDB_CODE_SUCCESS;
+
+    int N = ctx->numPending;
+    char           **tbnames  = (char **)taosMemoryCalloc(N, sizeof(char *));
+    TAOS_STMT2_BIND **bindcols = (TAOS_STMT2_BIND **)taosMemoryCalloc(N, sizeof(TAOS_STMT2_BIND *));
+    if (!tbnames || !bindcols) {
+        taosMemoryFree(tbnames);
+        taosMemoryFree(bindcols);
+        for (int i = 0; i < N; i++) stmt2FreeSlot(&ctx->pendingSlots[i]);
+        ctx->numPending = 0; ctx->totalPendingRows = 0;
+        return TSDB_CODE_BCK_MALLOC_FAILED;
+    }
+
+    for (int i = 0; i < N; i++) {
+        Stmt2TableSlot *slot = &ctx->pendingSlots[i];
+        /* set per-row-count on each column bind of this slot */
+        for (int c = 0; c < slot->numCols; c++)
+            slot->colBinds[c].num = slot->numRows;
+        tbnames[i]  = slot->fqn;
+        bindcols[i] = slot->colBinds;
+    }
+
+    TAOS_STMT2_BINDV bindv;
+    memset(&bindv, 0, sizeof(bindv));
+    bindv.count     = N;
+    bindv.tbnames   = tbnames;
+    bindv.tags      = NULL;
+    bindv.bind_cols = bindcols;
+
+    int code = taos_stmt2_bind_param(ctx->stmt2, &bindv, -1);
+    taosMemoryFree(tbnames);
+    taosMemoryFree(bindcols);
+
+    if (code != 0) {
+        logError("stmt2 multi-table bind_param failed (%s, %d tables): %s",
+                 ctx->dbName, N, taos_stmt2_error(ctx->stmt2));
+        goto cleanup;
+    }
+
+    {
+        int affectedRows = 0;
+        code = taos_stmt2_exec(ctx->stmt2, &affectedRows);
+        if (code != 0) {
+            logError("stmt2 multi-table exec failed (%s, %d tables): %s",
+                     ctx->dbName, N, taos_stmt2_error(ctx->stmt2));
+        } else {
+            ctx->totalRows += affectedRows;
+            logDebug("stmt2 multi-table flush: %d tables, %d rows", N, affectedRows);
+        }
+    }
+
+cleanup:
+    for (int i = 0; i < N; i++) stmt2FreeSlot(&ctx->pendingSlots[i]);
+    ctx->numPending       = 0;
+    ctx->totalPendingRows = 0;
+    return code;
+}
+
 //
 // Restore one .dat file using TAOS_STMT2.
-// The STMT2 is prepared once per thread, then exec'd once per file
-// (all rows accumulated first, then one bind+exec).
+//
+// Two paths depending on ctx->multiTable (set once per thread by restoreDataThread):
+//
+//   MULTI-TABLE (native, STB CTBs, numRows <= STMT2_BATCH_MAX):
+//     Prepare INSERT INTO ? VALUES(?,...)  once per thread.
+//     Read file into ctx->colBinds, seal into a pending slot.
+//     Flush TAOS_STMT2_BINDV{count=N, tbnames[], bind_cols[]} when
+//     numPending == STMT2_MULTI_TABLE_PENDING or totalPendingRows >= batchCap.
+//     Final flush happens in restoreDataThread after the file loop.
+//
+//   SINGLE-TABLE (WebSocket/DSN, NTB, or large file > STMT2_BATCH_MAX rows):
+//     Original per-file: close/init/prepare with embedded table name, exec immediately.
 //
 static int restoreOneDataFileV2(Stmt2RestoreCtx *ctx, const char *filePath) {
     /* extract table name */
@@ -1140,66 +1499,118 @@ static int restoreOneDataFileV2(Stmt2RestoreCtx *ctx, const char *filePath) {
     else
         snprintf(tbName, sizeof(tbName), "%s", base);
 
+    bool isNtb = (strstr(filePath, "/_ntb_data") != NULL);
+
     int code = TSDB_CODE_SUCCESS;
     TaosFile *f = openTaosFileForRead(filePath, &code);
     if (!f) { logError("open failed(%d): %s", code, filePath); return code; }
     if (f->header.numRows == 0) { closeTaosFileRead(f); return TSDB_CODE_SUCCESS; }
 
     strncpy(ctx->tbName, tbName, TSDB_TABLE_NAME_LEN - 1);
-    int       numCols   = f->header.numFields;
-    FieldInfo *fis       = (FieldInfo *)f->header.schema;
-    int64_t   numRows   = f->header.numRows;
+    int       numCols = f->header.numFields;
+    FieldInfo *fis    = (FieldInfo *)f->header.schema;
+    int64_t   numRows = f->header.numRows;
 
-    /* For normal table files (ctx->stbChange == NULL), detect schema changes
-     * against the server on a per-table basis, mirroring taosdump's approach.
-     * Guard on "_ntb_data" in the path so that STB child-table files whose
-     * addStbChanged() failed (no matching columns) are NOT treated as normal
-     * tables here. */
+    /* Per-table NTB schema change detection */
     StbChange *localStbChange = NULL;
-    if (ctx->stbChange == NULL && strstr(filePath, "/_ntb_data") != NULL) {
+    if (ctx->stbChange == NULL && isNtb) {
         localStbChange = buildNtbSchemaChange(ctx->conn, ctx->dbName, tbName,
                                               fis, f->header.numFields);
-        if (localStbChange) {
-            ctx->stbChange = localStbChange;
-        }
+        if (localStbChange) ctx->stbChange = localStbChange;
     }
 
-    /* handle schema change: bind only matching columns */
     if (ctx->stbChange && ctx->stbChange->schemaChanged)
         numCols = ctx->stbChange->matchColCount;
 
-    /* Re-prepare STMT2 for each file with the actual table name embedded
-     * in the SQL.  This is required for WebSocket mode (libtaosws.so) where
-     * taos_stmt2_prepare with "INSERT INTO ?" fails because the Rust client
-     * validates the table at prepare time.  For native mode the cost is
-     * negligible (stmtPrepare2 just stores the SQL string locally). */
-    if (ctx->stmt2) { taos_stmt2_close(ctx->stmt2); ctx->stmt2 = NULL; }
-    ctx->prepared = false;
-    code = stmt2PrepareOnce(ctx, numCols, fis);
-    if (code != TSDB_CODE_SUCCESS) { closeTaosFileRead(f); goto done; }
+    /* Choose path: multi-table only for native, STB CTBs, and files that fit
+     * entirely within STMT2_BATCH_MAX rows (avoids mid-file flush complications). */
+    if (ctx->multiTable && !isNtb && numRows <= (int64_t)STMT2_BATCH_MAX) {
+        /* ---- MULTI-TABLE PATH ---- */
 
-    /* allocate / reuse column buffers for this file's rows */
-    code = stmt2AllocColBuffers(ctx, numRows, numCols, fis);
-    if (code != TSDB_CODE_SUCCESS) { closeTaosFileRead(f); goto done; }
+        /* One-time prepare: INSERT INTO ? VALUES(?,...)  reused for all files */
+        if (!ctx->prepared) {
+            /* Select the target database so that the multi-table tbnames look-up
+             * can resolve plain table names (no db prefix required). */
+            int selRet = taos_select_db(ctx->conn, ctx->dbName);
+            if (selRet != 0)
+                logWarn("stmt2 multi-table: taos_select_db(%s) failed (code=%d), continuing",
+                        ctx->dbName, selRet);
+            code = stmt2PrepareOnceMulti(ctx, numCols, fis);
+            if (code != TSDB_CODE_SUCCESS) { closeTaosFileRead(f); goto done; }
+        }
 
-    /* stream blocks into accumulation buffers */
-    S2CallbackData cbd = { ctx, fis, f->header.numFields };
-    code = readTaosFileBlocks(f, dataBlockCallbackV2, &cbd);
-    closeTaosFileRead(f);
-    if (code != TSDB_CODE_SUCCESS) {
-        logError("read blocks failed(%d): %s", code, filePath);
-        goto done;
+        /* Allocate per-column buffers for this file (buffer sized to numRows,
+         * bypassing the batchCap clamp because multiTable is true). */
+        code = stmt2AllocColBuffers(ctx, numRows, numCols, fis);
+        if (code != TSDB_CODE_SUCCESS) { closeTaosFileRead(f); goto done; }
+
+        /* Stream blocks into ctx->colBinds */
+        S2CallbackData cbd = { ctx, fis, f->header.numFields };
+        code = readTaosFileBlocks(f, dataBlockCallbackV2, &cbd);
+        closeTaosFileRead(f);
+        if (code != TSDB_CODE_SUCCESS) {
+            logError("read blocks failed(%d): %s", code, filePath);
+            goto done;
+        }
+
+        if (ctx->accRows == 0) goto done;  /* file became empty after filtering */
+
+        /* Seal: transfer buffer ownership from ctx into a new pending slot */
+        char fqn[TSDB_DB_NAME_LEN + TSDB_TABLE_NAME_LEN + 8];
+        /* Use plain table name (no db prefix): taos_select_db has already set
+         * the default database for this connection so tbnames resolution works. */
+        snprintf(fqn, sizeof(fqn), "%s", tbName);
+        stmt2SealSlot(ctx, fqn);
+
+        /* Flush if batch thresholds are reached */
+        int64_t batchCap = (argDataBatch() > 0) ? (int64_t)argDataBatch() : (int64_t)STMT2_BATCH_DEFAULT;
+        if (ctx->numPending >= STMT2_MULTI_TABLE_PENDING ||
+            ctx->totalPendingRows >= batchCap) {
+            code = stmt2FlushMultiTableSlots(ctx);
+            if (code != TSDB_CODE_SUCCESS)
+                logError("stmt2 multi-table flush failed (%s): %d", ctx->dbName, code);
+        }
+
+        logDebug("stmt2 multi-table sealed %s.%s rows: %" PRId64 " pending_slots: %d",
+                 ctx->dbName, tbName, ctx->totalRows, ctx->numPending);
+    } else {
+        /* ---- SINGLE-TABLE PATH (WebSocket / NTB / large file) ---- */
+
+        /* In native multi-table mode (multiTable=true) the current stmt2 handle
+         * may be a multi-table one (singleTableBindOnce=false).  Close it so
+         * stmt2PrepareOnce will init a new single-table handle.
+         * In WebSocket/DSN mode (multiTable=false) the handle is always
+         * single-table — reuse it by just calling prepare again, no close+init. */
+        if (ctx->multiTable && ctx->stmt2) {
+            taos_stmt2_close(ctx->stmt2);
+            ctx->stmt2 = NULL;
+        }
+        code = stmt2PrepareOnce(ctx, numCols, fis);
+        if (code != TSDB_CODE_SUCCESS) { closeTaosFileRead(f); goto done; }
+
+        code = stmt2AllocColBuffers(ctx, numRows, numCols, fis);
+        if (code != TSDB_CODE_SUCCESS) { closeTaosFileRead(f); goto done; }
+
+        S2CallbackData cbd = { ctx, fis, f->header.numFields };
+        code = readTaosFileBlocks(f, dataBlockCallbackV2, &cbd);
+        closeTaosFileRead(f);
+        if (code != TSDB_CODE_SUCCESS) {
+            logError("read blocks failed(%d): %s", code, filePath);
+            goto done;
+        }
+
+        code = stmt2ExecFile(ctx);
+        if (code == TSDB_CODE_SUCCESS)
+            logDebug("stmt2 restore done: %s.%s rows: %" PRId64, ctx->dbName, tbName, ctx->totalRows);
+        else
+            logError("stmt2 exec failed: %s.%s", ctx->dbName, tbName);
+
+        /* Reset prepared flag so that a subsequent multi-table file (native mode)
+         * re-establishes the multi-table handle (different singleTableBindOnce). */
+        if (ctx->multiTable) ctx->prepared = false;
     }
 
-    /* execute one insert for all accumulated rows */
-    code = stmt2ExecFile(ctx);
-    if (code == TSDB_CODE_SUCCESS)
-        logDebug("stmt2 restore done: %s.%s rows: %" PRId64, ctx->dbName, tbName, ctx->totalRows);
-    else
-        logError("stmt2 exec failed: %s.%s", ctx->dbName, tbName);
-
 done:
-    /* release per-file schema change built for normal tables */
     if (localStbChange) {
         ctx->stbChange = NULL;
         freeStbChange(localStbChange);
@@ -1215,7 +1626,7 @@ done:
 // info is required.  Schema-change partial-column mapping is NOT applied
 // for Parquet files (the column set is taken verbatim from the file).
 //
-static int restoreOneParquetFile(TAOS *conn, const char *dbName,
+static int restoreOneParquetFile(TAOS_STMT **stmtPtr, TAOS *conn, const char *dbName,
                                   const char *filePath,
                                   StbChange *stbChange,
                                   int64_t   *rowsOut) {
@@ -1253,17 +1664,19 @@ static int restoreOneParquetFile(TAOS *conn, const char *dbName,
         return TSDB_CODE_BCK_NO_FIELDS;
     }
 
-    // Build and prepare INSERT stmt
-    TAOS_STMT *stmt = initStmt(conn, true);
-    if (stmt == NULL) {
-        logError("initStmt failed for %s.%s", dbName, tbName);
-        parquetReaderClose(pr);
-        return TSDB_CODE_BCK_STMT_FAILED;
+    // Init STMT once per thread; re-prepare for each new table (avoids repeated init+close).
+    if (!*stmtPtr) {
+        *stmtPtr = initStmt(conn, true);
+        if (!*stmtPtr) {
+            logError("initStmt failed for %s.%s", dbName, tbName);
+            parquetReaderClose(pr);
+            return TSDB_CODE_BCK_STMT_FAILED;
+        }
     }
+    TAOS_STMT *stmt = *stmtPtr;
 
     char *stmtBuf = (char *)taosMemoryMalloc(TSDB_MAX_SQL_LEN);
     if (stmtBuf == NULL) {
-        taos_stmt_close(stmt);
         parquetReaderClose(pr);
         return TSDB_CODE_BCK_MALLOC_FAILED;
     }
@@ -1280,7 +1693,9 @@ static int restoreOneParquetFile(TAOS *conn, const char *dbName,
     taosMemoryFree(stmtBuf);
     if (ret != 0) {
         logError("taos_stmt_prepare failed: %s", taos_stmt_errstr(stmt));
+        // Invalidate handle so next file gets a fresh one
         taos_stmt_close(stmt);
+        *stmtPtr = NULL;
         parquetReaderClose(pr);
         return ret;
     }
@@ -1299,7 +1714,7 @@ static int restoreOneParquetFile(TAOS *conn, const char *dbName,
         if (rowsOut) *rowsOut = rows;
     }
 
-    taos_stmt_close(stmt);
+    // stmt is NOT closed here; the caller owns it and closes after all files are done
     return code;
 }
 
@@ -1309,7 +1724,7 @@ static int restoreOneParquetFile(TAOS *conn, const char *dbName,
 // Mirrors restoreOneParquetFile() but uses the TAOS_STMT2 API so the parquet
 // restore path honours the user's -v option just like binary files do.
 //
-static int restoreOneParquetFileV2(TAOS *conn, const char *dbName,
+static int restoreOneParquetFileV2(TAOS_STMT2 **stmt2Ptr, TAOS *conn, const char *dbName,
                                     const char *filePath,
                                     StbChange *stbChange,
                                     int64_t   *rowsOut) {
@@ -1358,17 +1773,23 @@ static int restoreOneParquetFileV2(TAOS *conn, const char *dbName,
     sprintf(p, ")");
     logDebug("parquet stmt2 prepare: %s", sql);
 
-    TAOS_STMT2 *stmt2 = initStmt2(conn, true);
-    if (!stmt2) {
-        taosMemoryFree(sql);
-        return TSDB_CODE_BCK_STMT_FAILED;
+    /* Init STMT2 once per thread; re-prepare for each new table (avoids repeated init+close) */
+    if (!*stmt2Ptr) {
+        *stmt2Ptr = initStmt2(conn, true);
+        if (!*stmt2Ptr) {
+            taosMemoryFree(sql);
+            return TSDB_CODE_BCK_STMT_FAILED;
+        }
     }
+    TAOS_STMT2 *stmt2 = *stmt2Ptr;
 
     int ret = taos_stmt2_prepare(stmt2, sql, 0);
     taosMemoryFree(sql);
     if (ret != 0) {
         logError("taos_stmt2_prepare failed for parquet: %s", taos_stmt2_error(stmt2));
+        // Invalidate handle so next file gets a fresh one
         taos_stmt2_close(stmt2);
+        *stmt2Ptr = NULL;
         return ret;
     }
 
@@ -1382,7 +1803,7 @@ static int restoreOneParquetFileV2(TAOS *conn, const char *dbName,
         if (rowsOut) *rowsOut = rows;
     }
 
-    taos_stmt2_close(stmt2);
+    // stmt2 is NOT closed here; the caller owns it and closes after all files are done
     return code;
 }
 
@@ -1427,8 +1848,10 @@ static int restoreOneDataFile(StmtRestoreCtx *ctx,
 
     ctx->numFields  = taosFile->header.numFields;
     ctx->fieldInfos = (FieldInfo *)taosFile->header.schema;
-    ctx->totalRows  = 0;
+    /* Do NOT reset ctx->totalRows here: it is a cumulative counter used
+     * by the thread-loop stats (fileRows = bCtx.totalRows - rowsBefore).  */
     ctx->batchRows  = 0;
+    int64_t fileRowsStart = ctx->totalRows;  /* for per-file log below */
 
     if (!ctx->prepared) {
         // First file: full prepare with concrete table name
@@ -1454,18 +1877,11 @@ static int restoreOneDataFile(StmtRestoreCtx *ctx,
         logError("restore data blocks failed(%d): %s -> %s.%s",
                  code, filePath, ctx->dbName, tbName);
     } else {
-        // flush remaining accumulated rows
-        if (ctx->batchRows > 0) {
-            int execCode = taos_stmt_execute(ctx->stmt);
-            if (execCode != 0) {
-                logError("taos_stmt_execute final flush failed: %s, table: %s.%s",
-                         taos_stmt_errstr(ctx->stmt), ctx->dbName, tbName);
-                if (code == TSDB_CODE_SUCCESS) code = TSDB_CODE_BCK_STMT_FAILED;
-            }
-            ctx->batchRows = 0;
-        }
+        // Rows are flushed by the cross-file pendingRows threshold in dataBlockCallback.
+        // The final flush for all remaining rows is done in restoreDataThread after the
+        // file loop, so we intentionally skip per-file taos_stmt_execute here.
         logDebug("restore data file done: %s.%s rows: %" PRId64,
-                 ctx->dbName, tbName, ctx->totalRows);
+                 ctx->dbName, tbName, ctx->totalRows - fileRowsStart);
     }
 
     closeTaosFileRead(taosFile);
@@ -1480,10 +1896,16 @@ static int restoreOneDataFile(StmtRestoreCtx *ctx,
 //
 // Restore data thread function: processes assigned data files.
 //
-// Optimization: a single TAOS_STMT is prepared once per thread.
-// For each subsequent file in the same thread we call
-// taos_stmt_set_tbname() instead of taos_stmt_prepare(), eliminating
-// ~2 network round-trips per file.
+// STMT2 optimization (native mode):
+//   Multi-table batch mode batches up to STMT2_MULTI_TABLE_PENDING CTBs from the
+//   same STB into a single TAOS_STMT2_BINDV call, reducing server RPCs by up to
+//   STMT2_MULTI_TABLE_PENDING×.  Enabled automatically for native connections;
+//   WebSocket/DSN falls back to the per-file prepare+exec path.
+//
+// STMT1 optimization:
+//   Cross-file accumulation: rows are accumulated across files and executed only
+//   when pendingRows >= threshold (or all files done), reducing taos_stmt_execute
+//   RPCs from N (one per file) to ceil(totalRows / threshold).
 //
 // Checkpoint writes are buffered per-thread and flushed once at the
 // end, removing the per-file mutex+open+write+close sequence.
@@ -1505,6 +1927,22 @@ static void* restoreDataThread(void *arg) {
     s2Ctx.dbName    = argRenameDb(dbName);
     s2Ctx.stbChange = thread->stbChange;
 
+    /* Allocate pending-slots array for multi-table batching */
+    s2Ctx.pendingSlots = (Stmt2TableSlot *)taosMemoryCalloc(
+        STMT2_MULTI_TABLE_PENDING, sizeof(Stmt2TableSlot));
+    if (!s2Ctx.pendingSlots) {
+        logError("restore thread %d: alloc pendingSlots failed", thread->index);
+        thread->code = TSDB_CODE_BCK_MALLOC_FAILED;
+        return NULL;
+    }
+
+    /* Enable multi-table batching for native connections (not WebSocket/DSN).
+     * WebSocket STMT2 prepare with INSERT INTO ? fails at the Rust driver level.
+     * Set env TAOSBK_SINGLE_TABLE=1 to force single-table mode (benchmark only). */
+    s2Ctx.multiTable = (argDriver() != CONN_MODE_WEBSOCKET && !argIsDsn() &&
+                        getenv("TAOSBK_SINGLE_TABLE") == NULL);
+    logDebug("restore thread %d: STMT2 multiTable=%d", thread->index, s2Ctx.multiTable);
+
     /* ---- STMT1 (legacy) path ---- */
     StmtRestoreCtx bCtx;
     memset(&bCtx, 0, sizeof(bCtx));
@@ -1521,9 +1959,15 @@ static void* restoreDataThread(void *arg) {
         bCtx.stbChange = thread->stbChange;
     }
 
+    /* Parquet STMT handles — initialized once per thread on first .par file encountered */
+    TAOS_STMT  *parquetStmt  = NULL;
+    TAOS_STMT2 *parquetStmt2 = NULL;
+
     /* ----- per-file restore loop ----- */
     for (int i = 0; i < thread->fileCnt; i++) {
         if (g_interrupted) {
+            // Flush checkpoint buffer on interrupt
+            flushCkptBuffer();
             if (thread->code == TSDB_CODE_SUCCESS) thread->code = TSDB_CODE_BCK_USER_CANCEL;
             break;
         }
@@ -1551,15 +1995,17 @@ static void* restoreDataThread(void *arg) {
         int64_t fileRows = 0;  // rows restored in this single file
         if (isPar) {
             if (stmtVer == STMT_VERSION_2) {
-                code = restoreOneParquetFileV2(thread->conn, dbName, filePath,
+                code = restoreOneParquetFileV2(&parquetStmt2, thread->conn, dbName, filePath,
                                                thread->stbChange, &fileRows);
             } else {
-                code = restoreOneParquetFile(thread->conn, dbName, filePath,
+                code = restoreOneParquetFile(&parquetStmt, thread->conn, dbName, filePath,
                                              thread->stbChange, &fileRows);
             }
         } else if (stmtVer == STMT_VERSION_2) {
             int64_t rowsBefore = s2Ctx.totalRows;
             code = restoreOneDataFileV2(&s2Ctx, filePath);
+            /* In multi-table mode totalRows is updated only on flush, so use
+             * totalPendingRows delta for the real-time per-file row count. */
             fileRows = s2Ctx.totalRows - rowsBefore;
         } else {
             int64_t rowsBefore = bCtx.totalRows;
@@ -1588,6 +2034,8 @@ static void* restoreDataThread(void *arg) {
             }
             // continue with next file (best effort)
         } else {
+            // Insert into hash set first for in-memory deduplication
+            insertCkptHash(filePath);
             // Write checkpoint immediately so a mid-run kill still saves progress.
             saveRestoreCheckpoint(filePath);
             // accumulate rows immediately so the progress display is real-time
@@ -1603,11 +2051,41 @@ static void* restoreDataThread(void *arg) {
         }
     }
 
+    /* ----- post-loop flushes ----- */
+
+    /* STMT1: flush remaining cross-file accumulated rows */
+    if (stmtVer == STMT_VERSION_1 && bCtx.pendingRows > 0 && bCtx.stmt) {
+        int flushCode = taos_stmt_execute(bCtx.stmt);
+        if (flushCode != 0) {
+            logError("restore thread %d: final STMT1 flush failed: %s",
+                     thread->index, taos_stmt_errstr(bCtx.stmt));
+            if (thread->code == TSDB_CODE_SUCCESS) thread->code = TSDB_CODE_BCK_STMT_FAILED;
+        }
+        bCtx.pendingRows = 0;
+    }
+
+    /* STMT2: flush any pending multi-table slots that didn't reach the threshold */
+    if (stmtVer == STMT_VERSION_2 && s2Ctx.multiTable && s2Ctx.numPending > 0) {
+        int64_t rowsBeforePostFlush = s2Ctx.totalRows;
+        int flushCode = stmt2FlushMultiTableSlots(&s2Ctx);
+        if (flushCode != 0 && thread->code == TSDB_CODE_SUCCESS)
+            thread->code = flushCode;
+        /* Update global stats for rows committed in this final flush. */
+        int64_t finalFlushed = s2Ctx.totalRows - rowsBeforePostFlush;
+        if (finalFlushed > 0) atomic_add_fetch_64(&g_stats.totalRows, finalFlushed);
+    }
+
     /* ----- cleanup ----- */
     /* STMT2 */
     if (s2Ctx.colBinds) {
         stmt2FreeColBuffers(&s2Ctx);
         taosMemoryFree(s2Ctx.colBinds);
+    }
+    /* Free any remaining pending slots (e.g. if interrupted) */
+    if (s2Ctx.pendingSlots) {
+        for (int i = 0; i < s2Ctx.numPending; i++) stmt2FreeSlot(&s2Ctx.pendingSlots[i]);
+        taosMemoryFree(s2Ctx.pendingSlots);
+        s2Ctx.pendingSlots = NULL;
     }
     if (s2Ctx.stmt2) { taos_stmt2_close(s2Ctx.stmt2); s2Ctx.stmt2 = NULL; }
 
@@ -1620,6 +2098,13 @@ static void* restoreDataThread(void *arg) {
         taos_stmt_close(bCtx.stmt);
         bCtx.stmt = NULL;
     }
+
+    /* Parquet stmt handles (reused across .par files, closed once here) */
+    if (parquetStmt)  { taos_stmt_close(parquetStmt);   parquetStmt  = NULL; }
+    if (parquetStmt2) { taos_stmt2_close(parquetStmt2); parquetStmt2 = NULL; }
+
+    // Flush thread-local checkpoint buffer before thread exits
+    flushCkptBuffer();
 
     logInfo("data thread %d finished for %s.%s", thread->index, dbName, stbName4log);
     return NULL;
