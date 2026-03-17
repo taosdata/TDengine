@@ -529,7 +529,7 @@ static int32_t qExplainExecAnalyze(const SExplainResNode *pResNode,
   }
 
   if (nodeNum == 1) {
-    if (formatTimestampLocal(createAvgTs, execInfo.execCreate,
+    if (formatTimestampLocal(createAvgTs, sizeof(createAvgTs), execInfo.execCreate,
                              TSDB_TIME_PRECISION_MICRO) == NULL) {
       /*
         If formatTimestampLocal fails, set the first char to '\0' to ensure
@@ -544,7 +544,7 @@ static int32_t qExplainExecAnalyze(const SExplainResNode *pResNode,
     EXPLAIN_ROW_APPEND(EXPLAIN_START_FORMAT,
                        execInfo.execTimes > 0 ? EXPLAIN_CONVERT_TS_US_TO_MS(execInfo.execStart) : 0.0);
     EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
-    EXPLAIN_ROW_APPEND(EXPLAIN_TIMES_FORMAT, execInfo.execTimes);
+    EXPLAIN_ROW_APPEND(EXPLAIN_TIMES_FORMAT, (int64_t)execInfo.execTimes);
     EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
     EXPLAIN_ROW_APPEND(EXPLAIN_INPUT_WAIT_ELAPSED_FORMAT,
                        EXPLAIN_CONVERT_TS_US_TO_MS(execInfo.inputWaitElapsed));
@@ -554,11 +554,11 @@ static int32_t qExplainExecAnalyze(const SExplainResNode *pResNode,
   } else if (nodeNum > 1) {
     int64_t createAvgUs = execInfo.execCreate / nodeNum;
     int64_t createMaxUs = maxExecInfo.execCreate;
-    if (formatTimestampLocal(createAvgTs, createAvgUs,
+    if (formatTimestampLocal(createAvgTs, sizeof(createAvgTs), createAvgUs,
                              TSDB_TIME_PRECISION_MICRO) == NULL) {
       createAvgTs[0] = '\0';
     }
-    if (formatTimestampLocal(createMaxTs, createMaxUs,
+    if (formatTimestampLocal(createMaxTs, sizeof(createMaxTs), createMaxUs,
                              TSDB_TIME_PRECISION_MICRO) == NULL) {
       createMaxTs[0] = '\0';
     }
@@ -573,7 +573,7 @@ static int32_t qExplainExecAnalyze(const SExplainResNode *pResNode,
                        maxExecInfo.execTimes > 0 ? EXPLAIN_CONVERT_TS_US_TO_MS(maxExecInfo.execStart) : 0.0);
     EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
     EXPLAIN_ROW_APPEND(EXPLAIN_TIMES_FORMAT_EXT,
-                       (double)execInfo.execTimes / nodeNum, maxExecInfo.execTimes);
+                       (double)execInfo.execTimes / nodeNum, (int64_t)maxExecInfo.execTimes);
     EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
     EXPLAIN_ROW_APPEND(EXPLAIN_INPUT_WAIT_ELAPSED_FORMAT_EXT,
                        EXPLAIN_CONVERT_TS_US_TO_MS(execInfo.inputWaitElapsed) / nodeNum,
