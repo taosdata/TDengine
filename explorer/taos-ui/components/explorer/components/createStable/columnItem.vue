@@ -25,6 +25,8 @@
           :min="8"
           clearable
           :max="VariableTableColumnTypeMaxLengthMap[currentValue.type as ColumnTypeMaxLenMapKey]"
+          @clear="handleClearLength"
+          @blur="handleLengthBlur"
           @change="processTypeLength"
         ></el-input>
         <el-input
@@ -183,11 +185,14 @@ const canMoveToTag = computed(() => {
   return props.canMoveToTag;
 });
 const inputDisabled = computed(() => (props.isAdd || props.isTag ? false : props.isEdit));
-const btnDisabled = computed(() =>
-  props.isAdd || props.isTag
-    ? !props.modelValue.field
-    : !props.modelValue.field || !VariableTableColumnType.includes(props.modelValue.type)
-);
+const btnDisabled = computed(() => {
+  const needLength = VariableTableColumnType.includes(currentValue.type);
+  const isEmptyLength = currentValue.length === '' || currentValue.length === null || currentValue.length === undefined;
+  if (props.isAdd || props.isTag) {
+    return !props.modelValue.field || (needLength && isEmptyLength);
+  }
+  return !props.modelValue.field || !VariableTableColumnType.includes(props.modelValue.type) || (needLength && isEmptyLength);
+});
 const currentValue: any = reactive({
   field: '',
   primaryKey: false,
@@ -234,8 +239,24 @@ watch(
   { immediate: true }
 );
 
+function handleClearLength() {
+  currentValue.length = '';
+  valueChange();
+}
+
+function handleLengthBlur() {
+  if (currentValue.length === '' || currentValue.length === null || currentValue.length === undefined) {
+    currentValue.length = minTypeLength;
+    valueChange();
+  }
+}
+
 function processTypeLength(val: number | string) {
-  if (!val) return (currentValue.length = minTypeLength);
+  if (!val && val !== 0) {
+    currentValue.length = minTypeLength;
+    valueChange();
+    return;
+  }
   val = Number(val);
   currentValue.length = Math.min(
     Math.max(val, minTypeLength),
