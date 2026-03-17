@@ -68,8 +68,10 @@ static void freeTz(void *p) {
   timezone_t tz = *(timezone_t *)p;
   tzfree(tz);
 }
+#endif
 
 int32_t tzInit() {
+#if !defined(WINDOWS) && !defined(TD_ASTRA)
   pTimezoneMap = taosHashInit(0, MurmurHash3_32, false, HASH_ENTRY_LOCK);
   if (pTimezoneMap == NULL) {
     return terrno;
@@ -80,14 +82,18 @@ int32_t tzInit() {
   if (pTimezoneNameMap == NULL) {
     return terrno;
   }
+#endif
   return 0;
 }
 
 void tzCleanup() {
+#if !defined(WINDOWS) && !defined(TD_ASTRA)
   taosHashCleanup(pTimezoneMap);
   taosHashCleanup(pTimezoneNameMap);
+#endif
 }
 
+#if !defined(WINDOWS) && !defined(TD_ASTRA)
 static timezone_t setConnnectionTz(const char *val) {
   timezone_t  tz = NULL;
   timezone_t *tmp = taosHashGet(pTimezoneMap, val, strlen(val));
