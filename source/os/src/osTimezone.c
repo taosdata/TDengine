@@ -813,9 +813,9 @@ int64_t getWindowsTimezoneOffset(void) {
         int minutes = (utcPos[9] - '0') * 10 + (utcPos[10] - '0');
         int64_t offset_seconds = (hours * 3600 + minutes * 60);
         if (sign == '+') {
-          return -offset_seconds;
-        } else {
           return offset_seconds;
+        } else {
+          return -offset_seconds;
         }
       }
     }
