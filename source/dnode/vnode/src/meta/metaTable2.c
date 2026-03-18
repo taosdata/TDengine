@@ -17,7 +17,10 @@
 #include "scalar.h"
 #include "tdatablock.h"
 #include "querynodes.h"
+<<<<<<< HEAD
 #include "thash.h"
+=======
+>>>>>>> feat/batch-tag-modify
 
 extern int32_t metaHandleEntry2(SMeta *pMeta, const SMetaEntry *pEntry);
 extern int32_t metaUpdateMetaRsp(tb_uid_t uid, char *tbName, SSchemaWrapper *pSchema, int64_t ownerId,
@@ -2188,6 +2191,8 @@ _cleanup:
   return code;
 }
 
+
+
 int32_t metaUpdateTableChildTableTagValue(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq) {
   int32_t code = TSDB_CODE_SUCCESS;
   SNode* pWhere = NULL;
@@ -2303,6 +2308,8 @@ _exit:
   nodesDestroyNode(pWhere);
   TAOS_RETURN(code);
 }
+
+
 
 static int32_t metaCheckUpdateTableOptionsReq(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq) {
   int32_t code = TSDB_CODE_SUCCESS;

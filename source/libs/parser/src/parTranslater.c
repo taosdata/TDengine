@@ -24359,9 +24359,6 @@ static void destroyAlterTbReqInner(SVAlterTbReq* pReq) {
   } else if (pReq->action == TSDB_ALTER_TABLE_UPDATE_CHILD_TABLE_TAG_VAL) {
     taosArrayDestroyEx(pReq->pMultiTag, tfreeMultiTagUpateVal);
     taosMemoryFree(pReq->where);
-  } else if (pReq->action == TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL) {
-    // TODO: TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL is not useless, remove it later
-    taosArrayDestroyEx(pReq->pMultiTag, tfreeMultiTagUpateVal);
   }
 
   taosArrayDestroy(pReq->pTagArray);

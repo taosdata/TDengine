@@ -214,6 +214,7 @@ class TestVtableBatchSetTagVals:
 
         self.multi_table_basic()
         self.multi_table_various_types()
+        self.multi_table_across_database()
         self.multi_table_error_cases()
 
     # ==================== USING vstable SET TAG ... WHERE tests ====================

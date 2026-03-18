@@ -232,7 +232,7 @@ typedef enum {
 #define TSDB_ALTER_TABLE_ADD_TAG                         1
 #define TSDB_ALTER_TABLE_DROP_TAG                        2
 #define TSDB_ALTER_TABLE_UPDATE_TAG_NAME                 3
-#define TSDB_ALTER_TABLE_UPDATE_TAG_VAL                  4 // useless???
+#define TSDB_ALTER_TABLE_UPDATE_TAG_VAL                  4 // deprecated, kept for wire compatibility
 #define TSDB_ALTER_TABLE_ADD_COLUMN                      5
 #define TSDB_ALTER_TABLE_DROP_COLUMN                     6
 #define TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES             7
@@ -243,7 +243,7 @@ typedef enum {
 #define TSDB_ALTER_TABLE_DROP_TAG_INDEX                  12
 #define TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS          13
 #define TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COMPRESS_OPTION 14
-#define TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL            15 // useless???
+#define TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL            15 // deprecated, kept for wire compatibility
 #define TSDB_ALTER_TABLE_ALTER_COLUMN_REF                16
 #define TSDB_ALTER_TABLE_REMOVE_COLUMN_REF               17
 #define TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COLUMN_REF      18
@@ -4961,7 +4961,7 @@ typedef struct SUpdatedTagVal {
   uint8_t* pTagVal;
   int8_t   isNull;
   SArray*  pTagArray;
-  // NOTE: regexp and replacement are only a temporal solution for tag value update,
+  // NOTE: regexp and replacement are only a temporary solution for tag value update,
   // they should be replaced by a more generic solution in the future for full expression
   // support
   char*    regexp;
