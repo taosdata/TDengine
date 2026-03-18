@@ -49,7 +49,7 @@
 #define DB_VER_SUPPORT_ADVANCED_SECURITY 2
 #define DB_VER_NUMBER                    DB_VER_SUPPORT_ADVANCED_SECURITY
 
-#define DB_RESERVE_SIZE 12
+#define DB_RESERVE_SIZE 9
 
 static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw);
 static int32_t  mndDbActionInsert(SSdb *pSdb, SDbObj *pDb);
@@ -174,6 +174,7 @@ SSdbRaw *mndDbActionEncode(SDbObj *pDb) {
   SDB_SET_INT32(pRaw, dataPos, pDb->cfg.compactInterval, _OVER)
   SDB_SET_INT8(pRaw, dataPos, pDb->cfg.isAudit, _OVER)
   SDB_SET_INT8(pRaw, dataPos, pDb->cfg.secureDelete, _OVER)
+  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.cacheLastShardBits, _OVER)
 
   SDB_SET_RESERVE(pRaw, dataPos, DB_RESERVE_SIZE, _OVER)
   SDB_SET_UINT8(pRaw, dataPos, pDb->cfg.flags, _OVER)
@@ -284,6 +285,11 @@ static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw) {
   if (dataPos + sizeof(int8_t) <= pRaw->dataLen) {
     SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.secureDelete, _OVER)
   }
+  if (dataPos + sizeof(int32_t) <= pRaw->dataLen) {
+  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.cacheLastShardBits, _OVER)
+  } else {
+    pDb->cfg.cacheLastShardBits = -1;
+  }
   SDB_GET_RESERVE(pRaw, dataPos, DB_RESERVE_SIZE, _OVER)
   if (dataPos + sizeof(uint8_t) <= pRaw->dataLen) {
     SDB_GET_UINT8(pRaw, dataPos, &pDb->cfg.flags, _OVER)
@@ -389,7 +395,7 @@ static int32_t mndDbActionUpdate(SSdb *pSdb, SDbObj *pOld, SDbObj *pNew) {
   pOld->cfg.pageSize = pNew->cfg.pageSize;
   pOld->cfg.pages = pNew->cfg.pages;
   pOld->cfg.cacheLastSize = pNew->cfg.cacheLastSize;
-  pOld->cfg.cacheLastShards = pNew->cfg.cacheLastShards;
+  pOld->cfg.cacheLastShardBits = pNew->cfg.cacheLastShardBits;
   pOld->cfg.daysPerFile = pNew->cfg.daysPerFile;
   pOld->cfg.daysToKeep0 = pNew->cfg.daysToKeep0;
   pOld->cfg.daysToKeep1 = pNew->cfg.daysToKeep1;
@@ -511,6 +517,9 @@ int32_t mndCheckDbCfg(SMnode *pMnode, SDbCfg *pCfg) {
   if (pCfg->pageSize < TSDB_MIN_PAGESIZE_PER_VNODE || pCfg->pageSize > TSDB_MAX_PAGESIZE_PER_VNODE) return code;
   if (pCfg->pages < TSDB_MIN_PAGES_PER_VNODE || pCfg->pages > TSDB_MAX_PAGES_PER_VNODE) return code;
   if (pCfg->cacheLastSize < TSDB_MIN_DB_CACHE_SIZE || pCfg->cacheLastSize > TSDB_MAX_DB_CACHE_SIZE) return code;
+  if (pCfg->cacheLastShardBits < TSDB_MIN_DB_CACHE_SHARD_BITS ||
+      pCfg->cacheLastShardBits > TSDB_MAX_DB_CACHE_SHARD_BITS)
+    return code;
   if (pCfg->daysPerFile < TSDB_MIN_DAYS_PER_FILE || pCfg->daysPerFile > TSDB_MAX_DAYS_PER_FILE) return code;
   if (pCfg->daysToKeep0 < TSDB_MIN_KEEP || pCfg->daysToKeep0 > TSDB_MAX_KEEP) return code;
   if (pCfg->daysToKeep1 < TSDB_MIN_KEEP || pCfg->daysToKeep1 > TSDB_MAX_KEEP) return code;
@@ -597,6 +606,9 @@ static int32_t mndCheckInChangeDbCfg(SMnode *pMnode, SDbCfg *pOldCfg, SDbCfg *pN
   if (pNewCfg->walLevel < TSDB_MIN_WAL_LEVEL || pNewCfg->walLevel > TSDB_MAX_WAL_LEVEL) return code;
   if (pNewCfg->cacheLast < TSDB_CACHE_MODEL_NONE || pNewCfg->cacheLast > TSDB_CACHE_MODEL_BOTH) return code;
   if (pNewCfg->cacheLastSize < TSDB_MIN_DB_CACHE_SIZE || pNewCfg->cacheLastSize > TSDB_MAX_DB_CACHE_SIZE) return code;
+  if (pNewCfg->cacheLastShardBits < TSDB_MIN_DB_CACHE_SHARD_BITS ||
+      pNewCfg->cacheLastShardBits > TSDB_MAX_DB_CACHE_SHARD_BITS)
+    return code;
   if (pNewCfg->replications < TSDB_MIN_DB_REPLICA || pNewCfg->replications > TSDB_MAX_DB_REPLICA) return code;
 #ifdef TD_ENTERPRISE
   if ((pNewCfg->replications == 2) ^ (pNewCfg->withArbitrator == TSDB_MAX_DB_WITH_ARBITRATOR)) return code;
@@ -683,7 +695,7 @@ static void mndSetDefaultDbCfg(SDbCfg *pCfg) {
   if (pCfg->strict < 0) pCfg->strict = TSDB_DEFAULT_DB_STRICT;
   if (pCfg->cacheLast < 0) pCfg->cacheLast = TSDB_DEFAULT_CACHE_MODEL;
   if (pCfg->cacheLastSize <= 0) pCfg->cacheLastSize = TSDB_DEFAULT_CACHE_SIZE;
-  if (pCfg->cacheLastShards < 0) pCfg->cacheLastShards = -1;  // -1 means auto-calculate
+  if (pCfg->cacheLastShardBits < 0) pCfg->cacheLastShardBits = -1;  // -1 means auto-calculate
   if (pCfg->numOfRetensions < 0) pCfg->numOfRetensions = 0;
   if (pCfg->schemaless < 0) pCfg->schemaless = TSDB_DB_SCHEMALESS_OFF;
   if (pCfg->walRetentionPeriod < 0 && pCfg->walRetentionPeriod != -1)
@@ -955,6 +967,7 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
       .pageSize = pCreate->pageSize,
       .pages = pCreate->pages,
       .cacheLastSize = pCreate->cacheLastSize,
+      .cacheLastShardBits = pCreate->cacheLastShardBits,
       .daysPerFile = pCreate->daysPerFile,
       .daysToKeep0 = pCreate->daysToKeep0,
       .daysToKeep1 = pCreate->daysToKeep1,
@@ -1402,6 +1415,11 @@ static int32_t mndSetDbCfgFromAlterDbReq(SDbObj *pDb, SAlterDbReq *pAlter) {
     code = 0;
   }
 
+  if (pAlter->cacheLastShardBits > 0 && pAlter->cacheLastShardBits != pDb->cfg.cacheLastShardBits) {
+    pDb->cfg.cacheLastShardBits = pAlter->cacheLastShardBits;
+    code = 0;
+  }
+
   if (pAlter->replications > 0 && pAlter->replications != pDb->cfg.replications) {
     pDb->cfg.replications = pAlter->replications;
     pDb->vgVersion++;
@@ -1766,6 +1784,7 @@ static void mndDumpDbCfgInfo(SDbCfgRsp *cfgRsp, SDbObj *pDb, char *algorithmsId)
   cfgRsp->numOfStables = pDb->cfg.numOfStables;
   cfgRsp->buffer = pDb->cfg.buffer;
   cfgRsp->cacheSize = pDb->cfg.cacheLastSize;
+  cfgRsp->cacheShardBits = pDb->cfg.cacheLastShardBits;
   cfgRsp->pageSize = pDb->cfg.pageSize;
   cfgRsp->pages = pDb->cfg.pages;
   cfgRsp->daysPerFile = pDb->cfg.daysPerFile;
@@ -3261,6 +3280,9 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.cacheLastSize, false), &lino, _OVER);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.cacheLastShardBits, false), &lino, _OVER);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.walLevel, false), &lino, _OVER);

@@ -681,6 +681,8 @@ static int getDefaultCacheShardBits(size_t capacity) {
 }
 
 SLRUCache *taosLRUCacheInit(size_t capacity, int numShardBits, double highPriPoolRatio) {
+  uInfo("taosLRUCacheInit: capacity:%zu, numShardBits:%d, highPriPoolRatio:%f", capacity, numShardBits,
+        highPriPoolRatio);
   if (numShardBits >= 20) {
     return NULL;
   }

@@ -101,7 +101,7 @@ typedef struct SDatabaseOptions {
   char        cacheModelStr[TSDB_CACHE_MODEL_STR_LEN];
   int8_t      cacheModel;
   int32_t     cacheLastSize;
-  int32_t     cacheLastShards;  // Number of shards for last cache LRU, -1 for auto
+  int32_t     cacheLastShardBits;  // Number of shards for last cache LRU, -1 for auto
   int8_t      compressionLevel;
   int8_t      encryptAlgorithm;
   int32_t     daysPerFile;

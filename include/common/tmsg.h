@@ -2130,7 +2130,7 @@ typedef struct {
   int32_t pageSize;
   int32_t pages;
   int32_t cacheLastSize;
-  int32_t cacheLastShards;  // Number of shards for last cache LRU, -1 for auto
+  int32_t cacheLastShardBits;  // Number of shards for last cache LRU, -1 for auto
   int32_t daysPerFile;
   int32_t daysToKeep0;
   int32_t daysToKeep1;
@@ -2186,7 +2186,7 @@ typedef struct {
   int32_t pageSize;
   int32_t pages;
   int32_t cacheLastSize;
-  int32_t cacheLastShards;  // Number of shards for last cache LRU, -1 for auto
+  int32_t cacheLastShardBits;  // Number of shards for last cache LRU, -1 for auto
   int32_t daysPerFile;
   int32_t daysToKeep0;
   int32_t daysToKeep1;
@@ -2414,6 +2414,7 @@ typedef struct {
   int32_t numOfStables;
   int32_t buffer;
   int32_t cacheSize;
+  int32_t cacheShardBits;
   int32_t pageSize;
   int32_t pages;
   int32_t daysPerFile;
@@ -3012,7 +3013,7 @@ typedef struct {
   int32_t  pageSize;
   int32_t  pages;
   int32_t  cacheLastSize;
-  int32_t  cacheLastShards;  // Number of shards for last cache LRU, -1 for auto
+  int32_t  cacheLastShardBits;  // Number of shards for last cache LRU, -1 for auto
   int32_t  daysPerFile;
   int32_t  daysToKeep0;
   int32_t  daysToKeep1;
@@ -3196,7 +3197,7 @@ typedef struct {
   int32_t pageSize;
   int32_t pages;
   int32_t cacheLastSize;
-  int32_t cacheLastShards;  // Number of shards for last cache LRU, -1 for auto
+  int32_t cacheLastShardBits;  // Number of shards for last cache LRU, -1 for auto
   int32_t daysPerFile;
   int32_t daysToKeep0;
   int32_t daysToKeep1;

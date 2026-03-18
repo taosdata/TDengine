@@ -24,7 +24,7 @@ const SVnodeCfg vnodeCfgDefault = {.vgId = -1,
                                    .szCache = 256,
                                    .cacheLast = 3,
                                    .cacheLastSize = 8,
-                                   .cacheLastShards = -1,  // -1 means auto-calculate
+                                   .cacheLastShardBits = -1,  // -1 means auto-calculate
                                    .szBuf = 96 * 1024 * 1024,
                                    .isHeap = false,
                                    .isWeak = 0,
@@ -101,6 +101,7 @@ int vnodeEncodeConfig(const void *pObj, SJson *pJson) {
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "szCache", pCfg->szCache));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "cacheLast", pCfg->cacheLast));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "cacheLastSize", pCfg->cacheLastSize));
+  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "cacheLastShardBits", pCfg->cacheLastShardBits));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "szBuf", pCfg->szBuf));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "isHeap", pCfg->isHeap));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "isWeak", pCfg->isWeak));
@@ -224,6 +225,11 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   if (code) return code;
   tjsonGetNumberValue(pJson, "cacheLastSize", pCfg->cacheLastSize, code);
   if (code) return code;
+  tjsonGetNumberValue(pJson, "cacheLastShardBits", pCfg->cacheLastShardBits, code);
+  if (code) {
+    pCfg->cacheLastShardBits = -1;  // Default to auto-calculate for old configs
+    code = 0;
+  }
   tjsonGetNumberValue(pJson, "szBuf", pCfg->szBuf, code);
   if (code) return code;
   tjsonGetNumberValue(pJson, "isHeap", pCfg->isHeap, code);

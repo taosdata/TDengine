@@ -11224,7 +11224,7 @@ static int32_t buildCreateDbReq(STranslateContext* pCxt, SCreateDatabaseStmt* pS
   pReq->strict = pStmt->pOptions->strict;
   pReq->cacheLast = pStmt->pOptions->cacheModel;
   pReq->cacheLastSize = pStmt->pOptions->cacheLastSize;
-  pReq->cacheLastShards = pStmt->pOptions->cacheLastShards;
+  pReq->cacheLastShardBits = pStmt->pOptions->cacheLastShardBits;
   pReq->schemaless = pStmt->pOptions->schemaless;
   pReq->walRetentionPeriod = pStmt->pOptions->walRetentionPeriod;
   pReq->walRetentionSize = pStmt->pOptions->walRetentionSize;
@@ -12282,7 +12282,7 @@ static int32_t buildAlterDbReq(STranslateContext* pCxt, SAlterDatabaseStmt* pStm
   pReq->strict = pStmt->pOptions->strict;
   pReq->cacheLast = pStmt->pOptions->cacheModel;
   pReq->cacheLastSize = pStmt->pOptions->cacheLastSize;
-  pReq->cacheLastShards = pStmt->pOptions->cacheLastShards;
+  pReq->cacheLastShardBits = pStmt->pOptions->cacheLastShardBits;
   pReq->replications = pStmt->pOptions->replica;
   pReq->sstTrigger = pStmt->pOptions->sstTrigger;
   pReq->minRows = pStmt->pOptions->minRowsPerBlock;

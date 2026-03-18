@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find:*)",
+      "Bash(grep -rn \"cacheLastShards\\\\|CACHESHARDS\\\\|cache_last_shards\" --include=*.c --include=*.h --include=*.y /root/workspace/TDinternal/community/source /root/workspace/TDinternal/community/include)",
+      "Bash(make -j 8)",
+      "Read(//root/workspace/TDinternal/debug/**)",
+      "Bash(make vnode:*)"
+    ]
+  }
+}
