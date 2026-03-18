@@ -847,7 +847,6 @@ static int32_t processAlterTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
       }
 
       if (vAlterTbReq.whereLen > 0) {
-<<<<<<< HEAD
         buf1 = taosMemoryCalloc(vAlterTbReq.whereLen, 1);
         RAW_NULL_CHECK(buf1);
         buf2 = taosMemoryCalloc(vAlterTbReq.whereLen, 1);
@@ -861,18 +860,6 @@ static int32_t processAlterTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
         taosMemoryFreeClear(buf1);
         taosMemoryFreeClear(buf2);
         nodesDestroyNode(pWhere);
-=======
-        ADD_TO_JSON_NUMBER(json, "whereLen", vAlterTbReq.whereLen);
-        char* whereBuf = NULL;
-        code = base64_encode(vAlterTbReq.where, vAlterTbReq.whereLen, &whereBuf);
-        if (code != 0 || whereBuf == NULL) {
-          uError("base64 encode where condition failed");
-          code = TSDB_CODE_OUT_OF_MEMORY;
-          goto end;
-        }
-        ADD_TO_JSON_STRING(json, "where", whereBuf);
-        taosMemoryFree(whereBuf);
->>>>>>> feat/batch-tag-modify
       }
       break;
     }
@@ -898,24 +885,7 @@ static int32_t processAlterTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
   }
 
 end:
-<<<<<<< HEAD
   destroyAlterTbReq(&vAlterTbReq);
-=======
-  if (vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL) {
-    taosArrayDestroy(vAlterTbReq.pMultiTag);
-  }
-  if (vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_CHILD_TABLE_TAG_VAL) {
-    taosArrayDestroy(vAlterTbReq.pMultiTag);
-  }
-  if (vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL) {
-    int32_t nTables = taosArrayGetSize(vAlterTbReq.tables);
-    for (int32_t i = 0; i < nTables; i++) {
-      SUpdateTableTagVal* pTable = taosArrayGet(vAlterTbReq.tables, i);
-      taosArrayDestroy(pTable->tags);
-    }
-    taosArrayDestroy(vAlterTbReq.tables);
-  }
->>>>>>> feat/batch-tag-modify
   tDecoderClear(&decoder);
   taosMemoryFree(buf);
   taosMemoryFree(buf1);

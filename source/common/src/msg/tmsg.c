@@ -15552,50 +15552,6 @@ static int32_t tDecodeSVAlterTbReqCommon(SDecoder *pDecoder, SVAlterTbReq *pReq)
       TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &pReq->colName));
       TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &pReq->colNewName));
       break;
-<<<<<<< HEAD
-    case TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL: {
-      int32_t nTables;
-      TAOS_CHECK_EXIT(tDecodeI32v(pDecoder, &nTables));
-      pReq->tables = taosArrayInit(nTables, sizeof(SUpdateTableTagVal));
-      if (pReq->tables == NULL) {
-        TAOS_CHECK_EXIT(terrno);
-      }
-      for (int32_t i = 0; i < nTables; i++) {
-        SUpdateTableTagVal table = {0};
-        TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &table.tbName));
-        int32_t nTags;
-        TAOS_CHECK_EXIT(tDecodeI32v(pDecoder, &nTags));
-        table.tags = taosArrayInit(nTags, sizeof(SUpdatedTagVal));
-        if (table.tags == NULL) {
-          TAOS_CHECK_EXIT(terrno);
-        }
-        for (int32_t j = 0; j < nTags; j++) {
-          SUpdatedTagVal tag = {0};
-          int8_t useRegexp;
-          TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &useRegexp));
-          TAOS_CHECK_EXIT(tDecodeI32v(pDecoder, &tag.colId));
-          TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &tag.tagName));
-          TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &tag.tagType));
-          if (useRegexp) {
-            TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &tag.regexp));
-            TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &tag.replacement));
-          } else {
-            TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &tag.isNull));
-            if (!tag.isNull) {
-              TAOS_CHECK_EXIT(tDecodeBinary(pDecoder, &tag.pTagVal, &tag.nTagVal));
-            }
-          }
-          if (taosArrayPush(table.tags, &tag) == NULL) {
-            TAOS_CHECK_EXIT(terrno);
-          }
-        }
-        if (taosArrayPush(pReq->tables, &table) == NULL) {
-          TAOS_CHECK_EXIT(terrno);
-        }
-      }
-      break;
-    }
-=======
     case TSDB_ALTER_TABLE_UPDATE_TAG_VAL: {
       // this is a legacy action, covert it to TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL
       // with one table and one tag
@@ -15621,7 +15577,6 @@ static int32_t tDecodeSVAlterTbReqCommon(SDecoder *pDecoder, SVAlterTbReq *pReq)
       }
       break;
     }
->>>>>>> feat/batch-tag-modify
     case TSDB_ALTER_TABLE_UPDATE_CHILD_TABLE_TAG_VAL: {
       int32_t nTags;
       TAOS_CHECK_EXIT(tDecodeI32v(pDecoder, &nTags));
