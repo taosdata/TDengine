@@ -219,12 +219,30 @@ impl BackupWorker {
             timeout
         );
         let mut last = Instant::now();
+
+        // ByOffset 模式下，记录任务开始时间，用于时间兜底
+        let task_start = Instant::now();
+        let deadline = self.config.interval;
+
         loop {
             tracing::trace!("tmq_to_local consumer:[{}] polling...", self.id);
             let res = self.consumer.recv_timeout(Timeout::from_millis(500)).await;
             tracing::trace!("tmq_to_local consumer:[{}] polled.", self.id);
             match res {
                 Ok(None) => {
+                    // ByOffset 模式下，检查时间兜底
+                    if self.config.backup_point_gen_mode == BackupPointGenMode::ByOffset
+                        && let Some(interval) = deadline
+                        && task_start.elapsed() >= interval
+                    {
+                        tracing::info!(
+                            "tmq_to_local consumer:[{}] reached backup interval deadline ({:?}), completing current backup point",
+                            self.id,
+                            interval
+                        );
+                        break;
+                    }
+
                     // 如果超过了 consumer.timeout 没有收到消息，则退出
                     match timeout {
                         Timeout::Duration(d) => {
@@ -262,30 +280,59 @@ impl BackupWorker {
                     let vg_id = offset.vgroup_id();
                     if self.config.backup_point_gen_mode == BackupPointGenMode::ByOffset {
                         let topic = offset.topic();
-                        // let cur_offset = self.consumer.position(topic, vg_id).await?;
-                        let position = self.config.position(topic, vg_id).await?;
 
-                        if let Some((current, latest)) = position {
-                            // 获取 topic, vgroup 对应的 end_offset
-                            let end_offset = self.get_end_offset(topic.to_string(), vg_id).await;
+                        // position() 失败时不再致命退出，而是跳过本轮 offset 检查
+                        match self.config.position(topic, vg_id).await {
+                            Ok(Some((current, latest))) => {
+                                // 获取 topic, vgroup 对应的 end_offset
+                                let end_offset =
+                                    self.get_end_offset(topic.to_string(), vg_id).await;
 
-                            let end_offset = match end_offset {
-                                Some(offset) => offset,
-                                None => {
-                                    // 如果 end_offset 不存在，设置为当前的 latest offset
-                                    self.set_end_offset(topic.to_string(), vg_id, latest).await;
-                                    latest
+                                let end_offset = match end_offset {
+                                    Some(offset) => offset,
+                                    None => {
+                                        // 如果 end_offset 不存在，设置为当前的 latest offset
+                                        self.set_end_offset(topic.to_string(), vg_id, latest).await;
+                                        latest
+                                    }
+                                };
+
+                                // 如果 cur_offset == end_offset，表示当前 vgroup 已经备份完成
+                                if current == end_offset {
+                                    self.set_complete(topic.to_string(), vg_id).await;
                                 }
-                            };
+                                // 如果所有 vgroup 都备份完成，退出
+                                if self.is_all_complete().await {
+                                    break;
+                                }
+                            }
+                            Ok(None) => {
+                                tracing::warn!(
+                                    "tmq_to_local consumer:[{}] position returned None for vg_id {}",
+                                    self.id,
+                                    vg_id
+                                );
+                            }
+                            Err(e) => {
+                                tracing::warn!(
+                                    "tmq_to_local consumer:[{}] failed to get position for vg_id {}: {:#}, will retry on next message",
+                                    self.id,
+                                    vg_id,
+                                    e
+                                );
+                            }
+                        }
 
-                            // 如果 cur_offset == end_offset，表示当前 vgroup 已经备份完成
-                            if current == end_offset {
-                                self.set_complete(topic.to_string(), vg_id).await;
-                            }
-                            // 如果所有 vgroup 都备份完成，退出
-                            if self.is_all_complete().await {
-                                break;
-                            }
+                        // 时间兜底：即使 position() 失败，达到备份周期后也退出
+                        if let Some(interval) = deadline
+                            && task_start.elapsed() >= interval
+                        {
+                            tracing::info!(
+                                "tmq_to_local consumer:[{}] reached backup interval deadline ({:?}), completing current backup point",
+                                self.id,
+                                interval
+                            );
+                            break;
                         }
                     }
 
