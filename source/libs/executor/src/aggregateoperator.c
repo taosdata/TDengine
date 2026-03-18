@@ -291,12 +291,12 @@ _end:
   return pBlock != NULL;
 }
 
-static int32_t getAggregateResultNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
+int32_t getAggregateResultNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   int32_t           code = TSDB_CODE_SUCCESS;
   int32_t           lino = 0;
   SAggOperatorInfo* pAggInfo = pOperator->info;
   SOptrBasicInfo*   pInfo = &pAggInfo->binfo;
-  recordOpExecBegin(pOperator);
+
   if (pOperator->status == OP_EXEC_DONE && !pOperator->pOperatorGetParam) {
     (*ppRes) = NULL;
     return code;
@@ -347,7 +347,6 @@ _end:
   printDataBlock(pInfo->pRes, __func__, pTaskInfo->id.str, pTaskInfo->id.queryId);
 
   (*ppRes) = (pInfo->pRes->info.rows == 0) ? NULL : pInfo->pRes;
-  recordOpExecEnd(pOperator, (*ppRes) ? (*ppRes)->info.rows : 0);
   return code;
 }
 

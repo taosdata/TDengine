@@ -299,7 +299,6 @@ int32_t doProjectOperation(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
 
   blockDataCleanup(pFinalRes);
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
-  recordOpExecBegin(pOperator);
 
   if (pOperator->status == OP_EXEC_DONE) {
     return code;
@@ -317,7 +316,6 @@ int32_t doProjectOperation(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
     }
 
     *pResBlock = (pRes->info.rows > 0)? pRes:NULL;
-    recordOpExecEnd(pOperator, (*pResBlock) ? (*pResBlock)->info.rows : 0);
     return code;
   }
 
@@ -433,7 +431,6 @@ _end:
     pTaskInfo->code = code;
     T_LONG_JMP(pTaskInfo->env, code);
   }
-  recordOpExecEnd(pOperator, (*pResBlock) ? (*pResBlock)->info.rows : 0);
   return code;
 }
 
@@ -603,8 +600,6 @@ int32_t doApplyIndefinitFunction(SOperatorInfo* pOperator, SSDataBlock** pResBlo
   blockDataCleanup(pRes);
 
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
-  recordOpExecBegin(pOperator);
-
   if (pOperator->status == OP_EXEC_DONE) {
     return code;
   }
@@ -664,8 +659,7 @@ int32_t doApplyIndefinitFunction(SOperatorInfo* pOperator, SSDataBlock** pResBlo
     }
   }
 
-  size_t rows = pInfo->pRes->info.rows;
-  *pResBlock = (rows > 0) ? pInfo->pRes : NULL;
+  *pResBlock = (pInfo->pRes->info.rows> 0) ? pInfo->pRes : NULL;
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
@@ -673,7 +667,6 @@ _end:
     pTaskInfo->code = code;
     T_LONG_JMP(pTaskInfo->env, code);
   }
-  recordOpExecEnd(pOperator, rows);
   return code;
 }
 

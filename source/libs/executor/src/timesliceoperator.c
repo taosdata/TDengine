@@ -1237,8 +1237,6 @@ static int32_t doTimesliceNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   int32_t        lino = 0;
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
   STimeSliceOperatorInfo* pSliceInfo = pOperator->info;
-  recordOpExecBegin(pOperator);
-
   if (pOperator->status == OP_EXEC_DONE) {
     (*ppRes) = NULL;
     return code;
@@ -1348,7 +1346,6 @@ _finished:
   }
 
   (*ppRes) = pResBlock->info.rows == 0 ? NULL : pResBlock;
-  recordOpExecEnd(pOperator, (*ppRes) ? (*ppRes)->info.rows : 0);
   return code;
 }
 

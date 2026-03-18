@@ -325,8 +325,9 @@ static void concurrentlyLoadRemoteDataImpl(SOperatorInfo* pOperator, SExchangeIn
 
       TAOS_CHECK_EXIT(doExtractResultBlocks(pExchangeInfo, pDataInfo));
 
-      updateLoadRemoteInfo(pLoadInfo, pRsp->numOfRows, pRsp->compLen, pDataInfo->startTime, pOperator);
-      pDataInfo->totalRows += pRsp->numOfRows;
+      SRetrieveTableRsp* pRetrieveRsp = pDataInfo->pRsp;
+      updateLoadRemoteInfo(pLoadInfo, pRetrieveRsp->numOfRows, pRetrieveRsp->compLen, pDataInfo->startTime, pOperator);
+      pDataInfo->totalRows += pRetrieveRsp->numOfRows;
 
       if (pRsp->completed == 1) {
         pDataInfo->status = EX_SOURCE_DATA_EXHAUSTED;
@@ -451,7 +452,6 @@ static int32_t loadRemoteDataNext(SOperatorInfo* pOperator, SSDataBlock** ppRes)
   int32_t        lino = 0;
   SExchangeInfo* pExchangeInfo = pOperator->info;
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
-  recordOpExecBegin(pOperator);
 
   qDebug("%s start to load from exchange %p", pTaskInfo->id.str, pExchangeInfo);
 
@@ -467,7 +467,6 @@ static int32_t loadRemoteDataNext(SOperatorInfo* pOperator, SSDataBlock** ppRes)
     SSDataBlock* pBlock = doLoadRemoteDataImpl(pOperator);
     if (pBlock == NULL) {
       (*ppRes) = NULL;
-      recordOpExecEnd(pOperator, 0);
       return code;
     }
 
@@ -489,18 +488,15 @@ static int32_t loadRemoteDataNext(SOperatorInfo* pOperator, SSDataBlock** ppRes)
         if (pBlock->info.rows == 0) {
           setOperatorCompleted(pOperator);
           (*ppRes) = NULL;
-          recordOpExecEnd(pOperator, 0);
           return code;
         } else {
           (*ppRes) = pBlock;
-          recordOpExecEnd(pOperator, pBlock->info.rows);
           return code;
         }
       }
     } else {
       (*ppRes) = pBlock;
       qDebug("block with rows %" PRId64 " returned in exechange", pBlock->info.rows);
-      recordOpExecEnd(pOperator, pBlock->info.rows);
       return code;
     }
   }
@@ -516,7 +512,6 @@ _end:
   }
   
   (*ppRes) = NULL;
-  recordOpExecEnd(pOperator, 0);
   return code;
 }
 

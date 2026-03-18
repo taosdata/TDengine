@@ -1464,26 +1464,18 @@ static int32_t initGroupCacheDownstreamCtx(SOperatorInfo*          pOperator) {
 }
 
 static int32_t groupCacheGetNext(struct SOperatorInfo* pOperator, SOperatorParam* pParam, SSDataBlock** pRes) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  int32_t lino = 0;
-  recordOpExecBegin(pOperator);
-
   *pRes = NULL;
 
   SSDataBlock* pBlock = NULL;
+  int32_t      code = 0;
 
   code = getBlkFromGroupCache(pOperator, &pBlock, pParam);
-  QUERY_CHECK_CODE(code, lino, _end);
+  if (TSDB_CODE_SUCCESS != code) {
+    pOperator->pTaskInfo->code = code;
+    T_LONG_JMP(pOperator->pTaskInfo->env, pOperator->pTaskInfo->code);
+  }
 
   *pRes = pBlock;
-
-_end:
-  if (code != TSDB_CODE_SUCCESS) {
-    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-    pOperator->pTaskInfo->code = code;
-    T_LONG_JMP(pOperator->pTaskInfo->env, code);
-  }
-  recordOpExecEnd(pOperator, (*pRes) ? (*pRes)->info.rows : 0);
   return code;
 }
 

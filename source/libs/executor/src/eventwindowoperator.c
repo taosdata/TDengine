@@ -212,7 +212,6 @@ static int32_t eventWindowAggregateNext(SOperatorInfo* pOperator, SSDataBlock** 
   int32_t                   lino = 0;
   SEventWindowOperatorInfo* pInfo = pOperator->info;
   SExecTaskInfo*            pTaskInfo = pOperator->pTaskInfo;
-  recordOpExecBegin(pOperator);
 
   SExprSupp* pSup = &pOperator->exprSupp;
   int32_t    order = pInfo->binfo.inputTsOrder;
@@ -259,7 +258,6 @@ static int32_t eventWindowAggregateNext(SOperatorInfo* pOperator, SSDataBlock** 
     if (pRes->info.rows >= pOperator->resultInfo.threshold ||
         (pRes->info.id.groupId != pInfo->groupId && pRes->info.rows > 0)) {
       (*ppRes) = pRes;
-      recordOpExecEnd(pOperator, (*ppRes)->info.rows);
       return code;
     }
   }
@@ -271,7 +269,6 @@ _end:
     T_LONG_JMP(pTaskInfo->env, code);
   }
   (*ppRes) =  pRes->info.rows == 0 ? NULL : pRes;
-  recordOpExecEnd(pOperator, (*ppRes) ? (*ppRes)->info.rows : 0);
   return code;
 }
 

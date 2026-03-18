@@ -15,9 +15,9 @@
 
 #include "executorInt.h"
 #include "filter.h"
-#include "functionMgt.h"
-#include "hashjoin.h"
+#include "function.h"
 #include "operator.h"
+#include "os.h"
 #include "querynodes.h"
 #include "querytask.h"
 #include "tcompare.h"
@@ -25,6 +25,8 @@
 #include "thash.h"
 #include "tmsg.h"
 #include "ttypes.h"
+#include "hashjoin.h"
+#include "functionMgt.h"
 
 
 bool hJoinBlkReachThreshold(SHJoinOperatorInfo* pInfo, int64_t blkRows) {
@@ -1003,7 +1005,6 @@ static int32_t hJoinMainProcess(struct SOperatorInfo* pOperator, SSDataBlock** p
   SSDataBlock*        pRes = pJoin->finBlk;
 
   QRY_PARAM_CHECK(pResBlock);
-  recordOpExecBegin(pOperator);
 
   if (pOperator->status == OP_EXEC_DONE) {
     pRes->info.rows = 0;
@@ -1035,7 +1036,6 @@ static int32_t hJoinMainProcess(struct SOperatorInfo* pOperator, SSDataBlock** p
 
     if (pRes->info.rows > 0) {
       *pResBlock = pRes;
-      recordOpExecEnd(pOperator, (*pResBlock)->info.rows);
       return code;
     }
   }
@@ -1078,7 +1078,6 @@ _end:
     qDebug("%s %s output %" PRId64 " rows final res", GET_TASKID(pTaskInfo), __func__, pRes->info.rows);
   }
 
-  recordOpExecEnd(pOperator, (*pResBlock) ? (*pResBlock)->info.rows : 0);
   return code;
 }
 

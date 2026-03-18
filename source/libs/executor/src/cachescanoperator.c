@@ -257,8 +257,6 @@ _error:
 static int32_t doScanCacheNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
-  recordOpExecBegin(pOperator);
-
   if (pOperator->status == OP_EXEC_DONE) {
     (*ppRes) = NULL;
     return code;
@@ -278,7 +276,6 @@ static int32_t doScanCacheNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   if (size == 0) {
     setOperatorCompleted(pOperator);
     (*ppRes) = NULL;
-    recordOpExecEnd(pOperator, 0);
     return code;
   }
 
@@ -319,12 +316,10 @@ static int32_t doScanCacheNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
 
       pRes->info.id.groupId = tableListGetTableGroupId(pTableList, pRes->info.id.uid);
       (*ppRes) = pRes;
-      recordOpExecEnd(pOperator, (*ppRes) ? (*ppRes)->info.rows : 0);
       return code;
     } else {
       setOperatorCompleted(pOperator);
       (*ppRes) = NULL;
-      recordOpExecEnd(pOperator, 0);
       return code;
     }
   } else {
@@ -385,7 +380,6 @@ static int32_t doScanCacheNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
 
         // pInfo->pLastrowReader = tsdbCacherowsReaderClose(pInfo->pLastrowReader);
         (*ppRes) = pInfo->pRes;
-        recordOpExecEnd(pOperator, (*ppRes) ? (*ppRes)->info.rows : 0);
         return code;
       } else {
         // pInfo->pLastrowReader = tsdbCacherowsReaderClose(pInfo->pLastrowReader);
@@ -396,7 +390,6 @@ static int32_t doScanCacheNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
     pInfo->pLastrowReader = NULL;
     setOperatorCompleted(pOperator);
     (*ppRes) = NULL;
-    recordOpExecEnd(pOperator, 0);
     return code;
   }
 
@@ -406,7 +399,6 @@ _end:
     pTaskInfo->code = code;
     T_LONG_JMP(pTaskInfo->env, code);
   }
-  recordOpExecEnd(pOperator, (*ppRes) ? (*ppRes)->info.rows : 0);
   return code;
 }
 

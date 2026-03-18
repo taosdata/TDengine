@@ -244,7 +244,6 @@ static int32_t imputationNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   int64_t                st = taosGetTimestampUs();
   const char*            idstr = GET_TASKID(pTaskInfo);
   SBaseSupp*             pSupp = NULL;
-  recordOpExecBegin(pOperator);
 
   code = getBaseSupp(pInfo, &pSupp, idstr);
   QUERY_CHECK_CODE(code, lino, _end);
@@ -282,7 +281,6 @@ static int32_t imputationNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
     if (pRes->info.rows > 0) {
       (*ppRes) = pRes;
       qDebug("group:%" PRId64 ", return to upstream, blocks:%d", pRes->info.id.groupId, numOfBlocks);
-      recordOpExecEnd(pOperator, (*ppRes)->info.rows);
       return code;
     }
   }
@@ -303,7 +301,6 @@ _end:
   }
 
   (*ppRes) = (pBInfo->pRes->info.rows == 0) ? NULL : pBInfo->pRes;
-  recordOpExecEnd(pOperator, (*ppRes) ? (*ppRes)->info.rows : 0);
   return code;
 }
 

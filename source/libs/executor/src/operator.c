@@ -26,24 +26,65 @@
 #include "tglobal.h"
 #include "tutil.h"
 
+static int32_t optrGetNextFnWithExecRecord(SOperatorInfo* pOperator,
+                                           SSDataBlock** pResBlock);
+static int32_t optrGetNextExtFnWithExecRecord(SOperatorInfo* pOperator,
+                                              SOperatorParam* pParam,
+                                              SSDataBlock** pResBlock);
+static int32_t optrResetStateFnWithExecRecord(SOperatorInfo* pParam);
+
 SOperatorFpSet createOperatorFpSet(__optr_open_fn_t openFn, __optr_fn_t nextFn, __optr_fn_t cleanup,
                                    __optr_close_fn_t closeFn, __optr_reqBuf_fn_t reqBufFn, __optr_explain_fn_t explain,
                                    __optr_get_ext_fn_t nextExtFn, __optr_notify_fn_t notifyFn) {
   SOperatorFpSet fpSet = {
       ._openFn = openFn,
-      .getNextFn = nextFn,
+      ._nextFn = nextFn,
+      .getNextFn = (nextFn != NULL) ? optrGetNextFnWithExecRecord : NULL,
       .cleanupFn = cleanup,
       .closeFn = closeFn,
       .reqBufFn = reqBufFn,
       .getExplainFn = explain,
-      .getNextExtFn = nextExtFn,
+      ._nextExtFn = nextExtFn,
+      .getNextExtFn = (nextExtFn != NULL) ? optrGetNextExtFnWithExecRecord : NULL,
       .notifyFn = notifyFn,
       .releaseStreamStateFn = NULL,
       .reloadStreamStateFn = NULL,
+      ._resetFn = NULL,
       .resetStateFn = NULL,
   };
 
   return fpSet;
+}
+
+static int32_t optrGetNextFnWithExecRecord(SOperatorInfo* pOperator,
+                                           SSDataBlock** pResBlock) {
+  QRY_PARAM_CHECK(pResBlock);
+
+  recordOpExecBegin(pOperator);
+  int32_t code = pOperator->fpSet._nextFn(pOperator, pResBlock);
+  size_t  rows = (TSDB_CODE_SUCCESS == code && *pResBlock != NULL) ?
+                 (*pResBlock)->info.rows : 0;
+  recordOpExecEnd(pOperator, rows);
+  return code;
+}
+
+static int32_t optrGetNextExtFnWithExecRecord(SOperatorInfo* pOperator,
+                                              SOperatorParam* pParam,
+                                              SSDataBlock** pResBlock) {
+  QRY_PARAM_CHECK(pResBlock);
+
+  recordOpExecBegin(pOperator);
+  int32_t code = pOperator->fpSet._nextExtFn(pOperator, pParam, pResBlock);
+  size_t  rows = (TSDB_CODE_SUCCESS == code && *pResBlock != NULL) ?
+                 (*pResBlock)->info.rows : 0;
+  recordOpExecEnd(pOperator, rows);
+  return code;
+}
+
+static int32_t optrResetStateFnWithExecRecord(SOperatorInfo* pOperator) {
+  int32_t code = pOperator->fpSet._resetFn(pOperator);
+  resetOperatorCostInfo(pOperator);
+  return code;
 }
 
 void setOperatorStreamStateFn(SOperatorInfo* pOperator, __optr_state_fn_t relaseFn, __optr_state_fn_t reloadFn) {
@@ -52,7 +93,8 @@ void setOperatorStreamStateFn(SOperatorInfo* pOperator, __optr_state_fn_t relase
 }
 
 void setOperatorResetStateFn(SOperatorInfo* pOperator, __optr_reset_state_fn_t resetFn) {
-  pOperator->fpSet.resetStateFn = resetFn;
+  pOperator->fpSet._resetFn = resetFn;
+  pOperator->fpSet.resetStateFn = (resetFn != NULL) ? optrResetStateFnWithExecRecord : NULL;
 }
 
 int32_t optrDummyOpenFn(SOperatorInfo* pOperator) {
@@ -1167,7 +1209,7 @@ _return:
 */
 void initOperatorCostInfo(SOperatorInfo* pOperator) {
   pOperator->cost.execCreate = taosGetTimestampUs();
-  resetOperatorCostInfo(&pOperator->cost);
+  resetOperatorCostInfo(pOperator);
 }
 
 /**
@@ -1247,4 +1289,19 @@ void recordOpExecEnd(SOperatorInfo* pOperator, size_t rows) {
     }
     pOperator->resultInfo.totalRows += rows;
   }
+}
+
+/**
+  @brief Reset operator's cost info but keep create time unchanged.
+*/
+void resetOperatorCostInfo(SOperatorInfo* pOperator) {
+  /* keep execCreate UNCHANGED!!! */
+  pOperator->cost.execStart = 0;
+  pOperator->cost.execFirstRow = 0;
+  pOperator->cost.execLastRow = 0;
+  pOperator->cost.execTimes = 0;
+  pOperator->cost.execElapsed = 0;
+  pOperator->cost.inputWaitElapsed = 0;
+  pOperator->cost.outputWaitElapsed = 0;
+  pOperator->cost.inputRows = 0;
 }

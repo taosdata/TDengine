@@ -1339,7 +1339,6 @@ static int32_t doStateWindowAggNext(SOperatorInfo* pOperator, SSDataBlock** ppRe
   SExecTaskInfo*            pTaskInfo = pOperator->pTaskInfo;
   SStateWindowOperatorInfo* pInfo = pOperator->info;
   SOptrBasicInfo*           pBInfo = &pInfo->binfo;
-  recordOpExecBegin(pOperator);
 
   code = pOperator->fpSet._openFn(pOperator);
   QUERY_CHECK_CODE(code, lino, _end);
@@ -1370,7 +1369,6 @@ _end:
     T_LONG_JMP(pTaskInfo->env, code);
   }
   (*ppRes) = (pBInfo->pRes->info.rows == 0) ? NULL : pBInfo->pRes;
-  recordOpExecEnd(pOperator, (*ppRes) ? (*ppRes)->info.rows : 0);
   return code;
 }
 
@@ -1379,7 +1377,6 @@ static int32_t doBuildIntervalResultNext(SOperatorInfo* pOperator, SSDataBlock**
   int32_t                   lino = 0;
   SIntervalAggOperatorInfo* pInfo = pOperator->info;
   SExecTaskInfo*            pTaskInfo = pOperator->pTaskInfo;
-  recordOpExecBegin(pOperator);
 
   if (pOperator->status == OP_EXEC_DONE && !pOperator->pOperatorGetParam) {
     (*ppRes) = NULL;
@@ -1422,7 +1419,6 @@ _end:
     T_LONG_JMP(pTaskInfo->env, code);
   }
   (*ppRes) = (pBlock->info.rows == 0) ? NULL : pBlock;
-  recordOpExecEnd(pOperator, (*ppRes) ? (*ppRes)->info.rows : 0);
   return code;
 }
 
@@ -1850,7 +1846,6 @@ static int32_t doSessionWindowAggNext(SOperatorInfo* pOperator, SSDataBlock** pp
   SSessionAggOperatorInfo* pInfo = pOperator->info;
   SOptrBasicInfo*          pBInfo = &pInfo->binfo;
   SExprSupp*               pSup = &pOperator->exprSupp;
-  recordOpExecBegin(pOperator);
 
   if (pOperator->status == OP_RES_TO_RETURN) {
     while (1) {
@@ -1869,7 +1864,6 @@ static int32_t doSessionWindowAggNext(SOperatorInfo* pOperator, SSDataBlock** pp
       }
     }
     (*ppRes) = (pBInfo->pRes->info.rows == 0) ? NULL : pBInfo->pRes;
-    recordOpExecEnd(pOperator, (*ppRes) ? (*ppRes)->info.rows : 0);
     return code;
   }
 
@@ -1934,7 +1928,6 @@ _end:
     T_LONG_JMP(pTaskInfo->env, code);
   }
   (*ppRes) = (pBInfo->pRes->info.rows == 0) ? NULL : pBInfo->pRes;
-  recordOpExecEnd(pOperator, (*ppRes) ? (*ppRes)->info.rows : 0);
   return code;
 }
 
@@ -2409,8 +2402,6 @@ _end:
 }
 
 static int32_t mergeAlignedIntervalAggNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
-  recordOpExecBegin(pOperator);
-
   SExecTaskInfo*                        pTaskInfo = pOperator->pTaskInfo;
   int32_t                               code = TSDB_CODE_SUCCESS;
   SMergeAlignedIntervalAggOperatorInfo* pMiaInfo = pOperator->info;
@@ -2440,7 +2431,6 @@ static int32_t mergeAlignedIntervalAggNext(SOperatorInfo* pOperator, SSDataBlock
   }
 
   (*ppRes) = (pRes->info.rows == 0) ? NULL : pRes;
-  recordOpExecEnd(pOperator, (*ppRes) ? (*ppRes)->info.rows : 0);
   return code;
 }
 
@@ -2732,7 +2722,6 @@ static int32_t doMergeIntervalAggNext(SOperatorInfo* pOperator, SSDataBlock** pp
   int32_t        code = TSDB_CODE_SUCCESS;
   int32_t        lino = 0;
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
-  recordOpExecBegin(pOperator);
 
   SMergeIntervalAggOperatorInfo* miaInfo = pOperator->info;
   SIntervalAggOperatorInfo*      iaInfo = &miaInfo->intervalAggOperatorInfo;
@@ -2808,7 +2797,6 @@ _end:
     T_LONG_JMP(pTaskInfo->env, code);
   }
   (*ppRes) = (pRes->info.rows == 0) ? NULL : pRes;
-  recordOpExecEnd(pOperator, (*ppRes) ? (*ppRes)->info.rows : 0);
   return code;
 }
 

@@ -1916,7 +1916,6 @@ int32_t seqStableJoin(SOperatorInfo* pOperator, SSDataBlock** pRes) {
   int32_t                    code = TSDB_CODE_SUCCESS;
   SDynQueryCtrlOperatorInfo* pInfo = pOperator->info;
   SStbJoinDynCtrlInfo*       pStbJoin = (SStbJoinDynCtrlInfo*)&pInfo->stbJoin;
-  recordOpExecBegin(pOperator);
 
   QRY_PARAM_CHECK(pRes);
   if (pOperator->status == OP_EXEC_DONE) {
@@ -1946,7 +1945,6 @@ _return:
   } else {
     code = seqStableJoinComposeRes(pStbJoin, *pRes);
   }
-  recordOpExecEnd(pOperator, (*pRes) ? (*pRes)->info.rows : 0);
   return code;
 }
 
@@ -3116,7 +3114,6 @@ int32_t vtbScanNext(SOperatorInfo* pOperator, SSDataBlock** pRes) {
   int32_t                    line = 0;
   SDynQueryCtrlOperatorInfo* pInfo = pOperator->info;
   SVtbScanDynCtrlInfo*       pVtbScan = (SVtbScanDynCtrlInfo*)&pInfo->vtbScan;
-  recordOpExecBegin(pOperator);
 
   QRY_PARAM_CHECK(pRes);
   if (pOperator->status == OP_EXEC_DONE && !pOperator->pOperatorGetParam) {
@@ -3152,13 +3149,14 @@ int32_t vtbScanNext(SOperatorInfo* pOperator, SSDataBlock** pRes) {
   code = virtualTableScanGetNext(pOperator, pRes);
   QUERY_CHECK_CODE(code, line, _return);
 
+  return code;
+
 _return:
   if (code) {
     qError("%s failed since %s, line %d", __func__, tstrerror(code), line);
     pOperator->pTaskInfo->code = code;
     T_LONG_JMP(pOperator->pTaskInfo->env, code);
   }
-  recordOpExecEnd(pOperator, (*pRes) ? (*pRes)->info.rows : 0);
   return code;
 }
 
@@ -3600,7 +3598,6 @@ int32_t vtbWindowNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   SOperatorParam*            pExtWinParam = NULL;
   SVtbWindowDynCtrlInfo*     pInfo = &pDynInfo->vtbWindow;
   SSDataBlock*               pRes = pInfo->pRes;
-  recordOpExecBegin(pOperator);
 
   code = pOperator->fpSet._openFn(pOperator);
   QUERY_CHECK_CODE(code, lino, _return);
@@ -3751,13 +3748,14 @@ int32_t vtbWindowNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   *ppRes = pRes;
   pInfo->curWinBatchIdx++;
 
+  return code;
+
 _return:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     pTaskInfo->code = code;
     T_LONG_JMP(pTaskInfo->env, code);
   }
-  recordOpExecEnd(pOperator, (*ppRes) ? (*ppRes)->info.rows : 0);
   return code;
 }
 
@@ -3977,7 +3975,6 @@ int32_t vtbAggNext(SOperatorInfo* pOperator, SSDataBlock** pRes) {
   int32_t                    line = 0;
   SDynQueryCtrlOperatorInfo* pInfo = pOperator->info;
   SVtbScanDynCtrlInfo*       pVtbScan = (SVtbScanDynCtrlInfo*)&pInfo->vtbScan;
-  recordOpExecBegin(pOperator);
 
   QRY_PARAM_CHECK(pRes);
   if (pOperator->status == OP_EXEC_DONE) {
@@ -3995,13 +3992,14 @@ int32_t vtbAggNext(SOperatorInfo* pOperator, SSDataBlock** pRes) {
   code = virtualTableAggGetNext(pOperator, pRes);
   QUERY_CHECK_CODE(code, line, _return);
 
+  return code;
+
 _return:
   if (code) {
     qError("%s failed since %s, line %d", __func__, tstrerror(code), line);
     pOperator->pTaskInfo->code = code;
     T_LONG_JMP(pOperator->pTaskInfo->env, code);
   }
-  recordOpExecEnd(pOperator, (*pRes) ? (*pRes)->info.rows : 0);
   return code;
 }
 

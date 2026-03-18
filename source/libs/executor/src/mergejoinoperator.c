@@ -1764,8 +1764,6 @@ void mJoinResetOperator(struct SOperatorInfo* pOperator) {
 int32_t mJoinMainProcess(struct SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
   SMJoinOperatorInfo* pJoin = pOperator->info;
   int32_t             code = TSDB_CODE_SUCCESS;
-  recordOpExecBegin(pOperator);
-
   if (pOperator->status == OP_EXEC_DONE) {
     if (NULL == pOperator->pDownstreamGetParams || NULL == pOperator->pDownstreamGetParams[0] ||
         NULL == pOperator->pDownstreamGetParams[1]) {
@@ -1808,7 +1806,6 @@ int32_t mJoinMainProcess(struct SOperatorInfo* pOperator, SSDataBlock** pResBloc
     *pResBlock = pBlock;
   }
 
-  recordOpExecEnd(pOperator, (*pResBlock) ? (*pResBlock)->info.rows : 0);
   return code;
 }
 

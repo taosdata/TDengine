@@ -670,7 +670,6 @@ static int32_t mergeAlignExtWinNext(SOperatorInfo* pOperator, SSDataBlock** ppRe
   SExternalWindowOperator*             pExtW = pMlExtInfo->pExtW;
   int32_t                              code = 0;
   int32_t lino = 0;
-  recordOpExecBegin(pOperator);
 
   if (pOperator->status == OP_EXEC_DONE) {
     (*ppRes) = NULL;
@@ -706,7 +705,6 @@ _exit:
     pTaskInfo->code = code;
     T_LONG_JMP(pTaskInfo->env, code);
   }
-  recordOpExecEnd(pOperator, (*ppRes) ? (*ppRes)->info.rows : 0);
   return code;
 }
 
@@ -2258,7 +2256,6 @@ static int32_t extWinNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   int32_t                  lino = 0;
   SExternalWindowOperator* pExtW = pOperator->info;
   SExecTaskInfo*           pTaskInfo = pOperator->pTaskInfo;
-  recordOpExecBegin(pOperator);
 
   if (pOperator->status == OP_EXEC_DONE && !pOperator->pOperatorGetParam) {
     *ppRes = NULL;
@@ -2330,7 +2327,6 @@ _exit:
     printDataBlock(*ppRes, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo), pTaskInfo->id.queryId);
   }
 
-  recordOpExecEnd(pOperator, (*ppRes) ? (*ppRes)->info.rows : 0);
   return code;
 }
 

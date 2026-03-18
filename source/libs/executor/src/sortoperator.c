@@ -438,9 +438,6 @@ int32_t doSort(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
   QRY_PARAM_CHECK(pResBlock);
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
-
-  recordOpExecBegin(pOperator);
-
   if (pOperator->status == OP_EXEC_DONE) {
     return code;
   }
@@ -466,7 +463,7 @@ int32_t doSort(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
     QUERY_CHECK_CODE(code, lino, _end);
     if (pBlock == NULL) {
       setOperatorCompleted(pOperator);
-      goto _end;
+      return code;
     }
 
     code = doFilter(pBlock, pOperator->exprSupp.pFilterInfo, &pInfo->matchInfo, NULL);
@@ -494,7 +491,6 @@ _end:
     pTaskInfo->code = code;
     T_LONG_JMP(pTaskInfo->env, code);
   }
-  recordOpExecEnd(pOperator, (*pResBlock) ? (*pResBlock)->info.rows : 0);
   return code;
 }
 
@@ -747,7 +743,6 @@ int32_t doGroupSort(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
   SGroupSortOperatorInfo* pInfo = pOperator->info;
   int32_t                 code = TSDB_CODE_SUCCESS;
   int32_t                 lino = 0;
-  recordOpExecBegin(pOperator);
 
   if (pOperator->status == OP_EXEC_DONE) {
     return code;
@@ -762,7 +757,7 @@ int32_t doGroupSort(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
     pInfo->prefetchedSortInput = getNextBlockFromDownstream(pOperator, 0);
     if (pInfo->prefetchedSortInput == NULL) {
       setOperatorCompleted(pOperator);
-      goto _end;
+      return code;
     }
 
     pInfo->currGroupId = pInfo->prefetchedSortInput->info.id.groupId;
@@ -792,7 +787,7 @@ int32_t doGroupSort(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
     if (pBlock != NULL) {
       pBlock->info.id.groupId = pInfo->currGroupId;
       *pResBlock = pBlock;
-      goto _end;
+      return code;
     } else {
       if (pInfo->childOpStatus == CHILD_OP_NEW_GROUP) {
         (void) finishSortGroup(pOperator);
@@ -802,7 +797,7 @@ int32_t doGroupSort(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
       } else if (pInfo->childOpStatus == CHILD_OP_FINISHED) {
         (void) finishSortGroup(pOperator);
         setOperatorCompleted(pOperator);
-        goto _end;
+        return code;
       }
     }
   }
@@ -813,7 +808,6 @@ _end:
     pTaskInfo->code = code;
     T_LONG_JMP(pTaskInfo->env, code);
   }
-  recordOpExecEnd(pOperator, (*pResBlock) ? (*pResBlock)->info.rows : 0);
   return code;
 }
 
