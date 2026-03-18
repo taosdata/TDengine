@@ -241,7 +241,7 @@ int32_t funcInputGetNextRowDescPk(SFuncInputRowIter* pIter, SFuncInputRow* pRow,
         return code;
       }
 
-      pIter->prevIsDataNull = colDataIsNull_f(pIter->pDataCol, pIter->inputEndIndex);
+      pIter->prevIsDataNull = colDataIsNull_s(pIter->pDataCol, pIter->inputEndIndex);
 
       pIter->pPrevData = taosMemoryMalloc(pIter->pDataCol->info.bytes);
       if (NULL == pIter->pPrevData) {
@@ -277,7 +277,7 @@ int32_t funcInputGetNextRowDescPk(SFuncInputRowIter* pIter, SFuncInputRow* pRow,
         pRow->rowIndex = 0;
       } else {
         pRow->ts = pIter->tsList[idx - 1];
-        pRow->isDataNull = colDataIsNull_f(pIter->pDataCol, idx - 1);
+        pRow->isDataNull = colDataIsNull_s(pIter->pDataCol, idx - 1);
         pRow->pData = colDataGetData(pIter->pDataCol, idx - 1);
         pRow->pPk = colDataGetData(pIter->pPkCol, idx - 1);
         pRow->block = pIter->pSrcBlock;
@@ -296,7 +296,7 @@ int32_t funcInputGetNextRowDescPk(SFuncInputRowIter* pIter, SFuncInputRow* pRow,
         ++idx;
       }
       pRow->ts = pIter->tsList[idx];
-      pRow->isDataNull = colDataIsNull_f(pIter->pDataCol, idx);
+      pRow->isDataNull = colDataIsNull_s(pIter->pDataCol, idx);
       pRow->pData = colDataGetData(pIter->pDataCol, idx);
       pRow->pPk = colDataGetData(pIter->pPkCol, idx);
       pRow->block = pIter->pSrcBlock;
@@ -307,7 +307,7 @@ int32_t funcInputGetNextRowDescPk(SFuncInputRowIter* pIter, SFuncInputRow* pRow,
     } else {
       pIter->hasPrev = true;
       pIter->prevBlockTsEnd = tsEnd;
-      pIter->prevIsDataNull = colDataIsNull_f(pIter->pDataCol, pIter->inputEndIndex);
+      pIter->prevIsDataNull = colDataIsNull_s(pIter->pDataCol, pIter->inputEndIndex);
       pIter->pPrevData = taosMemoryMalloc(pIter->pDataCol->info.bytes);
       if (NULL == pIter->pPrevData) {
         qError("out of memory when function get input row.");
@@ -341,7 +341,7 @@ static void forwardToNextDiffTsRow(SFuncInputRowIter* pIter, int32_t rowIndex) {
 static void setInputRowInfo(SFuncInputRow* pRow, SFuncInputRowIter* pIter, int32_t rowIndex, bool setPk) {
   pRow->ts = pIter->tsList[rowIndex];
   pRow->ts = pIter->tsList[rowIndex];
-  pRow->isDataNull = colDataIsNull_f(pIter->pDataCol, rowIndex);
+  pRow->isDataNull = colDataIsNull_s(pIter->pDataCol, rowIndex);
   pRow->pData = colDataGetData(pIter->pDataCol, rowIndex);
   pRow->pPk = setPk ? colDataGetData(pIter->pPkCol, rowIndex) : NULL;
   pRow->block = pIter->pSrcBlock;
@@ -3868,7 +3868,10 @@ static int32_t copyLagLeadRowValue(SqlFunctionCtx* pCtx, SFuncInputRow* pRow, SL
   }
 
   SColumnInfoData* pInputCol = pCtx->input.pData[0];
-  int32_t          dataLen = IS_VAR_DATA_TYPE(pInputCol->info.type) ? varDataTLen(pRow->pData) : pInputCol->info.bytes;
+  int32_t          dataLen = pInputCol->info.bytes;
+  if (IS_VAR_DATA_TYPE(pInputCol->info.type)) {
+    dataLen = IS_STR_DATA_BLOB(pInputCol->info.type) ? blobDataTLen(pRow->pData) : varDataTLen(pRow->pData);
+  }
   pValue->dataLen = dataLen;
   pValue->pData = taosMemoryMalloc(dataLen);
   if (pValue->pData == NULL) {
@@ -8614,6 +8617,5 @@ int32_t hasNullFunction(SqlFunctionCtx* pCtx) {
 
   return TSDB_CODE_SUCCESS;
 }
-
 
 

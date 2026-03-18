@@ -31,6 +31,21 @@ class TestFunSelectLagLead:
             "('2025-01-01 00:00:03', 23, 23131313131, 'b3')"
         )
 
+        tdSql.execute("create table ct_single using st tags(9)")
+        tdSql.execute(
+            "insert into ct_single values"
+            "('2025-01-01 00:00:01', 101, 10101010101, 'single')"
+        )
+
+        tdSql.execute("create table ct_null using st tags(8)")
+        tdSql.execute(
+            "insert into ct_null values"
+            "('2025-01-01 00:00:01', 31, 31000000001, 'n1')"
+            "('2025-01-01 00:00:02', null, null, null)"
+            "('2025-01-01 00:00:03', 33, 33000000003, 'n3')"
+            "('2025-01-01 00:00:04', null, null, null)"
+        )
+
     def _case_lag_basic(self):
         tdSql.query("select _rowts, lag(v, 1) from ct1 order by ts")
         tdSql.checkRows(3)
@@ -58,7 +73,10 @@ class TestFunSelectLagLead:
         tdSql.checkData(2, 1, -1)
 
     def _case_partition_lag_lead(self):
-        tdSql.query("select tbname, _rowts, lag(v, 1, -1) from st partition by tbname order by tbname, ts")
+        tdSql.query(
+            "select tbname, _rowts, lag(v, 1, -1) "
+            "from st where tg in (1, 2) partition by tbname order by tbname, ts"
+        )
         tdSql.checkRows(6)
         tdSql.checkData(0, 0, "ct1")
         tdSql.checkData(0, 2, -1)
@@ -73,7 +91,10 @@ class TestFunSelectLagLead:
         tdSql.checkData(5, 0, "ct2")
         tdSql.checkData(5, 2, 22)
 
-        tdSql.query("select tbname, _rowts, lead(v, 1, -1) from st partition by tbname order by tbname, ts")
+        tdSql.query(
+            "select tbname, _rowts, lead(v, 1, -1) "
+            "from st where tg in (1, 2) partition by tbname order by tbname, ts"
+        )
         tdSql.checkRows(6)
         tdSql.checkData(0, 0, "ct1")
         tdSql.checkData(0, 2, 12)
@@ -202,6 +223,96 @@ class TestFunSelectLagLead:
     def _case_window_query_lag_lead(self):
         tdSql.error("select _wstart, lag(v, 1, -1) from ct1 interval(1s)")
         tdSql.error("select _wstart, lead(v, 1, -1) from ct1 interval(1s)")
+
+    def _case_order_desc_lag_lead(self):
+        tdSql.query("select _rowts, v, lag(v, 1, -1), lead(v, 1, -1) from ct1 order by ts desc")
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 1, 13)
+        tdSql.checkData(0, 2, 12)
+        tdSql.checkData(0, 3, -1)
+        tdSql.checkData(1, 1, 12)
+        tdSql.checkData(1, 2, 11)
+        tdSql.checkData(1, 3, 13)
+        tdSql.checkData(2, 1, 11)
+        tdSql.checkData(2, 2, -1)
+        tdSql.checkData(2, 3, 12)
+
+        # In a subquery, the DESC-ordered result becomes the input sequence of lag/lead.
+        tdSql.query(
+            "select ts, lag(v, 2, -1), lead(v, 2, -1) "
+            "from (select ts, v from ct1 order by ts desc) t"
+        )
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 1, -1)
+        tdSql.checkData(0, 2, 11)
+        tdSql.checkData(1, 1, -1)
+        tdSql.checkData(1, 2, -1)
+        tdSql.checkData(2, 1, 13)
+        tdSql.checkData(2, 2, -1)
+
+    def _case_null_input_lag_lead(self):
+        tdSql.query("select _rowts, v, lag(v, 1, -1), lead(v, 1, -1) from ct_null order by ts")
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 1, 31)
+        tdSql.checkData(0, 2, -1)
+        tdSql.checkData(0, 3, None)
+        tdSql.checkData(1, 1, None)
+        tdSql.checkData(1, 2, 31)
+        tdSql.checkData(1, 3, 33)
+        tdSql.checkData(2, 1, 33)
+        tdSql.checkData(2, 2, None)
+        tdSql.checkData(2, 3, None)
+        tdSql.checkData(3, 1, None)
+        tdSql.checkData(3, 2, 33)
+        tdSql.checkData(3, 3, -1)
+
+        tdSql.query("select _rowts, vs, lag(vs, 1, 'x'), lead(vs, 1, 'y') from ct_null order by ts")
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 1, "n1")
+        tdSql.checkData(0, 2, "x")
+        tdSql.checkData(0, 3, None)
+        tdSql.checkData(1, 1, None)
+        tdSql.checkData(1, 2, "n1")
+        tdSql.checkData(1, 3, "n3")
+        tdSql.checkData(2, 1, "n3")
+        tdSql.checkData(2, 2, None)
+        tdSql.checkData(2, 3, None)
+        tdSql.checkData(3, 1, None)
+        tdSql.checkData(3, 2, "n3")
+        tdSql.checkData(3, 3, "y")
+
+    def _case_single_row_and_empty_result(self):
+        tdSql.query("select _rowts, lag(v, 1, -1), lead(v, 1, -1) from ct_single order by ts")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, -1)
+        tdSql.checkData(0, 2, -1)
+
+        tdSql.query("select _rowts, lag(vs, 1, 'x'), lead(vs, 1, 'y') from ct_single order by ts")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, "x")
+        tdSql.checkData(0, 2, "y")
+
+        tdSql.query("select _rowts, lag(v, 1, -1), lead(v, 1, -1) from ct1 where ts < '2025-01-01 00:00:01' order by ts")
+        tdSql.checkRows(0)
+
+    def _case_large_offset_small_table(self):
+        tdSql.query("select _rowts, lag(v, 10, -1), lead(v, 10, -1) from ct1 order by ts")
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 1, -1)
+        tdSql.checkData(0, 2, -1)
+        tdSql.checkData(1, 1, -1)
+        tdSql.checkData(1, 2, -1)
+        tdSql.checkData(2, 1, -1)
+        tdSql.checkData(2, 2, -1)
+
+        tdSql.query("select _rowts, lag(v, 10), lead(v, 10) from ct1 order by ts")
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 1, None)
+        tdSql.checkData(0, 2, None)
+        tdSql.checkData(1, 1, None)
+        tdSql.checkData(1, 2, None)
+        tdSql.checkData(2, 1, None)
+        tdSql.checkData(2, 2, None)
 
     def _case_stream_query_lag_lead(self):
         tdSql.query("show snodes")
@@ -334,7 +445,7 @@ class TestFunSelectLagLead:
                 vs = f"s{v}"
                 values.append(f"('{ts}', {v}, {vb}, '{vs}')")
 
-            tdSql.execute("insert into ct_big values " + "".join(values))
+            tdSql.execute("insert into ct_big values " + ",".join(values))
 
         tdSql.query("select _rowts, lag(v, 1, -1), lead(v, 1, -1) from ct_big order by ts")
         tdSql.checkRows(total_rows)
@@ -395,6 +506,7 @@ class TestFunSelectLagLead:
         6. Validate lag/lead behavior with subqueries and window-query constraints.
         7. Validate lag/lead behavior with partition by non-tbname on multi-subtable timelines.
         8. Validate stream-query usage of lag/lead keeps current behavior unchanged.
+        9. Validate lag/lead with null inputs, descending timelines, empty results, and large offsets on small inputs.
 
         Since: v3.4.0.0
 
@@ -419,6 +531,10 @@ class TestFunSelectLagLead:
         self._case_subquery_lag_lead_inside()
         self._case_subquery_lag_lead_outside()
         self._case_window_query_lag_lead()
+        self._case_order_desc_lag_lead()
+        self._case_null_input_lag_lead()
+        self._case_single_row_and_empty_result()
+        self._case_large_offset_small_table()
         self._case_stream_query_lag_lead()
         self._case_partition_by_tag_multi_subtables_timeline()
         self._case_large_rows_cross_block_lag_lead()

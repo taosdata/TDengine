@@ -96,6 +96,10 @@ EFuncReturnRows fmGetFuncReturnRows(SFunctionNode* pFunc) {
 }
 
 bool canCoexistIndefiniteRowsFunc(int32_t funcId1, int32_t funcId2) {
+  if (fmIsUserDefinedFunc(funcId1) || funcId1 < 0 || funcId1 >= funcMgtBuiltinsNum ||
+      fmIsUserDefinedFunc(funcId2) || funcId2 < 0 || funcId2 >= funcMgtBuiltinsNum) {
+    return false;
+  }
   if (funcId1 == funcId2) {
     return true;
   }
@@ -926,6 +930,5 @@ int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, co
   
   return code;
 }
-
 
 
