@@ -923,6 +923,11 @@ int32_t taosSetGlobalTimezone(const char *tz) {
     }
   }
 
+  if (!found || winStr[0] == '\0') {
+    terrno = TSDB_CODE_TIME_ERROR;
+    return terrno;
+  }
+
   _putenv(winStr);
   _tzset();
   return 0;
