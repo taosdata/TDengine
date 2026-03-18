@@ -1072,7 +1072,10 @@ int32_t taosGetLocalTimezoneOffset() {
 #elif defined(TD_ASTRA)
   return -(int32_t)timezone;
 #else
-  return (int32_t)(tm1.tm_gmtoff);
+  // Return negative of tm_gmtoff to match Windows convention
+  // For UTC-8: tm_gmtoff = -28800, return 28800
+  // For UTC+8: tm_gmtoff = 28800, return -28800
+  return -(int32_t)(tm1.tm_gmtoff);
 #endif
 }
 
