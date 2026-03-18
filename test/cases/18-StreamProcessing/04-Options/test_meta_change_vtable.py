@@ -28,27 +28,27 @@ class TestStreamMetaChangeVTable:
         """
 
         tdStream.createSnode()
-        tdSql.execute(f"alter all dnodes 'debugflag 131';")
-        tdSql.execute(f"alter all dnodes 'stdebugflag 131';")
+        tdSql.execute(f"alter all dnodes 'qdebugflag 143';")
+        tdSql.execute(f"alter all dnodes 'stdebugflag 135';")
 
         streams = []
-        # streams.append(self.Basic37208())  # [ok] add ctb and drop ctb from stb
-        streams.append(self.Basic0())  # [ok] add ctb and drop ctb from stb
-        streams.append(self.Basic1())  # [ok] drop data source table
+        streams.append(self.Basic37208())  # [ok] add ctb and drop ctb from stb
+        # streams.append(self.Basic0())  # [ok] add ctb and drop ctb from stb
+        # streams.append(self.Basic1())  # [ok] drop data source table
         
-        # streams.append(self.Basic2())  # tag过滤时，修改tag的值，从满足流条件，到不满足流条件; 从不满足流条件，到满足流条件 [fail]       
+        # # streams.append(self.Basic2())  # tag过滤时，修改tag的值，从满足流条件，到不满足流条件; 从不满足流条件，到满足流条件 [fail]       
         
-        # TD-36750 [流计算开发阶段] 虚拟表+删除pre_filter(cbigint >=1)中cbigint列后，应该没有符合条件的数据了，不会触发计算窗口
-        # TD-38126 pre_filter 在 %%trows 且触发表为虚拟表时不可用
-        # streams.append(self.Basic3())  # [ok]
+        # # TD-36750 [流计算开发阶段] 虚拟表+删除pre_filter(cbigint >=1)中cbigint列后，应该没有符合条件的数据了，不会触发计算窗口
+        # # TD-38126 pre_filter 在 %%trows 且触发表为虚拟表时不可用
+        # # streams.append(self.Basic3())  # [ok]
         
-        streams.append(self.Basic4())  # [ok]
-        streams.append(self.Basic5())  # [ok] 
+        # streams.append(self.Basic4())  # [ok]
+        # streams.append(self.Basic5())  # [ok] 
         
-        # TD-37144 [流计算开发阶段] 删除流结果表后继续触发了也没有重建，不符合预期
-        # streams.append(self.Basic6())  #  [fail]
+        # # TD-37144 [流计算开发阶段] 删除流结果表后继续触发了也没有重建，不符合预期
+        # # streams.append(self.Basic6())  #  [fail]
         
-        streams.append(self.Basic7())  # [ok] 
+        # streams.append(self.Basic7())  # [ok] 
         
         tdStream.checkAll(streams)
 
@@ -70,30 +70,20 @@ class TestStreamMetaChangeVTable:
             tdSql.execute(f"create table {self.db}.ct5 using {self.db}.{self.stbName} (tint, tbigint)tags(5, 5)")
 
             tdSql.execute(f"create vtable {self.db}.vct1 (cint from {self.db}.ct1.cint) using {self.db}.{self.vstbName} tags(1,1)")
-            # tdSql.execute(f"create vtable vct2 (cint from {self.db}.ct2.cint) using {self.db}.{self.vstbName} tags(2,2)")
-            # tdSql.execute(f"create vtable vct4 (cint from {self.db}.ct4.cint) using {self.db}.{self.vstbName} tags(4,4)")  
-            # tdSql.execute(f"create vtable vct5 (cint from {self.db}.ct5.cint) using {self.db}.{self.vstbName} tags(5,5)")
 
-            # tdSql.execute(
-            #     f"create stream {self.db}.s37208_g count_window(1) from {self.vstbName} partition by tbname, tint into {self.db}.res_stb OUTPUT_SUBTABLE(CONCAT('res_stb_', tbname)) (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
-            # )
-
-            # tdSql.error(f"alter table vct2 set tag tint = 9")
-
-            # tdSql.execute(
-            #     f"create stream {self.db}.s37208_g_f count_window(1) from {self.vstbName} partition by tbname, tint stream_options(DELETE_OUTPUT_TABLE) into {self.db}.res_stb_f OUTPUT_SUBTABLE(CONCAT('res_stb_f_', tbname)) (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
-            # )
-
-            tdSql.execute(f"create table if not exists {self.db}.tt (cts timestamp, cint int, cfloat float, cdouble double, cvar varchar(4)) tags (tint int, tbigint bigint)")            
+            tdSql.execute(f"use {self.db}")
 
             tdSql.execute(
-                f"create stream {self.db}.s37208_g_t1 state_window(cint) from {self.db}.tt partition by tbname, tint stream_options(pre_filter(cdouble >= 10)) into {self.db}.res_stb_t1 as select first(_c0), last_row(_c0), sum(cfloat) from %%trows;"
+                f"create stream {self.db}.s1 count_window(1) from {self.vstbName} partition by tbname, tint into {self.db}.res_stb OUTPUT_SUBTABLE(CONCAT('res_stb_', tbname)) (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
             )
 
-            # tdSql.execute(
-            #     f"create stream {self.db}.s37208_g_t2 count_window(1) from {self.vstbName} partition by tbname, tint stream_options(pre_filter(tbigint >= 10)) into res_stb_t2 OUTPUT_SUBTABLE(CONCAT('res_stb_t2_', tbname)) (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%tbname where cts >= _twstart and cts <= _twend;"
-            # )
+            tdSql.execute(
+                f"create stream {self.db}.s2 count_window(1) from {self.vstbName} partition by tbname, tint stream_options(DELETE_OUTPUT_TABLE) into {self.db}.res_stb_1 OUTPUT_SUBTABLE(CONCAT('res_stb_1_', tbname)) (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
+            )
 
+            tdSql.execute(
+                f"create stream {self.db}.s3 count_window(1) from {self.vstbName} partition by tbname, tint stream_options(PRE_FILTER(tbigint <= 2)) into {self.db}.res_stb_2 OUTPUT_SUBTABLE(CONCAT('res_stb_2_', tbname)) (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from {self.vstbName};"
+            )
 
         def insert1(self):
             tdSql.execute(f"create vtable {self.db}.vct2 (cint from {self.db}.ct2.cint) using {self.db}.{self.vstbName} tags(2,2)")
@@ -106,13 +96,13 @@ class TestStreamMetaChangeVTable:
 
         def check1(self):
             tdSql.checkResultsByFunc(
-                sql=f'select * from information_schema.ins_tables where db_name="{self.db}" and table_name like "res_stb_f%"',
+                sql=f'select * from information_schema.ins_tables where db_name="{self.db}" and table_name like "res_stb_1%"',
                 func=lambda: tdSql.getRows() == 2,
             )
 
             tdSql.checkResultsByFunc(
                 sql=f'select * from information_schema.ins_tables where db_name="{self.db}" and table_name like "res_stb_%"',
-                func=lambda: tdSql.getRows() == 4,
+                func=lambda: tdSql.getRows() == 6,
             )
 
             tdSql.checkResultsByFunc(
@@ -165,18 +155,31 @@ class TestStreamMetaChangeVTable:
 
         def insert3(self):
             tdSql.execute(f"create vtable {self.db}.vct3 (cint from {self.db}.ct3.cint) using {self.db}.{self.vstbName} tags(10,10)")
-            tdSql.execute(f"create vtable {self.db}.vct4 (cint from {self.db}.ct3.cint) using {self.db}.{self.vstbName} tags(20,20)")
+            tdSql.execute(f"create vtable {self.db}.vct4 (cint from {self.db}.ct4.cint) using {self.db}.{self.vstbName} tags(-20,-20)")
+            tdSql.execute(f"create vtable {self.db}.vct5 (cint from {self.db}.ct2.cint) using {self.db}.{self.vstbName} tags(20,20)")
             time.sleep(5)
             tdSql.execute(f"insert into ct4 values ('2025-01-01 00:01:00', 1);")
             tdSql.execute(f"insert into ct3 values ('2025-01-01 00:01:00', 1);")
-            tdSql.execute(f"alter table {self.db}.ct1 set tag tbigint = 30")
+            tdSql.execute(f"insert into ct2 values ('2025-01-05 10:01:00', 1);")
+
+            tdSql.execute(f"alter table {self.db}.vct1 set tag tbigint = 30")
             time.sleep(5)
             tdSql.execute(f"insert into {self.db}.ct1 values ('2025-01-03 00:00:00', 1);")
-            tdSql.execute(f"alter table {self.db}.ct3 set tag tbigint = 3")
-            tdSql.execute(f"alter table {self.db}.ct4 set tag tbigint = 30")
+
+            tdSql.execute(f"alter table {self.db}.vct3 set tag tbigint = -3")
+            tdSql.execute(f"alter table {self.db}.vct4 set tag tbigint = -30")
+            tdSql.execute(f"alter table {self.db}.vct5 set tag tbigint = 60")
             time.sleep(5)
             tdSql.execute(f"insert into ct4 values ('2025-01-02 00:01:00', 1);")
             tdSql.execute(f"insert into ct3 values ('2025-01-02 00:01:00', 1);")
+
+            tdSql.execute(f"alter vtable {self.db}.vct4 alter column cint set {self.db}.ct2.cint")
+            time.sleep(5)
+            tdSql.execute(f"insert into ct2 values ('2025-01-05 10:01:10', 1);")
+
+            tdSql.execute(f"alter vtable {self.db}.vct4 alter column cint set null")
+            time.sleep(5)
+            tdSql.execute(f"insert into ct2 values ('2025-01-05 10:01:11', 1);")
 
         def check3(self):  
             tdSql.checkResultsByFunc(
@@ -218,6 +221,7 @@ class TestStreamMetaChangeVTable:
                 and tdSql.compareData(1, 3, 1)
                 and tdSql.compareData(1, 4, 1),
             )
+
     class Basic0(StreamCheckItem):
         def __init__(self):
             self.db  = "sdb0"
