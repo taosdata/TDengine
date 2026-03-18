@@ -1267,7 +1267,7 @@ dependencies = [
 ]
 script = """
 # merge coverage data
-lcov --add-tracefile target/llvm-cov-taosx.lcov --add-tracefile target/llvm-cov-integration.lcov --add-tracefile target/llvm-cov-explorer.lcov --output-file target/llvm-cov-merged.lcov
+lcov --add-tracefile target/llvm-cov-taosx.lcov --add-tracefile target/llvm-cov-explorer.lcov --output-file target/llvm-cov-merged.lcov
 # covert absolute path to relative path
 sed -i 's#SF:.*taosx/#SF:#' target/llvm-cov-merged.lcov
 
