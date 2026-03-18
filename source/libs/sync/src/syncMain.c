@@ -1827,7 +1827,11 @@ void syncNodeResetElectTimer(SSyncNode* pSyncNode) {
   if (pSyncNode->raftCfg.isStandBy) {
     electMS = TIMER_MAX_MS;
   } else {
+#ifdef WINDOWS
+    electMS = syncUtilElectRandomRMS(pSyncNode, pSyncNode->electBaseLine, 2 * pSyncNode->electBaseLine);
+#else
     electMS = syncUtilElectRandomMS(pSyncNode->electBaseLine, 2 * pSyncNode->electBaseLine);
+#endif
   }
 
   if ((code = syncNodeRestartElectTimer(pSyncNode, electMS)) != 0) {

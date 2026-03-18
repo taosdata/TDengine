@@ -88,9 +88,25 @@ bool syncUtilSameId(const SRaftId* pId1, const SRaftId* pId2) {
 bool syncUtilEmptyId(const SRaftId* pId) { return (pId->addr == 0 && pId->vgId == 0); }
 
 static inline int32_t syncUtilRand(int32_t max) { return taosRand() % max; }
+static inline int32_t syncUtilRandR(SSyncNode* pSyncNode, int32_t max) {
+  if (pSyncNode->electTimerSeed == 0) {
+    // Initialize the seed with a combination of current time and node-specific information to ensure variability across
+    // nodes
+    pSyncNode->electTimerSeed = (uint32_t)(taosGetTimestampMs() ^ (SYNC_ADDR(&pSyncNode->myNodeInfo) & 0xFFFFFFFF));
+    sInfo("vgId:%d, init elect timer seed:%u", pSyncNode->vgId, pSyncNode->electTimerSeed);
+  }
+  return taosRandR(&pSyncNode->electTimerSeed) % max;
+}
 
 int32_t syncUtilElectRandomMS(int32_t min, int32_t max) {
   int32_t rdm = min + syncUtilRand(max - min);
+
+  // sDebug("random min:%d, max:%d, rdm:%d", min, max, rdm);
+  return rdm;
+}
+
+int32_t syncUtilElectRandomRMS(SSyncNode* pSyncNode, int32_t min, int32_t max) {
+  int32_t rdm = min + syncUtilRandR(pSyncNode, max - min);
 
   // sDebug("random min:%d, max:%d, rdm:%d", min, max, rdm);
   return rdm;

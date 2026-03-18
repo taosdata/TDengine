@@ -86,6 +86,7 @@ bool syncUtilSameId(const SRaftId* pId1, const SRaftId* pId2);
 bool syncUtilEmptyId(const SRaftId* pId);
 
 int32_t     syncUtilElectRandomMS(int32_t min, int32_t max);
+int32_t     syncUtilElectRandomRMS(SSyncNode* pSyncNode, int32_t min, int32_t max);
 int32_t     syncUtilQuorum(int32_t replicaNum);
 const char* syncStr(ESyncState state);
 void        syncUtilMsgHtoN(void* msg);

@@ -190,6 +190,7 @@ struct SSyncNode {
   TAOS_TMR_CALLBACK FpElectTimerCB;  // Timer Fp
   uint64_t          electTimerCounter;
   SElectTimerParam  electTimerParam;
+  uint32_t          electTimerSeed;
 
   // heartbeat timer
   tmr_h             pHeartbeatTimer;
