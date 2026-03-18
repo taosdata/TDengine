@@ -261,19 +261,14 @@ if [ "$verMode" == "cloud" ]; then
   mv remove_temp.sh ${install_dir}/bin/remove.sh
 fi
 
-cd ${install_dir}
-if [ "$osType" != "Darwin" ]; then
-    tar -zcv -f ${tarName} * --remove-files || :
-    ls ${install_dir}
-else
-    tar -zcv -f ${tarName} * || :
-fi
-
-exitcode=$?
-if [ "$exitcode" != "0" ]; then
+cd ${release_dir}
+rm -f "${tarName}"
+if ! tar -zcv -f "${tarName}" -C "${install_dir}" --exclude="./${tarName}" .; then
   echo "tar ${tarName} error !!!"
-  exit $exitcode
+  exit 1
 fi
+find "${install_dir}" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+mv -f "${tarName}" "${install_dir}/${tarName}"
 
 cd ${curr_dir}
 cp ${install_files} ${install_dir}
@@ -433,18 +428,15 @@ if [ "$pagMode" == "lite" ]; then
 fi
 
 
-if [ "$osType" != "Darwin" ]; then
-    tar -zcv -f "$(basename ${pkg_name}).tar.gz" "$(basename ${install_dir})" --remove-files || :
-else
-    tar -zcv -f "$(basename ${pkg_name}).tar.gz" "$(basename ${install_dir})" || :
-    rm -rf ${install_dir} ||:
-    ([ -d build-taoskeeper ] && rm -rf build-taoskeeper ) ||:
+final_pkg_name="$(basename "${pkg_name}").tar.gz"
+rm -f "${final_pkg_name}"
+if ! tar -zcv -f "${final_pkg_name}" "$(basename "${install_dir}")"; then
+  echo "tar ${final_pkg_name} error !!!"
+  exit 1
 fi
-
-exitcode=$?
-if [ "$exitcode" != "0" ]; then
-  echo "tar ${pkg_name}.tar.gz error !!!"
-  exit $exitcode
+[ -n "${install_dir}" ] && [ "${install_dir}" != "/" ] && rm -rf "${install_dir}"
+if [ "$osType" == "Darwin" ]; then
+  [ -d build-taoskeeper ] && rm -rf build-taoskeeper ||:
 fi
 
 # if [ -n "${taostools_bin_files}" ] && [ "$verMode" != "cloud" ]; then
