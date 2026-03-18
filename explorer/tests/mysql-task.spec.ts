@@ -1,5 +1,5 @@
 import { test, expect } from './_utils/test';
-import { runSqlBatch } from './_utils/explorerSql';
+import { runSql, runSqlBatch } from './_utils/explorerSql';
 import { stopTaskBestEffort, deleteTaskBestEffort } from './_utils/cleanup';
 import { findTaskRow, gotoDataInTask, openAddSourceFromList, selectElOptionByText } from './_utils/datain';
 import { routes } from './_utils/routes';
@@ -673,7 +673,7 @@ test.describe('DataIn - MySQL datasource', () => {
       for (let i = 0; i < 10; i++) {
         row = await findTaskRow(page, taskName);
         const rowText = await row.textContent();
-        if (rowText && /Running/i.test(rowText)) {
+        if (rowText && /Running|Completed/i.test(rowText)) {
           break;
         }
         await page.waitForTimeout(1000);
@@ -683,11 +683,39 @@ test.describe('DataIn - MySQL datasource', () => {
 
       // Final assertion: the task should be running
       row = await findTaskRow(page, taskName);
-      await expect(row).toContainText(/Running/i, { timeout: 5_000 });
+      await expect(row).toContainText(/Running|Completed/i, { timeout: 5_000 });
+
+      // ========================
+      // Step 8: Wait for task to complete
+      // ========================
+      for (let i = 0; i < 60; i++) {
+        row = await findTaskRow(page, taskName);
+        const rowText = await row.textContent();
+        if (rowText && /Completed/i.test(rowText)) {
+          break;
+        }
+        await page.waitForTimeout(2000);
+        await refreshBtn.click();
+        await page.waitForTimeout(500);
+      }
+
+      row = await findTaskRow(page, taskName);
+      await expect(row).toContainText(/Completed/i, { timeout: 5_000 });
     } finally {
       // Cleanup: stop and delete the task
       await stopTaskBestEffort(page, taskName);
       await deleteTaskBestEffort(page, taskName);
+      // ========================
+      // Step 9: Verify data was written to TDengine
+      // ========================
+      await runSql(page, `select count(*) from \`${targetDb}\`.\`${stableName}\`;`);
+
+      // Wait for result table and extract the count value
+      const resultCell = page.locator('.gird .el-table__body-wrapper .el-table__row td .cell').first();
+      await expect(resultCell).toBeVisible({ timeout: 15_000 });
+      const countText = await resultCell.textContent();
+      const count = Number(countText?.trim());
+      expect(count).toBeGreaterThan(0);
       // Drop the super table we created
       await runSqlBatch(page, [
         `DROP STABLE IF EXISTS \`${targetDb}\`.\`${stableName}\`;`,
