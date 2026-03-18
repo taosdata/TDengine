@@ -55,12 +55,9 @@ typedef struct {
 } SSqlSecMatchResult;
 
 typedef struct {
-  bool    hasOrTrue;
-  bool    hasDangerFunc;
-  bool    hasDeepSubquery;
-  bool    hasUnsafeJoin;
-  int32_t subqueryDepth;
-  int32_t maxSubqueryDepth;
+  bool hasOrTrue;
+  bool hasDangerFunc;
+  bool hasUnsafeJoin;
 } SSqlSecAstResult;
 
 typedef struct {
@@ -954,17 +951,6 @@ static EDealRes sqlSecAstWalker(SNode* pNode, void* pContext) {
       }
     }
   }
-  // Check subquery depth
-  else if (nodeType(pNode) == QUERY_NODE_SELECT_STMT) {
-    pRes->subqueryDepth++;
-    if (pRes->subqueryDepth > pRes->maxSubqueryDepth) {
-      pRes->maxSubqueryDepth = pRes->subqueryDepth;
-    }
-    if (pRes->maxSubqueryDepth > 5) {  // Max depth limit
-      pRes->hasDeepSubquery = true;
-      return DEAL_RES_END;
-    }
-  }
 
   return DEAL_RES_CONTINUE;
 }
@@ -977,14 +963,13 @@ int32_t sqlSecurityCheckASTLevel(SRequestObj* pRequest, SQuery* pQuery) {
   }
 
   SSqlSecAstResult res = {0};
-  res.maxSubqueryDepth = 5;  // Default max depth
   nodesWalkExpr((SNode*)pQuery->pRoot, sqlSecAstWalker, &res);
 
-  if (res.hasOrTrue || res.hasDangerFunc || res.hasDeepSubquery || res.hasUnsafeJoin) {
-    tscWarn(
+  if (res.hasOrTrue || res.hasDangerFunc || res.hasUnsafeJoin) {
+        tscWarn(
         "req:0x%" PRIx64
-        ", sql security AST check denied, hasOrTrue:%d, hasDangerFunc:%d, hasDeepSubquery:%d, hasUnsafeJoin:%d, sql:%s",
-        pRequest->self, res.hasOrTrue, res.hasDangerFunc, res.hasDeepSubquery, res.hasUnsafeJoin,
+        ", sql security AST check denied, hasOrTrue:%d, hasDangerFunc:%d, hasUnsafeJoin:%d, sql:%s",
+        pRequest->self, res.hasOrTrue, res.hasDangerFunc, res.hasUnsafeJoin,
         pRequest->sqlstr ? pRequest->sqlstr : "");
     return TSDB_CODE_PAR_PERMISSION_DENIED;
   }

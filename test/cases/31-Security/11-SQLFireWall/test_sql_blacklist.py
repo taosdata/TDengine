@@ -55,6 +55,7 @@ class TestSqlFirewall:
 
     def union_select_denied(self):
         """Blacklist: UNION SELECT denied (string layer)."""
+        tdLog.info("union_select_denied start")
         tdSql.prepare(dbname="db_fw", drop=True)
         tdSql.execute("use db_fw")
         tdSql.execute("create table t1 (ts timestamp, c1 int)")
@@ -64,18 +65,22 @@ class TestSqlFirewall:
         tdSql.error("select * from t1 union select * from t1")
         tdSql.error("SELECT * FROM t1 UNION SELECT * FROM t1")
         tdSql.execute("drop database db_fw")
+        tdLog.info("union_select_denied success")
 
     def drop_table_denied(self):
         """Blacklist: DROP TABLE denied (string layer from rule file)."""
+        tdLog.info("drop_table_denied start")
         tdSql.prepare(dbname="db_fw", drop=True)
         tdSql.execute("use db_fw")
         tdSql.execute("create table t1 (ts timestamp, c1 int)")
         tdSql.error("drop table t1")
         tdSql.error("DROP TABLE t1")
         tdSql.execute("drop database db_fw")
+        tdLog.info("drop_table_denied success")
 
-    def drop_table_denied(self):
+    def other_sql_allowed(self):
         """Blacklist: normal SQL not matching rules is allowed."""
+        tdLog.info("other_sql_allowed start")
         tdSql.prepare(dbname="db_fw", drop=True)
         tdSql.execute("use db_fw")
         tdSql.execute("create table sensors (ts timestamp, temp float)")
@@ -84,6 +89,7 @@ class TestSqlFirewall:
         tdSql.checkRows(1)
         tdSql.query("select avg(temp) from sensors")
         tdSql.execute("drop database db_fw")
+        tdLog.info("other_sql_allowed success")
 
     def test_sql_blacklist(self):
         """ Test sql blacklist features
@@ -104,5 +110,5 @@ class TestSqlFirewall:
 
         self.union_select_denied()
         self.drop_table_denied()
-        self.drop_table_denied()
+        self.other_sql_allowed()
         tdLog.success("%s successfully executed" % __file__)
