@@ -1003,6 +1003,19 @@ class TestExplain:
         ]
         return exchange_idx
 
+    def __extract_table_scan_cost_ranges(self, plan_lines, table_name):
+        cost_ranges = []
+        pattern = re.compile(
+            r"Table Scan on {}\s+\(cost=([0-9.]+)(?:\([0-9.]+\))?\.\.([0-9.]+)(?:\([0-9.]+\))?"
+                .format(re.escape(table_name))
+        )
+        for line in plan_lines:
+            match = pattern.search(line)
+            if match is None:
+                continue
+            cost_ranges.append((float(match.group(1)), float(match.group(2))))
+        return cost_ranges
+
     def __check_explain_plan_rules(self, plan_lines):
         self.__check_filter_efficiency_percent(plan_lines)
         self.__check_exchange_network_validity(plan_lines)
@@ -2179,10 +2192,19 @@ class TestExplain:
         assert len(exchange_idx) == 2, (
             "expect two Data Exchange nodes for partition by gid"
         )
+        table_scan_cost_ranges = self.__extract_table_scan_cost_ranges(plan_lines, "stb")
+        assert len(table_scan_cost_ranges) == 2, (
+            "expect two Table Scan nodes on stb for partition by gid"
+        )
+        assert len(set(table_scan_cost_ranges)) == 2, (
+            # two scan operators MUST be different!!!
+            "expect two Table Scan nodes on stb with different cost ranges, got: {}"
+                .format(table_scan_cost_ranges)
+        )
 
         # check union and filter
-        tdSql.query("explain analyze verbose true select ts, c1 from stb where "
-            "gid < 3 and c1 > 0 union select * from ctb3", show=True)
+        tdSql.query("""explain analyze verbose true select ts, c1 from stb where 
+            gid < 3 and c1 > 0 union select * from ctb3""", show=True)
         plan_lines = self.__extract_explain_plan_lines()
         self.__check_explain_plan_rules(plan_lines)
         exchange_idx = self.__extract_exchange_indices(plan_lines)

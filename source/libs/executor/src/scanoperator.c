@@ -933,7 +933,6 @@ static SSDataBlock* getBlockForEmptyTable(SOperatorInfo* pOperator, const STable
   SSDataBlock*    pBlock =
       getOneRowResultBlock(pOperator->pTaskInfo, &pTableScanInfo->base, pTableScanInfo->pResBlock, tbInfo);
 
-  pOperator->resultInfo.totalRows++;
   return pBlock;
 }
 

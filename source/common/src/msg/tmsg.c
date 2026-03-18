@@ -12684,7 +12684,7 @@ int32_t tSerializeSExplainRsp(void *buf, int32_t bufLen, SExplainRsp *pRsp) {
   TAOS_CHECK_EXIT(tStartEncode(&encoder));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->numOfPlans));
   for (int32_t i = 0; i < pRsp->numOfPlans; ++i) {
-    SExplainExecInfo *info = &pRsp->subplanInfo[i];
+    const SExplainExecInfo *info = &pRsp->subplanInfo[i];
     TAOS_CHECK_EXIT(tEncodeU64(&encoder, info->numOfRows));
     TAOS_CHECK_EXIT(tEncodeU32(&encoder, info->verboseLen));
     TAOS_CHECK_EXIT(tEncodeBinary(&encoder, info->verboseInfo, info->verboseLen));

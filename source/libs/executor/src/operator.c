@@ -1287,8 +1287,10 @@ void recordOpExecEnd(SOperatorInfo* pOperator, size_t rows) {
       }
       pOperator->cost.execLastRow = pOperator->cost.endTs;
     }
-    pOperator->resultInfo.totalRows += rows;
   }
+  
+  /* accumulate output total rows even not in explain mode */
+  pOperator->resultInfo.totalRows += rows;
 }
 
 /**

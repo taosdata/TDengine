@@ -3151,7 +3151,7 @@ static int32_t physiExchangeNodeToJson(const void* pObj, SJson* pJson) {
   if (TSDB_CODE_SUCCESS == code) {
     code = nodeListToJson(pJson, jkExchangePhysiPlanSrcEndPoints, pNode->pSrcEndPoints);
   }
-  if (TSDB_CODE_SUCCESS == code) {
+  if (TSDB_CODE_SUCCESS == code && NULL != pNode->childrenVgIds) {
     code = tjsonAddTArray(pJson, jkExchangePhysiPlanChildrenVgIds, vgIdToJson, pNode->childrenVgIds);
   }
   if (TSDB_CODE_SUCCESS == code) {
