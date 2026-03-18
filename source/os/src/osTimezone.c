@@ -763,65 +763,208 @@ static uint32_t  g_tz_idx = 0;
 // Windows 上存储 UTC 偏移的全局变量（秒）
 // 对于 UTC+8，值为 -28800（负数）
 #ifdef WINDOWS
-// Windows 使用一个结构体来模拟 timezone_t
-typedef struct {
-  int64_t offset_seconds;  // UTC 偏移（秒）
-  char name[TD_TIMEZONE_LEN];
-} WindowsTimezone;
+// Windows 时区对象结构（堆分配，支持多时区）
+typedef struct WindowsTimezoneObj {
+  int64_t offset_seconds;      // UTC 偏移（秒），UTC+8 = -28800
+  char    name[TD_TIMEZONE_LEN];
+  int32_t refCount;            // 引用计数
+  TdThreadMutex mutex;         // 保护并发访问
+} WindowsTimezoneObj;
 
-static WindowsTimezone g_windows_tz = {0};
+// 全局默认时区（替代原来的 g_windows_tz）
+static WindowsTimezoneObj* g_default_tz = NULL;
+static TdThreadMutex g_default_tz_mutex;
+
+// 解析偏移字符串（如 "+08:00" 或 "-05:00"）
+static int32_t parseOffsetString(const char* offset_str, int64_t* offset_seconds, char* display_name, int32_t name_len) {
+  if (offset_str == NULL || offset_str[0] == '\0') {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  char sign = offset_str[0];
+  if (sign != '+' && sign != '-') {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  int hours = 0, minutes = 0;
+  if (sscanf(offset_str + 1, "%d:%d", &hours, &minutes) < 1) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  int64_t offset = (hours * 3600 + minutes * 60);
+  *offset_seconds = (sign == '+') ? offset : -offset;
+
+  if (display_name != NULL) {
+    snprintf(display_name, name_len, "UTC%c%02d:%02d (UTC, %c%02d%02d)",
+             sign, hours, minutes, sign, hours, minutes);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+// 从 Windows 注册表获取时区偏移
+static int32_t getWindowsRegistryOffset(const char* win_tz_name, const char* iana_name,
+                                        int64_t* offset_seconds, char* display_name, int32_t name_len) {
+  char  keyPath[256] = {0};
+  char  keyValue[100] = {0};
+  DWORD keyValueSize = sizeof(keyValue);
+
+  snprintf(keyPath, sizeof(keyPath), "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Time Zones\\%s", win_tz_name);
+  LONG result = RegGetValue(HKEY_LOCAL_MACHINE, keyPath, "Display", RRF_RT_ANY, NULL, (PVOID)&keyValue, &keyValueSize);
+
+  if (result != ERROR_SUCCESS || keyValueSize == 0) {
+    return TAOS_SYSTEM_WINAPI_ERROR(result);
+  }
+
+  // keyValue 格式: "(UTC+08:00) Beijing, Chongqing, Hong Kong, Urumqi"
+  if (keyValueSize > 10) {
+    char sign = keyValue[4];  // '+' or '-'
+    int hours = (keyValue[5] - '0') * 10 + (keyValue[6] - '0');
+    int minutes = (keyValue[8] - '0') * 10 + (keyValue[9] - '0');
+
+    int64_t offset = (hours * 3600 + minutes * 60);
+    // 注意：Windows Display 中的符号需要反转
+    *offset_seconds = (sign == '+') ? -offset : offset;
+
+    if (display_name != NULL) {
+      snprintf(display_name, name_len, "%s (UTC, %c%02d%02d)",
+               iana_name, (sign == '+' ? '+' : '-'), hours, minutes);
+    }
+
+    return TSDB_CODE_SUCCESS;
+  }
+
+  return TSDB_CODE_TIME_ERROR;
+}
+
+// 解析时区名称并计算偏移量
+static int32_t parseTimezoneOffset(const char* tzname, int64_t* offset_seconds, char* display_name, int32_t name_len) {
+  *offset_seconds = 0;
+
+  // 1. 处理 UTC/GMT
+  if (strcasecmp(tzname, "UTC") == 0 || strcasecmp(tzname, "GMT") == 0) {
+    *offset_seconds = 0;
+    if (display_name != NULL) {
+      snprintf(display_name, name_len, "%s (UTC, +0000)", tzname);
+    }
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // 2. 处理偏移字符串格式（"+08:00" 或 "-05:00"）
+  if (tzname[0] == '+' || tzname[0] == '-') {
+    return parseOffsetString(tzname, offset_seconds, display_name, name_len);
+  }
+
+  // 3. 查找 IANA 时区名称（如 "Asia/Shanghai"）
+  for (size_t i = 0; i < W_TZ_CITY_NUM; i++) {
+    if (strcmp(tz_win[i][0], tzname) == 0) {
+      return getWindowsRegistryOffset(tz_win[i][1], tzname, offset_seconds, display_name, name_len);
+    }
+  }
+
+  // 4. 查找 Windows 时区名称（如 "China Standard Time"）
+  for (size_t i = 0; i < W_TZ_NUM; i++) {
+    if (strcmp(win_tz[i][0], tzname) == 0) {
+      return getWindowsRegistryOffset(win_tz[i][0], win_tz[i][1], offset_seconds, display_name, name_len);
+    }
+  }
+
+  // 5. 未知时区，默认 UTC
+  uWarn("Unknown timezone: %s, defaulting to UTC", tzname);
+  *offset_seconds = 0;
+  if (display_name != NULL) {
+    snprintf(display_name, name_len, "UTC (UTC, +0000)");
+  }
+  return TSDB_CODE_TIME_ERROR;
+}
+
+// Windows 版本的 tzalloc：创建时区对象
+timezone_t tzalloc(const char* tzname) {
+  if (tzname == NULL) {
+    tzname = "UTC";
+  }
+
+  WindowsTimezoneObj* tz_obj = (WindowsTimezoneObj*)taosMemoryCalloc(1, sizeof(WindowsTimezoneObj));
+  if (tz_obj == NULL) {
+    uError("Failed to allocate memory for timezone object");
+    return NULL;
+  }
+
+  // 初始化互斥锁和引用计数
+  taosThreadMutexInit(&tz_obj->mutex, NULL);
+  tz_obj->refCount = 1;
+
+  // 解析时区名称并计算偏移量
+  int32_t code = parseTimezoneOffset(tzname, &tz_obj->offset_seconds, tz_obj->name, TD_TIMEZONE_LEN);
+  if (code != TSDB_CODE_SUCCESS) {
+    // 解析失败，默认 UTC
+    tz_obj->offset_seconds = 0;
+    tstrncpy(tz_obj->name, "UTC (UTC, +0000)", TD_TIMEZONE_LEN);
+  }
+
+  uDebug("tzalloc(%s) -> offset=%lld, name=%s", tzname, tz_obj->offset_seconds, tz_obj->name);
+
+  return (timezone_t)tz_obj;
+}
+
+// Windows 版本的 tzfree：释放时区对象
+void tzfree(timezone_t tz) {
+  if (tz == NULL) {
+    return;
+  }
+
+  WindowsTimezoneObj* tz_obj = (WindowsTimezoneObj*)tz;
+
+  taosThreadMutexLock(&tz_obj->mutex);
+  tz_obj->refCount--;
+  int32_t refCount = tz_obj->refCount;
+  taosThreadMutexUnlock(&tz_obj->mutex);
+
+  if (refCount <= 0) {
+    taosThreadMutexDestroy(&tz_obj->mutex);
+    taosMemoryFree(tz_obj);
+    uDebug("tzfree: timezone object freed");
+  }
+}
+
+// 从时区对象获取偏移量（新增辅助函数）
+static int64_t getTimezoneOffset(timezone_t tz) {
+  if (tz == NULL) {
+    return 0;
+  }
+
+  WindowsTimezoneObj* tz_obj = (WindowsTimezoneObj*)tz;
+  taosThreadMutexLock(&tz_obj->mutex);
+  int64_t offset = tz_obj->offset_seconds;
+  taosThreadMutexUnlock(&tz_obj->mutex);
+
+  return offset;
+}
 
 // 提供访问函数，确保从正确的位置读取
 int64_t getWindowsTimezoneOffset(void) {
-  // 每次都从环境变量 TZ 读取（由 taosSetGlobalTimezone 设置）
+  // 优先从 TZ 环境变量读取（用于向后兼容）
   char *tz_env = getenv("TZ");
 
   if (tz_env != NULL && tz_env[0] != '\0') {
-    // TZ 格式如 "+0:00" 或 "-8:00"（配置生效后）
-    // 或 "Asia/Shanghai"（配置未生效，系统默认）
+    // TZ 格式如 "+0:00" 或 "-8:00"
     if (*tz_env == '+' || *tz_env == '-') {
-      // 配置已生效，解析偏移
       char sign = *tz_env;
       int hours = 0, minutes = 0;
       if (sscanf(tz_env + 1, "%d:%d", &hours, &minutes) >= 1) {
         int64_t offset_seconds = (hours * 3600 + minutes * 60);
-        // TZ=+0 表示 UTC，offset=0
-        // TZ=-8 表示 UTC+8，offset=-28800
-        if (sign == '+') {
-          return offset_seconds;
-        } else {
-          return -offset_seconds;
-        }
-      }
-    }
-    // 如果 TZ 不是偏移格式，说明配置还没生效，继续使用系统时区
-  }
-
-  // 从系统获取时区
-  char tzStr[TD_TIMEZONE_LEN] = {0};
-  int32_t code = taosGetSystemTimezone(tzStr);
-  if (code == 0 && tzStr[0] != '\0') {
-    char *utcPos = strstr(tzStr, "(UTC, ");
-    if (utcPos && strlen(utcPos) >= 11) {
-      char sign = utcPos[6];
-      if ((sign == '+' || sign == '-') &&
-          utcPos[7] >= '0' && utcPos[7] <= '9' &&
-          utcPos[8] >= '0' && utcPos[8] <= '9' &&
-          utcPos[9] >= '0' && utcPos[9] <= '9' &&
-          utcPos[10] >= '0' && utcPos[10] <= '9') {
-        int hours = (utcPos[7] - '0') * 10 + (utcPos[8] - '0');
-        int minutes = (utcPos[9] - '0') * 10 + (utcPos[10] - '0');
-        int64_t offset_seconds = (hours * 3600 + minutes * 60);
-        if (sign == '+') {
-          return -offset_seconds;
-        } else {
-          return offset_seconds;
-        }
+        return (sign == '+') ? offset_seconds : -offset_seconds;
       }
     }
   }
 
-  return 0;
+  // 回退到全局默认时区
+  timezone_t default_tz = getGlobalDefaultTZ();
+  if (default_tz != NULL) {
+    return getTimezoneOffset(default_tz);
+  }
+
+  return 0;  // 默认 UTC
 }
 #endif
 
@@ -856,17 +999,29 @@ int32_t resetTimezoneInfo(const char *tzname)
 
   return TSDB_CODE_SUCCESS;
 #else
-  // Windows: 更新时区偏移
   if (!tzname) {
     return TSDB_CODE_TIME_ERROR;
   }
 
-  // 保存时区名称
-  tstrncpy(g_windows_tz.name, tzname, TD_TIMEZONE_LEN);
+  // 创建新的时区对象
+  timezone_t new_tz = tzalloc(tzname);
+  if (!new_tz) {
+    uError("tzalloc(%s) failed", tzname);
+    return TSDB_CODE_TIME_ERROR;
+  }
 
-  // 解析时区偏移，格式如 "Asia/Shanghai" 或 "UTC+8" 或 "+08:00"
-  // 这里简化处理，假设用户会调用 taosSetGlobalTimezone 来设置
-  // 或者从时区名称推断偏移（需要查表）
+  // 更新全局默认时区
+  taosThreadMutexLock(&g_default_tz_mutex);
+
+  timezone_t old_tz = g_default_tz;
+  g_default_tz = new_tz;
+
+  taosThreadMutexUnlock(&g_default_tz_mutex);
+
+  // 释放旧的时区对象
+  if (old_tz) {
+    tzfree(old_tz);
+  }
 
   uInfo("[tz] Windows switched to %s", tzname);
 
@@ -882,7 +1037,7 @@ int32_t taosSetGlobalTimezone(const char *tz) {
   int32_t code = TSDB_CODE_SUCCESS;
   uDebug("[tz]set timezone to %s", tz);
 #ifdef WINDOWS
-      char winStr[TD_TIMEZONE_LEN * 2] = {0};
+  char winStr[TD_TIMEZONE_LEN * 2] = {0};
   int found = 0;
   for (size_t i = 0; i < W_TZ_CITY_NUM; i++) {
     if (strcmp(tz_win[i][0], tz) == 0) {
@@ -896,7 +1051,7 @@ int32_t taosSetGlobalTimezone(const char *tz) {
       if (keyValueSize > 0) {
         keyValue[4] = (keyValue[4] == '+' ? '-' : '+');
         keyValue[10] = 0;
-        snprintf(winStr, sizeof(winStr), "TZ=%s:00", &(keyValue[1]));
+        snprintf(winStr, sizeof(winStr), "%s:00", &(keyValue[1]));
         if (strcasecmp(tz, "UTC") == 0) {
           snprintf(tsTimezoneStr, TD_TIMEZONE_LEN, "%s (UTC, +0000)", tz);
           snprintf(winStr, sizeof(winStr), "TZ=+0:00");
@@ -923,8 +1078,23 @@ int32_t taosSetGlobalTimezone(const char *tz) {
     }
   }
 
-  _putenv(winStr);
+  // 使用 SetEnvironmentVariableA 替代 _putenv
+  if (winStr[0] != '\0') {
+    // 设置进程级环境变量（跨 DLL 可见）
+    if (!SetEnvironmentVariableA("TZ", winStr)) {
+      uError("Failed to set TZ environment variable: %d", GetLastError());
+    }
+  }
+
+  // 仍然调用 _tzset() 更新 CRT 的时区信息
   _tzset();
+
+  // 更新全局默认时区对象
+  code = resetTimezoneInfo(tz);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
   return 0;
 #else
   code = resetTimezoneInfo(tz);
@@ -1076,32 +1246,39 @@ int32_t taosGetSystemTimezone(char *outTimezoneStr) {
 
 int32_t initTimezoneInfo(void) {
 #ifdef WINDOWS
-  // 从注册表获取时区信息
+  // 初始化全局默认时区互斥锁
+  taosThreadMutexInit(&g_default_tz_mutex, NULL);
+
+  // 从注册表获取系统时区
   char tzStr[TD_TIMEZONE_LEN] = {0};
   int32_t code = taosGetSystemTimezone(tzStr);
 
   if (code == 0 && tzStr[0] != '\0') {
-    // 保存时区名称
-    tstrncpy(g_windows_tz.name, tzStr, TD_TIMEZONE_LEN);
-
-    // 从 tzStr 中提取 UTC 偏移，格式如 "Asia/Shanghai (UTC, +0800)"
-    char *utcPos = strstr(tzStr, "(UTC, ");
-    if (utcPos) {
-      char sign = utcPos[6];  // '+' or '-'
-      int hours = (utcPos[7] - '0') * 10 + (utcPos[8] - '0');
-      int minutes = (utcPos[9] - '0') * 10 + (utcPos[10] - '0');
-
-      // 计算偏移（秒）
-      // UTC+8 -> offset = -28800（负数）
-      // UTC-5 -> offset = +18000（正数）
-      int64_t offset_seconds = (hours * 3600 + minutes * 60);
-      if (sign == '+') {
-        g_windows_tz.offset_seconds = -offset_seconds;
-      } else {
-        g_windows_tz.offset_seconds = offset_seconds;
-      }
+    // 提取时区名称（去掉 UTC 偏移部分）
+    char *spacePos = strchr(tzStr, ' ');
+    if (spacePos != NULL) {
+      *spacePos = '\0';
     }
+
+    // 创建默认时区对象
+    g_default_tz = tzalloc(tzStr);
+    if (!g_default_tz) {
+      uError("Failed to create default timezone object");
+      return TSDB_CODE_TIME_ERROR;
+    }
+
+    uInfo("[tz] Windows timezone initialized: %s", tzStr);
+  } else {
+    // 默认使用 UTC
+    g_default_tz = tzalloc("UTC");
+    if (!g_default_tz) {
+      uError("Failed to create UTC timezone object");
+      return TSDB_CODE_TIME_ERROR;
+    }
+    uInfo("[tz] Windows timezone initialized: UTC (default)");
   }
+
+  return TSDB_CODE_SUCCESS;
 #else
   uint64_t gen = atomic_val_compare_exchange_64((int64_t *)&g_tz_gen, 0, 1);
   if (gen > 0) return TSDB_CODE_SUCCESS;
@@ -1123,6 +1300,15 @@ int32_t initTimezoneInfo(void) {
 
 void cleanupTimezoneInfo(void) {
 #ifdef WINDOWS
+  taosThreadMutexLock(&g_default_tz_mutex);
+
+  if (g_default_tz) {
+    tzfree(g_default_tz);
+    g_default_tz = NULL;
+  }
+
+  taosThreadMutexUnlock(&g_default_tz_mutex);
+  taosThreadMutexDestroy(&g_default_tz_mutex);
 #else
   for (int i = 0; i < TZ_SLOTS; ++i) {
     if (g_tz_slots[i].tz) {
@@ -1135,7 +1321,10 @@ void cleanupTimezoneInfo(void) {
 
 timezone_t getGlobalDefaultTZ() {
 #ifdef WINDOWS
-  return (timezone_t)&g_windows_tz;
+  taosThreadMutexLock(&g_default_tz_mutex);
+  timezone_t tz = g_default_tz;
+  taosThreadMutexUnlock(&g_default_tz_mutex);
+  return tz;
 #else
   uint32_t idx = atomic_load_32((int32_t *)&g_tz_idx);
   return g_tz_slots[idx].tz;
