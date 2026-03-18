@@ -278,7 +278,10 @@ void shellRunSingleCommandImp(char *command) {
     int32_t error_no = 0;
 
     int64_t numOfRows = shellDumpResult(pSql, fname, &error_no, printMode, command);
-    if (numOfRows < 0) return;
+    if (numOfRows < 0) {
+      taos_free_result(pSql);
+      return;
+    }
 
     et = taosGetTimestampUs();
     if (error_no == 0) {
