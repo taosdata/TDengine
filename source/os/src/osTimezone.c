@@ -812,10 +812,13 @@ int64_t getWindowsTimezoneOffset(void) {
         int hours = (utcPos[7] - '0') * 10 + (utcPos[8] - '0');
         int minutes = (utcPos[9] - '0') * 10 + (utcPos[10] - '0');
         int64_t offset_seconds = (hours * 3600 + minutes * 60);
+        /* Windows string "(UTC, +HHMM)" means local = UTC + HH:MM.
+         * getWindowsTimezoneOffset returns UTC - local (seconds west of UTC),
+         * so invert the sign here to match the UTC-local convention. */
         if (sign == '+') {
-          return offset_seconds;
-        } else {
           return -offset_seconds;
+        } else {
+          return offset_seconds;
         }
       }
     }
