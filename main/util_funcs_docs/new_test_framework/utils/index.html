@@ -5536,6 +5536,28 @@
   
 
             
+              
+  
+    
+    <nav class="md-nav" aria-label="start_taosd_windows">
+      <ul class="md-nav__list">
+        
+      </ul>
+    </nav>
+  
+
+            
+              
+  
+    
+    <nav class="md-nav" aria-label="stop_taosd_windows">
+      <ul class="md-nav__list">
+        
+      </ul>
+    </nav>
+  
+
+            
           </ul>
         </nav>
       
@@ -20243,6 +20265,134 @@ that contain the specified thread name.</p>
               <div class="doc-md-description">
                 <p>Number of matching threads in the first taosd process found, 
  returns 0 if no taosd process is found or no threads match.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h3 id="__init__.start_taosd_windows" class="doc doc-heading">
+                  start_taosd_windows(taosd_path, config_dir, log=None)
+<a href="#__init__.start_taosd_windows" class="headerlink" title="Permanent link">&para;</a></h3>  
+        <div class="doc doc-contents ">
+
+        <p>Windows 平台启动 taosd，使用 CREATE_NEW_PROCESS_GROUP 以支持优雅停止</p>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h3 id="__init__.stop_taosd_windows" class="doc doc-heading">
+                  stop_taosd_windows(dnode_index=None, config_dir=None, timeout=30, log=None)
+<a href="#__init__.stop_taosd_windows" class="headerlink" title="Permanent link">&para;</a></h3>  
+        <div class="doc doc-contents ">
+
+        <p>Windows 平台通过 CTRL_BREAK_EVENT 优雅停止指定的 taosd</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>dnode_index</code>
+            </td>
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>dnode 编号，用于在 cmdline 中匹配 dnode{index}</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>config_dir</code>
+            </td>
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>config 目录路径，用于在 cmdline 中匹配</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>timeout</code>
+            </td>
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>等待优雅退出的超时时间（秒）</p>
+              </div>
+            </td>
+            <td>
+                  <code>30</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>log</code>
+            </td>
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>可选的 logger 实例</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+        <p>两种匹配方式至少传一个。优先使用 config_dir 精确匹配。</p>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>True 表示优雅退出，False 表示未找到进程或超时强杀</p>
               </div>
             </td>
           </tr>
