@@ -1068,14 +1068,14 @@ int32_t taosGetLocalTimezoneOffset() {
     return TSDB_CODE_TIME_ERROR;
   }
 #ifdef WINDOWS
+  // getWindowsTimezoneOffset() reads from TZ env var set by taosSetGlobalTimezone
+  // TZ="+8:00" means POSIX UTC-8 (East 8), returns +28800, same as Linux tm_gmtoff
   return (int32_t)getWindowsTimezoneOffset();
 #elif defined(TD_ASTRA)
   return -(int32_t)timezone;
 #else
-  // Return negative of tm_gmtoff to match Windows convention
-  // For UTC-8: tm_gmtoff = -28800, return 28800
-  // For UTC+8: tm_gmtoff = 28800, return -28800
-  return -(int32_t)(tm1.tm_gmtoff);
+  // tm_gmtoff: POSIX UTC-8 (East 8) = +28800, POSIX UTC+8 (West 8) = -28800
+  return (int32_t)(tm1.tm_gmtoff);
 #endif
 }
 

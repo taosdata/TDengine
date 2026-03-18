@@ -932,14 +932,13 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
         // Get timezone offset from pInterval->timezone or global config
         int64_t tz_offset = 0;
         if (pInterval->timezone != NULL) {
-          // Use timezone from pInterval
           time_t tt = 0;
           struct tm tm;
           if (taosLocalTime(&tt, &tm, NULL, 0, pInterval->timezone) != NULL) {
 #ifdef WINDOWS
             tz_offset = getWindowsTimezoneOffset();
 #else
-            tz_offset = -tm.tm_gmtoff;
+            tz_offset = tm.tm_gmtoff;
 #endif
           }
         } else {
@@ -985,14 +984,13 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
         // Get timezone offset from pInterval->timezone or global config
         int64_t tz_offset = 0;
         if (pInterval->timezone != NULL) {
-          // Use timezone from pInterval
           time_t tt = 0;
           struct tm tm;
           if (taosLocalTime(&tt, &tm, NULL, 0, pInterval->timezone) != NULL) {
 #ifdef WINDOWS
             tz_offset = getWindowsTimezoneOffset();
 #else
-            tz_offset = -tm.tm_gmtoff;
+            tz_offset = tm.tm_gmtoff;
 #endif
           }
         } else {
