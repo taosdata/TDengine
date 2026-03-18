@@ -27,12 +27,12 @@
 #include "os.h"
 
 #ifdef WINDOWS
-// Windows 时区对象结构（需要与 osTimezone.c 中的定义一致）
+// Windows timezone object structure (must match definition in osTimezone.c)
 typedef struct WindowsTimezoneObj {
-  int64_t offset_seconds;      // UTC 偏移（秒），UTC+8 = -28800
+  int64_t offset_seconds;      // UTC offset (seconds), UTC+8 = -28800
   char    name[TD_TIMEZONE_LEN];
-  int32_t refCount;            // 引用计数
-  TdThreadMutex mutex;         // 保护并发访问
+  int32_t refCount;            // Reference count
+  TdThreadMutex mutex;         // Protect concurrent access
 } WindowsTimezoneObj;
 #endif
 
@@ -435,14 +435,9 @@ int64_t user_mktime64(const uint32_t year, const uint32_t mon, const uint32_t da
   return _res + time_zone;
 }
 
-// 声明 Windows 时区偏移全局变量
-#ifdef WINDOWS
-extern int64_t g_windows_timezone_offset;
-#endif
-
 time_t taosMktime(struct tm *timep, timezone_t tz) {
 #ifdef WINDOWS
-  // 1. 获取时区偏移量（正确使用传入的 tz 参数）
+  // 1. Get timezone offset (correctly use the passed tz parameter)
   int64_t tzw = 0;
   if (tz != NULL) {
     WindowsTimezoneObj* tz_obj = (WindowsTimezoneObj*)tz;
@@ -459,14 +454,14 @@ time_t taosMktime(struct tm *timep, timezone_t tz) {
     }
   }
 
-  // 2. 使用 user_mktime64 计算时间戳
+  // 2. Calculate timestamp using user_mktime64
   time_t result = user_mktime64(timep->tm_year + 1900, timep->tm_mon + 1, timep->tm_mday,
                                  timep->tm_hour, timep->tm_min, timep->tm_sec, tzw);
 
-  // 3. 设置全局 timezone 变量
+  // 3. Set global timezone variable
   timezone = tzw;
 
-  return mktime(timep);
+  return result;
 #elif defined(TD_ASTRA)
   time_t r =  mktime(timep);
   if (r == (time_t)-1) {
@@ -531,7 +526,7 @@ struct tm *taosLocalTime(const time_t *timep, struct tm *result, char *buf, int3
     return NULL;
   }
 #ifdef WINDOWS
-  // 1. 获取时区偏移量（正确使用传入的 tz 参数）
+  // 1. Get timezone offset (correctly use the passed tz parameter)
   int64_t tz_offset = 0;
   if (tz != NULL) {
     WindowsTimezoneObj* tz_obj = (WindowsTimezoneObj*)tz;
@@ -548,10 +543,10 @@ struct tm *taosLocalTime(const time_t *timep, struct tm *result, char *buf, int3
     }
   }
 
-  // 2. 调整时间戳（注意：offset 是负数，所以用 -tz_offset）
+  // 2. Adjust timestamp (note: offset is negative, so use -tz_offset)
   time_t adjusted_time = *timep + (-tz_offset);
 
-  // 3. 转换为 struct tm（保留现有逻辑）
+  // 3. Convert to struct tm (keep existing logic)
   if (adjusted_time < -2208988800LL) {
     if (buf != NULL) {
       snprintf(buf, bufSize, "NaN");
@@ -603,9 +598,9 @@ struct tm *taosLocalTime(const time_t *timep, struct tm *result, char *buf, int3
     }
   }
 
-  // 4. 设置全局 timezone 变量（模拟非 Windows 平台的行为）
-  // 注意：非 Windows 平台设置 timezone = -result->tm_gmtoff
-  // Windows 没有 tm_gmtoff，所以直接使用 tz_offset
+  // 4. Set global timezone variable (mimic non-Windows platform behavior)
+  // Note: non-Windows platforms set timezone = -result->tm_gmtoff
+  // Windows doesn't have tm_gmtoff, so use tz_offset directly
   timezone = tz_offset;
 
   return result;

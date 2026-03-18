@@ -28,7 +28,7 @@ extern void* pTimezoneNameMap;
 #ifdef WINDOWS
 typedef void *timezone_t;
 
-// 添加 Windows 版本的函数声明
+// Add Windows version function declarations
 timezone_t tzalloc(char const *);
 void       tzfree(timezone_t);
 
