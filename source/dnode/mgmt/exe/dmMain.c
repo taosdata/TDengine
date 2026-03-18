@@ -331,9 +331,9 @@ static void dmPrintArgs(int32_t argc, char const *argv[]) {
 
   char args[1024] = {0};
   if (argc > 0) {
-    int32_t arglen = tsnprintf(args, sizeof(args), "%s", argv[0]);
+    int32_t arglen = snprintf(args, sizeof(args), "%s", argv[0]);
     for (int32_t i = 1; i < argc; ++i) {
-      arglen = arglen + tsnprintf(args + arglen, sizeof(args) - arglen, " %s", argv[i]);
+      arglen = arglen + snprintf(args + arglen, sizeof(args) - arglen, " %s", argv[i]);
     }
   }
 

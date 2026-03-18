@@ -114,12 +114,37 @@ class TestCase:
         tdSql.execute(f"create topic topic1 as select * from d0.stb0")
         tdSql.error(f"create topic topic2 as select * from d0.stb1", expectErrInfo="Permission denied", fullMatched=False)
         self.subscribe_topic("u_topic", self.test_pass, "g1", "topic1")
+        tdSql.execute(f"show consumers")
         tdSql.connect("root", "taosdata")
         tdSql.execute(f"grant use on database d0 to u_consumer")
         tdSql.execute(f"grant subscribe on topic d0.topic1 to u_consumer")
         tdSql.connect("u_consumer", self.test_pass)
         time.sleep(5)  # wait for privileges to take effect
         self.subscribe_topic("u_consumer", self.test_pass, "g1", "topic1")
+        # check legacy grammar of topics
+        tdSql.connect("root", "taosdata")
+        tdSql.query(f"select * from information_schema.ins_user_privileges where priv_scope='TOPIC'")
+        tdSql.checkRows(1)
+        tdSql.execute("revoke subscribe on d0.topic1 from u_consumer")
+        tdSql.query(f"select * from information_schema.ins_user_privileges where priv_scope='TOPIC'")
+        tdSql.checkRows(0)
+        tdSql.error(f"grant subscribe on topic db_none.topic_none to u_consumer", expectErrInfo="Database not exist", fullMatched=False)
+        tdSql.error(f"grant subscribe on db_none.topic_none to u_consumer", expectErrInfo="Database not exist", fullMatched=False)
+        tdSql.error(f"grant subscribe on topic d0.topic_none to u_consumer", expectErrInfo="Topic not exist", fullMatched=False)
+        tdSql.error(f"grant subscribe on d0.topic_none to u_consumer", expectErrInfo="Topic not exist", fullMatched=False)
+        tdSql.error(f"grant all on d0.topic_none to u_consumer", expectErrInfo="Grant object not exist", fullMatched=False)
+        tdSql.error(f"grant read on d0.topic_none to u_consumer", expectErrInfo="Grant object not exist", fullMatched=False)
+        tdSql.error(f"grant write on d0.topic_none to u_consumer", expectErrInfo="Grant object not exist", fullMatched=False)
+        tdSql.error(f"grant read,write,show,show create on d0.topic_none to u_consumer", expectErrInfo="Grant object not exist", fullMatched=False)
+        tdSql.error(f"grant all,read,write,show,show create on d0.topic_none to u_consumer", expectErrInfo="Cannot mix ALL PRIVILEGES with other privileges", fullMatched=False)
+        tdSql.error(f"grant show on d0.topic_none to u_consumer", expectErrInfo="Grant object not exist", fullMatched=False)
+        tdSql.error(f"grant show create on d0.topic_none to u_consumer", expectErrInfo="Grant object not exist", fullMatched=False)
+        tdSql.error(f"grant alter on d0.topic_none to u_consumer", expectErrInfo="Conflict between privilege type and target", fullMatched=False)
+        tdSql.error(f"grant create user on d0.topic_none to u_consumer", expectErrInfo="System privileges should not have target", fullMatched=False)
+        tdSql.error(f"grant create user,select on d0.topic_none to u_consumer", expectErrInfo="System privileges and object privileges cannot be mixed", fullMatched=False)
+        tdSql.execute(f"grant subscribe on topic1 to u_consumer")
+        tdSql.query(f"select * from information_schema.ins_user_privileges where priv_scope='TOPIC'")
+        tdSql.checkRows(1)
 
     def do_check_role_privileges(self):
         """Test role privileges"""
@@ -163,6 +188,48 @@ class TestCase:
         tdSql.execute("create database d2")
         tdSql.execute("drop table if exists d2.not_exist_table")
         tdSql.error("drop table d2.not_exist_table", expectErrInfo="Table does not exist", fullMatched=False)
+
+    def do_check_user_privileges(self, user, expected_privs):
+        tdSql.query(f"select * from information_schema.ins_user_privileges where user_name='{user}'")
+        tdSql.checkRows(expected_privs)
+
+    def do_check_legacy_grammar(self):
+        """ Test for legacy grammar of privileges: 6841578151 """
+
+        dict_array = [
+            {"enableGrantLegacySyntax": 1, "readPrivNum": 29, "writePrivNum": 31, "allPrivNum": 59},
+            {"enableGrantLegacySyntax": 0, "readPrivNum": 6, "writePrivNum": 10, "allPrivNum": 16},
+        ]
+
+        tdSql.connect("root", "taosdata")
+        tdSql.execute("drop database if exists d3")
+        tdSql.execute("create database d3")
+        tdSql.execute("use d3")
+        tdSql.execute(f"create user u_legacy pass '{self.test_pass}'")
+        for item in dict_array:
+            tdSql.execute(f"alter all dnodes 'enableGrantLegacySyntax {item['enableGrantLegacySyntax']}'")
+            self.do_check_user_privileges("u_legacy", 0)
+            tdSql.execute("grant all on d3.* to u_legacy")
+            self.do_check_user_privileges("u_legacy", item["allPrivNum"])
+            tdSql.execute("revoke all on d3 from u_legacy")
+            self.do_check_user_privileges("u_legacy", 0)
+            tdSql.checkRows(0)
+            tdSql.execute("grant all on d3 to u_legacy")
+            self.do_check_user_privileges("u_legacy", item["allPrivNum"])
+            tdSql.execute("revoke all on d3.* from u_legacy")
+            self.do_check_user_privileges("u_legacy", 0)
+            tdSql.execute("grant read on d3 to u_legacy")
+            self.do_check_user_privileges("u_legacy", item["readPrivNum"])
+            tdSql.execute("revoke all on d3 from u_legacy")
+            self.do_check_user_privileges("u_legacy", 0)
+            tdSql.execute("grant read,write on d3.* to u_legacy")
+            self.do_check_user_privileges("u_legacy", item["allPrivNum"])
+            tdSql.execute("revoke read,write on d3 from u_legacy")
+            self.do_check_user_privileges("u_legacy", 0)
+            tdSql.execute("grant all on d3 to u_legacy")
+            self.do_check_user_privileges("u_legacy", item["allPrivNum"])
+            tdSql.execute("revoke read,write on d3.* from u_legacy")
+            self.do_check_user_privileges("u_legacy", 0)
 
     #
     # ------------------- main ----------------
@@ -209,5 +276,6 @@ class TestCase:
         self.do_check_role_privileges()
         # self.do_check_variable_privileges()
         self.do_check_6841225129()
+        self.do_check_legacy_grammar()
         
         tdLog.debug("finish executing %s" % __file__)

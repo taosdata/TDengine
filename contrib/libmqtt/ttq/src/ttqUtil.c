@@ -51,7 +51,7 @@ int tmqtt__check_keepalive(struct tmqtt *ttq) {
   if (ttq->bridge && ttq->bridge->start_type == bst_lazy && ttq->sock != INVALID_SOCKET &&
       now - ttq->next_msg_out - ttq->keepalive >= ttq->bridge->idle_timeout) {
     ttq_log(NULL, TTQ_LOG_NOTICE, "Bridge connection %s has exceeded idle timeout, disconnecting.", ttq->id);
-    net__socket_close(ttq);
+    UNUSED(net__socket_close(ttq));
     return TTQ_ERR_SUCCESS;
   }
 #endif
@@ -62,7 +62,7 @@ int tmqtt__check_keepalive(struct tmqtt *ttq) {
   if (ttq->keepalive && ttq->sock != INVALID_SOCKET && (now >= next_msg_out || now - last_msg_in >= ttq->keepalive)) {
     state = tmqtt__get_state(ttq);
     if (state == ttq_cs_active && ttq->ping_t == 0) {
-      send__pingreq(ttq);
+      UNUSED(send__pingreq(ttq));
       /* Reset last msg times to give the server time to send a pingresp */
       ttq_pthread_mutex_lock(&ttq->msgtime_mutex);
       ttq->last_msg_in = now;
@@ -75,9 +75,9 @@ int tmqtt__check_keepalive(struct tmqtt *ttq) {
         ttqCxtSendWill(ttq);
       }
 #endif
-      net__socket_close(ttq);
+      UNUSED(net__socket_close(ttq));
 #else
-      net__socket_close(ttq);
+      UNUSED(net__socket_close(ttq));
       state = tmqtt__get_state(ttq);
       if (state == ttq_cs_disconnecting) {
         rc = TTQ_ERR_SUCCESS;

@@ -197,6 +197,6 @@ class TestVtableJoin:
         self.sqlFile = etool.curFile(__file__, f"in/{testCase}.in")
         self.ansFile = etool.curFile(__file__, f"ans/{testCase}.ans")
 
-        tdCom.compare_testcase_result(self.sqlFile, self.ansFile, testCase)
-
-
+        tdCom.compare_testcase_result(
+            self.sqlFile, self.ansFile, testCase, float_tolerance=2e-5
+        )

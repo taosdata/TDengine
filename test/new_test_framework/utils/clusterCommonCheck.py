@@ -40,7 +40,16 @@ class ClusterComCheck:
         count = 0
 
         while count < timeout:
-            tdSql.query("select * from information_schema.ins_dnodes")
+            # Use exit=False to handle "Dnode is starting up" error gracefully
+            # and continue waiting until timeout
+            # Use queryTimes=1 to disable internal retry mechanism and respect the timeout
+            query_result = tdSql.query("select * from information_schema.ins_dnodes", exit=False, queryTimes=1)
+            if query_result is False:
+                tdLog.info(f"Dnode is still starting up, waiting... ({count}s)")
+                time.sleep(1)
+                count += 1
+                continue
+
             status = 0
             for i in range(len(tdSql.queryResult)):
                 if tdSql.queryResult[i][4] == "ready":

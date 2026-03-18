@@ -45,7 +45,7 @@
   (TD_DLIST_NODE_NEXT(pGroup) != NULL || TD_DLIST_TAIL(&pContext->groupsToCheck) == pGroup)
 #define IS_TRIGGER_GROUP_NONE_WINDOW(pGroup) (TRINGBUF_CAPACITY(&(pGroup)->winBuf) == 0)
 #define IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup) (TRINGBUF_SIZE(&(pGroup)->winBuf) > 0)
-#define TRIGGER_GROUP_UNCLOSED_WINDOW_MASK   (1L << 62)
+#define TRIGGER_GROUP_UNCLOSED_WINDOW_MASK   ((int64_t)1 << 62)
 #define container_of(ptr, type, member)      ((type *)((char *)(ptr) - offsetof(type, member)))
 
 static int32_t stRealtimeGroupInit(SSTriggerRealtimeGroup *pGroup, SSTriggerRealtimeContext *pContext, int64_t gid,
@@ -1835,7 +1835,7 @@ static int32_t stTriggerTaskParseVirtScan(SStreamTriggerTask *pTask, void *trigg
   }
 
   if (infoBuf && bufLen < bufCap) {
-    bufLen += tsnprintf(infoBuf + bufLen, bufCap - bufLen, "columnId in the datablock: {");
+    bufLen += snprintf(infoBuf + bufLen, bufCap - bufLen, "columnId in the datablock: {");
   }
   // create the data block for virtual table
   int32_t nTotalCols = TARRAY_SIZE(pVirColIds);
@@ -1864,14 +1864,14 @@ static int32_t stTriggerTaskParseVirtScan(SStreamTriggerTask *pTask, void *trigg
     code = blockDataAppendColInfo(pTask->pVirDataBlock, &col);
     QUERY_CHECK_CODE(code, lino, _end);
     if (infoBuf && bufLen < bufCap) {
-      bufLen += tsnprintf(infoBuf + bufLen, bufCap - bufLen, "%d,", id);
+      bufLen += snprintf(infoBuf + bufLen, bufCap - bufLen, "%d,", id);
     }
   }
   pTask->nVirDataCols = nDataCols;
 
   if (infoBuf && bufLen < bufCap) {
     infoBuf[bufLen - 1] = '}';
-    bufLen += tsnprintf(infoBuf + bufLen, bufCap - bufLen, "; slotId of trigger data:{");
+    bufLen += snprintf(infoBuf + bufLen, bufCap - bufLen, "; slotId of trigger data:{");
   }
 
   // get new slot id of trig data block and calc data block
@@ -1890,13 +1890,13 @@ static int32_t stTriggerTaskParseVirtScan(SStreamTriggerTask *pTask, void *trigg
     void *px = taosArrayPush(pTrigSlotids, &slotid);
     QUERY_CHECK_NULL(px, code, lino, _end, terrno);
     if (infoBuf && bufLen < bufCap) {
-      bufLen += tsnprintf(infoBuf + bufLen, bufCap - bufLen, "%d,", slotid);
+      bufLen += snprintf(infoBuf + bufLen, bufCap - bufLen, "%d,", slotid);
     }
   }
 
   if (infoBuf && bufLen < bufCap) {
     infoBuf[bufLen - 1] = '}';
-    bufLen += tsnprintf(infoBuf + bufLen, bufCap - bufLen, "; slotId of calc data:{");
+    bufLen += snprintf(infoBuf + bufLen, bufCap - bufLen, "; slotId of calc data:{");
   }
 
   pCalcSlotids = taosArrayInit(nCalcCols, sizeof(int32_t));
@@ -1914,7 +1914,7 @@ static int32_t stTriggerTaskParseVirtScan(SStreamTriggerTask *pTask, void *trigg
     void *px = taosArrayPush(pCalcSlotids, &slotid);
     QUERY_CHECK_NULL(px, code, lino, _end, terrno);
     if (infoBuf && bufLen < bufCap) {
-      bufLen += tsnprintf(infoBuf + bufLen, bufCap - bufLen, "%d,", slotid);
+      bufLen += snprintf(infoBuf + bufLen, bufCap - bufLen, "%d,", slotid);
     }
   }
   if (infoBuf && bufLen < bufCap) {
@@ -2967,10 +2967,10 @@ static int32_t stRealtimeContextCalcExpr(SSTriggerRealtimeContext *pContext, SSD
     pResCol->info.precision = 0;
 
     int32_t nrows = blockDataGetNumOfRows(pDataBlock);
-    code = colInfoDataEnsureCapacity(pResCol, nrows, false);
+    code = colInfoDataEnsureCapacity(pResCol, pDataBlock->info.capacity, false);
     QUERY_CHECK_CODE(code, lino, _end);
-    TAOS_MEMSET(pResCol->nullbitmap, 0, BitmapLen(nrows));
-    TAOS_MEMSET(pResCol->pData, 0, nrows);
+    TAOS_MEMSET(pResCol->nullbitmap, 0, BitmapLen(pDataBlock->info.capacity));
+    TAOS_MEMSET(pResCol->pData, 0, pDataBlock->info.capacity);
 
     uint8_t        idx = 1;
     SNode         *pNode = NULL;
@@ -3006,8 +3006,23 @@ static int32_t stRealtimeContextCalcExpr(SSTriggerRealtimeContext *pContext, SSD
     pResCol->info.scale = pType->scale;
     pResCol->info.precision = pType->precision;
 
-    SScalarParam output = {.columnData = pResCol};
+    if (pTmpCol == NULL) {
+      pTmpCol = taosMemoryCalloc(1, sizeof(SColumnInfoData));
+      QUERY_CHECK_NULL(pTmpCol, code, lino, _end, terrno);
+    }
+    pTmpCol->info.type = pType->type;
+    pTmpCol->info.bytes = pType->bytes;
+    pTmpCol->info.scale = pType->scale;
+    pTmpCol->info.precision = pType->precision;
+
+    SScalarParam output = {.columnData = pTmpCol};
     code = scalarCalculate(pExpr, pList, &output, NULL);
+    QUERY_CHECK_CODE(code, lino, _end);
+    int32_t nrows = blockDataGetNumOfRows(pDataBlock);
+    QUERY_CHECK_CONDITION(output.numOfRows == nrows, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+    code = colInfoDataEnsureCapacity(pResCol, pDataBlock->info.capacity, false);
+    QUERY_CHECK_CODE(code, lino, _end);
+    code = colDataAssign(pResCol, pTmpCol, nrows, NULL);
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
@@ -3652,8 +3667,8 @@ static int32_t stRealtimeContextSendPullReq(SSTriggerRealtimeContext *pContext, 
               char       *colName = tSimpleHashGetKey(px2, NULL);
               OTableInfo *pInfo = taosArrayReserve(pReq->cols, 1);
               QUERY_CHECK_NULL(pInfo, code, lino, _end, terrno);
-              (void)strncpy(pInfo->refTableName, tbName, sizeof(pInfo->refTableName));
-              (void)strncpy(pInfo->refColName, colName, sizeof(pInfo->refColName));
+              tstrncpy(pInfo->refTableName, tbName, sizeof(pInfo->refTableName));
+              tstrncpy(pInfo->refColName, colName, sizeof(pInfo->refColName));
               px2 = tSimpleHashIterate(pTbInfo->pColumns, px2, &iter3);
             }
           }
@@ -5676,7 +5691,7 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
           SStreamDbTableName *pName = taosArrayReserve(pOrigTableNames, 1);
           QUERY_CHECK_NULL(pName, code, lino, _end, terrno);
           (void)snprintf(pName->dbFName, sizeof(pName->dbFName), "%d.%s", 1, dbName);
-          (void)strncpy(pName->tbName, tbName, sizeof(pName->tbName));
+          tstrncpy(pName->tbName, tbName, sizeof(pName->tbName));
           pTbInfo = tSimpleHashIterate(pDbInfo, pTbInfo, &iter2);
         }
         px = tSimpleHashIterate(pTask->pOrigTableCols, px, &iter1);
@@ -5931,10 +5946,10 @@ static int32_t stHistoryContextCalcExpr(SSTriggerHistoryContext *pContext, SSDat
     pResCol->info.precision = 0;
 
     int32_t nrows = blockDataGetNumOfRows(pDataBlock);
-    code = colInfoDataEnsureCapacity(pResCol, nrows, false);
+    code = colInfoDataEnsureCapacity(pResCol, pDataBlock->info.capacity, false);
     QUERY_CHECK_CODE(code, lino, _end);
-    TAOS_MEMSET(pResCol->nullbitmap, 0, BitmapLen(nrows));
-    TAOS_MEMSET(pResCol->pData, 0, nrows);
+    TAOS_MEMSET(pResCol->nullbitmap, 0, BitmapLen(pDataBlock->info.capacity));
+    TAOS_MEMSET(pResCol->pData, 0, pDataBlock->info.capacity);
 
     uint8_t        idx = 1;
     SNode         *pNode = NULL;
@@ -5970,8 +5985,23 @@ static int32_t stHistoryContextCalcExpr(SSTriggerHistoryContext *pContext, SSDat
     pResCol->info.scale = pType->scale;
     pResCol->info.precision = pType->precision;
 
-    SScalarParam output = {.columnData = pResCol};
+    if (pTmpCol == NULL) {
+      pTmpCol = taosMemoryCalloc(1, sizeof(SColumnInfoData));
+      QUERY_CHECK_NULL(pTmpCol, code, lino, _end, terrno);
+    }
+    pTmpCol->info.type = pType->type;
+    pTmpCol->info.bytes = pType->bytes;
+    pTmpCol->info.scale = pType->scale;
+    pTmpCol->info.precision = pType->precision;
+
+    SScalarParam output = {.columnData = pTmpCol};
     code = scalarCalculate(pExpr, pList, &output, NULL);
+    QUERY_CHECK_CODE(code, lino, _end);
+    int32_t nrows = blockDataGetNumOfRows(pDataBlock);
+    QUERY_CHECK_CONDITION(output.numOfRows == nrows, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+    code = colInfoDataEnsureCapacity(pResCol, pDataBlock->info.capacity, false);
+    QUERY_CHECK_CODE(code, lino, _end);
+    code = colDataAssign(pResCol, pTmpCol, nrows, NULL);
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
@@ -6373,7 +6403,7 @@ static int32_t stHistoryContextSendPullReq(SSTriggerHistoryContext *pContext, ES
         buf[0] = '\0';
         for (int32_t i = 0; i < TARRAY_SIZE(pReq->cids); i++) {
           col_id_t colId = *(col_id_t *)TARRAY_GET_ELEM(pReq->cids, i);
-          bufLen += tsnprintf(buf + bufLen, sizeof(buf) - bufLen, "%d,", colId);
+          bufLen += snprintf(buf + bufLen, sizeof(buf) - bufLen, "%d,", colId);
         }
         if (bufLen > 0) {
           buf[bufLen - 1] = '\0';

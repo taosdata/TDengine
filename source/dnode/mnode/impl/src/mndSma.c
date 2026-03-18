@@ -653,8 +653,8 @@ static int32_t mndGetSma(SMnode *pMnode, SUserIndexReq *indexReq, SUserIndexRsp 
     SNode *node = NULL;
     FOREACH(node, pList) {
       SFunctionNode *pFunc = (SFunctionNode *)node;
-      extOffset += tsnprintf(rsp->indexExts + extOffset, sizeof(rsp->indexExts) - extOffset - 1, "%s%s",
-                             (extOffset ? "," : ""), pFunc->functionName);
+      extOffset += snprintf(rsp->indexExts + extOffset, sizeof(rsp->indexExts) - extOffset - 1, "%s%s",
+                            (extOffset ? "," : ""), pFunc->functionName);
     }
 
     *exist = true;
@@ -1554,10 +1554,10 @@ static int32_t mndRetrieveTSMA(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
     int32_t len = 0;
     if (TSDB_CODE_SUCCESS == code) {
       if (!IS_CALENDAR_TIME_DURATION(pSma->intervalUnit)) {
-        len = tsnprintf(interval + VARSTR_HEADER_SIZE, 64, "%" PRId64 "%c", pSma->interval,
-                        getPrecisionUnit(pSrcDb->cfg.precision));
+        len = snprintf(interval + VARSTR_HEADER_SIZE, 64, "%" PRId64 "%c", pSma->interval,
+                       getPrecisionUnit(pSrcDb->cfg.precision));
       } else {
-        len = tsnprintf(interval + VARSTR_HEADER_SIZE, 64, "%" PRId64 "%c", pSma->interval, pSma->intervalUnit);
+        len = snprintf(interval + VARSTR_HEADER_SIZE, 64, "%" PRId64 "%c", pSma->interval, pSma->intervalUnit);
       }
       varDataSetLen(interval, len);
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -1568,7 +1568,7 @@ static int32_t mndRetrieveTSMA(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
     if (TSDB_CODE_SUCCESS == code) {
       // create sql
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      len = tsnprintf(buf + VARSTR_HEADER_SIZE, TSDB_MAX_SAVED_SQL_LEN, "%s", pSma->sql);
+      len = snprintf(buf + VARSTR_HEADER_SIZE, TSDB_MAX_SAVED_SQL_LEN, "%s", pSma->sql);
       varDataSetLen(buf, TMIN(len, TSDB_MAX_SAVED_SQL_LEN));
       code = colDataSetVal(pColInfo, numOfRows, buf, false);
     }
@@ -1585,8 +1585,8 @@ static int32_t mndRetrieveTSMA(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
         if (nodeType(pFunc) == QUERY_NODE_FUNCTION) {
           SFunctionNode *pFuncNode = (SFunctionNode *)pFunc;
           if (!fmIsTSMASupportedFunc(pFuncNode->funcId)) continue;
-          len += tsnprintf(start, TSDB_MAX_SAVED_SQL_LEN - len, "%s%s", start != buf + VARSTR_HEADER_SIZE ? "," : "",
-                           ((SExprNode *)pFunc)->userAlias);
+          len += snprintf(start, TSDB_MAX_SAVED_SQL_LEN - len, "%s%s", start != buf + VARSTR_HEADER_SIZE ? "," : "",
+                          ((SExprNode *)pFunc)->userAlias);
           if (len >= TSDB_MAX_SAVED_SQL_LEN) {
             len = TSDB_MAX_SAVED_SQL_LEN;
             break;
