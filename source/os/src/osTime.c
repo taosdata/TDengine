@@ -427,10 +427,10 @@ int64_t user_mktime64(const uint32_t year, const uint32_t mon, const uint32_t da
 
 time_t taosMktime(struct tm *timep, timezone_t tz) {
 #ifdef WINDOWS
-  // Windows: 调用 getWindowsTimezoneOffset 获取时区偏移
+  // Windows: call getWindowsTimezoneOffset to obtain timezone offset.
   int64_t tzw = getWindowsTimezoneOffset();
 
-  // 使用 user_mktime64 计算时间戳并直接返回结果
+  // Compute timestamp with user_mktime64 and return the result directly.
   time_t result = user_mktime64(timep->tm_year + 1900, timep->tm_mon + 1, timep->tm_mday,
                                  timep->tm_hour, timep->tm_min, timep->tm_sec, tzw);
   return result;
@@ -496,7 +496,7 @@ struct tm *taosLocalTime(const time_t *timep, struct tm *result, char *buf, int3
     return NULL;
   }
 #ifdef WINDOWS
-  // Windows: 使用系统本地时间计算，避免通过固定偏移和 gmtime_s 忽略 DST 规则
+  // Windows: use system local-time calculation to avoid ignoring DST rules with fixed offset and gmtime_s.
   time_t adjusted_time = *timep;
 
 
