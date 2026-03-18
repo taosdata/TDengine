@@ -1122,7 +1122,7 @@ void taos_init_imp(void) {
     return;
   }
 #endif
-#if !defined(WINDOWS) && !defined(TD_ASTRA)
+#if !defined(TD_ASTRA)
   ENV_ERR_RET(tzInit(), "failed to init timezone");
 #endif
   ENV_ERR_RET(monitorInit(), "failed to init monitor");
