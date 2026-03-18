@@ -92,7 +92,8 @@ static inline int32_t syncUtilRandR(SSyncNode* pSyncNode, int32_t max) {
   if (pSyncNode->electTimerSeed == 0) {
     // Initialize the seed with a combination of current time and node-specific information to ensure variability across
     // nodes
-    pSyncNode->electTimerSeed = (uint32_t)(taosGetTimestampMs() ^ (SYNC_ADDR(&pSyncNode->myNodeInfo) & 0xFFFFFFFF));
+    uint32_t seed = (uint32_t)(taosGetTimestampMs() ^ (SYNC_ADDR(&pSyncNode->myNodeInfo) & 0xFFFFFFFF));
+    pSyncNode->electTimerSeed = (seed == 0) ? 1 : seed;
     sInfo("vgId:%d, init elect timer seed:%u", pSyncNode->vgId, pSyncNode->electTimerSeed);
   }
   return taosRandR(&pSyncNode->electTimerSeed) % max;
