@@ -248,6 +248,17 @@ static void extWinAssignBlockGrpId(SOperatorInfo* pOperator, SExternalWindowOper
   qDebug("%s extWin res block assigned groupId %" PRIu64 " baseGid %" PRIu64, GET_TASKID(pOperator->pTaskInfo), pId->groupId, pId->baseGId);
 }
 
+static FORCE_INLINE void extWinResetBlockCalcState(SExtWinCalcGrpCtx* pCCtx) {
+  if (pCCtx == NULL) {
+    return;
+  }
+
+  pCCtx->blkWinIdx = -1;
+  pCCtx->blkWinStartIdx = 0;
+  pCCtx->blkWinStartSet = false;
+  pCCtx->blkRowStartIdx = 0;
+}
+
 static int32_t extWinGetLastBlockFromList(SOperatorInfo* pOperator, SExternalWindowOperator* pExtW, SList* pList, int32_t rows, SSDataBlock** ppBlock, SArray** ppIdx) {
   int32_t    code = 0, lino = 0;
   SSDataBlock* pRes = NULL;
@@ -3216,6 +3227,10 @@ static int32_t extWinOpen(SOperatorInfo* pOperator) {
     }
 
     TAOS_CHECK_EXIT(extWinSwitchInitCtxs(pExtW, pTaskInfo, &pBlock->info.id));
+
+    if (pExtW->multiTableMode && !pExtW->inputHasOrder) {
+      extWinResetBlockCalcState(pExtW->pTGrpCtx ? pExtW->pTGrpCtx->pCCtx : NULL);
+    }
 
     switch (pExtW->mode) {
       case EEXT_MODE_SCALAR:

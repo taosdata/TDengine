@@ -335,6 +335,26 @@ class TestExternal:
         self.sqlFile = os.path.join(os.path.dirname(__file__), "in", "basic_query.in")
         self.ansFile = os.path.join(os.path.dirname(__file__), "ans", "basic_query.ans")
         tdCom.compare_testcase_result(self.sqlFile, self.ansFile, "basic_query")
+        
+    def orderby_and_alias_no_sort(self):
+        tdLog.info("=============== external window: orderby and alias no sort")
+        
+        sql = "select _wstart, _wend, w.mark, cast(ts as bigint) as ts64 from ext_ord_src external_window((select ts, endtime, mark from ext_ord_win_all) w);"
+        tdSql.query(sql)
+        tdSql.checkRows(4)
+                            
+        sql = "select _wstart, _wend, w.mark, cast(ts as bigint) - cast(_wstart as bigint) as delta from ext_ord_src external_window((select ts, endtime, mark from ext_ord_win_all) w);"
+        tdSql.query(sql)
+        tdSql.checkRows(4)
+        
+        sql = "select cast(_wstart as bigint) as ws, cast(_wend as bigint) as we, count(*) as c from ext_ord_src external_window((select ts, endtime, mark from ext_ord_win_all) w);"
+        sql = "select tbname, cast(_wstart as bigint) as ws, count(*) as c from ext_ord_src partition by tbname external_window((select ts, endtime, mark from ext_ord_win_all) w);"
+        sql = "select t1, cast(_wstart as bigint) as ws, count(*) as c from ext_ord_src partition by t1 external_window((select ts, endtime, mark from ext_ord_win_all) w);"
+        sql = "select t1, cast(_wstart as bigint) as ws, count(*) as c from ext_ord_src partition by t1 external_window((select _wstart, _wend, count(*) as wc from ext_ord_win partition by t1 interval(10m)) w);"
+        sql = "select t1, cast(_wstart as bigint) as ws, w.wc from ext_ord_src partition by t1 external_window((select _wstart, _wend, count(*) as wc from ext_ord_win partition by t1 interval(10m)) w);"
+        sql = "select tbname, cast(_wstart as bigint) as ws, count(*) as c from ext_ord_src partition by tbname external_window((select _wstart, _wend, count(*) as wc from ext_ord_win interval(10m)) w);"
+        sql = "select tbname, cast(_wstart as bigint) as ws, count(*) as c from ext_ord_src partition by tbname external_window((select _wstart, _wend, count(*) as wc from ext_ord_win interval(10m)) w);"
+
 
     def orderby_and_alias_regression(self):
         tdLog.info("=============== external window: orderby and alias regression")
@@ -343,6 +363,8 @@ class TestExternal:
         self.sqlFile = os.path.join(os.path.dirname(__file__), "in", "orderby_and_alias.in")
         self.ansFile = os.path.join(os.path.dirname(__file__), "ans", "orderby_and_alias.ans")
         tdCom.compare_testcase_result(self.sqlFile, self.ansFile, "orderby_and_alias")
+        
+        self.orderby_and_alias_no_sort()
 
     def window_boundary_regression(self):
         tdLog.info("=============== external window: window boundary regression")
