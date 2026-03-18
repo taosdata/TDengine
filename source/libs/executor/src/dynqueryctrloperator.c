@@ -3143,6 +3143,7 @@ int32_t vtbScanNext(SOperatorInfo* pOperator, SSDataBlock** pRes) {
     pVtbScan->curTableIdx = 0;
     pVtbScan->lastTableIdx = -1;
     pVtbScan->window = ((SDynQueryCtrlOperatorParam *)(pOperator->pOperatorGetParam)->value)->window;
+    freeOperatorParam(pOperator->pOperatorGetParam, OP_GET_PARAM);
     pOperator->pOperatorGetParam = NULL;
   } else {
     pVtbScan->window.skey = INT64_MAX;

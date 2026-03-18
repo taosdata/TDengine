@@ -853,6 +853,8 @@ class TestTsma:
     def tsma_alter_tag_val(self):
         sql = 'alter table test.t1 set tag t1 = 999'
         tdSql.error(sql, -2147471088)
+        sql = 'alter table using test.meters set tag t1 = 999 where tbname="t1"'
+        tdSql.error(sql, -2147471088)
 
     def tsma_query_interval_sliding(self):
         pass

@@ -232,7 +232,7 @@ typedef enum {
 #define TSDB_ALTER_TABLE_ADD_TAG                         1
 #define TSDB_ALTER_TABLE_DROP_TAG                        2
 #define TSDB_ALTER_TABLE_UPDATE_TAG_NAME                 3
-#define TSDB_ALTER_TABLE_UPDATE_TAG_VAL                  4
+#define TSDB_ALTER_TABLE_UPDATE_TAG_VAL                  4 // deprecated, kept for wire compatibility
 #define TSDB_ALTER_TABLE_ADD_COLUMN                      5
 #define TSDB_ALTER_TABLE_DROP_COLUMN                     6
 #define TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES             7
@@ -243,10 +243,12 @@ typedef enum {
 #define TSDB_ALTER_TABLE_DROP_TAG_INDEX                  12
 #define TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS          13
 #define TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COMPRESS_OPTION 14
-#define TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL            15
+#define TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL            15 // deprecated, kept for wire compatibility
 #define TSDB_ALTER_TABLE_ALTER_COLUMN_REF                16
 #define TSDB_ALTER_TABLE_REMOVE_COLUMN_REF               17
 #define TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COLUMN_REF      18
+#define TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL      19 // alter multiple tag values of multi tables
+#define TSDB_ALTER_TABLE_UPDATE_CHILD_TABLE_TAG_VAL      20 // alter multiple tag values of the child tables of a stable
 
 #define TSDB_FILL_NONE        0
 #define TSDB_FILL_NULL        1
@@ -364,7 +366,9 @@ typedef enum ENodeType {
   QUERY_NODE_SURROUND,
   QUERY_NODE_REMOTE_ROW,
   QUERY_NODE_REMOTE_ZERO_ROWS,
-  
+  QUERY_NODE_UPDATE_TAG_VALUE,
+  QUERY_NODE_ALTER_TABLE_UPDATE_TAG_VAL_CLAUSE,
+
   // Statement nodes are used in parser and planner module.
   QUERY_NODE_SET_OPERATOR = 100,
   QUERY_NODE_SELECT_STMT,
@@ -888,6 +892,7 @@ typedef struct {
   int8_t      virtualStb;
   int32_t     numOfColRefs;
   SColRef*    pColRefs;
+  int8_t      secureDelete;
 } STableMetaRsp;
 
 typedef struct {
@@ -1288,6 +1293,7 @@ typedef struct {
   char*    sql;
   int64_t  keep;
   int8_t   virtualStb;
+  int8_t   secureDelete;
 } SMCreateStbReq;
 
 int32_t tSerializeSMCreateStbReq(void* buf, int32_t bufLen, SMCreateStbReq* pReq);
@@ -1328,6 +1334,7 @@ typedef struct {
   char*   sql;
   int64_t keep;
   SArray* pTypeMods;
+  int8_t  secureDelete;
 } SMAlterStbReq;
 
 int32_t tSerializeSMAlterStbReq(void* buf, int32_t bufLen, SMAlterStbReq* pReq);
@@ -2072,6 +2079,7 @@ typedef struct {
     };
   };
   SColRef* pColRefs;
+  int8_t   secureDelete;
 } STableCfg;
 
 typedef STableCfg STableCfgRsp;
@@ -2167,6 +2175,7 @@ typedef struct {
   char    encryptAlgrName[TSDB_ENCRYPT_ALGR_NAME_LEN];
   int8_t  isAudit;
   int8_t  allowDrop;
+  int8_t  secureDelete;
 } SCreateDbReq;
 
 int32_t tSerializeSCreateDbReq(void* buf, int32_t bufLen, SCreateDbReq* pReq);
@@ -2206,6 +2215,7 @@ typedef struct {
   char    encryptAlgrName[TSDB_ENCRYPT_ALGR_NAME_LEN];
   int8_t  isAudit;
   int8_t  allowDrop;
+  int8_t  secureDelete;
 } SAlterDbReq;
 
 int32_t tSerializeSAlterDbReq(void* buf, int32_t bufLen, SAlterDbReq* pReq);
@@ -2452,6 +2462,7 @@ typedef struct {
   int16_t sstTrigger;
   int8_t  withArbitrator;
   int8_t  isAudit;
+  int8_t  secureDelete;
 } SDbCfgRsp;
 
 typedef SDbCfgRsp SDbCfgInfo;
@@ -3051,6 +3062,7 @@ typedef struct {
       uint8_t padding : 6;
     };
   };
+  int8_t secureDelete;
 } SCreateVnodeReq;
 
 int32_t tSerializeSCreateVnodeReq(void* buf, int32_t bufLen, SCreateVnodeReq* pReq);
@@ -3203,6 +3215,7 @@ typedef struct {
   int32_t ssKeepLocal;
   int8_t  ssCompact;
   int8_t  allowDrop;
+  int8_t  secureDelete;
 } SAlterVnodeConfigReq;
 
 int32_t tSerializeSAlterVnodeConfigReq(void* buf, int32_t bufLen, SAlterVnodeConfigReq* pReq);
@@ -4824,6 +4837,7 @@ typedef struct SVCreateStbReq {
   int64_t         ownerId;
   SExtSchema*     pExtSchemas;
   int8_t          virtualStb;
+  int8_t          secureDelete;
 } SVCreateStbReq;
 
 int tEncodeSVCreateStbReq(SEncoder* pCoder, const SVCreateStbReq* pReq);
@@ -4972,7 +4986,7 @@ int32_t tEncodeSVDropTbBatchRsp(SEncoder* pCoder, const SVDropTbBatchRsp* pRsp);
 int32_t tDecodeSVDropTbBatchRsp(SDecoder* pCoder, SVDropTbBatchRsp* pRsp);
 
 // TDMT_VND_ALTER_TABLE =====================
-typedef struct SMultiTagUpateVal {
+typedef struct SUpdatedTagVal {
   char*    tagName;
   int32_t  colId;
   int8_t   tagType;
@@ -4981,7 +4995,18 @@ typedef struct SMultiTagUpateVal {
   uint8_t* pTagVal;
   int8_t   isNull;
   SArray*  pTagArray;
-} SMultiTagUpateVal;
+  // NOTE: regexp and replacement are only a temporary solution for tag value update,
+  // they should be replaced by a more generic solution in the future for full expression
+  // support
+  char*    regexp;
+  char*    replacement;
+} SUpdatedTagVal;
+
+typedef struct SUpdateTableTagVal {
+  char *tbName;
+  SArray* tags; // Array of SUpdatedTagVal
+} SUpdateTableTagVal;
+
 typedef struct SVAlterTbReq {
   char*   tbName;
   int8_t  action;
@@ -5011,7 +5036,10 @@ typedef struct SVAlterTbReq {
   int64_t  ctimeMs;    // fill by vnode
   int8_t   source;     // TD_REQ_FROM_TAOX-taosX or TD_REQ_FROM_APP-taosClient
   uint32_t compress;   // TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS
-  SArray*  pMultiTag;  // TSDB_ALTER_TABLE_ADD_MULTI_TAGS
+  SArray*  pMultiTag;  // TSDB_ALTER_TABLE_ADD_MULTI_TAGS and TSDB_ALTER_TABLE_UPDATE_CHILD_TABLE_TAG_VAL
+  SArray*  tables;     // Array of SUpdateTableTagVal, for TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL
+  int32_t  whereLen;   // [whereLen] & [where] are for TSDB_ALTER_TABLE_UPDATE_CHILD_TABLE_TAG_VAL,
+  uint8_t* where;      // [where] is the encode where condition.
   // for Add column
   STypeMod typeMod;
   // TSDB_ALTER_TABLE_ALTER_COLUMN_REF
@@ -5025,6 +5053,7 @@ int32_t tEncodeSVAlterTbReq(SEncoder* pEncoder, const SVAlterTbReq* pReq);
 int32_t tDecodeSVAlterTbReq(SDecoder* pDecoder, SVAlterTbReq* pReq);
 int32_t tDecodeSVAlterTbReqSetCtime(SDecoder* pDecoder, SVAlterTbReq* pReq, int64_t ctimeMs);
 void    tfreeMultiTagUpateVal(void* pMultiTag);
+void    tfreeUpdateTableTagVal(void* pMultiTable);
 
 typedef struct {
   int32_t        code;
@@ -6139,6 +6168,7 @@ typedef struct {
   char*    sql;
   char*    msg;
   int8_t   source;
+  int8_t   secureDelete;
 } SVDeleteReq;
 
 int32_t tSerializeSVDeleteReq(void* buf, int32_t bufLen, SVDeleteReq* pReq);
@@ -6161,6 +6191,7 @@ typedef struct SDeleteRes {
   char     tsColName[TSDB_COL_NAME_LEN];
   int64_t  ctimeMs;  // fill by vnode
   int8_t   source;
+  int8_t   secureDelete;  // force physical overwrite
 } SDeleteRes;
 
 int32_t tEncodeDeleteRes(SEncoder* pCoder, const SDeleteRes* pRes);
@@ -6581,6 +6612,7 @@ typedef struct {
       uint8_t reserved : 6;
     };
   };
+  int8_t secureDelete;
   // walInfo
   int32_t walFsyncPeriod;      // millisecond
   int32_t walRetentionPeriod;  // secs

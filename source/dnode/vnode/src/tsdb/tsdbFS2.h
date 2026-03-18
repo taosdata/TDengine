@@ -30,6 +30,7 @@ typedef enum {
   TSDB_FEDIT_RETENTION,
   TSDB_FEDIT_SSMIGRATE,
   TSDB_FEDIT_ROLLUP,
+  TSDB_FEDIT_FORCE_REPAIR,
 } EFEditT;
 
 typedef enum {

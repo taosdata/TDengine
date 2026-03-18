@@ -781,6 +781,14 @@ static int32_t scanAlterTableNew(SStreamTriggerReaderInfo* sStreamReaderInfo, SS
   tDecoderInit(&decoder, data, len);
   
   STREAM_CHECK_RET_GOTO(tDecodeSVAlterTbReq(&decoder, &req));
+
+
+  // TODO:
+  // 1. TSDB_ALTER_TABLE_UPDATE_TAG_VAL and TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL is not used any more. 
+  // 2. TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL and TSDB_ALTER_TABLE_UPDATE_CHILD_TABLE_TAG_VAL are
+  //    added, both support updating tag value for multiple tables.
+
+
   STREAM_CHECK_CONDITION_GOTO(req.action != TSDB_ALTER_TABLE_UPDATE_TAG_VAL && req.action != TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL && 
     req.action != TSDB_ALTER_TABLE_ALTER_COLUMN_REF && req.action != TSDB_ALTER_TABLE_REMOVE_COLUMN_REF, TDB_CODE_SUCCESS);
 
@@ -847,6 +855,11 @@ end:
   taosArrayDestroy(uidListDel);
   taosArrayDestroy(tableList);
   taosArrayDestroy(req.pMultiTag);
+  for (int32_t i = 0; i < taosArrayGetSize(req.tables); i++) {
+    SUpdateTableTagVal* pTable = taosArrayGet(req.tables, i);
+    taosArrayDestroy(pTable->tags);
+  }
+  taosArrayDestroy(req.tables);
   tDecoderClear(&decoder);
   STREAM_PRINT_LOG_END_WITHID(code, lino);
   return code;
@@ -3826,7 +3839,7 @@ end:
   return code;
 }
 
-static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg) {
+static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg, SQueueInfo *pInfo) {
   int32_t            code = 0;
   int32_t            lino = 0;
   void*              buf = NULL;
@@ -3844,6 +3857,8 @@ static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg) {
   STREAM_CHECK_CONDITION_GOTO(req.execId < 0, TSDB_CODE_INVALID_PARA);
   SStreamTriggerReaderCalcInfo* sStreamReaderCalcInfo = taosArrayGetP(calcInfoList, req.execId);
   STREAM_CHECK_NULL_GOTO(sStreamReaderCalcInfo, terrno);
+  sStreamReaderCalcInfo->rtInfo.execId = req.execId;
+
   void* pTask = sStreamReaderCalcInfo->pTask;
   ST_TASK_DLOG("vgId:%d %s start, execId:%d, reset:%d, pTaskInfo:%p, scan type:%d", TD_VID(pVnode), __func__, req.execId, req.reset,
                sStreamReaderCalcInfo->pTaskInfo, nodeType(sStreamReaderCalcInfo->calcAst->pNode));
@@ -3863,6 +3878,8 @@ static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg) {
     
     SReadHandle handle = {0};
     handle.vnode = pVnode;
+    handle.pMsgCb = &pVnode->msgCb;
+    handle.pWorkerCb = pInfo->workerCb;
     handle.uid = uid;
     handle.cacheSttStatis = true;
 
@@ -3965,7 +3982,7 @@ static int32_t initTableList(SStreamTriggerReaderInfo* sStreamReaderInfo, SVnode
   return code;
 }
 
-int32_t vnodeProcessStreamReaderMsg(SVnode* pVnode, SRpcMsg* pMsg) {
+int32_t vnodeProcessStreamReaderMsg(SVnode* pVnode, SRpcMsg* pMsg, SQueueInfo *pInfo) {
   int32_t                   code = 0;
   int32_t                   lino = 0;
   SSTriggerPullRequestUnion req = {0};
@@ -3979,7 +3996,7 @@ int32_t vnodeProcessStreamReaderMsg(SVnode* pVnode, SRpcMsg* pMsg) {
   }
 
   if (pMsg->msgType == TDMT_STREAM_FETCH) {
-    return vnodeProcessStreamFetchMsg(pVnode, pMsg);
+    return vnodeProcessStreamFetchMsg(pVnode, pMsg, pInfo);
   } else if (pMsg->msgType == TDMT_STREAM_TRIGGER_PULL) {
     void*   pReq = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
     int32_t len = pMsg->contLen - sizeof(SMsgHead);

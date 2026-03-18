@@ -20,6 +20,7 @@
 #include "parser.h"
 #include "taosdef.h"
 #include "tarray.h"
+#include "tbase64.h"
 #include "tcol.h"
 #include "tcompression.h"
 #include "tdatablock.h"
@@ -738,50 +739,65 @@ static int32_t processAlterTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
       ADD_TO_JSON_STRING(json, "colNewName", vAlterTbReq.colNewName);
       break;
     }
-    case TSDB_ALTER_TABLE_UPDATE_TAG_VAL: {
-      ADD_TO_JSON_STRING(json, "colName", vAlterTbReq.tagName);
-
-      bool isNull = vAlterTbReq.isNull;
-      if (vAlterTbReq.tagType == TSDB_DATA_TYPE_JSON) {
-        STag* jsonTag = (STag*)vAlterTbReq.pTagVal;
-        if (jsonTag->nTag == 0) isNull = true;
+    case TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL: {
+      int32_t nTables = taosArrayGetSize(vAlterTbReq.tables);
+      if (nTables <= 0) {
+        code = TSDB_CODE_INVALID_PARA;
+        uError("processAlterTable parse multi tables error");
+        goto end;
       }
-      if (!isNull) {
-        if (vAlterTbReq.tagType == TSDB_DATA_TYPE_JSON) {
-          if (!tTagIsJson(vAlterTbReq.pTagVal)) {
-            code = TSDB_CODE_INVALID_PARA;
-            uError("processAlterTable isJson false");
-            goto end;
-          }
-          parseTagDatatoJson(vAlterTbReq.pTagVal, &buf, NULL);
-          if (buf == NULL) {
-            code = TSDB_CODE_INVALID_PARA;
-            uError("parseTagDatatoJson failed, buf == NULL");
-            goto end;
-          }
-        } else {
-          int64_t bufSize = 0;
-          if (vAlterTbReq.tagType == TSDB_DATA_TYPE_VARBINARY) {
-            bufSize = vAlterTbReq.nTagVal * 2 + 2 + 3;
+
+      cJSON* tables = cJSON_AddArrayToObject(json, "tables");
+      RAW_NULL_CHECK(tables);
+
+      for (int32_t i = 0; i < nTables; i++) {
+        SUpdateTableTagVal* pTable = taosArrayGet(vAlterTbReq.tables, i);
+        cJSON* tableObj = tmqAddObjectToArray(tables);
+        RAW_NULL_CHECK(tableObj);
+
+        ADD_TO_JSON_STRING(tableObj, "tableName", pTable->tbName);
+
+        int32_t nTags = taosArrayGetSize(pTable->tags);
+        cJSON* tags = cJSON_AddArrayToObject(tableObj, "tags");
+        RAW_NULL_CHECK(tags);
+
+        for (int32_t j = 0; j < nTags; j++) {
+          cJSON* member = tmqAddObjectToArray(tags);
+          RAW_NULL_CHECK(member);
+
+          SUpdatedTagVal* pTagVal = taosArrayGet(pTable->tags, j);
+          ADD_TO_JSON_STRING(member, "colName", pTagVal->tagName);
+
+          if (pTagVal->regexp != NULL) {
+            ADD_TO_JSON_STRING(member, "regexp", pTagVal->regexp);
+            ADD_TO_JSON_STRING(member, "replacement", pTagVal->replacement);
           } else {
-            bufSize = vAlterTbReq.nTagVal + 32;
-          }
-          buf = taosMemoryCalloc(bufSize, 1);
-          RAW_NULL_CHECK(buf);
-          code = dataConverToStr(buf, bufSize, vAlterTbReq.tagType, vAlterTbReq.pTagVal, vAlterTbReq.nTagVal, NULL);
-          if (code != TSDB_CODE_SUCCESS) {
-            uError("convert tag value to string failed");
-            goto end;
+            bool isNull = pTagVal->isNull;
+            if (!isNull) {
+              int64_t bufSize = 0;
+              if (pTagVal->tagType == TSDB_DATA_TYPE_VARBINARY) {
+                bufSize = pTagVal->nTagVal * 2 + 2 + 3;
+              } else {
+                bufSize = pTagVal->nTagVal + 3;
+              }
+              buf1 = taosMemoryCalloc(bufSize, 1);
+              RAW_NULL_CHECK(buf1);
+              code = dataConverToStr(buf1, bufSize, pTagVal->tagType, pTagVal->pTagVal, pTagVal->nTagVal, NULL);
+              if (code != TSDB_CODE_SUCCESS) {
+                uError("convert tag value to string failed");
+                goto end;
+              }
+              ADD_TO_JSON_STRING(member, "colValue", buf1);
+              taosMemoryFreeClear(buf1);
+            }
+            ADD_TO_JSON_BOOL(member, "colValueNull", isNull);
           }
         }
-
-        ADD_TO_JSON_STRING(json, "colValue", buf);
       }
-
-      ADD_TO_JSON_BOOL(json, "colValueNull", isNull);
       break;
     }
-    case TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL: {
+
+    case TSDB_ALTER_TABLE_UPDATE_CHILD_TABLE_TAG_VAL: {
       int32_t nTags = taosArrayGetSize(vAlterTbReq.pMultiTag);
       if (nTags <= 0) {
         code = TSDB_CODE_INVALID_PARA;
@@ -796,33 +812,46 @@ static int32_t processAlterTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
         cJSON* member = tmqAddObjectToArray(tags);
         RAW_NULL_CHECK(member);
 
-        SMultiTagUpateVal* pTagVal = taosArrayGet(vAlterTbReq.pMultiTag, i);
+        SUpdatedTagVal* pTagVal = taosArrayGet(vAlterTbReq.pMultiTag, i);
         ADD_TO_JSON_STRING(member, "colName", pTagVal->tagName);
 
-        if (pTagVal->tagType == TSDB_DATA_TYPE_JSON) {
-          code = TSDB_CODE_INVALID_PARA;
-          uError("processAlterTable isJson false");
+        if (pTagVal->regexp != NULL) {
+          ADD_TO_JSON_STRING(member, "regexp", pTagVal->regexp);
+          ADD_TO_JSON_STRING(member, "replacement", pTagVal->replacement);
+        } else {
+          bool isNull = pTagVal->isNull;
+          if (!isNull) {
+            int64_t bufSize = 0;
+            if (pTagVal->tagType == TSDB_DATA_TYPE_VARBINARY) {
+              bufSize = pTagVal->nTagVal * 2 + 2 + 3;
+            } else {
+              bufSize = pTagVal->nTagVal + 3;
+            }
+            buf1 = taosMemoryCalloc(bufSize, 1);
+            RAW_NULL_CHECK(buf1);
+            code = dataConverToStr(buf1, bufSize, pTagVal->tagType, pTagVal->pTagVal, pTagVal->nTagVal, NULL);
+            if (code != TSDB_CODE_SUCCESS) {
+              uError("convert tag value to string failed");
+              goto end;
+            }
+            ADD_TO_JSON_STRING(member, "colValue", buf1);
+            taosMemoryFreeClear(buf1);
+          }
+          ADD_TO_JSON_BOOL(member, "colValueNull", isNull);
+        }
+      }
+
+      if (vAlterTbReq.whereLen > 0) {
+        ADD_TO_JSON_NUMBER(json, "whereLen", vAlterTbReq.whereLen);
+        char* whereBuf = NULL;
+        code = base64_encode(vAlterTbReq.where, vAlterTbReq.whereLen, &whereBuf);
+        if (code != 0 || whereBuf == NULL) {
+          uError("base64 encode where condition failed");
+          code = TSDB_CODE_OUT_OF_MEMORY;
           goto end;
         }
-        bool isNull = pTagVal->isNull;
-        if (!isNull) {
-          int64_t bufSize = 0;
-          if (pTagVal->tagType == TSDB_DATA_TYPE_VARBINARY) {
-            bufSize = pTagVal->nTagVal * 2 + 2 + 3;
-          } else {
-            bufSize = pTagVal->nTagVal + 3;
-          }
-          buf1 = taosMemoryCalloc(bufSize, 1);
-          RAW_NULL_CHECK(buf1);
-          code = dataConverToStr(buf1, bufSize, pTagVal->tagType, pTagVal->pTagVal, pTagVal->nTagVal, NULL);
-          if (code != TSDB_CODE_SUCCESS) {
-            uError("convert tag value to string failed");
-            goto end;
-          }
-          ADD_TO_JSON_STRING(member, "colValue", buf1)
-          taosMemoryFreeClear(buf1);
-        }
-        ADD_TO_JSON_BOOL(member, "colValueNull", isNull)
+        ADD_TO_JSON_STRING(json, "where", whereBuf);
+        taosMemoryFree(whereBuf);
       }
       break;
     }
@@ -850,6 +879,17 @@ static int32_t processAlterTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
 end:
   if (vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL) {
     taosArrayDestroy(vAlterTbReq.pMultiTag);
+  }
+  if (vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_CHILD_TABLE_TAG_VAL) {
+    taosArrayDestroy(vAlterTbReq.pMultiTag);
+  }
+  if (vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL) {
+    int32_t nTables = taosArrayGetSize(vAlterTbReq.tables);
+    for (int32_t i = 0; i < nTables; i++) {
+      SUpdateTableTagVal* pTable = taosArrayGet(vAlterTbReq.tables, i);
+      taosArrayDestroy(pTable->tags);
+    }
+    taosArrayDestroy(vAlterTbReq.tables);
   }
   tDecoderClear(&decoder);
   taosMemoryFree(buf);

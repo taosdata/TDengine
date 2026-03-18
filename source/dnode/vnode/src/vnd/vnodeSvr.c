@@ -172,15 +172,18 @@ static int32_t vnodePreProcessAlterTableMsg(SVnode *pVnode, SRpcMsg *pMsg) {
 
   SVAlterTbReq vAlterTbReq = {0};
   int64_t      ctimeMs = taosGetTimestampMs();
-  if (tDecodeSVAlterTbReqSetCtime(&dc, &vAlterTbReq, ctimeMs) < 0) {
-    taosArrayDestroy(vAlterTbReq.pMultiTag);
-    vAlterTbReq.pMultiTag = NULL;
-    goto _exit;
-  }
+  code = tDecodeSVAlterTbReqSetCtime(&dc, &vAlterTbReq, ctimeMs);
+
   taosArrayDestroy(vAlterTbReq.pMultiTag);
   vAlterTbReq.pMultiTag = NULL;
 
-  code = 0;
+  for (int32_t i = 0; i < taosArrayGetSize(vAlterTbReq.tables); i++) {
+    SUpdateTableTagVal* pTable = taosArrayGet(vAlterTbReq.tables, i);
+    taosArrayDestroy(pTable->tags);
+  }
+  taosArrayDestroy(vAlterTbReq.tables);
+  vAlterTbReq.tables = NULL;
+
 
 _exit:
   tDecoderClear(&dc);
@@ -1503,7 +1506,7 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, 
     }
 
     // validate hash
-    (void)tsnprintf(tbName, TSDB_TABLE_FNAME_LEN, "%s.%s", pVnode->config.dbname, pCreateReq->name);
+    (void)snprintf(tbName, TSDB_TABLE_FNAME_LEN, "%s.%s", pVnode->config.dbname, pCreateReq->name);
     if (vnodeValidateTableHash(pVnode, tbName) < 0) {
       cRsp.code = TSDB_CODE_VND_HASH_MISMATCH;
       if (taosArrayPush(rsp.pArray, &cRsp) == NULL) {
@@ -1675,13 +1678,13 @@ _exit:
   return 0;
 }
 
-static void alterTagForTmq(SVnode *pVnode, SVAlterTbReq *vAlterTbReq) {
+void vnodeAlterTagForTmq(SVnode *pVnode, const char* tbName, const SArray* tags) {
   int32_t       code = 0;
   int32_t       lino = 0;
   SArray* tbUids = NULL;
   SArray* cidList = NULL;
 
-  int64_t uid = metaGetTableEntryUidByName(pVnode->pMeta, vAlterTbReq->tbName);
+  int64_t uid = metaGetTableEntryUidByName(pVnode->pMeta, tbName);
   QUERY_CHECK_CONDITION(uid != 0, code, lino, end, TSDB_CODE_TDB_TABLE_NOT_EXIST);
   
   tbUids = taosArrayInit(4, sizeof(int64_t));
@@ -1689,28 +1692,23 @@ static void alterTagForTmq(SVnode *pVnode, SVAlterTbReq *vAlterTbReq) {
 
   QUERY_CHECK_CONDITION(taosArrayPush(tbUids, &uid) != NULL, code, lino, end, terrno);
 
-  cidList = taosArrayInit(4, sizeof(col_id_t));
+  cidList = taosArrayInit(taosArrayGetSize(tags), sizeof(col_id_t));
   QUERY_CHECK_NULL(cidList, code, lino, end, terrno);
 
-  if (vAlterTbReq->action == TSDB_ALTER_TABLE_UPDATE_TAG_VAL){
-    col_id_t cid = vAlterTbReq->colId;
+  for (int32_t i = 0; i < taosArrayGetSize(tags); i++) {
+    SUpdatedTagVal *pTagVal = taosArrayGet(tags, i);
+    QUERY_CHECK_NULL(pTagVal, code, lino, end, terrno);
+    col_id_t cid = pTagVal->colId;
     QUERY_CHECK_CONDITION(taosArrayPush(cidList, &cid) != NULL, code, lino, end, terrno);
-  } else {
-    for (int32_t i = 0; i < taosArrayGetSize(vAlterTbReq->pMultiTag); i++) {
-      SMultiTagUpateVal *pTagVal = taosArrayGet(vAlterTbReq->pMultiTag, i);
-      QUERY_CHECK_NULL(pTagVal, code, lino, end, terrno);
-      col_id_t cid = pTagVal->colId;
-      QUERY_CHECK_CONDITION(taosArrayPush(cidList, &cid) != NULL, code, lino, end, terrno);
-    }
   }
   
-  vDebug("vgId:%d, try to add table:%s in query table list, cidList size:%"PRIzu, TD_VID(pVnode), vAlterTbReq->tbName, taosArrayGetSize(cidList));
+  vDebug("vgId:%d, try to add table:%s in query table list, cidList size:%"PRIzu, TD_VID(pVnode), tbName, taosArrayGetSize(cidList));
   code = tqUpdateTbUidList(pVnode->pTq, tbUids, cidList);
   QUERY_CHECK_CODE(code, lino, end);
 
 end:
   if (code != 0) {
-    qError("vgId:%d, failed to alter table:%s since %s", TD_VID(pVnode), vAlterTbReq->tbName, tstrerror(code));
+    qError("vgId:%d, failed to alter table:%s since %s", TD_VID(pVnode), tbName, tstrerror(code));
   }
   taosArrayDestroy(tbUids);
   taosArrayDestroy(cidList);
@@ -1753,12 +1751,14 @@ static int32_t vnodeProcessAlterTbReq(SVnode *pVnode, int64_t ver, void *pReq, i
     vAlterTbRsp.pMeta = &vMetaRsp;
   }
 
-  if (vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_TAG_VAL || vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL) {
-    alterTagForTmq(pVnode, &vAlterTbReq);
-  }
-
 _exit:
   taosArrayDestroy(vAlterTbReq.pMultiTag);
+  for (int32_t i = 0; i < taosArrayGetSize(vAlterTbReq.tables); i++) {
+    SUpdateTableTagVal* pTable = taosArrayGet(vAlterTbReq.tables, i);
+    taosArrayDestroy(pTable->tags);
+  }
+  taosArrayDestroy(vAlterTbReq.tables);
+
   tEncodeSize(tEncodeSVAlterTbRsp, &vAlterTbRsp, pRsp->contLen, ret);
   pRsp->pCont = rpcMallocCont(pRsp->contLen);
   tEncoderInit(&ec, pRsp->pCont, pRsp->contLen);
@@ -3473,6 +3473,9 @@ static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t ver, void *pRe
   if (req.allowDrop != pVnode->config.allowDrop) {
     pVnode->config.allowDrop = req.allowDrop;
   }
+  if (req.secureDelete != pVnode->config.secureDelete) {
+    pVnode->config.secureDelete = req.secureDelete;
+  }
 
   if (walChanged) {
     if (walAlter(pVnode->pWal, &pVnode->config.walCfg) != 0) {
@@ -3511,7 +3514,7 @@ static int32_t vnodeProcessBatchDeleteReq(SVnode *pVnode, int64_t ver, void *pRe
 
     int64_t uid = mr.me.uid;
 
-    int32_t code = tsdbDeleteTableData(pTsdb, ver, deleteReq.suid, uid, pOneReq->startTs, pOneReq->endTs);
+    int32_t code = tsdbDeleteTableData(pTsdb, ver, deleteReq.suid, uid, pOneReq->startTs, pOneReq->endTs, 0);
     if (code < 0) {
       terrno = code;
       vError("vgId:%d, delete error since %s, suid:%" PRId64 ", uid:%" PRId64 ", start ts:%" PRId64 ", end ts:%" PRId64,
@@ -3558,7 +3561,9 @@ static int32_t vnodeProcessDeleteReq(SVnode *pVnode, int64_t ver, void *pReq, in
   if (pRes->affectedRows > 0) {
     for (int32_t iUid = 0; iUid < taosArrayGetSize(pRes->uidList); iUid++) {
       uint64_t uid = *(uint64_t *)taosArrayGet(pRes->uidList, iUid);
-      code = tsdbDeleteTableData(pVnode->pTsdb, ver, pRes->suid, uid, pRes->skey, pRes->ekey);
+      // Merge runtime vnode(db-level) secureDelete to avoid stale client meta after ALTER DATABASE.
+      int8_t secureDelete = pRes->secureDelete | pVnode->config.secureDelete;
+      code = tsdbDeleteTableData(pVnode->pTsdb, ver, pRes->suid, uid, pRes->skey, pRes->ekey, secureDelete);
       if (code) goto _err;
       code = metaUpdateChangeTimeWithLock(pVnode->pMeta, uid, pRes->ctimeMs);
       if (code) goto _err;

@@ -927,6 +927,7 @@ db_options(A) ::= db_options(B) COMPACT_TIME_RANGE signed_duration_list(C).     
 db_options(A) ::= db_options(B) COMPACT_TIME_OFFSET NK_INTEGER(C).                { A = setDatabaseOption(pCxt, B, DB_OPTION_COMPACT_TIME_OFFSET, &C); }
 db_options(A) ::= db_options(B) COMPACT_TIME_OFFSET NK_VARIABLE(C).               { A = setDatabaseOption(pCxt, B, DB_OPTION_COMPACT_TIME_OFFSET, &C); }
 db_options(A) ::= db_options(B) IS_AUDIT NK_INTEGER(C).                           { A = setDatabaseOption(pCxt, B, DB_OPTION_IS_AUDIT, &C); }
+db_options(A) ::= db_options(B) SECURE_DELETE NK_INTEGER(C).                      { A = setDatabaseOption(pCxt, B, DB_OPTION_SECURE_DELETE, &C); }
 
 
 alter_db_options(A) ::= alter_db_option(B).                                       { A = createAlterDatabaseOptions(pCxt); A = setAlterDatabaseOption(pCxt, A, &B); }
@@ -971,6 +972,7 @@ alter_db_option(A) ::= COMPACT_TIME_RANGE signed_duration_list(B).              
 alter_db_option(A) ::= COMPACT_TIME_OFFSET NK_INTEGER(B).                         { A.type = DB_OPTION_COMPACT_TIME_OFFSET; A.val = B; }
 alter_db_option(A) ::= COMPACT_TIME_OFFSET NK_VARIABLE(B).                        { A.type = DB_OPTION_COMPACT_TIME_OFFSET; A.val = B; }
 alter_db_option(A) ::= ALLOW_DROP NK_INTEGER(B).                                  { A.type = DB_OPTION_ALLOW_DROP; A.val = B; }
+alter_db_option(A) ::= SECURE_DELETE NK_INTEGER(B).                               { A.type = DB_OPTION_SECURE_DELETE; A.val = B; }
 
 %type integer_list                                                                { SNodeList* }
 %destructor integer_list                                                          { nodesDestroyList($$); }
@@ -1063,14 +1065,42 @@ alter_table_clause(A) ::=
 alter_table_clause(A) ::=
   full_table_name(B) ALTER COLUMN column_name(C) SET NULL(D).                     { A = createAlterTableRemoveColRef(pCxt, B, TSDB_ALTER_TABLE_REMOVE_COLUMN_REF, &C, &D); }
 
+/* update multi table tag values */
 %type column_tag_value_list                                                          { SNodeList* }
 %destructor column_tag_value_list                                                    { nodesDestroyList($$); }
-column_tag_value(A) ::= column_name(C) NK_EQ tags_literal(D).                        { A = createAlterSingleTagColumnNode(pCxt, &C, D); }
+column_tag_value(A) ::= column_name(B) NK_EQ tags_literal(C).                        { A = createAlterTagValueNode(pCxt, &B, C); }
+
 column_tag_value_list(A) ::= column_tag_value(B).                                    { A = createNodeList(pCxt, B); }
 column_tag_value_list(A) ::= column_tag_value_list(B) NK_COMMA column_tag_value(C).  { A = addNodeToList(pCxt, B, C);}
 
-alter_table_clause(A) ::=
-  full_table_name(B) SET TAG column_tag_value_list(C).                            { A = createAlterTableSetMultiTagValue(pCxt, B, C); }
+%type alter_single_table_clause                                                      { SNode* }
+%destructor alter_single_table_clause                                                { nodesDestroyNode($$); }
+alter_single_table_clause(A) ::= full_table_name(B) SET TAG column_tag_value_list(C). { A = createAlterTableUpdateTagValClause(pCxt, B, C); }
+
+%type alter_multi_table_clause                                                       { SNodeList* }
+%destructor alter_multi_table_clause                                                 { nodesDestroyList($$); }
+alter_multi_table_clause(A) ::= alter_single_table_clause(B).                        { A = createNodeList(pCxt, B); }
+alter_multi_table_clause(A) ::= alter_multi_table_clause(B) alter_single_table_clause(C). { A = addNodeToList(pCxt, B, C); }
+
+alter_table_clause(A) ::= alter_multi_table_clause(B).                               { A = createAlterMultiTableUpdateTagValStmt(pCxt, B); }
+
+/* update child table tag values */
+column_tag_expr_value(A) ::= column_tag_value(B).                                    { A = B; }
+/* NOTE: the use of REGEXP_REPLACE is a temporary solution, will be replaced by a more general solution like below in the future:
+       column_tag_expr_value(A) ::= column_name(B) NK_EQ expression(C).
+*/
+column_tag_expr_value(A) ::= column_name(B) NK_EQ REGEXP_REPLACE NK_LP NK_ID NK_COMMA NK_STRING(C) NK_COMMA NK_STRING(D) NK_RP. {
+    A = createAlterTagValueNodeWithExpression(pCxt, &B, &C, &D);
+  }
+
+%type column_tag_expr_value_list                                                      { SNodeList* }
+%destructor column_tag_expr_value_list                                                { nodesDestroyList($$); }
+column_tag_expr_value_list(A) ::= column_tag_expr_value(B).                                { A = createNodeList(pCxt, B); }
+column_tag_expr_value_list(A) ::= column_tag_expr_value_list(B) NK_COMMA column_tag_expr_value(C). { A = addNodeToList(pCxt, B, C); }
+
+alter_table_clause(A) ::= USING full_table_name(B) SET TAG column_tag_expr_value_list(C) where_clause_opt(D). {
+    A = createAlterChildTableUpdateTagValStmt(pCxt, B, C, D);
+  }
 
 %type multi_create_clause                                                         { SNodeList* }
 %destructor multi_create_clause                                                   { nodesDestroyList($$); }
@@ -1186,6 +1216,7 @@ table_options(A) ::= table_options(B) DELETE_MARK duration_list(C).             
 table_options(A) ::= table_options(B) KEEP NK_INTEGER(C).                         { A = setTableOption(pCxt, B, TABLE_OPTION_KEEP, &C); }
 table_options(A) ::= table_options(B) KEEP NK_VARIABLE(C).                        { A = setTableOption(pCxt, B, TABLE_OPTION_KEEP, &C); }
 table_options(A) ::= table_options(B) VIRTUAL NK_INTEGER(C).                      { A = setTableOption(pCxt, B, TABLE_OPTION_VIRTUAL, &C); }
+table_options(A) ::= table_options(B) SECURE_DELETE NK_INTEGER(C).                { A = setTableOption(pCxt, B, TABLE_OPTION_SECURE_DELETE, &C); }
 
 alter_table_options(A) ::= alter_table_option(B).                                 { A = createAlterTableOptions(pCxt); A = setTableOption(pCxt, A, B.type, &B.val); }
 alter_table_options(A) ::= alter_table_options(B) alter_table_option(C).          { A = setTableOption(pCxt, B, C.type, &C.val); }
@@ -1196,6 +1227,7 @@ alter_table_option(A) ::= COMMENT NK_STRING(B).                                 
 alter_table_option(A) ::= TTL NK_INTEGER(B).                                      { A.type = TABLE_OPTION_TTL; A.val = B; }
 alter_table_option(A) ::= KEEP NK_INTEGER(B).                                     { A.type = TABLE_OPTION_KEEP; A.val = B; }
 alter_table_option(A) ::= KEEP NK_VARIABLE(B).                                    { A.type = TABLE_OPTION_KEEP; A.val = B; }
+alter_table_option(A) ::= SECURE_DELETE NK_INTEGER(B).                            { A.type = TABLE_OPTION_SECURE_DELETE; A.val = B; }
 
 
 %type duration_list                                                               { SNodeList* }
@@ -1747,6 +1779,7 @@ dnode_list(A) ::= dnode_list(B) DNODE NK_INTEGER(C).                            
 
 /************************************************ syncdb **************************************************************/
 cmd ::= DELETE FROM full_table_name(A) where_clause_opt(B).                       { pCxt->pRootNode = createDeleteStmt(pCxt, A, B); }
+cmd ::= DELETE FROM full_table_name(A) where_clause_opt(B) SECURE_DELETE.         { pCxt->pRootNode = createSecureDeleteStmt(pCxt, A, B); }
 
 /************************************************ select **************************************************************/
 cmd ::= query_or_subquery(A).                                                     { pCxt->pRootNode = A; }

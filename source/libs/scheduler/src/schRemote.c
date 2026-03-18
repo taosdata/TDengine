@@ -645,7 +645,7 @@ int32_t schMakeCallbackParam(SSchJob *pJob, SSchTask *pTask, int32_t msgType, bo
 
     param->nodeEpId.nodeId = pAddr->nodeId;
     SEp *pEp = SCH_GET_CUR_EP(pAddr);
-    TAOS_STRCPY(param->nodeEpId.ep.fqdn, pEp->fqdn);
+    tstrncpy(param->nodeEpId.ep.fqdn, pEp->fqdn, sizeof(param->nodeEpId.ep.fqdn));
     param->nodeEpId.ep.port = pEp->port;
     param->pTrans = trans->pTrans;
     *pParam = param;
@@ -1234,7 +1234,8 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
       req.sqlLen = strlen(pJob->sql);
       req.sql = (char *)pJob->sql;
       req.msg = pTask->msg;
-      req.source = pJob->source;
+      req.source       = pJob->source;
+      req.secureDelete = pJob->secureDelete;
       msgSize = tSerializeSVDeleteReq(NULL, 0, &req);
       if (msgSize < 0) {
         SCH_TASK_ELOG("tSerializeSVDeleteReq failed, code:%x", terrno);
