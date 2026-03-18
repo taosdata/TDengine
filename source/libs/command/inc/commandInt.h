@@ -169,7 +169,7 @@ extern "C" {
 #define EXPLAIN_SMA_LOAD_ELAPSED_FORMAT_EXT "sma_load_elapsed=%.3f(%.3f)"
 #define EXPLAIN_CHECK_ROWS_FORMAT "check_rows=%" PRId64
 #define EXPLAIN_CHECK_ROWS_FORMAT_EXT "check_rows=%.1f(%" PRId64 ")"
-#define EXPLAIN_SLOWEST_NODE_FORMAT "slowest_vgroup_id=%d slow_deviation=%d%% cost_ratio=%.1f data_deviation=%d%%"
+#define EXPLAIN_SLOWEST_NODE_FORMAT "slowest_vgroup_id=%d slow_deviation=%.1f%% cost_ratio=%.1f data_deviation=%.1f%%"
 #define EXPLAIN_EXEC_COST_FORMAT "Exec cost: "
 #define EXPLAIN_COMPUTE_FORMAT "compute=%.3f"
 #define EXPLAIN_COMPUTE_FORMAT_EXT "compute=%.3f(%.3f)"

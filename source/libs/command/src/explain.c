@@ -595,10 +595,11 @@ static int32_t qExplainExecAnalyze(const SExplainResNode *pResNode,
 */
 static int32_t qExplainIOAnalyze(const SExplainResNode *pResNode,
                                  SExplainCtx *ctx, int32_t level) {
-  bool    isVerboseLine = false;
+  bool    isVerboseLine = true;
   char    *tbuf = ctx->tbuf;
   int32_t tlen = 0;
 
+  /* sort groups' ExecInfo according to compute time in asc order */
   taosArraySort(pResNode->pExecInfo, compareExecInfo);
   int32_t nodeNum = (int32_t)taosArrayGetSize(pResNode->pExecInfo);
   STableScanAnalyzeInfo analyzeInfo = {0};
@@ -717,12 +718,12 @@ static int32_t qExplainIOAnalyze(const SExplainResNode *pResNode,
       int32_t midIndex = (nodeNum - 1) / 2;
       const SExplainExecInfo* midExecInfo = taosArrayGet(pResNode->pExecInfo, midIndex);
       const SExplainExecInfo* fastestExecInfo = taosArrayGet(pResNode->pExecInfo, 0);
-      int32_t slowDeviation = midExecInfo->execElapsed > 0 ?
-        (int32_t)(slowestExecInfo->execElapsed - midExecInfo->execElapsed) * 100 /
-        midExecInfo->execElapsed : 0;
-      int32_t dataDeviation = midExecInfo->numOfRows > 0 ?
-        (int32_t)(slowestExecInfo->numOfRows - midExecInfo->numOfRows) * 100 /
-        midExecInfo->numOfRows : 0;
+      double slowDeviation = midExecInfo->execElapsed > 0 ?
+        ((double)slowestExecInfo->execElapsed - (double)midExecInfo->execElapsed) * 100.0 /
+        (double)midExecInfo->execElapsed : 0;
+      double dataDeviation = midExecInfo->numOfRows > 0 ?
+        ((double)slowestExecInfo->numOfRows - (double)midExecInfo->numOfRows) * 100.0 /
+        (double)midExecInfo->numOfRows : 0;
       double costRatio = fastestExecInfo->execElapsed > 0 ?
         (double)slowestExecInfo->execElapsed / (double)fastestExecInfo->execElapsed : 0;
       EXPLAIN_ROW_APPEND(EXPLAIN_SLOWEST_NODE_FORMAT, slowestExecInfo->vgId,
@@ -913,11 +914,11 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
         }
 
         QRY_ERR_RET(qExplainExecAnalyze(pResNode, ctx, level));
-      }
 
-      if (EXPLAIN_MODE_ANALYZE == ctx->mode && pResNode->pExecInfo) {
-        /* table scan I/O analyze information */
-        QRY_ERR_RET(qExplainIOAnalyze(pResNode, ctx, level));
+        if (EXPLAIN_MODE_ANALYZE == ctx->mode && pResNode->pExecInfo) {
+          /* table scan I/O analyze information */
+          QRY_ERR_RET(qExplainIOAnalyze(pResNode, ctx, level));
+        }
       }
       break;
     }
