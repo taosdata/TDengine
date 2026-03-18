@@ -997,7 +997,8 @@ int32_t resetTimezoneInfo(const char *tzname)
   return TSDB_CODE_SUCCESS;
 #else
   // Windows: timezone is managed via TZ environment variable
-  // No need to maintain separate timezone objects
+  // Do not maintain shared timezone globals here: os code may be linked into
+  // multiple DLLs, while TZ env var remains process-wide and consistent.
   uInfo("[tz] Windows timezone set to %s (managed via TZ env var)", tzname);
   return TSDB_CODE_SUCCESS;
 #endif
@@ -1013,7 +1014,46 @@ int32_t taosSetGlobalTimezone(const char *tz) {
 #ifdef WINDOWS
   char winStr[TD_TIMEZONE_LEN * 2] = {0};
   int found = 0;
+
+  // Windows must keep using the process-level TZ environment variable as the
+  // source of truth because this os module can exist in multiple DLLs, each
+  // with its own copy of globals. This function only translates the input to
+  // the shared TZ env format and must not depend on cross-DLL global state.
+  // Fast path for POSIX-style UTC/GMT offsets used by TDengine config,
+  // e.g. "UTC-8"(East 8), "UTC+8"(West 8), "UTC-08:30".
+  // We convert this directly to TZ env var format expected by
+  // getWindowsTimezoneOffset(), preserving POSIX sign semantics.
+  if (strcasecmp(tz, "UTC") == 0 || strcasecmp(tz, "GMT") == 0) {
+    snprintf(winStr, sizeof(winStr), "+0:00");
+    snprintf(tsTimezoneStr, TD_TIMEZONE_LEN, "%s (UTC, +0000)", tz);
+    found = 1;
+  } else {
+    const char *p = tz;
+    if (strncasecmp(p, "UTC", 3) == 0 || strncasecmp(p, "GMT", 3) == 0) {
+      p += 3;
+    }
+
+    if (*p == '+' || *p == '-') {
+      char sign = *p;
+      int  tzHours = 0;
+      int  tzMins = 0;
+
+      if (sscanf(p + 1, "%d:%d", &tzHours, &tzMins) >= 1 && tzHours >= 0 && tzHours <= 23 && tzMins >= 0 && tzMins <= 59) {
+        snprintf(winStr, sizeof(winStr), "%c%d:%02d", sign, tzHours, tzMins);
+
+        // Display string keeps UTC direction (inverse of POSIX sign).
+        char utcSign = (sign == '+') ? '-' : '+';
+        snprintf(tsTimezoneStr, TD_TIMEZONE_LEN, "%s (UTC, %c%02d%02d)", tz, utcSign, tzHours, tzMins);
+        found = 1;
+      }
+    }
+  }
+
   for (size_t i = 0; i < W_TZ_CITY_NUM; i++) {
+    if (found) {
+      break;
+    }
+
     if (strcmp(tz_win[i][0], tz) == 0) {
       found = 1;
       char  keyPath[256] = {0};
@@ -1321,7 +1361,8 @@ void cleanupTimezoneInfo(void) {
 timezone_t getGlobalDefaultTZ() {
 #ifdef WINDOWS
   // Windows: timezone is managed via TZ environment variable
-  // Return NULL to force using getWindowsTimezoneOffset()
+  // Return NULL to force using getWindowsTimezoneOffset() instead of any
+  // DLL-local global timezone object.
   return NULL;
 #else
   uint32_t idx = atomic_load_32((int32_t *)&g_tz_idx);
