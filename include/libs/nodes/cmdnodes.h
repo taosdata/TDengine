@@ -1055,6 +1055,11 @@ typedef struct SKillStmt {
   int32_t   targetId;
 } SKillStmt;
 
+typedef struct SKillTransStmt {
+  ENodeType type;
+  int64_t   targetId;
+} SKillTransStmt;
+
 typedef struct SKillQueryStmt {
   ENodeType type;
   char      queryId[TSDB_QUERY_ID_LEN];

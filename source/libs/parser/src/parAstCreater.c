@@ -7471,6 +7471,17 @@ _err:
   return NULL;
 }
 
+SNode* createKillTransStmt(SAstCreateContext* pCxt, ENodeType type, const SToken* pId) {
+  CHECK_PARSER_STATUS(pCxt);
+  SKillTransStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(type, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  pStmt->targetId = taosStr2Int64(pId->z, NULL, 10);
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+}
+
 SNode* createKillQueryStmt(SAstCreateContext* pCxt, const SToken* pQueryId) {
   CHECK_PARSER_STATUS(pCxt);
   SKillQueryStmt* pStmt = NULL;

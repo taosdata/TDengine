@@ -4139,7 +4139,7 @@ int32_t tSerializeSKillConnReq(void* buf, int32_t bufLen, SKillConnReq* pReq);
 int32_t tDeserializeSKillConnReq(void* buf, int32_t bufLen, SKillConnReq* pReq);
 
 typedef struct {
-  int32_t transId;
+  int64_t transId;
 } SKillTransReq;
 
 int32_t tSerializeSKillTransReq(void* buf, int32_t bufLen, SKillTransReq* pReq);

@@ -861,7 +861,7 @@ typedef enum {
   META_TXN_PRE_DROP,
 } EMetaTxnStatus;
 
-typedef uint64_t utxn_id_t;
+typedef int64_t utxn_id_t;
 
 #define MIN_RESERVE_MEM_SIZE 1024  // MB
 

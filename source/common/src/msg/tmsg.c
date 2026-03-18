@@ -11690,7 +11690,7 @@ int32_t tSerializeSKillTransReq(void *buf, int32_t bufLen, SKillTransReq *pReq) 
   tEncoderInit(&encoder, buf, bufLen);
 
   TAOS_CHECK_EXIT(tStartEncode(&encoder));
-  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->transId));
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->transId));
   tEndEncode(&encoder);
 
 _exit:
@@ -11710,7 +11710,7 @@ int32_t tDeserializeSKillTransReq(void *buf, int32_t bufLen, SKillTransReq *pReq
   tDecoderInit(&decoder, buf, bufLen);
 
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
-  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->transId));
+  TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->transId));
   tEndDecode(&decoder);
 
 _exit:

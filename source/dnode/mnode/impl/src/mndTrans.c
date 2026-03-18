@@ -2724,6 +2724,8 @@ static int32_t mndProcessKillTransReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
+  bool isUserTrans = false;
+
   pTrans = mndAcquireTrans(pMnode, killReq.transId);
   if (pTrans == NULL) {
     code = TSDB_CODE_MND_RETURN_VALUE_NULL;
