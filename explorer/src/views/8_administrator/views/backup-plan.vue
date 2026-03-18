@@ -637,7 +637,6 @@ function closeDialog(formEl: FormInstance | undefined) {
 }
 
 const constructPostData = () => {
-
   const base_url = localStorage.getItem('base_url');
   if (!base_url) {
     throw new Error('base_url is empty');
@@ -655,6 +654,7 @@ const constructPostData = () => {
   const name = `backup_${currentDateTime}`;
 
   return {
+    name,
     labels: ['type::backup'],
     trigger: {
       upcoming: ruleForm.upcoming,
