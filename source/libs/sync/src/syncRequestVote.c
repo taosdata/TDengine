@@ -108,9 +108,11 @@ int32_t syncNodeOnRequestVote(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   SyncTerm currentTerm = raftStoreGetTerm(ths);
   if (!(pMsg->term <= currentTerm)) return TSDB_CODE_SYN_INTERNAL_ERROR;
 
-  sTrace("vgId:%d, begin hasVoted", ths->vgId);
-  bool grant = (pMsg->term == currentTerm) && logOK &&
-               ((!raftStoreHasVoted(ths)) || (syncUtilSameId(&ths->raftStore.voteFor, &pMsg->srcId)));
+  bool hasVoted = raftStoreHasVoted(ths);
+  bool sameId = hasVoted && syncUtilSameId(&ths->raftStore.voteFor, &pMsg->srcId);
+  bool grant = (pMsg->term == currentTerm) && logOK && ((!hasVoted) || sameId);
+  sInfo("vgId:%d, grant:%d, hasVoted:%d, sameId:%d, logOK:%d, msg term:%" PRId64 ", current term:%" PRId64, ths->vgId,
+        grant, hasVoted, sameId, logOK, pMsg->term, currentTerm);
   if (grant) {
     // maybe has already voted for pMsg->srcId
     // vote again, no harm
@@ -137,7 +139,10 @@ int32_t syncNodeOnRequestVote(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
 
   // trace log
   syncLogRecvRequestVote(ths, pMsg, pReply->voteGranted, "", "proceed", &pRpcMsg->info.traceId);
-  syncLogSendRequestVoteReply(ths, pReply, "", &pRpcMsg->info.traceId);
+
+  rpcMsg.info.traceId = pRpcMsg->info.traceId;
+  TRACE_SET_MSGID(&(rpcMsg.info.traceId), tGenIdPI64());
+  syncLogSendRequestVoteReply(ths, pReply, "", &rpcMsg.info.traceId);
   TAOS_CHECK_RETURN(syncNodeSendMsgById(&pReply->destId, ths, &rpcMsg));
 
   if (resetElect) syncNodeResetElectTimer(ths);
