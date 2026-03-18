@@ -873,39 +873,73 @@ _exit:
   return code;
 }
 
-static void extWinNormalizeBlockIdForPartition(SExternalWindowOperator* pExtW, SExecTaskInfo* pTaskInfo, SBlockID* pId) {
+static FORCE_INLINE bool extWinNeedResolvePartitionBlockId(SExternalWindowOperator* pExtW, SExecTaskInfo* pTaskInfo,
+                                                           const SBlockID* pId) {
   if (pId == NULL || pTaskInfo == NULL || pTaskInfo->pStreamRuntimeInfo == NULL) {
-    return;
+    return false;
   }
 
   SStreamRuntimeFuncInfo* pInfo = &pTaskInfo->pStreamRuntimeInfo->funcInfo;
-  if (!pInfo->isMultiGroupCalc || !pExtW->calcWithPartition || pInfo->pGroupCalcInfos == NULL) {
+  return pInfo->isMultiGroupCalc && pExtW->calcWithPartition && pInfo->pGroupCalcInfos != NULL;
+}
+
+static void extWinResolveBaseGroupIdForPartition(SExternalWindowOperator* pExtW, SExecTaskInfo* pTaskInfo,
+                                                 SBlockID* pId) {
+  SStreamRuntimeFuncInfo* pInfo = &pTaskInfo->pStreamRuntimeInfo->funcInfo;
+
+  if (pId->baseGId != 0) {
     return;
   }
 
-  if (pId->baseGId == 0 && pId->groupId != 0 &&
+  if (pId->groupId != 0 &&
       tSimpleHashGet(pInfo->pGroupCalcInfos, &pId->groupId, sizeof(pId->groupId)) != NULL) {
     pId->baseGId = pId->groupId;
     qDebug("%s %s normalize baseGId <- groupId %" PRIu64,
            GET_TASKID(pTaskInfo), EXT_WIN_TYPE_STR(pExtW->isMergeAlignedExtW), pId->groupId);
-  } else if (pId->baseGId == 0) {
-    int32_t size = tSimpleHashGetSize(pInfo->pGroupCalcInfos);
-    if (size == 1) {
-      int32_t iter = 0;
-      SSTriggerGroupCalcInfo* pOne = tSimpleHashIterate(pInfo->pGroupCalcInfos, NULL, &iter);
-      if (pOne != NULL) {
-        pId->baseGId = *(uint64_t*)tSimpleHashGetKey(pOne, NULL);
-        qDebug("%s %s normalize baseGId <- single gid %" PRIu64,
-               GET_TASKID(pTaskInfo), EXT_WIN_TYPE_STR(pExtW->isMergeAlignedExtW), pId->baseGId);
-      }
-    }
+    return;
   }
 
+  // Compatibility path: some non-stream partitioned external-window plans may
+  // still send blocks with only `groupId` or with both ids unset on the outer
+  // side, while runtime has exactly one trigger-group from the subquery. In
+  // that case we can safely recover `baseGId` from the singleton trigger-group.
+  //
+  // Typical SQL shape:
+  //   select tbname, cast(_wstart as bigint) as ws, cast(ts as bigint) as ts64
+  //   from ext_cx_src partition by tbname
+  //   external_window((select ts, endtime, mark from ext_cx_win) w);
+  //
+  // Here the outer query is partitioned (`partition by tbname`), but the
+  // subquery has no partition/group clause, so upstream may not fully carry
+  // `baseGId` even though there is only one trigger-group to bind against.
+  int32_t size = tSimpleHashGetSize(pInfo->pGroupCalcInfos);
+  if (size == 1) {
+    int32_t iter = 0;
+    SSTriggerGroupCalcInfo* pOne = tSimpleHashIterate(pInfo->pGroupCalcInfos, NULL, &iter);
+    if (pOne != NULL) {
+      pId->baseGId = *(uint64_t*)tSimpleHashGetKey(pOne, NULL);
+      qDebug("%s %s normalize baseGId <- single gid %" PRIu64,
+             GET_TASKID(pTaskInfo), EXT_WIN_TYPE_STR(pExtW->isMergeAlignedExtW), pId->baseGId);
+    }
+  }
+}
+
+static void extWinResolveCalcGroupIdForPartition(SExternalWindowOperator* pExtW, SExecTaskInfo* pTaskInfo,
+                                                 SBlockID* pId) {
   if (pId->groupId == 0 && pId->baseGId != 0) {
     pId->groupId = pId->baseGId;
     qDebug("%s %s normalize groupId <- baseGId %" PRIu64,
            GET_TASKID(pTaskInfo), EXT_WIN_TYPE_STR(pExtW->isMergeAlignedExtW), pId->groupId);
   }
+}
+
+static void extWinResolveBlockIdForPartition(SExternalWindowOperator* pExtW, SExecTaskInfo* pTaskInfo, SBlockID* pId) {
+  if (!extWinNeedResolvePartitionBlockId(pExtW, pTaskInfo, pId)) {
+    return;
+  }
+
+  extWinResolveBaseGroupIdForPartition(pExtW, pTaskInfo, pId);
+  extWinResolveCalcGroupIdForPartition(pExtW, pTaskInfo, pId);
 }
 
 
@@ -1006,7 +1040,7 @@ _exit:
 
 static int32_t extWinSwitchInitCtxs(SExternalWindowOperator* pExtW, SExecTaskInfo* pTaskInfo, SBlockID* pId) {
   int32_t code = 0, lino = 0;
-  extWinNormalizeBlockIdForPartition(pExtW, pTaskInfo, pId);
+  extWinResolveBlockIdForPartition(pExtW, pTaskInfo, pId);
   TAOS_CHECK_EXIT(extWinSwitchInitTGrpCtx(pExtW, pTaskInfo, pId));
   TAOS_CHECK_EXIT(extWinSwitchInitCGrpCtx(pExtW, pTaskInfo, pId));
 
@@ -1231,7 +1265,7 @@ void mergeAlignExtWinDo(SOperatorInfo* pOperator) {
       break;
     }
 
-    extWinNormalizeBlockIdForPartition(pExtW, pTaskInfo, &pBlock->info.id);
+    extWinResolveBlockIdForPartition(pExtW, pTaskInfo, &pBlock->info.id);
 
     if (pExtW->lastCGrpId != pBlock->info.id.groupId) {
       if (pMAExtW->curTs != INT64_MIN && EEXT_MODE_AGG == pExtW->mode) {
@@ -2152,6 +2186,10 @@ static bool extWinLastWinClosed(SExternalWindowOperator* pExtW) {
     return false;
   }
 
+  if (pExtW->pTGrpCtx == NULL || pExtW->pTGrpCtx->pCCtx == NULL || pExtW->pTGrpCtx->pCCtx->lastWinIdx < 0) {
+    return false;
+  }
+
   if (NULL == pExtW->timeRangeExpr || !pExtW->timeRangeExpr->needCalc) {
     return true;
   }
@@ -2522,7 +2560,6 @@ _exit:
   
   return code;
 }
-
 
 static int32_t extWinNonAggOutputMultiGrpRes(SOperatorInfo* pOperator, SExternalWindowOperator* pExtW, SSDataBlock** ppRes) {
   int32_t         code = TSDB_CODE_SUCCESS;
@@ -3071,7 +3108,11 @@ static void extWinFreeResultRow(SExternalWindowOperator* pExtW) {
   }
 }
 
-static bool extWinNonAggGotResBlock(SExternalWindowOperator* pExtW) {
+static bool extWinNonAggGotResBlock(SOperatorInfo* pOperator, SExternalWindowOperator* pExtW) {
+  if (pExtW->calcWithPartition) {
+    return false;
+  }
+
   if ((pExtW->multiTableMode && !pExtW->inputHasOrder) || pExtW->needGroupSort) {
     return false;
   }
@@ -3342,7 +3383,7 @@ static int32_t extWinOpen(SOperatorInfo* pOperator) {
     switch (pExtW->mode) {
       case EEXT_MODE_SCALAR:
         TAOS_CHECK_EXIT(extWinProjectOpen(pOperator, pBlock));
-        if (extWinNonAggGotResBlock(pExtW)) {
+        if (extWinNonAggGotResBlock(pOperator, pExtW)) {
           goto _exit;
         }
         break;
@@ -3351,7 +3392,7 @@ static int32_t extWinOpen(SOperatorInfo* pOperator) {
         break;
       case EEXT_MODE_INDEFR_FUNC:
         TAOS_CHECK_EXIT(extWinIndefRowsOpen(pOperator, pBlock));
-        if (extWinNonAggGotResBlock(pExtW)) {
+        if (extWinNonAggGotResBlock(pOperator, pExtW)) {
           goto _exit;
         }
         break;
