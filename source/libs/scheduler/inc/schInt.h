@@ -340,9 +340,6 @@ typedef struct SSchTaskCtx {
   bool      asyncLaunch;
 } SSchTaskCtx;
 
-// Phase tracking helper functions
-void schSetExecPhase(void *pRequest, int32_t phase);
-
 extern SSchedulerMgmt schMgmt;
 
 #define SCH_GET_TASK_CAPACITY(_n) ((_n) > SCH_DEFAULT_TASK_CAPACITY_NUM ? SCH_DEFAULT_TASK_CAPACITY_NUM : (_n))
