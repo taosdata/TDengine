@@ -96,7 +96,7 @@ static inline int32_t syncUtilRandR(SSyncNode* pSyncNode, int32_t max) {
     pSyncNode->electTimerSeed = (seed == 0) ? 1 : seed;
     sInfo("vgId:%d, init elect timer seed:%u", pSyncNode->vgId, pSyncNode->electTimerSeed);
   }
-  return taosRandR(&pSyncNode->electTimerSeed) % max;
+  return taosRand_R(&pSyncNode->electTimerSeed) % max;
 }
 
 int32_t syncUtilElectRandomMS(int32_t min, int32_t max) {
