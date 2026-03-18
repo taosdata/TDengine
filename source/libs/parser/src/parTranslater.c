@@ -13923,11 +13923,14 @@ static int32_t checkAlterSuperTable(STranslateContext* pCxt, SAlterTableStmt* pS
                                    "Cannot alter table of system database: `%s`.`%s`", pStmt->dbName, pStmt->tableName);
   }
 
-  if (TSDB_ALTER_TABLE_UPDATE_TAG_VAL == pStmt->alterType ||
-      TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL == pStmt->alterType) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE,
-                                   "Set tag value only available for child table");
+  switch(pStmt->alterType) {
+    case TSDB_ALTER_TABLE_UPDATE_TAG_VAL:
+    case TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL:
+    case TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL:
+    case TSDB_ALTER_TABLE_UPDATE_CHILD_TABLE_TAG_VAL:
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE, "Set tag value only available for child table");
   }
+
   if (TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COLUMN_REF == pStmt->alterType) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE,
                                    "Add column with column reference only available for virtual normal table");
@@ -22641,6 +22644,8 @@ static void destroyCreateTbReqBatch(void* data) {
   taosArrayDestroy(pTbBatch->req.pArray);
 }
 
+
+
 int32_t rewriteToVnodeModifyOpStmt(SQuery* pQuery, SArray* pBufArray) {
   SVnodeModifyOpStmt* pNewStmt = NULL;
   int32_t             code = nodesMakeNode(QUERY_NODE_VNODE_MODIFY_STMT, (SNode**)&pNewStmt);
@@ -22653,6 +22658,8 @@ int32_t rewriteToVnodeModifyOpStmt(SQuery* pQuery, SArray* pBufArray) {
   pQuery->pRoot = (SNode*)pNewStmt;
   return TSDB_CODE_SUCCESS;
 }
+
+
 
 static void destroyCreateTbReqArray(SArray* pArray) {
   size_t size = taosArrayGetSize(pArray);
@@ -23955,8 +23962,10 @@ static int32_t rewriteDropSuperTable(STranslateContext* pCxt, SQuery* pQuery) {
   TAOS_RETURN(0);
 }
 
-static int32_t buildUpdateTagValReqImpl2(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta,
-                                         char* colName, SMultiTagUpateVal* pReq) {
+
+
+static int32_t buildUpdateTagValReqImpl(STranslateContext* pCxt, const char* tagStr, STableMeta* pTableMeta,
+                                         char* colName, SUpdatedTagVal* pReq) {
   int32_t  code = TSDB_CODE_SUCCESS;
   int32_t  lino = 0;
   SSchema* pSchema = getTagSchema(pTableMeta, colName);
@@ -23983,7 +23992,6 @@ static int32_t buildUpdateTagValReqImpl2(STranslateContext* pCxt, SAlterTableStm
   STag*       pTag = NULL;
   SToken      token;
   char        tokenBuf[TSDB_MAX_TAGS_LEN];
-  const char* tagStr = pStmt->pVal->literal;
   NEXT_TOKEN_WITH_PREV(tagStr, token);
   if (TSDB_CODE_SUCCESS == code) {
     code = checkAndTrimValue(&token, tokenBuf, &pCxt->msgBuf, pSchema->type);
@@ -23995,9 +24003,6 @@ static int32_t buildUpdateTagValReqImpl2(STranslateContext* pCxt, SAlterTableStm
   if (TSDB_CODE_SUCCESS == code) {
     code = parseTagValue(&pCxt->msgBuf, &tagStr, pTableMeta->tableInfo.precision, pSchema, &token, NULL,
                          pReq->pTagArray, &pTag, pCxt->pParseCxt->timezone, pCxt->pParseCxt->charsetCxt);
-    if (pSchema->type == TSDB_DATA_TYPE_JSON && token.type == TK_NULL && code == TSDB_CODE_SUCCESS) {
-      pReq->tagFree = true;
-    }
   }
   if (TSDB_CODE_SUCCESS == code && tagStr) {
     NEXT_VALID_TOKEN(tagStr, token);
@@ -24008,7 +24013,9 @@ static int32_t buildUpdateTagValReqImpl2(STranslateContext* pCxt, SAlterTableStm
 
   if (TSDB_CODE_SUCCESS == code) {
     if (pSchema->type == TSDB_DATA_TYPE_JSON) {
-      code = buildSyntaxErrMsg(&pCxt->msgBuf, "not expected tags values ", token.z);
+      pReq->nTagVal = pTag->len;
+      pReq->pTagVal = (uint8_t*)pTag;
+      pReq->tagFree = true;
     } else {
       STagVal* pTagVal = taosArrayGet(pReq->pTagArray, 0);
       if (pTagVal) {
@@ -24027,162 +24034,21 @@ static int32_t buildUpdateTagValReqImpl2(STranslateContext* pCxt, SAlterTableStm
   }
 _err:
   if (code != 0) {
+    for (int32_t i = 0; i < taosArrayGetSize(pReq->pTagArray); ++i) {
+      STagVal* p = (STagVal*)taosArrayGet(pReq->pTagArray, i);
+      if (IS_VAR_DATA_TYPE(p->type)) {
+        taosMemoryFreeClear(p->pData);
+      }
+    }
     taosArrayDestroy(pReq->pTagArray);
+    pReq->pTagArray = NULL;
     taosMemoryFree(pReq->tagName);
+    pReq->tagName = NULL;
   }
   return code;
 }
-static int32_t buildUpdateTagValReqImpl(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta,
-                                        char* colName, SVAlterTbReq* pReq) {
-  int32_t code = TSDB_CODE_SUCCESS;
 
-  SSchema* pSchema = getTagSchema(pTableMeta, colName);
-  if (NULL == pSchema) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE, "Invalid tag name: %s", colName);
-  }
 
-  if (pSchema->flags & COL_REF_BY_STM) {
-    return TSDB_CODE_PAR_COL_TAG_REF_BY_STM;
-  }
-
-  pReq->tagName = taosStrdup(colName);
-  if (NULL == pReq->tagName) {
-    return terrno;
-  }
-  pReq->pTagArray = taosArrayInit(1, sizeof(STagVal));
-  if (NULL == pReq->pTagArray) {
-    return terrno;
-  }
-  pReq->colId = pSchema->colId;
-  pReq->tagType = pSchema->type;
-
-  STag*       pTag = NULL;
-  SToken      token;
-  char        tokenBuf[TSDB_MAX_TAGS_LEN];
-  const char* tagStr = pStmt->pVal->literal;
-  NEXT_TOKEN_WITH_PREV(tagStr, token);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = checkAndTrimValue(&token, tokenBuf, &pCxt->msgBuf, pSchema->type);
-    if (TSDB_CODE_SUCCESS == code && TK_NK_VARIABLE == token.type) {
-      code = buildSyntaxErrMsg(&pCxt->msgBuf, "not expected tags values", token.z);
-    }
-  }
-
-  if (TSDB_CODE_SUCCESS == code) {
-    code = parseTagValue(&pCxt->msgBuf, &tagStr, pTableMeta->tableInfo.precision, pSchema, &token, NULL,
-                         pReq->pTagArray, &pTag, pCxt->pParseCxt->timezone, pCxt->pParseCxt->charsetCxt);
-    if (pSchema->type == TSDB_DATA_TYPE_JSON && token.type == TK_NULL && code == TSDB_CODE_SUCCESS) {
-      pReq->tagFree = true;
-    }
-  }
-  if (TSDB_CODE_SUCCESS == code && tagStr) {
-    NEXT_VALID_TOKEN(tagStr, token);
-    if (token.n != 0) {
-      code = buildSyntaxErrMsg(&pCxt->msgBuf, "not expected tags values", token.z);
-    }
-  }
-
-  if (TSDB_CODE_SUCCESS == code) {
-    if (pSchema->type == TSDB_DATA_TYPE_JSON) {
-      pReq->nTagVal = pTag->len;
-      pReq->pTagVal = (uint8_t*)pTag;
-      pStmt->pVal->datum.p = (char*)pTag;  // for free
-    } else {
-      STagVal* pTagVal = taosArrayGet(pReq->pTagArray, 0);
-      if (pTagVal) {
-        pReq->isNull = false;
-        if (IS_VAR_DATA_TYPE(pSchema->type)) {
-          pReq->nTagVal = pTagVal->nData;
-          pReq->pTagVal = pTagVal->pData;
-        } else {
-          pReq->nTagVal = pSchema->bytes;
-          pReq->pTagVal = (uint8_t*)&pTagVal->i64;
-        }
-      } else {
-        pReq->isNull = true;
-      }
-    }
-  }
-
-  return code;
-}
-static int32_t buildUpdateTagValReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta,
-                                    SVAlterTbReq* pReq) {
-  SName   tbName = {0};
-  SArray* pTsmas = NULL;
-  int32_t code = TSDB_CODE_SUCCESS;
-  if (pCxt->pMetaCache) {
-    toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &tbName);
-    code = getTableTsmasFromCache(pCxt->pMetaCache, &tbName, &pTsmas);
-    if (code != TSDB_CODE_SUCCESS) return code;
-    if (pTsmas && pTsmas->size > 0) return TSDB_CODE_TSMA_MUST_BE_DROPPED;
-  }
-  return buildUpdateTagValReqImpl(pCxt, pStmt, pTableMeta, pStmt->colName, pReq);
-}
-
-static int32_t buildUpdateMultiTagValReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta,
-                                         SVAlterTbReq* pReq) {
-  int32_t   code = TSDB_CODE_SUCCESS;
-  int32_t   lino = 0;
-  SName     tbName = {0};
-  SArray*   pTsmas = NULL;
-  SHashObj* pUnique = NULL;
-  if (pCxt->pMetaCache) {
-    toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &tbName);
-    code = getTableTsmasFromCache(pCxt->pMetaCache, &tbName, &pTsmas);
-    if (code != TSDB_CODE_SUCCESS) return code;
-    if (pTsmas && pTsmas->size > 0) return TSDB_CODE_TSMA_MUST_BE_DROPPED;
-  }
-  SNodeList* pNodeList = pStmt->pNodeListTagValue;
-  if (pNodeList == NULL) {
-    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE);
-  }
-
-  int32_t nTagValues = pNodeList->length;
-  if (nTagValues == 1) {
-    SAlterTableStmt* head = (SAlterTableStmt*)pNodeList->pHead->pNode;
-    pReq->action = TSDB_ALTER_TABLE_UPDATE_TAG_VAL;
-    return buildUpdateTagValReqImpl(pCxt, head, pTableMeta, head->colName, pReq);
-  } else {
-    pReq->pMultiTag = taosArrayInit(nTagValues, sizeof(SMultiTagUpateVal));
-    if (pReq->pMultiTag == NULL) {
-      return terrno;
-    }
-
-    pUnique = taosHashInit(nTagValues, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
-    if (pUnique == NULL) {
-      TAOS_CHECK_GOTO(terrno, &lino, _err);
-    }
-
-    SAlterTableStmt* pTagStmt = NULL;
-    SNode*           pNode = NULL;
-    int8_t           dummpy = 0;
-    FOREACH(pNode, pNodeList) {
-      SMultiTagUpateVal val = {0};
-      pTagStmt = (SAlterTableStmt*)pNode;
-
-      SMultiTagUpateVal* p = taosHashGet(pUnique, pTagStmt->colName, strlen(pTagStmt->colName));
-      if (p) {
-        code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_DUPLICATED_COLUMN);
-        TAOS_CHECK_GOTO(code, &lino, _err);
-      }
-
-      code = taosHashPut(pUnique, pTagStmt->colName, strlen(pTagStmt->colName), &dummpy, sizeof(dummpy));
-      TAOS_CHECK_GOTO(code, &lino, _err);
-
-      code = buildUpdateTagValReqImpl2(pCxt, pTagStmt, pTableMeta, pTagStmt->colName, &val);
-      TAOS_CHECK_GOTO(code, &lino, _err);
-
-      if (taosArrayPush(pReq->pMultiTag, &val) == NULL) {
-        tfreeMultiTagUpateVal((void*)&val);
-        TAOS_CHECK_GOTO(terrno, &lino, _err);
-      }
-    }
-  }
-_err:
-  taosHashCleanup(pUnique);
-  return code;
-}
 
 static int32_t checkColRef(STranslateContext* pCxt, char* colName, char* pRefDbName, char* pRefTableName,
                            char* pRefColName, SDataType type, int8_t precision) {
@@ -24569,6 +24435,8 @@ static int buildRemoveTableColumnRef(STranslateContext* pCxt, SAlterTableStmt* p
   return code;
 }
 
+
+
 static int32_t buildAlterTbReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta,
                                SVAlterTbReq* pReq) {
   pReq->tbName = taosStrdup(pStmt->tableName);
@@ -24583,10 +24451,12 @@ static int32_t buildAlterTbReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, 
     case TSDB_ALTER_TABLE_UPDATE_TAG_NAME:
     case TSDB_ALTER_TABLE_UPDATE_TAG_BYTES:
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE);
-    case TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL:
-      return buildUpdateMultiTagValReq(pCxt, pStmt, pTableMeta, pReq);
-    case TSDB_ALTER_TABLE_UPDATE_TAG_VAL:
-      return buildUpdateTagValReq(pCxt, pStmt, pTableMeta, pReq);
+    // Note:
+    //   TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL is handled as a special case of
+    //   TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL.
+    //
+    //   TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL and TSDB_ALTER_TABLE_UPDATE_CHILD_TABLE_TAG_VAL
+    //   is handled in a higher level function since multiple vnodes may be involved.
     case TSDB_ALTER_TABLE_ADD_COLUMN:
     case TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COMPRESS_OPTION:
     case TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COLUMN_REF:
@@ -24611,6 +24481,8 @@ static int32_t buildAlterTbReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, 
 
   return TSDB_CODE_FAILED;
 }
+
+
 
 static int32_t serializeAlterTbReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, SVAlterTbReq* pReq,
                                    SArray* pArray) {
@@ -24654,6 +24526,8 @@ static int32_t serializeAlterTbReq(STranslateContext* pCxt, SAlterTableStmt* pSt
   return code;
 }
 
+
+
 static int32_t buildModifyVnodeArray(STranslateContext* pCxt, SAlterTableStmt* pStmt, SVAlterTbReq* pReq,
                                      SArray** pArray) {
   SArray* pTmpArray = taosArrayInit(1, sizeof(void*));
@@ -24671,6 +24545,8 @@ static int32_t buildModifyVnodeArray(STranslateContext* pCxt, SAlterTableStmt* p
   return code;
 }
 
+
+
 static void destoryAlterTbReq(SVAlterTbReq* pReq) {
   taosMemoryFree(pReq->tbName);
   taosMemoryFree(pReq->colName);
@@ -24680,19 +24556,637 @@ static void destoryAlterTbReq(SVAlterTbReq* pReq) {
   taosMemoryFree(pReq->refDbName);
   taosMemoryFree(pReq->refTbName);
   taosMemoryFree(pReq->refColName);
+
   for (int i = 0; i < taosArrayGetSize(pReq->pTagArray); ++i) {
     STagVal* p = (STagVal*)taosArrayGet(pReq->pTagArray, i);
     if (IS_VAR_DATA_TYPE(p->type)) {
       taosMemoryFreeClear(p->pData);
     }
   }
-  if (pReq->action == TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL) {
+
+  if (pReq->action == TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL) {
+    taosArrayDestroyEx(pReq->tables, tfreeUpdateTableTagVal);
+  } else if (pReq->action == TSDB_ALTER_TABLE_UPDATE_CHILD_TABLE_TAG_VAL) {
     taosArrayDestroyEx(pReq->pMultiTag, tfreeMultiTagUpateVal);
+    taosMemoryFree(pReq->where);
   }
 
   taosArrayDestroy(pReq->pTagArray);
   if (pReq->tagFree) tTagFree((STag*)pReq->pTagVal);
 }
+
+
+typedef struct SVgroupAlterTableReq {
+  SVgroupInfo  vg;
+  SVAlterTbReq* pReq;
+} SVgroupAlterTableReq;
+
+
+
+static void destroyVgroupAlterTableReq(void* data) {
+  SVgroupAlterTableReq* p = (SVgroupAlterTableReq*)data;
+  destoryAlterTbReq(p->pReq);
+  taosMemoryFree(p->pReq);
+}
+
+
+
+static int32_t serializeVgroupAlterTableReq(SVgroupAlterTableReq* pVgReq, SArray* pBufArray) {
+  int32_t tlen = 0;
+
+  int32_t ret = 0;
+  tEncodeSize(tEncodeSVAlterTbReq, pVgReq->pReq, tlen, ret);
+
+  tlen += sizeof(SMsgHead);
+  void*    pMsg = taosMemoryMalloc(tlen);
+  if (NULL == pMsg) {
+    return terrno;
+  }
+  ((SMsgHead*)pMsg)->vgId = htonl(pVgReq->vg.vgId);
+  ((SMsgHead*)pMsg)->contLen = htonl(tlen);
+  void*    pBuf = POINTER_SHIFT(pMsg, sizeof(SMsgHead));
+  SEncoder coder = {0};
+  tEncoderInit(&coder, pBuf, tlen - sizeof(SMsgHead));
+  if (TSDB_CODE_SUCCESS != tEncodeSVAlterTbReq(&coder, pVgReq->pReq)) {
+    taosMemoryFreeClear(pMsg);
+    return terrno;
+  }
+  tEncoderClear(&coder);
+
+  SVgDataBlocks* pVgData = taosMemoryCalloc(1, sizeof(SVgDataBlocks));
+  if (NULL == pVgData) {
+    taosMemoryFreeClear(pMsg);
+    return terrno;
+  }
+  pVgData->vg = pVgReq->vg;
+  pVgData->pData = pMsg;
+  pVgData->size = tlen;
+  pVgData->numOfTables = 1;
+  if (NULL == taosArrayPush(pBufArray, &pVgData)) {
+    ret = terrno;
+    taosMemoryFreeClear(pVgData);
+    taosMemoryFreeClear(pMsg);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
+
+static int32_t serializeVgroupsAlterTableReq(SHashObj* pVgroupReqs, SArray** pOut) {
+  SArray* pBufArray = taosArrayInit(taosHashGetSize(pVgroupReqs), sizeof(void*));
+  if (NULL == pBufArray) {
+    return terrno;
+  }
+
+  int32_t               code = TSDB_CODE_SUCCESS;
+  SVgroupAlterTableReq* pVgReq = NULL;
+  while(true) {
+    pVgReq = taosHashIterate(pVgroupReqs, pVgReq);
+    if (pVgReq == NULL) {
+      break;
+    }
+
+    code = serializeVgroupAlterTableReq(pVgReq, pBufArray);
+    if (TSDB_CODE_SUCCESS != code) {
+      taosHashCancelIterate(pVgroupReqs, pVgReq);
+      taosArrayDestroy(pBufArray);
+      break;
+    }
+  }
+
+  *pOut = pBufArray;
+  return code;
+}
+
+
+static int32_t doRewriteAlterMultiTableTagVal(STranslateContext* pCxt, SQuery* pQuery, bool isVirtual) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  STableMeta* pTableMeta = NULL;
+  SAlterTableStmt* pStmt = (SAlterTableStmt*)pQuery->pRoot;
+  int8_t dummy = 0;
+  SHashObj* pUniqueTag = NULL;
+  SHashObj* pVgroupReqs = NULL;
+  SArray* pVgReqs = NULL; // final serialized vgroup requests
+
+  if (pStmt->pList == NULL || pStmt->pList->length <= 0) {
+    code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE, "No tables to alter");
+    goto _error;
+  }
+
+  pVgroupReqs = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
+  if (pVgroupReqs == NULL) {
+    return terrno;
+  }
+  taosHashSetFreeFp(pVgroupReqs, destroyVgroupAlterTableReq);
+
+  SNode* pTableNode = NULL;
+  FOREACH(pTableNode, pStmt->pList) {
+    SAlterTableUpdateTagValClause* pClause = (SAlterTableUpdateTagValClause*)pTableNode;
+    taosMemoryFreeClear(pTableMeta);
+    taosHashCleanup(pUniqueTag);
+    pUniqueTag = NULL;
+
+    if (IS_SYS_DBNAME(pClause->dbName)) {
+      code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_TSC_INVALID_OPERATION, "Cannot alter table of system database: `%s`.`%s`", pClause->dbName, pClause->tableName);
+      goto _error;
+    }
+
+    if (pClause->pTagList == NULL || pClause->pTagList->length <= 0) {
+      code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE, "No tags to alter: `%s`.`%s`", pClause->dbName, pClause->tableName);
+      goto _error;
+    }
+
+    SName   tbName = {0};
+    toName(pCxt->pParseCxt->acctId, pClause->dbName, pClause->tableName, &tbName);
+    char    fName[TSDB_TABLE_FNAME_LEN];
+    code = tNameExtractFullName(&tbName, fName);
+    if (code != TSDB_CODE_SUCCESS) {
+      goto _error;
+    }
+    if (taosHashGet(pCxt->pTables, fName, strlen(fName)) != NULL) {
+      code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE, "Duplicated table: `%s`.`%s`", pClause->dbName, pClause->tableName);
+      goto _error;
+    }
+
+    code = getTargetMeta(pCxt, &tbName, &pTableMeta, false);
+    if (code != TSDB_CODE_SUCCESS) {
+      goto _error;
+    }
+
+    if (isVirtual && !isVirtualTable(pTableMeta) && !isVirtualSTable(pTableMeta)) {
+      code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE, "can not alter non-virtual table using ALTER VTABLE");
+      goto _error;
+    }
+
+    if (pTableMeta->isAudit) {
+      code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_TSC_INVALID_OPERATION, "Cannot alter audit table `%s`.`%s`", pClause->dbName, pClause->tableName);
+      goto _error;
+    }
+
+    if (pTableMeta->tableType == TSDB_SUPER_TABLE) {
+      code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE, "Cannot alter super table: `%s`.`%s`", pClause->dbName, pClause->tableName);
+      goto _error;
+    }
+    
+    if (pTableMeta->tableType != TSDB_CHILD_TABLE && pTableMeta->tableType != TSDB_VIRTUAL_CHILD_TABLE) {
+      code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE, "Cannot alter non-child table: `%s`.`%s`", pClause->dbName, pClause->tableName);
+      goto _error;
+    }
+
+    if (pCxt->pMetaCache) {
+      SArray* pTsmas = NULL;
+      code = getTableTsmasFromCache(pCxt->pMetaCache, &tbName, &pTsmas);
+      if (code != TSDB_CODE_SUCCESS) {
+        goto _error;
+      }
+      if (pTsmas && pTsmas->size > 0) {
+        code = TSDB_CODE_TSMA_MUST_BE_DROPPED;
+        goto _error;
+      }
+    }
+
+    pUniqueTag = taosHashInit(pClause->pTagList->length, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+    if (pUniqueTag == NULL) {
+      code = terrno;
+      goto _error;
+    }
+
+    SUpdateTableTagVal table = {0};
+    table.tbName= taosStrdup(pClause->tableName);
+    table.tags = taosArrayInit(pClause->pTagList->length, sizeof(SUpdatedTagVal));
+    if (table.tbName == NULL || table.tags == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      tfreeUpdateTableTagVal(&table);
+      goto _error;
+    }
+
+    SNode* pTagNode = NULL;
+    FOREACH(pTagNode, pClause->pTagList) {
+      SUpdateTagValueNode* pTag = (SUpdateTagValueNode*)pTagNode;
+      SUpdatedTagVal* p = taosHashGet(pUniqueTag, pTag->tagName, strlen(pTag->tagName));
+      if (p != NULL) {
+        code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_DUPLICATED_COLUMN, "Duplicated tag: `%s`", pTag->tagName);
+        tfreeUpdateTableTagVal(&table);
+        goto _error;
+      }
+
+      code = taosHashPut(pUniqueTag, pTag->tagName, strlen(pTag->tagName), &dummy, sizeof(dummy));
+      if (code != TSDB_CODE_SUCCESS) {
+        tfreeUpdateTableTagVal(&table);
+        goto _error;
+      }
+
+      SUpdatedTagVal val = {0};
+      if (pTag->regexp == NULL) {
+        code = buildUpdateTagValReqImpl(pCxt, pTag->pVal->literal, pTableMeta, pTag->tagName, &val);
+        if (code != TSDB_CODE_SUCCESS) {
+          tfreeUpdateTableTagVal(&table);
+          goto _error;
+        }
+      } else {
+        SSchema* pSchema = getTagSchema(pTableMeta, pTag->tagName);
+        if (NULL == pSchema) {
+          code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE, "Invalid tag name: %s", pTag->tagName);
+          tfreeUpdateTableTagVal(&table);
+          goto _error;
+        }
+        if (pSchema->type != TSDB_DATA_TYPE_VARCHAR && pSchema->type != TSDB_DATA_TYPE_NCHAR) {
+          code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE, "Tag `%s` is not of string type, cannot use regex", pTag->tagName);
+          tfreeUpdateTableTagVal(&table);
+          goto _error;
+        }
+        val.tagName = taosStrdup(pTag->tagName);
+        val.colId = pSchema->colId;
+        val.tagType = pSchema->type;
+        val.regexp = taosStrdup(pTag->regexp);
+        val.replacement = taosStrdup(pTag->replacement);
+        if (val.tagName == NULL || val.regexp == NULL || val.replacement == NULL) {
+          code = TSDB_CODE_OUT_OF_MEMORY;
+          tfreeMultiTagUpateVal(&val);
+          tfreeUpdateTableTagVal(&table);
+          goto _error;
+        }
+      }
+
+      if (taosArrayPush(table.tags, &val) == NULL) {
+        tfreeMultiTagUpateVal(&val);
+        tfreeUpdateTableTagVal(&table);
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        goto _error;
+      }
+    }
+
+    SVgroupInfo vgInfo = {0};
+    code = getTableHashVgroupImpl(pCxt, &tbName, &vgInfo);
+    if (code != TSDB_CODE_SUCCESS) {
+      tfreeUpdateTableTagVal(&table);
+      goto _error;
+    }
+
+    SVgroupAlterTableReq* pVgReq = taosHashGet(pVgroupReqs, &vgInfo.vgId, sizeof(vgInfo.vgId));
+    if (pVgReq == NULL) {
+      SVgroupAlterTableReq req = {0};
+      req.vg = vgInfo;
+      req.pReq = taosMemoryCalloc(1, sizeof(SVAlterTbReq));
+      if (req.pReq == NULL) {
+        tfreeUpdateTableTagVal(&table);
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        goto _error;
+      }
+      req.pReq->action = TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL;
+      req.pReq->tables = taosArrayInit(10, sizeof(SUpdateTableTagVal));
+      if (req.pReq->tables == NULL) {
+        tfreeUpdateTableTagVal(&table);
+        destoryAlterTbReq(req.pReq);
+        taosMemoryFreeClear(req.pReq);
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        goto _error;
+      }
+      code = taosHashPut(pVgroupReqs, &vgInfo.vgId, sizeof(vgInfo.vgId), &req, sizeof(req));
+      if (code != TSDB_CODE_SUCCESS) {
+        tfreeUpdateTableTagVal(&table);
+        destoryAlterTbReq(req.pReq);
+        taosMemoryFree(req.pReq);
+        goto _error;
+      }
+
+      pVgReq = taosHashGet(pVgroupReqs, &vgInfo.vgId, sizeof(vgInfo.vgId));
+    }
+
+    if (taosArrayPush(pVgReq->pReq->tables, &table) == NULL) {
+      tfreeUpdateTableTagVal(&table);
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _error;
+    }
+  }
+
+  taosHashCleanup(pUniqueTag);
+  taosMemoryFreeClear(pTableMeta);
+  
+  code = serializeVgroupsAlterTableReq(pVgroupReqs, &pVgReqs);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _error;
+  }
+
+  code = rewriteToVnodeModifyOpStmt(pQuery, pVgReqs);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _error;
+  }
+
+  taosHashCleanup(pVgroupReqs);
+  return code;
+
+_error:
+  taosHashCleanup(pVgroupReqs);
+  taosHashCleanup(pUniqueTag);
+  taosArrayDestroy(pVgReqs);
+  taosMemoryFreeClear(pTableMeta);
+  return code;
+}
+
+
+
+typedef struct SAlterChildTagWhereRewriteContext {
+  STranslateContext* pCxt;
+  const STableMeta*  pMeta;
+  int32_t            code;
+} SAlterChildTagWhereRewriteContext;
+
+static EDealRes rewriteAlterChildTableTagValWhereCond(SNode** pNode, void* pContext) {
+  SAlterChildTagWhereRewriteContext* pCxt = (SAlterChildTagWhereRewriteContext*)pContext;
+
+  switch(nodeType(*pNode)) {
+    case QUERY_NODE_COLUMN: {
+      SColumnNode*    pCol = (SColumnNode*)*pNode;
+      const SSchema*  pSchema = getTagSchema((STableMeta*)pCxt->pMeta, pCol->colName);
+      if (pSchema == NULL) {
+        pCxt->code = generateSyntaxErrMsgExt(&pCxt->pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN, "Column '%s' in the where condition is not a tag", pCol->colName);
+        return DEAL_RES_ERROR;
+      }
+
+      pCol->colType = COLUMN_TYPE_TAG;
+      pCol->colId = pSchema->colId;
+      pCol->node.resType.type = pSchema->type;
+      pCol->node.resType.bytes = pSchema->bytes;
+    }
+    break;
+
+    case QUERY_NODE_FUNCTION: {
+      SFunctionNode* pFunc = (SFunctionNode*)*pNode;
+
+      if (0 == strcasecmp(pFunc->functionName, "tbname")) {
+        SColumnNode* pCol = NULL;
+        pCxt->code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
+        if (pCxt->code != TSDB_CODE_SUCCESS) {
+          return DEAL_RES_ERROR;
+        }
+
+        pCol->colId = -1;
+        pCol->colType = COLUMN_TYPE_TBNAME;
+        pCol->node.resType.type = TSDB_DATA_TYPE_VARCHAR;
+        pCol->node.resType.bytes = TSDB_TABLE_FNAME_LEN - 1 + VARSTR_HEADER_SIZE;
+        tstrncpy(pCol->colName, pFunc->functionName, TSDB_COL_NAME_LEN);
+        tstrncpy(pCol->node.aliasName, pFunc->node.aliasName, TSDB_COL_NAME_LEN);
+        tstrncpy(pCol->node.userAlias, pFunc->node.userAlias, TSDB_COL_NAME_LEN);
+
+        nodesDestroyNode(*pNode);
+        *pNode = (SNode*)pCol;
+        return DEAL_RES_CONTINUE;
+      }
+
+      if (isAggFunc(*pNode)) {
+        pCxt->code = generateSyntaxErrMsgExt(&pCxt->pCxt->msgBuf, TSDB_CODE_PAR_ILLEGAL_USE_AGG_FUNCTION, "Aggregate func '%s' in the where condition is not allowed", pFunc->functionName);
+        return DEAL_RES_ERROR;
+      }
+
+      return translateFunction(pCxt->pCxt, (SFunctionNode**)pNode);
+    }
+    break;
+    
+    case QUERY_NODE_VALUE:
+      return translateValue(pCxt->pCxt, (SValueNode*)*pNode);
+    case QUERY_NODE_OPERATOR:
+      return translateOperator(pCxt->pCxt, (SOperatorNode*)*pNode);
+    case QUERY_NODE_LOGIC_CONDITION:
+      return translateLogicCond(pCxt->pCxt, (SLogicConditionNode*)*pNode);
+    default:
+      return DEAL_RES_CONTINUE;
+  }
+
+  return DEAL_RES_CONTINUE;
+}
+
+
+static int32_t createAlterChildTableTagValVgroupReqs(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta, SHashObj** ppVgroupReqs) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SArray* pDbVgs = NULL;
+
+  if (pStmt->pWhere != NULL) {
+    SAlterChildTagWhereRewriteContext rewriteCxt = { .pCxt = pCxt, .pMeta = pTableMeta, .code = TSDB_CODE_SUCCESS };
+    nodesRewriteExprPostOrder(&pStmt->pWhere, rewriteAlterChildTableTagValWhereCond, &rewriteCxt);
+    if (rewriteCxt.code != TSDB_CODE_SUCCESS) {
+      return rewriteCxt.code;
+    }
+  }
+
+  code = getDBVgInfo(pCxt, pStmt->dbName, &pDbVgs);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  SHashObj* reqs = taosHashInit(taosArrayGetSize(pDbVgs), taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
+  if (reqs == NULL) {
+    taosArrayDestroy(pDbVgs);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  taosHashSetFreeFp(reqs, destroyVgroupAlterTableReq);
+
+  for (int32_t i = 0; i < taosArrayGetSize(pDbVgs); ++i) {
+    SVgroupAlterTableReq req = {0};
+    req.vg = *(SVgroupInfo*)taosArrayGet(pDbVgs, i);
+
+    req.pReq = taosMemoryCalloc(1, sizeof(SVAlterTbReq));
+    if (req.pReq == NULL) {
+      taosArrayDestroy(pDbVgs);
+      taosHashCleanup(reqs);
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+
+    req.pReq->tbName = taosStrdup(pStmt->tableName);
+    if (req.pReq->tbName == NULL) {
+      destroyVgroupAlterTableReq(&req);
+      taosArrayDestroy(pDbVgs);
+      taosHashCleanup(reqs);
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+
+    req.pReq->pMultiTag = taosArrayInit(pStmt->pList->length, sizeof(SUpdatedTagVal));
+    if (req.pReq->pMultiTag == NULL) {
+      destroyVgroupAlterTableReq(&req);
+      taosArrayDestroy(pDbVgs);
+      taosHashCleanup(reqs);
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+
+    if (pStmt->pWhere != NULL) {
+      code = nodesNodeToMsg(pStmt->pWhere, (char**)&req.pReq->where, &req.pReq->whereLen);
+      if (code != TSDB_CODE_SUCCESS) {
+        destroyVgroupAlterTableReq(&req);
+        taosArrayDestroy(pDbVgs);
+        taosHashCleanup(reqs);
+        return code;
+      }
+    }
+
+    req.pReq->action = TSDB_ALTER_TABLE_UPDATE_CHILD_TABLE_TAG_VAL;
+
+    code = taosHashPut(reqs, &req.vg.vgId, sizeof(req.vg.vgId), &req, sizeof(req));
+    if (code != TSDB_CODE_SUCCESS) {
+      destroyVgroupAlterTableReq(&req);
+      taosArrayDestroy(pDbVgs);
+      taosHashCleanup(reqs);
+      return code;
+    }
+  }
+  taosArrayDestroy(pDbVgs);
+
+  *ppVgroupReqs = reqs;
+  return TSDB_CODE_SUCCESS;
+}
+
+ 
+
+static int32_t doRewriteAlterChildTableTagVal(STranslateContext* pCxt, SQuery* pQuery, bool isVirtual) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  STableMeta* pTableMeta = NULL;
+  SAlterTableStmt* pStmt = (SAlterTableStmt*)pQuery->pRoot;
+  int8_t dummy = 0;
+  SHashObj* pUniqueTag = NULL;
+  SHashObj* pVgroupReqs = NULL;
+  SArray* pVgReqs = NULL; // final serialized vgroup requests
+
+  if (pStmt->pList == NULL || pStmt->pList->length <= 0) {
+    code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE, "No tags to alter");
+    goto _error;
+  }
+
+  if (IS_SYS_DBNAME(pStmt->dbName)) {
+    code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_TSC_INVALID_OPERATION, "Cannot alter table of system database: `%s`.`%s`", pStmt->dbName, pStmt->tableName);
+    goto _error;
+  }
+
+  SName   tbName = {0};
+  toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &tbName);
+  char    fName[TSDB_TABLE_FNAME_LEN];
+  code = tNameExtractFullName(&tbName, fName);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _error;
+  }
+
+  code = getTargetMeta(pCxt, &tbName, &pTableMeta, false);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _error;
+  }
+
+  if (isVirtual && !isVirtualSTable(pTableMeta)) {
+    code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE, "Can not alter non-virtual table using ALTER VTABLE");
+    goto _error;
+  }
+
+  if (pTableMeta->isAudit) {
+    code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_TSC_INVALID_OPERATION, "Cannot alter audit table `%s`.`%s`", pStmt->dbName, pStmt->tableName);
+    goto _error;
+  }
+
+  if (pTableMeta->tableType != TSDB_SUPER_TABLE) {
+    code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE, "Table is not a super table: `%s`.`%s`", pStmt->dbName, pStmt->tableName);
+    goto _error;
+  }
+
+  if (pCxt->pMetaCache) {
+    SArray* pTsmas = NULL;
+    code = getTableTsmasFromCache(pCxt->pMetaCache, &tbName, &pTsmas);
+    if (code != TSDB_CODE_SUCCESS) {
+      goto _error;
+    }
+    if (pTsmas && pTsmas->size > 0) {
+      code = TSDB_CODE_TSMA_MUST_BE_DROPPED;
+      goto _error;
+    }
+  }
+
+  code = createAlterChildTableTagValVgroupReqs(pCxt, pStmt, pTableMeta, &pVgroupReqs);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _error;
+  }
+
+  pUniqueTag = taosHashInit(pStmt->pList->length, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+  if (pUniqueTag == NULL) {
+    code = terrno;
+    goto _error;
+  }
+
+  SNode* pTagNode = NULL;
+  FOREACH(pTagNode, pStmt->pList) {
+    SUpdateTagValueNode* pTag = (SUpdateTagValueNode*)pTagNode;
+    SUpdatedTagVal* p = taosHashGet(pUniqueTag, pTag->tagName, strlen(pTag->tagName));
+    if (p != NULL) {
+      code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_DUPLICATED_COLUMN, "Duplicated tag: `%s`", pTag->tagName);
+      goto _error;
+    }
+
+    code = taosHashPut(pUniqueTag, pTag->tagName, strlen(pTag->tagName), &dummy, sizeof(dummy));
+    if (code != TSDB_CODE_SUCCESS) {
+      goto _error;
+    }
+
+    SVgroupAlterTableReq* pReq =  taosHashIterate(pVgroupReqs, NULL);
+    while (pReq != NULL) {
+      SUpdatedTagVal val = {0};
+      if (pTag->regexp == NULL) {
+        code = buildUpdateTagValReqImpl(pCxt, pTag->pVal->literal, pTableMeta, pTag->tagName, &val);
+        if (code != TSDB_CODE_SUCCESS) {
+          goto _error;
+        }
+      } else {
+        SSchema* pSchema = getTagSchema(pTableMeta, pTag->tagName);
+        if (NULL == pSchema) {
+          code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE, "Invalid tag name: %s", pTag->tagName);
+          goto _error;
+        }
+        if (pSchema->type != TSDB_DATA_TYPE_VARCHAR && pSchema->type != TSDB_DATA_TYPE_NCHAR) {
+          code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE, "Tag `%s` is not of string type, cannot use regex", pTag->tagName);
+          goto _error;
+        }
+        val.tagName = taosStrdup(pTag->tagName);
+        val.colId = pSchema->colId;
+        val.tagType = pSchema->type;
+        val.regexp = taosStrdup(pTag->regexp);
+        val.replacement = taosStrdup(pTag->replacement);
+        if (val.tagName == NULL || val.regexp == NULL || val.replacement == NULL) {
+          code = TSDB_CODE_OUT_OF_MEMORY;
+          tfreeMultiTagUpateVal(&val);
+          goto _error;
+        }
+      }
+
+      if (taosArrayPush(pReq->pReq->pMultiTag, &val) == NULL) {
+        tfreeMultiTagUpateVal(&val);
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        goto _error;
+      }
+
+      pReq = taosHashIterate(pVgroupReqs, pReq);
+    }
+  }
+
+  taosHashCleanup(pUniqueTag);
+  taosMemoryFreeClear(pTableMeta);
+  
+  code = serializeVgroupsAlterTableReq(pVgroupReqs, &pVgReqs);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _error;
+  }
+
+  code = rewriteToVnodeModifyOpStmt(pQuery, pVgReqs);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _error;
+  }
+
+  taosHashCleanup(pVgroupReqs);
+  return code;
+
+_error:
+  taosHashCleanup(pVgroupReqs);
+  taosHashCleanup(pUniqueTag);
+  taosArrayDestroy(pVgReqs);
+  taosMemoryFreeClear(pTableMeta);
+
+  return code;
+}
+
+
 
 static int32_t rewriteAlterTableImpl(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta,
                                      SQuery* pQuery, bool isVirtual) {
@@ -24740,7 +25234,9 @@ static int32_t rewriteAlterTableImpl(STranslateContext* pCxt, SAlterTableStmt* p
   return code;
 }
 
-static int32_t rewriteAlterTable(STranslateContext* pCxt, SQuery* pQuery, bool isVirtual) {
+
+
+static int32_t doRewriteAlterTable(STranslateContext* pCxt, SQuery* pQuery, bool isVirtual) {
   int32_t          code = TSDB_CODE_SUCCESS;
   SAlterTableStmt* pStmt = (SAlterTableStmt*)pQuery->pRoot;
 
@@ -24762,9 +25258,21 @@ _return:
   return code;
 }
 
-static int32_t rewriteAlterVirtualTable(STranslateContext* pCxt, SQuery* pQuery) {
-  return rewriteAlterTable(pCxt, pQuery, true);
+
+
+static int32_t rewriteAlterTable(STranslateContext* pCxt, SQuery* pQuery, bool isVirtual) {
+  SAlterTableStmt* pStmt = (SAlterTableStmt*)pQuery->pRoot;
+
+  if (pStmt->alterType == TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL) {
+    return doRewriteAlterMultiTableTagVal(pCxt, pQuery, isVirtual);
+  } else if (pStmt->alterType == TSDB_ALTER_TABLE_UPDATE_CHILD_TABLE_TAG_VAL) {
+    return doRewriteAlterChildTableTagVal(pCxt, pQuery, isVirtual);
+  } else {
+    return doRewriteAlterTable(pCxt, pQuery, isVirtual);
+  }
 }
+
+
 
 static int32_t buildCreateVTableDataBlock(STranslateContext* pCxt, const SCreateVTableStmt* pStmt,
                                           const SVgroupInfo* pInfo, SArray* pBufArray) {
@@ -25883,7 +26391,7 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
       code = rewriteAlterTable(pCxt, pQuery, false);
       break;
     case QUERY_NODE_ALTER_VIRTUAL_TABLE_STMT:
-      code = rewriteAlterVirtualTable(pCxt, pQuery);
+      code = rewriteAlterTable(pCxt, pQuery, true);
       break;
     case QUERY_NODE_FLUSH_DATABASE_STMT:
       code = rewriteFlushDatabase(pCxt, pQuery);

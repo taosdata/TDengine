@@ -131,6 +131,10 @@ const char* nodesNodeName(ENodeType type) {
       return "RemoteRow";
     case QUERY_NODE_REMOTE_ZERO_ROWS:
       return "RemoteZeroRows";
+    case QUERY_NODE_UPDATE_TAG_VALUE:
+      return "UpdateTagValue";
+    case QUERY_NODE_ALTER_TABLE_UPDATE_TAG_VAL_CLAUSE:
+      return "AlterTableUpdateTagValClause";
     case QUERY_NODE_TRUE_FOR:
       return "TrueFor";
     case QUERY_NODE_SET_OPERATOR:
@@ -5693,6 +5697,51 @@ static int32_t jsonToRemoteValueList(const SJson* pJson, void* pObj) {
   return code;
 }
 
+static const char* jkTagValueTagName = "TagName";
+static const char* jkTagValueVal = "Val";
+static const char* jkTagValueRegexp = "Regexp";
+static const char* jkTagValueReplacement = "Replacement";
+
+static int32_t updateTagValueNodeToJson(const void* pObj, SJson* pJson) {
+  const SUpdateTagValueNode* pNode = (const SUpdateTagValueNode*)pObj;
+
+  int32_t code = tjsonAddStringToObject(pJson, jkTagValueTagName, pNode->tagName);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+  if (pNode->pVal != NULL) {
+    code = tjsonAddObject(pJson, jkTagValueVal, nodeToJson, pNode->pVal);
+  } else {
+    code = tjsonAddStringToObject(pJson, jkTagValueRegexp, pNode->regexp);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = tjsonAddStringToObject(pJson, jkTagValueReplacement, pNode->replacement);
+    }
+  }
+
+  return code;
+}
+
+static int32_t jsonToUpdateTagValueNode(const SJson* pJson, void* pObj) {
+  SUpdateTagValueNode* pNode = (SUpdateTagValueNode*)pObj;
+
+  int32_t code = tjsonGetStringValue(pJson, jkTagValueTagName, pNode->tagName);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+
+  if (tjsonGetObjectItem(pJson, jkTagValueVal) != NULL) {
+    code = jsonToNodeObject(pJson, jkTagValueVal, (SNode**)&pNode->pVal);
+  } else {
+    code = tjsonDupStringValue(pJson, jkTagValueRegexp, &pNode->regexp);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
+    code = tjsonDupStringValue(pJson, jkTagValueReplacement, &pNode->replacement);
+  }
+
+  return code;
+}
+
 static const char* jkRemoteRowIsMinVal = "isMinVal";
 static const char* jkRemoteRowValSet = "valueSet";
 static const char* jkRemoteRowHasValue = "hasValue";
@@ -5752,6 +5801,37 @@ static int32_t remoteZeroRowsToJson(const void* pObj, SJson* pJson) {
 
 static int32_t jsonToRemoteZeroRows(const SJson* pJson, void* pObj) {
   return jsonToRemoteValue(pJson, pObj);
+}
+static const char* jkAlterTableUpdateTagValClauseDbName = "DbName";
+static const char* jkAlterTableUpdateTagValClauseTableName = "TableName";
+static const char* jkAlterTableUpdateTagValClauseList = "Tags";
+
+static int32_t alterTableUpdateTagValClauseToJson(const void* pObj, SJson* pJson) {
+  const SAlterTableUpdateTagValClause* pNode = (const SAlterTableUpdateTagValClause*)pObj;
+
+  int32_t code = tjsonAddStringToObject(pJson, jkAlterTableUpdateTagValClauseDbName, pNode->dbName);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddStringToObject(pJson, jkAlterTableUpdateTagValClauseTableName, pNode->tableName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodeListToJson(pJson, jkAlterTableUpdateTagValClauseList, pNode->pTagList);
+  }
+
+  return code;
+}
+
+static int32_t jsonToAlterTableUpdateTagValClause(const SJson* pJson, void* pObj) {
+  SAlterTableUpdateTagValClause* pNode = (SAlterTableUpdateTagValClause*)pObj;
+
+  int32_t code = tjsonGetStringValue(pJson, jkAlterTableUpdateTagValClauseDbName, pNode->dbName);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetStringValue(pJson, jkAlterTableUpdateTagValClauseTableName, pNode->tableName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeList(pJson, jkAlterTableUpdateTagValClauseList, &pNode->pTagList);
+  }
+
+  return code;
 }
 
 static const char* jkOperatorType = "OpType";
@@ -10387,6 +10467,10 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return remoteRowToJson(pObj, pJson);
     case QUERY_NODE_REMOTE_ZERO_ROWS:
       return remoteZeroRowsToJson(pObj, pJson);
+    case QUERY_NODE_UPDATE_TAG_VALUE:
+      return updateTagValueNodeToJson(pObj, pJson);
+    case QUERY_NODE_ALTER_TABLE_UPDATE_TAG_VAL_CLAUSE:
+      return alterTableUpdateTagValClauseToJson(pObj, pJson);
     case QUERY_NODE_TRUE_FOR:
       return trueForNodeToJson(pObj, pJson);
     case QUERY_NODE_SET_OPERATOR:
@@ -10881,6 +10965,10 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToRemoteRow(pJson, pObj);
     case QUERY_NODE_REMOTE_ZERO_ROWS:
       return jsonToRemoteZeroRows(pJson, pObj);
+    case QUERY_NODE_UPDATE_TAG_VALUE:
+      return jsonToUpdateTagValueNode(pJson, pObj);
+    case QUERY_NODE_ALTER_TABLE_UPDATE_TAG_VAL_CLAUSE:
+      return jsonToAlterTableUpdateTagValClause(pJson, pObj);
     case QUERY_NODE_TRUE_FOR:
       return jsonToTrueForNode(pJson, pObj);
     case QUERY_NODE_SET_OPERATOR:

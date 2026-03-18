@@ -257,6 +257,7 @@ static SKeyword keywordTable[] = {
     {"RENAME",               TK_RENAME},
     {"RELOAD",               TK_RELOAD},
     {"RECALCULATE",          TK_RECALCULATE},
+    {"REGEXP_REPLACE",       TK_REGEXP_REPLACE},
     {"REPLACE",              TK_REPLACE},
     {"REPLICAS",             TK_REPLICAS},
     {"REPLICA",              TK_REPLICA},

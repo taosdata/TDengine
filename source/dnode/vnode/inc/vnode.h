@@ -121,6 +121,7 @@ int32_t vnodeProcessStreamReaderMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *p
 void    vnodeProposeWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs);
 void    vnodeApplyWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs);
 void    vnodeProposeCommitOnNeed(SVnode *pVnode, bool atExit);
+void    vnodeAlterTagForTmq(SVnode *pVnode, const char *tbName, const SArray *tags);
 
 // meta
 void        _metaReaderInit(SMetaReader *pReader, void *pVnode, int32_t flags, SStoreMeta *pAPI);
