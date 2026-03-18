@@ -10154,6 +10154,7 @@ int32_t tDeserializeSSTbHbRsp(void *buf, int32_t bufLen, SSTbHbRsp *pRsp) {
       taosMemoryFree(tableMetaRsp.pSchemas);
       taosMemoryFree(tableMetaRsp.pSchemaExt);
       taosMemoryFree(tableMetaRsp.pColRefs);
+      taosMemoryFree(tableMetaRsp.pTagRefs);
       TAOS_CHECK_EXIT(terrno);
     }
   }
@@ -16771,6 +16772,7 @@ void tDestroySSubmitRsp2(SSubmitRsp2 *pRsp, int32_t flag) {
           taosMemoryFree(aCreateTbRsp[i].pMeta->pSchemas);
           taosMemoryFree(aCreateTbRsp[i].pMeta->pSchemaExt);
           taosMemoryFree(aCreateTbRsp[i].pMeta->pColRefs);
+          taosMemoryFree(aCreateTbRsp[i].pMeta->pTagRefs);
           taosMemoryFree(aCreateTbRsp[i].pMeta);
         }
       }
@@ -16785,6 +16787,7 @@ void tDestroySSubmitRsp2(SSubmitRsp2 *pRsp, int32_t flag) {
           taosMemoryFreeClear(aCreateTbRsp[i].pMeta->pSchemas);
           taosMemoryFreeClear(aCreateTbRsp[i].pMeta->pSchemaExt);
           taosMemoryFreeClear(aCreateTbRsp[i].pMeta->pColRefs);
+          taosMemoryFree(aCreateTbRsp[i].pMeta->pTagRefs);
           taosMemoryFreeClear(aCreateTbRsp[i].pMeta);
         }
       }
