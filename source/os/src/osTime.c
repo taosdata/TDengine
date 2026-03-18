@@ -430,17 +430,10 @@ time_t taosMktime(struct tm *timep, timezone_t tz) {
   // Windows: 调用 getWindowsTimezoneOffset 获取时区偏移
   int64_t tzw = getWindowsTimezoneOffset();
 
-  // 使用 user_mktime64 计算时间戳
+  // 使用 user_mktime64 计算时间戳并直接返回结果
   time_t result = user_mktime64(timep->tm_year + 1900, timep->tm_mon + 1, timep->tm_mday,
                                  timep->tm_hour, timep->tm_min, timep->tm_sec, tzw);
-
-  // 如果结果合理，直接返回
-  if (result > 0) {
-    return result;
-  }
-
-  // 否则回退到系统 mktime
-  return mktime(timep);
+  return result;
 #elif defined(TD_ASTRA)
   time_t r =  mktime(timep);
   if (r == (time_t)-1) {
