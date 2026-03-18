@@ -34,6 +34,9 @@ typedef struct WindowsTimezoneObj {
   int32_t refCount;            // Reference count
   TdThreadMutex mutex;         // Protect concurrent access
 } WindowsTimezoneObj;
+
+// Declare timezone variable for Windows (not available in Windows CRT)
+long timezone = 0;
 #endif
 
 #if defined(WINDOWS) || defined(TD_ASTRA)
