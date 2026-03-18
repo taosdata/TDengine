@@ -38,10 +38,10 @@ INLINE void intToBytes_bigEndian(unsigned char *b, unsigned int num)
 /**
  * @endianType: refers to the endian_type of unsigned char* b.
  * */
-INLINE long bytesToLong_bigEndian(unsigned char* b) {
+INLINE int64_t bytesToLong_bigEndian(unsigned char* b) {
 
-	long temp = 0;
-	long res = 0;
+	int64_t temp = 0;
+	int64_t res = 0;
 
 	res <<= 8;
 	temp = b[0] & 0xff;
@@ -79,11 +79,9 @@ INLINE long bytesToLong_bigEndian(unsigned char* b) {
 	
 }
 
-INLINE void longToBytes_bigEndian(unsigned char *b, long num) 
+INLINE void longToBytes_bigEndian(unsigned char *b, int64_t num) 
 {
 	unsigned char* sou = (unsigned char*)&num;
-  if(sizeof(num) == 8) {
-    // 8 bytes
 	b[7] = sou[0];
 	b[6] = sou[1];
 	b[5] = sou[2];
@@ -92,13 +90,6 @@ INLINE void longToBytes_bigEndian(unsigned char *b, long num)
 	b[2] = sou[5];
 	b[1] = sou[6];
 	b[0] = sou[7];
-  } else {
-	memset(b, 0, 4);
-	b[7] = sou[0];
-	b[6] = sou[1];
-	b[5] = sou[2];
-	b[4] = sou[3];
-  }
 }
 
 //TODO: debug: lfBuf.lvalue could be actually little_endian....
@@ -132,9 +123,9 @@ INLINE short getExponent_double(double value)
 	
 	ldouble lbuf;
 	lbuf.value = value;
-	long lvalue = lbuf.lvalue;
+	uint64_t lvalue = lbuf.lvalue;
 	
-	int expValue = (int)((lvalue & 0x7FF0000000000000) >> 52);
+	int expValue = (int)((lvalue & 0x7FF0000000000000ULL) >> 52);
 	expValue -= 1023;
 	return (short)expValue;
 }
@@ -143,11 +134,11 @@ INLINE short getPrecisionReqLength_double(double precision)
 {
 	ldouble lbuf;
 	lbuf.value = precision;
-	long lvalue = lbuf.lvalue;
+	uint64_t lvalue = lbuf.lvalue;
 	
-	int expValue = (int)((lvalue & 0x7FF0000000000000) >> 52);
+	int expValue = (int)((lvalue & 0x7FF0000000000000ULL) >> 52);
 	expValue -= 1023;
-//	unsigned char the1stManBit = (unsigned char)((lvalue & 0x0008000000000000) >> 51);
+//	unsigned char the1stManBit = (unsigned char)((lvalue & 0x0008000000000000ULL) >> 51);
 //	if(the1stManBit==1)
 //		expValue--;
 	return (short)expValue;
@@ -274,7 +265,7 @@ INLINE void sizeToBytes(unsigned char* outBytes, size_t size, int size_type)
 	if(size_type == 4)
 		intToBytes_bigEndian(outBytes, (unsigned int)size);//4
 	else
-		longToBytes_bigEndian(outBytes, (unsigned long)size);//8
+		longToBytes_bigEndian(outBytes, (int64_t)size);//8
 }
 
 void convertSZParamsToBytes(sz_params* params, unsigned char* result, char optQuantMode)

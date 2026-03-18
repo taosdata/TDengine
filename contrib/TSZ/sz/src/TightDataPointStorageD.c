@@ -148,7 +148,7 @@ int new_TightDataPointStorageD_fromFlatBytes(TightDataPointStorageD **this, unsi
 	}
 
     // todo need check length
-	(*this)->residualMidBits_size = flatBytesLength - 1 - 1 - MetaDataByteLength - pde_exe->SZ_SIZE_TYPE - 4 - 4 - 4 - 1 - 8 
+	(*this)->residualMidBits_size = flatBytesLength - 1 - 1 - MetaDataByteLength - pde_exe->SZ_SIZE_TYPE - 4 - 4 - 8 - 1 - 8 
 			- pde_exe->SZ_SIZE_TYPE - pde_exe->SZ_SIZE_TYPE
 			- (*this)->leadNumArray_size - (*this)->exactMidBytes_size;
 	if ((*this)->ifAdtFse == 0) {

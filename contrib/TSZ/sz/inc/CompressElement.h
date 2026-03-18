@@ -19,7 +19,7 @@ extern "C" {
 typedef struct DoubleValueCompressElement
 {
 	double data;
-	long curValue;
+	int64_t curValue;
 	unsigned char curBytes[8]; //big_endian
 	int reqBytesLength;
 	int resiBitsLength;

@@ -135,7 +135,7 @@ double getRealPrecision_float(float valueRangeSize, int errBoundMode, double abs
 	return precision;
 }
 
-double getRealPrecision_int(long valueRangeSize, int errBoundMode, double absErrBound, double relBoundRatio, int *status)
+double getRealPrecision_int(int64_t valueRangeSize, int errBoundMode, double absErrBound, double relBoundRatio, int *status)
 {
 	int state = SZ_SUCCESS;
 	double precision = 0;
@@ -230,7 +230,7 @@ void compressSingleDoubleValue(DoubleValueCompressElement *vce, double tgtValue,
 	if(ignBytesLength<0)
 		ignBytesLength = 0;
 
-	long tmp_long = lfBuf.lvalue;
+	int64_t tmp_long = lfBuf.lvalue;
 	longToBytes_bigEndian(vce->curBytes, tmp_long);
 				
 	lfBuf.lvalue = (lfBuf.lvalue >> ignBytesLength)<<ignBytesLength;
