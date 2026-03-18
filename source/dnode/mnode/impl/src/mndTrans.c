@@ -2917,7 +2917,11 @@ static int32_t mndRetrieveTxns(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     COL_DATA_SET_VAL_GOTO((const char *)buf, false, pObj, &lino, _exit);
 
-    COL_DATA_SET_EMPTY_VARCHAR(pBuf, 4);
+    STR_WITH_MAXSIZE_TO_VARSTR(buf, pObj->createUser, pShow->pMeta->pSchemas[cols].bytes);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    COL_DATA_SET_VAL_GOTO((const char *)buf, false, pObj, &lino, _exit);
+
+    COL_DATA_SET_EMPTY_VARCHAR(pBuf, 3);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     COL_DATA_SET_VAL_GOTO((const char *)NULL, true, pObj, &lino, _exit);
