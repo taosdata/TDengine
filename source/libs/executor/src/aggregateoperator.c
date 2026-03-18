@@ -90,8 +90,7 @@ int32_t createAggregateOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode* pA
     code = terrno;
     goto _error;
   }
-
-  recordOpCreateTime(pOperator);
+  initOperatorCostInfo(pOperator);
 
   pOperator->exprSupp.hasWindowOrGroup = false;
 

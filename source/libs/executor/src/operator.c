@@ -1161,10 +1161,13 @@ _return:
 }
 
 /**
-  @brief Record the create time of the operator.
+  @brief Record the create time of the operator and do initialization
+  to other metrics. This function will be called at the beginning of
+  creation of operators.
 */
-void recordOpCreateTime(SOperatorInfo* pOperator) {
+void initOperatorCostInfo(SOperatorInfo* pOperator) {
   pOperator->cost.execCreate = taosGetTimestampUs();
+  resetOperatorCostInfo(&pOperator->cost);
 }
 
 /**
@@ -1180,7 +1183,8 @@ void recordOpExecBegin(SOperatorInfo* pOperator) {
     pOperator->cost.startTs = taosGetTimestampUs();
     // calculate output wait time (time since last call returned)
     if (pOperator->cost.execLastRow > 0) {
-      pOperator->cost.outputWaitElapsed += pOperator->cost.startTs - pOperator->cost.execLastRow;
+      pOperator->cost.outputWaitElapsed +=
+        pOperator->cost.startTs - pOperator->cost.execLastRow;
     }
     // record the first time nextFn is called
     if (pOperator->cost.execStart == 0) {
@@ -1198,7 +1202,8 @@ void recordOpExecBegin(SOperatorInfo* pOperator) {
 void recordOpExecBeforeDownstream(SOperatorInfo* pOperator) {
   if (QUERY_ENABLE_EXPLAIN(pOperator->pTaskInfo)) {
     pOperator->cost.endTs = taosGetTimestampUs();
-    pOperator->cost.execElapsed += pOperator->cost.endTs - pOperator->cost.startTs;
+    pOperator->cost.execElapsed +=
+      pOperator->cost.endTs - pOperator->cost.startTs;
   }
 }
 
@@ -1211,7 +1216,8 @@ void recordOpExecBeforeDownstream(SOperatorInfo* pOperator) {
 void recordOpExecAfterDownstream(SOperatorInfo* pOperator, size_t inputRows) {
   if (QUERY_ENABLE_EXPLAIN(pOperator->pTaskInfo)) {
     pOperator->cost.startTs = taosGetTimestampUs();
-    pOperator->cost.inputWaitElapsed += pOperator->cost.startTs - pOperator->cost.endTs;
+    pOperator->cost.inputWaitElapsed +=
+      pOperator->cost.startTs - pOperator->cost.endTs;
     pOperator->cost.inputRows += inputRows;
   }
 }
@@ -1229,7 +1235,8 @@ void recordOpExecEnd(SOperatorInfo* pOperator, size_t rows) {
   if (QUERY_ENABLE_EXPLAIN(pOperator->pTaskInfo)) {
     pOperator->cost.endTs = taosGetTimestampUs();
     pOperator->cost.execTimes++;
-    pOperator->cost.execElapsed += pOperator->cost.endTs - pOperator->cost.startTs;
+    pOperator->cost.execElapsed +=
+      pOperator->cost.endTs - pOperator->cost.startTs;
 
     if (rows > 0) {
       // record the first time data is returned

@@ -1220,7 +1220,7 @@ int32_t createHashJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDow
     code = terrno;
     goto _return;
   }
-  recordOpCreateTime(pOperator);
+  initOperatorCostInfo(pOperator);
 
   pInfo->tblTimeRange.skey = pJoinNode->timeRange.skey;
   pInfo->tblTimeRange.ekey = pJoinNode->timeRange.ekey;

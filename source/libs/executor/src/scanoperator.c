@@ -1040,6 +1040,7 @@ static int32_t doTableScanImplNext(SOperatorInfo* pOperator, SSDataBlock** ppRes
       continue;
     }
 
+    /* checkRows is accumulative */
     pOperator->cost.inputRows = pTableScanInfo->base.readRecorder.checkRows;
     pBlock->info.scanFlag = (uint8_t)pTableScanInfo->base.scanFlag;
 
@@ -2481,6 +2482,7 @@ static int32_t resetTableScanOperatorState(SOperatorInfo* pOper) {
   } 
 
   pOper->resultInfo.totalRows = 0;
+  resetOperatorCostInfo(&pOper->cost);
   blockDataEmpty(pInfo->pResBlock);
   blockDataEmpty(pInfo->pOrgBlock);
   taosHashClear(pInfo->pIgnoreTables);
@@ -2502,7 +2504,7 @@ int32_t createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SReadHa
     code = terrno;
     goto _error;
   }
-  recordOpCreateTime(pOperator);
+  initOperatorCostInfo(pOperator);
 
   pOperator->pPhyNode = pTableScanNode;
   SScanPhysiNode*     pScanNode = &pTableScanNode->scan;
@@ -2626,7 +2628,7 @@ int32_t createTableSeqScanOperatorInfo(void* pReadHandle, SExecTaskInfo* pTaskIn
     code = terrno;
     goto _end;
   }
-  recordOpCreateTime(pOperator);
+  initOperatorCostInfo(pOperator);
 
   pInfo->base.dataReader = pReadHandle;
   //  pInfo->prevGroupId       = -1;
@@ -3113,7 +3115,7 @@ int32_t createTmqRawScanOperatorInfo(SReadHandle* pHandle, SExecTaskInfo* pTaskI
     lino = __LINE__;
     goto _end;
   }
-  recordOpCreateTime(pOperator);
+  initOperatorCostInfo(pOperator);
 
   pInfo->pTableListInfo = tableListCreate();
   QUERY_CHECK_NULL(pInfo->pTableListInfo, code, lino, _end, terrno);
@@ -3234,7 +3236,7 @@ int32_t createTmqScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* pTa
     code = terrno;
     goto _error;
   }
-  recordOpCreateTime(pOperator);
+  initOperatorCostInfo(pOperator);
 
   SScanPhysiNode*     pScanPhyNode = &pTableScanNode->scan;
   SDataBlockDescNode* pDescNode = pScanPhyNode->node.pOutputDataBlockDesc;
@@ -3922,7 +3924,7 @@ int32_t createTagScanOperatorInfo(SReadHandle* pReadHandle, STagScanPhysiNode* p
     code = terrno;
     goto _error;
   }
-  recordOpCreateTime(pOperator);
+  initOperatorCostInfo(pOperator);
   pOperator->pPhyNode = pTagScanNode;
   SDataBlockDescNode* pDescNode = pPhyNode->node.pOutputDataBlockDesc;
 
@@ -4711,7 +4713,8 @@ int32_t doTableMergeScanParaSubTablesNext(SOperatorInfo* pOperator, SSDataBlock*
     if (tableListSize == 0) {
       setOperatorCompleted(pOperator);
       (*ppRes) = NULL;
-      goto _end;
+      recordOpExecEnd(pOperator, 0);
+      return code;
     }
 
     pInfo->tableStartIndex = 0;
@@ -4766,9 +4769,10 @@ _end:
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     pTaskInfo->code = code;
     T_LONG_JMP(pTaskInfo->env, code);
+  } else {
+    (*ppRes) = pBlock;
   }
 
-  (*ppRes) = pBlock;
   recordOpExecEnd(pOperator, (*ppRes) ? (*ppRes)->info.rows : 0);
   return code;
 }
@@ -5417,7 +5421,7 @@ int32_t createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SR
     code = terrno;
     goto _error;
   }
-  recordOpCreateTime(pOperator);
+  initOperatorCostInfo(pOperator);
 
   pOperator->pPhyNode = pTableScanNode;
   SDataBlockDescNode* pDescNode = pTableScanNode->scan.node.pOutputDataBlockDesc;
@@ -5674,7 +5678,7 @@ int32_t createTableCountScanOperatorInfo(SReadHandle* readHandle, STableCountSca
     code = terrno;
     goto _error;
   }
-  recordOpCreateTime(pOperator);
+  initOperatorCostInfo(pOperator);
 
   pInfo->readHandle = *readHandle;
 

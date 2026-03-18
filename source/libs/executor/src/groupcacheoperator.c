@@ -1599,7 +1599,7 @@ int32_t createGroupCacheOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfD
     code = terrno;
     goto _error;
   }
-  recordOpCreateTime(pOperator);
+  initOperatorCostInfo(pOperator);
 
   pOperator->transparent = true;
   pOperator->pPhyNode = pPhyciNode;

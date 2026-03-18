@@ -704,7 +704,7 @@ int32_t createExchangeOperatorInfo(void* pTransporter, SExchangePhysiNode* pExNo
     code = terrno;
     goto _error;
   }
-  recordOpCreateTime(pOperator);
+  initOperatorCostInfo(pOperator);
 
   pInfo->isExchange = true;
   pOperator->pPhyNode = pExNode;

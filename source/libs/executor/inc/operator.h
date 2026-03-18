@@ -37,6 +37,18 @@ typedef struct SOperatorCostInfo {
   TSKEY  endTs;     // helper variable to record the end time of the operator
 } SOperatorCostInfo;
 
+static inline void resetOperatorCostInfo(SOperatorCostInfo* pCost) {
+  /* keep execCreate unchanged */
+  pCost->execStart = 0;
+  pCost->execFirstRow = 0;
+  pCost->execLastRow = 0;
+  pCost->execTimes = 0;
+  pCost->execElapsed = 0;
+  pCost->inputWaitElapsed = 0;
+  pCost->outputWaitElapsed = 0;
+  pCost->inputRows = 0;
+}
+
 struct SOperatorInfo;
 
 typedef int32_t (*__optr_open_fn_t)(struct SOperatorInfo* pOptr);
@@ -220,7 +232,7 @@ int32_t resetExprSupp(SExprSupp* pExprSupp, SExecTaskInfo* pTaskInfo, SNodeList*
                       SNodeList* pGroupKeys, SFunctionStateStore* pStore);
 int32_t copyColumnsValue(SNodeList* pNodeList, int64_t targetBlkId, SSDataBlock* pDst, SSDataBlock* pSrc, int32_t totalRows);
 
-void recordOpCreateTime(SOperatorInfo* pOperator);
+void initOperatorCostInfo(SOperatorInfo* pOperator);
 void recordOpExecBegin(SOperatorInfo* pOperator);
 void recordOpExecBeforeDownstream(SOperatorInfo* pOperator);
 void recordOpExecAfterDownstream(SOperatorInfo* pOperator, size_t inputRows);

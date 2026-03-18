@@ -125,7 +125,7 @@ int32_t createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhysiNode* 
   pOperator->pPhyNode = pProjPhyNode;
   pOperator->exprSupp.hasWindowOrGroup = false;
   pOperator->pTaskInfo = pTaskInfo;
-  recordOpCreateTime(pOperator);
+  initOperatorCostInfo(pOperator);
 
   int32_t    lino = 0;
 
@@ -478,7 +478,7 @@ int32_t createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhysiNode*
 
   pOperator->pPhyNode = pNode;
   pOperator->pTaskInfo = pTaskInfo;
-  recordOpCreateTime(pOperator);
+  initOperatorCostInfo(pOperator);
 
   SExprSupp* pSup = &pOperator->exprSupp;
   pSup->hasWindowOrGroup = false;

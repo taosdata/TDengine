@@ -921,7 +921,7 @@ int32_t createVirtualTableMergeOperatorInfo(SOperatorInfo** pDownstream, int32_t
 
   QUERY_CHECK_NULL(pInfo, code, lino, _return, terrno)
   QUERY_CHECK_NULL(pOperator, code, lino, _return, terrno)
-  recordOpCreateTime(pOperator);
+  initOperatorCostInfo(pOperator);
 
   pOperator->pPhyNode = pVirtualScanPhyNode;
 

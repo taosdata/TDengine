@@ -88,7 +88,7 @@ int32_t createSortOperatorInfo(SOperatorInfo* downstream, SSortPhysiNode* pSortN
     code = terrno;
     goto _error;
   }
-  recordOpCreateTime(pOperator);
+  initOperatorCostInfo(pOperator);
 
   pOperator->pTaskInfo = pTaskInfo;
   SDataBlockDescNode* pDescNode = pSortNode->node.pOutputDataBlockDesc;
@@ -873,7 +873,7 @@ int32_t createGroupSortOperatorInfo(SOperatorInfo* downstream, SGroupSortPhysiNo
     code = terrno;
     goto _error;
   }
-  recordOpCreateTime(pOperator);
+  initOperatorCostInfo(pOperator);
 
   SExprSupp*          pSup = &pOperator->exprSupp;
   SDataBlockDescNode* pDescNode = pSortPhyNode->node.pOutputDataBlockDesc;

@@ -109,7 +109,7 @@ int32_t createCacherowsScanOperator(SLastRowScanPhysiNode* pScanNode, SReadHandl
     code = terrno;
     goto _error;
   }
-  recordOpCreateTime(pOperator);
+  initOperatorCostInfo(pOperator);
 
   pInfo->pTableList = pTableListInfo;
   pInfo->readHandle = *readHandle;

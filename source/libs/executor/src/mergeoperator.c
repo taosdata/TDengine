@@ -640,7 +640,7 @@ int32_t createMultiwayMergeOperatorInfo(SOperatorInfo** downStreams, size_t numS
     code = terrno;
     goto _error;
   }
-  recordOpCreateTime(pOperator);
+  initOperatorCostInfo(pOperator);
 
   pOperator->pPhyNode = pPhyNode;
   pInfo->groupMerge = pMergePhyNode->groupSort;
