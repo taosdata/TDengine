@@ -45,7 +45,7 @@ class TestXnode:
             - 2026-01-08 GuiChuan Zhang Created
         """
         try:
-            tdSql.execute(sql)
+            tdSql.execute(sql, queryTimes=1)
             return True
         except Exception as err:  # tolerate runtime errors, only fail on syntax/parse
             msg = str(err).lower()
@@ -70,7 +70,7 @@ class TestXnode:
             - 2026-02-11 GuiChuan Zhang Created
         """
         try:
-            tdSql.execute(sql)
+            tdSql.execute(sql, queryTimes=1)
         except Exception:
             return True
         assert False, f"sql should fail: [{sql}]"
@@ -90,7 +90,7 @@ class TestXnode:
             - 2026-01-08 GuiChuan Zhang Created
         """
         try:
-            tdSql.query(sql)
+            tdSql.query(sql, queryTimes=1)
             return True
         except Exception as err:
             msg = str(err).lower()
