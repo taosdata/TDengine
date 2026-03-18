@@ -33,7 +33,6 @@ uint32_t taosRand(void);
 uint32_t taosRandR(uint32_t* pSeed);
 void     taosRandStr(char* str, int32_t size);
 void     taosRandStr2(char* str, int32_t size);
-uint32_t taosRand_R(uint32_t* pSeed);
 
 uint32_t taosSafeRand(void);
 void     taosSafeRandBytes(uint8_t* pBuf, int32_t size);

@@ -37,8 +37,6 @@ uint32_t taosRandR(uint32_t* pSeed) {
 #endif
 }
 
-uint32_t taosRand_R(uint32_t* pSeed) { return rand_r(pSeed); }
-
 uint32_t taosSafeRand(void) {
 #ifdef WINDOWS
   uint32_t   seed = taosRand();
