@@ -70,6 +70,6 @@ class TestInsertTagOrderStmt:
         """
         self.executeAndCheck('insert_tag_order')
 
-        tdLog.success("%s successfully executed" % __file__)
+
 
 

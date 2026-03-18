@@ -80,6 +80,10 @@ class TestSnapshot:
 
         # balance vgroups
         self.balanceVGroupLeader()
+        
+        if self.waitCompactsZero() is False:
+            tdLog.exit(f"compact not finished")
+            return False
 
         # replica to 1
         self.alterReplica(1)
@@ -156,7 +160,7 @@ class TestSnapshot:
         self.checkFloatDouble()
 
 
-        tdLog.success(f"{__file__} successfully executed")
+
 
         
 

@@ -132,7 +132,7 @@ static int load_taos_functions(const char* lib_path) {
     if (!taos_connect_func || !taos_query_a_func || !taos_free_result_func || 
         !taos_close_func || !taos_errno_func || !taos_errstr_func) {
         fprintf(stderr, "Failed to load some functions: %s\n", dlerror());
-        dlclose(handle);
+        (void)dlclose(handle);
         return -1;
     }
 

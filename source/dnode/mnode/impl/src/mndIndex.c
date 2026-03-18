@@ -514,8 +514,7 @@ static int32_t mndProcessCreateIdxReq(SRpcMsg *pReq) {
 
   TAOS_CHECK_GOTO(mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOperUser), NULL, _OVER);
   // already check select table/create index privileges in parser
-  TAOS_CHECK_GOTO(mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_DB_USE, PRIV_OBJ_DB, pDb->ownerId, pDb->name, NULL),
-                  NULL, _OVER);
+  TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_USE_DB, pDb), NULL, _OVER);
   // TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), MND_OPER_WRITE_DB, pDb), NULL, _OVER);
 
   code = mndAddIndex(pMnode, pReq, &createReq, pDb, pStb, pOperUser);
@@ -593,7 +592,7 @@ int32_t mndRetrieveTagIdx(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, i
   (void)snprintf(objFName, sizeof(objFName), "%d.*", pOperUser->acctId);
   int32_t objLevel = privObjGetLevel(PRIV_OBJ_IDX);
   showAll =
-      (0 == mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_IDX_SHOW, PRIV_OBJ_IDX, 0, pDb ? pDb->name : objFName,
+      (0 == mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_CM_SHOW, PRIV_OBJ_IDX, 0, pDb ? pDb->name : objFName,
                                      objLevel == 0 ? NULL : "*"));  // 1.*.*
 
   SSmaAndTagIter *pIter = pShow->pIter;
@@ -614,7 +613,7 @@ int32_t mndRetrieveTagIdx(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, i
         lino = __LINE__;
         goto _OVER;
       }
-      if (mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_IDX_SHOW, PRIV_OBJ_IDX, pIdx->ownerId, pIdx->db,
+      if (mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_CM_SHOW, PRIV_OBJ_IDX, pIdx->ownerId, pIdx->db,
                                    objLevel == 0 ? NULL : idxName.tname)) {  // 1.db1.idx1
         sdbRelease(pSdb, pIdx);
         continue;

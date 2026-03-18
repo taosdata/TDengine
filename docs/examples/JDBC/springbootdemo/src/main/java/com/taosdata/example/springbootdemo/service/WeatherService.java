@@ -50,6 +50,7 @@ public class WeatherService {
 
     public int save(float temperature, float humidity) {
         Weather weather = new Weather();
+        weather.setTs(new Timestamp(System.currentTimeMillis()));
         weather.setTemperature(temperature);
         weather.setHumidity(humidity);
 

@@ -102,6 +102,13 @@ extern "C" {
 #define TSDB_AUDIT_CTB_OPERATION     "t_operations_"
 #define TSDB_AUDIT_CTB_OPERATION_LEN 13
 
+typedef enum {
+  PRIV_CAT_BASIC = 0,
+  PRIV_CAT_PRIVILEGED = 1,
+  PRIV_CAT_SECURITY = 2,
+  PRIV_CAT_AUDIT = 3,
+} ESysTblPrivCat;
+
 typedef struct SSysDbTableSchema {
   const char*   name;
   const int32_t type;
@@ -114,6 +121,7 @@ typedef struct SSysTableMeta {
   const SSysDbTableSchema* schema;
   const int32_t            colNum;
   const bool               sysInfo;
+  const int8_t             privCat;  // ESysTblPrivCat
 } SSysTableMeta;
 
 void getInfosDbMeta(const SSysTableMeta** pInfosTableMeta, size_t* size);

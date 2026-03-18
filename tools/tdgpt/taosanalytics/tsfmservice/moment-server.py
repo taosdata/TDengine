@@ -171,6 +171,7 @@ def draw_imputation_stride_result(trues, preds, masks):
 
     axs[1].imshow(np.tile(masks[np.newaxis, 0, 0], reps=(8, 1)), cmap='binary')
     plt.savefig("moment.png")
+    plt.close()
 
 
 def complete_timeseries(timestamps, values, precision, freq, freq_val, freq_unit:str):

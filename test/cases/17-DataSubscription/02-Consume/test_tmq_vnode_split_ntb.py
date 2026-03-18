@@ -89,7 +89,6 @@ class TestCase:
         splitSql = "split vgroup %d" %(vnodeId)
         tdLog.debug("splitSql:%s"%(splitSql))
         tdSql.query(splitSql)
-        tdLog.debug("splitSql ok")
 
     def tmqCase1(self, deleteWal=False):
         tdLog.printNoPrefix("======== test case 1: ")
@@ -181,7 +180,7 @@ class TestCase:
         self.prepareTestEnv()
         self.tmqCase1(True)
 
-        tdLog.success(f"{__file__} successfully executed")
+
 
 event = threading.Event()
 

@@ -61,7 +61,7 @@ enum {
 
 typedef struct SOperatorInfo {
   uint16_t               operatorType;
-  int16_t                resultDataBlockId;
+  int64_t                resultDataBlockId;
   bool                   blocking;  // block operator or not
   bool                   transparent;
   bool                   dynamicTask;
@@ -177,7 +177,7 @@ int32_t        optrDefaultGetNextExtFn(struct SOperatorInfo* pOperator, SOperato
 int32_t        optrDefaultNotifyFn(struct SOperatorInfo* pOperator, SOperatorParam* pParam);
 SSDataBlock*   getNextBlockFromDownstream(struct SOperatorInfo* pOperator, int32_t idx);
 SSDataBlock*   getNextBlockFromDownstreamRemain(struct SOperatorInfo* pOperator, int32_t idx);
-int16_t        getOperatorResultBlockId(struct SOperatorInfo* pOperator, int32_t idx);
+int64_t        getOperatorResultBlockId(struct SOperatorInfo* pOperator, int32_t idx);
 
 int32_t        createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHandle* pHandle, SNode* pTagCond,
                               SNode* pTagIndexCond, const char* pUser, const char* dbname, SOperatorInfo** pOptrInfo,
@@ -206,7 +206,7 @@ int32_t resetAggSup(SExprSupp* pExprSupp, SAggSupporter* pSup, SExecTaskInfo* pT
                     SFunctionStateStore* pStore);
 int32_t resetExprSupp(SExprSupp* pExprSupp, SExecTaskInfo* pTaskInfo, SNodeList* pNodeList,
                       SNodeList* pGroupKeys, SFunctionStateStore* pStore);
-int32_t copyColumnsValue(SNodeList* pNodeList, uint64_t targetBlkId, SSDataBlock* pDst, SSDataBlock* pSrc, int32_t totalRows);
+int32_t copyColumnsValue(SNodeList* pNodeList, int64_t targetBlkId, SSDataBlock* pDst, SSDataBlock* pSrc, int32_t totalRows);
 #ifdef __cplusplus
 }
 #endif

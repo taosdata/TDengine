@@ -27,6 +27,10 @@
 #include "cJSON.h"
 #include "taos.h"
 
+#ifndef UNUSED
+#define UNUSED(A) (void)(A)
+#endif
+
 volatile int thread_stop = 0;
 static int   running = 1;
 static int   count = 0;
@@ -117,7 +121,7 @@ static void* prep_data(void* arg) {
 #ifdef WINDOWS
     Sleep(1000);
 #else
-    usleep(1);
+    UNUSED(usleep(1));
 #endif
   }
   fprintf(stdout, "Prepare data thread exit\n");
@@ -546,7 +550,11 @@ int topic_prep(void) {
   }
 
   // thread_stop = 1;
-  pthread_join(thread_id, NULL);
+  int rc = pthread_join(thread_id, NULL);
+  if (rc) {
+    fprintf(stderr, "Failed to join thread in topic_prep: %s\n", strerror(rc));
+    return -1;
+  }
 
   return 0;
 }
@@ -1180,7 +1188,12 @@ int main(int argc, char* argv[]) {
   }
 
   thread_stop = 1;
-  pthread_join(thread_id, NULL);
+
+  rc = pthread_join(thread_id, NULL);
+  if (rc) {
+    fprintf(stderr, "Failed to join thread: %s\n", strerror(rc));
+    return -1;
+  }
 
   if (drop_topic_without_connect(pConn) < 0) {
     fprintf(stderr, "Failed to drop topic.\n");

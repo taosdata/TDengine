@@ -234,6 +234,7 @@ SWords shellCommands[] = {
     {"show table tags from <all_table>;", 0, 0, NULL},
     {"show topics;", 0, 0, NULL},
     {"show transactions;", 0, 0, NULL},
+    {"show indexes from <stb_name>;", 0, 0, NULL},
     {"show tsmas;", 0, 0, NULL},
     {"show rsmas;", 0, 0, NULL},
     {"show roles;", 0, 0, NULL},
@@ -778,6 +779,7 @@ void showHelp() {
     show user column privileges;\n\
     show variables;\n\
     show local variables;\n\
+    show indexes from <stb_name>;\n\
     show vnodes;\n\
     show vnodes on dnode <dnode_id>;\n\
     show vgroups;\n\

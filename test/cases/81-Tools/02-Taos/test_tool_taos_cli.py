@@ -11,7 +11,7 @@
 
 # -*- coding: utf-8 -*-
 
-from new_test_framework.utils import tdLog, tdSql, etool
+from new_test_framework.utils import tdLog, tdSql, etool, AutoGen
 import os
 import time
 import datetime 
@@ -472,6 +472,45 @@ class TestTaosCli:
         rlist = self.taos(f"-uexp_user1 -pexp_user1@password -s 'show databases;'", checkRun=True)
         self.checkListString(rlist, "Please reset your password using the `ALTER USER <user_name> PASS 'new_password'` command.")
 
+    def pipe_taos(self, command, show=True, checkRun=False):
+        taosFile = etool.taosFile()
+        cmdstr = f"echo '{command};q;' | {taosFile} -r "
+        return etool.runRetList(cmdstr, checkRun=checkRun, show=show)
+        
+    def checkIsShowWhole(self):
+        # insert data
+        stb = "meters"
+        gen = AutoGen(startTs=1700000000000)
+        gen.create_db("test")
+        gen.create_stable(stb, tag_cnt=120, column_cnt=2, binary_len=3, nchar_len=4)
+        gen.create_child(stb, "d", cnt=1)
+        gen.insert_data(110, bContinue=True)
+        
+        # show whole
+        sqls = [
+            "describe test.meters",
+            "desc test.meters",
+            "select ts from test.meters limit 102",
+            "select ts from (select * from test.meters limit 105) limit 103",
+            "select ts from (select * from test.meters limit 105)",
+            "explain select * from test.meters order by ts desc"
+        ]
+        
+        results = [
+            "t119",
+            "Query OK, 122 row(s) in set",
+            "1700000101000",
+            "1700000102000",
+            "The result shows only the first 100 rows.",
+            "Query OK, 6 row(s) in set",
+        ]
+        
+        idx = 0
+        for sql in sqls:
+            rlist = self.pipe_taos(sql)
+            self.checkListString(rlist, results[idx])
+            idx += 1
+
     # run
     def test_tool_taos_cli(self):
         """taos-CLI basic test
@@ -502,6 +541,7 @@ class TestTaosCli:
         tdLog.debug(f"start to excute {__file__}")
         
         # check show whole
+        self.checkIsShowWhole()
         self.checkDescribe()
         # check basic
         self.checkBasic()

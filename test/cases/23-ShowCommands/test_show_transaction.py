@@ -110,7 +110,7 @@ class TestShowTransactionDetail:
 
         t1.join()
         t2.join()
-        tdLog.success(f"{__file__} successfully executed")
+
             
     def createDbThread(self, sql, newTdSql):
         tdLog.info("CREATE DATABASE db2 vgroups 40 replica 3;")

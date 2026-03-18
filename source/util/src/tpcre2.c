@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifdef USE_PRCE2
+#ifdef USE_PCRE2
 #include "tpcre2.h"
 
 int32_t doRegComp(pcre2_code** ppRegex, pcre2_match_data** ppMatchData, const char* pattern) {
@@ -59,4 +59,4 @@ void destroyRegexes(pcre2_code* pWktRegex, pcre2_match_data* pWktMatchData) {
   pcre2_code_free(pWktRegex);
   pcre2_match_data_free(pWktMatchData);
 }
-#endif  // USE_PRCE2
+#endif  // USE_PCRE2

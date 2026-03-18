@@ -84,8 +84,16 @@ class TestCase:
                 tdLog.debug("vnode is %d"%(vnodeId))
                 break
         splitSql = "split vgroup %d" %(vnodeId)
-        tdLog.debug("splitSql:%s"%(splitSql))
+        tdLog.info("splitSql:%s"%(splitSql))
         tdSql.query(splitSql)
+
+    def checkSplitVgroups(self):
+        while True:
+            tdSql.query("select * from information_schema.ins_vnodes where db_name='dbt' and status='leader' and restored=true")
+            if tdSql.getRows() == 2:
+                break
+            tdLog.info("wait vgroup split done...")
+            time.sleep(1) 
         tdLog.debug("splitSql ok")
 
     def tmqCase1(self, deleteWal=False):
@@ -161,7 +169,7 @@ class TestCase:
 
         # split vgroup
         self.splitVgroups()
-
+        self.checkSplitVgroups()
 
         tdLog.info("insert ctb2 data")
         pInsertThread1 = tmqCom.asyncInsertDataByInterlace(paraDict)
@@ -208,7 +216,7 @@ class TestCase:
         self.prepareTestEnv()
         self.tmqCase1(True)
 
-        tdLog.success(f"{__file__} successfully executed")
+
 
 event = threading.Event()
 

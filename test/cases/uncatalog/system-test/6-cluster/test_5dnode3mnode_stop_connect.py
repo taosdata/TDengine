@@ -113,5 +113,5 @@ class Test5dnode3mnodeStopConnect:
         # print(self.master_dnode.cfgDict)
         self.fiveDnodeThreeMnode(5,3,1)
 
-        tdLog.success(f"{__file__} successfully executed")
+
 

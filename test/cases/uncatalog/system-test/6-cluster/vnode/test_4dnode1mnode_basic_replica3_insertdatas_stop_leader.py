@@ -353,5 +353,5 @@ class Test4dnode1mnodeBasicReplica3InsertdatasStopLeader:
         self.stop_leader_when_Benchmark_inserts('test' , 1000000 )
       
 
-        tdLog.success(f"{__file__} successfully executed")
+
 

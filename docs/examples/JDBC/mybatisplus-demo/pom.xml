@@ -5,7 +5,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>2.7.18</version>
+        <version>3.5.5</version>
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
     <groupId>com.taosdata.example</groupId>
@@ -15,7 +15,11 @@
     <description>Demo project for tdengine</description>
 
     <properties>
-        <java.version>1.8</java.version>
+        <java.version>17</java.version>
+        <logback.version>1.5.25</logback.version>
+        <netty.version>4.1.129.Final</netty.version>
+        <tomcat.version>10.1.47</tomcat.version>
+        <spring-framework.version>6.2.11</spring-framework.version>
     </properties>
 
     <dependencyManagement>
@@ -36,20 +40,8 @@
             <artifactId>spring-boot-starter</artifactId>
         </dependency>
         <dependency>
-            <groupId>ch.qos.logback</groupId>
-            <artifactId>logback-classic</artifactId>
-            <version>1.2.13</version>
-        </dependency>
-        <dependency>
-            <groupId>ch.qos.logback</groupId>
-            <artifactId>logback-core</artifactId>
-            <version>1.2.13</version>
-        </dependency>
-
-        <dependency>
             <groupId>org.yaml</groupId>
             <artifactId>snakeyaml</artifactId>
-            <version>1.33</version>
         </dependency>
 
         <dependency>
@@ -57,33 +49,36 @@
             <artifactId>lombok</artifactId>
             <optional>true</optional>
         </dependency>
-        <!-- spring boot2 引入可选模块 -->
+        <!-- spring boot3 引入可选模块 -->
         <dependency>
             <groupId>com.baomidou</groupId>
             <artifactId>mybatis-plus-boot-starter</artifactId>
         </dependency>
-
-        <!-- jdk 8+ 引入可选模块 -->
         <dependency>
             <groupId>com.baomidou</groupId>
-            <artifactId>mybatis-plus-jsqlparser-4.9</artifactId>
+            <artifactId>mybatis-plus-jsqlparser</artifactId>
         </dependency>
+        <dependency>
+            <groupId>org.mybatis</groupId>
+            <artifactId>mybatis-spring</artifactId>
+            <version>3.0.4</version>
+        </dependency>
+
         <dependency>
             <groupId>com.h2database</groupId>
             <artifactId>h2</artifactId>
-            <version>2.3.232</version>
             <scope>runtime</scope>
         </dependency>
         <dependency>
             <groupId>com.alibaba</groupId>
-            <artifactId>druid</artifactId>
-            <version>1.1.17</version>
+            <artifactId>druid-spring-boot-starter</artifactId>
+            <version>1.2.23</version>
         </dependency>
 
         <dependency>
             <groupId>com.taosdata.jdbc</groupId>
             <artifactId>taos-jdbcdriver</artifactId>
-            <version>3.8.0</version>
+            <version>3.8.1</version>
         </dependency>
 
         <dependency>
@@ -100,19 +95,19 @@
         <dependency>
             <groupId>org.apache.tomcat.embed</groupId>
             <artifactId>tomcat-embed-core</artifactId>
-            <version>9.0.110</version>
+            <version>10.1.47</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.apache.tomcat.embed</groupId>
             <artifactId>tomcat-embed-el</artifactId>
-            <version>9.0.104</version>
+            <version>10.1.47</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.apache.tomcat.embed</groupId>
             <artifactId>tomcat-embed-websocket</artifactId>
-            <version>9.0.104</version>
+            <version>10.1.47</version>
             <scope>provided</scope>
         </dependency>
 
@@ -126,11 +121,17 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.junit.vintage</groupId>
+                    <artifactId>junit-vintage-engine</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
-            <version>4.13.1</version>
+            <version>4.13.2</version>
             <scope>test</scope>
         </dependency>
     </dependencies>
@@ -144,16 +145,18 @@
 
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-surefire-plugin</artifactId>
-                <version>2.17</version>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.14.0</version>
                 <configuration>
-                    <includes>
-                        <include>**/*Test.java</include>
-                    </includes>
-                    <excludes>
-                        <exclude>**/Abstract*.java</exclude>
-                    </excludes>
+                    <source>17</source>
+                    <target>17</target>
                 </configuration>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.5.2</version>
             </plugin>
         </plugins>
     </build>

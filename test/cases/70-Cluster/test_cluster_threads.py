@@ -199,4 +199,4 @@ class TestDb:
         tdLog.printNoPrefix("==========end show_cluster_variables_like run ...............")
 
         #tdSql.close()
-        tdLog.success(f"{__file__} successfully executed")
+

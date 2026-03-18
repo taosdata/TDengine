@@ -642,5 +642,5 @@ class TestCase:
         self.check_add_drop_rename_col_normal_table()
         self.check_alter_col_name_bytes_normal_table()
 
-        tdLog.success(f"{__file__} successfully executed")
+
 

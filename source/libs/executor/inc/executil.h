@@ -83,6 +83,7 @@ struct SResultRow {
   bool                       endInterp;    // the time window end timestamp has done the interpolation already.
   bool                       closed;       // this result status: closed or opened
   uint32_t                   numOfRows;    // number of rows of current time window
+  uint32_t                   nOrigRows;    // number of original rows before aggregation
   STimeWindow                win;
   int32_t                    winIdx;
   struct SResultRowEntryInfo pEntryInfo[];  // For each result column, there is a resultInfo
@@ -118,6 +119,7 @@ typedef struct SColMatchItem {
 typedef struct SColMatchInfo {
   SArray* pList;      // SArray<SColMatchItem>
   int32_t matchType;  // determinate the source according to col id or slot id
+  bool    colIdOrdered;
 } SColMatchInfo;
 
 typedef struct STableListIdInfo {
@@ -175,10 +177,10 @@ uint64_t        tableListGetSuid(const STableListInfo* pTableList);
 STableKeyInfo*  tableListGetInfo(const STableListInfo* pTableList, int32_t index);
 int32_t         tableListFind(const STableListInfo* pTableList, uint64_t uid, int32_t startIndex);
 void tableListGetSourceTableInfo(const STableListInfo* pTableList, uint64_t* psuid, uint64_t* uid, int32_t* type);
-int32_t doFilterByTagCond(STableListInfo* pListInfo, SArray* pUidList, SNode* pTagCond, void* pVnode,
-                                 SIdxFltStatus status, SStorageAPI* pAPI, bool addUid, bool* listAdded, void* pStreamInfo);
 int32_t buildGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle* pHandle, SScanPhysiNode* pScanNode,
   SNodeList* group, bool groupSort, uint8_t* digest, SStorageAPI* pAPI, SHashObj* groupIdMap);
+int32_t doFilterByTagCond(int64_t suid, SArray* pUidList, SNode* pTagCond, void* pVnode,
+                                 SIdxFltStatus status, SStorageAPI* pAPI, void* pStreamInfo);
 size_t getResultRowSize(struct SqlFunctionCtx* pCtx, int32_t numOfOutput);
 void   initResultRowInfo(SResultRowInfo* pResultRowInfo);
 void   closeResultRow(SResultRow* pResultRow);

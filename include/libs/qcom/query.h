@@ -142,9 +142,16 @@ typedef struct STableMeta {
   STableComInfo tableInfo;
   SSchemaExt*   schemaExt;  // There is no additional memory allocation, and the pointer is fixed to the next address of
                             // the schema content.
-  int8_t        virtualStb;
-  int64_t       ownerId;
-  SSchema       schema[];
+  union {
+    uint8_t flag;
+    struct {
+      uint8_t virtualStb : 1;
+      uint8_t isAudit : 1;
+      uint8_t reserved : 6;
+    };
+  };
+  int64_t ownerId;
+  SSchema schema[];
 } STableMeta;
 #pragma pack(pop)
 

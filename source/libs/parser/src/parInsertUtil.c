@@ -164,16 +164,17 @@ int32_t insCreateSName(SName* pName, SToken* pTableName, int32_t acctId, const c
 
   return code;
 }
-
+#if 0 // converted to static inline function in parInsertUtil.h
 int16_t insFindCol(SToken* pColname, int16_t start, int16_t end, SSchema* pSchema) {
   while (start < end) {
-    if (strlen(pSchema[start].name) == pColname->n && strncmp(pColname->z, pSchema[start].name, pColname->n) == 0) {
+    if (strncmp(pColname->z, pSchema[start].name, pColname->n) == 0) {
       return start;
     }
     ++start;
   }
   return -1;
 }
+#endif
 
 int32_t insBuildCreateTbReq(SVCreateTbReq* pTbReq, const char* tname, STag* pTag, int64_t suid, const char* sname,
                             SArray* tagName, uint8_t tagNum, int32_t ttl) {

@@ -116,5 +116,5 @@ class Test5dnode3mnodeStop:
         tdDnodes[0].starttaosd()
         clusterComCheck.checkMnodeStatus(3)
 
-        tdLog.info(f"{__file__} successfully executed")
+
 

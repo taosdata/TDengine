@@ -84,13 +84,6 @@ class TestSmatest:
         self.check_TD_33336()
         self.ts5900()
 
-    # stop
-        #tdSql.close()
-        tdLog.success("%s successfully executed" % __file__)
-
-    #
-    # --------------- case  -------------------
-    #
 
     # create table
     def create_tables(self, dbname="db"):

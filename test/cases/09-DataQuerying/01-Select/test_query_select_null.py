@@ -489,7 +489,7 @@ class TestSelectNull:
         print("total time %ds" % (endTime - startTime))
 
         #tdSql.close()
-        tdLog.success("%s successfully executed" % __file__)
+
 
     def check_select_as_chinese_characters(self):
         tdSql.execute("use sel_null")

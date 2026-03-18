@@ -368,6 +368,8 @@ void *mndBuildCreateVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVg
   if (pDb->cfg.encryptAlgorithm > 0) {
     mndGetEncryptOsslAlgrNameById(pMnode, pDb->cfg.encryptAlgorithm, createReq.encryptAlgrName);
   }
+  createReq.isAudit = pDb->cfg.isAudit ? 1 : 0;
+  createReq.allowDrop = pDb->cfg.allowDrop;
   int32_t code = 0;
 
   for (int32_t v = 0; v < pVgroup->replica; ++v) {
@@ -472,6 +474,7 @@ static void *mndBuildAlterVnodeConfigReq(SMnode *pMnode, SDbObj *pDb, SVgObj *pV
   alterReq.walRetentionSize = pDb->cfg.walRetentionSize;
   alterReq.ssKeepLocal = pDb->cfg.ssKeepLocal;
   alterReq.ssCompact = pDb->cfg.ssCompact;
+  alterReq.allowDrop = (int8_t)pDb->cfg.allowDrop;
 
   mInfo("vgId:%d, build alter vnode config req", pVgroup->vgId);
   int32_t contLen = tSerializeSAlterVnodeConfigReq(NULL, 0, &alterReq);
@@ -1185,7 +1188,7 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
   bool      showAll = false, showIter = false;
   int64_t   dbUid = 0;
 
-  MND_SHOW_CHECK_OBJ_PRIVILEGE_ALL(RPC_MSG_USER(pReq), PRIV_SHOW_VGROUPS, PRIV_OBJ_DB, 0, _OVER);
+  MND_SHOW_CHECK_OBJ_PRIVILEGE_ALL(RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), PRIV_SHOW_VGROUPS, PRIV_OBJ_DB, 0, _OVER);
 
   if (strlen(pShow->db) > 0) {
     pDb = mndAcquireDb(pMnode, pShow->db);
@@ -1469,7 +1472,7 @@ static int32_t mndRetrieveVnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
   bool      showAll = false, showIter = false;
   int64_t   dbUid = 0;
 
-  MND_SHOW_CHECK_OBJ_PRIVILEGE_ALL(RPC_MSG_USER(pReq), PRIV_SHOW_VNODES, PRIV_OBJ_DB, 0, _OVER);
+  MND_SHOW_CHECK_OBJ_PRIVILEGE_ALL(RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), PRIV_SHOW_VNODES, PRIV_OBJ_DB, 0, _OVER);
 
   while (numOfRows < rows - TSDB_MAX_REPLICA) {
     pShow->pIter = sdbFetch(pSdb, SDB_VGROUP, pShow->pIter, (void **)&pVgroup);

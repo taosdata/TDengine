@@ -94,6 +94,52 @@ taos> select _flow, _fhigh, _frowts, forecast(i32) from foo;
         -1076.1566162 |         1214.4498291 | 2020-01-01 00:01:44.000 |            69 |
 ```
 
+## Covariate Forecasting
+
+TDgpt supports univariate and covariate forecasting. However, static covariates are not supported.
+
+Only the moirai time-series foundation model is supported for covariate forecasting. If you want to perform covariate forecasting, you must set the `algo` parameter to `moirai`.
+
+![Covariate forecasting](../../../assets/tdgpt-07.png)
+
+In the diagram above, there are two covariates and one target variable (also called the primary variable). `Target` is the forecasting objective, and `Prediction value` is the forecast result. `Past dynamic real features` represent historical covariates, while `Dynamic real features` represents future covariates.  
+
+Historical and future covariate data aligned with the same time window as the target variable are retrieved from the time-series database. Future covariate values corresponding to the prediction horizon must be provided directly in the SQL statement. Detailed usage is described below.
+
+### Historical Covariate Forecasting
+
+Historical covariate forecasting is straightforward and can be invoked using the following statement (available in version 3.3.6.4 and later).
+
+When the `forecast` function takes a single column as input, it operates in default univariate forecasting mode. When multiple columns are provided, the first column is treated as the **primary variable**, and subsequent columns are treated as covariates.
+
+All input columns must be numeric. Each forecasting query supports up to 10 historical covariate columns. The following SQL example demonstrates covariate forecasting:
+
+```sql
+SELECT _frowts, forecast(val, past_co_val, 'algo=moirai') FROM foo;
+```
+
+In this example, the first column (`val`) is the primary variable; subsequent columns (`past_co_val`) are historical covariates.
+
+### Future Covariate Forecasting
+
+For future covariate forecasting, you must specify the future input values and their associated covariate columns.
+
+Future covariate values must be provided directly in the SQL statement using array syntax within square brackets, with values separated by spaces.  
+The number of values must match the forecasting horizon; otherwise, an error will occur.
+
+Future covariates use the prefix `dynamic_real_`. If multiple future covariates are used, they can be named sequentially as `dynamic_real_1`, `dynamic_real_2`, `dynamic_real_3`, and so on.
+
+For each future covariate, the corresponding column must be specified:
+
+- The column for `dynamic_real_1` is defined via the parameter `dynamic_real_1_col`
+- The column for `dynamic_real_2` is defined via `dynamic_real_2_col`, and so on
+
+In the example below, forecasting is performed on the `val` column. One historical covariate column `past_co_val` is provided, along with one future covariate column `future_co_val`. Future covariate values are supplied via `dynamic_real_1`, which contains 4 future values in the array. The parameter `dynamic_real_1_col=future_co_val` maps the future covariate to the `future_co_val` column.
+
+```sql
+select _frowts, forecast(val, past_co_val, future_co_val, "algo=moirai,rows=4, dynamic_real_1=[1 1 1 1], dynamic_real_1_col=future_co_val") from foo;
+```
+
 ## Built-In Forecasting Algorithms
 
 - [ARIMA](./arima/)
@@ -113,86 +159,3 @@ taos> select _flow, _fhigh, _frowts, forecast(i32) from foo;
 - Patch Time Series Transformer (PatchTST)
 - Temporal Fusion Transformer
 - TimesNet
-
-## Evaluating Algorithm Effectiveness
-
-TDengine Enterprise includes `analytics_compare`, a tool that evaluates the effectiveness of time-series forecasting algorithms in TDgpt. You can configure this tool to perform backtesting on data stored in TDengine and determine which algorithms and models are most effective for your data. The evaluation is based on mean squared error (MSE). MAE and MAPE are in development.
-
-The configuration of the evaluation tool is described as follows:
-
-```ini
-[forecast]
-# number of data points per training period
-period = 10
-
-# consider final 10 rows of in-scope data as forecasting results
-rows = 10
-
-# start time of training data
-start_time = 1949-01-01T00:00:00
-
-# end time of training data
-end_time = 1960-12-01T00:00:00
-
-# start time of results
-res_start_time = 1730000000000
-
-# specify whether to create a graphical chart
-gen_figure = true
-```
-
-To use the tool, run `analytics_compare` in TDgpt's `misc` directory. Ensure that you run the tool on a machine with a Python environment installed. You can test the tool as follows:
-
-1. Configure your TDengine cluster information in the `analytics.ini` file:
-
-   ```ini
-   [taosd]
-   # taosd hostname
-   host = 127.0.0.1
-
-   # username
-   user = root
-
-   # password
-   password = taosdata
-
-   # tdengine configuration file
-   conf = /etc/taos/taos.cfg
-
-   [input_data]
-   # database for testing forecasting algorithms
-   db_name = test
-
-   # table with test data
-   table_name = passengers
-
-   # columns with test data
-   column_name = val, _c0   
-   ```
-
-1. Prepare your data.
-
-   A sample data file `sample-fc.sql` is included in the `resource` directory. Run the following command to ingest the sample data into TDengine:
-
-   ```shell
-   taos -f sample-fc.sql
-   ```
-
-   You can now begin the evaluation.
-
-1. Ensure that the Python environment on the local machine is operational. Then run the following command:
-
-   ```shell
-   python3.10 ./analytics_compare.py forecast
-   ```
-
-1. The evaluation results are written to `fc_result.xlsx`. The first card shows the results, shown as follows, including the algorithm name, parameters, mean square error, and elapsed time.
-
-   | algorithm   | params                                                                    | MSE     | elapsed_time(ms.) |
-   | ----------- | ------------------------------------------------------------------------- | ------- | ----------------- |
-   | holtwinters | `{"trend":"add", "seasonal":"add"}`                                       | 351.622 | 125.1721          |
-   | arima       | `{"time_step":3600000, "start_p":0, "max_p":10, "start_q":0, "max_q":10}` | 433.709 | 45577.9187        |
-
-If you set `gen_figure` to `true`, a chart is also generated, as displayed in the following figure.
-
-![Forecasting comparison](../../../assets/tdgpt-04.png)

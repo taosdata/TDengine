@@ -200,5 +200,5 @@ class Test5dnode3mnodeAdd1Dnode:
             stableName= '%s_%d'%(paraDict['stbName'],i)
             tdSql.query("select * from %s"%stableName)
             tdSql.checkRows(rowsPerStb)
-        tdLog.success(f"{__file__} successfully executed")
+
 

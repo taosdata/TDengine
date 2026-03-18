@@ -43,8 +43,6 @@ int32_t addCountAggNotifyEvent(EStreamNotifyEventType eventType, const SSessionK
                                SStreamNotifyEventSupp* sup, STaskNotifyEventStat* pNotifyEventStat);
 int32_t addAggDeleteNotifyEvent(const SSDataBlock* pDeleteBlock, SStreamNotifyEventSupp* sup,
                                 STaskNotifyEventStat* pNotifyEventStat);
-int32_t buildNotifyEventBlock(const SExecTaskInfo* pTaskInfo, SStreamNotifyEventSupp* sup,
-                              STaskNotifyEventStat* pNotifyEventStat);
 
 int32_t doTableScanNext(struct SOperatorInfo* pOperator, SSDataBlock** ppRes);
 int32_t extractTableIdList(const STableListInfo* pTableListInfo, SArray** ppArrayRes);

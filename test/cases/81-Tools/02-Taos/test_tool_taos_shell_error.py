@@ -318,5 +318,5 @@ class TestTaosShellError:
             tdLog.exit("taos -u %s -p %s"%(keyDict['u'], keyDict['p']))
 
 
-        tdLog.success(f"{__file__} successfully executed")
+
 

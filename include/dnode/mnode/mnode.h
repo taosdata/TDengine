@@ -41,7 +41,7 @@ typedef struct {
   int32_t  nodeRoles[TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA];
   SMsgCb   msgCb;
   int64_t  lastIndex;
-  bool     encrypted;  // Whether json file should be encrypted with tsMetaKey
+  int32_t  encrypted;  // 0: not encrypted, 1: encrypted
 } SMnodeOpt;
 
 /* ------------------------ SMnode ------------------------ */
@@ -72,6 +72,7 @@ int32_t mndStart(SMnode *pMnode);
 bool mndNeedUpgrade(SMnode *pMnode, int32_t version);
 
 int32_t mndGetVersion(SMnode *pMnode);
+int32_t mndGetEncryptedFlag(SMnode *pMnode);
 /**
  * @brief Stop mnode
  *

@@ -457,5 +457,5 @@ class TestQueryBasic:
         # check null
         self.checkNull()
 
-        tdLog.success(f"{__file__} successfully executed")
+
 

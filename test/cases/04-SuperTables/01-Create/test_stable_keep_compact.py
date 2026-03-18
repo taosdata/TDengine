@@ -706,6 +706,6 @@ class TestStbKeepCompact:
         # 8. Test case 8: STB keep compact with database keep
         self.run_case8_stb_keep_compact_with_db_keep()
 
-        tdLog.success(f"{__file__} successfully executed")
+
 
 

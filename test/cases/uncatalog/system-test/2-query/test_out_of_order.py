@@ -129,4 +129,4 @@ class TestOutOfOrder:
         self.run_sql(dbname)        
         endTime = time.time()
         tdLog.info("total time %ds" % (endTime - startTime))
-        tdLog.success("%s successfully executed" % __file__)
+

@@ -242,6 +242,8 @@ typedef enum ELogicConditionType {
 #define ENCRYPT_KEY_LEN     16
 #define ENCRYPT_KEY_LEN_MIN 8
 
+#define ENCRYPT_KEY_EXPIRE_STRATEGY_LEN 16
+
 #define TSDB_INT32_ID_LEN 11
 
 #define TSDB_NAME_DELIMITER_LEN 1
@@ -354,14 +356,15 @@ typedef enum ELogicConditionType {
 #define TSDB_TOTP_SECRET_LEN                    32
 #define TSDB_USER_TOTPSEED_MIN_LEN              8    // minimum length for TOTP seed, excluding the terminator '\0'
 #define TSDB_USER_TOTPSEED_MAX_LEN              255  // maximum length for TOTP seed, excluding the terminator '\0'
-#define TSDB_USER_SESSION_PER_USER_DEFAULT      -1
-#define TSDB_USER_CONNECT_TIME_DEFAULT          -1  // 480 minutes
-#define TSDB_USER_CONNECT_IDLE_TIME_DEFAULT     -1  // 30 minutes
-#define TSDB_USER_CALL_PER_SESSION_DEFAULT      -1
+#define TSDB_USER_SESSION_PER_USER_DEFAULT      32 
+#define TSDB_USER_CONNECT_TIME_DEFAULT          (480 * 60)  // 480 minutes
+#define TSDB_USER_CONNECT_IDLE_TIME_DEFAULT     (30 * 60)   // 30 minutes
+#define TSDB_USER_CALL_PER_SESSION_DEFAULT      128
 #define TSDB_USER_VNODE_PER_CALL_DEFAULT        -1
 #define TSDB_USER_FAILED_LOGIN_ATTEMPTS_DEFAULT 3
 #define TSDB_USER_PASSWORD_LOCK_TIME_DEFAULT    (1440 * 60)        // 1440 minutes
 #define TSDB_USER_PASSWORD_LIFE_TIME_DEFAULT    (90 * 1440 * 60)   // 90 days
+#define TSDB_USER_PASSWORD_LIFE_TIME_MIN        (1 * 1440 * 60)    // 1 day
 #define TSDB_USER_PASSWORD_GRACE_TIME_DEFAULT   (7 * 1440 * 60)    // 7 days
 #define TSDB_USER_PASSWORD_REUSE_TIME_DEFAULT   (30 * 1440 * 60)   // 30 days
 #define TSDB_USER_PASSWORD_REUSE_TIME_MAX       (365 * 1440 * 60)  // 365 days
@@ -382,6 +385,7 @@ typedef enum ELogicConditionType {
 #define TSDB_IPv4ADDR_LEN         16
 #define TSDB_FILENAME_LEN         128
 #define TSDB_SHOW_SQL_LEN         2048
+#define TSDB_INS_STREAM_SQL_LEN   (48 * 1024)
 #define TSDB_SHOW_SCHEMA_JSON_LEN TSDB_MAX_COLUMNS * 256
 #define TSDB_SLOW_QUERY_SQL_LEN   512
 #define TSDB_SHOW_SUBQUERY_LEN    1000
@@ -407,7 +411,7 @@ typedef enum ELogicConditionType {
 #define TSDB_XNODE_URL_LEN              256
 #define TSDB_XNODE_STATUS_LEN           16
 #define TSDB_XNODE_TASK_NAME_LEN        64
-#define TSDB_XNODE_TASK_PARSER_LEN      16384
+#define TSDB_XNODE_TASK_PARSER_LEN      48*1024
 #define TSDB_XNODE_TASK_TRIGGER_LEN     128
 #define TSDB_XNODE_RESOURCE_ID_LEN      8
 #define TSDB_XNODE_RESOURCE_NAME_LEN    64
@@ -415,7 +419,7 @@ typedef enum ELogicConditionType {
 #define TSDB_XNODE_TASK_SINK_LEN        2048
 #define TSDB_XNODE_TASK_REASON_LEN      1024
 #define TSDB_XNODE_TASK_OPTIONS_MAX_NUM 64
-#define TSDB_XNODE_TASK_JOB_CONFIG_LEN  16384
+#define TSDB_XNODE_TASK_JOB_CONFIG_LEN  48*1024
 #define TSDB_XNODE_TASK_LABELS_LEN      4096
 #define TSDB_XNODE_AGENT_NAME_LEN       TSDB_XNODE_TASK_NAME_LEN
 #define TSDB_XNODE_AGENT_STATUS_LEN     TSDB_XNODE_STATUS_LEN
@@ -581,9 +585,15 @@ typedef enum ELogicConditionType {
 #define TSDB_MAX_HASH_SUFFIX        (TSDB_TABLE_NAME_LEN - 2)
 #define TSDB_DEFAULT_HASH_SUFFIX    0
 
+#if !defined(TD_ENTERPRISE) || defined(ASSERT_NOT_CORE) || defined(GRANTS_CFG)
 #define TSDB_MIN_SS_CHUNK_SIZE     (128 * 1024)
 #define TSDB_MAX_SS_CHUNK_SIZE     (1024 * 1024)
 #define TSDB_DEFAULT_SS_CHUNK_SIZE (128 * 1024)
+#else
+#define TSDB_MIN_SS_CHUNK_SIZE     (4 * 1024)
+#define TSDB_MAX_SS_CHUNK_SIZE     (1024 * 1024)
+#define TSDB_DEFAULT_SS_CHUNK_SIZE (4 * 1024)
+#endif
 #define TSDB_MIN_SS_KEEP_LOCAL     (1 * 1440)  // unit minute
 #define TSDB_MAX_SS_KEEP_LOCAL     (365000 * 1440)
 #define TSDB_DEFAULT_SS_KEEP_LOCAL (365 * 1440)
@@ -608,6 +618,9 @@ typedef enum ELogicConditionType {
 #define TSDB_MAX_DB_WITH_ARBITRATOR     1
 #define TSDB_MIN_DB_IS_AUDIT            0
 #define TSDB_MAX_DB_IS_AUDIT            1
+#define TSDB_DEFAULT_DB_ALLOW_DROP      1
+#define TSDB_MIN_DB_ALLOW_DROP          0
+#define TSDB_MAX_DB_ALLOW_DROP          1
 
 #define TSDB_MIN_ROLLUP_MAX_DELAY       1  // unit millisecond
 #define TSDB_MAX_ROLLUP_MAX_DELAY       (15 * 60 * 1000)
@@ -646,10 +659,10 @@ typedef enum ELogicConditionType {
 
 #define TSDB_MAX_BLOB_LEN (4 << 20)
 
-#define TSDB_MAX_SUBROLE 32
-#define TSDB_MAX_PRIVS   512
-#define TSDB_MAX_USERS   2000
-#define TSDB_MAX_ROLES   200
+#define TSDB_MAX_SUBROLE   32
+#define TSDB_MAX_PRIV_OBJS 512
+#define TSDB_MAX_USERS     2000
+#define TSDB_MAX_ROLES     200
 
 #define PRIMARYKEY_TIMESTAMP_COL_ID    1
 #define COL_REACH_END(colId, maxColId) ((colId) > (maxColId))

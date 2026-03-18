@@ -431,7 +431,7 @@ void mndDoTimerPullupTask(SMnode *pMnode, int64_t sec) {
 #endif
 #ifdef USE_SHARED_STORAGE
   if (tsSsEnabled) {
-    if (sec % 10 == 0) { // TODO: make 10 to be configurable
+    if (sec % tsQuerySsMigrateIntervalSec == 0) {
       mndPullupUpdateSsMigrateProgress(pMnode);
     }
     if (tsSsEnabled == 2 && sec % tsSsAutoMigrateIntervalSec == 0) {
@@ -983,6 +983,8 @@ int32_t mndStart(SMnode *pMnode) {
 bool mndNeedUpgrade(SMnode *pMnode, int32_t version) { return pMnode->version > version; }
 
 int32_t mndGetVersion(SMnode *pMnode) { return pMnode->version; }
+
+int32_t mndGetEncryptedFlag(SMnode *pMnode) { return pMnode->encrypted; }
 
 int32_t mndIsCatchUp(SMnode *pMnode) {
   int64_t rid = pMnode->syncMgmt.sync;

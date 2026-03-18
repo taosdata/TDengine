@@ -411,8 +411,8 @@ int32_t buildSnapContext(SVnode* pVnode, int64_t snapVersion, int64_t suid, int8
     code = metaDecodeEntry(&dc, &me);
     TSDB_CHECK_CODE(code, lino, END);
     if (ctx->subType == TOPIC_SUB_TYPE__TABLE) {
-      if ((me.uid != ctx->suid && me.type == TSDB_SUPER_TABLE) ||
-          (me.ctbEntry.suid != ctx->suid && me.type == TSDB_CHILD_TABLE)) {
+      if (!((me.uid == ctx->suid && me.type == TSDB_SUPER_TABLE) ||
+          (me.ctbEntry.suid == ctx->suid && (me.type == TSDB_CHILD_TABLE)))) {
         tDecoderClear(&dc);
         continue;
       }

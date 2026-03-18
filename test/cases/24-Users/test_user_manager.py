@@ -227,10 +227,10 @@ class TestUserSecurity:
         # init
         password = "abcd@1234"
 
-        # default check (UNLIMITED sessions)
+        # default check (32 sessions)
         user = "user_session1"        
         self.create_user(user, password=password)
-        self.create_session(user, password, 200)
+        self.create_session(user, password, 32)
 
         # min check (1 session)
         user = "user_session2"
@@ -253,10 +253,10 @@ class TestUserSecurity:
 
     # option CONNECT_TIME
     def options_connect_time(self):
-        # defalut check (-1, unlimited)
+        # default check (480 minutes)
         user = "user_connect_time1"
         self.create_user(user)
-        self.check_user_option(user, "CONNECT_TIME", -1)
+        self.check_user_option(user, "CONNECT_TIME", 480 * 60)
 
         # min check (1 minute)
         user = "user_connect_time2"
@@ -284,10 +284,10 @@ class TestUserSecurity:
 
     # option CONNECT_IDLE_TIME
     def options_connect_idle_time(self):
-        # defalut check (-1, unlimited)
+        # default check (30 minutes)
         user = "user_connect_idle_time1"
         self.create_user(user)
-        self.check_user_option(user, "CONNECT_IDLE_TIMEOUT", -1)
+        self.check_user_option(user, "CONNECT_IDLE_TIMEOUT", 30 * 60)
 
         # min check (1 minute)
         user = "user_connect_idle_time2"
@@ -309,10 +309,10 @@ class TestUserSecurity:
     def options_call_per_session(self):
         password = "abcd@1234"
         self.login()        
-        # defalut check (-1, unlimited)
+        # default check (128)
         user = "user_call_per_session1"
         self.create_user(user, password=password)
-        self.check_user_option(user, "CALL_PER_SESSION", -1)
+        self.check_user_option(user, "CALL_PER_SESSION", 128)
         self.create_concurrent_threads(user, password, "show databases", 10)
 
         # min check (1 minute)
@@ -330,7 +330,7 @@ class TestUserSecurity:
         self.login()
         succ = False
         
-        # defalut check (-1, unlimited)
+        # default check (-1, unlimited)
         user = "user_vnode_per_call1"
         self.create_user(user, password=password)
         self.check_user_option(user, "VNODE_PER_CALL", -1)
@@ -400,7 +400,7 @@ class TestUserSecurity:
     # option FAILED_LOGIN_ATTEMPTS
     def options_failed_login_attempts(self):
         password = "abcd@1234"
-        # defalut check (3)
+        # default check (3)
         user = "user_failed_login1"
         self.create_user(user, password=password)
         self.check_user_option(user, "FAILED_LOGIN_ATTEMPTS", 3)
@@ -432,7 +432,7 @@ class TestUserSecurity:
     # option PASSWORD_LOCK_TIME
     def options_password_lock_time(self):
         password = "abcd@1234"
-        # defalut check (1440m)
+        # default check (1440m)
         user = "user_password_lock1"
         self.create_user(user, password=password)
         self.check_user_option(user, "PASSWORD_LOCK_TIME", 86400)
@@ -466,7 +466,7 @@ class TestUserSecurity:
     def options_password_life_time(self):
         password = "abcd@1234"
         self.login()        
-        # defalut check (90 days)
+        # default check (90 days)
         user = "user_password_life1"
         self.create_user(user, password=password)
         self.check_user_option(user, "PASSWORD_LIFE_TIME", 90*24*3600)
@@ -490,7 +490,7 @@ class TestUserSecurity:
     def options_password_grace_time(self):
         password = "abcd@1234"
         self.login()        
-        # defalut check (7 days)
+        # default check (7 days)
         user = "user_password_grace1"
         self.create_user(user, password=password)
         self.check_user_option(user, "PASSWORD_GRACE_TIME", 7*24*3600)
@@ -516,7 +516,7 @@ class TestUserSecurity:
         password2 = "abcd@1235"
         self.login()        
 
-        # defalut check (30 days) 
+        # default check (30 days) 
         self.check_user_option(self.user_default, "PASSWORD_REUSE_TIME", 30*24*3600)
 
         # min check (0 days)
@@ -546,7 +546,7 @@ class TestUserSecurity:
         password2 = "abcd@1235"
         self.login()        
 
-        # defalut check (5) 
+        # default check (5) 
         self.check_user_option(self.user_default, "PASSWORD_REUSE_MAX", 5)
 
         # min check (0)
@@ -580,7 +580,7 @@ class TestUserSecurity:
     def options_inactive_account_time(self):
         password = "abcd@1234"
         self.login()        
-        # defalut check (90 days)
+        # default check (90 days)
         self.check_user_option(self.user_default, "INACTIVE_ACCOUNT_TIME", 90*24*3600)
 
         # min check (1 days)
@@ -605,7 +605,7 @@ class TestUserSecurity:
         password = "abcd@1234"
         self.login()        
         
-        # defalut check (3)
+        # default check (3)
         user = "user_allow1"
         self.create_user(user, password)
         self.check_user_option(self.user_default, "ALLOW_TOKEN_NUM", 3)
@@ -929,7 +929,7 @@ class TestUserSecurity:
             tdSql.checkData(1,  0, "user_allow3") 
             tdSql.checkData(0,  2, 1)               # enable
             tdSql.checkData(0,  6, 0)               # totp
-            tdSql.checkData(0,  9, "SYSINFO_1\x00") # roles
+            tdSql.checkData(0,  9, "SYSINFO_1")     # roles
 
         # show users
         tdSql.query("show users")
@@ -1172,6 +1172,7 @@ class TestUserSecurity:
             - 2026-01-09 Alex Duan finished
 
         """
+        tdSql.execute("alter all dnodes 'enableAdvancedSecurity' '1'")
         self.prepare_data()
         self.do_create_user()
         self.do_show_user()

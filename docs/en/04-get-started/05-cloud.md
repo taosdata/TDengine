@@ -44,4 +44,4 @@ To create a TDengine Cloud account, perform the following steps:
 1. Select your desired price plan.
 1. Click **Create**.
 
-Your TDengine TSDB-Enterprise instance is created and started. This process may take some time. For more information about TDengine Cloud, see the [TDengine Cloud documentation](/cloud).
+Your TDengine TSDB-Enterprise instance is created and started. This process may take some time. For more information about TDengine Cloud, see the [TDengine Cloud documentation](https://docs.tdengine.com/cloud/).

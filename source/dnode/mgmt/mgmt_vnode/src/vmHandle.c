@@ -287,6 +287,9 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
   pCfg->ssKeepLocal = pCreate->ssKeepLocal;
   pCfg->ssCompact = pCreate->ssCompact;
 
+  pCfg->isAudit = pCreate->isAudit;
+  pCfg->allowDrop = pCreate->allowDrop;
+
   pCfg->standby = 0;
   pCfg->syncCfg.replicaNum = 0;
   pCfg->syncCfg.totalReplicaNum = 0;
@@ -349,7 +352,8 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
       "precision:%d compression:%d minRows:%d maxRows:%d"
       ", wal fsync:%d level:%d retentionPeriod:%d retentionSize:%" PRId64 " rollPeriod:%d segSize:%" PRId64
       ", hash method:%d begin:%u end:%u prefix:%d surfix:%d replica:%d selfIndex:%d "
-      "learnerReplica:%d learnerSelfIndex:%d strict:%d changeVersion:%d encryptAlgorithm:%d encryptAlgrName:%s",
+      "learnerReplica:%d learnerSelfIndex:%d strict:%d changeVersion:%d encryptAlgorithm:%d encryptAlgrName:%s, "
+      "isAudit:%" PRIu8 " allowDrop:%" PRIu8,
       req.vgId, TMSG_INFO(pMsg->msgType), req.pages, req.pageSize, req.buffer, req.pageSize * 1024,
       (uint64_t)req.buffer * 1024 * 1024, req.cacheLast, req.cacheLastSize, req.sstTrigger, req.tsdbPageSize,
       req.tsdbPageSize * 1024, req.db, req.dbUid, req.daysPerFile, req.daysToKeep0, req.daysToKeep1, req.daysToKeep2,
@@ -357,7 +361,7 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
       req.minRows, req.maxRows, req.walFsyncPeriod, req.walLevel, req.walRetentionPeriod, req.walRetentionSize,
       req.walRollPeriod, req.walSegmentSize, req.hashMethod, req.hashBegin, req.hashEnd, req.hashPrefix, req.hashSuffix,
       req.replica, req.selfIndex, req.learnerReplica, req.learnerSelfIndex, req.strict, req.changeVersion,
-      req.encryptAlgorithm, req.encryptAlgrName);
+      req.encryptAlgorithm, req.encryptAlgrName, req.isAudit, req.allowDrop);
 
   for (int32_t i = 0; i < req.replica; ++i) {
     dInfo("vgId:%d, replica:%d ep:%s:%u dnode:%d", req.vgId, i, req.replicas[i].fqdn, req.replicas[i].port,
@@ -753,6 +757,8 @@ static int32_t vmRetrieveMountVnodes(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *p
           .walRetentionSize = pVgCfg->config.walCfg.retentionSize,
           .walSegSize = pVgCfg->config.walCfg.segSize,
           .walLevel = pVgCfg->config.walCfg.level,
+          .isAudit = pVgCfg->config.isAudit,
+          .allowDrop = pVgCfg->config.allowDrop,
           //.encryptAlgorithm = pVgCfg->config.walCfg.encryptAlgorithm,
           .committed = pVgCfg->state.committed,
           .commitID = pVgCfg->state.commitID,
@@ -827,6 +833,8 @@ static int32_t vmRetrieveMountStbs(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *pRe
                  .config.ssChunkSize = pVgInfo->ssChunkSize,
                  .config.ssKeepLocal = pVgInfo->ssKeepLocal,
                  .config.ssCompact = pVgInfo->ssCompact,
+                 .config.isAudit = pVgInfo->isAudit,
+                 .config.allowDrop = pVgInfo->allowDrop,
                  .config.walCfg.fsyncPeriod = pVgInfo->walFsyncPeriod,
                  .config.walCfg.retentionPeriod = pVgInfo->walRetentionPeriod,
                  .config.walCfg.rollPeriod = pVgInfo->walRollPeriod,

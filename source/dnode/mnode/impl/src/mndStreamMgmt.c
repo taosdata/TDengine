@@ -849,7 +849,7 @@ int32_t msmBuildTriggerDeployInfo(SMnode* pMnode, SStmStatus* pInfo, SStmTaskDep
   pMsg->triggerHasPF = pStream->pCreate->triggerHasPF;
   pMsg->isTriggerTblStb = (pStream->pCreate->triggerTblType == TSDB_SUPER_TABLE);
   pMsg->precision = pStream->pCreate->triggerPrec;
-  pMsg->partitionCols = pStream->pCreate->partitionCols;
+  pMsg->partitionCols = pInfo->pCreate->partitionCols;
 
   pMsg->pNotifyAddrUrls = pInfo->pCreate->pNotifyAddrUrls;
   pMsg->notifyEventTypes = pStream->pCreate->notifyEventTypes;
@@ -866,6 +866,8 @@ int32_t msmBuildTriggerDeployInfo(SMnode* pMnode, SStmStatus* pInfo, SStmTaskDep
   pMsg->placeHolderBitmap = pStream->pCreate->placeHolderBitmap;
   pMsg->calcTsSlotId = pStream->pCreate->calcTsSlotId;
   pMsg->triTsSlotId = pStream->pCreate->triTsSlotId;
+  pMsg->calcPkSlotId = pStream->pCreate->calcPkSlotId;
+  pMsg->triPkSlotId = pStream->pCreate->triPkSlotId;
   pMsg->triggerPrevFilter = pInfo->pCreate->triggerPrevFilter;
   if (STREAM_IS_VIRTUAL_TABLE(pStream->pCreate->triggerTblType, pStream->pCreate->flags)) {
     pMsg->triggerScanPlan = pInfo->pCreate->triggerScanPlan;
@@ -5375,6 +5377,3 @@ _exit:
 
   return code;
 }
-
-
-

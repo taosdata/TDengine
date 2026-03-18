@@ -810,7 +810,7 @@ class TestTsma2:
         self.check_bigger_tsma_interval()
 
         #tdSql.close()
-        tdLog.success(f"{__file__} successfully executed")
+
 
 
 

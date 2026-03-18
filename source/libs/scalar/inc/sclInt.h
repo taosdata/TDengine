@@ -25,6 +25,7 @@ extern "C" {
 #include "function.h"
 #include "scalar.h"
 
+
 typedef struct SOperatorValueType {
   int32_t  opResType;
   int32_t  selfType;

@@ -1470,13 +1470,13 @@ static int32_t mndProcessCreateStbReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  // if ((code = mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), MND_OPER_WRITE_DB, pDb)) != 0) {
-  //   goto _OVER;
-  // }
-  if ((code = mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_DB_USE, PRIV_OBJ_DB, pDb->name, NULL))) {
+  if ((code = mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_USE_DB, pDb))) {
     goto _OVER;
   }
-  if ((code = mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_TBL_CREATE, PRIV_OBJ_DB, pDb->name, NULL))) {
+
+  if ((code =
+           mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, pDb->cfg.isAudit ? PRIV_AUDIT_TBL_CREATE : PRIV_TBL_CREATE,
+                                         pDb->cfg.isAudit ? PRIV_OBJ_CLUSTER : PRIV_OBJ_DB, pDb->name, NULL))) {
     goto _OVER;
   }
 
@@ -2248,6 +2248,7 @@ static int32_t mndBuildStbSchemaImp(SMnode *pMnode, SDbObj *pDb, SStbObj *pStb, 
   pRsp->tuid = pStb->uid;
   pRsp->virtualStb = pStb->virtualStb;
   pRsp->ownerId = pStb->ownerId;
+  pRsp->isAudit = pDb->cfg.isAudit ? 1 : 0;
 
   for (int32_t i = 0; i < pStb->numOfColumns; ++i) {
     SSchema *pSchema = &pRsp->pSchemas[i];
@@ -2794,7 +2795,7 @@ static int32_t mndProcessAlterStbReq(SRpcMsg *pReq) {
   //   goto _OVER;
   // }
   TAOS_CHECK_GOTO(mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOperUser), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_DB_USE, PRIV_OBJ_DB, pDb->name, NULL), NULL,
+  TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_USE_DB, pDb), NULL,
                   _OVER);
   TAOS_CHECK_GOTO(mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_CM_ALTER, PRIV_OBJ_TBL, pDb->name, name.tname),
                   NULL, _OVER);
@@ -3013,10 +3014,11 @@ static int32_t mndProcessDropStbReq(SRpcMsg *pReq) {
   //   goto _OVER;
   // }
   TAOS_CHECK_GOTO(mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOperUser), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_DB_USE, PRIV_OBJ_DB, pDb->name, NULL), NULL,
+  TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_USE_DB, pDb), NULL,
                   _OVER);
-  TAOS_CHECK_GOTO(mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_CM_DROP, PRIV_OBJ_TBL, pDb->name, name.tname),
-                  NULL, _OVER);
+  TAOS_CHECK_GOTO(
+      mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_CM_DROP, PRIV_OBJ_TBL, pStb->ownerId, pDb->name, name.tname),
+      NULL, _OVER);
   if ((code = mndCheckDropStbForTopic(pMnode, dropReq.name, pStb->uid)) != 0) {
     goto _OVER;
   }
@@ -3354,8 +3356,10 @@ static int32_t mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
   }
 
   (void)snprintf(objFName, sizeof(objFName), "%d.*", pOperUser->acctId);
-  showAll = (0 == mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_CM_SHOW, PRIV_OBJ_TBL, 0,
+  showAll = (0 == mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_CM_SHOW, PRIV_OBJ_TBL, pDb ? pDb->ownerId : 0,
                                            pDb ? pDb->name : objFName, "*"));
+  showAll = showAll && (0 == mndCheckDbPrivilegeByName(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_USE_DB,
+                                                       pDb ? pDb->name : objFName, false));
 
   while (numOfRows < rows) {
     pShow->pIter = sdbFetch(pSdb, SDB_STB, pShow->pIter, (void **)&pStb);
@@ -3385,8 +3389,10 @@ static int32_t mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
     char stbName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
     mndExtractTbNameFromStbFullName(pStb->name, &stbName[VARSTR_HEADER_SIZE], TSDB_TABLE_NAME_LEN);
 
-    if (!showAll && mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_CM_SHOW, PRIV_OBJ_TBL, pStb->ownerId, pStb->db,
-                                             &stbName[VARSTR_HEADER_SIZE])) {
+    if (!showAll && (mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_CM_SHOW, PRIV_OBJ_TBL, pStb->ownerId, pStb->db,
+                                              &stbName[VARSTR_HEADER_SIZE]) ||
+                     mndCheckDbPrivilegeByName(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_USE_DB,
+                                               pStb->db, false))) {
       sdbRelease(pSdb, pStb);
       terrno = 0;
       continue;

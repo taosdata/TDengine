@@ -2353,8 +2353,10 @@ static int32_t qExplainBuildPlanCtx(SQueryPlan *pDag, SExplainPlanCtx *pCtx) {
     QRY_ERR_RET(terrno);
   }
 
-  for (int32_t i = 0; i < levelNum; ++i) {
-    plans = (SNodeListNode *)nodesListGetNode(pDag->pSubplans, i);
+  int32_t i = 0;
+  SNode*  levelNode = NULL;
+  FOREACH(levelNode, pDag->pSubplans) {
+    plans = (SNodeListNode *)levelNode;
     if (NULL == plans) {
       qError("empty level plan, level:%d", i);
       QRY_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
@@ -2367,11 +2369,14 @@ static int32_t qExplainBuildPlanCtx(SQueryPlan *pDag, SExplainPlanCtx *pCtx) {
     }
 
     SSubplan *plan = NULL;
-    for (int32_t n = 0; n < taskNum; ++n) {
-      plan = (SSubplan *)nodesListGetNode(plans->pNodeList, n);
+    int32_t   n = 0;
+    SNode*    taskNode = NULL;
+    FOREACH(taskNode, plans->pNodeList) {
+      plan = (SSubplan *)taskNode;
       pGroup = taosHashGet(pCtx->groupHash, &plan->id.groupId, sizeof(plan->id.groupId));
       if (pGroup) {
         ++pGroup->nodeNum;
+        ++n;
         continue;
       }
 
@@ -2383,6 +2388,7 @@ static int32_t qExplainBuildPlanCtx(SQueryPlan *pDag, SExplainPlanCtx *pCtx) {
         qError("taosHashPut to explainGroupHash failed, taskIdx:%d", n);
         QRY_ERR_JRET(terrno);
       }
+      ++n;
     }
 
     if (0 == i) {
@@ -2395,6 +2401,7 @@ static int32_t qExplainBuildPlanCtx(SQueryPlan *pDag, SExplainPlanCtx *pCtx) {
     }
 
     qDebug("level %d group handled, taskNum:%d", i, taskNum);
+    ++i;
   }
 
   pCtx->groupNum = taosHashGetSize(pCtx->groupHash);

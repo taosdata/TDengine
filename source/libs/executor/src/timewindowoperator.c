@@ -1080,6 +1080,7 @@ static int32_t processClosedStateWindow(SStateWindowOperatorInfo* pInfo,
   QUERY_CHECK_CODE(code, lino, _return);
 
   updateTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pRowSup->win, 0);
+  pResult->nOrigRows += pRowSup->numOfRows;
   code = applyAggFunctionOnPartialTuples(pTaskInfo, pSup->pCtx,
     &pInfo->twAggSup.timeWindowData, pRowSup->startRowIndex,
     pRowSup->numOfRows, 0, numOfOutput);
@@ -2039,7 +2040,9 @@ int32_t createStatewindowOperatorInfo(SOperatorInfo* downstream, SStateWindowPhy
   pInfo->pOperator = pOperator;
   pInfo->cleanGroupResInfo = false;
   pInfo->extendOption = pStateNode->extendOption;
-  pInfo->trueForLimit = pStateNode->trueForLimit;
+  pInfo->trueForInfo.trueForType = pStateNode->trueForType;
+  pInfo->trueForInfo.count = pStateNode->trueForCount;
+  pInfo->trueForInfo.duration = pStateNode->trueForDuration;
   pInfo->winSup.lastTs = INT64_MIN;
 
   setOperatorInfo(pOperator, "StateWindowOperator", QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE, true, OP_NOT_OPENED, pInfo,

@@ -188,6 +188,8 @@ typedef struct SStateWinTrigger {
   int16_t slotId;
   int16_t extend;
   void*   zeroth;
+  int32_t trueForType;
+  int32_t trueForCount;
   int64_t trueForDuration;
   void*   expr;
 } SStateWinTrigger;
@@ -208,6 +210,8 @@ typedef struct SSlidingTrigger {
 typedef struct SEventTrigger {
   void*   startCond;
   void*   endCond;
+  int32_t trueForType;
+  int32_t trueForCount;
   int64_t trueForDuration;
 } SEventTrigger;
 
@@ -294,8 +298,10 @@ typedef struct {
   int64_t  flags;
   int64_t  tsmaId;
   int64_t  placeHolderBitmap;
-  int16_t  calcTsSlotId; // only used when using %%trows
-  int16_t  triTsSlotId; // only used when using %%trows
+  int16_t  calcTsSlotId;  // only used when using %%trows
+  int16_t  triTsSlotId;
+  int16_t  calcPkSlotId;  // only used when using %%trows
+  int16_t  triPkSlotId;
 
   // only for (virtual) child table and normal table
   int32_t triggerTblVgId;
@@ -588,7 +594,9 @@ typedef struct {
   int64_t eventTypes;
   int64_t placeHolderBitmap;
   int16_t calcTsSlotId;  // only used when using %%trows
-  int16_t triTsSlotId;  // only used when using %%trows
+  int16_t triTsSlotId;
+  int16_t calcPkSlotId;  // only used when using %%trows
+  int16_t triPkSlotId;
   void*   triggerPrevFilter;
   void*   triggerScanPlan;    // only used for virtual tables
   void*   calcCacheScanPlan;  // only used for virtual tables
@@ -865,7 +873,7 @@ typedef struct SSTriggerWalNewRsp {
   void*                deleteBlock;
   void*                tableBlock;
   int64_t              ver;
-  int64_t              verTime;
+  int64_t              verTime;  // us
 
   // The following fields are not serialized and only used by the reader task
   SSHashObj*           uidHash;

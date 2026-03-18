@@ -976,7 +976,7 @@ int32_t optrDefaultNotifyFn(struct SOperatorInfo* pOperator, SOperatorParam* pPa
   return code;
 }
 
-int16_t getOperatorResultBlockId(struct SOperatorInfo* pOperator, int32_t idx) {
+int64_t getOperatorResultBlockId(struct SOperatorInfo* pOperator, int32_t idx) {
   if (pOperator->transparent) {
     return getOperatorResultBlockId(pOperator->pDownstream[idx], 0);
   }
@@ -1030,7 +1030,7 @@ _error:
   return code;
 }
 
-int32_t copyColumnsValue(SNodeList* pNodeList, uint64_t targetBlkId, SSDataBlock* pDst, SSDataBlock* pSrc, int32_t totalRows) {
+int32_t copyColumnsValue(SNodeList* pNodeList, int64_t targetBlkId, SSDataBlock* pDst, SSDataBlock* pSrc, int32_t totalRows) {
   bool    isNull = (NULL == pSrc || pSrc->info.rows <= 0);
   size_t  numOfCols = LIST_LENGTH(pNodeList);
   int64_t numOfRows = isNull ? 0 : pSrc->info.rows;
@@ -1064,4 +1064,3 @@ _return:
   qError("failed to copy columns value, line:%d code:%s", lino, tstrerror(code));
   return code;
 }
-

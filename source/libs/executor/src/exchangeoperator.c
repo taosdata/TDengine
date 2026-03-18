@@ -1453,16 +1453,19 @@ void updateLoadRemoteInfo(SLoadRemoteDataInfo* pInfo, int64_t numOfRows, int32_t
   pOperator->resultInfo.totalRows += numOfRows;
 }
 
-int32_t extractDataBlockFromFetchRsp(SSDataBlock* pRes, char* pData, SArray* pColList, char** pNextStart) {
+int32_t extractDataBlockFromFetchRsp(SSDataBlock* pRes, char* pData, SArray* pColList, char** pNextStart, bool isVstbScan) {
   int32_t      code = TSDB_CODE_SUCCESS;
   int32_t      lino = 0;
   SSDataBlock* pBlock = NULL;
+  if (isVstbScan) {
+    blockDataCleanup(pRes);
+    code = blockDecodeInternal(pRes, pData, (const char**)pNextStart);
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
   if (pColList == NULL) {  // data from other sources
     blockDataCleanup(pRes);
     code = blockDecodeInternal(pRes, pData, (const char**)pNextStart);
-    if (code) {
-      return code;
-    }
+    QUERY_CHECK_CODE(code, lino, _end);
   } else {  // extract data according to pColList
     char* pStart = pData;
 
@@ -1635,7 +1638,10 @@ int32_t doExtractResultBlocks(SExchangeInfo* pExchangeInfo, SSourceDataInfo* pDa
   while (index++ < pRetrieveRsp->numOfBlocks) {
     pStart = pNextStart;
 
-    if (taosArrayGetSize(pExchangeInfo->pRecycledBlocks) > 0) {
+    if (pDataInfo->type == EX_SRC_TYPE_VSTB_SCAN) {
+      pb = taosMemoryCalloc(1, sizeof(SSDataBlock));
+      QUERY_CHECK_NULL(pb, code, lino, _end, terrno);
+    } else if (taosArrayGetSize(pExchangeInfo->pRecycledBlocks) > 0) {
       pb = *(SSDataBlock**)taosArrayPop(pExchangeInfo->pRecycledBlocks);
       blockDataCleanup(pb);
     } else {
@@ -1657,7 +1663,7 @@ int32_t doExtractResultBlocks(SExchangeInfo* pExchangeInfo, SSourceDataInfo* pDa
       pStart = pDataInfo->decompBuf;
     }
 
-    code = extractDataBlockFromFetchRsp(pb, pStart, NULL, &pStart);
+    code = extractDataBlockFromFetchRsp(pb, pStart, NULL, &pStart, (pDataInfo->type == EX_SRC_TYPE_VSTB_SCAN));
     if (code != 0) {
       taosMemoryFreeClear(pDataInfo->pRsp);
       goto _end;

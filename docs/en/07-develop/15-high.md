@@ -56,7 +56,7 @@ The following is a simple example of using JDBC efficient writing, which illustr
 <details>
 <summary>Sample of Using JDBC Efficient Writing</summary>
 ```java
-{{#include docs/examples/java/src/main/java/com/taos/example/WSHighVolumeDemo.java:efficient_writing}}
+{{#include docs/examples/JDBC/JDBCDemo/src/main/java/com/taos/example/WSHighVolumeDemo.java:efficient_writing}}
 ```
 </details>
 

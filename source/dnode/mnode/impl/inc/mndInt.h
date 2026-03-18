@@ -146,7 +146,7 @@ typedef struct SMnode {
   int64_t        ipWhiteVer;
   int64_t        timeWhiteVer;
   int32_t        version;
-  bool           encrypted;
+  int32_t        encrypted;
 } SMnode;
 
 void    mndSetMsgHandle(SMnode *pMnode, tmsg_t msgType, MndMsgFp fp);

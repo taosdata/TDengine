@@ -441,6 +441,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_NODE_LIST:
       code = makeNode(type, sizeof(SNodeListNode), &pNode);
       break;
+    case QUERY_NODE_SURROUND:
+      code = makeNode(type, sizeof(SSurroundNode), &pNode);
+      break;
     case QUERY_NODE_FILL:
       code = makeNode(type, sizeof(SFillNode), &pNode);
       break;
@@ -527,6 +530,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
       break;
     case QUERY_NODE_REMOTE_VALUE_LIST:
       code = makeNode(type, sizeof(SRemoteValueListNode), &pNode);
+      break;
+    case QUERY_NODE_TRUE_FOR:
+      code = makeNode(type, sizeof(STrueForNode), &pNode);
       break;
     case QUERY_NODE_SET_OPERATOR:
       code = makeNode(type, sizeof(SSetOperator), &pNode);
@@ -1157,9 +1163,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_DRAIN_XNODE_STMT:
       code = makeNode(type, sizeof(SDrainXnodeStmt), &pNode);
       break;
-    // case QUERY_NODE_UPDATE_XNODE_STMT:
-    //   code = makeNode(type, sizeof(SUpdateXnodeStmt), &pNode);
-    //   break;
+    case QUERY_NODE_ALTER_XNODE_STMT:
+      code = makeNode(type, sizeof(SAlterXnodeStmt), &pNode);
+      break;
     case QUERY_NODE_CREATE_XNODE_TASK_STMT:
       code = makeNode(type, sizeof(SCreateXnodeTaskStmt), &pNode);
       break;
@@ -1204,6 +1210,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
       break;
     case QUERY_NODE_ALTER_ENCRYPT_KEY_STMT:
       code = makeNode(type, sizeof(SAlterEncryptKeyStmt), &pNode);
+      break;
+    case QUERY_NODE_ALTER_KEY_EXPIRATION_STMT:
+      code = makeNode(type, sizeof(SAlterKeyExpirationStmt), &pNode);
       break;
     default:
       code = TSDB_CODE_OPS_NOT_SUPPORT;
@@ -1444,11 +1453,18 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_NODE_LIST:
       nodesDestroyList(((SNodeListNode*)pNode)->pNodeList);
       break;
+    case QUERY_NODE_SURROUND: {
+      SSurroundNode* pSurround = (SSurroundNode*)pNode;
+      nodesDestroyNode(pSurround->pSurroundingTime);
+      nodesDestroyNode(pSurround->pValues);
+      break;
+    }
     case QUERY_NODE_FILL: {
       SFillNode* pFill = (SFillNode*)pNode;
       nodesDestroyNode(pFill->pValues);
       nodesDestroyNode(pFill->pWStartTs);
       nodesDestroyNode(pFill->pTimeRange);
+      nodesDestroyNode(pFill->pSurroundingTime);
       break;
     }
     case QUERY_NODE_RAW_EXPR:
@@ -1617,6 +1633,11 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pNotifyOptions->pWhere);
       break;
     }
+    case QUERY_NODE_TRUE_FOR: {
+      STrueForNode* pTrueFor = (STrueForNode*)pNode;
+      nodesDestroyNode(pTrueFor->pDuration);
+      break;
+    }
     case QUERY_NODE_SET_OPERATOR: {
       SSetOperator* pStmt = (SSetOperator*)pNode;
       nodesDestroyList(pStmt->pSubQueries);
@@ -1653,8 +1674,9 @@ void nodesDestroyNode(SNode* pNode) {
       SVnodeModifyOpStmt* pStmt = (SVnodeModifyOpStmt*)pNode;
       destroyVgDataBlockArray(pStmt->pDataBlocks);
       taosMemoryFreeClear(pStmt->pTableMeta);
-      nodesDestroyNode(pStmt->pTagCond);
-      taosArrayDestroy(pStmt->pTableTag);
+      if (pStmt->pTagCond) nodesDestroyNode(pStmt->pTagCond);
+      if (pStmt->pPrivCols) taosArrayDestroy(pStmt->pPrivCols);
+      if (pStmt->pTableTag) taosArrayDestroy(pStmt->pTableTag);
       taosHashCleanup(pStmt->pVgroupsHashObj);
       taosHashCleanup(pStmt->pSubTableHashObj);
       taosHashCleanup(pStmt->pSuperTableHashObj);
@@ -2235,6 +2257,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pLogicNode->pWStartTs);
       nodesDestroyNode(pLogicNode->pValues);
       nodesDestroyNode(pLogicNode->pTimeRange);
+      nodesDestroyNode(pLogicNode->pSurroundingTime);
       nodesDestroyList(pLogicNode->pFillExprs);
       nodesDestroyList(pLogicNode->pNotFillExprs);
       nodesDestroyList(pLogicNode->pFillNullExprs);
@@ -2443,6 +2466,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pPhyNode->pValues);
       nodesDestroyList(pPhyNode->pFillNullExprs);
       nodesDestroyNode(pPhyNode->pTimeRange);
+      nodesDestroyNode(pPhyNode->pSurroundingTime);
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_SESSION:
@@ -2574,10 +2598,19 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_XNODE_TASK_OPTIONS: {
       // xFreeTaskOptions(&((SXnodeTaskOptions*)pNode)->opts);
       SXnodeTaskOptions* pOptions = (SXnodeTaskOptions*)pNode;
-      // printf("Destroying Xnode task options with %d options\n", pOptions->optionsNum);
+      taosMemFreeClear(pOptions->parser);
       for (int32_t i = 0; i < pOptions->optionsNum; ++i) {
         taosMemFreeClear(pOptions->options[i]);
       }
+      break;
+    }
+    case QUERY_NODE_ALTER_XNODE_STMT: {
+      SAlterXnodeStmt* pStmt = (SAlterXnodeStmt*)pNode;
+      xFreeCowStr(&pStmt->url);
+      xFreeCowStr(&pStmt->token);
+      xFreeCowStr(&pStmt->user);
+      xFreeCowStr(&pStmt->pass);
+      nodesDestroyNode((SNode*)pStmt->options);
       break;
     }
     case QUERY_NODE_CREATE_XNODE_TASK_STMT: {
@@ -2587,6 +2620,16 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode((SNode*)pStmt->options);
       break;
     }
+    case QUERY_NODE_START_XNODE_TASK_STMT: {
+      SStartXnodeTaskStmt* pStmt = (SStartXnodeTaskStmt*)pNode;
+      xFreeCowStr(&pStmt->name);
+      break;
+    }
+    case QUERY_NODE_STOP_XNODE_TASK_STMT: {
+      SStopXnodeTaskStmt* pStmt = (SStopXnodeTaskStmt*)pNode;
+      xFreeCowStr(&pStmt->name);
+      break;
+    }
     case QUERY_NODE_DROP_XNODE_TASK_STMT: {
       SDropXnodeTaskStmt* pStmt = (SDropXnodeTaskStmt*)pNode;
       taosMemFreeClear(pStmt->name);
@@ -2594,6 +2637,11 @@ void nodesDestroyNode(SNode* pNode) {
     }
     case QUERY_NODE_CREATE_XNODE_JOB_STMT: {
       SCreateXnodeJobStmt* pStmt = (SCreateXnodeJobStmt*)pNode;
+      nodesDestroyNode((SNode*)pStmt->options);
+      break;
+    }
+    case QUERY_NODE_ALTER_XNODE_JOB_STMT: {
+      SAlterXnodeJobStmt* pStmt = (SAlterXnodeJobStmt*)pNode;
       nodesDestroyNode((SNode*)pStmt->options);
       break;
     }
