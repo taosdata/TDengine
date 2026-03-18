@@ -426,6 +426,7 @@ static int32_t dmInitLog() {
 
   TAOS_CHECK_RETURN(taosInitLogOutput(&logName));
 
+  printf("start to create log");
   return taosCreateLog(logName, 1, configDir, global.envCmd, global.envFile, global.apolloUrl, global.pArgs, 0);
 }
 
@@ -518,6 +519,7 @@ int mainWindows(int argc, char **argv) {
     return ret;
   }
 
+  printf("start to dmInitLog");
   if ((code = dmInitLog()) != 0) {
     printf("failed to start since init log error\n");
     taosCleanupArgs();

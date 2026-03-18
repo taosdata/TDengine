@@ -47,7 +47,9 @@ char tsAVX512Supported = 0;
 int32_t osDefaultInit() {
   int32_t code = TSDB_CODE_SUCCESS;
 
-  taosSeedRand(taosSafeRand());
+  int32_t seed = taosSafeRand();
+  uInfo("init rand seed:%u in osDefaultInit", seed);
+  taosSeedRand(seed);
   taosGetSystemLocale(tsLocale, tsCharset);
   (void)taosGetSystemTimezone(tsTimezoneStr);
 

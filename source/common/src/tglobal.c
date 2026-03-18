@@ -2207,6 +2207,7 @@ int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDi
 
   if (atomic_val_compare_exchange_8(&tsLogCreated, 0, 1) != 0) return 0;
 
+  printf("start to osDefaultInit %p", tsCfg);
   if (tsCfg == NULL) {
     TAOS_CHECK_GOTO(osDefaultInit(), &lino, _exit);
   }
@@ -2266,6 +2267,7 @@ int32_t taosReadDataFolder(const char *cfgDir, const char **envCmd, const char *
                            SArray *pArgs) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = -1;
+  printf("start to osDefaultInit %p", tsCfg);
   if (tsCfg == NULL) code = osDefaultInit();
   if (code != 0) {
     (void)printf("failed to init os since %s\n", tstrerror(code));
