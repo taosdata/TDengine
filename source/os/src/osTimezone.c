@@ -771,10 +771,6 @@ typedef struct WindowsTimezoneObj {
   TdThreadMutex mutex;         // Protect concurrent access
 } WindowsTimezoneObj;
 
-// Global default timezone (replaces the old g_windows_tz)
-static WindowsTimezoneObj* g_default_tz = NULL;
-static TdThreadMutex g_default_tz_mutex;
-
 // Parse offset string (e.g., "+08:00" or "-05:00")
 static int32_t parseOffsetString(const char* offset_str, int64_t* offset_seconds, char* display_name, int32_t name_len) {
   if (offset_str == NULL || offset_str[0] == '\0') {
@@ -943,7 +939,7 @@ static int64_t getTimezoneOffset(timezone_t tz) {
 
 // Access function to ensure reading from the correct location
 int64_t getWindowsTimezoneOffset(void) {
-  // First try to read from TZ environment variable (for backward compatibility)
+  // Read from TZ environment variable (shared across DLLs)
   char *tz_env = getenv("TZ");
 
   if (tz_env != NULL && tz_env[0] != '\0') {
@@ -958,13 +954,8 @@ int64_t getWindowsTimezoneOffset(void) {
     }
   }
 
-  // Fall back to global default timezone
-  timezone_t default_tz = getGlobalDefaultTZ();
-  if (default_tz != NULL) {
-    return getTimezoneOffset(default_tz);
-  }
-
-  return 0;  // Default to UTC
+  // If TZ not set, return 0 (UTC)
+  return 0;
 }
 #endif
 
@@ -999,32 +990,9 @@ int32_t resetTimezoneInfo(const char *tzname)
 
   return TSDB_CODE_SUCCESS;
 #else
-  if (!tzname) {
-    return TSDB_CODE_TIME_ERROR;
-  }
-
-  // Create new timezone object
-  timezone_t new_tz = tzalloc(tzname);
-  if (!new_tz) {
-    uError("tzalloc(%s) failed", tzname);
-    return TSDB_CODE_TIME_ERROR;
-  }
-
-  // Update global default timezone
-  taosThreadMutexLock(&g_default_tz_mutex);
-
-  timezone_t old_tz = g_default_tz;
-  g_default_tz = new_tz;
-
-  taosThreadMutexUnlock(&g_default_tz_mutex);
-
-  // Release old timezone object
-  if (old_tz) {
-    tzfree(old_tz);
-  }
-
-  uInfo("[tz] Windows switched to %s", tzname);
-
+  // Windows: timezone is managed via TZ environment variable
+  // No need to maintain separate timezone objects
+  uInfo("[tz] Windows timezone set to %s (managed via TZ env var)", tzname);
   return TSDB_CODE_SUCCESS;
 #endif
 }
@@ -1231,10 +1199,8 @@ int32_t taosGetSystemTimezone(char *outTimezoneStr) {
 
 int32_t initTimezoneInfo(void) {
 #ifdef WINDOWS
-  // Initialize global default timezone mutex
-  taosThreadMutexInit(&g_default_tz_mutex, NULL);
-
-  // Get system timezone from registry
+  // Windows: timezone is managed via TZ environment variable
+  // Get system timezone and set TZ environment variable
   char tzStr[TD_TIMEZONE_LEN] = {0};
   int32_t code = taosGetSystemTimezone(tzStr);
 
@@ -1245,21 +1211,17 @@ int32_t initTimezoneInfo(void) {
       *spacePos = '\0';
     }
 
-    // Create default timezone object
-    g_default_tz = tzalloc(tzStr);
-    if (!g_default_tz) {
-      uError("Failed to create default timezone object");
-      return TSDB_CODE_TIME_ERROR;
+    // Set the timezone via taosSetGlobalTimezone which will set TZ env var
+    code = taosSetGlobalTimezone(tzStr);
+    if (code != TSDB_CODE_SUCCESS) {
+      uWarn("[tz] Failed to set system timezone %s, using UTC", tzStr);
+      taosSetGlobalTimezone("UTC");
+    } else {
+      uInfo("[tz] Windows timezone initialized: %s", tzStr);
     }
-
-    uInfo("[tz] Windows timezone initialized: %s", tzStr);
   } else {
     // Default to UTC
-    g_default_tz = tzalloc("UTC");
-    if (!g_default_tz) {
-      uError("Failed to create UTC timezone object");
-      return TSDB_CODE_TIME_ERROR;
-    }
+    taosSetGlobalTimezone("UTC");
     uInfo("[tz] Windows timezone initialized: UTC (default)");
   }
 
@@ -1285,15 +1247,8 @@ int32_t initTimezoneInfo(void) {
 
 void cleanupTimezoneInfo(void) {
 #ifdef WINDOWS
-  taosThreadMutexLock(&g_default_tz_mutex);
-
-  if (g_default_tz) {
-    tzfree(g_default_tz);
-    g_default_tz = NULL;
-  }
-
-  taosThreadMutexUnlock(&g_default_tz_mutex);
-  taosThreadMutexDestroy(&g_default_tz_mutex);
+  // Windows: timezone is managed via TZ environment variable
+  // No cleanup needed
 #else
   for (int i = 0; i < TZ_SLOTS; ++i) {
     if (g_tz_slots[i].tz) {
@@ -1306,10 +1261,9 @@ void cleanupTimezoneInfo(void) {
 
 timezone_t getGlobalDefaultTZ() {
 #ifdef WINDOWS
-  taosThreadMutexLock(&g_default_tz_mutex);
-  timezone_t tz = g_default_tz;
-  taosThreadMutexUnlock(&g_default_tz_mutex);
-  return tz;
+  // Windows: timezone is managed via TZ environment variable
+  // Return NULL to force using getWindowsTimezoneOffset()
+  return NULL;
 #else
   uint32_t idx = atomic_load_32((int32_t *)&g_tz_idx);
   return g_tz_slots[idx].tz;

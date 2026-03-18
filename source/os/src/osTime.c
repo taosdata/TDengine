@@ -440,7 +440,7 @@ int64_t user_mktime64(const uint32_t year, const uint32_t mon, const uint32_t da
 
 time_t taosMktime(struct tm *timep, timezone_t tz) {
 #ifdef WINDOWS
-  // 1. Get timezone offset (correctly use the passed tz parameter)
+  // Get timezone offset (correctly use the passed tz parameter)
   int64_t tzw = 0;
   if (tz != NULL) {
     WindowsTimezoneObj* tz_obj = (WindowsTimezoneObj*)tz;
@@ -448,20 +448,15 @@ time_t taosMktime(struct tm *timep, timezone_t tz) {
     tzw = tz_obj->offset_seconds;
     taosThreadMutexUnlock(&tz_obj->mutex);
   } else {
-    timezone_t default_tz = getGlobalDefaultTZ();
-    if (default_tz != NULL) {
-      WindowsTimezoneObj* tz_obj = (WindowsTimezoneObj*)default_tz;
-      taosThreadMutexLock(&tz_obj->mutex);
-      tzw = tz_obj->offset_seconds;
-      taosThreadMutexUnlock(&tz_obj->mutex);
-    }
+    // Use getWindowsTimezoneOffset which reads from TZ environment variable
+    tzw = getWindowsTimezoneOffset();
   }
 
-  // 2. Calculate timestamp using user_mktime64
+  // Calculate timestamp using user_mktime64
   time_t result = user_mktime64(timep->tm_year + 1900, timep->tm_mon + 1, timep->tm_mday,
                                  timep->tm_hour, timep->tm_min, timep->tm_sec, tzw);
 
-  // 3. Set global timezone variable
+  // Set global timezone variable
   timezone = tzw;
 
   return result;
@@ -529,7 +524,7 @@ struct tm *taosLocalTime(const time_t *timep, struct tm *result, char *buf, int3
     return NULL;
   }
 #ifdef WINDOWS
-  // 1. Get timezone offset (correctly use the passed tz parameter)
+  // Get timezone offset (correctly use the passed tz parameter)
   int64_t tz_offset = 0;
   if (tz != NULL) {
     WindowsTimezoneObj* tz_obj = (WindowsTimezoneObj*)tz;
@@ -537,19 +532,14 @@ struct tm *taosLocalTime(const time_t *timep, struct tm *result, char *buf, int3
     tz_offset = tz_obj->offset_seconds;
     taosThreadMutexUnlock(&tz_obj->mutex);
   } else {
-    timezone_t default_tz = getGlobalDefaultTZ();
-    if (default_tz != NULL) {
-      WindowsTimezoneObj* tz_obj = (WindowsTimezoneObj*)default_tz;
-      taosThreadMutexLock(&tz_obj->mutex);
-      tz_offset = tz_obj->offset_seconds;
-      taosThreadMutexUnlock(&tz_obj->mutex);
-    }
+    // Use getWindowsTimezoneOffset which reads from TZ environment variable
+    tz_offset = getWindowsTimezoneOffset();
   }
 
-  // 2. Adjust timestamp (note: offset is negative, so use -tz_offset)
+  // Adjust timestamp (note: offset is negative, so use -tz_offset)
   time_t adjusted_time = *timep + (-tz_offset);
 
-  // 3. Convert to struct tm (keep existing logic)
+  // Convert to struct tm (keep existing logic)
   if (adjusted_time < -2208988800LL) {
     if (buf != NULL) {
       snprintf(buf, bufSize, "NaN");
@@ -601,7 +591,7 @@ struct tm *taosLocalTime(const time_t *timep, struct tm *result, char *buf, int3
     }
   }
 
-  // 4. Set global timezone variable (mimic non-Windows platform behavior)
+  // Set global timezone variable (mimic non-Windows platform behavior)
   // Note: non-Windows platforms set timezone = -result->tm_gmtoff
   // Windows doesn't have tm_gmtoff, so use tz_offset directly
   timezone = tz_offset;
