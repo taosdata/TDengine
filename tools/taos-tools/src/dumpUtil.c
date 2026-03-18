@@ -343,7 +343,7 @@ TAOS *taosConnect(const char *dbName) {
             port = defaultPort(g_args.connMode, g_args.dsn);
         }
 
-        sprintf(show, "host:%s port:%d ", host, port);
+        (void)snprintf(show, sizeof(show), "host:%s port:%d ", host, port);
     }
 
     //
@@ -442,17 +442,20 @@ uint32_t bkdrHash(const char *str) {
 // Initialize the hash table
 void hashMapInit(HashMap *map) {
     memset(map->buckets, 0, sizeof(map->buckets));
-    pthread_mutex_init(&map->lock, NULL);
+    if (pthread_mutex_init(&map->lock, NULL) != 0) {
+        perror("pthread_mutex_init failed");
+        abort();
+    }
 }
 
 // Insert a key-value pair
 bool hashMapInsert(HashMap *map, const char *key, void *value) {
     // lock map
-    pthread_mutex_lock(&map->lock);
+    (void)pthread_mutex_lock(&map->lock);
     uint32_t hash = bkdrHash(key) % HASH32_MAP_MAX_BUCKETS;
     HashMapEntry *entry = (HashMapEntry *)malloc(sizeof(HashMapEntry));
     if (entry == NULL) {
-        pthread_mutex_unlock(&map->lock);
+        (void)pthread_mutex_unlock(&map->lock);
         return false;
     }
 
@@ -463,7 +466,9 @@ bool hashMapInsert(HashMap *map, const char *key, void *value) {
     map->buckets[hash] = entry;
 
     // unlock map
-    pthread_mutex_unlock(&map->lock);
+    if (pthread_mutex_unlock(&map->lock) != 0) {
+        perror("pthread_mutex_unlock failed");
+    }
     return true;
 }
 
@@ -550,7 +555,7 @@ void freeStbChange(StbChange *stbChange) {
 // generate part string
 char * genPartStr(ColDes *colDes, int from , int num) {
     // check valid
-    if (colDes == 0 || num == 0) {
+    if (colDes == NULL || num == 0) {
         return NULL;
     }
 
@@ -1009,7 +1014,7 @@ uint32_t getStbSchemaSize(TableDes *tableDes) {
 
 uint32_t colDesToJson(char *pstr, ColDes * colDes, uint32_t num) {
     uint32_t size = 0;
-    for(int32_t i = 0; i < num; i++) {
+    for(uint32_t i = 0; i < num; i++) {
         if (i > 0) {
             // append splite
             size += sprintf(pstr + size, ",");

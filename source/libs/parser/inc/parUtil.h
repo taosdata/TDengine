@@ -99,26 +99,6 @@ typedef struct SInsertTablesMetaReq {
   SArray* pTableVgroupReq;  // element is SName
 } SInsertTablesMetaReq;
 
-typedef struct SParseMetaCache {
-  SHashObj* pTableMeta;    // key is tbFName, element is STableMeta*
-  SHashObj* pDbVgroup;     // key is dbFName, element is SArray<SVgroupInfo>*
-  SHashObj* pTableVgroup;  // key is tbFName, element is SVgroupInfo*
-  SHashObj* pDbCfg;        // key is tbFName, element is SDbCfgInfo*
-  SHashObj* pDbInfo;       // key is tbFName, element is SDbInfo*
-  SHashObj* pUserAuth;     // key is SUserAuthInfo serialized string, element is bool indicating whether or not to pass
-  SHashObj* pUdf;          // key is funcName, element is SFuncInfo*
-  SHashObj* pTableIndex;   // key is tbFName, element is SArray<STableIndexInfo>*
-  SHashObj* pTableCfg;     // key is tbFName, element is STableCfg*
-  SHashObj* pViews;        // key is viewFName, element is SViewMeta*
-  SHashObj* pTableTSMAs;   // key is tbFName, elements are SArray<STableTSMAInfo*>
-  SHashObj* pTSMAs;        // key is tsmaFName, elements are STableTSMAInfo*
-  SHashObj* pTableName;    // key is tbFUid, elements is STableMeta*(append with tbName)
-  SHashObj* pVStbRefDbs;   // key is tbFName, element is SArray<SVStbRefDbsRsp*>
-  SArray*   pDnodes;       // element is SDNodeAddr
-  bool      dnodeRequired;
-  bool      forceFetchViewMeta;
-} SParseMetaCache;
-
 typedef struct SParseStreamInfo {
   int64_t          placeHolderBitmap;
   bool             calcClause;
@@ -193,6 +173,7 @@ int32_t getTableCfgFromCache(SParseMetaCache* pMetaCache, const SName* pName, ST
 int32_t getVStbRefDbsFromCache(SParseMetaCache* pMetaCache, const SName* pName, SArray** pOutput);
 int32_t getDnodeListFromCache(SParseMetaCache* pMetaCache, SArray** pDnodes);
 void    destoryParseMetaCache(SParseMetaCache* pMetaCache, bool request);
+// collectMetaKey is declared in parser.h (included above)
 int32_t createSelectStmtImpl(bool isDistinct, SNodeList* pProjectionList, SNode* pTable, SNodeList* pHint, SNode** ppSelect);
 int32_t getTableTsmasFromCache(SParseMetaCache* pMetaCache, const SName* pTbName, SArray** pTsmas);
 int32_t getTsmaFromCache(SParseMetaCache* pMetaCache, const SName* pTsmaName, STableTSMAInfo** pTsma);

@@ -1521,15 +1521,15 @@ static bool hasPkInTable(const STableMeta* pTableMeta) {
 
 static void setVtbColumnInfoBySchema(const SVirtualTableNode* pTable, const SSchema* pColSchema, int32_t tagFlag,
                                      SColumnNode* pCol) {
-  strcpy(pCol->dbName, pTable->table.dbName);
-  strcpy(pCol->tableAlias, pTable->table.tableAlias);
-  strcpy(pCol->tableName, pTable->table.tableName);
-  strcpy(pCol->colName, pColSchema->name);
+  tstrncpy(pCol->dbName, pTable->table.dbName, sizeof(pCol->dbName));
+  tstrncpy(pCol->tableAlias, pTable->table.tableAlias, sizeof(pCol->tableAlias));
+  tstrncpy(pCol->tableName, pTable->table.tableName, sizeof(pCol->tableName));
+  tstrncpy(pCol->colName, pColSchema->name, sizeof(pCol->colName));
   if ('\0' == pCol->node.aliasName[0]) {
-    strcpy(pCol->node.aliasName, pColSchema->name);
+    tstrncpy(pCol->node.aliasName, pColSchema->name, sizeof(pCol->node.aliasName));
   }
   if ('\0' == pCol->node.userAlias[0]) {
-    strcpy(pCol->node.userAlias, pColSchema->name);
+    tstrncpy(pCol->node.userAlias, pColSchema->name, sizeof(pCol->node.userAlias));
   }
   pCol->tableId = pTable->pMeta->uid;
   pCol->tableType = pTable->pMeta->tableType;
@@ -1602,8 +1602,8 @@ static int32_t setColumnInfoByExpr(STempTableNode* pTable, SExprNode* pExpr, SCo
   pCol->colId = pCol->isPrimTs ? PRIMARYKEY_TIMESTAMP_COL_ID : 0;
   if (QUERY_NODE_COLUMN == nodeType(pExpr)) {
     pCol->colType = ((SColumnNode*)pExpr)->colType;
-    // strcpy(pCol->dbName, ((SColumnNode*)pExpr)->dbName);
-    // strcpy(pCol->tableName, ((SColumnNode*)pExpr)->tableName);
+    // tstrncpy(pCol->dbName, ((SColumnNode*)pExpr)->dbName);
+    // tstrncpy(pCol->tableName, ((SColumnNode*)pExpr)->tableName);
   }
   tstrncpy(pCol->colName, pExpr->aliasName, TSDB_COL_NAME_LEN);
   if ('\0' == pCol->node.aliasName[0]) {
@@ -1791,8 +1791,10 @@ static int32_t findAndSetRealTableColumn(STranslateContext* pCxt, SColumnNode** 
 
   int32_t nums = pMeta->tableInfo.numOfTags + pMeta->tableInfo.numOfColumns;
   for (int32_t i = 0; i < nums; ++i) {
-    if (0 == strcmp(pCol->colName, pMeta->schema[i].name) &&
-        !invisibleColumn(true, pMeta->tableType, pMeta->schema[i].flags)) { // pCxt->pParseCxt->enableSysInfo, only control the output columns
+    if (0 == strcmp(pCol->colName, pMeta->schema[i].name)) {
+      if (invisibleColumn(pCxt->pParseCxt->enableSysInfo, pMeta->tableType, pMeta->schema[i].flags)) {
+        return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_COL_PERMISSION_DENIED, pCol->colName);
+      }
       SSchemaExt* pSchemaExt =
           pMeta->schemaExt ? (i >= pMeta->tableInfo.numOfColumns ? NULL : (pMeta->schemaExt + i)) : NULL;
       setColumnInfoBySchema((SRealTableNode*)pTable, pMeta->schema + i, (i - pMeta->tableInfo.numOfColumns), pCol,
@@ -2605,7 +2607,7 @@ static EDealRes translateNormalValue(STranslateContext* pCxt, SValueNode* pVal, 
         return generateDealNodeErrMsg(pCxt, terrno);
       }
       varDataSetLen(pVal->datum.p, len);
-      strncpy(varDataVal(pVal->datum.p), pVal->literal, len);
+      tstrncpy(varDataVal(pVal->datum.p), pVal->literal, len + 1);
       break;
     }
     case TSDB_DATA_TYPE_TIMESTAMP: {
@@ -3655,7 +3657,7 @@ static int32_t rewriteServerStatusFunc(STranslateContext* pCxt, SNode** pNode) {
 
 static int32_t rewriteUserFunc(STranslateContext* pCxt, SNode** pNode) {
   char    userConn[TSDB_USER_LEN + 1 + TSDB_FQDN_LEN] = {0};  // format 'user@host'
-  int32_t len = tsnprintf(userConn, sizeof(userConn), "%s@", pCxt->pParseCxt->pUser);
+  int32_t len = snprintf(userConn, sizeof(userConn), "%s@", pCxt->pParseCxt->pUser);
   if (TSDB_CODE_SUCCESS != taosGetFqdn(userConn + len)) {
     return terrno;
   }
@@ -5092,16 +5094,6 @@ static int32_t setVSuperTableRefScanVgroupList(STranslateContext* pCxt, SName* p
 
   SArray* pVStbRefs = NULL;
   code = getVStbRefDbsFromCache(pCxt->pMetaCache, pName, &pVStbRefs);
-
-  // Handle the case where VStbRefDbs data is not available (e.g., stmt scenario)
-  if (TSDB_CODE_PAR_TABLE_NOT_EXIST == code || TSDB_CODE_PAR_INTERNAL_ERROR == code) {
-    // VStbRefDbs not available in cache (stmt scenario without async metadata fetch)
-    // Use empty vgroup list - the executor will resolve vgroups at runtime
-    taosMemoryFreeClear(pRefScanTable->pVgroupList);
-    PAR_ERR_JRET(toVgroupsInfo(vgroupList, &pRefScanTable->pVgroupList));
-    code = TSDB_CODE_SUCCESS;
-    goto _return;
-  }
   PAR_ERR_JRET(code);
 
   dbNameHash = tSimpleHashInit(taosArrayGetSize(pVStbRefs), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
@@ -5245,9 +5237,9 @@ static int32_t setTableTsmas(STranslateContext* pCxt, SName* pName, SRealTableNo
         SVgroupInfo     vgInfo = {0};
         bool            exists = false;
         toName(pCxt->pParseCxt->acctId, pRealTable->table.dbName, "", &tsmaTargetTbName);
-        int32_t len = tsnprintf(buf, TSDB_TABLE_FNAME_LEN + TSDB_TABLE_NAME_LEN, "%s.%s_%s", pTsma->dbFName,
-                                pTsma->name, pRealTable->table.tableName);
-        len = taosCreateMD5Hash(buf, len);
+        int32_t len = snprintf(buf, TSDB_TABLE_FNAME_LEN + TSDB_TABLE_NAME_LEN, "%s.%s_%s", pTsma->dbFName, pTsma->name,
+                               pRealTable->table.tableName);
+        len = taosCreateMD5Hash(buf, len, sizeof(buf));
         tstrncpy(tsmaTargetTbName.tname, buf, TSDB_TABLE_NAME_LEN);
         code = collectUseTable(&tsmaTargetTbName, pCxt->pTargetTables);
         if (TSDB_CODE_SUCCESS == code)
@@ -5915,9 +5907,13 @@ static int32_t translateVirtualNormalChildTable(STranslateContext* pCxt, SNode**
   for (int32_t i = 0; i < pMeta->numOfColRefs; i++) {
     if (pMeta->colRef[i].hasRef) {
       char tableNameKey[TSDB_TABLE_FNAME_LEN] = {0};
-      strcat(tableNameKey, pMeta->colRef[i].refDbName);
-      strcat(tableNameKey, ".");
-      strcat(tableNameKey, pMeta->colRef[i].refTableName);
+      TSlice buf = {0};
+      sliceInit(&buf, tableNameKey, sizeof(tableNameKey));
+
+      PAR_ERR_JRET(sliceAppend(&buf, pMeta->colRef[i].refDbName, strlen(pMeta->colRef[i].refDbName)));
+      PAR_ERR_JRET(sliceAppend(&buf, ".", 1));
+      PAR_ERR_JRET(sliceAppend(&buf, pMeta->colRef[i].refTableName, strlen(pMeta->colRef[i].refTableName)));
+
       if (taosHashGet(pTableNameHash, tableNameKey, strlen(tableNameKey)) == NULL) {
         PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_REAL_TABLE, (SNode**)&pRTNode));
         setTableNameByColRef(pRTNode, &pMeta->colRef[i]);
@@ -5932,6 +5928,8 @@ static int32_t translateVirtualNormalChildTable(STranslateContext* pCxt, SNode**
   if (taosHashGetSize(pTableNameHash) == 1 && pRTNode != NULL) {
     if (pMeta->numOfColRefs > 0 && pMeta->colRef != NULL && pMeta->tableInfo.numOfColumns > 0 &&
         pRTNode->pMeta != NULL && pRTNode->pMeta->tableInfo.numOfColumns > 0) {
+      // if there is only one reference table, we can set ts column's reference to it, which will be used when virtual
+      // table scan node is eliminated.
       const SSchema* pTsSchema = &pMeta->schema[0];
       const SSchema* pRefTsSchema = &pRTNode->pMeta->schema[0];
       PAR_ERR_JRET(setColRef(&pMeta->colRef[0], pTsSchema->colId, (char*)pRefTsSchema->name, pRTNode->table.tableName,
@@ -6376,6 +6374,10 @@ static int32_t translateRealTable(STranslateContext* pCxt, SNode** pTable, bool 
   }
   if (!pCxt->refTable) {
     if (TSDB_SYSTEM_TABLE == pRealTable->pMeta->tableType) {
+      if (0 == strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_VC_COLS)) {
+        PAR_ERR_JRET(
+            generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYSTABLE_NOT_ALLOWED, pRealTable->table.tableName));
+      }
       if (isSelectStmt(pCxt->pCurrStmt)) {
         ((SSelectStmt*)pCxt->pCurrStmt)->timeLineResMode = TIME_LINE_NONE;
         ((SSelectStmt*)pCxt->pCurrStmt)->timeLineCurMode = TIME_LINE_NONE;
@@ -6610,18 +6612,18 @@ static int32_t createMultiResFunc(SFunctionNode* pSrcFunc, SExprNode* pExpr, SNo
       tstrncpy(pFunc->node.userAlias, pCol->colName, TSDB_COL_NAME_LEN);
       tstrncpy(pFunc->node.aliasName, pCol->colName, TSDB_COL_NAME_LEN);
     } else {
-      len = tsnprintf(buf, sizeof(buf) - 1, "%s(%s.%s)", pSrcFunc->functionName, pCol->tableAlias, pCol->colName);
-      (void)taosHashBinary(buf, len);
+      len = snprintf(buf, sizeof(buf) - 1, "%s(%s.%s)", pSrcFunc->functionName, pCol->tableAlias, pCol->colName);
+      (void)taosHashBinary(buf, len, sizeof(buf));
       tstrncpy(pFunc->node.aliasName, buf, TSDB_COL_NAME_LEN);
-      len = tsnprintf(buf, sizeof(buf) - 1, "%s(%s)", pSrcFunc->functionName, pCol->colName);
+      len = snprintf(buf, sizeof(buf) - 1, "%s(%s)", pSrcFunc->functionName, pCol->colName);
       // note: userAlias could be truncated here
       tstrncpy(pFunc->node.userAlias, buf, TSDB_COL_NAME_LEN);
     }
   } else {
-    len = tsnprintf(buf, sizeof(buf) - 1, "%s(%s)", pSrcFunc->functionName, pExpr->aliasName);
-    (void)taosHashBinary(buf, len);
+    len = snprintf(buf, sizeof(buf) - 1, "%s(%s)", pSrcFunc->functionName, pExpr->aliasName);
+    (void)taosHashBinary(buf, len, sizeof(buf));
     tstrncpy(pFunc->node.aliasName, buf, TSDB_COL_NAME_LEN);
-    len = tsnprintf(buf, sizeof(buf) - 1, "%s(%s)", pSrcFunc->functionName, pExpr->userAlias);
+    len = snprintf(buf, sizeof(buf) - 1, "%s(%s)", pSrcFunc->functionName, pExpr->userAlias);
     // note: userAlias could be truncated here
     tstrncpy(pFunc->node.userAlias, buf, TSDB_COL_NAME_LEN);
   }
@@ -7174,13 +7176,16 @@ static int32_t translateCheckPrivCols(STranslateContext* pCxt, SSelectStmt* pSel
   FOREACH(pNode, pRetrievedCols) {
     if (QUERY_NODE_COLUMN == nodeType(pNode)) {
       SColumnNode* pCol = (SColumnNode*)pNode;
+      if (pCol->appendByPrivCond) {
+        continue;
+      }
       SColIdNameKV colIdNameKV = {.colId = pCol->colId};
       snprintf(colIdNameKV.colName, TSDB_COL_NAME_LEN, "%s", pCol->colName);
       STableCols* pTblCols = tSimpleHashGet(pTblColHash, (const void*)&pCol->tableId, sizeof(pCol->tableId));
       if (pTblCols == NULL) {
         STableCols tblCols = {0};
-        strncpy(tblCols.tbName.dbname, pCol->dbName, sizeof(tblCols.tbName.dbname));
-        strncpy(tblCols.tbName.tname, pCol->tableName, sizeof(tblCols.tbName.tname));
+        tstrncpy(tblCols.tbName.dbname, pCol->dbName, sizeof(tblCols.tbName.dbname));
+        tstrncpy(tblCols.tbName.tname, pCol->tableName, sizeof(tblCols.tbName.tname));
         tblCols.tbName.acctId = pParseCxt->acctId;
         tblCols.tbName.type = TSDB_TABLE_NAME_T;
         tblCols.cols = taosArrayInit(nProjCols, sizeof(SColIdNameKV));
@@ -9123,9 +9128,9 @@ static int32_t replaceToChildTableQuery(STranslateContext* pCxt, SEqCondTbNameTa
       STableTSMAInfo* pTsma = taosArrayGetP(pRealTable->pTsmas, i);
       SName           tsmaTargetTbName = {0};
       toName(pCxt->pParseCxt->acctId, pRealTable->table.dbName, "", &tsmaTargetTbName);
-      int32_t len = tsnprintf(buf, TSDB_TABLE_FNAME_LEN + TSDB_TABLE_NAME_LEN, "%s.%s_%s", pTsma->dbFName, pTsma->name,
-                              pRealTable->table.tableName);
-      len = taosCreateMD5Hash(buf, len);
+      int32_t len = snprintf(buf, TSDB_TABLE_FNAME_LEN + TSDB_TABLE_NAME_LEN, "%s.%s_%s", pTsma->dbFName, pTsma->name,
+                             pRealTable->table.tableName);
+      len = taosCreateMD5Hash(buf, len, sizeof(buf));
       tstrncpy(tsmaTargetTbName.tname, buf, TSDB_TABLE_NAME_LEN);
       STsmaTargetTbInfo ctbInfo = {0};
       if (!pRealTable->tsmaTargetTbInfo) {
@@ -9202,7 +9207,7 @@ static int32_t setEqualTbnameTableVgroups(STranslateContext* pCxt, SSelectStmt* 
           }
           snprintf(pNewTbName, TSDB_TABLE_FNAME_LEN + TSDB_TABLE_NAME_LEN + 1, "%s.%s_%s", pTsma->dbFName, pTsma->name,
                    pTbName);
-          int32_t len = taosCreateMD5Hash(pNewTbName, strlen(pNewTbName));
+          int32_t len = taosCreateMD5Hash(pNewTbName, strlen(pNewTbName), TSDB_TABLE_FNAME_LEN + TSDB_TABLE_NAME_LEN + 1);
         }
         if (TSDB_CODE_SUCCESS == code) {
           vgsInfo = taosMemoryMalloc(sizeof(SVgroupsInfo) + nTbls * sizeof(SVgroupInfo));
@@ -9631,11 +9636,11 @@ static EDealRes pushDownBindSelectFunc(SNode** pNode, void* pContext) {
       int len = strlen(pExpr->aliasName);
       if (len + TSDB_COL_NAME_EXLEN >= TSDB_COL_NAME_LEN) {
         char buffer[TSDB_COL_NAME_EXLEN + TSDB_COL_NAME_LEN + 1] = {0};
-        (void)tsnprintf(buffer, sizeof(buffer), "%s.%d", pExpr->aliasName, pExpr->relatedTo);
+        (void)snprintf(buffer, sizeof(buffer), "%s.%d", pExpr->aliasName, pExpr->relatedTo);
         uint64_t hashVal = MurmurHash3_64(buffer, TSDB_COL_NAME_EXLEN + TSDB_COL_NAME_LEN + 1);
-        (void)tsnprintf(pExpr->aliasName, TSDB_COL_NAME_EXLEN, "%" PRIu64, hashVal);
+        (void)snprintf(pExpr->aliasName, TSDB_COL_NAME_EXLEN, "%" PRIu64, hashVal);
       } else {
-        (void)tsnprintf(pExpr->aliasName + len, TSDB_COL_NAME_EXLEN, ".%d", pExpr->relatedTo);
+        (void)snprintf(pExpr->aliasName + len, TSDB_COL_NAME_EXLEN, ".%d", pExpr->relatedTo);
       }
     }
   }
@@ -11803,9 +11808,10 @@ static int32_t translateCreateMount(STranslateContext* pCxt, SCreateMountStmt* p
   while (j > 0 && (pStmt->mountPath[j] == '/' || pStmt->mountPath[j] == '\\')) {
     pStmt->mountPath[j--] = '\0';  // remove trailing slashes
   }
-  TSDB_CHECK_NULL((createReq.mountPaths[0] = taosMemoryMalloc(strlen(pStmt->mountPath) + 1)), code, lino, _exit,
+  int32_t cap = strlen(pStmt->mountPath) + 1;
+  TSDB_CHECK_NULL((createReq.mountPaths[0] = taosMemoryMalloc(cap)), code, lino, _exit,
                   terrno);
-  TAOS_UNUSED(sprintf(createReq.mountPaths[0], "%s", pStmt->mountPath));
+  TAOS_UNUSED(snprintf(createReq.mountPaths[0], cap, "%s", pStmt->mountPath));
 
   if (TSDB_CODE_SUCCESS == code) {
     code = buildCmdMsg(pCxt, TDMT_MND_CREATE_MOUNT, (FSerializeFunc)tSerializeSCreateMountReq, &createReq);
@@ -12595,7 +12601,7 @@ static int32_t makeIntervalVal(SRetention* pRetension, int8_t precision, SNode**
     return code;
   }
   char    buf[20] = {0};
-  int32_t len = tsnprintf(buf, sizeof(buf), "%" PRId64 "%c", timeVal, pRetension->freqUnit);
+  int32_t len = snprintf(buf, sizeof(buf), "%" PRId64 "%c", timeVal, pRetension->freqUnit);
   pVal->literal = taosStrndup(buf, len);
   if (NULL == pVal->literal) {
     nodesDestroyNode((SNode*)pVal);
@@ -13818,7 +13824,7 @@ static int32_t translateCreateXnodeTask(STranslateContext* pCxt, SCreateXnodeTas
   }
   const char* xnodeId = getXnodeTaskOptionByName(pStmt->options, "xnode_id");
   if (xnodeId != NULL && strlen(xnodeId) > 0) {
-    createReq.xnodeId = atoi(xnodeId);
+    createReq.xnodeId = taosStr2Int32(xnodeId, NULL, 10);
   }
   if (pStmt->options != NULL) {
     code = covertXNodeTaskOptions(pStmt->options, &createReq.options);
@@ -13889,7 +13895,7 @@ static int32_t translateUpdateXnodeTask(STranslateContext* pCxt, SUpdateXnodeTas
     }
     const char* xnodeId = getXnodeTaskOptionByName(pStmt->options, "xnode_id");
     if (xnodeId != NULL) {
-      updateReq.xnodeId = atoi(xnodeId);
+      updateReq.xnodeId = taosStr2Int32(xnodeId, NULL, 10);
     }
     const char* status = getXnodeTaskOptionByName(pStmt->options, "status");
     if (status != NULL) {
@@ -13932,7 +13938,7 @@ static int32_t translateCreateXnodeJob(STranslateContext* pCxt, SCreateXnodeJobS
 
   const char* xnode_id = getXnodeTaskOptionByName(pStmt->options, "xnode_id");
   if (xnode_id != NULL) {
-    createReq.xnodeId = atoi(xnode_id);
+    createReq.xnodeId = taosStr2Int32(xnode_id, NULL, 10);
   }
 
   const char* status = getXnodeTaskOptionByName(pStmt->options, "status");
@@ -13966,7 +13972,7 @@ static int32_t translateAlterXnodeJob(STranslateContext* pCxt, SAlterXnodeJobStm
 
   const char* xnode_id = getXnodeTaskOptionByName(pStmt->options, "xnode_id");
   if (xnode_id != NULL) {
-    updateReq.xnodeId = atoi(xnode_id);
+    updateReq.xnodeId = taosStr2Int32(xnode_id, NULL, 10);
   }
 
   const char* status = getXnodeTaskOptionByName(pStmt->options, "status");
@@ -14018,7 +14024,7 @@ static int32_t translateRebalanceXnodeJob(STranslateContext* pCxt, SRebalanceXno
   if (xnodeId == NULL) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_XNODE_JOB_SYNTAX_ERROR, "Missing option: xnode_id");
   }
-  rebalanceReq.xnodeId = atoi(xnodeId);
+  rebalanceReq.xnodeId = taosStr2Int32(xnodeId, NULL, 10);
 
   int32_t code =
       buildCmdMsg(pCxt, TDMT_MND_REBALANCE_XNODE_JOB, (FSerializeFunc)tSerializeSMRebalanceXnodeJobReq, &rebalanceReq);
@@ -15246,7 +15252,7 @@ static int32_t streamGetSlotKeyHelper(SNode* pNode, const char* pPreName, const 
     TAOS_STRNCAT(*ppKey, pPreName, TSDB_TABLE_NAME_LEN);
     TAOS_STRNCAT(*ppKey, ".", 2);
     TAOS_STRNCAT(*ppKey, name, TSDB_COL_NAME_LEN);
-    *pLen = taosHashBinary(*ppKey, strlen(*ppKey));
+    *pLen = taosHashBinary(*ppKey, strlen(*ppKey), callocLen);
   } else {
     TAOS_STRNCAT(*ppKey, name, TSDB_COL_NAME_LEN);
     *pLen = strlen(*ppKey);
@@ -17683,7 +17689,7 @@ static int32_t fillPrivSetRowCols(STranslateContext* pCxt, SArray** ppReqCols, S
     return code;
   }
 
-  int32_t        columnNum = pTableMeta->tableInfo.numOfColumns;
+  int32_t        columnNum = pTableMeta->tableInfo.numOfColumns + pTableMeta->tableInfo.numOfTags;
   const SSchema* pSchemaCols = pTableMeta->schema;
   SNode*         pNode = NULL;
   SColumnNode*   pCol = NULL;
@@ -17883,7 +17889,8 @@ static int32_t translateGrantCheckFillObject(STranslateContext* pCxt, SGrantStmt
                                      "Table name should be empty for database level privileges");
     }
   } else if (objLevel > 0) {
-    if (pStmt->tabName[0] == '\0') {
+    if (pStmt->tabName[0] == '\0' &&
+        (pReq->objType != PRIV_OBJ_NONE && pReq->objType != PRIV_OBJ_TOPIC)) {  // grant privType on topic1 to u1;
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
                                      "Table name cannot be empty for non-database level privileges");
     }
@@ -17907,6 +17914,23 @@ static int32_t translateGrantCheckFillObject(STranslateContext* pCxt, SGrantStmt
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
                                      "Cannot grant/revoke this privilege on system database");
     }
+  } else {
+    if (IS_SPECIFIC_OBJ(pStmt->objName) &&
+        ((objType != PRIV_OBJ_DB && pStmt->tabName[0] != 0) || (objType == PRIV_OBJ_DB && pStmt->tabName[0] == '\0'))) {
+      SDbCfgInfo dbCfg = {0};
+      code = getDBCfg(pCxt, pStmt->objName, &dbCfg);
+
+      // don't validate the object when revoke
+      if (grant && code != TSDB_CODE_SUCCESS) {
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_DB_NOT_EXIST, "Failed to get database %s since %s",
+                                       pStmt->objName, tstrerror(code));
+      }
+
+      if (code == TSDB_CODE_SUCCESS && dbCfg.isAudit) {
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
+                                       "Cannot grant/revoke privileges on audit database");
+      }
+    }
   }
 
   switch (objType) {
@@ -17917,34 +17941,13 @@ static int32_t translateGrantCheckFillObject(STranslateContext* pCxt, SGrantStmt
         return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
                                        "Table name should be empty for database level privileges");
       }
-      // don't validate the object when revoke
-      if (strncmp(pStmt->objName, "*", 2) != 0) {
-        SDbCfgInfo dbCfg = {0};
-        code = getDBCfg(pCxt, pStmt->objName, &dbCfg);
-
-        if (grant && code != TSDB_CODE_SUCCESS) {
-          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_DB_NOT_EXIST,
-                                         "Failed to get database %s since %s", pStmt->objName, tstrerror(code));
-        }
-
-        if (code == TSDB_CODE_SUCCESS && dbCfg.isAudit) {
-          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
-                                         "Cannot grant/revoke privileges on audit database");
-        }
-      }
       TAOS_CHECK_EXIT(privExpandAll(&pReq->privileges.privSet, objType, objLevel));
+      TAOS_CHECK_EXIT(privExpandRw(&pReq->privileges.privSet, objType, objLevel));
       break;
     }
     case PRIV_OBJ_TBL:
       TAOS_CHECK_EXIT(translateGrantFillColPrivileges(pCxt, pStmt, pReq));
     case PRIV_OBJ_VIEW: {
-      if (grant && (strncmp(pStmt->objName, "*", 2) != 0)) {
-        SDbCfgInfo  dbCfg = {0};
-        if (0 != (code = getDBCfg(pCxt, pStmt->objName, &dbCfg))) {
-          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_DB_NOT_EXIST,
-                                         "Failed to get database %s since %s", pStmt->objName, tstrerror(code));
-        }
-      }
       if (0 != pStmt->tabName[0]) {
         // not validate the object when revoke
         if (grant && (strncmp(pStmt->tabName, "*", 2) != 0)) {
@@ -17967,6 +17970,7 @@ static int32_t translateGrantCheckFillObject(STranslateContext* pCxt, SGrantStmt
                                        "Table name cannot be empty for table or view level privileges");
       }
       TAOS_CHECK_EXIT(privExpandAll(&pReq->privileges.privSet, objType, objLevel));
+      TAOS_CHECK_EXIT(privExpandRw(&pReq->privileges.privSet, objType, objLevel));
       if (objType == PRIV_OBJ_TBL) {
         code = translateGrantTagCond(pCxt, pStmt, pReq, grant);
         if (TSDB_CODE_SUCCESS != code) {
@@ -17990,9 +17994,14 @@ static int32_t translateGrantCheckFillObject(STranslateContext* pCxt, SGrantStmt
     case PRIV_OBJ_TSMA:
       TAOS_CHECK_EXIT(privExpandAll(&pReq->privileges.privSet, objType, objLevel));
       break;
-    case PRIV_OBJ_TOPIC:
+    case PRIV_OBJ_TOPIC: {
+      if (IS_WILDCARD_OBJ(pStmt->objName) && pStmt->tabName[0] == 0) {
+        pStmt->tabName[0] = '*';  // rewrite to topic.* for better usability
+        pStmt->tabName[1] = '\0';
+      }
       TAOS_CHECK_EXIT(privExpandAll(&pReq->privileges.privSet, objType, objLevel));
       break;
+    }
     case PRIV_OBJ_STREAM:
       TAOS_CHECK_EXIT(privExpandAll(&pReq->privileges.privSet, objType, objLevel));
       break;
@@ -18001,6 +18010,8 @@ static int32_t translateGrantCheckFillObject(STranslateContext* pCxt, SGrantStmt
     case PRIV_OBJ_AUDIT:
       break;
     case PRIV_OBJ_TOKEN:
+      break;
+    case PRIV_OBJ_NONE: 
       break;
     default:
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
@@ -18061,10 +18072,56 @@ static int32_t translateGrantRevoke(STranslateContext* pCxt, SGrantStmt* pStmt, 
       }
 
       // rewrite query for view to improve usability
-      if(objType == PRIV_OBJ_VIEW) {
-        if(PRIV_HAS(&tmpPrivSet, PRIV_TBL_SELECT)) {
+      if (objType == PRIV_OBJ_VIEW) {
+        if (PRIV_HAS(&tmpPrivSet, PRIV_TBL_SELECT)) {
           privAddType(&tmpPrivSet, PRIV_VIEW_SELECT);
           privRemoveType(&tmpPrivSet, PRIV_TBL_SELECT);
+        }
+      } else if (objType == PRIV_OBJ_NONE) {
+        if (IS_SPECIFIC_OBJ(pStmt->objName)) {
+          if (IS_SPECIFIC_OBJ(pStmt->tabName)) {  // objName.tabName
+            SName       name = {0};
+            STableMeta* pMeta = NULL;
+            toName(pCxt->pParseCxt->acctId, pStmt->objName, pStmt->tabName, &name);
+            if ((code = getTargetMeta(pCxt, &name, &pMeta, true))) {  // check table or view at first
+              if (TSDB_CODE_PAR_TABLE_NOT_EXIST != code) {
+                taosMemoryFree(pMeta);
+                goto _exit;
+              } else {
+                code = 0;  // recheck topic in mnode
+              }
+            } else {
+              objType = pMeta->tableType == TSDB_VIEW_TABLE ? PRIV_OBJ_VIEW : PRIV_OBJ_TBL;
+              if (objType == PRIV_OBJ_VIEW) {
+                if (PRIV_HAS(&tmpPrivSet, PRIV_TBL_SELECT)) {
+                  privAddType(&tmpPrivSet, PRIV_VIEW_SELECT);
+                  privRemoveType(&tmpPrivSet, PRIV_TBL_SELECT);
+                }
+              }
+            }
+            taosMemoryFree(pMeta);
+          } else if (pStmt->tabName[0] == 0) {  // objName: dbName or topicName
+            SDbCfgInfo dbCfg = {0};
+            code = getDBCfg(pCxt, pStmt->objName, &dbCfg); // check db at first
+            if (code) {
+              if (TSDB_CODE_MND_DB_NOT_EXIST != code) {
+                goto _exit;
+              } else {
+                code = 0;  // recheck topic in mnode
+              }
+            } else {
+              pStmt->tabName[0] = '*';
+              pStmt->tabName[1] = '\0';
+            }
+          }
+        } else if (IS_WILDCARD_OBJ(pStmt->objName)) {
+          // extend grant privType on * to u1; to grant privType on *.* to u1;
+          if (pStmt->tabName[0] == 0) {
+            snprintf(pStmt->tabName, sizeof(pStmt->tabName), "*");
+          }
+        }
+        if (objType == PRIV_OBJ_NONE) {
+          objType = privDeduceObjType(&tmpPrivSet);
         }
       }
 
@@ -20300,11 +20357,11 @@ static int32_t extractShowVariablesResultSchema(int32_t* numOfCols, SSchema** pS
 
   (*pSchema)[3].type = TSDB_DATA_TYPE_BINARY;
   (*pSchema)[3].bytes = TSDB_CONFIG_CATEGORY_LEN;
-  strcpy((*pSchema)[3].name, "category");
+  tstrncpy((*pSchema)[3].name, "category", sizeof((*pSchema)[3].name));
 
   (*pSchema)[4].type = TSDB_DATA_TYPE_BINARY;
   (*pSchema)[4].bytes = TSDB_CONFIG_INFO_LEN;
-  strcpy((*pSchema)[4].name, "info");
+  tstrncpy((*pSchema)[4].name, "info", sizeof((*pSchema)[4].name));
 
   return TSDB_CODE_SUCCESS;
 }
@@ -21277,8 +21334,8 @@ static int32_t createBlockDBUsageInfoFunc(SFunctionNode** ppNode) {
     return code;
   }
 
-  strcpy(pFunc->functionName, "_db_usage_info");
-  strcpy(pFunc->node.aliasName, "_db_usage_info");
+  tstrncpy(pFunc->functionName, "_db_usage_info", sizeof(pFunc->functionName));
+  tstrncpy(pFunc->node.aliasName, "_db_usage_info", sizeof(pFunc->node.aliasName));
   *ppNode = pFunc;
   return code;
 }
@@ -21289,8 +21346,8 @@ static int32_t createDBUsageFunc(SFunctionNode** ppNode) {
     return code;
   }
 
-  strcpy(pFunc->functionName, "_db_usage");
-  strcpy(pFunc->node.aliasName, "_db_usage");
+  tstrncpy(pFunc->functionName, "_db_usage", sizeof(pFunc->functionName));
+  tstrncpy(pFunc->node.aliasName, "_db_usage", sizeof(pFunc->node.aliasName));
   SFunctionNode* pFuncNew = NULL;
   code = createBlockDBUsageInfoFunc(&pFuncNew);
   if (TSDB_CODE_SUCCESS == code) {
@@ -21366,7 +21423,7 @@ static int32_t buildVirtualTableBatchReq(STranslateContext* pCxt, const SCreateV
   }
 
   pBatch->info = *pVgroupInfo;
-  (void)strcpy(pBatch->dbName, pStmt->dbName);
+  tstrncpy(pBatch->dbName, pStmt->dbName, sizeof(pBatch->dbName));
   pBatch->req.pArray = taosArrayInit(1, sizeof(struct SVCreateTbReq));
   if (NULL == pBatch->req.pArray || NULL == taosArrayPush(pBatch->req.pArray, &req)) {
     PAR_ERR_JRET(terrno);
@@ -21429,7 +21486,7 @@ static int32_t buildVirtualSubTableBatchReq(const SCreateVSubTableStmt* pStmt, S
   }
 
   pBatch->info = *pVgroupInfo;
-  (void)strcpy(pBatch->dbName, pStmt->dbName);
+  tstrncpy(pBatch->dbName, pStmt->dbName, sizeof(pBatch->dbName));
   pBatch->req.pArray = taosArrayInit(1, sizeof(struct SVCreateTbReq));
   if (NULL == pBatch->req.pArray || NULL == taosArrayPush(pBatch->req.pArray, &req)) {
     PAR_ERR_JRET(terrno);
@@ -24518,6 +24575,28 @@ static int32_t rewriteShowXnodeStmt(STranslateContext* pCxt, SQuery* pQuery) {
   if (TSDB_CODE_SUCCESS == code) {
     code = nodesCloneNode(pShow->pWhere, &pSelect->pWhere);
     if (code != TSDB_CODE_SUCCESS) {
+      nodesDestroyNode((SNode*)pSelect);
+      return code;
+    }
+    SColumnNode* pCol = NULL;
+    code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
+    if (TSDB_CODE_SUCCESS == code) {
+      tstrncpy(pCol->colName, "id", TSDB_COL_NAME_LEN);
+      SOrderByExprNode* pOrderByExpr = NULL;
+      code = nodesMakeNode(QUERY_NODE_ORDER_BY_EXPR, (SNode**)&pOrderByExpr);
+      if (TSDB_CODE_SUCCESS == code) {
+        pOrderByExpr->order = ORDER_ASC;
+        pOrderByExpr->nullOrder = NULL_ORDER_FIRST;
+        pOrderByExpr->pExpr = (SNode*)pCol;
+        code = nodesListMakeStrictAppend(&pSelect->pOrderByList, (SNode*)pOrderByExpr);
+        if (TSDB_CODE_SUCCESS != code) {
+          nodesDestroyNode((SNode*)pOrderByExpr);
+        }
+      } else {
+        nodesDestroyNode((SNode*)pCol);
+      }
+    }
+    if (TSDB_CODE_SUCCESS != code) {
       nodesDestroyNode((SNode*)pSelect);
       return code;
     }

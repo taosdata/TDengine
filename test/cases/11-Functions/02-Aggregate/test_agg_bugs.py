@@ -124,9 +124,9 @@ class TestTD_21561:
 
         os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))
 
-        self.dropandcreateDB_random("%s" %self.db, 100)
+        self.dropandcreateDB_random(self.db, 100)
 
-        self.check_flushdb("%s" %self.db)
+        self.check_flushdb(self.db)
 
         endTime = time.time()
         print("total time %ds" % (endTime - startTime))

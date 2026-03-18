@@ -1258,6 +1258,13 @@ class TestDdlInSysdb:
         tdSql.query(sql)
         tdSql.checkRows(2)
 
+    def ins_virtual_child_columns_check(self):
+        tdSql.error(
+            "select * from information_schema.ins_virtual_child_columns",
+            expectErrInfo="ins_virtual_child_columns is not supported in system table query",
+            fullMatched=False,
+        )
+
     def do_information_schema(self):
         self.init_class()
         self.prepare_data()
@@ -1270,6 +1277,7 @@ class TestDdlInSysdb:
         self.ins_grants_check()
         # self.ins_encryptions_check()
         self.run_query_ins_tags()
+        self.ins_virtual_child_columns_check()
 
         print("do information schema ................. [passed]")
 

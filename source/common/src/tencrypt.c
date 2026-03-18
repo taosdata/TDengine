@@ -71,7 +71,7 @@ int32_t taosWriteEncryptFileHeader(const char *filepath, int32_t algorithm, cons
   // Prepare encryption header (plaintext)
   STdEncryptFileHeader header;
   memset(&header, 0, sizeof(STdEncryptFileHeader));
-  strncpy(header.magic, TD_ENCRYPT_FILE_MAGIC, TD_ENCRYPT_MAGIC_LEN - 1);
+  tstrncpy(header.magic, TD_ENCRYPT_FILE_MAGIC, TD_ENCRYPT_MAGIC_LEN);
   header.algorithm = algorithm;
   header.version = TD_ENCRYPT_FILE_VERSION;
   header.dataLen = dataLen;

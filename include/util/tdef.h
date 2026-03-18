@@ -584,9 +584,15 @@ typedef enum ELogicConditionType {
 #define TSDB_MAX_HASH_SUFFIX        (TSDB_TABLE_NAME_LEN - 2)
 #define TSDB_DEFAULT_HASH_SUFFIX    0
 
+#if !defined(TD_ENTERPRISE) || defined(ASSERT_NOT_CORE) || defined(GRANTS_CFG)
 #define TSDB_MIN_SS_CHUNK_SIZE     (128 * 1024)
 #define TSDB_MAX_SS_CHUNK_SIZE     (1024 * 1024)
 #define TSDB_DEFAULT_SS_CHUNK_SIZE (128 * 1024)
+#else
+#define TSDB_MIN_SS_CHUNK_SIZE     (4 * 1024)
+#define TSDB_MAX_SS_CHUNK_SIZE     (1024 * 1024)
+#define TSDB_DEFAULT_SS_CHUNK_SIZE (4 * 1024)
+#endif
 #define TSDB_MIN_SS_KEEP_LOCAL     (1 * 1440)  // unit minute
 #define TSDB_MAX_SS_KEEP_LOCAL     (365000 * 1440)
 #define TSDB_DEFAULT_SS_KEEP_LOCAL (365 * 1440)

@@ -205,7 +205,7 @@ STableMeta* qGetTableMetaInDataBlock(STableDataCxt* pDataBlock);
 int32_t     qCloneCurrentTbData(STableDataCxt* pDataBlock, SSubmitTbData** pData);
 
 int32_t qStmtBindParams(SQuery* pQuery, TAOS_MULTI_BIND* pParams, int32_t colIdx, void *charsetCxt);
-int32_t qStmtParseQuerySql(SParseContext* pCxt, SQuery* pQuery);
+int32_t qStmtParseQuerySql(SParseContext* pCxt, SQuery* pQuery, SMetaData* pMetaData);
 int32_t qBindStmtStbColsValue(void* pBlock, SArray* pCols, TAOS_MULTI_BIND* bind, char* msgBuf, int32_t msgBufLen,
                               STSchema** pTSchema, SBindInfo* pBindInfos, void* charsetCxt);
 int32_t qBindStmtColsValue(void* pBlock, SArray* pCols, TAOS_MULTI_BIND* bind, char* msgBuf, int32_t msgBufLen, void* charsetCxt);
@@ -262,6 +262,29 @@ int32_t rewriteToVnodeModifyOpStmt(SQuery* pQuery, SArray* pBufArray);
 int32_t serializeVgroupsCreateTableBatch(SHashObj* pVgroupHashmap, SArray** pOut);
 int32_t serializeVgroupsDropTableBatch(SHashObj* pVgroupHashmap, SArray** pOut);
 void    destoryCatalogReq(SCatalogReq* pCatalogReq);
+typedef struct SParseMetaCache {
+  SHashObj* pTableMeta;    // key is tbFName, element is STableMeta*
+  SHashObj* pDbVgroup;     // key is dbFName, element is SArray<SVgroupInfo>*
+  SHashObj* pTableVgroup;  // key is tbFName, element is SVgroupInfo*
+  SHashObj* pDbCfg;        // key is tbFName, element is SDbCfgInfo*
+  SHashObj* pDbInfo;       // key is tbFName, element is SDbInfo*
+  SHashObj* pUserAuth;     // key is SUserAuthInfo serialized string, element is bool
+  SHashObj* pUdf;          // key is funcName, element is SFuncInfo*
+  SHashObj* pTableIndex;   // key is tbFName, element is SArray<STableIndexInfo>*
+  SHashObj* pTableCfg;     // key is tbFName, element is STableCfg*
+  SHashObj* pViews;        // key is viewFName, element is SViewMeta*
+  SHashObj* pTableTSMAs;   // key is tbFName, elements are SArray<STableTSMAInfo*>
+  SHashObj* pTSMAs;        // key is tsmaFName, elements are STableTSMAInfo*
+  SHashObj* pTableName;    // key is tbFUid, elements is STableMeta*(append with tbName)
+  SHashObj* pVStbRefDbs;   // key is tbFName, element is SArray<SVStbRefDbsRsp*>
+  SArray*   pDnodes;       // element is SDNodeAddr
+  bool      dnodeRequired;
+  bool      forceFetchViewMeta;
+} SParseMetaCache;
+
+int32_t collectMetaKey(SParseContext* pParseCxt, SQuery* pQuery, SParseMetaCache* pMetaCache);
+int32_t buildCatalogReq(SParseMetaCache* pMetaCache, SCatalogReq* pCatalogReq);
+void    destoryParseMetaCache(SParseMetaCache* pMetaCache, bool request);
 bool    isPrimaryKeyImpl(SNode* pExpr);
 int32_t insAppendStmtTableDataCxt(SHashObj* pAllVgHash, STableColsData* pTbData, STableDataCxt* pTbCtx,
                                   SStbInterlaceInfo* pBuildInfo);

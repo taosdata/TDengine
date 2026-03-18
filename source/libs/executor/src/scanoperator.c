@@ -338,6 +338,11 @@ static bool isDynVtbScan(SOperatorInfo* pOperator) {
   return pOperator->dynamicTask && ((STableScanInfo*)(pOperator->info))->virtualStableScan;
 }
 
+static bool skipSetTagColumnData(SOperatorInfo* pOperator) {
+  return (pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) &&
+         ((STableScanInfo*)pOperator->info)->ignoreTag;
+}
+
 static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableScanInfo, SSDataBlock* pBlock,
                              uint32_t* status) {
   int32_t        code = TSDB_CODE_SUCCESS;
@@ -380,7 +385,9 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
     qDebug("%s data block skipped, brange:%" PRId64 "-%" PRId64 ", rows:%" PRId64 ", uid:%" PRIu64,
            GET_TASKID(pTaskInfo), pBlockInfo->window.skey, pBlockInfo->window.ekey, pBlockInfo->rows,
            pBlockInfo->id.uid);
-    code = doSetTagColumnData(pTableScanInfo, pBlock, pTaskInfo, pBlock->info.rows);
+    if (!skipSetTagColumnData(pOperator)) {
+      code = doSetTagColumnData(pTableScanInfo, pBlock, pTaskInfo, pBlock->info.rows);
+    }
     pCost->skipBlocks += 1;
     pAPI->tsdReader.tsdReaderReleaseDataBlock(pTableScanInfo->dataReader);
     return code;
@@ -398,7 +405,9 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
     if (success) {  // failed to load the block sma data, data block statistics does not exist, load data block instead
       qDebug("%s data block SMA loaded, brange:%" PRId64 "-%" PRId64 ", rows:%" PRId64, GET_TASKID(pTaskInfo),
              pBlockInfo->window.skey, pBlockInfo->window.ekey, pBlockInfo->rows);
-      code = doSetTagColumnData(pTableScanInfo, pBlock, pTaskInfo, pBlock->info.rows);
+      if (!skipSetTagColumnData(pOperator)) {
+        code = doSetTagColumnData(pTableScanInfo, pBlock, pTaskInfo, pBlock->info.rows);
+      }
       pAPI->tsdReader.tsdReaderReleaseDataBlock(pTableScanInfo->dataReader);
       return code;
     } else {
@@ -480,15 +489,9 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
     return code;
   }
 
-  if ((pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) &&
-      ((STableScanInfo*)pOperator->info)->ignoreTag) {
-    // do nothing
-  } else {
-    // dyn vtb scan do not read tag from origin tables.
+  if (!skipSetTagColumnData(pOperator)) {
     code = doSetTagColumnData(pTableScanInfo, pBlock, pTaskInfo, pBlock->info.rows);
-    if (code) {
-      return code;
-    }
+    QUERY_CHECK_CODE(code, lino, _end);
   }
 
   // restore the previous value
@@ -697,6 +700,7 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
     int32_t          dstSlotId = pExpr1->base.resSchema.slotId;
 
     SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, dstSlotId);
+    QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
     colInfoDataCleanup(pColInfoData, pBlock->info.rows);
 
     int32_t functionId = pExpr1->pExpr->_function.functionId;

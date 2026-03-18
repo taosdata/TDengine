@@ -31,10 +31,11 @@ from .common import *
 from .constant import *
 from .epath import *
 from dataclasses import dataclass, field
+from decimal import Decimal, InvalidOperation
 from typing import List
 from datetime import datetime, timedelta
 import re
-
+import tempfile
 
 @dataclass
 class DataSet:
@@ -2974,7 +2975,7 @@ class TDCom:
         # print(f"taosCmd:{taosCmd}, currentPath:{os.getcwd()}")
         os.system(taosCmd)
         return self.query_result_file
-    
+
     def run_sql(self, sql, db):
         tdsql = self.newTdSql()
         if db:
@@ -2988,20 +2989,32 @@ class TDCom:
             tdLog.error(f"SQL执行失败: {sql}\n{e}")
 
     def execute_query_file(self, inputfile, max_workers=8):
+        # 规范化路径以支持 Windows
+        inputfile = os.path.normpath(inputfile)
+
         if not os.path.exists(inputfile):
             tdLog.exit(f"Input file '{inputfile}' does not exist.")
             return
 
         tdLog.info(f"Executing query file: {inputfile}")
 
-        with open(inputfile, 'r') as f:
-            lines = [line.strip() for line in f if line.strip()]
+        # 尝试多种编码以支持不同平台
+        lines = []
+        for encoding in ['utf-8', 'gbk', 'utf-8-sig', 'latin-1']:
+            try:
+                with open(inputfile, "r", encoding=encoding, newline=None) as f:
+                    lines = [line.strip() for line in f if line.strip()]
+                break
+            except (UnicodeDecodeError, LookupError):
+                continue
+
+        if not lines:
+            tdLog.exit(f"Failed to read file '{inputfile}' with supported encodings.")
+            return
+
         # 假设第一行是 use 语句
-        db = lines[0].split()[1].rstrip(';')
-        sql_lines = [
-            line.replace('\\G', '').rstrip(';') + ';'
-            for line in lines[1:]
-        ]
+        db = lines[0].split()[1].rstrip(";")
+        sql_lines = [line.replace("\\G", "").rstrip(";") + ";" for line in lines[1:]]
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
             executor.map(lambda sql: self.run_sql(sql, db), sql_lines)
@@ -3018,7 +3031,7 @@ class TDCom:
             if platform.system().lower() == "windows":
                 # 过滤 taos> 行
                 os.system(
-                    f"taos -c {cfgPath} -f {inputfile} | grep -v 'Query OK'|grep -v 'Copyright'| grep -v 'Welcome to the TDengine TSDB Command' > {self.query_result_file}.raw "
+                    f"taos -c {cfgPath} -f {inputfile} | grep -v 'Query OK'|grep -v 'Copyright'| grep -v 'Welcome to the TDengine TSDB Command' | sed 's/([0-9]\+\.[0-9]\+s)//g' | sed 's/cost=[0-9]\+\.[0-9]\+\.\.[0-9]\+\.[0-9]\+//g' | sed 's/Planning Time: [0-9]\+\.[0-9]\+ ms//g' | sed 's/Execution Time: [0-9]\+\.[0-9]\+ ms//g' | sed 's/max_row_task=[0-9]\+, //g' > {self.query_result_file}.raw "
                 )
                 time.sleep(1)
                 with (
@@ -3042,7 +3055,119 @@ class TDCom:
                 )
             return self.query_result_file
 
-    def compare_result_files(self, file1, file2):
+    def _get_numeric_compare_tolerance(self, token1, token2, float_tolerance):
+        if float_tolerance > 0.0:
+            return Decimal(str(float_tolerance))
+
+        def count_decimal_places(token):
+            mantissa = token.lower().split("e", 1)[0]
+            if "." not in mantissa:
+                return 0
+            return len(mantissa.split(".", 1)[1])
+
+        precision = max(count_decimal_places(token1), count_decimal_places(token2))
+        if precision <= 0:
+            return Decimal("0")
+        return Decimal(1).scaleb(-precision)
+
+    def _normalize_result_line_for_compare(self, line):
+        """Normalize CLI-only suffixes before answer/result file comparison.
+
+        Args:
+            line: A single line from an answer or result file.
+
+        Returns:
+            The normalized line with runtime-only Windows suffixes removed.
+        """
+
+        normalized = line.rstrip()
+        normalized = re.sub(r"\s*\([0-9]+\.[0-9]+s\)$", "", normalized)
+        normalized = re.sub(r"cost=[0-9]+\.[0-9]+\.\.[0-9]+\.[0-9]+", "", normalized)
+        normalized = re.sub(r"Planning Time: [0-9]+\.[0-9]+ ms", "", normalized)
+        normalized = re.sub(r"Execution Time: [0-9]+\.[0-9]+ ms", "", normalized)
+        normalized = re.sub(r"max_row_task=[0-9]+, ", "", normalized)
+        return normalized.rstrip()
+
+    def _compare_normalized_result_lines(self, file1, file2):
+        """Compare result files after stripping platform-specific CLI noise.
+
+        Args:
+            file1: Expected result file path.
+            file2: Actual result file path.
+
+        Returns:
+            True when the normalized result lines are identical.
+        """
+
+        with open(file1, "r", encoding="utf-8", errors="ignore") as f1:
+            lines1 = f1.read().splitlines()
+        with open(file2, "r", encoding="utf-8", errors="ignore") as f2:
+            lines2 = f2.read().splitlines()
+
+        if len(lines1) != len(lines2):
+            return False
+
+        for line1, line2 in zip(lines1, lines2):
+            if self._normalize_result_line_for_compare(
+                line1
+            ) != self._normalize_result_line_for_compare(line2):
+                return False
+
+        return True
+
+    def _compare_file_lines_with_float_tolerance(self, file1, file2, float_tolerance):
+        number_pattern = re.compile(r"[-+]?(?:\d+\.\d+|\d+|\.\d+)(?:[eE][-+]?\d+)?")
+
+        with open(file1, "r", encoding="utf-8", errors="ignore") as f1:
+            lines1 = f1.read().splitlines()
+        with open(file2, "r", encoding="utf-8", errors="ignore") as f2:
+            lines2 = f2.read().splitlines()
+
+        if len(lines1) != len(lines2):
+            return False
+
+        for line1, line2 in zip(lines1, lines2):
+            line1 = self._normalize_result_line_for_compare(line1)
+            line2 = self._normalize_result_line_for_compare(line2)
+
+            if line1 == line2:
+                continue
+
+            matches1 = list(number_pattern.finditer(line1))
+            matches2 = list(number_pattern.finditer(line2))
+            if len(matches1) != len(matches2):
+                return False
+
+            cursor1 = 0
+            cursor2 = 0
+            for match1, match2 in zip(matches1, matches2):
+                if line1[cursor1:match1.start()] != line2[cursor2:match2.start()]:
+                    return False
+
+                token1 = match1.group(0)
+                token2 = match2.group(0)
+                try:
+                    value1 = Decimal(token1)
+                    value2 = Decimal(token2)
+                except InvalidOperation:
+                    if token1 != token2:
+                        return False
+                else:
+                    tolerance = self._get_numeric_compare_tolerance(
+                        token1, token2, float_tolerance
+                    )
+                    if abs(value1 - value2) > tolerance:
+                        return False
+
+                cursor1 = match1.end()
+                cursor2 = match2.end()
+
+            if line1[cursor1:] != line2[cursor2:]:
+                return False
+
+        return True
+
+    def compare_result_files(self, file1, file2, float_tolerance=0.0):
         try:
             # use subprocess.run to execute  diff/fc commands
             # print(file1, file2)
@@ -3057,19 +3182,54 @@ class TDCom:
                 cmd = "fc"
                 file1 = os.path.abspath(os.path.normpath(file1))
                 file2 = os.path.abspath(os.path.normpath(file2))
-                # /W 参数忽略结尾空格和空白字符
-                result = subprocess.run(
-                    [cmd, "/W", file1, file2],
-                    text=True,
-                    capture_output=True,
-                    encoding="utf-8",
-                    errors="ignore",
-                )
-                # Windows: 只要 returncode==0 就认为一致
+
+                # 创建临时文件，过滤空行
+                with tempfile.NamedTemporaryFile(mode='w', delete=False, encoding='utf-8') as tmp1, \
+                    tempfile.NamedTemporaryFile(mode='w', delete=False, encoding='utf-8') as tmp2:
+
+                    # 复制非空行到临时文件
+                    with open(file1, 'r', encoding='utf-8', errors='ignore') as f:
+                        tmp1.writelines(line for line in f if line.strip())
+                    temp1 = tmp1.name
+
+                    with open(file2, 'r', encoding='utf-8', errors='ignore') as f:
+                        tmp2.writelines(line for line in f if line.strip())
+                    temp2 = tmp2.name
+
+                try:
+                    result = subprocess.run(
+                        [cmd, "/W", temp1, temp2],
+                        text=True,
+                        capture_output=True,
+                        encoding="utf-8",
+                        errors="replace",  # 改为 replace，避免编码错误
+                    )
+                finally:
+                    os.unlink(temp1)
+                    os.unlink(temp2)
                 if result.returncode == 0:
                     return True
-            # if result is not empty, print the differences and files name. Otherwise, the files are identical.
+                else:
+                    tdLog.info(f"{cmd} result.returncode: {result.returncode}")
+                    tdLog.info(f"{cmd} result.stdout: {result.stdout}")
+                    tdLog.info(f"{cmd} result.stderr: {result.stderr}")
+                    return False
+                
+            # 统一的结果检查逻辑（移到 if/else 外面）
             if result.returncode != 0:
+                if self._compare_normalized_result_lines(file1, file2):
+                    tdLog.info("Result files matched after output normalization.")
+                    return True
+                if platform.system().lower() == "windows" and self._compare_file_lines_with_float_tolerance(
+                    file1, file2, float_tolerance
+                ):
+                    tdLog.info(
+                        "Result files matched after Windows output normalization."
+                        if float_tolerance <= 0.0
+                        else "Result files matched after Windows output normalization "
+                        f"with float tolerance {float_tolerance}."
+                    )
+                    return True
                 tdLog.info(f"{cmd} result.returncode: {result.returncode}")
                 tdLog.info(f"{cmd} result.stdout: {result.stdout}")
                 tdLog.info(f"{cmd} result.stderr: {result.stderr}")
@@ -3087,12 +3247,18 @@ class TDCom:
             tdLog.debug(
                 "The 'diff' command is not found. Please make sure it's installed and available in your PATH."
             )
+            return False
         except Exception as e:
             tdLog.debug(f"An error occurred: {e}")
+            return False
 
-    def compare_query_with_result_file(self, idx, sql, resultFile, test_case):
+    def compare_query_with_result_file(
+        self, idx, sql, resultFile, test_case, float_tolerance=0.0
+    ):
         self.generate_query_result_file(test_case, idx, sql)
-        if self.compare_result_files(resultFile, self.query_result_file):
+        if self.compare_result_files(
+            resultFile, self.query_result_file, float_tolerance=float_tolerance
+        ):
             tdLog.info("Test passed: Result files are identical.")
             # os.system(f"rm -f {self.query_result_file}")
         else:
@@ -3101,10 +3267,14 @@ class TDCom:
                 f"{caller.lineno}(line:{caller.lineno}) failed: expect_file:{resultFile}  != reult_file:{self.query_result_file} "
             )
 
-    def compare_testcase_result(self, inputfile, expected_file, test_case):
+    def compare_testcase_result(
+        self, inputfile, expected_file, test_case, float_tolerance=0.0
+    ):
         test_reulst_file = self.generate_query_result(inputfile, test_case)
 
-        if self.compare_result_files(expected_file, test_reulst_file):
+        if self.compare_result_files(
+            expected_file, test_reulst_file, float_tolerance=float_tolerance
+        ):
             tdLog.info("Test passed: Result files are identical.")
             os.system(f"rm -f {test_reulst_file}")
         else:

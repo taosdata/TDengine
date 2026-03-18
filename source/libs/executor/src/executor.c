@@ -1914,12 +1914,13 @@ int32_t qStreamFilterTableListForReader(void* pVnode, SArray* uidList,
                                         SNodeList* pGroupTags, SNode* pTagCond, SNode* pTagIndexCond,
                                         SStorageAPI* storageAPI, SHashObj* groupIdMap, uint64_t suid, SArray** tableList) {
   int32_t code = TSDB_CODE_SUCCESS;
+  SArray* uidListCopy = NULL;
   STableListInfo* pList = tableListCreate();
   if (pList == NULL) {
     code = terrno;
     goto end;
   }
-  SArray* uidListCopy = taosArrayDup(uidList, NULL);
+  uidListCopy = taosArrayDup(uidList, NULL);
   if (uidListCopy == NULL) {
     code = terrno;
     goto end;

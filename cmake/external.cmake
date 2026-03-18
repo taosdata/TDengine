@@ -134,6 +134,13 @@ macro(INIT_EXT name)               # {
                 target_link_directories(${tgt} PUBLIC "${BREW_PREFIX}/lib")
             endif()
         endif()
+
+        if(${TD_WINDOWS})
+            if("z${name}" STREQUAL "zext_curl")
+                target_link_libraries(${tgt} PRIVATE crypt32 wldap32 normaliz secur32 bcrypt)
+            endif()
+        endif()
+
         add_definitions(-D_${name})
     endmacro()                               # }
 endmacro()                         # }
@@ -382,6 +389,7 @@ if(${BUILD_TEST})           # {
         PREFIX "${_base}"
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+        CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR:PATH=lib
         CMAKE_ARGS -Dgtest_force_shared_crt:BOOL=ON
         BUILD_COMMAND
             COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
@@ -867,21 +875,53 @@ if(NOT ${TD_WINDOWS})       # {
 endif(NOT ${TD_WINDOWS})    # }
 
 # libcurl
-if(NOT ${TD_WINDOWS})       # {
-    if(${TD_LINUX})
-        set(ext_curl_static libcurl.a)
-        set(_c_flags_list -fPIC)
-    elseif(${TD_DARWIN})
-        set(ext_curl_static libcurl.a)
-        set(_c_flags_list)
-    endif()
-    INIT_EXT(ext_curl
-        INC_DIR          include
-        LIB              lib/${ext_curl_static}
-        # currently: tqStreamNotify.c uses curl_ws_send, but CURL4_OPENSSL exports curl_easy_send
-        #            libcurl4-openssl-dev on ubuntu 22.04 is too old
-        # CHK_NAME         CURL4_OPENSSL
+if(${TD_LINUX})
+    set(ext_curl_static libcurl.a)
+    set(_c_flags_list -fPIC)
+elseif(${TD_DARWIN})
+    set(ext_curl_static libcurl.a)
+    set(_c_flags_list)
+elseif(${TD_WINDOWS})
+    set(ext_curl_static libcurl$<$<STREQUAL:${TD_CONFIG_NAME},Debug>:-d>.lib)
+    set(_c_flags_list)
+endif()
+
+INIT_EXT(ext_curl
+    INC_DIR          include
+    LIB              lib/${ext_curl_static}
+    # currently: tqStreamNotify.c uses curl_ws_send, but CURL4_OPENSSL exports curl_easy_send
+    #            libcurl4-openssl-dev on ubuntu 22.04 is too old
+    # CHK_NAME         CURL4_OPENSSL
+)
+
+if(${TD_WINDOWS})
+    # URL https://github.com/curl/curl/releases/download/curl-8_2_1/curl-8.2.1.tar.gz
+    # URL_HASH MD5=b25588a43556068be05e1624e0e74d41
+    get_from_local_if_exists("https://github.com/curl/curl/releases/download/curl-8_2_1/curl-8.2.1.tar.gz")
+    ExternalProject_Add(ext_curl
+        URL ${_url}
+        URL_HASH MD5=b25588a43556068be05e1624e0e74d41
+        PREFIX "${_base}"
+        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
+        CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+        CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR:PATH=lib
+        CMAKE_ARGS -DBUILD_SHARED_LIBS:BOOL=OFF
+        CMAKE_ARGS -DBUILD_TESTING:BOOL=OFF
+        CMAKE_ARGS -DBUILD_CURL_EXE:BOOL=OFF
+        CMAKE_ARGS -DENABLE_WEBSOCKETS:BOOL=ON
+        CMAKE_ARGS -DCURL_USE_SCHANNEL:BOOL=ON
+        CMAKE_ARGS -DCURL_USE_OPENSSL:BOOL=OFF
+        CMAKE_ARGS -DCURL_ZLIB:BOOL=OFF
+        CMAKE_ARGS -DCURL_DISABLE_LDAP:BOOL=ON
+        CMAKE_ARGS -DCURL_DISABLE_LDAPS:BOOL=ON
+        BUILD_COMMAND
+            COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
+        INSTALL_COMMAND
+            COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
+        EXCLUDE_FROM_ALL TRUE
+        VERBATIM
     )
+else()
     string(JOIN " " _c_flags ${_c_flags_list})
     # URL https://github.com/curl/curl/releases/download/curl-8_2_1/curl-8.2.1.tar.gz
     # URL_HASH MD5=b25588a43556068be05e1624e0e74d41
@@ -911,8 +951,8 @@ if(NOT ${TD_WINDOWS})       # {
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
     )
-    add_dependencies(build_externals ext_curl)     # this is for github workflow in cache-miss step.
-endif(NOT ${TD_WINDOWS})    # }
+endif()
+add_dependencies(build_externals ext_curl)     # this is for github workflow in cache-miss step.
 
 # geos
 if(${BUILD_GEOS})           # {

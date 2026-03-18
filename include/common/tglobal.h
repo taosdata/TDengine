@@ -76,6 +76,7 @@ extern EEncryptScope tsiEncryptScope;
 extern char          tsEncryptKey[];
 extern int8_t        tsEnableStrongPassword;
 extern int8_t        tsEnableAdvancedSecurity;
+extern int8_t        tsEnableGrantLegacySyntax;
 extern char          tsEncryptPassAlgorithm[];
 extern EEncryptAlgor tsiEncryptPassAlgorithm;
 
@@ -359,6 +360,7 @@ extern int32_t tsTtlPushIntervalSec;
 extern int32_t tsTtlBatchDropNum;
 extern int32_t tsTrimVDbIntervalSec;
 extern int32_t tsQueryTrimIntervalSec;
+extern int32_t tsQuerySsMigrateIntervalSec;
 extern int32_t tsGrantHBInterval;
 extern int32_t tsUptimeInterval;
 extern bool    tsUpdateCacheBatch;
