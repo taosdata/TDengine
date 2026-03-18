@@ -86,11 +86,12 @@ int32_t schProcessFetchRsp(SSchJob *pJob, SSchTask *pTask, char *msg, int32_t rs
     SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 
-  if (atomic_load_32(&pJob->execPhase) != QUERY_PHASE_FETCH_PREPARING_RESPONSE) {
-    atomic_store_32(&pJob->execPhase, QUERY_PHASE_FETCH_PREPARING_RESPONSE);
+  // Fetch response received, transition to RETURNED state
+  if (atomic_load_32(&pJob->execPhase) != QUERY_PHASE_FETCH_RETURNED) {
+    atomic_store_32(&pJob->execPhase, QUERY_PHASE_FETCH_RETURNED);
     atomic_store_64(&pJob->phaseStartTime, taosGetTimestampMs());
   }
-  
+
   if (SCH_IS_EXPLAIN_JOB(pJob)) {
     if (rsp->completed) {
       SRetrieveTableRsp *pRsp = NULL;

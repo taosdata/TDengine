@@ -277,9 +277,8 @@ const char *queryPhaseStr(int32_t phase) {
     case QUERY_PHASE_EXEC_WAITING_CHILDREN: return "execute/waiting";
 
     /* FETCH sub-phases: 6x */
-    case QUERY_PHASE_FETCH_CLIENT_REQUEST:     return "fetch/client_request";
-    case QUERY_PHASE_FETCH_SERVER_PROCESSING:  return "fetch/server_processing";
-    case QUERY_PHASE_FETCH_PREPARING_RESPONSE: return "fetch/preparing_response";
+    case QUERY_PHASE_FETCH_IN_PROGRESS: return "fetch/in_progress";
+    case QUERY_PHASE_FETCH_RETURNED:    return "fetch/returned";
 
     default: return "unknown";
   }

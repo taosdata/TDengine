@@ -5092,9 +5092,8 @@ typedef enum EQueryExecPhase {
   QUERY_PHASE_EXEC_WAITING_CHILDREN = 53,
 
   /* FETCH sub-phases: 6x */
-  QUERY_PHASE_FETCH_CLIENT_REQUEST     = 61,
-  QUERY_PHASE_FETCH_SERVER_PROCESSING  = 62,
-  QUERY_PHASE_FETCH_PREPARING_RESPONSE = 63,
+  QUERY_PHASE_FETCH_IN_PROGRESS = 60,  // A single fetch operation is in progress
+  QUERY_PHASE_FETCH_RETURNED    = 61,  // Data returned to client, business logic processing
 } EQueryExecPhase;
 
 const char* queryPhaseStr(int32_t phase);

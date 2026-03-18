@@ -3402,10 +3402,6 @@ void taosAsyncFetchImpl(SRequestObj* pRequest, __taos_async_fn_t fp, void* param
 
 void doRequestCallback(SRequestObj* pRequest, int32_t code) {
   pRequest->inCallback = true;
-  if (atomic_load_32(&pRequest->execPhase) != QUERY_PHASE_DONE) {
-    atomic_store_32(&pRequest->execPhase, QUERY_PHASE_DONE);
-    atomic_store_64(&pRequest->phaseStartTime, taosGetTimestampMs());
-  }
 
   int64_t this = pRequest->self;
   if (tsQueryTbNotExistAsEmpty && TD_RES_QUERY(&pRequest->resType) && pRequest->isQuery &&

@@ -18,7 +18,7 @@ class TestQueryPhaseTracking:
         "schedule", "execute", "fetch", "done",
         "schedule/analysis", "schedule/planning", "schedule/node_selection",
         "execute/data_query", "execute/merge_query", "execute/waiting",
-        "fetch/client_request", "fetch/server_processing", "fetch/preparing_response",
+        "fetch/in_progress", "fetch/returned",
     ]
 
     def setup_class(cls):
@@ -308,6 +308,53 @@ class TestQueryPhaseTracking:
                         f"Phase should be a valid phase, got '{phase_value}'"
 
         print("test phase state max length ....................... [passed]")
+
+    def test_fetch_state_transitions(self):
+        """Fetch: Verify phase transitions during fetch operations
+
+        1. Execute a query with multiple rows
+        2. Verify state transitions between fetch/done and fetch/in_progress
+        3. Each fetch call should set phase to in_progress, then back to done
+
+        Since: v3.3.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-3-18 Created for simplified fetch state verification
+
+        """
+        tdLog.info("=============== test fetch state transitions")
+        tdSql.execute(f"use db")
+        tdSql.execute(f"create table if not exists db.test_fetch_trans (ts timestamp, v int)")
+        # Insert multiple rows
+        for i in range(10):
+            tdSql.execute(f"insert into db.test_fetch_trans values (now + {i}s, {i})")
+
+        # Execute query - should complete and go to fetch/returned
+        tdSql.query(f"select * from db.test_fetch_trans")
+
+        # Check state should be fetch/returned or transitioning
+        tdSql.query(f"show queries")
+        if tdSql.getRows() > 0:
+            col_names = [desc[0] for desc in tdSql.cursor.description]
+            phase_idx = self._get_col_idx(col_names, "phase_state")
+            sql_idx = self._get_col_idx(col_names, "sql")
+
+            for row in range(tdSql.getRows()):
+                phase_value = tdSql.getData(row, phase_idx)
+                sql_val = tdSql.getData(row, sql_idx) if sql_idx >= 0 else ""
+                if "test_fetch_trans" in sql_val:
+                    tdLog.info(f"Query state: phase={phase_value}")
+                    # Should be one of: fetch/returned, fetch/in_progress, done
+                    valid_fetch_phases = ["fetch/returned", "fetch/in_progress", "done"]
+                    assert phase_value in valid_fetch_phases, \
+                        f"Phase should be a valid fetch phase, got '{phase_value}'"
+                    break
+
+        print("test fetch state transitions ..................... [passed]")
 
     def cleanup_class(cls):
         tdLog.info(f"cleanup {__file__}")

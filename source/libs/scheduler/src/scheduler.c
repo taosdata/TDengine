@@ -98,21 +98,33 @@ int32_t schedulerFetchRows(int64_t jobId, SSchedulerReq *pReq) {
 
   SCH_ERR_JRET(schHandleOpBeginEvent(jobId, &pJob, SCH_OP_FETCH, pReq));
 
-  if (atomic_load_32(&pJob->execPhase) != QUERY_PHASE_FETCH_CLIENT_REQUEST) {
-    atomic_store_32(&pJob->execPhase, QUERY_PHASE_FETCH_CLIENT_REQUEST);
+  // Set to IN_PROGRESS when starting fetch
+  if (atomic_load_32(&pJob->execPhase) != QUERY_PHASE_FETCH_IN_PROGRESS) {
+    atomic_store_32(&pJob->execPhase, QUERY_PHASE_FETCH_IN_PROGRESS);
     atomic_store_64(&pJob->phaseStartTime, taosGetTimestampMs());
   }
 
   SCH_ERR_JRET(schSwitchJobStatus(pJob, JOB_TASK_STATUS_FETCH, pReq));
 
-  if (atomic_load_32(&pJob->execPhase) != QUERY_PHASE_FETCH_SERVER_PROCESSING) {
-    atomic_store_32(&pJob->execPhase, QUERY_PHASE_FETCH_SERVER_PROCESSING);
-    atomic_store_64(&pJob->phaseStartTime, taosGetTimestampMs());
+_return:
+  schHandleOpEndEvent(pJob, SCH_OP_FETCH, pReq, code);
+
+  // After fetch completes, determine next phase based on whether there's more data
+  if (code == TSDB_CODE_SUCCESS && pReq != NULL && pReq->pFetchRes != NULL && *(pReq->pFetchRes) != NULL) {
+    SRetrieveTableRsp *pRsp = (SRetrieveTableRsp *)(*(pReq->pFetchRes));
+
+    // Check if all data has been fetched
+    if (pRsp->completed) {
+      // All data fetched, transition from RETURNED to DONE
+      if (atomic_val_compare_exchange_32(&pJob->execPhase, QUERY_PHASE_FETCH_RETURNED, QUERY_PHASE_DONE) ==
+          QUERY_PHASE_FETCH_RETURNED) {
+        atomic_store_64(&pJob->phaseStartTime, taosGetTimestampMs());
+      }
+    }
+    // else: stay in RETURNED state, more data available for next fetch
   }
 
-_return:
-
-  SCH_RET(schHandleOpEndEvent(pJob, SCH_OP_FETCH, pReq, code));
+  SCH_RET(code);
 }
 
 int32_t schedulerGetTasksStatus(int64_t jobId, SArray *pSub) {

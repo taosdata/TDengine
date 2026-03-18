@@ -2156,8 +2156,9 @@ void taos_fetch_rows_a(TAOS_RES *res, __taos_async_fn_t fp, void *param) {
 
   SRequestObj *pRequest = res;
 
-  if (atomic_load_32(&pRequest->execPhase) != QUERY_PHASE_FETCH) {
-    atomic_store_32(&pRequest->execPhase, QUERY_PHASE_FETCH);
+  // Each fetch call sets phase to IN_PROGRESS
+  if (atomic_load_32(&pRequest->execPhase) != QUERY_PHASE_FETCH_IN_PROGRESS) {
+    atomic_store_32(&pRequest->execPhase, QUERY_PHASE_FETCH_IN_PROGRESS);
     atomic_store_64(&pRequest->phaseStartTime, taosGetTimestampMs());
   }
 
