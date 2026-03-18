@@ -44,6 +44,7 @@ typedef struct SExtWindowStat {
 
 
 typedef struct SExtWinCalcGrpCtx {
+  uint64_t           groupId;
   SArray*            pWins;           // SArray<SExtWinTimeWindow>
   int32_t            curIdx; // for pesudo func calculation
 
@@ -237,8 +238,19 @@ static void extWinPostUpdateStreamRt(SStreamRuntimeFuncInfo* pStream, SOperatorI
 }
 
 static void extWinAssignBlockGrpId(SOperatorInfo* pOperator, SExternalWindowOperator* pExtW, SBlockID* pId) {
-  if (pExtW->extWinSplit) {
-    pId->groupId = pExtW->lastCGrpId;
+  uint64_t currentCGrpId = (pExtW->pTGrpCtx != NULL && pExtW->pTGrpCtx->pCCtx != NULL)
+                               ? pExtW->pTGrpCtx->pCCtx->groupId
+                               : pExtW->lastCGrpId;
+
+  if (pExtW->calcWithPartition && !pOperator->pTaskInfo->pStreamRuntimeInfo->funcInfo.isMultiGroupCalc) {
+    // For partitioned non-multi-group output, the effective merge group is the
+    // current calc-group id. If we keep using lastTGrpId here, all output
+    // blocks collapse to group 0 and the downstream merge path may concatenate
+    // different partition groups without re-ordering by _group_id.
+    pId->groupId = currentCGrpId;
+    pId->baseGId = 0;
+  } else if (pExtW->extWinSplit) {
+    pId->groupId = currentCGrpId;
     pId->baseGId = pExtW->lastTGrpId;
   } else {
     pId->groupId = pExtW->lastTGrpId;
@@ -413,6 +425,7 @@ void destroyExternalWindowOperatorInfo(void* param) {
 
 static int32_t extWinOpen(SOperatorInfo* pOperator);
 static int32_t extWinNext(SOperatorInfo* pOperator, SSDataBlock** ppRes);
+static int32_t mergeAlignExtWinNext(SOperatorInfo* pOperator, SSDataBlock** ppRes);
 
 static void extWinApplyTimeRangeToTableScan(SOperatorInfo* pScanOp, const STimeWindow* pTimeRange) {
   if (pScanOp == NULL || pScanOp->info == NULL || pTimeRange == NULL) {
@@ -556,36 +569,78 @@ int64_t* extWinExtractTsCol(SSDataBlock* pBlock, int32_t primaryTsIndex, SExecTa
   return tsCols;
 }
 
-static int32_t extWinGetCurWinIdx(SExecTaskInfo* pTaskInfo) {
+static FORCE_INLINE SExternalWindowOperator* extWinGetCoreInfo(SOperatorInfo* pOperator) {
+  if (pOperator == NULL) {
+    return NULL;
+  }
+
+  if (pOperator->fpSet.getNextFn == mergeAlignExtWinNext) {
+    SMergeAlignedExternalWindowOperator* pMAExtW = pOperator->info;
+    return (pMAExtW != NULL) ? pMAExtW->pExtW : NULL;
+  }
+
+  return pOperator->info;
+}
+
+static FORCE_INLINE SExtWinCalcGrpCtx* extWinGetScopedCalcGrpCtx(SOperatorInfo* pOperator) {
+  SExternalWindowOperator* pExtW = extWinGetCoreInfo(pOperator);
+  if (pExtW == NULL || pExtW->pTGrpCtx == NULL || pExtW->pTGrpCtx->pCCtx == NULL) {
+    return NULL;
+  }
+
+  // In partitioned external-window queries, different calc-groups may share
+  // the same trigger-group. Their window cursors must stay isolated per
+  // calc-group instead of falling back to the task-global cursor.
+  if (pExtW->calcWithPartition) {
+    return pExtW->pTGrpCtx->pCCtx;
+  }
+
+  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
+  if (pTaskInfo != NULL && pTaskInfo->pStreamRuntimeInfo != NULL) {
+    SStreamRuntimeFuncInfo* pInfo = &pTaskInfo->pStreamRuntimeInfo->funcInfo;
+    if (pInfo->isMultiGroupCalc) {
+      return pExtW->pTGrpCtx->pCCtx;
+    }
+  }
+
+  return NULL;
+}
+
+static int32_t extWinGetCurWinIdx(SOperatorInfo* pOperator) {
+  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
   if (!pTaskInfo->pStreamRuntimeInfo) {
     return 0;
   }
-  SStreamRuntimeFuncInfo* pInfo = &pTaskInfo->pStreamRuntimeInfo->funcInfo;
-  return pInfo->isMultiGroupCalc ? ((SExtWinTrigGrpCtx*)pInfo->curGrpCalc->pRunnerGrpCtx)->pCCtx->curIdx : pInfo->curIdx;
+  SExtWinCalcGrpCtx* pCCtx = extWinGetScopedCalcGrpCtx(pOperator);
+  if (pCCtx != NULL) {
+    return pCCtx->curIdx;
+  }
+
+  return pTaskInfo->pStreamRuntimeInfo->funcInfo.curIdx;
 }
 
 static void extWinSetCurWinIdx(SOperatorInfo* pOperator, int32_t idx) {
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
   if (pTaskInfo->pStreamRuntimeInfo) {
-    SStreamRuntimeFuncInfo* pInfo = &pTaskInfo->pStreamRuntimeInfo->funcInfo;
-    if (pInfo->isMultiGroupCalc) {
-      ((SExtWinTrigGrpCtx*)pInfo->curGrpCalc->pRunnerGrpCtx)->pCCtx->curIdx = idx;
+    SExtWinCalcGrpCtx* pCCtx = extWinGetScopedCalcGrpCtx(pOperator);
+    if (pCCtx != NULL) {
+      pCCtx->curIdx = idx;
     }
-    pInfo->curIdx = idx;
+    pTaskInfo->pStreamRuntimeInfo->funcInfo.curIdx = idx;
   }
 }
 
 
-static void extWinIncCurWinOutIdx(SStreamRuntimeInfo* pStreamRuntimeInfo) {
-  if (pStreamRuntimeInfo == NULL) {
+static void extWinIncCurWinOutIdx(SOperatorInfo* pOperator) {
+  if (pOperator == NULL || pOperator->pTaskInfo->pStreamRuntimeInfo == NULL) {
     return;
   }
 
-  SStreamRuntimeFuncInfo* pInfo = &pStreamRuntimeInfo->funcInfo;
-  if (pInfo->isMultiGroupCalc && pInfo->curGrpCalc && pInfo->curGrpCalc->pRunnerGrpCtx) {
-    ((SExtWinTrigGrpCtx*)pInfo->curGrpCalc->pRunnerGrpCtx)->pCCtx->curIdx++;
+  SExtWinCalcGrpCtx* pCCtx = extWinGetScopedCalcGrpCtx(pOperator);
+  if (pCCtx != NULL) {
+    pCCtx->curIdx++;
   }
-  pInfo->curIdx++;
+  pOperator->pTaskInfo->pStreamRuntimeInfo->funcInfo.curIdx++;
 }
 
 
@@ -692,6 +747,7 @@ _exit:
 static int32_t extWinInitCGrpCtx(SExternalWindowOperator* pExtW, SExecTaskInfo* pTaskInfo, SExtWinCalcGrpCtx* pCtx) {
   int32_t code = 0, lino = 0;
 
+  pCtx->groupId = 0;
   pCtx->curIdx = 0;
   pCtx->lastSKey = INT64_MIN;
   pCtx->lastWinId = -1;
@@ -817,6 +873,41 @@ _exit:
   return code;
 }
 
+static void extWinNormalizeBlockIdForPartition(SExternalWindowOperator* pExtW, SExecTaskInfo* pTaskInfo, SBlockID* pId) {
+  if (pId == NULL || pTaskInfo == NULL || pTaskInfo->pStreamRuntimeInfo == NULL) {
+    return;
+  }
+
+  SStreamRuntimeFuncInfo* pInfo = &pTaskInfo->pStreamRuntimeInfo->funcInfo;
+  if (!pInfo->isMultiGroupCalc || !pExtW->calcWithPartition || pInfo->pGroupCalcInfos == NULL) {
+    return;
+  }
+
+  if (pId->baseGId == 0 && pId->groupId != 0 &&
+      tSimpleHashGet(pInfo->pGroupCalcInfos, &pId->groupId, sizeof(pId->groupId)) != NULL) {
+    pId->baseGId = pId->groupId;
+    qDebug("%s %s normalize baseGId <- groupId %" PRIu64,
+           GET_TASKID(pTaskInfo), EXT_WIN_TYPE_STR(pExtW->isMergeAlignedExtW), pId->groupId);
+  } else if (pId->baseGId == 0) {
+    int32_t size = tSimpleHashGetSize(pInfo->pGroupCalcInfos);
+    if (size == 1) {
+      int32_t iter = 0;
+      SSTriggerGroupCalcInfo* pOne = tSimpleHashIterate(pInfo->pGroupCalcInfos, NULL, &iter);
+      if (pOne != NULL) {
+        pId->baseGId = *(uint64_t*)tSimpleHashGetKey(pOne, NULL);
+        qDebug("%s %s normalize baseGId <- single gid %" PRIu64,
+               GET_TASKID(pTaskInfo), EXT_WIN_TYPE_STR(pExtW->isMergeAlignedExtW), pId->baseGId);
+      }
+    }
+  }
+
+  if (pId->groupId == 0 && pId->baseGId != 0) {
+    pId->groupId = pId->baseGId;
+    qDebug("%s %s normalize groupId <- baseGId %" PRIu64,
+           GET_TASKID(pTaskInfo), EXT_WIN_TYPE_STR(pExtW->isMergeAlignedExtW), pId->groupId);
+  }
+}
+
 
 static int32_t extWinSwitchInitCGrpCtx(SExternalWindowOperator* pExtW, SExecTaskInfo* pTaskInfo, SBlockID* pId) {
   int32_t code = 0, lino = 0;
@@ -835,7 +926,10 @@ static int32_t extWinSwitchInitCGrpCtx(SExternalWindowOperator* pExtW, SExecTask
   // like "no cgrp" here; extWinOpen has an early filter to skip such blocks.
   if (0 == pId->groupId || (pInfo->isMultiGroupCalc && (pId->baseGId != pId->groupId))) {
     if (NULL != pTCtx->pCGCtxs) {
-      qError("%s plan or ctx conflict, pCGCtxs:%p", GET_TASKID(pTaskInfo), pTCtx->pCGCtxs);
+      qError("%s plan or ctx conflict, pCGCtxs:%p baseGrp:%" PRIu64 " grp:%" PRIu64
+             " lastCGrp:%" PRIu64 " isMulti:%d calcWithPart:%d",
+             GET_TASKID(pTaskInfo), pTCtx->pCGCtxs, pId->baseGId, pId->groupId,
+             pExtW->lastCGrpId, pInfo->isMultiGroupCalc, pExtW->calcWithPartition);
       TAOS_CHECK_EXIT(TSDB_CODE_STREAM_INTERNAL_ERROR);
     }
 
@@ -851,6 +945,9 @@ static int32_t extWinSwitchInitCGrpCtx(SExternalWindowOperator* pExtW, SExecTask
   }
 
   if (pId->groupId == pExtW->lastCGrpId) {
+    if (pTCtx->pCCtx != NULL) {
+      pTCtx->pCCtx->groupId = pId->groupId;
+    }
     qDebug("%s ext win continue cgrp %" PRIu64, EXT_WIN_TYPE_STR(pExtW->isMergeAlignedExtW), pId->groupId);
     goto _exit;
   }
@@ -891,6 +988,9 @@ static int32_t extWinSwitchInitCGrpCtx(SExternalWindowOperator* pExtW, SExecTask
       }
     }
   }
+  if (pTCtx->pCCtx != NULL) {
+    pTCtx->pCCtx->groupId = pId->groupId;
+  }
   
   qDebug("%s ext win switch to cgrp %" PRIu64, EXT_WIN_TYPE_STR(pExtW->isMergeAlignedExtW), pId->groupId);
 
@@ -906,6 +1006,7 @@ _exit:
 
 static int32_t extWinSwitchInitCtxs(SExternalWindowOperator* pExtW, SExecTaskInfo* pTaskInfo, SBlockID* pId) {
   int32_t code = 0, lino = 0;
+  extWinNormalizeBlockIdForPartition(pExtW, pTaskInfo, pId);
   TAOS_CHECK_EXIT(extWinSwitchInitTGrpCtx(pExtW, pTaskInfo, pId));
   TAOS_CHECK_EXIT(extWinSwitchInitCGrpCtx(pExtW, pTaskInfo, pId));
 
@@ -937,14 +1038,14 @@ static int32_t mergeAlignExtWinSetOutputBuf(SOperatorInfo* pOperator, SResultRow
   }
   
   (*pResult)->win = *pWin;
-  (*pResult)->winIdx = extWinGetCurWinIdx(pOperator->pTaskInfo);
+  (*pResult)->winIdx = extWinGetCurWinIdx(pOperator);
   
   return setResultRowInitCtx((*pResult), pExprSup->pCtx, pExprSup->numOfExprs, pExprSup->rowEntryInfoOffset);
 }
 
 
 static int32_t mergeAlignExtWinGetWinFromTs(SOperatorInfo* pOperator, SExternalWindowOperator* pExtW, TSKEY ts, STimeWindow** ppWin) {
-  int32_t blkWinIdx = extWinGetCurWinIdx(pOperator->pTaskInfo);
+  int32_t blkWinIdx = extWinGetCurWinIdx(pOperator);
   
   // TODO handle desc order
   for (int32_t i = blkWinIdx; i < pExtW->pTGrpCtx->pCCtx->pWins->size; ++i) {
@@ -998,7 +1099,7 @@ static int32_t mergeAlignExtWinAggDo(SOperatorInfo* pOperator, SResultRowInfo* p
   int32_t startPos = 0;
   int64_t* tsCols = extWinExtractTsCol(pBlock, pExtW->primaryTsIndex, pTaskInfo);
   TSKEY ts = getStartTsKey(&pBlock->info.window, tsCols);
-  
+
   extWinSetCurWinIdx(pOperator, 0);
   code = mergeAlignExtWinGetWinFromTs(pOperator, pExtW, ts, &pWin);
   if (code) {
@@ -1064,7 +1165,7 @@ static int32_t mergeAlignExtWinBuildWinRowIdx(SOperatorInfo* pOperator, SSDataBl
     }
     
     TAOS_CHECK_EXIT(mergeAlignExtWinGetWinFromTs(pOperator, pExtW, tsCols[i], &pWin));
-    TAOS_CHECK_EXIT(extWinAppendWinIdx(pOperator->pTaskInfo, pExtW->pWinRowIdx, pResult, extWinGetCurWinIdx(pOperator->pTaskInfo), pInput->info.rows - i));
+    TAOS_CHECK_EXIT(extWinAppendWinIdx(pOperator->pTaskInfo, pExtW->pWinRowIdx, pResult, extWinGetCurWinIdx(pOperator), pInput->info.rows - i));
 
     prevTs = tsCols[i];
   }
@@ -1130,6 +1231,8 @@ void mergeAlignExtWinDo(SOperatorInfo* pOperator) {
       break;
     }
 
+    extWinNormalizeBlockIdForPartition(pExtW, pTaskInfo, &pBlock->info.id);
+
     if (pExtW->lastCGrpId != pBlock->info.id.groupId) {
       if (pMAExtW->curTs != INT64_MIN && EEXT_MODE_AGG == pExtW->mode) {
         TAOS_CHECK_EXIT(mergeAlignExtWinFinalizeResult(pOperator, &pExtW->binfo.resultRowInfo, pRes));
@@ -1148,23 +1251,6 @@ void mergeAlignExtWinDo(SOperatorInfo* pOperator) {
         pMAExtW->pNewGroup = pBlock;
         pMAExtW->curTs = INT64_MIN;
         break;
-      }
-    }
-
-    // If baseGId is missing in merge-aligned path but we know there is exactly
-    // one trigger group from the subquery, fill it so T-group ctx can be found.
-    if (pBlock->info.id.baseGId == 0 && pTaskInfo->pStreamRuntimeInfo &&
-        pTaskInfo->pStreamRuntimeInfo->funcInfo.isMultiGroupCalc &&
-        pTaskInfo->pStreamRuntimeInfo->funcInfo.pGroupCalcInfos) {
-      int32_t __iter = 0;
-      int32_t __size = tSimpleHashGetSize(pTaskInfo->pStreamRuntimeInfo->funcInfo.pGroupCalcInfos);
-      if (__size == 1) {
-        SSTriggerGroupCalcInfo* __one = tSimpleHashIterate(pTaskInfo->pStreamRuntimeInfo->funcInfo.pGroupCalcInfos, NULL, &__iter);
-        if (__one) {
-          uint64_t __gid = *(uint64_t*)tSimpleHashGetKey(__one, NULL);
-          pBlock->info.id.baseGId = __gid;
-          qDebug("%s mergeAlign extWin fallback baseGId set to single gid %" PRIu64, GET_TASKID(pTaskInfo), __gid);
-        }
       }
     }
 
@@ -1306,6 +1392,9 @@ int32_t createMergeAlignedExternalWindowOperator(SOperatorInfo* pDownstream, SPh
   pExtW->mode = pPhynode->window.pProjs ? EEXT_MODE_SCALAR : EEXT_MODE_AGG;
   pExtW->binfo.inputTsOrder = pPhynode->window.node.inputTsOrder = TSDB_ORDER_ASC;
   pExtW->binfo.outputTsOrder = pExtW->binfo.inputTsOrder;
+  pExtW->needGroupSort = pPhynode->needGroupSort;
+  pExtW->calcWithPartition = pPhynode->calcWithPartition;
+  pExtW->extWinSplit = pPhynode->extWinSplit;
 
   size_t keyBufSize = sizeof(int64_t) + sizeof(int64_t) + POINTER_BYTES;
   initResultSizeInfo(&pOperator->resultInfo, 4096);
@@ -1577,7 +1666,7 @@ static int32_t extWinGetNoOvlpWin(SOperatorInfo* pOperator, int64_t* tsCol, int3
   SExtWinCalcGrpCtx* pCCtx = pExtW->pTGrpCtx->pCCtx;
   
   if (pCCtx->blkWinIdx < 0) {
-    pCCtx->blkWinIdx = extWinGetCurWinIdx(pOperator->pTaskInfo);
+    pCCtx->blkWinIdx = extWinGetCurWinIdx(pOperator);
   } else {
     pCCtx->blkWinIdx++;
   }
@@ -2029,7 +2118,7 @@ static int32_t extWinAggSetWinOutputBuf(SOperatorInfo* pOperator, SExtWinTimeWin
     
     memset(pResultRow, 0, pAggSup->resultRowSize);
 
-    pResultRow->winIdx = extWinGetCurWinIdx(pOperator->pTaskInfo);
+    pResultRow->winIdx = extWinGetCurWinIdx(pOperator);
     TAOS_SET_POBJ_ALIGNED(&pResultRow->win, &win->tw);
   }
 
@@ -2183,7 +2272,7 @@ static int32_t extWinProjectDo(SOperatorInfo* pOperator, SSDataBlock* pInputBloc
   pResBlock->info.id.groupId = pInputBlock->info.id.groupId;
   pResBlock->info.id.baseGId = pInputBlock->info.id.baseGId;
 
-  TAOS_CHECK_EXIT(extWinAppendWinIdx(pOperator->pTaskInfo, pIdx, pResBlock, extWinGetCurWinIdx(pOperator->pTaskInfo), rows));
+  TAOS_CHECK_EXIT(extWinAppendWinIdx(pOperator->pTaskInfo, pIdx, pResBlock, extWinGetCurWinIdx(pOperator), rows));
 
 _exit:
 
@@ -2347,7 +2436,7 @@ static int32_t extWinIndefRowsDo(SOperatorInfo* pOperator, SSDataBlock* pInputBl
 
   pResBlock->info.id.groupId = pInputBlock->info.id.groupId;
 
-  TAOS_CHECK_EXIT(extWinAppendWinIdx(pOperator->pTaskInfo, pIdx, pResBlock, extWinGetCurWinIdx(pOperator->pTaskInfo), rows));
+  TAOS_CHECK_EXIT(extWinAppendWinIdx(pOperator->pTaskInfo, pIdx, pResBlock, extWinGetCurWinIdx(pOperator), rows));
 
 _exit:
 
@@ -2398,7 +2487,7 @@ static int32_t extWinNonAggOutputSingleGrpRes(SOperatorInfo* pOperator, SExterna
   int32_t         lino = 0;
   SSDataBlock*    pRes = NULL;
 
-  for (; pCCtx->outWinIdx < numOfWin && pCCtx->outWinLastIdx < pCCtx->lastWinIdx; pCCtx->outWinIdx += 1, extWinIncCurWinOutIdx(pOperator->pTaskInfo->pStreamRuntimeInfo)) {
+  for (; pCCtx->outWinIdx < numOfWin && pCCtx->outWinLastIdx < pCCtx->lastWinIdx; pCCtx->outWinIdx += 1, extWinIncCurWinOutIdx(pOperator)) {
     SExtWinTimeWindow* pWin = TARRAY_GET_ELEM(pCCtx->pWins, pCCtx->outWinIdx);
     if (pWin->resWinIdx < 0 || pWin->resWinIdx == pCCtx->outWinLastIdx) {
       continue;
@@ -2417,7 +2506,7 @@ static int32_t extWinNonAggOutputSingleGrpRes(SOperatorInfo* pOperator, SExterna
 
     if (listNEles(pList) <= 0) {
       pCCtx->outWinIdx++;
-      extWinIncCurWinOutIdx(pOperator->pTaskInfo->pStreamRuntimeInfo);
+      extWinIncCurWinOutIdx(pOperator);
     }
 
     break;
@@ -2486,7 +2575,7 @@ static int32_t extWinNonAggOutputRes(SOperatorInfo* pOperator, SSDataBlock** ppR
   if (pStream->isMultiGroupCalc) {
     TAOS_CHECK_EXIT(extWinNonAggOutputMultiGrpRes(pOperator, pExtW, &pRes));
   } else {
-    for (; pExtW->outWinIdx < numOfWin; pExtW->outWinIdx++, extWinIncCurWinOutIdx(pOperator->pTaskInfo->pStreamRuntimeInfo)) {
+    for (; pExtW->outWinIdx < numOfWin; pExtW->outWinIdx++, extWinIncCurWinOutIdx(pOperator)) {
       SList* pList = taosArrayGetP(pExtW->pOutputBlocks, pExtW->outWinIdx);
       if (listNEles(pList) <= 0) {
         continue;
@@ -2499,7 +2588,7 @@ static int32_t extWinNonAggOutputRes(SOperatorInfo* pOperator, SSDataBlock** ppR
 
       if (listNEles(pList) <= 0) {
         pExtW->outWinIdx++;
-        extWinIncCurWinOutIdx(pOperator->pTaskInfo->pStreamRuntimeInfo);
+        extWinIncCurWinOutIdx(pOperator);
       }
 
       break;
@@ -2530,7 +2619,7 @@ static int32_t extWinAggHandleEmptyWins(SOperatorInfo* pOperator, SSDataBlock* p
   int32_t code = 0, lino = 0;
   SExternalWindowOperator* pExtW = (SExternalWindowOperator*)pOperator->info;
   SExprSupp* pSup = &pOperator->exprSupp;
-  int32_t currIdx = extWinGetCurWinIdx(pOperator->pTaskInfo);
+  int32_t currIdx = extWinGetCurWinIdx(pOperator);
 
   if (NULL == pExtW->pEmptyInputBlock || (pWin && pWin->tw.skey == pExtW->pTGrpCtx->pCCtx->lastSKey)) {
     goto _exit;
@@ -2616,7 +2705,7 @@ static int32_t extWinAggOpen(SOperatorInfo* pOperator, SSDataBlock* pInputBlock)
     TAOS_CHECK_EXIT(extWinAggDo(pOperator, startPos, winRows, pInputBlock));
     
     pExtW->pTGrpCtx->pCCtx->lastSKey = pWin->tw.skey;
-    pExtW->pTGrpCtx->pCCtx->lastWinId = extWinGetCurWinIdx(pOperator->pTaskInfo);
+    pExtW->pTGrpCtx->pCCtx->lastWinId = extWinGetCurWinIdx(pOperator);
     startPos += winRows;
   }
 
@@ -2704,11 +2793,13 @@ static int32_t extWinAggOutputMulNoOrderCGrpsRes(SOperatorInfo* pOperator, SExte
   }
 
   if (pTGrpCtx->pCCtx) {
+    pExtW->lastCGrpId = pTGrpCtx->pCCtx->groupId;
     TAOS_CHECK_EXIT(extWinAggOutputSingleCGrpRes(pOperator, pExtW, NULL));
   }
   if (0 == pBlock->info.rows) {
     pTGrpCtx->pCCtx = tSimpleHashIterate(pTGrpCtx->pCGCtxs, pTGrpCtx->pCCtx, &pTGrpCtx->lastCtxIter);
     while (pTGrpCtx->pCCtx != NULL) {
+      pExtW->lastCGrpId = pTGrpCtx->pCCtx->groupId;
       TAOS_CHECK_EXIT(extWinAggOutputSingleCGrpRes(pOperator, pExtW, NULL));
       if (pBlock->info.rows > 0) {
         break;
@@ -2736,7 +2827,13 @@ static int32_t extWinAggOutputMulNoOrderTGrpsRes(SOperatorInfo* pOperator, SExte
   SSDataBlock*    pBlock = pExtW->binfo.pRes;
 
   if (pStream->curGrpCalc) {
-    TAOS_CHECK_EXIT(extWinAggOutputSingleCGrpRes(pOperator, pExtW, NULL));
+    pExtW->lastTGrpId = *(uint64_t*)tSimpleHashGetKey(pStream->curGrpCalc, NULL);
+    pExtW->pTGrpCtx = pStream->curGrpCalc->pRunnerGrpCtx;
+    if (pExtW->calcWithPartition) {
+      TAOS_CHECK_EXIT(extWinAggOutputMulNoOrderCGrpsRes(pOperator, pExtW));
+    } else {
+      TAOS_CHECK_EXIT(extWinAggOutputSingleCGrpRes(pOperator, pExtW, NULL));
+    }
   }
   if (0 == pBlock->info.rows) {
     pStream->curGrpCalc = tSimpleHashIterate(pStream->pGroupCalcInfos, pStream->curGrpCalc, &pExtW->lastOutputIter);
@@ -2744,6 +2841,7 @@ static int32_t extWinAggOutputMulNoOrderTGrpsRes(SOperatorInfo* pOperator, SExte
       if (pStream->curGrpCalc->pRunnerGrpCtx) {
         pExtW->lastTGrpId = *(uint64_t*)tSimpleHashGetKey(pStream->curGrpCalc, NULL);
         pExtW->pTGrpCtx = pStream->curGrpCalc->pRunnerGrpCtx;
+        pExtW->lastCGrpId = 0;
 
         if (pExtW->calcWithPartition) {
           pExtW->pTGrpCtx->pCCtx = NULL;
@@ -3090,6 +3188,9 @@ static void extWinPrepareForOutput(SOperatorInfo* pOperator, SExternalWindowOper
   pStream->curGrpRead = NULL;
 
   pExtW->lastGrpIdx = 0;
+  pExtW->lastOutputIter = 0;
+  pExtW->lastTGrpId = 0;
+  pExtW->lastCGrpId = 0;
 
   if (pExtW->needGroupSort) {
     if (pStream->isMultiGroupCalc && pExtW->calcWithPartition) {
@@ -3101,6 +3202,12 @@ static void extWinPrepareForOutput(SOperatorInfo* pOperator, SExternalWindowOper
         taosArraySort(pExtW->pGrpIds, extWinGrpIdCompare);
       }
     }
+  }
+
+  // In multi-group output mode, always restart from iterator state instead of
+  // inheriting the calc phase's current group/cgrp cursor.
+  if (pStream->isMultiGroupCalc) {
+    pExtW->pTGrpCtx = NULL;
   }
 
   if ((!pStream->isMultiGroupCalc) && pExtW->calcWithPartition && pExtW->pTGrpCtx) {

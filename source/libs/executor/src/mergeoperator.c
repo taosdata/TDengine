@@ -278,8 +278,10 @@ int32_t doSortMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
     pDataBlock->info.scanFlag = p->info.scanFlag;
     if (pInfo->ignoreGroupId) {
       pDataBlock->info.id.groupId = 0;
+      pDataBlock->info.id.baseGId = p->info.id.baseGId;
     } else {
       pDataBlock->info.id.groupId = pInfo->groupId;
+      pDataBlock->info.id.baseGId = p->info.id.baseGId;
     }
     pDataBlock->info.dataLoad = 1;
   }
