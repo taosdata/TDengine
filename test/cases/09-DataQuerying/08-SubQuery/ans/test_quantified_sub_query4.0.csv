@@ -2094,30 +2094,18 @@ QUERY_PLAN:    -> Projection ( rows=0.0(0) columns=1 width=4 input_order=asc)
 *************************** 3.row ***************************
 QUERY_PLAN:       -> Table Scan on st1 ( rows=0.0(0) columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 4.row ***************************
-QUERY_PLAN:          -> I/O cost: total_blocks=1.5(2) file_load_blocks=0.0(0) stt_load_blocks=0.0(0) mem_load_blocks=1.5(2) sma_load_blocks=0.0(0) composed_blocks=1.5(2)
-*************************** 5.row ***************************
-QUERY_PLAN:                    
-*************************** 6.row ***************************
-QUERY_PLAN:                check_rows=3.0(4)    
-*************************** 7.row ***************************
 QUERY_PLAN:    InitPlan 1
-*************************** 8.row ***************************
+*************************** 5.row ***************************
 QUERY_PLAN:       -> Aggregate ( rows=1 functions=2 width=9 input_order=unknown)
-*************************** 9.row ***************************
+*************************** 6.row ***************************
 QUERY_PLAN:          -> Data Exchange 2:1 ( rows=6 width=16)
-*************************** 10.row ***************************
+*************************** 7.row ***************************
 QUERY_PLAN:             -> Projection ( rows=3.0(4) columns=1 width=8 input_order=asc)
-*************************** 11.row ***************************
+*************************** 8.row ***************************
 QUERY_PLAN:                -> Table Scan on st1 ( rows=3.0(4) columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
-*************************** 12.row ***************************
-QUERY_PLAN:                   -> I/O cost: total_blocks=1.5(2) file_load_blocks=0.0(0) stt_load_blocks=0.0(0) mem_load_blocks=1.5(2) sma_load_blocks=0.0(0) composed_blocks=1.5(2)
-*************************** 13.row ***************************
-QUERY_PLAN:                             
-*************************** 14.row ***************************
-QUERY_PLAN:                         check_rows=3.0(4)    
-*************************** 15.row ***************************
+*************************** 9.row ***************************
 QUERY_PLAN: 
-*************************** 16.row ***************************
+*************************** 10.row ***************************
 QUERY_PLAN: 
 
 taos> explain analyze select f1 from st1 where 1 > all (select 0 from st1)\G;
@@ -2128,30 +2116,18 @@ QUERY_PLAN:    -> Projection ( rows=3.0(4) columns=1 width=4 input_order=asc)
 *************************** 3.row ***************************
 QUERY_PLAN:       -> Table Scan on st1 ( rows=3.0(4) columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 4.row ***************************
-QUERY_PLAN:          -> I/O cost: total_blocks=1.5(2) file_load_blocks=0.0(0) stt_load_blocks=0.0(0) mem_load_blocks=1.5(2) sma_load_blocks=0.0(0) composed_blocks=1.5(2)
-*************************** 5.row ***************************
-QUERY_PLAN:                    
-*************************** 6.row ***************************
-QUERY_PLAN:                check_rows=3.0(4)    
-*************************** 7.row ***************************
 QUERY_PLAN:    InitPlan 1
-*************************** 8.row ***************************
+*************************** 5.row ***************************
 QUERY_PLAN:       -> Aggregate ( rows=1 functions=2 width=9 input_order=unknown)
-*************************** 9.row ***************************
+*************************** 6.row ***************************
 QUERY_PLAN:          -> Data Exchange 2:1 ( rows=6 width=16)
-*************************** 10.row ***************************
+*************************** 7.row ***************************
 QUERY_PLAN:             -> Projection ( rows=3.0(4) columns=1 width=8 input_order=asc)
-*************************** 11.row ***************************
+*************************** 8.row ***************************
 QUERY_PLAN:                -> Table Scan on st1 ( rows=3.0(4) columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
-*************************** 12.row ***************************
-QUERY_PLAN:                   -> I/O cost: total_blocks=1.5(2) file_load_blocks=0.0(0) stt_load_blocks=0.0(0) mem_load_blocks=1.5(2) sma_load_blocks=0.0(0) composed_blocks=1.5(2)
-*************************** 13.row ***************************
-QUERY_PLAN:                             
-*************************** 14.row ***************************
-QUERY_PLAN:                         check_rows=3.0(4)    
-*************************** 15.row ***************************
+*************************** 9.row ***************************
 QUERY_PLAN: 
-*************************** 16.row ***************************
+*************************** 10.row ***************************
 QUERY_PLAN: 
 
 taos> explain analyze select f1 from st1 where NULL = any (select 2 from st1)\G;
@@ -2162,28 +2138,16 @@ QUERY_PLAN:    -> Projection ( rows=0.0(0) columns=1 width=4 input_order=asc)
 *************************** 3.row ***************************
 QUERY_PLAN:       -> Table Scan on st1 ( rows=0.0(0) columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 4.row ***************************
-QUERY_PLAN:          -> I/O cost: total_blocks=1.5(2) file_load_blocks=0.0(0) stt_load_blocks=0.0(0) mem_load_blocks=1.5(2) sma_load_blocks=0.0(0) composed_blocks=1.5(2)
-*************************** 5.row ***************************
-QUERY_PLAN:                    
-*************************** 6.row ***************************
-QUERY_PLAN:                check_rows=3.0(4)    
-*************************** 7.row ***************************
 QUERY_PLAN:    InitPlan 1
-*************************** 8.row ***************************
+*************************** 5.row ***************************
 QUERY_PLAN:       -> Data Exchange 2:1 ( rows=6 width=8)
-*************************** 9.row ***************************
+*************************** 6.row ***************************
 QUERY_PLAN:          -> Projection ( rows=3.0(4) columns=1 width=8 input_order=asc)
-*************************** 10.row ***************************
+*************************** 7.row ***************************
 QUERY_PLAN:             -> Table Scan on st1 ( rows=3.0(4) columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
-*************************** 11.row ***************************
-QUERY_PLAN:                -> I/O cost: total_blocks=1.5(2) file_load_blocks=0.0(0) stt_load_blocks=0.0(0) mem_load_blocks=1.5(2) sma_load_blocks=0.0(0) composed_blocks=1.5(2)
-*************************** 12.row ***************************
-QUERY_PLAN:                          
-*************************** 13.row ***************************
-QUERY_PLAN:                      check_rows=3.0(4)    
-*************************** 14.row ***************************
+*************************** 8.row ***************************
 QUERY_PLAN: 
-*************************** 15.row ***************************
+*************************** 9.row ***************************
 QUERY_PLAN: 
 
 taos> explain analyze select f1 from st1 where exists (select f1 from db2.tbx)\G;
@@ -2194,24 +2158,12 @@ QUERY_PLAN:    -> Projection ( rows=3.0(4) columns=1 width=4 input_order=asc)
 *************************** 3.row ***************************
 QUERY_PLAN:       -> Table Scan on st1 ( rows=3.0(4) columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 4.row ***************************
-QUERY_PLAN:          -> I/O cost: total_blocks=1.5(2) file_load_blocks=0.0(0) stt_load_blocks=0.0(0) mem_load_blocks=1.5(2) sma_load_blocks=0.0(0) composed_blocks=1.5(2)
-*************************** 5.row ***************************
-QUERY_PLAN:                    
-*************************** 6.row ***************************
-QUERY_PLAN:                check_rows=3.0(4)    
-*************************** 7.row ***************************
 QUERY_PLAN:    InitPlan 1
-*************************** 8.row ***************************
+*************************** 5.row ***************************
 QUERY_PLAN:       -> Table Scan on tbx ( rows=1 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
-*************************** 9.row ***************************
-QUERY_PLAN:          -> I/O cost: total_blocks=1 file_load_blocks=0 stt_load_blocks=0 mem_load_blocks=1 sma_load_blocks=0 composed_blocks=1
-*************************** 10.row ***************************
-QUERY_PLAN:                    
-*************************** 11.row ***************************
-QUERY_PLAN:                check_rows=1
-*************************** 12.row ***************************
+*************************** 6.row ***************************
 QUERY_PLAN: 
-*************************** 13.row ***************************
+*************************** 7.row ***************************
 QUERY_PLAN: 
 
 taos> explain analyze verbose true select f1 from st1 where 1 < all (select 0 from st1)\G;
@@ -2241,7 +2193,7 @@ QUERY_PLAN:             Time Range: [-9223372036854775808, 9223372036854775807]
 QUERY_PLAN:             Filter: conditions=(1 < $(InitPlan 1)) efficiency=100.0%
 *************************** 14.row ***************************
 *************************** 15.row ***************************
-QUERY_PLAN:          -> I/O cost: total_blocks=1.5(2) file_load_blocks=0.0(0) stt_load_blocks=0.0(0) mem_load_blocks=1.5(2) sma_load_blocks=0.0(0) composed_blocks=1.5(2)
+QUERY_PLAN:             I/O cost: total_blocks=1.5(2) file_load_blocks=0.0(0) stt_load_blocks=0.0(0) mem_load_blocks=1.5(2) sma_load_blocks=0.0(0) composed_blocks=1.5(2)
 *************************** 16.row ***************************
 QUERY_PLAN:                    
 *************************** 17.row ***************************
@@ -2279,7 +2231,7 @@ QUERY_PLAN:                      Output: columns=1 width=8
 QUERY_PLAN:                      Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 35.row ***************************
 *************************** 36.row ***************************
-QUERY_PLAN:                   -> I/O cost: total_blocks=1.5(2) file_load_blocks=0.0(0) stt_load_blocks=0.0(0) mem_load_blocks=1.5(2) sma_load_blocks=0.0(0) composed_blocks=1.5(2)
+QUERY_PLAN:                      I/O cost: total_blocks=1.5(2) file_load_blocks=0.0(0) stt_load_blocks=0.0(0) mem_load_blocks=1.5(2) sma_load_blocks=0.0(0) composed_blocks=1.5(2)
 *************************** 37.row ***************************
 QUERY_PLAN:                             
 *************************** 38.row ***************************
@@ -2316,7 +2268,7 @@ QUERY_PLAN:             Time Range: [-9223372036854775808, 9223372036854775807]
 QUERY_PLAN:             Filter: conditions=(1 > $(InitPlan 1)) efficiency=100.0%
 *************************** 14.row ***************************
 *************************** 15.row ***************************
-QUERY_PLAN:          -> I/O cost: total_blocks=1.5(2) file_load_blocks=0.0(0) stt_load_blocks=0.0(0) mem_load_blocks=1.5(2) sma_load_blocks=0.0(0) composed_blocks=1.5(2)
+QUERY_PLAN:             I/O cost: total_blocks=1.5(2) file_load_blocks=0.0(0) stt_load_blocks=0.0(0) mem_load_blocks=1.5(2) sma_load_blocks=0.0(0) composed_blocks=1.5(2)
 *************************** 16.row ***************************
 QUERY_PLAN:                    
 *************************** 17.row ***************************
@@ -2354,7 +2306,7 @@ QUERY_PLAN:                      Output: columns=1 width=8
 QUERY_PLAN:                      Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 35.row ***************************
 *************************** 36.row ***************************
-QUERY_PLAN:                   -> I/O cost: total_blocks=1.5(2) file_load_blocks=0.0(0) stt_load_blocks=0.0(0) mem_load_blocks=1.5(2) sma_load_blocks=0.0(0) composed_blocks=1.5(2)
+QUERY_PLAN:                      I/O cost: total_blocks=1.5(2) file_load_blocks=0.0(0) stt_load_blocks=0.0(0) mem_load_blocks=1.5(2) sma_load_blocks=0.0(0) composed_blocks=1.5(2)
 *************************** 37.row ***************************
 QUERY_PLAN:                             
 *************************** 38.row ***************************
@@ -2391,7 +2343,7 @@ QUERY_PLAN:             Time Range: [-9223372036854775808, 9223372036854775807]
 QUERY_PLAN:             Filter: conditions=(NULL IN $(InitPlan 1)) efficiency=100.0%
 *************************** 14.row ***************************
 *************************** 15.row ***************************
-QUERY_PLAN:          -> I/O cost: total_blocks=1.5(2) file_load_blocks=0.0(0) stt_load_blocks=0.0(0) mem_load_blocks=1.5(2) sma_load_blocks=0.0(0) composed_blocks=1.5(2)
+QUERY_PLAN:             I/O cost: total_blocks=1.5(2) file_load_blocks=0.0(0) stt_load_blocks=0.0(0) mem_load_blocks=1.5(2) sma_load_blocks=0.0(0) composed_blocks=1.5(2)
 *************************** 16.row ***************************
 QUERY_PLAN:                    
 *************************** 17.row ***************************
@@ -2422,7 +2374,7 @@ QUERY_PLAN:                   Output: columns=1 width=8
 QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 31.row ***************************
 *************************** 32.row ***************************
-QUERY_PLAN:                -> I/O cost: total_blocks=1.5(2) file_load_blocks=0.0(0) stt_load_blocks=0.0(0) mem_load_blocks=1.5(2) sma_load_blocks=0.0(0) composed_blocks=1.5(2)
+QUERY_PLAN:                   I/O cost: total_blocks=1.5(2) file_load_blocks=0.0(0) stt_load_blocks=0.0(0) mem_load_blocks=1.5(2) sma_load_blocks=0.0(0) composed_blocks=1.5(2)
 *************************** 33.row ***************************
 QUERY_PLAN:                          
 *************************** 34.row ***************************
@@ -2459,7 +2411,7 @@ QUERY_PLAN:             Time Range: [-9223372036854775808, 9223372036854775807]
 QUERY_PLAN:             Filter: conditions=($(InitPlan 1) > 0) efficiency=100.0%
 *************************** 14.row ***************************
 *************************** 15.row ***************************
-QUERY_PLAN:          -> I/O cost: total_blocks=1.5(2) file_load_blocks=0.0(0) stt_load_blocks=0.0(0) mem_load_blocks=1.5(2) sma_load_blocks=0.0(0) composed_blocks=1.5(2)
+QUERY_PLAN:             I/O cost: total_blocks=1.5(2) file_load_blocks=0.0(0) stt_load_blocks=0.0(0) mem_load_blocks=1.5(2) sma_load_blocks=0.0(0) composed_blocks=1.5(2)
 *************************** 16.row ***************************
 QUERY_PLAN:                    
 *************************** 17.row ***************************
@@ -2474,7 +2426,7 @@ QUERY_PLAN:             Output: columns=1 width=4
 QUERY_PLAN:             Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 22.row ***************************
 *************************** 23.row ***************************
-QUERY_PLAN:          -> I/O cost: total_blocks=1 file_load_blocks=0 stt_load_blocks=0 mem_load_blocks=1 sma_load_blocks=0 composed_blocks=1
+QUERY_PLAN:             I/O cost: total_blocks=1 file_load_blocks=0 stt_load_blocks=0 mem_load_blocks=1 sma_load_blocks=0 composed_blocks=1
 *************************** 24.row ***************************
 QUERY_PLAN:                    
 *************************** 25.row ***************************
@@ -2904,46 +2856,28 @@ QUERY_PLAN:          -> GroupAggregate ( rows=0.0(0) functions=1 width=62 groups
 *************************** 5.row ***************************
 QUERY_PLAN:             -> Table Scan on st1 ( rows=0.0(0) columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 6.row ***************************
-QUERY_PLAN:                -> I/O cost: total_blocks=1.5(2) file_load_blocks=0.0(0) stt_load_blocks=0.0(0) mem_load_blocks=1.5(2) sma_load_blocks=0.0(0) composed_blocks=1.5(2)
-*************************** 7.row ***************************
-QUERY_PLAN:                          
-*************************** 8.row ***************************
-QUERY_PLAN:                      check_rows=3.0(4)    
-*************************** 9.row ***************************
 QUERY_PLAN:    InitPlan 2
+*************************** 7.row ***************************
+QUERY_PLAN:       -> Aggregate ( rows=1 functions=2 width=9 input_order=unknown)
+*************************** 8.row ***************************
+QUERY_PLAN:          -> Data Exchange 2:1 ( rows=6 width=16)
+*************************** 9.row ***************************
+QUERY_PLAN:             -> Projection ( rows=3.0(4) columns=1 width=8 input_order=asc)
 *************************** 10.row ***************************
-QUERY_PLAN:       -> Aggregate ( rows=1 functions=2 width=9 input_order=unknown)
+QUERY_PLAN:                -> Table Scan on st1 ( rows=3.0(4) columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 11.row ***************************
-QUERY_PLAN:          -> Data Exchange 2:1 ( rows=6 width=16)
-*************************** 12.row ***************************
-QUERY_PLAN:             -> Projection ( rows=3.0(4) columns=1 width=8 input_order=asc)
-*************************** 13.row ***************************
-QUERY_PLAN:                -> Table Scan on st1 ( rows=3.0(4) columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
-*************************** 14.row ***************************
-QUERY_PLAN:                   -> I/O cost: total_blocks=1.5(2) file_load_blocks=0.0(0) stt_load_blocks=0.0(0) mem_load_blocks=1.5(2) sma_load_blocks=0.0(0) composed_blocks=1.5(2)
-*************************** 15.row ***************************
-QUERY_PLAN:                             
-*************************** 16.row ***************************
-QUERY_PLAN:                         check_rows=3.0(4)    
-*************************** 17.row ***************************
 QUERY_PLAN:    InitPlan 1
-*************************** 18.row ***************************
+*************************** 12.row ***************************
 QUERY_PLAN:       -> Aggregate ( rows=1 functions=2 width=9 input_order=unknown)
-*************************** 19.row ***************************
+*************************** 13.row ***************************
 QUERY_PLAN:          -> Data Exchange 2:1 ( rows=6 width=16)
-*************************** 20.row ***************************
+*************************** 14.row ***************************
 QUERY_PLAN:             -> Projection ( rows=3.0(4) columns=1 width=8 input_order=asc)
-*************************** 21.row ***************************
+*************************** 15.row ***************************
 QUERY_PLAN:                -> Table Scan on st1 ( rows=3.0(4) columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
-*************************** 22.row ***************************
-QUERY_PLAN:                   -> I/O cost: total_blocks=1.5(2) file_load_blocks=0.0(0) stt_load_blocks=0.0(0) mem_load_blocks=1.5(2) sma_load_blocks=0.0(0) composed_blocks=1.5(2)
-*************************** 23.row ***************************
-QUERY_PLAN:                             
-*************************** 24.row ***************************
-QUERY_PLAN:                         check_rows=3.0(4)    
-*************************** 25.row ***************************
+*************************** 16.row ***************************
 QUERY_PLAN: 
-*************************** 26.row ***************************
+*************************** 17.row ***************************
 QUERY_PLAN: 
 
 taos> explain analyze select avg(f1), 1 > all (select 0 from st1) from st1 group by f1 having 1 > all (select 0 from st1)\G;
@@ -2958,46 +2892,28 @@ QUERY_PLAN:          -> GroupAggregate ( rows=3.0(4) functions=1 width=62 groups
 *************************** 5.row ***************************
 QUERY_PLAN:             -> Table Scan on st1 ( rows=3.0(4) columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 6.row ***************************
-QUERY_PLAN:                -> I/O cost: total_blocks=1.5(2) file_load_blocks=0.0(0) stt_load_blocks=0.0(0) mem_load_blocks=1.5(2) sma_load_blocks=0.0(0) composed_blocks=1.5(2)
-*************************** 7.row ***************************
-QUERY_PLAN:                          
-*************************** 8.row ***************************
-QUERY_PLAN:                      check_rows=3.0(4)    
-*************************** 9.row ***************************
 QUERY_PLAN:    InitPlan 2
+*************************** 7.row ***************************
+QUERY_PLAN:       -> Aggregate ( rows=1 functions=2 width=9 input_order=unknown)
+*************************** 8.row ***************************
+QUERY_PLAN:          -> Data Exchange 2:1 ( rows=6 width=16)
+*************************** 9.row ***************************
+QUERY_PLAN:             -> Projection ( rows=3.0(4) columns=1 width=8 input_order=asc)
 *************************** 10.row ***************************
-QUERY_PLAN:       -> Aggregate ( rows=1 functions=2 width=9 input_order=unknown)
+QUERY_PLAN:                -> Table Scan on st1 ( rows=3.0(4) columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 11.row ***************************
-QUERY_PLAN:          -> Data Exchange 2:1 ( rows=6 width=16)
-*************************** 12.row ***************************
-QUERY_PLAN:             -> Projection ( rows=3.0(4) columns=1 width=8 input_order=asc)
-*************************** 13.row ***************************
-QUERY_PLAN:                -> Table Scan on st1 ( rows=3.0(4) columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
-*************************** 14.row ***************************
-QUERY_PLAN:                   -> I/O cost: total_blocks=1.5(2) file_load_blocks=0.0(0) stt_load_blocks=0.0(0) mem_load_blocks=1.5(2) sma_load_blocks=0.0(0) composed_blocks=1.5(2)
-*************************** 15.row ***************************
-QUERY_PLAN:                             
-*************************** 16.row ***************************
-QUERY_PLAN:                         check_rows=3.0(4)    
-*************************** 17.row ***************************
 QUERY_PLAN:    InitPlan 1
-*************************** 18.row ***************************
+*************************** 12.row ***************************
 QUERY_PLAN:       -> Aggregate ( rows=1 functions=2 width=9 input_order=unknown)
-*************************** 19.row ***************************
+*************************** 13.row ***************************
 QUERY_PLAN:          -> Data Exchange 2:1 ( rows=6 width=16)
-*************************** 20.row ***************************
+*************************** 14.row ***************************
 QUERY_PLAN:             -> Projection ( rows=3.0(4) columns=1 width=8 input_order=asc)
-*************************** 21.row ***************************
+*************************** 15.row ***************************
 QUERY_PLAN:                -> Table Scan on st1 ( rows=3.0(4) columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
-*************************** 22.row ***************************
-QUERY_PLAN:                   -> I/O cost: total_blocks=1.5(2) file_load_blocks=0.0(0) stt_load_blocks=0.0(0) mem_load_blocks=1.5(2) sma_load_blocks=0.0(0) composed_blocks=1.5(2)
-*************************** 23.row ***************************
-QUERY_PLAN:                             
-*************************** 24.row ***************************
-QUERY_PLAN:                         check_rows=3.0(4)    
-*************************** 25.row ***************************
+*************************** 16.row ***************************
 QUERY_PLAN: 
-*************************** 26.row ***************************
+*************************** 17.row ***************************
 QUERY_PLAN: 
 
 taos> explain analyze select avg(f1), NULL = any (select 2 from st1) from st1 group by f1 having NULL = any (select 2 from st1)\G;
@@ -3012,42 +2928,24 @@ QUERY_PLAN:          -> GroupAggregate ( rows=0.0(0) functions=1 width=62 groups
 *************************** 5.row ***************************
 QUERY_PLAN:             -> Table Scan on st1 ( rows=0.0(0) columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 6.row ***************************
-QUERY_PLAN:                -> I/O cost: total_blocks=1.5(2) file_load_blocks=0.0(0) stt_load_blocks=0.0(0) mem_load_blocks=1.5(2) sma_load_blocks=0.0(0) composed_blocks=1.5(2)
-*************************** 7.row ***************************
-QUERY_PLAN:                          
-*************************** 8.row ***************************
-QUERY_PLAN:                      check_rows=3.0(4)    
-*************************** 9.row ***************************
 QUERY_PLAN:    InitPlan 2
+*************************** 7.row ***************************
+QUERY_PLAN:       -> Data Exchange 2:1 ( rows=6 width=8)
+*************************** 8.row ***************************
+QUERY_PLAN:          -> Projection ( rows=3.0(4) columns=1 width=8 input_order=asc)
+*************************** 9.row ***************************
+QUERY_PLAN:             -> Table Scan on st1 ( rows=3.0(4) columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 10.row ***************************
-QUERY_PLAN:       -> Data Exchange 2:1 ( rows=6 width=8)
-*************************** 11.row ***************************
-QUERY_PLAN:          -> Projection ( rows=3.0(4) columns=1 width=8 input_order=asc)
-*************************** 12.row ***************************
-QUERY_PLAN:             -> Table Scan on st1 ( rows=3.0(4) columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
-*************************** 13.row ***************************
-QUERY_PLAN:                -> I/O cost: total_blocks=1.5(2) file_load_blocks=0.0(0) stt_load_blocks=0.0(0) mem_load_blocks=1.5(2) sma_load_blocks=0.0(0) composed_blocks=1.5(2)
-*************************** 14.row ***************************
-QUERY_PLAN:                          
-*************************** 15.row ***************************
-QUERY_PLAN:                      check_rows=3.0(4)    
-*************************** 16.row ***************************
 QUERY_PLAN:    InitPlan 1
-*************************** 17.row ***************************
+*************************** 11.row ***************************
 QUERY_PLAN:       -> Data Exchange 2:1 ( rows=6 width=8)
-*************************** 18.row ***************************
+*************************** 12.row ***************************
 QUERY_PLAN:          -> Projection ( rows=3.0(4) columns=1 width=8 input_order=asc)
-*************************** 19.row ***************************
+*************************** 13.row ***************************
 QUERY_PLAN:             -> Table Scan on st1 ( rows=3.0(4) columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
-*************************** 20.row ***************************
-QUERY_PLAN:                -> I/O cost: total_blocks=1.5(2) file_load_blocks=0.0(0) stt_load_blocks=0.0(0) mem_load_blocks=1.5(2) sma_load_blocks=0.0(0) composed_blocks=1.5(2)
-*************************** 21.row ***************************
-QUERY_PLAN:                          
-*************************** 22.row ***************************
-QUERY_PLAN:                      check_rows=3.0(4)    
-*************************** 23.row ***************************
+*************************** 14.row ***************************
 QUERY_PLAN: 
-*************************** 24.row ***************************
+*************************** 15.row ***************************
 QUERY_PLAN: 
 
 taos> explain analyze select avg(f1), exists (select f1 from db2.tbx) from st1 group by f1 having exists (select f1 from db2.tbx)\G;
@@ -3062,34 +2960,16 @@ QUERY_PLAN:          -> GroupAggregate ( rows=3.0(4) functions=1 width=62 groups
 *************************** 5.row ***************************
 QUERY_PLAN:             -> Table Scan on st1 ( rows=3.0(4) columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 6.row ***************************
-QUERY_PLAN:                -> I/O cost: total_blocks=1.5(2) file_load_blocks=0.0(0) stt_load_blocks=0.0(0) mem_load_blocks=1.5(2) sma_load_blocks=0.0(0) composed_blocks=1.5(2)
-*************************** 7.row ***************************
-QUERY_PLAN:                          
-*************************** 8.row ***************************
-QUERY_PLAN:                      check_rows=3.0(4)    
-*************************** 9.row ***************************
 QUERY_PLAN:    InitPlan 2
-*************************** 10.row ***************************
+*************************** 7.row ***************************
 QUERY_PLAN:       -> Table Scan on tbx ( rows=1 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
-*************************** 11.row ***************************
-QUERY_PLAN:          -> I/O cost: total_blocks=1 file_load_blocks=0 stt_load_blocks=0 mem_load_blocks=1 sma_load_blocks=0 composed_blocks=1
-*************************** 12.row ***************************
-QUERY_PLAN:                    
-*************************** 13.row ***************************
-QUERY_PLAN:                check_rows=1
-*************************** 14.row ***************************
+*************************** 8.row ***************************
 QUERY_PLAN:    InitPlan 1
-*************************** 15.row ***************************
+*************************** 9.row ***************************
 QUERY_PLAN:       -> Table Scan on tbx ( rows=1 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
-*************************** 16.row ***************************
-QUERY_PLAN:          -> I/O cost: total_blocks=1 file_load_blocks=0 stt_load_blocks=0 mem_load_blocks=1 sma_load_blocks=0 composed_blocks=1
-*************************** 17.row ***************************
-QUERY_PLAN:                    
-*************************** 18.row ***************************
-QUERY_PLAN:                check_rows=1
-*************************** 19.row ***************************
+*************************** 10.row ***************************
 QUERY_PLAN: 
-*************************** 20.row ***************************
+*************************** 11.row ***************************
 QUERY_PLAN: 
 
 taos> explain analyze verbose true select avg(f1), 1 < all (select 0 from st1) from st1 group by f1 having 1 < all (select 0 from st1)\G;
@@ -3133,7 +3013,7 @@ QUERY_PLAN:                   Time Range: [-9223372036854775808, 922337203685477
 QUERY_PLAN:                   Filter: conditions=(1 < $(InitPlan 1)) efficiency=100.0%
 *************************** 22.row ***************************
 *************************** 23.row ***************************
-QUERY_PLAN:                -> I/O cost: total_blocks=1.5(2) file_load_blocks=0.0(0) stt_load_blocks=0.0(0) mem_load_blocks=1.5(2) sma_load_blocks=0.0(0) composed_blocks=1.5(2)
+QUERY_PLAN:                   I/O cost: total_blocks=1.5(2) file_load_blocks=0.0(0) stt_load_blocks=0.0(0) mem_load_blocks=1.5(2) sma_load_blocks=0.0(0) composed_blocks=1.5(2)
 *************************** 24.row ***************************
 QUERY_PLAN:                          
 *************************** 25.row ***************************
@@ -3171,7 +3051,7 @@ QUERY_PLAN:                      Output: columns=1 width=8
 QUERY_PLAN:                      Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 43.row ***************************
 *************************** 44.row ***************************
-QUERY_PLAN:                   -> I/O cost: total_blocks=1.5(2) file_load_blocks=0.0(0) stt_load_blocks=0.0(0) mem_load_blocks=1.5(2) sma_load_blocks=0.0(0) composed_blocks=1.5(2)
+QUERY_PLAN:                      I/O cost: total_blocks=1.5(2) file_load_blocks=0.0(0) stt_load_blocks=0.0(0) mem_load_blocks=1.5(2) sma_load_blocks=0.0(0) composed_blocks=1.5(2)
 *************************** 45.row ***************************
 QUERY_PLAN:                             
 *************************** 46.row ***************************
@@ -3209,7 +3089,7 @@ QUERY_PLAN:                      Output: columns=1 width=8
 QUERY_PLAN:                      Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 64.row ***************************
 *************************** 65.row ***************************
-QUERY_PLAN:                   -> I/O cost: total_blocks=1.5(2) file_load_blocks=0.0(0) stt_load_blocks=0.0(0) mem_load_blocks=1.5(2) sma_load_blocks=0.0(0) composed_blocks=1.5(2)
+QUERY_PLAN:                      I/O cost: total_blocks=1.5(2) file_load_blocks=0.0(0) stt_load_blocks=0.0(0) mem_load_blocks=1.5(2) sma_load_blocks=0.0(0) composed_blocks=1.5(2)
 *************************** 66.row ***************************
 QUERY_PLAN:                             
 *************************** 67.row ***************************
@@ -3260,7 +3140,7 @@ QUERY_PLAN:                   Time Range: [-9223372036854775808, 922337203685477
 QUERY_PLAN:                   Filter: conditions=(1 > $(InitPlan 1)) efficiency=100.0%
 *************************** 22.row ***************************
 *************************** 23.row ***************************
-QUERY_PLAN:                -> I/O cost: total_blocks=1.5(2) file_load_blocks=0.0(0) stt_load_blocks=0.0(0) mem_load_blocks=1.5(2) sma_load_blocks=0.0(0) composed_blocks=1.5(2)
+QUERY_PLAN:                   I/O cost: total_blocks=1.5(2) file_load_blocks=0.0(0) stt_load_blocks=0.0(0) mem_load_blocks=1.5(2) sma_load_blocks=0.0(0) composed_blocks=1.5(2)
 *************************** 24.row ***************************
 QUERY_PLAN:                          
 *************************** 25.row ***************************
@@ -3298,7 +3178,7 @@ QUERY_PLAN:                      Output: columns=1 width=8
 QUERY_PLAN:                      Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 43.row ***************************
 *************************** 44.row ***************************
-QUERY_PLAN:                   -> I/O cost: total_blocks=1.5(2) file_load_blocks=0.0(0) stt_load_blocks=0.0(0) mem_load_blocks=1.5(2) sma_load_blocks=0.0(0) composed_blocks=1.5(2)
+QUERY_PLAN:                      I/O cost: total_blocks=1.5(2) file_load_blocks=0.0(0) stt_load_blocks=0.0(0) mem_load_blocks=1.5(2) sma_load_blocks=0.0(0) composed_blocks=1.5(2)
 *************************** 45.row ***************************
 QUERY_PLAN:                             
 *************************** 46.row ***************************
@@ -3336,7 +3216,7 @@ QUERY_PLAN:                      Output: columns=1 width=8
 QUERY_PLAN:                      Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 64.row ***************************
 *************************** 65.row ***************************
-QUERY_PLAN:                   -> I/O cost: total_blocks=1.5(2) file_load_blocks=0.0(0) stt_load_blocks=0.0(0) mem_load_blocks=1.5(2) sma_load_blocks=0.0(0) composed_blocks=1.5(2)
+QUERY_PLAN:                      I/O cost: total_blocks=1.5(2) file_load_blocks=0.0(0) stt_load_blocks=0.0(0) mem_load_blocks=1.5(2) sma_load_blocks=0.0(0) composed_blocks=1.5(2)
 *************************** 66.row ***************************
 QUERY_PLAN:                             
 *************************** 67.row ***************************
@@ -3387,7 +3267,7 @@ QUERY_PLAN:                   Time Range: [-9223372036854775808, 922337203685477
 QUERY_PLAN:                   Filter: conditions=(NULL IN $(InitPlan 1)) efficiency=100.0%
 *************************** 22.row ***************************
 *************************** 23.row ***************************
-QUERY_PLAN:                -> I/O cost: total_blocks=1.5(2) file_load_blocks=0.0(0) stt_load_blocks=0.0(0) mem_load_blocks=1.5(2) sma_load_blocks=0.0(0) composed_blocks=1.5(2)
+QUERY_PLAN:                   I/O cost: total_blocks=1.5(2) file_load_blocks=0.0(0) stt_load_blocks=0.0(0) mem_load_blocks=1.5(2) sma_load_blocks=0.0(0) composed_blocks=1.5(2)
 *************************** 24.row ***************************
 QUERY_PLAN:                          
 *************************** 25.row ***************************
@@ -3418,7 +3298,7 @@ QUERY_PLAN:                   Output: columns=1 width=8
 QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 39.row ***************************
 *************************** 40.row ***************************
-QUERY_PLAN:                -> I/O cost: total_blocks=1.5(2) file_load_blocks=0.0(0) stt_load_blocks=0.0(0) mem_load_blocks=1.5(2) sma_load_blocks=0.0(0) composed_blocks=1.5(2)
+QUERY_PLAN:                   I/O cost: total_blocks=1.5(2) file_load_blocks=0.0(0) stt_load_blocks=0.0(0) mem_load_blocks=1.5(2) sma_load_blocks=0.0(0) composed_blocks=1.5(2)
 *************************** 41.row ***************************
 QUERY_PLAN:                          
 *************************** 42.row ***************************
@@ -3449,7 +3329,7 @@ QUERY_PLAN:                   Output: columns=1 width=8
 QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 56.row ***************************
 *************************** 57.row ***************************
-QUERY_PLAN:                -> I/O cost: total_blocks=1.5(2) file_load_blocks=0.0(0) stt_load_blocks=0.0(0) mem_load_blocks=1.5(2) sma_load_blocks=0.0(0) composed_blocks=1.5(2)
+QUERY_PLAN:                   I/O cost: total_blocks=1.5(2) file_load_blocks=0.0(0) stt_load_blocks=0.0(0) mem_load_blocks=1.5(2) sma_load_blocks=0.0(0) composed_blocks=1.5(2)
 *************************** 58.row ***************************
 QUERY_PLAN:                          
 *************************** 59.row ***************************
@@ -3500,7 +3380,7 @@ QUERY_PLAN:                   Time Range: [-9223372036854775808, 922337203685477
 QUERY_PLAN:                   Filter: conditions=($(InitPlan 1) > 0) efficiency=100.0%
 *************************** 22.row ***************************
 *************************** 23.row ***************************
-QUERY_PLAN:                -> I/O cost: total_blocks=1.5(2) file_load_blocks=0.0(0) stt_load_blocks=0.0(0) mem_load_blocks=1.5(2) sma_load_blocks=0.0(0) composed_blocks=1.5(2)
+QUERY_PLAN:                   I/O cost: total_blocks=1.5(2) file_load_blocks=0.0(0) stt_load_blocks=0.0(0) mem_load_blocks=1.5(2) sma_load_blocks=0.0(0) composed_blocks=1.5(2)
 *************************** 24.row ***************************
 QUERY_PLAN:                          
 *************************** 25.row ***************************
@@ -3515,7 +3395,7 @@ QUERY_PLAN:             Output: columns=1 width=4
 QUERY_PLAN:             Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 30.row ***************************
 *************************** 31.row ***************************
-QUERY_PLAN:          -> I/O cost: total_blocks=1 file_load_blocks=0 stt_load_blocks=0 mem_load_blocks=1 sma_load_blocks=0 composed_blocks=1
+QUERY_PLAN:             I/O cost: total_blocks=1 file_load_blocks=0 stt_load_blocks=0 mem_load_blocks=1 sma_load_blocks=0 composed_blocks=1
 *************************** 32.row ***************************
 QUERY_PLAN:                    
 *************************** 33.row ***************************
@@ -3530,7 +3410,7 @@ QUERY_PLAN:             Output: columns=1 width=4
 QUERY_PLAN:             Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 38.row ***************************
 *************************** 39.row ***************************
-QUERY_PLAN:          -> I/O cost: total_blocks=1 file_load_blocks=0 stt_load_blocks=0 mem_load_blocks=1 sma_load_blocks=0 composed_blocks=1
+QUERY_PLAN:             I/O cost: total_blocks=1 file_load_blocks=0 stt_load_blocks=0 mem_load_blocks=1 sma_load_blocks=0 composed_blocks=1
 *************************** 40.row ***************************
 QUERY_PLAN:                    
 *************************** 41.row ***************************
