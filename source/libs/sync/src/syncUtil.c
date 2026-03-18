@@ -93,6 +93,10 @@ static inline int32_t syncUtilRand(int32_t max) {
   uint32_t     err;
 
   err = taosRandR(&number);
+  if (err != 0) {
+    sError("failed to get random number, err:%u", err);
+    return max / 2;
+  }
   return number % max;
 #else
   return taosRand() % max;
