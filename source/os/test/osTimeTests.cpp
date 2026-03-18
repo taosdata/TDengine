@@ -126,6 +126,21 @@ TEST(osTimeTests, taosMktime) {
   ASSERT_EQ(seconds, 1617531000);
 }
 
+#ifdef WINDOWS
+TEST(osTimeTests, windowsGlobalTimezoneOffset) {
+  ASSERT_EQ(taosSetGlobalTimezone("UTC-8"), 0);
+  ASSERT_EQ(getWindowsTimezoneOffset(), -TdEastZone8);
+  ASSERT_EQ(taosGetLocalTimezoneOffset(), TdEastZone8);
+
+  ASSERT_EQ(taosSetGlobalTimezone("UTC"), 0);
+  ASSERT_EQ(getWindowsTimezoneOffset(), 0);
+  ASSERT_EQ(taosGetLocalTimezoneOffset(), 0);
+
+  // Restore the default expected by existing Windows time tests.
+  ASSERT_EQ(taosSetGlobalTimezone("UTC-8"), 0);
+}
+#endif
+
 TEST(osTimeTests, invalidParameter) {
   void          *retp = NULL;
   int32_t        reti = 0;

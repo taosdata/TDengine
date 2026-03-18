@@ -945,13 +945,15 @@ static int64_t getTimezoneOffset(timezone_t tz) {
 
 // Access function to ensure reading from the correct location
 int64_t getWindowsTimezoneOffset(void) {
-  // Read from TZ environment variable (shared across DLLs)
-  char *tz_env = getenv("TZ");
+  // Read TZ from the process environment block so multiple DLLs observe the
+  // same value. Using CRT getenv() here can see a DLL-local copy instead.
+  char  tz_env[TD_TIMEZONE_LEN * 2] = {0};
+  DWORD len = GetEnvironmentVariableA("TZ", tz_env, sizeof(tz_env));
 
-  if (tz_env != NULL && tz_env[0] != '\0') {
+  if (len > 0 && len < sizeof(tz_env) && tz_env[0] != '\0') {
     // TZ format like "+0:00" or "-8:00"
-    if (*tz_env == '+' || *tz_env == '-') {
-      char sign = *tz_env;
+    if (tz_env[0] == '+' || tz_env[0] == '-') {
+      char sign = tz_env[0];
       int hours = 0, minutes = 0;
       if (sscanf(tz_env + 1, "%d:%d", &hours, &minutes) >= 1) {
         int64_t offset_seconds = (hours * 3600 + minutes * 60);
