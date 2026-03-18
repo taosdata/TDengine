@@ -356,19 +356,19 @@ taos> select bottom(voltage, 5) from keeporderdb.meters group by tbname;
 
 taos> select ts, statecount(voltage, 'LE', 223) from keeporderdb.meters group by tbname order by ts limit 3;
 
-DB error: statecount function is not supported in window query or group query [0x8000264F] 
+DB error: Function 'statecount' is not supported in window query or group query [0x8000264F] 
 taos> select ts, statecount(voltage, 'GE', 223) from keeporderdb.meters group by tbname order by ts limit 3;
 
-DB error: statecount function is not supported in window query or group query [0x8000264F] 
+DB error: Function 'statecount' is not supported in window query or group query [0x8000264F] 
 taos> select ts, statecount(voltage, 'GE', 216) from keeporderdb.meters group by tbname order by ts limit 3;
 
-DB error: statecount function is not supported in window query or group query [0x8000264F] 
+DB error: Function 'statecount' is not supported in window query or group query [0x8000264F] 
 taos> select mavg(voltage, 4) from keeporderdb.meters group by tbname limit 10;
 
-DB error: mavg function is not supported in window query or group query [0x8000264F] 
+DB error: Function 'mavg' is not supported in window query or group query [0x8000264F] 
 taos> select tail(voltage, 1) from keeporderdb.meters group by tbname;
 
-DB error: tail function is not supported in window query or group query [0x8000264F] 
+DB error: Function 'tail' is not supported in window query or group query [0x8000264F] 
 taos> select count(*) from (select ts, current, voltage from keeporderdb.meters order by ts desc limit 10);
        count(*)        |
 ========================
@@ -896,16 +896,16 @@ taos> select bottom(voltage, 2) from (select ts, current, voltage from keeporder
 
 taos> select statecount(voltage, 'LE', 223) from (select ts, current, voltage from keeporderdb.meters order by ts desc) interval(30s);
 
-DB error: statecount function is not supported in window query or group query [0x8000264F] 
+DB error: Function 'statecount' is not supported in window query or group query [0x8000264F] 
 taos> select stateduration(voltage, 'LE', 223) from (select ts, current, voltage from keeporderdb.meters order by ts desc) interval(30s);
 
-DB error: stateduration function is not supported in window query or group query [0x8000264F] 
+DB error: Function 'stateduration' is not supported in window query or group query [0x8000264F] 
 taos> select mavg(voltage, 4) from (select ts, current, voltage from keeporderdb.meters order by ts desc) interval(30s);
 
-DB error: mavg function is not supported in window query or group query [0x8000264F] 
+DB error: Function 'mavg' is not supported in window query or group query [0x8000264F] 
 taos> select tail(voltage, 1) from (select ts, current, voltage from keeporderdb.meters order by ts desc) interval(30s);
 
-DB error: tail function is not supported in window query or group query [0x8000264F] 
+DB error: Function 'tail' is not supported in window query or group query [0x8000264F] 
 taos> select max(current) from (select ts, current, voltage from keeporderdb.meters order by ts desc) interval(30s);
      max(current)     |
 =======================
@@ -949,7 +949,7 @@ taos> select unique(current) from keeporderdb.t1 order by _wstart limit 2;
 DB error: _WSTART, _WEND, _WDURATION, and _ANOMALYMARK can only be used in window query [0x80002658] 
 taos> select unique(current) from keeporderdb.meters group by tbname order by _wstart limit 2;;
 
-DB error: unique function is not supported in window query or group query [0x8000264F] 
+DB error: Function 'unique' is not supported in window query or group query [0x8000264F] 
 taos> select unique(current) from (select ts, current, voltage from keeporderdb.meters order by ts desc limit 100);
    unique(current)    |
 =======================
@@ -980,7 +980,7 @@ taos> select unique(current) from (select ts, current, voltage from keeporderdb.
 
 taos> select unique(current) from (select ts, current, voltage from keeporderdb.meters order by ts desc) interval(30s);
 
-DB error: unique function is not supported in window query or group query [0x8000264F] 
+DB error: Function 'unique' is not supported in window query or group query [0x8000264F] 
 taos> select mode(current) from keeporderdb.meters order by _wstart limit 2;
 
 DB error: _WSTART, _WEND, _WDURATION, and _ANOMALYMARK can only be used in window query [0x80002658] 

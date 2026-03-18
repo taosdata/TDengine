@@ -275,8 +275,12 @@ taos> select false IN (select f7 from tba) from tba order by 1;
  true                          |
 
 taos> select f1 IN (select ts from tba) from tba order by 1;
+ f1 in (select ts from tba) |
+=============================
+ false                      |
+ false                      |
+ false                      |
 
-DB error: Cannot convert to specific type [0x80003250] 
 taos> select f1 IN (select f1 from tba) from tba order by 1;
  f1 in (select f1 from tba) |
 =============================
@@ -551,8 +555,12 @@ taos> select f5 IN (select f7 from tba) from tba order by 1;
  true                       |
 
 taos> select f6 IN (select ts from tba) from tba order by 1;
+ f6 in (select ts from tba) |
+=============================
+ false                      |
+ false                      |
+ false                      |
 
-DB error: Cannot convert to specific type [0x80003250] 
 taos> select f6 IN (select f1 from tba) from tba order by 1;
  f6 in (select f1 from tba) |
 =============================
@@ -987,8 +995,12 @@ taos> select false NOT IN (select f7 from tba) from tba order by 1;
  false                             |
 
 taos> select f1 NOT IN (select ts from tba) from tba order by 1;
+ f1 not in (select ts from tba) |
+=================================
+ true                           |
+ true                           |
+ true                           |
 
-DB error: Cannot convert to specific type [0x80003250] 
 taos> select f1 NOT IN (select f1 from tba) from tba order by 1;
  f1 not in (select f1 from tba) |
 =================================
@@ -1263,8 +1275,12 @@ taos> select f5 NOT IN (select f7 from tba) from tba order by 1;
  false                          |
 
 taos> select f6 NOT IN (select ts from tba) from tba order by 1;
+ f6 not in (select ts from tba) |
+=================================
+ true                           |
+ true                           |
+ true                           |
 
-DB error: Cannot convert to specific type [0x80003250] 
 taos> select f6 NOT IN (select f1 from tba) from tba order by 1;
  f6 not in (select f1 from tba) |
 =================================

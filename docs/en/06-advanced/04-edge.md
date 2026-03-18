@@ -3,49 +3,93 @@ title: Edge–Cloud Synchronization
 slug: /advanced-features/edge-cloud-synchronization
 ---
 
-## Why Edge–Cloud Synchronization is Needed
+TDengine TSDB supports multiple methods for automated synchronization between edge and cloud nodes.
 
-In industrial Internet scenarios, edge devices are used only to handle local data, and decision-makers cannot form a global understanding of the entire system based solely on information collected by edge devices. In practical applications, edge devices need to report data to cloud computing platforms (public or private clouds), where data aggregation and information integration are carried out, providing decision-makers with a global insight into the entire dataset. This edge–cloud synchronization architecture has gradually become an important pillar supporting the development of the industrial Internet.
+- Data can be pushed by the edge node to the cloud node or pulled by the cloud node from the edge node.
+- Edge–cloud synchronization can be implemented through TDengine TSDB data subscription or through queries.
 
-Edge devices mainly monitor and alert on specific data on the production line, such as real-time production data in a particular workshop, and then synchronize this edge-side production data to the big data platform in the cloud.
-On the edge side, there is a high requirement for real-time performance, but the data volume may not be large, typically ranging from a few thousand to tens of thousands of monitoring points in a workshop. On the central side, computing resources are generally abundant, capable of aggregating data from the edge side for analysis and computation.
+Before enabling edge–cloud synchronization, determine which method is appropriate for your environment.
 
-To achieve this operation, the requirements for the database or data storage layer are to ensure that data can be reported step by step and selectively. In some scenarios, where the overall data volume is very large, selective reporting is necessary. For example, raw records collected every second on the edge side, when reported to the central side, are downsampled to once a minute, which greatly reduces the data volume but still retains key information for long-term data analysis and prediction.
+- If your environment has few edge nodes, and the cloud node can access the edge nodes directly, configure the cloud node to pull data from edge nodes.
+- If your environment has many edge nodes, or inbound access to edge nodes is not permitted, configure the edge nodes to push data to the cloud node.
+- If you require near-real-time synchronization, use data subscription.
+- If you require periodic or on-demand synchronization, use querying.
 
-In the past industrial data collection process, data was collected from industrial logic controllers PLCs, then entered into Historian, the industrial real-time database, to support business applications. These systems are not easy to scale horizontally, and are heavily dependent on the Windows ecosystem, which is relatively closed.
+## Procedure
 
-## TDengine's Edge–Cloud Synchronization Solution
+### Edge Push + Subscription
 
-TDengine Enterprise is committed to providing powerful edge–cloud synchronization capabilities, with the following notable features:
+1. On the cloud node, create a database to which edge data will be replicated.
+1. Access TDengine TSDB-Explorer on the edge node in a web browser.
+1. From the main menu on the left, select **Management**.
+1. Open the **Data Replication** tab and click **Add New Replication**.
+1. Select the database that you want to synchronize to the cloud.
+1. In the **Target DSN** field, enter the DSN of the cloud node.
+1. Click **Confirm**.
 
-- Efficient data synchronization: Supports synchronization efficiency of millions of data per second, ensuring fast and stable data transmission between the edge side and the cloud.
-- Multi-data source integration: Compatible with various external data sources, such as AVEVA PI System, OPC-UA, OPC-DA, MQTT, etc., to achieve broad data access and integration.
-- Flexible configuration of synchronization rules: Provides configurable synchronization rules, allowing users to customize the strategy and method of data synchronization according to actual needs.
-- Offline continuation and re-subscription: Supports offline continuation and re-subscription functions, ensuring the continuity and integrity of data synchronization in the event of unstable or interrupted networks.
-- Historical data migration: Supports the migration of historical data, facilitating users to seamlessly migrate historical data to a new system when upgrading or replacing systems.
+The edge node pushes data from the specified database to the specified cloud node. You can repeat this procedure to synchronize additional databases or to synchronize data to multiple cloud nodes.
 
-TDengine's data subscription feature offers great flexibility to subscribers, allowing users to configure subscription objects as needed. Users can subscribe to a database, a supertable, or even a query statement with filtering conditions. This enables users to implement selective data synchronization, syncing truly relevant data (including offline and out-of-order data) from one cluster to another to meet the data needs of various complex scenarios.
+### Edge Push + Data Query
 
-The following diagram illustrates the implementation of an edge–cloud synchronization architecture in TDengine Enterprise using a specific production workshop example. In the production workshop, real-time data generated by equipment is stored in TDengine deployed on the edge side. The TDengine deployed in the branch factory subscribes to the data from the TDengine in the production workshop. To better meet business needs, data analysts set some subscription rules, such as data downsampling or syncing only data exceeding a specified threshold. Similarly, the TDengine deployed on the corporate side then subscribes to data from various branch factories, achieving corporate-level data aggregation, ready for further analysis and processing.
+1. On the cloud node, create a database to which edge data will be replicated.
+1. On the edge node, open a terminal.
+1. Run the following command to push data to the cloud node:
 
-![Edge-cloud synchronization architecture](../assets/edge-cloud-orchestration-01.png)
+   ```sql
+   taosx run -f 'taos://<edge-user>:<edge-password>@<edge-ip>:<edge-port>/<edge-db>' -t 'taos://<cloud-user>:<cloud-password>@<cloud-ip>:<cloud-port>/<cloud-db>' -v
+   ```
 
-This implementation approach has the following advantages:
+   For example, the following command synchronizes data from database `sync_test` on an edge node deployed at 192.0.2.1:6030 to database `edge_data` on a cloud node deployed at 198.51.100.1:6030, using the default username and password.
 
-- No coding required, just simple configuration on the edge side and cloud.
-- Greatly improved automation of cross-regional data synchronization, reducing error rates.
-- No need for data caching, reducing batch sending, avoiding traffic peak congestion bandwidth.
-- Data synchronization through subscription, with configurable rules, simple, flexible, and highly real-time.
-- Both edge and cloud use TDengine, completely unifying the data model, reducing data governance difficulty.
+   ```sql
+   taosx run -f 'taos://root:taosdata@192.0.2.1:6030/sync_test' -t 'taos://root:taosdata@198.51.100.1:6030/edge_data' -v
+   ```
 
-Manufacturing enterprises often face a pain point in data synchronization. Many enterprises currently use offline methods to synchronize data, but TDengine Enterprise achieves real-time data synchronization with configurable rules. This method can avoid the resource waste and bandwidth congestion risks caused by regular large data transfers.
+For more information, see [Migrating Data from Older Versions](../../tdengine-reference/components/taosx/#migrating-data-from-older-versions).
 
-## Advantages of Edge–Cloud Synchronization
+### Cloud Pull + Subscription
 
-The IT and OT (Operational Technology) construction conditions of traditional industries vary, and compared to the internet industry, most enterprises are significantly behind in digital investment. Many enterprises still use outdated systems to process data, which are often independent of each other, forming so-called data silos.
+1. Access TDengine TSDB-Explorer on the edge node in a web browser.
+1. From the main menu on the left, select **Topics**.
+1. In the list displayed, locate the database that you want to synchronize to the cloud.
+1. In the **Get DSN** column, click **Copy**.
+1. Record this DSN for later use.
+1. Access TDengine TSDB-Explorer on the cloud node in a web browser.
+1. From the main menu on the left, select **Data In**.
+1. Open the **Data In Task** tab and click **Add Source**.
+1. Enter a name for the task.
+1. From the **Type** drop-down menu, select **TDengine Data Subscription**.
+1. From the **Target** drop-down menu, select the database to which you want to synchronize edge data. If you do not have an appropriate database, click **Create Database**.
+1. Under **Connection Configuration**, copy the DSN you recorded earlier into the **Topic DSN** field.
+1. Click **Check Connection** to verify that the cloud node can access the edge node.
+1. Under **Subscribe Options**, enter a unique identifier in the **Client ID** field.
+1. Configure other options as needed. You can retain the default values if desired.
+1. Click **Submit**.
 
-In this context, to inject new vitality into traditional industries with AI, the primary task is to integrate systems scattered in various corners and their collected data, breaking the limitations of data silos. However, this process is full of challenges, as it involves multiple systems and a plethora of industrial Internet protocols, and data aggregation is not a simple merging task. It requires cleaning, processing, and handling data from different sources to integrate it into a unified platform.
+The cloud node subscribes to the specified database on the edge node and synchronizes its data to the specified database on the cloud node. You can repeat this procedure to create additional tasks to synchronize data from more databases or more cloud nodes.
 
-When all data is aggregated into one system, the efficiency of accessing and processing data is significantly improved. Enterprises can respond more quickly to real-time data, solve problems more effectively, and achieve efficient collaboration among internal and external staff, enhancing overall operational efficiency.
+For more information about TDengine Data Subscription tasks, see [TDengine Data Subscription](../../advanced-features/data-connectors/tdengine-3/).
 
-Additionally, after data aggregation, advanced third-party AI analysis tools can be utilized for improved anomaly detection, real-time alerts, and provide more accurate predictions for production capacity, cost, and equipment maintenance. This will enable decision-makers to better grasp the overall macro situation, provide strong support for the development of the enterprise, and help traditional industries achieve digital transformation and intelligent upgrades.
+### Cloud Pull + Query
+
+1. Access TDengine TSDB-Explorer on the cloud node in a web browser.
+1. From the main menu on the left, select **Data In**.
+1. Open the **Data In Task** tab and click **Add Source**.
+1. Enter a name for the task.
+1. From the **Type** drop-down menu, select **TDengine Query**.
+1. From the **Target** drop-down menu, select the database to which you want to synchronize edge data. If you do not have an appropriate database, click **Create Database**.
+1. Under **Connection Configuration**, enter the following:
+   - **Protocol:** Select **WS**.
+   - **Host:** Enter the IP address or hostname of the taosAdapter instance for the edge node.
+   - **Port:** Enter the port number for the taosAdapter instance for the edge node.
+   - **Database:** Enter the database on the edge node that you want to synchronize.
+1. Under **Authentication**, enter the following:
+   - **Username:** Enter a username on the edge node that has access to the database that you want to synchronize.
+   - **Password:** Enter the password for the specified user on the edge node.
+1. Click **Check Connection** to verify that the cloud node can access the edge node.
+1. Configure other options as needed. You can retain the default values if desired.
+1. Click **Submit**.
+
+The cloud node queries the specified database on the edge node and synchronizes its data to the specified database on the cloud node. You can repeat this procedure to create additional tasks to synchronize data from more databases or more cloud nodes.
+
+For more information about TDengine Query tasks, see [TDengine Query](../../advanced-features/data-connectors/tdengine-2/).

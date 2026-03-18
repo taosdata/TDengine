@@ -535,4 +535,4 @@ class TestCsum:
             raise e
 
         #tdSql.close()
-        tdLog.success("%s successfully executed" % __file__)
+

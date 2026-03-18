@@ -58,7 +58,11 @@ _exit:
   rpcFreeCont(buf);
   tEncoderClear(&encoder);
 
-  stError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
+  if (code != TSDB_CODE_APP_IS_STOPPING) {
+    stError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
+  } else {
+    stWarn("%s failed at line %d, error:%s, ignore the error", __FUNCTION__, lino, tstrerror(code));
+  }
 
   return code;
 }
@@ -126,7 +130,7 @@ _exit:
 
   tCleanupStreamHbMsg(&reqMsg, true);
 
-  if (code) {
+  if (code && code != TSDB_CODE_APP_IS_STOPPING) {
     stError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
   } else {
     stTrace("stream hb end");

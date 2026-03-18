@@ -361,7 +361,7 @@ int32_t tdRollupFinalize(SRollupCtx *pCtx) {
   blockDataCleanup(pResBlock);
   // pResBlock->info.id.groupId = 0;
   doCopyToSDataBlock(pCtx->pTaskInfo, pResBlock, pCtx->exprSup, pCtx->aggSup->pResultBuf, pCtx->pGroupResInfo,
-                     pCtx->maxBufRows, true, 0);
+                     pCtx->maxBufRows, true, NULL);
 _exit:
   return code;
 }

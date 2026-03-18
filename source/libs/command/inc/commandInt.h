@@ -55,6 +55,7 @@ extern "C" {
 #define EXPLAIN_PARITION_FORMAT "Partition on Column %s"
 #define EXPLAIN_ORDER_FORMAT "Order: %s"
 #define EXPLAIN_FILTER_FORMAT "Filter: "
+#define EXPLAIN_PRIMARY_FILTER_FORMAT "Primary Filter: "
 #define EXPLAIN_TAG_INDEX_FORMAT "Tag Index Filter: "
 #define EXPLAIN_MERGEBLOCKS_FORMAT "Merge ResBlocks: %s"
 #define EXPLAIN_FILL_VALUE_FORMAT "Fill Values: "
@@ -195,7 +196,7 @@ typedef struct SExplainCtx {
 #define EXPLAIN_JOIN_STRING(_type) ((JOIN_TYPE_INNER == _type) ? "Inner join" : "Join")
 #define EXPLAIN_MERGE_MODE_STRING(_mode) ((_mode) == MERGE_TYPE_SORT ? "sort" : ((_mode) == MERGE_TYPE_NON_SORT ? "merge" : "column"))
 
-#define EXPLAIN_GET_CUR_PLAN_CTX(_ctx) ((_ctx)->currPlanId < 0 ? &(_ctx)->planCtx : (SExplainPlanCtx*)taosArrayGet((_ctx)->subPlanCtxs, (_ctx)->currPlanId))
+#define EXPLAIN_GET_CUR_PLAN_CTX(_ctx, _pid) ((_pid) < 0 ? &(_ctx)->planCtx : (SExplainPlanCtx*)taosArrayGet((_ctx)->subPlanCtxs, (_pid)))
 
 #define INVERAL_TIME_FROM_PRECISION_TO_UNIT(_t, _u, _p, _r)         \
 do {                                                                \
@@ -208,24 +209,24 @@ do {                                                                \
 
 #define EXPLAIN_SUB_PLAN_LINE(_idx) \
   do {                                                                                                                    \
-    tlen = tsnprintf(tbuf + VARSTR_HEADER_SIZE, TSDB_EXPLAIN_RESULT_ROW_SIZE - VARSTR_HEADER_SIZE, "   InitPlan %d", (_idx));  \
+    tlen = snprintf(tbuf + VARSTR_HEADER_SIZE, TSDB_EXPLAIN_RESULT_ROW_SIZE - VARSTR_HEADER_SIZE, "   InitPlan %d", (_idx));  \
     varDataSetLen(tbuf, tlen); tlen += VARSTR_HEADER_SIZE;                                                                \
   } while (0)
 
 #define EXPLAIN_ROW_NEW(level, ...)                                                                               \
   do {                                                                                                            \
     if (isVerboseLine) {                                                                                          \
-      tlen = tsnprintf(tbuf + VARSTR_HEADER_SIZE, TSDB_EXPLAIN_RESULT_ROW_SIZE - VARSTR_HEADER_SIZE, "%*s", (level) * 3 + 3, "");       \
+      tlen = snprintf(tbuf + VARSTR_HEADER_SIZE, TSDB_EXPLAIN_RESULT_ROW_SIZE - VARSTR_HEADER_SIZE, "%*s", (level) * 3 + 3, "");       \
     } else {                                                                                                      \
-      tlen = tsnprintf(tbuf + VARSTR_HEADER_SIZE, TSDB_EXPLAIN_RESULT_ROW_SIZE - VARSTR_HEADER_SIZE, "%*s%s", (level) * 3, "", "-> ");  \
+      tlen = snprintf(tbuf + VARSTR_HEADER_SIZE, TSDB_EXPLAIN_RESULT_ROW_SIZE - VARSTR_HEADER_SIZE, "%*s%s", (level) * 3, "", "-> ");  \
     }                                                                                                             \
-    tlen += tsnprintf(tbuf + VARSTR_HEADER_SIZE + tlen, TSDB_EXPLAIN_RESULT_ROW_SIZE - VARSTR_HEADER_SIZE - tlen, __VA_ARGS__);         \
+    tlen += snprintf(tbuf + VARSTR_HEADER_SIZE + tlen, TSDB_EXPLAIN_RESULT_ROW_SIZE - VARSTR_HEADER_SIZE - tlen, __VA_ARGS__);         \
   } while (0)
 
-#define EXPLAIN_ROW_APPEND(...) tlen += tsnprintf(tbuf + VARSTR_HEADER_SIZE + tlen, TSDB_EXPLAIN_RESULT_ROW_SIZE - VARSTR_HEADER_SIZE - tlen, __VA_ARGS__)
+#define EXPLAIN_ROW_APPEND(...) tlen += snprintf(tbuf + VARSTR_HEADER_SIZE + tlen, TSDB_EXPLAIN_RESULT_ROW_SIZE - VARSTR_HEADER_SIZE - tlen, __VA_ARGS__)
 #define EXPLAIN_ROW_END() do { varDataSetLen(tbuf, tlen); tlen += VARSTR_HEADER_SIZE; isVerboseLine = true; } while (0)
 
-#define EXPLAIN_SUM_ROW_NEW(...) tlen = tsnprintf(tbuf + VARSTR_HEADER_SIZE, TSDB_EXPLAIN_RESULT_ROW_SIZE - VARSTR_HEADER_SIZE, __VA_ARGS__)
+#define EXPLAIN_SUM_ROW_NEW(...) tlen = snprintf(tbuf + VARSTR_HEADER_SIZE, TSDB_EXPLAIN_RESULT_ROW_SIZE - VARSTR_HEADER_SIZE, __VA_ARGS__)
 #define EXPLAIN_SUM_ROW_END() do { varDataSetLen(tbuf, tlen); tlen += VARSTR_HEADER_SIZE; } while (0)
 
 #define EXPLAIN_ROW_APPEND_LIMIT_IMPL(_pLimit, sl) do {                                            \

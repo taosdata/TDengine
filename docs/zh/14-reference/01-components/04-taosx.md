@@ -295,6 +295,7 @@ MQTT DSN 参数：
 - `table`: 消息来源的表名/子表名，仅创建子表/普通表，修改表，删除子表/普通表以及数据类型的消息包含。
 
 **注意**: 如果 topic 中包含了消息中不存在的变量，则当前消息不会被处理，即不会被发布到 MQTT broker。
+
 #### 导入 Parquet 文件数据
 
 基本用法如下：
@@ -377,6 +378,58 @@ Parquet 数据类型会自动映射到 TDengine 数据类型：
 | BYTE_ARRAY (UTF8) | NCHAR |
 | BYTE_ARRAY (Binary) | BINARY |
 | INT96 (Timestamp) | TIMESTAMP |
+
+#### 导出 SQL 查询结果到 Parquet 文件
+
+taosx 支持将 TDengine 数据库的 SQL 查询结果导出为 Parquet 文件格式，方便数据分析和与其他系统集成。
+
+基本用法如下：
+
+```shell
+taosx run -f "taos:///test?query=select tbname,* from test.meters" -t "parquet:./test.parquet"
+```
+
+参数说明：
+
+- `-f` 指定数据源为 TDengine 数据库，通过 `query` 参数指定 SQL 查询语句
+- `-t` 指定导出目标为 Parquet 文件，包含文件路径
+
+使用示例：
+
+1. 导出完整查询结果：
+
+```shell
+taosx run -f "taos:///test?query=select tbname,* from test.meters" \
+  -t "parquet:./test.parquet"
+```
+
+2. 导出带有时间范围的查询结果：
+
+```shell
+taosx run -f "taos:///db1?query=select * from meters where ts >= '2024-01-01 00:00:00' and ts < '2024-02-01 00:00:00'" \
+  -t "parquet:./meters_202401.parquet"
+```
+
+3. 导出聚合查询结果：
+
+```shell
+taosx run -f "taos:///test?query=select tbname, avg(voltage) as avg_voltage, max(current) as max_current from test.meters group by tbname" \
+  -t "parquet:./meters_stats.parquet"
+```
+
+4. 使用 WebSocket 连接导出：
+
+```shell
+taosx run -f "taos+ws://root:taosdata@localhost:6041/test?query=select * from test.meters" \
+  -t "parquet:./test.parquet"
+```
+
+注意事项：
+
+- SQL 查询语句需要进行 URL 编码，特别是包含特殊字符时
+- 确保查询结果集大小适中，避免内存溢出
+- TDengine 数据类型会自动映射为对应的 Parquet 数据类型
+- 导出的 Parquet 文件可以被各种数据分析工具读取，如 Apache Spark、Pandas 等
 
 ## 服务模式
 

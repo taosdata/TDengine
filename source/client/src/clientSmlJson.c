@@ -394,7 +394,7 @@ static int64_t smlParseTSFromJSON(SSmlHandle *info, cJSON *timestamp) {
 
     if (unlikely(timeDouble < 0)) {
       smlBuildInvalidDataMsg(&info->msgBuf, "timestamp is negative", NULL);
-      return timeDouble;
+      return (int64_t)timeDouble;
     } else if (unlikely(timeDouble == 0)) {
       return taosGetTimestampNs() / smlFactorNS[toPrecision];
     }

@@ -326,6 +326,7 @@ typedef struct SSchJob {
   char                *sql;
   SQueryProfileSummary summary;
   int8_t               source;
+  int8_t               secureDelete;
   void                *pWorkerCb;
 } SSchJob;
 
@@ -387,6 +388,7 @@ extern SSchedulerMgmt schMgmt;
 #define SCH_GET_JOB_STATUS_STR(job) jobTaskStatusStr(SCH_GET_JOB_STATUS(job))
 
 #define SCH_JOB_EXPLAIN_CTX(job) ((job)->parent ? ((SSchJob*)(job)->parent)->explainCtx : (job)->explainCtx)
+#define SCH_PARENT_JOB(job) (SCH_IS_PARENT_JOB(job) ? (job) : (SSchJob*)job->parent)
 
 #define SCH_JOB_IN_SYNC_OP(job) ((job)->opStatus.op && (job)->opStatus.syncReq)
 #define SCH_JOB_IN_ASYNC_EXEC_OP(job)                                                                \

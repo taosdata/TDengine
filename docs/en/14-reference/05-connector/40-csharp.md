@@ -25,6 +25,7 @@ import RequestId from "../../assets/resources/_request_id.mdx";
 
 | Connector Version | Major Changes                                                                                                            | TDengine Version   |
 |-------------------|--------------------------------------------------------------------------------------------------------------------------|--------------------|
+| 3.1.10            | Support TDengine TSDB Token authentication.                                                                              | -                  |
 | 3.1.9             | The external interface of stmt remains unchanged; the internal implementation has been refactored into stmt2.            | -                  |
 | 3.1.8             | Support connection-level timezone settings and strictly validate the binding types of statements against database types. | -                  |
 | 3.1.7             | Support IPv6 connections and DECIMAL data type.                                                                          | 3.3.6.0 and higher |
@@ -113,6 +114,7 @@ Supported parameters include:
 - `db`: Database to connect to.
 - `timezone`: The timezone used for parsing time types in the query result set. Defaults to the local timezone. For format details, see [Timezone Settings](#timezone-settings).
 - `connectionTimezone`: Connection-level timezone setting (supported in version 3.1.8 and above), only available for .NET 6+ and supports IANA timezone format exclusively. Cannot be set simultaneously with `timezone`. For details, see [Timezone Settings](#timezone-settings).
+- `bearerToken`: Token for connecting to TDengine TSDB (supported in version 3.1.10 and above).
 
 ##### WebSocket Connection
 
@@ -137,6 +139,7 @@ Supported parameters include:
 - `autoReconnect`: Whether to automatically reconnect, default is false.
 - `reconnectRetryCount`: Number of retries for reconnection, default is 3.
 - `reconnectIntervalMs`: Interval for reconnection in milliseconds, default is 2000.
+- `bearerToken`: Token for connecting to TDengine TSDB (supported in version 3.1.10 and above).
 
 #### Timezone Settings
 

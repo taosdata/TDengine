@@ -18,9 +18,11 @@
 
 #include <stdio.h>
 #include <string.h>
+#include "decimal.h"
 #include "parInsertUtil.h"
 #include "parInt.h"
 #include "parToken.h"
+#include "parUtil.h"
 #include "tname.h"
 #include "ttime.h"
 
@@ -179,10 +181,16 @@ int32_t convertUpdateToInsert(const char* pSql, char** pNewSql, STableMeta* pTab
     return code;
   }
 
-  p += sprintf(p, "INSERT INTO ");
-  memcpy(p, t.z, t.n);
-  p += t.n;
-  p += sprintf(p, " (");
+  {
+    size_t rem = maxSqlLen - (p - newSql);
+    int written = snprintf(p, rem, "INSERT INTO %.*s (", (int)t.n, t.z);
+    if (written < 0 || (size_t)written >= rem) {
+      taosMemoryFree(newSql);
+      code = generateSyntaxErrMsgExt(&pMsgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "sql too long");
+      return code;
+    }
+    p += written;
+  }
   pSql += index;
 
   // SET
@@ -340,7 +348,7 @@ int32_t convertUpdateToInsert(const char* pSql, char** pNewSql, STableMeta* pTab
     }
   }
 
-  p += sprintf(p, ") VALUES (");
+  p += snprintf(p, maxSqlLen - (p - newSql), ") VALUES (");
   for (int32_t i = 0; i < columnCount; i++) {
     if (i > 0) {
       *p++ = ',';
@@ -415,8 +423,7 @@ bool qParseDbName(const char* pStr, size_t length, char** pDbName) {
     if (*pDbName == NULL) {
       return false;
     }
-    strncpy(*pDbName, t.z, dbNameLen);
-    (*pDbName)[dbNameLen] = '\0';
+    tstrncpy(*pDbName, t.z, dbNameLen + 1);
     return true;
   }
   return false;
@@ -494,7 +501,7 @@ static int32_t setValueByBindParam(SValueNode* pVal, TAOS_MULTI_BIND* pParam, vo
         return terrno;
       }
       varDataSetLen(pVal->datum.p, pVal->node.resType.bytes);
-      strncpy(varDataVal(pVal->datum.p), (const char*)pParam->buffer, pVal->node.resType.bytes);
+      TAOS_STRNCPY(varDataVal(pVal->datum.p), (const char*)pParam->buffer, pVal->node.resType.bytes);
       pVal->node.resType.bytes += VARSTR_HEADER_SIZE;
       break;
     case TSDB_DATA_TYPE_NCHAR: {
@@ -742,7 +749,7 @@ static int32_t setValueByBindParam2(SValueNode* pVal, TAOS_STMT2_BIND* pParam, v
   if (!pParam || IS_NULL_TYPE(pParam->buffer_type)) {
     return TSDB_CODE_APP_ERROR;
   }
-  if (IS_VAR_DATA_TYPE(pVal->node.resType.type)) {
+  if (IS_VAR_DATA_TYPE(pVal->node.resType.type) || pVal->node.resType.type == TSDB_DATA_TYPE_DECIMAL) {
     taosMemoryFreeClear(pVal->datum.p);
   }
 
@@ -773,7 +780,7 @@ static int32_t setValueByBindParam2(SValueNode* pVal, TAOS_STMT2_BIND* pParam, v
         return terrno;
       }
       varDataSetLen(pVal->datum.p, pVal->node.resType.bytes);
-      strncpy(varDataVal(pVal->datum.p), (const char*)pParam->buffer, pVal->node.resType.bytes);
+      TAOS_STRNCPY(varDataVal(pVal->datum.p), (const char*)pParam->buffer, pVal->node.resType.bytes);
       pVal->node.resType.bytes += VARSTR_HEADER_SIZE;
       if (IS_DURATION_VAL(pVal->flag)) {
         taosMemoryFreeClear(pVal->literal);
@@ -809,6 +816,70 @@ static int32_t setValueByBindParam2(SValueNode* pVal, TAOS_STMT2_BIND* pParam, v
       }
       varDataSetLen(pVal->datum.p, output);
       pVal->node.resType.bytes = output + VARSTR_HEADER_SIZE;
+      break;
+    }
+    case TSDB_DATA_TYPE_DECIMAL64: {
+      // TSDB_DATA_TYPE_DECIMAL64: buffer may be string, need to convert to int64_t
+      // If buffer is string, convert it to decimal64 value first
+      if (pParam->length && *(pParam->length) > 0 && *(pParam->length) != sizeof(int64_t)) {
+        // Buffer is string, need to convert
+        uint8_t precision = pVal->node.resType.precision;
+        uint8_t scale = pVal->node.resType.scale;
+        // If precision/scale not set, use default (should not happen in normal case)
+        if (precision == 0 && scale == 0) {
+          precision = 18;
+          scale = 0;
+        }
+        Decimal64 dec = {0};
+        int32_t   code = decimal64FromStr((const char*)pParam->buffer, *(pParam->length), precision, scale, &dec);
+        if (code != TSDB_CODE_SUCCESS) {
+          return code;
+        }
+        int64_t value = DECIMAL64_GET_VALUE(&dec);
+        pVal->datum.i = value;
+        pVal->typeData = value;
+        pVal->node.resType.bytes = sizeof(int64_t);
+      } else {
+        // Buffer is already int64_t value, use it directly
+        int32_t code = nodesSetValueNodeValue(pVal, pParam->buffer);
+        if (code) {
+          return code;
+        }
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_DECIMAL: {
+      // TSDB_DATA_TYPE_DECIMAL: buffer is string, need to convert to decimal128 binary format
+      pVal->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_DECIMAL].bytes;
+      pVal->datum.p = taosMemoryCalloc(1, pVal->node.resType.bytes);
+      if (NULL == pVal->datum.p) {
+        return terrno;
+      }
+
+      // Check if buffer is string or already binary format
+      int32_t strLen = (pParam->length && *(pParam->length) > 0) ? *(pParam->length) : 0;
+      if (strLen > 0 && strLen != pVal->node.resType.bytes) {
+        // Buffer is string, need to convert to decimal128
+        uint8_t precision = pVal->node.resType.precision;
+        uint8_t scale = pVal->node.resType.scale;
+        // If precision/scale not set, use default (should not happen in normal case)
+        if (precision == 0 && scale == 0) {
+          precision = 38;
+          scale = 0;
+        }
+        Decimal128 dec = {0};
+        int32_t    code = decimal128FromStr((const char*)pParam->buffer, strLen, precision, scale, &dec);
+        if (code != TSDB_CODE_SUCCESS) {
+          taosMemoryFree(pVal->datum.p);
+          pVal->datum.p = NULL;
+          return code;
+        }
+        // Copy decimal128 binary data
+        memcpy(pVal->datum.p, &dec, sizeof(Decimal128));
+      } else {
+        // Buffer is already binary format, copy directly
+        memcpy(pVal->datum.p, pParam->buffer, pVal->node.resType.bytes);
+      }
       break;
     }
     case TSDB_DATA_TYPE_BLOB:
@@ -852,10 +923,36 @@ int32_t qStmtBindParams2(SQuery* pQuery, TAOS_STMT2_BIND* pParams, int32_t colId
   return code;
 }
 
-int32_t qStmtParseQuerySql(SParseContext* pCxt, SQuery* pQuery) {
-  int32_t code = translate(pCxt, pQuery, NULL);
+int32_t qStmtParseQuerySql(SParseContext* pCxt, SQuery* pQuery, SMetaData* pMetaData) {
+  SParseMetaCache metaCache = {0};
+  int32_t         code = TSDB_CODE_SUCCESS;
+
+  // If metaData is provided, we need to collect metadata keys first to build SCatalogReq
+  // Then put the metaData into cache
+  if (pMetaData) {
+    SCatalogReq catalogReq = {0};
+    // Collect metadata requirements from query
+    code = collectMetaKey(pCxt, pQuery, &metaCache);
+    if (TSDB_CODE_SUCCESS == code) {
+      // Build catalog request from collected metadata requirements
+      code = buildCatalogReq(&metaCache, &catalogReq);
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      // Put metadata to cache using the catalogReq to match data
+      code = putMetaDataToCache(&catalogReq, pMetaData, &metaCache);
+    }
+    // Clean up catalog request
+    destoryCatalogReq(&catalogReq);
+    if (TSDB_CODE_SUCCESS != code) {
+      destoryParseMetaCache(&metaCache, false);
+      return code;
+    }
+  }
+
+  code = translate(pCxt, pQuery, &metaCache);
   if (TSDB_CODE_SUCCESS == code) {
     code = calculateConstant(pCxt, pQuery);
   }
+  destoryParseMetaCache(&metaCache, false);
   return code;
 }

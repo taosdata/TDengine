@@ -16,7 +16,7 @@
 #ifndef _TD_ULIT_PCRE2_H_
 #define _TD_ULIT_PCRE2_H_
 
-#ifdef USE_PRCE2
+#ifdef USE_PCRE2
 #define PCRE2_CODE_UNIT_WIDTH 8
 #include "pcre2.h"
 
@@ -32,5 +32,5 @@ void    destroyRegexes(pcre2_code* pWktRegex, pcre2_match_data* pWktMatchData);
 }
 #endif
 
-#endif  // USE_PRCE2
+#endif  // USE_PCRE2
 #endif  // _TD_UTIL_PAGEDBUF_H_

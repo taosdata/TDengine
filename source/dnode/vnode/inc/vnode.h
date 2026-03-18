@@ -17,6 +17,7 @@
 #define _TD_VNODE_H_
 
 #include "os.h"
+#include "thash.h"
 #include "tmsgcb.h"
 #include "tqueue.h"
 #include "trpc.h"
@@ -116,7 +117,7 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
 int32_t vnodeProcessSyncMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
 int32_t vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo);
 int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo);
-int32_t vnodeProcessStreamReaderMsg(SVnode *pVnode, SRpcMsg *pMsg);
+int32_t vnodeProcessStreamReaderMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo);
 void    vnodeProposeWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs);
 void    vnodeApplyWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs);
 void    vnodeProposeCommitOnNeed(SVnode *pVnode, bool atExit);
@@ -254,17 +255,18 @@ typedef struct STqReader {
   int32_t           nextBlk;
   int64_t           lastBlkUid;
   SWalReader       *pWalReader;
-  SMeta            *pVnodeMeta;
+  SVnode           *pVnode;
   SHashObj         *tbIdHash;
-  SArray           *pColIdList;  // SArray<int16_t>
   int32_t           cachedSchemaVer;
   int64_t           cachedSchemaSuid;
   int64_t           cachedSchemaUid;
   SSchemaWrapper   *pSchemaWrapper;
-  SSDataBlock      *pResBlock;
+  STSchema         *pTSchema;
   int64_t           lastTs;
   bool              hasPrimaryKey;
   SExtSchema       *extSchema;
+  SHashObj         *pTableTagCacheForTmq;
+  SRWLatch          tagCachelock;
 } STqReader;
 
 STqReader *tqReaderOpen(SVnode *pVnode);
@@ -273,7 +275,6 @@ void       tqReaderClose(STqReader *);
 bool tqGetTablePrimaryKey(STqReader *pReader);
 void tqSetTablePrimaryKey(STqReader *pReader, int64_t uid);
 
-int32_t tqReaderSetColIdList(STqReader *pReader, SArray *pColIdList, const char *id);
 int32_t tqReaderSetTbUidList(STqReader *pReader, const SArray *tbUidList, const char *id);
 void    tqReaderAddTbUidList(STqReader *pReader, const SArray *pTableUidList);
 void    tqReaderRemoveTbUidList(STqReader *pReader, const SArray *tbUidList);
@@ -282,17 +283,19 @@ bool tqReaderIsQueriedTable(STqReader *pReader, uint64_t uid);
 bool tqCurrentBlockConsumed(const STqReader *pReader);
 
 int32_t      tqReaderSeek(STqReader *pReader, int64_t ver, const char *id);
-bool         tqNextBlockInWal(STqReader *pReader, const char *idstr, int sourceExcluded);
+int32_t      tqNextBlockInWal(STqReader *pReader, SSDataBlock* pRes, SHashObj* pCol2SlotId, SExprInfo* pPseudoExpr, int32_t numOfPseudoExpr,
+                              int sourceExcluded, int32_t minPollRows, int64_t timeout, int8_t enableReplay);
 bool         tqNextBlockImpl(STqReader *pReader, const char *idstr);
 SWalReader  *tqGetWalReader(STqReader *pReader);
-SSDataBlock *tqGetResultBlock(STqReader *pReader);
 int64_t      tqGetResultBlockTime(STqReader *pReader);
+
+void      tqUpdateTableTagCache(STqReader* pReader, SExprInfo* pExprInfo, int32_t numOfExpr, int64_t uid, col_id_t colId);
+
 
 int32_t tqReaderSetSubmitMsg(STqReader *pReader, void *msgStr, int32_t msgLen, int64_t ver, SArray* rawList, SDecoder* decoder);
 void    tqReaderClearSubmitMsg(STqReader *pReader);
 bool    tqNextDataBlockFilterOut(STqReader *pReader, SHashObj *filterOutUids);
-int32_t tqRetrieveDataBlock(STqReader *pReader, SSDataBlock **pRes, const char *idstr);
-int32_t tqRetrieveTaosxBlock(STqReader *pReader, SMqDataRsp* pRsp, SArray *blocks, SArray *schemas, SSubmitTbData **pSubmitTbDataRet, SArray* rawList, int8_t fetchMeta);
+int32_t tqRetrieveTaosxBlock(STqReader *pReader, SMqDataRsp *pRsp, SArray *blocks, SArray *schemas, SSubmitTbData **pSubmitTbDataRet, SArray* rawList, int8_t fetchMeta);
 
 int32_t tqCommitOffset(void* p);
 // sma
@@ -383,6 +386,9 @@ struct SVnodeCfg {
   int32_t     ssChunkSize;
   int32_t     ssKeepLocal;
   int8_t      ssCompact;
+  int8_t      isAudit;
+  int8_t      allowDrop;
+  int8_t      secureDelete;
 };
 
 #define TABLE_ROLLUP_ON         ((int8_t)0x1)

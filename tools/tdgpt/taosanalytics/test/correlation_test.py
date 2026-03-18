@@ -24,6 +24,7 @@ def draw_lags_result(lags, ccf_vals, name):
     plt.grid(True)
 
     plt.savefig(name)
+    plt.close()
 
 
 class CorrelationTest(unittest.TestCase):

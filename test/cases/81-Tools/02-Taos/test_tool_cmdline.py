@@ -181,7 +181,7 @@ class TestFullopt:
         self.doTaos()
         # do action
         self.doTaosd()
-        tdLog.success(f"{__file__} successfully executed")
+
 
     def test_tools_cmdline_taosd(self):
         """Taosd support arguments

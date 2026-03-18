@@ -144,6 +144,10 @@ int32_t mmPutMsgToArbQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   return mmPutMsgToWorker(pMgmt, &pMgmt->arbWorker, pMsg);
 }
 
+int32_t mmPutMsgToAuditQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  return mmPutMsgToWorker(pMgmt, &pMgmt->auditWorker, pMsg);
+}
+
 int32_t mmPutMsgToSyncQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   return mmPutMsgToWorker(pMgmt, &pMgmt->syncWorker, pMsg);
 }
@@ -242,6 +246,9 @@ int32_t mmPutMsgToQueue(SMnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
       break;
     case SYNC_RD_QUEUE:
       pWorker = &pMgmt->syncRdWorker;
+      break;
+    case AUDIT_QUEUE:
+      pWorker = &pMgmt->auditWorker;
       break;
     default:
       code = TSDB_CODE_INVALID_PARA;
@@ -521,6 +528,18 @@ int32_t mmStartWorker(SMnodeMgmt *pMgmt) {
     return code;
   }
 
+  SSingleWorkerCfg auditCfg = {
+      .min = 1,
+      .max = 1,
+      .name = "mnode-audit",
+      .fp = (FItem)mmProcessRpcMsg,
+      .param = pMgmt,
+  };
+  if ((code = tSingleWorkerInit(&pMgmt->auditWorker, &auditCfg)) != 0) {
+    dError("failed to start mnode mnode-audit worker since %s", tstrerror(code));
+    return code;
+  }
+
   SDispatchWorkerPool* pPool = &pMgmt->streamMgmtWorkerPool;
   pPool->max = tsNumOfMnodeStreamMgmtThreads;
   pPool->name = "mnode-stream-mgmt";
@@ -561,6 +580,7 @@ void mmStopWorker(SMnodeMgmt *pMgmt) {
   tDispatchWorkerCleanup(&pMgmt->streamMgmtWorkerPool);
   tWWorkerFreeQueue(&pMgmt->streamReaderPool, pMgmt->pStreamReaderQ);
   tWWorkerCleanup(&pMgmt->streamReaderPool);
-  
+  tSingleWorkerCleanup(&pMgmt->auditWorker);
+
   dDebug("mnode workers are closed");
 }

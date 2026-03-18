@@ -29,10 +29,17 @@ trigger_type: {
   | SLIDING(sliding_val[, offset_time]) 
   | INTERVAL(interval_val[, interval_offset]) SLIDING(sliding_val[, offset_time]) 
   | SESSION(ts_col, session_val)
-  | STATE_WINDOW(col [, extend[, zeroth_state]]) [TRUE_FOR(duration_time)] 
-  | EVENT_WINDOW(START WITH start_condition END WITH end_condition) [TRUE_FOR(duration_time)]
-  | EVENT_WINDOW(START WITH (start_condition_1, start_condition_2 [,...] [END WITH end_condition]) [TRUE_FOR(duration_time)]
+  | STATE_WINDOW(col [, extend[, zeroth_state]]) [TRUE_FOR(true_for_expr)]
+  | EVENT_WINDOW(START WITH start_condition END WITH end_condition) [TRUE_FOR(true_for_expr)]
+  | EVENT_WINDOW(START WITH (start_condition_1, start_condition_2 [,...] [END WITH end_condition]) [TRUE_FOR(true_for_expr)]
   | COUNT_WINDOW(count_val[, sliding_val][, col1[, ...]]) 
+}
+
+true_for_expr: {
+    duration_time
+  | COUNT count_val
+  | duration_time AND COUNT count_val
+  | duration_time OR COUNT count_val
 }
 
 stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISORDER | DELETE_RECALC | DELETE_OUTPUT_TABLE | FILL_HISTORY[(start_time)] | FILL_HISTORY_FIRST[(start_time)] | CALC_NOTIFY_ONLY | LOW_LATENCY_CALC | PRE_FILTER(expr) | FORCE_OUTPUT | MAX_DELAY(delay_time) | EVENT_TYPE(event_types) | IGNORE_NODATA_TRIGGER}
@@ -57,7 +64,7 @@ tag_definition:
 
 #### 触发类型
 
-触发类型通过 `trigger_type` 指定，包括定时触发、滑动触发、滑动窗口触发、会话窗口触发、状态窗口触发、事件窗口触发、计数窗口触发。其中，状态窗口、事件窗口和计数窗口搭配超级表时，必须与 `partition by tbname` 一起使用。
+触发类型通过 `trigger_type` 指定，包括定时触发、滑动触发、时间窗口触发、会话窗口触发、状态窗口触发、事件窗口触发、计数窗口触发。其中，状态窗口、事件窗口和计数窗口搭配超级表时，必须与 `partition by tbname` 一起使用。
 
 ##### 定时触发
 
@@ -67,8 +74,8 @@ PERIOD(period_time[, offset_time])
 
 定时触发通过系统时间的固定间隔来驱动，本质上就是我们常说的定时任务。定时触发不属于窗口触发。各参数含义如下：
 
-- period_time：定时间隔，支持的时间单位包括：毫秒 (a)、秒 (s)、分 (m)、小时 (h)、天 (d)，支持的时间范围为 `[10a, 3650d]`。
-- offset_time：可选，定时偏移，支持的时间单位包括：毫秒 (a)、秒 (s)、分 (m)、小时 (h)，偏移大小应该小于 1 天。
+- period_time：定时间隔，支持的时间单位包括：毫秒 (a)、秒 (s)、分 (m)、小时 (h)、天 (d)、周 (w)、月 (n)、年 (y)，支持的时间范围为 `[10a, 3650d]`。
+- offset_time：可选，定时偏移，支持的时间单位包括：毫秒 (a)、秒 (s)、分 (m)、小时 (h)、天 (d)。对于周/月/年单位，offset 必须严格小于触发周期；对于月单位，以 28 天/月为基准静态校验（如 `PERIOD(1n, 28d)` 非法）。
 
 使用说明：
 
@@ -76,9 +83,11 @@ PERIOD(period_time[, offset_time])
   - 定时间隔为 5 小时 30 分钟，那么当天的触发时刻为 `[00:00, 05:30, 11:00, 16:30, 22:00]`，后续每一天的触发时刻都是相同的。
   - 同样的定时间隔，如果指定时间偏移为 1 分钟，那么当天的触发时刻为 `[00:01, 05:31, 11:01, 16:31, 22:01]`，后续每一天的触发时刻都是相同的。
   - 同样条件下，如果建流时当前系统时间为 `12:00`，那么当天的触发时刻为 `[16:31, 22:01]`，后续每一天内的触发时刻为 `[00:01, 05:31, 11:01, 16:31, 22:01]`。
-- 定时间隔大于等于 1 天时，基准时间点为当日的零点加定时偏移，后续不会重置。例如：
-  - 定时间隔为 1 天 1 小时，建流时当前系统时间为 `05-01 12:00`，那么在当天及随后几天的触发时刻为 `[05-02 01:00, 05-03 02:00, 05-04 03:00, 05-05 04:00, ……]`。
-  - 同样条件下，如果指定时间偏移为 1 分钟，那么当天及随后几天的触发时刻为 `[05-02 01:01, 05-03 02:02, 05-04 03:03, 05-05 04:04, ……]`。
+- 定时间隔大于等于 1 天时，基准时间点为服务端时区的 Unix epoch（1970-01-01 00:00:00）加定时偏移，按触发间隔整除对齐，保证所有任务触发时刻全局一致。例如：
+  - 定时间隔为 2 天，所有使用该间隔的任务都会在距离 epoch 整数倍 2 天的时刻触发（如 1970-01-03 00:00:00, 1970-01-05 00:00:00, ...），确保全局对齐。
+  - 定时间隔为 1 周（`PERIOD(1w)`），触发时刻对齐每周一 00:00:00；`PERIOD(1w, 1d)` 则在每周二 00:00:00 触发。
+  - 定时间隔为 1 月（`PERIOD(1n)`），触发时刻对齐每月 1 日 00:00:00；`PERIOD(1n, 14d)` 则在每月 15 日 00:00:00 触发。
+  - 定时间隔为 1 年（`PERIOD(1y)`），触发时刻对齐每年 1 月 1 日 00:00:00；`PERIOD(1y, 31d)` 则在每年 2 月 1 日 00:00:00 触发。
 
 适用场景：需要按照系统时间连续定时驱动计算的场景，例如每小时计算生成一次当天的统计数据，每天定时发送统计报告等。
 
@@ -88,7 +97,7 @@ PERIOD(period_time[, offset_time])
 SLIDING(sliding_val[, offset_time]) 
 ```
 
-滑动触发是指对触发表的写入数据按照事件时间的固定间隔来驱动的触发。不可以指定 INTERVAL 窗口，不属于窗口触发，必须指定触发表。滑动触发的触发时刻、时间偏移规则和定时触发相同，唯一的区别是系统时间变更为事件时间。
+滑动触发是指对触发表的写入数据按照事件时间的固定间隔来驱动的触发。滑动触发不属于窗口触发，必须指定触发表。滑动触发的触发时刻、时间偏移规则和定时触发相同，唯一的区别是系统时间变更为事件时间。
 
 各参数含义如下：
 
@@ -102,15 +111,15 @@ SLIDING(sliding_val[, offset_time])
 
 适用场景：需要按照事件时间连续定时驱动计算的场景，例如每小时计算生成一次当天的统计数据，每天定时发送统计报告等场景。
 
-##### 滑动窗口触发
+##### 时间窗口触发
 
 ```sql
 INTERVAL(interval_val[, interval_offset]) SLIDING(sliding_val) 
 ```
 
-滑动窗口触发是指对触发表的写入数据按照事件时间和固定窗口大小滑动而形成的触发，必须指定 INTERVAL 窗口，属于窗口触发，必须指定触发表。
+时间窗口触发是指对触发表的写入数据按照事件时间和固定窗口大小滑动而形成的触发，必须指定 INTERVAL 窗口，属于窗口触发，必须指定触发表。
 
-滑动窗口触发的起始时间点是窗口的起始点，窗口默认是从 Unix time 0（1970-01-01 00:00:00 UTC）开始划分，可以通过指定窗口时间偏移的方式来改变窗口的划分起始点。各参数含义如下：
+时间窗口触发的起始时间点是窗口的起始点，窗口默认是从 Unix time 0（1970-01-01 00:00:00 UTC）开始划分，可以通过指定窗口时间偏移的方式来改变窗口的划分起始点。各参数含义如下：
 
 - interval_val：可选，滑动窗口的时长。
 - interval_offset：可选，滑动窗口的时间偏移。
@@ -119,7 +128,7 @@ INTERVAL(interval_val[, interval_offset]) SLIDING(sliding_val)
 使用说明：
 
 - 必须指定触发表，触发表为超级表时支持按标签、子表分组，支持不分组。
-- 支持对写入数据进行处理过滤后（有条件）的滑动窗口触发。
+- 支持对写入数据进行处理过滤后（有条件）的时间窗口触发。
 
 适用场景：需要按照事件时间定时窗口计算的场景，例如每小时计算生成该小时内的统计数据，每隔 1 小时计算最后 5 分钟窗口内的数据等场景。
 
@@ -144,7 +153,7 @@ SESSION(ts_col, session_val)
 ##### 状态窗口触发
 
 ```sql
-STATE_WINDOW(col [, extend[, zeroth_state]]) [TRUE_FOR(duration_time)] 
+STATE_WINDOW(col [, extend[, zeroth_state]]) [TRUE_FOR(true_for_expr)]
 ```
 
 状态窗口触发是指对触发表的写入数据按照状态窗口的方式进行窗口划分，当窗口启动和（或）关闭时进行的触发。各参数含义如下：
@@ -152,7 +161,13 @@ STATE_WINDOW(col [, extend[, zeroth_state]]) [TRUE_FOR(duration_time)]
 - col：状态列的列名。
 - extend：可选，窗口开始结束时的扩展策略：extend 值为 0 时，窗口开始、结束时间为该状态的第一条、最后一条数据对应的时间戳；extend 值为 1 时，窗口开始时间不变，窗口结束时间向后扩展至下一个窗口开始之前；extend 值为 2 时，窗口开始时间向前扩展至上一个窗口结束之后，窗口结束时间不变。
 - zeorth_state：可选，指定“零状态”，状态列为此状态的窗口将不会被计算和输出，输入必须是整型、布尔型或字符串常量。当设置 zeroth_extend 数值时，extend 值为强制输入项，不允许留空或省略。
-- duration_time：可选，指定窗口的最小持续时长，如果某个窗口的时长低于该设定值，则会自动舍弃，不产生触发。
+- true_for_expr：可选，指定窗口的过滤条件，只有满足条件的窗口才会产生触发。支持以下四种模式：
+  - `TRUE_FOR(duration_time)`：仅基于持续时长过滤，窗口持续时长必须大于等于 `duration_time`。
+  - `TRUE_FOR(COUNT n)`：仅基于数据行数过滤，窗口数据行数必须大于等于 `n`。
+  - `TRUE_FOR(duration_time AND COUNT n)`：同时满足持续时长和数据行数条件。
+  - `TRUE_FOR(duration_time OR COUNT n)`：满足持续时长或数据行数条件之一即可。
+
+  其中 `duration_time` 为时间范围正值，精度可选 1n（纳秒）、1u（微秒）、1a（毫秒）、1s（秒）、1m（分）、1h（小时）、1d（天）、1w（周），如 `TRUE_FOR(10m)`、`TRUE_FOR(COUNT 100)`、`TRUE_FOR(10m AND COUNT 100)`、`TRUE_FOR(10m OR COUNT 100)`。
 
 使用说明：
 
@@ -165,14 +180,20 @@ STATE_WINDOW(col [, extend[, zeroth_state]]) [TRUE_FOR(duration_time)]
 ##### 事件窗口触发
 
 ```sql
-EVENT_WINDOW(START WITH start_condition END WITH end_condition) [TRUE_FOR(duration_time)]
+EVENT_WINDOW(START WITH start_condition END WITH end_condition) [TRUE_FOR(true_for_expr)]
 ```
 
 事件窗口触发是指对触发表的写入数据按照事件窗口的方式进行窗口划分，当窗口启动和（或）关闭时进行的触发。各参数含义如下：
 
 - start_condition：事件开始条件的定义。
 - end_condition：事件结束条件的定义。
-- duration_time：可选，指定窗口的最小持续时长，如果某个窗口的时长低于该设定值，则会自动舍弃，不产生触发。
+- true_for_expr：可选，指定窗口的过滤条件，只有满足条件的窗口才会产生触发。支持以下四种模式：
+  - `TRUE_FOR(duration_time)`：仅基于持续时长过滤，窗口持续时长必须大于等于 `duration_time`。
+  - `TRUE_FOR(COUNT n)`：仅基于数据行数过滤，窗口数据行数必须大于等于 `n`。
+  - `TRUE_FOR(duration_time AND COUNT n)`：同时满足持续时长和数据行数条件。
+  - `TRUE_FOR(duration_time OR COUNT n)`：满足持续时长或数据行数条件之一即可。
+
+  其中 `duration_time` 为时间范围正值，精度可选 1n（纳秒）、1u（微秒）、1a（毫秒）、1s（秒）、1m（分）、1h（小时）、1d（天）、1w（周），如 `TRUE_FOR(10m)`、`TRUE_FOR(COUNT 100)`、`TRUE_FOR(10m AND COUNT 100)`、`TRUE_FOR(10m OR COUNT 100)`。
 
 使用说明：
 
@@ -185,14 +206,20 @@ EVENT_WINDOW(START WITH start_condition END WITH end_condition) [TRUE_FOR(durati
 ##### 事件窗口触发 (支持子事件窗口)
 
 ```sql
-EVENT_WINDOW(START WITH (start_condition_1, start_condition_2 [,...] [END WITH end_condition]) [TRUE_FOR(duration_time)]
+EVENT_WINDOW(START WITH (start_condition_1, start_condition_2 [,...] [END WITH end_condition]) [TRUE_FOR(true_for_expr)]
 ```
 
 事件窗口触发是指对触发表的写入数据按照事件窗口的方式进行窗口划分，它现在支持指定多个开始条件，并能根据有效触发条件的变化，在原有的事件窗口内进一步划分和管理子事件窗口，同时引入父事件窗口的概念来聚合相关的子事件窗口。各参数含义如下：
 
 - start_condition_1, start_condition_2 [,...]：定义多个事件开始条件。当任何一个条件满足时，事件窗口开启。系统会从前往后依次评估这些条件，第一个满足的条件即为“有效触发条件”。当所有 start_condition 都不满足时，父窗口和最后一个子窗口关闭。
 - end_condition：事件结束条件的定义。当该条件满足时，当前父窗口和最后一个子窗口均关闭。该参数现在是可选的。
-- duration_time：可选，指定窗口的最小持续时长，如果某个窗口（包括父窗口和子窗口）的时长低于该设定值，则会自动舍弃，不产生触发。
+- true_for_expr：可选，指定窗口的过滤条件，只有满足条件的窗口才会产生触发。支持以下四种模式：
+  - `TRUE_FOR(duration_time)`：仅基于持续时长过滤，窗口持续时长必须大于等于 `duration_time`。
+  - `TRUE_FOR(COUNT n)`：仅基于数据行数过滤，窗口数据行数必须大于等于 `n`。
+  - `TRUE_FOR(duration_time AND COUNT n)`：同时满足持续时长和数据行数条件。
+  - `TRUE_FOR(duration_time OR COUNT n)`：满足持续时长或数据行数条件之一即可。
+
+  其中 `duration_time` 为时间范围正值，精度可选 1n（纳秒）、1u（微秒）、1a（毫秒）、1s（秒）、1m（分）、1h（小时）、1d（天）、1w（周），如 `TRUE_FOR(10m)`、`TRUE_FOR(COUNT 100)`、`TRUE_FOR(10m AND COUNT 100)`、`TRUE_FOR(10m OR COUNT 100)`。
 
 使用说明：
 
@@ -358,9 +385,9 @@ stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISOR
 - EVENT_TYPE(event_types)：指定窗口触发的事件类型，可以多选，未指定时默认值为 `WINDOW_CLOSE`。SLIDING 触发（不带 INTERVAL）和 PERIOD 触发不适用（自动忽略）。各选项含义如下：
   - WINDOW_OPEN：窗口启动事件。
   - WINDOW_CLOSE：窗口关闭事件。
-- IGNORE_NODATA_TRIGGER：指定忽略触发表无输入数据时的触发，适用于滑动触发（SLIDING）、滑动窗口触发（INTERVAL）、定时触发（PERIOD）。
+- IGNORE_NODATA_TRIGGER：指定忽略触发表无输入数据时的触发，适用于滑动触发（SLIDING）、时间窗口触发（INTERVAL）、定时触发（PERIOD）。
   - 滑动触发与定时触发：如果两次触发时刻中间触发表没有数据则忽略该次触发。
-  - 滑动窗口触发：如果窗口内触发表没有数据则忽略该次触发。
+  - 时间窗口触发：如果窗口内触发表没有数据则忽略该次触发。
   - 没有未指定时：不忽略无输入数据时的触发。
 
 ### 流式计算的通知机制
@@ -991,4 +1018,73 @@ CREATE stream stream_consumer_energy
      SELECT cast(_tlocaltime/1000000 AS timestamp) ,sum(current*voltage) AS sum_power
           FROM meters
           WHERE ts >= cast(_tprev_localtime/1000000 AS timestamp) AND ts <= cast(_tlocaltime/1000000 AS timestamp);
+```
+
+- 每周一 00:00:00 计算上周的设备运行汇总，计算结果写入 weekly_summary 表。
+
+```SQL
+CREATE STREAM weekly_device_summary
+  PERIOD(1w)
+  FROM meters PARTITION BY location
+  INTO weekly_summary
+  AS
+    SELECT _wstart AS week_start,
+           location,
+           AVG(current) AS avg_current,
+           MAX(voltage) AS max_voltage,
+           COUNT(*) AS record_count
+    FROM meters
+    INTERVAL(1w)
+    PARTITION BY location;
+```
+
+- 每月 1 日 00:00:00 计算上月的能耗账单，计算结果写入 monthly_bill 表。
+
+```SQL
+CREATE STREAM monthly_energy_bill
+  PERIOD(1n)
+  FROM meters PARTITION BY location, groupId
+  INTO monthly_bill
+  AS
+    SELECT _wstart AS month_start,
+           location,
+           groupId,
+           SUM(current * voltage) AS total_energy
+    FROM meters
+    INTERVAL(1n)
+    PARTITION BY location, groupId;
+```
+
+- 每月 15 日 00:00:00 计算半月结算报表（使用 offset 参数）。
+
+```SQL
+CREATE STREAM mid_month_settlement
+  PERIOD(1n, 14d)
+  FROM meters PARTITION BY location
+  INTO mid_month_settlement_table
+  AS
+    SELECT _wstart AS period_start,
+           location,
+           SUM(current * voltage) AS total_energy
+    FROM meters
+    INTERVAL(1n)
+    PARTITION BY location;
+```
+
+- 每年 1 月 1 日 00:00:00 归档上一年的全量数据。
+
+```SQL
+CREATE STREAM yearly_archive
+  PERIOD(1y)
+  FROM meters PARTITION BY location, groupId
+  INTO yearly_archive_table
+  AS
+    SELECT _wstart AS year_start,
+           location,
+           groupId,
+           AVG(current) AS avg_current,
+           SUM(current * voltage) AS total_energy
+    FROM meters
+    INTERVAL(1y)
+    PARTITION BY location, groupId;
 ```

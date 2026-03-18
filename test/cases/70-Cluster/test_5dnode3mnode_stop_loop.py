@@ -94,5 +94,5 @@ class Test5dnode3mnodeStopLoop:
         # print(self.master_dnode.cfgDict)
         self.fiveDnodeThreeMnode(5,3,1)
 
-        tdLog.success(f"{__file__} successfully executed")
+
 

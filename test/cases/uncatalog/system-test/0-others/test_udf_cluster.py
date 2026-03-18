@@ -328,5 +328,5 @@ class TestUdfCluster:
 
 
 
-        tdLog.success(f"{__file__} successfully executed")
+
 

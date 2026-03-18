@@ -265,7 +265,7 @@ int net__try_connect_step2(struct tmqtt *ttq, uint16_t port, ttq_sock_t *sock) {
     } else if (rp->ai_family == AF_INET6) {
       ((struct sockaddr_in6 *)rp->ai_addr)->sin6_port = htons(port);
     } else {
-      COMPAT_CLOSE(*sock);
+      UNUSED(COMPAT_CLOSE(*sock));
       *sock = INVALID_SOCKET;
       continue;
     }
@@ -288,7 +288,7 @@ int net__try_connect_step2(struct tmqtt *ttq, uint16_t port, ttq_sock_t *sock) {
       break;
     }
 
-    COMPAT_CLOSE(*sock);
+    UNUSED(COMPAT_CLOSE(*sock));
     *sock = INVALID_SOCKET;
   }
   freeaddrinfo(ttq->adns->ar_result);
@@ -346,7 +346,7 @@ static int net__try_connect_tcp(const char *host, uint16_t port, ttq_sock_t *soc
     } else if (rp->ai_family == AF_INET6) {
       ((struct sockaddr_in6 *)rp->ai_addr)->sin6_port = htons(port);
     } else {
-      COMPAT_CLOSE(*sock);
+      UNUSED(COMPAT_CLOSE(*sock));
       *sock = INVALID_SOCKET;
       continue;
     }
@@ -358,7 +358,7 @@ static int net__try_connect_tcp(const char *host, uint16_t port, ttq_sock_t *soc
         }
       }
       if (!rp_bind) {
-        COMPAT_CLOSE(*sock);
+        UNUSED(COMPAT_CLOSE(*sock));
         *sock = INVALID_SOCKET;
         continue;
       }
@@ -386,7 +386,7 @@ static int net__try_connect_tcp(const char *host, uint16_t port, ttq_sock_t *soc
       break;
     }
 
-    COMPAT_CLOSE(*sock);
+    UNUSED(COMPAT_CLOSE(*sock));
     *sock = INVALID_SOCKET;
   }
   freeaddrinfo(ainfo);
@@ -411,7 +411,7 @@ static int net__try_connect_unix(const char *host, ttq_sock_t *sock) {
 
   memset(&addr, 0, sizeof(struct sockaddr_un));
   addr.sun_family = AF_UNIX;
-  strncpy(addr.sun_path, host, sizeof(addr.sun_path) - 1);
+  tstrncpy(addr.sun_path, host, sizeof(addr.sun_path));
 
   s = socket(AF_UNIX, SOCK_STREAM, 0);
   if (s < 0) {
@@ -771,7 +771,7 @@ int net__socket_connect_step3(struct tmqtt *ttq, const char *host) {
 
   int rc = net__init_ssl_ctx(ttq);
   if (rc) {
-    net__socket_close(ttq);
+    UNUSED(net__socket_close(ttq));
     return rc;
   }
 
@@ -781,7 +781,7 @@ int net__socket_connect_step3(struct tmqtt *ttq, const char *host) {
     }
     ttq->ssl = SSL_new(ttq->ssl_ctx);
     if (!ttq->ssl) {
-      net__socket_close(ttq);
+      UNUSED(net__socket_close(ttq));
       net__print_ssl_error(ttq);
       return TTQ_ERR_TLS;
     }
@@ -789,7 +789,7 @@ int net__socket_connect_step3(struct tmqtt *ttq, const char *host) {
     SSL_set_ex_data(ttq->ssl, tls_ex_index_ttq, ttq);
     bio = BIO_new_socket(ttq->sock, BIO_NOCLOSE);
     if (!bio) {
-      net__socket_close(ttq);
+      UNUSED(net__socket_close(ttq));
       net__print_ssl_error(ttq);
       return TTQ_ERR_TLS;
     }
@@ -799,12 +799,12 @@ int net__socket_connect_step3(struct tmqtt *ttq, const char *host) {
      * required for the SNI resolving
      */
     if (SSL_set_tlsext_host_name(ttq->ssl, host) != 1) {
-      net__socket_close(ttq);
+      UNUSED(net__socket_close(ttq));
       return TTQ_ERR_TLS;
     }
 
     if (net__socket_connect_tls(ttq)) {
-      net__socket_close(ttq);
+      UNUSED(net__socket_close(ttq));
       return TTQ_ERR_TLS;
     }
   }
@@ -925,13 +925,13 @@ int net__socket_nonblock(ttq_sock_t *sock) {
   /* Set non-blocking */
   opt = fcntl(*sock, F_GETFL, 0);
   if (opt == -1) {
-    COMPAT_CLOSE(*sock);
+    UNUSED(COMPAT_CLOSE(*sock));
     *sock = INVALID_SOCKET;
     return TTQ_ERR_ERRNO;
   }
   if (fcntl(*sock, F_SETFL, opt | O_NONBLOCK) == -1) {
     /* If either fcntl fails, don't want to allow this client to connect. */
-    COMPAT_CLOSE(*sock);
+    UNUSED(COMPAT_CLOSE(*sock));
     *sock = INVALID_SOCKET;
     return TTQ_ERR_ERRNO;
   }
@@ -950,11 +950,11 @@ int net__socketpair(ttq_sock_t *pairR, ttq_sock_t *pairW) {
     return TTQ_ERR_ERRNO;
   }
   if (net__socket_nonblock(&sv[0])) {
-    COMPAT_CLOSE(sv[1]);
+    UNUSED(COMPAT_CLOSE(sv[1]));
     return TTQ_ERR_ERRNO;
   }
   if (net__socket_nonblock(&sv[1])) {
-    COMPAT_CLOSE(sv[0]);
+    UNUSED(COMPAT_CLOSE(sv[0]));
     return TTQ_ERR_ERRNO;
   }
   *pairR = sv[0];

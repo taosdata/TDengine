@@ -148,8 +148,8 @@ class TestScalarFunction:
 
     def run_timediff(self):
         self.run_normal_query_new("timediff")
-        tdSql.error("select timediff(min(ts), '2023-01-01 00:00:00') from ts_4893.meters limit 1;")
-        tdSql.error("select timediff(max(ts), '2023-12-31 23:59:59') from ts_4893.meters limit 1;")
+        tdSql.query("select timediff(min(ts), '2023-01-01 00:00:00') from ts_4893.meters limit 1;")
+        tdSql.query("select timediff(max(ts), '2023-12-31 23:59:59') from ts_4893.meters limit 1;")
         tdSql.error("select (select timediff(ts, (select max(ts) from ts_4893.meters)) from ts_4893.meters where id = m.id) from ts_4893.meters m;")
 
     def run_week(self):

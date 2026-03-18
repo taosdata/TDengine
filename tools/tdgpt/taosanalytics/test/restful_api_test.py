@@ -3,7 +3,6 @@
 """flask restful api test module"""
 import math
 import sys, os.path
-
 import numpy as np
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../../")
@@ -249,7 +248,7 @@ class RestfulTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json["rows"], -1)
 
-    def test_ad_error_three_cols(self):
+    def test_ad_multiple_input_cols(self):
         """4. there are three input columns """
         response = self.client.post("/anomaly-detect", json={
             "schema": [
@@ -262,6 +261,27 @@ class RestfulTest(TestCase):
                  1577808005000, 1577808006000, 1577808007000, 1577808008000, 1577808009000],
                 [5, 14, 15, 15, 14, 19, 17, 16, 20, 44],
                 [5, 14, 15, 15, 14, 19, 17, 16, 20, 44]
+            ],
+            "rows": 10,
+            "algo": "iqr"
+        })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["rows"], 2)
+
+    def test_ad_multiple_invalid_cols(self):
+        """4. there are three input columns """
+        response = self.client.post("/anomaly-detect", json={
+            "schema": [
+                ["ts", "TIMESTAMP", 8],
+                ["val", "INT", 4],
+                ["val1", "INT", 4]
+            ],
+            "data": [
+                [1577808000000, 1577808001000, 1577808002000, 1577808003000, 1577808004000,
+                 1577808005000, 1577808006000, 1577808007000, 1577808008000, 1577808009000],
+                [5, 14, 15, 15, 14, 19, 17, 16, 20, 44],
+                [5, 14, 15, 15, 14, 19, 17, 16, 20]
             ],
             "rows": 10,
             "algo": "iqr"
@@ -426,3 +446,18 @@ class RestfulTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json["rows"], 41)
         self.assertEqual(np.argmax(response.json["ccf_vals"]), 23)
+
+    def test_batch_process(self):
+        req = {
+            "data": [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23],
+            "ts":[100,200,300,400,500,600,700,800, 900, 1000, 1100, 1200, 1300, 1400, 1500, 1600, 1700, 1800, 1900, 2000, 2100,2200,2300],
+            "config": {"hampel":{'window_size': 7, 'sigma': 3, 'active': True,}},
+            "window":[(100, 1100), (1200,2300)],
+            "prec": "ms",
+            "protocol": 1.0
+        }
+
+        response = self.client.post('/tool/batch', json=req)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["rows"], 1000)

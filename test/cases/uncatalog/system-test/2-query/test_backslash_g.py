@@ -77,4 +77,4 @@ class TestBackslashG:
         self.td_28164()
 
         #tdSql.close()
-        tdLog.success(f"{__file__} successfully executed")
+

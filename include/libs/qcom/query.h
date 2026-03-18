@@ -142,9 +142,17 @@ typedef struct STableMeta {
   STableComInfo tableInfo;
   SSchemaExt*   schemaExt;  // There is no additional memory allocation, and the pointer is fixed to the next address of
                             // the schema content.
-  int8_t        virtualStb;
-  int64_t       ownerId;
-  SSchema       schema[];
+  union {
+    uint8_t flag;
+    struct {
+      uint8_t virtualStb : 1;
+      uint8_t isAudit : 1;
+      uint8_t reserved : 6;
+    };
+  };
+  int64_t ownerId;
+  int8_t  secureDelete;
+  SSchema schema[];
 } STableMeta;
 #pragma pack(pop)
 
@@ -424,7 +432,7 @@ SSchema createSchema(int8_t type, int32_t bytes, col_id_t colId, const char* nam
 void    destroyQueryExecRes(SExecResult* pRes);
 int32_t dataConverToStr(char* str, int64_t capacity, int type, void* buf, int32_t bufSize, int32_t* len);
 void    parseTagDatatoJson(void* p, char** jsonStr, void *charsetCxt);
-int32_t setColRef(SColRef* colRef, col_id_t colId, char* refColName, char* refTableName, char* refDbName);
+int32_t setColRef(SColRef* colRef, col_id_t colId, const char* colName, char* refColName, char* refTableName, char* refDbName);
 int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst);
 void    getColumnTypeFromMeta(STableMeta* pMeta, char* pName, ETableColumnType* pType);
 int32_t cloneDbVgInfo(SDBVgInfo* pSrc, SDBVgInfo** pDst);

@@ -1808,36 +1808,36 @@ int32_t fltConverToStr(char *str, int32_t strMaxLen, int type, void *buf, int32_
 
   switch (type) {
     case TSDB_DATA_TYPE_NULL:
-      n = tsnprintf(str, strMaxLen, "null");
+      n = snprintf(str, strMaxLen, "null");
       break;
 
     case TSDB_DATA_TYPE_BOOL:
-      n = tsnprintf(str, strMaxLen, (*(int8_t *)buf) ? "true" : "false");
+      n = snprintf(str, strMaxLen, (*(int8_t *)buf) ? "true" : "false");
       break;
 
     case TSDB_DATA_TYPE_TINYINT:
-      n = tsnprintf(str, strMaxLen, "%d", *(int8_t *)buf);
+      n = snprintf(str, strMaxLen, "%d", *(int8_t *)buf);
       break;
 
     case TSDB_DATA_TYPE_SMALLINT:
-      n = tsnprintf(str, strMaxLen, "%d", *(int16_t *)buf);
+      n = snprintf(str, strMaxLen, "%d", *(int16_t *)buf);
       break;
 
     case TSDB_DATA_TYPE_INT:
-      n = tsnprintf(str, strMaxLen, "%d", *(int32_t *)buf);
+      n = snprintf(str, strMaxLen, "%d", *(int32_t *)buf);
       break;
 
     case TSDB_DATA_TYPE_BIGINT:
     case TSDB_DATA_TYPE_TIMESTAMP:
-      n = tsnprintf(str, strMaxLen, "%" PRId64, *(int64_t *)buf);
+      n = snprintf(str, strMaxLen, "%" PRId64, *(int64_t *)buf);
       break;
 
     case TSDB_DATA_TYPE_FLOAT:
-      n = tsnprintf(str, strMaxLen, "%e", GET_FLOAT_VAL(buf));
+      n = snprintf(str, strMaxLen, "%e", GET_FLOAT_VAL(buf));
       break;
 
     case TSDB_DATA_TYPE_DOUBLE:
-      n = tsnprintf(str, strMaxLen, "%e", GET_DOUBLE_VAL(buf));
+      n = snprintf(str, strMaxLen, "%e", GET_DOUBLE_VAL(buf));
       break;
 
     case TSDB_DATA_TYPE_BINARY:
@@ -1856,19 +1856,19 @@ int32_t fltConverToStr(char *str, int32_t strMaxLen, int type, void *buf, int32_
       break;
 
     case TSDB_DATA_TYPE_UTINYINT:
-      n = tsnprintf(str, strMaxLen, "%d", *(uint8_t *)buf);
+      n = snprintf(str, strMaxLen, "%d", *(uint8_t *)buf);
       break;
 
     case TSDB_DATA_TYPE_USMALLINT:
-      n = tsnprintf(str, strMaxLen, "%d", *(uint16_t *)buf);
+      n = snprintf(str, strMaxLen, "%d", *(uint16_t *)buf);
       break;
 
     case TSDB_DATA_TYPE_UINT:
-      n = tsnprintf(str, strMaxLen, "%u", *(uint32_t *)buf);
+      n = snprintf(str, strMaxLen, "%u", *(uint32_t *)buf);
       break;
 
     case TSDB_DATA_TYPE_UBIGINT:
-      n = tsnprintf(str, strMaxLen, "%" PRIu64, *(uint64_t *)buf);
+      n = snprintf(str, strMaxLen, "%" PRIu64, *(uint64_t *)buf);
       break;
       
     default:
@@ -1894,7 +1894,7 @@ int32_t filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t optio
       for (uint32_t i = 0; i < info->fields[FLD_TYPE_COLUMN].num; ++i) {
         SFilterField *field = &info->fields[FLD_TYPE_COLUMN].fields[i];
         SColumnNode  *refNode = (SColumnNode *)field->desc;
-        qDebug("COL%d => [%d][%d]", i, refNode->dataBlockId, refNode->slotId);
+        qDebug("COL%d => [%" PRId64 "][%d]", i, refNode->dataBlockId, refNode->slotId);
       }
 
       qDebug("VALUE Field Num:%u", info->fields[FLD_TYPE_VALUE].num);
@@ -1925,7 +1925,7 @@ int32_t filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t optio
         SFilterField *left = FILTER_UNIT_LEFT_FIELD(info, unit);
         SColumnNode  *refNode = (SColumnNode *)left->desc;
         if (unit->compare.optr <= OP_TYPE_JSON_CONTAINS) {
-          len += tsnprintf(str, sizeof(str), "UNIT[%d] => [%d][%d]  %s  [", i, refNode->dataBlockId, refNode->slotId,
+          len += tsnprintf(str, sizeof(str), "UNIT[%d] => [%" PRId64 "][%d]  %s  [", i, refNode->dataBlockId, refNode->slotId,
                            operatorTypeStr(unit->compare.optr));
         }
 
@@ -1956,7 +1956,7 @@ int32_t filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t optio
           (void)strncat(str, " && ", sizeof(str) - len - 1);
           len += 4;
           if (unit->compare.optr2 <= OP_TYPE_JSON_CONTAINS) {
-            len += tsnprintf(str + len, sizeof(str) - len, "[%d][%d]  %s  [", refNode->dataBlockId, refNode->slotId,
+            len += tsnprintf(str + len, sizeof(str) - len, "[%" PRId64 "][%d]  %s  [", refNode->dataBlockId, refNode->slotId,
                              operatorTypeStr(unit->compare.optr2));
           }
 
@@ -4765,6 +4765,21 @@ static int32_t fltSclGetTimeStampDatum(SFltSclPoint *point, SFltSclDatum *d) {
   return TSDB_CODE_SUCCESS;
 }
 
+/**
+   * Extract a time-range window from a filter AST node.
+   *
+   * This tries to derive a timestamp range from the condition tree (typically a WHERE clause).
+   * If a single, strict range can be determined, it is written to `win` and `*isStrict` stays true.
+   * If multiple ranges or non-deterministic conditions are found, `*isStrict` is set to false and
+   * `win` may be set to a full/unknown window.
+   *
+   * @param pNode         Filter expression AST root (e.g., WHERE condition).
+   * @param win           Output time window (skey/ekey).
+   * @param isStrict      Output flag: true if `win` exactly matches the single time range
+   *                      in `pNode`, false if only a conservative/unknown range is available.
+   *
+   * @return TSDB_CODE_SUCCESS on success, otherwise an error code.
+ */
 int32_t filterGetTimeRange(SNode *pNode, STimeWindow *win, bool *isStrict, bool* hasRemoteNode) {
   SFilterInfo *info = NULL;
   int32_t      code = 0;
@@ -4968,7 +4983,8 @@ EDealRes fltReviseRewriter(SNode **pNode, void *pContext) {
     return DEAL_RES_CONTINUE;
   }
 
-  if (QUERY_NODE_REMOTE_VALUE == nodeType(*pNode) || QUERY_NODE_REMOTE_VALUE_LIST == nodeType(*pNode)) {
+  if (QUERY_NODE_REMOTE_VALUE == nodeType(*pNode) || QUERY_NODE_REMOTE_VALUE_LIST == nodeType(*pNode) ||
+      QUERY_NODE_REMOTE_ROW == nodeType(*pNode) || QUERY_NODE_REMOTE_ZERO_ROWS == nodeType(*pNode)) {
     stat->scalarMode = true;
     stat->info->hasRemoteNode = true;
     return DEAL_RES_CONTINUE;

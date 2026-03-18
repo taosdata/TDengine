@@ -19,6 +19,38 @@
 #include "tcompare.h"
 #include "tdatablock.h"
 
+static FORCE_INLINE int32_t stCompareRowsInBlocks(const SSDataBlock *pDataBlock, int32_t tsSlotId, int32_t pkSlotId,
+                                                  int32_t leftIdx, int32_t rightIdx) {
+  if (pDataBlock == NULL || tsSlotId < 0 || leftIdx < 0 || rightIdx < 0) {
+    return 0;
+  }
+
+  SColumnInfoData *pTsCol = TARRAY_GET_ELEM(pDataBlock->pDataBlock, tsSlotId);
+  int64_t         *pTsData = (int64_t *)pTsCol->pData;
+  SColumnInfoData *pPkCol = NULL;
+
+  if (pTsData[leftIdx] < pTsData[rightIdx]) {
+    return -1;
+  } else if (pTsData[leftIdx] > pTsData[rightIdx]) {
+    return 1;
+  } else if (pkSlotId >= 0 && pkSlotId != tsSlotId) {
+    pPkCol = TARRAY_GET_ELEM(pDataBlock->pDataBlock, pkSlotId);
+    bool leftNull = colDataIsNull_s(pPkCol, leftIdx);
+    bool rightNull = colDataIsNull_s(pPkCol, rightIdx);
+    if (leftNull || rightNull) {
+      if (leftNull == rightNull) {
+        return 0;
+      }
+      return leftNull ? -1 : 1;
+    }
+
+    __compar_fn_t cmp = getKeyComparFunc(pPkCol->info.type, TSDB_ORDER_ASC);
+    return cmp(colDataGetData(pPkCol, leftIdx), colDataGetData(pPkCol, rightIdx));
+  }
+
+  return 0;
+}
+
 typedef struct SSTriggerMetaDataNode {
   SSTriggerMetaData *pMeta;
   TD_DLIST_NODE(SSTriggerMetaDataNode);
@@ -144,7 +176,7 @@ void stTimestampSorterReset(SSTriggerTimestampSorter *pSorter) {
 }
 
 int32_t stTimestampSorterSetSortInfo(SSTriggerTimestampSorter *pSorter, STimeWindow *pRange, int64_t tbUid,
-                                     int32_t tsSlotId) {
+                                     int32_t tsSlotId, int32_t pkSlotId) {
   int32_t             code = TSDB_CODE_SUCCESS;
   int32_t             lino = 0;
   SStreamTriggerTask *pTask = pSorter->pTask;
@@ -155,6 +187,7 @@ int32_t stTimestampSorterSetSortInfo(SSTriggerTimestampSorter *pSorter, STimeWin
   pSorter->readRange = *pRange;
   pSorter->tbUid = tbUid;
   pSorter->tsSlotId = tsSlotId;
+  pSorter->pkSlotId = pkSlotId;
 
   BIT_FLAG_SET_MASK(pSorter->flags, TRIGGER_TS_SORTER_MASK_SORT_INFO_SET);
 
@@ -212,32 +245,6 @@ int32_t stTimestampSorterSetMetaDatas(SSTriggerTimestampSorter *pSorter, SSTrigg
   }
 
   BIT_FLAG_SET_MASK(pSorter->flags, TRIGGER_TS_SORTER_MASK_META_DATA_SET);
-
-_end:
-  if (TSDB_CODE_SUCCESS != code) {
-    ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-  }
-  return code;
-}
-
-int32_t stTimestampSorterSetEmptyMetaDatas(SSTriggerTimestampSorter *pSorter) {
-  int32_t             code = TSDB_CODE_SUCCESS;
-  int32_t             lino = 0;
-  SStreamTriggerTask *pTask = pSorter->pTask;
-  SArray             *pMetaNodeBuf = pSorter->pMetaNodeBuf;
-  SArray             *pMetaLists = pSorter->pMetaLists;
-
-  QUERY_CHECK_CONDITION(pSorter->flags == TRIGGER_TS_SORTER_MASK_SORT_INFO_SET, code, lino, _end,
-                        TSDB_CODE_INVALID_PARA);
-  QUERY_CHECK_CONDITION(pMetaNodeBuf != NULL && TARRAY_SIZE(pMetaNodeBuf) == 0, code, lino, _end,
-                        TSDB_CODE_INVALID_PARA);
-  QUERY_CHECK_CONDITION(pMetaLists != NULL && TARRAY_SIZE(pMetaLists) == 0, code, lino, _end, TSDB_CODE_INVALID_PARA);
-
-  SSTriggerMetaDataList *pList = taosArrayReserve(pMetaLists, 1);
-  QUERY_CHECK_NULL(pList, code, lino, _end, terrno);
-  *pList = (SSTriggerMetaDataList){.nextTs = INT64_MIN};
-
-  BIT_FLAG_SET_MASK(pSorter->flags, TRIGGER_TS_SORTER_MASK_NO_META_DATA);
 
 _end:
   if (TSDB_CODE_SUCCESS != code) {
@@ -386,34 +393,6 @@ int32_t stTimestampSorterNextDataBlock(SSTriggerTimestampSorter *pSorter, SSData
   *ppDataBlock = NULL;
   *pStartIdx = 0;
   *pEndIdx = 0;
-
-  if (BIT_FLAG_TEST_MASK(pSorter->flags, TRIGGER_TS_SORTER_MASK_NO_META_DATA)) {
-    pList = TARRAY_DATA(pSorter->pMetaLists);
-    if (pList->pDataBlock != NULL && pList->startIdx < pList->endIdx) {
-      int32_t          nrows = blockDataGetNumOfRows(pList->pDataBlock);
-      SColumnInfoData *pTsCol = taosArrayGet(pList->pDataBlock->pDataBlock, pSorter->tsSlotId);
-      QUERY_CHECK_NULL(pTsCol, code, lino, _end, terrno);
-      int64_t *pTsData = (int64_t *)pTsCol->pData;
-      pList->startIdx = pList->endIdx;
-      if (pList->startIdx < nrows) {
-        pList->nextTs = pTsData[pList->startIdx];
-      } else {
-        pList->nextTs = pTsData[nrows - 1] + 1;
-        blockDataDestroy(pList->pDataBlock);
-        pList->startIdx = pList->endIdx = 0;
-      }
-    }
-    if (pList->pDataBlock != NULL) {
-      int32_t nrows = blockDataGetNumOfRows(pList->pDataBlock);
-      pList->endIdx = nrows;
-      *ppDataBlock = pList->pDataBlock;
-      *pStartIdx = pList->startIdx;
-      *pEndIdx = pList->endIdx;
-    } else {
-      // need to fetch new data block
-    }
-    goto _end;
-  }
 
   if (!BIT_FLAG_TEST_MASK(pSorter->flags, TRIGGER_TS_SORTER_MASK_DATA_MERGER_BUILD)) {
     code = stTimestampSorterBuildDataMerger(pSorter);
@@ -745,11 +724,6 @@ int32_t stTimestampSorterGetMetaToFetch(SSTriggerTimestampSorter *pSorter, SSTri
 
   *ppMeta = NULL;
 
-  if (BIT_FLAG_TEST_MASK(pSorter->flags, TRIGGER_TS_SORTER_MASK_NO_META_DATA) ||
-      IS_TRIGGER_TIMESTAMP_SORTER_EMPTY(pSorter)) {
-    goto _end;
-  }
-
   QUERY_CHECK_CONDITION(BIT_FLAG_TEST_MASK(pSorter->flags, TRIGGER_TS_SORTER_MASK_DATA_MERGER_BUILD), code, lino, _end,
                         TSDB_CODE_INVALID_PARA);
   SSTriggerMetaDataList *pList = TARRAY_GET_ELEM(pSorter->pMetaLists, tMergeTreeGetChosenIndex(pSorter->pDataMerger));
@@ -769,19 +743,6 @@ int32_t stTimestampSorterBindDataBlock(SSTriggerTimestampSorter *pSorter, SSData
   int32_t                lino = 0;
   SStreamTriggerTask    *pTask = pSorter->pTask;
   SSTriggerMetaDataList *pList = NULL;
-
-  if (BIT_FLAG_TEST_MASK(pSorter->flags, TRIGGER_TS_SORTER_MASK_NO_META_DATA)) {
-    SColumnInfoData *pTsCol = taosArrayGet((*ppDataBlock)->pDataBlock, pSorter->tsSlotId);
-    QUERY_CHECK_NULL(pTsCol, code, lino, _end, terrno);
-    int64_t *pTsData = (int64_t *)pTsCol->pData;
-
-    pList = TARRAY_DATA(pSorter->pMetaLists);
-    QUERY_CHECK_CONDITION(pList->pDataBlock == NULL, code, lino, _end, TSDB_CODE_INVALID_PARA);
-    pList->pDataBlock = *ppDataBlock;
-    pList->startIdx = pList->endIdx = 0;
-    pList->nextTs = pTsData[0];
-    goto _end;
-  }
 
   QUERY_CHECK_CONDITION(!IS_TRIGGER_TIMESTAMP_SORTER_EMPTY(pSorter), code, lino, _end, TSDB_CODE_INVALID_PARA);
   QUERY_CHECK_CONDITION(BIT_FLAG_TEST_MASK(pSorter->flags, TRIGGER_TS_SORTER_MASK_DATA_MERGER_BUILD), code, lino, _end,
@@ -993,7 +954,7 @@ int32_t stVtableMergerSetMergeInfo(SSTriggerVtableMerger *pMerger, STimeWindow *
       code = stTimestampSorterInit(pReader, pTask);
       QUERY_CHECK_CODE(code, lino, _end);
     }
-    code = stTimestampSorterSetSortInfo(pReader, pRange, pReaderInfo->pColRef->otbUid, 0);
+    code = stTimestampSorterSetSortInfo(pReader, pRange, pReaderInfo->pColRef->otbUid, 0, -1);
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
@@ -1061,31 +1022,6 @@ int32_t stVtableMergerSetMetaDatas(SSTriggerVtableMerger *pMerger, SSHashObj *pO
   }
 
   BIT_FLAG_SET_MASK(pMerger->flags, TRIGGER_VTABLE_MERGER_MASK_META_DATA_SET);
-
-_end:
-  if (TSDB_CODE_SUCCESS != code) {
-    ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-  }
-  return code;
-}
-
-int32_t stVtableMergerSetEmptyMetaDatas(SSTriggerVtableMerger *pMerger) {
-  int32_t             code = TSDB_CODE_SUCCESS;
-  int32_t             lino = 0;
-  SStreamTriggerTask *pTask = pMerger->pTask;
-  SArray             *pReaders = pMerger->pReaders;
-
-  QUERY_CHECK_CONDITION(pMerger->flags == TRIGGER_VTABLE_MERGER_MASK_MERGE_INFO_SET, code, lino, _end,
-                        TSDB_CODE_INVALID_PARA);
-  QUERY_CHECK_CONDITION(TARRAY_SIZE(pReaders) >= TARRAY_SIZE(pMerger->pReaderInfos), code, lino, _end,
-                        TSDB_CODE_INVALID_PARA);
-
-  int32_t nReaders = TARRAY_SIZE(pMerger->pReaderInfos);
-  for (int32_t i = 0; i < nReaders; i++) {
-    SSTriggerTimestampSorter *pReader = *(SSTriggerTimestampSorter **)TARRAY_GET_ELEM(pReaders, i);
-    code = stTimestampSorterSetEmptyMetaDatas(pReader);
-    QUERY_CHECK_CODE(code, lino, _end);
-  }
 
 _end:
   if (TSDB_CODE_SUCCESS != code) {
@@ -1378,19 +1314,24 @@ static int32_t stNewTimestampSorterSliceListCompare(const void *pLeft, const voi
     SNewTimestampSorterSliceList *pLeftList = TARRAY_GET_ELEM(pSorter->pSliceLists, left);
     SNewTimestampSorterSliceList *pRightList = TARRAY_GET_ELEM(pSorter->pSliceLists, right);
 
-    SColumnInfoData *pTsCol = TARRAY_GET_ELEM(pSorter->pDataBlock->pDataBlock, pSorter->tsSlotId);
-    int64_t         *pTsData = (int64_t *)pTsCol->pData;
-    int32_t          leftIdx = (TD_DLIST_HEAD(pLeftList) != NULL) ? TD_DLIST_HEAD(pLeftList)->startIdx : -1;
-    int64_t          leftTs = (leftIdx >= 0) ? pTsData[leftIdx] : INT64_MAX;
-    int32_t          rightIdx = (TD_DLIST_HEAD(pRightList) != NULL) ? TD_DLIST_HEAD(pRightList)->startIdx : -1;
-    int64_t          rightTs = (rightIdx >= 0) ? pTsData[rightIdx] : INT64_MAX;
+    int32_t leftIdx = (TD_DLIST_HEAD(pLeftList) != NULL) ? TD_DLIST_HEAD(pLeftList)->startIdx : -1;
+    int32_t rightIdx = (TD_DLIST_HEAD(pRightList) != NULL) ? TD_DLIST_HEAD(pRightList)->startIdx : -1;
 
-    // compare by start timestamp first, then by start index
-    if (leftTs < rightTs) {
-      return -1;
-    } else if (leftTs > rightTs) {
+    if (leftIdx < 0 && rightIdx >= 0) {
       return 1;
-    } else if (leftIdx < rightIdx) {
+    } else if (leftIdx >= 0 && rightIdx < 0) {
+      return -1;
+    } else if (leftIdx >= 0 && rightIdx >= 0) {
+      // compare by row key: timestamp first, then primary keys.
+      int32_t ret = stCompareRowsInBlocks(pSorter->pDataBlock, pSorter->tsSlotId, pSorter->pkSlotId, leftIdx, rightIdx);
+      if (ret < 0) {
+        return -1;
+      } else if (ret > 0) {
+        return 1;
+      }
+    }
+    // keep newer row first when row key is identical
+    if (leftIdx < rightIdx) {
       return 1;
     } else if (leftIdx > rightIdx) {
       return -1;
@@ -1465,7 +1406,8 @@ void stNewTimestampSorterReset(SSTriggerNewTimestampSorter *pSorter) {
 }
 
 int32_t stNewTimestampSorterSetData(SSTriggerNewTimestampSorter *pSorter, int64_t tbUid, int32_t tsSlotId,
-                                    STimeWindow *pReadRange, SObjList *pMetas, SSTriggerDataSlice *pSlice) {
+                                    int32_t pkSlotId, STimeWindow *pReadRange, SObjList *pMetas,
+                                    SSTriggerDataSlice *pSlice) {
   int32_t             code = TSDB_CODE_SUCCESS;
   int32_t             lino = 0;
   SStreamTriggerTask *pTask = pSorter->pTask;
@@ -1476,6 +1418,7 @@ int32_t stNewTimestampSorterSetData(SSTriggerNewTimestampSorter *pSorter, int64_
   pSorter->inUse = true;
   pSorter->pDataBlock = pDataBlock;
   pSorter->tsSlotId = tsSlotId;
+  pSorter->pkSlotId = pkSlotId;
   pDataBlock->info.id.uid = tbUid;
 
   // collect all data slices; data in each slice is in ascending order
@@ -1635,7 +1578,8 @@ int32_t stNewTimestampSorterNextDataBlock(SSTriggerNewTimestampSorter *pSorter, 
     if (i == idx || pTempSlice == NULL) {
       continue;
     }
-    if (pTsData[pTempSlice->startIdx] == startTs) {
+    if (stCompareRowsInBlocks(pSorter->pDataBlock, pSorter->tsSlotId, pSorter->pkSlotId, pSlice->startIdx,
+                              pTempSlice->startIdx) == 0) {
       // skip the current row
       ST_TASK_DLOG("Slice List %d: pop [%d, %d)", i, pTempSlice->startIdx, pTempSlice->startIdx + 1);
       needRebuild = true;
@@ -1648,11 +1592,19 @@ int32_t stNewTimestampSorterNextDataBlock(SSTriggerNewTimestampSorter *pSorter, 
         }
       }
     }
+
     endTs = TMIN(endTs, pTsData[pTempSlice->startIdx]);
   }
-  QUERY_CHECK_CONDITION(endTs > startTs, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+  QUERY_CHECK_CONDITION(endTs >= startTs, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
 
-  if (pTsData[pSlice->endIdx - 1] < endTs) {
+  if (startTs == endTs) {
+    *pEndIdx = pSlice->startIdx + 1;
+    pSlice->startIdx = *pEndIdx;
+    if (pSlice->startIdx == pSlice->endIdx) {
+      TD_DLIST_POP(pList, pSlice);
+      pSlice = TD_DLIST_HEAD(pList);
+    }
+  } else if (pTsData[pSlice->endIdx - 1] < endTs) {
     *pEndIdx = pSlice->endIdx;
     TD_DLIST_POP(pList, pSlice);
     pSlice = TD_DLIST_HEAD(pList);
@@ -1839,7 +1791,7 @@ void stNewVtableMergerReset(SSTriggerNewVtableMerger *pMerger) {
   }
 }
 
-int32_t stNewVtableMergerSetData(SSTriggerNewVtableMerger *pMerger, int64_t vtbUid, int32_t tsSlotId,
+int32_t stNewVtableMergerSetData(SSTriggerNewVtableMerger *pMerger, int64_t vtbUid, int32_t tsSlotId, int32_t pkSlotId,
                                  STimeWindow *pReadRange, SObjList *pTableUids, SArray *pTableColRefs,
                                  SSHashObj *pMetas, SSHashObj *pSlices) {
   int32_t             code = TSDB_CODE_SUCCESS;
@@ -1889,7 +1841,8 @@ int32_t stNewVtableMergerSetData(SSTriggerNewVtableMerger *pMerger, int64_t vtbU
     }
     SObjList *pMeta = tSimpleHashGet(pMetas, &pColRef->otbVgId, sizeof(int32_t));
     QUERY_CHECK_NULL(pMeta, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-    code = stNewTimestampSorterSetData(pReaderInfo->pReader, pColRef->otbUid, tsSlotId, pReadRange, pMeta, pSlice);
+    code = stNewTimestampSorterSetData(pReaderInfo->pReader, pColRef->otbUid, tsSlotId, pkSlotId, pReadRange, pMeta,
+                                       pSlice);
     QUERY_CHECK_CODE(code, lino, _end);
     pReaderInfo->pColRef = pColRef;
     code = stNewTimestampSorterNextDataBlock(pReaderInfo->pReader, NULL, &pReaderInfo->startIdx, &pReaderInfo->endIdx);

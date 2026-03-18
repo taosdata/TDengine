@@ -610,5 +610,5 @@ class TestUdfCreate:
         self.unexpected_create()
 
 
-        tdLog.success(f"{__file__} successfully executed")
+
 

@@ -1691,7 +1691,7 @@ int32_t cliBatchSend(SCliConn* pConn, int8_t direct) {
     if (pReq->pCont == 0) {
       pReq->pCont = (void*)rpcMallocCont(0);
       if (pReq->pCont == NULL) {
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
       pReq->contLen = 0;
     }
@@ -1927,7 +1927,7 @@ int32_t cliConnSetSockInfo(SCliConn* pConn) {
     code = TSDB_CODE_THIRDPARTY_ERROR;
     return code;
   }
-  transSockInfo2Str((struct sockaddr*)&peername, pConn->dst);
+  transSockInfo2Str((struct sockaddr*)&peername, pConn->dst, sizeof(pConn->dst));
 
   addrlen = sizeof(sockname);
   code = uv_tcp_getsockname((uv_tcp_t*)pConn->stream, (struct sockaddr*)&sockname, &addrlen);
@@ -1936,7 +1936,7 @@ int32_t cliConnSetSockInfo(SCliConn* pConn) {
     code = TSDB_CODE_THIRDPARTY_ERROR;
     return code;
   }
-  transSockInfo2Str((struct sockaddr*)&sockname, pConn->src);
+  transSockInfo2Str((struct sockaddr*)&sockname, pConn->src, sizeof(pConn->src));
   return 0;
 };
 
@@ -2143,12 +2143,9 @@ static FORCE_INLINE int32_t cliGetIpFromFqdnCache(SHashObj* cache, char* fqdn, S
       code = TSDB_CODE_RPC_FQDN_ERROR;
       tError("ipv6Enable(%d), failed to get ip from fqdn:%s since %s", enableIpv6, fqdn, tstrerror(code));
       return code;
-    } else {
-      if (enableIpv6 && ipAddr.type != 1) {
-        tWarn("get ipv4 addr from fqdn:%s, but ipv6 is enabled", fqdn);
-        return TSDB_CODE_RPC_FQDN_ERROR;
-      }
     }
+    // when enableIpv6=1, both IPv4 and IPv6 addresses are accepted
+    // taosGetIpFromFqdn uses AF_UNSPEC and returns first available address
     if ((code = taosHashPut(cache, fqdn, len, &ipAddr, sizeof(ipAddr)) != 0)) {
       return code;
     }
@@ -4373,7 +4370,7 @@ int32_t transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, S
   taosHashPut(pTransInst->seqTable, &pReq->info.seq, sizeof(pReq->info.seq), &pReq->msgType, sizeof(pReq->msgType));
   taosThreadMutexUnlock(&pTransInst->seqMutex);
 
-  sprintf(RPC_MSG_USER(pReq), "root");
+  snprintf(RPC_MSG_USER(pReq), sizeof(RPC_MSG_USER(pReq)) - 1, "root");
 
   code = transSendReq(pTransInst, pReq, NULL);
   TAOS_UNUSED(transReleaseExHandle(transGetInstMgt(), (int64_t)shandle));

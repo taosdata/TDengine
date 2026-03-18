@@ -71,7 +71,14 @@ int32_t tjsonGetObjectValueString(const SJson* pJson, char** pStringValue);
 void    tjsonGetObjectValueBigInt(const SJson* pJson, int64_t* pVal);
 void    tjsonGetObjectValueDouble(const SJson* pJson, double* pVal);
 int32_t tjsonGetStringValue(const SJson* pJson, const char* pName, char* pVal);
+int32_t tjsonGetStringValue1(const SJson* pJson, const char* pName, char* pVal, int32_t cap);
 int32_t tjsonGetStringValue2(const SJson* pJson, const char* pName, char* pVal, int32_t maxLen);
+/**
+ * Returns a pointer to an internal string buffer owned by the underlying JSON object.
+ * The returned pointer must not be modified or freed by the caller and remains valid
+ * only as long as the associated SJson object (and its parent tree) is alive and unchanged.
+ */
+const char* tjsonGetStringPointer(const SJson* pJson, const char* pName);
 int32_t tjsonDupStringValue(const SJson* pJson, const char* pName, char** pVal);
 int32_t tjsonGetBigIntValue(const SJson* pJson, const char* pName, int64_t* pVal);
 int32_t tjsonGetIntValue(const SJson* pJson, const char* pName, int32_t* pVal);
@@ -79,6 +86,7 @@ int32_t tjsonGetSmallIntValue(const SJson* pJson, const char* pName, int16_t* pV
 int32_t tjsonGetTinyIntValue(const SJson* pJson, const char* pName, int8_t* pVal);
 int32_t tjsonGetUBigIntValue(const SJson* pJson, const char* pName, uint64_t* pVal);
 int32_t tjsonGetUIntValue(const SJson* pJson, const char* pName, uint32_t* pVal);
+int32_t tjsonGetUSmallIntValue(const SJson* pJson, const char* pName, uint16_t* pVal);
 int32_t tjsonGetUTinyIntValue(const SJson* pJson, const char* pName, uint8_t* pVal);
 int32_t tjsonGetBoolValue(const SJson* pJson, const char* pName, bool* pVal);
 int32_t tjsonGetDoubleValue(const SJson* pJson, const char* pName, double* pVal);

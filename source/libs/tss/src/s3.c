@@ -42,6 +42,7 @@ typedef struct {
     S3PutProperties putProperties;
 
     // variable-length buffer for hostname, bucket and etc.
+    int32_t bufCap;
     char buf[0];
 } SSharedStorageS3;
 
@@ -69,7 +70,7 @@ static void printConfig(SSharedStorage* pss) {
 
 // initInstance initializes the SSharedStorageS3 instance from the access string.
 static bool initInstance(SSharedStorageS3* ss, const char* as) {
-    strcpy(ss->buf, as);
+    tstrncpy(ss->buf, as, ss->bufCap);
 
     // set default values
     ss->defaultChunkSizeInMB = 64;
@@ -148,7 +149,7 @@ static bool initInstance(SSharedStorageS3* ss, const char* as) {
         } else if (taosStrcasecmp(key, "maxChunks") == 0 && val != NULL) {
             ss->maxChunks = (uint32_t)atoll(val);
         } else if (taosStrcasecmp(key, "maxRetry") == 0 && val != NULL) {
-            ss->maxRetry = (int32_t)atol(val);
+            ss->maxRetry = (int32_t)taosStr2Int64(val, NULL, 10);
         } else if (taosStrcasecmp(key, "verifyPeer") == 0 && val != NULL) {
             ss->verifyPeer = taosStrcasecmp(val, "true") == 0;
         } else {
@@ -200,6 +201,7 @@ static int32_t createInstance(const char* accessString, SSharedStorageS3** ppSS)
         tssError("failed to allocate memory for SSharedStorageS3");
         TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
     }
+    ss->bufCap = (int32_t)asLen;
 
     if (!initInstance(ss, accessString)) {
         taosMemFree(ss);
@@ -253,26 +255,26 @@ static void responseCompleteCallback(S3Status status, const S3ErrorDetails *erro
     const int elen = sizeof(cbd->errMsg);
     
     if (error->message && elen - len > 0) {
-        len += tsnprintf(cbd->errMsg + len, elen - len, "  Message: %s\n", error->message);
+        len += snprintf(cbd->errMsg + len, elen - len, "  Message: %s\n", error->message);
     }
 
     if (error->resource && elen - len > 0) {
-        len += tsnprintf(cbd->errMsg + len, elen - len, "  Resource: %s\n", error->resource);
+        len += snprintf(cbd->errMsg + len, elen - len, "  Resource: %s\n", error->resource);
     }
 
     if (error->furtherDetails && elen - len > 0) {
-        len += tsnprintf(cbd->errMsg + len, elen - len, "  Further Details: %s\n", error->furtherDetails);
+        len += snprintf(cbd->errMsg + len, elen - len, "  Further Details: %s\n", error->furtherDetails);
     }
 
     if (error->extraDetailsCount && elen - len <= 0) {
         return;
     }
 
-    len += tsnprintf(&(cbd->errMsg[len]), elen - len, "%s", "  Extra Details:\n");
+    len += snprintf(&(cbd->errMsg[len]), elen - len, "%s", "  Extra Details:\n");
     for (int i = 0; i < error->extraDetailsCount && elen > len; i++) {
         const char* name = error->extraDetails[i].name;
         const char* value = error->extraDetails[i].value;
-        len += tsnprintf(cbd->errMsg + len, elen - len, "    %s: %s\n", name, value);
+        len += snprintf(cbd->errMsg + len, elen - len, "    %s: %s\n", name, value);
     }
 }
 
@@ -387,7 +389,7 @@ static int32_t simpleUpload(SSharedStorageS3* ss, const char* dstPath, SUploadSo
         tssError("simpleUpload failed %s: %s/%s", dstPath, S3_get_status_name(ucbd.status), ucbd.errMsg);
         code = TAOS_SYSTEM_ERROR(EIO);
     } else if (src->size > src->offset) {
-        tssError("simpleUpload failed to put remaining %lu bytes", src->size - src->offset);
+        tssError("simpleUpload failed to put remaining %" PRIu64 " bytes", src->size - src->offset);
         code = TAOS_SYSTEM_ERROR(EIO);
     }
 
@@ -531,11 +533,12 @@ static int32_t commitMultipartUpload(SSharedStorageS3* ss, const char* dstPath, 
 
     // build the XML document
     char* p = xml;
-    p += sprintf(p, "<CompleteMultipartUpload>");
+    p += snprintf(p, size, "<CompleteMultipartUpload>");
     for (uint32_t i = 0; i < ucbd->numChunks; i++) {
-        p += sprintf(p, "<Part><PartNumber>%d</PartNumber><ETag>%s</ETag></Part>", i + 1, ucbd->etags[i]);
+        p += snprintf(p, size - (p - xml), "<Part><PartNumber>%d</PartNumber><ETag>%s</ETag></Part>", i + 1,
+                      ucbd->etags[i]);
     }
-    p += sprintf(p, "</CompleteMultipartUpload>");
+    p += snprintf(p, size - (p - xml), "</CompleteMultipartUpload>");
 
     // set the upload source to the XML document
     SUploadSource src = {.src = NULL, .buf = xml, .size = p-xml, .offset = 0, .file = NULL};
@@ -674,7 +677,7 @@ static int32_t upload(SSharedStorage* pss, const char* dstPath, const void* data
     if (size <= ss->defaultChunkSizeInMB * (uint64_t)1024 * 1024) {
         return simpleUpload(ss, dstPath, &src);
     } else {
-        tssInfo("multipart uploading: %s, size %ld", dstPath, size);
+        tssInfo("multipart uploading: %s, size %" PRId64, dstPath, size);
         return multipartUpload(ss, dstPath, &src);
     }
 }
@@ -686,7 +689,7 @@ static int32_t uploadFile(SSharedStorage* pss, const char* dstPath, const char* 
     SSharedStorageS3* ss = (SSharedStorageS3*)pss;
 
     if (offset < 0) {
-        tssError("invalid offset %ld for file %s: ", offset, srcPath);
+        tssError("invalid offset %" PRId64 " for file %s: ", offset, srcPath);
         TAOS_RETURN(TSDB_CODE_INVALID_PARA);
     }
 
@@ -701,7 +704,7 @@ static int32_t uploadFile(SSharedStorage* pss, const char* dstPath, const char* 
         size = fileSize - offset;
     }
     if (size < 0 || offset + size > fileSize) {
-        tssError("invalid offset %ld and size %ld for file %s: ", offset, size, srcPath);
+        tssError("invalid offset %" PRId64 " and size %" PRId64 " for file %s: ", offset, size, srcPath);
         TAOS_RETURN(TSDB_CODE_INVALID_PARA);
     }
 
@@ -712,7 +715,7 @@ static int32_t uploadFile(SSharedStorage* pss, const char* dstPath, const char* 
     }
 
     if (offset > 0 && taosLSeekFile(file, offset, SEEK_SET) < 0) {
-        tssError("failed to seek file %s to offset %ld", srcPath, offset);
+        tssError("failed to seek file %s to offset %" PRId64, srcPath, offset);
         (void)taosCloseFile(&file);
         TAOS_RETURN(terrno);
     }
@@ -723,7 +726,7 @@ static int32_t uploadFile(SSharedStorage* pss, const char* dstPath, const char* 
     if (size <= ss->defaultChunkSizeInMB * (uint64_t)1024 * 1024) {
         code = simpleUpload(ss, dstPath, &src);
     } else {
-        tssInfo("multipart uploading: %s to %s, size %ld", srcPath, dstPath, size);
+        tssInfo("multipart uploading: %s to %s, size %" PRId64, srcPath, dstPath, size);
         code = multipartUpload(ss, dstPath, &src);
     }
 
@@ -881,7 +884,7 @@ static S3Status listFileCallback(int                        isTruncated,
 
     lcbd->isTruncated = isTruncated;
     if (nextMarker != NULL) {
-        strncpy(lcbd->nextMarker, nextMarker, sizeof(lcbd->nextMarker));
+        tstrncpy(lcbd->nextMarker, nextMarker, sizeof(lcbd->nextMarker));
         lcbd->nextMarker[sizeof(lcbd->nextMarker) - 1] = 0;
     } else {
         lcbd->nextMarker[0] = 0;

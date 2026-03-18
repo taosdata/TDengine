@@ -242,4 +242,4 @@ class TestTaosdumpRetry:
         """
         self._run_retry_test(newdb="nredb", websocket=False)
         self._run_retry_test(newdb="nwredb", websocket=True)
-        tdLog.success("%s successfully executed" % __file__)
+

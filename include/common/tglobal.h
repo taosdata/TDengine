@@ -58,7 +58,6 @@ extern char          tsLocalEp[];
 extern char          tsVersionName[];
 extern uint16_t      tsServerPort;
 extern int32_t       tsVersion;
-extern int32_t       tsForceReadConfig;
 extern int32_t       tsdmConfigVersion;
 extern int32_t       tsConfigInited;
 extern int32_t        tsEncryptKeysStatus;
@@ -76,7 +75,8 @@ extern EEncryptScope tsiEncryptScope;
 // extern char     tsAuthCode[];
 extern char          tsEncryptKey[];
 extern int8_t        tsEnableStrongPassword;
-extern int8_t        tsAllowDefaultPassword;
+extern int8_t        tsEnableAdvancedSecurity;
+extern int8_t        tsEnableGrantLegacySyntax;
 extern char          tsEncryptPassAlgorithm[];
 extern EEncryptAlgor tsiEncryptPassAlgorithm;
 
@@ -144,6 +144,7 @@ extern int32_t tsNumOfStreamRunnerThreads;
 
 extern int32_t tsNumOfCompactThreads;
 extern int32_t tsNumOfRetentionThreads;
+extern int32_t tsSecureEraseMode;
 
 // sync raft
 extern int32_t tsElectInterval;
@@ -220,6 +221,8 @@ extern int32_t  tsEncryptKeyVersion;       // Key update version (starts from 1,
 extern int64_t  tsEncryptKeyCreateTime;    // Key creation timestamp
 extern int64_t  tsSvrKeyUpdateTime;        // SVR_KEY last update timestamp
 extern int64_t  tsDbKeyUpdateTime;         // DB_KEY last update timestamp
+extern int32_t  tsKeyExpirationDays;       // Key expiration days (default: 30)
+extern char     tsKeyExpirationStrategy[ENCRYPT_KEY_EXPIRE_STRATEGY_LEN + 1];  // Key expiration strategy (default: "ALARM")
 
 // monitor
 extern bool     tsEnableMonitor;
@@ -244,6 +247,7 @@ extern int32_t tsAuditLevel;
 extern int32_t tsAuditInterval;
 extern bool    tsAuditHttps;
 extern bool    tsAuditUseToken;
+extern bool    tsAuditSaveInSelf;
 
 // telem
 extern bool     tsEnableTelem;
@@ -336,7 +340,8 @@ extern char tsSmlTsDefaultName[];
 // extern int32_t tsSmlBatchSize;
 
 extern int32_t tmqMaxTopicNum;
-extern int32_t tmqRowSize;
+extern char    tmqWriteRefDB[];
+extern bool    tmqWriteCheckRef;
 extern int32_t tsMaxTsmaNum;
 extern int32_t tsMaxTsmaCalcDelay;
 extern int64_t tsmaDataDeleteMark;
@@ -358,6 +363,7 @@ extern int32_t tsTtlPushIntervalSec;
 extern int32_t tsTtlBatchDropNum;
 extern int32_t tsTrimVDbIntervalSec;
 extern int32_t tsQueryTrimIntervalSec;
+extern int32_t tsQuerySsMigrateIntervalSec;
 extern int32_t tsGrantHBInterval;
 extern int32_t tsUptimeInterval;
 extern bool    tsUpdateCacheBatch;

@@ -63,5 +63,5 @@ class TestCase:
         if ret != 0:
             tdLog.exit("error: tmq_poll_test failed")
 
-        tdLog.success(f"{__file__} successfully executed")
+
 

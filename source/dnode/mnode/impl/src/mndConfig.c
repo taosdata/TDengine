@@ -35,6 +35,8 @@
 #define SYNC_TIMEOUT_SR_DIVISOR    4
 #define SYNC_TIMEOUT_HB_DIVISOR    8
 
+extern SConfig *tsCfg;
+
 static int32_t mndMCfgGetValInt32(SMCfgDnodeReq *pInMCfgReq, int32_t optLen, int32_t *pOutValue);
 static int32_t mndProcessShowVariablesReq(SRpcMsg *pReq);
 static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq);
@@ -764,11 +766,12 @@ static int32_t mndSendCfgDnodeReq(SMnode *pMnode, int32_t dnodeId, SDCfgDnodeReq
   TAOS_RETURN(code);
 }
 
-static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
+static int32_t  mndProcessConfigDnodeReq(SRpcMsg *pReq) {
   int32_t       code = 0;
   int32_t       lino = -1;
   SMnode       *pMnode = pReq->info.node;
   SMCfgDnodeReq cfgReq = {0};
+  SUserObj     *pOperUser = NULL;
   int64_t       tss = taosGetTimestampMs();
   SConfigObj   *vObj = sdbAcquire(pMnode->pSdb, SDB_CFG, "tsmmConfigVersion");
   if (vObj == NULL) {
@@ -780,7 +783,19 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
   TAOS_CHECK_RETURN(tDeserializeSMCfgDnodeReq(pReq->pCont, pReq->contLen, &cfgReq));
   int8_t updateWhiteList = 0;
   mInfo("dnode:%d, start to config, option:%s, value:%s", cfgReq.dnodeId, cfgReq.config, cfgReq.value);
-  if ((code = mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_CONFIG_DNODE)) != 0) {
+
+  code = mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOperUser);
+  if (pOperUser == NULL) {
+    code = TSDB_CODE_MND_NO_USER_FROM_CONN;
+    goto _err_out;
+  }
+
+  char configName[TSDB_DNODE_CONFIG_LEN] = {0};
+  tstrncpy(configName, cfgReq.config, sizeof(configName));
+  const char *p = strstr(configName, " ");
+  if (p) *(char *)p = 0;
+  EPrivType privType = cfgGetPrivType(tsCfg, configName, 0);
+  if ((code = mndCheckSysObjPrivilege(pMnode, pOperUser, RPC_MSG_TOKEN(pReq), privType, 0, 0, NULL, NULL))) {
     goto _err_out;
   }
 
@@ -833,7 +848,7 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
   // Audit log
   if (tsAuditLevel >= AUDIT_LEVEL_SYSTEM) {
     char obj[50] = {0};
-    (void)tsnprintf(obj, sizeof(obj), "%d", cfgReq.dnodeId);
+    (void)snprintf(obj, sizeof(obj), "%d", cfgReq.dnodeId);
     int64_t tse = taosGetTimestampMs();
     double  duration = (double)(tse - tss);
     duration = duration / 1000;
@@ -873,12 +888,14 @@ _success:
   }
   tFreeSMCfgDnodeReq(&cfgReq);
   sdbRelease(pMnode->pSdb, vObj);
+  mndReleaseUser(pMnode, pOperUser);
   TAOS_RETURN(code);
 
 _err_out:
   mError("failed to process config dnode req, since %s", tstrerror(code));
   tFreeSMCfgDnodeReq(&cfgReq);
   sdbRelease(pMnode->pSdb, vObj);
+  mndReleaseUser(pMnode, pOperUser);
   TAOS_RETURN(code);
 }
 
@@ -930,18 +947,18 @@ static int32_t mndHandleSyncTimeoutConfigs(STrans *pTrans, const char *srcName, 
   int32_t baseTimeout = syncTimeout - syncTimeout / SYNC_TIMEOUT_DIVISOR;
 
   // arbSetAssignedTimeoutMs = syncTimeout
-  sprintf(tmp, "%d", syncTimeout);
+  snprintf(tmp, sizeof(tmp), "%d", syncTimeout);
   TAOS_CHECK_GOTO(mndCreateAndCommitConfigObj(pTrans, srcName, "arbSetAssignedTimeoutMs", tmp, lino), lino, _OVER);
 
   // arbHeartBeatIntervalMs = syncTimeout / 4
-  sprintf(tmp, "%d", syncTimeout / SYNC_TIMEOUT_DIVISOR);
+  snprintf(tmp, sizeof(tmp), "%d", syncTimeout / SYNC_TIMEOUT_DIVISOR);
   TAOS_CHECK_GOTO(mndCreateAndCommitConfigObj(pTrans, srcName, "arbHeartBeatIntervalMs", tmp, lino), lino, _OVER);
 
   // arbCheckSyncIntervalMs = syncTimeout / 4
   TAOS_CHECK_GOTO(mndCreateAndCommitConfigObj(pTrans, srcName, "arbCheckSyncIntervalMs", tmp, lino), lino, _OVER);
 
   // syncVnodeElectIntervalMs = (syncTimeout - syncTimeout / 4) / 2
-  sprintf(tmp, "%d", baseTimeout / SYNC_TIMEOUT_ELECT_DIVISOR);
+  snprintf(tmp, sizeof(tmp), "%d", baseTimeout / SYNC_TIMEOUT_ELECT_DIVISOR);
   TAOS_CHECK_GOTO(mndCreateAndCommitConfigObj(pTrans, srcName, "syncVnodeElectIntervalMs", tmp, lino), lino, _OVER);
 
   // syncMnodeElectIntervalMs = (syncTimeout - syncTimeout / 4) / 2
@@ -951,11 +968,11 @@ static int32_t mndHandleSyncTimeoutConfigs(STrans *pTrans, const char *srcName, 
   TAOS_CHECK_GOTO(mndCreateAndCommitConfigObj(pTrans, srcName, "statusTimeoutMs", tmp, lino), lino, _OVER);
 
   // statusSRTimeoutMs = (syncTimeout - syncTimeout / 4) / 4
-  sprintf(tmp, "%d", baseTimeout / SYNC_TIMEOUT_SR_DIVISOR);
+  snprintf(tmp, sizeof(tmp), "%d", baseTimeout / SYNC_TIMEOUT_SR_DIVISOR);
   TAOS_CHECK_GOTO(mndCreateAndCommitConfigObj(pTrans, srcName, "statusSRTimeoutMs", tmp, lino), lino, _OVER);
 
   // syncVnodeHeartbeatIntervalMs = (syncTimeout - syncTimeout / 4) / 8
-  sprintf(tmp, "%d", baseTimeout / SYNC_TIMEOUT_HB_DIVISOR);
+  snprintf(tmp, sizeof(tmp), "%d", baseTimeout / SYNC_TIMEOUT_HB_DIVISOR);
   TAOS_CHECK_GOTO(mndCreateAndCommitConfigObj(pTrans, srcName, "syncVnodeHeartbeatIntervalMs", tmp, lino), lino, _OVER);
 
   // syncMnodeHeartbeatIntervalMs = (syncTimeout - syncTimeout / 4) / 8
@@ -1240,24 +1257,24 @@ static SArray *initVariablesFromItems(SArray *pItems, const char* likePattern) {
       case CFG_DTYPE_NONE:
         break;
       case CFG_DTYPE_BOOL:
-        tsnprintf(info.value, sizeof(info.value), "%d", pItem->bval);
+        snprintf(info.value, sizeof(info.value), "%d", pItem->bval);
         break;
       case CFG_DTYPE_INT32:
-        tsnprintf(info.value, sizeof(info.value), "%d", pItem->i32);
+        snprintf(info.value, sizeof(info.value), "%d", pItem->i32);
         break;
       case CFG_DTYPE_INT64:
-        tsnprintf(info.value, sizeof(info.value), "%" PRId64, pItem->i64);
+        snprintf(info.value, sizeof(info.value), "%" PRId64, pItem->i64);
         break;
       case CFG_DTYPE_FLOAT:
       case CFG_DTYPE_DOUBLE:
-        tsnprintf(info.value, sizeof(info.value), "%f", pItem->fval);
+        snprintf(info.value, sizeof(info.value), "%f", pItem->fval);
         break;
       case CFG_DTYPE_STRING:
       case CFG_DTYPE_DIR:
       case CFG_DTYPE_LOCALE:
       case CFG_DTYPE_CHARSET:
       case CFG_DTYPE_TIMEZONE:
-        tsnprintf(info.value, sizeof(info.value), "%s", pItem->str);
+        snprintf(info.value, sizeof(info.value), "%s", pItem->str);
         break;
     }
 

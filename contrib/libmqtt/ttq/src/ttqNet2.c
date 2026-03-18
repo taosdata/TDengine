@@ -37,7 +37,7 @@ static ttq_sock_t spare_sock = INVALID_SOCKET;
 
 void ttqNetBrokerInit(void) {
   spare_sock = socket(AF_INET, SOCK_STREAM, 0);
-  net__init();
+  UNUSED(net__init());
 #ifdef WITH_TLS
   net__init_tls();
 #endif
@@ -45,7 +45,7 @@ void ttqNetBrokerInit(void) {
 
 void ttqNetBrokerCleanup(void) {
   if (spare_sock != INVALID_SOCKET) {
-    COMPAT_CLOSE(spare_sock);
+    UNUSED(COMPAT_CLOSE(spare_sock));
     spare_sock = INVALID_SOCKET;
   }
   net__cleanup();
@@ -82,10 +82,10 @@ struct tmqtt *ttqNetSocketAccept(struct tmqtt__listener_sock *listensock) {
        * It would be nice to send a "server not available" connack here,
        * but there are lots of reasons why this would be tricky (TLS
        * being the big one). */
-      COMPAT_CLOSE(spare_sock);
+      UNUSED(COMPAT_CLOSE(spare_sock));
       new_sock = accept(listensock->sock, NULL, 0);
       if (new_sock != INVALID_SOCKET) {
-        COMPAT_CLOSE(new_sock);
+        UNUSED(COMPAT_CLOSE(new_sock));
       }
       spare_sock = socket(AF_INET, SOCK_STREAM, 0);
       ttq_log(NULL, TTQ_LOG_WARNING,
@@ -112,7 +112,7 @@ struct tmqtt *ttqNetSocketAccept(struct tmqtt__listener_sock *listensock) {
         ttq_log(NULL, TTQ_LOG_NOTICE, "Client connection from %s denied access by tcpd.", address);
       }
     }
-    COMPAT_CLOSE(new_sock);
+    UNUSED(COMPAT_CLOSE(new_sock));
     return NULL;
   }
 #endif
@@ -126,7 +126,7 @@ struct tmqtt *ttqNetSocketAccept(struct tmqtt__listener_sock *listensock) {
 
   new_context = ttqCxtInit(new_sock);
   if (!new_context) {
-    COMPAT_CLOSE(new_sock);
+    UNUSED(COMPAT_CLOSE(new_sock));
     return NULL;
   }
   new_context->listener = listensock->listener;
@@ -666,7 +666,7 @@ static int ttqNetSocketListen_tcp(struct tmqtt__listener *listener) {
     if (!listener->socks) {
       ttq_log(NULL, TTQ_LOG_ERR, "Error: Out of memory.");
       freeaddrinfo(ainfo);
-      COMPAT_CLOSE(sock);
+      UNUSED(COMPAT_CLOSE(sock));
       return TTQ_ERR_NOMEM;
     }
     listener->socks[listener->sock_count - 1] = sock;
@@ -691,7 +691,7 @@ static int ttqNetSocketListen_tcp(struct tmqtt__listener *listener) {
        * We should successfully find at least one. */
       rc = net__bind_interface(listener, rp);
       if (rc) {
-        COMPAT_CLOSE(sock);
+        UNUSED(COMPAT_CLOSE(sock));
         listener->sock_count--;
         if (rc == TTQ_ERR_NOT_FOUND || rc == TTQ_ERR_INVAL) {
           freeaddrinfo(ainfo);
@@ -713,7 +713,7 @@ static int ttqNetSocketListen_tcp(struct tmqtt__listener *listener) {
       }
 #endif
       net__print_error(TTQ_LOG_ERR, "Error: %s");
-      COMPAT_CLOSE(sock);
+      UNUSED(COMPAT_CLOSE(sock));
       freeaddrinfo(ainfo);
       ttq_free(listener->socks);
       return 1;
@@ -722,7 +722,7 @@ static int ttqNetSocketListen_tcp(struct tmqtt__listener *listener) {
     if (listen(sock, 100) == -1) {
       net__print_error(TTQ_LOG_ERR, "Error: %s");
       freeaddrinfo(ainfo);
-      COMPAT_CLOSE(sock);
+      UNUSED(COMPAT_CLOSE(sock));
       ttq_free(listener->socks);
       return 1;
     }
@@ -756,7 +756,7 @@ static int ttqNetSocketListen_unix(struct tmqtt__listener *listener) {
   ttq_log(NULL, TTQ_LOG_INFO, "Opening unix listen socket on path %s.", listener->unix_socket_path);
   memset(&addr, 0, sizeof(struct sockaddr_un));
   addr.sun_family = AF_UNIX;
-  strncpy(addr.sun_path, listener->unix_socket_path, sizeof(addr.sun_path) - 1);
+  tstrncpy(addr.sun_path, listener->unix_socket_path, sizeof(addr.sun_path));
 
   sock = socket(AF_UNIX, SOCK_STREAM, 0);
   if (sock == INVALID_SOCKET) {
@@ -767,7 +767,7 @@ static int ttqNetSocketListen_unix(struct tmqtt__listener *listener) {
   listener->socks = ttq_realloc(listener->socks, sizeof(ttq_sock_t) * (size_t)listener->sock_count);
   if (!listener->socks) {
     ttq_log(NULL, TTQ_LOG_ERR, "Error: Out of memory.");
-    COMPAT_CLOSE(sock);
+    UNUSED(COMPAT_CLOSE(sock));
     return TTQ_ERR_NOMEM;
   }
   listener->socks[listener->sock_count - 1] = sock;

@@ -58,7 +58,6 @@ typedef struct SExprNode {
   bool      asParam;
   bool      asPosition;
   bool      joinSrc;
-  bool      asList;
   bool      hasNull;
   //bool      constValue;
   int32_t   projIdx;
@@ -91,7 +90,7 @@ typedef struct SColumnNode {
   char        tableName[TSDB_TABLE_NAME_LEN];
   char        tableAlias[TSDB_TABLE_NAME_LEN];
   char        colName[TSDB_COL_NAME_LEN];
-  int16_t     dataBlockId;
+  int64_t     dataBlockId;
   int16_t     slotId;
   int16_t     numOfPKs;
   bool        tableHasPk;
@@ -104,7 +103,8 @@ typedef struct SColumnNode {
     uint8_t flags;
     struct {
       uint8_t hasMask : 1;
-      uint8_t reserve : 7;
+      uint8_t appendByPrivCond : 1;
+      uint8_t reserve : 6;
     };
   };
   char refDbName[TSDB_DB_NAME_LEN];
@@ -122,7 +122,7 @@ typedef struct SColumnRefNode {
 
 typedef struct STargetNode {
   ENodeType type;
-  int16_t   dataBlockId;
+  int64_t   dataBlockId;
   int16_t   slotId;
   SNode*    pExpr;
 } STargetNode;
@@ -158,7 +158,6 @@ typedef struct SValueNode {
 
 typedef struct SRemoteValueNode {
   SValueNode val;
-//  bool       valSet;
   int32_t    subQIdx;
 } SRemoteValueNode;
 
@@ -172,6 +171,7 @@ typedef struct SRemoteValueListNode {
   STypeMod   targetTypeMod;
   bool       hasValue;
   bool       hasNull;
+  bool       hasNotNull;
   bool       hashAllocated;
   SHashObj  *pHashFilter;
   SHashObj  *pHashFilterOthers;
@@ -179,6 +179,17 @@ typedef struct SRemoteValueListNode {
   STypeMod   filterValueTypeMod;
   int32_t    subQIdx;
 } SRemoteValueListNode;
+
+typedef struct SRemoteRowNode {
+  SValueNode val;
+  bool       isMinVal;
+  bool       valSet;
+  bool       hasValue;
+  bool       hasNull;
+  int32_t    subQIdx;
+} SRemoteRowNode;
+
+typedef SRemoteValueNode SRemoteZeroRowsNode;
 
 typedef struct SLeftValueNode {
   ENodeType type;
@@ -203,9 +214,12 @@ typedef struct SHintNode {
   void*       value;
 } SHintNode;
 
+#define OPERATOR_FLAG_NEGATIVE_OP      (1 << 0)
+
 typedef struct SOperatorNode {
   SExprNode     node;  // QUERY_NODE_OPERATOR
   EOperatorType opType;
+  int32_t       flag;
   SNode*        pLeft;
   SNode*        pRight;
   timezone_t    tz;
@@ -352,6 +366,8 @@ typedef enum EDynQueryType {
   DYN_QTYPE_VTB_SCAN,
   DYN_QTYPE_VTB_WINDOW,
   DYN_QTYPE_VTB_AGG,
+  DYN_QTYPE_VTB_TS_SCAN,
+  DYN_QTYPE_VTB_INTERVAL,
 } EDynQueryType;
 
 typedef struct SJoinTableNode {
@@ -438,6 +454,20 @@ typedef struct SEventWindowNode {
   SNode*    pTrueForLimit;
 } SEventWindowNode;
 
+typedef enum ETrueForType {
+  TRUE_FOR_DURATION_ONLY = 0,
+  TRUE_FOR_COUNT_ONLY = 1,
+  TRUE_FOR_AND = 2,
+  TRUE_FOR_OR = 3
+} ETrueForType;
+
+typedef struct STrueForNode {
+  ENodeType    type;  // QUERY_NODE_TRUE_FOR
+  ETrueForType trueForType;
+  int32_t      count;     // Row count threshold (0 if duration-only)
+  SNode*       pDuration;
+} STrueForNode;
+
 typedef struct {
   ENodeType  type;  // QUERY_NODE_COUNT_WINDOW_PARAM
   int64_t    count;
@@ -454,10 +484,10 @@ typedef struct SCountWindowNode {
 } SCountWindowNode;
 
 typedef struct SAnomalyWindowNode {
-  ENodeType type;  // QUERY_NODE_ANOMALY_WINDOW
-  SNode*    pCol;  // timestamp primary key
-  SNode*    pExpr;
-  char      anomalyOpt[TSDB_ANALYTIC_ALGO_OPTION_LEN];
+  ENodeType  type;  // QUERY_NODE_ANOMALY_WINDOW
+  SNode*     pCol;  // timestamp primary key
+  SNodeList* pExpr;
+  char       anomalyOpt[TSDB_ANALYTIC_ALGO_OPTION_LEN];
 } SAnomalyWindowNode;
 
 typedef struct SSlidingWindowNode {
@@ -561,6 +591,12 @@ typedef enum EShowKind {
   SHOW_KIND_DATABASES_SYSTEM
 } EShowKind;
 
+typedef struct SSurroundNode {
+  ENodeType  type;       // QUERY_NODE_SURROUND
+  SNode*     pSurroundingTime;
+  SNode*     pValues;
+} SSurroundNode;
+
 typedef struct SFillNode {
   ENodeType   type;  // QUERY_NODE_FILL
   EFillMode   mode;
@@ -568,6 +604,8 @@ typedef struct SFillNode {
   SNode*      pWStartTs;  // _wstart pseudo column
   STimeWindow timeRange;
   SNode*      pTimeRange; // STimeRangeNode for create stream
+  // duration expression for surrounding_time (only for PREV/NEXT/NEAR)
+  SNode*      pSurroundingTime;
 } SFillNode;
 
 typedef struct SWhenThenNode {
@@ -611,15 +649,18 @@ typedef struct SExtWinTimeWindow {
 
 
 typedef enum ESubQueryType {
-  E_SUB_QUERY_ERROR = 0,
+  E_SUB_QUERY_NOT_SET = 0,
   E_SUB_QUERY_SCALAR = 1,
   E_SUB_QUERY_COLUMN,
-  E_SUB_QUERY_TABLE
+  E_SUB_QUERY_TABLE,
+  E_SUB_QUERY_ROWNUM,
+  E_SUB_QUERY_ROW,
 } ESubQueryType;
 
 typedef struct SSelectStmt {
   SExprNode       node;
   ESubQueryType   subQType;
+  EQuantifyType   quantify;
   bool            isDistinct;
   STimeWindow     timeRange;
   SNode*          pTimeRange; // STimeRangeNode for create stream
@@ -685,6 +726,7 @@ typedef struct SSetOperator {
   SExprNode        node;
   ESetOperatorType opType;
   ESubQueryType    subQType;
+  EQuantifyType    quantify;
   SNodeList*       pSubQueries;   // non table subqueries
   SNodeList*       pProjectionList;
   SNode*           pLeft;
@@ -722,6 +764,7 @@ typedef struct SDeleteStmt {
   STimeWindow timeRange;
   uint8_t     precision;
   bool        deleteZeroRows;
+  int8_t      secureDelete;  // force physical overwrite (from SECURE_DELETE keyword)
 } SDeleteStmt;
 
 typedef struct SInsertStmt {
@@ -760,6 +803,7 @@ typedef struct SVnodeModifyOpStmt {
   const char*           pBoundCols;
   struct STableMeta*    pTableMeta;
   SNode*                pTagCond;
+  SArray*               pPrivCols;  // SArray<SColNameFlag*> for column-level privileges check
   SArray*               pTableTag;
   SHashObj*             pVgroupsHashObj;     // SHashObj<vgId, SVgInfo>
   SHashObj*             pTableBlockHashObj;  // SHashObj<tuid, STableDataCxt*>
@@ -912,6 +956,7 @@ bool isRelatedToOtherExpr(SExprNode* pExpr);
 bool nodesContainsColumn(SNode* pNode);
 int32_t nodesMergeNode(SNode** pCond, SNode** pAdditionalCond);
 int32_t valueNodeCopy(const SValueNode* pSrc, SValueNode* pDst);
+SColumnNode* createColumnByExpr(const char* pStmtName, SExprNode* pExpr);
 
 #ifdef __cplusplus
 }

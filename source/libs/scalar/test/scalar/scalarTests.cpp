@@ -376,7 +376,7 @@ int32_t scltMakeLogicNode(SNode **pNode, ELogicConditionType opType, SNode **nod
   SCL_RET(TSDB_CODE_SUCCESS);
 }
 
-int32_t scltMakeTargetNode(SNode **pNode, int16_t dataBlockId, int16_t slotId, SNode *snode) {
+int32_t scltMakeTargetNode(SNode **pNode, int64_t dataBlockId, int16_t slotId, SNode *snode) {
   SNode       *node = NULL;
   int32_t code = nodesMakeNode(QUERY_NODE_TARGET, &node);
   if (NULL == node) {

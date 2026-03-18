@@ -39,7 +39,7 @@ public class ConsumerDemo {
     public static void mockData() throws SQLException {
         String dbName = "test_consumer";
         String tableName = "st";
-        String url = "jdbc:TAOS-RS://" + TAOS_HOST + ":" + TAOS_PORT + "/?user=root&password=taosdata&batchfetch=true";
+        String url = "jdbc:TAOS-WS://" + TAOS_HOST + ":" + TAOS_PORT + "/?user=root&password=taosdata";
         Connection connection = DriverManager.getConnection(url);
         Statement statement = connection.createStatement();
         statement.executeUpdate("create database if not exists " + dbName + " WAL_RETENTION_PERIOD 3650");

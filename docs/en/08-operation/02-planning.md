@@ -154,6 +154,7 @@ The table below lists some common ports for TDengine interfaces or components, w
 |               Interface or Component Name                 |     Port   |   Protocol    |
 |:---------------------------------------------------------:|:----------:|:-------------:|
 |             Native Interface (taosc)                      |    6030    |   TCP         |
+|             TDgpt                                         |    6035    |   TCP         |
 |              RESTful Interface                            |    6041    |   TCP         |
 |             WebSocket Interface                           |    6041    |   TCP         |
 |              taosKeeper                                   |    6043    |   TCP         |

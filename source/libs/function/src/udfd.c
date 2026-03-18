@@ -31,6 +31,7 @@
 #include "trpc.h"
 #include "tmisce.h"
 #include "tversion.h"
+#include "dmUtil.h"
 // clang-format on
 
 #define UDFD_MAX_SCRIPT_PLUGINS 64
@@ -1812,9 +1813,23 @@ int main(int argc, char *argv[]) {
     logInitialized = true;  // log is initialized
   }
 
-  if (taosInitCfg(configDir, NULL, NULL, NULL, NULL, 0) != 0) {
-    fnError("failed to start since read config error");
-    code = -2;
+  if ((code = taosPreLoadCfg(configDir, NULL, NULL, NULL, NULL, 0)) != 0) {
+    fnError("failed to start since pre load config error");
+    goto _exit;
+  }
+
+  if ((code = dmGetEncryptKey()) != 0) {
+    fnError("failed to start since failed to get encrypt key");
+    goto _exit;
+  }
+
+  if ((code = tryLoadCfgFromDataDir(tsCfg)) != 0) {
+    fnError("failed to start since try load config from data dir error");
+    goto _exit;
+  }
+
+  if ((code = taosApplyCfg(configDir, NULL, NULL, NULL, NULL, 0)) != 0) {
+    fnError("failed to start since apply config error");
     goto _exit;
   }
   cfgInitialized = true;  // cfg is initialized

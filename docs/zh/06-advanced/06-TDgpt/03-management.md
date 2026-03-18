@@ -47,62 +47,85 @@ stop-model timemoe
 | /usr/local/taos/taosanode/lib      | 库文件目录                                           |
 | /usr/local/taos/taosanode/model/   | 模型文件目录，链接到文件夹 /var/lib/taos/taosanode/model     |
 | /var/log/taos/taosanode/           | 日志文件目录                                          |
-| /etc/taos/taosanode.ini            | 配置文件                                            |
+| /etc/taos/taosanode.config.py      | 配置文件                                            |
 
 #### 配置说明
 
-配置文件 `taosanode.ini` 默认位于 `/etc/taos/` 目录下。Anode 的服务默认使用 uWSGI 驱动运行，在配置文件中同时具有 Anode 和 uWSGI 的配置信息
+配置文件 `taosanode.config.py` 默认位于 `/etc/taos/` 目录下。Anode 的服务使用 Gunicorn 驱动运行，在配置文件中同时具有 Anode 和 Gunicorn 的配置信息。
+
+3.4.1 版本配置文件
 
 具体内容及配置项说明如下：
 
-```ini
-[uwsgi]
+```python
+# gunicorn_config.py
+import multiprocessing
 
-# Anode RESTful service ip:port
-http = 127.0.0.1:6035
+# list address and port
+bind = '0.0.0.0:6035'
 
-# base directory for Anode python files， do NOT modified this
-chdir = /usr/local/taos/taosanode/lib
+# Number of worker processes (typically recommended 2 * CPU cores + 1)
+workers = 2
 
-# initialize Anode python file
-wsgi-file = /usr/local/taos/taosanode/lib/taos/app.py
+# Specify worker type, using default sync worker here
+# For IO-intensive applications, consider eventlet or gevent
+worker_class = 'sync'
 
-# pid file
-pidfile = /usr/local/taos/taosanode/taosanode.pid
+# Number of threads per process (recommended for model deployment)
+threads = max(multiprocessing.cpu_count() / 4 + 1, 2)
 
-# conflict with systemctl, so do NOT uncomment this
-# daemonize = /var/log/taos/taosanode/taosanode.log
+# Maximum number of requests, worker will restart after reaching limit, helps release memory
+max_requests = 1000
 
-# uWSGI log files
-logto = /var/log/taos/taosanode/taosanode.log
+# Random jitter added to max_requests to avoid all workers restarting simultaneously
+max_requests_jitter = 50
 
-# uWSGI monitor port
-stats = 127.0.0.1:8387
+# Timeout settings
+timeout = 1200
 
-# python virtual environment directory, used by Anode
-virtualenv = /usr/local/taos/taosanode/venv/
+# keep-alive time
+keepalive = 1200
 
-[taosanode]
-# default taosanode log file
-app-log = /var/log/taos/taosanode/taosanode.app.log
+# Log Setting
+accesslog = '/var/log/taos/taosanode/access.log'
+errorlog = '/var/log/taos/taosanode/error.log'
+
+# log level: debug, info, warning, error, critical
+loglevel = 'info'
+
+# Set process name
+proc_name = 'tdgpt_taosanode_app'
+
+# Preload application before forking worker processes. This can improve startup time and save memory
+preload_app = True
+
+# [taosanode]
+# default app log file
+app_log = '/var/log/taos/taosanode/taosanode.app.log'
 
 # model storage directory
-model-dir = /usr/local/taos/taosanode/model/
+model_dir = '/usr/local/taos/taosanode/model/'
 
 # default log level
-log-level = INFO
+log_level = 'INFO'
+
+# draw the query results
+draw_result = False
+
+# moe default service host
+tdtsfm_1 = 'http://127.0.0.1:6036/tdtsfm'
+timemoe_fc = 'http://127.0.0.1:6037/ds_predict'
 ```
 
-**提示**
-请勿设置 `daemonize` 参数，该参数会导致 uWSGI 与 systemctl 冲突，从而导致 Anode 无法正常启动。
+#### 提示
 
-上面的示例配置文件 `taosanode.ini` 只包含了使用 Anode 提供服务的基础配置参数，对于 uWSGI 的其他配置参数的设置及其说明请参考 [uWSGI 官方文档](https://uwsgi-docs-zh.readthedocs.io/zh-cn/latest/Options.html)。
+上面的配置文件 `taosanode.config.py` 只包含了基础配置参数，其他的设置及其说明请参考 [Gunicorn 官方文档](https://gunicorn.org/reference/settings/)。
 
 Anode 运行配置主要是以下：
 
-- app-log: Anode 服务运行产生的日志，用户可以调整其到需要的位置
-- model-dir: 采用算法针对已经存在的数据集的运行完成生成的模型存储位置
-- log-level: app-log 文件的日志级别。可选的配置选项：DEBUG，INFO，CRITICAL，ERROR，WARN
+- app_log: Anode 服务运行产生的日志，用户可以调整其到需要的位置
+- model_dir: 采用算法针对已经存在的数据集的运行完成生成的模型存储位置
+- log_level: app-log 文件的日志级别。可选的配置选项：DEBUG，INFO，CRITICAL，ERROR，WARN
 
 ### Anode 基本操作
 

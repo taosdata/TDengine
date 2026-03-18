@@ -233,7 +233,7 @@ class TestAlterConfig:
         trans_end = self.check_trans_end()
         assert trans_end, "transactions not end"
         
-        tdLog.success(f"{__file__} successfully executed")
+
 
     #
     # ------------------- test_dismatch_config.py ----------------
@@ -262,8 +262,9 @@ class TestAlterConfig:
         tdSql.checkData(0, 2, "10")
 
         # dnode local cfg use values from cfg file while forceReadConfig is 1
-        tdSql.query("show dnode 1 variables like 'rpcQueueMemoryAllowed'")
-        tdSql.checkData(0, 2, "20971520")
+        # to preventing configuration file tampering
+        # tdSql.query("show dnode 1 variables like 'rpcQueueMemoryAllowed'")
+        # tdSql.checkData(0, 2, "20971520")
 
     def do_dismatch_config(self):
         self.update_cfg_success()

@@ -203,6 +203,7 @@ typedef struct {
 
 typedef struct {
     char name[TSDB_TABLE_NAME_LEN+1];
+    bool isVirtual;
     int columns;
     int tags;
     ColDes cols[];

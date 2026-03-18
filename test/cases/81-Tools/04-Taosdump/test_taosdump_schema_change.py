@@ -335,6 +335,6 @@ class TestTaosdumpSchemaChange:
         # check except
         self.testExcept(db, newdb, tmpdir)
 
-        tdLog.success("%s successfully executed" % __file__)
+
 
 

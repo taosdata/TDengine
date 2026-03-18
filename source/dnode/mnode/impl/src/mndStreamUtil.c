@@ -72,6 +72,12 @@ void mstDestroySStmTaskToDeployExt(void* param) {
     case STREAM_RUNNER_TASK:
       taosMemoryFreeClear(pExt->deploy.msg.runner.pPlan);
       break;
+    case STREAM_READER_TASK:
+      if (!pExt->deploy.msg.reader.triggerReader) {
+        SStreamReaderDeployFromCalc* pCalcReaderDeploy = &pExt->deploy.msg.reader.msg.calc;
+        taosMemoryFreeClear(pCalcReaderDeploy->calcScanPlan);
+      }
+      break;
     default:  
       break;;
   }
@@ -337,7 +343,7 @@ void mstPostStreamAction(SStmActionQ*       actionQ, int64_t streamId, char* str
   pNode->type = action;
   pNode->streamAct = true;
   pNode->action.stream.streamId = streamId;
-  TAOS_STRCPY(pNode->action.stream.streamName, streamName);
+  tstrncpy(pNode->action.stream.streamName, streamName, sizeof(pNode->action.stream.streamName));
   pNode->action.stream.userAction = userAction;
   pNode->action.stream.actionParam = param;
   
@@ -562,14 +568,14 @@ void mstLogSStreamObj(char* tips, SStreamObj* p) {
       "calcNotifyOnly:%d lowLatencyCalc:%d igNoDataTrigger:%d notifyUrlNum:%d notifyEventTypes:%d addOptions:%d notifyHistory:%d "
       "outColsNum:%d outTagsNum:%d maxDelay:%" PRId64 " fillHistoryStartTs:%" PRId64 " watermark:%" PRId64 " expiredTime:%" PRId64 " "
       "triggerTblType:%d triggerTblUid:%" PRIx64 " triggerTblSuid:%" PRIx64 " vtableCalc:%d outTblType:%d outStbExists:%d outStbUid:%" PRIu64 " outStbSversion:%d "
-      "eventTypes:0x%" PRIx64 " flags:0x%" PRIx64 " tsmaId:0x%" PRIx64 " placeHolderBitmap:0x%" PRIx64 " calcTsSlotId:%d triTsSlotId:%d "
+      "eventTypes:0x%" PRIx64 " flags:0x%" PRIx64 " tsmaId:0x%" PRIx64 " placeHolderBitmap:0x%" PRIx64 " calcTsSlotId:%d triTsSlotId:%d calcPkSlotId:%d triPkSlotId:%d "
       "triggerTblVgId:%d outTblVgId:%d calcScanPlanNum:%d forceOutCols:%d",
       q->name, q->sql, q->streamDB, q->triggerDB, q->outDB, calcDBNum, q->triggerTblName, q->outTblName,
       q->igExists, q->triggerType, q->igDisorder, q->deleteReCalc, q->deleteOutTbl, q->fillHistory, q->fillHistoryFirst,
       q->calcNotifyOnly, q->lowLatencyCalc, q->igNoDataTrigger, notifyUrlNum, q->notifyEventTypes, q->addOptions, q->notifyHistory,
       outColNum, outTagNum, q->maxDelay, q->fillHistoryStartTime, q->watermark, q->expiredTime,
       q->triggerTblType, q->triggerTblUid, q->triggerTblSuid, q->vtableCalc, q->outTblType, q->outStbExists, q->outStbUid, q->outStbSversion,
-      q->eventTypes, q->flags, q->tsmaId, q->placeHolderBitmap, q->calcTsSlotId, q->triTsSlotId,
+      q->eventTypes, q->flags, q->tsmaId, q->placeHolderBitmap, q->calcTsSlotId, q->triTsSlotId, q->calcPkSlotId, q->triPkSlotId,
       q->triggerTblVgId, q->outTblVgId, calcScanNum, forceOutColNum);
 
   switch (q->triggerType) {
@@ -586,12 +592,18 @@ void mstLogSStreamObj(char* tips, SStreamObj* p) {
     }
     case WINDOW_TYPE_STATE: {
       SStateWinTrigger* t = &q->trigger.stateWin;
-      mstsDebug("state trigger options, slotId:%d, expr:%s, extend:%d, zeroth:%s, trueForDuration:%" PRId64, t->slotId, (char *)t->expr, t->extend, (char *)t->zeroth, t->trueForDuration);
+      mstsDebug(
+          "state trigger options, slotId:%d, expr:%s, extend:%d, zeroth:%s, trueForType: %d, trueForCount: %d, "
+          "trueForDuration:%" PRId64,
+          t->slotId, (char*)t->expr, t->extend, (char*)t->zeroth, t->trueForType, t->trueForCount, t->trueForDuration);
       break;
     }
     case WINDOW_TYPE_EVENT:{
       SEventTrigger* t = &q->trigger.event;
-      mstsDebug("event trigger options, startCond:%s, endCond:%s, trueForDuration:%" PRId64, (char*)t->startCond, (char*)t->endCond, t->trueForDuration);
+      mstsDebug(
+          "event trigger options, startCond:%s, endCond:%s, trueForType: %d, trueForCount: %d, "
+          "trueForDuration:%" PRId64,
+          (char*)t->startCond, (char*)t->endCond, t->trueForType, t->trueForCount, t->trueForDuration);
       break;
     }
     case WINDOW_TYPE_COUNT: {
@@ -790,8 +802,10 @@ int32_t mstGetStreamStatusStr(SStreamObj* pStream, char* status, int32_t statusS
 
   if (pStatus->triggerTask && STREAM_STATUS_RUNNING == pStatus->triggerTask->status) {
     STR_WITH_MAXSIZE_TO_VARSTR(status, gStreamStatusStr[STREAM_STATUS_RUNNING], statusSize);
-    strcpy(tmpBuf, "Running start from: ");
-    (void)formatTimestampLocal(&tmpBuf[strlen(tmpBuf)], pStatus->triggerTask->runningStartTs, TSDB_TIME_PRECISION_MILLI);
+    tstrncpy(tmpBuf, "Running start from: ", sizeof(tmpBuf));
+    int32_t offset = strlen(tmpBuf);
+    (void)formatTimestampLocal(tmpBuf + offset, sizeof(tmpBuf) - offset, pStatus->triggerTask->runningStartTs,
+                               TSDB_TIME_PRECISION_MILLI);
     STR_WITH_MAXSIZE_TO_VARSTR(msg, tmpBuf, msgSize);
     goto _exit;
   }
@@ -849,7 +863,7 @@ int32_t mstSetStreamAttrResBlock(SMnode *pMnode, SStreamObj* pStream, SSDataBloc
   TSDB_CHECK_CODE(code, lino, _end);
 
   // sql
-  char sql[TSDB_SHOW_SQL_LEN + VARSTR_HEADER_SIZE] = {0};
+  char sql[TSDB_INS_STREAM_SQL_LEN + VARSTR_HEADER_SIZE] = {0};
   STR_WITH_MAXSIZE_TO_VARSTR(sql, pStream->pCreate->sql, sizeof(sql));
   pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
   TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
@@ -1381,5 +1395,3 @@ _exit:
 
   return code;
 }
-
-

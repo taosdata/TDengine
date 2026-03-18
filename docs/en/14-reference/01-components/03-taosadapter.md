@@ -734,24 +734,32 @@ The log can be configured with the following parameters:
 
   Whether to record SQL to CSV files(Default: `false`).For details, see [Recording SQL to CSV Files](#recording-sql-to-csv-files).
 
+- **`log.enableStmtToCsvLogging`**
+
+  Whether to record STMT to CSV files(Default: `false`).For details, see [Recording STMT to CSV Files](#recording-stmt-to-csv-files).
+
 - **`log.enableRecordHttpSql`**
 
-  **It is not recommended to continue using this parameter. We suggest using [Recording SQL to CSV Files](#recording-sql-to-csv-files) as the alternative solution.**
+  **This parameter is deprecated; use [Recording SQL to CSV Files](#recording-sql-to-csv-files) instead.**
+
   Whether to record HTTP SQL requests (Default: `false`).
 
 - **`log.sqlRotationCount`**
 
-  **It is not recommended to continue using this parameter. We suggest using [Recording SQL to CSV Files](#recording-sql-to-csv-files) as the alternative solution.**
+  **This parameter is deprecated; use [Recording SQL to CSV Files](#recording-sql-to-csv-files) instead.**
+
   Number of SQL log files to rotate (Default: `2`).
 
 - **`log.sqlRotationSize`**
 
-  **It is not recommended to continue using this parameter. We suggest using [Recording SQL to CSV Files](#recording-sql-to-csv-files) as the alternative solution.**
+  **This parameter is deprecated; use [Recording SQL to CSV Files](#recording-sql-to-csv-files) instead.**
+
   Maximum size of a single SQL log file (Supports KB/MB/GB units, Default: `"1GB"`).
 
 - **`log.sqlRotationTime`**
 
-  **It is not recommended to continue using this parameter. We suggest using [Recording SQL to CSV Files](#recording-sql-to-csv-files) as the alternative solution.**
+  **This parameter is deprecated; use [Recording SQL to CSV Files](#recording-sql-to-csv-files) instead.**
+
   SQL log rotation interval (Default: `24h`).
 
 You can set the taosAdapter log output detail level by setting the --log.level parameter or the environment variable TAOS_ADAPTER_LOG_LEVEL. Valid values include: panic, fatal, error, warn, warning, info, debug, and trace.
@@ -1222,6 +1230,7 @@ Configuration Parameters and their corresponding environment variables:
 | `log.compress`                        | `TAOS_ADAPTER_LOG_COMPRESS`                           |
 | `log.enableRecordHttpSql`             | `TAOS_ADAPTER_LOG_ENABLE_RECORD_HTTP_SQL`             |
 | `log.enableSqlToCsvLogging`           | `TAOS_ADAPTER_LOG_ENABLE_SQL_TO_CSV_LOGGING`          |
+| `log.enableStmtToCsvLogging`          | `TAOS_ADAPTER_LOG_ENABLE_STMT_TO_CSV_LOGGING`         |
 | `log.keepDays`                        | `TAOS_ADAPTER_LOG_KEEP_DAYS`                          |
 | `log.level`                           | `TAOS_ADAPTER_LOG_LEVEL`                              |
 | `log.path`                            | `TAOS_ADAPTER_LOG_PATH`                               |
@@ -1403,7 +1412,7 @@ Send an HTTP POST request to the `/record_sql` endpoint to dynamically enable re
 ```bash
 curl --location --request POST 'http://127.0.0.1:6041/record_sql' \
 -u root:taosdata \
---data '{"start_time":"2025-07-15 17:00:00","end_time":"2025-07-15 18:00:00","location":"Asia/Shanghai"}'
+--data '{"start_time":"2026-01-13 17:00:00","end_time":"2026-01-13 18:00:00","location":"Asia/Shanghai"}'
 ```
 
 Supported parameters:
@@ -1536,6 +1545,311 @@ Example:
 
 ```csv
 2025-07-23 17:10:08.724775,show databases,127.0.0.1,root,http,0x2000000000000008,2025-07-23 17:10:08.707741,2025-07-23 17:10:08.724775,14191,965,1706,17034,53600,jdbc_test_app
+```
+
+## Recording STMT to CSV Files
+
+taosAdapter supports recording STMT requests to CSV files starting from version v3.4.0.1. Users can enable this feature through the configuration parameter `log.enableStmtToCsvLogging` or dynamically enable/disable it via HTTP requests.
+
+:::warning
+Enabling this feature leads to severe performance degradation.
+:::
+
+### Configuration Parameters
+
+1. New configuration item `log.enableStmtToCsvLogging` (boolean, default: false) determines whether STMT logging is enabled.
+   When set to true, STMT records will be saved to CSV files.
+   The recording start time is the service startup time, and the end time is `2300-01-01 00:00:00`.
+
+2. File naming follows the same rules as logs: `taosadapterStmt_{instanceId}_{yyyyMMdd}.csv[.index]`
+   - `instanceId`: taosAdapter instance ID, configurable via the instanceId parameter.
+   - `yyyyMMdd`: Date in year-month-day format.
+   - `index`: If multiple files exist, a numeric suffix will be appended to the filename.
+
+3. Existing log parameters are used for space retention, file splitting, and storage path:
+   - `log.path`: Storage path
+   - `log.keepDays`: Retention period in days
+   - `log.rotationCount`: Maximum number of retained files
+   - `log.rotationSize`: Maximum size per file
+   - `log.compress`: Whether compression is enabled
+   - `log.reservedDiskSize`: Reserved disk space size
+
+### Dynamic Enablement
+
+Send an HTTP POST request to the `/record_stmt` endpoint to dynamically enable recording. Authentication is the same as for `/rest/sql`. Example:
+
+```bash
+curl --location --request POST 'http://127.0.0.1:6041/record_stmt' \
+-u root:taosdata \
+--data '{"start_time":"2026-01-13 17:00:00","end_time":"2026-01-13 18:00:00","location":"Asia/Shanghai"}'
+```
+
+Supported parameters:
+
+- `start_time`: [Optional] Start time for recording, formatted as `yyyy-MM-dd HH:mm:ss`. Defaults to the current time if not specified.
+- `end_time`: [Optional] End time for recording, formatted as `yyyy-MM-dd HH:mm:ss`. Defaults to the current time plus one hour if not specified.
+- `location`: [Optional] Timezone for parsing start and end times, using IANA format (e.g., `Asia/Shanghai`). Defaults to the server's timezone.
+
+If all parameters use default values, the data field can be omitted. Example:
+
+```bash
+curl --location --request POST 'http://127.0.0.1:6041/record_stmt' \
+-u root:taosdata
+```
+
+Successful response: HTTP code 200 with the following structure:
+
+```json
+{"code":0,"desc":""}
+```
+
+Failed response: Non-200 HTTP code with the following JSON structure (non-zero code and error description in desc):
+
+```json
+{"code":65535,"desc":"unmarshal json error"}
+```
+
+### Dynamic Disablement
+
+Send an HTTP DELETE request to the `/record_stmt` endpoint to disable recording. Authentication is the same as for `/rest/sql`. Example:
+
+```bash
+curl --location --request DELETE 'http://127.0.0.1:6041/record_stmt' \
+-u root:taosdata
+```
+
+Successful response: HTTP code 200.
+
+1. If a task exists, the response is:
+
+   ```json
+   {
+           "code": 0,
+           "message": "",
+           "start_time": "2026-01-13 17:00:00",
+           "end_time": "2026-01-13 18:00:00"
+   }
+   ```
+
+- `start_time`: Configured start time of the canceled task (timezone: server's timezone).
+- `end_time`: Configured end time of the canceled task (timezone: server's timezone).
+
+1. If no task exists, the response is:
+
+   ```json
+   {
+           "code": 0,
+           "message": ""
+   }
+   ```
+
+### Query Status
+
+Send an HTTP GET request to the `/record_stmt` endpoint to query the task status. Authentication is the same as for `/rest/sql`. Example:
+
+```bash
+curl --location 'http://127.0.0.1:6041/record_stmt' \
+-u root:taosdata
+```
+
+Successful response: HTTP code 200 with the following structure:
+
+```json
+{
+        "code": 0,
+        "desc": "",
+        "exists": true,
+        "running": true,
+        "start_time": "2026-01-13 17:00:00",
+        "end_time": "2026-01-13 18:00:00",
+        "current_concurrent": 100
+}
+```
+
+- `code`: Error code (0 for success).
+- `desc`: Error message (empty string for success).
+- `exists`: Whether the task exists.
+- `running`: Whether the task is active.
+- `start_time`: Start time (timezone: server's timezone).
+- `end_time`: End time (timezone: server's timezone).
+- `current_concurrent`: Current STMT recording concurrency.
+
+### Recording Format
+
+Records are written after `prepare`, `bind`, and `exec` operations, or when the task ends (reaching the end time or being manually stopped).
+Records are stored in CSV format without headers. Each line includes the following fields:
+
+1. `TS`: Log timestamp (format: yyyy-MM-dd HH:mm:ss.SSSSSS, timezone: server's timezone).
+2. `IP`: Client IP.
+3. `SourcePort`: Client port.
+4. `AppName`: Client application name.
+5. `User`: Username of the current connection.
+6. `ConnType`: Connection type (ws).
+7. `QID`: Request ID, saved as hexadecimal.
+8. `StartTime`: Start processing time, formatted as yyyy-MM-dd HH:mm:ss.SSSSSS, timezone is the server timezone where taosAdapter is located.
+9. `STMT2`: stmt2 memory address, saved as hexadecimal.
+10. `Action`: Operation (prepare, bind, exec).
+11. `Code`: Operation result, 0 represents success, other values represent error codes.
+12. `Duration(us)`: Execution time in microseconds, -1 if not completed.
+13. Data: Request or result data
+    1. prepare: Prepared SQL statement.
+    2. exec: Affected row count.
+    3. bind: Bound data, parsed successfully as JSON data, parsing failure will be raw binary data.
+
+#### Bind Data JSON Format
+
+The Data field content for a bind operation is in JSON format and contains the following fields:
+
+| Field Name  | Type                       | Description                                              |
+|:------------|:---------------------------|:---------------------------------------------------------|
+| count       | int                        | Number of tables with bound parameters                   |
+| table_names | [count]string              | List of table names with bound parameters                |
+| tags        | [count][tag_count]col_info | List of tag column information for bound parameters      |
+| cols        | [count][col_count]col_info | List of ordinary column information for bound parameters |
+
+Where the col_info structure contains the following fields:
+
+| Field Name | Type  | Description                                                  |
+|:-----------|:------|:-------------------------------------------------------------|
+| type       | int   | Column type                                                  |
+| data       | []any | One-dimensional array, each element represents a row of data |
+
+The parsing rules for each type of data in the data field are as follows:
+
+1. varbinary, blob, geometry are parsed as hexadecimal strings
+2. binary, nchar, json, decimal are parsed as utf-8 strings
+3. Numeric types are converted to numbers
+4. Datetime types are converted to numbers
+5. Bool types are converted to json bool (true/false)
+6. null data is converted to json null (null)
+
+Sample example:
+
+```json
+{
+        "count": 1,
+        "table_names": ["test1"],
+        "tags": [
+                [{
+                        "type": 9,
+                        "data": [1726803356466]
+                }, {
+                        "type": 1,
+                        "data": [true]
+                }, {
+                        "type": 2,
+                        "data": [1]
+                }, {
+                        "type": 3,
+                        "data": [2]
+                }, {
+                        "type": 4,
+                        "data": [3]
+                }, {
+                        "type": 5,
+                        "data": [4]
+                }, {
+                        "type": 6,
+                        "data": [5.5]
+                }, {
+                        "type": 7,
+                        "data": [6.6]
+                }, {
+                        "type": 11,
+                        "data": [7]
+                }, {
+                        "type": 12,
+                        "data": [8]
+                }, {
+                        "type": 13,
+                        "data": [9]
+                }, {
+                        "type": 14,
+                        "data": [10]
+                }, {
+                        "type": 8,
+                        "data": ["binary"]
+                }, {
+                        "type": 10,
+                        "data": ["nchar"]
+                }, {
+                        "type": 20,
+                        "data": ["010100000000000000000059400000000000005940"]
+                }, {
+                        "type": 16,
+                        "data": ["76617262696e617279"]
+                }, {
+                        "type": 17,
+                        "data": ["12345.6789"]
+                }, {
+                        "type": 21,
+                        "data": ["98765.4321"]
+                }, {
+                        "type": 18,
+                        "data": ["7468697320697320626c6f622064617461"]
+                }]
+        ],
+        "cols": [
+                [{
+                        "type": 9,
+                        "data": [1726803356466, 1726803357466, 1726803358466]
+                }, {
+                        "type": 1,
+                        "data": [true, null, false]
+                }, {
+                        "type": 2,
+                        "data": [11, null, 12]
+                }, {
+                        "type": 3,
+                        "data": [11, null, 12]
+                }, {
+                        "type": 4,
+                        "data": [11, null, 12]
+                }, {
+                        "type": 5,
+                        "data": [11, null, 12]
+                }, {
+                        "type": 6,
+                        "data": [11.2, null, 12.2]
+                }, {
+                        "type": 7,
+                        "data": [11.2, null, 12.2]
+                }, {
+                        "type": 11,
+                        "data": [11, null, 12]
+                }, {
+                        "type": 12,
+                        "data": [11, null, 12]
+                }, {
+                        "type": 13,
+                        "data": [11, null, 12]
+                }, {
+                        "type": 14,
+                        "data": [11, null, 12]
+                }, {
+                        "type": 8,
+                        "data": ["binary1", null, "binary2"]
+                }, {
+                        "type": 10,
+                        "data": ["nchar1", null, "nchar2"]
+                }, {
+                        "type": 20,
+                        "data": ["010100000000000000000059400000000000005940", null, "010100000000000000000059400000000000005940"]
+                }, {
+                        "type": 16,
+                        "data": ["76617262696e61727931", null, "76617262696e61727932"]
+                }, {
+                        "type": 17,
+                        "data": ["12345.6789", null, "22345.6789"]
+                }, {
+                        "type": 21,
+                        "data": ["98765.4321", null, "88765.4321"]
+                }, {
+                        "type": 18,
+                        "data": ["7468697320697320626c6f622064617461", null, "7468697320697320616e6f7468657220626c6f622064617461"]
+                }]
+        ]
+}
 ```
 
 ## Monitoring Metrics

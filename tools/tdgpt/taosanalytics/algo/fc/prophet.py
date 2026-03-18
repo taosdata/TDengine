@@ -113,4 +113,3 @@ class _ProphetService(AbstractForecastService):
             "model_info": model_info,
             "res": res
         }
-

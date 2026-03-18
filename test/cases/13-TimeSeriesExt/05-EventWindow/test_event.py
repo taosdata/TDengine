@@ -299,5 +299,5 @@ class TestEvent:
         tdSql.checkRows(4)
         tdSql.checkData(0, 0, 3)
                 
-        tdLog.info(f"======== test_event successfully executed")
+
 

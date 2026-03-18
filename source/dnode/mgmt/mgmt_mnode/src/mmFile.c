@@ -31,12 +31,8 @@ static int32_t mmDecodeOption(SJson *pJson, SMnodeOpt *pOption) {
   tjsonGetInt32ValueFromDouble(pJson, "lastIndex", pOption->lastIndex, code);
   if (code < 0) return code;
 
-  // Read encrypted flag (optional, defaults to false for backward compatibility)
-  int32_t encrypted = 0;
-  tjsonGetInt32ValueFromDouble(pJson, "encrypted", encrypted, code);
-  pOption->encrypted = (encrypted != 0);
-  // Reset code to 0 if encrypted field not found (backward compatibility)
-  code = 0;
+  tjsonGetInt32ValueFromDouble(pJson, "encrypted", pOption->encrypted, code);
+  if (code < 0) return code;
 
   SJson *replicas = tjsonGetObjectItem(pJson, "replicas");
   if (replicas == NULL) return 0;
@@ -51,7 +47,7 @@ static int32_t mmDecodeOption(SJson *pJson, SMnodeOpt *pOption) {
     SReplica *pReplica = pOption->replicas + i;
     tjsonGetInt32ValueFromDouble(replica, "id", pReplica->id, code);
     if (code < 0) return code;
-    code = tjsonGetStringValue(replica, "fqdn", pReplica->fqdn);
+    code = tjsonGetStringValue1(replica, "fqdn", pReplica->fqdn, sizeof(pReplica->fqdn));
     if (code < 0) return code;
     tjsonGetUInt16ValueFromDouble(replica, "port", pReplica->port, code);
     if (code < 0) return code;

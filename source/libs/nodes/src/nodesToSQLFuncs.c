@@ -79,6 +79,10 @@ const char *operatorTypeStr(EOperatorType type) {
       return "IS NOT FALSE";
     case OP_TYPE_IS_NOT_UNKNOWN:
       return "IS NOT UNKNOWN";
+    case OP_TYPE_EXISTS:
+      return "EXISTS";
+    case OP_TYPE_NOT_EXISTS:
+      return "NOT EXISTS";
     case OP_TYPE_JSON_GET_VALUE:
       return "=>";
     case OP_TYPE_JSON_CONTAINS:
@@ -89,6 +93,22 @@ const char *operatorTypeStr(EOperatorType type) {
       break;
   }
   return "UNKNOWN";
+}
+
+const char *operatorTypeStrEx(EOperatorType type, bool isNegative) {
+  if (isNegative) {
+    switch (type) {
+      case OP_TYPE_IN:
+        return "!= ANY";
+      case OP_TYPE_NOT_IN:
+        return "= ALL";
+      default:
+        break;
+    }
+    return "UNKNOWN";
+  }
+
+  return operatorTypeStr(type);
 }
 
 const char *logicConditionTypeStr(ELogicConditionType type) {
@@ -114,19 +134,19 @@ int32_t nodesNodeToSQLFormat(SNode *pNode, char *buf, int32_t bufSize, int32_t *
     case QUERY_NODE_COLUMN: {
       SColumnNode *colNode = (SColumnNode *)pNode;
       if (colNode->dbName[0]) {
-        *len += tsnprintf(buf + *len, bufSize - *len, "`%s`.", colNode->dbName);
+        *len += snprintf(buf + *len, bufSize - *len, "`%s`.", colNode->dbName);
       }
 
       if (colNode->tableAlias[0]) {
-        *len += tsnprintf(buf + *len, bufSize - *len, "`%s`.", colNode->tableAlias);
+        *len += snprintf(buf + *len, bufSize - *len, "`%s`.", colNode->tableAlias);
       } else if (colNode->tableName[0]) {
-        *len += tsnprintf(buf + *len, bufSize - *len, "`%s`.", colNode->tableName);
+        *len += snprintf(buf + *len, bufSize - *len, "`%s`.", colNode->tableName);
       }
 
       if (colNode->tableAlias[0]) {
-        *len += tsnprintf(buf + *len, bufSize - *len, "`%s`", colNode->node.userAlias);
+        *len += snprintf(buf + *len, bufSize - *len, "`%s`", colNode->node.userAlias);
       } else {
-        *len += tsnprintf(buf + *len, bufSize - *len, "%s", colNode->node.userAlias);
+        *len += snprintf(buf + *len, bufSize - *len, "%s", colNode->node.userAlias);
       }
 
       return TSDB_CODE_SUCCESS;
@@ -141,12 +161,12 @@ int32_t nodesNodeToSQLFormat(SNode *pNode, char *buf, int32_t bufSize, int32_t *
 
       int32_t tlen = strlen(t);
       if (longFormat) {
-        *len += tsnprintf(buf + *len, bufSize - *len, "%s", t);
+        *len += snprintf(buf + *len, bufSize - *len, "%s", t);
       } else {
         if (tlen > 32) {
-          *len += tsnprintf(buf + *len, bufSize - *len, "%.*s...%s", 32, t, t + tlen - 1);
+          *len += snprintf(buf + *len, bufSize - *len, "%.*s...%s", 32, t, t + tlen - 1);
         } else {
-          *len += tsnprintf(buf + *len, bufSize - *len, "%s", t);
+          *len += snprintf(buf + *len, bufSize - *len, "%s", t);
         }
       }
 
@@ -156,18 +176,18 @@ int32_t nodesNodeToSQLFormat(SNode *pNode, char *buf, int32_t bufSize, int32_t *
     }
     case QUERY_NODE_OPERATOR: {
       SOperatorNode *pOpNode = (SOperatorNode *)pNode;
-      *len += tsnprintf(buf + *len, bufSize - *len, "(");
+      *len += snprintf(buf + *len, bufSize - *len, "(");
       if (pOpNode->pLeft) {
         NODES_ERR_RET(nodesNodeToSQLFormat(pOpNode->pLeft, buf, bufSize, len, true));
       }
 
-      *len += tsnprintf(buf + *len, bufSize - *len, " %s ", operatorTypeStr(pOpNode->opType));
+      *len += tsnprintf(buf + *len, bufSize - *len, " %s ", operatorTypeStrEx(pOpNode->opType, pOpNode->flag & OPERATOR_FLAG_NEGATIVE_OP));
 
       if (pOpNode->pRight) {
         NODES_ERR_RET(nodesNodeToSQLFormat(pOpNode->pRight, buf, bufSize, len, true));
       }
 
-      *len += tsnprintf(buf + *len, bufSize - *len, ")");
+      *len += snprintf(buf + *len, bufSize - *len, ")");
 
       return TSDB_CODE_SUCCESS;
     }
@@ -176,17 +196,17 @@ int32_t nodesNodeToSQLFormat(SNode *pNode, char *buf, int32_t bufSize, int32_t *
       SNode               *node = NULL;
       bool                 first = true;
 
-      *len += tsnprintf(buf + *len, bufSize - *len, "(");
+      *len += snprintf(buf + *len, bufSize - *len, "(");
 
       FOREACH(node, pLogicNode->pParameterList) {
         if (!first) {
-          *len += tsnprintf(buf + *len, bufSize - *len, " %s ", logicConditionTypeStr(pLogicNode->condType));
+          *len += snprintf(buf + *len, bufSize - *len, " %s ", logicConditionTypeStr(pLogicNode->condType));
         }
         NODES_ERR_RET(nodesNodeToSQLFormat(node, buf, bufSize, len, true));
         first = false;
       }
 
-      *len += tsnprintf(buf + *len, bufSize - *len, ")");
+      *len += snprintf(buf + *len, bufSize - *len, ")");
 
       return TSDB_CODE_SUCCESS;
     }
@@ -195,17 +215,17 @@ int32_t nodesNodeToSQLFormat(SNode *pNode, char *buf, int32_t bufSize, int32_t *
       SNode         *node = NULL;
       bool           first = true;
 
-      *len += tsnprintf(buf + *len, bufSize - *len, "%s(", pFuncNode->functionName);
+      *len += snprintf(buf + *len, bufSize - *len, "%s(", pFuncNode->functionName);
 
       FOREACH(node, pFuncNode->pParameterList) {
         if (!first) {
-          *len += tsnprintf(buf + *len, bufSize - *len, ", ");
+          *len += snprintf(buf + *len, bufSize - *len, ", ");
         }
         NODES_ERR_RET(nodesNodeToSQLFormat(node, buf, bufSize, len, true));
         first = false;
       }
 
-      *len += tsnprintf(buf + *len, bufSize - *len, ")");
+      *len += snprintf(buf + *len, bufSize - *len, ")");
 
       return TSDB_CODE_SUCCESS;
     }
@@ -215,14 +235,14 @@ int32_t nodesNodeToSQLFormat(SNode *pNode, char *buf, int32_t bufSize, int32_t *
       bool           first = true;
       int32_t        num = 0;
 
-      *len += tsnprintf(buf + *len, bufSize - *len, "(");
+      *len += snprintf(buf + *len, bufSize - *len, "(");
 
       FOREACH(node, pListNode->pNodeList) {
         if (!first) {
-          *len += tsnprintf(buf + *len, bufSize - *len, ", ");
+          *len += snprintf(buf + *len, bufSize - *len, ", ");
           if (!longFormat) {
             if (++num >= 10) {
-              *len += tsnprintf(buf + *len, bufSize - *len, "...");
+              *len += snprintf(buf + *len, bufSize - *len, "...");
               break;
             }
           }
@@ -231,17 +251,27 @@ int32_t nodesNodeToSQLFormat(SNode *pNode, char *buf, int32_t bufSize, int32_t *
         first = false;
       }
 
-      *len += tsnprintf(buf + *len, bufSize - *len, ")");
+      *len += snprintf(buf + *len, bufSize - *len, ")");
 
       return TSDB_CODE_SUCCESS;
     }
     case QUERY_NODE_REMOTE_VALUE: {
       SRemoteValueNode* pRemote = (SRemoteValueNode*)pNode;
-      *len += tsnprintf(buf + *len, bufSize - *len, "$(InitPlan %d)", pRemote->subQIdx + 1);
+      *len += snprintf(buf + *len, bufSize - *len, "$(InitPlan %d)", pRemote->subQIdx + 1);
       return TSDB_CODE_SUCCESS;
     }
     case QUERY_NODE_REMOTE_VALUE_LIST: {
       SRemoteValueListNode* pRemote = (SRemoteValueListNode*)pNode;
+      *len += tsnprintf(buf + *len, bufSize - *len, "$(InitPlan %d)", pRemote->subQIdx + 1);
+      return TSDB_CODE_SUCCESS;
+    }
+    case QUERY_NODE_REMOTE_ROW: {
+      SRemoteRowNode* pRemote = (SRemoteRowNode*)pNode;
+      *len += tsnprintf(buf + *len, bufSize - *len, "$(InitPlan %d)", pRemote->subQIdx + 1);
+      return TSDB_CODE_SUCCESS;
+    }
+    case QUERY_NODE_REMOTE_ZERO_ROWS: {
+      SRemoteZeroRowsNode* pRemote = (SRemoteZeroRowsNode*)pNode;
       *len += tsnprintf(buf + *len, bufSize - *len, "$(InitPlan %d)", pRemote->subQIdx + 1);
       return TSDB_CODE_SUCCESS;
     }

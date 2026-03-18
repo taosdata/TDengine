@@ -100,8 +100,8 @@ if [ -d "/var/log/taos" ]; then
     cp /var/log/taos/* /home/TDinternal/sim/var_taoslog/
 fi
 
-if [ -f "${CONTAINER_TESTDIR}/docs/examples/java/jdbc-out.log" ]; then
-    cp ${CONTAINER_TESTDIR}/docs/examples/java/jdbc-out.log /home/TDinternal/sim/var_taoslog/
+if [ -f "${CONTAINER_TESTDIR}/docs/examples/JDBC/JDBCDemo/jdbc-out.log" ]; then
+    cp ${CONTAINER_TESTDIR}/docs/examples/JDBC/JDBCDemo/jdbc-out.log /home/TDinternal/sim/var_taoslog/
 fi
 
 if [ $RET -ne 0 ]; then

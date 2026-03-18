@@ -37,11 +37,11 @@ Usage of taoskeeper:
   -H, --host string                                  http host. Env "TAOS_KEEPER_HOST"
       --instanceId int                               instance ID. Env "TAOS_KEEPER_INSTANCE_ID" (default 64)
       --log.compress                                 whether to compress old log. Env "TAOS_KEEPER_LOG_COMPRESS"
-      --log.keepDays uint                            log retention days, must be a positive integer. Env "TAOS_KEEPER_LOG_KEEP_DAYS" (default 30)
+      --log.keepDays uint                            log retention days, must be a positive integer. Env "TAOS_KEEPER_LOG_KEEP_DAYS" (default 3)
       --log.level string                             log level (trace debug info warning error). Env "TAOS_KEEPER_LOG_LEVEL" (default "info")
       --log.path string                              log path. Env "TAOS_KEEPER_LOG_PATH" (default "/var/log/taos")
       --log.reservedDiskSize string                  reserved disk size for log dir (KB MB GB), must be a positive integer. Env "TAOS_KEEPER_LOG_RESERVED_DISK_SIZE" (default "1GB")
-      --log.rotationCount uint                       log rotation count. Env "TAOS_KEEPER_LOG_ROTATION_COUNT" (default 5)
+      --log.rotationCount uint                       log rotation count. Env "TAOS_KEEPER_LOG_ROTATION_COUNT" (default 3)
       --log.rotationSize string                      log rotation size(KB MB GB), must be a positive integer. Env "TAOS_KEEPER_LOG_ROTATION_SIZE" (default "1GB")
       --log.rotationTime duration                    deprecated: log rotation time always 24 hours. Env "TAOS_KEEPER_LOG_ROTATION_TIME" (default 24h0m0s)
       --logLevel string                              log level (trace debug info warning error). Env "TAOS_KEEPER_LOG_LEVEL" (default "info")
@@ -53,13 +53,18 @@ Usage of taoskeeper:
       --metrics.prefix string                        prefix in metrics names. Env "TAOS_KEEPER_METRICS_PREFIX"
       --metrics.tables stringArray                   export some tables that are not super table, multiple values split with white space. Env "TAOS_KEEPER_METRICS_TABLES"
   -P, --port int                                     http port. Env "TAOS_KEEPER_PORT" (default 6043)
-      --tdengine.host string                         TDengine TSDB server's ip. Env "TAOS_KEEPER_TDENGINE_HOST" (default "127.0.0.1")
-      --tdengine.password string                     TDengine TSDB server's password. Env "TAOS_KEEPER_TDENGINE_PASSWORD" (default "taosdata")
-      --tdengine.port int                            TDengine TSDB REST server(taosAdapter)'s port. Env "TAOS_KEEPER_TDENGINE_PORT" (default 6041)
-      --tdengine.username string                     TDengine TSDB server's username. Env "TAOS_KEEPER_TDENGINE_USERNAME" (default "root")
-      --tdengine.usessl                              TDengine TSDB server use ssl or not. Env "TAOS_KEEPER_TDENGINE_USESSL"
+      --prometheus.cacheTTL int                      memory cache TTL in v2 mode (in seconds, default: 300). Env "TAOS_KEEPER_CACHE_TTL" (default 300)
+      --prometheus.includeTables stringArray         additional tables to cache in v2 memory mode (e.g., taosd_write_metrics). Env "TAOS_KEEPER_INCLUDE_TABLES"
+      --ssl.certFile string                          ssl cert file path. Env "TAOS_KEEPER_SSL_CERT_FILE"
+      --ssl.enable                                   enable ssl. Env "TAOS_KEEPER_SSL_ENABLE"
+      --ssl.keyFile string                           ssl key file path. Env "TAOS_KEEPER_SSL_KEY_FILE"
+      --tdengine.host string                         TDengine server's ip. Env "TAOS_KEEPER_TDENGINE_HOST" (default "127.0.0.1")
+      --tdengine.password string                     TDengine server's password. Env "TAOS_KEEPER_TDENGINE_PASSWORD" (default "taosdata")
+      --tdengine.port int                            TDengine REST server(taosAdapter)'s port. Env "TAOS_KEEPER_TDENGINE_PORT" (default 6041)
+      --tdengine.username string                     TDengine server's username. Env "TAOS_KEEPER_TDENGINE_USERNAME" (default "root")
+      --tdengine.usessl                              TDengine server use ssl or not. Env "TAOS_KEEPER_TDENGINE_USESSL"
       --transfer string                              run taoskeeper in command mode, only support old_taosd_metric. transfer old metrics data to new tables and exit
-  -V, --version                                      Print the version and exit                                   Print the version and exit
+  -V, --version                                      Print the version and exit
 ```
 
 ### 配置文件
@@ -110,6 +115,17 @@ buffer = 64
 keep = 90
 cachemodel = "both"
 
+# prometheus v2 memory cache mode configuration
+[prometheus]
+# Additional tables to cache (restore from default exclusion list)
+# Example: includeTables = ["taosd_write_metrics", "adapter_c_interface"]
+includeTables = []
+
+# TTL for cached metrics in memory (in seconds)
+# Data older than this will be automatically cleaned up
+# Default: 300 (5 minutes), Minimum: 60 (1 minute)
+cacheTTL = 300
+
 [environment]
 # Whether running in cgroup.
 incgroup = false
@@ -119,9 +135,9 @@ incgroup = false
 # path = "/var/log/taos"
 level = "info"
 # Number of log file rotations before deletion.
-rotationCount = 30
+rotationCount = 3
 # The number of days to retain log files.
-keepDays = 30
+keepDays = 3
 # The maximum size of a log file before rotation.
 rotationSize = "1GB"
 # If set to true, log files will be compressed.
@@ -278,10 +294,68 @@ Query OK, 1 row(s) in set (0.003168s)
 
 ## 集成 Prometheus
 
-taoskeeper 提供了 `/metrics` 接口，返回了 Prometheus 格式的监控数据，Prometheus 可以从 taoskeeper 抽取监控数据，实现通过 Prometheus 监控 TDengine TSDB 的目的。
+taoskeeper 提供了 `/metrics/v2` 和 `/metrics` 接口，返回了 Prometheus 格式的监控数据，Prometheus 可以从 taoskeeper 抽取监控数据，实现通过 Prometheus 监控 TDengine TSDB 的目的。  
+两个接口的区别如下，建议使用 `/metrics/v2` 接口：  
 
-### 导出监控指标
+| 特性 | /metrics | /metrics/v2 |
+|------|----------|-------------|
+| 数据来源 | 实时查询 TDengine | 内存缓存 |
+| 指标完整性 | 只有部分早期指标 | 最新完整指标 |
+| 性能 | 较低 | 高 |
+| 数据延迟 | 无延迟 | 最多延迟一个监控周期 |
+| 数据完整性 | 单实例完整 | **需要配置所有实例端点** |
+| 默认缓存表 | 无 | 部分表默认排除，可通过配置包含 |
 
+### /metrics/v2 接口
+
+#### 工作原理
+
+v2 接口使用内存缓存模式，将指标数据缓存在内存中，避免每次请求都查询 TDengine 数据库。数据会根据配置的 `cacheTTL` 自动过期清理。
+
+**重要**：v2 内存缓存模式下，TDengine 集群可能会将监控数据分片上报到不同的 taoskeeper 实例。因此，单个 taoskeeper 实例只收到部分指标数据，**必须在 Prometheus 中配置所有 taoskeeper 实例的端点**才能获取完整的监控数据。
+
+#### 配置说明
+
+在配置文件中添加 `[prometheus]` 配置节：
+
+```toml
+[prometheus]
+# Additional tables to cache (restore from default exclusion list)
+# Example: includeTables = ["taosd_write_metrics", "adapter_c_interface"]
+includeTables = []
+
+# TTL for cached metrics in memory (in seconds)
+# Data older than this will be automatically cleaned up
+# Default: 300 (5 minutes), Minimum: 60 (1 minute)
+cacheTTL = 300
+```
+
+#### 使用示例
+
+```bash
+curl http://127.0.0.1:6043/metrics/v2?max_age=30
+```
+
+部分结果集：
+
+```bash
+# HELP taosd_cluster_info_dbs_total Metric from taosd_cluster_info
+# TYPE taosd_cluster_info_dbs_total gauge
+taosd_cluster_info_dbs_total{cluster_id="2564125112573221874"} 13
+# HELP taosd_cluster_info_dnodes_alive Metric from taosd_cluster_info
+# TYPE taosd_cluster_info_dnodes_alive gauge
+taosd_cluster_info_dnodes_alive{cluster_id="2564125112573221874"} 1
+# HELP taosd_cluster_info_dnodes_total Metric from taosd_cluster_info
+# TYPE taosd_cluster_info_dnodes_total gauge
+taosd_cluster_info_dnodes_total{cluster_id="2564125112573221874"} 1
+# HELP taosd_cluster_info_grants_expire_time Metric from taosd_cluster_info
+# TYPE taosd_cluster_info_grants_expire_time gauge
+taosd_cluster_info_grants_expire_time{cluster_id="2564125112573221874"} 0
+```
+
+### /metrics 接口
+
+**重要**：本接口已不建议使用。  
 下面通过 `curl` 命令展示 `/metrics` 接口返回的数据格式：
 
 ```bash
@@ -311,7 +385,380 @@ taos_cluster_info_first_ep{cluster_id="554014120921134497",value="tdengine:6030"
 taos_cluster_info_first_ep_dnode_id{cluster_id="554014120921134497"} 1
 ```
 
-### 监控指标详情
+### 抽取配置
+
+Prometheus 提供了 `scrape_configs` 配置如何从 endpoint 抽取监控数据。
+
+**多实例模式（/metrics/v2）**：
+
+如果使用 `/metrics/v2` 接口（内存缓存模式），由于每个 taoskeeper 实例只收到部分指标数据，**必须在 Prometheus 中配置所有 taoskeeper 实例的端点**，Prometheus 会自动聚合来自不同实例的数据。
+
+```yaml
+scrape_configs:
+  - job_name: "taoskeeper-v2"
+    metrics_path: '/metrics/v2'
+    params:
+      max_age: ['30']  # 可选：只返回最近 30 秒内的指标数据
+    static_configs:
+      - targets:
+        - "taoskeeper-1:6043"
+        - "taoskeeper-2:6043"
+        - "taoskeeper-3:6043"
+        # 根据实际部署的实例数量添加所有端点
+```
+
+**参数说明**：
+
+- `max_age`（可选）：过滤缓存数据的时间范围（单位：秒），只返回最近指定秒数内的指标数据。默认值为 30 秒。
+
+**单实例模式（/metrics）**：
+
+如果使用 `/metrics` 接口，只需配置一个 taoskeeper 端点即可获取所有监控数据。
+
+```yaml
+scrape_configs:
+  - job_name: "taoskeeper"
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ["taoskeeper-1:6043"]
+```
+
+更多配置信息请参考 [Prometheus 配置文档](https://prometheus.io/docs/prometheus/latest/configuration/configuration/#scrape_config)。
+
+---
+
+## 监控指标详情
+
+### /metrics/v2 指标详情
+
+本节列出 `/metrics/v2` 接口返回的所有监控指标。
+
+#### 集群信息
+
+##### 监控信息支持的标签
+
+- `cluster_id`：集群 id
+- `first_ep`：集群 first ep（字符串标签）
+- `cluster_version`：集群部署的 binary 的版本号（字符串标签）
+
+###### 相关指标及其含义
+
+| 指标名称                              | 类型    | 含义                       |
+| ------------------------------------- | ------- | -------------------------- |
+| taosd_cluster_basic_first_ep_dnode_id | counter | 集群 first ep 的 dnode id |
+
+#### 集群监控
+
+##### 监控信息支持的标签
+
+- `cluster_id`：集群 id
+
+###### 相关指标及其含义
+
+| 指标名称                               | 类型    | 含义                         |
+| -------------------------------------- | ------- | ---------------------------- |
+| taosd_cluster_info_cluster_uptime      | gauge   | 集群启动时间（秒）           |
+| taosd_cluster_info_dbs_total           | gauge   | 集群中 db 的数量             |
+| taosd_cluster_info_tbs_total           | gauge   | 集群中表的数量               |
+| taosd_cluster_info_stbs_total          | gauge   | 集群中超级表的数量           |
+| taosd_cluster_info_dnodes_total        | gauge   | 集群中 dnode 的数量          |
+| taosd_cluster_info_dnodes_alive        | gauge   | 处于启动活跃状态的 dnode 数量 |
+| taosd_cluster_info_mnodes_total        | gauge   | 集群中 mnode 的数量          |
+| taosd_cluster_info_mnodes_alive        | gauge   | 处于启动活跃状态的 mnode 数量 |
+| taosd_cluster_info_vgroups_total       | gauge   | 集群中 vgroup 的数量         |
+| taosd_cluster_info_vgroups_alive       | gauge   | 处于启动活跃状态的 vgroup 数量 |
+| taosd_cluster_info_vnodes_total        | gauge   | 集群中 vnode 的数量          |
+| taosd_cluster_info_vnodes_alive        | gauge   | 处于启动活跃状态的 vnode 数量 |
+| taosd_cluster_info_connections_total   | gauge   | 连接数量                     |
+| taosd_cluster_info_topics_total        | gauge   | 集群中 topics 的数量         |
+| taosd_cluster_info_streams_total       | gauge   | 集群中 streams 的数量        |
+| taosd_cluster_info_grants_expire_time  | gauge   | 集群授权过期剩余时间（秒）   |
+| taosd_cluster_info_grants_timeseries_used | gauge | 集群已拥有的 time series 的数量 |
+| taosd_cluster_info_grants_timeseries_total | gauge | 集群授权允许使用 time series 的总数量 |
+
+##### vgroup
+
+##### 监控信息支持的标签
+
+- `cluster_id`：集群 id
+- `vgroup_id`：虚拟组 id
+- `database_name`：数据库名称
+
+##### 相关指标及其含义
+
+| 指标名称                             | 类型  | 含义                                                 |
+| ------------------------------------ | ----- | ---------------------------------------------------- |
+| taosd_vgroups_info_tables_num        | gauge | 该 vgroup 中表的数量                                 |
+| taosd_vgroups_info_status            | gauge | 该 vgroup 的状态，取值范围：unsynced = 0，ready = 1  |
+
+#### dnode
+
+##### 监控信息支持的标签
+
+- `cluster_id`：集群 id
+- `dnode_ep`：dnode 端点
+- `dnode_id`：dnode id
+
+##### 相关指标及其含义
+
+| 指标名称                                | 类型    | 含义                                                                 |
+| --------------------------------------- | ------- | -------------------------------------------------------------------- |
+| taosd_dnodes_info_uptime                | gauge   | 该 dnode 的启动时间（秒）                                            |
+| taosd_dnodes_info_cpu_engine            | gauge   | 该 dnode 的进程所使用的 cpu（%，乘过 100 的）                           |
+| taosd_dnodes_info_cpu_system            | gauge   | 该 dnode 所在节点的系统使用的 cpu（%，乘过 100 的）                      |
+| taosd_dnodes_info_cpu_cores             | gauge   | 该 dnode 所在节点的 cpu 核数                                         |
+| taosd_dnodes_info_mem_engine            | gauge   | 该 dnode 的进程所使用的内存（KB）                                    |
+| taosd_dnodes_info_mem_free              | gauge   | 该 dnode 所在节点的系统剩余的物理内存（KB）                           |
+| taosd_dnodes_info_mem_total             | gauge   | 该 dnode 所在节点的总内存（KB）                                      |
+| taosd_dnodes_info_mem_cache_buffer      | counter | 该 dnode 所在节点的 cache/buffer 内存（KB）                          |
+| taosd_dnodes_info_disk_used             | gauge   | 该 dnode 所在节点的磁盘已使用的容量（Byte）                           |
+| taosd_dnodes_info_disk_total            | gauge   | 该 dnode 所在节点的磁盘总容量（Byte）                                 |
+| taosd_dnodes_info_disk_engine           | counter | 该 dnode 的进程使用的磁盘容量（Byte）                                |
+| taosd_dnodes_info_system_net_in         | gauge   | 该 dnode 所在节点的网络传入速率（Byte/s）                            |
+| taosd_dnodes_info_system_net_out        | gauge   | 该 dnode 所在节点的网络传出速率（Byte/s）                            |
+| taosd_dnodes_info_io_read               | gauge   | 该 dnode 所在节点的 io 读取速率（Byte/s）                            |
+| taosd_dnodes_info_io_write              | gauge   | 该 dnode 所在节点的 io 写入速率（Byte/s）                            |
+| taosd_dnodes_info_io_read_disk          | gauge   | 该 dnode 所在节点的磁盘 io 读取速率（Byte/s）                        |
+| taosd_dnodes_info_io_write_disk         | gauge   | 该 dnode 所在节点的磁盘 io 写入速率（Byte/s）                        |
+| taosd_dnodes_info_vnodes_num            | gauge   | 该 dnode 所在节点的 vnodes 数量                                      |
+| taosd_dnodes_info_masters               | gauge   | 该 dnode 所在节点的处于 leader 状态的 vnodes 数量                    |
+| taosd_dnodes_info_has_mnode             | gauge   | 该 dnode 所在节点是否有 Mnode 节点，取值范围：有 = 1，没有 = 0       |
+| taosd_dnodes_info_has_qnode             | gauge   | 该 dnode 所在节点是否有 qnode 节点，取值范围：有 = 1，没有 = 0        |
+| taosd_dnodes_info_has_snode             | gauge   | 该 dnode 所在节点是否有 snode 节点，取值范围：有 = 1，没有 = 0        |
+| taosd_dnodes_info_has_bnode             | gauge   | 该 dnode 所在节点是否有 bnode 节点，取值范围：有 = 1，没有 = 0        |
+| taosd_dnodes_info_errors                | gauge   | 该 dnode 所在节点 error 数量                                         |
+| taosd_dnodes_info_error_log_count       | gauge   | 该 dnode 所在节点 error 日志数量                                     |
+| taosd_dnodes_info_info_log_count        | gauge   | 该 dnode 所在节点 info 日志数量                                      |
+| taosd_dnodes_info_debug_log_count       | gauge   | 该 dnode 所在节点 debug 日志数量                                     |
+| taosd_dnodes_info_trace_log_count       | gauge   | 该 dnode 所在节点 trace 日志数量                                     |
+
+#### dnode 状态
+
+##### 监控信息支持的标签
+
+- `cluster_id`：集群 id
+- `dnode_ep`：dnode 端点
+- `dnode_id`：dnode id
+
+##### 相关指标及其含义
+
+| 指标名称                      | 类型  | 含义                                           |
+| ----------------------------- | ----- | ---------------------------------------------- |
+| taosd_dnodes_status_status    | gauge | 该 dnode 的状态，取值范围：ready = 1，offline = 0 |
+
+#### 数据目录
+
+##### 监控信息支持的标签
+
+- `cluster_id`：集群 id
+- `dnode_ep`：dnode 端点
+- `dnode_id`：dnode id
+- `data_dir_name`：数据目录名
+- `data_dir_level`：数据目录级别
+
+##### 相关指标及其含义
+
+| 指标名称                             | 类型  | 含义                   |
+| ------------------------------------ | ----- | ---------------------- |
+| taosd_dnodes_data_dirs_avail         | gauge | 可用空间（Byte）       |
+| taosd_dnodes_data_dirs_used          | gauge | 已用空间（Byte）       |
+| taosd_dnodes_data_dirs_total         | gauge | 总空间（Byte）         |
+
+#### 日志目录
+
+##### 监控信息支持的标签
+
+- `cluster_id`：集群 id
+- `dnode_ep`：dnode 端点
+- `dnode_id`：dnode id
+- `log_dir_name`：日志目录名
+
+##### 相关指标及其含义
+
+| 指标名称                            | 类型  | 含义                   |
+| ----------------------------------- | ----- | ---------------------- |
+| taosd_dnodes_log_dirs_avail         | gauge | 可用空间（Byte）       |
+| taosd_dnodes_log_dirs_used          | gauge | 已用空间（Byte）       |
+| taosd_dnodes_log_dirs_total         | gauge | 总空间（Byte）         |
+
+#### dnode 指标
+
+##### 监控信息支持的标签
+
+- `cluster_id`：集群 id
+- `dnode_ep`：dnode 端点
+- `dnode_id`：dnode id
+
+##### 相关指标及其含义
+
+| 指标名称                              | 类型  | 含义                     |
+| ------------------------------------- | ----- | ------------------------ |
+| taosd_dnodes_metrics_apply_memory_allowed | gauge | Apply 队列允许使用的最大内存（Byte） |
+| taosd_dnodes_metrics_apply_memory_used    | gauge | Apply 队列当前使用的内存（Byte）      |
+| taosd_dnodes_metrics_rpc_queue_memory_allowed | gauge | RPC 队列允许使用的最大内存（Byte）  |
+| taosd_dnodes_metrics_rpc_queue_memory_used | gauge  | RPC 队列当前使用的内存（Byte）       |
+
+#### 写入指标
+
+##### 监控信息支持的标签
+
+- `cluster_id`：集群 id
+- `dnode_ep`：dnode 端点
+- `dnode_id`：dnode id
+- `vgroup_id`：虚拟组 id
+
+##### 相关指标及其含义
+
+| 指标名称                            | 类型  | 含义                     |
+| ----------------------------------- | ----- | ------------------------ |
+| taosd_write_metrics_total_rows          | gauge | vnode 处理的写入行数       |
+| taosd_write_metrics_wal_write_time      | gauge | vnode 写入 wal 耗时（ms）  |
+| taosd_write_metrics_commit_count        | gauge | vnode 处理 commit 请求的次数 |
+| taosd_write_metrics_commit_time         | gauge | vnode 处理 commit 请求的耗时（ms） |
+| taosd_write_metrics_blocked_commit_count | gauge | vnode commit 被阻塞的次数  |
+| taosd_write_metrics_blocked_commit_time  | gauge | vnode commit 时被阻塞的时间（ms） |
+| taosd_write_metrics_merge_count         | gauge | vnode 处理 merge 请求的数量 |
+| taosd_write_metrics_merge_time          | gauge | vnode 处理 merge 请求的耗时（ms） |
+| taosd_write_metrics_last_cache_commit_time | gauge | vnode 处理 last 落盘耗时（ms） |
+| taosd_write_metrics_last_cache_commit_count | gauge | vnode 处理 last 落盘次数    |
+
+#### 性能指标
+
+##### 监控信息支持的标签
+
+- `cluster_id`：集群 id
+
+##### 相关指标及其含义
+
+| 指标名称                        | 类型  | 含义               |
+| ------------------------------- | ----- | ------------------ |
+| taosd_perf_slow_queries_total      | gauge | 总慢查询数量       |
+| taosd_perf_very_slow_queries_total | gauge | 执行时间 > 300ms 的慢查询数量 |
+
+#### mnode
+
+##### 监控信息支持的标签
+
+- `cluster_id`：集群 id
+- `mnode_ep`：mnode 端点
+- `mnode_id`：mnode id
+
+##### 相关指标及其含义
+
+| 指标名称                         | 类型  | 含义                                                         |
+| -------------------------------- | ----- | ------------------------------------------------------------ |
+| taosd_mnodes_info_role           | gauge | 该 mnode 的状态，取值范围：offline = 0，follower = 100，candidate = 101，leader = 102，error = 103，learner = 104 |
+
+#### vnode
+
+##### 监控信息支持的标签
+
+- `cluster_id`：集群 id
+- `vgroup_id`：虚拟组 id
+- `database_name`：数据库名称
+- `dnode_id`：dnode id
+
+##### 相关指标及其含义
+
+| 指标名称                        | 类型  | 含义                                                                                          |
+| ------------------------------- | ----- | --------------------------------------------------------------------------------------------- |
+| taosd_vnodes_info_role          | gauge | 该 vnode 的状态，取值范围：offline = 0，follower = 100，candidate = 101，leader = 102，error = 103，learner = 104 |
+
+#### taosd 请求
+
+##### 监控信息支持的标签
+
+- `cluster_id`：集群 id
+- `dnode_ep`：dnode 端点
+- `dnode_id`：dnode id
+- `vgroup_id`：虚拟组 id
+- `username`：用户名
+- `sql_type`：SQL 类型（取值范围：select、insert、inserted_rows、delete）
+- `result`：请求结果（取值范围：Success、Failed）
+
+对于 `inserted_rows` 类型的 SQL，`result` 的取值范围仅为 `Success`。
+
+##### 相关指标及其含义
+
+| 指标名称                  | 类型    | 含义         |
+| ------------------------- | ------- | ------------ |
+| taosd_sql_req_count       | counter | 请求数量     |
+
+#### sql 请求
+
+##### 监控信息支持的标签
+
+- `cluster_id`：集群 id
+- `username`：用户名
+- `sql_type`：SQL 类型（取值范围：select、insert、delete）
+- `result`：请求结果（取值范围：Success、Failed）
+
+##### 相关指标及其含义
+
+| 指标名称                 | 类型    | 含义     |
+| ------------------------ | ------- | -------- |
+| taos_sql_req_count       | counter | 请求数量 |
+
+#### 慢 sql
+
+##### 监控信息支持的标签
+
+- `cluster_id`：集群 id
+- `username`：用户名
+- `result`：请求结果（取值范围：Success、Failed、Cancel）
+- `duration`：慢 sql 耗时程度的区分标记（取值范围：3-10s、10-100s、100-1000s、1000s-）
+
+##### 相关指标及其含义
+
+| 指标名称                | 类型    | 含义     |
+| ----------------------- | ------- | -------- |
+| taos_slow_sql_count     | counter | 请求数量 |
+
+#### taosadapter
+
+##### 监控信息支持的标签
+
+- `endpoint`：端点
+- `req_type`：请求类型，0 表示 rest，1 表示 websocket
+
+###### 相关指标及其含义
+
+| 指标名称                               | 类型    | 含义                 |
+| -------------------------------------- | ------- | -------------------- |
+| taos_adapter_requests_fail             | counter | 失败的请求数         |
+| taos_adapter_requests_in_process       | counter | 正在处理的请求数     |
+| taos_adapter_requests_other            | counter | 其他类型的请求数     |
+| taos_adapter_requests_other_fail       | counter | 其他类型的失败请求数 |
+| taos_adapter_requests_other_success    | counter | 其他类型的成功请求数 |
+| taos_adapter_requests_query            | counter | 查询请求数           |
+| taos_adapter_requests_query_fail       | counter | 查询失败请求数       |
+| taos_adapter_requests_query_in_process | counter | 正在处理的查询请求数 |
+| taos_adapter_requests_query_success    | counter | 查询成功请求数       |
+| taos_adapter_requests_success          | counter | 成功的请求数         |
+| taos_adapter_requests_total            | counter | 总请求数             |
+| taos_adapter_requests_write            | counter | 写请求数             |
+| taos_adapter_requests_write_fail       | counter | 写失败请求数         |
+| taos_adapter_requests_write_in_process | counter | 正在处理的写请求数   |
+| taos_adapter_requests_write_success    | counter | 写成功请求数         |
+
+#### taoskeeper {#taoskeeper-1}
+
+##### 监控信息支持的标签
+
+- `identify`：节点 endpoint
+
+###### 相关指标及其含义
+
+| 指标名称                | 类型  | 含义                                  |
+| ----------------------- | ----- | ------------------------------------- |
+| taos_keeper_monitor_cpu | gauge | taoskeeper CPU 使用率（取值范围 0~1） |
+| taos_keeper_monitor_mem | gauge | taoskeeper 内存使用率（取值范围 0~1） |
+
+---
+
+### /metrics 指标详情
+
+本节列出 `/metrics` 接口返回的所有监控指标。
 
 #### taosd 集群
 
@@ -319,7 +766,7 @@ taos_cluster_info_first_ep_dnode_id{cluster_id="554014120921134497"} 1
 
 - `cluster_id`：集群 id
 
-##### 相关指标及其含义
+###### 相关指标及其含义
 
 | 指标名称                            | 类型    | 含义                                  |
 | ----------------------------------- | ------- | ------------------------------------- |
@@ -353,7 +800,7 @@ taos_cluster_info_first_ep_dnode_id{cluster_id="554014120921134497"} 1
 - `dnode_ep`：dnode 端点
 - `dnode_id`：dnode id
 
-##### 相关指标及其含义
+###### 相关指标及其含义
 
 | 指标名称                       | 类型    | 含义                                                                                  |
 | ------------------------------ | ------- | ------------------------------------------------------------------------------------- |
@@ -375,10 +822,10 @@ taos_cluster_info_first_ep_dnode_id{cluster_id="554014120921134497"} 1
 | taos_dnodes_info_mem_engine    | counter | 该 dnode 的进程所使用的内存（单位 KB）                                                |
 | taos_dnodes_info_mem_system    | counter | 该 dnode 所在节点的系统所使用的内存（单位 KB）                                        |
 | taos_dnodes_info_mem_total     | counter | 该 dnode 所在节点的总内存（单位 KB）                                                  |
-| taos_dnodes_info_net_in        | gauge   | 该 dnode 所在节点的网络传入速率（单位 Byte/s）                                        |
-| taos_dnodes_info_net_out       | gauge   | 该 dnode 所在节点的网络传出速率（单位 Byte/s）                                        |
-| taos_dnodes_info_uptime        | gauge   | 该 dnode 的启动时间 (单位 秒)                                                         |
-| taos_dnodes_info_vnodes_num    | counter | 该 dnode 所在节点的 vnode 数量                                                        |
+| taos_dnodes_info_net_in            | gauge   | 该 dnode 所在节点的网络传入速率（单位 Byte/s）         |
+| taos_dnodes_info_net_out           | gauge   | 该 dnode 所在节点的网络传出速率（单位 Byte/s）         |
+| taos_dnodes_info_uptime            | gauge   | 该 dnode 的启动时间 (单位 秒)                          |
+| taos_dnodes_info_vnodes_num        | counter | 该 dnode 所在节点的 vnode 数量                        |
 
 #### 数据目录
 
@@ -390,7 +837,7 @@ taos_cluster_info_first_ep_dnode_id{cluster_id="554014120921134497"} 1
 - `data_dir_name`：数据目录名
 - `data_dir_level`：数据目录级别
 
-##### 相关指标及其含义
+###### 相关指标及其含义
 
 | 指标名称                          | 类型  | 含义                  |
 | --------------------------------- | ----- | --------------------- |
@@ -407,7 +854,7 @@ taos_cluster_info_first_ep_dnode_id{cluster_id="554014120921134497"} 1
 - `dnode_id`：dnode id
 - `log_dir_name`：日志目录名
 
-##### 相关指标及其含义
+###### 相关指标及其含义
 
 | 指标名称                         | 类型  | 含义                  |
 | -------------------------------- | ----- | --------------------- |
@@ -423,7 +870,7 @@ taos_cluster_info_first_ep_dnode_id{cluster_id="554014120921134497"} 1
 - `dnode_ep`：dnode 端点
 - `dnode_id`：dnode id
 
-##### 相关指标及其含义
+###### 相关指标及其含义
 
 | 指标名称               | 类型    | 含义         |
 | ---------------------- | ------- | ------------ |
@@ -434,43 +881,11 @@ taos_cluster_info_first_ep_dnode_id{cluster_id="554014120921134497"} 1
 
 #### taosadapter
 
-##### 监控信息支持的标签
-
-- `endpoint`：端点
-- `req_type`：请求类型，0 表示 rest，1 表示 websocket
-
-##### 相关指标及其含义
-
-| 指标名称                               | 类型    | 含义                 |
-| -------------------------------------- | ------- | -------------------- |
-| taos_adapter_requests_fail             | counter | 失败的请求数         |
-| taos_adapter_requests_in_process       | counter | 正在处理的请求数     |
-| taos_adapter_requests_other            | counter | 其他类型的请求数     |
-| taos_adapter_requests_other_fail       | counter | 其他类型的失败请求数 |
-| taos_adapter_requests_other_success    | counter | 其他类型的成功请求数 |
-| taos_adapter_requests_query            | counter | 查询请求数           |
-| taos_adapter_requests_query_fail       | counter | 查询失败请求数       |
-| taos_adapter_requests_query_in_process | counter | 正在处理的查询请求数 |
-| taos_adapter_requests_query_success    | counter | 查询成功请求数       |
-| taos_adapter_requests_success          | counter | 成功的请求数         |
-| taos_adapter_requests_total            | counter | 总请求数             |
-| taos_adapter_requests_write            | counter | 写请求数             |
-| taos_adapter_requests_write_fail       | counter | 写失败请求数         |
-| taos_adapter_requests_write_in_process | counter | 正在处理的写请求数   |
-| taos_adapter_requests_write_success    | counter | 写成功请求数         |
+同 v2 接口，参见上方 [taosadapter](#taosadapter) 部分。
 
 #### taoskeeper
 
-##### 监控信息支持的标签
-
-- `identify`：节点 endpoint
-
-##### 相关指标及其含义
-
-| 指标名称                | 类型  | 含义                                  |
-| ----------------------- | ----- | ------------------------------------- |
-| taos_keeper_monitor_cpu | gauge | taoskeeper CPU 使用率（取值范围 0~1） |
-| taos_keeper_monitor_mem | gauge | taoskeeper 内存使用率（取值范围 0~1） |
+同 v2 接口，参见上方 [taoskeeper](#taoskeeper-1) 部分。
 
 #### 其他 taosd 集群监控项
 
@@ -535,21 +950,6 @@ taos_cluster_info_first_ep_dnode_id{cluster_id="554014120921134497"} 1
   - `vgroup_id`：虚拟组 id
 - **类型**：gauge
 - **含义**：虚拟节点角色
-
-### 抽取配置
-
-Prometheus 提供了 `scrape_configs` 配置如何从 endpoint 抽取监控数据，通常只需要修改 `static_configs` 中的 targets 配置为 taoskeeper 的 endpoint 地址，更多配置信息请参考 [Prometheus 配置文档](https://prometheus.io/docs/prometheus/latest/configuration/configuration/#scrape_config)。
-
-```yaml
-# A scrape configuration containing exactly one endpoint to scrape:
-# Here it's Prometheus itself.
-scrape_configs:
-  - job_name: "taoskeeper"
-    # metrics_path defaults to '/metrics'
-    # scheme defaults to 'http'.
-    static_configs:
-      - targets: ["localhost:6043"]
-```
 
 ### Dashboard
 

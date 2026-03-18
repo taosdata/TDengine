@@ -8,6 +8,7 @@ compile_commands.json
 .cache
 sim
 *.pyc
+CLAUDE.md
 
 # TODO: rules need to be removed later
 source/util/src/version.c
@@ -70,3 +71,9 @@ test/env
 test/run
 test/screenlog*
 test/output.tmp
+
+CMakeUserPresets.json
+
+.agents/
+skills-lock.json
+debug_coverage/

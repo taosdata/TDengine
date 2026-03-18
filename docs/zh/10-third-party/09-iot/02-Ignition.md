@@ -30,13 +30,13 @@ Ignition 通过其 SQL Bridge 模块支持多种 SQL 数据库，您可以通过
 2. 按照 [Ignition 文档](https://www.docs.inductiveautomation.com/docs/8.1/platform/database-connections/connecting-to-databases/jdbc-drivers-and-translators#add-a-new-jdbc-driver) 添加新的 JDBC 驱动，并选择上一步下载的 JAR 文件。
 
 3. 按如下方式配置驱动：
-    - **Classname:** 输入 `com.taosdata.jdbc.rs.RestfulDriver`。
-    - **URL Format:** 输入 `jdbc:TAOS-RS://<taosAdapter-address:port>/<database-name>`。
+    - **Classname:** 输入 `com.taosdata.jdbc.ws.WebSocketDriver`。
+    - **URL Format:** 输入 `jdbc:TAOS-WS://<taosAdapter-address:port>/<database-name>`。
     - 其他选项保持默认，无需配置数据库翻译器。
 
 4. 按照 [Ignition 文档](https://www.docs.inductiveautomation.com/docs/8.1/platform/database-connections/connecting-to-databases#add-a-database-connection) 添加新的数据库连接：
     - 选择上一步创建的 JDBC 驱动。
-    - 在 **Connect URL** 字段输入 `jdbc:TAOS-RS://<taosAdapter-address:port>/<database-name>`。
+    - 在 **Connect URL** 字段输入 `jdbc:TAOS-WS://<taosAdapter-address:port>/<database-name>`。
 
 ## 使用方法
 

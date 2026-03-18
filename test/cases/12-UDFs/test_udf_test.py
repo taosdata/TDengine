@@ -816,5 +816,5 @@ class TestUdfTest:
         self.run_function_name()
 
 
-        tdLog.success(f"{__file__} successfully executed")
+
 

@@ -359,22 +359,24 @@ typedef struct SStreamTriggerTask {
       int64_t windowSliding;
     };
     struct {  // for state window
-      int64_t stateSlotId;
-      int64_t stateExtend;
-      SNode  *pStateZeroth;
-      int64_t stateTrueFor;
-      SNode  *pStateExpr;
+      int64_t      stateSlotId;
+      int64_t      stateExtend;
+      SNode       *pStateZeroth;
+      STrueForInfo stateTrueForInfo;
+      SNode       *pStateExpr;
     };
     struct {  // for event window
-      SNode     *pStartCond;
-      SNode     *pEndCond;
-      SNodeList *pStartCondCols;
-      SNodeList *pEndCondCols;
-      int64_t    eventTrueFor;
+      SNode       *pStartCond;
+      SNode       *pEndCond;
+      SNodeList   *pStartCondCols;
+      SNodeList   *pEndCondCols;
+      STrueForInfo eventTrueForInfo;
     };
   };
   int32_t trigTsIndex;
   int32_t calcTsIndex;
+  int32_t trigPkIndex;
+  int32_t calcPkIndex;
   int64_t maxDelayNs;
   int64_t fillHistoryStartTime;
   int64_t watermark;
@@ -395,6 +397,8 @@ typedef struct SStreamTriggerTask {
   // trigger options: old version, to be removed
   int32_t    histTrigTsIndex;
   int32_t    histCalcTsIndex;
+  int32_t    histTrigPkIndex;
+  int32_t    histCalcPkIndex;
   int64_t    histStateSlotId;
   SNode     *histTriggerFilter;
   SNode     *histStateExpr;
@@ -485,7 +489,10 @@ int32_t stTriggerTaskExecute(SStreamTriggerTask *pTask, const SStreamMsg *pMsg);
 
 // helper function in trigger task
 // check whether the state data equals to the zeroth state
-int32_t stIsStateEqualZeroth(void *pStateData, void *pZeroth, bool *pIsEqual);
+int32_t     stIsStateEqualZeroth(void *pStateData, void *pZeroth, bool *pIsEqual);
+STimeWindow stTriggerTaskGetTimeWindow(SStreamTriggerTask *pTask, int64_t ts);
+void        stTriggerTaskPrevTimeWindow(SStreamTriggerTask *pTask, STimeWindow *pWindow);
+void        stTriggerTaskNextTimeWindow(SStreamTriggerTask *pTask, STimeWindow *pWindow);
 
 #ifdef __cplusplus
 }

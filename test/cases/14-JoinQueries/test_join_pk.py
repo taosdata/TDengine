@@ -253,7 +253,7 @@ class TestJoinPk:
         tdSql.checkRows(4)
                
         tdSql.query(
-            f"select b.*, a.ats from (select ts ats, lag(f) from sst order by ats desc) as a inner join sst b on timetruncate(a.ats, 1s) = timetruncate(b.ts, 1s) and b.ts > a.ats-5a and b.ts < a.ats + 5a"
+            f"select b.*, a.ats from (select ts ats, fill_forward(f) from sst order by ats desc) as a inner join sst b on timetruncate(a.ats, 1s) = timetruncate(b.ts, 1s) and b.ts > a.ats-5a and b.ts < a.ats + 5a"
         )
         tdSql.checkRows(4)
 

@@ -1,3 +1,0 @@
-{"type": "enum",
- "name": "Status",
- "symbols": "Normal Caution Critical"}

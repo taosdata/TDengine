@@ -83,12 +83,12 @@ class TestUserPrivilegeCreateDb:
         tdSql.connect("u1", "AAbb1122")
         tdSql.execute(f"reset query cache")
         tdSql.execute(f"insert into u1_d1.t1 values(now, 1)")
-        tdSql.error(f"select * from u1_d1.t1;")
+        tdSql.query(f"select * from u1_d1.t1;") # the owner of u1_d1 and u1_d1.t1 is u1
 
         tdLog.info(f"=============connect with u2")
         tdSql.connect("u2", "AAbb1122")
-        tdSql.error(f"select * from u2_d1.t1;")
-        tdSql.error(f"insert into u2_d1.t1 values(now, 1)")
+        tdSql.query(f"select * from u2_d1.t1;") # the owner of u2_d1 and u2_d1.t1 is u2
+        tdSql.execute(f"insert into u2_d1.t1 values(now, 1)")
 
         tdLog.info(f"=============connect with root, grant select to u1, all to u2")
         tdSql.connect("root")

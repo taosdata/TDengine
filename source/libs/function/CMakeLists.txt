@@ -51,12 +51,14 @@ target_include_directories(
     "${TD_SOURCE_DIR}/include/common"
     "${TD_SOURCE_DIR}/include/libs/transport"
     "${TD_SOURCE_DIR}/include/client"
+    "${TD_SOURCE_DIR}/include/dnode/mgmt"
+    "${TD_SOURCE_DIR}/source/dnode/mgmt/node_util/inc"
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 
 target_link_libraries(
     taosudf
-    PRIVATE os util common nodes function
+    PRIVATE os util common nodes function dnode
 )
 
 if(UNIX AND NOT APPLE)

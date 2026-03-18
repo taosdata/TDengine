@@ -142,6 +142,9 @@ typedef struct SDatabaseOptions {
   SValueNode* ssKeepLocalStr;
   int8_t      ssCompact;
   int8_t      withArbitrator;
+  int8_t      isAudit;
+  int8_t      allowDrop;
+  int8_t      secureDelete;
   // for auto-compact
   int32_t     compactTimeOffset;  // hours
   int32_t     compactInterval;    // minutes
@@ -152,7 +155,6 @@ typedef struct SDatabaseOptions {
   SNodeList*  pCompactTimeRangeList;
   // for cache
   SDbCfgInfo* pDbCfg;
-  int8_t      isAudit;
 } SDatabaseOptions;
 
 typedef struct SCreateDatabaseStmt {
@@ -278,6 +280,7 @@ typedef struct STableOptions {
   SNodeList*  pSma;
   SValueNode* pKeepNode;
   int32_t     keep;
+  int8_t      secureDelete;
 } STableOptions;
 
 typedef struct SColumnOptions {
@@ -485,11 +488,26 @@ typedef struct SUserOptions {
 
 typedef struct SCreateUserStmt {
   ENodeType type;
+
+  bool hasSessionPerUser;
+  bool hasConnectTime;
+  bool hasConnectIdleTime;
+  bool hasCallPerSession;
+  bool hasVnodePerCall;
+  bool hasFailedLoginAttempts;
+  bool hasPasswordLifeTime;
+  bool hasPasswordReuseTime;
+  bool hasPasswordReuseMax;
+  bool hasPasswordLockTime;
+  bool hasPasswordGraceTime;
+  bool hasInactiveAccountTime;
+  bool hasAllowTokenNum;
+
   char      userName[TSDB_USER_LEN];
   char      password[TSDB_USER_PASSWORD_LONGLEN];
   char      totpseed[TSDB_USER_TOTPSEED_MAX_LEN + 1];
 
-  int8_t  ignoreExists;
+  int8_t ignoreExists;
   int8_t sysinfo;
   int8_t createDb;
   int8_t isImport;
@@ -515,6 +533,8 @@ typedef struct SCreateUserStmt {
 
   int32_t         numTimeRanges;
   SDateTimeRange* pTimeRanges;
+  // for privilege check
+  SUserOptions userOps;
 } SCreateUserStmt;
 
 typedef struct SCreateEncryptAlgrStmt {
@@ -681,12 +701,19 @@ typedef struct {
 
 typedef struct {
   ENodeType type;
-  char      url[TSDB_XNODE_URL_LEN + 3];
-  // Create xnode with new user.
-  char user[TSDB_USER_LEN + 3];
-  // Create xnode with new user password. `user` and `pass` should exist along with each other.
-  char pass[TSDB_USER_PASSWORD_LONGLEN + 3];
-} SCreateXnodeStmt;
+  // xTaskOptions opts;
+  // taosX Agent ID.
+  int32_t via;
+  int32_t triggerLen;
+  char    trigger[TSDB_XNODE_TASK_TRIGGER_LEN + 3];
+  int32_t healthLen;
+  char    health[TSDB_XNODE_TASK_TRIGGER_LEN + 3];
+  int32_t parserLen;
+  char*   parser;
+  int32_t optionsNum;
+  char*   options[TSDB_XNODE_TASK_OPTIONS_MAX_NUM];  // options in the form of "key=value", e.g., "group.id=task1",
+                                                     // "via=1", "parser=taosx"
+} SXnodeTaskOptions;
 
 typedef struct {
   ENodeType type;
@@ -702,24 +729,13 @@ typedef struct {
 
 typedef struct {
   ENodeType type;
-  int32_t   xnodeId;
-} SUpdateXnodeStmt;
-
-typedef struct {
-  ENodeType    type;
-  // xTaskOptions opts;
-  // taosX Agent ID.
-  int32_t via;
-  int32_t triggerLen;
-  char    trigger[TSDB_XNODE_TASK_TRIGGER_LEN + 3];
-  int32_t healthLen;
-  char    health[TSDB_XNODE_TASK_TRIGGER_LEN + 3];
-  int32_t parserLen;
-  char    parser[TSDB_XNODE_TASK_PARSER_LEN + 3];
-  int32_t optionsNum;
-  char*   options[TSDB_XNODE_TASK_OPTIONS_MAX_NUM];  // options in the form of "key=value", e.g., "group.id=task1",
-                                                     // "via=1", "parser=taosx"
-} SXnodeTaskOptions;
+  int32_t            id;
+  CowStr             url;
+  CowStr             token;
+  CowStr             user;
+  CowStr             pass;
+  SXnodeTaskOptions* options;
+} SAlterXnodeStmt;
 
 typedef struct {
   ENodeType   type;
@@ -734,6 +750,16 @@ typedef struct {
   ENodeType type;
   xTaskSink sink;
 } SXTaskSink;
+
+typedef struct {
+  ENodeType type;
+  char      url[TSDB_XNODE_URL_LEN + 3];
+  // Create xnode with new user.
+  char user[TSDB_USER_LEN + 3];
+  // Create xnode with new user password. `user` and `pass` should exist along with each other.
+  char pass[TSDB_USER_PASSWORD_LONGLEN + 3];
+  char token[TSDB_TOKEN_LEN + 3];
+} SCreateXnodeStmt;
 
 typedef struct {
   ENodeType          type;
@@ -1003,6 +1029,12 @@ typedef struct SAlterEncryptKeyStmt {
   char      newKey[ENCRYPT_KEY_LEN + 1];
 } SAlterEncryptKeyStmt;
 
+typedef struct SAlterKeyExpirationStmt {
+  ENodeType type;
+  int32_t   days;
+  char      strategy[ENCRYPT_KEY_EXPIRE_STRATEGY_LEN + 1];
+} SAlterKeyExpirationStmt;
+
 typedef struct SDescribeStmt {
   ENodeType   type;
   char        dbName[TSDB_DB_NAME_LEN];
@@ -1019,12 +1051,6 @@ typedef struct SKillQueryStmt {
   ENodeType type;
   char      queryId[TSDB_QUERY_ID_LEN];
 } SKillQueryStmt;
-
-typedef enum EStreamNotifyEventType {
-  SNOTIFY_EVENT_WINDOW_INVALIDATION = 0,
-  SNOTIFY_EVENT_WINDOW_OPEN = BIT_FLAG_MASK(0),
-  SNOTIFY_EVENT_WINDOW_CLOSE = BIT_FLAG_MASK(1),
-} EStreamNotifyEventType;
 
 typedef struct SStreamNotifyOptions {
   ENodeType  type;

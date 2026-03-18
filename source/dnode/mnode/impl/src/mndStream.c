@@ -163,7 +163,7 @@ static bool mndStreamGetNameFromId(SMnode *pMnode, void *pObj, void *p1, void *p
   SStreamObj* pStream = pObj;
 
   if (pStream->pCreate->streamId == *(int64_t*)p1) {
-    strncpy((char*)p2, pStream->name, TSDB_STREAM_NAME_LEN);
+    tstrncpy((char *)p2, pStream->name, TSDB_STREAM_NAME_LEN);
     return false;
   }
 
@@ -203,7 +203,7 @@ static void mndStreamBuildObj(SMnode *pMnode, SStreamObj *pObj, SCMCreateStreamR
   int32_t code = 0;
 
   pObj->pCreate = pCreate;
-  strncpy(pObj->name, pCreate->name, TSDB_STREAM_FNAME_LEN);
+  tstrncpy(pObj->name, pCreate->name, sizeof(pObj->name));
   (void)snprintf(pObj->createUser, sizeof(pObj->createUser), "%s", pOperUser->name);
   pObj->ownerId = pOperUser->uid;
   pObj->mainSnodeId = snodeId;
@@ -596,18 +596,17 @@ _OVER:
   return code;
 }
 
-static int32_t mndStreamValidateCreate(SMnode *pMnode, SUserObj* pOperUser, SCMCreateStreamReq* pCreate) {
+static int32_t mndStreamValidateCreate(SMnode *pMnode, SRpcMsg *pReq, SCMCreateStreamReq* pCreate) {
   int32_t code = 0, lino = 0;
   int64_t streamId = pCreate->streamId;
-  char   *pUser = pOperUser->name;
-  char    objFName[TSDB_PRIV_MAX_KEY_LEN] = {0};
-
-  (void)snprintf(objFName, sizeof(objFName), "%d.*", pOperUser->acctId);
+  char   *pUser = RPC_MSG_USER(pReq);
 
   if (pCreate->streamDB) {
     // code = mndCheckDbPrivilegeByName(pMnode, pUser, MND_OPER_WRITE_DB, pCreate->streamDB);
-    code = mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_DB_USE, PRIV_OBJ_DB, pCreate->streamDB, NULL);
+    code = mndCheckDbPrivilegeByName(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_USE_DB,
+                                     pCreate->streamDB, false);
     if (code) {
+      if (code == TSDB_CODE_MND_NO_RIGHTS) code = TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
       mstsError("user %s failed to create stream %s in db %s since %s", pUser, pCreate->name, pCreate->streamDB,
                 tstrerror(code));
     }
@@ -616,8 +615,10 @@ static int32_t mndStreamValidateCreate(SMnode *pMnode, SUserObj* pOperUser, SCMC
 
   if (pCreate->triggerDB) {
     // code = mndCheckDbPrivilegeByName(pMnode, pUser, MND_OPER_READ_DB, pCreate->triggerDB);
-    code = mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_DB_USE, PRIV_OBJ_DB, pCreate->triggerDB, NULL);
+    code = mndCheckDbPrivilegeByName(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_USE_DB,
+                                     pCreate->triggerDB, false);
     if (code) {
+      if (code == TSDB_CODE_MND_NO_RIGHTS) code = TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
       mstsError("user %s failed to create stream %s using trigger db %s since %s", pUser, pCreate->name,
                 pCreate->triggerDB, tstrerror(code));
     }
@@ -640,8 +641,9 @@ static int32_t mndStreamValidateCreate(SMnode *pMnode, SUserObj* pOperUser, SCMC
     for (int32_t i = 0; i < dbNum; ++i) {
       char *calcDB = taosArrayGetP(pCreate->calcDB, i);
       // code = mndCheckDbPrivilegeByName(pMnode, pUser, MND_OPER_READ_DB, calcDB);
-      code = mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_DB_USE, PRIV_OBJ_DB, calcDB, NULL);
+      code = mndCheckDbPrivilegeByName(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_USE_DB, calcDB, false);
       if (code) {
+        if (code == TSDB_CODE_MND_NO_RIGHTS) code = TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
         mstsError("user %s failed to create stream %s using calcDB %s since %s", pUser, pCreate->name, calcDB,
                   tstrerror(code));
       }
@@ -651,8 +653,10 @@ static int32_t mndStreamValidateCreate(SMnode *pMnode, SUserObj* pOperUser, SCMC
 
   if (pCreate->outDB) {
     // code = mndCheckDbPrivilegeByName(pMnode, pUser, MND_OPER_WRITE_DB, pCreate->outDB);
-    code = mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_DB_USE, PRIV_OBJ_DB, pCreate->outDB, NULL);
+    code = mndCheckDbPrivilegeByName(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_USE_DB, pCreate->outDB,
+                                     false);
     if (code) {
+      if (code == TSDB_CODE_MND_NO_RIGHTS) code = TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
       mstsError("user %s failed to create stream %s using out db %s since %s", pUser, pCreate->name, pCreate->outDB,
                 tstrerror(code));
     }
@@ -727,7 +731,7 @@ static int32_t mndRetrieveStream(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
 
     if (!showAll) {
       if ((mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_CM_SHOW, PRIV_OBJ_STREAM, pStream->ownerId,
-                                    pStream->pCreate->streamDB, pStream->pCreate->name))) {
+                                    pStream->pCreate->streamDB, mndGetStableStr(pStream->pCreate->name)))) {
         sdbRelease(pSdb, pStream);
         continue;
       }
@@ -903,11 +907,13 @@ static int32_t mndProcessStopStreamReq(SRpcMsg *pReq) {
     sdbRelease(pMnode->pSdb, pStream);
     return code;
   }
-
-  if ((code = mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_DB_USE, PRIV_OBJ_DB, pStream->pCreate->streamDB,
-                                            NULL)) ||
+  if ((code = mndCheckDbPrivilegeByName(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_USE_DB,
+                                        pStream->pCreate->streamDB, false))) {
+    if (code == TSDB_CODE_MND_NO_RIGHTS) code = TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
+  }
+  if ((code != TSDB_CODE_SUCCESS) ||
       (code = mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_CM_STOP, PRIV_OBJ_STREAM, pStream->ownerId,
-                                       pStream->pCreate->streamDB, pStream->pCreate->name))) {
+                                       pStream->pCreate->streamDB, mndGetStableStr(pStream->pCreate->name)))) {
     mstsError("user %s failed to stop stream %s since %s", RPC_MSG_USER(pReq), pStream->name, tstrerror(code));
     mndReleaseUser(pMnode, pOperUser);
     sdbRelease(pMnode->pSdb, pStream);
@@ -1003,11 +1009,13 @@ static int32_t mndProcessStartStreamReq(SRpcMsg *pReq) {
     sdbRelease(pMnode->pSdb, pStream);
     return code;
   }
-
-  if ((code = mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_DB_USE, PRIV_OBJ_DB, pStream->pCreate->streamDB,
-                                            NULL)) ||
+  if ((code = mndCheckDbPrivilegeByName(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_USE_DB,
+                                        pStream->pCreate->streamDB, false))) {
+    if (code == TSDB_CODE_MND_NO_RIGHTS) code = TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
+  }
+  if ((code != TSDB_CODE_SUCCESS) ||
       (code = mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_CM_START, PRIV_OBJ_STREAM, pStream->ownerId,
-                                       pStream->pCreate->streamDB, pStream->pCreate->name))) {
+                                       pStream->pCreate->streamDB, mndGetStableStr(pStream->pCreate->name)))) {
     mstsError("user %s failed to start stream %s since %s", RPC_MSG_USER(pReq), pStream->name, tstrerror(code));
     mndReleaseUser(pMnode, pOperUser);
     sdbRelease(pMnode->pSdb, pStream);
@@ -1131,10 +1139,13 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
 
     int64_t streamId = pStream->pCreate->streamId;
 
-    if ((code = mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_DB_USE, PRIV_OBJ_DB, pStream->pCreate->streamDB,
-                                              NULL)) ||
+    if ((code = mndCheckDbPrivilegeByName(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_USE_DB,
+                                          pStream->pCreate->streamDB, true))) {
+      if (code == TSDB_CODE_MND_NO_RIGHTS) code = TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
+    }
+    if ((code != TSDB_CODE_SUCCESS) ||
         (code = mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_CM_DROP, PRIV_OBJ_STREAM, pStream->ownerId,
-                                         pStream->pCreate->streamDB, pStream->pCreate->name))) {
+                                         pStream->pCreate->streamDB, mndGetStableStr(pStream->pCreate->name)))) {
       mstsError("user %s failed to drop stream %s since %s", pReq->info.conn.user, streamName, tstrerror(code));
       sdbRelease(pMnode->pSdb, pStream);
       pStream = NULL;
@@ -1259,11 +1270,6 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   if ((code = grantCheck(TSDB_GRANT_STREAMS)) < 0) {
     goto _OVER;
   }
-  
-#ifdef WINDOWS
-  code = TSDB_CODE_MND_INVALID_PLATFORM;
-  goto _OVER;
-#endif
 
   pCreate = taosMemoryCalloc(1, sizeof(SCMCreateStreamReq));
   TSDB_CHECK_NULL(pCreate, code, lino, _OVER, terrno);
@@ -1300,7 +1306,7 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
     TSDB_CHECK_CODE(TSDB_CODE_MND_NO_USER_FROM_CONN, lino, _OVER);
   }
 
-  code = mndStreamValidateCreate(pMnode, pOperUser, pCreate);
+  code = mndStreamValidateCreate(pMnode, pReq, pCreate);
   TSDB_CHECK_CODE(code, lino, _OVER);
 
   mndStreamBuildObj(pMnode, &streamObj, pCreate, pOperUser, snodeId);
@@ -1425,10 +1431,13 @@ static int32_t mndProcessRecalcStreamReq(SRpcMsg *pReq) {
     TAOS_RETURN(code);
   }
 
-  if ((code = mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_DB_USE, PRIV_OBJ_DB, pStream->pCreate->streamDB,
-                                            NULL)) ||
-      (code = mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_CM_START, PRIV_OBJ_STREAM, pStream->ownerId,
-                                       pStream->pCreate->streamDB, pStream->pCreate->name))) {
+  if ((code = mndCheckDbPrivilegeByName(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_USE_DB,
+                                        pStream->pCreate->streamDB, false))) {
+    if (code == TSDB_CODE_MND_NO_RIGHTS) code = TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
+  }
+  if ((code != TSDB_CODE_SUCCESS) ||
+      (code = mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_CM_RECALC, PRIV_OBJ_STREAM, pStream->ownerId,
+                                       pStream->pCreate->streamDB, mndGetStableStr(pStream->pCreate->name)))) {
     mstsError("user %s failed to recalc stream %s since %s", RPC_MSG_USER(pReq), pStream->name, tstrerror(code));
     mndReleaseUser(pMnode, pOperUser);
     sdbRelease(pMnode->pSdb, pStream);

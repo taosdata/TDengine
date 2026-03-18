@@ -1,0 +1,11 @@
+{
+    "time_col": "ts",
+    "value_col": "value",
+    "use_mad": true,
+    "mad_threshold": 3.0,
+    "use_normalization": true,
+    "input_path": "input_data.csv",
+    "output_path": "processed_data.csv",
+    "draw_data": true,
+    "figure_path": "result.png"
+}

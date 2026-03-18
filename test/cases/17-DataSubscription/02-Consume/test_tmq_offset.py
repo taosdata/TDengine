@@ -442,7 +442,7 @@ class TestCase:
         self.tmqCase1()
         self.do_tmq_offset_benchmark()
 
-        tdLog.success(f"{__file__} successfully executed")
+
 
 event = threading.Event()
 

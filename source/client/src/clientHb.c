@@ -46,7 +46,7 @@ static int32_t hbProcessUserAuthInfoRsp(void *value, int32_t valueLen, struct SC
 
   SUserAuthBatchRsp batchRsp = {0};
   if (tDeserializeSUserAuthBatchRsp(value, valueLen, &batchRsp) != 0) {
-    return TSDB_CODE_INVALID_MSG;
+    TSC_ERR_JRET(TSDB_CODE_INVALID_MSG);
   }
 
   int32_t numOfBatchs = taosArrayGetSize(batchRsp.pArray);
@@ -69,7 +69,7 @@ static int32_t hbProcessUserAuthInfoRsp(void *value, int32_t valueLen, struct SC
   (void)atomic_val_compare_exchange_8(&pAppHbMgr->connHbFlag, 1, 2);
 
 _return:
-  taosArrayDestroy(batchRsp.pArray);
+  tFreeSUserAuthBatchRsp(&batchRsp);
   return code;
 }
 

@@ -17,6 +17,7 @@ Restart=always
 StartLimitBurst=3
 StartLimitInterval=900s
 EnvironmentFile=-/etc/default/taosd
+OOMScoreAdjust=-100
 
 [Install]
 WantedBy=multi-user.target
