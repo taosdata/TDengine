@@ -929,10 +929,24 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
     if (IS_CALENDAR_TIME_DURATION(pInterval->intervalUnit)) {
       int64_t news = (ts / pInterval->sliding) * pInterval->sliding;
       if (pInterval->slidingUnit == 'd' || pInterval->slidingUnit == 'w') {
-#if defined(WINDOWS)
-        int64_t timezone = getWindowsTimezoneOffset();
+        // Get timezone offset from pInterval->timezone or global config
+        int64_t tz_offset = 0;
+        if (pInterval->timezone != NULL) {
+          // Use timezone from pInterval
+          time_t tt = 0;
+          struct tm tm;
+          if (taosLocalTime(&tt, &tm, NULL, 0, pInterval->timezone) != NULL) {
+#ifdef WINDOWS
+            tz_offset = getWindowsTimezoneOffset();
+#else
+            tz_offset = -tm.tm_gmtoff;
 #endif
-        news += (int64_t)(timezone * TSDB_TICK_PER_SECOND(precision));
+          }
+        } else {
+          // Use global configured timezone
+          tz_offset = taosGetLocalTimezoneOffset();
+        }
+        news += (int64_t)(tz_offset * TSDB_TICK_PER_SECOND(precision));
       }
 
       start = news;
@@ -968,12 +982,25 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
          * here we revised the start time of day according to the local time zone,
          * but in case of DST, the start time of one day need to be dynamically decided.
          */
-        // todo refactor to extract function that is available for Linux/Windows/Mac platform
-#if defined(WINDOWS)
-        int64_t timezone = getWindowsTimezoneOffset();
+        // Get timezone offset from pInterval->timezone or global config
+        int64_t tz_offset = 0;
+        if (pInterval->timezone != NULL) {
+          // Use timezone from pInterval
+          time_t tt = 0;
+          struct tm tm;
+          if (taosLocalTime(&tt, &tm, NULL, 0, pInterval->timezone) != NULL) {
+#ifdef WINDOWS
+            tz_offset = getWindowsTimezoneOffset();
+#else
+            tz_offset = -tm.tm_gmtoff;
 #endif
+          }
+        } else {
+          // Use global configured timezone
+          tz_offset = taosGetLocalTimezoneOffset();
+        }
 
-        start += (int64_t)(timezone * TSDB_TICK_PER_SECOND(precision));
+        start += (int64_t)(tz_offset * TSDB_TICK_PER_SECOND(precision));
       }
 
       int64_t end = 0;
