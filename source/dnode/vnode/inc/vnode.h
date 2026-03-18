@@ -342,7 +342,7 @@ struct SVnodeCfg {
   char        dbname[TSDB_DB_FNAME_LEN];
   uint64_t    dbId;
   int32_t     cacheLastSize;
-  int32_t     cacheLastShards;  // Number of shards for last cache LRU, -1 for auto
+  int32_t     cacheLastShardBits;  // Number of shards for last cache LRU, -1 for auto
   int32_t     szPage;
   int32_t     szCache;
   uint64_t    szBuf;

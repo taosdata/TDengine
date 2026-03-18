@@ -2357,11 +2357,11 @@ static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t ver, void *pRe
   }
 
   vInfo("vgId:%d, start to alter vnode config, page:%d pageSize:%d buffer:%d szPage:%d szBuf:%" PRIu64
-        " cacheLast:%d cacheLastSize:%d cacheLastShards:%d days:%d keep0:%d keep1:%d keep2:%d keepTimeOffset:%d s3KeepLocal:%d "
+        " cacheLast:%d cacheLastSize:%d cacheLastShardBits:%d days:%d keep0:%d keep1:%d keep2:%d keepTimeOffset:%d s3KeepLocal:%d "
         "s3Compact:%d fsync:%d level:%d "
         "walRetentionPeriod:%d walRetentionSize:%d",
         TD_VID(pVnode), req.pages, req.pageSize, req.buffer, req.pageSize * 1024, (uint64_t)req.buffer * 1024 * 1024,
-        req.cacheLast, req.cacheLastSize, req.cacheLastShards, req.daysPerFile, req.daysToKeep0, req.daysToKeep1, req.daysToKeep2,
+        req.cacheLast, req.cacheLastSize, req.cacheLastShardBits, req.daysPerFile, req.daysToKeep0, req.daysToKeep1, req.daysToKeep2,
         req.keepTimeOffset, req.s3KeepLocal, req.s3Compact, req.walFsyncPeriod, req.walLevel, req.walRetentionPeriod,
         req.walRetentionSize);
 
@@ -2370,23 +2370,23 @@ static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t ver, void *pRe
     tsdbCacheSetCapacity(pVnode, (size_t)pVnode->config.cacheLastSize * 1024 * 1024);
   }
 
-  if (pVnode->config.cacheLastShards != req.cacheLastShards) {
-    vInfo("vgId:%d, cacheLastShards change from %d to %d, rebuilding cache",
-          TD_VID(pVnode), pVnode->config.cacheLastShards, req.cacheLastShards);
+  if (pVnode->config.cacheLastShardBits != req.cacheLastShardBits) {
+    vInfo("vgId:%d, cacheLastShardBits change from %d to %d, rebuilding last cache",
+          TD_VID(pVnode), pVnode->config.cacheLastShardBits, req.cacheLastShardBits);
 
-    // Close old cache (invalidates all entries)
-    tsdbCloseCache(pVnode->pTsdb);
+    pVnode->config.cacheLastShardBits = req.cacheLastShardBits;
 
-    // Update config
-    pVnode->config.cacheLastShards = req.cacheLastShards;
+    // Rebuild only the lruCache under mutex to protect concurrent readers/writers
+    (void)taosThreadMutexLock(&pVnode->pTsdb->lruMutex);
+    int32_t code = tsdbRebuildLastCache(pVnode->pTsdb, req.cacheLastShardBits);
+    (void)taosThreadMutexUnlock(&pVnode->pTsdb->lruMutex);
 
-    // Reopen cache with new shard count
-    if ((terrno = tsdbOpenCache(pVnode->pTsdb)) < 0) {
-      vError("vgId:%d, failed to reopen cache with new shard count since %s", TD_VID(pVnode), tstrerror(terrno));
-      return terrno;
+    if (code) {
+      vError("vgId:%d, failed to rebuild last cache since %s", TD_VID(pVnode), tstrerror(code));
+      return code;
     }
 
-    vInfo("vgId:%d, cache rebuilt successfully with %d shards",
+    vInfo("vgId:%d, last cache rebuilt successfully with %d shards",
           TD_VID(pVnode), taosLRUCacheGetNumShards(pVnode->pTsdb->lruCache));
   }
 

@@ -117,6 +117,14 @@ add_test(
     COMMAND regexTest
 )
 
+add_executable(lrucacheTest "lrucacheTest.cpp")
+DEP_ext_gtest(lrucacheTest)
+target_link_libraries(lrucacheTest PRIVATE os util)
+add_test(
+    NAME lrucacheTest
+    COMMAND lrucacheTest
+)
+
 add_executable(logTest "log.cpp")
 DEP_ext_gtest(logTest)
 target_link_libraries(logTest PRIVATE os util common)

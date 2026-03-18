@@ -2853,7 +2853,7 @@ _exit:
 int32_t tsdbOpenCache(STsdb *pTsdb) {
   int32_t code = 0, lino = 0;
   size_t  cfgCapacity = (size_t)pTsdb->pVnode->config.cacheLastSize * 1024 * 1024;
-  int32_t numShardBits = pTsdb->pVnode->config.cacheLastShards;
+  int32_t numShardBits = pTsdb->pVnode->config.cacheLastShardBits;
 
   // Use configured shard bits, or -1 to auto-calculate based on cache size
   // This enables multi-shard LRU cache for better concurrency
@@ -2898,6 +2898,35 @@ void tsdbCloseCache(STsdb *pTsdb) {
   tsdbCloseBCache(pTsdb);
   tsdbClosePgCache(pTsdb);
   tsdbCloseRocksCache(pTsdb);
+}
+
+// Rebuild only the last cache (lruCache) with a new shard count.
+// Must be called with pTsdb->lruMutex held by the caller.
+int32_t tsdbRebuildLastCache(STsdb *pTsdb, int32_t numShardBits) {
+  size_t     cfgCapacity = (size_t)pTsdb->pVnode->config.cacheLastSize * 1024 * 1024;
+  SLRUCache *pNewCache = taosLRUCacheInit(cfgCapacity, numShardBits, .5);
+  if (pNewCache == NULL) {
+    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+  }
+  taosLRUCacheSetStrictCapacity(pNewCache, false);
+
+  // Swap in the new cache and clean up the old one
+  SLRUCache *pOldCache = pTsdb->lruCache;
+  pTsdb->lruCache = pNewCache;
+
+  if (pOldCache) {
+    int64_t start = taosGetTimestampMs();
+    taosLRUCacheEraseUnrefEntries(pOldCache);
+    taosLRUCacheCleanup(pOldCache);
+    int64_t end = taosGetTimestampMs();
+    tsdbInfo("vgId:%d, lruCache erase unref entries and cleanup time:%" PRId64 " ms", TD_VID(pTsdb->pVnode),
+             end - start);
+  }
+
+  tsdbInfo("vgId:%d, lruCache rebuilt with capacity:%zu bytes, numShards:%d (configured:%d)", TD_VID(pTsdb->pVnode),
+           cfgCapacity, taosLRUCacheGetNumShards(pNewCache), numShardBits);
+
+  TAOS_RETURN(0);
 }
 
 static void getTableCacheKey(tb_uid_t uid, int cacheType, char *key, int *len) {

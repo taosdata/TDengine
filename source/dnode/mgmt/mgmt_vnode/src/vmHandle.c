@@ -183,6 +183,7 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
   pCfg->szCache = pCreate->pages;
   pCfg->cacheLast = pCreate->cacheLast;
   pCfg->cacheLastSize = pCreate->cacheLastSize;
+  pCfg->cacheLastShardBits = pCreate->cacheLastShardBits;
   pCfg->szBuf = (uint64_t)pCreate->buffer * 1024 * 1024;
   pCfg->isWeak = true;
   pCfg->isTsma = pCreate->isTsma;

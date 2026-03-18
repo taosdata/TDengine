@@ -63,6 +63,7 @@ static SKeyword keywordTable[] = {
     {"CACHE",                TK_CACHE},
     {"CACHEMODEL",           TK_CACHEMODEL},
     {"CACHESIZE",            TK_CACHESIZE},
+    {"CACHESHARDBITS",       TK_CACHESHARDBITS},
     {"CASE",                 TK_CASE},
     {"CAST",                 TK_CAST},
     {"CHILD",                TK_CHILD},

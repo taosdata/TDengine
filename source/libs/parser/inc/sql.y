@@ -265,7 +265,7 @@ db_options(A) ::= .                                                             
 db_options(A) ::= db_options(B) BUFFER NK_INTEGER(C).                             { A = setDatabaseOption(pCxt, B, DB_OPTION_BUFFER, &C); }
 db_options(A) ::= db_options(B) CACHEMODEL NK_STRING(C).                          { A = setDatabaseOption(pCxt, B, DB_OPTION_CACHEMODEL, &C); }
 db_options(A) ::= db_options(B) CACHESIZE NK_INTEGER(C).                          { A = setDatabaseOption(pCxt, B, DB_OPTION_CACHESIZE, &C); }
-db_options(A) ::= db_options(B) CACHE_LAST_SHARDS NK_INTEGER(C).                  { A = setDatabaseOption(pCxt, B, DB_OPTION_CACHE_LAST_SHARDS, &C); }
+db_options(A) ::= db_options(B) CACHESHARDBITS NK_INTEGER(C).                     { A = setDatabaseOption(pCxt, B, DB_OPTION_CACHESHARDBITS, &C); }
 db_options(A) ::= db_options(B) COMP NK_INTEGER(C).                               { A = setDatabaseOption(pCxt, B, DB_OPTION_COMP, &C); }
 db_options(A) ::= db_options(B) DURATION NK_INTEGER(C).                           { A = setDatabaseOption(pCxt, B, DB_OPTION_DAYS, &C); }
 db_options(A) ::= db_options(B) DURATION NK_VARIABLE(C).                          { A = setDatabaseOption(pCxt, B, DB_OPTION_DAYS, &C); }
@@ -325,7 +325,7 @@ alter_db_options(A) ::= alter_db_options(B) alter_db_option(C).                 
 alter_db_option(A) ::= BUFFER NK_INTEGER(B).                                      { A.type = DB_OPTION_BUFFER; A.val = B; }
 alter_db_option(A) ::= CACHEMODEL NK_STRING(B).                                   { A.type = DB_OPTION_CACHEMODEL; A.val = B; }
 alter_db_option(A) ::= CACHESIZE NK_INTEGER(B).                                   { A.type = DB_OPTION_CACHESIZE; A.val = B; }
-alter_db_option(A) ::= CACHE_LAST_SHARDS NK_INTEGER(B).                           { A.type = DB_OPTION_CACHE_LAST_SHARDS; A.val = B; }
+alter_db_option(A) ::= CACHESHARDBITS NK_INTEGER(B).                               { A.type = DB_OPTION_CACHESHARDBITS; A.val = B; }
 alter_db_option(A) ::= WAL_FSYNC_PERIOD NK_INTEGER(B).                            { A.type = DB_OPTION_FSYNC; A.val = B; }
 alter_db_option(A) ::= KEEP integer_list(B).                                      { A.type = DB_OPTION_KEEP; A.pList = B; }
 alter_db_option(A) ::= KEEP variable_list(B).                                     { A.type = DB_OPTION_KEEP; A.pList = B; }

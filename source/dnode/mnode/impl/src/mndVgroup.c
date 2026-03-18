@@ -319,7 +319,7 @@ void *mndBuildCreateVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVg
   createReq.pageSize = pDb->cfg.pageSize;
   createReq.pages = pDb->cfg.pages;
   createReq.cacheLastSize = pDb->cfg.cacheLastSize;
-  createReq.cacheLastShards = pDb->cfg.cacheLastShards;
+  createReq.cacheLastShardBits = pDb->cfg.cacheLastShardBits;
   createReq.daysPerFile = pDb->cfg.daysPerFile;
   createReq.daysToKeep0 = pDb->cfg.daysToKeep0;
   createReq.daysToKeep1 = pDb->cfg.daysToKeep1;
@@ -446,7 +446,7 @@ static void *mndBuildAlterVnodeConfigReq(SMnode *pMnode, SDbObj *pDb, SVgObj *pV
   alterReq.pageSize = pDb->cfg.pageSize;
   alterReq.pages = pDb->cfg.pages;
   alterReq.cacheLastSize = pDb->cfg.cacheLastSize;
-  alterReq.cacheLastShards = pDb->cfg.cacheLastShards;
+  alterReq.cacheLastShardBits = pDb->cfg.cacheLastShardBits;
   alterReq.daysPerFile = pDb->cfg.daysPerFile;
   alterReq.daysToKeep0 = pDb->cfg.daysToKeep0;
   alterReq.daysToKeep1 = pDb->cfg.daysToKeep1;
