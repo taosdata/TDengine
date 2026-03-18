@@ -277,10 +277,10 @@ class TestQueryPhaseTracking:
         print("test sub status timing format ....................... [passed]")
 
     def test_phase_state_max_length(self):
-        """MaxLen: Verify phase_state column can hold the longest phase string
+        """MaxLen: Verify phase_state column can hold long phase strings
 
-        1. The longest phase string is 'fetch/preparing_response' (24 chars)
-        2. Verify the column width (32 + VARSTR_HEADER) can hold it
+        1. Use currently defined phase values (e.g. those in VALID_PHASES) as reference
+        2. Verify the column width (32 + VARSTR_HEADER) is sufficient for all of them
         3. Show queries and verify no truncation occurs
 
         Since: v3.3.0.0
