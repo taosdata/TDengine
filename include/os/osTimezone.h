@@ -45,6 +45,7 @@ void       truncateTimezoneString(char *tz);
 #endif
 
 int32_t taosGetLocalTimezoneOffset();
+int32_t taosGetTZOffsetSeconds(timezone_t tz);   // east-positive (tm_gmtoff convention); tz=NULL uses global default
 int32_t taosGetSystemTimezone(char *outTimezone);
 int32_t taosSetGlobalTimezone(const char *tz);
 int32_t taosFormatTimezoneStr(time_t t, const char *tzStr, timezone_t sp, char *outTimezoneStr);

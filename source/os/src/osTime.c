@@ -29,7 +29,10 @@
 #ifdef WINDOWS
 // Windows timezone object structure (must match definition in osTimezone.c)
 typedef struct WindowsTimezoneObj {
-  int64_t offset_seconds;      // UTC offset (seconds), UTC+8 = -28800
+  // UTC offset in seconds, using POSIX `timezone` convention: east-negative, west-positive.
+  // Examples: UTC+8 (East 8) = -28800, UTC-8 (West 8) = +28800.
+  // Use taosGetTZOffsetSeconds() to obtain the east-positive (tm_gmtoff) equivalent.
+  int64_t offset_seconds;
   char    name[TD_TIMEZONE_LEN];
   int32_t refCount;            // Reference count
   TdThreadMutex mutex;         // Protect concurrent access
@@ -536,7 +539,10 @@ struct tm *taosLocalTime(const time_t *timep, struct tm *result, char *buf, int3
     tz_offset = getWindowsTimezoneOffset();
   }
 
-  // Adjust timestamp (note: offset is negative, so use -tz_offset)
+  // Convert UTC timestamp to local time.
+  // tz_offset is east-negative (POSIX `timezone` convention), so:
+  //   local = utc - tz_offset  =  utc + |east_offset|
+  // e.g. East 8 (UTC+8): tz_offset = -28800, adjusted_time = *timep + 28800.
   time_t adjusted_time = *timep + (-tz_offset);
 
   // Convert to struct tm (keep existing logic)
@@ -591,9 +597,11 @@ struct tm *taosLocalTime(const time_t *timep, struct tm *result, char *buf, int3
     }
   }
 
-  // Set global timezone variable (mimic non-Windows platform behavior)
-  // Note: non-Windows platforms set timezone = -result->tm_gmtoff
-  // Windows doesn't have tm_gmtoff, so use tz_offset directly
+  // Update the global `timezone` variable (POSIX convention: east-negative, west-positive).
+  // On non-Windows: set as `timezone = -result->tm_gmtoff` (see #else branch below).
+  // On Windows: tz_offset already carries the east-negative value (from tz_obj->offset_seconds
+  // or getWindowsTimezoneOffset()), so assigning it directly gives the same semantics.
+  // External callers needing east-positive values should use taosGetTZOffsetSeconds().
   timezone = tz_offset;
 
   return result;
