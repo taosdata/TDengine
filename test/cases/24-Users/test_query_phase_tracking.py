@@ -246,7 +246,7 @@ class TestQueryPhaseTracking:
             sub_status_idx = self._get_col_idx(col_names, "sub_status")
             sub_num_idx = self._get_col_idx(col_names, "sub_num")
             sql_idx = self._get_col_idx(col_names, "sql")
-
+            sql_idx = self._get_col_idx(col_names, "sql")
             target_row_idx = None
             if sql_idx >= 0:
                 # Find the row corresponding to the distributed query we just ran.
@@ -272,6 +272,23 @@ class TestQueryPhaseTracking:
                     tdLog.info(f"Sub status: {sub_status}")
                     if sub_status:
                         parts = sub_status.split(",")
+                        for part in parts:
+                            fields = part.split(":", 2)
+                            tdLog.info(f"  Sub-task fields: {fields}")
+                            assert len(fields) == 3, \
+                                f"sub_status entry should have 3 fields (tid:status:startTime), got {len(fields)}: {part}"
+                            tid_str, status, start_time = fields
+                            assert tid_str.isdigit(), f"tid should be numeric, got: {tid_str}"
+                            assert len(status) > 0, f"status should not be empty"
+                            assert "/" in status, \
+                                f"status should be fine-grained (type/state), got: {status}"
+                            type_part, state_part = status.split("/", 1)
+                            valid_types = ["scan", "merge", "modify", "compute", "partial", "task"]
+                            assert type_part in valid_types, \
+                                f"task type should be one of {valid_types}, got: {type_part}"
+                            if start_time != "-":
+                                assert "." in start_time, \
+                                    f"startTime should be human-readable (YYYY-MM-DD HH:MM:SS.ms) or '-', got: {start_time}"
                         for part in parts:
                             fields = part.split(":", 2)
                             tdLog.info(f"  Sub-task fields: {fields}")
