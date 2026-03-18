@@ -22,6 +22,7 @@
 #include "mndSubscribe.h"
 #include "mndSync.h"
 #include "mndUser.h"
+#include "mndUserTxn.h"
 #include "mndVgroup.h"
 #include "osTime.h"
 #include "mndToken.h"
@@ -2719,14 +2720,19 @@ static int32_t mndProcessKillTransReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  mInfo("trans:%d, start to kill, force:%d", killReq.transId, tsForceKillTrans);
+  mInfo("trans:%" PRIi64 ", start to kill, force:%d", killReq.transId, tsForceKillTrans);
   if ((code = mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_KILL_TRANS)) != 0) {
     goto _OVER;
   }
 
-  bool isUserTrans = false;
-
-  pTrans = mndAcquireTrans(pMnode, killReq.transId);
+  bool isBatchTrans = IS_UTXN_ID(killReq.transId);
+  if(isBatchTrans){
+    mInfo("trans:%" PRIi64 ", is batch transaction, but kill batch transaction is not supported currently", killReq.transId);
+    code = TSDB_CODE_MND_TRANS_NOT_ABLE_TO_kILLED;
+    goto _OVER;
+  }
+  int32_t transId = TRANS_ID(killReq.transId);
+  pTrans = mndAcquireTrans(pMnode, transId);
   if (pTrans == NULL) {
     code = TSDB_CODE_MND_RETURN_VALUE_NULL;
     if (terrno != 0) code = terrno;
@@ -2737,7 +2743,7 @@ static int32_t mndProcessKillTransReq(SRpcMsg *pReq) {
 
 _OVER:
   if (code != 0) {
-    mError("trans:%d, failed to kill since %s", killReq.transId, terrstr());
+    mError("trans:%" PRIi64 ", failed to kill since %s", killReq.transId, terrstr());
   }
 
   mndReleaseTrans(pMnode, pTrans);
@@ -2884,6 +2890,63 @@ static void mndTransLogAction(STrans *pTrans) {
   }
 }
 
+static int32_t mndRetrieveTxns(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
+  SMnode  *pMnode = pReq->info.node;
+  SSdb    *pSdb = pMnode->pSdb;
+  int32_t  numOfRows = 0;
+  STxnObj *pObj = NULL;
+  int32_t  cols = 0;
+  int32_t  code = 0;
+  int32_t  lino = 0;
+  char     buf[40] = {0};
+  char    *pBuf = &buf[0];
+
+  while (numOfRows < rows) {
+    pShow->pIter = sdbFetch(pSdb, SDB_TXN, pShow->pIter, (void **)&pObj);
+    if (pShow->pIter == NULL) break;
+
+    cols = 0;
+
+    SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    COL_DATA_SET_VAL_GOTO((const char *)&pObj->id, false, pObj, &lino, _exit);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    COL_DATA_SET_VAL_GOTO((const char *)&pObj->createTime, false, pObj, &lino, _exit);
+
+    char stage[TSDB_TRANS_STAGE_LEN + VARSTR_HEADER_SIZE] = {0};
+    STR_WITH_MAXSIZE_TO_VARSTR(stage, mndTxnStr(pObj->stage), pShow->pMeta->pSchemas[cols].bytes);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    COL_DATA_SET_VAL_GOTO((const char *)stage, false, pObj, &lino, _exit);
+
+    COL_DATA_SET_EMPTY_VARCHAR(pBuf, 4);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    COL_DATA_SET_VAL_GOTO((const char *)NULL, true, pObj, &lino, _exit);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    COL_DATA_SET_VAL_GOTO((const char *)NULL, true, pObj, &lino, _exit);
+
+    COL_DATA_SET_EMPTY_VARCHAR(pBuf, 1);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    COL_DATA_SET_VAL_GOTO("batch", false, pObj, &lino, _exit);
+
+    numOfRows++;
+    sdbRelease(pSdb, pObj);
+  }
+
+_exit:
+  if(pShow->pIter) {
+    sdbCancelFetch(pSdb, pShow->pIter);
+    pShow->pIter = NULL;
+  }
+  if (code != 0) {
+    mError("failed to retrieve txns at line:%d, since %s", lino, tstrerror(code));
+    return code;
+  }
+  return numOfRows;
+}
+
 static int32_t mndRetrieveTrans(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
   SMnode *pMnode = pReq->info.node;
   SSdb   *pSdb = pMnode->pSdb;
@@ -2966,12 +3029,26 @@ static int32_t mndRetrieveTrans(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
 
     mndTransLogAction(pTrans);
 
+    if ((pColInfo = taosArrayGet(pBlock->pDataBlock, cols++))) {
+      RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, "internal", false), pTrans, &lino, _OVER);
+    }
+
     numOfRows++;
     sdbRelease(pSdb, pTrans);
   }
 
+  int32_t ret = mndRetrieveTxns(pReq, pShow, pBlock, rows - numOfRows);
+  if(ret < 0) {
+    code = ret;
+    goto _OVER;
+  }
+  numOfRows += ret;
+
 _OVER:
-  if (code != 0) mError("failed to retrieve at line:%d, since %s", lino, tstrerror(code));
+  if (code != 0) {
+    mError("failed to retrieve trans at line:%d, since %s", lino, tstrerror(code));
+    return code;
+  }
   pShow->numOfRows += numOfRows;
   return numOfRows;
 }
@@ -3215,4 +3292,5 @@ _OVER:
 static void mndCancelGetNextTrans(SMnode *pMnode, void *pIter) {
   SSdb *pSdb = pMnode->pSdb;
   sdbCancelFetchByType(pSdb, pIter, SDB_TRANS);
+  sdbCancelFetchByType(pSdb, pIter, SDB_TXN);
 }

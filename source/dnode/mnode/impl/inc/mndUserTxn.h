@@ -24,6 +24,7 @@ extern "C" {
 
 #define UTXN_ID_MASK   0xFFFFFFFF00000000ULL
 #define IS_UTXN_ID(id) (((id) & UTXN_ID_MASK) != 0)
+#define TRANS_ID(id)   ((int32_t)((id) & 0xFFFFFFFF))
 
 // 用户事务状态
 typedef enum {
@@ -57,6 +58,7 @@ typedef struct SUserTxn {
 
 int32_t mndInitTxn(SMnode* pMnode);
 void    mndCleanupTxn(SMnode* pMnode);
+const char* mndTxnStr(ETrnStage stage);
 
 #ifdef __cplusplus
 }

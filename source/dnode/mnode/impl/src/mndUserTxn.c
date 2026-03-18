@@ -303,6 +303,21 @@ int64_t mndGenTxnId(int32_t nodeId) {
   return uuid;
 }
 
+const char *mndTxnStr(ETrnStage stage) {
+  switch (stage) {
+    case UTXN_STAGE_BEGIN:
+      return "begin";
+    case UTXN_STAGE_PREPARE:
+      return "prepare";
+    case UTXN_STAGE_COMMIT:
+      return "commit";
+    case UTXN_STAGE_ROLLBACK:
+      return "rollback";
+    default:
+      return "invalid";
+  }
+}
+
 static int32_t mndSetCreateTxnRedoLogs(SMnode *pMnode, STrans *pTrans, STxnObj *pTxn) {
   int32_t  code = 0;
   SSdbRaw *pRedoRaw = mndTxnActionEncode(pTxn);
