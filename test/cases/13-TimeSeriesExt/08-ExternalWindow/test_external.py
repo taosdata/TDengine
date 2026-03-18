@@ -4,6 +4,10 @@ from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, tdCom
 
 
 class TestExternal:
+    def _check_no_sort_rows(self, sql_rows):
+        for sql, rows in sql_rows:
+            tdSql.query(sql)
+            tdSql.checkRows(rows)
 
     @staticmethod
     def _is_zero_ts(v):
@@ -338,23 +342,21 @@ class TestExternal:
         
     def orderby_and_alias_no_sort(self):
         tdLog.info("=============== external window: orderby and alias no sort")
-        
-        sql = "select _wstart, _wend, w.mark, cast(ts as bigint) as ts64 from ext_ord_src external_window((select ts, endtime, mark from ext_ord_win_all) w);"
-        tdSql.query(sql)
-        tdSql.checkRows(4)
-                            
-        sql = "select _wstart, _wend, w.mark, cast(ts as bigint) - cast(_wstart as bigint) as delta from ext_ord_src external_window((select ts, endtime, mark from ext_ord_win_all) w);"
-        tdSql.query(sql)
-        tdSql.checkRows(4)
-        
-        sql = "select cast(_wstart as bigint) as ws, cast(_wend as bigint) as we, count(*) as c from ext_ord_src external_window((select ts, endtime, mark from ext_ord_win_all) w);"
-        sql = "select tbname, cast(_wstart as bigint) as ws, count(*) as c from ext_ord_src partition by tbname external_window((select ts, endtime, mark from ext_ord_win_all) w);"
-        sql = "select t1, cast(_wstart as bigint) as ws, count(*) as c from ext_ord_src partition by t1 external_window((select ts, endtime, mark from ext_ord_win_all) w);"
-        sql = "select t1, cast(_wstart as bigint) as ws, count(*) as c from ext_ord_src partition by t1 external_window((select _wstart, _wend, count(*) as wc from ext_ord_win partition by t1 interval(10m)) w);"
-        sql = "select t1, cast(_wstart as bigint) as ws, w.wc from ext_ord_src partition by t1 external_window((select _wstart, _wend, count(*) as wc from ext_ord_win partition by t1 interval(10m)) w);"
-        sql = "select tbname, cast(_wstart as bigint) as ws, count(*) as c from ext_ord_src partition by tbname external_window((select _wstart, _wend, count(*) as wc from ext_ord_win interval(10m)) w);"
-        sql = "select tbname, cast(_wstart as bigint) as ws, count(*) as c from ext_ord_src partition by tbname external_window((select _wstart, _wend, count(*) as wc from ext_ord_win interval(10m)) w);"
-
+        tdSql.execute(f"use {self.dbName}")
+        self._check_no_sort_rows([
+            ("select _wstart, _wend, w.mark, cast(ts as bigint) as ts64 from ext_ord_src external_window((select ts, endtime, mark from ext_ord_win_all) w);", 8),
+            ("select _wstart, _wend, w.mark, cast(ts as bigint) as ts64 from ext_ord_src external_window((select ts, endtime, mark from ext_ord_win_all) w) limit 5;", 5),
+            ("select _wstart, _wend, w.mark, cast(ts as bigint) - cast(_wstart as bigint) as delta from ext_ord_src external_window((select ts, endtime, mark from ext_ord_win_all) w);", 8),
+            ("select _wstart, _wend, w.mark, cast(ts as bigint) - cast(_wstart as bigint) as delta from ext_ord_src external_window((select ts, endtime, mark from ext_ord_win_all) w) limit 8;", 8),
+            ("select cast(_wstart as bigint) as ws, cast(_wend as bigint) as we, count(*) as c from ext_ord_src external_window((select ts, endtime, mark from ext_ord_win_all) w);", 4),
+            ("select tbname, cast(_wstart as bigint) as ws, count(*) as c from ext_ord_src partition by tbname external_window((select ts, endtime, mark from ext_ord_win_all) w);", 5),
+            ("select t1, cast(_wstart as bigint) as ws, count(*) as c from ext_ord_src partition by t1 external_window((select ts, endtime, mark from ext_ord_win_all) w);", 5),
+            ("select tbname, cast(_wstart as bigint) as ws, count(*) as c from ext_ord_src partition by tbname external_window((select _wstart, _wend, count(*) as wc from ext_ord_win interval(10m)) w);", 5),
+            # When there is a PARTITION BY/GROUP BY clause, LIMIT controls the output within each sharding, rather than the output of the total result set. 
+            ("select tbname, cast(_wstart as bigint) as ws, count(*) as c from ext_ord_src partition by tbname external_window((select _wstart, _wend, count(*) as wc from ext_ord_win interval(10m)) w) limit 4;", 5),
+            ("select tbname, cast(_wstart as bigint) as ws, count(*) as c from ext_ord_src partition by tbname external_window((select _wstart, _wend, count(*) as wc from ext_ord_win interval(10m)) w) limit 2;", 4),
+            ("select tbname, cast(_wstart as bigint) as ws, count(*) as c from ext_ord_src partition by tbname external_window((select _wstart, _wend, count(*) as wc from ext_ord_win interval(10m)) w) limit 1;", 2),
+        ])
 
     def orderby_and_alias_regression(self):
         tdLog.info("=============== external window: orderby and alias regression")
@@ -373,6 +375,20 @@ class TestExternal:
         self.sqlFile = os.path.join(os.path.dirname(__file__), "in", "window_boundary.in")
         self.ansFile = os.path.join(os.path.dirname(__file__), "ans", "window_boundary.ans")
         tdCom.compare_testcase_result(self.sqlFile, self.ansFile, "window_boundary")
+        self.window_boundary_no_sort()
+
+    def window_boundary_no_sort(self):
+        tdLog.info("=============== external window: window boundary no sort")
+        tdSql.execute(f"use {self.dbName}")
+        self._check_no_sort_rows([
+            ("select cast(_wstart as bigint) as ws, cast(_wend as bigint) as we, count(*) as c from ext_bnd_src external_window((select ts, endtime, mark from ext_bnd_win) w);", 5),
+            ("select cast(_wstart as bigint) as ws, cast(_wend as bigint) as we, ts from ext_bnd_src external_window((select ts, endtime, mark from ext_bnd_win) w);", 9),
+            ("select cast(_wstart as bigint) as ws, cast(_wend as bigint) as we, count(*) as c from ext_bnd_src external_window((select ts, endtime, mark from ext_bnd_win where mark <> 999) w);", 5),
+            ("select cast(_wstart as bigint) as ws, cast(_wend as bigint) as we, count(*) as c from ext_bnd_src partition by t1 external_window((select ts, endtime, mark from ext_bnd_win_part partition by t1) w);", 4),
+            ("select t1, cast(_wstart as bigint) as ws, cast(_wend as bigint) as we, count(*) as c from ext_bnd_src partition by t1 external_window((select ts, endtime, mark from ext_bnd_win_part partition by t1) w);", 4),
+            ("select cast(_wstart as bigint) as ws, cast(_wend as bigint) as we, sum(v) as sv from ext_bnd_src external_window((select ts, endtime, mark from ext_bnd_win) w);", 5),
+            ("select cast(_wstart as bigint) as ws, cast(_wend as bigint) as we, max(v)-min(v) as span from ext_bnd_src external_window((select ts, endtime, mark from ext_bnd_win) w);", 5),
+        ])
 
     def path_regression(self):
         tdLog.info("=============== external window: path regression")
@@ -381,6 +397,19 @@ class TestExternal:
         self.sqlFile = os.path.join(os.path.dirname(__file__), "in", "path_regression.in")
         self.ansFile = os.path.join(os.path.dirname(__file__), "ans", "path_regression.ans")
         tdCom.compare_testcase_result(self.sqlFile, self.ansFile, "path_regression")
+        self.path_regression_no_sort()
+
+    def path_regression_no_sort(self):
+        tdLog.info("=============== external window: path regression no sort")
+        tdSql.execute(f"use {self.dbName}")
+        self._check_no_sort_rows([
+            ("select cast(_wstart as bigint) as ws, count(*) as c from ext_path_src external_window((select _wstart, _wend, count(*) as wc from ext_path_win interval(10m)) w);", 4),
+            ("select t1, cast(_wstart as bigint) as ws, count(*) as c from ext_path_src partition by t1 external_window((select _wstart, _wend, count(*) as wc from ext_path_win interval(10m)) w);", 4),
+            ("select tbname, cast(_wstart as bigint) as ws, count(*) as c from ext_path_src partition by tbname external_window((select _wstart, _wend, count(*) as wc from ext_path_win interval(10m)) w);", 4),
+            ("select tbname, cast(_wstart as bigint) as ws, cast(ts as bigint) as ts64 from ext_path_src partition by tbname external_window((select _wstart, _wend from ext_path_win interval(10m)) w);", 4),
+            ("select _wstart, _wend, count(*), (select count(*) from (select ts from ext_path_src) t) as total_rows from ext_path_src external_window((select _wstart, _wend, count(*) as wc from ext_path_win interval(10m)) w);", 4),
+            ("select tbname, cast(_wstart as bigint) as ws, count(*), (select count(*) from (select ts from ext_path_src) t) as total_rows from ext_path_src partition by tbname external_window((select _wstart, _wend, count(*) as wc from ext_path_win interval(10m)) w);", 4),
+        ])
 
     def prepare_for_partition_and_subquery(self):
         tdLog.info("=============== external window: partition/group combinations (outer and subquery)")
@@ -735,23 +764,52 @@ class TestExternal:
             fullMatched=False,
         )
 
-    def complex_agg_and_filter_regression(self):
-        tdLog.info("=============== external window: complex agg and filter regression")
-        self.sqlFile = os.path.join(os.path.dirname(__file__), "in", "complex_agg_and_filter.in")
-        self.ansFile = os.path.join(os.path.dirname(__file__), "ans", "complex_agg_and_filter.ans")
-        tdCom.compare_testcase_result(self.sqlFile, self.ansFile, "complex_agg_and_filter")
+    def complex_agg_and_filter_no_sort(self):
+        tdLog.info("=============== external window: complex agg and filter no sort")
+        tdSql.execute(f"use {self.dbName}")
+        self._check_no_sort_rows([
+            ("select cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w);", 4),
+            ("select cast(_wstart as bigint) as ws, min(v) as minv, max(v) as maxv, max(v)-min(v) as span from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w);", 4),
+            ("select cast(_wstart as bigint) as ws, avg(v) as avgv, sum(v2) as sv2 from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w);", 4),
+            ("select cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv from ext_cx_src where v >= 20 external_window((select ts, endtime, mark from ext_cx_win) w);", 4),
+            ("select cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win where mark >= 102) w);", 3),
+            ("select cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv from ext_cx_src where v >= 12 external_window((select ts, endtime, mark from ext_cx_win where mark <= 103) w);", 3),
+            ("select t1, cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv from ext_cx_src partition by t1 external_window((select ts, endtime, mark from ext_cx_win) w);", 8),
+            ("select tbname, cast(_wstart as bigint) as ws, count(*) as c, max(v)-min(v) as span from ext_cx_src partition by tbname external_window((select ts, endtime, mark from ext_cx_win) w);", 8),
+            ("select cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w) having count(*) > 1;", 4),
+            ("select t1, cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv from ext_cx_src partition by t1 external_window((select ts, endtime, mark from ext_cx_win) w) having sum(v) > 20;", 8),
+        ])
 
-    def complex_partition_and_having_regression(self):
-        tdLog.info("=============== external window: complex partition and having regression")
-        self.sqlFile = os.path.join(os.path.dirname(__file__), "in", "complex_partition_and_having.in")
-        self.ansFile = os.path.join(os.path.dirname(__file__), "ans", "complex_partition_and_having.ans")
-        tdCom.compare_testcase_result(self.sqlFile, self.ansFile, "complex_partition_and_having")
+    def complex_partition_and_having_no_sort(self):
+        tdLog.info("=============== external window: complex partition and having no sort")
+        tdSql.execute(f"use {self.dbName}")
+        self._check_no_sort_rows([
+            ("select t1, cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv from ext_cx_src partition by t1 external_window((select ts, endtime, mark from ext_cx_win) w);", 8),
+            ("select t1, cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv from ext_cx_src partition by t1 external_window((select ts, endtime, mark from ext_cx_win) w) having count(*) > 1;", 8),
+            ("select t1, cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv from ext_cx_src partition by t1 external_window((select ts, endtime, mark from ext_cx_win) w) having sum(v) > 20;", 8),
+            ("select tbname, cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv from ext_cx_src partition by tbname external_window((select ts, endtime, mark from ext_cx_win) w);", 8),
+            ("select tbname, cast(_wstart as bigint) as ws, count(*) as c, max(v)-min(v) as span from ext_cx_src partition by tbname external_window((select ts, endtime, mark from ext_cx_win) w) having max(v)-min(v) >= 0;", 8),
+            ("select tbname, cast(_wstart as bigint) as ws, cast(ts as bigint) as ts64 from ext_cx_src partition by tbname external_window((select ts, endtime, mark from ext_cx_win) w) limit 8;", 8),
+            ("select t1, cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv from ext_cx_src where v >= 12 partition by t1 external_window((select ts, endtime, mark from ext_cx_win where mark <= 103) w) having sum(v) > 10;", 5),
+            ("select tbname, cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv from ext_cx_src where v >= 20 partition by tbname external_window((select ts, endtime, mark from ext_cx_win) w);", 4),
+            ("select t1, cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv from ext_cx_src partition by t1 external_window((select ts, endtime, mark from ext_cx_win) w) limit 6;", 6),
+        ])
 
-    def function_matrix_regression(self):
-        tdLog.info("=============== external window: function matrix regression")
-        self.sqlFile = os.path.join(os.path.dirname(__file__), "in", "function_matrix.in")
-        self.ansFile = os.path.join(os.path.dirname(__file__), "ans", "function_matrix.ans")
-        tdCom.compare_testcase_result(self.sqlFile, self.ansFile, "function_matrix")
+    def function_matrix_no_sort(self):
+        tdLog.info("=============== external window: function matrix no sort")
+        tdSql.execute(f"use {self.dbName}")
+        self._check_no_sort_rows([
+            ("select cast(_wstart as bigint) as ws, count(*) as c from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w);", 4),
+            ("select cast(_wstart as bigint) as ws, sum(v) as sv from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w);", 4),
+            ("select cast(_wstart as bigint) as ws, min(v) as minv, max(v) as maxv from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w);", 4),
+            ("select cast(_wstart as bigint) as ws, avg(v) as avgv from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w);", 4),
+            ("select cast(_wstart as bigint) as ws, first(v) as fv, last(v) as lv from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w);", 4),
+            ("select t1, cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv, min(v) as minv, max(v) as maxv from ext_cx_src partition by t1 external_window((select ts, endtime, mark from ext_cx_win) w);", 8),
+            ("select tbname, cast(_wstart as bigint) as ws, avg(v) as avgv, first(v) as fv, last(v) as lv from ext_cx_src partition by tbname external_window((select ts, endtime, mark from ext_cx_win) w);", 8),
+            ("select cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv, avg(v2) as avgv2 from ext_cx_src where v >= 12 external_window((select ts, endtime, mark from ext_cx_win where mark <= 103) w);", 3),
+            ("select t1, cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv from ext_cx_src partition by t1 external_window((select ts, endtime, mark from ext_cx_win) w) having count(*) >= 1;", 8),
+            ("select cast(_wstart as bigint) as ws, stddev(v) vv from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w);", 4),
+        ])
 
     def special_function_negative_matrix(self):
         tdLog.info("=============== external window: special function negative matrix")
@@ -827,8 +885,10 @@ class TestExternal:
             self.sqlFile = os.path.join(os.path.dirname(__file__), "in", sql_name)
             self.ansFile = os.path.join(os.path.dirname(__file__), "ans", ans_name)
             tdCom.compare_testcase_result(self.sqlFile, self.ansFile, case_name)
-
+        self.complex_agg_and_filter_no_sort()
+        self.function_matrix_no_sort()
         self.special_function_negative_matrix()
+        self.complex_partition_and_having_no_sort()
 
     def cross_mix_and_join_regression(self):
         tdLog.info("=============== external window: cross mix and join regression")
@@ -838,6 +898,15 @@ class TestExternal:
         self.sqlFile = os.path.join(os.path.dirname(__file__), "in", "cross_mix_and_join.in")
         self.ansFile = os.path.join(os.path.dirname(__file__), "ans", "cross_mix_and_join.ans")
         tdCom.compare_testcase_result(self.sqlFile, self.ansFile, "cross_mix_and_join")
+        self.cross_mix_and_join_no_sort()
+
+    def cross_mix_and_join_no_sort(self):
+        tdLog.info("=============== external window: cross mix and join no sort")
+        tdSql.execute(f"use {self.dbName}")
+        self._check_no_sort_rows([
+            ("select t1, cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv from ext_cx_src where v >= 11 partition by t1 external_window((select ts, endtime, mark from ext_cx_win where mark <= 104) w) having count(*) >= 1 limit 8;", 8),
+            ("select tbname, cast(_wstart as bigint) as ws, cast(ts as bigint) as ts64 from ext_cx_src where v >= 20 partition by tbname external_window((select ts, endtime, mark from ext_cx_win where mark >= 102) w) limit 8;", 4),
+        ])
 
     def prepare_for_join_subquery(self):
         tdLog.info("=============== external window: join subquery dataset")
