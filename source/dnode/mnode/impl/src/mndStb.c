@@ -38,7 +38,7 @@
 #define STB_VER_SUPPORT_VIRTUAL 3
 #define STB_VER_SUPPORT_OWNER   4
 #define STB_VER_NUMBER          STB_VER_SUPPORT_OWNER
-#define STB_RESERVE_SIZE        56
+#define STB_RESERVE_SIZE        55
 
 static int32_t  mndStbActionInsert(SSdb *pSdb, SStbObj *pStb);
 static int32_t  mndStbActionDelete(SSdb *pSdb, SStbObj *pStb);
@@ -207,6 +207,7 @@ SSdbRaw *mndStbActionEncode(SStbObj *pStb) {
   // since 3.4.0.0 - STB_VER_SUPPORT_OWNER
   SDB_SET_BINARY(pRaw, dataPos, pStb->createUser, TSDB_USER_LEN, _OVER)
   SDB_SET_INT64(pRaw, dataPos, pStb->ownerId, _OVER)
+  SDB_SET_INT8(pRaw, dataPos, pStb->secureDelete, _OVER)
   SDB_SET_RESERVE(pRaw, dataPos, STB_RESERVE_SIZE, _OVER)
   SDB_SET_DATALEN(pRaw, dataPos, _OVER)
 
@@ -360,6 +361,12 @@ SSdbRow *mndStbActionDecode(SSdbRaw *pRaw) {
     SDB_GET_INT64(pRaw, dataPos, &pStb->ownerId, _OVER)
   }
 
+  if (dataPos + sizeof(int8_t) <= pRaw->dataLen) {
+    SDB_GET_INT8(pRaw, dataPos, &pStb->secureDelete, _OVER)
+  } else {
+    pStb->secureDelete = 0;
+  }
+
   SDB_GET_RESERVE(pRaw, dataPos, STB_RESERVE_SIZE, _OVER)
 
   terrno = 0;
@@ -464,7 +471,8 @@ static int32_t mndStbActionUpdate(SSdb *pSdb, SStbObj *pOld, SStbObj *pNew) {
   pOld->ttl = pNew->ttl;
   pOld->keep = pNew->keep;
   pOld->ownerId = pNew->ownerId;
-  
+  pOld->secureDelete = pNew->secureDelete;
+
   if (pNew->numOfColumns > 0) {
     pOld->numOfColumns = pNew->numOfColumns;
     memcpy(pOld->pColumns, pNew->pColumns, pOld->numOfColumns * sizeof(SSchema));
@@ -565,6 +573,7 @@ void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb, int3
   req.alterOriDataLen = alterOriDataLen;
   req.source = pStb->source;
   req.virtualStb = pStb->virtualStb;
+  req.secureDelete = pStb->secureDelete;
   // todo
   req.schemaRow.nCols = pStb->numOfColumns;
   req.schemaRow.version = pStb->colVer;
@@ -923,6 +932,7 @@ int32_t mndBuildStbFromReq(SMnode *pMnode, SStbObj *pDst, SMCreateStbReq *pCreat
   pDst->source = pCreate->source;
   pDst->keep = pCreate->keep;
   pDst->virtualStb = pCreate->virtualStb;
+  pDst->secureDelete = pCreate->secureDelete;
   pCreate->pFuncs = NULL;
 
   if (pDst->commentLen > 0) {
@@ -1752,7 +1762,7 @@ static int32_t mndProcessCreateStbReq(SRpcMsg *pReq) {
     if (createReq.sql == NULL && createReq.sqlLen == 0) {
       char detail[1000] = {0};
 
-      (void)tsnprintf(detail, sizeof(detail), "dbname:%s, stable name:%s", name.dbname, name.tname);
+      (void)snprintf(detail, sizeof(detail), "dbname:%s, stable name:%s", name.dbname, name.tname);
 
       auditRecord(pReq, pMnode->clusterId, "createStb", name.dbname, name.tname, detail, strlen(detail), duration, 0);
     } else {
@@ -1782,6 +1792,7 @@ static int32_t mndCheckAlterStbReq(SMAlterStbReq *pAlter) {
   if (pAlter->commentLen >= 0) return 0;
   if (pAlter->ttl != 0) return 0;
   if (pAlter->keep != -1) return 0;
+  if (pAlter->secureDelete >= 0) return 0;
 
   if (pAlter->numOfFields < 1 || pAlter->numOfFields != (int32_t)taosArrayGetSize(pAlter->pFields)) {
     code = TSDB_CODE_MND_INVALID_STB_OPTION;
@@ -1822,7 +1833,7 @@ int32_t mndAllocStbSchemas(const SStbObj *pOld, SStbObj *pNew) {
 }
 
 static int32_t mndUpdateTableOptions(const SStbObj *pOld, SStbObj *pNew, char *pComment, int32_t commentLen,
-                                     int32_t ttl, int64_t keep) {
+                                     int32_t ttl, int64_t keep, int8_t secureDelete) {
   int32_t code = 0;
   if (commentLen > 0) {
     pNew->commentLen = commentLen;
@@ -1843,6 +1854,10 @@ static int32_t mndUpdateTableOptions(const SStbObj *pOld, SStbObj *pNew, char *p
 
   if (keep > 0) {
     pNew->keep = keep;
+  }
+
+  if (secureDelete >= 0) {
+    pNew->secureDelete = secureDelete;
   }
 
   if ((code = mndAllocStbSchemas(pOld, pNew)) != 0) {
@@ -2468,6 +2483,7 @@ static int32_t mndBuildStbSchemaImp(SMnode *pMnode, SDbObj *pDb, SStbObj *pStb, 
   pRsp->virtualStb = pStb->virtualStb;
   pRsp->ownerId = pStb->ownerId;
   pRsp->isAudit = pDb->cfg.isAudit ? 1 : 0;
+  pRsp->secureDelete = pStb->secureDelete;
 
   for (int32_t i = 0; i < pStb->numOfColumns; ++i) {
     SSchema *pSchema = &pRsp->pSchemas[i];
@@ -2573,6 +2589,7 @@ static int32_t mndBuildStbCfgImp(SDbObj *pDb, SStbObj *pStb, const char *tbName,
   }
   pRsp->virtualStb = pStb->virtualStb;
   pRsp->pColRefs = NULL;
+  pRsp->secureDelete = pStb->secureDelete;
 
   taosRUnLockLatch(&pStb->lock);
   TAOS_RETURN(code);
@@ -2940,7 +2957,8 @@ static int32_t mndAlterStb(SMnode *pMnode, SRpcMsg *pReq, const SMAlterStbReq *p
       break;
     case TSDB_ALTER_TABLE_UPDATE_OPTIONS:
       needRsp = false;
-      code = mndUpdateTableOptions(pOld, &stbObj, pAlter->comment, pAlter->commentLen, pAlter->ttl, pAlter->keep);
+      code = mndUpdateTableOptions(pOld, &stbObj, pAlter->comment, pAlter->commentLen, pAlter->ttl, pAlter->keep,
+                                   pAlter->secureDelete);
       break;
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS:
       code = mndUpdateSuperTableColumnCompress(pMnode, pOld, &stbObj, pAlter->pFields, pAlter->numOfFields);
@@ -3450,7 +3468,7 @@ int32_t mndValidateStbInfo(SMnode *pMnode, SSTableVersion *pStbVersions, int32_t
         TAOS_RETURN(code);
       }
 
-      (void)tsnprintf(tbFName, sizeof(tbFName), "%s.%s", pStbVersion->dbFName, pStbVersion->stbName);
+      (void)snprintf(tbFName, sizeof(tbFName), "%s.%s", pStbVersion->dbFName, pStbVersion->stbName);
       tstrncpy(indexRsp.dbFName, pStbVersion->dbFName, sizeof(indexRsp.dbFName));
       tstrncpy(indexRsp.tbName, pStbVersion->stbName, sizeof(indexRsp.tbName));
 
@@ -3657,16 +3675,16 @@ static int32_t mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
     }
 
     char watermark[64 + VARSTR_HEADER_SIZE] = {0};
-    (void)tsnprintf(varDataVal(watermark), sizeof(watermark) - VARSTR_HEADER_SIZE, "%" PRId64 "a,%" PRId64 "a",
-              pStb->watermark[0], pStb->watermark[1]);
+    (void)snprintf(varDataVal(watermark), sizeof(watermark) - VARSTR_HEADER_SIZE, "%" PRId64 "a,%" PRId64 "a",
+                   pStb->watermark[0], pStb->watermark[1]);
     varDataSetLen(watermark, strlen(varDataVal(watermark)));
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)watermark, false), pStb, &lino, _ERROR);
 
     char maxDelay[64 + VARSTR_HEADER_SIZE] = {0};
-    (void)tsnprintf(varDataVal(maxDelay), sizeof(maxDelay) - VARSTR_HEADER_SIZE, "%" PRId64 "a,%" PRId64 "a",
-              pStb->maxdelay[0], pStb->maxdelay[1]);
+    (void)snprintf(varDataVal(maxDelay), sizeof(maxDelay) - VARSTR_HEADER_SIZE, "%" PRId64 "a,%" PRId64 "a",
+                   pStb->maxdelay[0], pStb->maxdelay[1]);
     varDataSetLen(maxDelay, strlen(varDataVal(maxDelay)));
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -3792,15 +3810,15 @@ static int32_t buildDbColsInfoBlock(const SSDataBlock *p, const SSysTableMeta *p
       pColInfoData = taosArrayGet(p->pDataBlock, 4);
       char colTypeStr[VARSTR_HEADER_SIZE + 32];
       int  colTypeLen =
-          tsnprintf(varDataVal(colTypeStr), sizeof(colTypeStr) - VARSTR_HEADER_SIZE, "%s", tDataTypes[colType].name);
+          snprintf(varDataVal(colTypeStr), sizeof(colTypeStr) - VARSTR_HEADER_SIZE, "%s", tDataTypes[colType].name);
       if (colType == TSDB_DATA_TYPE_VARCHAR) {
         colTypeLen +=
-            tsnprintf(varDataVal(colTypeStr) + colTypeLen, sizeof(colTypeStr) - colTypeLen - VARSTR_HEADER_SIZE, "(%d)",
-                      (int32_t)(pm->schema[j].bytes - VARSTR_HEADER_SIZE));
+            snprintf(varDataVal(colTypeStr) + colTypeLen, sizeof(colTypeStr) - colTypeLen - VARSTR_HEADER_SIZE, "(%d)",
+                     (int32_t)(pm->schema[j].bytes - VARSTR_HEADER_SIZE));
       } else if (colType == TSDB_DATA_TYPE_NCHAR) {
         colTypeLen +=
-            tsnprintf(varDataVal(colTypeStr) + colTypeLen, sizeof(colTypeStr) - colTypeLen - VARSTR_HEADER_SIZE, "(%d)",
-                      (int32_t)((pm->schema[j].bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE));
+            snprintf(varDataVal(colTypeStr) + colTypeLen, sizeof(colTypeStr) - colTypeLen - VARSTR_HEADER_SIZE, "(%d)",
+                     (int32_t)((pm->schema[j].bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE));
       }
       varDataSetLen(colTypeStr, colTypeLen);
       TAOS_CHECK_GOTO(colDataSetVal(pColInfoData, numOfRows, (char *)colTypeStr, false), &lino, _OVER);
@@ -3955,20 +3973,21 @@ static int32_t mndRetrieveStbCol(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
         char colTypeStr[VARSTR_HEADER_SIZE + 32];
         int  colTypeLen =
-            tsnprintf(varDataVal(colTypeStr), sizeof(colTypeStr) - VARSTR_HEADER_SIZE, "%s", tDataTypes[colType].name);
+            snprintf(varDataVal(colTypeStr), sizeof(colTypeStr) - VARSTR_HEADER_SIZE, "%s", tDataTypes[colType].name);
         if (colType == TSDB_DATA_TYPE_VARCHAR) {
           colTypeLen +=
-              tsnprintf(varDataVal(colTypeStr) + colTypeLen, sizeof(colTypeStr) - colTypeLen - VARSTR_HEADER_SIZE,
-                        "(%d)", (int32_t)(pStb->pColumns[i].bytes - VARSTR_HEADER_SIZE));
+              snprintf(varDataVal(colTypeStr) + colTypeLen, sizeof(colTypeStr) - colTypeLen - VARSTR_HEADER_SIZE,
+                       "(%d)", (int32_t)(pStb->pColumns[i].bytes - VARSTR_HEADER_SIZE));
         } else if (colType == TSDB_DATA_TYPE_NCHAR) {
           colTypeLen +=
-              tsnprintf(varDataVal(colTypeStr) + colTypeLen, sizeof(colTypeStr) - colTypeLen - VARSTR_HEADER_SIZE,
-                        "(%d)", (int32_t)((pStb->pColumns[i].bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE));
+              snprintf(varDataVal(colTypeStr) + colTypeLen, sizeof(colTypeStr) - colTypeLen - VARSTR_HEADER_SIZE,
+                       "(%d)", (int32_t)((pStb->pColumns[i].bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE));
         } else if (IS_DECIMAL_TYPE(colType)) {
           STypeMod typeMod = pStb->pExtSchemas[i].typeMod;
           uint8_t prec = 0, scale = 0;
           decimalFromTypeMod(typeMod, &prec, &scale);
-          colTypeLen += sprintf(varDataVal(colTypeStr) + colTypeLen, "(%d,%d)", prec, scale);
+          colTypeLen += snprintf(varDataVal(colTypeStr) + colTypeLen,
+                                 sizeof(colTypeStr) - colTypeLen - VARSTR_HEADER_SIZE, "(%d,%d)", prec, scale);
         }
         varDataSetLen(colTypeStr, colTypeLen);
         RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (char *)colTypeStr, false), pStb, &lino, _OVER);

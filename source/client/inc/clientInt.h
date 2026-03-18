@@ -326,6 +326,7 @@ typedef struct SRequestObj {
   SMetaData            parseMeta;
   char*                effectiveUser;
   int8_t               source;
+  int8_t               secureDelete;
 } SRequestObj;
 
 typedef struct SSyncQueryParam {

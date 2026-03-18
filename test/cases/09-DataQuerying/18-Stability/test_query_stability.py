@@ -38,7 +38,7 @@ class TestStablity:
         self.fornum = 5
 
         self.db_nest = "stab"
-        self.dropandcreateDB_random("%s" %self.db_nest, 1)
+        self.dropandcreateDB_random(self.db_nest, 1)
 
         # regular column select
         self.q_select= ['q_int', 'q_bigint' , 'q_bigint' , 'q_smallint' , 'q_tinyint' , 'q_bool' , 'q_binary' , 'q_nchar' ,'q_float' , 'q_double' ,'q_ts ', 'q_int_null ', 'q_bigint_null ' , 'q_bigint_null ' , 'q_smallint_null ' , 'q_tinyint_null ' , 'q_bool_null ' , 'q_binary_null ' , 'q_nchar_null ' ,'q_float_null ' , 'q_double_null ' ,'q_ts_null ']
@@ -775,7 +775,7 @@ class TestStablity:
         print("==========%s===start=============" %mathlist)
         os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))
 
-        #self.dropandcreateDB_random("%s" %self.db_nest, 1)
+        #self.dropandcreateDB_random(self.db_nest, 1)
 
         if (mathlist == ['ABS','SQRT']) or (mathlist == ['SIN','COS','TAN','ASIN','ACOS','ATAN']) or (mathlist == ['FLOOR','CEIL','ROUND']) \
             or (mathlist == ['CSUM']) :
@@ -1485,7 +1485,7 @@ class TestStablity:
         print("==========%s===start=============" %strlist)
         os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))
 
-        #self.dropandcreateDB_random("%s" %self.db_nest, 1)
+        #self.dropandcreateDB_random(self.db_nest, 1)
 
         if (strlist == ['LTRIM','RTRIM','LOWER','UPPER']) or (strlist == ['LENGTH','CHAR_LENGTH'])  \
             or (strlist == ['']):
@@ -2219,7 +2219,7 @@ class TestStablity:
         print("==========%s===start=============" %timelist)
         os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))
 
-        #self.dropandcreateDB_random("%s" %self.db_nest, 1)
+        #self.dropandcreateDB_random(self.db_nest, 1)
 
         if (timelist == ['NOW','TODAY']) or (timelist == ['TIMEZONE']):
             time_functions = timelist
@@ -3376,7 +3376,7 @@ class TestStablity:
         print('=====================2.6 old function start ===========')
         os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))
 
-        self.dropandcreateDB_random("%s" %self.db_nest, 1)
+        self.dropandcreateDB_random(self.db_nest, 1)
 
         #1 select * from (select column form regular_table where <\>\in\and\or order by)
         tdSql.query("select 1-1 from stable_1;")
@@ -4908,7 +4908,7 @@ class TestStablity:
 
         #self.function_before_26()
 
-        self.dropandcreateDB_random("%s" %self.db_nest, 1)
+        self.dropandcreateDB_random(self.db_nest, 1)
 
         self.math_nest(['UNIQUE'])
         self.math_nest(['MODE'])

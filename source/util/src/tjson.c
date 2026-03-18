@@ -203,7 +203,19 @@ int32_t tjsonGetStringValue(const SJson* pJson, const char* pName, char* pVal) {
   if (NULL == p) {
     return TSDB_CODE_SUCCESS;
   }
-  strcpy(pVal, p);
+  TAOS_STRCPY(pVal, p);
+  return TSDB_CODE_SUCCESS;
+}
+int32_t tjsonGetStringValue1(const SJson* pJson, const char* pName, char* pVal, int32_t cap) {
+  char* p = cJSON_GetStringValue(tjsonGetObjectItem((cJSON*)pJson, pName));
+  if (NULL == p) {
+    return TSDB_CODE_SUCCESS;
+  }
+  int32_t len = strlen(p);
+  if (strlen(p) >= cap) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  tstrncpy(pVal, p, len + 1 < cap ? len + 1 : cap);
   return TSDB_CODE_SUCCESS;
 }
 
