@@ -19,8 +19,10 @@
 #include "libs/new-stream/stream.h"
 #include "monitor.h"
 #include "taoserror.h"
+#include "tarray.h"
 #include "tencode.h"
 #include "tglobal.h"
+#include "thash.h"
 #include "tmsg.h"
 #include "tmsgcb.h"
 #include "tstrbuild.h"
@@ -1669,24 +1671,53 @@ _exit:
   return 0;
 }
 
-void vnodeAlterTagForTmq(SVnode *pVnode, const SArray* tbUidList, const SArray* tags) {
+SArray* getCidList(const SArray* tags) {
   int32_t       code = 0;
   int32_t       lino = 0;
-  SArray*       cidList = NULL;
-
-  cidList = taosArrayInit(taosArrayGetSize(tags), sizeof(col_id_t));
+  SArray* cidList = taosArrayInit(taosArrayGetSize(tags), sizeof(col_id_t));
   QUERY_CHECK_NULL(cidList, code, lino, end, terrno);
-
   for (int32_t i = 0; i < taosArrayGetSize(tags); i++) {
     SUpdatedTagVal *pTagVal = taosArrayGet(tags, i);
     QUERY_CHECK_NULL(pTagVal, code, lino, end, terrno);
     col_id_t cid = pTagVal->colId;
-    QUERY_CHECK_CONDITION(taosArrayPush(cidList, &cid) != NULL, code, lino, end, terrno);
+    QUERY_CHECK_NULL(taosArrayPush(cidList, &cid), code, lino, end, terrno);
   }
 
+end:
+  if (code != 0) {
+    taosArrayDestroy(cidList);
+    return NULL;
+  }
+  return cidList;
+}
+
+// the elements in tbUidList and tagsArray are one-to-one correspondence
+void vnodeAlterTagForTmq(SVnode *pVnode, const SArray* tbUidList, const SArray* tags, const SArray* tagsArray) {
+  int32_t       code = 0;
+  int32_t       lino = 0;
+  SArray*       cidList = NULL;
+  SArray*       cids  = NULL;
+  SArray*       cidListArray = NULL;
+  if (tags != NULL){
+    cidList = getCidList(tags);
+    QUERY_CHECK_NULL(cidList, code, lino, end, terrno);
+  }
+
+  if (tagsArray != NULL) {
+    cidListArray = taosArrayInit(taosArrayGetSize(tagsArray), sizeof(SArray*));
+    QUERY_CHECK_NULL(cidListArray, code, lino, end, terrno);
+
+    for (int32_t i = 0; i < taosArrayGetSize(tagsArray); i++) {
+      SArray   *obj = taosArrayGetP(tagsArray, i);
+      cids  = getCidList(obj);
+      QUERY_CHECK_NULL(cids, code, lino, end, terrno);
+      QUERY_CHECK_NULL(taosArrayPush(cidListArray, &cids), code, lino, end, terrno);
+      cids = NULL;
+    }
+  }
   vDebug("vgId:%d, try to add %d tables in query table list, cidList size:%"PRIzu,
          TD_VID(pVnode), (int32_t)taosArrayGetSize(tbUidList), taosArrayGetSize(cidList));
-  code = tqUpdateTbUidList(pVnode->pTq, tbUidList, cidList);
+  code = tqUpdateTbUidList(pVnode->pTq, tbUidList, cidList, cidListArray);
   QUERY_CHECK_CODE(code, lino, end);
 
 end:
@@ -1695,6 +1726,8 @@ end:
            TD_VID(pVnode), (int32_t)taosArrayGetSize(tbUidList), tstrerror(code));
   }
   taosArrayDestroy(cidList);
+  taosArrayDestroy(cids);
+  taosArrayDestroyP(cidListArray, (FDelete)taosArrayDestroy);
 }
 
 static int32_t vnodeProcessAlterTbReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {

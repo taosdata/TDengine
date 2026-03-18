@@ -15,6 +15,7 @@
 
 #include "meta.h"
 #include "scalar.h"
+#include "tarray.h"
 #include "tdatablock.h"
 #include "querynodes.h"
 #include "thash.h"
@@ -1859,11 +1860,19 @@ _exit:
 int32_t metaUpdateTableMultiTableTagValue(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq) {
   int32_t code = TSDB_CODE_SUCCESS;
   SArray* uidList = NULL;
+  SArray* tagListArray = NULL;
 
   // Pre-allocate uidList for batch notification
   int32_t nTables = taosArrayGetSize(pReq->tables);
   uidList = taosArrayInit(nTables, sizeof(tb_uid_t));
   if (uidList == NULL) {
+    code = terrno;
+    const char* msgFmt = "vgId:%d, %s failed at %s:%d since %s, version:%" PRId64;
+    metaError(msgFmt, TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, tstrerror(code), version);
+    TAOS_RETURN(code);
+  }
+  tagListArray = taosArrayInit(nTables, sizeof(void*));
+  if (tagListArray == NULL) {
     code = terrno;
     const char* msgFmt = "vgId:%d, %s failed at %s:%d since %s, version:%" PRId64;
     metaError(msgFmt, TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, tstrerror(code), version);
@@ -1893,14 +1902,21 @@ int32_t metaUpdateTableMultiTableTagValue(SMeta *pMeta, int64_t version, SVAlter
                   TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, tstrerror(terrno), version);
         continue;
       }
+      if (taosArrayPush(tagListArray, &pTable->tags) == NULL){
+        (void)taosArrayPop(uidList);  // make sure the size of uidList and tagListArray are same
+        metaError("vgId:%d, %s failed at %s:%d since %s, version:%" PRId64,
+                  TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, tstrerror(terrno), version);
+        continue;
+      }
     }
   }
 
   if (taosArrayGetSize(uidList) > 0) {
-    vnodeAlterTagForTmq(pMeta->pVnode, uidList, NULL);
+    vnodeAlterTagForTmq(pMeta->pVnode, uidList, NULL, tagListArray);
   }
 
   taosArrayDestroy(uidList);
+  taosArrayDestroy(tagListArray);
   DestoryThreadLocalRegComp();
 
   if (code) {
@@ -2296,7 +2312,7 @@ int32_t metaUpdateTableChildTableTagValue(SMeta *pMeta, int64_t version, SVAlter
 _exit:
   DestoryThreadLocalRegComp();
   if (taosArrayGetSize(uidListForTmq) > 0) {
-    vnodeAlterTagForTmq(pMeta->pVnode, uidListForTmq, pReq->pMultiTag);
+    vnodeAlterTagForTmq(pMeta->pVnode, uidListForTmq, pReq->pMultiTag, NULL);
   }
   taosArrayDestroy(pUids);
   taosArrayDestroy(uidListForTmq);

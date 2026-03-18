@@ -1570,7 +1570,7 @@ int32_t tqAddTbUidList(STQ* pTq, const SArray* tbUidList) {
   return code;
 }
 
-int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, SArray* cidList) {
+int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, SArray* cidList, SArray* cidListArray) {
   if (pTq == NULL) {
     return 0;  // mounted vnode may have no tq
   }
@@ -1600,7 +1600,7 @@ int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, SArray* cidList) {
           break;
         }
       }
-      qUpdateTableTagCacheForTmq(pTqHandle->execHandle.task, tbUidList, cidList);
+      qUpdateTableTagCacheForTmq(pTqHandle->execHandle.task, tbUidList, cidList, cidListArray);
     } else if (pTqHandle->execHandle.subType == TOPIC_SUB_TYPE__TABLE) {
       SNode* pTagCond = getTagCondNodeForStableTmq(pTqHandle->execHandle.execTb.node);
       bool ret = checkCidInTagCondition(pTagCond, cidList);

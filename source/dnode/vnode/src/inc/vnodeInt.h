@@ -284,7 +284,7 @@ void streamMetaFreeTQDuringScanWalError(STQ* pTq);
 
 int32_t tqAddTbUidList(STQ* pTq, const SArray* tbUidList);
 int32_t tqDeleteTbUidList(STQ* pTq, SArray* tbUidList);
-int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, SArray* cidList);
+int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, SArray* cidList, SArray* cidListArray);
 
 // tq-mq
 int32_t tqProcessSubscribeReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
