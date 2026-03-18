@@ -69,6 +69,7 @@ def build_package(internal_root, new_version, branch_name) {
 		fi
 	'''
 	sh '''
+        set -o pipefail
         date
         cd ''' + internal_root + '''
         rm -rf /usr/include/taos.h
