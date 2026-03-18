@@ -496,13 +496,9 @@ struct tm *taosLocalTime(const time_t *timep, struct tm *result, char *buf, int3
     return NULL;
   }
 #ifdef WINDOWS
-  // Windows: 直接调用函数获取时区偏移，避免跨 DLL 的指针问题
+  // Windows: 使用系统本地时间计算，避免通过固定偏移和 gmtime_s 忽略 DST 规则
   time_t adjusted_time = *timep;
-  int64_t tz_offset = getWindowsTimezoneOffset();
 
-  if (tz_offset != 0) {
-    adjusted_time = *timep + (-tz_offset);
-  }
 
   if (adjusted_time < -2208988800LL) {
     if (buf != NULL) {
@@ -547,7 +543,7 @@ struct tm *taosLocalTime(const time_t *timep, struct tm *result, char *buf, int3
     result->tm_yday = calcDayOfYear(s.wYear, s.wMonth, s.wDay);
     result->tm_isdst = 0;
   } else {
-    if (gmtime_s(result, &adjusted_time) != 0) {
+    if (localtime_s(result, &adjusted_time) != 0) {
       if (buf != NULL) {
         snprintf(buf, bufSize, "NaN");
       }
