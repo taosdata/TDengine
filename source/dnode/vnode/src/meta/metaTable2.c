@@ -1903,9 +1903,9 @@ int32_t metaUpdateTableMultiTableTagValue(SMeta *pMeta, int64_t version, SVAlter
         continue;
       }
       if (taosArrayPush(tagListArray, &pTable->tags) == NULL){
-        (void)taosArrayPop(uidList);  // make sure the size of uidList and tagListArray are same
-        metaError("vgId:%d, %s failed at %s:%d since %s, version:%" PRId64,
-                  TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, tstrerror(terrno), version);
+        void* ret = taosArrayPop(uidList);  // make sure the size of uidList and tagListArray are same
+        metaError("vgId:%d, %s failed at %s:%d since %s, ret:%p, version:%" PRId64,
+                  TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, tstrerror(terrno), ret, version);
         continue;
       }
     }
