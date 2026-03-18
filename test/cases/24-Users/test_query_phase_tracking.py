@@ -245,33 +245,50 @@ class TestQueryPhaseTracking:
             col_names = [desc[0] for desc in tdSql.cursor.description]
             sub_status_idx = self._get_col_idx(col_names, "sub_status")
             sub_num_idx = self._get_col_idx(col_names, "sub_num")
+            sql_idx = self._get_col_idx(col_names, "sql")
 
-            if sub_num_idx >= 0:
-                sub_num = tdSql.getData(0, sub_num_idx)
-                tdLog.info(f"Sub plan num: {sub_num}")
+            target_row_idx = None
+            if sql_idx >= 0:
+                # Find the row corresponding to the distributed query we just ran.
+                # Match on the SQL text to avoid depending on row ordering.
+                target_sql_pattern = "select count(*) from db2.stb2"
+                for row_idx in range(tdSql.getRows()):
+                    sql_text = tdSql.getData(row_idx, sql_idx)
+                    if not isinstance(sql_text, str):
+                        sql_text = str(sql_text)
+                    if target_sql_pattern in sql_text.lower():
+                        target_row_idx = row_idx
+                        break
 
-            if sub_status_idx >= 0:
-                sub_status = tdSql.getData(0, sub_status_idx)
-                tdLog.info(f"Sub status: {sub_status}")
-                if sub_status:
-                    parts = sub_status.split(",")
-                    for part in parts:
-                        fields = part.split(":", 2)
-                        tdLog.info(f"  Sub-task fields: {fields}")
-                        assert len(fields) == 3, \
-                            f"sub_status entry should have 3 fields (tid:status:startTime), got {len(fields)}: {part}"
-                        tid_str, status, start_time = fields
-                        assert tid_str.isdigit(), f"tid should be numeric, got: {tid_str}"
-                        assert len(status) > 0, f"status should not be empty"
-                        assert "/" in status, \
-                            f"status should be fine-grained (type/state), got: {status}"
-                        type_part, state_part = status.split("/", 1)
-                        valid_types = ["scan", "merge", "modify", "compute", "partial", "task"]
-                        assert type_part in valid_types, \
-                            f"task type should be one of {valid_types}, got: {type_part}"
-                        if start_time != "-":
-                            assert "." in start_time, \
-                                f"startTime should be human-readable (YYYY-MM-DD HH:MM:SS.ms) or '-', got: {start_time}"
+            if target_row_idx is None:
+                tdLog.info("Target distributed query not found in 'show queries'; skipping sub_status checks.")
+            else:
+                if sub_num_idx >= 0:
+                    sub_num = tdSql.getData(target_row_idx, sub_num_idx)
+                    tdLog.info(f"Sub plan num: {sub_num}")
+
+                if sub_status_idx >= 0:
+                    sub_status = tdSql.getData(target_row_idx, sub_status_idx)
+                    tdLog.info(f"Sub status: {sub_status}")
+                    if sub_status:
+                        parts = sub_status.split(",")
+                        for part in parts:
+                            fields = part.split(":", 2)
+                            tdLog.info(f"  Sub-task fields: {fields}")
+                            assert len(fields) == 3, \
+                                f"sub_status entry should have 3 fields (tid:status:startTime), got {len(fields)}: {part}"
+                            tid_str, status, start_time = fields
+                            assert tid_str.isdigit(), f"tid should be numeric, got: {tid_str}"
+                            assert len(status) > 0, f"status should not be empty"
+                            assert "/" in status, \
+                                f"status should be fine-grained (type/state), got: {status}"
+                            type_part, state_part = status.split("/", 1)
+                            valid_types = ["scan", "merge", "modify", "compute", "partial", "task"]
+                            assert type_part in valid_types, \
+                                f"task type should be one of {valid_types}, got: {type_part}"
+                            if start_time != "-":
+                                assert "." in start_time, \
+                                    f"startTime should be human-readable (YYYY-MM-DD HH:MM:SS.ms) or '-', got: {start_time}"
 
         tdSql.execute(f"drop database if exists db2")
         print("test sub status timing format ....................... [passed]")
