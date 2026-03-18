@@ -27,7 +27,7 @@ Executes the statement and returns runtime metrics. Compared with plain `EXPLAIN
 
 Notes:
 
-- `ANALYZE` requires the target statement to actually run.
+- `ANALYZE` requires the target query statement to actually run.
 
 Diagnostic value:
 
@@ -59,14 +59,14 @@ Diagnostic value:
 
 ## Result Format
 
-`EXPLAIN` returns a single column named `QUERY_PLAN`. Each row is either a node in the plan tree or a detailed property row.
+`EXPLAIN` returns a single column named `QUERY_PLAN`. Each row is either a node in the plan tree or a row with detailed statistic information.
 
 The execution plan is displayed as a tree:
 
 - The topmost node is where the final result is produced
 - Deeper indentation means closer to the underlying scan
 - The operator name appears after `->`
-- When `VERBOSE true` is enabled, detailed property rows are appended below each operator
+- When `VERBOSE true` is enabled, rows with detailed statistic information are appended below each operator
 
 Example:
 
@@ -211,9 +211,9 @@ Notes:
 | `Window Sliding=` | Count-window sliding step | Confirms the sliding setting of `COUNT_WINDOW()` |
 | `Window: gap=...` | Session window gap | Used to diagnose how `SESSION()` is split |
 
-### 3. Execution-Cost Metrics in `EXPLAIN ANALYZE`
+### 3. Operator's Execution-Cost Metrics
 
-`EXPLAIN ANALYZE` additionally shows an `Exec cost` row under operators.
+`EXPLAIN ANALYZE VERBOSE true` additionally shows an `Exec cost` row under operators.
 
 | Metric | Meaning | Diagnostic value |
 | --- | --- | --- |

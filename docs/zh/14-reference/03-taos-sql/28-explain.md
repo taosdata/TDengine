@@ -28,7 +28,7 @@ EXPLAIN [ANALYZE] [VERBOSE {true | false}] query_or_subquery;
 
 说明：
 
-- `ANALYZE` 需要实际执行目标语句
+- `ANALYZE` 需要实际执行目标查询语句
 
 诊断价值：
 
@@ -60,14 +60,14 @@ EXPLAIN [ANALYZE] [VERBOSE {true | false}] query_or_subquery;
 
 ## 返回结果说明
 
-`EXPLAIN` 的返回结果只有一列，列名为 `QUERY_PLAN`。每一行是计划树中的一个节点或一个详细属性行。
+`EXPLAIN` 的返回结果只有一列，列名为 `QUERY_PLAN`。每一行是计划树中的一个节点或一个详细统计信息。
 
 执行计划采用树状结构展示：
 
 - 最上层节点是最终结果的产生位置
 - 缩进越深，越接近底层扫描
 - `->` 之后是算子名称
-- `VERBOSE true` 时，算子下方会追加该算子的详细属性行
+- `VERBOSE true` 时，算子下方会追加该算子的详细统计信息
 
 示例：
 
@@ -212,9 +212,9 @@ EXPLAIN [ANALYZE] [VERBOSE {true | false}] query_or_subquery;
 | `Window Sliding=` | 计数窗口滑动步长 | 用于确认 `COUNT_WINDOW()` 的滑动设置 |
 | `Window: gap=...` | 会话窗口间隔 | 用于诊断 `SESSION()` 的切分标准 |
 
-### 3. `EXPLAIN ANALYZE` 下的执行代价指标
+### 3. 算子的执行代价指标
 
-`EXPLAIN ANALYZE` 会在算子下额外展示 `Exec cost` 行。
+`EXPLAIN ANALYZE VERBOSE true` 会在算子下额外展示 `Exec cost` 行。
 
 | 指标 | 含义 | 诊断价值 |
 | --- | --- | --- |
