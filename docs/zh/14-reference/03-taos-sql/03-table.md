@@ -156,25 +156,25 @@ ALTER TABLE tb_name MODIFY COLUMN field_name data_type(length);
 #### 修改列名
 
 ```sql
-ALTER TABLE tb_name RENAME COLUMN old_col_name new_col_name
+ALTER TABLE tb_name RENAME COLUMN old_col_name new_col_name;
 ```
 
 #### 修改表生命周期
 
 ```sql
-ALTER TABLE tb_name TTL value
+ALTER TABLE tb_name TTL value;
 ```
 
 #### 修改表注释
 
 ```sql
-ALTER TABLE tb_name COMMENT 'string_value'
+ALTER TABLE tb_name COMMENT 'string_value';
 ```
 
 ### 修改子表
 
 ```sql
-ALTER TABLE [db_name.]tb_name alter_table_clause
+ALTER TABLE [db_name.]tb_name alter_table_clause;
 
 alter_table_clause: {
     alter_table_options
@@ -205,10 +205,16 @@ alter_table_option: {
 ALTER TABLE tb_name SET TAG tag_name1=new_tag_value1, tag_name2=new_tag_value2 ...;
 ```
 
+#### 批量修改标签值
+
+```sql
+ALTER TABLE tb_name1 SET TAG tag_name1=new_tag_value1, tag_name2=new_tag_value2 tb_name2 SET TAG tag_name3=new_tag_value3 ...;
+```
+
 #### 修改生命周期
 
 ```sql
-ALTER TABLE tb_name TTL value
+ALTER TABLE tb_name TTL value;
 ```
 
 #### 修改注释
@@ -222,7 +228,7 @@ ALTER TABLE tb_name COMMENT 'string_value'
 可以在一条 SQL 语句中删除一个或多个普通表或子表。
 
 ```sql
-DROP TABLE [IF EXISTS] [db_name.]tb_name [, [IF EXISTS] [db_name.]tb_name] ...
+DROP TABLE [IF EXISTS] [db_name.]tb_name [, [IF EXISTS] [db_name.]tb_name] ...;
 ```
 
 **注意**：删除表并不会立即释放该表所占用的磁盘空间，而是把该表的数据标记为已删除，在查询时这些数据将不会再出现，但释放磁盘空间会延迟到系统自动（建库参数 keep 生效）或用户手动进行数据重整时（企业版功能 compact）。
