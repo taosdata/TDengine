@@ -2898,7 +2898,7 @@ static int32_t mndRetrieveTxns(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
   int32_t  cols = 0;
   int32_t  code = 0;
   int32_t  lino = 0;
-  char     buf[40] = {0};
+  char     buf[128] = {0};
   char    *pBuf = &buf[0];
 
   while (numOfRows < rows) {
@@ -2913,10 +2913,9 @@ static int32_t mndRetrieveTxns(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     COL_DATA_SET_VAL_GOTO((const char *)&pObj->createTime, false, pObj, &lino, _exit);
 
-    char stage[TSDB_TRANS_STAGE_LEN + VARSTR_HEADER_SIZE] = {0};
-    STR_WITH_MAXSIZE_TO_VARSTR(stage, mndTxnStr(pObj->stage), pShow->pMeta->pSchemas[cols].bytes);
+    STR_WITH_MAXSIZE_TO_VARSTR(buf, mndTxnStr(pObj->stage), pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    COL_DATA_SET_VAL_GOTO((const char *)stage, false, pObj, &lino, _exit);
+    COL_DATA_SET_VAL_GOTO((const char *)buf, false, pObj, &lino, _exit);
 
     COL_DATA_SET_EMPTY_VARCHAR(pBuf, 4);
 
@@ -2928,8 +2927,9 @@ static int32_t mndRetrieveTxns(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
 
     COL_DATA_SET_EMPTY_VARCHAR(pBuf, 1);
 
+    STR_WITH_MAXSIZE_TO_VARSTR(buf, "batch", pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    COL_DATA_SET_VAL_GOTO("batch", false, pObj, &lino, _exit);
+    COL_DATA_SET_VAL_GOTO((const char *)buf, false, pObj, &lino, _exit);
 
     numOfRows++;
     sdbRelease(pSdb, pObj);
@@ -2955,6 +2955,7 @@ static int32_t mndRetrieveTrans(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
   int32_t cols = 0;
   int32_t code = 0;
   int32_t lino = 0;
+  char     buf[128] = {0};
 
   while (numOfRows < rows) {
     pShow->pIter = sdbFetch(pSdb, SDB_TRANS, pShow->pIter, (void **)&pTrans);
@@ -3030,7 +3031,8 @@ static int32_t mndRetrieveTrans(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     mndTransLogAction(pTrans);
 
     if ((pColInfo = taosArrayGet(pBlock->pDataBlock, cols++))) {
-      RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, "internal", false), pTrans, &lino, _OVER);
+      STR_WITH_MAXSIZE_TO_VARSTR(buf, "internal", pShow->pMeta->pSchemas[cols].bytes);
+      RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)buf, false), pTrans, &lino, _OVER);
     }
 
     numOfRows++;
