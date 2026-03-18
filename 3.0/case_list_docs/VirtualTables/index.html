@@ -1038,6 +1038,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_batch_set_tag_vals.TestVtableBatchSetTagVals.test_multi_table_batch_set_tag" class="md-nav__link">
+        Batch set tag values on multiple virtual child tables in one ALTER VTABLE statement 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_create.TestVtableCreate.test_create_virtual_child_table" class="md-nav__link">
         Create: virtual child table 
       </a>
@@ -1535,6 +1546,17 @@
     <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_query_same_reference_col.TestVTableQuery.test_select_virtualtable_same_reference_col" class="md-nav__link">
         Query: virtual table with same reference column 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_batch_set_tag_vals.TestVtableBatchSetTagVals.test_child_table_batch_set_tag" class="md-nav__link">
+        Set tag values on virtual child tables via USING vstable with optional WHERE clause 
       </a>
       
     </li>
@@ -4639,6 +4661,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_batch_set_tag_vals.TestVtableBatchSetTagVals.test_multi_table_batch_set_tag" class="md-nav__link">
+        Batch set tag values on multiple virtual child tables in one ALTER VTABLE statement 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_create.TestVtableCreate.test_create_virtual_child_table" class="md-nav__link">
         Create: virtual child table 
       </a>
@@ -5145,6 +5178,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_batch_set_tag_vals.TestVtableBatchSetTagVals.test_child_table_batch_set_tag" class="md-nav__link">
+        Set tag values on virtual child tables via USING vstable with optional WHERE clause 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_max_column_num.TestVtableCreate.test_virtual_normal_table_max_column" class="md-nav__link">
         Virtual normal table max column 
       </a>
@@ -5555,6 +5599,66 @@
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/05-VirtualTables/test_vtable_auth_select.py" target="_blank">
                       cases/05-VirtualTables/test_vtable_auth_select.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_batch_set_tag_vals.TestVtableBatchSetTagVals.test_multi_table_batch_set_tag" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_batch_set_tag_vals.TestVtableBatchSetTagVals.test_multi_table_batch_set_tag" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Batch set tag values on multiple virtual child tables in one ALTER VTABLE statement</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">ALTER VTABLE</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    vtable1 SET TAG tag1=value1, tag2=value2, ...</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    vtable2 SET TAG tag1=value3, tag2=value4, ...</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/05-VirtualTables/test_vtable_batch_set_tag_vals.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_batch_set_tag_vals.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_batch_set_tag_vals.TestVtableBatchSetTagVals.test_child_table_batch_set_tag" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_batch_set_tag_vals.TestVtableBatchSetTagVals.test_child_table_batch_set_tag" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Set tag values on virtual child tables via USING vstable with optional WHERE clause</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">ALTER VTABLE USING vstable SET TAG tag1=value1, tag2=value2, ...  WHERE condition</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/05-VirtualTables/test_vtable_batch_set_tag_vals.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_batch_set_tag_vals.py
                     </a>
                   </div>
         </div>
