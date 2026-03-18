@@ -27,3 +27,20 @@ cases/17-DataSubscription/03-MQTT/test_mqtt_rb.py
 83-DocTest/rust.sh
 83-DocTest/go.sh
 83-DocTest/test_R.sh
+
+# taosk not supported in Windows CI
+cases/31-Security/01-KeyGeneration/test_key_generation.py
+cases/31-Security/02-KeyUpdate/test_key_update.py
+cases/31-Security/03-KeyBackupRestore/test_key_backup_restore.py
+cases/31-Security/04-TransparentEncryption/test_transparent_encryption.py
+cases/31-Security/06-EncryptionStatus/test_encryption_status.py
+cases/31-Security/10-SecurityTest/test_plaintext_check.py
+cases/80-Components/01-Taosd/test_com_taosd_audit.py
+cases/32-Grants/test_grant_basic.py
+
+# tsma rsma
+cases/19-TSMAs/test_tsma.py
+cases/20-RSMAs/test_rsma.py
+
+# timeout
+cases/81-Tools/02-Taos/test_tool_taos_cli.py
