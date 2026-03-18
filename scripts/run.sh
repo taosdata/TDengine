@@ -479,7 +479,7 @@ if [ ${send2feishu_enabled} == "True" ] ;then
     #echo  -e "result:${result}\nresult_detail:${result_detail}\nstart_time:${start_time_all}\nend_time:${end_time_all}\ntest_scope:${test_scope}\nlog_dir:${log_dir}\ncommunity_commit_id:${community_commit_id}\nenterprise_commit_id:${enterprise_commit_id}\nowner:${owner}"  >> ${status_file}
     echo  -e "Result:${result}\nDetail:${detail}\nStart time:${start_time_all}\nEnd time:${end_time_all}\nScope:${test_scope}\nLog dir:${log_dir}\nCommit(community):${community_commit_id}\nCommit(enterprise):${enterprise_commit_id}\nOwner:${owner}"  >> ${status_file}
 
-    python3 feishuTalk.py
+    python3 feishu_notify.py --from-file ${status_file}
     rm -rf ${status_file}
 fi
 if [ -f $failed_case_file ]; then

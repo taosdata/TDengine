@@ -68,19 +68,34 @@ def build_package(internal_root, new_version, branch_name) {
            echo "Directory ${WORK_DIR}/debugSan does not exist. Skipping move."
 		fi
 	'''
-	sh '''
-        set -o pipefail
-        date
-        cd ''' + internal_root + '''
-        rm -rf /usr/include/taos.h
-      
-        cp community/include/client/taos.h /usr/include/
-        cd enterprise/packaging/
-        eval `ssh-agent -s`
-        ssh-add
-        . $HOME/.cargo/env
-        ./new_ver_release.sh -v cluster -n ''' + new_version + ''' -V stable -d no -l full -b ''' + branch_name + ''' -c x64 -s 1 | tee ../ver-3.0.0.100.txt
-    '''
+    
+    // 执行构建并捕获状态
+    def build_status = sh(
+        script: '''
+            set -o pipefail
+            date
+            cd ''' + internal_root + '''
+            rm -rf /usr/include/taos.h
+            cp community/include/client/taos.h /usr/include/
+            cd enterprise/packaging/
+            eval `ssh-agent -s`
+            ssh-add
+            . $HOME/.cargo/env
+            ./new_ver_release.sh -v cluster -n ''' + new_version + ''' -V stable -d no -l full -b ''' + branch_name + ''' -c x64 -s 1 | tee ../ver-3.0.0.100.txt
+        ''',
+        returnStatus: true
+    )
+    
+    // 如果构建失败，发送飞书通知
+    if (build_status != 0) {
+        sh '''
+            cd $TESTNG_ROOT/scripts
+            python3 feishu_notify.py --build-failed \
+                --branch "''' + branch_name + '''" \
+                --build "${BUILD_NUMBER}"
+        '''
+        error("Build package failed with exit code ${build_status}")
+    }
 }
 def build_package_for_ci(internal_root, work_dir) {
     sh """
