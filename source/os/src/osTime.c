@@ -534,11 +534,11 @@ struct tm *taosLocalTime(const time_t *timep, struct tm *result, char *buf, int3
     taosThreadMutexLock(&tz_obj->mutex);
     tz_offset = tz_obj->offset_seconds;
     taosThreadMutexUnlock(&tz_obj->mutex);
-    printf("[tz] taosLocalTime using passed tz object: offset=%lld\n", tz_offset);
+    if (*timep == 1601481600) printf("[tz] taosLocalTime using passed tz object: offset=%lld\n", tz_offset);
   } else {
     // Use getWindowsTimezoneOffset which reads from TZ environment variable
     tz_offset = getWindowsTimezoneOffset();
-    printf("[tz] taosLocalTime using global offset: %lld, timestamp=%ld\n", tz_offset, *timep);
+    if (*timep == 1601481600) printf("[tz] taosLocalTime using global offset: %lld, timestamp=%ld\n", tz_offset, *timep);
   }
 
   // Convert UTC timestamp to local time.
@@ -546,7 +546,7 @@ struct tm *taosLocalTime(const time_t *timep, struct tm *result, char *buf, int3
   //   local = utc - tz_offset  =  utc + |east_offset|
   // e.g. East 8 (UTC+8): tz_offset = -28800, adjusted_time = *timep + 28800.
   time_t adjusted_time = *timep + (-tz_offset);
-  printf("[tz] Adjusted time: original=%ld, tz_offset=%lld, adjusted=%ld\n", *timep, tz_offset, adjusted_time);
+  if (*timep == 1601481600) printf("[tz] Adjusted time: original=%ld, tz_offset=%lld, adjusted=%ld\n", *timep, tz_offset, adjusted_time);
 
   // Convert to struct tm (keep existing logic)
   if (adjusted_time < -2208988800LL) {
