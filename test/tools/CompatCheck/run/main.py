@@ -268,6 +268,526 @@ def _version_ge(ver_str: str, min_ver: str) -> bool:
 
 
 # ==============================================================================
+# Helpers shared by main() and _run_cold_phase2()
+# ==============================================================================
+
+def _parse_args():
+    """Parse CLI arguments and apply quick-mode overrides to config."""
+    parser = argparse.ArgumentParser(
+        description="TDengine rolling/cold upgrade test",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=_HELP_TEXT,
+    )
+    parser.add_argument("--from-dir", "-F", required=True, metavar="DIR",
+                        help="TDengine installation dir of the BASE (source) version")
+    parser.add_argument("--to-dir",   "-T", required=True, metavar="DIR",
+                        help="TDengine installation dir of the TARGET (destination) version")
+    parser.add_argument("--path",     "-p", default=os.path.expanduser("~/td_rolling_upgrade"))
+    parser.add_argument("--fqdn",     "-f", default="")
+    parser.add_argument("--quick",      "-q", action="store_true",
+                        help="Quick mode: 100 subtables x 1000 rows")
+    parser.add_argument("--rollupdate", "-r", action="store_true",
+                        help="Rolling (hot) upgrade. Without this flag performs a cold upgrade.")
+    parser.add_argument("--check-sysinfo", "-S", dest="check_sysinfo", action="store_true",
+                        help="Enable INFORMATION_SCHEMA schema-change check (disabled by default)")
+    parser.set_defaults(check_sysinfo=False)
+    parser.add_argument("--gen-whitelist", "-G", metavar="FILE", nargs="?", const=True, default=None,
+                        help="Generate a whitelist from INFORMATION_SCHEMA diff and exit")
+    parser.add_argument("--whitelist-dir", metavar="DIR", default=None,
+                        help="Directory containing whitelist .yaml files")
+    args = parser.parse_args()
+
+    if args.quick:
+        config.SUBTABLE_COUNT         = 100
+        config.INIT_ROWS_PER_SUBTABLE = 1_000
+        config.VERIFY_DURATION_S      = 30
+
+    return args
+
+
+def _resolve_paths(args):
+    """Resolve and return all runtime paths derived from CLI args."""
+    fqdn      = args.fqdn or socket.gethostname()
+    from_dir  = os.path.abspath(args.from_dir)
+    to_dir    = os.path.abspath(args.to_dir)
+    base_path = os.path.abspath(args.path)
+    cfg_dir   = os.path.join(base_path, "dnode1", "cfg")
+    _script_root  = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    whitelist_dir = args.whitelist_dir or os.path.join(_script_root, "whitelist")
+    from_ver  = os.path.basename(from_dir)
+    to_ver    = os.path.basename(to_dir)
+    return fqdn, from_dir, to_dir, base_path, cfg_dir, whitelist_dir, from_ver, to_ver
+
+
+def _setup_cluster(fqdn, from_dir, base_path, rp):
+    """Phase 1 — start the base-version cluster; return cluster_mgr."""
+    rp.step_start("Phase 1  Cluster setup (base version)")
+    try:
+        base_taosd  = get_taosd_path(from_dir)
+        rp.info(f"Base taosd : {base_taosd}")
+        rp.info(f"Base path  : {base_path}")
+        rp.info(f"FQDN       : {fqdn}")
+        rp.info(
+            f"Topology   : {config.DNODE_COUNT} dnodes / "
+            f"{config.MNODE_COUNT} mnodes / replica={config.REPLICA}"
+        )
+
+        cluster_mgr = ClusterManager(fqdn=fqdn, base_path=base_path, level=1, disk=1,
+                                     logger=_SilentLogger())
+        cluster_mgr.dnode_manager.taosd_path = base_taosd
+
+        rp.info(f"Starting {config.DNODE_COUNT} taosd process(es) ...")
+        cluster_mgr.create_cluster(
+            dnode_nums=config.DNODE_COUNT,
+            mnode_nums=config.MNODE_COUNT,
+        )
+        rp.info("Connecting to cluster ...")
+        cluster_mgr.connect()
+
+        if config.DNODE_COUNT > 1:
+            rp.info(f"Adding dnodes 2–{config.DNODE_COUNT} to cluster ...")
+            cluster_mgr.create_dnodes_in_cluster(config.DNODE_COUNT)
+        rp.info(f"Configuring {config.MNODE_COUNT} mnode(s) ...")
+        cluster_mgr.create_mnodes_in_cluster(config.MNODE_COUNT)
+        rp.info("Waiting for cluster ready ...")
+        cluster_mgr.wait_for_cluster_ready(timeout=60)
+        rp.info("Cluster is ready.")
+    except Exception as e:
+        rp.error(f"Cluster setup failed: {e}")
+        import traceback; traceback.print_exc()
+        sys.exit(1)
+    rp.step_done("Phase 1")
+    return cluster_mgr
+
+
+def _prepare_resources(fqdn, cfg_dir, from_ver, args, rp):
+    """Phase 2 — create DB/tables/data/topics/users and capture before-snapshots.
+
+    Returns a namespace with all before-state snapshots needed for Phase 5 checks.
+    """
+    import types
+    st = types.SimpleNamespace(
+        rm=None,
+        sysinfo_before=None, from_ver_actual=None,
+        priv_before=None, idx_before=None,
+        tsma_before=None, rsma_before=None, stream_before=None,
+    )
+    rsma_supported   = _version_ge(from_ver, "3.3.8.0")
+    tsma_supported   = _version_ge(from_ver, "3.3.6.0")
+    stream_supported = _version_ge(from_ver, "3.3.7.0")
+
+    rp.step_start("Phase 2  Resource preparation")
+    try:
+        st.rm = ResourceManager(fqdn=fqdn, cfg_dir=cfg_dir, logger=_SilentLogger())
+
+        if args.check_sysinfo or args.gen_whitelist is not None:
+            try:
+                st.from_ver_actual = get_server_version(fqdn, cfg_dir)
+                st.sysinfo_before  = sysinfo_snapshot(fqdn, cfg_dir)
+                rp.info(f"SysInfo: server version = {st.from_ver_actual}, "
+                        f"{len(st.sysinfo_before)} tables in INFORMATION_SCHEMA")
+            except Exception as _sie:
+                rp.error(f"SysInfo snapshot (before) failed: {_sie}")
+
+        if args.gen_whitelist is None:
+            st.rm.create_database()
+            rp.info(f"Database '{config.DB_NAME}' (replica={config.REPLICA}) created")
+            st.rm.create_stable()
+            rp.info(f"Stable '{config.STABLE_NAME}' created")
+            st.rm.create_subtables()
+            rp.info(f"{config.SUBTABLE_COUNT} subtables created")
+
+            rp.info(f"Insert initial data: {config.SUBTABLE_COUNT} x {config.INIT_ROWS_PER_SUBTABLE:,} rows ...")
+            st.rm.write_initial_data()
+            rp.info(f"Initial data: {config.SUBTABLE_COUNT} x {config.INIT_ROWS_PER_SUBTABLE:,} rows written")
+
+            if tsma_supported:
+                st.tsma_before = st.rm.create_tsma()
+                rp.info(f"TSMA created: {sorted(st.tsma_before.keys())}")
+            else:
+                rp.info(f"TSMA skipped: base version {from_ver} < 3.3.6.0")
+
+            if stream_supported:
+                st.stream_before = st.rm.create_stream()
+                rp.info(f"Stream created: {sorted(st.stream_before.keys())}")
+            else:
+                rp.info(f"Stream skipped: base version {from_ver} < 3.3.7.0")
+
+            st.idx_before = st.rm.create_tag_indexes()
+            rp.info(f"Tag indexes created: {sorted(st.idx_before.keys())}")
+
+            st.rm.create_topic()
+            rp.info(f"Topic '{config.TOPIC_NAME}' created")
+
+            st.priv_before = st.rm.create_test_user()
+            rp.info(
+                f"test_user '{config.TEST_USER_NAME}' created: "
+                f"{len(st.priv_before)} privilege row(s) granted "
+                f"(SELECT on {config.TEST_USER_READ_STABLE}, "
+                f"INSERT on {config.TEST_USER_WRITE_STABLE})"
+            )
+
+            if rsma_supported:
+                st.rsma_before = st.rm.create_rsma()
+                rp.info(f"RSMA created: {sorted(st.rsma_before.keys())}")
+            else:
+                rp.info(f"RSMA skipped: base version {from_ver} < 3.3.8.0")
+        else:
+            rp.info("Gen-whitelist mode: skipping resource preparation")
+    except Exception as e:
+        rp.error(f"Resource preparation failed: {e}")
+        import traceback; traceback.print_exc()
+        sys.exit(1)
+    rp.step_done("Phase 2")
+    return st, rsma_supported, tsma_supported, stream_supported
+
+
+def _run_rolling_upgrade(cluster_mgr, to_dir, metrics, checks, rp):
+    """Phase 4 (rolling) — perform the rolling upgrade; return True on success."""
+    rp.step_start("Phase 4  Rolling upgrade")
+    metrics["write_phase4_success"]  = 0
+    metrics["query_phase4_success"]  = 0
+    metrics["subscribe_phase4_recv"] = 0
+    upgrade_ok = False
+    try:
+        upgrader     = RollingUpgrader(cluster_mgr, rp)
+        target_taosd = get_taosd_path(to_dir)
+        upgrade_ok   = upgrader.run(
+            to_taosd_path=target_taosd,
+            node_count=config.DNODE_COUNT,
+            metrics=metrics,
+        )
+    except Exception as e:
+        rp.error(f"Rolling upgrade exception: {e}")
+        import traceback; traceback.print_exc()
+
+    if not upgrade_ok:
+        return False
+
+    checks.append(("Rolling upgrade completed", True, "all nodes upgraded"))
+    rp.check("Rolling upgrade completed", True, "all nodes upgraded")
+    rp.info(
+        f"\n        ------------- running information during rolling upgrade -------------\n"
+        f"\n             writes     succeeded={metrics.get('write_phase4_success', 0):,} rows  "
+        f"retries(total)={metrics.get('write_retry_count', 0):,}"
+        f"\n             queries    succeeded={metrics.get('query_phase4_success', 0):,}       "
+        f"retries(total)={metrics.get('query_retry_count', 0):,}"
+        f"\n             subscribed succeeded={metrics.get('subscribe_phase4_recv', 0):,} rows "
+        f"\n        ----------------------------------------------------------------------\n"
+    )
+    rp.step_done("Phase 4")
+    return True
+
+
+def _run_cold_upgrade(cluster_mgr, to_dir, checks, rp):
+    """Phase 3 (cold) — stop all nodes, upgrade, restart; return True on success."""
+    rp.step_start("Phase 3  Cold upgrade (stop all nodes → upgrade → restart all nodes)")
+    upgrade_ok = False
+    try:
+        upgrader     = ColdUpgrader(cluster_mgr, rp)
+        target_taosd = get_taosd_path(to_dir)
+        upgrade_ok   = upgrader.run(
+            to_taosd_path=target_taosd,
+            node_count=config.DNODE_COUNT,
+            metrics=None,
+        )
+    except Exception as e:
+        rp.error(f"Cold upgrade exception: {e}")
+        import traceback; traceback.print_exc()
+
+    if not upgrade_ok:
+        return False
+
+    checks.append(("Cold upgrade completed", True, "all nodes upgraded"))
+    rp.check("Cold upgrade completed", True, "all nodes upgraded")
+    rp.step_done("Phase 3")
+    return True
+
+
+def _spawn_cold_phase2(args, base_path, fqdn, cfg_dir, from_ver, to_ver,
+                       whitelist_dir, checks, test_start,
+                       rsma_supported, tsma_supported, stream_supported,
+                       phase2_st, rp):
+    """Spawn a fresh subprocess that loads the target-version libtaos for Phase 4-5."""
+    import pickle, subprocess as _subp
+
+    _state_file = os.path.join(base_path, "_cold_phase2_state.pkl")
+    with open(_state_file, "wb") as _f:
+        pickle.dump({
+            "from_ver":        from_ver,
+            "to_ver":          to_ver,
+            "fqdn":            fqdn,
+            "base_path":       base_path,
+            "cfg_dir":         cfg_dir,
+            "checks":          list(checks),
+            "test_start":      test_start,
+            "rsma_supported":  rsma_supported,
+            "tsma_supported":  tsma_supported,
+            "stream_supported": stream_supported,
+            "quick":           args.quick,
+            "priv_before":     phase2_st.priv_before,
+            "idx_before":      phase2_st.idx_before,
+            "tsma_before":     phase2_st.tsma_before,
+            "rsma_before":     phase2_st.rsma_before,
+            "stream_before":   phase2_st.stream_before,
+            "check_sysinfo":   args.check_sysinfo,
+            "gen_whitelist":   args.gen_whitelist,
+            "whitelist_dir":   whitelist_dir,
+            "sysinfo_before":  phase2_st.sysinfo_before,
+            "from_ver_actual": phase2_st.from_ver_actual,
+        }, _f)
+
+    _env = os.environ.copy()
+    _env.pop("_TAOS_LIB_DIR", None)
+    _env[_COLD_PHASE2_ENV] = _state_file
+    rp.info("Switching to target-version client library (Phase 4-5) ...")
+    result = _subp.run([sys.executable] + sys.argv, env=_env)
+    sys.exit(result.returncode)
+
+
+def _run_verify_phase(fqdn, cfg_dir, metrics, worker_procs, writer_stop_evt,
+                      stop_evt, rp, *, stabilize_wait=20):
+    """Phase 5 — monitor workloads for VERIFY_DURATION_S, then drain and stop workers."""
+    rp.step_start(f"Phase 5  Post-upgrade verification ({config.VERIFY_DURATION_S}s)")
+
+    rp.info(f"Waiting {stabilize_wait}s for cluster connections to stabilize ...")
+    time.sleep(stabilize_wait)
+
+    metrics["write_window_max"]     = 0.0
+    metrics["query_window_max"]     = 0.0
+    metrics["subscribe_window_max"] = 0.0
+
+    deadline = time.time() + config.VERIFY_DURATION_S
+    while time.time() < deadline:
+        _workloads_ok(metrics, rp)
+        remaining = int(deadline - time.time())
+        rp.info(
+            f"[{remaining:3d}s]  "
+            f"write={metrics.get('write_last_latency', 0):.3f}s  "
+            f"query={metrics.get('query_last_latency', 0):.3f}s  "
+            f"sub_gap={metrics.get('subscribe_last_gap', 0):.3f}s"
+        )
+        rp.info(
+            f"         inserted: "
+            f"ts={metrics.get('write_last_ts', 0)}  "
+            f"curr={metrics.get('write_last_current', 0):.3f}A  "
+            f"volt={metrics.get('write_last_voltage', 0)}V  "
+            f"phase={metrics.get('write_last_phase', 0):.3f}  "
+            f"|  count={metrics.get('query_last_count', 0):,}  "
+            f"|  sub_recv={metrics.get('subscribe_recv_total', 0):,}  "
+        )
+        time.sleep(5)
+
+    # Stop writer gracefully so write_total_rows is accurate before drain check
+    writer_proc = worker_procs[0]
+    writer_stop_evt.set()
+    writer_proc.join(timeout=10)
+    if writer_proc.is_alive():
+        writer_proc.terminate()
+        writer_proc.join(timeout=3)
+
+    final_written = metrics.get("write_total_rows", 0)
+    rp.info(
+        f"Writer stopped ({final_written:,} rows total). "
+        f"Waiting up to {config.SUBSCRIBE_DRAIN_WAIT_S}s for subscriber to drain ..."
+    )
+    drain_deadline = time.time() + config.SUBSCRIBE_DRAIN_WAIT_S
+    while time.time() < drain_deadline:
+        time.sleep(2)
+        cur_recv = metrics.get("subscribe_recv_total", 0)
+        rp.info(
+            f"  drain: written={final_written:,}  subscribed={cur_recv:,}  "
+            f"gap={final_written - cur_recv:,}"
+        )
+        if cur_recv >= final_written:
+            rp.info("Subscriber has caught up.")
+            break
+    else:
+        rp.info(
+            f"Drain wait timed out after {config.SUBSCRIBE_DRAIN_WAIT_S}s "
+            f"(written={final_written:,}  subscribed={metrics.get('subscribe_recv_total', 0):,})"
+        )
+
+    time.sleep(3)
+    _stop_workers(worker_procs[1:], stop_evt)
+    rp.step_done("Phase 5")
+
+
+def _collect_results(metrics, checks, fqdn, cfg_dir, from_ver,
+                     rsma_supported, tsma_supported, stream_supported,
+                     phase2_st, args, whitelist_dir, rp):
+    """Collect all post-upgrade verification checks into the checks list."""
+
+    write_max = metrics.get("write_window_max", 0.0)
+    query_max = metrics.get("query_window_max", 0.0)
+
+    def _chk(label, ok, detail=""):
+        checks.append((label, ok, detail))
+
+    # ---- workload latency checks ----
+    write_fail_cnt = metrics.get("write_error_count", 0)
+    _chk("Write: no failure batches", write_fail_cnt == 0,
+         f"failures={write_fail_cnt}  total_rows={metrics.get('write_total_rows', 0):,}  "
+         f"retries={metrics.get('write_retry_count', 0):,}  max_latency={write_max:.3f}s")
+
+    query_fail_cnt = metrics.get("query_error_count", 0)
+    _chk("Query: no failure batches", query_fail_cnt == 0,
+         f"failures={query_fail_cnt}  max_latency={query_max:.3f}s")
+
+    last_recv   = metrics.get("subscribe_last_recv_time", 0.0)
+    sub_silence = time.time() - last_recv if last_recv > 0 else float("inf")
+    _chk(
+        f"Subscribe: data received within {config.SUBSCRIBE_NO_DATA_TIMEOUT_S}s",
+        sub_silence <= config.SUBSCRIBE_NO_DATA_TIMEOUT_S,
+        f"silence={sub_silence:.1f}s  total_recv={metrics.get('subscribe_recv_total', 0):,}",
+    )
+
+    total_written = metrics.get("write_total_rows", 0)
+    total_recv    = metrics.get("subscribe_recv_total", 0)
+    _chk(
+        "Subscribe: rows received == rows written",
+        total_written == total_recv,
+        f"written={total_written:,}  received={total_recv:,}  diff={total_written - total_recv:,}",
+    )
+
+    # ---- user / privilege / schema checks ----
+    _RPC_SIG_MISMATCH_MSG = f"[0x0141/0x0140] client {from_ver} incompatible with server"
+
+    def _is_sig_error(e):
+        s = str(e)
+        return (
+            "0x0141" in s or "0x80000141" in s or "Invalid signature" in s or
+            "0x0140" in s or "0x80000140" in s or "Edition not compatible" in s
+        )
+
+    def _safe_verify(label, fn, *a, **kw):
+        try:
+            ok, msg = fn(*a, **kw)
+            _chk(label, ok, msg)
+        except Exception as _e:
+            if _is_sig_error(_e):
+                _chk("RPC backward compatibility", False, _RPC_SIG_MISMATCH_MSG)
+            else:
+                raise
+
+    uv = UserVerifier(fqdn=fqdn, cfg_dir=cfg_dir)
+    auth_ok, auth_msg = uv.verify_auth()
+    if not auth_ok and _is_sig_error(Exception(auth_msg)):
+        auth_msg = _RPC_SIG_MISMATCH_MSG
+    _chk("test_user authentication after upgrade", auth_ok, auth_msg)
+
+    if phase2_st.priv_before is not None:
+        _safe_verify("test_user privileges unchanged", uv.verify_privileges, phase2_st.priv_before)
+    else:
+        _chk("test_user privileges unchanged ", False, "baseline snapshot not captured (Phase 2 error)")
+
+    rm = phase2_st.rm
+    if phase2_st.idx_before is not None:
+        _safe_verify("Tag indexes preserved after upgrade", rm.verify_tag_indexes, phase2_st.idx_before)
+    else:
+        _chk("Tag indexes preserved after upgrade", False, "baseline snapshot not captured (Phase 2 error)")
+
+    if tsma_supported:
+        if phase2_st.tsma_before is not None:
+            _safe_verify("TSMA preserved after upgrade", rm.verify_tsma, phase2_st.tsma_before)
+        else:
+            _chk("TSMA preserved after upgrade", False, "baseline snapshot not captured (Phase 2 error)")
+    else:
+        rp.info(f"TSMA check skipped: base version {from_ver} < 3.3.6.0")
+
+    if rsma_supported:
+        if phase2_st.rsma_before is not None:
+            _safe_verify("RSMA preserved after upgrade", rm.verify_rsma, phase2_st.rsma_before)
+        else:
+            _chk("RSMA preserved after upgrade", False, "baseline snapshot not captured (Phase 2 error)")
+    else:
+        rp.info(f"RSMA check skipped: base version {from_ver} < 3.3.8.0")
+
+    if stream_supported:
+        if phase2_st.stream_before is not None:
+            _safe_verify("Stream preserved after upgrade", rm.verify_stream, phase2_st.stream_before)
+        else:
+            _chk("Stream preserved after upgrade", False, "baseline snapshot not captured (Phase 2 error)")
+    else:
+        rp.info(f"Stream check skipped: base version {from_ver} < 3.3.7.0")
+
+    # ---- INFORMATION_SCHEMA check ----
+    if args.check_sysinfo:
+        _to_ver_actual = None
+        _sysinfo_after = None
+        try:
+            _to_ver_actual = get_server_version(fqdn, cfg_dir)
+            _sysinfo_after = sysinfo_snapshot(fqdn, cfg_dir)
+            rp.info(f"SysInfo: server version (to) = {_to_ver_actual}, "
+                    f"{len(_sysinfo_after)} tables captured")
+        except Exception as _sie:
+            rp.error(f"SysInfo snapshot (after) failed: {_sie}")
+
+        if phase2_st.sysinfo_before is not None and _sysinfo_after is not None:
+            _si_diff = compare_snapshots(phase2_st.sysinfo_before, _sysinfo_after)
+            _wl = load_whitelists(whitelist_dir,
+                                  phase2_st.from_ver_actual or from_ver,
+                                  _to_ver_actual or "unknown")
+            if _wl.source_files:
+                rp.info(f"SysInfo whitelist files: {_wl.source_files}")
+            _fr = apply_whitelist(_si_diff, _wl)
+            if _fr.has_unexpected():
+                _cand_wl_path = _write_candidate_whitelist(
+                    _si_diff,
+                    phase2_st.from_ver_actual or from_ver,
+                    _to_ver_actual or "unknown",
+                )
+                _detail = _fr.format_unexpected()
+                if _cand_wl_path:
+                    _detail += f"\n  {_cand_wl_path}"
+                _chk("INFORMATION_SCHEMA: no unexpected changes", False, _detail)
+            else:
+                _si_detail = "(no changes)" if _si_diff.is_empty() else "(all changes whitelisted)"
+                _chk("INFORMATION_SCHEMA: no unexpected changes", True, _si_detail)
+                if _fr.format_expected():
+                    rp.info(f"  Expected (whitelisted):\n{_fr.format_expected()}")
+        elif phase2_st.sysinfo_before is None:
+            _chk("INFORMATION_SCHEMA: no unexpected changes", False, "before-snapshot not captured")
+
+    return metrics.get("write_window_max", 0.0), metrics.get("query_window_max", 0.0), \
+           metrics.get("subscribe_window_max", 0.0)
+
+
+def _gen_whitelist_and_exit(args, fqdn, cfg_dir, from_ver, to_ver,
+                             whitelist_dir, sysinfo_before, from_ver_actual,
+                             worker_procs, stop_evt, rp):
+    """Capture after-snapshot, write whitelist file, stop workers and exit."""
+    _to_ver_actual = None
+    _sysinfo_after = None
+    try:
+        _to_ver_actual = get_server_version(fqdn, cfg_dir)
+        _sysinfo_after = sysinfo_snapshot(fqdn, cfg_dir)
+        rp.info(f"SysInfo: server version (to) = {_to_ver_actual}, "
+                f"{len(_sysinfo_after)} tables captured")
+    except Exception as _sie:
+        rp.error(f"SysInfo snapshot (after) failed: {_sie}")
+
+    if sysinfo_before is not None and _sysinfo_after is not None:
+        _si_diff = compare_snapshots(sysinfo_before, _sysinfo_after)
+        rp.info(f"SysInfo diff:\n{_si_diff.format_report()}")
+        _wl_path = gen_whitelist_filepath(
+            from_ver_actual or from_ver, _to_ver_actual or to_ver,
+            whitelist_dir, args.gen_whitelist,
+        )
+        try:
+            write_whitelist_yaml(_si_diff, from_ver_actual or from_ver,
+                                 _to_ver_actual or to_ver, _wl_path)
+            rp.info(f"Whitelist written: {_wl_path}")
+        except Exception as _we:
+            rp.error(f"Failed to write whitelist: {_we}")
+    else:
+        rp.error("SysInfo: snapshot unavailable, whitelist not written")
+
+    _stop_workers(worker_procs, stop_evt)
+    sys.exit(0)
+
+
+# ==============================================================================
 # Cold-upgrade Phase 4-5  (runs in a fresh subprocess with to_dir library)
 # ==============================================================================
 
@@ -586,6 +1106,21 @@ def _run_cold_phase2(state_file: str):
 #
 #  ------------------- main -------------------
 #
+#  Top-level flow (rolling upgrade):
+#    Phase 1  — start base-version cluster
+#    Phase 2  — create DB / tables / data / topics / users; capture before-snapshots
+#    Phase 3  — start background workloads (write / query / subscribe)
+#    Phase 4  — rolling upgrade (workloads keep running throughout)
+#    Phase 5  — verify workloads & data integrity after upgrade
+#
+#  Top-level flow (cold upgrade):
+#    Phase 1  — start base-version cluster
+#    Phase 2  — create DB / tables / data / topics / users; capture before-snapshots
+#    Phase 3  — cold upgrade (stop → replace binaries → restart)
+#               re-spawn with target-version libtaos.so for Phase 4-5
+#    Phase 4  — start background workloads (AFTER upgrade, in subprocess)
+#    Phase 5  — verify workloads & data integrity after upgrade (in subprocess)
+#
 
 def main():
     # Cold-upgrade Phase 4-5 runs in a re-spawned subprocess with to_dir lib.
@@ -594,192 +1129,30 @@ def main():
         _run_cold_phase2(_cold_state_file)
         return  # _run_cold_phase2 calls sys.exit; this line is a safety net
 
-    parser = argparse.ArgumentParser(
-        description="TDengine rolling/cold upgrade test",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=_HELP_TEXT,
-    )
-    parser.add_argument("--from-dir", "-F", required=True,
-                        metavar="DIR",
-                        help="TDengine installation dir of the BASE (source) version")
-    parser.add_argument("--to-dir",   "-T", required=True,
-                        metavar="DIR",
-                        help="TDengine installation dir of the TARGET (destination) version")
-    parser.add_argument("--path",     "-p", default=os.path.expanduser("~/td_rolling_upgrade"))
-    parser.add_argument("--fqdn",     "-f", default="")
-    parser.add_argument("--quick",      "-q", action="store_true",
-                        help="Quick mode: 100 subtables x 1000 rows")
-    parser.add_argument("--rollupdate", "-r", action="store_true",
-                        help="Rolling (hot) upgrade: background workloads run during upgrade. "
-                             "If omitted, performs a cold upgrade (workloads start after upgrade).")
-    parser.add_argument("--check-sysinfo", "-S", dest="check_sysinfo", action="store_true",
-                        help="Enable INFORMATION_SCHEMA schema-change check (disabled by default)")
-    parser.set_defaults(check_sysinfo=False)
-    parser.add_argument("--gen-whitelist", "-G", metavar="FILE", nargs="?", const=True, default=None,
-                        help="Generate a whitelist from this upgrade's INFORMATION_SCHEMA diff "
-                             "and exit (skips all other checks). FILE defaults to "
-                             "whitelist/{from_ver}~{to_ver}.yaml")
-    parser.add_argument("--whitelist-dir", metavar="DIR", default=None,
-                        help="Directory containing whitelist .yaml files "
-                             "(default: <script_dir>/whitelist)")
-    args = parser.parse_args()
+    args = _parse_args()
+    fqdn, from_dir, to_dir, base_path, cfg_dir, whitelist_dir, from_ver, to_ver = \
+        _resolve_paths(args)
 
-    fqdn      = args.fqdn or socket.gethostname()
-    from_dir  = os.path.abspath(args.from_dir)
-    to_dir    = os.path.abspath(args.to_dir)
-    base_path = os.path.abspath(args.path)
-    cfg_dir   = os.path.join(base_path, "dnode1", "cfg")
-
-    if args.quick:
-        config.SUBTABLE_COUNT         = 100
-        config.INIT_ROWS_PER_SUBTABLE = 1_000
-        config.VERIFY_DURATION_S      = 30
-
-    _script_root  = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    whitelist_dir = args.whitelist_dir or os.path.join(_script_root, "whitelist")
-
-    from_ver   = os.path.basename(from_dir)
-    to_ver     = os.path.basename(to_dir)
     rp         = Reporter()
-    # Feature version guards
-    rsma_supported   = _version_ge(from_ver, "3.3.8.0")  # RSMA:   >= 3.3.8.0
-    tsma_supported   = _version_ge(from_ver, "3.3.6.0")  # TSMA:   >= 3.3.6.0
-    stream_supported = _version_ge(from_ver, "3.3.7.0")  # Stream: >= 3.3.7.0
+    checks     = []
     test_start = time.time()
 
     rp.summary_start(
-        from_ver=from_ver, to_ver=to_ver,
-        fqdn=fqdn,
-        dnode_count=config.DNODE_COUNT,
-        mnode_count=config.MNODE_COUNT,
-        subtables=config.SUBTABLE_COUNT,
-        rows_per_table=config.INIT_ROWS_PER_SUBTABLE,
+        from_ver=from_ver, to_ver=to_ver, fqdn=fqdn,
+        dnode_count=config.DNODE_COUNT, mnode_count=config.MNODE_COUNT,
+        subtables=config.SUBTABLE_COUNT, rows_per_table=config.INIT_ROWS_PER_SUBTABLE,
         verify_window=config.VERIFY_DURATION_S,
-        check_sysinfo=args.check_sysinfo,
-        gen_whitelist=args.gen_whitelist,
+        check_sysinfo=args.check_sysinfo, gen_whitelist=args.gen_whitelist,
     )
 
-    checks = []
-
     # -- Phase 1: Cluster setup ------------------------------------------------
-    rp.step_start("Phase 1  Cluster setup (base version)")
-    try:
-        base_taosd  = get_taosd_path(from_dir)
-        rp.info(f"Base taosd : {base_taosd}")
-        rp.info(f"Base path  : {base_path}")
-        rp.info(f"FQDN       : {fqdn}")
-        rp.info(
-            f"Topology   : {config.DNODE_COUNT} dnodes / "
-            f"{config.MNODE_COUNT} mnodes / replica={config.REPLICA}"
-        )
-
-        cluster_mgr = ClusterManager(fqdn=fqdn, base_path=base_path, level=1, disk=1,
-                                       logger=_SilentLogger())
-
-        # Point DNodeManager at base-version taosd BEFORE create_cluster() starts
-        # processes, so every node runs the correct version from the beginning.
-        cluster_mgr.dnode_manager.taosd_path = base_taosd
-
-        rp.info(f"Starting {config.DNODE_COUNT} taosd process(es) ...")
-        cluster_mgr.create_cluster(
-            dnode_nums=config.DNODE_COUNT,
-            mnode_nums=config.MNODE_COUNT,
-        )
-        rp.info("Connecting to cluster ...")
-        cluster_mgr.connect()
-
-        if config.DNODE_COUNT > 1:
-            rp.info(f"Adding dnodes 2–{config.DNODE_COUNT} to cluster ...")
-            cluster_mgr.create_dnodes_in_cluster(config.DNODE_COUNT)
-        rp.info(f"Configuring {config.MNODE_COUNT} mnode(s) ...")
-        cluster_mgr.create_mnodes_in_cluster(config.MNODE_COUNT)
-        rp.info("Waiting for cluster ready ...")
-        cluster_mgr.wait_for_cluster_ready(timeout=60)
-        rp.info("Cluster is ready.")
-    except Exception as e:
-        rp.error(f"Cluster setup failed: {e}")
-        import traceback; traceback.print_exc()
-        sys.exit(1)
-    rp.step_done("Phase 1")
+    cluster_mgr = _setup_cluster(fqdn, from_dir, base_path, rp)
 
     # -- Phase 2: Resource preparation -----------------------------------------
-    rp.step_start("Phase 2  Resource preparation")
-    _sysinfo_before  = None
-    _from_ver_actual = None
-    try:
-        rm = ResourceManager(fqdn=fqdn, cfg_dir=cfg_dir, logger=_SilentLogger())
+    phase2_st, rsma_supported, tsma_supported, stream_supported = \
+        _prepare_resources(fqdn, cfg_dir, from_ver, args, rp)
 
-        # -- INFORMATION_SCHEMA snapshot BEFORE upgrade -----------------------
-        if args.check_sysinfo or args.gen_whitelist is not None:
-            try:
-                _from_ver_actual = get_server_version(fqdn, cfg_dir)
-                _sysinfo_before  = sysinfo_snapshot(fqdn, cfg_dir)
-                rp.info(f"SysInfo: server version = {_from_ver_actual}, "
-                        f"{len(_sysinfo_before)} tables in INFORMATION_SCHEMA")
-            except Exception as _sie:
-                rp.error(f"SysInfo snapshot (before) failed: {_sie}")
-
-        if args.gen_whitelist is None:
-            # create db/super/child table
-            rm.create_database()
-            rp.info(f"Database '{config.DB_NAME}' (replica={config.REPLICA}) created")
-            rm.create_stable()
-            rp.info(f"Stable '{config.STABLE_NAME}' created")
-            rm.create_subtables()
-            rp.info(f"{config.SUBTABLE_COUNT} subtables created")
-
-            # insert data
-            rp.info(f"Insert initial data: {config.SUBTABLE_COUNT} x {config.INIT_ROWS_PER_SUBTABLE:,} rows ...")
-            rm.write_initial_data()
-            rp.info(
-                f"Initial data: {config.SUBTABLE_COUNT} x {config.INIT_ROWS_PER_SUBTABLE:,} rows written"
-            )
-
-            # tsma (>= 3.3.6.0 only) — create BEFORE topic to avoid stream metadata conflicts
-            if tsma_supported:
-                tsma_before = rm.create_tsma()
-                rp.info(f"TSMA created: {sorted(tsma_before.keys())}")
-            else:
-                rp.info(f"TSMA skipped: base version {from_ver} < 3.3.6.0")
-
-            # stream (>= 3.3.7.0 only) — new-style PERIOD stream; Snode created by create_tsma
-            if stream_supported:
-                stream_before = rm.create_stream()
-                rp.info(f"Stream created: {sorted(stream_before.keys())}")
-            else:
-                rp.info(f"Stream skipped: base version {from_ver} < 3.3.7.0")
-
-            # tag index  (must be before topic creation; 3.3.x rejects schema
-            #             changes on stables that already have a topic)
-            idx_before = rm.create_tag_indexes()
-            rp.info(f"Tag indexes created: {sorted(idx_before.keys())}")
-
-            # topic
-            rm.create_topic()
-            rp.info(f"Topic '{config.TOPIC_NAME}' created")
-            priv_before = rm.create_test_user()
-            rp.info(
-                f"test_user '{config.TEST_USER_NAME}' created: "
-                f"{len(priv_before)} privilege row(s) granted "
-                f"(SELECT on {config.TEST_USER_READ_STABLE}, "
-                f"INSERT on {config.TEST_USER_WRITE_STABLE})"
-            )
-
-            # rsma (>= 3.3.8.0 only)
-            if rsma_supported:
-                rsma_before = rm.create_rsma()
-                rp.info(f"RSMA created: {sorted(rsma_before.keys())}")
-            else:
-                rp.info(f"RSMA skipped: base version {from_ver} < 3.3.8.0")
-        else:
-            rp.info("Gen-whitelist mode: skipping resource preparation")
-    except Exception as e:
-        rp.error(f"Resource preparation failed: {e}")
-        import traceback; traceback.print_exc()
-        sys.exit(1)
-    rp.step_done("Phase 2")
-
-    # Shared workload state (needed before Phase 3 in both modes)
+    # Shared workload state
     manager         = multiprocessing.Manager()
     metrics         = _init_metrics(manager)
     stop_evt        = manager.Event()
@@ -787,24 +1160,18 @@ def main():
     worker_procs    = []
 
     if args.rollupdate:
-        # ══════════════════════════════════════════════════════════════════════
-        # ROLLING (HOT) UPGRADE
-        #   Phase 3: start background workloads  (BEFORE upgrade)
-        #   Phase 4: rolling upgrade             (workloads running throughout)
-        # ══════════════════════════════════════════════════════════════════════
+        # ── ROLLING (HOT) UPGRADE ─────────────────────────────────────────────
+        # Phase 3: start background workloads BEFORE the upgrade
+        # Phase 4: rolling upgrade (workloads keep running throughout)
+        # Phase 5: post-upgrade verification
 
-        # -- Phase 3: Background workloads (skipped in gen-whitelist mode) -----
         if args.gen_whitelist is None:
+            # -- Phase 3: Background workloads ---------------------------------
             rp.step_start("Phase 3  Background workloads (write / query / subscribe)")
             worker_procs = _start_workers(fqdn, cfg_dir, metrics, stop_evt, writer_stop_evt)
-
             rp.info("Waiting 15s for workloads to warm up ...")
             time.sleep(15)
-
-            if not _workloads_ok(metrics, rp):
-                _stop_workers(worker_procs, stop_evt)
-                sys.exit(1)
-
+            _workloads_ok(metrics, rp)
             rp.info(
                 f"Workloads live  |  "
                 f"write={metrics['write_last_latency']:.3f}s  "
@@ -814,35 +1181,10 @@ def main():
                 f"q={metrics['query_error_count']} "
                 f"s={metrics['subscribe_error_count']}"
             )
-            rp.info(
-                f"  inserted row : ts={metrics['write_last_ts']}  "
-                f"curr={metrics['write_last_current']:.3f}A  "
-                f"volt={metrics['write_last_voltage']}V  "
-                f"phase={metrics['write_last_phase']:.3f}  "
-                f"|  query count={metrics['query_last_count']:,}  "
-                f"|  sub recv_total={metrics['subscribe_recv_total']:,}"
-            )
             rp.step_done("Phase 3")
 
         # -- Phase 4: Rolling upgrade ------------------------------------------
-        rp.step_start("Phase 4  Rolling upgrade")
-        # Reset phase-4 success counters so we only capture activity during upgrade
-        metrics["write_phase4_success"]  = 0
-        metrics["query_phase4_success"]  = 0
-        metrics["subscribe_phase4_recv"] = 0
-        upgrade_ok = False
-        try:
-            upgrader     = RollingUpgrader(cluster_mgr, rp)
-            target_taosd = get_taosd_path(to_dir)
-            upgrade_ok   = upgrader.run(
-                to_taosd_path=target_taosd,
-                node_count=config.DNODE_COUNT,
-                metrics=metrics,
-            )
-        except Exception as e:
-            rp.error(f"Rolling upgrade exception: {e}")
-            import traceback; traceback.print_exc()
-
+        upgrade_ok = _run_rolling_upgrade(cluster_mgr, to_dir, metrics, checks, rp)
         if not upgrade_ok:
             _stop_workers(worker_procs, stop_evt)
             checks.append(("Rolling upgrade completed", False, ""))
@@ -855,349 +1197,48 @@ def main():
             )
             sys.exit(1)
 
-        checks.append(("Rolling upgrade completed", True, "all nodes upgraded"))
-        rp.check("Rolling upgrade completed", True, "all nodes upgraded")
-        rp.info(
-            f"\n        ------------- running information during rolling upgrade -------------\n"
-            f"\n             writes     succeeded={metrics.get('write_phase4_success', 0):,} rows  "
-            f"retries(total)={metrics.get('write_retry_count', 0):,}"
-            f"\n             queries    succeeded={metrics.get('query_phase4_success', 0):,}       "
-            f"retries(total)={metrics.get('query_retry_count', 0):,}"
-            f"\n             subscribed succeeded={metrics.get('subscribe_phase4_recv', 0):,} rows "
-            f"\n        ----------------------------------------------------------------------\n"
-        )
-        rp.step_done("Phase 4")
-
-        # -- Gen-whitelist mode: capture after-snapshot, write file, exit -----
         if args.gen_whitelist is not None:
-            _to_ver_actual = None
-            _sysinfo_after = None
-            try:
-                _to_ver_actual = get_server_version(fqdn, cfg_dir)
-                _sysinfo_after = sysinfo_snapshot(fqdn, cfg_dir)
-                rp.info(f"SysInfo: server version (to) = {_to_ver_actual}, "
-                        f"{len(_sysinfo_after)} tables captured")
-            except Exception as _sie:
-                rp.error(f"SysInfo snapshot (after) failed: {_sie}")
-            if _sysinfo_before is not None and _sysinfo_after is not None:
-                _si_diff = compare_snapshots(_sysinfo_before, _sysinfo_after)
-                rp.info(f"SysInfo diff:\n{_si_diff.format_report()}")
-                _wl_path = gen_whitelist_filepath(
-                    _from_ver_actual or from_ver, _to_ver_actual or to_ver,
-                    whitelist_dir, args.gen_whitelist,
-                )
-                try:
-                    write_whitelist_yaml(_si_diff, _from_ver_actual or from_ver,
-                                         _to_ver_actual or to_ver, _wl_path)
-                    rp.info(f"Whitelist written: {_wl_path}")
-                except Exception as _we:
-                    rp.error(f"Failed to write whitelist: {_we}")
-            else:
-                rp.error("SysInfo: snapshot unavailable, whitelist not written")
-            _stop_workers(worker_procs, stop_evt)
-            sys.exit(0)
+            _gen_whitelist_and_exit(
+                args, fqdn, cfg_dir, from_ver, to_ver, whitelist_dir,
+                phase2_st.sysinfo_before, phase2_st.from_ver_actual,
+                worker_procs, stop_evt, rp,
+            )
 
     else:
-        # ══════════════════════════════════════════════════════════════════════
-        # COLD UPGRADE
-        #   Phase 3: stop all nodes → replace binaries → start all nodes
-        #            (NO background workloads during upgrade)
-        #   Phase 4: start background workloads  (AFTER upgrade)
-        # ══════════════════════════════════════════════════════════════════════
+        # ── COLD UPGRADE ──────────────────────────────────────────────────────
+        # Phase 3: stop all nodes → replace binaries → restart all nodes
+        # Phase 4-5 run in a fresh subprocess (target-version libtaos.so)
 
         # -- Phase 3: Cold upgrade ---------------------------------------------
-        rp.step_start("Phase 3  Cold upgrade (stop all nodes → upgrade → restart all nodes)")
-        upgrade_ok = False
-        try:
-            upgrader     = ColdUpgrader(cluster_mgr, rp)
-            target_taosd = get_taosd_path(to_dir)
-            upgrade_ok   = upgrader.run(
-                to_taosd_path=target_taosd,
-                node_count=config.DNODE_COUNT,
-                metrics=metrics,
-            )
-        except Exception as e:
-            rp.error(f"Cold upgrade exception: {e}")
-            import traceback; traceback.print_exc()
-
+        upgrade_ok = _run_cold_upgrade(cluster_mgr, to_dir, checks, rp)
         if not upgrade_ok:
-            checks.append(("Cold upgrade completed", False, ""))
             rp.summary_end(
                 passed=False, checks=checks, start_time=test_start,
                 write_max=0, query_max=0, sub_max=0,
             )
             sys.exit(1)
 
-        checks.append(("Cold upgrade completed", True, "all nodes upgraded"))
-        rp.check("Cold upgrade completed", True, "all nodes upgraded")
-        rp.step_done("Phase 3")
-
-        # -- Spawn post-upgrade subprocess with to_dir client library ----------
-        # glibc reads LD_LIBRARY_PATH only once at process start, so libtaos.so
-        # cannot be switched mid-process.  Spawn a fresh Python process that
-        # starts with the target-version library for Phase 4-5.
-        import pickle, subprocess as _subp
-        _state_file = os.path.join(base_path, "_cold_phase2_state.pkl")
-        with open(_state_file, "wb") as _f:
-            pickle.dump({
-                "from_ver":        from_ver,
-                "to_ver":          to_ver,
-                "fqdn":            fqdn,
-                "base_path":       base_path,
-                "cfg_dir":         cfg_dir,
-                "checks":          list(checks),
-                "test_start":      test_start,
-                "rsma_supported":  rsma_supported,
-                "tsma_supported":  tsma_supported,
-                "stream_supported": stream_supported,
-                "quick":           args.quick,
-                "priv_before":     locals().get("priv_before"),
-                "idx_before":      locals().get("idx_before"),
-                "tsma_before":     locals().get("tsma_before"),
-                "rsma_before":     locals().get("rsma_before"),
-                "stream_before":   locals().get("stream_before"),
-                "check_sysinfo":   args.check_sysinfo,
-                "gen_whitelist":   args.gen_whitelist,
-                "whitelist_dir":   whitelist_dir,
-                "sysinfo_before":  _sysinfo_before,
-                "from_ver_actual": _from_ver_actual,
-            }, _f)
-        _env = os.environ.copy()
-        _env.pop("_TAOS_LIB_DIR", None)  # let prepare_native_lib re-init for to_dir
-        _env[_COLD_PHASE2_ENV] = _state_file
-        rp.info("Switching to target-version client library (Phase 4-5) ...")
-        result = _subp.run([sys.executable] + sys.argv, env=_env)
-        sys.exit(result.returncode)
-
-    # -- Phase 5: Post-upgrade verification ------------------------------------
-    rp.step_start(f"Phase 5  Post-upgrade verification ({config.VERIFY_DURATION_S}s)")
-
-    # Wait for any in-flight slow queries that were disrupted by the last node
-    # restart to complete and drain out of the workers before we reset the
-    # window maximums.  Without this, a 16 s reconnect latency from Phase 4
-    # can be written back to query_window_max *after* we zero it here and will
-    # then appear as a false failure in the verification window.
-    rp.info(f"Waiting {config.VERIFY_DURATION_S}s for cluster connections to stabilize ...")
-    time.sleep(20)
-
-    metrics["write_window_max"]     = 0.0
-    metrics["query_window_max"]     = 0.0
-    metrics["subscribe_window_max"] = 0.0
-
-    deadline = time.time() + config.VERIFY_DURATION_S
-    while time.time() < deadline:
-        if not _workloads_ok(metrics, rp):
-            break
-        remaining = int(deadline - time.time())
-        rp.info(
-            f"[{remaining:3d}s]  "
-            f"write={metrics.get('write_last_latency', 0):.3f}s  "
-            f"query={metrics.get('query_last_latency', 0):.3f}s  "
-            f"sub_gap={metrics.get('subscribe_last_gap', 0):.3f}s"
+        # -- Spawn Phase 4-5 subprocess with target-version client library -----
+        _spawn_cold_phase2(
+            args, base_path, fqdn, cfg_dir, from_ver, to_ver,
+            whitelist_dir, checks, test_start,
+            rsma_supported, tsma_supported, stream_supported,
+            phase2_st, rp,
         )
-        rp.info(
-            f"         inserted: "
-            f"ts={metrics.get('write_last_ts', 0)}  "
-            f"curr={metrics.get('write_last_current', 0):.3f}A  "
-            f"volt={metrics.get('write_last_voltage', 0)}V  "
-            f"phase={metrics.get('write_last_phase', 0):.3f}  "
-            f"|  count={metrics.get('query_last_count', 0):,}  "
-            f"|  sub_recv={metrics.get('subscribe_recv_total', 0):,}  "
-        )
-        time.sleep(5)
+        return  # _spawn_cold_phase2 calls sys.exit; safety net
 
-    # Stop writer gracefully: signal via its dedicated event so it finishes
-    # the current INSERT + metrics update before exiting.  Using terminate()
-    # would risk a race where the row is committed to the DB (and consumed by
-    # TMQ) but write_total_rows is never incremented, causing received > written.
-    writer_proc = worker_procs[0]
-    writer_stop_evt.set()
-    writer_proc.join(timeout=10)
-    if writer_proc.is_alive():
-        writer_proc.terminate()
-        writer_proc.join(timeout=3)
+    # -- Phase 5: Post-upgrade verification (rolling upgrade path only) --------
+    _run_verify_phase(fqdn, cfg_dir, metrics, worker_procs, writer_stop_evt,
+                      stop_evt, rp, stabilize_wait=20)
 
-    final_written = metrics.get("write_total_rows", 0)
-    rp.info(
-        f"Writer stopped ({final_written:,} rows total). "
-        f"Waiting up to {config.SUBSCRIBE_DRAIN_WAIT_S}s for subscriber to drain ..."
+    # -- Collect and report results --------------------------------------------
+    write_max, query_max, sub_max = _collect_results(
+        metrics, checks, fqdn, cfg_dir, from_ver,
+        rsma_supported, tsma_supported, stream_supported,
+        phase2_st, args, whitelist_dir, rp,
     )
-    drain_deadline = time.time() + config.SUBSCRIBE_DRAIN_WAIT_S
-    while time.time() < drain_deadline:
-        time.sleep(2)
-        cur_recv = metrics.get("subscribe_recv_total", 0)
-        rp.info(
-            f"  drain: written={final_written:,}  subscribed={cur_recv:,}  "
-            f"gap={final_written - cur_recv:,}"
-        )
-        if cur_recv >= final_written:
-            rp.info("Subscriber has caught up.")
-            break
-    else:
-        rp.info(
-            f"Drain wait timed out after {config.SUBSCRIBE_DRAIN_WAIT_S}s "
-            f"(written={final_written:,}  subscribed={metrics.get('subscribe_recv_total', 0):,})"
-        )
-
-    # Grace period: give subscriber one extra poll cycle for any last in-flight message
-    time.sleep(3)
-
-    # Now stop querier and subscriber
-    _stop_workers(worker_procs[1:], stop_evt)
-    rp.step_done("Phase 5")
-
-    # -- Check results ---------------------------------------------------------
-    write_max = metrics.get("write_window_max", 0.0)
-    query_max = metrics.get("query_window_max", 0.0)
-    sub_max   = metrics.get("subscribe_window_max", 0.0)
-
-    def _chk(label, ok, detail=""):
-        checks.append((label, ok, detail))
-
-    # Write pass: zero real failures (each failure = MAX_CONSECUTIVE_RETRIES retries all exhausted)
-    write_fail_cnt = metrics.get("write_error_count", 0)
-    write_ok = write_fail_cnt == 0
-    _chk("Write: no failure batches", write_ok,
-         f"failures={write_fail_cnt}  total_rows={metrics.get('write_total_rows', 0):,}  "
-         f"retries={metrics.get('write_retry_count', 0):,}  max_latency={write_max:.3f}s")
-
-    # Query pass: zero real failures
-    query_fail_cnt = metrics.get("query_error_count", 0)
-    query_ok = query_fail_cnt == 0
-    _chk("Query: no failure batches", query_ok,
-         f"failures={query_fail_cnt}  max_latency={query_max:.3f}s")
-
-    # Subscribe pass: data received within SUBSCRIBE_NO_DATA_TIMEOUT_S seconds of test end
-    last_recv = metrics.get("subscribe_last_recv_time", 0.0)
-    sub_silence = time.time() - last_recv if last_recv > 0 else float("inf")
-    sub_ok = sub_silence <= config.SUBSCRIBE_NO_DATA_TIMEOUT_S
-    _chk(
-        f"Subscribe: data received within {config.SUBSCRIBE_NO_DATA_TIMEOUT_S}s",
-        sub_ok,
-        f"silence={sub_silence:.1f}s  total_recv={metrics.get('subscribe_recv_total', 0):,}",
-    )
-
-    # Written == subscribed: every inserted row must have been consumed
-    total_written = metrics.get("write_total_rows", 0)
-    total_recv    = metrics.get("subscribe_recv_total", 0)
-    rows_match    = total_written == total_recv
-    _chk(
-        "Subscribe: rows received == rows written",
-        rows_match,
-        f"written={total_written:,}  received={total_recv:,}  diff={total_written - total_recv:,}",
-    )
-
-    _RPC_SIG_MISMATCH_MSG = f"[0x0141/0x0140] client {from_ver} incompatible with server {to_ver}"
-
-    def _is_sig_error(e):
-        s = str(e)
-        return (
-            "0x0141" in s or "0x80000141" in s or "Invalid signature" in s or
-            "0x0140" in s or "0x80000140" in s or "Edition not compatible" in s
-        )
-
-    def _safe_verify(label, fn, *args, **kwargs):
-        """Call fn(*args) and _chk the result; catch [0x0141] as a compat failure."""
-        try:
-            ok, msg = fn(*args, **kwargs)
-            _chk(label, ok, msg)
-        except Exception as _e:
-            if _is_sig_error(_e):
-                _chk("RPC backward compatibility", False, _RPC_SIG_MISMATCH_MSG)
-            else:
-                raise
-
-    # ------ test_user privilege verification ------
-    uv = UserVerifier(fqdn=fqdn, cfg_dir=cfg_dir)
-    auth_ok, auth_msg = uv.verify_auth()
-    if not auth_ok and _is_sig_error(Exception(auth_msg)):
-        auth_msg = _RPC_SIG_MISMATCH_MSG
-    _chk("test_user authentication after upgrade", auth_ok, auth_msg)
-
-    _priv_before = locals().get("priv_before", None)
-    if _priv_before is not None:
-        _safe_verify("test_user privileges unchanged", uv.verify_privileges, _priv_before)
-    else:
-        _chk("test_user privileges unchanged ", False,
-             "baseline snapshot not captured (Phase 2 error)")
-
-    # ------ tag index verification ------
-    _idx_before = locals().get("idx_before", None)
-    if _idx_before is not None:
-        _safe_verify("Tag indexes preserved after upgrade", rm.verify_tag_indexes, _idx_before)
-    else:
-        _chk("Tag indexes preserved after upgrade", False,
-             "baseline snapshot not captured (Phase 2 error)")
-
-    # ------ TSMA verification ------
-    if tsma_supported:
-        _tsma_before = locals().get("tsma_before", None)
-        if _tsma_before is not None:
-            _safe_verify("TSMA preserved after upgrade", rm.verify_tsma, _tsma_before)
-        else:
-            _chk("TSMA preserved after upgrade", False,
-                 "baseline snapshot not captured (Phase 2 error)")
-    else:
-        rp.info(f"TSMA check skipped: base version {from_ver} < 3.3.6.0")
-
-    # ------ RSMA verification ------
-    if rsma_supported:
-        _rsma_before = locals().get("rsma_before", None)
-        if _rsma_before is not None:
-            _safe_verify("RSMA preserved after upgrade", rm.verify_rsma, _rsma_before)
-        else:
-            _chk("RSMA preserved after upgrade", False,
-                 "baseline snapshot not captured (Phase 2 error)")
-    else:
-        rp.info(f"RSMA check skipped: base version {from_ver} < 3.3.8.0")
-
-    # ------ Stream verification ------
-    if stream_supported:
-        _stream_before = locals().get("stream_before", None)
-        if _stream_before is not None:
-            _safe_verify("Stream preserved after upgrade", rm.verify_stream, _stream_before)
-        else:
-            _chk("Stream preserved after upgrade", False,
-                 "baseline snapshot not captured (Phase 2 error)")
-    else:
-        rp.info(f"Stream check skipped: base version {from_ver} < 3.3.7.0")
-
-    # ------ INFORMATION_SCHEMA check ------
-    if args.check_sysinfo:
-        _to_ver_actual = None
-        _sysinfo_after = None
-        try:
-            _to_ver_actual = get_server_version(fqdn, cfg_dir)
-            _sysinfo_after = sysinfo_snapshot(fqdn, cfg_dir)
-            rp.info(f"SysInfo: server version (to) = {_to_ver_actual}, "
-                    f"{len(_sysinfo_after)} tables captured")
-        except Exception as _sie:
-            rp.error(f"SysInfo snapshot (after) failed: {_sie}")
-        if _sysinfo_before is not None and _sysinfo_after is not None:
-            _si_diff = compare_snapshots(_sysinfo_before, _sysinfo_after)
-            _wl = load_whitelists(whitelist_dir, _from_ver_actual or from_ver,
-                                   _to_ver_actual or to_ver)
-            if _wl.source_files:
-                rp.info(f"SysInfo whitelist files: {_wl.source_files}")
-            _fr = apply_whitelist(_si_diff, _wl)
-            if _fr.has_unexpected():
-                _cand_wl_path = _write_candidate_whitelist(
-                    _si_diff, _from_ver_actual or from_ver, _to_ver_actual or to_ver)
-                _detail = _fr.format_unexpected()
-                if _cand_wl_path:
-                    _detail += f"\n  {_cand_wl_path}"
-                _chk("INFORMATION_SCHEMA: no unexpected changes", False, _detail)
-            else:
-                _si_detail = "(no changes)" if _si_diff.is_empty() else "(all changes whitelisted)"
-                _chk("INFORMATION_SCHEMA: no unexpected changes", True, _si_detail)
-                if _fr.format_expected():
-                    rp.info(f"  Expected (whitelisted):\n{_fr.format_expected()}")
-        elif _sysinfo_before is None:
-            _chk("INFORMATION_SCHEMA: no unexpected changes", False,
-                 "before-snapshot not captured")
 
     all_passed = all(ok for _, ok, _ in checks)
-
     rp.summary_end(
         passed=all_passed, checks=checks, start_time=test_start,
         write_max=write_max, query_max=query_max, sub_max=sub_max,
