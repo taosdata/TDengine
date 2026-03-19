@@ -95,8 +95,9 @@ func Init() *http.Server {
 	}
 
 	server := &http.Server{
-		Addr:    conf.Host + ":" + strconv.Itoa(conf.Port),
-		Handler: router,
+		Addr:              conf.Host + ":" + strconv.Itoa(conf.Port),
+		Handler:           router,
+		ReadHeaderTimeout: 10 * time.Second,
 	}
 
 	return server
