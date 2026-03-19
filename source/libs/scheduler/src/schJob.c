@@ -597,6 +597,11 @@ int32_t schNotifyUserFetchRes(SSchJob *pJob) {
   if (TSDB_CODE_SUCCESS != code && TSDB_CODE_SUCCESS == atomic_load_32(&pJob->errCode)) {
     atomic_store_32(&pJob->errCode, code);
   }
+  // Fetch response received, transition to RETURNED state
+  if (atomic_load_32(&pJob->execPhase) != QUERY_PHASE_FETCH_RETURNED) {
+    atomic_store_32(&pJob->execPhase, QUERY_PHASE_FETCH_RETURNED);
+    atomic_store_64(&pJob->phaseStartTime, taosGetTimestampMs());
+  }
 
   SCH_JOB_DLOG("sch start to invoke fetch cb, code:%s", tstrerror(pJob->errCode));
   (*pJob->userRes.fetchFp)(pRes, pJob->userRes.cbParam, atomic_load_32(&pJob->errCode));
