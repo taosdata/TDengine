@@ -101,19 +101,6 @@ int32_t tqOpen(const char* path, SVnode* pVnode) {
 
   taosInitRWLatch(&pTq->lock);
 
-<<<<<<< HEAD
-  pTq->pPushMgr = taosHashInit(64, MurmurHash3_32, false, HASH_NO_LOCK);
-  if (pTq->pPushMgr == NULL) {
-    return terrno;
-  }
-=======
-  pTq->pCheckInfo = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
-  if (pTq->pCheckInfo == NULL) {
-    return terrno;
-  }
-  taosHashSetFreeFp(pTq->pCheckInfo, (FDelete)tDeleteSTqCheckInfo);
->>>>>>> 70aef009104 (fix(tmq): client does not poll data in a long time if there are some exceptions in channel)
-
   pTq->pOffset = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), true, HASH_ENTRY_LOCK);
   if (pTq->pOffset == NULL) {
     return terrno;
@@ -299,77 +286,6 @@ int32_t tqProcessSeekReq(STQ* pTq, SRpcMsg* pMsg) {
 end:
   rsp.code = code;
   tmsgSendRsp(&rsp);
-  return 0;
-}
-
-<<<<<<< HEAD
-int32_t tqProcessPollPush(STQ* pTq) {
-  if (pTq == NULL) {
-    return TSDB_CODE_INVALID_PARA;
-  }
-  int32_t vgId = TD_VID(pTq->pVnode);
-  taosWLockLatch(&pTq->lock);
-  if (taosHashGetSize(pTq->pPushMgr) > 0) {
-    void* pIter = taosHashIterate(pTq->pPushMgr, NULL);
-
-    while (pIter) {
-      STqHandle* pHandle = *(STqHandle**)pIter;
-      tqDebug("vgId:%d start set submit for pHandle:%p, consumer:0x%" PRIx64, vgId, pHandle, pHandle->consumerId);
-
-      if (pHandle->msg == NULL) {
-        tqError("pHandle->msg should not be null");
-        taosHashCancelIterate(pTq->pPushMgr, pIter);
-        break;
-      } else {
-        SRpcMsg msg = {.msgType = TDMT_VND_TMQ_CONSUME,
-                       .pCont = pHandle->msg->pCont,
-                       .contLen = pHandle->msg->contLen,
-                       .info = pHandle->msg->info};
-        if (tmsgPutToQueue(&pTq->pVnode->msgCb, QUERY_QUEUE, &msg) != 0){
-          tqError("vgId:%d tmsgPutToQueue failed, consumer:0x%" PRIx64, vgId, pHandle->consumerId);
-        }
-        taosMemoryFree(pHandle->msg);
-        pHandle->msg = NULL;
-      }
-
-      pIter = taosHashIterate(pTq->pPushMgr, pIter);
-    }
-
-    taosHashClear(pTq->pPushMgr);
-  }
-  taosWUnLockLatch(&pTq->lock);
-=======
-int32_t tqCheckColModifiable(STQ* pTq, int64_t tbUid, int32_t colId) {
-  if (pTq == NULL) {
-    return TSDB_CODE_INVALID_PARA;
-  }
-  void* pIter = NULL;
-
-  while (1) {
-    pIter = taosHashIterate(pTq->pCheckInfo, pIter);
-    if (pIter == NULL) {
-      break;
-    }
-
-    STqCheckInfo* pCheck = (STqCheckInfo*)pIter;
-
-    if (pCheck->ntbUid == tbUid) {
-      int32_t sz = taosArrayGetSize(pCheck->colIdList);
-      for (int32_t i = 0; i < sz; i++) {
-        int16_t* pForbidColId = taosArrayGet(pCheck->colIdList, i);
-        if (pForbidColId == NULL) {
-          continue;
-        }
-
-        if ((*pForbidColId) == colId) {
-          taosHashCancelIterate(pTq->pCheckInfo, pIter);
-          return -1;
-        }
-      }
-    }
-  }
-
->>>>>>> 70aef009104 (fix(tmq): client does not poll data in a long time if there are some exceptions in channel)
   return 0;
 }
 
