@@ -1718,7 +1718,7 @@ INIT_EXT(ext_arrow
 get_from_local_repo_if_exists("https://github.com/apache/arrow.git")
 ExternalProject_Add(ext_arrow
     GIT_REPOSITORY ${_git_url}
-    GIT_TAG        apache-arrow-19.0.1
+    GIT_TAG        apache-arrow-20.0.0
     GIT_SHALLOW    TRUE
     PREFIX         "${_base}"
     SOURCE_SUBDIR  cpp
