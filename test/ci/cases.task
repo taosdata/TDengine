@@ -1060,21 +1060,21 @@
 #,,y,.,./ci/pytest.sh pytest cases/81-Tools/05-Valgrind/test_valgrind_udf.py
 
 ## 06-Backup
-,,y,system-test,./pytest.sh python3 ./test.py -f cases/81-Tools/06-TaosBackup/test_taosbackup_allnull.py -B
-,,y,system-test,./pytest.sh python3 ./test.py -f cases/81-Tools/06-TaosBackup/test_taosbackup_basic.py -B
-,,y,system-test,./pytest.sh python3 ./test.py -f cases/81-Tools/06-TaosBackup/test_taosbackup_bugs.py -B
-,,y,system-test,./pytest.sh python3 ./test.py -f cases/81-Tools/06-TaosBackup/test_taosbackup_checkpoint.py -B
-,,y,system-test,./pytest.sh python3 ./test.py -f cases/81-Tools/06-TaosBackup/test_taosbackup_chinese.py -B
-,,y,system-test,./pytest.sh python3 ./test.py -f cases/81-Tools/06-TaosBackup/test_taosbackup_commandline.py -B
-,,y,system-test,./pytest.sh python3 ./test.py -f cases/81-Tools/06-TaosBackup/test_taosbackup_datatypes.py -B
-,,y,system-test,./pytest.sh python3 ./test.py -f cases/81-Tools/06-TaosBackup/test_taosbackup_edge.py -B
-,,y,system-test,./pytest.sh python3 ./test.py -f cases/81-Tools/06-TaosBackup/test_taosbackup_except.py -B
-,,y,system-test,./pytest.sh python3 ./test.py -f cases/81-Tools/06-TaosBackup/test_taosbackup_format.py -B
-,,y,system-test,./pytest.sh python3 ./test.py -f cases/81-Tools/06-TaosBackup/test_taosbackup_integrity.py -B
-,,y,system-test,./pytest.sh python3 ./test.py -f cases/81-Tools/06-TaosBackup/test_taosbackup_precision.py -B
-,,y,system-test,./pytest.sh python3 ./test.py -f cases/81-Tools/06-TaosBackup/test_taosbackup_primarykey.py -B
-,,y,system-test,./pytest.sh python3 ./test.py -f cases/81-Tools/06-TaosBackup/test_taosbackup_schema_change.py -B
-,,y,system-test,./pytest.sh python3 ./test.py -f cases/81-Tools/06-TaosBackup/test_taosbackup_vtable.py -B
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/06-TaosBackup/test_taosbackup_allnull.py -B
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/06-TaosBackup/test_taosbackup_basic.py -B
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/06-TaosBackup/test_taosbackup_bugs.py -B
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/06-TaosBackup/test_taosbackup_checkpoint.py -B
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/06-TaosBackup/test_taosbackup_chinese.py -B
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/06-TaosBackup/test_taosbackup_commandline.py -B
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/06-TaosBackup/test_taosbackup_datatypes.py -B
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/06-TaosBackup/test_taosbackup_edge.py -B
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/06-TaosBackup/test_taosbackup_except.py -B
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/06-TaosBackup/test_taosbackup_format.py -B
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/06-TaosBackup/test_taosbackup_integrity.py -B
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/06-TaosBackup/test_taosbackup_precision.py -B
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/06-TaosBackup/test_taosbackup_primarykey.py -B
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/06-TaosBackup/test_taosbackup_schema_change.py -B
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/06-TaosBackup/test_taosbackup_vtable.py -B
 
 
 # 82-UnitTest
