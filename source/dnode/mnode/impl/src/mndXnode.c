@@ -135,6 +135,9 @@ SJson         *mndSendReqRetJson(const char *url, EHttpType type, int64_t timeou
 static int32_t mndSetDropXnodeJobInfoToTrans(STrans *pTrans, SXnodeJobObj *pObj, bool force);
 void           mndReleaseXnodeJob(SMnode *pMnode, SXnodeJobObj *pObj);
 static int32_t mndValidateXnodePermissions(SMnode *pMnode, SRpcMsg *pReq, EOperType oper);
+static int32_t mndXnodeCheckSuperUser(SMnode *pMnode, const char *user, bool *isSuperUser);
+static int32_t mndCheckXnodeTaskOwner(SMnode *pMnode, const char *user, SXnodeTaskObj *pTask);
+static int32_t mndCheckXnodeJobOwner(SMnode *pMnode, const char *user, SXnodeJobObj *pJob);
 
 int32_t mndInitXnode(SMnode *pMnode) {
   SSdbTable table = {
@@ -717,6 +720,7 @@ static int32_t mndProcessCreateXnodeReq(SRpcMsg *pReq) {
   SXnodeObj       *pObj = NULL;
   SMCreateXnodeReq createReq = {0};
   char            *pToken = NULL;
+  bool             isSuperUser = false;
 
   code = mndValidateXnodePermissions(pMnode, pReq, MND_OPER_CREATE_XNODE);
   if (code != TSDB_CODE_SUCCESS) {
@@ -725,6 +729,12 @@ static int32_t mndProcessCreateXnodeReq(SRpcMsg *pReq) {
   }
   TAOS_CHECK_GOTO(tDeserializeSMCreateXnodeReq(pReq->pCont, pReq->contLen, &createReq), &lino, _OVER);
   mDebug("xnode:%s, start to create", createReq.url);
+
+  code = mndXnodeCheckSuperUser(pMnode, pReq->info.conn.user, &isSuperUser);
+  if (code != 0) return code;
+  if (!isSuperUser) {
+    return TSDB_CODE_MND_XNODE_NO_PRIV;
+  }
 
   pObj = mndAcquireXnodeByURL(pMnode, createReq.url);
   if (pObj != NULL) {
@@ -872,6 +882,7 @@ static int32_t mndProcessUpdateXnodeReq(SRpcMsg *pReq) {
   int32_t          code = 0;
   SXnodeObj       *pObj = NULL;
   SMUpdateXnodeReq updateReq = {0};
+  bool             isSuperUser = false;
 
   code = mndValidateXnodePermissions(pMnode, pReq, MND_OPER_UPDATE_XNODE);
   if (code != TSDB_CODE_SUCCESS) {
@@ -879,6 +890,12 @@ static int32_t mndProcessUpdateXnodeReq(SRpcMsg *pReq) {
     goto _OVER;
   }
   TAOS_CHECK_GOTO(tDeserializeSMUpdateXnodeReq(pReq->pCont, pReq->contLen, &updateReq), NULL, _OVER);
+
+  code = mndXnodeCheckSuperUser(pMnode, pReq->info.conn.user, &isSuperUser);
+  if (code != 0) return code;
+  if (!isSuperUser) {
+    return TSDB_CODE_MND_XNODE_NO_PRIV;
+  }
 
   if (updateReq.token.ptr != NULL || (updateReq.user.ptr != NULL && updateReq.pass.ptr != NULL)) {
     code = mndUpdateXnodeUserPassToken(pMnode, pReq, &updateReq);
@@ -983,6 +1000,7 @@ static int32_t mndProcessDropXnodeReq(SRpcMsg *pReq) {
   SXnodeObj     *pObj = NULL;
   SMDropXnodeReq dropReq = {0};
   SJson         *pJson = NULL;
+  bool           isSuperUser = false;
 
   code = mndValidateXnodePermissions(pMnode, pReq, MND_OPER_DROP_XNODE);
   if (code != TSDB_CODE_SUCCESS) {
@@ -991,6 +1009,12 @@ static int32_t mndProcessDropXnodeReq(SRpcMsg *pReq) {
   }
   TAOS_CHECK_GOTO(tDeserializeSMDropXnodeReq(pReq->pCont, pReq->contLen, &dropReq), NULL, _OVER);
   mDebug("xnode:%d, start to drop", dropReq.xnodeId);
+
+  code = mndXnodeCheckSuperUser(pMnode, pReq->info.conn.user, &isSuperUser);
+  if (code != 0) return code;
+  if (!isSuperUser) {
+    return TSDB_CODE_MND_XNODE_NO_PRIV;
+  }
 
   if (dropReq.xnodeId <= 0 && (dropReq.url == NULL || strlen(dropReq.url) <= 0)) {
     code = TSDB_CODE_MND_XNODE_INVALID_MSG;
@@ -1044,6 +1068,7 @@ static int32_t mndProcessDrainXnodeReq(SRpcMsg *pReq) {
   SJson          *pJson = NULL;
   SJson          *postContent = NULL;
   char           *pContStr = NULL;
+  bool            isSuperUser = false;
 
   code = mndValidateXnodePermissions(pMnode, pReq, MND_OPER_DRAIN_XNODE);
   if (code != TSDB_CODE_SUCCESS) {
@@ -1052,6 +1077,12 @@ static int32_t mndProcessDrainXnodeReq(SRpcMsg *pReq) {
   }
   TAOS_CHECK_GOTO(tDeserializeSMDrainXnodeReq(pReq->pCont, pReq->contLen, &drainReq), NULL, _OVER);
   mDebug("xnode:%d, start to drain", drainReq.xnodeId);
+
+  code = mndXnodeCheckSuperUser(pMnode, pReq->info.conn.user, &isSuperUser);
+  if (code != 0) return code;
+  if (!isSuperUser) {
+    return TSDB_CODE_MND_XNODE_NO_PRIV;
+  }
 
   if (drainReq.xnodeId <= 0) {
     code = TSDB_CODE_MND_XNODE_INVALID_MSG;
@@ -1823,6 +1854,11 @@ static int32_t mndProcessStartXnodeTaskReq(SRpcMsg *pReq) {
     code = terrno;
     goto _OVER;
   }
+  code = mndCheckXnodeTaskOwner(pMnode, pReq->info.conn.user, pObj);
+  if (code != TSDB_CODE_SUCCESS) {
+    mError("user:%s has no privilege on xnode task:%d", pReq->info.conn.user, pObj->id);
+    goto _OVER;
+  }
   (void)httpStartXnodeTask(pObj);
 
 _OVER:
@@ -1867,6 +1903,11 @@ static int32_t mndProcessStopXnodeTaskReq(SRpcMsg *pReq) {
   }
   if (pObj == NULL) {
     code = terrno;
+    goto _OVER;
+  }
+  code = mndCheckXnodeTaskOwner(pMnode, pReq->info.conn.user, pObj);
+  if (code != TSDB_CODE_SUCCESS) {
+    mError("user:%s has no privilege on xnode task:%d", pReq->info.conn.user, pObj->id);
     goto _OVER;
   }
 
@@ -2043,6 +2084,11 @@ static int32_t mndProcessUpdateXnodeTaskReq(SRpcMsg *pReq) {
     code = terrno;
     goto _OVER;
   }
+  code = mndCheckXnodeTaskOwner(pMnode, pReq->info.conn.user, pObj);
+  if (code != TSDB_CODE_SUCCESS) {
+    mError("user:%s has no privilege on xnode task:%d", pReq->info.conn.user, pObj->id);
+    goto _OVER;
+  }
 
   if (updateReq.updateName.len > 0) {
     SXnodeTaskObj *tmpObj = mndAcquireXnodeTaskByName(pMnode, updateReq.updateName.ptr);
@@ -2169,6 +2215,11 @@ static int32_t mndProcessDropXnodeTaskReq(SRpcMsg *pReq) {
     code = terrno;
     goto _OVER;
   }
+  code = mndCheckXnodeTaskOwner(pMnode, pReq->info.conn.user, pObj);
+  if (code != TSDB_CODE_SUCCESS) {
+    mError("user:%s has no privilege on xnode task:%d", pReq->info.conn.user, pObj->id);
+    goto _OVER;
+  }
 
   // send request to drop xnode task
   char xnodeUrl[TSDB_XNODE_URL_LEN + 1] = {0};
@@ -2200,11 +2251,22 @@ static int32_t mndRetrieveXnodeTasks(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
            TMAX(TSDB_XNODE_TASK_NAME_LEN,
                           TMAX(TSDB_XNODE_TASK_SOURCE_LEN, TMAX(TSDB_XNODE_TASK_SINK_LEN, TSDB_XNODE_TASK_PARSER_LEN)))];
   int32_t        code = 0;
+  SUserObj      *pOperUser = NULL;
   mDebug("show.type:%d, %s:%d: retrieve xnode tasks with rows: %d", pShow->type, __FILE__, __LINE__, rows);
+
+  TAOS_CHECK_GOTO(mndAcquireUser(pMnode, pReq->info.conn.user, &pOperUser), NULL, _end);
 
   while (numOfRows < rows) {
     pShow->pIter = sdbFetch(pSdb, SDB_XNODE_TASK, pShow->pIter, (void **)&pObj);
     if (pShow->pIter == NULL) break;
+
+    if (!pOperUser->superUser) {
+      if (pObj->createdBy == NULL || pObj->createdByLen <= 0 ||
+          strncmp(pObj->createdBy, pReq->info.conn.user, TSDB_USER_LEN) != 0) {
+        sdbRelease(pSdb, pObj);
+        continue;
+      }
+    }
 
     cols = 0;
     // id
@@ -2329,6 +2391,7 @@ static int32_t mndRetrieveXnodeTasks(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
 
 _end:
   if (code != 0 && pObj != NULL) sdbRelease(pSdb, pObj);
+  mndReleaseUser(pMnode, pOperUser);
 
   pShow->numOfRows += numOfRows;
   return numOfRows;
@@ -2977,6 +3040,7 @@ static int32_t mndProcessCreateXnodeJobReq(SRpcMsg *pReq) {
   SMnode             *pMnode = pReq->info.node;
   int32_t             code = -1;
   SMCreateXnodeJobReq createReq = {0};
+  SXnodeTaskObj      *pTaskObj = NULL;
 
   code = mndValidateXnodePermissions(pMnode, pReq, MND_OPER_CREATE_XNODE_JOB);
   if (code != TSDB_CODE_SUCCESS) {
@@ -2986,6 +3050,19 @@ static int32_t mndProcessCreateXnodeJobReq(SRpcMsg *pReq) {
   TAOS_CHECK_GOTO(tDeserializeSMCreateXnodeJobReq(pReq->pCont, pReq->contLen, &createReq), NULL, _OVER);
   mDebug("xnode create job on xnode:%d", createReq.xnodeId);
 
+  // task must exists
+  pTaskObj = mndAcquireXnodeTaskById(pMnode, createReq.tid);
+  if (pTaskObj == NULL) {
+    code = TSDB_CODE_MND_XNODE_TASK_NOT_EXIST;
+    goto _OVER;
+  }
+  // check task owner
+  code = mndCheckXnodeTaskOwner(pMnode, pReq->info.conn.user, pTaskObj);
+  if (code != TSDB_CODE_SUCCESS) {
+    mError("user:%s has no privilege on xnode task:%d", pReq->info.conn.user, pTaskObj->id);
+    goto _OVER;
+  }
+
   code = mndCreateXnodeJob(pMnode, pReq, &createReq);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
@@ -2994,6 +3071,7 @@ _OVER:
     mError("xnode task job on task id:%d, failed to create since %s", createReq.tid, tstrerror(code));
   }
 
+  mndReleaseXnodeTask(pMnode, pTaskObj);
   tFreeSMCreateXnodeJobReq(&createReq);
   TAOS_RETURN(code);
 }
@@ -3014,6 +3092,11 @@ static int32_t mndProcessUpdateXnodeJobReq(SRpcMsg *pReq) {
   pObj = mndAcquireXnodeJob(pMnode, updateReq.jid);
   if (pObj == NULL) {
     code = terrno;
+    goto _OVER;
+  }
+  code = mndCheckXnodeJobOwner(pMnode, pReq->info.conn.user, pObj);
+  if (code != TSDB_CODE_SUCCESS) {
+    mError("user:%s has no privilege on xnode job:%d", pReq->info.conn.user, pObj->id);
     goto _OVER;
   }
 
@@ -3055,6 +3138,11 @@ static int32_t mndProcessRebalanceXnodeJobReq(SRpcMsg *pReq) {
   pObj = mndAcquireXnodeJob(pMnode, rebalanceReq.jid);
   if (pObj == NULL) {
     code = terrno;
+    goto _OVER;
+  }
+  code = mndCheckXnodeJobOwner(pMnode, pReq->info.conn.user, pObj);
+  if (code != TSDB_CODE_SUCCESS) {
+    mError("user:%s has no privilege on xnode job:%d", pReq->info.conn.user, pObj->id);
     goto _OVER;
   }
 
@@ -3596,9 +3684,21 @@ static int32_t mndProcessRebalanceXnodeJobsWhereReq(SRpcMsg *pReq) {
   TAOS_CHECK_GOTO(tDeserializeSMRebalanceXnodeJobsWhereReq(pReq->pCont, pReq->contLen, &rebalanceReq), NULL, _OVER);
 
   TAOS_CHECK_GOTO(mndAcquireXnodeJobsAll(pMnode, &pArray), NULL, _OVER);
+  for (int32_t i = 0; i < pArray->size; i++) {
+    SXnodeJobObj *pJob = taosArrayGet(pArray, i);
+    code = mndCheckXnodeJobOwner(pMnode, pReq->info.conn.user, pJob);
+    if (code == TSDB_CODE_SUCCESS) {
+      continue;
+    } else if (code == TSDB_CODE_MND_XNODE_TASK_NO_PRIV) {
+      taosArrayRemove(pArray, i);
+      i--;
+    } else {
+      mError("user:%s rebalance where xnode job:%d, error:%s", pReq->info.conn.user, pJob->id, tstrerror(code));
+      goto _OVER;
+    }
+  }
   if (NULL != rebalanceReq.ast.ptr) {
     TAOS_CHECK_GOTO(nodesStringToNode(rebalanceReq.ast.ptr, &pWhere), NULL, _OVER);
-
     TAOS_CHECK_GOTO(filterJobsByWhereCond(pWhere, pArray, &pResult), NULL, _OVER);
     httpRebalanceAuto(pResult);
   } else {
@@ -3630,6 +3730,11 @@ static int32_t dropXnodeJobById(SMnode *pMnode, SRpcMsg *pReq, int32_t jid) {
     lino = __LINE__;
     goto _OVER;
   }
+  code = mndCheckXnodeJobOwner(pMnode, pReq->info.conn.user, pObj);
+  if (code != TSDB_CODE_SUCCESS) {
+    mError("user:%s has no privilege on xnode job:%d", pReq->info.conn.user, pObj->id);
+    goto _OVER;
+  }
   code = mndDropXnodeJob(pMnode, pReq, pObj);
 
 _OVER:
@@ -3653,6 +3758,11 @@ static int32_t dropXnodeJobByWhereCond(SMnode *pMnode, SRpcMsg *pReq, SMDropXnod
 
     for (int32_t i = 0; i < pResult->size; i++) {
       pObj = taosArrayGet(pResult, i);
+      code = mndCheckXnodeJobOwner(pMnode, pReq->info.conn.user, pObj);
+      if (code != TSDB_CODE_SUCCESS) {
+        mError("user:%s has no privilege on xnode job:%d", pReq->info.conn.user, pObj->id);
+        goto _OVER;
+      }
       TAOS_CHECK_GOTO(mndDropXnodeJob(pMnode, NULL, pObj), &lino, _OVER);
     }
   }
@@ -3736,11 +3846,30 @@ static int32_t mndRetrieveXnodeJobs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
   char          buf[VARSTR_HEADER_SIZE + TMAX(TSDB_XNODE_TASK_JOB_CONFIG_LEN, TSDB_XNODE_TASK_REASON_LEN)];
   char          status[64] = {0};
   int32_t       code = 0;
+  SUserObj     *pOperUser = NULL;
   mDebug("show.type:%d, %s:%d: retrieve xnode jobs with rows: %d", pShow->type, __FILE__, __LINE__, rows);
+
+  TAOS_CHECK_GOTO(mndAcquireUser(pMnode, pReq->info.conn.user, &pOperUser), NULL, _end);
 
   while (numOfRows < rows) {
     pShow->pIter = sdbFetch(pSdb, SDB_XNODE_JOB, pShow->pIter, (void **)&pObj);
     if (pShow->pIter == NULL) break;
+
+    if (!pOperUser->superUser) {
+      SXnodeTaskObj *pTask = mndAcquireXnodeTaskById(pMnode, pObj->taskId);
+      bool allowed = false;
+      if (pTask != NULL) {
+        if (pTask->createdBy != NULL && pTask->createdByLen > 0 &&
+            strncmp(pTask->createdBy, pReq->info.conn.user, TSDB_USER_LEN) == 0) {
+          allowed = true;
+        }
+        mndReleaseXnodeTask(pMnode, pTask);
+      }
+      if (!allowed) {
+        sdbRelease(pSdb, pObj);
+        continue;
+      }
+    }
 
     cols = 0;
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -3819,6 +3948,7 @@ static int32_t mndRetrieveXnodeJobs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
 
 _end:
   if (code != 0) sdbRelease(pSdb, pObj);
+  mndReleaseUser(pMnode, pOperUser);
 
   pShow->numOfRows += numOfRows;
   return numOfRows;
@@ -4307,6 +4437,69 @@ void mndReleaseXnodeAgent(SMnode *pMnode, SXnodeAgentObj *pObj) {
   sdbRelease(pSdb, pObj);
 }
 
+static int32_t mndXnodeCheckSuperUser(SMnode *pMnode, const char *user, bool *isSuperUser) {
+  if (pMnode == NULL || user == NULL || isSuperUser == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  SUserObj *pUser = NULL;
+  int32_t   code = mndAcquireUser(pMnode, user, &pUser);
+  if (code != 0) {
+    *isSuperUser = false;
+    return code;
+  }
+
+  if (pUser->superUser) {
+    *isSuperUser = true;
+  } else {
+    *isSuperUser = false;
+  }
+  mndReleaseUser(pMnode, pUser);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t mndCheckXnodeTaskOwner(SMnode *pMnode, const char *user, SXnodeTaskObj *pTask) {
+  SUserObj *pUser = NULL;
+  int32_t   code = mndAcquireUser(pMnode, user, &pUser);
+  if (code != 0) return code;
+
+  if (pUser->superUser) {
+    mndReleaseUser(pMnode, pUser);
+    return TSDB_CODE_SUCCESS;
+  }
+  mndReleaseUser(pMnode, pUser);
+
+  if (pTask->createdBy != NULL && pTask->createdByLen > 0 &&
+      strncmp(pTask->createdBy, user, TSDB_USER_LEN) == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  return TSDB_CODE_MND_XNODE_TASK_NO_PRIV;
+}
+
+static int32_t mndCheckXnodeJobOwner(SMnode *pMnode, const char *user, SXnodeJobObj *pJob) {
+  SUserObj *pUser = NULL;
+  int32_t   code = mndAcquireUser(pMnode, user, &pUser);
+  if (code != 0) return code;
+
+  if (pUser->superUser) {
+    mndReleaseUser(pMnode, pUser);
+    return TSDB_CODE_SUCCESS;
+  }
+  mndReleaseUser(pMnode, pUser);
+
+  SXnodeTaskObj *pTask = mndAcquireXnodeTaskById(pMnode, pJob->taskId);
+  if (pTask == NULL) return TSDB_CODE_MND_XNODE_TASK_NOT_EXIST;
+
+  code = TSDB_CODE_MND_XNODE_TASK_NO_PRIV;
+  if (pTask->createdBy != NULL && pTask->createdByLen > 0 &&
+      strncmp(pTask->createdBy, user, TSDB_USER_LEN) == 0) {
+    code = TSDB_CODE_SUCCESS;
+  }
+  mndReleaseXnodeTask(pMnode, pTask);
+  return code;
+}
+
 static int32_t mndValidateXnodePermissions(SMnode *pMnode, SRpcMsg *pReq, EOperType oper) {
   int32_t code = grantCheck(TSDB_GRANT_XNODE);
   if (code != TSDB_CODE_SUCCESS) {
@@ -4314,7 +4507,8 @@ static int32_t mndValidateXnodePermissions(SMnode *pMnode, SRpcMsg *pReq, EOperT
     return code;
   }
 
-  return mndCheckOperPrivilege(pMnode, pReq->info.conn.user, NULL, oper);
+  // return mndCheckOperPrivilege(pMnode, pReq->info.conn.user, NULL, oper);
+  return TSDB_CODE_SUCCESS;
 }
 
 SXnodeAgentObj *mndAcquireXnodeAgentById(SMnode *pMnode, int32_t id) {
