@@ -128,7 +128,7 @@ jobs:
               echo "Timed out after ${timeout_seconds}s waiting for TSDB Explorer at ${TSDB_EXPLORER_URL}"
               exit 1
             fi
-            echo "Waiting for TSDB Explorer at ${TSDB_EXPLORER_URL}..."
+            echo "Waiting for TSDB Explorer at ${TSDB_EXPLORER_URL}"
             sleep 5
           done
 
