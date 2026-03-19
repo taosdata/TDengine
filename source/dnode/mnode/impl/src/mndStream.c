@@ -442,10 +442,15 @@ static int32_t mndStreamCreateOutTable(SMnode *pMnode, STrans *pTrans, const SCM
     }
   }
 
-  // Initialize colCmpr
+  // Initialize colCmpr with default encode/compress/level per column type
   code = tInitDefaultSColCmprWrapperByCols(&createReq.colCmpr, numOfCols);
   if (code != TSDB_CODE_SUCCESS) {
     goto _OVER;
+  }
+  for (int32_t i = 0; i < numOfCols; i++) {
+    SSchema *pSchema = &createReq.ntb.schemaRow.pSchema[i];
+    createReq.colCmpr.pColCmpr[i].id = pSchema->colId;
+    createReq.colCmpr.pColCmpr[i].alg = createDefaultColCmprByType(pSchema->type);
   }
 
   // Build SVCreateTbBatchReq (vnode expects batch request)
