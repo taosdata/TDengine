@@ -1137,13 +1137,16 @@ int32_t taosSetGlobalTimezone(const char *tz) {
 #endif
 }
 
-int32_t taosGetLocalTimezoneOffset() {
+int32_t taosGetLocalTimezoneOffset(int32_t *code) {
   time_t    tx1 = taosGetTimestampSec();
   struct tm tm1;
   if (taosLocalTime(&tx1, &tm1, NULL, 0, getGlobalDefaultTZ()) == NULL) {
+    int32_t err = TSDB_CODE_TIME_ERROR;
+    if (code != NULL) *code = err;
     uError("%s failed to get local time: code:%d", __FUNCTION__, ERRNO);
-    return TSDB_CODE_TIME_ERROR;
+    return err;
   }
+  if (code != NULL) *code = TSDB_CODE_SUCCESS;
 #ifdef WINDOWS
   // getWindowsTimezoneOffset() reads the TZ environment variable set by taosSetGlobalTimezone.
   // TZ is stored in POSIX `timezone` convention (east-negative), e.g. East 8 (UTC+8) -> "-8:00"
@@ -1168,7 +1171,7 @@ int32_t taosGetLocalTimezoneOffset() {
  * When tz == NULL the global default timezone (set by taosSetGlobalTimezone) is used,
  * making the function equivalent to taosGetLocalTimezoneOffset().
  */
-int32_t taosGetTZOffsetSeconds(timezone_t tz) {
+int32_t taosGetTZOffsetSeconds(timezone_t tz, int32_t *code) {
 #ifdef WINDOWS
   if (tz != NULL) {
     // offset_seconds in WindowsTimezoneObj uses east-negative (POSIX timezone) convention.
@@ -1177,20 +1180,26 @@ int32_t taosGetTZOffsetSeconds(timezone_t tz) {
     taosThreadMutexLock(&tz_obj->mutex);
     int32_t offset = -(int32_t)tz_obj->offset_seconds;
     taosThreadMutexUnlock(&tz_obj->mutex);
+    if (code != NULL) *code = TSDB_CODE_SUCCESS;
     return offset;
   }
   // tz == NULL: fall through to global default
+  if (code != NULL) *code = TSDB_CODE_SUCCESS;
   return -(int32_t)getWindowsTimezoneOffset();
 #elif defined(TD_ASTRA)
+  if (code != NULL) *code = TSDB_CODE_SUCCESS;
   return -(int32_t)timezone;
 #else
   time_t    tx1 = taosGetTimestampSec();
   struct tm tm1;
   if (tz == NULL) tz = getGlobalDefaultTZ();
   if (taosLocalTime(&tx1, &tm1, NULL, 0, tz) == NULL) {
+    int32_t err = TSDB_CODE_TIME_ERROR;
+    if (code != NULL) *code = err;
     uError("%s failed to get local time: code:%d", __FUNCTION__, ERRNO);
-    return TSDB_CODE_TIME_ERROR;
+    return err;
   }
+  if (code != NULL) *code = TSDB_CODE_SUCCESS;
   return (int32_t)(tm1.tm_gmtoff);
 #endif
 }

@@ -935,10 +935,12 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
         int64_t tz_offset = 0;
         if (pInterval->timezone != NULL) {
           // taosGetTZOffsetSeconds() returns east-positive for any timezone_t on all platforms.
-          tz_offset = taosGetTZOffsetSeconds(pInterval->timezone);
+          int32_t code = 0;
+          tz_offset = taosGetTZOffsetSeconds(pInterval->timezone, &code);
         } else {
           // Use global configured timezone (also east-positive on all platforms).
-          tz_offset = taosGetLocalTimezoneOffset();
+          int32_t code = 0;
+          tz_offset = taosGetLocalTimezoneOffset(&code);
         }
         news -= (int64_t)(tz_offset * TSDB_TICK_PER_SECOND(precision));
       }
@@ -984,10 +986,12 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
         int64_t tz_offset = 0;
         if (pInterval->timezone != NULL) {
           // taosGetTZOffsetSeconds() returns east-positive for any timezone_t on all platforms.
-          tz_offset = taosGetTZOffsetSeconds(pInterval->timezone);
+          int32_t code = 0;
+          tz_offset = taosGetTZOffsetSeconds(pInterval->timezone, &code);
         } else {
           // Use global configured timezone (also east-positive on all platforms).
-          tz_offset = taosGetLocalTimezoneOffset();
+          int32_t code = 0;
+          tz_offset = taosGetLocalTimezoneOffset(&code);
         }
 
         start -= (int64_t)(tz_offset * TSDB_TICK_PER_SECOND(precision));

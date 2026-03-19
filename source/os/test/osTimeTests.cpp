@@ -130,11 +130,12 @@ TEST(osTimeTests, taosMktime) {
 TEST(osTimeTests, windowsGlobalTimezoneOffset) {
   ASSERT_EQ(taosSetGlobalTimezone("UTC-8"), 0);
   ASSERT_EQ(getWindowsTimezoneOffset(), -TdEastZone8);
-  ASSERT_EQ(taosGetLocalTimezoneOffset(), TdEastZone8);
+  int32_t code = 0;
+  ASSERT_EQ(taosGetLocalTimezoneOffset(&code), TdEastZone8);
 
   ASSERT_EQ(taosSetGlobalTimezone("UTC"), 0);
   ASSERT_EQ(getWindowsTimezoneOffset(), 0);
-  ASSERT_EQ(taosGetLocalTimezoneOffset(), 0);
+  ASSERT_EQ(taosGetLocalTimezoneOffset(&code), 0);
 
   // Restore the default expected by existing Windows time tests.
   ASSERT_EQ(taosSetGlobalTimezone("UTC-8"), 0);
@@ -147,7 +148,8 @@ TEST(osTimeTests, windowsInitTimezoneKeepsConfiguredTZ) {
 
   ASSERT_EQ(initTimezoneInfo(), TSDB_CODE_SUCCESS);
   ASSERT_EQ(getWindowsTimezoneOffset(), 0);
-  ASSERT_EQ(taosGetLocalTimezoneOffset(), 0);
+  int32_t code = 0;
+  ASSERT_EQ(taosGetLocalTimezoneOffset(&code), 0);
 
   // 1602172800 is 2020-10-08 16:00:00 UTC.
   time_t ts = 1602172800;
@@ -185,8 +187,9 @@ TEST(osTimeTests, windowsInitTimezoneFromSystemZone) {
   uInfo("[test] System timezone offset = %lld seconds", offset);
   
   // Verify taosGetLocalTimezoneOffset is consistent
-  int32_t tz_offset = taosGetLocalTimezoneOffset();
-  uInfo("[test] taosGetLocalTimezoneOffset = %d seconds", tz_offset);
+  int32_t code = 0;
+  int32_t tz_offset = taosGetLocalTimezoneOffset(&code);
+  uInfo("[test] taosGetLocalTimezoneOffset = %d seconds, code = %d", tz_offset, code);
   
   // Restore to a known state
   ASSERT_EQ(taosSetGlobalTimezone("UTC-8"), 0);
