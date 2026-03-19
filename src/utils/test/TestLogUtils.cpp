@@ -4,6 +4,8 @@
 #include <fstream>
 #include <filesystem>
 #include <string>
+#include <thread>
+#include <chrono>
 
 bool log_file_contains(const std::string& log_file, const std::string& keyword) {
     std::ifstream fin(log_file);
@@ -212,6 +214,134 @@ void test_logger_guard_set_level() {
     std::cout << "test_logger_guard_set_level passed" << std::endl;
 }
 
+void test_init_console_only() {
+    LogUtils::init_console(LogUtils::Level::Info);
+
+    // Just verify it doesn't crash and can log to console
+    LogUtils::info("Console only message");
+    LogUtils::warn("Console only warning");
+
+    LogUtils::shutdown();
+    std::cout << "test_init_console_only passed" << std::endl;
+}
+
+void test_init_console_only_no_file() {
+    std::string log_file = "testlog/should_not_exist.log";
+    if (std::filesystem::exists(log_file)) std::filesystem::remove(log_file);
+
+    LogUtils::init_console(LogUtils::Level::Info);
+    LogUtils::info("Console only, no file");
+    LogUtils::flush();
+
+    LogUtils::shutdown();
+
+    // Log file should not be created
+    assert(!std::filesystem::exists(log_file));
+    std::cout << "test_init_console_only_no_file passed" << std::endl;
+}
+
+void test_reinit_logger() {
+    std::string log_file1 = "testlog/test_reinit1.log";
+    std::string log_file2 = "testlog/test_reinit2.log";
+    if (std::filesystem::exists(log_file1)) std::filesystem::remove(log_file1);
+    if (std::filesystem::exists(log_file2)) std::filesystem::remove(log_file2);
+
+    // First initialization
+    LogUtils::init_console(LogUtils::Level::Info);
+    LogUtils::info("Console only message");
+
+    // Re-initialize with file logging
+    LogUtils::init(LogUtils::Level::Info, log_file1, 1024 * 1024, 1);
+    LogUtils::info("First file message");
+
+    // Re-initialize with different file
+    LogUtils::init(LogUtils::Level::Info, log_file2, 1024 * 1024, 1);
+    LogUtils::info("Second file message");
+
+    LogUtils::shutdown();
+
+    assert(std::filesystem::exists(log_file1));
+    assert(std::filesystem::exists(log_file2));
+    assert(log_file_contains(log_file1, "First file message"));
+    assert(log_file_contains(log_file2, "Second file message"));
+
+    std::filesystem::remove(log_file1);
+    std::filesystem::remove(log_file2);
+    std::filesystem::remove("testlog");
+    std::cout << "test_reinit_logger passed" << std::endl;
+}
+
+void test_invalid_log_path() {
+    std::string log_file = "/proc/invalid_path/test.log";
+
+    try {
+        LogUtils::init(LogUtils::Level::Info, log_file, 1024 * 1024, 1);
+        assert(false && "Should throw exception for invalid path");
+    } catch (const std::runtime_error& e) {
+        std::string msg = e.what();
+        // Check for either "Invalid log file path" or "Failed to create log directory"
+        bool valid_error = (msg.find("Invalid log file path") != std::string::npos) ||
+                          (msg.find("Failed to create log directory") != std::string::npos);
+        if (!valid_error) {
+            std::cout << "Unexpected error message: " << msg << std::endl;
+        }
+        assert(valid_error);
+        std::cout << "test_invalid_log_path passed" << std::endl;
+    }
+}
+
+void test_create_log_directory() {
+    std::string log_file = "testlog/deep/nested/dir/test.log";
+    std::filesystem::path dir = std::filesystem::path(log_file).parent_path();
+    if (std::filesystem::exists(dir)) std::filesystem::remove_all(dir);
+
+    LogUtils::init(LogUtils::Level::Info, log_file, 1024 * 1024, 1);
+    LogUtils::info("Test directory creation");
+    LogUtils::shutdown();
+
+    assert(std::filesystem::exists(dir));
+    assert(std::filesystem::exists(log_file));
+    assert(log_file_contains(log_file, "Test directory creation"));
+
+    std::filesystem::remove_all("testlog");
+    std::cout << "test_create_log_directory passed" << std::endl;
+}
+
+void test_console_only_debug_level() {
+    LogUtils::init_console(LogUtils::Level::Debug);
+
+    // Just verify it doesn't crash and can log at debug level
+    LogUtils::debug("Debug message in console");
+    LogUtils::info("Info message in console");
+
+    LogUtils::shutdown();
+    std::cout << "test_console_only_debug_level passed" << std::endl;
+}
+
+void test_console_only_then_file() {
+    std::string log_file = "testlog/test_console_then_file.log";
+    if (std::filesystem::exists(log_file)) std::filesystem::remove(log_file);
+
+    // Start with console only
+    LogUtils::init_console(LogUtils::Level::Info);
+    LogUtils::info("Console only phase");
+
+    // Switch to file logging
+    LogUtils::init(LogUtils::Level::Info, log_file, 1024 * 1024, 1);
+    LogUtils::info("File logging phase");
+
+    LogUtils::shutdown();
+
+    assert(std::filesystem::exists(log_file));
+    assert(log_file_contains(log_file, "File logging phase"));
+    // Console only message should not be in file
+    assert(!log_file_contains(log_file, "Console only phase"));
+
+    std::filesystem::remove(log_file);
+    std::filesystem::remove("testlog");
+    std::cout << "test_console_only_then_file passed" << std::endl;
+}
+
 int main() {
     test_init_and_info_log();
     test_debug_level_no_output();
@@ -224,6 +354,14 @@ int main() {
     test_fmt_set_level_runtime();
     test_logger_guard_basic();
     test_logger_guard_set_level();
+
+    test_init_console_only();
+    test_init_console_only_no_file();
+    test_reinit_logger();
+    test_invalid_log_path();
+    test_create_log_directory();
+    test_console_only_debug_level();
+    test_console_only_then_file();
 
     std::cout << "All LogUtils tests passed!" << std::endl;
     return 0;

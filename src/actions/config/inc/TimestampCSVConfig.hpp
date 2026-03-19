@@ -25,7 +25,7 @@ struct TimestampCSVConfig {
         std::variant<int64_t, std::string> value;   // Offset value or starting timestamp
 
         // Parse result cache
-        std::tuple<int, int, int, int, int> relative_offset = {0, 0, 0, 0, 0}; // (years, months, days, hours, seconds)
+        std::tuple<int, int, int, int, int, int> relative_offset = {0, 0, 0, 0, 0, 0}; // (years, months, days, hours, minutes, seconds)
         int64_t absolute_value = 0;
         bool parsed = false;
 
@@ -50,7 +50,7 @@ struct TimestampCSVConfig {
         }
 
         // Parse relative offset string
-        static std::tuple<int, int, int, int, int> parse_time_offset(const std::string& offset_str) {
+        static std::tuple<int, int, int, int, int, int> parse_time_offset(const std::string& offset_str) {
             if (offset_str.empty()) {
                 throw std::runtime_error("Empty offset string");
             }
@@ -59,7 +59,7 @@ struct TimestampCSVConfig {
                 throw std::runtime_error("Invalid sign character: " + std::string(1, sign));
             }
             int multiplier = (sign == '+') ? 1 : -1;
-            int years = 0, months = 0, days = 0, hours = 0, seconds = 0;
+            int years = 0, months = 0, days = 0, hours = 0, minutes = 0, seconds = 0;
             size_t pos = 1;
             while (pos < offset_str.size()) {
                 size_t num_end = pos;
@@ -83,15 +83,16 @@ struct TimestampCSVConfig {
                 const int scaled_value = value * multiplier;
                 switch (unit) {
                     case 'y': years   += scaled_value; break;
-                    case 'm': months  += scaled_value; break;
+                    case 'M': months  += scaled_value; break;
                     case 'd': days    += scaled_value; break;
                     case 'h': hours   += scaled_value; break;
+                    case 'm': minutes += scaled_value; break;
                     case 's': seconds += scaled_value; break;
                     default:
                         throw std::runtime_error("Invalid time unit: " + std::string(1, unit));
                 }
             }
-            return {years, months, days, hours, seconds};
+            return {years, months, days, hours, minutes, seconds};
         }
     };
 

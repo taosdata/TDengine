@@ -12,6 +12,7 @@ struct GlobalConfig {
     bool confirm_prompt = false;
     bool verbose = false;
     std::string log_dir = "log/";
+    std::string log_file = "";
     std::string cfg_dir = "/etc/taos/";
     std::string yaml_cfg_dir = "./";
     // TDengineConfig connection_info;

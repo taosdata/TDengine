@@ -32,11 +32,11 @@ public:
                 using T = std::decay_t<decltype(value)>;
                 if constexpr (std::is_same_v<T, std::string>) {
                     result += "'";
-                    result += value;
+                    result += escape_single_quotes(value);
                     result += "'";
                 } else if constexpr (std::is_same_v<T, std::u16string>) {
                     result += "'";
-                    result += StringUtils::u16string_to_utf8(value);
+                    result += escape_single_quotes(StringUtils::u16string_to_utf8(value));
                     result += "'";
                 } else if constexpr (std::is_same_v<T, bool>) {
                     result += value ? "true" : "false";
@@ -67,6 +67,19 @@ public:
 
 private:
     const DataFormat& format_;
+
+    static std::string escape_single_quotes(const std::string& input) {
+        std::string escaped;
+        escaped.reserve(input.size() + 4);
+        for (size_t i = 0; i < input.size(); ++i) {
+            const char c = input[i];
+            if (c == '\'') {
+                escaped.push_back('\'');
+            }
+            escaped.push_back(c);
+        }
+        return escaped;
+    }
 
     inline static bool registered_ = []() {
         FormatterFactory::register_formatter<CreateChildTableConfig>(

@@ -14,7 +14,7 @@ void exit_handler(int signum) {
 }
 
 int main(int argc, char* argv[]) {
-    LogUtils::LoggerGuard logger_guard(LogUtils::Level::Info);
+    LogUtils::LoggerGuard logger_guard(LogUtils::Level::Info, "");
 
     SignalManager::register_signal(SIGINT, exit_handler, true);
     SignalManager::register_signal(SIGTERM, exit_handler, true);
@@ -26,19 +26,29 @@ int main(int argc, char* argv[]) {
 
         register_plugin_hooks();
 
-        // Initialize parameter context
-        if (!context.init(argc, argv)) {
+        if (!context.init_global(argc, argv)) {
             return 0;
         }
 
-        if (context.get_global_config().verbose) {
-            logger_guard.set_level(LogUtils::Level::Debug);
+        // 2. Now that global config is merged, initialize full logging (console + file)
+        std::string log_file = context.get_log_file_path();
+        LogUtils::Level log_level = context.get_global_config().verbose ?
+                                     LogUtils::Level::Debug : LogUtils::Level::Info;
+
+        try {
+            LogUtils::init(log_level, log_file);
+            LogUtils::info("Log file initialized: {}", log_file);
+        } catch (const std::exception& e) {
+            LogUtils::error("Failed to initialize log file: {}", e.what());
+            return 1;
         }
 
-        // 2. Get parsed configuration data
+        // 3. Parse jobs
+        context.init_jobs();
+
+        // 4. Get parsed configuration data and run jobs
         const ConfigData& config = context.get_config_data();
 
-        // 3. Create and run job scheduler
         try {
             // Create job scheduler instance
             JobScheduler scheduler(config);

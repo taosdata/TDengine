@@ -47,3 +47,13 @@ target_link_libraries(TestTypeConverter
     actions_config
 )
 add_test(NAME TestTypeConverter COMMAND TestTypeConverter)
+
+# Test TimestampCSVConfig
+add_executable(TestTimestampCSVConfig
+  TestTimestampCSVConfig.cpp
+)
+target_link_libraries(TestTimestampCSVConfig
+  PRIVATE
+    actions_config
+)
+add_test(NAME TestTimestampCSVConfig COMMAND TestTimestampCSVConfig)

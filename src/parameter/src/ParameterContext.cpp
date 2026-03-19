@@ -6,6 +6,7 @@
 #include <iostream>
 #include <stdexcept>
 #include <sstream>
+#include <filesystem>
 #include "CheckpointAction.hpp"
 
 ParameterContext::ParameterContext() {
@@ -19,6 +20,8 @@ const std::vector<ParameterContext::CommandOption> ParameterContext::valid_optio
     {"--user", 'u', "The user name to use when connecting to the server", true},
     {"--password", 'p', "The password to use when connecting to the server", true},
     {"--config-file", 'c', "Specify config file path", true},
+    {"--log-dir", 'd', "Specify log output directory (default: ./log)", true},
+    {"--log-file", 'f', "Specify complete log file path (overrides --log-dir)", true},
     {"--verbose", 'v', "Increase output verbosity", false},
     {"--version", 'V', "Output version information", false},
     {"--help", '?', "Display this help message", false}
@@ -508,6 +511,14 @@ void ParameterContext::merge_yaml_global(const YAML::Node& config) {
     if (config["concurrency"]) {
         config_data.concurrency = config["concurrency"].as<int>();
     }
+
+    // Parse log path from YAML
+    if (config["log_dir"]) {
+        config_data.global.log_dir = config["log_dir"].as<std::string>();
+    }
+    if (config["log_file"]) {
+        config_data.global.log_file = config["log_file"].as<std::string>();
+    }
 }
 
 void ParameterContext::merge_yaml_jobs(const YAML::Node& config) {
@@ -695,35 +706,49 @@ void ParameterContext::merge_commandline() {
     if (cli_params.count("--verbose")) {
         config_data.global.verbose = true;
     }
+    if (cli_params.count("--log-dir")) {
+        config_data.global.log_dir = cli_params.at("--log-dir");
+    }
+    if (cli_params.count("--log-file")) {
+        config_data.global.log_file = cli_params.at("--log-file");
+    }
 }
 
 void ParameterContext::merge_environment_vars() {
     PluginConfigRegistry::apply_env_mergers(config_data.global.extensions);
 }
 
-void ParameterContext::merge_all() {
-    YAML::Node config = YAML::Node(YAML::NodeType::Map);
+void ParameterContext::merge_all_global() {
+    cached_config_ = YAML::Node(YAML::NodeType::Map);
 
     if (cli_params.count("--config-file")) {
         const std::string& config_file = cli_params["--config-file"];
-        config = load_config(config_file);
+        cached_config_ = load_config(config_file);
     } else {
-        config = load_default_config();
+        cached_config_ = load_default_config();
     }
 
     if (cli_params.count("--verbose")) {
         YAML::Emitter emitter;
-        emitter << config;
+        emitter << cached_config_;
         LogUtils::info("Loaded YAML Config:\n{}", emitter.c_str());
     }
 
-    merge_yaml_global(config);
+    merge_yaml_global(cached_config_);
     merge_environment_vars();
     merge_commandline();
-    merge_yaml_jobs(config);
 }
 
-bool ParameterContext::init(int argc, char* argv[]) {
+void ParameterContext::merge_all_jobs() {
+    merge_yaml_jobs(cached_config_);
+}
+
+void ParameterContext::merge_all() {
+    merge_all_global();
+    merge_all_jobs();
+}
+
+bool ParameterContext::parse_args(int argc, char* argv[]) {
     parse_commandline(argc, argv);
 
     if (cli_params.count("--help")) {
@@ -734,9 +759,30 @@ bool ParameterContext::init(int argc, char* argv[]) {
         return false;
     }
 
-    // Merge by priority from low to high
-    merge_all();
+    return true;
+}
 
+bool ParameterContext::has_cli_param(const std::string& param) const {
+    return cli_params.count(param) > 0;
+}
+
+bool ParameterContext::init_global(int argc, char* argv[]) {
+    if (!parse_args(argc, argv)) {
+        return false;
+    }
+    merge_all_global();
+    return true;
+}
+
+void ParameterContext::init_jobs() {
+    merge_all_jobs();
+}
+
+bool ParameterContext::init(int argc, char* argv[]) {
+    if (!init_global(argc, argv)) {
+        return false;
+    }
+    init_jobs();
     return true;
 }
 
@@ -763,6 +809,27 @@ const DatabaseInfo& ParameterContext::get_database_info() const {
 
 const SuperTableInfo& ParameterContext::get_super_table_info() const {
     return config_data.global.super_table_info;
+}
+
+std::string ParameterContext::get_log_file_path() const {
+    if (!config_data.global.log_file.empty()) {
+        return config_data.global.log_file;
+    }
+
+    std::string log_dir = config_data.global.log_dir;
+    if (!log_dir.empty() && log_dir.back() == '/') {
+        log_dir.pop_back();
+    }
+    return log_dir + "/taosgen.log";
+}
+
+std::string ParameterContext::get_log_dir() const {
+    if (!config_data.global.log_file.empty()) {
+        std::filesystem::path p(config_data.global.log_file);
+        std::filesystem::path parent = p.parent_path();
+        return parent.empty() ? "." : parent.string();
+    }
+    return config_data.global.log_dir;
 }
 
 // template <typename T>

@@ -7,6 +7,7 @@
 #include <memory>
 #include <vector>
 #include <filesystem>
+#include <fstream>
 
 namespace LogUtils {
 
@@ -43,12 +44,56 @@ public:
     }
 };
 
+void init_console(Level level) {
+    spdlog::init_thread_pool(8192, 1);
+
+    auto console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
+
+    std::vector<spdlog::sink_ptr> sinks{console_sink};
+    logger = std::make_shared<spdlog::async_logger>(
+        "taosgen_logger", sinks.begin(), sinks.end(),
+        spdlog::thread_pool(), spdlog::async_overflow_policy::block);
+
+    auto formatter = std::make_unique<spdlog::pattern_formatter>(
+        "%Y-%m-%d %H:%M:%S.%f %t %X %v"
+    );
+    formatter->add_flag<LevelFullNameFormatter>('X');
+
+    logger->set_formatter(std::move(formatter));
+    logger->set_level(to_spdlog_level(level));
+    logger->flush_on(spdlog::level::info);
+    spdlog::register_logger(logger);
+    spdlog::set_default_logger(logger);
+}
+
 void init(Level level, const std::string& log_file, size_t max_file_size, size_t max_files) {
     std::filesystem::path log_path(log_file);
     std::filesystem::path parent_dir = log_path.parent_path();
 
     if (!parent_dir.empty() && !std::filesystem::exists(parent_dir)) {
-        std::filesystem::create_directories(parent_dir);
+        try {
+            std::filesystem::create_directories(parent_dir);
+        } catch (const std::filesystem::filesystem_error& e) {
+            throw std::runtime_error("Failed to create log directory '" + parent_dir.string() + "': " + e.what());
+        }
+    }
+
+    // Validate log file path
+    try {
+        std::ofstream test_file(log_file, std::ios::app);
+        if (!test_file.is_open()) {
+            throw std::runtime_error("Cannot open log file: " + log_file);
+        }
+        test_file.close();
+    } catch (const std::exception& e) {
+        throw std::runtime_error("Invalid log file path '" + log_file + "': " + e.what());
+    }
+
+    // Shutdown existing logger if any
+    if (logger) {
+        logger->flush();
+        spdlog::drop("taosgen_logger");
+        logger.reset();
     }
 
     spdlog::init_thread_pool(8192, 1);
@@ -81,6 +126,10 @@ void shutdown() {
 
 void set_level(Level level) {
     if (logger) logger->set_level(to_spdlog_level(level));
+}
+
+void flush() {
+    if (logger) logger->flush();
 }
 
 void debug(const std::string& msg) {

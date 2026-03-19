@@ -16,7 +16,10 @@ enum class Level {
     Fatal
 };
 
-// Initialize the log system
+// Initialize the log system with console only
+void init_console(Level level = Level::Info);
+
+// Initialize the log system with both console and file output
 void init(Level level = Level::Info,
           const std::string& log_file = "log/taosgen.log",
           size_t max_file_size = 1024 * 1024 * 5,
@@ -24,6 +27,7 @@ void init(Level level = Level::Info,
 
 void shutdown();
 void set_level(Level level);
+void flush(); // Flush all pending log messages
 
 // Logger instance
 extern std::shared_ptr<spdlog::logger> logger;
@@ -87,7 +91,13 @@ public:
                 const std::string& log_file = "log/taosgen.log",
                 size_t max_file_size = 1024 * 1024 * 5,
                 size_t max_files = 3) {
-        LogUtils::init(level, log_file, max_file_size, max_files);
+        if (log_file.empty()) {
+            // Console-only mode
+            LogUtils::init_console(level);
+        } else {
+            // Full logging mode (console + file)
+            LogUtils::init(level, log_file, max_file_size, max_files);
+        }
     }
 
     ~LoggerGuard() {
