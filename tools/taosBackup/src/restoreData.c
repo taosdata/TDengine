@@ -85,6 +85,16 @@ static void* restoreDataThread(void *arg) {
     TAOS_STMT  *parquetStmt  = NULL;
     TAOS_STMT2 *parquetStmt2 = NULL;
 
+    int retryCount   = argRetryCount();
+    int retrySleepMs = argRetrySleepMs();
+
+    // In STMT2 multi-table mode, checkpoint records must not be written until
+    // the data is actually flushed to the server (stmt2FlushMultiTableSlots).
+    // We buffer pending file paths here and drain them after each successful flush.
+    // Max capacity = STMT2_MULTI_TABLE_PENDING (one path per pending slot).
+    const char *mtPendingCkpt[STMT2_MULTI_TABLE_PENDING];
+    int         mtPendingCkptCnt = 0;
+
     /* ----- per-file restore loop ----- */
     for (int i = 0; i < thread->fileCnt; i++) {
         if (g_interrupted) {
@@ -115,24 +125,55 @@ static void* restoreDataThread(void *arg) {
         bool  isPar   = (pathLen > 4 &&
                          strcmp(filePath + pathLen - 4, ".par") == 0);
         int64_t fileRows = 0;  // rows restored in this single file
-        if (isPar) {
-            if (stmtVer == STMT_VERSION_2) {
-                code = restoreOneParquetFileV2(&parquetStmt2, thread->conn, dbName, filePath,
-                                               thread->stbChange, &fileRows);
+
+        // Retry loop: on transient network/server errors replace the connection
+        // and retry the file, consistent with the backup-side retry logic.
+        int attempt = 0;
+        while (1) {
+            s2Ctx.lastCallFlushed = false;
+
+            if (isPar) {
+                if (stmtVer == STMT_VERSION_2) {
+                    code = restoreOneParquetFileV2(&parquetStmt2, thread->conn, dbName, filePath,
+                                                   thread->stbChange, &fileRows);
+                } else {
+                    code = restoreOneParquetFile(&parquetStmt, thread->conn, dbName, filePath,
+                                                 thread->stbChange, &fileRows);
+                }
+            } else if (stmtVer == STMT_VERSION_2) {
+                int64_t rowsBefore = s2Ctx.totalRows;
+                code = restoreOneDataFileV2(&s2Ctx, filePath);
+                fileRows = s2Ctx.totalRows - rowsBefore;
             } else {
-                code = restoreOneParquetFile(&parquetStmt, thread->conn, dbName, filePath,
-                                             thread->stbChange, &fileRows);
+                int64_t rowsBefore = bCtx.totalRows;
+                code = restoreOneDataFile(&bCtx, filePath);
+                fileRows = bCtx.totalRows - rowsBefore;
             }
-        } else if (stmtVer == STMT_VERSION_2) {
-            int64_t rowsBefore = s2Ctx.totalRows;
-            code = restoreOneDataFileV2(&s2Ctx, filePath);
-            /* In multi-table mode totalRows is updated only on flush, so use
-             * totalPendingRows delta for the real-time per-file row count. */
-            fileRows = s2Ctx.totalRows - rowsBefore;
-        } else {
-            int64_t rowsBefore = bCtx.totalRows;
-            code = restoreOneDataFile(&bCtx, filePath);
-            fileRows = bCtx.totalRows - rowsBefore;
+
+            if (code == TSDB_CODE_SUCCESS) break;
+            if (!errorCodeCanRetry(code) || attempt >= retryCount || g_interrupted) break;
+
+            // Transient error: replace the broken connection and reset STMT state
+            attempt++;
+            logInfo("restore thread %d: retry file (attempt %d): %s (code=0x%08X)",
+                    thread->index, attempt, filePath, code);
+            releaseConnectionBad(thread->conn);
+            thread->conn = getConnection(&code);
+            if (!thread->conn) break;
+
+            // Propagate new connection into both STMT contexts
+            s2Ctx.conn = thread->conn;
+            bCtx.conn  = thread->conn;
+
+            // Reset STMT handles bound to the old connection
+            if (!isPar) {
+                if (stmtVer == STMT_VERSION_2) stmt2ResetOnError(&s2Ctx);
+                else if (!stmtResetOnError(&bCtx)) {
+                    logError("restore thread %d: cannot recover STMT1 after retry", thread->index);
+                    break;
+                }
+            }
+            sleepMs(retrySleepMs);
         }
 
         atomic_add_fetch_64(&g_stats.dataFilesTotal, 1);
@@ -156,10 +197,29 @@ static void* restoreDataThread(void *arg) {
             }
             // continue with next file (best effort)
         } else {
-            // Insert into hash set first for in-memory deduplication
-            insertCkptHash(filePath);
-            // Write checkpoint immediately so a mid-run kill still saves progress.
-            markRestoreDone(filePath);
+            // ---- Checkpoint handling ----
+            // STMT2 multi-table mode: data may still be in pending slots (not yet
+            // sent to the server).  Only record checkpoint after a confirmed flush.
+            bool isMtFile = (stmtVer == STMT_VERSION_2 && s2Ctx.multiTable && !isPar);
+            if (isMtFile) {
+                // Buffer the path; drain after confirmed flush.
+                if (mtPendingCkptCnt < STMT2_MULTI_TABLE_PENDING) {
+                    mtPendingCkpt[mtPendingCkptCnt++] = filePath;
+                }
+                // If a threshold flush happened inside restoreOneDataFileV2, drain
+                if (s2Ctx.lastCallFlushed) {
+                    for (int k = 0; k < mtPendingCkptCnt; k++) {
+                        insertCkptHash(mtPendingCkpt[k]);
+                        markRestoreDone(mtPendingCkpt[k]);
+                    }
+                    mtPendingCkptCnt = 0;
+                }
+            } else {
+                // Single-table or parquet: data is already in the server, safe to checkpoint now
+                insertCkptHash(filePath);
+                markRestoreDone(filePath);
+            }
+
             // accumulate rows immediately so the progress display is real-time
             if (fileRows > 0) atomic_add_fetch_64(&g_stats.totalRows, fileRows);
             // count completed file for progress display
@@ -195,6 +255,14 @@ static void* restoreDataThread(void *arg) {
         /* Update global stats for rows committed in this final flush. */
         int64_t finalFlushed = s2Ctx.totalRows - rowsBeforePostFlush;
         if (finalFlushed > 0) atomic_add_fetch_64(&g_stats.totalRows, finalFlushed);
+        /* Drain any remaining deferred checkpoint paths now that data is confirmed */
+        if (flushCode == TSDB_CODE_SUCCESS) {
+            for (int k = 0; k < mtPendingCkptCnt; k++) {
+                insertCkptHash(mtPendingCkpt[k]);
+                markRestoreDone(mtPendingCkpt[k]);
+            }
+        }
+        mtPendingCkptCnt = 0;
     }
 
     /* ----- cleanup ----- */
@@ -442,9 +510,15 @@ static int restoreStbData(DBInfo *dbInfo, const char *stbName, StbChangeMap *cha
         threads[i].fileCnt = fileCounts[i];
 
         if (pthread_create(&threads[i].pid, NULL, restoreDataThread, (void *)&threads[i]) != 0) {
-            logError("create restore data thread failed(%s) for stb: %s.%s", 
+            logError("create restore data thread failed(%s) for stb: %s.%s",
                      strerror(errno), dbName, stbName);
-            for (int j = 0; j <= i; j++) {
+            // Join already-started threads before freeing shared state
+            for (int j = 0; j < i; j++) {
+                pthread_join(threads[j].pid, NULL);
+                releaseConnection(threads[j].conn);
+            }
+            // Release connections for threads that were never started
+            for (int j = i; j <= i; j++) {
                 releaseConnection(threads[j].conn);
             }
             // cleanup

@@ -54,6 +54,11 @@ typedef struct Stmt2RestoreCtx {
     Stmt2TableSlot  *pendingSlots;
     int              numPending;
     int64_t          totalPendingRows;
+    // Set to true by restoreOneDataFileV2 when a threshold-triggered
+    // stmt2FlushMultiTableSlots() succeeded inside that call.
+    // Used by restoreDataThread to determine when it is safe to write
+    // checkpoint records for accumulated multi-table files.
+    bool             lastCallFlushed;
 } Stmt2RestoreCtx;
 
 // Initialize STMT2

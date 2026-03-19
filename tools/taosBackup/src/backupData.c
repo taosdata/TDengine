@@ -194,13 +194,30 @@ static void* backDataThread(void *arg) {
              thread->limit,
              thread->offset);
     
-    // query child table names
+    // query child table names — with retry on transient network errors
     TAOS* conn = getConnection(&thread->code);
     if (!conn) {
         return NULL;
     }
-    TAOS_RES *res = taos_query(conn, sql);
-    thread->code = taos_errno(res);
+    TAOS_RES *res = NULL;
+    {
+        int retryCount   = argRetryCount();
+        int retrySleepMs = argRetrySleepMs();
+        int attempt = 0;
+        while (1) {
+            res = taos_query(conn, sql);
+            thread->code = taos_errno(res);
+            if (thread->code == TSDB_CODE_SUCCESS) break;
+            if (res) { taos_free_result(res); res = NULL; }
+            if (!errorCodeCanRetry(thread->code) || attempt >= retryCount || g_interrupted) break;
+            attempt++;
+            logInfo("retry query child table names: %s.%s, attempt: %d", thread->dbInfo->dbName, thread->stbInfo->stbName, attempt);
+            releaseConnectionBad(conn);
+            conn = getConnection(&thread->code);
+            if (!conn) return NULL;
+            sleepMs(retrySleepMs);
+        }
+    }
     if (res == NULL || thread->code) {
         logError("query child table names failed(0x%08X %s): %s", thread->code, taos_errstr(res), sql);
         if (res) taos_free_result(res);
@@ -365,8 +382,9 @@ DataThread * splitTaskData(StbInfo *stbInfo, int *code, int *outCount, int *totC
             for (int j = 0; j < i; j++) {
                 releaseConnection(threads[j].conn);
             }
+            int errCode = threads[i].code;   // save before free
             taosMemoryFree(threads);
-            *code = threads[i].code;
+            *code = errCode;
             return NULL;
         }
         offset += threads[i].limit;
@@ -414,6 +432,15 @@ int backStbData(StbInfo *stbInfo) {
     for (int i = 0; i < count; i++) {
         if(pthread_create(&threads[i].pid, NULL, backDataThread, (void *)&threads[i]) != 0) {
             logError("create backup thread failed(%s) for stb: %s.%s", strerror(errno), stbInfo->dbInfo->dbName, stbInfo->stbName);
+            // Join already-started threads before freeing shared state
+            for (int j = 0; j < i; j++) {
+                pthread_join(threads[j].pid, NULL);
+                releaseConnection(threads[j].conn);
+            }
+            // Release connections for threads that were never started
+            for (int j = i; j < count; j++) {
+                releaseConnection(threads[j].conn);
+            }
             taosMemoryFree(threads);
             return TSDB_CODE_BCK_CREATE_THREAD_FAILED;
         }
@@ -534,7 +561,28 @@ static void* backNtbDataThread(void *arg) {
     if (!conn) {
         return NULL;
     }
-    TAOS_RES *res = taos_query(conn, sql);
+    TAOS_RES *res = NULL;
+    {
+        int retryCount   = argRetryCount();
+        int retrySleepMs = argRetrySleepMs();
+        int attempt = 0;
+        while (1) {
+            res = taos_query(conn, sql);
+            int32_t qcode = taos_errno(res);
+            if (qcode == TSDB_CODE_SUCCESS) break;
+            if (res) { taos_free_result(res); res = NULL; }
+            if (!errorCodeCanRetry(qcode) || attempt >= retryCount || g_interrupted) {
+                thread->code = qcode;
+                break;
+            }
+            attempt++;
+            logInfo("retry query normal table names: %s, attempt: %d", dbName, attempt);
+            releaseConnectionBad(conn);
+            conn = getConnection(&thread->code);
+            if (!conn) return NULL;
+            sleepMs(retrySleepMs);
+        }
+    }
     int32_t code = taos_errno(res);
     if (res == NULL || code) {
         logError("query normal table names failed(0x%08X %s): %s", code, taos_errstr(res), sql);
@@ -658,6 +706,15 @@ static int backNormalTableData(DBInfo *dbInfo) {
     for (int i = 0; i < threadCnt; i++) {
         if (pthread_create(&threads[i].pid, NULL, backNtbDataThread, (void *)&threads[i]) != 0) {
             logError("create ntb backup thread failed: %s", strerror(errno));
+            // Join already-started threads before freeing shared state
+            for (int j = 0; j < i; j++) {
+                pthread_join(threads[j].pid, NULL);
+                releaseConnection(threads[j].conn);
+            }
+            // Release connections for threads that were never started
+            for (int j = i; j < threadCnt; j++) {
+                releaseConnection(threads[j].conn);
+            }
             taosMemoryFree(threads);
             return TSDB_CODE_BCK_CREATE_THREAD_FAILED;
         }

@@ -745,6 +745,8 @@ int restoreOneDataFileV2(Stmt2RestoreCtx *ctx, const char *filePath) {
             code = stmt2FlushMultiTableSlots(ctx);
             if (code != TSDB_CODE_SUCCESS)
                 logError("stmt2 multi-table flush failed (%s): %d", ctx->dbName, code);
+            else
+                ctx->lastCallFlushed = true;  // signal restoreDataThread to drain pending checkpoints
         }
 
         logDebug("stmt2 multi-table sealed %s.%s rows: %" PRId64 " pending_slots: %d",

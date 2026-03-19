@@ -104,8 +104,20 @@ static void rollbackSlot(int idx) {
     g_pool.count--;
 }
 
+// Exponential back-off parameters for reconnection when the pool is empty
+// (i.e. the server is temporarily unreachable).
+// Industry convention (similar to PostgreSQL libpq / MongoDB driver):
+//   initial wait 1 s → doubles each attempt → capped at 30 s.
+#define BCK_RECONNECT_INIT_MS   1000   // first wait: 1 s
+#define BCK_RECONNECT_MAX_MS   30000   // ceiling:   30 s
+
 TAOS* getConnection(int *code) {
     pthread_mutex_lock(&g_pool.mutex);
+
+    // Back-off state for when the pool is empty (server down).
+    // Reset to initial value each time getConnection() is entered so that
+    // a successful call never carries stale back-off state to the next call.
+    int reconnectWaitMs = BCK_RECONNECT_INIT_MS;
 
     while (1) {
         // check if interrupted
@@ -146,7 +158,8 @@ TAOS* getConnection(int *code) {
             pthread_mutex_lock(&g_pool.mutex);
 
             if (conn) {
-                // successfully created new connection
+                // successfully created new connection — reset back-off
+                reconnectWaitMs = BCK_RECONNECT_INIT_MS;
                 commitSlot(idx, conn);
                 pthread_mutex_unlock(&g_pool.mutex);
                 *code = TSDB_CODE_SUCCESS;
@@ -159,11 +172,34 @@ TAOS* getConnection(int *code) {
             int    errCode = taos_errno(NULL);
             const char *errStr  = taos_errstr(NULL);
             if (g_pool.count == 0) {
-                // no existing connections at all — server is unreachable
-                logError("connect to %s:%d failed (0x%08X): %s", argHost(), argPort(), errCode, errStr);
+                // No existing connections — server is unreachable.
+                // Apply exponential back-off and retry instead of giving up
+                // immediately, so transient restarts are handled transparently.
+                logWarn("connect to %s:%d failed (0x%08X): %s — retry in %d ms",
+                        argHost(), argPort(), errCode, errStr, reconnectWaitMs);
+
+                // Unlock, sleep, re-lock, then retry the outer loop
                 pthread_mutex_unlock(&g_pool.mutex);
-                *code = errCode;
-                return NULL;
+
+                // Sleep in small slices so we can honour g_interrupted
+                int slept = 0;
+                int sliceMs = 200;
+                while (slept < reconnectWaitMs) {
+                    if (g_interrupted) break;
+                    int thisSlice = (reconnectWaitMs - slept < sliceMs)
+                                    ? (reconnectWaitMs - slept) : sliceMs;
+                    taosMsleep(thisSlice);
+                    slept += thisSlice;
+                }
+
+                pthread_mutex_lock(&g_pool.mutex);
+
+                // Advance back-off (double, cap at max)
+                reconnectWaitMs *= 2;
+                if (reconnectWaitMs > BCK_RECONNECT_MAX_MS)
+                    reconnectWaitMs = BCK_RECONNECT_MAX_MS;
+
+                continue;  // retry from the top of the while(1) loop
             }
             // some connections already exist; just couldn't expand — wait for idle
             logWarn("failed to expand connection pool (0x%08X): %s, waiting for idle ...", errCode, errStr);

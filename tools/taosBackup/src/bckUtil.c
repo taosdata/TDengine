@@ -35,14 +35,22 @@ void freePtr(void *ptr) {
 }
 
 bool errorCodeCanRetry(int code) {
-    if (code == TSDB_CODE_RPC_NETWORK_ERROR ||
-        code == TSDB_CODE_RPC_NETWORK_BUSY  ||
-        code == TSDB_CODE_RPC_TIMEOUT       ||
-        code == TSDB_CODE_RPC_BROKEN_LINK) {
-        return true;
+    switch (code) {
+        // RPC / network layer errors
+        case TSDB_CODE_RPC_NETWORK_ERROR:
+        case TSDB_CODE_RPC_NETWORK_BUSY:
+        case TSDB_CODE_RPC_TIMEOUT:
+        case TSDB_CODE_RPC_BROKEN_LINK:
+        // Raft / consensus layer: leader election or log restore in progress
+        case TSDB_CODE_SYN_NOT_LEADER:
+        case TSDB_CODE_SYN_RESTORING:
+        case TSDB_CODE_SYN_TIMEOUT:
+        // Vnode temporarily busy (compaction, split, etc.)
+        case TSDB_CODE_VND_QUERY_BUSY:
+            return true;
+        default:
+            return false;
     }
-
-    return false;
 }
 
 unsigned int getCrc(const char *name) {
