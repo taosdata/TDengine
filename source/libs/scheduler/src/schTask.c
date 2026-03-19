@@ -291,10 +291,9 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
 
   int32_t parentNum = pTask->parents ? (int32_t)taosArrayGetSize(pTask->parents) : 0;
   if (parentNum > 0) {
-    int32_t curPhase = atomic_load_32(&pJob->execPhase);
+    int32_t curPhase = SCH_GET_JOB_PHASE(pJob);
     if (curPhase == QUERY_PHASE_EXEC_DATA_QUERY) {
-      atomic_store_32(&pJob->execPhase, QUERY_PHASE_EXEC_WAITING_CHILDREN);
-      atomic_store_64(&pJob->phaseStartTime, taosGetTimestampMs());
+      SCH_SET_JOB_PHASE(pJob, QUERY_PHASE_EXEC_WAITING_CHILDREN);
     }
   }
   if (parentNum == 0) {

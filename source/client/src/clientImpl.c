@@ -1459,10 +1459,7 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
   int64_t     st = taosGetTimestampUs();
 
   if (!pRequest->parseOnly) {
-    if (atomic_load_32(&pRequest->execPhase) != QUERY_PHASE_PLAN) {
-      atomic_store_32(&pRequest->execPhase, QUERY_PHASE_PLAN);
-      atomic_store_64(&pRequest->phaseStartTime, taosGetTimestampMs());
-    }
+    CLIENT_UPDATE_REQUEST_PHASE_IF_CHANGED(pRequest, QUERY_PHASE_PLAN);
 
     pMnodeList = taosArrayInit(4, sizeof(SQueryNodeLoad));
     if (NULL == pMnodeList) {
@@ -1500,10 +1497,7 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
 
   if (TSDB_CODE_SUCCESS == code && !pRequest->validateOnly) {
     if (QUERY_NODE_VNODE_MODIFY_STMT != nodeType(pQuery->pRoot)) {
-      if (atomic_load_32(&pRequest->execPhase) != QUERY_PHASE_SCHEDULE) {
-        atomic_store_32(&pRequest->execPhase, QUERY_PHASE_SCHEDULE);
-        atomic_store_64(&pRequest->phaseStartTime, taosGetTimestampMs());
-      }
+      CLIENT_UPDATE_REQUEST_PHASE_IF_CHANGED(pRequest, QUERY_PHASE_SCHEDULE);
       code = buildAsyncExecNodeList(pRequest, &pNodeList, pMnodeList, pResultMeta);
     }
 
@@ -1536,10 +1530,7 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
       };
 
       if (TSDB_CODE_SUCCESS == code) {
-        if (atomic_load_32(&pRequest->execPhase) != QUERY_PHASE_EXECUTE) {
-          atomic_store_32(&pRequest->execPhase, QUERY_PHASE_EXECUTE);
-          atomic_store_64(&pRequest->phaseStartTime, taosGetTimestampMs());
-        }
+        CLIENT_UPDATE_REQUEST_PHASE_IF_CHANGED(pRequest, QUERY_PHASE_EXECUTE);
         code = schedulerExecJob(&req, &pRequest->body.queryJob);
       }
       taosArrayDestroy(pNodeList);
@@ -2246,6 +2237,7 @@ void* doAsyncFetchRows(SRequestObj* pRequest, bool setupOneRowPtr, bool convertU
     // All data has returned to App already, no need to try again
     if (pResultInfo->completed) {
       pResultInfo->numOfRows = 0;
+      CLIENT_UPDATE_REQUEST_PHASE_IF_CHANGED(pRequest, QUERY_PHASE_FETCH_RETURNED);
       return NULL;
     }
 

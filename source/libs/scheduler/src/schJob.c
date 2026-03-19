@@ -536,10 +536,7 @@ int32_t schDumpJobFetchRes(SSchJob *pJob, void **pData) {
   pJob->fetched = true;
 
   if (pJob->fetchRes && ((SRetrieveTableRsp *)pJob->fetchRes)->completed) {
-    if (atomic_load_32(&pJob->execPhase) != QUERY_PHASE_DONE) {
-      atomic_store_32(&pJob->execPhase, QUERY_PHASE_DONE);
-      atomic_store_64(&pJob->phaseStartTime, taosGetTimestampMs());
-    }
+    SCH_UPDATE_JOB_PHASE_IF_CHANGED(pJob, QUERY_PHASE_DONE);
     SCH_ERR_JRET(schSwitchJobStatus(pJob, JOB_TASK_STATUS_SUCC, NULL));
   }
 
@@ -598,10 +595,7 @@ int32_t schNotifyUserFetchRes(SSchJob *pJob) {
     atomic_store_32(&pJob->errCode, code);
   }
   // Fetch response received, transition to RETURNED state
-  if (atomic_load_32(&pJob->execPhase) != QUERY_PHASE_FETCH_RETURNED) {
-    atomic_store_32(&pJob->execPhase, QUERY_PHASE_FETCH_RETURNED);
-    atomic_store_64(&pJob->phaseStartTime, taosGetTimestampMs());
-  }
+  SCH_UPDATE_JOB_PHASE_IF_CHANGED(pJob, QUERY_PHASE_FETCH_RETURNED);
 
   SCH_JOB_DLOG("sch start to invoke fetch cb, code:%s", tstrerror(pJob->errCode));
   (*pJob->userRes.fetchFp)(pRes, pJob->userRes.cbParam, atomic_load_32(&pJob->errCode));
@@ -807,10 +801,7 @@ int32_t schLaunchJobImpl(SSchJob *pJob) {
     SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
   }
 
-  if (atomic_load_32(&pJob->execPhase) != QUERY_PHASE_SCHEDULE_NODE_SELECTION) {
-    atomic_store_32(&pJob->execPhase, QUERY_PHASE_SCHEDULE_NODE_SELECTION);
-    atomic_store_64(&pJob->phaseStartTime, taosGetTimestampMs());
-  }
+  SCH_UPDATE_JOB_PHASE_IF_CHANGED(pJob, QUERY_PHASE_SCHEDULE_NODE_SELECTION);
 
   SCH_ERR_RET(schLaunchLevelTasks(pJob, level));
 

@@ -71,17 +71,11 @@ int32_t schedulerExecJob(SSchedulerReq *pReq, int64_t *pJobId) {
 
   SCH_ERR_JRET(schHandleOpBeginEvent(*pJobId, &pJob, SCH_OP_EXEC, pReq));
 
-  if (atomic_load_32(&pJob->execPhase) != QUERY_PHASE_SCHEDULE_ANALYSIS) {
-    atomic_store_32(&pJob->execPhase, QUERY_PHASE_SCHEDULE_ANALYSIS);
-    atomic_store_64(&pJob->phaseStartTime, taosGetTimestampMs());
-  }
+  SCH_UPDATE_JOB_PHASE_IF_CHANGED(pJob, QUERY_PHASE_SCHEDULE_ANALYSIS);
 
   SCH_ERR_JRET(schSwitchJobStatus(pJob, JOB_TASK_STATUS_INIT, pReq));
 
-  if (atomic_load_32(&pJob->execPhase) != QUERY_PHASE_SCHEDULE_PLANNING) {
-    atomic_store_32(&pJob->execPhase, QUERY_PHASE_SCHEDULE_PLANNING);
-    atomic_store_64(&pJob->phaseStartTime, taosGetTimestampMs());
-  }
+  SCH_UPDATE_JOB_PHASE_IF_CHANGED(pJob, QUERY_PHASE_SCHEDULE_PLANNING);
 
   SCH_ERR_JRET(schSwitchJobStatus(pJob, JOB_TASK_STATUS_EXEC, pReq));
 
@@ -99,10 +93,7 @@ int32_t schedulerFetchRows(int64_t jobId, SSchedulerReq *pReq) {
   SCH_ERR_JRET(schHandleOpBeginEvent(jobId, &pJob, SCH_OP_FETCH, pReq));
 
   // Set to IN_PROGRESS when starting fetch
-  if (atomic_load_32(&pJob->execPhase) != QUERY_PHASE_FETCH_IN_PROGRESS) {
-    atomic_store_32(&pJob->execPhase, QUERY_PHASE_FETCH_IN_PROGRESS);
-    atomic_store_64(&pJob->phaseStartTime, taosGetTimestampMs());
-  }
+  SCH_UPDATE_JOB_PHASE_IF_CHANGED(pJob, QUERY_PHASE_FETCH_IN_PROGRESS);
 
   SCH_ERR_JRET(schSwitchJobStatus(pJob, JOB_TASK_STATUS_FETCH, pReq));
 
@@ -218,8 +209,8 @@ int32_t schedulerGetJobPhase(int64_t jobId, int32_t *pPhase, int64_t *pPhaseStar
     SCH_ERR_RET(TSDB_CODE_SCH_JOB_NOT_EXISTS);
   }
 
-  *pPhase = atomic_load_32(&pJob->execPhase);
-  *pPhaseStartTime = atomic_load_64(&pJob->phaseStartTime);
+  *pPhase = SCH_GET_JOB_PHASE(pJob);
+  *pPhaseStartTime = SCH_GET_JOB_PHASE_START_TIME(pJob);
 
   (void)schReleaseJob(pJob->refId);
 
