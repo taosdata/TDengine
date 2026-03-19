@@ -2147,100 +2147,100 @@ void catalogDestroy(void) {
   qInfo("catalog destroyed");
 }
 
-/**
- * @brief Recursively get original table's vgroup from virtual table chain
- * @param pCtg Catalog handle
- * @param pConn Connection info
- * @param pTableName Table name (can be virtual table)
- * @param pVgroup Output vgroup info
- * @return TSDB_CODE_SUCCESS on success
- */
-int32_t catalogGetOriginalTableVgroup(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTableName,
-                                       SVgroupInfo* pVgroup) {
-  CTG_API_ENTER();
+// /**
+//  * @brief Recursively get original table's vgroup from virtual table chain
+//  * @param pCtg Catalog handle
+//  * @param pConn Connection info
+//  * @param pTableName Table name (can be virtual table)
+//  * @param pVgroup Output vgroup info
+//  * @return TSDB_CODE_SUCCESS on success
+//  */
+// int32_t catalogGetOriginalTableVgroup(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTableName,
+//                                        SVgroupInfo* pVgroup) {
+//   CTG_API_ENTER();
 
-  if (NULL == pCtg || NULL == pTableName || NULL == pVgroup) {
-    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
-  }
+//   if (NULL == pCtg || NULL == pTableName || NULL == pVgroup) {
+//     CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+//   }
 
-  int32_t     code = TSDB_CODE_SUCCESS;
-  STableMeta* pMeta = NULL;
-  SArray*     pVisitedTables = NULL;
-  int32_t     depth = 0;
-  SName       currentName = *pTableName;
+//   int32_t     code = TSDB_CODE_SUCCESS;
+//   STableMeta* pMeta = NULL;
+//   SArray*     pVisitedTables = NULL;
+//   int32_t     depth = 0;
+//   SName       currentName = *pTableName;
 
-  pVisitedTables = taosArrayInit(16, sizeof(char*));
-  if (NULL == pVisitedTables) {
-    CTG_API_LEAVE(terrno);
-  }
+//   pVisitedTables = taosArrayInit(16, sizeof(char*));
+//   if (NULL == pVisitedTables) {
+//     CTG_API_LEAVE(terrno);
+//   }
 
-  while (depth < TSDB_MAX_VTABLE_REF_DEPTH) {
-    // Get table meta
-    SCtgTbMetaCtx ctx = {0};
-    ctx.pName = &currentName;
-    ctx.flag = CTG_FLAG_UNKNOWN_STB;
+//   while (depth < TSDB_MAX_VTABLE_REF_DEPTH) {
+//     // Get table meta
+//     SCtgTbMetaCtx ctx = {0};
+//     ctx.pName = &currentName;
+//     ctx.flag = CTG_FLAG_UNKNOWN_STB;
 
-    code = ctgGetTbMeta(pCtg, pConn, &ctx, &pMeta);
-    if (code != TSDB_CODE_SUCCESS) {
-      break;
-    }
+//     code = ctgGetTbMeta(pCtg, pConn, &ctx, &pMeta);
+//     if (code != TSDB_CODE_SUCCESS) {
+//       break;
+//     }
 
-    // Check if virtual table
-    bool isVirtualTable = (pMeta->tableType == TSDB_VIRTUAL_NORMAL_TABLE ||
-                           pMeta->tableType == TSDB_VIRTUAL_CHILD_TABLE ||
-                           (pMeta->virtualStb && pMeta->tableType == TSDB_SUPER_TABLE));
+//     // Check if virtual table
+//     bool isVirtualTable = (pMeta->tableType == TSDB_VIRTUAL_NORMAL_TABLE ||
+//                            pMeta->tableType == TSDB_VIRTUAL_CHILD_TABLE ||
+//                            (pMeta->virtualStb && pMeta->tableType == TSDB_SUPER_TABLE));
 
-    if (!isVirtualTable || pMeta->numOfColRefs <= 0 || !pMeta->colRef[0].hasRef) {
-      // Original table found, get vgroup
-      code = ctgGetTbHashVgroup(pCtg, pConn, &currentName, pVgroup, NULL);
-      taosMemoryFree(pMeta);
-      break;
-    }
+//     if (!isVirtualTable || pMeta->numOfColRefs <= 0 || !pMeta->colRef[0].hasRef) {
+//       // Original table found, get vgroup
+//       code = ctgGetTbHashVgroup(pCtg, pConn, &currentName, pVgroup, NULL);
+//       taosMemoryFree(pMeta);
+//       break;
+//     }
 
-    // Check circular reference
-    char fullName[TSDB_TABLE_FNAME_LEN] = {0};
-    tNameExtractFullName(&currentName, fullName);
+//     // Check circular reference
+//     char fullName[TSDB_TABLE_FNAME_LEN] = {0};
+//     tNameExtractFullName(&currentName, fullName);
 
-    for (int32_t i = 0; i < taosArrayGetSize(pVisitedTables); i++) {
-      char* pVisited = *(char**)taosArrayGet(pVisitedTables, i);
-      if (pVisited != NULL && strcmp(pVisited, fullName) == 0) {
-        ctgError("circular reference detected: %s", fullName);
-        taosMemoryFree(pMeta);
-        code = TSDB_CODE_VTABLE_CIRCULAR_REFERENCE;
-        goto _return;
-      }
-    }
+//     for (int32_t i = 0; i < taosArrayGetSize(pVisitedTables); i++) {
+//       char* pVisited = *(char**)taosArrayGet(pVisitedTables, i);
+//       if (pVisited != NULL && strcmp(pVisited, fullName) == 0) {
+//         ctgError("circular reference detected: %s", fullName);
+//         taosMemoryFree(pMeta);
+//         code = TSDB_CODE_VTABLE_CIRCULAR_REFERENCE;
+//         goto _return;
+//       }
+//     }
 
-    // Add to visited list
-    char* pFullNameCopy = taosStrdup(fullName);
-    if (pFullNameCopy == NULL || taosArrayPush(pVisitedTables, &pFullNameCopy) == NULL) {
-      taosMemoryFree(pFullNameCopy);
-      taosMemoryFree(pMeta);
-      code = terrno;
-      break;
-    }
+//     // Add to visited list
+//     char* pFullNameCopy = taosStrdup(fullName);
+//     if (pFullNameCopy == NULL || taosArrayPush(pVisitedTables, &pFullNameCopy) == NULL) {
+//       taosMemoryFree(pFullNameCopy);
+//       taosMemoryFree(pMeta);
+//       code = terrno;
+//       break;
+//     }
 
-    // Move to referenced table
-    tNameFromString(&currentName, pMeta->colRef[0].refDbName, T_NAME_ACCT | T_NAME_DB);
-    tstrncpy(currentName.tname, pMeta->colRef[0].refTableName, sizeof(currentName.tname));
+//     // Move to referenced table
+//     tNameFromString(&currentName, pMeta->colRef[0].refDbName, T_NAME_ACCT | T_NAME_DB);
+//     tstrncpy(currentName.tname, pMeta->colRef[0].refTableName, sizeof(currentName.tname));
 
-    taosMemoryFree(pMeta);
-    pMeta = NULL;
-    depth++;
-  }
+//     taosMemoryFree(pMeta);
+//     pMeta = NULL;
+//     depth++;
+//   }
 
-  if (depth >= TSDB_MAX_VTABLE_REF_DEPTH) {
-    ctgError("virtual table reference depth exceeded: %d", depth);
-    code = TSDB_CODE_VTABLE_REF_DEPTH_EXCEEDED;
-  }
+//   if (depth >= TSDB_MAX_VTABLE_REF_DEPTH) {
+//     ctgError("virtual table reference depth exceeded: %d", depth);
+//     code = TSDB_CODE_VTABLE_REF_DEPTH_EXCEEDED;
+//   }
 
-_return:
-  // Cleanup visited tables
-  for (int32_t i = 0; i < taosArrayGetSize(pVisitedTables); i++) {
-    char* p = *(char**)taosArrayGet(pVisitedTables, i);
-    taosMemoryFree(p);
-  }
-  taosArrayDestroy(pVisitedTables);
+// _return:
+//   // Cleanup visited tables
+//   for (int32_t i = 0; i < taosArrayGetSize(pVisitedTables); i++) {
+//     char* p = *(char**)taosArrayGet(pVisitedTables, i);
+//     taosMemoryFree(p);
+//   }
+//   taosArrayDestroy(pVisitedTables);
 
-  CTG_API_LEAVE(code);
-}
+//   CTG_API_LEAVE(code);
+// }

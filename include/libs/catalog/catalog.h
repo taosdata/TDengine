@@ -462,21 +462,6 @@ int32_t ctgHashValueComp(void const* lp, void const* rp);
  */
 void catalogDestroy(void);
 
-/**
- * Recursively get original table's vgroup from virtual table chain.
- * This function resolves virtual table reference chains to find the original
- * physical table's vgroup.
- *
- * @param pCtg Catalog handle
- * @param pConn Connection info
- * @param pTableName Table name (can be virtual table)
- * @param pVgroup Output vgroup info
- * @return TSDB_CODE_SUCCESS on success
- */
-int32_t catalogGetOriginalTableVgroup(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTableName,
-                                       SVgroupInfo* pVgroup);
-
-
 #ifdef __cplusplus
 }
 #endif
