@@ -133,6 +133,7 @@ int32_t getDummyBlock(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
 int32_t get2ColsDummyBlock(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
   SDummyInputInfo* pInfo = static_cast<SDummyInputInfo*>(pOperator->info);
   if (pInfo->current >= pInfo->totalPages) {
+    *pResBlock = NULL;
     return TSDB_CODE_SUCCESS;
   }
 

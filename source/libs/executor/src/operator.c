@@ -1244,6 +1244,14 @@ void recordOpExecBegin(SOperatorInfo* pOperator) {
 void recordOpExecBeforeDownstream(SOperatorInfo* pOperator) {
   if (QUERY_ENABLE_EXPLAIN(pOperator->pTaskInfo)) {
     pOperator->cost.endTs = taosGetTimestampUs();
+    if (UNLIKELY(pOperator->cost.startTs == 0)) {
+      /**
+        As long as getNextBlockFromDownstream() is called inside getNextFn(),
+        startTs must be initialized before endTs so that this condition should
+        always be false.
+      */
+      pOperator->cost.startTs = pOperator->cost.endTs;
+    }
     pOperator->cost.execElapsed +=
       pOperator->cost.endTs - pOperator->cost.startTs;
   }
