@@ -192,7 +192,7 @@ class TestStreamMetaChangeVTable:
             )
 
             tdSql.checkResultsByFunc(
-                sql=f'select * from {self.db}.res_stb_1"',
+                sql=f'select * from {self.db}.res_stb_1',
                 func=lambda: tdSql.getRows() == 10,
             )
 

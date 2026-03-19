@@ -34,12 +34,10 @@ void qStreamClearTableInfo(StreamTableListInfo* pTableListInfo){
     taosHashCancelIterate(pTableListInfo->gIdMap, pTableListInfo->pIter);
     taosHashClear(pTableListInfo->gIdMap);
     pTableListInfo->pIter = NULL;
-    pTableListInfo->gIdMap = NULL;
   }
 
   if (pTableListInfo->uIdMap) {
     taosHashClear(pTableListInfo->uIdMap);
-    pTableListInfo->uIdMap = NULL;
   }
 }
 
