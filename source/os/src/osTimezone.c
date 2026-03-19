@@ -1300,8 +1300,17 @@ int32_t taosGetSystemTimezone(char *outTimezoneStr) {
 
 int32_t initTimezoneInfo(void) {
 #ifdef WINDOWS
-  // Windows: timezone is managed via TZ environment variable
-  // Get system timezone and set TZ environment variable
+  // Windows: timezone is managed via TZ environment variable.
+  // If TZ was already set during config loading (cfgSetTimezone ->
+  // taosSetGlobalTimezone), keep it and do not overwrite with system timezone.
+  char  tzEnv[TD_TIMEZONE_LEN * 2] = {0};
+  DWORD envLen = GetEnvironmentVariableA("TZ", tzEnv, sizeof(tzEnv));
+  if (envLen > 0 && envLen < sizeof(tzEnv) && tzEnv[0] != '\0') {
+    uInfo("[tz] Windows timezone already configured via TZ=%s", tzEnv);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // TZ is not configured yet: initialize from system timezone.
   char tzStr[TD_TIMEZONE_LEN] = {0};
   int32_t code = taosGetSystemTimezone(tzStr);
 
