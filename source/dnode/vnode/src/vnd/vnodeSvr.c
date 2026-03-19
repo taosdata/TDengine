@@ -991,14 +991,6 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
 
   walApplyVer(pVnode->pWal, ver);
 
-  if (pVnode->pTq) {
-    code = tqPushMsg(pVnode->pTq, pMsg->msgType);
-    if (code) {
-      vError("vgId:%d, failed to push msg to TQ since %s", TD_VID(pVnode), tstrerror(terrno));
-      return code;
-    }
-  }
-
   // commit if need
   if (needCommit) {
     vInfo("vgId:%d, commit at version %" PRId64, TD_VID(pVnode), ver);
@@ -1081,8 +1073,6 @@ int32_t vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
       return qWorkerProcessCQueryMsg(&handle, pVnode->pQuery, pMsg, 0);
     case TDMT_VND_TMQ_CONSUME:
       return tqProcessPollReq(pVnode->pTq, pMsg);
-    case TDMT_VND_TMQ_CONSUME_PUSH:
-      return tqProcessPollPush(pVnode->pTq);
     default:
       vError("unknown msg type:%d in query queue", pMsg->msgType);
       return TSDB_CODE_APP_ERROR;

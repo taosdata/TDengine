@@ -168,19 +168,6 @@ static int32_t extractDataAndRspForNormalSubscribe(STQ* pTq, STqHandle* pHandle,
     goto end;
   }
 
-  //   till now, all data has been transferred to consumer, new data needs to push client once arrived.
-  if (terrno == TSDB_CODE_WAL_LOG_NOT_EXIST && dataRsp.blockNum == 0) {
-    // lock
-    taosWLockLatch(&pTq->lock);
-    int64_t ver = walGetCommittedVer(pTq->pVnode->pWal);
-    if (dataRsp.rspOffset.version > ver) {  // check if there are data again to avoid lost data
-      code = tqRegisterPushHandle(pTq, pHandle, pMsg);
-      taosWUnLockLatch(&pTq->lock);
-      goto end;
-    }
-    taosWUnLockLatch(&pTq->lock);
-  }
-
   // reqOffset represents the current date offset, may be changed if wal not exists
   tOffsetCopy(&dataRsp.reqOffset, pOffset);
   code = tqSendDataRsp(pHandle, pMsg, pRequest, &dataRsp, TMQ_MSG_TYPE__POLL_DATA_RSP, vgId);
