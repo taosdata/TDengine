@@ -409,7 +409,7 @@ export default {
               name: 'custom_tags',
               display: 'Custom Tags',
               description:
-                'Custom tags for the target table, multiple tags separated by commas. Support static values and dynamic values from OPC point attributes. For example, `location=building1,floor={BrowseName}`. `{BrowseName}` will be replaced by the actual BrowseName attribute of the OPC point.\n',
+                'Custom tags for the target table, multiple tags separated by commas. Support static values and dynamic values from OPC point attributes. For example, `location=building1,floor={BrowseName}`. `{BrowseName}` will be replaced by the actual BrowseName attribute of the OPC point.\n\nSupports `{Attr#XY}` syntax for character replacement in attribute values, where X is the source character and Y is the target character (leading/trailing Y characters are trimmed). For example, `{DisplayName#_.}` replaces `_` with `.` in DisplayName, so `zs_p1_unit1_float` becomes `zs.p1.unit1.float`.\n',
               required: false,
               label: 'Custom Tags',
               field: 'custom_tags',

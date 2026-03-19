@@ -6,7 +6,7 @@ use taos::Dsn;
 use taosx_core::sink::point::model::{
     ColumnConfig, CustomTag, GeneratePointMappingBy, PointConfig, PointConfigMap,
     PointMappingGenerator, PointMappingRule, PointModelConfig, SourceType, TableConfig,
-    TableConfigMap,
+    TableConfigMap, replace_attr_with_transform,
 };
 use taosx_core::utils::parse_key_in_dsn;
 use taosx_ipc::prelude::IpcDataType;
@@ -89,6 +89,12 @@ impl PspacePointMappingRule {
             let description = pspace_point.desc.as_deref().unwrap_or("");
 
             for (_tag_name, tag_value) in tag_values.iter_mut() {
+                // 1. 先处理 {Attr#XY} 替换（优先级高）
+                *tag_value = replace_attr_with_transform(tag_value, "Name", name);
+                *tag_value = replace_attr_with_transform(tag_value, "LongName", long_name);
+                *tag_value = replace_attr_with_transform(tag_value, "Description", description);
+
+                // 2. 再处理普通 {Attr} 替换
                 *tag_value = tag_value.replace("{Name}", name);
                 *tag_value = tag_value.replace("{LongName}", long_name);
                 *tag_value = tag_value.replace("{Description}", description);
@@ -568,6 +574,126 @@ mod tests {
         // Should not panic
         rule.extra_custom_tags(&mut pc, &point);
         assert!(pc.tag_values.is_none());
+    }
+
+    // ── PspacePointMappingRule::extra_custom_tags {Attr#XY} tests ──────
+
+    #[test]
+    fn test_extra_custom_tags_with_transform() {
+        let rule = PspacePointMappingRule {
+            inner: PointMappingRule {
+                source_type: SourceType::Pspace,
+                stable_expression: "s".to_string(),
+                tbname_expression: "t".to_string(),
+                value_col: "val".to_string(),
+                value_transform: None,
+                quality_col: "quality".to_string(),
+                primary_key: "original_ts".to_string(),
+                primary_key_alias: "ts".to_string(),
+                custom_tags: None,
+            },
+        };
+
+        let point = make_pspace_point(1, "温度", "PS_ANALOG", r"\北京\温度", Some("温度传感器"));
+
+        let mut tag_values = std::collections::HashMap::new();
+        // {LongName#\_} : 将 \ 替换为 _，然后 trim 首尾 _
+        tag_values.insert("Path".to_string(), r"{LongName#\_}".to_string());
+        // {LongName#\.} : 将 \ 替换为 .，然后 trim 首尾 .
+        tag_values.insert("DotPath".to_string(), r"{LongName#\.}".to_string());
+
+        let mut pc = PointConfig {
+            row_index: 0,
+            code: "t_1".to_string(),
+            stable: Some("s_float".to_string()),
+            tag_values: Some(tag_values),
+            value_type: None,
+        };
+
+        rule.extra_custom_tags(&mut pc, &point);
+
+        let tags = pc.tag_values.as_ref().unwrap();
+        // \北京\温度 → _北京_温度 → trim _ → 北京_温度
+        assert_eq!(tags.get("Path").unwrap(), "北京_温度");
+        // \北京\温度 → .北京.温度 → trim . → 北京.温度
+        assert_eq!(tags.get("DotPath").unwrap(), "北京.温度");
+    }
+
+    #[test]
+    fn test_extra_custom_tags_transform_empty_attr() {
+        let rule = PspacePointMappingRule {
+            inner: PointMappingRule {
+                source_type: SourceType::Pspace,
+                stable_expression: "s".to_string(),
+                tbname_expression: "t".to_string(),
+                value_col: "val".to_string(),
+                value_transform: None,
+                quality_col: "quality".to_string(),
+                primary_key: "original_ts".to_string(),
+                primary_key_alias: "ts".to_string(),
+                custom_tags: None,
+            },
+        };
+
+        // desc is None → treated as empty string
+        let point = make_pspace_point(1, "温度", "PS_ANALOG", r"\北京\温度", None);
+
+        let mut tag_values = std::collections::HashMap::new();
+        tag_values.insert("DescPath".to_string(), "{Description#/_}".to_string());
+
+        let mut pc = PointConfig {
+            row_index: 0,
+            code: "t_1".to_string(),
+            stable: None,
+            tag_values: Some(tag_values),
+            value_type: None,
+        };
+
+        rule.extra_custom_tags(&mut pc, &point);
+
+        let tags = pc.tag_values.as_ref().unwrap();
+        // empty attr_value → replaced with empty string
+        assert_eq!(tags.get("DescPath").unwrap(), "");
+    }
+
+    #[test]
+    fn test_extra_custom_tags_mixed_transform_and_plain() {
+        let rule = PspacePointMappingRule {
+            inner: PointMappingRule {
+                source_type: SourceType::Pspace,
+                stable_expression: "s".to_string(),
+                tbname_expression: "t".to_string(),
+                value_col: "val".to_string(),
+                value_transform: None,
+                quality_col: "quality".to_string(),
+                primary_key: "original_ts".to_string(),
+                primary_key_alias: "ts".to_string(),
+                custom_tags: None,
+            },
+        };
+
+        let point = make_pspace_point(1, "温度", "PS_ANALOG", r"\北京\温度", Some("温度传感器"));
+
+        let mut tag_values = std::collections::HashMap::new();
+        // 混合使用 {Attr#XY} 和 {Attr}
+        tag_values.insert(
+            "Mixed".to_string(),
+            r"name={Name},path={LongName#\_}".to_string(),
+        );
+
+        let mut pc = PointConfig {
+            row_index: 0,
+            code: "t_1".to_string(),
+            stable: Some("s_float".to_string()),
+            tag_values: Some(tag_values),
+            value_type: None,
+        };
+
+        rule.extra_custom_tags(&mut pc, &point);
+
+        let tags = pc.tag_values.as_ref().unwrap();
+        // {Name} → 温度, {LongName#\_} → 北京_温度
+        assert_eq!(tags.get("Mixed").unwrap(), "name=温度,path=北京_温度");
     }
 
     // ── CsvArgs tests ──────────────────────────────────────────────────

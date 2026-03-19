@@ -408,7 +408,7 @@ export default {
               name: 'custom_tags',
               display: '自定义标签',
               description:
-                '可以配置多个自定义标签，使用逗号分隔。支持静态值和从 OPC 点位属性提取的动态值。例如：`location=building1,floor={BrowseName}`，其中 `{BrowseName}` 将替换为该点位的实际 BrowseName 属性。\n',
+                '可以配置多个自定义标签，使用逗号分隔。支持静态值和从 OPC 点位属性提取的动态值。例如：`location=building1,floor={BrowseName}`，其中 `{BrowseName}` 将替换为该点位的实际 BrowseName 属性。\n\n支持 `{Attr#XY}` 语法对属性值进行字符替换，X 为源字符，Y 为目标字符（替换后修剪首尾的目标字符）。例如 `{DisplayName#_.}` 将 DisplayName 中的 `_` 替换为 `.`，`zs_p1_unit1_float` 变为 `zs.p1.unit1.float`。\n',
               required: false,
               label: '自定义标签',
               field: 'custom_tags',

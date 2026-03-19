@@ -2007,11 +2007,16 @@ impl PointMappingRule {
 
         Ok(point_config)
     }
+}
 
+impl PointMappingRule {
     /// 遍历 PointConfig 的 tag_values，对于每个 map<Key,Value>，如果 Value 中存在以下特殊的pattern，进行替换。
-    /// {BrowseName}: 替换成 opc_node.name, 如果 opc_node.name 为空，替换为空字符串
-    /// {DisplayName}: 替换成 opc_node.display_name, 如果 opc_node.display_name 为空，替换为空字符串
-    /// {Description}: 替换成 opc_node.description, 如果 opc_node.description 为空，替换为空字符串
+    /// 1. 先处理 {Attr#XY} 替换：将属性值中的字符 X 替换为 Y，并修剪首尾的 Y 字符
+    /// 2. 再处理普通 {Attr} 替换：
+    ///    - {BrowseName}: 替换成 opc_node.name, 如果 opc_node.name 为空，替换为空字符串
+    ///    - {DisplayName}: 替换成 opc_node.display_name, 如果 opc_node.display_name 为空，替换为空字符串
+    ///    - {Description}: 替换成 opc_node.description, 如果 opc_node.description 为空，替换为空字符串
+    ///    - {Path}: 替换成 opc_node.path, 如果 opc_node.path 为空，替换为空字符串
     fn extra_custom_tags(
         &self,
         point_config: &mut PointConfig,
@@ -2024,7 +2029,13 @@ impl PointMappingRule {
                 let description = opc_node.description.as_deref().unwrap_or("");
                 let path = opc_node.path.as_deref().unwrap_or("");
 
-                // Replace placeholders; if the corresponding field is empty or None, replace with empty string
+                // 1. 先处理 {Attr#XY} 替换（优先级高）
+                *tag_value = replace_attr_with_transform(tag_value, "BrowseName", browse_name);
+                *tag_value = replace_attr_with_transform(tag_value, "DisplayName", display_name);
+                *tag_value = replace_attr_with_transform(tag_value, "Description", description);
+                *tag_value = replace_attr_with_transform(tag_value, "Path", path);
+
+                // 2. 再处理普通 {Attr} 替换
                 *tag_value = tag_value.replace("{BrowseName}", browse_name);
                 *tag_value = tag_value.replace("{DisplayName}", display_name);
                 *tag_value = tag_value.replace("{Description}", description);
@@ -2146,6 +2157,58 @@ impl PointMappingRule {
 
         Ok(node_map)
     }
+}
+
+/// 扫描 `tag_value` 中所有 `{attr_name#XY}` 占位符，执行字符替换和首尾修剪。
+/// - X: 源字符（单个字符）
+/// - Y: 目标字符（单个字符）
+/// - 替换逻辑：将 attr_value 中所有 X 替换为 Y，然后 trim 首尾的 Y
+/// - 如果 attr_value 为空，占位符替换为空字符串
+pub fn replace_attr_with_transform(tag_value: &str, attr_name: &str, attr_value: &str) -> String {
+    let mut result = tag_value.to_string();
+    let prefix = format!("{{{attr_name}#");
+    let mut search_from = 0;
+
+    while search_from < result.len() {
+        let Some(start) = result[search_from..].find(&prefix) else {
+            break;
+        };
+        let start = search_from + start;
+        let after_prefix = start + prefix.len();
+
+        // Need at least 3 more bytes: X, Y, '}'
+        if after_prefix + 3 > result.len() {
+            break;
+        }
+
+        let bytes = result.as_bytes();
+        let x = bytes[after_prefix] as char;
+        let y = bytes[after_prefix + 1] as char;
+        let close = bytes[after_prefix + 2];
+
+        if close != b'}' {
+            // Not a valid {Attr#XY} pattern, skip past this prefix
+            search_from = after_prefix;
+            continue;
+        }
+
+        let end = after_prefix + 3;
+        let replacement = if attr_value.is_empty() {
+            String::new()
+        } else {
+            let replaced = attr_value.replace(x, &y.to_string());
+            replaced
+                .trim_start_matches(y)
+                .trim_end_matches(y)
+                .to_string()
+        };
+
+        let replacement_len = replacement.len();
+        result.replace_range(start..end, &replacement);
+        search_from = start + replacement_len;
+    }
+
+    result
 }
 
 impl PointMappingGenerator for PointMappingRule {
@@ -3342,8 +3405,8 @@ ns=3;i=1001,opc_{type},t_{ns}_{id},val,ts,123,abc"#
         //     println!("{};", sql);
         // });
 
-        model.to_create_table_sqls().iter().for_each(|sql| {
-            println!("{};", sql);
+        model.to_create_table_sqls().iter().for_each(|_sql| {
+            // println!("{};", sql);
         });
     }
 
@@ -3361,5 +3424,162 @@ ns=3;i=1001,opc_{type},t_{ns}_{id},val,ts,123,abc"#
         assert_eq!(custom_tags[1].name, "age");
         assert_eq!(custom_tags[1].data_type, IpcDataType::Int32);
         assert_eq!(custom_tags[1].pattern, "30");
+    }
+
+    #[test]
+    fn test_replace_attr_with_transform() {
+        // 基本替换：下划线转点号
+        assert_eq!(
+            replace_attr_with_transform("{DisplayName#_.}", "DisplayName", "zs_p1_unit1_float"),
+            "zs.p1.unit1.float"
+        );
+        // 基本替换：连字符转点号
+        assert_eq!(
+            replace_attr_with_transform("{BrowseName#-.}", "BrowseName", "zs-p1-unit1"),
+            "zs.p1.unit1"
+        );
+        // 基本替换：斜杠转下划线 + 首尾修剪
+        assert_eq!(
+            replace_attr_with_transform("{Path#/_}", "Path", "/Objects/Plant/Area1/"),
+            "Objects_Plant_Area1"
+        );
+        // 基本替换：点号转斜杠 + 首尾修剪
+        assert_eq!(
+            replace_attr_with_transform("{DisplayName#./}", "DisplayName", ".Device.Type.Tag."),
+            "Device/Type/Tag"
+        );
+        // 首尾修剪：下划线转点号，首尾有源字符
+        assert_eq!(
+            replace_attr_with_transform("{DisplayName#_.}", "DisplayName", "_a_b_"),
+            "a.b"
+        );
+        // 与静态文本组合
+        assert_eq!(
+            replace_attr_with_transform("prefix_{DisplayName#_.}_suffix", "DisplayName", "a_b_c"),
+            "prefix_a.b.c_suffix"
+        );
+        // 混合：{Attr#XY} 和 {Attr} 共存，只处理 #XY 部分
+        assert_eq!(
+            replace_attr_with_transform("{BrowseName#-.}({Description})", "BrowseName", "a-b"),
+            "a.b({Description})"
+        );
+        // 同一属性多个不同 #XY 占位符
+        assert_eq!(
+            replace_attr_with_transform(
+                "{DisplayName#_.}-{DisplayName#_/}",
+                "DisplayName",
+                "a_b_c"
+            ),
+            "a.b.c-a/b/c"
+        );
+        // 无匹配字符：无连字符可替换
+        assert_eq!(
+            replace_attr_with_transform("{BrowseName#-.}", "BrowseName", "abc"),
+            "abc"
+        );
+        // 空值处理
+        assert_eq!(
+            replace_attr_with_transform("{DisplayName#_.}", "DisplayName", ""),
+            ""
+        );
+        // 非法模式：Y 后面不是 }，不替换
+        assert_eq!(
+            replace_attr_with_transform("{DisplayName#_..}", "DisplayName", "a_b"),
+            "{DisplayName#_..}"
+        );
+        // 不匹配的属性名不替换
+        assert_eq!(
+            replace_attr_with_transform("{NodeClass#_.}", "DisplayName", "a_b"),
+            "{NodeClass#_.}"
+        );
+    }
+
+    #[test]
+    fn test_extra_custom_tags() {
+        use std::collections::HashMap;
+
+        let rule = PointMappingRule {
+            source_type: SourceType::OPCUA,
+            stable_expression: "opc_{type}".to_string(),
+            tbname_expression: "t_{ns}_{id}".to_string(),
+            value_col: "val".to_string(),
+            value_transform: None,
+            quality_col: "quality".to_string(),
+            primary_key: "original_ts".to_string(),
+            primary_key_alias: "ts".to_string(),
+            custom_tags: None,
+        };
+
+        let opc_node = OpcNode {
+            id: "ns=2;s=Sensor01".to_string(),
+            is_static: None,
+            name: Some("Sensor-01".to_string()),
+            display_name: Some("zs_p1_unit1_float".to_string()),
+            description: Some("一号-车间-温度".to_string()),
+            node_type: None,
+            parent_id: None,
+            path: Some("/Objects/Plant/Area1/".to_string()),
+        };
+
+        // 测试四个属性的 {Attr#XY} 替换
+        let mut pc = PointConfig {
+            row_index: 0,
+            code: "t1".to_string(),
+            stable: None,
+            tag_values: Some(HashMap::from([
+                ("t1".to_string(), "{DisplayName#_.}".to_string()),
+                ("t2".to_string(), "{BrowseName#-.}".to_string()),
+                ("t3".to_string(), "{Path#/_}".to_string()),
+                ("t4".to_string(), "{Description#-_}".to_string()),
+            ])),
+            value_type: None,
+        };
+        rule.extra_custom_tags(&mut pc, &opc_node).unwrap();
+        let tags = pc.tag_values.unwrap();
+        assert_eq!(tags["t1"], "zs.p1.unit1.float");
+        assert_eq!(tags["t2"], "Sensor.01");
+        assert_eq!(tags["t3"], "Objects_Plant_Area1");
+        assert_eq!(tags["t4"], "一号_车间_温度");
+
+        // 测试 {Attr#XY} 与 {Attr} 混合使用
+        let mut pc2 = PointConfig {
+            row_index: 0,
+            code: "t1".to_string(),
+            stable: None,
+            tag_values: Some(HashMap::from([(
+                "t1".to_string(),
+                "{BrowseName#-.}({Description})".to_string(),
+            )])),
+            value_type: None,
+        };
+        rule.extra_custom_tags(&mut pc2, &opc_node).unwrap();
+        let tags2 = pc2.tag_values.unwrap();
+        assert_eq!(tags2["t1"], "Sensor.01(一号-车间-温度)");
+
+        // 测试属性为空时的行为
+        let empty_node = OpcNode {
+            id: "ns=2;s=Empty".to_string(),
+            is_static: None,
+            name: None,
+            display_name: Some("".to_string()),
+            description: None,
+            node_type: None,
+            parent_id: None,
+            path: None,
+        };
+        let mut pc3 = PointConfig {
+            row_index: 0,
+            code: "t1".to_string(),
+            stable: None,
+            tag_values: Some(HashMap::from([
+                ("t1".to_string(), "tag_{BrowseName#-.}".to_string()),
+                ("t2".to_string(), "tag_{DisplayName}".to_string()),
+            ])),
+            value_type: None,
+        };
+        rule.extra_custom_tags(&mut pc3, &empty_node).unwrap();
+        let tags3 = pc3.tag_values.unwrap();
+        assert_eq!(tags3["t1"], "tag_");
+        assert_eq!(tags3["t2"], "tag_");
     }
 }
