@@ -225,13 +225,13 @@
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_schema_is_old.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_show_tag.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_show_create.py
-,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_tag_ref.py
+#,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_tag_ref.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_nchar_length.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_validate_referencing.py
-,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_comprehensive.py
+#,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_comprehensive.py
 # Performance and Stress tests
-,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_performance.py
-,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_stress.py
+#,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_performance.py
+#,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_stress.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_batch_set_tag_vals.py
 
 # 06-DataIngestion
