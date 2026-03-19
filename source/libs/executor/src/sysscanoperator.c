@@ -2121,9 +2121,107 @@ static int32_t sysTableUserColsFillOneVirtualTableCols(const SSysTableScanInfo* 
     // col ref version
     pColInfoData = taosArrayGet(dataBlock->pDataBlock, 8);
     QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
-    code = colDataSetVal(pColInfoData, numOfRows, (char*)&colRef->version, false);
+    int32_t refVersion = colRef ? colRef->version : 0;
+    code = colDataSetVal(pColInfoData, numOfRows, (char*)&refVersion, false);
+    QUERY_CHECK_CODE(code, lino, _end);
+
+    // col type: 0=column ref, 1=tag ref
+    pColInfoData = taosArrayGet(dataBlock->pDataBlock, 9);
+    QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+    int32_t colType = 0;
+    code = colDataSetVal(pColInfoData, numOfRows, (char*)&colType, false);
     QUERY_CHECK_CODE(code, lino, _end);
     ++numOfRows;
+  }
+
+  // Append virtual tag refs so planner/executor can resolve referenced tags dynamically.
+  if (colRef && colRef->nTagRefs > 0 && colRef->pTagRef) {
+    for (int32_t i = 0; i < colRef->nTagRefs; ++i) {
+      SColRef*         pTagRef = &colRef->pTagRef[i];
+      SColumnInfoData* pColInfoData = NULL;
+
+      // table name
+      pColInfoData = taosArrayGet(dataBlock->pDataBlock, 0);
+      QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+      code = colDataSetVal(pColInfoData, numOfRows, tName, false);
+      QUERY_CHECK_CODE(code, lino, _end);
+
+      // stable name
+      pColInfoData = taosArrayGet(dataBlock->pDataBlock, 1);
+      QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+      code = colDataSetVal(pColInfoData, numOfRows, stName, false);
+      QUERY_CHECK_CODE(code, lino, _end);
+
+      // database name
+      pColInfoData = taosArrayGet(dataBlock->pDataBlock, 2);
+      QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+      code = colDataSetVal(pColInfoData, numOfRows, dbname, false);
+      QUERY_CHECK_CODE(code, lino, _end);
+
+      // synthetic tag column name (col_name is not used in runtime mapping).
+      char tagName[TSDB_COL_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
+      char tagNameBuf[TSDB_COL_NAME_LEN] = {0};
+      snprintf(tagNameBuf, sizeof(tagNameBuf), "tag_%d", pTagRef->id);
+      STR_TO_VARSTR(tagName, tagNameBuf);
+      pColInfoData = taosArrayGet(dataBlock->pDataBlock, 3);
+      QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+      code = colDataSetVal(pColInfoData, numOfRows, tagName, false);
+      QUERY_CHECK_CODE(code, lino, _end);
+
+      // uid
+      pColInfoData = taosArrayGet(dataBlock->pDataBlock, 4);
+      QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+      code = colDataSetVal(pColInfoData, numOfRows, (char*)&uid, false);
+      QUERY_CHECK_CODE(code, lino, _end);
+
+      // col id for virtual tag slot
+      pColInfoData = taosArrayGet(dataBlock->pDataBlock, 5);
+      QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+      code = colDataSetVal(pColInfoData, numOfRows, (char*)&pTagRef->id, false);
+      QUERY_CHECK_CODE(code, lino, _end);
+
+      // referenced source (db.table.col)
+      pColInfoData = taosArrayGet(dataBlock->pDataBlock, 6);
+      QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+      if (!pTagRef->hasRef) {
+        colDataSetNULL(pColInfoData, numOfRows);
+      } else {
+        char   refColName[TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_COL_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
+        char   tmpColName[TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_COL_FNAME_LEN] = {0};
+        TSlice refColNameBuf = {0};
+        sliceInit(&refColNameBuf, tmpColName, sizeof(tmpColName));
+        QUERY_CHECK_CODE(sliceAppend(&refColNameBuf, pTagRef->refDbName, strlen(pTagRef->refDbName)), lino, _end);
+        QUERY_CHECK_CODE(sliceAppend(&refColNameBuf, ".", 1), lino, _end);
+        QUERY_CHECK_CODE(sliceAppend(&refColNameBuf, pTagRef->refTableName, strlen(pTagRef->refTableName)), lino, _end);
+        QUERY_CHECK_CODE(sliceAppend(&refColNameBuf, ".", 1), lino, _end);
+        QUERY_CHECK_CODE(sliceAppend(&refColNameBuf, pTagRef->refColName, strlen(pTagRef->refColName)), lino, _end);
+        STR_TO_VARSTR(refColName, tmpColName);
+        code = colDataSetVal(pColInfoData, numOfRows, (char*)refColName, false);
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
+
+      // vgid
+      pColInfoData = taosArrayGet(dataBlock->pDataBlock, 7);
+      QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+      code = colDataSetVal(pColInfoData, numOfRows, (char*)&vgId, false);
+      QUERY_CHECK_CODE(code, lino, _end);
+
+      // col ref version
+      pColInfoData = taosArrayGet(dataBlock->pDataBlock, 8);
+      QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+      int32_t refVersion = colRef->version;
+      code = colDataSetVal(pColInfoData, numOfRows, (char*)&refVersion, false);
+      QUERY_CHECK_CODE(code, lino, _end);
+
+      // col type: tag
+      pColInfoData = taosArrayGet(dataBlock->pDataBlock, 9);
+      QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+      int32_t colType = 1;
+      code = colDataSetVal(pColInfoData, numOfRows, (char*)&colType, false);
+      QUERY_CHECK_CODE(code, lino, _end);
+
+      ++numOfRows;
+    }
   }
 
   *pNumOfRows = numOfRows;

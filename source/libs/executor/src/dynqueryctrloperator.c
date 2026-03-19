@@ -672,7 +672,7 @@ static int32_t buildExchangeOperatorParamForVScan(SOperatorParam** ppRes, int32_
   int32_t                      lino = 0;
 
   code = buildExchangeOperatorParamImpl(ppRes, downstreamIdx, QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN, EX_SRC_TYPE_VSTB_SCAN,
-                                        pOrgTbInfo->vgId, 0, NULL, pOrgTbInfo, NULL, NULL, (STimeWindow){0}, pNewSource, false, true, true, true);
+                                        pOrgTbInfo->vgId, 0, NULL, pOrgTbInfo, NULL, NULL, (STimeWindow){0}, pNewSource, true, true, false, true);
   QUERY_CHECK_CODE(code, lino, _return);
 
   return code;
@@ -2220,6 +2220,7 @@ int32_t getColRefInfo(SColRefInfo *pInfo, SArray* pDataBlock, int32_t index) {
   SColumnInfoData *pRefCol = taosArrayGet(pDataBlock, 6);
   SColumnInfoData *pVgIdCol = taosArrayGet(pDataBlock, 7);
   SColumnInfoData *pRefVerCol = taosArrayGet(pDataBlock, 8);
+  SColumnInfoData *pRefTypeCol = taosArrayGetSize(pDataBlock) > 9 ? taosArrayGet(pDataBlock, 9) : NULL;
 
   QUERY_CHECK_NULL(pColNameCol, code, line, _return, terrno)
   QUERY_CHECK_NULL(pUidCol, code, line, _return, terrno)
@@ -2250,6 +2251,12 @@ int32_t getColRefInfo(SColRefInfo *pInfo, SArray* pDataBlock, int32_t index) {
   }
   if (!colDataIsNull_s(pVgIdCol, index)) {
     GET_TYPED_DATA(pInfo->vgId, int32_t, TSDB_DATA_TYPE_INT, colDataGetNumData(pVgIdCol, index), 0);
+  }
+  pInfo->refType = 0;
+  if (pRefTypeCol != NULL && !colDataIsNull_s(pRefTypeCol, index)) {
+    int32_t refType = 0;
+    GET_TYPED_DATA(refType, int32_t, TSDB_DATA_TYPE_INT, colDataGetNumData(pRefTypeCol, index), 0);
+    pInfo->refType = (int8_t)refType;
   }
 
 _return:
@@ -2408,7 +2415,12 @@ int32_t virtualTableScanProcessColRefInfo(SOperatorInfo* pOperator, SArray* pCol
     SColRefInfo *pKV = (SColRefInfo*)taosArrayGet(pColRefInfo, j);
     *uid = pKV->uid;
     *vgId = pKV->vgId;
-    if (pKV->colrefName != NULL && colNeedScan(pOperator, pKV->colId)) {
+    bool needResolve = colNeedScan(pOperator, pKV->colId);
+    if (needResolve && pKV->refType == 1) {
+      pVtbScan->useTagScan = true;
+    }
+
+    if (pKV->colrefName != NULL && needResolve) {
       char*   refDbName = NULL;
       char*   refTbName = NULL;
       char*   refColName = NULL;
@@ -2972,6 +2984,7 @@ int32_t virtualTableScanBuildDownStreamOpParam(SOperatorInfo* pOperator, tb_uid_
   SDynQueryCtrlOperatorInfo* pInfo = pOperator->info;
   SVtbScanDynCtrlInfo*       pVtbScan = (SVtbScanDynCtrlInfo*)&pInfo->vtbScan;
   SExecTaskInfo*             pTaskInfo = pOperator->pTaskInfo;
+  bool                       singleSourceMode = pVtbScan->isSuperTable && pVtbScan->scanAllCols;
 
   pVtbScan->vtbScanParam = NULL;
   code = buildVtbScanOperatorParam(pInfo, &pVtbScan->vtbScanParam, uid);
@@ -3001,13 +3014,13 @@ int32_t virtualTableScanBuildDownStreamOpParam(SOperatorInfo* pOperator, tb_uid_
       QUERY_CHECK_CODE(code, line, _return);
     }
     QUERY_CHECK_NULL(taosArrayPush(((SVTableScanOperatorParam*)pVtbScan->vtbScanParam->value)->pOpParamArray, &pExchangeParam), code, line, _return, terrno)
+    if (singleSourceMode) {
+      break;
+    }
     pIter = taosHashIterate(pVtbScan->otbNameToOtbInfoMap, pIter);
   }
 
-  SOperatorParam*  pExchangeParam = NULL;
-  code = buildExchangeOperatorParamForVTagScan(&pExchangeParam, 0, vgId, uid);
-  QUERY_CHECK_CODE(code, line, _return);
-  ((SVTableScanOperatorParam*)pVtbScan->vtbScanParam->value)->pTagScanOp = pExchangeParam;
+  ((SVTableScanOperatorParam*)pVtbScan->vtbScanParam->value)->pTagScanOp = NULL;
 
 _return:
   if (code) {
@@ -3041,6 +3054,8 @@ int32_t virtualTableScanGetNext(SOperatorInfo* pOperator, SSDataBlock** pRes) {
       }
       QUERY_CHECK_NULL(pColRefInfo, code, line, _return, terrno)
 
+      pVtbScan->useTagScan = false;
+
       tb_uid_t  uid = 0;
       int32_t   vgId = 0;
       SHashObj* refMap = NULL;
@@ -3057,7 +3072,9 @@ int32_t virtualTableScanGetNext(SOperatorInfo* pOperator, SSDataBlock** pRes) {
 
       // reset downstream operator's status
       pVtbScanOp->status = OP_NOT_OPENED;
-      code = pVtbScanOp->fpSet.getNextExtFn(pVtbScanOp, pVtbScan->vtbScanParam, pRes);
+      pVtbScanOp->pOperatorGetParam = pVtbScan->vtbScanParam;
+      pVtbScan->vtbScanParam = NULL;
+      code = pVtbScanOp->fpSet.getNextFn(pVtbScanOp, pRes);
       QUERY_CHECK_CODE(code, line, _return);
     }
 
@@ -3326,6 +3343,7 @@ static int32_t initVtbScanInfo(SDynQueryCtrlOperatorInfo* pInfo, SMsgCb* pMsgCb,
   pInfo->vtbScan.batchProcessChild = pPhyciNode->vtbScan.batchProcessChild;
   pInfo->vtbScan.hasPartition = pPhyciNode->vtbScan.hasPartition;
   pInfo->vtbScan.scanAllCols = pPhyciNode->vtbScan.scanAllCols;
+  pInfo->vtbScan.useTagScan = false;
   pInfo->vtbScan.isSuperTable = pPhyciNode->vtbScan.isSuperTable;
   pInfo->vtbScan.rversion = pPhyciNode->vtbScan.rversion;
   pInfo->vtbScan.uid = pPhyciNode->vtbScan.uid;

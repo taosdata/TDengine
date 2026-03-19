@@ -801,6 +801,19 @@ int32_t loadRemoteDataCallback(void* param, SDataBuf* pMsg, int32_t code) {
 
   qDebug("%s exchange %p %dth source got rsp, code:%d, rsp:%p", pExchangeInfo->pTaskId, pExchangeInfo, index, code, pMsg->pData);
 
+  size_t fetchHandleNum = pExchangeInfo->pFetchRpcHandles ? taosArrayGetSize(pExchangeInfo->pFetchRpcHandles) : 0;
+  size_t sourceInfoNum = pExchangeInfo->pSourceDataInfo ? taosArrayGetSize(pExchangeInfo->pSourceDataInfo) : 0;
+  if (index < 0 || (size_t)index >= fetchHandleNum || (size_t)index >= sourceInfoNum) {
+    qWarn("%s ignore stale fetch rsp, idx:%d fetchHandles:%zu sourceInfos:%zu",
+          pExchangeInfo->pTaskId, index, fetchHandleNum, sourceInfoNum);
+    taosMemoryFree(pMsg->pData);
+    code = taosReleaseRef(fetchObjRefPool, pWrapper->exchangeId);
+    if (code != TSDB_CODE_SUCCESS) {
+      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+    }
+    return TSDB_CODE_SUCCESS;
+  }
+
   int64_t* pRpcHandle = taosArrayGet(pExchangeInfo->pFetchRpcHandles, index);
   if (pRpcHandle != NULL) {
     int32_t ret = asyncFreeConnById(pExchangeInfo->pTransporter, *pRpcHandle);
@@ -812,7 +825,12 @@ int32_t loadRemoteDataCallback(void* param, SDataBuf* pMsg, int32_t code) {
 
   SSourceDataInfo* pSourceDataInfo = taosArrayGet(pExchangeInfo->pSourceDataInfo, index);
   if (!pSourceDataInfo) {
-    return terrno;
+    taosMemoryFree(pMsg->pData);
+    code = taosReleaseRef(fetchObjRefPool, pWrapper->exchangeId);
+    if (code != TSDB_CODE_SUCCESS) {
+      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+    }
+    return TSDB_CODE_SUCCESS;
   }
 
   if (0 == code && NULL == pMsg->pData) {
@@ -1202,6 +1220,10 @@ int32_t buildTagScanOperatorParam(SOperatorParam** ppRes, SArray* pUidList, int3
   int32_t                  lino = 0;
   STagScanOperatorParam*   pScan = NULL;
 
+  if (pUidList == NULL || taosArrayGetSize(pUidList) <= 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
   *ppRes = taosMemoryCalloc(1, sizeof(SOperatorParam));
   QUERY_CHECK_NULL(*ppRes, code, lino, _return, terrno);
 
@@ -1362,6 +1384,10 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
         break;
       }
       case EX_SRC_TYPE_VSTB_TAG_SCAN: {
+        if (pDataInfo->pSrcUidList == NULL || taosArrayGetSize(pDataInfo->pSrcUidList) <= 0) {
+          qDebug("%s skip VSTB_TAG_SCAN due to empty uid list", GET_TASKID(pTaskInfo));
+          break;
+        }
         code = buildTagScanOperatorParam(&req.pOpParam, pDataInfo->pSrcUidList, pDataInfo->srcOpType);
         taosArrayDestroy(pDataInfo->pSrcUidList);
         pDataInfo->pSrcUidList = NULL;

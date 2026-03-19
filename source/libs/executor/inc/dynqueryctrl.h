@@ -81,11 +81,13 @@ typedef struct {
   col_id_t colId;
   int32_t  vgId;
   int32_t  rversion;
+  int8_t   refType;  // 0: column reference, 1: tag reference
 } SColRefInfo;
 
 typedef struct SVtbScanDynCtrlInfo {
   bool             batchProcessChild;
   bool             scanAllCols;
+  bool             useTagScan;
   bool             isSuperTable;
   bool             needRedeploy;
   bool             hasPartition;

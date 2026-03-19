@@ -38,6 +38,7 @@ typedef struct SVirtualTableScanInfo {
   bool           scanAllCols;
   bool           useOrgTsCol;
   SArray*        pSortCtxList;
+  SArray*        fallbackTagList;  // SArray<STagVal>, keyed by vtable colId in cid
   tb_uid_t       vtableUid;  // virtual table uid, used to identify the vtable scan operator
 } SVirtualTableScanInfo;
 
@@ -123,6 +124,8 @@ int32_t virtualScanloadNextDataBlockFromParam(void* param, SSDataBlock** ppBlock
     pCtx->pIntermediateBlock = NULL;
   }
 
+  // Same source param is reused by sort callbacks; downstream must not free it.
+  pOperatorGetParam->reUse = true;
   VTS_ERR_JRET(pOperator->fpSet.getNextExtFn(pOperator, pOperatorGetParam, &pRes));
 
   pParam->basic.isNewParam = false;
@@ -187,6 +190,10 @@ void cleanUpVirtualScanInfo(SVirtualTableScanInfo* pVirtualScanInfo) {
     }
     taosArrayDestroy(pVirtualScanInfo->pSortCtxList);
     pVirtualScanInfo->pSortCtxList = NULL;
+  }
+  if (pVirtualScanInfo->fallbackTagList) {
+    taosArrayDestroyEx(pVirtualScanInfo->fallbackTagList, destroyTagVal);
+    pVirtualScanInfo->fallbackTagList = NULL;
   }
 }
 
@@ -257,6 +264,196 @@ _return:
   return code;
 }
 
+static int32_t applyFallbackTagList(SVirtualTableScanInfo* pInfo, SSDataBlock* pBlock) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  char*   tagVal = NULL;
+
+  if (pInfo->fallbackTagList == NULL || pBlock == NULL) {
+    return code;
+  }
+
+  for (int32_t i = 0; i < taosArrayGetSize(pInfo->fallbackTagList); ++i) {
+    STagVal* pTagVal = taosArrayGet(pInfo->fallbackTagList, i);
+    QUERY_CHECK_NULL(pTagVal, code, lino, _return, terrno)
+
+    SColumnInfoData* pDst = NULL;
+    for (int32_t j = 0; j < taosArrayGetSize(pBlock->pDataBlock); ++j) {
+      SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, j);
+      if (pCol && pCol->info.colId == pTagVal->cid) {
+        pDst = pCol;
+        break;
+      }
+    }
+    if (pDst == NULL) {
+      continue;
+    }
+
+    for (int32_t r = 0; r < pBlock->info.rows; ++r) {
+      if (IS_VAR_DATA_TYPE(pTagVal->type)) {
+        if (pTagVal->nData < 0 || pTagVal->pData == NULL) {
+          colDataSetNULL(pDst, r);
+          continue;
+        }
+        tagVal = taosMemoryMalloc(pTagVal->nData + VARSTR_HEADER_SIZE + 1);
+        QUERY_CHECK_NULL(tagVal, code, lino, _return, terrno)
+        varDataSetLen(tagVal, pTagVal->nData);
+        memcpy(tagVal + VARSTR_HEADER_SIZE, pTagVal->pData, pTagVal->nData);
+        code = colDataSetVal(pDst, r, tagVal, false);
+        QUERY_CHECK_CODE(code, lino, _return);
+        taosMemoryFreeClear(tagVal);
+      } else {
+        if (pTagVal->nData < 0) {
+          colDataSetNULL(pDst, r);
+          continue;
+        }
+        code = colDataSetVal(pDst, r, (const char*)&pTagVal->i64, false);
+        QUERY_CHECK_CODE(code, lino, _return);
+      }
+    }
+  }
+
+  return code;
+_return:
+  taosMemoryFreeClear(tagVal);
+  qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  return code;
+}
+
+static int32_t buildFallbackTagListFromParam(SOperatorInfo* pOperator, SVirtualTableScanInfo* pInfo,
+                                             SVTableScanOperatorParam* pParam) {
+  int32_t      code = TSDB_CODE_SUCCESS;
+  int32_t      lino = 0;
+  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
+  SStorageAPI* pAPI = &pTaskInfo->storageAPI;
+  SMetaReader orgTable = {0};
+  SMetaReader superTable = {0};
+
+  if (pInfo->fallbackTagList) {
+    taosArrayDestroyEx(pInfo->fallbackTagList, destroyTagVal);
+    pInfo->fallbackTagList = NULL;
+  }
+  if (pInfo->tagBlockId == -1) {
+    return code;
+  }
+  if (pInfo->base.readHandle.vnode == NULL || pTaskInfo == NULL) {
+    return code;
+  }
+  if (pParam == NULL || pParam->pOpParamArray == NULL) {
+    return code;
+  }
+
+  pInfo->fallbackTagList = taosArrayInit(1, sizeof(STagVal));
+  QUERY_CHECK_NULL(pInfo->fallbackTagList, code, lino, _return, terrno)
+
+  for (int32_t i = 0; i < taosArrayGetSize(pParam->pOpParamArray); ++i) {
+    SOperatorParam* pOpParam = taosArrayGetP(pParam->pOpParamArray, i);
+    QUERY_CHECK_NULL(pOpParam, code, lino, _return, terrno)
+    SExchangeOperatorParam* pExc = (SExchangeOperatorParam*)pOpParam->value;
+    if (pExc == NULL || pExc->multiParams || pExc->basic.orgTbInfo == NULL || pExc->basic.orgTbInfo->colMap == NULL) {
+      continue;
+    }
+
+    SOrgTbInfo* pOrgTbInfo = pExc->basic.orgTbInfo;
+    const char* pTableName = strstr(pOrgTbInfo->tbName, ".");
+    pTableName = pTableName ? (pTableName + 1) : pOrgTbInfo->tbName;
+
+    pAPI->metaReaderFn.initReader(&orgTable, pInfo->base.readHandle.vnode, META_READER_LOCK, &pAPI->metaFn);
+    code = pAPI->metaReaderFn.getTableEntryByName(&orgTable, pTableName);
+    pAPI->metaReaderFn.readerReleaseLock(&orgTable);
+    QUERY_CHECK_CODE(code, lino, _return);
+
+    if (orgTable.me.type != TSDB_CHILD_TABLE || orgTable.me.ctbEntry.pTags == NULL) {
+      pAPI->metaReaderFn.clearReader(&orgTable);
+      continue;
+    }
+
+    pAPI->metaReaderFn.initReader(&superTable, pInfo->base.readHandle.vnode, META_READER_LOCK, &pAPI->metaFn);
+    code = pAPI->metaReaderFn.getTableEntryByUid(&superTable, orgTable.me.ctbEntry.suid);
+    pAPI->metaReaderFn.readerReleaseLock(&superTable);
+    QUERY_CHECK_CODE(code, lino, _return);
+
+    SSchemaWrapper* pTagSchema = &superTable.me.stbEntry.schemaTag;
+    if (pTagSchema->pSchema == NULL || pTagSchema->nCols <= 0) {
+      pAPI->metaReaderFn.clearReader(&superTable);
+      pAPI->metaReaderFn.clearReader(&orgTable);
+      continue;
+    }
+
+    for (int32_t j = 0; j < taosArrayGetSize(pOrgTbInfo->colMap); ++j) {
+      SColIdNameKV* pKV = taosArrayGet(pOrgTbInfo->colMap, j);
+      QUERY_CHECK_NULL(pKV, code, lino, _return, terrno)
+
+      bool exists = false;
+      for (int32_t k = 0; k < taosArrayGetSize(pInfo->fallbackTagList); ++k) {
+        STagVal* pOld = taosArrayGet(pInfo->fallbackTagList, k);
+        if (pOld && pOld->cid == pKV->colId) {
+          exists = true;
+          break;
+        }
+      }
+      if (exists) {
+        continue;
+      }
+
+      const SSchema* pTagColSchema = NULL;
+      for (int32_t k = 0; k < pTagSchema->nCols; ++k) {
+        if (strcmp(pKV->colName, pTagSchema->pSchema[k].name) == 0) {
+          pTagColSchema = &pTagSchema->pSchema[k];
+          break;
+        }
+      }
+      if (pTagColSchema == NULL) {
+        continue;
+      }
+
+      STagVal src = {.cid = pTagColSchema->colId};
+      STagVal dst = {.type = pTagColSchema->type, .cid = pKV->colId};
+      const char* p = pAPI->metaFn.extractTagVal(orgTable.me.ctbEntry.pTags, dst.type, &src);
+      if (p != NULL) {
+        const STagVal* pExtracted = (const STagVal*)p;
+        if (IS_VAR_DATA_TYPE(dst.type)) {
+          dst.nData = pExtracted->nData;
+          dst.pData = taosMemoryMalloc(dst.nData);
+          QUERY_CHECK_NULL(dst.pData, code, lino, _return, terrno)
+          memcpy(dst.pData, pExtracted->pData, dst.nData);
+        } else {
+          dst.i64 = pExtracted->i64;
+        }
+      } else {
+        dst.nData = -1;
+      }
+
+      if (NULL == taosArrayPush(pInfo->fallbackTagList, &dst)) {
+        if (IS_VAR_DATA_TYPE(dst.type) && dst.pData) {
+          taosMemoryFreeClear(dst.pData);
+        }
+        code = terrno;
+        goto _return;
+      }
+    }
+
+    pAPI->metaReaderFn.clearReader(&superTable);
+    pAPI->metaReaderFn.clearReader(&orgTable);
+  }
+
+  if (taosArrayGetSize(pInfo->fallbackTagList) == 0) {
+    taosArrayDestroyEx(pInfo->fallbackTagList, destroyTagVal);
+    pInfo->fallbackTagList = NULL;
+  }
+  return code;
+
+_return:
+  pAPI->metaReaderFn.clearReader(&superTable);
+  pAPI->metaReaderFn.clearReader(&orgTable);
+  if (pInfo->fallbackTagList) {
+    taosArrayDestroyEx(pInfo->fallbackTagList, destroyTagVal);
+    pInfo->fallbackTagList = NULL;
+  }
+  qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  return code;
+}
+
 int32_t createSortHandleFromParam(SOperatorInfo* pOperator) {
   int32_t                        code = TSDB_CODE_SUCCESS;
   int32_t                        lino = 0;
@@ -273,6 +470,7 @@ int32_t createSortHandleFromParam(SOperatorInfo* pOperator) {
 
   cleanUpVirtualScanInfo(pVirtualScanInfo);
   VTS_ERR_JRET(buildRefSlotGroupsFromParam(pVirtualScanInfo, pParam->pRefColGroups));
+  VTS_ERR_JRET(buildFallbackTagListFromParam(pOperator, pVirtualScanInfo, pParam));
   VTS_ERR_JRET(makeTSMergeKey(&pMergeKeys, 0));
   pVirtualScanInfo->pSortInfo = createSortInfo(pMergeKeys);
   TSDB_CHECK_NULL(pVirtualScanInfo->pSortInfo, code, lino, _return, terrno)
@@ -293,7 +491,7 @@ int32_t createSortHandleFromParam(SOperatorInfo* pOperator) {
   for (int32_t i = 0; i < pOperator->numOfDownstream; ++i) {
     SOperatorInfo* pDownstream = pOperator->pDownstream[i];
     if (pDownstream->resultDataBlockId == pVirtualScanInfo->tagBlockId) {
-      // tag block do not need sort
+      // tag block does not need sort; keep id for choosing the real scan downstream.
       pVirtualScanInfo->tagDownStreamId = i;
       pInfo->pSavedTagBlock = NULL;
       continue;
@@ -400,6 +598,12 @@ int32_t openVirtualTableScanOperatorImpl(SOperatorInfo* pOperator) {
 
   if (pOperator->numOfDownstream == 0) {
     return code;
+  }
+
+  if (pOperator->pOperatorGetParam) {
+    // The param is referenced by sort source contexts and may still be used by
+    // async fetch callbacks when this operator is being torn down.
+    pOperator->pOperatorGetParam->reUse = true;
   }
 
   if (pOperator->pOperatorGetParam) {
@@ -698,6 +902,26 @@ static int32_t doSetTagColumnData(SVirtualTableScanInfo* pInfo, SSDataBlock* pTa
   return code;
 }
 
+static bool isSingleRowTagBlockAllNull(SSDataBlock* pTagBlock) {
+  if (pTagBlock == NULL || pTagBlock->info.rows != 1) {
+    return false;
+  }
+
+  for (int32_t i = 0; i < taosArrayGetSize(pTagBlock->pDataBlock); ++i) {
+    SColumnInfoData* pCol = taosArrayGet(pTagBlock->pDataBlock, i);
+    if (pCol == NULL) {
+      continue;
+    }
+    if (!colDataIsNull_s(pCol, 0)) {
+      char* data = colDataGetData(pCol, 0);
+      if (!IS_JSON_NULL(pCol->info.type, data)) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
 int32_t virtualTableGetNext(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
   int32_t                        code = TSDB_CODE_SUCCESS;
   int32_t                        lino = 0;
@@ -723,15 +947,20 @@ int32_t virtualTableGetNext(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
     SOperatorInfo *pTagScanOp = pOperator->pDownstream[pVirtualScanInfo->tagDownStreamId];
     if (pOperator->pOperatorGetParam) {
       SOperatorParam* pTagOp = ((SVTableScanOperatorParam*)pOperator->pOperatorGetParam->value)->pTagScanOp;
-      VTS_ERR_JRET(pTagScanOp->fpSet.getNextExtFn(pTagScanOp, pTagOp, &pTagBlock));
+      if (pTagOp != NULL) {
+        VTS_ERR_JRET(pTagScanOp->fpSet.getNextExtFn(pTagScanOp, pTagOp, &pTagBlock));
+      }
     } else {
       VTS_ERR_JRET(pTagScanOp->fpSet.getNextFn(pTagScanOp, &pTagBlock));
     }
 
-    if (pTagBlock == NULL || pTagBlock->info.rows != 1) {
+    if (pTagBlock == NULL) {
+      // dynamic vtable scan may skip dedicated tag-scan param; fallback tag list will be applied later.
+    } else if (pTagBlock->info.rows != 1) {
       VTS_ERR_JRET(TSDB_CODE_FAILED);
+    } else {
+      pInfo->pSavedTagBlock = pTagBlock;
     }
-    pInfo->pSavedTagBlock = pTagBlock;
   }
 
   while(1) {
@@ -752,7 +981,14 @@ int32_t virtualTableGetNext(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
       qTrace("vtable scan vtb uid:%" PRIu64, (*pResBlock)->info.id.uid);
     }
 
-    VTS_ERR_JRET(doSetTagColumnData(pVirtualScanInfo, pInfo->pSavedTagBlock, (*pResBlock), (*pResBlock)->info.rows));
+    // Keep values already filled by dynamic source scan when tag-scan returns only NULLs
+    // (e.g. referenced virtual tags are not materialized in vtable metadata).
+    bool tagAllNull = isSingleRowTagBlockAllNull(pInfo->pSavedTagBlock);
+    if (!tagAllNull) {
+      VTS_ERR_JRET(doSetTagColumnData(pVirtualScanInfo, pInfo->pSavedTagBlock, (*pResBlock), (*pResBlock)->info.rows));
+    } else {
+      VTS_ERR_JRET(applyFallbackTagList(pVirtualScanInfo, *pResBlock));
+    }
     VTS_ERR_JRET(doFilter(*pResBlock, pOperator->exprSupp.pFilterInfo, NULL, NULL));
     if ((*pResBlock)->info.rows > 0) {
       break;
