@@ -1716,9 +1716,14 @@ INIT_EXT(ext_arrow
     LIB      lib/libparquet.a lib/libarrow.a lib/libarrow_bundled_dependencies.a
 )
 get_from_local_repo_if_exists("https://github.com/apache/arrow.git")
+if(${TD_DARWIN})
+    set(CXX_FLAGS "-ffunction-sections -fdata-sections -include array")
+else()
+    set(CXX_FLAGS "-ffunction-sections -fdata-sections")
+endif()
 ExternalProject_Add(ext_arrow
     GIT_REPOSITORY ${_git_url}
-    GIT_TAG        apache-arrow-20.0.0
+    GIT_TAG        apache-arrow-19.0.1
     GIT_SHALLOW    TRUE
     PREFIX         "${_base}"
     SOURCE_SUBDIR  cpp
@@ -1727,7 +1732,7 @@ ExternalProject_Add(ext_arrow
     CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR:PATH=lib
     CMAKE_ARGS -DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=ON
     CMAKE_ARGS -DCMAKE_C_FLAGS:STRING=-ffunction-sections\ -fdata-sections
-    CMAKE_ARGS -DCMAKE_CXX_FLAGS:STRING=-ffunction-sections\ -fdata-sections
+    CMAKE_ARGS -DCMAKE_CXX_FLAGS:STRING=${CXX_FLAGS}
     CMAKE_ARGS -DCMAKE_CXX_STANDARD:STRING=17
     CMAKE_ARGS -DARROW_BUILD_STATIC:BOOL=ON
     CMAKE_ARGS -DARROW_BUILD_SHARED:BOOL=OFF
