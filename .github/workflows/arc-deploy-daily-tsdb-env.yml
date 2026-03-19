@@ -1,0 +1,152 @@
+name: ARC::Deploy TSDB Dev
+
+on:
+  # schedule:
+  #   - cron: '0 22 * * *'
+  #   - cron: '0 0 * * *'
+  workflow_call:
+    inputs:
+      branch_name:
+        description: 'Branch name for TSDB deployment'
+        type: string
+        default: 'main'
+    secrets:
+      TSDB_BOT_FEISHU_WEBHOOK_URL:
+        required: true
+  workflow_dispatch:
+    inputs:
+      branch_name:
+        description: 'Branch name for TSDB deployment'
+        type: choice
+        default: 'main'
+        options:
+          - main
+          - "3.0"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-tsdb-dev-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: tdasset-deploy
+    steps:
+      - name: Resolve deployment parameters
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            case "${{ github.event.schedule }}" in
+              '0 22 * * *')
+                BRANCH_NAME='main'
+                ;;
+              '0 0 * * *')
+                BRANCH_NAME='3.0'
+                ;;
+              *)
+                echo "Unsupported schedule: ${{ github.event.schedule }}"
+                exit 1
+                ;;
+            esac
+          else
+            BRANCH_NAME='${{ github.event.inputs.branch_name || inputs.branch_name || github.ref_name }}'
+          fi
+
+          case "$BRANCH_NAME" in
+            main)
+              VERSION_PREFIX='3.4.0.0'
+              ;;
+            3.0)
+              VERSION_PREFIX='3.4.0.100'
+              ;;
+            *)
+              echo "Unsupported branch_name: $BRANCH_NAME"
+              exit 1
+              ;;
+          esac
+
+          CLEAN_BRANCH=$(echo "$BRANCH_NAME" | sed 's/[^a-zA-Z0-9-]/-/g' | tr '[:upper:]' '[:lower:]')
+          BUILD_DATE=$(TZ=Asia/Shanghai date +%m%d)
+          IMAGE_TAG="${VERSION_PREFIX}.${BUILD_DATE}"
+          TSDB_IMAGE="192.168.1.42/tdasset/tsdb-ee:${IMAGE_TAG}"
+          RELEASE_NAME="tsdb-${CLEAN_BRANCH}"
+
+          echo "BRANCH_NAME=$BRANCH_NAME" >> "$GITHUB_ENV"
+          echo "VERSION_PREFIX=$VERSION_PREFIX" >> "$GITHUB_ENV"
+          echo "BUILD_DATE=$BUILD_DATE" >> "$GITHUB_ENV"
+          echo "IMAGE_TAG=$IMAGE_TAG" >> "$GITHUB_ENV"
+          echo "TSDB_IMAGE=$TSDB_IMAGE" >> "$GITHUB_ENV"
+          echo "RELEASE_NAME=$RELEASE_NAME" >> "$GITHUB_ENV"
+
+          echo "Branch: $BRANCH_NAME"
+          echo "Version prefix: $VERSION_PREFIX"
+          echo "Build date: $BUILD_DATE"
+          echo "TSDB image: $TSDB_IMAGE"
+          echo "Release name: $RELEASE_NAME"
+
+      - name: Deploy tsdb dev
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cd /public/platform-group/helm/tsdb
+          /home/runner/k8stool/helm --namespace td-dev uninstall "$RELEASE_NAME" --kubeconfig /home/runner/k8stool/config || true
+          while kubectl --kubeconfig /home/runner/k8stool/config get pvc "taos-data-${RELEASE_NAME}" -n td-dev > /dev/null 2>&1; do
+            echo 'Waiting for pvc...'
+            sleep 1
+          done
+
+          /home/runner/k8stool/helm upgrade --install \
+            --namespace td-dev \
+            --set name="$RELEASE_NAME" \
+            --set tsdb_image="$TSDB_IMAGE" \
+            "$RELEASE_NAME" ./ \
+            --kubeconfig /home/runner/k8stool/config
+
+      - name: Send Feishu Message
+        if: always()
+        continue-on-error: true
+        shell: bash
+        env:
+          TSDB_BOT_FEISHU_WEBHOOK_URL: ${{ secrets.TSDB_BOT_FEISHU_WEBHOOK_URL }}
+        run: |
+          set -euo pipefail
+
+          STATUS_TEXT='failed'
+          if [ "${{ job.status }}" = 'success' ]; then
+            STATUS_TEXT='success'
+          fi
+
+          export STATUS_TEXT
+          export REPO_NAME=$(basename "$GITHUB_REPOSITORY")
+          export RUN_URL="https://github.com/taosdata/${REPO_NAME}/actions/runs/${{ github.run_id }}"
+
+          python3 - <<'PY'
+          import json
+          import os
+          import urllib.request
+
+          message = "\n".join([
+              f"TSDB dev deployment {os.environ['STATUS_TEXT']}",
+              f"Branch: {os.environ['BRANCH_NAME']}",
+              f"Version: {os.environ['VERSION_PREFIX']}",
+              f"Image: {os.environ['TSDB_IMAGE']}",
+              f"Release: {os.environ['RELEASE_NAME']}",
+              f"Workflow: {os.environ['RUN_URL']}",
+          ])
+
+          payload = json.dumps({
+              "msg_type": "text",
+              "content": {"text": message},
+          }).encode("utf-8")
+
+          request = urllib.request.Request(
+              os.environ["TSDB_BOT_FEISHU_WEBHOOK_URL"],
+              data=payload,
+              headers={"Content-Type": "application/json"},
+          )
+
+          with urllib.request.urlopen(request) as response:
+              print(response.read().decode("utf-8"))
+          PY
