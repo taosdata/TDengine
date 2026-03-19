@@ -266,7 +266,6 @@ static FORCE_INLINE void extWinResetBlockCalcState(SExtWinCalcGrpCtx* pCCtx) {
   }
 
   pCCtx->blkWinIdx = -1;
-  pCCtx->blkWinStartIdx = 0;
   pCCtx->blkWinStartSet = false;
   pCCtx->blkRowStartIdx = 0;
 }
@@ -427,14 +426,23 @@ static int32_t extWinOpen(SOperatorInfo* pOperator);
 static int32_t extWinNext(SOperatorInfo* pOperator, SSDataBlock** ppRes);
 static int32_t mergeAlignExtWinNext(SOperatorInfo* pOperator, SSDataBlock** ppRes);
 
+static FORCE_INLINE void extWinIntersectTimeRange(STimeWindow* pDst, const STimeWindow* pRange) {
+  if (pDst == NULL || pRange == NULL) {
+    return;
+  }
+
+  pDst->skey = TMAX(pDst->skey, pRange->skey);
+  pDst->ekey = TMIN(pDst->ekey, pRange->ekey);
+}
+
 static void extWinApplyTimeRangeToTableScan(SOperatorInfo* pScanOp, const STimeWindow* pTimeRange) {
   if (pScanOp == NULL || pScanOp->info == NULL || pTimeRange == NULL) {
     return;
   }
 
   STableScanInfo* pScanInfo = (STableScanInfo*)pScanOp->info;
-  pScanInfo->base.cond.twindows = *pTimeRange;
-  pScanInfo->base.orgCond.twindows = *pTimeRange;
+  extWinIntersectTimeRange(&pScanInfo->base.cond.twindows, pTimeRange);
+  extWinIntersectTimeRange(&pScanInfo->base.orgCond.twindows, pTimeRange);
 }
 
 static void extWinApplyTimeRangeToExchangeParam(SOperatorParam* pParam, const STimeWindow* pTimeRange) {
@@ -450,7 +458,7 @@ static void extWinApplyTimeRangeToExchangeParam(SOperatorParam* pParam, const ST
   if (pExcParam->basic.paramType == 0) {
     pExcParam->basic.paramType = DYN_TYPE_EXCHANGE_PARAM;
   }
-  pExcParam->basic.window = *pTimeRange;
+  extWinIntersectTimeRange(&pExcParam->basic.window, pTimeRange);
 }
 
 static int32_t extWinApplyNonStreamTimeRangeToOperatorTree(SOperatorInfo* pOperator, const STimeWindow* pTimeRange,
@@ -3376,9 +3384,10 @@ static int32_t extWinOpen(SOperatorInfo* pOperator) {
 
     TAOS_CHECK_EXIT(extWinSwitchInitCtxs(pExtW, pTaskInfo, &pBlock->info.id));
 
-    if (pExtW->multiTableMode && !pExtW->inputHasOrder) {
-      extWinResetBlockCalcState(pExtW->pTGrpCtx ? pExtW->pTGrpCtx->pCCtx : NULL);
-    }
+    // Reset block-local traversal state for each new input block, but preserve
+    // blkWinStartIdx so a window spanning multiple blocks can continue from the
+    // same logical window on the next block.
+    extWinResetBlockCalcState(pExtW->pTGrpCtx ? pExtW->pTGrpCtx->pCCtx : NULL);
 
     switch (pExtW->mode) {
       case EEXT_MODE_SCALAR:

@@ -63,10 +63,12 @@ class TestExternal:
         self.more_branch_coverage()
         self.orderby_and_alias_regression()
         self.window_boundary_regression()
+        self.edge_case_regression()
         self.path_regression()
         self.external_window_negative_semantics()
         self.complex_semantics_regression()
         self.cross_mix_and_join_regression()
+        self.large_block_and_time_condition_regression()
 
     def mock_test_external_window_single_block(self):
         dbName = "external_window_test_single_block"
@@ -390,6 +392,292 @@ class TestExternal:
             ("select cast(_wstart as bigint) as ws, cast(_wend as bigint) as we, max(v)-min(v) as span from ext_bnd_src external_window((select ts, endtime, mark from ext_bnd_win) w);", 5),
         ])
 
+    def edge_case_regression(self):
+        tdLog.info("=============== external window: edge case regression")
+        self.prepare_for_edge_cases()
+        tdSql.execute(f"use {self.dbName}")
+
+        t0 = 1700600000000
+
+        # Adjacent windows share boundary points; the boundary point should appear in both windows.
+        tdSql.query(
+            "select cast(_wstart as bigint) as ws, cast(ts as bigint) as t "
+            "from ext_edge_src "
+            "external_window((select ts, endtime, mark from ext_edge_win where mark in (8, 6)) w) "
+            "order by ws, t"
+        )
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 0, t0)
+        tdSql.checkData(0, 1, t0)
+        tdSql.checkData(1, 0, t0)
+        tdSql.checkData(1, 1, t0 + 60000)
+        tdSql.checkData(2, 0, t0 + 60000)
+        tdSql.checkData(2, 1, t0 + 60000)
+        tdSql.checkData(3, 0, t0 + 60000)
+        tdSql.checkData(3, 1, t0 + 120000)
+        tdSql.checkData(4, 0, t0 + 60000)
+        tdSql.checkData(4, 1, t0 + 180000)
+
+        # Zero-length window should match exactly one timestamp when it exists.
+        tdSql.query(
+            "select cast(_wstart as bigint) as ws, cast(_wend as bigint) as we, cast(ts as bigint) as t "
+            "from ext_edge_src "
+            "external_window((select ts, endtime, mark from ext_edge_win where mark = 4) w)"
+        )
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, t0 + 120000)
+        tdSql.checkData(0, 1, t0 + 120000)
+        tdSql.checkData(0, 2, t0 + 120000)
+
+        # Empty window should not output detail rows.
+        tdSql.query(
+            "select cast(ts as bigint) as t "
+            "from ext_edge_src "
+            "external_window((select ts, endtime, mark from ext_edge_win where mark = 3) w)"
+        )
+        tdSql.checkRows(0)
+
+        # Boundary-sharing windows should keep independent counts.
+        tdSql.query(
+            "select cast(_wstart as bigint) as ws, cast(_wend as bigint) as we, count(*) as c "
+            "from ext_edge_src "
+            "external_window((select ts, endtime, mark from ext_edge_win where mark in (8, 6)) w) "
+            "order by ws, we"
+        )
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, t0)
+        tdSql.checkData(0, 1, t0 + 60000)
+        tdSql.checkData(0, 2, 2)
+        tdSql.checkData(1, 0, t0 + 60000)
+        tdSql.checkData(1, 1, t0 + 180000)
+        tdSql.checkData(1, 2, 3)
+
+        # Duplicate windows should not be deduplicated by planner/executor.
+        tdSql.query(
+            "select cast(ts as bigint) as t "
+            "from ext_edge_src "
+            "external_window(("
+            "select ts, endtime, mark from ext_edge_win where mark = 8 "
+            "union all "
+            "select ts, endtime, mark from ext_edge_win where mark = 8"
+            ") w)"
+        )
+        tdSql.checkRows(4)
+
+        # Empty external_window subquery should return no rows.
+        tdSql.query(
+            "select cast(ts as bigint) as t "
+            "from ext_edge_src "
+            "external_window((select ts, endtime, mark from ext_edge_win where mark = 9999) w)"
+        )
+        tdSql.checkRows(0)
+
+    def large_block_and_time_condition_regression(self):
+        tdLog.info("=============== external window: large block and time condition regression")
+        self.prepare_for_large_block_and_time_condition()
+        tdSql.execute(f"use {self.dbName}")
+
+        t0 = 1700700000000
+        t1 = 1700800000000
+
+        # Large input reproducer: current behavior only aggregates the first block (4096 rows).
+        tdSql.query(
+            "select cast(_wstart as bigint) as ws, cast(_wend as bigint) as we, count(*) as c "
+            "from ext_blk_src "
+            "external_window((select ts, endtime, mark from ext_blk_win) w) "
+            "order by ws"
+        )
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, t0)
+        tdSql.checkData(0, 1, t0 + 4499000)
+        tdSql.checkData(0, 2, 4500)
+        tdSql.checkData(1, 0, t0 + 4500000)
+        tdSql.checkData(1, 1, t0 + 8999000)
+        tdSql.checkData(1, 2, 4500)
+
+        # Combination 1: outer grouped / subquery not grouped, aggregate path.
+        tdSql.query(
+            "select tbname, cast(_wstart as bigint) as ws, cast(_wend as bigint) as we, count(*) as c "
+            "from ext_blk_src_mt partition by tbname "
+            "external_window((select ts, endtime, mark from ext_blk_win) w) "
+            "order by tbname, ws"
+        )
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 0, "ext_blk_src_mt_1")
+        tdSql.checkData(0, 1, t0)
+        tdSql.checkData(0, 2, t0 + 4499000)
+        tdSql.checkData(0, 3, 4500)
+        tdSql.checkData(1, 0, "ext_blk_src_mt_1")
+        tdSql.checkData(1, 1, t0 + 4500000)
+        tdSql.checkData(1, 2, t0 + 8999000)
+        tdSql.checkData(1, 3, 4500)
+        tdSql.checkData(2, 0, "ext_blk_src_mt_2")
+        tdSql.checkData(2, 1, t0)
+        tdSql.checkData(2, 2, t0 + 4499000)
+        tdSql.checkData(2, 3, 4500)
+        tdSql.checkData(3, 0, "ext_blk_src_mt_2")
+        tdSql.checkData(3, 1, t0 + 4500000)
+        tdSql.checkData(3, 2, t0 + 8999000)
+        tdSql.checkData(3, 3, 4500)
+
+        # Combination 2: outer not grouped / subquery not grouped, aggregate path.
+        tdSql.query(
+            "select cast(_wstart as bigint) as ws, count(*) as c "
+            "from ext_blk_src_mt "
+            "external_window((select ts, endtime, mark from ext_blk_win_many) w) "
+            "order by ws"
+        )
+        tdSql.checkRows(5000)
+        tdSql.checkData(0, 0, t0)
+        tdSql.checkData(0, 1, 2)
+        tdSql.checkData(4999, 0, t0 + 4999000)
+        tdSql.checkData(4999, 1, 2)
+
+        # Combination 3: outer grouped / subquery grouped, aggregate path.
+        tdSql.query(
+            "select t1, cast(_wstart as bigint) as ws, count(*) as c "
+            "from ext_blk_src_mt partition by t1 "
+            "external_window((select ts, endtime, mark from ext_blk_win_many_part partition by t1) w) "
+            "order by t1, ws"
+        )
+        tdSql.checkRows(10000)
+        tdSql.checkData(0, 0, 1)
+        tdSql.checkData(0, 1, t0)
+        tdSql.checkData(0, 2, 1)
+        tdSql.checkData(4999, 0, 1)
+        tdSql.checkData(4999, 1, t0 + 4999000)
+        tdSql.checkData(4999, 2, 1)
+        tdSql.checkData(5000, 0, 2)
+        tdSql.checkData(5000, 1, t0)
+        tdSql.checkData(5000, 2, 1)
+        tdSql.checkData(9999, 0, 2)
+        tdSql.checkData(9999, 1, t0 + 4999000)
+        tdSql.checkData(9999, 2, 1)
+
+        # Combination 1: outer grouped / subquery not grouped, projection path.
+        tdSql.query(
+            "select tbname, cast(_wstart as bigint) as ws, cast(ts as bigint) as ts64, w.mark, v "
+            "from ext_blk_src_mt partition by tbname "
+            "external_window((select ts, endtime, mark from ext_blk_win_many) w) "
+            "order by tbname, ws, ts64"
+        )
+        tdSql.checkRows(10000)
+        tdSql.checkData(0, 0, "ext_blk_src_mt_1")
+        tdSql.checkData(0, 1, t0)
+        tdSql.checkData(0, 2, t0)
+        tdSql.checkData(0, 3, 1)
+        tdSql.checkData(0, 4, 0)
+        tdSql.checkData(4999, 0, "ext_blk_src_mt_1")
+        tdSql.checkData(4999, 1, t0 + 4999000)
+        tdSql.checkData(4999, 2, t0 + 4999000)
+        tdSql.checkData(4999, 3, 5000)
+        tdSql.checkData(4999, 4, 4999)
+        tdSql.checkData(5000, 0, "ext_blk_src_mt_2")
+        tdSql.checkData(5000, 1, t0)
+        tdSql.checkData(5000, 2, t0)
+        tdSql.checkData(5000, 3, 1)
+        tdSql.checkData(5000, 4, 10000)
+        tdSql.checkData(9999, 0, "ext_blk_src_mt_2")
+        tdSql.checkData(9999, 1, t0 + 4999000)
+        tdSql.checkData(9999, 2, t0 + 4999000)
+        tdSql.checkData(9999, 3, 5000)
+        tdSql.checkData(9999, 4, 14999)
+
+        # Combination 2: outer not grouped / subquery not grouped, projection path.
+        tdSql.query(
+            "select cast(_wstart as bigint) as ws, cast(ts as bigint) as ts64, w.mark, v "
+            "from ext_blk_src "
+            "external_window((select ts, endtime, mark from ext_blk_win_many) w) "
+            "order by ws, ts64"
+        )
+        tdSql.checkRows(5000)
+        tdSql.checkData(0, 0, t0)
+        tdSql.checkData(0, 1, t0)
+        tdSql.checkData(0, 2, 1)
+        tdSql.checkData(0, 3, 0)
+        tdSql.checkData(4999, 0, t0 + 4999000)
+        tdSql.checkData(4999, 1, t0 + 4999000)
+        tdSql.checkData(4999, 2, 5000)
+        tdSql.checkData(4999, 3, 4999)
+
+        # Combination 3: outer grouped / subquery grouped, projection path.
+        tdSql.query(
+            "select t1, cast(_wstart as bigint) as ws, cast(ts as bigint) as ts64, w.mark, v "
+            "from ext_blk_src_mt partition by t1 "
+            "external_window((select ts, endtime, mark from ext_blk_win_many_part partition by t1) w) "
+            "order by t1, ws, ts64"
+        )
+        tdSql.checkRows(10000)
+        tdSql.checkData(0, 0, 1)
+        tdSql.checkData(0, 1, t0)
+        tdSql.checkData(0, 2, t0)
+        tdSql.checkData(0, 3, 1)
+        tdSql.checkData(0, 4, 0)
+        tdSql.checkData(4999, 0, 1)
+        tdSql.checkData(4999, 1, t0 + 4999000)
+        tdSql.checkData(4999, 2, t0 + 4999000)
+        tdSql.checkData(4999, 3, 5000)
+        tdSql.checkData(4999, 4, 4999)
+        tdSql.checkData(5000, 0, 2)
+        tdSql.checkData(5000, 1, t0)
+        tdSql.checkData(5000, 2, t0)
+        tdSql.checkData(5000, 3, 1)
+        tdSql.checkData(5000, 4, 10000)
+        tdSql.checkData(9999, 0, 2)
+        tdSql.checkData(9999, 1, t0 + 4999000)
+        tdSql.checkData(9999, 2, t0 + 4999000)
+        tdSql.checkData(9999, 3, 5000)
+        tdSql.checkData(9999, 4, 14999)
+
+        # Time-condition semantics are validated on a separate small dataset to avoid coupling
+        # with the known large-block limitation above.
+        tdSql.query(
+            "select cast(_wstart as bigint) as ws, count(*) as c "
+            "from ext_tcond_src "
+            f"where ts >= {t1 + 300000} and ts < {t1 + 900000} "
+            "external_window((select ts, endtime, mark from ext_tcond_win) w) "
+            "order by ws"
+        )
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, t1)
+        tdSql.checkData(0, 1, 2)
+        tdSql.checkData(1, 0, t1 + 600000)
+        tdSql.checkData(1, 1, 3)
+
+        # external_window subquery time predicate should filter candidate windows.
+        tdSql.query(
+            "select cast(_wstart as bigint) as ws, count(*) as c "
+            "from ext_tcond_src "
+            f"external_window((select ts, endtime, mark from ext_tcond_win where ts >= {t1 + 600000}) w) "
+            "order by ws"
+        )
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, t1 + 600000)
+        tdSql.checkData(0, 1, 5)
+
+        # Combined source-side time predicate + filtered window subquery.
+        tdSql.query(
+            "select cast(_wstart as bigint) as ws, count(*) as c "
+            "from ext_tcond_src "
+            f"where ts >= {t1 + 900000} "
+            f"external_window((select ts, endtime, mark from ext_tcond_win where ts >= {t1 + 600000}) w) "
+            "order by ws"
+        )
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, t1 + 600000)
+        tdSql.checkData(0, 1, 2)
+        
+        tdSql.query(
+            "select cast(_wstart as bigint) as ws, count(*) as c "
+            "from ext_tcond_src "
+            f"where ts <= {t1 + 900000} "
+            f"external_window((select ts, endtime, mark from ext_tcond_win where ts >= {t1 + 600000}) w) "
+            "order by ws"
+        )
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, t1 + 600000)
+        tdSql.checkData(0, 1, 3)
+
     def path_regression(self):
         tdLog.info("=============== external window: path regression")
         self.prepare_for_path_regression()
@@ -681,6 +969,136 @@ class TestExternal:
             f"({t0 + 1260000}, 20)"
             f"({t0 + 1320000}, 21)"
             f"({t0 + 1860000}, 22)"
+        )
+
+    def prepare_for_edge_cases(self):
+        tdLog.info("=============== external window: edge case dataset")
+
+        tdSql.execute(f"use {self.dbName}")
+
+        tdSql.execute("drop table if exists ext_edge_src")
+        tdSql.execute("drop table if exists ext_edge_win")
+
+        tdSql.execute("create table ext_edge_src (ts timestamp, v int) tags(t1 int)")
+        tdSql.execute("create table ext_edge_win (ts timestamp, endtime timestamp, mark int)")
+
+        tdSql.execute("create table ext_edge_src_1 using ext_edge_src tags(1)")
+
+        t0 = 1700600000000
+
+        tdSql.execute(
+            f"insert into ext_edge_src_1 values"
+            f"({t0}, 10)"
+            f"({t0 + 60000}, 11)"
+            f"({t0 + 120000}, 12)"
+            f"({t0 + 180000}, 13)"
+        )
+
+        tdSql.execute(
+            f"insert into ext_edge_win values"
+            f"({t0}, {t0 + 60000}, 1)"
+            f"({t0 + 60000}, {t0 + 120000}, 2)"
+            f"({t0 + 240000}, {t0 + 300000}, 3)"
+            f"({t0 + 120000}, {t0 + 120000}, 4)"
+            f"({t0}, {t0 + 120000}, 5)"
+            f"({t0 + 60000}, {t0 + 180000}, 6)"
+            f"({t0}, {t0 + 60000}, 7)"
+            f"({t0}, {t0 + 60000}, 8)"
+        )
+
+    def prepare_for_large_block_and_time_condition(self):
+        tdLog.info("=============== external window: large block and time condition dataset")
+
+        tdSql.execute(f"use {self.dbName}")
+
+        tdSql.execute("drop table if exists ext_blk_src")
+        tdSql.execute("drop table if exists ext_blk_win")
+        tdSql.execute("drop table if exists ext_blk_src_mt")
+        tdSql.execute("drop table if exists ext_blk_src_mt_1")
+        tdSql.execute("drop table if exists ext_blk_src_mt_2")
+        tdSql.execute("drop table if exists ext_blk_win_many")
+        tdSql.execute("drop table if exists ext_blk_win_many_part")
+        tdSql.execute("drop table if exists ext_blk_win_many_part_1")
+        tdSql.execute("drop table if exists ext_blk_win_many_part_2")
+        tdSql.execute("drop table if exists ext_tcond_src")
+        tdSql.execute("drop table if exists ext_tcond_win")
+
+        tdSql.execute("create table ext_blk_src (ts timestamp, v int)")
+        tdSql.execute("create table ext_blk_win (ts timestamp, endtime timestamp, mark int)")
+        tdSql.execute("create table ext_blk_src_mt (ts timestamp, v int, v2 int) tags(t1 int)")
+        tdSql.execute("create table ext_blk_win_many (ts timestamp, endtime timestamp, mark int)")
+        tdSql.execute("create table ext_blk_win_many_part (ts timestamp, endtime timestamp, mark int) tags(t1 int)")
+        tdSql.execute("create table ext_tcond_src (ts timestamp, v int)")
+        tdSql.execute("create table ext_tcond_win (ts timestamp, endtime timestamp, mark int)")
+        tdSql.execute("create table ext_blk_src_mt_1 using ext_blk_src_mt tags(1)")
+        tdSql.execute("create table ext_blk_src_mt_2 using ext_blk_src_mt tags(2)")
+        tdSql.execute("create table ext_blk_win_many_part_1 using ext_blk_win_many_part tags(1)")
+        tdSql.execute("create table ext_blk_win_many_part_2 using ext_blk_win_many_part tags(2)")
+
+        t0 = 1700700000000
+        t1 = 1700800000000
+        total_rows = 9000
+        batch_rows = 1000
+
+        for start in range(0, total_rows, batch_rows):
+            end = min(start + batch_rows, total_rows)
+            vals = []
+            for i in range(start, end):
+                vals.append(f"({t0 + i * 1000}, {i})")
+            tdSql.execute("insert into ext_blk_src values" + "".join(vals))
+
+        for tb_idx, table_name in enumerate(("ext_blk_src_mt_1", "ext_blk_src_mt_2")):
+            for start in range(0, total_rows, batch_rows):
+                end = min(start + batch_rows, total_rows)
+                vals = []
+                for i in range(start, end):
+                    vals.append(f"({t0 + i * 1000}, {tb_idx * 10000 + i}, {(tb_idx + 1) * 100000 + i})")
+                tdSql.execute(f"insert into {table_name} values" + "".join(vals))
+
+        tdSql.execute(
+            f"insert into ext_blk_win values"
+            f"({t0}, {t0 + 4499000}, 1)"
+            f"({t0 + 4500000}, {t0 + 8999000}, 2)"
+        )
+
+        large_window_rows = 5000
+        for start in range(0, large_window_rows, batch_rows):
+            end = min(start + batch_rows, large_window_rows)
+            vals = []
+            for i in range(start, end):
+                ts = t0 + i * 1000
+                vals.append(f"({ts}, {ts}, {i + 1})")
+            tdSql.execute("insert into ext_blk_win_many values" + "".join(vals))
+
+        for tb_idx, table_name in enumerate(("ext_blk_win_many_part_1", "ext_blk_win_many_part_2")):
+            for start in range(0, large_window_rows, batch_rows):
+                end = min(start + batch_rows, large_window_rows)
+                vals = []
+                for i in range(start, end):
+                    ts = t0 + i * 1000
+                    vals.append(f"({ts}, {ts}, {i + 1})")
+                tdSql.execute(f"insert into {table_name} values" + "".join(vals))
+
+        tdSql.execute(
+            f"insert into ext_tcond_src values"
+            f"({t1 + 0}, 0)"
+            f"({t1 + 120000}, 1)"
+            f"({t1 + 240000}, 2)"
+            f"({t1 + 360000}, 3)"
+            f"({t1 + 480000}, 4)"
+            f"({t1 + 600000}, 5)"
+            f"({t1 + 720000}, 6)"
+            f"({t1 + 840000}, 7)"
+            f"({t1 + 960000}, 8)"
+            f"({t1 + 1080000}, 9)"
+            f"({t1 + 1200000}, 10)"
+            f"({t1 + 1320000}, 11)"
+        )
+
+        tdSql.execute(
+            f"insert into ext_tcond_win values"
+            f"({t1}, {t1 + 540000}, 1)"
+            f"({t1 + 600000}, {t1 + 1140000}, 2)"
         )
 
     def external_window_negative_semantics(self):
