@@ -29,7 +29,7 @@ concurrency:
 
 jobs:
   deploy:
-    runs-on: tdasset-deploy
+    runs-on: tsdb-deploy
     steps:
       - name: Resolve deployment parameters
         shell: bash
