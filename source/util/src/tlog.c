@@ -93,10 +93,10 @@ typedef struct {
 
 extern SConfig *tsCfg;
 static int8_t   tsLogInited = 0;
+static int8_t   tsLogNeedRotate = 0;
 static SLogObj  tsLogObj = {.fileNum = 1, .slowHandle = NULL};
 static int64_t  tsAsyncLogLostLines = 0;
 static int32_t  tsDaylightActive; /* Currently in daylight saving time. */
-static SRWLatch tsLogRotateLatch = 0;
 
 bool tsLogEmbedded = 0;
 bool tsAsyncLog = true;
@@ -460,14 +460,9 @@ static void *taosThreadToCloseOldFile(void *param) {
   if (!param) return NULL;
   OldFileKeeper *oldFileKeeper = (OldFileKeeper *)param;
   taosSsleep(20);
-  taosWLockLatch(&tsLogRotateLatch);
   taosCloseLogByFd(oldFileKeeper->pOldFile);
-  taosKeepOldLog(oldFileKeeper->keepName);
   taosMemoryFree(oldFileKeeper);
-  if (tsLogKeepDays != 0) {
-    taosRemoveOldFiles(tsLogDir, abs(tsLogKeepDays));
-  }
-  taosWUnLockLatch(&tsLogRotateLatch);
+  atomic_store_8(&tsLogNeedRotate, 1);
   return NULL;
 }
 
@@ -1072,7 +1067,7 @@ static void taosWriteLog(SLogBuff *pLogBuf) {
 
 #define LOG_ROTATE_INTERVAL 3600
 #if !defined(TD_ENTERPRISE) || defined(ASSERT_NOT_CORE) || defined(GRANTS_CFG)
-#define LOG_INACTIVE_TIME 7200
+#define LOG_INACTIVE_TIME 30
 #define LOG_ROTATE_BOOT   900
 #else
 #define LOG_INACTIVE_TIME 5
@@ -1102,7 +1097,6 @@ static void  *taosLogRotateFunc(void *param) {
   int32_t i = filePrefixLen - 1;
   while (i > 0 && isdigit(filePrefix[i])) filePrefix[i--] = '\0';
 
-  taosWLockLatch(&tsLogRotateLatch);
   // compress or remove the old log files
   TdDirPtr pDir = taosOpenDir(tsLogDir);
   if (!pDir) goto _exit;
@@ -1174,7 +1168,6 @@ static void  *taosLogRotateFunc(void *param) {
     taosRemoveOldFiles(tsLogDir, abs(tsLogKeepDays));
   }
 _exit:
-  taosWUnLockLatch(&tsLogRotateLatch);
   atomic_store_8(&tsLogRotateRunning, 0);
   taosMemFreeClear(filePrefix);
   return NULL;
@@ -1218,7 +1211,8 @@ static void *taosAsyncOutputLog(void *param) {
     // process the log rotation every LOG_ROTATE_INTERVAL
     int64_t curSec = taosGetTimestampMs() / 1000;
     if (curSec >= lastCheckSec) {
-      if ((curSec - lastCheckSec) >= (LOG_ROTATE_INTERVAL + (taosRand() % LOG_ROTATE_BOOT))) {
+      if ((atomic_load_8(&tsLogNeedRotate) != 0) ||
+          (curSec - lastCheckSec) >= (LOG_ROTATE_INTERVAL + (taosRand() % LOG_ROTATE_BOOT))) {
         TdThread     thread;
         TdThreadAttr attr;
         (void)taosThreadAttrInit(&attr);
@@ -1229,6 +1223,7 @@ static void *taosAsyncOutputLog(void *param) {
         if (taosThreadCreate(&thread, &attr, taosLogRotateFunc, tsLogObj.logHandle) == 0) {
           uInfo("process log rotation");
           lastCheckSec = curSec;
+          atomic_store_8(&tsLogNeedRotate, 0);
         } else {
           uWarn("failed to create thread to process log rotation");
         }
