@@ -323,6 +323,15 @@ int32_t buildRequest(uint64_t connId, const char* sql, int sqlLen, void* param, 
   (*pRequest)->validateOnly = validateSql;
   (*pRequest)->stmtBindVersion = 0;
 
+  code = sqlSecurityCheckStringLevel(*pRequest, (*pRequest)->sqlstr, (*pRequest)->sqlLen);
+  if (code != TSDB_CODE_SUCCESS) {
+    tscWarn("req:0x%" PRIx64 ", sql security string check failed, QID:0x%" PRIx64 ", code:%s", (*pRequest)->self,
+            (*pRequest)->requestId, tstrerror(code));
+    destroyRequest(*pRequest);
+    *pRequest = NULL;
+    return code;
+  }
+
   ((SSyncQueryParam*)(*pRequest)->body.interParam)->userParam = param;
 
   STscObj* pTscObj = (*pRequest)->pTscObj;

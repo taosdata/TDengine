@@ -1734,6 +1734,10 @@ static void doAsyncQueryFromAnalyse(SMetaData *pResultMeta, void *param, int32_t
     code = qAnalyseSqlSemantic(pWrapper->pParseCtx, pWrapper->pCatalogReq, pResultMeta, pQuery);
   }
 
+  if (TSDB_CODE_SUCCESS == code) {
+    code = sqlSecurityCheckASTLevel(pRequest, pQuery);
+  }
+
   pRequest->metric.analyseCostUs += taosGetTimestampUs() - analyseStart;
 
   if (pRequest->parseOnly) {

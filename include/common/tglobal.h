@@ -283,6 +283,14 @@ extern bool    tsQueryUseNodeAllocator;
 extern bool    tsKeepColumnName;
 extern bool    tsEnableQueryHb;
 extern bool    tsEnableScience;
+extern bool    tsSqlSecurityEnabled;
+extern int32_t tsSqlSecurityWhitelistMode;  // 0:disable,1:whitelist,2:blacklist,3:both
+extern bool    tsSqlSecurityStringCheck;
+extern bool    tsSqlSecurityASTCheck;
+extern char    tsSqlSecurityRuleFile[];
+extern bool    tsWhitelistLearning;
+extern int32_t tsWhitelistLearningPeriod;
+extern int32_t tsWhitelistLearningThreshold;
 extern bool    tsTtlChangeOnWrite;
 extern int32_t tsTtlFlushThreshold;
 extern int32_t tsRedirectPeriod;
