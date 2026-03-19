@@ -91,7 +91,6 @@ int32_t schedulerFetchRows(int64_t jobId, SSchedulerReq *pReq) {
   SSchJob *pJob = NULL;
 
   SCH_ERR_JRET(schHandleOpBeginEvent(jobId, &pJob, SCH_OP_FETCH, pReq));
-
   // Set to IN_PROGRESS when starting fetch
   SCH_UPDATE_JOB_PHASE_IF_CHANGED(pJob, QUERY_PHASE_FETCH_IN_PROGRESS);
 
