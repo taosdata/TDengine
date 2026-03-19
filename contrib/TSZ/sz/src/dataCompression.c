@@ -206,7 +206,7 @@ INLINE void compressSingleFloatValue(FloatValueCompressElement *vce, float oriVa
 	if(ignBitCount<0)
 		ignBitCount = 0;
 	
-	intToBytes_bigEndian(vce->curBytes, diffVal.ivalue);
+	int32ToBytes_bigEndian(vce->curBytes, diffVal.ivalue);
 	
 	// truncate diff value tail bit with ignBitCount	
 	diffVal.ivalue = (diffVal.ivalue >> ignBitCount) << ignBitCount;
@@ -230,8 +230,8 @@ void compressSingleDoubleValue(DoubleValueCompressElement *vce, double tgtValue,
 	if(ignBytesLength<0)
 		ignBytesLength = 0;
 
-	int64_t tmp_long = lfBuf.lvalue;
-	longToBytes_bigEndian(vce->curBytes, tmp_long);
+	uint64_t tmp_long = lfBuf.lvalue;
+	int64ToBytes_bigEndian(vce->curBytes, tmp_long);
 				
 	lfBuf.lvalue = (lfBuf.lvalue >> ignBytesLength)<<ignBytesLength;
 	

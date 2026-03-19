@@ -117,7 +117,7 @@ size_t dataLength, double realPrecision, double valueRangeSize, double medianVal
 	new_DIA(&resiBitArray, DynArrayInitLen);
 
 	unsigned char preDataBytes[8];
-	longToBytes_bigEndian(preDataBytes, 0);
+	int64ToBytes_bigEndian(preDataBytes, 0);
 	
 	int reqBytesLength = reqLength/8;
 	int resiBitsLength = reqLength%8;

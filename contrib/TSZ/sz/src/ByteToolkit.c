@@ -11,7 +11,7 @@
 #include <string.h>
 #include "sz.h" 	
 
-INLINE int bytesToInt_bigEndian(unsigned char* bytes)
+INLINE int bytesToInt32_bigEndian(unsigned char* bytes)
 {
 	int res;
 	unsigned char* des = (unsigned char*)&res;
@@ -26,7 +26,7 @@ INLINE int bytesToInt_bigEndian(unsigned char* bytes)
  * @unsigned char *b the variable to store the converted bytes (length=4)
  * @unsigned int num
  * */
-INLINE void intToBytes_bigEndian(unsigned char *b, unsigned int num)
+INLINE void int32ToBytes_bigEndian(unsigned char *b, unsigned int num)
 {
 	unsigned char* sou =(unsigned char*)&num;
 	b[0] = sou[3];
@@ -38,10 +38,10 @@ INLINE void intToBytes_bigEndian(unsigned char *b, unsigned int num)
 /**
  * @endianType: refers to the endian_type of unsigned char* b.
  * */
-INLINE int64_t bytesToLong_bigEndian(unsigned char* b) {
+INLINE uint64_t bytesToInt64_bigEndian(unsigned char* b) {
 
-	int64_t temp = 0;
-	int64_t res = 0;
+	uint64_t temp = 0;
+	uint64_t res = 0;
 
 	res <<= 8;
 	temp = b[0] & 0xff;
@@ -79,7 +79,7 @@ INLINE int64_t bytesToLong_bigEndian(unsigned char* b) {
 	
 }
 
-INLINE void longToBytes_bigEndian(unsigned char *b, int64_t num) 
+INLINE void int64ToBytes_bigEndian(unsigned char *b, uint64_t num) 
 {
 	unsigned char* sou = (unsigned char*)&num;
 	b[7] = sou[0];
@@ -254,18 +254,18 @@ INLINE size_t bytesToSize(unsigned char* bytes, int size_type)
 {
 	size_t result = 0;
 	if(size_type == 4)	
-		result = bytesToInt_bigEndian(bytes);//4		
+		result = bytesToInt32_bigEndian(bytes);//4		
 	else
-		result = bytesToLong_bigEndian(bytes);//8	
+		result = bytesToInt64_bigEndian(bytes);//8	
 	return result;
 }
 
 INLINE void sizeToBytes(unsigned char* outBytes, size_t size, int size_type)
 {
 	if(size_type == 4)
-		intToBytes_bigEndian(outBytes, (unsigned int)size);//4
+		int32ToBytes_bigEndian(outBytes, (unsigned int)size);//4
 	else
-		longToBytes_bigEndian(outBytes, (int64_t)size);//8
+		int64ToBytes_bigEndian(outBytes, (int64_t)size);//8
 }
 
 void convertSZParamsToBytes(sz_params* params, unsigned char* result, char optQuantMode)

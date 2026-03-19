@@ -234,14 +234,14 @@ void encode(HuffmanTree *huffmanTree, int *s, size_t length, unsigned char *out,
 			byteSizep = bitSize/8; //it's used to move the pointer p for next data
 			if(byteSize<=8)
 			{
-				longToBytes_bigEndian(p, (huffmanTree->code[state])[0]);
+				int64ToBytes_bigEndian(p, (huffmanTree->code[state])[0]);
 				p += byteSizep;
 			}
 			else //byteSize>8
 			{
-				longToBytes_bigEndian(p, (huffmanTree->code[state])[0]);
+				int64ToBytes_bigEndian(p, (huffmanTree->code[state])[0]);
 				p += 8;
-				longToBytes_bigEndian(p, (huffmanTree->code[state])[1]);
+				int64ToBytes_bigEndian(p, (huffmanTree->code[state])[1]);
 				p += (byteSizep - 8);
 			}
 			*outSize += byteSize;
@@ -254,8 +254,8 @@ void encode(HuffmanTree *huffmanTree, int *s, size_t length, unsigned char *out,
 			{
 				p++;
 				//(*outSize)++;
-				int64_t newCode = (huffmanTree->code[state])[0] << lackBits;
-				longToBytes_bigEndian(p, newCode);
+				uint64_t newCode = (huffmanTree->code[state])[0] << lackBits;
+				int64ToBytes_bigEndian(p, newCode);
 
 				if(bitSize<=64)
 				{
@@ -279,7 +279,7 @@ void encode(HuffmanTree *huffmanTree, int *s, size_t length, unsigned char *out,
 						p++;
 						//(*outSize)++;
 						newCode = (huffmanTree->code[state])[1] << lackBits;
-						longToBytes_bigEndian(p, newCode);
+						int64ToBytes_bigEndian(p, newCode);
 						bitSize -= lackBits;
 						byteSize = bitSize%8==0 ? bitSize/8 : bitSize/8+1;
 						byteSizep = bitSize/8;
@@ -706,9 +706,9 @@ void encode_withTree(HuffmanTree* huffmanTree, int *s, size_t length, unsigned c
 	//printf("treeByteSize = %d\n", treeByteSize);
 
 	*out = (unsigned char*)malloc(length*sizeof(int)+treeByteSize);
-	intToBytes_bigEndian(buffer, nodeCount);
+	int32ToBytes_bigEndian(buffer, nodeCount);
 	memcpy(*out, buffer, 4);
-	intToBytes_bigEndian(buffer, huffmanTree->stateNum/2); //real number of intervals
+	int32ToBytes_bigEndian(buffer, huffmanTree->stateNum/2); //real number of intervals
 	memcpy(*out+4, buffer, 4);
 	memcpy(*out+8, treeBytes, treeByteSize);
 	free(treeBytes);
@@ -724,7 +724,7 @@ void encode_withTree(HuffmanTree* huffmanTree, int *s, size_t length, unsigned c
 void decode_withTree(HuffmanTree* huffmanTree, unsigned char *s, size_t targetLength, int *out)
 {
 	size_t encodeStartIndex;
-	size_t nodeCount = bytesToInt_bigEndian(s);
+	size_t nodeCount = bytesToInt32_bigEndian(s);
 	node root = reconstruct_HuffTree_from_bytes_anyStates(huffmanTree,s+8, nodeCount);
 
 	//sdi: Debug
