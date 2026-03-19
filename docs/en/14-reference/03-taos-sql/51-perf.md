@@ -60,6 +60,8 @@ Provides information about the SQL statements that are currently being executed.
 | 11  |   sub_num    | INT          | Number of subqueries                   |
 | 12  |  sub_status  | BINARY(1000) | Subquery status                   |
 | 13  |     sql      | BINARY(1024) | SQL statement                     |
+| 14  | current_phase      | BINARY(64)   | Current phase/state of the query  |
+| 15  | action_start_time  | TIMESTAMP    | Start time of the current phase   |
 
 ## PERF_CONSUMERS
 
