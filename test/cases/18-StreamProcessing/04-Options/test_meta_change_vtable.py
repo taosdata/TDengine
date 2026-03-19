@@ -30,6 +30,7 @@ class TestStreamMetaChangeVTable:
         tdStream.createSnode()
         tdSql.execute(f"alter all dnodes 'qdebugflag 143';")
         tdSql.execute(f"alter all dnodes 'stdebugflag 135';")
+        tdSql.execute(f"alter all dnodes 'asynclog 0';")
 
         streams = []
         streams.append(self.Basic37208())  # [ok] add ctb and drop ctb from stb
@@ -74,7 +75,7 @@ class TestStreamMetaChangeVTable:
             tdSql.execute(f"use {self.db}")
 
             tdSql.execute(
-                f"create stream {self.db}.s1 count_window(1) from {self.vstbName} partition by tbname, tint into {self.db}.res_stb OUTPUT_SUBTABLE(CONCAT('res_stb_', tbname)) (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
+                f"create stream {self.db}.s1 count_window(1) from {self.vstbName} partition by tbname, tint into {self.db}.res_stb_0 OUTPUT_SUBTABLE(CONCAT('res_stb_0_', tbname)) (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
             )
 
             tdSql.execute(
@@ -85,28 +86,34 @@ class TestStreamMetaChangeVTable:
                 f"create stream {self.db}.s3 count_window(1) from {self.vstbName} partition by tbname, tint stream_options(PRE_FILTER(tbigint <= 2)) into {self.db}.res_stb_2 OUTPUT_SUBTABLE(CONCAT('res_stb_2_', tbname)) (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from {self.vstbName};"
             )
 
-        def insert1(self):
+        def insert1(self):      # add vtable
             tdSql.execute(f"create vtable {self.db}.vct2 (cint from {self.db}.ct2.cint) using {self.db}.{self.vstbName} tags(2,2)")
 
             sqls = [
                 "insert into ct1 values ('2025-01-01 00:00:00', 1);",
-                "insert into ct2 values ('2025-01-01 00:00:00', 1);",
+                "insert into ct2 values ('2025-01-01 00:00:00', 2);",
             ]
             tdSql.executes(sqls)
 
         def check1(self):
+            tdSql.checkResultsByFunc(
+                sql=f'select * from information_schema.ins_tables where db_name="{self.db}" and table_name like "res_stb_0%"',
+                func=lambda: tdSql.getRows() == 2,
+            )
+
             tdSql.checkResultsByFunc(
                 sql=f'select * from information_schema.ins_tables where db_name="{self.db}" and table_name like "res_stb_1%"',
                 func=lambda: tdSql.getRows() == 2,
             )
 
             tdSql.checkResultsByFunc(
-                sql=f'select * from information_schema.ins_tables where db_name="{self.db}" and table_name like "res_stb_%"',
-                func=lambda: tdSql.getRows() == 6,
+                sql=f'select * from information_schema.ins_tables where db_name="{self.db}" and table_name like "res_stb_2%"',
+                func=lambda: tdSql.getRows() == 2,
             )
 
+
             tdSql.checkResultsByFunc(
-                sql=f"select firstts, lastts, cnt_v, sum_v, avg_v from {self.db}.res_stb_vct1",
+                sql=f"select firstts, lastts, cnt_v, sum_v, avg_v from {self.db}.res_stb_0_vct1",
                 func=lambda: tdSql.getRows() == 1
                 and tdSql.compareData(0, 0, "2025-01-01 00:00:00")
                 and tdSql.compareData(0, 1, "2025-01-01 00:00:00")
@@ -115,76 +122,79 @@ class TestStreamMetaChangeVTable:
                 and tdSql.compareData(0, 4, 1),
             )
 
-            tdSql.checkResultsByFunc(
-                sql=f"select firstts, lastts, cnt_v, sum_v, avg_v from {self.db}.res_stb_vct2",
-                func=lambda: tdSql.getRows() == 1
-                and tdSql.compareData(0, 0, "2025-01-01 00:00:00")
-                and tdSql.compareData(0, 1, "2025-01-01 00:00:00")
-                and tdSql.compareData(0, 2, 1)
-                and tdSql.compareData(0, 3, 1)
-                and tdSql.compareData(0, 4, 1),
-            )
-
-        def insert2(self):
+        def insert2(self):   # delete vtable
             tdSql.execute(f"drop table {self.db}.vct2")
-            tdSql.execute(f"insert into ct2 values ('2025-01-02 00:00:00', 1);")
-            time.sleep(5) # stream get schema change by 10s timer
-            tdSql.execute(f"insert into ct2 values ('2025-01-03 00:00:00', 1);")
+            tdSql.execute(f"insert into ct2 values ('2025-01-02 00:00:00', 3);")
 
 
         def check2(self):
             tdSql.checkResultsByFunc(
-                sql=f'select * from information_schema.ins_tables where db_name="{self.db}" and table_name like "res_stb_f%"',
+                sql=f'select * from information_schema.ins_tables where db_name="{self.db}" and table_name like "res_stb_0%"',
+                func=lambda: tdSql.getRows() == 2,
+            )
+
+            tdSql.checkResultsByFunc(
+                sql=f'select * from information_schema.ins_tables where db_name="{self.db}" and table_name like "res_stb_1%"',
                 func=lambda: tdSql.getRows() == 1,
             )
 
             tdSql.checkResultsByFunc(
-                sql=f'select * from information_schema.ins_tables where db_name="{self.db}" and table_name like "res_stb_%"',
-                func=lambda: tdSql.getRows() == 3,
+                sql=f'select * from information_schema.ins_tables where db_name="{self.db}" and table_name like "res_stb_2%"',
+                func=lambda: tdSql.getRows() == 2,
             )
 
             tdSql.checkResultsByFunc(
-                sql=f"select firstts, lastts, cnt_v, sum_v, avg_v from {self.db}.res_stb_vct2",
+                sql=f"select firstts, lastts, cnt_v, sum_v, avg_v from {self.db}.res_stb_1_vct1",
                 func=lambda: tdSql.getRows() == 1
                 and tdSql.compareData(0, 0, "2025-01-01 00:00:00")
                 and tdSql.compareData(0, 1, "2025-01-01 00:00:00")
-                and tdSql.compareData(0, 2, 1)
-                and tdSql.compareData(0, 3, 1)
-                and tdSql.compareData(0, 4, 1),
+                and tdSql.compareData(0, 2, 2)
+                and tdSql.compareData(0, 3, 2)
+                and tdSql.compareData(0, 4, 2),
             )
 
-        def insert3(self):
+        def insert3(self):  # alter vtable
             tdSql.execute(f"create vtable {self.db}.vct3 (cint from {self.db}.ct3.cint) using {self.db}.{self.vstbName} tags(10,10)")
             tdSql.execute(f"create vtable {self.db}.vct4 (cint from {self.db}.ct4.cint) using {self.db}.{self.vstbName} tags(-20,-20)")
             tdSql.execute(f"create vtable {self.db}.vct5 (cint from {self.db}.ct2.cint) using {self.db}.{self.vstbName} tags(20,20)")
             time.sleep(5)
-            tdSql.execute(f"insert into ct4 values ('2025-01-01 00:01:00', 1);")
-            tdSql.execute(f"insert into ct3 values ('2025-01-01 00:01:00', 1);")
-            tdSql.execute(f"insert into ct2 values ('2025-01-05 10:01:00', 1);")
+            tdSql.execute(f"insert into ct4 values ('2025-01-01 00:01:00', 4);")
+            tdSql.execute(f"insert into ct3 values ('2025-01-01 00:01:00', 5);")
+            tdSql.execute(f"insert into ct2 values ('2025-01-05 10:01:00', 6);")
 
             tdSql.execute(f"alter table {self.db}.vct1 set tag tbigint = 30")
             time.sleep(5)
-            tdSql.execute(f"insert into {self.db}.ct1 values ('2025-01-03 00:00:00', 1);")
+            tdSql.execute(f"insert into {self.db}.ct1 values ('2025-01-03 00:00:00', 7);")
 
             tdSql.execute(f"alter table {self.db}.vct3 set tag tbigint = -3")
             tdSql.execute(f"alter table {self.db}.vct4 set tag tbigint = -30")
             tdSql.execute(f"alter table {self.db}.vct5 set tag tbigint = 60")
             time.sleep(5)
-            tdSql.execute(f"insert into ct4 values ('2025-01-02 00:01:00', 1);")
-            tdSql.execute(f"insert into ct3 values ('2025-01-02 00:01:00', 1);")
+            tdSql.execute(f"insert into ct4 values ('2025-01-02 00:01:00', 8);")
+            tdSql.execute(f"insert into ct3 values ('2025-01-02 00:01:00', 9);")
 
             tdSql.execute(f"alter vtable {self.db}.vct4 alter column cint set {self.db}.ct2.cint")
             time.sleep(5)
-            tdSql.execute(f"insert into ct2 values ('2025-01-05 10:01:10', 1);")
+            tdSql.execute(f"insert into ct2 values ('2025-01-05 10:01:10', 10);")
 
             tdSql.execute(f"alter vtable {self.db}.vct4 alter column cint set null")
             time.sleep(5)
-            tdSql.execute(f"insert into ct2 values ('2025-01-05 10:01:11', 1);")
+            tdSql.execute(f"insert into ct2 values ('2025-01-05 10:01:11', 11);")
 
         def check3(self):  
             tdSql.checkResultsByFunc(
-                sql=f'select * from information_schema.ins_tables where db_name="{self.db}" and table_name like "res_stb_%"',
-                func=lambda: tdSql.getRows() == 5,
+                sql=f'select * from information_schema.ins_tables where db_name="{self.db}" and table_name like "res_stb_0%"',
+                func=lambda: tdSql.getRows() == 11,
+            )
+
+            tdSql.checkResultsByFunc(
+                sql=f'select * from information_schema.ins_tables where db_name="{self.db}" and table_name like "res_stb_1%"',
+                func=lambda: tdSql.getRows() == 10,
+            )
+
+            tdSql.checkResultsByFunc(
+                sql=f'select * from information_schema.ins_tables where db_name="{self.db}" and table_name like "res_stb_0%"',
+                func=lambda: tdSql.getRows() == 7,
             )
 
             tdSql.checkResultsByFunc(

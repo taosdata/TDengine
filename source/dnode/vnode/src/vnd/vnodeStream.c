@@ -687,7 +687,9 @@ static int32_t scanCreateTableNew(SStreamTriggerReaderInfo* sStreamReaderInfo, S
   
   STREAM_CHECK_RET_GOTO(processTableList(sStreamReaderInfo, uidList, &tableList));
   STREAM_CHECK_RET_GOTO(qStreamGetAddTable(sStreamReaderInfo, tableList, uidListAdd));
-  STREAM_CHECK_RET_GOTO(addUidListToBlock(uidListAdd, &rsp->tableBlock, ver, &rsp->totalRows, TABLE_BLOCK_ADD));
+  if (sStreamReaderInfo->isVtableStream) {
+    STREAM_CHECK_RET_GOTO(addUidListToBlock(uidListAdd, &rsp->tableBlock, ver, &rsp->totalRows, TABLE_BLOCK_ADD));
+  }
 
   STREAM_CHECK_RET_GOTO(qStreamModifyTableList(sStreamReaderInfo, tableList, uidList));
 end:
@@ -767,10 +769,6 @@ void getAlterColId(void* pVnode, int64_t uid, const char* colName, col_id_t* col
   }
   tDeleteSchemaWrapper(pSchema);
   return;
-}
-
-static bool checkAlterCondition() {
-  return true;
 }
 
 // Handle TSDB_ALTER_TABLE_ALTER_COLUMN_REF and TSDB_ALTER_TABLE_REMOVE_COLUMN_REF
@@ -916,6 +914,7 @@ static int32_t scanAlterTableNew(SStreamTriggerReaderInfo* sStreamReaderInfo, SS
 
   uint64_t uid = 0;
   if (req.action == TSDB_ALTER_TABLE_ALTER_COLUMN_REF || req.action == TSDB_ALTER_TABLE_REMOVE_COLUMN_REF) {
+    STREAM_CHECK_CONDITION_GOTO(!sStreamReaderInfo->isVtableStream, TDB_CODE_SUCCESS);
     code = checkAlter(sStreamReaderInfo, req.tbName, req.action, &uid);
     if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
       ST_TASK_WLOG("stream reader scan alter table %s not exist, metaGetTableUidByName", req.tbName);
@@ -1271,6 +1270,11 @@ static int32_t processWalVerMetaNew(SVnode* pVnode, SSTriggerWalNewRsp* rsp, SSt
     ST_TASK_DLOG("vgId:%d stream reader scan wal ver:%" PRId64 "/%" PRId64 ", type:%s, deleteData:%d, deleteTb:%d",
       TD_VID(pVnode), ver, walGetAppliedVer(pWalReader->pWal), TMSG_INFO(wCont->msgType), sStreamReaderInfo->deleteReCalc, sStreamReaderInfo->deleteOutTbl);
     if (wCont->msgType == TDMT_VND_SUBMIT) {
+      // return when getting data if there are meta data in vtable scan
+      if (sStreamReaderInfo->isVtableStream && rsp->tableBlock != NULL && ((SSDataBlock*)rsp->tableBlock)->info.rows > 0) {
+        rsp->ver--;
+        break;
+      }
       data = POINTER_SHIFT(wCont->body, sizeof(SSubmitReq2Msg));
       len = wCont->bodyLen - sizeof(SSubmitReq2Msg);
       STREAM_CHECK_RET_GOTO(scanSubmitDataForMeta(sStreamReaderInfo, rsp, data, len, ver));
@@ -2124,6 +2128,11 @@ static int32_t prepareIndexMetaData(SWalReader* pWalReader, SStreamTriggerReader
     ST_TASK_DLOG("%s scan wal ver:%" PRId64 ", type:%s, deleteData:%d, deleteTb:%d, msg len:%d", __func__,
       ver, TMSG_INFO(wCont->msgType), sStreamReaderInfo->deleteReCalc, sStreamReaderInfo->deleteOutTbl, len);
     if (wCont->msgType == TDMT_VND_SUBMIT) {
+      // return when getting data if there are meta data in vtable scan
+      if (sStreamReaderInfo->isVtableStream && resultRsp->tableBlock != NULL && ((SSDataBlock*)resultRsp->tableBlock)->info.rows > 0) {
+        resultRsp->ver--;
+        break;
+      }
       data = POINTER_SHIFT(wCont->body, sizeof(SSubmitReq2Msg));
       len = wCont->bodyLen - sizeof(SSubmitReq2Msg);
       STREAM_CHECK_RET_GOTO(scanSubmitDataPre(sStreamReaderInfo, data, len, NULL, resultRsp, ver));
@@ -2812,8 +2821,8 @@ static int32_t vnodeProcessStreamSetTableReq(SVnode* pVnode, SRpcMsg* pMsg, SSTr
   size_t  size = 0;
   void* pTask = sStreamReaderInfo->pTask;
 
-  ST_TASK_DLOG("vgId:%d %s start, trigger hash size:%d, calc hash size:%d", TD_VID(pVnode), __func__,
-                tSimpleHashGetSize(req->setTableReq.uidInfoTrigger), tSimpleHashGetSize(req->setTableReq.uidInfoCalc));
+  ST_TASK_DLOG("vgId:%d %s start, trigger hash size:%d, calc hash size:%d, appver:%"PRId64, TD_VID(pVnode), __func__,
+                tSimpleHashGetSize(req->setTableReq.uidInfoTrigger), tSimpleHashGetSize(req->setTableReq.uidInfoCalc), pVnode->state.applied);
 
   taosWLockLatch(&sStreamReaderInfo->lock);
   TSWAP(sStreamReaderInfo->uidHashTrigger, req->setTableReq.uidInfoTrigger);
@@ -2821,7 +2830,9 @@ static int32_t vnodeProcessStreamSetTableReq(SVnode* pVnode, SRpcMsg* pMsg, SSTr
   STREAM_CHECK_NULL_GOTO(sStreamReaderInfo->uidHashTrigger, TSDB_CODE_INVALID_PARA);
   STREAM_CHECK_NULL_GOTO(sStreamReaderInfo->uidHashCalc, TSDB_CODE_INVALID_PARA);
 
+  qStreamClearTableInfo(&sStreamReaderInfo->vSetTableList);
   STREAM_CHECK_RET_GOTO(initStreamTableListInfo(&sStreamReaderInfo->vSetTableList));
+  sStreamReaderInfo->vSetTableList.version = pVnode->state.applied;
   STREAM_CHECK_RET_GOTO(qBuildVTableList(sStreamReaderInfo));
 end:
   taosWUnLockLatch(&sStreamReaderInfo->lock);
@@ -3601,7 +3612,8 @@ static int32_t setVtableInfo(SVnode* pVnode, SArray* infos, SArray* cids, int64_
 
   ST_TASK_DLOG("vgId:%d %s put vtable uid:%"PRId64, TD_VID(pVnode), __func__, uid);
 
-  code = sStreamReaderInfo->storageApi.metaReaderFn.getTableEntryByVersionUid(metaReader, sStreamReaderInfo->tableList.version, uid);
+  code = sStreamReaderInfo->storageApi.metaReaderFn.getTableEntryByVersionUid(metaReader, -1, uid);
+  // code = sStreamReaderInfo->storageApi.metaReaderFn.getTableEntryByVersionUid(metaReader, sStreamReaderInfo->vSetTableList.version, uid);
   if (code != 0) {
     ST_TASK_ELOG("vgId:%d %s get table entry by uid:%"PRId64" failed, msg:%s", TD_VID(pVnode), __func__, uid, tstrerror(code));
     goto end;

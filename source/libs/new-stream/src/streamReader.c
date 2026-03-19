@@ -25,6 +25,24 @@ void qStreamDestroyTableInfo(StreamTableListInfo* pTableListInfo) {
   pTableListInfo->uIdMap = NULL;
 }
 
+void qStreamClearTableInfo(StreamTableListInfo* pTableListInfo){
+  if (pTableListInfo->pTableList) {
+    taosArrayClearP(pTableListInfo->pTableList, taosMemFree);
+  }
+
+  if (pTableListInfo->gIdMap) {
+    taosHashCancelIterate(pTableListInfo->gIdMap, pTableListInfo->pIter);
+    taosHashClear(pTableListInfo->gIdMap);
+    pTableListInfo->pIter = NULL;
+    pTableListInfo->gIdMap = NULL;
+  }
+
+  if (pTableListInfo->uIdMap) {
+    taosHashClear(pTableListInfo->uIdMap);
+    pTableListInfo->uIdMap = NULL;
+  }
+}
+
 static int32_t removeList(SHashObj* idMap, SStreamTableKeyInfo* table, uint64_t key){
   int32_t code = 0;
   int32_t lino = 0;
