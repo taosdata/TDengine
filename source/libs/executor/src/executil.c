@@ -4507,9 +4507,8 @@ void handleRemoteRowRes(SScalarFetchParam* pParam, STaskSubJobCtx* ctx, SRetriev
     *fetchDone = (TSDB_CODE_SUCCESS != ctx->code || pRsp->completed) ? true : false;
 
     if (!(*fetchDone)) {
-      int32_t code = sendFetchRemoteNodeReq(ctx, pParam->subQIdx, pParam->pRes, false);
-      if (TSDB_CODE_SUCCESS != code) {
-        ctx->code = code;
+      ctx->code = sendFetchRemoteNodeReq(ctx, pParam->subQIdx, pParam->pRes, false);
+      if (TSDB_CODE_SUCCESS != ctx->code) {
         *fetchDone = true;
       }
     }
