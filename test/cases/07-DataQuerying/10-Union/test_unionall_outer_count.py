@@ -30,7 +30,7 @@ class TestUnionAllOuterCountRegression:
         tdSql.execute(f"create database {db} cachemodel 'both'")
         tdSql.execute(f"use {db}")
 
-        # fisrt stable
+        # first stable
         tdSql.execute(
             """
             CREATE STABLE `plan` (`ts` TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium', 
@@ -124,8 +124,11 @@ class TestUnionAllOuterCountRegression:
         tdSql.query(q1, show=True)
         tdSql.query(q2, show=True)
         tdSql.query(q3, show=True)
+        # simple queries are ok
         tdSql.query(f"{q1} union all {q2} union all {q3}", show=True)
         tdSql.query(f"select * from ({q1} union all {q2} union all {q3}) u", show=True)
-        tdSql.query(f"select count(*) from ({q1} union all {q2} union all {q3}) tt", show=True)  # this query cored before fixing
+
+        # this nested query previously caused a core dump before the fix
+        tdSql.query(f"select count(*) from ({q1} union all {q2} union all {q3}) tt", show=True)
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 13)

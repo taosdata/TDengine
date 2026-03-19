@@ -131,7 +131,7 @@ static int32_t splCreateExchangeNode(SSplitContext* pCxt, SLogicNode* pChild, SE
   pExchange->node.dynamicOp = pChild->dynamicOp;
   pExchange->node.pTargets = NULL;
   code = nodesCloneList(pChild->pTargets, &pExchange->node.pTargets);
-  if (TSDB_CODE_SUCCESS != code || NULL == pExchange->node.pTargets) {
+  if (TSDB_CODE_SUCCESS != code || 0 == LIST_LENGTH(pExchange->node.pTargets)) {
     if (TSDB_CODE_SUCCESS == code) {
       code = TSDB_CODE_PLAN_INTERNAL_ERROR;
       planError("%s failed, empty exchange targets from child node: %s",
@@ -369,8 +369,9 @@ static bool stbSplNeedSplit(SFindSplitNodeCtx* pCtx, SLogicNode* pNode) {
       return streamQuery ? false : stbSplIsMultiTbScanChild(streamQuery, pNode);
     case QUERY_NODE_LOGIC_PLAN_AGG:
       if (0 == LIST_LENGTH(((SAggLogicNode*)pNode)->pAggFuncs) && 0 == LIST_LENGTH(((SAggLogicNode*)pNode)->pGroupKeys)) {
-        // A "cardinality-only" agg (no agg funcs and no group keys) may appear after projection pruning.
-        // It carries row-shape semantics, but has no split-able payload itself; let children be considered instead.
+        // A "cardinality-only" agg (no agg funcs and no group keys) may appear
+        // after projection pruning. It carries row-shape semantics, but has no
+        // split-able payload itself; let children be considered instead.
         return false;
       }
       return (!stbSplHasGatherExecFunc(((SAggLogicNode*)pNode)->pAggFuncs) ||
@@ -1948,7 +1949,7 @@ static int32_t unDistSplCreateExchangeNode(SSplitContext* pCxt, int32_t startGro
   pExchange->node.precision = pAgg->node.precision;
   pExchange->node.pTargets = NULL;
   code = nodesCloneList(pAgg->pGroupKeys, &pExchange->node.pTargets);
-  if (TSDB_CODE_SUCCESS != code || NULL == pExchange->node.pTargets) {
+  if (TSDB_CODE_SUCCESS != code || 0 == LIST_LENGTH(pExchange->node.pTargets)) {
     if (TSDB_CODE_SUCCESS == code) {
       code = TSDB_CODE_PLAN_INTERNAL_ERROR;
       planError("%s failed, empty exchange targets from agg group keys", __func__);
