@@ -73,7 +73,7 @@ def clean_taos_process(keywords=None):
     :param keywords: List[str]，用于匹配进程命令行的关键字列表。如果为 None，则默认匹配 'taos'。
     """
     if keywords is None:
-        keywords = ["taos", "taosd", "taosadapter", "taoskeeper", "taos-explorer", "taosx", "tmq_sim", "taosdump", "taosBenchmark", "write_raw_block_test" ]
+        keywords = ["taos", "taosd", "taosadapter", "taoskeeper", "taos-explorer", "taosx", "tmq_sim", "taosdump", "taosBenchmark", "write_raw_block_test", "sml_test" ]
     keywords = [k.lower() for k in keywords]  
 
     current_pid = os.getpid()
