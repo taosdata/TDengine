@@ -152,8 +152,8 @@ static int32_t taosConnectImpl(const char* user, const char* auth, int32_t totpC
                                __taos_async_fn_t fp, void* param, SAppInstInfo* pAppInfo, int connType,
                                STscObj** pTscObj);
 
-int32_t taos_connect_by_auth(const char* ip, const char* user, const char* auth, const char* totp,
-                                    const char* db, uint16_t port, int connType, STscObj** pObj) {
+int32_t taos_connect_by_auth(const char* ip, const char* user, const char* auth, const char* totp, const char* db,
+                             uint16_t port, int connType, STscObj** pObj) {
   TSC_ERR_RET(taos_init());
 
   if (user == NULL) {
@@ -960,21 +960,21 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList
                            .requestId = pRequest->requestId,
                            .requestObjRefId = pRequest->self};
   SSchedulerReq    req = {
-         .syncReq       = true,
-         .localReq      = (tsQueryPolicy == QUERY_POLICY_CLIENT),
-         .pConn         = &conn,
-         .pNodeList     = pNodeList,
-         .pDag          = pDag,
-         .sql           = pRequest->sqlstr,
-         .startTs       = pRequest->metric.start,
-         .execFp        = NULL,
-         .cbParam       = NULL,
-         .chkKillFp     = chkRequestKilled,
-         .chkKillParam  = (void*)pRequest->self,
-         .pExecRes      = &res,
-         .source        = pRequest->source,
-         .secureDelete  = pRequest->secureDelete,
-         .pWorkerCb     = getTaskPoolWorkerCb(),
+         .syncReq = true,
+         .localReq = (tsQueryPolicy == QUERY_POLICY_CLIENT),
+         .pConn = &conn,
+         .pNodeList = pNodeList,
+         .pDag = pDag,
+         .sql = pRequest->sqlstr,
+         .startTs = pRequest->metric.start,
+         .execFp = NULL,
+         .cbParam = NULL,
+         .chkKillFp = chkRequestKilled,
+         .chkKillParam = (void*)pRequest->self,
+         .pExecRes = &res,
+         .source = pRequest->source,
+         .secureDelete = pRequest->secureDelete,
+         .pWorkerCb = getTaskPoolWorkerCb(),
   };
 
   int32_t code = schedulerExecJob(&req, &pRequest->body.queryJob);
@@ -1511,22 +1511,22 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
                                .requestId = pRequest->requestId,
                                .requestObjRefId = pRequest->self};
       SSchedulerReq    req = {
-             .syncReq       = false,
-             .localReq      = (tsQueryPolicy == QUERY_POLICY_CLIENT),
-             .pConn         = &conn,
-             .pNodeList     = pNodeList,
-             .pDag          = pDag,
+             .syncReq = false,
+             .localReq = (tsQueryPolicy == QUERY_POLICY_CLIENT),
+             .pConn = &conn,
+             .pNodeList = pNodeList,
+             .pDag = pDag,
              .allocatorRefId = pRequest->allocatorRefId,
-             .sql           = pRequest->sqlstr,
-             .startTs       = pRequest->metric.start,
-             .execFp        = schedulerExecCb,
-             .cbParam       = pWrapper,
-             .chkKillFp     = chkRequestKilled,
-             .chkKillParam  = (void*)pRequest->self,
-             .pExecRes      = NULL,
-             .source        = pRequest->source,
-             .secureDelete  = pRequest->secureDelete,
-             .pWorkerCb     = getTaskPoolWorkerCb(),
+             .sql = pRequest->sqlstr,
+             .startTs = pRequest->metric.start,
+             .execFp = schedulerExecCb,
+             .cbParam = pWrapper,
+             .chkKillFp = chkRequestKilled,
+             .chkKillParam = (void*)pRequest->self,
+             .pExecRes = NULL,
+             .source = pRequest->source,
+             .secureDelete = pRequest->secureDelete,
+             .pWorkerCb = getTaskPoolWorkerCb(),
       };
 
       if (TSDB_CODE_SUCCESS == code) {
@@ -3357,12 +3357,15 @@ void taosAsyncFetchImpl(SRequestObj* pRequest, __taos_async_fn_t fp, void* param
   // this query has no results or error exists, return directly
   if (taos_num_fields(pRequest) == 0 || pRequest->code != TSDB_CODE_SUCCESS) {
     pResultInfo->numOfRows = 0;
+    CLIENT_UPDATE_REQUEST_PHASE_IF_CHANGED(pRequest, QUERY_PHASE_FETCH_RETURNED);
     pRequest->body.fetchFp(param, pRequest, pResultInfo->numOfRows);
+
     return;
   }
 
   // all data has returned to App already, no need to try again
   if (pResultInfo->completed) {
+    CLIENT_UPDATE_REQUEST_PHASE_IF_CHANGED(pRequest, QUERY_PHASE_FETCH_RETURNED);
     // it is a local executed query, no need to do async fetch
     if (QUERY_EXEC_MODE_SCHEDULE != pRequest->body.execMode) {
       if (pResultInfo->localResultFetched) {
