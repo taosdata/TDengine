@@ -954,7 +954,8 @@ int64_t getWindowsTimezoneOffset(void) {
     // TZ format like "+0:00" or "-8:00"
     if (tz_env[0] == '+' || tz_env[0] == '-') {
       char sign = tz_env[0];
-      int hours = 0, minutes = 0;
+      int  hours = 0;
+      int  minutes = 0;
       if (sscanf(tz_env + 1, "%d:%d", &hours, &minutes) >= 1) {
         int64_t offset_seconds = (hours * 3600 + minutes * 60);
         return (sign == '+') ? offset_seconds : -offset_seconds;
@@ -962,8 +963,25 @@ int64_t getWindowsTimezoneOffset(void) {
     }
   }
 
-  // If TZ not set, return 0 (UTC)
-  return 0;
+  // Final fallback: compute from Windows timezone API directly.
+  // Important: do not mutate TZ env var here. The authoritative TZ setup
+  // remains in initTimezoneInfo()/taosSetGlobalTimezone() so user config keeps
+  // highest priority over system default.
+  // Effective bias rule: Bias + StandardBias/DaylightBias.
+  TIME_ZONE_INFORMATION tzi = {0};
+  DWORD tzType = GetTimeZoneInformation(&tzi);
+  if (tzType == TIME_ZONE_ID_INVALID) {
+    return 0;
+  }
+
+  LONG minute_offset = tzi.Bias;
+  if (tzType == TIME_ZONE_ID_DAYLIGHT) {
+    minute_offset += tzi.DaylightBias;
+  } else if (tzType == TIME_ZONE_ID_STANDARD) {
+    minute_offset += tzi.StandardBias;
+  }
+
+  return (int64_t)minute_offset * 60;
 }
 #endif
 

@@ -191,6 +191,25 @@ TEST(osTimeTests, windowsInitTimezoneFromSystemZone) {
   // Restore to a known state
   ASSERT_EQ(taosSetGlobalTimezone("UTC-8"), 0);
 }
+
+TEST(osTimeTests, windowsOffsetFallbackWhenTZUnset) {
+  // Simulate early call path: time conversion happens before explicit init.
+  SetEnvironmentVariableA("TZ", NULL);
+
+  TIME_ZONE_INFORMATION tzi = {0};
+  DWORD tzType = GetTimeZoneInformation(&tzi);
+  ASSERT_NE(tzType, TIME_ZONE_ID_INVALID);
+
+  LONG minute_offset = tzi.Bias;
+  if (tzType == TIME_ZONE_ID_DAYLIGHT) {
+    minute_offset += tzi.DaylightBias;
+  } else if (tzType == TIME_ZONE_ID_STANDARD) {
+    minute_offset += tzi.StandardBias;
+  }
+
+  int64_t expected = (int64_t)minute_offset * 60;
+  ASSERT_EQ(getWindowsTimezoneOffset(), expected);
+}
 #endif
 
 TEST(osTimeTests, invalidParameter) {
