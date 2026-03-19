@@ -18,10 +18,84 @@ from typing import Optional
 # Make sure the parent directory is on sys.path so `import config` works
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
+# ---------------------------------------------------------------------------
+# Expected / ignorable errno values for idempotent DDL operations.
+# Source: taoserror.h  TAOS_DEF_ERROR_CODE(0, code) -> errno & 0xffff == code
+#
+# Most DROP statements use IF EXISTS syntax.  However some older server
+# versions (e.g. 3.3.6.0) have a bug where IF EXISTS does not suppress the
+# "not exist" error and still returns one of the codes below.  We keep a
+# small whitelist for those cases.
+#
+# CREATE SNODE has no IF NOT EXISTS grammar at all, so it always needs the
+# errno-based filter.
+# ---------------------------------------------------------------------------
+_ERRNO_SNODE_ALREADY_EXISTS = frozenset({
+    0x03A4,   # TSDB_CODE_MND_SNODE_ALREADY_EXIST
+    0x040F,   # TSDB_CODE_SNODE_ALREADY_DEPLOYED
+})
+
+# Older-server "not exist" codes that IF EXISTS failed to suppress.
+_ERRNO_IF_EXISTS_BUG = frozenset({
+    0x0481,   # TSDB_CODE_MND_SMA_NOT_EXIST   (old SMA layer, seen on 3.3.6.0 DROP TSMA)
+    0x3162,   # TSDB_CODE_RSMA_NOT_EXIST
+    0x03F1,   # TSDB_CODE_MND_STREAM_NOT_EXIST
+})
+
 import taos
 import config
 from server.clusterSetup import Logger
 from resource.priv_compat import grant_keywords, revoke_default_role, snapshot_privileges
+
+
+def _errno_of(exc) -> int:
+    """Return the low-16-bit errno of a taos exception, or -1 for non-taos."""
+    raw = getattr(exc, "errno", None)
+    if raw is None:
+        return -1
+    return int(raw) & 0xFFFF
+
+
+def _exec(cursor, sql: str, *,
+          ignore: frozenset = frozenset(),
+          logger=None) -> bool:
+    """
+    Execute *sql* on *cursor*.
+
+    Parameters
+    ----------
+    cursor  : taos cursor
+    sql     : SQL text to execute
+    ignore  : frozenset of errno values (low 16 bits) that are expected and
+              should be silently skipped (logged at INFO level).  All other
+              errors are re-raised with the failing SQL printed first.
+    logger  : optional Logger for the INFO notice; falls back to stderr.
+
+    Returns
+    -------
+    True  – statement executed successfully
+    False – error was in *ignore* and was suppressed
+    """
+    try:
+        cursor.execute(sql)
+        return True
+    except Exception as exc:
+        code = _errno_of(exc)
+        if code in ignore:
+            msg = f"  SQL ignored [0x{code:04x}] ({exc}): {sql}"
+            if logger:
+                logger.info(msg)
+            else:
+                print(msg, file=sys.stderr)
+            return False
+        # Unexpected error: print the SQL then re-raise so the caller's
+        # traceback shows both the SQL and the original exception location.
+        err_msg = f"SQL failed [0x{code:04x}] ({exc}): {sql}"
+        if logger:
+            logger.error(err_msg)
+        else:
+            print(f"ERROR: {err_msg}", file=sys.stderr)
+        raise
 
 
 # ==================== helpers ====================
@@ -470,28 +544,26 @@ class ResourceManager:
         conn   = _make_conn(self.fqdn, self.cfg_dir)
         cursor = conn.cursor()
         try:
-            cursor.execute(f"USE {config.DB_NAME}")
+            _exec(cursor, f"USE {config.DB_NAME}", logger=self.logger)
 
             # TSMA uses stream computation internally which requires a Snode.
             # Create one on dnode 1 (idempotent: ignore "already exists").
-            try:
-                cursor.execute("CREATE SNODE ON DNODE 1")
-            except Exception:
-                pass  # already exists — fine
+            _exec(cursor, "CREATE SNODE ON DNODE 1",
+                  ignore=_ERRNO_SNODE_ALREADY_EXISTS, logger=self.logger)
 
-            # Drop TSMA first for idempotency
-            try:
-                cursor.execute(f"DROP TSMA {config.TSMA_NAME}")
-            except Exception:
-                pass  # not found — fine
+            # Drop TSMA first for idempotency.
+            # Older servers (e.g. 3.3.6.0) have a bug where IF EXISTS does not
+            # suppress 0x0481 (MND_SMA_NOT_EXIST), so we ignore it explicitly.
+            _exec(cursor, f"DROP TSMA IF EXISTS {config.TSMA_NAME}",
+                  ignore=_ERRNO_IF_EXISTS_BUG, logger=self.logger)
 
-            cursor.execute(
-                f"CREATE TSMA {config.TSMA_NAME} "
-                f"ON {config.DB_NAME}.{config.STABLE_NAME} "
-                f"FUNCTION(sum(voltage), avg(current), min(voltage), max(voltage), "
-                f"count(ts), last(phase)) "
-                f"INTERVAL(1m)"
-            )
+            _exec(cursor,
+                  f"CREATE TSMA {config.TSMA_NAME} "
+                  f"ON {config.DB_NAME}.{config.STABLE_NAME} "
+                  f"FUNCTION(sum(voltage), avg(current), min(voltage), max(voltage), "
+                  f"count(ts), last(phase)) "
+                  f"INTERVAL(1m)",
+                  logger=self.logger)
 
             snap = self._show_tsma_row(cursor, config.TSMA_NAME)
             if snap is None:
@@ -596,20 +668,18 @@ class ResourceManager:
         conn   = _make_conn(self.fqdn, self.cfg_dir)
         cursor = conn.cursor()
         try:
-            cursor.execute(f"USE {config.DB_NAME}")
+            _exec(cursor, f"USE {config.DB_NAME}", logger=self.logger)
 
-            # Drop first for idempotency (IF EXISTS not supported on all base versions)
-            try:
-                cursor.execute(f"DROP RSMA {config.RSMA_NAME}")
-            except Exception:
-                pass  # not found — fine
+            # Drop first for idempotency (IF EXISTS bug workaround same as TSMA)
+            _exec(cursor, f"DROP RSMA IF EXISTS {config.RSMA_NAME}",
+                  ignore=_ERRNO_IF_EXISTS_BUG, logger=self.logger)
 
-            cursor.execute(
-                f"CREATE RSMA {config.RSMA_NAME} "
-                f"ON {config.DB_NAME}.{config.STABLE_NAME} "
-                f"FUNCTION(min(voltage), avg(current), last(phase)) "
-                f"INTERVAL(1h, 5h)"
-            )
+            _exec(cursor,
+                  f"CREATE RSMA {config.RSMA_NAME} "
+                  f"ON {config.DB_NAME}.{config.STABLE_NAME} "
+                  f"FUNCTION(min(voltage), avg(current), last(phase)) "
+                  f"INTERVAL(1h, 5h)",
+                  logger=self.logger)
 
             snap = self._show_rsma_row(cursor, config.RSMA_NAME)
             if snap is None:
@@ -714,41 +784,35 @@ class ResourceManager:
         cursor = conn.cursor()
         try:
             # Snode already exists from create_tsma; streams need it too.
-            try:
-                cursor.execute("CREATE SNODE ON DNODE 1")
-            except Exception:
-                pass  # already exists — fine
+            _exec(cursor, "CREATE SNODE ON DNODE 1",
+                  ignore=_ERRNO_SNODE_ALREADY_EXISTS, logger=self.logger)
 
-            # Drop for idempotency
-            try:
-                cursor.execute(f"DROP STREAM IF EXISTS {config.DB_NAME}.{config.STREAM_NAME}")
-            except Exception:
-                pass
+            # Drop for idempotency (IF EXISTS bug workaround same as TSMA)
+            _exec(cursor, f"DROP STREAM IF EXISTS {config.DB_NAME}.{config.STREAM_NAME}",
+                  ignore=_ERRNO_IF_EXISTS_BUG, logger=self.logger)
 
-            cursor.execute(f"USE {config.DB_NAME}")
+            _exec(cursor, f"USE {config.DB_NAME}", logger=self.logger)
 
             # Drop the output table if it exists from a previous run
-            try:
-                cursor.execute(f"DROP TABLE IF EXISTS {config.DB_NAME}.{config.STREAM_OUT_TABLE}")
-            except Exception:
-                pass
+            _exec(cursor, f"DROP TABLE IF EXISTS {config.DB_NAME}.{config.STREAM_OUT_TABLE}",
+                  logger=self.logger)
 
             # New-style PERIOD stream: every 1 minute compute aggregates over
             # the meters stable and write into an output table.
-            cursor.execute(
-                f"CREATE STREAM {config.STREAM_NAME} "
-                f"PERIOD(1m) "
-                f"FROM {config.DB_NAME}.{config.STABLE_NAME} "
-                f"INTO {config.DB_NAME}.{config.STREAM_OUT_TABLE} "
-                f"AS SELECT "
-                f"  CAST(_TLOCALTIME / 1000000 AS TIMESTAMP) AS ts, "
-                f"  AVG(current) AS avg_current, "
-                f"  MAX(voltage) AS max_voltage, "
-                f"  LAST(phase) AS last_phase "
-                f"FROM {config.DB_NAME}.{config.STABLE_NAME} "
-                f"WHERE ts >= _TPREV_LOCALTIME / 1000000 "
-                f"  AND ts <= _TNEXT_LOCALTIME / 1000000"
-            )
+            _exec(cursor,
+                  f"CREATE STREAM {config.STREAM_NAME} "
+                  f"PERIOD(1m) "
+                  f"FROM {config.DB_NAME}.{config.STABLE_NAME} "
+                  f"INTO {config.DB_NAME}.{config.STREAM_OUT_TABLE} "
+                  f"AS SELECT "
+                  f"  CAST(_TLOCALTIME / 1000000 AS TIMESTAMP) AS ts, "
+                  f"  AVG(current) AS avg_current, "
+                  f"  MAX(voltage) AS max_voltage, "
+                  f"  LAST(phase) AS last_phase "
+                  f"FROM {config.DB_NAME}.{config.STABLE_NAME} "
+                  f"WHERE ts >= _TPREV_LOCALTIME / 1000000 "
+                  f"  AND ts <= _TNEXT_LOCALTIME / 1000000",
+                  logger=self.logger)
 
             snap = self._show_stream_row(cursor, config.STREAM_NAME)
             if snap is None:

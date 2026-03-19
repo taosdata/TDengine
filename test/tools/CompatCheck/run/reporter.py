@@ -5,6 +5,7 @@
 # Provides START / DONE banners, check-item lines, and SUMMARY blocks.
 
 import sys
+import os
 import time
 from datetime import datetime
 
@@ -130,7 +131,7 @@ class Reporter:
 
     def summary_end(self, passed: bool, checks: list, start_time: float,
                     write_max: float, query_max: float, sub_max: float,
-                    log_dir: str = ""):
+                    base_path: str = "", log_dir: str = ""):
         """
         checks  : list of (label, passed, detail) tuples already printed via check()
         log_dir : TDengine log directory; printed on failure to help diagnosis
@@ -155,8 +156,10 @@ class Reporter:
         print(_bar("─"))
         result_str = "PASS ✓" if passed else "FAIL ✗"
         print(f"  Result  : {result_str}")
-        if not passed and log_dir:
-            print(f"  Log dir : {log_dir}")
+        if not passed:
+            path = log_dir or (os.path.join(base_path, "dnode*/log") if base_path else "")
+            if path:
+                print(f"  Log dir : {path}")
         print(f"  Finished: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}  "
               f"(elapsed {m}m {s}s)")
         print(_bar("═"))

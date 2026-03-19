@@ -67,6 +67,15 @@ Optional arguments:
   --whitelist-dir DIR   Directory that contains whitelist .yaml files loaded by
                         --check-sysinfo.  Default: <script_root>/whitelist
 
+  --no-rsma             Skip RSMA creation and verification checks entirely.
+
+  --no-tsma             Skip TSMA creation and verification checks entirely.
+
+  --no-stream           Skip Stream creation and verification checks entirely.
+
+  --no-user             Skip test_user / privilege creation and verification
+                        checks entirely.
+
   -h, --help            Show this help message and exit.
 
 Examples:
@@ -98,6 +107,10 @@ def _early_args():
     p.add_argument("--fqdn",       "-f", default="")
     p.add_argument("--quick",      "-q", action="store_true")
     p.add_argument("--rollupdate", "-r", action="store_true")
+    p.add_argument("--no-rsma",   action="store_true", dest="no_rsma")
+    p.add_argument("--no-tsma",   action="store_true", dest="no_tsma")
+    p.add_argument("--no-stream", action="store_true", dest="no_stream")
+    p.add_argument("--no-user",   action="store_true", dest="no_user")
     p.add_argument("--help",       "-h", action="store_true")
     args, _ = p.parse_known_args()
     return args
@@ -295,6 +308,14 @@ def _parse_args():
                         help="Generate a whitelist from INFORMATION_SCHEMA diff and exit")
     parser.add_argument("--whitelist-dir", metavar="DIR", default=None,
                         help="Directory containing whitelist .yaml files")
+    parser.add_argument("--no-rsma", action="store_true", dest="no_rsma", default=False,
+                        help="Skip RSMA creation and verification checks")
+    parser.add_argument("--no-tsma", action="store_true", dest="no_tsma", default=False,
+                        help="Skip TSMA creation and verification checks")
+    parser.add_argument("--no-stream", action="store_true", dest="no_stream", default=False,
+                        help="Skip Stream creation and verification checks")
+    parser.add_argument("--no-user", action="store_true", dest="no_user", default=False,
+                        help="Skip test_user / privilege creation and verification checks")
     args = parser.parse_args()
 
     if args.quick:
@@ -402,14 +423,34 @@ def _prepare_resources(fqdn, cfg_dir, from_ver, args, rp):
             rp.info(f"Initial data: {config.SUBTABLE_COUNT} x {config.INIT_ROWS_PER_SUBTABLE:,} rows written")
 
             if tsma_supported:
-                st.tsma_before = st.rm.create_tsma()
-                rp.info(f"TSMA created: {sorted(st.tsma_before.keys())}")
+                if args.no_tsma:
+                    rp.info("TSMA skipped: --no-tsma specified")
+                else:
+                    try:
+                        st.tsma_before = st.rm.create_tsma()
+                        rp.info(f"TSMA created: {sorted(st.tsma_before.keys())}")
+                    except Exception as _tsma_e:
+                        rp.error(
+                            f"TSMA creation failed on base version {from_ver} "
+                            f"(requires >= 3.3.6.0): {_tsma_e}"
+                        )
+                        raise
             else:
                 rp.info(f"TSMA skipped: base version {from_ver} < 3.3.6.0")
 
             if stream_supported:
-                st.stream_before = st.rm.create_stream()
-                rp.info(f"Stream created: {sorted(st.stream_before.keys())}")
+                if args.no_stream:
+                    rp.info("Stream skipped: --no-stream specified")
+                else:
+                    try:
+                        st.stream_before = st.rm.create_stream()
+                        rp.info(f"Stream created: {sorted(st.stream_before.keys())}")
+                    except Exception as _stream_e:
+                        rp.error(
+                            f"Stream creation failed on base version {from_ver} "
+                            f"(requires >= 3.3.7.0): {_stream_e}"
+                        )
+                        raise
             else:
                 rp.info(f"Stream skipped: base version {from_ver} < 3.3.7.0")
 
@@ -419,17 +460,30 @@ def _prepare_resources(fqdn, cfg_dir, from_ver, args, rp):
             st.rm.create_topic()
             rp.info(f"Topic '{config.TOPIC_NAME}' created")
 
-            st.priv_before = st.rm.create_test_user()
-            rp.info(
-                f"test_user '{config.TEST_USER_NAME}' created: "
-                f"{len(st.priv_before)} privilege row(s) granted "
-                f"(SELECT on {config.TEST_USER_READ_STABLE}, "
-                f"INSERT on {config.TEST_USER_WRITE_STABLE})"
-            )
+            if args.no_user:
+                rp.info("test_user skipped: --no-user specified")
+            else:
+                st.priv_before = st.rm.create_test_user()
+                rp.info(
+                    f"test_user '{config.TEST_USER_NAME}' created: "
+                    f"{len(st.priv_before)} privilege row(s) granted "
+                    f"(SELECT on {config.TEST_USER_READ_STABLE}, "
+                    f"INSERT on {config.TEST_USER_WRITE_STABLE})"
+                )
 
             if rsma_supported:
-                st.rsma_before = st.rm.create_rsma()
-                rp.info(f"RSMA created: {sorted(st.rsma_before.keys())}")
+                if args.no_rsma:
+                    rp.info("RSMA skipped: --no-rsma specified")
+                else:
+                    try:
+                        st.rsma_before = st.rm.create_rsma()
+                        rp.info(f"RSMA created: {sorted(st.rsma_before.keys())}")
+                    except Exception as _rsma_e:
+                        rp.error(
+                            f"RSMA creation failed on base version {from_ver} "
+                            f"(requires >= 3.3.8.0): {_rsma_e}"
+                        )
+                        raise
             else:
                 rp.info(f"RSMA skipped: base version {from_ver} < 3.3.8.0")
         else:
@@ -535,6 +589,10 @@ def _spawn_cold_phase2(args, base_path, fqdn, cfg_dir, from_ver, to_ver,
             "whitelist_dir":   whitelist_dir,
             "sysinfo_before":  phase2_st.sysinfo_before,
             "from_ver_actual": phase2_st.from_ver_actual,
+            "no_rsma":         args.no_rsma,
+            "no_tsma":         args.no_tsma,
+            "no_stream":       args.no_stream,
+            "no_user":         args.no_user,
         }, _f)
 
     _env = os.environ.copy()
@@ -670,16 +728,19 @@ def _collect_results(metrics, checks, fqdn, cfg_dir, from_ver,
             else:
                 raise
 
-    uv = UserVerifier(fqdn=fqdn, cfg_dir=cfg_dir)
-    auth_ok, auth_msg = uv.verify_auth()
-    if not auth_ok and _is_sig_error(Exception(auth_msg)):
-        auth_msg = _RPC_SIG_MISMATCH_MSG
-    _chk("test_user authentication after upgrade", auth_ok, auth_msg)
-
-    if phase2_st.priv_before is not None:
-        _safe_verify("test_user privileges unchanged", uv.verify_privileges, phase2_st.priv_before)
+    if args.no_user:
+        rp.info("test_user check skipped: --no-user specified")
     else:
-        _chk("test_user privileges unchanged ", False, "baseline snapshot not captured (Phase 2 error)")
+        uv = UserVerifier(fqdn=fqdn, cfg_dir=cfg_dir)
+        auth_ok, auth_msg = uv.verify_auth()
+        if not auth_ok and _is_sig_error(Exception(auth_msg)):
+            auth_msg = _RPC_SIG_MISMATCH_MSG
+        _chk("test_user authentication after upgrade", auth_ok, auth_msg)
+
+        if phase2_st.priv_before is not None:
+            _safe_verify("test_user privileges unchanged", uv.verify_privileges, phase2_st.priv_before)
+        else:
+            _chk("test_user privileges unchanged ", False, "baseline snapshot not captured (Phase 2 error)")
 
     rm = phase2_st.rm
     if phase2_st.idx_before is not None:
@@ -688,7 +749,9 @@ def _collect_results(metrics, checks, fqdn, cfg_dir, from_ver,
         _chk("Tag indexes preserved after upgrade", False, "baseline snapshot not captured (Phase 2 error)")
 
     if tsma_supported:
-        if phase2_st.tsma_before is not None:
+        if args.no_tsma:
+            rp.info("TSMA check skipped: --no-tsma specified")
+        elif phase2_st.tsma_before is not None:
             _safe_verify("TSMA preserved after upgrade", rm.verify_tsma, phase2_st.tsma_before)
         else:
             _chk("TSMA preserved after upgrade", False, "baseline snapshot not captured (Phase 2 error)")
@@ -696,7 +759,9 @@ def _collect_results(metrics, checks, fqdn, cfg_dir, from_ver,
         rp.info(f"TSMA check skipped: base version {from_ver} < 3.3.6.0")
 
     if rsma_supported:
-        if phase2_st.rsma_before is not None:
+        if args.no_rsma:
+            rp.info("RSMA check skipped: --no-rsma specified")
+        elif phase2_st.rsma_before is not None:
             _safe_verify("RSMA preserved after upgrade", rm.verify_rsma, phase2_st.rsma_before)
         else:
             _chk("RSMA preserved after upgrade", False, "baseline snapshot not captured (Phase 2 error)")
@@ -704,7 +769,9 @@ def _collect_results(metrics, checks, fqdn, cfg_dir, from_ver,
         rp.info(f"RSMA check skipped: base version {from_ver} < 3.3.8.0")
 
     if stream_supported:
-        if phase2_st.stream_before is not None:
+        if args.no_stream:
+            rp.info("Stream check skipped: --no-stream specified")
+        elif phase2_st.stream_before is not None:
             _safe_verify("Stream preserved after upgrade", rm.verify_stream, phase2_st.stream_before)
         else:
             _chk("Stream preserved after upgrade", False, "baseline snapshot not captured (Phase 2 error)")
@@ -818,6 +885,10 @@ def _run_cold_phase2(state_file: str):
     whitelist_dir    = st.get("whitelist_dir", "")
     sysinfo_before   = st.get("sysinfo_before", None)
     from_ver_actual  = st.get("from_ver_actual", None)
+    no_rsma          = st.get("no_rsma", False)
+    no_tsma          = st.get("no_tsma", False)
+    no_stream        = st.get("no_stream", False)
+    no_user          = st.get("no_user", False)
 
     if st.get("quick"):
         config.SUBTABLE_COUNT         = 100
@@ -1018,17 +1089,20 @@ def _run_cold_phase2(state_file: str):
         f"written={total_written:,}  received={total_recv:,}  diff={total_written - total_recv:,}",
     )
 
-    uv = UserVerifier(fqdn=fqdn, cfg_dir=cfg_dir)
-    auth_ok, auth_msg = uv.verify_auth()
-    _chk("test_user authentication after upgrade", auth_ok, auth_msg)
-
-    _priv_before = st.get("priv_before")
-    if _priv_before is not None:
-        priv_ok, priv_msg = uv.verify_privileges(_priv_before)
-        _chk("test_user privileges unchanged ", priv_ok, priv_msg)
+    if no_user:
+        rp.info("test_user check skipped: --no-user specified")
     else:
-        _chk("test_user privileges unchanged ", False,
-             "baseline snapshot not captured (Phase 2 error)")
+        uv = UserVerifier(fqdn=fqdn, cfg_dir=cfg_dir)
+        auth_ok, auth_msg = uv.verify_auth()
+        _chk("test_user authentication after upgrade", auth_ok, auth_msg)
+
+        _priv_before = st.get("priv_before")
+        if _priv_before is not None:
+            priv_ok, priv_msg = uv.verify_privileges(_priv_before)
+            _chk("test_user privileges unchanged ", priv_ok, priv_msg)
+        else:
+            _chk("test_user privileges unchanged ", False,
+                 "baseline snapshot not captured (Phase 2 error)")
 
     _idx_before = st.get("idx_before")
     if _idx_before is not None:
@@ -1039,35 +1113,44 @@ def _run_cold_phase2(state_file: str):
              "baseline snapshot not captured (Phase 2 error)")
 
     if tsma_supported:
-        _tsma_before = st.get("tsma_before")
-        if _tsma_before is not None:
-            tsma_ok, tsma_msg = rm.verify_tsma(_tsma_before)
-            _chk("TSMA preserved after upgrade", tsma_ok, tsma_msg)
+        if no_tsma:
+            rp.info("TSMA check skipped: --no-tsma specified")
         else:
-            _chk("TSMA preserved after upgrade", False,
-                 "baseline snapshot not captured (Phase 2 error)")
+            _tsma_before = st.get("tsma_before")
+            if _tsma_before is not None:
+                tsma_ok, tsma_msg = rm.verify_tsma(_tsma_before)
+                _chk("TSMA preserved after upgrade", tsma_ok, tsma_msg)
+            else:
+                _chk("TSMA preserved after upgrade", False,
+                     "baseline snapshot not captured (Phase 2 error)")
     else:
         rp.info(f"TSMA check skipped: base version {from_ver} < 3.3.6.0")
 
     if rsma_supported:
-        _rsma_before = st.get("rsma_before")
-        if _rsma_before is not None:
-            rsma_ok, rsma_msg = rm.verify_rsma(_rsma_before)
-            _chk("RSMA preserved after upgrade", rsma_ok, rsma_msg)
+        if no_rsma:
+            rp.info("RSMA check skipped: --no-rsma specified")
         else:
-            _chk("RSMA preserved after upgrade", False,
-                 "baseline snapshot not captured (Phase 2 error)")
+            _rsma_before = st.get("rsma_before")
+            if _rsma_before is not None:
+                rsma_ok, rsma_msg = rm.verify_rsma(_rsma_before)
+                _chk("RSMA preserved after upgrade", rsma_ok, rsma_msg)
+            else:
+                _chk("RSMA preserved after upgrade", False,
+                     "baseline snapshot not captured (Phase 2 error)")
     else:
         rp.info(f"RSMA check skipped: base version {from_ver} < 3.3.8.0")
 
     if stream_supported:
-        _stream_before = st.get("stream_before")
-        if _stream_before is not None:
-            stream_ok, stream_msg = rm.verify_stream(_stream_before)
-            _chk("Stream preserved after upgrade", stream_ok, stream_msg)
+        if no_stream:
+            rp.info("Stream check skipped: --no-stream specified")
         else:
-            _chk("Stream preserved after upgrade", False,
-                 "baseline snapshot not captured (Phase 2 error)")
+            _stream_before = st.get("stream_before")
+            if _stream_before is not None:
+                stream_ok, stream_msg = rm.verify_stream(_stream_before)
+                _chk("Stream preserved after upgrade", stream_ok, stream_msg)
+            else:
+                _chk("Stream preserved after upgrade", False,
+                     "baseline snapshot not captured (Phase 2 error)")
     else:
         rp.info(f"Stream check skipped: base version {from_ver} < 3.3.7.0")
 
@@ -1099,7 +1182,7 @@ def _run_cold_phase2(state_file: str):
     rp.summary_end(
         passed=all_passed, checks=checks, start_time=test_start,
         write_max=write_max, query_max=query_max, sub_max=sub_max,
-        log_dir=os.path.join(base_path, "dnode*/log"),
+        base_path=base_path,
     )
     sys.exit(0 if all_passed else 1)
 
@@ -1193,7 +1276,7 @@ def main():
                 write_max=metrics.get("write_window_max", 0),
                 query_max=metrics.get("query_window_max", 0),
                 sub_max=metrics.get("subscribe_window_max", 0),
-                log_dir=os.path.join(base_path, "dnode*/log"),
+                base_path=base_path,
             )
             sys.exit(1)
 
@@ -1215,6 +1298,7 @@ def main():
             rp.summary_end(
                 passed=False, checks=checks, start_time=test_start,
                 write_max=0, query_max=0, sub_max=0,
+                base_path=base_path,
             )
             sys.exit(1)
 
@@ -1242,6 +1326,7 @@ def main():
     rp.summary_end(
         passed=all_passed, checks=checks, start_time=test_start,
         write_max=write_max, query_max=query_max, sub_max=sub_max,
+        base_path=base_path,
     )
     sys.exit(0 if all_passed else 1)
 
