@@ -957,15 +957,12 @@ int64_t getWindowsTimezoneOffset(void) {
       int hours = 0, minutes = 0;
       if (sscanf(tz_env + 1, "%d:%d", &hours, &minutes) >= 1) {
         int64_t offset_seconds = (hours * 3600 + minutes * 60);
-        int64_t result = (sign == '+') ? offset_seconds : -offset_seconds;
-        printf("[tz] getWindowsTimezoneOffset: TZ=%s -> offset=%lld seconds\n", tz_env, result);
-        return result;
+        return (sign == '+') ? offset_seconds : -offset_seconds;
       }
     }
   }
 
   // If TZ not set, return 0 (UTC)
-  printf("[tz] getWindowsTimezoneOffset: TZ not set, defaulting to UTC (0 seconds)\n");
   return 0;
 }
 #endif
@@ -1318,19 +1315,24 @@ int32_t initTimezoneInfo(void) {
   TIME_ZONE_INFORMATION tzi = {0};
   DWORD tzType = GetTimeZoneInformation(&tzi);
   
-  printf("[tz] GetTimeZoneInformation: tzType=%u, StandardBias=%ld, DaylightBias=%ld\n", 
-        tzType, tzi.StandardBias, tzi.DaylightBias);
+  printf("[tz] GetTimeZoneInformation: tzType=%u, Bias=%ld, StandardBias=%ld, DaylightBias=%ld\n",
+         tzType, tzi.Bias, tzi.StandardBias, tzi.DaylightBias);
   
   if (tzType != TIME_ZONE_ID_INVALID) {
-    // Determine the offset: use StandardBias or DaylightBias.
-    // StandardBias/DaylightBias are in minutes with POSIX convention:
-    //   UTC+8 (East)  -> StandardBias = -480  (minutes west of UTC)
-    //   UTC-8 (West)  -> StandardBias = +480
-    // Convert to TZ env format expected by getWindowsTimezoneOffset(): "<sign><hours>:<minutes>"
-    LONG minute_offset = tzi.StandardBias;
-    if (tzType == TIME_ZONE_ID_DAYLIGHT && tzi.DaylightBias != 0) {
-      minute_offset = tzi.DaylightBias;
-      printf("[tz] Using DaylightBias: %ld\n", tzi.DaylightBias);
+    // Windows rule: effective bias = Bias + StandardBias/DaylightBias.
+    // Value convention matches our internal POSIX-style TZ usage:
+    //   UTC+8 (East) -> -480, UTC-8 (West) -> +480.
+    LONG minute_offset = tzi.Bias;
+    if (tzType == TIME_ZONE_ID_DAYLIGHT) {
+      minute_offset += tzi.DaylightBias;
+      printf("[tz] Applying daylight bias: base=%ld, daylight=%ld, effective=%ld\n",
+             tzi.Bias, tzi.DaylightBias, minute_offset);
+    } else if (tzType == TIME_ZONE_ID_STANDARD) {
+      minute_offset += tzi.StandardBias;
+      printf("[tz] Applying standard bias: base=%ld, standard=%ld, effective=%ld\n",
+             tzi.Bias, tzi.StandardBias, minute_offset);
+    } else {
+      printf("[tz] Time zone has no DST mode, effective bias=%ld\n", minute_offset);
     }
     
     // minute_offset is in POSIX timezone convention (east-negative, west-positive).
