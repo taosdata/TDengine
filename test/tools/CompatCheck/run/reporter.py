@@ -129,9 +129,11 @@ class Reporter:
     # ------------------------------------------------------------------
 
     def summary_end(self, passed: bool, checks: list, start_time: float,
-                    write_max: float, query_max: float, sub_max: float):
+                    write_max: float, query_max: float, sub_max: float,
+                    log_dir: str = ""):
         """
-        checks : list of (label, passed, detail) tuples already printed via check()
+        checks  : list of (label, passed, detail) tuples already printed via check()
+        log_dir : TDengine log directory; printed on failure to help diagnosis
         """
         elapsed = time.time() - start_time
         m, s = divmod(int(elapsed), 60)
@@ -153,6 +155,8 @@ class Reporter:
         print(_bar("─"))
         result_str = "PASS ✓" if passed else "FAIL ✗"
         print(f"  Result  : {result_str}")
+        if not passed and log_dir:
+            print(f"  Log dir : {log_dir}")
         print(f"  Finished: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}  "
               f"(elapsed {m}m {s}s)")
         print(_bar("═"))

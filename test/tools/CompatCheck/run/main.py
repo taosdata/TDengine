@@ -579,8 +579,13 @@ def _run_cold_phase2(state_file: str):
     rp.summary_end(
         passed=all_passed, checks=checks, start_time=test_start,
         write_max=write_max, query_max=query_max, sub_max=sub_max,
+        log_dir=os.path.join(base_path, "dnode*/log"),
     )
     sys.exit(0 if all_passed else 1)
+
+#
+#  ------------------- main -------------------
+#
 
 def main():
     # Cold-upgrade Phase 4-5 runs in a re-spawned subprocess with to_dir lib.
@@ -846,6 +851,7 @@ def main():
                 write_max=metrics.get("write_window_max", 0),
                 query_max=metrics.get("query_window_max", 0),
                 sub_max=metrics.get("subscribe_window_max", 0),
+                log_dir=os.path.join(base_path, "dnode*/log"),
             )
             sys.exit(1)
 
