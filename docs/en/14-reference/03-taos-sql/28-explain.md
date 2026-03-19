@@ -59,14 +59,14 @@ Diagnostic value:
 
 ## Result Format
 
-`EXPLAIN` returns a single column named `QUERY_PLAN`. Each row is either a node in the plan tree or a row with detailed statistic information.
+`EXPLAIN` returns a single column named `QUERY_PLAN`. Each row is either a node in the plan tree or a row with detailed statistical information.
 
 The execution plan is displayed as a tree:
 
 - The topmost node is where the final result is produced
 - Deeper indentation means closer to the underlying scan
 - The operator name appears after `->`
-- When `VERBOSE true` is enabled, rows with detailed statistic information are appended below each operator
+- When `VERBOSE true` is enabled, rows with detailed statistical information are appended below each operator
 
 Example:
 
@@ -418,7 +418,7 @@ QUERY_PLAN:          Output: columns=4 width=82
 *************************** 9.row ***************************
 QUERY_PLAN:          Output: Ignore Group Id: false
 *************************** 10.row ***************************
-QUERY_PLAN:          Merge Key: _group_id asc,  asc
+QUERY_PLAN:          Merge Key: _group_id asc, ts asc
 *************************** 11.row ***************************
 QUERY_PLAN:          Exec cost: compute=0.580 create=2026-03-13 16:34:44.806493 start=0.026 times=2 input_wait=0.000 output_wait=0.028
 *************************** 12.row ***************************
@@ -560,7 +560,7 @@ QUERY_PLAN:                      check_rows=30000
 *************************** 80.row ***************************
 QUERY_PLAN: Planning Time: 0.484 ms
 *************************** 81.row ***************************
-QUERY_PLAN: Execution Time: 8.138 m
+QUERY_PLAN: Execution Time: 8.138 ms
 ```
 
 ## Diagnostic Suggestions

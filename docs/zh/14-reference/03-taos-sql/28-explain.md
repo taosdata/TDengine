@@ -60,7 +60,7 @@ EXPLAIN [ANALYZE] [VERBOSE {true | false}] query_or_subquery;
 
 ## 返回结果说明
 
-`EXPLAIN` 的返回结果只有一列，列名为 `QUERY_PLAN`。每一行是计划树中的一个节点或一个详细统计信息。
+`EXPLAIN` 的返回结果只有一列，列名为 `QUERY_PLAN`。每一行是计划树中的一个节点或一条详细统计信息。
 
 执行计划采用树状结构展示：
 
@@ -419,7 +419,7 @@ QUERY_PLAN:          Output: columns=4 width=82
 *************************** 9.row ***************************
 QUERY_PLAN:          Output: Ignore Group Id: false
 *************************** 10.row ***************************
-QUERY_PLAN:          Merge Key: _group_id asc,  asc
+QUERY_PLAN:          Merge Key: _group_id asc, ts asc
 *************************** 11.row ***************************
 QUERY_PLAN:          Exec cost: compute=0.580 create=2026-03-13 16:34:44.806493 start=0.026 times=2 input_wait=0.000 output_wait=0.028
 *************************** 12.row ***************************
@@ -561,7 +561,7 @@ QUERY_PLAN:                      check_rows=30000
 *************************** 80.row ***************************
 QUERY_PLAN: Planning Time: 0.484 ms
 *************************** 81.row ***************************
-QUERY_PLAN: Execution Time: 8.138 m
+QUERY_PLAN: Execution Time: 8.138 ms
 ```
 
 ## 诊断建议
