@@ -70,12 +70,6 @@ class TestStreamSubquery:
         self.dropStream('db.sub_in_stream')
         self.dropOutTable('db.sub_in_tb')
 
-        # ntb with in
-        self.createInStream()
-        self.checkInResult()
-        self.dropStream('db.sub_in_stream')
-        self.dropOutTable('db.sub_in_tb')
-
         # ntb with in recursively
         self.createInRecursiveStream()
         self.checkInRecursiveResult()
