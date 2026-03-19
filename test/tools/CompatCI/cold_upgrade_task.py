@@ -5,6 +5,7 @@ import os
 import sys
 import re
 import shlex
+import shutil
 import subprocess
 from pathlib import Path
 from typing import List, Tuple, Optional
@@ -15,45 +16,102 @@ class ColdUpgradeTask:
 
     def __init__(self):
         self.greenVersionsPath = os.getenv('TD_GREEN_VERSIONS_PATH', '/tdengine/green_versions/')
-        self.versionPairs: List[Tuple[str, str]] = []
+        self.baseVersions: List[str] = []
+        self.currentVersion: Optional[str] = None
+        self.targetVersionPath: Optional[str] = None
+        self.tempDir: Optional[str] = None
 
     # ------------------------------------------------------------------
     # Argument parsing helpers
     # ------------------------------------------------------------------
 
     @staticmethod
-    def parseVersionPairs(raw: str) -> List[Tuple[str, str]]:
-        """Parse 'FROM->TO,FROM->TO,...' into a list of (from, to) tuples.
+    def parseBaseVersions(raw: str) -> List[str]:
+        """Parse 'VER,VER,...' into a list of base version strings.
 
         Example:
-            '3.3.0.0->3.3.6.0,3.3.6.0->3.4.0.0'
-            -> [('3.3.0.0', '3.3.6.0'), ('3.3.6.0', '3.4.0.0')]
+            '3.3.0.0,3.3.6.0'
+            -> ['3.3.0.0', '3.3.6.0']
         """
         versionRe = re.compile(r'^\d+\.\d+\.\d+\.\d+$')
-        pairs: List[Tuple[str, str]] = []
+        versions: List[str] = []
 
         for token in raw.split(','):
             token = token.strip()
             if not token:
                 continue
-            parts = token.split('->')
-            if len(parts) != 2:
+            if not versionRe.match(token):
                 raise ValueError(
-                    f"Invalid task '{token}': expected format FROM->TO "
-                    f"(e.g. 3.3.0.0->3.3.6.0)"
+                    f"Invalid version number '{token}': expected x.x.x.x format"
                 )
-            fromVer, toVer = parts[0].strip(), parts[1].strip()
-            for ver in (fromVer, toVer):
-                if not versionRe.match(ver):
-                    raise ValueError(
-                        f"Invalid version number '{ver}': expected x.x.x.x format"
-                    )
-            pairs.append((fromVer, toVer))
+            versions.append(token)
 
-        if not pairs:
-            raise ValueError("No valid tasks provided")
+        if not versions:
+            raise ValueError("No valid base versions provided")
 
-        return pairs
+        return versions
+
+    # ------------------------------------------------------------------
+    # Current version resolution (from cmake)
+    # ------------------------------------------------------------------
+
+    def readCurrentVersion(self) -> str:
+        """Read version from cmake/version.cmake."""
+        cmakeFile = Path(__file__).parent.parent.parent.parent / "cmake" / "version.cmake"
+
+        if not cmakeFile.exists():
+            raise FileNotFoundError(f"Version file not found: {cmakeFile}")
+
+        with open(cmakeFile, 'r') as f:
+            content = f.read()
+
+        match = re.search(r'SET\s*\(\s*TD_VER_NUMBER\s+"([^"]+)"\s*\)', content)
+        if not match:
+            raise ValueError(f"Cannot parse version from {cmakeFile}")
+
+        version = match.group(1)
+        version = re.match(r'(\d+\.\d+\.\d+\.\d+)', version).group(1)
+        return version
+
+    # ------------------------------------------------------------------
+    # Target version preparation (from build directory)
+    # ------------------------------------------------------------------
+
+    def prepareTargetVersion(self, buildDir: Optional[str] = None) -> str:
+        """Copy target version files from build directory to /tmp/<version>."""
+        targetDir = f"/tmp/{self.currentVersion}"
+        os.makedirs(targetDir, exist_ok=True)
+        self.tempDir = targetDir
+
+        if not buildDir:
+            buildDir = Path(__file__).parent.parent.parent.parent.parent / "debug"
+
+        buildPath = Path(buildDir)
+        if not buildPath.exists():
+            raise FileNotFoundError(f"Build directory not found: {buildDir}")
+
+        # Copy taosd binary
+        taosdSrc = buildPath / "build" / "bin" / "taosd"
+        if taosdSrc.exists():
+            shutil.copy2(taosdSrc, targetDir)
+
+        # Prefer libtaosnative.so (real native lib) renamed to libtaos.so,
+        # fall back to libtaos.so if libtaosnative.so is absent
+        libDst    = Path(targetDir) / "libtaos.so"
+        nativeSrc = buildPath / "build" / "lib" / "libtaosnative.so"
+        taosSrc   = buildPath / "build" / "lib" / "libtaos.so"
+        if nativeSrc.exists():
+            shutil.copy2(nativeSrc, libDst)
+            print(f"  Using libtaosnative.so -> libtaos.so")
+        elif taosSrc.exists():
+            shutil.copy2(taosSrc, libDst)
+            print(f"  Using libtaos.so")
+        else:
+            raise FileNotFoundError(
+                f"No libtaos.so or libtaosnative.so found in {buildPath / 'build' / 'lib'}"
+            )
+
+        return targetDir
 
     # ------------------------------------------------------------------
     # Path resolution
@@ -72,28 +130,23 @@ class ColdUpgradeTask:
         return dirPath
 
     def resolveAllPairs(self) -> List[Tuple[str, str]]:
-        """Resolve every (fromVer, toVer) pair to (fromDir, toDir).
+        """Resolve every base version to (fromDir, toDir).
 
-        Checks all pairs before raising so the user gets a complete
+        fromDir comes from greenVersionsPath/<baseVersion>.
+        toDir   is the pre-built target version in /tmp/<currentVersion>.
+
+        Checks all base versions before raising so the user gets a complete
         picture of any missing directories in one run.
         """
         errors: List[str] = []
         resolved: List[Tuple[str, str]] = []
 
-        for fromVer, toVer in self.versionPairs:
-            fromDir = toDir = None
+        for baseVer in self.baseVersions:
             try:
-                fromDir = self.resolveVersionDir(fromVer)
+                fromDir = self.resolveVersionDir(baseVer)
+                resolved.append((fromDir, self.targetVersionPath))
             except FileNotFoundError as exc:
                 errors.append(str(exc))
-
-            try:
-                toDir = self.resolveVersionDir(toVer)
-            except FileNotFoundError as exc:
-                errors.append(str(exc))
-
-            if fromDir and toDir:
-                resolved.append((fromDir, toDir))
 
         if errors:
             raise FileNotFoundError(
@@ -141,32 +194,44 @@ class ColdUpgradeTask:
     # Main workflow
     # ------------------------------------------------------------------
 
-    def run(self, extraArgs: Optional[List[str]] = None) -> int:
-        """Execute cold upgrade workflow for all requested version pairs."""
+    def run(self, buildDir: Optional[str] = None,
+            extraArgs: Optional[List[str]] = None) -> int:
+        """Execute cold upgrade workflow for all requested base versions."""
         try:
             # ── Print configuration ──────────────────────────────────
-            tasks = [f"{f}->{t}" for f, t in self.versionPairs]
             print("=" * 80)
             print("Cold Upgrade Configuration:")
             print(f"  Green versions path : {self.greenVersionsPath}")
-            print(f"  Tasks               : {', '.join(tasks)}")
+            print(f"  Build directory     : {buildDir if buildDir else '../../../../debug (default)'}")
+            print(f"  Base versions       : {', '.join(self.baseVersions)}")
             if extraArgs:
                 print(f"  CompatCheck options : {' '.join(extraArgs)}")
             print("=" * 80)
             print()
 
-            # ── Step 1: Resolve all version directories ──────────────
-            print(f"Step 1/2: Resolving version directories under "
+            # ── Step 1: Read current version from cmake ──────────────
+            print("Step 1/3: Reading current version from cmake...")
+            self.currentVersion = self.readCurrentVersion()
+            print(f"  Current (target) version: {self.currentVersion}")
+            print()
+
+            # ── Step 2: Prepare target version from build directory ──
+            print("Step 2/3: Preparing target version from build directory...")
+            self.targetVersionPath = self.prepareTargetVersion(buildDir)
+            print(f"  Target path: {self.targetVersionPath}")
+            print()
+
+            # ── Step 3: Resolve base dirs and run CompatCheck ────────
+            print(f"Step 3/3: Resolving base version directories under "
                   f"'{self.greenVersionsPath}'...")
             resolvedPairs = self.resolveAllPairs()
-            print(f"  All {len(resolvedPairs)} task(s) resolved successfully.")
+            print(f"  All {len(resolvedPairs)} base version(s) resolved successfully.")
             for fromDir, toDir in resolvedPairs:
                 print(f"  FROM : {fromDir}")
                 print(f"  TO   : {toDir}")
             print()
 
-            # ── Step 2: Run CompatCheck for each pair ────────────────
-            print("Step 2/2: Running cold upgrade tests...")
+            print("Running cold upgrade tests...")
             overallCode = 0
 
             for idx, (fromDir, toDir) in enumerate(resolvedPairs, start=1):
@@ -213,20 +278,26 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Single task
+  # Single base version  (target is read from build directory automatically)
   python cold_upgrade_task.py \\
       --green-path /tdengine/green_versions/ \\
-      --tasks 3.3.0.0->3.3.6.0
+      --versions 3.3.0.0
 
-  # Multiple tasks (comma-separated)
+  # Multiple base versions (comma-separated)
   python cold_upgrade_task.py \\
       --green-path /tdengine/green_versions/ \\
-      --tasks 3.3.0.0->3.3.6.0,3.3.6.0->3.4.0.0
+      --versions 3.3.0.0,3.3.6.0
 
-  # Pass extra options to CompatCheck (quick mode + sysinfo check)
+  # Custom build directory
   python cold_upgrade_task.py \\
       --green-path /tdengine/green_versions/ \\
-      --tasks 3.3.0.0->3.4.0.0 \\
+      --versions 3.3.0.0 \\
+      --build-dir /path/to/debug
+
+  # Pass extra options to CompatCheck
+  python cold_upgrade_task.py \\
+      --green-path /tdengine/green_versions/ \\
+      --versions 3.3.0.0 \\
       --options "-q --check-sysinfo"
         """
     )
@@ -237,13 +308,18 @@ Examples:
              'or env TD_GREEN_VERSIONS_PATH)',
     )
     parser.add_argument(
-        '--tasks',
+        '--versions',
         required=True,
-        metavar='FROM->TO[,FROM->TO,...]',
+        metavar='VER[,VER,...]',
         help=(
-            'Comma-separated list of FROM->TO upgrade tasks, '
-            'e.g. 3.3.0.0->3.3.6.0,3.3.6.0->3.4.0.0'
+            'Comma-separated list of base versions to upgrade FROM, '
+            'e.g. 3.3.0.0,3.3.6.0  '
+            '(the target version is detected automatically from the build directory)'
         ),
+    )
+    parser.add_argument(
+        '--build-dir',
+        help='Build directory containing compiled binaries (default: ../../../../debug)',
     )
     parser.add_argument(
         '--options',
@@ -263,7 +339,7 @@ Examples:
         task.greenVersionsPath = args.green_path
 
     try:
-        task.versionPairs = ColdUpgradeTask.parseVersionPairs(args.tasks)
+        task.baseVersions = ColdUpgradeTask.parseBaseVersions(args.versions)
     except ValueError as exc:
         print(f"[ERROR] Argument error: {exc}", file=sys.stderr)
         sys.exit(1)
@@ -271,7 +347,7 @@ Examples:
     # Split --options string into a proper argument list
     extraArgs = shlex.split(args.options) if args.options.strip() else []
 
-    sys.exit(task.run(extraArgs=extraArgs))
+    sys.exit(task.run(buildDir=args.build_dir, extraArgs=extraArgs))
 
 
 if __name__ == '__main__':
