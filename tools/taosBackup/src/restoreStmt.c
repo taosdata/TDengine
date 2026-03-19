@@ -464,7 +464,7 @@ static int dataBlockCallback(void *userData,
     // Execute when cross-file accumulated rows reach the batch threshold.
     // Using pendingRows (not batchRows) ensures sparse CTBs with 1-2 rows each
     // are batched across many files before an execute RPC is issued.
-    int64_t batchThreshold = (argDataBatch() > 0) ? (int64_t)argDataBatch() : STMT_BATCH_THRESHOLD;
+    int64_t batchThreshold = argDataBatch();
     if (ctx->pendingRows >= batchThreshold) {
         code = taos_stmt_execute(ctx->stmt);
         if (code != 0) {

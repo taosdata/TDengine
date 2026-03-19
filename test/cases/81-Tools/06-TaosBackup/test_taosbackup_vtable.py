@@ -518,8 +518,7 @@ class TestTaosBackupVtable:
     # -----------------------------------------------------------------------
 
     def test_taosbackup_vtable(self):
-        """
-        Full backup/restore test for virtual tables.
+        """Full backup/restore for virtual tables.
 
         Covers all three virtual table types defined in 05-virtualtable.md:
           1. Virtual normal table  -- vtb_normal
@@ -540,6 +539,16 @@ class TestTaosBackupVtable:
           8. Verify data: row-by-row comparison of every virtual table column
              between the source snapshot and the restored DB.  All rows must match
              exactly -- this is the primary data-correctness guarantee.
+
+        Since: v3.0.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-03-06 AlexDuan Added
+
         """
         tdLog.info("=== test_taosbackup_vtable: START ===")
         self.do_vtable_backup_restore()

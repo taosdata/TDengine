@@ -14,6 +14,7 @@
 
 #include "bck.h"
 #include "blockReader.h"
+#include "colCompress.h"
 
 // forward declaration
 struct StbChange;
