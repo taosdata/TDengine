@@ -79,6 +79,7 @@ def clean_taos_process(keywords=None):
     current_pid = os.getpid()
 
     for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+        pid = None
         try:
             if proc.info["pid"] == current_pid:
                 continue
@@ -86,6 +87,7 @@ def clean_taos_process(keywords=None):
             cmdline_parts = proc.info.get("cmdline") or []
             cmdline = " ".join(cmdline_parts).lower()
             proc_name = (proc.info.get("name") or "").lower()
+            pid = proc.info["pid"]
 
             # 跳过 Jenkins agent，避免断开 remoting channel 导致当前用例被系统回收
             if "agent.jar" in cmdline or "jenkins" in cmdline:
@@ -97,16 +99,73 @@ def clean_taos_process(keywords=None):
                 proc.terminate()  # 优雅终止进程
                 try:
                     proc.wait(timeout=5)  # 等待进程终止
-                    logger.info(f"Process {proc.info['pid']} terminated successfully.")
+                    logger.info(f"Process {pid} terminated successfully.")
                 except psutil.TimeoutExpired:
-                    logger.warning(f"Process {proc.info['pid']} did not terminate in time. Forcing termination.")
+                    logger.warning(f"Process {pid} did not terminate in time. Forcing termination.")
                     proc.kill()  # 强制终止进程
-                    proc.wait(timeout=5)  # 再次等待进程终止
-                    logger.info(f"Process {proc.info['pid']} killed successfully.")
+                    try:
+                        proc.wait(timeout=5)  # 再次等待进程终止
+                        logger.info(f"Process {pid} killed successfully.")
+                    except psutil.TimeoutExpired:
+                        logger.error(f"Process {pid} still alive after kill(), trying system command.")
+                        _force_kill_process(pid, proc_name)
         except psutil.NoSuchProcess:
-            logger.info(f"Process {proc.info.get('pid')} does not exist or already terminated.")
+            logger.info(f"Process {pid} does not exist or already terminated.")
         except Exception as e:
-            logger.error(f"Error while terminating process {proc.info.get('pid')}: {e}")
+            logger.error(f"Error while terminating process {pid}: {e}")
+
+
+def _force_kill_process(pid, proc_name=None):
+    """
+    使用系统命令强制终止顽固进程。
+    当 psutil 的 terminate/kill 都失败时作为备选方案。
+    """
+    import subprocess
+    import platform
+    
+    if pid is None:
+        return
+    
+    name_str = f" ({proc_name})" if proc_name else ""
+    logger.info(f"Force killing process {pid}{name_str} using system command...")
+    
+    try:
+        if platform.system() == "Windows":
+            # Windows: 先尝试 taskkill /t (包括子进程)
+            result = subprocess.run(
+                ["taskkill", "/f", "/t", "/pid", str(pid)],
+                capture_output=True,
+                text=True
+            )
+            if result.returncode == 0:
+                logger.info(f"Process {pid} killed by taskkill.")
+                return
+            else:
+                logger.warning(f"taskkill failed: {result.stderr.strip()}")
+            
+            # 如果 taskkill 失败，使用 wmic（更强力的方法）
+            result = subprocess.run(
+                ["wmic", "process", "where", f"processid={pid}", "delete"],
+                capture_output=True,
+                text=True
+            )
+            if "Instance deletion successful" in result.stdout or result.returncode == 0:
+                logger.info(f"Process {pid} killed by wmic.")
+            else:
+                logger.error(f"wmic failed: {result.stderr.strip() if result.stderr else result.stdout}")
+        else:
+            # Linux/Mac: 使用 kill -9
+            result = subprocess.run(
+                ["kill", "-9", str(pid)],
+                capture_output=True,
+                text=True
+            )
+            if result.returncode == 0:
+                logger.info(f"Process {pid} killed by kill -9.")
+            else:
+                logger.error(f"kill -9 failed: {result.stderr.strip()}")
+    except Exception as e:
+        logger.error(f"Error during force kill of {pid}: {e}")
 
 def zip_dir(dir_path, zip_path):
     with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
