@@ -179,7 +179,7 @@ int metaReaderGetTableEntryByUidCache(SMetaReader *pReader, tb_uid_t uid) {
   return metaGetTableEntryByVersion(pReader, info.version, uid);
 }
 
-int metaGetTableEntryByName(SMetaReader *pReader, const char *name) {
+int metaGetTableEntryByVersionName(SMetaReader *pReader, int64_t version, const char *name) {
   SMeta   *pMeta = pReader->pMeta;
   tb_uid_t uid;
 
@@ -189,7 +189,11 @@ int metaGetTableEntryByName(SMetaReader *pReader, const char *name) {
   }
 
   uid = *(tb_uid_t *)pReader->pBuf;
-  return metaReaderGetTableEntryByUid(pReader, uid);
+  return metaReaderGetTableEntryByVersionUid(pReader, version, uid);
+}
+
+int metaGetTableEntryByName(SMetaReader *pReader, const char *name) {
+  return metaGetTableEntryByVersionName(pReader, -1, name);
 }
 
 tb_uid_t metaGetTableEntryUidByName(SMeta *pMeta, const char *name) {

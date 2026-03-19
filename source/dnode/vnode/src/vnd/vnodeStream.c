@@ -2832,7 +2832,6 @@ static int32_t vnodeProcessStreamSetTableReq(SVnode* pVnode, SRpcMsg* pMsg, SSTr
 
   qStreamClearTableInfo(&sStreamReaderInfo->vSetTableList);
   STREAM_CHECK_RET_GOTO(initStreamTableListInfo(&sStreamReaderInfo->vSetTableList));
-  sStreamReaderInfo->vSetTableList.version = pVnode->state.applied;
   STREAM_CHECK_RET_GOTO(qBuildVTableList(sStreamReaderInfo));
 end:
   taosWUnLockLatch(&sStreamReaderInfo->lock);
@@ -3600,7 +3599,7 @@ end:
   return code;
 }
 
-static int32_t setVtableInfo(SVnode* pVnode, SArray* infos, SArray* cids, int64_t uid, uint64_t gid, SMetaReader* metaReader, SStreamTriggerReaderInfo* sStreamReaderInfo) {
+static int32_t setVtableInfo(SVnode* pVnode, SArray* infos, SArray* cids, int64_t uid, uint64_t gid, int64_t ver, SMetaReader* metaReader, SStreamTriggerReaderInfo* sStreamReaderInfo) {
   int32_t              code = 0;
   int32_t              lino = 0;
   void* pTask = sStreamReaderInfo->pTask;
@@ -3612,8 +3611,7 @@ static int32_t setVtableInfo(SVnode* pVnode, SArray* infos, SArray* cids, int64_
 
   ST_TASK_DLOG("vgId:%d %s put vtable uid:%"PRId64, TD_VID(pVnode), __func__, uid);
 
-  code = sStreamReaderInfo->storageApi.metaReaderFn.getTableEntryByVersionUid(metaReader, -1, uid);
-  // code = sStreamReaderInfo->storageApi.metaReaderFn.getTableEntryByVersionUid(metaReader, sStreamReaderInfo->vSetTableList.version, uid);
+  code = sStreamReaderInfo->storageApi.metaReaderFn.getTableEntryByVersionUid(metaReader, ver, uid);
   if (code != 0) {
     ST_TASK_ELOG("vgId:%d %s get table entry by uid:%"PRId64" failed, msg:%s", TD_VID(pVnode), __func__, uid, tstrerror(code));
     goto end;
@@ -3647,7 +3645,7 @@ end:
   return code;
 }
 
-static int32_t getAllVinfo(SVnode* pVnode, SStreamMsgVTableInfo* vTableInfo, SArray* cids, SMetaReader* metaReader, SStreamTriggerReaderInfo* sStreamReaderInfo){
+static int32_t getAllVinfo(SVnode* pVnode, SStreamMsgVTableInfo* vTableInfo, SArray* cids, int64_t ver, SMetaReader* metaReader, SStreamTriggerReaderInfo* sStreamReaderInfo){
   int32_t              code = 0;
   int32_t              lino = 0;
   void* pTask = sStreamReaderInfo->pTask;
@@ -3665,7 +3663,7 @@ static int32_t getAllVinfo(SVnode* pVnode, SStreamMsgVTableInfo* vTableInfo, SAr
     if (pKeyInfo == NULL || pKeyInfo->markedDeleted) {
       continue;
     }
-    code = setVtableInfo(pVnode, vTableInfo->infos, cids, pKeyInfo->uid, pKeyInfo->groupId, metaReader, sStreamReaderInfo);
+    code = setVtableInfo(pVnode, vTableInfo->infos, cids, pKeyInfo->uid, pKeyInfo->groupId, ver, metaReader, sStreamReaderInfo);
     if (code != 0) {
       ST_TASK_WLOG("vgId:%d %s set vtable info uid:%"PRId64" failed, msg:%s", TD_VID(pVnode), __func__, pKeyInfo->uid, tstrerror(code));
       code = 0;
@@ -3678,7 +3676,7 @@ end:
   return code;
 }
 
-static int32_t getSpicificVinfo(SVnode* pVnode, SStreamMsgVTableInfo* vTableInfo, SArray* uids, SArray* cids, SMetaReader* metaReader, SStreamTriggerReaderInfo* sStreamReaderInfo){
+static int32_t getSpicificVinfo(SVnode* pVnode, SStreamMsgVTableInfo* vTableInfo, SArray* uids, SArray* cids, int64_t ver, SMetaReader* metaReader, SStreamTriggerReaderInfo* sStreamReaderInfo){
   int32_t              code = 0;
   int32_t              lino = 0;
   void* pTask = sStreamReaderInfo->pTask;
@@ -3697,7 +3695,7 @@ static int32_t getSpicificVinfo(SVnode* pVnode, SStreamMsgVTableInfo* vTableInfo
       ST_TASK_WLOG("vgId:%d %s uid:%"PRId64" not found in stream group", TD_VID(pVnode), __func__, *uid);
       continue;
     }
-    code = setVtableInfo(pVnode, vTableInfo->infos, cids, *uid, groupId, metaReader, sStreamReaderInfo);
+    code = setVtableInfo(pVnode, vTableInfo->infos, cids, *uid, groupId, ver, metaReader, sStreamReaderInfo);
     if (code != 0) {
       ST_TASK_WLOG("vgId:%d %s set vtable info uid:%"PRId64" failed, msg:%s", TD_VID(pVnode), __func__, *uid, tstrerror(code));
       code = 0;
@@ -3729,9 +3727,9 @@ static int32_t vnodeProcessStreamVTableInfoReq(SVnode* pVnode, SRpcMsg* pMsg, SS
   sStreamReaderInfo->storageApi.metaReaderFn.initReader(&metaReader, pVnode, META_READER_LOCK, &sStreamReaderInfo->storageApi.metaFn);
 
   if (req->virTableInfoReq.fetchAllTable || req->virTableInfoReq.uids == NULL || taosArrayGetSize(req->virTableInfoReq.uids) == 0) {
-    STREAM_CHECK_RET_GOTO(getAllVinfo(pVnode, &vTableInfo, cids, &metaReader, sStreamReaderInfo));
+    STREAM_CHECK_RET_GOTO(getAllVinfo(pVnode, &vTableInfo, cids, req->virTableInfoReq.ver, &metaReader, sStreamReaderInfo));
   } else {
-    STREAM_CHECK_RET_GOTO(getSpicificVinfo(pVnode, &vTableInfo, req->virTableInfoReq.uids, cids, &metaReader, sStreamReaderInfo));
+    STREAM_CHECK_RET_GOTO(getSpicificVinfo(pVnode, &vTableInfo, req->virTableInfoReq.uids, cids, req->virTableInfoReq.ver, &metaReader, sStreamReaderInfo));
   }
   ST_TASK_DLOG("vgId:%d %s end, size:%"PRIzu, TD_VID(pVnode), __func__, taosArrayGetSize(vTableInfo.infos));
   STREAM_CHECK_RET_GOTO(buildVTableInfoRsp(&vTableInfo, &buf, &size));
@@ -3770,7 +3768,7 @@ static int32_t vnodeProcessStreamOTableInfoReq(SVnode* pVnode, SRpcMsg* pMsg, SS
     OTableInfoRsp* vTableInfo = taosArrayReserve(oTableInfo.cols, 1);
     STREAM_CHECK_NULL_GOTO(oInfo, terrno);
     STREAM_CHECK_NULL_GOTO(vTableInfo, terrno);
-    code = sStreamReaderInfo->storageApi.metaReaderFn.getTableEntryByName(&metaReader, oInfo->refTableName);
+    code = sStreamReaderInfo->storageApi.metaReaderFn.getTableEntryByVersionName(&metaReader, req->origTableInfoReq.ver, oInfo->refTableName);
     if (code != 0) {
       code = 0;
       ST_TASK_ELOG("vgId:%d %s get table entry by name:%s failed, msg:%s", TD_VID(pVnode), __func__, oInfo->refTableName, tstrerror(code));
@@ -3784,7 +3782,7 @@ static int32_t vnodeProcessStreamOTableInfoReq(SVnode* pVnode, SRpcMsg* pMsg, SS
       int64_t suid = metaReader.me.ctbEntry.suid;
       vTableInfo->suid = suid;
       tDecoderClear(&metaReader.coder);
-      STREAM_CHECK_RET_GOTO(sStreamReaderInfo->storageApi.metaReaderFn.getTableEntryByUid(&metaReader, suid));
+      STREAM_CHECK_RET_GOTO(sStreamReaderInfo->storageApi.metaReaderFn.getTableEntryByVersionUid(&metaReader, req->origTableInfoReq.ver, suid));
       sSchemaWrapper = &metaReader.me.stbEntry.schemaRow;
     } else if (metaReader.me.type == TD_NORMAL_TABLE) {
       vTableInfo->suid = 0;
@@ -3835,7 +3833,7 @@ static int32_t vnodeProcessStreamVTableTagInfoReq(SVnode* pVnode, SRpcMsg* pMsg,
   STREAM_CHECK_NULL_GOTO(cols, terrno);
 
   sStreamReaderInfo->storageApi.metaReaderFn.initReader(&metaReader, pVnode, META_READER_LOCK, &sStreamReaderInfo->storageApi.metaFn);
-  STREAM_CHECK_RET_GOTO(sStreamReaderInfo->storageApi.metaReaderFn.getTableEntryByUid(&metaReader, req->virTablePseudoColReq.uid));
+  STREAM_CHECK_RET_GOTO(sStreamReaderInfo->storageApi.metaReaderFn.getTableEntryByVersionUid(&metaReader, req->virTablePseudoColReq.ver, req->virTablePseudoColReq.uid));
 
   STREAM_CHECK_CONDITION_GOTO(metaReader.me.type != TD_VIRTUAL_CHILD_TABLE && metaReader.me.type != TD_VIRTUAL_NORMAL_TABLE, TSDB_CODE_INVALID_PARA);
 
@@ -3854,7 +3852,7 @@ static int32_t vnodeProcessStreamVTableTagInfoReq(SVnode* pVnode, SRpcMsg* pMsg,
     sStreamReaderInfo->storageApi.metaReaderFn.readerReleaseLock(&metaReader);
     sStreamReaderInfo->storageApi.metaReaderFn.initReader(&metaReaderStable, pVnode, META_READER_LOCK, &sStreamReaderInfo->storageApi.metaFn);
 
-    STREAM_CHECK_RET_GOTO(sStreamReaderInfo->storageApi.metaReaderFn.getTableEntryByUid(&metaReaderStable, suid));
+    STREAM_CHECK_RET_GOTO(sStreamReaderInfo->storageApi.metaReaderFn.getTableEntryByVersionUid(&metaReaderStable, req->virTablePseudoColReq.ver, suid));
     SSchemaWrapper*  sSchemaWrapper = &metaReaderStable.me.stbEntry.schemaTag;
     for (size_t i = 0; i < taosArrayGetSize(cols); i++){
       col_id_t* id = taosArrayGet(cols, i);
