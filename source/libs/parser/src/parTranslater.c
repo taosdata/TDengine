@@ -20128,7 +20128,12 @@ static int32_t translateDropTSMA(STranslateContext* pCxt, SDropTSMAStmt* pStmt) 
   }
   PAR_ERR_JRET(tNameExtractFullName(&name, dropStreamReq.name[0]));
 
-  PAR_ERR_JRET(getTsma(pCxt, &name, &pTsma));
+  code = getTsma(pCxt, &name, &pTsma);
+  if (code == TSDB_CODE_MND_SMA_NOT_EXIST && dropReq.igNotExists) {
+    code = TSDB_CODE_SUCCESS;
+    goto _return;
+  }
+  PAR_ERR_JRET(code);
   toName(pCxt->pParseCxt->acctId, pStmt->dbName, pTsma->tb, &name);
   PAR_ERR_JRET(collectUseTable(&name, pCxt->pTargetTables));
 
