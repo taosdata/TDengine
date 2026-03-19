@@ -83,7 +83,7 @@ timemoe_fc = 'http://127.0.0.1:6037/ds_predict'
 
 # Model configuration - defines all available models
 # Required models: tdtsfm, timemoe (must exist, error if missing)
-# Optional models: timesfm, moirai, chronos, moment (skip if not found)
+# Optional models: moirai, chronos, timesfm, moment (skip if not found)
 models = {
     "tdtsfm": {
         "script": "tdtsfm-server.py",
@@ -97,15 +97,9 @@ models = {
         "port": 6037,
         "required": True,  # Must exist
     },
-    "timesfm": {
-        "script": "timesfm-server.py",
-        "default_model": "google/timesfm-2.0-500m-pytorch",
-        "port": 0,
-        "required": False,  # Optional
-    },
     "moirai": {
         "script": "moirai-server.py",
-        "default_model": "Salesforce/moirai-moe-1.0-R-base",
+        "default_model": "Salesforce/moirai-moe-1.0-R-small",
         "port": 0,
         "required": False,  # Optional
     },
@@ -115,9 +109,15 @@ models = {
         "port": 0,
         "required": False,  # Optional
     },
+    "timesfm": {
+        "script": "timesfm-server.py",
+        "default_model": "google/timesfm-2.0-500m-pytorch",
+        "port": 0,
+        "required": False,  # Optional
+    },
     "moment": {
         "script": "moment-server.py",
-        "default_model": "AutonLab/MOMENT-1-large",
+        "default_model": "AutonLab/MOMENT-1-base",
         "port": 0,
         "required": False,  # Optional
     },

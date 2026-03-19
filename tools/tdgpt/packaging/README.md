@@ -224,3 +224,34 @@ Modify the `bind` setting in the configuration file `C:\TDengine\taosanode\cfg\t
 
 - Standard uninstall preserves `cfg`, `data`, `model`, `venvs`, and `log`.
 - `model` is removed only when `uninstall.py --remove-model` is used explicitly.
+
+## 2026-03-18 Installer Flow Update
+
+- The Windows installer wizard is now English-only.
+- The wizard now includes:
+  - Python package source selection
+  - Optional TensorFlow CPU installation in online mode
+  - Model source selection: none / online / offline package
+  - Hugging Face endpoint selection: official / HF Mirror / custom
+  - Service registration toggle
+- Default model preparation mode is `Do not install models now`.
+- Offline Python package mode skips the TensorFlow question because the packaged offline runtime already includes it.
+- Offline model import automatically scans `<install_dir>\model\` and imports every packaged offline archive that is present.
+- Offline mode also offers one optional offline model package input. The selected archive can contain all offline models together.
+- In offline mode, the wizard does not ask users to select models. It shows one offline import page instead.
+- `start-model.bat all` and `model-start all` now check model directories at runtime. Models with existing directories are started automatically, and missing ones are skipped with a log message.
+- Offline mode does not create extra model virtual environments during setup.
+- The model list order is:
+  - `TDTSFM v1.0`
+  - `TimeMoE 200M`
+  - `Moirai Small`
+  - `Chronos Bolt Base`
+  - `TimesFM 2.0 500M`
+  - `MOMENT Base`
+- If online model download is selected, the default checked models are:
+  - `Moirai Small`
+  - `MOMENT Base`
+- Windows main environment installation now uses:
+  - `requirements_windows_core.txt`
+  - `requirements_tensorflow.txt` for optional TensorFlow CPU support
+- The installer writes progress state to `<install_dir>\log\install-progress.ini` so the wizard can display current install progress, including streamed pip/model download output.

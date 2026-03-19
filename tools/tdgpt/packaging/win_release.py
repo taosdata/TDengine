@@ -439,7 +439,8 @@ REM Start model service
 REM Usage: start-model.bat [model_name|all]
 if "%~1"=="" (
     echo Usage: start-model.bat [model_name^|all]
-    echo Supported models: tdtsfm, timesfm, timemoe, moirai, chronos, moment
+    echo Supported models: tdtsfm, timemoe, moirai, chronos, timesfm, moment
+    echo The "all" option starts every model whose directory exists and skips missing ones.
     exit /b 1
 )
 "%PYTHON_EXE%" "%~dp0taosanode_service.py" model-start %*
@@ -495,12 +496,19 @@ set INSTALL_DIR=%INSTALL_DIR:~0,-1%
 set "LOG_DIR=%INSTALL_DIR%\\log"
 if not exist "%LOG_DIR%" mkdir "%LOG_DIR%"
 set "LOG_FILE=%LOG_DIR%\\install.log"
+set "PROGRESS_FILE=%TDGPT_PROGRESS_FILE%"
+set "PYTHONUTF8=1"
+set "PYTHONIOENCODING=utf-8"
+set "TDGPT_LOG_REDIRECTED=1"
+
+call :write_progress running 1 "Initializing TDGPT setup" "Preparing installation environment"
 
 REM Check if Python is available
 python --version >nul 2>&1
 if errorlevel 1 (
     echo ERROR: Python not found in PATH
     echo Please install Python 3.10/3.11/3.12 from https://www.python.org/
+    call :write_progress error 100 "Installation failed" "Python 3.10/3.11/3.12 was not found in PATH"
     exit /b 1
 )
 
@@ -509,14 +517,29 @@ if errorlevel 1 (
 >> "%LOG_FILE%" echo PIP_INDEX_URL=%PIP_INDEX_URL%
 >> "%LOG_FILE%" echo Command args: %*
 
-python "%INSTALL_DIR%\\install.py" --log-file "%LOG_FILE%" {offline_flag} {all_models_flag} %* >> "%LOG_FILE%" 2>&1
+if "%PROGRESS_FILE%"=="" (
+    python "%INSTALL_DIR%\\install.py" --log-file "%LOG_FILE%" {offline_flag} {all_models_flag} %* >> "%LOG_FILE%" 2>&1
+) else (
+    python "%INSTALL_DIR%\\install.py" --log-file "%LOG_FILE%" {offline_flag} {all_models_flag} --progress-file "%PROGRESS_FILE%" %* >> "%LOG_FILE%" 2>&1
+)
 
 if errorlevel 1 (
     >> "%LOG_FILE%" echo [%date% %time%] Installation failed
+    call :write_progress error 100 "Installation failed" "See install.log for details"
     exit /b 1
 )
 
 >> "%LOG_FILE%" echo [%date% %time%] Installation completed successfully
+call :write_progress success 100 "Installation complete" "TDGPT is ready"
+exit /b 0
+
+:write_progress
+if "%PROGRESS_FILE%"=="" exit /b 0
+> "%PROGRESS_FILE%" echo [progress]
+>> "%PROGRESS_FILE%" echo status=%~1
+>> "%PROGRESS_FILE%" echo percent=%~2
+>> "%PROGRESS_FILE%" echo title=%~3
+>> "%PROGRESS_FILE%" echo detail=%~4
 exit /b 0
 """)
     logging.info("Created install.bat")
@@ -534,6 +557,7 @@ set INSTALL_DIR=%INSTALL_DIR:~0,-1%
 set "LOG_DIR=%INSTALL_DIR%\\log"
 if not exist "%LOG_DIR%" mkdir "%LOG_DIR%"
 set "LOG_FILE=%LOG_DIR%\\uninstall.log"
+set "TDGPT_LOG_REDIRECTED=1"
 
 > "%LOG_FILE%" echo [%date% %time%] TDGPT uninstall started
 

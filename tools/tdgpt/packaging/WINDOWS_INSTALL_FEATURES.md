@@ -628,3 +628,160 @@ python packaging/win_release.py -e community -v 1.0.0 -m D:\models --offline -a
 - 默认保留：`cfg`、`data`、`model`、`venvs`、`log`。
 - 默认删除：`bin`、`lib`、`resource`、`requirements` 和安装脚本。
 - `model` 只有在显式执行 `uninstall.py --remove-model` 时才会删除。
+
+## 2026-03-18 补充说明
+
+### 安装器与打包结构调整
+
+- Windows 安装流程继续使用英文界面，但本文档保持中文记录。
+- 打包目录结构统一为：
+  - requirements 文件放到 `<安装目录>\requirements\`
+  - 虚拟环境放到 `<安装目录>\venvs\`
+  - 日志统一放到 `<安装目录>\log\`
+- `packaging\bin\WinSW.exe` 会打入安装产物，并复制为 `<安装目录>\bin\taosanode-winsw.exe`。
+- WinSW 配置文件会生成到 `<安装目录>\bin\taosanode-winsw.xml`。
+
+### Python 依赖安装流程补充
+
+- Windows 主运行环境依赖入口调整为 `requirements_windows_core.txt`。
+- TensorFlow CPU 依赖拆分到 `requirements_tensorflow.txt`，用于在线安装时按需追加。
+- 在线安装向导支持选择 pip 源：
+  - 官方 PyPI
+  - 清华源
+  - 阿里云源
+  - 自定义 URL
+- 默认仍然是官方 PyPI，不自动切换国内源。
+- 离线 Python 模式下不再单独询问 TensorFlow，因为离线包预期已经包含对应环境内容。
+
+### 模型安装流程补充
+
+- 安装向导中的模型准备方式调整为三种：
+  - 暂不安装模型
+  - 在线下载所选模型
+  - 导入离线模型包
+- 在线下载默认勾选的模型调整为：
+  - `Moirai Small`
+  - `MOMENT Base`
+- 在线模型下载支持：
+  - 官方 Hugging Face
+  - HF Mirror
+  - 自定义端点 URL
+- Windows 侧统一模型顺序调整为：
+  1. `tdtsfm`
+  2. `timemoe`
+  3. `moirai`
+  4. `chronos`
+  5. `timesfm`
+  6. `moment`
+- `TDtsfm v1.0` 当前仍然只能通过离线方式导入。
+- `start-model.bat all` / `model-start all` 调整为运行时按模型目录存在性判断，缺失目录直接跳过，不再作为硬错误处理。
+
+### 服务、完成页与日志补充
+
+- 安装向导加入“安装并注册 Taosanode Windows 服务”选项，默认勾选。
+- 完成页补充展示：
+  - `net start Taosanode`
+  - `net stop Taosanode`
+  - `start-taosanode.bat`
+  - `stop-taosanode.bat`
+  - `start-model.bat all`
+  - `stop-model.bat all`
+  - `status-model.bat`
+- 非静默安装完成后会自动打开 `<安装目录>\log\install.log`。
+- 安装日志统一写入 `<安装目录>\log\install.log`。
+- 卸载日志统一写入 `<安装目录>\log\uninstall.log`。
+- Python 服务管理日志统一写入 `<安装目录>\log\taosanode-service.log`。
+- WinSW wrapper 日志写入 `<安装目录>\log\taosanode-winsw.wrapper.log`。
+- taosanode 主进程输出写入 `<安装目录>\log\taosanode.app.log`。
+- 模型运行日志写入 `<安装目录>\log\model_<name>.log`。
+
+### 卸载策略补充
+
+- 标准卸载默认保留：
+  - `cfg`
+  - `data`
+  - `model`
+  - `venvs`
+  - `log`
+- 标准卸载默认删除：
+  - `bin`
+  - `lib`
+  - `resource`
+  - `requirements`
+  - 安装辅助脚本
+- `model` 目录默认保留，只有显式执行 `uninstall.py --remove-model` 才会删除。
+
+## 2026-03-19 补充说明
+
+### 离线导入页与导入逻辑调整
+
+- 离线模型导入页从“每个模型一个文件选择框”调整为“一个可选的离线总包输入框”。
+- 该离线总包用于一次性导入多个模型，不再要求用户逐个模型选择压缩包。
+- 额外离线包支持格式：
+  - `zip`
+  - `tar`
+  - `tar.gz`
+  - `tgz`
+- 安装器仍然会自动扫描并导入 `<安装目录>\model\` 下打包时自带的离线模型压缩包。
+- 如果用户额外选择了一个离线总包，安装脚本会导入该总包中识别出的全部模型内容。
+- 离线总包支持两种布局：
+  - 包内已经是各模型目录
+  - 包内再嵌套各模型 zip/tar 压缩包
+- 本次导入时，只会替换本次实际导入到的模型目录，不会无差别覆盖全部已有模型目录。
+
+### 截断问题修复说明
+
+- 之前离线说明文字被截断，原因是 Inno Setup 自定义文本控件使用了固定高度，超出部分不会自动展开。
+- 现在离线导入流程改为标准文件选择页，避免长说明文本因为固定高度被裁切。
+- 完成页说明区域也改成自动计算高度，降低长文本被截断的风险。
+
+### 脚本与运行时行为补充
+
+- `install.py` 新增可选参数 `--offline-model-package`。
+- `install.py` 会在安装摘要中记录所选离线总包路径。
+- `install.py` 继续以 `requirements_windows_core.txt` 作为 Windows 主环境依赖入口。
+- 在线安装时，仅为所选在线模型创建额外模型虚拟环境。
+- 离线导入模式下，不会在安装阶段额外创建模型专属虚拟环境。
+- `taosanode_service.py` 的 `start all` 汇总逻辑已调整为准确统计：
+  - 已启动模型
+  - 缺失目录而跳过的模型
+  - 启动失败的模型
+- `taosanode_service.py` 的 `stop all` 汇总逻辑已调整为准确统计：
+  - 本次真正停止的模型
+  - 原本就未运行的模型
+  - 停止失败的模型
+
+### 重新安装语义补充
+
+- `暂不安装模型`
+  - 保持现有模型目录不变。
+- `在线下载所选模型`
+  - 仅刷新本次选择的在线模型。
+  - 未选中的模型目录保持不变。
+- `导入离线模型包`
+  - 导入 `<安装目录>\model` 中自带的离线包。
+  - 如用户额外选择离线总包，也会导入该总包中识别出的模型。
+  - 只替换本次实际导入的模型目录。
+
+### 2026-03-19 完成的验证
+
+- 重新构建了社区版测试包：
+  - `python packaging/win_release.py -e community -v 3.4.0.11.0316 --skip-model-check`
+- 验证产物：
+  - `D:\tdgpt-e2e-20260319-r5\tdengine-tdgpt-oss-3.4.0.11.0316-Windows-x64.exe`
+- 已验证默认安装目录在线安装：
+  - `C:\TDengine\taosanode`
+- 已验证使用清华 pip 源在线安装依赖。
+- 已验证使用 `https://hf-mirror.com` 在线下载模型。
+- 已验证默认在线模型选择为：
+  - `moirai`
+  - `moment`
+- 已验证服务注册与控制：
+  - 安装服务
+  - `net start Taosanode`
+  - `net stop Taosanode`
+- 已验证 `start-model.bat all` 只启动存在模型目录的模型。
+- 已验证默认在线模型运行端口：
+  - `moirai` 监听 `127.0.0.1:6039`
+  - `moment` 监听 `127.0.0.1:6062`
+- 已验证 `stop-model.bat all` 在修复后可以输出准确的停止汇总信息。

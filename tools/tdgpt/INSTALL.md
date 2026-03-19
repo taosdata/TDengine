@@ -159,6 +159,31 @@ sudo systemctl disable taosanode
    - Select "Run as administrator"
    - Follow the installation wizard
 
+   The Windows installer wizard can now configure:
+   - Python package mode: online or offline
+   - Python package source: official PyPI, Tsinghua, Aliyun, or custom
+   - Optional TensorFlow CPU support in online mode
+   - Model installation source: skip, online download, or offline package import
+   - Model download endpoint: official Hugging Face, HF Mirror, or custom
+   - Windows service registration
+   - Model enablement order: TDtsfm v1.0, TimeMoE, Moirai, Chronos, TimesFM, MOMENT
+
+   Default wizard behavior:
+   - install Python packages online
+   - install TensorFlow CPU support
+   - do not install models yet
+   - register the Windows service
+
+   Model preparation details:
+   - Offline Python package mode does not ask about TensorFlow because the packaged offline runtime already includes it.
+   - Offline model import automatically scans `<install_dir>\model\` and imports every packaged model archive that is present.
+   - Offline mode also provides one optional offline model package input. That archive can contain all offline models together.
+   - Offline mode does not ask users to select models. The wizard shows one offline import page instead.
+   - `start-model.bat all` and `model-start all` check model directories at runtime. Models with existing directories are started automatically, and missing ones are skipped with a message.
+   - Online model installation creates only the selected model virtual environments.
+   - Offline model installation does not create extra model virtual environments during setup.
+   - Online default model selection is `Moirai Small` and `MOMENT Base`.
+
 2. **Or extract ZIP package manually**:
    - Extract to desired location (e.g., `C:\TDengine\taosanode`)
    - Open Command Prompt as Administrator

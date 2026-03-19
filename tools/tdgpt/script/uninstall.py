@@ -57,10 +57,10 @@ class WindowsUninstaller:
         self.log_dir = LOG_DIR
         self.venvs_dir = VENVS_DIR
         self.log_file = Path(log_file) if log_file else self.log_dir / "uninstall.log"
-        self.console_is_tty = bool(getattr(sys.stdout, "isatty", lambda: False)())
+        self.stdout_redirected_to_log = os.environ.get("TDGPT_LOG_REDIRECTED", "") == "1"
 
     def _append_file_log(self, level: str, message: str) -> None:
-        if not self.console_is_tty:
+        if self.stdout_redirected_to_log:
             return
 
         self.log_dir.mkdir(parents=True, exist_ok=True)
@@ -260,13 +260,13 @@ class WindowsUninstaller:
                 lines.append(f"  [OK] {name}")
         lines.append("=" * 72)
 
-        if self.console_is_tty:
+        if self.stdout_redirected_to_log:
+            for line in lines:
+                print(line)
+        else:
             self.log_dir.mkdir(parents=True, exist_ok=True)
             with self.log_file.open("a", encoding="utf-8") as file_obj:
                 file_obj.write("\n".join(lines) + "\n")
-        else:
-            for line in lines:
-                print(line)
 
     def run(self) -> bool:
         self.log_dir.mkdir(parents=True, exist_ok=True)

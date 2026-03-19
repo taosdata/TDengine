@@ -10,7 +10,7 @@ Commands:
     start               Start taosanode main service
     stop                Stop taosanode main service
     status              Show service status
-    model-start [name]  Start model service (name: tdtsfm, timemoe, chronos, moirai, moment, timesfm, all)
+    model-start [name]  Start model service (name: tdtsfm, timemoe, moirai, chronos, timesfm, moment, all)
     model-stop [name]   Stop model service
     model-status        Show model service status
     install             Install as system service (Windows: winsw, Linux: systemd)
@@ -52,6 +52,7 @@ DEFAULT_LOG_DIR = os.path.join(DEFAULT_INSTALL_DIR, "log")
 SERVICE_LOG_FILE = os.path.join(DEFAULT_LOG_DIR, "taosanode-service.log")
 WINSW_EXE_NAME = "taosanode-winsw.exe"
 _redirect_stream = None
+DEFAULT_MODEL_ORDER = ["tdtsfm", "timemoe", "moirai", "chronos", "timesfm", "moment"]
 
 # PID file paths
 PID_FILE = os.path.join(DEFAULT_INSTALL_DIR, "taosanode.pid")
@@ -170,6 +171,7 @@ class Config:
         self.chronos_venv = os.path.join(self.install_dir, "venvs", "chronos_venv")
         self.moment_venv = os.path.join(self.install_dir, "venvs", "momentfm_venv")
         self.models = self._get_default_models()
+        self.enabled_models = None
 
         if not os.path.exists(config_path):
             self.logger.warning(f"Config file not found: {config_path}")
@@ -236,6 +238,14 @@ class Config:
                 # Fallback to default models if not in config
                 self.models = self._get_default_models()
 
+            enabled_models_file = os.path.join(self.cfg_dir, "enabled_models.txt")
+            if os.path.exists(enabled_models_file):
+                with open(enabled_models_file, "r", encoding="utf-8") as fh:
+                    selected = [line.strip() for line in fh if line.strip()]
+                self.enabled_models = [name for name in DEFAULT_MODEL_ORDER if name in selected and name in self.models]
+            else:
+                self.enabled_models = None
+
         except Exception as e:
             self.logger.warning(f"Failed to load config: {e}")
             self.pid_file = PID_FILE
@@ -245,6 +255,7 @@ class Config:
             self.bind = "0.0.0.0:6035"
             self.workers = 2
             self.models = self._get_default_models()
+            self.enabled_models = None
 
     def _get_default_models(self) -> Dict:
         """Get default model configurations"""
@@ -261,15 +272,9 @@ class Config:
                 "port": 6037,
                 "required": True,
             },
-            "timesfm": {
-                "script": "timesfm-server.py",
-                "default_model": "google/timesfm-2.0-500m-pytorch",
-                "port": 0,
-                "required": False,
-            },
             "moirai": {
                 "script": "moirai-server.py",
-                "default_model": "Salesforce/moirai-moe-1.0-R-base",
+                "default_model": "Salesforce/moirai-moe-1.0-R-small",
                 "port": 0,
                 "required": False,
             },
@@ -279,9 +284,15 @@ class Config:
                 "port": 0,
                 "required": False,
             },
+            "timesfm": {
+                "script": "timesfm-server.py",
+                "default_model": "google/timesfm-2.0-500m-pytorch",
+                "port": 0,
+                "required": False,
+            },
             "moment": {
                 "script": "moment-server.py",
-                "default_model": "AutonLab/MOMENT-1-large",
+                "default_model": "AutonLab/MOMENT-1-base",
                 "port": 0,
                 "required": False,
             },
@@ -706,6 +717,9 @@ class ModelService:
         else:
             return self.config.venv_dir
 
+    def _ordered_model_names(self) -> List[str]:
+        return [name for name in DEFAULT_MODEL_ORDER if name in self.config.models]
+
     def _build_model_args(self, model_name: str) -> List[str]:
         """构建模型启动参数"""
         model_config = self.config.models.get(model_name)
@@ -738,14 +752,8 @@ class ModelService:
 
         model_dir = os.path.join(self.config.model_dir, model_name)
         if not os.path.exists(model_dir):
-            model_config = self.config.models[model_name]
-            is_required = model_config.get("required", False)
-            if is_required:
-                self.logger.error(f"Required model directory not found: {model_dir}")
-                return False
-            else:
-                self.logger.info(f"Skipping optional model {model_name} - directory not found: {model_dir}")
-                return True
+            self.logger.info(f"Skipping model {model_name} - directory not found: {model_dir}")
+            return True
 
         self.logger.info(f"Starting model service: {model_name}")
 
@@ -826,37 +834,32 @@ class ModelService:
             return False
 
     def _start_all(self) -> bool:
-        """Start all models concurrently"""
+        """Start all models concurrently and skip ones without model directories."""
         from concurrent.futures import ThreadPoolExecutor, as_completed
 
         self.logger.info("Starting all models...")
         results = {}
+        started_models = []
         failed_models = []
         skipped_models = []
 
-        # Use ThreadPoolExecutor for concurrent startup (max 3 workers)
         with ThreadPoolExecutor(max_workers=3) as executor:
-            # Submit all model startup tasks
             future_to_model = {
                 executor.submit(self.start, model_name): model_name
-                for model_name in self.config.models.keys()
+                for model_name in self._ordered_model_names()
             }
 
-            # Collect results as they complete
             for future in as_completed(future_to_model):
                 model_name = future_to_model[future]
                 try:
                     result = future.result()
                     results[model_name] = result
 
-                    # Check if model was skipped (optional model not found)
                     model_dir = os.path.join(self.config.model_dir, model_name)
                     if not os.path.exists(model_dir):
-                        model_config = self.config.models[model_name]
-                        if not model_config.get("required", False):
-                            skipped_models.append(model_name)
+                        skipped_models.append(model_name)
                     elif result:
-                        pass  # Successfully started
+                        started_models.append(model_name)
                     else:
                         failed_models.append(model_name)
                 except Exception as e:
@@ -864,10 +867,8 @@ class ModelService:
                     results[model_name] = False
                     failed_models.append(model_name)
 
-        # Log summary
-        started = sum(1 for v in results.values() if v)
+        started = len(started_models)
         total = len(results)
-
         summary_lines = [
             "=" * 50,
             "Model Startup Summary:",
@@ -882,10 +883,38 @@ class ModelService:
         summary_lines.append(f"✓ Started: {started}/{total - len(skipped_models)} models")
         summary_lines.append("=" * 50)
 
+        if started_models:
+            summary_lines.append(f"Started: {', '.join(started_models)}")
+        else:
+            summary_lines.append("Started: none")
+        if skipped_models:
+            summary_lines.append(f"Skipped (missing model directory): {', '.join(skipped_models)}")
+        if failed_models:
+            summary_lines.append(f"Failed: {', '.join(failed_models)}")
+        summary_lines.append(f"Started: {started}/{max(0, total - len(skipped_models))} models")
+        summary_lines.append("=" * 50)
+
+        summary_lines = [
+            "=" * 50,
+            "Model Startup Summary:",
+            "=" * 50,
+        ]
+        if started_models:
+            summary_lines.append(f"Started: {', '.join(started_models)}")
+        else:
+            summary_lines.append("Started: none")
+        if skipped_models:
+            summary_lines.append(f"Skipped (missing model directory): {', '.join(skipped_models)}")
+        if failed_models:
+            summary_lines.append(f"Failed: {', '.join(failed_models)}")
+        summary_lines.append(
+            f"Summary: {len(started_models)} started, {len(skipped_models)} skipped, {len(failed_models)} failed"
+        )
+        summary_lines.append("=" * 50)
+
         for line in summary_lines:
             self.logger.info(line)
 
-        # Return True only if no required models failed
         return len(failed_models) == 0
 
     def stop(self, model_name: str) -> bool:
@@ -927,13 +956,20 @@ class ModelService:
 
         self.logger.info("Stopping all models...")
         results = {}
+        running_before = {
+            model_name: self.process_mgr.is_running(f"model-{model_name}")
+            for model_name in self._ordered_model_names()
+        }
+        stopped_models = []
+        already_stopped_models = []
+        failed_models = []
 
         # Use ThreadPoolExecutor for concurrent shutdown
         with ThreadPoolExecutor(max_workers=3) as executor:
             # Submit all model stop tasks
             future_to_model = {
                 executor.submit(self.stop, model_name): model_name
-                for model_name in self.config.models.keys()
+                for model_name in self._ordered_model_names()
             }
 
             # Collect results as they complete
@@ -942,20 +978,43 @@ class ModelService:
                 try:
                     result = future.result()
                     results[model_name] = result
+                    if result:
+                        if running_before.get(model_name, False):
+                            stopped_models.append(model_name)
+                        else:
+                            already_stopped_models.append(model_name)
+                    else:
+                        failed_models.append(model_name)
                 except Exception as e:
                     self.logger.error(f"Error stopping model {model_name}: {e}")
                     results[model_name] = False
+                    failed_models.append(model_name)
 
-        # Log summary
-        success = sum(1 for v in results.values() if v)
-        total = len(results)
-        self.logger.info(f"Stopped {success}/{total} models")
+        summary_lines = [
+            "=" * 50,
+            "Model Stop Summary:",
+            "=" * 50,
+        ]
+        if stopped_models:
+            summary_lines.append(f"Stopped: {', '.join(stopped_models)}")
+        else:
+            summary_lines.append("Stopped: none")
+        if already_stopped_models:
+            summary_lines.append(f"Already stopped: {', '.join(already_stopped_models)}")
+        if failed_models:
+            summary_lines.append(f"Failed: {', '.join(failed_models)}")
+        summary_lines.append(
+            f"Summary: {len(stopped_models)} stopped, {len(already_stopped_models)} already stopped, {len(failed_models)} failed"
+        )
+        summary_lines.append("=" * 50)
+        for line in summary_lines:
+            self.logger.info(line)
         return all(results.values())
 
     def status(self) -> List[Dict]:
         """Get all model statuses"""
         statuses = []
-        for model_name in self.config.models.keys():
+        for model_name in self._ordered_model_names():
             service_name = f"model-{model_name}"
             is_running = self.process_mgr.is_running(service_name)
             pid = self.process_mgr.read_pid(service_name)

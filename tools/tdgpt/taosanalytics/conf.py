@@ -5,8 +5,15 @@ import importlib.util
 import logging
 import platform
 import os.path
-import torch  # noqa: F401 - Required for model loading
-import keras  # noqa: F401 - Required for model loading
+try:
+    import torch  # noqa: F401 - Optional runtime dependency
+except Exception:  # pragma: no cover
+    torch = None  # noqa: F841
+
+try:
+    import keras  # noqa: F401 - Optional runtime dependency
+except Exception:  # pragma: no cover
+    keras = None  # noqa: F841
 from pathlib import Path
 from typing import Optional
 
