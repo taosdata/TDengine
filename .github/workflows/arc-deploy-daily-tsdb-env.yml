@@ -1,9 +1,9 @@
 name: ARC::Deploy TSDB Dev
 
 on:
-  # schedule:
-  #   - cron: '0 22 * * *'
-  #   - cron: '0 0 * * *'
+  schedule:
+    - cron: '0 22 * * *'
+    - cron: '0 0 * * *'
   workflow_call:
     inputs:
       branch_name:
@@ -23,13 +23,16 @@ on:
           - main
           - "3.0"
 
+env:
+  K8S_NAMESPACE: tsdb-dev
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name }}-tsdb-dev-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   deploy:
-    runs-on: tdasset-deploy
+    runs-on: tsdb-deploy
     steps:
       - name: Resolve deployment parameters
         shell: bash
@@ -71,6 +74,8 @@ jobs:
           IMAGE_TAG="${VERSION_PREFIX}.${BUILD_DATE}"
           TSDB_IMAGE="192.168.1.42/tdasset/tsdb-ee:${IMAGE_TAG}"
           RELEASE_NAME="tsdb-${CLEAN_BRANCH}"
+          TSDB_HOST="${RELEASE_NAME}-tsdb-br.kube.tdengine.net"
+          TSDB_EXPLORER_URL="https://${TSDB_HOST}"
 
           echo "BRANCH_NAME=$BRANCH_NAME" >> "$GITHUB_ENV"
           echo "VERSION_PREFIX=$VERSION_PREFIX" >> "$GITHUB_ENV"
@@ -78,12 +83,16 @@ jobs:
           echo "IMAGE_TAG=$IMAGE_TAG" >> "$GITHUB_ENV"
           echo "TSDB_IMAGE=$TSDB_IMAGE" >> "$GITHUB_ENV"
           echo "RELEASE_NAME=$RELEASE_NAME" >> "$GITHUB_ENV"
+          echo "TSDB_HOST=$TSDB_HOST" >> "$GITHUB_ENV"
+          echo "TSDB_EXPLORER_URL=$TSDB_EXPLORER_URL" >> "$GITHUB_ENV"
 
           echo "Branch: $BRANCH_NAME"
           echo "Version prefix: $VERSION_PREFIX"
           echo "Build date: $BUILD_DATE"
           echo "TSDB image: $TSDB_IMAGE"
           echo "Release name: $RELEASE_NAME"
+          echo "TSDB host: $TSDB_HOST"
+          echo "TSDB Explorer URL: $TSDB_EXPLORER_URL"
 
       - name: Deploy tsdb dev
         shell: bash
@@ -91,18 +100,39 @@ jobs:
           set -euo pipefail
 
           cd /public/platform-group/helm/tsdb
-          /home/runner/k8stool/helm --namespace td-dev uninstall "$RELEASE_NAME" --kubeconfig /home/runner/k8stool/config || true
-          while kubectl --kubeconfig /home/runner/k8stool/config get pvc "taos-data-${RELEASE_NAME}" -n td-dev > /dev/null 2>&1; do
+          /home/runner/k8stool/helm --namespace "${K8S_NAMESPACE}" uninstall "$RELEASE_NAME" --kubeconfig /home/runner/k8stool/config || true
+          while kubectl --kubeconfig /home/runner/k8stool/config get pvc "taos-data-${RELEASE_NAME}" -n "${K8S_NAMESPACE}" > /dev/null 2>&1; do
             echo 'Waiting for pvc...'
             sleep 1
           done
 
           /home/runner/k8stool/helm upgrade --install \
-            --namespace td-dev \
+            --namespace "${K8S_NAMESPACE}" \
             --set name="$RELEASE_NAME" \
             --set tsdb_image="$TSDB_IMAGE" \
             "$RELEASE_NAME" ./ \
             --kubeconfig /home/runner/k8stool/config
+
+      - name: Wait for tsdb explorer ready
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          timeout_seconds=600
+          start_time=$(date +%s)
+
+          until curl -f -s --connect-timeout 2 "${TSDB_EXPLORER_URL}" > /dev/null; do
+            current_time=$(date +%s)
+            elapsed=$((current_time - start_time))
+            if [ "$elapsed" -ge "$timeout_seconds" ]; then
+              echo "Timed out after ${timeout_seconds}s waiting for TSDB Explorer at ${TSDB_EXPLORER_URL}"
+              exit 1
+            fi
+            echo "Waiting for TSDB Explorer at ${TSDB_EXPLORER_URL}"
+            sleep 5
+          done
+
+          echo "TSDB Explorer is reachable on ${TSDB_EXPLORER_URL}"
 
       - name: Send Feishu Message
         if: always()
@@ -133,6 +163,7 @@ jobs:
               f"Version: {os.environ['VERSION_PREFIX']}",
               f"Image: {os.environ['TSDB_IMAGE']}",
               f"Release: {os.environ['RELEASE_NAME']}",
+              f"Explorer: {os.environ['TSDB_EXPLORER_URL']}",
               f"Workflow: {os.environ['RUN_URL']}",
           ])
 
