@@ -1,9 +1,9 @@
 name: ARC::Deploy TSDB Dev
 
 on:
-  # schedule:
-  #   - cron: '0 22 * * *'
-  #   - cron: '0 0 * * *'
+  schedule:
+    - cron: '0 22 * * *'
+    - cron: '0 0 * * *'
   workflow_call:
     inputs:
       branch_name:
