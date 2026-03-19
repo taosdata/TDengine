@@ -58,7 +58,6 @@ typedef enum EDatabaseOptionType {
   DB_OPTION_BUFFER = 1,
   DB_OPTION_CACHEMODEL,
   DB_OPTION_CACHESIZE,
-  DB_OPTION_CACHESHARDBITS,
   DB_OPTION_COMP,
   DB_OPTION_DAYS,
   DB_OPTION_FSYNC,
@@ -95,6 +94,7 @@ typedef enum EDatabaseOptionType {
   DB_OPTION_IS_AUDIT,
   DB_OPTION_ALLOW_DROP,
   DB_OPTION_SECURE_DELETE,
+  DB_OPTION_CACHESHARDBITS,
 } EDatabaseOptionType;
 
 typedef enum ETableOptionType {
