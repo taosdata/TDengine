@@ -1081,15 +1081,36 @@ def main():
         f"written={total_written:,}  received={total_recv:,}  diff={total_written - total_recv:,}",
     )
 
+    _RPC_SIG_MISMATCH_MSG = f"[0x0141/0x0140] client {from_ver} incompatible with server {to_ver}"
+
+    def _is_sig_error(e):
+        s = str(e)
+        return (
+            "0x0141" in s or "0x80000141" in s or "Invalid signature" in s or
+            "0x0140" in s or "0x80000140" in s or "Edition not compatible" in s
+        )
+
+    def _safe_verify(label, fn, *args, **kwargs):
+        """Call fn(*args) and _chk the result; catch [0x0141] as a compat failure."""
+        try:
+            ok, msg = fn(*args, **kwargs)
+            _chk(label, ok, msg)
+        except Exception as _e:
+            if _is_sig_error(_e):
+                _chk("RPC backward compatibility", False, _RPC_SIG_MISMATCH_MSG)
+            else:
+                raise
+
     # ------ test_user privilege verification ------
     uv = UserVerifier(fqdn=fqdn, cfg_dir=cfg_dir)
-    auth_ok,  auth_msg  = uv.verify_auth()
-    _chk(f"test_user authentication after upgrade", auth_ok, auth_msg)
-    # priv_before may be unset if Phase 2 failed early; guard with locals()
+    auth_ok, auth_msg = uv.verify_auth()
+    if not auth_ok and _is_sig_error(Exception(auth_msg)):
+        auth_msg = _RPC_SIG_MISMATCH_MSG
+    _chk("test_user authentication after upgrade", auth_ok, auth_msg)
+
     _priv_before = locals().get("priv_before", None)
     if _priv_before is not None:
-        priv_ok, priv_msg = uv.verify_privileges(_priv_before)
-        _chk("test_user privileges unchanged ", priv_ok, priv_msg)
+        _safe_verify("test_user privileges unchanged", uv.verify_privileges, _priv_before)
     else:
         _chk("test_user privileges unchanged ", False,
              "baseline snapshot not captured (Phase 2 error)")
@@ -1097,8 +1118,7 @@ def main():
     # ------ tag index verification ------
     _idx_before = locals().get("idx_before", None)
     if _idx_before is not None:
-        idx_ok, idx_msg = rm.verify_tag_indexes(_idx_before)
-        _chk("Tag indexes preserved after upgrade", idx_ok, idx_msg)
+        _safe_verify("Tag indexes preserved after upgrade", rm.verify_tag_indexes, _idx_before)
     else:
         _chk("Tag indexes preserved after upgrade", False,
              "baseline snapshot not captured (Phase 2 error)")
@@ -1107,8 +1127,7 @@ def main():
     if tsma_supported:
         _tsma_before = locals().get("tsma_before", None)
         if _tsma_before is not None:
-            tsma_ok, tsma_msg = rm.verify_tsma(_tsma_before)
-            _chk("TSMA preserved after upgrade", tsma_ok, tsma_msg)
+            _safe_verify("TSMA preserved after upgrade", rm.verify_tsma, _tsma_before)
         else:
             _chk("TSMA preserved after upgrade", False,
                  "baseline snapshot not captured (Phase 2 error)")
@@ -1119,8 +1138,7 @@ def main():
     if rsma_supported:
         _rsma_before = locals().get("rsma_before", None)
         if _rsma_before is not None:
-            rsma_ok, rsma_msg = rm.verify_rsma(_rsma_before)
-            _chk("RSMA preserved after upgrade", rsma_ok, rsma_msg)
+            _safe_verify("RSMA preserved after upgrade", rm.verify_rsma, _rsma_before)
         else:
             _chk("RSMA preserved after upgrade", False,
                  "baseline snapshot not captured (Phase 2 error)")
@@ -1131,8 +1149,7 @@ def main():
     if stream_supported:
         _stream_before = locals().get("stream_before", None)
         if _stream_before is not None:
-            stream_ok, stream_msg = rm.verify_stream(_stream_before)
-            _chk("Stream preserved after upgrade", stream_ok, stream_msg)
+            _safe_verify("Stream preserved after upgrade", rm.verify_stream, _stream_before)
         else:
             _chk("Stream preserved after upgrade", False,
                  "baseline snapshot not captured (Phase 2 error)")
