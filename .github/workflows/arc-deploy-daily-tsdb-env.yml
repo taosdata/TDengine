@@ -24,10 +24,10 @@ on:
           - "3.0"
 
 env:
-  K8S_NAMESPACE: ${{ vars.K8S_NAMESPACE }}
+  K8S_NAMESPACE: tsdb-dev
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name }}-${{ vars.K8S_NAMESPACE }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event_name }}-tsdb-dev-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
