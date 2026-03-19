@@ -99,11 +99,6 @@ int32_t tqOpen(const char* path, SVnode* pVnode) {
 
   taosInitRWLatch(&pTq->lock);
 
-  pTq->pPushMgr = taosHashInit(64, MurmurHash3_32, false, HASH_NO_LOCK);
-  if (pTq->pPushMgr == NULL) {
-    return terrno;
-  }
-
   pTq->pCheckInfo = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
   if (pTq->pCheckInfo == NULL) {
     return terrno;
@@ -138,20 +133,7 @@ void tqClose(STQ* pTq) {
     vgId = TD_VID(pTq->pVnode);
   }
 
-  void* pIter = taosHashIterate(pTq->pPushMgr, NULL);
-  while (pIter) {
-    STqHandle* pHandle = *(STqHandle**)pIter;
-    if (pHandle->msg != NULL) {
-      tqPushEmptyDataRsp(pHandle, vgId);
-      rpcFreeCont(pHandle->msg->pCont);
-      taosMemoryFree(pHandle->msg);
-      pHandle->msg = NULL;
-    }
-    pIter = taosHashIterate(pTq->pPushMgr, pIter);
-  }
-
   taosHashCleanup(pTq->pHandle);
-  taosHashCleanup(pTq->pPushMgr);
   taosHashCleanup(pTq->pCheckInfo);
   taosHashCleanup(pTq->pOffset);
   taosMemoryFree(pTq->path);
@@ -303,7 +285,7 @@ int32_t tqProcessSeekReq(STQ* pTq, SRpcMsg* pMsg) {
 
   // if consumer register to push manager, push empty to consumer to change vg status from TMQ_VG_STATUS__WAIT to
   // TMQ_VG_STATUS__IDLE, otherwise poll data failed after seek.
-  tqUnregisterPushHandle(pTq, pHandle);
+  // tqUnregisterPushHandle(pTq, pHandle);
   taosWUnLockLatch(&pTq->lock);
 
 end:
@@ -342,44 +324,6 @@ int32_t tqCheckColModifiable(STQ* pTq, int64_t tbUid, int32_t colId) {
     }
   }
 
-  return 0;
-}
-
-int32_t tqProcessPollPush(STQ* pTq) {
-  if (pTq == NULL) {
-    return TSDB_CODE_INVALID_PARA;
-  }
-  int32_t vgId = TD_VID(pTq->pVnode);
-  taosWLockLatch(&pTq->lock);
-  if (taosHashGetSize(pTq->pPushMgr) > 0) {
-    void* pIter = taosHashIterate(pTq->pPushMgr, NULL);
-
-    while (pIter) {
-      STqHandle* pHandle = *(STqHandle**)pIter;
-      tqDebug("vgId:%d start set submit for pHandle:%p, consumer:0x%" PRIx64, vgId, pHandle, pHandle->consumerId);
-
-      if (pHandle->msg == NULL) {
-        tqError("pHandle->msg should not be null");
-        taosHashCancelIterate(pTq->pPushMgr, pIter);
-        break;
-      } else {
-        SRpcMsg msg = {.msgType = TDMT_VND_TMQ_CONSUME,
-                       .pCont = pHandle->msg->pCont,
-                       .contLen = pHandle->msg->contLen,
-                       .info = pHandle->msg->info};
-        if (tmsgPutToQueue(&pTq->pVnode->msgCb, QUERY_QUEUE, &msg) != 0){
-          tqError("vgId:%d tmsgPutToQueue failed, consumer:0x%" PRIx64, vgId, pHandle->consumerId);
-        }
-        taosMemoryFree(pHandle->msg);
-        pHandle->msg = NULL;
-      }
-
-      pIter = taosHashIterate(pTq->pPushMgr, pIter);
-    }
-
-    taosHashClear(pTq->pPushMgr);
-  }
-  taosWUnLockLatch(&pTq->lock);
   return 0;
 }
 
@@ -628,7 +572,7 @@ int32_t tqProcessDeleteSubReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
         taosMsleep(10);
         continue;
       }
-      tqUnregisterPushHandle(pTq, pHandle);
+      // tqUnregisterPushHandle(pTq, pHandle);
       code = taosHashRemove(pTq->pHandle, pReq->subKey, strlen(pReq->subKey));
       if (code != 0) {
         tqError("cannot process tq delete req %s, since no such handle", pReq->subKey);
@@ -751,7 +695,7 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
 
         atomic_store_64(&pHandle->consumerId, req.newConsumerId);
         atomic_store_32(&pHandle->epoch, 0);
-        tqUnregisterPushHandle(pTq, pHandle);
+        // tqUnregisterPushHandle(pTq, pHandle);
         ret = tqMetaSaveHandle(pTq, req.subKey, pHandle);
       }
       taosWUnLockLatch(&pTq->lock);
