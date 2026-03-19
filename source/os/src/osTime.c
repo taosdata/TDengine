@@ -25,19 +25,9 @@
 #define _DEFAULT_SOURCE
 
 #include "os.h"
+#include "osInt.h"
 
 #ifdef WINDOWS
-// Windows timezone object structure (must match definition in osTimezone.c)
-typedef struct WindowsTimezoneObj {
-  // UTC offset in seconds, using POSIX `timezone` convention: east-negative, west-positive.
-  // Examples: UTC+8 (East 8) = -28800, UTC-8 (West 8) = +28800.
-  // Use taosGetTZOffsetSeconds() to obtain the east-positive (tm_gmtoff) equivalent.
-  int64_t offset_seconds;
-  char    name[TD_TIMEZONE_LEN];
-  int32_t refCount;            // Reference count
-  TdThreadMutex mutex;         // Protect concurrent access
-} WindowsTimezoneObj;
-
 // Declare timezone variable for Windows (not available in Windows CRT)
 long timezone = 0;
 #endif

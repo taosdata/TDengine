@@ -969,8 +969,6 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
       }
     } else {
       int64_t delta = ts - pInterval->interval;
-      int32_t factor = (delta >= 0) ? 1 : -1;
-
       start = (delta / pInterval->sliding) * pInterval->sliding;
 
       if (pInterval->intervalUnit == 'd' || pInterval->intervalUnit == 'w') {

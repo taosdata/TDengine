@@ -16,6 +16,7 @@
 #define ALLOW_FORBID_FUNC
 #define _DEFAULT_SOURCE
 #include "os.h"
+#include "osInt.h"
 
 #ifdef WINDOWS
 #if (_WIN64)
@@ -762,16 +763,6 @@ static uint32_t  g_tz_idx = 0;
 
 // Windows timezone object structure (heap-allocated, supports multiple timezones)
 #ifdef WINDOWS
-typedef struct WindowsTimezoneObj {
-  // UTC offset in seconds, using POSIX `timezone` convention: east-negative, west-positive.
-  // Examples: UTC+8 (East 8) = -28800, UTC-8 (West 8) = +28800.
-  // This matches what user_mktime64() and taosLocalTime() expect internally.
-  // External callers that need east-positive (tm_gmtoff) should use taosGetTZOffsetSeconds().
-  int64_t offset_seconds;
-  char    name[TD_TIMEZONE_LEN];
-  int32_t refCount;            // Reference count
-  TdThreadMutex mutex;         // Protect concurrent access
-} WindowsTimezoneObj;
 
 // Parse offset string (e.g., "+08:00" or "-05:00")
 static int32_t parseOffsetString(const char* offset_str, int64_t* offset_seconds, char* display_name, int32_t name_len) {
@@ -785,12 +776,18 @@ static int32_t parseOffsetString(const char* offset_str, int64_t* offset_seconds
   }
 
   int hours = 0, minutes = 0;
-  if (sscanf(offset_str + 1, "%d:%d", &hours, &minutes) < 1) {
+  if (sscanf(offset_str + 1, "%d:%d", &hours, &minutes) != 2) {
     return TSDB_CODE_INVALID_PARA;
   }
 
-  int64_t offset = (hours * 3600 + minutes * 60);
-  *offset_seconds = (sign == '+') ? offset : -offset;
+   // Validate bounds: hours 0–23, minutes 0–59
+   if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+     return TSDB_CODE_INVALID_PARA;
+   }
+   
+   int64_t offset = (int64_t)hours * 3600 + (int64_t)minutes * 60;
+
+   *offset_seconds = (sign == '+') ? offset : -offset;
 
   if (display_name != NULL) {
     snprintf(display_name, name_len, "UTC%c%02d:%02d (UTC, %c%02d%02d)",
@@ -927,20 +924,6 @@ void tzfree(timezone_t tz) {
     taosMemoryFree(tz_obj);
     uDebug("tzfree: timezone object freed");
   }
-}
-
-// Get offset from timezone object (helper function)
-static int64_t getTimezoneOffset(timezone_t tz) {
-  if (tz == NULL) {
-    return 0;
-  }
-
-  WindowsTimezoneObj* tz_obj = (WindowsTimezoneObj*)tz;
-  taosThreadMutexLock(&tz_obj->mutex);
-  int64_t offset = tz_obj->offset_seconds;
-  taosThreadMutexUnlock(&tz_obj->mutex);
-
-  return offset;
 }
 
 // Access function to ensure reading from the correct location
@@ -1113,7 +1096,11 @@ int32_t taosSetGlobalTimezone(const char *tz) {
     // Set process-level environment variable (visible across DLLs)
     if (!SetEnvironmentVariableA("TZ", winStr)) {
       uError("Failed to set TZ environment variable: %d", GetLastError());
+      return TSDB_CODE_INTERNAL_ERROR;
     }
+  } else {
+    uError("invalid timezone value:%s", tz);
+    return TSDB_CODE_INVALID_CFG;
   }
 
   // Still call _tzset() to update CRT timezone info
@@ -1331,6 +1318,7 @@ int32_t initTimezoneInfo(void) {
   // If TZ was already set during config loading (cfgSetTimezone ->
   // taosSetGlobalTimezone), keep it and do not overwrite with system timezone.
   char  tzEnv[TD_TIMEZONE_LEN * 2] = {0};
+  int32_t code = 0;
   DWORD envLen = GetEnvironmentVariableA("TZ", tzEnv, sizeof(tzEnv));
   if (envLen > 0 && envLen < sizeof(tzEnv) && tzEnv[0] != '\0') {
     uInfo("[tz] Windows timezone already configured via TZ=%s", tzEnv);
@@ -1364,23 +1352,21 @@ int32_t initTimezoneInfo(void) {
     
     // minute_offset is in POSIX timezone convention (east-negative, west-positive).
     // For TZ env var, use the same convention: e.g., "-8:00" for UTC+8 (East 8).
-    int32_t offset_hours = minute_offset / 60;
-    int32_t offset_mins = minute_offset % 60;
-    if (offset_mins < 0) offset_mins = -offset_mins;
+     // Derive sign from the full minute_offset to handle sub-hour offsets correctly.
+     char sign = (minute_offset <= 0) ? '+' : '-';
+     LONG abs_minutes = (minute_offset < 0) ? -minute_offset : minute_offset;
+     int32_t offset_hours = (int32_t)(abs_minutes / 60);
+     int32_t offset_mins = (int32_t)(abs_minutes % 60);
     
     char winStr[64] = {0};
-    if (offset_hours >= 0) {
-      snprintf(winStr, sizeof(winStr), "+%d:%02d", offset_hours, offset_mins);
-    } else {
-      snprintf(winStr, sizeof(winStr), "%d:%02d", offset_hours, offset_mins);
-    }
+    snprintf(winStr, sizeof(winStr), "%c%d:%02d", sign, offset_hours, offset_mins);
     
-        uInfo("[tz] About to set TZ env var: minutes=%ld, hours=%d, mins=%d, result: TZ=%s",
-          minute_offset, offset_hours, offset_mins, winStr);
+    uInfo("[tz] About to set TZ env var: minutes=%ld, hours=%d, mins=%d, result: TZ=%s",
+      minute_offset, offset_hours, offset_mins, winStr);
     
     if (!SetEnvironmentVariableA("TZ", winStr)) {
       uError("[tz] Failed to set TZ environment variable from system timezone: %d", GetLastError());
-      taosSetGlobalTimezone("UTC");
+      code = taosSetGlobalTimezone("UTC");
     } else {
       _tzset();
       uInfo("[tz] Windows timezone initialized from system: TZ=%s", winStr);
@@ -1397,10 +1383,10 @@ int32_t initTimezoneInfo(void) {
   } else {
     // Fallback: default to UTC if GetTimeZoneInformation fails
     uWarn("[tz] GetTimeZoneInformation failed, defaulting to UTC");
-    taosSetGlobalTimezone("UTC");
+    code = taosSetGlobalTimezone("UTC");
   }
 
-  return TSDB_CODE_SUCCESS;
+  return code;
 #else
   uint64_t gen = atomic_val_compare_exchange_64((int64_t *)&g_tz_gen, 0, 1);
   if (gen > 0) return TSDB_CODE_SUCCESS;

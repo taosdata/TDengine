@@ -588,7 +588,7 @@ TEST(timeTest, char2ts) {
   int32_t code = 0;
   if (taosGetLocalTimezoneOffset(&code) != TdEastZone8) GTEST_SKIP();
   int64_t ts;
-  int32_t code =
+  code =
       TEST_char2ts("YYYY-DD-MM HH12:MI:SS:MSPM", &ts, TSDB_TIME_PRECISION_MILLI, "2023-10-10 12:00:00.000AM");
   ASSERT_EQ(code, 0);
   ASSERT_EQ(ts, 1696867200000LL);
@@ -687,7 +687,6 @@ TEST(timeTest, char2ts) {
 
   // default to 1970-1-1 00:00:00+08 -> 1969-12-31 16:00:00+00
   ASSERT_EQ(0, TEST_char2ts("YYYY", &ts, TSDB_TIME_PRECISION_SECONDS, "1970"));
-  int32_t code = 0;
   ASSERT_EQ(ts, -1 * taosGetLocalTimezoneOffset(&code));
 
   ASSERT_EQ(0, TEST_char2ts("yyyyMM1/dd ", &ts, TSDB_TIME_PRECISION_MICRO, "210001/2"));
