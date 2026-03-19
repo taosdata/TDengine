@@ -1333,8 +1333,8 @@ int32_t initTimezoneInfo(void) {
   TIME_ZONE_INFORMATION tzi = {0};
   DWORD tzType = GetTimeZoneInformation(&tzi);
   
-  printf("[tz] GetTimeZoneInformation: tzType=%u, Bias=%ld, StandardBias=%ld, DaylightBias=%ld\n",
-         tzType, tzi.Bias, tzi.StandardBias, tzi.DaylightBias);
+    uInfo("[tz] GetTimeZoneInformation: tzType=%u, Bias=%ld, StandardBias=%ld, DaylightBias=%ld",
+      tzType, tzi.Bias, tzi.StandardBias, tzi.DaylightBias);
   
   if (tzType != TIME_ZONE_ID_INVALID) {
     // Windows rule: effective bias = Bias + StandardBias/DaylightBias.
@@ -1343,14 +1343,14 @@ int32_t initTimezoneInfo(void) {
     LONG minute_offset = tzi.Bias;
     if (tzType == TIME_ZONE_ID_DAYLIGHT) {
       minute_offset += tzi.DaylightBias;
-      printf("[tz] Applying daylight bias: base=%ld, daylight=%ld, effective=%ld\n",
-             tzi.Bias, tzi.DaylightBias, minute_offset);
+      uInfo("[tz] Applying daylight bias: base=%ld, daylight=%ld, effective=%ld",
+            tzi.Bias, tzi.DaylightBias, minute_offset);
     } else if (tzType == TIME_ZONE_ID_STANDARD) {
       minute_offset += tzi.StandardBias;
-      printf("[tz] Applying standard bias: base=%ld, standard=%ld, effective=%ld\n",
-             tzi.Bias, tzi.StandardBias, minute_offset);
+      uInfo("[tz] Applying standard bias: base=%ld, standard=%ld, effective=%ld",
+            tzi.Bias, tzi.StandardBias, minute_offset);
     } else {
-      printf("[tz] Time zone has no DST mode, effective bias=%ld\n", minute_offset);
+      uInfo("[tz] Time zone has no DST mode, effective bias=%ld", minute_offset);
     }
     
     // minute_offset is in POSIX timezone convention (east-negative, west-positive).
@@ -1366,7 +1366,7 @@ int32_t initTimezoneInfo(void) {
       snprintf(winStr, sizeof(winStr), "%d:%02d", offset_hours, offset_mins);
     }
     
-    printf("[tz] About to set TZ env var: minutes=%ld, hours=%d, mins=%d, result: TZ=%s\n", 
+        uInfo("[tz] About to set TZ env var: minutes=%ld, hours=%d, mins=%d, result: TZ=%s",
           minute_offset, offset_hours, offset_mins, winStr);
     
     if (!SetEnvironmentVariableA("TZ", winStr)) {
@@ -1374,7 +1374,7 @@ int32_t initTimezoneInfo(void) {
       taosSetGlobalTimezone("UTC");
     } else {
       _tzset();
-      printf("[tz] Windows timezone initialized from system: TZ=%s\n", winStr);
+      uInfo("[tz] Windows timezone initialized from system: TZ=%s", winStr);
       // Also update tsTimezoneStr for consistency
       LONG utc_offset_minutes = -minute_offset;  // Flip to UTC direction for display
       int32_t utc_hours = utc_offset_minutes / 60;
