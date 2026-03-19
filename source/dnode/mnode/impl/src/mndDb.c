@@ -282,14 +282,9 @@ static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.compactEndTime, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.compactInterval, _OVER)
   SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.isAudit, _OVER)
-  if (dataPos + sizeof(int8_t) <= pRaw->dataLen) {
-    SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.secureDelete, _OVER)
-  }
-  if (dataPos + sizeof(int32_t) <= pRaw->dataLen) {
+  SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.secureDelete, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.cacheLastShardBits, _OVER)
-  } else {
-    pDb->cfg.cacheLastShardBits = -1;
-  }
+
   SDB_GET_RESERVE(pRaw, dataPos, DB_RESERVE_SIZE, _OVER)
   if (dataPos + sizeof(uint8_t) <= pRaw->dataLen) {
     SDB_GET_UINT8(pRaw, dataPos, &pDb->cfg.flags, _OVER)

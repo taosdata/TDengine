@@ -9385,11 +9385,6 @@ int32_t tDeserializeSDbCfgRspImpl(SDecoder *decoder, SDbCfgRsp *pRsp) {
     pRsp->compactEndTime = TSDB_DEFAULT_COMPACT_END_TIME;
     pRsp->compactTimeOffset = TSDB_DEFAULT_COMPACT_TIME_OFFSET;
   }
-  if (!tDecodeIsEnd(decoder)) {
-    TAOS_CHECK_RETURN(tDecodeI32(decoder, &pRsp->cacheShardBits));
-  } else {
-    pRsp->cacheShardBits = -1;
-  }
 
   if (!tDecodeIsEnd(decoder)) {
     TAOS_CHECK_RETURN(tDecodeU8(decoder, &pRsp->flags));
@@ -9410,6 +9405,12 @@ int32_t tDeserializeSDbCfgRspImpl(SDecoder *decoder, SDbCfgRsp *pRsp) {
     TAOS_CHECK_RETURN(tDecodeI8(decoder, &pRsp->secureDelete));
   } else {
     pRsp->secureDelete = TSDB_DEFAULT_DB_SECURE_DELETE;
+  }
+
+  if (!tDecodeIsEnd(decoder)) {
+    TAOS_CHECK_RETURN(tDecodeI32(decoder, &pRsp->cacheShardBits));
+  } else {
+    pRsp->cacheShardBits = -1;
   }
 
   return 0;
