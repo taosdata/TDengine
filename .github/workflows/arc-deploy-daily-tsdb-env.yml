@@ -23,8 +23,11 @@ on:
           - main
           - "3.0"
 
+env:
+  K8S_NAMESPACE: tsdb-dev
+
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name }}-tsdb-dev-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ env.K8S_NAMESPACE }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -97,14 +100,14 @@ jobs:
           set -euo pipefail
 
           cd /public/platform-group/helm/tsdb
-          /home/runner/k8stool/helm --namespace td-dev uninstall "$RELEASE_NAME" --kubeconfig /home/runner/k8stool/config || true
-          while kubectl --kubeconfig /home/runner/k8stool/config get pvc "taos-data-${RELEASE_NAME}" -n td-dev > /dev/null 2>&1; do
+          /home/runner/k8stool/helm --namespace "${K8S_NAMESPACE}" uninstall "$RELEASE_NAME" --kubeconfig /home/runner/k8stool/config || true
+          while kubectl --kubeconfig /home/runner/k8stool/config get pvc "taos-data-${RELEASE_NAME}" -n "${K8S_NAMESPACE}" > /dev/null 2>&1; do
             echo 'Waiting for pvc...'
             sleep 1
           done
 
           /home/runner/k8stool/helm upgrade --install \
-            --namespace td-dev \
+            --namespace "${K8S_NAMESPACE}" \
             --set name="$RELEASE_NAME" \
             --set tsdb_image="$TSDB_IMAGE" \
             "$RELEASE_NAME" ./ \
