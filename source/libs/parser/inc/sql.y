@@ -877,6 +877,11 @@ db_options(A) ::= db_options(B) BUFFER NK_INTEGER(C).                           
 db_options(A) ::= db_options(B) CACHEMODEL NK_STRING(C).                          { A = setDatabaseOption(pCxt, B, DB_OPTION_CACHEMODEL, &C); }
 db_options(A) ::= db_options(B) CACHESIZE NK_INTEGER(C).                          { A = setDatabaseOption(pCxt, B, DB_OPTION_CACHESIZE, &C); }
 db_options(A) ::= db_options(B) CACHESHARDBITS NK_INTEGER(C).                     { A = setDatabaseOption(pCxt, B, DB_OPTION_CACHESHARDBITS, &C); }
+db_options(A) ::= db_options(B) CACHESHARDBITS NK_MINUS(D) NK_INTEGER(C).         {
+                                                                                    SToken t = D;
+                                                                                    t.n = (C.z + C.n) - D.z;
+                                                                                    A = setDatabaseOption(pCxt, B, DB_OPTION_CACHESHARDBITS, &t);
+                                                                                  }
 db_options(A) ::= db_options(B) COMP NK_INTEGER(C).                               { A = setDatabaseOption(pCxt, B, DB_OPTION_COMP, &C); }
 db_options(A) ::= db_options(B) DURATION NK_INTEGER(C).                           { A = setDatabaseOption(pCxt, B, DB_OPTION_DAYS, &C); }
 db_options(A) ::= db_options(B) DURATION NK_VARIABLE(C).                          { A = setDatabaseOption(pCxt, B, DB_OPTION_DAYS, &C); }
@@ -940,6 +945,11 @@ alter_db_option(A) ::= BUFFER NK_INTEGER(B).                                    
 alter_db_option(A) ::= CACHEMODEL NK_STRING(B).                                   { A.type = DB_OPTION_CACHEMODEL; A.val = B; }
 alter_db_option(A) ::= CACHESIZE NK_INTEGER(B).                                   { A.type = DB_OPTION_CACHESIZE; A.val = B; }
 alter_db_option(A) ::= CACHESHARDBITS NK_INTEGER(B).                               { A.type = DB_OPTION_CACHESHARDBITS; A.val = B; }
+alter_db_option(A) ::= CACHESHARDBITS NK_MINUS(B) NK_INTEGER(C).                  {
+                                                                                    SToken t = B;
+                                                                                    t.n = (C.z + C.n) - B.z;
+                                                                                    A.type = DB_OPTION_CACHESHARDBITS; A.val = t;
+                                                                                  }
 alter_db_option(A) ::= WAL_FSYNC_PERIOD NK_INTEGER(B).                            { A.type = DB_OPTION_FSYNC; A.val = B; }
 alter_db_option(A) ::= KEEP integer_list(B).                                      { A.type = DB_OPTION_KEEP; A.pList = B; }
 alter_db_option(A) ::= KEEP variable_list(B).                                     { A.type = DB_OPTION_KEEP; A.pList = B; }

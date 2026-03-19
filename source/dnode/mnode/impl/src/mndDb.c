@@ -49,7 +49,7 @@
 #define DB_VER_SUPPORT_ADVANCED_SECURITY 2
 #define DB_VER_NUMBER                    DB_VER_SUPPORT_ADVANCED_SECURITY
 
-#define DB_RESERVE_SIZE 9
+#define DB_RESERVE_SIZE 8
 
 static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw);
 static int32_t  mndDbActionInsert(SSdb *pSdb, SDbObj *pDb);
