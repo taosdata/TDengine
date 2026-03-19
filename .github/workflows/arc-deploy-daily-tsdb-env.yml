@@ -75,7 +75,7 @@ jobs:
           TSDB_IMAGE="192.168.1.42/tdasset/tsdb-ee:${IMAGE_TAG}"
           RELEASE_NAME="tsdb-${CLEAN_BRANCH}"
           TSDB_HOST="${RELEASE_NAME}-tsdb-br.kube.tdengine.net"
-          TSDB_EXPLORER_URL="http://${TSDB_HOST}:6060"
+          TSDB_EXPLORER_URL="https://${TSDB_HOST}"
 
           echo "BRANCH_NAME=$BRANCH_NAME" >> "$GITHUB_ENV"
           echo "VERSION_PREFIX=$VERSION_PREFIX" >> "$GITHUB_ENV"
