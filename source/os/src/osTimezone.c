@@ -1310,29 +1310,55 @@ int32_t initTimezoneInfo(void) {
     return TSDB_CODE_SUCCESS;
   }
 
-  // TZ is not configured yet: initialize from system timezone.
-  char tzStr[TD_TIMEZONE_LEN] = {0};
-  int32_t code = taosGetSystemTimezone(tzStr);
-
-  if (code == 0 && tzStr[0] != '\0') {
-    // Extract timezone name (remove UTC offset part)
-    char *spacePos = strchr(tzStr, ' ');
-    if (spacePos != NULL) {
-      *spacePos = '\0';
+  // TZ is not configured yet: initialize from system timezone using GetTimeZoneInformation.
+  // This avoids complex registry lookups and is more reliable.
+  TIME_ZONE_INFORMATION tzi = {0};
+  DWORD tzType = GetTimeZoneInformation(&tzi);
+  
+  if (tzType != TIME_ZONE_ID_INVALID) {
+    // Determine the offset: use StandardBias or DaylightBias.
+    // StandardBias/DaylightBias are in minutes with POSIX convention:
+    //   UTC+8 (East)  -> StandardBias = -480  (minutes west of UTC)
+    //   UTC-8 (West)  -> StandardBias = +480
+    // Convert to TZ env format expected by getWindowsTimezoneOffset(): "<sign><hours>:<minutes>"
+    LONG minute_offset = tzi.StandardBias;
+    if (tzType == TIME_ZONE_ID_DAYLIGHT && tzi.DaylightBias != 0) {
+      minute_offset = tzi.DaylightBias;
     }
-
-    // Set the timezone via taosSetGlobalTimezone which will set TZ env var
-    code = taosSetGlobalTimezone(tzStr);
-    if (code != TSDB_CODE_SUCCESS) {
-      uWarn("[tz] Failed to set system timezone %s, using UTC", tzStr);
+    
+    // minute_offset is in POSIX timezone convention (east-negative, west-positive).
+    // For TZ env var, use the same convention: e.g., "-8:00" for UTC+8 (East 8).
+    int32_t offset_hours = minute_offset / 60;
+    int32_t offset_mins = minute_offset % 60;
+    if (offset_mins < 0) offset_mins = -offset_mins;
+    
+    char winStr[64] = {0};
+    if (offset_hours >= 0) {
+      snprintf(winStr, sizeof(winStr), "+%d:%02d", offset_hours, offset_mins);
+    } else {
+      snprintf(winStr, sizeof(winStr), "%d:%02d", offset_hours, offset_mins);
+    }
+    
+    if (!SetEnvironmentVariableA("TZ", winStr)) {
+      uError("[tz] Failed to set TZ environment variable from system timezone: %d", GetLastError());
       taosSetGlobalTimezone("UTC");
     } else {
-      uInfo("[tz] Windows timezone initialized: %s", tzStr);
+      _tzset();
+      uInfo("[tz] Windows timezone initialized from system: TZ=%s", winStr);
+      // Also update tsTimezoneStr for consistency
+      LONG utc_offset_minutes = -minute_offset;  // Flip to UTC direction for display
+      int32_t utc_hours = utc_offset_minutes / 60;
+      int32_t utc_mins = utc_offset_minutes % 60;
+      if (utc_mins < 0) utc_mins = -utc_mins;
+      snprintf(tsTimezoneStr, TD_TIMEZONE_LEN, "%s (UTC, %c%02d%02d)", "System",
+               utc_offset_minutes >= 0 ? '+' : '-', 
+               utc_hours >= 0 ? utc_hours : -utc_hours,
+               utc_mins);
     }
   } else {
-    // Default to UTC
+    // Fallback: default to UTC if GetTimeZoneInformation fails
+    uWarn("[tz] GetTimeZoneInformation failed, defaulting to UTC");
     taosSetGlobalTimezone("UTC");
-    uInfo("[tz] Windows timezone initialized: UTC (default)");
   }
 
   return TSDB_CODE_SUCCESS;

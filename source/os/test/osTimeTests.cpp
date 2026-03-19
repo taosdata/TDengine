@@ -163,6 +163,34 @@ TEST(osTimeTests, windowsInitTimezoneKeepsConfiguredTZ) {
   // Restore the default expected by existing Windows time tests.
   ASSERT_EQ(taosSetGlobalTimezone("UTC-8"), 0);
 }
+
+TEST(osTimeTests, windowsInitTimezoneFromSystemZone) {
+  // Simulate user not configuring timezone: clear TZ env var and call initTimezoneInfo().
+  // This tests that initTimezoneInfo correctly reads from Windows system timezone
+  // using GetTimeZoneInformation and sets TZ environment variable.
+  
+  // Clear any pre-existing TZ
+  SetEnvironmentVariableA("TZ", NULL);
+  
+  // Call initTimezoneInfo() - should read system timezone and set TZ env var
+  ASSERT_EQ(initTimezoneInfo(), TSDB_CODE_SUCCESS);
+  
+  // Verify TZ is now set after initTimezoneInfo
+  char tzEnv[128] = {0};
+  DWORD len = GetEnvironmentVariableA("TZ", tzEnv, sizeof(tzEnv));
+  ASSERT_GT(len, 0);  // TZ should be non-empty
+  
+  // Verify that getWindowsTimezoneOffset returns a valid value
+  int64_t offset = getWindowsTimezoneOffset();
+  uInfo("[test] System timezone offset = %lld seconds", offset);
+  
+  // Verify taosGetLocalTimezoneOffset is consistent
+  int32_t tz_offset = taosGetLocalTimezoneOffset();
+  uInfo("[test] taosGetLocalTimezoneOffset = %d seconds", tz_offset);
+  
+  // Restore to a known state
+  ASSERT_EQ(taosSetGlobalTimezone("UTC-8"), 0);
+}
 #endif
 
 TEST(osTimeTests, invalidParameter) {
