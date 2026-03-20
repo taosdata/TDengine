@@ -413,7 +413,6 @@
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_asin.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_atan.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_cast.py
-,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_blob.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_ceil.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_char_length.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_concat.py

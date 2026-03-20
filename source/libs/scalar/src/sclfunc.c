@@ -1217,7 +1217,7 @@ int32_t substrFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
 
   // For BLOB: use max size to handle 4-byte header
   // For non-BLOB: use original approach with input data size
-  int32_t outputLen = isBlob ? TSDB_MAX_FIELD_LEN + 4 : pInputData[0]->info.bytes;
+  int32_t outputLen = isBlob ? (TSDB_MAX_BLOB_LEN + BLOBSTR_HEADER_SIZE): pInputData[0]->info.bytes;
   char   *outputBuf = taosMemoryMalloc(outputLen);
   if (outputBuf == NULL) {
     qError("substr function memory allocation failure. size: %d", outputLen);
@@ -1329,7 +1329,7 @@ int32_t substrFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
     int32_t outputType = GET_PARAM_TYPE(pOutput);
 
     // Safety check: ensure result fits in output buffer
-    int32_t maxDataLen = TSDB_MAX_FIELD_LEN;
+    int32_t maxDataLen = !(IS_STR_DATA_BLOB(outputType)) ? TSDB_MAX_FIELD_LEN : TSDB_MAX_BLOB_LEN;
     if (resLen > maxDataLen) {
       qError("substr result too large: %d, max allowed: %d", resLen, maxDataLen);
       resLen = maxDataLen;
@@ -1345,11 +1345,11 @@ int32_t substrFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
     if (resLen > 0) {
       if (IS_STR_DATA_BLOB(outputType)) {
         // BLOB: 4-byte header
-        memcpy(output + 4, dataStart + startPosBytes, resLen);
+        memcpy(output + BLOBSTR_HEADER_SIZE , dataStart + startPosBytes, resLen);
         *(BlobDataLenT *)(output) = resLen;
       } else {
         // VARCHAR/NCHAR: 2-byte header
-        memcpy(output + 2, dataStart + startPosBytes, resLen);
+        memcpy(output + VARSTR_HEADER_SIZE, dataStart + startPosBytes, resLen);
         *(VarDataLenT *)(output) = resLen;
       }
     } else {
@@ -3255,6 +3255,13 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
           *(int8_t *)output = taosStr2Int8(buf, NULL, 10);
         } else if (IS_STR_DATA_BLOB(inputType)) {
           BlobDataLenT bLen = blobDataLen(input);
+          size_t       bufSize = sizeof(buf);
+
+          /* Prevent buffer overflow when converting large BLOBs to numeric types. */
+          if (bLen >= (BlobDataLenT)bufSize) {
+            code = TSDB_CODE_SCALAR_CONVERT_ERROR;
+            goto _end;
+          }
           (void)memcpy(buf, blobDataVal(input), bLen);
           buf[bLen] = 0;
           *(int8_t *)output = taosStr2Int8(buf, NULL, 10);
