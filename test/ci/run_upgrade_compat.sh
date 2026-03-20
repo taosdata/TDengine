@@ -98,9 +98,12 @@ function download_version() {
     local start_time
     start_time=$(date +%s)
 
-    # 快速检查：缓存已存在直接跳过
-    if [ -d "$target_dir" ] && [ "$(ls -A "$target_dir" 2>/dev/null)" ]; then
-        echo "[green_versions] $version: already cached at $target_dir, skip download"
+    # 快速检查：缓存已存在且所有文件均 >= 30M 则直接跳过
+    local file_count valid_count
+    file_count=$(find "$target_dir" -maxdepth 1 -type f 2>/dev/null | wc -l)
+    valid_count=$(find "$target_dir" -maxdepth 1 -type f -size +30M 2>/dev/null | wc -l)
+    if [ "$file_count" -ge 2 ] && [ "$valid_count" -eq "$file_count" ]; then
+        echo "[green_versions] $version: already cached at $target_dir ($file_count files, all >= 30M), skip download"
         return 0
     fi
 
@@ -109,7 +112,9 @@ function download_version() {
         flock -x 200
 
         # flock 内再次检查（防止等锁期间已被其他进程下载完）
-        if [ -d "$target_dir" ] && [ "$(ls -A "$target_dir" 2>/dev/null)" ]; then
+        file_count=$(find "$target_dir" -maxdepth 1 -type f 2>/dev/null | wc -l)
+        valid_count=$(find "$target_dir" -maxdepth 1 -type f -size +30M 2>/dev/null | wc -l)
+        if [ "$file_count" -ge 2 ] && [ "$valid_count" -eq "$file_count" ]; then
             echo "[green_versions] $version: already cached (post-lock check), skip download"
             return 0
         fi
