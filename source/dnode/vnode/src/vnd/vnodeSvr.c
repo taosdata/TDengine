@@ -3387,8 +3387,6 @@ static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t ver, void *pRe
     vInfo("vgId:%d, cacheLastShardBits change from %d to %d, rebuilding last cache",
           TD_VID(pVnode), pVnode->config.cacheLastShardBits, req.cacheLastShardBits);
 
-    pVnode->config.cacheLastShardBits = req.cacheLastShardBits;
-
     // Rebuild only the lruCache under mutex to protect concurrent readers/writers
     (void)taosThreadMutexLock(&pVnode->pTsdb->lruMutex);
     int32_t code = tsdbRebuildLastCache(pVnode->pTsdb, req.cacheLastShardBits);
@@ -3398,6 +3396,8 @@ static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t ver, void *pRe
       vError("vgId:%d, failed to rebuild last cache since %s", TD_VID(pVnode), tstrerror(code));
       return code;
     }
+
+    pVnode->config.cacheLastShardBits = req.cacheLastShardBits;
 
     vInfo("vgId:%d, last cache rebuilt successfully with %d shards",
           TD_VID(pVnode), taosLRUCacheGetNumShards(pVnode->pTsdb->lruCache));
