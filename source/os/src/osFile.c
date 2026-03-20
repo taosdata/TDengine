@@ -1592,24 +1592,17 @@ bool taosCheckAccessFile(const char *pathname, int32_t tdFileAccessOptions) {
 
 bool taosCheckExistFile(const char *pathname) { return taosCheckAccessFile(pathname, TD_FILE_ACCESS_EXIST_OK); };
 
-int32_t taosCompressFile(char *srcFileName, char *destFileName) {
-  OS_PARAM_CHECK(srcFileName);
+int32_t taosCompressFile(TdFilePtr pSrcFile, char *destFileName) {
+  OS_PARAM_CHECK(pSrcFile);
   OS_PARAM_CHECK(destFileName);
-  int32_t   compressSize = 163840;
-  int32_t   ret = 0;
-  int32_t   len = 0;
-  gzFile    dstFp = NULL;
-  TdFilePtr pSrcFile = NULL;
+  int32_t compressSize = 163840;
+  int32_t ret = 0;
+  gzFile  dstFp = NULL;
+  int     fd = -1;
 
   char *data = taosMemoryMalloc(compressSize);
   if (NULL == data) {
     return terrno;
-  }
-
-  pSrcFile = taosOpenFile(srcFileName, TD_FILE_READ | TD_FILE_STREAM);
-  if (pSrcFile == NULL) {
-    ret = terrno;
-    goto cmp_end;
   }
 
   int access = O_BINARY | O_WRONLY | O_TRUNC | O_CREAT;
@@ -1618,14 +1611,14 @@ int32_t taosCompressFile(char *srcFileName, char *destFileName) {
 #else
   int32_t pmode = S_IRWXU | S_IRWXG | S_IRWXO;
 #endif
-  int fd = open(destFileName, access, pmode);
+  fd = open(destFileName, access, pmode);
   if (-1 == fd) {
     terrno = TAOS_SYSTEM_ERROR(ERRNO);
     ret = terrno;
     goto cmp_end;
   }
 
-  // Both gzclose() and fclose() will close the associated fd, so they need to have different fds.
+  // Both gzclose() and close() will close the associated fd, so they need to have different fds.
   FileFd gzFd = dup(fd);
   if (-1 == gzFd) {
     terrno = TAOS_SYSTEM_ERROR(ERRNO);
@@ -1640,14 +1633,17 @@ int32_t taosCompressFile(char *srcFileName, char *destFileName) {
     goto cmp_end;
   }
 
-  while (!feof(pSrcFile->fp)) {
-    len = (int32_t)fread(data, 1, compressSize, pSrcFile->fp);
-    if (len > 0) {
-      if (gzwrite(dstFp, data, len) == 0) {
-        terrno = TAOS_SYSTEM_ERROR(ERRNO);
-        ret = terrno;
-        goto cmp_end;
-      }
+  while (1) {
+    int64_t readLen = taosReadFile(pSrcFile, data, compressSize);
+    if (readLen < 0) {
+      ret = terrno;
+      goto cmp_end;
+    }
+    if (readLen == 0) break;
+    if (gzwrite(dstFp, data, (int32_t)readLen) == 0) {
+      terrno = TAOS_SYSTEM_ERROR(ERRNO);
+      ret = terrno;
+      goto cmp_end;
     }
   }
 
@@ -1656,16 +1652,10 @@ cmp_end:
   if (fd >= 0) {
     TAOS_SKIP_ERROR(close(fd));
   }
-  if (pSrcFile) {
-    TAOS_SKIP_ERROR(taosCloseFile(&pSrcFile));
-  }
-
   if (dstFp) {
     TAOS_SKIP_ERROR(gzclose(dstFp));
   }
-
   taosMemoryFree(data);
-
   return ret;
 }
 
