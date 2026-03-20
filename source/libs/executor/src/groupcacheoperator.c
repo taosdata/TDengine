@@ -1467,21 +1467,12 @@ static int32_t groupCacheGetNext(struct SOperatorInfo* pOperator, SOperatorParam
   *pRes = NULL;
 
   SSDataBlock* pBlock = NULL;
-  int64_t      st = 0;
   int32_t      code = 0;
-
-  if (pOperator->cost.openCost == 0) {
-    st = taosGetTimestampUs();
-  }
 
   code = getBlkFromGroupCache(pOperator, &pBlock, pParam);
   if (TSDB_CODE_SUCCESS != code) {
     pOperator->pTaskInfo->code = code;
     T_LONG_JMP(pOperator->pTaskInfo->env, pOperator->pTaskInfo->code);
-  }
-
-  if (pOperator->cost.openCost == 0) {
-    pOperator->cost.openCost = (taosGetTimestampUs() - st) / 1000.0;
   }
 
   *pRes = pBlock;
@@ -1600,6 +1591,7 @@ int32_t createGroupCacheOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfD
     code = terrno;
     goto _error;
   }
+  initOperatorCostInfo(pOperator);
 
   pOperator->transparent = true;
   pOperator->pPhyNode = pPhyciNode;
