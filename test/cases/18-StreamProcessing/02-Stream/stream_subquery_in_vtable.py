@@ -2,6 +2,19 @@ import time
 from new_test_framework.utils import (tdLog, tdSql, tdStream, StreamCheckItem)
 
 
+WAIT_TIMEOUT = 60
+
+def wait_for_rows(sql, expected_rows, timeout=WAIT_TIMEOUT):
+    """Poll until the query returns the expected number of rows, or timeout."""
+    for i in range(timeout):
+        tdSql.query(sql)
+        if tdSql.queryRows == expected_rows:
+            return
+        time.sleep(1)
+    # Final call — let checkRows raise with a proper error message
+    tdSql.checkRows(expected_rows)
+
+
 class TestStreamSubQueryInVtable:
     """Test cases for virtual tables in IN subqueries for streams"""
     precision = 'ms'
@@ -114,8 +127,7 @@ class TestStreamSubQueryInVtable:
 
         def check1(self):
             # Should only get rows where id is in (1, 3) - those with status=1
-            tdSql.query(f"select * from {self.db}.{self.restb} order by ts")
-            tdSql.checkRows(2)
+            wait_for_rows(f"select * from {self.db}.{self.restb} order by ts", 2)
             tdSql.checkData(0, 1, 1)
             tdSql.checkData(0, 2, 100)
             tdSql.checkData(1, 1, 3)
@@ -168,8 +180,7 @@ class TestStreamSubQueryInVtable:
 
         def check1(self):
             # Should only get rows where id is in (10, 30) - those with status>0
-            tdSql.query(f"select * from {self.db}.{self.restb} order by ts")
-            tdSql.checkRows(2)
+            wait_for_rows(f"select * from {self.db}.{self.restb} order by ts", 2)
             tdSql.checkData(0, 1, 10)
             tdSql.checkData(0, 2, 1000)
             tdSql.checkData(1, 1, 30)
@@ -227,8 +238,7 @@ class TestStreamSubQueryInVtable:
 
         def check1(self):
             # Should only get rows where id is in (100, 300) - those with active=1
-            tdSql.query(f"select * from {self.db}.{self.restb} order by ts")
-            tdSql.checkRows(2)
+            wait_for_rows(f"select * from {self.db}.{self.restb} order by ts", 2)
             tdSql.checkData(0, 1, 100)
             tdSql.checkData(0, 2, 10000)
             tdSql.checkData(1, 1, 300)
@@ -277,8 +287,7 @@ class TestStreamSubQueryInVtable:
 
         def check1(self):
             # Should get rows where id is NOT in (2) - id 1 and 3
-            tdSql.query(f"select * from {self.db}.{self.restb} order by ts")
-            tdSql.checkRows(2)
+            wait_for_rows(f"select * from {self.db}.{self.restb} order by ts", 2)
             tdSql.checkData(0, 1, 1)
             tdSql.checkData(0, 2, 100)
             tdSql.checkData(1, 1, 3)
@@ -340,8 +349,7 @@ class TestStreamSubQueryInVtable:
 
         def check1(self):
             # Should only get id=2 (flag1=1 AND flag2=1)
-            tdSql.query(f"select * from {self.db}.{self.restb} order by ts")
-            tdSql.checkRows(1)
+            wait_for_rows(f"select * from {self.db}.{self.restb} order by ts", 1)
             tdSql.checkData(0, 1, 2)
             tdSql.checkData(0, 2, 200)
 
@@ -393,8 +401,7 @@ class TestStreamSubQueryInVtable:
 
         def check1(self):
             # Active devices 1 and 3: rows at 00:00:00, 00:00:02, 00:00:03 → 3 rows
-            tdSql.query(f"select * from {self.db}.{self.restb} order by ts")
-            tdSql.checkRows(3)
+            wait_for_rows(f"select * from {self.db}.{self.restb} order by ts", 3)
             tdSql.checkData(0, 1, 1)
             tdSql.checkData(1, 1, 3)
             tdSql.checkData(2, 1, 1)
@@ -452,8 +459,7 @@ class TestStreamSubQueryInVtable:
             # Session A: 00:00:10, 00:00:20 (2 events, closed by 00:01:05 row which is >30s later)
             # Session B: 00:01:05, 00:01:15 (2 events, closed by 00:02:30 row which is >30s later)
             # Session C: 00:02:30 (1 event, still open — not checked)
-            tdSql.query(f"select * from {self.db}.{self.restb} order by ts")
-            tdSql.checkRows(2)
+            wait_for_rows(f"select * from {self.db}.{self.restb} order by ts", 2)
 
     class InSubqueryVirtualTableWithState(StreamCheckItem):
         """Test IN subquery with virtual table in state window"""
@@ -506,8 +512,7 @@ class TestStreamSubQueryInVtable:
             # Machine 1 (monitored): 2 closed state windows (status=0, status=1)
             # State=0 window: rows at 00:00:00, 00:00:05 (closed by status=1 at 00:00:10)
             # State=1 window: rows at 00:00:10, 00:00:15 (closed by status=0 at 00:00:20)
-            tdSql.query(f"select * from {self.db}.{self.restb} order by ts")
-            tdSql.checkRows(2)
+            wait_for_rows(f"select * from {self.db}.{self.restb} order by ts", 2)
 
 
     class InSubqueryVirtualTableWithAggregation(StreamCheckItem):
@@ -557,8 +562,7 @@ class TestStreamSubQueryInVtable:
 
         def check1(self):
             # Should include only featured products (101, 103): 4 rows
-            tdSql.query(f"select * from {self.db}.{self.restb} order by ts")
-            tdSql.checkRows(4)
+            wait_for_rows(f"select * from {self.db}.{self.restb} order by ts", 4)
             tdSql.checkData(0, 1, 101)
             tdSql.checkData(3, 1, 103)
 
@@ -609,8 +613,7 @@ class TestStreamSubQueryInVtable:
 
         def check1(self):
             # Active stores (1, 3): 4 rows (store 2 filtered out)
-            tdSql.query(f"select * from {self.db}.{self.restb} order by ts")
-            tdSql.checkRows(4)
+            wait_for_rows(f"select * from {self.db}.{self.restb} order by ts", 4)
             tdSql.checkData(0, 1, 1)
             tdSql.checkData(2, 1, 3)
 
@@ -659,6 +662,8 @@ class TestStreamSubQueryInVtable:
 
         def check1(self):
             # Should return empty result since no flag=999 exists
+            # Wait a bit for the stream to finish processing before asserting 0 rows
+            time.sleep(10)
             tdSql.query(f"select * from {self.db}.{self.restb}")
             tdSql.checkRows(0)
 
@@ -709,8 +714,7 @@ class TestStreamSubQueryInVtable:
 
         def check1(self):
             # Should only get id 1 and 4 (status is not null and > 0)
-            tdSql.query(f"select * from {self.db}.{self.restb} order by id")
-            tdSql.checkRows(2)
+            wait_for_rows(f"select * from {self.db}.{self.restb} order by id", 2)
             tdSql.checkData(0, 1, 1)
             tdSql.checkData(1, 1, 4)
 
@@ -756,8 +760,12 @@ class TestStreamSubQueryInVtable:
 
         def check1(self):
             # Should have aggregated results for category 1 IDs
-            tdSql.query(f"select * from {self.db}.{self.restb} order by ts")
-            # Verify we have results (exact count depends on data distribution)
+            # Wait for stream to produce results
+            for i in range(WAIT_TIMEOUT):
+                tdSql.query(f"select * from {self.db}.{self.restb} order by ts")
+                if tdSql.queryRows > 0:
+                    break
+                time.sleep(1)
             assert tdSql.queryRows > 0
 
     class InSubqueryNestedVirtualTables(StreamCheckItem):
@@ -814,8 +822,7 @@ class TestStreamSubQueryInVtable:
 
         def check1(self):
             # Should only get transactions where user is VIP AND product is promoted
-            tdSql.query(f"select * from {self.db}.{self.restb} order by ts")
-            tdSql.checkRows(2)
+            wait_for_rows(f"select * from {self.db}.{self.restb} order by ts", 2)
             tdSql.checkData(0, 1, 1)
             tdSql.checkData(0, 2, 101)
             tdSql.checkData(1, 1, 3)
@@ -867,8 +874,7 @@ class TestStreamSubQueryInVtable:
 
         def check1(self):
             # Should only get promoted products (101, 103); 102 is not promoted
-            tdSql.query(f"select * from {self.db}.{self.restb} order by ts")
-            tdSql.checkRows(2)
+            wait_for_rows(f"select * from {self.db}.{self.restb} order by ts", 2)
             tdSql.checkData(0, 1, 101)
             tdSql.checkData(1, 1, 103)
 
@@ -923,8 +929,7 @@ class TestStreamSubQueryInVtable:
 
         def check1(self):
             # Should only get 2 rows that meet all conditions
-            tdSql.query(f"select * from {self.db}.{self.restb} order by ts")
-            tdSql.checkRows(2)
+            wait_for_rows(f"select * from {self.db}.{self.restb} order by ts", 2)
             tdSql.checkData(0, 1, 1)
             tdSql.checkData(1, 1, 3)
 
@@ -977,8 +982,7 @@ class TestStreamSubQueryInVtable:
 
         def check1(self):
             # Should only get id 1 and 5 (is_valid=true, category=1, score>80)
-            tdSql.query(f"select * from {self.db}.{self.restb} order by ts")
-            tdSql.checkRows(2)
+            wait_for_rows(f"select * from {self.db}.{self.restb} order by ts", 2)
             tdSql.checkData(0, 1, 1)
             tdSql.checkData(1, 1, 5)
 
@@ -1029,8 +1033,7 @@ class TestStreamSubQueryInVtable:
 
         def check1(self):
             # Should only get alice and charlie (role='admin' and is_admin=true)
-            tdSql.query(f"select * from {self.db}.{self.restb} order by ts")
-            tdSql.checkRows(2)
+            wait_for_rows(f"select * from {self.db}.{self.restb} order by ts", 2)
 
     class InSubqueryVirtualTableDynamicUpdate(StreamCheckItem):
         """Test IN subquery with virtual table — stream continues filtering correctly as new trigger rows arrive"""
@@ -1084,13 +1087,11 @@ class TestStreamSubQueryInVtable:
 
         def check1(self):
             # Early trigger rows (ts < 00:00:10): items 1 and 3 pass filter -> 2 rows
-            tdSql.query(f"select * from {self.db}.{self.restb} where ts < '2026-01-01 00:00:10' order by ts")
-            tdSql.checkRows(2)
+            wait_for_rows(f"select * from {self.db}.{self.restb} where ts < '2026-01-01 00:00:10' order by ts", 2)
 
         def check2(self):
             # Later trigger rows (ts >= 00:00:10): items 1 and 3 still pass, item 2 still filtered -> 2 rows
-            tdSql.query(f"select * from {self.db}.{self.restb} where ts >= '2026-01-01 00:00:10' order by ts")
-            tdSql.checkRows(2)
+            wait_for_rows(f"select * from {self.db}.{self.restb} where ts >= '2026-01-01 00:00:10' order by ts", 2)
 
 
 
@@ -1144,8 +1145,7 @@ class TestStreamSubQueryInVtable:
         def check1(self):
             # Both ctb1 (north) and ctb2 (south) rows pass through — 2 rows each = 4 total
             # (region tag IN subquery filtering not enforced in supertable streams)
-            tdSql.query(f"select * from {self.db}.{self.restb}")
-            tdSql.checkRows(4)
+            wait_for_rows(f"select * from {self.db}.{self.restb}", 4)
 
     class InSubqueryVirtualTableWithOrderBy(StreamCheckItem):
         """Test IN subquery with virtual table and order by in subquery"""
@@ -1196,8 +1196,7 @@ class TestStreamSubQueryInVtable:
 
         def check1(self):
             # Should get items with priority >= 5: items 1, 3, 4
-            tdSql.query(f"select * from {self.db}.{self.restb} order by ts")
-            tdSql.checkRows(3)
+            wait_for_rows(f"select * from {self.db}.{self.restb} order by ts", 3)
             tdSql.checkData(0, 1, 1)
             tdSql.checkData(1, 1, 3)
             tdSql.checkData(2, 1, 4)
@@ -1247,8 +1246,7 @@ class TestStreamSubQueryInVtable:
 
         def check1(self):
             # Should get customers with loyalty_points > 1000: customers 6-10
-            tdSql.query(f"select * from {self.db}.{self.restb} order by customer_id")
-            tdSql.checkRows(5)
+            wait_for_rows(f"select * from {self.db}.{self.restb} order by customer_id", 5)
             tdSql.checkData(0, 1, 6)
             tdSql.checkData(4, 1, 10)
 
