@@ -1169,6 +1169,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_AGENT_NOT_EXIST,          "Xnode agent not
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_AGENT_ALREADY_EXIST,      "Xnode agent already exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_NAME_DUPLICATE,           "Xnode name duplicate")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_TASK_PARSER_TOO_LONG,     "Xnode task parser too long")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_NO_PRIV,                  "No privilege to access xnode")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_TASK_NO_PRIV,             "No privilege to access xnode task")
 
 
 #ifdef TAOS_ERROR_C
