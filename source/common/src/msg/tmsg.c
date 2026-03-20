@@ -578,11 +578,6 @@ int32_t tSerializeSClientHbBatchReq(void *buf, int32_t bufLen, const SClientHbBa
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, reqNum));
   for (int32_t i = 0; i < reqNum; i++) {
     SClientHbReq *pReq = taosArrayGet(pBatchReq->reqs, i);
-<<<<<<< HEAD
-
-    // Serialize the req data
-=======
->>>>>>> 344d95d0834a8b2f4634055580efef6a78543427
     TAOS_CHECK_EXIT(tSerializeSClientHbReq(&encoder, pReq));
   }
 
