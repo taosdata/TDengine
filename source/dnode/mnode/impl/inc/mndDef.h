@@ -126,6 +126,7 @@ typedef enum {
   MND_OPER_BEGIN_TXN,
   MND_OPER_COMMIT_TXN,
   MND_OPER_ROLLBACK_TXN,
+  MND_OPER_ALLOC_TXN_SEQ,
   MND_OPER_MAX  // the max operation type
 }
 EOperType;
@@ -281,6 +282,12 @@ typedef struct {
   EUTxnStage stage;
   SRWLatch   lock;
 } STxnObj;
+
+typedef struct {
+  int32_t   id;
+  utxn_id_t maxRangeId;
+  SRWLatch  lock;
+} STxnSeqObj;
 
 typedef struct {
   int64_t id;

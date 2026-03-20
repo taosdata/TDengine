@@ -55,11 +55,11 @@ int32_t mndInitTxn(SMnode *pMnode) {
       .deleteFp = (SdbDeleteFp)mndTxnActionDelete,
   };
 
-  mndSetMsgHandle(pMnode, TDMT_MND_BEGIN_TRANS, mndProcessBeginTxnReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_BEGIN_TXN, mndProcessBeginTxnReq);
   mndSetMsgHandle(pMnode, TDMT_MND_BEGIN_TRANS_RSP, mndTransProcessRsp);
-  mndSetMsgHandle(pMnode, TDMT_MND_COMMIT_TRANS, mndProcessCommitTxnReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_COMMIT_TXN, mndProcessCommitTxnReq);
   mndSetMsgHandle(pMnode, TDMT_MND_COMMIT_TRANS_RSP, mndTransProcessRsp);
-  mndSetMsgHandle(pMnode, TDMT_MND_ROLLBACK_TRANS, mndProcessRollbackTxnReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_ROLLBACK_TXN, mndProcessRollbackTxnReq);
   mndSetMsgHandle(pMnode, TDMT_MND_ROLLBACK_TRANS_RSP, mndTransProcessRsp);
 
   //   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_TXN, mndRetrieveTxn);

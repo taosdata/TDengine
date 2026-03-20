@@ -56,6 +56,8 @@ typedef struct SUserTxn {
 
 int32_t mndInitTxn(SMnode* pMnode);
 void    mndCleanupTxn(SMnode* pMnode);
+int32_t mndInitTxnSeq(SMnode* pMnode);
+void    mndCleanupTxnSeq(SMnode* pMnode);
 const char* mndTxnStr(ETrnStage stage);
 
 #ifdef __cplusplus

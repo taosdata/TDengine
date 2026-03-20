@@ -20459,15 +20459,15 @@ _return:
 }
 
 static int32_t translateBeginTrans(STranslateContext* pCxt, SBeginTransStmt* pStmt) {
-  return translateTransStmt(pCxt, TDMT_MND_BEGIN_TRANS);
+  return translateTransStmt(pCxt, TDMT_MND_BEGIN_TXN);
 }
 
 static int32_t translateCommitTrans(STranslateContext* pCxt, SCommitTransStmt* pStmt) {
-  return translateTransStmt(pCxt, TDMT_MND_COMMIT_TRANS);
+  return translateTransStmt(pCxt, TDMT_MND_COMMIT_TXN);
 }
 
 static int32_t translateRollbackTrans(STranslateContext* pCxt, SRollbackTransStmt* pStmt) {
-  return translateTransStmt(pCxt, TDMT_MND_ROLLBACK_TRANS);
+  return translateTransStmt(pCxt, TDMT_MND_ROLLBACK_TXN);
 }
 
 static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {

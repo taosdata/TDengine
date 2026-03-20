@@ -1014,8 +1014,7 @@ int taos_txn_begin(TAOS *taos) {
   void* pTrans = pTscObj->pAppInfo->pTransporter;
   SEpSet  epSet = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
 
-
-  SRpcMsg rpcMsg = {.msgType = TDMT_MND_BEGIN_TRANS, .info.ahandle = 0, .info.notFreeAhandle = 1};
+  SRpcMsg rpcMsg = {.msgType = TDMT_MND_BEGIN_TXN, .info.ahandle = 0, .info.notFreeAhandle = 1};
   SRpcMsg rpcRsp = {0};
   code = rpcSendRecv(pTrans, &epSet, &rpcMsg, &rpcRsp);
 
@@ -1050,7 +1049,7 @@ int taos_txn_commit(TAOS *taos) {
   }
 
   // 构造 COMMIT 消息，必须携带 txnId
-  STxnCtrlMsg req = {.type = TDMT_MND_COMMIT_TRANS, .txnId = pTscObj->txnId};
+  STxnCtrlMsg req = {.type = TDMT_MND_COMMIT_TXN, .txnId = pTscObj->txnId};
 
   int code = taosSendSyncMsgToMnode(pTscObj, &req, NULL);
 
@@ -1078,7 +1077,7 @@ int taos_txn_rollback(TAOS *taos) {
     return TSDB_CODE_SUCCESS;  // 没开启事务直接返回成功
   }
 
-  STxnCtrlMsg req = {.type = TDMT_MND_ROLLBACK_TRANS, .txnId = pTscObj->txnId};
+  STxnCtrlMsg req = {.type = TDMT_MND_ROLLBACK_TXN, .txnId = pTscObj->txnId};
 
   // 异步或同步发送均可，回滚通常不阻塞用户
   taosSendSyncMsgToMnode(pTscObj, &req, NULL);
