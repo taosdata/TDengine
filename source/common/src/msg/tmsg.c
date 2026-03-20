@@ -475,8 +475,6 @@ static int32_t tDeserializeSClientHbReq(SDecoder *pDecoder, SClientHbReq *pReq) 
   }
   tEndDecode(pDecoder);
 
-  tEndDecode(pDecoder);
-
 _error:
   if (code != 0) {
     uError("tDeserializeSClientHbReq error, code:%d, line:%d, connType:%d", code, line, pReq->connKey.connType);
