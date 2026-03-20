@@ -671,8 +671,8 @@ void qUpdateTableTagCacheForTmq(qTaskInfo_t tinfo, const SArray* tableIdList, SA
 
   for (int32_t i = 0; i < taosArrayGetSize(cidListArray); ++i) {
     SArray* cidsTmp = (SArray*)taosArrayGetP(cidListArray, i);
-    for (int32_t i = 0; i < taosArrayGetSize(cidsTmp); ++i) {
-      col_id_t* cid = (col_id_t*)taosArrayGet(cidsTmp, i);
+    for (int32_t j = 0; j < taosArrayGetSize(cidsTmp); ++j) {
+      col_id_t* cid = (col_id_t*)taosArrayGet(cidsTmp, j);
       qUpdateTableTagCache(pScanInfo, tableIdList, *cid, &pTaskInfo->storageAPI);
     }
   }

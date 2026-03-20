@@ -859,7 +859,6 @@ static int32_t processAlterTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
         ADD_TO_JSON_STRING(json, "where", buf1 + 1);
         taosMemoryFreeClear(buf1);
         taosMemoryFreeClear(buf2);
-        nodesDestroyNode(pWhere);
       }
       break;
     }
@@ -885,6 +884,7 @@ static int32_t processAlterTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
   }
 
 end:
+  nodesDestroyNode(pWhere);
   destroyAlterTbReq(&vAlterTbReq);
   tDecoderClear(&decoder);
   taosMemoryFree(buf);
