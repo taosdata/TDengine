@@ -359,12 +359,6 @@ option(
 ENDIF ()
 
 option(
-    BUILD_DOCS
-    "If use doxygen build documents"
-    OFF
-)
-
-option(
    BUILD_WITH_INVERTEDINDEX
    "If use invertedIndex"
    ON
