@@ -18,11 +18,10 @@
 #   -h           帮助
 
 function usage() {
-    echo "Usage: $0 -w WORKDIR [-l LOG_DIR] [-e] [-h]"
+    echo "Usage: $0 -w WORKDIR [-l LOG_DIR] [-h]"
     echo ""
     echo "  -w WORKDIR   Working directory (contains TDinternal/ and debugNoSan/)"
     echo "  -l LOG_DIR   Log output directory (default: WORKDIR/upgrade_compat_logs)"
-    echo "  -e           Enterprise edition"
     echo "  -h           Show help"
 }
 
@@ -42,15 +41,13 @@ LOCK_DIR="/tmp/green_versions_locks"
 
 # ── 解析参数 ─────────────────────────────────────────────────────────────────
 
-ent=0
 WORKDIR=""
 LOG_DIR=""
 
-while getopts "w:l:eh" opt; do
+while getopts "w:l:h" opt; do
     case $opt in
         w) WORKDIR=$OPTARG ;;
         l) LOG_DIR=$OPTARG ;;
-        e) ent=1 ;;
         h) usage; exit 0 ;;
         \?)
             echo "Invalid option: -$OPTARG"
@@ -86,7 +83,6 @@ echo "  WORKDIR         : $WORKDIR"
 echo "  LOG_DIR         : $LOG_DIR"
 echo "  GREEN_LOCAL_DIR : $GREEN_LOCAL_DIR"
 echo "  COLD_VERSIONS   : $COLD_VERSIONS"
-echo "  Enterprise      : $ent"
 echo "======================================================"
 
 # ── Step 1: 下载绿色版本（带缓存）──────────────────────────────────────────
@@ -206,24 +202,13 @@ if [ $download_failed -ne 0 ]; then
 fi
 echo "=== Step 1/2: All green versions ready ==="
 
-# ── Step 2: 确定路径（企业版 vs OSS）────────────────────────────────────────
+# ── Step 2: Resolve paths (enterprise edition only) ──────────────────────────
 
-if [ $ent -ne 0 ]; then
-    # 企业版：TDinternal 整体挂载
-    INTERNAL_REPDIR="$WORKDIR/TDinternal"
-    DEBUGPATH_DIR="$WORKDIR/debugNoSan"
-    # 容器内路径（与 run_container.sh -e 一致）
-    CONTAINER_REP_MOUNT="$INTERNAL_REPDIR:/home/TDinternal"
-    CONTAINER_DEBUG_MOUNT="$DEBUGPATH_DIR:/home/TDinternal/debug"
-    CONTAINER_SCRIPT="/home/TDinternal/community/test/ci/run_upgrade_compat_container.sh -e -V $COLD_VERSIONS"
-else
-    # OSS 版：TDengine 挂载
-    INTERNAL_REPDIR="$WORKDIR/TDengine"
-    DEBUGPATH_DIR="$WORKDIR/debugNoSan"
-    CONTAINER_REP_MOUNT="$INTERNAL_REPDIR:/home/TDengine"
-    CONTAINER_DEBUG_MOUNT="$DEBUGPATH_DIR:/home/TDengine/debug"
-    CONTAINER_SCRIPT="/home/TDengine/test/ci/run_upgrade_compat_container.sh -V $COLD_VERSIONS"
-fi
+INTERNAL_REPDIR="$WORKDIR/TDinternal"
+DEBUGPATH_DIR="$WORKDIR/debugNoSan"
+CONTAINER_REP_MOUNT="$INTERNAL_REPDIR:/home/TDinternal"
+CONTAINER_DEBUG_MOUNT="$DEBUGPATH_DIR:/home/TDinternal/debug"
+CONTAINER_SCRIPT="/home/TDinternal/community/test/ci/run_upgrade_compat_container.sh -V $COLD_VERSIONS"
 
 if [ ! -d "$INTERNAL_REPDIR" ]; then
     echo "ERROR: Repo directory not found: $INTERNAL_REPDIR"
