@@ -70,12 +70,6 @@ class TestStreamSubquery:
         self.dropStream('db.sub_in_stream')
         self.dropOutTable('db.sub_in_tb')
 
-        # ntb with in
-        self.createInStream()
-        self.checkInResult()
-        self.dropStream('db.sub_in_stream')
-        self.dropOutTable('db.sub_in_tb')
-
         # ntb with in recursively
         self.createInRecursiveStream()
         self.checkInRecursiveResult()
@@ -433,7 +427,11 @@ class TestStreamSubquery:
     def createAnyStream(self):
         tdLog.info(f"create stream:")
         sql = (
+<<<<<<< HEAD
         f"create stream db.sub_any_stream count_window(2, 1) from db.tb  stream_options(fill_history('2026-01-11 00:00:00')|low_latency_calc)  into db.sub_any_tb  as  select _twstart as ts, first(f1) as ff1, last(f1) as lf1   from db.tb  where ts>= _twstart and ts<= _twend and f1 = any (select f1 from db.tb);"
+=======
+        f"create stream db.sub_any_stream count_window(2, 1) from db.tb  stream_options(fill_history('2026-01-11 00:00:00')|low_latency_calc)  into db.sub_in_tb  as  select _twstart as ts, first(f1) as ff1, last(f1) as lf1   from db.tb  where ts>= _twstart and ts<= _twend and f1 = any (select f1 from db.tb);"
+>>>>>>> 3.0
         )
 
         tdLog.info(f"create stream:{sql}")
@@ -467,6 +465,7 @@ class TestStreamSubquery:
             time.sleep(1)
 
         tdSql.query(f"select * from db.`sub_any_tb`;")
+<<<<<<< HEAD
         tdSql.checkData(0, 1, 10)
         tdSql.checkData(0, 2, 20)
         tdSql.checkData(1, 1, 20)
@@ -712,6 +711,8 @@ class TestStreamSubquery:
             time.sleep(1)
 
         tdSql.query(f"select * from db.`sub_all_tb`;")
+=======
+>>>>>>> 3.0
         tdSql.checkData(0, 1, 10)
         tdSql.checkData(0, 2, 20)
         tdSql.checkData(1, 1, 20)

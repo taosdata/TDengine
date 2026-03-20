@@ -425,26 +425,26 @@ int64_t user_mktime64(const uint32_t year, const uint32_t mon, const uint32_t da
   return _res + time_zone;
 }
 
-// 声明 Windows 时区偏移全局变量
+// Declare the Windows timezone offset global variable.
 #ifdef WINDOWS
 extern int64_t g_windows_timezone_offset;
 #endif
 
 time_t taosMktime(struct tm *timep, timezone_t tz) {
 #ifdef WINDOWS
-  // Windows: 调用 getWindowsTimezoneOffset 获取时区偏移
+  // Windows: call getWindowsTimezoneOffset to get timezone offset.
   int64_t tzw = getWindowsTimezoneOffset();
 
-  // 使用 user_mktime64 计算时间戳
+  // Use user_mktime64 to calculate the timestamp.
   time_t result = user_mktime64(timep->tm_year + 1900, timep->tm_mon + 1, timep->tm_mday,
                                  timep->tm_hour, timep->tm_min, timep->tm_sec, tzw);
 
-  // 如果结果合理，直接返回
+  // If the result is reasonable, return it directly.
   if (result > 0) {
     return result;
   }
 
-  // 否则回退到系统 mktime
+  // Otherwise fall back to the system mktime.
   return mktime(timep);
 #elif defined(TD_ASTRA)
   time_t r =  mktime(timep);
@@ -510,7 +510,7 @@ struct tm *taosLocalTime(const time_t *timep, struct tm *result, char *buf, int3
     return NULL;
   }
 #ifdef WINDOWS
-  // Windows: 直接调用函数获取时区偏移，避免跨 DLL 的指针问题
+  // Windows: call the function directly to get timezone offset, avoiding cross-DLL pointer issues.
   time_t adjusted_time = *timep;
   int64_t tz_offset = getWindowsTimezoneOffset();
 

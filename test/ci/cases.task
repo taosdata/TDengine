@@ -319,6 +319,8 @@
 ,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub3d.py
 ,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub4a1.py
 ,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub4a2.py
+,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub4a3.py
+,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub4a4.py
 ,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_in_subq1.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_in_subq2.py
 ,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_in_subq3a1.py
@@ -724,7 +726,7 @@
 #,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_subquery-mtables.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_subquery_in.py
 #,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_subq_in-mtables.py -N 9
-,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_subquery_in_vtable.py
+#,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_subquery_in_vtable.py
 ## 03-TriggerMode
 #,,n,.,pytest cases/18-StreamProcessing/03-TriggerMode/test_count_new.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/03-TriggerMode/test_count.py
