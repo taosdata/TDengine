@@ -220,7 +220,7 @@ if [ ! -d "$DEBUGPATH_DIR" ]; then
     exit 1
 fi
 
-# ── Step 3: 在独立 Docker 容器中运行升级兼容性测试 ─────────────────────────
+# ── Step 3: Run upgrade compatibility tests in isolated Docker container ──────
 
 CONTAINER_NAME="upgrade-compat-${PR_NUMBER:-0}_${GITHUB_RUN_NUMBER:-0}_${GITHUB_RUN_ATTEMPT:-0}"
 
@@ -229,21 +229,15 @@ echo "=== Step 2/2: Running upgrade compatibility tests in Docker ==="
 echo "  Container name: $CONTAINER_NAME"
 echo ""
 
-docker_cmd="docker run --rm
-    --name ${CONTAINER_NAME}
-    -v ${CONTAINER_REP_MOUNT}
-    -v ${CONTAINER_DEBUG_MOUNT}
-    -v ${GREEN_LOCAL_DIR}:/green_versions:ro
-    -v ${LOG_DIR}:/upgrade_logs
-    --ulimit core=-1
-    tdengine-ci:0.1
-    $CONTAINER_SCRIPT"
-
-echo "Docker command:"
-echo "$docker_cmd"
-echo ""
-
-eval "$docker_cmd"
+docker run --rm \
+    --name "${CONTAINER_NAME}" \
+    -v "${CONTAINER_REP_MOUNT}" \
+    -v "${CONTAINER_DEBUG_MOUNT}" \
+    -v "${GREEN_LOCAL_DIR}:/green_versions:ro" \
+    -v "${LOG_DIR}:/upgrade_logs" \
+    --ulimit core=-1 \
+    tdengine-ci:0.1 \
+    ${CONTAINER_SCRIPT}
 ret=$?
 
 echo ""
