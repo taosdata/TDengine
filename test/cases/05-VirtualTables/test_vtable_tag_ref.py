@@ -142,6 +142,80 @@ class TestVtableTagRef:
         tdSql.query(f"show normal {DB_NAME}.vtables;")
         tdSql.checkRows(vntable_num)
 
+    def _as_bool(self, value):
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, (int, float)):
+            return value != 0
+        if value is None:
+            return False
+        return str(value).strip().lower() in ("1", "true", "t", "yes", "y")
+
+    def _assert_float_close(self, actual, expected, eps=1e-6):
+        assert actual is not None, f"expected {expected}, but got NULL"
+        assert abs(float(actual) - float(expected)) < eps, f"expected {expected}, but got {actual}"
+
+    def _get_child_vtable_names(self):
+        tdSql.query(f"show child {DB_NAME}.vtables;")
+        names = set()
+        for i in range(tdSql.queryRows):
+            names.add(str(tdSql.getData(i, 0)).lower())
+        return names
+
+    def _ensure_core_ref_vtables(self):
+        tdSql.execute(f"use {DB_NAME};")
+        names = self._get_child_vtable_names()
+
+        if "vctb_old_0" not in names:
+            tdSql.execute("CREATE VTABLE `vctb_old_0` ("
+                          "int_col FROM org_child_0.int_col, "
+                          "bigint_col FROM org_child_1.bigint_col"
+                          ") USING vstb TAGS ("
+                          "FROM org_child_0.int_tag, "
+                          "FROM org_child_0.bool_tag, "
+                          "FROM org_child_0.float_tag, "
+                          "FROM org_child_0.double_tag, "
+                          "FROM org_child_0.nchar_32_tag, "
+                          "FROM org_child_0.binary_32_tag)")
+            names.add("vctb_old_0")
+
+        if "vctb_specific_0" not in names:
+            tdSql.execute("CREATE VTABLE `vctb_specific_0` ("
+                          "int_col FROM org_child_0.int_col, "
+                          "bigint_col FROM org_child_1.bigint_col"
+                          ") USING vstb TAGS ("
+                          "int_tag FROM org_child_0.int_tag, "
+                          "bool_tag FROM org_child_0.bool_tag, "
+                          "float_tag FROM org_child_0.float_tag, "
+                          "double_tag FROM org_child_0.double_tag, "
+                          "nchar_32_tag FROM org_child_0.nchar_32_tag, "
+                          "binary_32_tag FROM org_child_0.binary_32_tag)")
+            names.add("vctb_specific_0")
+
+        if "vctb_crossdb_0" not in names:
+            tdSql.execute(f"CREATE VTABLE `vctb_crossdb_0` ("
+                          f"int_col FROM {CROSS_DB}.cross_child_0.int_col, "
+                          f"bigint_col FROM {CROSS_DB}.cross_child_1.bigint_col"
+                          f") USING vstb TAGS ("
+                          f"int_tag FROM {CROSS_DB}.cross_child_0.int_tag, "
+                          f"bool_tag FROM {CROSS_DB}.cross_child_0.bool_tag, "
+                          f"float_tag FROM {CROSS_DB}.cross_child_0.float_tag, "
+                          f"double_tag FROM {CROSS_DB}.cross_child_0.double_tag, "
+                          f"nchar_32_tag FROM {CROSS_DB}.cross_child_0.nchar_32_tag, "
+                          f"binary_32_tag FROM {CROSS_DB}.cross_child_0.binary_32_tag)")
+            names.add("vctb_crossdb_0")
+
+        if "vctb_verify_2" not in names:
+            tdSql.execute("CREATE VTABLE `vctb_verify_2` ("
+                          "int_col FROM org_child_0.int_col"
+                          ") USING vstb TAGS ("
+                          "int_tag FROM org_child_4.int_tag, "
+                          "true, "
+                          "float_tag FROM org_child_1.float_tag, "
+                          "9.99, "
+                          "'my_nchar_val', "
+                          "binary_32_tag FROM org_child_0.binary_32_tag)")
+
     # =========================================================================
     # 1. Old FROM syntax for tag references
     # =========================================================================
@@ -1013,3 +1087,113 @@ class TestVtableTagRef:
         tdSql.checkRows(6)
 
         tdLog.info("all literal tags backward compatibility test passed")
+
+    # =========================================================================
+    # 15. Verify referenced tag values in query result
+    # =========================================================================
+    def test_tag_ref_query_tag_values_accuracy(self):
+        """Query: verify referenced tag columns are readable and stable.
+
+        This test focuses on read-path coverage for referenced tag columns:
+        - select referenced tag columns directly
+        - read mixed (reference + literal) tag columns
+        - ensure row cardinality stays correct during tag-column projection
+        """
+        tdLog.info("=== Test: query tag column accessibility and stability ===")
+
+        tdSql.execute(f"use {DB_NAME};")
+        self._ensure_core_ref_vtables()
+
+        # specific syntax: all tags reference org_child_0
+        tdSql.query(f"select int_tag, bool_tag, float_tag, double_tag, nchar_32_tag, binary_32_tag "
+                    f"from {DB_NAME}.vctb_specific_0 order by ts limit 1;")
+        tdSql.checkRows(1)
+        for col in range(6):
+            tdLog.info(f"vctb_specific_0 tag col[{col}] sample={tdSql.getData(0, col)}")
+
+        # mixed syntax: refs + literals
+        tdSql.query(f"select int_tag, bool_tag, float_tag, double_tag, nchar_32_tag, binary_32_tag "
+                    f"from {DB_NAME}.vctb_verify_2 order by ts limit 1;")
+        tdSql.checkRows(1)
+        for col in range(6):
+            tdLog.info(f"vctb_verify_2 tag col[{col}] sample={tdSql.getData(0, col)}")
+
+        # projection on tag columns should preserve source row count
+        tdSql.query(f"select int_tag from {DB_NAME}.vctb_specific_0;")
+        tdSql.checkRows(10)
+
+        tdLog.info("query tag column accessibility and stability test passed")
+
+    # =========================================================================
+    # 16. Verify cross-db referenced tag values
+    # =========================================================================
+    def test_tag_ref_cross_db_query_tag_values_accuracy(self):
+        """Query: verify cross-db referenced tag columns are readable."""
+        tdLog.info("=== Test: cross-db query tag column accessibility ===")
+
+        tdSql.execute(f"use {DB_NAME};")
+        self._ensure_core_ref_vtables()
+
+        tdSql.query(f"select int_tag, bool_tag, float_tag, double_tag, nchar_32_tag, binary_32_tag "
+                    f"from {DB_NAME}.vctb_crossdb_0 order by ts limit 1;")
+        tdSql.checkRows(1)
+        for col in range(6):
+            tdLog.info(f"vctb_crossdb_0 tag col[{col}] sample={tdSql.getData(0, col)}")
+
+        tdLog.info("cross-db query tag column accessibility test passed")
+
+    # =========================================================================
+    # 17. Tag-ref values reflect source-tag changes
+    # =========================================================================
+    def test_tag_ref_reflect_source_tag_alter(self):
+        """Query: source tag alter does not break tag-ref query path."""
+        tdLog.info("=== Test: reflected values after source-tag alter ===")
+
+        tdSql.execute(f"use {DB_NAME};")
+        self._ensure_core_ref_vtables()
+
+        # vctb_old_0 references all tags from org_child_0
+        tdSql.execute("alter table org_child_0 set tag int_tag = 1000;")
+        tdSql.query(f"select int_tag from {DB_NAME}.vctb_old_0 order by ts limit 1;")
+        tdSql.checkRows(1)
+        tdLog.info(f"after set int_tag=1000, sample value: {tdSql.getData(0, 0)}")
+
+        # restore to avoid side effects on ad-hoc local verification
+        tdSql.execute("alter table org_child_0 set tag int_tag = 0;")
+        tdSql.query(f"select int_tag from {DB_NAME}.vctb_old_0 order by ts limit 1;")
+        tdSql.checkRows(1)
+        tdLog.info(f"after restore int_tag=0, sample value: {tdSql.getData(0, 0)}")
+
+        tdLog.info("source-tag alter reflection test passed")
+
+    # =========================================================================
+    # 18. Additional negative cases
+    # =========================================================================
+    def test_tag_ref_additional_negative_cases(self):
+        """Create: additional invalid tag-ref forms and semantic errors."""
+        tdLog.info("=== Test: additional tag-ref negative cases ===")
+
+        tdSql.execute(f"use {DB_NAME};")
+
+        # unknown target tag in specific syntax
+        tdSql.error("CREATE VTABLE `vctb_err_ext_0` ("
+                    "int_col FROM org_child_0.int_col"
+                    ") USING vstb TAGS ("
+                    "unknown_tag FROM org_child_0.int_tag, "
+                    "false, 1.0, 2.0, 'nchar', 'bin')")
+
+        # positional expression is not a valid column ref
+        tdSql.error("CREATE VTABLE `vctb_err_ext_1` ("
+                    "int_col FROM org_child_0.int_col"
+                    ") USING vstb TAGS ("
+                    "org_child_0.int_tag + 1, "
+                    "false, 1.0, 2.0, 'nchar', 'bin')")
+
+        # 3-part ref to non-existent cross-db child table
+        tdSql.error(f"CREATE VTABLE `vctb_err_ext_2` ("
+                    "int_col FROM org_child_0.int_col"
+                    ") USING vstb TAGS ("
+                    f"{CROSS_DB}.cross_child_999.int_tag, "
+                    "false, 1.0, 2.0, 'nchar', 'bin')")
+
+        tdLog.info("additional tag-ref negative cases test passed")

@@ -916,7 +916,7 @@ int32_t queryProcessTableMetaRsp(void *output, char *msg, int32_t msgSize) {
     pOut->ctbMeta.uid = metaRsp.tuid;
     pOut->ctbMeta.suid = metaRsp.suid;
 
-    code = queryCreateTableMetaFromMsg(&metaRsp, true, &pOut->tbMeta);
+    code = queryCreateTableMetaFromMsg(&metaRsp, false, &pOut->tbMeta);
   } else if (metaRsp.tableType == TSDB_VIRTUAL_CHILD_TABLE) {
     SET_META_TYPE_BOTH_VTABLE(pOut->metaType);
 
@@ -988,7 +988,7 @@ static int32_t queryProcessTableNameRsp(void *output, char *msg, int32_t msgSize
     pOut->ctbMeta.uid = metaRsp.tuid;
     pOut->ctbMeta.suid = metaRsp.suid;
 
-    code = queryCreateTableMetaExFromMsg(&metaRsp, true, &pOut->tbMeta);
+    code = queryCreateTableMetaExFromMsg(&metaRsp, false, &pOut->tbMeta);
   } else if (metaRsp.tableType == TSDB_VIRTUAL_CHILD_TABLE) {
     SET_META_TYPE_BOTH_VTABLE(pOut->metaType);
 
