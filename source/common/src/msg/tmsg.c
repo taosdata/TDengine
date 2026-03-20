@@ -322,7 +322,6 @@ static int32_t tSerializeSClientHbReq(SEncoder *pEncoder, const SClientHbReq *pR
   TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pReq->cInfo));
   TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pReq->user));
   TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pReq->tokenName));
-  tEndEncode(pEncoder);
 
   tEndEncode(pEncoder);
   return 0;
