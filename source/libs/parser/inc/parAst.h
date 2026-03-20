@@ -94,6 +94,7 @@ typedef enum EDatabaseOptionType {
   DB_OPTION_IS_AUDIT,
   DB_OPTION_ALLOW_DROP,
   DB_OPTION_SECURE_DELETE,
+  DB_OPTION_CACHESHARDBITS,
 } EDatabaseOptionType;
 
 typedef enum ETableOptionType {

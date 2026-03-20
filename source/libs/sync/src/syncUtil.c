@@ -87,7 +87,21 @@ bool syncUtilSameId(const SRaftId* pId1, const SRaftId* pId2) {
 
 bool syncUtilEmptyId(const SRaftId* pId) { return (pId->addr == 0 && pId->vgId == 0); }
 
-static inline int32_t syncUtilRand(int32_t max) { return taosRand() % max; }
+static inline int32_t syncUtilRand(int32_t max) {
+#ifdef WINDOWS
+  unsigned int number;
+  uint32_t     err;
+
+  err = taosRandR(&number);
+  if (err != 0) {
+    sError("failed to get random number, err:%u", err);
+    return max / 2;
+  }
+  return number % max;
+#else
+  return taosRand() % max;
+#endif
+}
 
 int32_t syncUtilElectRandomMS(int32_t min, int32_t max) {
   int32_t rdm = min + syncUtilRand(max - min);

@@ -11,6 +11,7 @@ import time
 import re
 import platform
 import subprocess
+from new_test_framework.utils.server.win_process import start_taosd_windows, stop_taosd_windows
 try:
     import taos
 except:
@@ -137,8 +138,7 @@ class TaosD:
                 self._remote.cmd(cfg["fqdn"], ["ulimit -n 1048576", start_cmd])
             else:
                 if platform.system().lower() == "windows":
-                    start_cmd = f"mintty -h never {taosd_path} -c {dnode['config_dir']}"
-                    self._remote.cmd_windows(cfg["fqdn"], [start_cmd])
+                    start_taosd_windows(taosd_path, dnode['config_dir'], log=self.logger)
                 else:
                     start_cmd = f"screen -L -d -m {taosd_path} -c {dnode['config_dir']}  "
                     self._remote.cmd(cfg["fqdn"], ["ulimit -n 1048576", start_cmd])
@@ -452,20 +452,12 @@ class TaosD:
                         self.logger.info("Windows not support asanDir yet")
                     else:
                         self.logger.debug("destroy taosd on windows")
-                        pid = None
-                        for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
-                            if ('mintty' in  proc.info['name']
-                                and proc.info['cmdline']  # 确保 cmdline 非空
-                                and any('taosd' in arg for arg in proc.info['cmdline'])
-                            ):
-                                self.logger.debug(proc.info)
-                                self.logger.debug("Found taosd.exe process with PID: %s", proc.info['pid'])
-                                pid = proc.info['pid']
-                                #kernel32 = ctypes.windll.kernel32
-                                #kernel32.GenerateConsoleCtrlEvent(0, pid)
-                                killCmd = f"taskkill /PID {pid} /T /F"
-                                #killCmd = "for /f %%a in ('wmic process where \"name='taosd.exe'\" get processId ^| xargs echo ^| awk ^'{print $2}^' ^&^& echo aa') do @(ps | grep %%a | awk '{print $1}' | xargs)"
-                                self._remote.cmd_windows(fqdn, [killCmd])
+                        if fqdn == self._local_host or fqdn == "localhost":
+                            stop_taosd_windows(config_dir=i["config_dir"], log=self.logger)
+                        else:
+                            # 远程 Windows：通过 cmd_windows 查找并停止 taosd
+                            killCmd = f'wmic process where "name=\'taosd.exe\' and CommandLine like \'%{i["config_dir"]}%\'" call terminate'
+                            self._remote.cmd_windows(fqdn, [killCmd])
 
                 else:
                     if "asanDir" in i:

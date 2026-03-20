@@ -36,7 +36,7 @@ from decimal import Decimal, InvalidOperation
 from typing import List
 from datetime import datetime, timedelta
 import re
-import tempfile
+
 
 @dataclass
 class DataSet:
@@ -3235,11 +3235,13 @@ class TDCom:
                         text=True,
                         capture_output=True,
                         encoding="utf-8",
-                        errors="replace",  # 改为 replace，避免编码错误
+                        errors="replace",
                     )
                 finally:
                     os.unlink(temp1)
                     os.unlink(temp2)
+
+                # Windows fc: returncode 0 表示文件相同
                 if result.returncode == 0:
                     return True
                 else:
@@ -3247,8 +3249,8 @@ class TDCom:
                     tdLog.info(f"{cmd} result.stdout: {result.stdout}")
                     tdLog.info(f"{cmd} result.stderr: {result.stderr}")
                     return False
-                
-            # 统一的结果检查逻辑（移到 if/else 外面）
+
+            # Linux diff 的结果检查逻辑
             if result.returncode != 0:
                 if self._compare_normalized_result_lines(file1, file2):
                     tdLog.info("Result files matched after output normalization.")

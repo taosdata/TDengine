@@ -683,6 +683,53 @@ static int32_t hbQueryHbRspHandle(SAppHbMgr *pAppHbMgr, SClientHbRsp *pRsp) {
   return TSDB_CODE_SUCCESS;
 }
 
+/* Choose execution phase and phase start time for desc.
+ * Rules:
+ *  - If both timestamps are invalid (<= 0), keep the request's stored values.
+ *  - If only one timestamp is valid, use the valid one.
+ *  - If both are valid, prefer the job's phase/time when jobPhaseTime >= request's phaseStartTime;
+ *    otherwise prefer the request's record.
+ *
+ * Note: If the local system clock was moved backwards (time rollback), jobPhaseTime may appear
+ * earlier than the request's phase start time even when the job record is actually newer.
+ * This logic avoids reporting a regressed start time in that situation.
+ */
+static void hbSetRequestPhase(SRequestObj *pRequest, SQueryDesc *desc) {
+  int32_t jobPhase = QUERY_PHASE_NONE;
+  int64_t jobPhaseTime = 0;
+  int32_t phaseCode = schedulerGetJobPhase(pRequest->body.queryJob, &jobPhase, &jobPhaseTime);
+  if (phaseCode != TSDB_CODE_SUCCESS) {
+    tscWarn("get job phase failed, code:%d", phaseCode);
+    desc->execPhase = CLIENT_GET_REQUEST_PHASE(pRequest);
+    desc->phaseStartTime = CLIENT_GET_REQUEST_PHASE_START_TIME(pRequest);
+    return;
+  }
+
+  tscDebug("get job phase success, jobPhase:%d, jobPhaseTime:%" PRId64, jobPhase, jobPhaseTime);
+  int64_t phaseStartTime = CLIENT_GET_REQUEST_PHASE_START_TIME(pRequest);
+  int32_t phaseStatus = CLIENT_GET_REQUEST_PHASE(pRequest);
+
+  if (jobPhaseTime <= 0 && phaseStartTime <= 0) {
+    /* No valid time available, keep original behavior */
+    desc->phaseStartTime = phaseStartTime;
+    desc->execPhase = phaseStatus;
+  } else if (jobPhaseTime <= 0) {
+    desc->phaseStartTime = phaseStartTime;
+    desc->execPhase = phaseStatus;
+  } else if (phaseStartTime <= 0) {
+    desc->phaseStartTime = jobPhaseTime;
+    desc->execPhase = jobPhase;
+  } else if (jobPhaseTime >= phaseStartTime) {
+    /* Job record is newer (or equal, prefer job) */
+    desc->phaseStartTime = jobPhaseTime;
+    desc->execPhase = jobPhase;
+  } else {
+    /* Request record is newer */
+    desc->phaseStartTime = phaseStartTime;
+    desc->execPhase = phaseStatus;
+  }
+}
+
 static int32_t hbAsyncCallBack(void *param, SDataBuf *pMsg, int32_t code) {
   if (0 == atomic_load_8(&clientHbMgr.inited)) {
     goto _return;
@@ -799,6 +846,9 @@ int32_t hbBuildQueryDesc(SQueryHbReqBasic *hbBasic, STscObj *pObj) {
       return TSDB_CODE_FAILED;
     }
     desc.subPlanNum = pRequest->body.subplanNum;
+
+    /* Determine and set the execution phase and its start time for this request. */
+    hbSetRequestPhase(pRequest, &desc);
 
     if (desc.subPlanNum) {
       desc.subDesc = taosArrayInit(desc.subPlanNum, sizeof(SQuerySubDesc));

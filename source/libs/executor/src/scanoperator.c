@@ -634,8 +634,6 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
       return code;
     }
 
-    pHandle->api.metaReaderFn.readerReleaseLock(&mr);
-
     val.pName = mr.me.name;
     val.pTags = (STag*)mr.me.ctbEntry.pTags;
 
@@ -662,9 +660,8 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
         return code;
       }
 
-      pHandle->api.metaReaderFn.readerReleaseLock(&mr);
-
       code = createTableCacheVal(&mr, &pVal);
+      pHandle->api.metaReaderFn.readerReleaseLock(&mr);
       QUERY_CHECK_CODE(code, lino, _end);
 
       val = *pVal;
@@ -672,9 +669,6 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
       pCache->cacheHit += 1;
       STableCachedVal* pValTmp = taosLRUCacheValue(pCache->pTableMetaEntryCache, h);
       val = *pValTmp;
-
-      bool bRes = taosLRUCacheRelease(pCache->pTableMetaEntryCache, h, false);
-      qTrace("release LRU cache, res %d", bRes);
     }
 
     qDebug("retrieve table meta from cache:%" PRIu64 ", hit:%" PRIu64 " miss:%" PRIu64 ", %s", pCache->metaFetch,
@@ -755,6 +749,11 @@ _end:
     }
   }
 
+  if (h != NULL) {
+    bool bRes = taosLRUCacheRelease(pCache->pTableMetaEntryCache, h, false);
+    qTrace("release LRU cache, res %d", bRes);
+  }
+  
   if (freeReader) {
     pHandle->api.metaReaderFn.clearReader(&mr);
   }

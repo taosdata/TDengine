@@ -584,6 +584,8 @@ int32_t createRequest(uint64_t connId, int32_t type, int64_t reqid, SRequestObj 
   (*pRequest)->resType = RES_TYPE__QUERY;
   (*pRequest)->requestId = reqid == 0 ? generateRequestId() : reqid;
   (*pRequest)->metric.start = taosGetTimestampUs();
+  (*pRequest)->execPhase = QUERY_PHASE_NONE;
+  (*pRequest)->phaseStartTime = 0;
 
   (*pRequest)->body.resInfo.convertUcs4 = true;  // convert ucs4 by default
   (*pRequest)->body.resInfo.charsetCxt = pTscObj->optionInfo.charsetCxt;
