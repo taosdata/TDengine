@@ -290,11 +290,6 @@ static int32_t qCreateStreamExecTask(SReadHandle* readHandle, int32_t vgId, uint
     goto _error;
   }
 
-  if (subTaskNum > 0) {
-    SDownstreamSourceNode* pVal = (SDownstreamSourceNode*)nodesListGetNode(pSubplan->pSubQ, 0);
-    (*pTask)->pSubJobCtx->queryId = pVal->clientId;
-  }
-
   if (streamInserterParam) {
     SDataSinkMgtCfg cfg = {.maxDataBlockNum = 500, .maxDataBlockNumPerQuery = 50, .compress = compressResult};
     void*           pSinkManager = NULL;
