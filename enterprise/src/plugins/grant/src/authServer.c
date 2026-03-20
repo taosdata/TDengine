@@ -221,6 +221,7 @@ static bool authQuotaEqual(const SAuthQuota *a, const SAuthQuota *b) {
   if (!quotaItemEqual(&a->orc, &b->orc)) return false;
   if (!quotaItemEqual(&a->kinghist, &b->kinghist)) return false;
   if (!quotaItemEqual(&a->pulsar, &b->pulsar)) return false;
+  if (!quotaItemEqual(&a->pspace, &b->pspace)) return false;
 
   // IDMP
   if (a->idmpExpireDays != b->idmpExpireDays) return false;
@@ -316,6 +317,7 @@ static int32_t checkAuthQuotaExpireLimits(const char *clusterId, SAuthQuota *pAu
   CHECK_EXPIRE_DATE(orc, "orc");
   CHECK_EXPIRE_DATE(kinghist, "kinghist");
   CHECK_EXPIRE_DATE(pulsar, "pulsar");
+  CHECK_EXPIRE_DATE(pspace, "pspace");
 
 #undef CHECK_EXPIRE_DATE
 
@@ -609,6 +611,7 @@ static int32_t convertAuthQuotaToGrantUniqObj(SAuthQuota *pAuthQuota, SGrantUniq
   ADD_DYNAMIC_ITEM2(orc, "orc", "orc");
   ADD_DYNAMIC_ITEM2(kinghist, "kinghist", "kinghist");
   ADD_DYNAMIC_ITEM2(pulsar, "pulsar", "pulsar");
+  ADD_DYNAMIC_ITEM2(pspace, "pspace", "pspace");
 
 #undef ADD_DYNAMIC_ITEM_SIMPLE
 #undef ADD_DYNAMIC_ITEM_FROM_QUOTA

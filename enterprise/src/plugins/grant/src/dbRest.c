@@ -323,6 +323,10 @@ void initAuthQuota(SAuthQuota *pAuthQuota) {
   pAuthQuota->pulsar.limitQuantity = QUOTA_UNDEFINED;
   pAuthQuota->pulsar.limitSpeed = QUOTA_UNDEFINED;
 
+  pAuthQuota->pspace.expireDate = QUOTA_UNDEFINED;
+  pAuthQuota->pspace.limitQuantity = QUOTA_UNDEFINED;
+  pAuthQuota->pspace.limitSpeed = QUOTA_UNDEFINED;
+
   pAuthQuota->idmpExpireDays = QUOTA_UNDEFINED;
   pAuthQuota->idmpLimitTsAttributes = QUOTA_UNDEFINED;
   pAuthQuota->idmpLimitNonTsAttributes = QUOTA_UNDEFINED;
@@ -513,6 +517,8 @@ int32_t parseAuthQuota(const char *authQuotaStr, SAuthQuota *pAuthQuota) {
       code = parseQuotaItem(key, value, &pAuthQuota->kinghist);
     } else if (strcmp(key, "pulsar") == 0) {
       code = parseQuotaItem(key, value, &pAuthQuota->pulsar);
+    } else if (strcmp(key, "pspace") == 0) {
+      code = parseQuotaItem(key, value, &pAuthQuota->pspace);
     }
     // IDMP
     else if (strcmp(key, "idmpExpireDays") == 0) {
