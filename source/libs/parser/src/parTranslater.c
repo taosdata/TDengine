@@ -5211,6 +5211,53 @@ static int32_t checkExprListForGroupBy(STranslateContext* pCxt, SSelectStmt* pSe
   return pCxt->errCode;
 }
 
+// Check if a function node has BLOB type parameter (for substr/cast validation in GROUP BY)
+static bool hasBlobParameter(SFunctionNode* pFunc) {
+  if (NULL == pFunc->pParameterList) {
+    return false;
+  }
+  SNode* pParam = NULL;
+  FOREACH(pParam, pFunc->pParameterList) {
+    if (QUERY_NODE_VALUE == nodeType(pParam) || QUERY_NODE_COLUMN == nodeType(pParam) ||
+        QUERY_NODE_FUNCTION == nodeType(pParam)) {
+      SExprNode* pExpr = (SExprNode*)pParam;
+      if (TSDB_DATA_TYPE_BLOB == pExpr->resType.type || TSDB_DATA_TYPE_MEDIUMBLOB == pExpr->resType.type) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+// Check if GROUP BY expressions contain substr/cast on BLOB type
+static EDealRes checkGroupByExprForBlobFunc(SNode* pNode, void* pContext) {
+  STranslateContext* pCxt = (STranslateContext*)pContext;
+
+  if (QUERY_NODE_FUNCTION != nodeType(pNode)) {
+    return DEAL_RES_CONTINUE;
+  }
+
+  SFunctionNode* pFunc = (SFunctionNode*)pNode;
+
+  // Check for substr and cast functions with BLOB parameters
+  if ((0 == strcasecmp(pFunc->functionName, "substr") || 0 == strcasecmp(pFunc->functionName, "substring") ||
+       0 == strcasecmp(pFunc->functionName, "cast")) && hasBlobParameter(pFunc)) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN,
+                                         "%s function does not support BLOB type in GROUP BY", pFunc->functionName);
+    return DEAL_RES_ERROR;
+  }
+
+  return DEAL_RES_CONTINUE;
+}
+
+static int32_t checkGroupByListForBlob(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  if (NULL == pSelect->pGroupByList) {
+    return TSDB_CODE_SUCCESS;
+  }
+  nodesWalkExprs(pSelect->pGroupByList, checkGroupByExprForBlobFunc, pCxt);
+  return pCxt->errCode;
+}
+
 static EDealRes rewriteColsToSelectValFuncImpl(SNode** pNode, void* pContext) {
   if (isAggFunc(*pNode) || isIndefiniteRowsFunc(*pNode)) {
     return DEAL_RES_IGNORE_CHILD;
@@ -10673,6 +10720,9 @@ static int32_t translateSelectFrom(STranslateContext* pCxt, SSelectStmt* pSelect
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkHavingGroupBy(pCxt, pSelect);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = checkGroupByListForBlob(pCxt, pSelect);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = translateOrderBy(pCxt, pSelect);

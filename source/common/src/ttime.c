@@ -611,14 +611,24 @@ int32_t convertCalendarTimeFromUnitToPrecision(
 }
 
 int32_t convertStringToTimestamp(int16_t type, char* inputData, int64_t timePrec, int64_t* timeVal, timezone_t tz, void* charsetCxt) {
-  int32_t charLen = varDataLen(inputData);
-  char*   newColData;
-  if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_VARBINARY) {
+  int32_t charLen = 0;
+  char*   dataVal = NULL;
+
+  if (IS_STR_DATA_BLOB(type)) {
+    charLen = blobDataLen(inputData);
+    dataVal = blobDataVal(inputData);
+  } else {
+    charLen = varDataLen(inputData);
+    dataVal = varDataVal(inputData);
+  }
+
+  char* newColData;
+  if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_VARBINARY || IS_STR_DATA_BLOB(type)) {
     newColData = taosMemoryCalloc(1, charLen + 1);
     if (NULL == newColData) {
       TAOS_RETURN(terrno);
     }
-    (void)memcpy(newColData, varDataVal(inputData), charLen);
+    (void)memcpy(newColData, dataVal, charLen);
     int32_t ret = taosParseTime(newColData, timeVal, charLen, (int32_t)timePrec, tz);
     if (ret != TSDB_CODE_SUCCESS) {
       taosMemoryFree(newColData);
@@ -630,7 +640,7 @@ int32_t convertStringToTimestamp(int16_t type, char* inputData, int64_t timePrec
     if (NULL == newColData) {
       TAOS_RETURN(terrno);
     }
-    int len = taosUcs4ToMbs((TdUcs4*)varDataVal(inputData), charLen, newColData, charsetCxt);
+    int len = taosUcs4ToMbs((TdUcs4*)dataVal, charLen, newColData, charsetCxt);
     if (len < 0) {
       taosMemoryFree(newColData);
       TAOS_RETURN(TSDB_CODE_FAILED);
