@@ -929,10 +929,20 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
     if (IS_CALENDAR_TIME_DURATION(pInterval->intervalUnit)) {
       int64_t news = (ts / pInterval->sliding) * pInterval->sliding;
       if (pInterval->slidingUnit == 'd' || pInterval->slidingUnit == 'w') {
-#if defined(WINDOWS)
-        int64_t timezone = getWindowsTimezoneOffset();
-#endif
-        news += (int64_t)(timezone * TSDB_TICK_PER_SECOND(precision));
+        // taosGet*TimezoneOffset() returns east-positive (tm_gmtoff) values.
+        // The day/week anchor logic here expects west-positive offsets, so
+        // shift by subtracting the east-positive offset.
+        int64_t tz_offset = 0;
+        if (pInterval->timezone != NULL) {
+          // taosGetTZOffsetSeconds() returns east-positive for any timezone_t on all platforms.
+          int32_t code = 0;
+          tz_offset = taosGetTZOffsetSeconds(pInterval->timezone, &code);
+        } else {
+          // Use global configured timezone (also east-positive on all platforms).
+          int32_t code = 0;
+          tz_offset = taosGetLocalTimezoneOffset(&code);
+        }
+        news -= (int64_t)(tz_offset * TSDB_TICK_PER_SECOND(precision));
       }
 
       start = news;
@@ -959,21 +969,30 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
       }
     } else {
       int64_t delta = ts - pInterval->interval;
-      int32_t factor = (delta >= 0) ? 1 : -1;
-
-      start = (delta / pInterval->sliding + factor) * pInterval->sliding;
+      start = (delta / pInterval->sliding) * pInterval->sliding;
 
       if (pInterval->intervalUnit == 'd' || pInterval->intervalUnit == 'w') {
         /*
          * here we revised the start time of day according to the local time zone,
          * but in case of DST, the start time of one day need to be dynamically decided.
+         *
+         * taosGet*TimezoneOffset() returns east-positive (tm_gmtoff) values.
+         * The day/week anchor logic here expects west-positive offsets, so
+         * shift by subtracting the east-positive offset.
          */
-        // todo refactor to extract function that is available for Linux/Windows/Mac platform
-#if defined(WINDOWS)
-        int64_t timezone = getWindowsTimezoneOffset();
-#endif
+        // Get timezone offset from pInterval->timezone or global config.
+        int64_t tz_offset = 0;
+        if (pInterval->timezone != NULL) {
+          // taosGetTZOffsetSeconds() returns east-positive for any timezone_t on all platforms.
+          int32_t code = 0;
+          tz_offset = taosGetTZOffsetSeconds(pInterval->timezone, &code);
+        } else {
+          // Use global configured timezone (also east-positive on all platforms).
+          int32_t code = 0;
+          tz_offset = taosGetLocalTimezoneOffset(&code);
+        }
 
-        start += (int64_t)(timezone * TSDB_TICK_PER_SECOND(precision));
+        start -= (int64_t)(tz_offset * TSDB_TICK_PER_SECOND(precision));
       }
 
       int64_t end = 0;

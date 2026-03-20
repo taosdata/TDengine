@@ -25,6 +25,12 @@
 #define _DEFAULT_SOURCE
 
 #include "os.h"
+#include "osInt.h"
+
+#ifdef WINDOWS
+// Declare timezone variable for Windows (not available in Windows CRT)
+long timezone = 0;
+#endif
 
 #if defined(WINDOWS) || defined(TD_ASTRA)
 
@@ -425,27 +431,28 @@ int64_t user_mktime64(const uint32_t year, const uint32_t mon, const uint32_t da
   return _res + time_zone;
 }
 
-// 声明 Windows 时区偏移全局变量
-#ifdef WINDOWS
-extern int64_t g_windows_timezone_offset;
-#endif
-
 time_t taosMktime(struct tm *timep, timezone_t tz) {
 #ifdef WINDOWS
-  // Windows: 调用 getWindowsTimezoneOffset 获取时区偏移
-  int64_t tzw = getWindowsTimezoneOffset();
+  // Get timezone offset (correctly use the passed tz parameter)
+  int64_t tzw = 0;
+  if (tz != NULL) {
+    WindowsTimezoneObj* tz_obj = (WindowsTimezoneObj*)tz;
+    taosThreadMutexLock(&tz_obj->mutex);
+    tzw = tz_obj->offset_seconds;
+    taosThreadMutexUnlock(&tz_obj->mutex);
+  } else {
+    // Use getWindowsTimezoneOffset which reads from TZ environment variable
+    tzw = getWindowsTimezoneOffset();
+  }
 
-  // 使用 user_mktime64 计算时间戳
+  // Calculate timestamp using user_mktime64
   time_t result = user_mktime64(timep->tm_year + 1900, timep->tm_mon + 1, timep->tm_mday,
                                  timep->tm_hour, timep->tm_min, timep->tm_sec, tzw);
 
-  // 如果结果合理，直接返回
-  if (result > 0) {
-    return result;
-  }
+  // Set global timezone variable
+  timezone = tzw;
 
-  // 否则回退到系统 mktime
-  return mktime(timep);
+  return result;
 #elif defined(TD_ASTRA)
   time_t r =  mktime(timep);
   if (r == (time_t)-1) {
@@ -510,14 +517,25 @@ struct tm *taosLocalTime(const time_t *timep, struct tm *result, char *buf, int3
     return NULL;
   }
 #ifdef WINDOWS
-  // Windows: 直接调用函数获取时区偏移，避免跨 DLL 的指针问题
-  time_t adjusted_time = *timep;
-  int64_t tz_offset = getWindowsTimezoneOffset();
-
-  if (tz_offset != 0) {
-    adjusted_time = *timep + (-tz_offset);
+  // Get timezone offset (correctly use the passed tz parameter)
+  int64_t tz_offset = 0;
+  if (tz != NULL) {
+    WindowsTimezoneObj* tz_obj = (WindowsTimezoneObj*)tz;
+    taosThreadMutexLock(&tz_obj->mutex);
+    tz_offset = tz_obj->offset_seconds;
+    taosThreadMutexUnlock(&tz_obj->mutex);
+  } else {
+    // Use getWindowsTimezoneOffset which reads from TZ environment variable
+    tz_offset = getWindowsTimezoneOffset();
   }
 
+  // Convert UTC timestamp to local time.
+  // tz_offset is east-negative (POSIX `timezone` convention), so:
+  //   local = utc - tz_offset  =  utc + |east_offset|
+  // e.g. East 8 (UTC+8): tz_offset = -28800, adjusted_time = *timep + 28800.
+  time_t adjusted_time = *timep + (-tz_offset);
+
+  // Convert to struct tm (keep existing logic)
   if (adjusted_time < -2208988800LL) {
     if (buf != NULL) {
       snprintf(buf, bufSize, "NaN");
@@ -568,6 +586,14 @@ struct tm *taosLocalTime(const time_t *timep, struct tm *result, char *buf, int3
       return NULL;
     }
   }
+
+  // Update the global `timezone` variable (POSIX convention: east-negative, west-positive).
+  // On non-Windows: set as `timezone = -result->tm_gmtoff` (see #else branch below).
+  // On Windows: tz_offset already carries the east-negative value (from tz_obj->offset_seconds
+  // or getWindowsTimezoneOffset()), so assigning it directly gives the same semantics.
+  // External callers needing east-positive values should use taosGetTZOffsetSeconds().
+  timezone = tz_offset;
+
   return result;
 #elif defined(TD_ASTRA)
   res = localtime_r(timep, result);
