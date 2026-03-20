@@ -690,7 +690,6 @@ static void mndSetDefaultDbCfg(SDbCfg *pCfg) {
   if (pCfg->strict < 0) pCfg->strict = TSDB_DEFAULT_DB_STRICT;
   if (pCfg->cacheLast < 0) pCfg->cacheLast = TSDB_DEFAULT_CACHE_MODEL;
   if (pCfg->cacheLastSize <= 0) pCfg->cacheLastSize = TSDB_DEFAULT_CACHE_SIZE;
-  if (pCfg->cacheLastShardBits < 0) pCfg->cacheLastShardBits = -1;  // -1 means auto-calculate
   if (pCfg->numOfRetensions < 0) pCfg->numOfRetensions = 0;
   if (pCfg->schemaless < 0) pCfg->schemaless = TSDB_DB_SCHEMALESS_OFF;
   if (pCfg->walRetentionPeriod < 0 && pCfg->walRetentionPeriod != -1)
