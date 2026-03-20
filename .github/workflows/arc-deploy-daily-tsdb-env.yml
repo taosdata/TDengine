@@ -27,7 +27,6 @@ env:
   K8S_NAMESPACE: tsdb-dev
   REGISTRY_HOST: 192.168.1.42
   REGISTRY_REPO: tdasset/tsdb-ee
-  IMAGE_LOOKBACK_DAYS: 14
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name }}-tsdb-dev-${{ github.ref }}
@@ -61,10 +60,10 @@ jobs:
 
           case "$BRANCH_NAME" in
             main)
-              VERSION_PREFIX='3.4.0.0'
+              IMAGE_TAG='main-latest'
               ;;
             3.0)
-              VERSION_PREFIX='3.4.0.100'
+              IMAGE_TAG='3.0-latest'
               ;;
             *)
               echo "Unsupported branch_name: $BRANCH_NAME"
@@ -72,72 +71,21 @@ jobs:
               ;;
           esac
 
-          image_tag_exists() {
-            local tag="$1"
-            local manifest_path="/v2/${REGISTRY_REPO}/manifests/${tag}"
-            local curl_args=(
-              --silent
-              --show-error
-              --fail
-              --location
-              --connect-timeout 2
-              --max-time 5
-              -H "Accept: application/vnd.docker.distribution.manifest.v2+json"
-            )
-
-            if curl "${curl_args[@]}" "http://${REGISTRY_HOST}${manifest_path}" > /dev/null 2>&1; then
-              return 0
-            fi
-
-            if curl -k "${curl_args[@]}" "https://${REGISTRY_HOST}${manifest_path}" > /dev/null 2>&1; then
-              return 0
-            fi
-
-            return 1
-          }
-
           CLEAN_BRANCH=$(echo "$BRANCH_NAME" | sed 's/[^a-zA-Z0-9-]/-/g' | tr '[:upper:]' '[:lower:]')
-          IMAGE_LOOKBACK_OFFSET_DAYS=''
-          BUILD_DATE=''
-          IMAGE_TAG=''
-          offset=0
-          while [ "$offset" -le "${IMAGE_LOOKBACK_DAYS}" ]; do
-            candidate_build_date=$(TZ=Asia/Shanghai date -d "-${offset} day" +%m%d)
-            candidate_image_tag="${VERSION_PREFIX}.${candidate_build_date}"
-            if image_tag_exists "${candidate_image_tag}"; then
-              BUILD_DATE="${candidate_build_date}"
-              IMAGE_TAG="${candidate_image_tag}"
-              IMAGE_LOOKBACK_OFFSET_DAYS="${offset}"
-              break
-            fi
-            echo "Image not found, continue fallback: ${REGISTRY_HOST}/${REGISTRY_REPO}:${candidate_image_tag}"
-            offset=$((offset + 1))
-          done
-
-          if [ -z "${IMAGE_TAG}" ]; then
-            echo "Failed to find image for version prefix ${VERSION_PREFIX} within ${IMAGE_LOOKBACK_DAYS} day(s)"
-            exit 1
-          fi
-
           TSDB_IMAGE="${REGISTRY_HOST}/${REGISTRY_REPO}:${IMAGE_TAG}"
           RELEASE_NAME="tsdb-${CLEAN_BRANCH}"
           TSDB_HOST="${RELEASE_NAME}-tsdb-br.kube.tdengine.net"
           TSDB_EXPLORER_URL="https://${TSDB_HOST}"
 
           echo "BRANCH_NAME=$BRANCH_NAME" >> "$GITHUB_ENV"
-          echo "VERSION_PREFIX=$VERSION_PREFIX" >> "$GITHUB_ENV"
-          echo "BUILD_DATE=$BUILD_DATE" >> "$GITHUB_ENV"
           echo "IMAGE_TAG=$IMAGE_TAG" >> "$GITHUB_ENV"
-          echo "IMAGE_LOOKBACK_OFFSET_DAYS=$IMAGE_LOOKBACK_OFFSET_DAYS" >> "$GITHUB_ENV"
           echo "TSDB_IMAGE=$TSDB_IMAGE" >> "$GITHUB_ENV"
           echo "RELEASE_NAME=$RELEASE_NAME" >> "$GITHUB_ENV"
           echo "TSDB_HOST=$TSDB_HOST" >> "$GITHUB_ENV"
           echo "TSDB_EXPLORER_URL=$TSDB_EXPLORER_URL" >> "$GITHUB_ENV"
 
           echo "Branch: $BRANCH_NAME"
-          echo "Version prefix: $VERSION_PREFIX"
-          echo "Build date: $BUILD_DATE"
-          echo "Image fallback offset days: $IMAGE_LOOKBACK_OFFSET_DAYS"
+          echo "Image tag: $IMAGE_TAG"
           echo "TSDB image: $TSDB_IMAGE"
           echo "Release name: $RELEASE_NAME"
           echo "TSDB host: $TSDB_HOST"
@@ -209,9 +157,7 @@ jobs:
           message = "\n".join([
               f"TSDB dev deployment {os.environ['STATUS_TEXT']}",
               f"Branch: {os.environ['BRANCH_NAME']}",
-              f"Version: {os.environ['VERSION_PREFIX']}",
-              f"Build date: {os.environ['BUILD_DATE']}",
-              f"Fallback offset days: {os.environ['IMAGE_LOOKBACK_OFFSET_DAYS']}",
+              f"Image tag: {os.environ['IMAGE_TAG']}",
               f"Image: {os.environ['TSDB_IMAGE']}",
               f"Release: {os.environ['RELEASE_NAME']}",
               f"Explorer: {os.environ['TSDB_EXPLORER_URL']}",
