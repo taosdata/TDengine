@@ -276,6 +276,10 @@ taosgen -h 127.0.0.1 -c config.yaml
 - `kafka/produce`：用于向指定的 Kafka Broker 发布数据
 每个行动在调用时可通过 with 字段传入参数，具体参数内容因行动类型而异。
 
+:::note
+`tdengine/insert-data` 为 v0.7.x 及更早版本的旧名称，v0.8.0 起继续使用会收到提示："Action 'tdengine/insert-data' is deprecated and will be removed in future versions. Please use 'tdengine/insert' instead"。该名称自 v0.8.3 起不再支持（对应 TDengine TSDB 3.3.6.39/3.3.8.16/3.4.0.2）。
+:::
+
 ### 创建 TDengine 数据库行动的格式
 
 `tdengine/create-database` 行动用于在指定的 TDengine 数据库服务器上创建一个新的数据库。通过配置的连接信息和数据库参数，用户可以轻松地定义新数据库的各种属性，如数据库名称、是否在存在时删除旧数据库、时间精度等。
