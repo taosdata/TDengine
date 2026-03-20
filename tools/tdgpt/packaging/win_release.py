@@ -525,7 +525,7 @@ if "%PROGRESS_FILE%"=="" (
 
 if errorlevel 1 (
     >> "%LOG_FILE%" echo [%date% %time%] Installation failed
-    call :write_progress error 100 "Installation failed" "See install.log for details"
+    call :ensure_error_progress "Installation failed" "See install.log for details"
     exit /b 1
 )
 
@@ -540,6 +540,15 @@ if "%PROGRESS_FILE%"=="" exit /b 0
 >> "%PROGRESS_FILE%" echo percent=%~2
 >> "%PROGRESS_FILE%" echo title=%~3
 >> "%PROGRESS_FILE%" echo detail=%~4
+exit /b 0
+
+:ensure_error_progress
+if "%PROGRESS_FILE%"=="" exit /b 0
+if exist "%PROGRESS_FILE%" (
+    findstr /B /C:"status=error" "%PROGRESS_FILE%" >nul 2>&1
+    if not errorlevel 1 exit /b 0
+)
+call :write_progress error 100 "%~1" "%~2"
 exit /b 0
 """)
     logging.info("Created install.bat")

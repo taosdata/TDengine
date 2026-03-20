@@ -143,6 +143,72 @@ begin
     Result := NormalizedUrl;
 end;
 
+function ReadCommandOutput(CommandName: string; var OutputText: AnsiString): Boolean;
+var
+  TempFile: string;
+  ResultCode: Integer;
+  CmdArgs: string;
+begin
+  TempFile := ExpandConstant('{tmp}\tdgpt-precheck-output.txt');
+  DeleteFile(TempFile);
+  CmdArgs := '/C ""' + CommandName + '" --version > "' + TempFile + '" 2>&1"';
+  Result := Exec(ExpandConstant('{cmd}'), CmdArgs, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) and (ResultCode = 0);
+  OutputText := '';
+  if FileExists(TempFile) then
+  begin
+    LoadStringFromFile(TempFile, OutputText);
+    DeleteFile(TempFile);
+  end;
+  OutputText := Trim(OutputText);
+end;
+
+function IsSupportedPythonVersion(OutputText: AnsiString): Boolean;
+var
+  VersionText: AnsiString;
+begin
+  Result := False;
+  if Pos('Python ', OutputText) <> 1 then
+    exit;
+  VersionText := Copy(OutputText, 8, MaxInt);
+  Result :=
+    (Pos('3.10.', VersionText) = 1) or
+    (Pos('3.11.', VersionText) = 1) or
+    (Pos('3.12.', VersionText) = 1) or
+    (VersionText = '3.10') or
+    (VersionText = '3.11') or
+    (VersionText = '3.12');
+end;
+
+function TryDetectPython(CommandName: string; var VersionText: AnsiString): Boolean;
+begin
+  Result := ReadCommandOutput(CommandName, VersionText) and IsSupportedPythonVersion(VersionText);
+end;
+
+function CheckPythonPrerequisite(var VersionText: AnsiString): Boolean;
+begin
+  Result :=
+    TryDetectPython('python', VersionText) or
+    TryDetectPython('python3', VersionText) or
+    TryDetectPython('python3.10', VersionText) or
+    TryDetectPython('python3.11', VersionText) or
+    TryDetectPython('python3.12', VersionText);
+end;
+
+function InitializeSetup(): Boolean;
+var
+  PythonVersionText: AnsiString;
+  MessageText: string;
+begin
+  Result := CheckPythonPrerequisite(PythonVersionText);
+  if Result then
+    exit;
+
+  MessageText :=
+    'Python 3.10, 3.11, or 3.12 was not found in PATH.' + #13#10 + #13#10 +
+    'Please install Python first, enable "Add Python to PATH", and then run the installer again.';
+  MsgBox(MessageText, mbCriticalError, MB_OK);
+end;
+
 function GetSelectedModelCount(): Integer;
 begin
   Result := 0;
@@ -548,6 +614,24 @@ begin
     FinishNotesLabel.Visible := False;
 end;
 
+procedure ShowInstallFailureAndAbort(TitleValue: String; DetailValue: String);
+var
+  MessageText: String;
+begin
+  if Trim(TitleValue) = '' then
+    TitleValue := 'Installation failed';
+  if Trim(DetailValue) = '' then
+    DetailValue := 'See install.log for details.';
+
+  MessageText := TitleValue + #13#10 + #13#10 +
+    DetailValue + #13#10 + #13#10 +
+    'Log file:' + #13#10 + ExpandConstant('{app}\log\install.log');
+
+  MsgBox(MessageText, mbCriticalError, MB_OK);
+  WizardForm.Close;
+  Abort;
+end;
+
 procedure WaitForPostInstall();
 var
   ResultCode: Integer;
@@ -581,7 +665,7 @@ begin
       if StatusValue = 'success' then
         break;
       if StatusValue = 'error' then
-        RaiseException('TDGPT installation failed. See install.log for details.');
+        ShowInstallFailureAndAbort(TitleValue, DetailValue);
       Sleep(400);
     end;
   finally
