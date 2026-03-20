@@ -152,8 +152,8 @@ static int32_t taosConnectImpl(const char* user, const char* auth, int32_t totpC
                                __taos_async_fn_t fp, void* param, SAppInstInfo* pAppInfo, int connType,
                                STscObj** pTscObj);
 
-int32_t taos_connect_by_auth(const char* ip, const char* user, const char* auth, const char* totp,
-                                    const char* db, uint16_t port, int connType, STscObj** pObj) {
+int32_t taos_connect_by_auth(const char* ip, const char* user, const char* auth, const char* totp, const char* db,
+                             uint16_t port, int connType, STscObj** pObj) {
   TSC_ERR_RET(taos_init());
 
   if (user == NULL) {
@@ -322,6 +322,15 @@ int32_t buildRequest(uint64_t connId, const char* sql, int sqlLen, void* param, 
   (*pRequest)->sqlLen = sqlLen;
   (*pRequest)->validateOnly = validateSql;
   (*pRequest)->stmtBindVersion = 0;
+
+  code = sqlSecurityCheckStringLevel(*pRequest, (*pRequest)->sqlstr, (*pRequest)->sqlLen);
+  if (code != TSDB_CODE_SUCCESS) {
+    tscWarn("req:0x%" PRIx64 ", sql security string check failed, QID:0x%" PRIx64 ", code:%s", (*pRequest)->self,
+            (*pRequest)->requestId, tstrerror(code));
+    destroyRequest(*pRequest);
+    *pRequest = NULL;
+    return code;
+  }
 
   ((SSyncQueryParam*)(*pRequest)->body.interParam)->userParam = param;
 
@@ -960,21 +969,21 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList
                            .requestId = pRequest->requestId,
                            .requestObjRefId = pRequest->self};
   SSchedulerReq    req = {
-         .syncReq       = true,
-         .localReq      = (tsQueryPolicy == QUERY_POLICY_CLIENT),
-         .pConn         = &conn,
-         .pNodeList     = pNodeList,
-         .pDag          = pDag,
-         .sql           = pRequest->sqlstr,
-         .startTs       = pRequest->metric.start,
-         .execFp        = NULL,
-         .cbParam       = NULL,
-         .chkKillFp     = chkRequestKilled,
-         .chkKillParam  = (void*)pRequest->self,
-         .pExecRes      = &res,
-         .source        = pRequest->source,
-         .secureDelete  = pRequest->secureDelete,
-         .pWorkerCb     = getTaskPoolWorkerCb(),
+         .syncReq = true,
+         .localReq = (tsQueryPolicy == QUERY_POLICY_CLIENT),
+         .pConn = &conn,
+         .pNodeList = pNodeList,
+         .pDag = pDag,
+         .sql = pRequest->sqlstr,
+         .startTs = pRequest->metric.start,
+         .execFp = NULL,
+         .cbParam = NULL,
+         .chkKillFp = chkRequestKilled,
+         .chkKillParam = (void*)pRequest->self,
+         .pExecRes = &res,
+         .source = pRequest->source,
+         .secureDelete = pRequest->secureDelete,
+         .pWorkerCb = getTaskPoolWorkerCb(),
   };
 
   int32_t code = schedulerExecJob(&req, &pRequest->body.queryJob);
@@ -1280,6 +1289,10 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
   SRequestObj*         pRequest = pWrapper->pRequest;
   STscObj*             pTscObj = pRequest->pTscObj;
 
+  // Note: This is EXECUTE completion callback, not FETCH callback.
+  // Scheduler job phase is authoritative. Client phase is only fallback.
+  // Let heartbeat read scheduler job phase via schedulerGetJobPhase().
+
   pRequest->code = code;
   if (pResult) {
     destroyQueryExecRes(&pRequest->body.resInfo.execRes);
@@ -1323,6 +1336,7 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
   }
 
   pRequest->metric.execCostUs = taosGetTimestampUs() - pRequest->metric.execStart;
+
   int32_t code1 = handleQueryExecRsp(pRequest);
   if (pRequest->code == TSDB_CODE_SUCCESS && pRequest->code != code1) {
     pRequest->code = code1;
@@ -1454,6 +1468,8 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
   int64_t     st = taosGetTimestampUs();
 
   if (!pRequest->parseOnly) {
+    CLIENT_UPDATE_REQUEST_PHASE_IF_CHANGED(pRequest, QUERY_PHASE_PLAN);
+
     pMnodeList = taosArrayInit(4, sizeof(SQueryNodeLoad));
     if (NULL == pMnodeList) {
       code = terrno;
@@ -1490,6 +1506,7 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
 
   if (TSDB_CODE_SUCCESS == code && !pRequest->validateOnly) {
     if (QUERY_NODE_VNODE_MODIFY_STMT != nodeType(pQuery->pRoot)) {
+      CLIENT_UPDATE_REQUEST_PHASE_IF_CHANGED(pRequest, QUERY_PHASE_SCHEDULE);
       code = buildAsyncExecNodeList(pRequest, &pNodeList, pMnodeList, pResultMeta);
     }
 
@@ -1503,25 +1520,26 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
                                .requestId = pRequest->requestId,
                                .requestObjRefId = pRequest->self};
       SSchedulerReq    req = {
-             .syncReq       = false,
-             .localReq      = (tsQueryPolicy == QUERY_POLICY_CLIENT),
-             .pConn         = &conn,
-             .pNodeList     = pNodeList,
-             .pDag          = pDag,
+             .syncReq = false,
+             .localReq = (tsQueryPolicy == QUERY_POLICY_CLIENT),
+             .pConn = &conn,
+             .pNodeList = pNodeList,
+             .pDag = pDag,
              .allocatorRefId = pRequest->allocatorRefId,
-             .sql           = pRequest->sqlstr,
-             .startTs       = pRequest->metric.start,
-             .execFp        = schedulerExecCb,
-             .cbParam       = pWrapper,
-             .chkKillFp     = chkRequestKilled,
-             .chkKillParam  = (void*)pRequest->self,
-             .pExecRes      = NULL,
-             .source        = pRequest->source,
-             .secureDelete  = pRequest->secureDelete,
-             .pWorkerCb     = getTaskPoolWorkerCb(),
+             .sql = pRequest->sqlstr,
+             .startTs = pRequest->metric.start,
+             .execFp = schedulerExecCb,
+             .cbParam = pWrapper,
+             .chkKillFp = chkRequestKilled,
+             .chkKillParam = (void*)pRequest->self,
+             .pExecRes = NULL,
+             .source = pRequest->source,
+             .secureDelete = pRequest->secureDelete,
+             .pWorkerCb = getTaskPoolWorkerCb(),
       };
 
       if (TSDB_CODE_SUCCESS == code) {
+        CLIENT_UPDATE_REQUEST_PHASE_IF_CHANGED(pRequest, QUERY_PHASE_EXECUTE);
         code = schedulerExecJob(&req, &pRequest->body.queryJob);
       }
       taosArrayDestroy(pNodeList);
@@ -2228,6 +2246,7 @@ void* doAsyncFetchRows(SRequestObj* pRequest, bool setupOneRowPtr, bool convertU
     // All data has returned to App already, no need to try again
     if (pResultInfo->completed) {
       pResultInfo->numOfRows = 0;
+      CLIENT_UPDATE_REQUEST_PHASE_IF_CHANGED(pRequest, QUERY_PHASE_FETCH_RETURNED);
       return NULL;
     }
 
@@ -3347,12 +3366,15 @@ void taosAsyncFetchImpl(SRequestObj* pRequest, __taos_async_fn_t fp, void* param
   // this query has no results or error exists, return directly
   if (taos_num_fields(pRequest) == 0 || pRequest->code != TSDB_CODE_SUCCESS) {
     pResultInfo->numOfRows = 0;
+    CLIENT_UPDATE_REQUEST_PHASE_IF_CHANGED(pRequest, QUERY_PHASE_FETCH_RETURNED);
     pRequest->body.fetchFp(param, pRequest, pResultInfo->numOfRows);
+
     return;
   }
 
   // all data has returned to App already, no need to try again
   if (pResultInfo->completed) {
+    CLIENT_UPDATE_REQUEST_PHASE_IF_CHANGED(pRequest, QUERY_PHASE_FETCH_RETURNED);
     // it is a local executed query, no need to do async fetch
     if (QUERY_EXEC_MODE_SCHEDULE != pRequest->body.execMode) {
       if (pResultInfo->localResultFetched) {
@@ -3384,6 +3406,7 @@ void taosAsyncFetchImpl(SRequestObj* pRequest, __taos_async_fn_t fp, void* param
 
 void doRequestCallback(SRequestObj* pRequest, int32_t code) {
   pRequest->inCallback = true;
+
   int64_t this = pRequest->self;
   if (tsQueryTbNotExistAsEmpty && TD_RES_QUERY(&pRequest->resType) && pRequest->isQuery &&
       (code == TSDB_CODE_PAR_TABLE_NOT_EXIST || code == TSDB_CODE_TDB_TABLE_NOT_EXIST)) {

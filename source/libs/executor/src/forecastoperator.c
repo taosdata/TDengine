@@ -1123,7 +1123,7 @@ int32_t createForecastOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNo
     code = terrno;
     goto _error;
   }
-
+  initOperatorCostInfo(pOperator);
   pOperator->pPhyNode = pPhyNode;
 
   const char*             pId = pTaskInfo->id.str;

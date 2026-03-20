@@ -1092,11 +1092,15 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
     if (pRequest->killed) {
       tscInfo("query has been killed, can not fetch more row.");
       pRequest->code = TSDB_CODE_TSC_QUERY_KILLED;
+      CLIENT_UPDATE_REQUEST_PHASE_IF_CHANGED(pRequest, QUERY_PHASE_FETCH_RETURNED);
       return NULL;
     }
 
     if (pRequest->type == TSDB_SQL_RETRIEVE_EMPTY_RESULT || pRequest->type == TSDB_SQL_INSERT ||
         pRequest->code != TSDB_CODE_SUCCESS || taos_num_fields(res) == 0) {
+      if (pRequest->type == TSDB_SQL_RETRIEVE_EMPTY_RESULT) {
+        CLIENT_UPDATE_REQUEST_PHASE_IF_CHANGED(pRequest, QUERY_PHASE_FETCH_RETURNED);
+      }
       return NULL;
     }
 
@@ -1460,12 +1464,12 @@ int taos_fetch_block_s(TAOS_RES *res, int *numOfRows, TAOS_ROW *rows) {
 
   if (TD_RES_QUERY(res)) {
     SRequestObj *pRequest = (SRequestObj *)res;
-
     (*rows) = NULL;
     (*numOfRows) = 0;
 
     if (pRequest->type == TSDB_SQL_RETRIEVE_EMPTY_RESULT || pRequest->type == TSDB_SQL_INSERT ||
         pRequest->code != TSDB_CODE_SUCCESS || taos_num_fields(res) == 0) {
+      CLIENT_UPDATE_REQUEST_PHASE_IF_CHANGED(pRequest, QUERY_PHASE_FETCH_RETURNED);
       return pRequest->code;
     }
 
@@ -1519,6 +1523,9 @@ int taos_fetch_raw_block(TAOS_RES *res, int *numOfRows, void **pData) {
 
   if (pRequest->type == TSDB_SQL_RETRIEVE_EMPTY_RESULT || pRequest->type == TSDB_SQL_INSERT ||
       pRequest->code != TSDB_CODE_SUCCESS || taos_num_fields(res) == 0) {
+    if (pRequest->code == TSDB_SQL_RETRIEVE_EMPTY_RESULT) {
+      CLIENT_UPDATE_REQUEST_PHASE_IF_CHANGED(pRequest, QUERY_PHASE_FETCH_RETURNED);
+    }
     return pRequest->code;
   }
 
@@ -1734,6 +1741,10 @@ static void doAsyncQueryFromAnalyse(SMetaData *pResultMeta, void *param, int32_t
     code = qAnalyseSqlSemantic(pWrapper->pParseCtx, pWrapper->pCatalogReq, pResultMeta, pQuery);
   }
 
+  if (TSDB_CODE_SUCCESS == code) {
+    code = sqlSecurityCheckASTLevel(pRequest, pQuery);
+  }
+
   pRequest->metric.analyseCostUs += taosGetTimestampUs() - analyseStart;
 
   if (pRequest->parseOnly) {
@@ -1877,20 +1888,22 @@ static int32_t getAllMetaAsync(SSqlCallbackWrapper *pWrapper, catalogCallback fp
 static void doAsyncQueryFromParse(SMetaData *pResultMeta, void *param, int32_t code);
 
 static int32_t phaseAsyncQuery(SSqlCallbackWrapper *pWrapper) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  switch (pWrapper->pRequest->pQuery->execStage) {
+  int32_t      code = TSDB_CODE_SUCCESS;
+  SRequestObj *pRequest = pWrapper->pRequest;
+  switch (pRequest->pQuery->execStage) {
     case QUERY_EXEC_STAGE_PARSE: {
-      // continue parse after get metadata
+      CLIENT_UPDATE_REQUEST_PHASE_IF_CHANGED(pRequest, QUERY_PHASE_CATALOG);
       code = getAllMetaAsync(pWrapper, doAsyncQueryFromParse);
       break;
     }
     case QUERY_EXEC_STAGE_ANALYSE: {
-      // analysis after get metadata
+      CLIENT_UPDATE_REQUEST_PHASE_IF_CHANGED(pRequest, QUERY_PHASE_CATALOG);
       code = getAllMetaAsync(pWrapper, doAsyncQueryFromAnalyse);
       break;
     }
     case QUERY_EXEC_STAGE_SCHEDULE: {
-      launchAsyncQuery(pWrapper->pRequest, pWrapper->pRequest->pQuery, NULL, pWrapper);
+      CLIENT_UPDATE_REQUEST_PHASE_IF_CHANGED(pRequest, QUERY_PHASE_SCHEDULE);
+      launchAsyncQuery(pRequest, pRequest->pQuery, NULL, pWrapper);
       break;
     }
     default:
@@ -2037,6 +2050,8 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
   SSqlCallbackWrapper *pWrapper = NULL;
   int32_t              code = TSDB_CODE_SUCCESS;
 
+  CLIENT_UPDATE_REQUEST_PHASE_IF_CHANGED(pRequest, QUERY_PHASE_PARSE);
+
   if (pRequest->retry++ > REQUEST_TOTAL_EXEC_TIMES) {
     code = pRequest->prevCode;
     terrno = code;
@@ -2145,16 +2160,23 @@ void taos_fetch_rows_a(TAOS_RES *res, __taos_async_fn_t fp, void *param) {
   }
 
   SRequestObj *pRequest = res;
+
+  // Each fetch call sets phase to IN_PROGRESS
+
   if (TSDB_SQL_RETRIEVE_EMPTY_RESULT == pRequest->type) {
+    CLIENT_UPDATE_REQUEST_PHASE_IF_CHANGED(pRequest, QUERY_PHASE_FETCH_RETURNED);
     fp(param, res, 0);
     return;
   }
 
   SAsyncFetchParam *pParam = taosMemoryCalloc(1, sizeof(SAsyncFetchParam));
   if (!pParam) {
+    CLIENT_UPDATE_REQUEST_PHASE_IF_CHANGED(pRequest, QUERY_PHASE_FETCH_RETURNED);
     fp(param, res, terrno);
     return;
   }
+
+  CLIENT_UPDATE_REQUEST_PHASE_IF_CHANGED(pRequest, QUERY_PHASE_FETCH_IN_PROGRESS);
   pParam->pReq = pRequest;
   pParam->fp = fp;
   pParam->param = param;
@@ -2178,6 +2200,7 @@ void taos_fetch_raw_block_a(TAOS_RES *res, __taos_async_fn_t fp, void *param) {
   SRequestObj    *pRequest = res;
   SReqResultInfo *pResultInfo = &pRequest->body.resInfo;
 
+  CLIENT_UPDATE_REQUEST_PHASE_IF_CHANGED(pRequest, QUERY_PHASE_FETCH_IN_PROGRESS);
   // set the current block is all consumed
   pResultInfo->convertUcs4 = false;
 

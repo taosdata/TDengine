@@ -753,6 +753,8 @@ Below are the business error codes for each module.
 | 0x80008021 | Xnode agent already exist                             | The queried Xnode agent already exist                       | Check queried agent ID or name               |
 | 0x80008022 | Xnode name duplicate                                  | The updated name is duplicate                               | Check whether the name to be updated is a duplicate of the existing data |
 | 0x80008023 | Xnode task parser too long                            | The task parser column is too long                          | Check whether the parser column is too long  |
+| 0x80008024 | No privilege to access xnode                          | No privilege to create/alter/drop/show xnode                | Check whether the current user has permission to operate xnode |
+| 0x80008025 | No privilege to access xnode task                     | No privilege to create/alter/drop/show xnode task           | Check whether the current user has permission to operate xnode tasks |
 
 ## Connectors
 

@@ -88,6 +88,7 @@ int32_t createSortOperatorInfo(SOperatorInfo* downstream, SSortPhysiNode* pSortN
     code = terrno;
     goto _error;
   }
+  initOperatorCostInfo(pOperator);
 
   pOperator->pTaskInfo = pTaskInfo;
   SDataBlockDescNode* pDescNode = pSortNode->node.pOutputDataBlockDesc;
@@ -397,7 +398,6 @@ int32_t doOpenSortOperator(SOperatorInfo* pOperator) {
     return code;
   }
 
-  pInfo->startTs = taosGetTimestampUs();
   //  pInfo->binfo.pRes is not equalled to the input datablock.
   pInfo->pSortHandle = NULL;
   code =
@@ -419,7 +419,6 @@ int32_t doOpenSortOperator(SOperatorInfo* pOperator) {
 
   code = tsortOpen(pInfo->pSortHandle);
   QUERY_CHECK_CODE(code, lino, _end);
-  pOperator->cost.openCost = (taosGetTimestampUs() - pInfo->startTs) / 1000.0;
   pOperator->status = OP_RES_TO_RETURN;
   OPTR_SET_OPENED(pOperator);
 
@@ -457,8 +456,10 @@ int32_t doSort(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
       QUERY_CHECK_CODE(code, lino, _end);
     }
 
+    recordOpExecBeforeDownstream(pOperator);
     code = getSortedBlockData(pInfo->pSortHandle, pInfo->binfo.pRes, pOperator->resultInfo.capacity,
                                 pInfo->matchInfo.pList, pInfo, &pBlock);
+    recordOpExecAfterDownstream(pOperator, pBlock ? pBlock->info.rows : 0);
     QUERY_CHECK_CODE(code, lino, _end);
     if (pBlock == NULL) {
       setOperatorCompleted(pOperator);
@@ -478,7 +479,6 @@ int32_t doSort(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
       resetLimitInfoForNextGroup(&pInfo->limitInfo);
     }
 
-    pOperator->resultInfo.totalRows += pBlock->info.rows;
     if (pBlock->info.rows > 0) {
       break;
     }
@@ -779,12 +779,13 @@ int32_t doGroupSort(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
       QUERY_CHECK_CODE(code, lino, _end);
     }
 
+    recordOpExecBeforeDownstream(pOperator);
     code = getGroupSortedBlockData(pInfo->pCurrSortHandle, pInfo->binfo.pRes, pOperator->resultInfo.capacity,
                                      pInfo->matchInfo.pList, pInfo, &pBlock);
+    recordOpExecAfterDownstream(pOperator, pBlock ? pBlock->info.rows : 0);
     QUERY_CHECK_CODE(code, lino, _end);
     if (pBlock != NULL) {
       pBlock->info.id.groupId = pInfo->currGroupId;
-      pOperator->resultInfo.totalRows += pBlock->info.rows;
       *pResBlock = pBlock;
       return code;
     } else {
@@ -866,6 +867,7 @@ int32_t createGroupSortOperatorInfo(SOperatorInfo* downstream, SGroupSortPhysiNo
     code = terrno;
     goto _error;
   }
+  initOperatorCostInfo(pOperator);
 
   SExprSupp*          pSup = &pOperator->exprSupp;
   SDataBlockDescNode* pDescNode = pSortPhyNode->node.pOutputDataBlockDesc;

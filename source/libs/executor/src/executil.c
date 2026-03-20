@@ -4684,6 +4684,7 @@ int32_t sendFetchRemoteNodeReq(STaskSubJobCtx* ctx, int32_t subQIdx, SNode* pRes
   req.execId = pSource->execId;
 
   if (IS_STREAM_MODE(pTaskInfo)) {
+    req.queryId = pSource->clientId;
     req.execId = pTaskInfo->pStreamRuntimeInfo->execId;
     req.pStRtFuncInfo = &pTaskInfo->pStreamRuntimeInfo->funcInfo;
     req.reset = reset;

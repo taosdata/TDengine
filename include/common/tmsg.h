@@ -448,7 +448,6 @@ typedef enum ENodeType {
   QUERY_NODE_DROP_TOTP_SECRET_STMT,
   QUERY_NODE_ALTER_KEY_EXPIRATION_STMT,
 
-
   // placeholder for [155, 180]
   QUERY_NODE_SHOW_CREATE_VIEW_STMT = 181,
   QUERY_NODE_SHOW_CREATE_DATABASE_STMT,
@@ -2130,6 +2129,7 @@ typedef struct {
   int32_t pageSize;
   int32_t pages;
   int32_t cacheLastSize;
+  int32_t cacheLastShardBits;  // Number of shards for last cache LRU, -1 for auto
   int32_t daysPerFile;
   int32_t daysToKeep0;
   int32_t daysToKeep1;
@@ -2185,6 +2185,7 @@ typedef struct {
   int32_t pageSize;
   int32_t pages;
   int32_t cacheLastSize;
+  int32_t cacheLastShardBits;  // Number of shards for last cache LRU, -1 for auto
   int32_t daysPerFile;
   int32_t daysToKeep0;
   int32_t daysToKeep1;
@@ -2412,6 +2413,7 @@ typedef struct {
   int32_t numOfStables;
   int32_t buffer;
   int32_t cacheSize;
+  int32_t cacheShardBits;
   int32_t pageSize;
   int32_t pages;
   int32_t daysPerFile;
@@ -3010,6 +3012,7 @@ typedef struct {
   int32_t  pageSize;
   int32_t  pages;
   int32_t  cacheLastSize;
+  int32_t  cacheLastShardBits;  // Number of shards for last cache LRU, -1 for auto
   int32_t  daysPerFile;
   int32_t  daysToKeep0;
   int32_t  daysToKeep1;
@@ -3193,6 +3196,7 @@ typedef struct {
   int32_t pageSize;
   int32_t pages;
   int32_t cacheLastSize;
+  int32_t cacheLastShardBits;  // Number of shards for last cache LRU, -1 for auto
   int32_t daysPerFile;
   int32_t daysToKeep0;
   int32_t daysToKeep1;
@@ -3463,11 +3467,34 @@ typedef struct {
 } SRetrieveMetaTableRsp;
 
 typedef struct SExplainExecInfo {
-  double   startupCost;
-  double   totalCost;
+  /* the number of rows returned */
   uint64_t numOfRows;
   uint32_t verboseLen;
   void*    verboseInfo;
+
+  /* the timestamp when the operator is created */
+  TSKEY    execCreate;
+  /* the first timestamp when the operator's next interface is called */
+  TSKEY    execStart;
+  /* the timestamp when the first row is returned */
+  TSKEY    execFirstRow;
+  /* the timestamp when the last row is returned */
+  TSKEY    execLastRow;
+  /* the number of times the operator's next interface is called */
+  uint32_t execTimes;
+  /**
+    the time elapsed for executing the operator's next interface,
+    not including waiting time for data from downstream
+  */
+  TSKEY    execElapsed;
+  /* the time elapsed for waiting for data from downstream */
+  TSKEY    inputWaitElapsed;
+  /* the time elapsed for waiting call from upstream */
+  TSKEY    outputWaitElapsed;
+  /* the number of rows input */
+  uint64_t inputRows;
+
+  int32_t  vgId;
 } SExplainExecInfo;
 
 typedef struct {
@@ -3485,14 +3512,22 @@ typedef struct {
 } SExplainLocalRsp;
 
 typedef struct STableScanAnalyzeInfo {
-  uint64_t totalRows;
-  uint64_t totalCheckedRows;
-  uint32_t totalBlocks;
-  uint32_t loadBlocks;
-  uint32_t loadBlockStatis;
-  uint32_t skipBlocks;
-  uint32_t filterOutBlocks;
-  double   elapsedTime;
+  int64_t totalBlocks;
+  int64_t fileLoadBlocks;
+  double  fileLoadElapsed;
+  int64_t sttLoadBlocks;
+  double  sttLoadElapsed;
+  int64_t memLoadBlocks;
+  double  memLoadElapsed;
+  int64_t smaLoadBlocks;
+  double  smaLoadElapsed;
+  int64_t composedBlocks;
+  double  composedElapsed;
+  
+  uint64_t checkRows;
+
+  uint64_t skipBlocks;
+  uint64_t filterOutBlocks;
   double   filterTime;
 } STableScanAnalyzeInfo;
 
@@ -5088,7 +5123,36 @@ typedef struct {
 typedef struct {
   int64_t tid;
   char    status[TSDB_JOB_STATUS_LEN];
+  int64_t startTs;  // sub-task first execution start time, us
 } SQuerySubDesc;
+
+typedef enum EQueryExecPhase {
+  /* Main phases: 0-9 */
+  QUERY_PHASE_NONE     = 0,
+  QUERY_PHASE_PARSE    = 1,
+  QUERY_PHASE_CATALOG  = 2,
+  QUERY_PHASE_PLAN     = 3,
+  QUERY_PHASE_SCHEDULE = 4,
+  QUERY_PHASE_EXECUTE  = 5,
+  QUERY_PHASE_FETCH    = 6,
+  QUERY_PHASE_DONE     = 7,
+
+  /* SCHEDULE sub-phases: 4x */
+  QUERY_PHASE_SCHEDULE_ANALYSIS       = 41,
+  QUERY_PHASE_SCHEDULE_PLANNING       = 42,
+  QUERY_PHASE_SCHEDULE_NODE_SELECTION = 43,
+
+  /* EXECUTE sub-phases: 5x */
+  QUERY_PHASE_EXEC_DATA_QUERY       = 51,
+  QUERY_PHASE_EXEC_MERGE_QUERY      = 52,
+  QUERY_PHASE_EXEC_WAITING_CHILDREN = 53,
+
+  /* FETCH sub-phases: 6x */
+  QUERY_PHASE_FETCH_IN_PROGRESS = 60,  // A single fetch operation is in progress
+  QUERY_PHASE_FETCH_RETURNED    = 61,  // Data returned to client, business logic processing
+} EQueryExecPhase;
+
+const char* queryPhaseStr(int32_t phase);
 
 typedef struct {
   char     sql[TSDB_SHOW_SQL_LEN];
@@ -5101,6 +5165,8 @@ typedef struct {
   char     fqdn[TSDB_FQDN_LEN];
   int32_t  subPlanNum;
   SArray*  subDesc;  // SArray<SQuerySubDesc>
+  int32_t  execPhase;       // EQueryExecPhase
+  int64_t  phaseStartTime;  // when current phase started, ms
 } SQueryDesc;
 
 typedef struct {
@@ -5262,9 +5328,14 @@ static FORCE_INLINE int32_t tEncodeSKv(SEncoder* pEncoder, const SKv* pKv) {
 static FORCE_INLINE int32_t tDecodeSKv(SDecoder* pDecoder, SKv* pKv) {
   TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &pKv->key));
   TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &pKv->valueLen));
+
+  if (pKv->valueLen < 0) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+
   pKv->value = taosMemoryMalloc(pKv->valueLen + 1);
   if (pKv->value == NULL) {
-    TAOS_CHECK_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
   TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, (char*)pKv->value));
   return 0;
@@ -5393,7 +5464,7 @@ typedef struct {
 typedef struct {
   char**  name;
   int32_t count;
-  int8_t igNotExists;
+  int8_t  igNotExists;
 } SMDropStreamReq;
 
 typedef struct {
@@ -5444,7 +5515,6 @@ int32_t tSerializeSMRecalcStreamReq(void* buf, int32_t bufLen, const SMRecalcStr
 int32_t tDeserializeSMRecalcStreamReq(void* buf, int32_t bufLen, SMRecalcStreamReq* pReq);
 void    tFreeMRecalcStreamReq(SMRecalcStreamReq* pReq);
 
-
 typedef struct SVndSetKeepVersionReq {
   int64_t keepVersion;
 } SVndSetKeepVersionReq;
@@ -5466,16 +5536,16 @@ typedef struct SVUpdateCheckpointInfoReq {
 } SVUpdateCheckpointInfoReq;
 
 typedef struct {
-  int64_t leftForVer;
-  int32_t vgId;
-  int64_t oldConsumerId;
-  int64_t newConsumerId;
-  char    subKey[TSDB_SUBSCRIBE_KEY_LEN];
-  int8_t  subType;
-  int8_t  withMeta;
-  char*   qmsg;  // SubPlanToString
+  int64_t        leftForVer;
+  int32_t        vgId;
+  int64_t        oldConsumerId;
+  int64_t        newConsumerId;
+  char           subKey[TSDB_SUBSCRIBE_KEY_LEN];
+  int8_t         subType;
+  int8_t         withMeta;
+  char*          qmsg;  // SubPlanToString
   SSchemaWrapper schema;
-  int64_t suid;
+  int64_t        suid;
 } SMqRebVgReq;
 
 int32_t tEncodeSMqRebVgReq(SEncoder* pCoder, const SMqRebVgReq* pReq);
@@ -5945,9 +6015,9 @@ static FORCE_INLINE void* tDecodeSMqSubVgEp(void* buf, SMqSubVgEp* pVgEp) {
 }
 
 typedef struct {
-  char           topic[TSDB_TOPIC_FNAME_LEN];
-  char           db[TSDB_DB_FNAME_LEN];
-  SArray*        vgs;  // SArray<SMqSubVgEp>
+  char    topic[TSDB_TOPIC_FNAME_LEN];
+  char    db[TSDB_DB_FNAME_LEN];
+  SArray* vgs;  // SArray<SMqSubVgEp>
 } SMqSubTopicEp;
 
 int32_t tEncodeMqSubTopicEp(void** buf, const SMqSubTopicEp* pTopicEp);
@@ -6024,8 +6094,8 @@ int32_t tSemiDecodeMqBatchMetaRsp(SDecoder* pDecoder, SMqBatchMetaRsp* pRsp);
 void    tDeleteMqBatchMetaRsp(SMqBatchMetaRsp* pRsp);
 
 typedef struct {
-  int32_t    code;
-  SArray*    topics;  // SArray<SMqSubTopicEp>
+  int32_t code;
+  SArray* topics;  // SArray<SMqSubTopicEp>
 } SMqAskEpRsp;
 
 static FORCE_INLINE int32_t tEncodeSMqAskEpRsp(void** buf, const SMqAskEpRsp* pRsp) {
@@ -6454,7 +6524,6 @@ void setFieldWithOptions(SFieldWithOptions* fieldWithOptions, SField* field);
 int32_t tSerializeSVSubTablesRspImpl(SEncoder* pEncoder, SVSubTablesRsp* pRsp);
 int32_t tDeserializeSVSubTablesRspImpl(SDecoder* pDecoder, SVSubTablesRsp* pRsp);
 
-
 typedef struct {
   char    id[TSDB_INSTANCE_ID_LEN];
   char    type[TSDB_INSTANCE_TYPE_LEN];
@@ -6721,4 +6790,3 @@ int32_t tDeserializeSScanVnodeReq(void* buf, int32_t bufLen, SScanVnodeReq* pReq
 #endif
 
 #endif /*_TD_COMMON_TAOS_MSG_H_*/
- 

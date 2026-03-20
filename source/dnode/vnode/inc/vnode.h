@@ -215,6 +215,7 @@ int32_t  tsdbCreateFirstLastTsIter(void *pVnode, STimeWindow *pWindow, SVersionR
 int32_t  tsdbNextFirstLastTsBlock(void *pIter, SSDataBlock *pRes, bool* hasNext);
 void     tsdbDestroyFirstLastTsIter(void *pIter);
 int32_t  tsdbReaderStepDone(STsdbReader *pReader, int64_t notifyTs);
+void     tsdbReaderSetExecInfo(const STsdbReader *pReader, STableScanAnalyzeInfo *pExecInfo);
 
 int32_t tsdbReuseCacherowsReader(void *pReader, void *pTableIdList, int32_t numOfTables);
 int32_t tsdbCacherowsReaderOpen(void *pVnode, int32_t type, void *pTableIdList, int32_t numOfTables, int32_t numOfCols,
@@ -361,6 +362,7 @@ struct SVnodeCfg {
   char        dbname[TSDB_DB_FNAME_LEN];
   uint64_t    dbId;
   int32_t     cacheLastSize;
+  int32_t     cacheLastShardBits;  // Number of shards for last cache LRU, -1 for auto
   int32_t     szPage;
   int32_t     szCache;
   uint64_t    szBuf;

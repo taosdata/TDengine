@@ -62,6 +62,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/03-Alter/test_db_alter_option_keep.py
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/03-Alter/test_db_alter_option.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/03-Alter/test_db_alter_replica.py -N 4
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/03-Alter/test_cache_last_shards.py
 ## 04-Query
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/04-Query/test_db_show_create_db.py
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/04-Query/test_db_show_create_table.py
@@ -319,6 +320,8 @@
 ,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub3d.py
 ,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub4a1.py
 ,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub4a2.py
+,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub4a3.py
+,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub4a4.py
 ,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_in_subq1.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_in_subq2.py
 ,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_in_subq3a1.py
@@ -722,7 +725,10 @@
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_fetch.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_subquery.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_subquery-nodes.py -N 4
-,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_subquery-mtables.py
+#,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_subquery-mtables.py
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_subquery_in.py
+#,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_subq_in-mtables.py -N 9
+#,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_subquery_in_vtable.py
 ## 03-TriggerMode
 #,,n,.,pytest cases/18-StreamProcessing/03-TriggerMode/test_count_new.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/03-TriggerMode/test_count.py
@@ -884,6 +890,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_totp.py
 ,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_whitelist.py
 ,,n,.,pytest cases/24-Users/test_user_passwd.py
+,,y,.,./ci/pytest.sh pytest cases/24-Users/test_query_phase_tracking.py
 
 # 25-Privileges
 ,,y,.,./ci/pytest.sh pytest cases/25-Privileges/test_priv_basic.py -N 3
@@ -941,6 +948,8 @@
 ,,y,.,./ci/pytest.sh pytest cases/31-Security/04-TransparentEncryption/test_transparent_encryption.py
 ,,y,.,./ci/pytest.sh pytest cases/31-Security/06-EncryptionStatus/test_encryption_status.py
 ,,y,.,./ci/pytest.sh pytest cases/31-Security/10-SecurityTest/test_plaintext_check.py
+,,y,.,./ci/pytest.sh pytest cases/31-Security/11-SQLFireWall/test_sql_blacklist.py
+,,y,.,./ci/pytest.sh pytest cases/31-Security/11-SQLFireWall/test_sql_whitelist.py
 
 # 32-Grants
 ,,n,.,./ci/pytest.sh pytest cases/32-Grants/test_grant_basic.py

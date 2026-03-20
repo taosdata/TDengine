@@ -185,7 +185,11 @@ static int32_t buildStreamFetchRsp(SSDataBlock* pBlock, void** data, size_t* siz
   } else {
     pRetrieve->numOfRows = htobe64((int64_t)pBlock->info.rows);
     pRetrieve->numOfBlocks = htonl(1);
-    int32_t actualLen = blockEncodeInternal(pBlock, pRetrieve->data + INT_BYTES * 2, blockSize, taosArrayGetSize(pBlock->pDataBlock));
+
+    uint32_t numOfCols = (uint32_t)taosArrayGetSize(pBlock->pDataBlock);
+    pRetrieve->numOfCols = htonl(numOfCols);
+
+    int32_t actualLen = blockEncodeInternal(pBlock, pRetrieve->data + INT_BYTES * 2, blockSize, numOfCols);
     if (actualLen < 0) {
       code = terrno;
       goto end;
