@@ -471,7 +471,7 @@ int32_t tsdbDoRollup(SRTNer *rtner) {
   STimeWindow win = {0};
   tsdbFidKeyRange(fset->fid, rtner->tsdb->keepCfg.days, rtner->tsdb->keepCfg.precision, &win.skey, &win.ekey);
 
-  if (!(arg = taosMemoryMalloc(sizeof(*arg)))) {
+  if (!(arg = taosMemoryCalloc(1, sizeof(*arg)))) {
     TAOS_CHECK_EXIT(terrno);
   }
   arg->tsdb = rtner->tsdb;

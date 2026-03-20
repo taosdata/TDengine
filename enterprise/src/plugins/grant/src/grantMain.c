@@ -225,15 +225,17 @@
   (gStatus.expired | (gStatus.multiTierExpired ? gStatus.nDiskCfg > 1 : 0) | gStatus.storageSizeLimited)
 #define GRANT_TS_SEC_LEN 20
 #define GRANT_LOG_MAX_MACHINE 300
+#define GRANT_TIMESERIES_BONUS 1000
 
 static const char gConnName[CONN_TYPE_DYN_MAX][GRANT_ITEM_NAME_LEN] = {
-    "opc_da", "opc_ua",   "pi",     "kafka", "influxdb", "mqtt", "avevahistorian", "opentsdb", "td2.6",    "td3.0",
-    "mysql",  "postgres", "oracle", "mssql", "mongodb",  "csv",  "sparkplugb",     "orc",      "kinghist", "pulsar"};
+    "opc_da",   "opc_ua", "pi",         "kafka", "influxdb", "mqtt",   "avevahistorian",
+    "opentsdb", "td2.6",  "td3.0",      "mysql", "postgres", "oracle", "mssql",
+    "mongodb",  "csv",    "sparkplugb", "orc",   "kinghist", "pulsar", "pspace"};
 
 static const char *gConnDisplay[CONN_TYPE_DYN_MAX] = {
     "OPC_DA",   "OPC_UA",      "Pi",          "Kafka", "InfluxDB",      "MQTT",   "avevaHistorian",
     "OpenTSDB", "TDengine2.6", "TDengine3.0", "MySQL", "PostgreSQL",    "Oracle", "SqlServer",
-    "MongoDB",  "CSV",         "SparkplugB",  "ORC",   "KingHistorian", "Pulsar"};
+    "MongoDB",  "CSV",         "SparkplugB",  "ORC",   "KingHistorian", "Pulsar", "pSpace"};
 
 static const char gGrantName[GRANT_OPT_DYN_MAX][GRANT_ITEM_NAME_LEN] = {
     "basic",         "service",   "stream",         "subscription",   "audit",         "csv",
@@ -592,6 +594,9 @@ static void grantInitShowFlags() {
 #endif
 #if !defined(TD_INDUSTRY) || defined(TD_DATAIN_PULSAR)
   grantHandle.showDataIns[CONN_TYPE_PULSAR] = 1;
+#endif
+#if !defined(TD_INDUSTRY) || defined(TD_DATAIN_PSPACE)
+  grantHandle.showDataIns[CONN_TYPE_PSPACE] = 1;
 #endif
 
   // add future datains here ...
@@ -2132,12 +2137,14 @@ static int32_t grantCheckMounts() {
 }
 
 static int32_t grantCheckTimeSeries() {
-  if (gStatus.limitTimeSeries == GRANT_UNIQ_UNLIMITED || gStatus.curTimeSeries < gStatus.limitTimeSeries) {
+  if ((gStatus.limitTimeSeries == GRANT_UNIQ_UNLIMITED) ||
+      (gStatus.curTimeSeries - GRANT_TIMESERIES_BONUS < gStatus.limitTimeSeries)) {
     return 0;
   }
 
-  uError("grant failed to create table/add column, exist:%" PRIi64 ", reason:grant timeseries limited",
-         gStatus.curTimeSeries);
+  uError("grant failed to create table/add column, exist:%" PRIi64 ", limit:%" PRIi64
+         ", bonus:%d, reason:grant timeseries limited",
+         gStatus.curTimeSeries, gStatus.limitTimeSeries, GRANT_TIMESERIES_BONUS);
   return TSDB_CODE_GRANT_TIMESERIES_LIMITED;
 }
 
@@ -3421,11 +3428,15 @@ static int32_t mndRetrieveMachines(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     qBuf = POINTER_SHIFT(pBuf, VARSTR_HEADER_SIZE);
+    qBuf[0] = 0;
 
     SDnodeObj *pDnode = NULL;
     int32_t    index = 0;
     while ((pIter = sdbFetch(pSdb, SDB_DNODE, pIter, (void **)&pDnode))) {
-      if (pDnode->machineId[0] == 0) continue;
+      if (pDnode->machineId[0] == 0) {
+        sdbRelease(pSdb, pDnode);
+        continue;
+      }
       if (index == 0) {
         (void)snprintf(qBuf, TSDB_MACHINE_ID_LEN + 1, "%s", pDnode->machineId);
         qBuf += TSDB_MACHINE_ID_LEN;

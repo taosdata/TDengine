@@ -600,6 +600,10 @@ static int32_t tsdbCompact(void *arg) {
        .compactVersion = INT64_MAX,
   };
 
+  if (compactArg->type == TSDB_OPTR_SSMIGRATE) {
+    compactor.optrType = VND_IS_RSMA((tsdb->pVnode)) ? TSDB_OPTR_ROLLUP : TSDB_OPTR_NORMAL;
+  }
+
   // begin task
   (void)taosThreadMutexLock(&tsdb->mutex);
 
@@ -626,7 +630,7 @@ static int32_t tsdbCompact(void *arg) {
   // do compact
   if (compactor.fset) {
     compactor.ctx->expLevel = tsdbFidLevel(compactor.fset->fid, &compactor.tsdb->keepCfg, taosGetTimestampSec());
-    if (force || tsdbShouldCompact(compactor.fset, TD_VID(tsdb->pVnode), compactor.ctx->expLevel, compactArg->type)) {
+    if (force || tsdbShouldCompact(compactor.fset, TD_VID(tsdb->pVnode), compactor.ctx->expLevel, compactor.optrType)) {
       code = tsdbDoCompact(&compactor);
       TSDB_CHECK_CODE(code, lino, _exit);
     }

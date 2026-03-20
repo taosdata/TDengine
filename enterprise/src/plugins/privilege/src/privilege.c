@@ -313,10 +313,9 @@ int32_t mndCheckAlterUserPrivilege(SMnode *pMnode, const char *opUser, const cha
   }
 #else
   if (pUser->superUser) {
-    if (pAlter->hasEnable || pAlter->hasSysinfo || pAlter->hasCreatedb || pAlter->hasFailedLoginAttempts ||
-        pAlter->hasPasswordLifeTime || pAlter->hasPasswordReuseTime || pAlter->hasPasswordReuseMax ||
-        pAlter->hasPasswordLockTime || pAlter->hasPasswordGraceTime || pAlter->hasInactiveAccountTime ||
-        pAlter->hasAllowTokenNum || pAlter->numTimeRanges > 0 || pAlter->numDropTimeRanges > 0) {
+    if (pAlter->hasEnable || pAlter->hasSysinfo || pAlter->hasCreatedb ||
+        pAlter->hasFailedLoginAttempts || pAlter->hasPasswordLockTime || pAlter->hasPasswordGraceTime ||
+        pAlter->hasInactiveAccountTime || pAlter->numTimeRanges > 0 || pAlter->numDropTimeRanges > 0) {
       TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_RIGHTS, &lino, _OVER);
     }
   }
@@ -562,7 +561,7 @@ static bool mndHasObjPrivilege(SMnode *pMnode, SUserObj *pUser, EPrivType privTy
       }
       mndReleaseRole(pMnode, pRole);
     }
-  } else if(privInfo.category == PRIV_CATEGORY_SYSTEM) {
+  } else if (privInfo.category == PRIV_CATEGORY_SYSTEM) {
     return mndHasSysObjPrivilege(pMnode, pUser, privType, objType, objName, tbName);
   }
 
@@ -942,6 +941,7 @@ int32_t mndSetUserRolePrivileges(SMnode *pMnode, SUserObj *pUser, SGetUserAuthRs
     }
     if (pRole->enable == 0) {
       mndReleaseRole(pMnode, pRole);
+      pRole = NULL;
       continue;
     }
     TAOS_CHECK_EXIT(mndMergeRolePrivilges(pMnode, pUser, pRole, pRsp));
@@ -1137,16 +1137,44 @@ static int32_t mndGetPrivObjSize(void *pObj, ESdbType sdbType) {
   return privObjSize;
 }
 
-static int32_t mndAlterObjPrivileges(SMnode *pMnode, void *pObj, SAlterRoleReq *pAlterReq, ESdbType sdbType) {
+static int32_t mndCheckObjPrivConflicts(SPrivSet *privSet, uint8_t objType) {
+  SPrivSet tmpSet = *privSet;
+  if (objType == PRIV_OBJ_TOPIC) {
+    privRemoveType(&tmpSet, PRIV_CM_DROP);
+    privRemoveType(&tmpSet, PRIV_CM_SHOW);
+    privRemoveType(&tmpSet, PRIV_CM_SHOW_CREATE);
+    privRemoveType(&tmpSet, PRIV_CM_SUBSCRIBE);
+    privRemoveType(&tmpSet, PRIV_CONSUMER_SHOW);
+    privRemoveType(&tmpSet, PRIV_SUBSCRIPTION_SHOW);
+  }
+
+  if (!privIsEmptySet(&tmpSet)) {
+    TAOS_RETURN(TSDB_CODE_PAR_PRIV_TYPE_TARGET_CONFLICT);
+  }
+  TAOS_RETURN(0);
+}
+
+typedef struct {
+  union {
+    uint8_t flags;
+    struct {
+      uint8_t topicExists : 1;
+      uint8_t reserved : 7;
+    };
+  };
+} SAlterPrivInfo;
+
+static int32_t mndAlterObjPrivileges(SMnode *pMnode, void *pObj, SAlterRoleReq *pAlterReq, uint8_t objType,
+                                     ESdbType sdbType, SAlterPrivInfo *pAlterInfo) {
   int32_t          code = 0, lino = 0;
   SPrivSetReqArgs *pReqArgs = &pAlterReq->privileges;
   SHashObj        *objPrivs = sdbType == SDB_USER ? ((SUserObj *)pObj)->objPrivs : ((SRoleObj *)pObj)->objPrivs;
   char             key[TSDB_PRIV_MAX_KEY_LEN] = {0};
-  SPrivInfo        privInfo = {.objType = pAlterReq->objType, .objLevel = pAlterReq->objLevel};
+  SPrivInfo        privInfo = {.objType = objType, .objLevel = pAlterReq->objLevel};
   int32_t          keyLen = privObjKeyF(&privInfo, pAlterReq->objFName, pAlterReq->tblName, key, sizeof(key));
 
   // conflicts check when add table privilege; remove constraint table privilege when revoke
-  if (pAlterReq->objType == PRIV_OBJ_TBL) {
+  if (objType == PRIV_OBJ_TBL) {
     if (PRIV_HAS(&pReqArgs->privSet, PRIV_TBL_SELECT)) {
       if (taosArrayGetSize(pReqArgs->selectCols) > 0) {
         mError("Cannot grant table-level and column-level select privileges simultaneously on table %s.%s to %s",
@@ -1210,21 +1238,64 @@ static int32_t mndAlterObjPrivileges(SMnode *pMnode, void *pObj, SAlterRoleReq *
         }
       }
     }
-  } else if (pAlterReq->objType == PRIV_OBJ_TOPIC) {
+  } else if (objType == PRIV_OBJ_TOPIC) {
     // check topic existence for topic related privileges
-    if (pAlterReq->add && (pAlterReq->ignoreNotExists == 0) && (strncmp(pAlterReq->tblName, "*", 2) != 0)) {
-      if (PRIV_HAS(&pReqArgs->privSet, PRIV_CM_SHOW) || PRIV_HAS(&pReqArgs->privSet, PRIV_CM_SHOW_CREATE) ||
-          PRIV_HAS(&pReqArgs->privSet, PRIV_CM_SUBSCRIBE) || PRIV_HAS(&pReqArgs->privSet, PRIV_CONSUMER_SHOW) ||
-          PRIV_HAS(&pReqArgs->privSet, PRIV_SUBSCRIPTION_SHOW)) {
+    int32_t codeTopic = 0;
+    bool    retrieveTopic = (strncmp(pAlterReq->tblName, "*", 2) != 0);
+    if (retrieveTopic) {
+      char topicName[TSDB_TOPIC_FNAME_LEN] = {0};
+      if (pAlterReq->tblName[0] == 0) {  // grant all on topic1 to u1;
+        snprintf(topicName, TSDB_TOPIC_FNAME_LEN, "%s", pAlterReq->objFName);
+      } else {  // or grant all on db.topic1 to u1;
         SName name = {0};
         TAOS_CHECK_EXIT(tNameFromString(&name, pAlterReq->objFName, T_NAME_ACCT | T_NAME_DB));
-        char topicName[TSDB_TOPIC_FNAME_LEN] = {0};
         snprintf(topicName, TSDB_TOPIC_FNAME_LEN, "%d.%s", name.acctId, pAlterReq->tblName);
-        SMqTopicObj *pTopic = NULL;
-        TAOS_CHECK_EXIT(mndAcquireTopic(pMnode, topicName, &pTopic));
-        mndReleaseTopic(pMnode, pTopic);
+      }
+      SMqTopicObj *pTopic = NULL;
+      codeTopic = mndAcquireTopic(pMnode, topicName, &pTopic);
+      if (codeTopic == 0) {
+        if (pAlterReq->tblName[0] == 0) {
+          const char *topicName = strstr(pAlterReq->objFName, ".");
+          if (topicName && *(topicName + 1) != '\0') {
+            snprintf(pAlterReq->tblName, TSDB_TABLE_NAME_LEN, "%s", topicName + 1);
+            snprintf(pAlterReq->objFName, TSDB_OBJ_FNAME_LEN, "%s", pTopic->db);
+            keyLen = privObjKeyF(&privInfo, pAlterReq->objFName, pAlterReq->tblName, key, sizeof(key));
+          }
+        } else if (pAlterReq->tblName[0] != 0 && strncmp(pTopic->db, pAlterReq->objFName, TSDB_OBJ_FNAME_LEN) != 0) {
+          mndReleaseTopic(pMnode, pTopic);
+          mError("topic %s belongs to db %s, not %s, principal %s", pTopic->name, pTopic->db, pAlterReq->objFName,
+                 pAlterReq->principal);
+          TAOS_CHECK_EXIT(TSDB_CODE_GRANT_OBJ_NOT_EXIST);
+        }
+      }
+      if (pAlterInfo) {
+        pAlterInfo->topicExists = (codeTopic == 0 ? 1 : 0);
+      }
+      mndReleaseTopic(pMnode, pTopic);
+    }
+
+    if (pAlterReq->add && (pAlterReq->ignoreNotExists == 0) && retrieveTopic) {
+      if (PRIV_HAS(&pReqArgs->privSet, PRIV_CM_DROP) || PRIV_HAS(&pReqArgs->privSet, PRIV_CM_SHOW) ||
+          PRIV_HAS(&pReqArgs->privSet, PRIV_CM_SHOW_CREATE) || PRIV_HAS(&pReqArgs->privSet, PRIV_CM_SUBSCRIBE) ||
+          PRIV_HAS(&pReqArgs->privSet, PRIV_CONSUMER_SHOW) || PRIV_HAS(&pReqArgs->privSet, PRIV_SUBSCRIPTION_SHOW)) {
+        if (codeTopic) {
+          code = pAlterReq->objType == PRIV_OBJ_NONE ? TSDB_CODE_GRANT_OBJ_NOT_EXIST : codeTopic;
+          TAOS_CHECK_EXIT(code);
+        }
+        TAOS_CHECK_EXIT(mndCheckObjPrivConflicts(&pReqArgs->privSet, objType));
+      } else if (!privIsEmptySet(&pReqArgs->privSet)) {
+        TAOS_CHECK_EXIT(TSDB_CODE_PAR_PRIV_TYPE_TARGET_CONFLICT);
       }
     }
+    if (!pAlterReq->add && retrieveTopic) {
+      if (codeTopic == 0) {
+        TAOS_CHECK_EXIT(mndCheckObjPrivConflicts(&pReqArgs->privSet, objType));
+      }
+    }
+  } else if (objType == PRIV_OBJ_STREAM) {
+  } else if (objType == PRIV_OBJ_RSMA) {
+  } else if (objType == PRIV_OBJ_TSMA) {
+  } else if (objType == PRIV_OBJ_IDX) {
   }
 
   SPrivObjPolicies *policies = taosHashGet(objPrivs, key, keyLen + 1);
@@ -1388,7 +1459,7 @@ static int32_t mndAlterTablePrivileges(SMnode *pMnode, void *pObj, SAlterRoleReq
   // the basic table privileges without contraints are stored in objPrivs
   if (pReqArgs->condLen <= 0 && taosArrayGetSize(pReqArgs->selectCols) <= 0 &&
       taosArrayGetSize(pReqArgs->insertCols) <= 0 && taosArrayGetSize(pReqArgs->updateCols) <= 0) {
-    code = mndAlterObjPrivileges(pMnode, pObj, pAlterReq, sdbType);
+    code = mndAlterObjPrivileges(pMnode, pObj, pAlterReq, pAlterReq->objType, sdbType, NULL);
     goto _exit;
   }
 
@@ -1412,11 +1483,11 @@ static int32_t mndAlterTablePrivileges(SMnode *pMnode, void *pObj, SAlterRoleReq
 
   // e.g. grant drop table, select(c0,c1) on d0.stb0 to u1;
   if (pReqArgs->condLen <= 0 && !privIsEmptySet(&pReqArgs->privSet)) {
-    TAOS_CHECK_EXIT(mndAlterObjPrivileges(pMnode, pObj, pAlterReq, sdbType));
+    TAOS_CHECK_EXIT(mndAlterObjPrivileges(pMnode, pObj, pAlterReq, pAlterReq->objType, sdbType, NULL));
   }
   // e.g. grant all on d0.stb0 with t0=1 to u1;
   if (pReqArgs->condLen > 0 && !privIsEmptySet(&pReqArgs->privSet)) {
-    TAOS_CHECK_EXIT(mndAlterObjPrivileges(pMnode, pObj, pAlterReq, sdbType));
+    TAOS_CHECK_EXIT(mndAlterObjPrivileges(pMnode, pObj, pAlterReq, pAlterReq->objType, sdbType, NULL));
   }
 
 _exit:
@@ -1427,18 +1498,179 @@ _exit:
   TAOS_RETURN(code);
 }
 
-static int32_t mndAlterObjectPrivileges(SMnode *pMnode, void *pNew, SAlterRoleReq *pAlterReq, ESdbType sdbType) {
-  // remove CM_ALL privilege since it's not used in later steps currently
-  if (PRIV_HAS(&pAlterReq->privileges.privSet, PRIV_CM_ALL)) {
-    privRemoveType(&pAlterReq->privileges.privSet, PRIV_CM_ALL);
+static int32_t mndCheckObjPrivExpandConflicts(SPrivSet *privSet, bool legacyMode) {
+  SPrivIter privIter = {0};
+  privIterInit(&privIter, privSet);
+  SPrivInfo *pPrivInfo = NULL;
+  while (privIterNext(&privIter, &pPrivInfo)) {
+    if (pPrivInfo->category != PRIV_CATEGORY_OBJECT) {
+      continue;
+    }
+    uint8_t objType = pPrivInfo->objType;
+    if (objType == PRIV_OBJ_TBL || objType == PRIV_OBJ_VIEW || objType == PRIV_OBJ_TOPIC) {
+      continue;
+    }
+    if (objType == PRIV_OBJ_DB || objType == PRIV_OBJ_IDX || objType == PRIV_OBJ_STREAM || objType == PRIV_OBJ_RSMA ||
+        objType == PRIV_OBJ_TSMA) {
+      if (legacyMode) {
+        continue;
+      }
+    }
+    mError("privilege type %s is not allowed to be granted on the target object when enableAdvancedSecurity is %d",
+           pPrivInfo->name, legacyMode ? 0 : 1);
+    TAOS_RETURN(TSDB_CODE_PAR_PRIV_TYPE_TARGET_CONFLICT);
   }
+
+  TAOS_RETURN(0);
+}
+
+static int32_t mndAlterLegacyDbGrant(SMnode *pMnode, void *pNew, SAlterRoleReq *pAlterReq, int objTypeSize,
+                                     EPrivObjType sdbType) {
+  int32_t code = 0;
+  bool    legacyMode = (tsEnableGrantLegacySyntax == 1 ? true : false);
+
+  TAOS_CHECK_RETURN(mndCheckObjPrivExpandConflicts(&pAlterReq->privileges.privSet, legacyMode));
+
+  // Save original legacy privilege flags before they get removed during expansion
+  bool hasRead = false;
+  bool hasWrite = false;
+  bool hasAlter = false;
+  bool hasDrop = false;
+  bool hasShow = false;
+  bool hasShowCreate = false;
+  bool hasSubscribe = false;
+  bool hasStart = false;
+  bool hasStop = false;
+  bool hasRecalc = false;
+  bool hasAll = PRIV_HAS(&pAlterReq->privileges.privSet, PRIV_CM_ALL);
+  if (!hasAll) {
+    hasRead = PRIV_HAS(&pAlterReq->privileges.privSet, PRIV_CM_READ);
+    hasWrite = PRIV_HAS(&pAlterReq->privileges.privSet, PRIV_CM_WRITE);
+    hasAlter = PRIV_HAS(&pAlterReq->privileges.privSet, PRIV_CM_ALTER);
+    hasDrop = PRIV_HAS(&pAlterReq->privileges.privSet, PRIV_CM_DROP);
+    hasShow = PRIV_HAS(&pAlterReq->privileges.privSet, PRIV_CM_SHOW);
+    hasShowCreate = PRIV_HAS(&pAlterReq->privileges.privSet, PRIV_CM_SHOW_CREATE);
+    hasSubscribe = PRIV_HAS(&pAlterReq->privileges.privSet, PRIV_CM_SUBSCRIBE);
+    hasStart = PRIV_HAS(&pAlterReq->privileges.privSet, PRIV_CM_START);
+    hasStop = PRIV_HAS(&pAlterReq->privileges.privSet, PRIV_CM_STOP);
+    hasRecalc = PRIV_HAS(&pAlterReq->privileges.privSet, PRIV_CM_RECALC);
+  }
+
+  // Object types that need db.* expansion
+  EPrivObjType objTypes[] = {PRIV_OBJ_TBL, PRIV_OBJ_VIEW,   PRIV_OBJ_TOPIC, PRIV_OBJ_DB,
+                             PRIV_OBJ_IDX, PRIV_OBJ_STREAM, PRIV_OBJ_RSMA,  PRIV_OBJ_TSMA};
+  int          objTypeCnt = sizeof(objTypes) / sizeof(objTypes[0]);
+  if (objTypeSize > 0) {
+    objTypeCnt = objTypeSize;
+  } else if (!legacyMode) {
+    objTypeCnt = 2;  // When not in legacy mode, only expand to table/view level
+  }
+
+  char originTblName[TSDB_TABLE_NAME_LEN] = {0};
+  tstrncpy(originTblName, pAlterReq->tblName, sizeof(originTblName));
+  for (int i = 0; i < objTypeCnt; ++i) {
+    SAlterRoleReq objReq = *pAlterReq;
+    objReq.objType = objTypes[i];
+    if (objTypes[i] == PRIV_OBJ_DB) {
+      objReq.objLevel = 0;
+      objReq.tblName[0] = 0;
+    } else {
+      objReq.objLevel = 1;
+      tstrncpy(objReq.tblName, originTblName, sizeof(objReq.tblName));
+    }
+    (void)memset(&objReq.privileges.privSet, 0, sizeof(objReq.privileges.privSet));
+    if (hasAll) {  // When ALL is present, we can directly expand ALL without checking individual
+                   // read/write/alter/drop/show flags, since ALL already implies them
+      privAddType(&objReq.privileges.privSet, PRIV_CM_ALL);
+      TAOS_CHECK_RETURN(privExpandAll(&objReq.privileges.privSet, objTypes[i], objReq.objLevel));
+      privRemoveType(&objReq.privileges.privSet, PRIV_CM_ALL);
+    } else {
+      if (hasRead) {
+        privAddType(&objReq.privileges.privSet, PRIV_CM_READ);
+      } else {
+        if (hasShow) privAddType(&objReq.privileges.privSet, PRIV_CM_SHOW);
+        if (hasShowCreate) privAddType(&objReq.privileges.privSet, PRIV_CM_SHOW_CREATE);
+        if (hasSubscribe && (objTypes[i] == PRIV_OBJ_TOPIC)) {
+          privAddType(&objReq.privileges.privSet, PRIV_CM_SUBSCRIBE);
+        }
+      }
+      if (hasWrite) {
+        privAddType(&objReq.privileges.privSet, PRIV_CM_WRITE);
+      } else {
+        if (hasAlter) {
+          if (objTypes[i] != PRIV_OBJ_IDX && objTypes[i] != PRIV_OBJ_STREAM && objTypes[i] != PRIV_OBJ_TOPIC &&
+              objTypes[i] != PRIV_OBJ_TSMA) {
+            privAddType(&objReq.privileges.privSet, PRIV_CM_ALTER);  // no topic/tsma/idx/stream
+          }
+        }
+        if (hasDrop) privAddType(&objReq.privileges.privSet, PRIV_CM_DROP);
+        if (objTypes[i] == PRIV_OBJ_STREAM) {
+          if (hasStart) privAddType(&objReq.privileges.privSet, PRIV_CM_START);
+          if (hasStop) privAddType(&objReq.privileges.privSet, PRIV_CM_STOP);
+          if (hasRecalc) privAddType(&objReq.privileges.privSet, PRIV_CM_RECALC);
+        }
+      }
+      if (hasRead || hasWrite) {
+        TAOS_CHECK_RETURN(privExpandRw(&objReq.privileges.privSet, objTypes[i], objReq.objLevel));
+      }
+      if (hasRead) privRemoveType(&objReq.privileges.privSet, PRIV_CM_READ);
+      if (hasWrite) privRemoveType(&objReq.privileges.privSet, PRIV_CM_WRITE);
+      privAddSetByObjType(&pAlterReq->privileges.privSet, &objReq.privileges.privSet, objTypes[i]);
+    }
+
+    // Skip if no privileges to grant for this object type
+    if (privIsEmptySet(&objReq.privileges.privSet)) {
+      continue;
+    }
+
+    if (objTypes[i] == PRIV_OBJ_TBL) {
+      code = mndAlterTablePrivileges(pMnode, pNew, &objReq, sdbType);
+    } else {
+      code = mndAlterObjPrivileges(pMnode, pNew, &objReq, objReq.objType, sdbType, NULL);
+    }
+    if (code != 0) return code;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t mndAlterObjectPrivileges(SMnode *pMnode, void *pNew, SAlterRoleReq *pAlterReq, ESdbType sdbType) {
+  uint8_t        objType = pAlterReq->objType;
+  bool           recheckTopic = false;
+  SAlterPrivInfo alterInfo = {0};
+  if (objType == PRIV_OBJ_NONE) {
+    if (IS_SPECIFIC_OBJ(pAlterReq->tblName) || (pAlterReq->tblName[0] == 0 && IS_SPECIFIC_OBJ(pAlterReq->objFName))) {
+      recheckTopic = true;       // need to recheck topic existence if the assumption of topic not exist
+      objType = PRIV_OBJ_TOPIC;  // rewrite to topic if objType is none and tblName is not *, since topic privilege is
+                                 // the only one left that can be granted with objType none
+      privExpandAll(&pAlterReq->privileges.privSet, objType, 1);
+      privExpandRw(&pAlterReq->privileges.privSet, objType, 1);
+
+    } else {
+      TAOS_CHECK_RETURN(mndAlterLegacyDbGrant(pMnode, pNew, pAlterReq, 0, sdbType));
+    }
+  }
+  bool hasAll = PRIV_HAS(&pAlterReq->privileges.privSet, PRIV_CM_ALL);
+  bool hasRead = PRIV_HAS(&pAlterReq->privileges.privSet, PRIV_CM_READ);
+  bool hasWrite = PRIV_HAS(&pAlterReq->privileges.privSet, PRIV_CM_WRITE);
+  if (hasAll) privRemoveType(&pAlterReq->privileges.privSet, PRIV_CM_ALL);
+  if (hasRead) privRemoveType(&pAlterReq->privileges.privSet, PRIV_CM_READ);
+  if (hasWrite) privRemoveType(&pAlterReq->privileges.privSet, PRIV_CM_WRITE);
+
   switch (pAlterReq->objType) {
     case PRIV_OBJ_TBL: {
       return mndAlterTablePrivileges(pMnode, pNew, pAlterReq, sdbType);
     }
     default: {
-      return mndAlterObjPrivileges(pMnode, pNew, pAlterReq, sdbType);
+      TAOS_CHECK_RETURN(mndAlterObjPrivileges(pMnode, pNew, pAlterReq, objType, sdbType, &alterInfo));
     }
+  }
+  if (recheckTopic && !alterInfo.topicExists && !pAlterReq->add) {
+    // topic already processed in previous steps
+    if (hasAll) privAddType(&pAlterReq->privileges.privSet, PRIV_CM_ALL);
+    if (hasRead) privAddType(&pAlterReq->privileges.privSet, PRIV_CM_READ);
+    if (hasWrite) privAddType(&pAlterReq->privileges.privSet, PRIV_CM_WRITE);
+    TAOS_CHECK_RETURN(mndAlterLegacyDbGrant(pMnode, pNew, pAlterReq, 2, sdbType));
   }
   TAOS_RETURN(0);
 }
@@ -1621,8 +1853,8 @@ static int32_t mndCheckAlterRolePrivilege(SMnode *pMnode, SUserObj *pOperUser, c
 }
 
 static int32_t mndUserUpdateAuditDb(SMnode *pMnode, SUserObj *pNew, SAlterRoleReq *pAlterReq, uint8_t roleType) {
-  int32_t   code = 0, lino = 0;
-  char      key[TSDB_PRIV_MAX_KEY_LEN] = {0};
+  int32_t code = 0, lino = 0;
+  char    key[TSDB_PRIV_MAX_KEY_LEN] = {0};
 
   if (pAlterReq->add) {
     SDbObj *pDb = NULL;
