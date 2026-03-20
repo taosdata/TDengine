@@ -2322,6 +2322,10 @@ static int32_t getChildTuple(SDataBlockDescNode **pChildTuple, SNodeList* pChild
   return TSDB_CODE_SUCCESS;
 }
 
+static bool forceNoMergeDataBlock(const SPhysiPlanContext* pCxt) {
+  return (pCxt != NULL && pCxt->pPlanCxt != NULL && pCxt->pPlanCxt->forceNoMergeDataBlock);
+}
+
 static int32_t createAggPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren, SAggLogicNode* pAggLogicNode,
                                   SPhysiNode** pPhyNode, SSubplan* pSubPlan) {
   SAggPhysiNode* pAgg =
@@ -2334,7 +2338,8 @@ static int32_t createAggPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
     pSubPlan->rowsThreshold = ((SLimitNode*)pAgg->node.pSlimit)->limit->datum.i;
   }
 
-  pAgg->mergeDataBlock = (GROUP_ACTION_KEEP == pAggLogicNode->node.groupAction ? false : true);
+  pAgg->mergeDataBlock =
+      (forceNoMergeDataBlock(pCxt) || GROUP_ACTION_KEEP == pAggLogicNode->node.groupAction ? false : true);
   pAgg->groupKeyOptimized = pAggLogicNode->hasGroupKeyOptimized;
   pAgg->node.forceCreateNonBlockingOptr = pAggLogicNode->node.forceCreateNonBlockingOptr;
 
@@ -2649,7 +2654,8 @@ static int32_t createProjectPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChild
     return terrno;
   }
 
-  pProject->mergeDataBlock = projectCanMergeDataBlock(pProjectLogicNode, (0 == pSubplan->level));
+  pProject->mergeDataBlock =
+      (forceNoMergeDataBlock(pCxt) ? false : projectCanMergeDataBlock(pProjectLogicNode, (0 == pSubplan->level)));
   pProject->ignoreGroupId = pProjectLogicNode->ignoreGroupId;
   pProject->inputIgnoreGroup = pProjectLogicNode->inputIgnoreGroup;
 
@@ -2708,7 +2714,8 @@ static int32_t createExchangePhysiNode(SPhysiPlanContext* pCxt, SExchangeLogicNo
 static int32_t createWindowPhysiNodeFinalize(SPhysiPlanContext* pCxt, SNodeList* pChildren, SWindowPhysiNode* pWindow,
                                              SWindowLogicNode* pWindowLogicNode) {
   pWindow->indefRowsFunc = pWindowLogicNode->indefRowsFunc;
-  pWindow->mergeDataBlock = (GROUP_ACTION_KEEP == pWindowLogicNode->node.groupAction ? false : true);
+  pWindow->mergeDataBlock =
+      (forceNoMergeDataBlock(pCxt) || GROUP_ACTION_KEEP == pWindowLogicNode->node.groupAction ? false : true);
   pWindow->node.inputTsOrder = pWindowLogicNode->node.inputTsOrder;
   pWindow->node.outputTsOrder = pWindowLogicNode->node.outputTsOrder;
   if (nodeType(pWindow) == QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_INTERVAL) {

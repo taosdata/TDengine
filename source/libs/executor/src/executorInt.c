@@ -801,7 +801,7 @@ void doCopyToSDataBlockByHash(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock, SEx
   while ((pData = tSimpleHashIterate(pHashmap, pData, &iter)) != NULL) {
     void*               key = tSimpleHashGetKey(pData, &keyLen);
     SResultRowPosition* pos = pData;
-    uint64_t            groupId = *(uint64_t*)key;
+    uint64_t            groupId = calcGroupId((char*)key + sizeof(uint64_t), keyLen - sizeof(uint64_t));
 
     SFilePage* page = getBufPage(pBuf, pos->pageId);
     if (page == NULL) {

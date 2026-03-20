@@ -70,6 +70,11 @@ class TestExternal:
         self.cross_mix_and_join_regression()
         self.large_block_and_time_condition_regression()
 
+        # to do: used group by in subquey
+        # to do: vitual table with external window
+        # to do: FILL 本期未实现，测试加上
+        # to do: test in stmt scenario
+
     def mock_test_external_window_single_block(self):
         dbName = "external_window_test_single_block"
         self.prepare_mock_data(dbName)
@@ -391,6 +396,54 @@ class TestExternal:
             ("select cast(_wstart as bigint) as ws, cast(_wend as bigint) as we, sum(v) as sv from ext_bnd_src external_window((select ts, endtime, mark from ext_bnd_win) w);", 5),
             ("select cast(_wstart as bigint) as ws, cast(_wend as bigint) as we, max(v)-min(v) as span from ext_bnd_src external_window((select ts, endtime, mark from ext_bnd_win) w);", 5),
         ])
+
+        # Grouped external-window subquery may be globally interleaved by window start,
+        # but monotonic check only needs to hold inside each trigger group.
+        tdSql.query(
+            "select t1, cast(_wstart as bigint) as ws, count(*) as c "
+            "from ext_bnd_src partition by t1 "
+            "external_window((select ts, endtime, mark from ext_bnd_win_part partition by t1) w) "
+            "order by t1, ws"
+        )
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 0, 1)
+        tdSql.checkData(0, 1, 1700200000000)
+        tdSql.checkData(0, 2, 2)
+        tdSql.checkData(1, 0, 1)
+        tdSql.checkData(1, 1, 1700200600000)
+        tdSql.checkData(1, 2, 1)
+        tdSql.checkData(2, 0, 2)
+        tdSql.checkData(2, 1, 1700200120000)
+        tdSql.checkData(2, 2, 2)
+        tdSql.checkData(3, 0, 2)
+        tdSql.checkData(3, 1, 1700200840000)
+        tdSql.checkData(3, 2, 1)
+
+        tdSql.query(
+            "select t1, cast(_wstart as bigint) as ws, cast(ts as bigint) as ts64 "
+            "from ext_bnd_src partition by t1 "
+            "external_window((select ts, endtime, mark from ext_bnd_win_part partition by t1) w) "
+            "order by t1, ws, ts64"
+        )
+        tdSql.checkRows(6)
+        tdSql.checkData(0, 0, 1)
+        tdSql.checkData(0, 1, 1700200000000)
+        tdSql.checkData(0, 2, 1700200000000)
+        tdSql.checkData(1, 0, 1)
+        tdSql.checkData(1, 1, 1700200000000)
+        tdSql.checkData(1, 2, 1700200060000)
+        tdSql.checkData(2, 0, 1)
+        tdSql.checkData(2, 1, 1700200600000)
+        tdSql.checkData(2, 2, 1700200600000)
+        tdSql.checkData(3, 0, 2)
+        tdSql.checkData(3, 1, 1700200120000)
+        tdSql.checkData(3, 2, 1700200120000)
+        tdSql.checkData(4, 0, 2)
+        tdSql.checkData(4, 1, 1700200120000)
+        tdSql.checkData(4, 2, 1700200420000)
+        tdSql.checkData(5, 0, 2)
+        tdSql.checkData(5, 1, 1700200840000)
+        tdSql.checkData(5, 2, 1700200900000)
 
     def edge_case_regression(self):
         tdLog.info("=============== external window: edge case regression")
@@ -826,6 +879,26 @@ class TestExternal:
         tdSql.checkData(0, 0, "ext_src_1")
         tdSql.checkData(0, 1, 1699999800000)
         tdSql.checkData(0, 2, 2)
+        
+        tdSql.execute("create table insert_test (ts timestamp, wstart timestamp, t1 int)")
+        tdSql.query("select * from insert_test")
+        tdSql.checkRows(0)
+        sql = (
+            "insert into insert_test "
+            "select ts as t, _wstart as ws, t1 from ext_src partition by t1 external_window("
+            "(select _wstart, _wend from ext_win partition by t1 interval(10m)) w) order by t1, ts"
+        )
+        tdSql.execute(sql)
+        tdSql.query("select * from insert_test")
+        tdSql.checkRows(2)
+        sql = (
+            "insert into insert_test "
+            "select cast(ts as bigint) + 1000 as t, _wstart as ws, t1 from ext_src partition by t1 external_window("
+            "(select _wstart, _wend from ext_win partition by t1 interval(10m)) w) order by t1, ts"
+        )
+        tdSql.execute(sql)
+        tdSql.query("select * from insert_test")
+        tdSql.checkRows(4)
 
     def prepare_for_orderby_and_alias(self):
         tdLog.info("=============== external window: orderby and alias dataset")
@@ -1250,6 +1323,30 @@ class TestExternal:
         )
 
         tdSql.error(
+            "create stream stream1 interval(10m) sliding(10m) from ext_win into stream_out_a "
+            "as (select _wstart as ws, first(v) as fv, last(v) as lv from ext_cx_src partition "
+            "by t1 external_window((select ts, endtime, mark from ext_cx_win) w) order by t1, ws);",
+            fullMatched=False,
+            expectErrInfo="External window query can not be used in stream query"
+        )
+
+        tdSql.error(
+            "create stream stream1 interval(10m) sliding(10m) from ext_win into stream_out_a "
+            "as (select cast(_wstart as bigint) as ws, first(v) as fv, last(v) as lv from ext_cx_src partition "
+            "by t1 external_window((select ts, endtime, mark from ext_cx_win) w) order by t1, ws)",
+            fullMatched=False,
+            expectErrInfo="External window query can not be used in stream query"
+        )
+        
+        tdSql.error(
+            "CREATE TOPIC IF NOT EXISTS topic_with_external_window as (select cast(_wstart as bigint) "
+            "as ws, first(v) as fv, last(v) as lv from ext_cx_src partition by t1 "
+            "external_window((select ts, endtime, mark from ext_cx_win) w) order by t1, ws)",
+            fullMatched=False,
+            expectErrInfo="External window query can not be used in topic query"
+        )
+
+        tdSql.error(
             "select cast(_wstart as bigint) as ws, top(v, 2) "
             "from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w) "
             "order by ws",
@@ -1320,6 +1417,58 @@ class TestExternal:
         self.ansFile = os.path.join(os.path.dirname(__file__), "ans", "cross_mix_and_join.ans")
         tdCom.compare_testcase_result(self.sqlFile, self.ansFile, "cross_mix_and_join")
         self.cross_mix_and_join_no_sort()
+                   
+        # SELECT
+        # a.ws,
+        # a.c AS c_a,
+        # b.c AS c_b,
+        # a.total_rows AS total_rows_a,
+        # b.total_rows AS total_rows_b
+        # FROM (
+        # select cast(_wstart as bigint) as ws, count(*) as c,
+        #         (select count(*) from (select ts from ext_join_src) t) as total_rows
+        # from ext_join_src
+        # external_window((select jw.ts, jw.endtime
+        #                 from ext_join_win jw, ext_join_src jd
+        #                 where jw.ts=jd.ts) w)
+        # order by ws
+        # ) a
+        # JOIN (
+        # select cast(_wstart as bigint) as ws, count(*) as c,
+        #         (select count(*) from (select ts from ext_join_src) t) as total_rows
+        # from ext_join_src
+        # external_window((select jw.ts, jw.endtime
+        #                 from ext_join_win jw left join ext_join_src jd on jw.ts=jd.ts) w)
+        # order by ws
+        # ) b
+        # ON a.ws = b.ws
+        # ORDER BY a.ws;
+
+        # SELECT
+        # a.ws,
+        # a.c AS c_a,
+        # b.c AS c_b,
+        # a.total_rows AS total_rows_a,
+        # b.total_rows AS total_rows_b
+        # FROM (
+        # select cast(_wstart as bigint) as ws, count(*) as c,
+        #         (select count(*) from (select ts from ext_join_src) t) as total_rows
+        # from ext_join_src
+        # external_window((select jw.ts, jw.endtime
+        #                 from ext_join_win jw, ext_join_src jd
+        #                 where jw.ts=jd.ts) w)
+        # order by ws
+        # ) a
+        # LEFT JOIN (
+        # select cast(_wstart as bigint) as ws, count(*) as c,
+        #         (select count(*) from (select ts from ext_join_src) t) as total_rows
+        # from ext_join_src
+        # external_window((select jw.ts, jw.endtime
+        #                 from ext_join_win jw left join ext_join_src jd on jw.ts=jd.ts) w)
+        # order by ws
+        # ) b
+        # ON a.ws = b.ws
+        # ORDER BY a.ws;
 
     def cross_mix_and_join_no_sort(self):
         tdLog.info("=============== external window: cross mix and join no sort")

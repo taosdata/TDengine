@@ -67,8 +67,13 @@ taos> select tbname, cast(_wstart as bigint) as ws, avg(v) as avgv, first(v) as 
  ext_cx_src_2                   |         1700400900000 |                        24 |          24 |          24 |
 
 taos> select t1, cast(_wstart as bigint) as ws, w.wc, count(*) as c, sum(v) as sv from ext_cx_src partition by t1 external_window((select _wstart, _wend, count(*) as wc from ext_cx_win_part partition by t1 interval(10m)) w) order by t1, ws;
+     t1      |          ws           |          wc           |           c           |          sv           |
+==============================================================================================================
+           1 |         1700400000000 |                     1 |                     4 |                    46 |
+           1 |         1700400600000 |                     1 |                     2 |                    29 |
+           2 |         1700400000000 |                     1 |                     3 |                    63 |
+           2 |         1700400600000 |                     1 |                     2 |                    47 |
 
-DB error: External window subquery must return time-ordered rows [0x80000120] 
 taos> select cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv, avg(v2) as avgv2 from ext_cx_src where v >= 12 external_window((select ts, endtime, mark from ext_cx_win where mark <= 103) w) order by ws;
           ws           |           c           |          sv           |           avgv2           |
 ====================================================================================================
@@ -95,4 +100,33 @@ taos> select cast(_wstart as bigint) as ws, stddev(v) vv from ext_cx_src externa
          1700400300000 |          4.52769256906871 |
          1700400600000 |                       4.5 |
          1700400900000 |                       4.5 |
+
+taos> select cast(_wstart as bigint) as ws, count(*) as c from ext_cx_src partition by t1 external_window((select ts, endtime, mark from ext_cx_win partition by mark) w) order by ws, c;
+
+taos> select cast(_wstart as bigint) as ws, count(*) as c from ext_cx_win_part partition by t1 external_window((select ts, endtime, mark from ext_cx_win partition by mark) w) order by ws, c;
+
+taos> select cast(_wstart as bigint) as ws, count(*) as c from ext_cx_src partition by v2 external_window((select ts, endtime, mark from ext_cx_win partition by mark) w) order by ws, c;
+          ws           |           c           |
+================================================
+         1700400000000 |                     1 |
+
+taos> select cast(_wstart as bigint) as ws, count(*) as c from ext_cx_src partition by v2 external_window((select first(ts) fts, first(endtime), mark from ext_cx_win partition by mark) w) order by ws, c;
+          ws           |           c           |
+================================================
+         1700400000000 |                     1 |
+
+taos> select cast(_wstart as bigint) as ws, count(*) as c from ext_cx_src partition by v2 external_window((select first(ts) fts, first(endtime), mark from ext_cx_win group by mark) w) order by ws, c;
+          ws           |           c           |
+================================================
+         1700400000000 |                     1 |
+
+taos> select cast(_wstart as bigint) as ws, count(*) as c from ext_cx_src partition by v2 external_window((select first(ts) fts, first(endtime), mark from ext_cx_win partition by mark order by fts) w) order by ws, c;
+          ws           |           c           |
+================================================
+         1700400300000 |                     1 |
+
+taos> select cast(_wstart as bigint) as ws, count(*) as c from ext_cx_src partition by v2 external_window((select first(ts) fts, first(endtime), mark from ext_cx_win group by mark order by fts) w) order by ws, c;
+          ws           |           c           |
+================================================
+         1700400300000 |                     1 |
 

@@ -408,6 +408,7 @@ void doBuildResultDatablockByHash(SOperatorInfo* pOperator, SOptrBasicInfo* pbIn
   }
 
   pBlock->info.id.groupId = 0;
+  pBlock->info.id.baseGId = 0;
   if (!pInfo->binfo.mergeResultBlock) {
     doCopyToSDataBlockByHash(pTaskInfo, pBlock, &pOperator->exprSupp, pInfo->aggSup.pResultBuf, &pInfo->groupResInfo,
                              pHashmap, pOperator->resultInfo.threshold, false);
@@ -419,10 +420,12 @@ void doBuildResultDatablockByHash(SOperatorInfo* pOperator, SOptrBasicInfo* pbIn
         break;
       }
       pBlock->info.id.groupId = 0;
+      pBlock->info.id.baseGId = 0;
     }
 
     // clear the group id info in SSDataBlock, since the client does not need it
     pBlock->info.id.groupId = 0;
+    pBlock->info.id.baseGId = 0;
   }
 }
 

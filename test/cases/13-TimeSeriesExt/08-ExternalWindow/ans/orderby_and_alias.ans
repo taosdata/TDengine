@@ -53,11 +53,24 @@ taos> select t1, cast(_wstart as bigint) as ws, count(*) as c from ext_ord_src p
            2 |         1700101800000 |                     2 |
 
 taos> select t1, cast(_wstart as bigint) as ws, count(*) as c from ext_ord_src partition by t1 external_window((select _wstart, _wend, count(*) as wc from ext_ord_win partition by t1 interval(10m)) w) order by t1, ws;
+     t1      |          ws           |           c           |
+==============================================================
+           1 |         1700100000000 |                     2 |
+           1 |         1700101200000 |                     1 |
+           2 |         1700100600000 |                     2 |
+           2 |         1700101800000 |                     2 |
 
-DB error: External window subquery must return time-ordered rows [0x80000120] 
 taos> select t1, cast(_wstart as bigint) as ws, w.wc from ext_ord_src partition by t1 external_window((select _wstart, _wend, count(*) as wc from ext_ord_win partition by t1 interval(10m)) w) order by t1, ws;
+     t1      |          ws           |          wc           |
+==============================================================
+           1 |         1700100000000 |                     1 |
+           1 |         1700100000000 |                     1 |
+           1 |         1700101200000 |                     1 |
+           2 |         1700100600000 |                     1 |
+           2 |         1700100600000 |                     1 |
+           2 |         1700101800000 |                     1 |
+           2 |         1700101800000 |                     1 |
 
-DB error: External window subquery must return time-ordered rows [0x80000120] 
 taos> select tbname, cast(_wstart as bigint) as ws, count(*) as c from ext_ord_src partition by tbname external_window((select _wstart, _wend, count(*) as wc from ext_ord_win interval(10m)) w) order by tbname, ws desc;
              tbname             |          ws           |           c           |
 =================================================================================

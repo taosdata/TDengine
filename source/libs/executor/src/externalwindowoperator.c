@@ -3375,6 +3375,15 @@ static int32_t extWinOpen(SOperatorInfo* pOperator) {
     if (pTaskInfo->pStreamRuntimeInfo &&
         pTaskInfo->pStreamRuntimeInfo->funcInfo.isMultiGroupCalc &&
         pExtW->calcWithPartition &&
+        pBlock->info.id.groupId != 0 && pBlock->info.id.baseGId == 0) {
+      qDebug("%s skip block: no matched trigger group for groupId %" PRIu64,
+             GET_TASKID(pTaskInfo), pBlock->info.id.groupId);
+      continue;
+    }
+
+    if (pTaskInfo->pStreamRuntimeInfo &&
+        pTaskInfo->pStreamRuntimeInfo->funcInfo.isMultiGroupCalc &&
+        pExtW->calcWithPartition &&
         pBlock->info.id.groupId != 0 && pBlock->info.id.baseGId != 0 &&
         pBlock->info.id.groupId != pBlock->info.id.baseGId) {
       qDebug("%s skip block: baseGId %" PRIu64 " != groupId %" PRIu64,

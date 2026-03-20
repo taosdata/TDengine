@@ -15759,6 +15759,14 @@ static int32_t checkCreateTopic(STranslateContext* pCxt, SCreateTopicStmt* pStmt
     }
   }
 
+  if (pStmt->pQuery && isSelectStmt(pStmt->pQuery)) {
+    SSelectStmt* pSelect = (SSelectStmt*)pStmt->pQuery;
+    if (NULL != pSelect->pWindow && QUERY_NODE_EXTERNAL_WINDOW == nodeType(pSelect->pWindow)) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TOPIC_QUERY,
+                                     "External window query can not be used in topic query");
+    }
+  }
+
   return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TOPIC_QUERY);
 }
 
@@ -16177,6 +16185,14 @@ static int32_t checkCreateStream(STranslateContext* pCxt, SCreateStreamStmt* pSt
   if (pStmt->pQuery && !isSelectStmt(pStmt->pQuery) && !isSetOperator(pStmt->pQuery)) {
     PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_QUERY,
                                          "Stream query must be a select or union statement"));
+  }
+
+  if (pStmt->pQuery && isSelectStmt(pStmt->pQuery)) {
+        SSelectStmt* pSelect = (SSelectStmt*)pStmt->pQuery;
+    if (NULL != pSelect->pWindow && QUERY_NODE_EXTERNAL_WINDOW == nodeType(pSelect->pWindow)) {
+      PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_SUBTABLE,
+                                         "External window query can not be used in stream query"));
+    }
   }
 
   if (pTrigger->pTrigerTable == NULL && nodeType(pTrigger->pTriggerWindow) != QUERY_NODE_PERIOD_WINDOW) {

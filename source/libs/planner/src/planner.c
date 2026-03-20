@@ -83,6 +83,29 @@ static void initSubQueryPlanContext(SPlanContext* pDst, SPlanContext* pSrc, SNod
   pDst->pAstRoot = pRoot;
 }
 
+static bool isPartitionedExternalWindowSubquery(SNode* pRoot, int32_t subQIdx) {
+  if (pRoot == NULL || subQIdx < 0) {
+    return false;
+  }
+
+  if (QUERY_NODE_SELECT_STMT != nodeType(pRoot)) {
+    return false;
+  }
+
+  SSelectStmt* pSelect = (SSelectStmt*)pRoot;
+  if (pSelect->pWindow == NULL || QUERY_NODE_EXTERNAL_WINDOW != nodeType(pSelect->pWindow)) {
+    return false;
+  }
+
+  SExternalWindowNode* pExternal = (SExternalWindowNode*)pSelect->pWindow;
+  if (pSelect->pPartitionByList == NULL || pExternal->pSubquery == NULL ||
+      QUERY_NODE_REMOTE_TABLE != nodeType(pExternal->pSubquery)) {
+    return false;
+  }
+
+  return ((SRemoteTableNode*)pExternal->pSubquery)->subQIdx == subQIdx;
+}
+
 static int32_t createSubQueryPlans(SPlanContext* pSrc, SQueryPlan* pParent, SArray* pExecNodeList) {
   int32_t code = TSDB_CODE_SUCCESS, lino = 0;
   SPlanContext ctx;
@@ -118,14 +141,17 @@ static int32_t createSubQueryPlans(SPlanContext* pSrc, SQueryPlan* pParent, SArr
       return code;
   }
 
+  int32_t subQIdx = 0;
   FOREACH(pNode, pSubQueries) {
     initSubQueryPlanContext(&ctx, pSrc, pNode);
+    ctx.forceNoMergeDataBlock = ctx.forceNoMergeDataBlock || isPartitionedExternalWindowSubquery(pRoot, subQIdx);
     TAOS_CHECK_EXIT(qCreateQueryPlan(&ctx, &pPlan, pExecNodeList));
     TAOS_CHECK_EXIT(nodesListMakeStrictAppend(&pParent->pChildren, (SNode*)pPlan));
     pParent->numOfSubplans += pPlan->numOfSubplans;
     pPlan->subSql = nodesGetSubSql(pNode);
     nodesGetSubQType(pNode, (int32_t*)&pPlan->subQType);
     pSrc->groupId = ++ctx.groupId;
+    ++subQIdx;
   }
 
 _exit:
