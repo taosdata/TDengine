@@ -883,6 +883,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_totp.py
 ,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_whitelist.py
 ,,n,.,pytest cases/24-Users/test_user_passwd.py
+,,y,.,./ci/pytest.sh pytest cases/24-Users/test_query_phase_tracking.py
 
 # 25-Privileges
 ,,y,.,./ci/pytest.sh pytest cases/25-Privileges/test_priv_basic.py -N 3
