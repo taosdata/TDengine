@@ -125,6 +125,7 @@ int32_t createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhysiNode* 
   pOperator->pPhyNode = pProjPhyNode;
   pOperator->exprSupp.hasWindowOrGroup = false;
   pOperator->pTaskInfo = pTaskInfo;
+  initOperatorCostInfo(pOperator);
 
   int32_t    lino = 0;
 
@@ -293,7 +294,6 @@ int32_t doProjectOperation(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
   SSDataBlock*          pFinalRes = pProjectInfo->pFinalRes;
   int32_t               code = 0;
   int32_t               lino = 0;
-  int64_t               st = 0;
   int32_t               order = pInfo->inputTsOrder;
   int32_t               scanFlag = 0;
 
@@ -302,10 +302,6 @@ int32_t doProjectOperation(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
 
   if (pOperator->status == OP_EXEC_DONE) {
     return code;
-  }
-
-  if (pOperator->cost.openCost == 0) {
-    st = taosGetTimestampUs();
   }
 
   SOperatorInfo* downstream = pOperator->numOfDownstream > 0 ? pOperator->pDownstream[0] : NULL;
@@ -417,12 +413,7 @@ int32_t doProjectOperation(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
   }
 
   SSDataBlock* p = pProjectInfo->mergeDataBlocks ? pFinalRes : pRes;
-  pOperator->resultInfo.totalRows += p->info.rows;
   p->info.dataLoad = 1;
-
-  if (pOperator->cost.openCost == 0) {
-    pOperator->cost.openCost = (taosGetTimestampUs() - st) / 1000.0;
-  }
 
   if (pProjectInfo->outputIgnoreGroup) {
     p->info.id.groupId = 0;
@@ -484,6 +475,7 @@ int32_t createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhysiNode*
 
   pOperator->pPhyNode = pNode;
   pOperator->pTaskInfo = pTaskInfo;
+  initOperatorCostInfo(pOperator);
 
   SExprSupp* pSup = &pOperator->exprSupp;
   pSup->hasWindowOrGroup = false;
@@ -601,7 +593,6 @@ int32_t doApplyIndefinitFunction(SOperatorInfo* pOperator, SSDataBlock** pResBlo
   SIndefOperatorInfo* pIndefInfo = pOperator->info;
   SOptrBasicInfo*     pInfo = &pIndefInfo->binfo;
   SExprSupp*          pSup = &pOperator->exprSupp;
-  int64_t             st = 0;
   int32_t             code = TSDB_CODE_SUCCESS;
   int32_t             lino = 0;
   SSDataBlock*        pRes = pInfo->pRes;
@@ -611,10 +602,6 @@ int32_t doApplyIndefinitFunction(SOperatorInfo* pOperator, SSDataBlock** pResBlo
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
   if (pOperator->status == OP_EXEC_DONE) {
     return code;
-  }
-
-  if (pOperator->cost.openCost == 0) {
-    st = taosGetTimestampUs();
   }
 
   SOperatorInfo* downstream = pOperator->pDownstream[0];
@@ -672,14 +659,7 @@ int32_t doApplyIndefinitFunction(SOperatorInfo* pOperator, SSDataBlock** pResBlo
     }
   }
 
-  size_t rows = pInfo->pRes->info.rows;
-  pOperator->resultInfo.totalRows += rows;
-
-  if (pOperator->cost.openCost == 0) {
-    pOperator->cost.openCost = (taosGetTimestampUs() - st) / 1000.0;
-  }
-
-  *pResBlock = (rows > 0) ? pInfo->pRes : NULL;
+  *pResBlock = (pInfo->pRes->info.rows> 0) ? pInfo->pRes : NULL;
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
@@ -771,7 +751,6 @@ int32_t doGenerateSourceData(SOperatorInfo* pOperator) {
   SExprSupp*   pSup = &pOperator->exprSupp;
   SSDataBlock* pRes = pProjectInfo->binfo.pRes;
   SExprInfo*   pExpr = pSup->pExprInfo;
-  int64_t      st = taosGetTimestampUs();
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
 
   int32_t code = blockDataEnsureCapacity(pRes, pOperator->resultInfo.capacity);
@@ -860,12 +839,7 @@ int32_t doGenerateSourceData(SOperatorInfo* pOperator) {
 
   (void) doIngroupLimitOffset(&pProjectInfo->limitInfo, 0, pRes, pOperator);
 
-  pOperator->resultInfo.totalRows += pRes->info.rows;
-
   setOperatorCompleted(pOperator);
-  if (pOperator->cost.openCost == 0) {
-    pOperator->cost.openCost = (taosGetTimestampUs() - st) / 1000.0;
-  }
 
   return code;
 }

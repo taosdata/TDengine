@@ -1846,17 +1846,17 @@ taos> explain select f1 from st1 where 1 < all (select 0 from st1)\G;
 *************************** 1.row ***************************
 QUERY_PLAN: -> Data Exchange 2:1 (width=4)
 *************************** 2.row ***************************
-QUERY_PLAN:    -> Projection (columns=1 width=4 input_order=asc )
+QUERY_PLAN:    -> Projection (columns=1 width=4 input_order=asc)
 *************************** 3.row ***************************
 QUERY_PLAN:       -> Table Scan on st1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 4.row ***************************
 QUERY_PLAN:    InitPlan 1
 *************************** 5.row ***************************
-QUERY_PLAN:       -> Aggregate (functions=2 width=9 input_order=unknown )
+QUERY_PLAN:       -> Aggregate (functions=2 width=9 input_order=unknown)
 *************************** 6.row ***************************
 QUERY_PLAN:          -> Data Exchange 2:1 (width=16)
 *************************** 7.row ***************************
-QUERY_PLAN:             -> Projection (columns=1 width=8 input_order=asc )
+QUERY_PLAN:             -> Projection (columns=1 width=8 input_order=asc)
 *************************** 8.row ***************************
 QUERY_PLAN:                -> Table Scan on st1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 
@@ -1864,17 +1864,17 @@ taos> explain select f1 from st1 where 1 > all (select 0 from st1)\G;
 *************************** 1.row ***************************
 QUERY_PLAN: -> Data Exchange 2:1 (width=4)
 *************************** 2.row ***************************
-QUERY_PLAN:    -> Projection (columns=1 width=4 input_order=asc )
+QUERY_PLAN:    -> Projection (columns=1 width=4 input_order=asc)
 *************************** 3.row ***************************
 QUERY_PLAN:       -> Table Scan on st1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 4.row ***************************
 QUERY_PLAN:    InitPlan 1
 *************************** 5.row ***************************
-QUERY_PLAN:       -> Aggregate (functions=2 width=9 input_order=unknown )
+QUERY_PLAN:       -> Aggregate (functions=2 width=9 input_order=unknown)
 *************************** 6.row ***************************
 QUERY_PLAN:          -> Data Exchange 2:1 (width=16)
 *************************** 7.row ***************************
-QUERY_PLAN:             -> Projection (columns=1 width=8 input_order=asc )
+QUERY_PLAN:             -> Projection (columns=1 width=8 input_order=asc)
 *************************** 8.row ***************************
 QUERY_PLAN:                -> Table Scan on st1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 
@@ -1882,7 +1882,7 @@ taos> explain select f1 from st1 where NULL = any (select 2 from st1)\G;
 *************************** 1.row ***************************
 QUERY_PLAN: -> Data Exchange 2:1 (width=4)
 *************************** 2.row ***************************
-QUERY_PLAN:    -> Projection (columns=1 width=4 input_order=asc )
+QUERY_PLAN:    -> Projection (columns=1 width=4 input_order=asc)
 *************************** 3.row ***************************
 QUERY_PLAN:       -> Table Scan on st1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 4.row ***************************
@@ -1890,7 +1890,7 @@ QUERY_PLAN:    InitPlan 1
 *************************** 5.row ***************************
 QUERY_PLAN:       -> Data Exchange 2:1 (width=8)
 *************************** 6.row ***************************
-QUERY_PLAN:          -> Projection (columns=1 width=8 input_order=asc )
+QUERY_PLAN:          -> Projection (columns=1 width=8 input_order=asc)
 *************************** 7.row ***************************
 QUERY_PLAN:             -> Table Scan on st1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 
@@ -1898,7 +1898,7 @@ taos> explain select f1 from st1 where exists (select f1 from db2.tbx)\G;
 *************************** 1.row ***************************
 QUERY_PLAN: -> Data Exchange 2:1 (width=4)
 *************************** 2.row ***************************
-QUERY_PLAN:    -> Projection (columns=1 width=4 input_order=asc )
+QUERY_PLAN:    -> Projection (columns=1 width=4 input_order=asc)
 *************************** 3.row ***************************
 QUERY_PLAN:       -> Table Scan on st1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 4.row ***************************
@@ -1924,7 +1924,7 @@ QUERY_PLAN: -> Data Exchange 2:1 (width=4)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=1 width=4
 *************************** 3.row ***************************
-QUERY_PLAN:    -> Projection (columns=1 width=4 input_order=asc )
+QUERY_PLAN:    -> Projection (columns=1 width=4 input_order=asc)
 *************************** 4.row ***************************
 QUERY_PLAN:          Output: columns=1 width=4
 *************************** 5.row ***************************
@@ -1938,11 +1938,11 @@ QUERY_PLAN:             Output: columns=2 width=12
 *************************** 9.row ***************************
 QUERY_PLAN:             Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 10.row ***************************
-QUERY_PLAN:             Filter: (1 < $(InitPlan 1))
+QUERY_PLAN:             Filter: conditions=(1 < $(InitPlan 1))
 *************************** 11.row ***************************
 QUERY_PLAN:    InitPlan 1
 *************************** 12.row ***************************
-QUERY_PLAN:       -> Aggregate (functions=2 width=9 input_order=unknown )
+QUERY_PLAN:       -> Aggregate (functions=2 width=9 input_order=unknown)
 *************************** 13.row ***************************
 QUERY_PLAN:             Output: columns=2 width=9 blocking=1
 *************************** 14.row ***************************
@@ -1952,7 +1952,7 @@ QUERY_PLAN:          -> Data Exchange 2:1 (width=16)
 *************************** 16.row ***************************
 QUERY_PLAN:                Output: columns=2 width=16
 *************************** 17.row ***************************
-QUERY_PLAN:             -> Projection (columns=1 width=8 input_order=asc )
+QUERY_PLAN:             -> Projection (columns=1 width=8 input_order=asc)
 *************************** 18.row ***************************
 QUERY_PLAN:                   Output: columns=1 width=8
 *************************** 19.row ***************************
@@ -1972,7 +1972,7 @@ QUERY_PLAN: -> Data Exchange 2:1 (width=4)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=1 width=4
 *************************** 3.row ***************************
-QUERY_PLAN:    -> Projection (columns=1 width=4 input_order=asc )
+QUERY_PLAN:    -> Projection (columns=1 width=4 input_order=asc)
 *************************** 4.row ***************************
 QUERY_PLAN:          Output: columns=1 width=4
 *************************** 5.row ***************************
@@ -1986,11 +1986,11 @@ QUERY_PLAN:             Output: columns=2 width=12
 *************************** 9.row ***************************
 QUERY_PLAN:             Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 10.row ***************************
-QUERY_PLAN:             Filter: (1 > $(InitPlan 1))
+QUERY_PLAN:             Filter: conditions=(1 > $(InitPlan 1))
 *************************** 11.row ***************************
 QUERY_PLAN:    InitPlan 1
 *************************** 12.row ***************************
-QUERY_PLAN:       -> Aggregate (functions=2 width=9 input_order=unknown )
+QUERY_PLAN:       -> Aggregate (functions=2 width=9 input_order=unknown)
 *************************** 13.row ***************************
 QUERY_PLAN:             Output: columns=2 width=9 blocking=1
 *************************** 14.row ***************************
@@ -2000,7 +2000,7 @@ QUERY_PLAN:          -> Data Exchange 2:1 (width=16)
 *************************** 16.row ***************************
 QUERY_PLAN:                Output: columns=2 width=16
 *************************** 17.row ***************************
-QUERY_PLAN:             -> Projection (columns=1 width=8 input_order=asc )
+QUERY_PLAN:             -> Projection (columns=1 width=8 input_order=asc)
 *************************** 18.row ***************************
 QUERY_PLAN:                   Output: columns=1 width=8
 *************************** 19.row ***************************
@@ -2020,7 +2020,7 @@ QUERY_PLAN: -> Data Exchange 2:1 (width=4)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=1 width=4
 *************************** 3.row ***************************
-QUERY_PLAN:    -> Projection (columns=1 width=4 input_order=asc )
+QUERY_PLAN:    -> Projection (columns=1 width=4 input_order=asc)
 *************************** 4.row ***************************
 QUERY_PLAN:          Output: columns=1 width=4
 *************************** 5.row ***************************
@@ -2034,7 +2034,7 @@ QUERY_PLAN:             Output: columns=2 width=12
 *************************** 9.row ***************************
 QUERY_PLAN:             Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 10.row ***************************
-QUERY_PLAN:             Filter: (NULL IN $(InitPlan 1))
+QUERY_PLAN:             Filter: conditions=(NULL IN $(InitPlan 1))
 *************************** 11.row ***************************
 QUERY_PLAN:    InitPlan 1
 *************************** 12.row ***************************
@@ -2042,7 +2042,7 @@ QUERY_PLAN:       -> Data Exchange 2:1 (width=8)
 *************************** 13.row ***************************
 QUERY_PLAN:             Output: columns=1 width=8
 *************************** 14.row ***************************
-QUERY_PLAN:          -> Projection (columns=1 width=8 input_order=asc )
+QUERY_PLAN:          -> Projection (columns=1 width=8 input_order=asc)
 *************************** 15.row ***************************
 QUERY_PLAN:                Output: columns=1 width=8
 *************************** 16.row ***************************
@@ -2062,7 +2062,7 @@ QUERY_PLAN: -> Data Exchange 2:1 (width=4)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=1 width=4
 *************************** 3.row ***************************
-QUERY_PLAN:    -> Projection (columns=1 width=4 input_order=asc )
+QUERY_PLAN:    -> Projection (columns=1 width=4 input_order=asc)
 *************************** 4.row ***************************
 QUERY_PLAN:          Output: columns=1 width=4
 *************************** 5.row ***************************
@@ -2076,7 +2076,7 @@ QUERY_PLAN:             Output: columns=2 width=12
 *************************** 9.row ***************************
 QUERY_PLAN:             Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 10.row ***************************
-QUERY_PLAN:             Filter: ($(InitPlan 1) > 0)
+QUERY_PLAN:             Filter: conditions=($(InitPlan 1) > 0)
 *************************** 11.row ***************************
 QUERY_PLAN:    InitPlan 1
 *************************** 12.row ***************************
@@ -2090,120 +2090,80 @@ taos> explain analyze select f1 from st1 where 1 < all (select 0 from st1)\G;
 *************************** 1.row ***************************
 QUERY_PLAN: -> Data Exchange 2:1 ( rows=0 width=4)
 *************************** 2.row ***************************
-QUERY_PLAN:    -> Projection ( rows=0 columns=1 width=4 input_order=asc )
+QUERY_PLAN:    -> Projection ( rows=0.0(0) columns=1 width=4 input_order=asc)
 *************************** 3.row ***************************
-QUERY_PLAN:       -> Table Scan on st1 ( rows=0 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:       -> Table Scan on st1 ( rows=0.0(0) columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 4.row ***************************
-QUERY_PLAN:             I/O: total_blocks=1.5 load_blocks=1.5 load_block_SMAs=0.0 total_rows=0.0 check_rows=3.0 
-*************************** 5.row ***************************
-QUERY_PLAN:              total_rows:0, ep:tbd () 
-*************************** 6.row ***************************
 QUERY_PLAN:    InitPlan 1
-*************************** 7.row ***************************
-QUERY_PLAN:       -> Aggregate ( rows=1 functions=2 width=9 input_order=unknown )
-*************************** 8.row ***************************
+*************************** 5.row ***************************
+QUERY_PLAN:       -> Aggregate ( rows=1 functions=2 width=9 input_order=unknown)
+*************************** 6.row ***************************
 QUERY_PLAN:          -> Data Exchange 2:1 ( rows=6 width=16)
+*************************** 7.row ***************************
+QUERY_PLAN:             -> Projection ( rows=3.0(4) columns=1 width=8 input_order=asc)
+*************************** 8.row ***************************
+QUERY_PLAN:                -> Table Scan on st1 ( rows=3.0(4) columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 9.row ***************************
-QUERY_PLAN:             -> Projection ( rows=4 columns=1 width=8 input_order=asc )
-*************************** 10.row ***************************
-QUERY_PLAN:                -> Table Scan on st1 ( rows=4 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
-*************************** 11.row ***************************
-QUERY_PLAN:                      I/O: total_blocks=1.5 load_blocks=1.5 load_block_SMAs=0.0 total_rows=3.0 check_rows=3.0 
-*************************** 12.row ***************************
-QUERY_PLAN:                       total_rows:4, ep:tbd () 
-*************************** 13.row ***************************
-QUERY_PLAN: Ratio: 0.001000
-*************************** 14.row ***************************
 QUERY_PLAN: 
-*************************** 15.row ***************************
+*************************** 10.row ***************************
 QUERY_PLAN: 
 
 taos> explain analyze select f1 from st1 where 1 > all (select 0 from st1)\G;
 *************************** 1.row ***************************
 QUERY_PLAN: -> Data Exchange 2:1 ( rows=6 width=4)
 *************************** 2.row ***************************
-QUERY_PLAN:    -> Projection ( rows=4 columns=1 width=4 input_order=asc )
+QUERY_PLAN:    -> Projection ( rows=3.0(4) columns=1 width=4 input_order=asc)
 *************************** 3.row ***************************
-QUERY_PLAN:       -> Table Scan on st1 ( rows=4 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:       -> Table Scan on st1 ( rows=3.0(4) columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 4.row ***************************
-QUERY_PLAN:             I/O: total_blocks=1.5 load_blocks=1.5 load_block_SMAs=0.0 total_rows=3.0 check_rows=3.0 
-*************************** 5.row ***************************
-QUERY_PLAN:              total_rows:4, ep:tbd () 
-*************************** 6.row ***************************
 QUERY_PLAN:    InitPlan 1
-*************************** 7.row ***************************
-QUERY_PLAN:       -> Aggregate ( rows=1 functions=2 width=9 input_order=unknown )
-*************************** 8.row ***************************
+*************************** 5.row ***************************
+QUERY_PLAN:       -> Aggregate ( rows=1 functions=2 width=9 input_order=unknown)
+*************************** 6.row ***************************
 QUERY_PLAN:          -> Data Exchange 2:1 ( rows=6 width=16)
+*************************** 7.row ***************************
+QUERY_PLAN:             -> Projection ( rows=3.0(4) columns=1 width=8 input_order=asc)
+*************************** 8.row ***************************
+QUERY_PLAN:                -> Table Scan on st1 ( rows=3.0(4) columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 9.row ***************************
-QUERY_PLAN:             -> Projection ( rows=4 columns=1 width=8 input_order=asc )
-*************************** 10.row ***************************
-QUERY_PLAN:                -> Table Scan on st1 ( rows=4 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
-*************************** 11.row ***************************
-QUERY_PLAN:                      I/O: total_blocks=1.5 load_blocks=1.5 load_block_SMAs=0.0 total_rows=3.0 check_rows=3.0 
-*************************** 12.row ***************************
-QUERY_PLAN:                       total_rows:4, ep:tbd () 
-*************************** 13.row ***************************
-QUERY_PLAN: Ratio: 0.001000
-*************************** 14.row ***************************
 QUERY_PLAN: 
-*************************** 15.row ***************************
+*************************** 10.row ***************************
 QUERY_PLAN: 
 
 taos> explain analyze select f1 from st1 where NULL = any (select 2 from st1)\G;
 *************************** 1.row ***************************
 QUERY_PLAN: -> Data Exchange 2:1 ( rows=0 width=4)
 *************************** 2.row ***************************
-QUERY_PLAN:    -> Projection ( rows=0 columns=1 width=4 input_order=asc )
+QUERY_PLAN:    -> Projection ( rows=0.0(0) columns=1 width=4 input_order=asc)
 *************************** 3.row ***************************
-QUERY_PLAN:       -> Table Scan on st1 ( rows=0 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:       -> Table Scan on st1 ( rows=0.0(0) columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 4.row ***************************
-QUERY_PLAN:             I/O: total_blocks=1.5 load_blocks=1.5 load_block_SMAs=0.0 total_rows=0.0 check_rows=3.0 
-*************************** 5.row ***************************
-QUERY_PLAN:              total_rows:0, ep:tbd () 
-*************************** 6.row ***************************
 QUERY_PLAN:    InitPlan 1
-*************************** 7.row ***************************
+*************************** 5.row ***************************
 QUERY_PLAN:       -> Data Exchange 2:1 ( rows=6 width=8)
+*************************** 6.row ***************************
+QUERY_PLAN:          -> Projection ( rows=3.0(4) columns=1 width=8 input_order=asc)
+*************************** 7.row ***************************
+QUERY_PLAN:             -> Table Scan on st1 ( rows=3.0(4) columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 8.row ***************************
-QUERY_PLAN:          -> Projection ( rows=4 columns=1 width=8 input_order=asc )
-*************************** 9.row ***************************
-QUERY_PLAN:             -> Table Scan on st1 ( rows=4 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
-*************************** 10.row ***************************
-QUERY_PLAN:                   I/O: total_blocks=1.5 load_blocks=1.5 load_block_SMAs=0.0 total_rows=3.0 check_rows=3.0 
-*************************** 11.row ***************************
-QUERY_PLAN:                    total_rows:4, ep:tbd () 
-*************************** 12.row ***************************
-QUERY_PLAN: Ratio: 0.001000
-*************************** 13.row ***************************
 QUERY_PLAN: 
-*************************** 14.row ***************************
+*************************** 9.row ***************************
 QUERY_PLAN: 
 
 taos> explain analyze select f1 from st1 where exists (select f1 from db2.tbx)\G;
 *************************** 1.row ***************************
 QUERY_PLAN: -> Data Exchange 2:1 ( rows=6 width=4)
 *************************** 2.row ***************************
-QUERY_PLAN:    -> Projection ( rows=4 columns=1 width=4 input_order=asc )
+QUERY_PLAN:    -> Projection ( rows=3.0(4) columns=1 width=4 input_order=asc)
 *************************** 3.row ***************************
-QUERY_PLAN:       -> Table Scan on st1 ( rows=4 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:       -> Table Scan on st1 ( rows=3.0(4) columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 4.row ***************************
-QUERY_PLAN:             I/O: total_blocks=1.5 load_blocks=1.5 load_block_SMAs=0.0 total_rows=3.0 check_rows=3.0 
-*************************** 5.row ***************************
-QUERY_PLAN:              total_rows:4, ep:tbd () 
-*************************** 6.row ***************************
 QUERY_PLAN:    InitPlan 1
-*************************** 7.row ***************************
+*************************** 5.row ***************************
 QUERY_PLAN:       -> Table Scan on tbx ( rows=1 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
-*************************** 8.row ***************************
-QUERY_PLAN:             I/O: total_blocks=1.0 load_blocks=1.0 load_block_SMAs=0.0 total_rows=1.0 check_rows=1.0 
-*************************** 9.row ***************************
-QUERY_PLAN:              total_rows:1, ep:tbd () 
-*************************** 10.row ***************************
-QUERY_PLAN: Ratio: 0.001000
-*************************** 11.row ***************************
+*************************** 6.row ***************************
 QUERY_PLAN: 
-*************************** 12.row ***************************
+*************************** 7.row ***************************
 QUERY_PLAN: 
 
 taos> explain analyze verbose true select f1 from st1 where 1 < all (select 0 from st1)\G;
@@ -2212,60 +2172,73 @@ QUERY_PLAN: -> Data Exchange 2:1 ( rows=0 width=4)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=1 width=4
 *************************** 3.row ***************************
-QUERY_PLAN:    -> Projection ( rows=0 columns=1 width=4 input_order=asc )
+QUERY_PLAN:       Network: mode=concurrent fetch_times=1.0(1) fetch_rows=0.0(0) 
 *************************** 4.row ***************************
-QUERY_PLAN:          Output: columns=1 width=4
 *************************** 5.row ***************************
-QUERY_PLAN:          Output: Ignore Group Id: true
+QUERY_PLAN:    -> Projection ( rows=0.0(0) columns=1 width=4 input_order=asc)
 *************************** 6.row ***************************
-QUERY_PLAN:          Merge ResBlocks: False
+QUERY_PLAN:          Output: columns=1 width=4
 *************************** 7.row ***************************
-QUERY_PLAN:       -> Table Scan on st1 ( rows=0 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:          Output: Ignore Group Id: true
 *************************** 8.row ***************************
-QUERY_PLAN:             I/O: total_blocks=1.5 load_blocks=1.5 load_block_SMAs=0.0 total_rows=0.0 check_rows=3.0 
+QUERY_PLAN:          Merge ResBlocks: False
 *************************** 9.row ***************************
-QUERY_PLAN:              total_rows:0, ep:tbd () 
 *************************** 10.row ***************************
-QUERY_PLAN:             Output: columns=2 width=12
+QUERY_PLAN:       -> Table Scan on st1 ( rows=0.0(0) columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 11.row ***************************
-QUERY_PLAN:             Time Range: [-9223372036854775808, 9223372036854775807]
+QUERY_PLAN:             Output: columns=2 width=12
 *************************** 12.row ***************************
-QUERY_PLAN:             Filter: (1 < $(InitPlan 1))
+QUERY_PLAN:             Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 13.row ***************************
-QUERY_PLAN:    InitPlan 1
+QUERY_PLAN:             Filter: conditions=(1 < $(InitPlan 1)) efficiency=100.0%
 *************************** 14.row ***************************
-QUERY_PLAN:       -> Aggregate ( rows=1 functions=2 width=9 input_order=unknown )
 *************************** 15.row ***************************
-QUERY_PLAN:             Output: columns=2 width=9 blocking=1
+QUERY_PLAN:             I/O cost: total_blocks=1.5(2) file_load_blocks=0.0(0) stt_load_blocks=0.0(0) mem_load_blocks=1.5(2) sma_load_blocks=0.0(0) composed_blocks=1.5(2)
 *************************** 16.row ***************************
-QUERY_PLAN:             Merge ResBlocks: True
+QUERY_PLAN:                    
 *************************** 17.row ***************************
-QUERY_PLAN:          -> Data Exchange 2:1 ( rows=6 width=16)
+QUERY_PLAN:                check_rows=3.0(4)    
 *************************** 18.row ***************************
-QUERY_PLAN:                Output: columns=2 width=16
+QUERY_PLAN:    InitPlan 1
 *************************** 19.row ***************************
-QUERY_PLAN:             -> Projection ( rows=4 columns=1 width=8 input_order=asc )
+QUERY_PLAN:       -> Aggregate ( rows=1 functions=2 width=9 input_order=unknown)
 *************************** 20.row ***************************
-QUERY_PLAN:                   Output: columns=1 width=8
+QUERY_PLAN:             Output: columns=2 width=9 blocking=1
 *************************** 21.row ***************************
-QUERY_PLAN:                   Output: Ignore Group Id: true
+QUERY_PLAN:             Merge ResBlocks: True
 *************************** 22.row ***************************
-QUERY_PLAN:                   Merge ResBlocks: False
 *************************** 23.row ***************************
-QUERY_PLAN:                -> Table Scan on st1 ( rows=4 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:          -> Data Exchange 2:1 ( rows=6 width=16)
 *************************** 24.row ***************************
-QUERY_PLAN:                      I/O: total_blocks=1.5 load_blocks=1.5 load_block_SMAs=0.0 total_rows=3.0 check_rows=3.0 
+QUERY_PLAN:                Output: columns=2 width=16
 *************************** 25.row ***************************
-QUERY_PLAN:                       total_rows:4, ep:tbd () 
+QUERY_PLAN:                Network: mode=concurrent fetch_times=1.0(1) fetch_rows=3.0(4) 
 *************************** 26.row ***************************
-QUERY_PLAN:                      Output: columns=1 width=8
 *************************** 27.row ***************************
-QUERY_PLAN:                      Time Range: [-9223372036854775808, 9223372036854775807]
+QUERY_PLAN:             -> Projection ( rows=3.0(4) columns=1 width=8 input_order=asc)
 *************************** 28.row ***************************
-QUERY_PLAN: Ratio: 0.001000
+QUERY_PLAN:                   Output: columns=1 width=8
 *************************** 29.row ***************************
-QUERY_PLAN: 
+QUERY_PLAN:                   Output: Ignore Group Id: true
 *************************** 30.row ***************************
+QUERY_PLAN:                   Merge ResBlocks: False
+*************************** 31.row ***************************
+*************************** 32.row ***************************
+QUERY_PLAN:                -> Table Scan on st1 ( rows=3.0(4) columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 33.row ***************************
+QUERY_PLAN:                      Output: columns=1 width=8
+*************************** 34.row ***************************
+QUERY_PLAN:                      Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 35.row ***************************
+*************************** 36.row ***************************
+QUERY_PLAN:                      I/O cost: total_blocks=1.5(2) file_load_blocks=0.0(0) stt_load_blocks=0.0(0) mem_load_blocks=1.5(2) sma_load_blocks=0.0(0) composed_blocks=1.5(2)
+*************************** 37.row ***************************
+QUERY_PLAN:                             
+*************************** 38.row ***************************
+QUERY_PLAN:                         check_rows=3.0(4)    
+*************************** 39.row ***************************
+QUERY_PLAN: 
+*************************** 40.row ***************************
 QUERY_PLAN: 
 
 taos> explain analyze verbose true select f1 from st1 where 1 > all (select 0 from st1)\G;
@@ -2274,60 +2247,73 @@ QUERY_PLAN: -> Data Exchange 2:1 ( rows=6 width=4)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=1 width=4
 *************************** 3.row ***************************
-QUERY_PLAN:    -> Projection ( rows=4 columns=1 width=4 input_order=asc )
+QUERY_PLAN:       Network: mode=concurrent fetch_times=1.0(1) fetch_rows=3.0(4) 
 *************************** 4.row ***************************
-QUERY_PLAN:          Output: columns=1 width=4
 *************************** 5.row ***************************
-QUERY_PLAN:          Output: Ignore Group Id: true
+QUERY_PLAN:    -> Projection ( rows=3.0(4) columns=1 width=4 input_order=asc)
 *************************** 6.row ***************************
-QUERY_PLAN:          Merge ResBlocks: False
+QUERY_PLAN:          Output: columns=1 width=4
 *************************** 7.row ***************************
-QUERY_PLAN:       -> Table Scan on st1 ( rows=4 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:          Output: Ignore Group Id: true
 *************************** 8.row ***************************
-QUERY_PLAN:             I/O: total_blocks=1.5 load_blocks=1.5 load_block_SMAs=0.0 total_rows=3.0 check_rows=3.0 
+QUERY_PLAN:          Merge ResBlocks: False
 *************************** 9.row ***************************
-QUERY_PLAN:              total_rows:4, ep:tbd () 
 *************************** 10.row ***************************
-QUERY_PLAN:             Output: columns=2 width=12
+QUERY_PLAN:       -> Table Scan on st1 ( rows=3.0(4) columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 11.row ***************************
-QUERY_PLAN:             Time Range: [-9223372036854775808, 9223372036854775807]
+QUERY_PLAN:             Output: columns=2 width=12
 *************************** 12.row ***************************
-QUERY_PLAN:             Filter: (1 > $(InitPlan 1))
+QUERY_PLAN:             Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 13.row ***************************
-QUERY_PLAN:    InitPlan 1
+QUERY_PLAN:             Filter: conditions=(1 > $(InitPlan 1)) efficiency=100.0%
 *************************** 14.row ***************************
-QUERY_PLAN:       -> Aggregate ( rows=1 functions=2 width=9 input_order=unknown )
 *************************** 15.row ***************************
-QUERY_PLAN:             Output: columns=2 width=9 blocking=1
+QUERY_PLAN:             I/O cost: total_blocks=1.5(2) file_load_blocks=0.0(0) stt_load_blocks=0.0(0) mem_load_blocks=1.5(2) sma_load_blocks=0.0(0) composed_blocks=1.5(2)
 *************************** 16.row ***************************
-QUERY_PLAN:             Merge ResBlocks: True
+QUERY_PLAN:                    
 *************************** 17.row ***************************
-QUERY_PLAN:          -> Data Exchange 2:1 ( rows=6 width=16)
+QUERY_PLAN:                check_rows=3.0(4)    
 *************************** 18.row ***************************
-QUERY_PLAN:                Output: columns=2 width=16
+QUERY_PLAN:    InitPlan 1
 *************************** 19.row ***************************
-QUERY_PLAN:             -> Projection ( rows=4 columns=1 width=8 input_order=asc )
+QUERY_PLAN:       -> Aggregate ( rows=1 functions=2 width=9 input_order=unknown)
 *************************** 20.row ***************************
-QUERY_PLAN:                   Output: columns=1 width=8
+QUERY_PLAN:             Output: columns=2 width=9 blocking=1
 *************************** 21.row ***************************
-QUERY_PLAN:                   Output: Ignore Group Id: true
+QUERY_PLAN:             Merge ResBlocks: True
 *************************** 22.row ***************************
-QUERY_PLAN:                   Merge ResBlocks: False
 *************************** 23.row ***************************
-QUERY_PLAN:                -> Table Scan on st1 ( rows=4 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:          -> Data Exchange 2:1 ( rows=6 width=16)
 *************************** 24.row ***************************
-QUERY_PLAN:                      I/O: total_blocks=1.5 load_blocks=1.5 load_block_SMAs=0.0 total_rows=3.0 check_rows=3.0 
+QUERY_PLAN:                Output: columns=2 width=16
 *************************** 25.row ***************************
-QUERY_PLAN:                       total_rows:4, ep:tbd () 
+QUERY_PLAN:                Network: mode=concurrent fetch_times=1.0(1) fetch_rows=3.0(4) 
 *************************** 26.row ***************************
-QUERY_PLAN:                      Output: columns=1 width=8
 *************************** 27.row ***************************
-QUERY_PLAN:                      Time Range: [-9223372036854775808, 9223372036854775807]
+QUERY_PLAN:             -> Projection ( rows=3.0(4) columns=1 width=8 input_order=asc)
 *************************** 28.row ***************************
-QUERY_PLAN: Ratio: 0.001000
+QUERY_PLAN:                   Output: columns=1 width=8
 *************************** 29.row ***************************
-QUERY_PLAN: 
+QUERY_PLAN:                   Output: Ignore Group Id: true
 *************************** 30.row ***************************
+QUERY_PLAN:                   Merge ResBlocks: False
+*************************** 31.row ***************************
+*************************** 32.row ***************************
+QUERY_PLAN:                -> Table Scan on st1 ( rows=3.0(4) columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 33.row ***************************
+QUERY_PLAN:                      Output: columns=1 width=8
+*************************** 34.row ***************************
+QUERY_PLAN:                      Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 35.row ***************************
+*************************** 36.row ***************************
+QUERY_PLAN:                      I/O cost: total_blocks=1.5(2) file_load_blocks=0.0(0) stt_load_blocks=0.0(0) mem_load_blocks=1.5(2) sma_load_blocks=0.0(0) composed_blocks=1.5(2)
+*************************** 37.row ***************************
+QUERY_PLAN:                             
+*************************** 38.row ***************************
+QUERY_PLAN:                         check_rows=3.0(4)    
+*************************** 39.row ***************************
+QUERY_PLAN: 
+*************************** 40.row ***************************
 QUERY_PLAN: 
 
 taos> explain analyze verbose true select f1 from st1 where NULL = any (select 2 from st1)\G;
@@ -2336,54 +2322,66 @@ QUERY_PLAN: -> Data Exchange 2:1 ( rows=0 width=4)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=1 width=4
 *************************** 3.row ***************************
-QUERY_PLAN:    -> Projection ( rows=0 columns=1 width=4 input_order=asc )
+QUERY_PLAN:       Network: mode=concurrent fetch_times=1.0(1) fetch_rows=0.0(0) 
 *************************** 4.row ***************************
-QUERY_PLAN:          Output: columns=1 width=4
 *************************** 5.row ***************************
-QUERY_PLAN:          Output: Ignore Group Id: true
+QUERY_PLAN:    -> Projection ( rows=0.0(0) columns=1 width=4 input_order=asc)
 *************************** 6.row ***************************
-QUERY_PLAN:          Merge ResBlocks: False
+QUERY_PLAN:          Output: columns=1 width=4
 *************************** 7.row ***************************
-QUERY_PLAN:       -> Table Scan on st1 ( rows=0 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:          Output: Ignore Group Id: true
 *************************** 8.row ***************************
-QUERY_PLAN:             I/O: total_blocks=1.5 load_blocks=1.5 load_block_SMAs=0.0 total_rows=0.0 check_rows=3.0 
+QUERY_PLAN:          Merge ResBlocks: False
 *************************** 9.row ***************************
-QUERY_PLAN:              total_rows:0, ep:tbd () 
 *************************** 10.row ***************************
-QUERY_PLAN:             Output: columns=2 width=12
+QUERY_PLAN:       -> Table Scan on st1 ( rows=0.0(0) columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 11.row ***************************
-QUERY_PLAN:             Time Range: [-9223372036854775808, 9223372036854775807]
+QUERY_PLAN:             Output: columns=2 width=12
 *************************** 12.row ***************************
-QUERY_PLAN:             Filter: (NULL IN $(InitPlan 1))
+QUERY_PLAN:             Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 13.row ***************************
-QUERY_PLAN:    InitPlan 1
+QUERY_PLAN:             Filter: conditions=(NULL IN $(InitPlan 1)) efficiency=100.0%
 *************************** 14.row ***************************
-QUERY_PLAN:       -> Data Exchange 2:1 ( rows=6 width=8)
 *************************** 15.row ***************************
-QUERY_PLAN:             Output: columns=1 width=8
+QUERY_PLAN:             I/O cost: total_blocks=1.5(2) file_load_blocks=0.0(0) stt_load_blocks=0.0(0) mem_load_blocks=1.5(2) sma_load_blocks=0.0(0) composed_blocks=1.5(2)
 *************************** 16.row ***************************
-QUERY_PLAN:          -> Projection ( rows=4 columns=1 width=8 input_order=asc )
+QUERY_PLAN:                    
 *************************** 17.row ***************************
-QUERY_PLAN:                Output: columns=1 width=8
+QUERY_PLAN:                check_rows=3.0(4)    
 *************************** 18.row ***************************
-QUERY_PLAN:                Output: Ignore Group Id: true
+QUERY_PLAN:    InitPlan 1
 *************************** 19.row ***************************
-QUERY_PLAN:                Merge ResBlocks: False
+QUERY_PLAN:       -> Data Exchange 2:1 ( rows=6 width=8)
 *************************** 20.row ***************************
-QUERY_PLAN:             -> Table Scan on st1 ( rows=4 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:             Output: columns=1 width=8
 *************************** 21.row ***************************
-QUERY_PLAN:                   I/O: total_blocks=1.5 load_blocks=1.5 load_block_SMAs=0.0 total_rows=3.0 check_rows=3.0 
+QUERY_PLAN:             Network: mode=concurrent fetch_times=1.0(1) fetch_rows=3.0(4) 
 *************************** 22.row ***************************
-QUERY_PLAN:                    total_rows:4, ep:tbd () 
 *************************** 23.row ***************************
-QUERY_PLAN:                   Output: columns=1 width=8
+QUERY_PLAN:          -> Projection ( rows=3.0(4) columns=1 width=8 input_order=asc)
 *************************** 24.row ***************************
-QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
+QUERY_PLAN:                Output: columns=1 width=8
 *************************** 25.row ***************************
-QUERY_PLAN: Ratio: 0.001000
+QUERY_PLAN:                Output: Ignore Group Id: true
 *************************** 26.row ***************************
-QUERY_PLAN: 
+QUERY_PLAN:                Merge ResBlocks: False
 *************************** 27.row ***************************
+*************************** 28.row ***************************
+QUERY_PLAN:             -> Table Scan on st1 ( rows=3.0(4) columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 29.row ***************************
+QUERY_PLAN:                   Output: columns=1 width=8
+*************************** 30.row ***************************
+QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 31.row ***************************
+*************************** 32.row ***************************
+QUERY_PLAN:                   I/O cost: total_blocks=1.5(2) file_load_blocks=0.0(0) stt_load_blocks=0.0(0) mem_load_blocks=1.5(2) sma_load_blocks=0.0(0) composed_blocks=1.5(2)
+*************************** 33.row ***************************
+QUERY_PLAN:                          
+*************************** 34.row ***************************
+QUERY_PLAN:                      check_rows=3.0(4)    
+*************************** 35.row ***************************
+QUERY_PLAN: 
+*************************** 36.row ***************************
 QUERY_PLAN: 
 
 taos> explain analyze verbose true select f1 from st1 where exists (select f1 from db2.tbx)\G;
@@ -2392,117 +2390,125 @@ QUERY_PLAN: -> Data Exchange 2:1 ( rows=6 width=4)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=1 width=4
 *************************** 3.row ***************************
-QUERY_PLAN:    -> Projection ( rows=4 columns=1 width=4 input_order=asc )
+QUERY_PLAN:       Network: mode=concurrent fetch_times=1.0(1) fetch_rows=3.0(4) 
 *************************** 4.row ***************************
-QUERY_PLAN:          Output: columns=1 width=4
 *************************** 5.row ***************************
-QUERY_PLAN:          Output: Ignore Group Id: true
+QUERY_PLAN:    -> Projection ( rows=3.0(4) columns=1 width=4 input_order=asc)
 *************************** 6.row ***************************
-QUERY_PLAN:          Merge ResBlocks: False
+QUERY_PLAN:          Output: columns=1 width=4
 *************************** 7.row ***************************
-QUERY_PLAN:       -> Table Scan on st1 ( rows=4 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:          Output: Ignore Group Id: true
 *************************** 8.row ***************************
-QUERY_PLAN:             I/O: total_blocks=1.5 load_blocks=1.5 load_block_SMAs=0.0 total_rows=3.0 check_rows=3.0 
+QUERY_PLAN:          Merge ResBlocks: False
 *************************** 9.row ***************************
-QUERY_PLAN:              total_rows:4, ep:tbd () 
 *************************** 10.row ***************************
-QUERY_PLAN:             Output: columns=2 width=12
+QUERY_PLAN:       -> Table Scan on st1 ( rows=3.0(4) columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 11.row ***************************
-QUERY_PLAN:             Time Range: [-9223372036854775808, 9223372036854775807]
+QUERY_PLAN:             Output: columns=2 width=12
 *************************** 12.row ***************************
-QUERY_PLAN:             Filter: ($(InitPlan 1) > 0)
-*************************** 13.row ***************************
-QUERY_PLAN:    InitPlan 1
-*************************** 14.row ***************************
-QUERY_PLAN:       -> Table Scan on tbx ( rows=1 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
-*************************** 15.row ***************************
-QUERY_PLAN:             I/O: total_blocks=1.0 load_blocks=1.0 load_block_SMAs=0.0 total_rows=1.0 check_rows=1.0 
-*************************** 16.row ***************************
-QUERY_PLAN:              total_rows:1, ep:tbd () 
-*************************** 17.row ***************************
-QUERY_PLAN:             Output: columns=1 width=4
-*************************** 18.row ***************************
 QUERY_PLAN:             Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 13.row ***************************
+QUERY_PLAN:             Filter: conditions=($(InitPlan 1) > 0) efficiency=100.0%
+*************************** 14.row ***************************
+*************************** 15.row ***************************
+QUERY_PLAN:             I/O cost: total_blocks=1.5(2) file_load_blocks=0.0(0) stt_load_blocks=0.0(0) mem_load_blocks=1.5(2) sma_load_blocks=0.0(0) composed_blocks=1.5(2)
+*************************** 16.row ***************************
+QUERY_PLAN:                    
+*************************** 17.row ***************************
+QUERY_PLAN:                check_rows=3.0(4)    
+*************************** 18.row ***************************
+QUERY_PLAN:    InitPlan 1
 *************************** 19.row ***************************
-QUERY_PLAN: Ratio: 0.001000
+QUERY_PLAN:       -> Table Scan on tbx ( rows=1 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 20.row ***************************
-QUERY_PLAN: 
+QUERY_PLAN:             Output: columns=1 width=4
 *************************** 21.row ***************************
+QUERY_PLAN:             Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 22.row ***************************
+*************************** 23.row ***************************
+QUERY_PLAN:             I/O cost: total_blocks=1 file_load_blocks=0 stt_load_blocks=0 mem_load_blocks=1 sma_load_blocks=0 composed_blocks=1
+*************************** 24.row ***************************
+QUERY_PLAN:                    
+*************************** 25.row ***************************
+QUERY_PLAN:                check_rows=1
+*************************** 26.row ***************************
+QUERY_PLAN: 
+*************************** 27.row ***************************
 QUERY_PLAN: 
 
 taos> explain select avg(f1), 1 < all (select 0 from st1) from st1 group by f1 having 1 < all (select 0 from st1)\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection (columns=2 width=9 input_order=unknown )
+QUERY_PLAN: -> Projection (columns=2 width=9 input_order=unknown)
 *************************** 2.row ***************************
-QUERY_PLAN:    -> GroupAggregate (functions=1 width=12 groups=1 input_order=asc )
+QUERY_PLAN:    -> GroupAggregate (functions=1 width=12 groups=1 input_order=asc)
 *************************** 3.row ***************************
 QUERY_PLAN:       -> Data Exchange 2:1 (width=62)
 *************************** 4.row ***************************
-QUERY_PLAN:          -> GroupAggregate (functions=1 width=62 groups=1 input_order=asc )
+QUERY_PLAN:          -> GroupAggregate (functions=1 width=62 groups=1 input_order=asc)
 *************************** 5.row ***************************
 QUERY_PLAN:             -> Table Scan on st1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 6.row ***************************
 QUERY_PLAN:    InitPlan 2
 *************************** 7.row ***************************
-QUERY_PLAN:       -> Aggregate (functions=2 width=9 input_order=unknown )
+QUERY_PLAN:       -> Aggregate (functions=2 width=9 input_order=unknown)
 *************************** 8.row ***************************
 QUERY_PLAN:          -> Data Exchange 2:1 (width=16)
 *************************** 9.row ***************************
-QUERY_PLAN:             -> Projection (columns=1 width=8 input_order=asc )
+QUERY_PLAN:             -> Projection (columns=1 width=8 input_order=asc)
 *************************** 10.row ***************************
 QUERY_PLAN:                -> Table Scan on st1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 11.row ***************************
 QUERY_PLAN:    InitPlan 1
 *************************** 12.row ***************************
-QUERY_PLAN:       -> Aggregate (functions=2 width=9 input_order=unknown )
+QUERY_PLAN:       -> Aggregate (functions=2 width=9 input_order=unknown)
 *************************** 13.row ***************************
 QUERY_PLAN:          -> Data Exchange 2:1 (width=16)
 *************************** 14.row ***************************
-QUERY_PLAN:             -> Projection (columns=1 width=8 input_order=asc )
+QUERY_PLAN:             -> Projection (columns=1 width=8 input_order=asc)
 *************************** 15.row ***************************
 QUERY_PLAN:                -> Table Scan on st1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 
 taos> explain select avg(f1), 1 > all (select 0 from st1) from st1 group by f1 having 1 > all (select 0 from st1)\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection (columns=2 width=9 input_order=unknown )
+QUERY_PLAN: -> Projection (columns=2 width=9 input_order=unknown)
 *************************** 2.row ***************************
-QUERY_PLAN:    -> GroupAggregate (functions=1 width=12 groups=1 input_order=asc )
+QUERY_PLAN:    -> GroupAggregate (functions=1 width=12 groups=1 input_order=asc)
 *************************** 3.row ***************************
 QUERY_PLAN:       -> Data Exchange 2:1 (width=62)
 *************************** 4.row ***************************
-QUERY_PLAN:          -> GroupAggregate (functions=1 width=62 groups=1 input_order=asc )
+QUERY_PLAN:          -> GroupAggregate (functions=1 width=62 groups=1 input_order=asc)
 *************************** 5.row ***************************
 QUERY_PLAN:             -> Table Scan on st1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 6.row ***************************
 QUERY_PLAN:    InitPlan 2
 *************************** 7.row ***************************
-QUERY_PLAN:       -> Aggregate (functions=2 width=9 input_order=unknown )
+QUERY_PLAN:       -> Aggregate (functions=2 width=9 input_order=unknown)
 *************************** 8.row ***************************
 QUERY_PLAN:          -> Data Exchange 2:1 (width=16)
 *************************** 9.row ***************************
-QUERY_PLAN:             -> Projection (columns=1 width=8 input_order=asc )
+QUERY_PLAN:             -> Projection (columns=1 width=8 input_order=asc)
 *************************** 10.row ***************************
 QUERY_PLAN:                -> Table Scan on st1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 11.row ***************************
 QUERY_PLAN:    InitPlan 1
 *************************** 12.row ***************************
-QUERY_PLAN:       -> Aggregate (functions=2 width=9 input_order=unknown )
+QUERY_PLAN:       -> Aggregate (functions=2 width=9 input_order=unknown)
 *************************** 13.row ***************************
 QUERY_PLAN:          -> Data Exchange 2:1 (width=16)
 *************************** 14.row ***************************
-QUERY_PLAN:             -> Projection (columns=1 width=8 input_order=asc )
+QUERY_PLAN:             -> Projection (columns=1 width=8 input_order=asc)
 *************************** 15.row ***************************
 QUERY_PLAN:                -> Table Scan on st1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 
 taos> explain select avg(f1), NULL = any (select 2 from st1) from st1 group by f1 having NULL = any (select 2 from st1)\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection (columns=2 width=9 input_order=unknown )
+QUERY_PLAN: -> Projection (columns=2 width=9 input_order=unknown)
 *************************** 2.row ***************************
-QUERY_PLAN:    -> GroupAggregate (functions=1 width=12 groups=1 input_order=asc )
+QUERY_PLAN:    -> GroupAggregate (functions=1 width=12 groups=1 input_order=asc)
 *************************** 3.row ***************************
 QUERY_PLAN:       -> Data Exchange 2:1 (width=62)
 *************************** 4.row ***************************
-QUERY_PLAN:          -> GroupAggregate (functions=1 width=62 groups=1 input_order=asc )
+QUERY_PLAN:          -> GroupAggregate (functions=1 width=62 groups=1 input_order=asc)
 *************************** 5.row ***************************
 QUERY_PLAN:             -> Table Scan on st1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 6.row ***************************
@@ -2510,7 +2516,7 @@ QUERY_PLAN:    InitPlan 2
 *************************** 7.row ***************************
 QUERY_PLAN:       -> Data Exchange 2:1 (width=8)
 *************************** 8.row ***************************
-QUERY_PLAN:          -> Projection (columns=1 width=8 input_order=asc )
+QUERY_PLAN:          -> Projection (columns=1 width=8 input_order=asc)
 *************************** 9.row ***************************
 QUERY_PLAN:             -> Table Scan on st1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 10.row ***************************
@@ -2518,19 +2524,19 @@ QUERY_PLAN:    InitPlan 1
 *************************** 11.row ***************************
 QUERY_PLAN:       -> Data Exchange 2:1 (width=8)
 *************************** 12.row ***************************
-QUERY_PLAN:          -> Projection (columns=1 width=8 input_order=asc )
+QUERY_PLAN:          -> Projection (columns=1 width=8 input_order=asc)
 *************************** 13.row ***************************
 QUERY_PLAN:             -> Table Scan on st1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 
 taos> explain select avg(f1), exists (select f1 from db2.tbx) from st1 group by f1 having exists (select f1 from db2.tbx)\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection (columns=2 width=9 input_order=unknown )
+QUERY_PLAN: -> Projection (columns=2 width=9 input_order=unknown)
 *************************** 2.row ***************************
-QUERY_PLAN:    -> GroupAggregate (functions=1 width=12 groups=1 input_order=asc )
+QUERY_PLAN:    -> GroupAggregate (functions=1 width=12 groups=1 input_order=asc)
 *************************** 3.row ***************************
 QUERY_PLAN:       -> Data Exchange 2:1 (width=62)
 *************************** 4.row ***************************
-QUERY_PLAN:          -> GroupAggregate (functions=1 width=62 groups=1 input_order=asc )
+QUERY_PLAN:          -> GroupAggregate (functions=1 width=62 groups=1 input_order=asc)
 *************************** 5.row ***************************
 QUERY_PLAN:             -> Table Scan on st1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 6.row ***************************
@@ -2544,7 +2550,7 @@ QUERY_PLAN:       -> Table Scan on tbx (columns=2 width=12 order=[asc|1 desc|0] 
 
 taos> explain verbose true select avg(f1), 1 < all (select 0 from st1) from st1 group by f1 having 1 < all (select 0 from st1)\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection (columns=2 width=9 input_order=unknown )
+QUERY_PLAN: -> Projection (columns=2 width=9 input_order=unknown)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=2 width=9
 *************************** 3.row ***************************
@@ -2552,7 +2558,7 @@ QUERY_PLAN:       Output: Ignore Group Id: true
 *************************** 4.row ***************************
 QUERY_PLAN:       Merge ResBlocks: True
 *************************** 5.row ***************************
-QUERY_PLAN:    -> GroupAggregate (functions=1 width=12 groups=1 input_order=asc )
+QUERY_PLAN:    -> GroupAggregate (functions=1 width=12 groups=1 input_order=asc)
 *************************** 6.row ***************************
 QUERY_PLAN:          Output: columns=1 width=8 blocking=1
 *************************** 7.row ***************************
@@ -2562,7 +2568,7 @@ QUERY_PLAN:       -> Data Exchange 2:1 (width=62)
 *************************** 9.row ***************************
 QUERY_PLAN:             Output: columns=2 width=62
 *************************** 10.row ***************************
-QUERY_PLAN:          -> GroupAggregate (functions=1 width=62 groups=1 input_order=asc )
+QUERY_PLAN:          -> GroupAggregate (functions=1 width=62 groups=1 input_order=asc)
 *************************** 11.row ***************************
 QUERY_PLAN:                Output: columns=2 width=62 blocking=1
 *************************** 12.row ***************************
@@ -2574,11 +2580,11 @@ QUERY_PLAN:                   Output: columns=2 width=12
 *************************** 15.row ***************************
 QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 16.row ***************************
-QUERY_PLAN:                   Filter: (1 < $(InitPlan 1))
+QUERY_PLAN:                   Filter: conditions=(1 < $(InitPlan 1))
 *************************** 17.row ***************************
 QUERY_PLAN:    InitPlan 2
 *************************** 18.row ***************************
-QUERY_PLAN:       -> Aggregate (functions=2 width=9 input_order=unknown )
+QUERY_PLAN:       -> Aggregate (functions=2 width=9 input_order=unknown)
 *************************** 19.row ***************************
 QUERY_PLAN:             Output: columns=2 width=9 blocking=1
 *************************** 20.row ***************************
@@ -2588,7 +2594,7 @@ QUERY_PLAN:          -> Data Exchange 2:1 (width=16)
 *************************** 22.row ***************************
 QUERY_PLAN:                Output: columns=2 width=16
 *************************** 23.row ***************************
-QUERY_PLAN:             -> Projection (columns=1 width=8 input_order=asc )
+QUERY_PLAN:             -> Projection (columns=1 width=8 input_order=asc)
 *************************** 24.row ***************************
 QUERY_PLAN:                   Output: columns=1 width=8
 *************************** 25.row ***************************
@@ -2604,7 +2610,7 @@ QUERY_PLAN:                      Time Range: [-9223372036854775808, 922337203685
 *************************** 30.row ***************************
 QUERY_PLAN:    InitPlan 1
 *************************** 31.row ***************************
-QUERY_PLAN:       -> Aggregate (functions=2 width=9 input_order=unknown )
+QUERY_PLAN:       -> Aggregate (functions=2 width=9 input_order=unknown)
 *************************** 32.row ***************************
 QUERY_PLAN:             Output: columns=2 width=9 blocking=1
 *************************** 33.row ***************************
@@ -2614,7 +2620,7 @@ QUERY_PLAN:          -> Data Exchange 2:1 (width=16)
 *************************** 35.row ***************************
 QUERY_PLAN:                Output: columns=2 width=16
 *************************** 36.row ***************************
-QUERY_PLAN:             -> Projection (columns=1 width=8 input_order=asc )
+QUERY_PLAN:             -> Projection (columns=1 width=8 input_order=asc)
 *************************** 37.row ***************************
 QUERY_PLAN:                   Output: columns=1 width=8
 *************************** 38.row ***************************
@@ -2630,7 +2636,7 @@ QUERY_PLAN:                      Time Range: [-9223372036854775808, 922337203685
 
 taos> explain verbose true select avg(f1), 1 > all (select 0 from st1) from st1 group by f1 having 1 > all (select 0 from st1)\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection (columns=2 width=9 input_order=unknown )
+QUERY_PLAN: -> Projection (columns=2 width=9 input_order=unknown)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=2 width=9
 *************************** 3.row ***************************
@@ -2638,7 +2644,7 @@ QUERY_PLAN:       Output: Ignore Group Id: true
 *************************** 4.row ***************************
 QUERY_PLAN:       Merge ResBlocks: True
 *************************** 5.row ***************************
-QUERY_PLAN:    -> GroupAggregate (functions=1 width=12 groups=1 input_order=asc )
+QUERY_PLAN:    -> GroupAggregate (functions=1 width=12 groups=1 input_order=asc)
 *************************** 6.row ***************************
 QUERY_PLAN:          Output: columns=1 width=8 blocking=1
 *************************** 7.row ***************************
@@ -2648,7 +2654,7 @@ QUERY_PLAN:       -> Data Exchange 2:1 (width=62)
 *************************** 9.row ***************************
 QUERY_PLAN:             Output: columns=2 width=62
 *************************** 10.row ***************************
-QUERY_PLAN:          -> GroupAggregate (functions=1 width=62 groups=1 input_order=asc )
+QUERY_PLAN:          -> GroupAggregate (functions=1 width=62 groups=1 input_order=asc)
 *************************** 11.row ***************************
 QUERY_PLAN:                Output: columns=2 width=62 blocking=1
 *************************** 12.row ***************************
@@ -2660,11 +2666,11 @@ QUERY_PLAN:                   Output: columns=2 width=12
 *************************** 15.row ***************************
 QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 16.row ***************************
-QUERY_PLAN:                   Filter: (1 > $(InitPlan 1))
+QUERY_PLAN:                   Filter: conditions=(1 > $(InitPlan 1))
 *************************** 17.row ***************************
 QUERY_PLAN:    InitPlan 2
 *************************** 18.row ***************************
-QUERY_PLAN:       -> Aggregate (functions=2 width=9 input_order=unknown )
+QUERY_PLAN:       -> Aggregate (functions=2 width=9 input_order=unknown)
 *************************** 19.row ***************************
 QUERY_PLAN:             Output: columns=2 width=9 blocking=1
 *************************** 20.row ***************************
@@ -2674,7 +2680,7 @@ QUERY_PLAN:          -> Data Exchange 2:1 (width=16)
 *************************** 22.row ***************************
 QUERY_PLAN:                Output: columns=2 width=16
 *************************** 23.row ***************************
-QUERY_PLAN:             -> Projection (columns=1 width=8 input_order=asc )
+QUERY_PLAN:             -> Projection (columns=1 width=8 input_order=asc)
 *************************** 24.row ***************************
 QUERY_PLAN:                   Output: columns=1 width=8
 *************************** 25.row ***************************
@@ -2690,7 +2696,7 @@ QUERY_PLAN:                      Time Range: [-9223372036854775808, 922337203685
 *************************** 30.row ***************************
 QUERY_PLAN:    InitPlan 1
 *************************** 31.row ***************************
-QUERY_PLAN:       -> Aggregate (functions=2 width=9 input_order=unknown )
+QUERY_PLAN:       -> Aggregate (functions=2 width=9 input_order=unknown)
 *************************** 32.row ***************************
 QUERY_PLAN:             Output: columns=2 width=9 blocking=1
 *************************** 33.row ***************************
@@ -2700,7 +2706,7 @@ QUERY_PLAN:          -> Data Exchange 2:1 (width=16)
 *************************** 35.row ***************************
 QUERY_PLAN:                Output: columns=2 width=16
 *************************** 36.row ***************************
-QUERY_PLAN:             -> Projection (columns=1 width=8 input_order=asc )
+QUERY_PLAN:             -> Projection (columns=1 width=8 input_order=asc)
 *************************** 37.row ***************************
 QUERY_PLAN:                   Output: columns=1 width=8
 *************************** 38.row ***************************
@@ -2716,7 +2722,7 @@ QUERY_PLAN:                      Time Range: [-9223372036854775808, 922337203685
 
 taos> explain verbose true select avg(f1), NULL = any (select 2 from st1) from st1 group by f1 having NULL = any (select 2 from st1)\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection (columns=2 width=9 input_order=unknown )
+QUERY_PLAN: -> Projection (columns=2 width=9 input_order=unknown)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=2 width=9
 *************************** 3.row ***************************
@@ -2724,7 +2730,7 @@ QUERY_PLAN:       Output: Ignore Group Id: true
 *************************** 4.row ***************************
 QUERY_PLAN:       Merge ResBlocks: True
 *************************** 5.row ***************************
-QUERY_PLAN:    -> GroupAggregate (functions=1 width=12 groups=1 input_order=asc )
+QUERY_PLAN:    -> GroupAggregate (functions=1 width=12 groups=1 input_order=asc)
 *************************** 6.row ***************************
 QUERY_PLAN:          Output: columns=1 width=8 blocking=1
 *************************** 7.row ***************************
@@ -2734,7 +2740,7 @@ QUERY_PLAN:       -> Data Exchange 2:1 (width=62)
 *************************** 9.row ***************************
 QUERY_PLAN:             Output: columns=2 width=62
 *************************** 10.row ***************************
-QUERY_PLAN:          -> GroupAggregate (functions=1 width=62 groups=1 input_order=asc )
+QUERY_PLAN:          -> GroupAggregate (functions=1 width=62 groups=1 input_order=asc)
 *************************** 11.row ***************************
 QUERY_PLAN:                Output: columns=2 width=62 blocking=1
 *************************** 12.row ***************************
@@ -2746,7 +2752,7 @@ QUERY_PLAN:                   Output: columns=2 width=12
 *************************** 15.row ***************************
 QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 16.row ***************************
-QUERY_PLAN:                   Filter: (NULL IN $(InitPlan 1))
+QUERY_PLAN:                   Filter: conditions=(NULL IN $(InitPlan 1))
 *************************** 17.row ***************************
 QUERY_PLAN:    InitPlan 2
 *************************** 18.row ***************************
@@ -2754,7 +2760,7 @@ QUERY_PLAN:       -> Data Exchange 2:1 (width=8)
 *************************** 19.row ***************************
 QUERY_PLAN:             Output: columns=1 width=8
 *************************** 20.row ***************************
-QUERY_PLAN:          -> Projection (columns=1 width=8 input_order=asc )
+QUERY_PLAN:          -> Projection (columns=1 width=8 input_order=asc)
 *************************** 21.row ***************************
 QUERY_PLAN:                Output: columns=1 width=8
 *************************** 22.row ***************************
@@ -2774,7 +2780,7 @@ QUERY_PLAN:       -> Data Exchange 2:1 (width=8)
 *************************** 29.row ***************************
 QUERY_PLAN:             Output: columns=1 width=8
 *************************** 30.row ***************************
-QUERY_PLAN:          -> Projection (columns=1 width=8 input_order=asc )
+QUERY_PLAN:          -> Projection (columns=1 width=8 input_order=asc)
 *************************** 31.row ***************************
 QUERY_PLAN:                Output: columns=1 width=8
 *************************** 32.row ***************************
@@ -2790,7 +2796,7 @@ QUERY_PLAN:                   Time Range: [-9223372036854775808, 922337203685477
 
 taos> explain verbose true select avg(f1), exists (select f1 from db2.tbx) from st1 group by f1 having exists (select f1 from db2.tbx)\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection (columns=2 width=9 input_order=unknown )
+QUERY_PLAN: -> Projection (columns=2 width=9 input_order=unknown)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=2 width=9
 *************************** 3.row ***************************
@@ -2798,7 +2804,7 @@ QUERY_PLAN:       Output: Ignore Group Id: true
 *************************** 4.row ***************************
 QUERY_PLAN:       Merge ResBlocks: True
 *************************** 5.row ***************************
-QUERY_PLAN:    -> GroupAggregate (functions=1 width=12 groups=1 input_order=asc )
+QUERY_PLAN:    -> GroupAggregate (functions=1 width=12 groups=1 input_order=asc)
 *************************** 6.row ***************************
 QUERY_PLAN:          Output: columns=1 width=8 blocking=1
 *************************** 7.row ***************************
@@ -2808,7 +2814,7 @@ QUERY_PLAN:       -> Data Exchange 2:1 (width=62)
 *************************** 9.row ***************************
 QUERY_PLAN:             Output: columns=2 width=62
 *************************** 10.row ***************************
-QUERY_PLAN:          -> GroupAggregate (functions=1 width=62 groups=1 input_order=asc )
+QUERY_PLAN:          -> GroupAggregate (functions=1 width=62 groups=1 input_order=asc)
 *************************** 11.row ***************************
 QUERY_PLAN:                Output: columns=2 width=62 blocking=1
 *************************** 12.row ***************************
@@ -2820,7 +2826,7 @@ QUERY_PLAN:                   Output: columns=2 width=12
 *************************** 15.row ***************************
 QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 16.row ***************************
-QUERY_PLAN:                   Filter: ($(InitPlan 1) > 0)
+QUERY_PLAN:                   Filter: conditions=($(InitPlan 1) > 0)
 *************************** 17.row ***************************
 QUERY_PLAN:    InitPlan 2
 *************************** 18.row ***************************
@@ -2840,191 +2846,135 @@ QUERY_PLAN:             Time Range: [-9223372036854775808, 9223372036854775807]
 
 taos> explain analyze select avg(f1), 1 < all (select 0 from st1) from st1 group by f1 having 1 < all (select 0 from st1)\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection ( rows=0 columns=2 width=9 input_order=unknown )
+QUERY_PLAN: -> Projection ( rows=0 columns=2 width=9 input_order=unknown)
 *************************** 2.row ***************************
-QUERY_PLAN:    -> GroupAggregate ( rows=0 functions=1 width=12 groups=1 input_order=asc )
+QUERY_PLAN:    -> GroupAggregate ( rows=0 functions=1 width=12 groups=1 input_order=asc)
 *************************** 3.row ***************************
 QUERY_PLAN:       -> Data Exchange 2:1 ( rows=0 width=62)
 *************************** 4.row ***************************
-QUERY_PLAN:          -> GroupAggregate ( rows=0 functions=1 width=62 groups=1 input_order=asc )
+QUERY_PLAN:          -> GroupAggregate ( rows=0.0(0) functions=1 width=62 groups=1 input_order=asc)
 *************************** 5.row ***************************
-QUERY_PLAN:             -> Table Scan on st1 ( rows=0 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:             -> Table Scan on st1 ( rows=0.0(0) columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 6.row ***************************
-QUERY_PLAN:                   I/O: total_blocks=1.5 load_blocks=1.5 load_block_SMAs=0.0 total_rows=0.0 check_rows=3.0 
-*************************** 7.row ***************************
-QUERY_PLAN:                    total_rows:0, ep:tbd () 
-*************************** 8.row ***************************
 QUERY_PLAN:    InitPlan 2
+*************************** 7.row ***************************
+QUERY_PLAN:       -> Aggregate ( rows=1 functions=2 width=9 input_order=unknown)
+*************************** 8.row ***************************
+QUERY_PLAN:          -> Data Exchange 2:1 ( rows=6 width=16)
 *************************** 9.row ***************************
-QUERY_PLAN:       -> Aggregate ( rows=1 functions=2 width=9 input_order=unknown )
+QUERY_PLAN:             -> Projection ( rows=3.0(4) columns=1 width=8 input_order=asc)
 *************************** 10.row ***************************
-QUERY_PLAN:          -> Data Exchange 2:1 ( rows=6 width=16)
+QUERY_PLAN:                -> Table Scan on st1 ( rows=3.0(4) columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 11.row ***************************
-QUERY_PLAN:             -> Projection ( rows=4 columns=1 width=8 input_order=asc )
-*************************** 12.row ***************************
-QUERY_PLAN:                -> Table Scan on st1 ( rows=4 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
-*************************** 13.row ***************************
-QUERY_PLAN:                      I/O: total_blocks=1.5 load_blocks=1.5 load_block_SMAs=0.0 total_rows=3.0 check_rows=3.0 
-*************************** 14.row ***************************
-QUERY_PLAN:                       total_rows:4, ep:tbd () 
-*************************** 15.row ***************************
 QUERY_PLAN:    InitPlan 1
-*************************** 16.row ***************************
-QUERY_PLAN:       -> Aggregate ( rows=1 functions=2 width=9 input_order=unknown )
-*************************** 17.row ***************************
+*************************** 12.row ***************************
+QUERY_PLAN:       -> Aggregate ( rows=1 functions=2 width=9 input_order=unknown)
+*************************** 13.row ***************************
 QUERY_PLAN:          -> Data Exchange 2:1 ( rows=6 width=16)
-*************************** 18.row ***************************
-QUERY_PLAN:             -> Projection ( rows=4 columns=1 width=8 input_order=asc )
-*************************** 19.row ***************************
-QUERY_PLAN:                -> Table Scan on st1 ( rows=4 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
-*************************** 20.row ***************************
-QUERY_PLAN:                      I/O: total_blocks=1.5 load_blocks=1.5 load_block_SMAs=0.0 total_rows=3.0 check_rows=3.0 
-*************************** 21.row ***************************
-QUERY_PLAN:                       total_rows:4, ep:tbd () 
-*************************** 22.row ***************************
-QUERY_PLAN: Ratio: 0.001000
-*************************** 23.row ***************************
+*************************** 14.row ***************************
+QUERY_PLAN:             -> Projection ( rows=3.0(4) columns=1 width=8 input_order=asc)
+*************************** 15.row ***************************
+QUERY_PLAN:                -> Table Scan on st1 ( rows=3.0(4) columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 16.row ***************************
 QUERY_PLAN: 
-*************************** 24.row ***************************
+*************************** 17.row ***************************
 QUERY_PLAN: 
 
 taos> explain analyze select avg(f1), 1 > all (select 0 from st1) from st1 group by f1 having 1 > all (select 0 from st1)\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection ( rows=6 columns=2 width=9 input_order=unknown )
+QUERY_PLAN: -> Projection ( rows=6 columns=2 width=9 input_order=unknown)
 *************************** 2.row ***************************
-QUERY_PLAN:    -> GroupAggregate ( rows=6 functions=1 width=12 groups=1 input_order=asc )
+QUERY_PLAN:    -> GroupAggregate ( rows=6 functions=1 width=12 groups=1 input_order=asc)
 *************************** 3.row ***************************
 QUERY_PLAN:       -> Data Exchange 2:1 ( rows=6 width=62)
 *************************** 4.row ***************************
-QUERY_PLAN:          -> GroupAggregate ( rows=4 functions=1 width=62 groups=1 input_order=asc )
+QUERY_PLAN:          -> GroupAggregate ( rows=3.0(4) functions=1 width=62 groups=1 input_order=asc)
 *************************** 5.row ***************************
-QUERY_PLAN:             -> Table Scan on st1 ( rows=4 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:             -> Table Scan on st1 ( rows=3.0(4) columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 6.row ***************************
-QUERY_PLAN:                   I/O: total_blocks=1.5 load_blocks=1.5 load_block_SMAs=0.0 total_rows=3.0 check_rows=3.0 
-*************************** 7.row ***************************
-QUERY_PLAN:                    total_rows:4, ep:tbd () 
-*************************** 8.row ***************************
 QUERY_PLAN:    InitPlan 2
+*************************** 7.row ***************************
+QUERY_PLAN:       -> Aggregate ( rows=1 functions=2 width=9 input_order=unknown)
+*************************** 8.row ***************************
+QUERY_PLAN:          -> Data Exchange 2:1 ( rows=6 width=16)
 *************************** 9.row ***************************
-QUERY_PLAN:       -> Aggregate ( rows=1 functions=2 width=9 input_order=unknown )
+QUERY_PLAN:             -> Projection ( rows=3.0(4) columns=1 width=8 input_order=asc)
 *************************** 10.row ***************************
-QUERY_PLAN:          -> Data Exchange 2:1 ( rows=6 width=16)
+QUERY_PLAN:                -> Table Scan on st1 ( rows=3.0(4) columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 11.row ***************************
-QUERY_PLAN:             -> Projection ( rows=4 columns=1 width=8 input_order=asc )
-*************************** 12.row ***************************
-QUERY_PLAN:                -> Table Scan on st1 ( rows=4 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
-*************************** 13.row ***************************
-QUERY_PLAN:                      I/O: total_blocks=1.5 load_blocks=1.5 load_block_SMAs=0.0 total_rows=3.0 check_rows=3.0 
-*************************** 14.row ***************************
-QUERY_PLAN:                       total_rows:4, ep:tbd () 
-*************************** 15.row ***************************
 QUERY_PLAN:    InitPlan 1
-*************************** 16.row ***************************
-QUERY_PLAN:       -> Aggregate ( rows=1 functions=2 width=9 input_order=unknown )
-*************************** 17.row ***************************
+*************************** 12.row ***************************
+QUERY_PLAN:       -> Aggregate ( rows=1 functions=2 width=9 input_order=unknown)
+*************************** 13.row ***************************
 QUERY_PLAN:          -> Data Exchange 2:1 ( rows=6 width=16)
-*************************** 18.row ***************************
-QUERY_PLAN:             -> Projection ( rows=4 columns=1 width=8 input_order=asc )
-*************************** 19.row ***************************
-QUERY_PLAN:                -> Table Scan on st1 ( rows=4 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
-*************************** 20.row ***************************
-QUERY_PLAN:                      I/O: total_blocks=1.5 load_blocks=1.5 load_block_SMAs=0.0 total_rows=3.0 check_rows=3.0 
-*************************** 21.row ***************************
-QUERY_PLAN:                       total_rows:4, ep:tbd () 
-*************************** 22.row ***************************
-QUERY_PLAN: Ratio: 0.001000
-*************************** 23.row ***************************
+*************************** 14.row ***************************
+QUERY_PLAN:             -> Projection ( rows=3.0(4) columns=1 width=8 input_order=asc)
+*************************** 15.row ***************************
+QUERY_PLAN:                -> Table Scan on st1 ( rows=3.0(4) columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 16.row ***************************
 QUERY_PLAN: 
-*************************** 24.row ***************************
+*************************** 17.row ***************************
 QUERY_PLAN: 
 
 taos> explain analyze select avg(f1), NULL = any (select 2 from st1) from st1 group by f1 having NULL = any (select 2 from st1)\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection ( rows=0 columns=2 width=9 input_order=unknown )
+QUERY_PLAN: -> Projection ( rows=0 columns=2 width=9 input_order=unknown)
 *************************** 2.row ***************************
-QUERY_PLAN:    -> GroupAggregate ( rows=0 functions=1 width=12 groups=1 input_order=asc )
+QUERY_PLAN:    -> GroupAggregate ( rows=0 functions=1 width=12 groups=1 input_order=asc)
 *************************** 3.row ***************************
 QUERY_PLAN:       -> Data Exchange 2:1 ( rows=0 width=62)
 *************************** 4.row ***************************
-QUERY_PLAN:          -> GroupAggregate ( rows=0 functions=1 width=62 groups=1 input_order=asc )
+QUERY_PLAN:          -> GroupAggregate ( rows=0.0(0) functions=1 width=62 groups=1 input_order=asc)
 *************************** 5.row ***************************
-QUERY_PLAN:             -> Table Scan on st1 ( rows=0 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:             -> Table Scan on st1 ( rows=0.0(0) columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 6.row ***************************
-QUERY_PLAN:                   I/O: total_blocks=1.5 load_blocks=1.5 load_block_SMAs=0.0 total_rows=0.0 check_rows=3.0 
-*************************** 7.row ***************************
-QUERY_PLAN:                    total_rows:0, ep:tbd () 
-*************************** 8.row ***************************
 QUERY_PLAN:    InitPlan 2
+*************************** 7.row ***************************
+QUERY_PLAN:       -> Data Exchange 2:1 ( rows=6 width=8)
+*************************** 8.row ***************************
+QUERY_PLAN:          -> Projection ( rows=3.0(4) columns=1 width=8 input_order=asc)
 *************************** 9.row ***************************
-QUERY_PLAN:       -> Data Exchange 2:1 ( rows=6 width=8)
+QUERY_PLAN:             -> Table Scan on st1 ( rows=3.0(4) columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 10.row ***************************
-QUERY_PLAN:          -> Projection ( rows=4 columns=1 width=8 input_order=asc )
-*************************** 11.row ***************************
-QUERY_PLAN:             -> Table Scan on st1 ( rows=4 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
-*************************** 12.row ***************************
-QUERY_PLAN:                   I/O: total_blocks=1.5 load_blocks=1.5 load_block_SMAs=0.0 total_rows=3.0 check_rows=3.0 
-*************************** 13.row ***************************
-QUERY_PLAN:                    total_rows:4, ep:tbd () 
-*************************** 14.row ***************************
 QUERY_PLAN:    InitPlan 1
-*************************** 15.row ***************************
+*************************** 11.row ***************************
 QUERY_PLAN:       -> Data Exchange 2:1 ( rows=6 width=8)
-*************************** 16.row ***************************
-QUERY_PLAN:          -> Projection ( rows=4 columns=1 width=8 input_order=asc )
-*************************** 17.row ***************************
-QUERY_PLAN:             -> Table Scan on st1 ( rows=4 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
-*************************** 18.row ***************************
-QUERY_PLAN:                   I/O: total_blocks=1.5 load_blocks=1.5 load_block_SMAs=0.0 total_rows=3.0 check_rows=3.0 
-*************************** 19.row ***************************
-QUERY_PLAN:                    total_rows:4, ep:tbd () 
-*************************** 20.row ***************************
-QUERY_PLAN: Ratio: 0.001000
-*************************** 21.row ***************************
+*************************** 12.row ***************************
+QUERY_PLAN:          -> Projection ( rows=3.0(4) columns=1 width=8 input_order=asc)
+*************************** 13.row ***************************
+QUERY_PLAN:             -> Table Scan on st1 ( rows=3.0(4) columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 14.row ***************************
 QUERY_PLAN: 
-*************************** 22.row ***************************
+*************************** 15.row ***************************
 QUERY_PLAN: 
 
 taos> explain analyze select avg(f1), exists (select f1 from db2.tbx) from st1 group by f1 having exists (select f1 from db2.tbx)\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection ( rows=6 columns=2 width=9 input_order=unknown )
+QUERY_PLAN: -> Projection ( rows=6 columns=2 width=9 input_order=unknown)
 *************************** 2.row ***************************
-QUERY_PLAN:    -> GroupAggregate ( rows=6 functions=1 width=12 groups=1 input_order=asc )
+QUERY_PLAN:    -> GroupAggregate ( rows=6 functions=1 width=12 groups=1 input_order=asc)
 *************************** 3.row ***************************
 QUERY_PLAN:       -> Data Exchange 2:1 ( rows=6 width=62)
 *************************** 4.row ***************************
-QUERY_PLAN:          -> GroupAggregate ( rows=4 functions=1 width=62 groups=1 input_order=asc )
+QUERY_PLAN:          -> GroupAggregate ( rows=3.0(4) functions=1 width=62 groups=1 input_order=asc)
 *************************** 5.row ***************************
-QUERY_PLAN:             -> Table Scan on st1 ( rows=4 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:             -> Table Scan on st1 ( rows=3.0(4) columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 6.row ***************************
-QUERY_PLAN:                   I/O: total_blocks=1.5 load_blocks=1.5 load_block_SMAs=0.0 total_rows=3.0 check_rows=3.0 
-*************************** 7.row ***************************
-QUERY_PLAN:                    total_rows:4, ep:tbd () 
-*************************** 8.row ***************************
 QUERY_PLAN:    InitPlan 2
+*************************** 7.row ***************************
+QUERY_PLAN:       -> Table Scan on tbx ( rows=1 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 8.row ***************************
+QUERY_PLAN:    InitPlan 1
 *************************** 9.row ***************************
 QUERY_PLAN:       -> Table Scan on tbx ( rows=1 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 10.row ***************************
-QUERY_PLAN:             I/O: total_blocks=1.0 load_blocks=1.0 load_block_SMAs=0.0 total_rows=1.0 check_rows=1.0 
-*************************** 11.row ***************************
-QUERY_PLAN:              total_rows:1, ep:tbd () 
-*************************** 12.row ***************************
-QUERY_PLAN:    InitPlan 1
-*************************** 13.row ***************************
-QUERY_PLAN:       -> Table Scan on tbx ( rows=1 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
-*************************** 14.row ***************************
-QUERY_PLAN:             I/O: total_blocks=1.0 load_blocks=1.0 load_block_SMAs=0.0 total_rows=1.0 check_rows=1.0 
-*************************** 15.row ***************************
-QUERY_PLAN:              total_rows:1, ep:tbd () 
-*************************** 16.row ***************************
-QUERY_PLAN: Ratio: 0.001000
-*************************** 17.row ***************************
 QUERY_PLAN: 
-*************************** 18.row ***************************
+*************************** 11.row ***************************
 QUERY_PLAN: 
 
 taos> explain analyze verbose true select avg(f1), 1 < all (select 0 from st1) from st1 group by f1 having 1 < all (select 0 from st1)\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection ( rows=0 columns=2 width=9 input_order=unknown )
+QUERY_PLAN: -> Projection ( rows=0 columns=2 width=9 input_order=unknown)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=2 width=9
 *************************** 3.row ***************************
@@ -3032,103 +2982,126 @@ QUERY_PLAN:       Output: Ignore Group Id: true
 *************************** 4.row ***************************
 QUERY_PLAN:       Merge ResBlocks: True
 *************************** 5.row ***************************
-QUERY_PLAN:    -> GroupAggregate ( rows=0 functions=1 width=12 groups=1 input_order=asc )
 *************************** 6.row ***************************
-QUERY_PLAN:          Output: columns=1 width=8 blocking=1
+QUERY_PLAN:    -> GroupAggregate ( rows=0 functions=1 width=12 groups=1 input_order=asc)
 *************************** 7.row ***************************
-QUERY_PLAN:          Merge ResBlocks: True
+QUERY_PLAN:          Output: columns=1 width=8 blocking=1
 *************************** 8.row ***************************
-QUERY_PLAN:       -> Data Exchange 2:1 ( rows=0 width=62)
+QUERY_PLAN:          Merge ResBlocks: True
 *************************** 9.row ***************************
-QUERY_PLAN:             Output: columns=2 width=62
 *************************** 10.row ***************************
-QUERY_PLAN:          -> GroupAggregate ( rows=0 functions=1 width=62 groups=1 input_order=asc )
+QUERY_PLAN:       -> Data Exchange 2:1 ( rows=0 width=62)
 *************************** 11.row ***************************
-QUERY_PLAN:                Output: columns=2 width=62 blocking=1
+QUERY_PLAN:             Output: columns=2 width=62
 *************************** 12.row ***************************
-QUERY_PLAN:                Merge ResBlocks: False
+QUERY_PLAN:             Network: mode=concurrent fetch_times=1.0(1) fetch_rows=0.0(0) 
 *************************** 13.row ***************************
-QUERY_PLAN:             -> Table Scan on st1 ( rows=0 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 14.row ***************************
-QUERY_PLAN:                   I/O: total_blocks=1.5 load_blocks=1.5 load_block_SMAs=0.0 total_rows=0.0 check_rows=3.0 
+QUERY_PLAN:          -> GroupAggregate ( rows=0.0(0) functions=1 width=62 groups=1 input_order=asc)
 *************************** 15.row ***************************
-QUERY_PLAN:                    total_rows:0, ep:tbd () 
+QUERY_PLAN:                Output: columns=2 width=62 blocking=1
 *************************** 16.row ***************************
-QUERY_PLAN:                   Output: columns=2 width=12
+QUERY_PLAN:                Merge ResBlocks: False
 *************************** 17.row ***************************
-QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 18.row ***************************
-QUERY_PLAN:                   Filter: (1 < $(InitPlan 1))
+QUERY_PLAN:             -> Table Scan on st1 ( rows=0.0(0) columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 19.row ***************************
-QUERY_PLAN:    InitPlan 2
+QUERY_PLAN:                   Output: columns=2 width=12
 *************************** 20.row ***************************
-QUERY_PLAN:       -> Aggregate ( rows=1 functions=2 width=9 input_order=unknown )
+QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 21.row ***************************
-QUERY_PLAN:             Output: columns=2 width=9 blocking=1
+QUERY_PLAN:                   Filter: conditions=(1 < $(InitPlan 1)) efficiency=100.0%
 *************************** 22.row ***************************
-QUERY_PLAN:             Merge ResBlocks: True
 *************************** 23.row ***************************
-QUERY_PLAN:          -> Data Exchange 2:1 ( rows=6 width=16)
+QUERY_PLAN:                   I/O cost: total_blocks=1.5(2) file_load_blocks=0.0(0) stt_load_blocks=0.0(0) mem_load_blocks=1.5(2) sma_load_blocks=0.0(0) composed_blocks=1.5(2)
 *************************** 24.row ***************************
-QUERY_PLAN:                Output: columns=2 width=16
+QUERY_PLAN:                          
 *************************** 25.row ***************************
-QUERY_PLAN:             -> Projection ( rows=4 columns=1 width=8 input_order=asc )
+QUERY_PLAN:                      check_rows=3.0(4)    
 *************************** 26.row ***************************
-QUERY_PLAN:                   Output: columns=1 width=8
+QUERY_PLAN:    InitPlan 2
 *************************** 27.row ***************************
-QUERY_PLAN:                   Output: Ignore Group Id: true
+QUERY_PLAN:       -> Aggregate ( rows=1 functions=2 width=9 input_order=unknown)
 *************************** 28.row ***************************
-QUERY_PLAN:                   Merge ResBlocks: False
-*************************** 29.row ***************************
-QUERY_PLAN:                -> Table Scan on st1 ( rows=4 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
-*************************** 30.row ***************************
-QUERY_PLAN:                      I/O: total_blocks=1.5 load_blocks=1.5 load_block_SMAs=0.0 total_rows=3.0 check_rows=3.0 
-*************************** 31.row ***************************
-QUERY_PLAN:                       total_rows:4, ep:tbd () 
-*************************** 32.row ***************************
-QUERY_PLAN:                      Output: columns=1 width=8
-*************************** 33.row ***************************
-QUERY_PLAN:                      Time Range: [-9223372036854775808, 9223372036854775807]
-*************************** 34.row ***************************
-QUERY_PLAN:    InitPlan 1
-*************************** 35.row ***************************
-QUERY_PLAN:       -> Aggregate ( rows=1 functions=2 width=9 input_order=unknown )
-*************************** 36.row ***************************
 QUERY_PLAN:             Output: columns=2 width=9 blocking=1
-*************************** 37.row ***************************
+*************************** 29.row ***************************
 QUERY_PLAN:             Merge ResBlocks: True
-*************************** 38.row ***************************
+*************************** 30.row ***************************
+*************************** 31.row ***************************
 QUERY_PLAN:          -> Data Exchange 2:1 ( rows=6 width=16)
-*************************** 39.row ***************************
+*************************** 32.row ***************************
 QUERY_PLAN:                Output: columns=2 width=16
-*************************** 40.row ***************************
-QUERY_PLAN:             -> Projection ( rows=4 columns=1 width=8 input_order=asc )
-*************************** 41.row ***************************
+*************************** 33.row ***************************
+QUERY_PLAN:                Network: mode=concurrent fetch_times=1.0(1) fetch_rows=3.0(4) 
+*************************** 34.row ***************************
+*************************** 35.row ***************************
+QUERY_PLAN:             -> Projection ( rows=3.0(4) columns=1 width=8 input_order=asc)
+*************************** 36.row ***************************
 QUERY_PLAN:                   Output: columns=1 width=8
-*************************** 42.row ***************************
+*************************** 37.row ***************************
 QUERY_PLAN:                   Output: Ignore Group Id: true
-*************************** 43.row ***************************
+*************************** 38.row ***************************
 QUERY_PLAN:                   Merge ResBlocks: False
-*************************** 44.row ***************************
-QUERY_PLAN:                -> Table Scan on st1 ( rows=4 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
-*************************** 45.row ***************************
-QUERY_PLAN:                      I/O: total_blocks=1.5 load_blocks=1.5 load_block_SMAs=0.0 total_rows=3.0 check_rows=3.0 
-*************************** 46.row ***************************
-QUERY_PLAN:                       total_rows:4, ep:tbd () 
-*************************** 47.row ***************************
+*************************** 39.row ***************************
+*************************** 40.row ***************************
+QUERY_PLAN:                -> Table Scan on st1 ( rows=3.0(4) columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 41.row ***************************
 QUERY_PLAN:                      Output: columns=1 width=8
-*************************** 48.row ***************************
+*************************** 42.row ***************************
 QUERY_PLAN:                      Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 43.row ***************************
+*************************** 44.row ***************************
+QUERY_PLAN:                      I/O cost: total_blocks=1.5(2) file_load_blocks=0.0(0) stt_load_blocks=0.0(0) mem_load_blocks=1.5(2) sma_load_blocks=0.0(0) composed_blocks=1.5(2)
+*************************** 45.row ***************************
+QUERY_PLAN:                             
+*************************** 46.row ***************************
+QUERY_PLAN:                         check_rows=3.0(4)    
+*************************** 47.row ***************************
+QUERY_PLAN:    InitPlan 1
+*************************** 48.row ***************************
+QUERY_PLAN:       -> Aggregate ( rows=1 functions=2 width=9 input_order=unknown)
 *************************** 49.row ***************************
-QUERY_PLAN: Ratio: 0.001000
+QUERY_PLAN:             Output: columns=2 width=9 blocking=1
 *************************** 50.row ***************************
-QUERY_PLAN: 
+QUERY_PLAN:             Merge ResBlocks: True
 *************************** 51.row ***************************
+*************************** 52.row ***************************
+QUERY_PLAN:          -> Data Exchange 2:1 ( rows=6 width=16)
+*************************** 53.row ***************************
+QUERY_PLAN:                Output: columns=2 width=16
+*************************** 54.row ***************************
+QUERY_PLAN:                Network: mode=concurrent fetch_times=1.0(1) fetch_rows=3.0(4) 
+*************************** 55.row ***************************
+*************************** 56.row ***************************
+QUERY_PLAN:             -> Projection ( rows=3.0(4) columns=1 width=8 input_order=asc)
+*************************** 57.row ***************************
+QUERY_PLAN:                   Output: columns=1 width=8
+*************************** 58.row ***************************
+QUERY_PLAN:                   Output: Ignore Group Id: true
+*************************** 59.row ***************************
+QUERY_PLAN:                   Merge ResBlocks: False
+*************************** 60.row ***************************
+*************************** 61.row ***************************
+QUERY_PLAN:                -> Table Scan on st1 ( rows=3.0(4) columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 62.row ***************************
+QUERY_PLAN:                      Output: columns=1 width=8
+*************************** 63.row ***************************
+QUERY_PLAN:                      Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 64.row ***************************
+*************************** 65.row ***************************
+QUERY_PLAN:                      I/O cost: total_blocks=1.5(2) file_load_blocks=0.0(0) stt_load_blocks=0.0(0) mem_load_blocks=1.5(2) sma_load_blocks=0.0(0) composed_blocks=1.5(2)
+*************************** 66.row ***************************
+QUERY_PLAN:                             
+*************************** 67.row ***************************
+QUERY_PLAN:                         check_rows=3.0(4)    
+*************************** 68.row ***************************
+QUERY_PLAN: 
+*************************** 69.row ***************************
 QUERY_PLAN: 
 
 taos> explain analyze verbose true select avg(f1), 1 > all (select 0 from st1) from st1 group by f1 having 1 > all (select 0 from st1)\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection ( rows=6 columns=2 width=9 input_order=unknown )
+QUERY_PLAN: -> Projection ( rows=6 columns=2 width=9 input_order=unknown)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=2 width=9
 *************************** 3.row ***************************
@@ -3136,103 +3109,126 @@ QUERY_PLAN:       Output: Ignore Group Id: true
 *************************** 4.row ***************************
 QUERY_PLAN:       Merge ResBlocks: True
 *************************** 5.row ***************************
-QUERY_PLAN:    -> GroupAggregate ( rows=6 functions=1 width=12 groups=1 input_order=asc )
 *************************** 6.row ***************************
-QUERY_PLAN:          Output: columns=1 width=8 blocking=1
+QUERY_PLAN:    -> GroupAggregate ( rows=6 functions=1 width=12 groups=1 input_order=asc)
 *************************** 7.row ***************************
-QUERY_PLAN:          Merge ResBlocks: True
+QUERY_PLAN:          Output: columns=1 width=8 blocking=1
 *************************** 8.row ***************************
-QUERY_PLAN:       -> Data Exchange 2:1 ( rows=6 width=62)
+QUERY_PLAN:          Merge ResBlocks: True
 *************************** 9.row ***************************
-QUERY_PLAN:             Output: columns=2 width=62
 *************************** 10.row ***************************
-QUERY_PLAN:          -> GroupAggregate ( rows=4 functions=1 width=62 groups=1 input_order=asc )
+QUERY_PLAN:       -> Data Exchange 2:1 ( rows=6 width=62)
 *************************** 11.row ***************************
-QUERY_PLAN:                Output: columns=2 width=62 blocking=1
+QUERY_PLAN:             Output: columns=2 width=62
 *************************** 12.row ***************************
-QUERY_PLAN:                Merge ResBlocks: False
+QUERY_PLAN:             Network: mode=concurrent fetch_times=1.0(1) fetch_rows=3.0(4) 
 *************************** 13.row ***************************
-QUERY_PLAN:             -> Table Scan on st1 ( rows=4 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 14.row ***************************
-QUERY_PLAN:                   I/O: total_blocks=1.5 load_blocks=1.5 load_block_SMAs=0.0 total_rows=3.0 check_rows=3.0 
+QUERY_PLAN:          -> GroupAggregate ( rows=3.0(4) functions=1 width=62 groups=1 input_order=asc)
 *************************** 15.row ***************************
-QUERY_PLAN:                    total_rows:4, ep:tbd () 
+QUERY_PLAN:                Output: columns=2 width=62 blocking=1
 *************************** 16.row ***************************
-QUERY_PLAN:                   Output: columns=2 width=12
+QUERY_PLAN:                Merge ResBlocks: False
 *************************** 17.row ***************************
-QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 18.row ***************************
-QUERY_PLAN:                   Filter: (1 > $(InitPlan 1))
+QUERY_PLAN:             -> Table Scan on st1 ( rows=3.0(4) columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 19.row ***************************
-QUERY_PLAN:    InitPlan 2
+QUERY_PLAN:                   Output: columns=2 width=12
 *************************** 20.row ***************************
-QUERY_PLAN:       -> Aggregate ( rows=1 functions=2 width=9 input_order=unknown )
+QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 21.row ***************************
-QUERY_PLAN:             Output: columns=2 width=9 blocking=1
+QUERY_PLAN:                   Filter: conditions=(1 > $(InitPlan 1)) efficiency=100.0%
 *************************** 22.row ***************************
-QUERY_PLAN:             Merge ResBlocks: True
 *************************** 23.row ***************************
-QUERY_PLAN:          -> Data Exchange 2:1 ( rows=6 width=16)
+QUERY_PLAN:                   I/O cost: total_blocks=1.5(2) file_load_blocks=0.0(0) stt_load_blocks=0.0(0) mem_load_blocks=1.5(2) sma_load_blocks=0.0(0) composed_blocks=1.5(2)
 *************************** 24.row ***************************
-QUERY_PLAN:                Output: columns=2 width=16
+QUERY_PLAN:                          
 *************************** 25.row ***************************
-QUERY_PLAN:             -> Projection ( rows=4 columns=1 width=8 input_order=asc )
+QUERY_PLAN:                      check_rows=3.0(4)    
 *************************** 26.row ***************************
-QUERY_PLAN:                   Output: columns=1 width=8
+QUERY_PLAN:    InitPlan 2
 *************************** 27.row ***************************
-QUERY_PLAN:                   Output: Ignore Group Id: true
+QUERY_PLAN:       -> Aggregate ( rows=1 functions=2 width=9 input_order=unknown)
 *************************** 28.row ***************************
-QUERY_PLAN:                   Merge ResBlocks: False
-*************************** 29.row ***************************
-QUERY_PLAN:                -> Table Scan on st1 ( rows=4 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
-*************************** 30.row ***************************
-QUERY_PLAN:                      I/O: total_blocks=1.5 load_blocks=1.5 load_block_SMAs=0.0 total_rows=3.0 check_rows=3.0 
-*************************** 31.row ***************************
-QUERY_PLAN:                       total_rows:4, ep:tbd () 
-*************************** 32.row ***************************
-QUERY_PLAN:                      Output: columns=1 width=8
-*************************** 33.row ***************************
-QUERY_PLAN:                      Time Range: [-9223372036854775808, 9223372036854775807]
-*************************** 34.row ***************************
-QUERY_PLAN:    InitPlan 1
-*************************** 35.row ***************************
-QUERY_PLAN:       -> Aggregate ( rows=1 functions=2 width=9 input_order=unknown )
-*************************** 36.row ***************************
 QUERY_PLAN:             Output: columns=2 width=9 blocking=1
-*************************** 37.row ***************************
+*************************** 29.row ***************************
 QUERY_PLAN:             Merge ResBlocks: True
-*************************** 38.row ***************************
+*************************** 30.row ***************************
+*************************** 31.row ***************************
 QUERY_PLAN:          -> Data Exchange 2:1 ( rows=6 width=16)
-*************************** 39.row ***************************
+*************************** 32.row ***************************
 QUERY_PLAN:                Output: columns=2 width=16
-*************************** 40.row ***************************
-QUERY_PLAN:             -> Projection ( rows=4 columns=1 width=8 input_order=asc )
-*************************** 41.row ***************************
+*************************** 33.row ***************************
+QUERY_PLAN:                Network: mode=concurrent fetch_times=1.0(1) fetch_rows=3.0(4) 
+*************************** 34.row ***************************
+*************************** 35.row ***************************
+QUERY_PLAN:             -> Projection ( rows=3.0(4) columns=1 width=8 input_order=asc)
+*************************** 36.row ***************************
 QUERY_PLAN:                   Output: columns=1 width=8
-*************************** 42.row ***************************
+*************************** 37.row ***************************
 QUERY_PLAN:                   Output: Ignore Group Id: true
-*************************** 43.row ***************************
+*************************** 38.row ***************************
 QUERY_PLAN:                   Merge ResBlocks: False
-*************************** 44.row ***************************
-QUERY_PLAN:                -> Table Scan on st1 ( rows=4 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
-*************************** 45.row ***************************
-QUERY_PLAN:                      I/O: total_blocks=1.5 load_blocks=1.5 load_block_SMAs=0.0 total_rows=3.0 check_rows=3.0 
-*************************** 46.row ***************************
-QUERY_PLAN:                       total_rows:4, ep:tbd () 
-*************************** 47.row ***************************
+*************************** 39.row ***************************
+*************************** 40.row ***************************
+QUERY_PLAN:                -> Table Scan on st1 ( rows=3.0(4) columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 41.row ***************************
 QUERY_PLAN:                      Output: columns=1 width=8
-*************************** 48.row ***************************
+*************************** 42.row ***************************
 QUERY_PLAN:                      Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 43.row ***************************
+*************************** 44.row ***************************
+QUERY_PLAN:                      I/O cost: total_blocks=1.5(2) file_load_blocks=0.0(0) stt_load_blocks=0.0(0) mem_load_blocks=1.5(2) sma_load_blocks=0.0(0) composed_blocks=1.5(2)
+*************************** 45.row ***************************
+QUERY_PLAN:                             
+*************************** 46.row ***************************
+QUERY_PLAN:                         check_rows=3.0(4)    
+*************************** 47.row ***************************
+QUERY_PLAN:    InitPlan 1
+*************************** 48.row ***************************
+QUERY_PLAN:       -> Aggregate ( rows=1 functions=2 width=9 input_order=unknown)
 *************************** 49.row ***************************
-QUERY_PLAN: Ratio: 0.001000
+QUERY_PLAN:             Output: columns=2 width=9 blocking=1
 *************************** 50.row ***************************
-QUERY_PLAN: 
+QUERY_PLAN:             Merge ResBlocks: True
 *************************** 51.row ***************************
+*************************** 52.row ***************************
+QUERY_PLAN:          -> Data Exchange 2:1 ( rows=6 width=16)
+*************************** 53.row ***************************
+QUERY_PLAN:                Output: columns=2 width=16
+*************************** 54.row ***************************
+QUERY_PLAN:                Network: mode=concurrent fetch_times=1.0(1) fetch_rows=3.0(4) 
+*************************** 55.row ***************************
+*************************** 56.row ***************************
+QUERY_PLAN:             -> Projection ( rows=3.0(4) columns=1 width=8 input_order=asc)
+*************************** 57.row ***************************
+QUERY_PLAN:                   Output: columns=1 width=8
+*************************** 58.row ***************************
+QUERY_PLAN:                   Output: Ignore Group Id: true
+*************************** 59.row ***************************
+QUERY_PLAN:                   Merge ResBlocks: False
+*************************** 60.row ***************************
+*************************** 61.row ***************************
+QUERY_PLAN:                -> Table Scan on st1 ( rows=3.0(4) columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 62.row ***************************
+QUERY_PLAN:                      Output: columns=1 width=8
+*************************** 63.row ***************************
+QUERY_PLAN:                      Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 64.row ***************************
+*************************** 65.row ***************************
+QUERY_PLAN:                      I/O cost: total_blocks=1.5(2) file_load_blocks=0.0(0) stt_load_blocks=0.0(0) mem_load_blocks=1.5(2) sma_load_blocks=0.0(0) composed_blocks=1.5(2)
+*************************** 66.row ***************************
+QUERY_PLAN:                             
+*************************** 67.row ***************************
+QUERY_PLAN:                         check_rows=3.0(4)    
+*************************** 68.row ***************************
+QUERY_PLAN: 
+*************************** 69.row ***************************
 QUERY_PLAN: 
 
 taos> explain analyze verbose true select avg(f1), NULL = any (select 2 from st1) from st1 group by f1 having NULL = any (select 2 from st1)\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection ( rows=0 columns=2 width=9 input_order=unknown )
+QUERY_PLAN: -> Projection ( rows=0 columns=2 width=9 input_order=unknown)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=2 width=9
 *************************** 3.row ***************************
@@ -3240,91 +3236,112 @@ QUERY_PLAN:       Output: Ignore Group Id: true
 *************************** 4.row ***************************
 QUERY_PLAN:       Merge ResBlocks: True
 *************************** 5.row ***************************
-QUERY_PLAN:    -> GroupAggregate ( rows=0 functions=1 width=12 groups=1 input_order=asc )
 *************************** 6.row ***************************
-QUERY_PLAN:          Output: columns=1 width=8 blocking=1
+QUERY_PLAN:    -> GroupAggregate ( rows=0 functions=1 width=12 groups=1 input_order=asc)
 *************************** 7.row ***************************
-QUERY_PLAN:          Merge ResBlocks: True
+QUERY_PLAN:          Output: columns=1 width=8 blocking=1
 *************************** 8.row ***************************
-QUERY_PLAN:       -> Data Exchange 2:1 ( rows=0 width=62)
+QUERY_PLAN:          Merge ResBlocks: True
 *************************** 9.row ***************************
-QUERY_PLAN:             Output: columns=2 width=62
 *************************** 10.row ***************************
-QUERY_PLAN:          -> GroupAggregate ( rows=0 functions=1 width=62 groups=1 input_order=asc )
+QUERY_PLAN:       -> Data Exchange 2:1 ( rows=0 width=62)
 *************************** 11.row ***************************
-QUERY_PLAN:                Output: columns=2 width=62 blocking=1
+QUERY_PLAN:             Output: columns=2 width=62
 *************************** 12.row ***************************
-QUERY_PLAN:                Merge ResBlocks: False
+QUERY_PLAN:             Network: mode=concurrent fetch_times=1.0(1) fetch_rows=0.0(0) 
 *************************** 13.row ***************************
-QUERY_PLAN:             -> Table Scan on st1 ( rows=0 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 14.row ***************************
-QUERY_PLAN:                   I/O: total_blocks=1.5 load_blocks=1.5 load_block_SMAs=0.0 total_rows=0.0 check_rows=3.0 
+QUERY_PLAN:          -> GroupAggregate ( rows=0.0(0) functions=1 width=62 groups=1 input_order=asc)
 *************************** 15.row ***************************
-QUERY_PLAN:                    total_rows:0, ep:tbd () 
+QUERY_PLAN:                Output: columns=2 width=62 blocking=1
 *************************** 16.row ***************************
-QUERY_PLAN:                   Output: columns=2 width=12
+QUERY_PLAN:                Merge ResBlocks: False
 *************************** 17.row ***************************
-QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 18.row ***************************
-QUERY_PLAN:                   Filter: (NULL IN $(InitPlan 1))
+QUERY_PLAN:             -> Table Scan on st1 ( rows=0.0(0) columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 19.row ***************************
-QUERY_PLAN:    InitPlan 2
+QUERY_PLAN:                   Output: columns=2 width=12
 *************************** 20.row ***************************
-QUERY_PLAN:       -> Data Exchange 2:1 ( rows=6 width=8)
+QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 21.row ***************************
-QUERY_PLAN:             Output: columns=1 width=8
+QUERY_PLAN:                   Filter: conditions=(NULL IN $(InitPlan 1)) efficiency=100.0%
 *************************** 22.row ***************************
-QUERY_PLAN:          -> Projection ( rows=4 columns=1 width=8 input_order=asc )
 *************************** 23.row ***************************
-QUERY_PLAN:                Output: columns=1 width=8
+QUERY_PLAN:                   I/O cost: total_blocks=1.5(2) file_load_blocks=0.0(0) stt_load_blocks=0.0(0) mem_load_blocks=1.5(2) sma_load_blocks=0.0(0) composed_blocks=1.5(2)
 *************************** 24.row ***************************
-QUERY_PLAN:                Output: Ignore Group Id: true
+QUERY_PLAN:                          
 *************************** 25.row ***************************
-QUERY_PLAN:                Merge ResBlocks: False
+QUERY_PLAN:                      check_rows=3.0(4)    
 *************************** 26.row ***************************
-QUERY_PLAN:             -> Table Scan on st1 ( rows=4 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:    InitPlan 2
 *************************** 27.row ***************************
-QUERY_PLAN:                   I/O: total_blocks=1.5 load_blocks=1.5 load_block_SMAs=0.0 total_rows=3.0 check_rows=3.0 
-*************************** 28.row ***************************
-QUERY_PLAN:                    total_rows:4, ep:tbd () 
-*************************** 29.row ***************************
-QUERY_PLAN:                   Output: columns=1 width=8
-*************************** 30.row ***************************
-QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
-*************************** 31.row ***************************
-QUERY_PLAN:    InitPlan 1
-*************************** 32.row ***************************
 QUERY_PLAN:       -> Data Exchange 2:1 ( rows=6 width=8)
-*************************** 33.row ***************************
+*************************** 28.row ***************************
 QUERY_PLAN:             Output: columns=1 width=8
-*************************** 34.row ***************************
-QUERY_PLAN:          -> Projection ( rows=4 columns=1 width=8 input_order=asc )
-*************************** 35.row ***************************
+*************************** 29.row ***************************
+QUERY_PLAN:             Network: mode=concurrent fetch_times=1.0(1) fetch_rows=3.0(4) 
+*************************** 30.row ***************************
+*************************** 31.row ***************************
+QUERY_PLAN:          -> Projection ( rows=3.0(4) columns=1 width=8 input_order=asc)
+*************************** 32.row ***************************
 QUERY_PLAN:                Output: columns=1 width=8
-*************************** 36.row ***************************
+*************************** 33.row ***************************
 QUERY_PLAN:                Output: Ignore Group Id: true
-*************************** 37.row ***************************
+*************************** 34.row ***************************
 QUERY_PLAN:                Merge ResBlocks: False
-*************************** 38.row ***************************
-QUERY_PLAN:             -> Table Scan on st1 ( rows=4 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
-*************************** 39.row ***************************
-QUERY_PLAN:                   I/O: total_blocks=1.5 load_blocks=1.5 load_block_SMAs=0.0 total_rows=3.0 check_rows=3.0 
-*************************** 40.row ***************************
-QUERY_PLAN:                    total_rows:4, ep:tbd () 
-*************************** 41.row ***************************
+*************************** 35.row ***************************
+*************************** 36.row ***************************
+QUERY_PLAN:             -> Table Scan on st1 ( rows=3.0(4) columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 37.row ***************************
 QUERY_PLAN:                   Output: columns=1 width=8
-*************************** 42.row ***************************
+*************************** 38.row ***************************
 QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 39.row ***************************
+*************************** 40.row ***************************
+QUERY_PLAN:                   I/O cost: total_blocks=1.5(2) file_load_blocks=0.0(0) stt_load_blocks=0.0(0) mem_load_blocks=1.5(2) sma_load_blocks=0.0(0) composed_blocks=1.5(2)
+*************************** 41.row ***************************
+QUERY_PLAN:                          
+*************************** 42.row ***************************
+QUERY_PLAN:                      check_rows=3.0(4)    
 *************************** 43.row ***************************
-QUERY_PLAN: Ratio: 0.001000
+QUERY_PLAN:    InitPlan 1
 *************************** 44.row ***************************
-QUERY_PLAN: 
+QUERY_PLAN:       -> Data Exchange 2:1 ( rows=6 width=8)
 *************************** 45.row ***************************
+QUERY_PLAN:             Output: columns=1 width=8
+*************************** 46.row ***************************
+QUERY_PLAN:             Network: mode=concurrent fetch_times=1.0(1) fetch_rows=3.0(4) 
+*************************** 47.row ***************************
+*************************** 48.row ***************************
+QUERY_PLAN:          -> Projection ( rows=3.0(4) columns=1 width=8 input_order=asc)
+*************************** 49.row ***************************
+QUERY_PLAN:                Output: columns=1 width=8
+*************************** 50.row ***************************
+QUERY_PLAN:                Output: Ignore Group Id: true
+*************************** 51.row ***************************
+QUERY_PLAN:                Merge ResBlocks: False
+*************************** 52.row ***************************
+*************************** 53.row ***************************
+QUERY_PLAN:             -> Table Scan on st1 ( rows=3.0(4) columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 54.row ***************************
+QUERY_PLAN:                   Output: columns=1 width=8
+*************************** 55.row ***************************
+QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 56.row ***************************
+*************************** 57.row ***************************
+QUERY_PLAN:                   I/O cost: total_blocks=1.5(2) file_load_blocks=0.0(0) stt_load_blocks=0.0(0) mem_load_blocks=1.5(2) sma_load_blocks=0.0(0) composed_blocks=1.5(2)
+*************************** 58.row ***************************
+QUERY_PLAN:                          
+*************************** 59.row ***************************
+QUERY_PLAN:                      check_rows=3.0(4)    
+*************************** 60.row ***************************
+QUERY_PLAN: 
+*************************** 61.row ***************************
 QUERY_PLAN: 
 
 taos> explain analyze verbose true select avg(f1), exists (select f1 from db2.tbx) from st1 group by f1 having exists (select f1 from db2.tbx)\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Projection ( rows=6 columns=2 width=9 input_order=unknown )
+QUERY_PLAN: -> Projection ( rows=6 columns=2 width=9 input_order=unknown)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=2 width=9
 *************************** 3.row ***************************
@@ -3332,62 +3349,75 @@ QUERY_PLAN:       Output: Ignore Group Id: true
 *************************** 4.row ***************************
 QUERY_PLAN:       Merge ResBlocks: True
 *************************** 5.row ***************************
-QUERY_PLAN:    -> GroupAggregate ( rows=6 functions=1 width=12 groups=1 input_order=asc )
 *************************** 6.row ***************************
-QUERY_PLAN:          Output: columns=1 width=8 blocking=1
+QUERY_PLAN:    -> GroupAggregate ( rows=6 functions=1 width=12 groups=1 input_order=asc)
 *************************** 7.row ***************************
-QUERY_PLAN:          Merge ResBlocks: True
+QUERY_PLAN:          Output: columns=1 width=8 blocking=1
 *************************** 8.row ***************************
-QUERY_PLAN:       -> Data Exchange 2:1 ( rows=6 width=62)
+QUERY_PLAN:          Merge ResBlocks: True
 *************************** 9.row ***************************
-QUERY_PLAN:             Output: columns=2 width=62
 *************************** 10.row ***************************
-QUERY_PLAN:          -> GroupAggregate ( rows=4 functions=1 width=62 groups=1 input_order=asc )
+QUERY_PLAN:       -> Data Exchange 2:1 ( rows=6 width=62)
 *************************** 11.row ***************************
-QUERY_PLAN:                Output: columns=2 width=62 blocking=1
+QUERY_PLAN:             Output: columns=2 width=62
 *************************** 12.row ***************************
-QUERY_PLAN:                Merge ResBlocks: False
+QUERY_PLAN:             Network: mode=concurrent fetch_times=1.0(1) fetch_rows=3.0(4) 
 *************************** 13.row ***************************
-QUERY_PLAN:             -> Table Scan on st1 ( rows=4 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 14.row ***************************
-QUERY_PLAN:                   I/O: total_blocks=1.5 load_blocks=1.5 load_block_SMAs=0.0 total_rows=3.0 check_rows=3.0 
+QUERY_PLAN:          -> GroupAggregate ( rows=3.0(4) functions=1 width=62 groups=1 input_order=asc)
 *************************** 15.row ***************************
-QUERY_PLAN:                    total_rows:4, ep:tbd () 
+QUERY_PLAN:                Output: columns=2 width=62 blocking=1
 *************************** 16.row ***************************
-QUERY_PLAN:                   Output: columns=2 width=12
+QUERY_PLAN:                Merge ResBlocks: False
 *************************** 17.row ***************************
-QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 18.row ***************************
-QUERY_PLAN:                   Filter: ($(InitPlan 1) > 0)
+QUERY_PLAN:             -> Table Scan on st1 ( rows=3.0(4) columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 19.row ***************************
-QUERY_PLAN:    InitPlan 2
+QUERY_PLAN:                   Output: columns=2 width=12
 *************************** 20.row ***************************
-QUERY_PLAN:       -> Table Scan on tbx ( rows=1 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 21.row ***************************
-QUERY_PLAN:             I/O: total_blocks=1.0 load_blocks=1.0 load_block_SMAs=0.0 total_rows=1.0 check_rows=1.0 
+QUERY_PLAN:                   Filter: conditions=($(InitPlan 1) > 0) efficiency=100.0%
 *************************** 22.row ***************************
-QUERY_PLAN:              total_rows:1, ep:tbd () 
 *************************** 23.row ***************************
-QUERY_PLAN:             Output: columns=1 width=4
+QUERY_PLAN:                   I/O cost: total_blocks=1.5(2) file_load_blocks=0.0(0) stt_load_blocks=0.0(0) mem_load_blocks=1.5(2) sma_load_blocks=0.0(0) composed_blocks=1.5(2)
 *************************** 24.row ***************************
-QUERY_PLAN:             Time Range: [-9223372036854775808, 9223372036854775807]
+QUERY_PLAN:                          
 *************************** 25.row ***************************
-QUERY_PLAN:    InitPlan 1
+QUERY_PLAN:                      check_rows=3.0(4)    
 *************************** 26.row ***************************
-QUERY_PLAN:       -> Table Scan on tbx ( rows=1 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:    InitPlan 2
 *************************** 27.row ***************************
-QUERY_PLAN:             I/O: total_blocks=1.0 load_blocks=1.0 load_block_SMAs=0.0 total_rows=1.0 check_rows=1.0 
+QUERY_PLAN:       -> Table Scan on tbx ( rows=1 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 28.row ***************************
-QUERY_PLAN:              total_rows:1, ep:tbd () 
-*************************** 29.row ***************************
 QUERY_PLAN:             Output: columns=1 width=4
-*************************** 30.row ***************************
+*************************** 29.row ***************************
 QUERY_PLAN:             Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 30.row ***************************
 *************************** 31.row ***************************
-QUERY_PLAN: Ratio: 0.001000
+QUERY_PLAN:             I/O cost: total_blocks=1 file_load_blocks=0 stt_load_blocks=0 mem_load_blocks=1 sma_load_blocks=0 composed_blocks=1
 *************************** 32.row ***************************
-QUERY_PLAN: 
+QUERY_PLAN:                    
 *************************** 33.row ***************************
+QUERY_PLAN:                check_rows=1
+*************************** 34.row ***************************
+QUERY_PLAN:    InitPlan 1
+*************************** 35.row ***************************
+QUERY_PLAN:       -> Table Scan on tbx ( rows=1 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 36.row ***************************
+QUERY_PLAN:             Output: columns=1 width=4
+*************************** 37.row ***************************
+QUERY_PLAN:             Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 38.row ***************************
+*************************** 39.row ***************************
+QUERY_PLAN:             I/O cost: total_blocks=1 file_load_blocks=0 stt_load_blocks=0 mem_load_blocks=1 sma_load_blocks=0 composed_blocks=1
+*************************** 40.row ***************************
+QUERY_PLAN:                    
+*************************** 41.row ***************************
+QUERY_PLAN:                check_rows=1
+*************************** 42.row ***************************
+QUERY_PLAN: 
+*************************** 43.row ***************************
 QUERY_PLAN: 
 
 taos> select f1 from st1 where f1 = (select * from v1 where 1 < all (select 0 from st1)) order by 1;

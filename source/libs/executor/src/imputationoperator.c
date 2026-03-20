@@ -122,6 +122,7 @@ int32_t createGenericAnalysisOperatorInfo(SOperatorInfo* downstream, SPhysiNode*
     code = terrno;
     goto _error;
   }
+  initOperatorCostInfo(pOperator);
 
   pAnalysisNode = (SGenericAnalysisPhysiNode*)physiNode;
   pExprSup = &pOperator->exprSupp;

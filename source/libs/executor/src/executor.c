@@ -215,7 +215,8 @@ qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* pReaderHandle, int3
   }
 
   qTaskInfo_t pTaskInfo = NULL;
-  code = qCreateExecTask(pReaderHandle, vgId, 0, pPlan, &pTaskInfo, NULL, 0, NULL, OPTR_EXEC_MODEL_QUEUE, NULL);
+  code = qCreateExecTask(pReaderHandle, vgId, 0, pPlan, &pTaskInfo, NULL, 0,
+                         NULL, OPTR_EXEC_MODEL_QUEUE, NULL, false);
   if (code != TSDB_CODE_SUCCESS) {
     qDestroyTask(pTaskInfo);
     terrno = code;
@@ -284,15 +285,10 @@ static int32_t qCreateStreamExecTask(SReadHandle* readHandle, int32_t vgId, uint
     }
   }
 
-  code = createExecTaskInfo(pSubplan, pTask, readHandle, taskId, vgId, sql, model, &subEndPoints);
+  code = createExecTaskInfo(pSubplan, pTask, readHandle, taskId, vgId, sql, model, &subEndPoints, false);
   if (code != TSDB_CODE_SUCCESS || NULL == *pTask) {
     qError("failed to createExecTaskInfo, code:%s", tstrerror(code));
     goto _error;
-  }
-
-  if (subTaskNum > 0) {
-    SDownstreamSourceNode* pVal = (SDownstreamSourceNode*)nodesListGetNode(pSubplan->pSubQ, 0);
-    (*pTask)->pSubJobCtx->queryId = pVal->clientId;
   }
 
   if (streamInserterParam) {
@@ -798,15 +794,15 @@ int32_t qSemWait(qTaskInfo_t task, tsem_t* pSem) {
 
 int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, SSubplan* pSubplan,
                         qTaskInfo_t* pTaskInfo, DataSinkHandle* handle, int8_t compressResult, char* sql,
-                        EOPTR_EXEC_MODEL model, SArray** subEndPoints) {
+                        EOPTR_EXEC_MODEL model, SArray** subEndPoints, bool enableExplain) {
   SExecTaskInfo** pTask = (SExecTaskInfo**)pTaskInfo;
   (void)taosThreadOnce(&initPoolOnce, initRefPool);
 
-  qDebug("start to create task, TID:0x%" PRIx64 " QID:0x%" PRIx64 ", vgId:%d, subEndPoinsNum:%d", 
-    taskId, pSubplan->id.queryId, vgId, (int32_t)taosArrayGetSize(subEndPoints ? *subEndPoints : NULL));
+  qDebug("start to create task, TID:0x%" PRIx64 " QID:0x%" PRIx64 ", vgId:%d, subEndPoinsNum:%d, enableExplain:%d", 
+    taskId, pSubplan->id.queryId, vgId, (int32_t)taosArrayGetSize(subEndPoints ? *subEndPoints : NULL), enableExplain);
 
   readHandle->uid = 0;
-  int32_t code = createExecTaskInfo(pSubplan, pTask, readHandle, taskId, vgId, sql, model, subEndPoints);
+  int32_t code = createExecTaskInfo(pSubplan, pTask, readHandle, taskId, vgId, sql, model, subEndPoints, enableExplain);
   if (code != TSDB_CODE_SUCCESS || NULL == *pTask) {
     qError("failed to createExecTaskInfo, code:%s", tstrerror(code));
     goto _error;
@@ -1245,11 +1241,11 @@ static void printTaskExecCostInLog(SExecTaskInfo* pTaskInfo) {
   if (pSummary->pRecoder != NULL) {
     qDebug(
         "%s :cost summary: idle:%.2f ms, elapsed time:%.2f ms, extract tableList:%.2f ms, "
-        "createGroupIdMap:%.2f ms, total blocks:%d, "
-        "load block SMA:%d, load data block:%d, total rows:%" PRId64 ", check rows:%" PRId64,
-        GET_TASKID(pTaskInfo), idleTime / 1000.0, pSummary->elapsedTime / 1000.0, pSummary->extractListTime,
-        pSummary->groupIdMapTime, pRecorder->totalBlocks, pRecorder->loadBlockStatis, pRecorder->loadBlocks,
-        pRecorder->totalRows, pRecorder->totalCheckedRows);
+        "createGroupIdMap:%.2f ms, total blocks:%" PRId64
+        ",load block SMA:%" PRId64 ", load data block:%" PRId64 ", check rows:%" PRId64,
+        GET_TASKID(pTaskInfo), idleTime / 1000.0, pSummary->elapsedTime / 1000.0,
+        pSummary->extractListTime, pSummary->groupIdMapTime, pRecorder->totalBlocks,
+        pRecorder->smaLoadBlocks, pRecorder->fileLoadBlocks, pRecorder->checkRows);
   } else {
     qDebug("%s :cost summary: idle in queue:%.2f ms, elapsed time:%.2f ms", GET_TASKID(pTaskInfo), idleTime / 1000.0,
            pSummary->elapsedTime / 1000.0);

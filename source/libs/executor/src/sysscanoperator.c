@@ -3316,6 +3316,8 @@ static int32_t doSysTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes)
       pBlock = sysTableScanFromMNode(pOperator, pInfo, name, pTaskInfo);
     }
 
+    /* record input rows before filter */
+    pOperator->cost.inputRows += (pBlock == NULL) ? 0 : pBlock->info.rows;
     if (!pInfo->skipFilterTable) sysTableScanFillTbName(pOperator, pInfo, name, pBlock);
     if (pBlock != NULL) {
       bool limitReached = applyLimitOffset(&pInfo->limitInfo, pBlock, pTaskInfo);
@@ -3333,7 +3335,6 @@ static int32_t doSysTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes)
     break;
   }
 
-_end:
   if (pTaskInfo->code) {
     qError("%s failed since %s", __func__, tstrerror(pTaskInfo->code));
     T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
@@ -3554,6 +3555,7 @@ int32_t createSysTableScanOperatorInfo(void* readHandle, SSystemTableScanPhysiNo
     lino = __LINE__;
     goto _error;
   }
+  initOperatorCostInfo(pOperator);
 
   pOperator->pPhyNode = pScanPhyNode;
   SScanPhysiNode*     pScanNode = &pScanPhyNode->scan;
@@ -4209,6 +4211,7 @@ int32_t createDataBlockInfoScanOperator(SReadHandle* readHandle, SBlockDistScanP
     pTaskInfo->code = code = terrno;
     goto _error;
   }
+  initOperatorCostInfo(pOperator);
 
   pInfo->pResBlock = createDataBlockFromDescNode(pBlockScanNode->node.pOutputDataBlockDesc);
   QUERY_CHECK_NULL(pInfo->pResBlock, code, lino, _error, terrno);

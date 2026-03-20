@@ -2464,6 +2464,7 @@ void nodesDestroyNode(SNode* pNode) {
       SExchangePhysiNode* pPhyNode = (SExchangePhysiNode*)pNode;
       destroyPhysiNode((SPhysiNode*)pPhyNode);
       nodesDestroyList(pPhyNode->pSrcEndPoints);
+      taosArrayDestroy(pPhyNode->childrenVgIds);
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_MERGE: {

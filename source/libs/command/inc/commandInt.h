@@ -23,7 +23,6 @@ extern "C" {
 // clang-format off
 #include "nodes.h"
 #include "plannodes.h"
-#include "ttime.h"
 
 #define EXPLAIN_MAX_GROUP_NUM 100
 
@@ -41,6 +40,16 @@ extern "C" {
 #define EXPLAIN_AGG_FORMAT "%s"
 #define EXPLAIN_INDEF_ROWS_FORMAT "Indefinite Rows Function"
 #define EXPLAIN_EXCHANGE_FORMAT "Data Exchange %d:1"
+#define EXPLAIN_NETWORK_FORMAT "Network: "
+#define EXPLAIN_EXCHANGE_MODE_FORMAT "mode=%s"
+#define EXPLAIN_EXCHANGE_MODE_CONCURRENT "concurrent"
+#define EXPLAIN_EXCHANGE_MODE_SEQUENCE "sequence"
+#define EXPLAIN_FETCH_TIMES_FORMAT "fetch_times=%" PRIu64
+#define EXPLAIN_FETCH_TIMES_FORMAT_EXT "fetch_times=%.1f(%" PRIu64 ")"
+#define EXPLAIN_FETCH_ROWS_FORMAT "fetch_rows=%" PRIu64
+#define EXPLAIN_FETCH_ROWS_FORMAT_EXT "fetch_rows=%.1f(%" PRIu64 ")"
+#define EXPLAIN_FETCH_COST_FORMAT "fetch_cost=%.3f"
+#define EXPLAIN_FETCH_COST_FORMAT_EXT "fetch_cost=%.3f(%.3f)"
 #define EXPLAIN_SORT_FORMAT "Sort"
 #define EXPLAIN_GROUP_SORT_FORMAT "Group Sort"
 #define EXPLAIN_INTERVAL_FORMAT "Interval on Column %s"
@@ -56,6 +65,8 @@ extern "C" {
 #define EXPLAIN_ORDER_FORMAT "Order: %s"
 #define EXPLAIN_FILTER_FORMAT "Filter: "
 #define EXPLAIN_PRIMARY_FILTER_FORMAT "Primary Filter: "
+#define EXPLAIN_FILTER_CONDITIONS_FORMAT "conditions="
+#define EXPLAIN_FILTER_EFFICIENCY_FORMAT "efficiency=%.1f%%"
 #define EXPLAIN_TAG_INDEX_FORMAT "Tag Index Filter: "
 #define EXPLAIN_MERGEBLOCKS_FORMAT "Merge ResBlocks: %s"
 #define EXPLAIN_FILL_VALUE_FORMAT "Fill Values: "
@@ -108,6 +119,7 @@ extern "C" {
 #define EXPLAIN_INTERVAL_VALUE_FORMAT "interval=%" PRId64 "%c"
 #define EXPLAIN_FUNCTIONS_FORMAT "functions=%d"
 #define EXPLAIN_EXECINFO_FORMAT "cost=%.3f..%.3f rows=%" PRIu64
+#define EXPLAIN_EXECINFO_FORMAT_EXT "cost=%.3f(%.3f)..%.3f(%.3f) rows=%.1f(%" PRIu64 ")"
 #define EXPLAIN_MODE_FORMAT "mode=%s"
 #define EXPLAIN_STRING_TYPE_FORMAT "%s"
 #define EXPLAIN_INPUT_ORDER_FORMAT "input_order=%s"
@@ -132,6 +144,47 @@ extern "C" {
 #define EXPLAIN_ORIGIN_VGROUP_NUM_FORMAT "origin_vgroup_num=%d"
 #define EXPLAIN_HAS_PARTITION_FORMAT "has_partition=%d"
 #define EXPLAIN_BATCH_PROCESS_CHILD_FORMAT "batch_process_child=%d"
+#define EXPLAIN_IO_FORMAT "I/O cost: "
+#define EXPLAIN_TOTAL_BLOCKS_FORMAT "total_blocks=%" PRId64
+#define EXPLAIN_TOTAL_BLOCKS_FORMAT_EXT "total_blocks=%.1f(%" PRId64 ")"
+#define EXPLAIN_FILE_LOAD_BLOCKS_FORMAT "file_load_blocks=%" PRId64
+#define EXPLAIN_FILE_LOAD_BLOCKS_FORMAT_EXT "file_load_blocks=%.1f(%" PRId64 ")"
+#define EXPLAIN_FILE_LOAD_ELAPSED_FORMAT "file_load_elapsed=%.3f"
+#define EXPLAIN_FILE_LOAD_ELAPSED_FORMAT_EXT "file_load_elapsed=%.3f(%.3f)"
+#define EXPLAIN_STT_LOAD_BLOCKS_FORMAT "stt_load_blocks=%" PRId64
+#define EXPLAIN_STT_LOAD_BLOCKS_FORMAT_EXT "stt_load_blocks=%.1f(%" PRId64 ")"
+#define EXPLAIN_STT_LOAD_ELAPSED_FORMAT "stt_load_elapsed=%.3f"
+#define EXPLAIN_STT_LOAD_ELAPSED_FORMAT_EXT "stt_load_elapsed=%.3f(%.3f)"
+#define EXPLAIN_MEM_LOAD_BLOCKS_FORMAT "mem_load_blocks=%" PRId64
+#define EXPLAIN_MEM_LOAD_BLOCKS_FORMAT_EXT "mem_load_blocks=%.1f(%" PRId64 ")"
+#define EXPLAIN_MEM_LOAD_ELAPSED_FORMAT "mem_load_elapsed=%.3f"
+#define EXPLAIN_MEM_LOAD_ELAPSED_FORMAT_EXT "mem_load_elapsed=%.3f(%.3f)"
+#define EXPLAIN_COMPOSED_BLOCKS_FORMAT "composed_blocks=%" PRId64
+#define EXPLAIN_COMPOSED_BLOCKS_FORMAT_EXT "composed_blocks=%.1f(%" PRId64 ")"
+#define EXPLAIN_COMPOSED_ELAPSED_FORMAT "composed_elapsed=%.3f"
+#define EXPLAIN_COMPOSED_ELAPSED_FORMAT_EXT "composed_elapsed=%.3f(%.3f)"
+#define EXPLAIN_SMA_LOAD_BLOCKS_FORMAT "sma_load_blocks=%" PRId64
+#define EXPLAIN_SMA_LOAD_BLOCKS_FORMAT_EXT "sma_load_blocks=%.1f(%" PRId64 ")"
+#define EXPLAIN_SMA_LOAD_ELAPSED_FORMAT "sma_load_elapsed=%.3f"
+#define EXPLAIN_SMA_LOAD_ELAPSED_FORMAT_EXT "sma_load_elapsed=%.3f(%.3f)"
+#define EXPLAIN_CHECK_ROWS_FORMAT "check_rows=%" PRId64
+#define EXPLAIN_CHECK_ROWS_FORMAT_EXT "check_rows=%.1f(%" PRId64 ")"
+#define EXPLAIN_SLOWEST_NODE_FORMAT "slowest_vgroup_id=%d slow_deviation=%.1f%% cost_ratio=%.1f data_deviation=%.1f%%"
+#define EXPLAIN_EXEC_COST_FORMAT "Exec cost: "
+#define EXPLAIN_COMPUTE_FORMAT "compute=%.3f"
+#define EXPLAIN_COMPUTE_FORMAT_EXT "compute=%.3f(%.3f)"
+#define EXPLAIN_CREATE_FORMAT "create=%.3f"
+#define EXPLAIN_CREATE_FORMAT_EXT "create=%.3f(%.3f)"
+#define EXPLAIN_CREATE_TIME_FORMAT "create=%s"
+#define EXPLAIN_CREATE_TIME_FORMAT_EXT "create=%s(%s)"
+#define EXPLAIN_START_FORMAT "start=%.3f"
+#define EXPLAIN_START_FORMAT_EXT "start=%.3f(%.3f)"
+#define EXPLAIN_TIMES_FORMAT "times=%" PRId64
+#define EXPLAIN_TIMES_FORMAT_EXT "times=%.1f(%" PRId64 ")"
+#define EXPLAIN_INPUT_WAIT_ELAPSED_FORMAT "input_wait=%.3f"
+#define EXPLAIN_INPUT_WAIT_ELAPSED_FORMAT_EXT "input_wait=%.3f(%.3f)"
+#define EXPLAIN_OUTPUT_WAIT_ELAPSED_FORMAT "output_wait=%.3f"
+#define EXPLAIN_OUTPUT_WAIT_ELAPSED_FORMAT_EXT "output_wait=%.3f(%.3f)"
 
 #define COMMAND_RESET_LOG "resetLog"
 #define COMMAND_SCHEDULE_POLICY "schedulePolicy"
@@ -182,6 +235,7 @@ typedef struct SExplainCtx {
   int64_t      reqStartTs;
   int64_t      jobStartTs;
   int64_t      jobDoneTs;
+  int64_t      execZeroTs;
   char        *tbuf;
   SArray      *rows;
   int32_t      groupNum;
@@ -243,6 +297,7 @@ do {                                                                \
 
 #define EXPLAIN_ROW_APPEND_LIMIT(_pLimit) EXPLAIN_ROW_APPEND_LIMIT_IMPL(_pLimit, false)
 #define EXPLAIN_ROW_APPEND_SLIMIT(_pLimit) EXPLAIN_ROW_APPEND_LIMIT_IMPL(_pLimit, true)
+#define EXPLAIN_CONVERT_TS_US_TO_MS(_ts) ((double)(_ts) / 1000.0)
 
 #ifdef __cplusplus
 }

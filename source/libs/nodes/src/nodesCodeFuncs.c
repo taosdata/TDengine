@@ -3133,10 +3133,20 @@ static int32_t jsonToPhysiAggNode(const SJson* pJson, void* pObj) {
 static const char* jkExchangePhysiPlanSrcStartGroupId = "SrcStartGroupId";
 static const char* jkExchangePhysiPlanSrcEndGroupId = "SrcEndGroupId";
 static const char* jkExchangePhysiPlanSrcEndPoints = "SrcEndPoints";
+static const char* jkExchangePhysiPlanChildrenVgIds = "ChildrenVgIds";
+static const char* jkExchangePhysiPlanChildrenVgId = "ChildVgId";
 static const char* jkExchangePhysiPlanSeqRecvData = "SeqRecvData";
 static const char* jkExchangePhysiPlanDynTbname = "DynTbname";
 static const char* jkExchangePhysiPlanSingleChannel = "GrpSingleChannel";
 static const char* jkExchangePhysiPlanSingleSrc = "SingleSource";
+
+static int32_t vgIdToJson(const void* pObj, SJson* pJson) {
+  return tjsonAddIntegerToObject(pJson, jkExchangePhysiPlanChildrenVgId, *(const int32_t*)pObj);
+}
+
+static int32_t jsonToVgId(const SJson* pJson, void* pObj) {
+  return tjsonGetIntValue(pJson, jkExchangePhysiPlanChildrenVgId, (int32_t*)pObj);
+}
 
 static int32_t physiExchangeNodeToJson(const void* pObj, SJson* pJson) {
   const SExchangePhysiNode* pNode = (const SExchangePhysiNode*)pObj;
@@ -3150,6 +3160,9 @@ static int32_t physiExchangeNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = nodeListToJson(pJson, jkExchangePhysiPlanSrcEndPoints, pNode->pSrcEndPoints);
+  }
+  if (TSDB_CODE_SUCCESS == code && NULL != pNode->childrenVgIds) {
+    code = tjsonAddTArray(pJson, jkExchangePhysiPlanChildrenVgIds, vgIdToJson, pNode->childrenVgIds);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkExchangePhysiPlanSeqRecvData, pNode->seqRecvData);
@@ -3179,6 +3192,10 @@ static int32_t jsonToPhysiExchangeNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkExchangePhysiPlanSrcEndPoints, &pNode->pSrcEndPoints);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonToTArray(pJson, jkExchangePhysiPlanChildrenVgIds, jsonToVgId,
+                         &pNode->childrenVgIds, sizeof(int32_t));
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkExchangePhysiPlanSeqRecvData, &pNode->seqRecvData);

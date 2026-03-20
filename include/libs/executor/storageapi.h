@@ -216,7 +216,7 @@ typedef struct TsdReader {
   void         (*tsdReaderGetDatablock)();
   void         (*tsdReaderSetDatablock)();
   int64_t      (*tsdReaderGetNumOfInMemRows)();
-  void         (*tsdReaderNotifyClosing)();
+  void         (*tsdReaderNotifyClosing)(void* pReader);
 
   void         (*tsdSetFilesetDelimited)(void* pReader);
   void         (*tsdSetSetNotifyCb)(void* pReader, TsdReaderNotifyCbFn notifyFn, void* param);
@@ -234,6 +234,7 @@ typedef struct TsdReader {
   void     (*tsdDestroyFirstLastTsIter)(void *pIter);
 
   int32_t (*tsdReaderStepDone)(void *pReader, int64_t notifyTs);
+  void (*tsdReaderSetExecInfo)(const void *pReader, STableScanAnalyzeInfo* pExecInfo);
 } TsdReader;
 
 typedef struct SStoreCacheReader {
