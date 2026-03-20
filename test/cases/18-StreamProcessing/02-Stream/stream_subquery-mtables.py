@@ -72,13 +72,26 @@ class TestStreamSubquery:
         self.tb_count = 50
         self.ts_step = 1000
         self.ts_total = 5000000
+
         for t in range(0, self.tb_count):
             sqls.append(f"create table db.d{t} using db.meters tags({t})")
-            for i in range(0, self.ts_total, self.ts_step):
-                sqls.append(f"insert into db.d{t} values({ts+i},{i})")
 
         tdSql.executes(sqls)
         tdLog.info(f"create tables successfully.")
+
+        # Batch insert: 500 rows per INSERT statement
+        batch_size = 500
+        row_count = self.ts_total // self.ts_step  # 5000
+        for t in range(0, self.tb_count):
+            for batch_start in range(0, row_count, batch_size):
+                batch_end = min(batch_start + batch_size, row_count)
+                values = " ".join(
+                    f"({ts + i * self.ts_step},{i * self.ts_step})"
+                    for i in range(batch_start, batch_end)
+                )
+                tdSql.execute(f"insert into db.d{t} values {values}")
+
+        tdLog.info(f"insert data successfully.")
 
     def createStream(self):
         tdLog.info(f"create stb stream.")
