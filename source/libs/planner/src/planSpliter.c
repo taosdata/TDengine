@@ -131,10 +131,6 @@ static int32_t splCreateSubplan(SSplitContext* pCxt, SLogicNode* pNode, SLogicSu
 }
 
 static int32_t splCreateExchangeNode(SSplitContext* pCxt, SLogicNode* pChild, SExchangeLogicNode** pOutput) {
-  if (NULL == pOutput || NULL == pCxt || NULL == pChild) {
-    return TSDB_CODE_INVALID_PARA;
-  }
-
   SExchangeLogicNode* pExchange = NULL;
   int32_t code = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_EXCHANGE, (SNode**)&pExchange);
   if (NULL == pExchange) {
@@ -147,22 +143,14 @@ static int32_t splCreateExchangeNode(SSplitContext* pCxt, SLogicNode* pChild, SE
   pExchange->node.dynamicOp = pChild->dynamicOp;
   pExchange->node.pTargets = NULL;
   code = nodesCloneList(pChild->pTargets, &pExchange->node.pTargets);
-  if (TSDB_CODE_SUCCESS != code || 0 == LIST_LENGTH(pExchange->node.pTargets)) {
-    if (TSDB_CODE_SUCCESS == code) {
-      code = TSDB_CODE_PLAN_INTERNAL_ERROR;
-      planError("%s failed, empty exchange targets from child node: %s",
-                __func__, nodesNodeName(nodeType((SNode*)pChild)));
-    }
+  if (NULL == pExchange->node.pTargets) {
     nodesDestroyNode((SNode*)pExchange);
     return code;
   }
   if (NULL != pChild->pLimit) {
     pExchange->node.pLimit = NULL; 
     code = nodesCloneNode(pChild->pLimit, &pExchange->node.pLimit);
-    if (TSDB_CODE_SUCCESS != code || NULL == pExchange->node.pLimit) {
-      if (TSDB_CODE_SUCCESS == code) {
-        code = TSDB_CODE_PLAN_INTERNAL_ERROR;
-      }
+    if (NULL == pExchange->node.pLimit) {
       nodesDestroyNode((SNode*)pExchange);
       return code;
     }
@@ -380,12 +368,6 @@ static bool stbSplNeedSplit(SFindSplitNodeCtx* pCtx, SLogicNode* pNode) {
     case QUERY_NODE_LOGIC_PLAN_PARTITION:
       return stbSplIsMultiTbScanChild(pNode);
     case QUERY_NODE_LOGIC_PLAN_AGG:
-      if (0 == LIST_LENGTH(((SAggLogicNode*)pNode)->pAggFuncs) && 0 == LIST_LENGTH(((SAggLogicNode*)pNode)->pGroupKeys)) {
-        // A "cardinality-only" agg (no agg funcs and no group keys) may appear
-        // after projection pruning. It carries row-shape semantics, but has no
-        // split-able payload itself; let children be considered instead.
-        return false;
-      }
       return (!stbSplHasGatherExecFunc(((SAggLogicNode*)pNode)->pAggFuncs) ||
               isPartTableAgg((SAggLogicNode*)pNode)) &&
              (stbSplHasMultiTbScan(pNode) && !stbSplIsTableCountQuery(pNode));
@@ -989,12 +971,6 @@ static int32_t stbSplCreatePartAggNode(SAggLogicNode* pMergeAgg, SLogicNode** pO
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = createColumnByRewriteExprs(pPartAgg->pAggFuncs, &pPartAgg->node.pTargets);
-  }
-
-  if (TSDB_CODE_SUCCESS == code && 0 == LIST_LENGTH(pPartAgg->node.pTargets)) {
-    planError("%s failed, empty partial agg targets, aggFuncs:%d, groupKeys:%d",
-              __func__, LIST_LENGTH(pPartAgg->pAggFuncs), LIST_LENGTH(pPartAgg->pGroupKeys));
-    code = TSDB_CODE_PLAN_INTERNAL_ERROR;
   }
 
   nodesDestroyList(pFunc);
@@ -1842,11 +1818,7 @@ static int32_t unDistSplCreateExchangeNode(SSplitContext* pCxt, int32_t startGro
   pExchange->node.precision = pAgg->node.precision;
   pExchange->node.pTargets = NULL;
   code = nodesCloneList(pAgg->pGroupKeys, &pExchange->node.pTargets);
-  if (TSDB_CODE_SUCCESS != code || 0 == LIST_LENGTH(pExchange->node.pTargets)) {
-    if (TSDB_CODE_SUCCESS == code) {
-      code = TSDB_CODE_PLAN_INTERNAL_ERROR;
-      planError("%s failed, empty exchange targets from agg group keys", __func__);
-    }
+  if (NULL == pExchange->node.pTargets) {
     nodesDestroyNode((SNode*)pExchange);
     return code;
   }
