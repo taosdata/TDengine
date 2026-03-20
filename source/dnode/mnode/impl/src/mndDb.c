@@ -1275,6 +1275,11 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
       mError("db:%s, audit db already exist, %s", createReq.db, pAuditDb->name);
       TAOS_CHECK_GOTO(TSDB_CODE_AUDIT_DB_ALREADY_EXIST, &lino, _OVER);
     }
+    char *realDbName = strchr(createReq.db, '.');
+    if (realDbName && strcmp(realDbName + 1, "log") == 0) {
+      mError("db:%s, failed to create, db name not allowed for audit db, %s", createReq.db, realDbName + 1);
+      TAOS_CHECK_GOTO(TSDB_CODE_MND_INVALID_DB, &lino, _OVER);
+    }
   }
 
   TAOS_CHECK_GOTO(mndCreateDb(pMnode, pReq, &createReq, pUser, dnodeList), &lino, _OVER);
@@ -2978,24 +2983,24 @@ static char *buildRetension(SArray *pRetension) {
 
   int64_t v1 = getValOfDiffPrecision(p->freqUnit, p->freq);
   int64_t v2 = getValOfDiffPrecision(p->keepUnit, p->keep);
-  len += tsnprintf(p1 + len, 100 - len, "%" PRId64 "%c:%" PRId64 "%c", v1, p->freqUnit, v2, p->keepUnit);
+  len += snprintf(p1 + len, 100 - len, "%" PRId64 "%c:%" PRId64 "%c", v1, p->freqUnit, v2, p->keepUnit);
 
   if (size > 1) {
-    len += tsnprintf(p1 + len, 100 - len, ",");
+    len += snprintf(p1 + len, 100 - len, ",");
     p = taosArrayGet(pRetension, 1);
 
     v1 = getValOfDiffPrecision(p->freqUnit, p->freq);
     v2 = getValOfDiffPrecision(p->keepUnit, p->keep);
-    len += tsnprintf(p1 + len, 100 - len, "%" PRId64 "%c:%" PRId64 "%c", v1, p->freqUnit, v2, p->keepUnit);
+    len += snprintf(p1 + len, 100 - len, "%" PRId64 "%c:%" PRId64 "%c", v1, p->freqUnit, v2, p->keepUnit);
   }
 
   if (size > 2) {
-    len += tsnprintf(p1 + len, 100 - len, ",");
+    len += snprintf(p1 + len, 100 - len, ",");
     p = taosArrayGet(pRetension, 2);
 
     v1 = getValOfDiffPrecision(p->freqUnit, p->freq);
     v2 = getValOfDiffPrecision(p->keepUnit, p->keep);
-    len += tsnprintf(p1 + len, 100 - len, "%" PRId64 "%c:%" PRId64 "%c", v1, p->freqUnit, v2, p->keepUnit);
+    len += snprintf(p1 + len, 100 - len, "%" PRId64 "%c:%" PRId64 "%c", v1, p->freqUnit, v2, p->keepUnit);
   }
 
   varDataSetLen(p1, len);
@@ -3126,6 +3131,8 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
         TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, precVstr, false), &lino, _OVER);
       } else if (i == 15) {
         TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, statusVstr, false), &lino, _OVER);
+      } else if (i == 28) {
+        TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.keepTimeOffset, false), &lino, _OVER);
       } else {
         colDataSetNULL(pColInfo, rows);
       }
@@ -3171,9 +3178,11 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
     int32_t lenKeep2 = formatDurationOrKeep(keep2Str, sizeof(keep2Str), pDb->cfg.daysToKeep2);
 
     if (pDb->cfg.daysToKeep0 > pDb->cfg.daysToKeep1 || pDb->cfg.daysToKeep0 > pDb->cfg.daysToKeep2) {
-      len = tsnprintf(&keepVstr[VARSTR_HEADER_SIZE], sizeof(keepVstr), "%s,%s,%s", keep1Str, keep2Str, keep0Str);
+      len = snprintf(&keepVstr[VARSTR_HEADER_SIZE], sizeof(keepVstr) - VARSTR_HEADER_SIZE, "%s,%s,%s", keep1Str,
+                     keep2Str, keep0Str);
     } else {
-      len = tsnprintf(&keepVstr[VARSTR_HEADER_SIZE], sizeof(keepVstr), "%s,%s,%s", keep0Str, keep1Str, keep2Str);
+      len = snprintf(&keepVstr[VARSTR_HEADER_SIZE], sizeof(keepVstr) - VARSTR_HEADER_SIZE, "%s,%s,%s", keep0Str,
+                     keep1Str, keep2Str);
     }
     varDataSetLen(keepVstr, len);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -3261,7 +3270,8 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
     TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.ssChunkSize, false), &lino, _OVER);
 
     char keeplocalVstr[128] = {0};
-    len = tsnprintf(&keeplocalVstr[VARSTR_HEADER_SIZE], sizeof(keeplocalVstr), "%dm", pDb->cfg.ssKeepLocal);
+    len = snprintf(&keeplocalVstr[VARSTR_HEADER_SIZE], sizeof(keeplocalVstr) - VARSTR_HEADER_SIZE, "%dm",
+                   pDb->cfg.ssKeepLocal);
     varDataSetLen(keeplocalVstr, len);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)keeplocalVstr, false), &lino, _OVER);

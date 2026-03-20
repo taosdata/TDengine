@@ -3307,25 +3307,33 @@ static EDealRes doCollect(SCollectColumnsCxt* pCxt, SColumnNode* pCol, SNode* pN
   char    name[TSDB_TABLE_NAME_LEN + TSDB_COL_NAME_LEN];
   int32_t len = 0;
   if ('\0' == pCol->tableAlias[0]) {
-    len = tsnprintf(name, sizeof(name), "%s", pCol->colName);
+    len = snprintf(name, sizeof(name), "%s", pCol->colName);
   } else {
-    len = tsnprintf(name, sizeof(name), "%s.%s", pCol->tableAlias, pCol->colName);
+    len = snprintf(name, sizeof(name), "%s.%s", pCol->tableAlias, pCol->colName);
   }
   if (pCol->projRefIdx > 0) {
-    len = taosHashBinary(name, strlen(name));
-    len += tsnprintf(name + len, TSDB_TABLE_NAME_LEN + TSDB_COL_NAME_LEN - len, "_%d", pCol->projRefIdx);
+    len = taosHashBinary(name, strlen(name), sizeof(name));
+    len += snprintf(name + len, TSDB_TABLE_NAME_LEN + TSDB_COL_NAME_LEN - len, "_%d", pCol->projRefIdx);
   }
   SNode** pNodeFound = taosHashGet(pCxt->pColHash, name, len);
   if (pNodeFound == NULL) {
-    pCxt->errCode = taosHashPut(pCxt->pColHash, name, len, &pNode, POINTER_BYTES);
+    SNode* pNew = NULL;
+    pCxt->errCode = nodesCloneNode(pNode, &pNew);
     if (TSDB_CODE_SUCCESS == pCxt->errCode) {
-      SNode* pNew = NULL;
-      pCxt->errCode = nodesCloneNode(pNode, &pNew);
-      if (TSDB_CODE_SUCCESS == pCxt->errCode) {
-        pCxt->errCode = nodesListStrictAppend(pCxt->pCols, pNew);
-      }
+      pCxt->errCode = nodesListStrictAppend(pCxt->pCols, pNew);
+    }
+    if (TSDB_CODE_SUCCESS == pCxt->errCode) {
+      // Store cloned node pointer in hash so we can update its flags later
+      pCxt->errCode = taosHashPut(pCxt->pColHash, name, len, &pNew, POINTER_BYTES);
+    } else {
+      nodesDestroyNode(pNew);
     }
     return (TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_IGNORE_CHILD : DEAL_RES_ERROR);
+  } else if (0 == pCol->appendByPrivCond) {
+    SColumnNode* pExistCol = (SColumnNode*)(*pNodeFound);
+    if (pExistCol->appendByPrivCond == 1) {
+      pExistCol->appendByPrivCond = 0;
+    }
   }
   return DEAL_RES_CONTINUE;
 }

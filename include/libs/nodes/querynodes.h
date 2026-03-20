@@ -102,7 +102,8 @@ typedef struct SColumnNode {
     uint8_t flags;
     struct {
       uint8_t hasMask : 1;
-      uint8_t reserve : 7;
+      uint8_t appendByPrivCond : 1;
+      uint8_t reserve : 6;
     };
   };
   char refDbName[TSDB_DB_NAME_LEN];

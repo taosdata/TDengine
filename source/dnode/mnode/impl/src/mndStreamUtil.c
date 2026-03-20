@@ -337,7 +337,7 @@ void mstPostStreamAction(SStmActionQ*       actionQ, int64_t streamId, char* str
   pNode->type = action;
   pNode->streamAct = true;
   pNode->action.stream.streamId = streamId;
-  TAOS_STRCPY(pNode->action.stream.streamName, streamName);
+  tstrncpy(pNode->action.stream.streamName, streamName, sizeof(pNode->action.stream.streamName));
   pNode->action.stream.userAction = userAction;
   pNode->action.stream.actionParam = param;
   
@@ -794,8 +794,10 @@ int32_t mstGetStreamStatusStr(SStreamObj* pStream, char* status, int32_t statusS
 
   if (pStatus->triggerTask && STREAM_STATUS_RUNNING == pStatus->triggerTask->status) {
     STR_WITH_MAXSIZE_TO_VARSTR(status, gStreamStatusStr[STREAM_STATUS_RUNNING], statusSize);
-    strcpy(tmpBuf, "Running start from: ");
-    (void)formatTimestampLocal(&tmpBuf[strlen(tmpBuf)], pStatus->triggerTask->runningStartTs, TSDB_TIME_PRECISION_MILLI);
+    tstrncpy(tmpBuf, "Running start from: ", sizeof(tmpBuf));
+    int32_t offset = strlen(tmpBuf);
+    (void)formatTimestampLocal(tmpBuf + offset, sizeof(tmpBuf) - offset, pStatus->triggerTask->runningStartTs,
+                               TSDB_TIME_PRECISION_MILLI);
     STR_WITH_MAXSIZE_TO_VARSTR(msg, tmpBuf, msgSize);
     goto _exit;
   }

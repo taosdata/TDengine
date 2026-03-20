@@ -20,6 +20,19 @@
 extern "C" {
 #endif
 
+#ifdef WINDOWS
+typedef struct WindowsTimezoneObj {
+  // UTC offset in seconds, using POSIX `timezone` convention: east-negative, west-positive.
+  // Examples: UTC+8 (East 8) = -28800, UTC-8 (West 8) = +28800.
+  // This matches what user_mktime64() and taosLocalTime() expect internally.
+  // External callers that need east-positive (tm_gmtoff) should use taosGetTZOffsetSeconds().
+  int64_t offset_seconds;
+  char    name[TD_TIMEZONE_LEN];
+  int32_t refCount;            // Reference count
+  TdThreadMutex mutex;         // Protect concurrent access
+} WindowsTimezoneObj;
+#endif
+
 #ifdef __cplusplus
 }
 #endif

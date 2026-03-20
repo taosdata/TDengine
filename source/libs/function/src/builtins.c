@@ -194,15 +194,17 @@ static int32_t countTrailingSpaces(const SValueNode* pVal, bool isLtrim) {
 
 static int32_t addTimezoneParam(SNodeList* pList, timezone_t tz) {
   char    buf[TD_TIME_STR_LEN] = {0};
-  time_t  t;
-  int32_t code = taosTime(&t);
-  if (code != 0) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t offsetSeconds = taosGetTZOffsetSeconds(tz, &code);
+  if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
-  struct tm tmInfo;
-  if (taosLocalTime(&t, &tmInfo, buf, sizeof(buf), tz) != NULL) {
-    (void)taosStrfTime(buf, sizeof(buf), "%z", &tmInfo);
-  }
+
+  int32_t absOffset = (offsetSeconds < 0) ? -offsetSeconds : offsetSeconds;
+  int32_t hours = absOffset / 3600;
+  int32_t minutes = (absOffset % 3600) / 60;
+  (void)snprintf(buf, sizeof(buf), "%c%02d%02d", (offsetSeconds < 0) ? '-' : '+', hours, minutes);
+
   int32_t len = (int32_t)strlen(buf);
 
   SValueNode* pVal = NULL;

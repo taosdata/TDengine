@@ -5,7 +5,7 @@ title: 权限管理
 
 TDengine TSDB 中的权限管理分为 [用户管理](../user)、数据库授权管理以及消息订阅授权管理，本节重点说明数据库授权和订阅授权。
 授权管理仅在 TDengine TSDB 企业版中可用，请联系 TDengine TSDB 销售团队。授权语法在 3.3.x.y 及之前的社区版可用，但不起作用，在 3.4.0.0 及后续版本，授权语法执行报错。
-3.4.0.0 开始，TDengine 企业版通过基于角色的访问控制（RBAC）实现了三权分立机制，权限部分改动较大，部分语法不再兼容。本文后续部分，会分别说明。
+3.4.0.0 开始，TDengine 企业版通过基于角色的访问控制（RBAC）实现了三权分立机制。权限部分改动较大，3.4.0.0 至 3.4.0.10 之间的版本，3.3.x.y 版本的部分语法不兼容，自 3.4.0.11 版本开始，3.3.x.y 版本的语法也开始兼容。为了更精细化的权限管理，推荐使用 3.4.0.0 版本的新语法。本文后续部分，会分别说明。
 
 ## 版本对比
 
@@ -254,7 +254,7 @@ GRANT ROLE `SYSAUDIT` TO audit_user;
 ```sql
 GRANT/REVOKE SYSSEC PRIVILEGE
 ALTER SECURITY VARIABLE
-CREATE TOTP / DROP TOTP
+CREATE TOTP_SECRET / DROP TOTP_SECRET
 SET USER SECURITY INFORMATION
 READ INFORMATION_SCHEMA SECURITY
 ```
@@ -367,7 +367,7 @@ priv_type: {
   | CREATE ROLE | DROP ROLE | SHOW ROLES | LOCK ROLE | UNLOCK ROLE
 
     -- 密钥权限
-  | CREATE TOTP | DROP TOTP
+  | CREATE TOTP_SECRET | DROP TOTP_SECRET
   
     -- 密码权限
   | ALTER PASS | ALTER SELF PASS
@@ -405,7 +405,7 @@ GRANT privileges ON [priv_obj] priv_level [WITH condition] TO {user_name | role_
 -- 撤销对象权限
 REVOKE privileges ON [priv_obj] priv_level [WITH condition] FROM {user_name | role_name}
 
--- 权限作用对象（不指定默认为表）
+-- 权限作用对象
 priv_obj: {
     database           -- 数据库
   | table              -- 表
@@ -416,6 +416,9 @@ priv_obj: {
   | topic              -- 主题
   | stream             -- 流计算
 }
+说明：
+-- 不指定 priv_obj 时：1）在 3.4.0.0 至 3.4.0.10 版本，priv_obj 默认为 table。2）自 3.4.0.11 版本起，如果 enableGrantLegacySyntax 为 1，兼容 3.3.x.y 版本语法的功能，根据 privileges 中的权限类型 和 priv_level，自适应的扩展为 database/table/view/index/tsma/rsma/topic/stream 对应的权限；如果 enableGrantLegacySyntax 为 0 (默认值)，不兼容 3.3.x.y 版本语法的功能，仅自适应的扩展为 table/view 对应的权限。
+-- 为了更精细的控制权限对象，推荐明确的指定 priv_obj。
 
 priv_level: {
     *                  -- 所有库
@@ -427,6 +430,7 @@ priv_level: {
 
 privileges: {
     ALL [PRIVILEGES]
+  | read | write       -- 为兼容 3.3.x.y 版本的语法，自 3.4.0.11 版本开始支持 read/write
   | priv_type [, priv_type] ...
 }
 

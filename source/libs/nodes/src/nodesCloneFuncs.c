@@ -135,6 +135,7 @@ static int32_t columnNodeCopy(const SColumnNode* pSrc, SColumnNode* pDst) {
   COPY_SCALAR_FIELD(resIdx);
   COPY_SCALAR_FIELD(hasDep);
   COPY_SCALAR_FIELD(hasRef);
+  COPY_SCALAR_FIELD(flags);
   COPY_CHAR_ARRAY_FIELD(refDbName);
   COPY_CHAR_ARRAY_FIELD(refTableName);
   COPY_CHAR_ARRAY_FIELD(refColName);

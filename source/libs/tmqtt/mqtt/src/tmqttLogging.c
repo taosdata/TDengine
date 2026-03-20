@@ -83,7 +83,8 @@ static int get_time(struct tm **ti) {
 
   s = db.now_real_s;
 
-  *ti = localtime(&s);
+  struct tm tm_buf;
+  *ti = localtime_r(&s, &tm_buf);
   if (!(*ti)) {
     fprintf(stderr, "Error obtaining system time.\n");
     return 1;
@@ -268,7 +269,7 @@ static int log__vprintf(unsigned int priority, const char *fmt, va_list va) {
     } else {
       log_line_pos = 0;
     }
-    vsnprintf(&log_line[log_line_pos], sizeof(log_line) - log_line_pos, fmt, va);
+    UNUSED(vsnprintf(&log_line[log_line_pos], sizeof(log_line) - log_line_pos, fmt, va));
     log_line[sizeof(log_line) - 1] = '\0'; /* Ensure string is null terminated. */
 
     if (log_destinations & MQTT3_LOG_STDOUT) {
@@ -347,6 +348,6 @@ void tmqttLog(int level, const char *fmt, ...) {
   va_list va;
 
   va_start(va, fmt);
-  log__vprintf((unsigned int)level, fmt, va);
+  UNUSED(log__vprintf((unsigned int)level, fmt, va));
   va_end(va);
 }

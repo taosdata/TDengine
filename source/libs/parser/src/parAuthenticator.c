@@ -233,6 +233,7 @@ EDealRes rewriteAuthTable(SNode* pNode, void* pContext) {
     SAuthRewriteCxt* pCxt = (SAuthRewriteCxt*)pContext;
     tstrncpy(pCol->tableName, pCxt->pTarget->tableName, TSDB_TABLE_NAME_LEN);
     tstrncpy(pCol->tableAlias, pCxt->pTarget->tableAlias, TSDB_TABLE_NAME_LEN);
+    pCol->appendByPrivCond = 1;
   }
 
   return DEAL_RES_CONTINUE;

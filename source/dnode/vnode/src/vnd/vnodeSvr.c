@@ -344,7 +344,7 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
       TSDB_CHECK_CODE(code, lino, _exit);
     }
 
-    for (int32_t iRow = 0; iRow < colData.nVal; iRow++) {
+    for (uint32_t iRow = 0; iRow < colData.nVal; iRow++) {
       if (((TSKEY *)colData.pData)[iRow] < minKey || ((TSKEY *)colData.pData)[iRow] > maxKey) {
         code = TSDB_CODE_TDB_TIMESTAMP_OUT_OF_RANGE;
         TSDB_CHECK_CODE(code, lino, _exit);
@@ -365,7 +365,7 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
       TSDB_CHECK_CODE(code, lino, _exit);
     }
 
-    for (int32_t iRow = 0; iRow < nRow; ++iRow) {
+    for (uint32_t iRow = 0; iRow < nRow; ++iRow) {
       SRow *pRow = (SRow *)(pCoder->data + pCoder->pos);
       pCoder->pos += pRow->len;
 #ifndef NO_UNALIGNED_ACCESS
@@ -430,7 +430,7 @@ static int32_t vnodePreProcessSubmitMsg(SVnode *pVnode, SRpcMsg *pMsg) {
 
   int64_t btimeMs = taosGetTimestampMs();
   int64_t ctimeMs = btimeMs;
-  for (int32_t i = 0; i < nSubmitTbData; i++) {
+  for (uint64_t i = 0; i < nSubmitTbData; i++) {
     code = vnodePreProcessSubmitTbData(pVnode, pCoder, btimeMs, ctimeMs);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
@@ -991,14 +991,6 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
 
   walApplyVer(pVnode->pWal, ver);
 
-  if (pVnode->pTq) {
-    code = tqPushMsg(pVnode->pTq, pMsg->msgType);
-    if (code) {
-      vError("vgId:%d, failed to push msg to TQ since %s", TD_VID(pVnode), tstrerror(terrno));
-      return code;
-    }
-  }
-
   // commit if need
   if (needCommit) {
     vInfo("vgId:%d, commit at version %" PRId64, TD_VID(pVnode), ver);
@@ -1081,8 +1073,6 @@ int32_t vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
       return qWorkerProcessCQueryMsg(&handle, pVnode->pQuery, pMsg, 0);
     case TDMT_VND_TMQ_CONSUME:
       return tqProcessPollReq(pVnode->pTq, pMsg);
-    case TDMT_VND_TMQ_CONSUME_PUSH:
-      return tqProcessPollPush(pVnode->pTq);
     default:
       vError("unknown msg type:%d in query queue", pMsg->msgType);
       return TSDB_CODE_APP_ERROR;
@@ -1483,7 +1473,7 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, 
     }
 
     // validate hash
-    (void)tsnprintf(tbName, TSDB_TABLE_FNAME_LEN, "%s.%s", pVnode->config.dbname, pCreateReq->name);
+    (void)snprintf(tbName, TSDB_TABLE_FNAME_LEN, "%s.%s", pVnode->config.dbname, pCreateReq->name);
     if (vnodeValidateTableHash(pVnode, tbName) < 0) {
       cRsp.code = TSDB_CODE_VND_HASH_MISMATCH;
       if (taosArrayPush(rsp.pArray, &cRsp) == NULL) {
