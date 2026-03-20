@@ -3265,6 +3265,7 @@ class TDCom:
             return False
         except Exception as e:
             tdLog.debug(f"An error occurred: {e}")
+            return False			
         finally:
             for normalized_file in (normalized_file1, normalized_file2):
                 if normalized_file and os.path.exists(normalized_file):
