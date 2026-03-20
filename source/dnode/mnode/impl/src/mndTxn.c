@@ -14,7 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "mndUserTxn.h"
+#include "mndTxn.h"
 #include "audit.h"
 #include "mndDb.h"
 #include "mndDnode.h"

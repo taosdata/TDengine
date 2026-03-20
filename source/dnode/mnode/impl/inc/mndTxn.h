@@ -28,15 +28,13 @@ extern "C" {
 
 // 用户事务状态
 typedef enum {
-  UTXN_STATUS_NONE = 0,
-  UTXN_STATUS_BEGUN = 1,        // 已经开始事务，正在收集操作，但还未通知 VNode 创建影子数据
-  UTXN_STATUS_PREPARING = 2,    // 正在通知 VNode 创建影子数据
-  UTXN_STATUS_PREPARED = 3,     // 所有 VNode 影子数据创建完成，准备持久化决策
-  UTXN_STATUS_COMMITTING = 4,   // MNode 已下达 Commit 决策，正在等待全员 ACK
-  UTXN_STATUS_COMMITTED = 5,    // 【终态】全员 ACK 已收齐，事务即将从内存销毁
-  UTXN_STATUS_ROLLBACKING = 6,  // 正在通知 VNode 回滚（清理影子数据）
+  UTXN_STATUS_INVALID = 0,      // 无效状态，未使用
+  UTXN_STATUS_ACTIVE = 1,       // 已接收到 BEGIN 请求，返回 txnId 给客户端。正在等待客户端发送 DDL。
+  UTXN_STATUS_COMMITTING = 4,   // 正在通知 VNode 提交（正式提交事务，清理影子数据）
+  UTXN_STATUS_COMMITTED = 5,    // 【终态】全员已提交，事务即将从内存销毁
+  UTXN_STATUS_ROLLBACKING = 6,  // 正在通知 VNode 回滚（正式回滚事务，清理影子数据）
   UTXN_STATUS_ROLLBACKED = 7,   // 【终态】全员已回滚，事务即将从内存销毁
-  UTXN_STATUS_ZOMBIE = 8,       // 【异常态】长时间未收齐 ACK，等待运维手工处理
+  UTXN_STATUS_ZOMBIE = 8,       // 异常状态，事务已失效但尚未销毁（比如等待超时），不再接受任何请求，等待 MNode 定期清理
 } EUtxnStatus;
 
 // MNode 侧的用户事务上下文
