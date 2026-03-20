@@ -67,7 +67,7 @@ python3 hot_upgrade_task.py \
 
 脚本以当前版本号的前三位为前缀，查找绿色版本路径下的所有匹配子目录，并选取版本号最小的作为基准：
 
-```
+```text
 当前版本：  3.4.0.9
 匹配前缀：  3.4.0
 找到版本：  3.4.0.0、3.4.0.8
@@ -76,7 +76,7 @@ python3 hot_upgrade_task.py \
 
 ### 工作流程
 
-```
+```text
 读取版本号（cmake/version.cmake）
     ↓
 查找匹配基准版本（greenVersionsPath/3.x.x.*）
@@ -147,7 +147,7 @@ python3 cold_upgrade_task.py \
 
 ### 工作流程
 
-```
+```text
 读取版本号（cmake/version.cmake）
     ↓
 复制编译产物到 /tmp/<currentVersion>/
@@ -170,7 +170,7 @@ python3 cold_upgrade_task.py \
 
 绿色版本存储路径下须包含以版本号命名的子目录，每个目录中存放对应版本的二进制文件：
 
-```
+```text
 /tdengine/green_versions/
 ├── 3.3.0.0/
 │   ├── taosd
@@ -190,7 +190,7 @@ python3 cold_upgrade_task.py \
 
 编译目录下须包含以下文件（至少满足其一）：
 
-```
+```text
 <build-dir>/
 └── build/
     ├── bin/
