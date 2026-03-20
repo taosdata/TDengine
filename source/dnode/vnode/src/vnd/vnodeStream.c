@@ -1044,7 +1044,7 @@ static int32_t scanSubmitDataForMeta(SStreamTriggerReaderInfo* sStreamReaderInfo
   gidHash = tSimpleHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
   STREAM_CHECK_NULL_GOTO(gidHash, terrno);
 
-  for (int32_t i = 0; i < nSubmitTbData; i++) {
+  for (uint64_t i = 0; i < nSubmitTbData; i++) {
     STREAM_CHECK_RET_GOTO(scanSubmitTbDataForMeta(&decoder, sStreamReaderInfo, gidHash, ver));
   }
   tEndDecode(&decoder);
@@ -1633,7 +1633,7 @@ static int32_t scanSubmitTbData(SVnode* pVnode, SDecoder *pCoder, SStreamTrigger
       code = TSDB_CODE_INVALID_MSG;
       TSDB_CHECK_CODE(code, lino, end);
     }
-    for (int32_t iRow = 0; iRow < nRow; ++iRow) {
+    for (uint64_t iRow = 0; iRow < nRow; ++iRow) {
       SRow *pRow = (SRow *)(pCoder->data + pCoder->pos);
       pCoder->pos += pRow->len;
 
@@ -1764,7 +1764,7 @@ static int32_t scanSubmitData(SVnode* pVnode, SStreamTriggerReaderInfo* sStreamR
     STREAM_CHECK_NULL_GOTO(gidHash, terrno);
   }
 
-  for (int32_t i = 0; i < nSubmitTbData; i++) {
+  for (uint64_t i = 0; i < nSubmitTbData; i++) {
     STREAM_CHECK_RET_GOTO(scanSubmitTbData(pVnode, &decoder, sStreamReaderInfo, ranges, gidHash, rsp, ver));
   }
 
@@ -1883,7 +1883,7 @@ static int32_t scanSubmitTbDataPre(SDecoder *pCoder, SStreamTriggerReaderInfo* s
     }
 
     if (window.skey != INT64_MIN || window.ekey != INT64_MAX) { 
-      for (int32_t iRow = 0; iRow < nRow; ++iRow) {
+      for (uint64_t iRow = 0; iRow < nRow; ++iRow) {
         SRow *pRow = (SRow *)(pCoder->data + pCoder->pos);
         pCoder->pos += pRow->len;
         if (pRow->ts < window.skey || pRow->ts > window.ekey) {

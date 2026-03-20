@@ -97,7 +97,6 @@ struct STQ {
   SVnode*         pVnode;
   char*           path;
   SRWLatch        lock;
-  SHashObj*       pPushMgr;    // subKey -> STqHandle
   SHashObj*       pHandle;     // subKey -> STqHandle
   SHashObj*       pOffset;     // subKey -> STqOffsetVal
   TDB*            pMetaDB;
