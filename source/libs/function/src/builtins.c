@@ -1814,20 +1814,23 @@ static int32_t translateCast(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   // The function return type has been set during syntax parsing
   uint8_t para2Type = pFunc->node.resType.type;
 
-  int32_t para2Bytes = pFunc->node.resType.bytes;
-  if (IS_STR_DATA_TYPE(para2Type)) {
-    para2Bytes -= VARSTR_HEADER_SIZE;
-  }
-  if (para2Bytes <= 0 ||
-      para2Bytes > TSDB_MAX_BINARY_LEN - VARSTR_HEADER_SIZE) {  // cast dst var type length limits to 4096 bytes
-    if (TSDB_DATA_TYPE_NCHAR == para2Type) {
-      return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
-                             "CAST function converted length should be in range (0, %d] NCHARS",
-                             (TSDB_MAX_BINARY_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE);
-    } else {
-      return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
-                             "CAST function converted length should be in range (0, %d] bytes",
-                             TSDB_MAX_BINARY_LEN - VARSTR_HEADER_SIZE);
+  if (IS_STR_DATA_BLOB(para2Type)) {
+    pFunc->node.resType.bytes = TSDB_MAX_BLOB_LEN + BLOBSTR_HEADER_SIZE;
+  } else {
+    int32_t para2Bytes = pFunc->node.resType.bytes;
+    if (IS_STR_DATA_TYPE(para2Type)) {
+      para2Bytes -= VARSTR_HEADER_SIZE;
+    }
+    if (para2Bytes <= 0 || para2Bytes > TSDB_MAX_BINARY_LEN - VARSTR_HEADER_SIZE) {
+      if (TSDB_DATA_TYPE_NCHAR == para2Type) {
+        return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+                               "CAST function converted length should be in range (0, %d] NCHARS",
+                               (TSDB_MAX_BINARY_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE);
+      } else {
+        return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+                               "CAST function converted length should be in range (0, %d] bytes",
+                               TSDB_MAX_BINARY_LEN - VARSTR_HEADER_SIZE);
+      }
     }
   }
 
