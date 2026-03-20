@@ -2,7 +2,6 @@ name: ARC::Deploy TSDB Dev
 
 on:
   schedule:
-    - cron: '0 22 * * *'
     - cron: '0 0 * * *'
   workflow_call:
     inputs:
@@ -34,29 +33,19 @@ concurrency:
 
 jobs:
   deploy:
+    name: Deploy tsdb dev (${{ matrix.branch_name }})
     runs-on: tsdb-deploy
+    strategy:
+      fail-fast: false
+      matrix:
+        branch_name: ${{ fromJson(github.event_name == 'schedule' && '["main","3.0"]' || format('["{0}"]', github.event.inputs.branch_name || inputs.branch_name || github.ref_name)) }}
     steps:
       - name: Resolve deployment parameters
         shell: bash
         run: |
           set -euo pipefail
 
-          if [ "${{ github.event_name }}" = "schedule" ]; then
-            case "${{ github.event.schedule }}" in
-              '0 22 * * *')
-                BRANCH_NAME='main'
-                ;;
-              '0 0 * * *')
-                BRANCH_NAME='3.0'
-                ;;
-              *)
-                echo "Unsupported schedule: ${{ github.event.schedule }}"
-                exit 1
-                ;;
-            esac
-          else
-            BRANCH_NAME='${{ github.event.inputs.branch_name || inputs.branch_name || github.ref_name }}'
-          fi
+          BRANCH_NAME='${{ matrix.branch_name }}'
 
           case "$BRANCH_NAME" in
             main)
