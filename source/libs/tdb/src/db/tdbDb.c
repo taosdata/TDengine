@@ -54,32 +54,34 @@ int32_t tdbOpen(const char *dbname, int32_t szPage, int32_t pages, TDB **ppDb, i
 
   ret = tdbPCacheOpen(szPage, pages, &(pDb->pCache));
   if (ret < 0) {
-    return ret;
+    goto _err;
   }
 
   pDb->nPgrHash = 8;
   tsize = sizeof(SPager *) * pDb->nPgrHash;
   pDb->pgrHash = tdbOsMalloc(tsize);
   if (pDb->pgrHash == NULL) {
-    return terrno;
+    ret = terrno;
+    goto _err;
   }
   memset(pDb->pgrHash, 0, tsize);
 
   ret = taosMulModeMkDir(dbname, 0755, false);
   if (ret < 0) {
-    return terrno;
+    ret = terrno;
+    goto _err;
   }
 
 #ifdef USE_MAINDB
   // open main db
   ret = tdbTbOpen(TDB_MAINDB_NAME, -1, sizeof(SBtInfo), NULL, pDb, &pDb->pMainDb, rollback);
   if (ret < 0) {
-    return ret;
+    goto _err;
   }
 
   ret = tdbTbOpen(TDB_FREEDB_NAME, sizeof(SPgno), 0, NULL, pDb, &pDb->pFreeDb, rollback);
   if (ret < 0) {
-    return ret;
+    goto _err;
   }
 
   // if the underlying data structure is a btree, it will do re-balance when there are too many pages,
@@ -90,12 +92,16 @@ int32_t tdbOpen(const char *dbname, int32_t szPage, int32_t pages, TDB **ppDb, i
   int tdbTbBtreeToStack(TTB *pTb);
   ret = tdbTbBtreeToStack(pDb->pFreeDb);
   if (ret < 0) {
-    return ret;
+    goto _err;
   }
 #endif
 
   *ppDb = pDb;
   return 0;
+
+_err:
+  tdbClose(pDb);
+  return ret;
 }
 
 void tdbClose(TDB *pDb) {
