@@ -7118,6 +7118,8 @@ int32_t tSerializeSCreateDbReq(void *buf, int32_t bufLen, SCreateDbReq *pReq) {
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->isAudit));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->secureDelete));
 
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->cacheLastShardBits));
+
   tEndEncode(&encoder);
 
 _exit:
@@ -7235,6 +7237,11 @@ int32_t tDeserializeSCreateDbReq(void *buf, int32_t bufLen, SCreateDbReq *pReq) 
   } else {
     pReq->secureDelete = TSDB_DEFAULT_DB_SECURE_DELETE;
   }
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->cacheLastShardBits));
+  } else {
+    pReq->cacheLastShardBits = -1;
+  }
 
   tEndDecode(&decoder);
 
@@ -7291,11 +7298,11 @@ int32_t tSerializeSAlterDbReq(void *buf, int32_t bufLen, SAlterDbReq *pReq) {
   TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pReq->compactStartTime));
   TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pReq->compactEndTime));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->compactTimeOffset));
-
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->encryptAlgrName));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->isAudit));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->allowDrop));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->secureDelete));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->cacheLastShardBits));
   tEndEncode(&encoder);
 
 _exit:
@@ -7395,6 +7402,12 @@ int32_t tDeserializeSAlterDbReq(void *buf, int32_t bufLen, SAlterDbReq *pReq) {
     TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->secureDelete));
   } else {
     pReq->secureDelete = -1;
+  } 
+
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->cacheLastShardBits));
+  } else {
+    pReq->cacheLastShardBits = -1;
   }
 
   tEndDecode(&decoder);
@@ -9261,6 +9274,8 @@ int32_t tSerializeSDbCfgRspImpl(SEncoder *encoder, const SDbCfgRsp *pRsp) {
   TAOS_CHECK_RETURN(tEncodeI8(encoder, pRsp->isAudit));
   TAOS_CHECK_RETURN(tEncodeI64v(encoder, pRsp->ownerId));
   TAOS_CHECK_RETURN(tEncodeI8(encoder, pRsp->secureDelete));
+  TAOS_CHECK_RETURN(tEncodeI32(encoder, pRsp->cacheShardBits));
+
 
   return 0;
 }
@@ -9390,6 +9405,12 @@ int32_t tDeserializeSDbCfgRspImpl(SDecoder *decoder, SDbCfgRsp *pRsp) {
     TAOS_CHECK_RETURN(tDecodeI8(decoder, &pRsp->secureDelete));
   } else {
     pRsp->secureDelete = TSDB_DEFAULT_DB_SECURE_DELETE;
+  }
+
+  if (!tDecodeIsEnd(decoder)) {
+    TAOS_CHECK_RETURN(tDecodeI32(decoder, &pRsp->cacheShardBits));
+  } else {
+    pRsp->cacheShardBits = -1;
   }
 
   return 0;
@@ -10890,6 +10911,7 @@ int32_t tSerializeSCreateVnodeReq(void *buf, int32_t bufLen, SCreateVnodeReq *pR
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->encryptAlgrName));
   TAOS_CHECK_EXIT(tEncodeU8(&encoder, pReq->flags));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->secureDelete));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->cacheLastShardBits));
 
   tEndEncode(&encoder);
 
@@ -11012,6 +11034,12 @@ int32_t tDeserializeSCreateVnodeReq(void *buf, int32_t bufLen, SCreateVnodeReq *
     TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->secureDelete));
   } else {
     pReq->secureDelete = TSDB_DEFAULT_DB_SECURE_DELETE;
+  }
+
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->cacheLastShardBits));
+  } else {
+    pReq->cacheLastShardBits = -1;
   }
 
   tEndDecode(&decoder);
@@ -11383,6 +11411,8 @@ int32_t tSerializeSAlterVnodeConfigReq(void *buf, int32_t bufLen, SAlterVnodeCon
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->allowDrop));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->secureDelete));
 
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->cacheLastShardBits));
+
   tEndEncode(&encoder);
 
 _exit:
@@ -11456,6 +11486,12 @@ int32_t tDeserializeSAlterVnodeConfigReq(void *buf, int32_t bufLen, SAlterVnodeC
     TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->secureDelete));
   } else {
     pReq->secureDelete = TSDB_DEFAULT_DB_SECURE_DELETE;
+  }
+
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->cacheLastShardBits));
+  } else {
+    pReq->cacheLastShardBits = -1;
   }
 
   tEndDecode(&decoder);

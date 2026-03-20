@@ -20,6 +20,7 @@ database_option: {
   | PAGESIZE  value
   | CACHEMODEL {'none' | 'last_row' | 'last_value' | 'both'}
   | CACHESIZE value
+  | CACHESHARDBITS value
   | COMP {0 | 1 | 2}
   | DURATION value
   | MAXROWS value
@@ -61,6 +62,11 @@ database_option: {
   - both: Indicates enabling caching of both the latest row and column.
     Note: Switching CacheModel values back and forth may cause inaccurate results for last/last_row queries, please operate with caution. It is recommended to keep it turned on.
 - CACHESIZE: The size of memory used for caching the latest data of subtables in each vnode. Default is 1, range is [1, 65536], in MB.
+- CACHESHARDBITS: The number of shard bits for the last-value LRU cache, which controls the internal lock granularity for concurrent cache access. Default is -1 (auto-calculated), range is [-1, 19].
+  - The actual number of shards equals `2^CACHESHARDBITS`. For example, CACHESHARDBITS=3 means 8 shards, CACHESHARDBITS=6 means 64 shards.
+  - When set to -1, the system automatically calculates the shard bits based on CACHESIZE: each shard is at least 512 KB, and the maximum number of shards is 64 (i.e., the upper limit of shard bits is 6).
+  - More shards reduce lock contention during concurrent cache writes, which is suitable for high-concurrency scenarios. However, too many shards may increase memory management overhead.
+  - **Warning:** Modifying CACHESHARDBITS immediately invalidates all last-value cache entries in all vnodes of the database. The cached data will be reloaded from disk on subsequent queries, which may temporarily increase query latency.
 - COMP: Indicates the compression flag for database files, default value is 2, range is [0, 2].
   - 0: Indicates no compression.
   - 1: Indicates first-stage compression.
@@ -145,6 +151,7 @@ alter_database_options:
 alter_database_option: {
     CACHEMODEL {'none' | 'last_row' | 'last_value' | 'both'}
   | CACHESIZE value
+  | CACHESHARDBITS value
   | BUFFER value
   | PAGES value
   | REPLICA value
@@ -157,6 +164,16 @@ alter_database_option: {
   | MINROWS value
 }
 ```
+
+### Modify CACHESHARDBITS
+
+```sql
+ALTER DATABASE db_name CACHESHARDBITS value;
+```
+
+- `value` range is [-1, 19]. -1 means the system automatically calculates the shard bits based on CACHESIZE.
+- The actual number of shards equals `2^value`. For example, value=3 corresponds to 8 shards, and value=6 corresponds to 64 shards.
+- The change takes effect immediately, but **invalidates all last-value LRU cache entries** in every vnode of the database. Cached data will be reloaded from disk on subsequent queries, which may temporarily increase query latency.
 
 ### Modify CACHESIZE
 
