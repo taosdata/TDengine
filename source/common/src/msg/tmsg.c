@@ -255,6 +255,7 @@ void *taosDecodeSEpSet(const void *buf, SEpSet *pEp) {
 }
 
 static int32_t tSerializeSClientHbReq(SEncoder *pEncoder, const SClientHbReq *pReq) {
+  TAOS_CHECK_RETURN(tStartEncode(pEncoder));
   TAOS_CHECK_RETURN(tEncodeSClientHbKey(pEncoder, &pReq->connKey));
 
   if (pReq->connKey.connType == CONN_TYPE__QUERY || pReq->connKey.connType == CONN_TYPE__TMQ) {
@@ -316,10 +317,12 @@ static int32_t tSerializeSClientHbReq(SEncoder *pEncoder, const SClientHbReq *pR
   }
   TAOS_CHECK_RETURN(tEncodeU32(pEncoder, pReq->userIp));
   TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pReq->userApp));
+  TAOS_CHECK_RETURN(tSerializeIpRange(pEncoder, (SIpRange *)&pReq->userDualIp));
   TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pReq->sVer));
   TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pReq->cInfo));
   TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pReq->user));
   TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pReq->tokenName));
+  tEndEncode(pEncoder);
 
   return 0;
 }
@@ -327,6 +330,7 @@ static int32_t tSerializeSClientHbReq(SEncoder *pEncoder, const SClientHbReq *pR
 static int32_t tDeserializeSClientHbReq(SDecoder *pDecoder, SClientHbReq *pReq) {
   int32_t code = 0;
   int32_t line = 0;
+  TAOS_CHECK_RETURN(tStartDecode(pDecoder));
   TAOS_CHECK_RETURN(tDecodeSClientHbKey(pDecoder, &pReq->connKey));
 
   if (pReq->connKey.connType >= CONN_TYPE__MAX || pReq->connKey.connType < 0) {
@@ -459,6 +463,7 @@ static int32_t tDeserializeSClientHbReq(SDecoder *pDecoder, SClientHbReq *pReq) 
   }
 
   if (!tDecodeIsEnd(pDecoder)) {
+    TAOS_CHECK_GOTO(tDeserializeIpRange(pDecoder, (SIpRange *)&pReq->userDualIp, true), &line, _error);
     TAOS_CHECK_GOTO(tDecodeCStrTo(pDecoder, pReq->sVer), &line, _error);
     TAOS_CHECK_GOTO(tDecodeCStrTo(pDecoder, pReq->cInfo), &line, _error);
   }
@@ -467,6 +472,7 @@ static int32_t tDeserializeSClientHbReq(SDecoder *pDecoder, SClientHbReq *pReq) 
     TAOS_CHECK_GOTO(tDecodeCStrTo(pDecoder, pReq->user), &line, _error);
     TAOS_CHECK_GOTO(tDecodeCStrTo(pDecoder, pReq->tokenName), &line, _error);
   }
+  tEndDecode(pDecoder);
 
 _error:
   if (code != 0) {
@@ -570,30 +576,11 @@ int32_t tSerializeSClientHbBatchReq(void *buf, int32_t bufLen, const SClientHbBa
   for (int32_t i = 0; i < reqNum; i++) {
     SClientHbReq *pReq = taosArrayGet(pBatchReq->reqs, i);
 
-    // Calculate the serialized length of this req first by encoding to NULL buffer
-    SEncoder lenEncoder = {0};
-    tEncoderInit(&lenEncoder, NULL, 0);
-    int32_t code = tSerializeSClientHbReq(&lenEncoder, pReq);
-    int32_t reqLen = lenEncoder.pos;
-    tEncoderClear(&lenEncoder);
-    if (code < 0) {
-      TAOS_CHECK_EXIT(code);
-    }
-
-    // Encode the length before the req data
-    TAOS_CHECK_EXIT(tEncodeI32(&encoder, reqLen));
-
     // Serialize the req data
     TAOS_CHECK_EXIT(tSerializeSClientHbReq(&encoder, pReq));
   }
 
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pBatchReq->ipWhiteListVer));
-
-  for (int32_t i = 0; i < reqNum; i++) {
-    SClientHbReq *pReq = taosArrayGet(pBatchReq->reqs, i);
-    TAOS_CHECK_EXIT(tSerializeIpRange(&encoder, (SIpRange *)&pReq->userDualIp));
-  }
-
   tEndEncode(&encoder);
 
 _exit:
@@ -624,33 +611,8 @@ int32_t tDeserializeSClientHbBatchReq(void *buf, int32_t bufLen, SClientHbBatchR
     }
   }
   for (int32_t i = 0; i < reqNum; i++) {
-    // Read the length of this req first
-    int32_t reqLen = 0;
-    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &reqLen));
-
-    if (reqLen < 0 || reqLen > decoder.size - decoder.pos) {
-      terrno = TSDB_CODE_INVALID_MSG;
-      TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
-    }
-
-    // Create a sub-decoder limited to this req's length
-    SDecoder reqDecoder = {0};
-    reqDecoder.data = decoder.data + decoder.pos;
-    reqDecoder.size = reqLen;
-    reqDecoder.pos = 0;
-
     SClientHbReq req = {0};
-    TAOS_CHECK_EXIT(tDeserializeSClientHbReq(&reqDecoder, &req));
-
-    // Verify that we read exactly the expected length
-    if (reqDecoder.pos != reqLen) {
-      terrno = TSDB_CODE_INVALID_MSG;
-      TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
-    }
-
-    // Advance the main decoder position
-    decoder.pos += reqLen;
-
+    TAOS_CHECK_EXIT(tDeserializeSClientHbReq(&decoder, &req));
     if (!taosArrayPush(pBatchReq->reqs, &req)) {
       TAOS_CHECK_EXIT(terrno);
     }
@@ -660,12 +622,6 @@ int32_t tDeserializeSClientHbBatchReq(void *buf, int32_t bufLen, SClientHbBatchR
     TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pBatchReq->ipWhiteListVer));
   }
 
-  if (!tDecodeIsEnd(&decoder)) {
-    for (int32_t i = 0; i < reqNum; i++) {
-      SClientHbReq *pReq = taosArrayGet(pBatchReq->reqs, i);
-      TAOS_CHECK_EXIT(tDeserializeIpRange(&decoder, (SIpRange *)&pReq->userDualIp, true));
-    }
-  }
   tEndDecode(&decoder);
 
 _exit:
