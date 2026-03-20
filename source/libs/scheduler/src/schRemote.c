@@ -81,11 +81,12 @@ int32_t schProcessFetchRsp(SSchJob *pJob, SSchTask *pTask, char *msg, int32_t rs
   int32_t code = 0;
   
   SCH_ERR_JRET(rspCode);
-  
+
   if (NULL == msg) {
     SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
-  
+
+
   if (SCH_IS_EXPLAIN_JOB(pJob)) {
     if (rsp->completed) {
       SRetrieveTableRsp *pRsp = NULL;
@@ -1256,6 +1257,9 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
     }
     case TDMT_SCH_QUERY:
     case TDMT_SCH_MERGE_QUERY: {
+      int32_t newPhase = (TDMT_SCH_QUERY == msgType) ? QUERY_PHASE_EXEC_DATA_QUERY : QUERY_PHASE_EXEC_MERGE_QUERY;
+      SCH_UPDATE_JOB_PHASE_IF_CHANGED(pJob, newPhase);
+
       SCH_ERR_RET(schMakeQueryRpcCtx(pJob, pTask, &rpcCtx));
 
       SSubQueryMsg qMsg;
