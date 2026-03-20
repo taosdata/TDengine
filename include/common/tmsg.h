@@ -3463,11 +3463,34 @@ typedef struct {
 } SRetrieveMetaTableRsp;
 
 typedef struct SExplainExecInfo {
-  double   startupCost;
-  double   totalCost;
+  /* the number of rows returned */
   uint64_t numOfRows;
   uint32_t verboseLen;
   void*    verboseInfo;
+
+  /* the timestamp when the operator is created */
+  TSKEY    execCreate;
+  /* the first timestamp when the operator's next interface is called */
+  TSKEY    execStart;
+  /* the timestamp when the first row is returned */
+  TSKEY    execFirstRow;
+  /* the timestamp when the last row is returned */
+  TSKEY    execLastRow;
+  /* the number of times the operator's next interface is called */
+  uint32_t execTimes;
+  /**
+    the time elapsed for executing the operator's next interface,
+    not including waiting time for data from downstream
+  */
+  TSKEY    execElapsed;
+  /* the time elapsed for waiting for data from downstream */
+  TSKEY    inputWaitElapsed;
+  /* the time elapsed for waiting call from upstream */
+  TSKEY    outputWaitElapsed;
+  /* the number of rows input */
+  uint64_t inputRows;
+
+  int32_t  vgId;
 } SExplainExecInfo;
 
 typedef struct {
@@ -3485,14 +3508,22 @@ typedef struct {
 } SExplainLocalRsp;
 
 typedef struct STableScanAnalyzeInfo {
-  uint64_t totalRows;
-  uint64_t totalCheckedRows;
-  uint32_t totalBlocks;
-  uint32_t loadBlocks;
-  uint32_t loadBlockStatis;
-  uint32_t skipBlocks;
-  uint32_t filterOutBlocks;
-  double   elapsedTime;
+  int64_t totalBlocks;
+  int64_t fileLoadBlocks;
+  double  fileLoadElapsed;
+  int64_t sttLoadBlocks;
+  double  sttLoadElapsed;
+  int64_t memLoadBlocks;
+  double  memLoadElapsed;
+  int64_t smaLoadBlocks;
+  double  smaLoadElapsed;
+  int64_t composedBlocks;
+  double  composedElapsed;
+  
+  uint64_t checkRows;
+
+  uint64_t skipBlocks;
+  uint64_t filterOutBlocks;
   double   filterTime;
 } STableScanAnalyzeInfo;
 

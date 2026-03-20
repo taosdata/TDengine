@@ -507,13 +507,10 @@ int32_t openMultiwayMergeOperator(SOperatorInfo* pOperator) {
     return TSDB_CODE_SUCCESS;
   }
 
-  int64_t startTs = taosGetTimestampUs();
-  
   if (NULL != gMultiwayMergeFps[pInfo->type]._openFn) {
     code = (*gMultiwayMergeFps[pInfo->type]._openFn)(pOperator);
   }
 
-  pOperator->cost.openCost = (taosGetTimestampUs() - startTs) / 1000.0;
   pOperator->status = OP_RES_TO_RETURN;
 
   if (code != TSDB_CODE_SUCCESS) {
@@ -547,7 +544,6 @@ int32_t doMultiwayMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
   }
 
   if ((*pResBlock) != NULL) {
-    pOperator->resultInfo.totalRows += (*pResBlock)->info.rows;
     code = blockDataCheck(*pResBlock);
     QUERY_CHECK_CODE(code, lino, _end);
   } else {
@@ -643,6 +639,7 @@ int32_t createMultiwayMergeOperatorInfo(SOperatorInfo** downStreams, size_t numS
     code = terrno;
     goto _error;
   }
+  initOperatorCostInfo(pOperator);
 
   pOperator->pPhyNode = pPhyNode;
   pInfo->groupMerge = pMergePhyNode->groupSort;

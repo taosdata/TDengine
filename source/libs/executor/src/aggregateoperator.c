@@ -90,6 +90,7 @@ int32_t createAggregateOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode* pA
     code = terrno;
     goto _error;
   }
+  initOperatorCostInfo(pOperator);
 
   pOperator->exprSupp.hasWindowOrGroup = false;
 
@@ -201,7 +202,6 @@ static bool nextGroupedResult(SOperatorInfo* pOperator) {
   }
 
   SExprSupp*   pSup = &pOperator->exprSupp;
-  int64_t      st = taosGetTimestampUs();
   int32_t      order = pAggInfo->binfo.inputTsOrder;
   SSDataBlock* pBlock = pAggInfo->pNewGroupBlock;
 
@@ -337,9 +337,6 @@ int32_t getAggregateResultNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
     }
   } while (pInfo->pRes->info.rows == 0 && hasNewGroups);
 
-  size_t rows = blockDataGetNumOfRows(pInfo->pRes);
-  pOperator->resultInfo.totalRows += rows;
-
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
@@ -349,7 +346,7 @@ _end:
 
   printDataBlock(pInfo->pRes, __func__, pTaskInfo->id.str, pTaskInfo->id.queryId);
 
-  (*ppRes) = (rows == 0) ? NULL : pInfo->pRes;
+  (*ppRes) = (pInfo->pRes->info.rows == 0) ? NULL : pInfo->pRes;
   return code;
 }
 

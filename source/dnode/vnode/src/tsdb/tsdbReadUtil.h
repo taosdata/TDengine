@@ -141,6 +141,7 @@ typedef struct SResultBlockInfo {
 typedef struct SReadCostSummary {
   int64_t               numOfBlocks;
   double                blockLoadTime;
+  int64_t               memBlocks;
   double                buildmemBlock;
   int64_t               headFileLoad;
   double                headFileLoadTime;
