@@ -27,8 +27,8 @@
 
 #define AUDIT_CURL_TIMEOUT 5000
 
-extern char *tsAuditUri;
-extern char *tsAuditBatchUri;
+extern char  *tsAuditUri;
+extern char  *tsAuditBatchUri;
 extern SAudit tsAudit;
 
 void getAuditDbNameToken(char *pDb, char *pToken) {
@@ -38,22 +38,43 @@ void getAuditDbNameToken(char *pDb, char *pToken) {
   (void)taosThreadRwlockUnlock(&tsAudit.infoLock);
 }
 
-void setAuditDbNameToken(char *pDb, char *pToken) {
-  if (pDb == NULL || pToken == NULL) {
+void getAuditEpSet(SEpSet *ep, int32_t *pVgId) {
+  (void)taosThreadRwlockRdlock(&tsAudit.infoLock);
+  *ep = tsAudit.auditEpSet;
+  *pVgId = tsAudit.auditVgId;
+  (void)taosThreadRwlockUnlock(&tsAudit.infoLock);
+}
+
+void setAuditDbNameToken(char *pDb, char *pToken, SEpSet *ep, int32_t auditVgId) {
+  if (pDb == NULL || pToken == NULL || ep == NULL) {
     return;
   }
   (void)taosThreadRwlockRdlock(&tsAudit.infoLock);
   if (strncmp(pDb, tsAudit.auditDB, TSDB_DB_FNAME_LEN) == 0 &&
-      strncmp(pToken, tsAudit.auditToken, TSDB_TOKEN_LEN) == 0) {
-    (void)taosThreadRwlockUnlock(&tsAudit.infoLock);
-    return;
+      strncmp(pToken, tsAudit.auditToken, TSDB_TOKEN_LEN) == 0 && auditVgId == tsAudit.auditVgId) {
+    if (tsAudit.auditEpSet.numOfEps == ep->numOfEps) {
+      bool epMatch = true;
+      for (int32_t i = 0; i < tsAudit.auditEpSet.numOfEps; i++) {
+        if (strncmp(tsAudit.auditEpSet.eps[i].fqdn, ep->eps[i].fqdn, TSDB_FQDN_LEN) != 0 ||
+            tsAudit.auditEpSet.eps[i].port != ep->eps[i].port) {
+          epMatch = false;
+          break;
+        }
+      }
+      if (epMatch) {
+        (void)taosThreadRwlockUnlock(&tsAudit.infoLock);
+        return;
+      }
+    }
   }
   (void)taosThreadRwlockUnlock(&tsAudit.infoLock);
 
-  uInfo("set auditDB:%s, token:%s in status rsp received from mnode", pDb, pToken);
+  uInfo("set audit db:%s, token:xxx, auditVgId:%d", pDb, auditVgId);
   (void)taosThreadRwlockWrlock(&tsAudit.infoLock);
   tstrncpy(tsAudit.auditDB, pDb, TSDB_DB_FNAME_LEN);
   tstrncpy(tsAudit.auditToken, pToken, TSDB_TOKEN_LEN);
+  tsAudit.auditEpSet = *ep;
+  tsAudit.auditVgId = auditVgId;
   (void)taosThreadRwlockUnlock(&tsAudit.infoLock);
 }
 
@@ -179,19 +200,117 @@ _OVER:
 }
 #endif
 
-static int32_t auditSend(SJson *pJson) {
+static int32_t auditSendToVnode(char *pCont) {
+  int32_t          code = 0;
+  int32_t          lino = 0;
+  SVAuditRecordReq req = {0};
+
+  SEpSet  epSet = {0};
+  int32_t vgId = 0;
+  getAuditEpSet(&epSet, &vgId);
+  if (epSet.numOfEps == 0) {
+    uError("vgId:%d, failed to send audit record request since no epSet found", vgId);
+    code = TSDB_CODE_AUDIT_FAIL_SEND_AUDIT_RECORD;
+    return code;
+  }
+
+  req.data = pCont;
+
+  int32_t reqLen = tSerializeSVAuditRecordReq(NULL, 0, &req);
+  if (reqLen <= 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    TAOS_CHECK_GOTO(code, &lino, _exit);
+  }
+
+  int32_t   contLen = reqLen + sizeof(SMsgHead);
+  SMsgHead *pHead = rpcMallocCont(contLen);
+  if (pHead == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    TAOS_CHECK_GOTO(code, &lino, _exit);
+  }
+
+  pHead->contLen = htonl(contLen);
+  pHead->vgId = htonl(vgId);
+  if (tSerializeSVAuditRecordReq((char *)pHead + sizeof(SMsgHead), reqLen, &req) <= 0) {
+    rpcFreeCont(pHead);
+    code = TSDB_CODE_INVALID_MSG;
+    TAOS_CHECK_GOTO(code, &lino, _exit);
+  }
+
+  SRpcMsg rpcMsg = {.msgType = TDMT_VND_AUDIT_RECORD, .pCont = pHead, .contLen = contLen};
+
+  code = tmsgSendReq(&epSet, &rpcMsg);
+  if (code != 0) {
+    rpcFreeCont(pHead);
+    TAOS_CHECK_GOTO(code, &lino, _exit);
+  } else {
+    uTrace("vgId:%d, send audit record request", vgId);
+  }
+
+_exit:
+  if (code != 0) {
+    uError("vgId:%d, failed to self save audit record request at:%d since %s", vgId, lino, tstrerror(code));
+  }
+
+  return code;
+}
+
+static int32_t auditSendToKeeper(char *uri, char *pCont, int32_t setSize) {
   int32_t code = 0;
   char    db[TSDB_DB_FNAME_LEN] = {0};
   char    token[TSDB_TOKEN_LEN] = {0};
 
   if (tsAuditUseToken) {
     getAuditDbNameToken(db, token);
+
+    if (db[0] == 0 || token[0] == 0) {
+      uTrace("auditDB or auditToken is empty, can't send audit record, db:%s, token:xxxx", db);
+      return 0;
+    }
   }
 
-  if (db[0] == 0 || token[0] == 0) {
-    uTrace("auditDB or auditToken is empty, can't send audit record, db:%s, token:%s", db, token);
-    return 0;
+  char httpPath[1000] = {0};
+  if (tsAuditUseToken) {
+    tsnprintf(httpPath, 1000, "%s?db=%s&token=%s", uri, db, token);
+  } else {
+    tsnprintf(httpPath, 1000, "%s", uri);
   }
+
+  char qid[100] = {0};
+  (void)snprintf(qid, 100, "0x%" PRIxLEAST64, tGenQid64(tsAudit.dnodeId));
+  // Do not print httpPath, since it may include token
+  if (setSize == 1) {
+    uDebug("audit record with path:xxxx QID:%s cont:%s", qid, pCont);
+  } else {
+    uDebug("audit batch record with QID:%s cont: %d", qid, setSize);
+    // uTrace("audit batch record with QID:%s cont: %d\n%s", qid, setSize, pCont);
+  }
+
+  if (tsAuditHttps) {
+#ifndef WINDOWS
+    char path[1000] = {0};
+    (void)tsnprintf(path, 1000, "https://%s:%d%s", tsAudit.cfg.server, tsAudit.cfg.port, httpPath);
+    if ((code = taosAuditSendReqByCurl(path, pCont, strlen(pCont), AUDIT_CURL_TIMEOUT, qid)) != 0) {
+      uError("failed to send audit msg since %s, cont:%s", tstrerror(code), pCont);
+      code = TSDB_CODE_AUDIT_FAIL_SEND_AUDIT_RECORD;
+      return code;
+    }
+#endif
+  } else {
+    EHttpCompFlag flag = tsAudit.cfg.comp ? HTTP_GZIP : HTTP_FLAT;
+    if ((code = taosSendHttpReportWithQID(tsAudit.cfg.server, httpPath, tsAudit.cfg.port, pCont, strlen(pCont), flag,
+                                          qid)) != 0) {
+      uError("failed to send audit msg since %s, cont:%s", tstrerror(code), pCont);
+      code = TSDB_CODE_AUDIT_FAIL_SEND_AUDIT_RECORD;
+      return code;
+    }
+  }
+
+  return code;
+}
+
+static int32_t auditSend(SJson *pJson) {
+  int32_t code = 0;
 
   char *pCont = tjsonToString(pJson);
   if (pCont == NULL) {
@@ -199,37 +318,10 @@ static int32_t auditSend(SJson *pJson) {
     return code;
   }
 
-  char httpPath[1000] = {0};
-  if (tsAuditUseToken) {
-    tsnprintf(httpPath, 1000, "%s?db=%s&token=%s", tsAuditUri, db, token);
-  } else {
-    tsnprintf(httpPath, 1000, "%s", tsAuditUri);
-  }
-
-  char qid[100] = {0};
-  (void)snprintf(qid, 100, "0x%" PRIxLEAST64, tGenQid64(tsAudit.dnodeId));
-  uDebug("audit record with path:%s QID:%s cont:%s\n", httpPath, qid, pCont);
-
-  if (tsAuditHttps) {
-#ifndef WINDOWS
-    char path[1000] = {0};
-    (void)tsnprintf(path, 1000, "https://%s:%d%s", tsAudit.cfg.server, tsAudit.cfg.port, httpPath);
-    if ((code = taosAuditSendReqByCurl(path, pCont, strlen(pCont), AUDIT_CURL_TIMEOUT, qid)) != 0) {
-      uError("failed to send audit msg, cont:%s, since %s", pCont, terrstr());
-      taosMemoryFree(pCont);
-      return code;
-    }
-#endif
-  } else {
-    EHttpCompFlag flag = tsAudit.cfg.comp ? HTTP_GZIP : HTTP_FLAT;
-    if (taosSendHttpReportWithQID(tsAudit.cfg.server, httpPath, tsAudit.cfg.port, pCont, strlen(pCont), flag, qid) !=
-        0) {
-      uError("failed to send audit msg, cont:%s", pCont);
-      code = TSDB_CODE_AUDIT_FAIL_SEND_AUDIT_RECORD;
-      taosMemoryFree(pCont);
-      return code;
-    }
-  }
+  if (tsAuditSaveInSelf)
+    code = auditSendToVnode(pCont);
+  else
+    code = auditSendToKeeper(tsAuditUri, pCont, 1);
 
   taosMemoryFree(pCont);
   return code;
@@ -258,8 +350,7 @@ void auditRecordImp(SRpcMsg *pReq, int64_t clusterId, char *operation, char *tar
   if(detail != NULL && len > 0){
     if(len >= AUDIT_DETAIL_MAX){
       memcpy(buf, detail, min - 1);
-    }
-    else{
+    } else {
       memcpy(buf, detail, len);
     }
   }
@@ -273,7 +364,7 @@ void auditRecordImp(SRpcMsg *pReq, int64_t clusterId, char *operation, char *tar
   SJson *pJson = tjsonCreateObject();
   if (pJson == NULL) {
     taosMemoryFreeClear(buf);
-    uError("failed to aduit since failed to create json object")
+    uError("failed to audit since failed to create json object");
     return;
   }
 
@@ -284,7 +375,7 @@ void auditRecordImp(SRpcMsg *pReq, int64_t clusterId, char *operation, char *tar
   char strClusterId[TSDB_CLUSTER_ID_LEN] = {0};
   sprintf(strClusterId, "%" PRId64, clusterId);
 
-  char clientAddress[256] = {0};
+  char clientAddress[AUDIT_CLIENT_ADD_LEN] = {0};
   if (pReq != NULL) {
     SIpAddr *ipAddr = &pReq->info.conn.cliAddr;
     sprintf(clientAddress, "%s:%d", IP_ADDR_STR(ipAddr), ipAddr->port);
@@ -308,7 +399,7 @@ void auditRecordImp(SRpcMsg *pReq, int64_t clusterId, char *operation, char *tar
   goto _exit;
 
 _error:
-  uError("failed to aduit, %s at %s:%d since %s", __func__, __FILE__, lino, tstrerror(code));
+  uError("failed to audit, %s at %s:%d since %s", __func__, __FILE__, lino, tstrerror(code));
 
 _exit:
   tjsonDelete(pJson);
@@ -328,6 +419,7 @@ void auditAddRecordImp(SRpcMsg *pReq, int64_t clusterId, char *operation, char *
   }
 
   int32_t min = len >= AUDIT_DETAIL_MAX ? AUDIT_DETAIL_MAX : len + 1;
+  // buf will be freed when send audit records in batch
   char* buf = taosMemoryMalloc(min);
   if(buf == NULL){
     uError("failed to audit since can't alloc a tmp buf");
@@ -344,6 +436,7 @@ void auditAddRecordImp(SRpcMsg *pReq, int64_t clusterId, char *operation, char *
     }
   }
 
+  // record will be freed when send audit records in batch
   SAuditRecord *record = taosMemoryMalloc(sizeof(SAuditRecord));
   if(record == NULL){
     uError("failed to audit since can't alloc a audit record");
@@ -373,31 +466,29 @@ void auditAddRecordImp(SRpcMsg *pReq, int64_t clusterId, char *operation, char *
 
   int32_t code = 0;
   int32_t lino = 0;
-  TAOS_CHECK_GOTO(taosThreadMutexLock(&tsAudit.recordLock), &lino, _exit);
+  TAOS_CHECK_GOTO(taosThreadMutexLock(&tsAudit.recordLock), &lino, _fail_cleanup);
   if (taosArrayPush(tsAudit.records, &record) == NULL) {
-    TAOS_CHECK_GOTO(taosThreadMutexUnlock(&tsAudit.recordLock), &lino, _exit);
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
+    TAOS_CHECK_GOTO(taosThreadMutexUnlock(&tsAudit.recordLock), &lino, _fail_cleanup);
+    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _fail_cleanup);
   }
   TAOS_CHECK_GOTO(taosThreadMutexUnlock(&tsAudit.recordLock), &lino, _exit);
 
   return;
 
+_fail_cleanup:
+  if (buf != NULL) {
+    taosMemoryFree(buf);
+  }
+  if (record != NULL) {
+    taosMemoryFree(record);
+  }
 _exit:
-  uError("failed to aduit, %s at %s:%d since %s", __func__, __FILE__, lino, tstrerror(code));
+  uError("failed to audit, %s at %s:%d since %s", __func__, __FILE__, lino, tstrerror(code));
 }
 
-void auditSendRecordsInBatchImp(){
-  char db[TSDB_DB_FNAME_LEN] = {0};
-  char token[TSDB_TOKEN_LEN] = {0};
-
-  if (tsAuditUseToken) {
-    getAuditDbNameToken(db, token);
-  }
-
-  if (db[0] == 0 || token[0] == 0) {
-    uTrace("auditDB or auditToken is empty, can't send audit  record, db:%s, token:%s", db, token);
-    return;
-  }
+void auditSendRecordsInBatchImp() {
+  int32_t code = 0;
+  int32_t lino = 0;
 
   if (taosThreadMutexLock(&tsAudit.recordLock) != 0) {
     uError("failed to send audit in batch since failed to lock");
@@ -417,8 +508,6 @@ void auditSendRecordsInBatchImp(){
     return;
   }
 
-  int32_t code = 0;
-  int32_t lino = 0;
   SJson *items = tjsonAddArrayToObject(pJson, "records");
   if(items == NULL){
     code = TSDB_CODE_AUDIT_FAIL_GENERATE_JSON;
@@ -456,44 +545,24 @@ void auditSendRecordsInBatchImp(){
   (void)taosThreadMutexUnlock(&tsAudit.recordLock);
 
   char *pCont = tjsonToString(pJson);
+
   if (pCont != NULL) {
-    char httpPath[1000] = {0};
-    if (tsAuditUseToken) {
-      tsnprintf(httpPath, 1000, "%s?db=%s&token=%s", tsAuditBatchUri, db, token);
-    } else {
-      tsnprintf(httpPath, 1000, "%s", tsAuditBatchUri);
-    }
-
-    char qid[100] = {0};
-    (void)snprintf(qid, 100, "0x%" PRIxLEAST64, tGenQid64(tsAudit.dnodeId));
-    uDebug("audit batch record with QID:%s cont: %d\n", qid, setSize);
-
-    if (tsAuditHttps) {
-#ifndef WINDOWS
-      char path[1000] = {0};
-      (void)tsnprintf(path, 1000, "https://%s:%d%s", tsAudit.cfg.server, tsAudit.cfg.port, httpPath);
-      if ((code = taosAuditSendReqByCurl(path, pCont, strlen(pCont), AUDIT_CURL_TIMEOUT, qid)) != 0) {
-        uError("failed to send audit msg, cont:%s, since %s", pCont, terrstr());
-      }
-#endif
-    } else {
-      EHttpCompFlag flag = tsAudit.cfg.comp ? HTTP_GZIP : HTTP_FLAT;
-      if (taosSendHttpReportWithQID(tsAudit.cfg.server, httpPath, tsAudit.cfg.port, pCont, strlen(pCont), flag, qid) !=
-          0) {
-        uError("failed to send audit msg, cont:%s", pCont);
-      }
-    }
+    if (tsAuditSaveInSelf)
+      code = auditSendToVnode(pCont);
+    else
+      code = auditSendToKeeper(tsAuditBatchUri, pCont, setSize);
 
     taosMemoryFree(pCont);
-  }
-  else{
+
+    if (code != 0) uError("failed to send audit msg since %s", tstrerror(code));
+  } else {
     uError("failed to send audit msg since failed format to json string");
   }
 
   goto _exit;
 
 _error:
-  uError("failed to aduit, %s at %s:%d since %s", __func__, __FILE__, lino, tstrerror(code));
+  uError("failed to audit, %s at %s:%d since %s", __func__, __FILE__, lino, tstrerror(code));
   (void)taosThreadMutexUnlock(&tsAudit.recordLock);
 
 _exit:
