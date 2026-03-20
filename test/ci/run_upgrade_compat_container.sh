@@ -16,15 +16,18 @@
 #   /upgrade_logs             — 日志输出目录（可写）
 
 function usage() {
-    echo "Usage: $0 [-e] [-h]"
-    echo "  -e  Enterprise edition (default: OSS)"
-    echo "  -h  Show help"
+    echo "Usage: $0 [-e] [-V COLD_VERSIONS_CSV] [-h]"
+    echo "  -e                  Enterprise edition (default: OSS)"
+    echo "  -V COLD_VERSIONS    Comma-separated cold upgrade base versions (e.g. 3.3.6.0,3.3.8.0)"
+    echo "  -h                  Show help"
 }
 
 ent=0
-while getopts "eh" opt; do
+COLD_VERSIONS_CSV=""
+while getopts "eV:h" opt; do
     case $opt in
         e) ent=1 ;;
+        V) COLD_VERSIONS_CSV=$OPTARG ;;
         h) usage; exit 0 ;;
         \?)
             echo "Invalid option: -$OPTARG"
@@ -38,6 +41,12 @@ done
 
 GREEN_PATH="/green_versions"
 LOG_DIR="/upgrade_logs"
+
+if [ -z "$COLD_VERSIONS_CSV" ]; then
+    echo "ERROR: -V COLD_VERSIONS_CSV is required"
+    usage
+    exit 1
+fi
 
 if [ $ent -ne 0 ]; then
     COMPAT_CI_DIR="/home/TDinternal/community/test/tools/CompatCI"
@@ -98,7 +107,7 @@ cleanup_taosd
 
 python3 "$COMPAT_CI_DIR/cold_upgrade_task.py" \
     --green-path "$GREEN_PATH" \
-    --versions   3.3.6.0,3.3.8.0,3.4.0.0 \
+    --versions   "$COLD_VERSIONS_CSV" \
     --options    "-q" \
     2>&1 | tee "$LOG_DIR/cold_upgrade.log"
 

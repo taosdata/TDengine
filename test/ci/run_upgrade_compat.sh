@@ -29,7 +29,7 @@ function usage() {
 # ── 配置参数 ─────────────────────────────────────────────────────────────────
 
 # 冷升级需要测试的基准版本
-COLD_VERSIONS="3.3.6.0 3.3.8.0 3.4.0.0"
+COLD_VERSIONS="3.3.6.0,3.3.8.0,3.4.0.0"
 
 # 绿色版本 HTTP 服务器基础地址
 GREEN_HTTP_BASE="http://192.168.1.131/data/nas/TDengine/green_versions"
@@ -176,8 +176,24 @@ function download_version() {
 
 echo ""
 echo "=== Step 1/2: Downloading green versions ==="
+
+# 从 HTTP 服务器列出所有可用版本目录
+ALL_VERSIONS=$(curl -fsSL "$GREEN_HTTP_BASE/" \
+    | sed -n 's/.*href="\([^"]*\)".*/\1/p' \
+    | grep '/$' \
+    | grep -v '^\.\.$\|^\.$\|^http\|^/' \
+    | sed 's|/$||' \
+    | sort -u)
+
+if [ -z "$ALL_VERSIONS" ]; then
+    echo "ERROR: Failed to list versions from $GREEN_HTTP_BASE/"
+    exit 1
+fi
+
+echo "Available versions on server: $(echo "$ALL_VERSIONS" | tr '\n' ' ')"
+
 download_failed=0
-for ver in $COLD_VERSIONS; do
+for ver in $ALL_VERSIONS; do
     download_version "$ver" || {
         echo "ERROR: Failed to download green version $ver"
         download_failed=1
@@ -199,14 +215,14 @@ if [ $ent -ne 0 ]; then
     # 容器内路径（与 run_container.sh -e 一致）
     CONTAINER_REP_MOUNT="$INTERNAL_REPDIR:/home/TDinternal"
     CONTAINER_DEBUG_MOUNT="$DEBUGPATH_DIR:/home/TDinternal/debug"
-    CONTAINER_SCRIPT="/home/TDinternal/community/test/ci/run_upgrade_compat_container.sh -e"
+    CONTAINER_SCRIPT="/home/TDinternal/community/test/ci/run_upgrade_compat_container.sh -e -V $COLD_VERSIONS"
 else
     # OSS 版：TDengine 挂载
     INTERNAL_REPDIR="$WORKDIR/TDengine"
     DEBUGPATH_DIR="$WORKDIR/debugNoSan"
     CONTAINER_REP_MOUNT="$INTERNAL_REPDIR:/home/TDengine"
     CONTAINER_DEBUG_MOUNT="$DEBUGPATH_DIR:/home/TDengine/debug"
-    CONTAINER_SCRIPT="/home/TDengine/test/ci/run_upgrade_compat_container.sh"
+    CONTAINER_SCRIPT="/home/TDengine/test/ci/run_upgrade_compat_container.sh -V $COLD_VERSIONS"
 fi
 
 if [ ! -d "$INTERNAL_REPDIR" ]; then
@@ -221,11 +237,15 @@ fi
 
 # ── Step 3: 在独立 Docker 容器中运行升级兼容性测试 ─────────────────────────
 
+CONTAINER_NAME="upgrade-compat-${PR_NUMBER:-0}_${GITHUB_RUN_NUMBER:-0}_${GITHUB_RUN_ATTEMPT:-0}"
+
 echo ""
 echo "=== Step 2/2: Running upgrade compatibility tests in Docker ==="
+echo "  Container name: $CONTAINER_NAME"
 echo ""
 
 docker_cmd="docker run --rm
+    --name ${CONTAINER_NAME}
     -v ${CONTAINER_REP_MOUNT}
     -v ${CONTAINER_DEBUG_MOUNT}
     -v ${GREEN_LOCAL_DIR}:/green_versions:ro
