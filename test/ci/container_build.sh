@@ -53,6 +53,26 @@ fi
 
 ulimit -c unlimited
 
+# ── 编译签名密钥：从固定路径加载，不纳入 Git ────────────────────────────────
+# 注：环境变量由容器内 source 注入（Docker 不继承宿主机环境变量）。
+# 此处在宿主机提前做两项检查：① 文件存在；② source 后变量非空。
+# 这样编译报错能在进入容器之前就被捕获，定位更清晰。
+SALT_ENV_FILE="/security/salt_env.sh"
+if [ ! -f "$SALT_ENV_FILE" ]; then
+    echo "ERROR: signature salt file not found: $SALT_ENV_FILE"
+    echo "       Please create it on this build machine with:"
+    echo "       export TD_ENTERPRISE_EDITION_SIGNATURE_SALT=<your-salt>"
+    exit 1
+fi
+# shellcheck source=/dev/null
+source "$SALT_ENV_FILE"
+if [ -z "$TD_ENTERPRISE_EDITION_SIGNATURE_SALT" ]; then
+    echo "ERROR: TD_ENTERPRISE_EDITION_SIGNATURE_SALT is empty after sourcing $SALT_ENV_FILE"
+    echo "       Make sure the file contains: export TD_ENTERPRISE_EDITION_SIGNATURE_SALT=<your-salt>"
+    exit 1
+fi
+echo "Signature salt loaded from $SALT_ENV_FILE (TD_ENTERPRISE_EDITION_SIGNATURE_SALT is set)"
+
 if [ $ent -eq 0 ]; then
     REP_DIR=/home/TDengine
     REP_REAL_PATH=$WORKDIR/TDengine
@@ -93,7 +113,8 @@ if [ "$build_no_asan" = "true" ]; then
         -v ${REP_REAL_PATH}/community/tools/taosadapter:${REP_DIR}/community/tools/taosadapter \
         -v ${REP_REAL_PATH}/community/tools/taosws-rs:${REP_DIR}/community/tools/taosws-rs \
         -v ${REP_REAL_PATH}/community/tools/taosws-rs/target:${REP_DIR}/community/tools/taosws-rs/target \
-        --rm --ulimit core=-1 tdengine-ci:0.1 sh -c "cd $REP_DIR;apt update -y && apt install groff -y;rm -rf debug;mkdir -p debug;cd debug;cmake .. $BUILD_HTTP_OPT -DCOVER=true -DBUILD_TOOLS=true -DBUILD_TEST=true -DWEBSOCKET=true -DBUILD_TAOSX=false -DJEMALLOC_ENABLED=0 -DCMAKE_EXPORT_COMPILE_COMMANDS=1 -DBUILD_CONTRIB=false ;make -j|| exit 1"
+        -v /security:/security:ro \
+        --rm --ulimit core=-1 tdengine-ci:0.1 sh -c ". /security/salt_env.sh || exit 1;cd $REP_DIR;apt update -y && apt install groff -y;rm -rf debug;mkdir -p debug;cd debug;cmake .. $BUILD_HTTP_OPT -DCOVER=true -DBUILD_TOOLS=true -DBUILD_TEST=true -DWEBSOCKET=true -DBUILD_TAOSX=false -DJEMALLOC_ENABLED=0 -DCMAKE_EXPORT_COMPILE_COMMANDS=1 -DBUILD_CONTRIB=false ;make -j|| exit 1"
     # -v ${REP_REAL_PATH}/community/contrib/jemalloc/:${REP_DIR}/community/contrib/jemalloc \
 
 
@@ -118,7 +139,8 @@ docker run \
     -v ${REP_REAL_PATH}/community/tools/taosadapter:${REP_DIR}/community/tools/taosadapter \
     -v ${REP_REAL_PATH}/community/tools/taosws-rs:${REP_DIR}/community/tools/taosws-rs \
     -v ${REP_REAL_PATH}/community/tools/taosws-rs/target:${REP_DIR}/community/tools/taosws-rs/target \
-    --rm --ulimit core=-1 tdengine-ci:0.1 sh -c "cd $REP_DIR;apt update -y && apt install groff -y;rm -rf debug;mkdir -p debug;cd debug;cmake ..  $BUILD_HTTP_OPT -DCOVER=true -DBUILD_TOOLS=true -DBUILD_TEST=true -DWEBSOCKET=true   -DBUILD_SANITIZER=1  -DTOOLS_SANITIZE=true -DCMAKE_BUILD_TYPE=Debug -DTOOLS_BUILD_TYPE=Debug -DBUILD_TAOSX=false -DJEMALLOC_ENABLED=0 -DBUILD_CONTRIB=false;make -j|| exit 1 "
+    -v /security:/security:ro \
+    --rm --ulimit core=-1 tdengine-ci:0.1 sh -c ". /security/salt_env.sh || exit 1;cd $REP_DIR;apt update -y && apt install groff -y;rm -rf debug;mkdir -p debug;cd debug;cmake ..  $BUILD_HTTP_OPT -DCOVER=true -DBUILD_TOOLS=true -DBUILD_TEST=true -DWEBSOCKET=true   -DBUILD_SANITIZER=1  -DTOOLS_SANITIZE=true -DCMAKE_BUILD_TYPE=Debug -DTOOLS_BUILD_TYPE=Debug -DBUILD_TAOSX=false -DJEMALLOC_ENABLED=0 -DBUILD_CONTRIB=false;make -j|| exit 1 "
 
 mv  ${REP_REAL_PATH}/debug  ${WORKDIR}/debugSan
 date
