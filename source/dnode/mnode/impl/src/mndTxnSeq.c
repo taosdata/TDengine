@@ -32,7 +32,7 @@ typedef struct {
 } SMTxnSeqReq;
 
 static int32_t  initTxnSeq(SMnode *pMnode);
-static int32_t  triggerAllocateTxnSeq(SMnode *pMnode, utxn_id_t nextRangeId);
+static int32_t  triggerAllocateTxnSeq(SMnode *pMnode, utxn_id_t nextRangeId, bool checkLeader);
 static int32_t  mndAcquireTxnSeq(SMnode *pMnode, int32_t id, STxnSeqObj **ppObj);
 static void     mndReleaseTxnSeq(SMnode *pMnode, STxnSeqObj *pObj);
 static SSdbRaw *mndTxnSeqActionEncode(STxnSeqObj *pObj);
@@ -43,8 +43,9 @@ static int32_t  mndTxnSeqActionUpdate(SSdb *pSdb, STxnSeqObj *pOld, STxnSeqObj *
 static int32_t  mndProcessTxnSeqAllocReq(SRpcMsg *pReq);
 static int32_t  tSerializeTxnSeq(void *buf, int32_t bufLen, SMTxnSeqReq *pReq, uint32_t *pLen);
 static int32_t  tDeserializeTxnSeq(void *buf, int32_t bufLen, SMTxnSeqReq *pReq);
+static int32_t  mndProcessTxnSeqAllocRsp(SRpcMsg *pReq);
 
-static utxn_id_t currentTxnId = INT64_MAX;
+static utxn_id_t currentTxnId = -1;
 static int32_t   txnAllocReqNum = 0;
 
 int32_t mndInitTxnSeq(SMnode *pMnode) {
@@ -59,7 +60,7 @@ int32_t mndInitTxnSeq(SMnode *pMnode) {
   };
 
   mndSetMsgHandle(pMnode, TDMT_MND_ALLOC_TXN_SEQ, mndProcessTxnSeqAllocReq);
-  mndSetMsgHandle(pMnode, TDMT_MND_ALLOC_TXN_SEQ_RSP, mndTransProcessRsp);
+  mndSetMsgHandle(pMnode, TDMT_MND_ALLOC_TXN_SEQ_RSP, mndProcessTxnSeqAllocRsp);
 
   return sdbSetTable(pMnode->pSdb, table);
 }
@@ -79,7 +80,7 @@ int32_t mndTxnSeqPrepare(SMnode *pMnode) {
     TAOS_RETURN(code);
   }
 
-  code = triggerAllocateTxnSeq(pMnode, allocateRangeId);
+  code = triggerAllocateTxnSeq(pMnode, allocateRangeId, false);
 
 _exit:
   if (code != TSDB_CODE_SUCCESS) {
@@ -88,10 +89,10 @@ _exit:
   TAOS_RETURN(code);
 }
 
-static int32_t triggerAllocateTxnSeq(SMnode *pMnode, utxn_id_t nextRangeId) {
+static int32_t triggerAllocateTxnSeq(SMnode *pMnode, utxn_id_t nextRangeId, bool checkLeader) {
   int32_t code = 0, lino = 0;
   int32_t contLen = 0;
-  if (!mndIsLeader(pMnode)) {
+  if (checkLeader && !mndIsLeader(pMnode)) {
     mWarn("txnSeq, failed at line %d to allocate txn seq since not leader", lino);
     TAOS_RETURN(code);
   }
@@ -117,6 +118,7 @@ static int32_t triggerAllocateTxnSeq(SMnode *pMnode, utxn_id_t nextRangeId) {
   SEpSet  epSet = {0};
   mndGetMnodeEpSet(pMnode, &epSet);
   TAOS_CHECK_EXIT(tmsgSendReq(&epSet, &rpcMsg));
+  mInfo("txnSeq, triggered allocation of txn seq with nextRangeId:%" PRIu64, nextRangeId);
 _exit:
   if (code < 0) {
     mError("failed at line %d to allocate txn seq since %s", lino, tstrerror(code));
@@ -258,17 +260,18 @@ _exit:
 }
 
 static int32_t mndTxnSeqActionInsert(SSdb *pSdb, STxnSeqObj *pObj) {
-  mTrace("txnSeq:%d, perform insert action, row:%p", pObj->id, pObj);
+  mTrace("txnSeq:%d, perform insert action, row:%p, maxRangeId:%" PRIu64, pObj->id, pObj, pObj->maxRangeId);
   return 0;
 }
 
 static int32_t mndTxnSeqActionDelete(SSdb *pSdb, STxnSeqObj *pObj) {
-  mTrace("txnSeq:%d, perform delete action, row:%p", pObj->id, pObj);
+  mTrace("txnSeq:%d, perform delete action, row:%p, maxRangeId:%" PRIu64, pObj->id, pObj, pObj->maxRangeId);
   return 0;
 }
 
 static int32_t mndTxnSeqActionUpdate(SSdb *pSdb, STxnSeqObj *pOld, STxnSeqObj *pNew) {
-  mTrace("txnSeq:%d, perform update action, old row:%p new row:%p", pOld->id, pOld, pNew);
+  mTrace("txnSeq:%d, perform update action, old row:%p new row:%p, old maxRangeId:%" PRIu64 ", new maxRangeId:%" PRIu64,
+         pOld->id, pOld, pNew, pOld->maxRangeId, pNew->maxRangeId);
   taosWLockLatch(&pOld->lock);
   pOld->id = pNew->id;
   pOld->maxRangeId = pNew->maxRangeId;
@@ -363,7 +366,7 @@ utxn_id_t mndGenTxnId(SMnode *pMnode) {
   if (needAlloc) {
     mInfo("txnSeq, currentId:%" PRIu64 " has reached  maxRangeId:%" PRIu64 ", trigger allocation of new range",
           currentTxnId, pObj->maxRangeId);
-    TAOS_CHECK_EXIT(triggerAllocateTxnSeq(pMnode, 0));
+    TAOS_CHECK_EXIT(triggerAllocateTxnSeq(pMnode, 0, true));
   }
 
 _exit:
@@ -392,7 +395,7 @@ static int32_t mndSetCreateTxnSeqCommitLogs(SMnode *pMnode, STrans *pTrans, STxn
 
 static int32_t mndAllocTxnSeq(SMnode *pMnode, SRpcMsg *pReq, utxn_id_t nextTxnRangeMax) {
   int32_t    code = 0, lino = 0;
-  STxnSeqObj obj = {0};
+  STxnSeqObj obj = {.maxRangeId = nextTxnRangeMax};
   STrans    *pTrans = NULL;
 
   TSDB_CHECK_NULL((pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pReq, "alloc-txn-seq")),
@@ -406,7 +409,8 @@ static int32_t mndAllocTxnSeq(SMnode *pMnode, SRpcMsg *pReq, utxn_id_t nextTxnRa
   TAOS_CHECK_EXIT(mndTransPrepare(pMnode, pTrans));
 _exit:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("txnSeq:%" PRIu64 ", failed at line %d to allocate txn seq, since %s", obj.maxRangeId, lino, tstrerror(code));
+    mError("txnSeq:%" PRIu64 ", failed at line %d to allocate txn seq, since %s", obj.maxRangeId, lino,
+           tstrerror(code));
   }
   mndTransDrop(pTrans);
   TAOS_RETURN(code);
@@ -475,5 +479,11 @@ _exit:
   }
   if (pObj) mndReleaseTxnSeq(pMnode, pObj);
 
+  TAOS_RETURN(code);
+}
+
+static int32_t  mndProcessTxnSeqAllocRsp(SRpcMsg *pReq) {
+  int32_t code = 0, lino = 0;
+  mInfo("received txn seq alloc rsp");
   TAOS_RETURN(code);
 }
