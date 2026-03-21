@@ -161,7 +161,7 @@ bool    qTaskIsDone(qTaskInfo_t tinfo);
  */
 int32_t qSetSMAInput(qTaskInfo_t tinfo, const void* pBlocks, size_t numOfBlocks, int32_t type);
 
-void    qUpdateTableTagCacheForTmq(qTaskInfo_t tinfo, const SArray* tableIdList, SArray* cids);
+void    qUpdateTableTagCacheForTmq(qTaskInfo_t tinfo, const SArray* tableIdList, SArray* cids, SArray* cidListArray);
 int32_t qUpdateTableListForTmqScanner(qTaskInfo_t tinfo, const SArray* tableIdList);
 int32_t qDeleteTableListForTmqScanner(qTaskInfo_t tinfo, const SArray* tableIdList);
 int32_t qAddTableListForTmqScanner(qTaskInfo_t tinfo, const SArray* tableIdList);

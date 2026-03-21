@@ -24339,7 +24339,7 @@ static int32_t buildModifyVnodeArray(STranslateContext* pCxt, SAlterTableStmt* p
 
 
 
-static void destoryAlterTbReq(SVAlterTbReq* pReq) {
+static void destroyAlterTbReqInner(SVAlterTbReq* pReq) {
   taosMemoryFree(pReq->tbName);
   taosMemoryFree(pReq->colName);
   taosMemoryFree(pReq->colNewName);
@@ -24377,7 +24377,7 @@ typedef struct SVgroupAlterTableReq {
 
 static void destroyVgroupAlterTableReq(void* data) {
   SVgroupAlterTableReq* p = (SVgroupAlterTableReq*)data;
-  destoryAlterTbReq(p->pReq);
+  destroyAlterTbReqInner(p->pReq);
   taosMemoryFree(p->pReq);
 }
 
@@ -24630,7 +24630,7 @@ static int32_t doRewriteAlterMultiTableTagVal(STranslateContext* pCxt, SQuery* p
       req.pReq->tables = taosArrayInit(10, sizeof(SUpdateTableTagVal));
       if (req.pReq->tables == NULL) {
         tfreeUpdateTableTagVal(&table);
-        destoryAlterTbReq(req.pReq);
+        destroyAlterTbReqInner(req.pReq);
         taosMemoryFreeClear(req.pReq);
         code = TSDB_CODE_OUT_OF_MEMORY;
         goto _error;
@@ -24638,7 +24638,7 @@ static int32_t doRewriteAlterMultiTableTagVal(STranslateContext* pCxt, SQuery* p
       code = taosHashPut(pVgroupReqs, &vgInfo.vgId, sizeof(vgInfo.vgId), &req, sizeof(req));
       if (code != TSDB_CODE_SUCCESS) {
         tfreeUpdateTableTagVal(&table);
-        destoryAlterTbReq(req.pReq);
+        destroyAlterTbReqInner(req.pReq);
         taosMemoryFree(req.pReq);
         goto _error;
       }
@@ -25023,7 +25023,7 @@ static int32_t rewriteAlterTableImpl(STranslateContext* pCxt, SAlterTableStmt* p
   if (TSDB_CODE_SUCCESS == code) {
     code = rewriteToVnodeModifyOpStmt(pQuery, pArray);
   }
-  destoryAlterTbReq(&req);
+  destroyAlterTbReqInner(&req);
   return code;
 }
 

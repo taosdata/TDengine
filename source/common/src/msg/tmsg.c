@@ -15707,6 +15707,15 @@ _exit:
   return code;
 }
 
+void destroyAlterTbReq(SVAlterTbReq* pReq) {
+  taosArrayDestroy(pReq->pMultiTag);
+  for (int32_t i = 0; i < taosArrayGetSize(pReq->tables); i++) {
+    SUpdateTableTagVal* pTable = taosArrayGet(pReq->tables, i);
+    taosArrayDestroy(pTable->tags);
+  }
+  taosArrayDestroy(pReq->tables);
+}
+
 int32_t tDecodeSVAlterTbReq(SDecoder *pDecoder, SVAlterTbReq *pReq) {
   int32_t code = 0;
   int32_t lino;

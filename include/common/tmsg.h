@@ -5052,6 +5052,7 @@ typedef struct SVAlterTbReq {
 
 int32_t tEncodeSVAlterTbReq(SEncoder* pEncoder, const SVAlterTbReq* pReq);
 int32_t tDecodeSVAlterTbReq(SDecoder* pDecoder, SVAlterTbReq* pReq);
+void    destroyAlterTbReq(SVAlterTbReq* pReq);
 int32_t tDecodeSVAlterTbReqSetCtime(SDecoder* pDecoder, SVAlterTbReq* pReq, int64_t ctimeMs);
 void    tfreeMultiTagUpateVal(void* pMultiTag);
 void    tfreeUpdateTableTagVal(void* pMultiTable);
