@@ -269,6 +269,10 @@ Currently supported built-in actions:
 - `kafka/produce`: Publish data to Kafka Broker
 Each action can receive parameters via the with field, with content varying by action type.
 
+:::note
+`tdengine/insert-data` was the old name used in v0.7.x and earlier. Using it from v0.8.0 onward will show: "Action 'tdengine/insert-data' is deprecated and will be removed in future versions. Please use 'tdengine/insert' instead". This name is no longer supported as of v0.8.3 (corresponding to TDengine TSDB 3.3.6.39/3.3.8.16/3.4.0.2).
+:::
+
 ### Format for Creating TDengine Database Action
 
 The `tdengine/create-database` action creates a new database on the specified TDengine server. With connection info and database parameters, users can easily define database properties such as name, whether to drop if exists, time precision, etc.

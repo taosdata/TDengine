@@ -39,6 +39,5 @@ sql.y
 sql.c
 
 tsdbRead2.c
-streamTriggerTask.c
 planOptimizer.c
 parTranslater.c
