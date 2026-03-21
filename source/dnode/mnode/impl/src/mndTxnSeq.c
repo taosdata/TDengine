@@ -66,15 +66,17 @@ int32_t mndInitTxnSeq(SMnode *pMnode) {
 
 void mndCleanupTxnSeq(SMnode *pMnode) {}
 
-int32_t mndTxnSeqBecomeLeader(SMnode *pMnode) {
+int32_t mndTxnSeqPrepare(SMnode *pMnode) {
   int32_t     code = 0, lino = 0;
   STxnSeqObj *pObj = NULL;
-  int32_t     id = 0;  // fixed id for txn seq object
   utxn_id_t   allocateRangeId = TXN_ID_RANGE_STEP;
-  if ((code = mndAcquireTxnSeq(pMnode, id, &pObj)) == 0) {
+  if ((code = mndAcquireTxnSeq(pMnode, 0, &pObj)) == 0) {
     currentTxnId = pObj->maxRangeId;
     allocateRangeId = pObj->maxRangeId + TXN_ID_RANGE_STEP;
     mndReleaseTxnSeq(pMnode, pObj);
+  } else if (code != TSDB_CODE_TXN_NOT_EXIST) {
+    mError("txnSeq, failed at line %d to acquire txn seq since %s", lino, tstrerror(code));
+    TAOS_RETURN(code);
   }
 
   code = triggerAllocateTxnSeq(pMnode, allocateRangeId);
@@ -83,7 +85,7 @@ _exit:
   if (code != TSDB_CODE_SUCCESS) {
     mWarn("txnSeq, failed at line %d to init txn seq since %s", lino, tstrerror(code));
   }
-  return code;
+  TAOS_RETURN(code);
 }
 
 static int32_t triggerAllocateTxnSeq(SMnode *pMnode, utxn_id_t nextRangeId) {
@@ -91,7 +93,7 @@ static int32_t triggerAllocateTxnSeq(SMnode *pMnode, utxn_id_t nextRangeId) {
   int32_t contLen = 0;
   if (!mndIsLeader(pMnode)) {
     mWarn("txnSeq, failed at line %d to allocate txn seq since not leader", lino);
-    return code;
+    TAOS_RETURN(code);
   }
 
   SMTxnSeqReq req = {.rangeId = nextRangeId};
@@ -368,7 +370,7 @@ _exit:
   taosWUnLockLatch(&pObj->lock);
   if (code != TSDB_CODE_SUCCESS) {
     mError("txnSeq, failed at line %d to generate txn id since %s", lino, tstrerror(code));
-    return code;
+    TAOS_RETURN(code);
   }
   return nextId;
 }

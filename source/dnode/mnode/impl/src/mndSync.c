@@ -317,7 +317,14 @@ void mndRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) {
   } else {
     mInfo("vgId:1, sync restore finished");
   }
-  int32_t code = mndRefreshUserIpWhiteList(pMnode);
+
+  int32_t code = mndTxnSeqPrepare(pMnode);
+  if (code != 0) {
+    mError("vgId:1, failed to prepare txn seq since %s", tstrerror(code));
+    mndSetRestored(pMnode, false);
+  }
+
+  code = mndRefreshUserIpWhiteList(pMnode);
   if (code != 0) {
     mError("vgId:1, failed to refresh user ip white list since %s", tstrerror(code));
     mndSetRestored(pMnode, false);
@@ -438,7 +445,6 @@ static void mndBecomeLeader(const SSyncFSM *pFsm) {
   mInfo("vgId:1, becomeleader callback");
   SMnode *pMnode = pFsm->data;
 
-  mndTxnSeqBecomeLeader(pMnode);
   msmHandleBecomeLeader(pMnode);
   mndXnodeHandleBecomeLeader(pMnode);
 }

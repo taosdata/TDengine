@@ -26,7 +26,7 @@ extern "C" {
 
 int32_t   mndInitTxnSeq(SMnode *pMnode);
 void      mndCleanupTxnSeq(SMnode *pMnode);
-int32_t   mndTxnSeqBecomeLeader(SMnode *pMnode);
+int32_t   mndTxnSeqPrepare(SMnode *pMnode);
 utxn_id_t mndGenTxnId(SMnode *pMnode);
 
 
