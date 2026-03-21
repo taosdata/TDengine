@@ -48,7 +48,7 @@ int32_t genericRspCallback(void* param, SDataBuf* pMsg, int32_t code) {
   }
 
   taosMemoryFree(pMsg->pEpSet);
-  taosMemoryFree(pMsg->pData);
+  rpcFreeCont(pMsg->pData);
   if (pRequest->body.queryFp != NULL) {
     doRequestCallback(pRequest, code);
   } else {
@@ -225,7 +225,7 @@ End:
 EXIT:
   taosMemoryFree(param);
   taosMemoryFree(pMsg->pEpSet);
-  taosMemoryFree(pMsg->pData);
+  rpcFreeCont(pMsg->pData);
   return code;
 }
 
@@ -246,7 +246,7 @@ SMsgSendInfo* buildMsgInfoImpl(SRequestObj* pRequest) {
 int32_t processCreateDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
   // todo rsp with the vnode id list
   SRequestObj* pRequest = param;
-  taosMemoryFree(pMsg->pData);
+  rpcFreeCont(pMsg->pData);
   taosMemoryFree(pMsg->pEpSet);
   if (code != TSDB_CODE_SUCCESS) {
     setErrno(pRequest, code);
@@ -309,7 +309,7 @@ int32_t processUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
   }
 
   if (code != TSDB_CODE_SUCCESS) {
-    taosMemoryFree(pMsg->pData);
+    rpcFreeCont(pMsg->pData);
     taosMemoryFree(pMsg->pEpSet);
     setErrno(pRequest, code);
 
@@ -331,7 +331,7 @@ int32_t processUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
   }
 
   if (strlen(usedbRsp.db) == 0) {
-    taosMemoryFree(pMsg->pData);
+    rpcFreeCont(pMsg->pData);
     taosMemoryFree(pMsg->pEpSet);
 
     if (usedbRsp.errCode != 0) {
@@ -391,7 +391,7 @@ int32_t processUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
 
   setConnectionDB(pRequest->pTscObj, db);
 
-  taosMemoryFree(pMsg->pData);
+  rpcFreeCont(pMsg->pData);
   taosMemoryFree(pMsg->pEpSet);
 
   if (pRequest->body.queryFp != NULL) {
@@ -411,7 +411,7 @@ int32_t processCreateSTableRsp(void* param, SDataBuf* pMsg, int32_t code) {
   }
   if (param == NULL) {
     taosMemoryFree(pMsg->pEpSet);
-    taosMemoryFree(pMsg->pData);
+    rpcFreeCont(pMsg->pData);
     tscError("processCreateSTableRsp: invalid input param, param is NULL");
     return TSDB_CODE_TSC_INVALID_INPUT;
   }
@@ -437,7 +437,7 @@ int32_t processCreateSTableRsp(void* param, SDataBuf* pMsg, int32_t code) {
   }
 
   taosMemoryFree(pMsg->pEpSet);
-  taosMemoryFree(pMsg->pData);
+  rpcFreeCont(pMsg->pData);
 
   if (pRequest->body.queryFp != NULL) {
     SExecResult* pRes = &pRequest->body.resInfo.execRes;
@@ -496,7 +496,7 @@ int32_t processDropDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
     }
   }
 
-  taosMemoryFree(pMsg->pData);
+  rpcFreeCont(pMsg->pData);
   taosMemoryFree(pMsg->pEpSet);
 
   if (pRequest->body.queryFp != NULL) {
@@ -529,7 +529,7 @@ int32_t processAlterStbRsp(void* param, SDataBuf* pMsg, int32_t code) {
     pRequest->body.resInfo.execRes.res = alterRsp.pMeta;
   }
 
-  taosMemoryFree(pMsg->pData);
+  rpcFreeCont(pMsg->pData);
   taosMemoryFree(pMsg->pEpSet);
 
   if (pRequest->body.queryFp != NULL) {
@@ -724,7 +724,7 @@ int32_t processShowVariablesRsp(void* param, SDataBuf* pMsg, int32_t code) {
     tFreeSShowVariablesRsp(&rsp);
   }
 
-  taosMemoryFree(pMsg->pData);
+  rpcFreeCont(pMsg->pData);
   taosMemoryFree(pMsg->pEpSet);
 
   if (pRequest->body.queryFp != NULL) {
@@ -879,7 +879,7 @@ int32_t processCompactDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
     }
   }
 
-  taosMemoryFree(pMsg->pData);
+  rpcFreeCont(pMsg->pData);
   taosMemoryFree(pMsg->pEpSet);
 
   if (pRequest->body.queryFp != NULL) {
@@ -1034,7 +1034,7 @@ static int32_t processScanDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
     }
   }
 
-  taosMemoryFree(pMsg->pData);
+  rpcFreeCont(pMsg->pData);
   taosMemoryFree(pMsg->pEpSet);
 
   if (pRequest->body.queryFp != NULL) {
@@ -1068,7 +1068,7 @@ int32_t processTrimDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
     }
   }
 
-  taosMemoryFree(pMsg->pData);
+  rpcFreeCont(pMsg->pData);
   taosMemoryFree(pMsg->pEpSet);
 
   if (pRequest->body.queryFp != NULL) {
@@ -1219,7 +1219,7 @@ int32_t processCreateTokenRsp(void* param, SDataBuf* pMsg, int32_t code) {
     }
   }
 
-  taosMemoryFree(pMsg->pData);
+  rpcFreeCont(pMsg->pData);
   taosMemoryFree(pMsg->pEpSet);
 
   if (pRequest->body.queryFp != NULL) {
@@ -1347,7 +1347,7 @@ int32_t processCreateTotpSecretRsp(void* param, SDataBuf* pMsg, int32_t code) {
     }
   }
 
-  taosMemoryFree(pMsg->pData);
+  rpcFreeCont(pMsg->pData);
   taosMemoryFree(pMsg->pEpSet);
 
   if (pRequest->body.queryFp != NULL) {

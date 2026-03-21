@@ -1264,7 +1264,7 @@ int32_t schHandleJobRetry(SSchJob *pJob, SSchTask *pTask, SDataBuf *pMsg, int32_
   int32_t code = 0;
   bool    inRetry = false;
 
-  taosMemoryFreeClear(pMsg->pData);
+  rpcFreeCont(pMsg->pData);
   taosMemoryFreeClear(pMsg->pEpSet);
 
   SCH_UNLOCK_TASK(pTask);

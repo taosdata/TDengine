@@ -39,6 +39,7 @@
 #include "thash.h"
 #include "tmsg.h"
 #include "tqueue.h"
+#include "trpc.h"
 
 extern SDataSinkStat gDataSinkStat;
 SHashObj*            gStreamGrpTableHash = NULL;
@@ -540,7 +541,7 @@ _return:
   tDecoderClear(&coder);
   TAOS_UNUSED(tsem_post(&pInserter->ready));
 
-  taosMemoryFree(pMsg->pData);
+  rpcFreeCont(pMsg->pData);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -580,7 +581,7 @@ static int32_t processUseDbRspForInserter(void* param, SDataBuf* pMsg, int32_t c
   QUERY_CHECK_CODE(code, lino, _return);
 
 _return:
-  taosMemoryFreeClear(pMsg->pData);
+  rpcFreeCont(pMsg->pData);
   taosMemoryFreeClear(pMsg->pEpSet);
   if (code != 0){
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
@@ -2750,7 +2751,7 @@ int32_t dropTbCallback(void* param, SDataBuf* pMsg, int32_t code) {
   }
   pCtx->code = code;
   code = tsem_post(&pCtx->ready);
-  taosMemoryFree(pMsg->pData);
+  rpcFreeCont(pMsg->pData);
 
   return TSDB_CODE_SUCCESS;
 }

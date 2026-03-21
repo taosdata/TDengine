@@ -258,6 +258,12 @@ typedef struct SDataBuf {
   SEpSet*  pEpSet;
 } SDataBuf;
 
+void dataBufInit(SDataBuf *pBuf, void *pData, int32_t len, SEpSet *pEpSet); 
+int32_t dataBufDump(SDataBuf *pBuf, void **p, int32_t *len); 
+void  dataBufClear(SDataBuf *pBuf);
+void  dataBufDestroy(SDataBuf *pBuf); 
+int8_t dataBufIsEmpty(SDataBuf *pBuf);  
+
 typedef struct STargetInfo {
   ETargetType type;
   char*       dbFName;  // used to update db's vgroup epset
