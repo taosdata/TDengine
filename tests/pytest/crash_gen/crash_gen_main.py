@@ -1258,13 +1258,28 @@ class Database:
         if 'TIMESTAMP' in col_type_upper:
             return "'{}'".format(self.getNextTick())
 
-        # Integer types (signed)
-        elif col_type_upper in ('INT', 'BIGINT', 'SMALLINT', 'TINYINT'):
-            return str(self.getNextInt())
+        # Integer types (signed) - with proper range limits
+        elif col_type_upper == 'TINYINT':
+            return str(self.getNextInt() % 128)  # -128 to 127, use modulo to stay in range
+        elif col_type_upper == 'SMALLINT':
+            return str(self.getNextInt() % 32768)  # -32768 to 32767
+        elif col_type_upper == 'INT':
+            return str(self.getNextInt() % 2147483648)  # -2147483648 to 2147483647
+        elif col_type_upper == 'BIGINT':
+            return str(self.getNextInt())  # Full range
 
-        # Integer types (unsigned)
+        # Integer types (unsigned) - with proper range limits
+        elif col_type_upper == 'TINYINT UNSIGNED':
+            return str(abs(self.getNextInt()) % 256)  # 0 to 255
+        elif col_type_upper == 'SMALLINT UNSIGNED':
+            return str(abs(self.getNextInt()) % 65536)  # 0 to 65535
+        elif col_type_upper == 'INT UNSIGNED':
+            return str(abs(self.getNextInt()) % 4294967296)  # 0 to 4294967295
+        elif col_type_upper == 'BIGINT UNSIGNED':
+            return str(abs(self.getNextInt()))  # Full range
         elif 'UNSIGNED' in col_type_upper:
-            return str(abs(self.getNextInt()))
+            # Fallback for any other unsigned type
+            return str(abs(self.getNextInt()) % 256)
 
         # Boolean
         elif col_type_upper == 'BOOL':
@@ -1302,7 +1317,7 @@ class Database:
 
         # Default to INT
         else:
-            return str(self.getNextInt())
+            return str(self.getNextInt() % 2147483648)
 
 
 class TaskExecutor():
@@ -2619,11 +2634,82 @@ class TdSuperTable:
                         'TODAY()',
                     ])
 
+                # Add CASE WHEN expressions
+                if numeric_cols:
+                    num_col = Dice.choice(numeric_cols)
+                    expr_list.extend([
+                        f'CASE WHEN {num_col} > 0 THEN 1 ELSE 0 END',
+                        f'CASE WHEN {num_col} > 100 THEN \'high\' WHEN {num_col} > 50 THEN \'medium\' ELSE \'low\' END',
+                    ])
+
+                # Add CAST type conversions
+                if numeric_cols:
+                    num_col = Dice.choice(numeric_cols)
+                    expr_list.extend([
+                        f'CAST({num_col} AS BIGINT)',
+                        f'CAST({num_col} AS DOUBLE)',
+                        f'CAST({num_col} AS BINARY(16))',
+                    ])
+
                 commonExpr = Dice.choice(expr_list)
                 ret.append(SqlQuery(  # reg table
                     "select {} from {}.{}".format(commonExpr, self._dbName, rTbName)))
                 ret.append(SqlQuery(  # super table
                     "select {} from {}.{}".format(commonExpr, self._dbName, self.getName())))
+
+                # 添加 WHERE 条件查询（20% 概率）
+                if Dice.throw(5) == 0:
+                    where_conditions = []
+
+                    # IS NULL / IS NOT NULL
+                    if numeric_cols:
+                        col = Dice.choice(numeric_cols)
+                        where_conditions.extend([
+                            f'{col} IS NULL',
+                            f'{col} IS NOT NULL',
+                        ])
+
+                    # BETWEEN
+                    if numeric_cols:
+                        col = Dice.choice(numeric_cols)
+                        where_conditions.append(f'{col} BETWEEN 0 AND 100')
+
+                    # IN
+                    if numeric_cols:
+                        col = Dice.choice(numeric_cols)
+                        where_conditions.append(f'{col} IN (1, 2, 3, 5, 10)')
+
+                    # LIKE
+                    if string_cols:
+                        col = Dice.choice(string_cols)
+                        where_conditions.extend([
+                            f"{col} LIKE '%test%'",
+                            f"{col} LIKE 'device%'",
+                        ])
+
+                    if where_conditions:
+                        where_cond = Dice.choice(where_conditions)
+                        sql = f"SELECT * FROM {self._dbName}.{self.getName()} WHERE {where_cond} LIMIT 100"
+                        ret.append(SqlQuery(sql))
+
+                # 添加 SELECT DISTINCT（10% 概率）
+                if Dice.throw(10) == 0:
+                    if string_cols:
+                        col = Dice.choice(string_cols)
+                        sql = f"SELECT DISTINCT {col} FROM {self._dbName}.{self.getName()}"
+                        ret.append(SqlQuery(sql))
+                    elif numeric_cols:
+                        col = Dice.choice(numeric_cols)
+                        sql = f"SELECT DISTINCT {col} FROM {self._dbName}.{self.getName()} LIMIT 100"
+                        ret.append(SqlQuery(sql))
+
+                # 添加 TBNAME 伪列查询（5% 概率）
+                if Dice.throw(20) == 0:
+                    if numeric_cols:
+                        agg_col = Dice.choice(numeric_cols)
+                        sql = f"SELECT tbname, count(*), avg({agg_col}) FROM {self._dbName}.{self.getName()} " \
+                              f"PARTITION BY tbname"
+                        ret.append(SqlQuery(sql))
             else:  # Aggregate query
                 # Build aggregate expression list dynamically
                 agg_list = ['count(*)', 'last_row(*)']
@@ -2710,10 +2796,60 @@ class TdSuperTable:
                         partition_options.append(Dice.choice(tag_cols))
                     partion_expr = Dice.choice(partition_options)
                     sql = sql + ' partition BY ' + partion_expr + ' order by ' + partion_expr
+
+                    # 30% 概率添加 SLIMIT/SOFFSET
+                    if Dice.throw(10) < 3:
+                        slimit = Dice.choice([5, 10, 20])
+                        sql += f' SLIMIT {slimit}'
+                        # 50% 概率添加 SOFFSET
+                        if Dice.throw(2) == 0:
+                            soffset = Dice.choice([0, 5, 10])
+                            sql += f' SOFFSET {soffset}'
+
                     Progress.emit(Progress.QUERY_GROUP_BY)
                     # Logging.info("Executing GROUP-BY query: " + sql)
 
                 ret.append(SqlQuery(sql))
+
+        # 添加 GROUP BY + HAVING 查询（10% 概率）
+        if Dice.throw(10) == 0 and (numeric_cols or string_cols):
+            group_col = Dice.choice(string_cols) if string_cols else Dice.choice(numeric_cols)
+
+            if numeric_cols:
+                agg_col = Dice.choice(numeric_cols)
+                agg_func = Dice.choice(['count(*)', f'sum({agg_col})', f'avg({agg_col})', f'max({agg_col})', f'min({agg_col})'])
+
+                # HAVING 条件
+                having_conditions = [
+                    f'count(*) > 1',
+                    f'sum({agg_col}) > 0',
+                    f'avg({agg_col}) > 0',
+                    f'max({agg_col}) > 0',
+                    f'min({agg_col}) < 1000',
+                ]
+                having_cond = Dice.choice(having_conditions)
+
+                sql = f"SELECT {group_col}, {agg_func} FROM {self._dbName}.{self.getName()} " \
+                      f"GROUP BY {group_col} HAVING {having_cond}"
+                ret.append(SqlQuery(sql))
+
+        # 添加 UNION/UNION ALL 查询（5% 概率）
+        reg_tables = self.getRegTables(dbc)
+        if Dice.throw(20) == 0 and len(reg_tables) >= 2:
+            table1 = Dice.choice(reg_tables)
+            table2 = Dice.choice([t for t in reg_tables if t != table1])
+
+            # 选择一个公共列
+            select_col = '*'
+            if numeric_cols:
+                select_col = Dice.choice(numeric_cols)
+            elif string_cols:
+                select_col = Dice.choice(string_cols)
+
+            union_type = Dice.choice(['UNION', 'UNION ALL'])
+            sql = f"SELECT {select_col} FROM {self._dbName}.{table1} " \
+                  f"{union_type} SELECT {select_col} FROM {self._dbName}.{table2} LIMIT 100"
+            ret.append(SqlQuery(sql))
 
         # 添加 JOIN 查询（10% 概率）
         reg_tables = self.getRegTables(dbc)
@@ -2755,24 +2891,82 @@ class TdSuperTable:
             ret.append(SqlQuery(sql))
 
         # 使用 ply_sql_generator 生成高级查询（10% 概率）
-        if Dice.throw(10) == 0:
+        # 临时注释掉，测试 grammar_based_generator
+        # if Dice.throw(10) == 0:
+        #     try:
+        #         from .ply_sql_generator import OptimizedSQLGenerator
+        #
+        #         # 初始化生成器
+        #         sql_gen = OptimizedSQLGenerator(seed=Dice.seed)
+        #
+        #         # 更新 schema 信息
+        #         sql_gen.databases = [self._dbName]
+        #         sql_gen.tables = self.getRegTables(dbc)
+        #         sql_gen.columns = columns
+        #
+        #         # 生成 1-3 条高级查询
+        #         num_queries = Dice.choice([1, 2, 3])
+        #         for _ in range(num_queries):
+        #             sql, features = sql_gen.generate_from_corpus()
+        #             # 只生成高级查询（JOIN/UNION/子查询/窗口）
+        #             if any(f in features for f in ['join', 'union', 'subquery', 'window', 'partition_by']):
+        #                 ret.append(SqlQuery(sql))
+        #     except Exception as e:
+        #         # 如果生成失败，静默忽略
+        #         pass
+
+        # 使用 SqlYQueryGenerator 生成基于语法树的查询（15% 概率）
+        # 临时注释掉，测试 grammar_based_generator
+        # if Dice.throw(20) < 3:
+        #     try:
+        #         from .sqly_query_generator import SqlYQueryGenerator
+        #
+        #         sqly_gen = SqlYQueryGenerator(seed=Dice.seed)
+        #
+        #         # 构建上下文
+        #         context = {
+        #             'db': self._dbName,
+        #             'table': self.getName(),
+        #             'columns': columns,
+        #             'tags': tags,
+        #             'numeric_cols': numeric_cols,
+        #             'string_cols': string_cols,
+        #             'ts_col': ts_col,
+        #         }
+        #
+        #         # 生成 1-2 个查询
+        #         num_queries = Dice.choice([1, 2])
+        #         for _ in range(num_queries):
+        #             sql = sqly_gen.generate(context)
+        #             ret.append(SqlQuery(sql))
+        #     except Exception as e:
+        #         # 如果生成失败，静默忽略
+        #         pass
+
+        # 使用 GrammarBasedSQLGenerator 生成真正的语法树驱动查询（50% 概率，测试阶段）
+        if Dice.throw(2) == 0:
             try:
-                from .ply_sql_generator import OptimizedSQLGenerator
+                from .grammar_based_generator import get_generator
 
-                # 初始化生成器
-                sql_gen = OptimizedSQLGenerator(seed=Dice.seed)
+                # 20% 概率使用完全语法驱动模式（覆盖所有特性，包括错误 SQL）
+                # 80% 概率使用混合模式（生成正确的 SQL）
+                mode = 'full_grammar' if Dice.throw(5) == 0 else 'hybrid'
 
-                # 更新 schema 信息
-                sql_gen.databases = [self._dbName]
-                sql_gen.tables = self.getRegTables(dbc)
-                sql_gen.columns = columns
+                grammar_gen = get_generator(mode=mode)
 
-                # 生成 1-3 条高级查询
-                num_queries = Dice.choice([1, 2, 3])
+                # 设置上下文
+                grammar_gen.set_context({
+                    'db': self._dbName,
+                    'table': self.getName(),
+                    'columns': columns,
+                    'tags': tags,
+                })
+
+                # 生成 1-2 个查询
+                num_queries = Dice.choice([1, 2])
                 for _ in range(num_queries):
-                    sql, features = sql_gen.generate_from_corpus()
-                    # 只生成高级查询（JOIN/UNION/子查询/窗口）
-                    if any(f in features for f in ['join', 'union', 'subquery', 'window', 'partition_by']):
+                    sql = grammar_gen.generate('query_specification')
+                    if sql and len(sql) > 10:  # 确保生成了有效 SQL
                         ret.append(SqlQuery(sql))
             except Exception as e:
                 # 如果生成失败，静默忽略
