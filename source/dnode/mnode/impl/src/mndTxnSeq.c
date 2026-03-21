@@ -61,14 +61,12 @@ int32_t mndInitTxnSeq(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_ALLOC_TXN_SEQ, mndProcessTxnSeqAllocReq);
   mndSetMsgHandle(pMnode, TDMT_MND_ALLOC_TXN_SEQ_RSP, mndTransProcessRsp);
 
-  TAOS_CHECK_RETURN(sdbSetTable(pMnode->pSdb, table));
-
-  return initTxnSeq(pMnode);
+  return sdbSetTable(pMnode->pSdb, table);
 }
 
 void mndCleanupTxnSeq(SMnode *pMnode) {}
 
-static int32_t initTxnSeq(SMnode *pMnode) {
+int32_t mndTxnSeqBecomeLeader(SMnode *pMnode) {
   int32_t     code = 0, lino = 0;
   STxnSeqObj *pObj = NULL;
   int32_t     id = 0;  // fixed id for txn seq object
@@ -291,6 +289,7 @@ int32_t mndAcquireTxnSeq(SMnode *pMnode, int32_t id, STxnSeqObj **ppObj) {
       terrno = TSDB_CODE_APP_ERROR;
       mFatal("txnSeq:%d, failed to acquire txn seq since %s", id, terrstr());
     }
+    TAOS_RETURN(terrno);
   }
   *ppObj = pObj;
   TAOS_RETURN(code);
