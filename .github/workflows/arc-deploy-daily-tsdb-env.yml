@@ -71,7 +71,7 @@ jobs:
 
           CLEAN_BRANCH=$(echo "$BRANCH_NAME" | sed 's/[^a-zA-Z0-9-]/-/g' | tr '[:upper:]' '[:lower:]')
           BUILD_DATE=$(TZ=Asia/Shanghai date +%m%d)
-          IMAGE_TAG="${VERSION_PREFIX}.${BUILD_DATE}"
+          IMAGE_TAG="$CLEAN_BRANCH-latest"
           TSDB_IMAGE="192.168.1.42/tdasset/tsdb-ee:${IMAGE_TAG}"
           RELEASE_NAME="tsdb-${CLEAN_BRANCH}"
           TSDB_HOST="${RELEASE_NAME}-tsdb-br.kube.tdengine.net"
