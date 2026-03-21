@@ -2,7 +2,6 @@ name: ARC::Deploy TSDB Dev
 
 on:
   schedule:
-    - cron: '0 22 * * *'
     - cron: '0 0 * * *'
   workflow_call:
     inputs:
@@ -25,6 +24,8 @@ on:
 
 env:
   K8S_NAMESPACE: tsdb-dev
+  REGISTRY_HOST: 192.168.1.42
+  REGISTRY_REPO: tdasset/tsdb-ee
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name }}-tsdb-dev-${{ github.ref }}
@@ -32,36 +33,26 @@ concurrency:
 
 jobs:
   deploy:
+    name: Deploy tsdb dev (${{ matrix.branch_name }})
     runs-on: tsdb-deploy
+    strategy:
+      fail-fast: false
+      matrix:
+        branch_name: ${{ fromJson(github.event_name == 'schedule' && '["main","3.0"]' || format('["{0}"]', github.event.inputs.branch_name || inputs.branch_name || github.ref_name)) }}
     steps:
       - name: Resolve deployment parameters
         shell: bash
         run: |
           set -euo pipefail
 
-          if [ "${{ github.event_name }}" = "schedule" ]; then
-            case "${{ github.event.schedule }}" in
-              '0 22 * * *')
-                BRANCH_NAME='main'
-                ;;
-              '0 0 * * *')
-                BRANCH_NAME='3.0'
-                ;;
-              *)
-                echo "Unsupported schedule: ${{ github.event.schedule }}"
-                exit 1
-                ;;
-            esac
-          else
-            BRANCH_NAME='${{ github.event.inputs.branch_name || inputs.branch_name || github.ref_name }}'
-          fi
+          BRANCH_NAME='${{ matrix.branch_name }}'
 
           case "$BRANCH_NAME" in
             main)
-              VERSION_PREFIX='3.4.0.0'
+              IMAGE_TAG='main-latest'
               ;;
             3.0)
-              VERSION_PREFIX='3.4.0.100'
+              IMAGE_TAG='3.0-latest'
               ;;
             *)
               echo "Unsupported branch_name: $BRANCH_NAME"
@@ -70,16 +61,12 @@ jobs:
           esac
 
           CLEAN_BRANCH=$(echo "$BRANCH_NAME" | sed 's/[^a-zA-Z0-9-]/-/g' | tr '[:upper:]' '[:lower:]')
-          BUILD_DATE=$(TZ=Asia/Shanghai date +%m%d)
-          IMAGE_TAG="${VERSION_PREFIX}.${BUILD_DATE}"
-          TSDB_IMAGE="192.168.1.42/tdasset/tsdb-ee:${IMAGE_TAG}"
+          TSDB_IMAGE="${REGISTRY_HOST}/${REGISTRY_REPO}:${IMAGE_TAG}"
           RELEASE_NAME="tsdb-${CLEAN_BRANCH}"
           TSDB_HOST="${RELEASE_NAME}-tsdb-br.kube.tdengine.net"
           TSDB_EXPLORER_URL="https://${TSDB_HOST}"
 
           echo "BRANCH_NAME=$BRANCH_NAME" >> "$GITHUB_ENV"
-          echo "VERSION_PREFIX=$VERSION_PREFIX" >> "$GITHUB_ENV"
-          echo "BUILD_DATE=$BUILD_DATE" >> "$GITHUB_ENV"
           echo "IMAGE_TAG=$IMAGE_TAG" >> "$GITHUB_ENV"
           echo "TSDB_IMAGE=$TSDB_IMAGE" >> "$GITHUB_ENV"
           echo "RELEASE_NAME=$RELEASE_NAME" >> "$GITHUB_ENV"
@@ -87,8 +74,7 @@ jobs:
           echo "TSDB_EXPLORER_URL=$TSDB_EXPLORER_URL" >> "$GITHUB_ENV"
 
           echo "Branch: $BRANCH_NAME"
-          echo "Version prefix: $VERSION_PREFIX"
-          echo "Build date: $BUILD_DATE"
+          echo "Image tag: $IMAGE_TAG"
           echo "TSDB image: $TSDB_IMAGE"
           echo "Release name: $RELEASE_NAME"
           echo "TSDB host: $TSDB_HOST"
@@ -160,7 +146,7 @@ jobs:
           message = "\n".join([
               f"TSDB dev deployment {os.environ['STATUS_TEXT']}",
               f"Branch: {os.environ['BRANCH_NAME']}",
-              f"Version: {os.environ['VERSION_PREFIX']}",
+              f"Image tag: {os.environ['IMAGE_TAG']}",
               f"Image: {os.environ['TSDB_IMAGE']}",
               f"Release: {os.environ['RELEASE_NAME']}",
               f"Explorer: {os.environ['TSDB_EXPLORER_URL']}",
