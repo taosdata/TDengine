@@ -4935,6 +4935,7 @@ static int32_t getGroupByErrorCode(STranslateContext* pCxt) {
   return TSDB_CODE_PAR_INVALID_OPTR_USAGE;
 }
 
+static void partExprTraceLogNode(const char* stage, SNode* pNode, SNode* pPartKey);
 static EDealRes rewriteColToSelectValFunc(STranslateContext* pCxt, SNode** pNode) {
   SFunctionNode* pFunc = NULL;
   SExprNode*     p = (SExprNode*)*pNode;
@@ -4962,6 +4963,7 @@ static EDealRes rewriteColToSelectValFunc(STranslateContext* pCxt, SNode** pNode
     pCxt->errCode = getFuncInfo(pCxt, pFunc);
   }
   if (TSDB_CODE_SUCCESS == pCxt->errCode) {
+    partExprTraceLogNode("selectval.apply", *pNode, NULL);
     *pNode = (SNode*)pFunc;
     ((SSelectStmt*)pCxt->pCurrStmt)->hasSelectValFunc = true;
   } else {
@@ -5209,6 +5211,29 @@ static bool IsEqualTbNameFuncNode(SSelectStmt* pSelect, SNode* pFunc1, SNode* pF
   return false;
 }
 
+static const char* partExprTraceNodeName(SNode* pNode) {
+  if (NULL == pNode) {
+    return "(null)";
+  }
+
+  if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+    return ((SColumnNode*)pNode)->colName;
+  }
+
+  if (QUERY_NODE_FUNCTION == nodeType(pNode)) {
+    return ((SFunctionNode*)pNode)->functionName;
+  }
+
+  return ((SExprNode*)pNode)->aliasName;
+}
+
+static void partExprTraceLogNode(const char* stage, SNode* pNode, SNode* pPartKey) {
+  parserError("PART_EXPR_TRACE parser.%s nodeType:%d nodeName:%s alias:%s partType:%d partName:%s partAlias:%s",
+              stage, pNode ? nodeType(pNode) : -1, partExprTraceNodeName(pNode),
+              pNode ? ((SExprNode*)pNode)->aliasName : "(null)", pPartKey ? nodeType(pPartKey) : -1,
+              partExprTraceNodeName(pPartKey), pPartKey ? ((SExprNode*)pPartKey)->aliasName : "(null)");
+}
+
 static EDealRes doCheckExprForGroupBy(SNode** pNode, void* pContext) {
   STranslateContext* pCxt = (STranslateContext*)pContext;
   SSelectStmt*       pSelect = (SSelectStmt*)pCxt->pCurrStmt;
@@ -5248,6 +5273,7 @@ static EDealRes doCheckExprForGroupBy(SNode** pNode, void* pContext) {
   bool   partionByTbname = hasTbnameFunction(pSelect->pPartitionByList);
   FOREACH(pPartKey, pSelect->pPartitionByList) {
     if (nodesEqualNode(pPartKey, *pNode)) {
+      partExprTraceLogNode("groupby.partition_hit", *pNode, pPartKey);
       return (pSelect->hasAggFuncs || pSelect->pWindow) ? rewriteExprToGroupKeyFunc(pCxt, pNode)
                                                         : DEAL_RES_IGNORE_CHILD;
     }
@@ -5256,6 +5282,7 @@ static EDealRes doCheckExprForGroupBy(SNode** pNode, void* pContext) {
       return rewriteExprToGroupKeyFunc(pCxt, pNode);
     }
     if (IsEqualTbNameFuncNode(pSelect, pPartKey, *pNode)) {
+      partExprTraceLogNode("groupby.tbname_hit", *pNode, pPartKey);
       return rewriteExprToGroupKeyFunc(pCxt, pNode);
     }
   }
@@ -5320,6 +5347,7 @@ static EDealRes rewriteColsToSelectValFuncImpl(SNode** pNode, void* pContext) {
     return DEAL_RES_IGNORE_CHILD;
   }
   if (isScanPseudoColumnFunc(*pNode) || QUERY_NODE_COLUMN == nodeType(*pNode)) {
+    partExprTraceLogNode("selectval.candidate", *pNode, NULL);
     return rewriteColToSelectValFunc((STranslateContext*)pContext, pNode);
   }
   return DEAL_RES_CONTINUE;
@@ -5359,14 +5387,15 @@ static EDealRes doCheckAggColCoexist(SNode** pNode, void* pContext) {
     pCxt->hasColFunc = true;
   }
 
-  SNode* pPartKey = NULL;
   bool   partionByTbname = false;
   if (fromSingleTable(((SSelectStmt*)pCxt->pTranslateCxt->pCurrStmt)->pFromTable) ||
       hasTbnameFunction(((SSelectStmt*)pCxt->pTranslateCxt->pCurrStmt)->pPartitionByList)) {
     partionByTbname = true;
   }
+  SNode* pPartKey = NULL;
   FOREACH(pPartKey, ((SSelectStmt*)pCxt->pTranslateCxt->pCurrStmt)->pPartitionByList) {
     if (nodesEqualNode(pPartKey, *pNode)) {
+      partExprTraceLogNode("coexist.partition_hit", *pNode, pPartKey);
       return rewriteExprToGroupKeyFunc(pCxt->pTranslateCxt, pNode);
     }
   }

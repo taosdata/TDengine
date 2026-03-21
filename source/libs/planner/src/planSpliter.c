@@ -458,6 +458,65 @@ static int32_t stbSplRewriteFuns(const SNodeList* pFuncs, SNodeList** pPartialFu
   return TSDB_CODE_SUCCESS;
 }
 
+static SNode* stbSplGetGroupKeyExpr(SNode* pGroupKey) {
+  if (NULL == pGroupKey) {
+    return NULL;
+  }
+
+  if (QUERY_NODE_GROUPING_SET == nodeType(pGroupKey)) {
+    return nodesListGetNode(((SGroupingSetNode*)pGroupKey)->pParameterList, 0);
+  }
+
+  return pGroupKey;
+}
+
+static int32_t stbSplRewriteMergeGroupKeyParams(const SNodeList* pOrigFuncs, const SNodeList* pOrigGroupKeys,
+                                                const SNodeList* pMergeGroupKeys, SNodeList* pMergeFuncs) {
+  if (NULL == pOrigFuncs || NULL == pOrigGroupKeys || NULL == pMergeGroupKeys || NULL == pMergeFuncs) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SListCell* pOrigFuncCell = pOrigFuncs->pHead;
+  SListCell* pMergeFuncCell = pMergeFuncs->pHead;
+  while (NULL != pOrigFuncCell && NULL != pMergeFuncCell) {
+    SFunctionNode* pOrigFunc = (SFunctionNode*)pOrigFuncCell->pNode;
+    SFunctionNode* pMergeFunc = (SFunctionNode*)pMergeFuncCell->pNode;
+
+    if (QUERY_NODE_FUNCTION == nodeType((SNode*)pOrigFunc) && QUERY_NODE_FUNCTION == nodeType((SNode*)pMergeFunc) &&
+        FUNCTION_TYPE_GROUP_KEY == pOrigFunc->funcType) {
+      SNode* pOrigParam = nodesListGetNode(pOrigFunc->pParameterList, 0);
+      int32_t index = 0;
+      SNode* pGroupKey = NULL;
+      FOREACH(pGroupKey, pOrigGroupKeys) {
+        SNode* pGroupExpr = stbSplGetGroupKeyExpr(pGroupKey);
+        if (NULL != pGroupExpr && nodesEqualNode(pOrigParam, pGroupExpr)) {
+          SNode* pMergeGroupKey = nodesListGetNode((SNodeList*)pMergeGroupKeys, index);
+          SListCell* pParamCell = nodesListGetCell(pMergeFunc->pParameterList, 0);
+          if (NULL == pMergeGroupKey || NULL == pParamCell) {
+            return TSDB_CODE_PLAN_INTERNAL_ERROR;
+          }
+
+          SNode* pNewParam = NULL;
+          int32_t code = nodesCloneNode(pMergeGroupKey, &pNewParam);
+          if (TSDB_CODE_SUCCESS != code) {
+            return code;
+          }
+
+          nodesDestroyNode(pParamCell->pNode);
+          pParamCell->pNode = pNewParam;
+          break;
+        }
+        ++index;
+      }
+    }
+
+    pOrigFuncCell = pOrigFuncCell->pNext;
+    pMergeFuncCell = pMergeFuncCell->pNext;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t stbSplAppendWStart(SNodeList** pFuncs, int32_t* pIndex, uint8_t precision) {
   int32_t index = 0;
   SNode*  pFunc = NULL;
@@ -1012,6 +1071,7 @@ static int32_t stbSplCreatePartAggNode(SAggLogicNode* pMergeAgg, SLogicNode** pO
   splSetParent((SLogicNode*)pPartAgg);
 
   PLAN_ERR_JRET(stbSplRewriteFuns(pFunc, &pPartAgg->pAggFuncs, NULL, &pMergeAgg->pAggFuncs));
+  PLAN_ERR_JRET(stbSplRewriteMergeGroupKeyParams(pFunc, pGroupKeys, pMergeAgg->pGroupKeys, pMergeAgg->pAggFuncs));
 
   PLAN_ERR_JRET(createColumnByRewriteExprs(pPartAgg->pAggFuncs, &pPartAgg->node.pTargets));
 

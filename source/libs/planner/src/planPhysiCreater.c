@@ -46,6 +46,8 @@ static int32_t getSlotKeyHelper(SNode* pNode, const char* pPreName, const char* 
   if (!*ppKey) {
     return terrno;
   }
+  planError("PART_EXPR_TRACE key_helper.enter type:%d pre:%s name:%s callocLen:%d extra:%u nodeType:%d", slotKeyType,
+            pPreName ? pPreName : "(null)", name ? name : "(null)", callocLen, extraBufLen, nodeType(pNode));
   if (slotKeyType == SLOT_KEY_TYPE_ALL) {
     TAOS_STRNCAT(*ppKey, pPreName, TSDB_TABLE_NAME_LEN);
     TAOS_STRNCAT(*ppKey, ".", 2);
@@ -55,6 +57,7 @@ static int32_t getSlotKeyHelper(SNode* pNode, const char* pPreName, const char* 
     TAOS_STRNCAT(*ppKey, name, TSDB_COL_NAME_LEN);
     *pLen = strlen(*ppKey);
   }
+  planError("PART_EXPR_TRACE key_helper.leave type:%d out:%s len:%d", slotKeyType, *ppKey ? *ppKey : "(null)", *pLen);
 
   return code;
 }
@@ -397,14 +400,14 @@ static void dumpSlots(const char* pName, SHashObj* pHash) {
   if (NULL == pHash) {
     return;
   }
-  planDebug("%s", pName);
+  planError("PART_EXPR_TRACE dump.begin %s", pName);
   void* pIt = taosHashIterate(pHash, NULL);
   while (NULL != pIt) {
     size_t len = 0;
     char*  pKey = taosHashGetKey(pIt, &len);
     char   name[TSDB_TABLE_NAME_LEN + TSDB_COL_NAME_LEN] = {0};
     strncpy(name, pKey, len);
-    planDebug("\tslot name = %s", name);
+    planError("PART_EXPR_TRACE dump.slot name:%s len:%zu", name, len);
     pIt = taosHashIterate(pHash, pIt);
   }
 }
@@ -418,6 +421,15 @@ static EDealRes doSetSlotId(SNode* pNode, void* pContext) {
     if (TSDB_CODE_SUCCESS != pCxt->errCode) {
       return DEAL_RES_ERROR;
     }
+    planError("PART_EXPR_TRACE slot.enter db:%s table:%s tableAlias:%s refDb:%s refTable:%s refCol:%s "
+              "col:%s alias:%s hasRef:%d hasDep:%d projRefIdx:%d rel:%d resIdx:%d tableId:%" PRId64
+              " colId:%d dataBlockId:%" PRId64 " slotId:%d key:%s len:%d",
+              ((SColumnNode*)pNode)->dbName, ((SColumnNode*)pNode)->tableName, ((SColumnNode*)pNode)->tableAlias,
+              ((SColumnNode*)pNode)->refDbName, ((SColumnNode*)pNode)->refTableName, ((SColumnNode*)pNode)->refColName,
+              ((SColumnNode*)pNode)->colName, ((SExprNode*)pNode)->aliasName,
+              ((SColumnNode*)pNode)->hasRef, ((SColumnNode*)pNode)->hasDep, ((SColumnNode*)pNode)->projRefIdx,
+              ((SExprNode*)pNode)->relatedTo, ((SColumnNode*)pNode)->resIdx, ((SColumnNode*)pNode)->tableId, ((SColumnNode*)pNode)->colId,
+              ((SColumnNode*)pNode)->dataBlockId, ((SColumnNode*)pNode)->slotId, name, len);
     SSlotIndex* pIndex = NULL;
     if (((SColumnNode*)pNode)->projRefIdx > 0) {
       snprintf(name + strlen(name), 16, "_%d", ((SColumnNode*)pNode)->projRefIdx);
@@ -457,6 +469,15 @@ static EDealRes doSetSlotId(SNode* pNode, void* pContext) {
     // pIndex is definitely not NULL, otherwise it is a bug
     if (NULL == pIndex) {
       planError("doSetSlotId failed, invalid slot name %s", name);
+      planError("PART_EXPR_TRACE slot.miss db:%s table:%s tableAlias:%s refDb:%s refTable:%s refCol:%s "
+                "col:%s alias:%s hasRef:%d hasDep:%d projRefIdx:%d rel:%d resIdx:%d tableId:%" PRId64
+                " colId:%d dataBlockId:%" PRId64 " slotId:%d key:%s len:%d",
+                ((SColumnNode*)pNode)->dbName, ((SColumnNode*)pNode)->tableName, ((SColumnNode*)pNode)->tableAlias,
+                ((SColumnNode*)pNode)->refDbName, ((SColumnNode*)pNode)->refTableName, ((SColumnNode*)pNode)->refColName,
+                ((SColumnNode*)pNode)->colName, ((SExprNode*)pNode)->aliasName, ((SColumnNode*)pNode)->hasRef,
+                ((SColumnNode*)pNode)->hasDep, ((SColumnNode*)pNode)->projRefIdx, ((SExprNode*)pNode)->relatedTo,
+                ((SColumnNode*)pNode)->resIdx, ((SColumnNode*)pNode)->tableId, ((SColumnNode*)pNode)->colId, ((SColumnNode*)pNode)->dataBlockId,
+                ((SColumnNode*)pNode)->slotId, name, len);
       dumpSlots("left datablock desc", pCxt->pLeftHash);
       dumpSlots("right datablock desc", pCxt->pRightHash);
       pCxt->errCode = TSDB_CODE_PLAN_SLOT_NOT_FOUND;
@@ -545,7 +566,6 @@ static int32_t setNodeSlotId(SPhysiPlanContext* pCxt, int64_t leftDataBlockId, i
     nodesDestroyNode(pRes);
     return cxt.errCode;
   }
-
   *pOutput = pRes;
   return TSDB_CODE_SUCCESS;
 }
@@ -2168,7 +2188,8 @@ static EDealRes doRewritePrecalcExprs(SNode** pNode, void* pContext) {
       return collectAndRewrite(pCxt, pNode);
     }
     case QUERY_NODE_FUNCTION: {
-      if (fmIsScalarFunc(((SFunctionNode*)(*pNode))->funcId)) {
+      SFunctionNode* pFunc = (SFunctionNode*)(*pNode);
+      if (fmIsScalarFunc(pFunc->funcId)) {
         return collectAndRewrite(pCxt, pNode);
       }
       break;
@@ -2346,7 +2367,11 @@ static int32_t createAggPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
   SNodeList* pPrecalcExprs = NULL;
   SNodeList* pGroupKeys = NULL;
   SNodeList* pAggFuncs = NULL;
+  planError("PART_EXPR_TRACE agg.enter groupKeys:%p aggFuncs:%p childType:%d", pAggLogicNode->pGroupKeys,
+            pAggLogicNode->pAggFuncs,
+            nodesListGetNode(pAggLogicNode->node.pChildren, 0) ? nodeType(nodesListGetNode(pAggLogicNode->node.pChildren, 0)) : -1);
   int32_t    code = rewritePrecalcExprs(pCxt, pAggLogicNode->pGroupKeys, &pPrecalcExprs, &pGroupKeys);
+  planError("PART_EXPR_TRACE agg.after_group_rewrite code:%d groupKeys:%p precalc:%p", code, pGroupKeys, pPrecalcExprs);
   if (TSDB_CODE_SUCCESS == code) {
     code = rewritePrecalcExprs(pCxt, pAggLogicNode->pAggFuncs, &pPrecalcExprs, &pAggFuncs);
   }
@@ -2355,10 +2380,14 @@ static int32_t createAggPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
   SDataBlockDescNode* pChildTupe = NULL;
   if (TSDB_CODE_SUCCESS == code) {
     code = getChildTuple(&pChildTupe, pChildren);
+    planError("PART_EXPR_TRACE agg.child_tuple code:%d childTuple:%p dataBlockId:%" PRId64, code, pChildTupe,
+              pChildTupe ? pChildTupe->dataBlockId : -1);
   }
 
   // push down expression to pOutputDataBlockDesc of child node
   if (TSDB_CODE_SUCCESS == code && NULL != pPrecalcExprs) {
+    planError("PART_EXPR_TRACE agg.push_precalc exprs:%p childDataBlockId:%" PRId64, pPrecalcExprs,
+              pChildTupe ? pChildTupe->dataBlockId : -1);
     code = setListSlotId(pCxt, pChildTupe->dataBlockId, -1, pPrecalcExprs, &pAgg->pExprs);
     if (TSDB_CODE_SUCCESS == code) {
       code = pushdownDataBlockSlots(pCxt, pAgg->pExprs, pChildTupe);
@@ -2366,6 +2395,8 @@ static int32_t createAggPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
   }
 
   if (TSDB_CODE_SUCCESS == code && NULL != pGroupKeys) {
+    planError("PART_EXPR_TRACE agg.bind_group_keys groupKeys:%p childDataBlockId:%" PRId64, pGroupKeys,
+              pChildTupe ? pChildTupe->dataBlockId : -1);
     code = setListSlotId(pCxt, pChildTupe->dataBlockId, -1, pGroupKeys, &pAgg->pGroupKeys);
     if (TSDB_CODE_SUCCESS == code) {
       code = addDataBlockSlots(pCxt, pAgg->pGroupKeys, pAgg->node.pOutputDataBlockDesc);
