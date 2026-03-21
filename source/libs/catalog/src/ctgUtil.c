@@ -1701,10 +1701,14 @@ int32_t ctgCloneMetaOutput(STableMetaOutput* output, STableMetaOutput** pOutput)
   if (output->vctbMeta) {
     int32_t metaSize = sizeof(SVCTableMeta);
     int32_t colRefSize = 0;
-    if (hasRefCol(output->vctbMeta->tableType) && (*pOutput)->vctbMeta->colRef) {
+    int32_t tagRefSize = 0;
+    if (hasRefCol(output->vctbMeta->tableType) && output->vctbMeta->colRef) {
       colRefSize = output->vctbMeta->numOfColRefs * sizeof(SColRef);
     }
-    (*pOutput)->vctbMeta = taosMemoryMalloc(metaSize + colRefSize);
+    if (hasRefCol(output->vctbMeta->tableType) && output->vctbMeta->tagRef && output->vctbMeta->numOfTagRefs > 0) {
+      tagRefSize = output->vctbMeta->numOfTagRefs * sizeof(SColRef);
+    }
+    (*pOutput)->vctbMeta = taosMemoryMalloc(metaSize + colRefSize + tagRefSize);
     if (NULL == (*pOutput)->vctbMeta) {
       qError("malloc %d failed", (int32_t)sizeof(STableMetaOutput));
       taosMemoryFreeClear(*pOutput);
@@ -1712,11 +1716,17 @@ int32_t ctgCloneMetaOutput(STableMetaOutput* output, STableMetaOutput** pOutput)
     }
 
     TAOS_MEMCPY((*pOutput)->vctbMeta, output->vctbMeta, metaSize);
-    if (hasRefCol(output->vctbMeta->tableType) && (*pOutput)->vctbMeta->colRef) {
+    if (colRefSize > 0) {
       (*pOutput)->vctbMeta->colRef = (SColRef*)((char*)(*pOutput)->vctbMeta + metaSize);
       TAOS_MEMCPY((*pOutput)->vctbMeta->colRef, output->vctbMeta->colRef, colRefSize);
     } else {
       (*pOutput)->vctbMeta->colRef = NULL;
+    }
+    if (tagRefSize > 0) {
+      (*pOutput)->vctbMeta->tagRef = (SColRef*)((char*)(*pOutput)->vctbMeta + metaSize + colRefSize);
+      TAOS_MEMCPY((*pOutput)->vctbMeta->tagRef, output->vctbMeta->tagRef, tagRefSize);
+    } else {
+      (*pOutput)->vctbMeta->tagRef = NULL;
     }
   }
 

@@ -72,8 +72,9 @@ int32_t virtualScanloadNextDataBlock(void* param, SSDataBlock** ppBlock) {
   if (*ppBlock) {
     SColumnInfoData* p = taosArrayGet((*ppBlock)->pDataBlock, 0);
     QUERY_CHECK_NULL(p, code, line, _return, terrno);
-    // ts column will never have null value. set hasNull = false here can accelerate the sort
-    p->hasNull = false;
+    if (p->info.type == TSDB_DATA_TYPE_TIMESTAMP) {
+      p->hasNull = false;
+    }
   }
 
   return code;
@@ -99,9 +100,14 @@ int32_t getTimeWindowOfBlock(SSDataBlock* pBlock, int64_t* startTs, int64_t* end
 
   SColumnInfoData *pColData = (SColumnInfoData*)taosArrayGet(pBlock->pDataBlock, 0);
   QUERY_CHECK_NULL(pColData, code, lino, _return, terrno)
-  // ts column will never have null value. set hasNull = false here can accelerate the sort
-  pColData->hasNull = false;
 
+  if (pColData->info.type != TSDB_DATA_TYPE_TIMESTAMP) {
+    *startTs = INT64_MIN;
+    *endTs = INT64_MAX;
+    return code;
+  }
+
+  pColData->hasNull = false;
   GET_TYPED_DATA(*startTs, int64_t, TSDB_DATA_TYPE_TIMESTAMP, colDataGetNumData(pColData, 0), 0);
   GET_TYPED_DATA(*endTs, int64_t, TSDB_DATA_TYPE_TIMESTAMP, colDataGetNumData(pColData, pBlock->info.rows - 1), 0);
 
@@ -359,9 +365,14 @@ static int32_t buildFallbackTagListByVtbUid(SOperatorInfo* pOperator, SVirtualTa
       pAPI->metaReaderFn.initReader(&vtbMeta, pInfo->base.readHandle.vnode, META_READER_LOCK, &pAPI->metaFn);
       code = pAPI->metaReaderFn.getTableEntryByName(&vtbMeta, pInfo->vtableName);
       pAPI->metaReaderFn.readerReleaseLock(&vtbMeta);
-      QUERY_CHECK_CODE(code, lino, _return);
+      if (code != TSDB_CODE_SUCCESS) {
+        qDebug("buildFallbackTagListByVtbUid: vtable %s not on local vnode, skip", pInfo->vtableName);
+        pAPI->metaReaderFn.clearReader(&vtbMeta);
+        return TSDB_CODE_SUCCESS;
+      }
     } else {
-      QUERY_CHECK_CODE(code, lino, _return);
+      qDebug("buildFallbackTagListByVtbUid: vtable uid %" PRIu64 " not on local vnode, skip", vtbUid);
+      return TSDB_CODE_SUCCESS;
     }
   }
 
@@ -388,7 +399,44 @@ static int32_t buildFallbackTagListByVtbUid(SOperatorInfo* pOperator, SVirtualTa
 
   for (int32_t i = 0; i < vtbMeta.me.colRef.nTagRefs; ++i) {
     SColRef* pTagRef = &vtbMeta.me.colRef.pTagRef[i];
+
+    const SSchema* pDstTagSchema = NULL;
+    for (int32_t j = 0; j < vtbSuper.me.stbEntry.schemaTag.nCols; ++j) {
+      if (vtbSuper.me.stbEntry.schemaTag.pSchema[j].colId == pTagRef->id) {
+        pDstTagSchema = &vtbSuper.me.stbEntry.schemaTag.pSchema[j];
+        break;
+      }
+    }
+    if (pDstTagSchema == NULL) {
+      continue;
+    }
+
     if (!pTagRef->hasRef) {
+      if (vtbMeta.me.ctbEntry.pTags != NULL) {
+        STagVal litSrc = {.cid = pTagRef->id};
+        STagVal litDst = {.type = pDstTagSchema->type, .cid = pTagRef->id};
+        const char* litP = pAPI->metaFn.extractTagVal(vtbMeta.me.ctbEntry.pTags, litDst.type, &litSrc);
+        if (litP != NULL) {
+          const STagVal* pExtracted = (const STagVal*)litP;
+          if (IS_VAR_DATA_TYPE(litDst.type)) {
+            litDst.nData = pExtracted->nData;
+            litDst.pData = taosMemoryMalloc(litDst.nData);
+            QUERY_CHECK_NULL(litDst.pData, code, lino, _return, terrno);
+            memcpy(litDst.pData, pExtracted->pData, litDst.nData);
+          } else {
+            litDst.i64 = pExtracted->i64;
+          }
+        } else {
+          litDst.nData = -1;
+        }
+        if (NULL == taosArrayPush(pInfo->fallbackTagList, &litDst)) {
+          if (IS_VAR_DATA_TYPE(litDst.type) && litDst.pData) {
+            taosMemoryFreeClear(litDst.pData);
+          }
+          code = terrno;
+          goto _return;
+        }
+      }
       continue;
     }
 
@@ -415,19 +463,6 @@ static int32_t buildFallbackTagListByVtbUid(SOperatorInfo* pOperator, SVirtualTa
       }
     }
     if (pSrcTagSchema == NULL) {
-      pAPI->metaReaderFn.clearReader(&orgSuper);
-      pAPI->metaReaderFn.clearReader(&orgTable);
-      continue;
-    }
-
-    const SSchema* pDstTagSchema = NULL;
-    for (int32_t j = 0; j < vtbSuper.me.stbEntry.schemaTag.nCols; ++j) {
-      if (vtbSuper.me.stbEntry.schemaTag.pSchema[j].colId == pTagRef->id) {
-        pDstTagSchema = &vtbSuper.me.stbEntry.schemaTag.pSchema[j];
-        break;
-      }
-    }
-    if (pDstTagSchema == NULL) {
       pAPI->metaReaderFn.clearReader(&orgSuper);
       pAPI->metaReaderFn.clearReader(&orgTable);
       continue;
@@ -525,7 +560,12 @@ static int32_t buildFallbackTagListFromParam(SOperatorInfo* pOperator, SVirtualT
     pAPI->metaReaderFn.initReader(&orgTable, pInfo->base.readHandle.vnode, META_READER_LOCK, &pAPI->metaFn);
     code = pAPI->metaReaderFn.getTableEntryByName(&orgTable, pTableName);
     pAPI->metaReaderFn.readerReleaseLock(&orgTable);
-    QUERY_CHECK_CODE(code, lino, _return);
+    if (code != TSDB_CODE_SUCCESS) {
+      qDebug("buildFallbackTagListFromParam: source table %s not on local vnode, skip", pTableName);
+      pAPI->metaReaderFn.clearReader(&orgTable);
+      code = TSDB_CODE_SUCCESS;
+      continue;
+    }
 
     if (orgTable.me.type != TSDB_CHILD_TABLE || orgTable.me.ctbEntry.pTags == NULL) {
       pAPI->metaReaderFn.clearReader(&orgTable);
@@ -806,7 +846,7 @@ int32_t openVirtualTableScanOperator(SOperatorInfo* pOperator) {
 static int32_t doGetVtableMergedBlockData(SVirtualScanMergeOperatorInfo* pInfo, SSortHandle* pHandle, int32_t capacity,
                                           SSDataBlock* p) {
   int32_t code = 0;
-  int64_t lastTs = 0;
+  int64_t lastTs = INT64_MIN;
   int64_t rowNums = -1;
   blockDataEmpty(p);
   for (int32_t j = 0; j < taosArrayGetSize(p->pDataBlock); j++) {
@@ -842,7 +882,7 @@ static int32_t doGetVtableMergedBlockData(SVirtualScanMergeOperatorInfo* pInfo, 
             }
             lastTs = *(int64_t*)pData;
           }
-          if (pInfo->virtualScanInfo.useOrgTsCol) {
+          if (pInfo->virtualScanInfo.useOrgTsCol && rowNums >= 0) {
             int64_t slotKey = blockId << 16 | i;
             void*   slotId = tSimpleHashGet(pInfo->virtualScanInfo.dataSlotMap, &slotKey, sizeof(slotKey));
             if (slotId) {
@@ -874,7 +914,7 @@ _return:
 static int32_t doGetVStableMergedBlockData(SVirtualScanMergeOperatorInfo* pInfo, SSortHandle* pHandle, int32_t capacity,
                                            SSDataBlock* p) {
   int32_t code = 0;
-  int64_t lastTs = 0;
+  int64_t lastTs = INT64_MIN;
   int64_t rowNums = -1;
   blockDataEmpty(p);
   for (int32_t j = 0; j < taosArrayGetSize(p->pDataBlock); j++) {
@@ -1143,7 +1183,21 @@ int32_t virtualTableGetNext(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
       qTrace("vtable scan vtb uid:%" PRIu64, (*pResBlock)->info.id.uid);
     }
     pVirtualScanInfo->fallbackTagUid = (*pResBlock)->info.id.uid;
-    VTS_ERR_JRET(buildFallbackTagListByVtbUid(pOperator, pVirtualScanInfo, pVirtualScanInfo->fallbackTagUid));
+
+    if (pOperator->pOperatorGetParam) {
+      SVTableScanOperatorParam* pVParam = (SVTableScanOperatorParam*)pOperator->pOperatorGetParam->value;
+      if (pVParam->pResolvedTags && taosArrayGetSize(pVParam->pResolvedTags) > 0) {
+        if (pVirtualScanInfo->fallbackTagList) {
+          taosArrayDestroyEx(pVirtualScanInfo->fallbackTagList, destroyTagVal);
+        }
+        pVirtualScanInfo->fallbackTagList = pVParam->pResolvedTags;
+        pVParam->pResolvedTags = NULL;
+      } else {
+        VTS_ERR_JRET(buildFallbackTagListByVtbUid(pOperator, pVirtualScanInfo, pVirtualScanInfo->fallbackTagUid));
+      }
+    } else {
+      VTS_ERR_JRET(buildFallbackTagListByVtbUid(pOperator, pVirtualScanInfo, pVirtualScanInfo->fallbackTagUid));
+    }
 
     // Keep literal tags from tag-scan, then overwrite referenced tags from fallback list.
     bool tagAllNull = isSingleRowTagBlockAllNull(pInfo->pSavedTagBlock);

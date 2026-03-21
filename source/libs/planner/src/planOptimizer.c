@@ -786,6 +786,8 @@ static int32_t pdcDealScan(SOptimizeContext* pCxt, SScanLogicNode* pScan) {
 }
 
 static int32_t pdcDealVirtualSuperTableScan(SOptimizeContext* pCxt, SDynQueryCtrlLogicNode* pScan) {
+  planDebug("pdcDealVirtualSuperTableScan ENTER: pConditions=%p, optimizedFlag=0x%x, qType=%d",
+            pScan->node.pConditions, pScan->node.optimizedFlag, pScan->qType);
   if (NULL == pScan->node.pConditions ||
       OPTIMIZE_FLAG_TEST_MASK(pScan->node.optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE)) {
     return TSDB_CODE_SUCCESS;
@@ -832,9 +834,19 @@ static int32_t pdcDealVirtualSuperTableScan(SOptimizeContext* pCxt, SDynQueryCtr
     PLAN_ERR_JRET(pushDownCondOptCalcTimeRange(pCxt, &pOrgScan->scanRange, &pPrimaryKeyCond, &pOtherCond, &pOrgScan->pPrimaryCond));
   }
 
+  // For virtual super tables, referenced tags store NULL in vnode meta,
+  // so tag predicates cannot be pushed down to the system-table scan's
+  // tag filter (doFilterByTagCond). Keep them on the virtual scan node
+  // so they are applied after tag values are resolved from source tables.
+  if (pTagCond) {
+    PLAN_ERR_JRET(nodesMergeNode(&pOtherCond, &pTagCond));
+  }
+  if (pTagIndexCond) {
+    PLAN_ERR_JRET(nodesMergeNode(&pOtherCond, &pTagIndexCond));
+  }
   pVscan->node.pConditions = pOtherCond;
-  pSysScan->pTagCond = pTagCond;
-  pSysScan->pTagIndexCond = pTagIndexCond;
+  planDebug("pdcDealVirtualSuperTableScan: pVscan->node.pConditions=%p (pOtherCond=%p), pTagCond=%p, pTagIndexCond=%p",
+            pVscan->node.pConditions, pOtherCond, pTagCond, pTagIndexCond);
 
   OPTIMIZE_FLAG_SET_MASK(pScan->node.optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE);
   pCxt->optimized = true;
@@ -4179,6 +4191,13 @@ static bool eliminateProjOptMayBeOptimized(SLogicNode* pNode, void* pCtx) {
     SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pNode->pChildren, 0);
     if (LIST_LENGTH(pChild->pTargets) != LIST_LENGTH(pNode->pTargets)) {
       return false;
+    }
+    SNode* pProjTarget = NULL;
+    SNode* pChildTarget = NULL;
+    FORBOTH(pProjTarget, pNode->pTargets, pChildTarget, pChild->pTargets) {
+      if (strcmp(((SColumnNode*)pProjTarget)->colName, ((SColumnNode*)pChildTarget)->colName) != 0) {
+        return false;
+      }
     }
   }
 

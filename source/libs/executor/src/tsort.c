@@ -879,9 +879,26 @@ int32_t msortComparFn(const void* pLeft, const void* pRight, void* param) {
     SBlockOrderInfo* pOrder = TARRAY_GET_ELEM(pInfo, 0);
     SColumnInfoData* pLeftTsCol = TARRAY_GET_ELEM(pLeftBlock->pDataBlock, pOrder->slotId);
     SColumnInfoData* pRightTsCol = TARRAY_GET_ELEM(pRightBlock->pDataBlock, pOrder->slotId);
+
+    bool isVarType = IS_VAR_DATA_TYPE(pLeftTsCol->info.type);
+    if (isVarType) {
+      bool leftNull = (pLeftTsCol->pData == NULL) || colDataIsNull_var(pLeftTsCol, pLeftSource->src.rowIndex);
+      bool rightNull = (pRightTsCol->pData == NULL) || colDataIsNull_var(pRightTsCol, pRightSource->src.rowIndex);
+      if (leftNull && rightNull) return 0;
+      if (leftNull) return pOrder->nullFirst ? -1 : 1;
+      if (rightNull) return pOrder->nullFirst ? 1 : -1;
+      void* left1 = colDataGetVarData(pLeftTsCol, pLeftSource->src.rowIndex);
+      void* right1 = colDataGetVarData(pRightTsCol, pRightSource->src.rowIndex);
+      __compar_fn_t fn = pOrder->compFn;
+      if (!fn) {
+        fn = getKeyComparFunc(pLeftTsCol->info.type, pOrder->order);
+        pOrder->compFn = fn;
+      }
+      return fn(left1, right1);
+    }
+
     int64_t*         leftTs = (int64_t*)(pLeftTsCol->pData) + pLeftSource->src.rowIndex;
     int64_t*         rightTs = (int64_t*)(pRightTsCol->pData) + pRightSource->src.rowIndex;
-
 
     __compar_fn_t fn = pOrder->compFn;
     if (!fn) {

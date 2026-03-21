@@ -1558,6 +1558,15 @@ _return:
 }
 
 
+static int32_t comparePseudoColsByColId(SNode* pNode1, SNode* pNode2) {
+  if (QUERY_NODE_COLUMN != nodeType(pNode1) || QUERY_NODE_COLUMN != nodeType(pNode2)) {
+    return 0;
+  }
+  col_id_t id1 = ((SColumnNode*)pNode1)->colId;
+  col_id_t id2 = ((SColumnNode*)pNode2)->colId;
+  return (id1 < id2) ? -1 : ((id1 > id2) ? 1 : 0);
+}
+
 static int32_t createVirtualTableLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect,
                                            SVirtualTableNode* pVirtualTable, SLogicNode** pLogicNode) {
   int32_t                 code = TSDB_CODE_SUCCESS;
@@ -1577,6 +1586,10 @@ static int32_t createVirtualTableLogicNode(SLogicPlanContext* pCxt, SSelectStmt*
 
   PLAN_ERR_JRET(nodesCollectFuncs(pSelect, SQL_CLAUSE_FROM, pVirtualTable->table.tableAlias, fmIsScanPseudoColumnFunc,
                                   &pVtableScan->pScanPseudoCols));
+
+  if (pVtableScan->pScanPseudoCols) {
+    nodesSortList(&pVtableScan->pScanPseudoCols, comparePseudoColsByColId);
+  }
 
   PLAN_ERR_JRET(rewriteExprsForSelect(pVtableScan->pScanPseudoCols, pSelect, SQL_CLAUSE_FROM, NULL));
 

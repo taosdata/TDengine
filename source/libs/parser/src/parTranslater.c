@@ -6513,6 +6513,9 @@ static int32_t translateVirtualNormalChildTable(STranslateContext* pCxt, SNode**
   TSWAP(pVTable->pMeta, pRealTable->pMeta);
   TSWAP(pVTable->pVgroupList, pRealTable->pVgroupList);
 
+  qInfo("translateVCT: tb=%s tbType=%d tagRef=%p numOfTagRefs=%d colRef=%p numOfColRefs=%d uid=0x%"PRIx64,
+        pVTable->table.tableName, pMeta->tableType, pMeta->tagRef, pMeta->numOfTagRefs,
+        pMeta->colRef, pMeta->numOfColRefs, pMeta->uid);
   pTableNameHash =
       taosHashInit(pMeta->numOfColRefs + pMeta->numOfTagRefs, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
   QUERY_CHECK_NULL(pTableNameHash, code, lino, _return, terrno);

@@ -415,21 +415,35 @@ STableMeta* tableMetaDup(const STableMeta* pTableMeta) {
   size_t schemaExtSize = hasSchemaExt ? pTableMeta->tableInfo.numOfColumns * sizeof(SSchemaExt) : 0;
   bool   hasColRef = pTableMeta->colRef == NULL ? false : true;
   size_t colRefSize = hasColRef ? pTableMeta->numOfColRefs * sizeof(SColRef) : 0;
+  bool   hasTagRef = pTableMeta->tagRef == NULL ? false : true;
+  size_t tagRefSize = hasTagRef ? pTableMeta->numOfTagRefs * sizeof(SColRef) : 0;
 
   size_t      size = sizeof(STableMeta) + numOfFields * sizeof(SSchema);
-  STableMeta* p = taosMemoryMalloc(size + schemaExtSize + colRefSize);
+  STableMeta* p = taosMemoryMalloc(size + schemaExtSize + colRefSize + tagRefSize);
   if (NULL == p) return NULL;
+  qDebug("tableMetaDup: tbType=%d tagRef=%p numOfTagRefs=%d colRef=%p numOfColRefs=%d hasTagRef=%d tagRefSize=%d",
+         pTableMeta->tableType, pTableMeta->tagRef, pTableMeta->numOfTagRefs,
+         pTableMeta->colRef, pTableMeta->numOfColRefs, hasTagRef, (int)tagRefSize);
 
-  memcpy(p, pTableMeta, colRefSize + schemaExtSize + size);
+  memcpy(p, pTableMeta, size);
   if (hasSchemaExt) {
     p->schemaExt = (SSchemaExt*)(((char*)p) + size);
+    memcpy(p->schemaExt, pTableMeta->schemaExt, schemaExtSize);
   } else {
     p->schemaExt = NULL;
   }
   if (hasColRef) {
     p->colRef = (SColRef*)(((char*)p) + size + schemaExtSize);
+    memcpy(p->colRef, pTableMeta->colRef, colRefSize);
   } else {
     p->colRef = NULL;
+  }
+  if (hasTagRef) {
+    p->tagRef = (SColRef*)(((char*)p) + size + schemaExtSize + colRefSize);
+    memcpy(p->tagRef, pTableMeta->tagRef, tagRefSize);
+  } else {
+    p->tagRef = NULL;
+    p->numOfTagRefs = 0;
   }
   return p;
 }

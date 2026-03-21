@@ -116,6 +116,7 @@ typedef struct SVtbScanDynCtrlInfo {
   SHashObj*        existOrgTbVg; // key: vgId, value: NULL
   SHashObj*        curOrgTbVg; // key: vgId, value: NULL
   SMsgCb*          pMsgCb;
+  void*            pVnode;
   SHashObj*        otbNameToOtbInfoMap; // key: orgTbFName, value: SOrgTbInfo
   SHashObj*        otbVgIdToOtbInfoArrayMap; // key: vgId, value: SArray<SOrgTbInfo>
   SHashObj*        vtbUidToVgIdMapMap; // key: vtbUid, value: SHashObj <key: vgId, value: SArray<SOrgTbInfo>>

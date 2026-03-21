@@ -4415,6 +4415,7 @@ typedef struct SVTableScanOperatorParam {
   SOperatorParam* pTagScanOp;
   SArray*         pOpParamArray;  // SArray<SOperatorParam>
   SArray*         pRefColGroups;  // SArray<SRefColIdGroup>
+  SArray*         pResolvedTags;  // SArray<STagVal>, resolved tag values from source tables
 } SVTableScanOperatorParam;
 
 typedef struct SMergeOperatorParam {
