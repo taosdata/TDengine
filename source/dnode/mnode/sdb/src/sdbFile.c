@@ -529,6 +529,9 @@ _OVER:
   if ((ret = taosCloseFile(&pFile)) != 0) {
     mError("failed to close sdb file:%s since %s", file, tstrerror(ret));
   }
+  if(code != 0) {
+    mError("failed to read sdb file:%s since %s", file, tstrerror(code));
+  }
   sdbFreeRaw(pRaw);
 
   TAOS_RETURN(code);

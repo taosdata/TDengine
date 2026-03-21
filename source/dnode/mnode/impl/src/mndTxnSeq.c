@@ -368,8 +368,10 @@ utxn_id_t mndGenTxnId(SMnode *pMnode) {
   if (needAlloc) {
     mInfo("txnSeq, currentId:%" PRIu64 " has reached  maxRangeId:%" PRIu64 ", trigger allocation of new range",
           currentTxnId, pObj->maxRangeId);
-    TAOS_CHECK_EXIT(triggerAllocateTxnSeq(pMnode, 0, true));
+    TAOS_CHECK_EXIT(triggerAllocateTxnSeq(pMnode, pObj->maxRangeId + TXN_ID_RANGE_STEP, true));
   }
+  mTrace("txnSeq, generated txn id:%" PRIu64 ", currentId:%" PRIu64 ", maxRangeId:%" PRIu64, nextId, currentTxnId,
+         pObj->maxRangeId);
 
 _exit:
   taosWUnLockLatch(&pObj->lock);
@@ -401,13 +403,13 @@ static int32_t mndBuildTxnSeqRsp(STxnSeqObj *pObj, int32_t *pRspLen, void **ppRs
   SMTxnSeqRsp rsp = {.rangeId = pObj->maxRangeId};
 
   TAOS_CHECK_EXIT(tSerializeTxnSeq(NULL, 0, &rsp, &contLen));
-  void *pCont = rpcMallocCont(contLen);
+  void *pCont = taosMemoryCalloc(1, contLen);
   if (!pCont) {
     TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
   }
 
   if ((code = tSerializeTxnSeq(pCont, contLen, &rsp, NULL)) < 0) {
-    rpcFreeCont(pCont);
+    taosMemoryFree(pCont);
     TAOS_CHECK_EXIT(code);
   }
   *pRspLen = contLen;
