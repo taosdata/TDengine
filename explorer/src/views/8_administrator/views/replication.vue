@@ -272,7 +272,9 @@ async function addReplication() {
   try {
     requesting.value = true;
     console.log('output:', fromUrl());
+    const currentDateTime = Date.now();
     const params = {
+      name: `replication_${currentDateTime}`,
       labels: ['type::replication'],
       to: `${ruleForm.target}`,
       from: `${fromUrl()}/${ruleForm.source}?timeout=never`
