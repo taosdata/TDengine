@@ -354,8 +354,7 @@ def _setup_cluster(fqdn, from_dir, base_path, rp):
         )
 
         cluster_mgr = ClusterManager(fqdn=fqdn, base_path=base_path, level=1, disk=1,
-                                     logger=_SilentLogger())
-        cluster_mgr.dnode_manager.taosd_path = base_taosd
+                                     taosd_path=base_taosd, logger=_SilentLogger())
 
         rp.info(f"Starting {config.DNODE_COUNT} taosd process(es) ...")
         cluster_mgr.create_cluster(

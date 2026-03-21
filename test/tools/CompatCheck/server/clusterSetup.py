@@ -275,30 +275,13 @@ class DNodeManager:
         self.base_path = base_path
         self.level = level
         self.disk = disk
-        self.taosd_path = taosd_path or self._find_taosd()
+        if not taosd_path or not os.path.isfile(taosd_path):
+            raise FileNotFoundError(f"taosd not found: {taosd_path!r}")
+        self.taosd_path = taosd_path
         self.logger = logger or Logger()
         self.dnodes: List[DNodeConfig] = []
         self.processes: Dict[int, subprocess.Popen] = {}
-        
-    def _find_taosd(self) -> str:
-        """Find taosd executable"""
-        possible_paths = [
-            "/usr/bin/taosd",
-            "/usr/local/bin/taosd",
-            os.path.expanduser("~/TDinternal/debug/build/bin/taosd"),
-            "./build/bin/taosd",
-        ]
-        
-        for path in possible_paths:
-            if os.path.exists(path) and os.access(path, os.X_OK):
-                return path
-                
-        result = subprocess.run(['which', 'taosd'], capture_output=True, text=True)
-        if result.returncode == 0:
-            return result.stdout.strip()
-            
-        raise FileNotFoundError("taosd executable not found")
-        
+
     def create_dnode(self, index: int, first_ep: str, second_ep: str, 
                      update_dict: Optional[Dict] = None) -> DNodeConfig:
         """Create a DNode configuration"""
@@ -389,13 +372,14 @@ class ClusterManager:
     """Manager for TDengine cluster operations"""
     
     def __init__(self, fqdn: str, base_path: str, level: int = 1, disk: int = 1,
-                 logger: Optional[Logger] = None):
+                 taosd_path: Optional[str] = None, logger: Optional[Logger] = None):
         self.fqdn = fqdn
         self.base_path = base_path
         self.level = level
         self.disk = disk
         self.logger = logger or Logger()
-        self.dnode_manager = DNodeManager(fqdn, base_path, level, disk, logger=self.logger)
+        self.dnode_manager = DNodeManager(fqdn, base_path, level, disk,
+                                          taosd_path=taosd_path, logger=self.logger)
         self.adapter_manager: Optional[TaosAdapterManager] = None  # Lazy initialization
         self.conn: Optional[taos.TaosConnection] = None
         
