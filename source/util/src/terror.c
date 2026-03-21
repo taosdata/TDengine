@@ -1026,6 +1026,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_TXN_IN_DROPPING,            "Txn in dropping")
 TAOS_DEFINE_ERROR(TSDB_CODE_TXN_SEQ_NOT_EXIST,              "Txn seq not exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TXN_SEQ_IN_CREATING,        "Txn seq in creating")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TXN_SEQ_IN_DROPPING,        "Txn seq in dropping")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TXN_SEQ_NOT_READY,          "Txn seq not ready")
 
 //tmq
 TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_INVALID_MSG,                "Invalid message")

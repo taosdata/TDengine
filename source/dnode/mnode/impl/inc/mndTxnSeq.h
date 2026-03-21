@@ -24,8 +24,10 @@ extern "C" {
 
 #define UTXN_ID_RANGE_STEP 100
 
-int32_t mndInitTxnSeq(SMnode* pMnode);
-void    mndCleanupTxnSeq(SMnode* pMnode);
+int32_t     mndInitTxnSeq(SMnode *pMnode);
+void        mndCleanupTxnSeq(SMnode *pMnode);
+int32_t     mndAcquireTxnSeq(SMnode *pMnode, int32_t id, STxnSeqObj **ppObj);
+void        mndReleaseTxnSeq(SMnode *pMnode, STxnSeqObj *pObj);
 
 #ifdef __cplusplus
 }
