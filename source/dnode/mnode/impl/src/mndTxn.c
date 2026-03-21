@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "mndTxn.h"
+#include "mndTxnSeq.h"
 #include "audit.h"
 #include "mndDb.h"
 #include "mndDnode.h"
@@ -56,11 +57,11 @@ int32_t mndInitTxn(SMnode *pMnode) {
   };
 
   mndSetMsgHandle(pMnode, TDMT_MND_BEGIN_TXN, mndProcessBeginTxnReq);
-  mndSetMsgHandle(pMnode, TDMT_MND_BEGIN_TRANS_RSP, mndTransProcessRsp);
+  mndSetMsgHandle(pMnode, TDMT_MND_BEGIN_TXN_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_COMMIT_TXN, mndProcessCommitTxnReq);
-  mndSetMsgHandle(pMnode, TDMT_MND_COMMIT_TRANS_RSP, mndTransProcessRsp);
+  mndSetMsgHandle(pMnode, TDMT_MND_COMMIT_TXN_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_ROLLBACK_TXN, mndProcessRollbackTxnReq);
-  mndSetMsgHandle(pMnode, TDMT_MND_ROLLBACK_TRANS_RSP, mndTransProcessRsp);
+  mndSetMsgHandle(pMnode, TDMT_MND_ROLLBACK_TXN_RSP, mndTransProcessRsp);
 
   //   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_TXN, mndRetrieveTxn);
   //   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_TXN, mndCancelRetrieveTxn);
@@ -262,45 +263,6 @@ STxnObj *mndAcquireTxn(SMnode *pMnode, utxn_id_t id) {
 void mndReleaseTxn(SMnode *pMnode, STxnObj *pTxn) {
   SSdb *pSdb = pMnode->pSdb;
   sdbRelease(pSdb, pTxn);
-}
-
-/**
- * @brief Non thread safe. Return unique id with format: 40(sec) + 12(nodeId) + 4(reserved) + 8(seqId)  bits.
- *
- */
-int64_t mndGenTxnId(int32_t nodeId) {
-  static int64_t lastSec = 0;
-  static int32_t seqId = 0;
-
-  int64_t sec = taosGetTimestampSec();
-
-  // Make sure upper 32 bits is not all 0 to avoid conflicts with id in STrans(mndDef.h)
-  if (((sec & 0xFFFFFFFFFFLL) >> 8) == 0) {
-    sec += 0x100;
-  }
-
-  if (sec < lastSec) {
-    sec = lastSec;
-  }
-
-  if (sec == lastSec) {
-    if (seqId >= 255) {
-      ++sec;
-      seqId = 0;
-    } else {
-      ++seqId;
-    }
-  } else {
-    seqId = 0;
-  }
-  lastSec = sec;
-
-  uint64_t x = (uint64_t)(sec & 0xFFFFFFFFFFLL) << 24;
-  uint64_t n = (uint64_t)(nodeId & 0xFFF) << 12;
-  uint64_t s = (uint64_t)(seqId & 0xFF);
-
-  int64_t uuid = x | n | s;
-  return uuid;
 }
 
 const char *mndTxnStr(ETrnStage stage) {
@@ -687,7 +649,11 @@ static int32_t mndProcessBeginTxnReq(SRpcMsg *pReq) {
     code = 0;
     goto _exit;
   } else {
-    txnReq.txnId = mndGenTxnId(pMnode->selfDnodeId);
+    txnReq.txnId = mndGenTxnId(pMnode);
+    if (txnReq.txnId < 0) {
+      code = (int32_t)txnReq.txnId;
+      goto _exit;
+    }
   }
   mInfo("start to begin txn: %" PRIu64, txnReq.txnId);
   TAOS_CHECK_EXIT(mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOperUser));

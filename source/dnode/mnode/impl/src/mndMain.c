@@ -57,6 +57,7 @@
 #include "mndTopic.h"
 #include "mndTrans.h"
 #include "mndTxn.h"
+#include "mndTxnSeq.h"
 #include "mndUser.h"
 #include "mndVgroup.h"
 #include "mndView.h"
@@ -805,6 +806,7 @@ static int32_t mndInitSteps(SMnode *pMnode) {
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-show", mndInitShow, mndCleanupShow));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-query", mndInitQuery, mndCleanupQuery));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-sync", mndInitSync, mndCleanupSync));
+  TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-txnSeq", mndInitTxnSeq, mndCleanupTxnSeq));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-telem", mndInitTelem, mndCleanupTelem));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-txn", mndInitTxn, mndCleanupTxn));
   return 0;
