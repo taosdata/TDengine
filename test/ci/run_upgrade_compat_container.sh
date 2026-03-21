@@ -97,11 +97,13 @@ echo "============================================================"
 
 cleanup_taosd
 
-python3 "$COMPAT_CI_DIR/cold_upgrade_task.py" \
-    --green-path "$GREEN_PATH" \
-    --versions   "$COLD_VERSIONS_CSV" \
-    --options    "-q" \
-    2>&1 | tee "$LOG_DIR/cold_upgrade.log"
+cold_cmd=(python3 "$COMPAT_CI_DIR/cold_upgrade_task.py"
+    --green-path "$GREEN_PATH"
+    --versions   "$COLD_VERSIONS_CSV"
+    --options=-q
+)
+echo "Executing: ${cold_cmd[*]}"
+"${cold_cmd[@]}" 2>&1 | tee "$LOG_DIR/cold_upgrade.log"
 
 cold_ret=${PIPESTATUS[0]}
 
@@ -122,10 +124,12 @@ echo "============================================================"
 # 冷升级结束后 taosd 仍在运行，清理后再做热升级
 cleanup_taosd
 
-python3 "$COMPAT_CI_DIR/hot_upgrade_task.py" \
-    --green-path "$GREEN_PATH" \
-    -q \
-    2>&1 | tee "$LOG_DIR/hot_upgrade.log"
+hot_cmd=(python3 "$COMPAT_CI_DIR/hot_upgrade_task.py"
+    --green-path "$GREEN_PATH"
+    -q
+)
+echo "Executing: ${hot_cmd[*]}"
+"${hot_cmd[@]}" 2>&1 | tee "$LOG_DIR/hot_upgrade.log"
 
 hot_ret=${PIPESTATUS[0]}
 

@@ -99,7 +99,6 @@ function download_version() {
     file_count=$(find "$target_dir" -maxdepth 1 -type f 2>/dev/null | wc -l)
     valid_count=$(find "$target_dir" -maxdepth 1 -type f -size +30M 2>/dev/null | wc -l)
     if [ "$file_count" -ge 2 ] && [ "$valid_count" -eq "$file_count" ]; then
-        echo "[green_versions] $version: already cached at $target_dir ($file_count files, all >= 30M), skip download"
         return 0
     fi
 
@@ -111,7 +110,6 @@ function download_version() {
         file_count=$(find "$target_dir" -maxdepth 1 -type f 2>/dev/null | wc -l)
         valid_count=$(find "$target_dir" -maxdepth 1 -type f -size +30M 2>/dev/null | wc -l)
         if [ "$file_count" -ge 2 ] && [ "$valid_count" -eq "$file_count" ]; then
-            echo "[green_versions] $version: already cached (post-lock check), skip download"
             return 0
         fi
 
@@ -233,7 +231,7 @@ docker run --rm \
     --name "${CONTAINER_NAME}" \
     -v "${CONTAINER_REP_MOUNT}" \
     -v "${CONTAINER_DEBUG_MOUNT}" \
-    -v "${GREEN_LOCAL_DIR}:/green_versions:ro" \
+    -v "${GREEN_LOCAL_DIR}:/green_versions" \
     -v "${LOG_DIR}:/upgrade_logs" \
     --ulimit core=-1 \
     tdengine-ci:0.1 \
