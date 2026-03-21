@@ -355,7 +355,7 @@ DataThread * splitTaskData(StbInfo *stbInfo, int *code, int *outCount, int *totC
         threadCnt = tableCnt;
     }
 
-    // tag thread
+    // data thread
     DataThread * threads = (DataThread *)taosMemoryCalloc(threadCnt, sizeof(DataThread));
     if (threads == NULL) {
         *code = TSDB_CODE_FAILED;

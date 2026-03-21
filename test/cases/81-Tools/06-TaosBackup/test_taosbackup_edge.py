@@ -263,6 +263,13 @@ class TestTaosBackupEdge:
         tdSql.execute("drop user if exists baktest")
         tdSql.execute("create user baktest pass 'Bak@2026'")
 
+        # Grant read access so baktest can SHOW STABLES / query authdb.
+        # On Community edition GRANT may be unsupported — catch and skip gracefully.
+        try:
+            tdSql.execute("grant read on authdb.* to baktest")
+        except Exception as e:
+            tdLog.info(f"  GRANT not supported (Community edition?): {e} — skipping grant")
+
         self.makeDir(tmpdir)
         rlist2 = etool.taosbackup(
             f"-u baktest -p Bak@2026 -D authdb -o {tmpdir}",

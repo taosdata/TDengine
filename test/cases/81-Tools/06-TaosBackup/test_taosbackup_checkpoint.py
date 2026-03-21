@@ -28,7 +28,7 @@ STB_NAME   = "meters"        # default super-table name from taosBenchmark
 MAX_TRIES    = 5   # maximum backup / restore attempts (1 without -C + up to 4 with -C)
 KILL_FIRST   = 1   # seconds before killing the 1st (no -C) backup – short enough to always fire
 KILL_RETRY   = 5   # seconds before killing intermediate backup (-C) runs – accumulates progress
-KILL_RESTORE = 5   # seconds before killing the 1st restore; must be
+KILL_RESTORE = 15  # seconds before killing the 1st restore; must be
                    #  > tag-creation time (~0.4s for 100 tables)  AND
                    #  < total data-restore time so some files are checkpointed before kill
 

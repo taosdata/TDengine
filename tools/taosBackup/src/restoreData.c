@@ -69,15 +69,31 @@ static void* restoreDataThread(void *arg) {
     StmtRestoreCtx bCtx;
     memset(&bCtx, 0, sizeof(bCtx));
     if (stmtVer == STMT_VERSION_1) {
-        TAOS_STMT *s1 = initStmt(thread->conn, true);
+        const char *targetDb = argRenameDb(dbName);
+
+        TAOS_STMT *s1 = initStmt(thread->conn, false);
         if (!s1) {
             logError("restore thread %d: initStmt failed", thread->index);
             thread->code = TSDB_CODE_BCK_STMT_FAILED;
             return NULL;
         }
+
+        /* Select the target database AFTER taos_stmt_init (matching benchInsert.c
+         * pattern).  This sets the connection's default db so that parseSql can
+         * resolve the table schema for "INSERT INTO ? VALUES(...)".
+         * Use the plain (unquoted) name here — taos_select_db builds
+         * "USE <name>" internally and the server accepts plain identifiers. */
+        if (taos_select_db(thread->conn, targetDb) != 0) {
+            logError("restore thread %d: taos_select_db('%s') failed: %s",
+                     thread->index, targetDb, taos_errstr(NULL));
+            taos_stmt_close(s1);
+            thread->code = TSDB_CODE_BCK_STMT_FAILED;
+            return NULL;
+        }
+
         bCtx.stmt      = s1;
         bCtx.conn      = thread->conn;
-        bCtx.dbName    = argRenameDb(dbName);
+        bCtx.dbName    = targetDb;
         bCtx.stbChange = thread->stbChange;
     }
 
@@ -168,9 +184,17 @@ static void* restoreDataThread(void *arg) {
             // Reset STMT handles bound to the old connection
             if (!isPar) {
                 if (stmtVer == STMT_VERSION_2) stmt2ResetOnError(&s2Ctx);
-                else if (!stmtResetOnError(&bCtx)) {
-                    logError("restore thread %d: cannot recover STMT1 after retry", thread->index);
-                    break;
+                else {
+                    if (!stmtResetOnError(&bCtx)) {
+                        logError("restore thread %d: cannot recover STMT1 after retry", thread->index);
+                        break;
+                    }
+                    /* Re-select the target database on the new connection after
+                     * reinitialising the STMT1 handle (matching benchInsert.c pattern:
+                     * initStmt first, then taos_select_db). */
+                    if (taos_select_db(thread->conn, bCtx.dbName) != 0)
+                        logWarn("restore thread %d: retry taos_select_db('%s') failed: %s",
+                                thread->index, bCtx.dbName, taos_errstr(NULL));
                 }
             }
             sleepMs(retrySleepMs);

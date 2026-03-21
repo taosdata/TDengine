@@ -80,9 +80,11 @@ static int stmtPrepareInsert(StmtRestoreCtx *ctx) {
     }
     taosMemoryFree(stmtBuf);
 
-    // Immediately bind the first child table name
-    char fqn[TSDB_DB_NAME_LEN + 1 + TSDB_TABLE_NAME_LEN + 4];
-    snprintf(fqn, sizeof(fqn), "`%s`.`%s`", ctx->dbName, ctx->tbName);
+    // Immediately bind the first child table name.
+    // Use plain backtick-quoted table name (no db prefix) because taos_select_db
+    // has already set the default database on the connection — matching benchInsert.c.
+    char fqn[TSDB_TABLE_NAME_LEN + 4];
+    snprintf(fqn, sizeof(fqn), "`%s`", ctx->tbName);
     ret = taos_stmt_set_tbname(ctx->stmt, fqn);
     if (ret != 0) {
         logError("taos_stmt_set_tbname (initial) failed (%s): %s", fqn, taos_stmt_errstr(ctx->stmt));
@@ -100,9 +102,9 @@ static int stmtPrepareInsert(StmtRestoreCtx *ctx) {
 // column count (i.e. same super table).
 //
 static int stmtSwitchTable(StmtRestoreCtx *ctx, const char *tbName) {
-    /* fully qualified name required by set_tbname */
-    char fqn[TSDB_DB_NAME_LEN + 1 + TSDB_TABLE_NAME_LEN + 2 + 2];
-    snprintf(fqn, sizeof(fqn), "`%s`.`%s`", ctx->dbName, tbName);
+    /* plain backtick-quoted table name — taos_select_db already set default db */
+    char fqn[TSDB_TABLE_NAME_LEN + 4];
+    snprintf(fqn, sizeof(fqn), "`%s`", tbName);
     int ret = taos_stmt_set_tbname(ctx->stmt, fqn);
     if (ret != 0) {
         logError("taos_stmt_set_tbname failed (%s): %s", fqn, taos_stmt_errstr(ctx->stmt));
@@ -115,13 +117,22 @@ static int stmtSwitchTable(StmtRestoreCtx *ctx, const char *tbName) {
 
 //
 // Reset STMT after an error.
-// Closes the broken stmt, allocates a fresh one, and marks context as
-// not-prepared so the next file will call stmtPrepareInsert() again.
+// Abandons the broken stmt handle (without closing it — closing would cause a
+// heap-use-after-free when taos_stmt_execute already freed the vgroup submit
+// data internally via qBuildStmtFinOutput → tDestroySubmitTbData), allocates
+// a fresh one, and marks context as not-prepared so the next file will call
+// stmtPrepareInsert() again.
 // Returns true on success, false if taos_stmt_init also fails.
 //
 bool stmtResetOnError(StmtRestoreCtx *ctx) {
     if (ctx->stmt) {
-        taos_stmt_close(ctx->stmt);
+        // Do NOT call taos_stmt_close here.  If taos_stmt_execute was already
+        // called on this handle, the internal vgroup submit data has been freed
+        // by the execute path (qBuildStmtFinOutput → tDestroySubmitTbData).
+        // Calling taos_stmt_close → stmtCleanSQLInfo → qDestroyQuery would try
+        // to destroy that already-freed memory, triggering a heap-use-after-free.
+        // Instead, simply abandon the handle; the process is short-lived so the
+        // leak is acceptable.
         ctx->stmt = NULL;
     }
     ctx->prepared    = false;

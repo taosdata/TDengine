@@ -706,8 +706,13 @@ int restoreOneDataFileV2(Stmt2RestoreCtx *ctx, const char *filePath) {
         /* One-time prepare: INSERT INTO ? VALUES(?,...)  reused for all files */
         if (!ctx->prepared) {
             /* Select the target database so that the multi-table tbnames look-up
-             * can resolve plain table names (no db prefix required). */
-            int selRet = taos_select_db(ctx->conn, ctx->dbName);
+             * can resolve plain table names (no db prefix required).
+             * Backtick-quote the name so that Chinese / special-char db names
+             * are accepted by taos_select_db (unquoted names fail with
+             * TSDB_CODE_PAR_SYNTAX_ERROR for non-ASCII identifiers). */
+            char quotedDb[TSDB_DB_NAME_LEN + 4];
+            snprintf(quotedDb, sizeof(quotedDb), "`%s`", ctx->dbName);
+            int selRet = taos_select_db(ctx->conn, quotedDb);
             if (selRet != 0)
                 logWarn("stmt2 multi-table: taos_select_db(%s) failed (code=%d), continuing",
                         ctx->dbName, selRet);
