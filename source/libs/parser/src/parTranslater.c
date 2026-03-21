@@ -6879,7 +6879,7 @@ static int32_t prepareColumnExpansion(STranslateContext* pCxt, ESqlClause clause
   if (TSDB_CODE_SUCCESS == code && LIST_LENGTH(pSelect->pProjectionBindList) > len) {
     code = translateExprList(pCxt, pSelect->pProjectionBindList);
   }
-  if (pSelect->pProjectionBindList != NULL) {
+  if (LIST_LENGTH(pSelect->pProjectionBindList) > 0) {
     pSelect->hasAggFuncs = true;
   }
   return code;
