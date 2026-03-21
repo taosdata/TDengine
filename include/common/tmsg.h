@@ -215,6 +215,7 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_XNODE_AGENTS,
   TSDB_MGMT_TABLE_XNODE_JOBS,
   TSDB_MGMT_TABLE_XNODE_FULL,
+  TSDB_MGMT_TABLE_VIRTUAL_TABLES_REFERENCING,
   TSDB_MGMT_TABLE_MAX,
 } EShowType;
 
@@ -565,6 +566,7 @@ typedef enum ENodeType {
   QUERY_NODE_SHOW_XNODE_TASKS_STMT,
   QUERY_NODE_SHOW_XNODE_AGENTS_STMT,
   QUERY_NODE_SHOW_XNODE_JOBS_STMT,
+  QUERY_NODE_SHOW_VALIDATE_VTABLE_STMT,
 
   // logic plan node
   QUERY_NODE_LOGIC_PLAN_SCAN = 1000,
@@ -794,6 +796,8 @@ typedef struct {
   int32_t  nCols;
   int32_t  version;
   SColRef* pColRef;
+  int32_t  nTagRefs;
+  SColRef* pTagRef;
 } SColRefWrapper;
 
 int32_t tEncodeSColRefWrapper(SEncoder* pCoder, const SColRefWrapper* pWrapper);
@@ -888,6 +892,8 @@ typedef struct {
   int8_t      virtualStb;
   int32_t     numOfColRefs;
   SColRef*    pColRefs;
+  int32_t     numOfTagRefs;
+  SColRef*    pTagRefs;
   int8_t      secureDelete;
 } STableMetaRsp;
 
@@ -1001,6 +1007,22 @@ static FORCE_INLINE int32_t tInitDefaultSColRefWrapperByCols(SColRefWrapper* pRe
   for (int32_t i = 0; i < nCols; i++) {
     pRef->pColRef[i].hasRef = false;
     pRef->pColRef[i].id = (col_id_t)(i + 1);
+  }
+  return 0;
+}
+
+static FORCE_INLINE int32_t tInitDefaultSColRefWrapperByTags(SColRefWrapper* pRef, int32_t nTags, col_id_t startColId) {
+  if (pRef->pTagRef) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  pRef->pTagRef = (SColRef*)taosMemoryCalloc(nTags, sizeof(SColRef));
+  if (pRef->pTagRef == NULL) {
+    return terrno;
+  }
+  pRef->nTagRefs = nTags;
+  for (int32_t i = 0; i < nTags; i++) {
+    pRef->pTagRef[i].hasRef = false;
+    pRef->pTagRef[i].id = (col_id_t)(startColId + i);
   }
   return 0;
 }
@@ -2075,6 +2097,8 @@ typedef struct {
     };
   };
   SColRef* pColRefs;
+  int32_t  numOfTagRefs;
+  SColRef* pTagRefs;
   int8_t   secureDelete;
 } STableCfg;
 
@@ -4910,6 +4934,7 @@ static FORCE_INLINE void tdDestroySVCreateTbReq(SVCreateTbReq* req) {
   taosMemoryFreeClear(req->colCmpr.pColCmpr);
   taosMemoryFreeClear(req->pExtSchemas);
   taosMemoryFreeClear(req->colRef.pColRef);
+  taosMemoryFreeClear(req->colRef.pTagRef);
 }
 
 typedef struct {
