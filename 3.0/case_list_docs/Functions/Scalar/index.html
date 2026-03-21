@@ -1959,6 +1959,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#11-Functions.01-Scalar.test_fun_sca_cast_blob.TestBlobCastFunc.test_blob_cast_func" class="md-nav__link">
+        Fun: blob cast/substr/length 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#11-Functions.01-Scalar.test_fun_sca_cast.TestFunCast.test_fun_sca_cast" class="md-nav__link">
         Fun: cast() 
       </a>
@@ -4685,6 +4696,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#11-Functions.01-Scalar.test_fun_sca_cast_blob.TestBlobCastFunc.test_blob_cast_func" class="md-nav__link">
+        Fun: blob cast/substr/length 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#11-Functions.01-Scalar.test_fun_sca_cast.TestFunCast.test_fun_sca_cast" class="md-nav__link">
         Fun: cast() 
       </a>
@@ -5629,6 +5651,53 @@
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/11-Functions/01-Scalar/test_fun_sca_cast.py" target="_blank">
                       cases/11-Functions/01-Scalar/test_fun_sca_cast.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="11-Functions.01-Scalar.test_fun_sca_cast_blob.TestBlobCastFunc.test_blob_cast_func" class="doc doc-heading">
+
+<a href="#11-Functions.01-Scalar.test_fun_sca_cast_blob.TestBlobCastFunc.test_blob_cast_func" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Fun: blob cast/substr/length</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Test BLOB type support in cast, substr, and length scalar functions.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. CAST VARCHAR/literal to BLOB</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. CAST BLOB to VARCHAR with truncation</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. CAST BLOB to BLOB (identity)</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. CAST BLOB to INT/BIGINT/TINYINT/SMALLINT/unsigned variants</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. CAST BLOB to FLOAT/DOUBLE</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. CAST BLOB to BOOL</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">7. CAST numeric types to BLOB</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">8. CAST BLOB to NCHAR</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">9. CAST BLOB to BINARY with truncation</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">10. CAST on NULL BLOB to all types</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">11. SUBSTR on BLOB: positive/negative position</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">12. SUBSTR on NULL/empty BLOB</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">13. SUBSTR boundary: position 0, out-of-range, huge length</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">14. LENGTH on BLOB: normal/empty/NULL/single-byte</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">15. BLOB in WHERE clause with CAST</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">16. Aggregate functions with LENGTH(BLOB)</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">17. GROUP BY with BLOB substr/cast (expect error)</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/11-Functions/01-Scalar/test_fun_sca_cast_blob.py" target="_blank">
+                      cases/11-Functions/01-Scalar/test_fun_sca_cast_blob.py
                     </a>
                   </div>
         </div>
