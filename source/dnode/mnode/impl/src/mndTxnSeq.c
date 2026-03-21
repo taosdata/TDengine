@@ -31,6 +31,8 @@ typedef struct {
   utxn_id_t rangeId;
 } SMTxnSeqReq;
 
+typedef SMTxnSeqReq SMTxnSeqRsp;
+
 static int32_t  initTxnSeq(SMnode *pMnode);
 static int32_t  triggerAllocateTxnSeq(SMnode *pMnode, utxn_id_t nextRangeId, bool checkLeader);
 static int32_t  mndAcquireTxnSeq(SMnode *pMnode, int32_t id, STxnSeqObj **ppObj);
@@ -352,7 +354,7 @@ utxn_id_t mndGenTxnId(SMnode *pMnode) {
   utxn_id_t nextId = -1;
   bool      needAlloc = false;
   taosWLockLatch(&pObj->lock);
-  if (currentTxnId >= pObj->maxRangeId) {
+  if (currentTxnId < 0 || currentTxnId >= pObj->maxRangeId) {
     needAlloc = true;
   } else {
     nextId = ++currentTxnId;
@@ -393,6 +395,27 @@ static int32_t mndSetCreateTxnSeqCommitLogs(SMnode *pMnode, STrans *pTrans, STxn
   TAOS_RETURN(code);
 }
 
+static int32_t mndBuildTxnSeqRsp(STxnSeqObj *pObj, int32_t *pRspLen, void **ppRsp) {
+  int32_t     code = 0, lino = 0;
+  int32_t     contLen = 0;
+  SMTxnSeqRsp rsp = {.rangeId = pObj->maxRangeId};
+
+  TAOS_CHECK_EXIT(tSerializeTxnSeq(NULL, 0, &rsp, &contLen));
+  void *pCont = rpcMallocCont(contLen);
+  if (!pCont) {
+    TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
+  }
+
+  if ((code = tSerializeTxnSeq(pCont, contLen, &rsp, NULL)) < 0) {
+    rpcFreeCont(pCont);
+    TAOS_CHECK_EXIT(code);
+  }
+  *pRspLen = contLen;
+  *ppRsp = pCont;
+_exit:
+  TAOS_RETURN(code);
+}
+
 static int32_t mndAllocTxnSeq(SMnode *pMnode, SRpcMsg *pReq, utxn_id_t nextTxnRangeMax) {
   int32_t    code = 0, lino = 0;
   STxnSeqObj obj = {.maxRangeId = nextTxnRangeMax};
@@ -406,6 +429,12 @@ static int32_t mndAllocTxnSeq(SMnode *pMnode, SRpcMsg *pReq, utxn_id_t nextTxnRa
 
   mndTransSetOper(pTrans, MND_OPER_ALLOC_TXN_SEQ);
   TAOS_CHECK_EXIT(mndSetCreateTxnSeqCommitLogs(pMnode, pTrans, &obj));
+
+  int32_t rspLen = 0;
+  void   *pRsp = NULL;
+  TAOS_CHECK_EXIT(mndBuildTxnSeqRsp(&obj, &rspLen, &pRsp));
+  mndTransSetRpcRsp(pTrans, pRsp, rspLen);
+
   TAOS_CHECK_EXIT(mndTransPrepare(pMnode, pTrans));
 _exit:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
@@ -482,8 +511,31 @@ _exit:
   TAOS_RETURN(code);
 }
 
-static int32_t  mndProcessTxnSeqAllocRsp(SRpcMsg *pReq) {
+static int32_t mndProcessTxnSeqAllocRsp(SRpcMsg *pReq) {
   int32_t code = 0, lino = 0;
   mInfo("received txn seq alloc rsp");
+  SMnode     *pMnode = pReq->info.node;
+  SMTxnSeqRsp txnRsp = {0};
+  TAOS_CHECK_EXIT(tDeserializeTxnSeq(pReq->pCont, pReq->contLen, (SMTxnSeqReq *)&txnRsp));
+  mInfo("txn seq allocated with rangeId:%" PRIu64, txnRsp.rangeId);
+  STxnSeqObj *pObj = NULL;
+  if ((code = mndAcquireTxnSeq(pMnode, 0, &pObj)) == 0) {
+    taosWLockLatch(&pObj->lock);
+    if (txnRsp.rangeId > pObj->maxRangeId) {
+      pObj->maxRangeId = txnRsp.rangeId;
+    }
+    if (currentTxnId < 0) {
+      currentTxnId = txnRsp.rangeId - TXN_ID_RANGE_STEP;
+    }
+    taosWUnLockLatch(&pObj->lock);
+    mInfo("txnSeq, process txn seq rsp, current maxRangeId:%" PRIu64 ", currentTxnId:%" PRIu64, pObj->maxRangeId,
+          currentTxnId);
+    mndReleaseTxnSeq(pMnode, pObj);
+  }
+
+_exit:
+  if (code != 0) {
+    mError("failed at line %d to process txn seq alloc rsp since %s", lino, tstrerror(code));
+  }
   TAOS_RETURN(code);
 }
