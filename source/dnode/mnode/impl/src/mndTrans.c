@@ -2732,13 +2732,13 @@ static int32_t mndProcessKillTransReq(SRpcMsg *pReq) {
     goto _OVER;
   }
   int32_t transId = TRANS_ID(killReq.transId);
-  pTrans = mndAcquireTrans(pMnode, transId);
-  if (pTrans == NULL) {
-    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
-    if (terrno != 0) code = terrno;
-    goto _OVER;
-  }
-
+    pTrans = mndAcquireTrans(pMnode, transId);
+    if (pTrans == NULL) {
+      code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+      if (terrno != 0) code = terrno;
+      goto _OVER;
+    }
+  
   code = mndKillTrans(pMnode, pTrans);
 
 _OVER:
@@ -3298,5 +3298,4 @@ _OVER:
 static void mndCancelGetNextTrans(SMnode *pMnode, void *pIter) {
   SSdb *pSdb = pMnode->pSdb;
   sdbCancelFetchByType(pSdb, pIter, SDB_TRANS);
-  sdbCancelFetchByType(pSdb, pIter, SDB_TXN);
 }

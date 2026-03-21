@@ -24,8 +24,9 @@
 
 #define MND_TXN_SEQ_VER_NUMBER 1
 
-#define TXN_ID_RANGE_STEP          100
-#define TXN_ID_RANGE_WATERMARK_PCT 80
+#define TXN_ID_RANGE_BASE          0x100000001ULL
+#define TXN_ID_RANGE_STEP          100ULL
+#define TXN_ID_RANGE_WATERMARK_PCT 80ULL
 
 typedef struct {
   utxn_id_t rangeId;
@@ -72,7 +73,7 @@ void mndCleanupTxnSeq(SMnode *pMnode) {}
 int32_t mndTxnSeqPrepare(SMnode *pMnode) {
   int32_t     code = 0, lino = 0;
   STxnSeqObj *pObj = NULL;
-  utxn_id_t   allocateRangeId = TXN_ID_RANGE_STEP;
+  utxn_id_t   allocateRangeId = TXN_ID_RANGE_BASE + TXN_ID_RANGE_STEP;
   if ((code = mndAcquireTxnSeq(pMnode, 0, &pObj)) == 0) {
     currentTxnId = pObj->maxRangeId;
     allocateRangeId = pObj->maxRangeId + TXN_ID_RANGE_STEP;
