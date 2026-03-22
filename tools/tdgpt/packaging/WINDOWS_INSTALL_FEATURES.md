@@ -871,6 +871,19 @@ python packaging/win_release.py -e community -v 1.0.0 -m D:\models --offline -a
   - 检测是否存在 `Taosanode` Windows 服务
   - 先执行 `sc stop Taosanode`
   - 再尝试调用现有目录下的 `taosanode-winsw.exe stop`
-  - 最后执行 `taskkill /F /T /IM taosanode-winsw.exe`
+- 最后执行 `taskkill /F /T /IM taosanode-winsw.exe`
 - 清理完成后，安装器会额外检查 `taosanode-winsw.exe` 是否已经解除占用。
 - 如果文件仍被锁定，会在进入复制阶段前直接给出明确错误提示，而不是等到文件替换过程中弹出 Windows 的“重试/跳过”错误框。
+
+### 在线模型下载限流自动重试
+
+- 针对通过 Hugging Face 镜像在线下载模型时出现的 `429 Too Many Requests`，Windows 安装脚本现在会自动重试，而不是第一次限流就直接安装失败。
+- 当前重试逻辑会：
+  - 识别异常信息中的 `Retry after <N> seconds`
+  - 按镜像返回的等待时间自动休眠
+  - 缺少明确等待时间时，按保守退避时间重试
+- 默认最多重试 `6` 次，基础等待时间为 `15` 秒。
+- 安装日志中会明确打印：
+  - 当前第几次下载尝试失败
+  - 计划等待多少秒后重试
+- 这样可以覆盖镜像站短时间 API 限流、窗口刷新后可继续下载的场景，减少在线安装中途失败。

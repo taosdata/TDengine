@@ -831,12 +831,40 @@ class WindowsInstaller:
         if self.model_endpoint:
             env["HF_ENDPOINT"] = self.model_endpoint
         env["HF_HUB_DISABLE_PROGRESS_BARS"] = "0"
+        env["HF_HUB_DISABLE_TELEMETRY"] = "1"
+        env.setdefault("TDGPT_HF_DOWNLOAD_RETRIES", "6")
+        env.setdefault("TDGPT_HF_DOWNLOAD_RETRY_DELAY", "15")
         python_exe = self.get_venv_python(str(spec["venv"]))
-        inline = (
-            "import sys; from huggingface_hub import snapshot_download; "
-            "repo_id, local_dir, endpoint = sys.argv[1:4]; "
-            "snapshot_download(repo_id=repo_id, local_dir=local_dir, endpoint=(endpoint or None))"
-        )
+        inline = """
+import os
+import re
+import sys
+import time
+from huggingface_hub import snapshot_download
+
+repo_id, local_dir, endpoint = sys.argv[1:4]
+max_attempts = max(1, int(os.environ.get("TDGPT_HF_DOWNLOAD_RETRIES", "6")))
+base_delay = max(1, int(os.environ.get("TDGPT_HF_DOWNLOAD_RETRY_DELAY", "15")))
+
+for attempt in range(1, max_attempts + 1):
+    try:
+        snapshot_download(repo_id=repo_id, local_dir=local_dir, endpoint=(endpoint or None))
+        print(f"Download completed for {repo_id}")
+        break
+    except Exception as exc:
+        message = str(exc)
+        print(f"Download attempt {attempt}/{max_attempts} failed: {message}")
+        if attempt >= max_attempts:
+            raise
+        match = re.search(r"Retry after (\\d+) seconds", message)
+        wait_seconds = base_delay
+        if match:
+            wait_seconds = max(wait_seconds, int(match.group(1)) + 2)
+        elif ("429" in message) or ("Too Many Requests" in message):
+            wait_seconds = max(wait_seconds, min(300, attempt * 30))
+        print(f"Waiting {wait_seconds} seconds before retrying...")
+        time.sleep(wait_seconds)
+"""
         return self.run_stream(
             [str(python_exe), "-c", inline, repo_id, str(target_dir), self.model_endpoint],
             f"Downloading {spec['display']} ({spec['download_size']})",
