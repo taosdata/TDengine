@@ -121,7 +121,11 @@ MODEL_SPECS: Dict[str, Dict[str, object]] = {
 }
 
 VENV_CONFIGS: Dict[str, Dict[str, str]] = {
-    "venv": {"requirements": "requirements_windows_core.txt", "description": "Main virtual environment"},
+    "venv": {
+        "requirements": "requirements_windows_core.txt",
+        "description": "Main virtual environment",
+        "validation_imports": "numpy,flask,waitress",
+    },
     "moirai_venv": {"requirements": "requirements_moirai.txt", "description": "Moirai virtual environment"},
     "chronos_venv": {"requirements": "requirements_chronos.txt", "description": "Chronos virtual environment"},
     "timesfm_venv": {"requirements": "requirements_timesfm.txt", "description": "TimesFM virtual environment"},
@@ -199,6 +203,7 @@ class WindowsInstaller:
         self.requirements_dir = REQUIREMENTS_DIR
         self.venvs_dir = VENVS_DIR
         self.model_dir = MODEL_DIR
+        self.reused_venvs: Dict[str, bool] = {}
         self.log_file = Path(log_file) if log_file else self.log_dir / "install.log"
         self.stdout_redirected_to_log = os.environ.get("TDGPT_LOG_REDIRECTED", "") == "1"
         self.python_cmd = ""
@@ -439,6 +444,7 @@ class WindowsInstaller:
         path = self.get_venv_path(name)
         python_exe = path / "Scripts" / "python.exe"
         if self.can_reuse_venv(name, description):
+            self.reused_venvs[name] = True
             return True
         if self.offline and path.exists() and not python_exe.exists():
             self.print_warning(f"Offline mode found an incomplete {description}. Recreating it.")
@@ -448,10 +454,36 @@ class WindowsInstaller:
             shutil.rmtree(path, ignore_errors=True)
         try:
             subprocess.run([self.python_cmd, "-m", "venv", str(path)], check=True, timeout=300)
+            self.reused_venvs[name] = False
             return True
         except Exception as exc:
             self.print_error(f"Failed to create {description}: {exc}")
             return False
+
+    def validate_venv_imports(self, venv_name: str, imports_csv: str) -> bool:
+        imports = [item.strip() for item in imports_csv.split(",") if item.strip()]
+        if not imports:
+            return True
+        python_exe = self.get_venv_python(venv_name)
+        inline = "import " + ", ".join(imports)
+        try:
+            result = subprocess.run(
+                [str(python_exe), "-c", inline],
+                capture_output=True,
+                text=True,
+                timeout=60,
+                check=False,
+            )
+        except Exception as exc:
+            self.print_error(f"Failed to validate {venv_name}: {exc}")
+            return False
+        if result.returncode == 0:
+            return True
+        detail = (result.stderr or result.stdout or "").strip()
+        self.print_warning(
+            f"Validation failed for {venv_name}: {detail or 'unable to import required packages'}"
+        )
+        return False
 
     def install_req_file(self, venv_name: str, req_name: str, start_percent: int, end_percent: int, title: str) -> bool:
         req_file = self.requirements_dir / req_name
@@ -472,20 +504,32 @@ class WindowsInstaller:
     def prepare_venv(self, venv_name: str, start_percent: int, end_percent: int) -> bool:
         config = VENV_CONFIGS[venv_name]
         desc = config["description"]
-        self.set_progress(start_percent, "Preparing Python environments", f"Creating {desc}")
-        if not self.create_venv(venv_name, desc):
+        validation_imports = str(config.get("validation_imports", "")).strip()
+
+        for attempt in range(2):
+            self.set_progress(start_percent, "Preparing Python environments", f"Creating {desc}")
+            if not self.create_venv(venv_name, desc):
+                return False
+            if not self.install_req_file(
+                venv_name,
+                config["requirements"],
+                max(start_percent + 2, start_percent),
+                end_percent,
+                f"Installing packages for {desc}",
+            ):
+                return False
+            if not validation_imports or self.validate_venv_imports(venv_name, validation_imports):
+                self.set_progress(end_percent, "Preparing Python environments", f"{desc} is ready")
+                self.print_success(f"{desc} created successfully.")
+                return True
+            if attempt == 0 and self.reused_venvs.get(venv_name):
+                self.print_warning(f"{desc} is incomplete after reuse. Rebuilding it once.")
+                self.reused_venvs[venv_name] = False
+                shutil.rmtree(self.get_venv_path(venv_name), ignore_errors=True)
+                continue
+            self.print_error(f"{desc} validation failed after package installation.")
             return False
-        if not self.install_req_file(
-            venv_name,
-            config["requirements"],
-            max(start_percent + 2, start_percent),
-            end_percent,
-            f"Installing packages for {desc}",
-        ):
-            return False
-        self.set_progress(end_percent, "Preparing Python environments", f"{desc} is ready")
-        self.print_success(f"{desc} created successfully.")
-        return True
+        return False
 
     def install_venvs(self) -> bool:
         if not self.prepare_venv("venv", 20, 42):
