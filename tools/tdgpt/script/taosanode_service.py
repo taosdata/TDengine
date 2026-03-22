@@ -25,12 +25,14 @@ Examples:
 
 import os
 import sys
+import ast
 import platform
 import subprocess
 import signal
 import time
 import argparse
 import logging
+import re
 from logging.handlers import RotatingFileHandler
 from typing import Optional, List, Dict
 
@@ -543,14 +545,23 @@ class TaosanodeService:
         """Run focused import probes so startup failures identify the exact failing dependency."""
         self.logger.info("Collecting taosanode startup diagnostics...")
         lib_root = os.path.join(self.config.install_dir, "lib").replace("\\", "\\\\")
+        discovered_modules = self._discover_runtime_dependencies("taosanalytics.app")
+        fallback_modules = ["waitress", "numpy", "pandas", "flask", "torch", "tensorflow", "keras"]
+        probe_modules = []
+        for module_name in discovered_modules + fallback_modules:
+            if module_name not in probe_modules:
+                probe_modules.append(module_name)
+
+        self.logger.info(
+            "Dependency probes derived from taosanalytics.app: " +
+            (", ".join(discovered_modules) if discovered_modules else "none discovered")
+        )
+
         probes = [
-            ("import waitress", "import waitress; print('waitress ok')"),
-            ("import numpy", "import numpy; print('numpy ok')"),
-            ("import pandas", "import pandas; print('pandas ok')"),
-            ("import flask", "import flask; print('flask ok')"),
-            ("import torch", "import torch; print('torch ok')"),
-            ("import tensorflow", "import tensorflow; print('tensorflow ok')"),
-            ("import keras", "import keras; print('keras ok')"),
+            (f"import {module_name}", f"import {module_name}; print('{module_name} ok')")
+            for module_name in probe_modules
+        ]
+        probes.extend([
             (
                 "import taosanalytics.conf",
                 f"import sys; sys.path.insert(0, r'{lib_root}'); import taosanalytics.conf; print('conf ok')"
@@ -559,7 +570,7 @@ class TaosanodeService:
                 "import taosanalytics.app",
                 f"import sys; sys.path.insert(0, r'{lib_root}'); from taosanalytics.app import app; print('app ok')"
             ),
-        ]
+        ])
         for label, code in probes:
             try:
                 result = self._run_python_probe(python_exe, env, cwd, label, code)
@@ -567,6 +578,95 @@ class TaosanodeService:
                 self.logger.exception(f"Diagnostic probe failed to execute for {label}: {exc}")
                 continue
             self._log_probe_result(label, result)
+
+    def _extract_root_cause(self, stderr_text: str) -> Optional[str]:
+        patterns = [
+            r"ModuleNotFoundError: (.+)",
+            r"ImportError: (.+)",
+            r"OSError: (.+)",
+            r"WinError \d+[^\\r\\n]*",
+            r"Error loading [^\r\n]+",
+        ]
+        for pattern in patterns:
+            match = re.search(pattern, stderr_text, re.MULTILINE)
+            if match:
+                return match.group(0).strip()
+        return None
+
+    def _is_stdlib_module(self, module_name: str) -> bool:
+        stdlib_names = getattr(sys, "stdlib_module_names", set())
+        return module_name in stdlib_names
+
+    def _resolve_local_module_path(self, module_name: str, package_root: str) -> Optional[str]:
+        if not module_name.startswith("taosanalytics"):
+            return None
+        relative_parts = module_name.split(".")[1:]
+        base_path = os.path.join(package_root, *relative_parts) if relative_parts else package_root
+        file_candidate = base_path + ".py"
+        init_candidate = os.path.join(base_path, "__init__.py")
+        if os.path.isfile(file_candidate):
+            return file_candidate
+        if os.path.isfile(init_candidate):
+            return init_candidate
+        return None
+
+    def _resolve_relative_module_name(self, current_module: str, level: int, module_name: str) -> Optional[str]:
+        parts = current_module.split(".")
+        if level > len(parts):
+            return None
+        prefix_parts = parts[:-level]
+        if module_name:
+            prefix_parts.extend(module_name.split("."))
+        return ".".join(part for part in prefix_parts if part)
+
+    def _discover_runtime_dependencies(self, entry_module: str = "taosanalytics.app") -> List[str]:
+        package_root = os.path.join(self.config.install_dir, "lib", "taosanalytics")
+        entry_path = self._resolve_local_module_path(entry_module, package_root)
+        if not entry_path:
+            return []
+
+        stdlib_exclusions = {"__future__"}
+        external_modules = set()
+        visited_modules = set()
+
+        def visit(module_name: str):
+            if module_name in visited_modules:
+                return
+            visited_modules.add(module_name)
+            module_path = self._resolve_local_module_path(module_name, package_root)
+            if not module_path or not os.path.isfile(module_path):
+                return
+            try:
+                with open(module_path, "r", encoding="utf-8", errors="replace") as fh:
+                    tree = ast.parse(fh.read(), filename=module_path)
+            except Exception as exc:
+                self.logger.warning(f"Unable to analyze imports for {module_name}: {exc}")
+                return
+
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Import):
+                    for alias in node.names:
+                        imported = alias.name
+                        top_level = imported.split(".")[0]
+                        if top_level == "taosanalytics":
+                            visit(imported)
+                        elif top_level not in stdlib_exclusions and not self._is_stdlib_module(top_level):
+                            external_modules.add(top_level)
+                elif isinstance(node, ast.ImportFrom):
+                    if node.level > 0:
+                        resolved = self._resolve_relative_module_name(module_name, node.level, node.module or "")
+                    else:
+                        resolved = node.module or ""
+                    if not resolved:
+                        continue
+                    top_level = resolved.split(".")[0]
+                    if top_level == "taosanalytics":
+                        visit(resolved)
+                    elif top_level not in stdlib_exclusions and not self._is_stdlib_module(top_level):
+                        external_modules.add(top_level)
+
+        visit(entry_module)
+        return sorted(external_modules)
 
     def _preflight_app_import(self, python_exe: str, env: Dict[str, str], cwd: str) -> bool:
         """Validate that taosanalytics.app can be imported before starting the service."""
@@ -602,6 +702,9 @@ class TaosanodeService:
             self.logger.error(
                 f"Taosanode import preflight failed with exit code {self._format_exit_code(result.returncode)}"
             )
+            root_cause = self._extract_root_cause(stderr_text)
+            if root_cause:
+                self.logger.error(f"Preflight root cause: {root_cause}")
             self._collect_preflight_diagnostics(python_exe, env, cwd)
             return False
 

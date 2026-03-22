@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import ctypes
+import hashlib
 import os
 import platform
 import re
@@ -411,6 +412,46 @@ class WindowsInstaller:
             self.print_error(f"Failed to create directories: {exc}")
             return False
 
+    def stop_existing_service(self) -> None:
+        self.print_info("Stopping any existing Taosanode service before installation...")
+        try:
+            query = subprocess.run(
+                ["sc", "query", "Taosanode"],
+                capture_output=True,
+                text=True,
+                timeout=20,
+                check=False,
+            )
+            if query.returncode != 0:
+                self.print_info("No existing Taosanode service was detected.")
+                return
+        except Exception as exc:
+            self.print_warning(f"Unable to query existing Taosanode service: {exc}")
+            return
+
+        for command in (
+            ["sc", "stop", "Taosanode"],
+            [str(self.install_dir / "bin" / "taosanode-winsw.exe"), "stop"],
+        ):
+            try:
+                if command[0].endswith(".exe") and not Path(command[0]).exists():
+                    continue
+                subprocess.run(command, capture_output=True, text=True, timeout=30, check=False)
+            except Exception:
+                pass
+
+        try:
+            subprocess.run(
+                ["taskkill", "/F", "/IM", "taosanode-winsw.exe"],
+                capture_output=True,
+                text=True,
+                timeout=15,
+                check=False,
+            )
+        except Exception:
+            pass
+        time.sleep(2)
+
     def can_reuse_venv(self, name: str, description: str) -> bool:
         path = self.get_venv_path(name)
         python_exe = path / "Scripts" / "python.exe"
@@ -485,10 +526,43 @@ class WindowsInstaller:
         )
         return False
 
+    def get_requirements_stamp_path(self, venv_name: str, req_name: str) -> Path:
+        stamp_name = req_name.replace("\\", "_").replace("/", "_") + ".stamp"
+        return self.get_venv_path(venv_name) / ".tdgpt-stamps" / stamp_name
+
+    def build_requirements_stamp(self, req_file: Path) -> str:
+        digest = hashlib.sha256()
+        digest.update(req_file.read_bytes())
+        digest.update(b"\n---\n")
+        digest.update((self.pip_index_url or "").encode("utf-8"))
+        digest.update(b"\n")
+        digest.update((self.pip_trusted_host or "").encode("utf-8"))
+        digest.update(b"\n")
+        digest.update((self.python_version or "").encode("utf-8"))
+        return digest.hexdigest()
+
+    def has_matching_requirements_stamp(self, venv_name: str, req_name: str, req_file: Path) -> bool:
+        stamp_path = self.get_requirements_stamp_path(venv_name, req_name)
+        if not stamp_path.exists():
+            return False
+        try:
+            return stamp_path.read_text(encoding="utf-8").strip() == self.build_requirements_stamp(req_file)
+        except Exception:
+            return False
+
+    def write_requirements_stamp(self, venv_name: str, req_name: str, req_file: Path) -> None:
+        stamp_path = self.get_requirements_stamp_path(venv_name, req_name)
+        stamp_path.parent.mkdir(parents=True, exist_ok=True)
+        stamp_path.write_text(self.build_requirements_stamp(req_file), encoding="utf-8")
+
     def install_req_file(self, venv_name: str, req_name: str, start_percent: int, end_percent: int, title: str) -> bool:
         req_file = self.requirements_dir / req_name
         if not req_file.exists():
             self.print_warning(f"Requirements file not found: {req_file}")
+            return True
+        if self.reused_venvs.get(venv_name) and self.has_matching_requirements_stamp(venv_name, req_name, req_file):
+            self.print_info(f"Requirements already satisfied for {venv_name}: {req_name}")
+            self.set_progress(end_percent, title, f"Using existing packages for {venv_name}")
             return True
         python_exe = self.get_venv_python(venv_name)
         pip_exe = self.get_venv_path(venv_name) / "Scripts" / "pip.exe"
@@ -499,7 +573,10 @@ class WindowsInstaller:
             return False
         install = [str(pip_exe), "install", "-r", str(req_file), "--progress-bar", "on"]
         self.add_pip_options(install)
-        return self.run_stream(install, f"Installing {req_name} in {venv_name}", 7200, upgrade_end, end_percent, title)
+        if not self.run_stream(install, f"Installing {req_name} in {venv_name}", 7200, upgrade_end, end_percent, title):
+            return False
+        self.write_requirements_stamp(venv_name, req_name, req_file)
+        return True
 
     def prepare_venv(self, venv_name: str, start_percent: int, end_percent: int) -> bool:
         config = VENV_CONFIGS[venv_name]
@@ -891,6 +968,8 @@ class WindowsInstaller:
         self.set_progress(12, "Preparing directories", "Creating required folders")
         if not self.create_directories():
             return False
+        self.set_progress(14, "Preparing installation environment", "Stopping existing Taosanode service")
+        self.stop_existing_service()
         if not self.install_venvs():
             return False
         if not self.process_models():
