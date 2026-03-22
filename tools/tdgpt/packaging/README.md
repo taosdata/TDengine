@@ -255,4 +255,5 @@ Modify the `bind` setting in the configuration file `C:\TDengine\taosanode\cfg\t
   - `requirements_windows_core.txt`
   - `requirements_tensorflow.txt` for optional TensorFlow CPU support
 - The installer writes append-only progress events to `<install_dir>\log\install-progress.log`, and the wizard displays the latest valid event.
+- The wizard reserves a conservative `20 GB` disk space estimate so the first page reflects Python environments and model payload growth instead of only the installer file size.
 - Online reinstall now reuses an existing healthy virtual environment and only recreates it when the environment is incomplete or pip validation fails.

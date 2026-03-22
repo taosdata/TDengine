@@ -33,6 +33,7 @@ Uninstallable=yes
 ArchitecturesAllowed=x64
 ArchitecturesInstallIn64BitMode=x64
 SetupLogging=yes
+ExtraDiskSpaceRequired=21474836480
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
