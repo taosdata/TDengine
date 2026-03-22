@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import argparse
-import configparser
 import ctypes
 import os
 import platform
@@ -141,21 +140,24 @@ class ProgressReporter:
     def __init__(self, progress_file: Optional[Path]):
         self.progress_file = progress_file
 
+    @staticmethod
+    def _sanitize(value: str) -> str:
+        return value.replace("\r", " ").replace("\n", " ").replace("|", "/").strip()
+
     def update(self, status: str, percent: int, title: str, detail: str) -> None:
         if not self.progress_file:
             return
         self.progress_file.parent.mkdir(parents=True, exist_ok=True)
-        parser = configparser.ConfigParser(interpolation=None)
-        parser["progress"] = {
-            "status": status,
-            "percent": str(max(0, min(100, percent))),
-            "title": title,
-            "detail": detail,
-        }
+        line = (
+            f"{self._sanitize(status)}|"
+            f"{max(0, min(100, percent))}|"
+            f"{self._sanitize(title)}|"
+            f"{self._sanitize(detail)}\n"
+        )
         for attempt in range(10):
             try:
-                with self.progress_file.open("w", encoding="utf-8") as fh:
-                    parser.write(fh)
+                with self.progress_file.open("a", encoding="utf-8") as fh:
+                    fh.write(line)
                 return
             except PermissionError:
                 if attempt == 9:

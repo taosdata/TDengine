@@ -501,14 +501,14 @@ set "PYTHONUTF8=1"
 set "PYTHONIOENCODING=utf-8"
 set "TDGPT_LOG_REDIRECTED=1"
 
-call :write_progress running 1 "Initializing TDGPT setup" "Preparing installation environment"
+call :append_progress running 1 "Initializing TDGPT setup" "Preparing installation environment"
 
 REM Check if Python is available
 python --version >nul 2>&1
 if errorlevel 1 (
     echo ERROR: Python not found in PATH
     echo Please install Python 3.10/3.11/3.12 from https://www.python.org/
-    call :write_progress error 100 "Installation failed" "Python 3.10/3.11/3.12 was not found in PATH"
+    call :append_progress error 100 "Installation failed" "Python 3.10/3.11/3.12 was not found in PATH"
     exit /b 1
 )
 
@@ -530,25 +530,21 @@ if errorlevel 1 (
 )
 
 >> "%LOG_FILE%" echo [%date% %time%] Installation completed successfully
-call :write_progress success 100 "Installation complete" "TDGPT is ready"
+call :append_progress success 100 "Installation complete" "TDGPT is ready"
 exit /b 0
 
-:write_progress
+:append_progress
 if "%PROGRESS_FILE%"=="" exit /b 0
-> "%PROGRESS_FILE%" echo [progress]
->> "%PROGRESS_FILE%" echo status=%~1
->> "%PROGRESS_FILE%" echo percent=%~2
->> "%PROGRESS_FILE%" echo title=%~3
->> "%PROGRESS_FILE%" echo detail=%~4
+>> "%PROGRESS_FILE%" echo %~1^|%~2^|%~3^|%~4
 exit /b 0
 
 :ensure_error_progress
 if "%PROGRESS_FILE%"=="" exit /b 0
 if exist "%PROGRESS_FILE%" (
-    findstr /B /C:"status=error" "%PROGRESS_FILE%" >nul 2>&1
+    findstr /B /C:"error|" "%PROGRESS_FILE%" >nul 2>&1
     if not errorlevel 1 exit /b 0
 )
-call :write_progress error 100 "%~1" "%~2"
+call :append_progress error 100 "%~1" "%~2"
 exit /b 0
 """)
     logging.info("Created install.bat")

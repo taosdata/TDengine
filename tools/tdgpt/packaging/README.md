@@ -254,5 +254,5 @@ Modify the `bind` setting in the configuration file `C:\TDengine\taosanode\cfg\t
 - Windows main environment installation now uses:
   - `requirements_windows_core.txt`
   - `requirements_tensorflow.txt` for optional TensorFlow CPU support
-- The installer writes progress state to `<install_dir>\log\install-progress.ini` so the wizard can display current install progress, including streamed pip/model download output.
+- The installer writes append-only progress events to `<install_dir>\log\install-progress.log`, and the wizard displays the latest valid event.
 - Online reinstall now reuses an existing healthy virtual environment and only recreates it when the environment is incomplete or pip validation fails.

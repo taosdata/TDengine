@@ -814,3 +814,11 @@ python packaging/win_release.py -e community -v 1.0.0 -m D:\models --offline -a
   - `pip` 校验失败
   - 其他导致环境明显损坏的异常
 - 这样重装/升级时会明显减少重复创建 venv 和重复下载依赖导致的耗时。
+
+### 安装进度文件机制调整
+
+- 原先安装器与 `install.py` 会同时读写同一个 `install-progress.ini`，在 Windows 下可能因为文件共享语义导致偶发竞争。
+- 现在改为由 `install.py` 与 `install.bat` 仅追加写入 `<安装目录>\log\install-progress.log`。
+- 安装向导不再按 INI 覆盖读取，而是读取该日志中的“最后一条有效进度记录”。
+- 如果日志最后一行正处于写入中或不完整，安装向导会自动回退到上一条完整记录继续显示。
+- 这样可以减少进度展示与实际安装流程之间的文件竞争，避免进度文件本身导致安装失败。

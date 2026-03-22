@@ -632,6 +632,89 @@ begin
   Abort;
 end;
 
+function TryParseProgressLine(LineValue: String; var StatusValue: String; var PercentValue: Integer;
+  var TitleValue: String; var DetailValue: String): Boolean;
+var
+  Pos1: Integer;
+  Pos2: Integer;
+  Pos3: Integer;
+  Rest: String;
+begin
+  Result := False;
+  LineValue := Trim(LineValue);
+  if LineValue = '' then
+    exit;
+
+  Pos1 := Pos('|', LineValue);
+  if Pos1 = 0 then
+    exit;
+  StatusValue := Copy(LineValue, 1, Pos1 - 1);
+  Rest := Copy(LineValue, Pos1 + 1, MaxInt);
+
+  Pos2 := Pos('|', Rest);
+  if Pos2 = 0 then
+    exit;
+  PercentValue := StrToIntDef(Copy(Rest, 1, Pos2 - 1), -1);
+  if PercentValue < 0 then
+    exit;
+  Rest := Copy(Rest, Pos2 + 1, MaxInt);
+
+  Pos3 := Pos('|', Rest);
+  if Pos3 = 0 then
+    exit;
+  TitleValue := Copy(Rest, 1, Pos3 - 1);
+  DetailValue := Copy(Rest, Pos3 + 1, MaxInt);
+  Result := True;
+end;
+
+function ReadLatestProgressEntry(ProgressFile: String; var StatusValue: String; var PercentValue: Integer;
+  var TitleValue: String; var DetailValue: String): Boolean;
+var
+  RawText: String;
+  RawTextAnsi: AnsiString;
+  LineValue: String;
+  BreakPos: Integer;
+  I: Integer;
+begin
+  Result := False;
+  if not FileExists(ProgressFile) then
+    exit;
+  if not LoadStringFromFile(ProgressFile, RawTextAnsi) then
+    exit;
+  RawText := RawTextAnsi;
+
+  StringChangeEx(RawText, #13#10, #10, True);
+  StringChangeEx(RawText, #13, #10, True);
+  RawText := Trim(RawText);
+  while RawText <> '' do
+  begin
+    BreakPos := 0;
+    for I := Length(RawText) downto 1 do
+    begin
+      if RawText[I] = #10 then
+      begin
+        BreakPos := I;
+        break;
+      end;
+    end;
+    if BreakPos > 0 then
+    begin
+      LineValue := Copy(RawText, BreakPos + 1, MaxInt);
+      RawText := Trim(Copy(RawText, 1, BreakPos - 1));
+    end
+    else
+    begin
+      LineValue := RawText;
+      RawText := '';
+    end;
+    if TryParseProgressLine(LineValue, StatusValue, PercentValue, TitleValue, DetailValue) then
+    begin
+      Result := True;
+      exit;
+    end;
+  end;
+end;
+
 procedure WaitForPostInstall();
 var
   ResultCode: Integer;
@@ -642,7 +725,7 @@ var
   TitleValue: String;
   DetailValue: String;
 begin
-  ProgressFile := ExpandConstant('{app}\log\install-progress.ini');
+  ProgressFile := ExpandConstant('{app}\log\install-progress.log');
   DeleteFile(ProgressFile);
   InstallProgressPage.SetText('Installing TDGPT', 'Preparing post-install tasks...');
   InstallProgressPage.SetProgress(0, 100);
@@ -656,10 +739,13 @@ begin
 
     while True do
     begin
-      StatusValue := GetIniString('progress', 'status', '', ProgressFile);
-      TitleValue := GetIniString('progress', 'title', 'Installing TDGPT', ProgressFile);
-      DetailValue := GetIniString('progress', 'detail', 'Please wait...', ProgressFile);
-      PercentValue := StrToIntDef(GetIniString('progress', 'percent', '0', ProgressFile), 0);
+      if not ReadLatestProgressEntry(ProgressFile, StatusValue, PercentValue, TitleValue, DetailValue) then
+      begin
+        StatusValue := '';
+        TitleValue := 'Installing TDGPT';
+        DetailValue := 'Please wait...';
+        PercentValue := 0;
+      end;
       InstallProgressPage.SetText(TitleValue, DetailValue);
       InstallProgressPage.SetProgress(PercentValue, 100);
       if StatusValue = 'success' then
