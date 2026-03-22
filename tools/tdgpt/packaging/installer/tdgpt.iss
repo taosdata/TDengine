@@ -114,6 +114,7 @@ var
   SelectMoirai: Boolean;
   SelectMoment: Boolean;
   PostInstallCompleted: Boolean;
+  ExistingInstallConfirmedDir: String;
 
 function NeedsAddPath(Param: string): Boolean;
 var
@@ -225,6 +226,59 @@ begin
     HasVCRuntimeDll('vcruntime140.dll');
 end;
 
+function IsExistingTaosanodeInstall(TargetDir: string): Boolean;
+begin
+  TargetDir := RemoveBackslashUnlessRoot(Trim(TargetDir));
+  if TargetDir = '' then
+  begin
+    Result := False;
+    exit;
+  end;
+
+  Result :=
+    FileExists(AddBackslash(TargetDir) + 'bin\taosanode_service.py') or
+    FileExists(AddBackslash(TargetDir) + 'cfg\taosanode.config.py') or
+    FileExists(AddBackslash(TargetDir) + 'install.py') or
+    DirExists(AddBackslash(TargetDir) + 'venvs') or
+    DirExists(AddBackslash(TargetDir) + 'model');
+end;
+
+function ConfirmExistingInstall(TargetDir: string): Boolean;
+var
+  MessageText: string;
+begin
+  TargetDir := RemoveBackslashUnlessRoot(Trim(TargetDir));
+  if TargetDir = '' then
+  begin
+    Result := True;
+    exit;
+  end;
+
+  if CompareText(ExistingInstallConfirmedDir, TargetDir) = 0 then
+  begin
+    Result := True;
+    exit;
+  end;
+
+  if not IsExistingTaosanodeInstall(TargetDir) then
+  begin
+    ExistingInstallConfirmedDir := '';
+    Result := True;
+    exit;
+  end;
+
+  MessageText :=
+    'An existing TDGPT / Taosanode installation was detected in this directory:' + #13#10 + #13#10 +
+    TargetDir + #13#10 + #13#10 +
+    'Continuing will update packaged files and reuse existing cfg, log, model, and venv directories when possible.' + #13#10 +
+    'Standard uninstall still keeps the model directory unless it is removed explicitly.' + #13#10 + #13#10 +
+    'Do you want to continue with this install location?';
+
+  Result := MsgBox(MessageText, mbConfirmation, MB_YESNO) = IDYES;
+  if Result then
+    ExistingInstallConfirmedDir := TargetDir;
+end;
+
 function InitializeSetup(): Boolean;
 var
   PythonVersionText: AnsiString;
@@ -305,6 +359,7 @@ begin
   SelectMoirai := True;
   SelectMoment := True;
   PostInstallCompleted := False;
+  ExistingInstallConfirmedDir := '';
 
   InstallModePage := CreateInputOptionPage(
     wpSelectDir,
@@ -448,6 +503,15 @@ end;
 function NextButtonClick(CurPageID: Integer): Boolean;
 begin
   Result := True;
+
+  if CurPageID = wpSelectDir then
+  begin
+    if not ConfirmExistingInstall(WizardDirValue()) then
+    begin
+      Result := False;
+      exit;
+    end;
+  end;
 
   if CurPageID = InstallModePage.ID then
   begin

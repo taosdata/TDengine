@@ -850,3 +850,16 @@ python packaging/win_release.py -e community -v 1.0.0 -m D:\models --offline -a
 - 用户直接双击 `start-model.bat`，或在命令行中只执行 `start-model.bat` 时，会自动尝试启动当前安装目录下实际存在的模型目录。
 - 缺失目录的模型会被跳过，不再因为未传参数而直接退出。
 - `start-model.bat all` 的原有行为保持不变，仍然是“启动存在目录的模型，跳过不存在的模型”。
+
+### 已存在安装目录提示恢复
+
+- Windows 安装向导现在重新增加“已检测到现有 TDGPT / Taosanode 安装”的确认提示。
+- 触发条件不是简单的“目录存在”，而是目标目录下检测到以下安装标志之一：
+  - `bin\taosanode_service.py`
+  - `cfg\taosanode.config.py`
+  - `install.py`
+  - `venvs`
+  - `model`
+- 这样可以避免用户选择普通已有目录时被误报。
+- 提示文案会明确说明继续安装会更新打包文件，并尽量复用现有 `cfg`、`log`、`model`、`venvs`。
+- 同时会明确说明标准卸载默认不会删除 `model` 目录，除非显式执行删除模型的卸载参数。
