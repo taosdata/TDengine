@@ -1,7 +1,0 @@
-1. 使用 taosBenchmark -t 10000 -n 10000 -y 创建基准测试数据库 test
-2. show table distributed test 得到 meters 表的占用空间大小，实际就是TEST 库的占用空间大小，记录该数据作为基准数据
-2. 使用 taosdump 备份及恢复 test 数据库，记录备份和恢复的性能数据及备份文件大小
-3. 使用 taosBackup，分别用两个不同 foramt 参数，导入时用 stmt 和 stmt2 两种不同方式，备份及恢复 test 数据库，记录备份和恢复的性能数据及备份文件大小
-4. 比较 taosdump 和 taosBackup 的性能数据和备份文件大小，同时与 TEST 库的占用空间大小进行对比，分析
-5. 分析结果，得出结论并撰写报告
-6. 恢复数据时可以使用 -W 参数改名，以免覆盖原有数据，测试完再删了
