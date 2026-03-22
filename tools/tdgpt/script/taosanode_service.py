@@ -452,12 +452,43 @@ class TaosanodeService:
     def _ensure_waitress(self, python_exe: str):
         """Ensure waitress is available in the main virtual environment."""
         try:
-            subprocess.run([python_exe, "-c", "import waitress"],
-                         capture_output=True, check=True)
-        except subprocess.CalledProcessError:
+            result = subprocess.run(
+                [python_exe, "-c", "import waitress"],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                check=True
+            )
+            if (result.stdout or "").strip():
+                self.logger.info(f"Waitress import probe stdout: {(result.stdout or '').strip()}")
+            if (result.stderr or "").strip():
+                self.logger.warning(f"Waitress import probe stderr: {(result.stderr or '').strip()}")
+        except subprocess.CalledProcessError as exc:
             self.logger.info("Installing waitress...")
-            subprocess.run([python_exe, "-m", "pip", "install", "waitress"],
-                         capture_output=True, check=True)
+            if (exc.stdout or "").strip():
+                self.logger.warning(f"Waitress import failed stdout: {(exc.stdout or '').strip()}")
+            if (exc.stderr or "").strip():
+                self.logger.warning(f"Waitress import failed stderr: {(exc.stderr or '').strip()}")
+            install_result = subprocess.run(
+                [python_exe, "-m", "pip", "install", "waitress"],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                check=False
+            )
+            if (install_result.stdout or "").strip():
+                self.logger.info(f"Waitress install stdout: {(install_result.stdout or '').strip()}")
+            if (install_result.stderr or "").strip():
+                self.logger.warning(f"Waitress install stderr: {(install_result.stderr or '').strip()}")
+            if install_result.returncode != 0:
+                raise subprocess.CalledProcessError(
+                    install_result.returncode,
+                    install_result.args,
+                    output=install_result.stdout,
+                    stderr=install_result.stderr,
+                )
 
     def _build_runtime_env(self) -> Dict[str, str]:
         """Build a consistent runtime environment for import checks and service start."""
@@ -470,6 +501,72 @@ class TaosanodeService:
         env["PYTHONIOENCODING"] = "utf-8"
         env.setdefault("PYTHONUTF8", "1")
         return env
+
+    @staticmethod
+    def _format_exit_code(returncode: int) -> str:
+        if returncode < 0:
+            return str(returncode)
+        return f"{returncode} (0x{returncode & 0xffffffff:08x})"
+
+    def _run_python_probe(self, python_exe: str, env: Dict[str, str], cwd: str, label: str, code: str) -> subprocess.CompletedProcess:
+        return subprocess.run(
+            [python_exe, "-X", "faulthandler", "-c", code],
+            env=env,
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False
+        )
+
+    def _log_probe_result(self, label: str, result: subprocess.CompletedProcess) -> None:
+        stdout_text = (result.stdout or "").strip()
+        stderr_text = (result.stderr or "").strip()
+        if result.returncode == 0:
+            self.logger.info(f"Diagnostic probe passed: {label}")
+            if stdout_text:
+                self.logger.info(f"{label} stdout: {stdout_text}")
+            if stderr_text:
+                self.logger.warning(f"{label} stderr: {stderr_text}")
+            return
+
+        self.logger.error(
+            f"Diagnostic probe failed: {label} exited with {self._format_exit_code(result.returncode)}"
+        )
+        if stdout_text:
+            self.logger.warning(f"{label} stdout: {stdout_text}")
+        if stderr_text:
+            self.logger.warning(f"{label} stderr: {stderr_text}")
+
+    def _collect_preflight_diagnostics(self, python_exe: str, env: Dict[str, str], cwd: str) -> None:
+        """Run focused import probes so startup failures identify the exact failing dependency."""
+        self.logger.info("Collecting taosanode startup diagnostics...")
+        lib_root = os.path.join(self.config.install_dir, "lib").replace("\\", "\\\\")
+        probes = [
+            ("import waitress", "import waitress; print('waitress ok')"),
+            ("import numpy", "import numpy; print('numpy ok')"),
+            ("import pandas", "import pandas; print('pandas ok')"),
+            ("import flask", "import flask; print('flask ok')"),
+            ("import torch", "import torch; print('torch ok')"),
+            ("import tensorflow", "import tensorflow; print('tensorflow ok')"),
+            ("import keras", "import keras; print('keras ok')"),
+            (
+                "import taosanalytics.conf",
+                f"import sys; sys.path.insert(0, r'{lib_root}'); import taosanalytics.conf; print('conf ok')"
+            ),
+            (
+                "import taosanalytics.app",
+                f"import sys; sys.path.insert(0, r'{lib_root}'); from taosanalytics.app import app; print('app ok')"
+            ),
+        ]
+        for label, code in probes:
+            try:
+                result = self._run_python_probe(python_exe, env, cwd, label, code)
+            except Exception as exc:
+                self.logger.exception(f"Diagnostic probe failed to execute for {label}: {exc}")
+                continue
+            self._log_probe_result(label, result)
 
     def _preflight_app_import(self, python_exe: str, env: Dict[str, str], cwd: str) -> bool:
         """Validate that taosanalytics.app can be imported before starting the service."""
@@ -503,8 +600,9 @@ class TaosanodeService:
 
         if result.returncode != 0:
             self.logger.error(
-                f"Taosanode import preflight failed with exit code {result.returncode}"
+                f"Taosanode import preflight failed with exit code {self._format_exit_code(result.returncode)}"
             )
+            self._collect_preflight_diagnostics(python_exe, env, cwd)
             return False
 
         self.logger.info("Taosanode import preflight succeeded")
@@ -696,7 +794,18 @@ class TaosanodeService:
             return False
 
         try:
-            # Install service
+            query = subprocess.run(
+                ["sc", "query", "Taosanode"],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if query.returncode == 0:
+                subprocess.run([service_exe, "stop"], capture_output=True, cwd=self.config.install_dir)
+                self.logger.info("Service already installed; keeping existing registration.")
+                self.logger.info("Updated XML settings will be picked up on the next service start.")
+                return True
+
             subprocess.run([service_exe, "install"], check=True, cwd=self.config.install_dir)
             self.logger.info("Service installed successfully")
             self.logger.info("To start the service: net start Taosanode")
