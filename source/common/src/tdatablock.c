@@ -274,6 +274,10 @@ static int32_t colDataReserve(SColumnInfoData* pColumnInfoData, size_t newSize) 
 
 int32_t doCopyNItems(struct SColumnInfoData* pColumnInfoData, int32_t currentRow, const char* pData,
                             int32_t itemLen, int32_t numOfRows, bool trimValue) {
+  if (numOfRows <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
   if (pColumnInfoData->info.bytes < itemLen) {
     uWarn("column/tag actual data len %d is bigger than schema len %d, trim it:%d", itemLen,
           pColumnInfoData->info.bytes, trimValue);
