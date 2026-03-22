@@ -14,6 +14,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import time
 import zipfile
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional
@@ -151,8 +152,15 @@ class ProgressReporter:
             "title": title,
             "detail": detail,
         }
-        with self.progress_file.open("w", encoding="utf-8") as fh:
-            parser.write(fh)
+        for attempt in range(10):
+            try:
+                with self.progress_file.open("w", encoding="utf-8") as fh:
+                    parser.write(fh)
+                return
+            except PermissionError:
+                if attempt == 9:
+                    return
+                time.sleep(0.1)
 
 
 class WindowsInstaller:
