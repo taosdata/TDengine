@@ -2030,43 +2030,87 @@ class TaskCreateTopic(StateTransitionTask):
             return
 
         sTable = self._db.getFixedSuperTable()  # type: TdSuperTable
-        # wt.execSql("use db")    # should always be in place
-        # create topic if not exists topic_ctb_column as select ts, c1, c2, c3 from stb1;
-
         stbname = sTable.getName()
         sub_tables = sTable.getRegTables(wt.getDbConn())
 
-        scalarExpr = Dice.choice(
-            ['*', 'speed', 'color', 'abs(speed)', 'acos(speed)', 'asin(speed)', 'atan(speed)', 'ceil(speed)',
-             'cos(speed)', 'cos(speed)',
-             'floor(speed)', 'log(speed,2)', 'pow(speed,2)', 'round(speed)', 'sin(speed)', 'sqrt(speed)',
-             'char_length(color)', 'concat(color,color)',
-             'concat_ws(" ", color,color," ")', 'length(color)', 'lower(color)', 'ltrim(color)', 'substr(color , 2)',
-             'upper(color)', 'cast(speed as double)',
-             'cast(ts as bigint)'])
-        topic_sql = ''  # set default value
-        if Dice.throw(3) == 0:  # create topic : source data from sub query
-            if sub_tables:  # if not empty
+        # Use a single throw to select topic type deterministically
+        topic_kind = Dice.throw(4)  # 0=child table query, 1=super table query, 2=stable topic, 3=database topic
+        topic_sql = ''
+
+        # ---- 尝试用语法树生成器生成丰富的标量子查询（topic_kind 0/1）----
+        def _grammar_topic_subquery(source_table: str) -> str:
+            """用 grammar_based_generator 生成符合订阅限制的子查询，失败则返回 None"""
+            try:
+                from .grammar_based_generator import get_generator
+                gen = get_generator(mode='hybrid')
+                # 传入真实的列/tag 上下文
+                col_info = {}
+                tag_info = {}
+                try:
+                    wt.getDbConn().query(
+                        "SELECT COLUMN_NAME, DATA_TYPE FROM information_schema.ins_columns "
+                        "WHERE db_name='{}' AND table_name='{}'".format(dbname, stbname)
+                    )
+                    for row in wt.getDbConn().getQueryResult():
+                        col_info[row[0]] = row[1]
+                except Exception:
+                    # fallback: 直接使用已知列名
+                    col_info = {'ts': 'TIMESTAMP', 'speed': 'INT', 'color': 'BINARY(16)'}
+                    tag_info = {'groupid': 'INT', 'location': 'BINARY(64)'}
+                gen.set_context({
+                    'db': dbname,
+                    'table': stbname,
+                    'columns': col_info,
+                    'tags': tag_info,
+                })
+                return gen.generate_topic_subquery(source_table)
+            except Exception as eg:
+                Logging.debug("[TMQ] grammar topic subquery failed: {}".format(eg))
+                return None
+
+        if topic_kind == 0:  # query topic from child table
+            if sub_tables:
                 sub_tbname = sub_tables[0]
-                # create topic : source data from sub query of sub stable
-                topic_sql = 'create topic {}  as select {} FROM {}.{}  ;  '.format(sub_topic_name, scalarExpr, dbname,
-                                                                                   sub_tbname)
+                source = '{}.{}'.format(dbname, sub_tbname)
+                # 70% 概率用语法树生成器，30% 保留简单备用
+                subq = _grammar_topic_subquery(source) if Dice.throw(10) < 7 else None
+                if not subq:
+                    subq = 'SELECT ts, speed, color FROM {} WHERE speed > 0'.format(source)
+                topic_sql = 'CREATE TOPIC IF NOT EXISTS {} AS {}'.format(sub_topic_name, subq)
+            else:
+                source = '{}.{}'.format(dbname, stbname)
+                subq = _grammar_topic_subquery(source) if Dice.throw(10) < 7 else None
+                if not subq:
+                    subq = 'SELECT ts, speed FROM {}'.format(source)
+                topic_sql = 'CREATE TOPIC IF NOT EXISTS {} AS {}'.format(super_topic_name, subq)
 
-            else:  # create topic : source data from sub query of stable
-                topic_sql = 'create topic {}  as select  {} FROM {}.{}  '.format(super_topic_name, scalarExpr, dbname,
-                                                                                 stbname)
-        elif Dice.throw(3) == 1:  # create topic :  source data from super table
-            topic_sql = 'create topic {}  AS STABLE {}.{}  '.format(stable_topic, dbname, stbname)
+        elif topic_kind == 1:  # query topic from super table
+            source = '{}.{}'.format(dbname, stbname)
+            subq = _grammar_topic_subquery(source) if Dice.throw(10) < 7 else None
+            if not subq:
+                subq = 'SELECT ts, speed, color FROM {}'.format(source)
+            topic_sql = 'CREATE TOPIC IF NOT EXISTS {} AS {}'.format(super_topic_name, subq)
 
-        elif Dice.throw(3) == 2:  # create topic :  source data from whole database
-            topic_sql = 'create topic {}  AS DATABASE {}  '.format(db_topic, dbname)
-        else:
-            pass
+        elif topic_kind == 2:  # super table topic (with optional with meta)
+            with_meta = 'WITH META' if Dice.throw(3) == 0 else ''
+            # Tag-based WHERE filter for stable topic
+            tag_where_opts = ['', 'WHERE groupid > 0', 'WHERE groupid < 100']
+            tag_where = Dice.choice(tag_where_opts)
+            topic_sql = 'CREATE TOPIC IF NOT EXISTS {} {} AS STABLE {}.{} {}'.format(
+                stable_topic, with_meta, dbname, stbname, tag_where).strip()
 
-        # exec create topics
+        elif topic_kind == 3:  # database topic (with optional with meta)
+            with_meta = 'WITH META' if Dice.throw(3) == 0 else ''
+            topic_sql = 'CREATE TOPIC IF NOT EXISTS {} {} AS DATABASE {}'.format(
+                db_topic, with_meta, dbname).strip()
+
+        if not topic_sql:
+            Logging.debug("[OPS] No topic SQL generated, skipping")
+            return
+
         self.execWtSql(wt, "use {}".format(dbname))
         self.execWtSql(wt, topic_sql)
-        Logging.debug("[OPS] db topic is creating at {}".format(time.time()))
+        Logging.debug("[OPS] topic SQL executed: {}".format(topic_sql))
 
 
 class TaskDropTopics(StateTransitionTask):
@@ -2309,39 +2353,143 @@ class TdSuperTable:
         dbc.execute(sql)
 
     def createConsumer(self, dbc, Consumer_nums):
+        """创建多个 TMQ 消费者线程，覆盖官方文档中所有关键参数和消费行为"""
 
-        def generateConsumer(current_topic_list):
-            consumer = Consumer({"group.id": "tg2", "td.connect.user": "root", "td.connect.pass": "taosdata"})
-            topic_list = []
-            for topic in current_topic_list:
-                topic_list.append(topic)
+        def generateConsumer(consumer_id, topic_subset, group_id, config_variant):
+            """
+            config_variant 控制消费者行为:
+              0 - auto commit, earliest offset reset
+              1 - manual commit, latest offset reset
+              2 - auto commit, none offset reset (已提交才订阅)
+              3 - manual commit, earliest + seek 测试
+              4 - auto commit, latest + assignments 检查
+            """
+            # 构建消费者配置，按官方文档参数
+            cfg = {
+                "group.id": group_id,
+                "client.id": "crash_gen_client_{}".format(consumer_id),
+                "td.connect.user": "root",
+                "td.connect.pass": "taosdata",
+                "session.timeout.ms": str(random.choice([6000, 12000, 30000])),
+                "max.poll.interval.ms": str(random.choice([10000, 60000, 300000])),
+                "fetch.max.wait.ms": str(random.choice([500, 1000, 2000])),
+                "min.poll.rows": str(random.choice([1, 100, 1024, 4096])),
+            }
+
+            # auto.offset.reset
+            if config_variant in (0, 4):
+                cfg["auto.offset.reset"] = "earliest"
+            elif config_variant in (1, 3):
+                cfg["auto.offset.reset"] = "latest"
+            else:  # config_variant == 2
+                cfg["auto.offset.reset"] = "none"
+
+            # enable.auto.commit
+            auto_commit = config_variant in (0, 2, 4)
+            cfg["enable.auto.commit"] = "true" if auto_commit else "false"
+            if auto_commit:
+                cfg["auto.commit.interval.ms"] = str(random.choice([1000, 3000, 5000]))
 
             try:
-                consumer.subscribe(topic_list)
+                consumer = Consumer(cfg)
+            except Exception as e:
+                Logging.debug("[TMQ] Consumer creation failed: {}".format(e))
+                return
 
-                # consumer with random work life
+            try:
+                consumer.subscribe(topic_subset)
+                Logging.debug("[TMQ] consumer_id={} group={} subscribed to {} topics, variant={}".format(
+                    consumer_id, group_id, len(topic_subset), config_variant))
+
                 time_start = time.time()
-                while 1:
-                    res = consumer.poll(1)
-                    consumer.commit(res)
-                    if time.time() - time_start > random.randint(5, 50):
-                        break
-                consumer.unsubscribe()
-                consumer.close()
-            except TmqError as err: # topic deleted by other threads
-                pass
+                # 随机工作时长 5~30 秒
+                work_duration = random.randint(5, 30)
+                poll_count = 0
+
+                while time.time() - time_start < work_duration:
+                    res = consumer.poll(timeout=random.uniform(0.5, 2.0))
+
+                    if res is not None:  # 有数据才处理/提交
+                        if not auto_commit:  # 手动提交
+                            try:
+                                consumer.commit(res)
+                            except TmqError as ce:
+                                Logging.debug("[TMQ] commit error: {}".format(ce))
+                        poll_count += 1
+
+                    # variant 3: 测试 seek —— 消费一段时间后重置到最早位置
+                    if config_variant == 3 and poll_count == 3:
+                        try:
+                            assignments = consumer.assignments()
+                            if assignments:
+                                for assign in assignments:
+                                    try:
+                                        consumer.seek(assign.topic, assign.vgroup_id, assign.begin)
+                                        Logging.debug("[TMQ] seek to begin: topic={} vgid={} begin={}".format(
+                                            assign.topic, assign.vgroup_id, assign.begin))
+                                    except (TmqError, Exception) as se:
+                                        Logging.debug("[TMQ] seek failed: {}".format(se))
+                        except (TmqError, Exception) as ae:
+                            Logging.debug("[TMQ] assignments() failed: {}".format(ae))
+
+                    # variant 4: 定期打印 assignments 信息（模拟消费进度监控）
+                    if config_variant == 4 and poll_count % 5 == 0 and poll_count > 0:
+                        try:
+                            assignments = consumer.assignments()
+                            if assignments:
+                                for assign in assignments:
+                                    Logging.debug("[TMQ] progress: topic={} vgid={} cur={} begin={} end={}".format(
+                                        assign.topic, assign.vgroup_id,
+                                        assign.offset, assign.begin, assign.end))
+                        except (TmqError, Exception):
+                            pass
+
+                Logging.debug("[TMQ] consumer_id={} finished, polled {} messages".format(consumer_id, poll_count))
+
+            except TmqError as err:
+                # topic 被其他线程删除等情况属正常并发异常
+                Logging.debug("[TMQ] TmqError in consumer_id={}: {}".format(consumer_id, err))
+            except Exception as err:
+                Logging.debug("[TMQ] Exception in consumer_id={}: {}".format(consumer_id, err))
+            finally:
+                try:
+                    consumer.unsubscribe()
+                except Exception:
+                    pass
+                try:
+                    consumer.close()
+                except Exception:
+                    pass
+
+        current_topic_list = self.getTopicLists(dbc)
+        if not current_topic_list:
+            Logging.debug("[TMQ] No topics available, skip creating consumers")
             return
 
-        # mulit Consumer
-        current_topic_list = self.getTopicLists(dbc)
-        for i in range(Consumer_nums):
-            consumer_inst = threading.Thread(target=generateConsumer, args=(current_topic_list,))
-            self._ConsumerInsts.append(consumer_inst)
+        # 使用多个消费组，覆盖同一 topic 被不同消费组独立消费的场景
+        group_ids = [
+            "cg_crash_{}".format(i) for i in range(min(3, max(1, Consumer_nums // 3 + 1)))
+        ]
 
-        for ConsumerInst in self._ConsumerInsts:
-            ConsumerInst.start()
-        for ConsumerInst in self._ConsumerInsts:
-            ConsumerInst.join()
+        self._ConsumerInsts = []
+        for i in range(Consumer_nums):
+            # 每个消费者随机选一个消费组，以及一个随机的 topic 子集（1~全部）
+            gid = random.choice(group_ids)
+            n_topics = random.randint(1, len(current_topic_list))
+            topic_subset = random.sample(current_topic_list, n_topics)
+            variant = i % 5  # 轮转覆盖 5 种配置场景
+            t = threading.Thread(
+                target=generateConsumer,
+                args=(i, topic_subset, gid, variant),
+                name="tmq_consumer_{}".format(i),
+                daemon=True,
+            )
+            self._ConsumerInsts.append(t)
+
+        for t in self._ConsumerInsts:
+            t.start()
+        for t in self._ConsumerInsts:
+            t.join(timeout=60)  # 最多等 60 秒，避免卡死主线程
 
     def getTopicLists(self, dbc: DbConn):
         dbc.query("show topics ")
@@ -2383,36 +2531,50 @@ class TdSuperTable:
         return dbc.query("show topics") > 0
 
     def dropTopics(self, dbc: DbConn, dbname=None, stb_name=None):
-        dbc.query("show topics ")
-        topics = dbc.getQueryResult()
-
-        if dbname != None and stb_name == None:
-
-            for topic in topics:
-                if dbname in topic[0] and topic[0].startswith("database"):
-                    try:
-                        dbc.execute('drop topic {}'.format(topic[0]))
-                        Logging.debug("[OPS] topic  {} is droping at {}".format(topic, time.time()))
-                    except taos.error.ProgrammingError as err:
-                        errno = Helper.convertErrno(err.errno)
-                        if errno in [0x03EB]:  # Topic subscribed cannot be dropped
-                            pass
-                            # for subsript in subscriptions:
-
-                        else:
-                            pass
-
-                        pass
+        """删除 topic，支持 IF EXISTS 并处理 Topic subscribed 等并发错误"""
+        try:
+            dbc.query("show topics")
+            topics = dbc.getQueryResult()
+        except Exception:
             return True
-        elif dbname != None and stb_name != None:
-            for topic in topics:
-                if topic[0].startswith(self._dbName) and topic[0].endswith('topic'):
-                    dbc.execute('drop topic {}'.format(topic[0]))
-                    Logging.debug("[OPS] topic  {} is droping at {}".format(topic, time.time()))
+
+        if not topics:
             return True
+
+        # 构建待删除 topic 名称集合
+        to_drop = []
+        if dbname is not None and stb_name is None:
+            # 删除数据库级 topic（以 'database_<dbname>' 开头）
+            prefix = 'database_' + dbname
+            for topic in topics:
+                tname = topic[0]
+                if tname.startswith(prefix):
+                    to_drop.append(tname)
+        elif dbname is not None and stb_name is not None:
+            # 删除以 dbname 开头的所有查询/超级表 topic
+            for topic in topics:
+                tname = topic[0]
+                if tname.startswith(dbname + '_'):
+                    to_drop.append(tname)
         else:
             return True
-            pass
+
+        for tname in to_drop:
+            try:
+                dbc.execute('DROP TOPIC IF EXISTS {}'.format(tname))
+                Logging.debug("[OPS] topic {} dropped at {}".format(tname, time.time()))
+            except taos.error.ProgrammingError as err:
+                errno = Helper.convertErrno(err.errno)
+                if errno in [0x03EB, 0x03ED, 0x03E1]:
+                    # 0x03EB: Topic subscribed cannot be dropped
+                    # 0x03ED: Topic must be dropped first
+                    # 0x03E1: Topic not exist
+                    Logging.debug("[OPS] topic {} drop skipped: errno=0x{:X} msg={}".format(
+                        tname, errno, err))
+                else:
+                    Logging.debug("[OPS] topic {} drop error: errno=0x{:X} msg={}".format(
+                        tname, errno, err))
+        return True
 
     def dropStreams(self, dbc: DbConn):
         dbc.query("show {}.streams".format(self._dbName))

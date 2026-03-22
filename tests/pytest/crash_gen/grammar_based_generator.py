@@ -164,7 +164,7 @@ class GrammarBasedSQLGenerator:
                       'SIN', 'COS', 'TAN', 'ASIN', 'ACOS', 'ATAN',
                       'POW', 'LOG', 'SIGN', 'MOD']
     SCALAR_STRING = ['CHAR_LENGTH', 'LENGTH', 'LOWER', 'UPPER',
-                     'LTRIM', 'RTRIM', 'CONCAT', 'REVERSE']
+                     'LTRIM', 'RTRIM', 'CONCAT']  # REVERSE 在 TDengine 中未实现
     SCALAR_TIME = ['TO_ISO8601', 'TIMETRUNCATE', 'TIMEDIFF', 'TO_CHAR']
 
     # 无参函数 (sql.y noarg_func)
@@ -331,23 +331,21 @@ class GrammarBasedSQLGenerator:
             return f"'val_{self._ri(1, 100)}'"
         return str(self._ri(0, 1000))
 
-    def _gen_pseudo_column(self) -> str:
-        """sql.y pseudo_column (26+ 种 + NK_PH 占位符形式)
+    def _gen_pseudo_column(self, in_window: bool = False) -> str:
+        """sql.y pseudo_column 安全子集。
 
-        额外覆盖:
-          pseudo_column ::= NK_PH NK_INTEGER(B)   →  $1, $2, ...
-          pseudo_column ::= NK_PH TBNAME(B)       →  $TBNAME
+        $TBNAME / $N 是流专用占位符（sql.y NK_PH），在普通 SELECT / CREATE TOPIC
+        中会触发 [0x4117] stream placeholder should only appear in create stream。
+        _wstart / _wend / _wduration / _tgrpid 等窗口伪列只能在窗口查询中使用，
+        普通查询中会触发 [0x2658]。
+        因此默认只返回在任意查询上下文都安全的 PSEUDO_COLS_BASIC。
         """
-        r = self.rng.random()
-        # NK_PH NK_INTEGER: 占位符列 ($1, $2, ...)
-        if r < 0.06:
-            return f'${self._ri(1, 5)}'
-        # NK_PH TBNAME: 占位符 tbname 函数
-        if r < 0.10:
-            return '$TBNAME'
-        pool = (self.PSEUDO_COLS_BASIC + self.PSEUDO_COLS_WINDOW +
-                self.PSEUDO_COLS_QUERY + self.PSEUDO_COLS_INTERP +
-                self.PSEUDO_COLS_ADVANCED)
+        if in_window:
+            pool = (self.PSEUDO_COLS_BASIC + self.PSEUDO_COLS_WINDOW +
+                    self.PSEUDO_COLS_QUERY + self.PSEUDO_COLS_INTERP)
+        else:
+            # 仅 _rowts / tbname 在普通 SELECT 和 topic 子查询中安全
+            pool = self.PSEUDO_COLS_BASIC
         return self.rng.choice(pool)
 
     def _gen_noarg_func(self) -> str:
@@ -403,7 +401,9 @@ class GrammarBasedSQLGenerator:
         if kind in ('IFNULL', 'NVL'):
             return f"{kind}({col}, {val})"
         if kind == 'NVL2':
-            return f"NVL2({col}, {val}, 0)"
+            # NVL2(expr, val_not_null, val_null) — 三参数需类型一致，统一用数值
+            num_col = self._rnc()
+            return f"NVL2({num_col}, {self._ri()}, {self._ri()})"
         if kind == 'NULLIF':
             return f"NULLIF({col}, {val})"
         return f"COALESCE({col}, {self._rc()}, {val})"
@@ -449,34 +449,34 @@ class GrammarBasedSQLGenerator:
         return f"({c1} {op} {c2})"
 
     def _gen_bitwise(self) -> str:
-        """sql.y 位运算：完整覆盖 NK_BITAND/NK_BITOR/NK_BITXOR/NK_BITNOT/NK_LSHIFT/NK_RSHIFT"""
-        kind = self.rng.choice(['and', 'or', 'xor', 'not', 'lshift', 'rshift'])
+        """sql.y 位运算：仅保留 TDengine 实际支持的 & (NK_BITAND) 和 | (NK_BITOR)。
+        注：TDengine 不支持 ^ (XOR) / ~ (BITNOT) / << (LSHIFT) / >> (RSHIFT)。"""
+        kind = self.rng.choice(['and', 'or'])
         c1 = self._rnc()
         val = self._ri(0, 255)
-        if kind == 'and':    return f"({c1} & {val})"
-        if kind == 'or':     return f"({c1} | {val})"
-        if kind == 'xor':    return f"({c1} ^ {val})"
-        if kind == 'not':    return f"(~{c1})"
-        if kind == 'lshift': return f"({c1} << {self.rng.choice([1, 2, 4, 8])})"
-        if kind == 'rshift': return f"({c1} >> {self.rng.choice([1, 2, 4, 8])})"
-        return f"({c1} & {val})"
+        if kind == 'and': return f"({c1} & {val})"
+        return f"({c1} | {val})"
 
     def _gen_json_arrow(self) -> str:
-        """sql.y expression ::= column_reference NK_ARROW NK_STRING (JSON -> 取值)"""
-        # JSON 列通常是 tag，用字符串列或普通列
-        col = self._rc()
+        """sql.y expression ::= column_reference NK_ARROW NK_STRING (JSON -> 取值)
+        仅对 JSON 类型的 tag 列使用，否则退化为普通列引用，避免 0x0200 Invalid operation"""
+        json_cols = [c for c, t in self.context.get('tags', {}).items()
+                     if 'JSON' in t.upper()]
+        if not json_cols:
+            return self._rc()  # 无 JSON 列时退化为普通列引用
+        col = self.rng.choice(json_cols)
         key = self.rng.choice(['key', 'name', 'type', 'value', 'id', 'code'])
         return f"{col}->'{key}'"
 
     def _gen_concat_expr(self) -> str:
-        """sql.y NK_CONCAT (||): 字符串连接运算符"""
+        """字符串连接：使用 CONCAT() 函数代替 TDengine 不支持的 || 运算符"""
         if self._str_cols():
             c1 = self._rsc()
             c2 = self.rng.choice([f"'{self._ri(1,99)}'", self._rsc()])
         else:
             c1 = f"'{self._ri(1, 99)}'"
             c2 = f"'{self._ri(1, 99)}'"
-        return f"({c1} || {c2})"
+        return f"CONCAT({c1}, {c2})"
 
     def _gen_select_expr(self, allow_agg=True) -> str:
         """生成单个 SELECT 表达式 (覆盖 sql.y expression 所有分支)"""
@@ -487,7 +487,7 @@ class GrammarBasedSQLGenerator:
              'star_func', 'bitwise', 'json_arrow', 'concat'],
             weights=[24, 12 if allow_agg else 0, 10, 4, 4,
                      4, 5, 3, 7, 3,
-                     2, 2, 2, 2, 2,
+                     2, 2, 2, 2, 2 if allow_agg else 0,
                      4 if allow_agg else 0, 3, 2, 2],
             k=1
         )[0]
@@ -569,7 +569,7 @@ class GrammarBasedSQLGenerator:
              'like', 'not_like', 'match', 'nmatch', 'regexp', 'not_regexp',
              'contains'],
             weights=[30, 6, 3, 6, 6,
-                     3, 3, 5, 2, 2,
+                     3, 3, 5, 2, 0,   # in_subquery=0: TDengine 不支持 WHERE IN(subquery)
                      6, 3, 3, 3, 2, 1,
                      2],
             k=1
@@ -622,7 +622,12 @@ class GrammarBasedSQLGenerator:
             sc = self._rsc() if self._str_cols() else col
             return f"{sc} NOT REGEXP '.*bad.*'"
         if kind == 'contains':
-            return f"{col} CONTAINS 'key'"
+            # CONTAINS 是 JSON 专用谓词，只对 JSON 类型的 tag 列使用
+            json_cols = [c for c, t in self.context.get('tags', {}).items()
+                         if 'JSON' in t.upper()]
+            if not json_cols:
+                return f"{self._rnc()} > 0"  # 无 JSON 列时退化
+            return f"{self.rng.choice(json_cols)} CONTAINS 'key'"
         return f"{col} > 0"
 
     def _gen_condition(self, depth=0) -> str:
@@ -786,6 +791,66 @@ class GrammarBasedSQLGenerator:
         sql = self._expand(start_symbol)
         sql = re.sub(r'\s+', ' ', sql).strip()
         return sql
+
+    def generate_topic_subquery(self, source: str) -> str:
+        """
+        生成符合 TDengine 数据订阅限制的纯标量 SELECT 语句，可直接用于
+        CREATE TOPIC ... AS <subquery>。
+
+        限制（来自官方文档）：
+          - 只能查询原始数据，不支持聚合函数（COUNT/AVG/SUM 等）
+          - 不支持窗口函数（INTERVAL/SESSION/STATE_WINDOW 等）
+          - 不支持 GROUP BY / HAVING
+          - 不支持 UNION/EXCEPT/INTERSECT/MINUS
+          - 必须包含 ts（时间列），且按时间正序投递
+          - 支持标量函数、WHERE 过滤、LIMIT
+          - DISTINCT 可选
+
+        Args:
+            source: 完整的 FROM 目标，如 'db.stable' 或 'db.child_tbl'
+        Returns:
+            合法的 topic 子查询 SQL 字符串
+        """
+        parts = ['SELECT']
+
+        # 注：CREATE TOPIC 不支持 SELECT DISTINCT（返回 0x2639），已移除 DISTINCT 生成
+
+        # --- 列列表：ts 必须在首位，后跟 1-3 个纯标量表达式 ---
+        ts_col = self.context.get('ts_col', 'ts')
+        select_items = [ts_col]
+
+        # 选 1-3 个额外列（强制 allow_agg=False）
+        n_extra = self.rng.randint(1, 3)
+        seen = set()
+        for _ in range(n_extra):
+            expr = self._gen_select_expr(allow_agg=False)
+            # 避免重复
+            if expr not in seen and expr != ts_col:
+                seen.add(expr)
+                # 可选列别名
+                if self.rng.random() < 0.15 and expr != '*' and '.*' not in expr:
+                    expr = f"{expr} AS f_{self._ri(1, 99)}"
+                select_items.append(expr)
+
+        # 偶尔直接用 SELECT *（15% 概率），对超级表查询尤为有效
+        if self.rng.random() < 0.15:
+            parts.append('*')
+        else:
+            parts.append(', '.join(select_items))
+
+        # FROM
+        parts.append(f'FROM {source}')
+
+        # WHERE（55% 概率），只用标量谓词，排除聚合相关
+        if self.rng.random() < 0.55:
+            # 生成 1 或 2 层谓词（depth=0 保证不会递归太深）
+            cond = self._gen_condition(depth=0)
+            parts.append(f'WHERE {cond}')
+
+        # PARTITION BY — TDengine CREATE TOPIC 不支持（返回 0x2639 Invalid topic query），已移除
+        # LIMIT — TDengine CREATE TOPIC 不支持 LIMIT 子句（返回 0x2639 Invalid topic query），已移除
+
+        return ' '.join(parts)
 
     # ==================== SELECT 生成 (sql.y query_specification 完整覆盖) ====================
 
