@@ -227,7 +227,7 @@ echo "=== Step 2/2: Running upgrade compatibility tests in Docker ==="
 echo "  Container name: $CONTAINER_NAME"
 echo ""
 
-docker run --rm \
+docker run \
     --name "${CONTAINER_NAME}" \
     -v "${CONTAINER_REP_MOUNT}" \
     -v "${CONTAINER_DEBUG_MOUNT}" \
