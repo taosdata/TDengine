@@ -12,6 +12,10 @@
 #ifndef INC_PARQUET_BLOCK_H_
 #define INC_PARQUET_BLOCK_H_
 
+#include <stdint.h>
+
+#ifndef _WIN32
+
 /*
  * Pure C interface to the Apache Arrow / Parquet C++ library.
  *
@@ -22,8 +26,6 @@
  *  Backup path :  parquetWriterCreate → parquetWriterWriteBlock × N → parquetWriterClose
  *  Restore path:  parquetReaderOpen  → parquetReaderReadAll           → parquetReaderClose
  */
-
-#include <stdint.h>
 
 /* Avoid dragging taos.h C++ issues into this header when included from C++. */
 #ifdef __cplusplus
@@ -44,100 +46,59 @@ typedef struct ParquetReader ParquetReader;
 /* ------------------------------------------------------------------ */
 /* Writer API  (backup)                                                 */
 /* ------------------------------------------------------------------ */
-
-/*
- * Create a Parquet file writer.
- * The TAOS schema is stored in the file's key-value metadata so that
- * the reader can reconstruct exact types and byte-widths on restore.
- *
- * @param fileName  Output file path (.par)
- * @param fields    TAOS_FIELD array describing the result set
- * @param numFields Number of fields
- * @param efields   TAOS_FIELD_E array (may be NULL).  When provided, precision
- *                  and scale for DECIMAL columns are stored in the metadata so
- *                  the reader can reconstruct them without packet format changes.
- * @param code      Receives TSDB_CODE_* on failure
- * @return          Opaque handle, or NULL on failure
- */
 ParquetWriter *parquetWriterCreate(const char *fileName, TAOS_FIELD *fields,
                                    int numFields, TAOS_FIELD_E *efields,
                                    int *code);
-
-/*
- * Append one TDengine raw block to the Parquet file.
- * The block is the in-memory columnar format returned by taos_fetch_raw_block.
- */
 int parquetWriterWriteBlock(ParquetWriter *pw, void *block, int blockRows);
-
-/*
- * Flush buffers, write the Parquet footer, and free the writer.
- */
 int parquetWriterClose(ParquetWriter *pw);
-
 
 /* ------------------------------------------------------------------ */
 /* Reader API  (restore)                                                */
 /* ------------------------------------------------------------------ */
-
-/*
- * Callback invoked once per row-group (batch) while reading a .par file.
- *
- * Parameters:
- *   userData   – caller-supplied context pointer
- *   fields     – TAOS_FIELD array recovered from file metadata (numFields entries)
- *   numFields  – column count
- *   bindArray  – ready-to-use TAOS_MULTI_BIND array (one entry per column).
- *                  Memory is owned by the reader; valid only during this call.
- *                  Do NOT free these pointers.
- *   numRows    – number of rows in this batch
- *
- * Return 0 to continue reading, non-zero to abort (the value is propagated
- * as the return code of parquetReaderReadAll).
- */
 typedef int (*ParquetBindCallback)(void *userData,
                                    TAOS_FIELD *fields, int numFields,
                                    TAOS_MULTI_BIND *bindArray, int32_t numRows);
-
-/*
- * Open a .par file for reading.
- *
- * @param fileName  Input file path
- * @param code      Receives TSDB_CODE_* on failure
- * @return          Opaque handle, or NULL on failure
- */
 ParquetReader *parquetReaderOpen(const char *fileName, int *code);
-
-/*
- * Iterate over all row-groups, invoking @callback for each batch.
- * Returns the first non-zero value returned by @callback, or
- * TSDB_CODE_SUCCESS when all batches were processed without error.
- */
 int parquetReaderReadAll(ParquetReader *pr,
                          ParquetBindCallback callback, void *userData);
-
-/*
- * Close the reader and release all resources.
- */
 void parquetReaderClose(ParquetReader *pr);
-
-/*
- * Return the total number of rows stored in a Parquet file.
- * Reads ONLY the file footer (no Arrow reader init, no schema parse, no data scan).
- * Suitable for a quick row-count peek before opening the file for actual work.
- * Returns -1 on any error.
- */
 int64_t parquetGetNumRowsQuick(const char *fileName);
-
-/*
- * Retrieve the schema recovered from the file metadata.
- * @param outFields   Set to a pointer into the reader's internal storage.
- *                    Valid until parquetReaderClose(); do NOT free.
- * @return  Number of fields (>= 1), or a negative TSDB_CODE on error.
- */
 int parquetReaderGetFields(ParquetReader *pr, TAOS_FIELD **outFields);
 
 #ifdef __cplusplus
 }  /* extern "C" */
 #endif
+
+#else  /* _WIN32 — Parquet/Arrow not supported on Windows */
+
+#include <taos.h>
+
+typedef struct ParquetWriter ParquetWriter;
+typedef struct ParquetReader ParquetReader;
+typedef int (*ParquetBindCallback)(void *userData,
+                                   TAOS_FIELD *fields, int numFields,
+                                   TAOS_MULTI_BIND *bindArray, int32_t numRows);
+
+static inline ParquetWriter *parquetWriterCreate(const char *f, TAOS_FIELD *flds,
+                                                  int n, TAOS_FIELD_E *ef, int *code) {
+    (void)f; (void)flds; (void)n; (void)ef; if (code) *code = -1; return NULL;
+}
+static inline int parquetWriterWriteBlock(ParquetWriter *pw, void *b, int r) {
+    (void)pw; (void)b; (void)r; return -1;
+}
+static inline int parquetWriterClose(ParquetWriter *pw) { (void)pw; return -1; }
+static inline ParquetReader *parquetReaderOpen(const char *f, int *code) {
+    (void)f; if (code) *code = -1; return NULL;
+}
+static inline int parquetReaderReadAll(ParquetReader *pr, ParquetBindCallback cb, void *ud) {
+    (void)pr; (void)cb; (void)ud; return -1;
+}
+static inline void parquetReaderClose(ParquetReader *pr) { (void)pr; }
+static inline int64_t parquetGetNumRowsQuick(const char *f) { (void)f; return -1; }
+static inline int parquetReaderGetFields(ParquetReader *pr, TAOS_FIELD **out) {
+    (void)pr; (void)out; return -1;
+}
+
+#endif  /* _WIN32 */
 
 #endif  /* INC_PARQUET_BLOCK_H_ */

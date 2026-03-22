@@ -12,46 +12,28 @@
 #ifndef INC_STORAGE_PARQUET_H_
 #define INC_STORAGE_PARQUET_H_
 
+#ifndef _WIN32
+
 #include "bck.h"
 
-/*
- * Backup: stream TAOS_RES rows into a .par (ApacheArrow/Parquet) file.
- */
 int resultToFileParquet(TAOS_RES *res, const char *fileName, int64_t *outRows);
+int fileParquetToStmt(TAOS_STMT *stmt, const char *fileName, int64_t *outRows);
+int fileParquetToStmt2(TAOS_STMT2 *stmt2, const char *fileName, int64_t *outRows);
 
-/*
- * Restore: read a .par file and insert all rows into @dbName.@tbName
- * using a pre-initialised TAOS_STMT handle.
- *
- * The function iterates every row-group in the file, populates
- * TAOS_MULTI_BIND arrays from the Arrow data, and calls
- *   taos_stmt_bind_param_batch → taos_stmt_add_batch
- * for each batch, flushing with taos_stmt_execute every
- * STMT_BATCH_THRESHOLD rows.  A final execute is performed after
- * the last batch.
- *
- * @param stmt       Prepared TAOS_STMT (INSERT INTO `db`.`tb` VALUES(?,…))
- * @param fileName   Path to the .par file
- * @param outRows    If non-NULL, receives total rows inserted
- */
-int fileParquetToStmt(TAOS_STMT *stmt,
-                      const char *fileName,
-                      int64_t    *outRows);
+#else  /* _WIN32 — Parquet not supported on Windows */
 
-/*
- * Restore a .par file into a table via a pre-prepared TAOS_STMT2.
- *
- * Functionally equivalent to fileParquetToStmt() but uses the STMT2 API
- * (taos_stmt2_bind_param + taos_stmt2_exec) for each row-group.
- * The TAOS_MULTI_BIND arrays delivered by the Parquet reader are converted
- * to TAOS_STMT2_BIND on-the-fly; no extra copy of the column data is made.
- *
- * @param stmt2      Prepared TAOS_STMT2 (INSERT INTO `db`.`tb` VALUES(?,…))
- * @param fileName   Path to the .par file
- * @param outRows    If non-NULL, receives total rows inserted
- */
-int fileParquetToStmt2(TAOS_STMT2 *stmt2,
-                       const char *fileName,
-                       int64_t    *outRows);
+#include <taos.h>
+
+static inline int resultToFileParquet(TAOS_RES *res, const char *fileName, long long *outRows) {
+    (void)res; (void)fileName; (void)outRows; return -1;
+}
+static inline int fileParquetToStmt(TAOS_STMT *stmt, const char *fileName, long long *outRows) {
+    (void)stmt; (void)fileName; (void)outRows; return -1;
+}
+static inline int fileParquetToStmt2(TAOS_STMT2 *stmt2, const char *fileName, long long *outRows) {
+    (void)stmt2; (void)fileName; (void)outRows; return -1;
+}
+
+#endif  /* _WIN32 */
 
 #endif  // INC_STORAGE_PARQUET_H_

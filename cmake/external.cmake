@@ -1711,6 +1711,8 @@ endif()
 
 # arrow + parquet (Apache Arrow C++ with bundled third-party dependencies)
 # Produces: libparquet.a  libarrow.a  libarrow_bundled_dependencies.a
+# NOTE: Arrow is not supported on Windows.
+if(NOT ${TD_WINDOWS})        # {
 INIT_EXT(ext_arrow
     INC_DIR  include
     LIB      lib/libparquet.a lib/libarrow.a lib/libarrow_bundled_dependencies.a
@@ -1766,3 +1768,4 @@ ExternalProject_Add(ext_arrow
     VERBATIM
 )
 add_dependencies(build_externals ext_arrow)     # this is for github workflow in cache-miss step.
+endif(NOT ${TD_WINDOWS})    # }

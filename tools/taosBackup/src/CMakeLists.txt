@@ -112,22 +112,26 @@ ADD_EXECUTABLE(
         backupData.c
         bckProgress.c
         storageTaos.c
+        bckSchemaChange.c
+    )
+
+if(NOT ${TD_WINDOWS})
+    # Arrow/Parquet storage backend (Linux and macOS)
+    target_sources(taosBackup PRIVATE
         storageParquet.c
         parquetBlock.cpp
         blockReader.c
         colCompress.c
-        bckSchemaChange.c
     )
+endif()
 
 # Enable C++ for the mixed C/C++ target
 SET_TARGET_PROPERTIES(taosBackup PROPERTIES LINKER_LANGUAGE CXX)
 
+if(NOT ${TD_WINDOWS})
 # Put each function/data in its own section so --gc-sections can dead-strip
 # unused code that is dragged in from Arrow/Parquet static libraries.
-# Note: -flto only helps in Release builds (-O2/-O3); at -O0 (debug) it bloats.
-if(NOT APPLE)
-    target_compile_options(taosBackup PRIVATE -ffunction-sections -fdata-sections)
-endif()
+target_compile_options(taosBackup PRIVATE -ffunction-sections -fdata-sections)
 
 # Prevent ZSTD symbol interposition: libtaos.so exports TSZ's ZSTD symbols
 # (ZSTD_compressBlock_doubleFast etc.) which collide with ext_arrow's statically
@@ -151,10 +155,12 @@ target_include_directories(taosBackup PRIVATE "${ext_arrow_inc_dir}")
 
 # Declare build-time dependency so ext_arrow is compiled before taosBackup links
 add_dependencies(taosBackup ext_arrow)
+endif()
 
 # link taos
 TARGET_LINK_LIBRARIES(taosBackup PRIVATE taos)
 
+if(NOT ${TD_WINDOWS})
 # link Arrow static libs: parquet → arrow → bundled deps (order matters for linker)
 foreach(_arrow_lib ${ext_arrow_libs})
     target_link_libraries(taosBackup PRIVATE "${_arrow_lib}")
@@ -166,6 +172,7 @@ if(APPLE)
         "-framework CoreFoundation"
         "-framework Security"
     )
+endif()
 endif()
 
 MESSAGE("")
