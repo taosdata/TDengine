@@ -29,6 +29,7 @@ Usage:
 import sys
 import os
 import getopt
+import signal
 import socket
 import time
 import subprocess
@@ -85,9 +86,9 @@ class Logger:
 class DNodeConfig:
     """Configuration for a single DNode"""
     
-    def __init__(self, index: int, fqdn: str, first_ep: str, second_ep: str, 
+    def __init__(self, index: int, fqdn: str, first_ep: str, second_ep: str,
                  base_port: int = 6030, base_path: str = "/tmp/tdengine",
-                 level: int = 1, disk: int = 1):
+                 level: int = 1, disk: int = 1, logger: Optional['Logger'] = None):
         self.index = index
         self.fqdn = fqdn
         self.first_ep = first_ep
@@ -96,16 +97,19 @@ class DNodeConfig:
         self.base_path = base_path
         self.level = level
         self.disk = disk
-        
+        self.logger = logger or Logger()
+        self.taosd_path: Optional[str] = None   # set by update_taosd()
+
         # Paths
         self.cfg_dir = os.path.join(self.base_path, f"dnode{index}", "cfg")
         self.data_dir = os.path.join(self.base_path, f"dnode{index}", "data")
         self.log_dir = os.path.join(self.base_path, f"dnode{index}", "log")
+        self.bin_dir = os.path.join(self.base_path, f"dnode{index}", "bin")
         self.cfg_file = os.path.join(self.cfg_dir, "taos.cfg")
         
     def create_directories(self):
         """Create necessary directories"""
-        for dir_path in [self.cfg_dir, self.log_dir]:
+        for dir_path in [self.cfg_dir, self.log_dir, self.bin_dir]:
             os.makedirs(dir_path, exist_ok=True)
             
         # Create multi-level data directories
@@ -184,103 +188,96 @@ class DNodeConfig:
         with open(self.cfg_file, 'w') as f:
             f.write(config_content)
 
+    def start_dnode(self, timeout: int = 5) -> bool:
+        if not self.taosd_path or not os.path.isfile(self.taosd_path):
+            raise FileNotFoundError(f"taosd not found: {self.taosd_path}")
 
-# ==================== TaosAdapter Manager ====================
-class TaosAdapterManager:
-    """Manager for TaosAdapter operations - only used when -B flag is set"""
-    
-    def __init__(self, base_path: str, logger: Optional[Logger] = None):
-        self.base_path = base_path
-        self.logger = logger or Logger()
-        self.adapter_path: Optional[str] = None
-        self.process: Optional[subprocess.Popen] = None
-        
-    def _find_taosadapter(self) -> str:
-        """Find taosadapter executable"""
-        possible_paths = [
-            "/usr/bin/taosadapter",
-            "/usr/local/bin/taosadapter",
-            os.path.expanduser("~/TDinternal/debug/build/bin/taosadapter"),
-            "./build/bin/taosadapter",
-        ]
-        
-        for path in possible_paths:
-            if os.path.exists(path) and os.access(path, os.X_OK):
-                return path
-                
-        result = subprocess.run(['which', 'taosadapter'], capture_output=True, text=True)
-        if result.returncode == 0:
-            return result.stdout.strip()
-            
-        raise FileNotFoundError("taosadapter executable not found")
-        
-    def start(self) -> bool:
-        """Start taosadapter"""
-        # Lazy loading: only find taosadapter when actually needed
-        if self.adapter_path is None:
-            try:
-                self.adapter_path = self._find_taosadapter()
-            except FileNotFoundError as e:
-                self.logger.error(str(e))
-                return False
-        
-        if self.process and self.process.poll() is None:
-            self.logger.info("TaosAdapter is already running")
-            return True
-            
-        try:
-            cmd = f"nohup {self.adapter_path} > {self.base_path}/taosadapter.log 2>&1 &"
-            self.logger.info(f"Starting TaosAdapter: {cmd}")
-            
-            self.process = subprocess.Popen(
-                cmd,
-                shell=True,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL
+        log_file = os.path.join(self.log_dir, "taosd_start.log")
+        cmd = f"nohup {self.taosd_path} -c {self.cfg_dir} >> {log_file} 2>&1 &"
+        self.logger.info(f"Starting DNode {self.index}: {cmd}")
+        subprocess.Popen(cmd, shell=True)
+
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            time.sleep(1)
+            result = subprocess.run(
+                f"lsof -i tcp:{self.port} | grep LISTEN",
+                shell=True, capture_output=True
             )
-            
-            time.sleep(2)
-            
-            # Check if running on default port 6041
-            if self._is_adapter_running():
-                self.logger.success("TaosAdapter started successfully on port 6041")
+            if result.returncode == 0:
+                self.logger.success(f"DNode {self.index} started on port {self.port}")
                 return True
-            else:
-                self.logger.error("TaosAdapter failed to start")
-                return False
-                
-        except Exception as e:
-            self.logger.error(f"Failed to start TaosAdapter: {e}")
-            return False
-            
-    def _is_adapter_running(self) -> bool:
-        """Check if TaosAdapter is running"""
-        cmd = "lsof -i tcp:6041 | grep LISTEN"
-        result = subprocess.run(cmd, shell=True, capture_output=True)
-        return result.returncode == 0
-        
-    def stop(self):
-        """Stop taosadapter"""
-        subprocess.run("pkill -9 taosadapter", shell=True, capture_output=True)
-        self.logger.info("TaosAdapter stopped")
 
+        self.logger.error(f"DNode {self.index} failed to start on port {self.port}")
+        if os.path.isfile(log_file):
+            try:
+                with open(log_file) as _f:
+                    tail = _f.read()[-4096:]
+                self.logger.error(f"--- taosd_start.log (last 4KB) ---\n{tail}")
+            except Exception:
+                pass
+        return False
+
+    def stop_dnode(self, graceful_timeout: int = 60) -> bool:
+        try:
+            result = subprocess.run(
+                ["pgrep", "-f", f"taosd.*{self.cfg_dir}"],
+                capture_output=True, text=True
+            )
+            pids = [int(p) for p in result.stdout.strip().split() if p.isdigit()]
+            pid = pids[0] if pids else None
+        except Exception:
+            pid = None
+
+        if pid is None:
+            self.logger.info(f"DNode {self.index}: no running taosd (already stopped)")
+            return True
+
+        self.logger.info(f"DNode {self.index}: stopping (pid={pid}) ...")
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except ProcessLookupError:
+            return True
+
+        deadline = time.time() + graceful_timeout
+        while time.time() < deadline:
+            try:
+                os.kill(pid, 0)
+                time.sleep(1)
+            except ProcessLookupError:
+                self.logger.info(f"DNode {self.index}: stopped")
+                return True
+
+        self.logger.info(f"DNode {self.index}: graceful stop timed out, SIGKILL ...")
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        time.sleep(2)
+        return True
+            
+    def update_taosd(self, taosd_ori_path: str):
+        """Copy taosd binary to cfg directory"""
+        taosd_dest_path = os.path.join(self.bin_dir, "taosd")
+        shutil.copy(taosd_ori_path, taosd_dest_path)
+        os.chmod(taosd_dest_path, 0o755)  # Ensure it's executable
+        self.taosd_path = taosd_dest_path
 
 # ==================== DNode Manager ====================
 class DNodeManager:
     """Manager for DNode operations"""
     
     def __init__(self, fqdn: str, base_path: str, level: int = 1, disk: int = 1,
-                 taosd_path: Optional[str] = None, logger: Optional[Logger] = None):
+                 taosd_ori_path: Optional[str] = None, logger: Optional[Logger] = None):
         self.fqdn = fqdn
         self.base_path = base_path
         self.level = level
         self.disk = disk
-        if not taosd_path or not os.path.isfile(taosd_path):
-            raise FileNotFoundError(f"taosd not found: {taosd_path!r}")
-        self.taosd_path = taosd_path
+        if not taosd_ori_path or not os.path.isfile(taosd_ori_path):
+            raise FileNotFoundError(f"taosd origin file not found: {taosd_ori_path!r}")
+        self.taosd_ori_path = taosd_ori_path
         self.logger = logger or Logger()
         self.dnodes: List[DNodeConfig] = []
-        self.processes: Dict[int, subprocess.Popen] = {}
 
     def create_dnode(self, index: int, first_ep: str, second_ep: str, 
                      update_dict: Optional[Dict] = None) -> DNodeConfig:
@@ -292,11 +289,13 @@ class DNodeManager:
             second_ep=second_ep,
             base_path=self.base_path,
             level=self.level,
-            disk=self.disk
+            disk=self.disk,
+            logger=self.logger,
         )
         
         dnode.create_directories()
         dnode.write_config(update_dict)
+        dnode.update_taosd(self.taosd_ori_path)
         
         self.dnodes.append(dnode)
         self.logger.info(f"DNode {index} configured at {dnode.cfg_dir}")
@@ -310,52 +309,24 @@ class DNodeManager:
         if not dnode:
             self.logger.error(f"DNode {index} not found")
             return False
-            
-        if index in self.processes:
-            if self.processes[index].poll() is None:
-                self.logger.info(f"DNode {index} is already running")
-                return True
-                
-        cmd = f"nohup {self.taosd_path} -c {dnode.cfg_dir} > /dev/null 2>&1 &"
-        self.logger.info(f"Starting DNode {index}: {cmd}")
-        
-        process = subprocess.Popen(
-            cmd,
-            shell=True,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL
-        )
-        
-        self.processes[index] = process
-        time.sleep(1)
-        
-        if self._is_dnode_running(dnode.port):
-            self.logger.success(f"DNode {index} started successfully on port {dnode.port}")
-            return True
-        else:
-            self.logger.error(f"DNode {index} failed to start")
-            return False
-            
+        return dnode.start_dnode()
+
     def _is_dnode_running(self, port: int) -> bool:
         """Check if DNode is running on specified port"""
         cmd = f"lsof -i tcp:{port} | grep LISTEN"
         result = subprocess.run(cmd, shell=True, capture_output=True)
         return result.returncode == 0
-        
+
     def stop_dnode(self, index: int):
         """Stop a specific DNode"""
-        if index in self.processes:
-            process = self.processes[index]
-            if process.poll() is None:
-                process.terminate()
-                process.wait(timeout=5)
-                self.logger.info(f"DNode {index} stopped")
+        dnode = next((d for d in self.dnodes if d.index == index), None)
+        if dnode:
+            dnode.stop_dnode()
                 
     def stop_all(self):
         """Stop all DNODEs"""
         self.logger.info("Stopping all DNODEs...")
         subprocess.run("pkill -9 taosd", shell=True, capture_output=True)
-        self.processes.clear()
         time.sleep(2)
         self.logger.info("All DNODEs stopped")
         
@@ -372,21 +343,15 @@ class ClusterManager:
     """Manager for TDengine cluster operations"""
     
     def __init__(self, fqdn: str, base_path: str, level: int = 1, disk: int = 1,
-                 taosd_path: Optional[str] = None, logger: Optional[Logger] = None):
+                 taosd_ori_path: str = None, logger: Optional[Logger] = None):
         self.fqdn = fqdn
         self.base_path = base_path
         self.level = level
         self.disk = disk
         self.logger = logger or Logger()
         self.dnode_manager = DNodeManager(fqdn, base_path, level, disk,
-                                          taosd_path=taosd_path, logger=self.logger)
-        self.adapter_manager: Optional[TaosAdapterManager] = None  # Lazy initialization
+                                          taosd_ori_path=taosd_ori_path, logger=self.logger)
         self.conn: Optional[taos.TaosConnection] = None
-        
-    def _ensure_adapter_manager(self):
-        """Ensure adapter manager is initialized (only when needed)"""
-        if self.adapter_manager is None:
-            self.adapter_manager = TaosAdapterManager(self.base_path, logger=self.logger)
         
     def create_cluster(self, dnode_nums: int, mnode_nums: int, 
                       update_dict: Optional[Dict] = None) -> bool:
@@ -510,11 +475,6 @@ class ClusterManager:
                 
         cursor.close()
         
-    def start_taosadapter(self) -> bool:
-        """Start TaosAdapter - only called when -B flag is used"""
-        self._ensure_adapter_manager()
-        return self.adapter_manager.start()
-        
     def check_cluster_status(self, check_snodes: bool = False) -> bool:
         """Check cluster status"""
         if not self.conn:
@@ -604,7 +564,6 @@ class TDengineClusterSetup:
         self.disk = 1
         self.base_path = os.path.expanduser("~/td_cluster")
         self.fqdn = ""
-        self.start_adapter = False
         self.update_cfg_dict = {}
         self.logger = Logger()
         
@@ -643,8 +602,6 @@ class TDengineClusterSetup:
                 self.base_path = value
             elif key in ['-f', '--fqdn']:
                 self.fqdn = value
-            elif key in ['-B', '--adapter']:
-                self.start_adapter = True
                 
     def print_help(self):
         """Print help message"""
@@ -715,7 +672,6 @@ Note:
         self.logger.info(f"  Disks per Level: {self.disk}")
         self.logger.info(f"  FQDN: {self.fqdn}")
         self.logger.info(f"  Base Path: {self.base_path}")
-        self.logger.info(f"  Start TaosAdapter: {self.start_adapter}")
         self.logger.info("=" * 70)
         
         try:
@@ -752,10 +708,6 @@ Note:
             if self.snodes > 0:
                 cluster_mgr.create_snodes_in_cluster(self.snodes)
             
-            # Start TaosAdapter if requested - only initialized when -B flag is used
-            if self.start_adapter:
-                cluster_mgr.start_taosadapter()
-            
             # Check final status
             cluster_mgr.check_cluster_status(check_snodes=(self.snodes > 0))
             
@@ -768,8 +720,6 @@ Note:
             self.logger.info(f"  Total MNODEs: {self.mnodes}")
             self.logger.info(f"  Total SNODEs: {self.snodes}")
             self.logger.info(f"  Storage: {self.level} levels × {self.disk} disks")
-            if self.start_adapter:
-                self.logger.info(f"  TaosAdapter: Running on port 6041")
             self.logger.info("\nNext Steps:")
             self.logger.info(f"  1. Connect: taos -h {self.fqdn}")
             self.logger.info(f"  2. Config: {self.base_path}/dnode1/cfg/taos.cfg")

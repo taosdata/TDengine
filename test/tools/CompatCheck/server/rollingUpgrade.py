@@ -5,8 +5,6 @@ import os
 import re
 import sys
 import time
-import shutil
-import signal
 import random
 import subprocess
 from typing import Optional, List
@@ -33,38 +31,6 @@ def _get_taosd_version(bin_path: str) -> str:
     except Exception:
         return "unknown"
 
-def _find_taosd_pid(cfg_dir: str) -> Optional[int]:
-    try:
-        result = subprocess.run(
-            ["pgrep", "-f", f"taosd.*{cfg_dir}"],
-            capture_output=True, text=True
-        )
-        pids = [int(p) for p in result.stdout.strip().split() if p.isdigit()]
-        return pids[0] if pids else None
-    except Exception:
-        return None
-
-
-def _wait_port_listen(port: int, timeout: int = 120) -> bool:
-    deadline = time.time() + timeout
-    while time.time() < deadline:
-        result = subprocess.run(
-            f"lsof -i tcp:{port} | grep -q LISTEN",
-            shell=True, capture_output=True
-        )
-        if result.returncode == 0:
-            return True
-        time.sleep(2)
-    return False
-
-
-def _node_bin_dir(base_path: str, index: int) -> str:
-    return os.path.join(base_path, f"dnode{index}", "bin")
-
-
-def _node_bin_path(base_path: str, index: int) -> str:
-    return os.path.join(_node_bin_dir(base_path, index), "taosd")
-
 
 # ==================== RollingUpgrader ====================
 
@@ -77,7 +43,6 @@ class RollingUpgrader:
 
     def __init__(self, cluster_mgr: ClusterManager, reporter=None):
         self.cluster_mgr = cluster_mgr
-        self.base_path   = cluster_mgr.base_path
         self.fqdn        = cluster_mgr.fqdn
         self.rp          = reporter   # duck-typed: needs .info() .error() .warn()
 
@@ -93,15 +58,11 @@ class RollingUpgrader:
         """
         Return a dict mapping dnode index -> version string by running
         each node's private taosd binary with -V.
-        Falls back to the cluster manager's base taosd for nodes not yet upgraded.
         """
-        base_taosd = getattr(self.cluster_mgr.dnode_manager, "taosd_path", None)
         versions = {}
         for dnode in self.cluster_mgr.dnode_manager.dnodes:
-            bin_path = _node_bin_path(self.base_path, dnode.index)
-            if not os.path.isfile(bin_path):
-                bin_path = base_taosd or ""
-            versions[dnode.index] = _get_taosd_version(bin_path) if bin_path else "unknown"
+            bin_path = dnode.taosd_path
+            versions[dnode.index] = _get_taosd_version(bin_path) if bin_path and os.path.isfile(bin_path) else "unknown"
         return versions
 
     def _print_dnodes(self, title: str = ""):
@@ -233,62 +194,32 @@ class RollingUpgrader:
         if not dnode:
             self._err(f"DNode {index} config not found")
             return False
-
-        pid = _find_taosd_pid(dnode.cfg_dir)
-        if pid is None:
-            self._log(f"DNode {index}: no running taosd found (already stopped)")
-            return True
-
-        self._log(f"DNode {index}: stopping (pid={pid}) ...")
-        try:
-            os.kill(pid, signal.SIGTERM)
-        except ProcessLookupError:
-            return True
-
-        deadline = time.time() + config.GRACEFUL_STOP_TIMEOUT
-        while time.time() < deadline:
-            try:
-                os.kill(pid, 0)
-                time.sleep(1)
-            except ProcessLookupError:
-                self._log(f"DNode {index}: stopped")
-                return True
-
-        self._log(f"DNode {index}: graceful stop timed out, SIGKILL ...")
-        try:
-            os.kill(pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
-        time.sleep(2)
-        return True
+        self._log(f"DNode {index}: stopping ...")
+        return dnode.stop_dnode(graceful_timeout=config.GRACEFUL_STOP_TIMEOUT)
 
     def _install_binary(self, index: int, taosd_src: str):
         """Copy taosd_src into this node's private bin dir."""
-        bin_dir  = _node_bin_dir(self.base_path, index)
-        bin_path = _node_bin_path(self.base_path, index)
-        os.makedirs(bin_dir, exist_ok=True)
-        shutil.copy2(taosd_src, bin_path)
-        os.chmod(bin_path, 0o755)
+        dnode = next(
+            (d for d in self.cluster_mgr.dnode_manager.dnodes if d.index == index), None
+        )
+        if not dnode:
+            raise RuntimeError(f"DNode {index} not found")
+        dnode.update_taosd(taosd_src)
 
     def _start_node(self, index: int) -> bool:
         dnode = next(
             (d for d in self.cluster_mgr.dnode_manager.dnodes if d.index == index), None
         )
         if not dnode:
-            self._err(f"DNode {index} config not found")
+            self._err(f"DNode {index} not found")
             return False
-
-        bin_path = _node_bin_path(self.base_path, index)
-        cmd      = f"nohup {bin_path} -c {dnode.cfg_dir} > /dev/null 2>&1 &"
-        subprocess.Popen(cmd, shell=True,
-                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        time.sleep(1)
-
-        if _wait_port_listen(dnode.port, timeout=120):
+        self._log(f"DNode {index}: starting ...")
+        ok = dnode.start_dnode(timeout=120)
+        if ok:
             self._log(f"DNode {index}: port {dnode.port} listening")
-            return True
-        self._err(f"DNode {index}: port {dnode.port} did not come up within 120s")
-        return False
+        else:
+            self._err(f"DNode {index}: port {dnode.port} did not come up within 120s")
+        return ok
 
     def _wait_dnode_ready(self, index: int) -> bool:
         self._log(f"DNode {index}: waiting for ready status ...")
