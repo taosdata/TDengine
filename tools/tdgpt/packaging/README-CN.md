@@ -63,7 +63,7 @@ bin/
 
 ## 前置要求
 
-1. **Python 3.9+** - 需要安装 Python 并添加到 PATH
+1. **Python 3.10 / 3.11 / 3.12** - 需要安装 Python 并添加到 PATH
 2. **Inno Setup 6** - 用于创建安装程序
    - 下载地址: https://jrsoftware.org/isdl.php
    - 安装后确保 `ISCC.exe` 在 PATH 中或在脚本中指定路径

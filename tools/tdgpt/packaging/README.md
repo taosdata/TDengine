@@ -63,7 +63,7 @@ bin/
 
 ## Prerequisites
 
-1. **Python 3.10+** - Python must be installed and added to PATH
+1. **Python 3.10 / 3.11 / 3.12** - Python must be installed and added to PATH
 2. **Inno Setup 6** - For creating installation programs
    - Download: https://jrsoftware.org/isdl.php
    - After installation, ensure `ISCC.exe` is in PATH or specify the path in the script
@@ -161,7 +161,7 @@ python bin\taosanode_service.py model-start all
 
 ## Important Notes
 
-1. **Python Version**: Python 3.10 or higher is recommended
+1. **Python Version**: Python 3.10, 3.11, or 3.12 is required
 2. **Configuration File**: `taosanode.config.py` has built-in Windows path support, automatically switching via the `on_windows` variable
 3. **Firewall**: The service uses port 6035 by default, firewall configuration may be needed
 4. **Dependencies**: Python dependencies are automatically installed on first startup, internet access may be required
@@ -234,7 +234,7 @@ Modify the `bind` setting in the configuration file `C:\TDengine\taosanode\cfg\t
   - Model source selection: none / online / offline package
   - Hugging Face endpoint selection: official / HF Mirror / custom
   - Service registration toggle
-- Default model preparation mode is `Do not install models now`.
+- Default model preparation mode is `Download selected models online`.
 - Offline Python package mode skips the TensorFlow question because the packaged offline runtime already includes it.
 - Offline model import automatically scans `<install_dir>\model\` and imports every packaged offline archive that is present.
 - Offline mode also offers one optional offline model package input. The selected archive can contain all offline models together.

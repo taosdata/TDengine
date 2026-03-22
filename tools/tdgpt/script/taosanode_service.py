@@ -459,6 +459,57 @@ class TaosanodeService:
             subprocess.run([python_exe, "-m", "pip", "install", "waitress"],
                          capture_output=True, check=True)
 
+    def _build_runtime_env(self) -> Dict[str, str]:
+        """Build a consistent runtime environment for import checks and service start."""
+        env = os.environ.copy()
+        lib_root = os.path.join(self.config.install_dir, "lib")
+        existing_pythonpath = env.get("PYTHONPATH", "").strip()
+        env["PYTHONPATH"] = (
+            lib_root if not existing_pythonpath else lib_root + os.pathsep + existing_pythonpath
+        )
+        env["PYTHONIOENCODING"] = "utf-8"
+        env.setdefault("PYTHONUTF8", "1")
+        return env
+
+    def _preflight_app_import(self, python_exe: str, env: Dict[str, str], cwd: str) -> bool:
+        """Validate that taosanalytics.app can be imported before starting the service."""
+        self.logger.info("Running taosanode import preflight check...")
+        check_script = (
+            "from taosanalytics.app import app; "
+            "print('taosanalytics.app import ok')"
+        )
+
+        try:
+            result = subprocess.run(
+                [python_exe, "-c", check_script],
+                env=env,
+                cwd=cwd,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                check=False
+            )
+        except Exception as exc:
+            self.logger.exception(f"Taosanode import preflight failed to execute: {exc}")
+            return False
+
+        stdout_text = (result.stdout or "").strip()
+        stderr_text = (result.stderr or "").strip()
+        if stdout_text:
+            self.logger.info(f"Preflight stdout: {stdout_text}")
+        if stderr_text:
+            self.logger.warning(f"Preflight stderr: {stderr_text}")
+
+        if result.returncode != 0:
+            self.logger.error(
+                f"Taosanode import preflight failed with exit code {result.returncode}"
+            )
+            return False
+
+        self.logger.info("Taosanode import preflight succeeded")
+        return True
+
     def _run_windows_foreground(self) -> bool:
         """Run taosanode in the current process for WinSW-managed service mode."""
         redirect_stdio_if_needed()
@@ -466,9 +517,14 @@ class TaosanodeService:
         self._ensure_waitress(python_exe)
 
         lib_root = os.path.join(self.config.install_dir, "lib")
+        lib_dir = os.path.join(self.config.install_dir, "lib", "taosanalytics")
+        env = self._build_runtime_env()
+        if not self._preflight_app_import(python_exe, env, lib_dir):
+            return False
+
         if lib_root not in sys.path:
             sys.path.insert(0, lib_root)
-        os.environ["PYTHONPATH"] = lib_root
+        os.environ.update(env)
 
         bind_host, bind_port, wc = self._get_waitress_settings()
 
@@ -493,7 +549,7 @@ class TaosanodeService:
             )
             return True
         except Exception as e:
-            self.logger.error(f"Error starting taosanode in foreground: {e}")
+            self.logger.exception(f"Error starting taosanode in foreground: {e}")
             return False
         finally:
             self.process_mgr.remove_pid("taosanode")
@@ -506,16 +562,18 @@ class TaosanodeService:
 
         self.logger.info("Starting taosanode service...")
 
+        python_exe = self.process_mgr._get_python_exe()
+        lib_dir = os.path.join(self.config.install_dir, "lib", "taosanalytics")
+        env = self._build_runtime_env()
+
         if IS_WINDOWS and foreground:
             return self._run_windows_foreground()
 
-        # Prepare environment
-        env = os.environ.copy()
-        env["PYTHONPATH"] = os.path.join(self.config.install_dir, "lib")
+        if IS_WINDOWS and not self._preflight_app_import(python_exe, env, lib_dir):
+            self.logger.error("Taosanode startup aborted because the import preflight failed")
+            return False
 
         # Build command
-        python_exe = self.process_mgr._get_python_exe()
-        lib_dir = os.path.join(self.config.install_dir, "lib", "taosanalytics")
 
         if IS_WINDOWS:
             self._ensure_waitress(python_exe)
@@ -575,11 +633,19 @@ class TaosanodeService:
                 self.logger.info(f"Listening on {self.config.bind}")
                 return True
             else:
-                self.logger.error("Failed to start taosanode - service did not start within timeout")
+                exit_code = proc.poll()
+                if exit_code is None:
+                    self.logger.error("Failed to start taosanode - service did not start within timeout")
+                else:
+                    self.logger.error(
+                        f"Failed to start taosanode - child process exited early with code {exit_code}"
+                    )
+                self.process_mgr.remove_pid("taosanode")
                 return False
 
         except Exception as e:
-            self.logger.error(f"Error starting taosanode: {e}")
+            self.process_mgr.remove_pid("taosanode")
+            self.logger.exception(f"Error starting taosanode: {e}")
             return False
 
     def stop(self) -> bool:

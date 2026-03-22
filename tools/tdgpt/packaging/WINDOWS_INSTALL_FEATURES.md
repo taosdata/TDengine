@@ -785,3 +785,20 @@ python packaging/win_release.py -e community -v 1.0.0 -m D:\models --offline -a
   - `moirai` 监听 `127.0.0.1:6039`
   - `moment` 监听 `127.0.0.1:6062`
 - 已验证 `stop-model.bat all` 在修复后可以输出准确的停止汇总信息。
+
+## 2026-03-22 补充说明
+
+### taosanode 启动失败诊断恢复
+
+- 恢复了 Windows 主服务启动前的 `taosanalytics.app` 预检查逻辑。
+- 预检查会单独启动一个 Python 子进程执行导入测试，并把以下信息统一写入 `<安装目录>\log\taosanode-service.log`：
+  - 返回码
+  - stdout
+  - stderr
+- 这样当 `torch`、`fbgemm.dll`、VC++ Runtime 或其他原生依赖缺失导致导入失败时，不会再只看到重复的 `Starting taosanode service...`，日志里会有明确失败上下文。
+- 如果主服务子进程提前退出，也会额外记录退出码，并清理 `taosanode.pid`，避免 `status` 因残留 pid 文件产生误导。
+
+### 当前安装向导默认值说明
+
+- 当前 Windows 安装向导的模型安装来源默认值为 `在线下载所选模型`，不是 `暂不安装模型`。
+- 当前前置检查只检查 Python，要求为 `Python 3.10 / 3.11 / 3.12`。
