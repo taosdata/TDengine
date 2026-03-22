@@ -195,18 +195,59 @@ begin
     TryDetectPython('python3.12', VersionText);
 end;
 
+function HasVCRuntimeDll(DllName: string): Boolean;
+var
+  SearchPaths: array[0..5] of string;
+  I: Integer;
+begin
+  SearchPaths[0] := ExpandConstant('{sys}');
+  SearchPaths[1] := ExpandConstant('{syswow64}');
+  SearchPaths[2] := ExpandConstant('{commonpf32}\Microsoft Visual Studio\2022\VC\Redist\MSVC');
+  SearchPaths[3] := ExpandConstant('{commonpf64}\Microsoft Visual Studio\2022\VC\Redist\MSVC');
+  SearchPaths[4] := ExpandConstant('{commonpf32}\Microsoft Visual Studio\2019\VC\Redist\MSVC');
+  SearchPaths[5] := ExpandConstant('{commonpf64}\Microsoft Visual Studio\2019\VC\Redist\MSVC');
+  Result := False;
+  for I := 0 to GetArrayLength(SearchPaths) - 1 do
+  begin
+    if (SearchPaths[I] <> '') and FileExists(AddBackslash(SearchPaths[I]) + DllName) then
+    begin
+      Result := True;
+      exit;
+    end;
+  end;
+end;
+
+function CheckVCRuntimePrerequisite(): Boolean;
+begin
+  Result :=
+    HasVCRuntimeDll('msvcp140.dll') and
+    HasVCRuntimeDll('msvcp140_1.dll') and
+    HasVCRuntimeDll('vcruntime140.dll');
+end;
+
 function InitializeSetup(): Boolean;
 var
   PythonVersionText: AnsiString;
   MessageText: string;
 begin
   Result := CheckPythonPrerequisite(PythonVersionText);
+  if not Result then
+  begin
+    MessageText :=
+      'Python 3.10, 3.11, or 3.12 was not found in PATH.' + #13#10 + #13#10 +
+      'Please install Python first, enable "Add Python to PATH", and then run the installer again.';
+    MsgBox(MessageText, mbCriticalError, MB_OK);
+    exit;
+  end;
+
+  Result := CheckVCRuntimePrerequisite();
   if Result then
     exit;
 
   MessageText :=
-    'Python 3.10, 3.11, or 3.12 was not found in PATH.' + #13#10 + #13#10 +
-    'Please install Python first, enable "Add Python to PATH", and then run the installer again.';
+    'Microsoft Visual C++ Redistributable x64 was not detected.' + #13#10 + #13#10 +
+    'Please install the latest supported Visual C++ Redistributable before continuing.' + #13#10 +
+    'Download: https://aka.ms/vc14/vc_redist.x64.exe';
   MsgBox(MessageText, mbCriticalError, MB_OK);
 end;
 

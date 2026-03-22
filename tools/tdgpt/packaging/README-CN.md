@@ -64,7 +64,9 @@ bin/
 ## 前置要求
 
 1. **Python 3.10 / 3.11 / 3.12** - 需要安装 Python 并添加到 PATH
-2. **Inno Setup 6** - 用于创建安装程序
+2. **Microsoft Visual C++ Redistributable x64** - TensorFlow、PyTorch 以及其他原生 Python 依赖所必需
+   - 下载地址: https://aka.ms/vc14/vc_redist.x64.exe
+3. **Inno Setup 6** - 用于创建安装程序
    - 下载地址: https://jrsoftware.org/isdl.php
    - 安装后确保 `ISCC.exe` 在 PATH 中或在脚本中指定路径
 

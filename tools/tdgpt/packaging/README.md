@@ -64,7 +64,9 @@ bin/
 ## Prerequisites
 
 1. **Python 3.10 / 3.11 / 3.12** - Python must be installed and added to PATH
-2. **Inno Setup 6** - For creating installation programs
+2. **Microsoft Visual C++ Redistributable x64** - Required by TensorFlow, PyTorch, and other native Python dependencies
+   - Download: https://aka.ms/vc14/vc_redist.x64.exe
+3. **Inno Setup 6** - For creating installation programs
    - Download: https://jrsoftware.org/isdl.php
    - After installation, ensure `ISCC.exe` is in PATH or specify the path in the script
 

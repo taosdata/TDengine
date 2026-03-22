@@ -828,3 +828,18 @@ python packaging/win_release.py -e community -v 1.0.0 -m D:\models --offline -a
 - 安装向导首页原先显示的空间需求更接近安装包自身大小，无法反映 Python venv、可选 TensorFlow、模型文件和运行期目录的实际占用。
 - 现在通过 Inno Setup 的 `ExtraDiskSpaceRequired` 将安装向导展示的预估空间统一提高为 `20 GB`。
 - 这样首页展示会更接近 TDGPT 在完整安装、模型下载和环境创建场景下的保守磁盘需求，避免用户误以为只需要数 MB 空间。
+
+### Windows VC++ 运行库前置要求
+
+- Windows 机器除 Python 3.10 / 3.11 / 3.12 外，还需要预装 `Microsoft Visual C++ Redistributable x64`。
+- 推荐直接安装最新支持版本：
+  - `https://aka.ms/vc14/vc_redist.x64.exe`
+- 这是 TensorFlow、PyTorch 以及其他依赖原生 DLL 的 Python 包在 Windows 上运行所需的公共运行库。
+- 典型缺失现象包括：
+  - `ImportError: Could not find the DLL(s) 'msvcp140_1.dll'`
+  - `fbgemm.dll or one of its dependencies`
+- 安装向导现在会在开始阶段额外检查以下关键 DLL：
+  - `msvcp140.dll`
+  - `msvcp140_1.dll`
+  - `vcruntime140.dll`
+- 如果未检测到这些 DLL，会直接提示安装 VC++ 运行库，而不是等到服务启动时才失败。
