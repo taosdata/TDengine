@@ -164,6 +164,26 @@ begin
   OutputText := Trim(OutputText);
 end;
 
+function RunCommandCapture(CmdLine: string; var OutputText: AnsiString): Boolean;
+var
+  TempFile: string;
+  ResultCode: Integer;
+  CmdArgs: string;
+begin
+  TempFile := ExpandConstant('{tmp}\tdgpt-command-output.txt');
+  DeleteFile(TempFile);
+  CmdArgs := '/C ' + CmdLine + ' > "' + TempFile + '" 2>&1';
+  Result := Exec(ExpandConstant('{cmd}'), CmdArgs, '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  OutputText := '';
+  if FileExists(TempFile) then
+  begin
+    LoadStringFromFile(TempFile, OutputText);
+    DeleteFile(TempFile);
+  end;
+  OutputText := Trim(OutputText);
+  Result := Result and (ResultCode = 0);
+end;
+
 function IsSupportedPythonVersion(OutputText: AnsiString): Boolean;
 var
   VersionText: AnsiString;
@@ -279,6 +299,102 @@ begin
     ExistingInstallConfirmedDir := TargetDir;
 end;
 
+function ServiceExists(ServiceName: string): Boolean;
+var
+  OutputText: AnsiString;
+begin
+  RunCommandCapture('sc query "' + ServiceName + '"', OutputText);
+  Result := Pos('SERVICE_NAME:', Uppercase(OutputText)) > 0;
+end;
+
+function IsServiceStopped(ServiceName: string): Boolean;
+var
+  OutputText: AnsiString;
+  UpperText: string;
+begin
+  RunCommandCapture('sc query "' + ServiceName + '"', OutputText);
+  UpperText := Uppercase(OutputText);
+  Result :=
+    (Pos('FAILED 1060', UpperText) > 0) or
+    (Pos('STATE', UpperText) > 0) and (Pos('STOPPED', UpperText) > 0);
+end;
+
+function WaitForServiceStop(ServiceName: string; TimeoutSeconds: Integer): Boolean;
+var
+  I: Integer;
+begin
+  for I := 0 to TimeoutSeconds * 2 do
+  begin
+    if IsServiceStopped(ServiceName) then
+    begin
+      Result := True;
+      exit;
+    end;
+    Sleep(500);
+  end;
+  Result := IsServiceStopped(ServiceName);
+end;
+
+function WaitForFileUnlock(FilePath: string; TimeoutSeconds: Integer): Boolean;
+var
+  I: Integer;
+  TempPath: string;
+begin
+  if not FileExists(FilePath) then
+  begin
+    Result := True;
+    exit;
+  end;
+
+  TempPath := FilePath + '.tdgpt-check';
+  if FileExists(TempPath) then
+    DeleteFile(TempPath);
+
+  for I := 0 to TimeoutSeconds * 2 do
+  begin
+    if RenameFile(FilePath, TempPath) then
+    begin
+      RenameFile(TempPath, FilePath);
+      Result := True;
+      exit;
+    end;
+    Sleep(500);
+  end;
+
+  Result := False;
+end;
+
+procedure StopExistingTaosanodeProcesses(TargetDir: string);
+var
+  ResultCode: Integer;
+  WinSWPath: string;
+begin
+  TargetDir := RemoveBackslashUnlessRoot(Trim(TargetDir));
+  if TargetDir = '' then
+    exit;
+
+  Log('TDGPT upgrade detected. Attempting to stop existing Taosanode service before file copy.');
+
+  if ServiceExists('Taosanode') then
+  begin
+    Exec(ExpandConstant('{cmd}'), '/C sc stop "Taosanode" >nul 2>&1', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    if WaitForServiceStop('Taosanode', 15) then
+      Log('Taosanode service reported STOPPED before upgrade.')
+    else
+      Log('Taosanode service did not stop cleanly within timeout. Continuing with process cleanup.');
+  end;
+
+  WinSWPath := AddBackslash(TargetDir) + 'bin\taosanode-winsw.exe';
+  if FileExists(WinSWPath) then
+  begin
+    Exec(WinSWPath, 'stop', TargetDir, SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    Sleep(1000);
+  end;
+
+  Exec(ExpandConstant('{cmd}'), '/C taskkill /F /T /IM taosanode-winsw.exe >nul 2>&1', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Sleep(1000);
+end;
+
 function InitializeSetup(): Boolean;
 var
   PythonVersionText: AnsiString;
@@ -303,6 +419,27 @@ begin
     'Please install the latest supported Visual C++ Redistributable before continuing.' + #13#10 +
     'Download: https://aka.ms/vc14/vc_redist.x64.exe';
   MsgBox(MessageText, mbCriticalError, MB_OK);
+end;
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+var
+  TargetDir: string;
+  WinSWPath: string;
+begin
+  Result := '';
+  TargetDir := RemoveBackslashUnlessRoot(WizardDirValue());
+  if not IsExistingTaosanodeInstall(TargetDir) then
+    exit;
+
+  StopExistingTaosanodeProcesses(TargetDir);
+  WinSWPath := AddBackslash(TargetDir) + 'bin\taosanode-winsw.exe';
+  if not WaitForFileUnlock(WinSWPath, 15) then
+  begin
+    Result :=
+      'The existing Taosanode Windows service is still locking this file:' + #13#10 + #13#10 +
+      WinSWPath + #13#10 + #13#10 +
+      'Stop the existing service or close the process that is using this file, then run the installer again.';
+  end;
 end;
 
 function GetSelectedModelCount(): Integer;

@@ -863,3 +863,14 @@ python packaging/win_release.py -e community -v 1.0.0 -m D:\models --offline -a
 - 这样可以避免用户选择普通已有目录时被误报。
 - 提示文案会明确说明继续安装会更新打包文件，并尽量复用现有 `cfg`、`log`、`model`、`venvs`。
 - 同时会明确说明标准卸载默认不会删除 `model` 目录，除非显式执行删除模型的卸载参数。
+
+### 重装前自动停止旧 WinSW 服务
+
+- 针对多次重装时 `bin\taosanode-winsw.exe` 被占用导致的 `DeleteFile failed; code 5`，安装向导现在会在正式复制文件前自动执行旧服务清理。
+- 清理顺序为：
+  - 检测是否存在 `Taosanode` Windows 服务
+  - 先执行 `sc stop Taosanode`
+  - 再尝试调用现有目录下的 `taosanode-winsw.exe stop`
+  - 最后执行 `taskkill /F /T /IM taosanode-winsw.exe`
+- 清理完成后，安装器会额外检查 `taosanode-winsw.exe` 是否已经解除占用。
+- 如果文件仍被锁定，会在进入复制阶段前直接给出明确错误提示，而不是等到文件替换过程中弹出 Windows 的“重试/跳过”错误框。
