@@ -41,6 +41,37 @@ typedef int32_t (*FCreateSetOpLogicNode)(SLogicPlanContext*, SSetOperator*, SLog
 typedef int32_t (*FCreateDeleteLogicNode)(SLogicPlanContext*, SDeleteStmt*, SLogicNode**);
 typedef int32_t (*FCreateInsertLogicNode)(SLogicPlanContext*, SInsertStmt*, SLogicNode**);
 
+static const char* partBlockTrace1NodeName(SNode* pNode) {
+  if (NULL == pNode) {
+    return "(null)";
+  }
+  if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+    return ((SColumnNode*)pNode)->colName;
+  }
+  if (QUERY_NODE_FUNCTION == nodeType(pNode)) {
+    return ((SFunctionNode*)pNode)->functionName;
+  }
+  return ((SExprNode*)pNode)->aliasName;
+}
+
+static void partBlockTrace1DumpNodeList(const char* pTag, SNodeList* pList) {
+  int32_t index = 0;
+  SNode*  pNode = NULL;
+  FOREACH(pNode, pList) {
+    if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+      SColumnNode* pCol = (SColumnNode*)pNode;
+      planError("PART_BLOCK_TRACE1 %s idx:%d nodeType:%d name:%s alias:%s colType:%d table:%s tableAlias:%s colId:%d resIdx:%d projIdx:%d",
+                pTag, index, nodeType(pNode), pCol->colName, pCol->node.aliasName, pCol->colType,
+                pCol->tableName, pCol->tableAlias, pCol->colId, pCol->resIdx, pCol->node.projIdx);
+    } else {
+      planError("PART_BLOCK_TRACE1 %s idx:%d nodeType:%d name:%s alias:%s projIdx:%d",
+                pTag, index, nodeType(pNode), partBlockTrace1NodeName(pNode),
+                ((SExprNode*)pNode)->aliasName, ((SExprNode*)pNode)->projIdx);
+    }
+    ++index;
+  }
+}
+
 static int32_t doCreateLogicNodeByTable(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SNode* pTable,
                                         SLogicNode** pLogicNode);
 static int32_t createQueryLogicNode(SLogicPlanContext* pCxt, SNode* pStmt, SLogicNode** pLogicNode);
@@ -577,6 +608,7 @@ _return:
   return code;
 }
 
+bool hasExternalWindowDerivedFromSubquery(SSelectStmt* pSelect);
 static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SRealTableNode* pRealTable,
                                    SLogicNode** pLogicNode) {
   SScanLogicNode* pScan = NULL;
@@ -665,7 +697,7 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   }
 
   bool isCountByTag = false;
-  if (pSelect->hasCountFunc && NULL == pSelect->pWindow && NULL == pSelect->pExtWindow) {
+  if (pSelect->hasCountFunc && NULL == pSelect->pWindow && !hasExternalWindowDerivedFromSubquery(pSelect)) {
     if (pSelect->pGroupByList) {
       isCountByTag = !keysHasCol(pSelect->pGroupByList);
     } else if (pSelect->pPartitionByList) {
@@ -3169,6 +3201,7 @@ static int32_t createPartitionLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pS
   pPartition->node.resultDataOrder = DATA_ORDER_LEVEL_NONE;
 
   PLAN_ERR_JRET(nodesCollectColumns(pSelect, SQL_CLAUSE_PARTITION_BY, NULL, COLLECT_COL_TYPE_ALL, &pPartition->node.pTargets));
+  partBlockTrace1DumpNodeList("logic.targets.raw", pPartition->node.pTargets);
 
   if (NULL == pPartition->node.pTargets) {
     SNode* pNew = NULL;
@@ -3177,11 +3210,13 @@ static int32_t createPartitionLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pS
   }
 
   rewriteTargetsWithResId(pPartition->node.pTargets);
+  partBlockTrace1DumpNodeList("logic.targets.rewrite", pPartition->node.pTargets);
 
   PLAN_ERR_JRET(nodesCollectFuncs(pSelect, SQL_CLAUSE_PARTITION_BY, NULL, fmIsAggFunc, &pPartition->pAggFuncs));
 
   pPartition->pPartitionKeys = NULL;
   PLAN_ERR_JRET(nodesCloneList(pSelect->pPartitionByList, &pPartition->pPartitionKeys));
+  partBlockTrace1DumpNodeList("logic.partkeys", pPartition->pPartitionKeys);
 
   if (keysHasCol(pPartition->pPartitionKeys)) {
     if (pSelect->pExtWindow) {

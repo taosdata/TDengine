@@ -4098,10 +4098,16 @@ _exit:
 
 static int32_t extWinInitNonStreamWindowDataFromBlock(SExternalWindowPhysiNode* pPhynode, SExecTaskInfo* pTaskInfo, STimeWindow* pTimeRange) {
   int32_t code = TSDB_CODE_SUCCESS;
-  int32_t lino = 0;
-  SArray* pBlocks = NULL;
+  int32_t     lino = 0;
+  SArray*     pBlocks = NULL;
   STimeWindow extWinTimeRange = {.skey = INT64_MAX, .ekey = INT64_MIN};
-  
+
+  if (NULL == pPhynode->pSubquery || nodeType(pPhynode->pSubquery) != QUERY_NODE_REMOTE_TABLE) {
+    qError("invalid subquery in external window, pSubquery:%p, type:%d", pPhynode->pSubquery,
+           pPhynode->pSubquery ? nodeType(pPhynode->pSubquery) : -1);
+    return TSDB_CODE_SUCCESS;
+  }
+
   TSDB_CHECK_NULL(pTaskInfo, code, lino, _exit, TSDB_CODE_INVALID_PARA);
 
   if (pTaskInfo->pStreamRuntimeInfo == NULL) {
@@ -4126,10 +4132,6 @@ static int32_t extWinInitNonStreamWindowDataFromBlock(SExternalWindowPhysiNode* 
 #else
   // get the block with external window values from subquery, for now just return error since this code
   // path is only for non-stream query which is not supported yet.
-  if (NULL == pPhynode->pSubquery || nodeType(pPhynode->pSubquery) != QUERY_NODE_REMOTE_TABLE) {
-    qError("invalid subquery in external window, pSubquery:%p, type:%d", pPhynode->pSubquery, pPhynode->pSubquery ? nodeType(pPhynode->pSubquery) : -1);
-    TAOS_CHECK_EXIT(TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
-  }
   
   SRemoteTableNode* pRemote = (SRemoteTableNode*)pPhynode->pSubquery;
   TAOS_CHECK_EXIT(qFetchRemoteNode(gTaskScalarExtra.pSubJobCtx, pRemote->subQIdx, (SNode*)pRemote));
