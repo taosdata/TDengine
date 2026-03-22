@@ -237,7 +237,7 @@ Modify the `bind` setting in the configuration file `C:\TDengine\taosanode\cfg\t
   - Model source selection: none / online / offline package
   - Hugging Face endpoint selection: official / HF Mirror / custom
   - Service registration toggle
-- Default model preparation mode is `Download selected models online`.
+- Default model preparation mode is `Import packaged offline model archives`.
 - Offline Python package mode skips the TensorFlow question because the packaged offline runtime already includes it.
 - Offline model import automatically scans `<install_dir>\model\` and imports every packaged offline archive that is present.
 - Offline mode also offers one optional offline model package input. The selected archive can contain all offline models together.

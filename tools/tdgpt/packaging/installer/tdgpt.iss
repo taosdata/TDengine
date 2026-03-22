@@ -546,9 +546,9 @@ begin
     'You can download selected models online, import packaged offline model archives automatically, or skip model setup for now.',
     True,
     False);
-  ModelSourcePage.Add('Download selected models online');
   ModelSourcePage.Add('Import packaged offline model archives');
   ModelSourcePage.Add('Do not install models now');
+  ModelSourcePage.Add('Download selected models online');
   ModelSourcePage.Values[0] := True;
 
   ModelSelectionPage := CreateInputOptionPage(
@@ -691,9 +691,9 @@ begin
 
   if CurPageID = ModelSourcePage.ID then
   begin
-    if ModelSourcePage.Values[0] then ModelSource := 'online';
-    if ModelSourcePage.Values[1] then ModelSource := 'offline';
-    if ModelSourcePage.Values[2] then ModelSource := 'none';
+    if ModelSourcePage.Values[0] then ModelSource := 'offline';
+    if ModelSourcePage.Values[1] then ModelSource := 'none';
+    if ModelSourcePage.Values[2] then ModelSource := 'online';
     if ModelSource <> 'online' then
     begin
       SelectTdtsfm := False;

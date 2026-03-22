@@ -98,7 +98,7 @@ MODEL_SPECS: Dict[str, Dict[str, object]] = {
     "timesfm": {
         "display": "TimesFM 2.0 500M",
         "default_model": "google/timesfm-2.0-500m-pytorch",
-        "flag_files": ["torch_model.ckpt", "config.json"],
+        "flag_files": ["model.safetensors", "config.json", "torch_model.ckpt"],
         "venv": "timesfm_venv",
         "online_supported": True,
         "archive_names": ["timesfm.zip", "timesfm.tar", "timesfm.tar.gz", "timesfm.tgz"],

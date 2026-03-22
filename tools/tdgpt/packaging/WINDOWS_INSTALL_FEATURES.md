@@ -893,6 +893,16 @@ python packaging/win_release.py -e community -v 1.0.0 -m D:\models --offline -a
 - Windows 在线模型安装现在会优先检查 `<安装目录>\model\<model_name>` 是否已经存在完整模型文件。
 - 如果目标目录下已经具备该模型要求的关键文件，会直接跳过该模型的在线下载，不再覆盖或重建该目录。
 - 例如 `timesfm` 当前会检查：
+  - `model.safetensors`
   - `config.json`
   - `torch_model.ckpt`
 - 这样对于用户手动提前放好的模型目录，重新安装并选择在线模式时会优先复用，而不是再次下载。
+
+### 模型来源选项顺序调整
+
+- Windows 安装向导中的“Model Installation Source”顺序已调整为：
+  - `Import packaged offline model archives`
+  - `Do not install models now`
+  - `Download selected models online`
+- 默认选项也同步调整为第一项，即优先提示用户使用离线导入。
+- 在线下载模式仍然保留，但放到最后，减少用户在默认安装路径下直接走大模型在线下载的概率。
