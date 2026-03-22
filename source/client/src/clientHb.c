@@ -85,7 +85,7 @@ static int32_t hbUpdateUserSessMertric(const char *user, SUserSessCfg *pCfg) {
   if (memcmp(pCfg, &cfg, sizeof(SUserSessCfg)) == 0) {
     return TSDB_CODE_SUCCESS;
   }
-  tscInfo(
+  tscDebug(
       "update session metric for user:%s, sessPerUser:%d, sessConnTime:%d, sessConnIdleTime:%d, sessMaxConcurrency:%d, "
       "sessMaxCallVnodeNum:%d",
       user, pCfg->sessPerUser, pCfg->sessConnTime, pCfg->sessConnIdleTime, pCfg->sessMaxConcurrency,

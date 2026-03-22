@@ -39,6 +39,39 @@ enum {
   SLOT_KEY_TYPE_REF = 3,
 };
 
+static const char* partBlockTrace1PhysiNodeName(SNode* pNode) {
+  if (NULL == pNode) {
+    return "(null)";
+  }
+  if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+    return ((SColumnNode*)pNode)->colName;
+  }
+  if (QUERY_NODE_FUNCTION == nodeType(pNode)) {
+    return ((SFunctionNode*)pNode)->functionName;
+  }
+  return ((SExprNode*)pNode)->aliasName;
+}
+
+static void partBlockTrace1DumpList(const char* pTag, SNodeList* pList) {
+  int32_t index = 0;
+  SNode*  pNode = NULL;
+  FOREACH(pNode, pList) {
+    if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+      SColumnNode* pCol = (SColumnNode*)pNode;
+      planError("PART_BLOCK_TRACE1 %s idx:%d nodeType:%d name:%s alias:%s colType:%d slot:%d dataBlock:%" PRId64
+                " table:%s tableAlias:%s colId:%d resIdx:%d projIdx:%d",
+                pTag, index, nodeType(pNode), pCol->colName, pCol->node.aliasName, pCol->colType,
+                pCol->slotId, pCol->dataBlockId, pCol->tableName, pCol->tableAlias,
+                pCol->colId, pCol->resIdx, pCol->node.projIdx);
+    } else {
+      planError("PART_BLOCK_TRACE1 %s idx:%d nodeType:%d name:%s alias:%s projIdx:%d",
+                pTag, index, nodeType(pNode), partBlockTrace1PhysiNodeName(pNode),
+                ((SExprNode*)pNode)->aliasName, ((SExprNode*)pNode)->projIdx);
+    }
+    ++index;
+  }
+}
+
 static int32_t getSlotKeyHelper(SNode* pNode, const char* pPreName, const char* name, char** ppKey, int32_t callocLen,
                                 int32_t* pLen, uint16_t extraBufLen, int8_t slotKeyType) {
   int32_t code = 0;
@@ -46,6 +79,8 @@ static int32_t getSlotKeyHelper(SNode* pNode, const char* pPreName, const char* 
   if (!*ppKey) {
     return terrno;
   }
+  planError("PART_EXPR_TRACE key_helper.enter type:%d pre:%s name:%s callocLen:%d extra:%u nodeType:%d", slotKeyType,
+            pPreName ? pPreName : "(null)", name ? name : "(null)", callocLen, extraBufLen, nodeType(pNode));
   if (slotKeyType == SLOT_KEY_TYPE_ALL) {
     TAOS_STRNCAT(*ppKey, pPreName, TSDB_TABLE_NAME_LEN);
     TAOS_STRNCAT(*ppKey, ".", 2);
@@ -55,6 +90,7 @@ static int32_t getSlotKeyHelper(SNode* pNode, const char* pPreName, const char* 
     TAOS_STRNCAT(*ppKey, name, TSDB_COL_NAME_LEN);
     *pLen = strlen(*ppKey);
   }
+  planError("PART_EXPR_TRACE key_helper.leave type:%d out:%s len:%d", slotKeyType, *ppKey ? *ppKey : "(null)", *pLen);
 
   return code;
 }
@@ -397,14 +433,14 @@ static void dumpSlots(const char* pName, SHashObj* pHash) {
   if (NULL == pHash) {
     return;
   }
-  planDebug("%s", pName);
+  planError("PART_EXPR_TRACE dump.begin %s", pName);
   void* pIt = taosHashIterate(pHash, NULL);
   while (NULL != pIt) {
     size_t len = 0;
     char*  pKey = taosHashGetKey(pIt, &len);
     char   name[TSDB_TABLE_NAME_LEN + TSDB_COL_NAME_LEN] = {0};
     strncpy(name, pKey, len);
-    planDebug("\tslot name = %s", name);
+    planError("PART_EXPR_TRACE dump.slot name:%s len:%zu", name, len);
     pIt = taosHashIterate(pHash, pIt);
   }
 }
@@ -418,6 +454,15 @@ static EDealRes doSetSlotId(SNode* pNode, void* pContext) {
     if (TSDB_CODE_SUCCESS != pCxt->errCode) {
       return DEAL_RES_ERROR;
     }
+    planError("PART_EXPR_TRACE slot.enter db:%s table:%s tableAlias:%s refDb:%s refTable:%s refCol:%s "
+              "col:%s alias:%s hasRef:%d hasDep:%d projRefIdx:%d rel:%d resIdx:%d tableId:%" PRId64
+              " colId:%d dataBlockId:%" PRId64 " slotId:%d key:%s len:%d",
+              ((SColumnNode*)pNode)->dbName, ((SColumnNode*)pNode)->tableName, ((SColumnNode*)pNode)->tableAlias,
+              ((SColumnNode*)pNode)->refDbName, ((SColumnNode*)pNode)->refTableName, ((SColumnNode*)pNode)->refColName,
+              ((SColumnNode*)pNode)->colName, ((SExprNode*)pNode)->aliasName,
+              ((SColumnNode*)pNode)->hasRef, ((SColumnNode*)pNode)->hasDep, ((SColumnNode*)pNode)->projRefIdx,
+              ((SExprNode*)pNode)->relatedTo, ((SColumnNode*)pNode)->resIdx, ((SColumnNode*)pNode)->tableId, ((SColumnNode*)pNode)->colId,
+              ((SColumnNode*)pNode)->dataBlockId, ((SColumnNode*)pNode)->slotId, name, len);
     SSlotIndex* pIndex = NULL;
     if (((SColumnNode*)pNode)->projRefIdx > 0) {
       snprintf(name + strlen(name), 16, "_%d", ((SColumnNode*)pNode)->projRefIdx);
@@ -428,20 +473,46 @@ static EDealRes doSetSlotId(SNode* pNode, void* pContext) {
     }
     if (NULL == pIndex) {
       SColumnNode* pCol = (SColumnNode*)pNode;
+      if ('\0' != pCol->tableAlias[0] || pCol->hasRef || pCol->hasDep) {
+        name[len] = 0;
+        pIndex = taosHashGet(pCxt->pLeftHash, name, len);
+        planError("PART_BLOCK_TRACE2 slot.lookup.full side:left col:%s alias:%s table:%s tableAlias:%s colId:%d key:%s hit:%d",
+                  pCol->colName, ((SExprNode*)pCol)->aliasName, pCol->tableName, pCol->tableAlias, pCol->colId, name,
+                  NULL != pIndex);
+        if (NULL == pIndex) {
+          pIndex = taosHashGet(pCxt->pRightHash, name, len);
+          planError("PART_BLOCK_TRACE2 slot.lookup.full side:right col:%s alias:%s table:%s tableAlias:%s colId:%d key:%s hit:%d",
+                    pCol->colName, ((SExprNode*)pCol)->aliasName, pCol->tableName, pCol->tableAlias, pCol->colId,
+                    name, NULL != pIndex);
+        }
+      }
+
       if (false == pCol->hasRef && false == pCol->hasDep) {
         int32_t colLen = (int32_t)strlen(pCol->colName);
-        if (colLen > 0) {
+        if (NULL == pIndex && colLen > 0) {
           pIndex = taosHashGet(pCxt->pLeftHash, pCol->colName, colLen);
+          planError("PART_BLOCK_TRACE2 slot.lookup.col side:left col:%s alias:%s table:%s tableAlias:%s colId:%d key:%s hit:%d",
+                    pCol->colName, ((SExprNode*)pCol)->aliasName, pCol->tableName, pCol->tableAlias, pCol->colId,
+                    pCol->colName, NULL != pIndex);
           if (NULL == pIndex) {
             pIndex = taosHashGet(pCxt->pRightHash, pCol->colName, colLen);
+            planError("PART_BLOCK_TRACE2 slot.lookup.col side:right col:%s alias:%s table:%s tableAlias:%s colId:%d key:%s hit:%d",
+                      pCol->colName, ((SExprNode*)pCol)->aliasName, pCol->tableName, pCol->tableAlias, pCol->colId,
+                      pCol->colName, NULL != pIndex);
           }
         }
 
         if (NULL == pIndex && ((SExprNode*)pCol)->aliasName[0] != '\0') {
           int32_t aliasLen = (int32_t)strlen(((SExprNode*)pCol)->aliasName);
           pIndex = taosHashGet(pCxt->pLeftHash, ((SExprNode*)pCol)->aliasName, aliasLen);
+          planError("PART_BLOCK_TRACE2 slot.lookup.alias side:left col:%s alias:%s table:%s tableAlias:%s colId:%d key:%s hit:%d",
+                    pCol->colName, ((SExprNode*)pCol)->aliasName, pCol->tableName, pCol->tableAlias, pCol->colId,
+                    ((SExprNode*)pCol)->aliasName, NULL != pIndex);
           if (NULL == pIndex) {
             pIndex = taosHashGet(pCxt->pRightHash, ((SExprNode*)pCol)->aliasName, aliasLen);
+            planError("PART_BLOCK_TRACE2 slot.lookup.alias side:right col:%s alias:%s table:%s tableAlias:%s colId:%d key:%s hit:%d",
+                      pCol->colName, ((SExprNode*)pCol)->aliasName, pCol->tableName, pCol->tableAlias, pCol->colId,
+                      ((SExprNode*)pCol)->aliasName, NULL != pIndex);
           }
         }
       }
@@ -450,13 +521,28 @@ static EDealRes doSetSlotId(SNode* pNode, void* pContext) {
     if (NULL == pIndex) {
       name[len] = 0;
       pIndex = taosHashGet(pCxt->pLeftHash, name, len);
+      planError("PART_BLOCK_TRACE2 slot.lookup.full side:left col:%s alias:%s table:%s tableAlias:%s colId:%d key:%s hit:%d",
+                ((SColumnNode*)pNode)->colName, ((SExprNode*)pNode)->aliasName, ((SColumnNode*)pNode)->tableName,
+                ((SColumnNode*)pNode)->tableAlias, ((SColumnNode*)pNode)->colId, name, NULL != pIndex);
       if (NULL == pIndex) {
         pIndex = taosHashGet(pCxt->pRightHash, name, len);
+        planError("PART_BLOCK_TRACE2 slot.lookup.full side:right col:%s alias:%s table:%s tableAlias:%s colId:%d key:%s hit:%d",
+                  ((SColumnNode*)pNode)->colName, ((SExprNode*)pNode)->aliasName, ((SColumnNode*)pNode)->tableName,
+                  ((SColumnNode*)pNode)->tableAlias, ((SColumnNode*)pNode)->colId, name, NULL != pIndex);
       }
     }
     // pIndex is definitely not NULL, otherwise it is a bug
     if (NULL == pIndex) {
       planError("doSetSlotId failed, invalid slot name %s", name);
+      planError("PART_EXPR_TRACE slot.miss db:%s table:%s tableAlias:%s refDb:%s refTable:%s refCol:%s "
+                "col:%s alias:%s hasRef:%d hasDep:%d projRefIdx:%d rel:%d resIdx:%d tableId:%" PRId64
+                " colId:%d dataBlockId:%" PRId64 " slotId:%d key:%s len:%d",
+                ((SColumnNode*)pNode)->dbName, ((SColumnNode*)pNode)->tableName, ((SColumnNode*)pNode)->tableAlias,
+                ((SColumnNode*)pNode)->refDbName, ((SColumnNode*)pNode)->refTableName, ((SColumnNode*)pNode)->refColName,
+                ((SColumnNode*)pNode)->colName, ((SExprNode*)pNode)->aliasName, ((SColumnNode*)pNode)->hasRef,
+                ((SColumnNode*)pNode)->hasDep, ((SColumnNode*)pNode)->projRefIdx, ((SExprNode*)pNode)->relatedTo,
+                ((SColumnNode*)pNode)->resIdx, ((SColumnNode*)pNode)->tableId, ((SColumnNode*)pNode)->colId, ((SColumnNode*)pNode)->dataBlockId,
+                ((SColumnNode*)pNode)->slotId, name, len);
       dumpSlots("left datablock desc", pCxt->pLeftHash);
       dumpSlots("right datablock desc", pCxt->pRightHash);
       pCxt->errCode = TSDB_CODE_PLAN_SLOT_NOT_FOUND;
@@ -465,6 +551,10 @@ static EDealRes doSetSlotId(SNode* pNode, void* pContext) {
     }
     ((SColumnNode*)pNode)->dataBlockId = pIndex->dataBlockId;
     ((SColumnNode*)pNode)->slotId = ((SSlotIdInfo*)taosArrayGet(pIndex->pSlotIdsInfo, 0))->slotId;
+    planError("PART_BLOCK_TRACE2 slot.final col:%s alias:%s table:%s tableAlias:%s colId:%d dataBlock:%" PRId64 " slot:%d",
+              ((SColumnNode*)pNode)->colName, ((SExprNode*)pNode)->aliasName, ((SColumnNode*)pNode)->tableName,
+              ((SColumnNode*)pNode)->tableAlias, ((SColumnNode*)pNode)->colId, ((SColumnNode*)pNode)->dataBlockId,
+              ((SColumnNode*)pNode)->slotId);
     taosMemoryFree(name);
     return DEAL_RES_IGNORE_CHILD;
   }
@@ -545,7 +635,6 @@ static int32_t setNodeSlotId(SPhysiPlanContext* pCxt, int64_t leftDataBlockId, i
     nodesDestroyNode(pRes);
     return cxt.errCode;
   }
-
   *pOutput = pRes;
   return TSDB_CODE_SUCCESS;
 }
@@ -2168,7 +2257,8 @@ static EDealRes doRewritePrecalcExprs(SNode** pNode, void* pContext) {
       return collectAndRewrite(pCxt, pNode);
     }
     case QUERY_NODE_FUNCTION: {
-      if (fmIsScalarFunc(((SFunctionNode*)(*pNode))->funcId)) {
+      SFunctionNode* pFunc = (SFunctionNode*)(*pNode);
+      if (fmIsScalarFunc(pFunc->funcId)) {
         return collectAndRewrite(pCxt, pNode);
       }
       break;
@@ -2346,7 +2436,11 @@ static int32_t createAggPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
   SNodeList* pPrecalcExprs = NULL;
   SNodeList* pGroupKeys = NULL;
   SNodeList* pAggFuncs = NULL;
+  planError("PART_EXPR_TRACE agg.enter groupKeys:%p aggFuncs:%p childType:%d", pAggLogicNode->pGroupKeys,
+            pAggLogicNode->pAggFuncs,
+            nodesListGetNode(pAggLogicNode->node.pChildren, 0) ? nodeType(nodesListGetNode(pAggLogicNode->node.pChildren, 0)) : -1);
   int32_t    code = rewritePrecalcExprs(pCxt, pAggLogicNode->pGroupKeys, &pPrecalcExprs, &pGroupKeys);
+  planError("PART_EXPR_TRACE agg.after_group_rewrite code:%d groupKeys:%p precalc:%p", code, pGroupKeys, pPrecalcExprs);
   if (TSDB_CODE_SUCCESS == code) {
     code = rewritePrecalcExprs(pCxt, pAggLogicNode->pAggFuncs, &pPrecalcExprs, &pAggFuncs);
   }
@@ -2355,10 +2449,14 @@ static int32_t createAggPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
   SDataBlockDescNode* pChildTupe = NULL;
   if (TSDB_CODE_SUCCESS == code) {
     code = getChildTuple(&pChildTupe, pChildren);
+    planError("PART_EXPR_TRACE agg.child_tuple code:%d childTuple:%p dataBlockId:%" PRId64, code, pChildTupe,
+              pChildTupe ? pChildTupe->dataBlockId : -1);
   }
 
   // push down expression to pOutputDataBlockDesc of child node
   if (TSDB_CODE_SUCCESS == code && NULL != pPrecalcExprs) {
+    planError("PART_EXPR_TRACE agg.push_precalc exprs:%p childDataBlockId:%" PRId64, pPrecalcExprs,
+              pChildTupe ? pChildTupe->dataBlockId : -1);
     code = setListSlotId(pCxt, pChildTupe->dataBlockId, -1, pPrecalcExprs, &pAgg->pExprs);
     if (TSDB_CODE_SUCCESS == code) {
       code = pushdownDataBlockSlots(pCxt, pAgg->pExprs, pChildTupe);
@@ -2366,6 +2464,8 @@ static int32_t createAggPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
   }
 
   if (TSDB_CODE_SUCCESS == code && NULL != pGroupKeys) {
+    planError("PART_EXPR_TRACE agg.bind_group_keys groupKeys:%p childDataBlockId:%" PRId64, pGroupKeys,
+              pChildTupe ? pChildTupe->dataBlockId : -1);
     code = setListSlotId(pCxt, pChildTupe->dataBlockId, -1, pGroupKeys, &pAgg->pGroupKeys);
     if (TSDB_CODE_SUCCESS == code) {
       code = addDataBlockSlots(pCxt, pAgg->pGroupKeys, pAgg->node.pOutputDataBlockDesc);
@@ -3137,12 +3237,18 @@ static int32_t createPartitionPhysiNodeImpl(SPhysiPlanContext* pCxt, SNodeList* 
   }
 
   if (TSDB_CODE_SUCCESS == code) {
+    partBlockTrace1DumpList("phys.partkeys.in", pPartitionKeys);
     code = setListSlotId(pCxt, pChildTupe->dataBlockId, -1, pPartitionKeys, &pPart->pPartitionKeys);
+    if (TSDB_CODE_SUCCESS == code) {
+      partBlockTrace1DumpList("phys.partkeys.out", pPart->pPartitionKeys);
+    }
   }
 
   if (TSDB_CODE_SUCCESS == code) {
+    partBlockTrace1DumpList("phys.targets.in", pPartLogicNode->node.pTargets);
     code = setListSlotId(pCxt, pChildTupe->dataBlockId, -1, pPartLogicNode->node.pTargets, &pPart->pTargets);
     if (TSDB_CODE_SUCCESS == code) {
+      partBlockTrace1DumpList("phys.targets.out", pPart->pTargets);
       code = addDataBlockSlots(pCxt, pPart->pTargets, pPart->node.pOutputDataBlockDesc);
     }
   }
