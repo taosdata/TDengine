@@ -266,7 +266,8 @@ class TestTaosBackupEdge:
         # Grant read access so baktest can SHOW STABLES / query authdb.
         # On Community edition GRANT may be unsupported — catch and skip gracefully.
         try:
-            tdSql.execute("grant read on authdb.* to baktest")
+            tdSql.execute("grant use,show on database authdb to baktest")
+            tdSql.execute("grant select on authdb.* to baktest")
         except Exception as e:
             tdLog.info(f"  GRANT not supported (Community edition?): {e} — skipping grant")
 
