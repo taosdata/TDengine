@@ -10,6 +10,7 @@
   <log mode="none"/>
   <onfailure action="restart" delay="10 sec"/>
   <onfailure action="restart" delay="20 sec"/>
+  <onfailure action="none"/>
   <resetfailure>1 hour</resetfailure>
   <env name="PYTHONPATH" value="%BASE%\..\lib"/>
   <env name="TAOSANODE_CONFIG" value="%BASE%\..\cfg\taosanode.config.py"/>
