@@ -802,3 +802,15 @@ python packaging/win_release.py -e community -v 1.0.0 -m D:\models --offline -a
 
 - 当前 Windows 安装向导的模型安装来源默认值为 `在线下载所选模型`，不是 `暂不安装模型`。
 - 当前前置检查只检查 Python，要求为 `Python 3.10 / 3.11 / 3.12`。
+
+### 在线安装 venv 复用策略调整
+
+- 在线安装模式下，如果检测到已有 venv 完整可用，将直接复用，不再默认删除后重建。
+- 当前复用判定至少检查以下条件：
+  - `venv\Scripts\python.exe` 存在
+  - `python -m pip --version` 可正常执行
+- 只有在以下情况下才会自动重建对应 venv：
+  - venv 目录存在但 `python.exe` 缺失
+  - `pip` 校验失败
+  - 其他导致环境明显损坏的异常
+- 这样重装/升级时会明显减少重复创建 venv 和重复下载依赖导致的耗时。

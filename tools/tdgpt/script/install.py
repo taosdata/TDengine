@@ -396,16 +396,45 @@ class WindowsInstaller:
             self.print_error(f"Failed to create directories: {exc}")
             return False
 
+    def can_reuse_venv(self, name: str, description: str) -> bool:
+        path = self.get_venv_path(name)
+        python_exe = path / "Scripts" / "python.exe"
+        if not path.exists():
+            return False
+        if not python_exe.exists():
+            self.print_warning(f"{description} is incomplete because python.exe is missing. Recreating it.")
+            return False
+        try:
+            result = subprocess.run(
+                [str(python_exe), "-m", "pip", "--version"],
+                capture_output=True,
+                text=True,
+                timeout=20,
+                check=False,
+            )
+        except Exception as exc:
+            self.print_warning(f"Unable to validate {description}: {exc}. Recreating it.")
+            return False
+        if result.returncode != 0:
+            detail = (result.stdout or result.stderr or "").strip()
+            if detail:
+                self.print_warning(f"{description} pip check failed: {detail}")
+            else:
+                self.print_warning(f"{description} pip check failed. Recreating it.")
+            return False
+        self.print_info(f"Reusing existing {description}.")
+        return True
+
     def create_venv(self, name: str, description: str) -> bool:
         path = self.get_venv_path(name)
         python_exe = path / "Scripts" / "python.exe"
-        if self.offline and path.exists() and python_exe.exists():
-            self.print_info(f"Offline mode: reuse existing {description}.")
+        if self.can_reuse_venv(name, description):
             return True
         if self.offline and path.exists() and not python_exe.exists():
             self.print_warning(f"Offline mode found an incomplete {description}. Recreating it.")
             shutil.rmtree(path, ignore_errors=True)
-        if path.exists() and not self.offline:
+        elif path.exists():
+            self.print_warning(f"Recreating {description}.")
             shutil.rmtree(path, ignore_errors=True)
         try:
             subprocess.run([self.python_cmd, "-m", "venv", str(path)], check=True, timeout=300)
