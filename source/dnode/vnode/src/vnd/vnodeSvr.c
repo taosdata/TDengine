@@ -19,8 +19,10 @@
 #include "libs/new-stream/stream.h"
 #include "monitor.h"
 #include "taoserror.h"
+#include "tarray.h"
 #include "tencode.h"
 #include "tglobal.h"
+#include "thash.h"
 #include "tlrucache.h"
 #include "tmsg.h"
 #include "tmsgcb.h"
@@ -177,16 +179,7 @@ static int32_t vnodePreProcessAlterTableMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   int64_t      ctimeMs = taosGetTimestampMs();
   code = tDecodeSVAlterTbReqSetCtime(&dc, &vAlterTbReq, ctimeMs);
 
-  taosArrayDestroy(vAlterTbReq.pMultiTag);
-  vAlterTbReq.pMultiTag = NULL;
-
-  for (int32_t i = 0; i < taosArrayGetSize(vAlterTbReq.tables); i++) {
-    SUpdateTableTagVal* pTable = taosArrayGet(vAlterTbReq.tables, i);
-    taosArrayDestroy(pTable->tags);
-  }
-  taosArrayDestroy(vAlterTbReq.tables);
-  vAlterTbReq.tables = NULL;
-
+  destroyAlterTbReq(&vAlterTbReq);
 
 _exit:
   tDecoderClear(&dc);
@@ -1671,40 +1664,63 @@ _exit:
   return 0;
 }
 
-void vnodeAlterTagForTmq(SVnode *pVnode, const char* tbName, const SArray* tags) {
+SArray* getCidList(const SArray* tags) {
   int32_t       code = 0;
   int32_t       lino = 0;
-  SArray* tbUids = NULL;
-  SArray* cidList = NULL;
-
-  int64_t uid = metaGetTableEntryUidByName(pVnode->pMeta, tbName);
-  QUERY_CHECK_CONDITION(uid != 0, code, lino, end, TSDB_CODE_TDB_TABLE_NOT_EXIST);
-  
-  tbUids = taosArrayInit(4, sizeof(int64_t));
-  QUERY_CHECK_NULL(tbUids, code, lino, end, terrno);
-
-  QUERY_CHECK_CONDITION(taosArrayPush(tbUids, &uid) != NULL, code, lino, end, terrno);
-
-  cidList = taosArrayInit(taosArrayGetSize(tags), sizeof(col_id_t));
+  SArray* cidList = taosArrayInit(taosArrayGetSize(tags), sizeof(col_id_t));
   QUERY_CHECK_NULL(cidList, code, lino, end, terrno);
-
   for (int32_t i = 0; i < taosArrayGetSize(tags); i++) {
     SUpdatedTagVal *pTagVal = taosArrayGet(tags, i);
     QUERY_CHECK_NULL(pTagVal, code, lino, end, terrno);
     col_id_t cid = pTagVal->colId;
-    QUERY_CHECK_CONDITION(taosArrayPush(cidList, &cid) != NULL, code, lino, end, terrno);
+    QUERY_CHECK_NULL(taosArrayPush(cidList, &cid), code, lino, end, terrno);
   }
-  
-  vDebug("vgId:%d, try to add table:%s in query table list, cidList size:%"PRIzu, TD_VID(pVnode), tbName, taosArrayGetSize(cidList));
-  code = tqUpdateTbUidList(pVnode->pTq, tbUids, cidList);
+
+end:
+  if (code != 0) {
+    taosArrayDestroy(cidList);
+    return NULL;
+  }
+  return cidList;
+}
+
+// the elements in tbUidList and tagsArray are one-to-one correspondence
+void vnodeAlterTagForTmq(SVnode *pVnode, const SArray* tbUidList, const SArray* tags, const SArray* tagsArray) {
+  int32_t       code = 0;
+  int32_t       lino = 0;
+  SArray*       cidList = NULL;
+  SArray*       cids  = NULL;
+  SArray*       cidListArray = NULL;
+  if (tags != NULL){
+    cidList = getCidList(tags);
+    QUERY_CHECK_NULL(cidList, code, lino, end, terrno);
+  }
+
+  if (tagsArray != NULL) {
+    cidListArray = taosArrayInit(taosArrayGetSize(tagsArray), sizeof(SArray*));
+    QUERY_CHECK_NULL(cidListArray, code, lino, end, terrno);
+
+    for (int32_t i = 0; i < taosArrayGetSize(tagsArray); i++) {
+      SArray   *obj = taosArrayGetP(tagsArray, i);
+      cids  = getCidList(obj);
+      QUERY_CHECK_NULL(cids, code, lino, end, terrno);
+      QUERY_CHECK_NULL(taosArrayPush(cidListArray, &cids), code, lino, end, terrno);
+      cids = NULL;
+    }
+  }
+  vDebug("vgId:%d, try to add %d tables in query table list, cidList size:%"PRIzu,
+         TD_VID(pVnode), (int32_t)taosArrayGetSize(tbUidList), taosArrayGetSize(cidList));
+  code = tqUpdateTbUidList(pVnode->pTq, tbUidList, cidList, cidListArray);
   QUERY_CHECK_CODE(code, lino, end);
 
 end:
   if (code != 0) {
-    qError("vgId:%d, failed to alter table:%s since %s", TD_VID(pVnode), tbName, tstrerror(code));
+    qError("vgId:%d, failed to alter tags for %d tables since %s",
+           TD_VID(pVnode), (int32_t)taosArrayGetSize(tbUidList), tstrerror(code));
   }
-  taosArrayDestroy(tbUids);
   taosArrayDestroy(cidList);
+  taosArrayDestroy(cids);
+  taosArrayDestroyP(cidListArray, (FDelete)taosArrayDestroy);
 }
 
 static int32_t vnodeProcessAlterTbReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {
@@ -1745,13 +1761,7 @@ static int32_t vnodeProcessAlterTbReq(SVnode *pVnode, int64_t ver, void *pReq, i
   }
 
 _exit:
-  taosArrayDestroy(vAlterTbReq.pMultiTag);
-  for (int32_t i = 0; i < taosArrayGetSize(vAlterTbReq.tables); i++) {
-    SUpdateTableTagVal* pTable = taosArrayGet(vAlterTbReq.tables, i);
-    taosArrayDestroy(pTable->tags);
-  }
-  taosArrayDestroy(vAlterTbReq.tables);
-
+  destroyAlterTbReq(&vAlterTbReq);
   tEncodeSize(tEncodeSVAlterTbRsp, &vAlterTbRsp, pRsp->contLen, ret);
   pRsp->pCont = rpcMallocCont(pRsp->contLen);
   tEncoderInit(&ec, pRsp->pCont, pRsp->contLen);

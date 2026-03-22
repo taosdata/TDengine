@@ -15,8 +15,10 @@
 
 #include "meta.h"
 #include "scalar.h"
+#include "tarray.h"
 #include "tdatablock.h"
 #include "querynodes.h"
+#include "thash.h"
 
 extern int32_t metaHandleEntry2(SMeta *pMeta, const SMetaEntry *pEntry);
 extern int32_t metaUpdateMetaRsp(tb_uid_t uid, char *tbName, SSchemaWrapper *pSchema, int64_t ownerId,
@@ -1857,7 +1859,27 @@ _exit:
 
 int32_t metaUpdateTableMultiTableTagValue(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq) {
   int32_t code = TSDB_CODE_SUCCESS;
-  for (int32_t i = 0; i < taosArrayGetSize(pReq->tables); i++) {
+  SArray* uidList = NULL;
+  SArray* tagListArray = NULL;
+
+  // Pre-allocate uidList for batch notification
+  int32_t nTables = taosArrayGetSize(pReq->tables);
+  uidList = taosArrayInit(nTables, sizeof(tb_uid_t));
+  if (uidList == NULL) {
+    code = terrno;
+    const char* msgFmt = "vgId:%d, %s failed at %s:%d since %s, version:%" PRId64;
+    metaError(msgFmt, TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, tstrerror(code), version);
+    TAOS_RETURN(code);
+  }
+  tagListArray = taosArrayInit(nTables, sizeof(void*));
+  if (tagListArray == NULL) {
+    code = terrno;
+    const char* msgFmt = "vgId:%d, %s failed at %s:%d since %s, version:%" PRId64;
+    metaError(msgFmt, TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, tstrerror(code), version);
+    TAOS_RETURN(code);
+  }
+
+  for (int32_t i = 0; i < nTables; i++) {
     SUpdateTableTagVal *pTable = taosArrayGet(pReq->tables, i);
     code = metaUpdateTableTagValue(pMeta, version, pTable->tbName, pTable->tags);
     if (code == TSDB_CODE_VND_SAME_TAG) {
@@ -1868,10 +1890,33 @@ int32_t metaUpdateTableMultiTableTagValue(SMeta *pMeta, int64_t version, SVAlter
     } else if (code) {
       break;
     } else {
-      vnodeAlterTagForTmq(pMeta->pVnode, pTable->tbName, pTable->tags);
+      // Collect UID for batch notification
+      int64_t uid = metaGetTableEntryUidByName(pMeta, pTable->tbName);
+      if (uid == 0) {
+        metaError("vgId:%d, %s failed at %s:%d since table %s not found, version:%" PRId64,
+                  TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pTable->tbName, version);
+        continue;
+      }
+      if (taosArrayPush(uidList, &uid) == NULL){
+        metaError("vgId:%d, %s failed at %s:%d since %s, version:%" PRId64,
+                  TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, tstrerror(terrno), version);
+        continue;
+      }
+      if (taosArrayPush(tagListArray, &pTable->tags) == NULL){
+        void* ret = taosArrayPop(uidList);  // make sure the size of uidList and tagListArray are same
+        metaError("vgId:%d, %s failed at %s:%d since %s, ret:%p, version:%" PRId64,
+                  TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, tstrerror(terrno), ret, version);
+        continue;
+      }
     }
   }
 
+  if (taosArrayGetSize(uidList) > 0) {
+    vnodeAlterTagForTmq(pMeta->pVnode, uidList, NULL, tagListArray);
+  }
+
+  taosArrayDestroy(uidList);
+  taosArrayDestroy(tagListArray);
   DestoryThreadLocalRegComp();
 
   if (code) {
@@ -2126,7 +2171,7 @@ _end:
 
 // Convenience wrapper: partition a raw WHERE condition into tag-related parts,
 // then call metaGetChildUidsByTagCond to get the filtered child table UIDs.
-static int32_t metaGetChildUidsByWhere(SMeta *pMeta, tb_uid_t suid, SNode *pWhere, SArray *pUidList) {
+int32_t metaGetChildUidsByWhere(SMeta *pMeta, tb_uid_t suid, SNode *pWhere, SArray *pUidList) {
   int32_t code = TSDB_CODE_SUCCESS;
   SNode  *pTagCond = NULL;
   SNode  *pTagIndexCond = NULL;
@@ -2167,6 +2212,7 @@ int32_t metaUpdateTableChildTableTagValue(SMeta *pMeta, int64_t version, SVAlter
   SMetaEntry *pSuper = NULL;
   SArray *pUids = NULL;
   SHashObj *pUpdatedTagVals = NULL;
+  SArray *uidListForTmq = NULL;
 
   if (pReq->tbName == NULL || strlen(pReq->tbName) == 0) {
     const char* fmt = "vgId:%d, %s failed at %s:%d since invalid table name, version:%" PRId64;
@@ -2220,7 +2266,17 @@ int32_t metaUpdateTableChildTableTagValue(SMeta *pMeta, int64_t version, SVAlter
     goto _exit;
   }
 
-  for (int32_t i = 0; i < taosArrayGetSize(pUids); i++) {
+  // Pre-allocate uidList for batch notification
+  int32_t nUids = taosArrayGetSize(pUids);
+  uidListForTmq = taosArrayInit(nUids, sizeof(tb_uid_t));
+  if (uidListForTmq == NULL) {
+    code = terrno;
+    const char* fmt = "vgId:%d, %s failed at %s:%d since %s, version:%" PRId64;
+    metaError(fmt, TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, tstrerror(code), version);
+    goto _exit;
+  }
+
+  for (int32_t i = 0; i < nUids; i++) {
     tb_uid_t uid = *(tb_uid_t *)taosArrayGet(pUids, i);
     SMetaEntry *pChild = NULL;
     code = metaFetchEntryByUid(pMeta, uid, &pChild);
@@ -2243,7 +2299,11 @@ int32_t metaUpdateTableChildTableTagValue(SMeta *pMeta, int64_t version, SVAlter
       metaFetchEntryFree(&pChild);
       goto _exit;
     } else {
-      vnodeAlterTagForTmq(pMeta->pVnode, pChild->name, pReq->pMultiTag);
+      // Collect UID for batch notification
+      if (taosArrayPush(uidListForTmq, &uid) == NULL) {
+        const char* fmt = "vgId:%d, %s failed at %s:%d since %s, version:%" PRId64;
+        metaError(fmt, TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, terrstr, version);
+      }
     }
 
     metaFetchEntryFree(&pChild);
@@ -2251,7 +2311,11 @@ int32_t metaUpdateTableChildTableTagValue(SMeta *pMeta, int64_t version, SVAlter
 
 _exit:
   DestoryThreadLocalRegComp();
+  if (taosArrayGetSize(uidListForTmq) > 0) {
+    vnodeAlterTagForTmq(pMeta->pVnode, uidListForTmq, pReq->pMultiTag, NULL);
+  }
   taosArrayDestroy(pUids);
+  taosArrayDestroy(uidListForTmq);
   taosHashCleanup(pUpdatedTagVals);
   metaFetchEntryFree(&pSuper);
   nodesDestroyNode(pWhere);

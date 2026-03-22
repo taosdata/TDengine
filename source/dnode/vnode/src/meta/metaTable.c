@@ -233,6 +233,20 @@ int32_t metaUpdateVtbMetaRsp(SMetaEntry *pEntry, char *tbName, SSchemaWrapper *p
   pMetaRsp->rversion = pRef->version;
   if (ownerId != 0) pMetaRsp->ownerId = ownerId;
 
+  // Populate tag references
+  if (pRef->nTagRefs > 0 && pRef->pTagRef) {
+    pMetaRsp->pTagRefs = taosMemoryMalloc(pRef->nTagRefs * sizeof(SColRef));
+    if (NULL == pMetaRsp->pTagRefs) {
+      code = terrno;
+      goto _return;
+    }
+    memcpy(pMetaRsp->pTagRefs, pRef->pTagRef, pRef->nTagRefs * sizeof(SColRef));
+    pMetaRsp->numOfTagRefs = pRef->nTagRefs;
+  } else {
+    pMetaRsp->pTagRefs = NULL;
+    pMetaRsp->numOfTagRefs = 0;
+  }
+
   taosHashCleanup(pColRefHash);
   return code;
 _return:
@@ -240,6 +254,7 @@ _return:
   taosMemoryFreeClear(pMetaRsp->pSchemaExt);
   taosMemoryFreeClear(pMetaRsp->pSchemas);
   taosMemoryFreeClear(pMetaRsp->pColRefs);
+  taosMemoryFreeClear(pMetaRsp->pTagRefs);
   return code;
 }
 

@@ -1330,7 +1330,7 @@ QUERY_PLAN:                Output: columns=3 width=24
 *************************** 15.row ***************************
 QUERY_PLAN:                Time Window: interval=10s offset=0a sliding=10s
 *************************** 16.row ***************************
-QUERY_PLAN:                Filter: conditions=((a > 10000) AND (a < 20000))
+QUERY_PLAN:                Filter: conditions=((`a` > 10000) AND (`a` < 20000))
 *************************** 17.row ***************************
 QUERY_PLAN:                Merge ResBlocks: True
 *************************** 18.row ***************************
@@ -1414,7 +1414,7 @@ QUERY_PLAN:                Output: columns=3 width=24
 *************************** 15.row ***************************
 QUERY_PLAN:                Time Window: interval=10s offset=0a sliding=10s
 *************************** 16.row ***************************
-QUERY_PLAN:                Filter: conditions=((a > 10000) AND (a < 20000))
+QUERY_PLAN:                Filter: conditions=((`a` > 10000) AND (`a` < 20000))
 *************************** 17.row ***************************
 QUERY_PLAN:                Merge ResBlocks: True
 *************************** 18.row ***************************
@@ -1498,7 +1498,7 @@ QUERY_PLAN:                Output: columns=2 width=16
 *************************** 15.row ***************************
 QUERY_PLAN:                Time Window: interval=10s offset=0a sliding=10s
 *************************** 16.row ***************************
-QUERY_PLAN:                Filter: conditions=((b > 10000) AND (b < 20000))
+QUERY_PLAN:                Filter: conditions=((`b` > 10000) AND (`b` < 20000))
 *************************** 17.row ***************************
 QUERY_PLAN:                Merge ResBlocks: True
 *************************** 18.row ***************************
@@ -1582,7 +1582,7 @@ QUERY_PLAN:                Output: columns=2 width=16
 *************************** 15.row ***************************
 QUERY_PLAN:                Time Window: interval=10s offset=0a sliding=10s
 *************************** 16.row ***************************
-QUERY_PLAN:                Filter: conditions=((b > 10000) AND (b < 20000))
+QUERY_PLAN:                Filter: conditions=((`b` > 10000) AND (`b` < 20000))
 *************************** 17.row ***************************
 QUERY_PLAN:                Merge ResBlocks: True
 *************************** 18.row ***************************
@@ -1885,7 +1885,7 @@ QUERY_PLAN:                Output: columns=3 width=24
 *************************** 15.row ***************************
 QUERY_PLAN:                Time Window: interval=10s offset=0a sliding=10s
 *************************** 16.row ***************************
-QUERY_PLAN:                Filter: conditions=((a > 1652544060000) AND (a < 1653062468000))
+QUERY_PLAN:                Filter: conditions=((`a` > 1652544060000) AND (`a` < 1653062468000))
 *************************** 17.row ***************************
 QUERY_PLAN:                Merge ResBlocks: True
 *************************** 18.row ***************************
@@ -1969,7 +1969,7 @@ QUERY_PLAN:                Output: columns=3 width=24
 *************************** 15.row ***************************
 QUERY_PLAN:                Time Window: interval=10s offset=0a sliding=10s
 *************************** 16.row ***************************
-QUERY_PLAN:                Filter: conditions=((a > 1652544060000) AND (a < 1653062468000))
+QUERY_PLAN:                Filter: conditions=((`a` > 1652544060000) AND (`a` < 1653062468000))
 *************************** 17.row ***************************
 QUERY_PLAN:                Merge ResBlocks: True
 *************************** 18.row ***************************

@@ -3133,6 +3133,80 @@ static bool instanceRegisterRpcRfp(int32_t code, tmsg_t msgType) {
   }
 }
 
+/** Build epSet from firstEp and secondEp in config. pCfg must have valid firstEp. */
+static int32_t instanceBuildEpSetFromCfg(SConfig *pCfg, SEpSet *pEpSet) {
+  SConfigItem *pFirstEpItem = cfgGetItem(pCfg, "firstEp");
+  if (pFirstEpItem == NULL || pFirstEpItem->str == NULL || pFirstEpItem->str[0] == 0) {
+    return TSDB_CODE_CFG_NOT_FOUND;
+  }
+  SEp firstEp = {0};
+  int32_t code = taosGetFqdnPortFromEp(pFirstEpItem->str, &firstEp);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  pEpSet->inUse = 0;
+  pEpSet->numOfEps = 1;
+  tstrncpy(pEpSet->eps[0].fqdn, firstEp.fqdn, TSDB_FQDN_LEN);
+  pEpSet->eps[0].port = firstEp.port;
+
+  SConfigItem *pSecondEpItem = cfgGetItem(pCfg, "secondEp");
+  if (pSecondEpItem != NULL && pSecondEpItem->str != NULL && pSecondEpItem->str[0] != 0) {
+    SEp secondEp = {0};
+    if (taosGetFqdnPortFromEp(pSecondEpItem->str, &secondEp) == TSDB_CODE_SUCCESS) {
+      tstrncpy(pEpSet->eps[1].fqdn, secondEp.fqdn, TSDB_FQDN_LEN);
+      pEpSet->eps[1].port = secondEp.port;
+      pEpSet->numOfEps = 2;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+/** Init and open instance RPC client. label e.g. "INST" or "LIST". Returns handle or NULL. */
+static void *instanceOpenRpcClient(const char *label) {
+  SRpcInit rpcInit = {0};
+  rpcInit.label = (char *)label;
+  rpcInit.numOfThreads = 1;
+  rpcInit.cfp = NULL;
+  rpcInit.sessions = 16;
+  rpcInit.connType = TAOS_CONN_CLIENT;
+  rpcInit.idleTime = tsShellActivityTimer * 1000;
+  rpcInit.compressSize = tsCompressMsgSize;
+  rpcInit.user = TSDB_DEFAULT_USER;
+  rpcInit.rfp = instanceRegisterRpcRfp;
+  rpcInit.retryMinInterval = tsRedirectPeriod;
+  rpcInit.retryStepFactor = tsRedirectFactor;
+  rpcInit.retryMaxInterval = tsRedirectMaxPeriod;
+  rpcInit.retryMaxTimeout = tsMaxRetryWaitTime;
+
+  int32_t connLimitNum = tsNumOfRpcSessions / (tsNumOfRpcThreads * 3);
+  connLimitNum = TMAX(connLimitNum, 10);
+  connLimitNum = TMIN(connLimitNum, 500);
+  rpcInit.connLimitNum = connLimitNum;
+  rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
+  rpcInit.readTimeout = tsReadTimeout;
+  rpcInit.ipv6 = tsEnableIpv6;
+  rpcInit.enableSSL = tsEnableTLS;
+
+  memcpy(rpcInit.caPath, tsTLSCaPath, strlen(tsTLSCaPath));
+  memcpy(rpcInit.certPath, tsTLSSvrCertPath, strlen(tsTLSSvrCertPath));
+  memcpy(rpcInit.keyPath, tsTLSSvrKeyPath, strlen(tsTLSSvrKeyPath));
+  memcpy(rpcInit.cliCertPath, tsTLSCliCertPath, strlen(tsTLSCliCertPath));
+  memcpy(rpcInit.cliKeyPath, tsTLSCliKeyPath, strlen(tsTLSCliKeyPath));
+
+  int32_t code = taosVersionStrToInt(td_version, &rpcInit.compatibilityVer);
+  if (code != TSDB_CODE_SUCCESS) {
+    tscError("failed to convert taos version from str to int, errcode:%s", terrstr(code));
+    terrno = code;
+    return NULL;
+  }
+
+  void *clientRpc = rpcOpen(&rpcInit);
+  if (clientRpc == NULL) {
+    tscError("failed to init instance rpc client since %s", tstrerror(terrno));
+  }
+  return clientRpc;
+}
+
 int32_t taos_register_instance(const char *id, const char *type, const char *desc, int32_t expire) {
   if (id == NULL || id[0] == 0) {
     return terrno = TSDB_CODE_INVALID_PARA;
@@ -3171,70 +3245,19 @@ int32_t taos_register_instance(const char *id, const char *type, const char *des
     return terrno = TSDB_CODE_CFG_NOT_FOUND;
   }
 
-  SConfigItem *pFirstEpItem = cfgGetItem(pCfg, "firstEp");
-  if (pFirstEpItem == NULL || pFirstEpItem->str == NULL || pFirstEpItem->str[0] == 0) {
-    return terrno = TSDB_CODE_CFG_NOT_FOUND;
-  }
-
-  SEp firstEp = {0};
-  code = taosGetFqdnPortFromEp(pFirstEpItem->str, &firstEp);
+  SEpSet epSet = {0};
+  code = instanceBuildEpSetFromCfg(pCfg, &epSet);
   if (code != TSDB_CODE_SUCCESS) {
     return terrno = code;
   }
 
-  void    *clientRpc = NULL;
-  SEpSet   epSet = {.inUse = 0, .numOfEps = 1};
-  SRpcMsg  rpcMsg = {0};
-  SRpcMsg  rpcRsp = {0};
-  SRpcInit rpcInit = {0};
-
-  rpcInit.label = "INST";
-  rpcInit.numOfThreads = 1;
-  rpcInit.cfp = NULL;
-  rpcInit.sessions = 16;
-  rpcInit.connType = TAOS_CONN_CLIENT;
-  rpcInit.idleTime = tsShellActivityTimer * 1000;
-  rpcInit.compressSize = tsCompressMsgSize;
-  rpcInit.user = TSDB_DEFAULT_USER;
-
-  rpcInit.rfp = instanceRegisterRpcRfp;
-  rpcInit.retryMinInterval = tsRedirectPeriod;
-  rpcInit.retryStepFactor = tsRedirectFactor;
-  rpcInit.retryMaxInterval = tsRedirectMaxPeriod;
-  rpcInit.retryMaxTimeout =
-      tsMaxRetryWaitTime;  // Use a special user for instance registration (can be configured for whitelist)
-
-  int32_t connLimitNum = tsNumOfRpcSessions / (tsNumOfRpcThreads * 3);
-  connLimitNum = TMAX(connLimitNum, 10);
-  connLimitNum = TMIN(connLimitNum, 500);
-  rpcInit.connLimitNum = connLimitNum;
-  rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
-  rpcInit.readTimeout = tsReadTimeout;
-  rpcInit.ipv6 = tsEnableIpv6;
-  rpcInit.enableSSL = tsEnableTLS;
-
-  memcpy(rpcInit.caPath, tsTLSCaPath, strlen(tsTLSCaPath));
-  memcpy(rpcInit.certPath, tsTLSSvrCertPath, strlen(tsTLSSvrCertPath));
-  memcpy(rpcInit.keyPath, tsTLSSvrKeyPath, strlen(tsTLSSvrKeyPath));
-  memcpy(rpcInit.cliCertPath, tsTLSCliCertPath, strlen(tsTLSCliCertPath));
-  memcpy(rpcInit.cliKeyPath, tsTLSCliKeyPath, strlen(tsTLSCliKeyPath));
-
-  code = taosVersionStrToInt(td_version, &rpcInit.compatibilityVer);
-  if (code != TSDB_CODE_SUCCESS) {
-    tscError("failed to convert taos version from str to int, errcode:%s", terrstr(code));
-    return code;
-  }
-
-  clientRpc = rpcOpen(&rpcInit);
+  void *clientRpc = instanceOpenRpcClient("INST");
   if (clientRpc == NULL) {
-    code = terrno;
-    tscError("failed to init instance register client since %s", tstrerror(code));
-    return code;
+    return terrno;
   }
 
-  // Prepare epSet
-  tstrncpy(epSet.eps[0].fqdn, firstEp.fqdn, TSDB_FQDN_LEN);
-  epSet.eps[0].port = firstEp.port;
+  SRpcMsg rpcMsg = {0};
+  SRpcMsg rpcRsp = {0};
 
   // Prepare request
   SInstanceRegisterReq req = {0};
@@ -3316,73 +3339,21 @@ int32_t taos_list_instances(const char *filter_type, char ***pList, int32_t *pCo
     return TSDB_CODE_CFG_NOT_FOUND;
   }
 
-  SConfigItem *pFirstEpItem = cfgGetItem(pCfg, "firstEp");
-  if (pFirstEpItem == NULL || pFirstEpItem->str == NULL || pFirstEpItem->str[0] == 0) {
-    terrno = TSDB_CODE_CFG_NOT_FOUND;
-    return TSDB_CODE_CFG_NOT_FOUND;
-  }
-
-  SEp firstEp = {0};
-  code = taosGetFqdnPortFromEp(pFirstEpItem->str, &firstEp);
+  SEpSet epSet = {0};
+  code = instanceBuildEpSetFromCfg(pCfg, &epSet);
   if (code != TSDB_CODE_SUCCESS) {
     terrno = code;
     return code;
   }
 
-  // Initialize RPC connection (similar to taos_register_instance)
-  void    *clientRpc = NULL;
-  SEpSet   epSet = {.inUse = 0, .numOfEps = 1};
-  SRpcMsg  rpcMsg = {0};
-  SRpcMsg  rpcRsp = {0};
-  SRpcInit rpcInit = {0};
-
-  rpcInit.label = "LIST";
-  rpcInit.numOfThreads = 1;
-  rpcInit.cfp = NULL;
-  rpcInit.sessions = 16;
-  rpcInit.connType = TAOS_CONN_CLIENT;
-  rpcInit.idleTime = tsShellActivityTimer * 1000;
-  rpcInit.compressSize = tsCompressMsgSize;
-  rpcInit.user = TSDB_DEFAULT_USER;
-
-  rpcInit.rfp = instanceRegisterRpcRfp;
-  rpcInit.retryMinInterval = tsRedirectPeriod;
-  rpcInit.retryStepFactor = tsRedirectFactor;
-  rpcInit.retryMaxInterval = tsRedirectMaxPeriod;
-  rpcInit.retryMaxTimeout =
-      tsMaxRetryWaitTime;  // Use a special user for instance registration (can be configured for whitelist)
-
-  int32_t connLimitNum = tsNumOfRpcSessions / (tsNumOfRpcThreads * 3);
-  connLimitNum = TMAX(connLimitNum, 10);
-  connLimitNum = TMIN(connLimitNum, 500);
-  rpcInit.connLimitNum = connLimitNum;
-  rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
-  rpcInit.readTimeout = tsReadTimeout;
-  rpcInit.ipv6 = tsEnableIpv6;
-  rpcInit.enableSSL = tsEnableTLS;
-
-  memcpy(rpcInit.caPath, tsTLSCaPath, strlen(tsTLSCaPath));
-  memcpy(rpcInit.certPath, tsTLSSvrCertPath, strlen(tsTLSSvrCertPath));
-  memcpy(rpcInit.keyPath, tsTLSSvrKeyPath, strlen(tsTLSSvrKeyPath));
-  memcpy(rpcInit.cliCertPath, tsTLSCliCertPath, strlen(tsTLSCliCertPath));
-  memcpy(rpcInit.cliKeyPath, tsTLSCliKeyPath, strlen(tsTLSCliKeyPath));
-
-  code = taosVersionStrToInt(td_version, &rpcInit.compatibilityVer);
-  if (code != TSDB_CODE_SUCCESS) {
-    tscError("failed to convert taos version from str to int, errcode:%s", terrstr(code));
-    return code;
-  }
-
-  clientRpc = rpcOpen(&rpcInit);
+  void *clientRpc = instanceOpenRpcClient("LIST");
   if (clientRpc == NULL) {
-    code = terrno;
-    tscError("failed to init instance list client since %s", tstrerror(code));
-    terrno = code;
-    return code;
+    return terrno;
   }
 
-  tstrncpy(epSet.eps[0].fqdn, firstEp.fqdn, TSDB_FQDN_LEN);
-  epSet.eps[0].port = firstEp.port;
+  SRpcMsg rpcMsg = {0};
+  SRpcMsg rpcRsp = {0};
+
   SInstanceListReq req = {0};
   if (filter_type != NULL && filter_type[0] != 0) {
     tstrncpy(req.filter_type, filter_type, sizeof(req.filter_type));

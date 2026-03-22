@@ -3396,6 +3396,41 @@ _err:
   return NULL;
 }
 
+// Create a SColumnRefNode from db.table.col triplet tokens (for positional tag refs in vtags_literal)
+SNode* createColumnRefNodeFromTriplet(SAstCreateContext* pCxt, SToken* pDb, SToken* pTable, SToken* pCol) {
+  CHECK_PARSER_STATUS(pCxt);
+  CHECK_NAME(checkDbName(pCxt, pDb, true));
+  CHECK_NAME(checkTableName(pCxt, pTable));
+  CHECK_NAME(checkColumnName(pCxt, pCol));
+
+  SColumnRefNode* pNode = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_COLUMN_REF, (SNode**)&pNode);
+  CHECK_MAKE_NODE(pNode);
+  COPY_STRING_FORM_ID_TOKEN(pNode->refDbName, pDb);
+  COPY_STRING_FORM_ID_TOKEN(pNode->refTableName, pTable);
+  COPY_STRING_FORM_ID_TOKEN(pNode->refColName, pCol);
+  return (SNode*)pNode;
+_err:
+  return NULL;
+}
+
+// Create a SColumnRefNode from table.col pair tokens (for positional tag refs in vtags_literal)
+SNode* createColumnRefNodeFromPair(SAstCreateContext* pCxt, SToken* pTable, SToken* pCol) {
+  CHECK_PARSER_STATUS(pCxt);
+  CHECK_NAME(checkTableName(pCxt, pTable));
+  CHECK_NAME(checkColumnName(pCxt, pCol));
+
+  SColumnRefNode* pNode = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_COLUMN_REF, (SNode**)&pNode);
+  CHECK_MAKE_NODE(pNode);
+  snprintf(pNode->refDbName, TSDB_DB_NAME_LEN, "%s", pCxt->pQueryCxt->db);
+  COPY_STRING_FORM_ID_TOKEN(pNode->refTableName, pTable);
+  COPY_STRING_FORM_ID_TOKEN(pNode->refColName, pCol);
+  return (SNode*)pNode;
+_err:
+  return NULL;
+}
+
 STokenTriplet* createTokenTriplet(SAstCreateContext* pCxt, SToken pName) {
   CHECK_PARSER_STATUS(pCxt);
 
@@ -3523,11 +3558,17 @@ _err:
 
 SNode* createCreateVSubTableStmt(SAstCreateContext* pCxt, bool ignoreExists, SNode* pRealTable,
                                  SNodeList* pSpecificColRefs, SNodeList* pColRefs, SNode* pUseRealTable,
-                                 SNodeList* pSpecificTags, SNodeList* pValsOfTags) {
+                                 SNodeList* pSpecificTags, SNodeList* pValsOfTags,
+                                 SNodeList* pSpecificTagRefs, SNodeList* pTagRefs) {
   CHECK_PARSER_STATUS(pCxt);
   SCreateVSubTableStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_VIRTUAL_SUBTABLE_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
+
+  if (pTagRefs != NULL) {
+    pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
+    goto _err;
+  }
   tstrncpy(pStmt->dbName, ((SRealTableNode*)pRealTable)->table.dbName, sizeof(pStmt->dbName));
   tstrncpy(pStmt->tableName, ((SRealTableNode*)pRealTable)->table.tableName, sizeof(pStmt->tableName));
   tstrncpy(pStmt->useDbName, ((SRealTableNode*)pUseRealTable)->table.dbName, sizeof(pStmt->useDbName));
@@ -3537,6 +3578,8 @@ SNode* createCreateVSubTableStmt(SAstCreateContext* pCxt, bool ignoreExists, SNo
   pStmt->pValsOfTags = pValsOfTags;
   pStmt->pSpecificColRefs = pSpecificColRefs;
   pStmt->pColRefs = pColRefs;
+  pStmt->pSpecificTagRefs = pSpecificTagRefs;
+  pStmt->pTagRefs = pTagRefs;
   nodesDestroyNode(pRealTable);
   nodesDestroyNode(pUseRealTable);
   return (SNode*)pStmt;
@@ -3547,6 +3590,8 @@ _err:
   nodesDestroyList(pValsOfTags);
   nodesDestroyList(pSpecificColRefs);
   nodesDestroyList(pColRefs);
+  nodesDestroyList(pSpecificTagRefs);
+  nodesDestroyList(pTagRefs);
   return NULL;
 }
 
@@ -4003,7 +4048,7 @@ static bool needDbShowStmt(ENodeType type) {
          QUERY_NODE_SHOW_TAGS_STMT == type || QUERY_NODE_SHOW_TABLE_TAGS_STMT == type ||
          QUERY_NODE_SHOW_VIEWS_STMT == type || QUERY_NODE_SHOW_TSMAS_STMT == type ||
          QUERY_NODE_SHOW_USAGE_STMT == type || QUERY_NODE_SHOW_VTABLES_STMT == type ||
-         QUERY_NODE_SHOW_STREAMS_STMT == type;
+         QUERY_NODE_SHOW_STREAMS_STMT == type || QUERY_NODE_SHOW_VALIDATE_VTABLE_STMT;
 }
 
 SNode* createShowStmtWithLike(SAstCreateContext* pCxt, ENodeType type, SNode* pLikePattern) {
@@ -4404,7 +4449,20 @@ _err:
   return NULL;
 }
 
+SNode* createShowValidateVirtualTableStmt(SAstCreateContext* pCxt, ENodeType type, SNode* pVTable) {
+  CHECK_PARSER_STATUS(pCxt);
+  SShowValidateVirtualTable* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(type, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
 
+  tstrncpy(pStmt->dbName, ((SRealTableNode*)pVTable)->table.dbName, TSDB_DB_NAME_LEN);
+  tstrncpy(pStmt->tableName, ((SRealTableNode*)pVTable)->table.tableName, TSDB_TABLE_NAME_LEN);
+  nodesDestroyNode(pVTable);
+  return (SNode*)pStmt;
+_err:
+  nodesDestroyNode(pVTable);
+  return NULL;
+}
 
 static bool parseIp(const char* strIp, SIpRange* pIpRange) {
   if (strchr(strIp, ':') == NULL) {
