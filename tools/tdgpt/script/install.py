@@ -676,13 +676,23 @@ class WindowsInstaller:
         return True
 
     def find_payload_root(self, root_dir: Path, model_name: str) -> Optional[Path]:
-        for flag_name in MODEL_SPECS[model_name]["flag_files"]:
-            if (root_dir / str(flag_name)).exists():
-                return root_dir
-        for flag_name in MODEL_SPECS[model_name]["flag_files"]:
-            for candidate in root_dir.rglob(str(flag_name)):
-                if candidate.is_file():
-                    return candidate.parent
+        if not root_dir.exists():
+            return None
+        flag_files = [str(flag_name) for flag_name in MODEL_SPECS[model_name]["flag_files"]]
+        candidate_dirs: List[Path] = [root_dir]
+        seen = {str(root_dir.resolve())}
+        for flag_name in flag_files:
+            for candidate in root_dir.rglob(flag_name):
+                if not candidate.is_file():
+                    continue
+                parent = candidate.parent
+                parent_key = str(parent.resolve())
+                if parent_key not in seen:
+                    seen.add(parent_key)
+                    candidate_dirs.append(parent)
+        for candidate_dir in candidate_dirs:
+            if all((candidate_dir / flag_name).exists() for flag_name in flag_files):
+                return candidate_dir
         return None
 
     def candidate_model_dir_names(self, model_name: str) -> List[str]:
@@ -826,6 +836,17 @@ class WindowsInstaller:
             self.print_error(f"Online download is not available for {model_name}.")
             return False
         target_dir = self.model_dir / model_name
+        existing_payload = self.find_payload_root(target_dir, model_name)
+        if existing_payload:
+            self.print_info(
+                f"Existing {spec['display']} model detected in {existing_payload}. Skipping online download."
+            )
+            self.set_progress(
+                end_percent,
+                f"Downloading {spec['display']}",
+                f"Existing model files detected in {existing_payload.name}; download skipped",
+            )
+            return True
         target_dir.mkdir(parents=True, exist_ok=True)
         env = os.environ.copy()
         if self.model_endpoint:
