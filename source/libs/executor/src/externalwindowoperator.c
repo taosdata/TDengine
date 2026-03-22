@@ -696,7 +696,6 @@ static int32_t mergeAlignExtWinNext(SOperatorInfo* pOperator, SSDataBlock** ppRe
   mergeAlignExtWinDo(pOperator);
   
   size_t rows = pRes->info.rows;
-  pOperator->resultInfo.totalRows += rows;
   (*ppRes) = (rows == 0) ? NULL : pRes;
 
 _exit:
@@ -723,7 +722,7 @@ int32_t resetMergeAlignedExtWinOperator(SOperatorInfo* pOperator) {
   pMlExtInfo->curTs = INT64_MIN;
 
   int32_t code = resetAggSup(&pOperator->exprSupp, &pExtW->aggSup, pTaskInfo, pPhynode->window.pFuncs, NULL,
-                             sizeof(int64_t) * 2 + POINTER_BYTES, pTaskInfo->id.str, pTaskInfo->streamInfo.pState,
+                             sizeof(int64_t) * 2 + POINTER_BYTES, pTaskInfo->id.str, NULL,
                              &pTaskInfo->storageAPI.functionStore);
   if (code == 0) {
     colDataDestroy(&pExtW->twAggSup.timeWindowData);
@@ -748,6 +747,7 @@ int32_t createMergeAlignedExternalWindowOperator(SOperatorInfo* pDownstream, SPh
     code = terrno;
     goto _error;
   }
+  initOperatorCostInfo(pOperator);
 
   pMlExtInfo->pExtW = taosMemoryCalloc(1, sizeof(SExternalWindowOperator));
   if (!pMlExtInfo->pExtW) {
@@ -775,7 +775,7 @@ int32_t createMergeAlignedExternalWindowOperator(SOperatorInfo* pDownstream, SPh
   QUERY_CHECK_CODE(code, lino, _error);
 
   if (pExtW->mode == EEXT_MODE_AGG) {
-    code = initAggSup(pSup, &pExtW->aggSup, pExprInfo, num, keyBufSize, pTaskInfo->id.str, pTaskInfo->streamInfo.pState,
+    code = initAggSup(pSup, &pExtW->aggSup, pExprInfo, num, keyBufSize, pTaskInfo->id.str, NULL,
                       &pTaskInfo->storageAPI.functionStore);
     QUERY_CHECK_CODE(code, lino, _error);
   }
@@ -2156,19 +2156,21 @@ static int32_t extWinOpen(SOperatorInfo* pOperator) {
     QUERY_CHECK_CONDITION(pOperator->numOfDownstream == 1, code, lino, _exit, TSDB_CODE_INVALID_PARA)
 
     switch (pDownParam->opType) {
-      case QUERY_NODE_PHYSICAL_PLAN_DYN_QUERY_CTRL: {
-        break;
-      }
       case QUERY_NODE_PHYSICAL_PLAN_EXCHANGE: {
         pExecParam = (SExchangeOperatorParam*)((SOperatorParam*)(pOperator->pDownstreamGetParams[0]))->value;
-        pExecParam->basic.vgId = pExtW->orgTableVgId;
-        taosArrayClear(pExecParam->basic.uidList);
-        QUERY_CHECK_NULL(taosArrayPush(pExecParam->basic.uidList, &pExtW->orgTableUid), code, lino, _exit, terrno)
+        if (!pExecParam->multiParams) {
+          pExecParam->basic.vgId = pExtW->orgTableVgId;
+          taosArrayClear(pExecParam->basic.uidList);
+          QUERY_CHECK_NULL(taosArrayPush(pExecParam->basic.uidList, &pExtW->orgTableUid), code, lino, _exit, terrno)
+        }
         break;
       }
       default:
-        QUERY_CHECK_CONDITION(false, code, lino, _exit, TSDB_CODE_INVALID_PARA)
+        break;
     }
+
+    freeOperatorParam(pOperator->pOperatorGetParam, OP_GET_PARAM);
+    pOperator->pOperatorGetParam = NULL;
   } else {
     TAOS_CHECK_EXIT(extWinInitWindowList(pExtW, pTaskInfo));
   }
@@ -2306,7 +2308,6 @@ static int32_t extWinNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   }
 
   if (*ppRes) {
-    pOperator->resultInfo.totalRows += (*ppRes)->info.rows;
     printDataBlock(*ppRes, __func__, GET_TASKID(pTaskInfo), pTaskInfo->id.queryId);
   }
   
@@ -2325,7 +2326,7 @@ _exit:
   if (pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM && (*ppRes)) {
     printDataBlock(*ppRes, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo), pTaskInfo->id.queryId);
   }
-  
+
   return code;
 }
 
@@ -2344,6 +2345,7 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
     lino = __LINE__;
     goto _error;
   }
+  initOperatorCostInfo(pOperator);
   
   setOperatorInfo(pOperator, "ExternalWindowOperator", QUERY_NODE_PHYSICAL_PLAN_EXTERNAL_WINDOW, true, OP_NOT_OPENED,
                   pExtW, pTaskInfo);
@@ -2450,7 +2452,7 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
     TSDB_CHECK_CODE(code, lino, _error);
     
     code = initAggSup(&pOperator->exprSupp, &pExtW->aggSup, pExprInfo, numOfExpr, keyBufSize, pTaskInfo->id.str,
-                              pTaskInfo->streamInfo.pState, &pTaskInfo->storageAPI.functionStore);
+                              NULL, &pTaskInfo->storageAPI.functionStore);
     TSDB_CHECK_CODE(code, lino, _error);
     pOperator->exprSupp.hasWindowOrGroup = false;
     

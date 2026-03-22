@@ -27,24 +27,26 @@
 #include "tjson.h"
 
 typedef struct STaskSubJobCtx {
-  uint64_t    queryId;
-  char*       idStr;
-  void*       pTaskInfo;
-  void*       rpcHandle;
-  int64_t     transporterId;
-  bool        hasSubJobs;
-  SRWLatch           lock;
+  bool               isExchange;
+  bool               isStream;
+  int64_t            subJobRefId;
+  uint64_t           queryId;
+  uint64_t           taskId;
+  char*              idStr;
+  void*              pTaskInfo;
+  void*              rpcHandle;
+  int64_t            transporterId;
   int32_t            code;
-  void*              param;
   tsem_t             ready;
+  uint64_t           blockIdx;
   SArray*            subEndPoints;  // SArray<SDownstreamSourceNode*>
-  SArray*            subResValues;  // SArray<SValueNode*>
+  SArray*            subResNodes;  // SArray<SNode*>
 } STaskSubJobCtx;
 
 typedef struct SScalarFetchParam {
   int32_t           subQIdx;
-  SRemoteValueNode* pRes;
-  STaskSubJobCtx*   pSubJobCtx;
+  SNode*            pRes;
+  int64_t           subJobRefId;
 } SScalarFetchParam;
 
 
@@ -117,6 +119,7 @@ typedef struct SColMatchItem {
 typedef struct SColMatchInfo {
   SArray* pList;      // SArray<SColMatchItem>
   int32_t matchType;  // determinate the source according to col id or slot id
+  bool    colIdOrdered;
 } SColMatchInfo;
 
 typedef struct STableListIdInfo {
@@ -275,7 +278,7 @@ void    rmDbVgInfoFromCache(const char* dbFName);
 int32_t doDropStreamTable(SMsgCb* pMsgCb, void* pOutput, SSTriggerDropRequest* pReq);
 int32_t doDropStreamTableByTbName(SMsgCb* pMsgCb, void* pOutput, SSTriggerDropRequest* pReq, char* tbName);
 
-int32_t parseErrorMsgFromAnalyticServer(SJson* pJson, const char* pId);
-int32_t qFetchRemoteValue(void* pCtx, int32_t subQIdx, SRemoteValueNode* pRes);
+int32_t parseErrorMsgFromAnalyticServer(SJson* pJson, const char* typeStr, const char* pId);
+int32_t qFetchRemoteNode(void* pCtx, int32_t subQIdx, SNode* pRes);
 
 #endif  // TDENGINE_EXECUTIL_H

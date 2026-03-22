@@ -389,7 +389,7 @@ static int32_t simpleUpload(SSharedStorageS3* ss, const char* dstPath, SUploadSo
         tssError("simpleUpload failed %s: %s/%s", dstPath, S3_get_status_name(ucbd.status), ucbd.errMsg);
         code = TAOS_SYSTEM_ERROR(EIO);
     } else if (src->size > src->offset) {
-        tssError("simpleUpload failed to put remaining %lu bytes", src->size - src->offset);
+        tssError("simpleUpload failed to put remaining %" PRIu64 " bytes", src->size - src->offset);
         code = TAOS_SYSTEM_ERROR(EIO);
     }
 
@@ -677,7 +677,7 @@ static int32_t upload(SSharedStorage* pss, const char* dstPath, const void* data
     if (size <= ss->defaultChunkSizeInMB * (uint64_t)1024 * 1024) {
         return simpleUpload(ss, dstPath, &src);
     } else {
-        tssInfo("multipart uploading: %s, size %ld", dstPath, size);
+        tssInfo("multipart uploading: %s, size %" PRId64, dstPath, size);
         return multipartUpload(ss, dstPath, &src);
     }
 }
@@ -689,7 +689,7 @@ static int32_t uploadFile(SSharedStorage* pss, const char* dstPath, const char* 
     SSharedStorageS3* ss = (SSharedStorageS3*)pss;
 
     if (offset < 0) {
-        tssError("invalid offset %ld for file %s: ", offset, srcPath);
+        tssError("invalid offset %" PRId64 " for file %s: ", offset, srcPath);
         TAOS_RETURN(TSDB_CODE_INVALID_PARA);
     }
 
@@ -704,7 +704,7 @@ static int32_t uploadFile(SSharedStorage* pss, const char* dstPath, const char* 
         size = fileSize - offset;
     }
     if (size < 0 || offset + size > fileSize) {
-        tssError("invalid offset %ld and size %ld for file %s: ", offset, size, srcPath);
+        tssError("invalid offset %" PRId64 " and size %" PRId64 " for file %s: ", offset, size, srcPath);
         TAOS_RETURN(TSDB_CODE_INVALID_PARA);
     }
 
@@ -715,7 +715,7 @@ static int32_t uploadFile(SSharedStorage* pss, const char* dstPath, const char* 
     }
 
     if (offset > 0 && taosLSeekFile(file, offset, SEEK_SET) < 0) {
-        tssError("failed to seek file %s to offset %ld", srcPath, offset);
+        tssError("failed to seek file %s to offset %" PRId64, srcPath, offset);
         (void)taosCloseFile(&file);
         TAOS_RETURN(terrno);
     }
@@ -726,7 +726,7 @@ static int32_t uploadFile(SSharedStorage* pss, const char* dstPath, const char* 
     if (size <= ss->defaultChunkSizeInMB * (uint64_t)1024 * 1024) {
         code = simpleUpload(ss, dstPath, &src);
     } else {
-        tssInfo("multipart uploading: %s to %s, size %ld", srcPath, dstPath, size);
+        tssInfo("multipart uploading: %s to %s, size %" PRId64, srcPath, dstPath, size);
         code = multipartUpload(ss, dstPath, &src);
     }
 

@@ -939,7 +939,7 @@ int32_t buildSubmitReqFromStbBlock(SDataInserterHandle* pInserter, SHashObj* pHa
       goto _end;
     }
     void*   data = colDataGetVarData(tbname, j);
-    SValue  sv = (SValue){TSDB_DATA_TYPE_VARCHAR, .nData = varDataLen(data), .pData = varDataVal(data)};
+    SValue  sv = (SValue){.type = TSDB_DATA_TYPE_VARCHAR, .nData = varDataLen(data), .pData = varDataVal(data)};
     SColVal cv = COL_VAL_VALUE(0, sv);
 
     char tbFullName[TSDB_TABLE_FNAME_LEN];
@@ -1298,7 +1298,7 @@ int32_t buildSubmitReqFromBlock(SDataInserterHandle* pInserter, SSubmitReq2** pp
         goto _end;
       }
       void*   data = colDataGetVarData(tbname, j);
-      SValue  sv = (SValue){TSDB_DATA_TYPE_VARCHAR, .nData = varDataLen(data),
+      SValue  sv = (SValue){.type = TSDB_DATA_TYPE_VARCHAR, .nData = varDataLen(data),
                             .pData = varDataVal(data)};  // address copy, no value
       SColVal cv = COL_VAL_VALUE(0, sv);
 
@@ -2168,7 +2168,7 @@ int32_t buildStreamSubmitReqFromBlock(SStreamRunnerTask* pTask, SDataInserterHan
 _end:
   releaseStreamInsertTableInfo(ppTbInfo);
   if (code != TSDB_CODE_SUCCESS) {
-    ST_TASK_ELOG("buildStreamSubmitReqFromBlock, code:0x%0x, groupId:%" PRId64 " tbname:%s autoCreate:%d", code,
+    ST_TASK_ELOG("buildStreamSubmitReqFromBlock, failed at line %d with code:0x%0x, groupId:%" PRId64 " tbname:%s autoCreate:%d", lino, code,
                  pInserterInfo->groupId, pInserterInfo->tbName, pInserterInfo->isAutoCreateTable);
   }
   return code;

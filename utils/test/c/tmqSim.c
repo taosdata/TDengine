@@ -179,7 +179,10 @@ static void tmqStop(int signum, void* info, void* ctx) {
   taosFprintfFile(g_fp, "%s tmqStop() receive stop signal[%d]\n", getCurrentTimeString(tmpString), signum);
 }
 
-static void tmqSetSignalHandle() { taosSetSignal(SIGINT, tmqStop); }
+static void tmqSetSignalHandle() { 
+  taosSetSignal(SIGINT, tmqStop); 
+  taosSetSignal(SIGTERM, tmqStop); 
+}
 
 void initLogFile() {
   char filename[256];
@@ -853,7 +856,7 @@ void loop_consume(SThreadInfo* pInfo) {
       memset(tmpString, 0, tListLen(tmpString));
       code = taos_errno(NULL);
       if (code == 0) {
-        taosFprintfFile(g_fp, "%s no poll more msg when time over, break consume\n", getCurrentTimeString(tmpString));
+        taosFprintfFile(g_fp, "%s no poll more msg when time over, break consume, errMsg:%s\n", getCurrentTimeString(tmpString), taos_errstr(NULL));
         break;
       } else if (code == TSDB_CODE_VND_INVALID_VGROUP_ID ||
                  code == TSDB_CODE_SYN_NOT_LEADER ||

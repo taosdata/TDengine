@@ -243,7 +243,7 @@ class TestLimit:
         limit = paraDict["rowsPerTbl"]
         offset = limit / 2
         sqlStr = f"select _wstart,max(c1), min(c2), sum(c3), avg(c4), stddev(c5), spread(c6), first(c7), last(c8), first(c9) from %s where ts >= %d and ts <= %d interval(5m) fill(linear) limit %d offset %d"%(tb,ts0,tsu,limit, offset)
-        # tdLog.info("====sql:%s"%(sqlStr))
+        tdLog.info("====sql:%s"%(sqlStr))
         tdSql.query(sqlStr)
         tdSql.checkRows(limit)
         tdSql.checkData(0, 1, 0)

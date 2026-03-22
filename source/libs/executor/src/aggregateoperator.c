@@ -90,6 +90,7 @@ int32_t createAggregateOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode* pA
     code = terrno;
     goto _error;
   }
+  initOperatorCostInfo(pOperator);
 
   pOperator->exprSupp.hasWindowOrGroup = false;
 
@@ -105,7 +106,7 @@ int32_t createAggregateOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode* pA
   TSDB_CHECK_CODE(code, lino, _error);
 
   code = initAggSup(&pOperator->exprSupp, &pInfo->aggSup, pExprInfo, num, keyBufSize, pTaskInfo->id.str,
-                               pTaskInfo->streamInfo.pState, &pTaskInfo->storageAPI.functionStore);
+                               NULL, &pTaskInfo->storageAPI.functionStore);
   TSDB_CHECK_CODE(code, lino, _error);
 
   if (pAggNode->pExprs != NULL) {
@@ -201,7 +202,6 @@ static bool nextGroupedResult(SOperatorInfo* pOperator) {
   }
 
   SExprSupp*   pSup = &pOperator->exprSupp;
-  int64_t      st = taosGetTimestampUs();
   int32_t      order = pAggInfo->binfo.inputTsOrder;
   SSDataBlock* pBlock = pAggInfo->pNewGroupBlock;
 
@@ -219,10 +219,7 @@ static bool nextGroupedResult(SOperatorInfo* pOperator) {
   }
   while (1) {
     bool blockAllocated = false;
-    pBlock = getNextBlockFromDownstreamRemain(pOperator, 0);
-    if (pOperator->pDownstreamGetParams) {
-      pOperator->pDownstreamGetParams[0] = NULL;
-    }
+    pBlock = getNextBlockFromDownstreamRemainDetach(pOperator, 0);
     if (pBlock == NULL) {
       if (!pAggInfo->hasValidBlock) {
         code = createDataBlockForEmptyInput(pOperator, &pBlock);
@@ -340,9 +337,6 @@ int32_t getAggregateResultNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
     }
   } while (pInfo->pRes->info.rows == 0 && hasNewGroups);
 
-  size_t rows = blockDataGetNumOfRows(pInfo->pRes);
-  pOperator->resultInfo.totalRows += rows;
-
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
@@ -352,7 +346,7 @@ _end:
 
   printDataBlock(pInfo->pRes, __func__, pTaskInfo->id.str, pTaskInfo->id.queryId);
 
-  (*ppRes) = (rows == 0) ? NULL : pInfo->pRes;
+  (*ppRes) = (pInfo->pRes->info.rows == 0) ? NULL : pInfo->pRes;
   return code;
 }
 
@@ -624,42 +618,6 @@ int32_t doInitAggInfoSup(SAggSupporter* pAggSup, SqlFunctionCtx* pCtx, int32_t n
   return code;
 }
 
-void cleanupResultInfoInStream(SExecTaskInfo* pTaskInfo, void* pState, SExprSupp* pSup, SGroupResInfo* pGroupResInfo) {
-  int32_t         code = TSDB_CODE_SUCCESS;
-  SStorageAPI*    pAPI = &pTaskInfo->storageAPI;
-  int32_t         numOfExprs = pSup->numOfExprs;
-  int32_t*        rowEntryOffset = pSup->rowEntryInfoOffset;
-  SqlFunctionCtx* pCtx = pSup->pCtx;
-  int32_t         numOfRows = getNumOfTotalRes(pGroupResInfo);
-  bool            needCleanup = false;
-
-  for (int32_t j = 0; j < numOfExprs; ++j) {
-    needCleanup |= pCtx[j].needCleanup;
-  }
-  if (!needCleanup) {
-    return;
-  }
-  
-  for (int32_t i = pGroupResInfo->index; i < numOfRows; i += 1) {
-    SResultWindowInfo* pWinInfo = taosArrayGet(pGroupResInfo->pRows, i);
-    SRowBuffPos*       pPos = pWinInfo->pStatePos;
-    SResultRow*        pRow = NULL;
-
-    code = pAPI->stateStore.streamStateGetByPos(pState, pPos, (void**)&pRow);
-    if (TSDB_CODE_SUCCESS != code) {
-      qError("failed to get state by pos, code:%s, %s", tstrerror(code), GET_TASKID(pTaskInfo));
-      continue;
-    }
-
-    for (int32_t j = 0; j < numOfExprs; ++j) {
-      pCtx[j].resultInfo = getResultEntryInfo(pRow, j, rowEntryOffset);
-      if (pCtx[j].fpSet.cleanup) {
-        pCtx[j].fpSet.cleanup(&pCtx[j]);
-      }
-    }
-  }
-}
-
 void cleanupResultInfoInGroupResInfo(SExecTaskInfo* pTaskInfo, SExprSupp* pSup, SDiskbasedBuf* pBuf,
                                   SGroupResInfo* pGroupResInfo) {
   int32_t         numOfExprs = pSup->numOfExprs;
@@ -885,7 +843,7 @@ static int32_t resetAggregateOperatorState(SOperatorInfo* pOper) {
   pAgg->pNewGroupBlock = NULL;
 
   int32_t code = resetAggSup(&pOper->exprSupp, &pAgg->aggSup, pTaskInfo, pAggNode->pAggFuncs, pAggNode->pGroupKeys,
-    keyBufSize, pTaskInfo->id.str, pTaskInfo->streamInfo.pState, &pTaskInfo->storageAPI.functionStore);
+    keyBufSize, pTaskInfo->id.str, NULL, &pTaskInfo->storageAPI.functionStore);
 
   if (code == 0) {
     code = resetExprSupp(&pAgg->scalarExprSup, pTaskInfo, pAggNode->pExprs, NULL,

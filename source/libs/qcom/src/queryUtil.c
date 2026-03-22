@@ -62,56 +62,69 @@ static bool doValidateSchema(SSchema* pSchema, int32_t numOfCols, int32_t maxLen
   if (!pSchema) {
     return false;
   }
-  int32_t rowLen = 0;
+  int32_t    rowLen = 0;
+  SSHashObj* pNameHash = tSimpleHashInit(numOfCols, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+  if (!pNameHash) {
+    return false;
+  }
 
   for (int32_t i = 0; i < numOfCols; ++i) {
     // 1. valid types
     if (!isValidDataType(pSchema[i].type)) {
       qError("The %d col/tag data type error, type:%d", i, pSchema[i].type);
-      return false;
+      goto _error;
     }
 
     // 2. valid length for each type
     if (pSchema[i].type == TSDB_DATA_TYPE_BINARY || pSchema[i].type == TSDB_DATA_TYPE_VARBINARY) {
       if (pSchema[i].bytes > TSDB_MAX_BINARY_LEN) {
         qError("The %d col/tag var data len error, type:%d, len:%d", i, pSchema[i].type, pSchema[i].bytes);
-        return false;
+        goto _error;
       }
     } else if (pSchema[i].type == TSDB_DATA_TYPE_NCHAR) {
       if (pSchema[i].bytes > TSDB_MAX_NCHAR_LEN) {
         qError("The %d col/tag nchar data len error, len:%d", i, pSchema[i].bytes);
-        return false;
+        goto _error;
       }
     } else if (pSchema[i].type == TSDB_DATA_TYPE_GEOMETRY) {
       if (pSchema[i].bytes > TSDB_MAX_GEOMETRY_LEN) {
         qError("The %d col/tag geometry data len error, len:%d", i, pSchema[i].bytes);
-        return false;
+        goto _error;
       }
     } else if (IS_STR_DATA_BLOB(pSchema[i].type)) {
       if (pSchema[i].bytes >= TSDB_MAX_BLOB_LEN) {
         qError("The %d col/tag blob data len error, len:%d", i, pSchema[i].bytes);
-        return false;
+        goto _error;
       } 
 
-    }else {
+    } else {
       if (pSchema[i].bytes != tDataTypes[pSchema[i].type].bytes) {
         qError("The %d col/tag data len error, type:%d, len:%d", i, pSchema[i].type, pSchema[i].bytes);
-        return false;
+        goto _error;
       }
     }
 
     // 3. valid column names
-    for (int32_t j = i + 1; j < numOfCols; ++j) {
-      if (strncmp(pSchema[i].name, pSchema[j].name, sizeof(pSchema[i].name) - 1) == 0) {
-        qError("The %d col/tag name %s is same with %d col/tag name %s", i, pSchema[i].name, j, pSchema[j].name);
-        return false;
-      }
+    size_t   nameLen = strnlen(pSchema[i].name, sizeof(pSchema[i].name));
+    int32_t  nameIdx = i;
+    int32_t* pIdx = tSimpleHashGet(pNameHash, pSchema[i].name, nameLen);
+    if (pIdx != NULL) {
+      qError("The %d col/tag name %s is same with %d col/tag name %s", i, pSchema[i].name, *pIdx,
+             pSchema[*pIdx].name);
+      goto _error;
+    }
+    if (tSimpleHashPut(pNameHash, pSchema[i].name, nameLen, &nameIdx, sizeof(nameIdx)) != TSDB_CODE_SUCCESS) {
+      goto _error;
     }
 
     rowLen += pSchema[i].bytes;
   }
 
+  tSimpleHashCleanup(pNameHash);
   return rowLen <= maxLen;
+_error:
+  tSimpleHashCleanup(pNameHash);
+  return false;
 }
 
 bool tIsValidSchema(struct SSchema* pSchema, int32_t numOfCols, int32_t numOfTags, bool isVirtual) {
@@ -584,12 +597,17 @@ end:
   *jsonStr = string;
 }
 
-int32_t setColRef(SColRef* colRef, col_id_t colId, char* refColName, char* refTableName, char* refDbName) {
+int32_t setColRef(SColRef* colRef, col_id_t colId, const char* colName, char* refColName, char* refTableName, char* refDbName) {
   colRef->id = colId;
   colRef->hasRef = true;
   tstrncpy(colRef->refDbName, refDbName, TSDB_DB_NAME_LEN);
   tstrncpy(colRef->refTableName, refTableName, TSDB_TABLE_NAME_LEN);
   tstrncpy(colRef->refColName, refColName, TSDB_COL_NAME_LEN);
+  if (colName) {
+    tstrncpy(colRef->colName, colName, TSDB_COL_NAME_LEN);
+  } else {
+    colRef->colName[0] = '\0';
+  }
   return TSDB_CODE_SUCCESS;
 }
 
@@ -610,13 +628,17 @@ int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst) {
   int32_t metaSize = sizeof(STableMeta) + numOfField * sizeof(SSchema);
   int32_t schemaExtSize = 0;
   int32_t colRefSize = 0;
+  int32_t tagRefSize = 0;
   if (withExtSchema(pSrc->tableType) && pSrc->schemaExt) {
     schemaExtSize = pSrc->tableInfo.numOfColumns * sizeof(SSchemaExt);
   }
   if (hasRefCol(pSrc->tableType) && pSrc->colRef) {
     colRefSize = pSrc->numOfColRefs * sizeof(SColRef);
   }
-  *pDst = taosMemoryMalloc(metaSize + schemaExtSize + colRefSize);
+  if (hasRefCol(pSrc->tableType) && pSrc->tagRef) {
+    tagRefSize = pSrc->numOfTagRefs * sizeof(SColRef);
+  }
+  *pDst = taosMemoryMalloc(metaSize + schemaExtSize + colRefSize + tagRefSize);
   if (NULL == *pDst) {
     return terrno;
   }
@@ -632,6 +654,14 @@ int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst) {
     memcpy((*pDst)->colRef, pSrc->colRef, colRefSize);
   } else {
     (*pDst)->colRef = NULL;
+  }
+  if (hasRefCol(pSrc->tableType) && pSrc->tagRef) {
+    (*pDst)->tagRef = (SColRef*)((char*)*pDst + metaSize + schemaExtSize + colRefSize);
+    memcpy((*pDst)->tagRef, pSrc->tagRef, tagRefSize);
+    (*pDst)->numOfTagRefs = pSrc->numOfTagRefs;
+  } else {
+    (*pDst)->tagRef = NULL;
+    (*pDst)->numOfTagRefs = 0;
   }
 
   return TSDB_CODE_SUCCESS;

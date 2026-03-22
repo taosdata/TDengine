@@ -271,8 +271,8 @@ int32_t tqProcessSeekReq(STQ* pTq, SRpcMsg* pMsg) {
 
   // 2. check consumer-vg assignment status
   if (pHandle->consumerId != req.consumerId) {
-    tqError("ERROR tmq seek, consumer:0x%" PRIx64 " vgId:%d, subkey %s, mismatch for saved handle consumer:0x%" PRIx64,
-            req.consumerId, vgId, req.subKey, pHandle->consumerId);
+    tqError("%s consumer:0x%" PRIx64 " vgId:%d, subkey %s, mismatch for saved handle consumer:0x%" PRIx64,
+            __func__, req.consumerId, vgId, req.subKey, pHandle->consumerId);
     taosWUnLockLatch(&pTq->lock);
     code = TSDB_CODE_TMQ_CONSUMER_MISMATCH;
     goto end;
@@ -310,7 +310,6 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
   }
   int64_t      consumerId = req.consumerId;
   int32_t      reqEpoch = req.epoch;
-  STqOffsetVal reqOffset = req.reqOffset;
   int32_t      vgId = TD_VID(pTq->pVnode);
   STqHandle*   pHandle = NULL;
 
@@ -326,8 +325,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
 
     // 2. check rebalance status
     if (pHandle->consumerId != consumerId) {
-      tqError("ERROR tmq poll: consumer:0x%" PRIx64
-              " vgId:%d, subkey %s, mismatch for saved handle consumer:0x%" PRIx64,
+      tqWarn("tmq poll: consumer:0x%" PRIx64" vgId:%d, subkey %s, mismatch for saved handle consumer:0x%" PRIx64,
               consumerId, TD_VID(pTq->pVnode), req.subKey, pHandle->consumerId);
       code = TSDB_CODE_TMQ_CONSUMER_MISMATCH;
       taosWUnLockLatch(&pTq->lock);
@@ -359,7 +357,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
   }
 
   char buf[TSDB_OFFSET_LEN] = {0};
-  (void)tFormatOffset(buf, TSDB_OFFSET_LEN, &reqOffset);
+  (void)tFormatOffset(buf, TSDB_OFFSET_LEN, &req.reqOffset);
   tqDebug("tmq poll: consumer:0x%" PRIx64 " (epoch %d), subkey %s, recv poll req vgId:%d, req:%s, QID:0x%" PRIx64,
           consumerId, req.epoch, pHandle->subKey, vgId, buf, req.reqId);
 
@@ -449,8 +447,8 @@ int32_t tqProcessVgWalInfoReq(STQ* pTq, SRpcMsg* pMsg) {
 
   // 2. check rebalance status
   if (pHandle->consumerId != consumerId) {
-    tqDebug("ERROR consumer:0x%" PRIx64 " vgId:%d, subkey %s, mismatch for saved handle consumer:0x%" PRIx64,
-            consumerId, vgId, req.subKey, pHandle->consumerId);
+    tqError("%s consumer:0x%" PRIx64 " vgId:%d, subkey %s, mismatch for saved handle consumer:0x%" PRIx64,
+            __func__, consumerId, vgId, req.subKey, pHandle->consumerId);
     taosRUnLockLatch(&pTq->lock);
     return TSDB_CODE_TMQ_CONSUMER_MISMATCH;
   }
@@ -574,14 +572,14 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
     goto end;
   }
 
-  tqInfo("vgId:%d, tq process subscribe req:%s, Id:0x%" PRIx64 " -> Id:0x%" PRIx64, pTq->pVnode->config.vgId, req.subKey,
+  tqInfo("vgId:%d, tmq subscribe req:%s, Id:0x%" PRIx64 " -> Id:0x%" PRIx64, pTq->pVnode->config.vgId, req.subKey,
          req.oldConsumerId, req.newConsumerId);
 
-  taosRLockLatch(&pTq->lock);
+  taosRLockLatch(&pTq->lock);  
   STqHandle* pHandle = NULL;
   int32_t code = tqMetaGetHandle(pTq, req.subKey, &pHandle);
   if (code != 0){
-    tqInfo("vgId:%d, tq process subscribe req:%s, no such handle, create new one, msg:%s", pTq->pVnode->config.vgId, req.subKey, tstrerror(code));
+    tqInfo("vgId:%d, tmq subscribe req:%s, no such handle, create new one, msg:%s", pTq->pVnode->config.vgId, req.subKey, tstrerror(code));
   }
   taosRUnLockLatch(&pTq->lock);
   if (pHandle == NULL) {

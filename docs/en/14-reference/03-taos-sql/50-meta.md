@@ -114,6 +114,7 @@ Provides information about database objects created by users. You can also use S
 | 27   |     table_prefix     | SMALLINT      | length of the prefix to ignore when the internal storage engine allocates a VNODE to store data for a table based on its name. Note, `table_prefix` is a TDengine keyword and must be escaped with ` when used as a column name. |
 | 28   |     table_suffix     | SMALLINT      | length of the suffix to ignore when the internal storage engine allocates a VNODE to store data for a table based on its name. Note, `table_suffix` is a TDengine keyword and must be escaped with ` when used as a column name. |
 | 29   |    tsdb_pagesize     | INT           | page size in the time-series data storage engine. Note, `tsdb_pagesize` is a TDengine keyword and must be escaped with ` when used as a column name. |
+| 30   |   cacheshardbits    | INT           | number of shard bits for the last-value LRU cache. The actual number of shards equals `2^cacheshardbits`. -1 means the system automatically calculates the value based on cachesize. Note, `cacheshardbits` is a TDengine keyword and must be escaped with ` when used as a column name. |
 
 ## INS_FUNCTIONS
 

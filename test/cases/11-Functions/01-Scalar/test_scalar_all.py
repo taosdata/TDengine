@@ -148,8 +148,8 @@ class TestScalarFunction:
 
     def run_timediff(self):
         self.run_normal_query_new("timediff")
-        tdSql.error("select timediff(min(ts), '2023-01-01 00:00:00') from ts_4893.meters limit 1;")
-        tdSql.error("select timediff(max(ts), '2023-12-31 23:59:59') from ts_4893.meters limit 1;")
+        tdSql.query("select timediff(min(ts), '2023-01-01 00:00:00') from ts_4893.meters limit 1;")
+        tdSql.query("select timediff(max(ts), '2023-12-31 23:59:59') from ts_4893.meters limit 1;")
         tdSql.error("select (select timediff(ts, (select max(ts) from ts_4893.meters)) from ts_4893.meters where id = m.id) from ts_4893.meters m;")
 
     def run_week(self):
@@ -238,7 +238,7 @@ class TestScalarFunction:
         res1 = tdSql.getData(0, 1)
         if res0 != res1:
             caller = inspect.getframeinfo(inspect.stack()[1][0])
-            args = (caller.filename, caller.lineno, self.sql, 1, self.queryRows)
+            args = (caller.filename, caller.lineno, tdSql.sql, 1, tdSql.queryRows)
             tdLog.exit("%s(%d) failed: sql:%s, row:%d is larger than queryRows:%d" % args)
 
         tdSql.error("select rand(3.14);")
@@ -249,7 +249,7 @@ class TestScalarFunction:
     def check_rand_data_range(self, data, row):
         if data < 0 or data >= 1:
             caller = inspect.getframeinfo(inspect.stack()[1][0])
-            args = (caller.filename, caller.lineno, self.sql, row+1, self.queryRows)
+            args = (caller.filename, caller.lineno, tdSql.sql, row+1, tdSql.queryRows)
             tdLog.exit("%s(%d) failed: sql:%s, row:%d is larger than queryRows:%d" % args)
 
     def run_max(self):

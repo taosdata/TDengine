@@ -379,6 +379,7 @@ Below are the business error codes for each module.
 | 0x8000073C | Memory pool not initialized          | Memory pool not initialized in dnode                                                                                                                                                                                                                                                               | Confirm if the switch queryUseMemoryPool is enabled; if queryUseMemoryPool is already enabled, check if the server meets the basic conditions for enabling the memory pool: 1. The total available system memory is not less than 5GB; 2. The available system memory after deducting the reserved portion is not less than 4GB. |
 | 0x8000073D | Alter minReservedMemorySize failed since no enough system available memory | Failed to update minReservedMemorySize                                                                                                                                                                                                                                                             | Check current system memory: 1. Total available system memory should not be less than 5G; 2. Available system memory after deducting reserved portion should not be less than 4G                                                                                                                                                 |
 | 0x8000073E | Duplicate timestamp not allowed in count/event/state window                                          | Duplicate timestamps in the window's input primary key column. When querying supertables with count/event/state window, all subtable data will be sorted by timestamp and merged into one timeline for calculation, which may result in duplicate timestamps, causing errors in some calculations. | Ensure there are no duplicate timestamp data in subtables when querying supertables using count/event/state window.                                                                                                                                                                                                              |
+| 0x80000741 | VSTB slotId not found for column     | Failed to map a source column to a virtual table slotId during query execution                                                                                                                                                                                                                    | Preserve the scene and logs, report issue on GitHub                                                                                                                                                                                                                                                                              |
 
 #### grant
 
@@ -558,6 +559,8 @@ Below are the business error codes for each module.
 | 0x8000268E | Invalid table type                                                                                     | Incorrect Table type                                                       | Check and correct the SQL statement                          |
 | 0x8000268F | Invalid ref column type                                                                                | Virtual table's column type and data source column's type are different    | Check and correct the SQL statement                          |
 | 0x80002690 | Create child table using virtual super table                                                           | Create non-virtual child table using virtual super table                   | Check and correct the SQL statement                          |
+| 0x800026AF | Invalid offset unit                                                                                    | Invalid time unit used in offset clause                                    | Check and correct the SQL statement                          |
+| 0x800026B0 | Invalid offset value                                                                                   | Invalid offset value in time window                                        | Check and correct the SQL statement                          |
 | 0x80002696 | Invalid sliding offset                                                                                 | Invalid sliding offset                                                     | Check and correct the SQL statement                          |
 | 0x80002697 | Invalid interval offset                                                                                | Invalid interval offset                                                    | Check and correct the SQL statement                          |
 | 0x80002698 | Invalid extend value                                                                                   | Invalid extend value                                                       | Check and correct the SQL statement                          |
@@ -574,6 +577,9 @@ Below are the business error codes for each module.
 | 0x800026A3 | Option value too small                                                                                 | Option value too small                                                     | Check and correct the SQL statement                          |
 | 0x800026AA | Aggregate functions cannot be used for sorting in non-aggregate queries                                | Invalid ORDER BY clause clause                                             | Check and correct the SQL statement                          |
 | 0x800026AB | TRUE_FOR COUNT must be a non-negative integer not exceeding INT32_MAX                                  | The value for COUNT in a TRUE_FOR expr is invalid                          | Check and correct the SQL statement                          |
+| 0x800026AC | Invalid fill mode | Using fill(near) mode in interval window | Use supported fill modes for interval window |
+| 0x800026AD | Invalid fill values | Incorrect use of fill values parameter | Use the correct fill mode with fill values parameter |
+| 0x800026AE | Invalid surrounding time values | Incorrect surrounding time value provided | Use correct and valid time range and time unit  |
 | 0x800026FF | Parser internal error                                                                                  | Internal error in parser                                                   | Preserve the scene and logs, report issue on GitHub          |
 | 0x80002700 | Planner internal error                                                                                 | Internal error in planner                                                  | Preserve the scene and logs, report issue on GitHub          |
 | 0x80002701 | Expect ts equal                                                                                        | JOIN condition validation failed                                           | Preserve the scene and logs, report issue on GitHub          |
@@ -657,7 +663,7 @@ Below are the business error codes for each module.
 | 0x80004001 | Consumer mismatch     | The vnode requested for subscription and the reassigned vnode are inconsistent, usually occurs when new consumers join the same consumer group | Internal error        |
 | 0x80004002 | Consumer closed       | The consumer no longer exists                                | Check if it has already been closed          |
 | 0x80004017 | Invalid status, please subscribe topic first | tmq status invalidate                 | Without calling subscribe, directly poll data     |
-| 0x80004100 | Stream task not exist | The stream computing task does not exist                     | Check the server-side error logs             |
+| 0x8000401A | Fetch data timeout    | Data subscription pull timeout. Controlled by the parameter fetch.max.wait.ms          | The server may return this error due to being busy, but you can continue to poll for data       |
 
 #### TDgpt
 
@@ -679,11 +685,12 @@ Below are the business error codes for each module.
 
 | Error Code | Description                                             | Possible Error Scenarios or Reasons                                                                                                                                  | Recommended Actions for Users                                                 |
 |------------|---------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------|
-| 0x80006103 | Audit database must be encrypted                       | Invalid param,eter                                                                                                 | Check and correct the SQL statement                           |
-| 0x80006104 | Audit database wal_level must be 2                       | Invalid param,eter                                                                                                 | Check and correct the SQL statement                           |
-| 0x80006105 | Audit database keep2 must be greater than 1825d                       | Invalid param,eter                                                                                                 | Check and correct the SQL statement                           |
-| 0x80006106 | Audit database already exist                       | Invalid param,eter                                                                                                 | Check and correct the SQL statement                           |
-| 0x80006107 | Audit database is not allowed to change                       | Invalid param,eter                                                                                                 | Check and correct the SQL statement                           |
+| 0x80006103 | Audit database must be encrypted                       | Invalid parameter                                                                                                 | Check and correct the SQL statement                           |
+| 0x80006104 | Audit database wal_level must be 2                       | Invalid parameter                                                                                                 | Check and correct the SQL statement                           |
+| 0x80006105 | Audit database keep2 must be greater than 1825d                       | Invalid parameter                                                                                                 | Check and correct the SQL statement                           |
+| 0x80006106 | Audit database already exist                       | Invalid parameter                                                                                                 | Check and correct the SQL statement                           |
+| 0x80006107 | Audit database is not allowed to change                       | Invalid parameter                                                                                                 | Check and correct the SQL statement                           |
+| 0x80006108 | Audit database is not allowed to keep multiple vgroups        | Invalid parameter                                                                                                 | Check and correct the SQL statement                           |
 
 #### virtual table
 
@@ -699,6 +706,8 @@ Below are the business error codes for each module.
 | 0x80006207 | Virtual super table query not support origin table from different databases | Virtual super table's child table's origin table from different databases                                                                        | make sure virtual super table's child table's origin table from same database |
 | 0x80006208 | Virtual super table query find column type mismatch                         | Virtual super table's child table's column type and origin table's column type mismatch  | make sure virtual child table's column type same with origin table's column type                                                      |
 | 0x80006209 | Virtual table has too many reference tables                                 | Virtual table's origin table num is too many.                                                                                                    | make sure virtual table's origin table num do not exceed 1000.                |
+| 0x8000620A | Virtual table query find invalid origin scan                               | The optimizer generated an invalid origin scan node for a virtual table query during primary-key condition pushdown.                             | Keep the SQL and explain plan, then contact development for handling.         |
+| 0x8000620B | Virtual table query cannot find origin timestamp column                    | The origin scan schema of a virtual table query cannot provide the timestamp primary key column needed for ts-condition pushdown.                | Keep the SQL and explain plan, then contact development for handling.         |
 
 #### stream
 
@@ -710,6 +719,7 @@ Below are the business error codes for each module.
 | 0x80007016 | Stream output table name calc failed  | Output table name calculation failed      | Check if the output table name rules in the stream creation statement are correct and if NULL values exist      |
 | 0x80007017 | Stream vtable calculate need redeploy | Stream vtable calculate need redeploy      | Stream will handle this error automatically                                                                      |
 | 0x80007018 | Stream info contains invalid JSON format messages | Internal encoding compatibility issues in stream computing | Report the issue to developers on GitHub. |
+| 0x80004100 | Stream task not exist | The stream computing task does not exist                     | Check the server-side error logs |
 
 #### xnode
 

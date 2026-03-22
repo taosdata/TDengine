@@ -109,7 +109,6 @@ toc_max_heading_level: 4
 | retentionSpeedLimitMB | taosd | 数据在不同级别硬盘上迁移时的速度限制 |
 | maxTsmaNum | taosd | 集群内可创建的 TSMA 个数 |
 | tmqMaxTopicNum | taosd | 订阅最多可建立的 topic 数量 |
-| tmqRowSize | taosd | 订阅数据块的最大记录条数 |
 | audit | taosd | 审计功能开关 |
 | auditInterval | taosd | 审计数据上报的时间间隔 |
 | auditCreateTable | taosd | 是否针对创建子表开启申计功能 |
@@ -220,6 +219,8 @@ toc_max_heading_level: 4
 | smlTsDefaultName | taosc | schemaless 自动建表的时间列名字通过该配置设置 |
 | smlDot2Underline | taosc | schemaless 把超级表名中的 dot 转成下划线 |
 | maxInsertBatchRows | taosc | 一批写入的最大条数 |
+| tmqWriteRefDB | taosc | tmq_write_raw 接口写入 meta 消息时，虚拟表 ref 信息里的 db 替换为该参数，空标识不替换 |
+| tmqWriteCheckRef | taosc | tmq_write_raw 接口写入另一个集群时，是否校验虚拟表 ref 信息的有效性 |
 | **SHELL 相关** | | |
 | enableScience | taosc | 是否开启科学计数法显示浮点数 |
 | **WebSocket 相关** | | |

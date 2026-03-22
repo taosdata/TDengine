@@ -1207,7 +1207,7 @@ class TDCom:
         if platform.system().lower() == "windows":
             os.system("TASKKILL /F /IM %s.exe" % processorName)
         else:
-            os.system("unset LD_PRELOAD; pkill %s " % processorName)
+            os.system("unset LD_PRELOAD; pkill -9 %s " % processorName)
 
     def kill_signal_process(self, signal=15, processor_name: str = "taosd"):
         if platform.system().lower() == "windows":
@@ -3052,7 +3052,32 @@ class TDCom:
                 os.system(f"rm -f {self.query_result_file}.raw")
             else:
                 os.system(
-                    f"taos -c {cfgPath} -f {inputfile} | grep -v 'Query OK'|grep -v 'Copyright'| grep -v 'Welcome to the TDengine TSDB Command' | sed 's/([0-9]\+\.[0-9]\+s)//g' | sed 's/cost=[0-9]\+\.[0-9]\+\.\.[0-9]\+\.[0-9]\+//g' | sed 's/Planning Time: [0-9]\+\.[0-9]\+ ms//g' | sed 's/Execution Time: [0-9]\+\.[0-9]\+ ms//g' | sed 's/max_row_task=[0-9]\+, //g' > {self.query_result_file}"
+                    f"taos -c {cfgPath} -f {inputfile} "
+                    "| grep -v 'Query OK'|grep -v 'Copyright'| grep -v 'Welcome to the TDengine TSDB Command' "
+                    "| grep -v 'Exec cost:' " 
+                    "| sed -E 's/[[:space:]]*\\([0-9]+\\.[0-9]+s\\)/ /g' "
+                    # cost=0.000..1.111
+                    "| sed -E 's/cost=[0-9]+\\.[0-9]+\\.\\.[0-9]+\\.[0-9]+//g' "
+                    # cost=0.000(0.000)..1.111(1.111)
+                    "| sed -E 's/cost=[0-9]+\\.[0-9]+\\([0-9]+\\.[0-9]+\\)\\.\\.[0-9]+\\.[0-9]+\\([0-9]+\\.[0-9]+\\)//g' "
+                    "| sed -E 's/file_load_elapsed=[0-9]+\\.[0-9]+\\([0-9]+\\.[0-9]+\\)//g' "
+                    "| sed -E 's/file_load_elapsed=[0-9]+\\.[0-9]+//g' "
+                    "| sed -E 's/stt_load_elapsed=[0-9]+\\.[0-9]+\\([0-9]+\\.[0-9]+\\)//g' "
+                    "| sed -E 's/stt_load_elapsed=[0-9]+\\.[0-9]+//g' "
+                    "| sed -E 's/mem_load_elapsed=[0-9]+\\.[0-9]+\\([0-9]+\\.[0-9]+\\)//g' "
+                    "| sed -E 's/mem_load_elapsed=[0-9]+\\.[0-9]+//g' "
+                    "| sed -E 's/sma_load_elapsed=[0-9]+\\.[0-9]+\\([0-9]+\\.[0-9]+\\)//g' "
+                    "| sed -E 's/sma_load_elapsed=[0-9]+\\.[0-9]+//g' "
+                    "| sed -E 's/composed_elapsed=[0-9]+\\.[0-9]+\\([0-9]+\\.[0-9]+\\)//g' "
+                    "| sed -E 's/composed_elapsed=[0-9]+\\.[0-9]+//g' "
+                    "| sed -E 's/slowest_vgroup_id=[0-9]+//g' "
+                    "| sed -E 's/fetch_cost=[0-9]+\\.[0-9]+\\([0-9]+\\.[0-9]+\\)//g' "
+                    "| sed -E 's/slow_deviation=[0-9]+\\.[0-9]+%//g' "
+                    "| sed -E 's/cost_ratio=[0-9]+\\.[0-9]+//g' "
+                    "| sed -E 's/data_deviation=-?[0-9]+\\.[0-9]+%//g' "
+                    "| sed -E 's/Planning Time: [0-9]+\\.[0-9]+ ms//g' "
+                    "| sed -E 's/Execution Time: [0-9]+\\.[0-9]+ ms//g' "
+                    f"> {self.query_result_file}"
                 )
             return self.query_result_file
 
@@ -3169,14 +3194,21 @@ class TDCom:
         return True
 
     def compare_result_files(self, file1, file2, float_tolerance=0.0):
+        normalized_file1 = None
+        normalized_file2 = None
+
         try:
             # use subprocess.run to execute  diff/fc commands
             # print(file1, file2)
             if platform.system().lower() != "windows":
+                normalized_file1 = self._normalize_diff_file(file1)
+                normalized_file2 = self._normalize_diff_file(file2)
                 cmd = "diff"
                 tdLog.info(f"cmd: {cmd} -u --color {file1} {file2}")
                 result = subprocess.run(
-                    [cmd, "-u", "--color", file1, file2], text=True, capture_output=True
+                    [cmd, "-u", "--color", normalized_file1, normalized_file2],
+                    text=True,
+                    capture_output=True,
                 )
                 tdLog.info(f"result: {result}")
             else:
@@ -3253,7 +3285,24 @@ class TDCom:
             return False
         except Exception as e:
             tdLog.debug(f"An error occurred: {e}")
-            return False
+            return False			
+        finally:
+            for normalized_file in (normalized_file1, normalized_file2):
+                if normalized_file and os.path.exists(normalized_file):
+                    os.remove(normalized_file)
+
+    def _normalize_diff_file(self, input_file):
+        with open(input_file, "r", encoding="utf-8", newline="") as fin:
+            with tempfile.NamedTemporaryFile(
+                mode="w", delete=False, encoding="utf-8", newline=""
+            ) as fout:
+                for line in fin:
+                    if re.fullmatch(r"[ \t]+\|\r?\n", line):
+                        line_ending = "\r\n" if line.endswith("\r\n") else "\n"
+                        fout.write("|" + line_ending)
+                    else:
+                        fout.write(line)
+                return fout.name
 
     def compare_query_with_result_file(
         self, idx, sql, resultFile, test_case, float_tolerance=0.0

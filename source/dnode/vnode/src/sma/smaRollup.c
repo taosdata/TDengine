@@ -162,9 +162,9 @@ static int32_t tdUpdateTbUidListImpl(SSma *pSma, tb_uid_t *suid, SArray *tbUids,
   for (int32_t i = 0; i < TSDB_RETENTION_L2; ++i) {
     if (pRSmaInfo->taskInfo[i]) {
       if (isAdd) {
-        code = qAddTableListForStreamScanner(pRSmaInfo->taskInfo[i], tbUids);
+        code = qAddTableListForTmqScanner(pRSmaInfo->taskInfo[i], tbUids);
       } else {
-        code = qDeleteTableListForStreamScanner(pRSmaInfo->taskInfo[i], tbUids);
+        code = qDeleteTableListForTmqScanner(pRSmaInfo->taskInfo[i], tbUids);
       }
       if (code < 0) {
         tdReleaseRSmaInfo(pSma, pRSmaInfo);
