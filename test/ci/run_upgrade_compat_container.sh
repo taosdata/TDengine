@@ -15,6 +15,8 @@
 #   /green_versions           — 绿色版本缓存目录（只读）
 #   /upgrade_logs             — 日志输出目录（可写）
 
+# ── 配置参数 ─────────────────────────────────────────────────────────────────
+
 # 
 #  cold upgrade version (2 group)
 #
@@ -34,11 +36,6 @@ GREEN_PATH="/green_versions"
 LOG_DIR="/upgrade_logs"
 COMPAT_CI_DIR="/home/TDinternal/community/test/tools/CompatCI"
 
-if [ -z "$COLD_VERSIONS_CSV" ]; then
-    echo "ERROR: -V COLD_VERSIONS_CSV is required"
-    usage
-    exit 1
-fi
 
 mkdir -p "$LOG_DIR"
 
