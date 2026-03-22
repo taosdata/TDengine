@@ -438,10 +438,10 @@ if not exist "%PYTHON_EXE%" set "PYTHON_EXE=python"
 REM Start model service
 REM Usage: start-model.bat [model_name|all]
 if "%~1"=="" (
-    echo Usage: start-model.bat [model_name^|all]
-    echo Supported models: tdtsfm, timemoe, moirai, chronos, timesfm, moment
-    echo The "all" option starts every model whose directory exists and skips missing ones.
-    exit /b 1
+    echo No model name specified. Defaulting to "all".
+    echo Existing model directories will be started automatically.
+    "%PYTHON_EXE%" "%~dp0taosanode_service.py" model-start all
+    exit /b %errorlevel%
 )
 "%PYTHON_EXE%" "%~dp0taosanode_service.py" model-start %*
 """)

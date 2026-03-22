@@ -843,3 +843,10 @@ python packaging/win_release.py -e community -v 1.0.0 -m D:\models --offline -a
   - `msvcp140_1.dll`
   - `vcruntime140.dll`
 - 如果未检测到这些 DLL，会直接提示安装 VC++ 运行库，而不是等到服务启动时才失败。
+
+### start-model.bat 默认行为调整
+
+- Windows 安装后的 `start-model.bat` 现在支持“无参数默认按 `all` 处理”。
+- 用户直接双击 `start-model.bat`，或在命令行中只执行 `start-model.bat` 时，会自动尝试启动当前安装目录下实际存在的模型目录。
+- 缺失目录的模型会被跳过，不再因为未传参数而直接退出。
+- `start-model.bat all` 的原有行为保持不变，仍然是“启动存在目录的模型，跳过不存在的模型”。

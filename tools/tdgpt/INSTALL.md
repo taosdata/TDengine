@@ -179,7 +179,7 @@ sudo systemctl disable taosanode
    - Offline model import automatically scans `<install_dir>\model\` and imports every packaged model archive that is present.
    - Offline mode also provides one optional offline model package input. That archive can contain all offline models together.
    - Offline mode does not ask users to select models. The wizard shows one offline import page instead.
-   - `start-model.bat all` and `model-start all` check model directories at runtime. Models with existing directories are started automatically, and missing ones are skipped with a message.
+   - `start-model.bat` defaults to `all` when no argument is provided. `start-model.bat all` and `model-start all` check model directories at runtime. Models with existing directories are started automatically, and missing ones are skipped with a message.
    - Online model installation creates only the selected model virtual environments.
    - Offline model installation does not create extra model virtual environments during setup.
    - Online default model selection is `Moirai Small` and `MOMENT Base`.

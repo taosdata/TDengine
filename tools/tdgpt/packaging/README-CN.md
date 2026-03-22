@@ -138,6 +138,7 @@ C:\TDengine\taosanode\bin\status-taosanode.bat
 
 # 模型服务
 C:\TDengine\taosanode\bin\start-model.bat tdtsfm
+C:\TDengine\taosanode\bin\start-model.bat
 C:\TDengine\taosanode\bin\start-model.bat all
 C:\TDengine\taosanode\bin\stop-model.bat all
 C:\TDengine\taosanode\bin\status-model.bat

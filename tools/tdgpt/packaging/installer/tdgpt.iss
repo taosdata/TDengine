@@ -640,7 +640,7 @@ begin
   Notes := Notes + 'Script commands:' + #13#10;
   Notes := Notes + '  Start: ' + ExpandConstant('{app}\bin\start-taosanode.bat') + #13#10;
   Notes := Notes + '  Stop:  ' + ExpandConstant('{app}\bin\stop-taosanode.bat') + #13#10;
-  Notes := Notes + '  Models start: ' + ExpandConstant('{app}\bin\start-model.bat all') + ' (starts models whose directories exist)' + #13#10;
+  Notes := Notes + '  Models start: ' + ExpandConstant('{app}\bin\start-model.bat') + ' (no argument defaults to all existing models)' + #13#10;
   Notes := Notes + '  Models stop:  ' + ExpandConstant('{app}\bin\stop-model.bat all') + #13#10;
   Notes := Notes + '  Models status: ' + ExpandConstant('{app}\bin\status-model.bat');
   FinishNotesLabel.Caption := Notes;

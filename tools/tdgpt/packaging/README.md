@@ -138,6 +138,7 @@ C:\TDengine\taosanode\bin\status-taosanode.bat
 
 # Model services
 C:\TDengine\taosanode\bin\start-model.bat tdtsfm
+C:\TDengine\taosanode\bin\start-model.bat
 C:\TDengine\taosanode\bin\start-model.bat all
 C:\TDengine\taosanode\bin\stop-model.bat all
 C:\TDengine\taosanode\bin\status-model.bat
@@ -259,3 +260,4 @@ Modify the `bind` setting in the configuration file `C:\TDengine\taosanode\cfg\t
 - The installer writes append-only progress events to `<install_dir>\log\install-progress.log`, and the wizard displays the latest valid event.
 - The wizard reserves a conservative `20 GB` disk space estimate so the first page reflects Python environments and model payload growth instead of only the installer file size.
 - Online reinstall now reuses an existing healthy virtual environment and only recreates it when the environment is incomplete or pip validation fails.
+- `start-model.bat` now defaults to `all` when no argument is provided, so double-clicking it starts every model whose directory exists and skips missing ones.
