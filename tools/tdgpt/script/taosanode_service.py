@@ -33,6 +33,8 @@ import time
 import argparse
 import logging
 import re
+import urllib.request
+import urllib.error
 from logging.handlers import RotatingFileHandler
 from typing import Optional, List, Dict
 
@@ -336,6 +338,17 @@ class ProcessManager:
 
         return python_exe
 
+    def _get_pythonw_exe(self, venv_dir: Optional[str] = None) -> str:
+        """Get pythonw.exe when available for background Windows processes."""
+        python_exe = self._get_python_exe(venv_dir)
+        if not IS_WINDOWS:
+            return python_exe
+
+        pythonw_exe = os.path.join(os.path.dirname(python_exe), "pythonw.exe")
+        if os.path.exists(pythonw_exe):
+            return pythonw_exe
+        return python_exe
+
     def _get_pid_file(self, service_name: str = "taosanode") -> str:
         """Get PID file path"""
         if service_name == "taosanode":
@@ -367,6 +380,57 @@ class ProcessManager:
         if os.path.exists(pid_file):
             os.remove(pid_file)
 
+    def _get_windows_process_commandline(self, pid: int) -> str:
+        """Return the command line for a Windows process when available."""
+        ps_script = (
+            f"$p = Get-CimInstance Win32_Process -Filter \\\"ProcessId = {pid}\\\" "
+            f"-ErrorAction SilentlyContinue; if ($p) {{ $p.CommandLine }}"
+        )
+        try:
+            result = subprocess.run(
+                ["powershell", "-NoProfile", "-Command", ps_script],
+                capture_output=True,
+                text=True,
+                timeout=8,
+                check=False,
+            )
+            if result.returncode == 0:
+                return (result.stdout or "").strip()
+        except Exception:
+            pass
+        return ""
+
+    def _matches_expected_process(self, service_name: str, pid: int) -> bool:
+        """Best-effort validation that the PID belongs to the expected taosanode/model process."""
+        if not IS_WINDOWS:
+            return True
+
+        commandline = self._get_windows_process_commandline(pid).lower()
+        if not commandline:
+            return True
+
+        if service_name == "taosanode":
+            markers = [
+                "taosanode_service.py",
+                "from waitress import serve",
+                "taosanalytics.app",
+                "gunicorn",
+            ]
+            return any(marker in commandline for marker in markers)
+
+        if service_name.startswith("model-"):
+            model_name = service_name[len("model-"):]
+            model_config = self.config.models.get(model_name, {})
+            script_name = str(model_config.get("script", "")).lower()
+            markers = [script_name, model_name.lower(), "taosanalytics\\tsfmservice", "taosanalytics/tsfmservice"]
+            if script_name and script_name in commandline:
+                return True
+            if any(marker and marker in commandline for marker in markers[1:]) and "python" in commandline:
+                return True
+            return False
+
+        return True
+
     def is_running(self, service_name: str = "taosanode") -> bool:
         """Check if service is running"""
         pid = self.read_pid(service_name)
@@ -391,7 +455,7 @@ class ProcessManager:
                             try:
                                 line_pid = int(parts[1])
                                 if line_pid == pid:
-                                    return True
+                                    return self._matches_expected_process(service_name, pid)
                             except ValueError:
                                 continue
                 return False
@@ -936,6 +1000,9 @@ class TaosanodeService:
         """Get service status"""
         is_running = self.process_mgr.is_running("taosanode")
         pid = self.process_mgr.read_pid("taosanode")
+        if pid and not is_running:
+            self.process_mgr.remove_pid("taosanode")
+            pid = None
 
         return {
             "service": "taosanode",
@@ -943,6 +1010,32 @@ class TaosanodeService:
             "pid": pid,
             "bind": self.config.bind,
         }
+
+    def wait_ready(self, timeout: int = 30, interval: float = 1.0) -> bool:
+        """Wait until the taosanode HTTP status endpoint is reachable."""
+        bind_host, bind_port, _ = self._get_waitress_settings()
+        probe_host = "127.0.0.1" if bind_host in {"0.0.0.0", "::", "*", ""} else bind_host
+        status_url = f"http://{probe_host}:{bind_port}/status"
+
+        self.logger.info(f"Waiting for taosanode readiness on {status_url}")
+        deadline = time.time() + max(1, timeout)
+        while time.time() < deadline:
+            try:
+                with urllib.request.urlopen(status_url, timeout=3) as response:
+                    body = response.read().decode("utf-8", errors="replace")
+                    if response.status == 200 and "ready" in body.lower():
+                        self.logger.info(f"Taosanode readiness check succeeded: {status_url}")
+                        return True
+            except Exception:
+                pass
+
+            if not self.process_mgr.is_running("taosanode"):
+                self.logger.warning("Taosanode process is not running while waiting for readiness")
+                return False
+            time.sleep(max(0.2, interval))
+
+        self.logger.warning(f"Taosanode readiness check timed out after {timeout} seconds: {status_url}")
+        return False
 
     def install_service(self) -> bool:
         """Install Windows service"""
@@ -1096,7 +1189,7 @@ class ModelService:
 
         # Get configuration
         venv_dir = self._get_model_venv(model_name)
-        python_exe = self.process_mgr._get_python_exe(venv_dir)
+        python_exe = self.process_mgr._get_pythonw_exe(venv_dir)
         model_config = self.config.models[model_name]
 
         # Build command
@@ -1138,12 +1231,20 @@ class ModelService:
             # Start process
             with open(log_file, 'a') as log:
                 if IS_WINDOWS:
+                    startupinfo = subprocess.STARTUPINFO()
+                    startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+                    startupinfo.wShowWindow = 0
+                    creation_flags = (
+                        getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0) |
+                        getattr(subprocess, "CREATE_NO_WINDOW", 0)
+                    )
                     proc = subprocess.Popen(
                         cmd,
                         cwd=service_dir,
                         stdout=log,
                         stderr=subprocess.STDOUT,
-                        creationflags=subprocess.CREATE_NEW_PROCESS_GROUP
+                        creationflags=creation_flags,
+                        startupinfo=startupinfo,
                     )
                 else:
                     proc = subprocess.Popen(
@@ -1355,6 +1456,9 @@ class ModelService:
             service_name = f"model-{model_name}"
             is_running = self.process_mgr.is_running(service_name)
             pid = self.process_mgr.read_pid(service_name)
+            if pid and not is_running:
+                self.process_mgr.remove_pid(service_name)
+                pid = None
             model_config = self.config.models.get(model_name, {})
             port = model_config.get("port", 0)
 
@@ -1402,6 +1506,7 @@ Examples:
     %(prog)s model-start tdtsfm       # Start tdtsfm model
     %(prog)s model-start all          # Start all models
     %(prog)s model-stop all           # Stop all models
+    %(prog)s wait-ready               # Wait until taosanode /status reports ready
     %(prog)s install-service          # Install Windows service
     %(prog)s uninstall-service        # Uninstall Windows service
     %(prog)s start-service            # Start Windows service
@@ -1411,7 +1516,7 @@ Examples:
 
     parser.add_argument(
         "command",
-        choices=["start", "stop", "status", "model-start", "model-stop", "model-status",
+        choices=["start", "stop", "status", "model-start", "model-stop", "model-status", "wait-ready",
                  "install-service", "uninstall-service", "start-service", "stop-service"],
         help="Command to execute"
     )
@@ -1433,6 +1538,12 @@ Examples:
         "--full-preflight",
         action="store_true",
         help="Run the full taosanalytics.app import preflight before startup"
+    )
+    parser.add_argument(
+        "--timeout",
+        type=int,
+        default=30,
+        help="Timeout in seconds for wait-ready"
     )
 
     args = parser.parse_args()
@@ -1475,6 +1586,10 @@ Examples:
     elif args.command == "model-status":
         status = models.status()
         print_status(status)
+
+    elif args.command == "wait-ready":
+        success = taosanode.wait_ready(timeout=args.timeout)
+        sys.exit(0 if success else 1)
 
     elif args.command == "install-service":
         success = taosanode.install_service()

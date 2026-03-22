@@ -383,12 +383,47 @@ chcp 65001 >nul
 set "PYTHON_EXE=%~dp0..\\venvs\\venv\\Scripts\\python.exe"
 if not exist "%PYTHON_EXE%" set "PYTHON_EXE=python"
 REM Start taosanode service
+echo Starting Taosanode...
+echo.
+set "TDGPT_EXIT_CODE=0"
 sc query Taosanode >nul 2>&1
 if not errorlevel 1 (
     "%PYTHON_EXE%" "%~dp0taosanode_service.py" start-service %*
+    set "TDGPT_EXIT_CODE=%errorlevel%"
+    echo.
+    echo Taosanode is managed as a Windows service.
+    if not errorlevel 1 (
+        "%PYTHON_EXE%" "%~dp0taosanode_service.py" wait-ready --timeout 30
+        if errorlevel 1 (
+            echo Taosanode start command returned, but readiness was not confirmed within 30 seconds.
+            echo Check status-taosanode.bat or ..\\log\\taosanode-service.log for details.
+        ) else (
+            echo Taosanode is ready.
+        )
+    )
+    echo Use status-taosanode.bat or "sc query Taosanode" to verify status.
+    echo Start command: start-taosanode.bat
+    echo Stop command:  stop-taosanode.bat
 ) else (
     "%PYTHON_EXE%" "%~dp0taosanode_service.py" start %*
+    set "TDGPT_EXIT_CODE=%errorlevel%"
+    echo.
+    if not errorlevel 1 (
+        "%PYTHON_EXE%" "%~dp0taosanode_service.py" wait-ready --timeout 30
+        if errorlevel 1 (
+            echo Taosanode start command returned, but readiness was not confirmed within 30 seconds.
+            echo Check status-taosanode.bat or ..\\log\\taosanode-service.log for details.
+        ) else (
+            echo Taosanode is ready.
+        )
+    )
+    echo Use status-taosanode.bat to verify whether the process is running.
+    echo Start command: start-taosanode.bat
+    echo Stop command:  stop-taosanode.bat
 )
+echo Press Enter to close this window.
+pause >nul
+exit /b %TDGPT_EXIT_CODE%
 """)
     logging.info("Created start-taosanode.bat")
 
@@ -441,9 +476,30 @@ if "%~1"=="" (
     echo No model name specified. Defaulting to "all".
     echo Existing model directories will be started automatically.
     "%PYTHON_EXE%" "%~dp0taosanode_service.py" model-start all
-    exit /b %errorlevel%
+    set "TDGPT_EXIT_CODE=%errorlevel%"
+    echo.
+    echo Model start requests have been submitted in background.
+    echo You can close this window and verify results with status-model.bat.
+    echo Start command: start-model.bat [model_name^|all]
+    echo Status command: status-model.bat
+    echo Stop command:   stop-model.bat [model_name^|all]
+    echo Logs are written under ..\\log\\model_*.log
+    echo Press Enter to close this window.
+    pause >nul
+    exit /b %TDGPT_EXIT_CODE%
 )
 "%PYTHON_EXE%" "%~dp0taosanode_service.py" model-start %*
+set "TDGPT_EXIT_CODE=%errorlevel%"
+echo.
+echo Model start requests have been submitted in background.
+echo You can close this window and verify results with status-model.bat.
+echo Start command: start-model.bat [model_name^|all]
+echo Status command: status-model.bat
+echo Stop command:   stop-model.bat [model_name^|all]
+echo Logs are written under ..\\log\\model_*.log
+echo Press Enter to close this window.
+pause >nul
+exit /b %TDGPT_EXIT_CODE%
 """)
     logging.info("Created start-model.bat")
 

@@ -959,6 +959,18 @@ python packaging/win_release.py -e community -v 1.0.0 -m D:\models --offline -a
   - `cfg/taosanode.config.py` 的 `models` 字段
 - 其中 `chronos / moirai / timesfm / moment` 之前展示为 `0`，现在已与实际模型脚本监听端口对齐。
 
+### start-taosanode 启动成功判定调整
+
+- Windows 下的 `start-taosanode.bat` 不再把“服务命令返回成功”直接当成“主服务已经可用”。
+- 现在批处理会在发起启动后，额外调用 `taosanode_service.py wait-ready`，轮询：
+  - `http://127.0.0.1:6035/status`
+- 只有当 `/status` 返回 ready 时，才在窗口中提示 `Taosanode is ready.`。
+- 如果 30 秒内没有确认 ready，会提示：
+  - 启动命令已经返回
+  - 但 readiness 尚未确认
+  - 需要查看 `status-taosanode.bat` 或 `log\taosanode-service.log`
+- 这样可以避免用户把“服务进程已创建”误认为“anode 已完成导入并可对外提供服务”。
+
 ### 在线安装复用已有模型目录
 
 - Windows 在线模型安装现在会优先检查 `<安装目录>\model\<model_name>` 是否已经存在完整模型文件。
