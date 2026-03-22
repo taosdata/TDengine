@@ -888,6 +888,77 @@ python packaging/win_release.py -e community -v 1.0.0 -m D:\models --offline -a
   - 计划等待多少秒后重试
 - 这样可以覆盖镜像站短时间 API 限流、窗口刷新后可继续下载的场景，减少在线安装中途失败。
 
+## 2026-03-22 继续补充说明
+
+### 安装阶段耗时日志
+
+- Windows `install.py` 现在会把主要安装阶段的开始和结束时间写入安装日志。
+- 当前会记录的关键阶段包括：
+  - 磁盘空间检查
+  - Python 检查
+  - pip 检查
+  - 创建目录
+  - 停止已有 Taosanode 服务
+  - 主 venv 准备
+  - TensorFlow 依赖安装
+  - 额外模型 venv 准备
+  - 离线模型导入 / 在线模型下载
+  - Windows 服务注册
+- 安装完成后的 `install.log` 摘要中会额外附带 `Phase timings` 清单，便于直接看出时间主要花在了哪一段。
+- 这样当界面长时间停留在某个阶段时，可以通过日志明确判断究竟是：
+  - 旧服务停止慢
+  - venv 创建慢
+  - pip 安装慢
+  - 模型下载/导入慢
+
+### sample_ad_model 启动降级
+
+- `sample_ad_model` 是内置的示例异常检测模型，依赖：
+  - `model\sample-ad-autoencoder\sample-ad-autoencoder.keras`
+  - `model\sample-ad-autoencoder\sample-ad-autoencoder.info`
+- 之前如果这两个样例文件缺失，模块导入阶段就会尝试加载并报错，可能干扰 Taosanode 启动判断。
+- 现在调整为：
+  - 如果样例模型文件存在，则按原逻辑预加载
+  - 如果样例模型文件缺失，则仅记录 info，并把该算法保持为 unavailable
+  - 不再因为样例模型缺失影响 Taosanode 主服务启动
+- 后续如果用户把样例模型文件补到正确目录，`sample_ad_model` 在实际调用参数设置时仍会再次尝试按需加载。
+
+### 在线下载限流策略调整
+
+- 对于 Hugging Face / HF Mirror 在线模型下载阶段的 `429 Too Many Requests`，当前策略改为直接失败，不再自动重试。
+- 原因是自动重试会显著拉长安装等待时间，也容易让用户误以为安装器卡住。
+- 现在保留完整错误输出，用户可以根据日志自行决定：
+  - 稍后重试
+  - 切换镜像源
+  - 改用离线模型导入
+
+### Windows 主服务 preflight 启动策略调整
+
+- Windows `taosanode` 服务启动时，原先默认会先单独执行一次完整的 `from taosanalytics.app import app` 预检查，然后正式启动时再在服务进程中完整导入一次应用。
+- 这样虽然诊断最完整，但在模型和主服务依赖都较重时，会导致主服务冷启动时间明显变长。
+- 现在调整为：
+  - 默认执行轻量 preflight
+  - 轻量 preflight 仅检查基础依赖和配置导入，如 `waitress`、`flask`、`numpy`、`taosanalytics.conf`
+  - 随后由正式服务进程完成一次真实的 `taosanalytics.app` 导入
+- 如果正式导入失败，仍会自动补充详细依赖诊断日志，不会丢失排障信息。
+- 如需恢复完整预检查，可使用：
+  - 命令行参数 `--full-preflight`
+  - 或环境变量 `TAOSANODE_PREFLIGHT_MODE=full`
+
+### model-status 端口展示补充
+
+- `model-status` 现在会额外显示每个模型服务对应的端口。
+- 当前 Windows 默认端口对齐为：
+  - `tdtsfm`: `6036`
+  - `timemoe`: `6037`
+  - `chronos`: `6038`
+  - `moirai`: `6039`
+  - `timesfm`: `6061`
+  - `moment`: `6062`
+- 端口展示配置位于：
+  - `cfg/taosanode.config.py` 的 `models` 字段
+- 其中 `chronos / moirai / timesfm / moment` 之前展示为 `0`，现在已与实际模型脚本监听端口对齐。
+
 ### 在线安装复用已有模型目录
 
 - Windows 在线模型安装现在会优先检查 `<安装目录>\model\<model_name>` 是否已经存在完整模型文件。

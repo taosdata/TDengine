@@ -56,12 +56,6 @@ Name: "{app}\log"; Permissions: everyone-modify; Flags: uninsneveruninstall
 Name: "{app}\model"; Permissions: everyone-modify; Flags: uninsneveruninstall
 Name: "{app}\data"; Permissions: everyone-modify; Flags: uninsneveruninstall
 Name: "{app}\data\pids"; Permissions: everyone-modify; Flags: uninsneveruninstall
-Name: "{app}\venvs"; Permissions: everyone-modify; Flags: uninsneveruninstall
-Name: "{app}\venvs\venv"; Permissions: everyone-modify; Flags: uninsneveruninstall
-Name: "{app}\venvs\timesfm_venv"; Permissions: everyone-modify; Flags: uninsneveruninstall
-Name: "{app}\venvs\moirai_venv"; Permissions: everyone-modify; Flags: uninsneveruninstall
-Name: "{app}\venvs\chronos_venv"; Permissions: everyone-modify; Flags: uninsneveruninstall
-Name: "{app}\venvs\momentfm_venv"; Permissions: everyone-modify; Flags: uninsneveruninstall
 
 [Run]
 Filename: "notepad.exe"; Parameters: """{app}\log\install.log"""; Description: "Open installation log"; Flags: postinstall nowait skipifsilent
@@ -126,6 +120,11 @@ begin
     exit;
   end;
   Result := Pos(';' + Param + ';', ';' + OrigPath + ';') = 0;
+end;
+
+procedure LogTdgpt(MessageText: String);
+begin
+  Log('[TDGPT-DIAG] ' + MessageText);
 end;
 
 function GetHostFromUrl(Url: string): string;
@@ -340,8 +339,10 @@ var
   I: Integer;
   TempPath: string;
 begin
+  LogTdgpt('WaitForFileUnlock start: ' + FilePath);
   if not FileExists(FilePath) then
   begin
+    LogTdgpt('WaitForFileUnlock skipped because file does not exist: ' + FilePath);
     Result := True;
     exit;
   end;
@@ -355,12 +356,14 @@ begin
     if RenameFile(FilePath, TempPath) then
     begin
       RenameFile(TempPath, FilePath);
+      LogTdgpt('WaitForFileUnlock succeeded: ' + FilePath);
       Result := True;
       exit;
     end;
     Sleep(500);
   end;
 
+  LogTdgpt('WaitForFileUnlock timed out: ' + FilePath);
   Result := False;
 end;
 
@@ -373,26 +376,30 @@ begin
   if TargetDir = '' then
     exit;
 
-  Log('TDGPT upgrade detected. Attempting to stop existing Taosanode service before file copy.');
+  LogTdgpt('StopExistingTaosanodeProcesses start for ' + TargetDir);
 
   if ServiceExists('Taosanode') then
   begin
+    LogTdgpt('Stopping existing Windows service: Taosanode');
     Exec(ExpandConstant('{cmd}'), '/C sc stop "Taosanode" >nul 2>&1', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
     if WaitForServiceStop('Taosanode', 15) then
-      Log('Taosanode service reported STOPPED before upgrade.')
+      LogTdgpt('Taosanode service reported STOPPED before upgrade.')
     else
-      Log('Taosanode service did not stop cleanly within timeout. Continuing with process cleanup.');
+      LogTdgpt('Taosanode service did not stop cleanly within timeout. Continuing with process cleanup.');
   end;
 
   WinSWPath := AddBackslash(TargetDir) + 'bin\taosanode-winsw.exe';
   if FileExists(WinSWPath) then
   begin
+    LogTdgpt('Stopping existing WinSW process via ' + WinSWPath);
     Exec(WinSWPath, 'stop', TargetDir, SW_HIDE, ewWaitUntilTerminated, ResultCode);
     Sleep(1000);
   end;
 
+  LogTdgpt('Issuing taskkill for taosanode-winsw.exe');
   Exec(ExpandConstant('{cmd}'), '/C taskkill /F /T /IM taosanode-winsw.exe >nul 2>&1', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
   Sleep(1000);
+  LogTdgpt('StopExistingTaosanodeProcesses finished');
 end;
 
 function InitializeSetup(): Boolean;
@@ -428,18 +435,26 @@ var
 begin
   Result := '';
   TargetDir := RemoveBackslashUnlessRoot(WizardDirValue());
+  LogTdgpt('PrepareToInstall enter, target=' + TargetDir);
   if not IsExistingTaosanodeInstall(TargetDir) then
+  begin
+    LogTdgpt('PrepareToInstall: no existing install detected');
     exit;
+  end;
 
+  LogTdgpt('PrepareToInstall: existing install detected');
   StopExistingTaosanodeProcesses(TargetDir);
   WinSWPath := AddBackslash(TargetDir) + 'bin\taosanode-winsw.exe';
   if not WaitForFileUnlock(WinSWPath, 15) then
   begin
+    LogTdgpt('PrepareToInstall: file unlock failed for ' + WinSWPath);
     Result :=
       'The existing Taosanode Windows service is still locking this file:' + #13#10 + #13#10 +
       WinSWPath + #13#10 + #13#10 +
       'Stop the existing service or close the process that is using this file, then run the installer again.';
+    exit;
   end;
+  LogTdgpt('PrepareToInstall exit successfully');
 end;
 
 function GetSelectedModelCount(): Integer;
@@ -967,9 +982,12 @@ var
   PercentValue: Integer;
   TitleValue: String;
   DetailValue: String;
+  FirstProgressSeen: Boolean;
 begin
   ProgressFile := ExpandConstant('{app}\log\install-progress.log');
+  FirstProgressSeen := False;
   DeleteFile(ProgressFile);
+  LogTdgpt('WaitForPostInstall start, progress file=' + ProgressFile);
   InstallProgressPage.SetText('Installing TDGPT', 'Preparing post-install tasks...');
   InstallProgressPage.SetProgress(0, 100);
   WizardForm.CancelButton.Enabled := False;
@@ -977,6 +995,7 @@ begin
   try
     CmdArgs := '/C set "TDGPT_PROGRESS_FILE=' + ProgressFile + '" && call "' +
       ExpandConstant('{app}\install.bat') + '" ' + GetInstallFlags('');
+    LogTdgpt('WaitForPostInstall launching helper: ' + CmdArgs);
     if not Exec(ExpandConstant('{cmd}'), CmdArgs, '', SW_HIDE, ewNoWait, ResultCode) then
       RaiseException('Failed to start the TDGPT installation helper.');
 
@@ -989,15 +1008,27 @@ begin
         DetailValue := 'Please wait...';
         PercentValue := 0;
       end;
+      if (not FirstProgressSeen) and (StatusValue <> '') then
+      begin
+        FirstProgressSeen := True;
+        LogTdgpt('WaitForPostInstall received first progress event: ' + StatusValue + '|' + IntToStr(PercentValue) + '|' + TitleValue);
+      end;
       InstallProgressPage.SetText(TitleValue, DetailValue);
       InstallProgressPage.SetProgress(PercentValue, 100);
       if StatusValue = 'success' then
+      begin
+        LogTdgpt('WaitForPostInstall completed successfully');
         break;
+      end;
       if StatusValue = 'error' then
+      begin
+        LogTdgpt('WaitForPostInstall received error status: ' + TitleValue + ' | ' + DetailValue);
         ShowInstallFailureAndAbort(TitleValue, DetailValue);
+      end;
       Sleep(400);
     end;
   finally
+    LogTdgpt('WaitForPostInstall end');
     InstallProgressPage.Hide;
     WizardForm.CancelButton.Enabled := True;
   end;
@@ -1005,6 +1036,11 @@ end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
+  case CurStep of
+    ssInstall: LogTdgpt('CurStepChanged: ssInstall');
+    ssPostInstall: LogTdgpt('CurStepChanged: ssPostInstall');
+    ssDone: LogTdgpt('CurStepChanged: ssDone');
+  end;
   if (CurStep = ssPostInstall) and (not PostInstallCompleted) then
   begin
     PostInstallCompleted := True;

@@ -205,6 +205,12 @@ class TestModelService:
         assert status[0]["model"] == "tdtsfm"
         assert status[0]["running"] is True
         assert status[0]["pid"] == 1111
+        assert status[0]["port"] == 6036
+        assert status[1]["port"] == 6037
+        assert status[2]["port"] == 6039
+        assert status[3]["port"] == 6038
+        assert status[4]["port"] == 6061
+        assert status[5]["port"] == 6062
 
     def test_get_model_venv(self, model_service, mock_config):
         """Test getting model virtual environment path"""

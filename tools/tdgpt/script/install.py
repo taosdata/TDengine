@@ -17,7 +17,7 @@ import tempfile
 import time
 import zipfile
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional
+from typing import Dict, Iterable, List, Optional, Tuple
 
 if platform.system().lower() != "windows":
     print("Error: this script is for Windows only.")
@@ -209,6 +209,8 @@ class WindowsInstaller:
         self.stdout_redirected_to_log = os.environ.get("TDGPT_LOG_REDIRECTED", "") == "1"
         self.python_cmd = ""
         self.python_version = ""
+        self.phase_timings: List[Tuple[str, float]] = []
+        self.install_started_at = time.time()
 
         raw_models = [normalize_model_name(item) for item in (selected_models or [])]
         if self.all_models:
@@ -264,6 +266,26 @@ class WindowsInstaller:
 
     def print_success(self, message: str) -> None:
         self._emit("SUCCESS", "[SUCCESS]", Colors.GREEN, message)
+
+    @staticmethod
+    def format_elapsed(seconds: float) -> str:
+        if seconds < 60:
+            return f"{seconds:.1f}s"
+        minutes, secs = divmod(seconds, 60)
+        if minutes < 60:
+            return f"{int(minutes)}m {secs:.1f}s"
+        hours, minutes = divmod(minutes, 60)
+        return f"{int(hours)}h {int(minutes)}m {secs:.1f}s"
+
+    def start_phase_timer(self, label: str) -> float:
+        self.print_info(f"[TIMER] {label} started")
+        return time.time()
+
+    def finish_phase_timer(self, label: str, started_at: float) -> float:
+        elapsed = time.time() - started_at
+        self.phase_timings.append((label, elapsed))
+        self.print_info(f"[TIMER] {label} completed in {self.format_elapsed(elapsed)}")
+        return elapsed
 
     def get_venv_path(self, name: str) -> Path:
         return self.venvs_dir / name
@@ -569,12 +591,16 @@ class WindowsInstaller:
         upgrade_end = start_percent + max(1, (end_percent - start_percent) // 4)
         upgrade = [str(python_exe), "-m", "pip", "install", "--upgrade", "pip", "--progress-bar", "on"]
         self.add_pip_options(upgrade)
+        upgrade_timer = self.start_phase_timer(f"{venv_name}: upgrade pip")
         if not self.run_stream(upgrade, f"Upgrading pip in {venv_name}", 1800, start_percent, upgrade_end, title):
             return False
+        self.finish_phase_timer(f"{venv_name}: upgrade pip", upgrade_timer)
         install = [str(pip_exe), "install", "-r", str(req_file), "--progress-bar", "on"]
         self.add_pip_options(install)
+        install_timer = self.start_phase_timer(f"{venv_name}: install {req_name}")
         if not self.run_stream(install, f"Installing {req_name} in {venv_name}", 7200, upgrade_end, end_percent, title):
             return False
+        self.finish_phase_timer(f"{venv_name}: install {req_name}", install_timer)
         self.write_requirements_stamp(venv_name, req_name, req_file)
         return True
 
@@ -582,8 +608,10 @@ class WindowsInstaller:
         config = VENV_CONFIGS[venv_name]
         desc = config["description"]
         validation_imports = str(config.get("validation_imports", "")).strip()
+        phase_label = f"Prepare {venv_name} ({desc})"
 
         for attempt in range(2):
+            phase_timer = self.start_phase_timer(phase_label)
             self.set_progress(start_percent, "Preparing Python environments", f"Creating {desc}")
             if not self.create_venv(venv_name, desc):
                 return False
@@ -596,6 +624,7 @@ class WindowsInstaller:
             ):
                 return False
             if not validation_imports or self.validate_venv_imports(venv_name, validation_imports):
+                self.finish_phase_timer(phase_label, phase_timer)
                 self.set_progress(end_percent, "Preparing Python environments", f"{desc} is ready")
                 self.print_success(f"{desc} created successfully.")
                 return True
@@ -615,8 +644,10 @@ class WindowsInstaller:
             self.set_progress(58, "Installing optional TensorFlow support", "Offline package mode includes the packaged Python environment")
         elif self.install_tensorflow:
             self.set_progress(46, "Installing optional TensorFlow support", "Downloading TensorFlow CPU support")
+            tensorflow_timer = self.start_phase_timer("Install TensorFlow CPU support")
             if not self.install_req_file("venv", "requirements_tensorflow.txt", 46, 58, "Installing TensorFlow CPU support"):
                 return False
+            self.finish_phase_timer("Install TensorFlow CPU support", tensorflow_timer)
             self.set_progress(58, "Installing optional TensorFlow support", "TensorFlow CPU support is ready")
         else:
             self.set_progress(58, "Installing optional TensorFlow support", "TensorFlow CPU support was skipped")
@@ -748,6 +779,7 @@ class WindowsInstaller:
         return True
 
     def extract_archive(self, archive_path: Path, model_name: str) -> bool:
+        archive_timer = self.start_phase_timer(f"Import offline archive for {model_name}")
         with tempfile.TemporaryDirectory(prefix=f"tdgpt-{model_name}-", dir=str(self.model_dir)) as temp_name:
             temp_dir = Path(temp_name)
             if not self.extract_archive_to_dir(archive_path, temp_dir):
@@ -758,10 +790,12 @@ class WindowsInstaller:
                 return False
             if not self.deploy_model_payload(payload_root, model_name):
                 return False
+        self.finish_phase_timer(f"Import offline archive for {model_name}", archive_timer)
         self.print_success(f"Offline model imported: {MODEL_SPECS[model_name]['display']}")
         return True
 
     def import_offline_model_package(self, package_path: Path) -> bool:
+        package_timer = self.start_phase_timer(f"Import offline model package {package_path.name}")
         with tempfile.TemporaryDirectory(prefix="tdgpt-offline-package-", dir=str(self.model_dir)) as temp_name:
             temp_dir = Path(temp_name)
             if not self.extract_archive_to_dir(package_path, temp_dir):
@@ -790,6 +824,7 @@ class WindowsInstaller:
                 f"Offline model package {package_path.name} does not contain any recognized model payloads."
             )
             return False
+        self.finish_phase_timer(f"Import offline model package {package_path.name}", package_timer)
         return True
 
     def import_offline_models(self) -> bool:
@@ -853,40 +888,22 @@ class WindowsInstaller:
             env["HF_ENDPOINT"] = self.model_endpoint
         env["HF_HUB_DISABLE_PROGRESS_BARS"] = "0"
         env["HF_HUB_DISABLE_TELEMETRY"] = "1"
-        env.setdefault("TDGPT_HF_DOWNLOAD_RETRIES", "6")
-        env.setdefault("TDGPT_HF_DOWNLOAD_RETRY_DELAY", "15")
         python_exe = self.get_venv_python(str(spec["venv"]))
         inline = """
 import os
-import re
 import sys
-import time
 from huggingface_hub import snapshot_download
 
 repo_id, local_dir, endpoint = sys.argv[1:4]
-max_attempts = max(1, int(os.environ.get("TDGPT_HF_DOWNLOAD_RETRIES", "6")))
-base_delay = max(1, int(os.environ.get("TDGPT_HF_DOWNLOAD_RETRY_DELAY", "15")))
-
-for attempt in range(1, max_attempts + 1):
-    try:
-        snapshot_download(repo_id=repo_id, local_dir=local_dir, endpoint=(endpoint or None))
-        print(f"Download completed for {repo_id}")
-        break
-    except Exception as exc:
-        message = str(exc)
-        print(f"Download attempt {attempt}/{max_attempts} failed: {message}")
-        if attempt >= max_attempts:
-            raise
-        match = re.search(r"Retry after (\\d+) seconds", message)
-        wait_seconds = base_delay
-        if match:
-            wait_seconds = max(wait_seconds, int(match.group(1)) + 2)
-        elif ("429" in message) or ("Too Many Requests" in message):
-            wait_seconds = max(wait_seconds, min(300, attempt * 30))
-        print(f"Waiting {wait_seconds} seconds before retrying...")
-        time.sleep(wait_seconds)
+try:
+    snapshot_download(repo_id=repo_id, local_dir=local_dir, endpoint=(endpoint or None))
+    print(f"Download completed for {repo_id}")
+except Exception as exc:
+    print(f"Download failed for {repo_id}: {exc}")
+    raise
 """
-        return self.run_stream(
+        download_timer = self.start_phase_timer(f"Download model {model_name}")
+        success = self.run_stream(
             [str(python_exe), "-c", inline, repo_id, str(target_dir), self.model_endpoint],
             f"Downloading {spec['display']} ({spec['download_size']})",
             43200,
@@ -895,6 +912,9 @@ for attempt in range(1, max_attempts + 1):
             f"Downloading {spec['display']}",
             env=env,
         )
+        if success:
+            self.finish_phase_timer(f"Download model {model_name}", download_timer)
+        return success
 
     def download_online_models(self) -> bool:
         if not self.selected_models:
@@ -976,6 +996,7 @@ for attempt in range(1, max_attempts + 1):
             f"Model endpoint: {self.model_endpoint or 'Default Hugging Face'}",
             f"Service install requested: {'No' if self.skip_service_install else 'Yes'}",
             f"Service install result: {'Installed' if self.service_install_success else 'Skipped/Not installed'}",
+            f"Total installer runtime: {self.format_elapsed(time.time() - self.install_started_at)}",
             "Virtual environments:",
         ]
         if self.model_source == "offline":
@@ -985,6 +1006,10 @@ for attempt in range(1, max_attempts + 1):
         for venv_name in VENV_CONFIGS:
             python_exe = self.get_venv_python(venv_name)
             lines.append(f"  [{'OK' if python_exe.exists() else 'NO'}] {venv_name}")
+        if self.phase_timings:
+            lines.append("Phase timings:")
+            for label, elapsed in self.phase_timings:
+                lines.append(f"  - {label}: {self.format_elapsed(elapsed)}")
         lines.append("=" * 72)
         if self.stdout_redirected_to_log:
             for line in lines:
@@ -1006,26 +1031,44 @@ for attempt in range(1, max_attempts + 1):
         self.print_info("=" * 60)
         self.check_admin_privileges()
         self.set_progress(5, "Checking system requirements", "Checking disk space")
+        timer = self.start_phase_timer("Check disk space")
         if not self.check_disk_space():
             return False
+        self.finish_phase_timer("Check disk space", timer)
         self.set_progress(8, "Checking system requirements", "Checking Python")
+        timer = self.start_phase_timer("Check Python")
         if not self.check_python():
             return False
+        self.finish_phase_timer("Check Python", timer)
         self.set_progress(10, "Checking system requirements", "Checking pip")
+        timer = self.start_phase_timer("Check pip")
         if not self.check_pip():
             return False
+        self.finish_phase_timer("Check pip", timer)
         self.set_progress(12, "Preparing directories", "Creating required folders")
+        timer = self.start_phase_timer("Create directories")
         if not self.create_directories():
             return False
+        self.finish_phase_timer("Create directories", timer)
         self.set_progress(14, "Preparing installation environment", "Stopping existing Taosanode service")
+        timer = self.start_phase_timer("Stop existing Taosanode service")
         self.stop_existing_service()
+        self.finish_phase_timer("Stop existing Taosanode service", timer)
+        timer = self.start_phase_timer("Install Python environments")
         if not self.install_venvs():
             return False
+        self.finish_phase_timer("Install Python environments", timer)
+        timer = self.start_phase_timer("Prepare models")
         if not self.process_models():
             return False
+        self.finish_phase_timer("Prepare models", timer)
+        timer = self.start_phase_timer("Write enabled model configuration")
         self.write_enabled_models()
+        self.finish_phase_timer("Write enabled model configuration", timer)
+        timer = self.start_phase_timer("Install Windows service")
         if not self.install_service():
             return False
+        self.finish_phase_timer("Install Windows service", timer)
         self.append_install_summary()
         self.set_progress(100, "Installation complete", "TDGPT is ready", status="success")
         self.print_success("TDGPT installation completed.")

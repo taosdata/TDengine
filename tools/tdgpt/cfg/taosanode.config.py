@@ -100,25 +100,25 @@ models = {
     "moirai": {
         "script": "moirai-server.py",
         "default_model": "Salesforce/moirai-moe-1.0-R-small",
-        "port": 0,
+        "port": 6039,
         "required": False,  # Optional
     },
     "chronos": {
         "script": "chronos-server.py",
         "default_model": "amazon/chronos-bolt-base",
-        "port": 0,
+        "port": 6038,
         "required": False,  # Optional
     },
     "timesfm": {
         "script": "timesfm-server.py",
         "default_model": "google/timesfm-2.0-500m-pytorch",
-        "port": 0,
+        "port": 6061,
         "required": False,  # Optional
     },
     "moment": {
         "script": "moment-server.py",
         "default_model": "AutonLab/MOMENT-1-base",
-        "port": 0,
+        "port": 6062,
         "required": False,  # Optional
     },
 }

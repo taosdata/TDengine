@@ -277,25 +277,25 @@ class Config:
             "moirai": {
                 "script": "moirai-server.py",
                 "default_model": "Salesforce/moirai-moe-1.0-R-small",
-                "port": 0,
+                "port": 6039,
                 "required": False,
             },
             "chronos": {
                 "script": "chronos-server.py",
                 "default_model": "amazon/chronos-bolt-base",
-                "port": 0,
+                "port": 6038,
                 "required": False,
             },
             "timesfm": {
                 "script": "timesfm-server.py",
                 "default_model": "google/timesfm-2.0-500m-pytorch",
-                "port": 0,
+                "port": 6061,
                 "required": False,
             },
             "moment": {
                 "script": "moment-server.py",
                 "default_model": "AutonLab/MOMENT-1-base",
-                "port": 0,
+                "port": 6062,
                 "required": False,
             },
         }
@@ -579,6 +579,51 @@ class TaosanodeService:
                 continue
             self._log_probe_result(label, result)
 
+    @staticmethod
+    def _env_flag_enabled(value: str) -> bool:
+        return value.strip().lower() in {"1", "true", "yes", "on", "full"}
+
+    def _should_use_full_preflight(self, full_preflight: bool = False) -> bool:
+        if full_preflight:
+            return True
+        mode = os.environ.get("TAOSANODE_PREFLIGHT_MODE", "").strip().lower()
+        if mode:
+            return mode in {"full", "heavy"}
+        return self._env_flag_enabled(os.environ.get("TAOSANODE_FULL_PREFLIGHT", ""))
+
+    def _preflight_light_dependencies(self, python_exe: str, env: Dict[str, str], cwd: str) -> bool:
+        """Run a lightweight preflight to avoid importing the full app twice on Windows."""
+        self.logger.info("Running taosanode lightweight preflight check...")
+        lib_root = os.path.join(self.config.install_dir, "lib").replace("\\", "\\\\")
+        probes = [
+            ("import waitress", "import waitress; print('waitress ok')"),
+            ("import flask", "import flask; print('flask ok')"),
+            ("import numpy", "import numpy; print('numpy ok')"),
+            (
+                "import taosanalytics.conf",
+                f"import sys; sys.path.insert(0, r'{lib_root}'); import taosanalytics.conf; print('conf ok')"
+            ),
+        ]
+
+        for label, code in probes:
+            try:
+                result = self._run_python_probe(python_exe, env, cwd, label, code)
+            except Exception as exc:
+                self.logger.exception(f"Lightweight preflight probe failed to execute for {label}: {exc}")
+                self._collect_preflight_diagnostics(python_exe, env, cwd)
+                return False
+            self._log_probe_result(label, result)
+            if result.returncode != 0:
+                self.logger.error(f"Lightweight preflight failed on probe: {label}")
+                self._collect_preflight_diagnostics(python_exe, env, cwd)
+                return False
+
+        self.logger.info(
+            "Taosanode lightweight preflight succeeded. "
+            "Use --full-preflight or TAOSANODE_PREFLIGHT_MODE=full for a full app import preflight."
+        )
+        return True
+
     def _extract_root_cause(self, stderr_text: str) -> Optional[str]:
         patterns = [
             r"ModuleNotFoundError: (.+)",
@@ -711,7 +756,14 @@ class TaosanodeService:
         self.logger.info("Taosanode import preflight succeeded")
         return True
 
-    def _run_windows_foreground(self) -> bool:
+    def _run_preflight(self, python_exe: str, env: Dict[str, str], cwd: str, full_preflight: bool = False) -> bool:
+        if self._should_use_full_preflight(full_preflight):
+            self.logger.info("Selected preflight mode: full")
+            return self._preflight_app_import(python_exe, env, cwd)
+        self.logger.info("Selected preflight mode: light")
+        return self._preflight_light_dependencies(python_exe, env, cwd)
+
+    def _run_windows_foreground(self, full_preflight: bool = False) -> bool:
         """Run taosanode in the current process for WinSW-managed service mode."""
         redirect_stdio_if_needed()
         python_exe = self.process_mgr._get_python_exe()
@@ -720,7 +772,7 @@ class TaosanodeService:
         lib_root = os.path.join(self.config.install_dir, "lib")
         lib_dir = os.path.join(self.config.install_dir, "lib", "taosanalytics")
         env = self._build_runtime_env()
-        if not self._preflight_app_import(python_exe, env, lib_dir):
+        if not self._run_preflight(python_exe, env, lib_dir, full_preflight=full_preflight):
             return False
 
         if lib_root not in sys.path:
@@ -732,7 +784,12 @@ class TaosanodeService:
         try:
             from waitress import serve
             from taosanalytics.app import app
+        except Exception as e:
+            self._collect_preflight_diagnostics(python_exe, env, lib_dir)
+            self.logger.exception(f"Error starting taosanode in foreground: {e}")
+            return False
 
+        try:
             pid = os.getpid()
             self.process_mgr.write_pid(pid, "taosanode")
             self.logger.info(f"Taosanode started in foreground with PID {pid}")
@@ -750,12 +807,12 @@ class TaosanodeService:
             )
             return True
         except Exception as e:
-            self.logger.exception(f"Error starting taosanode in foreground: {e}")
+            self.logger.exception(f"Error while serving taosanode in foreground: {e}")
             return False
         finally:
             self.process_mgr.remove_pid("taosanode")
 
-    def start(self, foreground: bool = False) -> bool:
+    def start(self, foreground: bool = False, full_preflight: bool = False) -> bool:
         """Start taosanode service"""
         if self.process_mgr.is_running("taosanode"):
             self.logger.info("Taosanode is already running")
@@ -768,9 +825,9 @@ class TaosanodeService:
         env = self._build_runtime_env()
 
         if IS_WINDOWS and foreground:
-            return self._run_windows_foreground()
+            return self._run_windows_foreground(full_preflight=full_preflight)
 
-        if IS_WINDOWS and not self._preflight_app_import(python_exe, env, lib_dir):
+        if IS_WINDOWS and not self._run_preflight(python_exe, env, lib_dir, full_preflight=full_preflight):
             self.logger.error("Taosanode startup aborted because the import preflight failed")
             return False
 
@@ -841,6 +898,8 @@ class TaosanodeService:
                     self.logger.error(
                         f"Failed to start taosanode - child process exited early with code {exit_code}"
                     )
+                    if IS_WINDOWS:
+                        self._collect_preflight_diagnostics(python_exe, env, lib_dir)
                 self.process_mgr.remove_pid("taosanode")
                 return False
 
@@ -1296,11 +1355,14 @@ class ModelService:
             service_name = f"model-{model_name}"
             is_running = self.process_mgr.is_running(service_name)
             pid = self.process_mgr.read_pid(service_name)
+            model_config = self.config.models.get(model_name, {})
+            port = model_config.get("port", 0)
 
             statuses.append({
                 "model": model_name,
                 "running": is_running,
                 "pid": pid,
+                "port": port if port else None,
             })
 
         return statuses
@@ -1310,12 +1372,13 @@ def print_status(status):
     """Print service status"""
     if isinstance(status, list):
         print("-" * 50)
-        print(f"{'Model':<15} {'Status':<10} {'PID':<10}")
+        print(f"{'Model':<15} {'Status':<10} {'PID':<10} {'Port':<8}")
         print("-" * 50)
         for s in status:
             state = "Running" if s["running"] else "Stopped"
             pid = str(s["pid"]) if s["pid"] else "-"
-            print(f"{s['model']:<15} {state:<10} {pid:<10}")
+            port = str(s.get("port")) if s.get("port") else "-"
+            print(f"{s['model']:<15} {state:<10} {pid:<10} {port:<8}")
         print("-" * 50)
     else:
         print("-" * 50)
@@ -1366,6 +1429,11 @@ Examples:
         action="store_true",
         help="Run in foreground (for service mode)"
     )
+    parser.add_argument(
+        "--full-preflight",
+        action="store_true",
+        help="Run the full taosanalytics.app import preflight before startup"
+    )
 
     args = parser.parse_args()
 
@@ -1378,7 +1446,7 @@ Examples:
 
     # Execute command
     if args.command == "start":
-        success = taosanode.start(foreground=args.foreground)
+        success = taosanode.start(foreground=args.foreground, full_preflight=args.full_preflight)
         sys.exit(0 if success else 1)
 
     elif args.command == "stop":
