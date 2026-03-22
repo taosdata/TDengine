@@ -27,8 +27,6 @@ function usage() {
 
 # ── 配置参数 ─────────────────────────────────────────────────────────────────
 
-# 冷升级需要测试的基准版本
-COLD_VERSIONS="3.3.6.0,3.3.8.0,3.4.0.0"
 
 # 绿色版本 HTTP 服务器基础地址
 GREEN_HTTP_BASE="http://192.168.1.131/data/nas/TDengine/green_versions"
@@ -82,7 +80,6 @@ echo "======================================================"
 echo "  WORKDIR         : $WORKDIR"
 echo "  LOG_DIR         : $LOG_DIR"
 echo "  GREEN_LOCAL_DIR : $GREEN_LOCAL_DIR"
-echo "  COLD_VERSIONS   : $COLD_VERSIONS"
 echo "======================================================"
 
 # ── Step 1: 下载绿色版本（带缓存）──────────────────────────────────────────
@@ -206,7 +203,7 @@ INTERNAL_REPDIR="$WORKDIR/TDinternal"
 DEBUGPATH_DIR="$WORKDIR/debugNoSan"
 CONTAINER_REP_MOUNT="$INTERNAL_REPDIR:/home/TDinternal"
 CONTAINER_DEBUG_MOUNT="$DEBUGPATH_DIR:/home/TDinternal/debug"
-CONTAINER_SCRIPT="/home/TDinternal/community/test/ci/run_upgrade_compat_container.sh -V $COLD_VERSIONS"
+CONTAINER_SCRIPT="/home/TDinternal/community/test/ci/run_upgrade_compat_container.sh"
 
 if [ ! -d "$INTERNAL_REPDIR" ]; then
     echo "ERROR: Repo directory not found: $INTERNAL_REPDIR"

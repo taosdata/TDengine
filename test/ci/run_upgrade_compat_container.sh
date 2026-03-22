@@ -15,24 +15,18 @@
 #   /green_versions           — 绿色版本缓存目录（只读）
 #   /upgrade_logs             — 日志输出目录（可写）
 
-function usage() {
-    echo "Usage: $0 -V COLD_VERSIONS_CSV [-h]"
-    echo "  -V COLD_VERSIONS    Comma-separated cold upgrade base versions (e.g. 3.3.6.0,3.3.8.0)"
-    echo "  -h                  Show help"
-}
+# 
+#  cold upgrade version (2 group)
+#
 
-COLD_VERSIONS_CSV=""
-while getopts "V:h" opt; do
-    case $opt in
-        V) COLD_VERSIONS_CSV=$OPTARG ;;
-        h) usage; exit 0 ;;
-        \?)
-            echo "Invalid option: -$OPTARG"
-            usage
-            exit 1
-            ;;
-    esac
-done
+# group1
+COLD_VERSIONS_1="3.3.6.0,3.3.8.0"
+COLD_VERSIONS_OPTION_1="--no-tsma --no-user"
+
+# group2
+COLD_VERSIONS_2="3.4.0.0"
+COLD_VERSIONS_OPTION_2=""
+
 
 # ── 路径配置 ─────────────────────────────────────────────────────────────────
 
@@ -95,12 +89,16 @@ echo "============================================================"
 echo "=== Cold Upgrade Tests (3.3.6.0, 3.3.8.0, 3.4.0.0)     ==="
 echo "============================================================"
 
+#
+# 3.3.x.x
+#
+
 cleanup_taosd
 
 cold_cmd=(python3 "$COMPAT_CI_DIR/cold_upgrade_task.py"
     --green-path "$GREEN_PATH"
-    --versions   "$COLD_VERSIONS_CSV"
-    --options=-q
+    --versions   "$COLD_VERSIONS_1"
+    --options="$COLD_VERSIONS_OPTION_1"
 )
 echo "Executing: ${cold_cmd[*]}"
 "${cold_cmd[@]}" 2>&1 | tee "$LOG_DIR/cold_upgrade.log"
@@ -108,11 +106,33 @@ echo "Executing: ${cold_cmd[*]}"
 cold_ret=${PIPESTATUS[0]}
 
 if [ $cold_ret -ne 0 ]; then
-    echo "[FAIL] Cold upgrade tests FAILED (exit code: $cold_ret)"
+    echo "[FAIL] Cold upgrade 3.3.x.x tests FAILED (exit code: $cold_ret)"
+    overall_ret=$cold_ret
+fi
+
+#
+# 3.4.x.x
+#
+
+cleanup_taosd
+
+cold_cmd=(python3 "$COMPAT_CI_DIR/cold_upgrade_task.py"
+    --green-path "$GREEN_PATH"
+    --versions   "$COLD_VERSIONS_2"
+    --options="$COLD_VERSIONS_OPTION_2"
+)
+echo "Executing: ${cold_cmd[*]}"
+"${cold_cmd[@]}" 2>&1 | tee "$LOG_DIR/cold_upgrade.log"
+
+cold_ret=${PIPESTATUS[0]}
+
+if [ $cold_ret -ne 0 ]; then
+    echo "[FAIL] Cold upgrade 3.4.x.x tests FAILED (exit code: $cold_ret)"
     overall_ret=$cold_ret
 else
     echo "[PASS] Cold upgrade tests PASSED"
 fi
+
 
 # ── Step 2: 热升级（滚动升级）测试 ──────────────────────────────────────────
 
