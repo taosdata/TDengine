@@ -1019,7 +1019,7 @@ int taos_txn_begin(TAOS *taos) {
   code = rpcSendRecv(pTrans, &epSet, &rpcMsg, &rpcRsp);
 
   if (code == TSDB_CODE_SUCCESS) {
-    pTscObj->txnState = UTXN_STAGE_BEGIN;
+    pTscObj->txnState = UTXN_STAGE_ACTIVE;
     pTscObj->txnId = *(utxn_id_t*)(rpcRsp.info.ahandle);
   }
   rpcFreeCont(rpcRsp.pCont);
@@ -1043,7 +1043,7 @@ int taos_txn_commit(TAOS *taos) {
     return terrno;
   }
 
-  if (pTscObj->txnState != UTXN_STAGE_BEGIN) {
+  if (pTscObj->txnState != UTXN_STAGE_ACTIVE) {
     releaseTscObj(*(int64_t *)taos);
     return TSDB_CODE_TXN_NOT_IN_PROGRESS;
   }
@@ -1072,7 +1072,7 @@ int taos_txn_rollback(TAOS *taos) {
     return terrno;
   }
 
-  if (pTscObj->txnState != UTXN_STAGE_BEGIN) {
+  if (pTscObj->txnState != UTXN_STAGE_ACTIVE) {
     releaseTscObj(*(int64_t *)taos);
     return TSDB_CODE_SUCCESS;  // 没开启事务直接返回成功
   }

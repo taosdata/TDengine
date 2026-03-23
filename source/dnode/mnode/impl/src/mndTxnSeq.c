@@ -48,8 +48,7 @@ static int32_t  tSerializeTxnSeq(void *buf, int32_t bufLen, SMTxnSeqReq *pReq, u
 static int32_t  tDeserializeTxnSeq(void *buf, int32_t bufLen, SMTxnSeqReq *pReq);
 static int32_t  mndProcessTxnSeqAllocRsp(SRpcMsg *pReq);
 
-static utxn_id_t currentTxnId = -1;
-static int32_t   txnAllocReqNum = 0;
+// currentTxnId 已移入 pMnode->txnMgmt.currentTxnId，此处不再使用全局变量。
 
 int32_t mndInitTxnSeq(SMnode *pMnode) {
   SSdbTable table = {
@@ -75,7 +74,7 @@ int32_t mndTxnSeqPrepare(SMnode *pMnode) {
   STxnSeqObj *pObj = NULL;
   utxn_id_t   allocateRangeId = TXN_ID_RANGE_BASE + TXN_ID_RANGE_STEP;
   if ((code = mndAcquireTxnSeq(pMnode, 0, &pObj)) == 0) {
-    currentTxnId = pObj->maxRangeId;
+    pMnode->txnMgmt.currentTxnId = pObj->maxRangeId;
     allocateRangeId = pObj->maxRangeId + TXN_ID_RANGE_STEP;
     mndReleaseTxnSeq(pMnode, pObj);
   } else if (code != TSDB_CODE_TXN_NOT_EXIST) {
@@ -351,16 +350,22 @@ int64_t mndGenTxnId(int32_t nodeId) {
 utxn_id_t mndGenTxnId(SMnode *pMnode) {
   int32_t     code = 0, lino = 0;
   STxnSeqObj *pObj = NULL;
-  TAOS_CHECK_RETURN(mndAcquireTxnSeq(pMnode, 0, &pObj));
+  // 注意：mndAcquireTxnSeq 失败时直接返回错误码（负值），调用方需检查返回值
+  if ((code = mndAcquireTxnSeq(pMnode, 0, &pObj)) != 0) {
+    mError("txnSeq, failed at line %d to acquire txn seq since %s", __LINE__, tstrerror(code));
+    TAOS_RETURN(code);
+  }
   utxn_id_t nextId = -1;
   bool      needAlloc = false;
   taosWLockLatch(&pObj->lock);
-  if (currentTxnId < 0 || currentTxnId >= pObj->maxRangeId) {
+  utxn_id_t curId = pMnode->txnMgmt.currentTxnId;
+  if (curId < 0 || curId >= pObj->maxRangeId) {
     needAlloc = true;
   } else {
-    nextId = ++currentTxnId;
+    nextId = ++pMnode->txnMgmt.currentTxnId;
+    curId  = pMnode->txnMgmt.currentTxnId;
 
-    utxn_id_t usedInRange = currentTxnId - (pObj->maxRangeId - TXN_ID_RANGE_STEP);
+    utxn_id_t usedInRange = curId - (pObj->maxRangeId - TXN_ID_RANGE_STEP);
     if ((usedInRange > 0) && (usedInRange >= (TXN_ID_RANGE_STEP * TXN_ID_RANGE_WATERMARK_PCT / 100))) {
       needAlloc = true;
     }
@@ -368,17 +373,22 @@ utxn_id_t mndGenTxnId(SMnode *pMnode) {
   taosWUnLockLatch(&pObj->lock);
   if (needAlloc) {
     mInfo("txnSeq, currentId:%" PRIu64 " has reached maxRangeId:%" PRIu64 ", trigger allocation of new range",
-          currentTxnId, pObj->maxRangeId);
-    TAOS_CHECK_EXIT(triggerAllocateTxnSeq(pMnode, pObj->maxRangeId + TXN_ID_RANGE_STEP, true));
+          pMnode->txnMgmt.currentTxnId, pObj->maxRangeId);
+    code = triggerAllocateTxnSeq(pMnode, pObj->maxRangeId + TXN_ID_RANGE_STEP, true);
+    if (code != 0) {
+      mError("txnSeq, failed at line %d to trigger allocation since %s", __LINE__, tstrerror(code));
+      mndReleaseTxnSeq(pMnode, pObj);
+      TAOS_RETURN(code);
+    }
   }
-  mTrace("txnSeq, generated txn id:%" PRIu64 ", currentId:%" PRIu64 ", maxRangeId:%" PRIu64, nextId, currentTxnId,
-         pObj->maxRangeId);
+  mTrace("txnSeq, generated txn id:%" PRIu64 ", currentId:%" PRIu64 ", maxRangeId:%" PRIu64, nextId,
+         pMnode->txnMgmt.currentTxnId, pObj->maxRangeId);
 
-_exit:
-
-  if (code != TSDB_CODE_SUCCESS) {
-    mError("txnSeq, failed at line %d to generate txn id since %s", lino, tstrerror(code));
-    TAOS_RETURN(code);
+  mndReleaseTxnSeq(pMnode, pObj);
+  if (nextId < 0) {
+    // needAlloc=true 且 currentTxnId 已耗尽，等待下次分配完成后重试
+    mError("txnSeq, txn id exhausted, please retry after allocation completes");
+    TAOS_RETURN(TSDB_CODE_MND_TXN_IN_CREATING);
   }
   return nextId;
 }
@@ -526,12 +536,12 @@ static int32_t mndProcessTxnSeqAllocRsp(SRpcMsg *pReq) {
     if (txnRsp.rangeId > pObj->maxRangeId) {
       pObj->maxRangeId = txnRsp.rangeId;
     }
-    if (currentTxnId < 0) {
-      currentTxnId = txnRsp.rangeId - TXN_ID_RANGE_STEP;
+    if (pMnode->txnMgmt.currentTxnId < 0) {
+      pMnode->txnMgmt.currentTxnId = txnRsp.rangeId - TXN_ID_RANGE_STEP;
     }
     taosWUnLockLatch(&pObj->lock);
     mInfo("txnSeq, process txn seq rsp, current maxRangeId:%" PRIu64 ", currentTxnId:%" PRIu64, pObj->maxRangeId,
-          currentTxnId);
+          pMnode->txnMgmt.currentTxnId);
     mndReleaseTxnSeq(pMnode, pObj);
   }
 

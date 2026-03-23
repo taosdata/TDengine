@@ -18,6 +18,7 @@
 
 #include "os.h"
 
+#include "tdef.h"
 #include "cJSON.h"
 #include "scheduler.h"
 #include "sync.h"
@@ -272,15 +273,22 @@ typedef struct {
   int32_t       userDataLen;
 } STrans;
 
+// STxnObj：用户批事务的持久化对象，存储于 SDB 并通过 Raft 同步到所有副本。
+// 持久化字段：id / createUser / ownerId / createTime / lastActiveTime / term /
+//             timeoutSec / stage / vgNum / vgIds[]
+// 非持久化字段：lock（运行时锁，重建时初始化）
+// 注意：pVgList 在序列化时展开为 vgNum + vgIds[]，反序列化时重建为 SArray*
 typedef struct {
-  utxn_id_t  id;
-  char       createUser[TSDB_USER_LEN];
-  int64_t    ownerId;
-  int64_t    createTime;
-  int64_t    lastActiveTime;  // client hb or user operation 
-  int32_t    timeoutSec;
-  EUTxnStage stage;
-  SRWLatch   lock;
+  utxn_id_t   id;
+  char        createUser[TSDB_USER_LEN];
+  int64_t     ownerId;       // 关联的客户端连接 owner ID
+  int64_t     createTime;    // 事务创建时间戳（ms）
+  int64_t     lastActiveTime;  // 最近一次活跃时间戳（ms），用于超时检测
+  SyncTerm    term;          // 事务创建时的 Raft 任期，用于切主后 Fencing 校验
+  int32_t     timeoutSec;    // 事务超时时间（秒），超时后自动触发 ROLLBACK
+  int8_t      stage;         // EUtxnStage，当前事务阶段（持久化，切主后恢复用）
+  SArray*     pVgList;       // 参与该事务的 VGroup ID 列表（Array of int32_t），序列化时展开
+  SRWLatch    lock;          // 运行时读写锁，不持久化
 } STxnObj;
 
 typedef struct {

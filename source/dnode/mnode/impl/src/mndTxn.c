@@ -22,6 +22,7 @@
 #include "mndMnode.h"
 #include "mndPrivilege.h"
 #include "mndShow.h"
+#include "mndSync.h"
 #include "mndTrans.h"
 #include "mndUser.h"
 #include "mndVgroup.h"
@@ -69,7 +70,45 @@ int32_t mndInitTxn(SMnode *pMnode) {
   return sdbSetTable(pMnode->pSdb, table);
 }
 
-void mndCleanupTxn(SMnode *pMnode) {}
+void mndCleanupTxn(SMnode *pMnode) {
+  STxnMgmt *pMgmt = &pMnode->txnMgmt;
+  if (pMgmt->hTimeoutTimer) {
+    taosTmrStop(pMgmt->hTimeoutTimer);
+    pMgmt->hTimeoutTimer = NULL;
+  }
+  taosThreadRwlockDestroy(&pMgmt->lock);
+  if (pMgmt->pTxnHash) {
+    // TODO: 遍历并释放所有 SUserTxn
+    taosHashCleanup(pMgmt->pTxnHash);
+    pMgmt->pTxnHash = NULL;
+  }
+}
+
+// MNode 侧用户事务阶段名称，用于日志输出
+const char *mndUtxnStageStr(EUtxnStage stage) {
+  switch (stage) {
+    case UTXN_STAGE_IDLE:        return "IDLE";
+    case UTXN_STAGE_ACTIVE:      return "ACTIVE";
+    case UTXN_STAGE_PREPARING:   return "PREPARING";
+    case UTXN_STAGE_DECIDING:    return "DECIDING";
+    case UTXN_STAGE_COMMITTING:  return "COMMITTING";
+    case UTXN_STAGE_ROLLINGBACK: return "ROLLINGBACK";
+    case UTXN_STAGE_COMPLETED:   return "COMPLETED";
+    case UTXN_STAGE_ZOMBIE:      return "ZOMBIE";
+    default:                     return "UNKNOWN";
+  }
+}
+
+// VNode 侧事务阶段名称，用于日志输出
+const char *mndVtxnStageStr(EVtxnStage stage) {
+  switch (stage) {
+    case VTXN_STAGE_NONE:      return "NONE";
+    case VTXN_STAGE_ACTIVE:    return "ACTIVE";
+    case VTXN_STAGE_PREPARED:  return "PREPARED";
+    case VTXN_STAGE_FINISHING: return "FINISHING";
+    default:                   return "UNKNOWN";
+  }
+}
 
 void mndTxnFreeObj(STxnObj *pObj) {
   if (pObj) {
@@ -265,20 +304,7 @@ void mndReleaseTxn(SMnode *pMnode, STxnObj *pTxn) {
   sdbRelease(pSdb, pTxn);
 }
 
-const char *mndTxnStr(ETrnStage stage) {
-  switch (stage) {
-    case UTXN_STAGE_BEGIN:
-      return "begin";
-    case UTXN_STAGE_PREPARE:
-      return "prepare";
-    case UTXN_STAGE_COMMIT:
-      return "commit";
-    case UTXN_STAGE_ROLLBACK:
-      return "rollback";
-    default:
-      return "invalid";
-  }
-}
+const char *mndTxnStr(EUtxnStage stage) { return mndUtxnStageStr(stage); }
 
 static int32_t mndSetCreateTxnRedoLogs(SMnode *pMnode, STrans *pTrans, STxnObj *pTxn) {
   int32_t  code = 0;
@@ -609,7 +635,7 @@ static int32_t mndBeginTxn(SMnode *pMnode, SRpcMsg *pReq, SUserObj *pUser, SMTra
   obj.createTime = taosGetTimestampMs();
   obj.lastActiveTime = obj.createTime;
   obj.timeoutSec = 30;  // pReq->timeoutSec;
-  obj.stage = UTXN_STAGE_BEGIN;
+  obj.stage = UTXN_STAGE_ACTIVE;
 
   TSDB_CHECK_NULL((pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pReq, "begin-txn")), code,
                   lino, _exit, terrno);
@@ -657,9 +683,15 @@ static int32_t mndProcessBeginTxnReq(SRpcMsg *pReq) {
   }
   mInfo("start to begin txn: %" PRIu64, txnReq.txnId);
   TAOS_CHECK_EXIT(mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOperUser));
-  if ((pTxn = mndAcquireTxn(pMnode, txnReq.txnId))) {
-    TAOS_CHECK_EXIT(TSDB_CODE_TXN_ALREADY_EXISTS);
+  pTxn = mndAcquireTxn(pMnode, txnReq.txnId);
+  if (pTxn != NULL) {
+    // 事务已存在，幂等返回成功（客户端重试场景）
+    mInfo("txn:%" PRIu64 ", already exists, return success", txnReq.txnId);
+    mndReleaseTxn(pMnode, pTxn);
+    pTxn = NULL;
+    goto _exit;
   }
+  terrno = 0;  // 清除 sdbAcquire 设置的 terrno
 
   TAOS_CHECK_EXIT(mndBeginTxn(pMnode, pReq, pOperUser, &txnReq));
 
@@ -697,11 +729,18 @@ static int32_t mndProcessCommitTxnReq(SRpcMsg *pReq) {
     goto _exit;
   }
   mInfo("start to commit txn: %" PRIu64, txnReq.txnId);
-  if ((pTxn = mndAcquireTxn(pMnode, txnReq.txnId))) {
-    TAOS_CHECK_EXIT(TSDB_CODE_TXN_ALREADY_EXISTS);
+  pTxn = mndAcquireTxn(pMnode, txnReq.txnId);
+  if (pTxn == NULL) {
+    mError("txn:%" PRIu64 ", not found, cannot commit", txnReq.txnId);
+    TAOS_CHECK_EXIT(TSDB_CODE_TXN_NOT_EXIST);
+  }
+  if (pTxn->stage != UTXN_STAGE_ACTIVE) {
+    mError("txn:%" PRIu64 ", stage=%s, cannot commit", txnReq.txnId, mndUtxnStageStr(pTxn->stage));
+    TAOS_CHECK_EXIT(TSDB_CODE_MND_TXN_INVALID_STAGE);
   }
 
-  // TAOS_CHECK_EXIT(mndCreateTxn(pMnode, &txnReq));
+  // TODO: 向 pVgList 中所有 VGroup 广播 PREPARE，等待 ACK 后进入 DECIDING 阶段
+  // TAOS_CHECK_EXIT(mndCommitTxn(pMnode, pReq, pTxn));
 
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
@@ -739,11 +778,21 @@ static int32_t mndProcessRollbackTxnReq(SRpcMsg *pReq) {
     goto _exit;
   }
   mInfo("start to rollback txn: %" PRIu64, txnReq.txnId);
-  if ((pTxn = mndAcquireTxn(pMnode, txnReq.txnId))) {
-    TAOS_CHECK_EXIT(TSDB_CODE_TXN_ALREADY_EXISTS);
+  pTxn = mndAcquireTxn(pMnode, txnReq.txnId);
+  if (pTxn == NULL) {
+    // 事务不存在，幂等返回成功（已经回滚完成的场景）
+    mInfo("txn:%" PRIu64 ", not found, treat as already rolled back", txnReq.txnId);
+    terrno = 0;
+    goto _exit;
+  }
+  if (pTxn->stage == UTXN_STAGE_COMMITTING || pTxn->stage == UTXN_STAGE_DECIDING) {
+    mError("txn:%" PRIu64 ", stage=%s, cannot rollback after commit decision", txnReq.txnId,
+           mndUtxnStageStr(pTxn->stage));
+    TAOS_CHECK_EXIT(TSDB_CODE_MND_TXN_INVALID_STAGE);
   }
 
-  // TAOS_CHECK_EXIT(mndCreateTxn(pMnode, &txnReq));
+  // TODO: 向 pVgList 中所有 VGroup 广播 ROLLBACK，等待 ACK 后删除 SDB 记录
+  // TAOS_CHECK_EXIT(mndRollbackTxn(pMnode, pReq, pTxn));
 
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 

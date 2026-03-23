@@ -61,8 +61,9 @@ typedef struct SMetaEntry {
       uint8_t reserved : 2;       // Reserved for future use
     };
   };
-  tb_uid_t uid;
-  char*    name;
+  utxn_id_t txnId;  // for meta transaction, 0 if not in transaction
+  tb_uid_t  uid;
+  char*     name;
   union {
     struct {
       SSchemaWrapper schemaRow;

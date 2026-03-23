@@ -5747,6 +5747,53 @@ typedef struct {
 int32_t tSerializeSMTransReq(void* buf, int32_t bufLen, SMTransReq* pReq);
 int32_t tDeserializeSMTransReq(void* buf, int32_t bufLen, SMTransReq* pReq);
 
+// VNode 向 MNode 注册参与事务（首次收到带 txnId 的 DDL 时发送）
+typedef struct {
+  utxn_id_t txnId;   // 全局事务 ID
+  int32_t   vgId;    // 发送方 VGroup ID
+} SMndTxnRegReq;
+
+typedef struct {
+  int32_t code;      // 0=成功，非0=失败（如事务已过期/已回滚）
+  utxn_id_t txnId;
+} SMndTxnRegRsp;
+
+// MNode → VNode：提交/回滚指令（批量，通过心跳捎带或直接发送）
+typedef struct {
+  int32_t   commitNum;
+  int32_t   rollbackNum;
+  utxn_id_t ids[];   // 前 commitNum 个为 commit，后 rollbackNum 个为 rollback
+} SVTxnFinishBatch;
+
+// VNode → MNode：ACK 反馈
+typedef struct {
+  int32_t   vgId;
+  int32_t   ackNum;
+  utxn_id_t ackIds[];  // 已完成（commit 或 rollback）的事务 ID 列表
+} SVTxnAckBatch;
+
+// MNode → VNode：单个事务的 COMMIT 指令
+typedef struct {
+  utxn_id_t txnId;
+  int64_t   term;    // MNode 当前任期（SyncTerm），用于 VNode 侧 Fencing 校验
+} SVTxnCommitReq;
+
+// MNode → VNode：单个事务的 ROLLBACK 指令
+typedef struct {
+  utxn_id_t txnId;
+  int64_t   term;    // MNode 当前任期（SyncTerm），用于 VNode 侧 Fencing 校验
+  int32_t   reason;  // 回滚原因码（超时/客户端断连/用户主动回滚等）
+} SVTxnRollbackReq;
+
+int32_t tSerializeSMndTxnRegReq(void* buf, int32_t bufLen, SMndTxnRegReq* pReq);
+int32_t tDeserializeSMndTxnRegReq(void* buf, int32_t bufLen, SMndTxnRegReq* pReq);
+int32_t tSerializeSMndTxnRegRsp(void* buf, int32_t bufLen, SMndTxnRegRsp* pRsp);
+int32_t tDeserializeSMndTxnRegRsp(void* buf, int32_t bufLen, SMndTxnRegRsp* pRsp);
+int32_t tSerializeSVTxnCommitReq(void* buf, int32_t bufLen, SVTxnCommitReq* pReq);
+int32_t tDeserializeSVTxnCommitReq(void* buf, int32_t bufLen, SVTxnCommitReq* pReq);
+int32_t tSerializeSVTxnRollbackReq(void* buf, int32_t bufLen, SVTxnRollbackReq* pReq);
+int32_t tDeserializeSVTxnRollbackReq(void* buf, int32_t bufLen, SVTxnRollbackReq* pReq);
+
 typedef struct {
   char name[TSDB_TABLE_NAME_LEN];
   union {
@@ -6619,7 +6666,7 @@ int32_t tDeserializeSInstanceListRsp(void* buf, int32_t bufLen, SInstanceListRsp
 
 typedef struct {
   utxn_id_t uTxnId;
-  int8_t    stage;        // EUTxnStage: UTXN_STAGE_BEGIN, UTXN_STAGE_PREPARE, UTXN_STAGE_COMMIT, UTXN_STAGE_ROLLBACK
+  int8_t    stage;  // EUtxnStage: UTXN_STAGE_IDLE/ACTIVE/PREPARING/DECIDING/COMMITTING/ROLLINGBACK/COMPLETED/ZOMBIE
   int8_t    action;       // CREATE_TABLE, ALTER_TABLE, DROP_TABLE
   int64_t   baseVersion;  // for client to check if the schema is changed during the transaction
   int32_t   contLen;      // length of the flexible array

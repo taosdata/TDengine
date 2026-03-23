@@ -855,19 +855,55 @@ typedef enum {
   TSDB_VERSION_END,
 } EVersionType;
 
+// EMetaTxnStatus：VNode B+ 树中 SMetaEntry 的事务状态标记，用于可见性过滤和事务管理。
+// 可见性规则：
+//   NORMAL        - 正常可见，无事务关联
+//   PRE_CREATE    - 影子创建：对普通查询不可见（表尚未提交），对同 txnId 的操作可见
+//   PRE_ALTER     - 影子修改：查询指向旧 schema（快照隔离），写入使用旧 schema
+//   PRE_DROP      - 影子删除：查询仍可见旧数据（快照隔离），INSERT 返回 TSDB_CODE_PREPARED_DROP
+//   COMMITTED     - 瞬时态：COMMIT 指令已收到，影子数据正在转正，转正后立即变为 NORMAL
+//   ROLLEDBACK    - 瞬时态：ROLLBACK 指令已收到，影子数据正在清理，清理后从 B+ 树删除
 typedef enum {
-  UTXN_STAGE_BEGIN = 0,
-  UTXN_STAGE_PREPARE = 1,
-  UTXN_STAGE_COMMIT = 2,
-  UTXN_STAGE_ROLLBACK = 3,
-} EUTxnStage;
-
-typedef enum {
-  META_TXN_NORMAL = 0,
-  META_TXN_PRE_CREATE,
-  META_TXN_PRE_ALTER,
-  META_TXN_PRE_DROP,
+  META_TXN_NORMAL = 0,     // 正常状态，无事务关联
+  META_TXN_PRE_CREATE,     // 影子创建：表已写入 B+ 树但对外不可见，等待 COMMIT 转正
+  META_TXN_PRE_ALTER,      // 影子修改：新 schema 已写入，旧 schema 仍对外可见（快照隔离）
+  META_TXN_PRE_DROP,       // 影子删除：表标记为待删除，查询仍可见，INSERT 快速失败
+  META_TXN_COMMITTED,      // 瞬时态：正在将影子数据转正为 NORMAL（完成后删除此状态）
+  META_TXN_ROLLEDBACK,     // 瞬时态：正在清理影子数据（完成后从 B+ 树删除该 entry）
 } EMetaTxnStatus;
+
+// EUtxnStage：MNode 侧用户批事务的生命周期阶段（客户端/MNode 共用）。
+// 客户端在 STscObj.txnState 中使用 UTXN_STAGE_IDLE/ACTIVE；
+// MNode 在 STxnObj.stage 中使用全部阶段值，并通过 Raft WAL 持久化。
+// 状态转换：
+//   IDLE → ACTIVE（BEGIN 成功）
+//   ACTIVE → PREPARING（收到 COMMIT，开始向 VNode 广播 PREPARE）
+//   ACTIVE → ROLLINGBACK（收到 ROLLBACK 或 DDL 失败）
+//   PREPARING → DECIDING（所有 VNode PREPARE ACK 到齐）
+//   PREPARING → ROLLINGBACK（任一 VNode PREPARE 失败）
+//   DECIDING → COMMITTING（COMMITTING 状态写入 WAL 成功）
+//   COMMITTING → COMPLETED（所有 VNode COMMIT ACK 到齐）
+//   ROLLINGBACK → COMPLETED（所有 VNode ROLLBACK ACK 到齐）
+//   任意中间态 → ZOMBIE（超时或异常，等待后台清理）
+typedef enum {
+  UTXN_STAGE_IDLE        = 0,  // 初始/已销毁状态（内存中不存在此对象）
+  UTXN_STAGE_ACTIVE      = 1,  // 已接收 BEGIN，正在接收/处理 DDL；任一 DDL 失败则转入 ROLLINGBACK
+  UTXN_STAGE_PREPARING   = 2,  // 已收到 COMMIT，正在向 VNode 广播 PREPARE，等待所有 VNode ACK
+  UTXN_STAGE_DECIDING    = 3,  // 所有 VNode PREPARE 完成，等待将 COMMITTING 状态写入 WAL（决策点）
+  UTXN_STAGE_COMMITTING  = 4,  // COMMITTING 已写入 WAL（不可回滚），正在向 VNode 广播 COMMIT
+  UTXN_STAGE_ROLLINGBACK = 5,  // 正在向 VNode 广播 ROLLBACK，等待所有 VNode ACK
+  UTXN_STAGE_COMPLETED   = 6,  // 所有 VNode 已确认，事务彻底完成（短暂终态，随后从 SDB 删除）
+  UTXN_STAGE_ZOMBIE      = 7,  // 超时/异常，等待后台清理线程处理
+} EUtxnStage;
+
+// EVtxnStage：VNode 侧单个事务参与者的本地状态。
+// 存储在 VNode 内存中（不持久化到 B+ 树，B+ 树用 EMetaTxnStatus 标记影子数据）。
+typedef enum {
+  VTXN_STAGE_NONE      = 0,  // 无事务，正常状态
+  VTXN_STAGE_ACTIVE    = 1,  // 已收到带 txnId 的 DDL，影子数据已写入 B+ 树，等待 PREPARE 指令
+  VTXN_STAGE_PREPARED  = 2,  // 已收到 PREPARE 指令并写入 WAL，等待 MNode 的 COMMIT/ROLLBACK
+  VTXN_STAGE_FINISHING = 3,  // 已收到 COMMIT/ROLLBACK，正在将影子数据转正或清理（原子操作中）
+} EVtxnStage;
 
 typedef int64_t utxn_id_t;
 

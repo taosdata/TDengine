@@ -114,8 +114,18 @@ typedef struct {
   int16_t nFailed;
 } SEncryptMgmt;
 
+// STxnMgmt：MNode 侧用户批事务的运行时管理上下文，嵌入 SMnode。
+// pTxnHash：以 txnId (utxn_id_t) 为 key，SUserTxn* 为 value 的哈希表，管理所有活跃事务。
+// hTimeoutTimer：超时扫描定时器句柄，定期（默认 5s）扫描 pTxnHash，
+//                对超过 timeoutSec 未活跃的事务自动触发 ROLLBACK。
+// activeTxnCnt：当前活跃事务数量（原子计数），用于限流（超过上限时拒绝新 BEGIN 请求）。
+// lock：保护 pTxnHash 的增删操作（SUserTxn 内部有自己的 lock 保护字段级并发）。
 typedef struct {
-  SHashObj *pTxnHash;
+  SHashObj      *pTxnHash;       // key: utxn_id_t, value: SUserTxn*
+  tmr_h          hTimeoutTimer;  // 超时扫描定时器，由 mndInitTxn 创建，mndCleanupTxn 销毁
+  int32_t        activeTxnCnt;   // 当前活跃事务数（原子操作维护）
+  TdThreadRwlock lock;           // 保护 pTxnHash 增删的读写锁
+  utxn_id_t      currentTxnId;  // 当前已分配的最大 txnId（原 mndTxnSeq.c 全局变量，移入此处）
 } STxnMgmt;
 
 
