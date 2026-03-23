@@ -76,6 +76,7 @@ database_option: {
     | 4 MB      | 8                      | 3          | 8             |
     | 32 MB     | 64                     | 6          | 64            |
     | 256 MB    | 512                    | 6 (capped) | 64            |
+
   - More shards reduce lock contention during concurrent cache writes, which is suitable for high-concurrency scenarios. However, too many shards may increase memory management overhead.
   - **Warning:** Modifying CACHESHARDBITS immediately invalidates all last-value cache entries in all vnodes of the database. The cached data will be reloaded from disk on subsequent queries, which may temporarily increase query latency.
 - COMP: Indicates the compression flag for database files, default value is 2, range is [0, 2].
