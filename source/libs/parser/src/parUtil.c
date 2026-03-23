@@ -640,7 +640,9 @@ static int32_t getInsTagsTableTargetNameFromOp(int32_t acctId, SOperatorNode* pO
   const char* valueStr = NULL;
   int32_t     valueLen = 0;
 
-  if ((0 == strcmp(pCol->colName, "db_name") || 0 == strcmp(pCol->colName, "table_name")) && pVal->placeholderNo != 0) {
+  if (((0 == strcmp(pCol->colName, "db_name") || 0 == strcmp(pCol->colName, "table_name")) ||
+       0 == strcmp(pCol->colName, "virtual_db_name") || 0 == strcmp(pCol->colName, "virtual_table_name")) &&
+      pVal->placeholderNo != 0) {
     if (NULL == pVal->datum.p) {
       qError("getInsTagsTableTargetNameFromOp: placeholderNo=%d but datum.p is NULL, colName=%s, literal=%s",
              pVal->placeholderNo, pCol->colName, pVal->literal ? pVal->literal : "NULL");
@@ -683,6 +685,10 @@ static int32_t getInsTagsTableTargetNameFromOp(int32_t acctId, SOperatorNode* pO
   if (0 == strcmp(pCol->colName, "db_name")) {
     code = tNameSetDbName(pName, acctId, valueStr, valueLen);
   } else if (0 == strcmp(pCol->colName, "table_name")) {
+    code = tNameAddTbName(pName, valueStr, valueLen);
+  } else if (0 == strcmp(pCol->colName, "virtual_db_name")) {
+    code = tNameSetDbName(pName, acctId, valueStr, valueLen);
+  } else if (0 == strcmp(pCol->colName, "virtual_table_name")) {
     code = tNameAddTbName(pName, valueStr, valueLen);
   }
 
@@ -1581,6 +1587,7 @@ STableCfg* tableCfgDup(STableCfg* pCfg) {
   pNew->pSchemas = NULL;
   pNew->pSchemaExt = NULL;
   pNew->pColRefs = NULL;
+  pNew->pTagRefs = NULL;
   if (NULL != pCfg->pComment) {
     pNew->pComment = taosMemoryCalloc(pNew->commentLen + 1, 1);
     if (!pNew->pComment) goto err;
@@ -1623,6 +1630,15 @@ STableCfg* tableCfgDup(STableCfg* pCfg) {
 
   pNew->pColRefs = pColRef;
 
+  SColRef *pTagRef = NULL;
+  if (hasRefCol(pCfg->tableType) && pCfg->pTagRefs && pCfg->numOfTagRefs > 0) {
+    int32_t tagRefSize = pCfg->numOfTagRefs * sizeof(SColRef);
+    pTagRef = taosMemoryMalloc(tagRefSize);
+    if (!pTagRef) goto err;
+    memcpy(pTagRef, pCfg->pTagRefs, tagRefSize);
+  }
+  pNew->pTagRefs = pTagRef;
+
   return pNew;
 err:
   if (pNew->pComment) taosMemoryFreeClear(pNew->pComment);
@@ -1630,6 +1646,8 @@ err:
   if (pNew->pTags) taosMemoryFreeClear(pNew->pTags);
   if (pNew->pSchemas) taosMemoryFreeClear(pNew->pSchemas);
   if (pNew->pSchemaExt) taosMemoryFreeClear(pNew->pSchemaExt);
+  if (pNew->pColRefs) taosMemoryFreeClear(pNew->pColRefs);
+  if (pNew->pTagRefs) taosMemoryFreeClear(pNew->pTagRefs);
   taosMemoryFreeClear(pNew);
   return NULL;
 }

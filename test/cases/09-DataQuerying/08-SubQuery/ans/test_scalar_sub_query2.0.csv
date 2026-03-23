@@ -2878,7 +2878,7 @@ QUERY_PLAN:    -> GroupAggregate (functions=1 width=20 groups=2 input_order=asc)
 *************************** 6.row ***************************
 QUERY_PLAN:          Output: columns=1 width=8 blocking=1
 *************************** 7.row ***************************
-QUERY_PLAN:          Filter: conditions=(avg(f1) > $(InitPlan 2))
+QUERY_PLAN:          Filter: conditions=(`avg(f1)` > $(InitPlan 2))
 *************************** 8.row ***************************
 QUERY_PLAN:          Merge ResBlocks: True
 *************************** 9.row ***************************
@@ -2972,7 +2972,7 @@ QUERY_PLAN:    -> GroupAggregate (functions=1 width=20 groups=2 input_order=asc)
 *************************** 6.row ***************************
 QUERY_PLAN:          Output: columns=1 width=8 blocking=1
 *************************** 7.row ***************************
-QUERY_PLAN:          Filter: conditions=(avg(f1) > $(InitPlan 2))
+QUERY_PLAN:          Filter: conditions=(`avg(f1)` > $(InitPlan 2))
 *************************** 8.row ***************************
 QUERY_PLAN:          Merge ResBlocks: True
 *************************** 9.row ***************************
@@ -3066,7 +3066,7 @@ QUERY_PLAN:    -> GroupAggregate (functions=1 width=20 groups=2 input_order=asc)
 *************************** 6.row ***************************
 QUERY_PLAN:          Output: columns=1 width=8 blocking=1
 *************************** 7.row ***************************
-QUERY_PLAN:          Filter: conditions=(avg(f1) > $(InitPlan 2))
+QUERY_PLAN:          Filter: conditions=(`avg(f1)` > $(InitPlan 2))
 *************************** 8.row ***************************
 QUERY_PLAN:          Merge ResBlocks: True
 *************************** 9.row ***************************
@@ -3160,7 +3160,7 @@ QUERY_PLAN:    -> GroupAggregate (functions=1 width=16 groups=2 input_order=asc)
 *************************** 6.row ***************************
 QUERY_PLAN:          Output: columns=1 width=8 blocking=1
 *************************** 7.row ***************************
-QUERY_PLAN:          Filter: conditions=(avg(f1) > $(InitPlan 2))
+QUERY_PLAN:          Filter: conditions=(`avg(f1)` > $(InitPlan 2))
 *************************** 8.row ***************************
 QUERY_PLAN:          Merge ResBlocks: True
 *************************** 9.row ***************************
@@ -3367,7 +3367,7 @@ QUERY_PLAN:    -> GroupAggregate ( rows=6 functions=1 width=20 groups=2 input_or
 *************************** 7.row ***************************
 QUERY_PLAN:          Output: columns=1 width=8 blocking=1
 *************************** 8.row ***************************
-QUERY_PLAN:          Filter: conditions=(avg(f1) > $(InitPlan 2)) efficiency=100.0%
+QUERY_PLAN:          Filter: conditions=(`avg(f1)` > $(InitPlan 2)) efficiency=100.0%
 *************************** 9.row ***************************
 QUERY_PLAN:          Merge ResBlocks: True
 *************************** 10.row ***************************
@@ -3511,7 +3511,7 @@ QUERY_PLAN:    -> GroupAggregate ( rows=5 functions=1 width=20 groups=2 input_or
 *************************** 7.row ***************************
 QUERY_PLAN:          Output: columns=1 width=8 blocking=1
 *************************** 8.row ***************************
-QUERY_PLAN:          Filter: conditions=(avg(f1) > $(InitPlan 2)) efficiency=83.3%
+QUERY_PLAN:          Filter: conditions=(`avg(f1)` > $(InitPlan 2)) efficiency=83.3%
 *************************** 9.row ***************************
 QUERY_PLAN:          Merge ResBlocks: True
 *************************** 10.row ***************************
@@ -3655,7 +3655,7 @@ QUERY_PLAN:    -> GroupAggregate ( rows=4 functions=1 width=20 groups=2 input_or
 *************************** 7.row ***************************
 QUERY_PLAN:          Output: columns=1 width=8 blocking=1
 *************************** 8.row ***************************
-QUERY_PLAN:          Filter: conditions=(avg(f1) > $(InitPlan 2)) efficiency=66.7%
+QUERY_PLAN:          Filter: conditions=(`avg(f1)` > $(InitPlan 2)) efficiency=66.7%
 *************************** 9.row ***************************
 QUERY_PLAN:          Merge ResBlocks: True
 *************************** 10.row ***************************
@@ -3799,7 +3799,7 @@ QUERY_PLAN:    -> GroupAggregate ( rows=6 functions=1 width=16 groups=2 input_or
 *************************** 7.row ***************************
 QUERY_PLAN:          Output: columns=1 width=8 blocking=1
 *************************** 8.row ***************************
-QUERY_PLAN:          Filter: conditions=(avg(f1) > $(InitPlan 2)) efficiency=100.0%
+QUERY_PLAN:          Filter: conditions=(`avg(f1)` > $(InitPlan 2)) efficiency=100.0%
 *************************** 9.row ***************************
 QUERY_PLAN:          Merge ResBlocks: True
 *************************** 10.row ***************************

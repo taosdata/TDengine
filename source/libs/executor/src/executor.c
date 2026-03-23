@@ -649,7 +649,8 @@ int32_t qAddTableListForTmqScanner(qTaskInfo_t tinfo, const SArray* tableIdList)
   return filterTableForTmqQuery(pScanInfo, tableIdList, id, &pTaskInfo->storageAPI, &pTaskInfo->lock);
 }
 
-void qUpdateTableTagCacheForTmq(qTaskInfo_t tinfo, const SArray* tableIdList, SArray* cids) {
+// once of cids and cidListArray is NULL 
+void qUpdateTableTagCacheForTmq(qTaskInfo_t tinfo, const SArray* tableIdList, SArray* cids, SArray* cidListArray) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   const char*    id = GET_TASKID(pTaskInfo);
   int32_t        code = 0;
@@ -666,6 +667,14 @@ void qUpdateTableTagCacheForTmq(qTaskInfo_t tinfo, const SArray* tableIdList, SA
   for (int32_t i = 0; i < taosArrayGetSize(cids); ++i) {
     col_id_t* cid = (col_id_t*)taosArrayGet(cids, i);
     qUpdateTableTagCache(pScanInfo, tableIdList, *cid, &pTaskInfo->storageAPI);
+  }
+
+  for (int32_t i = 0; i < taosArrayGetSize(cidListArray); ++i) {
+    SArray* cidsTmp = (SArray*)taosArrayGetP(cidListArray, i);
+    for (int32_t j = 0; j < taosArrayGetSize(cidsTmp); ++j) {
+      col_id_t* cid = (col_id_t*)taosArrayGet(cidsTmp, j);
+      qUpdateTableTagCache(pScanInfo, tableIdList, *cid, &pTaskInfo->storageAPI);
+    }
   }
 }
 

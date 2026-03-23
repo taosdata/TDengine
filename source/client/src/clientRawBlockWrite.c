@@ -16,7 +16,9 @@
 #include <string.h>
 #include "cJSON.h"
 #include "clientInt.h"
+#include "nodes.h"
 #include "osMemPool.h"
+#include "osMemory.h"
 #include "parser.h"
 #include "taosdef.h"
 #include "tarray.h"
@@ -663,6 +665,8 @@ static int32_t processAlterTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
   int32_t      lino = 0;
   char*        buf = NULL;
   char*        buf1 = NULL;
+  char*        buf2 = NULL;
+  SNode*       pWhere = NULL;
 
   RAW_LOG_START
 
@@ -677,9 +681,10 @@ static int32_t processAlterTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
   ADD_TO_JSON_STRING(json, "type", "alter");
 
   char* tableType = NULL;
-  if (vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_TAG_VAL ||
-      vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL){
+  if (vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL){
     tableType = "child";
+  } else if (vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_CHILD_TABLE_TAG_VAL){
+    tableType = "super";
   } else if (vAlterTbReq.action == TSDB_ALTER_TABLE_ALTER_COLUMN_REF ||
              vAlterTbReq.action == TSDB_ALTER_TABLE_REMOVE_COLUMN_REF) {
     tableType = "";
@@ -688,7 +693,7 @@ static int32_t processAlterTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
   }
 
   ADD_TO_JSON_STRING(json, "tableType", tableType);
-  ADD_TO_JSON_STRING(json, "tableName", vAlterTbReq.tbName);
+  ADD_TO_JSON_STRING(json, "tableName", vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL ? "" : vAlterTbReq.tbName);
   ADD_TO_JSON_NUMBER(json, "alterType", vAlterTbReq.action);
 
   uDebug("alter table action:%d", vAlterTbReq.action);
@@ -842,16 +847,18 @@ static int32_t processAlterTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
       }
 
       if (vAlterTbReq.whereLen > 0) {
-        ADD_TO_JSON_NUMBER(json, "whereLen", vAlterTbReq.whereLen);
-        char* whereBuf = NULL;
-        code = base64_encode(vAlterTbReq.where, vAlterTbReq.whereLen, &whereBuf);
-        if (code != 0 || whereBuf == NULL) {
-          uError("base64 encode where condition failed");
-          code = TSDB_CODE_OUT_OF_MEMORY;
-          goto end;
-        }
-        ADD_TO_JSON_STRING(json, "where", whereBuf);
-        taosMemoryFree(whereBuf);
+        buf1 = taosMemoryCalloc(vAlterTbReq.whereLen, 1);
+        RAW_NULL_CHECK(buf1);
+        buf2 = taosMemoryCalloc(vAlterTbReq.whereLen, 1);
+        RAW_NULL_CHECK(buf2);
+        memcpy(buf2, vAlterTbReq.where, vAlterTbReq.whereLen);
+        RAW_RETURN_CHECK(nodesMsgToNode(buf2, vAlterTbReq.whereLen, &pWhere));
+        int32_t tlen = 0;
+        RAW_RETURN_CHECK(nodesNodeToSQL(pWhere, buf1, vAlterTbReq.whereLen, &tlen));
+        if (tlen >= 1) buf1[tlen - 1] = 0;
+        ADD_TO_JSON_STRING(json, "where", buf1 + 1);
+        taosMemoryFreeClear(buf1);
+        taosMemoryFreeClear(buf2);
       }
       break;
     }
@@ -877,23 +884,12 @@ static int32_t processAlterTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
   }
 
 end:
-  if (vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL) {
-    taosArrayDestroy(vAlterTbReq.pMultiTag);
-  }
-  if (vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_CHILD_TABLE_TAG_VAL) {
-    taosArrayDestroy(vAlterTbReq.pMultiTag);
-  }
-  if (vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL) {
-    int32_t nTables = taosArrayGetSize(vAlterTbReq.tables);
-    for (int32_t i = 0; i < nTables; i++) {
-      SUpdateTableTagVal* pTable = taosArrayGet(vAlterTbReq.tables, i);
-      taosArrayDestroy(pTable->tags);
-    }
-    taosArrayDestroy(vAlterTbReq.tables);
-  }
+  nodesDestroyNode(pWhere);
+  destroyAlterTbReq(&vAlterTbReq);
   tDecoderClear(&decoder);
   taosMemoryFree(buf);
   taosMemoryFree(buf1);
+  taosMemoryFree(buf2);
   *pJson = json;
   RAW_LOG_END
   return code;
@@ -1709,7 +1705,9 @@ static int32_t taosAlterTable(TAOS* taos, void* meta, uint32_t metaLen) {
   SQuery*        pQuery = NULL;
   SArray*        pArray = NULL;
   SVgDataBlocks* pVgData = NULL;
+  SArray*        pVgList = NULL;
   SEncoder       coder = {0};
+  SHashObj*      pVgroupHashmap = NULL;
 
   RAW_RETURN_CHECK(buildRequest(*(int64_t*)taos, "", 0, NULL, false, &pRequest, 0));
   uDebug(LOG_ID_TAG " alter table, meta:%p, len:%d", LOG_ID_VALUE, meta, metaLen);
@@ -1738,67 +1736,249 @@ static int32_t taosAlterTable(TAOS* taos, void* meta, uint32_t metaLen) {
                            .requestObjRefId = pRequest->self,
                            .mgmtEps = getEpSet_s(&pTscObj->pAppInfo->mgmtEp)};
 
-  SVgroupInfo pInfo = {0};
-  SName       pName = {0};
-  toName(pTscObj->acctId, pRequest->pDb, req.tbName, &pName);
-  RAW_RETURN_CHECK(catalogGetTableHashVgroup(pCatalog, &conn, &pName, &pInfo));
-  pArray = taosArrayInit(1, sizeof(void*));
-  RAW_NULL_CHECK(pArray);
+  // Handle Type 1 batch modification with vnode grouping
+  if (req.action == TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL) {
+    if (req.tables == NULL || taosArrayGetSize(req.tables) == 0) {
+      uError(LOG_ID_TAG " Type 1 batch alter has empty tables array", LOG_ID_VALUE);
+      code = TSDB_CODE_INVALID_PARA;
+      goto end;
+    }
 
-  pVgData = taosMemoryCalloc(1, sizeof(SVgDataBlocks));
-  RAW_NULL_CHECK(pVgData);
-  pVgData->vg = pInfo;
+    int32_t nTables = taosArrayGetSize(req.tables);
+    uDebug(LOG_ID_TAG " Type 1 batch alter with %d tables, grouping by vnode", LOG_ID_VALUE, nTables);
 
-  int tlen = 0;
-  req.source = TD_REQ_FROM_TAOX;
+    // Create hashmap to group tables by vgId
+    pVgroupHashmap = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
+    RAW_NULL_CHECK(pVgroupHashmap);
 
-  if (strlen(tmqWriteRefDB) > 0) {
-    req.refDbName = tmqWriteRefDB;
+    // Group tables by vnode
+    for (int32_t i = 0; i < nTables; i++) {
+      SUpdateTableTagVal* pTable = taosArrayGet(req.tables, i);
+      if (pTable == NULL || pTable->tbName == NULL) {
+        uWarn(LOG_ID_TAG " Type 1 batch alter table[%d] has invalid name, skip", LOG_ID_VALUE, i);
+        continue;
+      }
+
+      // Query vnode for this table
+      SVgroupInfo vgInfo = {0};
+      SName pName = {0};
+      toName(pTscObj->acctId, pRequest->pDb, pTable->tbName, &pName);
+      code = catalogGetTableHashVgroup(pCatalog, &conn, &pName, &vgInfo);
+      if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
+        uWarn(LOG_ID_TAG " Type 1 batch alter table %s not found, skip", LOG_ID_VALUE, pTable->tbName);
+        code = TSDB_CODE_SUCCESS;
+        continue;
+      }
+      RAW_RETURN_CHECK(code);
+
+      // Add table to corresponding vnode's array
+      SArray** ppTables = taosHashGet(pVgroupHashmap, &vgInfo.vgId, sizeof(int32_t));
+      if (ppTables == NULL) {
+        SArray* pTables = taosArrayInit(16, sizeof(SUpdateTableTagVal));
+        RAW_NULL_CHECK(pTables);
+        RAW_RETURN_CHECK(taosHashPut(pVgroupHashmap, &vgInfo.vgId, sizeof(int32_t), &pTables, sizeof(void*)));
+        ppTables = taosHashGet(pVgroupHashmap, &vgInfo.vgId, sizeof(int32_t));
+      }
+
+      SArray* pTables = *ppTables;
+      RAW_NULL_CHECK(taosArrayPush(pTables, pTable));
+    }
+
+    // Build and send separate request for each vnode
+    pArray = taosArrayInit(taosHashGetSize(pVgroupHashmap), sizeof(void*));
+    RAW_NULL_CHECK(pArray);
+
+    void* pIter = taosHashIterate(pVgroupHashmap, NULL);
+    while (pIter) {
+      size_t keyLen = 0;
+      int32_t* pVgId = taosHashGetKey(pIter, &keyLen);
+      SArray* pTables = *(SArray**)pIter;
+      int32_t nTablesInVg = taosArrayGetSize(pTables);
+
+      uDebug(LOG_ID_TAG " Type 1 batch alter: vgId:%d has %d tables", LOG_ID_VALUE, *pVgId, nTablesInVg);
+
+      // Build SVAlterTbReq for this vnode
+      SVAlterTbReq vgReq = {0};
+      vgReq.action = req.action;
+      vgReq.tbName = req.tbName;
+      vgReq.source = TD_REQ_FROM_TAOX;
+      vgReq.tables = pTables;
+
+      // Encode request
+      int tlen = 0;
+      tEncodeSize(tEncodeSVAlterTbReq, &vgReq, tlen, code);
+      if (code < 0) {
+        uError(LOG_ID_TAG " Type 1 batch alter encode failed for vgId:%d, code:%s",
+               LOG_ID_VALUE, *pVgId, tstrerror(code));
+        taosHashCancelIterate(pVgroupHashmap, pIter);
+        goto end;
+      }
+
+      tlen += sizeof(SMsgHead);
+      void* pMsg = taosMemoryMalloc(tlen);
+      if (pMsg == NULL) {
+        code = terrno;
+        uError(LOG_ID_TAG " Type 1 batch alter malloc failed for vgId:%d, size:%d",
+               LOG_ID_VALUE, *pVgId, tlen);
+        taosHashCancelIterate(pVgroupHashmap, pIter);
+        goto end;
+      }
+
+      ((SMsgHead*)pMsg)->vgId = htonl(*pVgId);
+      ((SMsgHead*)pMsg)->contLen = htonl(tlen);
+      void* pBuf = POINTER_SHIFT(pMsg, sizeof(SMsgHead));
+
+      SEncoder vgCoder = {0};
+      tEncoderInit(&vgCoder, pBuf, tlen - sizeof(SMsgHead));
+      code = tEncodeSVAlterTbReq(&vgCoder, &vgReq);
+      tEncoderClear(&vgCoder);
+
+      if (code < 0) {
+        uError(LOG_ID_TAG " Type 1 batch alter encode2 failed for vgId:%d, code:%s",
+               LOG_ID_VALUE, *pVgId, tstrerror(code));
+        taosMemoryFree(pMsg);
+        taosHashCancelIterate(pVgroupHashmap, pIter);
+        goto end;
+      }
+
+      // Create VgDataBlocks for this vnode
+      pVgData = taosMemoryCalloc(1, sizeof(SVgDataBlocks));
+      if (pVgData == NULL) {
+        code = terrno;
+        taosMemoryFree(pMsg);
+        taosHashCancelIterate(pVgroupHashmap, pIter);
+        goto end;
+      }
+
+      // Query vgroup info for first table to get endpoint
+      SUpdateTableTagVal* pFirstTable = taosArrayGet(pTables, 0);
+      SVgroupInfo vgInfo = {0};
+      SName pName = {0};
+      toName(pTscObj->acctId, pRequest->pDb, pFirstTable->tbName, &pName);
+      code = catalogGetTableHashVgroup(pCatalog, &conn, &pName, &vgInfo);
+      if (code != TSDB_CODE_SUCCESS) {
+        taosMemoryFree(pMsg);
+        taosHashCancelIterate(pVgroupHashmap, pIter);
+        goto end;
+      }
+
+      pVgData->vg = vgInfo;
+      pVgData->pData = pMsg;
+      pVgData->size = tlen;
+      pVgData->numOfTables = nTablesInVg;
+
+      if (taosArrayPush(pArray, &pVgData) == NULL) {
+        code = terrno;
+        taosMemoryFree(pMsg);
+        taosHashCancelIterate(pVgroupHashmap, pIter);
+        goto end;
+      }
+
+      pVgData = NULL;  // Ownership transferred to pArray
+      pIter = taosHashIterate(pVgroupHashmap, pIter);
+    }
+
+    uInfo(LOG_ID_TAG " Type 1 batch alter: grouped %d tables into %d vnodes",
+          LOG_ID_VALUE, nTables, (int32_t)taosArrayGetSize(pArray));
+  } else if (req.action == TSDB_ALTER_TABLE_UPDATE_CHILD_TABLE_TAG_VAL) {
+    char dbFName[TSDB_DB_FNAME_LEN] = {0};
+    SName pName = {TSDB_TABLE_NAME_T, pTscObj->acctId, {0}, {0}};
+    tstrncpy(pName.dbname, pRequest->pDb, sizeof(pName.dbname));
+    (void)tNameGetFullDbName(&pName, dbFName);
+    RAW_RETURN_CHECK(catalogGetDBVgList(pCatalog, &conn, dbFName, &pVgList));
+
+    pArray = taosArrayInit(taosArrayGetSize(pVgList), sizeof(void*));
+    RAW_NULL_CHECK(pArray);
+    for (int i = 0; i < taosArrayGetSize(pVgList); ++i) {
+      SVgroupInfo* pInfo = (SVgroupInfo*)taosArrayGet(pVgList, i);
+      pVgData = taosMemoryCalloc(1, sizeof(SVgDataBlocks));
+      RAW_NULL_CHECK(pVgData);
+      pVgData->vg = *pInfo;
+
+      int tlen = 0;
+      req.source = TD_REQ_FROM_TAOX;
+
+      tEncodeSize(tEncodeSVAlterTbReq, &req, tlen, code);
+      RAW_RETURN_CHECK(code);
+      tlen += sizeof(SMsgHead);
+      void* pMsg = taosMemoryMalloc(tlen);
+      RAW_NULL_CHECK(pMsg);
+      ((SMsgHead*)pMsg)->vgId = htonl(pInfo->vgId);
+      ((SMsgHead*)pMsg)->contLen = htonl(tlen);
+      void* pBuf = POINTER_SHIFT(pMsg, sizeof(SMsgHead));
+      tEncoderInit(&coder, pBuf, tlen - sizeof(SMsgHead));
+      RAW_RETURN_CHECK(tEncodeSVAlterTbReq(&coder, &req));
+      tEncoderClear(&coder);
+
+      pVgData->pData = pMsg;
+      pVgData->size = tlen;
+
+      pVgData->numOfTables = 1;
+      RAW_NULL_CHECK(taosArrayPush(pArray, &pVgData));
+      pVgData = NULL;  // Ownership transferred to pArray
+    }
+  } else {
+    // Single table or Type 2 modification - original logic
+    SVgroupInfo pInfo = {0};
+    SName       pName = {0};
+    toName(pTscObj->acctId, pRequest->pDb, req.tbName, &pName);
+    RAW_RETURN_CHECK(catalogGetTableHashVgroup(pCatalog, &conn, &pName, &pInfo));
+    pArray = taosArrayInit(1, sizeof(void*));
+    RAW_NULL_CHECK(pArray);
+
+    pVgData = taosMemoryCalloc(1, sizeof(SVgDataBlocks));
+    RAW_NULL_CHECK(pVgData);
+    pVgData->vg = pInfo;
+
+    int tlen = 0;
+    req.source = TD_REQ_FROM_TAOX;
+
+    if (strlen(tmqWriteRefDB) > 0) {
+      req.refDbName = tmqWriteRefDB;
+    }
+
+    if (req.action == TSDB_ALTER_TABLE_ALTER_COLUMN_REF && tmqWriteCheckRef) {
+      RAW_RETURN_CHECK(checkColRefForAlter(pCatalog, &conn, pTscObj->acctId, req.refDbName, req.refTbName, req.refColName,
+        pRequest->pDb, req.tbName, req.colName));
+    }else if (req.action == TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COLUMN_REF && tmqWriteCheckRef) {
+      RAW_RETURN_CHECK(checkColRefForAdd(pCatalog, &conn, pTscObj->acctId, req.refDbName, req.refTbName, req.refColName,
+        pRequest->pDb, req.tbName, req.colName, req.type, req.bytes));
+    }
+
+    tEncodeSize(tEncodeSVAlterTbReq, &req, tlen, code);
+    RAW_RETURN_CHECK(code);
+    tlen += sizeof(SMsgHead);
+    void* pMsg = taosMemoryMalloc(tlen);
+    RAW_NULL_CHECK(pMsg);
+    ((SMsgHead*)pMsg)->vgId = htonl(pInfo.vgId);
+    ((SMsgHead*)pMsg)->contLen = htonl(tlen);
+    void* pBuf = POINTER_SHIFT(pMsg, sizeof(SMsgHead));
+    tEncoderInit(&coder, pBuf, tlen - sizeof(SMsgHead));
+    RAW_RETURN_CHECK(tEncodeSVAlterTbReq(&coder, &req));
+
+    pVgData->pData = pMsg;
+    pVgData->size = tlen;
+
+    pVgData->numOfTables = 1;
+    RAW_NULL_CHECK(taosArrayPush(pArray, &pVgData));
+    pVgData = NULL;
   }
-
-  if (req.action == TSDB_ALTER_TABLE_ALTER_COLUMN_REF && tmqWriteCheckRef) {
-    RAW_RETURN_CHECK(checkColRefForAlter(pCatalog, &conn, pTscObj->acctId, req.refDbName, req.refTbName, req.refColName, 
-      pRequest->pDb, req.tbName, req.colName));
-  }else if (req.action == TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COLUMN_REF && tmqWriteCheckRef) {
-    RAW_RETURN_CHECK(checkColRefForAdd(pCatalog, &conn, pTscObj->acctId, req.refDbName, req.refTbName, req.refColName, 
-      pRequest->pDb, req.tbName, req.colName, req.type, req.bytes));
-  }
-
-  tEncodeSize(tEncodeSVAlterTbReq, &req, tlen, code);
-  RAW_RETURN_CHECK(code);
-  tlen += sizeof(SMsgHead);
-  void* pMsg = taosMemoryMalloc(tlen);
-  RAW_NULL_CHECK(pMsg);
-  ((SMsgHead*)pMsg)->vgId = htonl(pInfo.vgId);
-  ((SMsgHead*)pMsg)->contLen = htonl(tlen);
-  void* pBuf = POINTER_SHIFT(pMsg, sizeof(SMsgHead));
-  tEncoderInit(&coder, pBuf, tlen - sizeof(SMsgHead));
-  code = tEncodeSVAlterTbReq(&coder, &req);
-  RAW_RETURN_CHECK(code);
-
-  pVgData->pData = pMsg;
-  pVgData->size = tlen;
-
-  pVgData->numOfTables = 1;
-  RAW_NULL_CHECK(taosArrayPush(pArray, &pVgData));
 
   pQuery = NULL;
-  code = nodesMakeNode(QUERY_NODE_QUERY, (SNode**)&pQuery);
+  RAW_RETURN_CHECK(nodesMakeNode(QUERY_NODE_QUERY, (SNode**)&pQuery));
   if (NULL == pQuery) goto end;
   pQuery->execMode = QUERY_EXEC_MODE_SCHEDULE;
   pQuery->msgType = TDMT_VND_ALTER_TABLE;
   pQuery->stableQuery = false;
   pQuery->pRoot = NULL;
-  code = nodesMakeNode(QUERY_NODE_ALTER_TABLE_STMT, &pQuery->pRoot);
-  if (TSDB_CODE_SUCCESS != code) goto end;
+  RAW_RETURN_CHECK(nodesMakeNode(QUERY_NODE_ALTER_TABLE_STMT, &pQuery->pRoot));
   RAW_RETURN_CHECK(rewriteToVnodeModifyOpStmt(pQuery, pArray));
 
   launchQueryImpl(pRequest, pQuery, true, NULL);
-
-  pVgData = NULL;
   pArray = NULL;
+
   code = pRequest->code;
-  if (code == TSDB_CODE_TDB_TABLE_NOT_EXIST) {
+  if (code == TSDB_CODE_TDB_TABLE_NOT_EXIST || code == TSDB_CODE_NOT_FOUND) {
     code = TSDB_CODE_SUCCESS;
   }
 
@@ -1811,13 +1991,35 @@ static int32_t taosAlterTable(TAOS* taos, void* meta, uint32_t metaLen) {
   uDebug(LOG_ID_TAG " alter table return, meta:%p, len:%d, msg:%s", LOG_ID_VALUE, meta, metaLen, tstrerror(code));
 
 end:
+  // Cleanup vnode grouping hashmap
+  if (pVgroupHashmap != NULL) {
+    void* pIter = taosHashIterate(pVgroupHashmap, NULL);
+    while (pIter) {
+      SArray* pTables = *(SArray**)pIter;
+      taosArrayDestroy(pTables);
+      pIter = taosHashIterate(pVgroupHashmap, pIter);
+    }
+    taosHashCleanup(pVgroupHashmap);
+  }
+
+  for (int i = 0; i < taosArrayGetSize(pArray); ++i) {
+    SVgDataBlocks* pData = (SVgDataBlocks*)taosArrayGetP(pArray, i);
+    if (pData && pData->pData) {
+      taosMemoryFreeClear(pData->pData);
+      taosMemoryFreeClear(pData);
+    }
+  }
   taosArrayDestroy(pArray);
-  if (pVgData) taosMemoryFreeClear(pVgData->pData);
-  taosMemoryFreeClear(pVgData);
+  
+  if (pVgData) {
+    taosMemoryFreeClear(pVgData->pData);
+    taosMemoryFreeClear(pVgData);
+  }
+  taosArrayDestroy(pVgList);
   destroyRequest(pRequest);
   tDecoderClear(&dcoder);
   qDestroyQuery(pQuery);
-  taosArrayDestroy(req.pMultiTag);
+  destroyAlterTbReq(&req);
   tEncoderClear(&coder);
   RAW_LOG_END
   return code;
