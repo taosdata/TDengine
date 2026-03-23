@@ -64,7 +64,18 @@ database_option: {
 - CACHESIZE: The size of memory used for caching the latest data of subtables in each vnode. Default is 1, range is [1, 65536], in MB.
 - CACHESHARDBITS: The number of shard bits for the last-value LRU cache, which controls the internal lock granularity for concurrent cache access. Default is -1 (auto-calculated), range is [-1, 19].
   - The actual number of shards equals `2^CACHESHARDBITS`. For example, CACHESHARDBITS=3 means 8 shards, CACHESHARDBITS=6 means 64 shards.
-  - When set to -1, the system automatically calculates the shard bits based on CACHESIZE: each shard is at least 512 KB, and the maximum number of shards is 64 (i.e., the upper limit of shard bits is 6).
+  - When set to -1, the system automatically calculates the shard bits based on CACHESIZE using the following rules:
+    - Each shard is at least 512 KB, so the theoretical maximum number of shards = `CACHESIZE / 512KB`.
+    - The shard bits equal `floor(log₂(theoretical maximum shards))`, with an upper limit of 6 (i.e., at most 64 shards).
+    - When CACHESIZE < 512 KB, the shard bits is 0, resulting in a single shard.
+    - Auto-calculation examples:
+
+    | CACHESIZE | Theoretical max shards | Shard bits | Actual shards |
+    |-----------|------------------------|------------|---------------|
+    | 1 MB      | 2                      | 1          | 2             |
+    | 4 MB      | 8                      | 3          | 8             |
+    | 32 MB     | 64                     | 6          | 64            |
+    | 256 MB    | 512                    | 6 (capped) | 64            |
   - More shards reduce lock contention during concurrent cache writes, which is suitable for high-concurrency scenarios. However, too many shards may increase memory management overhead.
   - **Warning:** Modifying CACHESHARDBITS immediately invalidates all last-value cache entries in all vnodes of the database. The cached data will be reloaded from disk on subsequent queries, which may temporarily increase query latency.
 - COMP: Indicates the compression flag for database files, default value is 2, range is [0, 2].
