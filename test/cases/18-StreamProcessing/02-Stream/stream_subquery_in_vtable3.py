@@ -122,7 +122,7 @@ class TestStreamSubQueryInVtable3:
             wait_for_rows(f"select * from {self.db}.{self.restb} order by ts", 2)
 
     class InSubqueryVirtualTableDynamicUpdate(StreamCheckItem):
-        """Test IN subquery with virtual table — stream continues filtering correctly"""
+        """Test IN subquery with virtual table — stream continues filtering correctly as new trigger rows arrive"""
         def __init__(self):
             self.db = "test_in_vtable_dynamic3"
             self.refdb = "ref_db_dynamic3"
