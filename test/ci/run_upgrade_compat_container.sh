@@ -34,6 +34,7 @@ COLD_VERSIONS_OPTION_2=""
 
 GREEN_PATH="/green_versions"
 LOG_DIR="/upgrade_logs"
+BUILD_DIR="/home/TDinternal/debug"
 COMPAT_CI_DIR="/home/TDinternal/community/test/tools/CompatCI"
 
 
@@ -56,6 +57,7 @@ echo "  Upgrade Compatibility Test (container)"
 echo "======================================================"
 echo "  COMPAT_CI_DIR : $COMPAT_CI_DIR"
 echo "  GREEN_PATH    : $GREEN_PATH"
+echo "  BUILD_DIR     : $BUILD_DIR"
 echo "  LOG_DIR       : $LOG_DIR"
 echo "======================================================"
 
@@ -91,6 +93,7 @@ cleanup_taosd
 
 cold_cmd=(python3 "$COMPAT_CI_DIR/cold_upgrade_task.py"
     --green-path "$GREEN_PATH"
+    --build-dir  "$BUILD_DIR"
     --versions   "$COLD_VERSIONS_1"
     --options="$COLD_VERSIONS_OPTION_1"
 )
@@ -112,6 +115,7 @@ cleanup_taosd
 
 cold_cmd=(python3 "$COMPAT_CI_DIR/cold_upgrade_task.py"
     --green-path "$GREEN_PATH"
+    --build-dir  "$BUILD_DIR"
     --versions   "$COLD_VERSIONS_2"
     --options="$COLD_VERSIONS_OPTION_2"
 )
@@ -140,6 +144,7 @@ cleanup_taosd
 
 hot_cmd=(python3 "$COMPAT_CI_DIR/hot_upgrade_task.py"
     --green-path "$GREEN_PATH"
+    --build-dir  "$BUILD_DIR"
     -q
 )
 echo "Executing: ${hot_cmd[*]}"
