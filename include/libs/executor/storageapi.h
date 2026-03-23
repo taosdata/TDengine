@@ -207,7 +207,7 @@ typedef struct TsdReader {
   void         (*tsdReaderGetDatablock)();
   void         (*tsdReaderSetDatablock)();
   int64_t      (*tsdReaderGetNumOfInMemRows)();
-  void         (*tsdReaderNotifyClosing)();
+  void         (*tsdReaderNotifyClosing)(void* pReader);
 
   void         (*tsdSetFilesetDelimited)(void* pReader);
   void         (*tsdSetSetNotifyCb)(void* pReader, TsdReaderNotifyCbFn notifyFn, void* param);
@@ -225,6 +225,7 @@ typedef struct TsdReader {
   void     (*tsdDestroyFirstLastTsIter)(void *pIter);
 
   int32_t (*tsdReaderStepDone)(void *pReader, int64_t notifyTs);
+  void (*tsdReaderSetExecInfo)(const void *pReader, STableScanAnalyzeInfo* pExecInfo);
 } TsdReader;
 
 typedef struct SStoreCacheReader {
@@ -336,6 +337,7 @@ typedef struct SStoreMetaReader {
   int32_t (*getTableEntryByUid)(SMetaReader* pReader, tb_uid_t uid);
   int     (*getTableEntryByVersionUid)(SMetaReader *pReader, int64_t version, tb_uid_t uid);
   int32_t (*getTableEntryByName)(SMetaReader* pReader, const char* name);
+  int32_t (*getTableEntryByVersionName)(SMetaReader* pReader, int64_t version, const char* name);
   int32_t (*getEntryGetUidCache)(SMetaReader* pReader, tb_uid_t uid);
 } SStoreMetaReader;
 

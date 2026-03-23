@@ -66,6 +66,7 @@ int8_t        tsEnableAdvancedSecurity = 1;
 #else
 int8_t        tsEnableAdvancedSecurity = 0;
 #endif
+int8_t        tsEnableGrantLegacySyntax = 0;
 
 char          tsEncryptPassAlgorithm[16] = {0};
 EEncryptAlgor tsiEncryptPassAlgorithm = 0;
@@ -145,6 +146,7 @@ int32_t tsNumOfStreamRunnerThreads = 4;
 
 int32_t tsNumOfCompactThreads = 2;
 int32_t tsNumOfRetentionThreads = 1;
+int32_t tsSecureEraseMode = 0;
 
 // sync raft
 int32_t tsElectInterval = 4000;
@@ -307,6 +309,18 @@ int32_t tsQueryRspPolicy = 0;
 int64_t tsQueryMaxConcurrentTables = 200;  // unit is TSDB_TABLE_NUM_UNIT
 bool    tsEnableQueryHb = true;
 bool    tsEnableScience = false;  // on taos-cli show float and doulbe with scientific notation if true
+bool    tsSqlSecurityEnabled = false;
+int32_t tsSqlSecurityWhitelistMode = 0;
+bool    tsSqlSecurityStringCheck = true;
+bool    tsSqlSecurityASTCheck = true;
+#ifdef WINDOWS
+char tsSqlSecurityRuleFile[PATH_MAX] = "C:\\TDengine\\data\\sql_rules.json";
+#else
+char tsSqlSecurityRuleFile[PATH_MAX] = "/var/lib/taos/sql_rules.json";
+#endif
+bool    tsWhitelistLearning = false;
+int32_t tsWhitelistLearningPeriod = 7;
+int32_t tsWhitelistLearningThreshold = 10;
 int32_t tsQuerySmaOptimize = 0;
 int32_t tsQueryRsmaTolerance = 1000;  // the tolerance time (ms) to judge from which level to query rsma data.
 bool    tsQueryPlannerTrace = false;
@@ -814,6 +828,23 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
 
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "tmqWriteCheckRef", tmqWriteCheckRef, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT,
                                CFG_CATEGORY_LOCAL, CFG_PRIV_DEBUG));
+  // sql fire wall configuration
+  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "sqlSecurity", tsSqlSecurityEnabled, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT,
+                               CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "sqlSecurityWhitelistMode", tsSqlSecurityWhitelistMode, 0, 3, CFG_SCOPE_CLIENT,
+                                CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "sqlSecurityStringCheck", tsSqlSecurityStringCheck, CFG_SCOPE_CLIENT,
+                               CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "sqlSecurityASTCheck", tsSqlSecurityASTCheck, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT,
+                               CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddString(pCfg, "sqlSecurityRuleFile", tsSqlSecurityRuleFile, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT,
+                                 CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "whitelistLearning", tsWhitelistLearning, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT,
+                               CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "whitelistLearningPeriod", tsWhitelistLearningPeriod, 1, 365, CFG_SCOPE_CLIENT,
+                                CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "whitelistLearningThreshold", tsWhitelistLearningThreshold, 1, 10000,
+                                CFG_SCOPE_CLIENT, CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
@@ -955,6 +986,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddDir(pCfg, "encryptExtDir", tsEncryptExtDir, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_LOCAL, CFG_PRIV_SECURITY));
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "enableStrongPassword", tsEnableStrongPassword, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SECURITY));
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "enableAdvancedSecurity", tsEnableAdvancedSecurity, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SECURITY));
+  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "enableGrantLegacySyntax", tsEnableGrantLegacySyntax, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SECURITY));
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "encryptPassAlgorithm", tsEncryptPassAlgorithm, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY, CFG_CATEGORY_GLOBAL, CFG_PRIV_SECURITY));
 
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "statusInterval", tsStatusInterval, 1, 30, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
@@ -970,6 +1002,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "queryRspPolicy", tsQueryRspPolicy, 0, 1, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "numOfCommitThreads", tsNumOfCommitThreads, 1, 1024, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY,CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "numOfCompactThreads", tsNumOfCompactThreads, 1, 16, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "secureEraseMode", tsSecureEraseMode, 0, 1, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "retentionSpeedLimitMB", tsRetentionSpeedLimitMB, 0, 1024, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "queryUseMemoryPool", tsQueryUseMemoryPool, CFG_SCOPE_SERVER, CFG_DYN_BOTH_LAZY,CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM) != 0);
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "memPoolFullFunc", tsMemPoolFullFunc, CFG_SCOPE_SERVER, CFG_DYN_NONE,CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM) != 0);
@@ -1551,6 +1584,24 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "tmqWriteCheckRef");
   tmqWriteCheckRef = pItem->bval;
 
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "sqlSecurity");
+  tsSqlSecurityEnabled = pItem->bval;
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "sqlSecurityWhitelistMode");
+  tsSqlSecurityWhitelistMode = pItem->i32;
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "sqlSecurityStringCheck");
+  tsSqlSecurityStringCheck = pItem->bval;
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "sqlSecurityASTCheck");
+  tsSqlSecurityASTCheck = pItem->bval;
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "sqlSecurityRuleFile");
+  TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, PATH_MAX));
+  tstrncpy(tsSqlSecurityRuleFile, pItem->str, PATH_MAX);
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "whitelistLearning");
+  tsWhitelistLearning = pItem->bval;
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "whitelistLearningPeriod");
+  tsWhitelistLearningPeriod = pItem->i32;
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "whitelistLearningThreshold");
+  tsWhitelistLearningThreshold = pItem->i32;
+
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "queryPlannerTrace");
   tsQueryPlannerTrace = pItem->bval;
 
@@ -1729,6 +1780,9 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableAdvancedSecurity");
   tsEnableAdvancedSecurity = pItem->i32;
 
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableGrantLegacySyntax");
+  tsEnableGrantLegacySyntax = pItem->i32;
+
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "encryptPassAlgorithm");
   TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, 16));
   tstrncpy(tsEncryptPassAlgorithm, pItem->str, 16);
@@ -1761,6 +1815,9 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "numOfCompactThreads");
   tsNumOfCompactThreads = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "secureEraseMode");
+  tsSecureEraseMode = pItem->i32;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableIpv6");
   tsEnableIpv6 = pItem->bval;
@@ -3014,6 +3071,7 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
                                          {"queryNoFetchTimeoutSec", &tsQueryNoFetchTimeoutSec},
                                          {"enableStrongPassword", &tsEnableStrongPassword},
                                          {"enableAdvancedSecurity", &tsEnableAdvancedSecurity},
+                                         {"enableGrantLegacySyntax", &tsEnableGrantLegacySyntax},
                                          {"enableMetrics", &tsEnableMetrics},
                                          {"metricsInterval", &tsMetricsInterval},
                                          {"metricsLevel", &tsMetricsLevel},
@@ -3194,6 +3252,27 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
         uInfo("%s set from %s to %s", name, tsSmlTsDefaultName, pItem->str);
         tstrncpy(tsSmlTsDefaultName, pItem->str, TSDB_COL_NAME_LEN);
         matched = true;
+      } else if (strcasecmp("sqlSecurity", name) == 0) {
+        tsSqlSecurityEnabled = pItem->bval;
+        uInfo("%s set to %d", name, tsSqlSecurityEnabled);
+        matched = true;
+      } else if (strcasecmp("sqlSecurityWhitelistMode", name) == 0) {
+        tsSqlSecurityWhitelistMode = pItem->i32;
+        uInfo("%s set to %d", name, tsSqlSecurityWhitelistMode);
+        matched = true;
+      } else if (strcasecmp("sqlSecurityStringCheck", name) == 0) {
+        tsSqlSecurityStringCheck = pItem->bval;
+        uInfo("%s set to %d", name, tsSqlSecurityStringCheck);
+        matched = true;
+      } else if (strcasecmp("sqlSecurityASTCheck", name) == 0) {
+        tsSqlSecurityASTCheck = pItem->bval;
+        uInfo("%s set to %d", name, tsSqlSecurityASTCheck);
+        matched = true;
+      } else if (strcasecmp("sqlSecurityRuleFile", name) == 0) {
+        TAOS_CHECK_GOTO(taosCheckCfgStrValueLen(pItem->name, pItem->str, PATH_MAX), &lino, _out);
+        uInfo("%s set from %s to %s", name, tsSqlSecurityRuleFile, pItem->str);
+        tstrncpy(tsSqlSecurityRuleFile, pItem->str, PATH_MAX);
+        matched = true;
       } else if (strcasecmp("serverPort", name) == 0) {
         SConfigItem *pFqdnItem = cfgGetItem(pCfg, "fqdn");
         SConfigItem *pServerPortItem = cfgGetItem(pCfg, "serverPort");
@@ -3235,6 +3314,22 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
           uError("failed to create tempDir:%s since %s", tsTempDir, tstrerror(code));
           goto _out;
         }
+        matched = true;
+      }
+      break;
+    }
+    case 'w': {
+      if (strcasecmp("whitelistLearning", name) == 0) {
+        tsWhitelistLearning = pItem->bval;
+        uInfo("%s set to %d", name, tsWhitelistLearning);
+        matched = true;
+      } else if (strcasecmp("whitelistLearningPeriod", name) == 0) {
+        tsWhitelistLearningPeriod = pItem->i32;
+        uInfo("%s set to %d", name, tsWhitelistLearningPeriod);
+        matched = true;
+      } else if (strcasecmp("whitelistLearningThreshold", name) == 0) {
+        tsWhitelistLearningThreshold = pItem->i32;
+        uInfo("%s set to %d", name, tsWhitelistLearningThreshold);
         matched = true;
       }
       break;
@@ -3438,12 +3533,12 @@ int32_t globalConfigSerialize(int32_t version, SArray *array, char **serialized)
           if (cJSON_AddNumberToObject(cField, item->name, item->i32) == NULL) goto _exit;
           break;
         case CFG_DTYPE_INT64:
-          (void)sprintf(buf, "%" PRId64, item->i64);
+          (void)snprintf(buf, sizeof(buf), "%" PRId64, item->i64);
           if (cJSON_AddStringToObject(cField, item->name, buf) == NULL) goto _exit;
           break;
         case CFG_DTYPE_FLOAT:
         case CFG_DTYPE_DOUBLE:
-          (void)sprintf(buf, "%f", item->fval);
+          (void)snprintf(buf, sizeof(buf), "%f", item->fval);
           if (cJSON_AddStringToObject(cField, item->name, buf) == NULL) goto _exit;
           break;
         case CFG_DTYPE_STRING:
@@ -3505,7 +3600,7 @@ int32_t localConfigSerialize(SArray *array, char **serialized) {
             goto _exit;
           }
         }
-        (void)sprintf(buf, "%" PRId64, disk->diskId);
+        (void)snprintf(buf, sizeof(buf), "%" PRId64, disk->diskId);
         if (cJSON_AddStringToObject(dataDir, "disk_id", buf) == NULL) goto _exit;
         if (cJSON_AddNumberToObject(dataDir, "primary", disk->primary) == NULL) goto _exit;
         if (cJSON_AddNumberToObject(dataDir, "disable", disk->disable) == NULL) goto _exit;
@@ -3523,12 +3618,12 @@ int32_t localConfigSerialize(SArray *array, char **serialized) {
           if (cJSON_AddNumberToObject(cField, item->name, item->i32) == NULL) goto _exit;
           break;
         case CFG_DTYPE_INT64:
-          (void)sprintf(buf, "%" PRId64, item->i64);
+          (void)snprintf(buf, sizeof(buf), "%" PRId64, item->i64);
           if (cJSON_AddStringToObject(cField, item->name, buf) == NULL) goto _exit;
           break;
         case CFG_DTYPE_FLOAT:
         case CFG_DTYPE_DOUBLE:
-          (void)sprintf(buf, "%f", item->fval);
+          (void)snprintf(buf, sizeof(buf), "%f", item->fval);
           if (cJSON_AddStringToObject(cField, item->name, buf) == NULL) goto _exit;
           break;
         case CFG_DTYPE_STRING:

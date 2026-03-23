@@ -1482,9 +1482,9 @@ static EDealRes pdcJoinCollectCondCol(SNode* pNode, void* pContext) {
       char         name[TSDB_TABLE_NAME_LEN + TSDB_COL_NAME_LEN];
       int32_t      len = 0;
       if ('\0' == pCol->tableAlias[0]) {
-        len = tsnprintf(name, sizeof(name), "%s", pCol->colName);
+        len = snprintf(name, sizeof(name), "%s", pCol->colName);
       } else {
-        len = tsnprintf(name, sizeof(name), "%s.%s", pCol->tableAlias, pCol->colName);
+        len = snprintf(name, sizeof(name), "%s.%s", pCol->tableAlias, pCol->colName);
       }
       if (NULL == taosHashGet(pCxt->pColHash, name, len)) {
         pCxt->errCode = taosHashPut(pCxt->pColHash, name, len, NULL, 0);
@@ -3897,9 +3897,9 @@ static int32_t partTagsOptRebuildTbanme(SNodeList* pPartKeys) {
 // todo refact: just to mask compilation warnings
 static void partTagsSetAlias(char* pAlias, const char* pTableAlias, const char* pColName) {
   char    name[TSDB_COL_FNAME_LEN + 1] = {0};
-  int32_t len = tsnprintf(name, TSDB_COL_FNAME_LEN, "%s.%s", pTableAlias, pColName);
+  int32_t len = snprintf(name, TSDB_COL_FNAME_LEN, "%s.%s", pTableAlias, pColName);
 
-  (void)taosHashBinary(name, len);
+  (void)taosHashBinary(name, len, sizeof(name));
   tstrncpy(pAlias, name, TSDB_COL_NAME_LEN);
 }
 
@@ -4733,8 +4733,8 @@ static int32_t rewriteUniqueOptCreateFirstFunc(SFunctionNode* pSelectValue, SNod
   } else {
     int64_t pointer = (int64_t)pFunc;
     char    name[TSDB_FUNC_NAME_LEN + TSDB_POINTER_PRINT_BYTES + TSDB_NAME_DELIMITER_LEN + 1] = {0};
-    int32_t len = tsnprintf(name, sizeof(name) - 1, "%s.%" PRId64, pFunc->functionName, pointer);
-    (void)taosHashBinary(name, len);
+    int32_t len = snprintf(name, sizeof(name) - 1, "%s.%" PRId64, pFunc->functionName, pointer);
+    (void)taosHashBinary(name, len, sizeof(name));
     tstrncpy(pFunc->node.aliasName, name, TSDB_COL_NAME_LEN);
   }
   SNode* pNew = NULL;
@@ -5116,7 +5116,7 @@ static bool lastRowScanOptCheckFuncList(SLogicNode* pNode, int8_t cacheLastModel
     WHERE_NEXT;
   }
 
-  if (needSplitFuncCount >= ((SAggLogicNode*)pNode)->pAggFuncs->length) {
+  if (needSplitFuncCount >= LIST_LENGTH(((SAggLogicNode*)pNode)->pAggFuncs)) {
     canOptimize = false;
   }
 
@@ -5311,8 +5311,8 @@ static int32_t lastRowScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogic
     int32_t        funcType = pFunc->funcType;
     SNode*         pParamNode = NULL;
     if (FUNCTION_TYPE_LAST_ROW == funcType || FUNCTION_TYPE_LAST == funcType) {
-      int32_t len = tsnprintf(pFunc->functionName, sizeof(pFunc->functionName),
-                              FUNCTION_TYPE_LAST_ROW == funcType ? "_cache_last_row" : "_cache_last");
+      int32_t len = snprintf(pFunc->functionName, sizeof(pFunc->functionName),
+                             FUNCTION_TYPE_LAST_ROW == funcType ? "_cache_last_row" : "_cache_last");
       pFunc->functionName[len] = '\0';
       code = fmGetFuncInfo(pFunc, NULL, 0);
       if (TSDB_CODE_SUCCESS != code) {
@@ -9951,9 +9951,23 @@ static bool vstableAggShouldBeOptimized(SLogicNode* pNode, void* pCtx) {
 
   SAggLogicNode* pAgg = (SAggLogicNode*)pNode;
 
-  if (pAgg->pGroupKeys) {
-    return false;
+  if (NULL != pAgg->pGroupKeys) {
+    if (keysHasCol(pAgg->pGroupKeys)) {
+      return false;
+    }
+
+    SNode* pGroupKey = NULL;
+    FOREACH(pGroupKey, pAgg->pGroupKeys) {
+      if (nodeType(pGroupKey) != QUERY_NODE_GROUPING_SET) {
+        return false;
+      }
+      SNode* pGroupExpr = nodesListGetNode(((SGroupingSetNode*)pGroupKey)->pParameterList, 0);
+      if (!pGroupExpr || partTagsNeedOutput(pGroupExpr, pAgg->node.pTargets)) {
+        return false;
+      }
+    }
   }
+
   if (LIST_LENGTH(pAgg->node.pChildren) == 1) {
     if (nodeType(nodesListGetNode(pAgg->node.pChildren, 0)) == QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL) {
       if (((SDynQueryCtrlLogicNode*)nodesListGetNode(pAgg->node.pChildren, 0))->qType != DYN_QTYPE_VTB_SCAN) {
@@ -10443,13 +10457,28 @@ static int32_t vstableAggOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicS
 
   int32_t                 code = TSDB_CODE_SUCCESS;
   int32_t                 lino = 0;
-  SAggLogicNode*          pNewAgg = NULL;
   SPartitionLogicNode*    pPartNode = NULL;
-  SDynQueryCtrlLogicNode* pDynVstbScan = NULL;
-  SVirtualScanLogicNode*  pVirtualScanNode = NULL;
 
   OPTIMIZE_FLAG_SET_MASK(pAgg->node.optimizedFlag, OPTIMIZE_FLAG_VTB_AGG);
 
+  if (pAgg->pGroupKeys) {
+    // make a partition node to do the group calculation
+    pAgg->isGroupTb = false;
+    PLAN_ERR_JRET(nodesMakeNode(QUERY_NODE_LOGIC_PLAN_PARTITION, (SNode**)&pPartNode));
+    TSWAP(pPartNode->pPartitionKeys, pAgg->pGroupKeys);
+    pPartNode->node.groupAction = GROUP_ACTION_SET;
+    pPartNode->node.requireDataOrder = DATA_ORDER_LEVEL_NONE;
+    pPartNode->node.resultDataOrder = DATA_ORDER_LEVEL_NONE;
+
+    SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pAgg->node.pChildren, 0);
+    QUERY_CHECK_NULL(pChild, code, lino, _return, terrno);
+
+    pChild->pParent = (SLogicNode*)pPartNode;
+    TSWAP(pPartNode->node.pChildren, pAgg->node.pChildren);
+    clearChildList((SLogicNode*)pAgg);
+    PLAN_ERR_JRET(appendNewChild((SLogicNode*)pAgg, (SLogicNode*)pPartNode));
+    pPartNode = NULL;
+  }
   if (nodeType(nodesListGetNode(pAgg->node.pChildren, 0)) == QUERY_NODE_LOGIC_PLAN_PARTITION) {
     PLAN_ERR_JRET(vstableAggOptimizeWithPartition(pCxt, pLogicSubplan, pAgg));
   } else if (nodeType(nodesListGetNode(pAgg->node.pChildren, 0)) == QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL) {
@@ -10462,6 +10491,7 @@ static int32_t vstableAggOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicS
 _return:
   if (code) {
     planError("%s failed at %d, msg:%s", __func__, lino, tstrerror(code));
+    nodesDestroyNode((SNode*)pPartNode);
   }
   return code;
 }

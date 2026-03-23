@@ -876,6 +876,12 @@ db_options(A) ::= .                                                             
 db_options(A) ::= db_options(B) BUFFER NK_INTEGER(C).                             { A = setDatabaseOption(pCxt, B, DB_OPTION_BUFFER, &C); }
 db_options(A) ::= db_options(B) CACHEMODEL NK_STRING(C).                          { A = setDatabaseOption(pCxt, B, DB_OPTION_CACHEMODEL, &C); }
 db_options(A) ::= db_options(B) CACHESIZE NK_INTEGER(C).                          { A = setDatabaseOption(pCxt, B, DB_OPTION_CACHESIZE, &C); }
+db_options(A) ::= db_options(B) CACHESHARDBITS NK_INTEGER(C).                     { A = setDatabaseOption(pCxt, B, DB_OPTION_CACHESHARDBITS, &C); }
+db_options(A) ::= db_options(B) CACHESHARDBITS NK_MINUS(D) NK_INTEGER(C).         {
+                                                                                    SToken t = D;
+                                                                                    t.n = (C.z + C.n) - D.z;
+                                                                                    A = setDatabaseOption(pCxt, B, DB_OPTION_CACHESHARDBITS, &t);
+                                                                                  }
 db_options(A) ::= db_options(B) COMP NK_INTEGER(C).                               { A = setDatabaseOption(pCxt, B, DB_OPTION_COMP, &C); }
 db_options(A) ::= db_options(B) DURATION NK_INTEGER(C).                           { A = setDatabaseOption(pCxt, B, DB_OPTION_DAYS, &C); }
 db_options(A) ::= db_options(B) DURATION NK_VARIABLE(C).                          { A = setDatabaseOption(pCxt, B, DB_OPTION_DAYS, &C); }
@@ -927,6 +933,7 @@ db_options(A) ::= db_options(B) COMPACT_TIME_RANGE signed_duration_list(C).     
 db_options(A) ::= db_options(B) COMPACT_TIME_OFFSET NK_INTEGER(C).                { A = setDatabaseOption(pCxt, B, DB_OPTION_COMPACT_TIME_OFFSET, &C); }
 db_options(A) ::= db_options(B) COMPACT_TIME_OFFSET NK_VARIABLE(C).               { A = setDatabaseOption(pCxt, B, DB_OPTION_COMPACT_TIME_OFFSET, &C); }
 db_options(A) ::= db_options(B) IS_AUDIT NK_INTEGER(C).                           { A = setDatabaseOption(pCxt, B, DB_OPTION_IS_AUDIT, &C); }
+db_options(A) ::= db_options(B) SECURE_DELETE NK_INTEGER(C).                      { A = setDatabaseOption(pCxt, B, DB_OPTION_SECURE_DELETE, &C); }
 
 
 alter_db_options(A) ::= alter_db_option(B).                                       { A = createAlterDatabaseOptions(pCxt); A = setAlterDatabaseOption(pCxt, A, &B); }
@@ -937,6 +944,12 @@ alter_db_options(A) ::= alter_db_options(B) alter_db_option(C).                 
 alter_db_option(A) ::= BUFFER NK_INTEGER(B).                                      { A.type = DB_OPTION_BUFFER; A.val = B; }
 alter_db_option(A) ::= CACHEMODEL NK_STRING(B).                                   { A.type = DB_OPTION_CACHEMODEL; A.val = B; }
 alter_db_option(A) ::= CACHESIZE NK_INTEGER(B).                                   { A.type = DB_OPTION_CACHESIZE; A.val = B; }
+alter_db_option(A) ::= CACHESHARDBITS NK_INTEGER(B).                               { A.type = DB_OPTION_CACHESHARDBITS; A.val = B; }
+alter_db_option(A) ::= CACHESHARDBITS NK_MINUS(B) NK_INTEGER(C).                  {
+                                                                                    SToken t = B;
+                                                                                    t.n = (C.z + C.n) - B.z;
+                                                                                    A.type = DB_OPTION_CACHESHARDBITS; A.val = t;
+                                                                                  }
 alter_db_option(A) ::= WAL_FSYNC_PERIOD NK_INTEGER(B).                            { A.type = DB_OPTION_FSYNC; A.val = B; }
 alter_db_option(A) ::= KEEP integer_list(B).                                      { A.type = DB_OPTION_KEEP; A.pList = B; }
 alter_db_option(A) ::= KEEP variable_list(B).                                     { A.type = DB_OPTION_KEEP; A.pList = B; }
@@ -971,6 +984,7 @@ alter_db_option(A) ::= COMPACT_TIME_RANGE signed_duration_list(B).              
 alter_db_option(A) ::= COMPACT_TIME_OFFSET NK_INTEGER(B).                         { A.type = DB_OPTION_COMPACT_TIME_OFFSET; A.val = B; }
 alter_db_option(A) ::= COMPACT_TIME_OFFSET NK_VARIABLE(B).                        { A.type = DB_OPTION_COMPACT_TIME_OFFSET; A.val = B; }
 alter_db_option(A) ::= ALLOW_DROP NK_INTEGER(B).                                  { A.type = DB_OPTION_ALLOW_DROP; A.val = B; }
+alter_db_option(A) ::= SECURE_DELETE NK_INTEGER(B).                               { A.type = DB_OPTION_SECURE_DELETE; A.val = B; }
 
 %type integer_list                                                                { SNodeList* }
 %destructor integer_list                                                          { nodesDestroyList($$); }
@@ -1024,12 +1038,12 @@ cmd ::= CREATE VTABLE not_exists_opt(A) full_table_name(B)
   NK_LP column_def_list(C) NK_RP.                                                 { pCxt->pRootNode = createCreateVTableStmt(pCxt, A, B, C); }
 cmd ::= CREATE VTABLE not_exists_opt(A) full_table_name(B)
   NK_LP specific_column_ref_list(C) NK_RP USING full_table_name(D)
-  specific_cols_opt(E) TAGS NK_LP tags_literal_list(F) NK_RP.                     { pCxt->pRootNode = createCreateVSubTableStmt(pCxt, A, B, C, NULL, D, E, F); }
+  specific_cols_opt(E) TAGS NK_LP tags_literal_list(F) NK_RP.                    { pCxt->pRootNode = createCreateVSubTableStmt(pCxt, A, B, C, NULL, D, E, F, NULL, NULL); }
 cmd ::= CREATE VTABLE not_exists_opt(A) full_table_name(B)
   NK_LP column_ref_list(C) NK_RP USING full_table_name(D)
-  specific_cols_opt(E) TAGS NK_LP tags_literal_list(F) NK_RP.                     { pCxt->pRootNode = createCreateVSubTableStmt(pCxt, A, B, NULL, C, D, E, F); }
+  specific_cols_opt(E) TAGS NK_LP tags_literal_list(F) NK_RP.                    { pCxt->pRootNode = createCreateVSubTableStmt(pCxt, A, B, NULL, C, D, E, F, NULL, NULL); }
 cmd ::= CREATE VTABLE not_exists_opt(A) full_table_name(B) USING full_table_name(C)
-  specific_cols_opt(D) TAGS NK_LP tags_literal_list(E) NK_RP.                     { pCxt->pRootNode = createCreateVSubTableStmt(pCxt, A, B, NULL, NULL, C, D, E); }
+  specific_cols_opt(D) TAGS NK_LP tags_literal_list(E) NK_RP.                    { pCxt->pRootNode = createCreateVSubTableStmt(pCxt, A, B, NULL, NULL, C, D, E, NULL, NULL); }
 cmd ::= DROP TABLE with_opt(A) multi_drop_clause(B).                              { pCxt->pRootNode = createDropTableStmt(pCxt, A, B); }
 cmd ::= DROP STABLE with_opt(A) exists_opt(B) full_table_name(C).                 { pCxt->pRootNode = createDropSuperTableStmt(pCxt, A, B, C); }
 cmd ::= DROP VTABLE with_opt(A) exists_opt(B) full_table_name(C).                 { pCxt->pRootNode = createDropVirtualTableStmt(pCxt, A, B, C); }
@@ -1063,14 +1077,42 @@ alter_table_clause(A) ::=
 alter_table_clause(A) ::=
   full_table_name(B) ALTER COLUMN column_name(C) SET NULL(D).                     { A = createAlterTableRemoveColRef(pCxt, B, TSDB_ALTER_TABLE_REMOVE_COLUMN_REF, &C, &D); }
 
+/* update multi table tag values */
 %type column_tag_value_list                                                          { SNodeList* }
 %destructor column_tag_value_list                                                    { nodesDestroyList($$); }
-column_tag_value(A) ::= column_name(C) NK_EQ tags_literal(D).                        { A = createAlterSingleTagColumnNode(pCxt, &C, D); }
+column_tag_value(A) ::= column_name(B) NK_EQ tags_literal(C).                        { A = createAlterTagValueNode(pCxt, &B, C); }
+
 column_tag_value_list(A) ::= column_tag_value(B).                                    { A = createNodeList(pCxt, B); }
 column_tag_value_list(A) ::= column_tag_value_list(B) NK_COMMA column_tag_value(C).  { A = addNodeToList(pCxt, B, C);}
 
-alter_table_clause(A) ::=
-  full_table_name(B) SET TAG column_tag_value_list(C).                            { A = createAlterTableSetMultiTagValue(pCxt, B, C); }
+%type alter_single_table_clause                                                      { SNode* }
+%destructor alter_single_table_clause                                                { nodesDestroyNode($$); }
+alter_single_table_clause(A) ::= full_table_name(B) SET TAG column_tag_value_list(C). { A = createAlterTableUpdateTagValClause(pCxt, B, C); }
+
+%type alter_multi_table_clause                                                       { SNodeList* }
+%destructor alter_multi_table_clause                                                 { nodesDestroyList($$); }
+alter_multi_table_clause(A) ::= alter_single_table_clause(B).                        { A = createNodeList(pCxt, B); }
+alter_multi_table_clause(A) ::= alter_multi_table_clause(B) alter_single_table_clause(C). { A = addNodeToList(pCxt, B, C); }
+
+alter_table_clause(A) ::= alter_multi_table_clause(B).                               { A = createAlterMultiTableUpdateTagValStmt(pCxt, B); }
+
+/* update child table tag values */
+column_tag_expr_value(A) ::= column_tag_value(B).                                    { A = B; }
+/* NOTE: the use of REGEXP_REPLACE is a temporary solution, will be replaced by a more general solution like below in the future:
+       column_tag_expr_value(A) ::= column_name(B) NK_EQ expression(C).
+*/
+column_tag_expr_value(A) ::= column_name(B) NK_EQ REGEXP_REPLACE NK_LP NK_ID NK_COMMA NK_STRING(C) NK_COMMA NK_STRING(D) NK_RP. {
+    A = createAlterTagValueNodeWithExpression(pCxt, &B, &C, &D);
+  }
+
+%type column_tag_expr_value_list                                                      { SNodeList* }
+%destructor column_tag_expr_value_list                                                { nodesDestroyList($$); }
+column_tag_expr_value_list(A) ::= column_tag_expr_value(B).                                { A = createNodeList(pCxt, B); }
+column_tag_expr_value_list(A) ::= column_tag_expr_value_list(B) NK_COMMA column_tag_expr_value(C). { A = addNodeToList(pCxt, B, C); }
+
+alter_table_clause(A) ::= USING full_table_name(B) SET TAG column_tag_expr_value_list(C) where_clause_opt(D). {
+    A = createAlterChildTableUpdateTagValStmt(pCxt, B, C, D);
+  }
 
 %type multi_create_clause                                                         { SNodeList* }
 %destructor multi_create_clause                                                   { nodesDestroyList($$); }
@@ -1186,6 +1228,7 @@ table_options(A) ::= table_options(B) DELETE_MARK duration_list(C).             
 table_options(A) ::= table_options(B) KEEP NK_INTEGER(C).                         { A = setTableOption(pCxt, B, TABLE_OPTION_KEEP, &C); }
 table_options(A) ::= table_options(B) KEEP NK_VARIABLE(C).                        { A = setTableOption(pCxt, B, TABLE_OPTION_KEEP, &C); }
 table_options(A) ::= table_options(B) VIRTUAL NK_INTEGER(C).                      { A = setTableOption(pCxt, B, TABLE_OPTION_VIRTUAL, &C); }
+table_options(A) ::= table_options(B) SECURE_DELETE NK_INTEGER(C).                { A = setTableOption(pCxt, B, TABLE_OPTION_SECURE_DELETE, &C); }
 
 alter_table_options(A) ::= alter_table_option(B).                                 { A = createAlterTableOptions(pCxt); A = setTableOption(pCxt, A, B.type, &B.val); }
 alter_table_options(A) ::= alter_table_options(B) alter_table_option(C).          { A = setTableOption(pCxt, B, C.type, &C.val); }
@@ -1196,6 +1239,7 @@ alter_table_option(A) ::= COMMENT NK_STRING(B).                                 
 alter_table_option(A) ::= TTL NK_INTEGER(B).                                      { A.type = TABLE_OPTION_TTL; A.val = B; }
 alter_table_option(A) ::= KEEP NK_INTEGER(B).                                     { A.type = TABLE_OPTION_KEEP; A.val = B; }
 alter_table_option(A) ::= KEEP NK_VARIABLE(B).                                    { A.type = TABLE_OPTION_KEEP; A.val = B; }
+alter_table_option(A) ::= SECURE_DELETE NK_INTEGER(B).                            { A.type = TABLE_OPTION_SECURE_DELETE; A.val = B; }
 
 
 %type duration_list                                                               { SNodeList* }
@@ -1316,6 +1360,8 @@ cmd ::= SHOW SCANS.                                                             
 cmd ::= SHOW SCAN NK_INTEGER(A).                                                  { pCxt->pRootNode = createShowScanDetailsStmt(pCxt, createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &A)); }
 cmd ::= SHOW SSMIGRATES.                                                          { pCxt->pRootNode = createShowSsMigratesStmt(pCxt, QUERY_NODE_SHOW_SSMIGRATES_STMT); }
 cmd ::= SHOW TOKENS.                                                              { pCxt->pRootNode = createShowTokensStmt(pCxt, QUERY_NODE_SHOW_TOKENS_STMT); }
+cmd ::= SHOW VTABLE VALIDATE FOR full_table_name(A).                             { pCxt->pRootNode = createShowValidateVirtualTableStmt(pCxt, QUERY_NODE_SHOW_VALIDATE_VTABLE_STMT, A); 
+}
 
 %type table_kind_db_name_cond_opt                                                 { SShowTablesOption }
 %destructor table_kind_db_name_cond_opt                                           { }
@@ -1742,6 +1788,7 @@ dnode_list(A) ::= dnode_list(B) DNODE NK_INTEGER(C).                            
 
 /************************************************ syncdb **************************************************************/
 cmd ::= DELETE FROM full_table_name(A) where_clause_opt(B).                       { pCxt->pRootNode = createDeleteStmt(pCxt, A, B); }
+cmd ::= DELETE FROM full_table_name(A) where_clause_opt(B) SECURE_DELETE.         { pCxt->pRootNode = createSecureDeleteStmt(pCxt, A, B); }
 
 /************************************************ select **************************************************************/
 cmd ::= query_or_subquery(A).                                                     { pCxt->pRootNode = A; }
@@ -1942,6 +1989,17 @@ tags_literal(A) ::= literal_func(B) NK_MINUS duration_literal(C).               
 %destructor tags_literal_list                                                     { nodesDestroyList($$); }
 tags_literal_list(A) ::= tags_literal(B).                                         { A = createNodeList(pCxt, B); }
 tags_literal_list(A) ::= tags_literal_list(B) NK_COMMA tags_literal(C).           { A = addNodeToList(pCxt, B, C); }
+
+//%type vtags_literal_list                                                          { SNodeList* }
+//%destructor vtags_literal_list                                                    { nodesDestroyList($$); }
+//vtags_literal_list(A) ::= vtags_literal(B).                                       { A = createNodeList(pCxt, B); }
+//vtags_literal_list(A) ::= vtags_literal_list(B) NK_COMMA vtags_literal(C).        { A = addNodeToList(pCxt, B, C); }
+
+//vtags_literal(A) ::= tags_literal(B).                                             { A = B; }
+//vtags_literal(A) ::= FROM column_ref(B).                                          { A = B; }
+//vtags_literal(A) ::= NK_ID(B) FROM column_ref(C).                                 { A = createColumnRefNodeByNode(pCxt, &B, C); }
+//vtags_literal(A) ::= NK_ID(B) NK_DOT NK_ID(C) NK_DOT NK_ID(D).                   { A = createColumnRefNodeFromTriplet(pCxt, &B, &C, &D); }
+//vtags_literal(A) ::= NK_ID(B) NK_DOT NK_ID(C).                                    { A = createColumnRefNodeFromPair(pCxt, &B, &C); }
 
 /************************************************ literal *************************************************************/
 literal(A) ::= NK_INTEGER(B).                                                     { A = createRawExprNode(pCxt, &B, createValueNode(pCxt, TSDB_DATA_TYPE_UBIGINT, &B)); }

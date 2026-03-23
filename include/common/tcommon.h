@@ -394,6 +394,17 @@ typedef struct SSortExecInfo {
   int32_t readBytes;   // read io bytes
 } SSortExecInfo;
 
+typedef struct SExchangeExplainInfo {
+  int8_t   mode;          // 0: concurrent, 1: sequential
+  int32_t  numSources;
+  double   avgFetchTimes;
+  uint64_t maxFetchTimes;
+  double   avgFetchRows;
+  uint64_t maxFetchRows;
+  double   avgFetchCost;  // us
+  int64_t  maxFetchCost;  // us
+} SExchangeExplainInfo;
+
 typedef struct SNonSortExecInfo {
   int32_t blkNums;
 } SNonSortExecInfo;

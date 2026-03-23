@@ -73,6 +73,7 @@ typedef struct SExternalWindowOperator {
   SResultRow*        pResultRow;
 
   int64_t            lastSKey;
+  int64_t            lastEKey;
   int32_t            lastWinId;
   SSDataBlock*       pEmptyInputBlock;
   bool               hasCountFunc;
@@ -695,7 +696,6 @@ static int32_t mergeAlignExtWinNext(SOperatorInfo* pOperator, SSDataBlock** ppRe
   mergeAlignExtWinDo(pOperator);
   
   size_t rows = pRes->info.rows;
-  pOperator->resultInfo.totalRows += rows;
   (*ppRes) = (rows == 0) ? NULL : pRes;
 
 _exit:
@@ -747,6 +747,7 @@ int32_t createMergeAlignedExternalWindowOperator(SOperatorInfo* pDownstream, SPh
     code = terrno;
     goto _error;
   }
+  initOperatorCostInfo(pOperator);
 
   pMlExtInfo->pExtW = taosMemoryCalloc(1, sizeof(SExternalWindowOperator));
   if (!pMlExtInfo->pExtW) {
@@ -866,6 +867,7 @@ static int32_t resetExternalWindowOperator(SOperatorInfo* pOperator) {
 
   pExtW->outWinIdx = 0;
   pExtW->lastSKey = INT64_MIN;
+  pExtW->lastEKey = INT64_MIN;
   pExtW->isDynWindow = false;
 
   qDebug("%s ext window stat at reset, created:%" PRId64 ", destroyed:%" PRId64 ", recycled:%" PRId64 ", reused:%" PRId64 ", append:%" PRId64, 
@@ -1784,7 +1786,8 @@ static int32_t extWinAggHandleEmptyWins(SOperatorInfo* pOperator, SSDataBlock* p
   SExprSupp* pSup = &pOperator->exprSupp;
   int32_t currIdx = extWinGetCurWinIdx(pOperator->pTaskInfo);
 
-  if (NULL == pExtW->pEmptyInputBlock || (pWin && pWin->tw.skey == pExtW->lastSKey)) {
+  if (NULL == pExtW->pEmptyInputBlock ||
+      (pWin && pWin->tw.skey == pExtW->lastSKey && pWin->tw.ekey == pExtW->lastEKey)) {
     goto _exit;
   }
 
@@ -1860,14 +1863,16 @@ static int32_t extWinAggOpen(SOperatorInfo* pOperator, SSDataBlock* pInputBlock)
       scalarCalc = true;
     }
 
-    if (pWin->tw.skey != pExtW->lastSKey || pWin->tw.skey == INT64_MIN) {
-      TAOS_CHECK_EXIT(extWinAggSetWinOutputBuf(pOperator, pWin, &pOperator->exprSupp, &pExtW->aggSup, pOperator->pTaskInfo));
+    if (pWin->tw.skey != pExtW->lastSKey || pWin->tw.ekey != pExtW->lastEKey || pWin->tw.skey == INT64_MIN) {
+      TAOS_CHECK_EXIT(
+          extWinAggSetWinOutputBuf(pOperator, pWin, &pOperator->exprSupp, &pExtW->aggSup, pOperator->pTaskInfo));
     }
-    
+
     updateTimeWindowInfo(&pExtW->twAggSup.timeWindowData, &pWin->tw, 1);
     TAOS_CHECK_EXIT(extWinAggDo(pOperator, startPos, winRows, pInputBlock));
     
     pExtW->lastSKey = pWin->tw.skey;
+    pExtW->lastEKey = pWin->tw.ekey;
     pExtW->lastWinId = extWinGetCurWinIdx(pOperator->pTaskInfo);
     startPos += winRows;
   }
@@ -2143,6 +2148,7 @@ static int32_t extWinOpen(SOperatorInfo* pOperator) {
     pExtW->blkWinStartIdx = 0;
     pExtW->outWinIdx = 0;
     pExtW->lastSKey = INT64_MIN;
+    pExtW->lastEKey = INT64_MIN;
     pExtW->isDynWindow = true;
     pExtW->orgTableTimeRange.skey = INT64_MAX;
     pExtW->orgTableTimeRange.ekey = INT64_MIN;
@@ -2302,7 +2308,6 @@ static int32_t extWinNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   }
 
   if (*ppRes) {
-    pOperator->resultInfo.totalRows += (*ppRes)->info.rows;
     printDataBlock(*ppRes, __func__, GET_TASKID(pTaskInfo), pTaskInfo->id.queryId);
   }
   
@@ -2321,7 +2326,7 @@ _exit:
   if (pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM && (*ppRes)) {
     printDataBlock(*ppRes, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo), pTaskInfo->id.queryId);
   }
-  
+
   return code;
 }
 
@@ -2340,6 +2345,7 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
     lino = __LINE__;
     goto _error;
   }
+  initOperatorCostInfo(pOperator);
   
   setOperatorInfo(pOperator, "ExternalWindowOperator", QUERY_NODE_PHYSICAL_PLAN_EXTERNAL_WINDOW, true, OP_NOT_OPENED,
                   pExtW, pTaskInfo);
@@ -2424,6 +2430,7 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
     QUERY_CHECK_CODE(code, lino, _error);
 
     pExtW->lastSKey = INT64_MIN;
+    pExtW->lastEKey = INT64_MIN;
   } else {
     size_t  keyBufSize = sizeof(int64_t) + sizeof(int64_t) + POINTER_BYTES;
     

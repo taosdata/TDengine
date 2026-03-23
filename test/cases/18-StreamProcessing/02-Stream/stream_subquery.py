@@ -64,8 +64,59 @@ class TestStreamSubquery:
         self.dropStream('db.twosubq_stream')
         self.dropOutTable('db.twosubq_tb')
 
-        #self.createInStream()
-        #self.checkInResult()
+        # ntb with in
+        self.createInStream()
+        self.checkInResult()
+        self.dropStream('db.sub_in_stream')
+        self.dropOutTable('db.sub_in_tb')
+
+        # ntb with in recursively
+        self.createInRecursiveStream()
+        self.checkInRecursiveResult()
+        self.dropStream('db.sub_in_rec_stream')
+        self.dropOutTable('db.sub_in_rec_tb')
+
+        # ntb with any
+        self.createAnyStream()
+        self.checkAnyResult()
+        self.dropStream('db.sub_any_stream')
+        self.dropOutTable('db.sub_any_tb')
+
+        # ntb with some (synonym for any)
+        self.createSomeStream()
+        self.checkSomeResult()
+        self.dropStream('db.sub_some_stream')
+        self.dropOutTable('db.sub_some_tb')
+
+        # ntb with not in
+        self.createNotInStream()
+        self.checkNotInResult()
+        self.dropStream('db.sub_notin_stream')
+        self.dropOutTable('db.sub_notin_tb')
+
+        # ntb with exists
+        self.createExistsStream()
+        self.checkExistsResult()
+        self.dropStream('db.sub_exists_stream')
+        self.dropOutTable('db.sub_exists_tb')
+
+        # ntb with not exists
+        self.createNotExistsStream()
+        self.checkNotExistsResult()
+        self.dropStream('db.sub_nexists_stream')
+        self.dropOutTable('db.sub_nexists_tb')
+
+        # ntb with all
+        self.createAllStream()
+        self.checkAllResult()
+        self.dropStream('db.sub_all_stream')
+        self.dropOutTable('db.sub_all_tb')
+
+        # ntb with > any (filtering — only f1 > min of subquery)
+        self.createGtAnyStream()
+        self.checkGtAnyResult()
+        self.dropStream('db.sub_gtany_stream')
+        self.dropOutTable('db.sub_gtany_tb')
 
         #self.prepareCountData()
         #self.createCountStream()
@@ -317,8 +368,395 @@ class TestStreamSubquery:
             tdLog.debug(f"current row count: {tdSql.getData(0,0)}")
             time.sleep(1)
 
-        tdSql.query(f"select * from db.`sub_range_tb`;")
+        tdSql.query(f"select * from db.`sub_in_tb`;")
         tdSql.checkData(0, 1, 10)
+        tdSql.checkData(0, 2, 20)
+        tdSql.checkData(1, 1, 20)
+        tdSql.checkData(1, 2, 30)
+        tdSql.checkData(2, 1, 30)
+        tdSql.checkData(2, 2, 40)
+
+        tdLog.info(f"check stream result successfully.")
+
+    def createInRecursiveStream(self):
+        tdLog.info(f"create stream:")
+        sql = (
+        f"create stream db.sub_in_rec_stream count_window(2, 1) from db.tb  stream_options(fill_history('2026-01-11 00:00:00')|low_latency_calc)  into db.sub_in_rec_tb  as  select _twstart as ts, first(f1) as ff1, last(f1) as lf1   from db.tb  where ts>= _twstart and ts<= _twend and f1 in (select f1 from db.tb where f1 > (select first(f1)-1 from db.tb));"
+        )
+
+        tdLog.info(f"create stream:{sql}")
+
+        try:
+            tdSql.execute(sql)
+        except Exception as e:
+            if "No stream available snode now" not in str(e):
+                raise Exception(f" user cant  create stream no snode ,but create success")
+
+        while True:
+            tdSql.query(f"select status from information_schema.ins_streams")
+            if tdSql.getData(0,0) == "Running":
+                tdLog.info("Stream is running!")
+                break
+
+            tdLog.debug(f"current stream status: {tdSql.getData(0,0)}")
+            time.sleep(1)
+
+    def checkInRecursiveResult(self):
+        tdLog.info(f"checkInRecursiveResult start")
+
+        time.sleep(2)
+        while True:
+            tdSql.query(f"select count(*) from db.`sub_in_rec_tb`;")
+            if tdSql.getData(0,0) == 3:
+                tdLog.info(f"get {tdSql.getData(0,0)} rows")
+                break
+
+            tdLog.debug(f"current row count: {tdSql.getData(0,0)}")
+            time.sleep(1)
+
+        tdSql.query(f"select * from db.`sub_in_rec_tb`;")
+        tdSql.checkData(0, 1, 10)
+        tdSql.checkData(0, 2, 20)
+        tdSql.checkData(1, 1, 20)
+        tdSql.checkData(1, 2, 30)
+        tdSql.checkData(2, 1, 30)
+        tdSql.checkData(2, 2, 40)
+
+        tdLog.info(f"check stream result successfully.")
+
+    def createAnyStream(self):
+        tdLog.info(f"create stream:")
+        sql = (
+        f"create stream db.sub_any_stream count_window(2, 1) from db.tb  stream_options(fill_history('2026-01-11 00:00:00')|low_latency_calc)  into db.sub_any_tb  as  select _twstart as ts, first(f1) as ff1, last(f1) as lf1   from db.tb  where ts>= _twstart and ts<= _twend and f1 = any (select f1 from db.tb);"
+        )
+
+        tdLog.info(f"create stream:{sql}")
+
+        try:
+            tdSql.execute(sql)
+        except Exception as e:
+            if "No stream available snode now" not in str(e):
+                raise Exception(f" user cant  create stream no snode ,but create success")
+
+        while True:
+            tdSql.query(f"select status from information_schema.ins_streams")
+            if tdSql.getData(0,0) == "Running":
+                tdLog.info("Stream is running!")
+                break
+
+            tdLog.debug(f"current stream status: {tdSql.getData(0,0)}")
+            time.sleep(1)
+
+    def checkAnyResult(self):
+        tdLog.info(f"checkAnyResult start")
+
+        time.sleep(2)
+        while True:
+            tdSql.query(f"select count(*) from db.`sub_any_tb`;")
+            if tdSql.getData(0,0) == 3:
+                tdLog.info(f"get {tdSql.getData(0,0)} rows")
+                break
+
+            tdLog.debug(f"current row count: {tdSql.getData(0,0)}")
+            time.sleep(1)
+
+        tdSql.query(f"select * from db.`sub_any_tb`;")
+        tdSql.checkData(0, 1, 10)
+        tdSql.checkData(0, 2, 20)
+        tdSql.checkData(1, 1, 20)
+        tdSql.checkData(1, 2, 30)
+        tdSql.checkData(2, 1, 30)
+        tdSql.checkData(2, 2, 40)
+
+        tdLog.info(f"check stream result successfully.")
+
+    # ── SOME (synonym for ANY) ────────────────────────────────────────────
+    # f1 = some (select f1 from db.tb)  →  equivalent to IN  →  all 4 rows match  →  3 windows
+
+    def createSomeStream(self):
+        tdLog.info(f"create some stream:")
+        sql = (
+        f"create stream db.sub_some_stream count_window(2, 1) from db.tb  stream_options(fill_history('2026-01-11 00:00:00')|low_latency_calc)  into db.sub_some_tb  as  select _twstart as ts, first(f1) as ff1, last(f1) as lf1   from db.tb  where ts>= _twstart and ts<= _twend and f1 = some (select f1 from db.tb);"
+        )
+
+        tdLog.info(f"create stream:{sql}")
+
+        try:
+            tdSql.execute(sql)
+        except Exception as e:
+            if "No stream available snode now" not in str(e):
+                raise Exception(f" user cant  create stream no snode ,but create success")
+
+        while True:
+            tdSql.query(f"select status from information_schema.ins_streams")
+            if tdSql.getData(0,0) == "Running":
+                tdLog.info("Stream is running!")
+                break
+
+            tdLog.debug(f"current stream status: {tdSql.getData(0,0)}")
+            time.sleep(1)
+
+    def checkSomeResult(self):
+        tdLog.info(f"checkSomeResult start")
+
+        time.sleep(2)
+        while True:
+            tdSql.query(f"select count(*) from db.`sub_some_tb`;")
+            if tdSql.getData(0,0) == 3:
+                tdLog.info(f"get {tdSql.getData(0,0)} rows")
+                break
+
+            tdLog.debug(f"current row count: {tdSql.getData(0,0)}")
+            time.sleep(1)
+
+        tdSql.query(f"select * from db.`sub_some_tb`;")
+        tdSql.checkData(0, 1, 10)
+        tdSql.checkData(0, 2, 20)
+        tdSql.checkData(1, 1, 20)
+        tdSql.checkData(1, 2, 30)
+        tdSql.checkData(2, 1, 30)
+        tdSql.checkData(2, 2, 40)
+
+        tdLog.info(f"check stream result successfully.")
+
+    # ── NOT IN ────────────────────────────────────────────────────────────
+    # f1 not in (select f1 from db.tb where f1 > 100)  →  subquery returns empty  →  all rows pass  →  3 windows
+
+    def createNotInStream(self):
+        tdLog.info(f"create not in stream:")
+        sql = (
+        f"create stream db.sub_notin_stream count_window(2, 1) from db.tb  stream_options(fill_history('2026-01-11 00:00:00')|low_latency_calc)  into db.sub_notin_tb  as  select _twstart as ts, first(f1) as ff1, last(f1) as lf1   from db.tb  where ts>= _twstart and ts<= _twend and f1 not in (select f1 from db.tb where f1 > 100);"
+        )
+
+        tdLog.info(f"create stream:{sql}")
+
+        try:
+            tdSql.execute(sql)
+        except Exception as e:
+            if "No stream available snode now" not in str(e):
+                raise Exception(f" user cant  create stream no snode ,but create success")
+
+        while True:
+            tdSql.query(f"select status from information_schema.ins_streams")
+            if tdSql.getData(0,0) == "Running":
+                tdLog.info("Stream is running!")
+                break
+
+            tdLog.debug(f"current stream status: {tdSql.getData(0,0)}")
+            time.sleep(1)
+
+    def checkNotInResult(self):
+        tdLog.info(f"checkNotInResult start")
+
+        time.sleep(2)
+        while True:
+            tdSql.query(f"select count(*) from db.`sub_notin_tb`;")
+            if tdSql.getData(0,0) == 3:
+                tdLog.info(f"get {tdSql.getData(0,0)} rows")
+                break
+
+            tdLog.debug(f"current row count: {tdSql.getData(0,0)}")
+            time.sleep(1)
+
+        tdSql.query(f"select * from db.`sub_notin_tb`;")
+        tdSql.checkData(0, 1, 10)
+        tdSql.checkData(0, 2, 20)
+        tdSql.checkData(1, 1, 20)
+        tdSql.checkData(1, 2, 30)
+        tdSql.checkData(2, 1, 30)
+        tdSql.checkData(2, 2, 40)
+
+        tdLog.info(f"check stream result successfully.")
+
+    # ── EXISTS ────────────────────────────────────────────────────────────
+    # exists (select 1 from db.tb where f1 > 0)  →  subquery has rows  →  true for every trigger row  →  3 windows
+
+    def createExistsStream(self):
+        tdLog.info(f"create exists stream:")
+        sql = (
+        f"create stream db.sub_exists_stream count_window(2, 1) from db.tb  stream_options(fill_history('2026-01-11 00:00:00')|low_latency_calc)  into db.sub_exists_tb  as  select _twstart as ts, first(f1) as ff1, last(f1) as lf1   from db.tb  where ts>= _twstart and ts<= _twend and exists (select 1 from db.tb where f1 > 0);"
+        )
+
+        tdLog.info(f"create stream:{sql}")
+
+        try:
+            tdSql.execute(sql)
+        except Exception as e:
+            if "No stream available snode now" not in str(e):
+                raise Exception(f" user cant  create stream no snode ,but create success")
+
+        while True:
+            tdSql.query(f"select status from information_schema.ins_streams")
+            if tdSql.getData(0,0) == "Running":
+                tdLog.info("Stream is running!")
+                break
+
+            tdLog.debug(f"current stream status: {tdSql.getData(0,0)}")
+            time.sleep(1)
+
+    def checkExistsResult(self):
+        tdLog.info(f"checkExistsResult start")
+
+        time.sleep(2)
+        while True:
+            tdSql.query(f"select count(*) from db.`sub_exists_tb`;")
+            if tdSql.getData(0,0) == 3:
+                tdLog.info(f"get {tdSql.getData(0,0)} rows")
+                break
+
+            tdLog.debug(f"current row count: {tdSql.getData(0,0)}")
+            time.sleep(1)
+
+        tdSql.query(f"select * from db.`sub_exists_tb`;")
+        tdSql.checkData(0, 1, 10)
+        tdSql.checkData(0, 2, 20)
+        tdSql.checkData(1, 1, 20)
+        tdSql.checkData(1, 2, 30)
+        tdSql.checkData(2, 1, 30)
+        tdSql.checkData(2, 2, 40)
+
+        tdLog.info(f"check stream result successfully.")
+
+    # ── NOT EXISTS ────────────────────────────────────────────────────────
+    # not exists (select 1 from db.tb where f1 > 100)  →  subquery returns no rows  →  true  →  3 windows
+
+    def createNotExistsStream(self):
+        tdLog.info(f"create not exists stream:")
+        sql = (
+        f"create stream db.sub_nexists_stream count_window(2, 1) from db.tb  stream_options(fill_history('2026-01-11 00:00:00')|low_latency_calc)  into db.sub_nexists_tb  as  select _twstart as ts, first(f1) as ff1, last(f1) as lf1   from db.tb  where ts>= _twstart and ts<= _twend and not exists (select 1 from db.tb where f1 > 100);"
+        )
+
+        tdLog.info(f"create stream:{sql}")
+
+        try:
+            tdSql.execute(sql)
+        except Exception as e:
+            if "No stream available snode now" not in str(e):
+                raise Exception(f" user cant  create stream no snode ,but create success")
+
+        while True:
+            tdSql.query(f"select status from information_schema.ins_streams")
+            if tdSql.getData(0,0) == "Running":
+                tdLog.info("Stream is running!")
+                break
+
+            tdLog.debug(f"current stream status: {tdSql.getData(0,0)}")
+            time.sleep(1)
+
+    def checkNotExistsResult(self):
+        tdLog.info(f"checkNotExistsResult start")
+
+        time.sleep(2)
+        while True:
+            tdSql.query(f"select count(*) from db.`sub_nexists_tb`;")
+            if tdSql.getData(0,0) == 3:
+                tdLog.info(f"get {tdSql.getData(0,0)} rows")
+                break
+
+            tdLog.debug(f"current row count: {tdSql.getData(0,0)}")
+            time.sleep(1)
+
+        tdSql.query(f"select * from db.`sub_nexists_tb`;")
+        tdSql.checkData(0, 1, 10)
+        tdSql.checkData(0, 2, 20)
+        tdSql.checkData(1, 1, 20)
+        tdSql.checkData(1, 2, 30)
+        tdSql.checkData(2, 1, 30)
+        tdSql.checkData(2, 2, 40)
+
+        tdLog.info(f"check stream result successfully.")
+
+    # ── ALL ───────────────────────────────────────────────────────────────
+    # f1 >= all (select first(f1) from db.tb)  →  first(f1)=10, all values >= 10  →  all rows pass  →  3 windows
+
+    def createAllStream(self):
+        tdLog.info(f"create all stream:")
+        sql = (
+        f"create stream db.sub_all_stream count_window(2, 1) from db.tb  stream_options(fill_history('2026-01-11 00:00:00')|low_latency_calc)  into db.sub_all_tb  as  select _twstart as ts, first(f1) as ff1, last(f1) as lf1   from db.tb  where ts>= _twstart and ts<= _twend and f1 >= all (select first(f1) from db.tb);"
+        )
+
+        tdLog.info(f"create stream:{sql}")
+
+        try:
+            tdSql.execute(sql)
+        except Exception as e:
+            if "No stream available snode now" not in str(e):
+                raise Exception(f" user cant  create stream no snode ,but create success")
+
+        while True:
+            tdSql.query(f"select status from information_schema.ins_streams")
+            if tdSql.getData(0,0) == "Running":
+                tdLog.info("Stream is running!")
+                break
+
+            tdLog.debug(f"current stream status: {tdSql.getData(0,0)}")
+            time.sleep(1)
+
+    def checkAllResult(self):
+        tdLog.info(f"checkAllResult start")
+
+        time.sleep(2)
+        while True:
+            tdSql.query(f"select count(*) from db.`sub_all_tb`;")
+            if tdSql.getData(0,0) == 3:
+                tdLog.info(f"get {tdSql.getData(0,0)} rows")
+                break
+
+            tdLog.debug(f"current row count: {tdSql.getData(0,0)}")
+            time.sleep(1)
+
+        tdSql.query(f"select * from db.`sub_all_tb`;")
+        tdSql.checkData(0, 1, 10)
+        tdSql.checkData(0, 2, 20)
+        tdSql.checkData(1, 1, 20)
+        tdSql.checkData(1, 2, 30)
+        tdSql.checkData(2, 1, 30)
+        tdSql.checkData(2, 2, 40)
+
+        tdLog.info(f"check stream result successfully.")
+
+    # ── > ANY (with filtering) ────────────────────────────────────────────
+    # f1 > any (select f1 from db.tb where f1 < 30)  →  subquery returns {10,20}  →  f1 > min(10)  →  f1 > 10
+    # Only f1=20,30,40 pass.  count_window(2,1) over 3 rows  →  2 windows: [20,30] and [30,40]
+
+    def createGtAnyStream(self):
+        tdLog.info(f"create > any stream:")
+        sql = (
+        f"create stream db.sub_gtany_stream count_window(2, 1) from db.tb  stream_options(fill_history('2026-01-11 00:00:00')|low_latency_calc)  into db.sub_gtany_tb  as  select _twstart as ts, first(f1) as ff1, last(f1) as lf1   from db.tb  where ts>= _twstart and ts<= _twend and f1 > any (select f1 from db.tb where f1 < 30);"
+        )
+
+        tdLog.info(f"create stream:{sql}")
+
+        try:
+            tdSql.execute(sql)
+        except Exception as e:
+            if "No stream available snode now" not in str(e):
+                raise Exception(f" user cant  create stream no snode ,but create success")
+
+        while True:
+            tdSql.query(f"select status from information_schema.ins_streams")
+            if tdSql.getData(0,0) == "Running":
+                tdLog.info("Stream is running!")
+                break
+
+            tdLog.debug(f"current stream status: {tdSql.getData(0,0)}")
+            time.sleep(1)
+
+    def checkGtAnyResult(self):
+        tdLog.info(f"checkGtAnyResult start")
+
+        time.sleep(2)
+        while True:
+            tdSql.query(f"select count(*) from db.`sub_gtany_tb`;")
+            if tdSql.getData(0,0) == 3:
+                tdLog.info(f"get {tdSql.getData(0,0)} rows")
+                break
+
+            tdLog.debug(f"current row count: {tdSql.getData(0,0)}")
+            time.sleep(1)
+
+        tdSql.query(f"select * from db.`sub_gtany_tb`;")
+        tdSql.checkData(0, 1, 20)
         tdSql.checkData(0, 2, 20)
         tdSql.checkData(1, 1, 20)
         tdSql.checkData(1, 2, 30)

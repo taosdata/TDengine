@@ -74,15 +74,19 @@ int32_t mndOpenXnd(const SXnodeOpt *pOption) {
 void mndCloseXnd() { xnodeMgmtStopXnoded(); }
 
 void getXnodedPipeName(char *pipeName, int32_t size) {
-#ifdef _WIN32
-  snprintf(pipeName, size, "%s.%x", XNODED_MGMT_LISTEN_PIPE_NAME_PREFIX, MurmurHash3_32(tsDataDir, strlen(tsDataDir)));
-#else
   int32_t len = strlen(tsDataDir);
-  if (len > 0 && tsDataDir[len - 1] != '/') {
+  if (len > 0 && (tsDataDir[len - 1] != '/' && tsDataDir[len - 1] != '\\')) {
+  #ifdef _WIN32
+    snprintf(pipeName, size, "%s\\.%s.%x", tsDataDir, XNODED_MGMT_LISTEN_PIPE_NAME_PREFIX, MurmurHash3_32(tsDataDir, strlen(tsDataDir)));
+  #else
     snprintf(pipeName, size, "%s/%s", tsDataDir, XNODED_MGMT_LISTEN_PIPE_NAME_PREFIX);
+  #endif
   } else {
+  #ifdef _WIN32
+    snprintf(pipeName, size, "%s.%s.%x", tsDataDir, XNODED_MGMT_LISTEN_PIPE_NAME_PREFIX, MurmurHash3_32(tsDataDir, strlen(tsDataDir)));
+  #else
     snprintf(pipeName, size, "%s%s", tsDataDir, XNODED_MGMT_LISTEN_PIPE_NAME_PREFIX);
+  #endif
   }
-#endif
   xndDebug("xnode get unix socket pipe path:%s", pipeName);
 }

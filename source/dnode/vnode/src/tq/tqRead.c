@@ -99,32 +99,181 @@ end:
   }
 }
 
-static void processAlterTbMsg(SDecoder* dcoder, STqReader* pReader, int64_t* realTbSuid) {
+static void processAlterTbMsg(SDecoder* dcoder, SWalCont* pHead, STqReader* pReader, int64_t* realTbSuid, int64_t tbSuid) {
   SVAlterTbReq req = {0};
+  SVAlterTbReq reqNew = {0};
   SMetaReader mr = {0};
+  void* buf = NULL;
   int32_t lino = 0;
   int32_t code = tDecodeSVAlterTbReq(dcoder, &req);
   if (code < 0) {
+    tqError("vgId:%d, processAlterTbMsg failed to decode SVAlterTbReq, code:%s",
+            TD_VID(pReader->pVnode), tstrerror(code));
     lino = __LINE__;
     goto end;
   }
 
-  metaReaderDoInit(&mr, pReader->pVnode->pMeta, META_READER_LOCK);
+  if (req.action == TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL) {
+    int32_t needRebuild = 0;
+    for (int32_t i = 0; i < taosArrayGetSize(req.tables); i++) {
+      SUpdateTableTagVal* pTable = taosArrayGet(req.tables, i);
+      if (pTable == NULL || pTable->tbName == NULL) {
+        tqWarn("vgId:%d, processAlterTbMsg Type 1 table[%d] has invalid name, skip",
+               TD_VID(pReader->pVnode), i);
+        continue;
+      }
 
-  code = metaGetTableEntryByName(&mr, req.tbName);
-  if (code < 0) {
-    lino = __LINE__;
-    goto end;
-  }
-  if (taosHashGet(pReader->tbIdHash, &mr.me.uid, sizeof(int64_t)) != NULL) {
-    *realTbSuid = mr.me.ctbEntry.suid;
+      metaReaderDoInit(&mr, pReader->pVnode->pMeta, META_READER_LOCK);
+      code = metaGetTableEntryByName(&mr, pTable->tbName);
+      if (code < 0) {
+        // Table not found, skip
+        tqDebug("vgId:%d, processAlterTbMsg Type 1 table %s not found, skip",
+                TD_VID(pReader->pVnode), pTable->tbName);
+        metaReaderClear(&mr);
+        continue;
+      }
+
+      if (mr.me.ctbEntry.suid == tbSuid &&
+          taosHashGet(pReader->tbIdHash, &mr.me.uid, sizeof(int64_t)) != NULL) {
+        needRebuild++;
+      }
+      metaReaderClear(&mr);
+    }
+
+    if (needRebuild == 0) {
+      // No tables in subscription scope, skip message
+      tqDebug("vgId:%d, processAlterTbMsg Type 1: 0/%d tables in subscription, skip",
+              TD_VID(pReader->pVnode), (int)taosArrayGetSize(req.tables));
+    } else if (needRebuild == taosArrayGetSize(req.tables)) {
+      // All tables in subscription scope, forward complete message
+      *realTbSuid = tbSuid;
+      tqDebug("vgId:%d, processAlterTbMsg Type 1: %d/%d tables in subscription, forward all",
+              TD_VID(pReader->pVnode), needRebuild, (int)taosArrayGetSize(req.tables));
+    } else {
+      // Partial match: rebuild message with only subscribed tables
+      *realTbSuid = tbSuid;
+      tqDebug("vgId:%d, processAlterTbMsg Type 1: %d/%d tables in subscription, rebuild message",
+              TD_VID(pReader->pVnode), needRebuild, (int)taosArrayGetSize(req.tables));
+
+      // Build filtered message
+      reqNew.action = req.action;
+      reqNew.tbName = req.tbName;
+      reqNew.tables = taosArrayInit(needRebuild, sizeof(SUpdateTableTagVal));
+      if (reqNew.tables == NULL) {
+        code = terrno;
+        tqError("vgId:%d, processAlterTbMsg failed to allocate filtered tables array, code:%s",
+                TD_VID(pReader->pVnode), tstrerror(code));
+        lino = __LINE__;
+        goto end;
+      }
+
+      // Collect only subscribed tables
+      for (int32_t i = 0; i < taosArrayGetSize(req.tables); i++) {
+        SUpdateTableTagVal* pTable = taosArrayGet(req.tables, i);
+        if (pTable == NULL || pTable->tbName == NULL) {
+          continue;
+        }
+        metaReaderDoInit(&mr, pReader->pVnode->pMeta, META_READER_LOCK);
+        code = metaGetTableEntryByName(&mr, pTable->tbName);
+        if (code < 0) {
+          metaReaderClear(&mr);
+          continue;
+        }
+
+        if (mr.me.ctbEntry.suid == tbSuid &&
+            taosHashGet(pReader->tbIdHash, &mr.me.uid, sizeof(int64_t)) != NULL) {
+          if (taosArrayPush(reqNew.tables, pTable) == NULL) {
+            code = terrno;
+            tqError("vgId:%d, processAlterTbMsg failed to add table %s to filtered array, code:%s",
+                    TD_VID(pReader->pVnode), pTable->tbName, tstrerror(code));
+            lino = __LINE__;
+            metaReaderClear(&mr);
+            goto end;
+          }
+        }
+        metaReaderClear(&mr);
+      }
+
+      // Encode filtered message
+      int tlen = 0;
+      tEncodeSize(tEncodeSVAlterTbReq, &reqNew, tlen, code);
+      if (code < 0) {
+        tqError("vgId:%d, processAlterTbMsg failed to calculate encode size, code:%s",
+                TD_VID(pReader->pVnode), tstrerror(code));
+        lino = __LINE__;
+        goto end;
+      }
+
+      buf = taosMemoryMalloc(tlen);
+      if (NULL == buf) {
+        code = terrno;
+        tqError("vgId:%d, processAlterTbMsg failed to allocate encode buffer size:%d, code:%s",
+                TD_VID(pReader->pVnode), tlen, tstrerror(code));
+        lino = __LINE__;
+        goto end;
+      }
+
+      SEncoder coderNew = {0};
+      tEncoderInit(&coderNew, buf, tlen);
+      code = tEncodeSVAlterTbReq(&coderNew, &reqNew);
+      tEncoderClear(&coderNew);
+      if (code != 0) {
+        tqError("vgId:%d, processAlterTbMsg failed to encode filtered message, code:%s",
+                TD_VID(pReader->pVnode), tstrerror(code));
+        lino = __LINE__;
+        goto end;
+      }
+      (void)memcpy(pHead->body + sizeof(SMsgHead), buf, tlen);
+      pHead->bodyLen = tlen + sizeof(SMsgHead);
+      tqInfo("vgId:%d, processAlterTbMsg Type 1 rebuilt message with %d/%d tables",
+             TD_VID(pReader->pVnode), needRebuild, (int)taosArrayGetSize(req.tables));
+    }
+
+  } else if (req.action == TSDB_ALTER_TABLE_UPDATE_CHILD_TABLE_TAG_VAL) {
+    // Type 2: WHERE condition on super table
+    metaReaderDoInit(&mr, pReader->pVnode->pMeta, META_READER_LOCK);
+    code = metaGetTableEntryByName(&mr, req.tbName);
+    if (code < 0) {
+      tqError("vgId:%d, processAlterTbMsg Type 2 failed to get super table %s, code:%s",
+              TD_VID(pReader->pVnode), req.tbName, tstrerror(code));
+      lino = __LINE__;
+      metaReaderClear(&mr);
+      goto end;
+    }
+
+    // For Type 2, the super table is specified in req.tbName
+    // The actual filtering happens through tbIdHash which already contains
+    // only the child tables matching the topic's WHERE condition
+    if (mr.me.type == TSDB_SUPER_TABLE) {
+      *realTbSuid = mr.me.uid;
+      tqDebug("vgId:%d, processAlterTbMsg Type 2: super table %" PRId64 " (WHERE condition filtering via tbIdHash)",
+              TD_VID(pReader->pVnode), mr.me.uid);
+    }
+    metaReaderClear(&mr);
+  } else {
+    // Legacy single-table tag modification
+    metaReaderDoInit(&mr, pReader->pVnode->pMeta, META_READER_LOCK);
+    code = metaGetTableEntryByName(&mr, req.tbName);
+    if (code < 0) {
+      tqDebug("vgId:%d, processAlterTbMsg legacy type failed to get table %s, code:%s",
+              TD_VID(pReader->pVnode), req.tbName ? req.tbName : "(null)", tstrerror(code));
+      lino = __LINE__;
+      metaReaderClear(&mr);
+      goto end;
+    }
+    if (taosHashGet(pReader->tbIdHash, &mr.me.uid, sizeof(int64_t)) != NULL) {
+      *realTbSuid = mr.me.ctbEntry.suid;
+    }
+    metaReaderClear(&mr);
   }
 
 end:
-  taosArrayDestroy(req.pMultiTag);
-  metaReaderClear(&mr);  
+  taosMemoryFree(buf);
+  taosArrayDestroy(reqNew.tables);
+  destroyAlterTbReq(&req);
   if (code < 0) {
-    tqError("processAlterTbMsg failed, code:%d, line:%d", code, lino);
+    tqError("vgId:%d, processAlterTbMsg failed at line:%d, code:%s",
+            TD_VID(pReader->pVnode), lino, tstrerror(code));
   }
 } 
 
@@ -240,7 +389,7 @@ bool isValValidForTable(STqHandle* pHandle, SWalCont* pHead) {
   } else if (msgType == TDMT_VND_CREATE_TABLE) {
     processCreateTbMsg(&dcoder, pHead, pReader, &realTbSuid, tbSuid);
   } else if (msgType == TDMT_VND_ALTER_TABLE) {
-    processAlterTbMsg(&dcoder, pReader, &realTbSuid);
+    processAlterTbMsg(&dcoder, pHead, pReader, &realTbSuid, tbSuid);
   } else if (msgType == TDMT_VND_DROP_TABLE) {
     processDropTbMsg(&dcoder, pHead, pReader, &realTbSuid, tbSuid);
   } else if (msgType == TDMT_VND_DELETE) {
@@ -1343,7 +1492,7 @@ int32_t tqDeleteTbUidList(STQ* pTq, SArray* tbUidList) {
   return 0;
 }
 
-static SArray* copyUidList(SArray* tbUidList) {
+static SArray* copyUidList(const SArray* tbUidList) {
   SArray* tbUidListCopy = taosArrayInit(4, sizeof(int64_t));
   if (tbUidListCopy == NULL) {
     return NULL;
@@ -1357,7 +1506,7 @@ static SArray* copyUidList(SArray* tbUidList) {
   return tbUidListCopy;
 }
 
-static int32_t addTableListForStableTmq(STqHandle* pTqHandle, STQ* pTq, SArray* tbUidList) {
+static int32_t addTableListForStableTmq(STqHandle* pTqHandle, STQ* pTq, const SArray* tbUidList) {
   int32_t code = 0;
   SArray* tbUidListCopy = copyUidList(tbUidList);
   if (tbUidListCopy == NULL) {
@@ -1380,7 +1529,7 @@ END:
   return code;
 }
 
-int32_t tqAddTbUidList(STQ* pTq, SArray* tbUidList) {
+int32_t tqAddTbUidList(STQ* pTq, const SArray* tbUidList) {
   if (pTq == NULL) {
     return 0;  // mounted vnode may have no tq
   }
@@ -1421,7 +1570,7 @@ int32_t tqAddTbUidList(STQ* pTq, SArray* tbUidList) {
   return code;
 }
 
-int32_t tqUpdateTbUidList(STQ* pTq, SArray* tbUidList, SArray* cidList) {
+int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, SArray* cidList, SArray* cidListArray) {
   if (pTq == NULL) {
     return 0;  // mounted vnode may have no tq
   }
@@ -1451,7 +1600,7 @@ int32_t tqUpdateTbUidList(STQ* pTq, SArray* tbUidList, SArray* cidList) {
           break;
         }
       }
-      qUpdateTableTagCacheForTmq(pTqHandle->execHandle.task, tbUidList, cidList);
+      qUpdateTableTagCacheForTmq(pTqHandle->execHandle.task, tbUidList, cidList, cidListArray);
     } else if (pTqHandle->execHandle.subType == TOPIC_SUB_TYPE__TABLE) {
       SNode* pTagCond = getTagCondNodeForStableTmq(pTqHandle->execHandle.execTb.node);
       bool ret = checkCidInTagCondition(pTagCond, cidList);

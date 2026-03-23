@@ -65,6 +65,7 @@ static SKeyword keywordTable[] = {
     {"CACHEMODEL",           TK_CACHEMODEL},
     {"CACHESIZE",            TK_CACHESIZE},
     {"CALC_NOTIFY_ONLY",     TK_CALC_NOTIFY_ONLY},
+    {"CACHESHARDBITS",       TK_CACHESHARDBITS},
     {"CASE",                 TK_CASE},
     {"CAST",                 TK_CAST},
     {"CHILD",                TK_CHILD},
@@ -257,6 +258,7 @@ static SKeyword keywordTable[] = {
     {"RENAME",               TK_RENAME},
     {"RELOAD",               TK_RELOAD},
     {"RECALCULATE",          TK_RECALCULATE},
+    {"REGEXP_REPLACE",       TK_REGEXP_REPLACE},
     {"REPLACE",              TK_REPLACE},
     {"REPLICAS",             TK_REPLICAS},
     {"REPLICA",              TK_REPLICA},
@@ -475,11 +477,13 @@ static SKeyword keywordTable[] = {
     {"EXTRA_INFO",           TK_EXTRA_INFO},
     {"TOKENS",               TK_TOKENS},
     {"IS_AUDIT",             TK_IS_AUDIT},
+    {"SECURE_DELETE",        TK_SECURE_DELETE},
     {"VNODE_PER_CALL",       TK_VNODE_PER_CALL},
     {"XNODE",                TK_XNODE},
     {"XNODES",               TK_XNODES},
     {"DRAIN",                TK_DRAIN},
     {"REBALANCE",            TK_REBALANCE},
+    {"VALIDATE",            TK_VALIDATE},
 };
 // clang-format on
 

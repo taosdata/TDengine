@@ -1003,12 +1003,8 @@ static int32_t hJoinMainProcess(struct SOperatorInfo* pOperator, SSDataBlock** p
   int32_t             code = TSDB_CODE_SUCCESS;
   int32_t             lino = 0;
   SSDataBlock*        pRes = pJoin->finBlk;
-  int64_t             st = 0;
 
   QRY_PARAM_CHECK(pResBlock);
-  if (pOperator->cost.openCost == 0) {
-    st = taosGetTimestampUs();
-  }
 
   if (pOperator->status == OP_EXEC_DONE) {
     pRes->info.rows = 0;
@@ -1072,9 +1068,6 @@ static int32_t hJoinMainProcess(struct SOperatorInfo* pOperator, SSDataBlock** p
   }
 
 _end:
-  if (pOperator->cost.openCost == 0) {
-    pOperator->cost.openCost = (taosGetTimestampUs() - st) / 1000.0;
-  }
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     pTaskInfo->code = code;
@@ -1226,6 +1219,7 @@ int32_t createHashJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDow
     code = terrno;
     goto _return;
   }
+  initOperatorCostInfo(pOperator);
 
   pInfo->tblTimeRange.skey = pJoinNode->timeRange.skey;
   pInfo->tblTimeRange.ekey = pJoinNode->timeRange.ekey;

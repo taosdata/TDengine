@@ -76,6 +76,7 @@ extern EEncryptScope tsiEncryptScope;
 extern char          tsEncryptKey[];
 extern int8_t        tsEnableStrongPassword;
 extern int8_t        tsEnableAdvancedSecurity;
+extern int8_t        tsEnableGrantLegacySyntax;
 extern char          tsEncryptPassAlgorithm[];
 extern EEncryptAlgor tsiEncryptPassAlgorithm;
 
@@ -143,6 +144,7 @@ extern int32_t tsNumOfStreamRunnerThreads;
 
 extern int32_t tsNumOfCompactThreads;
 extern int32_t tsNumOfRetentionThreads;
+extern int32_t tsSecureEraseMode;
 
 // sync raft
 extern int32_t tsElectInterval;
@@ -281,6 +283,14 @@ extern bool    tsQueryUseNodeAllocator;
 extern bool    tsKeepColumnName;
 extern bool    tsEnableQueryHb;
 extern bool    tsEnableScience;
+extern bool    tsSqlSecurityEnabled;
+extern int32_t tsSqlSecurityWhitelistMode;  // 0:disable,1:whitelist,2:blacklist,3:both
+extern bool    tsSqlSecurityStringCheck;
+extern bool    tsSqlSecurityASTCheck;
+extern char    tsSqlSecurityRuleFile[];
+extern bool    tsWhitelistLearning;
+extern int32_t tsWhitelistLearningPeriod;
+extern int32_t tsWhitelistLearningThreshold;
 extern bool    tsTtlChangeOnWrite;
 extern int32_t tsTtlFlushThreshold;
 extern int32_t tsRedirectPeriod;

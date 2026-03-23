@@ -49,7 +49,9 @@ class TestStreamSchema:
             "alter dnode 1 'debugflag 135';",
             "create snode on dnode 1;",
             "create database db vgroups 1;",
-            "create table db.stb (ts timestamp, c0 int) tags(t1 int, t2 int);"
+            "create table db.stb (ts timestamp, c0 int) tags(t1 int, t2 int);",
+            "create table db.stb1 (ts timestamp, c0 int) tags(t1 int, t2 int);",
+            "insert into db.t_t2 using db.stb1 tags(2, 0) values(now+10s,12);",
         ]
 
         tdSql.executes(sqls)
@@ -154,10 +156,11 @@ class TestStreamSchema:
         #alter ctable tag
         sqls = [
             "use db",
-            
-            "alter table t2 set tag t1 = -3;",                       
+
+            "alter table t2 set tag t1 = -3 t_t2 set tag t1 = -4;",                       
             "insert into t2 values(now+130s,23);",                       
-            "alter table t3 set tag t1 = 98;",                       
+            "alter table using stb set tag t1 = 99 where t1 = -1",                       
+            "alter table using stb1 set tag t1 = 98 where t1 = -4",                       
             "insert into t3 values(now+7s,111);", 
         ]
 

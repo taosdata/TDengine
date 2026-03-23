@@ -23,11 +23,7 @@ import re
 import json
 import subprocess
 import tempfile
-from pathlib import Path
 
-# Configure logging
-timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s',
     level=logging.DEBUG
 )
