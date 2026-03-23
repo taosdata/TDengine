@@ -18,6 +18,7 @@
 #include "decimal.h"
 #include "function.h"
 #include "functionResInfoInt.h"
+#include "geosWrapper.h"
 #include "query.h"
 #include "querynodes.h"
 #include "tanalytics.h"
@@ -3981,16 +3982,184 @@ static int32_t setLagLeadDefaultValue(SqlFunctionCtx* pCtx, int32_t pos) {
       break;
     }
     case TSDB_DATA_TYPE_DECIMAL64: {
-      int64_t v = 0;
-      GET_TYPED_DATA(v, int64_t, pDefault->nType, &pDefault->i, inputTypeMod);
-      retCode = colDataSetVal(pOutput, pos, (const char*)&v, false);
+      Decimal64 v = {0};
+      switch (pDefault->nType) {
+        case TSDB_DATA_TYPE_BOOL:
+          retCode = TEST_decimal64From_uint64_t(&v, pOutput->info.precision, pOutput->info.scale, (uint64_t)pDefault->i);
+          break;
+        case TSDB_DATA_TYPE_TINYINT:
+        case TSDB_DATA_TYPE_SMALLINT:
+        case TSDB_DATA_TYPE_INT:
+        case TSDB_DATA_TYPE_BIGINT:
+        case TSDB_DATA_TYPE_TIMESTAMP:
+          retCode = TEST_decimal64From_int64_t(&v, pOutput->info.precision, pOutput->info.scale, pDefault->i);
+          break;
+        case TSDB_DATA_TYPE_UTINYINT:
+        case TSDB_DATA_TYPE_USMALLINT:
+        case TSDB_DATA_TYPE_UINT:
+        case TSDB_DATA_TYPE_UBIGINT:
+          retCode = TEST_decimal64From_uint64_t(&v, pOutput->info.precision, pOutput->info.scale, pDefault->u);
+          break;
+        case TSDB_DATA_TYPE_FLOAT:
+          retCode = TEST_decimal64From_double(&v, pOutput->info.precision, pOutput->info.scale, pDefault->f);
+          break;
+        case TSDB_DATA_TYPE_DOUBLE:
+          retCode = TEST_decimal64From_double(&v, pOutput->info.precision, pOutput->info.scale, pDefault->d);
+          break;
+        case TSDB_DATA_TYPE_DECIMAL64: {
+          uint8_t inputPrecision = 0, inputScale = 0;
+          extractTypeFromTypeMod(pDefault->nType, inputTypeMod, &inputPrecision, &inputScale, NULL);
+          retCode = TEST_decimal64FromDecimal64((Decimal64*)&pDefault->i, inputPrecision, inputScale, &v,
+                                                pOutput->info.precision, pOutput->info.scale);
+          break;
+        }
+        case TSDB_DATA_TYPE_DECIMAL: {
+          uint8_t inputPrecision = 0, inputScale = 0;
+          extractTypeFromTypeMod(pDefault->nType, inputTypeMod, &inputPrecision, &inputScale, NULL);
+          retCode = TEST_decimal64FromDecimal128((Decimal128*)pDefault->pz, inputPrecision, inputScale, &v,
+                                                 pOutput->info.precision, pOutput->info.scale);
+          break;
+        }
+        default:
+          retCode = TSDB_CODE_OPS_NOT_SUPPORT;
+          break;
+      }
+
+      if (retCode == TSDB_CODE_SUCCESS) {
+        retCode = colDataSetVal(pOutput, pos, (const char*)&v, false);
+      }
       break;
     }
-    case TSDB_DATA_TYPE_DECIMAL:
+    case TSDB_DATA_TYPE_DECIMAL: {
+      Decimal128 v = {0};
+      switch (pDefault->nType) {
+        case TSDB_DATA_TYPE_BOOL:
+          retCode =
+              TEST_decimal128From_uint64_t(&v, pOutput->info.precision, pOutput->info.scale, (uint64_t)pDefault->i);
+          break;
+        case TSDB_DATA_TYPE_TINYINT:
+        case TSDB_DATA_TYPE_SMALLINT:
+        case TSDB_DATA_TYPE_INT:
+        case TSDB_DATA_TYPE_BIGINT:
+        case TSDB_DATA_TYPE_TIMESTAMP:
+          retCode = TEST_decimal128From_int64_t(&v, pOutput->info.precision, pOutput->info.scale, pDefault->i);
+          break;
+        case TSDB_DATA_TYPE_UTINYINT:
+        case TSDB_DATA_TYPE_USMALLINT:
+        case TSDB_DATA_TYPE_UINT:
+        case TSDB_DATA_TYPE_UBIGINT:
+          retCode = TEST_decimal128From_uint64_t(&v, pOutput->info.precision, pOutput->info.scale, pDefault->u);
+          break;
+        case TSDB_DATA_TYPE_FLOAT:
+          retCode = TEST_decimal128From_double(&v, pOutput->info.precision, pOutput->info.scale, pDefault->f);
+          break;
+        case TSDB_DATA_TYPE_DOUBLE:
+          retCode = TEST_decimal128From_double(&v, pOutput->info.precision, pOutput->info.scale, pDefault->d);
+          break;
+        case TSDB_DATA_TYPE_DECIMAL64: {
+          uint8_t inputPrecision = 0, inputScale = 0;
+          extractTypeFromTypeMod(pDefault->nType, inputTypeMod, &inputPrecision, &inputScale, NULL);
+          retCode = TEST_decimal128FromDecimal64((Decimal64*)&pDefault->i, inputPrecision, inputScale, &v,
+                                                 pOutput->info.precision, pOutput->info.scale);
+          break;
+        }
+        case TSDB_DATA_TYPE_DECIMAL: {
+          uint8_t inputPrecision = 0, inputScale = 0;
+          extractTypeFromTypeMod(pDefault->nType, inputTypeMod, &inputPrecision, &inputScale, NULL);
+          retCode = TEST_decimal128FromDecimal128((Decimal128*)pDefault->pz, inputPrecision, inputScale, &v,
+                                                  pOutput->info.precision, pOutput->info.scale);
+          break;
+        }
+        default:
+          retCode = TSDB_CODE_OPS_NOT_SUPPORT;
+          break;
+      }
+
+      if (retCode == TSDB_CODE_SUCCESS) {
+        retCode = colDataSetVal(pOutput, pos, (const char*)&v, false);
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_GEOMETRY:
+      if (pDefault->pz == NULL) {
+        colDataSetNULL(pOutput, pos);
+        retCode = TSDB_CODE_SUCCESS;
+        break;
+      }
+
+      if (pDefault->nType == TSDB_DATA_TYPE_GEOMETRY) {
+        retCode = colDataSetVal(pOutput, pos, pDefault->pz, false);
+        break;
+      }
+
+      if (IS_STR_DATA_TYPE(pDefault->nType)) {
+#ifdef USE_GEOS
+        size_t         len = 0;
+        unsigned char* geom = NULL;
+        char*          output = NULL;
+        char*          inputWkt = NULL;
+
+        retCode = initCtxGeomFromText();
+        if (retCode != TSDB_CODE_SUCCESS) {
+          break;
+        }
+
+        if (pDefault->nType == TSDB_DATA_TYPE_NCHAR) {
+          int32_t charLen = varDataLen(pDefault->pz);
+          inputWkt = taosMemoryCalloc(1, charLen + TSDB_NCHAR_SIZE);
+          if (inputWkt == NULL) {
+            retCode = terrno;
+            break;
+          }
+
+          int32_t cvtLen = taosUcs4ToMbs((TdUcs4*)varDataVal(pDefault->pz), charLen, inputWkt, NULL);
+          if (cvtLen < 0) {
+            taosMemoryFree(inputWkt);
+            retCode = TSDB_CODE_FAILED;
+            break;
+          }
+          inputWkt[cvtLen] = 0;
+        } else {
+          int32_t charLen = varDataLen(pDefault->pz);
+          inputWkt = taosMemoryCalloc(1, charLen + 1);
+          if (inputWkt == NULL) {
+            retCode = terrno;
+            break;
+          }
+          (void)memcpy(inputWkt, varDataVal(pDefault->pz), charLen);
+        }
+
+        retCode = doGeomFromText(inputWkt, &geom, &len);
+        taosMemoryFree(inputWkt);
+        if (retCode != TSDB_CODE_SUCCESS) {
+          break;
+        }
+
+        output = taosMemoryCalloc(1, len + VARSTR_HEADER_SIZE);
+        if (output == NULL) {
+          geosFreeBuffer(geom);
+          retCode = terrno;
+          break;
+        }
+
+        (void)memcpy(output + VARSTR_HEADER_SIZE, geom, len);
+        varDataSetLen(output, len);
+        geosFreeBuffer(geom);
+
+        retCode = colDataSetVal(pOutput, pos, output, false);
+        taosMemoryFree(output);
+        break;
+#else
+        retCode = TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
+        break;
+#endif
+      }
+
+      retCode = TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
+      break;
     case TSDB_DATA_TYPE_VARCHAR:
     case TSDB_DATA_TYPE_VARBINARY:
     case TSDB_DATA_TYPE_NCHAR:
-    case TSDB_DATA_TYPE_GEOMETRY:
     case TSDB_DATA_TYPE_BLOB:
       if (pDefault->pz == NULL) {
         colDataSetNULL(pOutput, pos);
@@ -4048,6 +4217,7 @@ static int32_t resolveLeadPendingRows(SqlFunctionCtx* pCtx, SLagLeadState* pStat
     return TSDB_CODE_SUCCESS;
   }
 
+  int32_t code = TSDB_CODE_SUCCESS;
   int32_t currSize = taosArrayGetSize(pCurrValues);
   int32_t pendingSize = taosArrayGetSize(pState->pLeadPending);
   SArray* pRemain = taosArrayInit(TMAX(pendingSize, 1), sizeof(SLeadPendingItem));
@@ -4058,31 +4228,39 @@ static int32_t resolveLeadPendingRows(SqlFunctionCtx* pCtx, SLagLeadState* pStat
   for (int32_t i = 0; i < pendingSize; ++i) {
     SLeadPendingItem* pItem = taosArrayGet(pState->pLeadPending, i);
     if (pItem == NULL) {
-      return terrno;
+      code = terrno;
+      goto cleanup;
     }
 
     if (pItem->needIdx < currSize) {
       SLagLeadRowValue* pTarget = taosArrayGet(pCurrValues, pItem->needIdx);
       if (pTarget == NULL) {
-        return terrno;
+        code = terrno;
+        goto cleanup;
       }
 
-      int32_t code = setLagLeadOutputFromValue(pCtx, pItem->outputPos, pTarget);
+      code = setLagLeadOutputFromValue(pCtx, pItem->outputPos, pTarget);
       if (code != TSDB_CODE_SUCCESS) {
-        return code;
+        goto cleanup;
       }
     } else {
       pItem->needIdx -= currSize;
       if (NULL == taosArrayPush(pRemain, pItem)) {
-        taosArrayDestroy(pRemain);
-        return terrno;
+        code = terrno;
+        goto cleanup;
       }
     }
   }
 
   taosArrayDestroy(pState->pLeadPending);
   pState->pLeadPending = pRemain;
-  return TSDB_CODE_SUCCESS;
+
+cleanup:
+  if (code != TSDB_CODE_SUCCESS) {
+    taosArrayDestroy(pRemain);
+  }
+
+  return code;
 }
 
 static int32_t refreshLagTailValues(SLagLeadState* pState, SArray* pCurrValues, int64_t offset) {
@@ -8617,5 +8795,3 @@ int32_t hasNullFunction(SqlFunctionCtx* pCtx) {
 
   return TSDB_CODE_SUCCESS;
 }
-
-

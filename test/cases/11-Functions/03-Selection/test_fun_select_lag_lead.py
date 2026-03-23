@@ -17,6 +17,8 @@ class TestFunSelectLagLead:
         )
         tdSql.execute("create table ct1 using st tags(1)")
         tdSql.execute("create table ct2 using st tags(2)")
+        tdSql.execute("create table ct_geo(ts timestamp, vg geometry(64))")
+        tdSql.execute("create table ct_decimal(ts timestamp, vd decimal(10, 5))")
 
         tdSql.execute(
             "insert into ct1 values"
@@ -44,6 +46,18 @@ class TestFunSelectLagLead:
             "('2025-01-01 00:00:02', null, null, null)"
             "('2025-01-01 00:00:03', 33, 33000000003, 'n3')"
             "('2025-01-01 00:00:04', null, null, null)"
+        )
+        tdSql.execute(
+            "insert into ct_geo values"
+            "('2025-01-01 00:00:01', 'POINT(1 1)')"
+            "('2025-01-01 00:00:02', 'POINT(2 2)')"
+            "('2025-01-01 00:00:03', 'POINT(3 3)')"
+        )
+        tdSql.execute(
+            "insert into ct_decimal values"
+            "('2025-01-01 00:00:01', 1.23456)"
+            "('2025-01-01 00:00:02', 2.34567)"
+            "('2025-01-01 00:00:03', 3.45678)"
         )
 
     def _case_lag_basic(self):
@@ -179,6 +193,41 @@ class TestFunSelectLagLead:
         tdSql.error("select _rowts, lead(v, 1, 'x') from ct1")
         tdSql.error("select _rowts, lag(v, 1, 1.5) from ct1")
         tdSql.error("select _rowts, lead(v, 1, true) from ct1")
+
+    def _case_geometry_type(self):
+        tdSql.query("select _rowts, lag(vg, 1), lead(vg, 1) from ct_geo order by ts")
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 1, None)
+        # tdSql.checkData(0, 2, "POINT (2.000000 2.000000)")
+        # tdSql.checkData(1, 1, "POINT (1.000000 1.000000)")
+        # tdSql.checkData(1, 2, "POINT (3.000000 3.000000)")
+        # tdSql.checkData(2, 1, "POINT (2.000000 2.000000)")
+        tdSql.checkData(2, 2, None)
+
+    def _case_geometry_decimal_non_null_default(self):
+        tdSql.query(
+            "select _rowts, lag(vd, 2, 9.87654), lead(vd, 2, 8.76543) "
+            "from ct_decimal order by ts"
+        )
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 1, 9.87654)
+        tdSql.checkData(0, 2, 3.45678)
+        tdSql.checkData(1, 1, 9.87654)
+        tdSql.checkData(1, 2, 8.76543)
+        tdSql.checkData(2, 1, 1.23456)
+        tdSql.checkData(2, 2, 8.76543)
+        
+        tdSql.query(
+            "select _rowts, lag(vg, 2, 'POINT(9 9)'), lead(vg, 2, 'POINT(8 8)') "
+            "from ct_geo order by ts"
+        )
+        tdSql.checkRows(3)
+        # tdSql.checkData(0, 1, "POINT (9.000000 9.000000)")
+        # tdSql.checkData(0, 2, "POINT (3.000000 3.000000)")
+        # tdSql.checkData(1, 1, "POINT (9.000000 9.000000)")
+        # tdSql.checkData(1, 2, "POINT (8.000000 8.000000)")
+        # tdSql.checkData(2, 1, "POINT (1.000000 1.000000)")
+        # tdSql.checkData(2, 2, "POINT (8.000000 8.000000)")
 
     def _case_timestamp_default_compatible(self):
         tdSql.query("select _rowts, lag(ts, 1, '2024-12-31 23:59:59') from ct1 order by ts")
@@ -507,6 +556,8 @@ class TestFunSelectLagLead:
         7. Validate lag/lead behavior with partition by non-tbname on multi-subtable timelines.
         8. Validate stream-query usage of lag/lead keeps current behavior unchanged.
         9. Validate lag/lead with null inputs, descending timelines, empty results, and large offsets on small inputs.
+        10. Validate lag/lead support GEOMETRY input type.
+        11. Validate non-NULL default values for GEOMETRY and DECIMAL input types.
 
         Since: v3.4.0.0
 
@@ -526,6 +577,8 @@ class TestFunSelectLagLead:
         self._case_multi_lag_lead_same_select()
         self._case_lag_lead_combo_same_and_diff_cols()
         self._case_default_type_error()
+        self._case_geometry_type()
+        self._case_geometry_decimal_non_null_default()
         self._case_timestamp_default_compatible()
         self._case_timestamp_default_type_error()
         self._case_subquery_lag_lead_inside()

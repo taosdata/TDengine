@@ -1570,10 +1570,20 @@ static int32_t validateLagLeadDefaultType(SFunctionNode* pFunc, char* pErrBuf, i
     return TSDB_CODE_SUCCESS;
   }
 
+  if (pInputType->type == TSDB_DATA_TYPE_GEOMETRY) {
+    bool geomCompatible = (pDefaultType->type == TSDB_DATA_TYPE_GEOMETRY) || IS_STR_DATA_TYPE(pDefaultType->type);
+    if (!geomCompatible) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+    return TSDB_CODE_SUCCESS;
+  }
+
   bool compatible = (pDefaultType->type == pInputType->type);
   if (!compatible) {
     if ((IS_SIGNED_NUMERIC_TYPE(pInputType->type) || IS_UNSIGNED_NUMERIC_TYPE(pInputType->type)) &&
         (IS_SIGNED_NUMERIC_TYPE(pDefaultType->type) || IS_UNSIGNED_NUMERIC_TYPE(pDefaultType->type))) {
+      compatible = true;
+    } else if (IS_DECIMAL_TYPE(pInputType->type) && IS_NUMERIC_TYPE(pDefaultType->type)) {
       compatible = true;
     }
   }

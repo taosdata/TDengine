@@ -123,7 +123,7 @@ EFunctionType fmGetFuncType(const char* pFunc) {
 }
 
 EFunctionType fmGetFuncTypeFromId(int32_t funcId) {
-  if (funcId < funcMgtBuiltinsNum) {
+  if (funcId >= 0 && funcId < funcMgtBuiltinsNum) {
     return funcMgtBuiltins[funcId].type;
   }
   return FUNCTION_TYPE_UDF;
@@ -930,5 +930,4 @@ int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, co
   
   return code;
 }
-
 
