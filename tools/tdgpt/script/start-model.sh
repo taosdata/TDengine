@@ -7,11 +7,11 @@ show_help() {
   echo "Supported model_name: tdtsfm, timesfm, timemoe, moirai, chronos, moment"
   echo "Use '$0 all' to start all models in background."
   echo "Options:"
-  echo "  -c config_file   Specify config file (default: /etc/taos/taosanode.ini)"
+  echo "  -c config_file   Specify config file (default: /usr/local/taos/taosanode/cfg/taosanode.config.py)"
   echo "  -h, --help       Show this help message"
 }
 
-CONFIG_FILE="${TAOSANODE_CONFIG:-/etc/taos/taosanode.ini}"
+CONFIG_FILE="${TAOSANODE_CONFIG:-/usr/local/taos/taosanode/cfg/taosanode.config.py}"
 
 # Parse command-line options
 parse_options() {
@@ -27,28 +27,22 @@ parse_options() {
   ARGS=("$@")
 }
 
-ini_get() {
-  local section="$1" key="$2" default="${3-}" file="$CONFIG_FILE"
-  local in_section=0 line k v
-  while IFS= read -r line || [ -n "$line" ]; do
-    line="${line%%\#*}"; line="${line%%;*}"
-    line="$(printf '%s' "$line" | sed -e 's/^[[:space:]]\+//' -e 's/[[:space:]]\+$//')"
-    [ -z "$line" ] && continue
-    if [[ "$line" =~ ^\[(.+)\]$ ]]; then
-      [[ "${BASH_REMATCH[1]}" == "$section" ]] && in_section=1 || in_section=0
-      continue
-    fi
-    if [[ $in_section -eq 1 && "$line" =~ ^([^=]+)=[[:space:]]*(.*)$ ]]; then
-      k="$(printf '%s' "${BASH_REMATCH[1]}" | sed 's/[[:space:]]//g')"
-      v="${BASH_REMATCH[2]}"
-      v="${v%\"}"; v="${v#\"}"; v="${v%\'}"; v="${v#\'}"
-      if [[ "$k" == "$key" ]]; then
-        printf '%s\n' "$v"
-        return 0
-      fi
-    fi
-  done < "$file"
-  printf '%s\n' "$default"
+# Read a variable from the Python config file (taosanode.config.py)
+py_cfg_get() {
+  local key="$1" default="$2"
+  local val
+  val=$(python3 -c "
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location('cfg', '${CONFIG_FILE}')
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+val = getattr(mod, '${key}', None)
+if val is not None:
+    print(val)
+else:
+    print('${default}')
+" 2>/dev/null) || val="$default"
+  printf '%s\n' "${val:-$default}"
 }
 
 main() {
@@ -77,17 +71,18 @@ main() {
   model_name="$1"
   shift
 
-  # Load config
-  model_dir="$(ini_get taosanode model-dir "/var/lib/taos/taosanode/model")"
-  lib_base="$(ini_get uwsgi chdir "/usr/local/taos/taosanode/lib")"
-  service_dir="${lib_base%/}/taosanalytics/tsfmservice"
-  default_venv="$(ini_get uwsgi virtualenv "/var/lib/taos/taosanode/venv")"
-  timesfm_venv="$(ini_get uwsgi timesfm_venv "/var/lib/taos/taosanode/timesfm_venv")"
-  moirai_venv="$(ini_get uwsgi moirai_venv "/var/lib/taos/taosanode/moirai_venv")"
-  chronos_venv="$(ini_get uwsgi chronos_venv "/var/lib/taos/taosanode/chronos_venv")"
-  moment_venv="$(ini_get uwsgi momentfm_venv  "/var/lib/taos/taosanode/momentfm_venv")"
-  logto="$(ini_get uwsgi logto "/var/log/taos/taosanode/taosanode.log")"
-  log_dir="$(dirname "$logto")"
+  # Load config from taosanode.config.py
+  model_dir="$(py_cfg_get model_dir "/var/lib/taos/taosanode/model")"
+  pythonpath="$(py_cfg_get pythonpath "/usr/local/taos/taosanode/lib/taosanalytics/")"
+  # service_dir is the tsfmservice subdirectory under pythonpath
+  service_dir="${pythonpath%/}/tsfmservice"
+  default_venv="$(py_cfg_get virtualenv "/var/lib/taos/taosanode/venv")"
+  timesfm_venv="$(py_cfg_get timesfm_venv "/var/lib/taos/taosanode/timesfm_venv")"
+  moirai_venv="$(py_cfg_get moirai_venv "/var/lib/taos/taosanode/moirai_venv")"
+  chronos_venv="$(py_cfg_get chronos_venv "/var/lib/taos/taosanode/chronos_venv")"
+  moment_venv="$(py_cfg_get momentfm_venv "/var/lib/taos/taosanode/momentfm_venv")"
+  errorlog="$(py_cfg_get errorlog "/var/log/taos/taosanode/error.log")"
+  log_dir="$(dirname "$errorlog")"
   service_log="${log_dir%/}/taosanode_service_${model_name}.log"
 
   # Model config
