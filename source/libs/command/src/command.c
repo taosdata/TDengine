@@ -509,22 +509,23 @@ static int32_t setCreateDBResultIntoDataBlock(SSDataBlock* pBlock, char* dbName,
     len += snprintf(buf2 + VARSTR_HEADER_SIZE, SHOW_CREATE_DB_RESULT_FIELD2_LEN - VARSTR_HEADER_SIZE,
                     "CREATE DATABASE `%s`", dbName);
   } else {
-    len += snprintf(buf2 + VARSTR_HEADER_SIZE, SHOW_CREATE_DB_RESULT_FIELD2_LEN - VARSTR_HEADER_SIZE,
-                    "CREATE DATABASE `%s` BUFFER %d CACHESIZE %d CACHEMODEL '%s' COMP %d DURATION %s "
-                    "WAL_FSYNC_PERIOD %d MAXROWS %d MINROWS %d STT_TRIGGER %d KEEP %s,%s,%s PAGES %d PAGESIZE %d "
-                    "PRECISION '%s' REPLICA %d "
-                    "WAL_LEVEL %d VGROUPS %d SINGLE_STABLE %d TABLE_PREFIX %d TABLE_SUFFIX %d TSDB_PAGESIZE %d "
-                    "WAL_RETENTION_PERIOD %d WAL_RETENTION_SIZE %" PRId64
-                    " KEEP_TIME_OFFSET %d ENCRYPT_ALGORITHM '%s' SS_CHUNKPAGES %d SS_KEEPLOCAL %dm SS_COMPACT %d "
-                    "COMPACT_INTERVAL %s COMPACT_TIME_RANGE %s,%s COMPACT_TIME_OFFSET %" PRIi8 "h IS_AUDIT %d",
-                    dbName, pCfg->buffer, pCfg->cacheSize, cacheModelStr(pCfg->cacheLast), pCfg->compression,
-                    durationStr, pCfg->walFsyncPeriod, pCfg->maxRows, pCfg->minRows, pCfg->sstTrigger, keep0Str,
-                    keep1Str, keep2Str, pCfg->pages, pCfg->pageSize, prec, pCfg->replications, pCfg->walLevel,
-                    pCfg->numOfVgroups, 1 == pCfg->numOfStables, hashPrefix, pCfg->hashSuffix, pCfg->tsdbPageSize,
-                    pCfg->walRetentionPeriod, pCfg->walRetentionSize, pCfg->keepTimeOffset,
-                    encryptAlgorithmStr(pCfg->encryptAlgr, pCfg->algorithmsId), pCfg->ssChunkSize, pCfg->ssKeepLocal,
-                    pCfg->ssCompact, compactIntervalStr, compactStartTimeStr, compactEndTimeStr,
-                    pCfg->compactTimeOffset, pCfg->isAudit);
+    len += tsnprintf(buf2 + VARSTR_HEADER_SIZE, SHOW_CREATE_DB_RESULT_FIELD2_LEN - VARSTR_HEADER_SIZE,
+                     "CREATE DATABASE `%s` BUFFER %d CACHESIZE %d CACHEMODEL '%s' CACHESHARDBITS %d COMP %d DURATION %s "
+                     "WAL_FSYNC_PERIOD %d MAXROWS %d MINROWS %d STT_TRIGGER %d KEEP %s,%s,%s PAGES %d PAGESIZE %d "
+                     "PRECISION '%s' REPLICA %d "
+                     "WAL_LEVEL %d VGROUPS %d SINGLE_STABLE %d TABLE_PREFIX %d TABLE_SUFFIX %d TSDB_PAGESIZE %d "
+                     "WAL_RETENTION_PERIOD %d WAL_RETENTION_SIZE %" PRId64
+                     " KEEP_TIME_OFFSET %d ENCRYPT_ALGORITHM '%s' SS_CHUNKPAGES %d SS_KEEPLOCAL %dm SS_COMPACT %d "
+                     "COMPACT_INTERVAL %s COMPACT_TIME_RANGE %s,%s COMPACT_TIME_OFFSET %" PRIi8 "h IS_AUDIT %d SECURE_DELETE %d",
+                     dbName, pCfg->buffer, pCfg->cacheSize, cacheModelStr(pCfg->cacheLast), pCfg->cacheShardBits, pCfg->compression,
+                     durationStr, pCfg->walFsyncPeriod, pCfg->maxRows, pCfg->minRows, pCfg->sstTrigger, keep0Str,
+                     keep1Str, keep2Str, pCfg->pages, pCfg->pageSize, prec, pCfg->replications, pCfg->walLevel,
+                     pCfg->numOfVgroups, 1 == pCfg->numOfStables, hashPrefix, pCfg->hashSuffix, pCfg->tsdbPageSize,
+                     pCfg->walRetentionPeriod, pCfg->walRetentionSize, pCfg->keepTimeOffset,
+                     encryptAlgorithmStr(pCfg->encryptAlgr, pCfg->algorithmsId), pCfg->ssChunkSize, pCfg->ssKeepLocal,
+                     pCfg->ssCompact, compactIntervalStr, compactStartTimeStr, compactEndTimeStr,
+                     pCfg->compactTimeOffset, pCfg->isAudit, pCfg->secureDelete);
+
 
     if (pRetentions) {
       len += snprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_DB_RESULT_FIELD2_LEN - VARSTR_HEADER_SIZE,
@@ -764,6 +765,20 @@ static int32_t appendTagValues(char* buf, int32_t* len, STableCfg* pCfg, void* c
                        ", ");
     }
 
+    if (pCfg->pTagRefs && i < pCfg->numOfTagRefs) {
+      SColRef* pTagRef = pCfg->pTagRefs + i;
+      if (pTagRef->hasRef) {
+        char expandRefTable[(SHOW_CREATE_TB_RESULT_FIELD1_LEN << 1) + 1] = {0};
+        char expandRefCol[(SHOW_CREATE_TB_RESULT_FIELD1_LEN << 1) + 1] = {0};
+        *len += snprintf(buf + VARSTR_HEADER_SIZE + *len,
+                         SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
+                         "FROM `%s`.`%s`.`%s`", pTagRef->refDbName,
+                         expandIdentifier(pTagRef->refTableName, expandRefTable),
+                         expandIdentifier(pTagRef->refColName, expandRefCol));
+        continue;
+      }
+    }
+
     if (j >= valueNum) {
       *len += snprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
                        "NULL");
@@ -889,6 +904,11 @@ static void appendTableOptions(char* buf, int32_t* len, SDbCfgInfo* pDbCfg, STab
   if (pCfg->virtualStb) {
     *len += snprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
                      " VIRTUAL %d", pCfg->virtualStb);
+  }
+
+  if (TSDB_SUPER_TABLE == pCfg->tableType) {
+    *len += tsnprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
+                      " SECURE_DELETE %d", pCfg->secureDelete);
   }
 }
 

@@ -71,7 +71,11 @@ int32_t schedulerExecJob(SSchedulerReq *pReq, int64_t *pJobId) {
 
   SCH_ERR_JRET(schHandleOpBeginEvent(*pJobId, &pJob, SCH_OP_EXEC, pReq));
 
+  SCH_UPDATE_JOB_PHASE_IF_CHANGED(pJob, QUERY_PHASE_SCHEDULE_ANALYSIS);
+
   SCH_ERR_JRET(schSwitchJobStatus(pJob, JOB_TASK_STATUS_INIT, pReq));
+
+  SCH_UPDATE_JOB_PHASE_IF_CHANGED(pJob, QUERY_PHASE_SCHEDULE_PLANNING);
 
   SCH_ERR_JRET(schSwitchJobStatus(pJob, JOB_TASK_STATUS_EXEC, pReq));
 
@@ -87,11 +91,12 @@ int32_t schedulerFetchRows(int64_t jobId, SSchedulerReq *pReq) {
   SSchJob *pJob = NULL;
 
   SCH_ERR_JRET(schHandleOpBeginEvent(jobId, &pJob, SCH_OP_FETCH, pReq));
+  // Set to IN_PROGRESS when starting fetch
+  SCH_UPDATE_JOB_PHASE_IF_CHANGED(pJob, QUERY_PHASE_FETCH_IN_PROGRESS);
 
   SCH_ERR_JRET(schSwitchJobStatus(pJob, JOB_TASK_STATUS_FETCH, pReq));
 
 _return:
-
   SCH_RET(schHandleOpEndEvent(pJob, SCH_OP_FETCH, pReq, code));
 }
 
@@ -117,7 +122,69 @@ int32_t schedulerGetTasksStatus(int64_t jobId, SArray *pSub) {
 
       SQuerySubDesc subDesc = {0};
       subDesc.tid = pTask->taskId;
-      tstrncpy(subDesc.status, jobTaskStatusStr(pTask->status), sizeof(subDesc.status));
+      subDesc.startTs = pTask->profile.startTs;
+
+      const char *typePrefix = "task";
+      if (pTask->plan) {
+        switch (pTask->plan->subplanType) {
+          case SUBPLAN_TYPE_SCAN:
+          case SUBPLAN_TYPE_HSYSSCAN:
+            typePrefix = "scan";
+            break;
+          case SUBPLAN_TYPE_MERGE:
+            typePrefix = "merge";
+            break;
+          case SUBPLAN_TYPE_MODIFY:
+            typePrefix = "modify";
+            break;
+          case SUBPLAN_TYPE_COMPUTE:
+            typePrefix = "compute";
+            break;
+          case SUBPLAN_TYPE_PARTIAL:
+            typePrefix = "partial";
+            break;
+          default:
+            break;
+        }
+      }
+
+      int8_t taskStatus = SCH_GET_TASK_STATUS(pTask);
+      switch (taskStatus) {
+        case JOB_TASK_STATUS_INIT:
+          if (pTask->waitRetry) {
+            tsnprintf(subDesc.status, sizeof(subDesc.status), "%s/wait_retry", typePrefix);
+          } else if (pTask->plan && SCH_TASK_NEED_FLOW_CTRL(pJob, pTask)) {
+            tsnprintf(subDesc.status, sizeof(subDesc.status), "%s/waiting_flow", typePrefix);
+          } else {
+            tsnprintf(subDesc.status, sizeof(subDesc.status), "%s/init", typePrefix);
+          }
+          break;
+        case JOB_TASK_STATUS_EXEC:
+          if (pTask->retryTimes > 0) {
+            tsnprintf(subDesc.status, sizeof(subDesc.status), "%s/retry(%d)", typePrefix, pTask->retryTimes);
+          } else {
+            tsnprintf(subDesc.status, sizeof(subDesc.status), "%s/executing", typePrefix);
+          }
+          break;
+        case JOB_TASK_STATUS_PART_SUCC:
+          tsnprintf(subDesc.status, sizeof(subDesc.status), "%s/partial_succeed", typePrefix);
+          break;
+        case JOB_TASK_STATUS_FETCH:
+          tsnprintf(subDesc.status, sizeof(subDesc.status), "%s/fetching", typePrefix);
+          break;
+        case JOB_TASK_STATUS_SUCC:
+          tsnprintf(subDesc.status, sizeof(subDesc.status), "%s/succeed", typePrefix);
+          break;
+        case JOB_TASK_STATUS_FAIL:
+          tsnprintf(subDesc.status, sizeof(subDesc.status), "%s/failed", typePrefix);
+          break;
+        case JOB_TASK_STATUS_DROP:
+          tsnprintf(subDesc.status, sizeof(subDesc.status), "%s/dropping", typePrefix);
+          break;
+        default:
+          tsnprintf(subDesc.status, sizeof(subDesc.status), "%s/unknown", typePrefix);
+          break;
+      }
 
       if (NULL == taosArrayPush(pSub, &subDesc)) {
         qError("taosArrayPush task %d failed, error:0x%x", m, terrno);
@@ -129,6 +196,25 @@ int32_t schedulerGetTasksStatus(int64_t jobId, SArray *pSub) {
 _return:
 
   SCH_RET(schHandleOpEndEvent(pJob, SCH_OP_GET_STATUS, NULL, code));
+}
+
+int32_t schedulerGetJobPhase(int64_t jobId, int32_t *pPhase, int64_t *pPhaseStartTime) {
+  SSchJob *pJob = NULL;
+  int32_t  code = 0;
+
+  SCH_ERR_RET(schAcquireJob(jobId, &pJob));
+  if (NULL == pJob) {
+    qDebug("jobId:0x%" PRIx64 ", acquire sch job failed for phase query", jobId);
+    SCH_ERR_RET(TSDB_CODE_SCH_JOB_NOT_EXISTS);
+  }
+
+  *pPhase = SCH_GET_JOB_PHASE(pJob);
+  *pPhaseStartTime = SCH_GET_JOB_PHASE_START_TIME(pJob);
+
+  (void)schReleaseJob(pJob->refId);
+
+  qDebug("jobId:0x%" PRIx64 ", retrieved phase:%d, startTime:%" PRId64, jobId, *pPhase, *pPhaseStartTime);
+  return TSDB_CODE_SUCCESS;
 }
 
 void schedulerStopQueryHb(void *pTrans) {

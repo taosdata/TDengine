@@ -34,6 +34,7 @@ description: TDengine TSDB 保留关键字的详细列表
 | ANODES               | 3.3.4.3+ |
 | ANOMALY_WINDOW       | 3.3.4.3+ |
 | ANTI                 | |
+| ANY                  | 3.4.1.0+ |
 | APPS                 | |
 | ARBGROUPS            | |
 | ARROW                | |
@@ -480,6 +481,7 @@ description: TDengine TSDB 保留关键字的详细列表
 | SNODE                | |
 | SNODES               | |
 | SOFFSET              | |
+| SOME                 | 3.4.1.0+ |
 | SPLIT                | |
 | SS_CHUNKPAGES        | |
 | SS_COMPACT           | |

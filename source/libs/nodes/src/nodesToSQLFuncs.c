@@ -79,6 +79,10 @@ const char *operatorTypeStr(EOperatorType type) {
       return "IS NOT FALSE";
     case OP_TYPE_IS_NOT_UNKNOWN:
       return "IS NOT UNKNOWN";
+    case OP_TYPE_EXISTS:
+      return "EXISTS";
+    case OP_TYPE_NOT_EXISTS:
+      return "NOT EXISTS";
     case OP_TYPE_JSON_GET_VALUE:
       return "=>";
     case OP_TYPE_JSON_CONTAINS:
@@ -89,6 +93,22 @@ const char *operatorTypeStr(EOperatorType type) {
       break;
   }
   return "UNKNOWN";
+}
+
+const char *operatorTypeStrEx(EOperatorType type, bool isNegative) {
+  if (isNegative) {
+    switch (type) {
+      case OP_TYPE_IN:
+        return "!= ANY";
+      case OP_TYPE_NOT_IN:
+        return "= ALL";
+      default:
+        break;
+    }
+    return "UNKNOWN";
+  }
+
+  return operatorTypeStr(type);
 }
 
 const char *logicConditionTypeStr(ELogicConditionType type) {
@@ -123,10 +143,10 @@ int32_t nodesNodeToSQLFormat(SNode *pNode, char *buf, int32_t bufSize, int32_t *
         *len += snprintf(buf + *len, bufSize - *len, "`%s`.", colNode->tableName);
       }
 
-      if (colNode->tableAlias[0]) {
+      if (colNode->node.userAlias[0]) {
         *len += snprintf(buf + *len, bufSize - *len, "`%s`", colNode->node.userAlias);
       } else {
-        *len += snprintf(buf + *len, bufSize - *len, "%s", colNode->node.userAlias);
+        *len += snprintf(buf + *len, bufSize - *len, "`%s`", colNode->colName);
       }
 
       return TSDB_CODE_SUCCESS;
@@ -161,7 +181,7 @@ int32_t nodesNodeToSQLFormat(SNode *pNode, char *buf, int32_t bufSize, int32_t *
         NODES_ERR_RET(nodesNodeToSQLFormat(pOpNode->pLeft, buf, bufSize, len, true));
       }
 
-      *len += snprintf(buf + *len, bufSize - *len, " %s ", operatorTypeStr(pOpNode->opType));
+      *len += tsnprintf(buf + *len, bufSize - *len, " %s ", operatorTypeStrEx(pOpNode->opType, pOpNode->flag & OPERATOR_FLAG_NEGATIVE_OP));
 
       if (pOpNode->pRight) {
         NODES_ERR_RET(nodesNodeToSQLFormat(pOpNode->pRight, buf, bufSize, len, true));
@@ -238,6 +258,21 @@ int32_t nodesNodeToSQLFormat(SNode *pNode, char *buf, int32_t bufSize, int32_t *
     case QUERY_NODE_REMOTE_VALUE: {
       SRemoteValueNode* pRemote = (SRemoteValueNode*)pNode;
       *len += snprintf(buf + *len, bufSize - *len, "$(InitPlan %d)", pRemote->subQIdx + 1);
+      return TSDB_CODE_SUCCESS;
+    }
+    case QUERY_NODE_REMOTE_VALUE_LIST: {
+      SRemoteValueListNode* pRemote = (SRemoteValueListNode*)pNode;
+      *len += tsnprintf(buf + *len, bufSize - *len, "$(InitPlan %d)", pRemote->subQIdx + 1);
+      return TSDB_CODE_SUCCESS;
+    }
+    case QUERY_NODE_REMOTE_ROW: {
+      SRemoteRowNode* pRemote = (SRemoteRowNode*)pNode;
+      *len += tsnprintf(buf + *len, bufSize - *len, "$(InitPlan %d)", pRemote->subQIdx + 1);
+      return TSDB_CODE_SUCCESS;
+    }
+    case QUERY_NODE_REMOTE_ZERO_ROWS: {
+      SRemoteZeroRowsNode* pRemote = (SRemoteZeroRowsNode*)pNode;
+      *len += tsnprintf(buf + *len, bufSize - *len, "$(InitPlan %d)", pRemote->subQIdx + 1);
       return TSDB_CODE_SUCCESS;
     }
     default:

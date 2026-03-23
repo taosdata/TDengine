@@ -25,7 +25,6 @@ RUN if [ "$ARCH" = "arm64" ]; then \
     fi && \
     PIP_INDEX_ARG="${PIP_INDEX_URL:+-i ${PIP_INDEX_URL}}" && \
     pip3 install --upgrade pip && \
-    pip3 install --no-cache-dir --ignore-installed blinker && \
     pip3 install --no-cache-dir $TORCH_PKG --index-url $TORCH_INDEX && \
     pip3 install --no-cache-dir \
                 -r /tmp/requirements_docker.txt \

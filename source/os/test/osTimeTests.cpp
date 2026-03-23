@@ -256,6 +256,16 @@ TEST(osTimeTests, invalidParameter) {
   EXPECT_NE(reti, 0);
 }
 
+#ifndef WINDOWS
+TEST(osTimeTests, truncateTimezoneStringRemovesLeadingSlash) {
+  char tz[TD_TIMEZONE_LEN] = "/UTC";
+
+  truncateTimezoneString(tz);
+
+  EXPECT_STREQ(tz, "UTC");
+}
+#endif
+
 TEST(osTimeTests, user_mktime64) {
   int64_t reti = 0;
 

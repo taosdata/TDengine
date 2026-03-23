@@ -33,6 +33,7 @@ The list of keywords is as follows:
 | ANODES               | 3.3.4.3+ |
 | ANOMALY_WINDOW       | 3.3.4.3+ |
 | ANTI                 | |
+| ANY                  | 3.4.1.0+ |
 | APPS                 | |
 | ARBGROUPS            | |
 | ARROW                | |
@@ -479,6 +480,7 @@ The list of keywords is as follows:
 | SNODE                | |
 | SNODES               | |
 | SOFFSET              | |
+| SOME                 | 3.4.1.0+ |
 | SPLIT                | |
 | SS_CHUNKPAGES        | |
 | SS_COMPACT           | |

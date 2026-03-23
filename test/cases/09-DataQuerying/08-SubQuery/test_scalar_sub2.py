@@ -267,6 +267,7 @@ class TestScalarSubQuery2:
         "(select 0 from {tableName} limit 1)",
         "(select 1 from {tableName} limit 1)",
         "(select 2 from {tableName} limit 1)",
+        "(select f1 from db2.tba)",
     ]
 
     def setup_class(cls):
@@ -319,6 +320,7 @@ class TestScalarSubQuery2:
             "INSERT INTO tb3 VALUES ('2025-12-02 00:00:00.000', 5, 32)",
             "INSERT INTO tb3 VALUES ('2025-12-03 00:00:00.000', 6, 33)",
             "INSERT INTO tba VALUES ('2025-12-01 00:00:00.000', 0)",
+            "INSERT INTO tbb VALUES ('2025-12-02 00:00:00.000', 1)",
             "create view v1 as select f1 from tb1",
             "create view v2 as select f1 from st1 where f1 = (select f1 from st1 order by ts, f1 limit 1)",
             "create view v3 as select f1 from st1 where f1 = (select f1 from st1 order by ts, f1 limit 1 offset 1)",
@@ -326,6 +328,16 @@ class TestScalarSubQuery2:
             "create vtable vtb1 (ts timestamp, f1 int from tb1.f1)",
         ]
         tdSql.executes(sqls)
+
+        tdSql.execute(f"drop database if exists db2")
+        tdSql.execute(f"create database db2")
+        tdSql.execute(f"use db2")
+        sqls = [
+            "CREATE TABLE tba (ts TIMESTAMP, f1 int)",
+            "INSERT INTO tba VALUES ('2025-12-11 00:00:00.000', 0)",
+        ]
+        tdSql.executes(sqls)
+        tdSql.execute(f"use db1")
 
     def checkResultWithResultFile(self, sqlFile, resFile):
         tdLog.info(f"check result with sql: {sqlFile}")
