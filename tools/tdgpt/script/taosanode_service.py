@@ -88,25 +88,26 @@ def setup_logger(name: str, log_file: str, level=logging.INFO) -> logging.Logger
 
     logger.setLevel(level)
 
-    # Ensure log directory exists
+    # Prefer file logging, but do not fail if the default install path is not writable.
     log_dir = os.path.dirname(log_file)
-    if log_dir:
-        os.makedirs(log_dir, exist_ok=True)
+    try:
+        if log_dir:
+            os.makedirs(log_dir, exist_ok=True)
 
-    # File handler with rotation
-    file_handler = RotatingFileHandler(
-        log_file,
-        maxBytes=10*1024*1024,  # 10MB
-        backupCount=5
-    )
-    file_handler.setLevel(level)
-    file_formatter = logging.Formatter(
-        '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S'
-    )
-    file_handler.setFormatter(file_formatter)
-
-    logger.addHandler(file_handler)
+        file_handler = RotatingFileHandler(
+            log_file,
+            maxBytes=10*1024*1024,  # 10MB
+            backupCount=5
+        )
+        file_handler.setLevel(level)
+        file_formatter = logging.Formatter(
+            '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+            datefmt='%Y-%m-%d %H:%M:%S'
+        )
+        file_handler.setFormatter(file_formatter)
+        logger.addHandler(file_handler)
+    except OSError:
+        pass
 
     if os.environ.get("TAOSANODE_DISABLE_CONSOLE_LOG") != "1":
         console_handler = logging.StreamHandler()
@@ -114,6 +115,9 @@ def setup_logger(name: str, log_file: str, level=logging.INFO) -> logging.Logger
         console_formatter = logging.Formatter('%(levelname)s: %(message)s')
         console_handler.setFormatter(console_formatter)
         logger.addHandler(console_handler)
+
+    if not logger.handlers:
+        logger.addHandler(logging.NullHandler())
 
     return logger
 
@@ -308,6 +312,7 @@ class ProcessManager:
 
     def __init__(self, config: Config):
         self.config = config
+        self.model_pid_dir = os.path.join(self.config.data_dir, "pids")
         self.logger = setup_logger(
             'ProcessManager',
             os.path.join(config.log_dir, 'taosanode-service.log')
@@ -318,7 +323,7 @@ class ProcessManager:
         """Ensure required directories exist"""
         os.makedirs(self.config.log_dir, exist_ok=True)
         os.makedirs(self.config.data_dir, exist_ok=True)
-        os.makedirs(MODEL_PID_DIR, exist_ok=True)
+        os.makedirs(self.model_pid_dir, exist_ok=True)
 
     def _get_python_exe(self, venv_dir: Optional[str] = None) -> str:
         """Get Python interpreter path"""
@@ -354,7 +359,7 @@ class ProcessManager:
         if service_name == "taosanode":
             return self.config.pid_file
         else:
-            return os.path.join(MODEL_PID_DIR, f"{service_name}.pid")
+            return os.path.join(self.model_pid_dir, f"{service_name}.pid")
 
     def read_pid(self, service_name: str = "taosanode") -> Optional[int]:
         """Read PID from file"""
