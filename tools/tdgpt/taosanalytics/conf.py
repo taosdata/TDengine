@@ -5,8 +5,15 @@ import importlib.util
 import logging
 import platform
 import os.path
-import torch   # do not remove it
-import keras
+try:
+    import torch  # noqa: F401 - Optional runtime dependency
+except Exception:  # pragma: no cover
+    torch = None  # noqa: F841
+
+try:
+    import keras  # noqa: F401 - Optional runtime dependency
+except Exception:  # pragma: no cover
+    keras = None  # noqa: F841
 from pathlib import Path
 from typing import Optional
 
@@ -33,31 +40,41 @@ class Configure:
 
     def _get_default_conf(self):
         if platform.system().lower() == "windows":
-            # raw_path = r"%PROGRAMDATA%"
-            # base_path = os.path.join(os.path.expandvars(raw_path), "tdgpt")
-            # keep inline with the TDengine installation configuration
-            base_path = "c:/TDengine/tdgpt/"
+            package_dir = Path(__file__).resolve().parent
+            if package_dir.name == "taosanalytics" and package_dir.parent.name == "lib":
+                base_path = str(package_dir.parent.parent).replace("\\", "/")
+            else:
+                base_path = "c:/TDengine/taosanode"
 
             default = {
                 "log_dir": os.path.join(base_path, "log"),
                 "log_file": "taosanode.app.log",
                 "model_dir": os.path.join(base_path, "model"),
-                "conf_path": os.path.join(base_path, "conf/taosanode.config.py"),
+                "conf_path": os.path.join(base_path, "cfg", "taosanode.config.py"),
                 "log_level": logging.DEBUG,
                 "draw_result": False,
             }
         else:
-            default = {
-                "log_dir": "/var/log/taos/taosanode/",
-                "log_file": "taosanode.app.log",
-                "model_dir": '/usr/local/taos/taosanode/model/',
-                "conf_path": "/etc/taos/taosanode.config.py",
-                "log_level": logging.DEBUG,
-                "draw_result": False,
-            }
-
-            if os.environ.get('GITHUB_ACTIONS'):
-               default['log_dir'] = '/home/runner/work/TDengine/TDengine/tools/tdgpt/log/'
+            package_dir = Path(__file__).resolve().parent
+            if os.environ.get('GITHUB_ACTIONS') and package_dir.name == "taosanalytics":
+                base_path = str(package_dir.parent).replace("\\", "/")
+                default = {
+                    "log_dir": os.path.join(base_path, "log"),
+                    "log_file": "taosanode.app.log",
+                    "model_dir": os.path.join(base_path, "model"),
+                    "conf_path": os.path.join(base_path, "cfg", "taosanode.config.py"),
+                    "log_level": logging.DEBUG,
+                    "draw_result": False,
+                }
+            else:
+                default = {
+                    "log_dir": "/var/log/taos/taosanode/",
+                    "log_file": "taosanode.app.log",
+                    "model_dir": '/usr/local/taos/taosanode/model/',
+                    "conf_path": "/etc/taos/taosanode.config.py",
+                    "log_level": logging.DEBUG,
+                    "draw_result": False,
+                }
 
         return default
 
@@ -137,8 +154,7 @@ class AppLogger():
         path = Path(file_path)
 
         # create directory if not exists
-        if not os.path.exists(path.parent):
-            os.mkdir(path.parent)
+        path.parent.mkdir(parents=True, exist_ok=True)
 
         handler = logging.FileHandler(file_path)
         handler.setFormatter(logging.Formatter(self.LOG_STR_FORMAT))
@@ -160,7 +176,8 @@ app_logger = AppLogger()
 
 def setup_log_info(name: str):
     """ prepare the log info for unit test """
-    base_dir = "/home/runner/work/TDengine/TDengine/tools/tdgpt/log/" if os.environ.get('GITHUB_ACTIONS') else conf.get_log_dir()
+    base_dir = "/home/runner/work/TDengine/TDengine/tools/tdgpt/log/" if os.environ.get(
+        'GITHUB_ACTIONS') else conf.get_log_dir()
     log_file = os.path.join(base_dir, name)
 
     app_logger.set_handler(log_file)
