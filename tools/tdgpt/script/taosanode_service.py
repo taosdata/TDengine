@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-TDGPT Taosanode Unified Service Manager
+TDgpt Taosanode Unified Service Manager
 Cross-platform service management for Linux and Windows
 
 Usage:
@@ -69,6 +69,18 @@ MODELS = {}
 _logger = None
 
 
+def get_windows_friendly_log_encoding(log_file: str) -> str:
+    """Use UTF-8 with BOM for new Windows log files so common editors detect Unicode correctly."""
+    if platform.system().lower() != "windows":
+        return "utf-8"
+    try:
+        if os.path.exists(log_file) and os.path.getsize(log_file) > 0:
+            return "utf-8"
+    except OSError:
+        pass
+    return "utf-8-sig"
+
+
 def setup_logger(name: str, log_file: str, level=logging.INFO) -> logging.Logger:
     """Create and configure a logger instance
 
@@ -97,7 +109,9 @@ def setup_logger(name: str, log_file: str, level=logging.INFO) -> logging.Logger
         file_handler = RotatingFileHandler(
             log_file,
             maxBytes=10*1024*1024,  # 10MB
-            backupCount=5
+            backupCount=5,
+            encoding=get_windows_friendly_log_encoding(log_file),
+            errors="replace",
         )
         file_handler.setLevel(level)
         file_formatter = logging.Formatter(
@@ -130,7 +144,13 @@ def redirect_stdio_if_needed():
         return
 
     os.makedirs(os.path.dirname(target), exist_ok=True)
-    _redirect_stream = open(target, "a", encoding="utf-8", buffering=1)
+    _redirect_stream = open(
+        target,
+        "a",
+        encoding=get_windows_friendly_log_encoding(target),
+        errors="replace",
+        buffering=1,
+    )
     sys.stdout = _redirect_stream
     sys.stderr = _redirect_stream
 
@@ -1223,7 +1243,9 @@ class ModelService:
         handler = RotatingFileHandler(
             log_file,
             maxBytes=10*1024*1024,  # 10MB
-            backupCount=5
+            backupCount=5,
+            encoding=get_windows_friendly_log_encoding(log_file),
+            errors="replace",
         )
         formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
         handler.setFormatter(formatter)
@@ -1231,7 +1253,12 @@ class ModelService:
 
         try:
             # Start process
-            with open(log_file, 'a') as log:
+            with open(
+                log_file,
+                'a',
+                encoding=get_windows_friendly_log_encoding(log_file),
+                errors="replace",
+            ) as log:
                 if IS_WINDOWS:
                     startupinfo = subprocess.STARTUPINFO()
                     startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
@@ -1498,7 +1525,7 @@ def print_status(status):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="TDGPT Taosanode Service Manager",
+        description="TDgpt Taosanode Service Manager",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:

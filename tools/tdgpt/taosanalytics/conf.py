@@ -156,7 +156,9 @@ class AppLogger():
         # create directory if not exists
         path.parent.mkdir(parents=True, exist_ok=True)
 
-        handler = logging.FileHandler(file_path)
+        # Use UTF-8 with BOM on Windows so common editors do not mis-detect the log as GBK/ANSI.
+        encoding = "utf-8-sig" if platform.system().lower() == "windows" else "utf-8"
+        handler = logging.FileHandler(file_path, encoding=encoding)
         handler.setFormatter(logging.Formatter(self.LOG_STR_FORMAT))
 
         self.log_inst.addHandler(handler)

@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """
-TDGPT Windows uninstallation script.
+TDgpt Windows uninstallation script.
 """
 
 import argparse
+import json
 import os
 import platform
 import shutil
@@ -38,6 +39,30 @@ class Colors:
 INSTALL_DIR = Path(__file__).resolve().parent
 LOG_DIR = INSTALL_DIR / "log"
 VENVS_DIR = INSTALL_DIR / "venvs"
+PACKAGE_METADATA_FILE = INSTALL_DIR / "cfg" / "package-metadata.json"
+
+
+def load_package_metadata() -> dict[str, str]:
+    defaults = {
+        "edition": "community",
+        "app_name": "TDgpt",
+        "product_full_name": "TDgpt - TDengine Analytics Node",
+    }
+    if not PACKAGE_METADATA_FILE.exists():
+        return defaults
+    try:
+        with PACKAGE_METADATA_FILE.open("r", encoding="utf-8") as file_obj:
+            payload = json.load(file_obj)
+    except Exception:
+        return defaults
+    if not isinstance(payload, dict):
+        return defaults
+    defaults.update({str(key): str(value) for key, value in payload.items() if value is not None})
+    return defaults
+
+
+PACKAGE_METADATA = load_package_metadata()
+APP_DISPLAY_NAME = PACKAGE_METADATA.get("app_name", "TDgpt")
 
 
 class WindowsUninstaller:
@@ -84,7 +109,7 @@ class WindowsUninstaller:
         self._emit("SUCCESS", "[SUCCESS]", Colors.GREEN, message)
 
     def stop_services(self) -> None:
-        self.print_info("Stopping TDGPT services...")
+        self.print_info(f"Stopping {APP_DISPLAY_NAME} services...")
         service_script = self.install_dir / "bin" / "taosanode_service.py"
         python_exe = self.venvs_dir / "venv" / "Scripts" / "python.exe"
 
@@ -240,7 +265,7 @@ class WindowsUninstaller:
         lines = [
             "",
             "=" * 72,
-            "TDGPT Windows Uninstall Summary",
+            f"{APP_DISPLAY_NAME} Windows Uninstall Summary",
             "=" * 72,
             f"Install directory: {self.install_dir}",
             f"Keep all: {'Yes' if self.keep_all else 'No'}",
@@ -272,7 +297,7 @@ class WindowsUninstaller:
         self.log_dir.mkdir(parents=True, exist_ok=True)
 
         self.print_info("=" * 60)
-        self.print_info("TDGPT Windows Uninstaller")
+        self.print_info(f"{APP_DISPLAY_NAME} Windows Uninstaller")
         self.print_info("=" * 60)
         self.print_info(f"Install directory: {self.install_dir}")
         self.print_info(f"Uninstall log: {self.log_file}")
@@ -283,13 +308,13 @@ class WindowsUninstaller:
         self.remove_from_path()
         self.remove_files()
         self.append_uninstall_summary()
-        self.print_success("TDGPT uninstall flow completed.")
+        self.print_success(f"{APP_DISPLAY_NAME} uninstall flow completed.")
         return True
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="TDGPT Windows uninstallation script",
+        description="TDgpt Windows uninstallation script",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
