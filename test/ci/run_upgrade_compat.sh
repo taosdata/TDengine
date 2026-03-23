@@ -32,7 +32,7 @@ function usage() {
 GREEN_HTTP_BASE="http://192.168.1.131/data/nas/TDengine/green_versions"
 
 # 绿色版本本地缓存目录（宿主机）
-GREEN_LOCAL_DIR="/green_versions"
+GREEN_LOCAL_DIR="/var/lib/jenkins/workspace/green_versions"
 
 # 并发下载锁目录
 LOCK_DIR="/tmp/green_versions_locks"
@@ -140,14 +140,7 @@ function download_version() {
                 break
             fi
             # 对二进制文件赋予执行权限
-            case "$fname" in
-                taosd|taos|taosadapter|taosBenchmark)
-                    chmod +x "$dest"
-                    ;;
-                *.so*)
-                    chmod +x "$dest"
-                    ;;
-            esac
+            chmod +x "$dest"
         done
 
         if [ $failed -ne 0 ]; then
@@ -197,7 +190,7 @@ if [ $download_failed -ne 0 ]; then
 fi
 echo "=== Step 1/2: All green versions ready ==="
 
-# ── Step 2: Resolve paths (enterprise edition only) ──────────────────────────
+# ── Step 2: Resolve paths ──────────────────────────
 
 INTERNAL_REPDIR="$WORKDIR/TDinternal"
 DEBUGPATH_DIR="$WORKDIR/debugNoSan"
@@ -230,7 +223,7 @@ docker run \
     -v "${CONTAINER_DEBUG_MOUNT}" \
     -v "${GREEN_LOCAL_DIR}:/green_versions" \
     -v "${LOG_DIR}:/upgrade_logs" \
-    --ulimit core=-1 \
+    --rm --ulimit core=-1 \
     tdengine-ci:0.1 \
     ${CONTAINER_SCRIPT}
 ret=$?

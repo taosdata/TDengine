@@ -188,7 +188,7 @@ class DNodeConfig:
         with open(self.cfg_file, 'w') as f:
             f.write(config_content)
 
-    def start_dnode(self, timeout: int = 5) -> bool:
+    def start_dnode(self, timeout: int = 30) -> bool:
         if not self.taosd_path or not os.path.isfile(self.taosd_path):
             raise FileNotFoundError(f"taosd not found: {self.taosd_path}")
 
@@ -212,8 +212,11 @@ class DNodeConfig:
         if os.path.isfile(log_file):
             try:
                 with open(log_file) as _f:
-                    tail = _f.read()[-4096:]
-                self.logger.error(f"--- taosd_start.log (last 4KB) ---\n{tail}")
+                    content = _f.read()
+                self.logger.error(f"--- taosd_start.log (last 4KB) ---\n{content[-4096:]}")
+                error_lines = [l for l in content.splitlines() if "ERROR" in l]
+                if error_lines:
+                    self.logger.error(f"--- taosd_start.log (ERROR lines) ---\n" + "\n".join(error_lines))
             except Exception:
                 pass
         return False

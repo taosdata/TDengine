@@ -5,7 +5,7 @@
 #
 # 本脚本由 run_upgrade_compat.sh 通过 docker run 调用，在容器内执行：
 #   1. 安装 Python 依赖（taospy / pyyaml）
-#   2. 冷升级测试：3.3.6.0 / 3.3.8.0 / 3.4.0.0 → 当前版本（一次调用，串行）
+#   2. 冷升级测试：3.3.6.0 / 3.3.8.0 / 3.4.0.0 → 当前版本（串行调用）
 #   3. 热升级（滚动升级）测试：自动匹配同版本前缀
 #   4. 汇总输出 PASS / FAIL
 #
@@ -58,16 +58,14 @@ echo "  COMPAT_CI_DIR : $COMPAT_CI_DIR"
 echo "  GREEN_PATH    : $GREEN_PATH"
 echo "  LOG_DIR       : $LOG_DIR"
 echo "  Enterprise    : $ent"
-echo "  Green versions available:"
-ls -1 "$GREEN_PATH" | sed 's/^/    /'
 echo "======================================================"
 
 # ── Step 0: 安装 Python 依赖 ─────────────────────────────────────────────────
 
 echo ""
 echo "=== Installing Python dependencies ==="
-pip3 install taospy pyyaml -q
-echo "=== Python dependencies ready ==="
+pip3 install taospy pyyaml -q --disable-pip-version-check 2>/dev/null
+echo "=== Python dependencies installed successfully ==="
 
 # ── 工具函数：清理 taosd 进程 ────────────────────────────────────────────────
 
@@ -79,7 +77,7 @@ function cleanup_taosd() {
 
 overall_ret=0
 
-# ── Step 1: 冷升级测试（3.3.6.0 / 3.3.8.0 / 3.4.0.0 → 当前版本，一次调用）──
+# ── Step 1: 冷升级测试（3.3.6.0 / 3.3.8.0 / 3.4.0.0 → 当前版本，串行调用）──
 
 echo ""
 echo "============================================================"
@@ -87,7 +85,7 @@ echo "=== Cold Upgrade Tests (3.3.6.0, 3.3.8.0, 3.4.0.0)     ==="
 echo "============================================================"
 
 #
-# 3.3.x.x
+# 3.3.6.0,3.3.8.0
 #
 
 cleanup_taosd
@@ -98,7 +96,7 @@ cold_cmd=(python3 "$COMPAT_CI_DIR/cold_upgrade_task.py"
     --options="$COLD_VERSIONS_OPTION_1"
 )
 echo "Executing: ${cold_cmd[*]}"
-"${cold_cmd[@]}" 2>&1 | tee "$LOG_DIR/cold_upgrade.log"
+"${cold_cmd[@]}" 2>&1 | tee "$LOG_DIR/cold_upgrade_33x.log"
 
 cold_ret=${PIPESTATUS[0]}
 
@@ -108,7 +106,7 @@ if [ $cold_ret -ne 0 ]; then
 fi
 
 #
-# 3.4.x.x
+# 3.4.0.0
 #
 
 cleanup_taosd
@@ -119,12 +117,12 @@ cold_cmd=(python3 "$COMPAT_CI_DIR/cold_upgrade_task.py"
     --options="$COLD_VERSIONS_OPTION_2"
 )
 echo "Executing: ${cold_cmd[*]}"
-"${cold_cmd[@]}" 2>&1 | tee "$LOG_DIR/cold_upgrade.log"
+"${cold_cmd[@]}" 2>&1 | tee "$LOG_DIR/cold_upgrade_34x.log"
 
 cold_ret=${PIPESTATUS[0]}
 
 if [ $cold_ret -ne 0 ]; then
-    echo "[FAIL] Cold upgrade 3.4.x.x tests FAILED (exit code: $cold_ret)"
+    echo "[FAIL] Cold upgrade 3.4.0.0 tests FAILED (exit code: $cold_ret)"
     overall_ret=$cold_ret
 else
     echo "[PASS] Cold upgrade tests PASSED"
@@ -171,10 +169,19 @@ echo "=== Upgrade Compatibility Test Summary                  ==="
 echo "============================================================"
 
 # 从冷升级日志中提取各版本结果
-for ver in 3.3.6.0 3.3.8.0 3.4.0.0; do
-    if grep -q "\[PASS\] Cold upgrade test passed.*${ver}" "$LOG_DIR/cold_upgrade.log" 2>/dev/null; then
+for ver in 3.3.6.0 3.3.8.0; do
+    if grep -q "\[PASS\] Cold upgrade test passed.*${ver}" "$LOG_DIR/cold_upgrade_33x.log" 2>/dev/null; then
         echo "  Cold ${ver} → current : PASS"
-    elif grep -q "\[FAIL\] Cold upgrade test FAILED.*${ver}" "$LOG_DIR/cold_upgrade.log" 2>/dev/null; then
+    elif grep -q "\[FAIL\] Cold upgrade test FAILED.*${ver}" "$LOG_DIR/cold_upgrade_33x.log" 2>/dev/null; then
+        echo "  Cold ${ver} → current : FAIL"
+    else
+        echo "  Cold ${ver} → current : UNKNOWN"
+    fi
+done
+for ver in 3.4.0.0; do
+    if grep -q "\[PASS\] Cold upgrade test passed.*${ver}" "$LOG_DIR/cold_upgrade_34x.log" 2>/dev/null; then
+        echo "  Cold ${ver} → current : PASS"
+    elif grep -q "\[FAIL\] Cold upgrade test FAILED.*${ver}" "$LOG_DIR/cold_upgrade_34x.log" 2>/dev/null; then
         echo "  Cold ${ver} → current : FAIL"
     else
         echo "  Cold ${ver} → current : UNKNOWN"
