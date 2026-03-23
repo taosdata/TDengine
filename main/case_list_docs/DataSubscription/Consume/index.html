@@ -2672,6 +2672,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#17-DataSubscription.02-Consume.test_tmq_batch_alter_tag.TestBatchAlterTag.test_run" class="md-nav__link">
+        Basic: error handling 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#17-DataSubscription.02-Consume.test_tmq_error.TestCase.test_tmq_error" class="md-nav__link">
         Basic: error handling 
       </a>
@@ -3598,6 +3609,17 @@
     <li class="md-nav__item">
       <a href="#17-DataSubscription.02-Consume.test_subscribe_stb4.TestCase.test_subscribeStb4" class="md-nav__link">
         Subscribe stable4 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#17-DataSubscription.02-Consume.test_tmq_vtable.TestCase.test_tmq_vtable" class="md-nav__link">
+        summary: test tmq vtable 
       </a>
       
     </li>
@@ -5103,6 +5125,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#17-DataSubscription.02-Consume.test_tmq_batch_alter_tag.TestBatchAlterTag.test_run" class="md-nav__link">
+        Basic: error handling 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#17-DataSubscription.02-Consume.test_tmq_error.TestCase.test_tmq_error" class="md-nav__link">
         Basic: error handling 
       </a>
@@ -6038,6 +6071,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#17-DataSubscription.02-Consume.test_tmq_vtable.TestCase.test_tmq_vtable" class="md-nav__link">
+        summary: test tmq vtable 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#17-DataSubscription.02-Consume.test_tmq_restart.TestCase.test_tmq_tx484" class="md-nav__link">
         Tmq consume restart 
       </a>
@@ -6566,6 +6610,37 @@
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/17-DataSubscription/02-Consume/test_tmq_basic.py" target="_blank">
                       cases/17-DataSubscription/02-Consume/test_tmq_basic.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="17-DataSubscription.02-Consume.test_tmq_batch_alter_tag.TestBatchAlterTag.test_run" class="doc doc-heading">
+
+<a href="#17-DataSubscription.02-Consume.test_tmq_batch_alter_tag.TestBatchAlterTag.test_run" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Basic: error handling</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Test Alter table tag in tmq batch mode, verify that tag alterations are correctly captured and reflected in the TMQ topic.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Test Alter table tag with filter in tmq batch mode, verify that only the tables matching the filter criteria are altered and reflected in the TMQ topic.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Test Alter table tag in tmq batch mode with database-level topic, verify that alterations to any table in the database are captured and reflected in the TMQ topic.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/17-DataSubscription/02-Consume/test_tmq_batch_alter_tag.py" target="_blank">
+                      cases/17-DataSubscription/02-Consume/test_tmq_batch_alter_tag.py
                     </a>
                   </div>
         </div>
@@ -9492,6 +9567,42 @@
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/17-DataSubscription/02-Consume/test_tmq_vnode_transform_stb_wal.py" target="_blank">
                       cases/17-DataSubscription/02-Consume/test_tmq_vnode_transform_stb_wal.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="17-DataSubscription.02-Consume.test_tmq_vtable.TestCase.test_tmq_vtable" class="doc doc-heading">
+
+<a href="#17-DataSubscription.02-Consume.test_tmq_vtable.TestCase.test_tmq_vtable" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>summary: test tmq vtable</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">description: </div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">snapshot = true, stable topic / db topic, check get_raw/tmq_get_json</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">snapshot = false, stable topic / db topic, check get_raw/write_raw</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">ref is from another db table col, virtual_normal_table, virtual_child_table</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">ref is all, or ref is partial</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">create vtable, create normal v table.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">add col for normal v table</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">alter ref for child vtable</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/17-DataSubscription/02-Consume/test_tmq_vtable.py" target="_blank">
+                      cases/17-DataSubscription/02-Consume/test_tmq_vtable.py
                     </a>
                   </div>
         </div>

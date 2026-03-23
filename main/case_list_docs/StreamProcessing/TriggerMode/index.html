@@ -2742,6 +2742,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#18-StreamProcessing.03-TriggerMode.test_period_natural_units.TestPeriodNaturalUnits.test_period_natural_units" class="md-nav__link">
+        Test PERIOD trigger with natural time units (week/month/year) 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#18-StreamProcessing.03-TriggerMode.count_dbg.TestStreamCountTrigger.test_stream_count_trigger" class="md-nav__link">
         Trigger mode count 
       </a>
@@ -4047,6 +4058,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#18-StreamProcessing.03-TriggerMode.test_period_natural_units.TestPeriodNaturalUnits.test_period_natural_units" class="md-nav__link">
+        Test PERIOD trigger with natural time units (week/month/year) 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#18-StreamProcessing.03-TriggerMode.count_dbg.TestStreamCountTrigger.test_stream_count_trigger" class="md-nav__link">
         Trigger mode count 
       </a>
@@ -4532,6 +4554,42 @@
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/03-TriggerMode/test_period_1.py" target="_blank">
                       cases/18-StreamProcessing/03-TriggerMode/test_period_1.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.03-TriggerMode.test_period_natural_units.TestPeriodNaturalUnits.test_period_natural_units" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.03-TriggerMode.test_period_natural_units.TestPeriodNaturalUnits.test_period_natural_units" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Test PERIOD trigger with natural time units (week/month/year)</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Purpose: Comprehensive tests for stream PERIOD trigger with natural time units</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Steps:</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Test week unit (PERIOD(1w), PERIOD(2w))</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Test month unit (PERIOD(1n), PERIOD(3n))</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Test year unit (PERIOD(1y), PERIOD(2y))</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Test offset parameter (PERIOD(1w, 1d), PERIOD(1n, 14d))</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Test validation errors (invalid units, out-of-range, offset overflow)</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Expected: All natural time unit syntax accepted, proper validation, metadata stored correctly</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/03-TriggerMode/test_period_natural_units.py" target="_blank">
+                      cases/18-StreamProcessing/03-TriggerMode/test_period_natural_units.py
                     </a>
                   </div>
         </div>
