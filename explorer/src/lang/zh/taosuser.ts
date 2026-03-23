@@ -92,6 +92,7 @@ export default {
     activationLicense: '激活许可证',
     activeCode: '激活码',
     cActiveCode: '连接器激活码',
+    activeCodeHint: '支持粘贴长激活码，系统会自动忽略单引号（\'）。',
     dataRestoration: '数据恢复',
     activeTip: '联系TDengine客户成功团队获取激活码',
     time: '时间',

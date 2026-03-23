@@ -70,7 +70,7 @@ sysinfo.workspace = true
 metrics.workspace = true
 taosx-metrics.workspace = true
 gethostname = "1"
-openidconnect = "3.5.0"
+openidconnect = "4.0.1"
 actix-session = { version = "0.11.0", features = ["cookie-session"] }
 url = "2.5"
 uuid = { version = "1.19.0", features = ["v4", "serde"] }

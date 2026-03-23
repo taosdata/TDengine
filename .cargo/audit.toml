@@ -16,6 +16,9 @@ ignore = [
   "RUSTSEC-2024-0421",
   # rust-decimal rejected the fix
   "RUSTSEC-2026-0001",
+  # rustls-webpki 0.102.8: rumqttc 0.25.1 pins ^0.102, fix requires >=0.103.10.
+  # No newer rumqttc release available yet. nats 0.25.0 is optional and not compiled.
+  "RUSTSEC-2026-0049",
 ]
 
 [output]

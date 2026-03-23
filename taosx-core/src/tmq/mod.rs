@@ -835,12 +835,15 @@ pub async fn check_wal_enabled(taos_builder: &TaosBuilder, topics: &[Topic]) -> 
     for topic in topics {
         // get all subscriptions by topic and consumer group
         let wal_retention_period = match taos
-            .query_one::<_, usize>(format!(
+            .query_one::<_, Option<usize>>(format!(
                 "SELECT `wal_retention_period` FROM information_schema.ins_databases WHERE `name` = '{}'",
                 topic.database
             ))
             .await {
-                Ok(res) => res,
+                Ok(Some(res)) => res,
+                Ok(None) => {
+                    return Ok(());
+                }
                 Err(e) => {
                     let code: i32 = e.code().into();
                     match code {

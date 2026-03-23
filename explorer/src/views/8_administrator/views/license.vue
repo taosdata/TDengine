@@ -113,10 +113,22 @@
         @submit.prevent
       >
         <el-form-item :label="$t('taosuser.activeCode')" prop="active_code">
-          <el-input v-model.trim="ruleForm.active_code" @keyup.enter="submit(ruleFormRef)"></el-input>
+          <el-input
+            v-model.trim="ruleForm.active_code"
+            type="textarea"
+            :autosize="{ minRows: 2, maxRows: 6 }"
+            @keyup.enter="submit(ruleFormRef)"
+          ></el-input>
+          <div class="activate-hint">{{ $t('taosuser.activeCodeHint') }}</div>
         </el-form-item>
         <el-form-item v-if="isLessThan3_2_3_0" :label="$t('taosuser.cActiveCode')" prop="c_active_code">
-          <el-input v-model.trim="ruleForm.c_active_code" @keyup.enter="submit(ruleFormRef)"></el-input>
+          <el-input
+            v-model.trim="ruleForm.c_active_code"
+            type="textarea"
+            :autosize="{ minRows: 2, maxRows: 6 }"
+            @keyup.enter="submit(ruleFormRef)"
+          ></el-input>
+          <div class="activate-hint">{{ $t('taosuser.activeCodeHint') }}</div>
         </el-form-item>
       </el-form>
 
@@ -189,8 +201,14 @@ const style = computed(() => {
     color: '#4d6992'
   };
 });
+function normalizeActivationCode(value: string) {
+  return value?.replace(/'/g, '').trim();
+}
+
 const confirmStatus = computed(() => {
-  if (!ruleForm.active_code && !ruleForm.c_active_code) {
+  const activeCode = normalizeActivationCode(ruleForm.active_code);
+  const cActiveCode = normalizeActivationCode(ruleForm.c_active_code);
+  if (!activeCode && !cActiveCode) {
     return true;
   }
   return false;
@@ -380,7 +398,12 @@ async function submit(formEl: FormInstance | undefined) {
   if (!formEl) return;
   try {
     if (confirmStatus.value) return;
-    await activeLicence(ruleForm).then(res => {
+    const payload = {
+      ...ruleForm,
+      active_code: normalizeActivationCode(ruleForm.active_code),
+      c_active_code: normalizeActivationCode(ruleForm.c_active_code)
+    };
+    await activeLicence(payload).then(res => {
       if (res && res.code == 0) {
         ElMessage.success(t('operateSucc'));
         dialog.value = false;
@@ -442,5 +465,12 @@ handlecActiveCodeShow();
 
 .activate-tip {
   color: #909399;
+}
+
+.activate-hint {
+  margin-left: 8px;
+  font-size: 12px;
+  color: #909399;
+  line-height: 1.5;
 }
 </style>

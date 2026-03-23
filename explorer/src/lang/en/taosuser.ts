@@ -95,6 +95,7 @@ export default {
     activationLicense: 'Activate License',
     activeCode: 'Activation code',
     cActiveCode: 'Activation Code for Connectors',
+    activeCodeHint: "Long activation codes are supported; single quotes (') are ignored automatically.",
     dataRestoration: 'Restore',
     activeTip: 'Contact the TDengine customer success team to get the activation code',
     time: 'Time',

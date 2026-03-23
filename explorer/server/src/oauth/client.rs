@@ -3,19 +3,27 @@ use super::custom_client;
 use super::plain_client;
 use anyhow::{Context, Result};
 use openidconnect::{
-    AuthorizationCode, ClientId, ClientSecret, CsrfToken, IssuerUrl, Nonce, OAuth2TokenResponse,
-    PkceCodeChallenge, PkceCodeVerifier, RedirectUrl, Scope, TokenResponse,
+    AuthorizationCode, ClientId, ClientSecret, CsrfToken, EndpointMaybeSet, EndpointNotSet,
+    EndpointSet, IssuerUrl, Nonce, OAuth2TokenResponse, PkceCodeChallenge, PkceCodeVerifier,
+    RedirectUrl, Scope, TokenResponse,
     core::{
         CoreAuthenticationFlow, CoreClient, CoreIdTokenClaims, CoreIdTokenVerifier,
         CoreProviderMetadata, CoreUserInfoClaims,
     },
-    reqwest::async_http_client,
 };
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone)]
 pub struct OidcClient {
-    client: CoreClient,
+    client: CoreClient<
+        EndpointSet,
+        EndpointNotSet,
+        EndpointNotSet,
+        EndpointNotSet,
+        EndpointMaybeSet,
+        EndpointMaybeSet,
+    >,
+    http_client: openidconnect::reqwest::Client,
     config: OAuthConfig,
 }
 
@@ -139,8 +147,14 @@ impl OidcClient {
             issuer_url.as_str()
         );
 
+        let http_client = openidconnect::reqwest::ClientBuilder::new()
+            // Following redirects opens the client up to SSRF vulnerabilities.
+            .redirect(openidconnect::reqwest::redirect::Policy::none())
+            .build()
+            .context("Failed to build HTTP client")?;
+
         // Perform OIDC Discovery
-        let provider_metadata = CoreProviderMetadata::discover_async(issuer_url, async_http_client)
+        let provider_metadata = CoreProviderMetadata::discover_async(issuer_url, &http_client)
             .await
             .context("Failed to discover OIDC provider metadata")?;
 
@@ -159,7 +173,11 @@ impl OidcClient {
             RedirectUrl::new(config.oidc.redirect_uri.clone()).context("Invalid redirect URI")?,
         );
 
-        Ok(Self { client, config })
+        Ok(Self {
+            client,
+            http_client,
+            config,
+        })
     }
 
     /// Generate an authorization URL with PKCE and nonce
@@ -213,8 +231,9 @@ impl OidcClient {
         let token_response = self
             .client
             .exchange_code(code)
+            .context("Token endpoint not configured")?
             .set_pkce_verifier(verifier)
-            .request_async(async_http_client)
+            .request_async(&self.http_client)
             .await
             .context("Failed to exchange authorization code for tokens")?;
 
@@ -261,7 +280,8 @@ impl OidcClient {
         let token_response = self
             .client
             .exchange_refresh_token(&refresh_token)
-            .request_async(async_http_client)
+            .context("Token endpoint not configured")?
+            .request_async(&self.http_client)
             .await
             .context("Failed to refresh access token")?;
 
@@ -333,7 +353,7 @@ impl OidcClient {
             .client
             .user_info(access_token, None)
             .context("UserInfo endpoint not available")?
-            .request_async(async_http_client)
+            .request_async(&self.http_client)
             .await
             .context("Failed to fetch user info from UserInfo endpoint")?;
 
