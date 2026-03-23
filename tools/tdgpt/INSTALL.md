@@ -20,18 +20,22 @@ This guide covers installation and usage of TDGPT on both Linux and Windows plat
 ## System Requirements
 
 ### Supported Platforms
+
 - **Linux**: Ubuntu 18.04+, CentOS 7+, or other Linux distributions
 - **Windows**: Windows Server 2016+ or Windows 10/11
 
 ### Python Version
+
 - Python 3.10, 3.11, or 3.12 (required)
 
 ### Hardware Requirements
+
 - **CPU**: 4+ cores recommended
 - **Memory**: 8GB+ recommended
 - **Disk**: 20GB+ for models and data
 
 ### Network Ports
+
 - **6035**: Main taosanode service
 - **6036**: tdtsfm model service
 - **6037**: timemoe model service
@@ -44,6 +48,7 @@ This guide covers installation and usage of TDGPT on both Linux and Windows plat
 ### Prerequisites
 
 1. Install Python 3.10+ (if not already installed):
+
 ```bash
 # Ubuntu/Debian
 sudo apt-get update
@@ -58,12 +63,14 @@ sudo yum install python310 python310-devel
 ### Installation Steps
 
 1. **Extract the installation package**:
+
 ```bash
 tar -xzf tdgpt-linux-x.x.x.tar.gz
 cd tdgpt-linux-x.x.x
 ```
 
 2. **Run the installation script**:
+
 ```bash
 # Standard installation
 bash install.sh
@@ -76,6 +83,7 @@ bash install.sh -d /opt/tdgpt
 ```
 
 3. **Verify installation**:
+
 ```bash
 # Check service status
 python /usr/local/taos/taosanode/bin/taosanode_service.py status
@@ -144,7 +152,7 @@ sudo systemctl disable taosanode
 ### Prerequisites
 
 1. **Install Python 3.10+**:
-   - Download from https://www.python.org/downloads/
+   - Download from [python.org](https://www.python.org/downloads/)
    - During installation, check "Add Python to PATH"
    - Verify installation: `python --version`
 
@@ -191,6 +199,7 @@ sudo systemctl disable taosanode
    - Run: `install.bat`
 
 3. **Verify installation**:
+
 ```batch
 python C:\TDengine\taosanode\bin\taosanode_service.py status
 ```
@@ -445,6 +454,7 @@ python <install_dir>/bin/taosanode_service.py model-stop chronos
 ### Service Won't Start
 
 **Linux**:
+
 ```bash
 # Check systemd logs
 sudo journalctl -u taosanode -n 50
@@ -454,6 +464,7 @@ python /usr/local/taos/taosanode/bin/taosanode_service.py start
 ```
 
 **Windows**:
+
 ```batch
 # Check startup log
 type C:\TDengine\taosanode\log\taosanode_startup.log
@@ -479,6 +490,7 @@ netstat -ano | findstr :6035
 ### Models Not Starting
 
 1. Check model directory exists:
+
 ```bash
 # Linux
 ls -la /usr/local/taos/taosanode/model/
@@ -488,6 +500,7 @@ dir C:\TDengine\taosanode\model\
 ```
 
 2. Check model logs:
+
 ```bash
 # Linux
 tail -f /var/log/taos/taosanode/taosanode_service_tdtsfm.log
@@ -497,6 +510,7 @@ type C:\TDengine\taosanode\log\taosanode_service_tdtsfm.log
 ```
 
 3. Verify Python dependencies:
+
 ```bash
 python -m pip list | grep -E "torch|transformers"
 ```
@@ -504,11 +518,13 @@ python -m pip list | grep -E "torch|transformers"
 ### Connection Refused
 
 1. Check if service is running:
+
 ```bash
 python <install_dir>/bin/taosanode_service.py status
 ```
 
 2. Check firewall settings:
+
 ```bash
 # Linux
 sudo ufw status
@@ -519,6 +535,7 @@ netsh advfirewall firewall show rule name="TDGPT"
 ```
 
 3. Check binding address:
+
 ```bash
 # Linux
 sudo netstat -tlnp | grep 6035
@@ -534,6 +551,7 @@ netstat -ano | findstr :6035
 ### Q: How do I check if the service is running?
 
 **A**: Use the status command:
+
 ```bash
 python <install_dir>/bin/taosanode_service.py status
 ```
@@ -545,6 +563,7 @@ python <install_dir>/bin/taosanode_service.py status
 ### Q: How do I view logs?
 
 **A**:
+
 - **Linux**: `tail -f /var/log/taos/taosanode/taosanode.app.log`
 - **Windows**: `type C:\TDengine\taosanode\log\taosanode.app.log`
 
@@ -555,6 +574,7 @@ python <install_dir>/bin/taosanode_service.py status
 ### Q: What if I need to reinstall?
 
 **A**:
+
 1. Uninstall the current version
 2. Delete the installation directory
 3. Run the new installer
@@ -570,6 +590,7 @@ python <install_dir>/bin/taosanode_service.py status
 ### Q: How do I backup my configuration?
 
 **A**: Copy the configuration file to a safe location:
+
 ```bash
 # Linux
 cp /usr/local/taos/taosanode/cfg/taosanode.config.py ~/taosanode.config.backup.py

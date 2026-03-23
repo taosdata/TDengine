@@ -125,5 +125,6 @@ pytest tests/ --cov=script/taosanode_service --cov-report=xml --junit-xml=test-r
 ```
 
 This generates:
+
 - XML coverage report for coverage tools
 - JUnit XML report for CI/CD integration

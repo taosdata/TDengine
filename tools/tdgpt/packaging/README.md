@@ -6,7 +6,7 @@ This directory contains the Windows packaging script for TDGPT (TDengine Analyti
 
 ## File Structure
 
-```
+```text
 packaging/
 ├── win_release.py           # Python packaging script (main entry point)
 └── README_EN.md             # This documentation
@@ -50,7 +50,7 @@ python taosanode_service.py model-status
 
 For convenience of Windows users, batch wrappers are provided:
 
-```
+```text
 bin/
 ├── taosanode_service.py    # Core Python script
 ├── start-taosanode.bat     # Wrapper: python taosanode_service.py start
@@ -65,9 +65,9 @@ bin/
 
 1. **Python 3.10 / 3.11 / 3.12** - Python must be installed and added to PATH
 2. **Microsoft Visual C++ Redistributable x64** - Required by TensorFlow, PyTorch, and other native Python dependencies
-   - Download: https://aka.ms/vc14/vc_redist.x64.exe
+   - Download: [VC++ Redistributable](https://aka.ms/vc14/vc_redist.x64.exe)
 3. **Inno Setup 6** - For creating installation programs
-   - Download: https://jrsoftware.org/isdl.php
+   - Download: [Inno Setup Downloads](https://jrsoftware.org/isdl.php)
    - After installation, ensure `ISCC.exe` is in PATH or specify the path in the script
 
 ## Usage
@@ -94,6 +94,7 @@ python packaging/win_release.py -e community -v 3.4.0.11.0316 --skip-model-check
 ### Model Files Requirements
 
 **Production Packaging (default):**
+
 - Must specify model directory using `-m` parameter
 - Model directory must contain the following files:
   - `timemoe.tar.gz` (required)
@@ -101,6 +102,7 @@ python packaging/win_release.py -e community -v 3.4.0.11.0316 --skip-model-check
 - Missing any required file will cause packaging to fail
 
 **Testing Mode (`--skip-model-check`):**
+
 - Skip model validation, no model files needed
 - For quick testing of packaging workflow only
 - ⚠️ **NOT for production use**
@@ -176,6 +178,7 @@ python bin\taosanode_service.py model-start all
 1. Check if Python is correctly installed and added to PATH
 2. Check log files: `C:\TDengine\taosanode\log\taosanode_service_*.log`
 3. Run the startup script manually to see errors:
+
    ```bash
    cd C:\TDengine\taosanode
    python bin\taosanode_service.py start
@@ -185,6 +188,7 @@ python bin\taosanode_service.py model-start all
 
 1. Ensure you can access PyPI
 2. Install dependencies manually:
+
    ```bash
    cd C:\TDengine\taosanode
    python -m venv venv

@@ -6,7 +6,7 @@
 
 ## 文件说明
 
-```
+```text
 packaging/
 ├── win_release.py           # Python 打包脚本（主入口）
 └── README.md                # 本文档
@@ -50,7 +50,7 @@ python taosanode_service.py model-status
 
 为了方便 Windows 用户使用，提供了批处理包装：
 
-```
+```text
 bin/
 ├── taosanode_service.py    # 核心 Python 脚本
 ├── start-taosanode.bat     # 包装: python taosanode_service.py start
@@ -65,9 +65,9 @@ bin/
 
 1. **Python 3.10 / 3.11 / 3.12** - 需要安装 Python 并添加到 PATH
 2. **Microsoft Visual C++ Redistributable x64** - TensorFlow、PyTorch 以及其他原生 Python 依赖所必需
-   - 下载地址: https://aka.ms/vc14/vc_redist.x64.exe
+   - 下载地址：[VC++ Redistributable](https://aka.ms/vc14/vc_redist.x64.exe)
 3. **Inno Setup 6** - 用于创建安装程序
-   - 下载地址: https://jrsoftware.org/isdl.php
+   - 下载地址：[Inno Setup 下载](https://jrsoftware.org/isdl.php)
    - 安装后确保 `ISCC.exe` 在 PATH 中或在脚本中指定路径
 
 ## 使用方法
@@ -94,6 +94,7 @@ python packaging/win_release.py -e community -v 3.4.0.11.0316 --skip-model-check
 ### 模型文件要求
 
 **生产打包（默认）：**
+
 - 必须使用 `-m` 参数指定模型目录
 - 模型目录必须包含以下文件：
   - `timemoe.tar.gz` （必需）
@@ -101,6 +102,7 @@ python packaging/win_release.py -e community -v 3.4.0.11.0316 --skip-model-check
 - 缺少任何必需文件将导致打包失败
 
 **测试模式（`--skip-model-check`）：**
+
 - 跳过模型验证，无需模型文件
 - 仅用于快速测试打包流程
 - ⚠️ **不适用于生产环境**
@@ -176,6 +178,7 @@ python bin\taosanode_service.py model-start all
 1. 检查 Python 是否正确安装并添加到 PATH
 2. 检查日志文件：`C:\TDengine\taosanode\log\taosanode_service_*.log`
 3. 手动运行启动脚本查看错误：
+
    ```bash
    cd C:\TDengine\taosanode
    python bin\taosanode_service.py start
@@ -185,6 +188,7 @@ python bin\taosanode_service.py model-start all
 
 1. 确保可以访问 PyPI
 2. 手动安装依赖：
+
    ```bash
    cd C:\TDengine\taosanode
    python -m venv venv

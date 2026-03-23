@@ -20,18 +20,22 @@
 ## 系统要求
 
 ### 支持的平台
+
 - **Linux**: Ubuntu 18.04+、CentOS 7+ 或其他 Linux 发行版
 - **Windows**: Windows Server 2016+ 或 Windows 10/11
 
 ### Python 版本
+
 - Python 3.10、3.11 或 3.12（必需）
 
 ### 硬件要求
+
 - **CPU**: 建议 4+ 核心
 - **内存**: 建议 8GB+
 - **磁盘**: 模型和数据需要 20GB+
 
 ### 网络端口
+
 - **6035**: 主 taosanode 服务
 - **6036**: tdtsfm 模型服务
 - **6037**: timemoe 模型服务
@@ -44,6 +48,7 @@
 ### 前置条件
 
 1. 安装 Python 3.10+（如果尚未安装）：
+
 ```bash
 # Ubuntu/Debian
 sudo apt-get update
@@ -58,12 +63,14 @@ sudo yum install python310 python310-devel
 ### 安装步骤
 
 1. **解压安装包**：
+
 ```bash
 tar -xzf tdgpt-linux-x.x.x.tar.gz
 cd tdgpt-linux-x.x.x
 ```
 
 2. **运行安装脚本**：
+
 ```bash
 # 标准安装
 bash install.sh
@@ -76,6 +83,7 @@ bash install.sh -d /opt/tdgpt
 ```
 
 3. **验证安装**：
+
 ```bash
 # 检查服务状态
 python /usr/local/taos/taosanode/bin/taosanode_service.py status
@@ -144,7 +152,7 @@ sudo systemctl disable taosanode
 ### 前置条件
 
 1. **安装 Python 3.10+**：
-   - 从 https://www.python.org/downloads/ 下载
+   - 从 [python.org](https://www.python.org/downloads/) 下载
    - 安装时勾选"Add Python to PATH"
    - 验证安装：`python --version`
 
@@ -166,6 +174,7 @@ sudo systemctl disable taosanode
    - 运行：`install.bat`
 
 3. **验证安装**：
+
 ```batch
 python C:\TDengine\taosanode\bin\taosanode_service.py status
 ```
@@ -420,6 +429,7 @@ python <install_dir>/bin/taosanode_service.py model-stop chronos
 ### 服务无法启动
 
 **Linux**：
+
 ```bash
 # 检查 systemd 日志
 sudo journalctl -u taosanode -n 50
@@ -429,6 +439,7 @@ python /usr/local/taos/taosanode/bin/taosanode_service.py start
 ```
 
 **Windows**：
+
 ```batch
 # 检查启动日志
 type C:\TDengine\taosanode\log\taosanode_startup.log
@@ -454,6 +465,7 @@ netstat -ano | findstr :6035
 ### 模型无法启动
 
 1. 检查模型目录是否存在：
+
 ```bash
 # Linux
 ls -la /usr/local/taos/taosanode/model/
@@ -463,6 +475,7 @@ dir C:\TDengine\taosanode\model\
 ```
 
 2. 检查模型日志：
+
 ```bash
 # Linux
 tail -f /var/log/taos/taosanode/taosanode_service_tdtsfm.log
@@ -472,6 +485,7 @@ type C:\TDengine\taosanode\log\taosanode_service_tdtsfm.log
 ```
 
 3. 验证 Python 依赖：
+
 ```bash
 python -m pip list | grep -E "torch|transformers"
 ```
@@ -479,11 +493,13 @@ python -m pip list | grep -E "torch|transformers"
 ### 连接被拒绝
 
 1. 检查服务是否运行：
+
 ```bash
 python <install_dir>/bin/taosanode_service.py status
 ```
 
 2. 检查防火墙设置：
+
 ```bash
 # Linux
 sudo ufw status
@@ -494,6 +510,7 @@ netsh advfirewall firewall show rule name="TDGPT"
 ```
 
 3. 检查绑定地址：
+
 ```bash
 # Linux
 sudo netstat -tlnp | grep 6035
@@ -509,6 +526,7 @@ netstat -ano | findstr :6035
 ### Q: 如何检查服务是否运行？
 
 **A**: 使用状态命令：
+
 ```bash
 python <install_dir>/bin/taosanode_service.py status
 ```
@@ -520,6 +538,7 @@ python <install_dir>/bin/taosanode_service.py status
 ### Q: 如何查看日志？
 
 **A**:
+
 - **Linux**: `tail -f /var/log/taos/taosanode/taosanode.app.log`
 - **Windows**: `type C:\TDengine\taosanode\log\taosanode.app.log`
 
@@ -530,6 +549,7 @@ python <install_dir>/bin/taosanode_service.py status
 ### Q: 需要重新安装怎么办？
 
 **A**:
+
 1. 卸载当前版本
 2. 删除安装目录
 3. 运行新安装程序
@@ -545,6 +565,7 @@ python <install_dir>/bin/taosanode_service.py status
 ### Q: 如何备份配置？
 
 **A**: 将配置文件复制到安全位置：
+
 ```bash
 # Linux
 cp /usr/local/taos/taosanode/cfg/taosanode.config.py ~/taosanode.config.backup.py

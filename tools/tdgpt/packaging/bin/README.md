@@ -4,7 +4,7 @@ This directory is used to cache the WinSW.exe binary locally.
 
 ## Usage
 
-1. Download WinSW.exe from: https://github.com/winsw/winsw/releases/download/v2.12.0/WinSW.NET461.exe
+1. Download WinSW.exe from: [WinSW.NET461.exe](https://github.com/winsw/winsw/releases/download/v2.12.0/WinSW.NET461.exe)
 2. Place it in this directory as `WinSW.exe`
 3. The packaging script will use this cached version instead of downloading
 
