@@ -37,6 +37,14 @@ GREEN_LOCAL_DIR="/var/lib/jenkins/workspace/green_versions"
 # 并发下载锁目录
 LOCK_DIR="/tmp/green_versions_locks"
 
+
+INTERNAL_REPDIR="$WORKDIR/TDinternal"
+DEBUGPATH_DIR="$WORKDIR/debugNoSan"
+CONTAINER_REP_MOUNT="$INTERNAL_REPDIR:/home/TDinternal"
+CONTAINER_DEBUG_MOUNT="$DEBUGPATH_DIR:/home/TDinternal/debug"
+CONTAINER_SCRIPT="/home/TDinternal/community/test/ci/run_upgrade_compat_container.sh"
+
+
 # ── 解析参数 ─────────────────────────────────────────────────────────────────
 
 WORKDIR=""
@@ -191,12 +199,6 @@ fi
 echo "=== Step 1/2: All green versions ready ==="
 
 # ── Step 2: Resolve paths ──────────────────────────
-
-INTERNAL_REPDIR="$WORKDIR/TDinternal"
-DEBUGPATH_DIR="$WORKDIR/debugNoSan"
-CONTAINER_REP_MOUNT="$INTERNAL_REPDIR:/home/TDinternal"
-CONTAINER_DEBUG_MOUNT="$DEBUGPATH_DIR:/home/TDinternal/debug"
-CONTAINER_SCRIPT="/home/TDinternal/community/test/ci/run_upgrade_compat_container.sh"
 
 if [ ! -d "$INTERNAL_REPDIR" ]; then
     echo "ERROR: Repo directory not found: $INTERNAL_REPDIR"

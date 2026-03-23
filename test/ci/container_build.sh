@@ -110,7 +110,7 @@ if [ "$build_no_asan" = "true" ]; then
         -v ${REP_REAL_PATH}/community/tools/taosadapter:${REP_DIR}/community/tools/taosadapter \
         -v ${REP_REAL_PATH}/community/tools/taosws-rs:${REP_DIR}/community/tools/taosws-rs \
         -v ${REP_REAL_PATH}/community/tools/taosws-rs/target:${REP_DIR}/community/tools/taosws-rs/target \
-        -v /security:/security:ro \
+        -v ${WORKDIR}/security:/security:ro \
         --rm --ulimit core=-1 tdengine-ci:0.1 sh -c ". /security/salt_env.sh || exit 1;cd $REP_DIR;apt update -y && apt install groff -y;rm -rf debug;mkdir -p debug;cd debug;cmake .. $BUILD_HTTP_OPT -DCOVER=true -DBUILD_TOOLS=true -DBUILD_TEST=true -DWEBSOCKET=true -DBUILD_TAOSX=false -DJEMALLOC_ENABLED=0 -DCMAKE_EXPORT_COMPILE_COMMANDS=1 -DBUILD_CONTRIB=false ;make -j|| exit 1"
     # -v ${REP_REAL_PATH}/community/contrib/jemalloc/:${REP_DIR}/community/contrib/jemalloc \
 
@@ -136,7 +136,7 @@ docker run \
     -v ${REP_REAL_PATH}/community/tools/taosadapter:${REP_DIR}/community/tools/taosadapter \
     -v ${REP_REAL_PATH}/community/tools/taosws-rs:${REP_DIR}/community/tools/taosws-rs \
     -v ${REP_REAL_PATH}/community/tools/taosws-rs/target:${REP_DIR}/community/tools/taosws-rs/target \
-    -v /security:/security:ro \
+    -v ${WORKDIR}/security:/security:ro \
     --rm --ulimit core=-1 tdengine-ci:0.1 sh -c ". /security/salt_env.sh || exit 1;cd $REP_DIR;apt update -y && apt install groff -y;rm -rf debug;mkdir -p debug;cd debug;cmake ..  $BUILD_HTTP_OPT -DCOVER=true -DBUILD_TOOLS=true -DBUILD_TEST=true -DWEBSOCKET=true   -DBUILD_SANITIZER=1  -DTOOLS_SANITIZE=true -DCMAKE_BUILD_TYPE=Debug -DTOOLS_BUILD_TYPE=Debug -DBUILD_TAOSX=false -DJEMALLOC_ENABLED=0 -DBUILD_CONTRIB=false;make -j|| exit 1 "
 
 mv  ${REP_REAL_PATH}/debug  ${WORKDIR}/debugSan
