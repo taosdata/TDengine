@@ -213,55 +213,33 @@ double get_cpu_usage_percent() {
     prev_time = now;
     return percent;
 #elif defined(_WIN32)
-    static ULARGE_INTEGER prev_sys_kernel_time = {0};
-    static ULARGE_INTEGER prev_sys_user_time = {0};
-    static ULARGE_INTEGER prev_proc_kernel_time = {0};
-    static ULARGE_INTEGER prev_proc_user_time = {0};
+    static ULARGE_INTEGER prev_proc_total_time = {0};
 
-    FILETIME sys_idle, sys_kernel, sys_user;
     FILETIME proc_create, proc_exit, proc_kernel, proc_user;
-
-    if (!GetSystemTimes(&sys_idle, &sys_kernel, &sys_user))
-        return -1.0;
     if (!GetProcessTimes(GetCurrentProcess(), &proc_create, &proc_exit, &proc_kernel, &proc_user))
         return -1.0;
 
-    ULARGE_INTEGER sys_kernel_time, sys_user_time;
     ULARGE_INTEGER proc_kernel_time, proc_user_time;
-
-    sys_kernel_time.LowPart = sys_kernel.dwLowDateTime;
-    sys_kernel_time.HighPart = sys_kernel.dwHighDateTime;
-    sys_user_time.LowPart = sys_user.dwLowDateTime;
-    sys_user_time.HighPart = sys_user.dwHighDateTime;
     proc_kernel_time.LowPart = proc_kernel.dwLowDateTime;
     proc_kernel_time.HighPart = proc_kernel.dwHighDateTime;
     proc_user_time.LowPart = proc_user.dwLowDateTime;
     proc_user_time.HighPart = proc_user.dwHighDateTime;
 
+    ULONGLONG proc_total = proc_kernel_time.QuadPart + proc_user_time.QuadPart; // 100ns units
+
     auto now = std::chrono::steady_clock::now();
     std::lock_guard<std::mutex> lock(mtx);
     double percent = 0.0;
 
-    if (prev_sys_kernel_time.QuadPart != 0) {
-        ULONGLONG sys_time_delta = (sys_kernel_time.QuadPart - prev_sys_kernel_time.QuadPart) +
-                                   (sys_user_time.QuadPart - prev_sys_user_time.QuadPart);
-        ULONGLONG proc_time_delta = (proc_kernel_time.QuadPart - prev_proc_kernel_time.QuadPart) +
-                                    (proc_user_time.QuadPart - prev_proc_user_time.QuadPart);
-
-        if (sys_time_delta > 0) {
-            // Convert to percentage (100ns units)
-            percent = (proc_time_delta * 100.0) / sys_time_delta;
-            // Adjust for number of processors
-            SYSTEM_INFO sys_info;
-            GetSystemInfo(&sys_info);
-            percent /= sys_info.dwNumberOfProcessors;
+    if (prev_proc_total_time.QuadPart != 0) {
+        double interval = std::chrono::duration<double>(now - prev_time).count();
+        if (interval > 0) {
+            double proc_delta_seconds = static_cast<double>(proc_total - prev_proc_total_time.QuadPart) / 1e7; // 100ns -> seconds
+            percent = (proc_delta_seconds / interval) * 100.0;
         }
     }
 
-    prev_sys_kernel_time = sys_kernel_time;
-    prev_sys_user_time = sys_user_time;
-    prev_proc_kernel_time = proc_kernel_time;
-    prev_proc_user_time = proc_user_time;
+    prev_proc_total_time.QuadPart = proc_total;
     prev_time = now;
 
     return percent;
