@@ -4,6 +4,7 @@ import platform
 import os as _os
 
 on_windows = platform.system().lower() == "windows"
+on_github_actions = bool(_os.environ.get("GITHUB_ACTIONS"))
 
 # Auto-detect install directory from this config file's location:
 # cfg/taosanode.config.py → parent dir is <install_dir>
@@ -40,7 +41,7 @@ accesslog = '/var/log/taos/taosanode/access.log'
 errorlog = '/var/log/taos/taosanode/error.log'
 
 # only valid on the Windows system.
-waitresslog = _os.path.join(_install_dir, 'log', 'taosanode-service.log').replace('\\', '/') if on_windows else '/var/log/taos/taosanode/waitress.log'
+waitresslog = _os.path.join(_install_dir, 'log', 'taosanode-service.log').replace('\\', '/') if (on_windows or on_github_actions) else '/var/log/taos/taosanode/waitress.log'
 
 # log level: debug, info, warning, error, critical
 loglevel = 'debug'
@@ -49,13 +50,13 @@ loglevel = 'debug'
 proc_name = 'tdgpt_taosanode_app'
 
 # set the pid file
-pidfile = _os.path.join(_install_dir, 'taosanode.pid').replace('\\', '/') if on_windows else '/usr/local/taos/taosanode/taosanode.pid'
+pidfile = _os.path.join(_install_dir, 'taosanode.pid').replace('\\', '/') if (on_windows or on_github_actions) else '/usr/local/taos/taosanode/taosanode.pid'
 
 # virtual environment directory
-virtualenv = _os.path.join(_install_dir, 'venvs', 'venv').replace('\\', '/') if on_windows else '/usr/local/taos/taosanode/venv'
+virtualenv = _os.path.join(_install_dir, 'venvs', 'venv').replace('\\', '/') if (on_windows or on_github_actions) else '/usr/local/taos/taosanode/venv'
 
 # set the taosanoded basic python library directory
-pythonpath = (_os.path.join(_install_dir, 'lib', 'taosanalytics') + '/').replace('\\', '/') if on_windows else '/usr/local/taos/taosanode/lib/taosanalytics/'
+pythonpath = (_os.path.join(_install_dir, 'lib', 'taosanalytics') + '/').replace('\\', '/') if (on_windows or on_github_actions) else '/usr/local/taos/taosanode/lib/taosanalytics/'
 
 # wsgi app name
 wsgi_app = 'app:app'
@@ -66,10 +67,10 @@ preload_app = True
 # [taosanode]
 # The following configuration parameters are valid on both Windows and Linux system.
 # default app log file
-app_log = _os.path.join(_install_dir, 'log', 'taosanode.app.log').replace('\\', '/') if on_windows else '/var/log/taos/taosanode/taosanode.app.log'
+app_log = _os.path.join(_install_dir, 'log', 'taosanode.app.log').replace('\\', '/') if (on_windows or on_github_actions) else '/var/log/taos/taosanode/taosanode.app.log'
 
 # model storage directory
-model_dir = (_os.path.join(_install_dir, 'model') + '/').replace('\\', '/') if on_windows else '/usr/local/taos/taosanode/model/'
+model_dir = (_os.path.join(_install_dir, 'model') + '/').replace('\\', '/') if (on_windows or on_github_actions) else '/usr/local/taos/taosanode/model/'
 
 # default log level
 log_level = 'DEBUG'
@@ -123,10 +124,10 @@ models = {
     },
 }
 
-timesfm_venv = _os.path.join(_install_dir, 'venvs', 'timesfm_venv').replace('\\', '/') if on_windows else '/var/lib/taos/taosanode/timesfm_venv'
-moirai_venv = _os.path.join(_install_dir, 'venvs', 'moirai_venv').replace('\\', '/') if on_windows else '/var/lib/taos/taosanode/moirai_venv'
-chronos_venv = _os.path.join(_install_dir, 'venvs', 'chronos_venv').replace('\\', '/') if on_windows else '/var/lib/taos/taosanode/chronos_venv'
-momentfm_venv = _os.path.join(_install_dir, 'venvs', 'momentfm_venv').replace('\\', '/') if on_windows else '/var/lib/taos/taosanode/momentfm_venv'
+timesfm_venv = _os.path.join(_install_dir, 'venvs', 'timesfm_venv').replace('\\', '/') if (on_windows or on_github_actions) else '/var/lib/taos/taosanode/timesfm_venv'
+moirai_venv = _os.path.join(_install_dir, 'venvs', 'moirai_venv').replace('\\', '/') if (on_windows or on_github_actions) else '/var/lib/taos/taosanode/moirai_venv'
+chronos_venv = _os.path.join(_install_dir, 'venvs', 'chronos_venv').replace('\\', '/') if (on_windows or on_github_actions) else '/var/lib/taos/taosanode/chronos_venv'
+momentfm_venv = _os.path.join(_install_dir, 'venvs', 'momentfm_venv').replace('\\', '/') if (on_windows or on_github_actions) else '/var/lib/taos/taosanode/momentfm_venv'
 
 # Windows下waitress服务器配置（仅在Windows系统上使用）
 waitress_config = {

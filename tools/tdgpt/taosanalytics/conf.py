@@ -55,17 +55,26 @@ class Configure:
                 "draw_result": False,
             }
         else:
-            default = {
-                "log_dir": "/var/log/taos/taosanode/",
-                "log_file": "taosanode.app.log",
-                "model_dir": '/usr/local/taos/taosanode/model/',
-                "conf_path": "/etc/taos/taosanode.config.py",
-                "log_level": logging.DEBUG,
-                "draw_result": False,
-            }
-
-            if os.environ.get('GITHUB_ACTIONS'):
-                default['log_dir'] = '/home/runner/work/TDengine/TDengine/tools/tdgpt/log/'
+            package_dir = Path(__file__).resolve().parent
+            if os.environ.get('GITHUB_ACTIONS') and package_dir.name == "taosanalytics":
+                base_path = str(package_dir.parent).replace("\\", "/")
+                default = {
+                    "log_dir": os.path.join(base_path, "log"),
+                    "log_file": "taosanode.app.log",
+                    "model_dir": os.path.join(base_path, "model"),
+                    "conf_path": os.path.join(base_path, "cfg", "taosanode.config.py"),
+                    "log_level": logging.DEBUG,
+                    "draw_result": False,
+                }
+            else:
+                default = {
+                    "log_dir": "/var/log/taos/taosanode/",
+                    "log_file": "taosanode.app.log",
+                    "model_dir": '/usr/local/taos/taosanode/model/',
+                    "conf_path": "/etc/taos/taosanode.config.py",
+                    "log_level": logging.DEBUG,
+                    "draw_result": False,
+                }
 
         return default
 
@@ -145,8 +154,7 @@ class AppLogger():
         path = Path(file_path)
 
         # create directory if not exists
-        if not os.path.exists(path.parent):
-            os.mkdir(path.parent)
+        path.parent.mkdir(parents=True, exist_ok=True)
 
         handler = logging.FileHandler(file_path)
         handler.setFormatter(logging.Formatter(self.LOG_STR_FORMAT))

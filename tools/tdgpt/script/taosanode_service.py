@@ -88,25 +88,26 @@ def setup_logger(name: str, log_file: str, level=logging.INFO) -> logging.Logger
 
     logger.setLevel(level)
 
-    # Ensure log directory exists
+    # Prefer file logging, but do not fail if the default install path is not writable.
     log_dir = os.path.dirname(log_file)
-    if log_dir:
-        os.makedirs(log_dir, exist_ok=True)
+    try:
+        if log_dir:
+            os.makedirs(log_dir, exist_ok=True)
 
-    # File handler with rotation
-    file_handler = RotatingFileHandler(
-        log_file,
-        maxBytes=10*1024*1024,  # 10MB
-        backupCount=5
-    )
-    file_handler.setLevel(level)
-    file_formatter = logging.Formatter(
-        '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S'
-    )
-    file_handler.setFormatter(file_formatter)
-
-    logger.addHandler(file_handler)
+        file_handler = RotatingFileHandler(
+            log_file,
+            maxBytes=10*1024*1024,  # 10MB
+            backupCount=5
+        )
+        file_handler.setLevel(level)
+        file_formatter = logging.Formatter(
+            '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+            datefmt='%Y-%m-%d %H:%M:%S'
+        )
+        file_handler.setFormatter(file_formatter)
+        logger.addHandler(file_handler)
+    except OSError:
+        pass
 
     if os.environ.get("TAOSANODE_DISABLE_CONSOLE_LOG") != "1":
         console_handler = logging.StreamHandler()
@@ -114,6 +115,9 @@ def setup_logger(name: str, log_file: str, level=logging.INFO) -> logging.Logger
         console_formatter = logging.Formatter('%(levelname)s: %(message)s')
         console_handler.setFormatter(console_formatter)
         logger.addHandler(console_handler)
+
+    if not logger.handlers:
+        logger.addHandler(logging.NullHandler())
 
     return logger
 
@@ -308,6 +312,7 @@ class ProcessManager:
 
     def __init__(self, config: Config):
         self.config = config
+        self.model_pid_dir = os.path.join(self.config.data_dir, "pids")
         self.logger = setup_logger(
             'ProcessManager',
             os.path.join(config.log_dir, 'taosanode-service.log')
@@ -318,7 +323,7 @@ class ProcessManager:
         """Ensure required directories exist"""
         os.makedirs(self.config.log_dir, exist_ok=True)
         os.makedirs(self.config.data_dir, exist_ok=True)
-        os.makedirs(MODEL_PID_DIR, exist_ok=True)
+        os.makedirs(self.model_pid_dir, exist_ok=True)
 
     def _get_python_exe(self, venv_dir: Optional[str] = None) -> str:
         """Get Python interpreter path"""
@@ -354,7 +359,7 @@ class ProcessManager:
         if service_name == "taosanode":
             return self.config.pid_file
         else:
-            return os.path.join(MODEL_PID_DIR, f"{service_name}.pid")
+            return os.path.join(self.model_pid_dir, f"{service_name}.pid")
 
     def read_pid(self, service_name: str = "taosanode") -> Optional[int]:
         """Read PID from file"""
@@ -884,45 +889,42 @@ class TaosanodeService:
 
         self.logger.info("Starting taosanode service...")
 
-        python_exe = self.process_mgr._get_python_exe()
-        lib_dir = os.path.join(self.config.install_dir, "lib", "taosanalytics")
-        env = self._build_runtime_env()
-
-        if IS_WINDOWS and foreground:
-            return self._run_windows_foreground(full_preflight=full_preflight)
-
-        if IS_WINDOWS and not self._run_preflight(python_exe, env, lib_dir, full_preflight=full_preflight):
-            self.logger.error("Taosanode startup aborted because the import preflight failed")
-            return False
-
-        # Build command
-
-        if IS_WINDOWS:
-            self._ensure_waitress(python_exe)
-            bind_host, bind_port, wc = self._get_waitress_settings()
-
-            cmd = [
-                python_exe, "-c",
-                f"from waitress import serve; from taosanalytics.app import app; "
-                f"serve(app, "
-                f"host='{bind_host}', "
-                f"port={bind_port}, "
-                f"threads={wc.get('threads', 4)}, "
-                f"channel_timeout={wc.get('channel_timeout', 1200)}, "
-                f"connection_limit={wc.get('connection_limit', 1000)}, "
-                f"cleanup_interval={wc.get('cleanup_interval', 30)}, "
-                f"log_socket_errors={wc.get('log_socket_errors', True)})"
-            ]
-        else:
-            # Linux: use gunicorn
-            cmd = [
-                python_exe, "-m", "gunicorn",
-                "-c", os.path.join(self.config.cfg_dir, "taosanode.config.py"),
-                "-D",  # Daemon mode
-            ]
-
-        # Start process
         try:
+            python_exe = self.process_mgr._get_python_exe()
+            lib_dir = os.path.join(self.config.install_dir, "lib", "taosanalytics")
+            env = self._build_runtime_env()
+
+            if IS_WINDOWS and foreground:
+                return self._run_windows_foreground(full_preflight=full_preflight)
+
+            if IS_WINDOWS and not self._run_preflight(python_exe, env, lib_dir, full_preflight=full_preflight):
+                self.logger.error("Taosanode startup aborted because the import preflight failed")
+                return False
+
+            if IS_WINDOWS:
+                self._ensure_waitress(python_exe)
+                bind_host, bind_port, wc = self._get_waitress_settings()
+
+                cmd = [
+                    python_exe, "-c",
+                    f"from waitress import serve; from taosanalytics.app import app; "
+                    f"serve(app, "
+                    f"host='{bind_host}', "
+                    f"port={bind_port}, "
+                    f"threads={wc.get('threads', 4)}, "
+                    f"channel_timeout={wc.get('channel_timeout', 1200)}, "
+                    f"connection_limit={wc.get('connection_limit', 1000)}, "
+                    f"cleanup_interval={wc.get('cleanup_interval', 30)}, "
+                    f"log_socket_errors={wc.get('log_socket_errors', True)})"
+                ]
+            else:
+                # Linux: use gunicorn
+                cmd = [
+                    python_exe, "-m", "gunicorn",
+                    "-c", os.path.join(self.config.cfg_dir, "taosanode.config.py"),
+                    "-D",  # Daemon mode
+                ]
+
             if IS_WINDOWS:
                 # Windows: redirect output to log file for debugging
                 log_file = os.path.join(self.config.log_dir, "taosanode-service.log")
