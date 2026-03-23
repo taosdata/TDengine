@@ -137,7 +137,7 @@ static int32_t getUidVersion(SMetaReader *pReader, int64_t *version, tb_uid_t ui
     }
   }
   code = TSDB_CODE_NOT_FOUND;
-  metaError("%s uid:%" PRId64 " version not found", __func__, uid);
+  metaError("%s uid:%" PRId64 " version:%" PRId64 " not found", __func__, uid, *version);
 END:
   tdbFree(pKey);
   tdbFree(pVal);

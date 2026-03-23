@@ -33,23 +33,23 @@ class TestStreamMetaChangeVTable:
         tdSql.execute(f"alter all dnodes 'asynclog 0';")
 
         streams = []
-        streams.append(self.Basic37208())  # [ok] add ctb and drop ctb from stb
-        # streams.append(self.Basic0())  # [ok] add ctb and drop ctb from stb
-        # streams.append(self.Basic1())  # [ok] drop data source table
+        # streams.append(self.Basic37208())  # [ok] add ctb and drop ctb from stb
+        streams.append(self.Basic0())  # [ok] add ctb and drop ctb from stb
+        streams.append(self.Basic1())  # [ok] drop data source table
         
-        # # streams.append(self.Basic2())  # tag过滤时，修改tag的值，从满足流条件，到不满足流条件; 从不满足流条件，到满足流条件 [fail]       
+        # streams.append(self.Basic2())  # tag过滤时，修改tag的值，从满足流条件，到不满足流条件; 从不满足流条件，到满足流条件 [fail]       
         
-        # # TD-36750 [流计算开发阶段] 虚拟表+删除pre_filter(cbigint >=1)中cbigint列后，应该没有符合条件的数据了，不会触发计算窗口
-        # # TD-38126 pre_filter 在 %%trows 且触发表为虚拟表时不可用
-        # # streams.append(self.Basic3())  # [ok]
+        # TD-36750 [流计算开发阶段] 虚拟表+删除pre_filter(cbigint >=1)中cbigint列后，应该没有符合条件的数据了，不会触发计算窗口
+        # TD-38126 pre_filter 在 %%trows 且触发表为虚拟表时不可用
+        # streams.append(self.Basic3())  # [ok]
         
-        # streams.append(self.Basic4())  # [ok]
-        # streams.append(self.Basic5())  # [ok] 
+        streams.append(self.Basic4())  # [ok]
+        streams.append(self.Basic5())  # [ok] 
         
-        # # TD-37144 [流计算开发阶段] 删除流结果表后继续触发了也没有重建，不符合预期
-        # # streams.append(self.Basic6())  #  [fail]
+        # TD-37144 [流计算开发阶段] 删除流结果表后继续触发了也没有重建，不符合预期
+        # streams.append(self.Basic6())  #  [fail]
         
-        # streams.append(self.Basic7())  # [ok] 
+        streams.append(self.Basic7())  # [ok] 
         
         tdStream.checkAll(streams)
 

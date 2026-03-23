@@ -6962,6 +6962,7 @@ static int32_t stHistoryContextSendPullReq(SSTriggerHistoryContext *pContext, ES
       pReq->uid = pTable->tbUid;
       pReq->cids = pProgress->reqCids;
       taosArrayClear(pReq->cids);
+      pReq->ver = -1;
       int32_t nCol = taosArrayGetSize(pTask->pVirDataBlock->pDataBlock);
       for (int32_t i = pTask->nVirDataCols; i < nCol; i++) {
         SColumnInfoData *pCol = TARRAY_GET_ELEM(pTask->pVirDataBlock->pDataBlock, i);
