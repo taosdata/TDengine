@@ -57,7 +57,6 @@ echo "======================================================"
 echo "  COMPAT_CI_DIR : $COMPAT_CI_DIR"
 echo "  GREEN_PATH    : $GREEN_PATH"
 echo "  LOG_DIR       : $LOG_DIR"
-echo "  Enterprise    : $ent"
 echo "======================================================"
 
 # ── Step 0: 安装 Python 依赖 ─────────────────────────────────────────────────

@@ -201,7 +201,7 @@ class DNodeConfig:
         while time.time() < deadline:
             time.sleep(1)
             result = subprocess.run(
-                f"lsof -i tcp:{self.port} | grep LISTEN",
+                f"ss -tlnp | grep -q ':{self.port} '",
                 shell=True, capture_output=True
             )
             if result.returncode == 0:
@@ -260,11 +260,18 @@ class DNodeConfig:
         return True
             
     def update_taosd(self, taosd_ori_path: str):
-        """Copy taosd binary to cfg directory"""
+        """Copy taosd binary (and taosudf if present) to bin directory"""
         taosd_dest_path = os.path.join(self.bin_dir, "taosd")
         shutil.copy(taosd_ori_path, taosd_dest_path)
-        os.chmod(taosd_dest_path, 0o755)  # Ensure it's executable
+        os.chmod(taosd_dest_path, 0o755)
         self.taosd_path = taosd_dest_path
+
+        src_dir = os.path.dirname(taosd_ori_path)
+        taosudf_src = os.path.join(src_dir, "taosudf")
+        if os.path.isfile(taosudf_src):
+            taosudf_dst = os.path.join(self.bin_dir, "taosudf")
+            shutil.copy(taosudf_src, taosudf_dst)
+            os.chmod(taosudf_dst, 0o755)
 
 # ==================== DNode Manager ====================
 class DNodeManager:
@@ -316,7 +323,7 @@ class DNodeManager:
 
     def _is_dnode_running(self, port: int) -> bool:
         """Check if DNode is running on specified port"""
-        cmd = f"lsof -i tcp:{port} | grep LISTEN"
+        cmd = f"ss -tlnp | grep -q ':{port} '"
         result = subprocess.run(cmd, shell=True, capture_output=True)
         return result.returncode == 0
 

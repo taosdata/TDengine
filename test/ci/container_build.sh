@@ -53,11 +53,8 @@ fi
 
 ulimit -c unlimited
 
-# ── 编译签名密钥：从固定路径加载，不纳入 Git ────────────────────────────────
-# 注：环境变量由容器内 source 注入（Docker 不继承宿主机环境变量）。
-# 此处在宿主机提前做两项检查：① 文件存在；② source 后变量非空。
-# 这样编译报错能在进入容器之前就被捕获，定位更清晰。
-SALT_ENV_FILE="/security/salt_env.sh"
+# ── Build signature key save in local file  ────────────────────────────────
+SALT_ENV_FILE="$WORKDIR/security/salt_env.sh"
 if [ ! -f "$SALT_ENV_FILE" ]; then
     echo "ERROR: signature salt file not found: $SALT_ENV_FILE"
     echo "       Please create it on this build machine with:"
