@@ -361,13 +361,13 @@ utxn_id_t mndGenTxnId(SMnode *pMnode) {
     nextId = ++currentTxnId;
 
     utxn_id_t usedInRange = currentTxnId - (pObj->maxRangeId - TXN_ID_RANGE_STEP);
-    if (usedInRange >= (TXN_ID_RANGE_STEP * TXN_ID_RANGE_WATERMARK_PCT / 100)) {
+    if ((usedInRange > 0) && (usedInRange >= (TXN_ID_RANGE_STEP * TXN_ID_RANGE_WATERMARK_PCT / 100))) {
       needAlloc = true;
     }
   }
-
+  taosWUnLockLatch(&pObj->lock);
   if (needAlloc) {
-    mInfo("txnSeq, currentId:%" PRIu64 " has reached  maxRangeId:%" PRIu64 ", trigger allocation of new range",
+    mInfo("txnSeq, currentId:%" PRIu64 " has reached maxRangeId:%" PRIu64 ", trigger allocation of new range",
           currentTxnId, pObj->maxRangeId);
     TAOS_CHECK_EXIT(triggerAllocateTxnSeq(pMnode, pObj->maxRangeId + TXN_ID_RANGE_STEP, true));
   }
@@ -375,7 +375,7 @@ utxn_id_t mndGenTxnId(SMnode *pMnode) {
          pObj->maxRangeId);
 
 _exit:
-  taosWUnLockLatch(&pObj->lock);
+
   if (code != TSDB_CODE_SUCCESS) {
     mError("txnSeq, failed at line %d to generate txn id since %s", lino, tstrerror(code));
     TAOS_RETURN(code);
@@ -427,8 +427,7 @@ static int32_t mndAllocTxnSeq(SMnode *pMnode, SRpcMsg *pReq, utxn_id_t nextTxnRa
   TSDB_CHECK_NULL((pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pReq, "alloc-txn-seq")),
                   code, lino, _exit, terrno);
   mInfo("trans:%d, used to allocate txn seq %" PRIu64, pTrans->id, obj.maxRangeId);
-
-  mndTransSetKillMode(pTrans, TRN_KILL_MODE_SKIP);
+mndTransSetKillMode(pTrans, TRN_KILL_MODE_SKIP);
 
   mndTransSetOper(pTrans, MND_OPER_ALLOC_TXN_SEQ);
   TAOS_CHECK_EXIT(mndSetCreateTxnSeqCommitLogs(pMnode, pTrans, &obj));
@@ -436,7 +435,7 @@ static int32_t mndAllocTxnSeq(SMnode *pMnode, SRpcMsg *pReq, utxn_id_t nextTxnRa
   int32_t rspLen = 0;
   void   *pRsp = NULL;
   TAOS_CHECK_EXIT(mndBuildTxnSeqRsp(&obj, &rspLen, &pRsp));
-  mndTransSetRpcRsp(pTrans, pRsp, rspLen);
+  mndTransSetRpcRsp(pTrans, pRsp, rspLen);  // revoked when transaction is finished
 
   TAOS_CHECK_EXIT(mndTransPrepare(pMnode, pTrans));
 _exit:
