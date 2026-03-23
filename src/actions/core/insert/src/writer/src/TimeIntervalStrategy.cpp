@@ -1,10 +1,10 @@
 #include "TimeIntervalStrategy.hpp"
 #include <chrono>
 #include <thread>
-#include <unistd.h>
 #include <cstdint>
 #include <cstring>
 #if defined(__linux__)
+#include <unistd.h>
 #include <sys/timerfd.h>
 #endif
 

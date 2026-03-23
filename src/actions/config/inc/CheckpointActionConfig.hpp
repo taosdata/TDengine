@@ -17,7 +17,7 @@ struct CheckpointActionConfig {
         if (enabled) {
             TimestampGeneratorConfig ts_config = config.schema.columns_cfg.generator.timestamp_strategy.timestamp_config;
             this->start_timestamp = TimestampUtils::parse_timestamp(ts_config.start_timestamp, ts_config.timestamp_precision);
-            this->timestamp_step = std::get<Timestamp>(ts_config.timestamp_step);
+            this->timestamp_step = static_cast<int>(std::get<Timestamp>(ts_config.timestamp_step));
             this->timestamp_precision = ts_config.timestamp_precision;
             this->tableCount = config.schema.tbname.generator.count - config.schema.tbname.generator.from;
         }

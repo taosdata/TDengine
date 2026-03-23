@@ -428,7 +428,7 @@ namespace YAML {
             }
             if (rhs.enabled) {
                 if (node["interval_sec"]) {
-                    rhs.interval_sec = node["interval_sec"].as<size_t>();
+                    rhs.interval_sec = static_cast<int>(node["interval_sec"].as<size_t>());
                     if (rhs.interval_sec == 0) {
                         throw std::runtime_error("interval_sec must be greater than 0 in checkpoint_info.");
                     }

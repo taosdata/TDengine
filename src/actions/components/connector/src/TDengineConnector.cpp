@@ -36,6 +36,16 @@ namespace {
             } else {
                 LogUtils::info("libtaos not found in program directory, trying system path...");
                 g_taos_lib_handle = DYNLIB_LOAD(libname);
+#if defined(_WIN32)
+                if (!g_taos_lib_handle) {
+                    // Try TDengine default driver install path on Windows
+                    std::filesystem::path win_dir = "C:/TDengine/driver";
+                    std::filesystem::path cand = win_dir / libname;
+                    if (std::filesystem::exists(cand)) {
+                        g_taos_lib_handle = DYNLIB_LOAD(cand.string().c_str());
+                    }
+                }
+#endif
 #if defined(__APPLE__)
                 if (!g_taos_lib_handle) {
                     const char* dirs[] = { "/opt/homebrew/lib", "/usr/local/lib", "/usr/lib" };

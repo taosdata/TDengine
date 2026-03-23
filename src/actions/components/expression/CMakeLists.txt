@@ -19,19 +19,27 @@ target_link_libraries(components_expression
     actions_config
     luajit::luajit
     Threads::Threads
-    m
-    dl
 )
+
+if(UNIX)
+  target_link_libraries(components_expression PUBLIC m dl)
+endif()
 
 # Set compilation options
-target_compile_options(components_expression PRIVATE
-    -fno-strict-aliasing
-)
+if(MSVC)
+  # MSVC does not support -fno-strict-aliasing
+else()
+  target_compile_options(components_expression PRIVATE
+      -fno-strict-aliasing
+  )
+endif()
 
 # Set link options
-set_target_properties(components_expression PROPERTIES
-    LINK_FLAGS "-Wl,--export-dynamic"
-)
+if(TSGEN_LINUX)
+  set_target_properties(components_expression PROPERTIES
+      LINK_FLAGS "-Wl,--export-dynamic"
+  )
+endif()
 
 # Enable tests
 if(TSGEN_ENABLE_TEST)

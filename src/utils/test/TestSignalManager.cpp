@@ -19,6 +19,7 @@ void test_final_callback(int signum) {
     std::cout << "Final callback called for signal: " << signum << std::endl;
 }
 
+#if !defined(_WIN32)
 void test_signal_manager_basic() {
     callback_count = 0;
     final_called = false;
@@ -53,6 +54,16 @@ void test_signal_manager_order() {
     assert(final_called == true);
     std::cout << "test_signal_manager_order passed" << std::endl;
 }
+#else
+// Windows does not support SIGUSR1/SIGUSR2, use SIGINT for basic testing
+void test_signal_manager_basic() {
+    std::cout << "test_signal_manager_basic skipped on Windows (no SIGUSR1/SIGUSR2)" << std::endl;
+}
+
+void test_signal_manager_order() {
+    std::cout << "test_signal_manager_order skipped on Windows (no SIGUSR1/SIGUSR2)" << std::endl;
+}
+#endif
 
 int main() {
     test_signal_manager_basic();

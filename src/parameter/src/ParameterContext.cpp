@@ -157,20 +157,23 @@ void ParameterContext::prepare_work() {
                 throw std::runtime_error("TDengine configuration not found for job: " + job.name);
             }
 
+            CheckpointInfo ci;
+            ci.enabled = false;
+            ci.interval_sec = 60;
+
+            CreateDatabaseConfig cdc;
+            cdc.tdengine = *tc;
+            cdc.checkpoint_info = ci;
+
+            Step step;
+            step.name = "Create Database";
+            step.uses = "tdengine/create-database";
+            step.with = YAML::Node(YAML::NodeType::Map);
+            step.action_config = cdc;
+
             job.steps.insert(
                 job.steps.begin(),
-                Step{
-                    .name = "Create Database",
-                    .uses = "tdengine/create-database",
-                    .with = YAML::Node(YAML::NodeType::Map),
-                    .action_config = CreateDatabaseConfig{
-                        .tdengine = *tc,
-                        .checkpoint_info = CheckpointInfo{
-                            .enabled = false,
-                            .interval_sec = 60
-                        }
-                    }
-                }
+                step
             );
         }
     }
@@ -528,7 +531,7 @@ void ParameterContext::merge_yaml_jobs(const YAML::Node& config) {
     }
 
     if (!config["concurrency"]) {
-        config_data.concurrency = config_data.jobs.size();
+        config_data.concurrency = static_cast<int>(config_data.jobs.size());
     }
 }
 

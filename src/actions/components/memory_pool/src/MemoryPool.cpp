@@ -4,8 +4,31 @@
 #include <new>
 #include <limits>
 #include <stdexcept>
+#include <cstdlib>
+
+#if defined(_WIN32)
+#include <malloc.h>
+#endif
 
 constexpr size_t MEMORY_POOL_ALIGNMENT = 64;
+
+// Cross-platform aligned memory allocation
+inline void* platform_aligned_alloc(size_t alignment, size_t size) {
+#if defined(_WIN32)
+    return _aligned_malloc(size, alignment);
+#else
+    return std::aligned_alloc(alignment, size);
+#endif
+}
+
+// Cross-platform aligned memory free
+inline void platform_aligned_free(void* ptr) {
+#if defined(_WIN32)
+    _aligned_free(ptr);
+#else
+    std::free(ptr);
+#endif
+}
 
 inline size_t align_up(size_t x, size_t align) {
     return ((x + align - 1) / align) * align;
@@ -67,7 +90,7 @@ void MemoryPool::CachedTableBlock::fill_cached_data_batch(const std::vector<RowD
 // TableBlock::Tags
 MemoryPool::TableBlock::Tags::~Tags() {
     if (data_chunk) {
-        std::free(data_chunk);
+        platform_aligned_free(data_chunk);
         data_chunk = nullptr;
         data_chunk_size = 0;
     }
@@ -87,7 +110,7 @@ MemoryPool::TableBlock::Tags::Tags(Tags&& other) noexcept
 MemoryPool::TableBlock::Tags& MemoryPool::TableBlock::Tags::operator=(Tags&& other) noexcept {
     if (this != &other) {
         if (data_chunk) {
-            std::free(data_chunk);
+            platform_aligned_free(data_chunk);
         }
 
         table_name = std::move(other.table_name);
@@ -279,7 +302,7 @@ void MemoryPool::MemoryBlock::release() {
 
 void MemoryPool::MemoryBlock::free_data_chunk() {
     if (data_chunk) {
-        std::free(data_chunk);
+        platform_aligned_free(data_chunk);
         data_chunk = nullptr;
         data_chunk_size = 0;
     }
@@ -391,7 +414,7 @@ void MemoryPool::MemoryBlock::reset() {
 // CacheUnit
 MemoryPool::CacheUnit::~CacheUnit() {
     if (data_chunk) {
-        std::free(data_chunk);
+        platform_aligned_free(data_chunk);
         data_chunk = nullptr;
         data_chunk_size = 0;
     }
@@ -411,7 +434,7 @@ MemoryPool::CacheUnit::CacheUnit(CacheUnit&& other) noexcept
 MemoryPool::CacheUnit& MemoryPool::CacheUnit::operator=(CacheUnit&& other) noexcept {
     if (this != &other) {
         if (data_chunk) {
-            std::free(data_chunk);
+            platform_aligned_free(data_chunk);
         }
 
         tables = std::move(other.tables);
@@ -460,7 +483,7 @@ void MemoryPool::TagsManager::calculate_memory_size() {
 void MemoryPool::TagsManager::init_table_tags(TableBlock::Tags& tags,
                                                const std::vector<ColumnType>& tag_values) {
     // 分配内存块
-    tags.data_chunk = std::aligned_alloc(MEMORY_POOL_ALIGNMENT, total_size_);
+    tags.data_chunk = platform_aligned_alloc(MEMORY_POOL_ALIGNMENT, total_size_);
     tags.data_chunk_size = total_size_;
 
     if (!tags.data_chunk) {
@@ -665,7 +688,7 @@ void MemoryPool::init_cache_units() {
     for (size_t cache_idx = 0; cache_idx < num_cached_blocks_; ++cache_idx) {
         auto& cache_unit = cache_units_[cache_idx];
 
-        cache_unit.data_chunk = std::aligned_alloc(MEMORY_POOL_ALIGNMENT, total_cache_size_);
+        cache_unit.data_chunk = platform_aligned_alloc(MEMORY_POOL_ALIGNMENT, total_cache_size_);
         cache_unit.data_chunk_size = total_cache_size_;
 
         if (!cache_unit.data_chunk) {
@@ -767,7 +790,7 @@ void MemoryPool::init_normal_blocks() {
         block.owning_pool = this;
 
         // Allocate a single large memory block
-        block.data_chunk = std::aligned_alloc(MEMORY_POOL_ALIGNMENT, total_block_size);
+        block.data_chunk = platform_aligned_alloc(MEMORY_POOL_ALIGNMENT, total_block_size);
         block.data_chunk_size = total_block_size;
 
         if (!block.data_chunk) {
@@ -881,7 +904,7 @@ void MemoryPool::init_cached_blocks() {
         auto& block = blocks_[block_idx];
         block.owning_pool = this;
 
-        block.data_chunk = std::aligned_alloc(MEMORY_POOL_ALIGNMENT, timestamps_size_);
+        block.data_chunk = platform_aligned_alloc(MEMORY_POOL_ALIGNMENT, timestamps_size_);
         block.data_chunk_size = timestamps_size_;
 
         if (!block.data_chunk) {

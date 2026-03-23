@@ -14,9 +14,11 @@ PahoMqttClient::PahoMqttClient(const MqttConfig& config, const MqttFormatOptions
 
     LogUtils::debug("Creating MQTT client #{}", no_);
 
+#if !defined(_WIN32)
     SignalManager::register_signal(SIGPIPE, [this](int){
         sigpipe_seen_.store(true, std::memory_order_relaxed);
     }, false);
+#endif
 
     std::string client_id = config.generate_client_id(no);
     mqtt::create_options create_opts;

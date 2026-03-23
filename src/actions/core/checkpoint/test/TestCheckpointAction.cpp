@@ -53,11 +53,11 @@ void test_checkpoint_recover() {
     InsertDataConfig insert_config;
     insert_config.target_type = "tdengine";
     insert_config.checkpoint_info.enabled = true;
-    insert_config.schema.columns_cfg.generator.timestamp_strategy.timestamp_config = TimestampGeneratorConfig {
-        .start_timestamp = start_timestamp,
-        .timestamp_precision = timestamp_precision,
-        .timestamp_step = timestamp_step
-    };
+    TimestampGeneratorConfig ts_gen_cfg;
+    ts_gen_cfg.start_timestamp = start_timestamp;
+    ts_gen_cfg.timestamp_precision = timestamp_precision;
+    ts_gen_cfg.timestamp_step = timestamp_step;
+    insert_config.schema.columns_cfg.generator.timestamp_strategy.timestamp_config = ts_gen_cfg;
     insert_config.schema.generation.rows_per_table = rows_per_table;
 
     CheckpointAction::checkpoint_recover(global, insert_config);

@@ -31,7 +31,7 @@ struct TagsCSV {
                     try {
                         size_t idx = std::stoull(token);
                         exclude_indices.insert(idx);
-                    } catch (const std::exception& e) {
+                    } catch (const std::exception&) {
                         throw std::runtime_error("Invalid element in exclude_indices: " + token + ".");
                     }
                 } else {
