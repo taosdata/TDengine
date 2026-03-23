@@ -26,10 +26,10 @@ jobs:
 
       - name: Generate SBOM
         run: |
-          dotnet-CycloneDX csharpTaos.sln --output-format json -fn taos-connector-dotnet.cdx.json
+          dotnet-CycloneDX csharpTaos.sln -spv 1.6 --output-format json -fn taos-connector-dotnet.cdx.json
 
       - name: Run Trivy Scan
-        uses: aquasecurity/trivy-action@0.33.1
+        uses: aquasecurity/trivy-action@v0.35.0
         with:
           scan-type: 'sbom'
           format: 'table'
