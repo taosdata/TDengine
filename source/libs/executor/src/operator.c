@@ -453,6 +453,9 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
       }
     } else if (QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN == type) {
       SSystemTableScanPhysiNode* pSysScanPhyNode = (SSystemTableScanPhysiNode*)pPhyNode;
+      if (pSysScanPhyNode->scan.node.dynamicOp) {
+        pTaskInfo->dynamicTask = true;
+      }
       if (pSysScanPhyNode->scan.virtualStableScan) {
         STableListInfo*           pTableListInfo = tableListCreate();
         if (!pTableListInfo) {
