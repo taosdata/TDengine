@@ -43,17 +43,17 @@ true_for_expr: {
   | duration_time OR COUNT count_val
 }
 
-stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISORDER | DELETE_RECALC | DELETE_OUTPUT_TABLE | FILL_HISTORY[(start_time)] | FILL_HISTORY_FIRST[(start_time)] | CALC_NOTIFY_ONLY | LOW_LATENCY_CALC | PRE_FILTER(expr) | FORCE_OUTPUT | MAX_DELAY(delay_time) | EVENT_TYPE(event_types) | IGNORE_NODATA_TRIGGER}
+stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISORDER | DELETE_RECALC | DELETE_OUTPUT_TABLE | FILL_HISTORY[(start_time)] | FILL_HISTORY_FIRST[(start_time)] | CALC_NOTIFY_ONLY | LOW_LATENCY_CALC | PRE_FILTER(expr) | FORCE_OUTPUT | MAX_DELAY(delay_time) | EVENT_TYPE(event_types) | IGNORE_NODATA_TRIGGER | IDLE_TIMEOUT(duration_time)}
 
 notification_definition:
     NOTIFY(url [, ...]) [ON (event_types)] [WHERE condition] [NOTIFY_OPTIONS(notify_option[|notify_option])]
 
 notify_option: [NOTIFY_HISTORY | ON_FAILURE_PAUSE]
-    
+
 event_types:
-    event_type [|event_type]    
-    
-event_type: {WINDOW_OPEN | WINDOW_CLOSE}    
+    event_type [|event_type]
+
+event_type: {WINDOW_OPEN | WINDOW_CLOSE | IDLE | RESUME}
 
 tag_definition:
     tag_name type_name [COMMENT 'string_value'] AS expr
@@ -348,6 +348,8 @@ When performing calculations, you may need to use contextual information from th
 | Window Trigger    | _twend           | End timestamp of currently open window. Used only with WINDOW_CLOSE trigger. |
 | Window Trigger    | _twduration      | Duration of currently open window. Used only with WINDOW_CLOSE trigger. |
 | Window Trigger    | _twrownum        | Number of rows in currently open window. Used only with WINDOW_CLOSE trigger. |
+| Idle Trigger      | _tidlestart      | The time (processing time) of the last data received by the group before it entered idle state. Nanosecond precision Unix epoch. Applicable only for IDLE/RESUME triggers. Cannot be mixed with `_twstart/_twend`. Since output tables are usually millisecond-precision, use `cast(_tidlestart/1000000 as timestamp)` to convert. |
+| Idle Trigger      | _tidleend        | The trigger time of the IDLE or RESUME event. Nanosecond precision Unix epoch. Applicable only for IDLE/RESUME triggers. Cannot be mixed with `_twstart/_twend`. Since output tables are usually millisecond-precision, use `cast(_tidleend/1000000 as timestamp)` to convert.|
 | All               | _tgrpid          | ID of trigger group (data type BIGINT)                       |
 | All               | _tlocaltime      | System time of current trigger (nanosecond precision)        |
 | All               | %%n              | Reference to trigger group column<br/>n is the column number in `[PARTITION BY col1[, ...]]`, starting with 1 |
@@ -365,7 +367,7 @@ Usage Restrictions:
 ```sql
 [STREAM_OPTIONS(stream_option [|...])]
 
-stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISORDER | DELETE_RECALC | DELETE_OUTPUT_TABLE | FILL_HISTORY[(start_time)] | FILL_HISTORY_FIRST[(start_time)] | CALC_NOTIFY_ONLY | LOW_LATENCY_CALC | PRE_FILTER(expr) | FORCE_OUTPUT | MAX_DELAY(delay_time) | EVENT_TYPE(event_types) | IGNORE_NODATA_TRIGGER}
+stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISORDER | DELETE_RECALC | DELETE_OUTPUT_TABLE | FILL_HISTORY[(start_time)] | FILL_HISTORY_FIRST[(start_time)] | CALC_NOTIFY_ONLY | LOW_LATENCY_CALC | PRE_FILTER(expr) | FORCE_OUTPUT | MAX_DELAY(delay_time) | EVENT_TYPE(event_types) | IGNORE_NODATA_TRIGGER | IDLE_TIMEOUT(duration_time)}
 ```
 
 Control options are used to manage trigger and computation behavior. Multiple options can be specified, but the same option cannot be specified more than once. The available options include:
@@ -385,10 +387,13 @@ Control options are used to manage trigger and computation behavior. Multiple op
 - EVENT_TYPE(event_types) specifies the types of events that can trigger a window. Multiple types may be selected. Default: WINDOW_CLOSE. Not applicable for sliding triggers without INTERVAL or for periodic (PERIOD) triggers (automatically ignored). Options:
   - WINDOW_OPEN: Window start event.
   - WINDOW_CLOSE: Window close event.
+  - IDLE: Group idle event. Triggered once when a group has not received any new data for longer than the `IDLE_TIMEOUT` duration. Requires `IDLE_TIMEOUT` to be configured.
+  - RESUME: Group resume event. Triggered immediately when an idle group receives new data again. Requires `IDLE_TIMEOUT` to be configured.
 - IGNORE_NODATA_TRIGGER ignores triggers when the trigger table has no input data. Applicable for sliding (SLIDING), time window (INTERVAL), and periodic (PERIOD) triggers.
   - Sliding and periodic triggers: If there is no data between two trigger times, the trigger is ignored.
   - Time window triggers: If no data exists in the window, the trigger is ignored.
   - Default: If not specified, triggers will occur even when no input data is present.
+- IDLE_TIMEOUT(duration_time) enables group idle detection and specifies the idle timeout duration. When a group has not received any new data for longer than this duration, it is considered idle and an IDLE event is triggered; when the idle group receives new data again, a RESUME event is triggered. Must be used together with `EVENT_TYPE(IDLE)` and/or `EVENT_TYPE(RESUME)`. Supported time units: milliseconds (a), seconds (s), minutes (m), hours (h), days (d). Valid range: `[1s, 10d]`. Idle detection is based on processing time (the time data arrives and is processed by the stream), using a monotonic clock to avoid being affected by system clock adjustments.
 
 ### Notification Mechanism in Stream Processing
 
@@ -403,7 +408,7 @@ notification_definition:
 event_types:
     event_type [|event_type]    
     
-event_type: {WINDOW_OPEN | WINDOW_CLOSE | ON_TIME}   
+event_type: {WINDOW_OPEN | WINDOW_CLOSE | ON_TIME | IDLE | RESUME}
 ```
 
 Details:
@@ -413,6 +418,8 @@ Details:
   - WINDOW_OPEN: Window open event; sent when a group window in the trigger table opens.
   - WINDOW_CLOSE: Window close event; sent when a group window in the trigger table closes.
   - ON_TIME: Scheduled trigger event; sent at the trigger time.
+  - IDLE: Group idle event; sent when a group enters idle state. Requires `IDLE_TIMEOUT` to be configured in `STREAM_OPTIONS`.
+  - RESUME: Group resume event; sent when an idle group receives data again. Requires `IDLE_TIMEOUT` to be configured in `STREAM_OPTIONS`.
 - [WHERE condition]: Specifies a condition that must be met for a notification to be sent. The condition may reference only columns from the computation result and/or constants.
 - [NOTIFY_OPTIONS(notify_option[|notify_option])]: Optional. Specifies one or more options to control notification behavior (use | to combine). Supported options:
   - NOTIFY_HISTORY: Send notifications during historical computation. Default: not sent.
@@ -528,7 +535,7 @@ The following sections describe each field in the notification message.
 These fields are shared by all event objects:
 
 - tableName: String. The name of the target child table associated with the event. When there is no output, this field does not exist.
-- eventType: String. The type of event. Supported values are WINDOW_OPEN, WINDOW_CLOSE, and WINDOW_INVALIDATION.
+- eventType: String. The type of event. Supported values are WINDOW_OPEN, WINDOW_CLOSE, WINDOW_INVALIDATION, IDLE, and RESUME.
 - eventTime: Long integer. The time the event was generated, in milliseconds since 00:00, Jan 1 1970 UTC.
 - triggerId: String. A unique identifier for the trigger event. Ensures that open and close events (if both exist) share the same ID, allowing external systems to correlate them. If taosd crashes and restarts, some events may be resent, but the same event will always retain the same triggerId.
 - triggerType: String. The type of trigger. Supported values include the two non-window types Period and SLIDING, as well as the five window types INTERVAL, State, Session, Event, and Count.
@@ -610,6 +617,21 @@ These fields apply only when triggerType is Count.
 - If eventType = WINDOW_CLOSE, the event object includes:
   - windowStart: Long integer timestamp indicating the window’s start time. Precision matches the time precision of the result table.
   - result: The computation result, expressed as key–value pairs containing the names of the result columns and their corresponding values.
+
+##### Fields for Idle Triggers
+
+These fields apply only when eventType is IDLE or RESUME.
+
+- If eventType = IDLE, the event object includes:
+  - idleStart: Long integer. The time of the last data received by the group before it entered idle state. Nanosecond precision Unix epoch.
+  - idleEnd: Long integer. The time the IDLE event was triggered. Nanosecond precision Unix epoch.
+  - idleDurationMs: Long integer. The duration of idle time in milliseconds, calculated using the monotonic clock.
+- If eventType = RESUME, the event object includes:
+  - idleStart: Long integer. The timestamp when the idle period began (same as the idleStart of the corresponding IDLE event). Nanosecond precision Unix epoch.
+  - idleEnd: Long integer. The time the RESUME event was triggered. Nanosecond precision Unix epoch.
+  - idleDurationMs: Long integer. The total duration from idle start to resume in milliseconds, calculated using the monotonic clock.
+
+The IDLE and RESUME events of the same idle cycle for a group share the same `triggerId`, allowing external systems to correlate the two events.
 
 ##### Fields for Window Invalidation
 
