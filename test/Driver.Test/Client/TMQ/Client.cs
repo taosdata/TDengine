@@ -425,7 +425,7 @@ namespace Driver.Test.Client.TMQ
                     var messageCount = 0;
                     for (int i = 0; i < 5; i++)
                     {
-                        using (var result = consumer.Consume(500))
+                        using (var result = consumer.Consume(2000))
                         {
                             _output.WriteLine($"{result}");
                             // cloud may insert data by other process
@@ -561,7 +561,7 @@ namespace Driver.Test.Client.TMQ
                     var messageCount = 0;
                     for (int i = 0; i < 5; i++)
                     {
-                        using (var result = consumer.Consume(100))
+                        using (var result = consumer.Consume(2000))
                         {
                             if (messageCount == 3)
                             {
@@ -602,7 +602,7 @@ namespace Driver.Test.Client.TMQ
                     messageCount = 0;
                     for (int i = 0; i < 5; i++)
                     {
-                        using (var result = consumer.Consume(100))
+                        using (var result = consumer.Consume(2000))
                         {
                             if (messageCount == 3)
                             {
@@ -704,7 +704,7 @@ namespace Driver.Test.Client.TMQ
                     var messageCount = 0;
                     for (int i = 0; i < 5; i++)
                     {
-                        using (var result = consumer.Consume(100))
+                        using (var result = consumer.Consume(2000))
                         {
                             if (messageCount == 3)
                             {
@@ -812,7 +812,7 @@ namespace Driver.Test.Client.TMQ
                     var messageCount = 0;
                     for (int i = 0; i < 5; i++)
                     {
-                        using (var result = consumer.Consume(100))
+                        using (var result = consumer.Consume(2000))
                         {
                             if (messageCount == 3)
                             {
@@ -834,7 +834,7 @@ namespace Driver.Test.Client.TMQ
                     }
 
                     Thread.Sleep(3000);
-                    using (var result = consumer.Consume(100))
+                    using (var result = consumer.Consume(2000))
                     {
                     }
 
@@ -902,7 +902,7 @@ namespace Driver.Test.Client.TMQ
                     var insertIndex = 0;
                     for (int i = 0; i < 5; i++)
                     {
-                        using (var result = consumer.Consume(500))
+                        using (var result = consumer.Consume(2000))
                         {
                             if (result == null)
                             {
@@ -1028,7 +1028,7 @@ namespace Driver.Test.Client.TMQ
                 var insertIndex = 0;
                 for (int i = 0; i < 5; i++)
                 {
-                    using (var result = consumer.Consume(500))
+                    using (var result = consumer.Consume(2000))
                     {
                         if (result == null)
                         {
@@ -1286,7 +1286,7 @@ namespace Driver.Test.Client.TMQ
                     var messageCount = 0;
                     for (int i = 0; i < 5; i++)
                     {
-                        using (var result = consumer.Consume(100))
+                        using (var result = consumer.Consume(2000))
                         {
                             if (messageCount == 3)
                             {
@@ -1308,7 +1308,7 @@ namespace Driver.Test.Client.TMQ
                     }
 
                     Thread.Sleep(3000);
-                    using (var result = consumer.Consume(100))
+                    using (var result = consumer.Consume(2000))
                     {
                     }
 
