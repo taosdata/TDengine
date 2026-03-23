@@ -21,12 +21,12 @@ target_link_libraries(components_expression
     Threads::Threads
 )
 
-if(UNIX)
+if(TSGEN_LINUX)
   target_link_libraries(components_expression PUBLIC m dl)
 endif()
 
 # Set compilation options
-if(MSVC)
+if(TSGEN_WINDOWS)
   # MSVC does not support -fno-strict-aliasing
 else()
   target_compile_options(components_expression PRIVATE

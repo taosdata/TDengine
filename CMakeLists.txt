@@ -120,19 +120,18 @@ endif()
 # Global compile options based on compiler
 if(MSVC)
   # MSVC compiler options
-  add_compile_options(/W3)
+  add_compile_options(
+    /W3
+    /utf-8
+    $<$<CONFIG:Debug>:/Od /Zi>
+    $<$<CONFIG:Release>:/O2 /Zi>
+    $<$<CONFIG:RelWithDebInfo>:/O2 /Zi>
+    $<$<CONFIG:MinSizeRel>:/O1 /Zi>
+  )
   # Linker options to disable default libraries and incremental linking
   add_link_options(/NODEFAULTLIB:LIBCMT /INCREMENTAL:NO)
-  # Optimization options by build type
-  if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    add_compile_options(/Od /Zi)
-  else()
-    add_compile_options(/O2 /Zi)
-  endif()
   # Disable unsafe function warnings
   add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
-  # Enable UTF-8 source encoding
-  add_compile_options(/utf-8)
 else()
   # GCC/Clang compiler options
   add_compile_options(
