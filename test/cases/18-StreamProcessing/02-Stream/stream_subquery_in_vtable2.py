@@ -1,17 +1,5 @@
 import time
-from new_test_framework.utils import (tdLog, tdSql, tdStream, StreamCheckItem)
-
-
-WAIT_TIMEOUT = 60
-
-def wait_for_rows(sql, expected_rows, timeout=WAIT_TIMEOUT):
-    """Poll until the query returns the expected number of rows, or timeout."""
-    for i in range(timeout):
-        tdSql.query(sql)
-        if tdSql.queryRows == expected_rows:
-            return
-        time.sleep(1)
-    tdSql.checkRows(expected_rows)
+from new_test_framework.utils import (tdLog, tdSql, tdStream, StreamCheckItem, waitForRows)
 
 
 class TestStreamSubQueryInVtable2:
@@ -86,7 +74,7 @@ class TestStreamSubQueryInVtable2:
             tdSql.execute(f"insert into {self.db}.{self.triggertb} values ('2026-01-01 00:00:00', 1, 100) ('2026-01-01 00:00:01', 2, 200) ('2026-01-01 00:00:02', 3, 300) ('2026-01-01 00:00:03', 4, 400)")
 
         def check1(self):
-            wait_for_rows(f"select * from {self.db}.{self.restb} order by id", 2)
+            waitForRows(f"select * from {self.db}.{self.restb} order by id", 2)
             tdSql.checkData(0, 1, 1)
             tdSql.checkData(1, 1, 4)
 
@@ -128,7 +116,7 @@ class TestStreamSubQueryInVtable2:
                 tdSql.execute(f"insert into {self.db}.{self.triggertb} values {values}")
 
         def check1(self):
-            for i in range(WAIT_TIMEOUT):
+            for i in range(60):
                 tdSql.query(f"select * from {self.db}.{self.restb} order by ts")
                 if tdSql.queryRows > 0:
                     break
@@ -174,7 +162,7 @@ class TestStreamSubQueryInVtable2:
             tdSql.execute(f"insert into {self.db}.{self.triggertb} values ('2026-01-01 00:00:00', 1, 101, 99.99) ('2026-01-01 00:00:01', 1, 102, 49.99) ('2026-01-01 00:00:02', 2, 101, 79.99) ('2026-01-01 00:00:03', 3, 103, 129.99)")
 
         def check1(self):
-            wait_for_rows(f"select * from {self.db}.{self.restb} order by ts", 2)
+            waitForRows(f"select * from {self.db}.{self.restb} order by ts", 2)
             tdSql.checkData(0, 1, 1)
             tdSql.checkData(0, 2, 101)
             tdSql.checkData(1, 1, 3)
@@ -211,7 +199,7 @@ class TestStreamSubQueryInVtable2:
             tdSql.execute(f"insert into {self.db}.{self.triggertb} values ('2026-01-01 00:00:00', 101, 50) ('2026-01-01 00:00:01', 102, 30) ('2026-01-01 00:00:02', 103, 40)")
 
         def check1(self):
-            wait_for_rows(f"select * from {self.db}.{self.restb} order by ts", 2)
+            waitForRows(f"select * from {self.db}.{self.restb} order by ts", 2)
             tdSql.checkData(0, 1, 101)
             tdSql.checkData(1, 1, 103)
 
@@ -247,6 +235,6 @@ class TestStreamSubQueryInVtable2:
             tdSql.execute(f"insert into {self.db}.{self.triggertb} values ('2026-01-01 00:00:00', 1, 26.0, 70.0, 1010.0) ('2026-01-01 00:00:01', 1, 24.0, 70.0, 1010.0) ('2026-01-01 00:00:02', 1, 26.0, 85.0, 1010.0) ('2026-01-01 00:00:03', 1, 26.0, 70.0, 1025.0) ('2026-01-01 00:00:04', 2, 26.0, 70.0, 1010.0) ('2026-01-01 00:00:05', 3, 27.0, 75.0, 1015.0)")
 
         def check1(self):
-            wait_for_rows(f"select * from {self.db}.{self.restb} order by ts", 2)
+            waitForRows(f"select * from {self.db}.{self.restb} order by ts", 2)
             tdSql.checkData(0, 1, 1)
             tdSql.checkData(1, 1, 3)
