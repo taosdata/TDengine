@@ -142,6 +142,7 @@ int    taosCloseCFile(FILE *);
 int    taosSetAutoDelFile(char *path);
 
 FILE   *taosOpenFileForStream(const char *path, int32_t tdFileOptions);
+bool    errorIsFileNotExist(int32_t code);  // the code should be a TSDB_CODE_XXX code
 bool    lastErrorIsFileNotExist();
 
 int64_t taosWritevFile(TdFilePtr pFile, const TaosIOVec *iov, int iovcnt);

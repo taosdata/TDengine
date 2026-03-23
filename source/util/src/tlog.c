@@ -1475,7 +1475,7 @@ void taosReadCrashInfo(char *filepath, char **pMsg, int64_t *pMsgLen, TdFilePtr 
 
     pFile = taosOpenFile(filepath, TD_FILE_READ | TD_FILE_WRITE);
     if (pFile == NULL) {
-      if (ENOENT == ERRNO) {
+      if (errorIsFileNotExist(terrno)) {
         return;
       }
 

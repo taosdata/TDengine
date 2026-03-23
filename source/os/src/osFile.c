@@ -206,7 +206,7 @@ TdFilePtr taosCreateFile(const char *path, int32_t tdFileOptions) {
   }
   TdFilePtr fp = taosOpenFile(path, tdFileOptions);
   if (!fp) {
-    if (terrno == TAOS_SYSTEM_ERROR(ENOENT)) {
+    if (errorIsFileNotExist(terrno)) {
       // Try to create directory recursively
       char s[PATH_MAX];
       tstrncpy(s, path, sizeof(s));
@@ -764,11 +764,11 @@ int64_t taosFSendFile(TdFilePtr pFileOut, TdFilePtr pFileIn, int64_t *offset, in
   return writeLen;
 }
 
-bool lastErrorIsFileNotExist() {
-  DWORD dwError = GetLastError();
-  return dwError == ERROR_FILE_NOT_FOUND;
+bool errorIsFileNotExist(int32_t code) {
+   return code == TAOS_SYSTEM_ERROR(ENOENT) ||
+          code == TAOS_SYSTEM_WINAPI_ERROR(ERROR_FILE_NOT_FOUND) ||
+          code == TAOS_SYSTEM_WINAPI_ERROR(ERROR_PATH_NOT_FOUND);
 }
-
 #else
 int taosOpenFileNotStream(const char *path, int32_t tdFileOptions) {
   if (path == NULL) {
@@ -1150,9 +1150,13 @@ int64_t taosFSendFile(TdFilePtr pFileOut, TdFilePtr pFileIn, int64_t *offset, in
 #endif
 }
 
-bool lastErrorIsFileNotExist() { return terrno == TAOS_SYSTEM_ERROR(ENOENT); }
+bool errorIsFileNotExist(int32_t code) { return code == TAOS_SYSTEM_ERROR(ENOENT); }
 
 #endif  // WINDOWS
+
+bool lastErrorIsFileNotExist() {
+  return errorIsFileNotExist(terrno);
+}
 
 TdFilePtr taosOpenFile(const char *path, int32_t tdFileOptions) {
   if (path == NULL) {
