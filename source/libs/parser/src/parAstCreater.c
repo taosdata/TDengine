@@ -6753,6 +6753,39 @@ _err:
   return NULL;
 }
 
+EPrivType xnodeResourceToPrivType(SAstCreateContext* pCxt, SToken* pResourceId, EPrivType privType) {
+  CHECK_PARSER_STATUS(pCxt);
+  const size_t TASK_LEN = 4;
+  const size_t TASKS_LEN = 5;
+
+  if (pResourceId->z[0] == '`') {
+    if ((pResourceId->n == (2 + TASK_LEN) && strncmp(pResourceId->z + 1, "task", TASK_LEN) == 0) ||
+        (pResourceId->n == (2 + TASKS_LEN) && strncmp(pResourceId->z + 1, "tasks", TASKS_LEN) == 0)) {
+      return privType;
+    }
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                            "Syntax error: Invalid grant xnode resource type at: %s", pResourceId->z);
+    goto _err;
+  }
+  if ((pResourceId->n == TASK_LEN && strncmp(pResourceId->z, "task", TASK_LEN) == 0) ||
+      (pResourceId->n == TASKS_LEN && strncmp(pResourceId->z, "tasks", TASKS_LEN) == 0)) {
+    return privType;
+  }
+  pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                          "Syntax error: Invalid grant xnode resource type at: %s", pResourceId->z);
+
+_err:
+  return PRIV_TYPE_UNKNOWN;
+}
+
+SPrivLevelArgs xnodeTaskObjPrivLevelSet(SAstCreateContext* pCxt, SToken* resId, SPrivLevelArgs privLevelArgs) {
+  (void)xnodeResourceToPrivType(pCxt, resId, PRIV_TYPE_UNKNOWN);
+  CHECK_PARSER_STATUS(pCxt);
+
+_err:
+  return privLevelArgs;
+}
+
 SNode* createEncryptKeyStmt(SAstCreateContext* pCxt, const SToken* pValue) {
   SToken config;
   config.type = TK_NK_STRING;

@@ -441,6 +441,8 @@ SNode*  createRebalanceXnodeJobStmt(SAstCreateContext* pCxt, EXnodeResourceType 
 SNode*  createRebalanceXnodeJobWhereStmt(SAstCreateContext* pCxt, EXnodeResourceType resourceType, SNode* pWhere);
 SNode*  alterXnodeTaskWithOptions(SAstCreateContext* pCxt, EXnodeResourceType resourceType, const SToken* pResIdOrName,
                                   SNode* pSource, SNode* pSink, SNode* pNode);
+EPrivType xnodeResourceToPrivType(SAstCreateContext* pCxt, SToken* pResourceId, EPrivType privType);
+SPrivLevelArgs xnodeTaskObjPrivLevelSet(SAstCreateContext* pCxt, SToken* resId, SPrivLevelArgs privLevelArgs);
 /** end @section xnode */
 
 SNode* createEncryptKeyStmt(SAstCreateContext* pCxt, const SToken* pValue);

@@ -18895,13 +18895,16 @@ static int32_t translateGrantCheckFillObject(STranslateContext* pCxt, SGrantStmt
     case PRIV_OBJ_STREAM:
       TAOS_CHECK_EXIT(privExpandAll(&pReq->privileges.privSet, objType, objLevel));
       break;
+    case PRIV_OBJ_XTASK:
+      TAOS_CHECK_EXIT(privExpandAll(&pReq->privileges.privSet, objType, objLevel));
+      break;
     case PRIV_OBJ_MOUNT:
       break;
     case PRIV_OBJ_AUDIT:
       break;
     case PRIV_OBJ_TOKEN:
       break;
-    case PRIV_OBJ_NONE: 
+    case PRIV_OBJ_NONE:
       break;
     default:
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
