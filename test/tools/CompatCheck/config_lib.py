@@ -65,5 +65,4 @@ def taosd_path(version_dir: str) -> str:
     path = os.path.join(os.path.abspath(version_dir), "taosd")
     if not os.path.isfile(path):
         raise FileNotFoundError(f"taosd not found in {version_dir}")
-    os.chmod(path, 0o755)
     return path

@@ -284,7 +284,6 @@ class RollingUpgrader:
         if not os.path.isfile(to_taosd_path):
             self._err(f"Target taosd not found: {to_taosd_path}")
             return False
-        os.chmod(to_taosd_path, 0o755)
 
         order: List[int] = list(range(1, node_count + 1))
         random.shuffle(order)
@@ -318,7 +317,6 @@ class ColdUpgrader(RollingUpgrader):
         if not os.path.isfile(to_taosd_path):
             self._err(f"Target taosd not found: {to_taosd_path}")
             return False
-        os.chmod(to_taosd_path, 0o755)
 
         order: List[int] = list(range(1, node_count + 1))
 
