@@ -248,20 +248,19 @@ function del(data: { id: string }) {
     cancelButtonText: t('cancel'),
     type: 'warning'
   }).then(async () => {
-    await executeDel(data.id).then(res => {
-      if (res && Object.hasOwnProperty.call(res, 'id')) {
-        ElMessage({
-          type: 'success',
-          message: t('delSucc')
-        });
-        getReplication();
-      } else {
-        ElMessage({
-          type: 'error',
-          message: res.message
-        });
-      }
-    });
+    const res = await executeDel(data.id);
+    if (res.status === 200) {
+      ElMessage({
+        type: 'success',
+        message: t('delSucc')
+      });
+      getReplication();
+    } else {
+      ElMessage({
+        type: 'error',
+        message: res.message
+      });
+    }
   });
 }
 function refresh() {

@@ -6,7 +6,8 @@ use tracing::instrument;
 
 #[instrument(skip_all)]
 pub async fn split_job(task: SplitJobTask) -> anyhow::Result<SplitJobResult> {
-    let from = task.from;
+    let mut from = task.from;
+    from.driver = "tmq".to_string();
     let (mut from, _, topics, with_meta_delete, with_meta_drop) = check_tmq_dsn(from).await?;
 
     if with_meta_delete {

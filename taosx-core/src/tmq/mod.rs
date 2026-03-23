@@ -263,7 +263,8 @@ pub async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, TaosBuilder, Vec<Topic
         from.set("group.id", "replica");
     }
 
-    let builder = TaosBuilder::from_dsn(&from)?;
+    let builder =
+        TaosBuilder::from_dsn(&from).context("create db conn builder from tmq dsn error")?;
     let version = builder.server_version().await?;
     if version.starts_with("2.") {
         bail!("tmq does not support TDengine Query");
@@ -276,7 +277,7 @@ pub async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, TaosBuilder, Vec<Topic
         from.remove("enable.wal.marker");
     }
 
-    let source = builder.build().await?;
+    let source = builder.build().await.context("build tmq db conn error")?;
     const DEFAULT_VGROUPS: usize = 2;
 
     let mut topics = database
