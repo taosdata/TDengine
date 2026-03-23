@@ -1059,6 +1059,26 @@ void ctgFreeTaskCtx(SCtgTask* pTask) {
         taosArrayDestroy(taskCtx->pVgroups);
         taskCtx->pVgroups = NULL;
       }
+      if (taskCtx->pSubTablesList) {
+        taosArrayDestroyEx(taskCtx->pSubTablesList, tDestroySVSubTablesRsp);
+        taskCtx->pSubTablesList = NULL;
+      }
+      taosArrayDestroy(taskCtx->pLayerRefs);
+      taskCtx->pLayerRefs = NULL;
+      if (taskCtx->pLayerReqs) {
+        int32_t reqNum = taosArrayGetSize(taskCtx->pLayerReqs);
+        for (int32_t i = 0; i < reqNum; ++i) {
+          STablesReq* pReq = taosArrayGet(taskCtx->pLayerReqs, i);
+          if (NULL != pReq) {
+            taosArrayDestroy(pReq->pTables);
+            pReq->pTables = NULL;
+          }
+        }
+        taosArrayDestroy(taskCtx->pLayerReqs);
+        taskCtx->pLayerReqs = NULL;
+      }
+      taosHashCleanup(taskCtx->pFinalDbs);
+      taskCtx->pFinalDbs = NULL;
       if (taskCtx->pResList) {
         taosArrayDestroyEx(taskCtx->pResList, tDestroySVStbRefDbsRsp);
       }
@@ -3260,4 +3280,3 @@ int32_t ctgAddTSMAFetch(SArray** pFetchs, int32_t dbIdx, int32_t tbIdx, int32_t*
 
   return TSDB_CODE_SUCCESS;
 }
-

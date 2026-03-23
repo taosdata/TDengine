@@ -6399,6 +6399,64 @@ static int32_t cloneVgroups(SVgroupsInfo** pDst, SVgroupsInfo* pSrc) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t appendUniqueVgroups(SVgroupsInfo* pSrc, SHashObj* pVgHash, SArray* pVgroupList) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  if (NULL == pSrc) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  for (int32_t i = 0; i < pSrc->numOfVgroups; ++i) {
+    SVgroupInfo* pVg = pSrc->vgroups + i;
+    if (NULL != taosHashGet(pVgHash, &pVg->vgId, sizeof(pVg->vgId))) {
+      continue;
+    }
+
+    code = taosHashPut(pVgHash, &pVg->vgId, sizeof(pVg->vgId), NULL, 0);
+    QUERY_CHECK_CODE(code, lino, _return);
+    QUERY_CHECK_NULL(taosArrayPush(pVgroupList, pVg), code, lino, _return, terrno);
+  }
+
+  return TSDB_CODE_SUCCESS;
+
+_return:
+  return code;
+}
+
+static int32_t setVSuperTableMetaScanVgroupList(SVirtualTableNode* pVirtualTable, SRealTableNode* pRefScanTable,
+                                                SRealTableNode* pMetaScanTable) {
+  int32_t   code = TSDB_CODE_SUCCESS;
+  int32_t   lino = 0;
+  SHashObj* pVgHash = NULL;
+  SArray*   pVgroupList = NULL;
+  int32_t   expected = 1;
+
+  if (pVirtualTable->pVgroupList != NULL) {
+    expected = TMAX(expected, pVirtualTable->pVgroupList->numOfVgroups);
+  }
+  if (pRefScanTable->pVgroupList != NULL) {
+    expected += pRefScanTable->pVgroupList->numOfVgroups;
+  }
+
+  pVgroupList = taosArrayInit(expected, sizeof(SVgroupInfo));
+  QUERY_CHECK_NULL(pVgroupList, code, lino, _return, terrno);
+
+  pVgHash = taosHashInit(expected, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
+  QUERY_CHECK_NULL(pVgHash, code, lino, _return, terrno);
+
+  PAR_ERR_JRET(appendUniqueVgroups(pVirtualTable->pVgroupList, pVgHash, pVgroupList));
+  PAR_ERR_JRET(appendUniqueVgroups(pRefScanTable->pVgroupList, pVgHash, pVgroupList));
+
+  taosMemoryFreeClear(pMetaScanTable->pVgroupList);
+  PAR_ERR_JRET(toVgroupsInfo(pVgroupList, &pMetaScanTable->pVgroupList));
+
+_return:
+  taosHashCleanup(pVgHash);
+  taosArrayDestroy(pVgroupList);
+  return code;
+}
+
 static int32_t makeVtableMetaScanTable(STranslateContext* pCxt, SRealTableNode** pScan) {
   int32_t code = TSDB_CODE_SUCCESS;
   bool    tmpAsync = pCxt->pParseCxt->async;
@@ -6440,6 +6498,7 @@ static int32_t translateVirtualSuperTable(STranslateContext* pCxt, SNode** pTabl
   PAR_ERR_JRET(nodesListMakeAppend(&pVTable->refTables, (SNode*)pRealTable));
   refTablesAdded = true;
   PAR_ERR_JRET(makeVtableMetaScanTable(pCxt, &pInsCols));
+  //PAR_ERR_JRET(setVSuperTableMetaScanVgroupList(pVTable, pRealTable, pInsCols));
   PAR_ERR_JRET(nodesListMakeAppend(&pVTable->refTables, (SNode*)pInsCols));
 
   *pTable = (SNode*)pVTable;
@@ -24099,13 +24158,11 @@ _err:
   }
   return code;
 }
-
-
-
-static int32_t checkColRef(STranslateContext* pCxt, char* colName, char* pRefDbName, char* pRefTableName,
-                           char* pRefColName, SDataType type, int8_t precision) {
-  STableMeta* pRefTableMeta = NULL;
-  int32_t     code = TSDB_CODE_SUCCESS;
+static int32_t checkColRef(STranslateContext* pCxt, const char* colName, const char* pRefDbName,
+                           const char* pRefTableName, const char* pRefColName, SDataType type, int8_t precision) {
+  STableMeta*    pRefTableMeta = NULL;
+  const SSchema* pRefCol = NULL;
+  int32_t        code = TSDB_CODE_SUCCESS;
 
   PAR_ERR_JRET(getTableMeta(pCxt, pRefDbName, pRefTableName, &pRefTableMeta));
 
@@ -24113,21 +24170,8 @@ static int32_t checkColRef(STranslateContext* pCxt, char* colName, char* pRefDbN
     PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN_TYPE,
                                          "timestamp precision of virtual table and its reference table do not match"));
   }
-  // org table cannot has composite primary key
-  if (pRefTableMeta->tableInfo.numOfColumns > 1 && pRefTableMeta->schema[1].flags & COL_IS_KEY) {
-    PAR_ERR_JRET(generateSyntaxErrMsgExt(
-        &pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN,
-        "virtual table's column:\"%s\"'s reference can not from table with composite key", colName));
-  }
 
-  // org table must be child table or normal table
-  if (pRefTableMeta->tableType != TSDB_NORMAL_TABLE && pRefTableMeta->tableType != TSDB_CHILD_TABLE) {
-    PAR_ERR_JRET(generateSyntaxErrMsgExt(
-        &pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN,
-        "virtual table's column:\"%s\"'s reference can only be normal table or child table", colName));
-  }
-
-  const SSchema* pRefCol = getNormalColSchema(pRefTableMeta, pRefColName);
+  pRefCol = getNormalColSchema(pRefTableMeta, pRefColName);
   if (NULL == pRefCol) {
     PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN,
                                          "virtual table's column:\"%s\"'s reference column:\"%s\" not exist", colName,
@@ -24140,12 +24184,23 @@ static int32_t checkColRef(STranslateContext* pCxt, char* colName, char* pRefDbN
         "virtual table's column:\"%s\"'s type and reference column:\"%s\"'s type not match", colName, pRefColName));
   }
 
-  // For variable-length types (VARCHAR, NCHAR, etc.), allow different lengths
-  // Virtual table can have different length than source table
   if (!IS_VAR_DATA_TYPE(pRefCol->type) && pRefCol->bytes != type.bytes) {
     PAR_ERR_JRET(generateSyntaxErrMsgExt(
         &pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN_TYPE,
         "virtual table's column:\"%s\"'s type and reference column:\"%s\"'s type not match", colName, pRefColName));
+  }
+
+  if (pRefTableMeta->tableInfo.numOfColumns > 1 && pRefTableMeta->schema[1].flags & COL_IS_KEY) {
+    PAR_ERR_JRET(generateSyntaxErrMsgExt(
+        &pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN,
+        "virtual table's column:\"%s\"'s reference can not from table with composite key", colName));
+  }
+
+  if (pRefTableMeta->tableType != TSDB_NORMAL_TABLE && pRefTableMeta->tableType != TSDB_CHILD_TABLE &&
+      pRefTableMeta->tableType != TSDB_VIRTUAL_NORMAL_TABLE && pRefTableMeta->tableType != TSDB_VIRTUAL_CHILD_TABLE) {
+    PAR_ERR_JRET(generateSyntaxErrMsgExt(
+        &pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN,
+        "virtual table's column:\"%s\"'s reference can only be normal table, child table or virtual table", colName));
   }
 
 _return:
@@ -25389,7 +25444,6 @@ static int32_t rewriteCreateVirtualTable(STranslateContext* pCxt, SQuery* pQuery
   SNode*             pNode = NULL;
   int32_t            index = 0;
   SDbCfgInfo         dbCfg = {0};
-  int8_t             precision = 0;
 
   PAR_ERR_JRET(checkCreateVirtualTable(pCxt, pStmt));
 
@@ -25397,6 +25451,8 @@ static int32_t rewriteCreateVirtualTable(STranslateContext* pCxt, SQuery* pQuery
   if (NULL == pBufArray) {
     PAR_ERR_JRET(terrno);
   }
+
+  PAR_ERR_JRET(getDBCfg(pCxt, pStmt->dbName, &dbCfg));
 
   toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &name);
 

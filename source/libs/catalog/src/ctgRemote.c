@@ -113,13 +113,21 @@ int32_t ctgHandleBatchRsp(SCtgJob* pJob, SCtgTaskCallbackParam* cbParam, SDataBu
       CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
     }
 
+    SHashObj* pPrevMsgBatchs = pMsgCtx->pBatchs;
+    SHashObj* pPrevTaskBatchs = pTask->msgCtx.pBatchs;
+    SHashObj* pPrevThreadBatchs = gCtgCurrentBatchs;
     pMsgCtx->pBatchs = pBatchs;
+    pTask->msgCtx.pBatchs = pBatchs;
+    gCtgCurrentBatchs = pBatchs;
 
     ctgDebug("QID:0x%" PRIx64 ", catalog task:%d handle rsp:%s, idx:%d pBatchs:%p", pJob->queryId, pTask->taskId,
              TMSG_INFO(taskMsg.msgType + 1), pRsp->msgIdx, pBatchs);
 
     (void)(*gCtgAsyncFps[pTask->type].handleRspFp)(
         &tReq, pRsp->reqType, &taskMsg, (pRsp->rspCode ? pRsp->rspCode : rspCode));  // error handled internal
+    pMsgCtx->pBatchs = pPrevMsgBatchs;
+    pTask->msgCtx.pBatchs = pPrevTaskBatchs;
+    gCtgCurrentBatchs = pPrevThreadBatchs;
   }
 
   CTG_ERR_JRET(ctgLaunchBatchs(pJob->pCtg, pJob, pBatchs));
@@ -423,6 +431,17 @@ int32_t ctgProcessRspMsg(void* out, int32_t reqType, char* msg, int32_t msgSize,
       }
       break;
     }
+    case TDMT_VND_VSUBTABLES_META: {
+      if (TSDB_CODE_SUCCESS != rspCode) {
+        CTG_ERR_RET(rspCode);
+      }
+      code = queryProcessMsgRsp[TMSG_INDEX(reqType)](out, msg, msgSize);
+      if (code) {
+        qError("Process get vnode virtual subtables meta rsp failed, err: %s, tbFName: %s", tstrerror(code), target);
+        CTG_ERR_RET(code);
+      }
+      break;
+    }
     case TDMT_MND_GET_RSMA: {
       if (TSDB_CODE_SUCCESS != rspCode) {
         CTG_ERR_RET(rspCode);
@@ -488,24 +507,30 @@ int32_t ctgHandleMsgCallback(void* param, SDataBuf* pMsg, int32_t rspCode) {
       CTG_ERR_JRET(terrno);
     }
 
-    SCtgMsgCtx* pMsgCtx = CTG_GET_TASK_MSGCTX(pTask, -1);
+    SCtgMsgCtx* pMsgCtx = &pTask->msgCtx;
     if (NULL == pMsgCtx) {
       ctgError("task:%d, get SCtgMsgCtx failed, taskType:%d", -1, pTask->type);
       CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
     }
 
+    SHashObj* pPrevTaskBatchs = pMsgCtx->pBatchs;
+    SHashObj* pPrevThreadBatchs = gCtgCurrentBatchs;
     pMsgCtx->pBatchs = pBatchs;
+    gCtgCurrentBatchs = pBatchs;
 #endif
 
     SCtgTaskReq tReq;
     tReq.pTask = pTask;
     tReq.msgIdx = -1;
 
-    CTG_ERR_JRET((*gCtgAsyncFps[pTask->type].handleRspFp)(&tReq, cbParam->reqType, pMsg, rspCode));
+    int32_t ret = (*gCtgAsyncFps[pTask->type].handleRspFp)(&tReq, cbParam->reqType, pMsg, rspCode);
 
 #if CTG_BATCH_FETCH
+    pMsgCtx->pBatchs = pPrevTaskBatchs;
+    gCtgCurrentBatchs = pPrevThreadBatchs;
     CTG_ERR_JRET(ctgLaunchBatchs(pJob->pCtg, pJob, pBatchs));
 #endif
+    CTG_ERR_JRET(ret);
   }
 
 _return:
@@ -612,8 +637,27 @@ int32_t ctgAddBatch(SCatalog* pCtg, int32_t vgId, SRequestConnInfo* pConn, SCtgT
     CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
   }
 
-  SHashObj*  pBatchs = pMsgCtx->pBatchs;
+  // Callback-local batch container must take precedence; request-level msgCtx is next.
+  // Task-level msgCtx is only a fallback for non-callback paths.
+  SHashObj* pBatchs =
+      gCtgCurrentBatchs ? gCtgCurrentBatchs : ((NULL != pMsgCtx->pBatchs) ? pMsgCtx->pBatchs : pTask->msgCtx.pBatchs);
+  if (NULL == pBatchs) {
+    ctgError("QID:0x%" PRIx64 ", job:0x%" PRIx64 ", task:%d batch container is null, msgType:%d, vgId:%d",
+             pTask->pJob->queryId, pTask->pJob->refId, pTask->taskId, msgType, vgId);
+    CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
+  }
+  if (pMsgCtx->pBatchs != pBatchs) {
+    pMsgCtx->pBatchs = pBatchs;
+  }
+
   SCtgBatch* pBatch = taosHashGet(pBatchs, &vgId, sizeof(vgId));
+  if (NULL != pBatch && (NULL == pBatch->pMsgs || NULL == pBatch->pTaskIds || NULL == pBatch->pMsgIdxs)) {
+    ctgError("QID:0x%" PRIx64 ", job:0x%" PRIx64
+             ", task:%d tries to reuse launched batch:%d, msgType:%d, vgId:%d",
+             pTask->pJob->queryId, pTask->pJob->refId, pTask->taskId, pBatch->batchId, msgType, vgId);
+    CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
+  }
+
   if (NULL == pBatch) {
     newBatch.pMsgs = taosArrayInit(pJob->subTaskNum, sizeof(SBatchMsg));
     newBatch.pTaskIds = taosArrayInit(pJob->subTaskNum, sizeof(int32_t));
@@ -648,8 +692,11 @@ int32_t ctgAddBatch(SCatalog* pCtg, int32_t vgId, SRequestConnInfo* pConn, SCtgT
         SCtgTbCfgCtx* ctx = (SCtgTbCfgCtx*)pTask->taskCtx;
         pName = ctx->pName;
       } else if (TDMT_VND_TABLE_META == msgType || TDMT_VND_TABLE_NAME == msgType ||
-                 TDMT_VND_VSTB_REF_DBS == msgType) {
-        if (CTG_TASK_GET_TB_META_BATCH == pTask->type) {
+                 TDMT_VND_VSTB_REF_DBS == msgType || TDMT_VND_VSUBTABLES_META == msgType) {
+        if (CTG_TASK_GET_V_STBREFDBS == pTask->type) {
+          SCtgVStbRefDbsCtx* ctx = (SCtgVStbRefDbsCtx*)pTask->taskCtx;
+          pName = ctx->pNames;
+        } else if (CTG_TASK_GET_TB_META_BATCH == pTask->type) {
           SCtgTbMetasCtx* ctx = (SCtgTbMetasCtx*)pTask->taskCtx;
           SCtgFetch*      fetch = taosArrayGet(ctx->pFetchs, tReq->msgIdx);
           CTG_ERR_JRET(ctgGetFetchName(ctx->pNames, fetch, &pName));
@@ -731,8 +778,11 @@ int32_t ctgAddBatch(SCatalog* pCtg, int32_t vgId, SRequestConnInfo* pConn, SCtgT
       SCtgTbCfgCtx* ctx = (SCtgTbCfgCtx*)pTask->taskCtx;
       pName = ctx->pName;
     } else if (TDMT_VND_TABLE_META == msgType || TDMT_VND_TABLE_NAME == msgType ||
-               TDMT_VND_VSTB_REF_DBS == msgType) {
-      if (CTG_TASK_GET_TB_META_BATCH == pTask->type) {
+               TDMT_VND_VSTB_REF_DBS == msgType || TDMT_VND_VSUBTABLES_META == msgType) {
+      if (CTG_TASK_GET_V_STBREFDBS == pTask->type) {
+        SCtgVStbRefDbsCtx* ctx = (SCtgVStbRefDbsCtx*)pTask->taskCtx;
+        pName = ctx->pNames;
+      } else if (CTG_TASK_GET_TB_META_BATCH == pTask->type) {
         SCtgTbMetasCtx* ctx = (SCtgTbMetasCtx*)pTask->taskCtx;
         SCtgFetch*      fetch = taosArrayGet(ctx->pFetchs, tReq->msgIdx);
         CTG_ERR_JRET(ctgGetFetchName(ctx->pNames, fetch, &pName));
@@ -1927,5 +1977,3 @@ int32_t ctgGetVStbRefDbsFromVnode(SCatalog* pCtg, SRequestConnInfo* pConn, int64
 
   return ctgAddBatch(pCtg, vgroupInfo->vgId, &vConn, tReq, reqType, msg, msgLen);
 }
-
-

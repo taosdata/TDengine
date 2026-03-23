@@ -1228,6 +1228,7 @@ static int32_t createVirtualSuperTableLogicNode(SLogicPlanContext* pCxt, SSelect
   ((SScanLogicNode*)pInsColumnsScan)->node.pTargets = NULL;  // Set to NULL after destroy to avoid use-after-free
   PLAN_ERR_JRET(addInsColumnScanCol((SRealTableNode*)nodesListGetNode(pVirtualTable->refTables, 1), &((SScanLogicNode*)pInsColumnsScan)->pScanCols));
   PLAN_ERR_JRET(createColumnByRewriteExprs(((SScanLogicNode*)pInsColumnsScan)->pScanCols, &((SScanLogicNode*)pInsColumnsScan)->node.pTargets));
+  ((SScanLogicNode *)pInsColumnsScan)->node.dynamicOp = true;
   ((SScanLogicNode *)pInsColumnsScan)->virtualStableScan = true;
   ((SScanLogicNode *)pInsColumnsScan)->stableId = pVtableScan->stableId;
 

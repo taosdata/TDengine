@@ -4457,6 +4457,17 @@ typedef struct SVTableScanOperatorParam {
   SArray*         pRefColGroups;  // SArray<SRefColIdGroup>
 } SVTableScanOperatorParam;
 
+typedef struct SSysTableScanVtbRefReq {
+  int32_t vgId;                            // target vnode id that owns the referenced table
+  char    dbName[TSDB_DB_NAME_LEN];        // short database name of the referenced table
+  char    tbName[TSDB_TABLE_NAME_LEN];     // referenced table name
+  char    colName[TSDB_COL_NAME_LEN];      // referenced column name on the target table
+} SSysTableScanVtbRefReq;
+
+typedef struct SSysTableScanOperatorParam {
+  SArray* pVtbRefReqs;  // SArray<SSysTableScanVtbRefReq>
+} SSysTableScanOperatorParam;
+
 typedef struct SMergeOperatorParam {
   int32_t         winNum;
 } SMergeOperatorParam;
