@@ -160,6 +160,7 @@ void initMetaReaderAPI(SStoreMetaReader* pMetaReader) {
 
   pMetaReader->getEntryGetUidCache = metaReaderGetTableEntryByUidCache;
   pMetaReader->getTableEntryByName = metaGetTableEntryByName;
+  pMetaReader->getTableEntryByVersionName = metaGetTableEntryByVersionName;
 
   pMetaReader->readerReleaseLock = metaReaderReleaseLock;
 }
