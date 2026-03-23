@@ -6,7 +6,7 @@ toc_max_heading_level: 4
 
 taosgen 是时序数据领域产品的性能基准测试工具，支持数据生成、写入性能测试等功能。taosgen 以“作业”为基础单元，作业是由用户定义，用于完成特定任务的一组操作集合。每个作业包含一个或多个步骤，并可通过依赖关系与其他作业连接，形成有向无环图（DAG）式的执行流程，实现灵活高效的任务编排。
 
-taosgen 目前支持 Linux 和 macOS 系统。
+taosgen 目前支持 Windows、Linux 和 macOS 系统。
 
 ## taosBenchmark 与 taosgen 功能对比
 
