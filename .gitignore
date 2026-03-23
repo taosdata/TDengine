@@ -53,3 +53,18 @@ dkms.conf
 
 # debug information files
 *.dwo
+
+# AI releated
+.cursor
+.cursor/
+.claude
+.claude/
+.agent
+.agent/
+skills
+skills/
+CLAUDE.md
+AGENT.md
+
+# Tools
+tools/
