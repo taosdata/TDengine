@@ -76,6 +76,7 @@ CMakeUserPresets.json
 
 # TDGPT - WinSW cache (local binary, not committed to repo)
 tools/tdgpt/packaging/bin/WinSW.exe
+tools/tdgpt/packaging/bin/uv.exe
 
 .agents/
 skills-lock.json
