@@ -263,6 +263,9 @@ class WindowsInstaller:
         self.python_version = ""
         self.phase_timings: List[Tuple[str, float]] = []
         self.install_started_at = time.time()
+        self._offline_package_ctx = None
+        self._offline_package_root: Optional[Path] = None
+        self._offline_package_cached_path = ""
 
         raw_models = [normalize_model_name(item) for item in (selected_models or [])]
         if self.all_models:
@@ -344,6 +347,34 @@ class WindowsInstaller:
 
     def get_venv_python(self, name: str) -> Path:
         return self.get_venv_path(name) / "Scripts" / "python.exe"
+
+    def cleanup_offline_package_cache(self) -> None:
+        if self._offline_package_ctx is not None:
+            try:
+                self._offline_package_ctx.cleanup()
+            except Exception:
+                pass
+        self._offline_package_ctx = None
+        self._offline_package_root = None
+        self._offline_package_cached_path = ""
+
+    def get_offline_package_root(self, package_path: Path) -> Optional[Path]:
+        resolved = str(package_path.resolve())
+        if self._offline_package_root is not None and self._offline_package_cached_path == resolved:
+            self.print_info(f"Reusing extracted offline package: {package_path.name}")
+            return self._offline_package_root
+
+        self.cleanup_offline_package_cache()
+        self.print_info(f"Extracting offline package once for reuse: {package_path.name}")
+        temp_ctx = tempfile.TemporaryDirectory(prefix="tdgpt-offline-package-cache-", dir=str(self.install_dir))
+        temp_dir = Path(temp_ctx.name)
+        if not self.extract_archive_to_dir(package_path, temp_dir):
+            temp_ctx.cleanup()
+            return None
+        self._offline_package_ctx = temp_ctx
+        self._offline_package_root = temp_dir
+        self._offline_package_cached_path = resolved
+        return temp_dir
 
     @staticmethod
     def compare_versions(left: str, right: str) -> int:
@@ -603,17 +634,16 @@ class WindowsInstaller:
 
         self.set_progress(20, "Preparing Python environments", f"Importing packaged Python runtime and virtual environments from {package_path.name}")
         package_timer = self.start_phase_timer(f"Import offline runtime bundle {package_path.name}")
-        with tempfile.TemporaryDirectory(prefix="tdgpt-offline-runtime-bundle-", dir=str(self.install_dir)) as temp_name:
-            temp_dir = Path(temp_name)
-            if not self.extract_archive_to_dir(package_path, temp_dir):
+        temp_dir = self.get_offline_package_root(package_path)
+        if temp_dir is None:
+            return False
+        if not self.import_runtime_payload(temp_dir):
+            return False
+        if not self.import_venv_payload(temp_dir, "venv", required=True):
+            return False
+        for venv_name in [name for name in VENV_CONFIGS if name != "venv"]:
+            if not self.import_venv_payload(temp_dir, venv_name, required=False):
                 return False
-            if not self.import_runtime_payload(temp_dir):
-                return False
-            if not self.import_venv_payload(temp_dir, "venv", required=True):
-                return False
-            for venv_name in [name for name in VENV_CONFIGS if name != "venv"]:
-                if not self.import_venv_payload(temp_dir, venv_name, required=False):
-                    return False
 
         self.python_cmd = str(self.get_packaged_python())
         for venv_name in self.discover_packaged_venvs():
@@ -1190,28 +1220,27 @@ class WindowsInstaller:
 
     def import_offline_model_package(self, package_path: Path) -> bool:
         package_timer = self.start_phase_timer(f"Import offline model package {package_path.name}")
-        with tempfile.TemporaryDirectory(prefix="tdgpt-offline-package-", dir=str(self.model_dir)) as temp_name:
-            temp_dir = Path(temp_name)
-            if not self.extract_archive_to_dir(package_path, temp_dir):
-                return False
+        temp_dir = self.get_offline_package_root(package_path)
+        if temp_dir is None:
+            return False
 
-            imported_models: List[str] = []
-            for model_name in ALL_MODELS:
-                payload_root = self.find_offline_package_payload(temp_dir, model_name)
-                if payload_root:
-                    if not self.deploy_model_payload(payload_root, model_name):
-                        return False
-                    imported_models.append(model_name)
-                    self.print_success(
-                        f"Offline model imported from package: {MODEL_SPECS[model_name]['display']}"
-                    )
-                    continue
+        imported_models: List[str] = []
+        for model_name in ALL_MODELS:
+            payload_root = self.find_offline_package_payload(temp_dir, model_name)
+            if payload_root:
+                if not self.deploy_model_payload(payload_root, model_name):
+                    return False
+                imported_models.append(model_name)
+                self.print_success(
+                    f"Offline model imported from package: {MODEL_SPECS[model_name]['display']}"
+                )
+                continue
 
-                nested_archive = self.find_offline_package_archive(temp_dir, model_name)
-                if nested_archive:
-                    if not self.extract_archive(nested_archive, model_name):
-                        return False
-                    imported_models.append(model_name)
+            nested_archive = self.find_offline_package_archive(temp_dir, model_name)
+            if nested_archive:
+                if not self.extract_archive(nested_archive, model_name):
+                    return False
+                imported_models.append(model_name)
 
         if not imported_models:
             self.print_error(
@@ -1431,64 +1460,67 @@ except Exception as exc:
                 fh.write("\n".join(lines) + "\n")
 
     def run(self) -> bool:
-        self.log_dir.mkdir(parents=True, exist_ok=True)
-        self.set_progress(1, f"Initializing {APP_DISPLAY_NAME} setup", "Preparing installation environment")
-        self.print_info("=" * 60)
-        self.print_info(f"{APP_DISPLAY_NAME} Windows Installer")
-        self.print_info("=" * 60)
-        self.print_info(f"Install directory: {self.install_dir}")
-        self.print_info(f"Requirements directory: {self.requirements_dir}")
-        self.print_info(f"Virtual environments directory: {self.venvs_dir}")
-        self.print_info(f"Log file: {self.log_file}")
-        self.print_info("=" * 60)
-        self.check_admin_privileges()
-        self.set_progress(5, "Checking system requirements", "Checking disk space")
-        timer = self.start_phase_timer("Check disk space")
-        if not self.check_disk_space():
-            return False
-        self.finish_phase_timer("Check disk space", timer)
-        self.set_progress(8, "Checking system requirements", "Checking Python")
-        timer = self.start_phase_timer("Check Python")
-        if not self.check_python():
-            return False
-        self.finish_phase_timer("Check Python", timer)
-        self.set_progress(10, "Checking system requirements", "Checking pip")
-        timer = self.start_phase_timer("Check pip")
-        if not self.check_pip():
-            return False
-        self.finish_phase_timer("Check pip", timer)
-        self.set_progress(12, "Preparing directories", "Creating required folders")
-        timer = self.start_phase_timer("Create directories")
-        if not self.create_directories():
-            return False
-        self.finish_phase_timer("Create directories", timer)
-        self.set_progress(14, "Preparing installation environment", "Stopping existing Taosanode service")
-        timer = self.start_phase_timer("Stop existing Taosanode service")
-        self.stop_existing_service()
-        self.finish_phase_timer("Stop existing Taosanode service", timer)
-        timer = self.start_phase_timer("Install Python environments")
-        if not self.install_venvs():
-            return False
-        self.finish_phase_timer("Install Python environments", timer)
-        timer = self.start_phase_timer("Prepare models")
-        if not self.process_models():
-            return False
-        self.finish_phase_timer("Prepare models", timer)
-        timer = self.start_phase_timer("Write enabled model configuration")
-        self.write_enabled_models()
-        self.finish_phase_timer("Write enabled model configuration", timer)
-        timer = self.start_phase_timer("Install Windows service")
-        if not self.install_service():
-            return False
-        self.finish_phase_timer("Install Windows service", timer)
-        self.append_install_summary()
-        self.set_progress(100, "Installation complete", f"{APP_DISPLAY_NAME} is ready", status="success")
-        self.print_success(f"{APP_DISPLAY_NAME} installation completed.")
-        self.print_info("Start service: net start Taosanode")
-        self.print_info("Stop service: net stop Taosanode")
-        self.print_info(f"Script start: {self.install_dir / 'bin' / 'start-taosanode.bat'}")
-        self.print_info(f"Script stop: {self.install_dir / 'bin' / 'stop-taosanode.bat'}")
-        return True
+        try:
+            self.log_dir.mkdir(parents=True, exist_ok=True)
+            self.set_progress(1, f"Initializing {APP_DISPLAY_NAME} setup", "Preparing installation environment")
+            self.print_info("=" * 60)
+            self.print_info(f"{APP_DISPLAY_NAME} Windows Installer")
+            self.print_info("=" * 60)
+            self.print_info(f"Install directory: {self.install_dir}")
+            self.print_info(f"Requirements directory: {self.requirements_dir}")
+            self.print_info(f"Virtual environments directory: {self.venvs_dir}")
+            self.print_info(f"Log file: {self.log_file}")
+            self.print_info("=" * 60)
+            self.check_admin_privileges()
+            self.set_progress(5, "Checking system requirements", "Checking disk space")
+            timer = self.start_phase_timer("Check disk space")
+            if not self.check_disk_space():
+                return False
+            self.finish_phase_timer("Check disk space", timer)
+            self.set_progress(8, "Checking system requirements", "Checking Python")
+            timer = self.start_phase_timer("Check Python")
+            if not self.check_python():
+                return False
+            self.finish_phase_timer("Check Python", timer)
+            self.set_progress(10, "Checking system requirements", "Checking pip")
+            timer = self.start_phase_timer("Check pip")
+            if not self.check_pip():
+                return False
+            self.finish_phase_timer("Check pip", timer)
+            self.set_progress(12, "Preparing directories", "Creating required folders")
+            timer = self.start_phase_timer("Create directories")
+            if not self.create_directories():
+                return False
+            self.finish_phase_timer("Create directories", timer)
+            self.set_progress(14, "Preparing installation environment", "Stopping existing Taosanode service")
+            timer = self.start_phase_timer("Stop existing Taosanode service")
+            self.stop_existing_service()
+            self.finish_phase_timer("Stop existing Taosanode service", timer)
+            timer = self.start_phase_timer("Install Python environments")
+            if not self.install_venvs():
+                return False
+            self.finish_phase_timer("Install Python environments", timer)
+            timer = self.start_phase_timer("Prepare models")
+            if not self.process_models():
+                return False
+            self.finish_phase_timer("Prepare models", timer)
+            timer = self.start_phase_timer("Write enabled model configuration")
+            self.write_enabled_models()
+            self.finish_phase_timer("Write enabled model configuration", timer)
+            timer = self.start_phase_timer("Install Windows service")
+            if not self.install_service():
+                return False
+            self.finish_phase_timer("Install Windows service", timer)
+            self.append_install_summary()
+            self.set_progress(100, "Installation complete", f"{APP_DISPLAY_NAME} is ready", status="success")
+            self.print_success(f"{APP_DISPLAY_NAME} installation completed.")
+            self.print_info("Start service: net start Taosanode")
+            self.print_info("Stop service: net stop Taosanode")
+            self.print_info(f"Script start: {self.install_dir / 'bin' / 'start-taosanode.bat'}")
+            self.print_info(f"Script stop: {self.install_dir / 'bin' / 'stop-taosanode.bat'}")
+            return True
+        finally:
+            self.cleanup_offline_package_cache()
 
 
 def parse_model_archive_arg(values: Optional[List[str]]) -> Dict[str, str]:
