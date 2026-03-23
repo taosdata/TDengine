@@ -199,7 +199,7 @@ class TestStreamSubQueryInVtable3:
             wait_for_rows(f"select * from {self.db}.{self.restb}", 4)
 
     class InSubqueryVirtualTableWithOrderBy(StreamCheckItem):
-        """Test IN subquery with virtual table and order by"""
+        """Test IN subquery with virtual table and order by in subquery"""
         def __init__(self):
             self.db = "test_in_vtable_orderby3"
             self.refdb = "ref_db_orderby3"
