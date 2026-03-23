@@ -3073,7 +3073,7 @@ class TDCom:
                     "| sed -E 's/slowest_vgroup_id=[0-9]+//g' "
                     "| sed -E 's/fetch_cost=[0-9]+\\.[0-9]+\\([0-9]+\\.[0-9]+\\)//g' "
                     "| sed -E 's/fetch_cost=[0-9]+\\.[0-9]+//g' "
-                    "| sed -E 's/fetch_times=[0-9]+\\([0-9]+\\.[0-9]+\\)//g' "
+                    "| sed -E 's/fetch_times=[0-9]+\\.[0-9]+\\([0-9]+\\)//g' "
                     "| sed -E 's/fetch_times=[0-9]+//g' "
                     "| sed -E 's/slow_deviation=[0-9]+\\.[0-9]+%//g' "
                     "| sed -E 's/cost_ratio=[0-9]+\\.[0-9]+//g' "

@@ -50,13 +50,6 @@ explain analyze verbose true select _wstart, _wend, count(*) from meters session
 explain analyze verbose true select _wstart, _wend, count(*) from meters session(ts, 1h) order by _wend desc\G;
 explain analyze verbose true select _wstart, _wend, count(*) from meters session(ts, 1h) order by _wend asc\G;
 
-explain analyze verbose true select _wstart, _wend, count(*) from meters session(ts, 1h)\G;
-explain analyze verbose true select _wstart, _wend, count(*) from meters session(ts, 1h) order by _wstart desc\G;
-explain analyze verbose true select _wstart, _wend, count(*) from meters session(ts, 1h) order by _wstart asc\G;
-
-explain analyze verbose true select _wstart, _wend, count(*) from meters session(ts, 1h) order by _wend desc\G;
-explain analyze verbose true select _wstart, _wend, count(*) from meters session(ts, 1h) order by _wend asc\G;
-
 explain analyze verbose true select _wstart, _wend, count(*), last(ts) from meters state_window(c2)\G;
 explain analyze verbose true select _wstart, _wend, count(*), last(ts) from meters state_window(c2) order by _wstart desc\G;
 explain analyze verbose true select _wstart, _wend, count(*), last(ts) from meters state_window(c2) order by _wstart asc\G;
