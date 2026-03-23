@@ -889,45 +889,42 @@ class TaosanodeService:
 
         self.logger.info("Starting taosanode service...")
 
-        python_exe = self.process_mgr._get_python_exe()
-        lib_dir = os.path.join(self.config.install_dir, "lib", "taosanalytics")
-        env = self._build_runtime_env()
-
-        if IS_WINDOWS and foreground:
-            return self._run_windows_foreground(full_preflight=full_preflight)
-
-        if IS_WINDOWS and not self._run_preflight(python_exe, env, lib_dir, full_preflight=full_preflight):
-            self.logger.error("Taosanode startup aborted because the import preflight failed")
-            return False
-
-        # Build command
-
-        if IS_WINDOWS:
-            self._ensure_waitress(python_exe)
-            bind_host, bind_port, wc = self._get_waitress_settings()
-
-            cmd = [
-                python_exe, "-c",
-                f"from waitress import serve; from taosanalytics.app import app; "
-                f"serve(app, "
-                f"host='{bind_host}', "
-                f"port={bind_port}, "
-                f"threads={wc.get('threads', 4)}, "
-                f"channel_timeout={wc.get('channel_timeout', 1200)}, "
-                f"connection_limit={wc.get('connection_limit', 1000)}, "
-                f"cleanup_interval={wc.get('cleanup_interval', 30)}, "
-                f"log_socket_errors={wc.get('log_socket_errors', True)})"
-            ]
-        else:
-            # Linux: use gunicorn
-            cmd = [
-                python_exe, "-m", "gunicorn",
-                "-c", os.path.join(self.config.cfg_dir, "taosanode.config.py"),
-                "-D",  # Daemon mode
-            ]
-
-        # Start process
         try:
+            python_exe = self.process_mgr._get_python_exe()
+            lib_dir = os.path.join(self.config.install_dir, "lib", "taosanalytics")
+            env = self._build_runtime_env()
+
+            if IS_WINDOWS and foreground:
+                return self._run_windows_foreground(full_preflight=full_preflight)
+
+            if IS_WINDOWS and not self._run_preflight(python_exe, env, lib_dir, full_preflight=full_preflight):
+                self.logger.error("Taosanode startup aborted because the import preflight failed")
+                return False
+
+            if IS_WINDOWS:
+                self._ensure_waitress(python_exe)
+                bind_host, bind_port, wc = self._get_waitress_settings()
+
+                cmd = [
+                    python_exe, "-c",
+                    f"from waitress import serve; from taosanalytics.app import app; "
+                    f"serve(app, "
+                    f"host='{bind_host}', "
+                    f"port={bind_port}, "
+                    f"threads={wc.get('threads', 4)}, "
+                    f"channel_timeout={wc.get('channel_timeout', 1200)}, "
+                    f"connection_limit={wc.get('connection_limit', 1000)}, "
+                    f"cleanup_interval={wc.get('cleanup_interval', 30)}, "
+                    f"log_socket_errors={wc.get('log_socket_errors', True)})"
+                ]
+            else:
+                # Linux: use gunicorn
+                cmd = [
+                    python_exe, "-m", "gunicorn",
+                    "-c", os.path.join(self.config.cfg_dir, "taosanode.config.py"),
+                    "-D",  # Daemon mode
+                ]
+
             if IS_WINDOWS:
                 # Windows: redirect output to log file for debugging
                 log_file = os.path.join(self.config.log_dir, "taosanode-service.log")

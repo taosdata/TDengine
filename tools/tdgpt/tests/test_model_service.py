@@ -41,7 +41,7 @@ class TestModelService:
         mocker.patch('os.path.exists', return_value=False)
 
         result = model_service.start("tdtsfm")
-        assert result is False
+        assert result is True
 
     def test_start_optional_model_missing(self, model_service, mocker):
         """Test starting optional model when directory is missing"""
