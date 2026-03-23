@@ -230,6 +230,8 @@ static int32_t addTimezoneParam(SNodeList* pList, timezone_t tz) {
   varDataSetLen(pVal->datum.p, len);
   tstrncpy(varDataVal(pVal->datum.p), pVal->literal, len + 1);
 
+  //printf("%s literal:%s", __func__, pVal->literal);
+
   code = nodesListAppend(pList, (SNode*)pVal);
   if (TSDB_CODE_SUCCESS != code) {
     nodesDestroyNode((SNode*)pVal);
