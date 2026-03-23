@@ -38,13 +38,6 @@ GREEN_LOCAL_DIR="/var/lib/jenkins/workspace/green_versions"
 LOCK_DIR="/tmp/green_versions_locks"
 
 
-INTERNAL_REPDIR="$WORKDIR/TDinternal"
-DEBUGPATH_DIR="$WORKDIR/debugNoSan"
-CONTAINER_REP_MOUNT="$INTERNAL_REPDIR:/home/TDinternal"
-CONTAINER_DEBUG_MOUNT="$DEBUGPATH_DIR:/home/TDinternal/debug"
-CONTAINER_SCRIPT="/home/TDinternal/community/test/ci/run_upgrade_compat_container.sh"
-
-
 # ── 解析参数 ─────────────────────────────────────────────────────────────────
 
 WORKDIR=""
@@ -77,6 +70,12 @@ fi
 if [ -z "$LOG_DIR" ]; then
     LOG_DIR="$WORKDIR/upgrade_compat_logs"
 fi
+
+INTERNAL_REPDIR="$WORKDIR/TDinternal"
+DEBUGPATH_DIR="$WORKDIR/debugNoSan"
+CONTAINER_REP_MOUNT="$INTERNAL_REPDIR:/home/TDinternal"
+CONTAINER_DEBUG_MOUNT="$DEBUGPATH_DIR:/home/TDinternal/debug"
+CONTAINER_SCRIPT="/home/TDinternal/community/test/ci/run_upgrade_compat_container.sh"
 
 mkdir -p "$LOG_DIR"
 mkdir -p "$GREEN_LOCAL_DIR"
