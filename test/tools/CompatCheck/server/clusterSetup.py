@@ -201,7 +201,7 @@ class DNodeConfig:
         while time.time() < deadline:
             time.sleep(1)
             result = subprocess.run(
-                f"ss -tlnp | grep -q ':{self.port} '",
+                f"netstat -tunlp | grep {self.port}",
                 shell=True, capture_output=True
             )
             if result.returncode == 0:
@@ -323,7 +323,7 @@ class DNodeManager:
 
     def _is_dnode_running(self, port: int) -> bool:
         """Check if DNode is running on specified port"""
-        cmd = f"ss -tlnp | grep -q ':{port} '"
+        cmd = f"netstat -tunlp | grep {port}"
         result = subprocess.run(cmd, shell=True, capture_output=True)
         return result.returncode == 0
 
