@@ -161,6 +161,12 @@ int64_t tsDndUpTime = 0;
 // dnode misc
 uint32_t tsEncryptionKeyChksum = 0;
 int8_t   tsEncryptionKeyStat = ENCRYPT_KEY_STAT_UNSET;
+#if defined(TD_FLEX_DEPLOY)
+int8_t   tsFlexDeploy = 1;
+#else
+int8_t   tsFlexDeploy = 0;
+#endif
+
 uint32_t tsGrant = 1;
 
 bool tsCompareAsStrInGreatest = true;
