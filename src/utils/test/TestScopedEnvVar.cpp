@@ -78,7 +78,9 @@ void test_set_and_restore_new_var() {
 
     bool has_value = false;
     (void)get_env_value(name, has_value);
-    assert(env_is_unset(name));
+    bool is_unset = env_is_unset(name);
+    (void)is_unset;
+    assert(is_unset);
     std::cout << "test_set_and_restore_new_var passed\n";
 }
 
