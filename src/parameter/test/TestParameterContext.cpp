@@ -5,6 +5,7 @@
 #include "ScopedEnvVar.hpp"
 #include <cassert>
 #include <iostream>
+#include <filesystem>
 
 // Test command line parameter parsing
 void test_commandline_merge() {
@@ -431,18 +432,21 @@ jobs:
 }
 
 void test_init_with_config_file() {
+    // Use absolute path to avoid working directory issues with multi-config generators
+    auto abs_path = std::filesystem::absolute("file_test.yaml").string();
     const char* config_content = "tdengine:\n  dsn: taos+ws://file.host:6041";
-    FILE* fp = fopen("file_test.yaml", "w");
+    FILE* fp = fopen(abs_path.c_str(), "w");
     fputs(config_content, fp);
     fclose(fp);
 
     ParameterContext ctx;
-    const char* argv[] = {"dummy", "--config-file=file_test.yaml"};
+    std::string arg = "--config-file=" + abs_path;
+    const char* argv[] = {"dummy", arg.c_str()};
     ctx.init(2, const_cast<char**>(argv));
 
     assert(ctx.get_tdengine().host == "file.host");
 
-    remove("file_test.yaml");
+    remove(abs_path.c_str());
     std::cout << "Init with config file test passed.\n";
 }
 

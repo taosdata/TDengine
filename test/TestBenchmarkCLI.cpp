@@ -28,7 +28,15 @@ static std::string find_taosgen_bin() {
         "../src/taosgen",
         "./taosgen",
         "src/taosgen",
-        "../build/src/taosgen"
+        "../build/src/taosgen",
+#if defined(_WIN32)
+        "./src/Debug/taosgen.exe",
+        "./src/Release/taosgen.exe",
+        "../src/Debug/taosgen.exe",
+        "../src/Release/taosgen.exe",
+        "src/Debug/taosgen.exe",
+        "src/Release/taosgen.exe",
+#endif
     };
 
     for (const auto& c : candidates) {
@@ -69,6 +77,14 @@ static std::string shell_cd(const std::string& dir) {
 #endif
 }
 
+static fs::path find_build_dir_from_bin(const fs::path& bin_path) {
+#if defined(_MSC_VER)
+    return bin_path.parent_path().parent_path().parent_path();
+#else
+    return bin_path.parent_path().parent_path();
+#endif
+}
+
 static int run_cmd(const std::string& cmd) {
     std::cout << "[RUN] " << cmd << std::endl;
     return std::system(cmd.c_str());
@@ -93,7 +109,7 @@ void test_config_command() {
     assert(!root.empty() && "project root not found; set TSGEN_ROOT");
 
     const fs::path bin_path = fs::path(bin);
-    const fs::path build_dir = bin_path.parent_path().parent_path();
+    const fs::path build_dir = find_build_dir_from_bin(bin_path);
 
     const std::string cfg = (fs::path(root) / "conf/tdengine-csv.yaml").string();
     const std::string cmd = shell_cd(build_dir.string()) + "\"" + bin + "\" -v -c \"" + cfg + "\"";
@@ -125,7 +141,7 @@ void test_sigterm_handling() {
     assert(!root.empty() && "project root not found; set TSGEN_ROOT");
 
     const fs::path bin_path = fs::path(bin);
-    const fs::path build_dir = bin_path.parent_path().parent_path();
+    const fs::path build_dir = find_build_dir_from_bin(bin_path);
 
     pid_t pid = fork();
     if (pid == 0) {

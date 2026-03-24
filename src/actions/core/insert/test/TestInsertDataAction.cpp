@@ -200,27 +200,26 @@ void test_data_pipeline_with_tags() {
         while (!producer_done || pipeline.total_queued() > 0) {
             auto result = pipeline.fetch_data(0);
             if (result.status == DataPipeline<FormatResult>::Status::Success) {
-                std::visit([&](const auto& data) {
-                    using T = std::decay_t<decltype(data)>;
-                    if constexpr (std::is_same_v<T, InsertFormatResult>) {
-                        assert(data->total_rows == 1);
-                        assert(data->column_count() == 1);
-                        assert(data->tag_count() == 1);
+                const auto& variant_ref = *result.data;
+                if (std::holds_alternative<InsertFormatResult>(variant_ref)) {
+                    const auto& insert = std::get<InsertFormatResult>(variant_ref);
+                    assert(insert->total_rows == 1);
+                    assert(insert->column_count() == 1);
+                    assert(insert->tag_count() == 1);
 
-                        auto col_val = data->get_block()->tables[0].get_column_cell(0, 0);
-                        assert(std::holds_alternative<float>(col_val));
-                        assert(std::get<float>(col_val) == 3.14f);
+                    auto col_val = insert->get_block()->tables[0].get_column_cell(0, 0);
+                    assert(std::holds_alternative<float>(col_val));
+                    assert(std::get<float>(col_val) == 3.14f);
 
-                        auto tag_val = data->get_block()->tables[0].get_tag_cell(0, 0);
-                        assert(std::holds_alternative<int32_t>(tag_val));
-                        assert(std::get<int32_t>(tag_val) == 100);
+                    auto tag_val = insert->get_block()->tables[0].get_tag_cell(0, 0);
+                    assert(std::holds_alternative<int32_t>(tag_val));
+                    assert(std::get<int32_t>(tag_val) == 100);
 
-                        (void)col_val;
-                        (void)tag_val;
+                    (void)col_val;
+                    (void)tag_val;
 
-                        rows_consumed++;
-                    }
-                }, *result.data);
+                    rows_consumed++;
+                }
             }
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }

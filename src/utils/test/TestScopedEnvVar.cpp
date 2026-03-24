@@ -33,9 +33,21 @@ void set_env_value(const std::string& name, const std::string& value) {
 
 void unset_env_value(const std::string& name) {
 #ifdef _WIN32
+    // On Windows, _putenv_s with empty string removes the variable from CRT environment
     _putenv_s(name.c_str(), "");
 #else
     unsetenv(name.c_str());
+#endif
+}
+
+bool env_is_unset(const std::string& name) {
+    const char* value = std::getenv(name.c_str());
+#ifdef _WIN32
+    // On Windows, _putenv_s("name", "") sets to empty string rather than removing.
+    // Treat both nullptr and empty string as "unset".
+    return (value == nullptr || value[0] == '\0');
+#else
+    return (value == nullptr);
 #endif
 }
 }
@@ -66,7 +78,7 @@ void test_set_and_restore_new_var() {
 
     bool has_value = false;
     (void)get_env_value(name, has_value);
-    assert(!has_value);
+    assert(env_is_unset(name));
     std::cout << "test_set_and_restore_new_var passed\n";
 }
 

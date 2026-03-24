@@ -40,12 +40,13 @@ ScopedEnvVar::~ScopedEnvVar() {
 void ScopedEnvVar::restore() {
 #ifdef _WIN32
     if (had_old_value_) {
-        if (SetEnvironmentVariableA(name_.c_str(), old_value_.c_str()) == 0) {
-            throw std::runtime_error("ScopedEnvVar: SetEnvironmentVariableA failed (restore old)");
+        if (_putenv_s(name_.c_str(), old_value_.c_str()) != 0) {
+            throw std::runtime_error("ScopedEnvVar: _putenv_s failed (restore old) for " + name_);
         }
     } else {
-        if (SetEnvironmentVariableA(name_.c_str(), nullptr) == 0) {
-            throw std::runtime_error("ScopedEnvVar: SetEnvironmentVariableA failed (unset)");
+        // Setting to empty string effectively removes it from CRT environment
+        if (_putenv_s(name_.c_str(), "") != 0) {
+            throw std::runtime_error("ScopedEnvVar: _putenv_s failed (unset) for " + name_);
         }
     }
 #else
