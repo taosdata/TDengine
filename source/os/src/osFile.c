@@ -1682,12 +1682,94 @@ int32_t taosLinkFile(char *src, char *dst) {
   return 0;
 }
 
+#ifdef WINDOWS
+// Create an NTFS directory junction (mount point) from linkpath -> target.
+// Junctions do not require elevated privileges or Developer Mode, unlike symlinks.
+static int32_t taosCreateJunction(const char *target, const char *linkpath) {
+  char fullTarget[MAX_PATH] = {0};
+  if (GetFullPathNameA(target, MAX_PATH, fullTarget, NULL) == 0) {
+    return (terrno = TAOS_SYSTEM_WINAPI_ERROR(GetLastError()));
+  }
+  if (!CreateDirectoryA(linkpath, NULL)) {
+    return (terrno = TAOS_SYSTEM_WINAPI_ERROR(GetLastError()));
+  }
+  HANDLE hDir = CreateFileA(linkpath, GENERIC_WRITE, 0, NULL, OPEN_EXISTING,
+                            FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, NULL);
+  if (hDir == INVALID_HANDLE_VALUE) {
+    RemoveDirectoryA(linkpath);
+    return (terrno = TAOS_SYSTEM_WINAPI_ERROR(GetLastError()));
+  }
+  // Build the substitute name: \??\<fullTarget>  (NT path prefix for junctions)
+  WCHAR wTarget[MAX_PATH] = {0};
+  WCHAR wSubst[MAX_PATH + 4] = {0};
+  MultiByteToWideChar(CP_ACP, 0, fullTarget, -1, wTarget, MAX_PATH);
+  wsprintfW(wSubst, L"\\??\\%s", wTarget);
+  int substLen = (int)wcslen(wSubst) * (int)sizeof(WCHAR);
+  int printLen = (int)wcslen(wTarget) * (int)sizeof(WCHAR);
+  // Reparse data buffer layout for IO_REPARSE_TAG_MOUNT_POINT:
+  //   ULONG  ReparseTag
+  //   USHORT ReparseDataLength
+  //   USHORT Reserved
+  //   USHORT SubstituteNameOffset
+  //   USHORT SubstituteNameLength
+  //   USHORT PrintNameOffset
+  //   USHORT PrintNameLength
+  //   WCHAR  PathBuffer[...]  (SubstituteName\0 + PrintName\0)
+  int headerSize = 8;   // ReparseTag(4) + ReparseDataLength(2) + Reserved(2)
+  int fixedSize = 8;    // SubstNameOff(2) + SubstNameLen(2) + PrintNameOff(2) + PrintNameLen(2)
+  int pathBufSize = substLen + (int)sizeof(WCHAR) + printLen + (int)sizeof(WCHAR);
+  int totalSize = headerSize + fixedSize + pathBufSize;
+  char *buf = (char *)taosMemoryCalloc(1, totalSize);
+  if (buf == NULL) {
+    CloseHandle(hDir);
+    RemoveDirectoryA(linkpath);
+    return (terrno = TSDB_CODE_OUT_OF_MEMORY);
+  }
+  *(ULONG *)(buf + 0) = IO_REPARSE_TAG_MOUNT_POINT;       // ReparseTag
+  *(USHORT *)(buf + 4) = (USHORT)(fixedSize + pathBufSize); // ReparseDataLength
+  *(USHORT *)(buf + 6) = 0;                                 // Reserved
+  *(USHORT *)(buf + 8) = 0;                                 // SubstituteNameOffset
+  *(USHORT *)(buf + 10) = (USHORT)substLen;                  // SubstituteNameLength
+  *(USHORT *)(buf + 12) = (USHORT)(substLen + sizeof(WCHAR)); // PrintNameOffset
+  *(USHORT *)(buf + 14) = (USHORT)printLen;                  // PrintNameLength
+  memcpy(buf + headerSize + fixedSize, wSubst, substLen);
+  memcpy(buf + headerSize + fixedSize + substLen + sizeof(WCHAR), wTarget, printLen);
+  DWORD bytesReturned = 0;
+  BOOL ok = DeviceIoControl(hDir, FSCTL_SET_REPARSE_POINT, buf, totalSize, NULL, 0, &bytesReturned, NULL);
+  DWORD jErr = ok ? 0 : GetLastError();
+  taosMemoryFree(buf);
+  CloseHandle(hDir);
+  if (!ok) {
+    RemoveDirectoryA(linkpath);
+    return (terrno = TAOS_SYSTEM_WINAPI_ERROR(jErr));
+  }
+  return 0;
+}
+#endif
+
 int32_t taosSymLink(const char *target, const char *linkpath) {
 #ifdef WINDOWS
   DWORD attributes = GetFileAttributesA(target);
   BOOL  isDir = (attributes != INVALID_FILE_ATTRIBUTES) && (attributes & FILE_ATTRIBUTE_DIRECTORY);
-  if (!CreateSymbolicLinkA(linkpath, target, isDir ? SYMBOLIC_LINK_FLAG_DIRECTORY : 0)) {
-    return (terrno = TAOS_SYSTEM_WINAPI_ERROR(GetLastError()));
+  DWORD flags = isDir ? SYMBOLIC_LINK_FLAG_DIRECTORY : 0;
+  // Try symlink with unprivileged flag first (requires Developer Mode on Win10 1703+)
+  if (!CreateSymbolicLinkA(linkpath, target, flags | 0x2 /*SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE*/)) {
+    DWORD err = GetLastError();
+    if (err == ERROR_INVALID_PARAMETER) {
+      // Flag not supported on older Windows, retry without it
+      if (!CreateSymbolicLinkA(linkpath, target, flags)) {
+        err = GetLastError();
+      } else {
+        err = 0;
+      }
+    }
+    if (err == ERROR_PRIVILEGE_NOT_HELD && isDir) {
+      // Symlink requires elevation or Developer Mode; fall back to directory junction
+      // which does not require special privileges on NTFS.
+      return taosCreateJunction(target, linkpath);
+    } else if (err != 0) {
+      return (terrno = TAOS_SYSTEM_WINAPI_ERROR(err));
+    }
   }
 #else
   if (symlink(target, linkpath) == -1) {
