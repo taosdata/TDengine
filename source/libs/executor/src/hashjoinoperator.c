@@ -13,6 +13,21 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+/*
+ * Hash join operator framework: initialization, main loop, teardown, and shared utilities.
+ *
+ * This file implements the operator infrastructure that drives hash join execution:
+ *   - createHashJoinOperatorInfo: allocates and initializes all operator state
+ *   - hJoinMainProcess: the main per-call entry point (build once, probe repeatedly)
+ *   - destroyHashJoinOperator: releases all allocated resources
+ *   - Shared utilities used by per-join-type functions in hashjoin.c
+ *
+ * Separation of concerns:
+ *   - hashjoin.c holds per-join-type probe logic (hInnerJoinDo, hLeftJoinDo, etc.)
+ *   - This file holds the operator shell, key/value serialization, hash table management,
+ *     and result block construction shared across all join types.
+ */
+
 #include "executorInt.h"
 #include "filter.h"
 #include "function.h"
@@ -29,6 +44,17 @@
 #include "functionMgt.h"
 
 
+/*
+ * Returns true if the output block has reached the threshold for yielding to the caller.
+ * Two criteria depending on whether a LIMIT clause and finFilter are present:
+ *   - With pFinFilter or no LIMIT: threshold = blkThreshold (capacity * HJOIN_BLK_THRESHOLD_RATIO)
+ *   - With LIMIT and no pFinFilter: threshold = limit - rows already returned
+ * The LIMIT shortcut avoids over-producing rows when no post-filter can reduce the count.
+ *
+ * @param pInfo    hash join operator info
+ * @param blkRows  current number of rows in the output block
+ * @return true if the block should be yielded to the upstream caller
+ */
 bool hJoinBlkReachThreshold(SHJoinOperatorInfo* pInfo, int64_t blkRows) {
   if (INT64_MAX == pInfo->ctx.limit || pInfo->pFinFilter != NULL) {
     return blkRows >= pInfo->blkThreshold;
@@ -37,6 +63,16 @@ bool hJoinBlkReachThreshold(SHJoinOperatorInfo* pInfo, int64_t blkRows) {
   return (pInfo->execInfo.resRows + blkRows) >= pInfo->ctx.limit;
 }
 
+/*
+ * Resolves the midBlk-overflows-finBlk situation by swapping midBlk and finBlk pointers.
+ * Called at the start of the next hJoinMainProcess iteration when ctx.midRemains is true.
+ * After the swap, the former midBlk (now finBlk) contains the leftover rows and is
+ * returned to the upstream caller. The former finBlk (now midBlk) is the fresh block.
+ * Sets ctx.midRemains = false after the swap.
+ *
+ * @param pJoin  hash join operator info
+ * @return TSDB_CODE_SUCCESS
+ */
 int32_t hJoinHandleMidRemains(SHJoinOperatorInfo* pJoin) {
   TSWAP(pJoin->midBlk, pJoin->finBlk);
 
@@ -45,6 +81,15 @@ int32_t hJoinHandleMidRemains(SHJoinOperatorInfo* pJoin) {
   return TSDB_CODE_SUCCESS;
 }
 
+/*
+ * Resumes join execution when ctx.rowRemains is true (output block ran out of capacity
+ * before all probe rows in the current block were processed). Calls joinFp to continue
+ * from where it left off, then applies pFinFilter if present.
+ *
+ * @param pOperator  the hash join operator
+ * @param pJoin      hash join operator info
+ * @return TSDB_CODE_SUCCESS on success, error code on failure
+ */
 int32_t hJoinHandleRowRemains(struct SOperatorInfo* pOperator, SHJoinOperatorInfo* pJoin) {
   HJ_ERR_RET((*pJoin->joinFp)(pOperator));
   
@@ -56,6 +101,21 @@ int32_t hJoinHandleRowRemains(struct SOperatorInfo* pOperator, SHJoinOperatorInf
 }
 
 
+/*
+ * Merges rows from midBlk into finBlk, handling the case where combined rows exceed
+ * finBlk capacity. If they fit: all rows are moved to finBlk and midBlk is cleared.
+ * If they don't fit: copies as many as possible and sets ctx.midRemains = true, leaving
+ * the remaining rows in midBlk for the next call (via hJoinHandleMidRemains).
+ *
+ * The merge always appends midBlk rows after existing finBlk rows (midBlk is "less full").
+ * The commented-out block above would swap pointers based on row count but is disabled —
+ * the current approach avoids a pointer swap to keep the code simpler and correct.
+ *
+ * @param pCtx  join context (midRemains is updated here)
+ * @param ppMid pointer to midBlk pointer
+ * @param ppFin pointer to finBlk pointer
+ * @return TSDB_CODE_SUCCESS on success, error code on failure
+ */
 int32_t hJoinCopyMergeMidBlk(SHJoinCtx* pCtx, SSDataBlock** ppMid, SSDataBlock** ppFin) {
   SSDataBlock* pLess = *ppMid;
   SSDataBlock* pMore = *ppFin;
@@ -91,6 +151,16 @@ int32_t hJoinCopyMergeMidBlk(SHJoinCtx* pCtx, SSDataBlock** ppMid, SSDataBlock**
   return TSDB_CODE_SUCCESS;
 }
 
+/*
+ * Binds the joinFp and buildFp function pointers based on join type and subtype.
+ * For FULL JOIN, uses hFullJoinBuildHash instead of the standard hJoinBuildHash.
+ * For RIGHT joins, the build/probe side swap (done in hJoinSetBuildAndProbeTable) means
+ * the LEFT join logic (hLeftJoinDo, hSemiJoinDo, hAntiJoinDo) applies symmetrically.
+ * Returns an error for unsupported type/subtype combinations.
+ *
+ * @param pJoin  hash join operator info (joinType, subType must already be set)
+ * @return TSDB_CODE_SUCCESS on success, TSDB_CODE_QRY_INVALID_PLAN for unsupported types
+ */
 int32_t hJoinSetImplFp(SHJoinOperatorInfo* pJoin) {
   int32_t code = TSDB_CODE_SUCCESS;
   pJoin->buildFp = hJoinBuildHash;
@@ -131,6 +201,19 @@ int32_t hJoinSetImplFp(SHJoinOperatorInfo* pJoin) {
 }
 
 
+/*
+ * Evaluates the TIMETRUNCATE primary key expression for a range of rows in the block.
+ * Computes: truncated_ts = ts - (ts + timezoneUnit) % truncateUnit  (timezone-aware)
+ *        or: truncated_ts = ts / truncateUnit * truncateUnit          (no timezone)
+ * Writes the result to the target slot in place, so subsequent key serialization reads
+ * the truncated value instead of the raw timestamp.
+ *
+ * @param pBlock     data block (source and destination for the truncated value)
+ * @param pTable     table context (provides primCtx for truncate parameters)
+ * @param startIdx   first row index to evaluate
+ * @param endIdx     last row index to evaluate (inclusive)
+ * @return TSDB_CODE_SUCCESS
+ */
 int32_t hJoinLaunchPrimExpr(SSDataBlock* pBlock, SHJoinTableCtx* pTable, int32_t startIdx, int32_t endIdx) {
   SHJoinPrimExprCtx* pCtx = &pTable->primCtx;
   SColumnInfoData* pPrimIn = taosArrayGet(pBlock->pDataBlock, pTable->primCol->srcSlot);
@@ -148,6 +231,19 @@ int32_t hJoinLaunchPrimExpr(SSDataBlock* pBlock, SHJoinTableCtx* pTable, int32_t
   return TSDB_CODE_SUCCESS;
 }
 
+/*
+ * Evaluates all equality key expressions on a row range of the given block.
+ * First evaluates the primary key expression (e.g. TIMETRUNCATE) if present,
+ * then evaluates any additional scalar expressions via projectApplyFunctions.
+ * Must be called before hJoinSetKeyColsData / hJoinCopyKeyColsDataToBuf for each block.
+ *
+ * @param pOperator  the hash join operator (for task info / stream runtime info)
+ * @param pBlock     data block to evaluate expressions on (modified in place)
+ * @param pTable     table context with expression metadata
+ * @param startIdx   first row index
+ * @param endIdx     last row index (inclusive)
+ * @return TSDB_CODE_SUCCESS on success, error code on failure
+ */
 int32_t hJoinLaunchEqualExpr(SOperatorInfo*       pOperator, SSDataBlock* pBlock, SHJoinTableCtx* pTable, int32_t startIdx, int32_t endIdx) {
   if (NULL != pTable->primExpr) {
     HJ_ERR_RET(hJoinLaunchPrimExpr(pBlock, pTable, startIdx, endIdx));
@@ -160,6 +256,13 @@ int32_t hJoinLaunchEqualExpr(SOperatorInfo*       pOperator, SSDataBlock* pBlock
 }
 
 
+/*
+ * Counts the number of rows in a single hash group by traversing the linked list.
+ * Used only in debug/trace code (currently disabled with #if 0).
+ *
+ * @param pRow  head of the SBufRowInfo linked list for a group
+ * @return total number of rows in the group
+ */
 static int64_t hJoinGetSingleKeyRowsNum(SBufRowInfo* pRow) {
   int64_t rows = 0;
   while (pRow) {
@@ -186,6 +289,22 @@ static int64_t hJoinGetRowsNumOfKeyHash(SSHashObj* pHash) {
 }
 #endif
 
+/*
+ * Initializes key column metadata for a table by parsing the join equality condition list.
+ * Allocates keyCols[] and (conditionally) keyBuf for multi-column composite key serialization.
+ *
+ * keyBuf is allocated when:
+ *   - keyNum > 1: multi-column keys must be concatenated into a single buffer for hashing.
+ *   - allocKeyBuf is true: FULL JOIN always allocates keyBuf for build-side NULL key tracking.
+ *
+ * keyNullSize is the size of a sentinel value used to represent a NULL key in the buffer.
+ * It is set to 1 or 2 bytes depending on total key size to ensure it differs from any valid key.
+ *
+ * @param pTable      table context to initialize
+ * @param pList       list of SColumnNode (equality condition columns for this side)
+ * @param allocKeyBuf whether to force-allocate keyBuf even for single-column keys
+ * @return TSDB_CODE_SUCCESS on success, error code on allocation failure
+ */
 static int32_t hJoinInitKeyColsInfo(SHJoinTableCtx* pTable, SNodeList* pList, bool allocKeyBuf) {
   pTable->keyNum = LIST_LENGTH(pList);
   if (pTable->keyNum <= 0) {
@@ -226,6 +345,14 @@ static int32_t hJoinInitKeyColsInfo(SHJoinTableCtx* pTable, SNodeList* pList, bo
   return TSDB_CODE_SUCCESS;
 }
 
+/*
+ * Counts how many columns in the target list belong to the given data block (by blkId).
+ * Used to pre-calculate valNum before allocating valCols[].
+ *
+ * @param pList   list of STargetNode (join output column list)
+ * @param blkId   data block ID to match against
+ * @param colNum  output: number of matching columns
+ */
 static void hJoinGetValColsNum(SNodeList* pList, int64_t blkId, int32_t* colNum) {
   *colNum = 0;
   
@@ -239,6 +366,17 @@ static void hJoinGetValColsNum(SNodeList* pList, int64_t blkId, int32_t* colNum)
   }
 }
 
+/*
+ * Checks if a value column (identified by slotId) is also a key column.
+ * If yes, returns the index into keyCols[] via pKeyIdx — used to read the value
+ * from the probe-side key buffer instead of storing it redundantly in the row buffer.
+ *
+ * @param slotId   source slot ID of the value column
+ * @param keyNum   number of key columns
+ * @param pKeys    key column array
+ * @param pKeyIdx  output: index into keyCols[] if this is a key col, -1 otherwise
+ * @return true if the column is a key column, false otherwise
+ */
 static bool hJoinIsValColInKeyCols(int16_t slotId, int32_t keyNum, SHJoinColInfo* pKeys, int32_t* pKeyIdx) {
   for (int32_t i = 0; i < keyNum; ++i) {
     if (pKeys[i].srcSlot == slotId) {
@@ -251,6 +389,22 @@ static bool hJoinIsValColInKeyCols(int16_t slotId, int32_t keyNum, SHJoinColInfo
   return false;
 }
 
+/*
+ * Initializes value column metadata for a table by parsing the output target list.
+ * Only columns belonging to this table (matching blkId) are included.
+ *
+ * For each value column:
+ *   - Checks if it is also a key column (to avoid redundant storage in the row buffer).
+ *   - Tracks variable-length columns in valVarCols[] for per-row buffer size calculation.
+ *   - Accumulates fixed-length value buffer size (valBufSize) and null bitmap size (valBitMapSize).
+ *
+ * valColExist is set to true if any value column is NOT a key column, indicating that
+ * non-key value data actually needs to be stored in the row buffer.
+ *
+ * @param pTable  table context to initialize
+ * @param pList   join output target column list
+ * @return TSDB_CODE_SUCCESS on success, error code on allocation failure
+ */
 static int32_t hJoinInitValColsInfo(SHJoinTableCtx* pTable, SNodeList* pList) {
   hJoinGetValColsNum(pList, pTable->blkId, &pTable->valNum);
   if (pTable->valNum == 0) {
@@ -301,6 +455,15 @@ static int32_t hJoinInitValColsInfo(SHJoinTableCtx* pTable, SNodeList* pList) {
   return TSDB_CODE_SUCCESS;
 }
 
+/*
+ * Allocates and initializes the primary key column mapping for a table.
+ * The primary key column is the timestamp column used for time range filtering.
+ * Only srcSlot is set here; dstSlot is not used for the primary key.
+ *
+ * @param pTable  table context to initialize
+ * @param slotId  source slot ID of the primary key (timestamp) column
+ * @return TSDB_CODE_SUCCESS on success, error code on allocation failure
+ */
 static int32_t hJoinInitPrimKeyInfo(SHJoinTableCtx* pTable, int32_t slotId) {
   pTable->primCol = taosMemoryMalloc(sizeof(SHJoinColMap));
   if (NULL == pTable->primCol) {
@@ -313,6 +476,20 @@ static int32_t hJoinInitPrimKeyInfo(SHJoinTableCtx* pTable, int32_t slotId) {
 }
 
 
+/*
+ * Initializes the primary key expression context for a TIMETRUNCATE join condition.
+ * Parses the STargetNode -> SFunctionNode tree to extract truncation unit, timezone offset,
+ * and the output slot. If pNode is NULL (no expression), the target slot is set to the
+ * raw primary key slot (identity: no truncation needed).
+ *
+ * Only TIMETRUNCATE with 4 or 5 parameters is supported. Any other expression type
+ * returns TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR.
+ *
+ * @param pNode   the primary key expression node (STargetNode), or NULL for no expression
+ * @param pCtx    output: initialized SHJoinPrimExprCtx
+ * @param pTable  table context (provides primCol->srcSlot for the no-expression case)
+ * @return TSDB_CODE_SUCCESS on success, error code on failure
+ */
 static int32_t hJoinInitPrimExprCtx(SNode* pNode, SHJoinPrimExprCtx* pCtx, SHJoinTableCtx* pTable) {
   if (NULL == pNode) {
     pCtx->targetSlotId = pTable->primCol->srcSlot;
@@ -351,6 +528,15 @@ static int32_t hJoinInitPrimExprCtx(SNode* pNode, SHJoinPrimExprCtx* pCtx, SHJoi
   return TSDB_CODE_SUCCESS;
 }
 
+/*
+ * Initializes the scalar expression support for a table's key equality conditions.
+ * Creates SExprInfo objects from pExprList and initializes the expression support context.
+ * No-op if pExprList is NULL (no scalar expressions for this table).
+ *
+ * @param pTable     table context to initialize
+ * @param pExprList  list of scalar expression nodes (from plan node), or NULL
+ * @return TSDB_CODE_SUCCESS on success, error code on failure
+ */
 static int32_t hJoinInitScalarExpr(SHJoinTableCtx* pTable, SNodeList* pExprList) {
   if (NULL == pExprList) {
     return TSDB_CODE_SUCCESS;
@@ -367,6 +553,24 @@ static int32_t hJoinInitScalarExpr(SHJoinTableCtx* pTable, SNodeList* pExprList)
 }
 
 
+/*
+ * Initializes a single table context (build or probe) for the hash join.
+ * Sets up downstream operator link, key/value column metadata, primary key info,
+ * scalar expression context, and primary key expression context.
+ *
+ * idx=0 → left table (pOnLeftCols / leftPrimSlotId / pLeftExpr)
+ * idx=1 → right table (pOnRightCols / rightPrimSlotId / pRightExpr)
+ *
+ * For FULL JOIN, allocKeyBuf is forced to true so the build side always has a keyBuf
+ * for NULL-key detection during the build phase.
+ *
+ * @param pJoin       hash join operator info (partially initialized)
+ * @param pJoinNode   physical plan node with column and expression info
+ * @param pDownstream array of downstream operators
+ * @param idx         which table to initialize (0=left, 1=right)
+ * @param pStat       input statistics for hash table sizing hint
+ * @return TSDB_CODE_SUCCESS on success, error code on failure
+ */
 static int32_t hJoinInitTableInfo(SHJoinOperatorInfo* pJoin, SHashJoinPhysiNode* pJoinNode, SOperatorInfo** pDownstream, int32_t idx, SQueryStat* pStat) {
   SNodeList* pKeyList = NULL;
   SHJoinTableCtx* pTable = &pJoin->tbs[idx];
@@ -400,6 +604,16 @@ static int32_t hJoinInitTableInfo(SHJoinOperatorInfo* pJoin, SHashJoinPhysiNode*
   return TSDB_CODE_SUCCESS;
 }
 
+/*
+ * Assigns pBuild and pProbe pointers and sets downStreamIdx based on join type.
+ * For INNER, FULL, and LEFT joins: build=tbs[1] (right), probe=tbs[0] (left).
+ * For RIGHT joins: build=tbs[0] (left), probe=tbs[1] (right). This swap means the LEFT
+ * join logic (hLeftJoinDo, etc.) applies symmetrically without special-casing RIGHT joins.
+ * Also assigns the primary key expression pointers for each side.
+ *
+ * @param pInfo      hash join operator info (joinType, subType must already be set)
+ * @param pJoinNode  physical plan node with left/right primary key expression info
+ */
 static void hJoinSetBuildAndProbeTable(SHJoinOperatorInfo* pInfo, SHashJoinPhysiNode* pJoinNode) {
   int32_t buildIdx = 0;
   int32_t probeIdx = 1;
@@ -443,6 +657,15 @@ static void hJoinSetBuildAndProbeTable(SHJoinOperatorInfo* pInfo, SHashJoinPhysi
   pInfo->pProbe->type = E_JOIN_TB_PROBE;  
 }
 
+/*
+ * Builds pResColMap[]: a per-output-column flag array where 1 means the column comes from
+ * the build side and 0 means it comes from the probe side. Used in result construction
+ * (hJoinCopyResRowsToBlock, hJoinCopyNMatchRowsToBlock) to route each column correctly.
+ *
+ * @param pInfo      hash join operator info
+ * @param pJoinNode  physical plan node (provides pTargets with column-to-block mappings)
+ * @return TSDB_CODE_SUCCESS on success, error code on allocation failure
+ */
 static int32_t hJoinBuildResColsMap(SHJoinOperatorInfo* pInfo, SHashJoinPhysiNode* pJoinNode) {
   pInfo->pResColNum = pJoinNode->pTargets->length;
   pInfo->pResColMap = taosMemoryCalloc(pJoinNode->pTargets->length, sizeof(int8_t));
@@ -466,6 +689,14 @@ static int32_t hJoinBuildResColsMap(SHJoinOperatorInfo* pInfo, SHashJoinPhysiNod
 }
 
 
+/*
+ * Allocates a new 10 MB page and appends it to the row buffer pool.
+ * Called when the current page has insufficient space for the next row's value data.
+ * The page pool grows on demand; no disk spill occurs (memory-only).
+ *
+ * @param pRowBufs  array of SBufPageInfo (the page pool)
+ * @return TSDB_CODE_SUCCESS on success, error code on allocation failure
+ */
 static FORCE_INLINE int32_t hJoinAddPageToBufs(SArray* pRowBufs) {
   SBufPageInfo page;
   page.pageSize = HASH_JOIN_DEFAULT_PAGE_SIZE;
@@ -481,6 +712,14 @@ static FORCE_INLINE int32_t hJoinAddPageToBufs(SArray* pRowBufs) {
   return TSDB_CODE_SUCCESS;
 }
 
+/*
+ * Initializes the row buffer pool by allocating the first 10 MB page.
+ * The pool is an array of SBufPageInfo; additional pages are added on demand
+ * as the build phase inserts more rows than fit in a single page.
+ *
+ * @param pInfo  hash join operator info (pRowBufs is set here)
+ * @return TSDB_CODE_SUCCESS on success, error code on allocation failure
+ */
 static int32_t hJoinInitBufPages(SHJoinOperatorInfo* pInfo) {
   pInfo->pRowBufs = taosArrayInit(32, sizeof(SBufPageInfo));
   if (NULL == pInfo->pRowBufs) {
@@ -490,6 +729,13 @@ static int32_t hJoinInitBufPages(SHJoinOperatorInfo* pInfo) {
   return hJoinAddPageToBufs(pInfo->pRowBufs);
 }
 
+/*
+ * Frees all memory allocated for a table context (key/value column arrays, key buffer,
+ * primary key column mapping, and variable-length column index array).
+ * Does NOT free the table context struct itself (it is embedded in SHJoinOperatorInfo).
+ *
+ * @param pTable  table context to free
+ */
 static void hJoinFreeTableInfo(SHJoinTableCtx* pTable) {
   taosMemoryFreeClear(pTable->keyCols);
   taosMemoryFreeClear(pTable->keyBuf);
@@ -498,11 +744,31 @@ static void hJoinFreeTableInfo(SHJoinTableCtx* pTable) {
   taosMemoryFree(pTable->primCol);
 }
 
+/*
+ * Callback for taosArrayDestroyEx to free a single page in the row buffer pool.
+ * Frees the page data buffer (allocated in hJoinAddPageToBufs).
+ *
+ * @param param  pointer to SBufPageInfo (cast from void*)
+ */
 static void hJoinFreeBufPage(void* param) {
   SBufPageInfo* pInfo = (SBufPageInfo*)param;
   taosMemoryFree(pInfo->data);
 }
 
+/*
+ * Frees the hash table and all SBufRowInfo nodes in its linked lists.
+ * Each hash entry (SGroupData) contains a linked list of SBufRowInfo nodes
+ * that are individually heap-allocated (via hJoinGetValBufFromPages). These must
+ * be freed before calling tSimpleHashCleanup to avoid memory leaks.
+ * Sets *ppHash to NULL after cleanup.
+ *
+ * Note: this function is currently replaced by a direct tSimpleHashCleanup call in
+ * most teardown paths. The SBufRowInfo nodes are allocated within page pool memory
+ * (not separately malloc'd), so this function is potentially incorrect for the current
+ * allocation scheme. It is left here for reference but commented-out at call sites.
+ *
+ * @param ppHash  pointer to the hash table pointer; set to NULL on return
+ */
 static void hJoinDestroyKeyHash(SSHashObj** ppHash) {
   if (NULL == ppHash || NULL == (*ppHash)) {
     return;
@@ -525,6 +791,17 @@ static void hJoinDestroyKeyHash(SSHashObj** ppHash) {
   *ppHash = NULL;
 }
 
+/*
+ * Retrieves a pointer to a build-side row's value data from the page pool.
+ * Uses pRow->pageId and pRow->offset to locate the data within the page.
+ * Returns NULL (via *ppData = NULL) if pageId is UINT16_MAX, which indicates
+ * a row that has no value data (all output columns are key columns).
+ *
+ * @param pRowBufs  page pool array
+ * @param pRow      row metadata (pageId and offset)
+ * @param ppData    output: pointer to the row's value data, or NULL if no data
+ * @return TSDB_CODE_SUCCESS on success, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR if page not found
+ */
 static FORCE_INLINE int32_t hJoinRetrieveColDataFromRowBufs(SArray* pRowBufs, SBufRowInfo* pRow, char** ppData) {
   *ppData = NULL;
   
@@ -542,6 +819,24 @@ static FORCE_INLINE int32_t hJoinRetrieveColDataFromRowBufs(SArray* pRowBufs, SB
   return TSDB_CODE_SUCCESS;
 }
 
+/*
+ * Copies rowNum matched result rows to the output block pRes. Each result row is constructed
+ * by combining:
+ *   - Build-side value columns: read from the page pool via pRow->pageId/offset
+ *   - Build-side key columns that are also output cols: read from probe-side key buffer
+ *     (to avoid redundant storage; keyColIdx >= 0 indicates this case)
+ *   - Probe-side columns: batch-copied for all rowNum rows in one colDataCopyNItems call
+ *
+ * For build-side value columns, a NULL bitmap is checked per column to set null values.
+ * Variable-length columns are advanced by varDataTLen. Probe-side columns are only
+ * written on r==0 (first row) and use colDataCopyNItems to repeat for all rowNum rows.
+ *
+ * @param pJoin   hash join operator info
+ * @param rowNum  number of consecutive build rows to copy (from pStart linked list)
+ * @param pStart  head of the build-side row linked list segment to copy
+ * @param pRes    output block to append rows to
+ * @return TSDB_CODE_SUCCESS on success, error code on failure
+ */
 static int32_t hJoinCopyResRowsToBlock(SHJoinOperatorInfo* pJoin, int32_t rowNum, SBufRowInfo* pStart, SSDataBlock* pRes) {
   SHJoinTableCtx* pBuild = pJoin->pBuild;
   SHJoinTableCtx* pProbe = pJoin->pProbe;
@@ -728,6 +1023,16 @@ int32_t hJoinSetKeyColsData(SSDataBlock* pBlock, SHJoinTableCtx* pTable) {
   return TSDB_CODE_SUCCESS;
 }
 
+/*
+ * Sets up value column data pointers (data, bitMap, colData) for the build side
+ * from the current data block. Only processes columns that are NOT also key columns
+ * (key column values are read from the probe key buffer, not stored separately).
+ * Also validates column type and byte size consistency between plan-time and runtime info.
+ *
+ * @param pBlock  build-side data block
+ * @param pTable  build-side table context
+ * @return TSDB_CODE_SUCCESS on success, TSDB_CODE_INVALID_PARA on type/size mismatch
+ */
 static int32_t hJoinSetValColsData(SSDataBlock* pBlock, SHJoinTableCtx* pTable) {
   if (!pTable->valColExist) {
     return TSDB_CODE_SUCCESS;
@@ -761,6 +1066,17 @@ static int32_t hJoinSetValColsData(SSDataBlock* pBlock, SHJoinTableCtx* pTable) 
 
 
 
+/*
+ * Serializes the value columns of a single build-side row into the table's valData buffer.
+ * Layout in valData: [null_bitmap | fixed_col_1 | fixed_col_2 | ... | varlen_col_1 | ...]
+ * The null bitmap is written first (zeroed, then individual bits set for NULL values).
+ * Fixed-length columns follow the bitmap; variable-length columns are appended after.
+ * Key columns (keyColIdx >= 0) are skipped — their values are in the probe key buffer.
+ * No-op if valColExist is false (all output columns are key columns).
+ *
+ * @param pTable  build-side table context (valData must point to a sufficiently large buffer)
+ * @param rowIdx  row index in the current block to serialize
+ */
 static FORCE_INLINE void hJoinCopyValColsDataToBuf(SHJoinTableCtx* pTable, int32_t rowIdx) {
   if (!pTable->valColExist) {
     return;
@@ -795,6 +1111,24 @@ static FORCE_INLINE void hJoinCopyValColsDataToBuf(SHJoinTableCtx* pTable, int32
 }
 
 
+/*
+ * Allocates space for a row's value data from the page pool.
+ * Finds a contiguous region of size bufSize in the current page (or allocates a new page
+ * if the current page has insufficient space). Returns a pointer to the SBufRowInfo header
+ * (ppRow) and to the data area immediately following it (pBuf).
+ *
+ * The SBufRowInfo header and value data are stored contiguously:
+ *   [SBufRowInfo header][value data bytes]
+ * ppRow->pageId and ppRow->offset are set so the data can be retrieved later.
+ *
+ * Constraint: bufSize must not exceed HASH_JOIN_DEFAULT_PAGE_SIZE (10 MB).
+ *
+ * @param pPages   page pool array
+ * @param bufSize  total allocation size (sizeof(SBufRowInfo) + value data size)
+ * @param pBuf     output: pointer to the value data area (right after the SBufRowInfo header)
+ * @param ppRow    output: pointer to the allocated SBufRowInfo header
+ * @return TSDB_CODE_SUCCESS on success, TSDB_CODE_INVALID_PARA if bufSize > page size
+ */
 static FORCE_INLINE int32_t hJoinGetValBufFromPages(SArray* pPages, int32_t bufSize, char** pBuf, SBufRowInfo** ppRow) {
   if (bufSize > HASH_JOIN_DEFAULT_PAGE_SIZE) {
     qError("invalid join value buf size:%d", bufSize);
@@ -820,6 +1154,16 @@ static FORCE_INLINE int32_t hJoinGetValBufFromPages(SArray* pPages, int32_t bufS
   } while (true);
 }
 
+/*
+ * Calculates the total buffer size needed to store a single row's value data.
+ * Returns valBufSize (fixed portion) plus the actual lengths of any variable-length columns
+ * in valVarCols[]. Null variable-length columns (offset == -1) contribute 0 bytes.
+ * This per-row calculation is needed because variable-length columns have runtime-varying sizes.
+ *
+ * @param pTable  build-side table context
+ * @param rowIdx  row index in the current block
+ * @return total byte size required for the row's value data (excluding SBufRowInfo header)
+ */
 static FORCE_INLINE int32_t hJoinGetValBufSize(SHJoinTableCtx* pTable, int32_t rowIdx) {
   if (NULL == pTable->valVarCols) {
     return pTable->valBufSize;
@@ -841,6 +1185,25 @@ static FORCE_INLINE int32_t hJoinGetValBufSize(SHJoinTableCtx* pTable, int32_t r
 }
 
 
+/*
+ * Core implementation for inserting a single build-side row into the hash table.
+ * Allocates a SBufRowInfo node in the page pool and either creates a new hash group
+ * or prepends the row to an existing group's linked list.
+ *
+ * grpSingleRow optimization: if the group already exists and grpSingleRow is true
+ * (SEMI/ANTI without ON condition), the row is skipped — only the first row per key
+ * is needed since SEMI/ANTI semantics only require existence, not all matches.
+ *
+ * Note: the new row is prepended (not appended) to the linked list, so the order of
+ * rows within a group is reversed relative to the build-side input order.
+ *
+ * @param pJoin    hash join operator info
+ * @param pGroup   existing group in the hash table, or NULL for a new group
+ * @param pTable   build-side table context (provides keyData and valData for the row)
+ * @param keyLen   length of the serialized key
+ * @param rowIdx   row index in the build block (used for valBufSize calculation)
+ * @return TSDB_CODE_SUCCESS on success, error code on failure
+ */
 static int32_t hJoinAddRowToHashImpl(SHJoinOperatorInfo* pJoin, SGroupData* pGroup, SHJoinTableCtx* pTable, size_t keyLen, int32_t rowIdx) {
   SGroupData group = {0};
   SBufRowInfo* pRow = NULL;
@@ -952,6 +1315,17 @@ bool hJoinFilterTimeRange(SHJoinCtx* pCtx, SSDataBlock* pBlock, STimeWindow* pRa
   return true;
 }
 
+/*
+ * Processes all rows in a single build-side block and inserts them into the hash table.
+ * Applies time range filtering via hJoinFilterTimeRange (if hasTimeRange is true),
+ * evaluates key expressions via hJoinLaunchEqualExpr, sets up key column data pointers,
+ * then iterates over the filtered row range and calls hJoinAddRowToHash for each row.
+ * Rows with NULL keys are automatically skipped by hJoinCopyKeyColsDataToBuf.
+ *
+ * @param pBlock  build-side data block to process
+ * @param pJoin   hash join operator info
+ * @return TSDB_CODE_SUCCESS on success, error code on failure
+ */
 static int32_t hJoinAddBlockRowsToHash(SSDataBlock* pBlock, SHJoinOperatorInfo* pJoin) {
   SHJoinTableCtx* pBuild = pJoin->pBuild;
   int32_t startIdx = 0, endIdx = pBlock->info.rows - 1;
@@ -1019,6 +1393,23 @@ int32_t hJoinBuildHash(struct SOperatorInfo* pOperator, bool* returnDirect) {
   return TSDB_CODE_SUCCESS;
 }
 
+/*
+ * Prepares the probe context for a new probe block and dispatches to joinFp.
+ * Steps:
+ *   1. Evaluates key expressions on the probe block.
+ *   2. If the hash table is NULL (empty build side): sets probePhase=POST and dispatches
+ *      so non-matching probe rows can still be emitted (for LEFT/ANTI/FULL joins).
+ *   3. Applies time range filter to determine [startIdx, endIdx] for the CUR phase.
+ *   4. Sets up key and value column data pointers for the probe block.
+ *   5. Initializes probePreIdx, probeStartIdx, probeEndIdx, probePostIdx.
+ *   6. If startIdx > 0 and join needs non-matching rows: sets probePhase=PRE.
+ *      Otherwise: sets probePhase=CUR.
+ *   7. Calls joinFp.
+ *
+ * @param pOperator  the hash join operator
+ * @param pBlock     probe-side data block to process
+ * @return TSDB_CODE_SUCCESS on success, error code on failure
+ */
 static int32_t hJoinPrepareStart(struct SOperatorInfo* pOperator, SSDataBlock* pBlock) {
   SHJoinOperatorInfo* pJoin = pOperator->info;
   SHJoinTableCtx* pProbe = pJoin->pProbe;
@@ -1097,6 +1488,25 @@ void hJoinSetDone(struct SOperatorInfo* pOperator) {
   qDebug("hash Join done");  
 }
 
+/*
+ * Main entry point for hash join execution, called repeatedly by the upstream operator.
+ * On each call:
+ *   1. Build phase (first call only): calls buildFp to populate the hash table.
+ *      If buildFp sets returnDirect=true (e.g. FULL JOIN emitted rows during build),
+ *      returns the result block immediately.
+ *   2. Main loop:
+ *      a. If midRemains: swap midBlk/finBlk to drain leftover pPreFilter rows.
+ *      b. If rowRemains: resume joinFp to continue processing the current probe block.
+ *      c. Otherwise: fetch the next probe block and call hJoinPrepareStart.
+ *   3. Applies pFinFilter (WHERE clause) to the output block before returning.
+ *   4. When all probe blocks are exhausted: calls hJoinSetDone to release resources.
+ *
+ * Returns the result block via *pResBlock when it has rows. Returns NULL when done.
+ *
+ * @param pOperator   the hash join operator
+ * @param pResBlock   output: pointer set to finBlk when rows are available
+ * @return TSDB_CODE_SUCCESS on success, error code on failure (also longjmp on fatal error)
+ */
 static int32_t hJoinMainProcess(struct SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
   SHJoinOperatorInfo* pJoin = pOperator->info;
   SExecTaskInfo*      pTaskInfo = pOperator->pTaskInfo;
@@ -1188,6 +1598,16 @@ _exit:
   return code;
 }
 
+/*
+ * Destructor for the hash join operator. Logs execution statistics, then frees all
+ * resources: hash table, table contexts, finBlk, midBlk, result column map, and page pool.
+ * Called by the operator framework when the query completes or is cancelled.
+ *
+ * Note: pRowBufs holds page-pool pages that contain SBufRowInfo nodes; freeing pRowBufs
+ * implicitly frees all row buffer memory without needing to traverse linked lists.
+ *
+ * @param param  pointer to SHJoinOperatorInfo (cast from void*)
+ */
 static void destroyHashJoinOperator(void* param) {
   SHJoinOperatorInfo* pJoinOperator = (SHJoinOperatorInfo*)param;
   qDebug("hashJoin exec info, buildBlk:%" PRId64 ", buildRows:%" PRId64 ", probeBlk:%" PRId64 ", probeRows:%" PRId64 ", resRows:%" PRId64, 
@@ -1214,6 +1634,26 @@ static void destroyHashJoinOperator(void* param) {
   taosMemoryFreeClear(param);
 }
 
+/*
+ * Initializes pPreFilter and pFinFilter from the physical plan node's condition expressions.
+ * The filter assignment differs by join type:
+ *
+ *   INNER: pFullOnCond (non-equi ON condition) and pConditions (WHERE) are merged into
+ *          a single pFinFilter applied after result construction.
+ *
+ *   LEFT/RIGHT/FULL: pFullOnCond → pPreFilter (applied to midBlk before merge into finBlk,
+ *          to determine whether a probe row has a matching build row after the ON condition).
+ *          pConditions → pFinFilter (applied to finBlk before returning to upstream).
+ *
+ * Rationale: For outer joins, the ON condition must be tested at the per-row level so that
+ * unmatched probe rows can still be emitted with NULL build columns. For INNER join, all
+ * conditions can be combined into a single post-filter since there are no non-matching rows.
+ *
+ * @param pJoin      hash join operator info (pPreFilter and pFinFilter are set here)
+ * @param pJoinNode  physical plan node with condition expressions
+ * @param pTaskInfo  task info (for stream runtime info passed to filterInitFromNode)
+ * @return TSDB_CODE_SUCCESS on success, error code on failure
+ */
 int32_t hJoinHandleConds(SHJoinOperatorInfo* pJoin, SHashJoinPhysiNode* pJoinNode, SExecTaskInfo* pTaskInfo) {
   switch (pJoin->joinType) {
     case JOIN_TYPE_INNER: {
@@ -1249,6 +1689,19 @@ int32_t hJoinHandleConds(SHJoinOperatorInfo* pJoin, SHashJoinPhysiNode* pJoinNod
   return TSDB_CODE_SUCCESS;
 }
 
+/*
+ * Calculates the row capacity of the final output block (finBlk).
+ * The capacity is capped at the smaller of:
+ *   - HJOIN_DEFAULT_BLK_ROWS_NUM or HJOIN_BLK_SIZE_LIMIT / row_size (size-based limit)
+ *   - limit / HJOIN_BLK_THRESHOLD_RATIO + 1 (LIMIT-based limit, only when no pFinFilter)
+ *
+ * The LIMIT-based cap avoids over-allocating finBlk when the query has a small LIMIT
+ * and no post-filter (since the block is yielded at HJOIN_BLK_THRESHOLD_RATIO * capacity).
+ *
+ * @param pJoin      hash join operator info (ctx.limit and pFinFilter)
+ * @param pJoinNode  physical plan node (output row size)
+ * @return row capacity for finBlk
+ */
 static uint32_t hJoinGetFinBlkCapacity(SHJoinOperatorInfo* pJoin, SHashJoinPhysiNode* pJoinNode) {
   uint32_t maxRows = TMAX(HJOIN_DEFAULT_BLK_ROWS_NUM, HJOIN_BLK_SIZE_LIMIT/pJoinNode->node.pOutputDataBlockDesc->totalRowSize);
   if (INT64_MAX != pJoin->ctx.limit && NULL == pJoin->pFinFilter) {
@@ -1260,6 +1713,17 @@ static uint32_t hJoinGetFinBlkCapacity(SHJoinOperatorInfo* pJoin, SHashJoinPhysi
 }
 
 
+/*
+ * Allocates and initializes the output blocks (finBlk and midBlk).
+ * finBlk is always created. midBlk is created only when pPreFilter is present,
+ * as the two-block strategy is needed only for non-equi ON condition processing.
+ * Both blocks get the same capacity (computed by hJoinGetFinBlkCapacity).
+ * blkThreshold is set to capacity * HJOIN_BLK_THRESHOLD_RATIO for yield decisions.
+ *
+ * @param pJoin      hash join operator info
+ * @param pJoinNode  physical plan node (output schema and optional LIMIT)
+ * @return TSDB_CODE_SUCCESS on success, error code on failure
+ */
 int32_t hJoinInitResBlocks(SHJoinOperatorInfo* pJoin, SHashJoinPhysiNode* pJoinNode) {
   pJoin->finBlk = createDataBlockFromDescNode(pJoinNode->node.pOutputDataBlockDesc);
   if (NULL == pJoin->finBlk) {
@@ -1288,6 +1752,18 @@ int32_t hJoinInitResBlocks(SHJoinOperatorInfo* pJoin, SHashJoinPhysiNode* pJoinN
   return TSDB_CODE_SUCCESS;
 }
 
+/*
+ * Initializes the per-block execution context (SHJoinCtx) from the physical plan node.
+ * Sets:
+ *   - limit: from the LIMIT clause (INT64_MAX if none)
+ *   - ascTs: true if input timestamps are ascending (ORDER_ASC or default)
+ *   - grpSingleRow: true for SEMI/ANTI without ON condition — enables the optimization
+ *     that skips inserting duplicate keys during the build phase (at most one row per key)
+ *
+ * @param pCtx       join context to initialize
+ * @param pJoinNode  physical plan node (limit, input order, subType, ON condition)
+ * @return TSDB_CODE_SUCCESS
+ */
 int32_t hJoinInitJoinCtx(SHJoinCtx* pCtx, SHashJoinPhysiNode* pJoinNode) {
   pCtx->limit = (pJoinNode->node.pLimit && ((SLimitNode*)pJoinNode->node.pLimit)->limit) ? ((SLimitNode*)pJoinNode->node.pLimit)->limit->datum.i : INT64_MAX;
   if (pJoinNode->node.inputTsOrder != ORDER_DESC) {
@@ -1299,6 +1775,15 @@ int32_t hJoinInitJoinCtx(SHJoinCtx* pCtx, SHashJoinPhysiNode* pJoinNode) {
   return TSDB_CODE_SUCCESS;
 }
 
+/*
+ * Resets all hash join operator state for re-execution (e.g. for streaming or re-scan).
+ * Clears keyHashBuilt, resets block data, clears execInfo statistics, destroys the old
+ * hash table and row buffer pool, then reinitializes them for the next build phase.
+ * Preserves ctx.limit (set once at creation) while resetting all other ctx fields.
+ *
+ * @param pOper  the hash join operator
+ * @return TSDB_CODE_SUCCESS on success, error code if hash table or page pool re-init fails
+ */
 static int32_t resetHashJoinOperState(SOperatorInfo* pOper) {
   SHJoinOperatorInfo* pHjOper = pOper->info;
   pHjOper->keyHashBuilt = false;
@@ -1334,6 +1819,31 @@ static int32_t resetHashJoinOperState(SOperatorInfo* pOper) {
   return code;
 }
 
+/*
+ * Allocates and fully initializes a hash join operator. Initialization order:
+ *   1. hJoinInitJoinCtx: LIMIT, timestamp order, grpSingleRow flag
+ *   2. hJoinSetBuildAndProbeTable: assigns pBuild/pProbe based on join type
+ *   3. hJoinInitTableInfo x2: key/value columns, expressions for each side
+ *   4. hJoinBuildResColsMap: per-column build/probe routing array
+ *   5. hJoinInitBufPages: page pool for row value storage
+ *   6. tSimpleHashInit: hash table sized from build-side row count estimate
+ *   7. hJoinHandleConds: pPreFilter and pFinFilter from plan conditions
+ *   8. hJoinInitResBlocks: finBlk and midBlk output blocks
+ *   9. hJoinSetImplFp: binds joinFp and buildFp to the correct join-type functions
+ *   10. appendDownstream: registers downstream operators
+ *   11. Sets fpSet with hJoinMainProcess as the main operator function
+ *       and resetHashJoinOperState for re-execution support.
+ *
+ * On any initialization failure, calls destroyHashJoinOperator and destroyOperatorAndDownstreams
+ * to clean up all partially initialized resources.
+ *
+ * @param pDownstream      array of downstream operator pointers
+ * @param numOfDownstream  number of downstream operators (must be 2)
+ * @param pJoinNode        physical plan node with all join configuration
+ * @param pTaskInfo        task info for expression context and error reporting
+ * @param pOptrInfo        output: initialized SOperatorInfo pointer
+ * @return TSDB_CODE_SUCCESS on success, error code on failure
+ */
 int32_t createHashJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream,
                                            SHashJoinPhysiNode* pJoinNode, SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
   QRY_PARAM_CHECK(pOptrInfo);
