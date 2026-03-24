@@ -2,14 +2,14 @@
 
 ## 概述
 
-`CompatCI` 目录提供两个 CI 集成脚本，用于自动化验证 TDengine 的版本升级兼容性：
+`compat-ci` 目录提供两个 CI 集成脚本，用于自动化验证 TDengine 的版本升级兼容性：
 
 | 脚本 | 升级模式 | 说明 |
 |------|----------|------|
-| `hot_upgrade_task.py` | 滚动升级（Hot） | 自动查找最小基准版本，调用 CompatCheck 执行滚动升级测试 |
+| `hot_upgrade_task.py` | 滚动升级（Hot） | 自动查找最小基准版本，调用 compat-check 执行滚动升级测试 |
 | `cold_upgrade_task.py` | 冷升级（Cold） | 对指定的一组基准版本逐一执行冷升级测试 |
 
-两个脚本均依赖同目录同级的 `CompatCheck` 工具（`../CompatCheck/run/main.py`）执行实际的兼容性测试。
+两个脚本均依赖同目录同级的 `compat-check` 工具（`../compat-check/run/main.py`）执行实际的兼容性测试。
 
 ---
 
@@ -24,7 +24,7 @@
 3. 若未找到匹配版本，输出提示并正常退出（无需测试）
 4. 若找到多个匹配版本，选取版本号最小的作为基准版本
 5. 将编译目录中的目标版本二进制文件复制到临时目录
-6. 调用 CompatCheck（带 `--rollupdate` 标志）执行滚动升级测试
+6. 调用 compat-check（带 `--rollupdate` 标志）执行滚动升级测试
 7. 测试完成后清理临时目录
 
 ### 使用方法
@@ -39,7 +39,7 @@ python3 hot_upgrade_task.py --green-path /tdengine/green_versions/
 # 指定编译目录
 python3 hot_upgrade_task.py --build-dir /path/to/debug
 
-# 传递额外参数给 CompatCheck
+# 传递额外参数给 compat-check
 python3 hot_upgrade_task.py -- --path /tmp/test --check-sysinfo
 
 # 组合使用
@@ -55,7 +55,7 @@ python3 hot_upgrade_task.py \
 |------|--------|------|
 | `--green-path PATH` | `/tdengine/green_versions/` 或环境变量 `TD_GREEN_VERSIONS_PATH` | 绿色版本存储路径 |
 | `--build-dir DIR` | `../../../../debug` | 编译目录路径 |
-| `-- [额外参数]` | — | 透传给 CompatCheck 的额外参数 |
+| `-- [额外参数]` | — | 透传给 compat-check 的额外参数 |
 
 ### 环境变量
 
@@ -86,7 +86,7 @@ python3 hot_upgrade_task.py \
     ↓
 复制编译产物到 /tmp/<currentVersion>/
     ↓
-调用 CompatCheck --rollupdate -F <base> -T <target>
+调用 compat-check --rollupdate -F <base> -T <target>
     ↓
 清理临时目录，返回退出码
 ```
@@ -102,7 +102,7 @@ python3 hot_upgrade_task.py \
 1. 从 `cmake/version.cmake` 读取当前（目标）版本号
 2. 将编译目录中的目标版本二进制文件复制到临时目录
 3. 解析 `--versions` 参数，将所有指定的基准版本目录解析完毕（一次性报告所有缺失目录）
-4. 按顺序对每个基准版本调用 CompatCheck（默认冷升级模式，不带 `--rollupdate`）执行测试
+4. 按顺序对每个基准版本调用 compat-check（默认冷升级模式，不带 `--rollupdate`）执行测试
 5. 汇总所有测试结果，若任意一项失败则返回非零退出码
 
 与 hot 脚本不同，cold 脚本需要**显式指定**基准版本，不会自动扫描匹配版本。
@@ -124,7 +124,7 @@ python3 cold_upgrade_task.py \
     --versions 3.3.0.0,3.3.6.0 \
     --build-dir /path/to/debug
 
-# 传递额外参数给 CompatCheck
+# 传递额外参数给 compat-check
 python3 cold_upgrade_task.py \
     --versions 3.3.0.0 \
     --options "-q --check-sysinfo"
@@ -137,7 +137,7 @@ python3 cold_upgrade_task.py \
 | `--versions VER[,VER,...]` | **必填** | — | 逗号分隔的基准版本列表，格式为 `x.x.x.x` |
 | `--green-path PATH` | 可选 | `/tdengine/green_versions/` 或环境变量 `TD_GREEN_VERSIONS_PATH` | 绿色版本存储路径 |
 | `--build-dir DIR` | 可选 | `../../../../debug` | 编译目录路径 |
-| `--options "..."` | 可选 | — | 传递给 CompatCheck 的额外选项（作为整体字符串传入） |
+| `--options "..."` | 可选 | — | 传递给 compat-check 的额外选项（作为整体字符串传入） |
 
 ### 环境变量
 
@@ -155,7 +155,7 @@ python3 cold_upgrade_task.py \
 解析并校验所有基准版本目录（批量报告缺失）
     ↓
 循环执行：
-  对每个基准版本调用 CompatCheck -F <base> -T <target>
+  対每个基准版本调用 compat-check -F <base> -T <target>
     ├─ PASS → 继续下一个
     └─ FAIL → 记录失败，继续下一个
     ↓
@@ -216,7 +216,7 @@ python3 cold_upgrade_task.py \
 ### 滚动升级
 
 ```bash
-cd test/tools/CompatCI
+cd test/tools/compat-ci
 python3 hot_upgrade_task.py \
     --green-path /tdengine/green_versions/ \
     --build-dir "$BUILD_DIR"
@@ -230,7 +230,7 @@ fi
 ### 冷升级
 
 ```bash
-cd test/tools/CompatCI
+cd test/tools/compat-ci
 python3 cold_upgrade_task.py \
     --green-path /tdengine/green_versions/ \
     --versions 3.3.0.0,3.3.6.0 \

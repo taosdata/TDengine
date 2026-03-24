@@ -96,12 +96,12 @@ class HotUpgradeTask:
 
     def callCompatCheck(self, fromDir: str, toDir: str,
                         extraArgs: Optional[List[str]] = None) -> int:
-        """Call CompatCheck tool for rolling upgrade."""
-        compatCheckDir = Path(__file__).parent.parent / "CompatCheck"
+        """Call compat-check tool for rolling upgrade."""
+        compatCheckDir = Path(__file__).parent.parent / "compat-check"
         mainScript = compatCheckDir / "run" / "main.py"
 
         if not mainScript.exists():
-            raise FileNotFoundError(f"CompatCheck script not found: {mainScript}")
+            raise FileNotFoundError(f"compat-check script not found: {mainScript}")
 
         cmd = [
             sys.executable,
@@ -154,7 +154,7 @@ class HotUpgradeTask:
             self.targetVersionPath = self.prepareTargetVersion(buildDir)
             print(f"Target path: {self.targetVersionPath}")
 
-            print("\nStep 4/7: Running CompatCheck...")
+            print("\nStep 4/7: Running compat-check...")
             print("=" * 80)
             exitCode = self.callCompatCheck(
                 self.baseVersionPath,

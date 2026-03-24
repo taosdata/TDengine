@@ -157,22 +157,22 @@ class ColdUpgradeTask:
         return resolved
 
     # ------------------------------------------------------------------
-    # CompatCheck invocation
+    # compat-check invocation
     # ------------------------------------------------------------------
 
     def callCompatCheck(self, fromDir: str, toDir: str,
                         extraArgs: Optional[List[str]] = None) -> int:
-        """Call CompatCheck tool for cold upgrade (default mode, no extra flag needed).
+        """Call compat-check tool for cold upgrade (default mode, no extra flag needed).
 
-        Cold upgrade is the default behaviour of CompatCheck/run/main.py.
+        Cold upgrade is the default behaviour of compat-check/run/main.py.
         Hot/rolling upgrade requires the explicit -r / --rollupdate flag.
         """
-        compatCheckDir = Path(__file__).parent.parent / "CompatCheck"
+        compatCheckDir = Path(__file__).parent.parent / "compat-check"
         mainScript = compatCheckDir / "run" / "main.py"
 
         if not mainScript.exists():
             raise FileNotFoundError(
-                f"CompatCheck script not found: {mainScript}"
+                f"compat-check script not found: {mainScript}"
             )
 
         cmd = [
@@ -205,7 +205,7 @@ class ColdUpgradeTask:
             print(f"  Build directory     : {buildDir if buildDir else '../../../../debug (default)'}")
             print(f"  Base versions       : {', '.join(self.baseVersions)}")
             if extraArgs:
-                print(f"  CompatCheck options : {' '.join(extraArgs)}")
+                print(f"  compat-check options : {' '.join(extraArgs)}")
             print("=" * 80)
             print()
 
@@ -221,7 +221,7 @@ class ColdUpgradeTask:
             print(f"  Target path: {self.targetVersionPath}")
             print()
 
-            # ── Step 3: Resolve base dirs and run CompatCheck ────────
+            # ── Step 3: Resolve base dirs and run compat-check ────────
             print(f"Step 3/3: Resolving base version directories under "
                   f"'{self.greenVersionsPath}'...")
             resolvedPairs = self.resolveAllPairs()
@@ -294,7 +294,7 @@ Examples:
       --versions 3.3.0.0 \\
       --build-dir /path/to/debug
 
-  # Pass extra options to CompatCheck
+  # Pass extra options to compat-check
   python cold_upgrade_task.py \\
       --green-path /tdengine/green_versions/ \\
       --versions 3.3.0.0 \\
@@ -326,7 +326,7 @@ Examples:
         metavar='COMPAT_CHECK_OPTIONS',
         default='',
         help=(
-            'Extra options passed directly to CompatCheck, '
+            'Extra options passed directly to compat-check, '
             'e.g. --options "-q --check-sysinfo"'
         ),
     )

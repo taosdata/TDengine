@@ -1,8 +1,8 @@
-# TDengine 升级兼容性测试工具（CompatCheck）
+# TDengine 升级兼容性测试工具（compat-check）
 
 ## 概述
 
-CompatCheck 是一个在单台机器上自动验证 TDengine **冷升级**和**滚动升级**兼容性的测试框架。它会在本机启动一个 3 节点集群，执行写入/查询/订阅负载，完成版本升级，然后验证数据完整性和资源保持情况。
+compat-check 是一个在单台机器上自动验证 TDengine **冷升级**和**滚动升级**兼容性的测试框架。它会在本机启动一个 3 节点集群，执行写入/查询/订阅负载，完成版本升级，然后验证数据完整性和资源保持情况。
 
 ### 入口
 
@@ -36,7 +36,7 @@ python -m run.main -F <基准版本目录> -T <目标版本目录> [选项]
 ## 目录结构
 
 ```text
-CompatCheck/
+compat-check/
 ├── run/
 │   ├── main.py              # 主入口
 │   └── reporter.py          # 结构化输出
@@ -64,7 +64,7 @@ CompatCheck/
 ## 快速开始
 
 ```bash
-cd test/tools/CompatCheck
+cd test/tools/compat-check
 
 # 冷升级（默认）
 python -m run.main -F /opt/td/3.3.8.0 -T /opt/td/3.4.0.8

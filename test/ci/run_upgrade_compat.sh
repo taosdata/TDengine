@@ -1,21 +1,20 @@
 #!/bin/bash
 # run_upgrade_compat.sh
 #
-# 冷/热升级兼容性测试启动脚本（宿主机侧）
+# Host-side entry script for cold/hot upgrade compatibility tests.
 #
-# 功能：
-#   1. 从 HTTP 服务器下载所需绿色版本到 /green_versions/（有缓存，存在则跳过）
-#   2. 在独立 Docker 容器中运行冷/热升级兼容性测试
-#   3. 输出测试结果日志
+# Steps:
+#   1. Download required green versions from HTTP server to local cache (skipped if already cached)
+#   2. Run cold/hot upgrade compatibility tests inside an isolated Docker container
+#   3. Print test result logs
 #
-# 用法：
-#   ./run_upgrade_compat.sh -w WORKDIR [-l LOG_DIR] [-e] [-h]
+# Usage:
+#   ./run_upgrade_compat.sh -w WORKDIR [-l LOG_DIR] [-h]
 #
-# 参数：
-#   -w WORKDIR   工作目录（与 run.sh 相同，含 TDinternal/ 和 debugNoSan/）
-#   -l LOG_DIR   日志输出目录（默认：WORKDIR/upgrade_compat_logs）
-#   -e           企业版模式
-#   -h           帮助
+# Options:
+#   -w WORKDIR   Working directory (contains TDinternal/ and debugNoSan/)
+#   -l LOG_DIR   Log output directory (default: WORKDIR/upgrade_compat_logs)
+#   -h           Show help
 
 function usage() {
     echo "Usage: $0 -w WORKDIR [-l LOG_DIR] [-h]"
@@ -25,20 +24,19 @@ function usage() {
     echo "  -h           Show help"
 }
 
-# ── 配置参数 ─────────────────────────────────────────────────────────────────
+# ── Configuration ─────────────────────────────────────────────────────────────
 
-
-# 绿色版本 HTTP 服务器基础地址
+# Base URL of the green versions HTTP server
 GREEN_HTTP_BASE="http://192.168.1.131/data/nas/TDengine/green_versions"
 
-# 绿色版本本地缓存目录（宿主机）
+# Local cache directory for green versions (on host)
 GREEN_LOCAL_DIR="/var/lib/jenkins/workspace/green_versions"
 
-# 并发下载锁目录
+# Lock directory for concurrent download safety
 LOCK_DIR="/tmp/green_versions_locks"
 
 
-# ── 解析参数 ─────────────────────────────────────────────────────────────────
+# ── Argument parsing ──────────────────────────────────────────────────────────
 
 WORKDIR=""
 LOG_DIR=""
@@ -89,7 +87,7 @@ echo "  LOG_DIR         : $LOG_DIR"
 echo "  GREEN_LOCAL_DIR : $GREEN_LOCAL_DIR"
 echo "======================================================"
 
-# ── Step 1: 下载绿色版本（带缓存）──────────────────────────────────────────
+# ── Step 1: Download green versions (with cache) ──────────────────────────────
 
 function download_version() {
     local version="$1"
@@ -98,7 +96,7 @@ function download_version() {
     local start_time
     start_time=$(date +%s)
 
-    # 快速检查：缓存已存在且所有文件均 >= 30M 则直接跳过
+    # Quick check: skip if cache exists and all files are >= 30M
     local file_count valid_count
     file_count=$(find "$target_dir" -maxdepth 1 -type f 2>/dev/null | wc -l)
     valid_count=$(find "$target_dir" -maxdepth 1 -type f -size +30M 2>/dev/null | wc -l)
@@ -106,11 +104,11 @@ function download_version() {
         return 0
     fi
 
-    # 使用 flock 防止并发下载同一版本
+    # Use flock to prevent concurrent downloads of the same version
     (
         flock -x 200
 
-        # flock 内再次检查（防止等锁期间已被其他进程下载完）
+        # Re-check inside lock in case another process already finished
         file_count=$(find "$target_dir" -maxdepth 1 -type f 2>/dev/null | wc -l)
         valid_count=$(find "$target_dir" -maxdepth 1 -type f -size +30M 2>/dev/null | wc -l)
         if [ "$file_count" -ge 2 ] && [ "$valid_count" -eq "$file_count" ]; then
@@ -120,7 +118,7 @@ function download_version() {
         echo "[green_versions] $version: downloading from $GREEN_HTTP_BASE/$version/ ..."
         mkdir -p "$target_dir"
 
-        # 解析 HTTP 目录列表，获取文件名列表
+        # Parse HTTP directory listing to get file names
         local file_list
         file_list=$(curl -fsSL "$GREEN_HTTP_BASE/$version/" \
             | sed -n 's/.*href="\([^"]*\)".*/\1/p' \
@@ -146,7 +144,7 @@ function download_version() {
                 failed=1
                 break
             fi
-            # 对二进制文件赋予执行权限
+            # Make binaries executable
             chmod +x "$dest"
         done
 
@@ -168,7 +166,7 @@ function download_version() {
 echo ""
 echo "=== Step 1/2: Downloading green versions ==="
 
-# 从 HTTP 服务器列出所有可用版本目录
+# List all available version directories from the HTTP server
 ALL_VERSIONS=$(curl -fsSL "$GREEN_HTTP_BASE/" \
     | sed -n 's/.*href="\([^"]*\)".*/\1/p' \
     | grep '/$' \
@@ -197,7 +195,7 @@ if [ $download_failed -ne 0 ]; then
 fi
 echo "=== Step 1/2: All green versions ready ==="
 
-# ── Step 2: Resolve paths ──────────────────────────
+# ── Step 2: Resolve paths ─────────────────────────────────────────────────────
 
 if [ ! -d "$INTERNAL_REPDIR" ]; then
     echo "ERROR: Repo directory not found: $INTERNAL_REPDIR"
@@ -209,7 +207,7 @@ if [ ! -d "$DEBUGPATH_DIR" ]; then
     exit 1
 fi
 
-# ── Step 3: Run upgrade compatibility tests in isolated Docker container ──────
+# ── Step 3: Run upgrade compatibility tests in isolated Docker container ───────
 
 CONTAINER_NAME="upgrade-compat-${PR_NUMBER:-0}_${GITHUB_RUN_NUMBER:-0}_${GITHUB_RUN_ATTEMPT:-0}"
 

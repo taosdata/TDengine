@@ -1,21 +1,22 @@
 #!/bin/bash
 # run_upgrade_compat_container.sh
 #
-# 冷/热升级兼容性测试执行脚本（Docker 容器内侧）
+# Container-side script for cold/hot upgrade compatibility tests.
+# Invoked by run_upgrade_compat.sh via docker run.
 #
-# 本脚本由 run_upgrade_compat.sh 通过 docker run 调用，在容器内执行：
-#   1. 安装 Python 依赖（taospy / pyyaml）
-#   2. 冷升级测试：3.3.6.0 / 3.3.8.0 / 3.4.0.0 → 当前版本（串行调用）
-#   3. 热升级（滚动升级）测试：自动匹配同版本前缀
-#   4. 汇总输出 PASS / FAIL
+# Steps:
+#   1. Install Python dependencies (taospy / pyyaml)
+#   2. Cold upgrade tests: 3.3.6.0 / 3.3.8.0 / 3.4.0.0 → current version (sequential)
+#   3. Hot (rolling) upgrade test: auto-match base version by version prefix
+#   4. Print overall PASS / FAIL summary
 #
-# 容器内挂载约定（由 run_upgrade_compat.sh 保证）：
-#   /home/TDinternal          — 企业版源码（只读）
-#   /home/TDinternal/debug    — 当前版本编译产物 debugNoSan（只读）
-#   /green_versions           — 绿色版本缓存目录（只读）
-#   /upgrade_logs             — 日志输出目录（可写）
+# Volume mounts (guaranteed by run_upgrade_compat.sh):
+#   /home/TDinternal          — source repo (read-only)
+#   /home/TDinternal/debug    — current build artifacts debugNoSan (read-only)
+#   /green_versions           — green version cache (read-only)
+#   /upgrade_logs             — log output directory (writable)
 
-# ── 配置参数 ─────────────────────────────────────────────────────────────────
+# ── Configuration ─────────────────────────────────────────────────────────────
 
 # 
 #  cold upgrade version (2 group)
@@ -30,20 +31,20 @@ COLD_VERSIONS_2="3.4.0.0"
 COLD_VERSIONS_OPTION_2="--check-sysinfo"
 
 
-# ── 路径配置 ─────────────────────────────────────────────────────────────────
+# ── Paths ─────────────────────────────────────────────────────────────────────
 
 GREEN_PATH="/green_versions"
 LOG_DIR="/upgrade_logs"
 BUILD_DIR="/home/TDinternal/debug"
-COMPAT_CI_DIR="/home/TDinternal/community/test/tools/CompatCI"
+COMPAT_CI_DIR="/home/TDinternal/community/test/tools/compat-ci"
 
 
 mkdir -p "$LOG_DIR"
 
-# ── 前置检查 ─────────────────────────────────────────────────────────────────
+# ── Pre-flight checks ─────────────────────────────────────────────────────────
 
 if [ ! -d "$COMPAT_CI_DIR" ]; then
-    echo "ERROR: CompatCI directory not found: $COMPAT_CI_DIR"
+    echo "ERROR: compat-ci directory not found: $COMPAT_CI_DIR"
     exit 1
 fi
 
@@ -61,14 +62,14 @@ echo "  BUILD_DIR     : $BUILD_DIR"
 echo "  LOG_DIR       : $LOG_DIR"
 echo "======================================================"
 
-# ── Step 0: 安装 Python 依赖 ─────────────────────────────────────────────────
+# ── Step 0: Install Python dependencies ──────────────────────────────────────
 
 echo ""
 echo "=== Installing Python dependencies ==="
 pip3 install taospy pyyaml -q --disable-pip-version-check 2>/dev/null
 echo "=== Python dependencies installed successfully ==="
 
-# ── 工具函数：清理 taosd 进程 ────────────────────────────────────────────────
+# ── Helper: kill taosd processes ─────────────────────────────────────────────
 
 function cleanup_taosd() {
     pkill -TERM -f "taosd" 2>/dev/null || true
@@ -78,7 +79,7 @@ function cleanup_taosd() {
 
 overall_ret=0
 
-# ── Step 1: 冷升级测试（3.3.6.0 / 3.3.8.0 / 3.4.0.0 → 当前版本，串行调用）──
+# ── Step 1: Cold upgrade tests (3.3.6.0 / 3.3.8.0 / 3.4.0.0 → current, sequential) ──
 
 echo ""
 echo "============================================================"
@@ -132,14 +133,14 @@ else
 fi
 
 
-# ── Step 2: 热升级（滚动升级）测试 ──────────────────────────────────────────
+# ── Step 2: Hot (rolling) upgrade test ───────────────────────────────────────
 
 echo ""
 echo "============================================================"
 echo "=== Hot (Rolling) Upgrade Test                          ==="
 echo "============================================================"
 
-# 冷升级结束后 taosd 仍在运行，清理后再做热升级
+# Clean up any lingering taosd before hot upgrade
 cleanup_taosd
 
 hot_cmd=(python3 "$COMPAT_CI_DIR/hot_upgrade_task.py"
@@ -152,8 +153,8 @@ echo "Executing: ${hot_cmd[*]}"
 
 hot_ret=${PIPESTATUS[0]}
 
-# hot_upgrade_task 在当前版本无匹配绿色版本时返回 0 并输出 "No rolling upgrade test needed"
-# 此为正常跳过，不计入失败
+# hot_upgrade_task exits 0 with "No rolling upgrade test needed" when no matching
+# base version exists — treat this as a normal skip, not a failure
 if [ $hot_ret -ne 0 ]; then
     echo "[FAIL] Hot upgrade test FAILED (exit code: $hot_ret)"
     overall_ret=$hot_ret
@@ -165,14 +166,14 @@ else
     fi
 fi
 
-# ── 汇总 ─────────────────────────────────────────────────────────────────────
+# ── Summary ───────────────────────────────────────────────────────────────────
 
 echo ""
 echo "============================================================"
 echo "=== Upgrade Compatibility Test Summary                  ==="
 echo "============================================================"
 
-# 从冷升级日志中提取各版本结果
+# Extract per-version results from cold upgrade logs
 for ver in 3.3.6.0 3.3.8.0; do
     if grep -q "\[PASS\] Cold upgrade test passed.*${ver}" "$LOG_DIR/cold_upgrade_33x.log" 2>/dev/null; then
         echo "  Cold ${ver} → current : PASS"
