@@ -50,6 +50,7 @@
 - **安装包**：两个已解压的 TDengine 安装目录，分别对应基准版本和目标版本
 
 目录结构示例：
+
 ```
 /opt/tdengine/
     TDengine-enterprise-3.3.8.0/    ← from-dir
