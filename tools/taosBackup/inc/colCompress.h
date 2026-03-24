@@ -58,8 +58,9 @@ typedef struct {
 
 // ---------------- interface ----------------
 
-// compress
-CompressBlock* compressBlock(void *block, int blockRows, FieldInfo* fieldInfos, int numFields, SBuffer *assist, int *code);
+// compress block into caller-provided buffer (reused across blocks)
+CompressBlock* compressBlock(void *block, int blockRows, FieldInfo* fieldInfos, int numFields, SBuffer *assist,
+                             char **bufPtr, int32_t *bufCapPtr, int *code);
 
 // decompress
 int decompressBlock(CompressBlock* compressBlock,

@@ -221,13 +221,35 @@ int queryWriteBinary(TAOS* conn, const char *sql, StorageFormat format, const ch
         // parquet
         code = resultToFileParquet(res, pathFile, &rows);
     } else {
-        // taos
-        code = resultToFileTaos(res, pathFile, &rows);
+        // taos (writeBuf=NULL: will allocate internally for now)
+        code = resultToFileTaos(res, pathFile, NULL, 0, &rows);
     }
 
     if (outRows) *outRows = rows;
 
     // free
-    taos_free_result(res);    
+    taos_free_result(res);
+    return code;
+}
+
+int queryWriteBinaryEx(TAOS* conn, const char *sql, StorageFormat format, const char *pathFile,
+                       char *writeBuf, int32_t writeBufCap, int64_t *outRows) {
+    int code = TSDB_CODE_FAILED;
+    TAOS_RES* res = taos_query(conn, sql);
+    if (res == NULL) {
+        logError("query failed(%s): %s", taos_errstr(res), sql);
+        return taos_errno(res);
+    }
+    logDebug("sql result to file: %s -> %s", sql, pathFile);
+
+    int64_t rows = 0;
+    if (format == BINARY_PARQUET) {
+        code = resultToFileParquet(res, pathFile, &rows);
+    } else {
+        code = resultToFileTaos(res, pathFile, writeBuf, writeBufCap, &rows);
+    }
+
+    if (outRows) *outRows = rows;
+    taos_free_result(res);
     return code;
 }

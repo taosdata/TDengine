@@ -44,6 +44,10 @@ typedef struct {
     char    *writeBuf;
     int32_t  writeBufPos;
     int32_t  writeBufCap;
+    bool     writeBufOwned;  // true = owned by TaosFile, false = borrowed from caller
+    // compress buffer reused across all blocks in this file
+    char    *compressBuf;
+    int32_t  compressBufCap;
     int64_t  fileSize;   // populated by openTaosFileForRead; avoids later stat() call
     TaosFileHeader header;  // must be last (flexible array member)
 } TaosFile;
@@ -64,7 +68,7 @@ typedef int (*BlockCallback)(void *userData,
 
 
 // ---------------- interface ----------------
-int resultToFileTaos(TAOS_RES *res, const char *fileName, int64_t *outRows);
+int resultToFileTaos(TAOS_RES *res, const char *fileName, char *writeBuf, int32_t writeBufCap, int64_t *outRows);
 
 // open a .dat file for reading, returns header info
 TaosFile* openTaosFileForRead(const char *fileName, int *code);

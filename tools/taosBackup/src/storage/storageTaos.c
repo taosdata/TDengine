@@ -94,10 +94,15 @@ TaosFile* createTaosFile(const char *fileName, TAOS_FIELD_E* fields, int numFiel
     taosFile->header.schemaLen = sizeof(FieldInfo) * numFields;
     fillFieldsInfo((FieldInfo*)taosFile->header.schema, fields, numFields);
 
-    // allocate write buffer
+    // allocate write buffer (owned by TaosFile)
     taosFile->writeBuf = (char *)taosMemoryMalloc(TAOS_FILE_WRITE_BUF_SIZE);
     taosFile->writeBufPos = 0;
     taosFile->writeBufCap = taosFile->writeBuf ? TAOS_FILE_WRITE_BUF_SIZE : 0;
+    taosFile->writeBufOwned = true;
+
+    // allocate compress buffer (reused across all blocks)
+    taosFile->compressBuf = NULL;
+    taosFile->compressBufCap = 0;
 
     // create
     taosFile->fp = taosOpenFile(fileName, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC);
@@ -152,10 +157,16 @@ int closeTaosFile(TaosFile* taosFile) {
         taosFile->fp = NULL;
     }
 
-    // free write buffer
-    if (taosFile->writeBuf) {
+    // free write buffer (only if owned)
+    if (taosFile->writeBuf && taosFile->writeBufOwned) {
         taosMemoryFree(taosFile->writeBuf);
         taosFile->writeBuf = NULL;
+    }
+
+    // free compress buffer
+    if (taosFile->compressBuf) {
+        taosMemoryFree(taosFile->compressBuf);
+        taosFile->compressBuf = NULL;
     }
 
     // free memory
@@ -177,12 +188,14 @@ int writeBlockToTaosFile(TaosFile*  taosFile,
                          int        numFields) {
     int code = TSDB_CODE_FAILED;
 
-    // compress block
+    // compress block into reusable buffer
     CompressBlock* compBlock = compressBlock(block,
                                              blockRows,
                                              fieldInfos,
                                              numFields,
                                              assist,
+                                             &taosFile->compressBuf,
+                                             &taosFile->compressBufCap,
                                              &code);
     if (code != TSDB_CODE_SUCCESS) {
         logError("compress block failed: %d", code);
@@ -226,13 +239,8 @@ int writeBlockToTaosFile(TaosFile*  taosFile,
     // write to file
     code = writeTaosFile(taosFile, compBlock, sizeof(CompressBlock) + compBlock->dataLen);
     if (code != TSDB_CODE_SUCCESS) {
-        // free
-        freeCompressData(compBlock);
         return code;
     }
-
-    // free
-    freeCompressData(compBlock);
 
     return TSDB_CODE_SUCCESS;
 }
@@ -241,7 +249,7 @@ int writeBlockToTaosFile(TaosFile*  taosFile,
 //
 // write block to taos binary file
 //
-int resultToFileTaos(TAOS_RES *res, const char *fileName, int64_t *outRows) {
+int resultToFileTaos(TAOS_RES *res, const char *fileName, char *writeBuf, int32_t writeBufCap, int64_t *outRows) {
     int code = TSDB_CODE_FAILED;
     if (outRows) *outRows = 0;
 
@@ -256,10 +264,57 @@ int resultToFileTaos(TAOS_RES *res, const char *fileName, int64_t *outRows) {
         return TSDB_CODE_BCK_FETCH_FIELDS_FAILED;
     }
 
-    // create file
-    TaosFile* taosFile = createTaosFile(fileName, fields, numFields, &code);
+    // create file (borrow writeBuf from caller if provided)
+    TaosFile* taosFile = (TaosFile*)taosMemoryMalloc(sizeof(TaosFile) + sizeof(FieldInfo) * numFields);
+    memset(taosFile, 0, sizeof(TaosFile));
     if (taosFile == NULL) {
-        logError("create Taos file failed: %s", fileName);
+        logError("malloc TaosFile failed");
+        return TSDB_CODE_BCK_MALLOC_FAILED;
+    }
+
+    taosFile->fileName = fileName;
+    memcpy(taosFile->header.magic, TAOSFILE_MAGIC, 4);
+    taosFile->header.version = TAOSFILE_VERSION;
+    taosFile->header.numFields = numFields;
+    taosFile->header.schemaLen = sizeof(FieldInfo) * numFields;
+    fillFieldsInfo((FieldInfo*)taosFile->header.schema, fields, numFields);
+
+    // use caller's writeBuf if provided, otherwise allocate
+    if (writeBuf && writeBufCap > 0) {
+        taosFile->writeBuf = writeBuf;
+        taosFile->writeBufCap = writeBufCap;
+        taosFile->writeBufOwned = false;
+    } else {
+        taosFile->writeBuf = (char *)taosMemoryMalloc(TAOS_FILE_WRITE_BUF_SIZE);
+        taosFile->writeBufCap = taosFile->writeBuf ? TAOS_FILE_WRITE_BUF_SIZE : 0;
+        taosFile->writeBufOwned = true;
+    }
+    taosFile->writeBufPos = 0;
+
+    // allocate compress buffer (reused across all blocks)
+    taosFile->compressBuf = NULL;
+    taosFile->compressBufCap = 0;
+
+    // open file
+    taosFile->fp = taosOpenFile(fileName, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC);
+    if (taosFile->fp == NULL) {
+        logError("fopen file failed: %s", fileName);
+        if (taosFile->writeBufOwned && taosFile->writeBuf) taosMemoryFree(taosFile->writeBuf);
+        taosMemoryFree(taosFile);
+        return TSDB_CODE_BCK_CREATE_FILE_FAILED;
+    }
+
+    // write header
+    code = writeTaosFile(taosFile, &taosFile->header, sizeof(TaosFileHeader));
+    if (code != TSDB_CODE_SUCCESS) {
+        closeTaosFile(taosFile);
+        return code;
+    }
+
+    // write schema
+    code = writeTaosFile(taosFile, taosFile->header.schema, taosFile->header.schemaLen);
+    if (code != TSDB_CODE_SUCCESS) {
+        closeTaosFile(taosFile);
         return code;
     }
 

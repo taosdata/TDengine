@@ -33,6 +33,11 @@ typedef struct {
     TAOS*     conn;
     pthread_t pid;
     int32_t   code;    // first error code from this thread
+    // Thread-level reusable buffers (space-for-time optimization)
+    char*     writeBuf;     // 4MB write buffer, reused across all CTBs
+    int32_t   writeBufCap;
+    char      stbDirPath[4096];  // pre-built directory path for this stb
+    bool      stbDirCreated;
 } DataThread;
 
 

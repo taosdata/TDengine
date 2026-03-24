@@ -27,4 +27,8 @@ int queryWriteTxt(const char *sql, int32_t col, const char *pathFile);
 // outRows: if not NULL, receives the number of rows written
 int queryWriteBinary(TAOS* conn, const char *sql, StorageFormat format, const char *pathFile, int64_t *outRows);
 
+// query result write to file with caller-provided write buffer (thread-level reuse)
+int queryWriteBinaryEx(TAOS* conn, const char *sql, StorageFormat format, const char *pathFile,
+                       char *writeBuf, int32_t writeBufCap, int64_t *outRows);
+
 #endif  // INC_BCKFILE_H_

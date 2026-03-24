@@ -62,37 +62,12 @@ int backChildTableData(DataThread* thread, const char *childTableName) {
     int code = TSDB_CODE_FAILED;
     const char* dbName = thread->dbInfo->dbName;
     const char* stbName = thread->stbInfo->stbName;
-    // get write file name
     StorageFormat format = argStorageFormat();
-    // ensure dir exist
-    char dirPath[MAX_PATH_LEN];
-    code = obtainFileName(BACK_DIR_DATA, 
-                          dbName, 
-                          stbName, 
-                          childTableName, 
-                          thread->index, 
-                          g_backDataFiles, 
-                          format, 
-                          dirPath, 
-                          sizeof(dirPath));
-    if(!taosDirExist(dirPath)) {
-        taosMkDir(dirPath);
-    }
 
-    // file
+    // Use pre-built directory path (created once per stb in backDataThread)
+    const char *ext = (format == BINARY_PARQUET) ? "par" : "dat";
     char pathFile[MAX_PATH_LEN];
-    code = obtainFileName(BACK_FILE_DATA, 
-                          dbName, 
-                          stbName, 
-                          childTableName, 
-                          thread->index, 
-                          g_backDataFiles, 
-                          format, 
-                          pathFile, 
-                          sizeof(pathFile));
-    if (code != TSDB_CODE_SUCCESS) {
-        return code;
-    }
+    snprintf(pathFile, sizeof(pathFile), "%s/%s.%s", thread->stbDirPath, childTableName, ext);
 
     // global file count
     atomic_add_fetch_64(&g_backDataFiles, 1);
@@ -121,7 +96,7 @@ int backChildTableData(DataThread* thread, const char *childTableName) {
     char tmpFile[MAX_PATH_LEN];
     snprintf(tmpFile, sizeof(tmpFile), "%s.tmp", pathFile);
     int64_t rows = 0;
-    code = queryWriteBinary(thread->conn, sql, format, tmpFile, &rows);
+    code = queryWriteBinaryEx(thread->conn, sql, format, tmpFile, thread->writeBuf, thread->writeBufCap, &rows);
     if (code == TSDB_CODE_SUCCESS) {
         if (rows == 0) {
             // No data (empty table or no rows in time range): discard the tmp
@@ -157,10 +132,24 @@ int backChildTableData(DataThread* thread, const char *childTableName) {
 static void* backDataThread(void *arg) {
     int retryCount   = argRetryCount();
     int retrySleepMs = argRetrySleepMs();
-    
+    int code = TSDB_CODE_SUCCESS;
+
     DataThread * thread = (DataThread *)arg;
-    logInfo("data thread %d started for %s.%s (offset=%d, limit=%d)", 
+    logInfo("data thread %d started for %s.%s (offset=%d, limit=%d)",
             thread->index, thread->dbInfo->dbName, thread->stbInfo->stbName, thread->offset, thread->limit);
+
+    // Allocate thread-level reusable 4MB write buffer (space-for-time optimization)
+    thread->writeBuf = (char *)taosMemoryMalloc(4 * 1024 * 1024);
+    thread->writeBufCap = thread->writeBuf ? (4 * 1024 * 1024) : 0;
+
+    // Pre-build directory path for this stb and create it once (optimization 3+5)
+    StorageFormat format = argStorageFormat();
+    code = obtainFileName(BACK_DIR_DATA, thread->dbInfo->dbName, thread->stbInfo->stbName,
+                          "", thread->index, 0, format, thread->stbDirPath, sizeof(thread->stbDirPath));
+    if (code == TSDB_CODE_SUCCESS && !taosDirExist(thread->stbDirPath)) {
+        taosMkDir(thread->stbDirPath);
+    }
+    thread->stbDirCreated = true;
 
     // Aggregate function:
     //   last(ts)     – no time filter: benefits from last-value cache when enabled, O(n_tables)
@@ -229,7 +218,6 @@ static void* backDataThread(void *arg) {
     TAOS_ROW row;
     int offset = thread->offset;
     char childTableName[TSDB_TABLE_NAME_LEN]= {0};
-    int32_t code = TSDB_CODE_SUCCESS;
     while ((row = taos_fetch_row(res))) {
         int32_t *lens = taos_fetch_lengths(res);
         if (lens[0] >= TSDB_TABLE_NAME_LEN) {
@@ -291,6 +279,12 @@ static void* backDataThread(void *arg) {
 
     taos_free_result(res);
     releaseConnection(conn);
+
+    // Free thread-level write buffer
+    if (thread->writeBuf) {
+        taosMemoryFree(thread->writeBuf);
+        thread->writeBuf = NULL;
+    }
 
     thread->code = code;
     logInfo("data thread %d finished for %s.%s", thread->index, thread->dbInfo->dbName, thread->stbInfo->stbName);

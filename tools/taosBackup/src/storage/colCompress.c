@@ -131,6 +131,8 @@ CompressBlock* compressBlock(void*      block,
                              FieldInfo* fieldInfos,
                              int        numFields,
                              SBuffer*   assist,
+                             char**     bufPtr,
+                             int32_t*   bufCapPtr,
                              int*       code) {
     // read block
     BlockReader reader;
@@ -140,14 +142,19 @@ CompressBlock* compressBlock(void*      block,
         return NULL;
     }
 
-    // malloc compress block
+    // calculate required size and reuse/realloc buffer
     uint32_t mallocLen = calcCompressBlockSize(&reader);
-    CompressBlock* compressBlock = (CompressBlock*)taosMemoryCalloc(1, mallocLen);
-    if (compressBlock == NULL) {
-        logError("malloc compress block failed");
-        *code = TSDB_CODE_BCK_MALLOC_FAILED;
-        return NULL;
+    if (*bufCapPtr < (int32_t)mallocLen) {
+        char *newBuf = (char *)taosMemoryRealloc(*bufPtr, mallocLen);
+        if (!newBuf) {
+            logError("realloc compress buffer failed: %u bytes", mallocLen);
+            *code = TSDB_CODE_BCK_MALLOC_FAILED;
+            return NULL;
+        }
+        *bufPtr = newBuf;
+        *bufCapPtr = mallocLen;
     }
+    CompressBlock* compressBlock = (CompressBlock*)(*bufPtr);
 
     //
     // header
@@ -174,7 +181,6 @@ CompressBlock* compressBlock(void*      block,
         retCode = getColumnData(&reader, fieldInfos[i].type, &colData, &colDataLen);
         if (retCode != TSDB_CODE_SUCCESS) {
             logError("get column data failed: %d", retCode);
-            freeCompressData(compressBlock);
             *code = retCode;
             return NULL;
         }
@@ -223,7 +229,6 @@ CompressBlock* compressBlock(void*      block,
                                 assist);
         if (*code != TSDB_CODE_SUCCESS) {
             logError("compress column data failed. code: %d", *code);
-            freeCompressData(compressBlock);
             *code = TSDB_CODE_BCK_COMPRESS_FAILED;
             return NULL;
         }
