@@ -126,6 +126,7 @@ typedef struct {
   int32_t        activeTxnCnt;   // 当前活跃事务数（原子操作维护）
   TdThreadRwlock lock;           // 保护 pTxnHash 增删的读写锁
   utxn_id_t      currentTxnId;  // 当前已分配的最大 txnId（原 mndTxnSeq.c 全局变量，移入此处）
+  int8_t         txnSeqInAlloc; // 是否正在分配 txnId 范围（原 mndTxnSeq.c 全局变量，移入此处）
 } STxnMgmt;
 
 

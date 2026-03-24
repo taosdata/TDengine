@@ -93,6 +93,12 @@ _exit:
 
 static int32_t triggerAllocateTxnSeq(SMnode *pMnode, utxn_id_t nextRangeId, bool checkLeader) {
   int32_t code = 0, lino = 0;
+
+  if ((atomic_fetch_add_8(&pMnode->txnMgmt.txnSeqInAlloc, 1) & 7) != 0) {
+    mInfo("txnSeq, skip since another task is allocating txn seq with nextRangeId:%" PRIu64, nextRangeId);
+    TAOS_RETURN(0);
+  }
+
   int32_t contLen = 0;
   if (checkLeader && !mndIsLeader(pMnode)) {
     mWarn("txnSeq, failed at line %d to allocate txn seq since not leader", lino);
@@ -363,7 +369,7 @@ utxn_id_t mndGenTxnId(SMnode *pMnode) {
     needAlloc = true;
   } else {
     nextId = ++pMnode->txnMgmt.currentTxnId;
-    curId  = pMnode->txnMgmt.currentTxnId;
+    curId = pMnode->txnMgmt.currentTxnId;
 
     utxn_id_t usedInRange = curId - (pObj->maxRangeId - TXN_ID_RANGE_STEP);
     if ((usedInRange > 0) && (usedInRange >= (TXN_ID_RANGE_STEP * TXN_ID_RANGE_WATERMARK_PCT / 100))) {
@@ -437,7 +443,7 @@ static int32_t mndAllocTxnSeq(SMnode *pMnode, SRpcMsg *pReq, utxn_id_t nextTxnRa
   TSDB_CHECK_NULL((pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pReq, "alloc-txn-seq")),
                   code, lino, _exit, terrno);
   mInfo("trans:%d, used to allocate txn seq %" PRIu64, pTrans->id, obj.maxRangeId);
-mndTransSetKillMode(pTrans, TRN_KILL_MODE_SKIP);
+  mndTransSetKillMode(pTrans, TRN_KILL_MODE_SKIP);
 
   mndTransSetOper(pTrans, MND_OPER_ALLOC_TXN_SEQ);
   TAOS_CHECK_EXIT(mndSetCreateTxnSeqCommitLogs(pMnode, pTrans, &obj));
@@ -528,6 +534,8 @@ static int32_t mndProcessTxnSeqAllocRsp(SRpcMsg *pReq) {
   mInfo("received txn seq alloc rsp");
   SMnode     *pMnode = pReq->info.node;
   SMTxnSeqRsp txnRsp = {0};
+
+  atomic_store_8(&pMnode->txnMgmt.txnSeqInAlloc, 0);  // reset flag to allow next allocation when needed
   TAOS_CHECK_EXIT(tDeserializeTxnSeq(pReq->pCont, pReq->contLen, (SMTxnSeqReq *)&txnRsp));
   mInfo("txn seq allocated with rangeId:%" PRIu64, txnRsp.rangeId);
   STxnSeqObj *pObj = NULL;
@@ -536,7 +544,7 @@ static int32_t mndProcessTxnSeqAllocRsp(SRpcMsg *pReq) {
     if (txnRsp.rangeId > pObj->maxRangeId) {
       pObj->maxRangeId = txnRsp.rangeId;
     }
-    if (pMnode->txnMgmt.currentTxnId < 0) {
+    if (pMnode->txnMgmt.currentTxnId <= 0) {
       pMnode->txnMgmt.currentTxnId = txnRsp.rangeId - TXN_ID_RANGE_STEP;
     }
     taosWUnLockLatch(&pObj->lock);
