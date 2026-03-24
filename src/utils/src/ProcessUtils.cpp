@@ -110,13 +110,17 @@ int get_thread_count() {
     te.dwSize = sizeof(THREADENTRY32);
     int count = 0;
 
-    if (Thread32First(snapshot, &te)) {
-        do {
-            if (te.th32OwnerProcessID == process_id) {
-                count++;
-            }
-        } while (Thread32Next(snapshot, &te));
+    if (!Thread32First(snapshot, &te)) {
+        CloseHandle(snapshot);
+        return -1;
     }
+
+    do {
+        if (te.th32OwnerProcessID == process_id) {
+            count++;
+        }
+    } while (Thread32Next(snapshot, &te));
+
     CloseHandle(snapshot);
     return count;
 #else

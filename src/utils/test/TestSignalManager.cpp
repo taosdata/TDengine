@@ -22,7 +22,7 @@ void test_final_callback(int signum) {
 namespace {
 #if defined(_WIN32)
 constexpr int SIGNAL_BASIC = SIGINT;
-constexpr int SIGNAL_ORDER = SIGINT; // Windows only has a few signals; reuse SIGINT
+constexpr int SIGNAL_ORDER = SIGTERM;
 #else
 constexpr int SIGNAL_BASIC = SIGUSR1;
 constexpr int SIGNAL_ORDER = SIGUSR2;
