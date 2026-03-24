@@ -294,7 +294,7 @@ pip install momentfm
 nohup python moment-server.py > service_output.out 2>&1 &
 ```
 
-## 时序模型服务管理
+## 时序模型服务管理 {#时序模型服务启动和停止脚本}
 
 为了方便用户管理时序基础模型服务，TDgpt 在 3.4.0.0 及之后的版本提供了统一的服务管理工具 `taosanode_service.py`，用于启动、停止和查看指定或全部时序基础模型服务的状态。
 
