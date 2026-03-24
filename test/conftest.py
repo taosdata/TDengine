@@ -769,24 +769,30 @@ def add_common_methods(request):
 
     def waitCompactsRetentionsZero(self, seconds=300, interval=1):
         # wait end
+        compacts_cleared = False
         for i in range(seconds):
             sql = "show compacts;"
             rows = tdSql.query(sql)
             if rows == 0:
                 tdLog.info("compacts count became zero.")
-                return True
-            # tdLog.info(f"i={i} wait ...")
+                compacts_cleared = True
+                break
             time.sleep(interval)
 
+        if not compacts_cleared:
+            tdLog.warning(f"compacts did not become zero in {seconds} seconds")
+            return False
+
+        # wait for retentions
         for i in range(seconds):
             sql = "SHOW RETENTIONS;"
             rows = tdSql.query(sql)
             if rows == 0:
                 tdLog.info("RETENTIONS count became zero.")
                 return True
-            # tdLog.info(f"i={i} wait ...")
             time.sleep(interval)
 
+        tdLog.warning(f"retentions did not become zero in {seconds} seconds")
         return False
 
     request.cls.waitCompactsRetentionsZero = waitCompactsRetentionsZero
