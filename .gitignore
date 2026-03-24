@@ -71,3 +71,5 @@ CLAUDE.md
 
 # Allow pSpace CSV template to be committed
 !crates/source-pspace/example/*.csv
+
+llvm-cov-merged.lcov

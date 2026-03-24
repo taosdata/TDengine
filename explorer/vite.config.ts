@@ -72,7 +72,8 @@ export default ({ mode }: { mode: any }) => {
       // VueDevTools()
       createSvgIconsPlugin({
         symbolId: 'icon-[name]',
-        iconDirs: [resolve('./src/assets/icons'), resolve('./node_modules/taos-ui/assets/icons')]
+        iconDirs: [resolve('./src/assets/icons'), resolve('./node_modules/taos-ui/assets/icons')],
+        svgoOptions: false
       }),
       stylelintPlugin({
         // 你可以在这里添加Stylelint的配置选项
@@ -123,11 +124,11 @@ export default ({ mode }: { mode: any }) => {
 
       lifecycle === 'report'
         ? visualizer({
-          open: true,
-          gzipSize: true,
-          brotliSize: true,
-          filename: 'report.html'
-        })
+            open: true,
+            gzipSize: true,
+            brotliSize: true,
+            filename: 'report.html'
+          })
         : null,
       // viteCompression({
       //   algorithm: 'gzip',
