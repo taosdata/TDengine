@@ -27,7 +27,7 @@ COLD_VERSIONS_OPTION_1="--no-tsma --no-user"
 
 # group2
 COLD_VERSIONS_2="3.4.0.0"
-COLD_VERSIONS_OPTION_2=""
+COLD_VERSIONS_OPTION_2="--check-sysinfo"
 
 
 # ── 路径配置 ─────────────────────────────────────────────────────────────────
