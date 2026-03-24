@@ -19,7 +19,15 @@
 - [2. Documentation](#2-documentation)
 - [3. AI Agent Integration](#3-ai-agent-integration)
 - [4. Prerequisites](#4-prerequisites)
+  - [Platform-Specific Requirements](#platform-specific-requirements)
+    - [Linux / macOS](#linux--macos)
+    - [Windows](#windows)
 - [5. Build](#5-build)
+  - [Linux / macOS](#linux--macos-1)
+  - [Windows](#windows-1)
+    - [Option 1: Using Visual Studio Developer Command Prompt](#option-1-using-visual-studio-developer-command-prompt)
+    - [Option 2: Using vcvarsall.bat](#option-2-using-vcvarsallbat)
+    - [Running on Windows](#running-on-windows)
 - [6. Testing](#6-testing)
   - [6.1 Run Tests](#61-run-tests)
   - [6.2 Add Test Cases](#62-add-test-cases)
@@ -36,7 +44,7 @@
 ## 1. Introduction
 `taosgen` is a performance benchmarking tool for time-series data products, supporting data generation and write performance testing. `taosgen` uses "jobs" as the basic unit, which are user-defined sets of operations for specific tasks. Each job contains one or more steps and can be connected to other jobs via dependencies, forming a Directed Acyclic Graph (DAG) execution flow for flexible and efficient task orchestration.
 
-Currently, `taosgen` supports Linux and macOS systems.
+Currently, `taosgen` supports Linux, macOS and Windows systems.
 
 ## 2. Documentation
 - For usage, refer to the [Reference Manual](https://docs.tdengine.com/tdengine-reference/tools/taosgen/), which covers running, command-line arguments, configuration parameters, and sample configuration files.
@@ -110,11 +118,21 @@ Before installing and using `taosgen`, ensure you meet the following platform-sp
 - cmake, version 3.19 or above. See [cmake](https://cmake.org).
 - conan, version 2.19 or above. See [conan](https://conan.io).
 
+### Platform-Specific Requirements
+
+#### Linux / macOS
+- GCC/Clang compiler with C++17 support
+
+#### Windows
+- Visual Studio 2019 or above (Visual Studio 2022 recommended)
+
 ## 5. Build
-This section provides detailed instructions for building `taosgen` on Linux or macOS platforms.
+This section provides detailed instructions for building `taosgen` on Linux, macOS or Windows platforms.
 Before proceeding, make sure you are in the project root directory.
 
 >**Note: This project is developed and compiled using the C++17 standard. Please ensure your compiler supports C++17.**
+
+### Linux / macOS
 
 ```shell
 mkdir build && cd build
@@ -128,10 +146,63 @@ On macOS, if your compiler does not automatically select the appropriate default
 cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_SYSROOT=$(xcrun --show-sdk-path) -DCMAKE_TOOLCHAIN_FILE=./conan/conan_toolchain.cmake
 ```
 
+### Windows
+
+#### Option 1: Using Visual Studio Developer Command Prompt
+
+Open **x64 Native Tools Command Prompt for VS 2022** (or VS 2019) from the Start Menu, then run:
+
+```cmd
+mkdir build && cd build
+conan install .. --build=missing --output-folder=./conan --settings=build_type=Release --settings=compiler=msvc --settings=compiler.version=193 --settings=compiler.cppstd=17 --settings=compiler.runtime=dynamic
+cmake .. -G "Visual Studio 17 2022" -A x64 -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=./conan/conan_toolchain.cmake
+cmake --build . --config Release
+```
+
+For Visual Studio 2019, change the generator to `"Visual Studio 16 2019"`.
+
+#### Option 2: Using vcvarsall.bat
+
+If you prefer using a regular command prompt, you can use the `vcvarsall.bat` script to set up the environment:
+
+```cmd
+"<path_to_vs>\VC\Auxiliary\Build\vcvarsall.bat" x64
+mkdir build && cd build
+conan install .. --build=missing --output-folder=./conan --settings=build_type=Release --settings=compiler=msvc --settings=compiler.version=193 --settings=compiler.cppstd=17 --settings=compiler.runtime=dynamic
+cmake .. -G "Visual Studio 17 2022" -A x64 -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=./conan/conan_toolchain.cmake
+cmake --build . --config Release
+```
+
+Replace `<path_to_vs>` with the actual Visual Studio installation path, for example:
+- `"C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvarsall.bat" x64`
+- `"C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvarsall.bat" x64`
+
+For Visual Studio 2019, also change the generator to `"Visual Studio 16 2019"` and `compiler.version` to `192`.
+
+#### Running on Windows
+
+Before running `taosgen.exe`, ensure that:
+1. TDengine Windows client is installed
+2. `taos.dll` is available in the system PATH or in the same directory as `taosgen.exe`
+
+The built executable will be located at `build\src\Release\taosgen.exe`.
+
 ## 6. Testing
 
 ### 6.1 Run Tests
 `taosgen` uses ctest as its test framework. Run `ctest` in the build directory to execute all test cases.
+
+On Linux / macOS:
+```shell
+cd build
+ctest --output-on-failure
+```
+
+On Windows (MSVC multi-config generator requires `--build-config`):
+```cmd
+cd build
+ctest --build-config Release --output-on-failure
+```
 
 ### 6.2 Add Test Cases
 Test cases are located in the test directories of each submodule.

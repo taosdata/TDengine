@@ -9,7 +9,6 @@
 #include "BaseSinkPlugin.hpp"
 #include "TimeRecorder.hpp"
 #include "ProcessUtils.hpp"
-#include <sched.h>
 #include <cstring>
 #include <iostream>
 #include <chrono>
@@ -17,8 +16,12 @@
 #include <optional>
 #include <variant>
 #include <type_traits>
-#include <pthread.h>
 #include <iomanip>
+
+#if !defined(_WIN32)
+#include <sched.h>
+#include <pthread.h>
+#endif
 
 
 void InsertDataAction::set_realtime_priority() {

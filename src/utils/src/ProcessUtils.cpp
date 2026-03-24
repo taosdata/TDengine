@@ -7,16 +7,19 @@
 #include <mutex>
 #include <vector>
 #include <thread>
-#include <unistd.h>
-#include <limits.h>
 
 #if defined(_WIN32) || defined(_WIN64)
 #include <Windows.h>
-#endif
-
-#if defined(__APPLE__)
+#include <tlhelp32.h>
+#include <psapi.h>
+#elif defined(__APPLE__)
 #include <mach/mach.h>
 #include <mach-o/dyld.h>
+#include <unistd.h>
+#include <limits.h>
+#else
+#include <unistd.h>
+#include <limits.h>
 #endif
 
 namespace ProcessUtils {
@@ -43,6 +46,12 @@ double get_memory_usage_mb() {
     if (task_info(mach_task_self(), MACH_TASK_BASIC_INFO, (task_info_t)&info, &infoCount) != KERN_SUCCESS)
         return -1.0;
     return static_cast<double>(info.resident_size) / (1024.0 * 1024.0);
+#elif defined(_WIN32)
+    PROCESS_MEMORY_COUNTERS pmc;
+    if (GetProcessMemoryInfo(GetCurrentProcess(), &pmc, sizeof(pmc))) {
+        return static_cast<double>(pmc.WorkingSetSize) / (1024.0 * 1024.0);
+    }
+    return -1.0;
 #else
     return -1.0;
 #endif
@@ -92,6 +101,28 @@ int get_thread_count() {
         mach_port_deallocate(mach_task_self(), thread_list[i]);
     vm_deallocate(mach_task_self(), (vm_address_t)thread_list, thread_count * sizeof(thread_act_t));
     return static_cast<int>(thread_count);
+#elif defined(_WIN32)
+    DWORD process_id = GetCurrentProcessId();
+    HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
+    if (snapshot == INVALID_HANDLE_VALUE) return -1;
+
+    THREADENTRY32 te;
+    te.dwSize = sizeof(THREADENTRY32);
+    int count = 0;
+
+    if (!Thread32First(snapshot, &te)) {
+        CloseHandle(snapshot);
+        return -1;
+    }
+
+    do {
+        if (te.th32OwnerProcessID == process_id) {
+            count++;
+        }
+    } while (Thread32Next(snapshot, &te));
+
+    CloseHandle(snapshot);
+    return count;
 #else
     return -1;
 #endif
@@ -185,6 +216,37 @@ double get_cpu_usage_percent() {
     prev_total_usec = total_usec;
     prev_time = now;
     return percent;
+#elif defined(_WIN32)
+    static ULARGE_INTEGER prev_proc_total_time = {0};
+
+    FILETIME proc_create, proc_exit, proc_kernel, proc_user;
+    if (!GetProcessTimes(GetCurrentProcess(), &proc_create, &proc_exit, &proc_kernel, &proc_user))
+        return -1.0;
+
+    ULARGE_INTEGER proc_kernel_time, proc_user_time;
+    proc_kernel_time.LowPart = proc_kernel.dwLowDateTime;
+    proc_kernel_time.HighPart = proc_kernel.dwHighDateTime;
+    proc_user_time.LowPart = proc_user.dwLowDateTime;
+    proc_user_time.HighPart = proc_user.dwHighDateTime;
+
+    ULONGLONG proc_total = proc_kernel_time.QuadPart + proc_user_time.QuadPart; // 100ns units
+
+    auto now = std::chrono::steady_clock::now();
+    std::lock_guard<std::mutex> lock(mtx);
+    double percent = 0.0;
+
+    if (prev_proc_total_time.QuadPart != 0) {
+        double interval = std::chrono::duration<double>(now - prev_time).count();
+        if (interval > 0) {
+            double proc_delta_seconds = static_cast<double>(proc_total - prev_proc_total_time.QuadPart) / 1e7; // 100ns -> seconds
+            percent = (proc_delta_seconds / interval) * 100.0;
+        }
+    }
+
+    prev_proc_total_time.QuadPart = proc_total;
+    prev_time = now;
+
+    return percent;
 #else
     return -1.0;
 #endif
@@ -229,6 +291,14 @@ double get_system_free_memory_gb() {
     double available_bytes = static_cast<double>(vm_stat.free_count + vm_stat.inactive_count) * static_cast<double>(pagesize);
     return available_bytes / (1024.0 * 1024.0 * 1024.0);
 
+#elif defined(_WIN32)
+    MEMORYSTATUSEX mem_status;
+    mem_status.dwLength = sizeof(mem_status);
+    if (GlobalMemoryStatusEx(&mem_status)) {
+        // mem_status.ullAvailPhys is available physical memory
+        return static_cast<double>(mem_status.ullAvailPhys) / (1024.0 * 1024.0 * 1024.0);
+    }
+    return -1.0;
 #else
     return -1.0; // Not implemented for this platform
 #endif

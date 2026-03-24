@@ -161,7 +161,8 @@ int64_t TimestampUtils::parse_timestamp(const std::variant<int64_t, std::string>
     }
 
     // Parse ISO time format
-    std::string iso_str = trimmed;
+    std::string iso_str = time_str;
+    StringUtils::trim(iso_str);
     bool is_utc = false;
     if (iso_str.size() > 1 && iso_str.back() == 'Z') {
         iso_str.pop_back();
@@ -187,6 +188,8 @@ int64_t TimestampUtils::parse_timestamp(const std::variant<int64_t, std::string>
         time_val = timegm(&time_struct);
 #endif
     } else {
+        // Let mktime decide DST rather than defaulting to tm_isdst=0
+        time_struct.tm_isdst = -1;
         time_val = mktime(&time_struct);
     }
 

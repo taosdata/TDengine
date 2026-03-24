@@ -19,7 +19,13 @@ option(TSGEN_BUNDLE_MIMALLOC "Use mimalloc as allocator" ON)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
-set(CMAKE_FIND_LIBRARY_SUFFIXES .a .so)
+
+# Library suffixes based on platform
+if(CMAKE_SYSTEM_NAME MATCHES "Windows")
+  set(CMAKE_FIND_LIBRARY_SUFFIXES .lib .dll)
+else()
+  set(CMAKE_FIND_LIBRARY_SUFFIXES .a .so)
+endif()
 
 # System type settings
 message(STATUS "CMAKE_SYSTEM_NAME: ${CMAKE_SYSTEM_NAME}")
@@ -111,18 +117,27 @@ else()
   message(STATUS "Using system default memory allocator")
 endif()
 
-# Global compile options
-add_compile_options(
-  -Wall
-  -Wextra
-  -Werror
-)
-
-# Optimization options by build type
-if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-  add_compile_options(-O0 -g)
+# Global compile options based on compiler
+if(MSVC)
+  # MSVC compiler options
+  add_compile_options(/W3 /utf-8)
+  # Disable unsafe function warnings
+  add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
+  # Linker options to disable default libraries and incremental linking
+  add_link_options(/NODEFAULTLIB:LIBCMT /INCREMENTAL:NO)
 else()
-  add_compile_options(-O3 -g)
+  # GCC/Clang compiler options
+  add_compile_options(
+    -Wall
+    -Wextra
+    -Werror
+  )
+  # Optimization options by build type
+  if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    add_compile_options(-O0 -g)
+  else()
+    add_compile_options(-O3 -g)
+  endif()
 endif()
 
 # Add cmake modules path

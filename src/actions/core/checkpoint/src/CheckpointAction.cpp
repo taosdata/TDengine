@@ -54,7 +54,7 @@ void CheckpointAction::execute() {
 }
 
 void CheckpointAction::run_timer() {
-    const int interval_sec = config_.interval_sec;
+    const size_t interval_sec = config_.interval_sec;
     // Loop until stop_flag_ is set to true
     while (!global_stop_flag_.load()) {
         // Wait for the specified interval

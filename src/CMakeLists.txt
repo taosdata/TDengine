@@ -38,6 +38,10 @@ target_link_libraries(taosgen
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   target_link_libraries(taosgen PRIVATE -static-libstdc++ -static-libgcc ${ALLOCATOR_LIB})
+elseif(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+  target_link_libraries(taosgen PRIVATE ${ALLOCATOR_LIB})
+elseif(CMAKE_SYSTEM_NAME STREQUAL "Windows")
+  target_link_libraries(taosgen PRIVATE ${ALLOCATOR_LIB} psapi)
 endif()
 
 # Install target

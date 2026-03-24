@@ -272,7 +272,13 @@ void test_reinit_logger() {
 }
 
 void test_invalid_log_path() {
+#if defined(_WIN32)
+    // On Windows, use a path that is guaranteed to be invalid
+    // (CON, NUL, etc. are reserved device names and cannot be used as directories)
+    std::string log_file = "NUL\\invalid\\test.log";
+#else
     std::string log_file = "/proc/invalid_path/test.log";
+#endif
 
     try {
         LogUtils::init(LogUtils::Level::Info, log_file, 1024 * 1024, 1);

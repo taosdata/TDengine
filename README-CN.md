@@ -19,7 +19,15 @@
 - [2. 文档](#2-文档)
 - [3. AI Agent 集成](#3-ai-agent-集成)
 - [4. 前置条件](#4-前置条件)
+  - [平台特定要求](#平台特定要求)
+    - [Linux / macOS](#linux--macos)
+    - [Windows](#windows)
 - [5. 构建](#5-构建)
+  - [Linux / macOS](#linux--macos-1)
+  - [Windows](#windows-1)
+    - [方式一：使用 Visual Studio 开发者命令提示符](#方式一使用-visual-studio-开发者命令提示符)
+    - [方式二：使用 vcvarsall.bat](#方式二使用-vcvarsallbat)
+    - [Windows 上运行](#windows-上运行)
 - [6. 测试](#6-测试)
   - [6.1 运行测试](#61-运行测试)
   - [6.2 添加用例](#62-添加用例)
@@ -36,7 +44,7 @@
 ## 1. 简介
 `taosgen` 是时序数据领域产品的性能基准测试工具，支持数据生成、写入性能测试等功能。`taosgen` 以“作业”为基础单元，作业是由用户定义，用于完成特定任务的一组操作集合。每个作业包含一个或多个步骤，并可通过依赖关系与其他作业连接，形成有向无环图（DAG）式的执行流程，实现灵活高效的任务编排。
 
-`taosgen` 目前支持 Linux 和 macOS 系统。
+`taosgen` 目前支持 Linux、macOS 和 Windows 系统。
 
 ## 2. 文档
 - 使用 `taosgen` 工具，请查阅[参考手册](https://docs.taosdata.com/reference/tools/taosgen/)，其中包含运行、命令行参数、配置文件参数、配置文件示例等内容。
@@ -110,11 +118,21 @@ claude
 - cmake，3.19 或以上版本，请参阅 [cmake](https://cmake.org)。
 - conan，2.19 或以上版本，请参阅 [conan](https://conan.io/)。
 
+### 平台特定要求
+
+#### Linux / macOS
+- 支持 C++17 的 GCC/Clang 编译器
+
+#### Windows
+- Visual Studio 2019 或以上版本（推荐 Visual Studio 2022）
+
 ## 5. 构建
-本节提供了在 Linux 或 macOS 平台构建 `taosgen` 的详细说明。
+本节提供了在 Linux、macOS 或 Windows 平台构建 `taosgen` 的详细说明。
 在继续之前，请确保您位于该项目的根目录中。
 
 >**注意：本项目使用 C++17 标准进行开发和编译。请确保您的编译器支持 C++17。**
+
+### Linux / macOS
 
 ```shell
 mkdir build && cd build
@@ -128,10 +146,63 @@ cmake --build .
 cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_SYSROOT=$(xcrun --show-sdk-path) -DCMAKE_TOOLCHAIN_FILE=./conan/conan_toolchain.cmake
 ```
 
+### Windows
+
+#### 方式一：使用 Visual Studio 开发者命令提示符
+
+从开始菜单打开 **x64 Native Tools Command Prompt for VS 2022**（或 VS 2019），然后运行：
+
+```cmd
+mkdir build && cd build
+conan install .. --build=missing --output-folder=./conan --settings=build_type=Release --settings=compiler=msvc --settings=compiler.version=193 --settings=compiler.cppstd=17 --settings=compiler.runtime=dynamic
+cmake .. -G "Visual Studio 17 2022" -A x64 -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=./conan/conan_toolchain.cmake
+cmake --build . --config Release
+```
+
+如果使用 Visual Studio 2019，请将生成器改为 `"Visual Studio 16 2019"`。
+
+#### 方式二：使用 vcvarsall.bat
+
+如果您更喜欢使用普通命令提示符，可以使用 `vcvarsall.bat` 脚本设置环境：
+
+```cmd
+"<VS安装路径>\VC\Auxiliary\Build\vcvarsall.bat" x64
+mkdir build && cd build
+conan install .. --build=missing --output-folder=./conan --settings=build_type=Release --settings=compiler=msvc --settings=compiler.version=193 --settings=compiler.cppstd=17 --settings=compiler.runtime=dynamic
+cmake .. -G "Visual Studio 17 2022" -A x64 -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=./conan/conan_toolchain.cmake
+cmake --build . --config Release
+```
+
+请将 `<VS安装路径>` 替换为实际的 Visual Studio 安装路径，例如：
+- `"C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvarsall.bat" x64`
+- `"C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvarsall.bat" x64`
+
+如果使用 Visual Studio 2019，还需将生成器改为 `"Visual Studio 16 2019"`，`compiler.version` 改为 `192`。
+
+#### Windows 上运行
+
+在运行 `taosgen.exe` 之前，请确保：
+1. 已安装 TDengine Windows 客户端
+2. `taos.dll` 在系统 PATH 中或与 `taosgen.exe` 在同一目录
+
+构建后的可执行文件位于 `build\src\Release\taosgen.exe`。
+
 ## 6. 测试
 
 ### 6.1 运行测试
 `taosgen` 测试框架使用 ctest 来运行测试用例，在构建目录中运行 `ctest` 命令将运行所有测试用例。
+
+Linux / macOS：
+```shell
+cd build
+ctest --output-on-failure
+```
+
+Windows（MSVC 多配置生成器需指定 `--build-config`）：
+```cmd
+cd build
+ctest --build-config Release --output-on-failure
+```
 
 ### 6.2 添加用例
 测试用例位于各子模块的 test 目录中。

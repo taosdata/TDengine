@@ -45,6 +45,12 @@ public:
 };
 
 void init_console(Level level) {
+    if (logger) {
+        logger->flush();
+        spdlog::drop("taosgen_logger");
+        logger.reset();
+    }
+
     spdlog::init_thread_pool(8192, 1);
 
     auto console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
@@ -114,13 +120,16 @@ void init(Level level, const std::string& log_file, size_t max_file_size, size_t
     logger->set_formatter(std::move(formatter));
     logger->set_level(to_spdlog_level(level));
     logger->flush_on(spdlog::level::info);
-    spdlog::flush_every(std::chrono::seconds(1));
     spdlog::register_logger(logger);
     spdlog::set_default_logger(logger);
 }
 
 void shutdown() {
-    if (logger) logger->flush();
+    if (logger) {
+        logger->flush();
+        spdlog::drop("taosgen_logger");
+        logger.reset();
+    }
     spdlog::shutdown();
 }
 
