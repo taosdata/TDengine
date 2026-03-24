@@ -294,22 +294,27 @@ pip install momentfm
 nohup python moment-server.py > service_output.out 2>&1 &
 ```
 
-## 时序模型服务启动和停止脚本
+## 时序模型服务管理
 
-为了方便用户启动和停止时序基础模型服务，TDgpt 在 3.4.0.0 及之后的版本提供了统一的启动脚本 `start-model.sh` 和停止脚本 `stop-model.sh`，用于一键启动或停止指定或全部时序基础模型服务。
+为了方便用户管理时序基础模型服务，TDgpt 在 3.4.0.0 及之后的版本提供了统一的服务管理工具 `taosanode_service.py`，用于启动、停止和查看指定或全部时序基础模型服务的状态。
 
-### 启动脚本
+### 服务管理工具
 
-`start-model.sh` 脚本用于启动指定或全部的时序基础模型服务。该脚本会根据用户指定的模型名称，加载对应的`Python`虚拟环境，并启动相应的模型服务脚本。
+`taosanode_service.py` 是一个跨平台的 Python 服务管理脚本，支持 Linux 和 Windows 系统。该脚本会根据用户指定的模型名称，加载对应的 Python 虚拟环境，并启动相应的模型服务。
 
-使用`root` 安装完成后，您可以在 `<tdgpt根目录>/bin/` 目录下找到该脚本，我们会同步创建软链接为 `/usr/bin/start-model`，方便全局使用。
+使用 `root` 安装完成后，您可以在 `<tdgpt根目录>/bin/` 目录下找到该脚本，我们会同步创建软链接为 `/usr/bin/taosanode-service`，方便全局使用。
 
-默认日志输出到 `/var/log/taos/taosanode/` 目录下的 `taosanode_service_<model_name>.log` 文件中。
+默认日志输出到 `/var/log/taos/taosanode/` 目录下的 `taosanode-service.log` 文件中。
 
 **用法说明**：
 
 ```bash
-用法：/usr/bin/start-model [-c 配置文件] [模型名|all] [其他参数...]
+用法：taosanode-service [命令] [目标] [选项]
+
+命令：
+  model-start [模型名|all]   启动模型服务
+  model-stop [模型名|all]    停止模型服务
+  model-status               查看模型服务状态
 
 支持的模型名：tdtsfm, timesfm, timemoe, moirai, chronos, moment
 ```
@@ -317,24 +322,18 @@ nohup python moment-server.py > service_output.out 2>&1 &
 **选项说明**：
 
 ```bash
-  -c 配置文件    指定配置文件（默认：/etc/taos/taosanode.ini）
-  -h, --help     显示本帮助信息
+  -c, --config   指定配置文件（默认：/usr/local/taos/taosanode/cfg/taosanode.config.py）
+  -h, --help     显示帮助信息
 ```
 
-**使用示例说明**：
+**使用示例**：
 
-1. 在后台启动全部的模型服务：`/usr/bin/start-model all`
-2. 单独启动某个模型服务，例如：`/usr/bin/start-model timesfm`
-3. 支持通过 `-c` 参数指定自定义配置文件，未指定时默认使用`/etc/taos/taosanode.ini` 作为配置文件，例如：`/usr/bin/start-model -c /path/to/custom_taosanode.ini`
-
-### 停止脚本
-
-`stop-model.sh`用于一键停止指定或全部时序基础模型服务。脚本会自动查找并终止对应模型的`Python`进程，使用方式与启动脚本一致，便于批量运维。
-
-**使用示例说明**：
-
-1. 停止 timesfm 服务，`/usr/bin/stop-model timesfm`
-2. 一键停止全部模型服务`/usr/bin/stop-model all`
+1. 启动全部模型服务：`taosanode-service model-start all`
+2. 启动单个模型服务：`taosanode-service model-start timesfm`
+3. 停止全部模型服务：`taosanode-service model-stop all`
+4. 停止单个模型服务：`taosanode-service model-stop timesfm`
+5. 查看模型服务状态：`taosanode-service model-status`
+6. 使用自定义配置文件：`taosanode-service -c /path/to/custom.config.py model-start all`
 
 ## 动态下载时序模型
 

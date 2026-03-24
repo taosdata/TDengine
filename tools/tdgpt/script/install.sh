@@ -246,8 +246,7 @@ function install_bin_and_lib() {
     ["stop-tdtsfm"]="${install_main_dir}/bin/stop-tdtsfm.sh"
     ["start-time-moe"]="${install_main_dir}/bin/start-time-moe.sh"
     ["stop-time-moe"]="${install_main_dir}/bin/stop-time-moe.sh"
-    ["start-model"]="${install_main_dir}/bin/start-model.sh"
-    ["stop-model"]="${install_main_dir}/bin/stop-model.sh"
+    ["taosanode-service"]="${install_main_dir}/bin/taosanode_service.py"
     ["start-model-from-remote"]="${install_main_dir}/bin/start_model_from_remote.sh"
   )
 

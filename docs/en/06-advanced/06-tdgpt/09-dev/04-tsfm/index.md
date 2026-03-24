@@ -291,46 +291,44 @@ nohup python moment-server.py > service_output.out 2>&1 &
 
 ---
 
-## Service Management Scripts (Start and Stop)
+## Service Management Tool
 
-To simplify management, TDgpt (v3.4.0.0+) provides unified scripts: `start-model.sh` and `stop-model.sh`. These allow you to start or stop specific or all foundation model services with a single command.
+To simplify management, TDgpt (v3.4.0.0+) provides a unified service management tool: `taosanode_service.py`. This cross-platform Python script allows you to start, stop, and check the status of specific or all foundation model services.
 
-### Start Script
+### Service Management Script
 
-The `start-model.sh` script loads the corresponding Python virtual environment and initiates the model service script based on the specified model name.
+`taosanode_service.py` is a cross-platform service management script that supports both Linux and Windows. The script loads the corresponding Python virtual environment and manages model services based on the specified model name.
 
-After a `root` installation, the script is located in `<tdgpt_root>/bin/`. A symbolic link is automatically created at `/usr/bin/start-model` for global access.
+After a `root` installation, the script is located in `<tdgpt_root>/bin/`. A symbolic link is automatically created at `/usr/bin/taosanode-service` for global access.
 
-Logs are output to `/var/log/taos/taosanode/taosanode_service_<model_name>.log` by default.
+Logs are output to `/var/log/taos/taosanode/taosanode-service.log` by default.
 
 **Usage**:
 
 ```bash
-Usage: /usr/bin/start-model [-c config_file] [model_name|all] [other_params...]
+Usage: taosanode-service [command] [target] [options]
+
+Commands:
+  model-start [model_name|all]   Start model service(s)
+  model-stop [model_name|all]    Stop model service(s)
+  model-status                   Show model service status
 
 Supported models: tdtsfm, timesfm, timemoe, moirai, chronos, moment
-
 ```
 
 **Options**:
 
-* `-c config_file`: Specifies the configuration file (Default: `/etc/taos/taosanode.ini`).
-* `-h, --help`: Displays help information.
+* `-c, --config`: Specifies the configuration file (Default: `/usr/local/taos/taosanode/cfg/taosanode.config.py`)
+* `-h, --help`: Displays help information
 
 **Examples**:
 
-1. Start all services in the background: `/usr/bin/start-model all`
-2. Start a specific service (e.g., TimesFM): `/usr/bin/start-model timesfm`
-3. Specify a custom config file: `/usr/bin/start-model -c /path/to/custom_taosanode.ini`
-
-### Stop Script
-
-`stop-model.sh` is used to terminate specified or all model services. It automatically identifies and kills the relevant Python processes.
-
-**Examples**:
-
-1. Stop the TimesFM service: `/usr/bin/stop-model timesfm`
-2. Stop all model services: `/usr/bin/stop-model all`
+1. Start all model services: `taosanode-service model-start all`
+2. Start a specific service (e.g., TimesFM): `taosanode-service model-start timesfm`
+3. Stop all model services: `taosanode-service model-stop all`
+4. Stop a specific service: `taosanode-service model-stop timesfm`
+5. Check model service status: `taosanode-service model-status`
+6. Use custom config file: `taosanode-service -c /path/to/custom.config.py model-start all`
 
 ---
 
