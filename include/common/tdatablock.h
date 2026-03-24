@@ -277,7 +277,6 @@ int32_t createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData, SSDataB
 int32_t createOneDataBlockWithColArray(const SSDataBlock* pDataBlock, SArray* pColArray, SSDataBlock** pResBlock);
 int32_t createOneDataBlockWithTwoBlock(const SSDataBlock* pSrcBlock, const SSDataBlock* pTemplateBlock, SArray* pColMap,
                                        SSDataBlock** pResBlock);
-int32_t createSpecialDataBlock(EStreamType type, SSDataBlock** pBlock);
 
 int32_t blockCopyOneRow(const SSDataBlock* pDataBlock, int32_t rowIdx, SSDataBlock** pResBlock);
 int32_t blockDataAppendColInfo(SSDataBlock* pBlock, SColumnInfoData* pColInfoData);

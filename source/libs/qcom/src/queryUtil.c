@@ -392,36 +392,36 @@ int32_t dataConverToStr(char* str, int64_t capacity, int type, void* buf, int32_
 
   switch (type) {
     case TSDB_DATA_TYPE_NULL:
-      n = tsnprintf(str, capacity, "null");
+      n = snprintf(str, capacity, "null");
       break;
 
     case TSDB_DATA_TYPE_BOOL:
-      n = tsnprintf(str, capacity, (*(int8_t*)buf) ? "true" : "false");
+      n = snprintf(str, capacity, (*(int8_t*)buf) ? "true" : "false");
       break;
 
     case TSDB_DATA_TYPE_TINYINT:
-      n = tsnprintf(str, capacity, "%d", *(int8_t*)buf);
+      n = snprintf(str, capacity, "%d", *(int8_t*)buf);
       break;
 
     case TSDB_DATA_TYPE_SMALLINT:
-      n = tsnprintf(str, capacity, "%d", *(int16_t*)buf);
+      n = snprintf(str, capacity, "%d", *(int16_t*)buf);
       break;
 
     case TSDB_DATA_TYPE_INT:
-      n = tsnprintf(str, capacity, "%d", *(int32_t*)buf);
+      n = snprintf(str, capacity, "%d", *(int32_t*)buf);
       break;
 
     case TSDB_DATA_TYPE_BIGINT:
     case TSDB_DATA_TYPE_TIMESTAMP:
-      n = tsnprintf(str, capacity, "%" PRId64, *(int64_t*)buf);
+      n = snprintf(str, capacity, "%" PRId64, *(int64_t*)buf);
       break;
 
     case TSDB_DATA_TYPE_FLOAT:
-      n = tsnprintf(str, capacity, "%e", GET_FLOAT_VAL(buf));
+      n = snprintf(str, capacity, "%e", GET_FLOAT_VAL(buf));
       break;
 
     case TSDB_DATA_TYPE_DOUBLE:
-      n = tsnprintf(str, capacity, "%e", GET_DOUBLE_VAL(buf));
+      n = snprintf(str, capacity, "%e", GET_DOUBLE_VAL(buf));
       break;
 
     case TSDB_DATA_TYPE_VARBINARY: {
@@ -468,19 +468,19 @@ int32_t dataConverToStr(char* str, int64_t capacity, int type, void* buf, int32_
       n = length + 2;
       break;
     case TSDB_DATA_TYPE_UTINYINT:
-      n = tsnprintf(str, capacity, "%d", *(uint8_t*)buf);
+      n = snprintf(str, capacity, "%d", *(uint8_t*)buf);
       break;
 
     case TSDB_DATA_TYPE_USMALLINT:
-      n = tsnprintf(str, capacity, "%d", *(uint16_t*)buf);
+      n = snprintf(str, capacity, "%d", *(uint16_t*)buf);
       break;
 
     case TSDB_DATA_TYPE_UINT:
-      n = tsnprintf(str, capacity, "%u", *(uint32_t*)buf);
+      n = snprintf(str, capacity, "%u", *(uint32_t*)buf);
       break;
 
     case TSDB_DATA_TYPE_UBIGINT:
-      n = tsnprintf(str, capacity, "%" PRIu64, *(uint64_t*)buf);
+      n = snprintf(str, capacity, "%" PRIu64, *(uint64_t*)buf);
       break;
 
     default:
@@ -628,13 +628,17 @@ int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst) {
   int32_t metaSize = sizeof(STableMeta) + numOfField * sizeof(SSchema);
   int32_t schemaExtSize = 0;
   int32_t colRefSize = 0;
+  int32_t tagRefSize = 0;
   if (withExtSchema(pSrc->tableType) && pSrc->schemaExt) {
     schemaExtSize = pSrc->tableInfo.numOfColumns * sizeof(SSchemaExt);
   }
   if (hasRefCol(pSrc->tableType) && pSrc->colRef) {
     colRefSize = pSrc->numOfColRefs * sizeof(SColRef);
   }
-  *pDst = taosMemoryMalloc(metaSize + schemaExtSize + colRefSize);
+  if (hasRefCol(pSrc->tableType) && pSrc->tagRef) {
+    tagRefSize = pSrc->numOfTagRefs * sizeof(SColRef);
+  }
+  *pDst = taosMemoryMalloc(metaSize + schemaExtSize + colRefSize + tagRefSize);
   if (NULL == *pDst) {
     return terrno;
   }
@@ -650,6 +654,14 @@ int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst) {
     memcpy((*pDst)->colRef, pSrc->colRef, colRefSize);
   } else {
     (*pDst)->colRef = NULL;
+  }
+  if (hasRefCol(pSrc->tableType) && pSrc->tagRef) {
+    (*pDst)->tagRef = (SColRef*)((char*)*pDst + metaSize + schemaExtSize + colRefSize);
+    memcpy((*pDst)->tagRef, pSrc->tagRef, tagRefSize);
+    (*pDst)->numOfTagRefs = pSrc->numOfTagRefs;
+  } else {
+    (*pDst)->tagRef = NULL;
+    (*pDst)->numOfTagRefs = 0;
   }
 
   return TSDB_CODE_SUCCESS;

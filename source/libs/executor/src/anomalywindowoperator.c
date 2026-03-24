@@ -116,7 +116,7 @@ static int32_t resetAnomalyWindowOperState(SOperatorInfo* pOper) {
 
   initResultSizeInfo(&pOper->resultInfo, 4096);
 
-  TAOS_CHECK_EXIT(initAggSup(&pOper->exprSupp, &pInfo->aggSup, pExprInfo, num, keyBufSize, id, pTaskInfo->streamInfo.pState,
+  TAOS_CHECK_EXIT(initAggSup(&pOper->exprSupp, &pInfo->aggSup, pExprInfo, num, keyBufSize, id, NULL,
                     &pTaskInfo->storageAPI.functionStore));
 
   pInfo->anomalySup.pResultRow = taosMemoryCalloc(1, pInfo->bufSize);
@@ -155,6 +155,7 @@ int32_t createAnomalywindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* p
     code = terrno;
     goto _error;
   }
+  initOperatorCostInfo(pOperator);
 
   pOperator->pPhyNode = physiNode;
   pOperator->exprSupp.hasWindowOrGroup = true;
@@ -178,7 +179,7 @@ int32_t createAnomalywindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* p
 
   initResultSizeInfo(&pOperator->resultInfo, 4096);
 
-  code = initAggSup(&pOperator->exprSupp, &pInfo->aggSup, pExprInfo, num, keyBufSize, id, pTaskInfo->streamInfo.pState,
+  code = initAggSup(&pOperator->exprSupp, &pInfo->aggSup, pExprInfo, num, keyBufSize, id, NULL,
                     &pTaskInfo->storageAPI.functionStore);
   QUERY_CHECK_CODE(code, lino, _error);
 

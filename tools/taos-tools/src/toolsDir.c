@@ -168,12 +168,12 @@ int32_t toolsCloseDir(TdDirPtr *ppDir) {
     *ppDir = NULL;
     return 0;
 #elif defined(DARWIN)
-    closedir((*ppDir)->pDir);
+    (void)closedir((*ppDir)->pDir);
     toolsMemoryFree(*ppDir);
     *ppDir = NULL;
     return 0;
 #else
-    closedir((DIR *)*ppDir);
+    (void)closedir((DIR *)*ppDir);
     *ppDir = NULL;
     return 0;
 #endif

@@ -122,6 +122,7 @@ int32_t createGenericAnalysisOperatorInfo(SOperatorInfo* downstream, SPhysiNode*
     code = terrno;
     goto _error;
   }
+  initOperatorCostInfo(pOperator);
 
   pAnalysisNode = (SGenericAnalysisPhysiNode*)physiNode;
   pExprSup = &pOperator->exprSupp;
@@ -352,8 +353,8 @@ static int32_t doCacheBlockForImputation(SImputationSupp* pSupp, const char* id,
     char*   val = colDataGetData(pValCol, j);
     int16_t valType = pValCol->info.type;
 
-    pSupp->base.win.skey = MIN(pSupp->base.win.skey, ts);
-    pSupp->base.win.ekey = MAX(pSupp->base.win.ekey, ts);
+    pSupp->base.win.skey = TMIN(pSupp->base.win.skey, ts);
+    pSupp->base.win.ekey = TMAX(pSupp->base.win.ekey, ts);
 
     pSupp->base.numOfRows++;
 

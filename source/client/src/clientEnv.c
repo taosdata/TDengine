@@ -116,7 +116,7 @@ static void concatStrings(SArray *list, char *buf, int size) {
       (void)strncat(buf, ",", size - 1 - len);
       len += 1;
     }
-    int ret = tsnprintf(buf + len, size - len, "%s", db);
+    int ret = snprintf(buf + len, size - len, "%s", db);
     if (ret < 0) {
       tscError("snprintf failed, buf:%s, ret:%d", buf, ret);
       break;
@@ -584,6 +584,8 @@ int32_t createRequest(uint64_t connId, int32_t type, int64_t reqid, SRequestObj 
   (*pRequest)->resType = RES_TYPE__QUERY;
   (*pRequest)->requestId = reqid == 0 ? generateRequestId() : reqid;
   (*pRequest)->metric.start = taosGetTimestampUs();
+  (*pRequest)->execPhase = QUERY_PHASE_NONE;
+  (*pRequest)->phaseStartTime = 0;
 
   (*pRequest)->body.resInfo.convertUcs4 = true;  // convert ucs4 by default
   (*pRequest)->body.resInfo.charsetCxt = pTscObj->optionInfo.charsetCxt;
@@ -1122,7 +1124,7 @@ void taos_init_imp(void) {
     return;
   }
 #endif
-#if !defined(WINDOWS) && !defined(TD_ASTRA)
+#if !defined(TD_ASTRA)
   ENV_ERR_RET(tzInit(), "failed to init timezone");
 #endif
   ENV_ERR_RET(monitorInit(), "failed to init monitor");

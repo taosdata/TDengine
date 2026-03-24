@@ -152,7 +152,7 @@ jobs:
               *docs/en/*)
                 en_doc_changed=true
                 ;;
-              *docs/assets/* | *docs/doxgen/* | *docs/examples/*)
+              *docs/examples/*)
                 zh_doc_changed=true
                 en_doc_changed=true
                 ;;

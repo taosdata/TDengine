@@ -559,6 +559,8 @@ Below are the business error codes for each module.
 | 0x8000268E | Invalid table type                                                                                     | Incorrect Table type                                                       | Check and correct the SQL statement                          |
 | 0x8000268F | Invalid ref column type                                                                                | Virtual table's column type and data source column's type are different    | Check and correct the SQL statement                          |
 | 0x80002690 | Create child table using virtual super table                                                           | Create non-virtual child table using virtual super table                   | Check and correct the SQL statement                          |
+| 0x800026AF | Invalid offset unit                                                                                    | Invalid time unit used in offset clause                                    | Check and correct the SQL statement                          |
+| 0x800026B0 | Invalid offset value                                                                                   | Invalid offset value in time window                                        | Check and correct the SQL statement                          |
 | 0x80002696 | Invalid sliding offset                                                                                 | Invalid sliding offset                                                     | Check and correct the SQL statement                          |
 | 0x80002697 | Invalid interval offset                                                                                | Invalid interval offset                                                    | Check and correct the SQL statement                          |
 | 0x80002698 | Invalid extend value                                                                                   | Invalid extend value                                                       | Check and correct the SQL statement                          |
@@ -683,11 +685,12 @@ Below are the business error codes for each module.
 
 | Error Code | Description                                             | Possible Error Scenarios or Reasons                                                                                                                                  | Recommended Actions for Users                                                 |
 |------------|---------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------|
-| 0x80006103 | Audit database must be encrypted                       | Invalid param,eter                                                                                                 | Check and correct the SQL statement                           |
-| 0x80006104 | Audit database wal_level must be 2                       | Invalid param,eter                                                                                                 | Check and correct the SQL statement                           |
-| 0x80006105 | Audit database keep2 must be greater than 1825d                       | Invalid param,eter                                                                                                 | Check and correct the SQL statement                           |
-| 0x80006106 | Audit database already exist                       | Invalid param,eter                                                                                                 | Check and correct the SQL statement                           |
-| 0x80006107 | Audit database is not allowed to change                       | Invalid param,eter                                                                                                 | Check and correct the SQL statement                           |
+| 0x80006103 | Audit database must be encrypted                       | Invalid parameter                                                                                                 | Check and correct the SQL statement                           |
+| 0x80006104 | Audit database wal_level must be 2                       | Invalid parameter                                                                                                 | Check and correct the SQL statement                           |
+| 0x80006105 | Audit database keep2 must be greater than 1825d                       | Invalid parameter                                                                                                 | Check and correct the SQL statement                           |
+| 0x80006106 | Audit database already exist                       | Invalid parameter                                                                                                 | Check and correct the SQL statement                           |
+| 0x80006107 | Audit database is not allowed to change                       | Invalid parameter                                                                                                 | Check and correct the SQL statement                           |
+| 0x80006108 | Audit database is not allowed to keep multiple vgroups        | Invalid parameter                                                                                                 | Check and correct the SQL statement                           |
 
 #### virtual table
 
@@ -703,6 +706,8 @@ Below are the business error codes for each module.
 | 0x80006207 | Virtual super table query not support origin table from different databases | Virtual super table's child table's origin table from different databases                                                                        | make sure virtual super table's child table's origin table from same database |
 | 0x80006208 | Virtual super table query find column type mismatch                         | Virtual super table's child table's column type and origin table's column type mismatch  | make sure virtual child table's column type same with origin table's column type                                                      |
 | 0x80006209 | Virtual table has too many reference tables                                 | Virtual table's origin table num is too many.                                                                                                    | make sure virtual table's origin table num do not exceed 1000.                |
+| 0x8000620A | Virtual table query find invalid origin scan                               | The optimizer generated an invalid origin scan node for a virtual table query during primary-key condition pushdown.                             | Keep the SQL and explain plan, then contact development for handling.         |
+| 0x8000620B | Virtual table query cannot find origin timestamp column                    | The origin scan schema of a virtual table query cannot provide the timestamp primary key column needed for ts-condition pushdown.                | Keep the SQL and explain plan, then contact development for handling.         |
 
 #### stream
 
@@ -748,6 +753,8 @@ Below are the business error codes for each module.
 | 0x80008021 | Xnode agent already exist                             | The queried Xnode agent already exist                       | Check queried agent ID or name               |
 | 0x80008022 | Xnode name duplicate                                  | The updated name is duplicate                               | Check whether the name to be updated is a duplicate of the existing data |
 | 0x80008023 | Xnode task parser too long                            | The task parser column is too long                          | Check whether the parser column is too long  |
+| 0x80008024 | No privilege to access xnode                          | No privilege to create/alter/drop/show xnode                | Check whether the current user has permission to operate xnode |
+| 0x80008025 | No privilege to access xnode task                     | No privilege to create/alter/drop/show xnode task           | Check whether the current user has permission to operate xnode tasks |
 
 ## Connectors
 

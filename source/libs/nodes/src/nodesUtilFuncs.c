@@ -537,6 +537,12 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_REMOTE_ZERO_ROWS:
       code = makeNode(type, sizeof(SRemoteZeroRowsNode), &pNode);
       break;
+    case QUERY_NODE_UPDATE_TAG_VALUE:
+      code = makeNode(type, sizeof(SUpdateTagValueNode), &pNode);
+      break;
+    case QUERY_NODE_ALTER_TABLE_UPDATE_TAG_VAL_CLAUSE:
+      code = makeNode(type, sizeof(SAlterTableUpdateTagValClause), &pNode);
+      break;
     case QUERY_NODE_TRUE_FOR:
       code = makeNode(type, sizeof(STrueForNode), &pNode);
       break;
@@ -1220,7 +1226,11 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_ALTER_KEY_EXPIRATION_STMT:
       code = makeNode(type, sizeof(SAlterKeyExpirationStmt), &pNode);
       break;
+    case QUERY_NODE_SHOW_VALIDATE_VTABLE_STMT:
+      code = makeNode(type, sizeof(SShowValidateVirtualTable), &pNode);
+      break;
     default:
+
       code = TSDB_CODE_OPS_NOT_SUPPORT;
       break;
   }
@@ -1293,6 +1303,7 @@ static void destroyTableCfg(STableCfg* pCfg) {
   taosMemoryFree(pCfg->pSchemas);
   taosMemoryFree(pCfg->pSchemaExt);
   taosMemoryFree(pCfg->pColRefs);
+  taosMemoryFree(pCfg->pTagRefs);
   taosMemoryFree(pCfg->pTags);
   taosMemoryFree(pCfg);
 }
@@ -1338,6 +1349,18 @@ void nodesDestroyNode(SNode* pNode) {
         taosHashCleanup(pRemote->pHashFilter);
         taosHashCleanup(pRemote->pHashFilterOthers);
       }
+      break;
+    }
+    case QUERY_NODE_UPDATE_TAG_VALUE: {
+      SUpdateTagValueNode* pTagVal = (SUpdateTagValueNode*)pNode;
+      nodesDestroyNode((SNode*)pTagVal->pVal);
+      taosMemoryFree(pTagVal->regexp);
+      taosMemoryFree(pTagVal->replacement);
+      break;
+    }
+    case QUERY_NODE_ALTER_TABLE_UPDATE_TAG_VAL_CLAUSE: {
+      SAlterTableUpdateTagValClause* pClause = (SAlterTableUpdateTagValClause*)pNode;
+      nodesDestroyList(pClause->pTagList);
       break;
     }
     case QUERY_NODE_OPERATOR: {
@@ -1760,6 +1783,8 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(pStmt->pColRefs);
       nodesDestroyList(pStmt->pSpecificTags);
       nodesDestroyList(pStmt->pValsOfTags);
+      nodesDestroyList(pStmt->pSpecificTagRefs);
+      nodesDestroyList(pStmt->pTagRefs);
       break;
     }
     case QUERY_NODE_CREATE_SUBTABLE_FROM_FILE_CLAUSE: {
@@ -1784,15 +1809,8 @@ void nodesDestroyNode(SNode* pNode) {
       SAlterTableStmt* pStmt = (SAlterTableStmt*)pNode;
       nodesDestroyNode((SNode*)pStmt->pOptions);
       nodesDestroyNode((SNode*)pStmt->pVal);
-      if (pStmt->pNodeListTagValue != NULL) {
-        SNodeList* pNodeList = pStmt->pNodeListTagValue;
-        SNode*     pSubNode = NULL;
-        FOREACH(pSubNode, pNodeList) {
-          SAlterTableStmt* pSubAlterTable = (SAlterTableStmt*)pSubNode;
-          nodesDestroyNode((SNode*)pSubAlterTable->pOptions);
-          nodesDestroyNode((SNode*)pSubAlterTable->pVal);
-        }
-      }
+      nodesDestroyNode(pStmt->pWhere);
+      nodesDestroyList(pStmt->pList);
       break;
     }
     case QUERY_NODE_CREATE_MOUNT_STMT:  // no pointer field
@@ -2096,6 +2114,10 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_KILL_RETENTION_STMT:          // no pointer field
     case QUERY_NODE_KILL_SCAN_STMT:
     case QUERY_NODE_KILL_SSMIGRATE_STMT:          // no pointer field
+      break;
+    case QUERY_NODE_SHOW_VALIDATE_VTABLE_STMT:
+      taosMemoryFreeClear(((SShowValidateVirtualTable*)pNode)->pDbCfg);
+      destroyTableCfg((STableCfg*)(((SShowValidateVirtualTable*)pNode)->pTableCfg));
       break;
     case QUERY_NODE_SHOW_CREATE_RSMA_STMT: {
       SRsmaInfoRsp* pMeta = ((SShowCreateRsmaStmt*)pNode)->pRsmaMeta;
@@ -2444,6 +2466,7 @@ void nodesDestroyNode(SNode* pNode) {
       SExchangePhysiNode* pPhyNode = (SExchangePhysiNode*)pNode;
       destroyPhysiNode((SPhysiNode*)pPhyNode);
       nodesDestroyList(pPhyNode->pSrcEndPoints);
+      taosArrayDestroy(pPhyNode->childrenVgIds);
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_MERGE: {
@@ -2591,6 +2614,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesClearList(pSubplan->pChildren);
       nodesDestroyNode((SNode*)pSubplan->pNode);
       nodesDestroyNode((SNode*)pSubplan->pDataSink);
+      nodesDestroyList(pSubplan->pSubQ);
       nodesDestroyNode((SNode*)pSubplan->pTagCond);
       nodesDestroyNode((SNode*)pSubplan->pTagIndexCond);
       tSimpleHashCleanup(pSubplan->pVTables);
@@ -2961,6 +2985,8 @@ void* nodesGetValueFromNode(SValueNode* pNode) {
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_VARCHAR:
     case TSDB_DATA_TYPE_VARBINARY:
+    case TSDB_DATA_TYPE_BLOB:
+    case TSDB_DATA_TYPE_MEDIUMBLOB:
     case TSDB_DATA_TYPE_JSON:
     case TSDB_DATA_TYPE_GEOMETRY:
     case TSDB_DATA_TYPE_DECIMAL:
@@ -3351,13 +3377,13 @@ static EDealRes doCollect(SCollectColumnsCxt* pCxt, SColumnNode* pCol, SNode* pN
   char    name[TSDB_TABLE_NAME_LEN + TSDB_COL_NAME_LEN];
   int32_t len = 0;
   if ('\0' == pCol->tableAlias[0]) {
-    len = tsnprintf(name, sizeof(name), "%s", pCol->colName);
+    len = snprintf(name, sizeof(name), "%s", pCol->colName);
   } else {
-    len = tsnprintf(name, sizeof(name), "%s.%s", pCol->tableAlias, pCol->colName);
+    len = snprintf(name, sizeof(name), "%s.%s", pCol->tableAlias, pCol->colName);
   }
   if (pCol->projRefIdx > 0) {
-    len = taosHashBinary(name, strlen(name));
-    len += tsnprintf(name + len, TSDB_TABLE_NAME_LEN + TSDB_COL_NAME_LEN - len, "_%d", pCol->projRefIdx);
+    len = taosHashBinary(name, strlen(name), sizeof(name));
+    len += snprintf(name + len, TSDB_TABLE_NAME_LEN + TSDB_COL_NAME_LEN - len, "_%d", pCol->projRefIdx);
   }
   SNode** pNodeFound = taosHashGet(pCxt->pColHash, name, len);
   if (pNodeFound == NULL) {

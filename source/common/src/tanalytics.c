@@ -20,7 +20,12 @@
 #include "osTime.h"
 
 #ifdef USE_ANALYTICS
-#include <curl/curl.h>
+
+#if defined(WINDOWS)
+#define CURL_STATICLIB
+#endif
+
+#include "curl/curl.h"
 
 #define ANALYTICS_ALOG_SPLIT_CHAR ","
 
@@ -221,7 +226,7 @@ bool taosAnalyGetOptStr(const char *option, const char *optName, char *optValue,
   int32_t valLen = taosHashGetValueSize(pVal);
 
   if (optValue != NULL && optMaxLen >= 1) {
-    int32_t len = MIN(valLen + 1, optMaxLen);
+    int32_t len = TMIN(valLen + 1, optMaxLen);
     tstrncpy(optValue, (char *)pVal, len);
   }
 
@@ -314,7 +319,7 @@ static int32_t taosCurlGetRequest(const char *url, SCurlResp *pRsp) {
   if (curl_easy_setopt(curl, CURLOPT_URL, url) != 0) goto _OVER;
   if (curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, taosCurlWriteData) != 0) goto _OVER;
   if (curl_easy_setopt(curl, CURLOPT_WRITEDATA, pRsp) != 0) goto _OVER;
-  if (curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, 1000) != 0) goto _OVER;
+  if (curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, 20000) != 0) goto _OVER;
 
   uDebug("curl get request will sent, url:%s", url);
   code = curl_easy_perform(curl);
@@ -451,7 +456,7 @@ _OVER:
 
 static int32_t taosAnalyJsonBufWriteOptInt(SAnalyticBuf *pBuf, const char *optName, int64_t optVal) {
   char    buf[64] = {0};
-  int32_t bufLen = tsnprintf(buf, sizeof(buf), "\"%s\": %" PRId64 ",\n", optName, optVal);
+  int32_t bufLen = snprintf(buf, sizeof(buf), "\"%s\": %" PRId64 ",\n", optName, optVal);
   if (taosWriteFile(pBuf->filePtr, buf, bufLen) != bufLen) {
     return terrno;
   }
@@ -471,7 +476,7 @@ static int32_t taosAnalyJsonBufWriteOptStr(SAnalyticBuf *pBuf, const char *optNa
     return terrno;
   }
 
-  int32_t bufLen = tsnprintf(buf, totalLen, "\"%s\": \"%s\",\n", optName, optVal);
+  int32_t bufLen = snprintf(buf, totalLen, "\"%s\": \"%s\",\n", optName, optVal);
   if (taosWriteFile(pBuf->filePtr, buf, bufLen) != bufLen) {
     code = terrno;
   }
@@ -482,7 +487,7 @@ static int32_t taosAnalyJsonBufWriteOptStr(SAnalyticBuf *pBuf, const char *optNa
 
 static int32_t taosAnalyJsonBufWriteOptFloat(SAnalyticBuf *pBuf, const char *optName, float optVal) {
   char    buf[128] = {0};
-  int32_t bufLen = tsnprintf(buf, sizeof(buf), "\"%s\": %f,\n", optName, optVal);
+  int32_t bufLen = snprintf(buf, sizeof(buf), "\"%s\": %f,\n", optName, optVal);
   if (taosWriteFile(pBuf->filePtr, buf, bufLen) != bufLen) {
     return terrno;
   }
@@ -542,8 +547,8 @@ static int32_t taosAnalyJsonBufWriteColMeta(SAnalyticBuf *pBuf, int32_t colIndex
     }
   }
 
-  int32_t bufLen = tsnprintf(buf, sizeof(buf), "  [\"%s\", \"%s\", %d]%s\n", colName, tDataTypes[colType].name,
-                             tDataTypes[colType].bytes, last ? "" : ",");
+  int32_t bufLen = snprintf(buf, sizeof(buf), "  [\"%s\", \"%s\", %d]%s\n", colName, tDataTypes[colType].name,
+                            tDataTypes[colType].bytes, last ? "" : ",");
   if (taosWriteFile(pBuf->filePtr, buf, bufLen) != bufLen) {
     return terrno;
   }
@@ -606,38 +611,38 @@ static int32_t taosAnalyJsonBufWriteColData(SAnalyticBuf *pBuf, int32_t colIndex
 
   switch (colType) {
     case TSDB_DATA_TYPE_BOOL:
-      bufLen += tsnprintf(buf + bufLen, sizeof(buf) - bufLen, "%d", (*((int8_t *)colValue) == 1) ? 1 : 0);
+      bufLen += snprintf(buf + bufLen, sizeof(buf) - bufLen, "%d", (*((int8_t *)colValue) == 1) ? 1 : 0);
       break;
     case TSDB_DATA_TYPE_TINYINT:
-      bufLen += tsnprintf(buf + bufLen, sizeof(buf) - bufLen, "%d", *(int8_t *)colValue);
+      bufLen += snprintf(buf + bufLen, sizeof(buf) - bufLen, "%d", *(int8_t *)colValue);
       break;
     case TSDB_DATA_TYPE_UTINYINT:
-      bufLen += tsnprintf(buf + bufLen, sizeof(buf) - bufLen, "%u", *(uint8_t *)colValue);
+      bufLen += snprintf(buf + bufLen, sizeof(buf) - bufLen, "%u", *(uint8_t *)colValue);
       break;
     case TSDB_DATA_TYPE_SMALLINT:
-      bufLen += tsnprintf(buf + bufLen, sizeof(buf) - bufLen, "%d", *(int16_t *)colValue);
+      bufLen += snprintf(buf + bufLen, sizeof(buf) - bufLen, "%d", *(int16_t *)colValue);
       break;
     case TSDB_DATA_TYPE_USMALLINT:
-      bufLen += tsnprintf(buf + bufLen, sizeof(buf) - bufLen, "%u", *(uint16_t *)colValue);
+      bufLen += snprintf(buf + bufLen, sizeof(buf) - bufLen, "%u", *(uint16_t *)colValue);
       break;
     case TSDB_DATA_TYPE_INT:
-      bufLen += tsnprintf(buf + bufLen, sizeof(buf) - bufLen, "%d", *(int32_t *)colValue);
+      bufLen += snprintf(buf + bufLen, sizeof(buf) - bufLen, "%d", *(int32_t *)colValue);
       break;
     case TSDB_DATA_TYPE_UINT:
-      bufLen += tsnprintf(buf + bufLen, sizeof(buf) - bufLen, "%u", *(uint32_t *)colValue);
+      bufLen += snprintf(buf + bufLen, sizeof(buf) - bufLen, "%u", *(uint32_t *)colValue);
       break;
     case TSDB_DATA_TYPE_BIGINT:
     case TSDB_DATA_TYPE_TIMESTAMP:
-      bufLen += tsnprintf(buf + bufLen, sizeof(buf) - bufLen, "%" PRId64, *(int64_t *)colValue);
+      bufLen += snprintf(buf + bufLen, sizeof(buf) - bufLen, "%" PRId64, *(int64_t *)colValue);
       break;
     case TSDB_DATA_TYPE_UBIGINT:
-      bufLen += tsnprintf(buf + bufLen, sizeof(buf) - bufLen, "%" PRIu64, *(uint64_t *)colValue);
+      bufLen += snprintf(buf + bufLen, sizeof(buf) - bufLen, "%" PRIu64, *(uint64_t *)colValue);
       break;
     case TSDB_DATA_TYPE_FLOAT:
-      bufLen += tsnprintf(buf + bufLen, sizeof(buf) - bufLen, "%f", GET_FLOAT_VAL(colValue));
+      bufLen += snprintf(buf + bufLen, sizeof(buf) - bufLen, "%f", GET_FLOAT_VAL(colValue));
       break;
     case TSDB_DATA_TYPE_DOUBLE:
-      bufLen += tsnprintf(buf + bufLen, sizeof(buf) - bufLen, "%f", GET_DOUBLE_VAL(colValue));
+      bufLen += snprintf(buf + bufLen, sizeof(buf) - bufLen, "%f", GET_DOUBLE_VAL(colValue));
       break;
     default:
       buf[bufLen] = '\0';

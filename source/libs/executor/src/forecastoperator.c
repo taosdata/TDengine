@@ -120,8 +120,8 @@ static int32_t forecastCacheBlock(SForecastSupp* pSupp, SSDataBlock* pBlock, con
     char*   val = colDataGetData(pValCol, j);
     int16_t valType = pValCol->info.type;
 
-    pSupp->minTs = MIN(pSupp->minTs, ts);
-    pSupp->maxTs = MAX(pSupp->maxTs, ts);
+    pSupp->minTs = TMIN(pSupp->minTs, ts);
+    pSupp->maxTs = TMAX(pSupp->maxTs, ts);
     pSupp->numOfRows++;
 
     // write the primary time stamp column data
@@ -827,7 +827,7 @@ static int32_t forecastParseOpt(SForecastSupp* pSupp, const char* id) {
       }
 
       memcpy(nameBuf, pKey, keyLen);
-      strncpy(&nameBuf[keyLen], "_col", strlen("_col"));
+      tstrncpy(&nameBuf[keyLen], "_col", tListLen(nameBuf) - keyLen);
 
       void* pCol = taosHashGet(pHashMap, nameBuf, strlen(nameBuf));
       if (pCol == NULL) {
@@ -1011,7 +1011,7 @@ static int32_t forecastCreateBuf(SForecastSupp* pSupp, const char* pId) {
         SColumn* pCol = taosArrayGet(pSupp->pCovariateSlotList, k);
         if (strcmp(pCol->name, pData->pName) == 0) {
           char name[128] = {0};
-          (void) tsnprintf(name, tListLen(name), "dynamic_real_%d", i + 1);
+          (void)snprintf(name, tListLen(name), "dynamic_real_%d", i + 1);
           code = taosAnalyBufWriteColMeta(pBuf, index++, pCol->type, name);
           if (code != 0) {
             goto _OVER;
@@ -1029,7 +1029,7 @@ static int32_t forecastCreateBuf(SForecastSupp* pSupp, const char* pId) {
       SColumn* pCol = taosArrayGet(pSupp->pCovariateSlotList, j);
 
       char name[128] = {0};
-      (void)tsnprintf(name, tListLen(name), "past_dynamic_real_%d", j + 1);
+      (void)snprintf(name, tListLen(name), "past_dynamic_real_%d", j + 1);
 
       code = taosAnalyBufWriteColMeta(pBuf, index++, pCol->type, name);
       if (code) {
@@ -1123,7 +1123,7 @@ int32_t createForecastOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNo
     code = terrno;
     goto _error;
   }
-
+  initOperatorCostInfo(pOperator);
   pOperator->pPhyNode = pPhyNode;
 
   const char*             pId = pTaskInfo->id.str;

@@ -1257,7 +1257,6 @@ SSDataBlock* createDummyBlock(int32_t blkId) {
   TD_ALWAYS_ASSERT(code == 0);
 
   p->info.id.blockId = blkId;
-  p->info.type = STREAM_INVALID;
   p->info.calWin.skey = INT64_MIN;
   p->info.calWin.ekey = INT64_MAX;
   p->info.watermark = INT64_MIN;

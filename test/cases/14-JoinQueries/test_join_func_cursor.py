@@ -38,7 +38,7 @@ class TestParaTms2:
         self.fornum = 15
 
         self.db_nest = "nest"
-        self.dropandcreateDB_random("%s" %self.db_nest, 1)
+        self.dropandcreateDB_random(self.db_nest, 1)
 
         # regular column select
         #q_select= ['ts' , '*' , 'q_int', 'q_bigint' , 'q_bigint' , 'q_smallint' , 'q_tinyint' , 'q_bool' , 'q_binary' , 'q_nchar' ,'q_float' , 'q_double' ,'q_ts ']
@@ -857,7 +857,7 @@ class TestParaTms2:
         print("==========%s===start=============" %mathlist)
         os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))
 
-        self.dropandcreateDB_random("%s" %self.db_nest, 1)
+        self.dropandcreateDB_random(self.db_nest, 1)
 
         if (mathlist == ['ABS','SQRT']) or (mathlist == ['SIN','COS','TAN','ASIN','ACOS','ATAN']) or (mathlist == ['FLOOR','CEIL','ROUND']) \
             or (mathlist == ['CSUM']) :
@@ -1663,7 +1663,7 @@ class TestParaTms2:
         print("==========%s===start=============" %strlist)
         os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))
 
-        self.dropandcreateDB_random("%s" %self.db_nest, 1)
+        self.dropandcreateDB_random(self.db_nest, 1)
 
         if (strlist == ['LTRIM','RTRIM','LOWER','UPPER']) or (strlist == ['LENGTH','CHAR_LENGTH'])  \
             or (strlist == ['']):
@@ -2469,7 +2469,7 @@ class TestParaTms2:
         print("==========%s===start=============" %timelist)
         os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))
 
-        self.dropandcreateDB_random("%s" %self.db_nest, 1)
+        self.dropandcreateDB_random(self.db_nest, 1)
 
         if (timelist == ['NOW','TODAY']) or (timelist == ['TIMEZONE']):
             time_functions = timelist
@@ -3730,7 +3730,7 @@ class TestParaTms2:
         print("==========%s===start=============" %baselist)
         os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))
 
-        self.dropandcreateDB_random("%s" %self.db_nest, 1)
+        self.dropandcreateDB_random(self.db_nest, 1)
 
         if (baselist == ['A']) or (baselist == ['S']) or (baselist == ['F']) \
             or (baselist == ['C']):
@@ -4090,7 +4090,7 @@ class TestParaTms2:
         print('=====================2.6 old function start ===========')
         os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))
 
-        self.dropandcreateDB_random("%s" %self.db_nest, 1)
+        self.dropandcreateDB_random(self.db_nest, 1)
 
         #1 select /*+ para_tables_sort() */* from (select /*+ para_tables_sort() */column form regular_table where <\>\in\and\or order by)
         tdSql.query("select /*+ para_tables_sort() */1-1 from stable_1;")

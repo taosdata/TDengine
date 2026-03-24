@@ -116,6 +116,7 @@ int32_t initTaskSubJobCtx(SExecTaskInfo* pTaskInfo, SArray** subEndPoints, SRead
   ctx->pTaskInfo = pTaskInfo;
   ctx->subEndPoints = *subEndPoints;
   ctx->rpcHandle = (readHandle && readHandle->pMsgCb) ? readHandle->pMsgCb->clientRpc : NULL;
+  ctx->isStream = pTaskInfo && IS_STREAM_MODE(pTaskInfo);
 
   *subEndPoints = NULL;
   
@@ -152,7 +153,7 @@ _exit:
 
 
 int32_t createExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHandle* pHandle, uint64_t taskId,
-                           int32_t vgId, char* sql, EOPTR_EXEC_MODEL model, SArray** subEndPoints) {
+                           int32_t vgId, char* sql, EOPTR_EXEC_MODEL model, SArray** subEndPoints, bool enableExplain) {
   int32_t code = doCreateTask(pPlan->id.queryId, taskId, vgId, model, &pHandle->api, pTaskInfo);
   if (*pTaskInfo == NULL || code != 0) {
     nodesDestroyNode((SNode*)pPlan);
@@ -160,13 +161,6 @@ int32_t createExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHand
   }
 
   (*pTaskInfo)->pSubplan = pPlan;
-
-  if (pHandle) {
-    if (pHandle->pStateBackend) {
-      (*pTaskInfo)->streamInfo.pState = pHandle->pStateBackend;
-      (*pTaskInfo)->streamInfo.pOtherState = pHandle->pOtherBackend;
-    }
-  }
 
   if (NULL != sql) {
     (*pTaskInfo)->sql = taosStrdup(sql);
@@ -180,6 +174,7 @@ int32_t createExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHand
 
   (*pTaskInfo)->pWorkerCb = pHandle->pWorkerCb;
   (*pTaskInfo)->pStreamRuntimeInfo = pHandle->streamRtInfo;
+  (*pTaskInfo)->enableExplain = enableExplain;
 
   if (subEndPoints && taosArrayGetSize(*subEndPoints) > 0) {
     code = initTaskSubJobCtx(*pTaskInfo, subEndPoints, pHandle);
@@ -331,11 +326,9 @@ SSchemaWrapper* extractQueriedColumnSchema(SScanPhysiNode* pScanNode) {
   return pqSw;
 }
 
-static void cleanupStreamInfo(SStreamTaskInfo* pStreamInfo) {
-  tDeleteSchemaWrapper(pStreamInfo->schema);
-  tOffsetDestroy(&pStreamInfo->currentOffset);
-  tDeleteSchemaWrapper(pStreamInfo->notifyResultSchema);
-  taosMemoryFree(pStreamInfo->stbFullName);
+static void cleanupTmqInfo(STmqTaskInfo* pTmqInfo) {
+  tDeleteSchemaWrapper(pTmqInfo->schema);
+  tOffsetDestroy(&pTmqInfo->currentOffset);
 }
 
 static void freeBlock(void* pParam) {
@@ -362,7 +355,11 @@ void destroySubJobCtx(STaskSubJobCtx* pCtx) {
       }
       taosArrayDestroy(pCtx->subResNodes);
     }
-    taosArrayDestroyP(pCtx->subEndPoints, NULL);
+    if (pCtx->isStream) {
+      taosArrayDestroyP(pCtx->subEndPoints, (FDelete)nodesDestroyNode);
+    } else {
+      taosArrayDestroyP(pCtx->subEndPoints, NULL);
+    }
     pCtx->subEndPoints = NULL;
   }
   
@@ -382,7 +379,7 @@ void doDestroyTask(SExecTaskInfo* pTaskInfo) {
   }
 
   taosArrayDestroyEx(pTaskInfo->schemaInfos, cleanupQueriedTableScanInfo);
-  cleanupStreamInfo(&pTaskInfo->streamInfo);
+  cleanupTmqInfo(&pTaskInfo->tmqInfo);
 
   if (!pTaskInfo->localFetch.localExec) {
     nodesDestroyNode((SNode*)pTaskInfo->pSubplan);
