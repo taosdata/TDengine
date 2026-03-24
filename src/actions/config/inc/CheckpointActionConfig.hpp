@@ -4,8 +4,8 @@
 
 struct CheckpointActionConfig {
     bool enabled = false;
-    int interval_sec = 60; // Checkpoint interval in seconds
-    uint64_t start_timestamp = 0;
+    size_t interval_sec = 60; // Checkpoint interval in seconds
+    int64_t start_timestamp = 0;
     int tableCount = 0;
     std::string timestamp_precision = "ms";
     int timestamp_step = 1;

@@ -120,18 +120,11 @@ endif()
 # Global compile options based on compiler
 if(MSVC)
   # MSVC compiler options
-  add_compile_options(
-    /W3
-    /utf-8
-    $<$<CONFIG:Debug>:/Od /Zi>
-    $<$<CONFIG:Release>:/O2 /Zi>
-    $<$<CONFIG:RelWithDebInfo>:/O2 /Zi>
-    $<$<CONFIG:MinSizeRel>:/O1 /Zi>
-  )
-  # Linker options to disable default libraries and incremental linking
-  add_link_options(/NODEFAULTLIB:LIBCMT /INCREMENTAL:NO)
+  add_compile_options(/W3 /utf-8)
   # Disable unsafe function warnings
   add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
+  # Linker options to disable default libraries and incremental linking
+  add_link_options(/NODEFAULTLIB:LIBCMT /INCREMENTAL:NO)
 else()
   # GCC/Clang compiler options
   add_compile_options(

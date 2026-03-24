@@ -3,5 +3,5 @@
 
 struct CheckpointInfo {
     bool enabled = false;
-    int interval_sec = 60; // Checkpoint interval in seconds
+    size_t interval_sec = 60; // Checkpoint interval in seconds
 };

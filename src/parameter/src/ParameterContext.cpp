@@ -158,9 +158,6 @@ void ParameterContext::prepare_work() {
             }
 
             CheckpointInfo ci;
-            ci.enabled = false;
-            ci.interval_sec = 60;
-
             CreateDatabaseConfig cdc;
             cdc.tdengine = *tc;
             cdc.checkpoint_info = ci;
