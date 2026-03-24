@@ -124,7 +124,7 @@ python packaging/win_release.py -e community -v 3.4.0.11.0316 --skip-model-check
 - **Default Installation Path**: `C:\TDengine\taosanode`
 - **Service Management**: Uses unified Python script `taosanode_service.py`
 - **Virtual Environment**: Automatically creates Python virtual environment
-- **Environment Variables**: Automatically adds `bin` directory to PATH
+- **Environment Variables**: Does not modify the system PATH; use the Windows service, shortcuts, or scripts under `<install_dir>\bin`
 - **Log Directory**: `C:\TDengine\taosanode\log`
 - **Configuration Protection**: Preserves existing configuration files during upgrades
 
@@ -175,7 +175,7 @@ python bin\taosanode_service.py model-start all
 
 ### Service Won't Start
 
-1. Check if Python is correctly installed and added to PATH
+1. Check whether Python was installed correctly or the bundled runtime was unpacked correctly
 2. Check log files: `C:\TDengine\taosanode\log\taosanode_service_*.log`
 3. Run the startup script manually to see errors:
 
@@ -211,7 +211,7 @@ Modify the `bind` setting in the configuration file `C:\TDengine\taosanode\cfg\t
 
 - Requirements files are now packaged under `<install_dir>\requirements\`.
 - All Windows virtual environments are now created under `<install_dir>\venvs\`.
-- The installer finish flow now includes a default-enabled checkbox to install/register the Windows service.
+- The installer always registers the Taosanode Windows service as part of setup.
 - The finish page now shows both service commands and script commands:
   - `net start Taosanode`
   - `net stop Taosanode`
@@ -236,12 +236,14 @@ Modify the `bind` setting in the configuration file `C:\TDengine\taosanode\cfg\t
 
 - The Windows installer wizard is now English-only.
 - The wizard now includes:
-  - Python package source selection
+  - Install source selection: `Online mode` or `Offline package`
   - Optional TensorFlow CPU installation in online mode
-  - Model source selection: none / online / offline package
+  - Model source selection in online mode: `download selected models` or `do not install models now`
   - Hugging Face endpoint selection: official / HF Mirror / custom
-  - Service registration toggle
-- Default model preparation mode is `Import packaged offline model archives`.
+- Upgrade installs now default to reusing the existing virtual environments and model files.
+- Offline package mode now supports both first install and upgrade:
+  - First install requires one offline tar package
+  - Upgrade can leave the offline package blank to reuse the current environment and model files
 - Offline Python package mode skips the TensorFlow question because the packaged offline runtime already includes it.
 - Offline model import automatically scans `<install_dir>\model\` and imports every packaged offline archive that is present.
 - Offline mode also offers one optional offline model package input. The selected archive can contain all offline models together.
@@ -264,4 +266,5 @@ Modify the `bind` setting in the configuration file `C:\TDengine\taosanode\cfg\t
 - The installer writes append-only progress events to `<install_dir>\log\install-progress.log`, and the wizard displays the latest valid event.
 - The wizard reserves a conservative `20 GB` disk space estimate so the first page reflects Python environments and model payload growth instead of only the installer file size.
 - Online reinstall now reuses an existing healthy virtual environment and only recreates it when the environment is incomplete or pip validation fails.
+- Upgrade installs do not replace existing model files unless the user explicitly chooses an online download or provides an offline package to import.
 - `start-model.bat` now defaults to `all` when no argument is provided, so double-clicking it starts every model whose directory exists and skips missing ones.

@@ -111,10 +111,20 @@ def add_directory_to_tar(tar_obj: tarfile.TarFile, source_dir: Path, arcname: st
     tar_obj.add(source_dir, arcname=arcname)
 
 
-def copy_tar_members(source_tar: Path, dest_tar: tarfile.TarFile) -> int:
+def copy_tar_members(
+    source_tar: Path,
+    dest_tar: tarfile.TarFile,
+    watched_prefixes: Optional[Iterable[str]] = None,
+) -> tuple[int, set[str]]:
     count = 0
+    found_prefixes: set[str] = set()
+    normalized_prefixes = [item.strip("/").replace("\\", "/") + "/" for item in (watched_prefixes or [])]
     with tarfile.open(source_tar, "r:*") as src:
         for member in src:
+            member_name = member.name.lstrip("./").replace("\\", "/")
+            for prefix in normalized_prefixes:
+                if member_name.startswith(prefix):
+                    found_prefixes.add(prefix)
             fileobj = src.extractfile(member) if member.isfile() else None
             try:
                 dest_tar.addfile(member, fileobj)
@@ -122,7 +132,7 @@ def copy_tar_members(source_tar: Path, dest_tar: tarfile.TarFile) -> int:
                 if fileobj is not None:
                     fileobj.close()
             count += 1
-    return count
+    return count, found_prefixes
 
 
 def create_manifest_lines(
@@ -158,18 +168,37 @@ def build_bundle(
         output_file.unlink()
 
     with tarfile.open(output_file, "w") as tar_obj:
+        existing_prefixes: set[str] = set()
         if seed_package is not None:
             info(f"Streaming seed package into bundle: {seed_package}")
-            copied = copy_tar_members(seed_package, tar_obj)
+            copied, existing_prefixes = copy_tar_members(
+                seed_package,
+                tar_obj,
+                watched_prefixes=[
+                    "python/runtime",
+                    "venvs/venv",
+                    *[f"venvs/{item.name}" for item in extra_venvs],
+                ],
+            )
             info(f"Copied {copied} members from seed package")
 
-        info(f"Adding Python runtime from {runtime_dir}")
-        add_directory_to_tar(tar_obj, runtime_dir, "python/runtime")
+        if "python/runtime/" in existing_prefixes:
+            info("Skipping Python runtime because seed package already contains python/runtime")
+        else:
+            info(f"Adding Python runtime from {runtime_dir}")
+            add_directory_to_tar(tar_obj, runtime_dir, "python/runtime")
 
-        info(f"Adding main venv from {main_venv_dir}")
-        add_directory_to_tar(tar_obj, main_venv_dir, "venvs/venv")
+        if "venvs/venv/" in existing_prefixes:
+            info("Skipping main venv because seed package already contains venvs/venv")
+        else:
+            info(f"Adding main venv from {main_venv_dir}")
+            add_directory_to_tar(tar_obj, main_venv_dir, "venvs/venv")
 
         for extra_venv in extra_venvs:
+            prefix = f"venvs/{extra_venv.name}/"
+            if prefix in existing_prefixes:
+                info(f"Skipping extra venv because seed package already contains {prefix[:-1]}")
+                continue
             info(f"Adding extra venv from {extra_venv}")
             add_directory_to_tar(tar_obj, extra_venv, f"venvs/{extra_venv.name}")
 

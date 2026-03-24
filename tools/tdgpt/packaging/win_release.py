@@ -24,6 +24,9 @@ import json
 import subprocess
 import tempfile
 
+# Configure logging
+timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s',
     level=logging.DEBUG
 )
@@ -84,9 +87,9 @@ def parse_arguments():
                         help='Pack all models')
     parser.add_argument('-o', '--output', type=str, default="D:\\tdgpt-release",
                         help='Set output directory (default: D:\\tdgpt-release)')
-    parser.add_argument('--package-mode', choices=['online', 'full-offline', 'minimal-update'],
+    parser.add_argument('--package-mode', choices=['online', 'full-offline'],
                         default='online',
-                        help='Package type. online now builds the shared base installer; other modes are transitional.')
+                        help='Package type. online builds the shared base installer; full-offline bundles Python, venvs, and models.')
     parser.add_argument('--offline', action='store_true',
                         help='Deprecated alias for --package-mode full-offline')
     parser.add_argument('--iscc-path', type=str,
@@ -139,9 +142,6 @@ def parse_arguments():
         package_suffix = "-base"
     elif package_mode == "full-offline":
         package_suffix = "-full-offline"
-    elif package_mode == "minimal-update":
-        package_suffix = "-minimal-update"
-
     install_info.package_name = f"{install_info.product_name}-{args.version}-Windows-x64{package_suffix}"
     install_info.model_dir = args.model_dir
     install_info.all_models = args.all_models
@@ -443,10 +443,6 @@ def prepare_offline_packages():
 
 def copy_model_files():
     """Copy model files if model directory is specified"""
-    if install_info.package_mode == "minimal-update":
-        logging.info("Minimal update package does not include model files")
-        return
-
     if not install_info.model_dir or not os.path.exists(install_info.model_dir):
         logging.info("No model directory specified or directory does not exist, skipping model files")
         return
@@ -1176,8 +1172,8 @@ def main():
             return 1
 
         logging.info("Model validation passed")
-    elif install_info.package_mode in {"online", "minimal-update"}:
-        logging.info("Base/minimal installer skips bundled model validation")
+    elif install_info.package_mode == "online":
+        logging.info("Base installer skips bundled model validation")
     else:
         logging.warning("=" * 60)
         logging.warning("WARNING: Model validation SKIPPED (--skip-model-check)")

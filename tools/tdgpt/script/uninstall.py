@@ -166,55 +166,6 @@ class WindowsUninstaller:
         except Exception as exc:
             self.print_warning(f"Service uninstall command failed: {exc}")
 
-    def remove_from_path(self) -> None:
-        self.print_info("Removing install directory from PATH...")
-        bin_path = str(self.install_dir / "bin")
-
-        try:
-            result = subprocess.run(
-                [
-                    "reg",
-                    "query",
-                    "HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment",
-                    "/v",
-                    "Path",
-                ],
-                capture_output=True,
-                text=True,
-                timeout=15,
-                check=False,
-            )
-            if result.returncode != 0:
-                self.print_warning("Unable to read system PATH.")
-                return
-
-            current_path = ""
-            for line in result.stdout.splitlines():
-                if "REG_" in line and "Path" in line:
-                    parts = line.split("REG_EXPAND_SZ", 1)
-                    if len(parts) == 2:
-                        current_path = parts[1].strip()
-                        break
-
-            if not current_path:
-                return
-
-            path_items = [item.strip() for item in current_path.split(";") if item.strip()]
-            new_items = [item for item in path_items if item.lower() != bin_path.lower()]
-            if len(new_items) == len(path_items):
-                self.print_info("Install directory is not present in PATH.")
-                return
-
-            subprocess.run(
-                ["setx", "/M", "Path", ";".join(new_items)],
-                capture_output=True,
-                timeout=30,
-                check=False,
-            )
-            self.print_success("Removed install directory from PATH.")
-        except Exception as exc:
-            self.print_warning(f"Failed to update PATH: {exc}")
-
     def remove_files(self) -> None:
         self.print_info("Removing packaged files...")
 
@@ -305,7 +256,6 @@ class WindowsUninstaller:
 
         self.stop_services()
         self.uninstall_service()
-        self.remove_from_path()
         self.remove_files()
         self.append_uninstall_summary()
         self.print_success(f"{APP_DISPLAY_NAME} uninstall flow completed.")

@@ -52,6 +52,7 @@ VENVS_DIR = INSTALL_DIR / "venvs"
 MODEL_DIR = INSTALL_DIR / "model"
 PACKAGED_PYTHON_DIR = INSTALL_DIR / "python" / "runtime"
 PACKAGE_METADATA_FILE = INSTALL_DIR / "cfg" / "package-metadata.json"
+INSTALL_STATE_FILE = INSTALL_DIR / "cfg" / "install-state.json"
 
 DEFAULT_ONLINE_MODELS = ["moirai", "moment"]
 ALL_MODELS = ["tdtsfm", "timemoe", "moirai", "chronos", "timesfm", "moment"]
@@ -234,9 +235,9 @@ class WindowsInstaller:
         pip_index_url: str = "",
         pip_trusted_host: str = "",
         install_tensorflow: bool = True,
-        skip_service_install: bool = False,
         log_file: str = "",
         progress_file: str = "",
+        existing_install: bool = False,
     ):
         progress_path = progress_file or os.environ.get("TDGPT_PROGRESS_FILE", "")
         self.progress = ProgressReporter(Path(progress_path) if progress_path else None)
@@ -249,8 +250,10 @@ class WindowsInstaller:
         self.pip_trusted_host = pip_trusted_host or os.environ.get("PIP_TRUSTED_HOST", "")
         self.offline_package = (offline_package or offline_model_package).strip().strip('"')
         self.install_tensorflow = install_tensorflow
-        self.skip_service_install = skip_service_install
         self.service_install_success = False
+        self.existing_install_requested = existing_install
+        self.install_state = "unknown"
+        self.install_state_reasons: List[str] = []
         self.install_dir = INSTALL_DIR
         self.log_dir = LOG_DIR
         self.requirements_dir = REQUIREMENTS_DIR
@@ -401,11 +404,11 @@ class WindowsInstaller:
     def is_full_offline_package(self) -> bool:
         return self.package_mode == "full-offline"
 
-    def is_minimal_update_package(self) -> bool:
-        return self.package_mode == "minimal-update"
-
     def uses_simple_package_mode(self) -> bool:
-        return self.is_full_offline_package() or self.is_minimal_update_package()
+        return self.is_full_offline_package()
+
+    def is_existing_install(self) -> bool:
+        return self.install_state in {"upgrade", "repair"}
 
     def get_packaged_python(self) -> Path:
         return PACKAGED_PYTHON_DIR / "python.exe"
@@ -500,20 +503,55 @@ class WindowsInstaller:
         self.print_success("Bundled Python runtime and virtual environments are ready.")
         return True
 
-    def prepare_minimal_update_runtime(self) -> bool:
+    def prepare_existing_runtime_reuse(self) -> bool:
         main_venv_python = self.get_venv_python("venv")
         if not main_venv_python.exists():
             self.print_error(
-                f"Minimal update package requires an existing {APP_DISPLAY_NAME} installation with venvs\\venv\\Scripts\\python.exe."
+                "Offline upgrade cannot reuse the existing environment because "
+                "venvs\\venv\\Scripts\\python.exe is missing. Provide an offline package or switch to online mode."
             )
             return False
 
-        self.set_progress(20, "Preparing Python environments", "Reusing the existing bundled Python environments")
+        if not self.can_reuse_venv("venv", VENV_CONFIGS["venv"]["description"]):
+            self.print_error(
+                "Offline upgrade cannot reuse the existing main virtual environment. "
+                "Provide an offline package or switch to online mode."
+            )
+            return False
+
+        core_req = self.requirements_dir / VENV_CONFIGS["venv"]["requirements"]
+        core_stamp = self.get_requirements_stamp_path("venv", VENV_CONFIGS["venv"]["requirements"])
+        if core_req.exists() and core_stamp.exists() and not self.has_matching_requirements_stamp(
+            "venv", VENV_CONFIGS["venv"]["requirements"], core_req
+        ):
+            self.print_error(
+                "Offline upgrade detected changed Python dependencies for the main virtual environment. "
+                "Provide an offline package or switch to online mode so the environment can be refreshed."
+            )
+            return False
+        if core_req.exists() and not core_stamp.exists():
+            self.print_warning(
+                "No dependency stamp was found for the existing main virtual environment. "
+                "The installer will reuse it after runtime validation."
+            )
+
+        validation_imports = str(VENV_CONFIGS["venv"].get("validation_imports", "")).strip()
+        if validation_imports and not self.validate_venv_imports("venv", validation_imports):
+            self.print_error(
+                "Offline upgrade cannot reuse the existing main virtual environment because validation failed. "
+                "Provide an offline package or switch to online mode."
+            )
+            return False
+
+        self.set_progress(20, "Preparing Python environments", "Reusing the existing Python environments")
         self.python_cmd = str(self.get_current_interpreter())
         self.reused_venvs["venv"] = True
-        self.set_progress(58, "Installing optional TensorFlow support", "Existing bundled Python environments were kept unchanged")
+        for venv_name in [name for name in VENV_CONFIGS if name != "venv"]:
+            if self.get_venv_python(venv_name).exists():
+                self.reused_venvs[venv_name] = True
+        self.set_progress(58, "Installing optional TensorFlow support", "Existing Python environments were kept unchanged")
         self.set_progress(82, "Preparing Python environments", "Existing Python environments are ready")
-        self.print_success("Minimal update package will reuse the existing Python environments.")
+        self.print_success("Existing Python environments were reused successfully.")
         return True
 
     @staticmethod
@@ -789,28 +827,25 @@ class WindowsInstaller:
             self.print_error("Bundled Python runtime validation failed.")
             return False
 
-        if self.is_minimal_update_package():
-            self.print_info("Checking existing bundled Python environment...")
-            current_python = self.get_current_interpreter()
-            try:
-                result = subprocess.run(
-                    [str(current_python), "--version"],
-                    capture_output=True,
-                    text=True,
-                    timeout=10,
-                    check=False,
-                )
-                output = (result.stdout or result.stderr).strip()
-                if result.returncode == 0 and output.startswith("Python "):
+        current_python = self.get_current_interpreter()
+        try:
+            result = subprocess.run(
+                [str(current_python), "--version"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=False,
+            )
+            output = (result.stdout or result.stderr).strip()
+            if result.returncode == 0 and output.startswith("Python "):
+                major, minor = map(int, output.split()[1].split(".")[:2])
+                if major == 3 and minor in [10, 11, 12]:
                     self.python_cmd = str(current_python)
                     self.python_version = output.split()[1]
-                    self.print_success(f"Using existing Python {self.python_version} for minimal update.")
+                    self.print_success(f"Using current Python {self.python_version}.")
                     return True
-            except Exception as exc:
-                self.print_error(f"Failed to validate the current Python interpreter: {exc}")
-                return False
-            self.print_error("Failed to validate the current Python interpreter.")
-            return False
+        except Exception:
+            pass
 
         self.print_info("Checking Python environment...")
         for cmd in ["python", "python3", "python3.10", "python3.11", "python3.12"]:
@@ -893,6 +928,52 @@ class WindowsInstaller:
         except Exception:
             pass
         time.sleep(2)
+
+    def service_exists(self, service_name: str = "Taosanode") -> bool:
+        try:
+            query = subprocess.run(
+                ["sc", "query", service_name],
+                capture_output=True,
+                text=True,
+                timeout=20,
+                check=False,
+            )
+        except Exception as exc:
+            self.print_warning(f"Unable to query Windows service {service_name}: {exc}")
+            return False
+        return query.returncode == 0 and service_name.lower() in (query.stdout or "").lower()
+
+    def detect_install_state(self) -> None:
+        reasons: List[str] = []
+        if self.existing_install_requested:
+            reasons.append("setup wizard detected an existing installation")
+        if INSTALL_STATE_FILE.exists():
+            reasons.append("install-state marker")
+
+        if reasons:
+            self.install_state = "upgrade"
+            self.install_state_reasons = reasons
+            return
+
+        repair_reasons: List[str] = []
+        if ENABLED_MODELS_FILE.exists():
+            repair_reasons.append("enabled_models.txt")
+        if self.service_exists():
+            repair_reasons.append("registered Taosanode service")
+        if not self.is_full_offline_package() and self.get_venv_python("venv").exists():
+            repair_reasons.append("existing main virtual environment")
+        if not self.is_full_offline_package():
+            for model_name in ALL_MODELS:
+                if self.find_payload_root(self.model_dir / model_name, model_name):
+                    repair_reasons.append(f"existing model payload: {model_name}")
+                    break
+
+        if repair_reasons:
+            self.install_state = "repair"
+            self.install_state_reasons = repair_reasons
+        else:
+            self.install_state = "fresh"
+            self.install_state_reasons = []
 
     def can_reuse_venv(self, name: str, description: str) -> bool:
         path = self.get_venv_path(name)
@@ -1058,11 +1139,13 @@ class WindowsInstaller:
         return False
 
     def install_venvs(self) -> bool:
+        if self.is_full_offline_package() and self.is_existing_install():
+            return self.prepare_existing_runtime_reuse()
         if self.is_full_offline_package():
             return self.prepare_packaged_offline_runtime()
-        if self.is_minimal_update_package():
-            return self.prepare_minimal_update_runtime()
         if self.offline:
+            if not self.offline_package and self.is_existing_install():
+                return self.prepare_existing_runtime_reuse()
             return self.prepare_external_offline_runtime()
         if not self.prepare_venv("venv", 20, 42):
             return False
@@ -1366,14 +1449,17 @@ except Exception as exc:
         return True
 
     def process_models(self) -> bool:
+        if self.is_existing_install() and self.model_source == "none":
+            self.set_progress(94, "Model installation", "Existing model files were kept unchanged")
+            return True
+        if self.is_existing_install() and self.model_source == "offline" and not self.offline_package:
+            self.set_progress(94, "Model installation", "Existing model files were kept unchanged")
+            return True
         if self.is_full_offline_package():
             if self.has_packaged_models():
                 self.set_progress(94, "Model installation", "Bundled model files are already included in this installer")
             else:
                 self.set_progress(94, "Model installation", "No bundled model files were packaged in this installer")
-            return True
-        if self.is_minimal_update_package():
-            self.set_progress(94, "Model installation", "Existing model files were kept unchanged")
             return True
         if self.model_source == "none":
             self.set_progress(84, "Model installation", "Model download and import were skipped")
@@ -1390,15 +1476,24 @@ except Exception as exc:
         if ENABLED_MODELS_FILE.exists():
             ENABLED_MODELS_FILE.unlink()
 
+    def write_install_state(self) -> None:
+        payload = {
+            "version": PACKAGE_METADATA.get("version", ""),
+            "package_mode": self.package_mode,
+            "install_state": self.install_state,
+            "installed_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "service_installed": self.service_install_success,
+        }
+        INSTALL_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        INSTALL_STATE_FILE.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
     def install_service(self) -> bool:
-        if self.skip_service_install:
-            self.print_info("Service installation skipped by installer option.")
-            return True
         service_script = self.install_dir / "bin" / "taosanode_service.py"
         python_exe = self.get_venv_python("venv")
         if not service_script.exists() or not python_exe.exists():
-            self.print_warning("Service installer prerequisites are missing, skip service registration.")
-            return True
+            self.service_install_success = False
+            self.print_error("Service installer prerequisites are missing. Windows service registration cannot continue.")
+            return False
         try:
             self.set_progress(96, "Registering the Windows service", "Installing Taosanode service")
             subprocess.run([str(python_exe), str(service_script), "install-service"], check=True, timeout=180)
@@ -1407,8 +1502,8 @@ except Exception as exc:
             return True
         except Exception as exc:
             self.service_install_success = False
-            self.print_warning(f"Service installation failed: {exc}")
-            return True
+            self.print_error(f"Service installation failed: {exc}")
+            return False
 
     def append_install_summary(self) -> None:
         lines = [
@@ -1417,11 +1512,12 @@ except Exception as exc:
             f"{APP_DISPLAY_NAME} Windows Installation Summary",
             "=" * 72,
             f"Install directory: {self.install_dir}",
+            f"Install type: {self.install_state}",
+            "Install state markers: " + (", ".join(self.install_state_reasons) if self.install_state_reasons else "None"),
             f"Python version: {self.python_version or 'Unknown'}",
             f"Package mode: {self.package_mode}",
             "Python package mode: " + (
                 "Bundled full offline" if self.is_full_offline_package()
-                else "Minimal update reuse" if self.is_minimal_update_package()
                 else "Offline" if self.offline else "Online"
             ),
             f"TensorFlow support: {'Installed' if self.install_tensorflow else 'Skipped'}",
@@ -1431,19 +1527,18 @@ except Exception as exc:
             f"Pip index: {self.pip_index_url or 'Default'}",
             f"Pip trusted host: {self.pip_trusted_host or 'Default'}",
             f"Model endpoint: {self.model_endpoint or 'Default Hugging Face'}",
-            f"Service install requested: {'No' if self.skip_service_install else 'Yes'}",
-            f"Service install result: {'Installed' if self.service_install_success else 'Skipped/Not installed'}",
+            f"Service install result: {'Installed' if self.service_install_success else 'Failed'}",
             f"Total installer runtime: {self.format_elapsed(time.time() - self.install_started_at)}",
             "Virtual environments:",
         ]
         if self.is_full_offline_package():
-            lines.append("Model startup behavior: start-model all starts bundled model directories automatically.")
-        elif self.is_minimal_update_package():
-            lines.append("Model startup behavior: start-model all reuses existing model directories automatically.")
+            lines.append("Model startup behavior: start-model all starts bundled or preserved model directories automatically.")
         elif self.model_source == "offline":
             lines.append("Model startup behavior: start-model all checks imported model directories automatically.")
         elif self.model_source == "online":
             lines.append("Model startup behavior: start-model all starts downloaded model directories automatically.")
+        elif self.is_existing_install():
+            lines.append("Model startup behavior: start-model all reuses existing model directories automatically.")
         for venv_name in VENV_CONFIGS:
             python_exe = self.get_venv_python(venv_name)
             lines.append(f"  [{'OK' if python_exe.exists() else 'NO'}] {venv_name}")
@@ -1487,6 +1582,11 @@ except Exception as exc:
             if not self.check_pip():
                 return False
             self.finish_phase_timer("Check pip", timer)
+            self.detect_install_state()
+            self.print_info(
+                f"Detected install state: {self.install_state}"
+                + (f" ({', '.join(self.install_state_reasons)})" if self.install_state_reasons else "")
+            )
             self.set_progress(12, "Preparing directories", "Creating required folders")
             timer = self.start_phase_timer("Create directories")
             if not self.create_directories():
@@ -1511,6 +1611,9 @@ except Exception as exc:
             if not self.install_service():
                 return False
             self.finish_phase_timer("Install Windows service", timer)
+            timer = self.start_phase_timer("Write install state marker")
+            self.write_install_state()
+            self.finish_phase_timer("Write install state marker", timer)
             self.append_install_summary()
             self.set_progress(100, "Installation complete", f"{APP_DISPLAY_NAME} is ready", status="success")
             self.print_success(f"{APP_DISPLAY_NAME} installation completed.")
@@ -1547,13 +1650,13 @@ Examples:
   python install.py --model-source online --model moirai --model moment --model-endpoint https://hf-mirror.com
   python install.py -o --model-source offline --offline-package D:\tdgpt-offline-bundle.tar.gz
   python install.py --package-mode full-offline
-  python install.py --package-mode minimal-update
+  python install.py -o --existing-install
         """.strip(),
     )
     parser.add_argument("-o", "--offline", action="store_true",
-                        help="Offline installation mode. Import python runtime and virtual environments from one external tar archive.")
-    parser.add_argument("--package-mode", choices=["online", "full-offline", "minimal-update"], default="online",
-                        help="Installer package behavior. Full offline uses bundled Python 3.11, venvs, and models. Minimal update reuses existing bundled assets.")
+                        help="Offline installation mode. First install imports python runtime and virtual environments from one external tar archive; upgrade can reuse the current environment.")
+    parser.add_argument("--package-mode", choices=["online", "full-offline"], default="online",
+                        help="Installer package behavior. Full offline uses bundled Python 3.11, venvs, and models.")
     parser.add_argument("-a", "--all-models", action="store_true", help="Select all supported models for the chosen model source.")
     parser.add_argument("--model-source", choices=["none", "online", "offline"], default="none",
                         help="Choose how selected models should be prepared.")
@@ -1570,10 +1673,10 @@ Examples:
     parser.add_argument("--pip-trusted-host", help="Optional trusted host used together with the pip index URL.")
     parser.add_argument("--skip-tensorflow", action="store_true",
                         help="Do not install TensorFlow CPU support into the main virtual environment.")
-    parser.add_argument("--skip-service-install", action="store_true",
-                        help="Do not register the Windows service during installation.")
     parser.add_argument("--log-file", help="Installation log file path. Defaults to <install_dir>\\log\\install.log.")
     parser.add_argument("--progress-file", help="Installer progress state file used by the Windows wizard.")
+    parser.add_argument("--existing-install", action="store_true",
+                        help="Internal flag used by the Windows wizard when an existing installation was detected.")
     return parser
 
 
@@ -1602,9 +1705,9 @@ def main() -> None:
         pip_index_url=args.pip_index_url or "",
         pip_trusted_host=args.pip_trusted_host or "",
         install_tensorflow=not args.skip_tensorflow,
-        skip_service_install=args.skip_service_install,
         log_file=args.log_file or "",
         progress_file=args.progress_file or "",
+        existing_install=args.existing_install,
     )
 
     try:

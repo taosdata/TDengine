@@ -77,11 +77,14 @@ Name: "{commondesktop}\Start Taosanode"; Filename: "{app}\bin\start-taosanode.ba
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: checkablealone
 
 [Registry]
-Root: HKLM; Subkey: "SYSTEM\CurrentControlSet\Control\Session Manager\Environment"; \
-    ValueType: expandsz; ValueName: "Path"; ValueData: "{olddata};{app}\bin"; \
-    Check: NeedsAddPath('{app}\bin')
+Root: HKLM; Subkey: "Software\taosdata\TDgpt"; ValueType: string; ValueName: "InstallDir"; ValueData: "{app}"; Flags: uninsdeletevalue uninsdeletekeyifempty
+Root: HKLM; Subkey: "Software\taosdata\TDgpt"; ValueType: string; ValueName: "Version"; ValueData: "{#MyAppVersion}"; Flags: uninsdeletevalue uninsdeletekeyifempty
 
 [Code]
+const
+  InstallMetadataKey = 'Software\taosdata\TDgpt';
+  ServiceRegistryKey = 'SYSTEM\CurrentControlSet\Services\Taosanode';
+
 var
   InstallModePage: TInputOptionWizardPage;
   PipSourcePage: TInputOptionWizardPage;
@@ -92,7 +95,6 @@ var
   ModelMirrorPage: TInputOptionWizardPage;
   CustomModelMirrorPage: TInputQueryWizardPage;
   OfflinePackagePage: TInputFileWizardPage;
-  ServiceOptionsPage: TInputOptionWizardPage;
   InstallProgressPage: TOutputProgressWizardPage;
   FinishNotesLabel: TNewStaticText;
   IsOnlineMode: Boolean;
@@ -103,7 +105,6 @@ var
   ModelEndpoint: String;
   ModelSource: String;
   InstallTensorFlow: Boolean;
-  InstallServiceOption: Boolean;
   SelectTdtsfm: Boolean;
   SelectTimemoe: Boolean;
   SelectChronos: Boolean;
@@ -112,22 +113,118 @@ var
   SelectMoment: Boolean;
   PostInstallCompleted: Boolean;
   ExistingInstallConfirmedDir: String;
-
-function NeedsAddPath(Param: string): Boolean;
-var
-  OrigPath: string;
-begin
-  if not RegQueryStringValue(HKEY_LOCAL_MACHINE, 'SYSTEM\CurrentControlSet\Control\Session Manager\Environment', 'Path', OrigPath) then
-  begin
-    Result := True;
-    exit;
-  end;
-  Result := Pos(';' + Param + ';', ';' + OrigPath + ';') = 0;
-end;
+  LockedInstallDir: String;
+  LockedInstallSource: String;
 
 procedure LogTdgpt(MessageText: String);
 begin
   Log('[TDgpt-DIAG] ' + MessageText);
+end;
+
+function NormalizeDir(Value: string): string;
+begin
+  Result := RemoveBackslashUnlessRoot(Trim(Value));
+end;
+
+function ExtractExecutablePath(CommandLine: string): string;
+var
+  TrimmedCmd: string;
+  SpacePos: Integer;
+begin
+  TrimmedCmd := Trim(CommandLine);
+  if TrimmedCmd = '' then
+  begin
+    Result := '';
+    exit;
+  end;
+
+  if TrimmedCmd[1] = '"' then
+  begin
+    Delete(TrimmedCmd, 1, 1);
+    SpacePos := Pos('"', TrimmedCmd);
+    if SpacePos > 0 then
+      Result := Copy(TrimmedCmd, 1, SpacePos - 1)
+    else
+      Result := TrimmedCmd;
+    exit;
+  end;
+
+  SpacePos := Pos(' ', TrimmedCmd);
+  if SpacePos > 0 then
+    Result := Copy(TrimmedCmd, 1, SpacePos - 1)
+  else
+    Result := TrimmedCmd;
+end;
+
+function TryReadRegisteredInstallDir(var InstallDir: string): Boolean;
+begin
+  InstallDir := '';
+  Result := RegQueryStringValue(HKEY_LOCAL_MACHINE, InstallMetadataKey, 'InstallDir', InstallDir);
+  InstallDir := NormalizeDir(InstallDir);
+  Result := Result and (InstallDir <> '');
+end;
+
+function TryGetServiceInstallDir(var InstallDir: string): Boolean;
+var
+  ImagePath: string;
+  ExePath: string;
+begin
+  InstallDir := '';
+  if not RegQueryStringValue(HKEY_LOCAL_MACHINE, ServiceRegistryKey, 'ImagePath', ImagePath) then
+  begin
+    Result := False;
+    exit;
+  end;
+
+  ExePath := ExtractExecutablePath(ImagePath);
+  ExePath := NormalizeDir(ExePath);
+  if ExePath = '' then
+  begin
+    Result := False;
+    exit;
+  end;
+
+  InstallDir := NormalizeDir(ExtractFileDir(ExtractFileDir(ExePath)));
+  Result := InstallDir <> '';
+end;
+
+function ResolveLockedInstallDir(var ErrorMessage: string): Boolean;
+var
+  MetadataDir: string;
+  ServiceDir: string;
+begin
+  ErrorMessage := '';
+  LockedInstallDir := '';
+  LockedInstallSource := '';
+  MetadataDir := '';
+  ServiceDir := '';
+
+  TryReadRegisteredInstallDir(MetadataDir);
+  TryGetServiceInstallDir(ServiceDir);
+
+  if (MetadataDir <> '') and (ServiceDir <> '') and (CompareText(MetadataDir, ServiceDir) <> 0) then
+  begin
+    ErrorMessage :=
+      'An inconsistent {#MyAppName} installation state was detected on this machine.' + #13#10 + #13#10 +
+      'Registry install directory: ' + MetadataDir + #13#10 +
+      'Taosanode service directory: ' + ServiceDir + #13#10 + #13#10 +
+      'Please repair or uninstall the existing installation before running setup again.';
+    Result := False;
+    exit;
+  end;
+
+  if MetadataDir <> '' then
+  begin
+    LockedInstallDir := MetadataDir;
+    LockedInstallSource := 'registry';
+  end
+  else if ServiceDir <> '' then
+  begin
+    LockedInstallDir := ServiceDir;
+    LockedInstallSource := 'service';
+  end;
+
+  Result := True;
 end;
 
 function GetHostFromUrl(Url: string): string;
@@ -223,19 +320,14 @@ begin
   Result := '{#PackageMode}' = 'full-offline';
 end;
 
-function IsMinimalUpdatePackage(): Boolean;
-begin
-  Result := '{#PackageMode}' = 'minimal-update';
-end;
-
 function UsesBundledPython(): Boolean;
 begin
-  Result := IsFullOfflinePackage() or IsMinimalUpdatePackage();
+  Result := IsFullOfflinePackage();
 end;
 
 function UsesSimplePackageFlow(): Boolean;
 begin
-  Result := IsFullOfflinePackage() or IsMinimalUpdatePackage();
+  Result := IsFullOfflinePackage();
 end;
 
 function HasVCRuntimeDll(DllName: string): Boolean;
@@ -285,13 +377,31 @@ begin
     DirExists(AddBackslash(TargetDir) + 'model');
 end;
 
+function HasExistingMainVenvPython(): Boolean;
+var
+  ExistingPython: string;
+begin
+  Result := False;
+  if LockedInstallDir = '' then
+    exit;
+  ExistingPython := AddBackslash(LockedInstallDir) + 'venvs\venv\Scripts\python.exe';
+  Result := FileExists(ExistingPython);
+end;
+
 function ConfirmExistingInstall(TargetDir: string): Boolean;
 var
   MessageText: string;
 begin
-  TargetDir := RemoveBackslashUnlessRoot(Trim(TargetDir));
+  TargetDir := NormalizeDir(TargetDir);
   if TargetDir = '' then
   begin
+    Result := True;
+    exit;
+  end;
+
+  if (LockedInstallDir <> '') and (CompareText(TargetDir, LockedInstallDir) = 0) then
+  begin
+    ExistingInstallConfirmedDir := TargetDir;
     Result := True;
     exit;
   end;
@@ -305,17 +415,6 @@ begin
   if not IsExistingTaosanodeInstall(TargetDir) then
   begin
     ExistingInstallConfirmedDir := '';
-    if IsMinimalUpdatePackage() then
-    begin
-      MsgBox(
-        'The minimal update installer requires an existing {#MyAppName} installation in this directory.' + #13#10 + #13#10 +
-        'Please select the current {#MyAppName} install path or use the full offline installer first.',
-        mbError,
-        MB_OK
-      );
-      Result := False;
-      exit;
-    end;
     Result := True;
     exit;
   end;
@@ -324,7 +423,8 @@ begin
     'An existing {#MyAppName} / Taosanode installation was detected in this directory:' + #13#10 + #13#10 +
     TargetDir + #13#10 + #13#10 +
     'Continuing will update packaged files and reuse existing cfg, log, model, and venv directories when possible.' + #13#10 +
-    'Standard uninstall still keeps the model directory unless it is removed explicitly.' + #13#10 + #13#10 +
+    'Standard uninstall still keeps the model directory unless it is removed explicitly.' + #13#10 +
+    'To use a different directory, uninstall the existing installation first.' + #13#10 + #13#10 +
     'Do you want to continue with this install location?';
 
   Result := MsgBox(MessageText, mbConfirmation, MB_YESNO) = IDYES;
@@ -441,9 +541,22 @@ var
   PythonVersionText: AnsiString;
   MessageText: string;
 begin
+  Result := ResolveLockedInstallDir(MessageText);
+  if not Result then
+  begin
+    MsgBox(MessageText, mbCriticalError, MB_OK);
+    exit;
+  end;
+
   if not UsesBundledPython() then
   begin
-    Result := CheckPythonPrerequisite(PythonVersionText);
+    if HasExistingMainVenvPython() then
+    begin
+      LogTdgpt('InitializeSetup: using existing main virtual environment python from ' + LockedInstallDir);
+      Result := True;
+    end
+    else
+      Result := CheckPythonPrerequisite(PythonVersionText);
     if not Result then
     begin
       MessageText :=
@@ -471,9 +584,12 @@ var
   WinSWPath: string;
 begin
   Result := '';
-  TargetDir := RemoveBackslashUnlessRoot(WizardDirValue());
+  if LockedInstallDir <> '' then
+    TargetDir := LockedInstallDir
+  else
+    TargetDir := NormalizeDir(WizardDirValue());
   LogTdgpt('PrepareToInstall enter, target=' + TargetDir);
-  if not IsExistingTaosanodeInstall(TargetDir) then
+  if (TargetDir = '') or ((not IsExistingTaosanodeInstall(TargetDir)) and (not ServiceExists('Taosanode'))) then
   begin
     LogTdgpt('PrepareToInstall: no existing install detected');
     exit;
@@ -505,11 +621,17 @@ begin
   if SelectMoment then Result := Result + 1;
 end;
 
+function IsUpgradeInstall(): Boolean;
+forward;
+
 function GetModelSelectionSummary(): String;
 begin
   if ModelSource = 'none' then
   begin
-    Result := 'None';
+    if IsUpgradeInstall() then
+      Result := 'Reuse existing model files'
+    else
+      Result := 'None';
     exit;
   end;
   if ModelSource = 'bundled' then
@@ -517,14 +639,12 @@ begin
     Result := 'Bundled model files from the installer package';
     exit;
   end;
-  if ModelSource = 'keep-existing' then
-  begin
-    Result := 'Keep existing model files unchanged';
-    exit;
-  end;
   if ModelSource = 'offline' then
   begin
-    Result := 'Import from one offline tar package';
+    if Trim(OfflinePackagePage.Values[0]) <> '' then
+      Result := 'Import from one offline tar package'
+    else
+      Result := 'Reuse existing model files';
     exit;
   end;
   Result := '';
@@ -540,6 +660,85 @@ begin
     Result := 'None';
 end;
 
+function IsUpgradeInstall(): Boolean;
+begin
+  Result := ExistingInstallConfirmedDir <> '';
+  if (not Result) and (LockedInstallDir <> '') then
+    Result := IsExistingTaosanodeInstall(LockedInstallDir) or ServiceExists('Taosanode');
+end;
+
+procedure ClearModelSelections();
+begin
+  SelectTdtsfm := False;
+  SelectTimemoe := False;
+  SelectMoirai := False;
+  SelectChronos := False;
+  SelectTimesfm := False;
+  SelectMoment := False;
+  if ModelSelectionPage <> nil then
+  begin
+    ModelSelectionPage.Values[0] := False;
+    ModelSelectionPage.Values[1] := False;
+    ModelSelectionPage.Values[2] := False;
+    ModelSelectionPage.Values[3] := False;
+    ModelSelectionPage.Values[4] := False;
+    ModelSelectionPage.Values[5] := False;
+  end;
+end;
+
+procedure SetDefaultOnlineModelSelections();
+begin
+  ClearModelSelections();
+  SelectMoirai := True;
+  SelectMoment := True;
+  if ModelSelectionPage <> nil then
+  begin
+    ModelSelectionPage.Values[2] := True;
+    ModelSelectionPage.Values[5] := True;
+  end;
+end;
+
+procedure ApplyInstallDefaults(UpgradeInstall: Boolean);
+begin
+  if IsFullOfflinePackage() then
+  begin
+    ModelSource := 'bundled';
+    exit;
+  end;
+
+  if UpgradeInstall then
+  begin
+    if InstallModePage <> nil then
+      InstallModePage.Values[0] := True;
+    IsOnlineMode := True;
+    ModelSource := 'none';
+    InstallTensorFlow := False;
+    if PythonOptionsPage <> nil then
+      PythonOptionsPage.Values[0] := False;
+    if ModelSourcePage <> nil then
+    begin
+      ModelSourcePage.Values[0] := False;
+      ModelSourcePage.Values[1] := True;
+    end;
+    ClearModelSelections();
+    exit;
+  end;
+
+  if InstallModePage <> nil then
+    InstallModePage.Values[0] := True;
+  IsOnlineMode := True;
+  ModelSource := 'online';
+  InstallTensorFlow := True;
+  if PythonOptionsPage <> nil then
+    PythonOptionsPage.Values[0] := True;
+  if ModelSourcePage <> nil then
+  begin
+    ModelSourcePage.Values[0] := True;
+    ModelSourcePage.Values[1] := False;
+  end;
+  SetDefaultOnlineModelSelections();
+end;
+
 procedure InitializeWizard();
 begin
   IsOnlineMode := not UsesBundledPython();
@@ -550,7 +749,6 @@ begin
   ModelEndpoint := '';
   ModelSource := 'none';
   InstallTensorFlow := not UsesBundledPython();
-  InstallServiceOption := True;
   SelectTdtsfm := False;
   SelectTimemoe := False;
   SelectChronos := False;
@@ -562,18 +760,16 @@ begin
 
   if IsFullOfflinePackage() then
     ModelSource := 'bundled';
-  if IsMinimalUpdatePackage() then
-    ModelSource := 'keep-existing';
 
   InstallModePage := CreateInputOptionPage(
     wpSelectDir,
     'Python Package Mode',
     'Select how Python dependencies should be installed',
-    'Online mode downloads Python packages during setup. Offline mode imports one external tar package that contains python runtime, virtual environments, and optional model archives.',
+    'Online mode downloads Python packages during setup. Offline package mode imports one external tar package that contains python runtime, virtual environments, and optional model archives. During upgrade, leaving the offline package blank reuses the existing environment and model files.',
     True,
     False);
   InstallModePage.Add('Online mode (recommended)');
-  InstallModePage.Add('Offline mode');
+  InstallModePage.Add('Offline package');
   InstallModePage.Values[0] := True;
 
   PipSourcePage := CreateInputOptionPage(
@@ -610,13 +806,12 @@ begin
     PythonOptionsPage.ID,
     'Model Installation Source',
     'Choose how models should be prepared',
-    'You can download selected models online, import them from the same offline tar package, or skip model setup for now.',
+    'New installs can download selected models online. Upgrade installs keep existing model files by default.',
     True,
     False);
   ModelSourcePage.Add('Download selected models online');
-  ModelSourcePage.Add('Import packaged offline model archives');
   ModelSourcePage.Add('Do not install models now');
-  ModelSourcePage.Values[0] := True;
+  ModelSourcePage.Values[1] := True;
 
   ModelSelectionPage := CreateInputOptionPage(
     ModelSourcePage.ID,
@@ -657,18 +852,8 @@ begin
     CustomModelMirrorPage.ID,
     'Offline Package Import',
     'Select one offline tar package',
-    'Choose one .tar.gz package that can contain python-runtime.tar.gz, venv-*.tar.gz, and model-*.tar.gz payloads. The installer imports python runtime and virtual environments in offline mode, and can also import packaged models from the same archive.');
+    'Choose one .tar.gz package that can contain python-runtime.tar.gz, venv-*.tar.gz, and model-*.tar.gz payloads. New offline installs require this package. Upgrade installs can leave it blank to reuse the existing environment and model files.');
   OfflinePackagePage.Add('Offline package:', 'Tar archives|*.tar.gz;*.tgz;*.tar|All files|*.*', '.tar.gz');
-
-  ServiceOptionsPage := CreateInputOptionPage(
-    OfflinePackagePage.ID,
-    'Service Registration',
-    'Choose final installation actions',
-    'Setup can register the Taosanode Windows service automatically after Python packages and model preparation finish.',
-    False,
-    False);
-  ServiceOptionsPage.Add('Install and register the Taosanode Windows service');
-  ServiceOptionsPage.Values[0] := True;
 
   InstallProgressPage := CreateOutputProgressPage(
     'Installing {#MyAppName}',
@@ -683,6 +868,10 @@ begin
   FinishNotesLabel.AutoSize := False;
   FinishNotesLabel.WordWrap := True;
   FinishNotesLabel.Visible := False;
+
+  if LockedInstallDir <> '' then
+    WizardForm.DirEdit.Text := LockedInstallDir;
+  ApplyInstallDefaults(IsUpgradeInstall());
 end;
 
 function ShouldSkipPage(PageID: Integer): Boolean;
@@ -706,6 +895,8 @@ begin
     Result := True
   else if (PageID = PythonOptionsPage.ID) and (not IsOnlineMode) then
     Result := True
+  else if (PageID = ModelSourcePage.ID) and (not IsOnlineMode) then
+    Result := True
   else if (PageID = ModelSelectionPage.ID) and (ModelSource <> 'online') then
     Result := True
   else if (PageID = ModelMirrorPage.ID) and (ModelSource <> 'online') then
@@ -722,18 +913,55 @@ begin
 
   if CurPageID = wpSelectDir then
   begin
+    if (LockedInstallDir <> '') and (CompareText(NormalizeDir(WizardDirValue()), LockedInstallDir) <> 0) then
+    begin
+      MsgBox(
+        'This machine already has a registered {#MyAppName} installation.' + #13#10 + #13#10 +
+        'Existing install directory: ' + LockedInstallDir + #13#10 +
+        'Detection source: ' + LockedInstallSource + #13#10 + #13#10 +
+        'Windows setup only supports a single installed instance. Setup will continue only with the existing install directory.' + #13#10 +
+        'To use a different directory, uninstall the existing installation first.',
+        mbError,
+        MB_OK
+      );
+      WizardForm.DirEdit.Text := LockedInstallDir;
+      Result := False;
+      exit;
+    end;
     if not ConfirmExistingInstall(WizardDirValue()) then
     begin
       Result := False;
       exit;
     end;
+    ApplyInstallDefaults(IsUpgradeInstall());
   end;
 
   if CurPageID = InstallModePage.ID then
   begin
     IsOnlineMode := InstallModePage.Values[0];
     if not IsOnlineMode then
+    begin
       InstallTensorFlow := True;
+      ClearModelSelections();
+      if IsUpgradeInstall() then
+        ModelSource := 'none'
+      else
+        ModelSource := 'offline';
+    end
+    else if IsUpgradeInstall() then
+    begin
+      ModelSource := 'none';
+      InstallTensorFlow := False;
+      if PythonOptionsPage <> nil then
+        PythonOptionsPage.Values[0] := False;
+    end
+    else
+    begin
+      ModelSource := 'online';
+      InstallTensorFlow := True;
+      if PythonOptionsPage <> nil then
+        PythonOptionsPage.Values[0] := True;
+    end;
   end;
 
   if CurPageID = PipSourcePage.ID then
@@ -771,8 +999,7 @@ begin
   if CurPageID = ModelSourcePage.ID then
   begin
     if ModelSourcePage.Values[0] then ModelSource := 'online';
-    if ModelSourcePage.Values[1] then ModelSource := 'offline';
-    if ModelSourcePage.Values[2] then ModelSource := 'none';
+    if ModelSourcePage.Values[1] then ModelSource := 'none';
     if ModelSource <> 'online' then
     begin
       SelectTdtsfm := False;
@@ -819,16 +1046,21 @@ begin
     end;
   end;
 
-  if CurPageID = ServiceOptionsPage.ID then
-    InstallServiceOption := ServiceOptionsPage.Values[0];
-
   if (CurPageID = OfflinePackagePage.ID) and ((not IsOnlineMode) or (ModelSource = 'offline')) then
   begin
     if Trim(OfflinePackagePage.Values[0]) = '' then
     begin
-      MsgBox('Please select one offline tar package.', mbError, MB_OK);
-      Result := False;
-      exit;
+      if not IsUpgradeInstall() then
+      begin
+        MsgBox('Please select one offline tar package.', mbError, MB_OK);
+        Result := False;
+        exit;
+      end;
+      ModelSource := 'none';
+    end
+    else if not IsOnlineMode then
+    begin
+      ModelSource := 'offline';
     end;
   end;
 end;
@@ -837,10 +1069,10 @@ function GetInstallFlags(Param: String): String;
 begin
   Result := '';
   Result := Result + '--package-mode {#PackageMode} ';
+  if IsUpgradeInstall() then
+    Result := Result + '--existing-install ';
   if UsesSimplePackageFlow() then
   begin
-    if not InstallServiceOption then
-      Result := Result + '--skip-service-install ';
     Result := Trim(Result);
     exit;
   end;
@@ -851,7 +1083,7 @@ begin
     Result := Result + '--offline-package ' + AddQuotes(Trim(OfflinePackagePage.Values[0])) + ' ';
   if IsOnlineMode and (not InstallTensorFlow) then
     Result := Result + '--skip-tensorflow ';
-  if ModelSource <> 'none' then
+  if (ModelSource <> 'none') and ((ModelSource <> 'offline') or (Trim(OfflinePackagePage.Values[0]) <> '')) then
   begin
     Result := Result + '--model-source ' + ModelSource + ' ';
     if ModelSource = 'online' then
@@ -872,8 +1104,6 @@ begin
   end;
   if (ModelSource = 'online') and (ModelEndpoint <> '') then
     Result := Result + '--model-endpoint ' + AddQuotes(ModelEndpoint) + ' ';
-  if not InstallServiceOption then
-    Result := Result + '--skip-service-install ';
   Result := Trim(Result);
 end;
 
@@ -883,20 +1113,20 @@ var
   S: String;
 begin
   S := MemoDirInfo + NewLine + NewLine;
+  if IsUpgradeInstall() then
+    S := S + 'Install type:' + NewLine + Space + 'Upgrade (reuse existing venv/model by default)' + NewLine
+  else
+    S := S + 'Install type:' + NewLine + Space + 'First install' + NewLine;
   S := S + 'Installer package mode:' + NewLine + Space + '{#PackageMode}' + NewLine;
   if UsesSimplePackageFlow() then
   begin
     S := S + 'Python environment:' + NewLine + Space;
-    if IsFullOfflinePackage() then
+    if IsFullOfflinePackage() and (not IsUpgradeInstall()) then
       S := S + 'Bundled Python 3.11 with bundled virtual environments' + NewLine
     else
-      S := S + 'Reuse the existing bundled Python and virtual environments' + NewLine;
+      S := S + 'Reuse existing Python environments when possible' + NewLine;
     S := S + 'Model handling:' + NewLine + Space + GetModelSelectionSummary() + NewLine;
-    S := S + 'Service registration:' + NewLine + Space;
-    if InstallServiceOption then
-      S := S + 'Install service' + NewLine
-    else
-      S := S + 'Skip service' + NewLine;
+    S := S + 'Service registration:' + NewLine + Space + 'Install service' + NewLine;
     Result := S;
     exit;
   end;
@@ -907,7 +1137,7 @@ begin
     S := S + 'Offline' + NewLine;
   S := S + 'TensorFlow CPU support:' + NewLine + Space;
   if not IsOnlineMode then
-    S := S + 'Included in offline package mode' + NewLine
+    S := S + 'Reuse existing environment or import from offline package' + NewLine
   else if InstallTensorFlow then
     S := S + 'Install' + NewLine
   else
@@ -916,15 +1146,13 @@ begin
   S := S + 'Selected models:' + NewLine + Space + GetModelSelectionSummary() + NewLine;
   if Trim(OfflinePackagePage.Values[0]) <> '' then
     S := S + 'Offline package:' + NewLine + Space + Trim(OfflinePackagePage.Values[0]) + NewLine;
+  if (not IsOnlineMode) and (Trim(OfflinePackagePage.Values[0]) = '') and IsUpgradeInstall() then
+    S := S + 'Offline package:' + NewLine + Space + 'Reuse current runtime and model files' + NewLine;
   if PipIndexUrl <> '' then
     S := S + 'pip source:' + NewLine + Space + PipIndexUrl + NewLine;
   if ModelEndpoint <> '' then
     S := S + 'Model endpoint:' + NewLine + Space + ModelEndpoint + NewLine;
-  S := S + 'Service registration:' + NewLine + Space;
-  if InstallServiceOption then
-    S := S + 'Install service' + NewLine
-  else
-    S := S + 'Skip service' + NewLine;
+  S := S + 'Service registration:' + NewLine + Space + 'Install service' + NewLine;
   Result := S;
 end;
 
@@ -937,20 +1165,10 @@ begin
   WizardForm.AdjustLabelHeight(WizardForm.FinishedLabel);
   FinishNotesLabel.Top := WizardForm.FinishedLabel.Top + WizardForm.FinishedLabel.Height + ScaleY(6);
   Notes := 'Installation log:' + #13#10 + '  ' + ExpandConstant('{app}\log\install.log') + #13#10 + #13#10;
-  if InstallServiceOption then
-  begin
-    Notes := Notes + 'Windows service commands:' + #13#10;
-    Notes := Notes + '  Start: net start Taosanode' + #13#10;
-    Notes := Notes + '  Stop:  net stop Taosanode' + #13#10;
-    Notes := Notes + '  Status: ' + ExpandConstant('{app}\bin\status-taosanode.bat') + #13#10 + #13#10;
-  end
-  else
-  begin
-    Notes := Notes + 'Service registration was skipped.' + #13#10;
-    Notes := Notes + 'Manual install later:' + #13#10;
-    Notes := Notes + '  ' + ExpandConstant('{app}\venvs\venv\Scripts\python.exe') + ' ' +
-      ExpandConstant('{app}\bin\taosanode_service.py') + ' install-service' + #13#10 + #13#10;
-  end;
+  Notes := Notes + 'Windows service commands:' + #13#10;
+  Notes := Notes + '  Start: net start Taosanode' + #13#10;
+  Notes := Notes + '  Stop:  net stop Taosanode' + #13#10;
+  Notes := Notes + '  Status: ' + ExpandConstant('{app}\bin\status-taosanode.bat') + #13#10 + #13#10;
   Notes := Notes + 'Package mode:' + #13#10 + '  {#PackageMode}' + #13#10 + #13#10;
   Notes := Notes + 'Prepared models:' + #13#10 + '  ' + GetModelSelectionSummary() + #13#10 + #13#10;
   Notes := Notes + 'Script commands:' + #13#10;
