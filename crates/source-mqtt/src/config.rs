@@ -126,6 +126,8 @@ pub struct MqttConnectConfig {
     pub keep_alive: Duration,
     pub clean_session: bool,
     pub certificates: Option<Certificates>,
+    pub connect_user_properties: Option<Vec<(String, String)>>,
+    pub subscribe_user_properties: Option<Vec<(String, String)>>,
 }
 
 impl TryFrom<Dsn> for MqttConnectConfig {
@@ -152,6 +154,8 @@ impl TryFrom<&Dsn> for MqttConnectConfig {
             keep_alive: parse_keep_alive(dsn)?,
             clean_session: parse_clean_session(dsn)?,
             certificates: parse_tls_certificates(dsn)?,
+            connect_user_properties: parse_connect_user_properties(dsn)?,
+            subscribe_user_properties: parse_subscribe_user_properties(dsn)?,
         })
     }
 }
@@ -281,6 +285,14 @@ pub fn parse_client_id(dsn: &Dsn) -> anyhow::Result<String> {
 
 pub fn parse_clean_session(dsn: &Dsn) -> anyhow::Result<bool> {
     Ok(parse_simple_params(dsn, "clean_session")?.unwrap_or(true))
+}
+
+fn parse_connect_user_properties(dsn: &Dsn) -> anyhow::Result<Option<Vec<(String, String)>>> {
+    taosx_utils::dsn::parse_kv_pairs(dsn, "connect_user_properties")
+}
+
+fn parse_subscribe_user_properties(dsn: &Dsn) -> anyhow::Result<Option<Vec<(String, String)>>> {
+    taosx_utils::dsn::parse_kv_pairs(dsn, "subscribe_user_properties")
 }
 
 pub fn parse_topics(dsn: &Dsn) -> anyhow::Result<HashMap<String, u8>> {
@@ -672,7 +684,9 @@ JGMv
                     ca: b"abc".to_vec(),
                     cert: Some(b"def".to_vec()),
                     cert_key: Some(b"ghi".to_vec())
-                })
+                }),
+                connect_user_properties: None,
+                subscribe_user_properties: None,
             }
         );
 
@@ -692,5 +706,61 @@ JGMv
         );
 
         Ok(())
+    }
+
+    #[test]
+    fn parse_connect_user_properties_valid() {
+        let dsn: Dsn = "mqtt://localhost:1883?version=5&client_id=test&connect_user_properties=key1=val1,key2=val2"
+            .parse()
+            .unwrap();
+        let config = MqttConnectConfig::try_from(&dsn).unwrap();
+        assert_eq!(
+            config.connect_user_properties,
+            Some(vec![
+                ("key1".to_string(), "val1".to_string()),
+                ("key2".to_string(), "val2".to_string()),
+            ])
+        );
+    }
+
+    #[test]
+    fn parse_subscribe_user_properties_valid() {
+        let dsn: Dsn = "mqtt://localhost:1883?version=5&client_id=test&subscribe_user_properties=sub-offset=earliest,priority=high"
+            .parse()
+            .unwrap();
+        let config = MqttConnectConfig::try_from(&dsn).unwrap();
+        assert_eq!(
+            config.subscribe_user_properties,
+            Some(vec![
+                ("sub-offset".to_string(), "earliest".to_string()),
+                ("priority".to_string(), "high".to_string()),
+            ])
+        );
+    }
+
+    #[test]
+    fn both_user_properties_absent() {
+        let dsn: Dsn = "mqtt://localhost:1883?version=5&client_id=test"
+            .parse()
+            .unwrap();
+        let config = MqttConnectConfig::try_from(&dsn).unwrap();
+        assert!(config.connect_user_properties.is_none());
+        assert!(config.subscribe_user_properties.is_none());
+    }
+
+    #[test]
+    fn both_user_properties_present() {
+        let dsn: Dsn = "mqtt://localhost:1883?version=5&client_id=test&connect_user_properties=a=b&subscribe_user_properties=c=d"
+            .parse()
+            .unwrap();
+        let config = MqttConnectConfig::try_from(&dsn).unwrap();
+        assert_eq!(
+            config.connect_user_properties,
+            Some(vec![("a".to_string(), "b".to_string())])
+        );
+        assert_eq!(
+            config.subscribe_user_properties,
+            Some(vec![("c".to_string(), "d".to_string())])
+        );
     }
 }

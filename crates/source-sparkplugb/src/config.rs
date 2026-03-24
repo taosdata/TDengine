@@ -89,6 +89,8 @@ impl ConnectConfig {
                 keep_alive: self.keep_alive,
                 clean_session: true,
                 certificates: self.certs.clone(),
+                connect_user_properties: None,
+                subscribe_user_properties: None,
             };
             ret.push(config)
         }

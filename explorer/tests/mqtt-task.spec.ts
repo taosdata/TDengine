@@ -13,19 +13,18 @@ test.describe('DataIn - MQTT datasource (D2.2.1)', () => {
     await selectElOptionByText(page, 'type', 'MQTT');
 
     // Wait for MQTT-specific fields to render
-    const hostInput = page.locator('#data\\.connection_options\\.host');
+    const hostInput = page.locator('#data\\.broker_addresses\\.host_0');
     await expect(hostInput).toBeVisible({ timeout: 10_000 });
 
     // --- Locate required fields ---
 
-    // Connection Configuration
-    const portInput = page.locator('#data\\.connection_options\\.port');
+    // Broker Addresses section
+    const portInput = page.locator('#data\\.broker_addresses\\.port_0');
 
-    // Collect section (inside groups_before with UUID)
-    // version is a select – Element Plus puts id on the inner <input>
-    const mqttVersionSelect = page.locator('input[id^="data.groups_before."][id$=".version"]').first();
+    // Connection Configuration / Collect section (now use stable IDs)
+    const mqttVersionSelect = page.locator('#data\\.connection_options\\.version');
     // Topics QoS Config is a regular input
-    const topicsInput = page.locator('input[id^="data.groups_before."][id$=".topics"]').first();
+    const topicsInput = page.locator('#data\\.groups_before\\.collect\\.topics');
     // Client ID uses customId component which does NOT put an id on its <el-input>.
     // In "add" mode it renders: <span>taosx</span> + <el-input class="mr20 ml15">
     // We find the el-form-item by its class containing "client_id", then the inner input.
@@ -101,11 +100,11 @@ test.describe('DataIn - MQTT datasource (D2.2.1)', () => {
     // Select MQTT as datasource type
     await selectElOptionByText(page, 'type', 'MQTT');
 
-    const hostInput = page.locator('#data\\.connection_options\\.host');
+    const hostInput = page.locator('#data\\.broker_addresses\\.host_0');
     await expect(hostInput).toBeVisible({ timeout: 10_000 });
 
-    const portInput = page.locator('#data\\.connection_options\\.port');
-    const topicsInput = page.locator('input[id^="data.groups_before."][id$=".topics"]').first();
+    const portInput = page.locator('#data\\.broker_addresses\\.port_0');
+    const topicsInput = page.locator('#data\\.groups_before\\.collect\\.topics');
     const clientIdFormItem = page.locator('.el-form-item[class*="client_id"]').first();
     const clientIdInput = clientIdFormItem.locator('input').first();
 
@@ -177,11 +176,11 @@ test.describe('DataIn - MQTT datasource (D2.2.1)', () => {
     // Select MQTT as datasource type
     await selectElOptionByText(page, 'type', 'MQTT');
 
-    const hostInput = page.locator('#data\\.connection_options\\.host');
+    const hostInput = page.locator('#data\\.broker_addresses\\.host_0');
     await expect(hostInput).toBeVisible({ timeout: 10_000 });
 
-    const portInput = page.locator('#data\\.connection_options\\.port');
-    const topicsInput = page.locator('input[id^="data.groups_before."][id$=".topics"]').first();
+    const portInput = page.locator('#data\\.broker_addresses\\.port_0');
+    const topicsInput = page.locator('#data\\.groups_before\\.collect\\.topics');
     const clientIdFormItem = page.locator('.el-form-item[class*="client_id"]').first();
     const clientIdInput = clientIdFormItem.locator('input').first();
 
@@ -233,7 +232,7 @@ test.describe('DataIn - MQTT datasource (D2.2.1)', () => {
     // Select MQTT as datasource type
     await selectElOptionByText(page, 'type', 'MQTT');
 
-    const hostInput = page.locator('#data\\.connection_options\\.host');
+    const hostInput = page.locator('#data\\.broker_addresses\\.host_0');
     await expect(hostInput).toBeVisible({ timeout: 10_000 });
 
     // Click Check Connection without filling anything to trigger validation
@@ -248,7 +247,7 @@ test.describe('DataIn - MQTT datasource (D2.2.1)', () => {
     // Verify non-required fields do NOT show errors
 
     // TLS Verification (not required, has default "Disable")
-    const tlsSelect = page.locator('#data\\.connection_options\\.tsl_verify');
+    const tlsSelect = page.locator('#data\\.auth_options\\.tsl_verify');
     await tlsSelect.scrollIntoViewIfNeeded();
     const tlsError = getFormItemError(tlsSelect);
     await expect(tlsError).not.toBeVisible({ timeout: 3_000 });
@@ -265,13 +264,13 @@ test.describe('DataIn - MQTT datasource (D2.2.1)', () => {
     await expect(passwordError).not.toBeVisible({ timeout: 3_000 });
 
     // Keep Alive (not required, has default 60)
-    const keepAliveInput = page.locator('input[id^="data.groups_before."][id$=".keep_alive"]').first();
+    const keepAliveInput = page.locator('#data\\.connection_options\\.keep_alive');
     await keepAliveInput.scrollIntoViewIfNeeded();
     const keepAliveError = getFormItemError(keepAliveInput);
     await expect(keepAliveError).not.toBeVisible({ timeout: 3_000 });
 
     // Topic Analysis (not required)
-    const topicPatternInput = page.locator('input[id^="data.groups_before."][id$=".topic_pattern"]').first();
+    const topicPatternInput = page.locator('#data\\.groups_before\\.collect\\.topic_pattern');
     await topicPatternInput.scrollIntoViewIfNeeded();
     const topicPatternError = getFormItemError(topicPatternInput);
     await expect(topicPatternError).not.toBeVisible({ timeout: 3_000 });
@@ -284,10 +283,10 @@ test.describe('DataIn - MQTT datasource (D2.2.1)', () => {
     // Select MQTT as datasource type
     await selectElOptionByText(page, 'type', 'MQTT');
 
-    const hostInput = page.locator('#data\\.connection_options\\.host');
+    const hostInput = page.locator('#data\\.broker_addresses\\.host_0');
     await expect(hostInput).toBeVisible({ timeout: 10_000 });
 
-    const topicsInput = page.locator('input[id^="data.groups_before."][id$=".topics"]').first();
+    const topicsInput = page.locator('#data\\.groups_before\\.collect\\.topics');
     await topicsInput.scrollIntoViewIfNeeded();
     await expect(topicsInput).toBeVisible({ timeout: 10_000 });
 
@@ -390,13 +389,13 @@ test.describe('DataIn - MQTT datasource (D2.2.1)', () => {
     // Select MQTT as datasource type
     await selectElOptionByText(page, 'type', 'MQTT');
 
-    const hostInput = page.locator('#data\\.connection_options\\.host');
+    const hostInput = page.locator('#data\\.broker_addresses\\.host_0');
     await expect(hostInput).toBeVisible({ timeout: 10_000 });
 
-    const portInput = page.locator('#data\\.connection_options\\.port');
+    const portInput = page.locator('#data\\.broker_addresses\\.port_0');
     const clientIdFormItem = page.locator('.el-form-item[class*="client_id"]').first();
     const clientIdInput = clientIdFormItem.locator('input').first();
-    const topicsInput = page.locator('input[id^="data.groups_before."][id$=".topics"]').first();
+    const topicsInput = page.locator('#data\\.groups_before\\.collect\\.topics');
 
     // Fill all required fields with valid values
     await hostInput.fill('192.168.1.45');
@@ -434,13 +433,13 @@ test.describe('DataIn - MQTT datasource (D2.2.1)', () => {
     // Select MQTT as datasource type
     await selectElOptionByText(page, 'type', 'MQTT');
 
-    const hostInput = page.locator('#data\\.connection_options\\.host');
+    const hostInput = page.locator('#data\\.broker_addresses\\.host_0');
     await expect(hostInput).toBeVisible({ timeout: 10_000 });
 
-    const portInput = page.locator('#data\\.connection_options\\.port');
+    const portInput = page.locator('#data\\.broker_addresses\\.port_0');
     const clientIdFormItem = page.locator('.el-form-item[class*="client_id"]').first();
     const clientIdInput = clientIdFormItem.locator('input').first();
-    const topicsInput = page.locator('input[id^="data.groups_before."][id$=".topics"]').first();
+    const topicsInput = page.locator('#data\\.groups_before\\.collect\\.topics');
 
     // Fill all required fields — use wrong port 1885
     await hostInput.fill('192.168.1.45');
@@ -505,7 +504,7 @@ test.describe('DataIn - MQTT datasource (D2.2.1)', () => {
       await selectElOptionByText(page, 'type', 'MQTT');
 
       // Wait for MQTT-specific form fields to render after type change
-      const hostInput = page.locator('#data\\.connection_options\\.host');
+      const hostInput = page.locator('#data\\.broker_addresses\\.host_0');
       await expect(hostInput).toBeVisible({ timeout: 10_000 });
 
       // ========================
@@ -513,7 +512,7 @@ test.describe('DataIn - MQTT datasource (D2.2.1)', () => {
       // ========================
       await hostInput.fill('192.168.1.45');
 
-      const portInput = page.locator('#data\\.connection_options\\.port');
+      const portInput = page.locator('#data\\.broker_addresses\\.port_0');
       await expect(portInput).toHaveValue('1883');
 
       // TLS Verification — default is "Disable", no change needed
@@ -528,7 +527,7 @@ test.describe('DataIn - MQTT datasource (D2.2.1)', () => {
       // ========================
 
       // MQTT protocol version — select 5.0
-      const mqttVersionSelect = page.locator('input[id^="data.groups_before."][id$=".version"]').first();
+      const mqttVersionSelect = page.locator('#data\\.connection_options\\.version');
       await mqttVersionSelect.scrollIntoViewIfNeeded();
       await expect(mqttVersionSelect).toBeVisible({ timeout: 10_000 });
       // Click to open dropdown, then select "5.0"
@@ -550,7 +549,7 @@ test.describe('DataIn - MQTT datasource (D2.2.1)', () => {
       // Clean Session — default is enabled, no change needed
 
       // Topics QoS Config
-      const topicsInput = page.locator('input[id^="data.groups_before."][id$=".topics"]').first();
+      const topicsInput = page.locator('#data\\.groups_before\\.collect\\.topics');
       await topicsInput.scrollIntoViewIfNeeded();
       await topicsInput.fill('abc::0');
 

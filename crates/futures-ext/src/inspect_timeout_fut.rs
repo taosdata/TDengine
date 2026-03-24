@@ -41,12 +41,13 @@ where
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Self::Output> {
         let mut this = self.project();
-        match this.fut.as_mut().poll(cx) {
-            std::task::Poll::Ready(res) => std::task::Poll::Ready(res),
-            std::task::Poll::Pending => {
-                ready!(this.interval.poll_tick(cx));
-                (this.inspect)(this.start.elapsed());
-                std::task::Poll::Pending
+        loop {
+            match this.fut.as_mut().poll(cx) {
+                std::task::Poll::Ready(res) => return std::task::Poll::Ready(res),
+                std::task::Poll::Pending => {
+                    ready!(this.interval.poll_tick(cx));
+                    (this.inspect)(this.start.elapsed());
+                }
             }
         }
     }

@@ -23,6 +23,26 @@ pub enum Error {
     V5 { source: v5::Error },
 }
 
+impl Error {
+    pub fn is_connection_error(&self) -> bool {
+        match self {
+            Error::V3 { source } => source.is_connection_error(),
+            Error::V5 { source } => source.is_connection_error(),
+            _ => false,
+        }
+    }
+}
+
+/// Returns true if the error (or any cause in its chain) is an MQTT connection failure.
+pub fn is_connection_error(e: &anyhow::Error) -> bool {
+    e.chain().any(|cause| {
+        cause
+            .downcast_ref::<Error>()
+            .map(|e| e.is_connection_error())
+            .unwrap_or(false)
+    })
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Version {
     V3,

@@ -33,6 +33,7 @@ mod batch;
 pub mod client;
 pub mod config;
 mod dump;
+pub mod failover;
 mod metrics;
 pub mod split_job;
 pub mod topic;
@@ -505,44 +506,84 @@ async fn execute(
 
 /// Check the connectivity of the mqtt server
 pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
-    match TryInto::<MqttConnectConfig>::try_into(dsn) {
-        Err(err) => DataSourceValidation::invalid(
-            "mqtt".to_string(),
-            format!("invalid mqtt dsn: {}, cause: {}", dsn, err),
-        ),
-        Ok(mut config) => {
-            // generate a unique client if for validate operation
-            config
-                .client_id
-                .push_str(&format!("_validate_{}", uuid::Uuid::new_v4().simple()));
-            match GenericMessagePoller::try_connect(&config).await {
-                Ok(_) => DataSourceValidation::valid("mqtt", None),
-                Err(e) => DataSourceValidation::invalid(
-                    "mqtt",
-                    format!(
-                        "failed to connect to dsn: {}, {:#}",
-                        dsn,
-                        anyhow::Error::new(e)
-                    ),
-                ),
+    let addresses = &dsn.addresses;
+    if addresses.is_empty() {
+        return DataSourceValidation::invalid("mqtt", "no address provided".to_string());
+    }
+
+    let mut last_err = None;
+    for (i, address) in addresses.iter().enumerate() {
+        let mut single_dsn = dsn.clone();
+        single_dsn.addresses = vec![address.clone()];
+
+        match TryInto::<MqttConnectConfig>::try_into(&single_dsn) {
+            Err(err) => {
+                tracing::warn!(
+                    "MQTT validate: address {}/{} ({address}) parse failed: {err:#}",
+                    i + 1,
+                    addresses.len(),
+                );
+                last_err = Some(format!("invalid mqtt dsn: {single_dsn}, cause: {err:#}"));
+            }
+            Ok(mut config) => {
+                config
+                    .client_id
+                    .push_str(&format!("_validate_{}", uuid::Uuid::new_v4().simple()));
+                match GenericMessagePoller::try_connect(&config).await {
+                    Ok(_) => return DataSourceValidation::valid("mqtt", None),
+                    Err(e) => {
+                        let err = anyhow::Error::from(e);
+                        tracing::warn!(
+                            "MQTT validate: address {}/{} ({address}) connect failed: {err:#}",
+                            i + 1,
+                            addresses.len(),
+                        );
+                        last_err =
+                            Some(format!("failed to connect to dsn: {single_dsn}, {err:#}",));
+                    }
+                }
             }
         }
     }
+
+    DataSourceValidation::invalid("mqtt".to_string(), last_err.unwrap_or_default())
 }
 
 /// get sample data from mqtt server
 pub async fn get_sample(dsn: &Dsn, limit: usize, timeout: Duration) -> anyhow::Result<DsSampleIn> {
-    let samples = get_sample_message(dsn, limit, timeout).await?;
+    let addresses = &dsn.addresses;
+    anyhow::ensure!(!addresses.is_empty(), "no address provided");
 
-    let sample_json = json!({
-        "input": samples,
-        "parser": {}
-    });
+    let mut last_err = None;
+    for (i, address) in addresses.iter().enumerate() {
+        let mut single_dsn = dsn.clone();
+        single_dsn.addresses = vec![address.clone()];
 
-    let sample =
-        serde_json::from_value(sample_json).context("failed to parse mqtt sample data to json")?;
+        match get_sample_message(&single_dsn, limit, timeout).await {
+            Ok(samples) => {
+                let sample_json = json!({
+                    "input": samples,
+                    "parser": {}
+                });
+                let sample = serde_json::from_value(sample_json)
+                    .context("failed to parse mqtt sample data to json")?;
+                return Ok(sample);
+            }
+            Err(e) => {
+                tracing::warn!(
+                    "MQTT sample: address {}/{} ({:?}:{:?}) failed: {:#}",
+                    i + 1,
+                    addresses.len(),
+                    address.host,
+                    address.port,
+                    e
+                );
+                last_err = Some(e);
+            }
+        }
+    }
 
-    Ok(sample)
+    Err(last_err.unwrap_or_else(|| anyhow::anyhow!("no address available")))
 }
 
 async fn get_sample_message(

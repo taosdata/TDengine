@@ -4,10 +4,9 @@
       <template v-for="(child, index) in localConfig" :key="'child' + '-' + child.host.field">
         <div>
           <el-form-item
-            label-width="240px"
             :required="child.host.required"
             :rules="rules(child.host)"
-            :class="[classMark(child.host.field)]"
+            :class="[classMark(child.host.field), { 'hidden-required': !child.host.required }]"
             :prop="parent + child.host.field"
           >
             <template #label>
@@ -23,33 +22,31 @@
                 </span>
               </el-tooltip>
             </template>
-            <div class="flex-between flex-1">
+            <div class="broker-input-row">
               <el-input
                 :id="parent + child.host.field"
                 v-model="localData[child.host.field]"
-                style="flex: 0 80%"
-                class="mr20"
+                class="broker-input"
                 :placeholder="child.host.placeholder"
-                :disabled="isEdit && !isCopy"
                 @input="handlerConfig('host', child.host.field)"
               >
               </el-input>
-              <el-button
-                v-if="index"
-                :disabled="isEdit && !isCopy"
-                style="width: 110px"
-                type="primary"
-                plain
-                @click="remove(index, child.host.field, child.port.field)"
-                >{{ t('dataIn.delBroker') }}</el-button
-              >
+              <div class="broker-btn-slot">
+                <el-button
+                  v-if="index"
+                  class="broker-btn"
+                  type="primary"
+                  plain
+                  @click="remove(index, child.host.field, child.port.field)"
+                  >{{ t('dataIn.delBroker') }}</el-button
+                >
+              </div>
             </div>
           </el-form-item>
           <el-form-item
-            label-width="240px"
             :required="child.port.required"
             :rules="rules(child.port)"
-            :class="[classMark(child.port.field)]"
+            :class="[classMark(child.port.field), { 'hidden-required': !child.port.required }]"
             :prop="parent + child.port.field"
           >
             <template #label>
@@ -65,26 +62,24 @@
                 </span>
               </el-tooltip>
             </template>
-            <div class="flex-start flex-1">
+            <div class="broker-input-row">
               <el-input
                 :id="parent + child.port.field"
                 v-model="localData[child.port.field]"
-                style="flex: 0 80%"
-                class="mr20"
+                class="broker-input"
                 :placeholder="child.port.placeholder"
-                :disabled="isEdit && !isCopy"
                 @input="handlerConfig('port', child.port.field)"
               >
               </el-input>
+              <div class="broker-btn-slot"></div>
             </div>
           </el-form-item>
         </div>
       </template>
-      <div class="flex-end">
+      <div class="broker-add-row">
         <el-button
           size="default"
-          style="width: 110px"
-          :disabled="isEdit && !isCopy"
+          class="broker-btn"
           type="primary"
           plain
           @click="add"
@@ -129,8 +124,6 @@ const props = withDefaults(
 const localConfig = reactive(props.config);
 const localData = reactive(props.data);
 
-const isEdit = computed(() => currentPageType.value === 'edit');
-const isCopy = computed(() => currentPageType.value === 'copy');
 const isView = computed(() => currentPageType.value === 'view');
 
 const rules = computed(() => {
@@ -180,13 +173,16 @@ watch(
 
 function add() {
   const item = cloneDeep(localConfig[0]);
-  const key = new Date().getTime();
+  const key = localConfig.length;
   item.host.field = 'host_' + key;
   item.port.field = 'port_' + key;
   item.host.required = false;
   item.port.required = false;
   item.host.value = '';
-  item.port.value = '';
+  item.port.value = item.port.defaultValue ?? '';
+  // Pre-populate localData so the input renders with the default port value
+  localData[item.host.field] = '';
+  localData[item.port.field] = item.port.defaultValue ?? '';
   localConfig.push(item);
 }
 
@@ -271,5 +267,32 @@ function manage(type: string, hostKey: string, portKey: string, host: string, po
   > span {
     display: inline-block;
   }
+}
+
+.broker-input-row {
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.broker-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.broker-btn-slot {
+  width: 110px;
+  flex-shrink: 0;
+  margin-left: 12px;
+}
+
+.broker-btn {
+  width: 100%;
+}
+
+.broker-add-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 10px;
 }
 </style>

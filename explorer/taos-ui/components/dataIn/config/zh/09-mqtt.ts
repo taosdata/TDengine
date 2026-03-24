@@ -9,31 +9,134 @@ export default {
     'MQTT 表示 Message Queuing Telemetry Transport （消息队列遥测传输）。它是一种轻量级的消息协议，易于实现和使用。它非常适合连接资源有限的设备，例如电池供电的设备或带宽较低的设备。MQTT也是实时控制系统等延迟重要的应用程序的不错选择。\n\nMQTT 通过使用发布/订阅模型来工作。这意味着设备可以将消息发布到主题，其他设备可以订阅这些主题以接收消息。这使得轻松将设备解耦，并根据需要扩展应用程序。\n\nMQTT 是物联网应用程序的流行选择。它得到了广泛的设备和平台支持，并提供许多开源和商业实现。\n\ntaosX 可以通过连接器插件从 MQTT 代理订阅数据。请查看每个部分的帮助消息以了解详细信息。\n',
   config: [
     {
+      label: 'Broker 地址',
+      field: 'broker_addresses',
+      type: 'grouping',
+      children: [
+        {
+          host: {
+            label: 'MQTT 地址',
+            description:
+              'MQTT 服务器地址。如: “127.0.0.1”\n如果使用了 Agent ，该地址必须能够从 Agent 访问。如果没有使用 Agent, 该地址必须能够从 TDengine 系统所在服务器访问。\n',
+            field: 'host_0',
+            required: true,
+            placeholder: '127.0.0.1',
+            defaultValue: ''
+          },
+          port: {
+            label: 'MQTT 端口',
+            description: 'MQTT 服务器端口',
+            field: 'port_0',
+            required: true,
+            placeholder: '1883',
+            pattern: '^(?:0|[1-9][0-9]{0,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5])$',
+            patternMsg: '端口号的范围是 0-65535',
+            defaultValue: '1883'
+          }
+        }
+      ]
+    },
+    {
       label: '连接配置',
       field: 'connection_options',
       children: [
         {
-          label: 'MQTT 地址',
-          description:
-            'MQTT 服务器地址。如: “127.0.0.1”\n如果使用了 Agent ，该地址必须能够从 Agent 访问。如果没有使用 Agent, 该地址必须能够从 TDengine 系统所在服务器访问。\n',
-          field: 'host',
-          placeholder: '127.0.0.1',
-          pattern: null,
-          defaultValue: '',
+          label: 'MQTT 协议',
+          description: 'MQTT 协议版本。',
+          field: 'version',
           required: true,
-          display_order: 1,
+          placeholder: '',
+          defaultValue: '3.1',
+          pattern: null,
+          grid_two: false,
+          type: 'select',
+          options: [
+            {
+              label: '3.1',
+              value: '3.1'
+            },
+            {
+              label: '3.1.1',
+              value: '3.1.1'
+            },
+            {
+              label: '5.0',
+              value: '5.0'
+            }
+          ],
+          meta: {
+            allowCreate: true,
+            filterable: true
+          }
+        },
+        {
+          label: '客户端 ID',
+          description: 'MQTT Broker 客户端 ID。',
+          field: 'client_id',
+          required: true,
+          placeholder: '示例：client_id',
+          pattern: null,
+          grid_two: false,
+          type: 'customId'
+        },
+        {
+          label: '保活时间',
+          description:
+            '如果代理在保持活动间隔内没有收到来自客户端的任何消息，它将假定客户端已断开连接，并关闭连接。\n\n保持活动间隔是指客户端和代理之间协商的时间间隔，用于检测客户端是否活动。如果客户端在保持活动间隔内没有向代理发送消息，则代理将断开连接。\n\n保持活动间隔的默认值为60秒，但可以通过在连接时设置 CONNECT 报文中的 keep alive 字段来更改它。\n',
+          field: 'keep_alive',
+          placeholder: '10',
+          defaultValue: '60',
+          pattern: null,
+          grid_two: false,
+          type: 'number',
+          min: 1
+          // "max": null
+        },
+        {
+          label: '清除会话',
+          description:
+            '如果clean session标志设置为True，则代理将忘记有关会话的所有信息，包括客户端的订阅。<br>\nclean session 标志的默认值为True。<br>\n如果设置为False，则代理将保留有关客户端的信息，包括其订阅。这意味着客户端在重新连接时可以恢复其以前的订阅。<br>\n',
+          field: 'clean_session',
+          placeholder: '',
+          defaultValue: true,
+          pattern: null,
+          grid_two: false,
+          type: 'switch'
+        },
+        {
+          label: '连接用户属性',
+          description: '自定义 MQTT v5 用户属性，在 CONNECT 报文中发送。每个属性是一个键值对。\n仅适用于 MQTT v5。',
+          field: 'connect_user_properties',
+          required: false,
+          placeholder: 'key1=value1,key2=value2',
+          defaultValue: '',
+          type: 'input',
+          displayDependsOn: ['connection_options/version'],
+          displayDependsOnValues: {
+            version: ['5.0']
+          }
+        }
+      ]
+    },
+    {
+      label: '认证配置',
+      field: 'auth_options',
+      children: [
+        {
+          label: '用户名',
+          description: 'MQTT Broker 认证用户名。',
+          field: 'username',
+          placeholder: '',
+          defaultValue: '',
           type: 'input'
         },
         {
-          label: 'MQTT 端口',
-          description: 'MQTT 服务器端口',
-          field: 'port',
-          placeholder: '1883',
-          pattern: '^(?:0|[1-9][0-9]{0,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5])$',
-          patternMsg: '端口号的范围是 0-65535',
-          defaultValue: '1883',
-          required: true,
-          type: 'input'
+          label: '密码',
+          description: 'MQTT Broker 认证密码。',
+          field: 'password',
+          placeholder: '',
+          defaultValue: '',
+          type: 'password'
         },
         {
           label: 'TLS 校验',
@@ -70,7 +173,7 @@ export default {
           grid_two: false,
           type: 'file',
           templateUrl: '',
-          displayDependsOn: ['connection_options/tsl_verify'],
+          displayDependsOn: ['auth_options/tsl_verify'],
           displayDependsOnValues: {
             tsl_verify: ['single', 'both']
           }
@@ -85,7 +188,7 @@ export default {
           grid_two: false,
           type: 'file',
           templateUrl: '',
-          displayDependsOn: ['connection_options/tsl_verify'],
+          displayDependsOn: ['auth_options/tsl_verify'],
           displayDependsOnValues: {
             tsl_verify: ['both']
           }
@@ -100,40 +203,10 @@ export default {
           grid_two: false,
           type: 'file',
           templateUrl: '',
-          displayDependsOn: ['connection_options/tsl_verify'],
+          displayDependsOn: ['auth_options/tsl_verify'],
           displayDependsOnValues: {
             tsl_verify: ['both']
           }
-        }
-      ]
-    },
-    {
-      label: '认证',
-      description: '使用用户名和密码访问 MQTT Broker。',
-      field: 'authentication',
-      type: 'tabs',
-      valueField: 'currentTab',
-      defaultValue: 'plain',
-      multiple: false,
-      children: [
-        {
-          label: '用户名密码访问',
-          name: 'plain',
-          field: 'plain',
-          children: [
-            {
-              label: '用户',
-              field: 'username',
-              defaultValue: '',
-              type: 'input'
-            },
-            {
-              label: '密码',
-              field: 'password',
-              defaultValue: '',
-              type: 'password'
-            }
-          ]
         }
       ]
     },
@@ -148,67 +221,43 @@ export default {
           description: '采集任务配置',
           children: [
             {
-              label: 'MQTT 协议',
-              description: 'MQTT 协议版本。',
-              field: 'version',
-              required: true,
+              label: '订阅初始位置',
+              description:
+                '数据订阅起始偏移。\n- *earliest*: 所有数据，包括新数据。\n- *latest*: 仅从最新数据开始订阅。\n\n仅在 TSDB Bnode 作为 MQTT broker 时生效。\n',
+              field: 'sub-offset',
               placeholder: '',
-              defaultValue: '3.1',
+              defaultValue: '',
               pattern: null,
               grid_two: false,
               type: 'select',
               options: [
                 {
-                  label: '3.1',
-                  value: '3.1'
+                  label: 'earliest',
+                  value: 'earliest'
                 },
                 {
-                  label: '3.1.1',
-                  value: '3.1.1'
-                },
-                {
-                  label: '5.0',
-                  value: '5.0'
+                  label: 'latest',
+                  value: 'latest'
                 }
               ],
-              meta: {
-                allowCreate: true,
-                filterable: true
+              displayDependsOn: ['connection_options/version'],
+              displayDependsOnValues: {
+                version: ['5.0']
               }
             },
             {
-              label: '客户端 ID',
-              description: 'MQTT Broker 客户端 ID。',
-              field: 'client_id',
-              required: true,
-              placeholder: '示例：client_id',
-              pattern: null,
-              grid_two: false,
-              type: 'customId'
-            },
-            {
-              label: 'Keep Alive',
+              label: '订阅用户属性',
               description:
-                '如果代理在保持活动间隔内没有收到来自客户端的任何消息，它将假定客户端已断开连接，并关闭连接。\n\n保持活动间隔是指客户端和代理之间协商的时间间隔，用于检测客户端是否活动。如果客户端在保持活动间隔内没有向代理发送消息，则代理将断开连接。\n\n保持活动间隔的默认值为60秒，但可以通过在连接时设置 CONNECT 报文中的 keep alive 字段来更改它。\n',
-              field: 'keep_alive',
-              placeholder: '10',
-              defaultValue: '60',
-              pattern: null,
-              grid_two: false,
-              type: 'number',
-              min: 1
-              // "max": null
-            },
-            {
-              label: 'Clean Session',
-              description:
-                '如果clean session标志设置为True，则代理将忘记有关会话的所有信息，包括客户端的订阅。<br>\nclean session 标志的默认值为True。<br>\n如果设置为False，则代理将保留有关客户端的信息，包括其订阅。这意味着客户端在重新连接时可以恢复其以前的订阅。<br>\n',
-              field: 'clean_session',
-              placeholder: '',
-              defaultValue: true,
-              pattern: null,
-              grid_two: false,
-              type: 'switch'
+                '自定义 MQTT v5 用户属性，在 SUBSCRIBE 报文中发送。每个属性是一个键值对。\n仅适用于 MQTT v5。',
+              field: 'subscribe_user_properties',
+              required: false,
+              placeholder: 'key1=value1,key2=value2',
+              defaultValue: '',
+              type: 'input',
+              displayDependsOn: ['connection_options/version'],
+              displayDependsOnValues: {
+                version: ['5.0']
+              }
             },
             {
               label: '订阅主题及 QoS 配置',

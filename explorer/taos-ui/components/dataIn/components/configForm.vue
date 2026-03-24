@@ -259,6 +259,7 @@ $color-description: rgb(137 130 130);
     margin-bottom: 10px;
     border: 1px solid #ececef;
     border-radius: 12px;
+    overflow: hidden;
   }
 
   &:deep(.el-tabs__item.is-disabled) {
@@ -393,6 +394,12 @@ $color-description: rgb(137 130 130);
 
   :deep(.el-select .el-input .el-select__caret) {
     display: none;
+  }
+
+  /* Hide placeholder text in readonly mode */
+  :deep(.el-input__inner::placeholder) {
+    color: transparent !important;
+    -webkit-text-fill-color: transparent !important;
   }
 
   /* 强制覆盖：禁用输入的文字颜色为常规文本色 */

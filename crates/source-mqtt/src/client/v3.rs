@@ -50,6 +50,18 @@ pub enum Error {
     PendingFiltersNotFound,
 }
 
+impl Error {
+    pub fn is_connection_error(&self) -> bool {
+        matches!(
+            self,
+            Error::ConnectionFailed { .. }
+                | Error::ConnFailedWithCode { .. }
+                | Error::UnexpectedPollFailed { .. }
+                | Error::RetryTooManyTimes { .. }
+        )
+    }
+}
+
 type Result<T> = std::result::Result<T, Error>;
 
 pub struct MessagePoller {

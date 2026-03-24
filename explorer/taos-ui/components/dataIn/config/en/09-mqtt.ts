@@ -9,31 +9,135 @@ export default {
     'MQTT stands for Message Queuing Telemetry Transport. It is a lightweight messaging protocol that is easy to implement and use. It is ideal for connecting devices with limited resources, such as battery-powered devices or devices with low bandwidth. MQTT is also a good choice for applications where latency is important, such as real-time control systems.\n\nMQTT works by using a publish/subscribe model. This means that devices can publish messages to topics, and other devices can subscribe to those topics to receive the messages. This makes it easy to decouple devices from each other, and to scale up applications as needed.\n\nMQTT is a popular choice for IoT applications. It is supported by a wide range of devices and platforms, and there are many open source and commercial implementations available.\n\ntaosX could subscribe data from MQTT broker by a connector plugin.\n\nCheck the help message in each part to see the details.\n',
   config: [
     {
+      label: 'Broker Addresses',
+      field: 'broker_addresses',
+      type: 'grouping',
+      children: [
+        {
+          host: {
+            label: 'MQTT Host',
+            description:
+              'MQTT server endpoint. e.g: 127.0.0.1\nIf using an Agent, this address must be accessible from the Agent. If not using an Agent, this address must be accessible from the TDengine system.\n',
+            field: 'host_0',
+            required: true,
+            placeholder: '127.0.0.1',
+            defaultValue: ''
+          },
+          port: {
+            label: 'MQTT Port',
+            description: 'MQTT server port',
+            field: 'port_0',
+            required: true,
+            placeholder: '1883',
+            pattern: '^(?:0|[1-9][0-9]{0,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5])$',
+            patternMsg: 'The port number ranges from 0 to 65535',
+            defaultValue: '1883'
+          }
+        }
+      ]
+    },
+    {
       label: 'Connection Configuration',
       field: 'connection_options',
       children: [
         {
-          label: 'MQTT Host',
-          description:
-            'MQTT server endpoint. e.g: 127.0.0.1\nIf using an Agent, this address must be accessible from the Agent. If not using an Agent, this address must be accessible from the TDengine system.\n',
-          field: 'host',
+          label: 'MQTT protocol version',
+          description: 'MQTT protocol version.',
+          field: 'version',
           required: true,
-          placeholder: '127.0.0.1',
+          placeholder: '',
+          defaultValue: '3.1',
           pattern: null,
+          grid_two: false,
+          type: 'select',
+          options: [
+            {
+              label: '3.1',
+              value: '3.1'
+            },
+            {
+              label: '3.1.1',
+              value: '3.1.1'
+            },
+            {
+              label: '5.0',
+              value: '5.0'
+            }
+          ],
+          meta: {
+            allowCreate: true,
+            filterable: true
+          }
+        },
+        {
+          label: 'Client ID',
+          description: 'Client id used to connect to mqtt broker.',
+          field: 'client_id',
+          required: true,
+          placeholder: 'for example: client_id',
+          pattern: null,
+          grid_two: false,
+          type: 'customId'
+        },
+        {
+          label: 'Keep Alive',
+          description:
+            'If the broker does not receive any messages from the<br>\nclient within the keep alive interval, it will assume<br>\nthat the client has disconnected and will close the<br>\nconnection.\n',
+          field: 'keep_alive',
+          placeholder: '10',
+          defaultValue: '60',
+          pattern: null,
+          grid_two: false,
+          type: 'number',
+          min: 1
+          // max: null
+        },
+        {
+          label: 'Clean Session',
+          description:
+            "True means that the server will forget all information<br>\nabout the session, including the client's subscriptions.<br>\nThe default value for the clean session flag is true.<br>\n",
+          field: 'clean_session',
+          placeholder: '',
+          defaultValue: true,
+          pattern: null,
+          grid_two: false,
+          type: 'switch'
+        },
+        {
+          label: 'Connect User Properties',
+          description:
+            'Custom MQTT v5 user properties sent in the CONNECT packet. Each property is a key-value pair.\nOnly available for MQTT v5.',
+          field: 'connect_user_properties',
+          required: false,
+          placeholder: 'key1=value1,key2=value2',
           defaultValue: '',
-          display_order: 1,
+          type: 'input',
+          displayDependsOn: ['connection_options/version'],
+          displayDependsOnValues: {
+            version: ['5.0']
+          }
+        }
+      ]
+    },
+    {
+      label: 'Authentication Configuration',
+      field: 'auth_options',
+      children: [
+        {
+          label: 'Username',
+          description: 'MQTT broker username for authentication.',
+          field: 'username',
+          placeholder: '',
+          defaultValue: '',
           type: 'input'
         },
         {
-          label: 'MQTT Port',
-          description: 'MQTT server port',
-          field: 'port',
-          required: true,
-          placeholder: '1883',
-          pattern: '^(?:0|[1-9][0-9]{0,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5])$',
-          patternMsg: 'The port number ranges from 0 to 65535',
-          defaultValue: '1883',
-          type: 'input'
+          label: 'Password',
+          description: 'MQTT broker password for authentication.',
+          field: 'password',
+          placeholder: '',
+          defaultValue: '',
+          type: 'password'
         },
         {
           label: 'TLS Verification',
@@ -70,7 +174,7 @@ export default {
           grid_two: false,
           type: 'file',
           templateUrl: '',
-          displayDependsOn: ['connection_options/tsl_verify'],
+          displayDependsOn: ['auth_options/tsl_verify'],
           displayDependsOnValues: {
             tsl_verify: ['single', 'both']
           }
@@ -85,7 +189,7 @@ export default {
           grid_two: false,
           type: 'file',
           templateUrl: '',
-          displayDependsOn: ['connection_options/tsl_verify'],
+          displayDependsOn: ['auth_options/tsl_verify'],
           displayDependsOnValues: {
             tsl_verify: ['both']
           }
@@ -100,39 +204,10 @@ export default {
           grid_two: false,
           type: 'file',
           templateUrl: '',
-          displayDependsOn: ['connection_options/tsl_verify'],
+          displayDependsOn: ['auth_options/tsl_verify'],
           displayDependsOnValues: {
             tsl_verify: ['both']
           }
-        }
-      ]
-    },
-    {
-      label: 'Authentication',
-      field: 'authentication',
-      type: 'tabs',
-      valueField: 'a7dcf55a-a4ea-483b-8980-2db60cd2d8d6',
-      defaultValue: 'plain',
-      multiple: false,
-      children: [
-        {
-          label: 'Username Password',
-          name: 'plain',
-          field: 'plain',
-          children: [
-            {
-              label: 'Username',
-              field: 'username',
-              defaultValue: '',
-              type: 'input'
-            },
-            {
-              label: 'Password',
-              field: 'password',
-              defaultValue: '',
-              type: 'password'
-            }
-          ]
         }
       ]
     },
@@ -143,71 +218,47 @@ export default {
       children: [
         {
           label: 'Collect',
-          field: 'f303fa89-1083-44a5-9dbd-2e5cdd9afb4d',
+          field: 'collect',
           description: 'Some configurations used in collection task.',
           children: [
             {
-              label: 'MQTT protocol version',
-              description: 'MQTT protocol version.',
-              field: 'version',
-              required: true,
+              label: 'Start From',
+              description:
+                'Data offset to start subscribing.\n- *earliest*: All the data, including new data.\n- *latest*: Subscribe from latest data only.\n\nNote: This option is only used when the TSDB Bnode is acting as the MQTT broker.\n',
+              field: 'sub-offset',
               placeholder: '',
-              defaultValue: '3.1',
+              defaultValue: '',
               pattern: null,
               grid_two: false,
               type: 'select',
               options: [
                 {
-                  label: '3.1',
-                  value: '3.1'
+                  label: 'earliest',
+                  value: 'earliest'
                 },
                 {
-                  label: '3.1.1',
-                  value: '3.1.1'
-                },
-                {
-                  label: '5.0',
-                  value: '5.0'
+                  label: 'latest',
+                  value: 'latest'
                 }
               ],
-              meta: {
-                allowCreate: true,
-                filterable: true
+              displayDependsOn: ['connection_options/version'],
+              displayDependsOnValues: {
+                version: ['5.0']
               }
             },
             {
-              label: 'Client ID',
-              description: 'Client id used to connect to mqtt broker.',
-              field: 'client_id',
-              required: true,
-              placeholder: 'for example: client_id',
-              pattern: null,
-              grid_two: false,
-              type: 'customId'
-            },
-            {
-              label: 'Keep Alive',
+              label: 'Subscribe User Properties',
               description:
-                'If the broker does not receive any messages from the<br>\nclient within the keep alive interval, it will assume<br>\nthat the client has disconnected and will close the<br>\nconnection.\n',
-              field: 'keep_alive',
-              placeholder: '10',
-              defaultValue: '60',
-              pattern: null,
-              grid_two: false,
-              type: 'number',
-              min: 1
-              // max: null
-            },
-            {
-              label: 'Clean Session',
-              description:
-                "True means that the server will forget all information<br>\nabout the session, including the client's subscriptions.<br>\nThe default value for the clean session flag is true.<br>\n",
-              field: 'clean_session',
-              placeholder: '',
-              defaultValue: true,
-              pattern: null,
-              grid_two: false,
-              type: 'switch'
+                'Custom MQTT v5 user properties sent in the SUBSCRIBE packet. Each property is a key-value pair.\nOnly available for MQTT v5.',
+              field: 'subscribe_user_properties',
+              required: false,
+              placeholder: 'key1=value1,key2=value2',
+              defaultValue: '',
+              type: 'input',
+              displayDependsOn: ['connection_options/version'],
+              displayDependsOnValues: {
+                version: ['5.0']
+              }
             },
             {
               label: 'Topics QoS Config',

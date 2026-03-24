@@ -7,7 +7,7 @@ use rumqttc::{
         AsyncClient, ConnectionError, Event, EventLoop, Incoming, MqttOptions,
         mqttbytes::v5::{
             ConnAck, ConnectProperties, ConnectReturnCode, Disconnect, Filter, Publish, SubAck,
-            SubscribeReasonCode,
+            SubscribeProperties, SubscribeReasonCode,
         },
     },
 };
@@ -32,6 +32,10 @@ pub enum Error {
     ExpectedSubAck,
     #[snafu(display("MQTT task exited"))]
     TaskExited,
+    #[snafu(display("MQTT subscribe request failed"))]
+    SubscribeFailed {
+        source: Box<rumqttc::v5::ClientError>,
+    },
     #[snafu(display("Invalid UTF-8"))]
     InvalidUtf8 { source: FromUtf8Error },
     #[snafu(display("MQTT subscription not found"))]
@@ -63,12 +67,25 @@ pub enum Error {
     PendingFiltersNotFound,
 }
 
+impl Error {
+    pub fn is_connection_error(&self) -> bool {
+        matches!(
+            self,
+            Error::ConnectionFailed { .. }
+                | Error::ConnFailedWithCode { .. }
+                | Error::UnexpectedPollFailed { .. }
+                | Error::RetryTooManyTimes { .. }
+        )
+    }
+}
+
 type Result<T> = std::result::Result<T, Error>;
 
 pub struct MessagePoller {
     client: AsyncClient,
     event_loop: EventLoop,
     filters: Vec<Filter>,
+    subscribe_properties: Option<SubscribeProperties>,
     pending_filters: Option<Vec<Filter>>,
 }
 
@@ -86,6 +103,7 @@ impl super::MessagePoller for MessagePoller {
     {
         let filters = build_subscribe_filters(subscriptions)?;
         snafu::ensure!(!filters.is_empty(), SubscriptionEmptySnafu);
+        let subscribe_properties = build_subscribe_properties(config);
 
         let (client, mut event_loop, session_present) = try_connect(config).await?;
 
@@ -95,14 +113,24 @@ impl super::MessagePoller for MessagePoller {
                 client,
                 event_loop,
                 filters,
+                subscribe_properties,
                 pending_filters: None,
             });
         }
 
-        client
-            .subscribe_many(filters.clone())
-            .await
-            .map_err(|_| TaskExitedSnafu.build())?;
+        if let Some(ref props) = subscribe_properties {
+            client
+                .subscribe_many_with_properties(filters.clone(), props.clone())
+                .await
+                .map_err(Box::new)
+                .context(SubscribeFailedSnafu)?;
+        } else {
+            client
+                .subscribe_many(filters.clone())
+                .await
+                .map_err(Box::new)
+                .context(SubscribeFailedSnafu)?;
+        }
         // sub ack
         loop {
             match event_loop.poll().await.context(ConnectionFailedSnafu)? {
@@ -120,6 +148,7 @@ impl super::MessagePoller for MessagePoller {
                         client,
                         event_loop,
                         filters,
+                        subscribe_properties,
                         pending_filters: None,
                     });
                 }
@@ -159,10 +188,19 @@ impl super::MessagePoller for MessagePoller {
                         tracing::info!("MQTT connection reconnected with session");
                     } else {
                         tracing::info!("MQTT reconnect successfully, start to resubscribe");
-                        self.client
-                            .subscribe_many(self.filters.clone())
-                            .await
-                            .map_err(|_| TaskExitedSnafu.build())?;
+                        if let Some(ref props) = self.subscribe_properties {
+                            self.client
+                                .subscribe_many_with_properties(self.filters.clone(), props.clone())
+                                .await
+                                .map_err(Box::new)
+                                .context(SubscribeFailedSnafu)?;
+                        } else {
+                            self.client
+                                .subscribe_many(self.filters.clone())
+                                .await
+                                .map_err(Box::new)
+                                .context(SubscribeFailedSnafu)?;
+                        }
                         self.pending_filters = Some(self.filters.clone());
                     }
                 }
@@ -190,10 +228,22 @@ impl super::MessagePoller for MessagePoller {
                     // subscribe retry
                     if !failed_sub_filters.is_empty() {
                         // interval
-                        self.client
-                            .subscribe_many(failed_sub_filters.clone())
-                            .await
-                            .map_err(|_| TaskExitedSnafu.build())?;
+                        if let Some(ref props) = self.subscribe_properties {
+                            self.client
+                                .subscribe_many_with_properties(
+                                    failed_sub_filters.clone(),
+                                    props.clone(),
+                                )
+                                .await
+                                .map_err(Box::new)
+                                .context(SubscribeFailedSnafu)?;
+                        } else {
+                            self.client
+                                .subscribe_many(failed_sub_filters.clone())
+                                .await
+                                .map_err(Box::new)
+                                .context(SubscribeFailedSnafu)?;
+                        }
                         self.pending_filters = Some(failed_sub_filters);
                     }
                 }
@@ -313,9 +363,22 @@ fn build_options(config: &MqttConnectConfig) -> Result<MqttOptions> {
 
     // session
     options.set_clean_start(config.clean_session);
-    if !config.clean_session {
+
+    // ConnectProperties: session_expiry and connect_user_properties are independent
+    let needs_session_expiry = !config.clean_session;
+    let has_connect_props = config
+        .connect_user_properties
+        .as_ref()
+        .is_some_and(|p| !p.is_empty());
+
+    if needs_session_expiry || has_connect_props {
         let mut props = ConnectProperties::new();
-        props.session_expiry_interval = Some(60);
+        if needs_session_expiry {
+            props.session_expiry_interval = Some(60);
+        }
+        if let Some(user_props) = &config.connect_user_properties {
+            props.user_properties = user_props.clone();
+        }
         options.set_connect_properties(props);
     }
 
@@ -323,6 +386,17 @@ fn build_options(config: &MqttConnectConfig) -> Result<MqttOptions> {
     options.set_max_packet_size(Some(u32::MAX));
 
     Ok(options)
+}
+
+fn build_subscribe_properties(config: &MqttConnectConfig) -> Option<SubscribeProperties> {
+    let props = config.subscribe_user_properties.as_ref()?;
+    if props.is_empty() {
+        return None;
+    }
+    Some(SubscribeProperties {
+        id: None,
+        user_properties: props.clone(),
+    })
 }
 
 fn build_subscribe_filters<I>(subscriptions: I) -> Result<Vec<Filter>>

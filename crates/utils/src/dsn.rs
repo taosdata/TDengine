@@ -382,6 +382,33 @@ where
         .transpose()
 }
 
+/// Parse a comma-separated key=value string from a DSN parameter.
+/// Returns `None` if the parameter is absent or empty.
+pub fn parse_kv_pairs(dsn: &Dsn, key: &str) -> anyhow::Result<Option<Vec<(String, String)>>> {
+    let Some(props_str) = dsn.get(key) else {
+        return Ok(None);
+    };
+    if props_str.is_empty() {
+        return Ok(None);
+    }
+    let mut props = Vec::new();
+    for pair in props_str.split(',') {
+        let pair = pair.trim();
+        if pair.is_empty() {
+            continue;
+        }
+        let mut parts = pair.splitn(2, '=');
+        let Some(k) = parts.next().map(str::trim).filter(|s| !s.is_empty()) else {
+            anyhow::bail!("{key}: property key cannot be empty");
+        };
+        let Some(v) = parts.next().map(str::trim).filter(|s| !s.is_empty()) else {
+            anyhow::bail!("{key}: property value cannot be empty, key: {k}");
+        };
+        props.push((k.to_string(), v.to_string()));
+    }
+    Ok(Some(props))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -730,5 +757,79 @@ mod tests {
         let dsn = Dsn::from_str("taos://?numbers=1,a").unwrap();
         let err = parse_multiple_value::<u32>(&dsn, "numbers").unwrap_err();
         assert!(err.to_string().contains("invalid numbers"));
+    }
+
+    #[test]
+    fn test_parse_kv_pairs_valid_multiple_pairs() {
+        let dsn: Dsn = "mqtt://localhost:1883?props=key1=val1,key2=val2"
+            .parse()
+            .unwrap();
+        let result = parse_kv_pairs(&dsn, "props").unwrap().unwrap();
+        assert_eq!(
+            result,
+            vec![
+                ("key1".to_string(), "val1".to_string()),
+                ("key2".to_string(), "val2".to_string()),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_kv_pairs_valid_single_pair() {
+        let dsn: Dsn = "mqtt://localhost:1883?props=sub-offset=earliest"
+            .parse()
+            .unwrap();
+        let result = parse_kv_pairs(&dsn, "props").unwrap().unwrap();
+        assert_eq!(
+            result,
+            vec![("sub-offset".to_string(), "earliest".to_string())]
+        );
+    }
+
+    #[test]
+    fn test_parse_kv_pairs_not_present() {
+        let dsn: Dsn = "mqtt://localhost:1883".parse().unwrap();
+        let result = parse_kv_pairs(&dsn, "props").unwrap();
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_parse_kv_pairs_empty_string() {
+        let dsn: Dsn = "mqtt://localhost:1883?props=".parse().unwrap();
+        let result = parse_kv_pairs(&dsn, "props").unwrap();
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_parse_kv_pairs_empty_key_rejected() {
+        let dsn: Dsn = "mqtt://localhost:1883?props==value".parse().unwrap();
+        assert!(parse_kv_pairs(&dsn, "props").is_err());
+    }
+
+    #[test]
+    fn test_parse_kv_pairs_empty_value_rejected() {
+        let dsn: Dsn = "mqtt://localhost:1883?props=key=".parse().unwrap();
+        assert!(parse_kv_pairs(&dsn, "props").is_err());
+    }
+
+    #[test]
+    fn test_parse_kv_pairs_no_equals_rejected() {
+        let dsn: Dsn = "mqtt://localhost:1883?props=keyonly".parse().unwrap();
+        assert!(parse_kv_pairs(&dsn, "props").is_err());
+    }
+
+    #[test]
+    fn test_parse_kv_pairs_whitespace_trimmed() {
+        let dsn: Dsn = "mqtt://localhost:1883?props= k1 = v1 , k2 = v2 "
+            .parse()
+            .unwrap();
+        let result = parse_kv_pairs(&dsn, "props").unwrap().unwrap();
+        assert_eq!(
+            result,
+            vec![
+                ("k1".to_string(), "v1".to_string()),
+                ("k2".to_string(), "v2".to_string()),
+            ]
+        );
     }
 }

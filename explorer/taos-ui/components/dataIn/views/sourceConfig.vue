@@ -405,7 +405,75 @@ async function handleDetailData(id: string | number) {
     };
   }
 
+  // For MQTT: map old/new endpoint data to broker_addresses format before recovery
+  if (sourceForm.type === 'mqtt' && data.from?.data) {
+    const fromData = data.from.data;
+
+    // Old tasks have top-level host/port instead of endpoint
+    if (fromData.host && !fromData.endpoint) {
+      fromData.endpoint = `${fromData.host}:${fromData.port || '1883'}`;
+      delete fromData.host;
+      delete fromData.port;
+    }
+  }
+
   recoverFromData(sourceForm.type, sourceForm.data, data.from.data);
+
+  // For MQTT: parse endpoint and populate broker_addresses with all addresses
+  if (sourceForm.type === 'mqtt') {
+    const ba = sourceForm.data?.broker_addresses;
+    const endpoint = ba?.endpoint || data.from?.data?.endpoint;
+    if (ba && endpoint && typeof endpoint === 'string') {
+      const addresses = endpoint.split(',').filter(Boolean);
+      const brokerConfig = currentDefinition.value?.config?.find(
+        (c: any) => c.field === 'broker_addresses'
+      );
+      const templateChild = brokerConfig?.children?.[0];
+
+      addresses.forEach((addr: string, idx: number) => {
+        const parts = addr.split(':');
+        const host = parts[0] || '';
+        const port = parts[1] || '1883';
+
+        if (idx === 0) {
+          ba.host_0 = host;
+          ba.port_0 = port;
+        } else {
+          const key = `${Date.now()}${idx}`;
+          ba[`host_${key}`] = host;
+          ba[`port_${key}`] = port;
+
+          // Add config entry for HostPort component to render this address
+          if (brokerConfig && templateChild) {
+            const newChild = JSON.parse(JSON.stringify(templateChild));
+            newChild.host.field = `host_${key}`;
+            newChild.host.required = false;
+            newChild.port.field = `port_${key}`;
+            newChild.port.required = false;
+            brokerConfig.children.push(newChild);
+          }
+        }
+      });
+
+      ba.endpoint = endpoint;
+    }
+  }
+
+  // For MQTT: extract sub-offset from subscribe_user_properties after recovery
+  if (sourceForm.type === 'mqtt') {
+    const collect = sourceForm.data?.groups_before?.collect;
+    if (collect && typeof collect['subscribe_user_properties'] === 'string') {
+      const props = collect['subscribe_user_properties'];
+      const pairs = props.split(',');
+      const subOffsetPair = pairs.find((p: string) => p.trim().startsWith('sub-offset='));
+      if (subOffsetPair) {
+        collect['sub-offset'] = subOffsetPair.split('=')[1]?.trim() || '';
+        const remaining = pairs.filter((p: string) => !p.trim().startsWith('sub-offset=')).join(',');
+        collect['subscribe_user_properties'] = remaining || '';
+      }
+    }
+  }
+
   if (data.parser?.parser?.global) {
     recoverWriteConfig(sourceForm.data.write_config, data.parser.parser.global);
   }
@@ -444,7 +512,7 @@ async function getDatabaseList() {
     const data = await dataInProps.dataSource.api.getDatabase();
     databaseList.value = data.filter(v => v.name !== 'audit' && v.name !== 'log');
 
-    // 在编辑状态下，判断如果 targetDb 不为空，并且 targetDB 不在 dbList 中，则将 targetDB 置空
+    // In edit mode, clear targetDB if it no longer exists in the database list
     if (taskId.value) {
       clearTargetDBWhenDelete();
     }
@@ -452,6 +520,7 @@ async function getDatabaseList() {
     console.log(error);
   }
 }
+// Load database list when component mounts
 getDatabaseList();
 function clearTargetDBWhenDelete() {
   if (sourceForm.targetDB && !databaseList.value.find(v => v.name === sourceForm.targetDB)) {
@@ -776,6 +845,7 @@ $color-description: rgb(137 130 130);
       margin-bottom: 10px;
       border: 1px solid #ececef;
       border-radius: 12px;
+      overflow: hidden;
     }
 
     &:deep(.el-tabs__item.is-disabled) {

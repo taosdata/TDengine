@@ -199,7 +199,7 @@ impl TaskOpts {
                     }
                 }
                 ("mqtt", "taos") => {
-                    mqtt_to_taos(
+                    if let Err(e) = mqtt_to_taos(
                         from.clone(),
                         parser.clone(),
                         to.clone(),
@@ -208,7 +208,15 @@ impl TaskOpts {
                         task_job_id,
                         notify.clone(),
                     )
-                    .await?;
+                    .await
+                    {
+                        if source_mqtt::client::is_connection_error(&e) {
+                            tracing::error!("MQTT task exit with connection error: {e:#}");
+                            last_error = Some(e);
+                        } else {
+                            return Err(e);
+                        }
+                    }
                 }
                 ("tmq", "mqtt") => {
                     tmq_to_mqtt(&from, &to, task_job_id, cancel).await?;

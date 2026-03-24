@@ -370,6 +370,40 @@ export function formatFromData(from: Recordable) {
     }
   }
 
+  // For MQTT: clean up broker_addresses and merge sub-offset into subscribe_user_properties
+  if (type === 'mqtt') {
+    // Remove host_*/port_* fields from broker_addresses, keep only endpoint
+    const brokerAddresses = dataCopy?.broker_addresses;
+    if (brokerAddresses) {
+      Object.keys(brokerAddresses).forEach(key => {
+        if (key.startsWith('host_') || key.startsWith('port_')) {
+          delete brokerAddresses[key];
+        }
+      });
+      // Remove undefined keys
+      delete brokerAddresses['undefined'];
+    }
+
+    const collect = dataCopy?.groups_before?.collect;
+    if (collect) {
+      const subOffset = collect['sub-offset'];
+      const subProps = collect['subscribe_user_properties'];
+      const parts: string[] = [];
+      if (subProps && typeof subProps === 'string' && subProps.trim()) {
+        parts.push(subProps.trim());
+      }
+      if (subOffset && typeof subOffset === 'string' && subOffset.trim()) {
+        parts.push(`sub-offset=${subOffset.trim()}`);
+      }
+      if (parts.length > 0) {
+        collect['subscribe_user_properties'] = parts.join(',');
+      } else {
+        delete collect['subscribe_user_properties'];
+      }
+      delete collect['sub-offset'];
+    }
+  }
+
   const resultFrom = {
     agent,
     type,
