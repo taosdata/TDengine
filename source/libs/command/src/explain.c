@@ -506,6 +506,52 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
       }
       break;
     }
+    case QUERY_NODE_PHYSICAL_PLAN_TAG_REF_SOURCE: {
+      STagRefSourcePhysiNode *pTagRefSource = (STagRefSourcePhysiNode *)pNode;
+      EXPLAIN_ROW_NEW(level, EXPLAIN_TAG_SCAN_FORMAT, pTagRefSource->sourceTableName.tname);
+      EXPLAIN_ROW_APPEND(EXPLAIN_LEFT_PARENTHESIS_FORMAT);
+      if (pResNode->pExecInfo) {
+        QRY_ERR_RET(qExplainBufAppendExecInfo(pResNode->pExecInfo, tbuf, &tlen));
+        EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+      }
+      if (pTagRefSource->pRefCols) {
+        EXPLAIN_ROW_APPEND(EXPLAIN_PSEUDO_COLUMNS_FORMAT, pTagRefSource->pRefCols->length);
+        EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+      }
+      EXPLAIN_ROW_APPEND(EXPLAIN_WIDTH_FORMAT, pTagRefSource->node.pOutputDataBlockDesc->totalRowSize);
+      EXPLAIN_ROW_APPEND(EXPLAIN_RIGHT_PARENTHESIS_FORMAT);
+      EXPLAIN_ROW_END();
+      QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level));
+
+      if (verbose) {
+        EXPLAIN_ROW_NEW(level + 1, EXPLAIN_OUTPUT_FORMAT);
+        EXPLAIN_ROW_APPEND(EXPLAIN_COLUMNS_FORMAT,
+                           nodesGetOutputNumFromSlotList(pTagRefSource->node.pOutputDataBlockDesc->pSlots));
+        EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+        EXPLAIN_ROW_APPEND(EXPLAIN_WIDTH_FORMAT, pTagRefSource->node.pOutputDataBlockDesc->outputRowSize);
+        EXPLAIN_ROW_APPEND_LIMIT(pTagRefSource->node.pLimit);
+        EXPLAIN_ROW_APPEND_SLIMIT(pTagRefSource->node.pSlimit);
+        EXPLAIN_ROW_END();
+        QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
+
+        if (pResNode->pExecInfo) {
+          QRY_ERR_RET(qExplainBufAppendVerboseExecInfo(pResNode->pExecInfo, tbuf, &tlen));
+          if (tlen) {
+            EXPLAIN_ROW_END();
+            QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
+          }
+        }
+
+        if (pTagRefSource->node.pConditions) {
+          EXPLAIN_ROW_NEW(level + 1, EXPLAIN_FILTER_FORMAT);
+          QRY_ERR_RET(nodesNodeToSQL(pTagRefSource->node.pConditions, tbuf + VARSTR_HEADER_SIZE,
+                                     TSDB_EXPLAIN_RESULT_ROW_SIZE, &tlen));
+          EXPLAIN_ROW_END();
+          QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
+        }
+      }
+      break;
+    }
     case QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN: {
       SVirtualScanPhysiNode *pVirtualTableScanNode = (SVirtualScanPhysiNode *)pNode;
       EXPLAIN_ROW_NEW(level, EXPLAIN_VIRTUAL_TABLE_SCAN_FORMAT, pVirtualTableScanNode->scan.tableName.tname);

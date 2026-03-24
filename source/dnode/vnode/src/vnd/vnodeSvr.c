@@ -1697,7 +1697,7 @@ static void alterTagForTmq(SVnode *pVnode, SVAlterTbReq *vAlterTbReq) {
     QUERY_CHECK_CONDITION(taosArrayPush(cidList, &cid) != NULL, code, lino, end, terrno);
   } else {
     for (int32_t i = 0; i < taosArrayGetSize(vAlterTbReq->pMultiTag); i++) {
-      SMultiTagUpateVal *pTagVal = taosArrayGet(vAlterTbReq->pMultiTag, i);
+      SMultiTagUpdateVal *pTagVal = taosArrayGet(vAlterTbReq->pMultiTag, i);
       QUERY_CHECK_NULL(pTagVal, code, lino, end, terrno);
       col_id_t cid = pTagVal->colId;
       QUERY_CHECK_CONDITION(taosArrayPush(cidList, &cid) != NULL, code, lino, end, terrno);

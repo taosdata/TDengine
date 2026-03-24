@@ -2573,6 +2573,92 @@ static int32_t msgToPhysiTagScanNode(STlvDecoder* pDecoder, void* pObj) {
 }
 
 enum {
+  PHY_TAG_REF_SOURCE_CODE_NODE = 1,
+  PHY_TAG_REF_SOURCE_CODE_SOURCE_TABLE_NAME,
+  PHY_TAG_REF_SOURCE_CODE_SOURCE_SUID,
+  PHY_TAG_REF_SOURCE_CODE_SOURCE_ID,
+  PHY_TAG_REF_SOURCE_CODE_REF_COLS,
+  PHY_TAG_REF_SOURCE_CODE_SCAN_COLS,
+  PHY_TAG_REF_SOURCE_CODE_USED_IN_FILTER,
+  PHY_TAG_REF_SOURCE_CODE_USED_IN_PROJECTION
+};
+
+static int32_t physiTagRefSourceNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
+  const STagRefSourcePhysiNode* pNode = (const STagRefSourcePhysiNode*)pObj;
+
+  int32_t code = tlvEncodeObj(pEncoder, PHY_TAG_REF_SOURCE_CODE_NODE, physiNodeToMsg, &pNode->node);
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, PHY_TAG_REF_SOURCE_CODE_SOURCE_TABLE_NAME, nameToMsg, &pNode->sourceTableName);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeU64(pEncoder, PHY_TAG_REF_SOURCE_CODE_SOURCE_SUID, pNode->sourceSuid);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI32(pEncoder, PHY_TAG_REF_SOURCE_CODE_SOURCE_ID, pNode->sourceId);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, PHY_TAG_REF_SOURCE_CODE_REF_COLS, nodeListToMsg, pNode->pRefCols);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, PHY_TAG_REF_SOURCE_CODE_SCAN_COLS, nodeListToMsg, pNode->pScanCols);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, PHY_TAG_REF_SOURCE_CODE_USED_IN_FILTER, pNode->isUsedInFilter);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, PHY_TAG_REF_SOURCE_CODE_USED_IN_PROJECTION, pNode->isUsedInProjection);
+  }
+
+  return code;
+}
+
+static int32_t msgToPhysiTagRefSourceNode(STlvDecoder* pDecoder, void* pObj) {
+  STagRefSourcePhysiNode* pNode = (STagRefSourcePhysiNode*)pObj;
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  STlv*   pTlv = NULL;
+  tlvForEach(pDecoder, pTlv, code) {
+    switch (pTlv->type) {
+      case PHY_TAG_REF_SOURCE_CODE_NODE:
+        code = tlvDecodeObjFromTlv(pTlv, msgToPhysiNode, &pNode->node);
+        break;
+      case PHY_TAG_REF_SOURCE_CODE_SOURCE_TABLE_NAME:
+        code = tlvDecodeObjFromTlv(pTlv, msgToName, &pNode->sourceTableName);
+        break;
+      case PHY_TAG_REF_SOURCE_CODE_SOURCE_SUID:
+        code = tlvDecodeU64(pTlv, &pNode->sourceSuid);
+        break;
+      case PHY_TAG_REF_SOURCE_CODE_SOURCE_ID:
+        code = tlvDecodeI32(pTlv, &pNode->sourceId);
+        break;
+      case PHY_TAG_REF_SOURCE_CODE_REF_COLS:
+        code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pRefCols);
+        break;
+      case PHY_TAG_REF_SOURCE_CODE_SCAN_COLS:
+        code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pScanCols);
+        break;
+      case PHY_TAG_REF_SOURCE_CODE_USED_IN_FILTER:
+        code = tlvDecodeBool(pTlv, &pNode->isUsedInFilter);
+        break;
+      case PHY_TAG_REF_SOURCE_CODE_USED_IN_PROJECTION:
+        code = tlvDecodeBool(pTlv, &pNode->isUsedInProjection);
+        break;
+      default:
+        break;
+    }
+  }
+
+  return code;
+}
+
+enum {
   PHY_LAST_ROW_SCAN_CODE_SCAN = 1,
   PHY_LAST_ROW_SCAN_CODE_GROUP_TAGS,
   PHY_LAST_ROW_SCAN_CODE_GROUP_SORT,
@@ -5431,6 +5517,9 @@ static int32_t specificNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
     case QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN:
       code = physiVirtualTableScanNodeToMsg(pObj, pEncoder);
       break;
+    case QUERY_NODE_PHYSICAL_PLAN_TAG_REF_SOURCE:
+      code = physiTagRefSourceNodeToMsg(pObj, pEncoder);
+      break;
     case QUERY_NODE_PHYSICAL_SUBPLAN:
       code = subplanToMsg(pObj, pEncoder);
       break;
@@ -5608,6 +5697,9 @@ static int32_t msgToSpecificNode(STlvDecoder* pDecoder, void* pObj) {
       break;
     case QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN:
       code = msgToPhysiVirtualTableScanNode(pDecoder, pObj);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_TAG_REF_SOURCE:
+      code = msgToPhysiTagRefSourceNode(pDecoder, pObj);
       break;
     case QUERY_NODE_PHYSICAL_SUBPLAN:
       code = msgToSubplan(pDecoder, pObj);

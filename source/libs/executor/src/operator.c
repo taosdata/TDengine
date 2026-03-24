@@ -478,6 +478,41 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
         tableListDestroy(pTableListInfo);
         return code;
       }
+    } else if (QUERY_NODE_PHYSICAL_PLAN_TAG_REF_SOURCE == type) {
+      STagRefSourcePhysiNode* pTagRefSourceNode = (STagRefSourcePhysiNode*)pPhyNode;
+      STableListInfo*         pTableListInfo = tableListCreate();
+      if (!pTableListInfo) {
+        pTaskInfo->code = terrno;
+        qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
+        return terrno;
+      }
+
+      // Initialize schema info for source table
+      code = initQueriedTableSchemaInfo(pHandle, (SScanPhysiNode*)pTagRefSourceNode, dbname, pTaskInfo);
+      if (code != TSDB_CODE_SUCCESS) {
+        pTaskInfo->code = code;
+        tableListDestroy(pTableListInfo);
+        return code;
+      }
+
+      // Create table list info for source super table
+      if (pHandle) {
+        code = createScanTableListInfo((SScanPhysiNode*)pTagRefSourceNode, NULL, false, pHandle, pTableListInfo,
+                                       pTagCond, pTagIndexCond, pTaskInfo, NULL);
+        if (code != TSDB_CODE_SUCCESS) {
+          pTaskInfo->code = code;
+          qError("failed to getTableList for TagRefSource, code:%s", tstrerror(code));
+          tableListDestroy(pTableListInfo);
+          return code;
+        }
+      }
+
+      code = createTagRefSourceOperatorInfo(pTagRefSourceNode, pHandle, pTableListInfo, pTaskInfo, &pOperator);
+      if (code) {
+        pTaskInfo->code = code;
+        tableListDestroy(pTableListInfo);
+        return code;
+      }
     } else if (QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN == type) {
       SBlockDistScanPhysiNode* pBlockNode = (SBlockDistScanPhysiNode*)pPhyNode;
       STableListInfo*          pTableListInfo = tableListCreate();

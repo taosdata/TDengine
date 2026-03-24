@@ -572,34 +572,73 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCt
     return TSDB_CODE_SUCCESS;
   }
 
-  // PROCESS FOR CHILD TABLE
-  ctgDebug("ctgCopyTbMeta ctb:%s tbType=%d tagRef=%p numOfTagRefs=%d colRef=%p numOfColRefs=%d",
-           ctx->pName->tname, tbMeta->tableType, tbMeta->tagRef, tbMeta->numOfTagRefs, tbMeta->colRef, tbMeta->numOfColRefs);
-  int32_t metaSize = sizeof(SCTableMeta);
+  // PROCESS FOR CHILD TABLE (both normal and virtual)
+  // First, check if this is a virtual child table by checking if it has inline colRef/tagRef
+  // Virtual child tables have SVCTableMeta structure with inline colRef/tagRef data
+  bool isVirtualChild = false;
   int32_t colRefSize = 0;
   int32_t tagRefSize = 0;
   int32_t numOfColRefs = 0;
   int32_t numOfTagRefs = 0;
-  int32_t rversion = hasRefCol(tbMeta->tableType) ? tbMeta->rversion : 1;
+  int32_t rversion = 1;
   SColRef *tmpColRef = NULL;
   SColRef *tmpTagRef = NULL;
 
-  if (hasRefCol(tbMeta->tableType) && tbMeta->colRef != NULL) {
-    colRefSize = tbMeta->numOfColRefs * sizeof(SColRef);
+  // Check if tbMeta is a virtual child table by checking tableType
+  // Virtual child tables are stored as SVCTableMeta with inline colRef/tagRef data
+  // Normal child tables are stored as SCTableMeta (21 bytes)
+  // Use tableType to distinguish - virtual child tables have TSDB_VIRTUAL_CHILD_TABLE
+  if (tbMeta->tableType == TSDB_VIRTUAL_CHILD_TABLE) {
+    isVirtualChild = true;
+    // For SVCTableMeta, we can safely access numOfColRefs/numOfTagRefs
     numOfColRefs = tbMeta->numOfColRefs;
-    tmpColRef = taosMemoryMalloc(colRefSize);
-    TAOS_MEMCPY(tmpColRef, tbMeta->colRef, colRefSize);
-  }
-  if (hasRefCol(tbMeta->tableType) && tbMeta->tagRef != NULL && tbMeta->numOfTagRefs > 0) {
-    tagRefSize = tbMeta->numOfTagRefs * sizeof(SColRef);
     numOfTagRefs = tbMeta->numOfTagRefs;
-    tmpTagRef = taosMemoryMalloc(tagRefSize);
-    TAOS_MEMCPY(tmpTagRef, tbMeta->tagRef, tagRefSize);
+    colRefSize = numOfColRefs * sizeof(SColRef);
+    tagRefSize = numOfTagRefs * sizeof(SColRef);
+    rversion = tbMeta->rversion;
+
+    ctgDebug("ctgCopyTbMeta vctb:%s tbType=%d numOfColRefs=%d numOfTagRefs=%d colRefSize=%d tagRefSize=%d",
+             ctx->pName->tname, tbMeta->tableType, numOfColRefs, numOfTagRefs,
+             colRefSize, tagRefSize);
   }
-  *pTableMeta = taosMemoryCalloc(1, metaSize + colRefSize + tagRefSize);
+
+  if (isVirtualChild) {
+    // Virtual child table - copy as SVCTableMeta with inline colRef/tagRef
+    int32_t metaSize = sizeof(SVCTableMeta);
+    *pTableMeta = taosMemoryCalloc(1, metaSize + colRefSize + tagRefSize);
+    if (NULL == *pTableMeta) {
+      CTG_ERR_RET(terrno);
+    }
+
+    // Copy the SVCTableMeta part
+    TAOS_MEMCPY(*pTableMeta, tbMeta, metaSize);
+
+    // Copy colRef if exists
+    if (colRefSize > 0) {
+      (*pTableMeta)->colRef = (SColRef*)((char*)*pTableMeta + metaSize);
+      // Copy from inline data (after SVCTableMeta in the original buffer)
+      TAOS_MEMCPY((void*)(*pTableMeta)->colRef, (char*)tbMeta + metaSize, colRefSize);
+    }
+    // Copy tagRef if exists
+    if (tagRefSize > 0) {
+      (*pTableMeta)->tagRef = (SColRef*)((char*)*pTableMeta + metaSize + colRefSize);
+      TAOS_MEMCPY((void*)(*pTableMeta)->tagRef, (char*)tbMeta + metaSize + colRefSize, tagRefSize);
+    }
+
+    CTG_UNLOCK(CTG_READ, &tbCache->metaLock);
+    taosHashRelease(dbCache->tbCache, tbCache);
+    *pTb = NULL;
+
+    ctgDebug("vctb:%s, get meta from cache, type:%d, db:%s", ctx->pName->tname, tbMeta->tableType, dbFName);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // PROCESS FOR NORMAL CHILD TABLE
+  ctgDebug("ctgCopyTbMeta ctb:%s tbType=%d", ctx->pName->tname, tbMeta->tableType);
+  int32_t metaSize = sizeof(SCTableMeta);
+
+  *pTableMeta = taosMemoryCalloc(1, metaSize);
   if (NULL == *pTableMeta) {
-    taosMemoryFreeClear(tmpColRef);
-    taosMemoryFreeClear(tmpTagRef);
     CTG_ERR_RET(terrno);
   }
 

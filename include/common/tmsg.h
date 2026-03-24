@@ -585,6 +585,7 @@ typedef enum ENodeType {
   QUERY_NODE_LOGIC_PLAN_FORECAST_FUNC,
   QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN,
   QUERY_NODE_LOGIC_PLAN_ANALYSIS_FUNC,
+  QUERY_NODE_LOGIC_PLAN_TAG_REF_SOURCE,
 
   // physical plan node
   QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN = 1100,
@@ -650,6 +651,7 @@ typedef enum ENodeType {
   QUERY_NODE_PHYSICAL_PLAN_UNUSED_23,
   QUERY_NODE_PHYSICAL_PLAN_UNUSED_24,
   QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN,
+  QUERY_NODE_PHYSICAL_PLAN_TAG_REF_SOURCE,
   QUERY_NODE_PHYSICAL_PLAN_EXTERNAL_WINDOW,
   QUERY_NODE_PHYSICAL_PLAN_HASH_EXTERNAL,
   QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_EXTERNAL,
@@ -4973,7 +4975,7 @@ int32_t tEncodeSVDropTbBatchRsp(SEncoder* pCoder, const SVDropTbBatchRsp* pRsp);
 int32_t tDecodeSVDropTbBatchRsp(SDecoder* pCoder, SVDropTbBatchRsp* pRsp);
 
 // TDMT_VND_ALTER_TABLE =====================
-typedef struct SMultiTagUpateVal {
+typedef struct SMultiTagUpdateVal {
   char*    tagName;
   int32_t  colId;
   int8_t   tagType;
@@ -4982,7 +4984,7 @@ typedef struct SMultiTagUpateVal {
   uint8_t* pTagVal;
   int8_t   isNull;
   SArray*  pTagArray;
-} SMultiTagUpateVal;
+} SMultiTagUpdateVal;
 typedef struct SVAlterTbReq {
   char*   tbName;
   int8_t  action;
@@ -5025,7 +5027,7 @@ typedef struct SVAlterTbReq {
 int32_t tEncodeSVAlterTbReq(SEncoder* pEncoder, const SVAlterTbReq* pReq);
 int32_t tDecodeSVAlterTbReq(SDecoder* pDecoder, SVAlterTbReq* pReq);
 int32_t tDecodeSVAlterTbReqSetCtime(SDecoder* pDecoder, SVAlterTbReq* pReq, int64_t ctimeMs);
-void    tfreeMultiTagUpateVal(void* pMultiTag);
+void    tfreeMultiTagUpdateVal(void* pMultiTag);
 
 typedef struct {
   int32_t        code;

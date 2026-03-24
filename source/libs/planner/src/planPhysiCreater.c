@@ -1911,6 +1911,23 @@ static int32_t createVirtualTableScanPhysiNodeFinalize(SPhysiPlanContext* pCxt,
   memcpy(&pScanPhysiNode->scan.tableName, &pScanLogicNode->tableName, sizeof(SName));
   pScanPhysiNode->scanAllCols = pScanLogicNode->scanAllCols;
 
+  // Clone TagRef fields from logic node to physical node
+  pScanPhysiNode->hasTagRef = pScanLogicNode->hasTagRef;
+  pScanPhysiNode->hasLocalTag = pScanLogicNode->hasLocalTag;
+
+  if (pScanLogicNode->pTagRefSources) {
+    PLAN_ERR_JRET(nodesCloneList(pScanLogicNode->pTagRefSources, &pScanPhysiNode->pTagRefSources));
+  }
+  if (pScanLogicNode->pLocalTags) {
+    PLAN_ERR_JRET(nodesCloneList(pScanLogicNode->pLocalTags, &pScanPhysiNode->pLocalTags));
+  }
+  if (pScanLogicNode->pRefTagCols) {
+    PLAN_ERR_JRET(nodesCloneList(pScanLogicNode->pRefTagCols, &pScanPhysiNode->pRefTagCols));
+  }
+  if (pScanLogicNode->pTagFilterCond) {
+    PLAN_ERR_JRET(nodesCloneNode(pScanLogicNode->pTagFilterCond, &pScanPhysiNode->pTagFilterCond));
+  }
+
   *pPhyNode = (SPhysiNode*)pScanPhysiNode;
   return code;
 
@@ -1961,6 +1978,98 @@ static int32_t createGroupCachePhysiNode(SPhysiPlanContext* pCxt, SNodeList* pCh
 
   *pPhyNode = (SPhysiNode*)pGrpCache;
 
+  return code;
+}
+
+static int32_t createTagRefSourcePhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubplan, SNodeList* pChildren,
+                                           STagRefSourceLogicNode* pLogicNode, SPhysiNode** pPhyNode) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  STagRefSourcePhysiNode* pTagRefSource =
+      (STagRefSourcePhysiNode*)makePhysiNode(pCxt, (SLogicNode*)pLogicNode, QUERY_NODE_PHYSICAL_PLAN_TAG_REF_SOURCE);
+  if (NULL == pTagRefSource) {
+    return terrno;
+  }
+
+  // Copy source table information
+  memcpy(&pTagRefSource->sourceTableName, &pLogicNode->sourceTableName, sizeof(SName));
+  pTagRefSource->sourceSuid = pLogicNode->sourceSuid;
+  pTagRefSource->sourceId = pLogicNode->sourceId;
+  pTagRefSource->isUsedInFilter = pLogicNode->isUsedInFilter;
+  pTagRefSource->isUsedInProjection = pLogicNode->isUsedInProjection;
+
+  // Clone referenced columns
+  if (pLogicNode->pRefCols) {
+    PLAN_ERR_JRET(nodesCloneList(pLogicNode->pRefCols, &pTagRefSource->pRefCols));
+  }
+
+  // Clone vgroup list to physical node
+  // Note: After split phase, pVgroupList is transferred from logic node to logic subplan via TSWAP
+  // The execNode should already be set in createPhysiSubplan from the logic subplan's vgroup list
+  if (pLogicNode->pVgroupList) {
+    // vgroup list is still in the logic node (no split or special case)
+    int32_t numOfVgroups = pLogicNode->pVgroupList->numOfVgroups;
+    pTagRefSource->pVgroupList = taosMemoryCalloc(1, sizeof(SVgroupsInfo) + numOfVgroups * sizeof(SVgroupInfo));
+    if (NULL == pTagRefSource->pVgroupList) {
+      PLAN_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+    }
+    pTagRefSource->pVgroupList->numOfVgroups = numOfVgroups;
+    memcpy(pTagRefSource->pVgroupList->vgroups, pLogicNode->pVgroupList->vgroups, numOfVgroups * sizeof(SVgroupInfo));
+
+    // Set subplan execNode from vgroup info for scheduling
+    vgroupInfoToNodeAddr(pLogicNode->pVgroupList->vgroups, &pSubplan->execNode);
+    pSubplan->execNodeStat.tableNum = pLogicNode->pVgroupList->vgroups[0].numOfTable;
+  } else {
+    // vgroup list was transferred to logic subplan during split
+    // execNode should already be set in createPhysiSubplan
+    // We still create a minimal vgroup list for the physical node if needed
+    if (pSubplan->execNode.nodeId > 0) {
+      pTagRefSource->pVgroupList = taosMemoryCalloc(1, sizeof(SVgroupsInfo) + sizeof(SVgroupInfo));
+      if (NULL == pTagRefSource->pVgroupList) {
+        PLAN_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+      }
+      pTagRefSource->pVgroupList->numOfVgroups = 1;
+      // Reverse the vgroupInfoToNodeAddr conversion to populate vgroup info
+      pTagRefSource->pVgroupList->vgroups[0].vgId = pSubplan->execNode.nodeId;
+      pTagRefSource->pVgroupList->vgroups[0].epSet = pSubplan->execNode.epSet;
+      // tableNum should already be set in execNodeStat
+    }
+  }
+
+  // Create scan columns from referenced columns for source table scan
+  // pScanCols will be used to specify which columns to scan from the source table
+  if (pLogicNode->pRefCols) {
+    PLAN_ERR_JRET(nodesMakeList(&pTagRefSource->pScanCols));
+    SNode* pRefCol = NULL;
+    FOREACH(pRefCol, pLogicNode->pRefCols) {
+      STagRefColumn* pTagRef = (STagRefColumn*)pRefCol;
+      // Create a column node for the source table tag
+      SColumnNode* pScanCol = NULL;
+      PLAN_ERR_JRET(nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pScanCol));
+      pScanCol->tableId = pLogicNode->sourceSuid;
+      pScanCol->colId = pTagRef->colId;
+      pScanCol->colType = COLUMN_TYPE_TAG;
+      pScanCol->node.resType.type = pTagRef->type;
+      pScanCol->node.resType.bytes = pTagRef->bytes;
+      tstrncpy(pScanCol->colName, pTagRef->sourceColName, TSDB_COL_NAME_LEN);
+      tstrncpy(pScanCol->dbName, pLogicNode->sourceTableName.dbname, TSDB_DB_NAME_LEN);
+      tstrncpy(pScanCol->tableName, pLogicNode->sourceTableName.tname, TSDB_TABLE_NAME_LEN);
+      PLAN_ERR_JRET(nodesListStrictAppend(pTagRefSource->pScanCols, (SNode*)pScanCol));
+    }
+  }
+
+  // Set scan columns slot id for data block output
+  if (pTagRefSource->pScanCols) {
+    PLAN_ERR_JRET(addDataBlockSlots(pCxt, pTagRefSource->pScanCols, pTagRefSource->node.pOutputDataBlockDesc));
+  }
+
+  // Set conditions slot id
+  PLAN_ERR_JRET(setConditionsSlotId(pCxt, (const SLogicNode*)pLogicNode, (SPhysiNode*)pTagRefSource));
+
+  *pPhyNode = (SPhysiNode*)pTagRefSource;
+  return code;
+
+_return:
+  nodesDestroyNode((SNode*)pTagRefSource);
   return code;
 }
 
@@ -3391,6 +3500,8 @@ static int32_t doCreatePhysiNode(SPhysiPlanContext* pCxt, SLogicNode* pLogicNode
       return createDynQueryCtrlPhysiNode(pCxt, pChildren, (SDynQueryCtrlLogicNode*)pLogicNode, pPhyNode, pSubplan);
     case QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN:
       return createVirtualTableScanPhysiNode(pCxt, pSubplan, pChildren, (SVirtualScanLogicNode*)pLogicNode, pPhyNode);
+    case QUERY_NODE_LOGIC_PLAN_TAG_REF_SOURCE:
+      return createTagRefSourcePhysiNode(pCxt, pSubplan, pChildren, (STagRefSourceLogicNode*)pLogicNode, pPhyNode);
     default:
       break;
   }
@@ -3621,6 +3732,14 @@ static int32_t createPhysiSubplan(SPhysiPlanContext* pCxt, SLogicSubplan* pLogic
   int32_t   code = makeSubplan(pCxt, pLogicSubplan, &pSubplan);
   if (NULL == pSubplan) {
     return code;
+  }
+
+  // Set execNode from logic subplan's vgroup list
+  // After split phase, vgroup list is transferred from logic node to logic subplan via TSWAP
+  // We need to set execNode here before creating physical nodes
+  if (pLogicSubplan->pVgroupList && pLogicSubplan->pVgroupList->numOfVgroups > 0) {
+    vgroupInfoToNodeAddr(pLogicSubplan->pVgroupList->vgroups, &pSubplan->execNode);
+    pSubplan->execNodeStat.tableNum = pLogicSubplan->pVgroupList->vgroups[0].numOfTable;
   }
 
   if (SUBPLAN_TYPE_MODIFY == pLogicSubplan->subplanType) {

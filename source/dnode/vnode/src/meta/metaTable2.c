@@ -1607,7 +1607,7 @@ int32_t metaUpdateTableMultiTagValue(SMeta *pMeta, int64_t version, SVAlterTbReq
   }
 
   for (int32_t i = 0; i < taosArrayGetSize(pReq->pMultiTag); i++) {
-    SMultiTagUpateVal *pTagVal = taosArrayGet(pReq->pMultiTag, i);
+    SMultiTagUpdateVal *pTagVal = taosArrayGet(pReq->pMultiTag, i);
     if (taosHashPut(pTagTable, pTagVal->tagName, strlen(pTagVal->tagName), pTagVal, sizeof(*pTagVal)) != 0) {
       metaError("vgId:%d, %s failed at %s:%d since %s, version:%" PRId64, TD_VID(pMeta->pVnode), __func__, __FILE__,
                 __LINE__, tstrerror(terrno), version);
@@ -1654,7 +1654,7 @@ int32_t metaUpdateTableMultiTagValue(SMeta *pMeta, int64_t version, SVAlterTbReq
          .cid = pCol->colId,
     };
 
-    SMultiTagUpateVal *pTagVal = taosHashGet(pTagTable, pCol->name, strlen(pCol->name));
+    SMultiTagUpdateVal *pTagVal = taosHashGet(pTagTable, pCol->name, strlen(pCol->name));
     if (pTagVal == NULL) {
       if (!tTagGet(pOldTag, &value)) {
         continue;

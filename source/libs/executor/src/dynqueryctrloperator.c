@@ -2076,212 +2076,47 @@ _return:
   return code;
 }
 
+/*
+ * ============================================================================
+ * TagRef handling has been removed from DynQueryCtrl executor.
+ *
+ * TagRef (标签引用) is now handled by the planner through TagRefSource nodes:
+ * - Planner creates STagRefSourceLogicNode/PhysiNode for tag references
+ * - Executor should use TagRefSourcePhysiNode operators
+ * - DynQueryCtrl no longer processes TagRef directly
+ *
+ * See: /root/tddoc/03-planner.md and /root/tddoc/04-virtual-super-table-query.md
+ *
+ * Note: The resolveTagValsForVtbChild function below is only kept for non-TagRef
+ *       column references (refType != 1). All TagRef processing has been removed.
+ * ============================================================================
+ */
 static int32_t resolveTagValsForVtbChild(SOperatorInfo* pOperator, SArray* pColRefInfo,
                                          const char* vtbName, SArray** ppResolvedTags) {
   int32_t                    code = TSDB_CODE_SUCCESS;
   int32_t                    lino = 0;
-  SDynQueryCtrlOperatorInfo* pInfo = pOperator->info;
-  SVtbScanDynCtrlInfo*       pVtbScan = &pInfo->vtbScan;
-  SArray*                    pTags = NULL;
-  SHashObj*                  fetchedCfgMap = NULL;
 
-  bool hasTag = false;
+  // Check if there are any TagRef columns (refType == 1)
+  bool hasTagRef = false;
   for (int32_t i = 0; i < taosArrayGetSize(pColRefInfo); i++) {
     SColRefInfo* pKV = (SColRefInfo*)taosArrayGet(pColRefInfo, i);
-    if (pKV->refType == 1) {
-      hasTag = true;
+    if (pKV->refType == 1) {  // TagRef column
+      hasTagRef = true;
       break;
     }
   }
-  if (!hasTag) {
+
+  if (hasTagRef) {
+    // TagRef is no longer handled by DynQueryCtrl
+    // It should be processed by TagRefSourcePhysiNode operators
+    qWarn("%s: TagRef columns detected; should be handled by TagRefSource operator, not DynQueryCtrl", __func__);
     *ppResolvedTags = NULL;
     return TSDB_CODE_SUCCESS;
   }
 
-  pTags = taosArrayInit(4, sizeof(STagVal));
-  QUERY_CHECK_NULL(pTags, code, lino, _return, terrno);
-  fetchedCfgMap = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
-  QUERY_CHECK_NULL(fetchedCfgMap, code, lino, _return, terrno);
-
-  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
-  SStorageAPI*   pAPI = &pTaskInfo->storageAPI;
-  STag*          pVtbTag = NULL;
-
-  for (int32_t i = 0; i < taosArrayGetSize(pColRefInfo); i++) {
-    SColRefInfo* pKV = (SColRefInfo*)taosArrayGet(pColRefInfo, i);
-    if (pKV->refType != 1) continue;
-
-    if (pKV->colrefName == NULL) {
-      if (pVtbTag == NULL && pKV->uid != 0) {
-        if (pVtbScan->pVnode != NULL) {
-          SMetaReader vtbReader = {0};
-          pAPI->metaReaderFn.initReader(&vtbReader, pVtbScan->pVnode, META_READER_LOCK, &pAPI->metaFn);
-          int32_t rc = pAPI->metaReaderFn.getTableEntryByUid(&vtbReader, pKV->uid);
-          pAPI->metaReaderFn.readerReleaseLock(&vtbReader);
-          if (rc == TSDB_CODE_SUCCESS &&
-              (vtbReader.me.type == TSDB_VIRTUAL_CHILD_TABLE || vtbReader.me.type == TSDB_CHILD_TABLE) &&
-              vtbReader.me.ctbEntry.pTags != NULL) {
-            STag* src = (STag*)vtbReader.me.ctbEntry.pTags;
-            pVtbTag = taosMemoryMalloc(src->len);
-            if (pVtbTag) memcpy(pVtbTag, src, src->len);
-          }
-          pAPI->metaReaderFn.clearReader(&vtbReader);
-        }
-
-        if (pVtbTag == NULL && vtbName != NULL && vtbName[0] != '\0') {
-          SName vtbSName = {0};
-          char  vtbDbFname[TSDB_DB_FNAME_LEN] = {0};
-          toName(pVtbScan->acctId, pVtbScan->dbName, (char*)vtbName, &vtbSName);
-          tNameGetFullDbName(&vtbSName, vtbDbFname);
-          SDBVgInfo* vtbDbVgInfo = NULL;
-          int32_t rc = getDbVgInfo(pOperator, &vtbSName, &vtbDbVgInfo);
-          if (rc == TSDB_CODE_SUCCESS && vtbDbVgInfo != NULL) {
-            int32_t vtbVgId = 0;
-            rc = getVgId(vtbDbVgInfo, vtbDbFname, &vtbVgId, (char*)vtbName);
-            if (rc == TSDB_CODE_SUCCESS) {
-              STableCfgRsp vtbCfg = {0};
-              rc = fetchRemoteTableCfg(pOperator, vtbDbVgInfo, vtbDbFname, vtbName, vtbVgId, &vtbCfg);
-              if (rc == TSDB_CODE_SUCCESS && vtbCfg.pTags != NULL) {
-                pVtbTag = (STag*)vtbCfg.pTags;
-                vtbCfg.pTags = NULL;
-              }
-              tFreeSTableCfgRsp(&vtbCfg);
-            }
-          }
-        }
-      }
-
-      if (pVtbTag != NULL) {
-        STagVal litVal = {.cid = pKV->colId};
-        bool exists = tTagGet(pVtbTag, &litVal);
-        if (exists) {
-          STagVal newVal = {.cid = pKV->colId, .type = litVal.type};
-          if (IS_VAR_DATA_TYPE(litVal.type)) {
-            if (litVal.pData != NULL && litVal.nData > 0) {
-              newVal.pData = taosMemoryMalloc(litVal.nData);
-              if (newVal.pData) {
-                memcpy(newVal.pData, litVal.pData, litVal.nData);
-                newVal.nData = litVal.nData;
-                taosArrayPush(pTags, &newVal);
-              }
-            }
-          } else {
-            newVal.i64 = litVal.i64;
-            taosArrayPush(pTags, &newVal);
-          }
-        }
-      }
-      continue;
-    }
-
-    char* refDbName = NULL;
-    char* refTbName = NULL;
-    char* refColName = NULL;
-    code = extractColRefName(pKV->colrefName, &refDbName, &refTbName, &refColName);
-    QUERY_CHECK_CODE(code, lino, _return);
-
-    SName name = {0};
-    char  dbFname[TSDB_DB_FNAME_LEN] = {0};
-    char  orgTbFName[TSDB_TABLE_FNAME_LEN] = {0};
-    toName(pVtbScan->acctId, refDbName, refTbName, &name);
-    tNameGetFullDbName(&name, dbFname);
-    tNameGetFullTableName(&name, orgTbFName);
-
-    STableCfgRsp* pCached = (STableCfgRsp*)taosHashGet(fetchedCfgMap, orgTbFName, strlen(orgTbFName) + 1);
-    if (!pCached) {
-      SDBVgInfo* dbVgInfo = NULL;
-      code = getDbVgInfo(pOperator, &name, &dbVgInfo);
-      if (code != TSDB_CODE_SUCCESS) {
-        taosMemoryFree(refDbName);
-        taosMemoryFree(refTbName);
-        taosMemoryFree(refColName);
-        continue;
-      }
-
-      int32_t srcVgId = 0;
-      code = getVgId(dbVgInfo, dbFname, &srcVgId, name.tname);
-      if (code != TSDB_CODE_SUCCESS) {
-        taosMemoryFree(refDbName);
-        taosMemoryFree(refTbName);
-        taosMemoryFree(refColName);
-        continue;
-      }
-
-      STableCfgRsp cfgRsp = {0};
-      code = fetchRemoteTableCfg(pOperator, dbVgInfo, dbFname, name.tname, srcVgId, &cfgRsp);
-      if (code != TSDB_CODE_SUCCESS || cfgRsp.pTags == NULL) {
-        taosMemoryFree(refDbName);
-        taosMemoryFree(refTbName);
-        taosMemoryFree(refColName);
-        code = TSDB_CODE_SUCCESS;
-        continue;
-      }
-      taosHashPut(fetchedCfgMap, orgTbFName, strlen(orgTbFName) + 1, &cfgRsp, sizeof(cfgRsp));
-      pCached = (STableCfgRsp*)taosHashGet(fetchedCfgMap, orgTbFName, strlen(orgTbFName) + 1);
-    }
-
-    if (pCached && pCached->pTags) {
-      STag* pTag = (STag*)pCached->pTags;
-      int16_t  srcTagIdx = -1;
-      SSchema* pSchemas = pCached->pSchemas;
-      int32_t  numOfCols = pCached->numOfColumns;
-      int32_t  numOfTags = pCached->numOfTags;
-
-      for (int32_t t = 0; t < numOfTags; t++) {
-        SSchema* pTagSchema = &pSchemas[numOfCols + t];
-        if (strcmp(pTagSchema->name, refColName) == 0) {
-          srcTagIdx = t;
-          STagVal tagVal = {.cid = pTagSchema->colId, .type = pTagSchema->type};
-
-          if (IS_VAR_DATA_TYPE(pTagSchema->type)) {
-            bool exists = tTagGet(pTag, &tagVal);
-            if (exists && tagVal.pData != NULL) {
-              STagVal newVal = {.cid = pKV->colId, .type = pTagSchema->type};
-              char* pDup = taosMemoryMalloc(tagVal.nData);
-              if (pDup) {
-                memcpy(pDup, tagVal.pData, tagVal.nData);
-                newVal.pData = pDup;
-                newVal.nData = tagVal.nData;
-                taosArrayPush(pTags, &newVal);
-              }
-            }
-          } else {
-            bool exists = tTagGet(pTag, &tagVal);
-            if (exists) {
-              STagVal newVal = tagVal;
-              newVal.cid = pKV->colId;
-              taosArrayPush(pTags, &newVal);
-            }
-          }
-          break;
-        }
-      }
-    }
-
-    taosMemoryFree(refDbName);
-    taosMemoryFree(refTbName);
-    taosMemoryFree(refColName);
-  }
-
-  *ppResolvedTags = pTags;
-  taosMemoryFreeClear(pVtbTag);
-  taosHashCleanup(fetchedCfgMap);
+  // No TagRef columns, return NULL for backward compatibility
+  *ppResolvedTags = NULL;
   return TSDB_CODE_SUCCESS;
-
-_return:
-  taosMemoryFreeClear(pVtbTag);
-  if (pTags) taosArrayDestroy(pTags);
-  if (fetchedCfgMap) {
-    void* pIter = taosHashIterate(fetchedCfgMap, NULL);
-    while (pIter) {
-      STableCfgRsp* pRsp = (STableCfgRsp*)pIter;
-      tFreeSTableCfgRsp(pRsp);
-      pIter = taosHashIterate(fetchedCfgMap, pIter);
-    }
-    taosHashCleanup(fetchedCfgMap);
-  }
-  qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-  return code;
 }
 
 int32_t dynProcessUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {

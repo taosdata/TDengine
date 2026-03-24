@@ -24004,7 +24004,7 @@ static int32_t rewriteDropSuperTable(STranslateContext* pCxt, SQuery* pQuery) {
 }
 
 static int32_t buildUpdateTagValReqImpl2(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta,
-                                         char* colName, SMultiTagUpateVal* pReq) {
+                                         char* colName, SMultiTagUpdateVal* pReq) {
   int32_t  code = TSDB_CODE_SUCCESS;
   int32_t  lino = 0;
   SSchema* pSchema = getTagSchema(pTableMeta, colName);
@@ -24192,7 +24192,7 @@ static int32_t buildUpdateMultiTagValReq(STranslateContext* pCxt, SAlterTableStm
     pReq->action = TSDB_ALTER_TABLE_UPDATE_TAG_VAL;
     return buildUpdateTagValReqImpl(pCxt, head, pTableMeta, head->colName, pReq);
   } else {
-    pReq->pMultiTag = taosArrayInit(nTagValues, sizeof(SMultiTagUpateVal));
+    pReq->pMultiTag = taosArrayInit(nTagValues, sizeof(SMultiTagUpdateVal));
     if (pReq->pMultiTag == NULL) {
       return terrno;
     }
@@ -24206,10 +24206,10 @@ static int32_t buildUpdateMultiTagValReq(STranslateContext* pCxt, SAlterTableStm
     SNode*           pNode = NULL;
     int8_t           dummpy = 0;
     FOREACH(pNode, pNodeList) {
-      SMultiTagUpateVal val = {0};
+      SMultiTagUpdateVal val = {0};
       pTagStmt = (SAlterTableStmt*)pNode;
 
-      SMultiTagUpateVal* p = taosHashGet(pUnique, pTagStmt->colName, strlen(pTagStmt->colName));
+      SMultiTagUpdateVal* p = taosHashGet(pUnique, pTagStmt->colName, strlen(pTagStmt->colName));
       if (p) {
         code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_DUPLICATED_COLUMN);
         TAOS_CHECK_GOTO(code, &lino, _err);
@@ -24222,7 +24222,7 @@ static int32_t buildUpdateMultiTagValReq(STranslateContext* pCxt, SAlterTableStm
       TAOS_CHECK_GOTO(code, &lino, _err);
 
       if (taosArrayPush(pReq->pMultiTag, &val) == NULL) {
-        tfreeMultiTagUpateVal((void*)&val);
+        tfreeMultiTagUpdateVal((void*)&val);
         TAOS_CHECK_GOTO(terrno, &lino, _err);
       }
     }
@@ -24735,7 +24735,7 @@ static void destoryAlterTbReq(SVAlterTbReq* pReq) {
     }
   }
   if (pReq->action == TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL) {
-    taosArrayDestroyEx(pReq->pMultiTag, tfreeMultiTagUpateVal);
+    taosArrayDestroyEx(pReq->pMultiTag, tfreeMultiTagUpdateVal);
   }
 
   taosArrayDestroy(pReq->pTagArray);

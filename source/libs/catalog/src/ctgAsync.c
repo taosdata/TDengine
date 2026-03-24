@@ -1791,6 +1791,10 @@ int32_t ctgHandleGetTbMetaRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf
       if (pOut->tbMeta == NULL) {
         CTG_ERR_JRET(terrno);
       }
+      // After realloc, update schemaExt pointer to point to the correct inline location
+      if (withExtSchema(pOut->tbMeta->tableType) && schemaExtSize > 0) {
+        pOut->tbMeta->schemaExt = (SSchemaExt*)((char*)pOut->tbMeta + metaSize);
+      }
 
       TAOS_MEMCPY(pOut->tbMeta, pOut->vctbMeta, sizeof(SVCTableMeta));
       pOut->tbMeta->colRef = (SColRef *)((char *)pOut->tbMeta + metaSize + schemaExtSize);
@@ -1802,16 +1806,31 @@ int32_t ctgHandleGetTbMetaRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf
         pOut->tbMeta->tagRef = NULL;
       }
     } else  {
-      pOut->tbMeta = taosMemoryRealloc(pOut->tbMeta, sizeof(STableMeta) + colRefSize + tagRefSize);
+      // tbMeta is NULL, allocate as SVCTableMeta + colRef + tagRef
+      // Note: SVCTableMeta and STableMeta have the same layout for the common fields
+      int32_t allocSize = sizeof(SVCTableMeta) + colRefSize + tagRefSize;
+      pOut->tbMeta = taosMemoryRealloc(pOut->tbMeta, allocSize);
       if (pOut->tbMeta == NULL) {
         CTG_ERR_JRET(terrno);
       }
+      memset(pOut->tbMeta, 0, allocSize);
+      // Copy SVCTableMeta structure
       TAOS_MEMCPY(pOut->tbMeta, pOut->vctbMeta, sizeof(SVCTableMeta));
-      TAOS_MEMCPY(pOut->tbMeta + sizeof(STableMeta), pOut->vctbMeta + sizeof(SVCTableMeta), colRefSize);
-      pOut->tbMeta->colRef = (SColRef *)((char *)pOut->tbMeta + sizeof(STableMeta));
-      if (pOut->vctbMeta->tagRef && tagRefSize > 0) {
-        pOut->tbMeta->tagRef = (SColRef *)((char *)pOut->tbMeta + sizeof(STableMeta) + colRefSize);
-        TAOS_MEMCPY(pOut->tbMeta->tagRef, pOut->vctbMeta->tagRef, tagRefSize);
+      // Copy colRef inline data (after SVCTableMeta in source)
+      // Note: vctbMeta->colRef points to inline data at vctbMeta + sizeof(SVCTableMeta)
+      if (colRefSize > 0 && pOut->vctbMeta->colRef) {
+        char* colRefStart = (char*)pOut->tbMeta + sizeof(SVCTableMeta);
+        TAOS_MEMCPY(colRefStart, pOut->vctbMeta->colRef, colRefSize);
+        pOut->tbMeta->colRef = (SColRef*)colRefStart;
+      } else {
+        pOut->tbMeta->colRef = NULL;
+      }
+      // Copy tagRef inline data (after colRef in source)
+      // Note: vctbMeta->tagRef points to inline data at vctbMeta + sizeof(SVCTableMeta) + colRefSize
+      if (tagRefSize > 0 && pOut->vctbMeta->tagRef) {
+        char* tagRefStart = (char*)pOut->tbMeta + sizeof(SVCTableMeta) + colRefSize;
+        TAOS_MEMCPY(tagRefStart, pOut->vctbMeta->tagRef, tagRefSize);
+        pOut->tbMeta->tagRef = (SColRef*)tagRefStart;
       } else {
         pOut->tbMeta->tagRef = NULL;
       }
@@ -2025,6 +2044,10 @@ int32_t ctgHandleGetTbMetasRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBu
         schemaExtSize = pOut->tbMeta->tableInfo.numOfColumns * sizeof(SSchemaExt);
       }
       pOut->tbMeta = taosMemoryRealloc(pOut->tbMeta, metaSize + schemaExtSize + colRefSize + tagRefSize);
+      // After realloc, update schemaExt pointer to point to the correct inline location
+      if (withExtSchema(pOut->tbMeta->tableType) && schemaExtSize > 0) {
+        pOut->tbMeta->schemaExt = (SSchemaExt*)((char*)pOut->tbMeta + metaSize);
+      }
       TAOS_MEMCPY(pOut->tbMeta, pOut->vctbMeta, sizeof(SVCTableMeta));
       pOut->tbMeta->colRef = (SColRef *)((char *)pOut->tbMeta + metaSize + schemaExtSize);
       TAOS_MEMCPY(pOut->tbMeta->colRef, pOut->vctbMeta->colRef, colRefSize);
@@ -2035,13 +2058,31 @@ int32_t ctgHandleGetTbMetasRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBu
         pOut->tbMeta->tagRef = NULL;
       }
     } else  {
-      pOut->tbMeta = taosMemoryRealloc(pOut->tbMeta, sizeof(STableMeta) + colRefSize + tagRefSize);
+      // tbMeta is NULL, allocate as SVCTableMeta + colRef + tagRef
+      // Note: SVCTableMeta and STableMeta have the same layout for the common fields
+      int32_t allocSize = sizeof(SVCTableMeta) + colRefSize + tagRefSize;
+      pOut->tbMeta = taosMemoryRealloc(pOut->tbMeta, allocSize);
+      if (pOut->tbMeta == NULL) {
+        CTG_ERR_JRET(terrno);
+      }
+      memset(pOut->tbMeta, 0, allocSize);
+      // Copy SVCTableMeta structure
       TAOS_MEMCPY(pOut->tbMeta, pOut->vctbMeta, sizeof(SVCTableMeta));
-      TAOS_MEMCPY(pOut->tbMeta + sizeof(STableMeta), pOut->vctbMeta + sizeof(SVCTableMeta), colRefSize);
-      pOut->tbMeta->colRef = (SColRef *)((char *)pOut->tbMeta + sizeof(STableMeta));
-      if (pOut->vctbMeta->tagRef && tagRefSize > 0) {
-        pOut->tbMeta->tagRef = (SColRef *)((char *)pOut->tbMeta + sizeof(STableMeta) + colRefSize);
-        TAOS_MEMCPY(pOut->tbMeta->tagRef, pOut->vctbMeta->tagRef, tagRefSize);
+      // Copy colRef inline data (after SVCTableMeta in source)
+      // Note: vctbMeta->colRef points to inline data at vctbMeta + sizeof(SVCTableMeta)
+      if (colRefSize > 0 && pOut->vctbMeta->colRef) {
+        char* colRefStart = (char*)pOut->tbMeta + sizeof(SVCTableMeta);
+        TAOS_MEMCPY(colRefStart, pOut->vctbMeta->colRef, colRefSize);
+        pOut->tbMeta->colRef = (SColRef*)colRefStart;
+      } else {
+        pOut->tbMeta->colRef = NULL;
+      }
+      // Copy tagRef inline data (after colRef in source)
+      // Note: vctbMeta->tagRef points to inline data at vctbMeta + sizeof(SVCTableMeta) + colRefSize
+      if (tagRefSize > 0 && pOut->vctbMeta->tagRef) {
+        char* tagRefStart = (char*)pOut->tbMeta + sizeof(SVCTableMeta) + colRefSize;
+        TAOS_MEMCPY(tagRefStart, pOut->vctbMeta->tagRef, tagRefSize);
+        pOut->tbMeta->tagRef = (SColRef*)tagRefStart;
       } else {
         pOut->tbMeta->tagRef = NULL;
       }
@@ -2275,8 +2316,10 @@ static int32_t ctgHandleGetTbNamesRsp(SCtgTaskReq* tReq, int32_t reqType, const 
     } else  {
       pOut->tbMeta = taosMemoryRealloc(pOut->tbMeta, sizeof(STableMeta) + colRefSize + tagRefSize);
       TAOS_MEMCPY(pOut->tbMeta, pOut->vctbMeta, sizeof(SVCTableMeta));
-      TAOS_MEMCPY(pOut->tbMeta + sizeof(STableMeta), pOut->vctbMeta + sizeof(SVCTableMeta), colRefSize);
       pOut->tbMeta->colRef = (SColRef *)((char *)pOut->tbMeta + sizeof(STableMeta));
+      if (colRefSize > 0 && pOut->vctbMeta->colRef) {
+        TAOS_MEMCPY(pOut->tbMeta->colRef, pOut->vctbMeta->colRef, colRefSize);
+      }
       if (pOut->vctbMeta->tagRef && tagRefSize > 0) {
         pOut->tbMeta->tagRef = (SColRef *)((char *)pOut->tbMeta + sizeof(STableMeta) + colRefSize);
         TAOS_MEMCPY(pOut->tbMeta->tagRef, pOut->vctbMeta->tagRef, tagRefSize);

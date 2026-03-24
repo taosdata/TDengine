@@ -1390,6 +1390,10 @@ void freeOperatorParam(SOperatorParam* pParam, SOperatorParamType type) {
     case QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN:
       type == OP_GET_PARAM ? freeTagScanGetOperatorParam(pParam) : freeTagScanNotifyOperatorParam(pParam);
       break;
+    case QUERY_NODE_PHYSICAL_PLAN_TAG_REF_SOURCE:
+      // TagRefSource uses the same param free function as TagScan
+      type == OP_GET_PARAM ? freeTagScanGetOperatorParam(pParam) : freeTagScanNotifyOperatorParam(pParam);
+      break;
     case QUERY_NODE_PHYSICAL_PLAN_HASH_AGG:
     case QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL:
     case QUERY_NODE_PHYSICAL_PLAN_MERGE:
