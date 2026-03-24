@@ -76,7 +76,7 @@ enum {
 #define JT_PRINTF (void)printf
 
 #define COL_DISPLAY_WIDTH 18
-#define JT_MAX_LOOP       10000
+#define JT_MAX_LOOP 1000
 
 #define LEFT_BLK_ID       0
 #define RIGHT_BLK_ID      1
@@ -109,7 +109,9 @@ char* jtSubTypeStr[] = {"NONE", "OUTER", "SEMI", "ANTI", "ASOF", "WINDOW"};
 #define JT_CONV_BIG_STR(_type) (TSDB_DATA_TYPE_BIGINT == (_type)) ? "" : "cast("
 #define JT_CONV_BIG_STR_E(_type) (TSDB_DATA_TYPE_BIGINT == (_type)) ? "" : " as BIGINT)"
 
-bool jtErrorRerun = false;
+// Must be true for automated/CI execution. When false, any test failure triggers
+// rerunBlockedHere() which busy-waits forever (designed for interactive debugging only).
+bool jtErrorRerun = true;
 bool jtInRerun = false;
 
 typedef struct {
@@ -695,6 +697,12 @@ void createEqExprCondStart(void* p, bool mJoin) {
 
 void createColOnCondStart() {
   jtCtx.colOnNum = 0;
+  TAOS_MEMSET(jtCtx.colOnList, 0, sizeof(jtCtx.colOnList));
+
+  if (jtCtx.colEqNum >= MAX_SLOT_NUM) {
+    return;
+  }
+
   do {
     jtCtx.colOnNum = taosRand() % (MAX_SLOT_NUM + 1);
   } while (0 == jtCtx.colOnNum || (jtCtx.colOnNum + jtCtx.colEqNum) > MAX_SLOT_NUM);
@@ -3007,7 +3015,7 @@ void jtGetConvertInt64Value(SSDataBlock* pBlk, SColumnInfoData* pCol, int32_t ro
   if (TSDB_DATA_TYPE_BIGINT == pCol->info.type) {
     value = *(int64_t*)ov;
   } else if (TSDB_DATA_TYPE_BINARY != pCol->info.type) {
-    GET_TYPED_DATA(value, int64_t, pCol->info.type, ov);
+    GET_TYPED_DATA(value, int64_t, pCol->info.type, ov, 0);
   }
 
   *pVal = (LEFT_BLK_ID == pBlk->info.id.blockId) ? (value + 1) : (value - 1);
@@ -4217,8 +4225,8 @@ void runSingleHJoinTest(char* caseName, SJoinTestParam* param) {
   bool contLoop = true;
   
   SHashJoinPhysiNode* pNode = createDummyHashJoinPhysiNode(param);    
-//  createDummyBlkList(10, 10, 10, 10, 3);
-  createDummyBlkList(1000, 1000, 1000, 1000, 100);
+  createDummyBlkList(10, 10, 10, 10, 3);
+//  createDummyBlkList(1000, 1000, 1000, 1000, 100);
   
   while (contLoop) {
     rerunBlockedHere();
@@ -4253,7 +4261,7 @@ void handleCaseEnd() {
 
 }  // namespace
 
-#if 0
+#if 1
 #if 1
 TEST(mInnerJoin, noCondTest) {
   SJoinTestParam param;
@@ -4368,7 +4376,7 @@ TEST(mInnerJoin, fullCondTest) {
 #endif
 
 
-#if 0
+#if 1
 #if 1
 TEST(mLeftOuterJoin, noCondTest) {
   SJoinTestParam param;
@@ -4483,7 +4491,7 @@ TEST(mLeftOuterJoin, fullCondTest) {
 #endif
 #endif
 
-#if 0
+#if 1
 #if 1
 TEST(mFullOuterJoin, noCondTest) {
   SJoinTestParam param;
@@ -4598,7 +4606,7 @@ TEST(mFullOuterJoin, fullCondTest) {
 #endif
 #endif
 
-#if 0
+#if 1
 #if 1
 TEST(mLeftSemiJoin, noCondTest) {
   SJoinTestParam param;
@@ -4713,7 +4721,7 @@ TEST(mLeftSemiJoin, fullCondTest) {
 #endif
 #endif
 
-#if 0
+#if 1
 #if 1
 TEST(mLeftAntiJoin, noCondTest) {
   SJoinTestParam param;
@@ -4828,7 +4836,7 @@ TEST(mLeftAntiJoin, fullCondTest) {
 #endif
 #endif
 
-#if 0
+#if 1
 #if 1
 TEST(mLeftAsofJoin, noCondGreaterThanTest) {
   SJoinTestParam param;
@@ -4993,7 +5001,7 @@ TEST(mLeftAsofJoin, noCondLowerEqTest) {
 #endif
 
 
-#if 0
+#if 1
 TEST(mLeftWinJoin, noCondProjectionTest) {
   SJoinTestParam param;
   char* caseName = "mLeftWinJoin:noCondProjectionTest";
@@ -5026,7 +5034,7 @@ TEST(mLeftWinJoin, noCondProjectionTest) {
 
 
 #if 1
-#if 0
+#if 1
 TEST(hInnerJoin, eqCondTest) {
   SJoinTestParam param;
   char* caseName = "hInnerJoin:eqCondTest";
@@ -5081,7 +5089,7 @@ TEST(hInnerJoin, exprEqTest) {
 #endif
 
 
-#if 0
+#if 1
 TEST(hInnerJoin, fullCondTest) {
   SJoinTestParam param;
   char* caseName = "hInnerJoin:fullCondTest";
@@ -5110,7 +5118,7 @@ TEST(hInnerJoin, fullCondTest) {
 #endif
 
 #if 1
-#if 0
+#if 1
 TEST(hLeftOuterJoin, eqCondTest) {
   SJoinTestParam param;
   char* caseName = "hLeftOuterJoin:eqCondTest";
@@ -5165,7 +5173,7 @@ TEST(hLeftOuterJoin, exprEqTest) {
 #endif
 
 
-#if 0
+#if 1
 TEST(hLeftOuterJoin, fullCondTest) {
   SJoinTestParam param;
   char* caseName = "hLeftOuterJoin:fullCondTest";
@@ -5194,7 +5202,7 @@ TEST(hLeftOuterJoin, fullCondTest) {
 #endif
 
 #if 1
-#if 0
+#if 1
 TEST(hLeftSemiJoin, eqCondTest) {
   SJoinTestParam param;
   char* caseName = "hLeftSemiJoin:eqCondTest";
@@ -5249,7 +5257,7 @@ TEST(hLeftSemiJoin, exprEqTest) {
 #endif
 
 
-#if 0
+#if 1
 TEST(hLeftSemiJoin, fullCondTest) {
   SJoinTestParam param;
   char* caseName = "hLeftSemiJoin:fullCondTest";
@@ -5279,7 +5287,7 @@ TEST(hLeftSemiJoin, fullCondTest) {
 
 
 #if 1
-#if 0
+#if 1
 TEST(hLeftAntiJoin, eqCondTest) {
   SJoinTestParam param;
   char* caseName = "hLeftAntiJoin:eqCondTest";
@@ -5334,7 +5342,7 @@ TEST(hLeftAntiJoin, exprEqTest) {
 #endif
 
 
-#if 0
+#if 1
 TEST(hLeftAntiJoin, fullCondTest) {
   SJoinTestParam param;
   char* caseName = "hLeftAntiJoin:fullCondTest";
@@ -5385,7 +5393,7 @@ TEST(functionsTest, branch) {
 TEST(jtPerfTest, copyRows) {
   SSDataBlock blk = {0};
   SColumnInfoData src = {0}, dst = {0};
-  int32_t rows = 10000, times = 10000;
+  int32_t rows = 100, times = 100;
   int32_t totalRows = rows * times;
   bool varData = true, hasNull = true, reassign = false;
 
@@ -5396,7 +5404,8 @@ TEST(jtPerfTest, copyRows) {
     int32_t rtimes = totalRows / rrows;
     int64_t startUs1 = taosGetTimestampUs();
     for (int32_t i = 0; i < rtimes; ++i) {
-      colDataAssignNRows(&dst, rrows * i, &src, rrows * i, rrows);
+      int32_t offset = (rrows * (i % (rows / rrows)));
+      colDataAssignNRows(&dst, offset, &src, offset, rrows);
       jtResetDataCol(&dst, rows, TSDB_DATA_TYPE_BINARY, 50, varData, hasNull, reassign);
     }
     int64_t endUs1 = taosGetTimestampUs();

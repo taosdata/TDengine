@@ -312,7 +312,10 @@ static int32_t hJoinInitKeyColsInfo(SHJoinTableCtx* pTable, SNodeList* pList, bo
     return TSDB_CODE_QRY_INVALID_PLAN;
   }
   
-  pTable->keyCols = taosMemoryMalloc(pTable->keyNum * sizeof(SHJoinColInfo));
+  // calloc is required here: for single-key joins (keyNum==1), hJoinCopyKeyColsDataToBuf skips
+  // the multi-key loop that sets bufOffset, but hJoinCopyResRowsToBlock reads bufOffset
+  // unconditionally. Zero-initialization ensures bufOffset defaults to 0 in the single-key path.
+  pTable->keyCols = taosMemoryCalloc(pTable->keyNum, sizeof(SHJoinColInfo));
   if (NULL == pTable->keyCols) {
     return terrno;
   }
@@ -960,6 +963,9 @@ bool hJoinCopyKeyColsDataToBuf(SHJoinTableCtx* pTable, int32_t rowIdx, size_t *p
   size_t bufLen = 0;
   int32_t dataLen = 0;
   
+  // NOTE: single-key path does NOT set keyCols[0].bufOffset (it uses keyData directly).
+  // The multi-key path below DOES set bufOffset for each key column.
+  // Any field read downstream must be initialized in both paths (see calloc in hJoinInitKeyColsInfo).
   if (1 == pTable->keyNum) {
     if (colDataIsNull_s(pTable->keyCols[0].colData, rowIdx)) {
       return true;
