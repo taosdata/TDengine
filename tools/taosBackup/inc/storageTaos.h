@@ -44,6 +44,7 @@ typedef struct {
     char    *writeBuf;
     int32_t  writeBufPos;
     int32_t  writeBufCap;
+    int64_t  fileSize;   // populated by openTaosFileForRead; avoids later stat() call
     TaosFileHeader header;  // must be last (flexible array member)
 } TaosFile;
 

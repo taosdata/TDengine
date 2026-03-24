@@ -95,33 +95,37 @@ INCLUDE_DIRECTORIES(../inc)
 ADD_EXECUTABLE(
         taosBackup
         main.c
-        backup.c
-        restore.c
-        restoreMeta.c
-        restoreData.c
-        restoreCkpt.c
-        restoreStmt.c
-        restoreStmt2.c
-        bckUtil.c
-        bckArgs.c
-        bckLog.c
-        bckFile.c
-        bckDb.c
-        bckPool.c
-        backupMeta.c
-        backupData.c
-        bckProgress.c
-        storageTaos.c
-        bckSchemaChange.c
+        # core
+        core/bckUtil.c
+        core/bckArgs.c
+        core/bckLog.c
+        core/bckFile.c
+        core/bckDb.c
+        core/bckPool.c
+        core/bckProgress.c
+        # backup
+        backup/backup.c
+        backup/backupMeta.c
+        backup/backupData.c
+        # restore
+        restore/restore.c
+        restore/restoreMeta.c
+        restore/restoreData.c
+        restore/restoreCkpt.c
+        restore/restoreStmt.c
+        restore/restoreStmt2.c
+        restore/bckSchemaChange.c
+        # storage
+        storage/storageTaos.c
     )
 
 if(NOT ${TD_WINDOWS})
     # Arrow/Parquet storage backend (Linux and macOS)
     target_sources(taosBackup PRIVATE
-        storageParquet.c
-        parquetBlock.cpp
-        blockReader.c
-        colCompress.c
+        storage/storageParquet.c
+        storage/parquetBlock.cpp
+        storage/blockReader.c
+        storage/colCompress.c
     )
 endif()
 

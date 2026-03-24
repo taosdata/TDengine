@@ -8,7 +8,7 @@
  * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.
  */
-    
+
 #include "storageTaos.h"
 #include "bckLog.h"
 #include <taoserror.h>
@@ -169,20 +169,20 @@ int closeTaosFile(TaosFile* taosFile) {
 //
 // write block to taos file
 //
-int writeBlockToTaosFile(TaosFile*  taosFile, 
-                         void*      block, 
-                         int        blockRows, 
-                         FieldInfo* fieldInfos, 
-                         SBuffer*   assist, 
+int writeBlockToTaosFile(TaosFile*  taosFile,
+                         void*      block,
+                         int        blockRows,
+                         FieldInfo* fieldInfos,
+                         SBuffer*   assist,
                          int        numFields) {
     int code = TSDB_CODE_FAILED;
 
     // compress block
     CompressBlock* compBlock = compressBlock(block,
-                                             blockRows, 
-                                             fieldInfos, 
-                                             numFields, 
-                                             assist, 
+                                             blockRows,
+                                             fieldInfos,
+                                             numFields,
+                                             assist,
                                              &code);
     if (code != TSDB_CODE_SUCCESS) {
         logError("compress block failed: %d", code);
@@ -207,8 +207,8 @@ int writeBlockToTaosFile(TaosFile*  taosFile,
     // compare original block and uncompressed block
     if (uncompressLen != ((oriBlockHeader*)block)->actualLen ||
         memcmp(block, uncompressBlock, uncompressLen) != 0) {
-        logError("uncompressed block data mismatch, uncompressLen: %d, originalLen: %d", 
-                 uncompressLen, 
+        logError("uncompressed block data mismatch, uncompressLen: %d, originalLen: %d",
+                 uncompressLen,
                  ((oriBlockHeader*)block)->actualLen);
         taosMemFree(uncompressBlock);
         freeCompressData(compBlock);
@@ -265,7 +265,7 @@ int resultToFileTaos(TAOS_RES *res, const char *fileName, int64_t *outRows) {
 
     // assistant buffer
     SBuffer assist;
-    tBufferInit(&assist);    
+    tBufferInit(&assist);
 
     // while fetch data
     int blockRows = 0;
@@ -277,17 +277,17 @@ int resultToFileTaos(TAOS_RES *res, const char *fileName, int64_t *outRows) {
             closeTaosFile(taosFile);
             return code;
         }
-        
+
         if (blockRows == 0 || block == NULL) {
             // no data
             break;
         }
         // write block to file
-        code = writeBlockToTaosFile(taosFile, 
-                                    block, 
-                                    blockRows, 
-                                    (FieldInfo*)taosFile->header.schema, 
-                                    &assist, 
+        code = writeBlockToTaosFile(taosFile,
+                                    block,
+                                    blockRows,
+                                    (FieldInfo*)taosFile->header.schema,
+                                    &assist,
                                     numFields);
         if (code != TSDB_CODE_SUCCESS) {
             // TODO ignore or failed
@@ -361,6 +361,13 @@ TaosFile* openTaosFileForRead(const char *fileName, int *code) {
         return NULL;
     }
 
+    // record file size once at open time (avoids a separate stat() call later)
+    {
+        int64_t fsz = 0;
+        if (taosFStatFile(taosFile->fp, &fsz, NULL) == 0)
+            taosFile->fileSize = fsz;
+    }
+
     // read header
     *code = readFromTaosFile(taosFile, &taosFile->header, sizeof(TaosFileHeader));
     if (*code != TSDB_CODE_SUCCESS) {
@@ -410,12 +417,19 @@ int readTaosFileBlocks(TaosFile *taosFile, BlockCallback callback, void *userDat
     uint32_t readBufCap = 0;
     CompressBlock *readBuf = NULL;
 
+    // Space-for-time: rawBlock is kept alive across blocks so that
+    // decompressBlock can reuse the same allocation instead of doing
+    // a fresh calloc + free on every iteration.
+    void    *rawBlock    = NULL;
+    int32_t  rawBlockCap = 0;
+
     for (uint32_t b = 0; b < taosFile->header.nBlocks; b++) {
         // read CompressBlock header (fixed part)
         CompressBlock compHeader;
         code = readFromTaosFile(taosFile, &compHeader, sizeof(CompressBlock));
         if (code != TSDB_CODE_SUCCESS) {
             logError("read compress block header failed at block %u", b);
+            taosMemoryFree(rawBlock);
             taosMemoryFree(readBuf);
             tBufferDestroy(&assist);
             return code;
@@ -428,6 +442,7 @@ int readTaosFileBlocks(TaosFile *taosFile, BlockCallback callback, void *userDat
             CompressBlock *newBuf = (CompressBlock *)taosMemoryRealloc(readBuf, readBufCap);
             if (newBuf == NULL) {
                 logError("realloc read buffer failed, size: %u", readBufCap);
+                taosMemoryFree(rawBlock);
                 taosMemoryFree(readBuf);
                 tBufferDestroy(&assist);
                 return TSDB_CODE_BCK_MALLOC_FAILED;
@@ -440,36 +455,41 @@ int readTaosFileBlocks(TaosFile *taosFile, BlockCallback callback, void *userDat
         code = readFromTaosFile(taosFile, readBuf->data, compHeader.dataLen);
         if (code != TSDB_CODE_SUCCESS) {
             logError("read compress data failed at block %u", b);
+            taosMemoryFree(rawBlock);
             taosMemoryFree(readBuf);
             tBufferDestroy(&assist);
             return code;
         }
 
-        // decompress
-        void *rawBlock = NULL;
-        int32_t rawLen = 0;
+        // decompress — pass rawBlock+rawBlockCap so decompressBlock can reuse
+        // the allocation when the new block fits in the existing buffer.
+        int32_t rawLen = rawBlockCap;  /* pass current capacity as hint */
         code = decompressBlock(readBuf, fieldInfos, numFields, &rawBlock, &rawLen, &assist);
 
         if (code != TSDB_CODE_SUCCESS) {
             logError("decompress block failed at block %u, code: %d", b, code);
+            // rawBlock was freed inside decompressBlock on error (set to NULL)
             taosMemoryFree(readBuf);
             tBufferDestroy(&assist);
             return TSDB_CODE_BCK_DECOMPRESS_FAILED;
         }
+        rawBlockCap = rawLen;  /* update capacity for next iteration */
 
-        // callback with decompressed block
+        // callback with decompressed block — rawBlock is NOT freed here
         int32_t blockRows = compHeader.oriHeader.rows;
         code = callback(userData, fieldInfos, numFields, rawBlock, rawLen, blockRows);
-        taosMemoryFree(rawBlock);
 
         if (code != TSDB_CODE_SUCCESS) {
             logError("block callback failed at block %u, code: %d", b, code);
+            taosMemoryFree(rawBlock);
             taosMemoryFree(readBuf);
             tBufferDestroy(&assist);
             return code;
         }
     }
 
+    /* free the reused rawBlock once after all blocks are processed */
+    taosMemoryFree(rawBlock);
     taosMemoryFree(readBuf);
     tBufferDestroy(&assist);
     return TSDB_CODE_SUCCESS;

@@ -99,10 +99,13 @@ static int stmt2AllocColBuffers(Stmt2RestoreCtx *ctx, int64_t numRows,
         /* reset packed write offsets for all variable-type columns */
         if (ctx->varWriteOffsets)
             memset(ctx->varWriteOffsets, 0, ctx->colBindsCap * sizeof(int32_t));
-        /* also reset per-column length arrays for var/decimal columns */
+        /* also reset per-column length arrays for var/decimal columns:
+         * only zero out the rows that will actually be used (numRows), not
+         * the full rowBufCap — avoids writing megabytes of zeros when batch
+         * capacity is large but the current file is small. */
         for (int i = 0; i < numCols; i++) {
             TAOS_STMT2_BIND *bind = &ctx->colBinds[i];
-            if (bind->length) memset(bind->length, 0, ctx->rowBufCap * sizeof(int32_t));
+            if (bind->length) memset(bind->length, 0, numRows * sizeof(int32_t));
         }
         return TSDB_CODE_SUCCESS;
     }
@@ -168,7 +171,10 @@ static int stmt2AllocColBuffers(Stmt2RestoreCtx *ctx, int64_t numRows,
             bind->length   = NULL;
             ctx->varBufCapacity[i] = 0;
         }
-        bind->is_null = (char *)taosMemoryCalloc(cap, 1);
+        /* Space-for-time: use malloc (not calloc) for is_null — stmt2AccBlock
+         * performs a per-block memset + sparse bitmap scan which initialises
+         * every used row before it is read by STMT2. */
+        bind->is_null = (char *)taosMemoryMalloc(cap);
         if (!bind->buffer || !bind->is_null ||
             ((IS_VAR_DATA_TYPE(fi->type) || IS_DECIMAL_TYPE(fi->type)) && !bind->length)) {
             stmt2FreeColBuffers(ctx);
@@ -403,15 +409,26 @@ static int stmt2AccBlock(Stmt2RestoreCtx *ctx, void *blockData, int32_t blockRow
                 }
             }
         } else {
+            /* Fixed type: copy data in one shot, then build is_null with
+             * space-for-time sparse bitmap scan (memset zero + mark only nulls).
+             * TDengine bitmap: bit7=row0 (MSB-first within each byte).
+             * Skipping zero bitmap bytes avoids any per-row work when data is
+             * entirely non-null (the common case for most time-series workloads). */
             int32_t typeBytes = tDataTypes[fieldInfos[c].type].bytes;
             int32_t bitmapLen = (blockRows + 7) / 8;
             char   *bitmap    = (char *)colData;
             char   *fixData   = (char *)colData + bitmapLen;
             memcpy((char *)bind->buffer + base * typeBytes, fixData, (size_t)blockRows * typeBytes);
-            for (int row = 0; row < blockRows; row++) {
-                // TDengine bitmap: bit7=row0 (MSB-first within each byte)
-                bind->is_null[base + row] =
-                    (bitmap[row >> 3] & (1u << (7 - (row & 7)))) ? 1 : 0;
+            memset(bind->is_null + base, 0, blockRows);
+            for (int bi = 0; bi < bitmapLen; bi++) {
+                uint8_t byt = (uint8_t)bitmap[bi];
+                if (!byt) continue;  /* fast path: no nulls in this 8-row group */
+                int base8 = bi * 8;
+                for (int bit = 7; bit >= 0; bit--) {
+                    int row = base8 + (7 - bit);
+                    if (row >= blockRows) break;
+                    if (byt & (1u << bit)) bind->is_null[base + row] = 1;
+                }
             }
         }
         bindIdx++;
@@ -894,4 +911,3 @@ int restoreOneParquetFileV2(TAOS_STMT2 **stmt2Ptr, TAOS *conn, const char *dbNam
     // stmt2 is NOT closed here; the caller owns it and closes after all files are done
     return code;
 }
-

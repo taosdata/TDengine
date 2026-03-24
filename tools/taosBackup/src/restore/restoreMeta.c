@@ -1103,6 +1103,13 @@ static int restoreVtbSql(const char *dbName) {
 //
 #define BCK_MAX_TAG_COLS 128
 
+// Batch size for CREATE TABLE multi-table syntax:
+//   CREATE TABLE IF NOT EXISTS t1 USING stb TAGS(...) t2 USING stb TAGS(...) ...
+// One RPC per batch instead of one per CTB.  Each row needs at most TSDB_MAX_SQL_LEN
+// bytes, so allocate TAG_BATCH_SQL_BYTES to hold up to TAG_BATCH_SIZE rows.
+#define TAG_BATCH_SIZE      64
+#define TAG_BATCH_SQL_BYTES (TAG_BATCH_SIZE * TSDB_MAX_SQL_LEN)
+
 typedef struct {
     TAOS       *conn;
     const char *dbName;
@@ -1117,6 +1124,8 @@ typedef struct {
     // For each server tag: index into backup fieldInfos (1-based, so add 1).
     // -1 means the server has this tag but backup does not (emit NULL).
     int         tagMapping[BCK_MAX_TAG_COLS];
+    // Reusable SQL buffer for batch CREATE TABLE (avoids per-row malloc)
+    char       *sqlBuf;   // TAG_BATCH_SQL_BYTES, allocated once, reused across callbacks
 } TagRestoreCtx;
 
 //
@@ -1345,219 +1354,193 @@ static int tagBlockCallback(void *userData,
         }
     }
 
-    // Process each row
-    for (int row = 0; row < blockRows; row++) {
+    // Helper macro: append one tag value (for a single row/column) into `sql` at `pos`.
+    // Uses the reusable ctx->sqlBuf, so no per-row malloc needed.
+#define APPEND_TAG_VAL(sql_, pos_, maxLen_, type_, row_, c_)  do { \
+    int8_t _type = (type_); \
+    int    _c    = (c_); \
+    if (_c < 0) { \
+        pos_ += snprintf((sql_) + pos_, (maxLen_) - pos_, "NULL"); \
+        break; \
+    } \
+    if (IS_VAR_DATA_TYPE(_type)) { \
+        int32_t *_to = (int32_t *)colDataPtrs[_c]; \
+        int32_t  _off = _to[row_]; \
+        if (_off < 0) { \
+            pos_ += snprintf((sql_) + pos_, (maxLen_) - pos_, "NULL"); \
+        } else { \
+            char    *_vd  = (char *)colDataPtrs[_c] + blockRows * sizeof(int32_t); \
+            uint16_t _vl  = *(uint16_t *)(_vd + _off); \
+            char    *_val = _vd + _off + sizeof(uint16_t); \
+            if (_type == TSDB_DATA_TYPE_NCHAR) { \
+                char _utf8[(_vl) * 4 + 4]; \
+                int32_t _ul = taosUcs4ToMbs((TdUcs4 *)_val, (int32_t)_vl, _utf8, NULL); \
+                if (_ul < 0) _ul = 0; \
+                pos_ += snprintf((sql_) + pos_, (maxLen_) - pos_, "'"); \
+                for (int32_t _k = 0; _k < _ul && pos_ < (int)(maxLen_) - 4; _k++) { \
+                    if (_utf8[_k] == '\'') { (sql_)[pos_++] = '\\'; (sql_)[pos_++] = '\''; } \
+                    else { (sql_)[pos_++] = _utf8[_k]; } \
+                } \
+                pos_ += snprintf((sql_) + pos_, (maxLen_) - pos_, "'"); \
+            } else if (_type == TSDB_DATA_TYPE_GEOMETRY) { \
+                char _wkt[4096]; \
+                int _wl = bckWkbToWkt((const unsigned char *)_val, (int)_vl, _wkt, (int)sizeof(_wkt)); \
+                if (_wl > 0) pos_ += snprintf((sql_) + pos_, (maxLen_) - pos_, "'%s'", _wkt); \
+                else         pos_ += snprintf((sql_) + pos_, (maxLen_) - pos_, "NULL"); \
+            } else { \
+                pos_ += snprintf((sql_) + pos_, (maxLen_) - pos_, "'"); \
+                for (uint16_t _k = 0; _k < _vl && pos_ < (int)(maxLen_) - 4; _k++) { \
+                    unsigned char _b = (unsigned char)_val[_k]; \
+                    if      (_b == '\'') { (sql_)[pos_++] = '\\'; (sql_)[pos_++] = '\''; } \
+                    else if (_b == '\\') { (sql_)[pos_++] = '\\'; (sql_)[pos_++] = '\\'; } \
+                    else                 { (sql_)[pos_++] = (char)_b; } \
+                } \
+                pos_ += snprintf((sql_) + pos_, (maxLen_) - pos_, "'"); \
+            } \
+        } \
+    } else { \
+        int32_t _bml  = (blockRows + 7) / 8; \
+        char   *_bmp  = (char *)colDataPtrs[_c]; \
+        char   *_fd   = (char *)colDataPtrs[_c] + _bml; \
+        bool    _null = (_bmp[(row_) >> 3] & (1u << (7 - ((row_) & 7)))) != 0; \
+        if (_null) { \
+            pos_ += snprintf((sql_) + pos_, (maxLen_) - pos_, "NULL"); \
+        } else { \
+            int32_t _bytes = fieldInfos[_c].bytes; \
+            char   *_v     = _fd + (row_) * _bytes; \
+            switch (_type) { \
+                case TSDB_DATA_TYPE_BOOL:      pos_ += snprintf((sql_)+pos_,(maxLen_)-pos_, "%s", (*(int8_t*)_v)?"true":"false"); break; \
+                case TSDB_DATA_TYPE_TINYINT:   pos_ += snprintf((sql_)+pos_,(maxLen_)-pos_, "%d",   *(int8_t *)_v); break; \
+                case TSDB_DATA_TYPE_SMALLINT:  pos_ += snprintf((sql_)+pos_,(maxLen_)-pos_, "%d",   *(int16_t*)_v); break; \
+                case TSDB_DATA_TYPE_INT:       pos_ += snprintf((sql_)+pos_,(maxLen_)-pos_, "%d",   *(int32_t*)_v); break; \
+                case TSDB_DATA_TYPE_BIGINT:    pos_ += snprintf((sql_)+pos_,(maxLen_)-pos_, "%"PRId64, *(int64_t*)_v); break; \
+                case TSDB_DATA_TYPE_UTINYINT:  pos_ += snprintf((sql_)+pos_,(maxLen_)-pos_, "%u",   *(uint8_t *)_v); break; \
+                case TSDB_DATA_TYPE_USMALLINT: pos_ += snprintf((sql_)+pos_,(maxLen_)-pos_, "%u",   *(uint16_t*)_v); break; \
+                case TSDB_DATA_TYPE_UINT:      pos_ += snprintf((sql_)+pos_,(maxLen_)-pos_, "%u",   *(uint32_t*)_v); break; \
+                case TSDB_DATA_TYPE_UBIGINT:   pos_ += snprintf((sql_)+pos_,(maxLen_)-pos_, "%"PRIu64, *(uint64_t*)_v); break; \
+                case TSDB_DATA_TYPE_FLOAT:     pos_ += snprintf((sql_)+pos_,(maxLen_)-pos_, "%f",   *(float *)_v); break; \
+                case TSDB_DATA_TYPE_DOUBLE:    pos_ += snprintf((sql_)+pos_,(maxLen_)-pos_, "%f",   *(double*)_v); break; \
+                case TSDB_DATA_TYPE_TIMESTAMP: pos_ += snprintf((sql_)+pos_,(maxLen_)-pos_, "%"PRId64, *(int64_t*)_v); break; \
+                default: pos_ += snprintf((sql_)+pos_,(maxLen_)-pos_, "NULL"); break; \
+            } \
+        } \
+    } \
+} while(0)
+
+    // Allocate reusable SQL buffer once (on first call for this ctx)
+    if (!ctx->sqlBuf) {
+        ctx->sqlBuf = (char *)taosMemoryMalloc(TAG_BATCH_SQL_BYTES);
+        if (!ctx->sqlBuf) {
+            taosMemoryFree(colDataPtrs);
+            taosMemoryFree(colDataLens);
+            return TSDB_CODE_BCK_MALLOC_FAILED;
+        }
+    }
+
+    const char *rdbName  = argRenameDb(ctx->dbName);
+    int useMapping = (ctx->serverTagCount > 0);
+    int loopCount  = useMapping ? ctx->serverTagCount : (numCols - 1);
+
+    // Batch rows: accumulate up to TAG_BATCH_SIZE child-table clauses into one SQL,
+    // then fire a single taos_query instead of one query per row.
+    int row = 0;
+    while (row < blockRows) {
         if (g_interrupted) {
             taosMemoryFree(colDataPtrs);
             taosMemoryFree(colDataLens);
             return TSDB_CODE_BCK_USER_CANCEL;
         }
 
-        // Column 0 = tbname (VARCHAR type)
-        // Read tbname from variable-length column
-        char tbName[TSDB_TABLE_NAME_LEN] = {0};
+        // Build one batch SQL: CREATE TABLE IF NOT EXISTS t1 USING stb TAGS(...) t2 ...
+        int   pos      = 0;
+        int   batchCnt = 0;
+        int   batchStart = row;
 
-        // Variable column layout: offsets[rows] + data
-        // offsets is int32_t array, offset=-1 means NULL
-        int32_t *offsets = (int32_t *)colDataPtrs[0];
-        int32_t offset = offsets[row];
-        if (offset < 0) {
-            logWarn("tbname is NULL at row %d, skip", row);
-            ctx->failedCnt++;
-            continue;
-        }
-        
-        // data starts after offsets array
-        char *varData = (char *)colDataPtrs[0] + blockRows * sizeof(int32_t);
-        // TDengine variable data format: 2-byte length prefix + data  
-        uint16_t varLen = *(uint16_t *)(varData + offset);
-        if (varLen >= TSDB_TABLE_NAME_LEN) varLen = TSDB_TABLE_NAME_LEN - 1;
-        memcpy(tbName, varData + offset + sizeof(uint16_t), varLen);
-        tbName[varLen] = '\0';
-
-        // Build SQL: CREATE TABLE IF NOT EXISTS `db`.`tb` USING `db`.`stb` TAGS(v1, v2, ...)
-        char *sql = (char *)taosMemoryMalloc(TSDB_MAX_SQL_LEN);
-        if (sql == NULL) {
-            ctx->failedCnt++;
-            continue;
-        }
-
-        int pos = snprintf(sql, TSDB_MAX_SQL_LEN,
-                           "CREATE TABLE IF NOT EXISTS `%s`.`%s` USING `%s`.`%s` TAGS(",
-                           argRenameDb(ctx->dbName), tbName, argRenameDb(ctx->dbName), ctx->stbName);
-
-        // Emit tag values in the server's declared order using name-based mapping.
-        // ctx->serverTagCount > 0  → use mapping (handles extra/missing/reordered tags)
-        // ctx->serverTagCount == 0 → DESCRIBE failed; fall back to backup column order
-        int useMapping = (ctx->serverTagCount > 0);
-        int loopCount  = useMapping ? ctx->serverTagCount : (numCols - 1);
-
-        for (int s = 0; s < loopCount; s++) {
-            if (s > 0) pos += snprintf(sql + pos, TSDB_MAX_SQL_LEN - pos, ",");
-
-            // c = backup column index; -1 means server tag not present in backup → NULL
-            int c = useMapping ? ctx->tagMapping[s] : (s + 1);
-
-            if (c < 0) {
-                pos += snprintf(sql + pos, TSDB_MAX_SQL_LEN - pos, "NULL");
+        while (row < blockRows && batchCnt < TAG_BATCH_SIZE) {
+            // Read tbname
+            int32_t *offsets = (int32_t *)colDataPtrs[0];
+            int32_t  offset  = offsets[row];
+            if (offset < 0) {
+                logWarn("tbname is NULL at row %d, skip", row);
+                ctx->failedCnt++;
+                row++;
                 continue;
             }
+            char *varData = (char *)colDataPtrs[0] + blockRows * sizeof(int32_t);
+            uint16_t varLen = *(uint16_t *)(varData + offset);
+            if (varLen >= TSDB_TABLE_NAME_LEN) varLen = TSDB_TABLE_NAME_LEN - 1;
+            char tbName[TSDB_TABLE_NAME_LEN] = {0};
+            memcpy(tbName, varData + offset + sizeof(uint16_t), varLen);
+            tbName[varLen] = '\0';
 
-            int8_t type = fieldInfos[c].type;
+            // Append "CREATE TABLE IF NOT EXISTS `db`.`tb` USING `db`.`stb` TAGS("
+            pos += snprintf(ctx->sqlBuf + pos, TAG_BATCH_SQL_BYTES - pos,
+                            "CREATE TABLE IF NOT EXISTS `%s`.`%s` USING `%s`.`%s` TAGS(",
+                            rdbName, tbName, rdbName, ctx->stbName);
 
-            if (IS_VAR_DATA_TYPE(type)) {
-                // Variable type: offsets[rows] + data
-                int32_t *tagOffsets = (int32_t *)colDataPtrs[c];
-                int32_t tagOffset = tagOffsets[row];
-                if (tagOffset < 0) {
-                    pos += snprintf(sql + pos, TSDB_MAX_SQL_LEN - pos, "NULL");
-                } else {
-                    char *tagVarData = (char *)colDataPtrs[c] + blockRows * sizeof(int32_t);
-                    uint16_t tagLen = *(uint16_t *)(tagVarData + tagOffset);
-                    char *tagVal = tagVarData + tagOffset + sizeof(uint16_t);
-                    
-                    if (type == TSDB_DATA_TYPE_NCHAR) {
-                        char *utf8Buf = (char *)taosMemoryMalloc(tagLen + 4);
-                        if (utf8Buf != NULL) {
-                            int32_t utf8Len = taosUcs4ToMbs((TdUcs4 *)tagVal, (int32_t)tagLen, utf8Buf, NULL);
-                            if (utf8Len < 0) utf8Len = 0;
-                            pos += snprintf(sql + pos, TSDB_MAX_SQL_LEN - pos, "'");
-                            for (int32_t k = 0; k < utf8Len && pos < TSDB_MAX_SQL_LEN - 4; k++) {
-                                if (utf8Buf[k] == '\'') {
-                                    sql[pos++] = '\\';
-                                    sql[pos++] = '\'';
-                                } else {
-                                    sql[pos++] = utf8Buf[k];
-                                }
-                            }
-                            pos += snprintf(sql + pos, TSDB_MAX_SQL_LEN - pos, "'");
-                            taosMemoryFree(utf8Buf);
-                        } else {
-                            pos += snprintf(sql + pos, TSDB_MAX_SQL_LEN - pos, "NULL");
-                        }
-                    } else if (type == TSDB_DATA_TYPE_BINARY ||
-                               type == TSDB_DATA_TYPE_VARCHAR || type == TSDB_DATA_TYPE_JSON) {
-                        pos += snprintf(sql + pos, TSDB_MAX_SQL_LEN - pos, "'");
-                        for (uint16_t k = 0; k < tagLen && pos < TSDB_MAX_SQL_LEN - 4; k++) {
-                            if (tagVal[k] == '\'') {
-                                sql[pos++] = '\\';
-                                sql[pos++] = '\'';
-                            } else {
-                                sql[pos++] = tagVal[k];
-                            }
-                        }
-                        pos += snprintf(sql + pos, TSDB_MAX_SQL_LEN - pos, "'");
-                    } else if (type == TSDB_DATA_TYPE_GEOMETRY) {
-                        char wkt[4096];
-                        int wktLen = bckWkbToWkt((const unsigned char *)tagVal, (int)tagLen, wkt, (int)sizeof(wkt));
-                        if (wktLen > 0) {
-                            pos += snprintf(sql + pos, TSDB_MAX_SQL_LEN - pos, "'%s'", wkt);
-                        } else {
-                            pos += snprintf(sql + pos, TSDB_MAX_SQL_LEN - pos, "NULL");
-                        }
-                    } else {
-                        pos += snprintf(sql + pos, TSDB_MAX_SQL_LEN - pos, "'");
-                        for (uint16_t k = 0; k < tagLen && pos < TSDB_MAX_SQL_LEN - 4; k++) {
-                            unsigned char b = (unsigned char)tagVal[k];
-                            if (b == '\'') {
-                                sql[pos++] = '\\'; sql[pos++] = '\'';
-                            } else if (b == '\\') {
-                                sql[pos++] = '\\'; sql[pos++] = '\\';
-                            } else {
-                                sql[pos++] = (char)b;
-                            }
-                        }
-                        pos += snprintf(sql + pos, TSDB_MAX_SQL_LEN - pos, "'");
-                    }
+            for (int s = 0; s < loopCount; s++) {
+                if (s > 0) pos += snprintf(ctx->sqlBuf + pos, TAG_BATCH_SQL_BYTES - pos, ",");
+                int c = useMapping ? ctx->tagMapping[s] : (s + 1);
+                int8_t type = (c >= 0) ? fieldInfos[c].type : TSDB_DATA_TYPE_NULL;
+                switch (0) { default: APPEND_TAG_VAL(ctx->sqlBuf, pos, TAG_BATCH_SQL_BYTES, type, row, c); }
+            }
+            pos += snprintf(ctx->sqlBuf + pos, TAG_BATCH_SQL_BYTES - pos, ") ");
+
+            batchCnt++;
+            row++;
+        }
+
+        if (batchCnt == 0) continue;
+
+        logDebug("restore tag batch sql (%d tables): %.120s...", batchCnt, ctx->sqlBuf);
+
+        TAOS_RES *res  = taos_query(ctx->conn, ctx->sqlBuf);
+        int       rc   = taos_errno(res);
+        if (res) taos_free_result(res);
+
+        if (rc == TSDB_CODE_SUCCESS || rc == TSDB_CODE_TDB_TABLE_ALREADY_EXIST) {
+            ctx->successCnt += batchCnt;
+            atomic_add_fetch_64(&g_stats.childTablesTotal, batchCnt);
+            atomic_add_fetch_64(&g_progress.ctbDoneCur, batchCnt);
+        } else {
+            // Batch failed: fall back to one-by-one to identify and skip bad rows
+            logWarn("tag batch failed (0x%08X), retrying %d rows one-by-one", rc, batchCnt);
+            for (int r = batchStart; r < row; r++) {
+                int32_t *off2 = (int32_t *)colDataPtrs[0];
+                if (off2[r] < 0) continue;
+                char *vd2  = (char *)colDataPtrs[0] + blockRows * sizeof(int32_t);
+                uint16_t vl2 = *(uint16_t *)(vd2 + off2[r]);
+                if (vl2 >= TSDB_TABLE_NAME_LEN) vl2 = TSDB_TABLE_NAME_LEN - 1;
+                char tb2[TSDB_TABLE_NAME_LEN] = {0};
+                memcpy(tb2, vd2 + off2[r] + sizeof(uint16_t), vl2);
+                tb2[vl2] = '\0';
+
+                int p2 = snprintf(ctx->sqlBuf, TAG_BATCH_SQL_BYTES,
+                                  "CREATE TABLE IF NOT EXISTS `%s`.`%s` USING `%s`.`%s` TAGS(",
+                                  rdbName, tb2, rdbName, ctx->stbName);
+                for (int s = 0; s < loopCount; s++) {
+                    if (s > 0) p2 += snprintf(ctx->sqlBuf + p2, TAG_BATCH_SQL_BYTES - p2, ",");
+                    int c2 = useMapping ? ctx->tagMapping[s] : (s + 1);
+                    int8_t t2 = (c2 >= 0) ? fieldInfos[c2].type : TSDB_DATA_TYPE_NULL;
+                    switch (0) { default: APPEND_TAG_VAL(ctx->sqlBuf, p2, TAG_BATCH_SQL_BYTES, t2, r, c2); }
                 }
-            } else {
-                // Fixed type: bitmap[bitmapLen] + data[rows * bytes]
-                int32_t bitmapLen = (blockRows + 7) / 8;
-                char *bitmap = (char *)colDataPtrs[c];
-                char *fixData = (char *)colDataPtrs[c] + bitmapLen;
+                p2 += snprintf(ctx->sqlBuf + p2, TAG_BATCH_SQL_BYTES - p2, ")");
 
-                int byteIdx = row >> 3;
-                int bitIdx  = 7 - (row & 7);
-                bool isNull = (bitmap[byteIdx] & (1u << bitIdx)) != 0;
-                
-                if (isNull) {
-                    pos += snprintf(sql + pos, TSDB_MAX_SQL_LEN - pos, "NULL");
+                TAOS_RES *r2 = taos_query(ctx->conn, ctx->sqlBuf);
+                int rc2 = taos_errno(r2);
+                if (r2) taos_free_result(r2);
+                if (rc2 == TSDB_CODE_SUCCESS || rc2 == TSDB_CODE_TDB_TABLE_ALREADY_EXIST) {
+                    ctx->successCnt++;
+                    atomic_add_fetch_64(&g_stats.childTablesTotal, 1);
+                    atomic_add_fetch_64(&g_progress.ctbDoneCur, 1);
                 } else {
-                    int32_t bytes = fieldInfos[c].bytes;
-                    char *val = fixData + row * bytes;
-                    
-                    switch (type) {
-                        case TSDB_DATA_TYPE_BOOL:
-                            pos += snprintf(sql + pos, TSDB_MAX_SQL_LEN - pos, "%s", 
-                                          (*(int8_t *)val) ? "true" : "false");
-                            break;
-                        case TSDB_DATA_TYPE_TINYINT:
-                            pos += snprintf(sql + pos, TSDB_MAX_SQL_LEN - pos, "%d", *(int8_t *)val);
-                            break;
-                        case TSDB_DATA_TYPE_SMALLINT:
-                            pos += snprintf(sql + pos, TSDB_MAX_SQL_LEN - pos, "%d", *(int16_t *)val);
-                            break;
-                        case TSDB_DATA_TYPE_INT:
-                            pos += snprintf(sql + pos, TSDB_MAX_SQL_LEN - pos, "%d", *(int32_t *)val);
-                            break;
-                        case TSDB_DATA_TYPE_BIGINT:
-                            pos += snprintf(sql + pos, TSDB_MAX_SQL_LEN - pos, "%" PRId64, *(int64_t *)val);
-                            break;
-                        case TSDB_DATA_TYPE_UTINYINT:
-                            pos += snprintf(sql + pos, TSDB_MAX_SQL_LEN - pos, "%u", *(uint8_t *)val);
-                            break;
-                        case TSDB_DATA_TYPE_USMALLINT:
-                            pos += snprintf(sql + pos, TSDB_MAX_SQL_LEN - pos, "%u", *(uint16_t *)val);
-                            break;
-                        case TSDB_DATA_TYPE_UINT:
-                            pos += snprintf(sql + pos, TSDB_MAX_SQL_LEN - pos, "%u", *(uint32_t *)val);
-                            break;
-                        case TSDB_DATA_TYPE_UBIGINT:
-                            pos += snprintf(sql + pos, TSDB_MAX_SQL_LEN - pos, "%" PRIu64, *(uint64_t *)val);
-                            break;
-                        case TSDB_DATA_TYPE_FLOAT:
-                            pos += snprintf(sql + pos, TSDB_MAX_SQL_LEN - pos, "%f", *(float *)val);
-                            break;
-                        case TSDB_DATA_TYPE_DOUBLE:
-                            pos += snprintf(sql + pos, TSDB_MAX_SQL_LEN - pos, "%f", *(double *)val);
-                            break;
-                        case TSDB_DATA_TYPE_TIMESTAMP:
-                            pos += snprintf(sql + pos, TSDB_MAX_SQL_LEN - pos, "%" PRId64, *(int64_t *)val);
-                            break;
-                        default:
-                            pos += snprintf(sql + pos, TSDB_MAX_SQL_LEN - pos, "NULL");
-                            break;
-                    }
+                    logError("create child table failed(0x%08X): %s.%s", rc2, rdbName, tb2);
+                    ctx->failedCnt++;
                 }
             }
         }
-
-        pos += snprintf(sql + pos, TSDB_MAX_SQL_LEN - pos, ")");
-
-        logDebug("restore tag sql: %s", sql);
-
-        // execute
-        TAOS_RES *res = taos_query(ctx->conn, sql);
-        int code = taos_errno(res);
-        if (code == TSDB_CODE_SUCCESS) {
-            ctx->successCnt++;
-            atomic_add_fetch_64(&g_stats.childTablesTotal, 1);
-            atomic_add_fetch_64(&g_progress.ctbDoneCur, 1);
-        } else if (code == TSDB_CODE_TDB_TABLE_ALREADY_EXIST) {
-            // table already exists - that's fine in APPEND mode
-        logWarn("create child table may already exist(0x%08X %s): %s", code, taos_errstr(res), tbName);
-            ctx->successCnt++;
-            atomic_add_fetch_64(&g_stats.childTablesTotal, 1);
-            atomic_add_fetch_64(&g_progress.ctbDoneCur, 1);
-        } else {
-            // real error - table creation failed
-            logError("create child table failed(0x%08X %s): %s", code, taos_errstr(res), sql);
-            ctx->failedCnt++;
-        }
-
-        if (res) taos_free_result(res);
-        taosMemoryFree(sql);
     }
+#undef APPEND_TAG_VAL
 
     taosMemoryFree(colDataPtrs);
     taosMemoryFree(colDataLens);
@@ -1827,6 +1810,7 @@ static void* restoreTagThread(void *arg) {
             thread->index, ctx.successCnt, ctx.failedCnt);
     logInfo("tag thread %d finished for %s.%s", thread->index, _dbName4log, _stb4log);
 
+    if (ctx.sqlBuf) { taosMemoryFree(ctx.sqlBuf); ctx.sqlBuf = NULL; }
     closeTaosFileRead(taosFile);
     return NULL;
 }

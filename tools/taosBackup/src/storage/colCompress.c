@@ -8,7 +8,7 @@
  * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.
  */
-    
+
 #include "colCompress.h"
 #include "blockReader.h"
 // engine
@@ -50,7 +50,7 @@ uint32_t calcCompressBlockSize(BlockReader* reader) {
 
     // cmprAlgs size
     size += sizeof(int32_t) * reader->oriHeader->numOfCols;
-    
+
     // data size
     size += reader->oriHeader->actualLen;
 
@@ -127,9 +127,9 @@ int32_t compressColData(FieldInfo *fieldInfo, int32_t blockRows,
 // compress block
 //
 CompressBlock* compressBlock(void*      block,
-                             int        blockRows, 
-                             FieldInfo* fieldInfos, 
-                             int        numFields, 
+                             int        blockRows,
+                             FieldInfo* fieldInfos,
+                             int        numFields,
                              SBuffer*   assist,
                              int*       code) {
     // read block
@@ -139,7 +139,7 @@ CompressBlock* compressBlock(void*      block,
         *code = retCode;
         return NULL;
     }
-    
+
     // malloc compress block
     uint32_t mallocLen = calcCompressBlockSize(&reader);
     CompressBlock* compressBlock = (CompressBlock*)taosMemoryCalloc(1, mallocLen);
@@ -327,6 +327,17 @@ static int32_t decompressColData(FieldInfo *fieldInfo, int32_t blockRows,
 //
 // decompress block
 //
+// Space-for-time: the caller may pass a pre-allocated reuse buffer via
+// *uncompressBlock / *uncompressLen:
+//   On entry:  *uncompressBlock = existing buffer (or NULL for first call)
+//              *uncompressLen   = current buffer capacity in bytes (0 if NULL)
+//   On exit:   *uncompressBlock = output buffer (reused or realloced)
+//              *uncompressLen   = actual decompressed block length
+//
+// The caller must free *uncompressBlock once when it is no longer needed.
+// Passing NULL / 0 on the first call is equivalent to the old single-use
+// calloc behaviour.
+//
 int decompressBlock(CompressBlock* compressBlk,
                     FieldInfo*     fieldInfos,
                     int            numFields,
@@ -339,11 +350,24 @@ int decompressBlock(CompressBlock* compressBlk,
     int32_t blockRows = oriHeader->rows;
 
     // total original block size = actualLen (includes header)
-    *uncompressLen = oriHeader->actualLen;
-    *uncompressBlock = taosMemoryCalloc(1, *uncompressLen);
-    if (*uncompressBlock == NULL) {
-        logError("malloc uncompress block failed");
-        return TSDB_CODE_BCK_MALLOC_FAILED;
+    // Space-for-time: reuse caller's buffer when capacity is sufficient.
+    int32_t needed    = oriHeader->actualLen;
+    int32_t callerCap = *uncompressLen;   /* caller passes current buffer capacity */
+    *uncompressLen    = needed;
+    if (*uncompressBlock != NULL && callerCap >= needed) {
+        /* buffer is large enough — zero-fill only the needed region (no malloc) */
+        memset(*uncompressBlock, 0, needed);
+    } else {
+        /* grow: realloc from existing or fresh malloc when *uncompressBlock is NULL */
+        void *newBuf = (*uncompressBlock)
+                     ? taosMemoryRealloc(*uncompressBlock, needed)
+                     : taosMemoryMalloc(needed);
+        if (!newBuf) {
+            logError("malloc uncompress block failed");
+            return TSDB_CODE_BCK_MALLOC_FAILED;
+        }
+        *uncompressBlock = newBuf;
+        memset(*uncompressBlock, 0, needed);
     }
 
     //

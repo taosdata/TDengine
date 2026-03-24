@@ -168,8 +168,8 @@ void freeBindArray(TAOS_MULTI_BIND *bindArray, int numFields) {
     }
 }
 
-static int bindBlockData(StmtRestoreCtx *ctx, 
-                         void *blockData, 
+static int bindBlockData(StmtRestoreCtx *ctx,
+                         void *blockData,
                          int32_t blockRows,
                          FieldInfo *fieldInfos,
                          int numFields,
@@ -215,7 +215,7 @@ static int bindBlockData(StmtRestoreCtx *ctx,
             int32_t *offsets = (int32_t *)colData;
             char *varDataBase = (char *)colData + blockRows * sizeof(int32_t);
             bool isNchar = (fieldInfos[c].type == TSDB_DATA_TYPE_NCHAR);
-            
+
             // Allocate buffers for variable data
             // We need: buffer (concatenated data), length array, is_null array
             int32_t *lengths = (int32_t *)taosMemoryCalloc(blockRows, sizeof(int32_t));
@@ -364,24 +364,28 @@ static int bindBlockData(StmtRestoreCtx *ctx,
             char *fixData = (char *)colData + bitmapLen;
             int32_t typeBytes = fieldInfos[c].bytes;
 
-            // Allocate buffer
+            // Allocate buffer (malloc: fixData will be fully overwritten by memcpy)
+            // Allocate is_null (malloc: initialized below via memset + sparse bitmap)
             char *buffer = (char *)taosMemoryMalloc(blockRows * typeBytes);
-            char *isNull = (char *)taosMemoryCalloc(blockRows, sizeof(char));
+            char *isNull = (char *)taosMemoryMalloc(blockRows);
             if (!buffer || !isNull) {
                 taosMemoryFree(buffer);
                 taosMemoryFree(isNull);
                 return TSDB_CODE_BCK_MALLOC_FAILED;
             }
 
-            // Copy data and check null bitmap (TDengine: bit7=row0, MSB-first)
+            // Copy all data in one shot; then build is_null with space-for-time
+            // sparse bitmap scan: assume non-null (common), skip zero bitmap bytes.
             memcpy(buffer, fixData, blockRows * typeBytes);
-            for (int row = 0; row < blockRows; row++) {
-                int byteIdx = row >> 3;
-                int bitIdx  = 7 - (row & 7);
-                if (bitmap[byteIdx] & (1 << bitIdx)) {
-                    isNull[row] = 1;
-                } else {
-                    isNull[row] = 0;
+            memset(isNull, 0, blockRows);
+            for (int bi = 0; bi < bitmapLen; bi++) {
+                uint8_t byt = (uint8_t)bitmap[bi];
+                if (!byt) continue;  /* fast path: no nulls in this 8-row group */
+                int base8 = bi * 8;
+                for (int bit = 7; bit >= 0; bit--) {
+                    int row = base8 + (7 - bit);  /* TDengine: bit7=row0 (MSB-first) */
+                    if (row >= blockRows) break;
+                    if (byt & (1u << bit)) isNull[row] = 1;
                 }
             }
 
