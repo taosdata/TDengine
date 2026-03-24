@@ -483,7 +483,12 @@ static SKeyword keywordTable[] = {
     {"XNODES",               TK_XNODES},
     {"DRAIN",                TK_DRAIN},
     {"REBALANCE",            TK_REBALANCE},
-    {"VALIDATE",            TK_VALIDATE},
+    {"VALIDATE",             TK_VALIDATE},
+    {"IDLE_TIMEOUT",         TK_IDLE_TIMEOUT},
+    {"IDLE",                 TK_IDLE},
+    {"RESUME",               TK_RESUME},
+    {"_TIDLESTART",          TK_TIDLESTART},
+    {"_TIDLEEND",            TK_TIDLEEND},
 };
 // clang-format on
 

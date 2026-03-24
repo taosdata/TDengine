@@ -7248,6 +7248,7 @@ SNode* createStreamTriggerOptions(SAstCreateContext* pCxt) {
   pOptions->pMaxDelay = NULL;
   pOptions->pExpiredTime = NULL;
   pOptions->pFillHisStartTime = NULL;
+  pOptions->pIdleTimeout = NULL;
   pOptions->pEventType = EVENT_NONE;
   pOptions->calcNotifyOnly = false;
   pOptions->deleteOutputTable = false;
@@ -7418,6 +7419,14 @@ SNode* setStreamTriggerOptions(SAstCreateContext* pCxt, SNode* pOptions, SStream
         goto _err;
       }
       pStreamOptions->ignoreNoDataTrigger = true;
+      break;
+    case STREAM_TRIGGER_OPTION_IDLE_TIMEOUT:
+      if (pStreamOptions->pIdleTimeout != NULL) {
+        pCxt->errCode =
+            generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "IDLE_TIMEOUT specified multiple times");
+        goto _err;
+      }
+      pStreamOptions->pIdleTimeout = pOptionUnit->pNode;
       break;
     default:
       break;

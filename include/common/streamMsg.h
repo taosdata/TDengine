@@ -58,6 +58,8 @@ typedef struct STokenBucket       STokenBucket;
 #define PLACE_HOLDER_PARTITION_TBNAME BIT_FLAG_MASK(11)
 #define PLACE_HOLDER_PARTITION_ROWS   BIT_FLAG_MASK(12)
 #define PLACE_HOLDER_GRPID            BIT_FLAG_MASK(13)
+#define PLACE_HOLDER_IDLE_START       BIT_FLAG_MASK(14)
+#define PLACE_HOLDER_IDLE_END         BIT_FLAG_MASK(15)
 
 #define CREATE_STREAM_FLAG_NONE                     0
 #define CREATE_STREAM_FLAG_TRIGGER_VIRTUAL_STB      BIT_FLAG_MASK(0)
@@ -185,6 +187,7 @@ typedef struct {
   int64_t        fillHistoryStartTime;  // precision same with triggerDB, INT64_MIN for no value specified
   int64_t        watermark;             // precision same with triggerDB
   int64_t        expiredTime;           // precision same with triggerDB
+  int64_t        idleTimeoutMs;         // idle timeout in milliseconds (0 = disabled)
   SStreamTrigger trigger;
 
   int8_t   triggerTblType;
@@ -492,6 +495,7 @@ typedef struct {
   int64_t        fillHistoryStartTime;  // precision same with triggerDB, INT64_MIN for no value specified
   int64_t        watermark;             // precision same with triggerDB
   int64_t        expiredTime;           // precision same with triggerDB
+  int64_t        idleTimeoutMs;         // idle timeout in milliseconds
   SStreamTrigger trigger;
 
   int64_t eventTypes;
@@ -884,6 +888,11 @@ typedef struct SSTriggerCalcParam {
       // Placeholder for Period Trigger
       int64_t prevLocalTime;
       int64_t nextLocalTime;
+    };
+    struct {
+      // Placeholder for Idle Trigger
+      int64_t idlestart;  // _tidlestart
+      int64_t idleend;    // _tidleend
     };
   };
 

@@ -789,6 +789,10 @@ const void* fmGetStreamPesudoFuncVal(int32_t funcId, const SStreamRuntimeFuncInf
       return pStreamRuntimeFuncInfo->pStreamPartColVals;
     case FUNCTION_TYPE_PLACEHOLDER_TBNAME:
       return pStreamRuntimeFuncInfo->pStreamPartColVals;
+    case FUNCTION_TYPE_TIDLESTART:
+      return &pParams->idlestart;
+    case FUNCTION_TYPE_TIDLEEND:
+      return &pParams->idleend;
     default:
       break;
   }

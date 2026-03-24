@@ -435,6 +435,7 @@ static const char* jkCreateStreamReqFillHistoryStartTime =
   "fillHistoryStartTime";
 static const char* jkCreateStreamReqWatermark            = "watermark";
 static const char* jkCreateStreamReqExpiredTime          = "expiredTime";
+static const char* jkCreateStreamReqIdleTimeoutMs        = "idleTimeoutMs";
 static const char* jkCreateStreamReqTrigger              = "trigger";
 
 static const char* jkCreateStreamReqTriggerTblType       = "triggerTblType";
@@ -581,6 +582,8 @@ static int32_t scmCreateStreamReqToJsonImpl(const void* pObj, void* pJson) {
     pJson, jkCreateStreamReqWatermark, pReq->watermark));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(
     pJson, jkCreateStreamReqExpiredTime, pReq->expiredTime));
+  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(
+    pJson, jkCreateStreamReqIdleTimeoutMs, pReq->idleTimeoutMs));
   // trigger
   switch (pReq->triggerType) {
     case WINDOW_TYPE_SESSION:
@@ -824,6 +827,8 @@ int32_t jsonToSCMCreateStreamReq(const void* pJson, void* pObj) {
     pJson, jkCreateStreamReqWatermark, &pReq->watermark));
   TAOS_CHECK_RETURN(tjsonGetBigIntValue(
     pJson, jkCreateStreamReqExpiredTime, &pReq->expiredTime));
+  TAOS_CHECK_RETURN(tjsonGetBigIntValue(
+    pJson, jkCreateStreamReqIdleTimeoutMs, &pReq->idleTimeoutMs));
   // trigger
   switch (pReq->triggerType) {
     case WINDOW_TYPE_SESSION:
