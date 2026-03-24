@@ -1326,6 +1326,7 @@ impl SessionManager {
                         tsdb_username, tsdb_password
                     ),
                     format!("GRANT read on *.* TO `{}`", tsdb_username),
+                    format!("GRANT CREATE XNODE TASK TO `{}`", tsdb_username),
                 ])
                 .await
                 .context("Failed to create user in TDengine")?;

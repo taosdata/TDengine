@@ -454,6 +454,8 @@ function createUser(formEl: FormInstance | undefined) {
           `CREATE USER \`${ruleForm.user}\` PASS '${ruleForm.pwd}' SYSINFO ${ruleForm.sysinfo} CREATEDB ${ruleForm.createdb} ${hostStr};`
         )
           .then(async () => {
+            // Grant CREATE XNODE TASK privilege to the new user
+            await sendSQLReq(`GRANT CREATE XNODE TASK TO \`${ruleForm.user}\`;`);
             for (const key in selectedDatabasePrivileges) {
               if (selectedDatabasePrivileges[key].length > 0) {
                 const privileges = selectedDatabasePrivileges[key];
