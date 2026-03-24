@@ -386,6 +386,12 @@ option(
    OFF
 )
 
+option(
+    FLEX_DEPLOY
+    "If enable flexible deployment mode"
+    OFF
+)
+
 message(STATUS "BUILD_S3:${BUILD_S3}")
 message(STATUS "BUILD_WITH_S3:${BUILD_WITH_S3}")
 message(STATUS "BUILD_WITH_COS:${BUILD_WITH_COS}")
