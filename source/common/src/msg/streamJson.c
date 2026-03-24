@@ -419,6 +419,7 @@ static const char* jkCreateStreamReqFillHistoryFirst     = "fillHistoryFirst";
 static const char* jkCreateStreamReqCalcNotifyOnly       = "calcNotifyOnly";
 static const char* jkCreateStreamReqLowLatencyCalc       = "lowLatencyCalc";
 static const char* jkCreateStreamReqIgNoDataTrigger      = "igNoDataTrigger";
+static const char* jkCreateStreamReqMultiGroupCalc       = "multiGroupCalc";
 
 static const char* jkCreateStreamReqPNotifyAddrUrls      = "pNotifyAddrUrls";
 static const char* jkCreateStreamReqNotifyEventTypes     = "notifyEventTypes";
@@ -532,6 +533,8 @@ static int32_t scmCreateStreamReqToJsonImpl(const void* pObj, void* pJson) {
     pJson, jkCreateStreamReqLowLatencyCalc, pReq->lowLatencyCalc));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(
     pJson, jkCreateStreamReqIgNoDataTrigger, pReq->igNoDataTrigger));
+  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(
+    pJson, jkCreateStreamReqMultiGroupCalc, pReq->enableMultiGroupCalc));
 
   // notify part
   TAOS_CHECK_RETURN(tjsonAddArray(
@@ -792,6 +795,8 @@ int32_t jsonToSCMCreateStreamReq(const void* pJson, void* pObj) {
     pJson, jkCreateStreamReqLowLatencyCalc, &pReq->lowLatencyCalc));
   TAOS_CHECK_RETURN(tjsonGetTinyIntValue(
     pJson, jkCreateStreamReqIgNoDataTrigger, &pReq->igNoDataTrigger));
+  TAOS_CHECK_RETURN(tjsonGetTinyIntValue(
+    pJson, jkCreateStreamReqMultiGroupCalc, &pReq->enableMultiGroupCalc));
 
   // notify part
   TAOS_CHECK_RETURN(tjsonToTArray(

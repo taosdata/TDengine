@@ -884,7 +884,8 @@ enum {
   VALUE_CODE_TRANSLATE,
   VALUE_CODE_NOT_RESERVED,
   VALUE_CODE_IS_NULL,
-  VALUE_CODE_DATUM
+  VALUE_CODE_DATUM,
+  VALUE_CODE_PLACEHOLDER_NO
 };
 
 static int32_t datumToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -961,6 +962,9 @@ static int32_t valueNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   }
   if (TSDB_CODE_SUCCESS == code && !pNode->isNull && !IS_VAL_UNSET(pNode->flag)) {
     code = datumToMsg(pNode, pEncoder);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI16(pEncoder, VALUE_CODE_PLACEHOLDER_NO, pNode->placeholderNo);
   }
 
   return code;
@@ -1110,6 +1114,9 @@ static int32_t msgToValueNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case VALUE_CODE_DATUM:
         code = msgToDatum(pTlv, pNode);
+        break;
+      case VALUE_CODE_PLACEHOLDER_NO:
+        code = tlvDecodeI16(pTlv, &pNode->placeholderNo);
         break;
       default:
         break;
@@ -1287,6 +1294,53 @@ static int32_t remoteZeroRowsNodeToMsg(const void* pObj, STlvEncoder* pEncoder) 
 static int32_t msgToRemoteZeroRowsNode(STlvDecoder* pDecoder, void* pObj) {
   return msgToRemoteValueNode(pDecoder, pObj);
 }
+
+enum {
+  REMOTE_TABLE_CODE_FLAG = 1,
+  REMOTE_TABLE_CODE_RES_COLS,
+  REMOTE_TABLE_CODE_SUBQ_IDX
+};
+
+static int32_t remoteTableNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
+  const SRemoteTableNode* pNode = (const SRemoteTableNode*)pObj;
+
+  int32_t code = tlvEncodeI32(pEncoder, REMOTE_TABLE_CODE_FLAG, pNode->flag);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI32(pEncoder, REMOTE_TABLE_CODE_RES_COLS, pNode->resCols);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI32(pEncoder, REMOTE_TABLE_CODE_SUBQ_IDX, pNode->subQIdx);
+  }
+
+  return code;
+}
+
+
+
+static int32_t msgToRemoteTableNode(STlvDecoder* pDecoder, void* pObj) {
+  SRemoteTableNode* pNode = (SRemoteTableNode*)pObj;
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  STlv*   pTlv = NULL;
+  tlvForEach(pDecoder, pTlv, code) {
+    switch (pTlv->type) {
+      case REMOTE_TABLE_CODE_FLAG:
+        code = tlvDecodeI32(pTlv, &pNode->flag);
+        break;
+      case REMOTE_TABLE_CODE_RES_COLS:
+        code = tlvDecodeI32(pTlv, &pNode->resCols);
+        break;
+      case REMOTE_TABLE_CODE_SUBQ_IDX:
+        code = tlvDecodeI32(pTlv, &pNode->subQIdx);
+        break;
+      default:
+        break;
+    }
+  }
+
+  return code;
+}
+
 
 
 enum { OPERATOR_CODE_EXPR_BASE = 1, OPERATOR_CODE_OP_TYPE, OPERATOR_CODE_LEFT, OPERATOR_CODE_RIGHT, OPERATOR_CODE_FLAG };
@@ -3650,6 +3704,7 @@ enum {
   PHY_WINDOW_CODE_INPUT_TS_ORDER,
   PHY_WINDOW_CODE_OUTPUT_TS_ORDER,
   PHY_WINDOW_CODE_MERGE_DATA_BLOCK,
+  PHY_WINDOW_CODE_PROJS,
 };
 
 static int32_t physiWindowNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -3685,6 +3740,9 @@ static int32_t physiWindowNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeI8(pEncoder, PHY_WINDOW_CODE_INDEF_ROWS_FUNC, pNode->indefRowsFunc);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, PHY_WINDOW_CODE_PROJS, nodeListToMsg, pNode->pProjs);
   }
 
   return code;
@@ -3729,6 +3787,9 @@ static int32_t msgToPhysiWindowNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_WINDOW_CODE_INDEF_ROWS_FUNC:
         code = tlvDecodeI8(pTlv, &pNode->indefRowsFunc);
+        break;
+      case PHY_WINDOW_CODE_PROJS:
+        code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pProjs);
         break;
       default:
         break;
@@ -3945,14 +4006,20 @@ static int32_t msgToPhysiSessionWindowNode(STlvDecoder* pDecoder, void* pObj) {
   return code;
 }
 
-enum { PHY_EXT_CODE_WINDOW = 1,
-       PHY_EXT_CODE_SKEY,
-       PHY_EXT_CODE_EKEY,
-       PHY_EXT_CODE_TIME_RANGE_EXPR,
-       PHY_EXT_CODE_IS_SINGLE_TABLE,
-       PHY_EXT_CODE_INPUT_HAS_ORDER,
-       PHY_EXT_CODE_ORG_TABLE_UID,
-       PHY_EXT_CODE_ORG_TABLE_VGID };
+enum {
+  PHY_EXT_CODE_WINDOW = 1,
+  PHY_EXT_CODE_SKEY,
+  PHY_EXT_CODE_EKEY,
+  PHY_EXT_CODE_TIME_RANGE_EXPR,
+  PHY_EXT_CODE_IS_SINGLE_TABLE,
+  PHY_EXT_CODE_INPUT_HAS_ORDER,
+  PHY_EXT_CODE_ORG_TABLE_UID,
+  PHY_EXT_CODE_ORG_TABLE_VGID,
+  PHY_EXT_CODE_NEED_GROUP_SORT,
+  PHY_EXT_CODE_CALC_WITH_PARTITION,
+  PHY_EXT_CODE_EXT_WIN_SPLIT,
+  PHY_EXT_CODE_SUB_QUERY
+};
 
 static int32_t physiExternalWindowNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   const SExternalWindowPhysiNode* pNode = (const SExternalWindowPhysiNode*)pObj;
@@ -3977,6 +4044,18 @@ static int32_t physiExternalWindowNodeToMsg(const void* pObj, STlvEncoder* pEnco
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeI32(pEncoder, PHY_EXT_CODE_ORG_TABLE_VGID, pNode->orgTableVgId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, PHY_EXT_CODE_NEED_GROUP_SORT, pNode->needGroupSort);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, PHY_EXT_CODE_CALC_WITH_PARTITION, pNode->calcWithPartition);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, PHY_EXT_CODE_EXT_WIN_SPLIT, pNode->extWinSplit);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, PHY_EXT_CODE_SUB_QUERY, nodeToMsg, pNode->pSubquery);
   }
 
   return code;
@@ -4012,6 +4091,18 @@ static int32_t msgToPhysiExternalWindowNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_EXT_CODE_ORG_TABLE_VGID:
         code = tlvDecodeI32(pTlv, &pNode->orgTableVgId);
+        break;
+      case PHY_EXT_CODE_NEED_GROUP_SORT:
+        code = tlvDecodeBool(pTlv, &pNode->needGroupSort);
+        break;
+      case PHY_EXT_CODE_CALC_WITH_PARTITION:
+        code = tlvDecodeBool(pTlv, &pNode->calcWithPartition);
+        break;
+      case PHY_EXT_CODE_EXT_WIN_SPLIT:
+        code = tlvDecodeBool(pTlv, &pNode->extWinSplit);
+        break;
+      case PHY_EXT_CODE_SUB_QUERY:
+        code = msgToNodeFromTlv(pTlv, (void**)&pNode->pSubquery);
         break;
       default:
         break;
@@ -5340,6 +5431,9 @@ static int32_t specificNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
     case QUERY_NODE_REMOTE_ZERO_ROWS:
       code = remoteZeroRowsNodeToMsg(pObj, pEncoder);
       break;
+    case QUERY_NODE_REMOTE_TABLE:
+      code = remoteTableNodeToMsg(pObj, pEncoder);
+      break;
     case QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN:
       code = physiTagScanNodeToMsg(pObj, pEncoder);
       break;
@@ -5517,6 +5611,9 @@ static int32_t msgToSpecificNode(STlvDecoder* pDecoder, void* pObj) {
       break;
     case QUERY_NODE_REMOTE_ZERO_ROWS:
       code = msgToRemoteZeroRowsNode(pDecoder, pObj);
+      break;
+    case QUERY_NODE_REMOTE_TABLE:
+      code = msgToRemoteTableNode(pDecoder, pObj);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN:
       code = msgToPhysiTagScanNode(pDecoder, pObj);

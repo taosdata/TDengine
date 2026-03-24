@@ -1,0 +1,10 @@
+use test;
+
+select cast(_wstart as bigint) as ws, cast(_wend as bigint) as we, count(*) as c from ext_bnd_src external_window((select ts, endtime, mark from ext_bnd_win) w) order by ws;
+select cast(_wstart as bigint) as ws, cast(_wend as bigint) as we, ts from ext_bnd_src external_window((select ts, endtime, mark from ext_bnd_win) w) order by ws, ts;
+select cast(_wstart as bigint) as ws, cast(_wend as bigint) as we, w.mark, count(*) as c from ext_bnd_src external_window((select ts, endtime, mark from ext_bnd_win) w) order by ws, w.mark;
+select cast(_wstart as bigint) as ws, cast(_wend as bigint) as we, count(*) as c from ext_bnd_src external_window((select ts, endtime, mark from ext_bnd_win where mark <> 999) w) order by ws;
+select cast(_wstart as bigint) as ws, cast(_wend as bigint) as we, count(*) as c from ext_bnd_src partition by t1 external_window((select ts, endtime, mark from ext_bnd_win_part partition by t1) w) order by t1, ws;
+select t1, cast(_wstart as bigint) as ws, cast(_wend as bigint) as we, count(*) as c from ext_bnd_src partition by t1 external_window((select ts, endtime, mark from ext_bnd_win_part partition by t1) w) order by t1, ws;
+select cast(_wstart as bigint) as ws, cast(_wend as bigint) as we, sum(v) as sv from ext_bnd_src external_window((select ts, endtime, mark from ext_bnd_win) w) order by ws;
+select cast(_wstart as bigint) as ws, cast(_wend as bigint) as we, max(v)-min(v) as span from ext_bnd_src external_window((select ts, endtime, mark from ext_bnd_win) w) order by ws;

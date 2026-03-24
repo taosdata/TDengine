@@ -1,0 +1,66 @@
+
+taos> use test;
+Database changed.
+
+taos> select t1, cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv from ext_cx_src where v >= 11 partition by t1 external_window((select ts, endtime, mark from ext_cx_win where mark <= 104) w) having count(*) >= 1 order by c desc, t1, ws limit 8;
+     t1      |          ws           |           c           |          sv           |
+======================================================================================
+           1 |         1700400300000 |                     2 |                    25 |
+           2 |         1700400300000 |                     2 |                    43 |
+           1 |         1700400000000 |                     1 |                    11 |
+           1 |         1700400600000 |                     1 |                    14 |
+           1 |         1700400900000 |                     1 |                    15 |
+           2 |         1700400000000 |                     1 |                    20 |
+           2 |         1700400600000 |                     1 |                    23 |
+           2 |         1700400900000 |                     1 |                    24 |
+
+taos> select tbname, cast(_wstart as bigint) as ws, cast(ts as bigint) as ts64 from ext_cx_src where v >= 20 partition by tbname external_window((select ts, endtime, mark from ext_cx_win where mark >= 102) w) order by tbname, ts desc limit 8;
+             tbname             |          ws           |         ts64          |
+=================================================================================
+ ext_cx_src_2                   |         1700400900000 |         1700401020000 |
+ ext_cx_src_2                   |         1700400600000 |         1700400780000 |
+ ext_cx_src_2                   |         1700400300000 |         1700400540000 |
+ ext_cx_src_2                   |         1700400300000 |         1700400480000 |
+
+taos> select t1, cast(_wstart as bigint) as ws, w.wc, count(*) as c, sum(v2) as sv2 from ext_cx_src partition by t1 external_window((select _wstart, _wend, count(*) as wc from ext_cx_win_part partition by t1 interval(10m)) w) having sum(v2) > 0 order by t1, ws;
+     t1      |          ws           |          wc           |           c           |          sv2          |
+==============================================================================================================
+           1 |         1700400000000 |                     1 |                     4 |                   406 |
+           1 |         1700400600000 |                     1 |                     2 |                   209 |
+           2 |         1700400000000 |                     1 |                     3 |                   603 |
+           2 |         1700400600000 |                     1 |                     2 |                   407 |
+
+taos> select cast(_wstart as bigint) as ws, w.tagv, count(*) as c from ext_join_src external_window((select jw.ts, jw.endtime, jd.tagv from ext_join_win jw join ext_join_dim jd on jw.k = jd.k) w) order by ws, w.tagv;
+
+DB error: Table does not exist: w [0x80002603] 
+taos> select cast(_wstart as bigint) as ws, w.tagv, sum(v) as sv from ext_join_src external_window((select jw.ts, jw.endtime, jd.tagv from ext_join_win jw join ext_join_dim jd on jw.k = jd.k where jd.tagv >= 20) w) order by ws, w.tagv;
+
+DB error: Table does not exist: w [0x80002603] 
+taos> select tbname, cast(_wstart as bigint) as ws, count(*) as c from ext_join_src partition by tbname external_window((select jw.ts, jw.endtime, jd.tagv from ext_join_win jw join ext_join_dim jd on jw.k = jd.k) w) order by tbname, ws;
+
+DB error: Not supported join since 'Join requires valid time series input and primary timestamp equal condition' [0x80002664] 
+taos> select t1, cast(_wstart as bigint) as ws, count(*) as c from ext_join_src partition by t1 external_window((select jw.ts, jw.endtime, jd.tagv from ext_join_win jw join ext_join_dim jd on jw.k = jd.k) w) order by t1, ws;
+
+DB error: Not supported join since 'Join requires valid time series input and primary timestamp equal condition' [0x80002664] 
+taos> select cast(_wstart as bigint) as ws, count(*) as c, (select count(*) from (select ts from ext_join_src) t) as total_rows from ext_join_src external_window((select jw.ts, jw.endtime, jd.tagv from ext_join_win jw join ext_join_dim jd on jw.k = jd.k) w) order by ws;
+
+DB error: Not supported join since 'Join requires valid time series input and primary timestamp equal condition' [0x80002664] 
+taos> select cast(_wstart as bigint) as ws, count(*) as c, (select count(*) from (select ts from ext_join_src) t) as total_rows from ext_join_src external_window((select jw.ts, jw.endtime from ext_join_win jw, ext_join_src jd where jw.ts=jd.ts) w);
+
+taos> select cast(_wstart as bigint) as ws, count(*) as c, (select count(*) from (select ts from ext_join_src) t) as total_rows from ext_join_src external_window((select jw.ts, jw.endtime from ext_join_win jw left join ext_join_src jd on jw.ts=jd.ts) w);
+          ws           |           c           |      total_rows       |
+========================================================================
+         1700500000000 |                     3 |                     7 |
+         1700500300000 |                     2 |                     7 |
+         1700500600000 |                     2 |                     7 |
+
+taos> select t1, cast(_wstart as bigint) as ws, count(*) as c, (select count(*) from (select ts from ext_join_src) t) as total_rows from ext_join_src partition by t1 external_window((select jw.ts, jw.endtime from ext_join_win jw left join ext_join_src jd on jw.ts=jd.ts) w) order by t1, ws;
+     t1      |          ws           |           c           |      total_rows       |
+======================================================================================
+           1 |         1700500000000 |                     2 |                     7 |
+           1 |         1700500300000 |                     1 |                     7 |
+           1 |         1700500600000 |                     1 |                     7 |
+           2 |         1700500000000 |                     1 |                     7 |
+           2 |         1700500300000 |                     1 |                     7 |
+           2 |         1700500600000 |                     1 |                     7 |
+

@@ -548,6 +548,15 @@ static int32_t remoteZeroRowsCopy(const SRemoteZeroRowsNode* pSrc, SRemoteZeroRo
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t remoteTableCopy(const SRemoteTableNode* pSrc, SRemoteTableNode* pDst) {
+  COPY_SCALAR_FIELD(type);
+  COPY_SCALAR_FIELD(flag);
+  COPY_SCALAR_FIELD(resCols);
+  COPY_SCALAR_FIELD(pResBlks);
+  COPY_SCALAR_FIELD(subQIdx);
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t updateTagValueNodeCopy(const SUpdateTagValueNode* pSrc, SUpdateTagValueNode* pDst) {
   COPY_CHAR_ARRAY_FIELD(tagName);
   CLONE_NODE_FIELD(pVal);
@@ -800,9 +809,13 @@ static int32_t logicWindowCopy(const SWindowLogicNode* pSrc, SWindowLogicNode* p
   CLONE_NODE_LIST_FIELD(pProjs);
   COPY_SCALAR_FIELD(isSingleTable);
   COPY_SCALAR_FIELD(inputHasOrder);
+  COPY_SCALAR_FIELD(needGroupSort);
+  COPY_SCALAR_FIELD(extWinSplit);
+  COPY_SCALAR_FIELD(calcWithPartition);
   COPY_SCALAR_FIELD(extendOption);
   COPY_SCALAR_FIELD(orgTableUid);
   COPY_SCALAR_FIELD(orgTableVgId);
+  CLONE_NODE_FIELD(pSubquery);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1329,6 +1342,9 @@ int32_t nodesCloneNode(const SNode* pNode, SNode** ppNode) {
       break;
     case QUERY_NODE_REMOTE_ZERO_ROWS:
       code = remoteZeroRowsCopy((const SRemoteZeroRowsNode*)pNode, (SRemoteZeroRowsNode*)pDst);
+      break;
+    case QUERY_NODE_REMOTE_TABLE:
+      code = remoteTableCopy((const SRemoteTableNode*)pNode, (SRemoteTableNode*)pDst);
       break;
     case QUERY_NODE_UPDATE_TAG_VALUE:
       code = updateTagValueNodeCopy((const SUpdateTagValueNode*)pNode, (SUpdateTagValueNode*)pDst);

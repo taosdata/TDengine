@@ -231,9 +231,16 @@ static int32_t handleStreamFetchData(SSnode* pSnode, void *pWorkerCb, SRpcMsg* p
     calcReq.triggerType = req.pStRtFuncInfo->triggerType;
     calcReq.isWindowTrigger = req.pStRtFuncInfo->isWindowTrigger;
     calcReq.precision = req.pStRtFuncInfo->precision;
-    TSWAP(calcReq.groupColVals, req.pStRtFuncInfo->pStreamPartColVals);
-    TSWAP(calcReq.params, req.pStRtFuncInfo->pStreamPesudoFuncVals);
-    calcReq.gid = req.pStRtFuncInfo->groupId;
+    calcReq.isMultiGroupCalc = req.pStRtFuncInfo->isMultiGroupCalc;
+    calcReq.stbPartByTbname = req.pStRtFuncInfo->stbPartByTbname;
+    if (calcReq.isMultiGroupCalc) {
+      TSWAP(calcReq.pGroupCalcInfos, req.pStRtFuncInfo->pGroupCalcInfos);
+      TSWAP(calcReq.pGroupReadInfos, req.pStRtFuncInfo->pGroupReadInfos);
+    } else {
+      TSWAP(calcReq.groupColVals, req.pStRtFuncInfo->pStreamPartColVals);
+      TSWAP(calcReq.params, req.pStRtFuncInfo->pStreamPesudoFuncVals);
+      calcReq.gid = req.pStRtFuncInfo->groupId;
+    }
     calcReq.curWinIdx = req.pStRtFuncInfo->curIdx;
   }
   calcReq.pOutBlock = NULL;

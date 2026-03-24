@@ -441,6 +441,9 @@ static int32_t calcConstSelectFrom(SCalcConstContext* pCxt, SSelectStmt* pSelect
     code = calcConstList(pSelect->pPartitionByList);
   }
   if (TSDB_CODE_SUCCESS == code) {
+    code = calcConstNode(&pSelect->pExtWindow);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
     code = calcConstNode(&pSelect->pWindow);
   }
   if (TSDB_CODE_SUCCESS == code) {

@@ -1,0 +1,72 @@
+
+taos> use test;
+Database changed.
+
+taos> select cast(_wstart as bigint) as ws, cast(_wend as bigint) as we, count(*) as c from ext_bnd_src external_window((select ts, endtime, mark from ext_bnd_win) w) order by ws;
+          ws           |          we           |           c           |
+========================================================================
+         1700199940000 |         1700200000000 |                     1 |
+         1700200000000 |         1700200060000 |                     2 |
+         1700200060000 |         1700200300000 |                     3 |
+         1700200240000 |         1700200480000 |                     2 |
+         1700200900000 |         1700200960000 |                     1 |
+
+taos> select cast(_wstart as bigint) as ws, cast(_wend as bigint) as we, ts from ext_bnd_src external_window((select ts, endtime, mark from ext_bnd_win) w) order by ws, ts;
+          ws           |          we           |           ts            |
+==========================================================================
+         1700199940000 |         1700200000000 | 2023-11-17 13:46:40.000 |
+         1700200000000 |         1700200060000 | 2023-11-17 13:46:40.000 |
+         1700200000000 |         1700200060000 | 2023-11-17 13:47:40.000 |
+         1700200060000 |         1700200300000 | 2023-11-17 13:47:40.000 |
+         1700200060000 |         1700200300000 | 2023-11-17 13:48:40.000 |
+         1700200060000 |         1700200300000 | 2023-11-17 13:51:40.000 |
+         1700200240000 |         1700200480000 | 2023-11-17 13:51:40.000 |
+         1700200240000 |         1700200480000 | 2023-11-17 13:53:40.000 |
+         1700200900000 |         1700200960000 | 2023-11-17 14:01:40.000 |
+
+taos> select cast(_wstart as bigint) as ws, cast(_wend as bigint) as we, w.mark, count(*) as c from ext_bnd_src external_window((select ts, endtime, mark from ext_bnd_win) w) order by ws, w.mark;
+
+DB error: Table does not exist: w [0x80002603] 
+taos> select cast(_wstart as bigint) as ws, cast(_wend as bigint) as we, count(*) as c from ext_bnd_src external_window((select ts, endtime, mark from ext_bnd_win where mark <> 999) w) order by ws;
+          ws           |          we           |           c           |
+========================================================================
+         1700199940000 |         1700200000000 |                     1 |
+         1700200000000 |         1700200060000 |                     2 |
+         1700200060000 |         1700200300000 |                     3 |
+         1700200240000 |         1700200480000 |                     2 |
+         1700200900000 |         1700200960000 |                     1 |
+
+taos> select cast(_wstart as bigint) as ws, cast(_wend as bigint) as we, count(*) as c from ext_bnd_src partition by t1 external_window((select ts, endtime, mark from ext_bnd_win_part partition by t1) w) order by t1, ws;
+          ws           |          we           |           c           |
+========================================================================
+         1700200000000 |         1700200180000 |                     2 |
+         1700200600000 |         1700200720000 |                     1 |
+         1700200120000 |         1700200480000 |                     2 |
+         1700200840000 |         1700200960000 |                     1 |
+
+taos> select t1, cast(_wstart as bigint) as ws, cast(_wend as bigint) as we, count(*) as c from ext_bnd_src partition by t1 external_window((select ts, endtime, mark from ext_bnd_win_part partition by t1) w) order by t1, ws;
+     t1      |          ws           |          we           |           c           |
+======================================================================================
+           1 |         1700200000000 |         1700200180000 |                     2 |
+           1 |         1700200600000 |         1700200720000 |                     1 |
+           2 |         1700200120000 |         1700200480000 |                     2 |
+           2 |         1700200840000 |         1700200960000 |                     1 |
+
+taos> select cast(_wstart as bigint) as ws, cast(_wend as bigint) as we, sum(v) as sv from ext_bnd_src external_window((select ts, endtime, mark from ext_bnd_win) w) order by ws;
+          ws           |          we           |          sv           |
+========================================================================
+         1700199940000 |         1700200000000 |                    10 |
+         1700200000000 |         1700200060000 |                    21 |
+         1700200060000 |         1700200300000 |                    43 |
+         1700200240000 |         1700200480000 |                    33 |
+         1700200900000 |         1700200960000 |                    22 |
+
+taos> select cast(_wstart as bigint) as ws, cast(_wend as bigint) as we, max(v)-min(v) as span from ext_bnd_src external_window((select ts, endtime, mark from ext_bnd_win) w) order by ws;
+          ws           |          we           |           span            |
+============================================================================
+         1700199940000 |         1700200000000 |                         0 |
+         1700200000000 |         1700200060000 |                         1 |
+         1700200060000 |         1700200300000 |                         9 |
+         1700200240000 |         1700200480000 |                         9 |
+         1700200900000 |         1700200960000 |                         0 |
+

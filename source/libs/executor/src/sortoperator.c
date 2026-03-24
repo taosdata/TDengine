@@ -345,7 +345,9 @@ static int32_t getSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock,
     pDataBlock->info.dataLoad = 1;
     pDataBlock->info.rows = p->info.rows;
     pDataBlock->info.scanFlag = p->info.scanFlag;
+    // propagate both C-group id and baseGId from upstream
     pDataBlock->info.id.groupId = p->info.id.groupId;
+    pDataBlock->info.id.baseGId = p->info.id.baseGId;
   }
 
   blockDataDestroy(p);
@@ -559,6 +561,7 @@ typedef struct SGroupSortOperatorInfo {
   uint64_t             sortElapsed;
   bool                 hasGroupId;
   uint64_t             currGroupId;
+  uint64_t             currBaseGId;
   SSDataBlock*         prefetchedSortInput;
   SSortHandle*         pCurrSortHandle;
   EChildOperatorStatus childOpStatus;
@@ -630,6 +633,9 @@ int32_t getGroupSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock, i
     pDataBlock->info.rows = p->info.rows;
     pDataBlock->info.capacity = p->info.rows;
     pDataBlock->info.scanFlag = p->info.scanFlag;
+    // propagate ids for the current group
+    pDataBlock->info.id.groupId = pInfo->currGroupId;
+    pDataBlock->info.id.baseGId = pInfo->currBaseGId;
   }
 
   blockDataDestroy(p);
@@ -761,6 +767,7 @@ int32_t doGroupSort(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
     }
 
     pInfo->currGroupId = pInfo->prefetchedSortInput->info.id.groupId;
+    pInfo->currBaseGId = pInfo->prefetchedSortInput->info.id.baseGId;
     pInfo->childOpStatus = CHILD_OP_NEW_GROUP;
     code = beginSortGroup(pOperator);
     QUERY_CHECK_CODE(code, lino, _end);
@@ -785,13 +792,19 @@ int32_t doGroupSort(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
     recordOpExecAfterDownstream(pOperator, pBlock ? pBlock->info.rows : 0);
     QUERY_CHECK_CODE(code, lino, _end);
     if (pBlock != NULL) {
+      // keep both ids aligned with current group
       pBlock->info.id.groupId = pInfo->currGroupId;
+      pBlock->info.id.baseGId = pInfo->currBaseGId;
+      // baseGId follows upstream; if upstream is empty here, preserve current
+      // (no-op if not set). We cannot reconstruct baseGId here; rely on upstream propagation.
+      pOperator->resultInfo.totalRows += pBlock->info.rows;
       *pResBlock = pBlock;
       return code;
     } else {
       if (pInfo->childOpStatus == CHILD_OP_NEW_GROUP) {
         (void) finishSortGroup(pOperator);
         pInfo->currGroupId = pInfo->prefetchedSortInput->info.id.groupId;
+        pInfo->currBaseGId = pInfo->prefetchedSortInput->info.id.baseGId;
         code = beginSortGroup(pOperator);
         QUERY_CHECK_CODE(code, lino, _end);
       } else if (pInfo->childOpStatus == CHILD_OP_FINISHED) {

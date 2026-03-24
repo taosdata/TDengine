@@ -2078,6 +2078,19 @@ _err:
   return NULL;
 }
 
+SNode* createExternalWindowNode(SAstCreateContext* pCxt) {
+  SExternalWindowNode* external = NULL;
+  CHECK_PARSER_STATUS(pCxt);
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_EXTERNAL_WINDOW, (SNode**)&external);
+  CHECK_MAKE_NODE(external);
+  external->pCol = createPrimaryKeyCol(pCxt, NULL);
+  CHECK_MAKE_NODE(external->pCol);
+  return (SNode*)external;
+_err:
+  nodesDestroyNode((SNode*)external);
+  return NULL;
+}
+
 SNode* createPeriodWindowNode(SAstCreateContext* pCxt, SNode* pPeriodTime, SNode* pOffset) {
   SPeriodWindowNode* pPeriod = NULL;
   CHECK_PARSER_STATUS(pCxt);
@@ -2475,6 +2488,8 @@ SNode* addWindowClauseClause(SAstCreateContext* pCxt, SNode* pStmt, SNode* pWind
   CHECK_PARSER_STATUS(pCxt);
   if (QUERY_NODE_SELECT_STMT == nodeType(pStmt)) {
     ((SSelectStmt*)pStmt)->pWindow = pWindow;
+    ((SSelectStmt*)pStmt)->pExtWindow = createExternalWindowNode(pCxt);
+    CHECK_MAKE_NODE(((SSelectStmt*)pStmt)->pExtWindow);
   }
   return pStmt;
 _err:
@@ -2599,6 +2614,43 @@ SNode* addFillClause(SAstCreateContext* pCxt, SNode* pStmt, SNode* pFill) {
   return pStmt;
 _err:
   nodesDestroyNode(pStmt);
+  nodesDestroyNode(pFill);
+  return NULL;
+}
+
+SNode* createExternalWindowClause(SAstCreateContext* pCxt, SNode* pSubquery, SToken* pAlias, SNode* pFill) {
+  SExternalWindowNode* pExtWin = NULL;
+  CHECK_PARSER_STATUS(pCxt);
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_EXTERNAL_WINDOW, (SNode**)&pExtWin);
+  CHECK_MAKE_NODE(pExtWin);
+
+  if (QUERY_NODE_SELECT_STMT == nodeType(pSubquery)) {
+    ((SSelectStmt*)pSubquery)->subQType= E_SUB_QUERY_TABLE;
+  } else if (QUERY_NODE_SET_OPERATOR == nodeType(pSubquery)) {
+    ((SSetOperator*)pSubquery)->subQType= E_SUB_QUERY_TABLE;
+  }
+    
+  // Attach subquery and optional fill node
+  pExtWin->pSubquery = pSubquery;
+  pExtWin->pFill = pFill;
+
+  // Set alias if provided; enforce length constraint (report error if too long)
+  pExtWin->aliasName[0] = '\0';
+  if (pAlias && pAlias->type != TK_NK_NIL) {
+    trimEscape(pCxt, pAlias, false);
+    if (pAlias->n >= TSDB_COL_NAME_LEN || pAlias->n == 0) {
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, pAlias->z);
+      goto _err;
+    }
+    int32_t len = pAlias->n;
+    strncpy(pExtWin->aliasName, pAlias->z, len);
+    pExtWin->aliasName[len] = '\0';
+  }
+
+  return (SNode*)pExtWin;
+_err:
+  nodesDestroyNode((SNode*)pExtWin);
+  nodesDestroyNode(pSubquery);
   nodesDestroyNode(pFill);
   return NULL;
 }

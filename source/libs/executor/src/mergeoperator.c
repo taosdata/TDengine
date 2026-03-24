@@ -147,7 +147,8 @@ static int32_t doGetSortedBlockData(SMultiwayMergeOperatorInfo* pInfo, SSortHand
       } else {
         pTupleHandle = pSortMergeInfo->prefetchedTuple;
         pSortMergeInfo->prefetchedTuple = NULL;
-        uint64_t gid = tsortGetGroupId(pTupleHandle);
+        uint64_t gid = 0, baseGid = 0;
+        tsortGetGroupId(pTupleHandle, &gid, &baseGid);
         if (gid != pInfo->groupId) {
           *newgroup = true;
           pInfo->groupId = gid;
@@ -163,7 +164,8 @@ static int32_t doGetSortedBlockData(SMultiwayMergeOperatorInfo* pInfo, SSortHand
     }
 
     if (pInfo->groupMerge || pInfo->inputWithGroupId) {
-      uint64_t tupleGroupId = tsortGetGroupId(pTupleHandle);
+      uint64_t tupleGroupId = 0, tupleBaseGid = 0;
+      tsortGetGroupId(pTupleHandle, &tupleGroupId, &tupleBaseGid);
       if (pInfo->groupId == 0 || pInfo->groupId == tupleGroupId) {
         code = appendOneRowToDataBlock(p, pTupleHandle);
         if (code) {
@@ -171,6 +173,7 @@ static int32_t doGetSortedBlockData(SMultiwayMergeOperatorInfo* pInfo, SSortHand
         }
 
         p->info.id.groupId = tupleGroupId;
+        p->info.id.baseGId = tupleBaseGid;
         pInfo->groupId = tupleGroupId;
       } else {
         if (p->info.rows == 0) {
@@ -180,6 +183,7 @@ static int32_t doGetSortedBlockData(SMultiwayMergeOperatorInfo* pInfo, SSortHand
           }
 
           p->info.id.groupId = pInfo->groupId = tupleGroupId;
+          p->info.id.baseGId = tupleBaseGid;
         } else {
           pSortMergeInfo->prefetchedTuple = pTupleHandle;
           break;
@@ -283,8 +287,10 @@ int32_t doSortMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
     pDataBlock->info.scanFlag = p->info.scanFlag;
     if (pInfo->ignoreGroupId) {
       pDataBlock->info.id.groupId = 0;
+      pDataBlock->info.id.baseGId = p->info.id.baseGId;
     } else {
       pDataBlock->info.id.groupId = pInfo->groupId;
+      pDataBlock->info.id.baseGId = p->info.id.baseGId;
     }
     pDataBlock->info.dataLoad = 1;
   }

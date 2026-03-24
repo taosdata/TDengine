@@ -1821,6 +1821,28 @@ void getExprSubQueryResType(SNode* pNode, SDataType* pType) {
   return;
 }
 
+void getExprSubQueryResCols(SNode* pNode, int32_t* cols) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_SELECT_STMT: {
+      SSelectStmt* pSelect = (SSelectStmt*)pNode;
+      *cols = LIST_LENGTH(pSelect->pProjectionList);
+      break;
+    }
+    case QUERY_NODE_SET_OPERATOR: {
+      SSetOperator* pSet = (SSetOperator*)pNode;
+      *cols = LIST_LENGTH(pSet->pProjectionList);
+      break;
+    }
+    default:
+      break;
+  }
+
+  return;
+}
+
+
 int32_t updateExprSubQueryType(SNode* pNode, ESubQueryType* type) {
   int32_t code = TSDB_CODE_SUCCESS;
   

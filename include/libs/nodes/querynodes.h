@@ -191,6 +191,18 @@ typedef struct SRemoteRowNode {
 
 typedef SRemoteValueNode SRemoteZeroRowsNode;
 
+
+#define REMOTE_TABLE_FLAG_VAL_UNSET      (1 << 0)
+#define REMOTE_TABLE_FLAG_RES_ALLOCED    (1 << 1)
+
+typedef struct SRemoteTableNode {
+  ENodeType  type;
+  int32_t    flag;
+  int32_t    resCols;
+  SArray*    pResBlks;
+  int32_t    subQIdx;
+} SRemoteTableNode;
+
 typedef struct SLeftValueNode {
   ENodeType type;
 } SLeftValueNode;
@@ -497,12 +509,16 @@ typedef struct SSlidingWindowNode {
 } SSlidingWindowNode;
 
 typedef struct SExternalWindowNode {
-  ENodeType   type;       // QUERY_NODE_EXTERNAL_WINDOW
+  ENodeType   type;  // QUERY_NODE_EXTERNAL_WINDOW
+  SNode*      pCol;  // timestamp primary key
   SNodeList*  pProjectionList;
   SNodeList*  pAggFuncList;
   STimeWindow timeRange;
   SNode*      pTimeRange;
   void*       timezone;
+  SNode*      pSubquery;
+  SNode*      pFill;
+  char        aliasName[TSDB_COL_NAME_LEN];
 } SExternalWindowNode;
 
 typedef struct SStreamTriggerOptions {
@@ -644,7 +660,7 @@ typedef struct STimeRangeNode {
 
 typedef struct SExtWinTimeWindow {
   STimeWindow tw;
-  int32_t     winOutIdx;
+  int32_t     resWinIdx;
 } SExtWinTimeWindow;
 
 
@@ -670,6 +686,7 @@ typedef struct SSelectStmt {
   SNode*          pWhere;
   SNodeList*      pPartitionByList;
   SNode*          pWindow;
+  SNode*          pExtWindow;
   SNodeList*      pGroupByList;  // SGroupingSetNode
   SNode*          pHaving;
   SNode*          pRange;
@@ -744,6 +761,7 @@ typedef enum ESqlClause {
   SQL_CLAUSE_FROM = 1,
   SQL_CLAUSE_WHERE,
   SQL_CLAUSE_PARTITION_BY,
+  SQL_CLAUSE_EXT_WINDOW,
   SQL_CLAUSE_WINDOW,
   SQL_CLAUSE_FILL,
   SQL_CLAUSE_GROUP_BY,

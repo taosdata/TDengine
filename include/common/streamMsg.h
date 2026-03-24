@@ -171,6 +171,7 @@ typedef struct {
   int8_t calcNotifyOnly;
   int8_t lowLatencyCalc;
   int8_t igNoDataTrigger;
+  int8_t enableMultiGroupCalc;
 
   // notify options
   SArray* pNotifyAddrUrls;
@@ -902,7 +903,23 @@ typedef struct SSTriggerCalcParam {
   int32_t notifyType;           // See also: ESTriggerEventType
   char*   extraNotifyContent;   // NULL if not available
   char*   resultNotifyContent;  // does not serialize
+  SArray* pExternalWindowData;
 } SSTriggerCalcParam;
+
+typedef struct SSTriggerGroupCalcInfo {
+  SArray* pParams;  // SArray<SSTriggerCalcParam>
+  SArray* pGroupColVals;
+  int8_t  createTable;
+  void*   pRunnerGrpCtx; // reserved for runner
+} SSTriggerGroupCalcInfo;
+
+typedef struct SSTriggerGroupReadInfo {
+  int64_t            gid;
+  SSTriggerCalcParam firstParam;
+  SSTriggerCalcParam lastParam;
+  // pTables may be NULL if it is INTERVAL/SLIDING/PERIOD trigger type
+  SArray*            pTables;  // SArray<uid uint64_t>, tables to read; tables are decided by reader if it is null
+} SSTriggerGroupReadInfo;
 
 typedef struct SSTriggerCalcRequest {
   int64_t streamId;
@@ -912,13 +929,21 @@ typedef struct SSTriggerCalcRequest {
   int8_t  precision;
   int32_t triggerType;    // See also: EStreamTriggerType
   int64_t triggerTaskId;  // does not serialize
-  
-  int64_t gid;
+  int8_t  isMultiGroupCalc;
+  int8_t  stbPartByTbname;  // trigger table is s-table and partitioned by tbname
+
+  // The following fields are used for single group calculation
+  int64_t gid;           // valid when isMultiGroupCalc is false
   SArray* params;        // SArray<SSTriggerCalcParam>
   SArray* groupColVals;  // SArray<SStreamGroupValue>, only provided at the first calculation of the group
+  int8_t  createTable;
+
+  // The following fields are used for multi-group calculation
+  SSHashObj* pGroupCalcInfos;  // SSHashObj<gid int64_t, info SSTriggerGroupCalcInfo>, valid when isMultiGroupCalc is true
+  // pGroupReadInfos may be NULL if trigger table and calc table are not the same
+  SSHashObj* pGroupReadInfos;  // SSHashObj<vgId int32_t, pInfos SArray<SSTriggerGroupReadInfo>*>
 
   // The following fields are not serialized and only used by the runner task
-  int8_t  createTable;
   bool    brandNew;   // no serialize
   int32_t execId;     // no serialize
   int32_t curWinIdx;  // no serialize
@@ -928,6 +953,9 @@ typedef struct SSTriggerCalcRequest {
 int32_t tSerializeSTriggerCalcRequest(void* buf, int32_t bufLen, const SSTriggerCalcRequest* pReq);
 int32_t tDeserializeSTriggerCalcRequest(void* buf, int32_t bufLen, SSTriggerCalcRequest* pReq);
 void    tDestroySSTriggerCalcParam(void* ptr);
+void    tDestroySSTriggerGroupCalcInfo(void* ptr);
+void    tDestroySSTriggerGroupReadInfo(void* ptr);
+void    tDestroySSTriggerGroupReadInfoArray(void* ptr);
 void    tDestroySTriggerCalcRequest(SSTriggerCalcRequest* pReq);
 
 typedef struct SSTriggerDropRequest {
@@ -960,8 +988,20 @@ int32_t tSerializeSTriggerCtrlRequest(void* buf, int32_t bufLen, const SSTrigger
 int32_t tDeserializeSTriggerCtrlRequest(void* buf, int32_t bufLen, SSTriggerCtrlRequest* pReq);
 
 typedef struct SStreamRuntimeFuncInfo {
+  int8_t  isMultiGroupCalc;
+  int8_t  stbPartByTbname;
+
+  // The following fields are used for single group calculation
   SArray* pStreamPesudoFuncVals;
   SArray* pStreamPartColVals;
+
+  // The following fields are used for multi-group calculation
+  SSHashObj* pGroupCalcInfos;  // SSHashObj<gid int64_t, info SSTriggerGroupCalcInfo>
+  SSHashObj* pGroupReadInfos;  // SSHashObj<vgId int32_t, pInfos SArray<SSTriggerGroupReadInfo>*>
+  SSTriggerGroupCalcInfo* curGrpCalc;
+  int32_t                 curNodeId;
+  SArray*                 curGrpRead; // SArray<SSTriggerGroupReadInfo>
+  
   SArray* pStreamBlkWinIdx;  // no serialize, SArray<int64_t->winOutIdx+rowStartIdx>
   STimeWindow curWindow;
 //  STimeWindow wholeWindow;
@@ -971,13 +1011,13 @@ typedef struct SStreamRuntimeFuncInfo {
   bool    withExternalWindow;
   bool    isWindowTrigger;
   int8_t  precision;
-  int32_t curOutIdx; // to indicate the window index for current block, valid value start from 1
   int32_t triggerType;
   int32_t addOptions;
   bool    hasPlaceHolder;
+  int8_t* createTable;
 } SStreamRuntimeFuncInfo;
 
-int32_t tSerializeStRtFuncInfo(SEncoder* pEncoder, const SStreamRuntimeFuncInfo* pInfo, bool full);
+int32_t tSerializeStRtFuncInfo(SEncoder* pEncoder, const SStreamRuntimeFuncInfo* pInfo, bool needStreamRtInfo, bool needStreamGrpInfo);
 int32_t tDeserializeStRtFuncInfo(SDecoder* pDecoder, SStreamRuntimeFuncInfo* pInfo);
 void    tDestroyStRtFuncInfo(SStreamRuntimeFuncInfo* pInfo);
 typedef struct STsInfo {

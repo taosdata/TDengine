@@ -33,6 +33,14 @@ static SFuncMgtService gFunMgtService;
 static TdThreadOnce    functionHashTableInit = PTHREAD_ONCE_INIT;
 static int32_t         initFunctionCode = 0;
 
+static void InitSpecialFuncId() {
+  // just to make sure the funcId of these functions are initialized before used.
+  int32_t tmp = fmGetTwstartFuncId();
+  tmp = fmGetTwendFuncId();
+  tmp = fmGetTwdurationFuncId();
+  tmp = fmGetExternalWindowColumnFuncId();
+}
+
 static void doInitFunctionTable() {
   gFunMgtService.pFuncNameHashTable =
       taosHashInit(funcMgtBuiltinsNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
@@ -48,6 +56,7 @@ static void doInitFunctionTable() {
       return;
     }
   }
+  InitSpecialFuncId();
 }
 
 static bool isSpecificClassifyFunc(int32_t funcId, uint64_t classification) {
@@ -423,6 +432,11 @@ bool fmIsPrimaryKeyFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, 
 
 bool fmIsPlaceHolderFunc(int32_t funcId) {return isSpecificClassifyFunc(funcId, FUNC_MGT_PLACE_HOLDER_FUNC); }
 
+bool fmIsPlaceHolderFuncForExternalWin(int32_t funcId) {
+  return (funcMgtBuiltins[funcId].type == FUNCTION_TYPE_WSTART || funcMgtBuiltins[funcId].type == FUNCTION_TYPE_WEND ||
+          funcMgtBuiltins[funcId].type == FUNCTION_TYPE_WDURATION);
+}
+
 void getLastCacheDataType(SDataType* pType, int32_t pkBytes) {
   // TODO: do it later.
   pType->bytes = getFirstLastInfoSize(pType->bytes, pkBytes) + VARSTR_HEADER_SIZE;
@@ -727,6 +741,38 @@ int32_t fmGetFuncId(const char* name) {
   return -1;
 }
 
+int32_t fmGetTwstartFuncId() {
+  static int32_t twstartFuncId = -2;
+  if (twstartFuncId < 0) {
+    twstartFuncId = fmGetFuncId("_twstart");
+  }
+  return twstartFuncId;
+}
+
+int32_t fmGetTwendFuncId() {
+  static int32_t twendFuncId = -2;
+  if (twendFuncId < 0) {
+    twendFuncId = fmGetFuncId("_twend");
+  }
+  return twendFuncId;
+}
+
+int32_t fmGetTwdurationFuncId() {
+  static int32_t twdurationFuncId = -2;
+  if (twdurationFuncId < 0) {
+    twdurationFuncId = fmGetFuncId("_twduration");
+  }
+  return twdurationFuncId;
+}
+
+int32_t fmGetExternalWindowColumnFuncId() {
+  static int32_t externalWindowColumnFuncId = -2;
+  if (externalWindowColumnFuncId < 0) {
+    externalWindowColumnFuncId = fmGetFuncId("_external_window_column");
+  }
+  return externalWindowColumnFuncId;
+}
+
 bool fmIsMyStateFunc(int32_t funcId, int32_t stateFuncId) {
   const SBuiltinFuncDefinition* pFunc = &funcMgtBuiltins[funcId];
   const SBuiltinFuncDefinition* pStateFunc = &funcMgtBuiltins[stateFuncId];
@@ -760,7 +806,26 @@ bool fmIsGroupIdFunc(int32_t funcId) {
   return FUNCTION_TYPE_GROUP_ID == funcMgtBuiltins[funcId].type;
 }
 
+const void* fmGetExternalWindowColumnFuncVal(const SStreamRuntimeFuncInfo* pStreamRuntimeFuncInfo, int32_t index) {
+  SSTriggerCalcParam *pParams = taosArrayGet(pStreamRuntimeFuncInfo->pStreamPesudoFuncVals, pStreamRuntimeFuncInfo->curIdx);
+  if (pParams == NULL || pParams->pExternalWindowData == NULL || index < 0) {
+    return NULL;
+  }
+  return taosArrayGet(pParams->pExternalWindowData, index);
+}
+
 const void* fmGetStreamPesudoFuncVal(int32_t funcId, const SStreamRuntimeFuncInfo* pStreamRuntimeFuncInfo) {
+  switch (funcMgtBuiltins[funcId].type) {
+    case FUNCTION_TYPE_TGRPID:
+      return &pStreamRuntimeFuncInfo->groupId;
+    case FUNCTION_TYPE_PLACEHOLDER_COLUMN:
+      return pStreamRuntimeFuncInfo->pStreamPartColVals;
+    case FUNCTION_TYPE_PLACEHOLDER_TBNAME:
+      return pStreamRuntimeFuncInfo->pStreamPartColVals;
+    default:
+      break;
+  }
+
   SSTriggerCalcParam *pParams = taosArrayGet(pStreamRuntimeFuncInfo->pStreamPesudoFuncVals, pStreamRuntimeFuncInfo->curIdx);
   switch (funcMgtBuiltins[funcId].type) {
     case FUNCTION_TYPE_TPREV_TS:
@@ -899,6 +964,27 @@ int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, co
         varDataLen(((SValueNode*)pFirstParam)->datum.p) = pValue->data.nData;
         break;
       }
+    }
+  } else if(FUNCTION_TYPE_EXTERNAL_WINDOW_COLUMN == t) {
+    SNode* pParamNode = nodesListGetNode(pParamNodes, 1);
+    const SStreamGroupValue* pVal = fmGetExternalWindowColumnFuncVal(pStreamRuntimeInfo, ((SValueNode*)pParamNode)->placeholderNo);
+    if (!pVal) {
+      uError("failed to set stream pseudo func param val, NULL val for funcId: %d", funcId);
+      return TSDB_CODE_INTERNAL_ERROR;
+    }
+    if (pVal->isNull) {
+      ((SValueNode*)pFirstParam)->isNull = true;
+    } else {
+      ((SValueNode*)pFirstParam)->isNull = false;
+      if (IS_VAR_DATA_TYPE(pVal->data.type)) {
+        code = nodesSetValueNodeValue((SValueNode*)pFirstParam, pVal->data.pData);
+      } else {
+        code = nodesSetValueNodeValue((SValueNode*)pFirstParam, (void*)&pVal->data.val);
+      }
+    }
+    if (code != 0) {
+      uError("failed to set value node value: %s", tstrerror(code));
+      return code;
     }
   } else if (LIST_LENGTH(pParamNodes) == 1) {
     // twstart, twend

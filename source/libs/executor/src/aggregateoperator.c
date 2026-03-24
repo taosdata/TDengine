@@ -751,7 +751,36 @@ int32_t applyAggFunctionOnPartialTuples(SExecTaskInfo* taskInfo, SqlFunctionCtx*
       pCtx[k].input.colDataSMAIsSet = false;
     }
 
-    if (fmIsPlaceHolderFunc(pCtx[k].functionId)) {
+    if (pCtx[k].functionId == -1) {
+      SResultRowEntryInfo* pEntryInfo = GET_RES_INFO(&pCtx[k]);
+      SColumnInfoData*     pColInfoData = pCtx[k].input.pData[0];
+      int32_t              rowIndex = offset < numOfTotal ? offset : 0;
+
+      if (pColInfoData != NULL && rowIndex >= 0 && rowIndex < numOfTotal &&
+          !colDataIsNull(pColInfoData, numOfTotal, rowIndex, NULL)) {
+        char* dest = GET_ROWCELL_INTERBUF(pEntryInfo);
+        char* data = colDataGetData(pColInfoData, rowIndex);
+
+        if (pColInfoData->info.type == TSDB_DATA_TYPE_JSON) {
+          int32_t dataLen = getJsonValueLen(data);
+          memcpy(dest, data, dataLen);
+        } else if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
+          if (IS_STR_DATA_BLOB(pColInfoData->info.type)) {
+            blobDataCopy(dest, data);
+          } else {
+            varDataCopy(dest, data);
+          }
+        } else {
+          memcpy(dest, data, pColInfoData->info.bytes);
+        }
+
+        pEntryInfo->isNullRes = 0;
+      } else {
+        pEntryInfo->isNullRes = 1;
+      }
+
+      pEntryInfo->numOfRes = 1;
+    } else if (fmIsPlaceHolderFunc(pCtx[k].functionId)) {
       SResultRowEntryInfo* pEntryInfo = GET_RES_INFO(&pCtx[k]);
       char* p = GET_ROWCELL_INTERBUF(pEntryInfo);
 

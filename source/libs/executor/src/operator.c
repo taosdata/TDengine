@@ -14,6 +14,7 @@
  */
 
 #include "executorInt.h"
+#include "executor.h"
 #include "function.h"
 #include "operator.h"
 #include "osTime.h"
@@ -626,6 +627,11 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
 
   for (int32_t i = 0; i < size; ++i) {
     SPhysiNode* pChildNode = (SPhysiNode*)nodesListGetNode(pPhyNode->pChildren, i);
+    // For external window parent, pre-initialize runtime from subquery before building children
+    if (QUERY_NODE_PHYSICAL_PLAN_EXTERNAL_WINDOW == type && i == 0) {
+      // best-effort pre-init; ignore errors here and let later construction handle them
+      (void)extWinPreInitFromSubquery(pPhyNode, pTaskInfo);
+    }
     code = createOperator(pChildNode, pTaskInfo, pHandle, pTagCond, pTagIndexCond, pUser, dbname, &ops[i], model);
     if (ops[i] == NULL || code != 0) {
       for (int32_t j = 0; j < i; ++j) {
