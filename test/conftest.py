@@ -767,6 +767,30 @@ def add_common_methods(request):
 
     request.cls.waitCompactsZero = waitCompactsZero
 
+    def waitCompactsRetentionsZero(self, seconds=300, interval=1):
+        # wait end
+        for i in range(seconds):
+            sql = "show compacts;"
+            rows = tdSql.query(sql)
+            if rows == 0:
+                tdLog.info("compacts count became zero.")
+                return True
+            # tdLog.info(f"i={i} wait ...")
+            time.sleep(interval)
+
+        for i in range(seconds):
+            sql = "SHOW RETENTIONS;"
+            rows = tdSql.query(sql)
+            if rows == 0:
+                tdLog.info("RETENTIONS count became zero.")
+                return True
+            # tdLog.info(f"i={i} wait ...")
+            time.sleep(interval)
+
+        return False
+
+    request.cls.waitCompactsRetentionsZero = waitCompactsRetentionsZero
+
     # check file exist
     def checkFileExist(self, pathFile):
         if os.path.exists(pathFile) == False:
