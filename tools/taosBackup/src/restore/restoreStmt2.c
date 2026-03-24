@@ -92,8 +92,25 @@ static int stmt2AllocColBuffers(Stmt2RestoreCtx *ctx, int64_t numRows,
     bool needAlloc = (ctx->colBinds == NULL ||
                       ctx->colBindsCap < numCols ||
                       ctx->rowBufCap  < targetCap);
-    if (!needAlloc) {
-        ctx->accRows   = 0;
+
+    /* Space-for-time: before a fresh alloc, check if the spare buffer set from
+     * the previous flush cycle can satisfy the new requirements (same or more
+     * columns, same or larger row capacity).  Reclaiming the spare avoids the
+     * per-file malloc+free loop in multi-table mode. */
+    if (needAlloc && ctx->spareColBinds != NULL &&
+        ctx->spareColBindsCap >= numCols && ctx->spareRowBufCap >= targetCap) {
+        /* Detach spare → ctx.  The spare was fully reset on flush (accRows=0,
+         * varWriteOffsets zeroed) so it can be used directly after the length
+         * memset below. */
+        ctx->colBinds        = ctx->spareColBinds;        ctx->spareColBinds        = NULL;
+        ctx->colBindsCap     = ctx->spareColBindsCap;     ctx->spareColBindsCap     = 0;
+        ctx->rowBufCap       = ctx->spareRowBufCap;       ctx->spareRowBufCap       = 0;
+        ctx->varWriteOffsets = ctx->spareVarWriteOffsets; ctx->spareVarWriteOffsets = NULL;
+        ctx->varBufCapacity  = ctx->spareVarBufCapacity;  ctx->spareVarBufCapacity  = NULL;
+        needAlloc = false;
+    }
+
+    if (!needAlloc) {        ctx->accRows   = 0;
         ctx->numFields = numCols;
         ctx->fieldInfos = fieldInfos;
         /* reset packed write offsets for all variable-type columns */
@@ -167,7 +184,9 @@ static int stmt2AllocColBuffers(Stmt2RestoreCtx *ctx, int64_t numRows,
             ctx->varBufCapacity[i] = totalBufSize;
         } else {
             int32_t typeBytes = tDataTypes[fi->type].bytes;
-            bind->buffer   = taosMemoryCalloc(cap, typeBytes);
+            /* Space-for-time: malloc (not calloc) — stmt2AccBlock performs memcpy
+             * which fully overwrites the used region before it is read by STMT2. */
+            bind->buffer   = taosMemoryMalloc((size_t)cap * typeBytes);
             bind->length   = NULL;
             ctx->varBufCapacity[i] = 0;
         }
@@ -269,6 +288,20 @@ bool stmt2ResetOnError(Stmt2RestoreCtx *ctx) {
         for (int i = 0; i < ctx->numPending; i++) stmt2FreeSlot(&ctx->pendingSlots[i]);
         ctx->numPending       = 0;
         ctx->totalPendingRows = 0;
+    }
+    /* discard spare to avoid reusing potentially stale buffers after an error */
+    if (ctx->spareColBinds) {
+        for (int i = 0; i < ctx->spareColBindsCap; i++) {
+            TAOS_STMT2_BIND *b = &ctx->spareColBinds[i];
+            taosMemoryFree(b->buffer);  b->buffer  = NULL;
+            taosMemoryFree(b->length);  b->length  = NULL;
+            taosMemoryFree(b->is_null); b->is_null = NULL;
+        }
+        taosMemoryFree(ctx->spareColBinds);        ctx->spareColBinds        = NULL;
+        taosMemoryFree(ctx->spareVarWriteOffsets); ctx->spareVarWriteOffsets = NULL;
+        taosMemoryFree(ctx->spareVarBufCapacity);  ctx->spareVarBufCapacity  = NULL;
+        ctx->spareColBindsCap = 0;
+        ctx->spareRowBufCap   = 0;
     }
     return true;   /* caller will retry prepare on next file */
 }
@@ -587,6 +620,7 @@ static void stmt2SealSlot(Stmt2RestoreCtx *ctx, const char *fqn) {
     slot->colBindsCap     = ctx->colBindsCap;
     slot->numCols         = ctx->numFields;
     slot->numRows         = (int32_t)ctx->accRows;
+    slot->rowBufCap       = ctx->rowBufCap;   /* save capacity for spare reuse check */
     slot->varWriteOffsets = ctx->varWriteOffsets;
     slot->varBufCapacity  = ctx->varBufCapacity;
 
@@ -656,6 +690,21 @@ int stmt2FlushMultiTableSlots(Stmt2RestoreCtx *ctx) {
         } else {
             ctx->totalRows += affectedRows;
             logDebug("stmt2 multi-table flush: %d tables, %d rows", N, affectedRows);
+
+            /* Space-for-time: before freeing all slots, detach slot[0]'s column
+             * buffers as a spare set.  stmt2AllocColBuffers will reclaim this spare
+             * for the next batch instead of doing a fresh malloc+free cycle. */
+            if (ctx->spareColBinds == NULL && N > 0) {
+                Stmt2TableSlot *s0 = &ctx->pendingSlots[0];
+                /* Reset variable-column write offsets so the spare is ready to use */
+                if (s0->varWriteOffsets)
+                    memset(s0->varWriteOffsets, 0, s0->colBindsCap * sizeof(int32_t));
+                ctx->spareColBinds        = s0->colBinds;        s0->colBinds        = NULL;
+                ctx->spareColBindsCap     = s0->colBindsCap;
+                ctx->spareRowBufCap       = s0->rowBufCap;
+                ctx->spareVarWriteOffsets = s0->varWriteOffsets; s0->varWriteOffsets = NULL;
+                ctx->spareVarBufCapacity  = s0->varBufCapacity;  s0->varBufCapacity  = NULL;
+            }
         }
     }
 
@@ -698,6 +747,8 @@ int restoreOneDataFileV2(Stmt2RestoreCtx *ctx, const char *filePath) {
     TaosFile *f = openTaosFileForRead(filePath, &code);
     if (!f) { logError("open failed(%d): %s", code, filePath); return code; }
     if (f->header.numRows == 0) { closeTaosFileRead(f); return TSDB_CODE_SUCCESS; }
+
+    ctx->lastFileSize = f->fileSize;  /* cache for caller's stat elimination */
 
     strncpy(ctx->tbName, tbName, TSDB_TABLE_NAME_LEN - 1);
     int       numCols = f->header.numFields;

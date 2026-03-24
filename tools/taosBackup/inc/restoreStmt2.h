@@ -29,6 +29,7 @@ typedef struct Stmt2TableSlot {
     int               colBindsCap;    // allocated column count in colBinds
     int               numCols;        // rows' column binding count (<= colBindsCap)
     int32_t           numRows;        // accumulated rows in this slot
+    int64_t           rowBufCap;      // row buffer capacity (from ctx->rowBufCap at seal time)
     int32_t          *varWriteOffsets;// packed byte-write offsets per var-type column
     int32_t          *varBufCapacity; // byte capacity per var-type column
 } Stmt2TableSlot;
@@ -59,6 +60,21 @@ typedef struct Stmt2RestoreCtx {
     // Used by restoreDataThread to determine when it is safe to write
     // checkpoint records for accumulated multi-table files.
     bool             lastCallFlushed;
+
+    // Space-for-time: spare column-buffer set recycled from the previous flush cycle.
+    // After stmt2FlushMultiTableSlots succeeds, one slot's colBinds are detached and
+    // stored here instead of being freed.  stmt2AllocColBuffers reclaims the spare
+    // when the new file's requirements fit (same or fewer columns, same or less rows).
+    TAOS_STMT2_BIND *spareColBinds;
+    int              spareColBindsCap;
+    int64_t          spareRowBufCap;
+    int32_t         *spareVarWriteOffsets;
+    int32_t         *spareVarBufCapacity;
+
+    // Last opened file's size in bytes (populated by restoreOneDataFileV2 from
+    // taosFile->fileSize).  Allows restoreDataThread to skip the per-file taosStatFile
+    // syscall.
+    int64_t          lastFileSize;
 } Stmt2RestoreCtx;
 
 // Initialize STMT2

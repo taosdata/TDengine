@@ -34,6 +34,9 @@ typedef struct {
     TAOS_MULTI_BIND *bindArray;
     int              bindArrayCap;
     struct StbChange *stbChange;
+    // Last opened file's size in bytes (from taosFile->fileSize); used by
+    // restoreDataThread to skip the per-file taosStatFile syscall.
+    int64_t          lastFileSize;
 } StmtRestoreCtx;
 
 // Initialize STMT

@@ -206,6 +206,12 @@ static int bindBlockData(StmtRestoreCtx *ctx,
         }
 
         TAOS_MULTI_BIND *bind = &bindArray[bindIdx];
+        /* Save previous block's buffer pointers and row-count capacity BEFORE
+         * the memset that resets the bind struct for the current block. */
+        void    *prevBuffer  = bind->buffer;
+        void    *prevLength  = bind->length;
+        void    *prevIsNull  = bind->is_null;
+        int32_t  prevNumRows = (int32_t)bind->num;  /* capacity tracker */
         memset(bind, 0, sizeof(TAOS_MULTI_BIND));
         bind->buffer_type = fieldInfos[c].type;
         bind->num = blockRows;
@@ -216,90 +222,80 @@ static int bindBlockData(StmtRestoreCtx *ctx,
             char *varDataBase = (char *)colData + blockRows * sizeof(int32_t);
             bool isNchar = (fieldInfos[c].type == TSDB_DATA_TYPE_NCHAR);
 
-            // Allocate buffers for variable data
-            // We need: buffer (concatenated data), length array, is_null array
-            int32_t *lengths = (int32_t *)taosMemoryCalloc(blockRows, sizeof(int32_t));
-            char    *isNull  = (char *)taosMemoryCalloc(blockRows, sizeof(char));
-            if (!lengths || !isNull) {
-                taosMemoryFree(lengths);
-                taosMemoryFree(isNull);
-                return TSDB_CODE_BCK_MALLOC_FAILED;
+            // Space-for-time: use declared field width as buffer stride.
+            // This eliminates the two-pass maxLen scan and lets us reuse
+            // buffer/length/is_null across blocks (bind->num is the capacity).
+            int32_t stride = fieldInfos[c].bytes;  // declared max bytes per row
+
+            // Reuse or grow per-column buffers based on capacity (prevNumRows).
+            char    *buffer  = (char    *)prevBuffer;
+            int32_t *lengths = (int32_t *)prevLength;
+            char    *isNull  = (char    *)prevIsNull;
+            if (prevNumRows < blockRows) {
+                char    *nb = (char    *)taosMemoryRealloc(buffer,  (size_t)blockRows * stride);
+                if (!nb) return TSDB_CODE_BCK_MALLOC_FAILED;
+                bind->buffer = nb; buffer = nb;
+
+                int32_t *nl = (int32_t *)taosMemoryRealloc(lengths, (size_t)blockRows * sizeof(int32_t));
+                if (!nl) return TSDB_CODE_BCK_MALLOC_FAILED;
+                bind->length = nl; lengths = nl;
+
+                char    *nn = (char    *)taosMemoryRealloc(isNull,  (size_t)blockRows);
+                if (!nn) return TSDB_CODE_BCK_MALLOC_FAILED;
+                bind->is_null = nn; isNull = nn;
             }
 
-            // For NCHAR: raw block stores UCS-4 (4 bytes/char), STMT expects UTF-8.
-            // We need a temp buffer to convert each row, then measure actual UTF-8 lengths.
-            // For other var types (BINARY/VARCHAR): data is already UTF-8, just copy.
+            // Zero out the region we'll use (stride-packed layout).
+            memset(buffer, 0, (size_t)blockRows * stride);
+            memset(isNull,  0, blockRows);
+            memset(lengths, 0, (size_t)blockRows * sizeof(int32_t));
 
-            // First pass: calculate lengths and nulls
-            // For NCHAR, we'll also convert to UTF-8 into a temp area.
-            // Allocate a temp conversion buffer (generous: same size as UCS-4 data)
-            char *convBuf = NULL;
-            int32_t *utf8Lens = NULL;  // actual UTF-8 byte lengths per row
+            // For NCHAR: raw block stores UCS-4 (4 bytes/char), STMT expects UTF-8.
+            // We use a temporary conversion buffer (local, freed after each block).
+            char    *convBuf  = NULL;
+            int32_t *utf8Lens = NULL;
             if (isNchar) {
-                // max UTF-8 bytes = ucs4 bytes (worst case: each UCS-4 char -> 4 UTF-8 bytes, but ucs4 is already 4 bytes)
-                int32_t maxConvBuf = fieldInfos[c].bytes * blockRows; // generous
-                convBuf = (char *)taosMemoryCalloc(1, maxConvBuf > 0 ? maxConvBuf : 1);
-                utf8Lens = (int32_t *)taosMemoryCalloc(blockRows, sizeof(int32_t));
+                convBuf  = (char    *)taosMemoryMalloc((size_t)stride * blockRows);
+                utf8Lens = (int32_t *)taosMemoryMalloc((size_t)blockRows * sizeof(int32_t));
                 if (!convBuf || !utf8Lens) {
-                    taosMemoryFree(lengths);
-                    taosMemoryFree(isNull);
                     taosMemoryFree(convBuf);
                     taosMemoryFree(utf8Lens);
                     return TSDB_CODE_BCK_MALLOC_FAILED;
                 }
+                memset(utf8Lens, 0, (size_t)blockRows * sizeof(int32_t));
             }
 
             int32_t convOffset = 0;
             for (int row = 0; row < blockRows; row++) {
                 if (offsets[row] < 0) {
-                    isNull[row] = 1;
+                    isNull[row]  = 1;
                     lengths[row] = 0;
                 } else {
                     isNull[row] = 0;
-                    // TDengine var data: 2-byte length prefix + data
                     uint16_t varLen = *(uint16_t *)(varDataBase + offsets[row]);
                     if (isNchar && varLen > 0) {
-                        // Convert UCS-4 -> UTF-8
                         char *ucs4Data = varDataBase + offsets[row] + sizeof(uint16_t);
-                        char *utf8Out = convBuf + convOffset;
+                        char *utf8Out  = convBuf + convOffset;
                         int32_t utf8Len = taosUcs4ToMbs((TdUcs4 *)ucs4Data, varLen, utf8Out, NULL);
                         if (utf8Len < 0) {
                             logError("UCS-4 to UTF-8 conversion failed: col=%d row=%d", c, row);
                             utf8Len = 0;
                         }
                         utf8Lens[row] = utf8Len;
-                        lengths[row] = utf8Len;
-                        convOffset += utf8Len;
+                        lengths[row]  = utf8Len;
+                        convOffset   += utf8Len;
                     } else {
                         lengths[row] = varLen;
                     }
                 }
             }
 
-            // Allocate buffer and copy data contiguously
-            // For TAOS_MULTI_BIND with variable types, each row's data must be at
-            // buffer + row * buffer_length, so we use max length as buffer_length
-            int32_t maxLen = 0;
-            for (int row = 0; row < blockRows; row++) {
-                if (lengths[row] > maxLen) maxLen = lengths[row];
-            }
-            if (maxLen == 0) maxLen = 1; // minimum 1 byte
-
-            char *buffer = (char *)taosMemoryCalloc(blockRows, maxLen);
-            if (!buffer) {
-                taosMemoryFree(lengths);
-                taosMemoryFree(isNull);
-                taosMemoryFree(convBuf);
-                taosMemoryFree(utf8Lens);
-                return TSDB_CODE_BCK_MALLOC_FAILED;
-            }
-
+            // Write data into the stride buffer.
             if (isNchar) {
-                // Copy converted UTF-8 data from convBuf
                 int32_t srcOff = 0;
                 for (int row = 0; row < blockRows; row++) {
                     if (!isNull[row] && utf8Lens[row] > 0) {
-                        memcpy(buffer + row * maxLen, convBuf + srcOff, utf8Lens[row]);
+                        memcpy(buffer + row * stride, convBuf + srcOff, utf8Lens[row]);
                         srcOff += utf8Lens[row];
                     }
                 }
@@ -309,15 +305,15 @@ static int bindBlockData(StmtRestoreCtx *ctx,
                 for (int row = 0; row < blockRows; row++) {
                     if (!isNull[row] && lengths[row] > 0) {
                         char *src = varDataBase + offsets[row] + sizeof(uint16_t);
-                        memcpy(buffer + row * maxLen, src, lengths[row]);
+                        memcpy(buffer + row * stride, src, lengths[row]);
                     }
                 }
             }
 
-            bind->buffer = buffer;
-            bind->buffer_length = maxLen;
-            bind->length = lengths;
-            bind->is_null = isNull;
+            bind->buffer        = buffer;
+            bind->buffer_length = stride;
+            bind->length        = lengths;
+            bind->is_null       = isNull;
 
         } else if (IS_DECIMAL_TYPE(fieldInfos[c].type)) {
             /* DECIMAL: raw block has bitmap[(blockRows+7)/8] + fixed bytes
@@ -328,16 +324,26 @@ static int bindBlockData(StmtRestoreCtx *ctx,
             char   *bitmap      = (char *)colData;
             char   *fixData     = (char *)colData + bitmapLen;
 
-            char    *buffer  = (char *)taosMemoryCalloc(blockRows, actualBytes);
-            int32_t *lengths = (int32_t *)taosMemoryCalloc(blockRows, sizeof(int32_t));
-            char    *isNull  = (char *)taosMemoryCalloc(blockRows, sizeof(char));
-            if (!buffer || !lengths || !isNull) {
-                taosMemoryFree(buffer);
-                taosMemoryFree(lengths);
-                taosMemoryFree(isNull);
-                return TSDB_CODE_BCK_MALLOC_FAILED;
+            // Space-for-time: reuse buffer/lengths/is_null via prevNumRows capacity.
+            char    *buffer  = (char    *)prevBuffer;
+            int32_t *lengths = (int32_t *)prevLength;
+            char    *isNull  = (char    *)prevIsNull;
+            if (prevNumRows < blockRows) {
+                char    *nb = (char    *)taosMemoryRealloc(buffer,  (size_t)blockRows * actualBytes);
+                if (!nb) return TSDB_CODE_BCK_MALLOC_FAILED;
+                bind->buffer = nb; buffer = nb;
+
+                int32_t *nl = (int32_t *)taosMemoryRealloc(lengths, (size_t)blockRows * sizeof(int32_t));
+                if (!nl) return TSDB_CODE_BCK_MALLOC_FAILED;
+                bind->length = nl; lengths = nl;
+
+                char    *nn = (char    *)taosMemoryRealloc(isNull,  (size_t)blockRows);
+                if (!nn) return TSDB_CODE_BCK_MALLOC_FAILED;
+                bind->is_null = nn; isNull = nn;
             }
 
+            memset(isNull,  0, blockRows);
+            memset(lengths, 0, (size_t)blockRows * sizeof(int32_t));
             for (int row = 0; row < blockRows; row++) {
                 if (bitmap[row >> 3] & (1u << (7 - (row & 7)))) {
                     isNull[row]  = 1;
@@ -353,10 +359,10 @@ static int bindBlockData(StmtRestoreCtx *ctx,
 
             /* buffer_type was already set to fieldInfos[c].type (DECIMAL/DECIMAL128)
              * above; keep it — pass raw binary to STMT1. */
-            bind->buffer = buffer;
+            bind->buffer        = buffer;
             bind->buffer_length = actualBytes;
-            bind->length = lengths;
-            bind->is_null = isNull;
+            bind->length        = lengths;
+            bind->is_null       = isNull;
         } else {
             // Fixed type layout: bitmap[(blockRows+7)/8] + data[blockRows * bytes]
             int32_t bitmapLen = (blockRows + 7) / 8;
@@ -364,14 +370,17 @@ static int bindBlockData(StmtRestoreCtx *ctx,
             char *fixData = (char *)colData + bitmapLen;
             int32_t typeBytes = fieldInfos[c].bytes;
 
-            // Allocate buffer (malloc: fixData will be fully overwritten by memcpy)
-            // Allocate is_null (malloc: initialized below via memset + sparse bitmap)
-            char *buffer = (char *)taosMemoryMalloc(blockRows * typeBytes);
-            char *isNull = (char *)taosMemoryMalloc(blockRows);
-            if (!buffer || !isNull) {
-                taosMemoryFree(buffer);
-                taosMemoryFree(isNull);
-                return TSDB_CODE_BCK_MALLOC_FAILED;
+            // Space-for-time: reuse buffer/is_null when prevNumRows >= blockRows.
+            char *buffer = (char *)prevBuffer;
+            char *isNull  = (char *)prevIsNull;
+            if (prevNumRows < blockRows) {
+                char *nb = (char *)taosMemoryRealloc(buffer, (size_t)blockRows * typeBytes);
+                if (!nb) return TSDB_CODE_BCK_MALLOC_FAILED;
+                bind->buffer = nb; buffer = nb;
+
+                char *nn = (char *)taosMemoryRealloc(isNull, (size_t)blockRows);
+                if (!nn) return TSDB_CODE_BCK_MALLOC_FAILED;
+                bind->is_null = nn; isNull = nn;
             }
 
             // Copy all data in one shot; then build is_null with space-for-time
@@ -389,10 +398,10 @@ static int bindBlockData(StmtRestoreCtx *ctx,
                 }
             }
 
-            bind->buffer = buffer;
+            bind->buffer        = buffer;
             bind->buffer_length = typeBytes;
-            bind->length = NULL;  // fixed-length types don't need length array
-            bind->is_null = isNull;
+            bind->length        = NULL;  // fixed-length types don't need length array
+            bind->is_null       = isNull;
         }
     }
 
@@ -445,9 +454,13 @@ static int dataBlockCallback(void *userData,
             return TSDB_CODE_BCK_MALLOC_FAILED;
         }
     } else {
-        // free previous column buffers but reuse the array
-        freeBindArray(ctx->bindArray, ctx->bindArrayCap);
-        memset(ctx->bindArray, 0, bindColCount * sizeof(TAOS_MULTI_BIND));
+        /* Space-for-time: keep per-column buffers alive across blocks.
+         * bindBlockData reuses buffer/is_null/length when bind->num (previous row
+         * count == capacity) >= current blockRows.  Only reset non-capacity fields;
+         * buffer, length, is_null, and num (capacity tracker) are preserved. */
+        for (int _i = 0; _i < bindColCount; _i++) {
+            ctx->bindArray[_i].buffer_type = 0;
+        }
     }
 
     // Build bind array from block data (column-batch mode)
@@ -618,6 +631,8 @@ int restoreOneDataFile(StmtRestoreCtx *ctx,
         closeTaosFileRead(taosFile);
         return TSDB_CODE_SUCCESS;
     }
+
+    ctx->lastFileSize = taosFile->fileSize;  /* cache for caller's stat elimination */
 
     ctx->numFields  = taosFile->header.numFields;
     ctx->fieldInfos = (FieldInfo *)taosFile->header.schema;

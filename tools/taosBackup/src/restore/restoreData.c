@@ -249,9 +249,10 @@ static void* restoreDataThread(void *arg) {
             // count completed file for progress display
             atomic_add_fetch_64(&g_progress.ctbDoneCur, 1);
             // accumulate actual processed bytes for File Size summary
+            // Use fileSize cached during file open to avoid a per-file taosStatFile syscall.
             {
-                int64_t fsz = 0;
-                if (taosStatFile(filePath, &fsz, NULL, NULL) == 0 && fsz > 0)
+                int64_t fsz = (stmtVer == STMT_VERSION_2) ? s2Ctx.lastFileSize : bCtx.lastFileSize;
+                if (fsz > 0)
                     atomic_add_fetch_64(&g_stats.dataFilesSizeBytes, fsz);
             }
         }
@@ -294,6 +295,18 @@ static void* restoreDataThread(void *arg) {
     if (s2Ctx.colBinds) {
         stmt2FreeColBuffers(&s2Ctx);
         taosMemoryFree(s2Ctx.colBinds);
+    }
+    /* Free spare column-buffer set (space-for-time recycled slot) */
+    if (s2Ctx.spareColBinds) {
+        for (int _i = 0; _i < s2Ctx.spareColBindsCap; _i++) {
+            TAOS_STMT2_BIND *_b = &s2Ctx.spareColBinds[_i];
+            taosMemoryFree(_b->buffer);  _b->buffer  = NULL;
+            taosMemoryFree(_b->length);  _b->length  = NULL;
+            taosMemoryFree(_b->is_null); _b->is_null = NULL;
+        }
+        taosMemoryFree(s2Ctx.spareColBinds);        s2Ctx.spareColBinds        = NULL;
+        taosMemoryFree(s2Ctx.spareVarWriteOffsets); s2Ctx.spareVarWriteOffsets = NULL;
+        taosMemoryFree(s2Ctx.spareVarBufCapacity);  s2Ctx.spareVarBufCapacity  = NULL;
     }
     /* Free any remaining pending slots (e.g. if interrupted) */
     if (s2Ctx.pendingSlots) {
