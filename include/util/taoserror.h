@@ -1187,21 +1187,49 @@ int32_t  taosGetErrSize();
 //scalar
 #define TSDB_CODE_SCALAR_CONVERT_ERROR           TAOS_DEF_ERROR_CODE(0, 0x3250)
 
-//utxn
-#define TSDB_CODE_TXN_ALREADY_IN_PROGRESS        TAOS_DEF_ERROR_CODE(0, 0x3300)
-#define TSDB_CODE_TXN_NOT_IN_PROGRESS            TAOS_DEF_ERROR_CODE(0, 0x3301)
-#define TSDB_CODE_TXN_ALREADY_EXISTS             TAOS_DEF_ERROR_CODE(0, 0x3302)
-#define TSDB_CODE_TXN_NOT_EXIST                  TAOS_DEF_ERROR_CODE(0, 0x3303)
-#define TSDB_CODE_MND_TXN_IN_CREATING            TAOS_DEF_ERROR_CODE(0, 0x3304)
-#define TSDB_CODE_MND_TXN_IN_DROPPING            TAOS_DEF_ERROR_CODE(0, 0x3305)
-#define TSDB_CODE_TXN_SEQ_NOT_EXIST              TAOS_DEF_ERROR_CODE(0, 0x3306)
-#define TSDB_CODE_MND_TXN_INVALID_STAGE          TAOS_DEF_ERROR_CODE(0, 0x3307)
-#define TSDB_CODE_MND_TXN_CONFLICT               TAOS_DEF_ERROR_CODE(0, 0x3308)
-#define TSDB_CODE_MND_TXN_IDLE_TIMEOUT           TAOS_DEF_ERROR_CODE(0, 0x3309)
-#define TSDB_CODE_MND_TXN_ERROR                  TAOS_DEF_ERROR_CODE(0, 0x330A)
-#define TSDB_CODE_MND_TXN_SEQ_IN_CREATING        TAOS_DEF_ERROR_CODE(0, 0x330B)
-#define TSDB_CODE_MND_TXN_SEQ_IN_DROPPING        TAOS_DEF_ERROR_CODE(0, 0x330C)
-#define TSDB_CODE_MND_TXN_SEQ_NOT_READY          TAOS_DEF_ERROR_CODE(0, 0x330D)
+//utxn - user transaction (batch DDL)
+// 事务生命周期错误码
+#define TSDB_CODE_TXN_ALREADY_IN_PROGRESS        TAOS_DEF_ERROR_CODE(0, 0x3300)  // BEGIN when already in transaction
+#define TSDB_CODE_TXN_NOT_IN_PROGRESS            TAOS_DEF_ERROR_CODE(0, 0x3301)  // COMMIT/ROLLBACK without BEGIN
+#define TSDB_CODE_TXN_ALREADY_EXISTS             TAOS_DEF_ERROR_CODE(0, 0x3302)  // txnId already exists in MNode
+#define TSDB_CODE_TXN_NOT_EXIST                  TAOS_DEF_ERROR_CODE(0, 0x3303)  // txnId not found in MNode
+#define TSDB_CODE_MND_TXN_IN_CREATING            TAOS_DEF_ERROR_CODE(0, 0x3304)  // transaction is being created
+#define TSDB_CODE_MND_TXN_IN_DROPPING            TAOS_DEF_ERROR_CODE(0, 0x3305)  // transaction is being dropped
+#define TSDB_CODE_TXN_SEQ_NOT_EXIST              TAOS_DEF_ERROR_CODE(0, 0x3306)  // txn sequence not found
+#define TSDB_CODE_MND_TXN_INVALID_STAGE          TAOS_DEF_ERROR_CODE(0, 0x3307)  // invalid transaction stage
+#define TSDB_CODE_MND_TXN_IDLE_TIMEOUT           TAOS_DEF_ERROR_CODE(0, 0x3309)  // transaction idle timeout
+#define TSDB_CODE_MND_TXN_ERROR                  TAOS_DEF_ERROR_CODE(0, 0x330A)  // general transaction error
+#define TSDB_CODE_MND_TXN_SEQ_IN_CREATING        TAOS_DEF_ERROR_CODE(0, 0x330B)  // txn sequence is being created
+#define TSDB_CODE_MND_TXN_SEQ_IN_DROPPING        TAOS_DEF_ERROR_CODE(0, 0x330C)  // txn sequence is being dropped
+#define TSDB_CODE_MND_TXN_SEQ_NOT_READY          TAOS_DEF_ERROR_CODE(0, 0x330D)  // txn sequence not ready
+#define TSDB_CODE_TXN_ABORTED                    TAOS_DEF_ERROR_CODE(0, 0x330E)  // transaction aborted due to DDL failure
+#define TSDB_CODE_TXN_NEED_ROLLBACK              TAOS_DEF_ERROR_CODE(0, 0x330F)  // transaction aborted, please ROLLBACK
+#define TSDB_CODE_TXN_STALE_TERM                 TAOS_DEF_ERROR_CODE(0, 0x3310)  // stale term (leader changed)
+#define TSDB_CODE_TXN_PREPARE_FAILED             TAOS_DEF_ERROR_CODE(0, 0x3311)  // PREPARE phase failed
+#define TSDB_CODE_TXN_COMMIT_FAILED              TAOS_DEF_ERROR_CODE(0, 0x3312)  // COMMIT phase failed
+#define TSDB_CODE_TXN_ROLLBACK_FAILED            TAOS_DEF_ERROR_CODE(0, 0x3313)  // ROLLBACK phase failed
+#define TSDB_CODE_TXN_VG_NOT_REGISTERED          TAOS_DEF_ERROR_CODE(0, 0x3314)  // VGroup not registered in transaction
+
+// 事务冲突错误码 - 用于 DDL 操作之间的冲突检测
+// 冲突矩阵说明：
+//   PREPARED_CREATE: 表正在被创建中（影子状态）
+//     - SELECT/INSERT/DELETE: Table does not exist（不可见）
+//     - CREATE: Resource busy / Conflict（物理占位冲突）
+//     - ALTER/DROP: Table does not exist（不可见）
+//   PREPARED_DROP: 表正在被删除中（逻辑删除状态）
+//     - SELECT/INSERT: 正常执行（快照隔离，访问旧数据）
+//     - DELETE: Resource busy / Conflict（保护元数据）
+//     - CREATE: Table already exists（表名冲突）
+//     - ALTER/DROP: Resource busy / Conflict
+//   PREPARED_ALTER: 表正在被修改中（改标签状态）
+//     - SELECT/INSERT/DELETE: 正常执行（无感）
+//     - CREATE: Table already exists（表名冲突）
+//     - ALTER/DROP: Resource busy / Conflict
+#define TSDB_CODE_TXN_RESOURCE_BUSY              TAOS_DEF_ERROR_CODE(0, 0x3315)  // Resource busy, table is being modified by another transaction
+#define TSDB_CODE_TXN_PREPARED_CREATE            TAOS_DEF_ERROR_CODE(0, 0x3316)  // Table is being created in a transaction (shadow state, invisible)
+#define TSDB_CODE_TXN_PREPARED_ALTER             TAOS_DEF_ERROR_CODE(0, 0x3317)  // Table is being altered in a transaction (old schema visible)
+#define TSDB_CODE_TXN_PREPARED_DROP              TAOS_DEF_ERROR_CODE(0, 0x3318)  // Table is being dropped in a transaction (old data visible)
+#define TSDB_CODE_TXN_DELETE_ON_DROPPING         TAOS_DEF_ERROR_CODE(0, 0x3319)  // Cannot DELETE on a table being dropped (protect metadata)
 
 //tmq
 #define TSDB_CODE_TMQ_INVALID_MSG                TAOS_DEF_ERROR_CODE(0, 0x4000)

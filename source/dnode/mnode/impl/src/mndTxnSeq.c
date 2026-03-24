@@ -318,7 +318,7 @@ void mndReleaseTxnSeq(SMnode *pMnode, STxnSeqObj *pObj) {
  * @brief Non thread safe. Return unique id with format: 40(sec) + 12(nodeId) + 4(reserved) + 8(seqId)  bits.
  *
  */
-int64_t mndGenTxnId(int32_t nodeId) {
+int64_t mndGenTxnId(int32_t nodeId) { // deprecated, only for test, not used in production
   static int64_t lastSec = 0;
   static int32_t seqId = 0;
 
@@ -353,6 +353,16 @@ int64_t mndGenTxnId(int32_t nodeId) {
   return uuid;
 }
 #else
+/**
+ * @brief Global unique self-increasing transaction id generator. It allocates transaction id in range with step of
+ * TXN_ID_RANGE_STEP, and current transaction id is maintained in pMnode->txnMgmt.currentTxnId. When current transaction
+ * id reaches the max of current range, it will trigger allocation of next range by calling triggerAllocateTxnSeq, and
+ * the new range max will be updated to SDB by mndTxnSeqActionUpdate callback, then current transaction id can continue
+ * to increase until next range is exhausted.
+ *
+ * @param pMnode
+ * @return utxn_id_t
+ */
 utxn_id_t mndGenTxnId(SMnode *pMnode) {
   int32_t     code = 0, lino = 0;
   STxnSeqObj *pObj = NULL;

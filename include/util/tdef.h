@@ -873,23 +873,23 @@ typedef enum {
 } EMetaTxnStatus;
 
 // EUtxnStage：MNode 侧用户批事务的生命周期阶段（客户端/MNode 共用）。
-// 客户端在 STscObj.txnState 中使用 UTXN_STAGE_IDLE/ACTIVE；
+// 客户端在 STscObj.txnState 中使用 UTXN_STAGE_IDLE/ACTIVE/ABORTED；
 // MNode 在 STxnObj.stage 中使用全部阶段值，并通过 Raft WAL 持久化。
 // 状态转换：
 //   IDLE → ACTIVE（BEGIN 成功）
+//   ACTIVE → ABORTED（任一 DDL 执行失败，客户端侧标记，等待用户 ROLLBACK）
 //   ACTIVE → PREPARING（收到 COMMIT，开始向 VNode 广播 PREPARE）
-//   ACTIVE → ROLLINGBACK（收到 ROLLBACK 或 DDL 失败）
-//   PREPARING → DECIDING（所有 VNode PREPARE ACK 到齐）
+//   ACTIVE/ABORTED → ROLLINGBACK（收到 ROLLBACK）
+//   PREPARING → COMMITTING (VNode PREPARE ACK 到齐, COMMITTING 状态写入 WAL 成功）
 //   PREPARING → ROLLINGBACK（任一 VNode PREPARE 失败）
-//   DECIDING → COMMITTING（COMMITTING 状态写入 WAL 成功）
 //   COMMITTING → COMPLETED（所有 VNode COMMIT ACK 到齐）
 //   ROLLINGBACK → COMPLETED（所有 VNode ROLLBACK ACK 到齐）
 //   任意中间态 → ZOMBIE（超时或异常，等待后台清理）
 typedef enum {
   UTXN_STAGE_IDLE        = 0,  // 初始/已销毁状态（内存中不存在此对象）
-  UTXN_STAGE_ACTIVE      = 1,  // 已接收 BEGIN，正在接收/处理 DDL；任一 DDL 失败则转入 ROLLINGBACK
-  UTXN_STAGE_PREPARING   = 2,  // 已收到 COMMIT，正在向 VNode 广播 PREPARE，等待所有 VNode ACK
-  UTXN_STAGE_DECIDING    = 3,  // 所有 VNode PREPARE 完成，等待将 COMMITTING 状态写入 WAL（决策点）
+  UTXN_STAGE_ACTIVE      = 1,  // 已接收 BEGIN，正在接收/处理 DDL
+  UTXN_STAGE_ABORTED     = 2,  // DDL 执行失败，事务已中止，等待用户显式 ROLLBACK（客户端侧状态）
+  UTXN_STAGE_PREPARING   = 3,  // 已收到 COMMIT，正在向 VNode 广播 PREPARE，等待所有 VNode ACK
   UTXN_STAGE_COMMITTING  = 4,  // COMMITTING 已写入 WAL（不可回滚），正在向 VNode 广播 COMMIT
   UTXN_STAGE_ROLLINGBACK = 5,  // 正在向 VNode 广播 ROLLBACK，等待所有 VNode ACK
   UTXN_STAGE_COMPLETED   = 6,  // 所有 VNode 已确认，事务彻底完成（短暂终态，随后从 SDB 删除）

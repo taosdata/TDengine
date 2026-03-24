@@ -58,6 +58,8 @@ typedef struct SUserTxn {
 
 int32_t     mndInitTxn(SMnode* pMnode);
 void        mndCleanupTxn(SMnode* pMnode);
+int32_t     mndStartTxnTimer(SMnode* pMnode);      // 启动超时扫描（mnode 完全启动后调用）
+void        mndTxnDoTimeoutScan(SMnode* pMnode);   // 手动触发超时扫描（供定期任务调用）
 const char* mndUtxnStageStr(EUtxnStage stage);
 const char* mndVtxnStageStr(EVtxnStage stage);
 const char* mndTxnStr(EUtxnStage stage);   // mndUtxnStageStr 的别名，供 mndTrans.c 等调用

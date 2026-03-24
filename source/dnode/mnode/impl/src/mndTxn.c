@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "mndTxn.h"
+#include "mndInt.h"
 #include "mndTxnSeq.h"
 #include "audit.h"
 #include "mndDb.h"
@@ -46,6 +47,9 @@ static void    mndCancelRetrieveTxn(SMnode *pMnode, void *pIter);
 static int32_t mndRetrieveTxnTask(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void    mndCancelRetrieveTxnTask(SMnode *pMnode, void *pIter);
 
+// 超时扫描函数（由外部定期调用）
+static void mndTxnTimeoutScanImpl(SMnode *pMnode);
+
 int32_t mndInitTxn(SMnode *pMnode) {
   SSdbTable table = {
       .sdbType = SDB_TXN,
@@ -56,6 +60,17 @@ int32_t mndInitTxn(SMnode *pMnode) {
       .updateFp = (SdbUpdateFp)mndTxnActionUpdate,
       .deleteFp = (SdbDeleteFp)mndTxnActionDelete,
   };
+
+  // 初始化 STxnMgmt 运行时管理结构
+  STxnMgmt *pMgmt = &pMnode->txnMgmt;
+  pMgmt->pTxnHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
+  if (pMgmt->pTxnHash == NULL) {
+    mError("txn, failed to init txn hash");
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  taosThreadRwlockInit(&pMgmt->lock, NULL);
+  pMgmt->currentTxnId = -1;
+  pMgmt->hTimeoutTimer = NULL;  // 定时器在 mnode 启动完成后再启动
 
   mndSetMsgHandle(pMnode, TDMT_MND_BEGIN_TXN, mndProcessBeginTxnReq);
   mndSetMsgHandle(pMnode, TDMT_MND_BEGIN_TXN_RSP, mndTransProcessRsp);
@@ -68,6 +83,25 @@ int32_t mndInitTxn(SMnode *pMnode) {
   //   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_TXN, mndCancelRetrieveTxn);
 
   return sdbSetTable(pMnode->pSdb, table);
+}
+
+// 超时扫描实现（由外部定期调用）
+static void mndTxnTimeoutScanImpl(SMnode *pMnode) {
+  // TODO: 遍历 SDB 中所有活跃事务，检查超时并触发 ROLLBACK
+  int64_t now = taosGetTimestampMs();
+  mTrace("txn, timeout scan executed at %" PRId64, now);
+}
+
+// 手动触发超时扫描（供 mndMain.c 定期调用）
+void mndTxnDoTimeoutScan(SMnode *pMnode) {
+  mndTxnTimeoutScanImpl(pMnode);
+}
+
+// 启动超时扫描（暂时为空实现，未来可改为定时器）
+int32_t mndStartTxnTimer(SMnode *pMnode) {
+  // 暂时不使用定时器，超时扫描由 mndMain.c 的定期任务调用
+  mInfo("txn, timeout scan ready (no timer, will be called periodically)");
+  return 0;
 }
 
 void mndCleanupTxn(SMnode *pMnode) {
@@ -112,7 +146,10 @@ const char *mndVtxnStageStr(EVtxnStage stage) {
 
 void mndTxnFreeObj(STxnObj *pObj) {
   if (pObj) {
-    // TODO
+    if (pObj->pVgList) {
+      taosArrayDestroy(pObj->pVgList);
+      pObj->pVgList = NULL;
+    }
   }
 }
 
@@ -129,8 +166,17 @@ static int32_t tSerializeSTxnObj(void *buf, int32_t bufLen, const STxnObj *pObj)
   TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pObj->ownerId));
   TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pObj->createTime));
   TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pObj->lastActiveTime));
+  TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pObj->term));  // 添加 term 序列化
   TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pObj->timeoutSec));
   TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pObj->stage));
+
+  // 序列化 pVgList（VGroup 参与者列表）
+  int32_t vgNum = pObj->pVgList ? taosArrayGetSize(pObj->pVgList) : 0;
+  TAOS_CHECK_EXIT(tEncodeI32v(&encoder, vgNum));
+  for (int32_t i = 0; i < vgNum; ++i) {
+    int32_t vgId = *(int32_t *)taosArrayGet(pObj->pVgList, i);
+    TAOS_CHECK_EXIT(tEncodeI32v(&encoder, vgId));
+  }
 
   tEndEncode(&encoder);
 
@@ -138,7 +184,7 @@ static int32_t tSerializeSTxnObj(void *buf, int32_t bufLen, const STxnObj *pObj)
 _exit:
   tEncoderClear(&encoder);
   if (code < 0) {
-    mError("rsma, %s failed at line %d since %s", __func__, lino, tstrerror(code));
+    mError("txn, %s failed at line %d since %s", __func__, lino, tstrerror(code));
     TAOS_RETURN(code);
   }
 
@@ -157,14 +203,36 @@ static int32_t tDeserializeSTxnObj(void *buf, int32_t bufLen, STxnObj *pObj) {
   TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pObj->ownerId));
   TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pObj->createTime));
   TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pObj->lastActiveTime));
+  TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pObj->term));  // 添加 term 反序列化
   TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &pObj->timeoutSec));
   TAOS_CHECK_EXIT(tDecodeI32v(&decoder, (int32_t *)&pObj->stage));
+
+  // 反序列化 pVgList（VGroup 参与者列表）
+  int32_t vgNum = 0;
+  TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &vgNum));
+  if (vgNum > 0) {
+    pObj->pVgList = taosArrayInit(vgNum, sizeof(int32_t));
+    if (pObj->pVgList == NULL) {
+      TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
+    }
+    for (int32_t i = 0; i < vgNum; ++i) {
+      int32_t vgId = 0;
+      TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &vgId));
+      if (taosArrayPush(pObj->pVgList, &vgId) == NULL) {
+        TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
+      }
+    }
+  }
 
 _exit:
   tEndDecode(&decoder);
   tDecoderClear(&decoder);
   if (code < 0) {
-    mError("rsma, %s failed at line %d since %s, row:%p", __func__, lino, tstrerror(code), pObj);
+    mError("txn, %s failed at line %d since %s, row:%p", __func__, lino, tstrerror(code), pObj);
+    if (pObj->pVgList) {
+      taosArrayDestroy(pObj->pVgList);
+      pObj->pVgList = NULL;
+    }
   }
   TAOS_RETURN(code);
 }
