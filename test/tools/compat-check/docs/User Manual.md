@@ -51,7 +51,7 @@
 
 目录结构示例：
 
-```
+```text
 /opt/tdengine/
     TDengine-enterprise-3.3.8.0/    ← from-dir
         taosd
@@ -67,7 +67,7 @@
 
 ## 3. 目录结构
 
-```
+```text
 hot_update/
 ├── run/
 │   └── main.py              # 主入口
@@ -158,7 +158,7 @@ python3 -m run.main \
 
 冷升级按以下五个 Phase 顺序执行：
 
-```
+```text
 Phase 1  集群搭建（基准版本）
          └─ 启动 3 个 taosd 进程 + 创建 3 副本集群
 Phase 2  资源准备
@@ -185,7 +185,7 @@ Phase 5  验证窗口（默认 30 秒）
 
 ### 6.2 滚动升级
 
-```
+```text
 Phase 1  集群搭建（基准版本）
 Phase 2  资源准备
 Phase 3  后台负载（升级前启动）
@@ -223,7 +223,7 @@ python3 -m run.main -F <from> -T <to> --rollupdate --check-sysinfo
 
 白名单文件放在 `whitelist/` 目录（或 `--whitelist-dir` 指定的目录）下，文件名格式：
 
-```
+```text
 {from_prefix}~{to_prefix}.yaml
 ```
 
@@ -271,7 +271,7 @@ python3 -m run.main -F <from> -T <to> --gen-whitelist /tmp/my_wl.yaml
 > **测试失败时自动提示**  
 > 若 `--check-sysinfo` 发现意外变化，工具会自动在当前工作目录生成一个候选白名单文件，并在 SUMMARY 的差异内容后打印其绝对路径，方便直接复制使用：
 >
-> ```
+> ```text
 >   INFORMATION_SCHEMA: no unexpected changes .............. [FAILED]
 >     + added    : INS_DATABASES.allow_drop
 >     ~ pos      : INS_XNODE_AGENTS.update_time  pos 4 -> 5
@@ -350,7 +350,7 @@ modified_tables:
 
 典型 SUMMARY 输出示例：
 
-```
+```text
 ════════════════════════════════════════════════════════════════════════
   TDengine Rolling Upgrade Test  ─  SUMMARY
   3.3.8.0  ──▶  3.4.0.8   │  host: myserver  │  3 dnodes / 2 mnodes
@@ -425,6 +425,7 @@ python3 -m run.main \
 
 **Q: 运行前需要清理上次的集群数据吗？**  
 A: 需要。每次运行前建议执行：
+
 ```bash
 pkill -9 taosd
 rm -rf ~/td_rolling_upgrade   # 或 --path 指定的目录
