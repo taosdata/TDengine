@@ -183,14 +183,15 @@ INIT_EXT(ext_zlib
 get_from_local_repo_if_exists("https://github.com/madler/zlib.git")
 ExternalProject_Add(ext_zlib
     GIT_REPOSITORY ${_git_url}
-    GIT_TAG v1.3.1 
+    GIT_TAG v1.3.1
     GIT_SHALLOW TRUE
     PREFIX "${_base}"
-    CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}        # if main project is built in Debug, ext_zlib is too
+    CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}       # use configure-time value so stamp files detect build type changes
     CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}                # let default INSTALL step use
     CMAKE_ARGS -DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=ON            # linking consistent
     CMAKE_ARGS -DZLIB_BUILD_SHARED:BOOL=OFF
     CMAKE_ARGS -DZLIB_BUILD_TESTING:BOOL=OFF
+    BUILD_BYPRODUCTS "${TD_EXTERNALS_BASE_DIR}/install/ext_zlib/${CMAKE_BUILD_TYPE}/lib/${ext_zlib_static}"
     EXCLUDE_FROM_ALL TRUE
     VERBATIM
 )
