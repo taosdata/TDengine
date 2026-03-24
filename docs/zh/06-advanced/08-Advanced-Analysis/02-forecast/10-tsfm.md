@@ -3,7 +3,7 @@ title: "调用时序基础模型"
 sidebar_label: "调用时序基础模型"
 ---
 
-调用时序基础模型的预测能力，需要您部署相应的时序基础模型服务，模型的部署方式，请参考[部署时序基础模型](../../06-TDgpt/09-dev/04-tsfm/index.md) 的内容。
+调用时序基础模型的预测能力，需要您部署相应的时序基础模型服务，模型的部署方式请参考[部署时序基础模型](../../06-TDgpt/06-dev/04-tsfm/index.md) 的内容。
 
 ## 功能概述
 
@@ -16,6 +16,7 @@ sidebar_label: "调用时序基础模型"
 | 3   | moirai[^2]   | SalesForce 开源的时序基础模型 |
 | 4   | chronos[^3]  | Amazon 开源的时序基础模型     |
 | 5   | timesfm[^4]  | Google 开源的时序基础模型     |
+| 6   | moment[^5]   | CMU 开源的时序基础模型     |
 
 TDgpt 集成时序基础模型的预测能力，无需设置模型运行参数，即可直接调用时序基础模型进行预测。
 
@@ -37,3 +38,4 @@ SELECT _frowts, FORECAST(i32, "algo=timemoe-fc,rows=10") from foo
 [^2]: Moirai-MoE: Empowering Time Series Foundation Models with Sparse Mixture of Experts. [[paper](https://arxiv.org/abs/2410.10469)] [[GitHub Repo](https://github.com/SalesforceAIResearch/uni2ts)]
 [^3]: Chronos: Learning the Language of Time Series. [[paper](https://arxiv.org/abs/2403.07815)] [[GitHub Repo](https://github.com/amazon-science/chronos-forecasting)]
 [^4]: A decoder-only foundation model for time-series forecasting. [[paper](https://arxiv.org/abs/2310.10688)] [[GitHub Repo](https://github.com/google-research/timesfm/)]
+[^5]: MOMENT: A Family of Open Time-series Foundation Models. [[paper](https://arxiv.org/abs/2402.03885)] [[GitHub Repo](https://github.com/moment-timeseries-foundation-model/moment)]

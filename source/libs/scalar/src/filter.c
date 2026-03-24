@@ -1808,36 +1808,36 @@ int32_t fltConverToStr(char *str, int32_t strMaxLen, int type, void *buf, int32_
 
   switch (type) {
     case TSDB_DATA_TYPE_NULL:
-      n = tsnprintf(str, strMaxLen, "null");
+      n = snprintf(str, strMaxLen, "null");
       break;
 
     case TSDB_DATA_TYPE_BOOL:
-      n = tsnprintf(str, strMaxLen, (*(int8_t *)buf) ? "true" : "false");
+      n = snprintf(str, strMaxLen, (*(int8_t *)buf) ? "true" : "false");
       break;
 
     case TSDB_DATA_TYPE_TINYINT:
-      n = tsnprintf(str, strMaxLen, "%d", *(int8_t *)buf);
+      n = snprintf(str, strMaxLen, "%d", *(int8_t *)buf);
       break;
 
     case TSDB_DATA_TYPE_SMALLINT:
-      n = tsnprintf(str, strMaxLen, "%d", *(int16_t *)buf);
+      n = snprintf(str, strMaxLen, "%d", *(int16_t *)buf);
       break;
 
     case TSDB_DATA_TYPE_INT:
-      n = tsnprintf(str, strMaxLen, "%d", *(int32_t *)buf);
+      n = snprintf(str, strMaxLen, "%d", *(int32_t *)buf);
       break;
 
     case TSDB_DATA_TYPE_BIGINT:
     case TSDB_DATA_TYPE_TIMESTAMP:
-      n = tsnprintf(str, strMaxLen, "%" PRId64, *(int64_t *)buf);
+      n = snprintf(str, strMaxLen, "%" PRId64, *(int64_t *)buf);
       break;
 
     case TSDB_DATA_TYPE_FLOAT:
-      n = tsnprintf(str, strMaxLen, "%e", GET_FLOAT_VAL(buf));
+      n = snprintf(str, strMaxLen, "%e", GET_FLOAT_VAL(buf));
       break;
 
     case TSDB_DATA_TYPE_DOUBLE:
-      n = tsnprintf(str, strMaxLen, "%e", GET_DOUBLE_VAL(buf));
+      n = snprintf(str, strMaxLen, "%e", GET_DOUBLE_VAL(buf));
       break;
 
     case TSDB_DATA_TYPE_BINARY:
@@ -1856,19 +1856,19 @@ int32_t fltConverToStr(char *str, int32_t strMaxLen, int type, void *buf, int32_
       break;
 
     case TSDB_DATA_TYPE_UTINYINT:
-      n = tsnprintf(str, strMaxLen, "%d", *(uint8_t *)buf);
+      n = snprintf(str, strMaxLen, "%d", *(uint8_t *)buf);
       break;
 
     case TSDB_DATA_TYPE_USMALLINT:
-      n = tsnprintf(str, strMaxLen, "%d", *(uint16_t *)buf);
+      n = snprintf(str, strMaxLen, "%d", *(uint16_t *)buf);
       break;
 
     case TSDB_DATA_TYPE_UINT:
-      n = tsnprintf(str, strMaxLen, "%u", *(uint32_t *)buf);
+      n = snprintf(str, strMaxLen, "%u", *(uint32_t *)buf);
       break;
 
     case TSDB_DATA_TYPE_UBIGINT:
-      n = tsnprintf(str, strMaxLen, "%" PRIu64, *(uint64_t *)buf);
+      n = snprintf(str, strMaxLen, "%" PRIu64, *(uint64_t *)buf);
       break;
       
     default:

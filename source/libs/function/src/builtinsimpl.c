@@ -1927,11 +1927,11 @@ int32_t leastSQRFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   char buf[LEASTSQUARES_BUFF_LENGTH] = {0};
   char slopBuf[64] = {0};
   char interceptBuf[64] = {0};
-  int  n = tsnprintf(slopBuf, 64, "%.6lf", param02);
+  int  n = snprintf(slopBuf, 64, "%.6lf", param02);
   if (n > LEASTSQUARES_DOUBLE_ITEM_LENGTH) {
     (void)snprintf(slopBuf, 64, "%." DOUBLE_PRECISION_DIGITS, param02);
   }
-  n = tsnprintf(interceptBuf, 64, "%.6lf", param12);
+  n = snprintf(interceptBuf, 64, "%.6lf", param12);
   if (n > LEASTSQUARES_DOUBLE_ITEM_LENGTH) {
     (void)snprintf(interceptBuf, 64, "%." DOUBLE_PRECISION_DIGITS, param12);
   }
@@ -2125,9 +2125,9 @@ int32_t percentileFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
         }
 
         if (i == pCtx->numOfParams - 1) {
-          len += tsnprintf(varDataVal(buf) + len, sizeof(buf) - VARSTR_HEADER_SIZE - len, "%.6lf]", ppInfo->result);
+          len += snprintf(varDataVal(buf) + len, sizeof(buf) - VARSTR_HEADER_SIZE - len, "%.6lf]", ppInfo->result);
         } else {
-          len += tsnprintf(varDataVal(buf) + len, sizeof(buf) - VARSTR_HEADER_SIZE - len, "%.6lf, ", ppInfo->result);
+          len += snprintf(varDataVal(buf) + len, sizeof(buf) - VARSTR_HEADER_SIZE - len, "%.6lf, ", ppInfo->result);
         }
       }
 
@@ -3549,6 +3549,9 @@ static int32_t doHandleDiff(SDiffInfo* pDiffInfo, int32_t type, const char* pv, 
 bool funcInputGetNextRowIndex(SInputColumnInfoData* pInput, int32_t from, bool firstOccur, int32_t* pRowIndex,
                               int32_t* nextFrom) {
   if (pInput->pPrimaryKey == NULL) {
+    if (pInput->numOfRows == 0) {
+      return false;
+    }
     if (from == -1) {
       from = pInput->startRowIndex;
     } else if (from >= pInput->numOfRows + pInput->startRowIndex) {
@@ -5266,13 +5269,13 @@ int32_t histogramFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
     int32_t len;
     char    buf[512] = {0};
     if (!pInfo->normalized) {
-      len = tsnprintf(varDataVal(buf), sizeof(buf) - VARSTR_HEADER_SIZE,
-                      "{\"lower_bin\":%g, \"upper_bin\":%g, \"count\":%" PRId64 "}", pInfo->bins[i].lower,
-                      pInfo->bins[i].upper, pInfo->bins[i].count);
+      len = snprintf(varDataVal(buf), sizeof(buf) - VARSTR_HEADER_SIZE,
+                     "{\"lower_bin\":%g, \"upper_bin\":%g, \"count\":%" PRId64 "}", pInfo->bins[i].lower,
+                     pInfo->bins[i].upper, pInfo->bins[i].count);
     } else {
-      len = tsnprintf(varDataVal(buf), sizeof(buf) - VARSTR_HEADER_SIZE,
-                      "{\"lower_bin\":%g, \"upper_bin\":%g, \"count\":%lf}", pInfo->bins[i].lower, pInfo->bins[i].upper,
-                      pInfo->bins[i].percentage);
+      len = snprintf(varDataVal(buf), sizeof(buf) - VARSTR_HEADER_SIZE,
+                     "{\"lower_bin\":%g, \"upper_bin\":%g, \"count\":%lf}", pInfo->bins[i].lower, pInfo->bins[i].upper,
+                     pInfo->bins[i].percentage);
     }
     varDataSetLen(buf, len);
     code = colDataSetVal(pCol, currentRow, buf, false);
@@ -6914,9 +6917,9 @@ int32_t blockDistFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
     compRatio = pData->totalSize * 100 / (double)totalRawSize;
   }
 
-  int32_t len = tsnprintf(varDataVal(st), sizeof(st) - VARSTR_HEADER_SIZE,
-                          "Total_Blocks=[%d] Total_Size=[%.2f KiB] Average_size=[%.2f KiB] Compression_Ratio=[%.2f %c]",
-                          pData->numOfBlocks, pData->totalSize / 1024.0, averageSize / 1024.0, compRatio, '%');
+  int32_t len = snprintf(varDataVal(st), sizeof(st) - VARSTR_HEADER_SIZE,
+                         "Total_Blocks=[%d] Total_Size=[%.2f KiB] Average_size=[%.2f KiB] Compression_Ratio=[%.2f %c]",
+                         pData->numOfBlocks, pData->totalSize / 1024.0, averageSize / 1024.0, compRatio, '%');
 
   varDataSetLen(st, len);
   int32_t code = colDataSetVal(pColInfo, row++, st, false);
@@ -6929,26 +6932,26 @@ int32_t blockDistFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
     avgRows = pData->totalRows / pData->numOfBlocks;
   }
 
-  len = tsnprintf(varDataVal(st), sizeof(st) - VARSTR_HEADER_SIZE,
-                  "Block_Rows=[%" PRId64 "] MinRows=[%d] MaxRows=[%d] AvgRows=[%" PRId64 "]", pData->totalRows,
-                  pData->minRows, pData->maxRows, avgRows);
+  len = snprintf(varDataVal(st), sizeof(st) - VARSTR_HEADER_SIZE,
+                 "Block_Rows=[%" PRId64 "] MinRows=[%d] MaxRows=[%d] AvgRows=[%" PRId64 "]", pData->totalRows,
+                 pData->minRows, pData->maxRows, avgRows);
   varDataSetLen(st, len);
   code = colDataSetVal(pColInfo, row++, st, false);
   if (TSDB_CODE_SUCCESS != code) {
     return code;
   }
 
-  len = tsnprintf(varDataVal(st), sizeof(st) - VARSTR_HEADER_SIZE, "Inmem_Rows=[%u] Stt_Rows=[%u] ",
-                  pData->numOfInmemRows, pData->numOfSttRows);
+  len = snprintf(varDataVal(st), sizeof(st) - VARSTR_HEADER_SIZE, "Inmem_Rows=[%u] Stt_Rows=[%u] ",
+                 pData->numOfInmemRows, pData->numOfSttRows);
   varDataSetLen(st, len);
   code = colDataSetVal(pColInfo, row++, st, false);
   if (TSDB_CODE_SUCCESS != code) {
     return code;
   }
 
-  len = tsnprintf(varDataVal(st), sizeof(st) - VARSTR_HEADER_SIZE,
-                  "Total_Tables=[%d] Total_Filesets=[%d] Total_Vgroups=[%d]", pData->numOfTables, pData->numOfFiles,
-                  pData->numOfVgroups);
+  len = snprintf(varDataVal(st), sizeof(st) - VARSTR_HEADER_SIZE,
+                 "Total_Tables=[%d] Total_Filesets=[%d] Total_Vgroups=[%d]", pData->numOfTables, pData->numOfFiles,
+                 pData->numOfVgroups);
 
   varDataSetLen(st, len);
   code = colDataSetVal(pColInfo, row++, st, false);
@@ -6956,8 +6959,8 @@ int32_t blockDistFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
     return code;
   }
 
-  len = tsnprintf(varDataVal(st), sizeof(st) - VARSTR_HEADER_SIZE,
-                  "--------------------------------------------------------------------------------");
+  len = snprintf(varDataVal(st), sizeof(st) - VARSTR_HEADER_SIZE,
+                 "--------------------------------------------------------------------------------");
   varDataSetLen(st, len);
   code = colDataSetVal(pColInfo, row++, st, false);
   if (TSDB_CODE_SUCCESS != code) {
@@ -6984,7 +6987,7 @@ int32_t blockDistFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 
   for (int32_t i = 0; i < tListLen(pData->blockRowsHisto); ++i) {
     len =
-        tsnprintf(varDataVal(st), sizeof(st) - VARSTR_HEADER_SIZE, "%04d |", pData->defMinRows + bucketRange * (i + 1));
+        snprintf(varDataVal(st), sizeof(st) - VARSTR_HEADER_SIZE, "%04d |", pData->defMinRows + bucketRange * (i + 1));
 
     int32_t num = 0;
     if (pData->blockRowsHisto[i] > 0) {
@@ -6992,14 +6995,14 @@ int32_t blockDistFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
     }
 
     for (int32_t j = 0; j < num; ++j) {
-      int32_t x = tsnprintf(varDataVal(st) + len, sizeof(st) - VARSTR_HEADER_SIZE - len, "%c", '|');
+      int32_t x = snprintf(varDataVal(st) + len, sizeof(st) - VARSTR_HEADER_SIZE - len, "%c", '|');
       len += x;
     }
 
     if (pData->blockRowsHisto[i] > 0) {
       double v = pData->blockRowsHisto[i] * 100.0 / pData->numOfBlocks;
-      len += tsnprintf(varDataVal(st) + len, sizeof(st) - VARSTR_HEADER_SIZE - len, "  %d (%.2f%c)",
-                       pData->blockRowsHisto[i], v, '%');
+      len += snprintf(varDataVal(st) + len, sizeof(st) - VARSTR_HEADER_SIZE - len, "  %d (%.2f%c)",
+                      pData->blockRowsHisto[i], v, '%');
     }
 
     varDataSetLen(st, len);
@@ -7111,7 +7114,7 @@ int32_t blockDBUsageFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   }
 
   len =
-      tsnprintf(varDataVal(st), sizeof(st) - VARSTR_HEADER_SIZE, "Disk_occupied=[%" PRId64 "k]", pData->dataInDiskSize);
+      snprintf(varDataVal(st), sizeof(st) - VARSTR_HEADER_SIZE, "Disk_occupied=[%" PRId64 "k]", pData->dataInDiskSize);
   varDataSetLen(st, len);
   code = colDataSetVal(pColInfo, row++, st, false);
   if (TSDB_CODE_SUCCESS != code) {

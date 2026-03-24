@@ -31,3 +31,4 @@ toml==0.10.2
 tzlocal==5.3.1
 wexpect
 setuptools
+pyotp

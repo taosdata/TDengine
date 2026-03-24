@@ -1405,6 +1405,7 @@ void freeOperatorParam(SOperatorParam* pParam, SOperatorParamType type) {
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN:
       type == OP_GET_PARAM ? freeMergeJoinGetOperatorParam(pParam) : freeMergeJoinNotifyOperatorParam(pParam);
       break;
+    case QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN:
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN:
       type == OP_GET_PARAM ? freeTableScanGetOperatorParam(pParam) : freeTableScanNotifyOperatorParam(pParam);
       break;
@@ -1415,7 +1416,10 @@ void freeOperatorParam(SOperatorParam* pParam, SOperatorParamType type) {
       type == OP_GET_PARAM ? freeTagScanGetOperatorParam(pParam) : freeTagScanNotifyOperatorParam(pParam);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_HASH_AGG:
+    case QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL:
     case QUERY_NODE_PHYSICAL_PLAN_MERGE:
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_INTERVAL:
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_INTERVAL:
       type == OP_GET_PARAM ? freeMergeGetOperatorParam(pParam) : freeMergeNotifyOperatorParam(pParam);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_EXTERNAL_WINDOW:
@@ -1428,8 +1432,8 @@ void freeOperatorParam(SOperatorParam* pParam, SOperatorParamType type) {
       type == OP_GET_PARAM ? freeInterpFuncGetOperatorParam(pParam) : freeInterpFuncNotifyOperatorParam(pParam);
       break;
     default:
-      qError("%s unsupported op %d param, param type %d",
-             __func__, pParam->opType, type);
+      qError("%s unsupported op %d param, param type %d, param:%p value:%p children:%p reuse:%d",
+             __func__, pParam->opType, type, pParam, pParam->value, pParam->pChildren, pParam->reUse);
       break;
   }
 }
@@ -1451,6 +1455,8 @@ void freeResetOperatorParams(struct SOperatorInfo* pOperator, SOperatorParamType
   }
 
   if (*ppParam) {
+    qDebug("%s free self param, operator:%s type:%d paramType:%d param:%p", __func__, pOperator->name,
+           pOperator->operatorType, type, *ppParam);
     freeOperatorParam(*ppParam, type);
     *ppParam = NULL;
   }
@@ -1458,6 +1464,9 @@ void freeResetOperatorParams(struct SOperatorInfo* pOperator, SOperatorParamType
   if (*pppDownstramParam) {
     for (int32_t i = 0; i < pOperator->numOfDownstream; ++i) {
       if ((*pppDownstramParam)[i]) {
+        qDebug("%s free downstream param, operator:%s type:%d idx:%d downstream:%s paramType:%d param:%p", __func__,
+               pOperator->name, pOperator->operatorType, i, pOperator->pDownstream[i]->name, type,
+               (*pppDownstramParam)[i]);
         freeOperatorParam((*pppDownstramParam)[i], type);
         (*pppDownstramParam)[i] = NULL;
       }
@@ -1478,6 +1487,9 @@ FORCE_INLINE int32_t getNextBlockFromDownstreamImpl(struct SOperatorInfo* pOpera
     code = pOperator->pDownstream[idx]->fpSet.getNextExtFn(pOperator->pDownstream[idx],
                                                            pOperator->pDownstreamGetParams[idx], pResBlock);
     if (clearParam && (code == 0)) {
+      qDebug("%s clear downstream param, operator:%s type:%d idx:%d downstream:%s param:%p", __func__,
+             pOperator->name, pOperator->operatorType, idx, pOperator->pDownstream[idx]->name,
+             pOperator->pDownstreamGetParams[idx]);
       freeOperatorParam(pOperator->pDownstreamGetParams[idx], OP_GET_PARAM);
       pOperator->pDownstreamGetParams[idx] = NULL;
     }

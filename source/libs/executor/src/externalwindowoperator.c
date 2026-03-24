@@ -61,6 +61,7 @@ typedef struct SExtWinCalcGrpCtx {
   
   int32_t            lastWinIdx;
   int64_t            lastSKey;
+  in64_t             lastEKey;
   int32_t            lastWinId;  
 } SExtWinCalcGrpCtx;
 
@@ -758,6 +759,7 @@ static int32_t extWinInitCGrpCtx(SExternalWindowOperator* pExtW, SExecTaskInfo* 
   pCtx->groupId = 0;
   pCtx->curIdx = 0;
   pCtx->lastSKey = INT64_MIN;
+  pCtx->lastEKey = INT64_MAX;
   pCtx->lastWinId = -1;
   pCtx->lastWinIdx = -1;
   pCtx->blkWinIdx = -1;
@@ -1349,7 +1351,6 @@ static int32_t mergeAlignExtWinNext(SOperatorInfo* pOperator, SSDataBlock** ppRe
   mergeAlignExtWinDo(pOperator);
   
   size_t rows = pRes->info.rows;
-  pOperator->resultInfo.totalRows += rows;
   (*ppRes) = (rows == 0) ? NULL : pRes;
 
 _exit:
@@ -1380,7 +1381,7 @@ int32_t resetMergeAlignedExtWinOperator(SOperatorInfo* pOperator) {
 
 /*
   int32_t code = resetAggSup(&pOperator->exprSupp, &pExtW->aggSup, pTaskInfo, pPhynode->window.pFuncs, NULL,
-                             sizeof(int64_t) * 2 + POINTER_BYTES, pTaskInfo->id.str, pTaskInfo->streamInfo.pState,
+                             sizeof(int64_t) * 2 + POINTER_BYTES, pTaskInfo->id.str, NULL,
                              &pTaskInfo->storageAPI.functionStore);
 */                             
 
@@ -1417,6 +1418,7 @@ int32_t createMergeAlignedExternalWindowOperator(SOperatorInfo* pDownstream, SPh
     code = terrno;
     goto _error;
   }
+  initOperatorCostInfo(pOperator);
 
   pMAExtW->pExtW = taosMemoryCalloc(1, sizeof(SExternalWindowOperator));
   if (!pMAExtW->pExtW) {
@@ -1452,7 +1454,7 @@ int32_t createMergeAlignedExternalWindowOperator(SOperatorInfo* pDownstream, SPh
   }
 
   if (pExtW->mode == EEXT_MODE_AGG) {
-    code = initAggSup(pSup, &pExtW->aggSup, pExprInfo, num, keyBufSize, pTaskInfo->id.str, pTaskInfo->streamInfo.pState,
+    code = initAggSup(pSup, &pExtW->aggSup, pExprInfo, num, keyBufSize, pTaskInfo->id.str, NULL,
                       &pTaskInfo->storageAPI.functionStore);
     QUERY_CHECK_CODE(code, lino, _error);
   }
@@ -2666,7 +2668,8 @@ static int32_t extWinAggHandleEmptyWins(SOperatorInfo* pOperator, SSDataBlock* p
   SExprSupp* pSup = &pOperator->exprSupp;
   int32_t currIdx = extWinGetCurWinIdx(pOperator);
 
-  if (NULL == pExtW->pEmptyInputBlock || (pWin && pWin->tw.skey == pExtW->pTGrpCtx->pCCtx->lastSKey)) {
+  if (NULL == pExtW->pEmptyInputBlock || (pWin && pWin->tw.skey == pExtW->pTGrpCtx->pCCtx->lastSKey &&
+                                          pWin->tw.ekey == pExtW->pTGrpCtx->pCCtx->lastEKey)) {
     goto _exit;
   }
 
@@ -2742,14 +2745,17 @@ static int32_t extWinAggOpen(SOperatorInfo* pOperator, SSDataBlock* pInputBlock)
       scalarCalc = true;
     }
 
-    if (pWin->tw.skey != pExtW->pTGrpCtx->pCCtx->lastSKey || pWin->tw.skey == INT64_MIN) {
-      TAOS_CHECK_EXIT(extWinAggSetWinOutputBuf(pOperator, pWin, &pOperator->exprSupp, &pExtW->aggSup, pOperator->pTaskInfo));
+    if (pWin->tw.skey != pExtW->pTGrpCtx->pCCtx->lastSKey || pWin->tw.ekey != pExtW->pTGrpCtx->pCCtx->lastEKey ||
+        pWin->tw.skey == INT64_MIN) {
+      TAOS_CHECK_EXIT(
+          extWinAggSetWinOutputBuf(pOperator, pWin, &pOperator->exprSupp, &pExtW->aggSup, pOperator->pTaskInfo));
     }
-    
+
     updateTimeWindowInfo(&pExtW->twAggSup.timeWindowData, &pWin->tw, 1);
     TAOS_CHECK_EXIT(extWinAggDo(pOperator, startPos, winRows, pInputBlock));
     
     pExtW->pTGrpCtx->pCCtx->lastSKey = pWin->tw.skey;
+    pExtW->pTGrpCtx->pCCtx->lastEKey = pWin->tw.ekey;
     pExtW->pTGrpCtx->pCCtx->lastWinId = extWinGetCurWinIdx(pOperator);
     startPos += winRows;
   }
@@ -3510,7 +3516,7 @@ _exit:
   if (pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM && (*ppRes)) {
     printDataBlock(*ppRes, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo), pTaskInfo->id.queryId);
   }
-  
+
   return code;
 }
 
@@ -3539,7 +3545,7 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
     lino = __LINE__;
     goto _error;
   }
-
+  initOperatorCostInfo(pOperator);
   pExtW->needGroupSort = pPhynode->needGroupSort;
   // In non-stream (batch) mode, temporarily disable calcWithPartition to tolerate
   // upstream that does not provide distinct C-group ids (groupId==baseGId).
@@ -3666,7 +3672,7 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
     TSDB_CHECK_CODE(code, lino, _error);
     
     code = initAggSup(&pOperator->exprSupp, &pExtW->aggSup, pExprInfo, numOfExpr, keyBufSize, pTaskInfo->id.str,
-                              pTaskInfo->streamInfo.pState, &pTaskInfo->storageAPI.functionStore);
+                              NULL, &pTaskInfo->storageAPI.functionStore);
     TSDB_CHECK_CODE(code, lino, _error);
     pOperator->exprSupp.hasWindowOrGroup = false;
     

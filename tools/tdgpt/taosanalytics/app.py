@@ -1,30 +1,31 @@
 # encoding:utf-8
 # pylint: disable=c0103
 """the main route definition for restful service"""
-import os.path, sys
+import os.path
+import sys
 
 import numpy as np
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../")
 
-from flask import Flask, request
-
-import taosanalytics
-from taosanalytics.algo.imputation import (do_imputation, do_set_imputation_params, check_freq_param)
-from taosanalytics.algo.anomaly import do_ad_check
-from taosanalytics.algo.forecast import do_forecast, do_add_fc_params
-from taosanalytics.algo.correlation import do_dtw, do_tlcc
-from taosanalytics.algo.tool.batch import do_batch_process, update_config
-
-from taosanalytics.model import model_manager
-from taosanalytics.conf import conf
-from taosanalytics.model import model_manager
-from taosanalytics.servicemgmt import loader
-from taosanalytics.util import (app_logger, parse_options, get_past_dynamic_data, get_dynamic_data,
-                                get_second_data_list,
-                                do_check_before_exec, do_initial_check)
+# Imports below require modified sys.path
+from flask import Flask, request  # noqa: E402 - Import after sys.path modification
+import taosanalytics  # noqa: E402 - Import after sys.path modification
+from taosanalytics.algo.imputation import (do_imputation, do_set_imputation_params, check_freq_param)  # noqa: E402
+from taosanalytics.algo.anomaly import do_ad_check  # noqa: E402
+from taosanalytics.algo.forecast import do_forecast, do_add_fc_params  # noqa: E402
+from taosanalytics.algo.correlation import do_dtw, do_tlcc  # noqa: E402
+from taosanalytics.algo.tool.batch import do_batch_process, update_config  # noqa: E402
+from taosanalytics.conf import conf  # noqa: E402
+from taosanalytics.model import model_manager  # noqa: E402
+from taosanalytics.servicemgmt import loader  # noqa: E402
+from taosanalytics.util import (  # noqa: E402
+    app_logger, parse_options, get_past_dynamic_data, get_dynamic_data,
+    get_more_data_list, do_check_before_exec, do_initial_check
+)
 
 app = Flask(__name__)
+app.config["PROPAGATE_EXCEPTIONS"] = True
 
 # load the all algos
 app_logger.set_handler(conf.get_log_path())
@@ -71,30 +72,28 @@ def handle_ad_request():
     try:
         req_json, payload, options, data_index, ts_index = do_check_before_exec(request, True)
     except Exception as e:
+        app_logger.log_inst.error("failed to do anomaly-detection, %s", str(e))
         return {"msg": str(e), "rows": -1}
 
     algo = req_json["algo"].lower() if "algo" in req_json else "ksigma"
 
-    # 1. validate the input data in json format
     try:
-        d = req_json["data"]
-        if len(d) > 2:
-            raise ValueError(f"invalid data format, too many columns for anomaly-detection, allowed:2, input:{len(d)}")
+        ts_list = payload[ts_index].copy()
+        payload.pop(ts_index)
     except ValueError as e:
         return {"msg": str(e), "rows": -1}
 
     params = parse_options(options)
 
-    # 4. do anomaly detection
     try:
-        res_list, ano_window, mask_list = do_ad_check(payload[data_index], payload[ts_index], algo, params)
+        res_list, ano_window, mask_list = do_ad_check(payload, ts_list, algo, params)
         result = {"algo": algo, "option": options, "res": ano_window, "rows": len(ano_window), "mask": mask_list}
 
         app_logger.log_inst.debug("anomaly-detection result: %s", str(result))
         return result
 
     except Exception as e:
-        result = {"res": {}, "rows": 0, "msg": str(e)}
+        result = {"res": {}, "rows": -1, "msg": str(e)}
         app_logger.log_inst.error("failed to do anomaly-detection, %s", str(e))
 
         return result
@@ -183,7 +182,7 @@ def handle_correlation_req():
     algo = req_json['algo'].lower()
 
     try:
-        second_list = get_second_data_list(payload, req_json["schema"])
+        second_list = get_more_data_list(payload, req_json["schema"])
 
         if algo == 'dtw':
             dist, path = do_dtw(payload[data_index], second_list, params)

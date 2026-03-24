@@ -136,6 +136,7 @@ static int32_t columnNodeCopy(const SColumnNode* pSrc, SColumnNode* pDst) {
   COPY_SCALAR_FIELD(resIdx);
   COPY_SCALAR_FIELD(hasDep);
   COPY_SCALAR_FIELD(hasRef);
+  COPY_SCALAR_FIELD(flags);
   COPY_CHAR_ARRAY_FIELD(refDbName);
   COPY_CHAR_ARRAY_FIELD(refTableName);
   COPY_CHAR_ARRAY_FIELD(refColName);
@@ -553,6 +554,32 @@ static int32_t remoteTableCopy(const SRemoteTableNode* pSrc, SRemoteTableNode* p
   COPY_SCALAR_FIELD(resCols);
   COPY_SCALAR_FIELD(pResBlks);
   COPY_SCALAR_FIELD(subQIdx);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t updateTagValueNodeCopy(const SUpdateTagValueNode* pSrc, SUpdateTagValueNode* pDst) {
+  COPY_CHAR_ARRAY_FIELD(tagName);
+  CLONE_NODE_FIELD(pVal);
+  if (pSrc->regexp != NULL) {
+    pDst->regexp = taosStrdup(pSrc->regexp);
+    if (NULL == pDst->regexp) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+  if (pSrc->replacement != NULL) {
+    pDst->replacement = taosStrdup(pSrc->replacement);
+    if (NULL == pDst->replacement) {
+      taosMemoryFreeClear(pDst->regexp);
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t alterTableUpdateTagValClauseCopy(const SAlterTableUpdateTagValClause* pSrc, SAlterTableUpdateTagValClause* pDst) {
+  COPY_CHAR_ARRAY_FIELD(dbName);
+  COPY_CHAR_ARRAY_FIELD(tableName);
+  CLONE_NODE_LIST_FIELD(pTagList);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1318,6 +1345,12 @@ int32_t nodesCloneNode(const SNode* pNode, SNode** ppNode) {
       break;
     case QUERY_NODE_REMOTE_TABLE:
       code = remoteTableCopy((const SRemoteTableNode*)pNode, (SRemoteTableNode*)pDst);
+      break;
+    case QUERY_NODE_UPDATE_TAG_VALUE:
+      code = updateTagValueNodeCopy((const SUpdateTagValueNode*)pNode, (SUpdateTagValueNode*)pDst);
+      break;
+    case QUERY_NODE_ALTER_TABLE_UPDATE_TAG_VAL_CLAUSE:
+      code = alterTableUpdateTagValClauseCopy((const SAlterTableUpdateTagValClause*)pNode, (SAlterTableUpdateTagValClause*)pDst);
       break;
     case QUERY_NODE_TRUE_FOR:
       code = trueForNodeCopy((const STrueForNode*)pNode, (STrueForNode*)pDst);

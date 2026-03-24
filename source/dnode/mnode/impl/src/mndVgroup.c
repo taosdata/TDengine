@@ -327,6 +327,7 @@ void *mndBuildCreateVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVg
   createReq.pageSize = pDb->cfg.pageSize;
   createReq.pages = pDb->cfg.pages;
   createReq.cacheLastSize = pDb->cfg.cacheLastSize;
+  createReq.cacheLastShardBits = pDb->cfg.cacheLastShardBits;
   createReq.daysPerFile = pDb->cfg.daysPerFile;
   createReq.daysToKeep0 = pDb->cfg.daysToKeep0;
   createReq.daysToKeep1 = pDb->cfg.daysToKeep1;
@@ -370,6 +371,7 @@ void *mndBuildCreateVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVg
   }
   createReq.isAudit = pDb->cfg.isAudit ? 1 : 0;
   createReq.allowDrop = pDb->cfg.allowDrop;
+  createReq.secureDelete = pDb->cfg.secureDelete;
   int32_t code = 0;
 
   for (int32_t v = 0; v < pVgroup->replica; ++v) {
@@ -459,6 +461,7 @@ static void *mndBuildAlterVnodeConfigReq(SMnode *pMnode, SDbObj *pDb, SVgObj *pV
   alterReq.pageSize = pDb->cfg.pageSize;
   alterReq.pages = pDb->cfg.pages;
   alterReq.cacheLastSize = pDb->cfg.cacheLastSize;
+  alterReq.cacheLastShardBits = pDb->cfg.cacheLastShardBits;
   alterReq.daysPerFile = pDb->cfg.daysPerFile;
   alterReq.daysToKeep0 = pDb->cfg.daysToKeep0;
   alterReq.daysToKeep1 = pDb->cfg.daysToKeep1;
@@ -475,6 +478,7 @@ static void *mndBuildAlterVnodeConfigReq(SMnode *pMnode, SDbObj *pDb, SVgObj *pV
   alterReq.ssKeepLocal = pDb->cfg.ssKeepLocal;
   alterReq.ssCompact = pDb->cfg.ssCompact;
   alterReq.allowDrop = (int8_t)pDb->cfg.allowDrop;
+  alterReq.secureDelete = pDb->cfg.secureDelete;
 
   mInfo("vgId:%d, build alter vnode config req", pVgroup->vgId);
   int32_t contLen = tSerializeSAlterVnodeConfigReq(NULL, 0, &alterReq);
@@ -2905,7 +2909,7 @@ static int32_t mndProcessRedistributeVgroupMsg(SRpcMsg *pReq) {
 
   if (tsAuditLevel >= AUDIT_LEVEL_CLUSTER) {
     char obj[33] = {0};
-    (void)tsnprintf(obj, sizeof(obj), "%d", req.vgId);
+    (void)snprintf(obj, sizeof(obj), "%d", req.vgId);
 
     int64_t tse = taosGetTimestampMs();
     double  duration = (double)(tse - tss);

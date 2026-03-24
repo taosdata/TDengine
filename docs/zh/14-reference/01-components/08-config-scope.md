@@ -188,7 +188,6 @@ toc_max_heading_level: 4
 | **调试相关** | | |
 | enableCoreFile | both | crash 时是否生成 core 文件 |
 | configDir | both | 配置文件所在目录 |
-| forceReadConfig | taosd | 是否使用持久化的局部配置参数 |
 | scriptDir | both | 测试工具的脚本目录 |
 | assert | both | 断言控制开关 |
 | randErrorChance | both | 用于随机失败测试 |
@@ -220,6 +219,8 @@ toc_max_heading_level: 4
 | smlTsDefaultName | taosc | schemaless 自动建表的时间列名字通过该配置设置 |
 | smlDot2Underline | taosc | schemaless 把超级表名中的 dot 转成下划线 |
 | maxInsertBatchRows | taosc | 一批写入的最大条数 |
+| tmqWriteRefDB | taosc | tmq_write_raw 接口写入 meta 消息时，虚拟表 ref 信息里的 db 替换为该参数，空标识不替换 |
+| tmqWriteCheckRef | taosc | tmq_write_raw 接口写入另一个集群时，是否校验虚拟表 ref 信息的有效性 |
 | **SHELL 相关** | | |
 | enableScience | taosc | 是否开启科学计数法显示浮点数 |
 | **WebSocket 相关** | | |

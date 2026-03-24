@@ -3458,6 +3458,7 @@ enum {
   PHY_EXCHANGE_CODE_BASE_NODE = 1,
   PHY_EXCHANGE_CODE_SRC_START_GROUP_ID,
   PHY_EXCHANGE_CODE_SRC_END_GROUP_ID,
+  PHY_EXCHANGE_CODE_CHILDREN_VGIDS,
   PHY_EXCHANGE_CODE_SINGLE_CHANNEL,
   PHY_EXCHANGE_CODE_SRC_ENDPOINTS,
   PHY_EXCHANGE_CODE_SEQ_RECV_DATA,
@@ -3474,6 +3475,9 @@ static int32_t physiExchangeNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeI32(pEncoder, PHY_EXCHANGE_CODE_SRC_END_GROUP_ID, pNode->srcEndGroupId);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->childrenVgIds) {
+    code = tlvEncodeObj(pEncoder, PHY_EXCHANGE_CODE_CHILDREN_VGIDS, SArrayToMsg, pNode->childrenVgIds);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeBool(pEncoder, PHY_EXCHANGE_CODE_SINGLE_CHANNEL, pNode->grpSingleChannel);
@@ -3509,6 +3513,9 @@ static int32_t msgToPhysiExchangeNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_EXCHANGE_CODE_SRC_END_GROUP_ID:
         code = tlvDecodeI32(pTlv, &pNode->srcEndGroupId);
+        break;
+      case PHY_EXCHANGE_CODE_CHILDREN_VGIDS:
+        code = msgToSArray(pTlv, (void**)&pNode->childrenVgIds);
         break;
       case PHY_EXCHANGE_CODE_SINGLE_CHANNEL:
         code = tlvDecodeBool(pTlv, &pNode->grpSingleChannel);
@@ -4266,7 +4273,7 @@ static int32_t physiAnomalyWindowNodeToMsg(const void* pObj, STlvEncoder* pEncod
 
   int32_t code = tlvEncodeObj(pEncoder, PHY_ANOMALY_CODE_WINDOW, physiWindowNodeToMsg, &pNode->window);
   if (TSDB_CODE_SUCCESS == code) {
-    code = tlvEncodeObj(pEncoder, PHY_ANOMALY_CODE_KEY, nodeToMsg, pNode->pAnomalyKey);
+    code = tlvEncodeObj(pEncoder, PHY_ANOMALY_CODE_KEY, nodeListToMsg, pNode->pAnomalyKeys);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeCStr(pEncoder, PHY_ANOMALY_CODE_WINDOW_OPTION, pNode->anomalyOpt);
@@ -4286,7 +4293,7 @@ static int32_t msgToPhysiAnomalyWindowNode(STlvDecoder* pDecoder, void* pObj) {
         code = tlvDecodeObjFromTlv(pTlv, msgToPhysiWindowNode, &pNode->window);
         break;
       case PHY_ANOMALY_CODE_KEY:
-        code = msgToNodeFromTlv(pTlv, (void**)&pNode->pAnomalyKey);
+        code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pAnomalyKeys);
         break;
       case PHY_ANOMALY_CODE_WINDOW_OPTION:
         code = tlvDecodeCStr(pTlv, pNode->anomalyOpt, sizeof(pNode->anomalyOpt));
@@ -4927,6 +4934,8 @@ static int32_t physiDynQueryCtrlNodeToMsg(const void* pObj, STlvEncoder* pEncode
         }
         // do not break
       }
+      case DYN_QTYPE_VTB_TS_SCAN:
+      case DYN_QTYPE_VTB_INTERVAL:
       case DYN_QTYPE_VTB_AGG:
       case DYN_QTYPE_VTB_SCAN: {
         code = tlvEncodeBool(pEncoder, PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_SCAN_ALL_COLS, pNode->vtbScan.scanAllCols);

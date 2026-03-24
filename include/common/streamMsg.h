@@ -34,107 +34,9 @@ typedef enum EStreamTriggerType {
   STREAM_TRIGGER_EVENT,
 } EStreamTriggerType;
 
-typedef struct SStreamRetrieveReq SStreamRetrieveReq;
-typedef struct SStreamDispatchReq SStreamDispatchReq;
 typedef struct STokenBucket       STokenBucket;
 
 #define COPY_STR(_p) ((_p) ? (taosStrdup(_p)) : NULL)
-
-typedef struct SNodeUpdateInfo {
-  int32_t nodeId;
-  SEpSet  prevEp;
-  SEpSet  newEp;
-} SNodeUpdateInfo;
-
-typedef struct SStreamUpstreamEpInfo {
-  int32_t nodeId;
-  int32_t childId;
-  int32_t taskId;
-  SEpSet  epSet;
-  bool    dataAllowed;  // denote if the data from this upstream task is allowed to put into inputQ, not serialize it
-  int64_t stage;  // upstream task stage value, to denote if the upstream node has restart/replica changed/transfer
-  int64_t lastMsgId;
-} SStreamUpstreamEpInfo;
-
-int32_t tEncodeStreamEpInfo(SEncoder* pEncoder, const SStreamUpstreamEpInfo* pInfo);
-int32_t tDecodeStreamEpInfo(SDecoder* pDecoder, SStreamUpstreamEpInfo* pInfo);
-
-typedef struct SStreamTaskNodeUpdateMsg {
-  int32_t transId;  // to identify the msg
-  int64_t streamId;
-  int32_t taskId;
-  SArray* pNodeList;  // SArray<SNodeUpdateInfo>
-  SArray* pTaskList;  // SArray<int32_t>, taskId list
-} SStreamTaskNodeUpdateMsg;
-
-int32_t tEncodeStreamTaskUpdateMsg(SEncoder* pEncoder, const SStreamTaskNodeUpdateMsg* pMsg);
-int32_t tDecodeStreamTaskUpdateMsg(SDecoder* pDecoder, SStreamTaskNodeUpdateMsg* pMsg);
-void    tDestroyNodeUpdateMsg(SStreamTaskNodeUpdateMsg* pMsg);
-
-typedef struct {
-  int64_t reqId;
-  int64_t stage;
-  int64_t streamId;
-  int32_t upstreamNodeId;
-  int32_t upstreamTaskId;
-  int32_t downstreamNodeId;
-  int32_t downstreamTaskId;
-  int32_t childId;
-} SStreamTaskCheckReq;
-
-int32_t tEncodeStreamTaskCheckReq(SEncoder* pEncoder, const SStreamTaskCheckReq* pReq);
-int32_t tDecodeStreamTaskCheckReq(SDecoder* pDecoder, SStreamTaskCheckReq* pReq);
-
-typedef struct {
-  int64_t reqId;
-  int64_t streamId;
-  int32_t upstreamNodeId;
-  int32_t upstreamTaskId;
-  int32_t downstreamNodeId;
-  int32_t downstreamTaskId;
-  int32_t childId;
-  int64_t oldStage;
-  int8_t  status;
-} SStreamTaskCheckRsp;
-
-int32_t tEncodeStreamTaskCheckRsp(SEncoder* pEncoder, const SStreamTaskCheckRsp* pRsp);
-int32_t tDecodeStreamTaskCheckRsp(SDecoder* pDecoder, SStreamTaskCheckRsp* pRsp);
-
-struct SStreamDispatchReq {
-  int32_t type;
-  int64_t stage;  // nodeId from upstream task
-  int64_t streamId;
-  int32_t taskId;
-  int32_t msgId;  // msg id to identify if the incoming msg from the same sender
-  int32_t srcVgId;
-  int32_t upstreamTaskId;
-  int32_t upstreamChildId;
-  int32_t upstreamNodeId;
-  int32_t upstreamRelTaskId;
-  int32_t blockNum;
-  int64_t totalLen;
-  SArray* dataLen;  // SArray<int32_t>
-  SArray* data;     // SArray<SRetrieveTableRsp*>
-};
-
-int32_t tEncodeStreamDispatchReq(SEncoder* pEncoder, const struct SStreamDispatchReq* pReq);
-int32_t tDecodeStreamDispatchReq(SDecoder* pDecoder, struct SStreamDispatchReq* pReq);
-void    tCleanupStreamDispatchReq(struct SStreamDispatchReq* pReq);
-
-struct SStreamRetrieveReq {
-  int64_t            streamId;
-  int64_t            reqId;
-  int32_t            srcTaskId;
-  int32_t            srcNodeId;
-  int32_t            dstTaskId;
-  int32_t            dstNodeId;
-  int32_t            retrieveLen;
-  SRetrieveTableRsp* pRetrieve;
-};
-
-int32_t tEncodeStreamRetrieveReq(SEncoder* pEncoder, const struct SStreamRetrieveReq* pReq);
-int32_t tDecodeStreamRetrieveReq(SDecoder* pDecoder, struct SStreamRetrieveReq* pReq);
-void    tCleanupStreamRetrieveReq(struct SStreamRetrieveReq* pReq);
 
 #define BIT_FLAG_MASK(n)               (1 << n)
 #define BIT_FLAG_SET_MASK(val, mask)   ((val) |= (mask))
@@ -156,6 +58,8 @@ void    tCleanupStreamRetrieveReq(struct SStreamRetrieveReq* pReq);
 #define PLACE_HOLDER_PARTITION_TBNAME BIT_FLAG_MASK(11)
 #define PLACE_HOLDER_PARTITION_ROWS   BIT_FLAG_MASK(12)
 #define PLACE_HOLDER_GRPID            BIT_FLAG_MASK(13)
+#define PLACE_HOLDER_IDLE_START       BIT_FLAG_MASK(14)
+#define PLACE_HOLDER_IDLE_END         BIT_FLAG_MASK(15)
 
 #define CREATE_STREAM_FLAG_NONE                     0
 #define CREATE_STREAM_FLAG_TRIGGER_VIRTUAL_STB      BIT_FLAG_MASK(0)
@@ -284,6 +188,7 @@ typedef struct {
   int64_t        fillHistoryStartTime;  // precision same with triggerDB, INT64_MIN for no value specified
   int64_t        watermark;             // precision same with triggerDB
   int64_t        expiredTime;           // precision same with triggerDB
+  int64_t        idleTimeoutMs;         // idle timeout in milliseconds (0 = disabled)
   SStreamTrigger trigger;
 
   int8_t   triggerTblType;
@@ -534,6 +439,7 @@ typedef struct {
 typedef struct {
   int32_t execReplica;
   void*   calcScanPlan;
+  bool    freeScanPlan;
 } SStreamReaderDeployFromCalc;
 
 typedef union {
@@ -590,6 +496,7 @@ typedef struct {
   int64_t        fillHistoryStartTime;  // precision same with triggerDB, INT64_MIN for no value specified
   int64_t        watermark;             // precision same with triggerDB
   int64_t        expiredTime;           // precision same with triggerDB
+  int64_t        idleTimeoutMs;         // idle timeout in milliseconds
   SStreamTrigger trigger;
 
   int64_t eventTypes;
@@ -906,12 +813,14 @@ typedef struct SSTriggerVirTableInfoRequest {
   SArray*              cids;  // SArray<col_id_t>, col ids of the virtual table
   SArray*              uids;
   bool                 fetchAllTable;  // if true, ignore uids and fetch all virtual tables' info
+  int64_t              ver;            // -1 for first, rsp.ver in walMeta info if vtable changes
 } SSTriggerVirTableInfoRequest;
 
 typedef struct SSTriggerVirTablePseudoColRequest {
   SSTriggerPullRequest base;
   int64_t              uid;
   SArray*              cids;  // SArray<col_id_t>, -1 means tbname
+  int64_t              ver;   // -1 for first, rsp.ver in walMeta info if vtable changes
 } SSTriggerVirTablePseudoColRequest;
 typedef struct OTableInfoRsp {
   int64_t  suid;
@@ -927,6 +836,7 @@ typedef struct OTableInfo {
 typedef struct SSTriggerOrigTableInfoRequest {
   SSTriggerPullRequest base;
   SArray*              cols;  // SArray<OTableInfo>
+  int64_t              ver;   // -1 for first, rsp.ver in walMeta info if original table changes
 } SSTriggerOrigTableInfoRequest;
 
 typedef struct SSTriggerOrigTableInfoRsp {
@@ -979,6 +889,11 @@ typedef struct SSTriggerCalcParam {
       // Placeholder for Period Trigger
       int64_t prevLocalTime;
       int64_t nextLocalTime;
+    };
+    struct {
+      // Placeholder for Idle Trigger
+      int64_t idlestart;  // _tidlestart
+      int64_t idleend;    // _tidleend
     };
   };
 

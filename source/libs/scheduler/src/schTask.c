@@ -88,6 +88,7 @@ int32_t schInitTask(SSchJob *pJob, SSchTask *pTask, SSubplan *pPlan, SSchLevel *
   }
 
   SCH_SET_TASK_STATUS(pTask, JOB_TASK_STATUS_INIT);
+  pTask->profile.startTs = taosGetTimestampUs();
 
   SCH_TASK_DLOG("task initialized, max retry(exec):%d(%d), max retry duration:%.2fs", pTask->maxRetryTimes,
                 pTask->maxExecTimes, (pTask->redirectCtx.redirectDelayMs * pTask->maxRetryTimes) / 1000.0);
@@ -289,6 +290,12 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
   SCH_ERR_RET(schLaunchTasksInFlowCtrlList(pJob, pTask));
 
   int32_t parentNum = pTask->parents ? (int32_t)taosArrayGetSize(pTask->parents) : 0;
+  if (parentNum > 0) {
+    int32_t curPhase = SCH_GET_JOB_PHASE(pJob);
+    if (curPhase == QUERY_PHASE_EXEC_DATA_QUERY) {
+      SCH_SET_JOB_PHASE(pJob, QUERY_PHASE_EXEC_WAITING_CHILDREN);
+    }
+  }
   if (parentNum == 0) {
     int32_t taskDone = 0;
     if (SCH_JOB_NEED_WAIT(pJob)) {

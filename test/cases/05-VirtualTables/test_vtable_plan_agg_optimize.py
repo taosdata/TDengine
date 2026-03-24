@@ -47,4 +47,5 @@ class TestVTablePlanAggOptimize:
         """
 
         self.run_normal_query("test_vstable_plan_test_agg")
+        self.run_normal_query("test_vstable_plan_test_agg_group_by")
 

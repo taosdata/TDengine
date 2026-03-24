@@ -50,7 +50,7 @@ int32_t fillTableColCmpr(SMetaReader *reader, SSchemaExt *pExt, int32_t numOfCol
   return 0;
 }
 
-void vnodePrintTableMeta(STableMetaRsp *pMeta) {
+void vnodeDebugTableMeta(STableMetaRsp *pMeta) {
   if (!(qDebugFlag & DEBUG_DEBUG)) {
     return;
   }
@@ -100,6 +100,28 @@ int32_t fillTableColRef(SMetaReader *reader, SColRef *pRef, int32_t numOfCol) {
   return 0;
 }
 
+int32_t fillTableTagRef(SMetaReader *reader, SColRef *pRef, int32_t numOfTagRefs) {
+  int8_t tblType = reader->me.type;
+  if (hasRefCol(tblType)) {
+    SColRefWrapper *p = &(reader->me.colRef);
+    if (numOfTagRefs != p->nTagRefs) {
+      vError("fillTableTagRef table type:%d, tag ref num:%d, expected:%d mismatch", tblType, numOfTagRefs, p->nTagRefs);
+      return TSDB_CODE_APP_ERROR;
+    }
+    for (int i = 0; i < p->nTagRefs; i++) {
+      SColRef *pTagRef = &p->pTagRef[i];
+      pRef[i].hasRef = pTagRef->hasRef;
+      pRef[i].id = pTagRef->id;
+      if (pRef[i].hasRef) {
+        tstrncpy(pRef[i].refDbName, pTagRef->refDbName, TSDB_DB_NAME_LEN);
+        tstrncpy(pRef[i].refTableName, pTagRef->refTableName, TSDB_TABLE_NAME_LEN);
+        tstrncpy(pRef[i].refColName, pTagRef->refColName, TSDB_COL_NAME_LEN);
+      }
+    }
+  }
+  return 0;
+}
+
 int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   STableInfoReq  infoReq = {0};
   STableMetaRsp  metaRsp = {0};
@@ -128,7 +150,7 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   (void)memcpy(metaRsp.dbFName, infoReq.dbFName, sizeof(metaRsp.dbFName));
 
   if (!reqTbUid) {
-    (void)tsnprintf(tableFName, TSDB_TABLE_FNAME_LEN, "%s.%s", infoReq.dbFName, infoReq.tbName);
+    (void)snprintf(tableFName, TSDB_TABLE_FNAME_LEN, "%s.%s", infoReq.dbFName, infoReq.tbName);
     if (pVnode->mounted) tTrimMountPrefix(tableFName);
     code = vnodeValidateTableHash(pVnode, tableFName);
     if (code) {
@@ -166,7 +188,7 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
 
   switch (mer1.me.type) {
     case TSDB_SUPER_TABLE: {
-      (void)strcpy(metaRsp.stbName, mer1.me.name);
+      tstrncpy(metaRsp.stbName, mer1.me.name, sizeof(metaRsp.stbName));
       schema = mer1.me.stbEntry.schemaRow;
       schemaTag = mer1.me.stbEntry.schemaTag;
       metaRsp.suid = mer1.me.uid;
@@ -179,7 +201,7 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
       metaReaderDoInit(&mer2, pVnode->pMeta, META_READER_NOLOCK);
       if (metaReaderGetTableEntryByUid(&mer2, mer1.me.ctbEntry.suid) < 0) goto _exit2;
 
-      (void)strcpy(metaRsp.stbName, mer2.me.name);
+      tstrncpy(metaRsp.stbName, mer2.me.name, sizeof(metaRsp.stbName));
       metaRsp.suid = mer2.me.uid;
       metaRsp.ownerId = mer2.me.stbEntry.ownerId;  // child table inherits ownerId from stb
       schema = mer2.me.stbEntry.schemaRow;
@@ -236,12 +258,33 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
       }
     }
     metaRsp.numOfColRefs = metaRsp.numOfColumns;
+
+    // Fill tag references
+    if (mer1.me.colRef.nTagRefs > 0) {
+      metaRsp.pTagRefs = (SColRef*)taosMemoryMalloc(sizeof(SColRef) * mer1.me.colRef.nTagRefs);
+      if (metaRsp.pTagRefs) {
+        code = fillTableTagRef(&mer1, metaRsp.pTagRefs, mer1.me.colRef.nTagRefs);
+        if (code < 0) {
+          taosMemoryFreeClear(metaRsp.pTagRefs);
+          goto _exit;
+        }
+      } else {
+        code = terrno;
+        goto _exit;
+      }
+      metaRsp.numOfTagRefs = mer1.me.colRef.nTagRefs;
+    } else {
+      metaRsp.pTagRefs = NULL;
+      metaRsp.numOfTagRefs = 0;
+    }
   } else {
     metaRsp.pColRefs = NULL;
     metaRsp.numOfColRefs = 0;
+    metaRsp.pTagRefs = NULL;
+    metaRsp.numOfTagRefs = 0;
   }
 
-  vnodePrintTableMeta(&metaRsp);
+  vnodeDebugTableMeta(&metaRsp);
 
   // encode and send response
   rspLen = tSerializeSTableMetaRsp(NULL, 0, &metaRsp);
@@ -271,6 +314,7 @@ _exit:
   taosMemoryFree(metaRsp.pColRefs);
   taosMemoryFree(metaRsp.pSchemas);
   taosMemoryFree(metaRsp.pSchemaExt);
+  taosMemoryFree(metaRsp.pTagRefs);
 _exit2:
   metaReaderClear(&mer2);
 _exit3:
@@ -322,7 +366,7 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   tstrncpy(cfgRsp.tbName, cfgReq.tbName, TSDB_TABLE_NAME_LEN);
   (void)memcpy(cfgRsp.dbFName, cfgReq.dbFName, sizeof(cfgRsp.dbFName));
 
-  (void)tsnprintf(tableFName, TSDB_TABLE_FNAME_LEN, "%s.%s", cfgReq.dbFName, cfgReq.tbName);
+  (void)snprintf(tableFName, TSDB_TABLE_FNAME_LEN, "%s.%s", cfgReq.dbFName, cfgReq.tbName);
   if (pVnode->mounted) tTrimMountPrefix(tableFName);
   code = vnodeValidateTableHash(pVnode, tableFName);
   if (code) {
@@ -339,6 +383,7 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
 
   cfgRsp.tableType = mer1.me.type;
   cfgRsp.isAudit = pVnode->config.isAudit ? 1 : 0;
+  cfgRsp.secureDelete = pVnode->config.secureDelete;
 
   if (mer1.me.type == TSDB_SUPER_TABLE) {
     code = TSDB_CODE_VND_HASH_MISMATCH;
@@ -392,6 +437,8 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   cfgRsp.pSchemas = (SSchema *)taosMemoryMalloc(sizeof(SSchema) * (cfgRsp.numOfColumns + cfgRsp.numOfTags));
   cfgRsp.pSchemaExt = (SSchemaExt *)taosMemoryMalloc(cfgRsp.numOfColumns * sizeof(SSchemaExt));
   cfgRsp.pColRefs = (SColRef *)taosMemoryMalloc(sizeof(SColRef) * cfgRsp.numOfColumns);
+  cfgRsp.numOfTagRefs = 0;
+  cfgRsp.pTagRefs = NULL;
 
   if (NULL == cfgRsp.pSchemas || NULL == cfgRsp.pSchemaExt || NULL == cfgRsp.pColRefs) {
     code = terrno;
@@ -429,6 +476,30 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
         tstrncpy(cfgRsp.pColRefs[i].refDbName, pRef->refDbName, TSDB_DB_NAME_LEN);
         tstrncpy(cfgRsp.pColRefs[i].refTableName, pRef->refTableName, TSDB_TABLE_NAME_LEN);
         tstrncpy(cfgRsp.pColRefs[i].refColName, pRef->refColName, TSDB_COL_NAME_LEN);
+      }
+    }
+
+    cfgRsp.numOfTagRefs = pColRef->nTagRefs;
+    if (cfgRsp.numOfTagRefs > 0) {
+      if (NULL == pColRef->pTagRef) {
+        code = TSDB_CODE_APP_ERROR;
+        goto _exit;
+      }
+      cfgRsp.pTagRefs = (SColRef *)taosMemoryMalloc(sizeof(SColRef) * cfgRsp.numOfTagRefs);
+      if (NULL == cfgRsp.pTagRefs) {
+        code = terrno;
+        goto _exit;
+      }
+
+      for (int32_t i = 0; i < cfgRsp.numOfTagRefs; i++) {
+        SColRef *pRef = &pColRef->pTagRef[i];
+        cfgRsp.pTagRefs[i].hasRef = pRef->hasRef;
+        cfgRsp.pTagRefs[i].id = pRef->id;
+        if (cfgRsp.pTagRefs[i].hasRef) {
+          tstrncpy(cfgRsp.pTagRefs[i].refDbName, pRef->refDbName, TSDB_DB_NAME_LEN);
+          tstrncpy(cfgRsp.pTagRefs[i].refTableName, pRef->refTableName, TSDB_TABLE_NAME_LEN);
+          tstrncpy(cfgRsp.pTagRefs[i].refColName, pRef->refColName, TSDB_COL_NAME_LEN);
+        }
       }
     }
   }
@@ -1228,7 +1299,50 @@ const char *tkLogStb[] = {"cluster_info",
                           "taosadapter_system_mem_percent",
                           "temp_dir",
                           "vgroups_info",
-                          "vnodes_role"};
+                          "vnodes_role",
+                          "taosd_dnodes_status",
+                          "adapter_conn_pool",
+                          "taosd_vnodes_info",
+                          "taosd_dnodes_metrics",
+                          "taosd_vgroups_info",
+                          "taos_sql_req",
+                          "taosd_mnodes_info",
+                          "adapter_c_interface",
+                          "taosd_cluster_info",
+                          "taosd_sql_req",
+                          "taosd_dnodes_info",
+                          "adapter_requests",
+                          "taosd_write_metrics",
+                          "adapter_status",
+                          "taos_slow_sql",
+                          "taos_slow_sql_detail",
+                          "taosd_cluster_basic",
+                          "taosd_dnodes_data_dirs",
+                          "taosd_dnodes_log_dirs",
+                          "xnode_agent_activities",
+                          "xnode_task_activities",
+                          "xnode_task_metrics",
+                          "taosx_task_csv",
+                          "taosx_task_progress",
+                          "taosx_task_kinghist",
+                          "taosx_task_tdengine2",
+                          "taosx_task_tdengine3",
+                          "taosx_task_opc_da",
+                          "taosx_task_opc_ua",
+                          "taosx_task_kafka",
+                          "taosx_task_influxdb",
+                          "taosx_task_mqtt",
+                          "taosx_task_avevahistorian",
+                          "taosx_task_opentsdb",
+                          "taosx_task_mysql",
+                          "taosx_task_postgres",
+                          "taosx_task_oracle",
+                          "taosx_task_mssql",
+                          "taosx_task_mongodb",
+                          "taosx_task_sparkplugb",
+                          "taosx_task_orc",
+                          "taosx_task_pulsar",
+                          "taosx_task_pspace"};
 const char *tkAuditStb[] = {"operations"};
 const int   tkLogStbNum = ARRAY_SIZE(tkLogStb);
 const int   tkAuditStbNum = ARRAY_SIZE(tkAuditStb);
@@ -1245,7 +1359,7 @@ static int32_t vnodeGetTimeSeriesBlackList(SVnode *pVnode, int32_t *tbSize) {
   if (0 == strncmp(++dbName, "log", TSDB_DB_NAME_LEN)) {
     tbNum = tkLogStbNum;
     pTbArr = (const char **)&tkLogStb;
-  } else if (0 == strncmp(dbName, "audit", TSDB_DB_NAME_LEN)) {
+  } else if (0 == strncmp(dbName, "audit", TSDB_DB_NAME_LEN) || pVnode->config.isAudit) {
     tbNum = tkAuditStbNum;
     pTbArr = (const char **)&tkAuditStb;
   }

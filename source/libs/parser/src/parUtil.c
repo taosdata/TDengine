@@ -640,7 +640,9 @@ static int32_t getInsTagsTableTargetNameFromOp(int32_t acctId, SOperatorNode* pO
   const char* valueStr = NULL;
   int32_t     valueLen = 0;
 
-  if ((0 == strcmp(pCol->colName, "db_name") || 0 == strcmp(pCol->colName, "table_name")) && pVal->placeholderNo != 0) {
+  if (((0 == strcmp(pCol->colName, "db_name") || 0 == strcmp(pCol->colName, "table_name")) ||
+       0 == strcmp(pCol->colName, "virtual_db_name") || 0 == strcmp(pCol->colName, "virtual_table_name")) &&
+      pVal->placeholderNo != 0) {
     if (NULL == pVal->datum.p) {
       qError("getInsTagsTableTargetNameFromOp: placeholderNo=%d but datum.p is NULL, colName=%s, literal=%s",
              pVal->placeholderNo, pCol->colName, pVal->literal ? pVal->literal : "NULL");
@@ -683,6 +685,10 @@ static int32_t getInsTagsTableTargetNameFromOp(int32_t acctId, SOperatorNode* pO
   if (0 == strcmp(pCol->colName, "db_name")) {
     code = tNameSetDbName(pName, acctId, valueStr, valueLen);
   } else if (0 == strcmp(pCol->colName, "table_name")) {
+    code = tNameAddTbName(pName, valueStr, valueLen);
+  } else if (0 == strcmp(pCol->colName, "virtual_db_name")) {
+    code = tNameSetDbName(pName, acctId, valueStr, valueLen);
+  } else if (0 == strcmp(pCol->colName, "virtual_table_name")) {
     code = tNameAddTbName(pName, valueStr, valueLen);
   }
 
@@ -751,7 +757,8 @@ static int32_t getIntegerFromAuthStr(const char* pStart, char** pNext) {
     tstrncpy(buf, pStart, 10);
     *pNext = NULL;
   } else {
-    strncpy(buf, pStart, p - pStart);
+    int32_t len = (int32_t)(p - pStart); 
+    tstrncpy(buf, pStart, len < sizeof(buf) ? len + 1: sizeof(buf)); 
     *pNext = ++p;
   }
   return taosStr2Int32(buf, NULL, 10);
@@ -770,7 +777,7 @@ static int32_t getBackQuotedStringFromAuthStr(const char* pStart, char* pStr, ui
   }
 
   pStr[0] = '\0';
-  strncpy(pStr, pBeginQuote + 1, TMIN(dstLen, pEndQuote - pBeginQuote - 1));
+  TAOS_STRNCPY(pStr, pBeginQuote + 1, TMIN(dstLen, pEndQuote - pBeginQuote - 1));
 
   char* pSeperator = strchr(pEndQuote + 1, '*');
   if (!pSeperator) {
@@ -787,7 +794,7 @@ static void getStringFromAuthStr(const char* pStart, char* pStr, uint32_t dstLen
     tstrncpy(pStr, pStart, dstLen);
     *pNext = NULL;
   } else {
-    strncpy(pStr, pStart, p - pStart);
+    TAOS_STRNCPY(pStr, pStart, p - pStart);
     *pNext = ++p;
   }
   if (*pStart == '`' && *(pStart + 1) == '`') {
@@ -828,7 +835,7 @@ static int32_t buildTableReq(SHashObj* pTablesHash, SArray** pTables) {
       size_t len = 0;
       char*  pKey = taosHashGetKey(p, &len);
       char   fullName[TSDB_TABLE_FNAME_LEN] = {0};
-      strncpy(fullName, pKey, len);
+      tstrncpy(fullName, pKey, sizeof(fullName) < len ? sizeof(fullName) : len + 1);
       SName   name = {0};
       int32_t code = tNameFromString(&name, fullName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
       if (TSDB_CODE_SUCCESS == code) {
@@ -859,7 +866,7 @@ static int32_t buildDbReq(SHashObj* pDbsHash, SArray** pDbs) {
       size_t len = 0;
       char*  pKey = taosHashGetKey(p, &len);
       char   fullName[TSDB_DB_FNAME_LEN] = {0};
-      strncpy(fullName, pKey, len);
+      TAOS_STRNCPY(fullName, pKey, len);
       if (NULL == taosArrayPush(*pDbs, fullName)) {
         taosHashCancelIterate(pDbsHash, p);
         taosArrayDestroy(*pDbs);
@@ -913,7 +920,7 @@ static int32_t buildUserAuthReq(SHashObj* pUserAuthHash, SArray** pUserAuth) {
       size_t len = 0;
       char*  pKey = taosHashGetKey(p, &len);
       char   key[USER_AUTH_KEY_MAX_LEN] = {0};
-      strncpy(key, pKey, len);
+      TAOS_STRNCPY(key, pKey, len);
       SUserAuthInfo userAuth = {0};
       int32_t code = stringToUserAuth(key, len, &userAuth);
       if (TSDB_CODE_SUCCESS != code) terrno = code;
@@ -940,7 +947,7 @@ static int32_t buildUdfReq(SHashObj* pUdfHash, SArray** pUdf) {
       size_t len = 0;
       char*  pFunc = taosHashGetKey(p, &len);
       char   func[TSDB_FUNC_NAME_LEN] = {0};
-      strncpy(func, pFunc, len);
+      TAOS_STRNCPY(func, pFunc, len);
       if (NULL == taosArrayPush(*pUdf, func)) {
         taosHashCancelIterate(pUdfHash, p);
         taosArrayDestroy(*pUdf);
@@ -1178,13 +1185,13 @@ static int32_t reserveTableReqInCacheImpl(const char* pTbFName, int32_t len, SHa
 
 static int32_t reserveTableReqInCache(int32_t acctId, const char* pDb, const char* pTable, SHashObj** pTables) {
   char    fullName[TSDB_TABLE_FNAME_LEN];
-  int32_t len = tsnprintf(fullName, sizeof(fullName), "%d.%s.%s", acctId, pDb, pTable);
+  int32_t len = snprintf(fullName, sizeof(fullName), "%d.%s.%s", acctId, pDb, pTable);
   return reserveTableReqInCacheImpl(fullName, len, pTables);
 }
 
 static int32_t reserveTableReqInDbCacheImpl(int32_t acctId, const char* pDb, const char* pTable, SHashObj* pDbs) {
   SParseTablesMetaReq req = {0};
-  int32_t             len = tsnprintf(req.dbFName, sizeof(req.dbFName), "%d.%s", acctId, pDb);
+  int32_t             len = snprintf(req.dbFName, sizeof(req.dbFName), "%d.%s", acctId, pDb);
   int32_t             code = reserveTableReqInCache(acctId, pDb, pTable, &req.pTables);
   if (TSDB_CODE_SUCCESS == code) {
     code = taosHashPut(pDbs, req.dbFName, len, &req, sizeof(SParseTablesMetaReq));
@@ -1200,7 +1207,7 @@ static int32_t reserveTableReqInDbCache(int32_t acctId, const char* pDb, const c
     }
   }
   char                 fullName[TSDB_DB_FNAME_LEN];
-  int32_t              len = tsnprintf(fullName, sizeof(fullName), "%d.%s", acctId, pDb);
+  int32_t              len = snprintf(fullName, sizeof(fullName), "%d.%s", acctId, pDb);
   SParseTablesMetaReq* pReq = taosHashGet(*pDbs, fullName, len);
   if (NULL == pReq) {
     return reserveTableReqInDbCacheImpl(acctId, pDb, pTable, *pDbs);
@@ -1303,7 +1310,7 @@ static int32_t reserveDbReqInCache(int32_t acctId, const char* pDb, SHashObj** p
     }
   }
   char    fullName[TSDB_TABLE_FNAME_LEN];
-  int32_t len = tsnprintf(fullName, sizeof(fullName), "%d.%s", acctId, pDb);
+  int32_t len = snprintf(fullName, sizeof(fullName), "%d.%s", acctId, pDb);
   return taosHashPut(*pDbs, fullName, len, &nullPointer, POINTER_BYTES);
 }
 
@@ -1580,6 +1587,7 @@ STableCfg* tableCfgDup(STableCfg* pCfg) {
   pNew->pSchemas = NULL;
   pNew->pSchemaExt = NULL;
   pNew->pColRefs = NULL;
+  pNew->pTagRefs = NULL;
   if (NULL != pCfg->pComment) {
     pNew->pComment = taosMemoryCalloc(pNew->commentLen + 1, 1);
     if (!pNew->pComment) goto err;
@@ -1622,6 +1630,15 @@ STableCfg* tableCfgDup(STableCfg* pCfg) {
 
   pNew->pColRefs = pColRef;
 
+  SColRef *pTagRef = NULL;
+  if (hasRefCol(pCfg->tableType) && pCfg->pTagRefs && pCfg->numOfTagRefs > 0) {
+    int32_t tagRefSize = pCfg->numOfTagRefs * sizeof(SColRef);
+    pTagRef = taosMemoryMalloc(tagRefSize);
+    if (!pTagRef) goto err;
+    memcpy(pTagRef, pCfg->pTagRefs, tagRefSize);
+  }
+  pNew->pTagRefs = pTagRef;
+
   return pNew;
 err:
   if (pNew->pComment) taosMemoryFreeClear(pNew->pComment);
@@ -1629,6 +1646,8 @@ err:
   if (pNew->pTags) taosMemoryFreeClear(pNew->pTags);
   if (pNew->pSchemas) taosMemoryFreeClear(pNew->pSchemas);
   if (pNew->pSchemaExt) taosMemoryFreeClear(pNew->pSchemaExt);
+  if (pNew->pColRefs) taosMemoryFreeClear(pNew->pColRefs);
+  if (pNew->pTagRefs) taosMemoryFreeClear(pNew->pTagRefs);
   taosMemoryFreeClear(pNew);
   return NULL;
 }

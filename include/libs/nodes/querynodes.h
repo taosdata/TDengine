@@ -103,7 +103,8 @@ typedef struct SColumnNode {
     uint8_t flags;
     struct {
       uint8_t hasMask : 1;
-      uint8_t reserve : 7;
+      uint8_t appendByPrivCond : 1;
+      uint8_t reserve : 6;
     };
   };
   char refDbName[TSDB_DB_NAME_LEN];
@@ -377,6 +378,8 @@ typedef enum EDynQueryType {
   DYN_QTYPE_VTB_SCAN,
   DYN_QTYPE_VTB_WINDOW,
   DYN_QTYPE_VTB_AGG,
+  DYN_QTYPE_VTB_TS_SCAN,
+  DYN_QTYPE_VTB_INTERVAL,
 } EDynQueryType;
 
 typedef struct SJoinTableNode {
@@ -493,10 +496,10 @@ typedef struct SCountWindowNode {
 } SCountWindowNode;
 
 typedef struct SAnomalyWindowNode {
-  ENodeType type;  // QUERY_NODE_ANOMALY_WINDOW
-  SNode*    pCol;  // timestamp primary key
-  SNode*    pExpr;
-  char      anomalyOpt[TSDB_ANALYTIC_ALGO_OPTION_LEN];
+  ENodeType  type;  // QUERY_NODE_ANOMALY_WINDOW
+  SNode*     pCol;  // timestamp primary key
+  SNodeList* pExpr;
+  char       anomalyOpt[TSDB_ANALYTIC_ALGO_OPTION_LEN];
 } SAnomalyWindowNode;
 
 typedef struct SSlidingWindowNode {
@@ -525,6 +528,7 @@ typedef struct SStreamTriggerOptions {
   SNode*    pMaxDelay;
   SNode*    pExpiredTime;
   SNode*    pFillHisStartTime;
+  SNode*    pIdleTimeout;
   int64_t   pEventType;
   int64_t   fillHistoryStartTime;
   bool      ignoreDisorder;
@@ -778,6 +782,7 @@ typedef struct SDeleteStmt {
   STimeWindow timeRange;
   uint8_t     precision;
   bool        deleteZeroRows;
+  int8_t      secureDelete;  // force physical overwrite (from SECURE_DELETE keyword)
 } SDeleteStmt;
 
 typedef struct SInsertStmt {

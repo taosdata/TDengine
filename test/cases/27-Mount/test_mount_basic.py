@@ -254,9 +254,9 @@ class TestMountBasic:
     def s3_create_drop_show_mount(self):
         tdLog.info(" =============== step 3 create_drop_show_mount")
         tdSql.execute(f"create mount mnt1 on dnode 1 from '{self.mountPrimary}'")
-        tdSql.query("show mounts", count_expected_res=1)
-        tdLog.info(f"result: {tdSql.queryResult}")
-        tdSql.checkRows(1)
+        # Wait for mount to be ready using framework helper
+        tdSql.checkRowsLoop(1, "show mounts", loopCount=30, waitTime=1)
+        tdSql.query("show mounts")
         tdSql.checkData(0, 0, "mnt1")
         tdSql.checkData(0, 1, "1")
         tdSql.checkData(0, 3, self.mountPrimary)
@@ -264,7 +264,7 @@ class TestMountBasic:
         tdLog.info("check mount query")
         self.check_mount_query()
         tdLog.info("reboot and query from mount db")
-        tdSql.execute(f"GRANT drop,alter,show,show create ON mnt1_db0.* to u1;")
+        tdSql.execute(f"GRANT drop,alter,show,show create ON table mnt1_db0.* to u1;")
         tdSql.execute(f"GRANT select ON mnt1_db0.* to u1;")
         tdSql.execute(f"GRANT insert ON mnt1_db0.* to u1;")
         tdSql.execute(f"GRANT delete ON table mnt1_db0.* to u1;")

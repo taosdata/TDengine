@@ -42,17 +42,17 @@ true_for_expr: {
   | duration_time OR COUNT count_val
 }
 
-stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISORDER | DELETE_RECALC | DELETE_OUTPUT_TABLE | FILL_HISTORY[(start_time)] | FILL_HISTORY_FIRST[(start_time)] | CALC_NOTIFY_ONLY | LOW_LATENCY_CALC | PRE_FILTER(expr) | FORCE_OUTPUT | MAX_DELAY(delay_time) | EVENT_TYPE(event_types) | IGNORE_NODATA_TRIGGER}
+stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISORDER | DELETE_RECALC | DELETE_OUTPUT_TABLE | FILL_HISTORY[(start_time)] | FILL_HISTORY_FIRST[(start_time)] | CALC_NOTIFY_ONLY | LOW_LATENCY_CALC | PRE_FILTER(expr) | FORCE_OUTPUT | MAX_DELAY(delay_time) | EVENT_TYPE(event_types) | IGNORE_NODATA_TRIGGER | IDLE_TIMEOUT(duration_time)}
 
 notification_definition:
     NOTIFY(url [, ...]) [ON (event_types)] [WHERE condition] [NOTIFY_OPTIONS(notify_option[|notify_option])]
 
 notify_option: [NOTIFY_HISTORY | ON_FAILURE_PAUSE]
-    
+
 event_types:
-    event_type [|event_type]    
-    
-event_type: {WINDOW_OPEN | WINDOW_CLOSE}    
+    event_type [|event_type]
+
+event_type: {WINDOW_OPEN | WINDOW_CLOSE | IDLE | RESUME}
 
 tag_definition:
     tag_name type_name [COMMENT 'string_value'] AS expr
@@ -74,8 +74,8 @@ PERIOD(period_time[, offset_time])
 
 定时触发通过系统时间的固定间隔来驱动，本质上就是我们常说的定时任务。定时触发不属于窗口触发。各参数含义如下：
 
-- period_time：定时间隔，支持的时间单位包括：毫秒 (a)、秒 (s)、分 (m)、小时 (h)、天 (d)，支持的时间范围为 `[10a, 3650d]`。
-- offset_time：可选，定时偏移，支持的时间单位包括：毫秒 (a)、秒 (s)、分 (m)、小时 (h)，偏移大小应该小于 1 天。
+- period_time：定时间隔，支持的时间单位包括：毫秒 (a)、秒 (s)、分 (m)、小时 (h)、天 (d)、周 (w)、月 (n)、年 (y)，支持的时间范围为 `[10a, 3650d]`。
+- offset_time：可选，定时偏移，支持的时间单位包括：毫秒 (a)、秒 (s)、分 (m)、小时 (h)、天 (d)。对于周/月/年单位，offset 必须严格小于触发周期；对于月单位，以 28 天/月为基准静态校验（如 `PERIOD(1n, 28d)` 非法）。
 
 使用说明：
 
@@ -83,9 +83,11 @@ PERIOD(period_time[, offset_time])
   - 定时间隔为 5 小时 30 分钟，那么当天的触发时刻为 `[00:00, 05:30, 11:00, 16:30, 22:00]`，后续每一天的触发时刻都是相同的。
   - 同样的定时间隔，如果指定时间偏移为 1 分钟，那么当天的触发时刻为 `[00:01, 05:31, 11:01, 16:31, 22:01]`，后续每一天的触发时刻都是相同的。
   - 同样条件下，如果建流时当前系统时间为 `12:00`，那么当天的触发时刻为 `[16:31, 22:01]`，后续每一天内的触发时刻为 `[00:01, 05:31, 11:01, 16:31, 22:01]`。
-- 定时间隔大于等于 1 天时，基准时间点为当日的零点加定时偏移，后续不会重置。例如：
-  - 定时间隔为 1 天 1 小时，建流时当前系统时间为 `05-01 12:00`，那么在当天及随后几天的触发时刻为 `[05-02 01:00, 05-03 02:00, 05-04 03:00, 05-05 04:00, ……]`。
-  - 同样条件下，如果指定时间偏移为 1 分钟，那么当天及随后几天的触发时刻为 `[05-02 01:01, 05-03 02:02, 05-04 03:03, 05-05 04:04, ……]`。
+- 定时间隔大于等于 1 天时，基准时间点为服务端时区的 Unix epoch（1970-01-01 00:00:00）加定时偏移，按触发间隔整除对齐，保证所有任务触发时刻全局一致。例如：
+  - 定时间隔为 2 天，所有使用该间隔的任务都会在距离 epoch 整数倍 2 天的时刻触发（如 1970-01-03 00:00:00, 1970-01-05 00:00:00, ...），确保全局对齐。
+  - 定时间隔为 1 周（`PERIOD(1w)`），触发时刻对齐每周一 00:00:00；`PERIOD(1w, 1d)` 则在每周二 00:00:00 触发。
+  - 定时间隔为 1 月（`PERIOD(1n)`），触发时刻对齐每月 1 日 00:00:00；`PERIOD(1n, 14d)` 则在每月 15 日 00:00:00 触发。
+  - 定时间隔为 1 年（`PERIOD(1y)`），触发时刻对齐每年 1 月 1 日 00:00:00；`PERIOD(1y, 31d)` 则在每年 2 月 1 日 00:00:00 触发。
 
 适用场景：需要按照系统时间连续定时驱动计算的场景，例如每小时计算生成一次当天的统计数据，每天定时发送统计报告等。
 
@@ -345,6 +347,8 @@ tag_definition:
 | 窗口触发 | _twend           | 本次触发窗口的结束时间戳，只适用于 `WINDOW_CLOSE` 触发使用 |
 | 窗口触发 | _twduration      | 本次触发窗口的持续时间，只适用于 `WINDOW_CLOSE` 触发使用   |
 | 窗口触发 | _twrownum        | 本次触发窗口的记录条数，只适用于 `WINDOW_CLOSE` 触发使用   |
+| 空闲触发 | _tidlestart      | 分组进入空闲前最后一次收到数据的时间（processing time，精度：ns）。只适用于 `IDLE`/`RESUME` 触发使用，不可与 `_twstart/_twend` 混用。由于输出表通常为 ms 精度，建议使用 `cast(_tidlestart/1000000 as timestamp)` 进行转换。 |
+| 空闲触发 | _tidleend        | IDLE 或 RESUME 事件的触发时间（精度：ns）。只适用于 `IDLE`/`RESUME` 触发使用，不可与 `_twstart/_twend` 混用。由于输出表通常为 ms 精度，建议使用 `cast(_tidleend/1000000 as timestamp)` 进行转换。 |
 | 通用     | _tgrpid     | 触发分组的 ID 值，类型为 BIGINT         |
 | 通用     | _tlocaltime | 本次触发时刻的系统时间（精度：ns）       |
 | 通用     | %%n         | 触发分组列的引用<br/>n 为分组列（来自 `[PARTITION BY col1[, ...]]`）的下标（从 1 开始）       |
@@ -382,10 +386,13 @@ stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISOR
 - EVENT_TYPE(event_types)：指定窗口触发的事件类型，可以多选，未指定时默认值为 `WINDOW_CLOSE`。SLIDING 触发（不带 INTERVAL）和 PERIOD 触发不适用（自动忽略）。各选项含义如下：
   - WINDOW_OPEN：窗口启动事件。
   - WINDOW_CLOSE：窗口关闭事件。
+  - IDLE：分组空闲事件，当某分组超过 `IDLE_TIMEOUT` 配置的时长未收到新数据时触发一次，需同时配置 `IDLE_TIMEOUT`。
+  - RESUME：分组恢复事件，当处于空闲状态的分组重新收到新数据时立即触发一次，需同时配置 `IDLE_TIMEOUT`。
 - IGNORE_NODATA_TRIGGER：指定忽略触发表无输入数据时的触发，适用于滑动触发（SLIDING）、时间窗口触发（INTERVAL）、定时触发（PERIOD）。
   - 滑动触发与定时触发：如果两次触发时刻中间触发表没有数据则忽略该次触发。
   - 时间窗口触发：如果窗口内触发表没有数据则忽略该次触发。
   - 没有未指定时：不忽略无输入数据时的触发。
+- IDLE_TIMEOUT(duration_time)：开启分组空闲检测，指定空闲超时时长。当某个分组超过该时长未收到任何新数据时，视为进入空闲状态并触发 IDLE 事件；当空闲分组重新收到数据时触发 RESUME 事件。需与 `EVENT_TYPE(IDLE)` 和（或）`EVENT_TYPE(RESUME)` 配合使用。`duration_time` 支持的时间单位包括：毫秒 (a)、秒 (s)、分 (m)、小时 (h)、天 (d)，有效范围为 `[1s, 10d]`。空闲检测基于 processing time（数据到达并被处理的时间），使用单调时钟计算间隔，不受系统时钟跳变影响。
 
 ### 流式计算的通知机制
 
@@ -400,7 +407,7 @@ notification_definition:
 event_types:
     event_type [|event_type]    
     
-event_type: {WINDOW_OPEN | WINDOW_CLOSE | ON_TIME}   
+event_type: {WINDOW_OPEN | WINDOW_CLOSE | ON_TIME | IDLE | RESUME}
 ```
 
 详细说明如下：
@@ -410,6 +417,8 @@ event_type: {WINDOW_OPEN | WINDOW_CLOSE | ON_TIME}
   - WINDOW_OPEN：窗口打开事件，在触发表分组窗口打开时发送通知。
   - WINDOW_CLOSE：窗口关闭事件，在触发表分组窗口关闭时发送通知。
   - ON_TIME：定时触发事件，在触发时发送通知。
+  - IDLE：分组空闲事件，当分组进入空闲状态时发送通知，需同时在 `STREAM_OPTIONS` 中配置 `IDLE_TIMEOUT`。
+  - RESUME：分组恢复事件，当空闲分组重新收到数据时发送通知，需同时在 `STREAM_OPTIONS` 中配置 `IDLE_TIMEOUT`。
 - [WHERE condition]：指定通知需要满足的条件，`condition` 中只能指定含计算结果列和（或）常量的条件。
 - [NOTIFY_OPTIONS(notify_option[|notify_option])]：可选，指定通知选项用于控制通知的行为，可以多选，目前支持的通知选项包括：
   - NOTIFY_HISTORY：指定计算历史数据时是否发送通知，未指定时默认不发送。
@@ -525,7 +534,7 @@ event_type: {WINDOW_OPEN | WINDOW_CLOSE | ON_TIME}
 这部分是所有 event 对象所共有的字段。
 
 - tableName：字符串类型，是对应目标子表的表名，当没有输出的时候，该字段不存在。
-- eventType：字符串类型，表示事件类型，支持 WINDOW_OPEN、WINDOW_CLOSE、WINDOW_INVALIDATION 三种类型。
+- eventType：字符串类型，表示事件类型，支持 WINDOW_OPEN、WINDOW_CLOSE、WINDOW_INVALIDATION、IDLE、RESUME 五种类型。
 - eventTime：长整型时间戳，表示事件生成时间，精确到毫秒，即：'00:00, Jan 1 1970 UTC' 以来的毫秒数。
 - triggerId：字符串类型，触发事件的唯一标识符，确保打开和关闭事件（如果有的话）的 ID 一致，便于外部系统将两者关联。如果 taosd 发生故障重启，部分事件可能会重复发送，会保证同一事件的 triggerId 保持不变。
 - triggerType：字符串类型，表示触发类型，支持 Period、SLIDING 两种非窗口触发类型以及 INTERVAL、State、Session、Event、Count 五种窗口类型。
@@ -607,6 +616,21 @@ event_type: {WINDOW_OPEN | WINDOW_CLOSE | ON_TIME}
 - 如果 eventType 为 WINDOW_CLOSE，则包含如下字段：
   - windowStart：长整型时间戳，表示窗口的开始时间，精度与结果表的时间精度一致。
   - result：计算结果，为键值对形式，包含窗口计算的结果列列名及其对应的值。
+
+###### 空闲触发相关字段
+
+这部分是 eventType 为 IDLE 或 RESUME 时 event 对象才有的字段。
+
+- 如果 eventType 为 IDLE，则包含如下字段：
+  - idleStart：长整型，分组进入空闲前最后一次收到数据的时间，ns 精度 Unix epoch。
+  - idleEnd：长整型，IDLE 事件触发时间，ns 精度 Unix epoch。
+  - idleDurationMs：长整型，空闲持续时长（毫秒），使用单调时钟计算。
+- 如果 eventType 为 RESUME，则包含如下字段：
+  - idleStart：长整型，空闲周期开始时的时间戳（与对应 IDLE 事件的 idleStart 一致），ns 精度 Unix epoch。
+  - idleEnd：长整型，RESUME 事件触发时间，ns 精度 Unix epoch。
+  - idleDurationMs：长整型，从空闲开始到恢复的持续时长（毫秒），使用单调时钟计算。
+
+同一分组的一次空闲周期内，IDLE 与对应的 RESUME 事件具有相同的 `triggerId`，便于外部系统关联两个事件。
 
 ###### 窗口失效相关字段
 
@@ -1015,4 +1039,73 @@ CREATE stream stream_consumer_energy
      SELECT cast(_tlocaltime/1000000 AS timestamp) ,sum(current*voltage) AS sum_power
           FROM meters
           WHERE ts >= cast(_tprev_localtime/1000000 AS timestamp) AND ts <= cast(_tlocaltime/1000000 AS timestamp);
+```
+
+- 每周一 00:00:00 计算上周的设备运行汇总，计算结果写入 weekly_summary 表。
+
+```SQL
+CREATE STREAM weekly_device_summary
+  PERIOD(1w)
+  FROM meters PARTITION BY location
+  INTO weekly_summary
+  AS
+    SELECT _wstart AS week_start,
+           location,
+           AVG(current) AS avg_current,
+           MAX(voltage) AS max_voltage,
+           COUNT(*) AS record_count
+    FROM meters
+    INTERVAL(1w)
+    PARTITION BY location;
+```
+
+- 每月 1 日 00:00:00 计算上月的能耗账单，计算结果写入 monthly_bill 表。
+
+```SQL
+CREATE STREAM monthly_energy_bill
+  PERIOD(1n)
+  FROM meters PARTITION BY location, groupId
+  INTO monthly_bill
+  AS
+    SELECT _wstart AS month_start,
+           location,
+           groupId,
+           SUM(current * voltage) AS total_energy
+    FROM meters
+    INTERVAL(1n)
+    PARTITION BY location, groupId;
+```
+
+- 每月 15 日 00:00:00 计算半月结算报表（使用 offset 参数）。
+
+```SQL
+CREATE STREAM mid_month_settlement
+  PERIOD(1n, 14d)
+  FROM meters PARTITION BY location
+  INTO mid_month_settlement_table
+  AS
+    SELECT _wstart AS period_start,
+           location,
+           SUM(current * voltage) AS total_energy
+    FROM meters
+    INTERVAL(1n)
+    PARTITION BY location;
+```
+
+- 每年 1 月 1 日 00:00:00 归档上一年的全量数据。
+
+```SQL
+CREATE STREAM yearly_archive
+  PERIOD(1y)
+  FROM meters PARTITION BY location, groupId
+  INTO yearly_archive_table
+  AS
+    SELECT _wstart AS year_start,
+           location,
+           groupId,
+           AVG(current) AS avg_current,
+           SUM(current * voltage) AS total_energy
+    FROM meters
+    INTERVAL(1y)
+    PARTITION BY location, groupId;
 ```

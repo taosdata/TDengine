@@ -26,7 +26,7 @@ static int32_t sfieldWithOptionsToJson(const void* pObj, SJson* pJson) {
 
 static int32_t jsonToSFieldWithOptions(const SJson* pJson, void* pObj) {
   SFieldWithOptions* pField = (SFieldWithOptions*)pObj;
-  TAOS_CHECK_RETURN(tjsonGetStringValue(pJson, jkFieldName, pField->name));
+  TAOS_CHECK_RETURN(tjsonGetStringValue1(pJson, jkFieldName, pField->name, sizeof(pField->name)));
   TAOS_CHECK_RETURN(tjsonGetUTinyIntValue(pJson, jkFieldType, &pField->type));
   TAOS_CHECK_RETURN(tjsonGetTinyIntValue(pJson, jkFieldFlags, &pField->flags));
   TAOS_CHECK_RETURN(tjsonGetIntValue(pJson, jkFieldBytes, &pField->bytes));
@@ -38,9 +38,7 @@ static int32_t jsonToSFieldWithOptions(const SJson* pJson, void* pObj) {
 
 static int32_t stagFieldWithOptionsToJson(const void* pObj, SJson* pJson) {
   const SFieldWithOptions* pField = (const SFieldWithOptions*)pObj;
-  if (NULL != pField->name) {
-    TAOS_CHECK_RETURN(tjsonAddStringToObject(pJson, jkFieldName, pField->name));
-  }
+  TAOS_CHECK_RETURN(tjsonAddStringToObject(pJson, jkFieldName, pField->name));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, jkFieldType, pField->type));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(
     pJson, jkFieldFlags, pField->flags));
@@ -55,7 +53,7 @@ static int32_t stagFieldWithOptionsToJson(const void* pObj, SJson* pJson) {
 
 static int32_t jsonToSTagFieldWithOptions(const SJson* pJson, void* pObj) {
   SFieldWithOptions* pField = (SFieldWithOptions*)pObj;
-  TAOS_CHECK_RETURN(tjsonGetStringValue(pJson, jkFieldName, pField->name));
+  TAOS_CHECK_RETURN(tjsonGetStringValue1(pJson, jkFieldName, pField->name, sizeof(pField->name)));
   TAOS_CHECK_RETURN(tjsonGetUTinyIntValue(pJson, jkFieldType, &pField->type));
   TAOS_CHECK_RETURN(tjsonGetTinyIntValue(pJson, jkFieldFlags, &pField->flags));
   TAOS_CHECK_RETURN(tjsonGetIntValue(pJson, jkFieldBytes, &pField->bytes));
@@ -438,6 +436,7 @@ static const char* jkCreateStreamReqFillHistoryStartTime =
   "fillHistoryStartTime";
 static const char* jkCreateStreamReqWatermark            = "watermark";
 static const char* jkCreateStreamReqExpiredTime          = "expiredTime";
+static const char* jkCreateStreamReqIdleTimeoutMs        = "idleTimeoutMs";
 static const char* jkCreateStreamReqTrigger              = "trigger";
 
 static const char* jkCreateStreamReqTriggerTblType       = "triggerTblType";
@@ -586,6 +585,8 @@ static int32_t scmCreateStreamReqToJsonImpl(const void* pObj, void* pJson) {
     pJson, jkCreateStreamReqWatermark, pReq->watermark));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(
     pJson, jkCreateStreamReqExpiredTime, pReq->expiredTime));
+  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(
+    pJson, jkCreateStreamReqIdleTimeoutMs, pReq->idleTimeoutMs));
   // trigger
   switch (pReq->triggerType) {
     case WINDOW_TYPE_SESSION:
@@ -831,6 +832,8 @@ int32_t jsonToSCMCreateStreamReq(const void* pJson, void* pObj) {
     pJson, jkCreateStreamReqWatermark, &pReq->watermark));
   TAOS_CHECK_RETURN(tjsonGetBigIntValue(
     pJson, jkCreateStreamReqExpiredTime, &pReq->expiredTime));
+  TAOS_CHECK_RETURN(tjsonGetBigIntValue(
+    pJson, jkCreateStreamReqIdleTimeoutMs, &pReq->idleTimeoutMs));
   // trigger
   switch (pReq->triggerType) {
     case WINDOW_TYPE_SESSION:

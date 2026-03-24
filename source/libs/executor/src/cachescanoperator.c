@@ -109,6 +109,7 @@ int32_t createCacherowsScanOperator(SLastRowScanPhysiNode* pScanNode, SReadHandl
     code = terrno;
     goto _error;
   }
+  initOperatorCostInfo(pOperator);
 
   pInfo->pTableList = pTableListInfo;
   pInfo->readHandle = *readHandle;
@@ -233,8 +234,6 @@ int32_t createCacherowsScanOperator(SLastRowScanPhysiNode* pScanNode, SReadHandl
 
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doScanCacheNext, NULL, destroyCacheScanOperator, optrDefaultBufFn,
                                          NULL, optrDefaultGetNextExtFn, NULL);
-
-  pOperator->cost.openCost = 0;
 
   *pOptrInfo = pOperator;
   return code;

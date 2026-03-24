@@ -51,7 +51,7 @@ Usage Notes:
 Parameter Description:
 
 1. COMMENT: Table comment. Can be used for supertables, subtables, and basic tables. The maximum length is 1024 bytes.
-2. SMA: Small Materialized Aggregates, provides custom pre-computation based on data blocks. Pre-computation types include MAX, MIN, and SUM. Available for supertables/basic tables.
+2. SMA: Small Materialized Aggregates, provides block-based pre-computation to accelerate aggregation queries. Pre-computation types include MAX, MIN, and SUM. By default, the system creates block-wise SMA for most columns (some types such as BINARY/NCHAR are not created by default); if `SMA(col_name, ...)` is specified at table creation, block-wise SMA is created only for the listed columns; use `NOSMA` in column definitions to disable block-wise SMA for a column. Available for supertables/basic tables.
 3. TTL: Time to Live, a parameter used by users to specify the lifespan of a table. If this parameter is specified when creating a table, TDengine automatically deletes the table after its existence exceeds the specified TTL time. This TTL time is approximate, the system does not guarantee deletion at the exact time but ensures that such a mechanism exists and will eventually delete it. TTL is measured in days, with a range of [0, 2147483647], defaulting to 0, meaning no limit, with the expiration time being the table creation time plus TTL time. TTL is not associated with the database KEEP parameter; if KEEP is smaller than TTL, data may be deleted before the table is removed.
 
 ## Create Subtable
@@ -149,25 +149,25 @@ ALTER TABLE tb_name MODIFY COLUMN field_name data_type(length);
 ### Change column name
 
 ```sql
-ALTER TABLE tb_name RENAME COLUMN old_col_name new_col_name
+ALTER TABLE tb_name RENAME COLUMN old_col_name new_col_name;
 ```
 
 ### Modify table lifespan
 
 ```sql
-ALTER TABLE tb_name TTL value
+ALTER TABLE tb_name TTL value;
 ```
 
 ### Modify Table Comment
 
 ```sql
-ALTER TABLE tb_name COMMENT 'string_value'
+ALTER TABLE tb_name COMMENT 'string_value';
 ```
 
 ## Modify Subtable
 
 ```sql
-ALTER TABLE [db_name.]tb_name alter_table_clause
+ALTER TABLE [db_name.]tb_name alter_table_clause;
 
 alter_table_clause: {
     alter_table_options
@@ -198,16 +198,22 @@ Parameter Description:
 ALTER TABLE tb_name SET TAG tag_name1=new_tag_value1, tag_name2=new_tag_value2 ...;
 ```
 
+### Batch Modify Subtable Tag Value
+
+```sql
+ALTER TABLE tb_name1 SET TAG tag_name1=new_tag_value1, tag_name2=new_tag_value2 tb_name2 SET TAG tag_name3=new_tag_value3 ...;
+```
+
 ### Modify Table Lifespan
 
 ```sql
-ALTER TABLE tb_name TTL value
+ALTER TABLE tb_name TTL value;
 ```
 
 ### Modify Table Comment
 
 ```sql
-ALTER TABLE tb_name COMMENT 'string_value'
+ALTER TABLE tb_name COMMENT 'string_value';
 ```
 
 ## Delete Table
@@ -215,7 +221,7 @@ ALTER TABLE tb_name COMMENT 'string_value'
 You can delete one or more regular tables or subtables in a single SQL statement.
 
 ```sql
-DROP TABLE [IF EXISTS] [db_name.]tb_name [, [IF EXISTS] [db_name.]tb_name] ...
+DROP TABLE [IF EXISTS] [db_name.]tb_name [, [IF EXISTS] [db_name.]tb_name] ...;
 ```
 
 **Note**: Deleting a table does not immediately free up the disk space occupied by the table. Instead, the table's data is marked as deleted. This data will not appear in queries, but freeing up disk space is delayed until the system automatically or the user manually reorganizes the data.

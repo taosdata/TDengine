@@ -144,32 +144,6 @@ enum {
   STREAM_INPUT__DESTROY,
 };
 
-typedef enum EStreamType {
-  STREAM_NORMAL = 1,
-  STREAM_INVERT,
-  STREAM_CLEAR,
-  STREAM_INVALID,
-  STREAM_GET_ALL,
-  STREAM_DELETE_RESULT,
-  STREAM_DELETE_DATA,
-  STREAM_RETRIEVE,
-  STREAM_PULL_DATA,
-  STREAM_PULL_OVER,
-  STREAM_FILL_OVER,
-  STREAM_CHECKPOINT,
-  STREAM_CREATE_CHILD_TABLE,
-  STREAM_TRANS_STATE,
-  STREAM_MID_RETRIEVE,
-  STREAM_PARTITION_DELETE_DATA,
-  STREAM_GET_RESULT,
-  STREAM_DROP_CHILD_TABLE,
-  STREAM_NOTIFY_EVENT,
-  STREAM_RECALCULATE_DATA,
-  STREAM_RECALCULATE_DELETE,
-  STREAM_RECALCULATE_START,
-  STREAM_RECALCULATE_END,
-} EStreamType;
-
 #pragma pack(push, 1)
 typedef struct SColumnDataAgg {
   int32_t colId;
@@ -246,7 +220,6 @@ typedef struct SDataBlockInfo {
   // TODO: optimize and remove following
   int64_t     version;    // used for stream, and need serialization
   int32_t     childId;    // used for stream, do not serialize
-  EStreamType type;       // used for stream, do not serialize
   STimeWindow calWin;     // used for stream, do not serialize
   TSKEY       watermark;  // used for stream
 
@@ -424,6 +397,17 @@ typedef struct SSortExecInfo {
   int32_t writeBytes;  // write io bytes
   int32_t readBytes;   // read io bytes
 } SSortExecInfo;
+
+typedef struct SExchangeExplainInfo {
+  int8_t   mode;          // 0: concurrent, 1: sequential
+  int32_t  numSources;
+  double   avgFetchTimes;
+  uint64_t maxFetchTimes;
+  double   avgFetchRows;
+  uint64_t maxFetchRows;
+  double   avgFetchCost;  // us
+  int64_t  maxFetchCost;  // us
+} SExchangeExplainInfo;
 
 typedef struct SNonSortExecInfo {
   int32_t blkNums;
