@@ -29,25 +29,29 @@ if(TD_ENTERPRISE)
   )
 endif()
 
-if(TD_LINUX)
-  if(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64")
-    set(TAOS_LICENSE_LIB_DIR "${TD_SOURCE_DIR}/deps/license/lib/linux-aarch64")
-  else()
-    set(TAOS_LICENSE_LIB_DIR "${TD_SOURCE_DIR}/deps/license/lib/linux-x86_64")
-  endif()
-
-  add_library(taos_license STATIC IMPORTED GLOBAL)
-  set_target_properties(taos_license PROPERTIES
-      IMPORTED_LOCATION "${TAOS_LICENSE_LIB_DIR}/libtaos_license.a"
-      INTERFACE_INCLUDE_DIRECTORIES "${TD_SOURCE_DIR}/deps/license/include"
-  )
-endif()
-
 target_link_libraries(
   mgmt_dnode PUBLIC node_util dmodule
 )
 
 if(TD_LINUX)
-  target_sources(mgmt_dnode PRIVATE src/dmLicense.c)
-  target_link_libraries(mgmt_dnode PRIVATE taos_license pthread dl m)
+  if(CMAKE_SYSTEM_PROCESSOR MATCHES "(aarch64)|(arm64)")
+    set(TAOS_LICENSE_LIB_DIR "${TD_SOURCE_DIR}/deps/license/lib/linux-aarch64")
+  else()
+    set(TAOS_LICENSE_LIB_DIR "${TD_SOURCE_DIR}/deps/license/lib/linux-x86_64")
+  endif()
+
+  set(TAOS_LICENSE_LIB "${TAOS_LICENSE_LIB_DIR}/libtaos_license.a")
+
+  if(EXISTS "${TAOS_LICENSE_LIB}")
+    add_library(taos_license STATIC IMPORTED GLOBAL)
+    set_target_properties(taos_license PROPERTIES
+        IMPORTED_LOCATION "${TAOS_LICENSE_LIB}"
+        INTERFACE_INCLUDE_DIRECTORIES "${TD_SOURCE_DIR}/deps/license/include"
+    )
+    target_sources(mgmt_dnode PRIVATE src/dmLicense.c)
+    target_link_libraries(mgmt_dnode PRIVATE taos_license pthread dl m)
+    message(STATUS "taos_license: enabled (${TAOS_LICENSE_LIB})")
+  else()
+    message(STATUS "taos_license: SKIPPED — library not found at ${TAOS_LICENSE_LIB}")
+  endif()
 endif()
