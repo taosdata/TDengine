@@ -222,14 +222,15 @@ class TaosD:
             parentPath = os.path.dirname(taosdPath)
             taosk_name = "taosk.exe" if platform.system().lower() == "windows" else "taosk"
             taosk_path = os.path.join(parentPath, taosk_name)
-            system_platform = platform.system().lower()
+            system_platform = dnode.get("system", "Linux").lower()
 
             if not os.path.exists(taosk_path):
                 if system_platform == "windows":
                     self.logger.warning("Skip encryption key generation: "
-                        "taosk is not supported on Windows")
+                        f"taosk is not supported on {system_platform} system")
                 else:
-                    self.logger.error(f"taosk not found at: {taosk_path}")
+                    self.logger.error(f"taosk not found at: {taosk_path}, "
+                        f"system platform: {system_platform}")
                 return
             
             # Build taosk command to execute on remote server
@@ -276,24 +277,13 @@ class TaosD:
             self.logger.warning(f"Error generating encryption keys on {fqdn}: {e}")
 
     def configure_and_start(self, tmp_dir, nodeDict):
-        threads = []
-
         # 调试信息，检查 nodeDict["spec"]["dnodes"] 的内容
         self.logger.debug(f"nodeDict['spec']['dnodes']: {nodeDict['spec']['dnodes']}")
 
         for index, dnode in enumerate(nodeDict["spec"]["dnodes"]):
             common_cfg: dict = nodeDict["spec"]["config"] if 'config' in nodeDict['spec'] else {
             }
-            if "system" in dnode.keys() and dnode["system"].lower() == "windows":
-                t = Thread(target = self._configure_and_start_windows, args = (tmp_dir, dnode, common_cfg))
-                pass
-            else:
-                #t = Thread(target = self._configure_and_start, args = (tmp_dir, dnode, common_cfg))
-                self._configure_and_start(tmp_dir, dnode, common_cfg, index)
-            #t.start()
-            #threads.append(t)
-        #for thread in threads:
-            #thread.join()
+            self._configure_and_start(tmp_dir, dnode, common_cfg, index)
 
     def update_taosd(self, nodeDict):
         for dnode in nodeDict["spec"]["dnodes"]:
