@@ -2855,6 +2855,7 @@ typedef struct {
   char        auditToken[TSDB_TOKEN_LEN];
   SEpSet      auditEpSet;
   int32_t     auditVgId;
+  SArray*     pTxnActiveQueries;  // array of STxnActiveQuery, optional (NULL if no idle txns)
 } SStatusReq;
 
 int32_t tSerializeSStatusReq(void* buf, int32_t bufLen, SStatusReq* pReq);
@@ -2956,6 +2957,7 @@ typedef struct {
   char      auditToken[TSDB_TOKEN_LEN];
   SEpSet    auditEpSet;
   int32_t   auditVgId;
+  SArray*   pTxnActiveAcks;  // array of STxnActiveAck, optional (NULL if no queries)
 } SStatusRsp;
 
 int32_t tSerializeSStatusRsp(void* buf, int32_t bufLen, SStatusRsp* pRsp);
@@ -5793,6 +5795,18 @@ int32_t tSerializeSVTxnCommitReq(void* buf, int32_t bufLen, SVTxnCommitReq* pReq
 int32_t tDeserializeSVTxnCommitReq(void* buf, int32_t bufLen, SVTxnCommitReq* pReq);
 int32_t tSerializeSVTxnRollbackReq(void* buf, int32_t bufLen, SVTxnRollbackReq* pReq);
 int32_t tDeserializeSVTxnRollbackReq(void* buf, int32_t bufLen, SVTxnRollbackReq* pReq);
+
+// VNode → DNode → MNode 保活查询（通过 SStatusReq 捎带）
+typedef struct {
+  utxn_id_t txnId;
+  int32_t   vgId;  // 发起查询的 VNode
+} STxnActiveQuery;
+
+// MNode → DNode → VNode 保活应答（通过 SStatusRsp 捎带）
+typedef struct {
+  utxn_id_t txnId;
+  int8_t    alive;  // 1=活跃, 0=已终结（不存在/已 COMMIT/已 ROLLBACK）
+} STxnActiveAck;
 
 typedef struct {
   char name[TSDB_TABLE_NAME_LEN];

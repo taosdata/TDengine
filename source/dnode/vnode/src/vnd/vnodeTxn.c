@@ -27,29 +27,28 @@
 // ============================================================================
 
 typedef struct SVnodeTxnEntry {
-  int64_t   txnId;        // Transaction ID
-  int64_t   term;         // Raft term when registered
-  int64_t   startTime;    // Transaction start time
-  int64_t   lastActive;   // Last active time
-  int8_t    status;       // EVtxnStatus
-  SArray   *pShadowOps;   // Shadow operations (pending DDL)
+  int64_t txnId;       // Transaction ID
+  int64_t term;        // Raft term when registered
+  int64_t startTime;   // Transaction start time
+  int64_t lastActive;  // Last active time
+  int8_t  stage;       // EVtxnStage
+  SArray *pShadowOps;  // Shadow operations (pending DDL)
 } SVnodeTxnEntry;
 
 // Initialize vnode transaction manager
 int32_t vnodeTxnInit(SVnode *pVnode) {
-  pVnode->pTxnHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), 
-                                   true, HASH_ENTRY_LOCK);
+  pVnode->pTxnHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
   if (pVnode->pTxnHash == NULL) {
     vError("vgId:%d, failed to init txn hash", TD_VID(pVnode));
     return terrno;
   }
-  
+
   if (taosThreadMutexInit(&pVnode->txnMutex, NULL) != 0) {
     taosHashCleanup(pVnode->pTxnHash);
     pVnode->pTxnHash = NULL;
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  
+
   pVnode->maxSeenTerm = 0;
   vInfo("vgId:%d, txn manager initialized", TD_VID(pVnode));
   return TSDB_CODE_SUCCESS;
@@ -58,7 +57,6 @@ int32_t vnodeTxnInit(SVnode *pVnode) {
 // Cleanup vnode transaction manager
 void vnodeTxnCleanup(SVnode *pVnode) {
   if (pVnode->pTxnHash) {
-    // Clean up all pending transactions
     void *pIter = taosHashIterate(pVnode->pTxnHash, NULL);
     while (pIter) {
       SVnodeTxnEntry *pEntry = (SVnodeTxnEntry *)pIter;
@@ -70,7 +68,7 @@ void vnodeTxnCleanup(SVnode *pVnode) {
     taosHashCleanup(pVnode->pTxnHash);
     pVnode->pTxnHash = NULL;
   }
-  
+
   taosThreadMutexDestroy(&pVnode->txnMutex);
   vInfo("vgId:%d, txn manager cleaned up", TD_VID(pVnode));
 }
@@ -87,23 +85,23 @@ static int32_t vnodeCreateTxnEntry(SVnode *pVnode, int64_t txnId, int64_t term) 
   entry.term = term;
   entry.startTime = taosGetTimestampMs();
   entry.lastActive = entry.startTime;
-  entry.status = VTXN_STATUS_PREPARING;
+  entry.stage = VTXN_STAGE_ACTIVE;
   entry.pShadowOps = taosArrayInit(8, sizeof(void *));
-  
+
   if (entry.pShadowOps == NULL) {
     return terrno;
   }
-  
+
   int32_t code = taosHashPut(pVnode->pTxnHash, &txnId, sizeof(int64_t), &entry, sizeof(SVnodeTxnEntry));
   if (code != 0) {
     taosArrayDestroy(entry.pShadowOps);
     return code;
   }
-  
+
   return TSDB_CODE_SUCCESS;
 }
 
-// Remove transaction entry
+// Remove transaction entry (caller must hold txnMutex)
 static void vnodeRemoveTxnEntry(SVnode *pVnode, int64_t txnId) {
   SVnodeTxnEntry *pEntry = vnodeGetTxnEntry(pVnode, txnId);
   if (pEntry) {
@@ -119,309 +117,106 @@ static void vnodeRemoveTxnEntry(SVnode *pVnode, int64_t txnId) {
 // ============================================================================
 
 /**
- * Process PREPARE request from MNode
- * This is called when a DDL operation needs to be prepared in a transaction
- */
-int32_t vnodeProcessTxnPrepareReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  
-  // Decode request
-  SVTxnPrepareReq req = {0};
-  SDecoder decoder = {0};
-  tDecoderInit(&decoder, pReq, len);
-  
-  if (tDecodeSVTxnPrepareReq(&decoder, &req) < 0) {
-    tDecoderClear(&decoder);
-    return TSDB_CODE_INVALID_MSG;
-  }
-  tDecoderClear(&decoder);
-  
-  vInfo("vgId:%d, process txn prepare, txnId:%" PRId64 ", term:%" PRId64, 
-        TD_VID(pVnode), req.txnId, req.term);
-  
-  taosThreadMutexLock(&pVnode->txnMutex);
-  
-  // Check term - reject stale term requests
-  if (req.term < pVnode->maxSeenTerm) {
-    taosThreadMutexUnlock(&pVnode->txnMutex);
-    vWarn("vgId:%d, reject txn prepare due to stale term, txnId:%" PRId64 ", reqTerm:%" PRId64 ", maxTerm:%" PRId64,
-          TD_VID(pVnode), req.txnId, req.term, pVnode->maxSeenTerm);
-    code = TSDB_CODE_VND_TXN_STALE_TERM;
-    goto _exit;
-  }
-  
-  // Update max seen term
-  if (req.term > pVnode->maxSeenTerm) {
-    pVnode->maxSeenTerm = req.term;
-  }
-  
-  // Check if transaction already exists
-  SVnodeTxnEntry *pEntry = vnodeGetTxnEntry(pVnode, req.txnId);
-  if (pEntry != NULL) {
-    // Idempotent: same txnId, return success
-    if (pEntry->term <= req.term) {
-      pEntry->lastActive = taosGetTimestampMs();
-      taosThreadMutexUnlock(&pVnode->txnMutex);
-      vInfo("vgId:%d, txn already prepared (idempotent), txnId:%" PRId64, TD_VID(pVnode), req.txnId);
-      goto _exit;
-    }
-    taosThreadMutexUnlock(&pVnode->txnMutex);
-    code = TSDB_CODE_VND_TXN_CONFLICT;
-    goto _exit;
-  }
-  
-  // Check for conflicts with other transactions on same table
-  // TODO: Implement table-level lock checking
-  
-  // Create new transaction entry
-  code = vnodeCreateTxnEntry(pVnode, req.txnId, req.term);
-  if (code != TSDB_CODE_SUCCESS) {
-    taosThreadMutexUnlock(&pVnode->txnMutex);
-    vError("vgId:%d, failed to create txn entry, txnId:%" PRId64 ", code:%s",
-           TD_VID(pVnode), req.txnId, tstrerror(code));
-    goto _exit;
-  }
-  
-  taosThreadMutexUnlock(&pVnode->txnMutex);
-  
-  // Write to WAL for durability
-  // TODO: Write txn prepare record to WAL
-  
-  vInfo("vgId:%d, txn prepared successfully, txnId:%" PRId64, TD_VID(pVnode), req.txnId);
-
-_exit:
-  // Build response
-  pRsp->msgType = TDMT_VND_TXN_PREPARE_RSP;
-  pRsp->code = code;
-  
-  SVTxnPrepareRsp rsp = {0};
-  rsp.txnId = req.txnId;
-  rsp.vgId = TD_VID(pVnode);
-  rsp.code = code;
-  
-  int32_t rspLen = tSerializeSVTxnPrepareRsp(NULL, 0, &rsp);
-  if (rspLen > 0) {
-    pRsp->pCont = rpcMallocCont(rspLen);
-    if (pRsp->pCont) {
-      tSerializeSVTxnPrepareRsp(pRsp->pCont, rspLen, &rsp);
-      pRsp->contLen = rspLen;
-    }
-  }
-  
-  tFreeSVTxnPrepareReq(&req);
-  return code;
-}
-
-/**
- * Process COMMIT request from MNode
+ * Process COMMIT request from MNode (TDMT_VND_TXN_COMMIT)
  * This finalizes the transaction and makes changes visible
  */
 int32_t vnodeProcessTxnCommitReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  
-  // Decode request
+  int32_t        code = TSDB_CODE_SUCCESS;
   SVTxnCommitReq req = {0};
-  SDecoder decoder = {0};
-  tDecoderInit(&decoder, pReq, len);
-  
-  if (tDecodeSVTxnCommitReq(&decoder, &req) < 0) {
-    tDecoderClear(&decoder);
+
+  code = tDeserializeSVTxnCommitReq(pReq, len, &req);
+  if (code != 0) {
+    vError("vgId:%d, failed to decode txn commit req", TD_VID(pVnode));
     return TSDB_CODE_INVALID_MSG;
   }
-  tDecoderClear(&decoder);
-  
-  vInfo("vgId:%d, process txn commit, txnId:%" PRId64, TD_VID(pVnode), req.txnId);
-  
+
+  vInfo("vgId:%d, process txn commit, txnId:%" PRId64 ", term:%" PRId64, TD_VID(pVnode), req.txnId, req.term);
+
   taosThreadMutexLock(&pVnode->txnMutex);
-  
-  // Find transaction entry
+
+  // Fencing: reject stale term
+  if (req.term < pVnode->maxSeenTerm) {
+    taosThreadMutexUnlock(&pVnode->txnMutex);
+    vWarn("vgId:%d, reject txn commit due to stale term, txnId:%" PRId64 ", reqTerm:%" PRId64 ", maxTerm:%" PRId64,
+          TD_VID(pVnode), req.txnId, req.term, pVnode->maxSeenTerm);
+    return TSDB_CODE_VND_TXN_STALE_TERM;
+  }
+  if (req.term > pVnode->maxSeenTerm) {
+    pVnode->maxSeenTerm = req.term;
+  }
+
   SVnodeTxnEntry *pEntry = vnodeGetTxnEntry(pVnode, req.txnId);
   if (pEntry == NULL) {
     taosThreadMutexUnlock(&pVnode->txnMutex);
-    // Transaction not found - might be already committed (idempotent)
-    vWarn("vgId:%d, txn not found for commit (may be idempotent), txnId:%" PRId64, 
-          TD_VID(pVnode), req.txnId);
-    code = TSDB_CODE_SUCCESS;  // Idempotent
-    goto _exit;
+    // Entry not found: txn expired and shadow data already cleaned up → reject commit
+    vError("vgId:%d, txn expired, cannot commit (shadow data lost), txnId:%" PRId64, TD_VID(pVnode), req.txnId);
+    return TSDB_CODE_VND_TXN_EXPIRED;
   }
-  
-  // Update status to committing
-  pEntry->status = VTXN_STATUS_COMMITTING;
-  
+
+  pEntry->stage = VTXN_STAGE_FINISHING;
   taosThreadMutexUnlock(&pVnode->txnMutex);
-  
-  // Apply shadow operations to make them permanent
-  // TODO: Iterate through pEntry->pShadowOps and apply each operation
-  // This involves updating B+ tree entries to remove txnId marker
-  
-  // Write commit record to WAL
-  // TODO: Write txn commit record to WAL
-  
-  // Remove transaction entry
+
+  // TODO: Apply shadow operations — iterate pEntry->pShadowOps, promote shadow B+tree entries
+  // TODO: Write txn commit record to WAL for crash recovery
+
+  // Cleanup entry
   taosThreadMutexLock(&pVnode->txnMutex);
   vnodeRemoveTxnEntry(pVnode, req.txnId);
   taosThreadMutexUnlock(&pVnode->txnMutex);
-  
-  vInfo("vgId:%d, txn committed successfully, txnId:%" PRId64, TD_VID(pVnode), req.txnId);
 
-_exit:
-  // Build response
-  pRsp->msgType = TDMT_VND_TXN_COMMIT_RSP;
-  pRsp->code = code;
-  
-  SVTxnCommitRsp rsp = {0};
-  rsp.txnId = req.txnId;
-  rsp.vgId = TD_VID(pVnode);
-  rsp.code = code;
-  
-  int32_t rspLen = tSerializeSVTxnCommitRsp(NULL, 0, &rsp);
-  if (rspLen > 0) {
-    pRsp->pCont = rpcMallocCont(rspLen);
-    if (pRsp->pCont) {
-      tSerializeSVTxnCommitRsp(pRsp->pCont, rspLen, &rsp);
-      pRsp->contLen = rspLen;
-    }
-  }
-  
-  tFreeSVTxnCommitReq(&req);
+  vInfo("vgId:%d, txn committed, txnId:%" PRId64, TD_VID(pVnode), req.txnId);
   return code;
 }
 
 /**
- * Process ROLLBACK request from MNode
+ * Process ROLLBACK request from MNode (TDMT_VND_TXN_ROLLBACK)
  * This aborts the transaction and discards all shadow changes
  */
 int32_t vnodeProcessTxnRollbackReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  
-  // Decode request
+  int32_t          code = TSDB_CODE_SUCCESS;
   SVTxnRollbackReq req = {0};
-  SDecoder decoder = {0};
-  tDecoderInit(&decoder, pReq, len);
-  
-  if (tDecodeSVTxnRollbackReq(&decoder, &req) < 0) {
-    tDecoderClear(&decoder);
+
+  code = tDeserializeSVTxnRollbackReq(pReq, len, &req);
+  if (code != 0) {
+    vError("vgId:%d, failed to decode txn rollback req", TD_VID(pVnode));
     return TSDB_CODE_INVALID_MSG;
   }
-  tDecoderClear(&decoder);
-  
-  vInfo("vgId:%d, process txn rollback, txnId:%" PRId64, TD_VID(pVnode), req.txnId);
-  
+
+  vInfo("vgId:%d, process txn rollback, txnId:%" PRId64 ", term:%" PRId64 ", reason:%d", TD_VID(pVnode), req.txnId,
+        req.term, req.reason);
+
   taosThreadMutexLock(&pVnode->txnMutex);
-  
-  // Find transaction entry
+
+  // Fencing: reject stale term
+  if (req.term < pVnode->maxSeenTerm) {
+    taosThreadMutexUnlock(&pVnode->txnMutex);
+    vWarn("vgId:%d, reject txn rollback due to stale term, txnId:%" PRId64, TD_VID(pVnode), req.txnId);
+    return TSDB_CODE_VND_TXN_STALE_TERM;
+  }
+  if (req.term > pVnode->maxSeenTerm) {
+    pVnode->maxSeenTerm = req.term;
+  }
+
   SVnodeTxnEntry *pEntry = vnodeGetTxnEntry(pVnode, req.txnId);
   if (pEntry == NULL) {
     taosThreadMutexUnlock(&pVnode->txnMutex);
-    // Transaction not found - might be already rolled back (idempotent)
-    vWarn("vgId:%d, txn not found for rollback (may be idempotent), txnId:%" PRId64, 
-          TD_VID(pVnode), req.txnId);
-    code = TSDB_CODE_SUCCESS;  // Idempotent
-    goto _exit;
+    // Idempotent: already rolled back or never existed
+    vWarn("vgId:%d, txn not found for rollback (idempotent), txnId:%" PRId64, TD_VID(pVnode), req.txnId);
+    return TSDB_CODE_SUCCESS;
   }
-  
-  // Update status to rolling back
-  pEntry->status = VTXN_STATUS_ROLLINGBACK;
-  
+
+  pEntry->stage = VTXN_STAGE_FINISHING;
   taosThreadMutexUnlock(&pVnode->txnMutex);
-  
-  // Discard shadow operations
-  // TODO: Iterate through pEntry->pShadowOps and discard each operation
-  // This involves removing shadow entries from B+ tree
-  
-  // Write rollback record to WAL
-  // TODO: Write txn rollback record to WAL
-  
-  // Remove transaction entry
+
+  // TODO: Discard shadow operations — iterate pEntry->pShadowOps, remove shadow B+tree entries
+  // TODO: Write txn rollback record to WAL for crash recovery
+
+  // Cleanup entry
   taosThreadMutexLock(&pVnode->txnMutex);
   vnodeRemoveTxnEntry(pVnode, req.txnId);
   taosThreadMutexUnlock(&pVnode->txnMutex);
-  
-  vInfo("vgId:%d, txn rolled back successfully, txnId:%" PRId64, TD_VID(pVnode), req.txnId);
 
-_exit:
-  // Build response
-  pRsp->msgType = TDMT_VND_TXN_ROLLBACK_RSP;
-  pRsp->code = code;
-  
-  SVTxnRollbackRsp rsp = {0};
-  rsp.txnId = req.txnId;
-  rsp.vgId = TD_VID(pVnode);
-  rsp.code = code;
-  
-  int32_t rspLen = tSerializeSVTxnRollbackRsp(NULL, 0, &rsp);
-  if (rspLen > 0) {
-    pRsp->pCont = rpcMallocCont(rspLen);
-    if (pRsp->pCont) {
-      tSerializeSVTxnRollbackRsp(pRsp->pCont, rspLen, &rsp);
-      pRsp->contLen = rspLen;
-    }
-  }
-  
-  tFreeSVTxnRollbackReq(&req);
-  return code;
-}
-
-/**
- * Process VNode registration request
- * Called when VNode receives first DDL in a transaction
- */
-int32_t vnodeProcessTxnRegisterReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  
-  // Decode request
-  SVTxnRegisterReq req = {0};
-  SDecoder decoder = {0};
-  tDecoderInit(&decoder, pReq, len);
-  
-  if (tDecodeSVTxnRegisterReq(&decoder, &req) < 0) {
-    tDecoderClear(&decoder);
-    return TSDB_CODE_INVALID_MSG;
-  }
-  tDecoderClear(&decoder);
-  
-  vInfo("vgId:%d, process txn register, txnId:%" PRId64, TD_VID(pVnode), req.txnId);
-  
-  // Forward registration to MNode
-  // This tells MNode that this VNode is participating in the transaction
-  
-  // Build message to MNode
-  SMndTxnRegMsg regMsg = {0};
-  regMsg.txnId = req.txnId;
-  regMsg.vgId = TD_VID(pVnode);
-  
-  int32_t msgLen = tSerializeSMndTxnRegMsg(NULL, 0, &regMsg);
-  if (msgLen <= 0) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _exit;
-  }
-  
-  void *pBuf = rpcMallocCont(msgLen);
-  if (pBuf == NULL) {
-    code = terrno;
-    goto _exit;
-  }
-  
-  tSerializeSMndTxnRegMsg(pBuf, msgLen, &regMsg);
-  
-  // Send to MNode
-  SRpcMsg rpcMsg = {
-    .msgType = TDMT_MND_TXN_REG,
-    .pCont = pBuf,
-    .contLen = msgLen,
-  };
-  
-  // TODO: Send message to MNode and wait for response
-  // For now, we assume success
-  
-  vInfo("vgId:%d, txn registered with mnode, txnId:%" PRId64, TD_VID(pVnode), req.txnId);
-
-_exit:
-  // Build response
-  pRsp->msgType = TDMT_VND_TXN_REGISTER_RSP;
-  pRsp->code = code;
-  
-  tFreeSVTxnRegisterReq(&req);
+  vInfo("vgId:%d, txn rolled back, txnId:%" PRId64, TD_VID(pVnode), req.txnId);
   return code;
 }
 
@@ -437,38 +232,35 @@ void vnodeTxnCheckTimeout(SVnode *pVnode) {
   if (pVnode->pTxnHash == NULL) {
     return;
   }
-  
+
   int64_t now = taosGetTimestampMs();
-  int64_t timeout = tsMetaTxnTimeout * 1000;  // Convert to ms
-  
+  int64_t timeout = (int64_t)tsMetaTxnTimeout * 1000;
+
   SArray *expiredTxns = taosArrayInit(8, sizeof(int64_t));
   if (expiredTxns == NULL) {
     return;
   }
-  
+
   taosThreadMutexLock(&pVnode->txnMutex);
-  
+
   void *pIter = taosHashIterate(pVnode->pTxnHash, NULL);
   while (pIter) {
     SVnodeTxnEntry *pEntry = (SVnodeTxnEntry *)pIter;
-    
+
     if (now - pEntry->lastActive > timeout) {
-      // Transaction expired
       vWarn("vgId:%d, txn expired, txnId:%" PRId64 ", lastActive:%" PRId64 ", now:%" PRId64,
             TD_VID(pVnode), pEntry->txnId, pEntry->lastActive, now);
       taosArrayPush(expiredTxns, &pEntry->txnId);
     }
-    
+
     pIter = taosHashIterate(pVnode->pTxnHash, pIter);
   }
-  
-  // Rollback expired transactions
+
   int32_t numExpired = taosArrayGetSize(expiredTxns);
   for (int32_t i = 0; i < numExpired; i++) {
-    int64_t txnId = *(int64_t *)taosArrayGet(expiredTxns, i);
+    int64_t         txnId = *(int64_t *)taosArrayGet(expiredTxns, i);
     SVnodeTxnEntry *pEntry = vnodeGetTxnEntry(pVnode, txnId);
     if (pEntry) {
-      // Discard shadow operations
       if (pEntry->pShadowOps) {
         taosArrayDestroy(pEntry->pShadowOps);
       }
@@ -476,9 +268,9 @@ void vnodeTxnCheckTimeout(SVnode *pVnode) {
       vInfo("vgId:%d, expired txn rolled back, txnId:%" PRId64, TD_VID(pVnode), txnId);
     }
   }
-  
+
   taosThreadMutexUnlock(&pVnode->txnMutex);
-  
+
   taosArrayDestroy(expiredTxns);
 }
 
@@ -492,55 +284,115 @@ void vnodeTxnCheckTimeout(SVnode *pVnode) {
  */
 int32_t vnodeTxnFencing(SVnode *pVnode, int64_t newTerm, int64_t newTxnId) {
   int32_t code = TSDB_CODE_SUCCESS;
-  
+
   taosThreadMutexLock(&pVnode->txnMutex);
-  
+
   if (newTerm <= pVnode->maxSeenTerm) {
     taosThreadMutexUnlock(&pVnode->txnMutex);
     return TSDB_CODE_VND_TXN_STALE_TERM;
   }
-  
-  // Update max seen term
+
   pVnode->maxSeenTerm = newTerm;
-  
-  // Find and abort all transactions with lower terms
+
   SArray *toAbort = taosArrayInit(8, sizeof(int64_t));
   if (toAbort == NULL) {
     taosThreadMutexUnlock(&pVnode->txnMutex);
     return terrno;
   }
-  
+
   void *pIter = taosHashIterate(pVnode->pTxnHash, NULL);
   while (pIter) {
     SVnodeTxnEntry *pEntry = (SVnodeTxnEntry *)pIter;
-    
+
     if (pEntry->term < newTerm && pEntry->txnId != newTxnId) {
-      vInfo("vgId:%d, fencing: abort txn with lower term, txnId:%" PRId64 ", term:%" PRId64 ", newTerm:%" PRId64,
-            TD_VID(pVnode), pEntry->txnId, pEntry->term, newTerm);
+      vInfo("vgId:%d, fencing: abort txn, txnId:%" PRId64 ", term:%" PRId64 ", newTerm:%" PRId64, TD_VID(pVnode),
+            pEntry->txnId, pEntry->term, newTerm);
       taosArrayPush(toAbort, &pEntry->txnId);
     }
-    
+
     pIter = taosHashIterate(pVnode->pTxnHash, pIter);
   }
-  
-  // Abort transactions
+
   int32_t numToAbort = taosArrayGetSize(toAbort);
   for (int32_t i = 0; i < numToAbort; i++) {
-    int64_t txnId = *(int64_t *)taosArrayGet(toAbort, i);
+    int64_t         txnId = *(int64_t *)taosArrayGet(toAbort, i);
     SVnodeTxnEntry *pEntry = vnodeGetTxnEntry(pVnode, txnId);
     if (pEntry) {
-      // Discard shadow operations
       if (pEntry->pShadowOps) {
         taosArrayDestroy(pEntry->pShadowOps);
       }
       taosHashRemove(pVnode->pTxnHash, &txnId, sizeof(int64_t));
     }
   }
-  
+
   taosThreadMutexUnlock(&pVnode->txnMutex);
-  
   taosArrayDestroy(toAbort);
-  
+
   vInfo("vgId:%d, fencing completed, aborted %d transactions", TD_VID(pVnode), numToAbort);
   return code;
+}
+
+// ============================================================================
+// StatusReq Keepalive Support
+// ============================================================================
+
+/**
+ * Collect idle transactions that need keepalive queries.
+ * Called by DNode when building statusReq. Transactions silent longer than
+ * tsMetaTxnQuietSec are returned for MNode to confirm liveness.
+ */
+int32_t vnodeCollectIdleTxns(SVnode *pVnode, SArray *pQueries) {
+  if (pVnode->pTxnHash == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int64_t now = taosGetTimestampMs();
+  int64_t quietThreshold = (int64_t)tsMetaTxnQuietSec * 1000;
+
+  taosThreadMutexLock(&pVnode->txnMutex);
+
+  void *pIter = taosHashIterate(pVnode->pTxnHash, NULL);
+  while (pIter) {
+    SVnodeTxnEntry *pEntry = (SVnodeTxnEntry *)pIter;
+    if (pEntry->stage == VTXN_STAGE_ACTIVE && (now - pEntry->lastActive > quietThreshold)) {
+      STxnActiveQuery q = {.txnId = pEntry->txnId, .vgId = TD_VID(pVnode)};
+      taosArrayPush(pQueries, &q);
+    }
+    pIter = taosHashIterate(pVnode->pTxnHash, pIter);
+  }
+
+  taosThreadMutexUnlock(&pVnode->txnMutex);
+  return TSDB_CODE_SUCCESS;
+}
+
+/**
+ * Process keepalive ACK from MNode (via statusRsp).
+ * alive=1: refresh lastActive; alive=0: txn is dead, rollback locally.
+ */
+void vnodeTxnProcessActiveAck(SVnode *pVnode, utxn_id_t txnId, int8_t alive) {
+  if (pVnode->pTxnHash == NULL) {
+    return;
+  }
+
+  taosThreadMutexLock(&pVnode->txnMutex);
+
+  SVnodeTxnEntry *pEntry = vnodeGetTxnEntry(pVnode, txnId);
+  if (pEntry == NULL) {
+    taosThreadMutexUnlock(&pVnode->txnMutex);
+    return;
+  }
+
+  if (alive) {
+    pEntry->lastActive = taosGetTimestampMs();
+    vDebug("vgId:%d, txn keepalive refreshed, txnId:%" PRId64, TD_VID(pVnode), txnId);
+  } else {
+    vInfo("vgId:%d, txn dead per MNode ack, rolling back locally, txnId:%" PRId64, TD_VID(pVnode), txnId);
+    // TODO: discard shadow B+tree entries
+    if (pEntry->pShadowOps) {
+      taosArrayDestroy(pEntry->pShadowOps);
+    }
+    taosHashRemove(pVnode->pTxnHash, &txnId, sizeof(int64_t));
+  }
+
+  taosThreadMutexUnlock(&pVnode->txnMutex);
 }

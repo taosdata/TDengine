@@ -913,10 +913,20 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
       break;
 #endif
 
+    /* BATCH META TXN */
+    case TDMT_VND_TXN_COMMIT:
+      code = vnodeProcessTxnCommitReq(pVnode, ver, pReq, len, pRsp);
+      TSDB_CHECK_CODE(code, lino, _err);
+      break;
+    case TDMT_VND_TXN_ROLLBACK:
+      code = vnodeProcessTxnRollbackReq(pVnode, ver, pReq, len, pRsp);
+      TSDB_CHECK_CODE(code, lino, _err);
+      break;
+
     /* TSDB */
     case TDMT_VND_SUBMIT: {
       METRICS_TIMING_BLOCK(pVnode->writeMetrics.apply_time, METRIC_LEVEL_LOW, {
-        if (vnodeProcessSubmitReq(pVnode, ver, pMsg->pCont, pMsg->contLen, pRsp, pMsg) < 0) goto _err;
+              if (vnodeProcessSubmitReq(pVnode, ver, pMsg->pCont, pMsg->contLen, pRsp, pMsg) < 0) goto _err;
       });
       METRICS_UPDATE(pVnode->writeMetrics.apply_bytes, METRIC_LEVEL_LOW, (int64_t)pMsg->contLen);
       break;

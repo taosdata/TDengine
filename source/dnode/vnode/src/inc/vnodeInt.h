@@ -552,6 +552,11 @@ struct SVnode {
 
   // Notification Handles
   SStreamNotifyHandleMap* pNotifyHandleMap;
+
+  // Batch Metadata Transaction
+  SHashObj*     pTxnHash;     // key: int64_t txnId, value: SVnodeTxnEntry
+  TdThreadMutex txnMutex;     // protects pTxnHash
+  int64_t       maxSeenTerm;  // max Raft term seen (for fencing)
 };
 
 #define TD_VID(PVNODE) ((PVNODE)->config.vgId)
@@ -655,6 +660,16 @@ void    vHashDestroy(SVHashTable** ht);
 int32_t vHashPut(SVHashTable* ht, void* obj);
 int32_t vHashGet(SVHashTable* ht, const void* obj, void** retObj);
 int32_t vHashDrop(SVHashTable* ht, const void* obj);
+
+// vnodeTxn.c — Batch metadata transaction
+int32_t vnodeTxnInit(SVnode* pVnode);
+void    vnodeTxnCleanup(SVnode* pVnode);
+int32_t vnodeProcessTxnCommitReq(SVnode* pVnode, int64_t ver, void* pReq, int32_t len, SRpcMsg* pRsp);
+int32_t vnodeProcessTxnRollbackReq(SVnode* pVnode, int64_t ver, void* pReq, int32_t len, SRpcMsg* pRsp);
+void    vnodeTxnCheckTimeout(SVnode* pVnode);
+int32_t vnodeTxnFencing(SVnode* pVnode, int64_t newTerm, int64_t newTxnId);
+int32_t vnodeCollectIdleTxns(SVnode* pVnode, SArray* pQueries);
+void    vnodeTxnProcessActiveAck(SVnode* pVnode, utxn_id_t txnId, int8_t alive);
 
 #ifdef __cplusplus
 }
