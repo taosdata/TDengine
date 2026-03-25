@@ -81,8 +81,8 @@ class TestSnapshot:
         # balance vgroups
         self.balanceVGroupLeader()
         
-        if self.waitCompactsZero() is False:
-            tdLog.exit(f"compact not finished")
+        if self.waitCompactsRetentionsZero() is False:
+            tdLog.exit(f"compact or retentions not finished")
             return False
 
         # replica to 1

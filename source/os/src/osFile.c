@@ -242,6 +242,7 @@ int32_t taosRenameFile(const char *oldName, const char *newName) {
   HANDLE transactionHandle = CreateTransaction(NULL, NULL, 0, 0, 0, INFINITE, NULL);
   if (transactionHandle == INVALID_HANDLE_VALUE) {
     DWORD error = GetLastError();
+    ERRNO = error;
     terrno = TAOS_SYSTEM_WINAPI_ERROR(error);
     return terrno;
   }
@@ -252,11 +253,13 @@ int32_t taosRenameFile(const char *oldName, const char *newName) {
     finished = CommitTransaction(transactionHandle);
     if (!finished) {
       DWORD error = GetLastError();
+      ERRNO = error;
       terrno = TAOS_SYSTEM_WINAPI_ERROR(error);
     }
   } else {
     RollbackTransaction(transactionHandle);
     DWORD error = GetLastError();
+    ERRNO = error;
     terrno = TAOS_SYSTEM_WINAPI_ERROR(error);
     finished = false;
   }
