@@ -206,19 +206,29 @@ int tdbPagerOpen(SPCache *pCache, const char *fileName, SPager **ppPager) {
 
   pPager->fd = tdbOsOpen(pPager->dbFileName, TDB_O_CREAT | TDB_O_RDWR, 0755);
   if (TDB_FD_INVALID(pPager->fd)) {
-    // if (pPager->fd < 0) {
-    return TAOS_SYSTEM_ERROR(ERRNO);
+    ret = terrno;
+    tdbOsFree(pPager);
+    return ret;
   }
 
   ret = tdbGnrtFileID(pPager->fd, pPager->fid, false);
   if (ret < 0) {
-    return TAOS_SYSTEM_ERROR(ERRNO);
+    // close fd and free pager on file-id failure
+    tdbOsClose(pPager->fd);
+    tdbOsFree(pPager);
+    return ret;
   }
 
   // pPager->jfd = -1;
   pPager->pageSize = tdbPCacheGetPageSize(pCache);
   // pPager->dbOrigSize
   ret = tdbGetFileSize(pPager->fd, pPager->pageSize, &(pPager->dbOrigSize));
+  if (ret < 0) {
+    // close fd and free pager on getFileSize failure
+    tdbOsClose(pPager->fd);
+    tdbOsFree(pPager);
+    return ret;
+  }
   pPager->dbFileSize = pPager->dbOrigSize;
 
   tdbTrace("pager/open reset dirty tree: %p", &pPager->rbt);
@@ -274,11 +284,6 @@ int tdbPagerWrite(SPager *pPager, SPage *pPage) {
 }
 
 int tdbPagerBegin(SPager *pPager, TXN *pTxn) {
-  /*
-  if (pPager->inTran) {
-    return 0;
-  }
-  */
   // Open the journal
   char jTxnFileName[TDB_FILENAME_LEN];
   (void)snprintf(jTxnFileName, TDB_FILENAME_LEN, "%s.%" PRId64, pPager->jFileName, pTxn->txnId);
@@ -290,7 +295,10 @@ int tdbPagerBegin(SPager *pPager, TXN *pTxn) {
 
   pTxn->jPageSet = hashset_create();
   if (pTxn->jPageSet == NULL) {
-    return terrno;
+    int ret = terrno;
+    tdbOsClose(pTxn->jfd);
+    tdbOsRemove(jTxnFileName);
+    return ret;
   }
 
   pPager->pActiveTxn = pTxn;
@@ -458,10 +466,6 @@ static char *tdbEncryptPage(SPager *pPager, char *pPageData, int32_t pageSize, c
   char *buf = pPageData;
 
   if (pEncryptData != NULL && pEncryptData->encryptAlgrName[0] != '\0') {
-    // tdbInfo("CBC Encrypt key:%d %s %s", encryptAlgorithm, encryptKey, __FUNCTION__);
-
-    // tdbInfo("CBC tdb offset:%" PRId64 ", flag:%d before Encrypt", offset, pPage->pData[0]);
-
     buf = taosMemoryMalloc(pageSize);
     if (buf == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -490,9 +494,6 @@ static char *tdbEncryptPage(SPager *pPager, char *pPageData, int32_t pageSize, c
       memcpy(buf + count, packetData, newLen);
       count += newLen;
     }
-    // tdbInfo("CBC tdb offset:%" PRId64 ", Encrypt count:%d %s", offset, count, function);
-
-    // tdbInfo("CBC tdb offset:%" PRId64 ", flag:%d after Encrypt", offset, (uint8_t)buf[0]);
   }
 
   return buf;
@@ -551,6 +552,13 @@ int tdbPagerAbort(SPager *pPager, TXN *pTxn) {
     }
 
     tdbTrace("pager/abort: restore pgno:%d,", pgno);
+
+    // validate pgno from journal to guard against corruption
+    if (pgno == 0 || pgno > pPager->dbOrigSize) {
+      tdbError("pager/abort: invalid pgno %u from journal, dbOrigSize %u", pgno, pPager->dbOrigSize);
+      tdbOsFree(pageBuf);
+      return TSDB_CODE_INVALID_DATA_FMT;
+    }
 
     tdbPCacheInvalidatePage(pPager->pCache, pPager, pgno);
 
@@ -746,19 +754,19 @@ int tdbPagerFetchPage(SPager *pPager, SPgno *ppgno, SPage **ppPage, int (*initPa
     ret = tdbPagerInitPage(pPager, pPage, initPage, arg, loadPage);
     if (ret < 0) {
       tdbError("tdb/pager: %p, pPage: %p, init page failed.", pPager, pPage);
+      tdbPCacheRelease(pPager->pCache, pPage, pTxn);
       return ret;
     }
   }
 
-  // printf("thread %" PRId64 " pager fetch page %d pgno %d ppage %p\n", taosGetSelfPthreadId(), pPage->id,
-  //        TDB_PAGE_PGNO(pPage), pPage);
-
   if (!TDB_PAGE_INITIALIZED(pPage)) {
     tdbError("tdb/pager: %p, pPage: %p, fetch page uninited.", pPager, pPage);
+    tdbPCacheRelease(pPager->pCache, pPage, pTxn);
     return TSDB_CODE_INVALID_DATA_FMT;
   }
   if (pPage->pPager != pPager) {
     tdbError("tdb/pager: %p/%p, fetch page failed.", pPager, pPage->pPager);
+    tdbPCacheRelease(pPager->pCache, pPage, pTxn);
     return TSDB_CODE_INVALID_DATA_FMT;
   }
 
@@ -769,8 +777,6 @@ int tdbPagerFetchPage(SPager *pPager, SPgno *ppgno, SPage **ppPage, int (*initPa
 
 void tdbPagerReturnPage(SPager *pPager, SPage *pPage, TXN *pTxn) {
   tdbPCacheRelease(pPager->pCache, pPage, pTxn);
-  // printf("thread %" PRId64 " pager retun page %d pgno %d ppage %p\n", taosGetSelfPthreadId(), pPage->id,
-  //        TDB_PAGE_PGNO(pPage), pPage);
 }
 
 // tdbPagerFetchFreePage don't want the page data to be modified, so use a nop init function.
@@ -807,6 +813,7 @@ int tdbPagerFetchFreePage(SPager *pPager, SPgno pgno, SPage **ppPage, TXN *pTxn)
     ret = tdbPagerInitPage(pPager, pPage, initFreePage, NULL, 1);
     if (ret < 0) {
       tdbError("tdb/pager: %p, pPage: %p, init page failed.", pPager, pPage);
+      tdbPCacheRelease(pPager->pCache, pPage, pTxn);
       return ret;
     }
   }
@@ -1104,6 +1111,13 @@ static int tdbPagerRestore(SPager *pPager, const char *jFileName) {
     }
 
     tdbTrace("pager/restore: restore pgno:%d,", pgno);
+
+    // validate pgno from journal to guard against corruption
+    if (pgno == 0 || pgno > pPager->dbOrigSize) {
+      tdbError("pager/restore: invalid pgno %u from journal, dbOrigSize %u", pgno, pPager->dbOrigSize);
+      tdbOsFree(pageBuf);
+      return TSDB_CODE_INVALID_DATA_FMT;
+    }
 
     ret = tdbOsRead(jfd, pageBuf, pPager->pageSize);
     if (ret < 0) {
