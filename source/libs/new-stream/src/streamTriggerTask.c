@@ -2573,7 +2573,8 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *
   }
   pTask->ignoreNoDataTrigger = pMsg->igNoDataTrigger;
   pTask->hasTriggerFilter = pMsg->triggerHasPF;
-  pTask->multiGroupBatch = true;  // todo(kjq): set it from pMsg later
+  pTask->multiGroupBatch = pMsg->enableMultiGroupCalc;
+  QUERY_CHECK_CONDITION(!pTask->multiGroupBatch, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
   pTask->placeHolderBitmap = pMsg->placeHolderBitmap;
   pTask->streamName = taosStrdup(pMsg->streamName);
   code = nodesStringToNode(pMsg->triggerPrevFilter, &pTask->triggerFilter);

@@ -18769,6 +18769,7 @@ static int32_t createStreamReqBuildDefaultReq(STranslateContext* pCxt, SCreateSt
   pReq->calcNotifyOnly = 0;
   pReq->lowLatencyCalc = 0;
   pReq->igNoDataTrigger = 0;
+  pReq->enableMultiGroupCalc = 0;
   pReq->flags = CREATE_STREAM_FLAG_NONE;
   pReq->placeHolderBitmap = PLACE_HOLDER_NONE;
   pReq->triTsSlotId = -1;
