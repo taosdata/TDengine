@@ -1,6 +1,6 @@
 use test;
 select tbname, cast(_wstart as bigint) as ws, count(*) as c from ext_src partition by tbname external_window((select _wstart, _wend, count(*) as wc from ext_win interval(10m)) w) order by tbname, ws;
-select tbname, cast(_wstart as bigint) as ws, count(*) as c from ext_src partition by tbname external_window((select _wstart, _wend, count(*) as wc from ext_win interval(10m)) w);
+select tbname, cast(_wstart as bigint) as ws, count(*) as c from ext_src partition by tbname external_window((select _wstart, _wend, count(*) as wc from ext_win interval(10m)) w) order by tbname;
 select t1, cast(_wstart as bigint) as ws, count(*) as c from ext_src partition by t1 external_window((select _wstart, _wend, count(*) as wc from ext_win interval(10m)) w) order by t1, ws;
 select t1, cast(_wstart as bigint) as ws, count(*) as c from ext_src partition by t1 external_window((select _wstart, _wend, count(*) as wc from ext_win interval(10m)) w);
 select _wstart, _wend, count(*) from ext_src external_window((select _wstart, _wend, count(*) as wc from ext_win interval(10m)) w);

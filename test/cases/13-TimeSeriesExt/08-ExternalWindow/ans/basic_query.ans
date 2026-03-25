@@ -222,10 +222,10 @@ taos> select _wstart, _wend, w.fc1, count(*), v2 from st1_1 partition by v2 exte
 
 taos> select _wstart, count(*) from st1_1 external_window((select ts, ts+5 as e from st2) w);
 
-DB error: External window subquery must return time-ordered rows [0x80000120] 
+DB error: External window subquery must return time-ordered rows [0x80000142] 
 taos> select _wstart, _wend, w.c2, count(*) from st1_1 external_window((select ts, ts+30 as e, c2 from st2) w);
 
-DB error: External window subquery must return time-ordered rows [0x80000120] 
+DB error: External window subquery must return time-ordered rows [0x80000142] 
 taos> select _wstart, _wend, count(*) from st1_1 external_window((select ts, ts+5 as e from st2 order by ts) w);
          _wstart         |          _wend          |       count(*)        |
 ============================================================================

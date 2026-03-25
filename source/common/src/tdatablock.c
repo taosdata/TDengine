@@ -1242,10 +1242,7 @@ int32_t blockDataFromBuf1(SSDataBlock* pBlock, const char* buf, size_t capacity)
       memcpy(pCol->pData, pStart, colLength);
     }
 
-    // Page serialization stores each column payload back-to-back and the next
-    // column starts after the recorded content length rather than the full
-    // row-capacity span.
-    pStart += colLength;
+    pStart += pCol->info.bytes * capacity;
   }
 
   return TSDB_CODE_SUCCESS;

@@ -8,7 +8,7 @@ taos> select tbname, cast(_wstart as bigint) as ws, count(*) as c from ext_src p
  ext_src_1                      |         1699999800000 |                     2 |
  ext_src_2                      |         1700000400000 |                     1 |
 
-taos> select tbname, cast(_wstart as bigint) as ws, count(*) as c from ext_src partition by tbname external_window((select _wstart, _wend, count(*) as wc from ext_win interval(10m)) w);
+taos> select tbname, cast(_wstart as bigint) as ws, count(*) as c from ext_src partition by tbname external_window((select _wstart, _wend, count(*) as wc from ext_win interval(10m)) w) order by tbname;
              tbname             |          ws           |           c           |
 =================================================================================
  ext_src_1                      |         1699999800000 |                     2 |
