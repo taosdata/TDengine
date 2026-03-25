@@ -9,7 +9,7 @@ from taosanalytics.algo.imputation import check_freq_param
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../../")
 
-from taosanalytics.servicemgmt import loader
+from taosanalytics.builtins import loader
 from taosanalytics.util import convert_results_to_windows, is_white_noise, parse_options, is_stationary, \
     parse_time_delta_string
 

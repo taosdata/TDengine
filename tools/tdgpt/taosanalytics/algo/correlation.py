@@ -1,4 +1,4 @@
-from taosanalytics.servicemgmt import loader
+from taosanalytics.builtins import loader
 
 
 def do_dtw(input_list1: list, input_list2: list, params):

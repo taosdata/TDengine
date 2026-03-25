@@ -6,9 +6,9 @@ import inspect
 import os
 import sys
 from collections import defaultdict
-from taosanalytics.conf import app_logger
-from taosanalytics.service import (AbstractAnomalyDetectionService, AbstractForecastService, AbstractImputationService, \
-                                   AbstractCorrelationService)
+from taosanalytics.conf import AppLogger
+from taosanalytics.analytics_base import (AbstractAnomalyDetectionService, AbstractForecastService, AbstractImputationService, \
+                                          AbstractCorrelationService)
 
 os.environ['KERAS_BACKEND'] = 'torch'
 
@@ -33,7 +33,7 @@ class AnalyticsServiceLoader:
                     one = {"name": key, "desc": val[0].get_desc(), "params": val[0].get_params(), "status": val[0].get_status()}
                     all_items.append(one)
                 except AttributeError as e:
-                    app_logger.log_inst.error("failed to get service: %s info, reason: %s", key, e)
+                    AppLogger.get_instance().log_inst.error("failed to get service: %s info, reason: %s", key, e)
 
         return all_items
 
@@ -84,7 +84,7 @@ class AnalyticsServiceLoader:
 
         def register_service(container, name: str, service):
             """ register service for both anomaly detection and fc """
-            app_logger.log_inst.info("register service: %s", name)
+            AppLogger.get_instance().log_inst.info("register service: %s", name)
             container[name].append(service)
 
         def do_load_service(cur_directory, lib_prefix, sub_directory):
@@ -92,7 +92,7 @@ class AnalyticsServiceLoader:
             service_directory = cur_directory + sub_directory
 
             if not os.path.exists(service_directory):
-                app_logger.log_inst.fatal(
+                AppLogger.get_instance().log_inst.fatal(
                     "service directory:%s not lib exists, failed to load service",
                     service_directory)
                 raise FileNotFoundError(f"service directory:{service_directory} not found")
@@ -111,7 +111,7 @@ class AnalyticsServiceLoader:
                 name = lib_prefix + item.split('.')[0]
                 module = importlib.import_module(name)
 
-                app_logger.log_inst.info("load algorithm:%s", name)
+                AppLogger.get_instance().log_inst.info("load algorithm:%s", name)
 
                 for (class_name, _) in inspect.getmembers(module, inspect.isclass):
 
@@ -130,7 +130,7 @@ class AnalyticsServiceLoader:
 
                         # ignore the shesd for python 3.12 version due to pandas compatibility
                         if (version.major, version.minor) == (3, 12) and class_name == '_SHESDService':
-                            app_logger.log_inst.info(
+                            AppLogger.get_instance().log_inst.info(
                                 "%s not loaded due to Pandas compatibility problem on Python 3.12",
                                 class_name)
                             continue

@@ -1,6 +1,6 @@
 import numpy as np
 
-from taosanalytics.conf import app_logger
+from taosanalytics.conf import AppLogger
 from taosanalytics.service import AbstractCorrelationService
 from fastdtw import fastdtw
 
@@ -31,4 +31,4 @@ class _DtwService(AbstractCorrelationService):
                 raise ValueError("radius value out of range, valid range [1, 10]")
 
             self.radius = k
-            app_logger.log_inst.debug("dtw radius is set to: %d", self.radius)
+            AppLogger.get_instance().log_inst.debug("dtw radius is set to: %d", self.radius)

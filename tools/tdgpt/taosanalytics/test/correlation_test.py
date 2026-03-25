@@ -9,8 +9,8 @@ from matplotlib import pyplot as plt
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../../")
 
-from taosanalytics.conf import setup_log_info, app_logger
-from taosanalytics.servicemgmt import loader
+from taosanalytics.conf import AppLogger, setup_log_info
+from taosanalytics.builtins import loader
 
 def draw_lags_result(lags, ccf_vals, name):
     plt.figure(figsize=(10, 5))

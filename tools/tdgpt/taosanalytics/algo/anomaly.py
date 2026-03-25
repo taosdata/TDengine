@@ -3,9 +3,9 @@
 """ anomaly detection register/display functions """
 import numpy as np
 from matplotlib import pyplot as plt
-from taosanalytics.conf import app_logger, conf
+from taosanalytics.conf import AppLogger, conf
 from taosanalytics.error import failed_load_model_except
-from taosanalytics.servicemgmt import loader
+from taosanalytics.builtins import loader
 from taosanalytics.util import convert_results_to_windows
 
 
@@ -14,7 +14,7 @@ def do_ad_check(input_list, ts_list, algo_name, params):
     s = loader.get_service(algo_name)
 
     if s is None:
-        app_logger.log_inst.error("specified model not found:%s" % (algo_name))
+        AppLogger.get_instance().log_inst.error("specified model not found:%s" % (algo_name))
         failed_load_model_except(algo_name)
 
     s.set_input_list(input_list, ts_list)
@@ -23,7 +23,7 @@ def do_ad_check(input_list, ts_list, algo_name, params):
     res = s.execute()
 
     n_error = abs(sum(filter(lambda x: x != s.valid_code, res)))
-    app_logger.log_inst.debug("There are %d in input, and %d anomaly points found: %s",
+    AppLogger.get_instance().log_inst.debug("There are %d in input, and %d anomaly points found: %s",
                               len(input_list),
                               n_error,
                               res)
