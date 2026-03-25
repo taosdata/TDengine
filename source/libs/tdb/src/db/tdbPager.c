@@ -604,7 +604,9 @@ int tdbPagerAbort(SPager *pPager, TXN *pTxn) {
     pPage->isDirty = 0;
 
     tRBTreeDrop(&pPager->rbt, (SRBTreeNode *)pPage);
-    int32_t nt = hashset_remove(pTxn->jPageSet, (void *)((long)TDB_PAGE_PGNO(pPage)));
+    if (pTxn->jPageSet) {
+      int32_t nt = hashset_remove(pTxn->jPageSet, (void *)((long)TDB_PAGE_PGNO(pPage)));
+    }
     tdbPCacheMarkFree(pPager->pCache, pPage);
     tdbPCacheRelease(pPager->pCache, pPage, pTxn);
   }
