@@ -1906,6 +1906,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tstrncpy(tsMonitorFqdn, pItem->str, TSDB_FQDN_LEN);
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "culsAddr");
+  TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, sizeof(tsCulsAddr)));
   tstrncpy(tsCulsAddr, pItem->str, sizeof(tsCulsAddr));
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "monitorPort");
