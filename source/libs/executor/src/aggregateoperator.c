@@ -209,6 +209,10 @@ static bool nextGroupedResult(SOperatorInfo* pOperator) {
   if (pBlock) {
     pAggInfo->pNewGroupBlock = NULL;
     tSimpleHashClear(pAggInfo->aggSup.pResultRowHashTable);
+    qTrace("%s EXEC_GROUP_TRACE agg_resume blockGroupId:%" PRIu64 " currentGroupId:%" PRIu64
+           " blocking:%d groupKeyOptimized:%d rows:%" PRId64,
+           GET_TASKID(pTaskInfo), pBlock->info.id.groupId, pAggInfo->groupId, pOperator->blocking,
+           pAggInfo->groupKeyOptimized, pBlock->info.rows);
     code = setExecutionContext(pOperator, pOperator->exprSupp.numOfExprs, pBlock->info.id.groupId);
     QUERY_CHECK_CODE(code, lino, _end);
     code = setInputDataBlock(pSup, pBlock, order, pBlock->info.scanFlag, true);
@@ -235,6 +239,10 @@ static bool nextGroupedResult(SOperatorInfo* pOperator) {
     }
     pAggInfo->hasValidBlock = true;
     pAggInfo->binfo.pRes->info.scanFlag = pBlock->info.scanFlag;
+    qTrace("%s EXEC_GROUP_TRACE agg_input blockGroupId:%" PRIu64 " currentGroupId:%" PRIu64
+           " blocking:%d groupKeyOptimized:%d rows:%" PRId64,
+           GET_TASKID(pTaskInfo), pBlock->info.id.groupId, pAggInfo->groupId, pOperator->blocking,
+           pAggInfo->groupKeyOptimized, pBlock->info.rows);
 
     printDataBlock(pBlock, __func__, pTaskInfo->id.str, pTaskInfo->id.queryId);
 
@@ -249,6 +257,10 @@ static bool nextGroupedResult(SOperatorInfo* pOperator) {
     }
     // if non-blocking mode and new group arrived, save the block and break
     if (!pOperator->blocking && pAggInfo->groupId != UINT64_MAX && pBlock->info.id.groupId != pAggInfo->groupId) {
+      qTrace("%s EXEC_GROUP_TRACE agg_new_group currentGroupId:%" PRIu64 " nextBlockGroupId:%" PRIu64
+             " rows:%" PRId64 " groupKeyOptimized:%d",
+             GET_TASKID(pTaskInfo), pAggInfo->groupId, pBlock->info.id.groupId, pBlock->info.rows,
+             pAggInfo->groupKeyOptimized);
       pAggInfo->pNewGroupBlock = pBlock;
       break;
     }
@@ -478,6 +490,10 @@ int32_t setExecutionContext(SOperatorInfo* pOperator, int32_t numOfOutput, uint6
   if (pAggInfo->groupId != UINT64_MAX && pAggInfo->groupId == groupId) {
     return code;
   }
+
+  qTrace("%s EXEC_GROUP_TRACE agg_set_context oldGroupId:%" PRIu64 " newGroupId:%" PRIu64
+         " groupKeyOptimized:%d numOutput:%d",
+         GET_TASKID(pOperator->pTaskInfo), pAggInfo->groupId, groupId, pAggInfo->groupKeyOptimized, numOfOutput);
 
   code = doSetTableGroupOutputBuf(pOperator, numOfOutput, groupId);
 

@@ -55,7 +55,6 @@ static int32_t getSlotKeyHelper(SNode* pNode, const char* pPreName, const char* 
     TAOS_STRNCAT(*ppKey, name, TSDB_COL_NAME_LEN);
     *pLen = strlen(*ppKey);
   }
-
   return code;
 }
 
@@ -405,22 +404,6 @@ typedef struct SMultiTableSetSlotIdCxt {
   bool       isVtb;
 } SMultiTableSetSlotIdCxt;
 
-static void dumpSlots(const char* pName, SHashObj* pHash) {
-  if (NULL == pHash) {
-    return;
-  }
-  planDebug("%s", pName);
-  void* pIt = taosHashIterate(pHash, NULL);
-  while (NULL != pIt) {
-    size_t len = 0;
-    char*  pKey = taosHashGetKey(pIt, &len);
-    char   name[TSDB_TABLE_NAME_LEN + TSDB_COL_NAME_LEN] = {0};
-    tstrncpy(name, pKey, len < sizeof(name) ? len + 1 : sizeof(name));
-    planDebug("\tslot name = %s", name);
-    pIt = taosHashIterate(pHash, pIt);
-  }
-}
-
 static EDealRes doSetSlotId(SNode* pNode, void* pContext) {
   if (QUERY_NODE_COLUMN == nodeType(pNode) && 0 != strcmp(((SColumnNode*)pNode)->colName, "*")) {
     SSetSlotIdCxt* pCxt = (SSetSlotIdCxt*)pContext;
@@ -443,7 +426,7 @@ static EDealRes doSetSlotId(SNode* pNode, void* pContext) {
       SColumnNode* pCol = (SColumnNode*)pNode;
       if (false == pCol->hasRef && false == pCol->hasDep) {
         int32_t colLen = (int32_t)strlen(pCol->colName);
-        if (colLen > 0) {
+        if (NULL == pIndex && colLen > 0) {
           pIndex = taosHashGet(pCxt->pLeftHash, pCol->colName, colLen);
           if (NULL == pIndex) {
             pIndex = taosHashGet(pCxt->pRightHash, pCol->colName, colLen);
@@ -470,8 +453,6 @@ static EDealRes doSetSlotId(SNode* pNode, void* pContext) {
     // pIndex is definitely not NULL, otherwise it is a bug
     if (NULL == pIndex) {
       planError("doSetSlotId failed, invalid slot name %s", name);
-      dumpSlots("left datablock desc", pCxt->pLeftHash);
-      dumpSlots("right datablock desc", pCxt->pRightHash);
       pCxt->errCode = TSDB_CODE_PLAN_SLOT_NOT_FOUND;
       taosMemoryFree(name);
       return DEAL_RES_ERROR;
@@ -559,7 +540,6 @@ static int32_t setNodeSlotId(SPhysiPlanContext* pCxt, int64_t leftDataBlockId, i
     nodesDestroyNode(pRes);
     return cxt.errCode;
   }
-
   *pOutput = pRes;
   return TSDB_CODE_SUCCESS;
 }
@@ -2188,7 +2168,8 @@ static EDealRes doRewritePrecalcExprs(SNode** pNode, void* pContext) {
       return collectAndRewrite(pCxt, pNode);
     }
     case QUERY_NODE_FUNCTION: {
-      if (fmIsScalarFunc(((SFunctionNode*)(*pNode))->funcId)) {
+      SFunctionNode* pFunc = (SFunctionNode*)(*pNode);
+      if (fmIsScalarFunc(pFunc->funcId)) {
         return collectAndRewrite(pCxt, pNode);
       }
       break;
@@ -2330,7 +2311,6 @@ static int32_t getChildTuple(SDataBlockDescNode **pChildTuple, SNodeList* pChild
       return TSDB_CODE_INVALID_PARA;
     }
     *pChildTuple = pAgg->pOutputDataBlockDesc;
-
   } else {
     SPhysiNode* pChild = (SPhysiNode*)nodesListGetNode(pChildren, 0);
     if (pChild == NULL) {

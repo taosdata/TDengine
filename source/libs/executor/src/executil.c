@@ -3878,6 +3878,12 @@ int32_t buildGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle*
     }
   }
 
+  qTrace("EXEC_GROUP_TRACE build_group_map done scanType:%d group:%p groupByTbname:%d groupSort:%d groupOrderScan:%d "
+         "oneTableEachGroup:%d numTables:%zu numOutputGroups:%d code:%d",
+         nodeType((SNode*)pScanNode), group, groupByTbname, groupSort, pScanNode->groupOrderScan,
+         pTableListInfo->oneTableForEachGroup, taosArrayGetSize(pTableListInfo->pTableList),
+         pTableListInfo->numOfOuputGroups, code);
+
   // add all table entry in the hash map
   size_t size = taosArrayGetSize(pTableListInfo->pTableList);
   for (int32_t i = 0; i < size; ++i) {

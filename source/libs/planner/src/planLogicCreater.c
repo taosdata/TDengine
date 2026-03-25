@@ -579,6 +579,7 @@ _return:
   return code;
 }
 
+bool hasExternalWindowDerivedFromSubquery(SSelectStmt* pSelect);
 static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SRealTableNode* pRealTable,
                                    SLogicNode** pLogicNode) {
   SScanLogicNode* pScan = NULL;
@@ -667,7 +668,7 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   }
 
   bool isCountByTag = false;
-  if (pSelect->hasCountFunc && NULL == pSelect->pWindow && NULL == pSelect->pExtWindow) {
+  if (pSelect->hasCountFunc && NULL == pSelect->pWindow && !hasExternalWindowDerivedFromSubquery(pSelect)) {
     if (pSelect->pGroupByList) {
       isCountByTag = !keysHasCol(pSelect->pGroupByList);
     } else if (pSelect->pPartitionByList) {
@@ -1996,7 +1997,12 @@ static int32_t createExternalWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SS
           }
         }
       }
-      
+
+      // Keep logic targets aligned with the physical external-window output order:
+      // function outputs are materialized before projection outputs, and split Exchange
+      // nodes clone targets from the logic child.
+      PLAN_ERR_RET(createColumnByRewriteExprs(pWindow->pFuncs, &pWindow->node.pTargets));
+
       SNodeList* pProjTargets = NULL;
       PLAN_ERR_RET(nodesCloneList(pWindow->pProjs, &pProjTargets));
       PLAN_ERR_RET(rewriteExprsForSelect(pProjTargets, pSelect, SQL_CLAUSE_EXT_WINDOW, NULL));

@@ -1238,11 +1238,14 @@ int32_t blockDataFromBuf1(SSDataBlock* pBlock, const char* buf, size_t capacity)
       }
     }
 
-    if (!colDataIsNNull(pCol, 0, pBlock->info.rows)) {
+    if (colLength != 0 && !colDataIsNNull(pCol, 0, pBlock->info.rows)) {
       memcpy(pCol->pData, pStart, colLength);
     }
 
-    pStart += pCol->info.bytes * capacity;
+    // Page serialization stores each column payload back-to-back and the next
+    // column starts after the recorded content length rather than the full
+    // row-capacity span.
+    pStart += colLength;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -2713,7 +2716,7 @@ int32_t dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf
 
   int32_t colNum = taosArrayGetSize(pDataBlock->pDataBlock);
   len += tsnprintf(dumpBuf + len, size - len,
-                  "%" PRIx64 " %s %s|block type %d|child id %d|group id:%" PRIx64 "|uid:%" PRId64 "|rows:%" PRId64
+                  "%" PRIx64 " %s %s|child id %d|group id:%" PRIx64 "|uid:%" PRId64 "|rows:%" PRId64
                   "|version:%" PRIu64 "|cal start:%" PRIu64 "|cal end:%" PRIu64 "|tbl:%s\n",
                   qId, taskIdStr, flag, pDataBlock->info.childId,
                   pDataBlock->info.id.groupId, pDataBlock->info.id.uid, pDataBlock->info.rows, pDataBlock->info.version,

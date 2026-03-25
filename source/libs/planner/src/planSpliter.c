@@ -416,7 +416,7 @@ static int32_t stbSplRewriteFuns(const SNodeList* pFuncs, SNodeList** pPartialFu
       return TSDB_CODE_PLAN_INTERNAL_ERROR;
     } else {
       SFunctionNode* pFunc = (SFunctionNode*)pNode;
-      if (fmIsWindowPseudoColumnFunc(pFunc->funcId) || fmIsPlaceHolderFunc(pFunc->funcId) || FUNCTION_TYPE_GROUP_KEY == pFunc->funcType) {
+      if (fmIsWindowPseudoColumnFunc(pFunc->funcId) || fmIsPlaceHolderFunc(pFunc->funcId)) {
         code = nodesCloneNode(pNode, (SNode**)&pPartFunc);
         if (TSDB_CODE_SUCCESS == code) {
           code = nodesCloneNode(pNode, (SNode**)&pMergeFunc);

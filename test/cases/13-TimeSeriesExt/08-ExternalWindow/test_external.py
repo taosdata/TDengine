@@ -351,6 +351,7 @@ class TestExternal:
         tdLog.info("=============== external window: orderby and alias no sort")
         tdSql.execute(f"use {self.dbName}")
         self._check_no_sort_rows([
+            ("select tbname, cast(_wstart as bigint) as ws, count(*) as c from ext_src partition by tbname external_window((select _wstart, _wend, count(*) as wc from ext_win interval(10m)) w)", 2),
             ("select _wstart, _wend, w.mark, cast(ts as bigint) as ts64 from ext_ord_src external_window((select ts, endtime, mark from ext_ord_win_all) w);", 8),
             ("select _wstart, _wend, w.mark, cast(ts as bigint) as ts64 from ext_ord_src external_window((select ts, endtime, mark from ext_ord_win_all) w) limit 5;", 5),
             ("select _wstart, _wend, w.mark, cast(ts as bigint) - cast(_wstart as bigint) as delta from ext_ord_src external_window((select ts, endtime, mark from ext_ord_win_all) w);", 8),
