@@ -15,9 +15,18 @@
 
  #include <iostream>
 #define ALLOW_FORBID_FUNC
-#include <gtest/gtest.h>
-#ifdef WINDOWS
+#if defined(_WIN32) || defined(_WIN64)
+// Use WIN32_LEAN_AND_MEAN to avoid pulling in winsock.h; include winsock2 first
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <winsock2.h>
+#include <ws2tcpip.h>
 #include <windows.h>
+#endif
+#include <gtest/gtest.h>
+
+#if defined(_WIN32) || defined(_WIN64)
 int gettimeofday(struct timeval* tp, void* tzp) {
   FILETIME ft;
   unsigned __int64 tmpres = 0;
@@ -26,7 +35,7 @@ int gettimeofday(struct timeval* tp, void* tzp) {
   if (NULL != tp) {
       GetSystemTimeAsFileTime(&ft);
 
-      tmpres |= ft.dwHighDateTime;
+      tmpres |= ((unsigned __int64)ft.dwHighDateTime);
       tmpres <<= 32;
       tmpres |= ft.dwLowDateTime;
 
@@ -166,8 +175,8 @@ TEST(timerTest, TimerCorrectWhenTimeJumpForward) {
           wf->fireMonoMs = taosGetMonotonicMs();
           wf->fired = true;
         }
-        wf->cv.notify_one();
-        GTEST_LOG_(INFO) << "timer 触发";
+  wf->cv.notify_one();
+  GTEST_LOG_(INFO) << "timer fired";
       },
       delayMs, &waitFlag, ctrl);
 
@@ -192,11 +201,11 @@ TEST(timerTest, TimerCorrectWhenTimeJumpForward) {
     waited += 10;
   }
   if (!signaled) {
-    GTEST_FAIL() << "timer 未触发";
+    GTEST_FAIL() << "timer not fired";
   }
   if (signaled) {
     int64_t elapsed = waitFlag.fireMonoMs - startMonoMs;
-    GTEST_LOG_(INFO) << "timer 触发，elapsed=" << elapsed << "ms";
+    GTEST_LOG_(INFO) << "timer fired, elapsed=" << elapsed << "ms";
   }
 
   // 时间还原
@@ -229,8 +238,8 @@ TEST(timerTest, TimerCorrectWhenTimeJumpBackward) {
           wf->fireMonoMs = taosGetMonotonicMs();
           wf->fired = true;
         }
-        wf->cv.notify_one();
-        GTEST_LOG_(INFO) << "timer 触发";
+  wf->cv.notify_one();
+  GTEST_LOG_(INFO) << "timer fired";
       },
       delayMs, &waitFlag2, ctrl);
 
@@ -255,11 +264,11 @@ TEST(timerTest, TimerCorrectWhenTimeJumpBackward) {
     waited2 += 10;
   }
   if (!signaled2) {
-    GTEST_FAIL() << "timer 未触发";
+    GTEST_FAIL() << "timer not fired";
   }
   if (signaled2) {
     int64_t elapsed = waitFlag2.fireMonoMs - startMonoMs;
-    GTEST_LOG_(INFO) << "timer 触发，elapsed=" << elapsed << "ms";
+    GTEST_LOG_(INFO) << "timer fired, elapsed=" << elapsed << "ms";
   }
 
   // 时间还原
