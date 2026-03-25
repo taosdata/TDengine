@@ -100,7 +100,7 @@ class ServiceRegistry:
                 AppLogger.fatal(
                     "service directory:%s not lib exists, failed to load service",
                     service_directory)
-                raise FileNotFoundError(f"service directory:{service_directory} not found")
+                return
 
             all_files = os.listdir(service_directory)
 
