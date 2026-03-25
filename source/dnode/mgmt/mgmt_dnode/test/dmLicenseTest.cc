@@ -22,6 +22,10 @@ extern "C" {
 #include "tglobal.h"
 }
 
+// Stub for dmStop — not exercised in unit tests but required to satisfy the linker
+// because dmLicenseThreadFp (compiled into mgmt_dnode) calls it at runtime.
+extern "C" void dmStop() {}
+
 static const char* TEST_DATA_DIR = "/tmp/dmLicenseTest";
 
 class GraceFileTest : public ::testing::Test {
@@ -79,4 +83,20 @@ TEST_F(GraceFileTest, GracePeriodNotYetExpired) {
   ctx.gracePeriodStartMs = taosGetTimestampMs() - (5LL * 24 * 3600 * 1000);
   int64_t elapsed = taosGetTimestampMs() - ctx.gracePeriodStartMs;
   ASSERT_LT(elapsed, 14LL * 24LL * 3600LL * 1000LL);
+}
+
+TEST_F(GraceFileTest, GracePeriodExpiryDetectedWithMacro) {
+  SDmLicenseCtx ctx = {};
+  // 15 days ago — should be expired
+  ctx.gracePeriodStartMs = taosGetTimestampMs() - (15LL * 24 * 3600 * 1000);
+  int64_t elapsed = taosGetTimestampMs() - ctx.gracePeriodStartMs;
+  ASSERT_GT(elapsed, DM_LICENSE_GRACE_PERIOD_MS);
+}
+
+TEST_F(GraceFileTest, GracePeriodNotYetExpiredWithMacro) {
+  SDmLicenseCtx ctx = {};
+  // 5 days ago — should not be expired
+  ctx.gracePeriodStartMs = taosGetTimestampMs() - (5LL * 24 * 3600 * 1000);
+  int64_t elapsed = taosGetTimestampMs() - ctx.gracePeriodStartMs;
+  ASSERT_LT(elapsed, DM_LICENSE_GRACE_PERIOD_MS);
 }
