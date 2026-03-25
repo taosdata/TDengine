@@ -14,7 +14,7 @@ use tracing::{Instrument, instrument, warn};
 
 use crate::{R, oauth::middleware::extract_auth_from_request};
 
-static MIGRATOR: Migrator = sqlx::migrate!(); // defaults to "./migrations"
+pub(crate) static MIGRATOR: Migrator = sqlx::migrate!(); // defaults to "./migrations"
 
 pub(super) static TAOSX_VERIFICATION_SUBJECT: OnceLock<FastStr> = OnceLock::new();
 

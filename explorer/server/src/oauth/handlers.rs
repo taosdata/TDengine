@@ -1,8 +1,9 @@
 use crate::{
     R, RestErrResponse,
     oauth::{
-        custom_client::FetchUsersCredentials, middleware::extract_session_id_from_request,
-        session::TsdbSyncOptions,
+        custom_client::FetchUsersCredentials,
+        middleware::extract_session_id_from_request,
+        session::{DEFAULT_SESSION_TTL_SECS, TsdbSyncOptions},
     },
     utils::{
         cbc::{decrypt_cbc_mac_b64, encrypt_cbc_mac_b64},
@@ -394,9 +395,9 @@ pub async fn oauth_callback(
             user_info.email.clone(),
             access_token,
             refresh_token,
-            None,                    // id_token - we don't need to store it
-            28800,                   // 8 hours session expiration
-            access_token_expires_in, // access token expiration from IdP
+            None,                     // id_token - we don't need to store it
+            DEFAULT_SESSION_TTL_SECS, // 8 hours session expiration
+            access_token_expires_in,  // access token expiration from IdP
         )
         .await
     {
@@ -426,11 +427,13 @@ pub async fn oauth_callback(
         .finish();
 
     // Create a HttpOnly, Secure session cookie for session_id to avoid exposing it in URLs
+    // Session cookie for session_id: no Max-Age so the browser keeps it for
+    // the lifetime of the browsing session.  The server-side expires_at (which
+    // is auto-renewed on activity) is the authoritative expiration control.
     let session_cookie = Cookie::build("session_id", session_id.clone())
         .path("/")
         .http_only(true)
         .same_site(SameSite::Lax)
-        .max_age(actix_web::cookie::time::Duration::seconds(3600)) // 1 hour
         .finish();
     let user_agent = req
         .headers()
@@ -612,6 +615,11 @@ pub async fn self_provided_token(
                 Ok(token) => {
                     // TODO: Implement redirect_to logic
                     if let Some(redirect_to) = redirect_to {
+                        // Use a session cookie (no Max-Age): the server-side
+                        // expires_at (auto-renewed on activity) is the
+                        // authoritative control.  This avoids the browser
+                        // discarding the cookie while the server session is
+                        // still alive after renewal.
                         let cookie = CookieBuilder::new("session_id", token.session_id())
                             .http_only(true)
                             .same_site(SameSite::Strict)

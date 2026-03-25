@@ -1358,11 +1358,9 @@ async fn login(
             }
 
             // Create session for basic auth and set session_id cookie
+            const BASIC_AUTH_TTL: i64 = 3600; // 1 hour session expiration
             match session_manager
-                .create_self_provided_session(
-                    &auth,
-                    Some(3600), // 1 hour session expiration
-                )
+                .create_self_provided_session(&auth, Some(BASIC_AUTH_TTL))
                 .await
             {
                 Ok(session) => {
@@ -1376,7 +1374,7 @@ async fn login(
                         .path("/")
                         .http_only(true)
                         .same_site(awc::cookie::SameSite::Lax)
-                        .max_age(actix_web::cookie::time::Duration::seconds(3600)) // 1 hour
+                        .max_age(actix_web::cookie::time::Duration::seconds(BASIC_AUTH_TTL))
                         .finish();
 
                     resp.append_header(("X-Explorer-Version", build::PKG_VERSION))
