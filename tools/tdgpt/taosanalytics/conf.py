@@ -45,7 +45,6 @@ class Configure:
         """Initialize the singleton with an explicit config path. Must be called before get_instance()."""
         with cls._lock:
             cls._instance = None
-            print(f"init configuration from {conf_path}")
         return cls(conf_path)
 
     @classmethod
