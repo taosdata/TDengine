@@ -476,6 +476,46 @@ mod tests {
         let cloned = options.clone();
         assert_eq!(options, cloned);
     }
+
+    #[test]
+    fn test_strip_session_id_prefix_with_prefix() {
+        let id = "xt-550e8400-e29b-41d4-a716-446655440000";
+        assert_eq!(
+            strip_session_id_prefix(id),
+            "550e8400-e29b-41d4-a716-446655440000"
+        );
+    }
+
+    #[test]
+    fn test_strip_session_id_prefix_without_prefix() {
+        // Old-format tokens (no prefix) should pass through unchanged
+        let id = "550e8400-e29b-41d4-a716-446655440000";
+        assert_eq!(strip_session_id_prefix(id), id);
+    }
+
+    #[test]
+    fn test_strip_session_id_prefix_empty() {
+        assert_eq!(strip_session_id_prefix(""), "");
+    }
+
+    #[test]
+    fn test_strip_session_id_prefix_wrong_prefix() {
+        let id = "ab-550e8400-e29b-41d4-a716-446655440000";
+        assert_eq!(strip_session_id_prefix(id), id);
+    }
+
+    #[test]
+    fn test_session_id_prefix_format() {
+        let uuid = uuid::Uuid::new_v4();
+        let session_id = format!("{SESSION_ID_PREFIX}{}", uuid);
+        assert!(session_id.starts_with("xt-"));
+        assert_eq!(
+            strip_session_id_prefix(&session_id),
+            uuid.to_string().as_str()
+        );
+        // Stripped value must be a valid UUID
+        uuid::Uuid::from_str(strip_session_id_prefix(&session_id)).unwrap();
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
