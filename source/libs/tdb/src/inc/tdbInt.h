@@ -43,7 +43,7 @@ typedef u32 SPgno;
 #include "tdbUtil.h"
 
 // p must be u8 *
-#define TDB_GET_U24(p) ((p)[0] * 65536 + *(u16 *)((p) + 1))
+#define TDB_GET_U24(p) ((p)[0] * 65536 + (p)[1] + (p)[2] * 256)
 #define TDB_PUT_U24(p, v)       \
   do {                          \
     int tv = (v);               \
