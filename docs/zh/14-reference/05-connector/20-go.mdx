@@ -729,109 +729,109 @@ Rows 行结果参考 `sql/driver` 包中的 `Rows` 接口，提供以下接口
 - `func (p *Param) SetBool(offset int, value bool)`（**自 v3.8.0 起标记为废弃，未来版本将删除，建议尽快迁移到 ws/unified**）
   - **接口说明**：设置布尔值。
   - **参数说明**：
-    - `offset`：偏移量 （列或标签）。
+    - `offset`：偏移量（列或标签）。
     - `value`：布尔值。
 
 - `func (p *Param) SetNull(offset int)`（**自 v3.8.0 起标记为废弃，未来版本将删除，建议尽快迁移到 ws/unified**）
   - **接口说明**：设置空值。
   - **参数说明**：
-    - `offset`：偏移量 （列或标签）。
+    - `offset`：偏移量（列或标签）。
 
 - `func (p *Param) SetTinyint(offset int, value int)`（**自 v3.8.0 起标记为废弃，未来版本将删除，建议尽快迁移到 ws/unified**）
   - **接口说明**：设置 Tinyint 值。
   - **参数说明**：
-    - `offset`：偏移量 （列或标签）。
+    - `offset`：偏移量（列或标签）。
     - `value`：Tinyint 值。
 
 - `func (p *Param) SetSmallint(offset int, value int)`（**自 v3.8.0 起标记为废弃，未来版本将删除，建议尽快迁移到 ws/unified**）
   - **接口说明**：设置 Smallint 值。
   - **参数说明**：
-    - `offset`：偏移量 （列或标签）。
+    - `offset`：偏移量（列或标签）。
     - `value`：Smallint 值。
 
 - `func (p *Param) SetInt(offset int, value int)`（**自 v3.8.0 起标记为废弃，未来版本将删除，建议尽快迁移到 ws/unified**）
   - **接口说明**：设置 Int 值。
   - **参数说明**：
-    - `offset`：偏移量 （列或标签）。
+    - `offset`：偏移量（列或标签）。
     - `value`：Int 值。
 
 - `func (p *Param) SetBigint(offset int, value int)`（**自 v3.8.0 起标记为废弃，未来版本将删除，建议尽快迁移到 ws/unified**）
   - **接口说明**：设置 Bigint 值。
   - **参数说明**：
-    - `offset`：偏移量 （列或标签）。
+    - `offset`：偏移量（列或标签）。
     - `value`：Bigint 值。
 
 - `func (p *Param) SetUTinyint(offset int, value uint)`（**自 v3.8.0 起标记为废弃，未来版本将删除，建议尽快迁移到 ws/unified**）
   - **接口说明**：设置 UTinyint 值。
   - **参数说明**：
-    - `offset`：偏移量 （列或标签）。
+    - `offset`：偏移量（列或标签）。
     - `value`：UTinyint 值。
 
 - `func (p *Param) SetUSmallint(offset int, value uint)`（**自 v3.8.0 起标记为废弃，未来版本将删除，建议尽快迁移到 ws/unified**）
   - **接口说明**：设置 USmallint 值。
   - **参数说明**：
-    - `offset`：偏移量 （列或标签）。
+    - `offset`：偏移量（列或标签）。
     - `value`：USmallint 值。
 
 - `func (p *Param) SetUInt(offset int, value uint)`（**自 v3.8.0 起标记为废弃，未来版本将删除，建议尽快迁移到 ws/unified**）
   - **接口说明**：设置 UInt 值。
   - **参数说明**：
-    - `offset`：偏移量 （列或标签）。
+    - `offset`：偏移量（列或标签）。
     - `value`：UInt 值。
 
 - `func (p *Param) SetUBigint(offset int, value uint)`（**自 v3.8.0 起标记为废弃，未来版本将删除，建议尽快迁移到 ws/unified**）
   - **接口说明**：设置 UBigint 值。
   - **参数说明**：
-    - `offset`：偏移量 （列或标签）。
+    - `offset`：偏移量（列或标签）。
     - `value`：UBigint 值。
 
 - `func (p *Param) SetFloat(offset int, value float32)`（**自 v3.8.0 起标记为废弃，未来版本将删除，建议尽快迁移到 ws/unified**）
   - **接口说明**：设置 Float 值。
   - **参数说明**：
-    - `offset`：偏移量 （列或标签）。
+    - `offset`：偏移量（列或标签）。
     - `value`：Float 值。
 
 - `func (p *Param) SetDouble(offset int, value float64)`（**自 v3.8.0 起标记为废弃，未来版本将删除，建议尽快迁移到 ws/unified**）
   - **接口说明**：设置 Double 值。
   - **参数说明**：
-    - `offset`：偏移量 （列或标签）。
+    - `offset`：偏移量（列或标签）。
     - `value`：Double 值。
 
 - `func (p *Param) SetBinary(offset int, value []byte)`（**自 v3.8.0 起标记为废弃，未来版本将删除，建议尽快迁移到 ws/unified**）
   - **接口说明**：设置 Binary 值。
   - **参数说明**：
-    - `offset`：偏移量 （列或标签）。
+    - `offset`：偏移量（列或标签）。
     - `value`：Binary 值。
 
 - `func (p *Param) SetVarBinary(offset int, value []byte)`（**自 v3.8.0 起标记为废弃，未来版本将删除，建议尽快迁移到 ws/unified**）
   - **接口说明**：设置 VarBinary 值。
   - **参数说明**：
-    - `offset`：偏移量 （列或标签）。
+    - `offset`：偏移量（列或标签）。
     - `value`：VarBinary 值。
 
 - `func (p *Param) SetNchar(offset int, value string)`（**自 v3.8.0 起标记为废弃，未来版本将删除，建议尽快迁移到 ws/unified**）
   - **接口说明**：设置 Nchar 值。
   - **参数说明**：
-    - `offset`：偏移量 （列或标签）。
+    - `offset`：偏移量（列或标签）。
     - `value`：Nchar 值。
 
 - `func (p *Param) SetTimestamp(offset int, value time.Time, precision int)`（**自 v3.8.0 起标记为废弃，未来版本将删除，建议尽快迁移到 ws/unified**）
   - **接口说明**：设置 Timestamp 值。
   - **参数说明**：
-    - `offset`：偏移量 （列或标签）。
+    - `offset`：偏移量（列或标签）。
     - `value`：Timestamp 值。
     - `precision`：时间精度。
 
 - `func (p *Param) SetJson(offset int, value []byte)`（**自 v3.8.0 起标记为废弃，未来版本将删除，建议尽快迁移到 ws/unified**）
   - **接口说明**：设置 Json 值。
   - **参数说明**：
-    - `offset`：偏移量 （列或标签）。
+    - `offset`：偏移量（列或标签）。
     - `value`：Json 值。
 
 - `func (p *Param) SetGeometry(offset int, value []byte)`（**自 v3.8.0 起标记为废弃，未来版本将删除，建议尽快迁移到 ws/unified**）
   - **接口说明**：设置 Geometry 值。
   - **参数说明**：
-    - `offset`：偏移量 （列或标签）。
+    - `offset`：偏移量（列或标签）。
     - `value`：Geometry 值。
 
 以下是链式调用设置参数的接口（**自 v3.8.0 起标记为废弃，未来版本将删除，建议尽快迁移到 ws/unified**）：
