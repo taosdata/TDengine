@@ -20,13 +20,6 @@ if(DEFINED GRANT_CFG_INCLUDE_DIR)
     add_definitions(-DGRANTS_CFG)
 endif()
 
-if(${ASSERT_NOT_CORE})
-    ADD_DEFINITIONS(-DASSERT_NOT_CORE)
-    MESSAGE(STATUS "disable assert core")
-else()
-    MESSAGE(STATUS "enable assert core")
-endif(${ASSERT_NOT_CORE})
-
 target_include_directories(
     util
     PUBLIC "${TD_SOURCE_DIR}/include/util"
