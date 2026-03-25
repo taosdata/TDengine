@@ -3598,13 +3598,6 @@ _exit:
   return code;
 }
 
-static void tDestroySExternalWindowValue(void* ptr) {
-  SStreamGroupValue* pVal = (SStreamGroupValue*)ptr;
-  if (!pVal->isNull && (IS_VAR_DATA_TYPE(pVal->data.type) || pVal->data.type == TSDB_DATA_TYPE_DECIMAL)) {
-    valueClearDatum(&pVal->data, pVal->data.type);
-  }
-}
-
 void tDestroySSTriggerCalcParam(void* ptr) {
   SSTriggerCalcParam* pParam = ptr;
   if (pParam && pParam->extraNotifyContent != NULL) {
@@ -3614,7 +3607,7 @@ void tDestroySSTriggerCalcParam(void* ptr) {
     taosMemoryFreeClear(pParam->resultNotifyContent);
   }
   if (pParam && pParam->pExternalWindowData != NULL) {
-    taosArrayDestroyEx(pParam->pExternalWindowData, tDestroySExternalWindowValue);
+    taosArrayDestroyEx(pParam->pExternalWindowData, tDestroySStreamGroupValue);
     pParam->pExternalWindowData = NULL;
   }
 }
