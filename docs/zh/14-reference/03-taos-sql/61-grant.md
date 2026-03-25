@@ -373,7 +373,7 @@ priv_type: {
   | ALTER PASS | ALTER SELF PASS
 
     -- 节点权限
-  | CREATE NODE | DROP NODE | SHOW NODES
+  | CREATE NODE | ALTER NODE | DROP NODE | SHOW NODES
 
     -- 权限授予回收权限
   ｜GRANT PRIVILEGE ｜ REVOKE PRIVILEGE | SHOW PRIVILEGES
@@ -390,6 +390,9 @@ priv_type: {
   | SHOW CONNECTIONS | KILL CONNECTION
   | SHOW QUERIES | KILL QUERY
   | SHOW GRANTS | SHOW CLUSTER | SHOW APPS
+
+    -- XNODE 任务权限
+  | CREATE XNODE TASK
 
 }
 ```
@@ -415,17 +418,19 @@ priv_obj: {
   | rsma               -- 降采样存储
   | topic              -- 主题
   | stream             -- 流计算
+  | xnode task         -- xnode 任务
 }
 说明：
--- 不指定 priv_obj 时：1）在 3.4.0.0 至 3.4.0.10 版本，priv_obj 默认为 table。2）自 3.4.0.11 版本起，如果 enableGrantLegacySyntax 为 1，兼容 3.3.x.y 版本语法的功能，根据 privileges 中的权限类型 和 priv_level，自适应的扩展为 database/table/view/index/tsma/rsma/topic/stream 对应的权限；如果 enableGrantLegacySyntax 为 0 (默认值)，不兼容 3.3.x.y 版本语法的功能，仅自适应的扩展为 table/view 对应的权限。
+-- 不指定 priv_obj 时：1）在 3.4.0.0 至 3.4.0.10 版本，priv_obj 默认为 table。2）自 3.4.0.11 版本起，如果 enableGrantLegacySyntax 为 1，兼容 3.3.x.y 版本语法的功能，根据 privileges 中的权限类型 和 priv_level，自适应的扩展为 database/table/view/index/tsma/rsma/topic/stream/xnode task 对应的权限；如果 enableGrantLegacySyntax 为 0 (默认值)，不兼容 3.3.x.y 版本语法的功能，仅自适应的扩展为 table/view 对应的权限。
 -- 为了更精细的控制权限对象，推荐明确的指定 priv_obj。
 
 priv_level: {
-    *                  -- 所有库
+    *                  -- 所有库或所有 xnode 任务
   | dbname             -- 指定库
   | *.*                -- 所有库，所有对象
   | dbname.*           -- 指定库，所有对象
   | dbname.objname     -- 指定库，指定对象
+  | xnode_task_id      -- xnode 任务 ID
 }
 
 privileges: {
@@ -453,35 +458,35 @@ priv_type: {
 
 不同的对象类型支持的权限类型不同，具体对应关系如下：
 
-| 权限类型 | database | table | view | index | tsma | rsma | topic | stream |
-|---------|:--------:|:-----:|:----:|:-----:|:----:|:----:|:-----:|:------:|
-| ALTER | ✓ | ✓ | ✓ | | | ✓ | | |
-| DROP | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| SELECT [(column_list)] | | ✓ | ✓ | | | | | |
-| INSERT [(column_list)] | | ✓ | | | | | | |
-| DELETE | | ✓ | | | | | | |
-| CREATE TABLE | ✓ | | | | | | | |
-| CREATE VIEW | ✓ | | | | | | | |
-| CREATE INDEX | | ✓ | | | | | | |
-| CREATE TSMA | | ✓ | | | | | | |
-| CREATE RSMA | | ✓ | | | | | | |
-| CREATE TOPIC | ✓ | | | | | | | |
-| CREATE STREAM | ✓ | | | | | | | |
-| USE | ✓ | | | | | | | |
-| SHOW | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| SHOW CREATE | ✓ | ✓ | ✓ | | | ✓ | | |
-| FLUSH | ✓ | | | | | | | |
-| COMPACT | ✓ | | | | | | | |
-| TRIM | ✓ | | | | | | | |
-| ROLLUP | ✓ | | | | | | | |
-| SCAN | ✓ | | | | | | | |
-| SSMIGRATE | ✓ | | | | | | | |
-| SUBSCRIBE | | | | | | | ✓ | |
-| SHOW CONSUMERS | | | | | | | ✓ | |
-| SHOW SUBSCRIPTIONS | | | | | | | ✓ | |
-| START | | | | | | | | ✓ |
-| STOP | | | | | | | | ✓ |
-| RECALCULATE | | | | | | | | ✓ |
+| 权限类型 | database | table | view | index | tsma | rsma | topic | stream | xnode task|
+|---------|:--------:|:-----:|:----:|:-----:|:----:|:----:|:-----:|:------:|:------:|
+| ALTER | ✓ | ✓ | ✓ | | | ✓ | | | ✓ |
+| DROP | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| SELECT [(column_list)] | | ✓ | ✓ | | | | | | |
+| INSERT [(column_list)] | | ✓ | | | | | | | |
+| DELETE | | ✓ | | | | | | | |
+| CREATE TABLE | ✓ | | | | | | | | |
+| CREATE VIEW | ✓ | | | | | | | | |
+| CREATE INDEX | | ✓ | | | | | | | |
+| CREATE TSMA | | ✓ | | | | | | | |
+| CREATE RSMA | | ✓ | | | | | | | |
+| CREATE TOPIC | ✓ | | | | | | | | |
+| CREATE STREAM | ✓ | | | | | | | | |
+| USE | ✓ | | | | | | | | |
+| SHOW | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| SHOW CREATE | ✓ | ✓ | ✓ | | | ✓ | | | |
+| FLUSH | ✓ | | | | | | | | |
+| COMPACT | ✓ | | | | | | | | |
+| TRIM | ✓ | | | | | | | | |
+| ROLLUP | ✓ | | | | | | | | |
+| SCAN | ✓ | | | | | | | | |
+| SSMIGRATE | ✓ | | | | | | | | |
+| SUBSCRIBE | | | | | | | ✓ | | |
+| SHOW CONSUMERS | | | | | | | ✓ | | |
+| SHOW SUBSCRIPTIONS | | | | | | | ✓ | | |
+| START | | | | | | | | ✓ | |
+| STOP | | | | | | | | ✓ | |
+| RECALCULATE | | | | | | | | ✓ | |
 
 **说明：**
 

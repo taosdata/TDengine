@@ -402,13 +402,13 @@ cmd ::= DROP TOTP_SECRET FROM USER user_name(A). {
 /************************************************ create/drop role **********************************************/
 cmd ::= CREATE ROLE not_exists_opt(A) role_name(B).                               { pCxt->pRootNode = createCreateRoleStmt(pCxt, A, &B); }
 cmd ::= DROP ROLE exists_opt(A) role_name(B).                                     { pCxt->pRootNode = createDropRoleStmt(pCxt, A, &B); }
-cmd ::= LOCK ROLE role_name(A).                                                   { 
+cmd ::= LOCK ROLE role_name(A).                                                   {
                                                                                     SToken t = {.n = 1, .z = "1", .type = TK_STRING };
-                                                                                    pCxt->pRootNode = createAlterRoleStmt(pCxt, &A, TSDB_ALTER_ROLE_LOCK, &t); 
+                                                                                    pCxt->pRootNode = createAlterRoleStmt(pCxt, &A, TSDB_ALTER_ROLE_LOCK, &t);
                                                                                   }
-cmd ::= UNLOCK ROLE role_name(A).                                                 { 
+cmd ::= UNLOCK ROLE role_name(A).                                                 {
                                                                                     SToken t = {.n = 1, .z = "0", .type = TK_STRING };
-                                                                                    pCxt->pRootNode = createAlterRoleStmt(pCxt, &A,TSDB_ALTER_ROLE_LOCK, &t); 
+                                                                                    pCxt->pRootNode = createAlterRoleStmt(pCxt, &A,TSDB_ALTER_ROLE_LOCK, &t);
                                                                                   }
 cmd ::= GRANT ROLE role_name(A) TO role_name(C).                                  { pCxt->pRootNode = createGrantStmt(pCxt, &A, NULL, &C, NULL, TSDB_ALTER_ROLE_ROLE); }
 cmd ::= REVOKE ROLE role_name(A) FROM role_name(C).                               { pCxt->pRootNode = createRevokeStmt(pCxt, &A, NULL, &C, NULL, TSDB_ALTER_ROLE_ROLE); }
@@ -564,6 +564,7 @@ priv_type(A) ::= REVOKE PRIVILEGE.                                              
 priv_type(A) ::= SHOW PRIVILEGES.                                                 { A = PRIV_SET_TYPE(PRIV_SHOW_PRIVILEGES); }
 
 priv_type(A) ::= CREATE NODE.                                                     { A = PRIV_SET_TYPE(PRIV_NODE_CREATE); }
+priv_type(A) ::= ALTER NODE.                                                      { A = PRIV_SET_TYPE(PRIV_NODE_ALTER); }
 priv_type(A) ::= DROP NODE.                                                       { A = PRIV_SET_TYPE(PRIV_NODE_DROP); }
 priv_type(A) ::= SHOW NODES.                                                      { A = PRIV_SET_TYPE(PRIV_NODES_SHOW); }
 
@@ -592,6 +593,14 @@ priv_type(A) ::= KILL QUERY.                                                    
 priv_type(A) ::= SHOW GRANTS.                                                     { A = PRIV_SET_TYPE(PRIV_GRANTS_SHOW); }
 priv_type(A) ::= SHOW CLUSTER.                                                    { A = PRIV_SET_TYPE(PRIV_CLUSTER_SHOW); }
 priv_type(A) ::= SHOW APPS.                                                       { A = PRIV_SET_TYPE(PRIV_APPS_SHOW); }
+
+%type create_xnode_obj {EPrivType}
+priv_type(A) ::= CREATE XNODE create_xnode_obj(B).                                {
+  memset(&A, 0, sizeof(A));
+  A.nPrivArgs = 1;
+  A.privSet.set[PRIV_GROUP(B)] = 1ULL << PRIV_OFFSET(B);
+}
+create_xnode_obj(A) ::= NK_ID(B).                                                 { A = xnodeResourceToPrivType(pCxt, &B, PRIV_XNODE_TASK_CREATE); }
 
 %type priv_type_tbl_dml                                                           { SPrivSetArgs }
 %destructor priv_type_tbl_dml                                                     {
@@ -628,14 +637,14 @@ priv_id(A) ::= VARIABLES(B).                                                    
 priv_id(A) ::= PASS(B).                                                           { A = B; }
 
 %type priv_level_opt                                                              { SPrivLevelArgs }
-%destructor priv_level_opt                                                        { 
+%destructor priv_level_opt                                                        {
                                                                                     if ($$.cols != NULL) {
                                                                                       nodesDestroyList($$.cols);
                                                                                     }
                                                                                   }
-priv_level_opt(A) ::= .                                                           { 
-                                                                                    A.first = nil_token; A.second = nil_token; 
-                                                                                    A.objType = PRIV_OBJ_CLUSTER; A.cols = NULL; 
+priv_level_opt(A) ::= .                                                           {
+                                                                                    A.first = nil_token; A.second = nil_token;
+                                                                                    A.objType = PRIV_OBJ_CLUSTER; A.cols = NULL;
                                                                                   }
 priv_level_opt(A) ::= ON priv_level(B).                                           { A = B; A.objType = PRIV_OBJ_NONE; }
 priv_level_opt(A) ::= ON DATABASE priv_level(B).                                  { A = B; A.objType = PRIV_OBJ_DB; }
@@ -646,6 +655,7 @@ priv_level_opt(A) ::= ON TOPIC priv_level(B).                                   
 priv_level_opt(A) ::= ON STREAM priv_level(B).                                    { A = B; A.objType = PRIV_OBJ_STREAM; }
 priv_level_opt(A) ::= ON RSMA priv_level(B).                                      { A = B; A.objType = PRIV_OBJ_RSMA; }
 priv_level_opt(A) ::= ON TSMA priv_level(B).                                      { A = B; A.objType = PRIV_OBJ_TSMA; }
+priv_level_opt(A) ::= ON XNODE xnode_task_level(B).                               { A = B; A.objType = PRIV_OBJ_XTASK; }
 
 %type priv_level                                                                  { SPrivLevelArgs }
 %destructor priv_level                                                            { }
@@ -654,6 +664,10 @@ priv_level(A) ::= NK_STAR(B) NK_DOT NK_STAR(C).                                 
 priv_level(A) ::= db_name(B) NK_DOT NK_STAR(C).                                   { A.first = B; A.second = C; A.cols = NULL; }
 priv_level(A) ::= db_name(B) NK_DOT table_name(C).                                { A.first = B; A.second = C; A.cols = NULL; }
 priv_level(A) ::= db_name(B).                                                     { A.first = B; A.second = nil_token; A.cols = NULL; }
+
+%type xnode_task_level                                                            { SPrivLevelArgs }
+%destructor xnode_task_level                                                      { }
+xnode_task_level(A) ::= NK_ID(B) priv_level(C).                                   { A = xnodeTaskObjPrivLevelSet(pCxt, &B, C); }
 
 with_clause_opt(A) ::= .                                                          { A = NULL; }
 with_clause_opt(A) ::= WITH search_condition(B).                                  { A = B; }
@@ -759,7 +773,7 @@ cmd ::= REBALANCE XNODE xnode_resource_type(A) NK_INTEGER(B) with_task_options_o
                                                                                    { pCxt->pRootNode = createRebalanceXnodeJobStmt(pCxt, A, &B, C); }
 cmd ::= REBALANCE XNODE xnode_resource_type(A) where_clause_opt(B).
                                                                                    { pCxt->pRootNode = createRebalanceXnodeJobWhereStmt(pCxt, A, B); }
-                                                                                   
+
 /* alter xnode task 't1' from 'mqtt://xxx' to database s1 with parser '{...}' */
 cmd ::= ALTER XNODE xnode_resource_type(A) NK_INTEGER(B) xnode_task_from_opt(C) xnode_task_to_opt(D) with_task_options_opt(E).
                                                                                   { pCxt->pRootNode = alterXnodeTaskWithOptions(pCxt, A, &B, C, D, E); }
