@@ -20,7 +20,7 @@
 #include "tglobal.h"
 #include "osFile.h"
 
-#define DM_LICENSE_GRACE_PERIOD_MS  (14LL * 24LL * 3600LL * 1000LL)
+// Grace period duration defined in dmLicense.h (DM_LICENSE_GRACE_PERIOD_MS)
 
 static void dmLicenseGracePath(char *path, int32_t len) {
   snprintf(path, len, "%s/license_grace.json", tsDataDir);

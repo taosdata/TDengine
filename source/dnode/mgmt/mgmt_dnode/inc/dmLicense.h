@@ -31,6 +31,8 @@ typedef enum {
   DM_LICENSE_STATE_EXPIRED,
 } EDmLicenseState;
 
+#define DM_LICENSE_GRACE_PERIOD_MS  (14LL * 24LL * 3600LL * 1000LL)  // 2 weeks
+
 typedef struct SDmLicenseCtx {
   EDmLicenseState     state;
   taos_sdk_handle_t  *pSdk;
