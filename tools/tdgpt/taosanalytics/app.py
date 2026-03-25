@@ -44,8 +44,11 @@ def _init_app():
 app = Flask(__name__)
 app.config["PROPAGATE_EXCEPTIONS"] = True
 
-# Initialize on module import (works for both gunicorn and direct run)
-_init_app()
+# Initialize on module import when used as a WSGI module (e.g. gunicorn).
+# When running as __main__, initialization is deferred until after argument
+# parsing so that a -c/--config path is applied before services are loaded.
+if __name__ != '__main__':
+    _init_app()
 
 
 @app.route("/")
@@ -119,17 +122,14 @@ def parse_args():
 
 
 if __name__ == '__main__':
-    # When running directly (not via gunicorn), allow -c argument
+    # Parse args before initializing so the correct config file is used from
+    # the start; services are loaded only once, with the final configuration.
     args = parse_args()
 
-    # Override environment variable if -c is provided
     if args.conf_path:
         os.environ['TDGPT_CONF'] = args.conf_path
 
-        # Re-initialize with the new config
-        conf = Configure.init(args.conf_path)
-        AppLogger.set_handler(conf.get_log_path())
-        AppLogger.set_log_level(conf.get_log_level())
+    _init_app()
 
     # Run development server
     conf = Configure.get_instance()
