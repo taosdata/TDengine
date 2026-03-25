@@ -1960,7 +1960,7 @@ int tdbBtcOpen(SBTC *pBtc, SBTree *pBt, TXN *pTxn) {
   memset(&pBtc->coder, 0, sizeof(SCellDecoder));
 
   if (pTxn == NULL) {
-    TXN *pTxn = tdbOsCalloc(1, sizeof(*pTxn));
+    pTxn = tdbOsCalloc(1, sizeof(*pTxn));
     if (!pTxn) {
       pBtc->pTxn = NULL;
       return terrno;
