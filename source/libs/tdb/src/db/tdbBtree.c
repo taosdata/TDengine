@@ -1803,16 +1803,10 @@ static int tdbBtreeDecodePayload(SPage *pPage, const SCell *pCell, int nHeader, 
       ofpCell = tdbPageGetCell(ofp, 0);
 
       // load left val data to ovpages
-      lastPage = 0;
       if (nLeft <= ofp->maxLocal - sizeof(SPgno)) {
         bytes = nLeft;
-        lastPage = 1;
       } else {
         bytes = ofp->maxLocal - sizeof(SPgno);
-      }
-
-      if (lastPage) {
-        pgno = 0;
       }
 
       if (!pDecoder->pVal) {
@@ -1823,10 +1817,9 @@ static int tdbBtreeDecodePayload(SPage *pPage, const SCell *pCell, int nHeader, 
         TDB_CELLDECODER_SET_FREE_VAL(pDecoder);
       }
 
-      memcpy(pDecoder->pVal, ofpCell + vLen - nLeft, bytes);
-      nLeft -= bytes;
+      memcpy(pDecoder->pVal + vLen - nLeft, ofpCell, bytes);
 
-      memcpy(&pgno, ofpCell + vLen - nLeft + bytes, sizeof(pgno));
+      memcpy(&pgno, ofpCell + bytes, sizeof(pgno));
 
       tdbPCacheRelease(pBt->pPager->pCache, ofp, pTxn);
 
