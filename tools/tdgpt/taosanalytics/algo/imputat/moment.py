@@ -38,7 +38,7 @@ class _MomentImputationService(AbstractImputationService):
         try:
             response = requests.post(self.service_host, data=json.dumps(data), headers=self.headers)
         except Exception as e:
-            AppLogger.error(f"failed to connect the service: {self.service_host} ", str(e))
+            AppLogger.error(f"failed to connect the service: {self.service_host}", exc_info=e)
             raise e
 
         if response.status_code == 404:
