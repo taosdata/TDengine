@@ -58,3 +58,15 @@ if(TD_LINUX)
     message(STATUS "taos_license: SKIPPED — library not found at ${TAOS_LICENSE_LIB}")
   endif()
 endif()
+
+if(BUILD_TEST)
+  add_executable(dmLicenseTest
+    test/dmLicenseTest.cc
+  )
+  target_include_directories(dmLicenseTest PRIVATE
+    "${TD_SOURCE_DIR}/deps/license/include"
+  )
+  target_link_libraries(dmLicenseTest PUBLIC mgmt_dnode)
+  DEP_ext_gtest(dmLicenseTest)
+  add_test(NAME dmLicenseTest COMMAND dmLicenseTest)
+endif()
