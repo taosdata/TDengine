@@ -1,3 +1,4 @@
+import sys
 from new_test_framework.utils import tdLog, tdSql, epath, sc, etool, AutoGen, tdDnodes
 
 
@@ -73,10 +74,16 @@ class TestBasic:
         tdSql.execute("CREATE DATABASE IF NOT EXISTS db_sm4 ENCRYPT_ALGORITHM 'SM4-CBC'")
         tdLog.info("Created database with SM4 encryption")
         
-        # Create database with AES encryption
-        tdSql.execute("CREATE DATABASE IF NOT EXISTS db_aes ENCRYPT_ALGORITHM 'AES-128-CBC'")
-        tdLog.info("Created database with AES encryption")
-        
+        # AES-128-CBC is only supported on Linux enterprise builds (requires OpenSSL provider)
+        aes_supported = sys.platform != "win32"
+
+        if aes_supported:
+            # Create database with AES encryption
+            tdSql.execute("CREATE DATABASE IF NOT EXISTS db_aes ENCRYPT_ALGORITHM 'AES-128-CBC'")
+            tdLog.info("Created database with AES encryption")
+        else:
+            tdLog.info("Skipping AES-128-CBC database creation: not supported on Windows (Linux enterprise only)")
+
         # Create database without encryption
         tdSql.execute("CREATE DATABASE IF NOT EXISTS db_plain")
         tdLog.info("Created database without encryption")
@@ -92,11 +99,12 @@ class TestBasic:
         encrypt_algo = tdSql.queryResult[0][1] if len(tdSql.queryResult[0]) > 1 else None
         tdLog.info(f"db_sm4 encryption: {encrypt_algo}")
         
-        # Check AES database
-        tdSql.query("SELECT name, `encrypt_algorithm` FROM information_schema.ins_databases WHERE name='db_aes'")
-        assert tdSql.queryRows == 1, "Should find db_aes"
-        encrypt_algo = tdSql.queryResult[0][1] if len(tdSql.queryResult[0]) > 1 else None
-        tdLog.info(f"db_aes encryption: {encrypt_algo}")
+        if aes_supported:
+            # Check AES database
+            tdSql.query("SELECT name, `encrypt_algorithm` FROM information_schema.ins_databases WHERE name='db_aes'")
+            assert tdSql.queryRows == 1, "Should find db_aes"
+            encrypt_algo = tdSql.queryResult[0][1] if len(tdSql.queryResult[0]) > 1 else None
+            tdLog.info(f"db_aes encryption: {encrypt_algo}")
         
         # Check plain database
         tdSql.query("SELECT name, `encrypt_algorithm` FROM information_schema.ins_databases WHERE name='db_plain'")
@@ -106,7 +114,8 @@ class TestBasic:
 
         # Clean up
         tdSql.execute("DROP DATABASE IF EXISTS db_sm4")
-        tdSql.execute("DROP DATABASE IF EXISTS db_aes")
+        if aes_supported:
+            tdSql.execute("DROP DATABASE IF EXISTS db_aes")
         tdSql.execute("DROP DATABASE IF EXISTS db_plain")
         tdLog.info("Test databases cleaned up")
 
