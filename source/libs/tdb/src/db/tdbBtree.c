@@ -2153,7 +2153,8 @@ int tdbBtcMoveToLast(SBTC *pBtc) {
   return 0;
 }
 
-int tdbBtreeNext(SBTC *pBtc, void **ppKey, int *kLen, void **ppVal, int *vLen) {
+
+static int tdbBtreeDecodeCurrentCell(SBTC *pBtc, void **ppKey, int *kLen, void **ppVal, int *vLen) {
   SCell       *pCell;
   SCellDecoder cd = {0};
   void        *pKey, *pVal;
@@ -2161,6 +2162,7 @@ int tdbBtreeNext(SBTC *pBtc, void **ppKey, int *kLen, void **ppVal, int *vLen) {
 
   // current cursor points to an invalid position
   if (pBtc->idx < 0) {
+    tdbError("tdb/btree-decode-current-cell: invalid cursor position.");
     return TSDB_CODE_FAILED;
   }
 
@@ -2168,15 +2170,16 @@ int tdbBtreeNext(SBTC *pBtc, void **ppKey, int *kLen, void **ppVal, int *vLen) {
 
   ret = tdbBtreeDecodeCell(pBtc->pPage, pCell, &cd, pBtc->pTxn, pBtc->pBt);
   if (ret < 0) {
-    tdbError("tdb/btree-next: decode cell failed with ret: %d.", ret);
-    return ret;
+    tdbError("tdb/btree-decode-current-cell: decode cell failed with ret: %d.", ret);
+    goto _exit;
   }
 
   pKey = tdbRealloc(*ppKey, cd.kLen);
   if (pKey == NULL) {
-    return terrno;
+    ret = terrno;
+    tdbError("tdb/btree-decode-current-cell: realloc key failed with error: %d.", ret);
+    goto _exit;
   }
-
   *ppKey = pKey;
   *kLen = cd.kLen;
   memcpy(pKey, cd.pKey, (size_t)cd.kLen);
@@ -2185,25 +2188,36 @@ int tdbBtreeNext(SBTC *pBtc, void **ppKey, int *kLen, void **ppVal, int *vLen) {
     if (cd.vLen > 0) {
       pVal = tdbRealloc(*ppVal, cd.vLen);
       if (pVal == NULL) {
-        return terrno;
+        ret = terrno;
+        tdbError("tdb/btree-decode-current-cell: realloc val failed with error: %d.", ret);
+        goto _exit;
       }
 
       memcpy(pVal, cd.pVal, cd.vLen);
-      if (TDB_CELLDECODER_FREE_VAL(&cd)) {
-        tdbTrace("tdb/btree-next decoder: %p pVal free: %p", &cd, cd.pVal);
-        tdbFree(cd.pVal);
-      }
     } else {
       pVal = NULL;
     }
 
     *ppVal = pVal;
     *vLen = cd.vLen;
-  } else {
-    if (TDB_CELLDECODER_FREE_VAL(&cd)) {
-      tdbTrace("tdb/btree-next2 decoder: %p pVal free: %p", &cd, cd.pVal);
-      tdbFree(cd.pVal);
-    }
+  }
+
+_exit:
+  if (TDB_CELLDECODER_FREE_KEY(&cd)) {
+    tdbFree(cd.pKey);
+  }
+  if (TDB_CELLDECODER_FREE_VAL(&cd)) {
+    tdbFree(cd.pVal);
+  }
+  return ret;
+}
+
+
+int tdbBtreeNext(SBTC *pBtc, void **ppKey, int *kLen, void **ppVal, int *vLen) {
+  int ret = tdbBtreeDecodeCurrentCell(pBtc, ppKey, kLen, ppVal, vLen);
+  if (ret < 0) {
+    tdbError("tdb/btree-next: decode current cell failed with ret: %d.", ret);
+    return ret;
   }
 
   ret = tdbBtcMoveToNext(pBtc);
@@ -2215,58 +2229,12 @@ int tdbBtreeNext(SBTC *pBtc, void **ppKey, int *kLen, void **ppVal, int *vLen) {
   return 0;
 }
 
+
 int tdbBtreePrev(SBTC *pBtc, void **ppKey, int *kLen, void **ppVal, int *vLen) {
-  SCell       *pCell;
-  SCellDecoder cd = {0};
-  void        *pKey, *pVal;
-  int          ret;
-
-  // current cursor points to an invalid position
-  if (pBtc->idx < 0) {
-    return TSDB_CODE_FAILED;
-  }
-
-  pCell = tdbPageGetCell(pBtc->pPage, pBtc->idx);
-
-  ret = tdbBtreeDecodeCell(pBtc->pPage, pCell, &cd, pBtc->pTxn, pBtc->pBt);
+  int ret = tdbBtreeDecodeCurrentCell(pBtc, ppKey, kLen, ppVal, vLen);
   if (ret < 0) {
-    tdbError("tdb/btree-prev: decode cell failed with ret: %d.", ret);
+    tdbError("tdb/btree-prev: decode current cell failed with ret: %d.", ret);
     return ret;
-  }
-
-  pKey = tdbRealloc(*ppKey, cd.kLen);
-  if (pKey == NULL) {
-    return terrno;
-  }
-
-  *ppKey = pKey;
-  *kLen = cd.kLen;
-  memcpy(pKey, cd.pKey, (size_t)cd.kLen);
-
-  if (ppVal) {
-    if (cd.vLen > 0) {
-      pVal = tdbRealloc(*ppVal, cd.vLen);
-      if (pVal == NULL) {
-        tdbFree(pKey);
-        return terrno;
-      }
-
-      memcpy(pVal, cd.pVal, (size_t)cd.vLen);
-      if (TDB_CELLDECODER_FREE_VAL(&cd)) {
-        tdbTrace("tdb/btree-next decoder: %p pVal free: %p", &cd, cd.pVal);
-        tdbFree(cd.pVal);
-      }
-    } else {
-      pVal = NULL;
-    }
-
-    *ppVal = pVal;
-    *vLen = cd.vLen;
-  } else {
-    if (TDB_CELLDECODER_FREE_VAL(&cd)) {
-      tdbTrace("tdb/btree-next2 decoder: %p pVal free: %p", &cd, cd.pVal);
-      tdbFree(cd.pVal);
-    }
   }
 
   ret = tdbBtcMoveToPrev(pBtc);
@@ -2277,6 +2245,7 @@ int tdbBtreePrev(SBTC *pBtc, void **ppKey, int *kLen, void **ppVal, int *vLen) {
 
   return 0;
 }
+
 
 int tdbBtcMoveToNext(SBTC *pBtc) {
   int    nCells;
