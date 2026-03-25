@@ -18,6 +18,14 @@ use crate::utils::aes::{aes_decrypt_base64, aes_encrypt_base64};
 use crate::utils::cbc::derive_key_from_user_agent;
 
 const SELF_PROVIDED: &str = "__self__";
+const SESSION_ID_PREFIX: &str = "xt-";
+
+/// Strip the `xt-` prefix from a session ID if present (backward-compatible).
+fn strip_session_id_prefix(session_id: &str) -> &str {
+    session_id
+        .strip_prefix(SESSION_ID_PREFIX)
+        .unwrap_or(session_id)
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct OAuthUser {
@@ -667,7 +675,7 @@ impl SessionManager {
         session_id: &str,
         user_agent: &str,
     ) -> Result<String> {
-        let uuid = uuid::Uuid::from_str(session_id)
+        let uuid = uuid::Uuid::from_str(strip_session_id_prefix(session_id))
             .map_err(|e| anyhow::anyhow!("Failed to parse session ID: {}", e))?;
         derive_key_from_user_agent(&self.encryption_key, user_agent, Some(uuid.as_bytes()))
             .context("Failed to derive client encryption key")
@@ -767,7 +775,7 @@ impl SessionManager {
             }
         };
 
-        let session_id = Uuid::new_v4().to_string();
+        let session_id = format!("{SESSION_ID_PREFIX}{}", Uuid::new_v4());
 
         let session = OAuthSession {
             user: user.clone(),
@@ -835,7 +843,7 @@ impl SessionManager {
         .await
         .context("Failed to fetch OAuth user")?;
 
-        let session_id = Uuid::new_v4().to_string();
+        let session_id = format!("{SESSION_ID_PREFIX}{}", Uuid::new_v4());
         let now = chrono::Utc::now();
         let user = if let Some(user) = user {
             user

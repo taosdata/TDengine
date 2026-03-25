@@ -1257,7 +1257,10 @@ async fn modify_password(
 #[derive(Debug, Deserialize)]
 struct LoginBody {
     username: String,
-    encrypted_password: String,
+    #[serde(default)]
+    encrypted_password: Option<String>,
+    #[serde(default)]
+    password: Option<String>,
     #[serde(default)]
     captcha: Option<String>,
 }
@@ -1303,11 +1306,22 @@ async fn login(
         }
     }
 
-    let password = if let Ok(password) = xor_decoder.decrypt(&body.encrypted_password) {
+    let is_plain_password = body.password.is_some();
+    let password = if let Some(password) = body.password {
+        // Plain password provided (for programmatic token acquisition)
         password
+    } else if let Some(encrypted_password) = body.encrypted_password {
+        // XOR-encrypted password (from web UI)
+        if let Ok(password) = xor_decoder.decrypt(&encrypted_password) {
+            password
+        } else {
+            tracing::warn!("Invalid login: {}", username);
+            return HttpResponse::Unauthorized().json(RestErrResponse::new("Invalid password"));
+        }
     } else {
-        tracing::warn!("Invalid login: {}", username);
-        return HttpResponse::Unauthorized().json(RestErrResponse::new("Invalid password"));
+        return HttpResponse::Unauthorized().json(RestErrResponse::new(
+            "Either password or encrypted_password is required",
+        ));
     };
     let auth = TsdbCredential::basic(username, password);
 
@@ -1316,18 +1330,30 @@ async fn login(
     match args.query(&auth, sql, tz).await {
         Ok(mut ok) => {
             let mut resp = HttpResponseBuilder::new(StatusCode::OK);
-            if *EXPLORER_SKIP_REGISTER {
-                ok.registered_user
-                    .replace(FastStr::from_static_str("skipped"));
-            } else if db.is_registered().await {
-                if let Some(subject) = favorites::TAOSX_VERIFICATION_SUBJECT.get() {
-                    tracing::trace!(
-                        subject = subject.as_str(),
-                        "Append x-registered-user header"
-                    );
-                    ok.registered_user.replace(subject.clone());
-                } else {
-                    tracing::error!("Expect verification subject exist");
+
+            // Extract server_version from query result for simplified response
+            let server_version = ok
+                .data
+                .first()
+                .and_then(|row| row.first())
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+
+            if !is_plain_password {
+                if *EXPLORER_SKIP_REGISTER {
+                    ok.registered_user
+                        .replace(FastStr::from_static_str("skipped"));
+                } else if db.is_registered().await {
+                    if let Some(subject) = favorites::TAOSX_VERIFICATION_SUBJECT.get() {
+                        tracing::trace!(
+                            subject = subject.as_str(),
+                            "Append x-registered-user header"
+                        );
+                        ok.registered_user.replace(subject.clone());
+                    } else {
+                        tracing::error!("Expect verification subject exist");
+                    }
                 }
             }
 
@@ -1343,6 +1369,8 @@ async fn login(
                     let session_id = session.session_id();
                     tracing::info!("Created basic auth session: {}", session_id);
 
+                    ok.token.replace(session_id.to_string());
+
                     // Create a HttpOnly, Secure session cookie for session_id
                     let session_cookie = Cookie::build("session_id", session_id)
                         .path("/")
@@ -1353,6 +1381,14 @@ async fn login(
 
                     resp.append_header(("X-Explorer-Version", build::PKG_VERSION))
                         .cookie(session_cookie);
+
+                    if is_plain_password {
+                        return resp.json(serde_json::json!({
+                            "code": 0,
+                            "token": session_id,
+                            "server_version": server_version,
+                        }));
+                    }
                 }
                 Err(e) => {
                     tracing::error!("Failed to create basic auth session: {:#}", e);
@@ -2263,6 +2299,8 @@ struct RestOkResponse {
     rows: u64,
     #[serde(skip_serializing_if = "Option::is_none")]
     registered_user: Option<FastStr>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    token: Option<String>,
 }
 #[derive(Debug, serde::Serialize)]
 struct RestErrResponse {
