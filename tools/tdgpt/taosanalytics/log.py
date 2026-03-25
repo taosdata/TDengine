@@ -33,14 +33,21 @@ class AppLogger():
         """ set the log_inst handler """
         path = Path(file_path)
 
-        # create directory if not exists
-        if not os.path.exists(path.parent):
-            os.mkdir(path.parent)
+        # create directory (including intermediate parents) if not exists
+        path.parent.mkdir(parents=True, exist_ok=True)
+
+        logger = cls.get_instance()
+
+        # avoid adding duplicate file handlers for the same log file
+        abs_file_path = os.path.abspath(file_path)
+        for h in logger.handlers:
+            if isinstance(h, logging.FileHandler) and getattr(h, "baseFilename", None) == abs_file_path:
+                return
 
         handler = logging.FileHandler(file_path)
         handler.setFormatter(logging.Formatter(cls._LOG_STR_FORMAT))
 
-        cls.get_instance().addHandler(handler)
+        logger.addHandler(handler)
 
     @classmethod
     def set_log_level(cls, log_level):
