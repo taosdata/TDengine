@@ -483,6 +483,7 @@ static char *tdbEncryptPage(SPager *pPager, char *pPageData, int32_t pageSize, c
 
       int32_t newLen = CBC_Encrypt(&opts);
       if (newLen != opts.len) {
+        taosMemoryFreeClear(buf);
         return NULL;
       }
 
@@ -845,7 +846,7 @@ static int tdbPagerRemoveFreePage(SPager *pPager, SPgno *pPgno, TXN *pTxn) {
     tdbError("tdb/remove-free-page: pop failed with ret: %d.", code);
   }
 
-  return 0;
+  return code;
 }
 
 static int tdbPagerAllocFreePage(SPager *pPager, SPgno *ppgno, TXN *pTxn) {
@@ -924,11 +925,6 @@ static int tdbPagerInitPage(SPager *pPager, SPage *pPage, int (*initPage)(SPage 
       SEncryptData *pEncryptData = pPager->pEnv->encryptData;
 
       if (pEncryptData != NULL && pEncryptData->encryptAlgrName[0] != '\0') {
-        // tdbInfo("CBC Decrypt key:%d %s %s", pEncryptData->encryptAlgorithm, pEncryptData->encryptKey, __FUNCTION__);
-
-        // uint8_t flags = pPage->pData[0];
-        // tdbInfo("CBC tdb offset:%" PRId64 ", flag:%d before Decrypt", ((i64)pPage->pageSize) * (pgno - 1), flags);
-
         unsigned char packetData[128];
 
         int32_t count = 0;
@@ -942,23 +938,22 @@ static int tdbPagerInitPage(SPager *pPager, SPage *pPage, int (*initPage)(SPage 
           tstrncpy(opts.key, pEncryptData->encryptKey, ENCRYPT_KEY_LEN + 1);
 
           int newLen = CBC_Decrypt(&opts);
-          if (newLen != opts.len) return terrno;
+          if (newLen != opts.len) {
+            ret = terrno;
+            if (TDB_UNLOCK_PAGE(pPage) < 0) {
+              tdbError("tdb/pager:%p, pgno:%d, nRead:%" PRId64 "pgSize:%" PRId32 " unlock page failed.", pPager, pgno,
+                       nRead, pPage->pageSize);
+            }
+            return ret;
+          }
 
           memcpy(pPage->pData + count, packetData, newLen);
           count += newLen;
         }
-        // tdbInfo("CBC tdb offset:%" PRId64 ", Decrypt count:%d %s", ((i64)pPage->pageSize) * (pgno - 1), count,
-        // __FUNCTION__);
-
-        // tdbInfo("CBC tdb offset:%" PRId64 ", flag:%d after Decrypt %s", ((i64)pPage->pageSize) * (pgno - 1),
-        // pPage->pData[0], __FUNCTION__);
       }
     } else {
       init = 0;
     }
-
-    // tdbInfo("CBC tdb offset:%" PRId64 ", flag:%d initPage %s", ((i64)pPage->pageSize) * (pgno - 1), pPage->pData[0],
-    // __FUNCTION__);
 
     ret = (*initPage)(pPage, arg, init);
     if (ret < 0) {
