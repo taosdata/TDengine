@@ -5,13 +5,11 @@
 import unittest, os.path, sys
 import pandas as pd
 
-from taosanalytics.log import setup_log_info
-
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../../")
 
 from taosanalytics.algo.forecast import draw_fc_results
 from taosanalytics.service_registry import loader
-
+from taosanalytics.log import setup_log_info
 
 class ForecastTest(unittest.TestCase):
     """forecast unit test cases"""

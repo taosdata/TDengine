@@ -4,13 +4,11 @@
 import unittest, sys, os.path
 import pandas as pd
 
-from taosanalytics.log import setup_log_info
-
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../../")
 
 from taosanalytics.algo.anomaly import draw_ad_results
 from taosanalytics.service_registry import loader
-
+from taosanalytics.log import setup_log_info
 
 class AnomalyDetectionTest(unittest.TestCase):
     """ anomaly detection unit test class"""

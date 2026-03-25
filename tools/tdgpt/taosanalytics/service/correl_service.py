@@ -20,6 +20,10 @@ def handle_correlation(request):
         return {"msg": str(e), "rows": -1}
 
     params = parse_options(options)
+
+    if 'algo' not in req_json:
+        return {"msg": 'algo is missing in requests', "rows": -1}
+
     algo = req_json['algo'].lower()
 
     try:
