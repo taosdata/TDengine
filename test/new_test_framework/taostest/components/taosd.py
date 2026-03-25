@@ -220,7 +220,8 @@ class TaosD:
             print(f"taosd path: {dnode['taosdPath']}")
             taosdPath = dnode['taosdPath']
             parentPath = os.path.dirname(taosdPath)
-            taosk_path = os.path.join(parentPath, "taosk")
+            taosk_name = "taosk.exe" if platform.system().lower() == "windows" else "taosk"
+            taosk_path = os.path.join(parentPath, taosk_name)
 
             if not os.path.exists(taosk_path):
                 self.logger.error(f"taosk not found at: {taosk_path}")
