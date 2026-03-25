@@ -144,9 +144,10 @@ STATE_OK (every 10s):
     FAIL → uWarn("License heartbeat failed: %s", errStr)  // tolerate, don't change state
 
   taos_sdk_get_license(&info):
-    TAOS_LICENSE_OK           → uInfo("License: id=%s type=%s valid_until=%s "
-                                      "timeseries=%lu cpu_cores=%u dnodes=%u",
-                                      ...) ; lastLicense = info
+    TAOS_LICENSE_OK           → if license_id or valid_until changed vs lastLicense:
+                                    uInfo("License updated: id=%s type=%s valid_until=%s "
+                                          "timeseries=%lu cpu_cores=%u dnodes=%u", ...)
+                                  lastLicense = info  // always update; log only on change
     TAOS_LICENSE_NO_LICENSE   → uWarn("No license available, entering grace period")
                                 → dmLicenseLoadOrStartGrace() → STATE_GRACE
     TAOS_INSTANCE_BLACKLISTED → uWarn("Instance [%s] has been blacklisted, entering grace period",
@@ -236,7 +237,10 @@ int32_t dmLicenseLoadOrStartGrace(SDmLicenseCtx *pCtx) {
         //             taosWriteFile(pFile, pStr, strlen(pStr));
         //             taosCloseFile(&pFile);
         //             cJSON_free(pStr); cJSON_Delete(pRoot);
-        //             On write failure: log uError and continue (grace countdown still runs in memory)
+        //             On write failure: log uError and continue (grace countdown still runs in memory).
+        //             If taosd is restarted after a write failure, the grace period countdown resets
+        //             to a fresh 2 weeks from the new startup time. This is acceptable — the operator
+        //             should fix the write failure (e.g. disk full) and the extra time is a safety margin.
         uWarn("License grace period started at %" PRId64 " ms", pCtx->gracePeriodStartMs);
     }
     return 0;
