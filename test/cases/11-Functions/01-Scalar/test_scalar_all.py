@@ -11,7 +11,8 @@
 
 # -*- coding: utf-8 -*-
 from new_test_framework.utils import tdLog, tdSql, etool, inspect, tdCom
-import os, platform
+import os
+import platform
 
 class TestScalarFunction:
     updatecfgDict = {
