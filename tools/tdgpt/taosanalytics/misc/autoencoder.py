@@ -14,7 +14,7 @@ from taosanalytics.analytics_base import AbstractAnomalyDetectionService, Analyt
 from taosanalytics.conf import Configure
 from taosanalytics.error import failed_load_model_except
 from taosanalytics.log import AppLogger
-from taosanalytics.model_mgmt import ModelManager
+from taosanalytics.model_file_mgt import ModelFileManager
 from taosanalytics.util import create_sequences
 
 
@@ -32,9 +32,17 @@ class _AutoEncoderDetectionService(AbstractAnomalyDetectionService):
         self.time_interval = None
         self.model = None
 
+        ModelFileManager.get_instance().load_model_file(
+            _AutoEncoderDetectionService.name,
+            os.path.join(Configure.get_instance().get_model_directory(),
+                         'sample-ad-autoencoder/sample-ad-autoencoder'),
+            _AutoEncoderDetectionService.do_load_model,
+            _AutoEncoderDetectionService.name
+        )
+
     def get_status(self) -> str:
         """return model status """
-        info = ModelManager.get_instance().get_model(self.name)
+        info = ModelFileManager.get_instance().get_model(self.name)
         return AnalyticsService._toStatusName[
             AnalyticsService.UNAVAILABLE if info is None else AnalyticsService.READY]
 
@@ -73,7 +81,7 @@ class _AutoEncoderDetectionService(AbstractAnomalyDetectionService):
         return [-1 if i in ad_indices else 1 for i in range(len(self.list))]
 
     def set_params(self, params):
-        info = ModelManager.get_instance().get_model(self.name)
+        info = ModelFileManager.get_instance().get_model(self.name)
         if info is None:
             failed_load_model_except(self.name)
 
@@ -83,7 +91,7 @@ class _AutoEncoderDetectionService(AbstractAnomalyDetectionService):
         self.time_interval = info["timesteps"]
         self.model = info["model"]
 
-        AppLogger.get_instance().info(
+        AppLogger.info(
             "load ac module success, mean: %f, std: %f, threshold: %f, time_interval: %d",
             self.mean[0], self.std[0], self.threshold, self.time_interval
         )
@@ -96,18 +104,18 @@ class _AutoEncoderDetectionService(AbstractAnomalyDetectionService):
         model_file_path = f'{path}.keras'
         model_info_path = f'{path}.info'
 
-        AppLogger.get_instance().info("try to load module:%s", model_file_path)
+        AppLogger.info("try to load module:%s", model_file_path)
 
         if os.path.exists(model_file_path):
-            model = keras.models.load_model(model_file_path)
+            model = keras.saving.load_model(model_file_path)
         else:
-            AppLogger.get_instance().error("failed to load autoencoder model file: %s", model_file_path)
+            AppLogger.error("failed to load autoencoder model file: %s", model_file_path)
             raise FileNotFoundError(f"{model_file_path} not found")
 
         if os.path.exists(model_info_path):
             info = joblib.load(model_info_path)
         else:
-            AppLogger.get_instance().error("failed to load autoencoder model file: %s", model_file_path)
+            AppLogger.error("failed to load autoencoder model file: %s", model_file_path)
             raise FileNotFoundError("%s not found", model_info_path)
 
         info["model"] = model
@@ -120,9 +128,3 @@ class _AutoEncoderDetectionService(AbstractAnomalyDetectionService):
 
         create_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(create_time))
         return info, create_time
-
-
-ModelManager.get_instance().load_model(_AutoEncoderDetectionService.name,
-                         os.path.join(Configure.get_instance().get_model_directory(), 'sample-ad-autoencoder/sample-ad-autoencoder'),
-                         _AutoEncoderDetectionService.do_load_model,
-                         _AutoEncoderDetectionService.name)

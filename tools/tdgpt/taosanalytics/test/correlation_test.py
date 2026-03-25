@@ -11,7 +11,7 @@ from taosanalytics.log import setup_log_info
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../../")
 
-from taosanalytics.builtins import loader
+from taosanalytics.service_registry import loader
 
 def draw_lags_result(lags, ccf_vals, name):
     plt.figure(figsize=(10, 5))

@@ -84,7 +84,7 @@ def is_white_noise(input_list):
 def is_stationary(input_list):
     """ determine whether the input list is weak stationary or not """
     adf, pvalue, usedlag, nobs, critical_values, _ = adfuller(input_list, autolag='AIC')
-    AppLogger.get_instance().info("adf is:%f critical value is:%s", adf, critical_values)
+    AppLogger.info("adf is:%f critical value is:%s", adf, critical_values)
     return pvalue < 0.05
 
 
@@ -168,16 +168,16 @@ def create_sequences(values, time_steps):
 
 def do_initial_check(request):
     if not request.is_json:
-        AppLogger.get_instance().error('recv invalid request, only json allowed. %s', request.data)
+        AppLogger.error('recv invalid request, only json allowed. %s', request.data)
         raise ValueError("invalid request format")
 
     try:
         req_json = request.json
     except Exception as e:
-        AppLogger.get_instance().error('recv invalid request, invalid json format:%s', request.data)
+        AppLogger.error('recv invalid request, invalid json format:%s', request.data)
         raise ValueError(e)
 
-    AppLogger.get_instance().debug('req payload: %s', req_json)
+    AppLogger.debug('req payload: %s', req_json)
     return req_json
 
 def do_check_before_exec(request, check_rows=True):
@@ -187,7 +187,7 @@ def do_check_before_exec(request, check_rows=True):
     try:
         validate_pay_load(req_json, check_rows)
     except ValueError as e:
-        AppLogger.get_instance().error('validate req json failed, %s', e)
+        AppLogger.error('validate req json failed, %s', e)
         raise ValueError(e)
 
     payload = req_json["data"]
@@ -205,11 +205,11 @@ def do_check_before_exec(request, check_rows=True):
         try:
             is_wn = is_white_noise(data)
         except Exception as e:
-            AppLogger.get_instance().error("failed to check white noise data, %s", str(e))
+            AppLogger.error("failed to check white noise data, %s", str(e))
             raise
 
         if is_wn:
-            AppLogger.get_instance().debug("%s is %s", data, white_noise_error_msg())
+            AppLogger.debug("%s is %s", data, white_noise_error_msg())
             raise ValueError(white_noise_error_msg())
 
     options = req_json["option"] if "option" in req_json else None

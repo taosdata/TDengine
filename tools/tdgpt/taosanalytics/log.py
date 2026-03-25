@@ -52,6 +52,26 @@ class AppLogger():
         except ValueError as e:
             cls.get_instance().error(f"failed to set log level: {log_level}, {e}")
 
+    @classmethod
+    def debug(cls, msg, *args, **kwargs):
+        cls.get_instance().debug(msg, *args, **kwargs)
+
+    @classmethod
+    def info(cls, msg, *args, **kwargs):
+        cls.get_instance().info(msg, *args, **kwargs)
+
+    @classmethod
+    def warning(cls, msg, *args, **kwargs):
+        cls.get_instance().warning(msg, *args, **kwargs)
+
+    @classmethod
+    def error(cls, msg, *args, **kwargs):
+        cls.get_instance().error(msg, *args, **kwargs)
+
+    @classmethod
+    def fatal(cls, msg, *args, **kwargs):
+        cls.get_instance().fatal(msg, *args, **kwargs)
+
 
 def setup_log_info(name: str):
     """ prepare the log info for unit test """

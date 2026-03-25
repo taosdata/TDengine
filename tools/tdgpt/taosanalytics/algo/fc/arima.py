@@ -62,7 +62,7 @@ class _ArimaService(AbstractForecastService):
                               start_P=0,
                               D=self.diff)
 
-        AppLogger.get_instance().debug(model.summary())
+        AppLogger.debug(model.summary())
 
         # predict N steps into the future
         fc = model.predict(n_periods=fc_rows, return_conf_int=self.return_conf,

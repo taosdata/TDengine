@@ -24,7 +24,7 @@ def handle_imputation(request):
     try:
         do_set_imputation_params(params, req_json)
     except ValueError as e:
-        AppLogger.get_instance().error("invalid imputation params: %s", e)
+        AppLogger.error("invalid imputation params: %s", e)
         return {"msg": f"{e}", "rows": -1}
 
     algo = req_json['algo'].lower() if 'algo' in req_json else 'moment'
@@ -39,8 +39,8 @@ def handle_imputation(request):
         final_res = {"option": options, "rows": len(imputat_res["ts"])}
         final_res.update(imputat_res)
 
-        AppLogger.get_instance().debug("imputation result: %s", final_res)
+        AppLogger.debug("imputation result: %s", final_res)
         return final_res
     except Exception as e:
-        AppLogger.get_instance().error('imputation failed, %s', str(e))
+        AppLogger.error('imputation failed, %s', str(e))
         return {"msg": str(e), "rows": -1}

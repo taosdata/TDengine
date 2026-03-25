@@ -9,7 +9,7 @@ from taosanalytics.log import setup_log_info
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../../")
 
 from taosanalytics.algo.anomaly import draw_ad_results
-from taosanalytics.builtins import loader
+from taosanalytics.service_registry import loader
 
 
 class AnomalyDetectionTest(unittest.TestCase):
@@ -158,7 +158,7 @@ class AnomalyDetectionTest(unittest.TestCase):
         # try:
         #     s.set_params({"model": "sample-ad-autoencoder"})
         # except ValueError as e:
-        #     AppLogger.get_instance().error(f"failed to set the param for auto_encoder algorithm, reason:{e}")
+        #     AppLogger.error(f"failed to set the param for auto_encoder algorithm, reason:{e}")
         #     return
         #
         # r = s.execute()

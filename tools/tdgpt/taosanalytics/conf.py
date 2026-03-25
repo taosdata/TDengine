@@ -68,6 +68,8 @@ class Configure:
                 "conf_path": os.path.join(base_path, "conf/taosanode.config.py"),
                 "log_level": logging.DEBUG,
                 "draw_result": False,
+                "host": "0.0.0.0",
+                "port": 6035,
             }
 
     def _get_default_conf_linux(self):
@@ -78,6 +80,8 @@ class Configure:
             "conf_path": "/etc/taos/taosanode.config.py",
             "log_level": logging.DEBUG,
             "draw_result": False,
+            "host": "0.0.0.0",
+            "port": 6035,
         }
 
     def _get_default_conf(self):
@@ -113,6 +117,10 @@ class Configure:
     def get_draw_result_option(self):
         """ get the option for draw results or not"""
         return self._conf['draw_result']
+
+    def get_server_bind(self) -> tuple:
+        """return (host, port) for the HTTP server"""
+        return self._conf['host'], self._conf['port']
 
     def reload(self):
         """ load the info from config file """
@@ -151,5 +159,13 @@ class Configure:
         if 'draw_result' in conf_vars:
             self._conf['draw_result'] = conf_vars['draw_result']
             conf_vars.pop('draw_result')
+
+        if 'bind' in conf_vars:
+            host, _, port = conf_vars['bind'].partition(':')
+            if host:
+                self._conf['host'] = host
+            if port.isdigit():
+                self._conf['port'] = int(port)
+            conf_vars.pop('bind')
 
         self._conf.update(conf_vars)

@@ -5,7 +5,7 @@ import time
 from matplotlib import pyplot as plt
 
 from taosanalytics.conf import Configure
-from taosanalytics.builtins import loader
+from taosanalytics.service_registry import loader
 from taosanalytics.log import AppLogger
 from taosanalytics.util import parse_time_delta_string
 
@@ -24,11 +24,11 @@ def do_imputation(input_list, ts_list, algo_name, params):
     s.set_params(params)
 
     start = time.time()
-    AppLogger.get_instance().debug("start to do imputation")
+    AppLogger.debug("start to do imputation")
 
     res = s.execute()
 
-    AppLogger.get_instance().debug("imputation done, elapsed time:%.2fms", (time.time() - start) * 1000)
+    AppLogger.debug("imputation done, elapsed time:%.2fms", (time.time() - start) * 1000)
 
     # add the imputation model in the result
     res["algo"] = algo_name

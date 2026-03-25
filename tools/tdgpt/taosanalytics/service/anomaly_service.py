@@ -20,7 +20,7 @@ def handle_anomaly(request):
     try:
         req_json, payload, options, data_index, ts_index = do_check_before_exec(request, True)
     except Exception as e:
-        AppLogger.get_instance().error("failed to do anomaly-detection, %s", str(e))
+        AppLogger.error("failed to do anomaly-detection, %s", str(e))
         return {"msg": str(e), "rows": -1}
 
     algo = req_json["algo"].lower() if "algo" in req_json else "ksigma"
@@ -37,9 +37,9 @@ def handle_anomaly(request):
         res_list, ano_window, mask_list = do_ad_check(payload, ts_list, algo, params)
         result = {"algo": algo, "option": options, "res": ano_window, "rows": len(ano_window), "mask": mask_list}
 
-        AppLogger.get_instance().debug("anomaly-detection result: %s", str(result))
+        AppLogger.debug("anomaly-detection result: %s", str(result))
         return result
     except Exception as e:
         result = {"res": {}, "rows": -1, "msg": str(e)}
-        AppLogger.get_instance().error("failed to do anomaly-detection, %s", str(e))
+        AppLogger.error("failed to do anomaly-detection, %s", str(e))
         return result

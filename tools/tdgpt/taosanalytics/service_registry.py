@@ -7,13 +7,17 @@ import os
 import sys
 from collections import defaultdict
 from taosanalytics.log import AppLogger
-from taosanalytics.analytics_base import (AbstractAnomalyDetectionService, AbstractForecastService, AbstractImputationService, \
-                                          AbstractCorrelationService)
+from taosanalytics.analytics_base import (
+    AbstractAnomalyDetectionService,
+    AbstractForecastService,
+    AbstractImputationService,
+    AbstractCorrelationService
+)
 
 os.environ['KERAS_BACKEND'] = 'torch'
 
 
-class AnalyticsAlgorithmLoader:
+class ServiceRegistry:
     """ Singleton register for multiple anomaly detection algorithms and fc algorithms"""
 
     def __init__(self):
@@ -30,10 +34,11 @@ class AnalyticsAlgorithmLoader:
         for key, val in self.services.items():
             if val[0].type == type_str:
                 try:
-                    one = {"name": key, "desc": val[0].get_desc(), "params": val[0].get_params(), "status": val[0].get_status()}
+                    one = {"name": key, "desc": val[0].get_desc(), "params": val[0].get_params(),
+                           "status": val[0].get_status()}
                     all_items.append(one)
                 except AttributeError as e:
-                    AppLogger.get_instance().error("failed to get service: %s info, reason: %s", key, e)
+                    AppLogger.error("failed to get service: %s info, reason: %s", key, e)
 
         return all_items
 
@@ -84,7 +89,7 @@ class AnalyticsAlgorithmLoader:
 
         def register_service(container, name: str, service):
             """ register service for both anomaly detection and fc """
-            AppLogger.get_instance().info("register service: %s", name)
+            AppLogger.info("register service: %s", name)
             container[name].append(service)
 
         def do_load_service(cur_directory, lib_prefix, sub_directory):
@@ -92,7 +97,7 @@ class AnalyticsAlgorithmLoader:
             service_directory = os.path.join(cur_directory, sub_directory)
 
             if not os.path.exists(service_directory):
-                AppLogger.get_instance().fatal(
+                AppLogger.fatal(
                     "service directory:%s not lib exists, failed to load service",
                     service_directory)
                 raise FileNotFoundError(f"service directory:{service_directory} not found")
@@ -111,7 +116,7 @@ class AnalyticsAlgorithmLoader:
                 name = lib_prefix + item.split('.')[0]
                 module = importlib.import_module(name)
 
-                AppLogger.get_instance().info("load algorithm:%s", name)
+                AppLogger.info("load algorithm:%s", name)
 
                 for (class_name, _) in inspect.getmembers(module, inspect.isclass):
 
@@ -130,7 +135,7 @@ class AnalyticsAlgorithmLoader:
 
                         # ignore the shesd for python 3.12 version due to pandas compatibility
                         if (version.major, version.minor) == (3, 12) and class_name == '_SHESDService':
-                            AppLogger.get_instance().info(
+                            AppLogger.info(
                                 "%s not loaded due to Pandas compatibility problem on Python 3.12",
                                 class_name)
                             continue
@@ -141,10 +146,16 @@ class AnalyticsAlgorithmLoader:
         # start to load all services
         current_directory = os.path.dirname(os.path.abspath(__file__))
 
-        do_load_service(current_directory, 'taosanalytics.algo.ad.', '/algo/ad/')
-        do_load_service(current_directory, 'taosanalytics.algo.fc.', '/algo/fc/')
-        do_load_service(current_directory, 'taosanalytics.algo.imputat.', '/algo/imputat/')
-        do_load_service(current_directory, 'taosanalytics.algo.correl.', '/algo/correl/')
+        do_load_service(current_directory, 'taosanalytics.algo.ad.', 'algo/ad/')
+        do_load_service(current_directory, 'taosanalytics.algo.fc.', 'algo/fc/')
+        do_load_service(current_directory, 'taosanalytics.algo.imputat.', 'algo/imputat/')
+        do_load_service(current_directory, 'taosanalytics.algo.correl.', 'algo/correl/')
+
+        # load user defined ML model-driven script.
+        AppLogger.info("start to load custom defined models")
+
+        do_load_service(current_directory, 'taosanalytics.algo.custom.ad.', 'algo/custom/ad/')
+        do_load_service(current_directory, 'taosanalytics.algo.custom.fc.', 'algo/custom/fc/')
 
 
-loader: AnalyticsAlgorithmLoader = AnalyticsAlgorithmLoader()
+loader: ServiceRegistry = ServiceRegistry()

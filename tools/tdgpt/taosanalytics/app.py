@@ -4,6 +4,9 @@
 import os.path, sys
 import argparse
 
+from taosanalytics.model_file_mgt import ModelFileManager
+from taosanalytics.service_registry import loader
+
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../")
 
 import taosanalytics
@@ -15,8 +18,6 @@ from taosanalytics.service.correl_service import handle_correlation
 from taosanalytics.service.misc_service import handle_batch
 
 from taosanalytics.conf import Configure
-from taosanalytics.model_mgmt import ModelManager
-from taosanalytics.builtins import loader
 from taosanalytics.log import AppLogger
 
 app = Flask(__name__)
@@ -49,20 +50,20 @@ def list_all_services():
 @app.route("/models")
 def list_all_models():
     """ list all available models """
-    return ModelManager.get_instance().get_model_list()
+    return ModelFileManager.get_instance().get_model_list()
 
 
 @app.route("/anomaly-detect", methods=['POST'])
 def handle_ad_request():
     """handle the anomaly detection requests"""
-    AppLogger.get_instance().info('recv ad request from %s', request.remote_addr)
+    AppLogger.info('recv ad request from %s', request.remote_addr)
     return handle_anomaly(request)
 
 
 @app.route("/forecast", methods=['POST'])
 def handle_forecast_req():
     """handle the fc request """
-    AppLogger.get_instance().info('recv forecast request from %s', request.remote_addr)
+    AppLogger.info('recv forecast request from %s', request.remote_addr)
     return handle_forecast(request)
 
 
@@ -75,7 +76,7 @@ def handle_imputation_req():
 @app.route("/correlation", methods=['POST'])
 def handle_correlation_req():
     """handle the correlation request """
-    AppLogger.get_instance().info('recv correlation from %s', request.remote_addr)
+    AppLogger.info('recv correlation from %s', request.remote_addr)
     return handle_correlation(request)
 
 
@@ -85,17 +86,27 @@ def handle_batch_req():
     return handle_batch(request)
 
 
-if __name__ == '__main__':
+def parse_args():
+    """parse command line arguments"""
     parser = argparse.ArgumentParser(description='TDgpt analytics service')
     parser.add_argument('-c', dest='conf_path', default=None,
                         help='path to configuration file')
-    args = parser.parse_args()
+    return parser.parse_args()
 
-    conf = Configure.init(args.conf_path)
 
+if __name__ == '__main__':
+    arg = parse_args()
+
+    # init configuration
+    conf = Configure.init(arg.conf_path)
+
+    # set log parameters
     AppLogger.set_handler(conf.get_log_path())
     AppLogger.set_log_level(conf.get_log_level())
+
+    # register all services
     loader.load_all_service()
 
-    app.run(port=6035)
-
+    # run HTTP server
+    host, port = conf.get_server_bind()
+    app.run(host=host, port=port)

@@ -10,7 +10,7 @@ from taosanalytics.log import setup_log_info
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../../")
 
 from taosanalytics.algo.forecast import draw_fc_results
-from taosanalytics.builtins import loader
+from taosanalytics.service_registry import loader
 
 
 class ForecastTest(unittest.TestCase):
