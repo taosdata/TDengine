@@ -96,13 +96,14 @@ tstrncpy(tsCulsAddr, pItem->str, sizeof(tsCulsAddr));
 
 ```c
 typedef enum {
-  DM_LICENSE_STATE_INIT        = 0,  // before first check
-  DM_LICENSE_STATE_CONNECTING,       // taos_sdk_create() in progress
-  DM_LICENSE_STATE_OK,               // valid license held
-  DM_LICENSE_STATE_GRACE,            // grace period running
-  DM_LICENSE_STATE_EXPIRED,          // grace period elapsed → shutdown
+  DM_LICENSE_STATE_INIT     = 0,  // before first check
+  DM_LICENSE_STATE_OK,            // valid license held
+  DM_LICENSE_STATE_GRACE,         // grace period running
+  DM_LICENSE_STATE_EXPIRED,       // grace period elapsed → shutdown
 } EDmLicenseState;
 ```
+
+> `taos_sdk_create()` is a synchronous blocking call (10 s timeout per SDK docs). There is no intermediate CONNECTING state; the thread transitions directly from INIT to OK or GRACE based on the return code.
 
 ### Context Structure (embedded in SDnodeMgmt)
 
@@ -125,13 +126,13 @@ STATE_INIT:
   if tsCulsAddr == ""
     → uWarn("culsAddr not configured, entering grace period")
     → dmLicenseLoadOrStartGrace()
-    → STATE_GRACE
+    → STATE_GRACE  // pSdk remains NULL; no recovery possible until restart with valid culsAddr
   else
-    → instance_id = "<fqdn>:<port>"  (e.g. "td-node1:6030")
+    → snprintf(instance_id, sizeof(instance_id), "%s:%u", tsLocalFqdn, tsServerPort)
     → taos_sdk_create(&pSdk, tsCulsAddr, instance_id)
       OK   → taos_sdk_get_license() → STATE_OK or STATE_GRACE on fail
       FAIL → uError("Failed to connect to CULS: %s", errStr)
-             dmLicenseLoadOrStartGrace() → STATE_GRACE
+             dmLicenseLoadOrStartGrace() → STATE_GRACE  // pSdk remains NULL
 
 STATE_OK (every 10s):
   taos_sdk_heartbeat()
@@ -156,7 +157,11 @@ STATE_OK (every 10s):
                                 // network transient: do not trigger grace
 
 STATE_GRACE (every 10s):
-  // Try to recover
+  // Try to recover — only possible if pSdk was created successfully
+  // (i.e. culsAddr was configured and taos_sdk_create() succeeded).
+  // If pSdk == NULL (empty culsAddr or SDK create failure), recovery
+  // requires restarting taosd with a valid culsAddr; the grace countdown
+  // continues uninterrupted.
   if pSdk != NULL:
     taos_sdk_get_license(&info):
       TAOS_LICENSE_OK → uInfo("License recovered, grace period cancelled")
@@ -202,6 +207,8 @@ Content:
 
 ### Read/Write Logic
 
+Use `cJSON` + `taosOpenFile` / `taosWriteFile` — the same pattern used in `source/dnode/mgmt/node_util/src/dmFile.c`.
+
 ```c
 // Enter grace period (or resume after restart):
 int32_t dmLicenseLoadOrStartGrace(SDmLicenseCtx *pCtx) {
@@ -209,13 +216,21 @@ int32_t dmLicenseLoadOrStartGrace(SDmLicenseCtx *pCtx) {
     snprintf(path, sizeof(path), "%s/license_grace.json", tsDataDir);
 
     if (taosCheckExistFile(path)) {
-        // Parse JSON, load grace_start_ms — continue existing countdown
-        pCtx->gracePeriodStartMs = <parsed_value>;
+        // Read file, parse with cJSON, extract "grace_start_ms"
+        // Example: cJSON *pRoot = cJSON_Parse(buf);
+        //          pCtx->gracePeriodStartMs = cJSON_GetObjectItem(pRoot, "grace_start_ms")->valuedouble;
+        //          cJSON_Delete(pRoot);
         uWarn("Resuming license grace period from previous run (started %s)", <time_str>);
     } else {
-        // First time entering grace
+        // First time entering grace — record current time
         pCtx->gracePeriodStartMs = taosGetTimestampMs();
-        // Write JSON to path
+        // Build JSON: cJSON *pRoot = cJSON_CreateObject();
+        //             cJSON_AddNumberToObject(pRoot, "grace_start_ms", (double)pCtx->gracePeriodStartMs);
+        //             char *pStr = cJSON_Print(pRoot);
+        // Write with: TdFilePtr pFile = taosOpenFile(path, TD_FILE_CREATE|TD_FILE_WRITE|TD_FILE_TRUNC|TD_FILE_WRITE_THROUGH);
+        //             taosWriteFile(pFile, pStr, strlen(pStr));
+        //             taosCloseFile(&pFile);
+        //             cJSON_free(pStr); cJSON_Delete(pRoot);
         uWarn("License grace period started at %s", <time_str>);
     }
     return 0;
@@ -288,6 +303,7 @@ endif()
 |-----------|--------|
 | `taos_sdk_create` fails | `uError`, enter grace period |
 | `TAOS_LICENSE_NETWORK_ERROR` | `uWarn`, retry next cycle (no grace) |
+| `TAOS_LICENSE_VERIFY_FAILED` | `uWarn`, retry next cycle (no grace) |
 | `TAOS_LICENSE_NO_LICENSE` | `uWarn`, enter grace period |
 | `TAOS_LICENSE_REVOKED` | `uWarn`, enter grace period |
 | `TAOS_LICENSE_EXPIRED` | `uWarn`, enter grace period |
