@@ -78,6 +78,11 @@ class TestSnapshot:
         self.trimDb()
         self.checkAggCorrect()
 
+        # after trimDb, one of replica is delayed, this replica can't be forcely leader, 
+        # balance vgroup leader will randomly choose this replica
+        # so need wait a while
+        time.sleep(10)
+
         # balance vgroups
         self.balanceVGroupLeader()
         
