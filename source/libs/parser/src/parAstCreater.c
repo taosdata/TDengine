@@ -2614,7 +2614,10 @@ SNode* createExternalWindowClause(SAstCreateContext* pCxt, SNode* pSubquery, STo
   } else if (QUERY_NODE_SET_OPERATOR == nodeType(pSubquery)) {
     ((SSetOperator*)pSubquery)->subQType= E_SUB_QUERY_TABLE;
   }
-    
+
+    pExtWin->pCol = createPrimaryKeyCol(pCxt, NULL);
+    CHECK_MAKE_NODE(pExtWin->pCol);
+
   // Attach subquery and optional fill node
   pExtWin->pSubquery = pSubquery;
   pExtWin->pFill = pFill;
