@@ -30,7 +30,7 @@ def do_forecast(input_list, ts_list, algo_name, params, past_dynamic_real=None, 
 
     res = s.execute()
 
-    AppLogger.debug("forecast done, elapsed time:%.2fms", (time.time() - start) * 1000)
+    AppLogger.debug(f"forecast done, elapsed time:{(time.time() - start) * 1000:.2f}ms")
 
     res["period"] = s.period
     res["algo"] = algo_name
