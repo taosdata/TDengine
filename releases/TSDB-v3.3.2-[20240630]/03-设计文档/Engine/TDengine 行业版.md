@@ -71,6 +71,7 @@
 | IDMP_FUNC_DATA_DETECT | IDMP 异常检测 |
 | IDMP_FUNC_DATA_QUALITY | IDMP 数据质量 |
 | IDMP_FUNC_AI_CHAT_GEN | IDMP 智能问答 |
+| TD_LAX_MACHINE_CODE_CHK | 集群未授权时，是否跳过机器码检查：取值为 true， 跳过机器码检查；取值为 false，进行机器码检查，默认值为 false。|
 
 ### 4.2 打包行为
 
