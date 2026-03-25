@@ -65,6 +65,38 @@ const char* mndVtxnStageStr(EVtxnStage stage);
 const char* mndTxnStr(EUtxnStage stage);   // mndUtxnStageStr 的别名，供 mndTrans.c 等调用
 int8_t      mndTxnIsAlive(SMnode* pMnode, utxn_id_t txnId);  // keepalive 查询：txn 是否仍在活跃阶段
 
+// ============================================================================
+// MNode Shadow Operation Types — undo-log for STB DDL within user batch txn
+// ============================================================================
+//
+// Super table DDL goes through MNode Trans framework, not client→VNode direct path.
+// When an STB DDL is executed within an active user batch txn (STxnObj), MNode records
+// a shadow op so it can be undone if the user txn is later rolled back.
+//
+// Child/normal table shadow ops are tracked at VNode side (vnodeTxn.c), not here.
+
+typedef enum {
+  MND_SHADOW_OP_CREATE_STB = 1,  // Undo: drop the super table from SDB
+  MND_SHADOW_OP_DROP_STB = 2,    // Undo: not supported (data loss risk, log warning)
+  MND_SHADOW_OP_ALTER_STB = 3,   // Undo: not yet supported (needs old schema snapshot)
+} EMndShadowOpType;
+
+typedef struct SMndShadowOp {
+  int8_t   opType;                      // EMndShadowOpType
+  tb_uid_t uid;                         // STB UID (suid)
+  char     name[TSDB_TABLE_FNAME_LEN];  // Fully qualified STB name
+  char     db[TSDB_DB_FNAME_LEN];       // DB name (for VGroup broadcast on undo)
+} SMndShadowOp;
+
+// Record an STB shadow op within the active user txn.
+// Called by mndStb.c after executing CREATE/DROP/ALTER STABLE within a batch txn.
+int32_t mndTxnAddShadowOp(SMnode* pMnode, utxn_id_t txnId, int8_t opType, const char* stbName, tb_uid_t uid,
+                          const char* dbName);
+
+// Get the active user txn for the requesting connection (if any).
+// Returns txnId > 0 if the connection is within a batch txn, 0 otherwise.
+utxn_id_t mndTxnGetActiveTxnId(SMnode* pMnode, SRpcMsg* pReq);
+
 #ifdef __cplusplus
 }
 #endif

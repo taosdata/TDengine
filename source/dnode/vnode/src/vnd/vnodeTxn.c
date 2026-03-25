@@ -26,6 +26,32 @@
 // VNode Transaction Context Management
 // ============================================================================
 
+// Shadow operation types — undo-log entries for ROLLBACK
+//
+// Note: Super table (STB) DDL goes through MNode Trans framework (broadcast to VNodes),
+// NOT through the client→VNode direct path. Therefore STB operations are NOT tracked
+// as shadow ops here. Only child table and normal table DDL, which go directly from
+// client to VNode via consistent hash, need shadow ops.
+//
+// Domain model:
+//   - Super table: schema in MNode SDB, copy distributed to VNodes as template
+//   - Child table:  created under a super table, shares its schema, stored in VNode
+//   - Normal table: stored in VNode with its own dedicated schema
+typedef enum {
+  SHADOW_OP_CREATE_TB = 1,  // Undo: drop the child/normal table that was created
+  SHADOW_OP_ALTER_TB = 2,   // Undo: revert schema (not yet supported)
+  SHADOW_OP_DROP_TB = 3,    // Undo: recreate (not yet supported, data loss risk)
+} EShadowOpType;
+
+// Shadow operation record — stored in pShadowOps for undo on ROLLBACK
+// Only records child table and normal table operations (STB DDL handled by MNode Trans).
+typedef struct SVnodeShadowOp {
+  int8_t   opType;                      // EShadowOpType
+  tb_uid_t uid;                         // Table UID
+  tb_uid_t suid;                        // Super table UID (non-zero for child tables, 0 for normal tables)
+  char     name[TSDB_TABLE_FNAME_LEN];  // Table name
+} SVnodeShadowOp;
+
 typedef struct SVnodeTxnEntry {
   int64_t txnId;       // Transaction ID
   int64_t term;        // Raft term when registered
@@ -109,7 +135,7 @@ static int32_t vnodeCreateTxnEntry(SVnode *pVnode, int64_t txnId, int64_t term) 
   entry.startTime = taosGetTimestampMs();
   entry.lastActive = entry.startTime;
   entry.stage = VTXN_STAGE_ACTIVE;
-  entry.pShadowOps = taosArrayInit(8, sizeof(void *));
+  entry.pShadowOps = taosArrayInit(8, sizeof(SVnodeShadowOp));
   entry.pLockedTables = taosArrayInit(8, sizeof(char *));
 
   if (entry.pShadowOps == NULL || entry.pLockedTables == NULL) {
@@ -156,6 +182,134 @@ static void vnodeRemoveTxnEntry(SVnode *pVnode, int64_t txnId) {
 }
 
 // ============================================================================
+// Shadow Operation Management
+// ============================================================================
+
+/**
+ * Record a shadow operation for a transaction.
+ * Called by DDL handlers when executing within an active transaction.
+ * The operation is logged so it can be undone on ROLLBACK.
+ *
+ * Only child table and normal table operations are tracked here.
+ * Super table DDL goes through MNode Trans framework and is NOT tracked.
+ *
+ * @param pVnode    The vnode
+ * @param txnId     Transaction ID
+ * @param opType    EShadowOpType (CREATE_TB / ALTER_TB / DROP_TB)
+ * @param name      Table name
+ * @param uid       Table UID
+ * @param suid      Super table UID (non-zero for child table, 0 for normal table)
+ * @return TSDB_CODE_SUCCESS on success
+ */
+int32_t vnodeTxnAddShadowOp(SVnode *pVnode, int64_t txnId, int8_t opType, const char *name, tb_uid_t uid,
+                            tb_uid_t suid) {
+  if (pVnode->pTxnHash == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  taosThreadMutexLock(&pVnode->txnMutex);
+
+  SVnodeTxnEntry *pEntry = vnodeGetTxnEntry(pVnode, txnId);
+  if (pEntry == NULL) {
+    taosThreadMutexUnlock(&pVnode->txnMutex);
+    return TSDB_CODE_VND_TXN_EXPIRED;
+  }
+
+  SVnodeShadowOp op = {0};
+  op.opType = opType;
+  op.uid = uid;
+  op.suid = suid;
+  tstrncpy(op.name, name, sizeof(op.name));
+
+  taosArrayPush(pEntry->pShadowOps, &op);
+  pEntry->lastActive = taosGetTimestampMs();
+
+  taosThreadMutexUnlock(&pVnode->txnMutex);
+
+  vDebug("vgId:%d, shadow op added, txnId:%" PRId64 ", opType:%d, table:%s, uid:%" PRId64, TD_VID(pVnode), txnId,
+         opType, name, uid);
+  return TSDB_CODE_SUCCESS;
+}
+
+/**
+ * Apply shadow operations on COMMIT — promote all shadow changes to permanent.
+ * For CREATE ops, data is already in meta (applied during DDL execution), nothing to do.
+ * For DROP ops, data was only marked, finalization happens during vnodeRemoveTxnEntry.
+ * For ALTER ops, new schema is already in meta.
+ *
+ * Caller must NOT hold txnMutex.
+ */
+static int32_t vnodeTxnApplyShadowOps(SVnode *pVnode, SVnodeTxnEntry *pEntry) {
+  if (pEntry->pShadowOps == NULL) return TSDB_CODE_SUCCESS;
+
+  int32_t numOps = taosArrayGetSize(pEntry->pShadowOps);
+  vInfo("vgId:%d, applying %d shadow ops for txn %" PRId64, TD_VID(pVnode), numOps, pEntry->txnId);
+
+  // In the undo-log model, COMMIT is a no-op:
+  // DDL was already applied to meta during the ACTIVE phase.
+  // We just log completion for each op.
+  for (int32_t i = 0; i < numOps; i++) {
+    SVnodeShadowOp *pOp = (SVnodeShadowOp *)taosArrayGet(pEntry->pShadowOps, i);
+    vDebug("vgId:%d, commit shadow op %d/%d: type=%d, table=%s, uid=%" PRId64, TD_VID(pVnode), i + 1, numOps,
+           pOp->opType, pOp->name, pOp->uid);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+/**
+ * Discard shadow operations on ROLLBACK — undo all pending changes.
+ * Only child table and normal table operations are tracked (STB DDL goes through MNode Trans).
+ *
+ * For CREATE_TB: drop the child/normal table that was created during the txn.
+ * For ALTER_TB:  schema revert not yet supported (needs old schema snapshot).
+ * For DROP_TB:   recreate not yet supported (data loss risk).
+ *
+ * Caller must NOT hold txnMutex.
+ */
+static int32_t vnodeTxnDiscardShadowOps(SVnode *pVnode, SVnodeTxnEntry *pEntry) {
+  if (pEntry->pShadowOps == NULL) return TSDB_CODE_SUCCESS;
+
+  int32_t numOps = taosArrayGetSize(pEntry->pShadowOps);
+  vInfo("vgId:%d, discarding %d shadow ops for txn %" PRId64, TD_VID(pVnode), numOps, pEntry->txnId);
+
+  // Undo in reverse order
+  for (int32_t i = numOps - 1; i >= 0; i--) {
+    SVnodeShadowOp *pOp = (SVnodeShadowOp *)taosArrayGet(pEntry->pShadowOps, i);
+
+    switch (pOp->opType) {
+      case SHADOW_OP_CREATE_TB: {
+        // Undo child/normal table creation: drop the table
+        SVDropTbReq dropReq = {.name = pOp->name, .suid = pOp->suid, .uid = pOp->uid, .igNotExists = 1};
+        int32_t     code = metaDropTable2(pVnode->pMeta, -1, &dropReq);
+        if (code != 0) {
+          vWarn("vgId:%d, rollback: failed to drop table %s, uid:%" PRId64 ", code:0x%x", TD_VID(pVnode), pOp->name,
+                pOp->uid, code);
+        } else {
+          vInfo("vgId:%d, rollback: dropped table %s, uid:%" PRId64, TD_VID(pVnode), pOp->name, pOp->uid);
+        }
+        break;
+      }
+      case SHADOW_OP_ALTER_TB:
+        // ALTER rollback not yet supported — schema revert needs old schema snapshot
+        vWarn("vgId:%d, rollback: alter undo not implemented, table:%s, uid:%" PRId64, TD_VID(pVnode), pOp->name,
+              pOp->uid);
+        break;
+      case SHADOW_OP_DROP_TB:
+        // DROP rollback not supported — recreating table risks data loss
+        vWarn("vgId:%d, rollback: drop undo not implemented, table:%s, uid:%" PRId64, TD_VID(pVnode), pOp->name,
+              pOp->uid);
+        break;
+      default:
+        vError("vgId:%d, unknown shadow op type %d", TD_VID(pVnode), pOp->opType);
+        break;
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+// ============================================================================
 // VNode Transaction Message Handlers
 // ============================================================================
 
@@ -199,7 +353,12 @@ int32_t vnodeProcessTxnCommitReq(SVnode *pVnode, int64_t ver, void *pReq, int32_
   pEntry->stage = VTXN_STAGE_FINISHING;
   taosThreadMutexUnlock(&pVnode->txnMutex);
 
-  // TODO: Apply shadow operations — iterate pEntry->pShadowOps, promote shadow B+tree entries
+  // Apply shadow operations — promote pending changes to permanent
+  code = vnodeTxnApplyShadowOps(pVnode, pEntry);
+  if (code != 0) {
+    vError("vgId:%d, failed to apply shadow ops, txnId:%" PRId64 ", code:0x%x", TD_VID(pVnode), req.txnId, code);
+  }
+
   // TODO: Write txn commit record to WAL for crash recovery
 
   // Cleanup entry
@@ -251,7 +410,9 @@ int32_t vnodeProcessTxnRollbackReq(SVnode *pVnode, int64_t ver, void *pReq, int3
   pEntry->stage = VTXN_STAGE_FINISHING;
   taosThreadMutexUnlock(&pVnode->txnMutex);
 
-  // TODO: Discard shadow operations — iterate pEntry->pShadowOps, remove shadow B+tree entries
+  // Discard shadow operations — undo pending changes
+  vnodeTxnDiscardShadowOps(pVnode, pEntry);
+
   // TODO: Write txn rollback record to WAL for crash recovery
 
   // Cleanup entry
@@ -418,7 +579,9 @@ void vnodeTxnProcessActiveAck(SVnode *pVnode, utxn_id_t txnId, int8_t alive) {
     vDebug("vgId:%d, txn keepalive refreshed, txnId:%" PRId64, TD_VID(pVnode), txnId);
   } else {
     vInfo("vgId:%d, txn dead per MNode ack, rolling back locally, txnId:%" PRId64, TD_VID(pVnode), txnId);
-    // TODO: discard shadow B+tree entries
+    taosThreadMutexUnlock(&pVnode->txnMutex);
+    vnodeTxnDiscardShadowOps(pVnode, pEntry);
+    taosThreadMutexLock(&pVnode->txnMutex);
     vnodeRemoveTxnEntry(pVnode, txnId);
   }
 

@@ -15,16 +15,17 @@
 
 #define _DEFAULT_SOURCE
 #include "mndTxn.h"
-#include "mndInt.h"
-#include "mndTxnSeq.h"
 #include "audit.h"
 #include "mndDb.h"
 #include "mndDnode.h"
+#include "mndInt.h"
 #include "mndMnode.h"
 #include "mndPrivilege.h"
 #include "mndShow.h"
+#include "mndStb.h"
 #include "mndSync.h"
 #include "mndTrans.h"
+#include "mndTxnSeq.h"
 #include "mndUser.h"
 #include "mndVgroup.h"
 #include "parser.h"
@@ -169,6 +170,10 @@ void mndTxnFreeObj(STxnObj *pObj) {
     if (pObj->pVgList) {
       taosArrayDestroy(pObj->pVgList);
       pObj->pVgList = NULL;
+    }
+    if (pObj->pShadowOps) {
+      taosArrayDestroy(pObj->pShadowOps);
+      pObj->pShadowOps = NULL;
     }
   }
 }
@@ -413,6 +418,183 @@ int8_t mndTxnIsAlive(SMnode *pMnode, utxn_id_t txnId) {
   }
   mndReleaseTxn(pMnode, pTxn);
   return alive;
+}
+
+// ============================================================================
+// MNode Shadow Operation Management (STB DDL undo-log)
+// ============================================================================
+
+/**
+ * Record an STB shadow operation within the active user txn.
+ * Called by mndStb.c after executing CREATE/DROP/ALTER STABLE within a batch txn.
+ *
+ * @param pMnode   The mnode
+ * @param txnId    User batch txn ID
+ * @param opType   EMndShadowOpType
+ * @param stbName  Fully qualified STB name
+ * @param uid      STB UID
+ * @param dbName   DB name
+ */
+int32_t mndTxnAddShadowOp(SMnode *pMnode, utxn_id_t txnId, int8_t opType, const char *stbName, tb_uid_t uid,
+                          const char *dbName) {
+  STxnObj *pTxn = mndAcquireTxn(pMnode, txnId);
+  if (pTxn == NULL) {
+    mError("txn:%" PRIu64 ", not found, cannot add shadow op", txnId);
+    return TSDB_CODE_TXN_NOT_EXIST;
+  }
+
+  taosWLockLatch(&pTxn->lock);
+
+  if (pTxn->pShadowOps == NULL) {
+    pTxn->pShadowOps = taosArrayInit(4, sizeof(SMndShadowOp));
+    if (pTxn->pShadowOps == NULL) {
+      taosWUnLockLatch(&pTxn->lock);
+      mndReleaseTxn(pMnode, pTxn);
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+
+  SMndShadowOp op = {0};
+  op.opType = opType;
+  op.uid = uid;
+  tstrncpy(op.name, stbName, sizeof(op.name));
+  tstrncpy(op.db, dbName, sizeof(op.db));
+
+  taosArrayPush(pTxn->pShadowOps, &op);
+  pTxn->lastActiveTime = taosGetTimestampMs();
+
+  taosWUnLockLatch(&pTxn->lock);
+  mndReleaseTxn(pMnode, pTxn);
+
+  mInfo("txn:%" PRIu64 ", shadow op added: opType=%d, stb=%s, uid=%" PRId64, txnId, opType, stbName, uid);
+  return TSDB_CODE_SUCCESS;
+}
+
+/**
+ * Get the active user txn ID for the requesting connection.
+ * Currently checks if the RPC message carries a txnId in its extended info.
+ * Returns txnId > 0 if within a batch txn, 0 otherwise.
+ *
+ * TODO: Implement connection→txnId mapping via connId lookup.
+ *       For now returns 0 (no-op), to be wired when DDL messages carry txnId.
+ */
+utxn_id_t mndTxnGetActiveTxnId(SMnode *pMnode, SRpcMsg *pReq) {
+  (void)pMnode;
+  (void)pReq;
+  return 0;  // Placeholder — will be wired when STB DDL messages carry txnId
+}
+
+/**
+ * Undo MNode shadow ops on ROLLBACK — reverse STB DDL changes.
+ *
+ * For CREATE_STB: Remove the STB from SDB by appending a DROP redo log
+ *                 to the rollback Trans, and broadcast TDMT_VND_DROP_STB
+ *                 to all VNodes in the DB.
+ * For DROP_STB / ALTER_STB: Not yet supported (logged as warnings).
+ *
+ * @param pMnode  The mnode
+ * @param pTrans  The rollback Trans to append undo actions to
+ * @param pTxn    The user batch txn being rolled back
+ */
+static int32_t mndTxnUndoShadowOps(SMnode *pMnode, STrans *pTrans, STxnObj *pTxn) {
+  if (pTxn->pShadowOps == NULL) return TSDB_CODE_SUCCESS;
+
+  int32_t numOps = taosArrayGetSize(pTxn->pShadowOps);
+  mInfo("txn:%" PRIu64 ", undoing %d MNode shadow ops", pTxn->id, numOps);
+
+  // Undo in reverse order
+  for (int32_t i = numOps - 1; i >= 0; i--) {
+    SMndShadowOp *pOp = (SMndShadowOp *)taosArrayGet(pTxn->pShadowOps, i);
+
+    switch (pOp->opType) {
+      case MND_SHADOW_OP_CREATE_STB: {
+        // Undo CREATE STABLE: drop it from SDB and broadcast to VNodes
+        SStbObj *pStb = mndAcquireStb(pMnode, pOp->name);
+        if (pStb == NULL) {
+          mWarn("txn:%" PRIu64 ", rollback: stb %s not found, already dropped?", pTxn->id, pOp->name);
+          break;
+        }
+
+        // Append SDB drop log to the rollback trans
+        SSdbRaw *pDropRaw = mndStbActionEncode(pStb);
+        if (pDropRaw != NULL) {
+          sdbSetRawStatus(pDropRaw, SDB_STATUS_DROPPED);
+          int32_t code = mndTransAppendRedolog(pTrans, pDropRaw);
+          if (code != 0) {
+            mError("txn:%" PRIu64 ", rollback: failed to append stb drop log for %s", pTxn->id, pOp->name);
+          } else {
+            mInfo("txn:%" PRIu64 ", rollback: appended stb drop log for %s, uid:%" PRId64, pTxn->id, pOp->name,
+                  pOp->uid);
+          }
+        }
+
+        // Broadcast VND_DROP_STB to each VGroup in the DB
+        SDbObj *pDb = mndAcquireDb(pMnode, pOp->db);
+        if (pDb != NULL) {
+          SSdb   *pSdb = pMnode->pSdb;
+          SVgObj *pVgroup = NULL;
+          void   *pIter = NULL;
+          while ((pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup))) {
+            if (!mndVgroupInDb(pVgroup, pDb->uid)) {
+              sdbRelease(pSdb, pVgroup);
+              continue;
+            }
+
+            // Build VND_DROP_STB message for this VGroup
+            SName stbShortName = {0};
+            if (tNameFromString(&stbShortName, pStb->name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE) == 0) {
+              SVDropStbReq dropReq = {.name = (char *)tNameGetTableName(&stbShortName), .suid = pOp->uid};
+              int32_t      bodyLen = 0;
+              int32_t      ret = 0;
+              tEncodeSize(tEncodeSVDropStbReq, &dropReq, bodyLen, ret);
+              if (ret >= 0 && bodyLen > 0) {
+                int32_t   contLen = bodyLen + sizeof(SMsgHead);
+                SMsgHead *pHead = taosMemoryMalloc(contLen);
+                if (pHead != NULL) {
+                  pHead->contLen = htonl(contLen);
+                  pHead->vgId = htonl(pVgroup->vgId);
+                  SEncoder enc = {0};
+                  tEncoderInit(&enc, POINTER_SHIFT(pHead, sizeof(SMsgHead)), bodyLen);
+                  tEncodeSVDropStbReq(&enc, &dropReq);
+                  tEncoderClear(&enc);
+
+                  STransAction action = {0};
+                  action.mTraceId = pTrans->mTraceId;
+                  action.epSet = mndGetVgroupEpset(pMnode, pVgroup);
+                  action.pCont = pHead;
+                  action.contLen = contLen;
+                  action.msgType = TDMT_VND_DROP_STB;
+                  action.acceptableCode = TSDB_CODE_SUCCESS;
+                  if (mndTransAppendRedoAction(pTrans, &action) != 0) {
+                    taosMemoryFree(pHead);
+                  }
+                }
+              }
+            }
+            sdbRelease(pSdb, pVgroup);
+          }
+          mndReleaseDb(pMnode, pDb);
+        }
+
+        mndReleaseStb(pMnode, pStb);
+        break;
+      }
+
+      case MND_SHADOW_OP_DROP_STB:
+        mWarn("txn:%" PRIu64 ", rollback: DROP STB undo not supported, stb=%s", pTxn->id, pOp->name);
+        break;
+
+      case MND_SHADOW_OP_ALTER_STB:
+        mWarn("txn:%" PRIu64 ", rollback: ALTER STB undo not supported, stb=%s", pTxn->id, pOp->name);
+        break;
+
+      default:
+        mError("txn:%" PRIu64 ", unknown shadow op type %d", pTxn->id, pOp->opType);
+        break;
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t mndSetCreateTxnRedoLogs(SMnode *pMnode, STrans *pTrans, STxnObj *pTxn) {
@@ -881,6 +1063,9 @@ static int32_t mndRollbackTxn(SMnode *pMnode, SRpcMsg *pReq, STxnObj *pTxn, int3
     TAOS_CHECK_EXIT(mndTransAppendRedoAction(pTrans, &action));
     mInfo("txn:%" PRIu64 ", append rollback action for vgId:%d", pTxn->id, vgId);
   }
+
+  // Undo MNode-side shadow ops (STB DDL) — append undo entries to this Trans
+  TAOS_CHECK_EXIT(mndTxnUndoShadowOps(pMnode, pTrans, pTxn));
 
   TAOS_CHECK_EXIT(mndTransPrepare(pMnode, pTrans));
 

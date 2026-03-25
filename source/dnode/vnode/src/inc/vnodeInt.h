@@ -673,6 +673,8 @@ int32_t vnodeCollectIdleTxns(SVnode* pVnode, SArray* pQueries);
 void    vnodeTxnProcessActiveAck(SVnode* pVnode, utxn_id_t txnId, int8_t alive);
 int32_t vnodeTxnLockTable(SVnode* pVnode, const char* tableName, int64_t txnId);
 void    vnodeTxnUnlockTables(SVnode* pVnode, int64_t txnId);
+int32_t vnodeTxnAddShadowOp(SVnode* pVnode, int64_t txnId, int8_t opType, const char* name, tb_uid_t uid,
+                            tb_uid_t suid);
 
 #ifdef __cplusplus
 }

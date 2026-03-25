@@ -289,6 +289,8 @@ typedef struct {
   int8_t      stage;         // EUtxnStage，当前事务阶段（持久化，切主后恢复用）
   SArray*     pVgList;       // 参与该事务的 VGroup ID 列表（Array of int32_t），序列化时展开
   SRWLatch    lock;          // 运行时读写锁，不持久化
+  // --- 以下为运行时字段，不持久化到 SDB ---
+  SArray* pShadowOps;  // MNode 侧 STB 影子操作列表（Array of SMndShadowOp），用于 ROLLBACK 时撤销
 } STxnObj;
 
 typedef struct {
