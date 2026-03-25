@@ -167,7 +167,7 @@ class ServiceTest(unittest.TestCase):
         for item in service_list["details"]:
             if item["type"] == "anomaly-detection":
                 if (version.major, version.minor) == (3, 12):
-                    self.assertEqual(len(item["algo"]), 5)
+                    self.assertEqual(len(item["algo"]), 4)
                 else:
                     self.assertEqual(len(item["algo"]), 5)
             elif item["type"] == "forecast":

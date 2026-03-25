@@ -1,11 +1,10 @@
 # encoding:utf-8
 # pylint: disable=c0103
 """the main route definition for restful service"""
-import os.path, sys
+import os
+import os.path
+import sys
 import argparse
-
-from taosanalytics.model_file_mgt import ModelFileManager
-from taosanalytics.service_registry import loader
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../")
 
@@ -19,9 +18,34 @@ from taosanalytics.service.misc_service import handle_batch
 
 from taosanalytics.conf import Configure
 from taosanalytics.log import AppLogger
+from taosanalytics.model_file_mgt import ModelFileManager
+from taosanalytics.service_registry import loader
 
+
+def _init_app():
+    """Initialize configuration, logger, and load services. Called on module import."""
+    # Read config path from environment variable or use default
+    conf_path = os.environ.get('TDGPT_CONF')
+
+    # Init configuration
+    conf = Configure.init(conf_path)
+
+    # Set log parameters
+    AppLogger.set_handler(conf.get_log_path())
+    AppLogger.set_log_level(conf.get_log_level())
+
+    # Register all services
+    loader.load_all_service()
+
+    AppLogger.info("TDgpt service initialized (config: %s)", conf.path)
+
+
+# Create Flask app
 app = Flask(__name__)
 app.config["PROPAGATE_EXCEPTIONS"] = True
+
+# Initialize on module import (works for both gunicorn and direct run)
+_init_app()
 
 
 @app.route("/")
@@ -87,26 +111,28 @@ def handle_batch_req():
 
 
 def parse_args():
-    """parse command line arguments"""
+    """Parse command line arguments (only used when running directly with python)"""
     parser = argparse.ArgumentParser(description='TDgpt analytics service')
-    parser.add_argument('-c', dest='conf_path', default=None,
+    parser.add_argument('-c', '--config', dest='conf_path', default=None,
                         help='path to configuration file')
     return parser.parse_args()
 
 
 if __name__ == '__main__':
-    arg = parse_args()
+    # When running directly (not via gunicorn), allow -c argument
+    args = parse_args()
 
-    # init configuration
-    conf = Configure.init(arg.conf_path)
+    # Override environment variable if -c is provided
+    if args.conf_path:
+        os.environ['TDGPT_CONF'] = args.conf_path
 
-    # set log parameters
-    AppLogger.set_handler(conf.get_log_path())
-    AppLogger.set_log_level(conf.get_log_level())
+        # Re-initialize with the new config
+        conf = Configure.init(args.conf_path)
+        AppLogger.set_handler(conf.get_log_path())
+        AppLogger.set_log_level(conf.get_log_level())
 
-    # register all services
-    loader.load_all_service()
-
-    # run HTTP server
+    # Run development server
+    conf = Configure.get_instance()
     host, port = conf.get_server_bind()
+    AppLogger.info("Starting development server on %s:%d", host, port)
     app.run(host=host, port=port)

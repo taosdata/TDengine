@@ -28,7 +28,7 @@ def handle_anomaly(request):
     try:
         ts_list = payload[ts_index].copy()
         payload.pop(ts_index)
-    except ValueError as e:
+    except (IndexError, TypeError, ValueError) as e:
         return {"msg": str(e), "rows": -1}
 
     params = parse_options(options)
