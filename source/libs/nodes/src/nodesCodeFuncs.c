@@ -7831,7 +7831,6 @@ static const char* jkSelectStmtPartitionBy = "PartitionBy";
 static const char* jkSelectStmtTags = "Tags";
 static const char* jkSelectStmtSubtable = "Subtable";
 static const char* jkSelectStmtWindow = "Window";
-static const char* jkSelectStmtExtWindow = "ExtWindow";
 static const char* jkSelectStmtGroupBy = "GroupBy";
 static const char* jkSelectStmtHaving = "Having";
 static const char* jkSelectStmtOrderBy = "OrderBy";
@@ -7899,9 +7898,6 @@ static int32_t selectStmtToJson(const void* pObj, SJson* pJson) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkSelectStmtInterpEvery, nodeToJson, pNode->pEvery);
   }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddObject(pJson, jkSelectStmtExtWindow, nodeToJson, pNode->pExtWindow);
-  }
   return code;
 }
 
@@ -7959,9 +7955,6 @@ static int32_t jsonToSelectStmt(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeObject(pJson, jkSelectStmtInterpEvery, &pNode->pEvery);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = jsonToNodeObject(pJson, jkSelectStmtExtWindow, &pNode->pExtWindow);
   }
 
   return code;

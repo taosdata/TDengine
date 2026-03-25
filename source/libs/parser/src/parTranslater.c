@@ -9637,33 +9637,6 @@ static int32_t translateSpecificWindow(STranslateContext* pCxt, SSelectStmt* pSe
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t translateExtWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
-  if (NULL == pSelect->pExtWindow) {
-    nodesDestroyNode(pSelect->pExtWindow);
-    pSelect->pExtWindow = NULL;
-    return TSDB_CODE_SUCCESS;
-  }
-  if (NULL != pSelect->pFromTable) {
-    if (nodeType(pSelect->pFromTable) == QUERY_NODE_TEMP_TABLE ||
-        nodeType(pSelect->pFromTable) == QUERY_NODE_JOIN_TABLE) {
-      nodesDestroyNode(pSelect->pExtWindow);
-      pSelect->pExtWindow = NULL;
-      return TSDB_CODE_SUCCESS;
-    }
-    if (nodeType(pSelect->pFromTable) == QUERY_NODE_REAL_TABLE &&
-        ((SRealTableNode*)pSelect->pFromTable)->pMeta->tableType == TSDB_SYSTEM_TABLE) {
-      nodesDestroyNode(pSelect->pExtWindow);
-      pSelect->pExtWindow = NULL;
-      return TSDB_CODE_SUCCESS;
-    }
-  }
-
-  int32_t code = 0;
-  pCxt->currClause = SQL_CLAUSE_EXT_WINDOW;
-  code = translateExpr(pCxt, &pSelect->pExtWindow);
-  return code;
-}
-
 static int32_t translateWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
   if (NULL == pSelect->pWindow) {
     return TSDB_CODE_SUCCESS;
@@ -11113,9 +11086,6 @@ static int32_t translateSelectFrom(STranslateContext* pCxt, SSelectStmt* pSelect
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = translatePartitionBy(pCxt, pSelect);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = translateExtWindow(pCxt, pSelect);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = translateWindow(pCxt, pSelect);
@@ -18653,6 +18623,7 @@ static int32_t createStreamReqBuildCalc(STranslateContext* pCxt, SCreateStreamSt
   }
 
   pCxt->streamInfo.calcDbs = pDbs;
+#if 0
   if (nodeType(pStmt->pQuery) == QUERY_NODE_SELECT_STMT) {
     if (nodeType(((SSelectStmt*)pStmt->pQuery)->pFromTable) == QUERY_NODE_PLACE_HOLDER_TABLE) {
       if (((SPlaceHolderTableNode*)((SSelectStmt*)pStmt->pQuery)->pFromTable)->placeholderType == SP_PARTITION_TBNAME) {
@@ -18660,6 +18631,7 @@ static int32_t createStreamReqBuildCalc(STranslateContext* pCxt, SCreateStreamSt
       }
     }
   }
+#endif
 
   PAR_ERR_JRET(translateStreamCalcQuery(pCxt, pTriggerPartition, pTriggerSelect ? pTriggerSelect->pFromTable : NULL,
                                         pStmt->pQuery, pNotifyCond, pTriggerWindow));
@@ -18687,6 +18659,7 @@ static int32_t createStreamReqBuildCalc(STranslateContext* pCxt, SCreateStreamSt
   // calculate constant in stream's calculate query
   PAR_ERR_JRET(calculateConstant(pCxt->pParseCxt, &pQuery));
 
+#if 0
   if (!BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, PLACE_HOLDER_PARTITION_ROWS) && nodeType(pStmt->pQuery) == QUERY_NODE_SELECT_STMT) {
     if (fromPHTbname) {
       multiGroupCalc = true;
@@ -18694,6 +18667,7 @@ static int32_t createStreamReqBuildCalc(STranslateContext* pCxt, SCreateStreamSt
       PAR_ERR_JRET(createStreamCheckMultiGroupCalc(pCxt, pTriggerPartition, pTriggerSelect, (SSelectStmt*)pStmt->pQuery, &multiGroupCalc));
     }
   }
+#endif
 
   SPlanContext calcCxt = {.acctId = pCxt->pParseCxt->acctId,
                           .mgmtEpSet = pCxt->pParseCxt->mgmtEpSet,

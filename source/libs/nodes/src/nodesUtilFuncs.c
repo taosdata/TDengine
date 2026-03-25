@@ -1708,7 +1708,6 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pStmt->pWhere);
       nodesDestroyList(pStmt->pPartitionByList);
       nodesDestroyNode(pStmt->pWindow);
-      nodesDestroyNode(pStmt->pExtWindow);
       nodesDestroyList(pStmt->pGroupByList);
       nodesDestroyNode(pStmt->pHaving);
       nodesDestroyNode(pStmt->pRange);

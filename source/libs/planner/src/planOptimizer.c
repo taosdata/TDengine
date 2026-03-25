@@ -10543,7 +10543,7 @@ static const int32_t optimizeRuleNum = (sizeof(optimizeRuleSet) / sizeof(SOptimi
 
 static int32_t dumpLogicSubplan(const char* pRuleName, SLogicSubplan* pSubplan) {
   int32_t code = 0;
-  if (false) {
+  if (!tsQueryPlannerTrace) {
     return code;
   }
   char* pStr = NULL;

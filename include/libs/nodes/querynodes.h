@@ -686,7 +686,6 @@ typedef struct SSelectStmt {
   SNode*          pWhere;
   SNodeList*      pPartitionByList;
   SNode*          pWindow;
-  SNode*          pExtWindow;
   SNodeList*      pGroupByList;  // SGroupingSetNode
   SNode*          pHaving;
   SNode*          pRange;
