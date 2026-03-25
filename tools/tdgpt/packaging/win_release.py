@@ -22,7 +22,6 @@ import datetime
 import re
 import json
 import subprocess
-import tempfile
 
 # Configure logging
 timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
@@ -49,12 +48,8 @@ class InstallInfo:
         self.product_full_name = "TDgpt-OSS - TDengine Analytics Node"
         self.model_dir = ""
         self.all_models = False
-        self.offline = False
-        self.package_mode = "online"
         self.iscc_path = ""
         self.skip_model_check = False
-        self.uv_exe = ""
-        self.python_version = "3.11"
 
 
 tdgpt_version = TDGPTVersion("community", "1.0.0")
@@ -87,20 +82,11 @@ def parse_arguments():
                         help='Pack all models')
     parser.add_argument('-o', '--output', type=str, default="D:\\tdgpt-release",
                         help='Set output directory (default: D:\\tdgpt-release)')
-    parser.add_argument('--package-mode', choices=['online', 'full-offline'],
-                        default='online',
-                        help='Package type. online builds the shared base installer; full-offline bundles Python, venvs, and models.')
-    parser.add_argument('--offline', action='store_true',
-                        help='Deprecated alias for --package-mode full-offline')
     parser.add_argument('--iscc-path', type=str,
                         default=r"C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
                         help='Path to Inno Setup compiler')
     parser.add_argument('--skip-model-check', action='store_true',
                         help='Skip model validation (for testing only, NOT for production)')
-    parser.add_argument('--uv-exe', type=str, default="",
-                        help='Path to uv.exe used for full offline packaging')
-    parser.add_argument('--python-version', type=str, default="3.11",
-                        help='Bundled Python version for full offline packaging (default: 3.11)')
 
     version_pattern = re.compile(r'^[0-9]+\.([0-9]+\.){1,3}[0-9]+$')
     args = parser.parse_args()
@@ -133,24 +119,11 @@ def parse_arguments():
     install_info.source_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     install_info.release_dir = args.output
     install_info.install_dir = os.path.join(install_info.release_dir, "install")
-    package_mode = args.package_mode
-    if args.offline:
-        package_mode = "full-offline"
-
-    package_suffix = ""
-    if package_mode == "online":
-        package_suffix = "-base"
-    elif package_mode == "full-offline":
-        package_suffix = "-full-offline"
-    install_info.package_name = f"{install_info.product_name}-{args.version}-Windows-x64{package_suffix}"
+    install_info.package_name = f"{install_info.product_name}-{args.version}-Windows-x64"
     install_info.model_dir = args.model_dir
     install_info.all_models = args.all_models
     install_info.iscc_path = args.iscc_path
-    install_info.package_mode = package_mode
-    install_info.offline = package_mode == "full-offline"
     install_info.skip_model_check = args.skip_model_check
-    install_info.uv_exe = args.uv_exe
-    install_info.python_version = args.python_version
 
     return args
 
@@ -171,10 +144,6 @@ def print_params():
     logging.info(f"Package Name: {install_info.package_name}")
     logging.info(f"Model Directory: {install_info.model_dir}")
     logging.info(f"All Models: {install_info.all_models}")
-    logging.info(f"Package Mode: {install_info.package_mode}")
-    logging.info(f"Offline Mode: {install_info.offline}")
-    logging.info(f"Bundled Python Version: {install_info.python_version}")
-    logging.info(f"uv.exe: {install_info.uv_exe or 'auto-detect'}")
     logging.info("=" * 60)
 
 
@@ -287,173 +256,14 @@ def copy_requirements():
     if copied == 0:
         logging.warning("No requirements*.txt files found to package")
 
-
-def run_command(cmd, env=None, cwd=None, capture_output=False):
-    """Run a command and raise on failure."""
-    logging.info("Running command: %s", " ".join(str(item) for item in cmd))
-    result = subprocess.run(
-        cmd,
-        cwd=cwd,
-        env=env,
-        capture_output=capture_output,
-        text=True,
-        check=False,
-    )
-    if result.returncode != 0:
-        if result.stdout:
-            logging.error(result.stdout)
-        if result.stderr:
-            logging.error(result.stderr)
-        raise RuntimeError(
-            f"Command failed with exit code {result.returncode}: {' '.join(str(item) for item in cmd)}"
-        )
-    return result.stdout.strip() if capture_output else ""
-
-
-def ensure_uv_exe():
-    """Resolve uv.exe and cache it under packaging/bin for reuse."""
-    package_cache = Path(__file__).resolve().parent / "bin" / "uv.exe"
-    candidates = []
-
-    if install_info.uv_exe:
-        candidates.append(Path(install_info.uv_exe))
-    candidates.append(package_cache)
-
-    for candidate in candidates:
-        if candidate.exists():
-            logging.info(f"Using uv executable: {candidate}")
-            return candidate
-
-    try:
-        result = subprocess.run(
-            ["where", "uv"],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        if result.returncode == 0:
-            uv_path = Path(result.stdout.splitlines()[0].strip())
-            package_cache.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(uv_path, package_cache)
-            logging.info(f"Copied uv from PATH to local cache: {package_cache}")
-            return package_cache
-    except Exception as exc:
-        logging.warning(f"Failed to locate uv in PATH: {exc}")
-
-    logging.info("uv.exe was not found locally. Downloading it with the official installer script.")
-    with tempfile.TemporaryDirectory(prefix="tdgpt-uv-bootstrap-") as temp_dir:
-        escaped_dir = temp_dir.replace("'", "''")
-        install_script = (
-            f"$env:UV_UNMANAGED_INSTALL='{escaped_dir}'; "
-            "Invoke-RestMethod https://astral.sh/uv/install.ps1 | Invoke-Expression"
-        )
-        run_command(
-            [
-                "powershell",
-                "-NoProfile",
-                "-ExecutionPolicy",
-                "Bypass",
-                "-Command",
-                install_script,
-            ]
-        )
-        downloaded = Path(temp_dir) / "uv.exe"
-        if not downloaded.exists():
-            raise FileNotFoundError(f"uv.exe was not created in {temp_dir}")
-        package_cache.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(downloaded, package_cache)
-        logging.info(f"Downloaded uv to local cache: {package_cache}")
-        return package_cache
-
-
-def find_python_runtime_home(root_dir):
-    """Find the base Python directory inside a uv-managed install root."""
-    candidates = []
-    for python_exe in root_dir.rglob("python.exe"):
-        parent = python_exe.parent
-        if parent.name.lower() == "scripts":
-            continue
-        if (parent / "Lib").exists():
-            candidates.append(parent)
-    if not candidates:
-        raise FileNotFoundError(f"Unable to locate a packaged python.exe under {root_dir}")
-    candidates.sort(key=lambda item: (len(item.parts), len(str(item))))
-    return candidates[0]
-
-
-def create_offline_venv(base_python, venv_dir, requirements):
-    """Create one offline virtual environment from the packaged runtime."""
-    if venv_dir.exists():
-        shutil.rmtree(venv_dir)
-    run_command([str(base_python), "-m", "venv", str(venv_dir)])
-
-    venv_python = venv_dir / "Scripts" / "python.exe"
-    run_command([str(venv_python), "-m", "pip", "install", "--upgrade", "pip"])
-    for req_name in requirements:
-        req_path = Path(install_info.install_dir) / "requirements" / req_name
-        if not req_path.exists():
-            raise FileNotFoundError(f"Missing requirements file: {req_path}")
-        run_command([str(venv_python), "-m", "pip", "install", "-r", str(req_path)])
-
-
-def prepare_offline_packages():
-    """Prepare bundled Python, venvs, and related assets for full offline packaging."""
-    if install_info.package_mode != "full-offline":
-        logging.info("Package mode is not full-offline, skipping bundled Python preparation")
-        return
-
-    logging.info("Preparing bundled offline runtime with uv-managed Python")
-    uv_exe = ensure_uv_exe()
-    python_root = Path(install_info.install_dir) / "python"
-    runtime_dir = python_root / "runtime"
-    venvs_dir = Path(install_info.install_dir) / "venvs"
-    python_root.mkdir(parents=True, exist_ok=True)
-    venvs_dir.mkdir(parents=True, exist_ok=True)
-
-    with tempfile.TemporaryDirectory(prefix="tdgpt-offline-runtime-", dir=install_info.release_dir) as temp_dir:
-        uv_store = Path(temp_dir) / "uv-python-store"
-        env = os.environ.copy()
-        env["UV_PYTHON_INSTALL_DIR"] = str(uv_store)
-        run_command([str(uv_exe), "python", "install", install_info.python_version], env=env)
-
-        runtime_home = find_python_runtime_home(uv_store)
-        if runtime_dir.exists():
-            shutil.rmtree(runtime_dir)
-        shutil.copytree(runtime_home, runtime_dir)
-        logging.info(f"Copied uv-managed Python runtime to {runtime_dir}")
-
-    shutil.copy2(uv_exe, python_root / "uv.exe")
-    logging.info(f"Copied uv.exe to {python_root / 'uv.exe'}")
-
-    base_python = runtime_dir / "python.exe"
-    if not base_python.exists():
-        raise FileNotFoundError(f"Packaged runtime python was not created: {base_python}")
-
-    offline_venvs = {
-        "venv": ["requirements_windows_core.txt", "requirements_tensorflow.txt"],
-        "moirai_venv": ["requirements_moirai.txt"],
-        "chronos_venv": ["requirements_chronos.txt"],
-        "timesfm_venv": ["requirements_timesfm.txt"],
-        "momentfm_venv": ["requirements_moment.txt"],
-    }
-    for venv_name, requirement_files in offline_venvs.items():
-        logging.info(f"Preparing offline virtual environment: {venv_name}")
-        create_offline_venv(base_python, venvs_dir / venv_name, requirement_files)
-
-
 def copy_model_files():
-    """Copy model files if model directory is specified"""
+    """Copy packaged model archives if model directory is specified."""
     if not install_info.model_dir or not os.path.exists(install_info.model_dir):
         logging.info("No model directory specified or directory does not exist, skipping model files")
         return
 
     model_dir = os.path.join(install_info.install_dir, "model")
     os.makedirs(model_dir, exist_ok=True)
-
-    if install_info.package_mode == "full-offline":
-        shutil.copytree(install_info.model_dir, model_dir, dirs_exist_ok=True)
-        logging.info(f"Copied bundled model directory from {install_info.model_dir}")
-        return
 
     # Copy tdtsfm model
     tdtsfm_file = os.path.join(install_info.model_dir, "tdtsfm.tar.gz")
@@ -549,21 +359,21 @@ def copy_icon_file():
 def create_service_wrappers(bin_dir):
     """Create Windows batch wrappers for Python service scripts"""
 
+    python_guard = """set "PYTHON_EXE=%~dp0..\\venvs\\venv\\Scripts\\python.exe"
+if not exist "%PYTHON_EXE%" (
+    echo ERROR: Main Python environment not found: %PYTHON_EXE%
+    echo Run install.bat again to recreate the TDgpt environment.
+"""
+
     # start-taosanode.bat
     start_bat = os.path.join(bin_dir, "start-taosanode.bat")
-    with open(start_bat, 'w') as f:
+    with open(start_bat, 'w', encoding='utf-8') as f:
         f.write("""@echo off
 chcp 65001 >nul
-set "PYTHON_EXE=%~dp0..\\venvs\\venv\\Scripts\\python.exe"
-if not exist "%PYTHON_EXE%" call :resolve_python
-if not defined PYTHON_EXE (
-    echo Python 3.10/3.11/3.12 was not found.
-    echo Install Python and make sure python or python3 is available in PATH.
-    echo Press Enter to close this window.
+""" + python_guard + """    echo Press Enter to close this window.
     pause >nul
     exit /b 1
 )
-REM Start taosanode service
 echo Starting Taosanode...
 echo.
 set "TDGPT_EXIT_CODE=0"
@@ -605,35 +415,16 @@ if not errorlevel 1 (
 echo Press Enter to close this window.
 pause >nul
 exit /b %TDGPT_EXIT_CODE%
-
-:resolve_python
-python --version >nul 2>&1
-if not errorlevel 1 (
-    set "PYTHON_EXE=python"
-    exit /b 0
-)
-python3 --version >nul 2>&1
-if not errorlevel 1 (
-    set "PYTHON_EXE=python3"
-    exit /b 0
-)
-set "PYTHON_EXE="
-exit /b 1
 """)
     logging.info("Created start-taosanode.bat")
 
     # stop-taosanode.bat
     stop_bat = os.path.join(bin_dir, "stop-taosanode.bat")
-    with open(stop_bat, 'w') as f:
+    with open(stop_bat, 'w', encoding='utf-8') as f:
         f.write("""@echo off
 chcp 65001 >nul
-set "PYTHON_EXE=%~dp0..\\venvs\\venv\\Scripts\\python.exe"
-if not exist "%PYTHON_EXE%" call :resolve_python
-if not defined PYTHON_EXE (
-    echo Python 3.10/3.11/3.12 was not found.
-    exit /b 1
+""" + python_guard + """    exit /b 1
 )
-REM Stop taosanode service
 sc query Taosanode >nul 2>&1
 if not errorlevel 1 (
     "%PYTHON_EXE%" "%~dp0taosanode_service.py" stop-service %*
@@ -641,36 +432,17 @@ if not errorlevel 1 (
     "%PYTHON_EXE%" "%~dp0taosanode_service.py" stop %*
 )
 exit /b %errorlevel%
-
-:resolve_python
-python --version >nul 2>&1
-if not errorlevel 1 (
-    set "PYTHON_EXE=python"
-    exit /b 0
-)
-python3 --version >nul 2>&1
-if not errorlevel 1 (
-    set "PYTHON_EXE=python3"
-    exit /b 0
-)
-set "PYTHON_EXE="
-exit /b 1
 """)
     logging.info("Created stop-taosanode.bat")
 
     # status-taosanode.bat
     status_bat = os.path.join(bin_dir, "status-taosanode.bat")
-    with open(status_bat, 'w') as f:
+    with open(status_bat, 'w', encoding='utf-8') as f:
         f.write("""@echo off
 chcp 65001 >nul
-set "PYTHON_EXE=%~dp0..\\venvs\\venv\\Scripts\\python.exe"
-if not exist "%PYTHON_EXE%" call :resolve_python
-if not defined PYTHON_EXE (
-    echo Python 3.10/3.11/3.12 was not found.
-    pause
+""" + python_guard + """    pause
     exit /b 1
 )
-REM Show taosanode status
 sc query Taosanode >nul 2>&1
 if not errorlevel 1 (
     echo Windows service status:
@@ -680,39 +452,18 @@ if not errorlevel 1 (
 "%PYTHON_EXE%" "%~dp0taosanode_service.py" status %*
 pause
 exit /b %errorlevel%
-
-:resolve_python
-python --version >nul 2>&1
-if not errorlevel 1 (
-    set "PYTHON_EXE=python"
-    exit /b 0
-)
-python3 --version >nul 2>&1
-if not errorlevel 1 (
-    set "PYTHON_EXE=python3"
-    exit /b 0
-)
-set "PYTHON_EXE="
-exit /b 1
 """)
     logging.info("Created status-taosanode.bat")
 
     # start-model.bat
     start_model_bat = os.path.join(bin_dir, "start-model.bat")
-    with open(start_model_bat, 'w') as f:
+    with open(start_model_bat, 'w', encoding='utf-8') as f:
         f.write("""@echo off
 chcp 65001 >nul
-set "PYTHON_EXE=%~dp0..\\venvs\\venv\\Scripts\\python.exe"
-if not exist "%PYTHON_EXE%" call :resolve_python
-if not defined PYTHON_EXE (
-    echo Python 3.10/3.11/3.12 was not found.
-    echo Install Python and make sure python or python3 is available in PATH.
-    echo Press Enter to close this window.
+""" + python_guard + """    echo Press Enter to close this window.
     pause >nul
     exit /b 1
 )
-REM Start model service
-REM Usage: start-model.bat [model_name|all]
 if "%~1"=="" (
     echo No model name specified. Defaulting to "all".
     echo Existing model directories will be started automatically.
@@ -741,89 +492,36 @@ echo Logs are written under ..\\log\\model_*.log
 echo Press Enter to close this window.
 pause >nul
 exit /b %TDGPT_EXIT_CODE%
-
-:resolve_python
-python --version >nul 2>&1
-if not errorlevel 1 (
-    set "PYTHON_EXE=python"
-    exit /b 0
-)
-python3 --version >nul 2>&1
-if not errorlevel 1 (
-    set "PYTHON_EXE=python3"
-    exit /b 0
-)
-set "PYTHON_EXE="
-exit /b 1
 """)
     logging.info("Created start-model.bat")
 
     # stop-model.bat
     stop_model_bat = os.path.join(bin_dir, "stop-model.bat")
-    with open(stop_model_bat, 'w') as f:
+    with open(stop_model_bat, 'w', encoding='utf-8') as f:
         f.write("""@echo off
 chcp 65001 >nul
-set "PYTHON_EXE=%~dp0..\\venvs\\venv\\Scripts\\python.exe"
-if not exist "%PYTHON_EXE%" call :resolve_python
-if not defined PYTHON_EXE (
-    echo Python 3.10/3.11/3.12 was not found.
-    exit /b 1
+""" + python_guard + """    exit /b 1
 )
-REM Stop model service
-REM Usage: stop-model.bat [model_name|all]
 if "%~1"=="" (
     echo Usage: stop-model.bat [model_name^|all]
     exit /b 1
 )
 "%PYTHON_EXE%" "%~dp0taosanode_service.py" model-stop %*
 exit /b %errorlevel%
-
-:resolve_python
-python --version >nul 2>&1
-if not errorlevel 1 (
-    set "PYTHON_EXE=python"
-    exit /b 0
-)
-python3 --version >nul 2>&1
-if not errorlevel 1 (
-    set "PYTHON_EXE=python3"
-    exit /b 0
-)
-set "PYTHON_EXE="
-exit /b 1
 """)
     logging.info("Created stop-model.bat")
 
     # status-model.bat
     status_model_bat = os.path.join(bin_dir, "status-model.bat")
-    with open(status_model_bat, 'w') as f:
+    with open(status_model_bat, 'w', encoding='utf-8') as f:
         f.write("""@echo off
 chcp 65001 >nul
-set "PYTHON_EXE=%~dp0..\\venvs\\venv\\Scripts\\python.exe"
-if not exist "%PYTHON_EXE%" call :resolve_python
-if not defined PYTHON_EXE (
-    echo Python 3.10/3.11/3.12 was not found.
-    pause
+""" + python_guard + """    pause
     exit /b 1
 )
-REM Show model status
 "%PYTHON_EXE%" "%~dp0taosanode_service.py" model-status %*
 pause
 exit /b %errorlevel%
-
-:resolve_python
-python --version >nul 2>&1
-if not errorlevel 1 (
-    set "PYTHON_EXE=python"
-    exit /b 0
-)
-python3 --version >nul 2>&1
-if not errorlevel 1 (
-    set "PYTHON_EXE=python3"
-    exit /b 0
-)
-set "PYTHON_EXE="
-exit /b 1
 """)
     logging.info("Created status-model.bat")
 
@@ -832,9 +530,8 @@ def create_install_script():
     """Create install.bat for post-installation setup"""
     install_bat = os.path.join(install_info.install_dir, "install.bat")
     all_models_flag = "-a" if install_info.all_models else ""
-    package_mode_flag = f'--package-mode {install_info.package_mode}'
 
-    with open(install_bat, 'w') as f:
+    with open(install_bat, 'w', encoding='utf-8') as f:
         f.write(f"""@echo off
 chcp 65001 >nul
 setlocal enabledelayedexpansion
@@ -848,15 +545,12 @@ set "PROGRESS_FILE=%TDGPT_PROGRESS_FILE%"
 set "PYTHONUTF8=1"
 set "PYTHONIOENCODING=utf-8"
 set "TDGPT_LOG_REDIRECTED=1"
-set "PACKAGED_PYTHON=%INSTALL_DIR%\\python\\runtime\\python.exe"
 set "EXISTING_VENV_PYTHON=%INSTALL_DIR%\\venvs\\venv\\Scripts\\python.exe"
 set "PYTHON_CMD="
 
 call :append_progress running 1 "Initializing {install_info.app_name} setup" "Preparing installation environment"
 
-if exist "%PACKAGED_PYTHON%" (
-    set "PYTHON_CMD=%PACKAGED_PYTHON%"
-) else if exist "%EXISTING_VENV_PYTHON%" (
+if exist "%EXISTING_VENV_PYTHON%" (
     set "PYTHON_CMD=%EXISTING_VENV_PYTHON%"
 ) else (
     call :resolve_python
@@ -870,15 +564,14 @@ if exist "%PACKAGED_PYTHON%" (
 
 > "%LOG_FILE%" echo [%date% %time%] {install_info.app_name} installation started
 >> "%LOG_FILE%" echo Install directory: %INSTALL_DIR%
->> "%LOG_FILE%" echo Package mode: {install_info.package_mode}
 >> "%LOG_FILE%" echo Python command: %PYTHON_CMD%
 >> "%LOG_FILE%" echo PIP_INDEX_URL=%PIP_INDEX_URL%
 >> "%LOG_FILE%" echo Command args: %*
 
 if "%PROGRESS_FILE%"=="" (
-    "%PYTHON_CMD%" "%INSTALL_DIR%\\install.py" --log-file "%LOG_FILE%" {package_mode_flag} {all_models_flag} %* >> "%LOG_FILE%" 2>&1
+    "%PYTHON_CMD%" "%INSTALL_DIR%\\install.py" --log-file "%LOG_FILE%" {all_models_flag} %* >> "%LOG_FILE%" 2>&1
 ) else (
-    "%PYTHON_CMD%" "%INSTALL_DIR%\\install.py" --log-file "%LOG_FILE%" {package_mode_flag} {all_models_flag} --progress-file "%PROGRESS_FILE%" %* >> "%LOG_FILE%" 2>&1
+    "%PYTHON_CMD%" "%INSTALL_DIR%\\install.py" --log-file "%LOG_FILE%" {all_models_flag} --progress-file "%PROGRESS_FILE%" %* >> "%LOG_FILE%" 2>&1
 )
 
 if errorlevel 1 (
@@ -925,7 +618,7 @@ exit /b 1
 def create_uninstall_script():
     """Create uninstall.bat - called by Inno Setup during uninstallation"""
     uninstall_bat = os.path.join(install_info.install_dir, "uninstall.bat")
-    with open(uninstall_bat, 'w') as f:
+    with open(uninstall_bat, 'w', encoding='utf-8') as f:
         f.write(f"""@echo off
 chcp 65001 >nul
 
@@ -935,15 +628,12 @@ set "LOG_DIR=%INSTALL_DIR%\\log"
 if not exist "%LOG_DIR%" mkdir "%LOG_DIR%"
 set "LOG_FILE=%LOG_DIR%\\uninstall.log"
 set "TDGPT_LOG_REDIRECTED=1"
-set "PACKAGED_PYTHON=%INSTALL_DIR%\\python\\runtime\\python.exe"
 set "EXISTING_VENV_PYTHON=%INSTALL_DIR%\\venvs\\venv\\Scripts\\python.exe"
 set "PYTHON_CMD="
 
 > "%LOG_FILE%" echo [%date% %time%] {install_info.app_name} uninstall started
 
-if exist "%PACKAGED_PYTHON%" (
-    set "PYTHON_CMD=%PACKAGED_PYTHON%"
-) else if exist "%EXISTING_VENV_PYTHON%" (
+if exist "%EXISTING_VENV_PYTHON%" (
     set "PYTHON_CMD=%EXISTING_VENV_PYTHON%"
 ) else (
     call :resolve_python
@@ -1038,7 +728,6 @@ def create_iss_script():
     iss_content = iss_content.replace('{{SOURCE_DIR}}', install_dir_iss)
     iss_content = iss_content.replace('{{OUTPUT_DIR}}', release_dir_iss)
     iss_content = iss_content.replace('{{ICON_FILE}}', icon_file)
-    iss_content = iss_content.replace('{{PACKAGE_MODE}}', install_info.package_mode)
 
     with open(iss_path, 'w', encoding='utf-8') as f:
         f.write(iss_content)
@@ -1142,7 +831,6 @@ def main():
     copy_python_files()
     copy_resource_files()
     copy_requirements()
-    prepare_offline_packages()  # Prepare offline wheels if --offline flag is set
     copy_model_files()
     copy_enterprise_files()
     copy_service_scripts()  # New unified service scripts
@@ -1154,31 +842,13 @@ def main():
     create_install_script()
     create_uninstall_script()
 
-    # Validate bundled model directory only for package modes that embed models
-    if not install_info.skip_model_check and install_info.package_mode == "full-offline":
-        model_dir = os.path.join(install_info.install_dir, "model")
-
-        if not os.path.exists(model_dir) or not os.listdir(model_dir):
-            logging.error("=" * 60)
-            logging.error("ERROR: Model directory is empty or missing")
-            logging.error(f"Expected location: {model_dir}")
-            logging.error("")
-            logging.error("Bundled model files are required for this package mode.")
-            logging.error("Please specify model directory using --model-dir option:")
-            logging.error(f"  python {sys.argv[0]} -e {tdgpt_version.ver_type} -v {tdgpt_version.version} -m <model_dir>")
-            logging.error("")
-            logging.error("For testing only, you can skip this check with --skip-model-check")
-            logging.error("=" * 60)
-            return 1
-
-        logging.info("Model validation passed")
-    elif install_info.package_mode == "online":
-        logging.info("Base installer skips bundled model validation")
-    else:
+    if install_info.skip_model_check:
         logging.warning("=" * 60)
         logging.warning("WARNING: Model validation SKIPPED (--skip-model-check)")
         logging.warning("This is for TESTING ONLY - NOT for production!")
         logging.warning("=" * 60)
+    else:
+        logging.info("Base installer does not require bundled runtime, venv, or model validation.")
 
     # Create Inno Setup script and build installer
     iss_path = create_iss_script()

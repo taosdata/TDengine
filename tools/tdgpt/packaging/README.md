@@ -175,7 +175,7 @@ python bin\taosanode_service.py model-start all
 
 ### Service Won't Start
 
-1. Check whether Python was installed correctly or the bundled runtime was unpacked correctly
+1. Check whether Python was installed correctly or the TDgpt virtual environment was prepared correctly
 2. Check log files: `C:\TDengine\taosanode\log\taosanode_service_*.log`
 3. Run the startup script manually to see errors:
 

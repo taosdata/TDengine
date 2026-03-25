@@ -10,7 +10,6 @@
 #define MyAppInstallDir "C:\TDengine\taosanode"
 #define MyAppSourceDir "{{SOURCE_DIR}}"
 #define MyAppIco "{{ICON_FILE}}"
-#define PackageMode "{{PACKAGE_MODE}}"
 
 [Setup]
 AppId={{a77a678d-8806-48a5-8017-1d55749b6895}
@@ -45,8 +44,6 @@ Source: "{#MyAppSourceDir}\lib\*"; DestDir: "{app}\lib"; Flags: ignoreversion re
 Source: "{#MyAppSourceDir}\resource\*"; DestDir: "{app}\resource"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#MyAppSourceDir}\model\*"; DestDir: "{app}\model"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
 Source: "{#MyAppSourceDir}\requirements\*"; DestDir: "{app}\requirements"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "{#MyAppSourceDir}\python\*"; DestDir: "{app}\python"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
-Source: "{#MyAppSourceDir}\venvs\*"; DestDir: "{app}\venvs"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
 Source: "{#MyAppSourceDir}\bin\*"; DestDir: "{app}\bin"; Flags: ignoreversion
 Source: "{#MyAppSourceDir}\install.bat"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#MyAppSourceDir}\install.py"; DestDir: "{app}"; Flags: ignoreversion
@@ -315,21 +312,6 @@ begin
     TryDetectPython('python3.12', VersionText);
 end;
 
-function IsFullOfflinePackage(): Boolean;
-begin
-  Result := '{#PackageMode}' = 'full-offline';
-end;
-
-function UsesBundledPython(): Boolean;
-begin
-  Result := IsFullOfflinePackage();
-end;
-
-function UsesSimplePackageFlow(): Boolean;
-begin
-  Result := IsFullOfflinePackage();
-end;
-
 function HasVCRuntimeDll(DllName: string): Boolean;
 var
   SearchPaths: array[0..5] of string;
@@ -548,15 +530,14 @@ begin
     exit;
   end;
 
-  if not UsesBundledPython() then
+  if HasExistingMainVenvPython() then
   begin
-    if HasExistingMainVenvPython() then
-    begin
-      LogTdgpt('InitializeSetup: using existing main virtual environment python from ' + LockedInstallDir);
-      Result := True;
-    end
-    else
-      Result := CheckPythonPrerequisite(PythonVersionText);
+    LogTdgpt('InitializeSetup: using existing main virtual environment python from ' + LockedInstallDir);
+    Result := True;
+  end
+  else
+  begin
+    Result := CheckPythonPrerequisite(PythonVersionText);
     if not Result then
     begin
       MessageText :=
@@ -634,11 +615,6 @@ begin
       Result := 'None';
     exit;
   end;
-  if ModelSource = 'bundled' then
-  begin
-    Result := 'Bundled model files from the installer package';
-    exit;
-  end;
   if ModelSource = 'offline' then
   begin
     if Trim(OfflinePackagePage.Values[0]) <> '' then
@@ -662,10 +638,7 @@ end;
 
 function GetInstallerPackageSummary(): String;
 begin
-  if IsFullOfflinePackage() then
-    Result := 'Full offline installer'
-  else
-    Result := 'Base installer';
+  Result := 'Base installer';
 end;
 
 function GetModelSourceSummary(): String;
@@ -676,11 +649,6 @@ begin
       Result := 'Keep existing model files'
     else
       Result := 'Do not install models now';
-    exit;
-  end;
-  if ModelSource = 'bundled' then
-  begin
-    Result := 'Bundled in installer';
     exit;
   end;
   if ModelSource = 'offline' then
@@ -736,12 +704,6 @@ end;
 
 procedure ApplyInstallDefaults(UpgradeInstall: Boolean);
 begin
-  if IsFullOfflinePackage() then
-  begin
-    ModelSource := 'bundled';
-    exit;
-  end;
-
   if UpgradeInstall then
   begin
     if InstallModePage <> nil then
@@ -777,14 +739,14 @@ end;
 
 procedure InitializeWizard();
 begin
-  IsOnlineMode := not UsesBundledPython();
+  IsOnlineMode := True;
   UseCustomPip := False;
   UseCustomModelMirror := False;
   PipIndexUrl := '';
   PipTrustedHost := '';
   ModelEndpoint := '';
   ModelSource := 'none';
-  InstallTensorFlow := not UsesBundledPython();
+  InstallTensorFlow := True;
   SelectTdtsfm := False;
   SelectTimemoe := False;
   SelectChronos := False;
@@ -793,9 +755,6 @@ begin
   SelectMoment := True;
   PostInstallCompleted := False;
   ExistingInstallConfirmedDir := '';
-
-  if IsFullOfflinePackage() then
-    ModelSource := 'bundled';
 
   InstallModePage := CreateInputOptionPage(
     wpSelectDir,
@@ -913,19 +872,7 @@ end;
 function ShouldSkipPage(PageID: Integer): Boolean;
 begin
   Result := False;
-  if UsesSimplePackageFlow() and (
-    (PageID = InstallModePage.ID) or
-    (PageID = PipSourcePage.ID) or
-    (PageID = CustomPipPage.ID) or
-    (PageID = PythonOptionsPage.ID) or
-    (PageID = ModelSourcePage.ID) or
-    (PageID = ModelSelectionPage.ID) or
-    (PageID = ModelMirrorPage.ID) or
-    (PageID = CustomModelMirrorPage.ID) or
-    (PageID = OfflinePackagePage.ID)
-  ) then
-    Result := True
-  else if (PageID = PipSourcePage.ID) and (not IsOnlineMode) then
+  if (PageID = PipSourcePage.ID) and (not IsOnlineMode) then
     Result := True
   else if (PageID = CustomPipPage.ID) and ((not IsOnlineMode) or (not UseCustomPip)) then
     Result := True
@@ -1104,14 +1051,8 @@ end;
 function GetInstallFlags(Param: String): String;
 begin
   Result := '';
-  Result := Result + '--package-mode {#PackageMode} ';
   if IsUpgradeInstall() then
     Result := Result + '--existing-install ';
-  if UsesSimplePackageFlow() then
-  begin
-    Result := Trim(Result);
-    exit;
-  end;
 
   if not IsOnlineMode then
     Result := Result + '-o ';
@@ -1154,18 +1095,6 @@ begin
   else
     S := S + 'Install type:' + NewLine + Space + 'First install' + NewLine;
   S := S + 'Installer package:' + NewLine + Space + GetInstallerPackageSummary() + NewLine;
-  if UsesSimplePackageFlow() then
-  begin
-    S := S + 'Python environment:' + NewLine + Space;
-    if IsFullOfflinePackage() and (not IsUpgradeInstall()) then
-      S := S + 'Bundled Python 3.11 with bundled virtual environments' + NewLine
-    else
-      S := S + 'Reuse existing Python environments when possible' + NewLine;
-    S := S + 'Model handling:' + NewLine + Space + GetModelSelectionSummary() + NewLine;
-    S := S + 'Service registration:' + NewLine + Space + 'Install service' + NewLine;
-    Result := S;
-    exit;
-  end;
   S := S + 'Python package mode:' + NewLine + Space;
   if IsOnlineMode then
     S := S + 'Online' + NewLine
@@ -1210,7 +1139,6 @@ begin
   Notes := Notes + '  Start: net start Taosanode' + #13#10;
   Notes := Notes + '  Stop:  net stop Taosanode' + #13#10;
   Notes := Notes + '  Status: ' + ExpandConstant('{app}\bin\status-taosanode.bat') + #13#10 + #13#10;
-  Notes := Notes + 'Package mode:' + #13#10 + '  {#PackageMode}' + #13#10 + #13#10;
   Notes := Notes + 'Prepared models:' + #13#10 + '  ' + GetModelSelectionSummary() + #13#10 + #13#10;
   Notes := Notes + 'Script commands:' + #13#10;
   Notes := Notes + '  Start: ' + ExpandConstant('{app}\bin\start-taosanode.bat') + #13#10;
