@@ -217,10 +217,10 @@ def do_batch_process(ts_list, val_list, win_list, config):
 
         if len(v) < 10:
             if t.size >= 2:
-                AppLogger.warn(
+                AppLogger.warning(
                     f"data points less than threshold, discard time window [{t[0]}, {t[1]}]")
             else:
-                AppLogger.warn("data points less than threshold, discard empty time window")
+                AppLogger.warning("data points less than threshold, discard empty time window")
             continue
 
         save_dir = f"./batch_{idx}"
@@ -243,7 +243,7 @@ def do_batch_process(ts_list, val_list, win_list, config):
         if config['derivative']['active']:
             threshold = config["derivative"].get("max_rate", np.inf)
             if threshold <= 0:
-                AppLogger.warn("the max rate is set to 0, no results generated")
+                AppLogger.warning("the max rate is set to 0, no results generated")
                 return np.array([]), np.array([]), np.array([]), np.array([])
 
             t_der, v_der = derivative_check(
@@ -293,7 +293,7 @@ def do_batch_process(ts_list, val_list, win_list, config):
     AppLogger.debug("total %d time windows data to build golden batch results" % (len(processed_batches)))
 
     if len(processed_batches) <= 0:
-        AppLogger.warn("empty results return since no valid input time window for golden batch process")
+        AppLogger.warning("empty results return since no valid input time window for golden batch process")
         return np.array([]), np.array([]), np.array([]), np.array([])
 
     # main process
