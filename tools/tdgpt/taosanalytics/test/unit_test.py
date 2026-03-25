@@ -169,7 +169,7 @@ class ServiceTest(unittest.TestCase):
                 if (version.major, version.minor) == (3, 12):
                     self.assertEqual(len(item["algo"]), 5)
                 else:
-                    self.assertEqual(len(item["algo"]), 6)
+                    self.assertEqual(len(item["algo"]), 5)
             elif item["type"] == "forecast":
                 self.assertEqual(len(item["algo"]), 8)
             elif item["type"] == 'correlation':
