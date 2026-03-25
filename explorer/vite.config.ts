@@ -41,7 +41,15 @@ export default ({ mode }: { mode: any }) => {
     server: {
       port: 8080,
       hmr: true,
-      host: true
+      host: true,
+      proxy: env.VITE_DEV_PROXY_TARGET
+        ? {
+            '/api': {
+              target: env.VITE_DEV_PROXY_TARGET,
+              changeOrigin: true
+            }
+          }
+        : undefined
     },
     css: {
       preprocessorOptions: {
