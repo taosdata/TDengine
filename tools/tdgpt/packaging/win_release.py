@@ -384,9 +384,9 @@ if not errorlevel 1 (
     echo.
     echo Taosanode is managed as a Windows service.
     if not errorlevel 1 (
-        "%PYTHON_EXE%" "%~dp0taosanode_service.py" wait-ready --timeout 30
+        "%PYTHON_EXE%" "%~dp0taosanode_service.py" wait-ready --timeout 90
         if errorlevel 1 (
-            echo Taosanode start command returned, but readiness was not confirmed within 30 seconds.
+            echo Taosanode start command returned, but readiness was not confirmed within 90 seconds.
             echo Check status-taosanode.bat or ..\\log\\taosanode-service.log for details.
         ) else (
             echo Taosanode is ready.
@@ -400,9 +400,9 @@ if not errorlevel 1 (
     set "TDGPT_EXIT_CODE=%errorlevel%"
     echo.
     if not errorlevel 1 (
-        "%PYTHON_EXE%" "%~dp0taosanode_service.py" wait-ready --timeout 30
+        "%PYTHON_EXE%" "%~dp0taosanode_service.py" wait-ready --timeout 90
         if errorlevel 1 (
-            echo Taosanode start command returned, but readiness was not confirmed within 30 seconds.
+            echo Taosanode start command returned, but readiness was not confirmed within 90 seconds.
             echo Check status-taosanode.bat or ..\\log\\taosanode-service.log for details.
         ) else (
             echo Taosanode is ready.

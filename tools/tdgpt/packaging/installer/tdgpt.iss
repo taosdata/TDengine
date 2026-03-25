@@ -769,8 +769,8 @@ begin
     'Online mode downloads Python packages during setup. Offline package mode imports one external tar package that contains python runtime, virtual environments, and optional model archives. During upgrade, leaving the offline package blank reuses the existing environment and model files.',
     True,
     False);
-  InstallModePage.Add('Online mode (recommended)');
-  InstallModePage.Add('Offline package');
+  InstallModePage.Add('Online mode');
+  InstallModePage.Add('Offline package (recommended)');
   InstallModePage.Values[1] := True;
 
   PipSourcePage := CreateInputOptionPage(
@@ -1128,7 +1128,7 @@ begin
     S := S + 'pip source:' + NewLine + Space + PipIndexUrl + NewLine;
   if ModelEndpoint <> '' then
     S := S + 'Model endpoint:' + NewLine + Space + ModelEndpoint + NewLine;
-  S := S + 'Service registration:' + NewLine + Space + 'Install service' + NewLine;
+  S := S + 'Windows service:' + NewLine + Space + 'Installed automatically' + NewLine;
   Result := S;
 end;
 
