@@ -4,8 +4,8 @@
 import numpy as np
 import sklearn.neighbors as neighbor
 
-from taosanalytics.conf import AppLogger
-from taosanalytics.service import AbstractAnomalyDetectionService
+from taosanalytics.analytics_base import AbstractAnomalyDetectionService
+from taosanalytics.log import AppLogger
 
 
 class _LofService(AbstractAnomalyDetectionService):

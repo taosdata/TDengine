@@ -1,7 +1,7 @@
 import numpy as np
 
-from taosanalytics.conf import AppLogger
-from taosanalytics.service import AbstractCorrelationService
+from taosanalytics.analytics_base import AbstractCorrelationService
+from taosanalytics.log import AppLogger
 from fastdtw import fastdtw
 
 

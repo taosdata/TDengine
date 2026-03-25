@@ -10,10 +10,10 @@ import keras
 import numpy as np
 import pandas as pd
 
-from taosanalytics.conf import AppLogger, conf
+from taosanalytics.analytics_base import AbstractAnomalyDetectionService, AnalyticsService
+from taosanalytics.conf import conf
 from taosanalytics.error import failed_load_model_except
 from taosanalytics.model_mgmt import ModelManager
-from taosanalytics.service import AbstractAnomalyDetectionService, AnalyticsService
 from taosanalytics.util import create_sequences
 
 

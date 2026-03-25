@@ -6,7 +6,7 @@ from scipy.signal import savgol_filter
 import matplotlib.pyplot as plt
 from pathlib import Path
 
-from taosanalytics.conf import AppLogger
+from taosanalytics.log import AppLogger
 
 
 ############################################

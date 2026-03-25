@@ -2,7 +2,7 @@
 """imputation service: encapsulates imputation business logic"""
 
 from taosanalytics.algo.imputation import do_imputation, do_set_imputation_params, check_freq_param
-from taosanalytics.conf import AppLogger
+from taosanalytics.log import AppLogger
 from taosanalytics.util import parse_options, do_check_before_exec
 
 

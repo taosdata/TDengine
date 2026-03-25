@@ -4,10 +4,11 @@
 import unittest, sys, os.path
 import pandas as pd
 
+from taosanalytics.log import setup_log_info
+
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../../")
 
 from taosanalytics.algo.anomaly import draw_ad_results
-from taosanalytics.conf import AppLogger, setup_log_info
 from taosanalytics.builtins import loader
 
 

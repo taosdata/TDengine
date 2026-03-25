@@ -7,7 +7,7 @@ import numpy as np
 from statsmodels.stats.diagnostic import acorr_ljungbox
 from statsmodels.tsa.stattools import adfuller
 
-from taosanalytics.conf import AppLogger
+from taosanalytics.log import AppLogger
 from taosanalytics.error import white_noise_error_msg
 
 

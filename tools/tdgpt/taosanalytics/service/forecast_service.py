@@ -2,7 +2,7 @@
 """forecast service: encapsulates forecast business logic"""
 
 from taosanalytics.algo.forecast import do_forecast, do_add_fc_params
-from taosanalytics.conf import AppLogger
+from taosanalytics.log import AppLogger
 from taosanalytics.util import parse_options, get_past_dynamic_data, get_dynamic_data, do_check_before_exec
 
 

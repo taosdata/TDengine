@@ -4,8 +4,9 @@
 import time
 from matplotlib import pyplot as plt
 
-from taosanalytics.conf import AppLogger, conf
+from taosanalytics.conf import conf
 from taosanalytics.builtins import loader
+from taosanalytics.log import AppLogger
 from taosanalytics.util import parse_time_delta_string
 
 

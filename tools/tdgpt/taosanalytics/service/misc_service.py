@@ -4,7 +4,7 @@
 import numpy as np
 
 from taosanalytics.algo.tool.batch import do_batch_process, update_config
-from taosanalytics.conf import AppLogger
+from taosanalytics.log import AppLogger
 from taosanalytics.util import do_initial_check
 
 

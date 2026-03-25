@@ -2,7 +2,7 @@
 """correlation service: encapsulates correlation business logic"""
 
 from taosanalytics.algo.correlation import do_dtw, do_tlcc
-from taosanalytics.conf import AppLogger
+from taosanalytics.log import AppLogger
 from taosanalytics.util import parse_options, get_more_data_list, do_check_before_exec
 
 

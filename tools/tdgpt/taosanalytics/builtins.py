@@ -6,14 +6,14 @@ import inspect
 import os
 import sys
 from collections import defaultdict
-from taosanalytics.conf import AppLogger
+from taosanalytics.log import AppLogger
 from taosanalytics.analytics_base import (AbstractAnomalyDetectionService, AbstractForecastService, AbstractImputationService, \
                                           AbstractCorrelationService)
 
 os.environ['KERAS_BACKEND'] = 'torch'
 
 
-class AnalyticsServiceLoader:
+class AnalyticsAlgorithmLoader:
     """ Singleton register for multiple anomaly detection algorithms and fc algorithms"""
 
     def __init__(self):
@@ -147,4 +147,4 @@ class AnalyticsServiceLoader:
         do_load_service(current_directory, 'taosanalytics.algo.correl.', '/algo/correl/')
 
 
-loader: AnalyticsServiceLoader = AnalyticsServiceLoader()
+loader: AnalyticsAlgorithmLoader = AnalyticsAlgorithmLoader()

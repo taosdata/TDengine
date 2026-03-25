@@ -4,8 +4,9 @@
 import json
 import requests
 
-from taosanalytics.conf import AppLogger, conf
-from taosanalytics.service import (AbstractImputationService, AnalyticsService)
+from taosanalytics.analytics_base import AbstractImputationService, AnalyticsService
+from taosanalytics.conf import conf
+from taosanalytics.log import AppLogger
 
 
 class _MomentImputationService(AbstractImputationService):

@@ -2,7 +2,7 @@
 """ksigma class definition"""
 
 import numpy as np
-from taosanalytics.service import AbstractAnomalyDetectionService
+from taosanalytics.analytics_base import AbstractAnomalyDetectionService
 
 
 class _KSigmaService(AbstractAnomalyDetectionService):

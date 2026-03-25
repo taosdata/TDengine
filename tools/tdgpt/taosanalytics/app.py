@@ -16,7 +16,7 @@ from taosanalytics.service.misc_service import handle_batch
 from taosanalytics.conf import conf
 from taosanalytics.model_mgmt import ModelManager
 from taosanalytics.builtins import loader
-from taosanalytics.conf import AppLogger
+from taosanalytics.log import AppLogger
 
 app = Flask(__name__)
 app.config["PROPAGATE_EXCEPTIONS"] = True

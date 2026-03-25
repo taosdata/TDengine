@@ -3,9 +3,10 @@
 """ anomaly detection register/display functions """
 import numpy as np
 from matplotlib import pyplot as plt
-from taosanalytics.conf import AppLogger, conf
+from taosanalytics.conf import conf
 from taosanalytics.error import failed_load_model_except
 from taosanalytics.builtins import loader
+from taosanalytics.log import AppLogger
 from taosanalytics.util import convert_results_to_windows
 
 

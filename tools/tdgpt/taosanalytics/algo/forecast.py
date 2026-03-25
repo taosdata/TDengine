@@ -7,8 +7,9 @@ import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
 
-from taosanalytics.conf import AppLogger, conf
+from taosanalytics.conf import conf
 from taosanalytics.builtins import loader
+from taosanalytics.log import AppLogger
 
 
 def do_forecast(input_list, ts_list, algo_name, params, past_dynamic_real=None, dynamic_real=None):

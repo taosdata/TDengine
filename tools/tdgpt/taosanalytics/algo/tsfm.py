@@ -5,8 +5,9 @@ import json
 import requests
 
 from taosanalytics.algo.forecast import insert_ts_list
-from taosanalytics.conf import AppLogger, conf
-from taosanalytics.service import AbstractForecastService, AnalyticsService
+from taosanalytics.conf import conf
+from taosanalytics.analytics_base import AbstractForecastService, AnalyticsService
+from taosanalytics.log import AppLogger
 
 
 class TsfmBaseService(AbstractForecastService):

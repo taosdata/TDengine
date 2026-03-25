@@ -4,8 +4,8 @@
 import pmdarima as pm
 
 from taosanalytics.algo.forecast import insert_ts_list
-from taosanalytics.conf import AppLogger
-from taosanalytics.service import AbstractForecastService
+from taosanalytics.analytics_base import AbstractForecastService
+from taosanalytics.log import AppLogger
 
 
 class _ArimaService(AbstractForecastService):

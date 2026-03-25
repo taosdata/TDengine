@@ -2,7 +2,7 @@
 """anomaly service: encapsulates anomaly detection business logic"""
 
 from taosanalytics.algo.anomaly import do_ad_check
-from taosanalytics.conf import AppLogger
+from taosanalytics.log import AppLogger
 from taosanalytics.util import parse_options, do_check_before_exec
 
 

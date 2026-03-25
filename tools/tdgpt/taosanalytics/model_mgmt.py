@@ -5,7 +5,7 @@ import time
 from datetime import datetime
 from typing import Any
 
-from taosanalytics.conf import AppLogger
+from taosanalytics.log import AppLogger
 
 class ModelInfo:
     def __init__(self):
