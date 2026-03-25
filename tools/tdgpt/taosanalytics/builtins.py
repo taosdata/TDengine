@@ -89,7 +89,7 @@ class AnalyticsAlgorithmLoader:
 
         def do_load_service(cur_directory, lib_prefix, sub_directory):
             """ the implementation of load services """
-            service_directory = cur_directory + sub_directory
+            service_directory = os.path.join(cur_directory, sub_directory)
 
             if not os.path.exists(service_directory):
                 AppLogger.get_instance().fatal(
