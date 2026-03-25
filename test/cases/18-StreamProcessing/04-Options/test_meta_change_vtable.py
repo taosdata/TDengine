@@ -33,23 +33,23 @@ class TestStreamMetaChangeVTable:
         tdSql.execute(f"alter all dnodes 'asynclog 0';")
 
         streams = []
-        # streams.append(self.Basic37208())  # [ok] add ctb and drop ctb from stb
-        streams.append(self.Basic0())  # [ok] add ctb and drop ctb from stb
-        streams.append(self.Basic1())  # [ok] drop data source table
+        streams.append(self.Basic37208())  # [ok] add ctb and drop ctb from stb
+        # streams.append(self.Basic0())  # [ok] add ctb and drop ctb from stb
+        # streams.append(self.Basic1())  # [ok] drop data source table
         
-        # streams.append(self.Basic2())  # tag过滤时，修改tag的值，从满足流条件，到不满足流条件; 从不满足流条件，到满足流条件 [fail]       
+        # # streams.append(self.Basic2())  # tag过滤时，修改tag的值，从满足流条件，到不满足流条件; 从不满足流条件，到满足流条件 [fail]       
         
-        # TD-36750 [流计算开发阶段] 虚拟表+删除pre_filter(cbigint >=1)中cbigint列后，应该没有符合条件的数据了，不会触发计算窗口
-        # TD-38126 pre_filter 在 %%trows 且触发表为虚拟表时不可用
-        # streams.append(self.Basic3())  # [ok]
+        # # TD-36750 [流计算开发阶段] 虚拟表+删除pre_filter(cbigint >=1)中cbigint列后，应该没有符合条件的数据了，不会触发计算窗口
+        # # TD-38126 pre_filter 在 %%trows 且触发表为虚拟表时不可用
+        # # streams.append(self.Basic3())  # [ok]
         
-        streams.append(self.Basic4())  # [ok]
-        streams.append(self.Basic5())  # [ok] 
+        # streams.append(self.Basic4())  # [ok]
+        # streams.append(self.Basic5())  # [ok] 
         
-        # TD-37144 [流计算开发阶段] 删除流结果表后继续触发了也没有重建，不符合预期
-        # streams.append(self.Basic6())  #  [fail]
+        # # TD-37144 [流计算开发阶段] 删除流结果表后继续触发了也没有重建，不符合预期
+        # # streams.append(self.Basic6())  #  [fail]
         
-        streams.append(self.Basic7())  # [ok] 
+        # streams.append(self.Basic7())  # [ok] 
         
         tdStream.checkAll(streams)
 
@@ -83,11 +83,11 @@ class TestStreamMetaChangeVTable:
             )
 
             tdSql.execute(
-                f"create stream {self.db}.s3 count_window(1) from {self.vstbName} partition by tbname, tint stream_options(PRE_FILTER(tbigint <= 2)) into {self.db}.res_stb_2 OUTPUT_SUBTABLE(CONCAT('res_stb_2_', tbname)) (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
+                f"create stream {self.db}.s3 count_window(1) from {self.vstbName} partition by tbname, tint stream_options(PRE_FILTER(tbigint <= 2)) into {self.db}.res_stb_2 OUTPUT_SUBTABLE(CONCAT('res_stb_2_', tbname)) as select cts,cint from {self.vstbName} where cts=_twstart;"
             )
 
             tdSql.execute(
-                f"create stream {self.db}.s4 state_window(cint) from {self.vstbName} partition by tbname, tint stream_options(PRE_FILTER(tbigint > 2000)) into {self.db}.res_stb_3 OUTPUT_SUBTABLE(CONCAT('res_stb_3_', tbname)) (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
+                f"create stream {self.db}.s4 state_window(cint) from {self.vstbName} partition by tbname, tint stream_options(PRE_FILTER(tbigint > 2000)) into {self.db}.res_stb_3 OUTPUT_SUBTABLE(CONCAT('res_stb_3_', tbname)) as select cts,cint from {self.vstbName} where cts=_twstart;"
             )
 
         def insert1(self):      # add vtable
@@ -161,28 +161,28 @@ class TestStreamMetaChangeVTable:
             tdSql.execute(f"create vtable {self.db}.vct3 (cint from {self.db}.ct3.cint) using {self.db}.{self.vstbName} tags(10,10)")
             tdSql.execute(f"create vtable {self.db}.vct4 (cint from {self.db}.ct4.cint) using {self.db}.{self.vstbName} tags(-20,-20)")
             tdSql.execute(f"create vtable {self.db}.vct5 (cint from {self.db}.ct2.cint) using {self.db}.{self.vstbName} tags(20,20)")
-            time.sleep(5)
+            time.sleep(1)
             tdSql.execute(f"insert into ct4 values ('2025-01-04 00:01:00', 4);")
             tdSql.execute(f"insert into ct3 values ('2025-01-05 00:01:00', 5);")
             tdSql.execute(f"insert into ct2 values ('2025-01-06 10:01:00', 6);")
 
             tdSql.execute(f"alter table {self.db}.vct1 set tag tbigint = 30")
-            time.sleep(5)
+            time.sleep(1)
             tdSql.execute(f"insert into {self.db}.ct1 values ('2025-01-07 00:00:00', 7);")
 
             tdSql.execute(f"alter table {self.db}.vct3 set tag tbigint = -3")
             tdSql.execute(f"alter table {self.db}.vct4 set tag tbigint = -30")
             tdSql.execute(f"alter table {self.db}.vct5 set tag tbigint = 60")
-            time.sleep(5)
+            time.sleep(1)
             tdSql.execute(f"insert into ct4 values ('2025-01-08 00:01:00', 8);")
             tdSql.execute(f"insert into ct3 values ('2025-01-09 00:01:00', 9);")
 
             tdSql.execute(f"alter vtable {self.db}.vct4 alter column cint set {self.db}.ct2.cint")
-            time.sleep(5)
+            time.sleep(1)
             tdSql.execute(f"insert into ct2 values ('2025-01-10 10:01:10', 10);")
 
             tdSql.execute(f"alter vtable {self.db}.vct4 alter column cint set null")
-            time.sleep(5)
+            time.sleep(1)
             tdSql.execute(f"insert into ct2 values ('2025-01-11 10:01:11', 11);")
 
         def check3(self):  

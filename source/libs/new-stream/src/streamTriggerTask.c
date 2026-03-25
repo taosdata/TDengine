@@ -888,6 +888,10 @@ static int32_t stTriggerTaskNewGenVirColRefs(SStreamTriggerTask *pTask, VTableIn
   if (ncols == 0) {
     goto _end;
   }
+  SSHashObj *pOrigTableCols = pTask->pOrigTableCols;
+  if (pTask->pRealtimeContext != NULL && IS_PATCHING_VITRUAL_TABLE(pTask->pRealtimeContext)) {
+    pOrigTableCols = pTask->pRealtimeContext->patchContext.pOrigTableCols;
+  }
 
   if (pTask->virScanTsOnly) {
     // merge all original tables since it scans only timestamp column
@@ -900,7 +904,7 @@ static int32_t stTriggerTaskNewGenVirColRefs(SStreamTriggerTask *pTask, VTableIn
       size_t dbNameLen = strlen(pColRef->refDbName) + 1;
       size_t tbNameLen = strlen(pColRef->refTableName) + 1;
       size_t colNameLen = strlen(pColRef->refColName) + 1;
-      void  *px = tSimpleHashGet(pTask->pOrigTableCols, pColRef->refDbName, dbNameLen);
+      void  *px = tSimpleHashGet(pOrigTableCols, pColRef->refDbName, dbNameLen);
       QUERY_CHECK_NULL(px, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
       SSHashObj               *pDbInfo = *(SSHashObj **)px;
       SSTriggerOrigColumnInfo *pTbInfo = tSimpleHashGet(pDbInfo, pColRef->refTableName, tbNameLen);
@@ -982,7 +986,7 @@ static int32_t stTriggerTaskNewGenVirColRefs(SStreamTriggerTask *pTask, VTableIn
     size_t dbNameLen = strlen(pColRef->refDbName) + 1;
     size_t tbNameLen = strlen(pColRef->refTableName) + 1;
     size_t colNameLen = strlen(pColRef->refColName) + 1;
-    void  *px = tSimpleHashGet(pTask->pOrigTableCols, pColRef->refDbName, dbNameLen);
+    void  *px = tSimpleHashGet(pOrigTableCols, pColRef->refDbName, dbNameLen);
     QUERY_CHECK_NULL(px, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
     SSHashObj               *pDbInfo = *(SSHashObj **)px;
     SSTriggerOrigColumnInfo *pTbInfo = tSimpleHashGet(pDbInfo, pColRef->refTableName, tbNameLen);
@@ -3301,6 +3305,7 @@ static int32_t stRealtimeContextPrepareVtablePatch(SSTriggerRealtimeContext *pCo
   SSTriggerVTablePatchItem *pItem = tSimpleHashIterate(pPatch->pPatchItems, NULL, &iter);
   while (pItem != NULL) {
     code = tSimpleHashRemove(pTask->pVirtTableInfos, &pItem->vtbUid, sizeof(int64_t));
+    if (code == TSDB_CODE_INVALID_PARA) code = 0;
     QUERY_CHECK_CODE(code, lino, _end);
     pItem = tSimpleHashIterate(pPatch->pPatchItems, pItem, &iter);
   }
@@ -5425,7 +5430,7 @@ static int32_t stRealtimeContextProcWalMeta(SSTriggerRealtimeContext *pContext, 
     int64_t *pUids = (int64_t *)pUidCol->pData;
     int64_t *pVers = (int64_t *)pVerCol->pData;
     uint8_t *pTypes = (uint8_t *)pTypeCol->pData;
-#define TRIGGER_SUPPORT_RUNTIME_VTABLE_CHANGE 0
+#define TRIGGER_SUPPORT_RUNTIME_VTABLE_CHANGE 1
     for (int32_t i = 0; i < nrows; i++) {
       if (pTypes[i] == TABLE_BLOCK_ADD && pTask->isVirtualTable && pVers[i] >= pProgress->savedVer) {
 #if TRIGGER_SUPPORT_RUNTIME_VTABLE_CHANGE
