@@ -17,6 +17,7 @@
 #define _TD_DND_QNODE_INT_H_
 
 #include "dmUtil.h"
+#include "dmLicense.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -37,6 +38,8 @@ typedef struct SDnodeMgmt {
   TdThread                     auditThread;
   TdThread                     crashReportThread;
   TdThread                     metricsThread;
+  TdThread                     licenseThread;
+  SDmLicenseCtx                licenseCtx;
   SSingleWorker                mgmtWorker;
   ProcessCreateNodeFp          processCreateNodeFp;
   ProcessAlterNodeFp           processAlterNodeFp;
