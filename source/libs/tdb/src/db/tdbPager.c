@@ -18,7 +18,6 @@
 #include "tglobal.h"
 
 struct hashset_st {
-  size_t  nbits;
   size_t  mask;
   size_t  capacity;
   size_t *items;
@@ -36,8 +35,7 @@ static hashset_t hashset_create(void) {
     return NULL;
   }
 
-  set->nbits = 4;
-  set->capacity = (size_t)(1 << set->nbits);
+  set->capacity = 16;
   set->items = tdbOsCalloc(set->capacity, sizeof(size_t));
   if (!set->items) {
     tdbOsFree(set);
@@ -61,7 +59,7 @@ void hashset_destroy(hashset_t set) {
 
 static int hashset_add_member(hashset_t set, void *item) {
   size_t value = (size_t)item;
-  size_t h;
+  size_t h, probed = 0;
 
   if (value == 0) {
     return -1;
@@ -70,6 +68,10 @@ static int hashset_add_member(hashset_t set, void *item) {
   for (h = set->mask & (prime * value); set->items[h] != 0; h = set->mask & (h + prime2)) {
     if (set->items[h] == value) {
       return 0;
+    }
+    // We have probed all slots, the set is full
+    if (++probed > set->capacity) {
+      return -1;
     }
   }
 
@@ -80,25 +82,33 @@ static int hashset_add_member(hashset_t set, void *item) {
 
 static int hashset_add(hashset_t set, void *item) {
   int ret = hashset_add_member(set, item);
+  if (ret == 0) {
+    return ret;
+  }
 
   size_t old_capacity = set->capacity;
-  if (set->nitems >= (double)old_capacity * set->load_factor) {
-    size_t *old_items = set->items;
-    ++set->nbits;
-    set->capacity = (size_t)(1 << set->nbits);
-    set->mask = set->capacity - 1;
-
-    set->items = tdbOsCalloc(set->capacity, sizeof(size_t));
-    if (!set->items) {
-      return -1;
-    }
-
-    set->nitems = 0;
-    for (size_t i = 0; i < old_capacity; ++i) {
-      int nt = hashset_add_member(set, (void *)old_items[i]);
-    }
-    tdbOsFree(old_items);
+  if (set->nitems < (double)old_capacity * set->load_factor) {
+    return ret;
   }
+
+  size_t *old_items = set->items;
+  set->capacity *= 2;
+  set->mask = set->capacity - 1;
+
+  set->items = tdbOsCalloc(set->capacity, sizeof(size_t));
+  if (!set->items) {
+    // Restore previous state on allocation failure
+    set->items = old_items;
+    set->capacity = old_capacity;
+    set->mask = set->capacity - 1;
+    return ret;
+  }
+
+  set->nitems = 0;
+  for (size_t i = 0; i < old_capacity; ++i) {
+    int nt = hashset_add_member(set, (void *)old_items[i]);
+  }
+  tdbOsFree(old_items);
 
   return ret;
 }
@@ -110,6 +120,15 @@ static int hashset_remove(hashset_t set, void *item) {
     if (set->items[h] == value) {
       set->items[h] = 0;
       --set->nitems;
+
+      // Rehash subsequent entries to maintain probe chain integrity
+      for (size_t j = set->mask & (h + prime2); set->items[j] != 0; j = set->mask & (j + prime2)) {
+        size_t val = set->items[j];
+        set->items[j] = 0;
+        --set->nitems;
+        hashset_add_member(set, (void *)val);
+      }
+
       return 1;
     }
   }
