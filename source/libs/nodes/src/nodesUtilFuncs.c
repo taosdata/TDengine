@@ -1650,6 +1650,10 @@ void nodesDestroyNode(SNode* pNode) {
     }
     case QUERY_NODE_EXTERNAL_WINDOW: {
       SExternalWindowNode* pExternal = (SExternalWindowNode*)pNode;
+      nodesDestroyList(pExternal->pAggFuncList);
+      nodesDestroyList(pExternal->pProjectionList);
+      nodesDestroyNode(pExternal->pTimeRange);
+      taosMemoryFreeClear(pExternal->timezone);
       nodesDestroyNode(pExternal->pCol);
       break;
     }

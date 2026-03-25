@@ -1160,12 +1160,14 @@ int32_t stTriggerTaskAcquireRequest(SStreamTriggerTask *pTask, int64_t sessionId
     if (pReq->pGroupCalcInfos == NULL) {
       pReq->pGroupCalcInfos = tSimpleHashInit(256, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
       QUERY_CHECK_NULL(pReq->pGroupCalcInfos, code, lino, _end, terrno);
+      tSimpleHashSetFreeFp(pReq->pGroupCalcInfos, tDestroySSTriggerGroupCalcInfo);
     } else {
       tSimpleHashClear(pReq->pGroupCalcInfos);
     }
     if (pReq->pGroupReadInfos == NULL) {
       pReq->pGroupReadInfos = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
       QUERY_CHECK_NULL(pReq->pGroupReadInfos, code, lino, _end, terrno);
+      tSimpleHashSetFreeFp(pReq->pGroupReadInfos, tDestroySSTriggerGroupReadInfo);
     } else {
       tSimpleHashClear(pReq->pGroupReadInfos);
     }
@@ -2574,11 +2576,11 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *
   pTask->ignoreNoDataTrigger = pMsg->igNoDataTrigger;
   pTask->hasTriggerFilter = pMsg->triggerHasPF;
   pTask->multiGroupBatch = pMsg->enableMultiGroupCalc;
-  QUERY_CHECK_CONDITION(!pTask->multiGroupBatch, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-  pTask->placeHolderBitmap = pMsg->placeHolderBitmap;
-  pTask->streamName = taosStrdup(pMsg->streamName);
-  code = nodesStringToNode(pMsg->triggerPrevFilter, &pTask->triggerFilter);
-  QUERY_CHECK_CODE(code, lino, _end);
+  QUERY_CHECK_CONDITION(!pTask->multiGroupBatch, code, lino, _end, TSDB_CODE_INTERNAL_ERROR); // todo(kjq): enable multi group calc
+  if (pTask->multiGroupBatch) {
+    QUERY_CHECK_CONDITION((pTask->placeHolderBitmap & PLACE_HOLDER_PARTITION_ROWS) == 0, code, lino, _end,
+                          TSDB_CODE_INVALID_PARA);
+  }
   if (pTask->ignoreNoDataTrigger) {
     QUERY_CHECK_CONDITION(
         (pTask->triggerType == STREAM_TRIGGER_PERIOD) || (pTask->triggerType == STREAM_TRIGGER_SLIDING), code, lino,
@@ -2590,10 +2592,6 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *
   pTask->streamName = taosStrdup(pMsg->streamName);
   code = nodesStringToNode(pMsg->triggerPrevFilter, &pTask->triggerFilter);
   QUERY_CHECK_CODE(code, lino, _end);
-  if (pTask->multiGroupBatch) {
-    QUERY_CHECK_CONDITION((pTask->placeHolderBitmap & PLACE_HOLDER_PARTITION_ROWS) == 0, code, lino, _end,
-                          TSDB_CODE_INVALID_PARA);
-  }
 
   if (pTask->triggerType == STREAM_TRIGGER_SESSION || pTask->triggerType == STREAM_TRIGGER_SLIDING ||
       pTask->triggerType == STREAM_TRIGGER_COUNT) {
@@ -4784,9 +4782,6 @@ static int32_t stRealtimeContextRetryCalcRequest(SSTriggerRealtimeContext *pCont
   QUERY_CHECK_NULL(pRunner, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
 
   pReq->createTable = true;
-
-  SSTriggerRealtimeGroup *pGroup = stRealtimeContextGetCurrentGroup(pContext);
-  QUERY_CHECK_NULL(pGroup, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
 
   if (pReq->createTable && pTask->hasPartitionBy || (pTask->placeHolderBitmap & PLACE_HOLDER_PARTITION_IDX) ||
       (pTask->placeHolderBitmap & PLACE_HOLDER_PARTITION_TBNAME)) {

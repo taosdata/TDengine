@@ -6563,17 +6563,45 @@ static int32_t jsonToStreamTagDefNode(const SJson* pJson, void* pObj) {
   return code;
 }
 
+static const char* jkExternalWindowProjectionList = "ProjectionList";
+static const char* jkExternalWindowAggFuncList = "AggFuncList";
+static const char* jkExternalWindowStartTime = "StartTime";
+static const char* jkExternalWindowEndTime = "EndTime";
 static const char* jkExternalWindowCol = "Col";
 
 static int32_t externalWindowNodeToJson(const void* pObj, SJson* pJson) {
   const SExternalWindowNode* pNode = (const SExternalWindowNode*)pObj;
-  int32_t                    code = tjsonAddObject(pJson, jkExternalWindowCol, nodeToJson, pNode->pCol);
+  int32_t                    code = nodeListToJson(pJson, jkExternalWindowProjectionList, pNode->pProjectionList);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodeListToJson(pJson, jkExternalWindowAggFuncList, pNode->pAggFuncList);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkExternalWindowStartTime, pNode->timeRange.skey);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkExternalWindowEndTime, pNode->timeRange.ekey);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkExternalWindowCol, nodeToJson, pNode->pCol);
+  }
   return code;
 }
 
 static int32_t jsonToExternalWindowNode(const SJson* pJson, void* pObj) {
   SExternalWindowNode* pNode = (SExternalWindowNode*)pObj;
-  int32_t              code = jsonToNodeObject(pJson, jkExternalWindowCol, (SNode**)&pNode->pCol);
+  int32_t              code = jsonToNodeList(pJson, jkExternalWindowProjectionList, &pNode->pProjectionList);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeList(pJson, jkExternalWindowAggFuncList, &pNode->pAggFuncList);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBigIntValue(pJson, jkExternalWindowStartTime, &pNode->timeRange.skey);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBigIntValue(pJson, jkExternalWindowEndTime, &pNode->timeRange.ekey);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkExternalWindowCol, (SNode**)&pNode->pCol);
+  }
   return code;
 }
 
