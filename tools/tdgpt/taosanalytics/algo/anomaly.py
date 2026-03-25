@@ -15,7 +15,7 @@ def do_ad_check(input_list, ts_list, algo_name, params):
     s = loader.get_service(algo_name)
 
     if s is None:
-        AppLogger.error("specified model not found:%s" % (algo_name))
+        AppLogger.error(f"specified model not found: {algo_name}")
         failed_load_model_except(algo_name)
 
     s.set_input_list(input_list, ts_list)
