@@ -1455,45 +1455,6 @@ _exit:
   return code;
 }
 
-int32_t tSerializeSMTransReq(void *buf, int32_t bufLen, SMTransReq *pReq) {
-  SEncoder encoder = {0};
-  int32_t  code = 0, lino = 0;
-  int32_t  tlen = 0;
-  tEncoderInit(&encoder, buf, bufLen);
-  TAOS_CHECK_EXIT(tStartEncode(&encoder));
-
-  TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pReq->msgType));
-  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->clientStage));
-  TAOS_CHECK_EXIT(tEncodeU64v(&encoder, pReq->txnId));
-  TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pReq->connId));
-
-  tEndEncode(&encoder);
-_exit:
-  if (code) {
-    tlen = code;
-  } else {
-    tlen = encoder.pos;
-  }
-  tEncoderClear(&encoder);
-  return tlen;
-}
-int32_t tDeserializeSMTransReq(void *buf, int32_t bufLen, SMTransReq *pReq) {
-  SDecoder decoder = {0};
-  int32_t  code = 0, lino = 0;
-  tDecoderInit(&decoder, buf, bufLen);
-  TAOS_CHECK_EXIT(tStartDecode(&decoder));
-
-  TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &pReq->msgType));
-  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->clientStage));
-  TAOS_CHECK_EXIT(tDecodeU64v(&decoder, &pReq->txnId));
-  TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pReq->connId));
-
-  tEndDecode(&decoder);
-_exit:
-  tDecoderClear(&decoder);
-  return code;
-}
-
 int32_t tSerializeSMCreateRsmaReq(void *buf, int32_t bufLen, SMCreateRsmaReq *pReq) {
   SEncoder encoder = {0};
   int32_t  code = 0, lino = 0;
