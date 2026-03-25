@@ -130,7 +130,12 @@ STATE_INIT:
   else
     → snprintf(instance_id, sizeof(instance_id), "%s:%u", tsLocalFqdn, tsServerPort)
     → taos_sdk_create(&pSdk, tsCulsAddr, instance_id)
-      OK   → taos_sdk_get_license() → STATE_OK or STATE_GRACE on fail
+      OK   → taos_sdk_get_license():
+               hard failure (NO_LICENSE / BLACKLISTED / REVOKED / EXPIRED)
+                 → uWarn(...) → dmLicenseLoadOrStartGrace() → STATE_GRACE
+               transient error (NETWORK_ERROR / VERIFY_FAILED / ERROR)
+                 → uWarn("Initial license fetch failed: %s, will retry") → STATE_OK
+               TAOS_LICENSE_OK → uInfo(...) → STATE_OK
       FAIL → uError("Failed to connect to CULS: %s", errStr)
              dmLicenseLoadOrStartGrace() → STATE_GRACE  // pSdk remains NULL
 
@@ -220,7 +225,7 @@ int32_t dmLicenseLoadOrStartGrace(SDmLicenseCtx *pCtx) {
         // Example: cJSON *pRoot = cJSON_Parse(buf);
         //          pCtx->gracePeriodStartMs = cJSON_GetObjectItem(pRoot, "grace_start_ms")->valuedouble;
         //          cJSON_Delete(pRoot);
-        uWarn("Resuming license grace period from previous run (started %s)", <time_str>);
+        uWarn("Resuming license grace period from previous run (started %" PRId64 " ms)", pCtx->gracePeriodStartMs);
     } else {
         // First time entering grace — record current time
         pCtx->gracePeriodStartMs = taosGetTimestampMs();
@@ -231,7 +236,8 @@ int32_t dmLicenseLoadOrStartGrace(SDmLicenseCtx *pCtx) {
         //             taosWriteFile(pFile, pStr, strlen(pStr));
         //             taosCloseFile(&pFile);
         //             cJSON_free(pStr); cJSON_Delete(pRoot);
-        uWarn("License grace period started at %s", <time_str>);
+        //             On write failure: log uError and continue (grace countdown still runs in memory)
+        uWarn("License grace period started at %" PRId64 " ms", pCtx->gracePeriodStartMs);
     }
     return 0;
 }
@@ -335,6 +341,7 @@ endif()
 |------|--------|
 | `include/common/tglobal.h` | Add `extern char tsCulsAddr[512]` |
 | `source/common/src/tglobal.c` | Add `tsCulsAddr` definition, `cfgAddString`, load |
+| `source/dnode/mgmt/mgmt_dnode/inc/dmInt.h` | Add `SDmLicenseCtx licenseCtx` field to `SDnodeMgmt` |
 | `source/dnode/mgmt/mgmt_dnode/inc/dmLicense.h` | New: `SDmLicenseCtx`, function declarations |
 | `source/dnode/mgmt/mgmt_dnode/src/dmLicense.c` | New: thread loop, state machine, grace period |
 | `source/dnode/mgmt/mgmt_dnode/src/dmInt.c` | Call `dmStartLicenseThread` / `dmStopLicenseThread` |
