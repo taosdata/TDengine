@@ -232,13 +232,13 @@ class TaosD:
             
             # Add server key (optional, auto-generated if not provided)
             if svr_key:
-                cmd_parts.extend(['--encrypt-server', f"'{svr_key}'"])
+                cmd_parts.extend(['--encrypt-server', svr_key])
             else:
                 cmd_parts.append('--encrypt-server')
             
             # Add database key (optional, auto-generated if not provided)
             if db_key:
-                cmd_parts.extend(['--encrypt-database', f"'{db_key}'"])
+                cmd_parts.extend(['--encrypt-database', db_key])
             else:
                 cmd_parts.append('--encrypt-database')
             
@@ -251,7 +251,7 @@ class TaosD:
             
             if generate_data:
                 if data_key:
-                    cmd_parts.extend(['--encrypt-data', f"'{data_key}'"])
+                    cmd_parts.extend(['--encrypt-data', data_key])
                 else:
                     cmd_parts.append('--encrypt-data')
             
