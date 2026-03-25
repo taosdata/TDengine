@@ -1019,8 +1019,8 @@ static int32_t hJoinCopyBuildNMatchRowsToBlock(SHJoinOperatorInfo* pJoin, SSData
                                                const char* pKeyData, const int32_t* pKeyOffsets) {
   SHJoinTableCtx* pBuild = pJoin->pBuild;
   SHJoinTableCtx* pProbe = pJoin->pProbe;
-  int32_t buildIdx = 0, buildValIdx = 0, probeIdx = 0;
   int32_t buildIdx = 0, probeIdx = 0;
+  int32_t startRow = pRes->info.rows;
 
   if (rowNum <= 0) {
     return TSDB_CODE_SUCCESS;

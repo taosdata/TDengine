@@ -82,8 +82,11 @@ typedef int32_t (*hJoinImplFp)(SOperatorInfo*);
 /* Function pointer type for build phase logic (hJoinBuildHash, hFullJoinBuildHash). */
 typedef int32_t (*hJoinBuildFp)(SOperatorInfo*, bool*);
 
+/* Forward declaration for probe-end callback typedef. */
+typedef struct SHJoinOperatorInfo SHJoinOperatorInfo;
+
 /* Function pointer type for probe-end handling when downstream probe is exhausted. */
-typedef int32_t (*hJoinProbeEndFp)(struct SHJoinOperatorInfo*, bool*, bool*);
+typedef int32_t (*hJoinProbeEndFp)(SHJoinOperatorInfo*, bool*, bool*);
 
 /*
  * Row metadata stored at the head of each row buffer entry in the page pool.

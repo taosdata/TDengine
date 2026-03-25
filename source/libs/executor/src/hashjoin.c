@@ -1002,6 +1002,8 @@ static int32_t hFullJoinAddBlockRowsToHash(SSDataBlock* pBlock, SHJoinOperatorIn
   if (pBuild->hasTimeRange && !hJoinFilterTimeRange(pCtx, pBlock, &pJoin->tblTimeRange, pBuild->primCol->srcSlot, &pCtx->buildStartIdx, &pCtx->buildEndIdx)) {
     pCtx->buildNMStartIdx = 0;
     pCtx->buildNMEndIdx = pBlock->info.rows - 1;
+    pCtx->buildStartIdx = -1;
+    pCtx->buildEndIdx = -1;
     
     return hFullJoinCopyBuildNMRowsToBlock(pJoin, pJoin->finBlk, pCtx, returnDirect);
   }
