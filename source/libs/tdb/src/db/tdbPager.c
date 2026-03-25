@@ -126,7 +126,7 @@ static int hashset_remove(hashset_t set, void *item) {
         size_t val = set->items[j];
         set->items[j] = 0;
         --set->nitems;
-        hashset_add_member(set, (void *)val);
+        int nt = hashset_add_member(set, (void *)val);
       }
 
       return 1;
@@ -214,7 +214,9 @@ int tdbPagerOpen(SPCache *pCache, const char *fileName, SPager **ppPager) {
   ret = tdbGnrtFileID(pPager->fd, pPager->fid, false);
   if (ret < 0) {
     // close fd and free pager on file-id failure
-    tdbOsClose(pPager->fd);
+    if (tdbOsClose(pPager->fd) < 0) {
+      tdbWarn("failed to close file since %s", tstrerror(terrno));
+    }
     tdbOsFree(pPager);
     return ret;
   }
@@ -225,7 +227,9 @@ int tdbPagerOpen(SPCache *pCache, const char *fileName, SPager **ppPager) {
   ret = tdbGetFileSize(pPager->fd, pPager->pageSize, &(pPager->dbOrigSize));
   if (ret < 0) {
     // close fd and free pager on getFileSize failure
-    tdbOsClose(pPager->fd);
+    if (tdbOsClose(pPager->fd) < 0) {
+      tdbWarn("failed to close file since %s", tstrerror(terrno));
+    }
     tdbOsFree(pPager);
     return ret;
   }
@@ -296,8 +300,12 @@ int tdbPagerBegin(SPager *pPager, TXN *pTxn) {
   pTxn->jPageSet = hashset_create();
   if (pTxn->jPageSet == NULL) {
     int ret = terrno;
-    tdbOsClose(pTxn->jfd);
-    tdbOsRemove(jTxnFileName);
+    if (tdbOsClose(pTxn->jfd) < 0) {
+      tdbWarn("failed to close file since %s", tstrerror(terrno));
+    }
+    if (tdbOsRemove(jTxnFileName) < 0 && ERRNO != ENOENT) {
+      tdbWarn("failed to remove file due to %s. file:%s", strerror(ERRNO), jTxnFileName);
+    }
     return ret;
   }
 
