@@ -114,7 +114,12 @@ class ServiceRegistry:
 
                 # do load algorithm
                 name = lib_prefix + item.split('.')[0]
-                module = importlib.import_module(name)
+
+                try:
+                    module = importlib.import_module(name)
+                except Exception as e:
+                    AppLogger.error("failed to import module %s: %s, skipping", name, str(e))
+                    continue
 
                 AppLogger.info("load algorithm:%s", name)
 
@@ -140,8 +145,13 @@ class ServiceRegistry:
                                 class_name)
                             continue
 
-                        obj = algo_cls()
-                        register_service(self.services, algo_cls.name, obj)
+                        try:
+                            obj = algo_cls()
+                            register_service(self.services, algo_cls.name, obj)
+                        except Exception as e:
+                            AppLogger.error("failed to instantiate %s from %s: %s, skipping",
+                                          class_name, name, str(e))
+                            continue
 
         # start to load all services
         current_directory = os.path.dirname(os.path.abspath(__file__))
