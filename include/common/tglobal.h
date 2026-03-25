@@ -228,6 +228,7 @@ extern char     tsKeyExpirationStrategy[ENCRYPT_KEY_EXPIRE_STRATEGY_LEN + 1];  /
 extern bool     tsEnableMonitor;
 extern int32_t  tsMonitorInterval;
 extern char     tsMonitorFqdn[];
+extern char     tsCulsAddr[512];       // CULS P2P multiaddress; empty → grace period
 extern uint16_t tsMonitorPort;
 extern int32_t  tsMonitorMaxLogs;
 extern bool     tsMonitorComp;
