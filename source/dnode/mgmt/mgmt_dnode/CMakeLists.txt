@@ -42,16 +42,19 @@ if(TD_LINUX)
 
   set(TAOS_LICENSE_LIB "${TAOS_LICENSE_LIB_DIR}/libtaos_license.a")
 
+  # Always compile dmLicense.c on Linux
+  target_sources(mgmt_dnode PRIVATE src/dmLicense.c)
+
   if(EXISTS "${TAOS_LICENSE_LIB}")
     add_library(taos_license STATIC IMPORTED GLOBAL)
     set_target_properties(taos_license PROPERTIES
         IMPORTED_LOCATION "${TAOS_LICENSE_LIB}"
         INTERFACE_INCLUDE_DIRECTORIES "${TD_SOURCE_DIR}/deps/license/include"
     )
-    target_sources(mgmt_dnode PRIVATE src/dmLicense.c)
     target_link_libraries(mgmt_dnode PRIVATE taos_license pthread dl m)
     message(STATUS "taos_license: enabled (${TAOS_LICENSE_LIB})")
   else()
+    target_link_libraries(mgmt_dnode PRIVATE pthread dl m)
     message(STATUS "taos_license: SKIPPED — library not found at ${TAOS_LICENSE_LIB}")
   endif()
 endif()
