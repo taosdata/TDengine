@@ -1004,6 +1004,32 @@ static int32_t mndProcessCommitTxnReq(SRpcMsg *pReq) {
     TAOS_CHECK_EXIT(TSDB_CODE_MND_TXN_INVALID_STAGE);
   }
 
+  // Merge client-tracked pVgList into pTxn->pVgList (dedup)
+  if (txnReq.pVgList != NULL && taosArrayGetSize(txnReq.pVgList) > 0) {
+    if (pTxn->pVgList == NULL) {
+      pTxn->pVgList = taosArrayInit(taosArrayGetSize(txnReq.pVgList), sizeof(int32_t));
+    }
+    if (pTxn->pVgList != NULL) {
+      int32_t nNew = (int32_t)taosArrayGetSize(txnReq.pVgList);
+      for (int32_t i = 0; i < nNew; ++i) {
+        int32_t vgId = *(int32_t *)taosArrayGet(txnReq.pVgList, i);
+        // Dedup check
+        bool    found = false;
+        int32_t nExist = (int32_t)taosArrayGetSize(pTxn->pVgList);
+        for (int32_t j = 0; j < nExist; ++j) {
+          if (*(int32_t *)taosArrayGet(pTxn->pVgList, j) == vgId) {
+            found = true;
+            break;
+          }
+        }
+        if (!found) {
+          taosArrayPush(pTxn->pVgList, &vgId);
+          mInfo("txn:%" PRIu64 ", merged client vgId:%d into participant list", pTxn->id, vgId);
+        }
+      }
+    }
+  }
+
   TAOS_CHECK_EXIT(mndCommitTxn(pMnode, pReq, pTxn));
 
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
@@ -1019,7 +1045,7 @@ _exit:
     mError("txn:%" PRIu64 ", failed at line %d to commit since %s", txnReq.txnId, lino, tstrerror(code));
   }
   if (pTxn) mndReleaseTxn(pMnode, pTxn);
-  // tFreeSMTransReq(&txnReq);
+  tFreeSMTransReq(&txnReq);
 
   TAOS_RETURN(code);
 }
@@ -1055,6 +1081,30 @@ static int32_t mndProcessRollbackTxnReq(SRpcMsg *pReq) {
     TAOS_CHECK_EXIT(TSDB_CODE_MND_TXN_INVALID_STAGE);
   }
 
+  // Merge client-tracked pVgList into pTxn->pVgList (dedup)
+  if (txnReq.pVgList != NULL && taosArrayGetSize(txnReq.pVgList) > 0) {
+    if (pTxn->pVgList == NULL) {
+      pTxn->pVgList = taosArrayInit(taosArrayGetSize(txnReq.pVgList), sizeof(int32_t));
+    }
+    if (pTxn->pVgList != NULL) {
+      int32_t nNew = (int32_t)taosArrayGetSize(txnReq.pVgList);
+      for (int32_t i = 0; i < nNew; ++i) {
+        int32_t vgId = *(int32_t *)taosArrayGet(txnReq.pVgList, i);
+        bool    found = false;
+        int32_t nExist = (int32_t)taosArrayGetSize(pTxn->pVgList);
+        for (int32_t j = 0; j < nExist; ++j) {
+          if (*(int32_t *)taosArrayGet(pTxn->pVgList, j) == vgId) {
+            found = true;
+            break;
+          }
+        }
+        if (!found) {
+          taosArrayPush(pTxn->pVgList, &vgId);
+        }
+      }
+    }
+  }
+
   TAOS_CHECK_EXIT(mndRollbackTxn(pMnode, pReq, pTxn, 0 /* user-initiated */));
 
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
@@ -1070,6 +1120,7 @@ _exit:
     mError("txn:%" PRIu64 ", failed at line %d to rollback since %s", txnReq.txnId, lino, tstrerror(code));
   }
   if (pTxn) mndReleaseTxn(pMnode, pTxn);
+  tFreeSMTransReq(&txnReq);
   mndReleaseUser(pMnode, pOperUser);
 
   TAOS_RETURN(code);

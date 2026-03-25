@@ -33,6 +33,7 @@ typedef struct SVnodeTxnEntry {
   int64_t lastActive;  // Last active time
   int8_t  stage;       // EVtxnStage
   SArray *pShadowOps;  // Shadow operations (pending DDL)
+  SArray *pLockedTables;  // Array of char* (table names locked by this txn)
 } SVnodeTxnEntry;
 
 // Initialize vnode transaction manager
@@ -43,7 +44,17 @@ int32_t vnodeTxnInit(SVnode *pVnode) {
     return terrno;
   }
 
+  pVnode->pTxnTableLock = taosHashInit(256, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+  if (pVnode->pTxnTableLock == NULL) {
+    vError("vgId:%d, failed to init txn table lock hash", TD_VID(pVnode));
+    taosHashCleanup(pVnode->pTxnHash);
+    pVnode->pTxnHash = NULL;
+    return terrno;
+  }
+
   if (taosThreadMutexInit(&pVnode->txnMutex, NULL) != 0) {
+    taosHashCleanup(pVnode->pTxnTableLock);
+    pVnode->pTxnTableLock = NULL;
     taosHashCleanup(pVnode->pTxnHash);
     pVnode->pTxnHash = NULL;
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -63,10 +74,22 @@ void vnodeTxnCleanup(SVnode *pVnode) {
       if (pEntry->pShadowOps) {
         taosArrayDestroy(pEntry->pShadowOps);
       }
+      if (pEntry->pLockedTables) {
+        int32_t sz = taosArrayGetSize(pEntry->pLockedTables);
+        for (int32_t i = 0; i < sz; i++) {
+          taosMemoryFree(*(char **)taosArrayGet(pEntry->pLockedTables, i));
+        }
+        taosArrayDestroy(pEntry->pLockedTables);
+      }
       pIter = taosHashIterate(pVnode->pTxnHash, pIter);
     }
     taosHashCleanup(pVnode->pTxnHash);
     pVnode->pTxnHash = NULL;
+  }
+
+  if (pVnode->pTxnTableLock) {
+    taosHashCleanup(pVnode->pTxnTableLock);
+    pVnode->pTxnTableLock = NULL;
   }
 
   taosThreadMutexDestroy(&pVnode->txnMutex);
@@ -87,24 +110,44 @@ static int32_t vnodeCreateTxnEntry(SVnode *pVnode, int64_t txnId, int64_t term) 
   entry.lastActive = entry.startTime;
   entry.stage = VTXN_STAGE_ACTIVE;
   entry.pShadowOps = taosArrayInit(8, sizeof(void *));
+  entry.pLockedTables = taosArrayInit(8, sizeof(char *));
 
-  if (entry.pShadowOps == NULL) {
+  if (entry.pShadowOps == NULL || entry.pLockedTables == NULL) {
+    taosArrayDestroy(entry.pShadowOps);
+    taosArrayDestroy(entry.pLockedTables);
     return terrno;
   }
 
   int32_t code = taosHashPut(pVnode->pTxnHash, &txnId, sizeof(int64_t), &entry, sizeof(SVnodeTxnEntry));
   if (code != 0) {
     taosArrayDestroy(entry.pShadowOps);
+    taosArrayDestroy(entry.pLockedTables);
     return code;
   }
 
   return TSDB_CODE_SUCCESS;
 }
 
+// Release all table locks held by a transaction entry (caller must hold txnMutex)
+static void vnodeReleaseTxnTableLocks(SVnode *pVnode, SVnodeTxnEntry *pEntry) {
+  if (pEntry->pLockedTables == NULL) return;
+  int32_t sz = taosArrayGetSize(pEntry->pLockedTables);
+  for (int32_t i = 0; i < sz; i++) {
+    char *name = *(char **)taosArrayGet(pEntry->pLockedTables, i);
+    if (name) {
+      taosHashRemove(pVnode->pTxnTableLock, name, strlen(name));
+      taosMemoryFree(name);
+    }
+  }
+  taosArrayDestroy(pEntry->pLockedTables);
+  pEntry->pLockedTables = NULL;
+}
+
 // Remove transaction entry (caller must hold txnMutex)
 static void vnodeRemoveTxnEntry(SVnode *pVnode, int64_t txnId) {
   SVnodeTxnEntry *pEntry = vnodeGetTxnEntry(pVnode, txnId);
   if (pEntry) {
+    vnodeReleaseTxnTableLocks(pVnode, pEntry);
     if (pEntry->pShadowOps) {
       taosArrayDestroy(pEntry->pShadowOps);
     }
@@ -258,15 +301,9 @@ void vnodeTxnCheckTimeout(SVnode *pVnode) {
 
   int32_t numExpired = taosArrayGetSize(expiredTxns);
   for (int32_t i = 0; i < numExpired; i++) {
-    int64_t         txnId = *(int64_t *)taosArrayGet(expiredTxns, i);
-    SVnodeTxnEntry *pEntry = vnodeGetTxnEntry(pVnode, txnId);
-    if (pEntry) {
-      if (pEntry->pShadowOps) {
-        taosArrayDestroy(pEntry->pShadowOps);
-      }
-      taosHashRemove(pVnode->pTxnHash, &txnId, sizeof(int64_t));
-      vInfo("vgId:%d, expired txn rolled back, txnId:%" PRId64, TD_VID(pVnode), txnId);
-    }
+    int64_t txnId = *(int64_t *)taosArrayGet(expiredTxns, i);
+    vnodeRemoveTxnEntry(pVnode, txnId);
+    vInfo("vgId:%d, expired txn rolled back, txnId:%" PRId64, TD_VID(pVnode), txnId);
   }
 
   taosThreadMutexUnlock(&pVnode->txnMutex);
@@ -315,14 +352,8 @@ int32_t vnodeTxnFencing(SVnode *pVnode, int64_t newTerm, int64_t newTxnId) {
 
   int32_t numToAbort = taosArrayGetSize(toAbort);
   for (int32_t i = 0; i < numToAbort; i++) {
-    int64_t         txnId = *(int64_t *)taosArrayGet(toAbort, i);
-    SVnodeTxnEntry *pEntry = vnodeGetTxnEntry(pVnode, txnId);
-    if (pEntry) {
-      if (pEntry->pShadowOps) {
-        taosArrayDestroy(pEntry->pShadowOps);
-      }
-      taosHashRemove(pVnode->pTxnHash, &txnId, sizeof(int64_t));
-    }
+    int64_t txnId = *(int64_t *)taosArrayGet(toAbort, i);
+    vnodeRemoveTxnEntry(pVnode, txnId);
   }
 
   taosThreadMutexUnlock(&pVnode->txnMutex);
@@ -388,10 +419,92 @@ void vnodeTxnProcessActiveAck(SVnode *pVnode, utxn_id_t txnId, int8_t alive) {
   } else {
     vInfo("vgId:%d, txn dead per MNode ack, rolling back locally, txnId:%" PRId64, TD_VID(pVnode), txnId);
     // TODO: discard shadow B+tree entries
-    if (pEntry->pShadowOps) {
-      taosArrayDestroy(pEntry->pShadowOps);
+    vnodeRemoveTxnEntry(pVnode, txnId);
+  }
+
+  taosThreadMutexUnlock(&pVnode->txnMutex);
+}
+
+// ============================================================================
+// Table-Level Lock Conflict Detection
+// ============================================================================
+
+/**
+ * Acquire a table-level lock for a transaction.
+ * If the table is already locked by the same txnId, returns SUCCESS (idempotent).
+ * If locked by a different txnId, returns TSDB_CODE_VND_TXN_CONFLICT.
+ *
+ * @param pVnode    The vnode
+ * @param tableName The fully qualified table name
+ * @param txnId     The transaction ID requesting the lock
+ * @return TSDB_CODE_SUCCESS or TSDB_CODE_VND_TXN_CONFLICT
+ */
+int32_t vnodeTxnLockTable(SVnode *pVnode, const char *tableName, int64_t txnId) {
+  if (pVnode->pTxnTableLock == NULL || tableName == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t nameLen = strlen(tableName);
+
+  taosThreadMutexLock(&pVnode->txnMutex);
+
+  // Check if the table is already locked
+  int64_t *pExistingTxnId = (int64_t *)taosHashGet(pVnode->pTxnTableLock, tableName, nameLen);
+  if (pExistingTxnId != NULL) {
+    if (*pExistingTxnId == txnId) {
+      // Same transaction already holds the lock — idempotent
+      taosThreadMutexUnlock(&pVnode->txnMutex);
+      return TSDB_CODE_SUCCESS;
     }
-    taosHashRemove(pVnode->pTxnHash, &txnId, sizeof(int64_t));
+    // Different transaction holds the lock — conflict
+    vWarn("vgId:%d, table lock conflict, table:%s, existingTxn:%" PRId64 ", requestTxn:%" PRId64, TD_VID(pVnode),
+          tableName, *pExistingTxnId, txnId);
+    taosThreadMutexUnlock(&pVnode->txnMutex);
+    return TSDB_CODE_VND_TXN_CONFLICT;
+  }
+
+  // Verify the requesting transaction exists
+  SVnodeTxnEntry *pEntry = vnodeGetTxnEntry(pVnode, txnId);
+  if (pEntry == NULL) {
+    taosThreadMutexUnlock(&pVnode->txnMutex);
+    vWarn("vgId:%d, cannot lock table, txn not found, table:%s, txnId:%" PRId64, TD_VID(pVnode), tableName, txnId);
+    return TSDB_CODE_VND_TXN_EXPIRED;
+  }
+
+  // Acquire the lock: add tableName → txnId mapping
+  taosHashPut(pVnode->pTxnTableLock, tableName, nameLen, &txnId, sizeof(int64_t));
+
+  // Record the table name in the txn entry for reverse cleanup
+  char *nameCopy = taosStrdup(tableName);
+  if (nameCopy != NULL) {
+    taosArrayPush(pEntry->pLockedTables, &nameCopy);
+  }
+
+  pEntry->lastActive = taosGetTimestampMs();
+
+  taosThreadMutexUnlock(&pVnode->txnMutex);
+
+  vDebug("vgId:%d, table locked, table:%s, txnId:%" PRId64, TD_VID(pVnode), tableName, txnId);
+  return TSDB_CODE_SUCCESS;
+}
+
+/**
+ * Release all table locks held by a transaction.
+ * Typically called externally when a transaction is cleaned up outside vnodeTxn.c.
+ *
+ * @param pVnode  The vnode
+ * @param txnId   The transaction ID whose locks to release
+ */
+void vnodeTxnUnlockTables(SVnode *pVnode, int64_t txnId) {
+  if (pVnode->pTxnTableLock == NULL) {
+    return;
+  }
+
+  taosThreadMutexLock(&pVnode->txnMutex);
+
+  SVnodeTxnEntry *pEntry = vnodeGetTxnEntry(pVnode, txnId);
+  if (pEntry != NULL) {
+    vnodeReleaseTxnTableLocks(pVnode, pEntry);
   }
 
   taosThreadMutexUnlock(&pVnode->txnMutex);

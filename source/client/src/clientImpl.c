@@ -440,6 +440,18 @@ int32_t execLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
   return code;
 }
 
+// Track vgId in txn's participant list (deduplicated)
+static void tscTxnTrackVgId(STscObj* pTscObj, int32_t vgId) {
+  if (pTscObj->txnState != UTXN_STAGE_ACTIVE || pTscObj->pTxnVgList == NULL || vgId <= 0) return;
+
+  // Dedup: check if vgId is already tracked
+  int32_t sz = (int32_t)taosArrayGetSize(pTscObj->pTxnVgList);
+  for (int32_t i = 0; i < sz; ++i) {
+    if (*(int32_t*)taosArrayGet(pTscObj->pTxnVgList, i) == vgId) return;
+  }
+  taosArrayPush(pTscObj->pTxnVgList, &vgId);
+}
+
 int32_t execDdlQuery(SRequestObj* pRequest, SQuery* pQuery) {
   // drop table if exists not_exists_table
   if (NULL == pQuery->pCmdMsg) {
@@ -448,10 +460,19 @@ int32_t execDdlQuery(SRequestObj* pRequest, SQuery* pQuery) {
 
   SCmdMsgInfo* pMsgInfo = pQuery->pCmdMsg;
   pRequest->type = pMsgInfo->msgType;
+
+  // Track VNode vgId for batch metadata transaction
+  STscObj* pTscObj = pRequest->pTscObj;
+  if (pTscObj->txnState == UTXN_STAGE_ACTIVE && pMsgInfo->msgType > TDMT_VND_MSG_MIN &&
+      pMsgInfo->msgType < TDMT_VND_MSG_MAX && pMsgInfo->pMsg != NULL && pMsgInfo->msgLen >= (int32_t)sizeof(SMsgHead)) {
+    SMsgHead* pHead = (SMsgHead*)pMsgInfo->pMsg;
+    int32_t   vgId = ntohl(pHead->vgId);
+    tscTxnTrackVgId(pTscObj, vgId);
+  }
+
   pRequest->body.requestMsg = (SDataBuf){.pData = pMsgInfo->pMsg, .len = pMsgInfo->msgLen, .handle = NULL};
   pMsgInfo->pMsg = NULL;  // pMsg transferred to SMsgSendInfo management
 
-  STscObj*      pTscObj = pRequest->pTscObj;
   SMsgSendInfo* pSendMsg = buildMsgInfoImpl(pRequest);
 
   // int64_t transporterId = 0;
@@ -506,6 +527,16 @@ int32_t asyncExecDdlQuery(SRequestObj* pRequest, SQuery* pQuery) {
 
   SCmdMsgInfo* pMsgInfo = pQuery->pCmdMsg;
   pRequest->type = pMsgInfo->msgType;
+
+  // Track VNode vgId for batch metadata transaction
+  STscObj* pTscObj = pRequest->pTscObj;
+  if (pTscObj->txnState == UTXN_STAGE_ACTIVE && pMsgInfo->msgType > TDMT_VND_MSG_MIN &&
+      pMsgInfo->msgType < TDMT_VND_MSG_MAX && pMsgInfo->pMsg != NULL && pMsgInfo->msgLen >= (int32_t)sizeof(SMsgHead)) {
+    SMsgHead* pHead = (SMsgHead*)pMsgInfo->pMsg;
+    int32_t   vgId = ntohl(pHead->vgId);
+    tscTxnTrackVgId(pTscObj, vgId);
+  }
+
   pRequest->body.requestMsg = (SDataBuf){.pData = pMsgInfo->pMsg, .len = pMsgInfo->msgLen, .handle = NULL};
   pMsgInfo->pMsg = NULL;  // pMsg transferred to SMsgSendInfo management
 

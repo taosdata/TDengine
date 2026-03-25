@@ -972,10 +972,46 @@ void taos_close(TAOS *taos) {
 }
 
 /**
+ * Helper: build and send SMTransReq to MNode synchronously.
+ * Returns the error code. On success, pRsp contains the deserialized response.
+ */
+static int32_t tscSendTxnCtrlMsg(STscObj *pTscObj, int32_t msgType, SRpcMsg *pRsp) {
+  SMTransReq req = {0};
+  req.msgType = msgType;
+  req.clientStage = pTscObj->txnState;
+  req.txnId = pTscObj->txnId;
+  req.connId = (int64_t)pTscObj->connId;
+  req.pVgList = pTscObj->pTxnVgList;  // transfer ownership temporarily
+
+  int32_t contLen = tSerializeSMTransReq(NULL, 0, &req);
+  if (contLen < 0) {
+    req.pVgList = NULL;  // don't free, still owned by pTscObj
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  void *pCont = rpcMallocCont(contLen);
+  if (pCont == NULL) {
+    req.pVgList = NULL;
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  contLen = tSerializeSMTransReq(pCont, contLen, &req);
+  req.pVgList = NULL;  // don't free, still owned by pTscObj
+  if (contLen < 0) {
+    rpcFreeCont(pCont);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  void  *pTrans = pTscObj->pAppInfo->pTransporter;
+  SEpSet epSet = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
+
+  SRpcMsg rpcMsg = {
+      .pCont = pCont, .contLen = contLen, .msgType = msgType, .info.ahandle = 0, .info.notFreeAhandle = 1};
+
+  return rpcSendRecv(pTrans, &epSet, &rpcMsg, pRsp);
+}
+
+/**
  * @brief send sync message to mnode to begin txn, and get allocated txnId
- *
- * @param taos
- * @return int
  */
 int taos_txn_begin(TAOS *taos) {
 #ifdef TD_ENTERPRISE
@@ -991,43 +1027,36 @@ int taos_txn_begin(TAOS *taos) {
     return terrno;
   }
 
-  pthread_mutex_lock(&pTscObj->mutex);
+  taosThreadMutexLock(&pTscObj->mutex);
   if (pTscObj->txnId > 0) {
-    pthread_mutex_unlock(&pTscObj->mutex);
+    taosThreadMutexUnlock(&pTscObj->mutex);
     releaseTscObj(connId);
     return TSDB_CODE_TXN_ALREADY_IN_PROGRESS;
   }
 
-  SRequestObj *pRequest = NULL;
-  char        *sql = "taos_txn_begin";
-  int32_t      code = buildRequest(connId, sql, strlen(sql), NULL, false, &pRequest, 0);
-  if (code != TSDB_CODE_SUCCESS) {
-    releaseTscObj(connId);
-    TAOS_RETURN(code);
-  }
-
-
-  SRequestConnInfo conn = {
-      .pTrans = pTscObj->pAppInfo->pTransporter, .requestId = pRequest->requestId, .requestObjRefId = pRequest->self};
-  conn.mgmtEps = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
-
-  void* pTrans = pTscObj->pAppInfo->pTransporter;
-  SEpSet  epSet = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
-
-  SRpcMsg rpcMsg = {.msgType = TDMT_MND_BEGIN_TXN, .info.ahandle = 0, .info.notFreeAhandle = 1};
   SRpcMsg rpcRsp = {0};
-  code = rpcSendRecv(pTrans, &epSet, &rpcMsg, &rpcRsp);
+  int32_t code = tscSendTxnCtrlMsg(pTscObj, TDMT_MND_BEGIN_TXN, &rpcRsp);
 
-  if (code == TSDB_CODE_SUCCESS) {
+  if (code == TSDB_CODE_SUCCESS && rpcRsp.code == TSDB_CODE_SUCCESS) {
+    // Deserialize response to get txnId
+    SMTransReq rsp = {0};
+    if (rpcRsp.pCont != NULL && rpcRsp.contLen > 0) {
+      tDeserializeSMTransReq(rpcRsp.pCont, rpcRsp.contLen, &rsp);
+      pTscObj->txnId = rsp.txnId;
+      tFreeSMTransReq(&rsp);
+    }
     pTscObj->txnState = UTXN_STAGE_ACTIVE;
-    pTscObj->txnId = *(utxn_id_t*)(rpcRsp.info.ahandle);
+    // Initialize the VGroup tracking list
+    pTscObj->pTxnVgList = taosArrayInit(4, sizeof(int32_t));
+    tscInfo("conn:0x%" PRIx64 ", txn:%" PRIu64 " began", pTscObj->id, pTscObj->txnId);
+  } else {
+    if (code == TSDB_CODE_SUCCESS) code = rpcRsp.code;
+    tscError("conn:0x%" PRIx64 ", begin txn failed since %s", pTscObj->id, tstrerror(code));
   }
   rpcFreeCont(rpcRsp.pCont);
 
-  pthread_mutex_unlock(&pTscObj->mutex);
-
-_exit:
-  destroyRequest(pRequest);
+  taosThreadMutexUnlock(&pTscObj->mutex);
+  releaseTscObj(connId);
   return code;
 #else
   return 0;
@@ -1035,58 +1064,86 @@ _exit:
 }
 
 int taos_txn_commit(TAOS *taos) {
-#ifndef TD_ENTERPRISE
-  STscObj *pTscObj = acquireTscObj(*(int64_t *)taos);
+#ifdef TD_ENTERPRISE
+  if (taos == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  int64_t  connId = *(int64_t *)taos;
+  STscObj *pTscObj = acquireTscObj(connId);
   if (NULL == pTscObj) {
     terrno = TSDB_CODE_TSC_DISCONNECTED;
     tscError("invalid parameter for %s", __func__);
     return terrno;
   }
 
+  taosThreadMutexLock(&pTscObj->mutex);
   if (pTscObj->txnState != UTXN_STAGE_ACTIVE) {
-    releaseTscObj(*(int64_t *)taos);
+    taosThreadMutexUnlock(&pTscObj->mutex);
+    releaseTscObj(connId);
     return TSDB_CODE_TXN_NOT_IN_PROGRESS;
   }
 
-  // 构造 COMMIT 消息，必须携带 txnId
-  STxnCtrlMsg req = {.type = TDMT_MND_COMMIT_TXN, .txnId = pTscObj->txnId};
+  SRpcMsg rpcRsp = {0};
+  int32_t code = tscSendTxnCtrlMsg(pTscObj, TDMT_MND_COMMIT_TXN, &rpcRsp);
+  if (code == TSDB_CODE_SUCCESS) code = rpcRsp.code;
+  rpcFreeCont(rpcRsp.pCont);
 
-  int code = taosSendSyncMsgToMnode(pTscObj, &req, NULL);
+  tscInfo("conn:0x%" PRIx64 ", txn:%" PRIu64 " commit %s", pTscObj->id, pTscObj->txnId,
+          (code == 0) ? "success" : tstrerror(code));
 
-  // 无论成功失败（除非是网络超时等可重试错误），通常提交后本地状态都要重置
-  pTscObj->txnState = 0; // TSDB_TXN_STATUS_NORMAL;
+  // Reset txn state regardless of result
+  pTscObj->txnState = 0;
   pTscObj->txnId = 0;
+  taosArrayDestroy(pTscObj->pTxnVgList);
+  pTscObj->pTxnVgList = NULL;
 
-  releaseTscObj(*(int64_t *)taos);
+  taosThreadMutexUnlock(&pTscObj->mutex);
+  releaseTscObj(connId);
   return code;
 #else
   return 0;
 #endif
 }
+
 int taos_txn_rollback(TAOS *taos) {
-#ifndef TD_ENTERPRISE
-  STscObj *pTscObj = acquireTscObj(*(int64_t *)taos);
+#ifdef TD_ENTERPRISE
+  if (taos == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  int64_t  connId = *(int64_t *)taos;
+  STscObj *pTscObj = acquireTscObj(connId);
   if (NULL == pTscObj) {
     terrno = TSDB_CODE_TSC_DISCONNECTED;
     tscError("invalid parameter for %s", __func__);
     return terrno;
   }
 
+  taosThreadMutexLock(&pTscObj->mutex);
   if (pTscObj->txnState != UTXN_STAGE_ACTIVE) {
-    releaseTscObj(*(int64_t *)taos);
-    return TSDB_CODE_SUCCESS;  // 没开启事务直接返回成功
+    taosThreadMutexUnlock(&pTscObj->mutex);
+    releaseTscObj(connId);
+    return TSDB_CODE_SUCCESS;  // idempotent: no txn → success
   }
 
-  STxnCtrlMsg req = {.type = TDMT_MND_ROLLBACK_TXN, .txnId = pTscObj->txnId};
+  SRpcMsg rpcRsp = {0};
+  int32_t code = tscSendTxnCtrlMsg(pTscObj, TDMT_MND_ROLLBACK_TXN, &rpcRsp);
+  if (code == TSDB_CODE_SUCCESS) code = rpcRsp.code;
+  rpcFreeCont(rpcRsp.pCont);
 
-  // 异步或同步发送均可，回滚通常不阻塞用户
-  taosSendSyncMsgToMnode(pTscObj, &req, NULL);
+  tscInfo("conn:0x%" PRIx64 ", txn:%" PRIu64 " rollback %s", pTscObj->id, pTscObj->txnId,
+          (code == 0) ? "success" : tstrerror(code));
 
-  pTscObj->txnState = 0; // TSDB_TXN_STATUS_NORMAL;
+  // Reset txn state regardless
+  pTscObj->txnState = 0;
   pTscObj->txnId = 0;
+  taosArrayDestroy(pTscObj->pTxnVgList);
+  pTscObj->pTxnVgList = NULL;
 
-  releaseTscObj(*(int64_t *)taos);
-  return TSDB_CODE_SUCCESS;
+  taosThreadMutexUnlock(&pTscObj->mutex);
+  releaseTscObj(connId);
+  return TSDB_CODE_SUCCESS;  // rollback is idempotent
 #else
   return 0;
 #endif

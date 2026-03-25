@@ -19051,6 +19051,15 @@ int32_t tSerializeSMTransReq(void *buf, int32_t bufLen, SMTransReq *pReq) {
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->clientStage));
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->txnId));
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->connId));
+
+  // pVgList: client-tracked participant VGroups
+  int32_t vgNum = (pReq->pVgList != NULL) ? (int32_t)taosArrayGetSize(pReq->pVgList) : 0;
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, vgNum));
+  for (int32_t i = 0; i < vgNum; ++i) {
+    int32_t *pVgId = taosArrayGet(pReq->pVgList, i);
+    TAOS_CHECK_EXIT(tEncodeI32(&encoder, *pVgId));
+  }
+
   tEndEncode(&encoder);
 
 _exit:
@@ -19074,11 +19083,38 @@ int32_t tDeserializeSMTransReq(void *buf, int32_t bufLen, SMTransReq *pReq) {
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->clientStage));
   TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->txnId));
   TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->connId));
+
+  // pVgList (backward-compatible)
+  pReq->pVgList = NULL;
+  if (!tDecodeIsEnd(&decoder)) {
+    int32_t vgNum = 0;
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &vgNum));
+    if (vgNum > 0) {
+      pReq->pVgList = taosArrayInit(vgNum, sizeof(int32_t));
+      if (pReq->pVgList == NULL) {
+        TAOS_CHECK_EXIT(terrno);
+      }
+      for (int32_t i = 0; i < vgNum; ++i) {
+        int32_t vgId = 0;
+        TAOS_CHECK_EXIT(tDecodeI32(&decoder, &vgId));
+        if (taosArrayPush(pReq->pVgList, &vgId) == NULL) {
+          TAOS_CHECK_EXIT(terrno);
+        }
+      }
+    }
+  }
+
   tEndDecode(&decoder);
 
 _exit:
   tDecoderClear(&decoder);
   return code;
+}
+
+void tFreeSMTransReq(SMTransReq *pReq) {
+  if (pReq == NULL) return;
+  taosArrayDestroy(pReq->pVgList);
+  pReq->pVgList = NULL;
 }
 
 // VNode 向 MNode 注册参与事务

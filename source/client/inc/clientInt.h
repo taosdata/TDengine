@@ -213,6 +213,7 @@ typedef struct STscObj {
   int8_t         biMode;
   int8_t         txnState;
   utxn_id_t      txnId;
+  SArray*        pTxnVgList;  // Array of int32_t (vgId), accumulated during DDL in txn
   int32_t        acctId;
   uint32_t       connId;
   int32_t        appHbMgrIdx;

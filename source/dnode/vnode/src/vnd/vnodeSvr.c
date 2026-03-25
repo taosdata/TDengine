@@ -848,6 +848,13 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
 
   switch (pMsg->msgType) {
     /* META */
+    // TODO [batch-meta-txn]: once DDL structs carry txnId, call vnodeTxnLockTable()
+    // before each DDL handler to detect table-level conflicts across transactions.
+    // Example:
+    //   if (req.txnId != 0) {
+    //     code = vnodeTxnLockTable(pVnode, req.name, req.txnId);
+    //     if (code != 0) return code;
+    //   }
     case TDMT_VND_CREATE_STB:
       code = vnodeProcessCreateStbReq(pVnode, ver, pReq, len, pRsp);
       TSDB_CHECK_CODE(code, lino, _err);

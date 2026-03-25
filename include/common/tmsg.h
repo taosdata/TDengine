@@ -5744,10 +5744,12 @@ typedef struct {
   int8_t    clientStage;
   utxn_id_t txnId;
   int64_t   connId;
+  SArray*   pVgList;  // Array of int32_t (vgId), client-tracked participant VGroups
 } SMTransReq;
 
 int32_t tSerializeSMTransReq(void* buf, int32_t bufLen, SMTransReq* pReq);
 int32_t tDeserializeSMTransReq(void* buf, int32_t bufLen, SMTransReq* pReq);
+void    tFreeSMTransReq(SMTransReq* pReq);
 
 // VNode 向 MNode 注册参与事务（首次收到带 txnId 的 DDL 时发送）
 typedef struct {

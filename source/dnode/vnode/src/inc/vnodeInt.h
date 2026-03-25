@@ -555,7 +555,8 @@ struct SVnode {
 
   // Batch Metadata Transaction
   SHashObj*     pTxnHash;     // key: int64_t txnId, value: SVnodeTxnEntry
-  TdThreadMutex txnMutex;     // protects pTxnHash
+  SHashObj*     pTxnTableLock;  // key: tableName (char*), value: int64_t txnId
+  TdThreadMutex txnMutex;       // protects pTxnHash and pTxnTableLock
   int64_t       maxSeenTerm;  // max Raft term seen (for fencing)
 };
 
@@ -670,6 +671,8 @@ void    vnodeTxnCheckTimeout(SVnode* pVnode);
 int32_t vnodeTxnFencing(SVnode* pVnode, int64_t newTerm, int64_t newTxnId);
 int32_t vnodeCollectIdleTxns(SVnode* pVnode, SArray* pQueries);
 void    vnodeTxnProcessActiveAck(SVnode* pVnode, utxn_id_t txnId, int8_t alive);
+int32_t vnodeTxnLockTable(SVnode* pVnode, const char* tableName, int64_t txnId);
+void    vnodeTxnUnlockTables(SVnode* pVnode, int64_t txnId);
 
 #ifdef __cplusplus
 }
