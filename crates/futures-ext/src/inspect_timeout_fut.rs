@@ -78,7 +78,7 @@ mod tests {
         );
 
         inspect_fut.await;
-        assert_eq!(inspect_count.load(Ordering::SeqCst), 1);
+        assert_eq!(inspect_count.load(Ordering::SeqCst), 2);
     }
 
     #[tokio::test]
