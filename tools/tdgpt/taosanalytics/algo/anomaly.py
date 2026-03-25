@@ -14,7 +14,7 @@ def do_ad_check(input_list, ts_list, algo_name, params):
     s = loader.get_service(algo_name)
 
     if s is None:
-        AppLogger.get_instance().log_inst.error("specified model not found:%s" % (algo_name))
+        AppLogger.get_instance().error("specified model not found:%s" % (algo_name))
         failed_load_model_except(algo_name)
 
     s.set_input_list(input_list, ts_list)
@@ -23,7 +23,7 @@ def do_ad_check(input_list, ts_list, algo_name, params):
     res = s.execute()
 
     n_error = abs(sum(filter(lambda x: x != s.valid_code, res)))
-    AppLogger.get_instance().log_inst.debug("There are %d in input, and %d anomaly points found: %s",
+    AppLogger.get_instance().debug("There are %d in input, and %d anomaly points found: %s",
                               len(input_list),
                               n_error,
                               res)

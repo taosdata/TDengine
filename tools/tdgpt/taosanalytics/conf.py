@@ -126,7 +126,7 @@ class Configure:
 
 class AppLogger():
     """ system log_inst class (singleton) """
-    LOG_STR_FORMAT = '%(asctime)s - %(threadName)s - %(levelname)s - %(message)s'
+    _LOG_STR_FORMAT = '%(asctime)s - %(threadName)s - %(levelname)s - %(message)s'
 
     _instance = None
     _lock = __import__('threading').Lock()
@@ -140,13 +140,15 @@ class AppLogger():
         return cls._instance
 
     @classmethod
-    def get_instance(cls) -> 'AppLogger':
+    def get_instance(cls) -> logging.Logger:
         """return the singleton instance"""
         if cls._instance is None:
             cls()
-        return cls._instance
 
-    def set_handler(self, file_path: str):
+        return cls._instance.log_inst
+
+    @classmethod
+    def set_handler(cls, file_path: str):
         """ set the log_inst handler """
         path = Path(file_path)
 
@@ -155,17 +157,17 @@ class AppLogger():
             os.mkdir(path.parent)
 
         handler = logging.FileHandler(file_path)
-        handler.setFormatter(logging.Formatter(self.LOG_STR_FORMAT))
+        handler.setFormatter(logging.Formatter(cls._LOG_STR_FORMAT))
 
-        self.log_inst.addHandler(handler)
+        cls._instance.log_inst.addHandler(handler)
 
-    def set_log_level(self, log_level):
+    def set_log_level(cls, log_level):
         """adjust log level"""
         try:
-            self.log_inst.setLevel(log_level)
-            self.log_inst.info(f"set log level:{log_level}")
+            cls._instance.log_inst.setLevel(log_level)
+            cls._instance.log_inst.info(f"set log level:{log_level}")
         except ValueError as e:
-            self.log_inst.error(f"failed to set log level: {log_level}, {e}")
+            cls._instance.log_inst.error(f"failed to set log level: {log_level}, {e}")
 
 
 conf = Configure()
@@ -176,9 +178,9 @@ def setup_log_info(name: str):
     base_dir = "/home/runner/work/TDengine/TDengine/tools/tdgpt/log/" if os.environ.get('GITHUB_ACTIONS') else conf.get_log_dir()
     log_file = os.path.join(base_dir, name)
 
-    AppLogger.get_instance().set_handler(log_file)
+    AppLogger.set_handler(log_file)
 
     try:
-        AppLogger.get_instance().set_log_level(logging.DEBUG)
+        AppLogger.set_log_level(logging.DEBUG)
     except ValueError as e:
         print(f"set log level failed:{e}")

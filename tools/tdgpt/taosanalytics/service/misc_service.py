@@ -26,7 +26,7 @@ def handle_batch(request):
 
     if data is None or ts is None or windows is None:
         msg = "'data', 'ts', and 'window' are required fields in the payload."
-        AppLogger.get_instance().log_inst.error(msg)
+        AppLogger.get_instance().error(msg)
         return {"msg": msg, "rows": -1}
 
     conf = update_config(payload_obj.get("config", None))
@@ -36,9 +36,9 @@ def handle_batch(request):
         center, lower, upper, processed_batches = do_batch_process(np.array(ts), np.array(data), windows, conf)
 
         res = {"rows": lower.size, "center": center.tolist(), "lower": lower.tolist(), "upper": upper.tolist()}
-        AppLogger.get_instance().log_inst.debug("batch processed result: %s", res)
+        AppLogger.get_instance().debug("batch processed result: %s", res)
 
         return res
     except Exception as e:
-        AppLogger.get_instance().log_inst.error('golden batch process failed, %s', str(e))
+        AppLogger.get_instance().error('golden batch process failed, %s', str(e))
         return {"msg": str(e), "rows": -1}

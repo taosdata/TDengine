@@ -82,7 +82,7 @@ class _AutoEncoderDetectionService(AbstractAnomalyDetectionService):
         self.time_interval = info["timesteps"]
         self.model = info["model"]
 
-        AppLogger.get_instance().log_inst.info(
+        AppLogger.get_instance().info(
             "load ac module success, mean: %f, std: %f, threshold: %f, time_interval: %d",
             self.mean[0], self.std[0], self.threshold, self.time_interval
         )
@@ -95,18 +95,18 @@ class _AutoEncoderDetectionService(AbstractAnomalyDetectionService):
         model_file_path = f'{path}.keras'
         model_info_path = f'{path}.info'
 
-        AppLogger.get_instance().log_inst.info("try to load module:%s", model_file_path)
+        AppLogger.get_instance().info("try to load module:%s", model_file_path)
 
         if os.path.exists(model_file_path):
             model = keras.models.load_model(model_file_path)
         else:
-            AppLogger.get_instance().log_inst.error("failed to load autoencoder model file: %s", model_file_path)
+            AppLogger.get_instance().error("failed to load autoencoder model file: %s", model_file_path)
             raise FileNotFoundError(f"{model_file_path} not found")
 
         if os.path.exists(model_info_path):
             info = joblib.load(model_info_path)
         else:
-            AppLogger.get_instance().log_inst.error("failed to load autoencoder model file: %s", model_file_path)
+            AppLogger.get_instance().error("failed to load autoencoder model file: %s", model_file_path)
             raise FileNotFoundError("%s not found", model_info_path)
 
         info["model"] = model

@@ -23,11 +23,11 @@ def do_imputation(input_list, ts_list, algo_name, params):
     s.set_params(params)
 
     start = time.time()
-    AppLogger.get_instance().log_inst.debug("start to do imputation")
+    AppLogger.get_instance().debug("start to do imputation")
 
     res = s.execute()
 
-    AppLogger.get_instance().log_inst.debug("imputation done, elapsed time:%.2fms", (time.time() - start) * 1000)
+    AppLogger.get_instance().debug("imputation done, elapsed time:%.2fms", (time.time() - start) * 1000)
 
     # add the imputation model in the result
     res["algo"] = algo_name

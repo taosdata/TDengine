@@ -28,15 +28,15 @@ def handle_correlation(request):
         if algo == 'dtw':
             dist, path = do_dtw(payload[data_index], second_list, params)
             res = {"option": options, "rows": len(path), "distance": dist, "path": path}
-            AppLogger.get_instance().log_inst.debug("dtw result: %s", res)
+            AppLogger.get_instance().debug("dtw result: %s", res)
             return res
         elif algo == 'tlcc':
             lags, ccf_vals = do_tlcc(payload[data_index], second_list, params)
             res = {"option": options, "rows": len(lags), "lags": lags, "ccf_vals": ccf_vals}
-            AppLogger.get_instance().log_inst.debug("tlcc result: %s", res)
+            AppLogger.get_instance().debug("tlcc result: %s", res)
             return res
         else:
             raise ValueError(f"unsupported algo: {algo}")
     except Exception as e:
-        AppLogger.get_instance().log_inst.error('correlation failed, %s', str(e))
+        AppLogger.get_instance().error('correlation failed, %s', str(e))
         return {"msg": str(e), "rows": -1}

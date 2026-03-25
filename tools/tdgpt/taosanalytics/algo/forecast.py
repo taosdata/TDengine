@@ -25,11 +25,11 @@ def do_forecast(input_list, ts_list, algo_name, params, past_dynamic_real=None, 
     s.set_params(params)
 
     start = time.time()
-    AppLogger.get_instance().log_inst.debug("start to do forecast")
+    AppLogger.get_instance().debug("start to do forecast")
 
     res = s.execute()
 
-    AppLogger.get_instance().log_inst.debug("forecast done, elapsed time:%.2fms", (time.time() - start) * 1000)
+    AppLogger.get_instance().debug("forecast done, elapsed time:%.2fms", (time.time() - start) * 1000)
 
     res["period"] = s.period
     res["algo"] = algo_name
@@ -75,7 +75,7 @@ def draw_fc_results(input_list, return_conf, conf_val, fc, fig_name):
     if not conf.get_draw_result_option():
         return
 
-    AppLogger.get_instance().log_inst.debug('draw forecast result in debug model')
+    AppLogger.get_instance().debug('draw forecast result in debug model')
     plt.clf()
 
     plt.plot(input_list)
@@ -99,11 +99,11 @@ def draw_fc_results(input_list, return_conf, conf_val, fc, fig_name):
     plt.savefig(fig_name)
     plt.close()
 
-    AppLogger.get_instance().log_inst.debug("draw results completed in debug model")
+    AppLogger.get_instance().debug("draw results completed in debug model")
 
 
 def check_fc_results(res):
-    AppLogger.get_instance().log_inst.debug("start to check forecast result")
+    AppLogger.get_instance().debug("start to check forecast result")
 
     if "res" not in res:
         raise ValueError("forecast result is empty")

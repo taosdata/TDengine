@@ -22,8 +22,8 @@ app = Flask(__name__)
 app.config["PROPAGATE_EXCEPTIONS"] = True
 
 # load the all algos
-AppLogger.get_instance().set_handler(conf.get_log_path())
-AppLogger.get_instance().set_log_level(conf.get_log_level())
+AppLogger.set_handler(conf.get_log_path())
+AppLogger.set_log_level(conf.get_log_level())
 loader.load_all_service()
 
 
@@ -59,14 +59,14 @@ def list_all_models():
 @app.route("/anomaly-detect", methods=['POST'])
 def handle_ad_request():
     """handle the anomaly detection requests"""
-    AppLogger.get_instance().log_inst.info('recv ad request from %s', request.remote_addr)
+    AppLogger.get_instance().info('recv ad request from %s', request.remote_addr)
     return handle_anomaly(request)
 
 
 @app.route("/forecast", methods=['POST'])
 def handle_forecast_req():
     """handle the fc request """
-    AppLogger.get_instance().log_inst.info('recv forecast request from %s', request.remote_addr)
+    AppLogger.get_instance().info('recv forecast request from %s', request.remote_addr)
     handle_forecast(request)
 
 
@@ -79,7 +79,7 @@ def handle_imputation_req():
 @app.route("/correlation", methods=['POST'])
 def handle_correlation_req():
     """handle the correlation request """
-    AppLogger.get_instance().log_inst.info('recv correlation from %s', request.remote_addr)
+    AppLogger.get_instance().info('recv correlation from %s', request.remote_addr)
     return handle_correlation(request)
 
 

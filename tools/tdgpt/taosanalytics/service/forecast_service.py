@@ -20,7 +20,7 @@ def handle_forecast(request):
     try:
         req_json, payload, options, data_index, ts_index = do_check_before_exec(request)
     except Exception as e:
-        AppLogger.get_instance().log_inst.error("failed to parse forecast request: %s", str(e))
+        AppLogger.get_instance().error("failed to parse forecast request: %s", str(e))
         return {"msg": str(e), "rows": -1}
 
     params = parse_options(options)
@@ -28,7 +28,7 @@ def handle_forecast(request):
     try:
         do_add_fc_params(params, req_json)
     except ValueError as e:
-        AppLogger.get_instance().log_inst.error("invalid fc params: %s", e)
+        AppLogger.get_instance().error("invalid fc params: %s", e)
         return {"msg": f"{e}", "rows": -1}
 
     # holt-winters by default
@@ -47,8 +47,8 @@ def handle_forecast(request):
         res = {"option": options, "rows": params["rows"]}
         res.update(res1)
 
-        AppLogger.get_instance().log_inst.debug("forecast result: %s", res)
+        AppLogger.get_instance().debug("forecast result: %s", res)
         return res
     except Exception as e:
-        AppLogger.get_instance().log_inst.error('forecast failed, %s', str(e))
+        AppLogger.get_instance().error('forecast failed, %s', str(e))
         return {"msg": str(e), "rows": -1}

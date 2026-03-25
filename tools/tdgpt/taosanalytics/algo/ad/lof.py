@@ -30,7 +30,7 @@ class _LofService(AbstractAnomalyDetectionService):
         arr_2d = np.reshape(self.list, (len(self.list), 1))
         res = checker.fit_predict(arr_2d)
 
-        AppLogger.get_instance().log_inst.debug(f"The negative outlier factor is:{checker.negative_outlier_factor_}")
+        AppLogger.get_instance().debug(f"The negative outlier factor is:{checker.negative_outlier_factor_}")
         return res.tolist()
 
     def set_params(self, params):
