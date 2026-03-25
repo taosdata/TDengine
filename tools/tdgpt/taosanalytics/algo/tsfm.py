@@ -5,7 +5,7 @@ import json
 import requests
 
 from taosanalytics.algo.forecast import insert_ts_list
-from taosanalytics.conf import conf
+from taosanalytics.conf import Configure
 from taosanalytics.analytics_base import AbstractForecastService, AnalyticsService
 from taosanalytics.log import AppLogger
 
@@ -16,7 +16,7 @@ class TsfmBaseService(AbstractForecastService):
     def __init__(self):
         super().__init__()
         self.headers = {'Content-Type': 'application/json'}
-        self.service_host = conf.get_tsfm_service(self.name)
+        self.service_host = Configure.get_instance().get_tsfm_service(self.name)
 
 
     def execute(self):

@@ -4,7 +4,7 @@
 from abc import abstractmethod, ABC
 
 
-class AnalyticsService:
+class AnalyticsService(ABC):
     """ Analytics root class with only one method"""
 
     READY = 0x01

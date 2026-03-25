@@ -7,38 +7,61 @@ import platform
 import os.path
 import torch   # do not remove it
 import keras
-from pathlib import Path
 from typing import Optional
 
 _ANODE_SECTION_NAME = "taosanode"
 
 
 class Configure:
-    """ configuration class """
-    def __init__(self, conf_path: Optional[str] = None):
-        self._conf = self._get_default_conf()
-        self.path = None
+    """ configuration class (singleton) """
 
-        if conf_path is not None and os.path.exists(conf_path):
-            self.path = conf_path
-        else:
-            self.path = self._conf['conf_path']
-            print(
-                f"Input configuration file not available. Use default config file: {self.path}")
+    _instance = None
+    _lock = __import__('threading').Lock()
 
-        if os.path.exists(self.path):
-            self.reload()
-        else:
-            print(f"Configuration file {self.path} is not available, start by using minimum config variables")
+    def __new__(cls, conf_path: Optional[str] = None):
+        with cls._lock:
+            if cls._instance is None:
+                instance = super().__new__(cls)
+                instance._conf = instance._get_default_conf()
+                instance.path = None
 
-    def _get_default_conf(self):
-        if platform.system().lower() == "windows":
-            # raw_path = r"%PROGRAMDATA%"
-            # base_path = os.path.join(os.path.expandvars(raw_path), "tdgpt")
-            # keep inline with the TDengine installation configuration
-            base_path = "c:/TDengine/tdgpt/"
+                if conf_path is not None and os.path.exists(conf_path):
+                    instance.path = conf_path
+                else:
+                    instance.path = instance._conf['conf_path']
+                    if conf_path is not None:
+                        print(f"Input configuration file not available. Use default config file: {instance.path}")
 
-            default = {
+                if os.path.exists(instance.path):
+                    instance.reload()
+                else:
+                    print(f"Configuration file {instance.path} is not available, start by using minimum config variables")
+
+                cls._instance = instance
+        return cls._instance
+
+    @classmethod
+    def init(cls, conf_path: Optional[str] = None) -> 'Configure':
+        """Initialize the singleton with an explicit config path. Must be called before get_instance()."""
+        with cls._lock:
+            cls._instance = None
+        return cls(conf_path)
+
+    @classmethod
+    def get_instance(cls) -> 'Configure':
+        """Return the singleton instance, creating it with defaults if not yet initialized."""
+        if cls._instance is None:
+            cls()
+        return cls._instance
+
+    def _get_default_conf_windows(self):
+        # raw_path = r"%PROGRAMDATA%"
+        # base_path = os.path.join(os.path.expandvars(raw_path), "tdgpt")
+        # keep inline with the TDengine installation configuration
+
+        base_path = "c:/TDengine/tdgpt/"
+
+        return {
                 "log_dir": os.path.join(base_path, "log"),
                 "log_file": "taosanode.app.log",
                 "model_dir": os.path.join(base_path, "model"),
@@ -46,24 +69,32 @@ class Configure:
                 "log_level": logging.DEBUG,
                 "draw_result": False,
             }
-        else:
-            default = {
-                "log_dir": "/var/log/taos/taosanode/",
-                "log_file": "taosanode.app.log",
-                "model_dir": '/usr/local/taos/taosanode/model/',
-                "conf_path": "/etc/taos/taosanode.config.py",
-                "log_level": logging.DEBUG,
-                "draw_result": False,
-            }
 
-            if os.environ.get('GITHUB_ACTIONS'):
-               default['log_dir'] = '/home/runner/work/TDengine/TDengine/tools/tdgpt/log/'
+    def _get_default_conf_linux(self):
+        return {
+            "log_dir": "/var/log/taos/taosanode/",
+            "log_file": "taosanode.app.log",
+            "model_dir": '/usr/local/taos/taosanode/model/',
+            "conf_path": "/etc/taos/taosanode.config.py",
+            "log_level": logging.DEBUG,
+            "draw_result": False,
+        }
+
+    def _get_default_conf(self):
+        if platform.system().lower() == "windows":
+            default = self._get_default_conf_windows()
+        else:
+            default = self._get_default_conf_linux()
+
+        # update the log_dir for unit test cases while powered by github action.
+        if os.environ.get('GITHUB_ACTIONS'):
+           default['log_dir'] = '/home/runner/work/TDengine/TDengine/tools/tdgpt/log/'
 
         return default
 
     def get_log_path(self) -> str:
         """ return log file full path """
-        return os.path.join(self._conf['log_dir'], 'taosanode.app.log')
+        return os.path.join(self._conf['log_dir'], self._conf['log_file'])
 
     def get_log_dir(self) -> str:
         return self._conf["log_dir"]
@@ -122,5 +153,3 @@ class Configure:
             conf_vars.pop('draw_result')
 
         self._conf.update(conf_vars)
-
-conf = Configure()

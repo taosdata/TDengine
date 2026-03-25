@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
 
-from taosanalytics.conf import conf
+from taosanalytics.conf import Configure
 from taosanalytics.builtins import loader
 from taosanalytics.log import AppLogger
 
@@ -73,7 +73,7 @@ def insert_ts_list(res, start_ts, time_step, fc_rows):
 def draw_fc_results(input_list, return_conf, conf_val, fc, fig_name):
     """Visualize the forecast results """
     # controlled by option, do not visualize the anomaly detection result
-    if not conf.get_draw_result_option():
+    if not Configure.get_instance().get_draw_result_option():
         return
 
     AppLogger.get_instance().debug('draw forecast result in debug model')

@@ -2,10 +2,11 @@
 # pylint: disable=c0103
 """the main route definition for restful service"""
 import os.path, sys
-import taosanalytics
+import argparse
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../")
 
+import taosanalytics
 from flask import Flask, request
 from taosanalytics.service.imputation_service import handle_imputation
 from taosanalytics.service.anomaly_service import handle_anomaly
@@ -13,18 +14,13 @@ from taosanalytics.service.forecast_service import handle_forecast
 from taosanalytics.service.correl_service import handle_correlation
 from taosanalytics.service.misc_service import handle_batch
 
-from taosanalytics.conf import conf
+from taosanalytics.conf import Configure
 from taosanalytics.model_mgmt import ModelManager
 from taosanalytics.builtins import loader
 from taosanalytics.log import AppLogger
 
 app = Flask(__name__)
 app.config["PROPAGATE_EXCEPTIONS"] = True
-
-# load the all algos
-AppLogger.set_handler(conf.get_log_path())
-AppLogger.set_log_level(conf.get_log_level())
-loader.load_all_service()
 
 
 @app.route("/")
@@ -67,7 +63,7 @@ def handle_ad_request():
 def handle_forecast_req():
     """handle the fc request """
     AppLogger.get_instance().info('recv forecast request from %s', request.remote_addr)
-    handle_forecast(request)
+    return handle_forecast(request)
 
 
 @app.route("/imputation", methods=['POST'])
@@ -90,4 +86,16 @@ def handle_batch_req():
 
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='TDgpt analytics service')
+    parser.add_argument('-c', dest='conf_path', default=None,
+                        help='path to configuration file')
+    args = parser.parse_args()
+
+    conf = Configure.init(args.conf_path)
+
+    AppLogger.set_handler(conf.get_log_path())
+    AppLogger.set_log_level(conf.get_log_level())
+    loader.load_all_service()
+
     app.run(port=6035)
+

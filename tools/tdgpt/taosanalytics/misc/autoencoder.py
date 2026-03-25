@@ -11,8 +11,9 @@ import numpy as np
 import pandas as pd
 
 from taosanalytics.analytics_base import AbstractAnomalyDetectionService, AnalyticsService
-from taosanalytics.conf import conf
+from taosanalytics.conf import Configure
 from taosanalytics.error import failed_load_model_except
+from taosanalytics.log import AppLogger
 from taosanalytics.model_mgmt import ModelManager
 from taosanalytics.util import create_sequences
 
@@ -122,6 +123,6 @@ class _AutoEncoderDetectionService(AbstractAnomalyDetectionService):
 
 
 ModelManager.get_instance().load_model(_AutoEncoderDetectionService.name,
-                         conf.get_model_directory() + 'sample-ad-autoencoder/sample-ad-autoencoder',
+                         os.path.join(Configure.get_instance().get_model_directory(), 'sample-ad-autoencoder/sample-ad-autoencoder'),
                          _AutoEncoderDetectionService.do_load_model,
                          _AutoEncoderDetectionService.name)

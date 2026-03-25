@@ -5,7 +5,7 @@ import json
 import requests
 
 from taosanalytics.analytics_base import AbstractImputationService, AnalyticsService
-from taosanalytics.conf import conf
+from taosanalytics.conf import Configure
 from taosanalytics.log import AppLogger
 
 
@@ -17,7 +17,7 @@ class _MomentImputationService(AbstractImputationService):
     def __init__(self):
         super().__init__()
         self.headers = {'Content-Type': 'application/json'}
-        self.service_host = conf.get_tsfm_service(self.name)
+        self.service_host = Configure.get_instance().get_tsfm_service(self.name)
 
         # set the default frequency and time precision
         self.freq = 'H'

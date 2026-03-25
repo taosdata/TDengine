@@ -3,7 +3,7 @@
 """ anomaly detection register/display functions """
 import numpy as np
 from matplotlib import pyplot as plt
-from taosanalytics.conf import conf
+from taosanalytics.conf import Configure
 from taosanalytics.error import failed_load_model_except
 from taosanalytics.builtins import loader
 from taosanalytics.log import AppLogger
@@ -39,7 +39,7 @@ def draw_ad_results(input_list, res, fig_name, valid_code):
     """ draw the detected anomaly points """
 
     # not in debug, do not visualize the anomaly detection result
-    if not conf.get_draw_result_option():
+    if not Configure.get_instance().get_draw_result_option():
         return
 
     plt.figure(figsize=(9, 6))
