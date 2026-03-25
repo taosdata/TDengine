@@ -707,12 +707,15 @@ begin
   if UpgradeInstall then
   begin
     if InstallModePage <> nil then
-      InstallModePage.Values[0] := True;
-    IsOnlineMode := True;
+    begin
+      InstallModePage.Values[0] := False;
+      InstallModePage.Values[1] := True;
+    end;
+    IsOnlineMode := False;
     ModelSource := 'none';
-    InstallTensorFlow := False;
+    InstallTensorFlow := True;
     if PythonOptionsPage <> nil then
-      PythonOptionsPage.Values[0] := False;
+      PythonOptionsPage.Values[0] := True;
     if ModelSourcePage <> nil then
     begin
       ModelSourcePage.Values[0] := False;
@@ -723,18 +726,21 @@ begin
   end;
 
   if InstallModePage <> nil then
-    InstallModePage.Values[0] := True;
-  IsOnlineMode := True;
-  ModelSource := 'online';
+  begin
+    InstallModePage.Values[0] := False;
+    InstallModePage.Values[1] := True;
+  end;
+  IsOnlineMode := False;
+  ModelSource := 'offline';
   InstallTensorFlow := True;
   if PythonOptionsPage <> nil then
     PythonOptionsPage.Values[0] := True;
   if ModelSourcePage <> nil then
   begin
-    ModelSourcePage.Values[0] := True;
-    ModelSourcePage.Values[1] := False;
+    ModelSourcePage.Values[0] := False;
+    ModelSourcePage.Values[1] := True;
   end;
-  SetDefaultOnlineModelSelections();
+  ClearModelSelections();
 end;
 
 procedure InitializeWizard();
@@ -765,7 +771,7 @@ begin
     False);
   InstallModePage.Add('Online mode (recommended)');
   InstallModePage.Add('Offline package');
-  InstallModePage.Values[0] := True;
+  InstallModePage.Values[1] := True;
 
   PipSourcePage := CreateInputOptionPage(
     InstallModePage.ID,
