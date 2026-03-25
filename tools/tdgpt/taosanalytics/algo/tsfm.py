@@ -43,7 +43,7 @@ class TsfmBaseService(AbstractForecastService):
             raise e
 
         if response.status_code == 404:
-            AppLogger.error(f"failed to connect the service: {self.service_host} ")
+            AppLogger.error(f"failed to connect the service: {self.service_host}")
             raise ValueError("invalid host url")
         elif response.status_code != 200:
             AppLogger.error(f"failed to request the service: {self.service_host}, reason: {response.text}")
