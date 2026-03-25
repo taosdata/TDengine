@@ -62,7 +62,7 @@ TEST(timerTest, TimerCorrectWhenTimeJumpForward) {
   bool hasPrivilege = adjustSystemTime(3600LL * 1000);
   if (!hasPrivilege) {
     taosTmrCleanUp(ctrl);
-    GTEST_LOG_(INFO) << "需要 root 权限修改系统时间，跳过此测试";
+    GTEST_SKIP() << "需要 root 权限修改系统时间，跳过此测试";
   }
 
   // 等待最多 3 秒
@@ -111,7 +111,7 @@ TEST(timerTest, TimerCorrectWhenTimeJumpBackward) {
   bool hasPrivilege = adjustSystemTime(-3600LL * 1000);
   if (!hasPrivilege) {
     taosTmrCleanUp(ctrl);
-    GTEST_LOG_(INFO) << "需要 root 权限修改系统时间，跳过此测试";
+    GTEST_SKIP() << "需要 root 权限修改系统时间，跳过此测试";
   }
 
   // 等待最多 3 秒
