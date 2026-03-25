@@ -104,6 +104,13 @@ ELSE()
     SET(TD_TAOS_TOOLS TRUE)
 ENDIF()
 
+IF("${ASSERT_NOT_CORE}" MATCHES "true")
+    ADD_DEFINITIONS(-DASSERT_NOT_CORE)
+    MESSAGE(STATUS "Disable assert not core")
+ELSE()
+    MESSAGE(STATUS "Enable assert not core")
+ENDIF()
+
 SET(TAOS_LIB taos)
 SET(TAOS_LIB_STATIC taos_static)
 SET(TAOS_NATIVE_LIB taosnative)
