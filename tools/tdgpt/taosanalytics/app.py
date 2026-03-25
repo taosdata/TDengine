@@ -25,7 +25,7 @@ app.config["PROPAGATE_EXCEPTIONS"] = True
 
 
 @app.route("/")
-def default():
+def index():
     """ default rsp """
     return taosanalytics._ANODE_VER
 
