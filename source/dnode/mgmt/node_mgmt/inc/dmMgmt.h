@@ -141,6 +141,8 @@ void dmMetricsCleanExpiredSamples();
 void dmSendAuditRecords();
 void dmGetVnodeLoads(SMonVloadInfo *pInfo);
 void dmGetVnodeLoadsLite(SMonVloadInfo *pInfo);
+void dmCollectVnodeTxnIdle(SArray *pQueries);
+void dmProcessVnodeTxnAcks(SArray *pAcks);
 void dmSetVnodeSyncTimeout();
 void dmGetMnodeLoads(SMonMloadInfo *pInfo);
 void dmSetMnodeSyncTimeout();

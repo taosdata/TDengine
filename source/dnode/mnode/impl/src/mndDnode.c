@@ -28,6 +28,7 @@
 #include "mndSnode.h"
 #include "mndToken.h"
 #include "mndTrans.h"
+#include "mndTxn.h"
 #include "mndUser.h"
 #include "mndVgroup.h"
 #include "taos_monitor.h"
@@ -918,9 +919,10 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
     mndReleaseDb(pMnode, pDb);
   }
 
+  bool hasTxnQueries = (statusReq.pTxnActiveQueries != NULL && taosArrayGetSize(statusReq.pTxnActiveQueries) > 0);
   bool needCheck = !online || dnodeChanged || reboot || supportVnodesChanged || analVerChanged ||
                    pMnode->ipWhiteVer != statusReq.ipWhiteVer || pMnode->timeWhiteVer != statusReq.timeWhiteVer ||
-                   encryptKeyChanged || enableWhiteListChanged || auditDBChanged || auditInfoChanged;
+                   encryptKeyChanged || enableWhiteListChanged || auditDBChanged || auditInfoChanged || hasTxnQueries;
   const STraceId *trace = &pReq->info.traceId;
   char            timestamp[TD_TIME_STR_LEN] = {0};
   if (mDebugFlag & DEBUG_TRACE)
@@ -1096,10 +1098,29 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
       }
     }
 
+    // Process txn keepalive queries: check each queried txnId and build acks
+    if (hasTxnQueries) {
+      int32_t nQueries = (int32_t)taosArrayGetSize(statusReq.pTxnActiveQueries);
+      statusRsp.pTxnActiveAcks = taosArrayInit(nQueries, sizeof(STxnActiveAck));
+      if (statusRsp.pTxnActiveAcks != NULL) {
+        for (int32_t i = 0; i < nQueries; ++i) {
+          STxnActiveQuery *pQuery = taosArrayGet(statusReq.pTxnActiveQueries, i);
+          if (pQuery == NULL) continue;
+          STxnActiveAck ack = {.txnId = pQuery->txnId, .vgId = pQuery->vgId, .alive = 0};
+          ack.alive = mndTxnIsAlive(pMnode, pQuery->txnId);
+          if (taosArrayPush(statusRsp.pTxnActiveAcks, &ack) == NULL) {
+            mError("txn:%" PRIu64 " failed to push txn ack", pQuery->txnId);
+          }
+        }
+        mTrace("dnode:%d, processed %d txn keepalive queries", pDnode->id, nQueries);
+      }
+    }
+
     int32_t contLen = tSerializeSStatusRsp(NULL, 0, &statusRsp);
     void   *pHead = rpcMallocCont(contLen);
     contLen = tSerializeSStatusRsp(pHead, contLen, &statusRsp);
     taosArrayDestroy(statusRsp.pDnodeEps);
+    taosArrayDestroy(statusRsp.pTxnActiveAcks);
     if (contLen < 0) {
       code = contLen;
       TAOS_CHECK_GOTO(code, &lino, _OVER);
@@ -1119,6 +1140,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
 _OVER:
   mndReleaseDnode(pMnode, pDnode);
   taosArrayDestroy(statusReq.pVloads);
+  taosArrayDestroy(statusReq.pTxnActiveQueries);
   if (code != 0) {
     mError("dnode:%d, failed to process status req at line:%d since %s", statusReq.dnodeId, lino, tstrerror(code));
     return code;

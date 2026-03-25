@@ -38,6 +38,8 @@ void bmGetMonitorInfo(void *pMgmt, SMonBmInfo *pInfo);
 
 void vmGetVnodeLoads(void *pMgmt, SMonVloadInfo *pInfo, bool isReset);
 void vmGetVnodeLoadsLite(void *pMgmt, SMonVloadInfo *pInfo);
+void vmCollectTxnIdleQueries(void *pMgmt, SArray *pQueries);
+void vmProcessTxnActiveAcks(void *pMgmt, SArray *pAcks);
 void mmGetMnodeLoads(void *pMgmt, SMonMloadInfo *pInfo);
 void qmGetQnodeLoads(void *pMgmt, SQnodeLoad *pInfo);
 void mmSetMnodeSyncTimeout(void *pMgmt);

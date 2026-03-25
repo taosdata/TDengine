@@ -394,6 +394,27 @@ void mndReleaseTxn(SMnode *pMnode, STxnObj *pTxn) {
 
 const char *mndTxnStr(EUtxnStage stage) { return mndUtxnStageStr(stage); }
 
+// Check if a specific UTXN is alive (exists and in active/preparing/committing stage)
+// Returns 1 if alive, 0 if dead/unknown/completed
+int8_t mndTxnIsAlive(SMnode *pMnode, utxn_id_t txnId) {
+  STxnObj *pTxn = mndAcquireTxn(pMnode, txnId);
+  if (pTxn == NULL) return 0;
+
+  int8_t alive = 0;
+  switch (pTxn->stage) {
+    case UTXN_STAGE_ACTIVE:
+    case UTXN_STAGE_PREPARING:
+    case UTXN_STAGE_COMMITTING:
+      alive = 1;
+      break;
+    default:
+      alive = 0;
+      break;
+  }
+  mndReleaseTxn(pMnode, pTxn);
+  return alive;
+}
+
 static int32_t mndSetCreateTxnRedoLogs(SMnode *pMnode, STrans *pTrans, STxnObj *pTxn) {
   int32_t  code = 0;
   SSdbRaw *pRedoRaw = mndTxnActionEncode(pTxn);

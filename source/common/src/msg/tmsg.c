@@ -2666,6 +2666,7 @@ int32_t tSerializeSStatusRsp(void *buf, int32_t bufLen, SStatusRsp *pRsp) {
   for (int32_t i = 0; i < txnAckLen; ++i) {
     STxnActiveAck *pAck = taosArrayGet(pRsp->pTxnActiveAcks, i);
     TAOS_CHECK_EXIT(tEncodeI64(&encoder, pAck->txnId));
+    TAOS_CHECK_EXIT(tEncodeI32(&encoder, pAck->vgId));
     TAOS_CHECK_EXIT(tEncodeI8(&encoder, pAck->alive));
   }
 
@@ -2760,6 +2761,7 @@ int32_t tDeserializeSStatusRsp(void *buf, int32_t bufLen, SStatusRsp *pRsp) {
       for (int32_t i = 0; i < txnAckLen; ++i) {
         STxnActiveAck ack = {0};
         TAOS_CHECK_EXIT(tDecodeI64(&decoder, (int64_t *)&ack.txnId));
+        TAOS_CHECK_EXIT(tDecodeI32(&decoder, &ack.vgId));
         TAOS_CHECK_EXIT(tDecodeI8(&decoder, &ack.alive));
         if (taosArrayPush(pRsp->pTxnActiveAcks, &ack) == NULL) {
           TAOS_CHECK_EXIT(terrno);

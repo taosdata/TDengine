@@ -5805,6 +5805,7 @@ typedef struct {
 // MNode → DNode → VNode 保活应答（通过 SStatusRsp 捎带）
 typedef struct {
   utxn_id_t txnId;
+  int32_t   vgId;   // 目标 VNode，DNode 据此路由
   int8_t    alive;  // 1=活跃, 0=已终结（不存在/已 COMMIT/已 ROLLBACK）
 } STxnActiveAck;
 

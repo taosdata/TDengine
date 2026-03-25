@@ -63,6 +63,7 @@ void        mndTxnDoTimeoutScan(SMnode* pMnode);   // 手动触发超时扫描�
 const char* mndUtxnStageStr(EUtxnStage stage);
 const char* mndVtxnStageStr(EVtxnStage stage);
 const char* mndTxnStr(EUtxnStage stage);   // mndUtxnStageStr 的别名，供 mndTrans.c 等调用
+int8_t      mndTxnIsAlive(SMnode* pMnode, utxn_id_t txnId);  // keepalive 查询：txn 是否仍在活跃阶段
 
 #ifdef __cplusplus
 }
