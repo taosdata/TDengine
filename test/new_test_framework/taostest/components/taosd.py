@@ -222,9 +222,14 @@ class TaosD:
             parentPath = os.path.dirname(taosdPath)
             taosk_name = "taosk.exe" if platform.system().lower() == "windows" else "taosk"
             taosk_path = os.path.join(parentPath, taosk_name)
+            system_platform = platform.system().lower()
 
             if not os.path.exists(taosk_path):
-                self.logger.error(f"taosk not found at: {taosk_path}")
+                if system_platform == "windows":
+                    self.logger.warning("Skip encryption key generation: "
+                        "taosk is not supported on Windows")
+                else:
+                    self.logger.error(f"taosk not found at: {taosk_path}")
                 return
             
             # Build taosk command to execute on remote server
