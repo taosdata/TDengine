@@ -16,7 +16,33 @@
  #include <iostream>
 #define ALLOW_FORBID_FUNC
 #include <gtest/gtest.h>
+#ifdef WINDOWS
+#include <windows.h>
+int gettimeofday(struct timeval* tp, void* tzp) {
+  FILETIME ft;
+  unsigned __int64 tmpres = 0;
+  static int tzflag = 0;
+
+  if (NULL != tp) {
+      GetSystemTimeAsFileTime(&ft);
+
+      tmpres |= ft.dwHighDateTime;
+      tmpres <<= 32;
+      tmpres |= ft.dwLowDateTime;
+
+      // Convert into microseconds
+      tmpres /= 10;
+
+      // Convert into seconds and microseconds
+      tmpres -= 11644473600000000ULL;
+      tp->tv_sec = (long)(tmpres / 1000000UL);
+      tp->tv_usec = (long)(tmpres % 1000000UL);
+  }
+  return 0;
+}
+#else
 #include <sys/time.h>
+#endif
 #include <atomic>
 
 #include "os.h"
