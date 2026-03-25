@@ -11,6 +11,14 @@ import RequestId from "../../assets/resources/_request_id.mdx";
 
 `taos-jdbcdriver` is the official Java connector for TDengine, allowing Java developers to develop applications that access the TDengine database. `taos-jdbcdriver` implements the interfaces of the JDBC driver standard.
 
+:::warning Native and REST Connections Being Deprecated
+
+<font color="red">Java's native connection and REST connection will be deprecated on 2027-01-01</font>, please migrate to WebSocket connection.
+
+For detailed migration guide, please refer to: [Connection Methods](../#connection-methods)
+
+:::
+
 :::info
 The JDBC driver implementation for TDengine strives to be consistent with relational database drivers. However, due to differences in use cases and technical features between TDengine and relational object databases, there are some differences between `taos-jdbcdriver` and traditional JDBC drivers. Please note the following when using it:
 
@@ -193,11 +201,35 @@ taos-jdbcdriver implements the JDBC standard Driver interface, providing 2 imple
 The JDBC URL format for TDengine is:
 `jdbc:[TAOS|TAOS-WS]://[host1:port1,host2:port2,...,hostN:portN]/[database_name]?[user={user}|&password={password}|&charset={charset}|&cfgdir={config_dir}|&locale={locale}|&timezone={timezone}]`
 
-- The host parameter supports valid domain names or IP addresses. The taos-jdbcdriver supports both IPv4 and IPv6 formats. For IPv6 addresses, square brackets must be used (e.g., `[::1]` or `[2001:db8:1234:5678::1]`) to avoid port number parsing conflicts.  
+- The host parameter supports valid domain names or IP addresses. The taos-jdbcdriver supports both IPv4 and IPv6 formats. For IPv6 addresses, square brackets must be used (e.g., `[::1]` or `[2001:db8:1234:5678::1]`) to avoid port number parsing conflicts.
 - **Only the WebSocket connection method supports multiple endpoint addresses**, which should be separated by commas when used. These multiple endpoint addresses will be randomly used during connection to achieve load balancing.
-- All properties in **Properties** are supported in the JDBC URL. For details, please refer to the **Properties** section below.  
+- All properties in **Properties** are supported in the JDBC URL. For details, please refer to the **Properties** section below.
 
-**Native Connection**  
+**WebSocket Connection**
+
+Using JDBC WebSocket connection does not depend on the client driver. Here's an example: `jdbc:TAOS-WS://taosdemo.com:6041,taosdemo2.com:6041/power?user=root&password=taosdata&varcharAsString=true`. Compared to native JDBC connections, you only need to:
+
+1. Specify driverClass as "com.taosdata.jdbc.ws.WebSocketDriver";
+2. Start jdbcUrl with "jdbc:TAOS-WS://";
+3. Use 6041 as the connection port.
+4. It supports configuring multiple endpoints, which are randomly selected during connection to achieve load balancing.
+
+For WebSocket connections, the common configuration parameters in the URL are as follows:
+
+- user: Login username for TDengine, default value 'root'.
+- password: User login password, default value 'taosdata'.
+- batchErrorIgnore: true: Continues executing the following SQL if one SQL fails during the execution of Statement's executeBatch. false: Does not execute any statements after a failed SQL. Default value: false.
+- httpConnectTimeout: Connection timeout in ms, default value 60000.
+- messageWaitTimeout: Message timeout in ms, default value 60000.
+- useSSL: Whether SSL is used in the connection.
+- timezone: Client timezone, default is the system current timezone. Recommended not to set, using the system time zone provides better performance.
+- varcharAsString: Maps VARCHAR/BINARY types to String. Effective only when using WebSocket connections. Default value is false.
+- conmode: BI mode takes effect only when the WebSocket connection is established. The default value is 0, and it can be set to 1. Setting it to 1 means enabling BI mode, where metadata information does not count sub-tables. This is mainly used in scenarios when integration with BI tools.
+
+**Note**: Some configuration items (such as: locale, charset) do not take effect in WebSocket connections. WebSocket connections only support the UTF-8 character set.
+
+**<font color="red">Native Connection, Deprecated, will be discontinued on 2027-01-01</font>**
+
 `jdbc:TAOS://taosdemo.com:6030/power?user=root&password=taosdata`, using the TSDBDriver for native JDBC connection, establishes a connection to the host taosdemo.com, port 6030 (TDengine's default port), and database name power. This URL specifies the username (user) as root and the password (password) as taosdata.
 
 **Note**: For native JDBC connections, taos-jdbcdriver depends on the client driver (libtaos.so on Linux; taos.dll on Windows; libtaos.dylib on macOS).
@@ -220,28 +252,6 @@ In the TDengine client driver configuration file, specify firstEp and secondEp, 
 In TDengine, as long as one of the nodes in firstEp and secondEp is valid, a connection to the cluster can be established normally.
 
 > **Note**: The configuration file here refers to the configuration file on the machine where the application calling the JDBC Connector is located, with the default value on Linux OS being /etc/taos/taos.cfg, and on Windows OS being C://TDengine/cfg/taos.cfg.
-
-**WebSocket Connection**  
-Using JDBC WebSocket connection does not depend on the client driver. Here's an example: `jdbc:TAOS-WS://taosdemo.com:6041,taosdemo2.com:6041/power?user=root&password=taosdata&varcharAsString=true`. Compared to native JDBC connections, you only need to:
-
-1. Specify driverClass as "com.taosdata.jdbc.ws.WebSocketDriver";
-2. Start jdbcUrl with "jdbc:TAOS-WS://";
-3. Use 6041 as the connection port.
-4. It supports configuring multiple endpoints, which are randomly selected during connection to achieve load balancing.
-
-For WebSocket connections, the common configuration parameters in the URL are as follows:
-
-- user: Login username for TDengine, default value 'root'.
-- password: User login password, default value 'taosdata'.
-- batchErrorIgnore: true: Continues executing the following SQL if one SQL fails during the execution of Statement's executeBatch. false: Does not execute any statements after a failed SQL. Default value: false.
-- httpConnectTimeout: Connection timeout in ms, default value 60000.
-- messageWaitTimeout: Message timeout in ms, default value 60000.
-- useSSL: Whether SSL is used in the connection.
-- timezone: Client timezone, default is the system current timezone. Recommended not to set, using the system time zone provides better performance.
-- varcharAsString: Maps VARCHAR/BINARY types to String. Effective only when using WebSocket connections. Default value is false.
-- conmode: BI mode takes effect only when the WebSocket connection is established. The default value is 0, and it can be set to 1. Setting it to 1 means enabling BI mode, where metadata information does not count sub-tables. This is mainly used in scenarios when integration with BI tools.
-
-**Note**: Some configuration items (such as: locale, charset) do not take effect in WebSocket connections. WebSocket connections only support the UTF-8 character set.
 
 #### Properties
 

@@ -1,0 +1,97 @@
+:::warning 废弃通知
+
+**<font color="red">以下连接方式将于 2027-01-01 下线</font>**
+
+##### 原生连接（Java、C#、Go）
+
+请迁移到 WebSocket 连接方式：
+
+- **Java**: 将 `jdbc:TAOS://` 改为 `jdbc:TAOS-WS://`，端口从 `6030` 改为 `6041`, 其余配置请仔细阅读 [JDBC 驱动](https://docs.taosdata.com/reference/connector/java/#jdbc-%E9%A9%B1%E5%8A%A8)。
+- **C#**: 将连接字符串中的 `protocol=Native` 改为 `protocol=WebSocket`，端口从 `6030` 改为 `6041`。
+- **Go**: 
+
+    <details>
+    <summary>Go Native 迁移到 WebSocket 快速指南</summary>
+
+    **1. 执行 SQL**：`database/sql` 代码无需修改，主要替换驱动名称和 DSN 协议头：从 `taosSql` + `tcp(6030)` 到：`taosWS` + `ws(6041)`。
+    **2. 数据订阅**：af/tmq 迁移到 ws/tmq。
+    **3. STMT和Schemaless**：af 迁移到 ws/unified。
+
+    </details>
+
+C/C++、Python、Rust 的原生连接继续支持，不受影响，但**仍然建议使用 WebSocket 连接方式**以获得更好的兼容性。
+
+##### REST 连接（Java、Python、Go）
+
+请迁移到 WebSocket 连接方式：
+
+- **Java**: 将 `jdbc:TAOS-RS://` 改为 `jdbc:TAOS-WS://`，其余配置请仔细阅读 [JDBC 驱动](https://docs.taosdata.com/reference/connector/java/#jdbc-%E9%A9%B1%E5%8A%A8)。
+- **Python**:
+    <details>
+    <summary>taosrest 迁移到 taos-ws-py 快速指南</summary>
+    ##### 步骤 1：连接方式替换
+
+    `taosrest` 通常使用 `url + user/password` 参数连接：
+
+    ```python
+    from taosrest import connect
+
+    conn = connect(url="http://localhost:6041", user="root", password="taosdata")
+    ```
+
+    迁移为 `taosws` 的 WebSocket DSN：
+
+    ```python
+    import taosws
+
+    conn = taosws.connect("ws://root:taosdata@localhost:6041")
+    ```
+
+  ##### 步骤 2：执行 SQL 方式替换
+
+    `taosrest` 常见写法是通过 cursor 执行：
+
+    ```python
+    cursor = conn.cursor()
+    cursor.execute("CREATE DATABASE IF NOT EXISTS demo")
+    cursor.execute("USE demo")
+    cursor.execute("CREATE TABLE IF NOT EXISTS t (ts TIMESTAMP, v INT)")
+    cursor.execute("INSERT INTO t VALUES (now, 1)")
+    ```
+
+    迁移到 `taosws` 时，可继续使用 cursor 风格，做到最小改动迁移：
+
+    ```python
+    cursor = conn.cursor()
+    cursor.execute("CREATE DATABASE IF NOT EXISTS demo")
+    cursor.execute("USE demo")
+    cursor.execute("CREATE TABLE IF NOT EXISTS t (ts TIMESTAMP, v INT)")
+    cursor.execute("INSERT INTO t VALUES (now, 1)")
+    ```
+
+  ##### 步骤 3：查询结果读取方式替换
+
+    `taosrest` 常见写法：
+
+    ```python
+    cursor.execute("SELECT * FROM demo.t")
+    rows = cursor.fetchall()
+    for row in rows:
+        print(row)
+    ```
+
+    `taosws` 读取查询结果时，也可保持 cursor 风格：
+
+    ```python
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM demo.t")
+    rows = cursor.fetchall()
+    for row in rows:
+    print(row)
+    ```
+
+    </details>
+
+- **Go**: `database/sql` 代码无需修改，主要替换驱动名称和 DSN 协议头：从 `taosRestful` + `http(6041)` 到 `taosWS` + `ws(6041)`。
+
+:::
