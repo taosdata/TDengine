@@ -27,6 +27,11 @@ int32_t colDataGetLength(const SColumnInfoData* pColumnInfoData, int32_t numOfRo
     if (pColumnInfoData->reassigned) {
       int32_t totalSize = 0;
       for (int32_t row = 0; row < numOfRows; ++row) {
+        // When reassigned=true, multiple rows may share the same offset. Null rows
+        // have offset=-1 and must be skipped to avoid out-of-bounds access.
+        if (pColumnInfoData->varmeta.offset[row] == -1) {
+          continue;
+        }
         char*   pColData = pColumnInfoData->pData + pColumnInfoData->varmeta.offset[row];
         int32_t colSize = calcStrBytesByType(pColumnInfoData->info.type, pColData);
         totalSize += colSize;

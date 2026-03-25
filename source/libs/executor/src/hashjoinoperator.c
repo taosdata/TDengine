@@ -884,10 +884,29 @@ static int32_t hJoinCopyResRowsToBlock(SHJoinOperatorInfo* pJoin, int32_t rowNum
         SColumnInfoData* pSrc = taosArrayGet(pJoin->ctx.pProbeData->pDataBlock, pProbe->valCols[probeIdx].srcSlot);
         SColumnInfoData* pDst = taosArrayGet(pRes->pDataBlock, pProbe->valCols[probeIdx].dstSlot);
 
-        if (colDataIsNull_s(pSrc, pJoin->ctx.probeStartIdx)) {
-          code = colDataCopyNItems(pDst, pRes->info.rows, NULL, rowNum, true);
+        int32_t probeRowIdx = pJoin->ctx.probeStartIdx;
+        if (probeRowIdx < 0 || probeRowIdx >= pJoin->ctx.pProbeData->info.rows) {
+          qError("invalid probe row index:%d, probe rows:%d", probeRowIdx, pJoin->ctx.pProbeData->info.rows);
+          return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+        }
+
+        if (IS_VAR_DATA_TYPE(pSrc->info.type)) {
+          int32_t offset = pSrc->varmeta.offset[probeRowIdx];
+          if (offset < 0) {
+            code = colDataCopyNItems(pDst, pRes->info.rows, NULL, rowNum, true);
+          } else {
+            if (offset >= pSrc->varmeta.length) {
+              qError("invalid var offset:%d, var length:%d, row:%d", offset, pSrc->varmeta.length, probeRowIdx);
+              return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+            }
+            code = colDataCopyNItems(pDst, pRes->info.rows, pSrc->pData + offset, rowNum, false);
+          }
         } else {
-          code = colDataCopyNItems(pDst, pRes->info.rows, colDataGetData(pSrc, pJoin->ctx.probeStartIdx), rowNum, false);
+          if (colDataIsNull_s(pSrc, probeRowIdx)) {
+            code = colDataCopyNItems(pDst, pRes->info.rows, NULL, rowNum, true);
+          } else {
+            code = colDataCopyNItems(pDst, pRes->info.rows, colDataGetData(pSrc, probeRowIdx), rowNum, false);
+          }
         }
         if (code) {
           return code;

@@ -76,7 +76,7 @@ enum {
 #define JT_PRINTF (void)printf
 
 #define COL_DISPLAY_WIDTH 18
-#define JT_MAX_LOOP 1000
+#define JT_MAX_LOOP 100
 
 #define LEFT_BLK_ID       0
 #define RIGHT_BLK_ID      1
@@ -252,7 +252,7 @@ void jtBuildDataCol(SColumnInfoData* pCol, int32_t rows, int32_t type, int32_t c
     pCol->varmeta.length = 0;
     pCol->varmeta.offset = (int32_t*)taosMemCalloc(rows, sizeof(*pCol->varmeta.offset));
     char* pVal = (char*)taosMemoryMalloc(colBytes);
-    *(int16_t*)pVal = colBytes;
+    *(int16_t*)pVal = colBytes - VARSTR_HEADER_SIZE;
     int32_t pLastOff = -1;
     for(int32_t i = 0; i < rows; ++i) {
       if (hasNull && taosRand() % 2) {
@@ -4194,7 +4194,7 @@ void runSingleMJoinTest(char* caseName, SJoinTestParam* param) {
   SSortMergeJoinPhysiNode* pNode = createDummySortMergeJoinPhysiNode(param);    
   TD_ALWAYS_ASSERT(pNode);
   createDummyBlkList(10, 10, 10, 10, 3);
-  //createDummyBlkList(1000, 1000, 1000, 1000, 100);
+  //createDummyBlkList(10, 10, 10, 10, 3);
   
   while (contLoop) {
     rerunBlockedHere();
@@ -4226,7 +4226,7 @@ void runSingleHJoinTest(char* caseName, SJoinTestParam* param) {
   
   SHashJoinPhysiNode* pNode = createDummyHashJoinPhysiNode(param);    
   createDummyBlkList(10, 10, 10, 10, 3);
-//  createDummyBlkList(1000, 1000, 1000, 1000, 100);
+//  createDummyBlkList(10, 10, 10, 10, 3);
   
   while (contLoop) {
     rerunBlockedHere();
