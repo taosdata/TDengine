@@ -670,6 +670,7 @@ class TestScalarFunction:
             - 2025-10-13 Alex Duan add doc
 
         """
+        # Windows has a incompatible implementation of srand/rand, skip it for now
         if platform.system().lower() != 'windows':
             self.run_rand()
 
