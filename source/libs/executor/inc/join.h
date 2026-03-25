@@ -43,6 +43,13 @@ typedef enum EJoinTableType {
 /* Checks whether the join is FULL OUTER (requires special build-side non-match tracking). */
 #define IS_FULL_OUTER_JOIN(_jtype, _stype) ((_jtype) == JOIN_TYPE_FULL && (_stype) == JOIN_STYPE_OUTER)
 
+/*
+ * Generic row-bitmap helpers shared by merge join and hash full join.
+ * Bitmap uses the same null-bitmap convention: bit=1 means unmatched, bit=0 means matched.
+ */
+#define JOIN_ROW_BITMAP_SET(_b, _base, _idx) (!BMIsNull((_b) + (_base), (_idx)))
+#define JOIN_SET_ROW_BITMAP(_b, _base, _idx) colDataClearNull_f((_b) + (_base), (_idx))
+
 
 
 #ifdef __cplusplus

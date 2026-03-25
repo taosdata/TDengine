@@ -47,6 +47,9 @@ extern "C" {
 /* Bitmap size for tracking matched rows in FULL OUTER JOIN (2 MB). */
 #define HJOIN_ROW_BITMAP_SIZE (2 * 1048576)
 
+/* Batch size used when emitting FULL JOIN unmatched build rows. */
+#define HJOIN_NMATCH_BATCH_SIZE 64
+
 /*
  * Threshold ratio for the output block. When finBlk reaches this fraction of its capacity,
  * the operator yields the block to the upstream caller instead of continuing to append rows.
@@ -79,6 +82,9 @@ typedef int32_t (*hJoinImplFp)(SOperatorInfo*);
 /* Function pointer type for build phase logic (hJoinBuildHash, hFullJoinBuildHash). */
 typedef int32_t (*hJoinBuildFp)(SOperatorInfo*, bool*);
 
+/* Function pointer type for probe-end handling when downstream probe is exhausted. */
+typedef int32_t (*hJoinProbeEndFp)(struct SHJoinOperatorInfo*, bool*, bool*);
+
 /*
  * Row metadata stored at the head of each row buffer entry in the page pool.
  * Forms a singly-linked list per hash group so all rows with the same key can be traversed.
@@ -92,6 +98,7 @@ typedef struct SBufRowInfo {
   void*    next;      /* pointer to the next SBufRowInfo in the same hash group (NULL if last) */
   uint16_t pageId;    /* index into pRowBufs array identifying which page holds the row data */
   int32_t  offset;    /* byte offset within the page where the row's value data begins */
+  uint32_t grpRowIdx; /* row index inside one hash group, used by FULL JOIN match bitmap */
 } SBufRowInfo;
 #pragma pack(pop)
 
@@ -140,6 +147,19 @@ typedef struct SHJoinCtx {
   int32_t      buildNMEndIdx;   /* end index of consecutive NULL-key build rows */
   int32_t      buildStartIdx;   /* current row index in the build block being inserted to hash */
   int32_t      buildEndIdx;     /* last row index in the build block */
+  bool         probeDone;       /* true once probe downstream returns NULL; do not call downstream again */
+
+  // FOR FULL JOIN - tracks post-probe unmatched build row emission
+  bool         buildNMatchDone;
+  bool         buildNMatchInited;
+  void*        pBuildNMatchGrp;
+  int32_t      buildNMatchIter;
+  SBufRowInfo* pBuildNMatchRow;
+
+  // FOR FULL JOIN - lazy bitmap allocation from one global pool
+  char*        fullGrpBitmapPool;       /* one shared bitmap pool for all FULL hash groups */
+  uint64_t     fullGrpBitmapPoolSize;   /* total bytes lazily computed when pool is first required */
+  uint64_t     fullGrpBitmapPoolOffset; /* next free byte offset in fullGrpBitmapPool */
 } SHJoinCtx;
 
 /*
@@ -197,9 +217,11 @@ typedef struct SGroupData {
 typedef struct SFGroupData {
   SBufRowInfo*  rows;             // KEEP IT FIRST
 
-  char*         bitmap;       /* per-row match bitmap; bit set = row was matched */
+  char*         bitmap;       /* per-row match bitmap; bit=1 means unmatched, bit=0 means matched */
   uint32_t      rowsNum;      /* total number of rows in this group */
   uint32_t      rowsMatchNum; /* number of rows matched so far (for quick skip when all matched) */
+  int32_t*      keyOffsets;   /* cached key column offsets inside serialized group key */
+  int32_t       keyOffsetNum; /* number of cached offsets (should equal build keyNum) */
 } SFGroupData;
 
 
@@ -315,6 +337,7 @@ typedef struct SHJoinOperatorInfo {
   int32_t          blkThreshold; /* row count threshold for yielding the output block (capacity * ratio) */
   hJoinImplFp      joinFp;       /* join execution function pointer (varies by join type) */
   hJoinBuildFp     buildFp;      /* build phase function pointer (standard or FULL) */
+  hJoinProbeEndFp  probeEndFp;   /* probe-end hook (used by FULL JOIN unmatched-build emission) */
 } SHJoinOperatorInfo;
 
 /* Returns true if the column is also a key column (keyColIdx >= 0). */
@@ -448,6 +471,19 @@ bool    hJoinBlkReachThreshold(SHJoinOperatorInfo* pInfo, int64_t blkRows);
  * @return TSDB_CODE_SUCCESS on success, error code on failure
  */
 int32_t hJoinCopyNMatchRowsToBlock(SHJoinOperatorInfo* pJoin, SSDataBlock* pRes, int32_t startIdx, int32_t rows);
+
+/*
+ * Copies one unmatched build-side row to result block for FULL OUTER JOIN.
+ * Build columns come from row buffer + group key, probe columns are filled with NULL.
+ */
+int32_t hJoinCopyBuildNMatchRowToBlock(SHJoinOperatorInfo* pJoin, SSDataBlock* pRes, SBufRowInfo* pRow, const char* pKeyData,
+                                       const int32_t* pKeyOffsets);
+
+/*
+ * Emits unmatched build-side rows after all probe blocks are consumed in FULL OUTER JOIN.
+ * Uses SFGroupData bitmap to skip rows that have already matched.
+ */
+int32_t hJoinEmitBuildNMatchRows(SHJoinOperatorInfo* pJoin);
 
 /*
  * Standard build phase: reads all blocks from the build-side downstream operator,

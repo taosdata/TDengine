@@ -954,9 +954,7 @@ static int32_t hFullJoinAddBlockRowsToHashImpl(SHJoinOperatorInfo* pJoin, SHJoin
     }
     
     code = hJoinAddRowToHash(pJoin, pBlock, bufLen, pCtx->buildStartIdx);
-    if (code) {
-      return code;
-    }
+    HJ_ERR_RET(code);
   }
 
   pCtx->buildStartIdx = -1;
@@ -997,10 +995,10 @@ static int32_t hFullJoinAddBlockRowsToHash(SSDataBlock* pBlock, SHJoinOperatorIn
   pCtx->buildStartIdx = 0;
   pCtx->buildEndIdx = pBlock->info.rows - 1;
 
-  // 先计算表达式，确保所有列数据正确
+  // Evaluate expressions first so all dependent columns are ready.
   HJ_ERR_RET(hJoinLaunchEqualExpr(pJoin->pOperator, pBlock, pBuild, pCtx->buildStartIdx, pCtx->buildEndIdx));
 
-  // 再检查时间范围过滤
+  // Then apply time-range filtering on the evaluated values.
   if (pBuild->hasTimeRange && !hJoinFilterTimeRange(pCtx, pBlock, &pJoin->tblTimeRange, pBuild->primCol->srcSlot, &pCtx->buildStartIdx, &pCtx->buildEndIdx)) {
     pCtx->buildNMStartIdx = 0;
     pCtx->buildNMEndIdx = pBlock->info.rows - 1;
@@ -1035,7 +1033,8 @@ int32_t hFullJoinHandleBuildRemains(SHJoinOperatorInfo* pJoin, bool* returnDirec
   
   if (pJoin->ctx.pBuildData && pJoin->ctx.buildNMStartIdx >= 0) {
     code = hFullJoinCopyBuildNMRowsToBlock(pJoin, pJoin->finBlk, &pJoin->ctx, returnDirect);
-    if (code || *returnDirect) {
+    HJ_ERR_RET(code);
+    if (*returnDirect) {
       return code;
     }
   }
@@ -1051,7 +1050,8 @@ int32_t hFullJoinBuildHash(struct SOperatorInfo* pOperator, bool* returnDirect) 
   SHJoinOperatorInfo* pJoin = pOperator->info;
   SSDataBlock*        pBlock = NULL;
   int32_t             code = hFullJoinHandleBuildRemains(pJoin, returnDirect);
-  if (code || *returnDirect) {
+  HJ_ERR_RET(code);
+  if (*returnDirect) {
     return code;
   }
 
@@ -1065,7 +1065,8 @@ int32_t hFullJoinBuildHash(struct SOperatorInfo* pOperator, bool* returnDirect) 
     pJoin->execInfo.buildBlkRows += pBlock->info.rows;
 
     code = hFullJoinAddBlockRowsToHash(pBlock, pJoin, returnDirect);
-    if (code || *returnDirect) {
+    HJ_ERR_RET(code);
+    if (*returnDirect) {
       return code;
     }
   }
@@ -1092,6 +1093,220 @@ int32_t hFullJoinBuildHash(struct SOperatorInfo* pOperator, bool* returnDirect) 
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t hFullJoinEnsureBitmapPool(SHJoinOperatorInfo* pJoin) {
+  SHJoinCtx* pCtx = &pJoin->ctx;
+  if (NULL != pCtx->fullGrpBitmapPool) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (NULL == pJoin->pKeyHash) {
+    qError("full join bitmap pool ensure failed: key hash is null");
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+
+  uint64_t totalBytes = 0;
+  void* pIte = NULL;
+  int32_t iter = 0;
+  while ((pIte = tSimpleHashIterate(pJoin->pKeyHash, pIte, &iter)) != NULL) {
+    SFGroupData* pGroup = (SFGroupData*)pIte;
+    if (0 == pGroup->rowsNum || NULL != pGroup->bitmap || pGroup->rowsMatchNum >= pGroup->rowsNum) {
+      continue;
+    }
+
+    uint64_t needBytes = (uint64_t)BitmapLen(pGroup->rowsNum) + 1;
+    if (needBytes > UINT64_MAX - totalBytes) {
+      qError("full join bitmap pool size overflow, partial:%" PRIu64 ", need:%" PRIu64 ", rowsNum:%u", totalBytes,
+             needBytes,
+             pGroup->rowsNum);
+      return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    }
+
+    totalBytes += needBytes;
+  }
+
+  if (0 == totalBytes) {
+    qError("full join bitmap pool requested but no eligible group requires bitmap allocation");
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+
+  pCtx->fullGrpBitmapPoolSize = totalBytes;
+
+  pCtx->fullGrpBitmapPool = taosMemoryMalloc((size_t)pCtx->fullGrpBitmapPoolSize);
+  if (NULL == pCtx->fullGrpBitmapPool) {
+    qError("failed to allocate full join bitmap pool, bytes:%" PRIu64 ", code:%d", pCtx->fullGrpBitmapPoolSize,
+           terrno);
+    return terrno;
+  }
+  TAOS_MEMSET(pCtx->fullGrpBitmapPool, 0xFF, (size_t)pCtx->fullGrpBitmapPoolSize);
+
+  pCtx->fullGrpBitmapPoolOffset = 0;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t hFullJoinEnsureGroupBitmap(SHJoinOperatorInfo* pJoin, SFGroupData* pGroup) {
+  if (NULL == pGroup || 0 == pGroup->rowsNum || NULL != pGroup->bitmap) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  HJ_ERR_RET(hFullJoinEnsureBitmapPool(pJoin));
+
+  SHJoinCtx* pCtx = &pJoin->ctx;
+  uint64_t needBytes = (uint64_t)BitmapLen(pGroup->rowsNum) + 1;
+  if (pCtx->fullGrpBitmapPoolOffset > pCtx->fullGrpBitmapPoolSize || needBytes > pCtx->fullGrpBitmapPoolSize - pCtx->fullGrpBitmapPoolOffset) {
+    qError("full join bitmap pool exhausted, need:%" PRIu64 ", offset:%" PRIu64 ", total:%" PRIu64
+           ", rowsNum:%u", needBytes,
+           pCtx->fullGrpBitmapPoolOffset, pCtx->fullGrpBitmapPoolSize, pGroup->rowsNum);
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+
+  pGroup->bitmap = pCtx->fullGrpBitmapPool + pCtx->fullGrpBitmapPoolOffset;
+  pCtx->fullGrpBitmapPoolOffset += needBytes;
+  return TSDB_CODE_SUCCESS;
+}
+
+static FORCE_INLINE uint32_t hJoinPopcnt8(uint8_t v) {
+  return (uint32_t)__builtin_popcount((uint32_t)v);
+}
+
+static void hFullJoinMarkBitmapRangeMatched(SFGroupData* pGroup, uint32_t beginIdx, uint32_t endIdx) {
+  if (NULL == pGroup->bitmap || beginIdx > endIdx || beginIdx >= pGroup->rowsNum) {
+    return;
+  }
+
+  if (endIdx >= pGroup->rowsNum) {
+    endIdx = pGroup->rowsNum - 1;
+  }
+
+  uint32_t numRows = endIdx - beginIdx + 1;
+  if (numRows < 16) {
+    for (uint32_t i = beginIdx; i <= endIdx; ++i) {
+      if (BMIsNull(pGroup->bitmap, i)) {
+        colDataClearNull_f(pGroup->bitmap, i);
+        ++pGroup->rowsMatchNum;
+      }
+    }
+    return;
+  }
+
+  uint32_t startByte = CharPos(beginIdx);
+  uint32_t endByte = CharPos(endIdx);
+
+  if (startByte == endByte) {
+    uint8_t mask = (uint8_t)((0xFFu >> BitPos(beginIdx)) & (0xFFu << (7u - BitPos(endIdx))));
+    uint8_t old = (uint8_t)pGroup->bitmap[startByte];
+    uint8_t hit = (uint8_t)(old & mask);
+    if (hit) {
+      pGroup->bitmap[startByte] = (char)(old & (uint8_t)(~mask));
+      pGroup->rowsMatchNum += hJoinPopcnt8(hit);
+    }
+    return;
+  }
+
+  uint8_t headMask = (uint8_t)(0xFFu >> BitPos(beginIdx));
+  uint8_t oldHead = (uint8_t)pGroup->bitmap[startByte];
+  uint8_t hitHead = (uint8_t)(oldHead & headMask);
+  if (hitHead) {
+    pGroup->bitmap[startByte] = (char)(oldHead & (uint8_t)(~headMask));
+    pGroup->rowsMatchNum += hJoinPopcnt8(hitHead);
+  }
+
+  uint32_t midBytes = (endByte > startByte + 1) ? (endByte - startByte - 1) : 0;
+  if (midBytes > 0) {
+    char* pMid = &pGroup->bitmap[startByte + 1];
+    for (uint32_t b = 0; b < midBytes; ++b) {
+      uint8_t old = (uint8_t)pMid[b];
+      if (old) {
+        pGroup->rowsMatchNum += hJoinPopcnt8(old);
+      }
+    }
+    TAOS_MEMSET(pMid, 0, midBytes);
+  }
+
+  uint8_t tailMask = (uint8_t)(0xFFu << (7u - BitPos(endIdx)));
+  uint8_t oldTail = (uint8_t)pGroup->bitmap[endByte];
+  uint8_t hitTail = (uint8_t)(oldTail & tailMask);
+  if (hitTail) {
+    pGroup->bitmap[endByte] = (char)(oldTail & (uint8_t)(~tailMask));
+    pGroup->rowsMatchNum += hJoinPopcnt8(hitTail);
+  }
+}
+
+static void hFullJoinMarkRowsMatchedBatch(SFGroupData* pGroup, SBufRowInfo* pRow, int32_t rowNum, const int8_t* pIndicator) {
+  if (NULL == pGroup || NULL == pRow || rowNum <= 0 || pGroup->rowsMatchNum >= pGroup->rowsNum) {
+    return;
+  }
+
+  if (NULL == pIndicator) {
+    uint32_t hi = pRow->grpRowIdx;
+    uint32_t lo = (rowNum - 1 > (int32_t)hi) ? 0 : (hi - (uint32_t)(rowNum - 1));
+    hFullJoinMarkBitmapRangeMatched(pGroup, lo, hi);
+    return;
+  }
+
+  int32_t runLen = 0;
+  SBufRowInfo* pRunStart = NULL;
+  for (int32_t i = 0; i < rowNum && pRow; ++i, pRow = pRow->next) {
+    if (pIndicator[i]) {
+      if (0 == runLen) {
+        pRunStart = pRow;
+      }
+      ++runLen;
+      continue;
+    }
+
+    if (runLen > 0 && pRunStart) {
+      uint32_t hi = pRunStart->grpRowIdx;
+      uint32_t lo = (runLen - 1 > (int32_t)hi) ? 0 : (hi - (uint32_t)(runLen - 1));
+      hFullJoinMarkBitmapRangeMatched(pGroup, lo, hi);
+      runLen = 0;
+      pRunStart = NULL;
+    }
+  }
+
+  if (runLen > 0 && pRunStart) {
+    uint32_t hi = pRunStart->grpRowIdx;
+    uint32_t lo = (runLen - 1 > (int32_t)hi) ? 0 : (hi - (uint32_t)(runLen - 1));
+    hFullJoinMarkBitmapRangeMatched(pGroup, lo, hi);
+  }
+}
+
+static int32_t hFullJoinFilterAndMarkRows(SHJoinOperatorInfo* pJoin, SSDataBlock* pBlock, SFilterInfo* pFilterInfo,
+                                          SFGroupData* pGroup, SBufRowInfo* pRowsStart, int32_t rowsBefore,
+                                          int32_t rowsAdded, bool wholeGroupFilteredOnce) {
+  if (NULL == pFilterInfo || pBlock->info.rows <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SFilterColumnParam param1 = {.numOfCols = taosArrayGetSize(pBlock->pDataBlock), .pDataBlock = pBlock->pDataBlock};
+  SColumnInfoData* p = NULL;
+
+  HJ_ERR_RET(filterSetDataFromSlotId(pFilterInfo, &param1));
+
+  int32_t status = 0;
+  HJ_ERR_RET(filterExecute(pFilterInfo, pBlock, &p, NULL, param1.numOfCols, &status));
+
+  if (rowsAdded > 0 && pGroup->rowsMatchNum < pGroup->rowsNum) {
+    if (status == FILTER_RESULT_ALL_QUALIFIED) {
+      if (wholeGroupFilteredOnce) {
+        pGroup->rowsMatchNum = pGroup->rowsNum;
+      } else {
+        HJ_ERR_RET(hFullJoinEnsureGroupBitmap(pJoin, pGroup));
+        hFullJoinMarkRowsMatchedBatch(pGroup, pRowsStart, rowsAdded, NULL);
+      }
+    } else if (status == FILTER_RESULT_PARTIAL_QUALIFIED && p != NULL) {
+      HJ_ERR_RET(hFullJoinEnsureGroupBitmap(pJoin, pGroup));
+      hFullJoinMarkRowsMatchedBatch(pGroup, pRowsStart, rowsAdded, (int8_t*)p->pData + rowsBefore);
+    }
+  }
+
+  HJ_ERR_RET(extractQualifiedTupleByFilterResult(pBlock, p, status));
+
+  colDataDestroy(p);
+  taosMemoryFree(p);
+
+  return TSDB_CODE_SUCCESS;
+}
+
 
 /*
  * Handles remaining pPreFilter-path build rows for the current probe row in FULL JOIN.
@@ -1107,11 +1322,22 @@ int32_t hFullJoinBuildHash(struct SOperatorInfo* pOperator, bool* returnDirect) 
 int32_t hFullJoinHandleSeqRemainBuildRows(struct SOperatorInfo* pOperator, SHJoinOperatorInfo* pJoin, bool* loopCont) {
   bool allFetched = false;
   SHJoinCtx* pCtx = &pJoin->ctx;
+  SFGroupData* pGroup = (SFGroupData*)pCtx->pBuildNMatchGrp;
+  if (NULL == pGroup) {
+    qError("full join seq remain build rows failed: current build match group is null");
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
   
   while (!allFetched) {
+    int32_t rowsBefore = pJoin->midBlk->info.rows;
+    SBufRowInfo* pBatchStart = pCtx->pBuildRow;
     hJoinAppendResToBlock(pOperator, pJoin->midBlk, &allFetched);
     if (pJoin->midBlk->info.rows > 0) {
-      HJ_ERR_RET(doFilter(pJoin->midBlk, pJoin->pPreFilter, NULL, NULL));
+      int32_t rowsAdded = pJoin->midBlk->info.rows - rowsBefore;
+      bool wholeGroupFilteredOnce = allFetched && (0 == rowsBefore) && (pBatchStart == pGroup->rows) &&
+                ((uint32_t)rowsAdded == pGroup->rowsNum);
+      HJ_ERR_RET(hFullJoinFilterAndMarkRows(pJoin, pJoin->midBlk, pJoin->pPreFilter, pGroup, pBatchStart, rowsBefore,
+                                            rowsAdded, wholeGroupFilteredOnce));
       if (pJoin->midBlk->info.rows > 0) {
         pCtx->readMatch = true;
         HJ_ERR_RET(hJoinCopyMergeMidBlk(pCtx, &pJoin->midBlk, &pJoin->finBlk));
@@ -1203,13 +1429,20 @@ int32_t hFullJoinHandleSeqProbeRows(struct SOperatorInfo* pOperator, SHJoinOpera
     }
     
     pCtx->readMatch = false;
+    pCtx->pBuildNMatchGrp = pGroup;
     pCtx->pBuildRow = pGroup->rows;
     allFetched = false;
 
     while (!allFetched) {
+      int32_t rowsBefore = pJoin->midBlk->info.rows;
+      SBufRowInfo* pBatchStart = pCtx->pBuildRow;
       hJoinAppendResToBlock(pOperator, pJoin->midBlk, &allFetched);
       if (pJoin->midBlk->info.rows > 0) {
-        HJ_ERR_RET(doFilter(pJoin->midBlk, pJoin->pPreFilter, NULL, NULL));
+        int32_t rowsAdded = pJoin->midBlk->info.rows - rowsBefore;
+        bool wholeGroupFilteredOnce = allFetched && (0 == rowsBefore) && (pBatchStart == pGroup->rows) &&
+                    ((uint32_t)rowsAdded == pGroup->rowsNum);
+        HJ_ERR_RET(hFullJoinFilterAndMarkRows(pJoin, pJoin->midBlk, pJoin->pPreFilter, pGroup, pBatchStart, rowsBefore,
+                                              rowsAdded, wholeGroupFilteredOnce));
         if (pJoin->midBlk->info.rows > 0) {
           pCtx->readMatch = true;
           HJ_ERR_RET(hJoinCopyMergeMidBlk(pCtx, &pJoin->midBlk, &pJoin->finBlk));
@@ -1260,6 +1493,10 @@ int32_t hFullJoinHandleRemainBuildRows(struct SOperatorInfo* pOperator, SHJoinOp
   SHJoinCtx* pCtx = &pJoin->ctx;
   
   hJoinAppendResToBlock(pOperator, pJoin->finBlk, &allFetched);
+  if (allFetched && pCtx->pBuildNMatchGrp) {
+    SFGroupData* pGroup = (SFGroupData*)pCtx->pBuildNMatchGrp;
+    pGroup->rowsMatchNum = pGroup->rowsNum;
+  }
   
   if (hJoinBlkReachThreshold(pJoin, pJoin->finBlk->info.rows)) {
     if (allFetched) {
@@ -1330,10 +1567,13 @@ int32_t hFullJoinHandleProbeRows(struct SOperatorInfo* pOperator, SHJoinOperator
       continue;
     }
     
+    pCtx->pBuildNMatchGrp = pGroup;
     pCtx->pBuildRow = pGroup->rows;
-    pGroup->rowsMatchNum = pGroup->rowsNum;
 
     hJoinAppendResToBlock(pOperator, pJoin->finBlk, &allFetched);
+    if (allFetched) {
+      pGroup->rowsMatchNum = pGroup->rowsNum;
+    }
     if (hJoinBlkReachThreshold(pJoin, pJoin->finBlk->info.rows)) {
       if (allFetched) {
         ++pCtx->probeStartIdx;
@@ -1358,10 +1598,9 @@ int32_t hFullJoinHandleProbeRows(struct SOperatorInfo* pOperator, SHJoinOperator
  *            hFullJoinHandleProbeRows (without). Also handles remaining build row state.
  * POST phase: probe rows after the join time window — emitted as non-matching.
  *
- * Note: FULL JOIN also requires a second pass to emit unmatched build-side rows after all
- * probe blocks are processed. That pass is NOT handled here — it is handled during the
- * build phase (hFullJoinBuildHash) which emits NULL-key build rows directly, and the
- * SFGroupData.bitmap mechanism tracks which build rows were matched during probing.
+ * Note: FULL JOIN still needs post-probe unmatched build-row emission. That stage is handled
+ * in hashjoinoperator.c (hJoinEmitBuildNMatchRows). Here we only maintain the per-row match
+ * bitmap in SFGroupData during probe.
  *
  * @param pOperator  the hash join operator
  * @return TSDB_CODE_SUCCESS on success, error code on failure
