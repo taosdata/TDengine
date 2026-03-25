@@ -1361,7 +1361,7 @@ int tdbFreeOvflPage(SPgno pgno, int nSize, TXN *pTxn, SBTree *pBt) {
   while (pgno != 0) {
     SPage *ofp;
     int    bytes;
-    int ret = tdbLoadOvflPage(&pgno, &ofp, pTxn, pBt);
+    ret = tdbLoadOvflPage(&pgno, &ofp, pTxn, pBt);
     if (ret < 0) {
       return ret;
     }
