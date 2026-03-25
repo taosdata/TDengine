@@ -660,8 +660,6 @@ _exit:
 }
 ```
 
-> **Note:** Replace `dmSetStopped(pMgmt->pData)` with the actual shutdown invocation used by other threads in this codebase. Search for how `dmStopDnode` or the dnode shutdown signal is triggered (e.g., `atomic_store_8(&tsComponentStatus, ...)`). Look at how `dmStopMgmt` works and use the same mechanism.
-
 - [ ] **Step 4: Build `dnode_mgmt` — verify no compile errors**
 
 ```bash
@@ -683,12 +681,12 @@ git commit -m "feat: implement license thread state machine (dmLicenseThreadFp)"
 ## Task 7: Wire thread into `dmWorker.c` and `dmInt.c`
 
 **Files:**
-- Modify: `source/dnode/mgmt/mgmt_dnode/src/dmWorker.c`
-- Modify: `source/dnode/mgmt/mgmt_dnode/src/dmInt.c`
+- Modify: `source/dnode/mgmt/mgmt_dnode/src/dmLicense.c` — add `dmStartLicenseThread` / `dmStopLicenseThread` here (same file as `dmLicenseThreadFp`, which is `static`)
+- Modify: `source/dnode/mgmt/mgmt_dnode/src/dmInt.c` — call start/stop
 
-- [ ] **Step 1: Add `dmStartLicenseThread` and `dmStopLicenseThread` to `dmWorker.c`**
+> **Why not `dmWorker.c`?** `dmLicenseThreadFp` is `static` (internal linkage). `dmStartLicenseThread` must live in the same translation unit (`dmLicense.c`) to reference it. This also keeps the module cohesive.
 
-At the end of the file, following the pattern of `dmStartMonitorThread` / `dmStopMonitorThread`:
+- [ ] **Step 1: Append `dmStartLicenseThread` and `dmStopLicenseThread` to `dmLicense.c`**
 
 ```c
 int32_t dmStartLicenseThread(SDnodeMgmt *pMgmt) {
@@ -698,7 +696,7 @@ int32_t dmStartLicenseThread(SDnodeMgmt *pMgmt) {
   (void)taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
   if (taosThreadCreate(&pMgmt->licenseThread, &thAttr, dmLicenseThreadFp, pMgmt) != 0) {
     code = TAOS_SYSTEM_ERROR(ERRNO);
-    dError("failed to create license thread since %s", tstrerror(code));
+    uError("failed to create license thread since %s", tstrerror(code));
     (void)taosThreadAttrDestroy(&thAttr);
     return code;
   }
@@ -715,9 +713,7 @@ void dmStopLicenseThread(SDnodeMgmt *pMgmt) {
 }
 ```
 
-- [ ] **Step 2: Add `#include "dmLicense.h"` to `dmWorker.c`** (if not already included via `dmInt.h`)
-
-- [ ] **Step 3: Add thread start call in `dmStartMgmt()` in `dmInt.c`**
+- [ ] **Step 2: Add thread start call in `dmStartMgmt()` in `dmInt.c`**
 
 After the last `dmStart*Thread` call (currently `dmStartMetricsThread` or similar), add:
 
@@ -728,7 +724,7 @@ if ((code = dmStartLicenseThread(pMgmt)) != 0) {
 }
 ```
 
-- [ ] **Step 4: Add thread stop call in `dmStopMgmt()` in `dmInt.c`**
+- [ ] **Step 3: Add thread stop call in `dmStopMgmt()` in `dmInt.c`**
 
 After the first stop call (so license thread stops early, freeing SDK resources):
 
@@ -736,7 +732,7 @@ After the first stop call (so license thread stops early, freeing SDK resources)
 dmStopLicenseThread(pMgmt);
 ```
 
-- [ ] **Step 5: Build full taosd**
+- [ ] **Step 4: Build full taosd**
 
 ```bash
 cd debug && make -j$(nproc) taosd 2>&1 | grep -i "error:" | head -20
@@ -744,7 +740,7 @@ cd debug && make -j$(nproc) taosd 2>&1 | grep -i "error:" | head -20
 
 Expected: 0 errors.
 
-- [ ] **Step 6: Smoke test — start taosd with no `culsAddr` set, check grace period log**
+- [ ] **Step 5: Smoke test — start taosd with no `culsAddr` set, check grace period log**
 
 ```bash
 ./build.sh start
@@ -754,10 +750,10 @@ grep -i "license\|grace" /var/log/taos/taosd.log | head -20
 
 Expected: `"culsAddr not configured, entering grace period immediately"` in log.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
-git add source/dnode/mgmt/mgmt_dnode/src/dmWorker.c \
+git add source/dnode/mgmt/mgmt_dnode/src/dmLicense.c \
         source/dnode/mgmt/mgmt_dnode/src/dmInt.c
 git commit -m "feat: wire dmLicenseThread into dmStartMgmt/dmStopMgmt"
 ```
