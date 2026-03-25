@@ -18,7 +18,6 @@
 
 #include "os.h"
 #include "tglobal.h"
-#include "taos_license.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -35,9 +34,11 @@ typedef enum {
 
 typedef struct SDmLicenseCtx {
   EDmLicenseState     state;
-  taos_sdk_handle_t  *pSdk;
-  int64_t             gracePeriodStartMs;  // 0 = not in grace period
-  taos_license_info_t lastLicense;
+  void               *pSdk;              // opaque taos_sdk_handle_t*
+  int64_t             gracePeriodStartMs; // 0 = not in grace period
+  // last observed license fields (for change-detection logging)
+  char                lastLicenseId[64];
+  int64_t             lastValidUntil;
 } SDmLicenseCtx;
 
 // Forward declaration (SDnodeMgmt defined in dmInt.h)

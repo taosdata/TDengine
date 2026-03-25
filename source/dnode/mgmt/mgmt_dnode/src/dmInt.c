@@ -63,6 +63,9 @@ static int32_t dmStartMgmt(SDnodeMgmt *pMgmt) {
   if ((code = dmStartMetricsThread(pMgmt)) != 0) {
     return code;
   }
+  if ((code = dmStartLicenseThread(pMgmt)) != 0) {
+    return code;
+  }
   return 0;
 }
 
@@ -81,6 +84,7 @@ static void dmStopMgmt(SDnodeMgmt *pMgmt) {
 #endif
   dmStopCrashReportThread(pMgmt);
   dmStopMetricsThread(pMgmt);
+  dmStopLicenseThread(pMgmt);
 }
 
 static int32_t dmOpenMgmt(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {

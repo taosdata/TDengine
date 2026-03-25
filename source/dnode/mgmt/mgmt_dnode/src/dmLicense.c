@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "dmLicense.h"
 #include "dmInt.h"
+#include "taos_license.h"
 #include "cJSON.h"
 #include "tglobal.h"
 #include "osFile.h"
@@ -101,8 +102,8 @@ static void dmLicenseHandleGetResult(SDmLicenseCtx *pCtx, int ret,
                                       const char *instanceId) {
   if (ret == TAOS_LICENSE_OK) {
     // Log only on change
-    if (strcmp(pCtx->lastLicense.license_id, pInfo->license_id) != 0 ||
-        pCtx->lastLicense.valid_until != pInfo->valid_until) {
+    if (strcmp(pCtx->lastLicenseId, pInfo->license_id) != 0 ||
+        pCtx->lastValidUntil != pInfo->valid_until) {
       uInfo("license updated: id=%s type=%s valid_until=%" PRId64
             " timeseries=%lu cpu_cores=%u dnodes=%u",
             pInfo->license_id, pInfo->license_type, pInfo->valid_until,
@@ -110,7 +111,8 @@ static void dmLicenseHandleGetResult(SDmLicenseCtx *pCtx, int ret,
             (unsigned)pInfo->cpu_cores_limit,
             (unsigned)pInfo->dnodes_limit);
     }
-    pCtx->lastLicense = *pInfo;
+    tstrncpy(pCtx->lastLicenseId, pInfo->license_id, sizeof(pCtx->lastLicenseId));
+    pCtx->lastValidUntil = pInfo->valid_until;
     if (pCtx->state == DM_LICENSE_STATE_GRACE) {
       dmLicenseCancelGrace(pCtx);
       pCtx->state = DM_LICENSE_STATE_OK;
@@ -118,8 +120,6 @@ static void dmLicenseHandleGetResult(SDmLicenseCtx *pCtx, int ret,
     return;
   }
 
-  // Only fetch error string for non-OK codes
-  const char *errStr = taos_sdk_error_string(pCtx->pSdk, ret);
   switch (ret) {
     case TAOS_LICENSE_NO_LICENSE:
       uWarn("license: no license available, entering grace period");
@@ -137,12 +137,14 @@ static void dmLicenseHandleGetResult(SDmLicenseCtx *pCtx, int ret,
       uWarn("license: license expired, entering grace period");
       dmLicenseEnterGrace(pCtx);
       break;
-    default:
+    default: {
       // Transient errors: network / verify / generic — just warn, retry next cycle
+      const char *errStr = taos_sdk_error_string((taos_sdk_handle_t *)pCtx->pSdk, ret);
       uWarn("license: check error (transient): %s (code=%d)", errStr ? errStr : "unknown", ret);
+      if (errStr) taos_sdk_free_error_string(errStr);
       break;
+    }
   }
-  if (errStr) taos_sdk_free_error_string(errStr);
 }
 
 static void *dmLicenseThreadFp(void *param) {
@@ -171,7 +173,7 @@ static void *dmLicenseThreadFp(void *param) {
           dmLicenseEnterGrace(pCtx);
           break;
         }
-        int ret = taos_sdk_create(&pCtx->pSdk, tsCulsAddr, instanceId);
+        int ret = taos_sdk_create((taos_sdk_handle_t **)&pCtx->pSdk, tsCulsAddr, instanceId);
         if (ret != TAOS_LICENSE_OK) {
           const char *e = taos_sdk_error_string(NULL, ret);
           uError("license: failed to connect to CULS [%s]: %s", tsCulsAddr, e ? e : "unknown");
@@ -182,7 +184,7 @@ static void *dmLicenseThreadFp(void *param) {
         }
         // Initial license fetch — transient errors go to OK (retry); hard errors to GRACE
         taos_license_info_t info = {0};
-        ret = taos_sdk_get_license(pCtx->pSdk, &info);
+        ret = taos_sdk_get_license((taos_sdk_handle_t *)pCtx->pSdk, &info);
         pCtx->state = DM_LICENSE_STATE_OK;   // set OK first so handler can flip to GRACE
         dmLicenseHandleGetResult(pCtx, ret, &info, instanceId);
         break;
@@ -190,15 +192,15 @@ static void *dmLicenseThreadFp(void *param) {
 
       case DM_LICENSE_STATE_OK: {
         // Heartbeat — failure is non-fatal
-        int hbRet = taos_sdk_heartbeat(pCtx->pSdk);
+        int hbRet = taos_sdk_heartbeat((taos_sdk_handle_t *)pCtx->pSdk);
         if (hbRet != TAOS_LICENSE_OK) {
-          const char *e = taos_sdk_error_string(pCtx->pSdk, hbRet);
+          const char *e = taos_sdk_error_string((taos_sdk_handle_t *)pCtx->pSdk, hbRet);
           uWarn("license: heartbeat failed: %s", e ? e : "unknown");
           if (e) taos_sdk_free_error_string(e);
         }
         // License check
         taos_license_info_t info = {0};
-        int ret = taos_sdk_get_license(pCtx->pSdk, &info);
+        int ret = taos_sdk_get_license((taos_sdk_handle_t *)pCtx->pSdk, &info);
         dmLicenseHandleGetResult(pCtx, ret, &info, instanceId);
         break;
       }
@@ -207,7 +209,7 @@ static void *dmLicenseThreadFp(void *param) {
         // Attempt recovery if SDK is available
         if (pCtx->pSdk != NULL) {
           taos_license_info_t info = {0};
-          int ret = taos_sdk_get_license(pCtx->pSdk, &info);
+          int ret = taos_sdk_get_license((taos_sdk_handle_t *)pCtx->pSdk, &info);
           dmLicenseHandleGetResult(pCtx, ret, &info, instanceId);
           if (pCtx->state == DM_LICENSE_STATE_OK) break;  // recovered
         }
@@ -236,7 +238,7 @@ static void *dmLicenseThreadFp(void *param) {
 
 _exit:
   if (pCtx->pSdk != NULL) {
-    taos_sdk_destroy(pCtx->pSdk);
+    taos_sdk_destroy((taos_sdk_handle_t *)pCtx->pSdk);
     pCtx->pSdk = NULL;
   }
   return NULL;
