@@ -221,7 +221,7 @@ writer.write(lineDemo, SchemalessProtocolType.LINE, SchemalessTimestampType.NANO
 
 </TabItem>
 <TabItem label="Go" value="go">
-Use the `ws/unified` schemaless interface (recommended):
+Use the `ws/unified` schemaless interface (recommended, starting from `v3.8.0`):
 
 ```go
 {{#include docs/examples/go/schemaless/unified/main.go}}

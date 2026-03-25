@@ -216,7 +216,7 @@ writer.write(lineDemo, SchemalessProtocolType.LINE, SchemalessTimestampType.NANO
 
 </TabItem>
 <TabItem label="Go" value="go">
-推荐使用 `ws/unified` 无模式写入接口：
+推荐使用 `ws/unified` 无模式写入接口（`v3.8.0` 版本开始）：
 
 ```go
 {{#include docs/examples/go/schemaless/unified/main.go}}
