@@ -1310,9 +1310,9 @@ int32_t ctgGetVgInfoFromHashValue(SCatalog* pCtg, SEpSet* pMgmtEps, SDBVgInfo* d
 
   *pVgroup = *vgInfo;
 
-  ctgTrace("tb:%s, get hash vgroup, vgId:%d, epNum:%d, current ep:%s:%u", tbFullName, vgInfo->vgId,
+  ctgTrace("tb:%s, get hash vgroup, vgId:%d, epNum:%d, current ep:%s:%u, hashVal:%u", tbFullName, vgInfo->vgId,
            vgInfo->epSet.numOfEps, vgInfo->epSet.eps[vgInfo->epSet.inUse].fqdn,
-           vgInfo->epSet.eps[vgInfo->epSet.inUse].port);
+           vgInfo->epSet.eps[vgInfo->epSet.inUse].port, hashValue);
 
   CTG_RET(code);
 }
@@ -1436,7 +1436,7 @@ int32_t ctgGetVgInfosFromHashValue(SCatalog* pCtg, SEpSet* pMgmgEpSet, SCtgTaskR
     }
 
     tbNameLen = offset + strlen(pName->tname);
-    TAOS_STRCPY(tbFullName + offset, pName->tname);
+    tstrncpy(tbFullName + offset, pName->tname, sizeof(tbFullName) - offset);
     uint32_t hashValue = taosGetTbHashVal(tbFullName, (uint32_t)strlen(tbFullName), dbInfo->hashMethod,
                                           dbInfo->hashPrefix, dbInfo->hashSuffix);
 

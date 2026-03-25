@@ -107,7 +107,7 @@ static void* prep_data(void* arg) {
   while (!thread_stop) {
     char buf[4096] = {0};
     i++;
-    snprintf(buf, sizeof(buf), SQL_INSERT, i);
+    UNUSED(snprintf(buf, sizeof(buf), SQL_INSERT, i));
 
     fprintf(stdout, "start to insert: %s\n", buf);
 

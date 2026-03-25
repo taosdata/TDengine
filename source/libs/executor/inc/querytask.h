@@ -69,19 +69,8 @@ typedef struct {
   int64_t               snapshotVer;
   SSchemaWrapper*       schema;
   char                  tbName[TSDB_TABLE_NAME_LEN];  // this is the current scan table: todo refactor
-  int8_t                recoverStep;
-  int8_t                recoverScanFinished;
   SQueryTableDataCond   tableCond;
-  SVersionRange         fillHistoryVer;
-  SStreamState*         pState;
-  SStreamState*         pOtherState;
-  int32_t               eventTypes;          // event types to notify
-  SSchemaWrapper*       notifyResultSchema;  // agg result to notify
-  char*                 stbFullName;         // used to generate dest child table name
-  bool                  newSubTableRule;     // used to generate dest child table name
-  STaskNotifyEventStat* pNotifyEventStat;    // used to store notify event statistics
-  SArray              * pVTables;            // used to store merge info for merge task, SArray<SVCTableMergeInfo>
-} SStreamTaskInfo;
+} STmqTaskInfo;
 
 struct SExecTaskInfo {
   STaskIdInfo           id;
@@ -92,7 +81,7 @@ struct SExecTaskInfo {
   int32_t               code;
   int32_t               qbufQuota;  // total available buffer (in KB) during execution query
   int64_t               version;    // used for stream to record wal version, why not move to sschemainfo
-  SStreamTaskInfo       streamInfo;
+  STmqTaskInfo          tmqInfo;
   SArray*               schemaInfos;
   const char*           sql;        // query sql string
   jmp_buf               env;        // jump to this position when error happens.
@@ -110,6 +99,7 @@ struct SExecTaskInfo {
   SQueryAutoQWorkerPoolCB* pWorkerCb;
   SStreamRuntimeInfo*      pStreamRuntimeInfo;
   STaskSubJobCtx*          pSubJobCtx;
+  bool                     enableExplain;     // enable explain flag
 };
 
 void    buildTaskId(uint64_t taskId, uint64_t queryId, char* dst, int32_t len);
@@ -119,7 +109,7 @@ void    doDestroyTask(SExecTaskInfo* pTaskInfo);
 void    setTaskKilled(SExecTaskInfo* pTaskInfo, int32_t rspCode);
 void    setTaskStatus(SExecTaskInfo* pTaskInfo, int8_t status);
 int32_t createExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHandle* pHandle, uint64_t taskId,
-                           int32_t vgId, char* sql, EOPTR_EXEC_MODEL model, SArray** subEndPoints);
+                           int32_t vgId, char* sql, EOPTR_EXEC_MODEL model, SArray** subEndPoints, bool enableExplain);
 int32_t qAppendTaskStopInfo(SExecTaskInfo* pTaskInfo, SExchangeOpStopInfo* pInfo);
 int32_t getTableListInfo(const SExecTaskInfo* pTaskInfo, SArray** pList);
 void destroySubJobCtx(STaskSubJobCtx* pCtx);

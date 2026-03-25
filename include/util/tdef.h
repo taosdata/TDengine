@@ -565,6 +565,9 @@ typedef enum EQuantifyType {
 #define TSDB_DEFAULT_CACHE_MODEL        TSDB_CACHE_MODEL_NONE
 #define TSDB_MIN_DB_CACHE_SIZE          1  // MB
 #define TSDB_MAX_DB_CACHE_SIZE          65536
+#define TSDB_MIN_DB_CACHE_SHARD_BITS     -1
+#define TSDB_MAX_DB_CACHE_SHARD_BITS     19
+#define TSDB_DEFAULT_DB_CACHE_SHARD_BITS -1
 #define TSDB_DEFAULT_CACHE_SIZE         1
 #define TSDB_DEFAULT_MECACHE_SIZE       (1024 * 128)
 #define TSDB_MIN_MECACHE_SIZE           (1024 * 4)
@@ -630,6 +633,9 @@ typedef enum EQuantifyType {
 #define TSDB_DEFAULT_DB_ALLOW_DROP      1
 #define TSDB_MIN_DB_ALLOW_DROP          0
 #define TSDB_MAX_DB_ALLOW_DROP          1
+#define TSDB_DEFAULT_DB_SECURE_DELETE   0
+#define TSDB_MIN_DB_SECURE_DELETE       0
+#define TSDB_MAX_DB_SECURE_DELETE       1
 
 #define TSDB_MIN_ROLLUP_MAX_DELAY       1  // unit millisecond
 #define TSDB_MAX_ROLLUP_MAX_DELAY       (15 * 60 * 1000)
@@ -672,6 +678,8 @@ typedef enum EQuantifyType {
 #define TSDB_MAX_PRIV_OBJS 512
 #define TSDB_MAX_USERS     2000
 #define TSDB_MAX_ROLES     200
+
+#define TSDB_SHOW_VALIDATE_VIRTUAL_TABLE_ERROR 512
 
 #define PRIMARYKEY_TIMESTAMP_COL_ID    1
 #define COL_REACH_END(colId, maxColId) ((colId) > (maxColId))
@@ -815,6 +823,7 @@ enum { RAND_ERR_MEMORY = 1, RAND_ERR_FILE = 2, RAND_ERR_NETWORK = 4 };
 #define MONITOR_METRIC_NAME_LEN 100
 
 #define AUDIT_OPERATION_LEN 20
+#define AUDIT_CLIENT_ADD_LEN 256
 #define CONNECTOR_INFO_LEN  256
 
 typedef enum {
@@ -835,6 +844,8 @@ typedef enum {
   ANALY_ALGO_TYPE_MOTIF = 5,
   ANALY_ALGO_TYPE_END = 10,
 } EAnalyAlgoType;
+
+#define AUDIT_STABLE_NAME "operations"
 
 typedef enum {
   TSDB_VERSION_UNKNOWN = 0,

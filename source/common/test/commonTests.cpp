@@ -12,6 +12,7 @@
 #include "tcommon.h"
 #include "tdatablock.h"
 #include "tdef.h"
+#include "dmRepair.h"
 #include "tmisce.h"
 #include "ttime.h"
 #include "ttokendef.h"
@@ -235,6 +236,10 @@ TEST(testCase, toInteger_test) {
   s = "-9323372036854775807";
   ret = toInteger(s, strlen(s), 10, &val);
   ASSERT_EQ(ret, -1);
+}
+
+TEST(testCase, dmRepairDefaultsToNoWalRepair) {
+  ASSERT_FALSE(dmRepairNeedWalRepair(123));
 }
 
 TEST(testCase, Datablock_test_inc) {
@@ -532,7 +537,8 @@ void test_ts2char(int64_t ts, const char* format, int32_t precison, const char* 
 
 TEST(timeTest, ts2char) {
   osDefaultInit();
-  if (taosGetLocalTimezoneOffset() != TdEastZone8) GTEST_SKIP();
+  int32_t code = 0;
+  if (taosGetLocalTimezoneOffset(&code) != TdEastZone8) GTEST_SKIP();
   int64_t     ts;
   const char* format = "YYYY-MM-DD";
   ts = 0;
@@ -584,9 +590,10 @@ TEST(timeTest, ts2char) {
 
 TEST(timeTest, char2ts) {
   osDefaultInit();
-  if (taosGetLocalTimezoneOffset() != TdEastZone8) GTEST_SKIP();
+  int32_t code = 0;
+  if (taosGetLocalTimezoneOffset(&code) != TdEastZone8) GTEST_SKIP();
   int64_t ts;
-  int32_t code =
+  code =
       TEST_char2ts("YYYY-DD-MM HH12:MI:SS:MSPM", &ts, TSDB_TIME_PRECISION_MILLI, "2023-10-10 12:00:00.000AM");
   ASSERT_EQ(code, 0);
   ASSERT_EQ(ts, 1696867200000LL);
@@ -685,7 +692,7 @@ TEST(timeTest, char2ts) {
 
   // default to 1970-1-1 00:00:00+08 -> 1969-12-31 16:00:00+00
   ASSERT_EQ(0, TEST_char2ts("YYYY", &ts, TSDB_TIME_PRECISION_SECONDS, "1970"));
-  ASSERT_EQ(ts, -1 * taosGetLocalTimezoneOffset());
+  ASSERT_EQ(ts, -1 * taosGetLocalTimezoneOffset(&code));
 
   ASSERT_EQ(0, TEST_char2ts("yyyyMM1/dd ", &ts, TSDB_TIME_PRECISION_MICRO, "210001/2"));
   ASSERT_EQ(ts, 4102502400000000LL);

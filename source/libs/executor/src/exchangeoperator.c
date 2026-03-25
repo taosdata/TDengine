@@ -54,6 +54,8 @@ typedef struct SSourceDataInfo {
   STimeWindow         window;
   uint64_t            groupid;
   bool                fetchSent; // need reset
+  uint64_t            fetchTimes;   // per-source fetch count
+  int64_t             fetchCostUs;  // per-source total RPC round-trip (us)
 } SSourceDataInfo;
 
 static void destroyExchangeOperatorInfo(void* param);
@@ -149,7 +151,10 @@ static void streamSequenciallyLoadRemoteData(SOperatorInfo* pOperator,
     }
 
     while (true) {
+      recordOpExecBeforeDownstream(pOperator);
       code = exchangeWait(pOperator, pExchangeInfo);
+      recordOpExecAfterDownstream(pOperator, 0);
+
       if (code != TSDB_CODE_SUCCESS || isTaskKilled(pTaskInfo)) {
         T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
       }
@@ -261,7 +266,9 @@ static void concurrentlyLoadRemoteDataImpl(SOperatorInfo* pOperator, SExchangeIn
 
   while (1) {
     qDebug("prepare wait for ready, %p, %s", pExchangeInfo, GET_TASKID(pTaskInfo));
+    recordOpExecBeforeDownstream(pOperator);
     code = exchangeWait(pOperator, pExchangeInfo);
+    recordOpExecAfterDownstream(pOperator, 0);
 
     if (code != TSDB_CODE_SUCCESS || isTaskKilled(pTaskInfo)) {
       T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
@@ -625,6 +632,8 @@ int32_t resetExchangeOperState(SOperatorInfo* pOper) {
     pDataInfo->code = 0;
     pDataInfo->status = EX_SOURCE_DATA_NOT_READY;
     pDataInfo->fetchSent = false;
+    pDataInfo->fetchTimes = 0;
+    pDataInfo->fetchCostUs = 0;
     taosWUnLockLatch(&pDataInfo->lock);
   }
 
@@ -649,6 +658,35 @@ int32_t resetExchangeOperState(SOperatorInfo* pOper) {
   return 0;
 }
 
+static int32_t exchangeGetExplainExecInfo(SOperatorInfo* pOptr,
+                                          void** pOptrExplain, uint32_t* len) {
+  const SExchangeInfo* pExchangeInfo = pOptr->info;
+  int32_t numSources = (int32_t)taosArrayGetSize(pExchangeInfo->pSourceDataInfo);
+
+  SExchangeExplainInfo* pInfo = taosMemoryCalloc(1, sizeof(SExchangeExplainInfo));
+  if (!pInfo) {
+    return terrno;
+  }
+
+  pInfo->mode = pExchangeInfo->seqLoadData ? 1 : 0;
+  pInfo->numSources = numSources;
+
+  /* all sources are exhausted, thus no need to lock the sources data info */
+  for (int32_t i = 0; i < numSources; ++i) {
+    const SSourceDataInfo* pSrc = taosArrayGet(pExchangeInfo->pSourceDataInfo, i);
+    pInfo->avgFetchTimes += (double)pSrc->fetchTimes / numSources;
+    pInfo->avgFetchRows += (double)pSrc->totalRows / numSources;
+    pInfo->avgFetchCost += (double)pSrc->fetchCostUs / numSources;
+    pInfo->maxFetchTimes = TMAX(pInfo->maxFetchTimes, pSrc->fetchTimes);
+    pInfo->maxFetchRows = TMAX(pInfo->maxFetchRows, pSrc->totalRows);
+    pInfo->maxFetchCost = TMAX(pInfo->maxFetchCost, pSrc->fetchCostUs);
+  }
+
+  *pOptrExplain = pInfo;
+  *len = sizeof(SExchangeExplainInfo);
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t createExchangeOperatorInfo(void* pTransporter, SExchangePhysiNode* pExNode, SExecTaskInfo* pTaskInfo,
                                    SOperatorInfo** pOptrInfo) {
   QRY_PARAM_CHECK(pOptrInfo);
@@ -661,6 +699,7 @@ int32_t createExchangeOperatorInfo(void* pTransporter, SExchangePhysiNode* pExNo
     code = terrno;
     goto _error;
   }
+  initOperatorCostInfo(pOperator);
 
   pInfo->isExchange = true;
   pOperator->pPhyNode = pExNode;
@@ -698,8 +737,9 @@ int32_t createExchangeOperatorInfo(void* pTransporter, SExchangePhysiNode* pExNo
                             pTaskInfo->pStreamRuntimeInfo);
   QUERY_CHECK_CODE(code, lino, _error);
   qTrace("%s exchange op:%p", __func__, pOperator);
-  pOperator->fpSet = createOperatorFpSet(prepareLoadRemoteData, loadRemoteDataNext, NULL, destroyExchangeOperatorInfo,
-                                         optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
+  pOperator->fpSet = createOperatorFpSet(prepareLoadRemoteData, loadRemoteDataNext, NULL,
+                                         destroyExchangeOperatorInfo, optrDefaultBufFn,
+                                         exchangeGetExplainExecInfo, optrDefaultGetNextExtFn, NULL);
   setOperatorResetStateFn(pOperator, resetExchangeOperState);
   *pOptrInfo = pOperator;
   return TSDB_CODE_SUCCESS;
@@ -822,6 +862,9 @@ int32_t loadRemoteDataCallback(void* param, SDataBuf* pMsg, int32_t code) {
 
   taosWLockLatch(&pSourceDataInfo->lock);
   if (code == TSDB_CODE_SUCCESS) {
+    pSourceDataInfo->fetchCostUs += taosGetTimestampUs() - pSourceDataInfo->startTime;
+    pSourceDataInfo->fetchTimes++;
+
     pSourceDataInfo->seqId = pWrapper->seqId;
     pSourceDataInfo->pRsp = pMsg->pData;
 
@@ -1295,7 +1338,6 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
   SDownstreamSourceNode* pSource = taosArrayGet(pExchangeInfo->pSources, pDataInfo->index);
   QUERY_CHECK_NULL(pSource, code, lino, _end, terrno);
 
-  pDataInfo->startTime = taosGetTimestampUs();
   size_t totalSources = taosArrayGetSize(pExchangeInfo->pSources);
 
   SFetchRspHandleWrapper* pWrapper = taosMemoryCalloc(1, sizeof(SFetchRspHandleWrapper));
@@ -1313,6 +1355,7 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
                                   &pBuf.pData,
                                   pTaskInfo->localFetch.explainRes);
     QUERY_CHECK_CODE(code, lino, _end);
+    pDataInfo->startTime = taosGetTimestampUs();
     code = loadRemoteDataCallback(pWrapper, &pBuf, code);
     taosMemoryFreeClear(pWrapper);
     QUERY_CHECK_CODE(code, lino, _end);
@@ -1491,6 +1534,7 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
 
     int64_t transporterId = 0;
     void* poolHandle = NULL;
+    pDataInfo->startTime = taosGetTimestampUs();
     code = asyncSendMsgToServer(pExchangeInfo->pTransporter, &pSource->addr.epSet, &transporterId, pMsgSendInfo);
     QUERY_CHECK_CODE(code, lino, _end);
     int64_t* pRpcHandle = taosArrayGet(pExchangeInfo->pFetchRpcHandles, sourceIndex);
@@ -1507,12 +1551,15 @@ _end:
   return code;
 }
 
-void updateLoadRemoteInfo(SLoadRemoteDataInfo* pInfo, int64_t numOfRows, int32_t dataLen, int64_t startTs,
-                          SOperatorInfo* pOperator) {
+/**
+  @brief record the data loading metrics of the exchange operator, including
+  the number of rows, the data length, and the elapsed time of current load operation.
+*/
+void updateLoadRemoteInfo(SLoadRemoteDataInfo* pInfo, int64_t numOfRows,
+                          int32_t dataLen, int64_t startTs, SOperatorInfo* pOperator) {
   pInfo->totalRows += numOfRows;
   pInfo->totalSize += dataLen;
   pInfo->totalElapsed += (taosGetTimestampUs() - startTs);
-  pOperator->resultInfo.totalRows += numOfRows;
 }
 
 int32_t extractDataBlockFromFetchRsp(SSDataBlock* pRes, char* pData, SArray* pColList, char** pNextStart, bool isVstbScan) {
@@ -1636,7 +1683,6 @@ int32_t prepareConcurrentlyLoad(SOperatorInfo* pOperator) {
          totalSources, (endTs - startTs) / 1000.0);
 
   pOperator->status = OP_RES_TO_RETURN;
-  pOperator->cost.openCost = taosGetTimestampUs() - startTs;
   if (isTaskKilled(pTaskInfo)) {
     T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
   }
@@ -1799,7 +1845,10 @@ int32_t seqLoadRemoteData(SOperatorInfo* pOperator) {
     }
 
     while (true) {
+      recordOpExecBeforeDownstream(pOperator);
       code = exchangeWait(pOperator, pExchangeInfo);
+      recordOpExecAfterDownstream(pOperator, 0);
+
       if (code != TSDB_CODE_SUCCESS || isTaskKilled(pTaskInfo)) {
         T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
       }
@@ -2261,8 +2310,6 @@ int32_t prepareLoadRemoteData(SOperatorInfo* pOperator) {
   }
 
   OPTR_SET_OPENED(pOperator);
-  pOperator->cost.openCost = (taosGetTimestampUs() - st) / 1000.0;
-
   qDebug("%s prepare load complete", pOperator->pTaskInfo->id.str);
 
 _end:

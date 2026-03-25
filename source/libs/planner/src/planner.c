@@ -14,10 +14,8 @@
  */
 
 #include "planner.h"
-
 #include "planInt.h"
-#include "scalar.h"
-#include "tglobal.h"
+#include "tutil.h"
 
 static int32_t debugPrintNode(SNode* pNode) {
   char*   pStr = NULL;
@@ -172,11 +170,48 @@ int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNo
   return code;
 }
 
-static int32_t setSubplanExecutionNode(SPhysiNode* pNode, int32_t groupId, SDownstreamSourceNode* pSource) {
-  int32_t code = 0;
+/** Add vgId to exchange's childrenVgIds if not present. */
+static int32_t addVgIdToExchange(SExchangePhysiNode* pExchange, int32_t vgId) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  if (NULL == pExchange->childrenVgIds) {
+    pExchange->childrenVgIds = taosArrayInit(4, sizeof(int32_t));
+    QUERY_CHECK_NULL(pExchange->childrenVgIds, code, lino, _end, terrno);
+  }
+
+  int32_t vgCnt = (int32_t)taosArrayGetSize(pExchange->childrenVgIds);
+  for (int32_t i = 0; i < vgCnt; ++i) {
+    const int32_t* pCurr = taosArrayGet(pExchange->childrenVgIds, i);
+    if (pCurr && *pCurr == vgId) {
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+  QUERY_CHECK_NULL(taosArrayPush(pExchange->childrenVgIds, &vgId), code, lino,
+                   _end, terrno);
+
+_end:
+  if (TSDB_CODE_SUCCESS != code) {
+    planError("%s, failed to add vgId to exchange at line %d, code:%d",
+              __func__, lino, code);
+  }
+  return code;
+}
+
+static int32_t setSubplanExecutionNode(SPhysiNode* pNode, int32_t groupId,
+                                       SDownstreamSourceNode* pSource) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
   if (QUERY_NODE_PHYSICAL_PLAN_EXCHANGE == nodeType(pNode)) {
     SExchangePhysiNode* pExchange = (SExchangePhysiNode*)pNode;
     if (groupId >= pExchange->srcStartGroupId && groupId <= pExchange->srcEndGroupId) {
+      code = addVgIdToExchange(pExchange, pSource->addr.nodeId);
+      if (TSDB_CODE_SUCCESS != code) {
+        planError("%s, failed to add vgId to exchange at line %d, code:%d",
+                  __func__, __LINE__, code);
+        return code;
+      }
+
       SNode* pNew = NULL;
       code = nodesCloneNode((SNode*)pSource, &pNew);
       if (TSDB_CODE_SUCCESS == code) {
@@ -186,24 +221,31 @@ static int32_t setSubplanExecutionNode(SPhysiNode* pNode, int32_t groupId, SDown
   } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE == nodeType(pNode)) {
     SMergePhysiNode* pMerge = (SMergePhysiNode*)pNode;
     if (pMerge->srcGroupId <= groupId && pMerge->srcEndGroupId >= groupId) {
-      SExchangePhysiNode* pExchange =
+      SExchangePhysiNode* pMergeExchange =
           (SExchangePhysiNode*)nodesListGetNode(pMerge->node.pChildren, pMerge->numOfChannels - 1);
       if (1 == pMerge->numOfChannels) {
         pMerge->numOfChannels = LIST_LENGTH(pMerge->node.pChildren);
       } else {
         --(pMerge->numOfChannels);
       }
+      code = addVgIdToExchange(pMergeExchange, pSource->addr.nodeId);
+      if (TSDB_CODE_SUCCESS != code) {
+        planError("%s, failed to add vgId to merge exchange at line %d, code:%d",
+                  __func__, __LINE__, code);
+        return code;
+      }
+
       SNode* pNew = NULL;
       code = nodesCloneNode((SNode*)pSource, &pNew);
       if (TSDB_CODE_SUCCESS == code) {
-        return nodesListMakeStrictAppend(&pExchange->pSrcEndPoints, pNew);
+        return nodesListMakeStrictAppend(&pMergeExchange->pSrcEndPoints, pNew);
       }
     }
   }
 
   SNode* pChild = NULL;
   if (TSDB_CODE_SUCCESS == code) {
-    FOREACH(pChild, pNode->pChildren) {
+  FOREACH(pChild, pNode->pChildren) {
       if (TSDB_CODE_SUCCESS != (code = setSubplanExecutionNode((SPhysiNode*)pChild, groupId, pSource))) {
         return code;
       }
@@ -226,11 +268,17 @@ static void clearSubplanExecutionNode(SPhysiNode* pNode) {
   if (QUERY_NODE_PHYSICAL_PLAN_EXCHANGE == nodeType(pNode)) {
     SExchangePhysiNode* pExchange = (SExchangePhysiNode*)pNode;
     NODES_DESTORY_LIST(pExchange->pSrcEndPoints);
+    taosArrayDestroy(pExchange->childrenVgIds);
+    pExchange->childrenVgIds = NULL;
   } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE == nodeType(pNode)) {
     SMergePhysiNode* pMerge = (SMergePhysiNode*)pNode;
     pMerge->numOfChannels = LIST_LENGTH(pMerge->node.pChildren);
     SNode* pChild = NULL;
-    FOREACH(pChild, pMerge->node.pChildren) { NODES_DESTORY_LIST(((SExchangePhysiNode*)pChild)->pSrcEndPoints); }
+    FOREACH(pChild, pMerge->node.pChildren) {
+      NODES_DESTORY_LIST(((SExchangePhysiNode*)pChild)->pSrcEndPoints);
+      taosArrayDestroy(((SExchangePhysiNode*)pChild)->childrenVgIds);
+      ((SExchangePhysiNode*)pChild)->childrenVgIds = NULL;
+    }
   }
 
   SNode* pChild = NULL;

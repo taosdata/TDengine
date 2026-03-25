@@ -11,9 +11,87 @@
 
 # -*- coding: utf-8 -*-
 from new_test_framework.utils import tdLog, tdSql, etool, tdCom
+from datetime import datetime, timedelta
 import os
 
 class VtableQueryUtil:
+    def prepare_ts_subquery_pushdown_env(self):
+        tdLog.info("prepare origin tables for vtable ts pushdown test.")
+
+        tdSql.execute("drop database if exists test_vtable_ts_pushdown_origin;")
+        tdSql.execute("create database test_vtable_ts_pushdown_origin;")
+        tdSql.execute("use test_vtable_ts_pushdown_origin;")
+
+        base_ts = datetime(2020, 10, 10, 9, 59, 45)
+        ntb_0_rows = []
+        ntb_1_rows = []
+        ctb_0_rows = []
+        for i in range(35):
+            ts = (base_ts + timedelta(seconds=i)).strftime("%Y-%m-%d %H:%M:%S")
+            value = i - 14
+            ntb_0_rows.append(f"('{ts}', {value})")
+            ntb_1_rows.append(f"('{ts}', {100 + value})")
+            ctb_0_rows.append(f"('{ts}', {10 + value})")
+
+        tdSql.execute("create table ntb_0(event_time timestamp, value_col int);")
+        tdSql.execute("insert into ntb_0 values " + " ".join(ntb_0_rows) + ";")
+
+        tdSql.execute("create table ntb_1(event_time timestamp, value_col int);")
+        tdSql.execute("insert into ntb_1 values " + " ".join(ntb_1_rows) + ";")
+
+        tdSql.execute("create stable stb_0(event_time timestamp, value_col int) tags (group_id int);")
+        tdSql.execute("create table ctb_0 using stb_0 tags (1);")
+        tdSql.execute("insert into ctb_0 values " + " ".join(ctb_0_rows) + ";")
+
+        tdSql.execute(
+            "create table bound_t("
+            "ts timestamp, "
+            "lower_ts timestamp, "
+            "upper_ts timestamp, "
+            "exact_ts timestamp, "
+            "mid_ts timestamp);"
+        )
+        tdSql.execute("insert into bound_t values "
+                      "('2020-10-10 09:59:59', "
+                      "'2020-10-10 10:00:01', "
+                      "'2020-10-10 10:00:03', "
+                      "'2020-10-10 10:00:02', "
+                      "'2020-10-10 10:00:02');")
+
+        tdSql.execute(
+            "create table bound_filter_t("
+            "ts timestamp, "
+            "group_id int, "
+            "lower_ts timestamp, "
+            "upper_ts timestamp, "
+            "exact_ts timestamp);"
+        )
+        tdSql.execute(
+            "insert into bound_filter_t values "
+            "('2020-10-10 09:59:58', 0, '2020-10-10 10:00:00', '2020-10-10 10:00:02', '2020-10-10 10:00:01') "
+            "('2020-10-10 09:59:59', 1, '2020-10-10 10:00:01', '2020-10-10 10:00:03', '2020-10-10 10:00:02') "
+            "('2020-10-10 10:00:00', 1, '2020-10-10 10:00:02', '2020-10-10 10:00:04', '2020-10-10 10:00:03');"
+        )
+
+        tdLog.info("prepare virtual tables for vtable ts pushdown test.")
+        tdSql.execute("drop database if exists test_vtable_ts_pushdown_vtb;")
+        tdSql.execute("create database test_vtable_ts_pushdown_vtb;")
+        tdSql.execute("use test_vtable_ts_pushdown_vtb;")
+
+        tdSql.execute("create vtable ntb_0_vtb("
+                      "ts timestamp, "
+                      "value_col int from test_vtable_ts_pushdown_origin.ntb_0.value_col);")
+
+        tdSql.execute("create vtable ntb_multi_vtb("
+                      "ts timestamp, "
+                      "left_value int from test_vtable_ts_pushdown_origin.ntb_0.value_col, "
+                      "right_value int from test_vtable_ts_pushdown_origin.ntb_1.value_col);")
+
+        tdSql.execute("create stable vstb_0(ts timestamp, value_col int) tags (group_id int) virtual 1;")
+        tdSql.execute("create vtable ctb_0_vtb("
+                      "value_col from test_vtable_ts_pushdown_origin.ctb_0.value_col) "
+                      "using vstb_0 tags (1);")
+
     def clean_up_cross_db_vtables(self):
         tdLog.info(f"clean up cross db vtables.")
 
@@ -703,4 +781,3 @@ class VtableQueryUtil:
         else:
             self.prepare_same_db_virtual_normal_table()
             self.prepare_same_db_virtual_super_child_table_mode_1()
-

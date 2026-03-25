@@ -16,7 +16,7 @@ class TestScalarSubQuery4a2:
     fileIdx = 0
     saved_count = 0  # total number of queries saved so far
     maxFileQueryNum = 10000000  # max number of queries to save in a single file
-    tableNames = ["tbe", "st1"]
+    tableNames = ["tb3"]
 
     subSqls = [
         # select 

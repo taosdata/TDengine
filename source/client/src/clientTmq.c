@@ -2413,9 +2413,9 @@ static int32_t tmqPollImpl(tmq_t* tmq) {
       }
 
       int64_t elapsed = taosGetTimestampMs() - pVg->emptyBlockReceiveTs;
-      if (elapsed < EMPTY_BLOCK_POLL_IDLE_DURATION && elapsed >= 0) {  // less than 10ms
-        tqDebugC("consumer:0x%" PRIx64 " epoch %d, vgId:%d idle for 10ms before start next poll", tmq->consumerId,
-                 tmq->epoch, pVg->vgId);
+      if (elapsed < EMPTY_BLOCK_POLL_IDLE_DURATION && elapsed >= 0) {  // less than EMPTY_BLOCK_POLL_IDLE_DURATION
+        tqDebugC("consumer:0x%" PRIx64 " epoch %d, vgId:%d idle for %" PRId64 "ms before start next poll",
+                 tmq->consumerId, tmq->epoch, pVg->vgId, elapsed);
         continue;
       }
 
@@ -2429,7 +2429,7 @@ static int32_t tmqPollImpl(tmq_t* tmq) {
       int32_t vgStatus = atomic_val_compare_exchange_32(&pVg->vgStatus, TMQ_VG_STATUS__IDLE, TMQ_VG_STATUS__WAIT);
       if (vgStatus == TMQ_VG_STATUS__WAIT) {
         int32_t vgSkipCnt = atomic_add_fetch_32(&pVg->vgSkipCnt, 1);
-        if (vgSkipCnt % 1000 == 0) {
+        if (vgSkipCnt % 10000 == 0) {
           tqInfoC("consumer:0x%" PRIx64 " epoch %d, vgId:%d has skipped poll %d times in a row", tmq->consumerId,
                   tmq->epoch, pVg->vgId, vgSkipCnt);
         }

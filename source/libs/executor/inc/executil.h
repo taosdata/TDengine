@@ -28,6 +28,7 @@
 
 typedef struct STaskSubJobCtx {
   bool               isExchange;
+  bool               isStream;
   int64_t            subJobRefId;
   uint64_t           queryId;
   uint64_t           taskId;

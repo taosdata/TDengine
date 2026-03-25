@@ -117,10 +117,11 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
 int32_t vnodeProcessSyncMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
 int32_t vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo);
 int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo);
-int32_t vnodeProcessStreamReaderMsg(SVnode *pVnode, SRpcMsg *pMsg);
+int32_t vnodeProcessStreamReaderMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo);
 void    vnodeProposeWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs);
 void    vnodeApplyWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs);
 void    vnodeProposeCommitOnNeed(SVnode *pVnode, bool atExit);
+void    vnodeAlterTagForTmq(SVnode *pVnode, const SArray* tbUidList, const SArray *tags, const SArray* uidTags);
 
 // meta
 void        _metaReaderInit(SMetaReader *pReader, void *pVnode, int32_t flags, SStoreMeta *pAPI);
@@ -214,6 +215,7 @@ int32_t  tsdbCreateFirstLastTsIter(void *pVnode, STimeWindow *pWindow, SVersionR
 int32_t  tsdbNextFirstLastTsBlock(void *pIter, SSDataBlock *pRes, bool* hasNext);
 void     tsdbDestroyFirstLastTsIter(void *pIter);
 int32_t  tsdbReaderStepDone(STsdbReader *pReader, int64_t notifyTs);
+void     tsdbReaderSetExecInfo(const STsdbReader *pReader, STableScanAnalyzeInfo *pExecInfo);
 
 int32_t tsdbReuseCacherowsReader(void *pReader, void *pTableIdList, int32_t numOfTables);
 int32_t tsdbCacherowsReaderOpen(void *pVnode, int32_t type, void *pTableIdList, int32_t numOfTables, int32_t numOfCols,
@@ -360,6 +362,7 @@ struct SVnodeCfg {
   char        dbname[TSDB_DB_FNAME_LEN];
   uint64_t    dbId;
   int32_t     cacheLastSize;
+  int32_t     cacheLastShardBits;  // Number of shards for last cache LRU, -1 for auto
   int32_t     szPage;
   int32_t     szCache;
   uint64_t    szBuf;
@@ -388,6 +391,7 @@ struct SVnodeCfg {
   int8_t      ssCompact;
   int8_t      isAudit;
   int8_t      allowDrop;
+  int8_t      secureDelete;
 };
 
 #define TABLE_ROLLUP_ON         ((int8_t)0x1)

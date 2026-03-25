@@ -81,11 +81,12 @@ int32_t schProcessFetchRsp(SSchJob *pJob, SSchTask *pTask, char *msg, int32_t rs
   int32_t code = 0;
   
   SCH_ERR_JRET(rspCode);
-  
+
   if (NULL == msg) {
     SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
-  
+
+
   if (SCH_IS_EXPLAIN_JOB(pJob)) {
     if (rsp->completed) {
       SRetrieveTableRsp *pRsp = NULL;
@@ -135,8 +136,7 @@ _return:
 int32_t schProcessExplainRsp(SSchJob *pJob, SSchTask *pTask, SExplainRsp *rsp) {
   SRetrieveTableRsp *pRsp = NULL;
   SExplainCtx* pCtx = SCH_JOB_EXPLAIN_CTX(pJob);
-  qExplainSetCurrPlan(pCtx, pJob->subJobId);
-  SCH_ERR_RET(qExplainUpdateExecInfo(pCtx, rsp, pTask->plan->id.groupId, &pRsp));
+  SCH_ERR_RET(qExplainUpdateExecInfo(pCtx, qExplainGetCurrPlan(pCtx, pJob->subJobId), rsp, pTask->plan->id.groupId, &pRsp));
   
   if (pRsp) {
     SCH_ERR_RET(schProcessOnExplainDone(SCH_PARENT_JOB(pJob), pTask, pRsp));
@@ -646,7 +646,7 @@ int32_t schMakeCallbackParam(SSchJob *pJob, SSchTask *pTask, int32_t msgType, bo
 
     param->nodeEpId.nodeId = pAddr->nodeId;
     SEp *pEp = SCH_GET_CUR_EP(pAddr);
-    TAOS_STRCPY(param->nodeEpId.ep.fqdn, pEp->fqdn);
+    tstrncpy(param->nodeEpId.ep.fqdn, pEp->fqdn, sizeof(param->nodeEpId.ep.fqdn));
     param->nodeEpId.ep.port = pEp->port;
     param->pTrans = trans->pTrans;
     *pParam = param;
@@ -1235,7 +1235,8 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
       req.sqlLen = strlen(pJob->sql);
       req.sql = (char *)pJob->sql;
       req.msg = pTask->msg;
-      req.source = pJob->source;
+      req.source       = pJob->source;
+      req.secureDelete = pJob->secureDelete;
       msgSize = tSerializeSVDeleteReq(NULL, 0, &req);
       if (msgSize < 0) {
         SCH_TASK_ELOG("tSerializeSVDeleteReq failed, code:%x", terrno);
@@ -1256,6 +1257,9 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
     }
     case TDMT_SCH_QUERY:
     case TDMT_SCH_MERGE_QUERY: {
+      int32_t newPhase = (TDMT_SCH_QUERY == msgType) ? QUERY_PHASE_EXEC_DATA_QUERY : QUERY_PHASE_EXEC_MERGE_QUERY;
+      SCH_UPDATE_JOB_PHASE_IF_CHANGED(pJob, newPhase);
+
       SCH_ERR_RET(schMakeQueryRpcCtx(pJob, pTask, &rpcCtx));
 
       SSubQueryMsg qMsg;

@@ -52,7 +52,7 @@ table_option: {
 ###### 参数说明
 
 1. COMMENT：表注释。可用于超级表、子表和普通表。最大长度为 1024 个字节。
-2. SMA：Small Materialized Aggregates，提供基于数据块的自定义预计算功能。预计算类型包括 MAX、MIN 和 SUM。可用于超级表/普通表。
+2. SMA：Small Materialized Aggregates，提供基于数据块的预计算以加速聚合查询。预计算类型包括 MAX、MIN 和 SUM。默认情况下系统会为大多数列创建块级 SMA（部分类型如 BINARY/NCHAR 等默认不创建）；当在建表时显式指定 `SMA(col_name, ...)` 时，仅对指定列创建块级 SMA；可通过列定义 `NOSMA` 禁用某列的块级 SMA。可用于超级表/普通表。
 3. TTL：Time to Live，是用户用来指定表的生命周期的参数。如果创建表时指定了这个参数，当该表的存在时间超过 TTL 指定的时间后，TDengine TSDB 自动删除该表。这个 TTL 的时间只是一个大概时间，系统不保证到了时间一定会将其删除，而只保证存在这样一个机制且最终一定会删除。TTL 单位是天，取值范围为[0, 2147483647]，默认为 0，表示不限制，到期时间为表创建时间加上 TTL 时间。TTL 与数据库 KEEP 参数没有关联，如果 KEEP 比 TTL 小，在表被删除之前数据也可能已经被删除。
 
 ### 创建普通表
@@ -156,25 +156,25 @@ ALTER TABLE tb_name MODIFY COLUMN field_name data_type(length);
 #### 修改列名
 
 ```sql
-ALTER TABLE tb_name RENAME COLUMN old_col_name new_col_name
+ALTER TABLE tb_name RENAME COLUMN old_col_name new_col_name;
 ```
 
 #### 修改表生命周期
 
 ```sql
-ALTER TABLE tb_name TTL value
+ALTER TABLE tb_name TTL value;
 ```
 
 #### 修改表注释
 
 ```sql
-ALTER TABLE tb_name COMMENT 'string_value'
+ALTER TABLE tb_name COMMENT 'string_value';
 ```
 
 ### 修改子表
 
 ```sql
-ALTER TABLE [db_name.]tb_name alter_table_clause
+ALTER TABLE [db_name.]tb_name alter_table_clause;
 
 alter_table_clause: {
     alter_table_options
@@ -205,10 +205,16 @@ alter_table_option: {
 ALTER TABLE tb_name SET TAG tag_name1=new_tag_value1, tag_name2=new_tag_value2 ...;
 ```
 
+#### 批量修改标签值
+
+```sql
+ALTER TABLE tb_name1 SET TAG tag_name1=new_tag_value1, tag_name2=new_tag_value2 tb_name2 SET TAG tag_name3=new_tag_value3 ...;
+```
+
 #### 修改生命周期
 
 ```sql
-ALTER TABLE tb_name TTL value
+ALTER TABLE tb_name TTL value;
 ```
 
 #### 修改注释
@@ -222,7 +228,7 @@ ALTER TABLE tb_name COMMENT 'string_value'
 可以在一条 SQL 语句中删除一个或多个普通表或子表。
 
 ```sql
-DROP TABLE [IF EXISTS] [db_name.]tb_name [, [IF EXISTS] [db_name.]tb_name] ...
+DROP TABLE [IF EXISTS] [db_name.]tb_name [, [IF EXISTS] [db_name.]tb_name] ...;
 ```
 
 **注意**：删除表并不会立即释放该表所占用的磁盘空间，而是把该表的数据标记为已删除，在查询时这些数据将不会再出现，但释放磁盘空间会延迟到系统自动（建库参数 keep 生效）或用户手动进行数据重整时（企业版功能 compact）。

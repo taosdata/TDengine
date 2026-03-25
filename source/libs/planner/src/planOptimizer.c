@@ -547,25 +547,36 @@ _return:
 }
 
 
-static int32_t pushDownCondOptCalcTimeRange(SOptimizeContext* pCxt, SScanLogicNode* pScan, SNode** pPrimaryKeyCond,
-                                            SNode** pOtherCond) {
+/*
+ * Split a primary-key condition into local timerange pushdown and residual
+ * conditions, and keep remote-only predicates for later scan-level rewrite.
+ * @param pCxt Optimizer context for current plan rewrite.
+ * @param pScanRange Output scan timerange derived from the primary-key filter.
+ * @param pPrimaryKeyCond Input primary-key condition to consume or preserve.
+ * @param pOtherCond Output condition list that cannot be pushed as timerange.
+ * @param pRemotePrimaryCond Output remote primary condition kept for child scans.
+ * @return TSDB_CODE_SUCCESS on success, otherwise an error code.
+ */
+static int32_t pushDownCondOptCalcTimeRange(SOptimizeContext* pCxt, STimeWindow* pScanRange, SNode** pPrimaryKeyCond,
+                                            SNode** pOtherCond, SNode** pRemotePrimaryCond) {
   int32_t code = TSDB_CODE_SUCCESS;
   if (pCxt->pPlanCxt->topicQuery) {
-    code = nodesMergeNode(pOtherCond, pPrimaryKeyCond);
+    PLAN_ERR_JRET(nodesMergeNode(pOtherCond, pPrimaryKeyCond));
   } else {
     bool isStrict = false, hasRemoteNode = false;
-    code = filterGetTimeRange(*pPrimaryKeyCond, &pScan->scanRange, &isStrict, &hasRemoteNode);
-    if (TSDB_CODE_SUCCESS == code) {
-      if (isStrict) {
-        nodesDestroyNode(*pPrimaryKeyCond);
-      } else if (hasRemoteNode) {
-        pScan->pPrimaryCond = *pPrimaryKeyCond;
-      } else {
-        code = nodesMergeNode(pOtherCond, pPrimaryKeyCond);
-      }
-      *pPrimaryKeyCond = NULL;
+    PLAN_ERR_JRET(filterGetTimeRange(*pPrimaryKeyCond, pScanRange, &isStrict, &hasRemoteNode));
+    if (isStrict) {
+      nodesDestroyNode(*pPrimaryKeyCond);
+    } else if (hasRemoteNode) {
+      *pRemotePrimaryCond = *pPrimaryKeyCond;
+    } else {
+      PLAN_ERR_JRET(nodesMergeNode(pOtherCond, pPrimaryKeyCond));
     }
+    *pPrimaryKeyCond = NULL;
   }
+  return code;
+_return:
+  planError("%s failed since %s", __func__, tstrerror(code));
   return code;
 }
 
@@ -749,7 +760,7 @@ static int32_t pdcDealScan(SOptimizeContext* pCxt, SScanLogicNode* pScan) {
     code = pushDownCondOptRebuildTbanme(&pScan->pTagCond);
   }
   if (TSDB_CODE_SUCCESS == code && NULL != pPrimaryKeyCond) {
-    code = pushDownCondOptCalcTimeRange(pCxt, pScan, &pPrimaryKeyCond, &pOtherCond);
+    code = pushDownCondOptCalcTimeRange(pCxt, &pScan->scanRange, &pPrimaryKeyCond, &pOtherCond, &pScan->pPrimaryCond);
   }
   if (TSDB_CODE_SUCCESS == code) {
     pScan->node.pConditions = pOtherCond;
@@ -818,7 +829,7 @@ static int32_t pdcDealVirtualSuperTableScan(SOptimizeContext* pCxt, SDynQueryCtr
   }
 
   if (NULL != pPrimaryKeyCond) {
-    PLAN_ERR_JRET(pushDownCondOptCalcTimeRange(pCxt, pOrgScan, &pPrimaryKeyCond, &pOtherCond));
+    PLAN_ERR_JRET(pushDownCondOptCalcTimeRange(pCxt, &pOrgScan->scanRange, &pPrimaryKeyCond, &pOtherCond, &pOrgScan->pPrimaryCond));
   }
 
   pVscan->node.pConditions = pOtherCond;
@@ -1471,9 +1482,9 @@ static EDealRes pdcJoinCollectCondCol(SNode* pNode, void* pContext) {
       char         name[TSDB_TABLE_NAME_LEN + TSDB_COL_NAME_LEN];
       int32_t      len = 0;
       if ('\0' == pCol->tableAlias[0]) {
-        len = tsnprintf(name, sizeof(name), "%s", pCol->colName);
+        len = snprintf(name, sizeof(name), "%s", pCol->colName);
       } else {
-        len = tsnprintf(name, sizeof(name), "%s.%s", pCol->tableAlias, pCol->colName);
+        len = snprintf(name, sizeof(name), "%s.%s", pCol->tableAlias, pCol->colName);
       }
       if (NULL == taosHashGet(pCxt->pColHash, name, len)) {
         pCxt->errCode = taosHashPut(pCxt->pColHash, name, len, NULL, 0);
@@ -1871,6 +1882,95 @@ static EDealRes pdcCheckVirtualTableCond(SNode* pNode, void* pContext) {
   }
 
   return DEAL_RES_CONTINUE;
+}
+
+typedef struct SVtablePrimaryCondRewriteCxt {
+  int32_t      errCode;
+  SColumnNode* pTsScanCol;
+} SVtablePrimaryCondRewriteCxt;
+
+/*
+ * Find the origin scan timestamp column used by a virtual table child scan.
+ * @param pScan Child scan node under the virtual table scan.
+ * @return The timestamp column node from the child scan, or NULL if absent.
+ */
+static SColumnNode* pdcFindVtableScanTsCol(SScanLogicNode* pScan) {
+  SNode* pNode = NULL;
+  FOREACH(pNode, pScan->pScanCols) {
+    SColumnNode* pCol = (SColumnNode*)pNode;
+    if (pCol->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
+      return pCol;
+    }
+  }
+
+  return NULL;
+}
+
+/*
+ * Rewrite virtual table timestamp columns in a pushed-down primary condition.
+ * @param pNode Condition node being rewritten.
+ * @param pContext Rewrite context containing the origin scan ts column.
+ * @return Traversal action for expression rewriting.
+ */
+static EDealRes pdcRewriteVtablePrimaryTsCol(SNode** pNode, void* pContext) {
+  if (QUERY_NODE_COLUMN != nodeType(*pNode)) {
+    return DEAL_RES_CONTINUE;
+  }
+
+  SColumnNode* pCol = (SColumnNode*)*pNode;
+  if (pCol->colId != PRIMARYKEY_TIMESTAMP_COL_ID) {
+    return DEAL_RES_CONTINUE;
+  }
+
+  SVtablePrimaryCondRewriteCxt* pCxt = pContext;
+  SNode*                        pNew = NULL;
+  pCxt->errCode = nodesCloneNode((SNode*)pCxt->pTsScanCol, &pNew);
+  if (TSDB_CODE_SUCCESS != pCxt->errCode || NULL == pNew) {
+    return DEAL_RES_ERROR;
+  }
+
+  nodesDestroyNode(*pNode);
+  *pNode = pNew;
+  return DEAL_RES_IGNORE_CHILD;
+}
+
+/*
+ * Clone a virtual table primary condition for one origin scan and rewrite
+ * virtual table ts columns to that scan's source table column.
+ * @param pPrimaryKeyCond Primary-key condition extracted from the virtual scan.
+ * @param pOrgScan Origin scan that will consume the rewritten condition.
+ * @param ppRewrittenCond Output cloned and rewritten condition node.
+ * @return TSDB_CODE_SUCCESS on success, otherwise an error code.
+ */
+static int32_t pdcCloneRewriteVtablePrimaryCond(SNode* pPrimaryKeyCond,
+                                                SScanLogicNode* pOrgScan,
+                                                SNode** ppRewrittenCond) {
+  int32_t                      code = TSDB_CODE_SUCCESS;
+  SCpdIsVtableTsCondCxt        checkCxt = {.condHasTs = false};
+  SVtablePrimaryCondRewriteCxt rewriteCxt = {.errCode = TSDB_CODE_SUCCESS, .pTsScanCol = NULL};
+
+  PLAN_ERR_JRET(nodesCloneNode(pPrimaryKeyCond, ppRewrittenCond));
+
+  nodesWalkExpr(*ppRewrittenCond, pdcCheckVirtualTableCond, &checkCxt);
+  if (!checkCxt.condHasTs) {
+    goto _return;
+  }
+
+  rewriteCxt.pTsScanCol = pdcFindVtableScanTsCol(pOrgScan);
+  if (NULL == rewriteCxt.pTsScanCol) {
+    PLAN_ERR_JRET(TSDB_CODE_VTABLE_INVALID_ORIGIN_TS_COL);
+  }
+
+  nodesRewriteExpr(ppRewrittenCond, pdcRewriteVtablePrimaryTsCol, &rewriteCxt);
+  PLAN_ERR_JRET(rewriteCxt.errCode);
+
+_return:
+
+  if (code) {
+    planError("%s failed since %s", __func__, tstrerror(code));
+    NODES_DESTORY_NODE(*ppRewrittenCond);
+  }
+  return code;
 }
 
 
@@ -2500,6 +2600,13 @@ static int32_t pdcTrivialPushDown(SOptimizeContext* pCxt, SLogicNode* pLogicNode
   return code;
 }
 
+/*
+ * Push virtual-table timestamp conditions down to each origin scan and keep
+ * non-pushable predicates on the virtual scan node.
+ * @param pCxt Optimizer context for the current subplan.
+ * @param pVScan Virtual table scan node being rewritten in place.
+ * @return TSDB_CODE_SUCCESS on success, otherwise an error code.
+ */
 static int32_t pdcDealVirtualTable(SOptimizeContext* pCxt, SVirtualScanLogicNode* pVScan) {
   if (NULL == pVScan->node.pConditions || OPTIMIZE_FLAG_TEST_MASK(pVScan->node.optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE) ||
       pVScan->tableType == TSDB_SUPER_TABLE ||
@@ -2515,21 +2622,21 @@ static int32_t pdcDealVirtualTable(SOptimizeContext* pCxt, SVirtualScanLogicNode
   SNode*      pTagIndexCond = NULL;
   SNode*      pTagCond = NULL;
   SNode*      pOtherCond = NULL;
+  SNode*      pPushCond = NULL;
+  SNode*      pPushDownOtherCond = NULL;
+  SNode*      pRemotePrimaryKeyCond = NULL;
   int32_t     code = TSDB_CODE_SUCCESS;
   STimeWindow timeRange = {0};
+  TAOS_SET_OBJ_ALIGNED(&timeRange, TSWINDOW_INITIALIZER);
 
   PLAN_ERR_JRET(filterPartitionCond(&pVScan->node.pConditions, &pPrimaryKeyCond, &pTagIndexCond, &pTagCond, &pOtherCond));
   if (NULL == pPrimaryKeyCond) {
     goto _return1;
   }
 
-  bool isStrict = false;
-  PLAN_ERR_JRET(filterGetTimeRange(pPrimaryKeyCond, &timeRange, &isStrict, NULL));
-  if (isStrict) {
-    nodesDestroyNode(pPrimaryKeyCond);
-    pPrimaryKeyCond = NULL;
-  } else {
-    PLAN_ERR_JRET(nodesMergeNode(&pVScan->node.pConditions, &pPrimaryKeyCond));
+  PLAN_ERR_JRET(pushDownCondOptCalcTimeRange(pCxt, &timeRange, &pPrimaryKeyCond, &pPushDownOtherCond, &pRemotePrimaryKeyCond));
+  if (!IS_TSWINDOW_SPECIFIED(timeRange) && !pRemotePrimaryKeyCond) {
+    // no need to push down
     goto _return1;
   }
 
@@ -2537,17 +2644,24 @@ static int32_t pdcDealVirtualTable(SOptimizeContext* pCxt, SVirtualScanLogicNode
     SScanLogicNode* pOrgScan = (SScanLogicNode*)nodesListGetNode(pVScan->node.pChildren, i);
     if (NULL == pOrgScan || QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(pOrgScan)) {
       PLAN_ERR_JRET(
-          generateUsageErrMsg(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, TSDB_CODE_PLAN_INTERNAL_ERROR,
-                              "pdcDealVirtualTable get invalid org scan logic node from vtable scan node"));
+          generateUsageErrMsg(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, TSDB_CODE_VTABLE_INVALID_ORIGIN_SCAN,
+                              "pdcDealVirtualTable get invalid origin scan logic node from vtable scan node"));
     }
 
     if (pOrgScan->scanType != SCAN_TYPE_TABLE) {
       continue;
     }
 
+    if (pRemotePrimaryKeyCond) {
+      PLAN_ERR_JRET(pdcCloneRewriteVtablePrimaryCond(pRemotePrimaryKeyCond, pOrgScan, &pPushCond));
+      PLAN_ERR_JRET(nodesMergeNode(&pOrgScan->pPrimaryCond, &pPushCond));
+      pPushCond = NULL;
+    }
     pOrgScan->scanRange = timeRange;
   }
 
+  NODES_DESTORY_NODE(pRemotePrimaryKeyCond);
+  NODES_DESTORY_NODE(pPrimaryKeyCond);
   OPTIMIZE_FLAG_SET_MASK(pVScan->node.optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE);
   pCxt->optimized = true;
 
@@ -2561,13 +2675,21 @@ _return1:
   if (pOtherCond) {
     PLAN_ERR_JRET(nodesMergeNode(&pVScan->node.pConditions, &pOtherCond));
   }
+  if (pPushDownOtherCond) {
+    PLAN_ERR_JRET(nodesMergeNode(&pVScan->node.pConditions, &pPushDownOtherCond));
+  }
+
   return code;
 
 _return:
+  planError("%s failed since %s", __func__, tstrerror(code));
   nodesDestroyNode(pPrimaryKeyCond);
   nodesDestroyNode(pTagIndexCond);
   nodesDestroyNode(pTagCond);
   nodesDestroyNode(pOtherCond);
+  nodesDestroyNode(pPushDownOtherCond);
+  nodesDestroyNode(pRemotePrimaryKeyCond);
+  nodesDestroyNode(pPushCond);
   return code;
 }
 
@@ -3775,9 +3897,9 @@ static int32_t partTagsOptRebuildTbanme(SNodeList* pPartKeys) {
 // todo refact: just to mask compilation warnings
 static void partTagsSetAlias(char* pAlias, const char* pTableAlias, const char* pColName) {
   char    name[TSDB_COL_FNAME_LEN + 1] = {0};
-  int32_t len = tsnprintf(name, TSDB_COL_FNAME_LEN, "%s.%s", pTableAlias, pColName);
+  int32_t len = snprintf(name, TSDB_COL_FNAME_LEN, "%s.%s", pTableAlias, pColName);
 
-  (void)taosHashBinary(name, len);
+  (void)taosHashBinary(name, len, sizeof(name));
   tstrncpy(pAlias, name, TSDB_COL_NAME_LEN);
 }
 
@@ -4611,8 +4733,8 @@ static int32_t rewriteUniqueOptCreateFirstFunc(SFunctionNode* pSelectValue, SNod
   } else {
     int64_t pointer = (int64_t)pFunc;
     char    name[TSDB_FUNC_NAME_LEN + TSDB_POINTER_PRINT_BYTES + TSDB_NAME_DELIMITER_LEN + 1] = {0};
-    int32_t len = tsnprintf(name, sizeof(name) - 1, "%s.%" PRId64, pFunc->functionName, pointer);
-    (void)taosHashBinary(name, len);
+    int32_t len = snprintf(name, sizeof(name) - 1, "%s.%" PRId64, pFunc->functionName, pointer);
+    (void)taosHashBinary(name, len, sizeof(name));
     tstrncpy(pFunc->node.aliasName, name, TSDB_COL_NAME_LEN);
   }
   SNode* pNew = NULL;
@@ -5189,8 +5311,8 @@ static int32_t lastRowScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogic
     int32_t        funcType = pFunc->funcType;
     SNode*         pParamNode = NULL;
     if (FUNCTION_TYPE_LAST_ROW == funcType || FUNCTION_TYPE_LAST == funcType) {
-      int32_t len = tsnprintf(pFunc->functionName, sizeof(pFunc->functionName),
-                              FUNCTION_TYPE_LAST_ROW == funcType ? "_cache_last_row" : "_cache_last");
+      int32_t len = snprintf(pFunc->functionName, sizeof(pFunc->functionName),
+                             FUNCTION_TYPE_LAST_ROW == funcType ? "_cache_last_row" : "_cache_last");
       pFunc->functionName[len] = '\0';
       code = fmGetFuncInfo(pFunc, NULL, 0);
       if (TSDB_CODE_SUCCESS != code) {
@@ -9829,9 +9951,23 @@ static bool vstableAggShouldBeOptimized(SLogicNode* pNode, void* pCtx) {
 
   SAggLogicNode* pAgg = (SAggLogicNode*)pNode;
 
-  if (pAgg->pGroupKeys) {
-    return false;
+  if (NULL != pAgg->pGroupKeys) {
+    if (keysHasCol(pAgg->pGroupKeys)) {
+      return false;
+    }
+
+    SNode* pGroupKey = NULL;
+    FOREACH(pGroupKey, pAgg->pGroupKeys) {
+      if (nodeType(pGroupKey) != QUERY_NODE_GROUPING_SET) {
+        return false;
+      }
+      SNode* pGroupExpr = nodesListGetNode(((SGroupingSetNode*)pGroupKey)->pParameterList, 0);
+      if (!pGroupExpr || partTagsNeedOutput(pGroupExpr, pAgg->node.pTargets)) {
+        return false;
+      }
+    }
   }
+
   if (LIST_LENGTH(pAgg->node.pChildren) == 1) {
     if (nodeType(nodesListGetNode(pAgg->node.pChildren, 0)) == QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL) {
       if (((SDynQueryCtrlLogicNode*)nodesListGetNode(pAgg->node.pChildren, 0))->qType != DYN_QTYPE_VTB_SCAN) {
@@ -10321,13 +10457,28 @@ static int32_t vstableAggOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicS
 
   int32_t                 code = TSDB_CODE_SUCCESS;
   int32_t                 lino = 0;
-  SAggLogicNode*          pNewAgg = NULL;
   SPartitionLogicNode*    pPartNode = NULL;
-  SDynQueryCtrlLogicNode* pDynVstbScan = NULL;
-  SVirtualScanLogicNode*  pVirtualScanNode = NULL;
 
   OPTIMIZE_FLAG_SET_MASK(pAgg->node.optimizedFlag, OPTIMIZE_FLAG_VTB_AGG);
 
+  if (pAgg->pGroupKeys) {
+    // make a partition node to do the group calculation
+    pAgg->isGroupTb = false;
+    PLAN_ERR_JRET(nodesMakeNode(QUERY_NODE_LOGIC_PLAN_PARTITION, (SNode**)&pPartNode));
+    TSWAP(pPartNode->pPartitionKeys, pAgg->pGroupKeys);
+    pPartNode->node.groupAction = GROUP_ACTION_SET;
+    pPartNode->node.requireDataOrder = DATA_ORDER_LEVEL_NONE;
+    pPartNode->node.resultDataOrder = DATA_ORDER_LEVEL_NONE;
+
+    SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pAgg->node.pChildren, 0);
+    QUERY_CHECK_NULL(pChild, code, lino, _return, terrno);
+
+    pChild->pParent = (SLogicNode*)pPartNode;
+    TSWAP(pPartNode->node.pChildren, pAgg->node.pChildren);
+    clearChildList((SLogicNode*)pAgg);
+    PLAN_ERR_JRET(appendNewChild((SLogicNode*)pAgg, (SLogicNode*)pPartNode));
+    pPartNode = NULL;
+  }
   if (nodeType(nodesListGetNode(pAgg->node.pChildren, 0)) == QUERY_NODE_LOGIC_PLAN_PARTITION) {
     PLAN_ERR_JRET(vstableAggOptimizeWithPartition(pCxt, pLogicSubplan, pAgg));
   } else if (nodeType(nodesListGetNode(pAgg->node.pChildren, 0)) == QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL) {
@@ -10340,6 +10491,7 @@ static int32_t vstableAggOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicS
 _return:
   if (code) {
     planError("%s failed at %d, msg:%s", __func__, lino, tstrerror(code));
+    nodesDestroyNode((SNode*)pPartNode);
   }
   return code;
 }

@@ -6,11 +6,11 @@ taos> select last(ts), a from test_last_pk.stb
 
 taos> explain select last(ts), a from test_last_pk.stb\G
 *************************** 1.row ***************************
-QUERY_PLAN: -> Aggregate (functions=2 width=12 input_order=desc )
+QUERY_PLAN: -> Aggregate (functions=2 width=12 input_order=desc)
 *************************** 2.row ***************************
 QUERY_PLAN:    -> Data Exchange 2:1 (width=12)
 *************************** 3.row ***************************
-QUERY_PLAN:       -> Last Row Scan on stb (columns=2 width=12 )
+QUERY_PLAN:       -> Last Row Scan on stb (columns=2 width=12)
 
 taos> select last(ts, a) from test_last_pk.stb
         last(ts)         |   last(a)   |
@@ -19,11 +19,11 @@ taos> select last(ts, a) from test_last_pk.stb
 
 taos> explain select last(ts, a) from test_last_pk.stb\G
 *************************** 1.row ***************************
-QUERY_PLAN: -> Aggregate (functions=2 width=12 input_order=desc )
+QUERY_PLAN: -> Aggregate (functions=2 width=12 input_order=desc)
 *************************** 2.row ***************************
 QUERY_PLAN:    -> Data Exchange 2:1 (width=12)
 *************************** 3.row ***************************
-QUERY_PLAN:       -> Last Row Scan on stb (columns=2 width=12 )
+QUERY_PLAN:       -> Last Row Scan on stb (columns=2 width=12)
 
 taos> select last(ts), a from test_last_pk.stb group by tbname order by tbname
         last(ts)         |      a      |
@@ -35,9 +35,9 @@ taos> explain select last(ts), a from test_last_pk.stb group by tbname\G
 *************************** 1.row ***************************
 QUERY_PLAN: -> Data Exchange 2:1 (width=12)
 *************************** 2.row ***************************
-QUERY_PLAN:    -> Aggregate (functions=2 width=12 input_order=desc )
+QUERY_PLAN:    -> Aggregate (functions=2 width=12 input_order=desc)
 *************************** 3.row ***************************
-QUERY_PLAN:       -> Last Row Scan on stb (columns=2 width=12 )
+QUERY_PLAN:       -> Last Row Scan on stb (columns=2 width=12)
 
 taos> select last_row(ts), a from test_last_pk.stb group by tbname order by tbname
       last_row(ts)       |      a      |
@@ -49,9 +49,9 @@ taos> explain select last_row(ts), a from test_last_pk.stb group by tbname\G
 *************************** 1.row ***************************
 QUERY_PLAN: -> Data Exchange 2:1 (width=12)
 *************************** 2.row ***************************
-QUERY_PLAN:    -> Aggregate (functions=2 width=12 input_order=desc )
+QUERY_PLAN:    -> Aggregate (functions=2 width=12 input_order=desc)
 *************************** 3.row ***************************
-QUERY_PLAN:       -> Last Row Scan on stb (columns=2 width=12 )
+QUERY_PLAN:       -> Last Row Scan on stb (columns=2 width=12)
 
 taos> select last_row(ts, a) from test_last_pk.stb group by tbname order by tbname
       last_row(ts)       | last_row(a) |
@@ -63,7 +63,7 @@ taos> explain select last_row(ts, a) from test_last_pk.stb group by tbname\G
 *************************** 1.row ***************************
 QUERY_PLAN: -> Data Exchange 2:1 (width=12)
 *************************** 2.row ***************************
-QUERY_PLAN:    -> Aggregate (functions=2 width=12 input_order=desc )
+QUERY_PLAN:    -> Aggregate (functions=2 width=12 input_order=desc)
 *************************** 3.row ***************************
-QUERY_PLAN:       -> Last Row Scan on stb (columns=2 width=12 )
+QUERY_PLAN:       -> Last Row Scan on stb (columns=2 width=12)
 
