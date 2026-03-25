@@ -660,6 +660,42 @@ begin
     Result := 'None';
 end;
 
+function GetInstallerPackageSummary(): String;
+begin
+  if IsFullOfflinePackage() then
+    Result := 'Full offline installer'
+  else
+    Result := 'Base installer';
+end;
+
+function GetModelSourceSummary(): String;
+begin
+  if ModelSource = 'none' then
+  begin
+    if IsUpgradeInstall() then
+      Result := 'Keep existing model files'
+    else
+      Result := 'Do not install models now';
+    exit;
+  end;
+  if ModelSource = 'bundled' then
+  begin
+    Result := 'Bundled in installer';
+    exit;
+  end;
+  if ModelSource = 'offline' then
+  begin
+    Result := 'Offline package';
+    exit;
+  end;
+  if ModelSource = 'online' then
+  begin
+    Result := 'Online download';
+    exit;
+  end;
+  Result := ModelSource;
+end;
+
 function IsUpgradeInstall(): Boolean;
 begin
   Result := ExistingInstallConfirmedDir <> '';
@@ -1117,7 +1153,7 @@ begin
     S := S + 'Install type:' + NewLine + Space + 'Upgrade (reuse existing venv/model by default)' + NewLine
   else
     S := S + 'Install type:' + NewLine + Space + 'First install' + NewLine;
-  S := S + 'Installer package mode:' + NewLine + Space + '{#PackageMode}' + NewLine;
+  S := S + 'Installer package:' + NewLine + Space + GetInstallerPackageSummary() + NewLine;
   if UsesSimplePackageFlow() then
   begin
     S := S + 'Python environment:' + NewLine + Space;
@@ -1137,13 +1173,18 @@ begin
     S := S + 'Offline' + NewLine;
   S := S + 'TensorFlow CPU support:' + NewLine + Space;
   if not IsOnlineMode then
-    S := S + 'Reuse existing environment or import from offline package' + NewLine
+  begin
+    if IsUpgradeInstall() then
+      S := S + 'Reuse existing environment or import from offline package' + NewLine
+    else
+      S := S + 'Included in offline package' + NewLine;
+  end
   else if InstallTensorFlow then
     S := S + 'Install' + NewLine
   else
     S := S + 'Skip' + NewLine;
-  S := S + 'Model source:' + NewLine + Space + ModelSource + NewLine;
-  S := S + 'Selected models:' + NewLine + Space + GetModelSelectionSummary() + NewLine;
+  S := S + 'Model source:' + NewLine + Space + GetModelSourceSummary() + NewLine;
+  S := S + 'Model handling:' + NewLine + Space + GetModelSelectionSummary() + NewLine;
   if Trim(OfflinePackagePage.Values[0]) <> '' then
     S := S + 'Offline package:' + NewLine + Space + Trim(OfflinePackagePage.Values[0]) + NewLine;
   if (not IsOnlineMode) and (Trim(OfflinePackagePage.Values[0]) = '') and IsUpgradeInstall() then

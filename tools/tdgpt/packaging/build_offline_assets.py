@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import io
 import os
 import subprocess
@@ -15,6 +16,16 @@ from typing import Iterable, Optional
 
 
 DEFAULT_UV_EXE = Path(__file__).resolve().parent / "bin" / "uv.exe"
+MODEL_NAME_ALIASES = {
+    "tdtsfm": "tdtsfm",
+    "timemoe": "timemoe",
+    "moirai": "moirai",
+    "chronos": "chronos",
+    "timesfm": "timesfm",
+    "moment": "moment",
+    "moment-large": "moment",
+    "momentfm": "moment",
+}
 
 
 def info(message: str) -> None:
@@ -111,6 +122,29 @@ def add_directory_to_tar(tar_obj: tarfile.TarFile, source_dir: Path, arcname: st
     tar_obj.add(source_dir, arcname=arcname)
 
 
+def normalize_member_name(name: str) -> str:
+    normalized = name.lstrip("./").replace("\\", "/")
+    while normalized.startswith("/"):
+        normalized = normalized[1:]
+    return normalized
+
+
+def remap_seed_member_name(member_name: str) -> str:
+    normalized = normalize_member_name(member_name)
+    if not normalized:
+        return normalized
+
+    top_level, _, remainder = normalized.partition("/")
+    canonical_model = MODEL_NAME_ALIASES.get(top_level.lower())
+    if canonical_model is None:
+        return normalized
+    if top_level.lower() in {"python", "venvs", "model"}:
+        return normalized
+    if remainder:
+        return f"model/{canonical_model}/{remainder}"
+    return f"model/{canonical_model}"
+
+
 def copy_tar_members(
     source_tar: Path,
     dest_tar: tarfile.TarFile,
@@ -121,10 +155,14 @@ def copy_tar_members(
     normalized_prefixes = [item.strip("/").replace("\\", "/") + "/" for item in (watched_prefixes or [])]
     with tarfile.open(source_tar, "r:*") as src:
         for member in src:
-            member_name = member.name.lstrip("./").replace("\\", "/")
+            member_name = remap_seed_member_name(member.name)
+            if not member_name:
+                continue
             for prefix in normalized_prefixes:
                 if member_name.startswith(prefix):
                     found_prefixes.add(prefix)
+            member = copy.copy(member)
+            member.name = member_name
             fileobj = src.extractfile(member) if member.isfile() else None
             try:
                 dest_tar.addfile(member, fileobj)
@@ -178,6 +216,7 @@ def build_bundle(
                     "python/runtime",
                     "venvs/venv",
                     *[f"venvs/{item.name}" for item in extra_venvs],
+                    *[f"model/{item}" for item in sorted(set(MODEL_NAME_ALIASES.values()))],
                 ],
             )
             info(f"Copied {copied} members from seed package")

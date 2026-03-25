@@ -191,6 +191,73 @@ def normalize_model_name(name: str) -> str:
     return name
 
 
+def find_reexec_python(current_python: Path) -> Optional[List[str]]:
+    candidates: List[List[str]] = [
+        ["python"],
+        ["python3"],
+        ["python3.11"],
+        ["py", "-3.11"],
+        ["py", "-3"],
+    ]
+    for command in candidates:
+        try:
+            result = subprocess.run(
+                command + ["-c", "import sys; print(sys.executable)"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=False,
+            )
+        except Exception:
+            continue
+        if result.returncode != 0:
+            continue
+        resolved = (result.stdout or "").strip()
+        if not resolved:
+            continue
+        resolved_path = Path(resolved).resolve()
+        if resolved_path == current_python:
+            continue
+        try:
+            resolved_path.relative_to(VENVS_DIR)
+            continue
+        except ValueError:
+            return command
+    return None
+
+
+def maybe_reexec_for_offline_import(args: argparse.Namespace) -> None:
+    if not args.offline:
+        return
+    if os.environ.get("TDGPT_REEXEC_OFFLINE_IMPORT", "") == "1":
+        return
+
+    current_python = Path(sys.executable).resolve()
+    try:
+        current_python.relative_to(VENVS_DIR)
+    except ValueError:
+        return
+
+    reexec_command = find_reexec_python(current_python)
+    if not reexec_command:
+        print(
+            "ERROR: Offline import needs a Python interpreter outside the current virtual environment "
+            "because the installer must replace venvs during import."
+        )
+        print("ERROR: Install Python 3.10/3.11/3.12 in PATH and run the installer again.")
+        sys.exit(1)
+
+    print(f"INFO: Re-launching offline import with external Python: {' '.join(reexec_command)}")
+    env = os.environ.copy()
+    env["TDGPT_REEXEC_OFFLINE_IMPORT"] = "1"
+    result = subprocess.run(
+        reexec_command + [str(Path(__file__).resolve()), *sys.argv[1:]],
+        env=env,
+        check=False,
+    )
+    sys.exit(result.returncode)
+
+
 class ProgressReporter:
     def __init__(self, progress_file: Optional[Path]):
         self.progress_file = progress_file
@@ -269,6 +336,8 @@ class WindowsInstaller:
         self._offline_package_ctx = None
         self._offline_package_root: Optional[Path] = None
         self._offline_package_cached_path = ""
+        self._archive_member_cache: Dict[str, set[str]] = {}
+        self._offline_models_prepared_from_package = False
 
         raw_models = [normalize_model_name(item) for item in (selected_models or [])]
         if self.all_models:
@@ -360,6 +429,7 @@ class WindowsInstaller:
         self._offline_package_ctx = None
         self._offline_package_root = None
         self._offline_package_cached_path = ""
+        self._archive_member_cache = {}
 
     def get_offline_package_root(self, package_path: Path) -> Optional[Path]:
         resolved = str(package_path.resolve())
@@ -563,6 +633,206 @@ class WindowsInstaller:
         return None
 
     @staticmethod
+    def normalize_archive_member_name(name: str) -> str:
+        normalized = name.replace("\\", "/").lstrip("./")
+        while normalized.startswith("/"):
+            normalized = normalized[1:]
+        return normalized.rstrip("/")
+
+    def get_archive_member_names(self, archive_path: Path) -> set[str]:
+        resolved = str(archive_path.resolve())
+        cached = self._archive_member_cache.get(resolved)
+        if cached is not None:
+            return cached
+
+        members: set[str] = set()
+        suffixes = "".join(archive_path.suffixes).lower()
+        if suffixes.endswith(".zip"):
+            with zipfile.ZipFile(archive_path, "r") as zip_obj:
+                for item in zip_obj.namelist():
+                    normalized = self.normalize_archive_member_name(item)
+                    if normalized:
+                        members.add(normalized)
+        elif suffixes.endswith(".tar.gz") or suffixes.endswith(".tgz") or suffixes.endswith(".tar"):
+            with tarfile.open(archive_path, "r:*") as tar_obj:
+                for member in tar_obj.getmembers():
+                    normalized = self.normalize_archive_member_name(member.name)
+                    if normalized:
+                        members.add(normalized)
+        else:
+            raise RuntimeError(f"Unsupported archive format: {archive_path.name}")
+
+        self._archive_member_cache[resolved] = members
+        return members
+
+    @staticmethod
+    def has_member_prefix(member_names: set[str], prefix: str) -> bool:
+        normalized_prefix = prefix.strip("/").replace("\\", "/")
+        return any(item == normalized_prefix or item.startswith(normalized_prefix + "/") for item in member_names)
+
+    def find_direct_directory_prefix(self, member_names: set[str], candidates: List[str], required_files: List[str]) -> Optional[str]:
+        for candidate in candidates:
+            normalized_candidate = candidate.strip("/").replace("\\", "/")
+            if not normalized_candidate:
+                continue
+            if all(f"{normalized_candidate}/{item}".replace("\\", "/") in member_names for item in required_files):
+                return normalized_candidate
+        return None
+
+    def find_direct_model_prefix(self, member_names: set[str], model_name: str) -> Optional[str]:
+        candidates = [f"model/{model_name}", *self.candidate_model_dir_names(model_name)]
+        return self.find_direct_directory_prefix(
+            member_names,
+            candidates,
+            [str(item) for item in MODEL_SPECS[model_name]["flag_files"]],
+        )
+
+    def extract_selected_prefixes_to_dir(self, archive_path: Path, destination_dir: Path, prefixes: List[str]) -> bool:
+        normalized_prefixes = []
+        for item in prefixes:
+            normalized = item.strip("/").replace("\\", "/")
+            if normalized and normalized not in normalized_prefixes:
+                normalized_prefixes.append(normalized)
+        if not normalized_prefixes:
+            return True
+
+        destination_dir.mkdir(parents=True, exist_ok=True)
+        tar_exe = shutil.which("tar")
+        if tar_exe:
+            self.print_info(
+                f"Extracting selected package content with system tar: {archive_path.name} -> {destination_dir}"
+            )
+            result = subprocess.run(
+                [tar_exe, "-xf", str(archive_path), "-C", str(destination_dir), *normalized_prefixes],
+                capture_output=True,
+                text=True,
+                timeout=43200,
+                check=False,
+            )
+            if result.returncode == 0:
+                return True
+            detail = (result.stderr or result.stdout or "").strip()
+            self.print_warning(
+                f"System tar selective extraction failed for {archive_path.name}"
+                + (f": {detail}" if detail else ".")
+                + " Falling back to Python tarfile."
+            )
+
+        try:
+            suffixes = "".join(archive_path.suffixes).lower()
+            if suffixes.endswith(".zip"):
+                with zipfile.ZipFile(archive_path, "r") as zip_obj:
+                    for member_name in zip_obj.namelist():
+                        normalized_name = self.normalize_archive_member_name(member_name)
+                        if not any(
+                            normalized_name == prefix or normalized_name.startswith(prefix + "/")
+                            for prefix in normalized_prefixes
+                        ):
+                            continue
+                        zip_obj.extract(member_name, destination_dir)
+                return True
+
+            with tarfile.open(archive_path, "r:*") as tar_obj:
+                for member in tar_obj.getmembers():
+                    normalized_name = self.normalize_archive_member_name(member.name)
+                    if not any(
+                        normalized_name == prefix or normalized_name.startswith(prefix + "/")
+                        for prefix in normalized_prefixes
+                    ):
+                        continue
+                    tar_obj.extract(member, destination_dir)
+            return True
+        except Exception as exc:
+            self.print_error(f"Failed selective extraction for {archive_path.name}: {exc}")
+            return False
+
+    def try_prepare_direct_offline_import(self, package_path: Path) -> Optional[bool]:
+        try:
+            member_names = self.get_archive_member_names(package_path)
+        except Exception as exc:
+            self.print_warning(f"Failed to inspect offline package {package_path.name}: {exc}")
+            return None
+
+        runtime_prefix = self.find_direct_directory_prefix(member_names, ["python/runtime"], ["python.exe"])
+        main_venv_prefix = self.find_direct_directory_prefix(member_names, ["venvs/venv"], ["pyvenv.cfg", "Scripts/python.exe"])
+        if runtime_prefix is None or main_venv_prefix is None:
+            self.print_info(
+                f"Offline package {package_path.name} does not use the direct runtime/venv layout. "
+                "Falling back to temporary extraction."
+            )
+            return None
+
+        venv_prefixes: Dict[str, str] = {"venv": main_venv_prefix}
+        for venv_name in [name for name in VENV_CONFIGS if name != "venv"]:
+            prefix = self.find_direct_directory_prefix(
+                member_names,
+                [f"venvs/{venv_name}"],
+                ["pyvenv.cfg", "Scripts/python.exe"],
+            )
+            if prefix:
+                venv_prefixes[venv_name] = prefix
+
+        model_prefixes: Dict[str, str] = {}
+        if self.model_source == "offline":
+            for model_name in ALL_MODELS:
+                prefix = self.find_direct_model_prefix(member_names, model_name)
+                if prefix:
+                    model_prefixes[model_name] = prefix
+
+        install_prefixes = [runtime_prefix, *venv_prefixes.values(), *model_prefixes.values()]
+        self.print_info(
+            f"Direct offline import will extract selected package content straight into {self.install_dir}."
+        )
+
+        if PACKAGED_PYTHON_DIR.exists():
+            shutil.rmtree(PACKAGED_PYTHON_DIR, ignore_errors=True)
+        for venv_name in venv_prefixes:
+            shutil.rmtree(self.get_venv_path(venv_name), ignore_errors=True)
+        direct_model_root_required = any(prefix.startswith("model/") for prefix in model_prefixes.values())
+        if direct_model_root_required:
+            self.model_dir.mkdir(parents=True, exist_ok=True)
+        for prefix in model_prefixes.values():
+            if not prefix.startswith("model/"):
+                shutil.rmtree(self.install_dir / prefix.split("/", 1)[0], ignore_errors=True)
+        for model_name in model_prefixes:
+            shutil.rmtree(self.model_dir / model_name, ignore_errors=True)
+
+        if not self.extract_selected_prefixes_to_dir(package_path, self.install_dir, install_prefixes):
+            return False
+
+        for venv_name in venv_prefixes:
+            python_exe = self.get_venv_python(venv_name)
+            config_path = self.get_venv_path(venv_name) / "pyvenv.cfg"
+            if not python_exe.exists() or not config_path.exists():
+                self.print_error(f"Direct offline import for {venv_name} is incomplete after extraction.")
+                return False
+            self.reused_venvs[venv_name] = True
+
+        for model_name, prefix in model_prefixes.items():
+            target_dir = self.model_dir / model_name
+            if prefix.startswith("model/"):
+                source_dir = self.install_dir / Path(prefix)
+                if not source_dir.exists():
+                    self.print_error(f"Direct offline import did not create the expected model directory: {source_dir}")
+                    return False
+            else:
+                source_dir = self.install_dir / prefix.split("/", 1)[0]
+                if not source_dir.exists():
+                    self.print_error(f"Direct offline import did not create the expected model directory: {source_dir}")
+                    return False
+                target_dir.parent.mkdir(parents=True, exist_ok=True)
+                if target_dir.exists():
+                    shutil.rmtree(target_dir, ignore_errors=True)
+                shutil.move(str(source_dir), str(target_dir))
+            if not self.find_payload_root(target_dir, model_name):
+                self.print_error(f"Direct offline import for {model_name} does not contain expected model files.")
+                return False
+            self.print_success(f"Offline model imported from package: {MODEL_SPECS[model_name]['display']}")
+
+        self._offline_models_prepared_from_package = bool(model_prefixes)
+        return True
+
+    @staticmethod
     def find_directory_by_candidates(root_dir: Path, relative_candidates: List[str], required_files: List[str]) -> Optional[Path]:
         for candidate_name in relative_candidates:
             candidate = root_dir / Path(candidate_name)
@@ -672,16 +942,20 @@ class WindowsInstaller:
 
         self.set_progress(20, "Preparing Python environments", f"Importing packaged Python runtime and virtual environments from {package_path.name}")
         package_timer = self.start_phase_timer(f"Import offline runtime bundle {package_path.name}")
-        temp_dir = self.get_offline_package_root(package_path)
-        if temp_dir is None:
-            return False
-        if not self.import_runtime_payload(temp_dir):
-            return False
-        if not self.import_venv_payload(temp_dir, "venv", required=True):
-            return False
-        for venv_name in [name for name in VENV_CONFIGS if name != "venv"]:
-            if not self.import_venv_payload(temp_dir, venv_name, required=False):
+        direct_result = self.try_prepare_direct_offline_import(package_path)
+        if direct_result is None:
+            temp_dir = self.get_offline_package_root(package_path)
+            if temp_dir is None:
                 return False
+            if not self.import_runtime_payload(temp_dir):
+                return False
+            if not self.import_venv_payload(temp_dir, "venv", required=True):
+                return False
+            for venv_name in [name for name in VENV_CONFIGS if name != "venv"]:
+                if not self.import_venv_payload(temp_dir, venv_name, required=False):
+                    return False
+        elif not direct_result:
+            return False
 
         self.python_cmd = str(self.get_packaged_python())
         for venv_name in self.discover_packaged_venvs():
@@ -1199,10 +1473,32 @@ class WindowsInstaller:
     def extract_archive_to_dir(self, archive_path: Path, destination_dir: Path) -> bool:
         try:
             suffixes = "".join(archive_path.suffixes).lower()
+            destination_dir.mkdir(parents=True, exist_ok=True)
             if suffixes.endswith(".zip"):
                 with zipfile.ZipFile(archive_path, "r") as zip_obj:
                     zip_obj.extractall(destination_dir)
             elif suffixes.endswith(".tar.gz") or suffixes.endswith(".tgz") or suffixes.endswith(".tar"):
+                tar_exe = shutil.which("tar")
+                if tar_exe:
+                    self.print_info(f"Extracting {archive_path.name} with system tar: {tar_exe}")
+                    result = subprocess.run(
+                        [tar_exe, "-xf", str(archive_path), "-C", str(destination_dir)],
+                        capture_output=True,
+                        text=True,
+                        timeout=43200,
+                        check=False,
+                    )
+                    if result.returncode == 0:
+                        return True
+                    detail = (result.stderr or result.stdout or "").strip()
+                    self.print_warning(
+                        f"System tar failed for {archive_path.name}"
+                        + (f": {detail}" if detail else ".")
+                        + " Falling back to Python tarfile."
+                    )
+                else:
+                    self.print_info(f"System tar was not found. Falling back to Python tarfile for {archive_path.name}.")
+
                 with tarfile.open(archive_path, "r:*") as tar_obj:
                     tar_obj.extractall(destination_dir)
             else:
@@ -1461,6 +1757,9 @@ except Exception as exc:
             else:
                 self.set_progress(94, "Model installation", "No bundled model files were packaged in this installer")
             return True
+        if self._offline_models_prepared_from_package:
+            self.set_progress(94, "Model installation", "Offline model files were already imported directly from the package")
+            return True
         if self.model_source == "none":
             self.set_progress(84, "Model installation", "Model download and import were skipped")
             return True
@@ -1683,6 +1982,7 @@ Examples:
 def main() -> None:
     parser = build_parser()
     args = parser.parse_args()
+    maybe_reexec_for_offline_import(args)
     selected_models = [normalize_model_name(item) for item in (args.models or [])]
     invalid_models = [item for item in selected_models if item not in MODEL_SPECS]
     if invalid_models:

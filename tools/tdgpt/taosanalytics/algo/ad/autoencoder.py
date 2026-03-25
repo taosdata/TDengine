@@ -6,7 +6,6 @@ import time
 from pathlib import Path
 
 import joblib
-import keras
 import numpy as np
 import pandas as pd
 
@@ -99,6 +98,10 @@ class _AutoEncoderDetectionService(AbstractAnomalyDetectionService):
 
     @classmethod
     def do_load_model(cls, path):
+        # Import keras lazily so the main service can still start when
+        # TensorFlow support was intentionally skipped.
+        import keras
+
         model_file_path = f'{path}.keras'
         model_info_path = f'{path}.info'
 
