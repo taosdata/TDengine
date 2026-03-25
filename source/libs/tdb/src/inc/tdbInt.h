@@ -80,7 +80,7 @@ typedef struct {
 
 #define TDB_FLAG_IS(flags, flag)     ((flags) == (flag))
 #define TDB_FLAG_HAS(flags, flag)    (((flags) & (flag)) != 0)
-#define TDB_FLAG_NO(flags, flag)     ((flags) & (flag) == 0)
+#define TDB_FLAG_NO(flags, flag)     (((flags) & (flag)) == 0)
 #define TDB_FLAG_ADD(flags, flag)    ((flags) | (flag))
 #define TDB_FLAG_REMOVE(flags, flag) ((flags) & (~(flag)))
 
