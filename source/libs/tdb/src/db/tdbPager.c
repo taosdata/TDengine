@@ -568,6 +568,7 @@ int tdbPagerAbort(SPager *pPager, TXN *pTxn) {
 
     char *buf = tdbEncryptPage(pPager, pageBuf, pPager->pageSize, __FUNCTION__, offset);
     if (buf == NULL) {
+      tdbOsFree(pageBuf);
       return terrno;
     }
 
@@ -1122,6 +1123,7 @@ static int tdbPagerRestore(SPager *pPager, const char *jFileName) {
 
     char *buf = tdbEncryptPage(pPager, pageBuf, pPager->pageSize, __FUNCTION__, offset);
     if (buf == NULL) {
+      tdbOsFree(pageBuf);
       return terrno;
     }
 
