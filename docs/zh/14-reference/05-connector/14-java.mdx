@@ -223,7 +223,7 @@ TDengine TSDB 的 JDBC URL 规范格式为：
 - useSSL：连接中是否使用 SSL。
 - timezone：客户端使用的时区，连接上生效，默认值为系统时区。推荐不设置，使用系统时区性能更好。
 - varcharAsString：将 VARCHAR/BINARY 类型映射为 String，仅在使用 WebSocket 连接时生效。默认值为 false。
-- connmode：BI 模式，仅在 WebSocket 连接时生效，默认 0，可设置为 1。为 1 代表开启 BI 模式，元数据信息不统计子表，主要用在 BI 工具对接场景。
+- conmode：BI 模式，仅在 WebSocket 连接时生效，默认 0，可设置为 1。为 1 代表开启 BI 模式，元数据信息不统计子表，主要用在 BI 工具对接场景。
 
 **注意**：部分配置项（比如：locale、charset）在 WebSocket 连接中不生效。WebSocket 连接仅支持 UTF-8 字符集。
 
