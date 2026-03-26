@@ -443,17 +443,7 @@ static int32_t stRunnerOutputBlock(SStreamRunnerTask* pTask, SStreamRunnerTaskEx
   if (pTask->notification.calcNotifyOnly) return 0;
 
   pExec->tbname[0] = 0;
-  ST_TASK_ILOG("start to output res block, rows: %" PRId64 ", gid: %" PRIu64, 
-      pBlock->info.rows, pStream->groupId);
 
-  //stRunnerLogWinLatency(pTask, pExec);
-  
-  // if (*pStream->createTable) {
-  //   TAOS_CHECK_EXIT(stRunnerSetGrpInfo(pTask, pStream, pBlock->info.id.groupId));
-  //   TAOS_CHECK_EXIT(streamCalcOutputTbName(pTask->pSubTableExpr, pExec->tbname, pStream));
-  //   ST_TASK_DLOG("stRunnerOutputBlock tbname: %s", pExec->tbname);
-  // }
-  
   SArray* pTagVals = NULL;
   if (pBlock && *pStream->createTable) {
     TAOS_CHECK_EXIT(stRunnerSetGrpInfo(pTask, pStream, pBlock->info.id.groupId));

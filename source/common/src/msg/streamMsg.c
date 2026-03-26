@@ -3827,7 +3827,7 @@ static int32_t tSerializeSSTriggerGroupReadInfo(SEncoder* pEncoder, SSTriggerGro
   int32_t nTables = taosArrayGetSize(pInfo->pTables);
   TAOS_CHECK_EXIT(tEncodeI32(pEncoder, nTables));
   if (pEncoder->data && nTables > 0) {
-    TAOS_MEMCPY(pEncoder->data + pEncoder->size, pInfo->pTables->pData, nTables * sizeof(int64_t));
+    TAOS_MEMCPY(pEncoder->data + pEncoder->pos, pInfo->pTables->pData, nTables * sizeof(int64_t));
   }
   pEncoder->pos += nTables * sizeof(int64_t);
 
