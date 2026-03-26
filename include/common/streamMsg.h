@@ -808,12 +808,14 @@ typedef struct SSTriggerVirTableInfoRequest {
   SArray*              cids;  // SArray<col_id_t>, col ids of the virtual table
   SArray*              uids;
   bool                 fetchAllTable;  // if true, ignore uids and fetch all virtual tables' info
+  int64_t              ver;            // -1 for first, rsp.ver in walMeta info if vtable changes
 } SSTriggerVirTableInfoRequest;
 
 typedef struct SSTriggerVirTablePseudoColRequest {
   SSTriggerPullRequest base;
   int64_t              uid;
   SArray*              cids;  // SArray<col_id_t>, -1 means tbname
+  int64_t              ver;   // -1 for first, rsp.ver in walMeta info if vtable changes
 } SSTriggerVirTablePseudoColRequest;
 typedef struct OTableInfoRsp {
   int64_t  suid;
@@ -829,6 +831,7 @@ typedef struct OTableInfo {
 typedef struct SSTriggerOrigTableInfoRequest {
   SSTriggerPullRequest base;
   SArray*              cols;  // SArray<OTableInfo>
+  int64_t              ver;   // -1 for first, rsp.ver in walMeta info if original table changes
 } SSTriggerOrigTableInfoRequest;
 
 typedef struct SSTriggerOrigTableInfoRsp {

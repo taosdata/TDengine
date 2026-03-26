@@ -67,6 +67,7 @@ typedef struct SSTriggerRealtimeGroup {
   struct SSTriggerRealtimeContext *pContext;
   int64_t                          gid;
   int32_t                          vgId;
+  int32_t                          activeVtableCount;
   bool                             recalcNextWindow;
   TD_DLIST_NODE(SSTriggerRealtimeGroup);
 
@@ -156,6 +157,7 @@ typedef struct SSTriggerWalProgress {
   SSTriggerPullRequestUnion pullReq;
   SArray                   *reqCids;         // SArray<col_id_t>
   SArray                   *reqCols;         // SArray<OTableInfo>
+  SArray                   *reqUids;         // SArray<int64_t>
   SSHashObj                *uidInfoTrigger;  // SSHashObj<uid, SSHashObj<slotId, colId>>
   SSHashObj                *uidInfoCalc;     // SSHashObj<uid, SSHashObj<slotId, colId>>
   SArray                   *pVersions;       // SArray<int64_t>
@@ -169,16 +171,30 @@ typedef enum ESTriggerWalMode {
   STRIGGER_WAL_META_THEN_DATA,
 } ESTriggerWalMode;
 
+typedef struct SSTriggerVTablePatchItem {
+  int64_t         vtbUid;
+  int64_t         ver;
+  int32_t         vgId;
+  ETableBlockType op;
+} SSTriggerVTablePatchItem;
+
+typedef struct SSTriggerVTablePatchContext {
+  SSHashObj *pPatchItems;          // SSHashObj<vtbUid, SSTriggerVTablePatchItem>
+  SArray    *pVirTableInfoRsp;     // SArray<VTableInfo>
+  SSHashObj *pOrigTableCols;       // SSHashObj<dbname, SSHashObj<tbname, SSTriggerOrigColumnInfo>*>
+} SSTriggerVTablePatchContext;
+
 typedef struct SSTriggerRealtimeContext {
   struct SStreamTriggerTask *pTask;
   int64_t                    sessionId;
   ESTriggerWalMode           walMode;
   ESTriggerContextStatus     status;
 
-  SSHashObj *pReaderWalProgress;  // SSHashObj<vgId, SSTriggerWalProgress>
-  int32_t    curReaderIdx;
-  bool       catchUp;  // whether all readers have caught up the latest wal data
-  bool       continueToFetch;
+  SSHashObj                  *pReaderWalProgress;  // SSHashObj<vgId, SSTriggerWalProgress>
+  int32_t                     curReaderIdx;
+  bool                        catchUp;  // whether all readers have caught up the latest wal data
+  bool                        continueToFetch;
+  SSTriggerVTablePatchContext patchContext;
 
   SSDataBlock *pMetaBlock;
   SSDataBlock *pDeleteBlock;
@@ -235,7 +251,6 @@ typedef struct SSTriggerRealtimeContext {
   bool    boundDetermined;
   bool    recovering;
   int64_t lastCheckpointTime;
-  int64_t lastVirtTableInfoTime;
   int64_t lastReportTime;
 } SSTriggerRealtimeContext;
 
@@ -406,9 +421,8 @@ typedef struct SStreamTriggerTask {
 
   // task info
   int32_t leaderSnodeId;
-  SArray *readerList;      // SArray<SStreamTaskAddr>
-  SArray *virtReaderList;  // SArray<SStreamTaskAddr>
-  SArray *runnerList;      // SArray<SStreamRunnerTarget>
+  SArray *readerList;  // SArray<SStreamTaskAddr>
+  SArray *runnerList;  // SArray<SStreamRunnerTarget>
 
   // virtual table info: old version, to be removed
   SSDataBlock *pVirDataBlock;
@@ -422,7 +436,8 @@ typedef struct SStreamTriggerTask {
   SArray      *pCalcIsPseudoCol;  // SArray<bool>, whether the column in calc data is pseudo column, could be NULL
   col_id_t     trigTsSlotId;
   col_id_t     calcTsSlotId;
-  bool         virScanTsOnly;    // whether the trigger and calc data only contains timestamp column
+  bool         virScanTsOnly;  // whether the trigger and calc data only contains timestamp column
+  SRWLatch     virTableInfoLock;
   SSHashObj   *pVirtTableInfos;  // SSHashObj<vtbUid, SSTriggerVirtTableInfo>
   SSHashObj   *pOrigTableInfos;  // SSHashObj<otbUid, SSTriggerOrigTableInfo>
   // virtual table info response
