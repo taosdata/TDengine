@@ -8,20 +8,20 @@ Please migrate to WebSocket connection:
 
 - **Java**: Change `jdbc:TAOS://` to `jdbc:TAOS-WS://`, port from `6030` to `6041`. For other configurations, please refer to [JDBC Driver](../../14-reference/05-connector/14-java.md#jdbc-driver).
 - **C#**: Change `protocol=Native` to `protocol=WebSocket` in the connection string, port from `6030` to `6041`.
-- **Go**: 
+- **Go**:
 
     <details>
     <summary>Go Native to WebSocket Migration Guide</summary>
 
-    ##### 1. Execute SQL
+  ##### 1. Execute SQL
 
     `database/sql` code requires no modification, mainly replace driver name and DSN protocol header: from `taosSql` + `tcp(6030)` to: `taosWS` + `ws(6041)`.
 
-    ##### 2. Data Subscription
+  ##### 2. Data Subscription
 
     Migrate from Native's `af/tmq` to `ws/tmq`.
 
-    ##### 3. STMT and Schemaless
+  ##### 3. STMT and Schemaless
 
     Migrate from `af` to `ws/unified`.
 
@@ -36,11 +36,11 @@ Please migrate to WebSocket connection:
 - **Java**: Change `jdbc:TAOS-RS://` to `jdbc:TAOS-WS://`. For other configurations, please refer to [JDBC Driver](../../14-reference/05-connector/14-java.md#jdbc-driver).
 - **Go**: `database/sql` code requires no modification, mainly replace driver name and DSN protocol header: from `taosRestful` + `http(6041)` to `taosWS` + `ws(6041)`.
 
-- **Python**: 
+- **Python**:
     <details>
     <summary>Python taosrest to taos-ws-py Migration Guide</summary>
 
-    ##### Step 1: Replace Connection Method
+  ##### Step 1: Replace Connection Method
 
     `taosrest` typically uses `url + user/password` parameters to connect:
 
@@ -58,7 +58,7 @@ Please migrate to WebSocket connection:
     conn = taosws.connect("ws://root:taosdata@localhost:6041")
     ```
 
-    ##### Step 2: Replace SQL Execution Method
+  ##### Step 2: Replace SQL Execution Method
 
     Common `taosrest` usage is through cursor:
 
@@ -80,7 +80,7 @@ Please migrate to WebSocket connection:
     cursor.execute("INSERT INTO t VALUES (now, 1)")
     ```
 
-    ##### Step 3: Replace Query Result Reading Method
+  ##### Step 3: Replace Query Result Reading Method
 
     Common `taosrest` usage:
 

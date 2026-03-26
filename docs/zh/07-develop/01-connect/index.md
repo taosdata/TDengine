@@ -20,7 +20,6 @@ import VerifyLinux from "../../14-reference/05-connector/_verify_linux.mdx";
 import VerifyMacOS from "../../14-reference/05-connector/_verify_macos.mdx";
 import VerifyWindows from "../../14-reference/05-connector/_verify_windows.mdx";
 import ConnectorType from "../../14-reference/05-connector/_connector_type.mdx";
-import ConnectionDeprecation from "../../14-reference/05-connector/_connection_deprecation.mdx";
 
 <ConnectorType />
 

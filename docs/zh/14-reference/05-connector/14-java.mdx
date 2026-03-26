@@ -205,8 +205,7 @@ TDengine TSDB 的 JDBC URL 规范格式为：
 - **仅 WebSocket 连接方式支持多个端点地址**，使用时用英文逗号隔开。多个端点地址在连接时会随机使用，以实现负载均衡。  
 - JDBC URL 中支持设置 Properties 中所有属性，具体请参考下文 **Properties** 章节。  
 
-**WebSocket 连接**
-
+**WebSocket 连接**  
 使用 JDBC WebSocket 连接，不需要依赖客户端驱动。这是一个示例： `jdbc:TAOS-WS://taosdemo.com:6041,taosdemo2.com:6041/power?user=root&password=taosdata&varcharAsString=true`。与 JDBC 原生连接相比，仅需要：
 
 1. driverClass 指定为“com.taosdata.jdbc.ws.WebSocketDriver”；

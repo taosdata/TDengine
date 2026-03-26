@@ -205,8 +205,7 @@ The JDBC URL format for TDengine is:
 - **Only the WebSocket connection method supports multiple endpoint addresses**, which should be separated by commas when used. These multiple endpoint addresses will be randomly used during connection to achieve load balancing.
 - All properties in **Properties** are supported in the JDBC URL. For details, please refer to the **Properties** section below.
 
-**WebSocket Connection**
-
+**WebSocket Connection**  
 Using JDBC WebSocket connection does not depend on the client driver. Here's an example: `jdbc:TAOS-WS://taosdemo.com:6041,taosdemo2.com:6041/power?user=root&password=taosdata&varcharAsString=true`. Compared to native JDBC connections, you only need to:
 
 1. Specify driverClass as "com.taosdata.jdbc.ws.WebSocketDriver";
