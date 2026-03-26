@@ -56,7 +56,7 @@ In the following example, `taos-check startup` is used for startupProbe to verif
 
 - `taos-check startup` and `taos-check service` are available in `3.4.1.0` and later.
 - `taos-check service` uses `TAOS_ROOT_PASSWORD_FILE` or `TAOS_ROOT_PASSWORD` for authentication, so if the root password is changed, the corresponding environment variable or Secret must be updated before the container is restarted, the image is upgraded, or the Pod is recreated.
-- For Docker-specific password and upgrade behavior across versions, see [Docker deployment](../operations-and-maintenance/deploy-your-cluster/docker-deployment#custom-passwords-upgrades-and-health-checks).
+- For Docker-specific password and upgrade behavior across versions, see [Docker deployment](../docker-deployment#custom-passwords-upgrades-and-health-checks).
 
 ```yaml
 ---
