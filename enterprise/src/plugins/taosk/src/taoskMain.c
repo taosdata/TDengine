@@ -14,7 +14,6 @@
  */
 
 #include "taoskInt.h"
-#include <getopt.h>
 
 STaoskArgs g_args = {0};
 
@@ -112,43 +111,61 @@ static int32_t taoskDetermineDataDir(void) {
   if (g_args.configDir[0]) {
     code = taoskParseDataDir(g_args.configDir, g_args.dataDir, sizeof(g_args.dataDir));
     if (code != TSDB_CODE_SUCCESS) {
-      // Failed to parse, use default
+// Failed to parse, use platform default
+#ifdef WINDOWS
+      tstrncpy(g_args.dataDir, "C:\\TDengine\\data", sizeof(g_args.dataDir));
+#else
       tstrncpy(g_args.dataDir, "/var/lib/taos", sizeof(g_args.dataDir));
+#endif
     }
   }
-  // Priority 3: Use default
+  // Priority 3: Use platform default
   else {
+#ifdef WINDOWS
+    tstrncpy(g_args.dataDir, "C:\\TDengine\\data", sizeof(g_args.dataDir));
+#else
     tstrncpy(g_args.dataDir, "/var/lib/taos", sizeof(g_args.dataDir));
+#endif
   }
 
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t taoskParseArgs(int argc, char *argv[]) {
-  static struct option long_options[] = {{"config-dir", required_argument, 0, 'c'},
-                                         {"data-dir", required_argument, 0, 'd'},
-                                         {"help", no_argument, 0, 'h'},
-                                         {"version", no_argument, 0, 'V'},
-                                         {"set-cfg-algorithm", required_argument, 0, 1013},
-                                         {"set-meta-algorithm", required_argument, 0, 1014},
-                                         {"encrypt-server", optional_argument, 0, 1002},
-                                         {"encrypt-database", optional_argument, 0, 1003},
-                                         {"encrypt-config", no_argument, 0, 1004},
-                                         {"encrypt-metadata", no_argument, 0, 1005},
-                                         {"encrypt-data", optional_argument, 0, 1006},
-                                         {"update-svrkey", required_argument, 0, 1007},
-                                         {"update-dbkey", required_argument, 0, 1008},
-                                         {"backup", no_argument, 0, 1009},
-                                         {"restore", no_argument, 0, 1010},
-                                         {"machine-code", required_argument, 0, 1011},
-                                         {"svr-key", required_argument, 0, 1012},
-                                         {"view-config", required_argument, 0, 1015},
-                                         {0, 0, 0, 0}};
+// Cross-platform argument parsing helper:
+// Retrieves the value for a long option, supporting both "--opt=val" and "--opt val" formats.
+// For optional-value options, returns NULL if no value follows.
+// 'i' is advanced if the value is taken from the next argv element.
+static const char *taoskGetOptVal(int *i, int argc, char *argv[], const char *argWithEq, bool required) {
+  const char *eq = strchr(argv[*i], '=');
+  if (eq != NULL) {
+    return eq + 1;
+  }
+  if (*i + 1 < argc && argv[*i + 1][0] != '-') {
+    (*i)++;
+    return argv[*i];
+  }
+  (void)argWithEq;
+  (void)required;
+  return NULL;
+}
 
+// Match a long option name (handles both "--opt" and "--opt=..." forms)
+static bool taoskMatchLong(const char *arg, const char *name) {
+  size_t len = strlen(name);
+  if (strncmp(arg, "--", 2) != 0) return false;
+  arg += 2;
+  return (strncmp(arg, name, len) == 0 && (arg[len] == '\0' || arg[len] == '='));
+}
+
+int32_t taoskParseArgs(int argc, char *argv[]) {
   // Initialize default values
+#ifdef WINDOWS
+  strncpy(g_args.configDir, "C:\\TDengine\\cfg", sizeof(g_args.configDir) - 1);
+#else
   strncpy(g_args.configDir, "/etc/taos", sizeof(g_args.configDir) - 1);
-  g_args.cfgAlgorithm = ENCRYPT_ALGO_SM4;   // Default to SM4
-  g_args.metaAlgorithm = ENCRYPT_ALGO_SM4;  // Default to SM4
+#endif
+  g_args.cfgAlgorithm = ENCRYPT_ALGO_SM4;
+  g_args.metaAlgorithm = ENCRYPT_ALGO_SM4;
   g_args.generateKeys = false;
   g_args.updateKeys = false;
   g_args.backup = false;
@@ -157,162 +174,162 @@ int32_t taoskParseArgs(int argc, char *argv[]) {
   g_args.encryptConfig = false;
   g_args.encryptMetadata = false;
   g_args.encryptData = false;
-  
-  int option_index = 0;
-  int c;
-  
-  while ((c = getopt_long(argc, argv, "c:d:hV", long_options, &option_index)) != -1) {
-    switch (c) {
-      case 'c':
-        strncpy(g_args.configDir, optarg, sizeof(g_args.configDir) - 1);
-        break;
-      case 'd':
-        strncpy(g_args.dataDir, optarg, sizeof(g_args.dataDir) - 1);
-        break;
-      case 'h':
-        g_args.showHelp = true;
-        return 0;
-      case 'V':
-        g_args.showVersion = true;
-        return 0;
-      case 1013:  // --set-cfg-algorithm
-        g_args.cfgAlgorithm = taoskStringToAlgo(optarg);
-        if (g_args.cfgAlgorithm == ENCRYPT_ALGO_NONE || g_args.cfgAlgorithm >= ENCRYPT_ALGO_MAX) {
-          fprintf(stderr, "Error: Invalid cfg algorithm '%s'. Supported: sm4, aes\n", optarg);
-          return -1;
-        }
-        // Validate that only SM4 or AES is used for cfg
-        if (taoskValidateSymmetricAlgo(g_args.cfgAlgorithm) != TSDB_CODE_SUCCESS) {
-          return -1;
-        }
-        break;
-      case 1014:  // --set-meta-algorithm
-        g_args.metaAlgorithm = taoskStringToAlgo(optarg);
-        if (g_args.metaAlgorithm == ENCRYPT_ALGO_NONE || g_args.metaAlgorithm >= ENCRYPT_ALGO_MAX) {
-          fprintf(stderr, "Error: Invalid meta algorithm '%s'. Supported: sm4, aes\n", optarg);
-          return -1;
-        }
-        // Validate that only SM4 or AES is used for meta
-        if (taoskValidateSymmetricAlgo(g_args.metaAlgorithm) != TSDB_CODE_SUCCESS) {
-          return -1;
-        }
-        break;
-      case 1002:  // --encrypt-server
-        printf("----> --encrypt-server optarg: %s\n", optarg);
-        if (optarg != NULL) {
-          // Using --encrypt-server=value format
-          if (taoskValidateKey(optarg) != 0) {
-            return -1;
-          }
-          strncpy(g_args.svrKey, optarg, ENCRYPT_KEY_LEN);
-        } else if (optind < argc && argv[optind][0] != '-') {
-          // Using --encrypt-server value format (with space)
-          if (taoskValidateKey(argv[optind]) != 0) {
-            return -1;
-          }
-          strncpy(g_args.svrKey, argv[optind], sizeof(g_args.svrKey) - 1);
-          optind++;  // Move to next argument
-        }
-        // If neither, svrKey remains empty and will be auto-generated
-        g_args.generateKeys = true;
-        break;
-      case 1003:  // --encrypt-database
-        if (optarg != NULL) {
-          // Using --encrypt-database=value format
-          if (taoskValidateKey(optarg) != 0) {
-            return -1;
-          }
-          strncpy(g_args.dbKey, optarg, ENCRYPT_KEY_LEN);
-        } else if (optind < argc && argv[optind][0] != '-') {
-          // Using --encrypt-database value format (with space)
-          if (taoskValidateKey(argv[optind]) != 0) {
-            return -1;
-          }
-          strncpy(g_args.dbKey, argv[optind], sizeof(g_args.dbKey) - 1);
-          optind++;  // Move to next argument
-        }
-        // If neither, dbKey remains empty and will be auto-generated
-        g_args.generateKeys = true;
-        break;
-      case 1004:  // --encrypt-config
-        // Check if user tries to provide an argument
-        if (optind < argc && argv[optind][0] != '-') {
-          fprintf(stderr, "Error: --encrypt-config does not accept arguments (got '%s')\n", argv[optind]);
-          fprintf(stderr, "       Config key will be automatically generated\n");
-          return -1;
-        }
-        g_args.encryptConfig = true;
-        g_args.generateKeys = true;
-        break;
-      case 1005:  // --encrypt-metadata
-        // Check if user tries to provide an argument
-        if (optind < argc && argv[optind][0] != '-') {
-          fprintf(stderr, "Error: --encrypt-metadata does not accept arguments (got '%s')\n", argv[optind]);
-          fprintf(stderr, "       Metadata key will be automatically generated\n");
-          return -1;
-        }
-        g_args.encryptMetadata = true;
-        g_args.generateKeys = true;
-        break;
-      case 1006:  // --encrypt-data
-        if (optarg != NULL) {
-          // Using --encrypt-data=value format
-          if (taoskValidateKey(optarg) != 0) {
-            return -1;
-          }
-          strncpy(g_args.dataKey, optarg, ENCRYPT_KEY_LEN);
-        } else if (optind < argc && argv[optind][0] != '-') {
-          // Using --encrypt-data value format (with space)
-          if (taoskValidateKey(argv[optind]) != 0) {
-            return -1;
-          }
-          strncpy(g_args.dataKey, argv[optind], sizeof(g_args.dataKey) - 1);
-          optind++;  // Move to next argument
-        }
-        // If neither, dataKey remains empty and will be auto-generated
-        g_args.encryptData = true;
-        g_args.generateKeys = true;
-        break;
-      case 1007:  // --update-svrkey
-        if (taoskValidateKey(optarg) != 0) {
-          return -1;
-        }
-        strncpy(g_args.newSvrKey, optarg, ENCRYPT_KEY_LEN);
-        g_args.updateKeys = true;
-        break;
-      case 1008:  // --update-dbkey
-        if (taoskValidateKey(optarg) != 0) {
-          return -1;
-        }
-        strncpy(g_args.newDbKey, optarg, ENCRYPT_KEY_LEN);
-        g_args.updateKeys = true;
-        break;
-      case 1009:  // --backup
-        g_args.backup = true;
-        break;
-      case 1010:  // --restore
-        g_args.restore = true;
-        break;
-      case 1011:  // --machine-code
-        strncpy(g_args.backupFilePath, optarg, sizeof(g_args.backupFilePath) - 1);
-        break;
-      case 1012:  // --svr-key
-        if (taoskValidateKey(optarg) != 0) {
-          return -1;
-        }
-        strncpy(g_args.svrKeyForBackup, optarg, ENCRYPT_KEY_LEN);
-        break;
-      case 1015:  // --view-config
-        strncpy(g_args.configFilePath, optarg, sizeof(g_args.configFilePath) - 1);
-        g_args.viewConfig = true;
-        break;
-      default:
-        fprintf(stderr, "Error: Unknown option\n");
-        taoskPrintHelp();
+
+  for (int i = 1; i < argc; i++) {
+    const char *arg = argv[i];
+
+    if (strcmp(arg, "-h") == 0 || taoskMatchLong(arg, "help")) {
+      g_args.showHelp = true;
+      return 0;
+    } else if (strcmp(arg, "-V") == 0 || taoskMatchLong(arg, "version")) {
+      g_args.showVersion = true;
+      return 0;
+    } else if (strcmp(arg, "-c") == 0 || taoskMatchLong(arg, "config-dir")) {
+      const char *val = (arg[1] == '-') ? taoskGetOptVal(&i, argc, argv, arg, true)
+                                        : (i + 1 < argc ? argv[++i] : NULL);
+      if (!val) {
+        fprintf(stderr, "Error: %s requires an argument\n", arg);
         return -1;
+      }
+      strncpy(g_args.configDir, val, sizeof(g_args.configDir) - 1);
+    } else if (strcmp(arg, "-d") == 0 || taoskMatchLong(arg, "data-dir")) {
+      const char *val = (arg[1] == '-') ? taoskGetOptVal(&i, argc, argv, arg, true)
+                                        : (i + 1 < argc ? argv[++i] : NULL);
+      if (!val) {
+        fprintf(stderr, "Error: %s requires an argument\n", arg);
+        return -1;
+      }
+      strncpy(g_args.dataDir, val, sizeof(g_args.dataDir) - 1);
+    } else if (taoskMatchLong(arg, "set-cfg-algorithm")) {
+      const char *val = taoskGetOptVal(&i, argc, argv, arg, true);
+      if (!val) {
+        fprintf(stderr, "Error: --set-cfg-algorithm requires an argument\n");
+        return -1;
+      }
+      g_args.cfgAlgorithm = taoskStringToAlgo(val);
+      if (g_args.cfgAlgorithm == ENCRYPT_ALGO_NONE || g_args.cfgAlgorithm >= ENCRYPT_ALGO_MAX) {
+        fprintf(stderr, "Error: Invalid cfg algorithm '%s'. Supported: sm4, aes\n", val);
+        return -1;
+      }
+      if (taoskValidateSymmetricAlgo(g_args.cfgAlgorithm) != TSDB_CODE_SUCCESS) {
+        return -1;
+      }
+    } else if (taoskMatchLong(arg, "set-meta-algorithm")) {
+      const char *val = taoskGetOptVal(&i, argc, argv, arg, true);
+      if (!val) {
+        fprintf(stderr, "Error: --set-meta-algorithm requires an argument\n");
+        return -1;
+      }
+      g_args.metaAlgorithm = taoskStringToAlgo(val);
+      if (g_args.metaAlgorithm == ENCRYPT_ALGO_NONE || g_args.metaAlgorithm >= ENCRYPT_ALGO_MAX) {
+        fprintf(stderr, "Error: Invalid meta algorithm '%s'. Supported: sm4, aes\n", val);
+        return -1;
+      }
+      if (taoskValidateSymmetricAlgo(g_args.metaAlgorithm) != TSDB_CODE_SUCCESS) {
+        return -1;
+      }
+    } else if (taoskMatchLong(arg, "encrypt-server")) {
+      const char *val = taoskGetOptVal(&i, argc, argv, arg, false);
+      if (val != NULL) {
+        if (taoskValidateKey(val) != 0) {
+          return -1;
+        }
+        strncpy(g_args.svrKey, val, ENCRYPT_KEY_LEN);
+      }
+      g_args.generateKeys = true;
+    } else if (taoskMatchLong(arg, "encrypt-database")) {
+      const char *val = taoskGetOptVal(&i, argc, argv, arg, false);
+      if (val != NULL) {
+        if (taoskValidateKey(val) != 0) {
+          return -1;
+        }
+        strncpy(g_args.dbKey, val, ENCRYPT_KEY_LEN);
+      }
+      g_args.generateKeys = true;
+    } else if (taoskMatchLong(arg, "encrypt-config")) {
+      if (i + 1 < argc && argv[i + 1][0] != '-') {
+        fprintf(stderr, "Error: --encrypt-config does not accept arguments (got '%s')\n", argv[i + 1]);
+        fprintf(stderr, "       Config key will be automatically generated\n");
+        return -1;
+      }
+      g_args.encryptConfig = true;
+      g_args.generateKeys = true;
+    } else if (taoskMatchLong(arg, "encrypt-metadata")) {
+      if (i + 1 < argc && argv[i + 1][0] != '-') {
+        fprintf(stderr, "Error: --encrypt-metadata does not accept arguments (got '%s')\n", argv[i + 1]);
+        fprintf(stderr, "       Metadata key will be automatically generated\n");
+        return -1;
+      }
+      g_args.encryptMetadata = true;
+      g_args.generateKeys = true;
+    } else if (taoskMatchLong(arg, "encrypt-data")) {
+      const char *val = taoskGetOptVal(&i, argc, argv, arg, false);
+      if (val != NULL) {
+        if (taoskValidateKey(val) != 0) {
+          return -1;
+        }
+        strncpy(g_args.dataKey, val, ENCRYPT_KEY_LEN);
+      }
+      g_args.encryptData = true;
+      g_args.generateKeys = true;
+    } else if (taoskMatchLong(arg, "update-svrkey")) {
+      const char *val = taoskGetOptVal(&i, argc, argv, arg, true);
+      if (!val) {
+        fprintf(stderr, "Error: --update-svrkey requires an argument\n");
+        return -1;
+      }
+      if (taoskValidateKey(val) != 0) {
+        return -1;
+      }
+      strncpy(g_args.newSvrKey, val, ENCRYPT_KEY_LEN);
+      g_args.updateKeys = true;
+    } else if (taoskMatchLong(arg, "update-dbkey")) {
+      const char *val = taoskGetOptVal(&i, argc, argv, arg, true);
+      if (!val) {
+        fprintf(stderr, "Error: --update-dbkey requires an argument\n");
+        return -1;
+      }
+      if (taoskValidateKey(val) != 0) {
+        return -1;
+      }
+      strncpy(g_args.newDbKey, val, ENCRYPT_KEY_LEN);
+      g_args.updateKeys = true;
+    } else if (taoskMatchLong(arg, "backup")) {
+      g_args.backup = true;
+    } else if (taoskMatchLong(arg, "restore")) {
+      g_args.restore = true;
+    } else if (taoskMatchLong(arg, "machine-code")) {
+      const char *val = taoskGetOptVal(&i, argc, argv, arg, true);
+      if (!val) {
+        fprintf(stderr, "Error: --machine-code requires an argument\n");
+        return -1;
+      }
+      strncpy(g_args.backupFilePath, val, sizeof(g_args.backupFilePath) - 1);
+    } else if (taoskMatchLong(arg, "svr-key")) {
+      const char *val = taoskGetOptVal(&i, argc, argv, arg, true);
+      if (!val) {
+        fprintf(stderr, "Error: --svr-key requires an argument\n");
+        return -1;
+      }
+      if (taoskValidateKey(val) != 0) {
+        return -1;
+      }
+      strncpy(g_args.svrKeyForBackup, val, ENCRYPT_KEY_LEN);
+    } else if (taoskMatchLong(arg, "view-config")) {
+      const char *val = taoskGetOptVal(&i, argc, argv, arg, true);
+      if (!val) {
+        fprintf(stderr, "Error: --view-config requires an argument\n");
+        return -1;
+      }
+      strncpy(g_args.configFilePath, val, sizeof(g_args.configFilePath) - 1);
+      g_args.viewConfig = true;
+    } else {
+      fprintf(stderr, "Error: Unknown option '%s'\n", arg);
+      taoskPrintHelp();
+      return -1;
     }
   }
-  
+
   return 0;
 }
 

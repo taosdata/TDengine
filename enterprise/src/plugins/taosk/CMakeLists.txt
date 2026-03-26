@@ -3,12 +3,6 @@
 # Minimum CMake version
 cmake_minimum_required(VERSION 3.10)
 
-# taosk is only supported on Linux platform (requires getopt.h)
-if(NOT ${TD_LINUX})
-    message(STATUS "taosk is only supported on Linux platform, skipping...")
-    return()
-endif()
-
 # Project name
 project(taosk C)
 
