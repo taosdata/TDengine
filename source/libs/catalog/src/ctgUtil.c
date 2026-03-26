@@ -934,6 +934,46 @@ void ctgFreeSubTaskRes(CTG_TASK_TYPE type, void** pRes) {
   }
 }
 
+/*
+ * Destroy a task result that is owned only by the task itself.
+ * type identifies the async task result layout stored in *pRes.
+ * pRes receives NULL after the owned resource is fully released.
+ * Return value is void.
+ */
+static void ctgDestroyTaskOwnRes(CTG_TASK_TYPE type, void** pRes) {
+  if (NULL == pRes || NULL == *pRes) {
+    return;
+  }
+
+  switch (type) {
+    case CTG_TASK_GET_TB_META_BATCH:
+    case CTG_TASK_GET_TB_NAME: {
+      taosArrayDestroyEx((SArray*)*pRes, ctgFreeBatchMeta);
+      *pRes = NULL;
+      break;
+    }
+    case CTG_TASK_GET_TB_HASH_BATCH: {
+      taosArrayDestroyEx((SArray*)*pRes, ctgFreeBatchHash);
+      *pRes = NULL;
+      break;
+    }
+    case CTG_TASK_GET_VIEW: {
+      taosArrayDestroyEx((SArray*)*pRes, ctgFreeViewMetaRes);
+      *pRes = NULL;
+      break;
+    }
+    case CTG_TASK_GET_TSMA:
+    case CTG_TASK_GET_TB_TSMA: {
+      taosArrayDestroyEx((SArray*)*pRes, ctgFreeTbTSMARes);
+      *pRes = NULL;
+      break;
+    }
+    default:
+      ctgFreeTaskRes(type, pRes);
+      break;
+  }
+}
+
 void ctgClearSubTaskRes(SCtgSubRes* pRes) {
   pRes->code = 0;
 
@@ -1095,7 +1135,11 @@ void ctgFreeTaskCtx(SCtgTask* pTask) {
 void ctgFreeTask(SCtgTask* pTask, bool freeRes) {
   ctgFreeMsgCtx(&pTask->msgCtx);
   if (freeRes || pTask->subTask) {
-    ctgFreeTaskRes(pTask->type, &pTask->res);
+    if (pTask->subTask) {
+      ctgDestroyTaskOwnRes(pTask->type, &pTask->res);
+    } else {
+      ctgFreeTaskRes(pTask->type, &pTask->res);
+    }
   }
   ctgFreeTaskCtx(pTask);
 
