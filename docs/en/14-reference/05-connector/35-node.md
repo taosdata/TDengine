@@ -25,13 +25,14 @@ Support all platforms that can run Node.js.
 
 | Node.js Connector Version | Major Changes                                                            | TDengine Version            |
 | ------------------------- | ------------------------------------------------------------------------ | --------------------------- |
+| 3.2.3                     | 1. Supports token authentication. <br/> 2. Supports reporting connector version information. | - |
 | 3.2.2                     | Fix timezone handling issues on Windows systems. | - |
 | 3.2.1                     | Fix SQL query result sorting issue. | - |
 | 3.2.0                     | Optimize STMT parameter binding to improve write efficiency. | - |
 | 3.1.9                     | Fix timezone handling in WebSocket connections. | - |
 | 3.1.8                     | Fix when the connection pool returns unavailable connections during network anomalies. | - |
 | 3.1.7                     | Fix cloud service TMQ connection parameter issue. | - |
-| 3.1.6                     | 1. Check if the connector supports database version.  <br/> 2. The connector supports adding new subscription parameters. | - |  
+| 3.1.6                     | 1. Check if the connector supports database version. <br/> 2. The connector supports adding new subscription parameters. | - |  
 | 3.1.5                     | Password supports special characters. |  - |
 | 3.1.4                     | Modified the readme.| -                           |
 | 3.1.3                     | Upgraded the es5-ext version to address vulnerabilities in the lower version. | -                      |
@@ -151,7 +152,8 @@ The configurations in WSConfig are as follows:
 - setPwd(pws:string) Set the database password.
 - setDb(db: string) Set the database name.
 - setTimeOut(ms : number) Set the connection timeout in milliseconds.
-- setToken(token: string) Set the taosAdapter authentication token.
+- setToken(token: string) Set the cloud service authentication token.
+- setBearerToken(token: string) Set the TDengine TSDB authentication token, which has higher priority than username and password.
 
 ### Connection Features
 
