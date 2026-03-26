@@ -142,11 +142,11 @@ void metaFetchEntryFree(SMetaEntry **ppEntry) { metaCloneEntryFree(ppEntry); }
 
 // ============================================================================
 // txn.idx — small B+ tree tracking pending txn entries for O(k) startup rebuild
-// Key: uid (tb_uid_t).  Value: STxnIdxVal {txnId, txnStatus, txnOldVersion}.
+// Key: uid (tb_uid_t).  Value: STxnIdxVal {txnId, txnStatus, txnPrevVer}.
 // ============================================================================
 
-int32_t metaTxnIdxUpsert(SMeta *pMeta, tb_uid_t uid, int64_t txnId, int8_t txnStatus, int64_t txnOldVersion) {
-  STxnIdxVal val = {.txnId = txnId, .txnStatus = txnStatus, .txnOldVersion = txnOldVersion};
+int32_t metaTxnIdxUpsert(SMeta *pMeta, tb_uid_t uid, int64_t txnId, int8_t txnStatus, int64_t txnPrevVer) {
+  STxnIdxVal val = {.txnId = txnId, .txnStatus = txnStatus, .txnPrevVer = txnPrevVer};
   int32_t    code = tdbTbUpsert(pMeta->pTxnIdx, &uid, sizeof(uid), &val, sizeof(val), pMeta->txn);
   if (code != 0) {
     metaError("vgId:%d, metaTxnIdxUpsert failed, uid:%" PRId64 " txnId:%" PRId64 " code:0x%x", TD_VID(pMeta->pVnode),
@@ -203,7 +203,7 @@ int32_t metaScanTxnEntries(SMeta *pMeta, SArray **ppResult) {
         .uid = uid,
         .txnId = pTxnVal->txnId,
         .txnStatus = pTxnVal->txnStatus,
-        .txnOldVersion = pTxnVal->txnOldVersion,
+        .txnPrevVer = pTxnVal->txnPrevVer,
     };
     taosArrayPush(pResult, &scanEntry);
 

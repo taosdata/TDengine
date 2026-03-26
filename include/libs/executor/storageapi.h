@@ -52,9 +52,9 @@ typedef struct SMetaEntry {
   int64_t   version;
   int8_t    type;
   int8_t    flags;
-  uint8_t   txnStatus;      // EMetaTxnStatus
-  utxn_id_t txnId;          // for meta transaction, 0 if not in transaction
-  int64_t   txnOldVersion;  // for PRE_ALTER: version before ALTER (for rollback)
+  uint8_t   txnStatus;   // EMetaTxnStatus
+  utxn_id_t txnId;       // for meta transaction, 0 if not in transaction
+  int64_t   txnPrevVer;  // for PRE_ALTER: version before ALTER (for rollback)
   tb_uid_t  uid;
   char*     name;
   union {

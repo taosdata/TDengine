@@ -699,7 +699,7 @@ int32_t metaCreateTable2(SMeta *pMeta, int64_t version, SVCreateTbReq *pReq, STa
  * Reads the entry from pTbDb, updates txnId/txnStatus, re-encodes, and writes back.
  * Indexes are NOT modified — the entry remains visible but filtered by txnStatus.
  */
-int32_t metaMarkTableTxnStatus(SMeta *pMeta, int64_t uid, int64_t txnId, int8_t txnStatus, int64_t txnOldVersion) {
+int32_t metaMarkTableTxnStatus(SMeta *pMeta, int64_t uid, int64_t txnId, int8_t txnStatus, int64_t txnPrevVer) {
   int32_t code = TSDB_CODE_SUCCESS;
   void   *uidValue = NULL, *tbValue = NULL;
   int32_t uidValueSize = 0, tbValueSize = 0;
@@ -738,7 +738,7 @@ int32_t metaMarkTableTxnStatus(SMeta *pMeta, int64_t uid, int64_t txnId, int8_t 
   // Update txn fields
   entry.txnId = txnId;
   entry.txnStatus = txnStatus;
-  entry.txnOldVersion = txnOldVersion;
+  entry.txnPrevVer = txnPrevVer;
 
   // Re-encode and write back to the same key (in-place update)
   int32_t  encodeSize = 0;
@@ -775,10 +775,10 @@ int32_t metaMarkTableTxnStatus(SMeta *pMeta, int64_t uid, int64_t txnId, int8_t 
  *
  * @param pMeta       The meta handle
  * @param uid         The table UID
- * @param oldVersion  The version to restore to
+ * @param prevVersion  The version to restore to
  * @return TSDB_CODE_SUCCESS on success
  */
-int32_t metaRollbackAlterTable(SMeta *pMeta, int64_t uid, int64_t oldVersion) {
+int32_t metaRollbackAlterTable(SMeta *pMeta, int64_t uid, int64_t prevVersion) {
   int32_t code = TSDB_CODE_SUCCESS;
   void   *uidValue = NULL;
   int32_t uidValueSize = 0;
@@ -792,7 +792,7 @@ int32_t metaRollbackAlterTable(SMeta *pMeta, int64_t uid, int64_t oldVersion) {
   int64_t newVersion = ((SUidIdxVal *)uidValue)->version;
   tdbFreeClear(uidValue);
 
-  if (newVersion == oldVersion) {
+  if (newVersion == prevVersion) {
     // No new version was created, just clear txnStatus
     return metaMarkTableTxnStatus(pMeta, uid, 0, META_TXN_NORMAL, -1);
   }
@@ -807,11 +807,11 @@ int32_t metaRollbackAlterTable(SMeta *pMeta, int64_t uid, int64_t oldVersion) {
   }
 
   // Restore pUidIdx to point at old version
-  SUidIdxVal uidVal = {.version = oldVersion};
+  SUidIdxVal uidVal = {.version = prevVersion};
   code = tdbTbUpsert(pMeta->pUidIdx, &uid, sizeof(uid), &uidVal, sizeof(uidVal), pMeta->txn);
   if (code) {
     metaError("vgId:%d, rollback alter: failed to restore uidIdx for uid %" PRId64 " to ver %" PRId64,
-              TD_VID(pMeta->pVnode), uid, oldVersion);
+              TD_VID(pMeta->pVnode), uid, prevVersion);
     return code;
   }
 
@@ -819,7 +819,7 @@ int32_t metaRollbackAlterTable(SMeta *pMeta, int64_t uid, int64_t oldVersion) {
   code = metaMarkTableTxnStatus(pMeta, uid, 0, META_TXN_NORMAL, -1);
 
   metaInfo("vgId:%d, rollback alter: uid %" PRId64 " restored to version %" PRId64, TD_VID(pMeta->pVnode), uid,
-           oldVersion);
+           prevVersion);
   return code;
 }
 

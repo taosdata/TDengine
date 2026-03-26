@@ -680,7 +680,7 @@ void    vnodeTxnProcessActiveAck(SVnode* pVnode, utxn_id_t txnId, int8_t alive);
 // Shadow-in-B+tree: ensure txn entry exists (lazy create), track ALTER old versions
 int32_t vnodeTxnEnsureEntry(SVnode* pVnode, int64_t txnId);
 void    vnodeTxnTrackTable(SVnode* pVnode, int64_t txnId, tb_uid_t uid);
-void    vnodeTxnTrackAlter(SVnode* pVnode, int64_t txnId, tb_uid_t uid, int64_t oldVersion);
+void    vnodeTxnTrackAlter(SVnode* pVnode, int64_t txnId, tb_uid_t uid, int64_t prevVersion);
 
 // Conflict detection: incomingOp values for vnodeTxnCheckConflict
 #define TXN_CONFLICT_OP_CREATE 1
@@ -694,22 +694,22 @@ int32_t vnodeTxnCheckConflict(SVnode* pVnode, const char* tableName, int8_t inco
 // Check if a DELETE DML on a specific UID conflicts with PRE_DROP shadow.
 int32_t vnodeTxnCheckDeleteConflict(SVnode* pVnode, tb_uid_t uid);
 
-// metaTable2.c — mark existing entry with txnId/txnStatus/txnOldVersion in-place
-int32_t metaMarkTableTxnStatus(SMeta* pMeta, int64_t uid, int64_t txnId, int8_t txnStatus, int64_t txnOldVersion);
+// metaTable2.c — mark existing entry with txnId/txnStatus/txnPrevVer in-place
+int32_t metaMarkTableTxnStatus(SMeta* pMeta, int64_t uid, int64_t txnId, int8_t txnStatus, int64_t txnPrevVer);
 // metaTable2.c — rollback ALTER: delete new version entry, restore pUidIdx to old version
-int32_t metaRollbackAlterTable(SMeta* pMeta, int64_t uid, int64_t oldVersion);
+int32_t metaRollbackAlterTable(SMeta* pMeta, int64_t uid, int64_t prevVersion);
 
 // metaEntry2.c — scan all entries with txnId != 0 (for VNode startup rebuild)
 typedef struct SMetaTxnScanEntry {
   tb_uid_t uid;
   int64_t  txnId;
   int8_t   txnStatus;
-  int64_t  txnOldVersion;
+  int64_t  txnPrevVer;
 } SMetaTxnScanEntry;
 int32_t metaScanTxnEntries(SMeta* pMeta, SArray** ppResult);
 
 // metaEntry2.c — txn.idx CRUD (small B+ tree for O(k) startup rebuild)
-int32_t metaTxnIdxUpsert(SMeta* pMeta, tb_uid_t uid, int64_t txnId, int8_t txnStatus, int64_t txnOldVersion);
+int32_t metaTxnIdxUpsert(SMeta* pMeta, tb_uid_t uid, int64_t txnId, int8_t txnStatus, int64_t txnPrevVer);
 int32_t metaTxnIdxDelete(SMeta* pMeta, tb_uid_t uid);
 
 // vnodeTxn.c — rebuild in-memory txn state from B+ tree (called at VNode startup)

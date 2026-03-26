@@ -433,11 +433,11 @@ int metaEncodeEntry(SEncoder *pCoder, const SMetaEntry *pME) {
     TAOS_CHECK_RETURN(tEncodeI64(pCoder, pME->ntbEntry.ownerId));
   }
 
-  // Batch meta txn: append txnId + txnStatus + txnOldVersion only when bit 6 was set.
+  // Batch meta txn: append txnId + txnStatus + txnPrevVer only when bit 6 was set.
   if (pME->txnId != 0 && pME->type > 0) {
     TAOS_CHECK_RETURN(tEncodeI64(pCoder, pME->txnId));
     TAOS_CHECK_RETURN(tEncodeI8(pCoder, (int8_t)pME->txnStatus));
-    TAOS_CHECK_RETURN(tEncodeI64(pCoder, pME->txnOldVersion));
+    TAOS_CHECK_RETURN(tEncodeI64(pCoder, pME->txnPrevVer));
   }
 
   tEndEncode(pCoder);
@@ -553,17 +553,17 @@ int metaDecodeEntryImpl(SDecoder *pCoder, SMetaEntry *pME, bool headerOnly) {
     }
   }
 
-  // Batch meta txn: decode txnId + txnStatus + txnOldVersion when bit 6 was set on type.
+  // Batch meta txn: decode txnId + txnStatus + txnPrevVer when bit 6 was set on type.
   if (hasTxn) {
     TAOS_CHECK_RETURN(tDecodeI64(pCoder, &pME->txnId));
     int8_t status = 0;
     TAOS_CHECK_RETURN(tDecodeI8(pCoder, &status));
     pME->txnStatus = (uint8_t)status;
-    TAOS_CHECK_RETURN(tDecodeI64(pCoder, &pME->txnOldVersion));
+    TAOS_CHECK_RETURN(tDecodeI64(pCoder, &pME->txnPrevVer));
   } else {
     pME->txnId = 0;
     pME->txnStatus = META_TXN_NORMAL;
-    pME->txnOldVersion = -1;
+    pME->txnPrevVer = -1;
   }
 
   tEndDecode(pCoder);

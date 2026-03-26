@@ -1810,13 +1810,13 @@ static int32_t vnodeProcessAlterTbReq(SVnode *pVnode, int64_t ver, void *pReq, i
 
     // Save old version for rollback tracking via public API
     tb_uid_t alterUid = 0;
-    int64_t  alterOldVersion = -1;
+    int64_t  alterPrevVer = -1;
     {
       SMetaEntry *pOldEntry = NULL;
       if (metaFetchEntryByName(pVnode->pMeta, vAlterTbReq.tbName, &pOldEntry) == 0 && pOldEntry != NULL) {
         alterUid = pOldEntry->uid;
-        alterOldVersion = pOldEntry->version;
-        vnodeTxnTrackAlter(pVnode, vAlterTbReq.txnId, alterUid, alterOldVersion);
+        alterPrevVer = pOldEntry->version;
+        vnodeTxnTrackAlter(pVnode, vAlterTbReq.txnId, alterUid, alterPrevVer);
         metaFetchEntryFree(&pOldEntry);
       }
     }
@@ -1825,10 +1825,10 @@ static int32_t vnodeProcessAlterTbReq(SVnode *pVnode, int64_t ver, void *pReq, i
     if (metaAlterTable(pVnode->pMeta, ver, &vAlterTbReq, &vMetaRsp) < 0) {
       vAlterTbRsp.code = terrno;
     } else {
-      // Mark the new entry with PRE_ALTER, persist oldVersion for rollback
+      // Mark the new entry with PRE_ALTER, persist prevVersion for rollback
       if (alterUid != 0) {
-        metaMarkTableTxnStatus(pVnode->pMeta, alterUid, vAlterTbReq.txnId, META_TXN_PRE_ALTER, alterOldVersion);
-        metaTxnIdxUpsert(pVnode->pMeta, alterUid, vAlterTbReq.txnId, META_TXN_PRE_ALTER, alterOldVersion);
+        metaMarkTableTxnStatus(pVnode->pMeta, alterUid, vAlterTbReq.txnId, META_TXN_PRE_ALTER, alterPrevVer);
+        metaTxnIdxUpsert(pVnode->pMeta, alterUid, vAlterTbReq.txnId, META_TXN_PRE_ALTER, alterPrevVer);
       }
       vAlterTbRsp.code = TSDB_CODE_SUCCESS;
     }

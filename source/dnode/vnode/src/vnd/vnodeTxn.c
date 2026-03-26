@@ -46,7 +46,7 @@
 // ALTER version tracking — for ROLLBACK, we need to restore the old version pointer.
 typedef struct SVnodeAlterRecord {
   tb_uid_t uid;
-  int64_t  oldVersion;
+  int64_t  prevVersion;
 } SVnodeAlterRecord;
 
 typedef struct SVnodeTxnEntry {
@@ -56,7 +56,7 @@ typedef struct SVnodeTxnEntry {
   int64_t lastActive;  // Last active time
   int8_t  stage;       // EVtxnStage
   SArray *pTouchedUids;       // Array of tb_uid_t — all UIDs modified by this txn
-  SArray *pAlterOldVersions;  // Array of SVnodeAlterRecord — for ALTER rollback
+  SArray *pAlterPrevVers;  // Array of SVnodeAlterRecord — for ALTER rollback
   SArray *pLockedTables;  // Array of char* (table names locked by this txn)
 } SVnodeTxnEntry;
 
@@ -96,7 +96,7 @@ void vnodeTxnCleanup(SVnode *pVnode) {
     while (pIter) {
       SVnodeTxnEntry *pEntry = (SVnodeTxnEntry *)pIter;
       taosArrayDestroy(pEntry->pTouchedUids);
-      taosArrayDestroy(pEntry->pAlterOldVersions);
+      taosArrayDestroy(pEntry->pAlterPrevVers);
       if (pEntry->pLockedTables) {
         int32_t sz = taosArrayGetSize(pEntry->pLockedTables);
         for (int32_t i = 0; i < sz; i++) {
@@ -177,13 +177,13 @@ int32_t vnodeTxnRebuildFromMeta(SVnode *pVnode) {
     vnodeTxnTrackUid(pEntry, pScan->uid);
 
     // If PRE_ALTER, also reconstruct the ALTER old version record
-    if (pScan->txnStatus == META_TXN_PRE_ALTER && pScan->txnOldVersion >= 0) {
-      SVnodeAlterRecord rec = {.uid = pScan->uid, .oldVersion = pScan->txnOldVersion};
-      taosArrayPush(pEntry->pAlterOldVersions, &rec);
+    if (pScan->txnStatus == META_TXN_PRE_ALTER && pScan->txnPrevVer >= 0) {
+      SVnodeAlterRecord rec = {.uid = pScan->uid, .prevVersion = pScan->txnPrevVer};
+      taosArrayPush(pEntry->pAlterPrevVers, &rec);
     }
 
     vDebug("vgId:%d, txn rebuild: uid:%" PRId64 " txnId:%" PRId64 " status:%d oldVer:%" PRId64, TD_VID(pVnode),
-           pScan->uid, pScan->txnId, pScan->txnStatus, pScan->txnOldVersion);
+           pScan->uid, pScan->txnId, pScan->txnStatus, pScan->txnPrevVer);
   }
 
   taosArrayDestroy(pScanResult);
@@ -208,12 +208,12 @@ static int32_t vnodeCreateTxnEntry(SVnode *pVnode, int64_t txnId, int64_t term) 
   entry.lastActive = entry.startTime;
   entry.stage = VTXN_STAGE_ACTIVE;
   entry.pTouchedUids = taosArrayInit(8, sizeof(tb_uid_t));
-  entry.pAlterOldVersions = taosArrayInit(4, sizeof(SVnodeAlterRecord));
+  entry.pAlterPrevVers = taosArrayInit(4, sizeof(SVnodeAlterRecord));
   entry.pLockedTables = taosArrayInit(8, sizeof(char *));
 
   if (entry.pTouchedUids == NULL || entry.pLockedTables == NULL) {
     taosArrayDestroy(entry.pTouchedUids);
-    taosArrayDestroy(entry.pAlterOldVersions);
+    taosArrayDestroy(entry.pAlterPrevVers);
     taosArrayDestroy(entry.pLockedTables);
     return terrno;
   }
@@ -221,7 +221,7 @@ static int32_t vnodeCreateTxnEntry(SVnode *pVnode, int64_t txnId, int64_t term) 
   int32_t code = taosHashPut(pVnode->pTxnHash, &txnId, sizeof(int64_t), &entry, sizeof(SVnodeTxnEntry));
   if (code != 0) {
     taosArrayDestroy(entry.pTouchedUids);
-    taosArrayDestroy(entry.pAlterOldVersions);
+    taosArrayDestroy(entry.pAlterPrevVers);
     taosArrayDestroy(entry.pLockedTables);
     return code;
   }
@@ -250,7 +250,7 @@ static void vnodeRemoveTxnEntry(SVnode *pVnode, int64_t txnId) {
   if (pEntry) {
     vnodeReleaseTxnTableLocks(pVnode, pEntry);
     taosArrayDestroy(pEntry->pTouchedUids);
-    taosArrayDestroy(pEntry->pAlterOldVersions);
+    taosArrayDestroy(pEntry->pAlterPrevVers);
     taosHashRemove(pVnode->pTxnHash, &txnId, sizeof(int64_t));
   }
 }
@@ -321,14 +321,14 @@ void vnodeTxnTrackTable(SVnode *pVnode, int64_t txnId, tb_uid_t uid) {
  * On ROLLBACK of PRE_ALTER, we need to delete the new-version entry and
  * restore pUidIdx to point at the old version.
  */
-void vnodeTxnTrackAlter(SVnode *pVnode, int64_t txnId, tb_uid_t uid, int64_t oldVersion) {
+void vnodeTxnTrackAlter(SVnode *pVnode, int64_t txnId, tb_uid_t uid, int64_t prevVersion) {
   if (pVnode->pTxnHash == NULL || txnId == 0) return;
 
   taosThreadMutexLock(&pVnode->txnMutex);
   SVnodeTxnEntry *pEntry = vnodeGetTxnEntry(pVnode, txnId);
   if (pEntry) {
-    SVnodeAlterRecord rec = {.uid = uid, .oldVersion = oldVersion};
-    taosArrayPush(pEntry->pAlterOldVersions, &rec);
+    SVnodeAlterRecord rec = {.uid = uid, .prevVersion = prevVersion};
+    taosArrayPush(pEntry->pAlterPrevVers, &rec);
     vnodeTxnTrackUid(pEntry, uid);
     pEntry->lastActive = taosGetTimestampMs();
   }
@@ -480,25 +480,25 @@ static int32_t vnodeTxnUndoShadowEntries(SVnode *pVnode, SVnodeTxnEntry *pEntry)
 
       case META_TXN_PRE_ALTER: {
         // ALTER created a new version — need to delete it and restore old version.
-        // Primary source: txnOldVersion persisted in B+ tree entry (survives snapshot).
-        // Fallback: in-memory pAlterOldVersions (only available if WAL was replayed).
-        int64_t oldVersion = pME->txnOldVersion;
-        if (oldVersion < 0 && pEntry->pAlterOldVersions) {
-          int32_t nAlter = taosArrayGetSize(pEntry->pAlterOldVersions);
+        // Primary source: txnPrevVer persisted in B+ tree entry (survives snapshot).
+        // Fallback: in-memory pAlterPrevVers (only available if WAL was replayed).
+        int64_t prevVersion = pME->txnPrevVer;
+        if (prevVersion < 0 && pEntry->pAlterPrevVers) {
+          int32_t nAlter = taosArrayGetSize(pEntry->pAlterPrevVers);
           for (int32_t j = nAlter - 1; j >= 0; j--) {
-            SVnodeAlterRecord *pRec = (SVnodeAlterRecord *)taosArrayGet(pEntry->pAlterOldVersions, j);
+            SVnodeAlterRecord *pRec = (SVnodeAlterRecord *)taosArrayGet(pEntry->pAlterPrevVers, j);
             if (pRec->uid == uid) {
-              oldVersion = pRec->oldVersion;
+              prevVersion = pRec->prevVersion;
               break;
             }
           }
         }
 
-        if (oldVersion >= 0) {
-          code = metaRollbackAlterTable(pVnode->pMeta, uid, oldVersion);
+        if (prevVersion >= 0) {
+          code = metaRollbackAlterTable(pVnode->pMeta, uid, prevVersion);
           if (code == 0) {
             vInfo("vgId:%d, rollback: restored ALTER uid %" PRId64 " to version %" PRId64, TD_VID(pVnode), uid,
-                  oldVersion);
+                  prevVersion);
           } else {
             vError("vgId:%d, rollback: metaRollbackAlterTable failed for uid %" PRId64 ", code:0x%x", TD_VID(pVnode),
                    uid, code);
