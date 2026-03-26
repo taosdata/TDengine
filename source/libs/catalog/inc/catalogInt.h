@@ -275,8 +275,6 @@ typedef struct SCtgUserCtx {
   int32_t       subTaskCode;
 } SCtgUserCtx;
 
-extern threadlocal SHashObj* gCtgCurrentBatchs;
-
 typedef struct SCtgViewsCtx {
   int32_t fetchNum;
   SArray* pNames;
@@ -483,7 +481,8 @@ typedef struct SCtgTaskCallbackParam {
 } SCtgTaskCallbackParam;
 
 typedef struct SCtgTask SCtgTask;
-typedef int32_t (*ctgSubTaskCbFp)(SCtgTask*);
+struct SCtgTaskReq;
+typedef int32_t (*ctgSubTaskCbFp)(struct SCtgTaskReq*);
 
 typedef struct SCtgSubRes {
   CTG_TASK_TYPE  type;
@@ -512,6 +511,7 @@ typedef struct SCtgTaskReq {
   SCtgTask* pTask;
   int32_t   msgIdx;
   uint8_t   autoCreateCtb;
+  SHashObj* pBatchs;  // callback-local batch container carried by the current task request
 } SCtgTaskReq;
 
 typedef int32_t (*ctgInitTaskFp)(SCtgJob*, int32_t, void*);
@@ -1146,9 +1146,9 @@ int32_t ctgInitJob(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgJob** job, const
                    void* param);
 int32_t ctgLaunchJob(SCtgJob* pJob);
 int32_t ctgMakeAsyncRes(SCtgJob* pJob);
-int32_t ctgLaunchSubTask(SCtgTask** ppTask, CTG_TASK_TYPE type, ctgSubTaskCbFp fp, void* param);
-int32_t ctgGetTbCfgCb(SCtgTask* pTask);
-int32_t ctgGetVStbRefDbsCb(SCtgTask* pTask);
+int32_t ctgLaunchSubTask(SCtgTaskReq* pReq, CTG_TASK_TYPE type, ctgSubTaskCbFp fp, void* param);
+int32_t ctgGetTbCfgCb(SCtgTaskReq* pReq);
+int32_t ctgGetVStbRefDbsCb(SCtgTaskReq* pReq);
 void    ctgFreeHandle(SCatalog* pCatalog);
 
 void    ctgFreeSViewMeta(SViewMeta* pMeta);
@@ -1227,8 +1227,8 @@ int32_t  ctgBuildUseDbOutput(SUseDbOutput** ppOut, SDBVgInfo* vgInfo);
 
 int32_t ctgGetTbMeta(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbMetaCtx* ctx, STableMeta** pTableMeta);
 int32_t ctgGetCachedStbNameFromSuid(SCatalog* pCtg, char* dbFName, uint64_t suid, char** stbName);
-int32_t ctgGetTbTagCb(SCtgTask* pTask);
-int32_t ctgGetUserCb(SCtgTask* pTask);
+int32_t ctgGetTbTagCb(SCtgTaskReq* pReq);
+int32_t ctgGetUserCb(SCtgTaskReq* pReq);
 
 int32_t ctgGetTbTSMAFromCache(SCatalog* pCtg, SCtgTbTSMACtx* pCtx, int32_t dbIdx, int32_t* fetchIdx, int32_t baseResIdx,
                               SArray* pList);

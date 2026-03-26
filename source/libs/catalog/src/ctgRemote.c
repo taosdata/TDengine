@@ -104,9 +104,7 @@ int32_t ctgHandleBatchRsp(SCtgJob* pJob, SCtgTaskCallbackParam* cbParam, SDataBu
       taskMsg.len = 0;
     }
 
-    SCtgTaskReq tReq;
-    tReq.pTask = pTask;
-    tReq.msgIdx = pRsp->msgIdx;
+    SCtgTaskReq tReq = {.pTask = pTask, .msgIdx = pRsp->msgIdx, .autoCreateCtb = 0, .pBatchs = pBatchs};
     SCtgMsgCtx* pMsgCtx = CTG_GET_TASK_MSGCTX(pTask, tReq.msgIdx);
     if (NULL == pMsgCtx) {
       ctgError("task:%d, get SCtgMsgCtx failed, taskType:%d", tReq.msgIdx, pTask->type);
@@ -114,11 +112,7 @@ int32_t ctgHandleBatchRsp(SCtgJob* pJob, SCtgTaskCallbackParam* cbParam, SDataBu
     }
 
     SHashObj* pPrevMsgBatchs = pMsgCtx->pBatchs;
-    SHashObj* pPrevTaskBatchs = pTask->msgCtx.pBatchs;
-    SHashObj* pPrevThreadBatchs = gCtgCurrentBatchs;
     pMsgCtx->pBatchs = pBatchs;
-    pTask->msgCtx.pBatchs = pBatchs;
-    gCtgCurrentBatchs = pBatchs;
 
     ctgDebug("QID:0x%" PRIx64 ", catalog task:%d handle rsp:%s, idx:%d pBatchs:%p", pJob->queryId, pTask->taskId,
              TMSG_INFO(taskMsg.msgType + 1), pRsp->msgIdx, pBatchs);
@@ -126,8 +120,6 @@ int32_t ctgHandleBatchRsp(SCtgJob* pJob, SCtgTaskCallbackParam* cbParam, SDataBu
     (void)(*gCtgAsyncFps[pTask->type].handleRspFp)(
         &tReq, pRsp->reqType, &taskMsg, (pRsp->rspCode ? pRsp->rspCode : rspCode));  // error handled internal
     pMsgCtx->pBatchs = pPrevMsgBatchs;
-    pTask->msgCtx.pBatchs = pPrevTaskBatchs;
-    gCtgCurrentBatchs = pPrevThreadBatchs;
   }
 
   CTG_ERR_JRET(ctgLaunchBatchs(pJob->pCtg, pJob, pBatchs));
@@ -500,6 +492,7 @@ int32_t ctgHandleMsgCallback(void* param, SDataBuf* pMsg, int32_t rspCode) {
            TMSG_INFO(cbParam->reqType + 1));
 
 #if CTG_BATCH_FETCH
+    SHashObj* pReqBatchs = NULL;
     SHashObj* pBatchs =
         taosHashInit(CTG_DEFAULT_BATCH_NUM, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
     if (NULL == pBatchs) {
@@ -514,20 +507,22 @@ int32_t ctgHandleMsgCallback(void* param, SDataBuf* pMsg, int32_t rspCode) {
     }
 
     SHashObj* pPrevTaskBatchs = pMsgCtx->pBatchs;
-    SHashObj* pPrevThreadBatchs = gCtgCurrentBatchs;
     pMsgCtx->pBatchs = pBatchs;
-    gCtgCurrentBatchs = pBatchs;
+    pReqBatchs = pBatchs;
 #endif
 
-    SCtgTaskReq tReq;
-    tReq.pTask = pTask;
-    tReq.msgIdx = -1;
+    SCtgTaskReq tReq = {.pTask = pTask, .msgIdx = -1, .autoCreateCtb = 0,
+#if CTG_BATCH_FETCH
+                        .pBatchs = pReqBatchs
+#else
+                        .pBatchs = pTask->msgCtx.pBatchs
+#endif
+    };
 
     int32_t ret = (*gCtgAsyncFps[pTask->type].handleRspFp)(&tReq, cbParam->reqType, pMsg, rspCode);
 
 #if CTG_BATCH_FETCH
     pMsgCtx->pBatchs = pPrevTaskBatchs;
-    gCtgCurrentBatchs = pPrevThreadBatchs;
     CTG_ERR_JRET(ctgLaunchBatchs(pJob->pCtg, pJob, pBatchs));
 #endif
     CTG_ERR_JRET(ret);
@@ -637,10 +632,11 @@ int32_t ctgAddBatch(SCatalog* pCtg, int32_t vgId, SRequestConnInfo* pConn, SCtgT
     CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
   }
 
-  // Callback-local batch container must take precedence; request-level msgCtx is next.
-  // Task-level msgCtx is only a fallback for non-callback paths.
-  SHashObj* pBatchs =
-      gCtgCurrentBatchs ? gCtgCurrentBatchs : ((NULL != pMsgCtx->pBatchs) ? pMsgCtx->pBatchs : pTask->msgCtx.pBatchs);
+  SHashObj* pBatchs = tReq->pBatchs
+                          ? tReq->pBatchs
+                          : ((NULL != pMsgCtx->pBatchs)
+                                 ? pMsgCtx->pBatchs
+                                 : (pTask->msgCtx.pBatchs ? pTask->msgCtx.pBatchs : pTask->pJob->pBatchs));
   if (NULL == pBatchs) {
     ctgError("QID:0x%" PRIx64 ", job:0x%" PRIx64 ", task:%d batch container is null, msgType:%d, vgId:%d",
              pTask->pJob->queryId, pTask->pJob->refId, pTask->taskId, msgType, vgId);
@@ -939,7 +935,7 @@ int32_t ctgGetQnodeListFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, SArray
     CTG_ERR_RET(ctgUpdateMsgCtx(CTG_GET_TASK_MSGCTX(pTask, -1), reqType, pOut, NULL));
 
 #if CTG_BATCH_FETCH
-    SCtgTaskReq tReq;
+    SCtgTaskReq tReq = {0};
     tReq.pTask = pTask;
     tReq.msgIdx = -1;
     CTG_RET(ctgAddBatch(pCtg, 0, pConn, &tReq, reqType, msg, msgLen));
@@ -992,7 +988,7 @@ int32_t ctgGetDnodeListFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, SArray
     CTG_ERR_RET(ctgUpdateMsgCtx(CTG_GET_TASK_MSGCTX(pTask, -1), reqType, NULL, NULL));
 
 #if CTG_BATCH_FETCH
-    SCtgTaskReq tReq;
+    SCtgTaskReq tReq = {0};
     tReq.pTask = pTask;
     tReq.msgIdx = -1;
     CTG_RET(ctgAddBatch(pCtg, 0, pConn, &tReq, reqType, msg, msgLen));
@@ -1142,7 +1138,7 @@ int32_t ctgGetDBCfgFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, const char
     CTG_ERR_RET(ctgUpdateMsgCtx(CTG_GET_TASK_MSGCTX(pTask, -1), reqType, pOut, (char*)dbFName));
 
 #if CTG_BATCH_FETCH
-    SCtgTaskReq tReq;
+    SCtgTaskReq tReq = {0};
     tReq.pTask = pTask;
     tReq.msgIdx = -1;
     CTG_RET(ctgAddBatch(pCtg, 0, pConn, &tReq, reqType, msg, msgLen));
@@ -1201,7 +1197,7 @@ int32_t ctgGetIndexInfoFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, const 
     CTG_ERR_RET(ctgUpdateMsgCtx(CTG_GET_TASK_MSGCTX(pTask, -1), reqType, pOut, (char*)indexName));
 
 #if CTG_BATCH_FETCH
-    SCtgTaskReq tReq;
+    SCtgTaskReq tReq = {0};
     tReq.pTask = pTask;
     tReq.msgIdx = -1;
     CTG_RET(ctgAddBatch(pCtg, 0, pConn, &tReq, reqType, msg, msgLen));
@@ -1268,7 +1264,7 @@ int32_t ctgGetTbIndexFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, SName* n
     CTG_ERR_RET(ctgUpdateMsgCtx(CTG_GET_TASK_MSGCTX(pTask, -1), reqType, pOut, (char*)tbFName));
 
 #if CTG_BATCH_FETCH
-    SCtgTaskReq tReq;
+    SCtgTaskReq tReq = {0};
     tReq.pTask = pTask;
     tReq.msgIdx = -1;
     CTG_RET(ctgAddBatch(pCtg, 0, pConn, &tReq, reqType, msg, msgLen));
@@ -1327,7 +1323,7 @@ int32_t ctgGetUdfInfoFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, const ch
     CTG_ERR_RET(ctgUpdateMsgCtx(CTG_GET_TASK_MSGCTX(pTask, -1), reqType, pOut, (char*)funcName));
 
 #if CTG_BATCH_FETCH
-    SCtgTaskReq tReq;
+    SCtgTaskReq tReq = {0};
     tReq.pTask = pTask;
     tReq.msgIdx = -1;
     CTG_RET(ctgAddBatch(pCtg, 0, pConn, &tReq, reqType, msg, msgLen));
@@ -1386,7 +1382,7 @@ int32_t ctgGetUserDbAuthFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, const
     CTG_ERR_RET(ctgUpdateMsgCtx(CTG_GET_TASK_MSGCTX(pTask, -1), reqType, pOut, (char*)user));
 
 #if CTG_BATCH_FETCH
-    SCtgTaskReq tReq;
+    SCtgTaskReq tReq = {0};
     tReq.pTask = pTask;
     tReq.msgIdx = -1;
     CTG_RET(ctgAddBatch(pCtg, 0, pConn, &tReq, reqType, msg, msgLen));
@@ -1604,7 +1600,7 @@ int32_t ctgGetTableCfgFromVnode(SCatalog* pCtg, SRequestConnInfo* pConn, const S
                               .requestObjRefId = pConn->requestObjRefId,
                               .mgmtEps = vgroupInfo->epSet};
 #if CTG_BATCH_FETCH
-    SCtgTaskReq tReq;
+    SCtgTaskReq tReq = {0};
     tReq.pTask = pTask;
     tReq.msgIdx = -1;
     CTG_RET(ctgAddBatch(pCtg, vgroupInfo->vgId, &vConn, &tReq, reqType, msg, msgLen));
@@ -1673,7 +1669,7 @@ int32_t ctgGetTableCfgFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, const S
     CTG_ERR_RET(ctgUpdateMsgCtx(CTG_GET_TASK_MSGCTX(pTask, -1), reqType, NULL, (char*)tbFName));
 
 #if CTG_BATCH_FETCH
-    SCtgTaskReq tReq;
+    SCtgTaskReq tReq = {0};
     tReq.pTask = pTask;
     tReq.msgIdx = -1;
     CTG_RET(ctgAddBatch(pCtg, 0, pConn, &tReq, reqType, msg, msgLen));
@@ -1726,7 +1722,7 @@ int32_t ctgGetSvrVerFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, char** ou
     CTG_ERR_RET(ctgUpdateMsgCtx(CTG_GET_TASK_MSGCTX(pTask, -1), reqType, NULL, NULL));
 
 #if CTG_BATCH_FETCH
-    SCtgTaskReq tReq;
+    SCtgTaskReq tReq = {0};
     tReq.pTask = pTask;
     tReq.msgIdx = -1;
     CTG_RET(ctgAddBatch(pCtg, 0, pConn, &tReq, reqType, msg, msgLen));

@@ -20,8 +20,6 @@
 #include "tref.h"
 #include "trpc.h"
 
-threadlocal SHashObj* gCtgCurrentBatchs = NULL;
-
 typedef struct SCtgViewTaskParam {
   bool    forceFetch;
   SArray* pTableReqs;
@@ -34,8 +32,11 @@ typedef struct SCtgVStbLayerRef {
 } SCtgVStbLayerRef;
 
 int32_t ctgHandleTaskEnd(SCtgTask* pTask, int32_t rspCode);
-int32_t ctgGetVStbRefDbsCb(SCtgTask* pTask);
+static int32_t ctgHandleTaskEndByReq(SCtgTaskReq* pReq, int32_t rspCode);
+int32_t ctgGetVStbRefDbsCb(SCtgTaskReq* pReq);
 static int32_t ctgCollectVStbFinalDb(SHashObj** ppRefDbs, const char* pDbName);
+static SHashObj* ctgGetReqBatchs(SCtgTaskReq* pReq);
+static SCtgTaskReq ctgMakeTaskReq(SCtgTask* pTask, int32_t msgIdx);
 
 /*
  * Build the full db name for a virtual-table reference.
@@ -515,8 +516,12 @@ _return:
  * The helper rebuilds pLayerReqs and dispatches CTG_TASK_GET_TB_META_BATCH.
  * Return success on success, otherwise an error code.
  */
-static int32_t ctgLaunchVStbLayerMetaTask(SCtgTask* pTask) {
-  SCtgVStbRefDbsCtx* pCtx = (SCtgVStbRefDbsCtx*)pTask->taskCtx;
+static int32_t ctgLaunchVStbLayerMetaTask(SCtgTaskReq* pReq) {
+  SCtgTask*          pTask = pReq ? pReq->pTask : NULL;
+  SCtgVStbRefDbsCtx* pCtx = pTask ? (SCtgVStbRefDbsCtx*)pTask->taskCtx : NULL;
+  if (NULL == pTask || NULL == pCtx) {
+    CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
+  }
 
   ctgDestroyVStbLayerReqs(pCtx->pLayerReqs);
   pCtx->pLayerReqs = NULL;
@@ -526,7 +531,7 @@ static int32_t ctgLaunchVStbLayerMetaTask(SCtgTask* pTask) {
     return TSDB_CODE_SUCCESS;
   }
 
-  CTG_ERR_RET(ctgLaunchSubTask(&pTask, CTG_TASK_GET_TB_META_BATCH, ctgGetVStbRefDbsCb, pCtx->pLayerReqs));
+  CTG_ERR_RET(ctgLaunchSubTask(pReq, CTG_TASK_GET_TB_META_BATCH, ctgGetVStbRefDbsCb, pCtx->pLayerReqs));
 
   return TSDB_CODE_SUCCESS;
 }
@@ -2079,37 +2084,82 @@ static SCtgMsgCtx* ctgGetTaskLinkMsgCtx(SCtgTask* pTask) {
 }
 
 /*
+ * Resolve the batch container carried by one task request.
+ * pReq is the current task request, which may come from a callback or a launch path.
+ * The returned batch container is the callback-local batchs first, then request/task/job fallbacks.
+ * Return the batch container pointer, or NULL if no valid task/job exists.
+ */
+static SHashObj* ctgGetReqBatchs(SCtgTaskReq* pReq) {
+  if (NULL == pReq || NULL == pReq->pTask || NULL == pReq->pTask->pJob) {
+    return NULL;
+  }
+
+  if (NULL != pReq->pBatchs) {
+    return pReq->pBatchs;
+  }
+
+  SCtgMsgCtx* pMsgCtx =
+      (pReq->msgIdx >= 0) ? CTG_GET_TASK_MSGCTX(pReq->pTask, pReq->msgIdx) : ctgGetTaskLinkMsgCtx(pReq->pTask);
+  if (NULL != pMsgCtx && NULL != pMsgCtx->pBatchs) {
+    return pMsgCtx->pBatchs;
+  }
+
+  if (NULL != pReq->pTask->msgCtx.pBatchs) {
+    return pReq->pTask->msgCtx.pBatchs;
+  }
+
+  return pReq->pTask->pJob->pBatchs;
+}
+
+/*
+ * Build one task request with the best-effort batch container for the given task and msg index.
+ * pTask is the target catalog async task.
+ * msgIdx identifies the request-level msg ctx, or -1 for task-level flows.
+ * Return a fully initialized task request value.
+ */
+static SCtgTaskReq ctgMakeTaskReq(SCtgTask* pTask, int32_t msgIdx) {
+  SCtgTaskReq req = {.pTask = pTask, .msgIdx = msgIdx, .autoCreateCtb = 0, .pBatchs = NULL};
+  req.pBatchs = ctgGetReqBatchs(&req);
+  return req;
+}
+
+/*
  * Initialize one per-request msg ctx with the batch container inherited by its task.
- * pTask provides the current callback batch container through task-level msgCtx.
+ * pReq carries the current callback batch container explicitly.
  * pMsgCtx is one request-level context of a batch task.
  * Return success on success, otherwise an error code.
  */
-static int32_t ctgInitTaskMsgCtxBatchs(SCtgTask* pTask, SCtgMsgCtx* pMsgCtx) {
-  if (NULL == pTask || NULL == pMsgCtx) {
+static int32_t ctgInitTaskMsgCtxBatchs(SCtgTaskReq* pReq, SCtgMsgCtx* pMsgCtx) {
+  if (NULL == pReq || NULL == pReq->pTask || NULL == pMsgCtx) {
     CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
   }
 
+  SCtgTask* pTask = pReq->pTask;
   if (!CTG_IS_BATCH_TASK(pTask->type)) {
     qError("unexpected non-batch task:%d enters ctgInitTaskMsgCtxBatchs", pTask->type);
     CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
   }
 
-  // Batch task request contexts should inherit the callback-local batch container first.
-  // Task-level msgCtx is only a fallback for non-callback paths.
-  pMsgCtx->pBatchs = gCtgCurrentBatchs ? gCtgCurrentBatchs
-                                       : (pTask->msgCtx.pBatchs ? pTask->msgCtx.pBatchs : pTask->pJob->pBatchs);
+  pMsgCtx->pBatchs = ctgGetReqBatchs(pReq);
+  if (NULL == pMsgCtx->pBatchs) {
+    qError("fail to resolve batch container for task:%d, type:%d", pTask->taskId, pTask->type);
+    CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
+  }
 
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t ctgCallSubCb(SCtgTask* pTask) {
+int32_t ctgCallSubCb(SCtgTaskReq* pReq) {
   int32_t code = 0;
+  SCtgTask* pTask = pReq ? pReq->pTask : NULL;
+  if (NULL == pTask) {
+    CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
+  }
 
   CTG_LOCK(CTG_WRITE, &pTask->lock);
 
   int32_t parentNum = taosArrayGetSize(pTask->pParents);
   for (int32_t i = 0; i < parentNum; ++i) {
-    SCtgMsgCtx* pMsgCtx = ctgGetTaskLinkMsgCtx(pTask);
     SCtgTask*   pParent = taosArrayGetP(pTask->pParents, i);
     if (NULL == pParent) {
       qError("taosArrayGetP the %dth parent failed", i);
@@ -2124,20 +2174,9 @@ int32_t ctgCallSubCb(SCtgTask* pTask) {
       }
     }
 
-    SCtgMsgCtx* pParMsgCtx = ctgGetTaskLinkMsgCtx(pParent);
-    if (NULL == pMsgCtx || NULL == pParMsgCtx) {
-      qError("fail to get task link msgCtx, taskType:%d, parentType:%d", pTask->type, pParent->type);
-      CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
-    }
-
-    SHashObj* pPrevParBatchs = pParMsgCtx->pBatchs;
-    SHashObj* pCbBatchs = gCtgCurrentBatchs ? gCtgCurrentBatchs : pMsgCtx->pBatchs;
-    if (NULL != pCbBatchs) {
-      pParMsgCtx->pBatchs = pCbBatchs;
-    }
+    SCtgTaskReq parentReq = {.pTask = pParent, .msgIdx = -1, .pBatchs = ctgGetReqBatchs(pReq)};
     // all parents' cb should be called even if one fails
-    int32_t ret = pParent->subRes.fp(pParent);
-    pParMsgCtx->pBatchs = pPrevParBatchs;
+    int32_t ret = pParent->subRes.fp(&parentReq);
     if (ret) {
       code = ret;
       qDebug("QID:0x%" PRIx64 ", job:0x%" PRIx64
@@ -2181,7 +2220,12 @@ void ctgUpdateJobErrCode(SCtgJob* pJob, int32_t errCode) {
   return;
 }
 
-int32_t ctgHandleTaskEnd(SCtgTask* pTask, int32_t rspCode) {
+static int32_t ctgHandleTaskEndByReq(SCtgTaskReq* pReq, int32_t rspCode) {
+  SCtgTask* pTask = pReq ? pReq->pTask : NULL;
+  if (NULL == pTask) {
+    CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
+  }
+
   SCtgJob* pJob = pTask->pJob;
   int32_t  code = 0;
 
@@ -2197,7 +2241,7 @@ int32_t ctgHandleTaskEnd(SCtgTask* pTask, int32_t rspCode) {
 
   // Should not return directly, need to update job errCode and check whether all tasks are done. Otherwise, jobs may
   // not end properly and cause memory leak.
-  code = ctgCallSubCb(pTask);
+  code = ctgCallSubCb(pReq);
 
   int32_t taskDone = atomic_add_fetch_32(&pJob->taskDone, 1);
   if (taskDone < taosArrayGetSize(pJob->pTasks)) {
@@ -2220,6 +2264,12 @@ _return:
   }
 
   CTG_RET(code);
+}
+
+int32_t ctgHandleTaskEnd(SCtgTask* pTask, int32_t rspCode) {
+  SCtgTaskReq tReq = ctgMakeTaskReq(pTask, -1);
+
+  return ctgHandleTaskEndByReq(&tReq, rspCode);
 }
 
 int32_t ctgHandleGetTbMetaRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf* pMsg, int32_t rspCode) {
@@ -2433,7 +2483,7 @@ _return:
                  tstrerror(code));
   }
   if (pTask->res || code) {
-    int32_t newCode = ctgHandleTaskEnd(pTask, code);
+    int32_t newCode = ctgHandleTaskEndByReq(tReq, code);
     if (TSDB_CODE_SUCCESS == code && TSDB_CODE_SUCCESS != newCode) {
       code = newCode;
     }
@@ -2673,7 +2723,7 @@ _return:
   }
 
   if (pTask->res && taskDone) {
-    int32_t newCode = ctgHandleTaskEnd(pTask, code);
+    int32_t newCode = ctgHandleTaskEndByReq(tReq, code);
     if (newCode && TSDB_CODE_SUCCESS == code) {
       code = newCode;
     }
@@ -2889,7 +2939,7 @@ _return:
   }
 
   if (pTask->res && taskDone) {
-    int32_t newCode = ctgHandleTaskEnd(pTask, code);
+    int32_t newCode = ctgHandleTaskEndByReq(tReq, code);
     if (newCode && TSDB_CODE_SUCCESS == code) {
       code = newCode;
     }
@@ -2930,7 +2980,7 @@ int32_t ctgHandleGetDbVgRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf* 
 
 _return:
 
-  newCode = ctgHandleTaskEnd(pTask, code);
+  newCode = ctgHandleTaskEndByReq(tReq, code);
   if (newCode && TSDB_CODE_SUCCESS == code) {
     code = newCode;
   }
@@ -2971,7 +3021,7 @@ int32_t ctgHandleGetTbHashRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf
 
 _return:
 
-  newCode = ctgHandleTaskEnd(pTask, code);
+  newCode = ctgHandleTaskEndByReq(tReq, code);
   if (newCode && TSDB_CODE_SUCCESS == code) {
     code = newCode;
   }
@@ -3056,7 +3106,7 @@ _return:
   }
 
   if (pTask->res && taskDone) {
-    int32_t newCode = ctgHandleTaskEnd(pTask, code);
+    int32_t newCode = ctgHandleTaskEndByReq(tReq, code);
     if (newCode && TSDB_CODE_SUCCESS == code) {
       code = newCode;
     }
@@ -3085,7 +3135,7 @@ _return:
     code = TSDB_CODE_SUCCESS;
   }
 
-  newCode = ctgHandleTaskEnd(pTask, code);
+  newCode = ctgHandleTaskEndByReq(tReq, code);
   if (newCode && TSDB_CODE_SUCCESS == code) {
     code = newCode;
   }
@@ -3104,7 +3154,7 @@ int32_t ctgHandleGetTbCfgRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf*
 
 _return:
 
-  newCode = ctgHandleTaskEnd(pTask, code);
+  newCode = ctgHandleTaskEndByReq(tReq, code);
   if (newCode && TSDB_CODE_SUCCESS == code) {
     code = newCode;
   }
@@ -3159,7 +3209,7 @@ int32_t ctgHandleGetTbTagRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf*
 
 _return:
 
-  newCode = ctgHandleTaskEnd(pTask, code);
+  newCode = ctgHandleTaskEndByReq(tReq, code);
   if (newCode && TSDB_CODE_SUCCESS == code) {
     code = newCode;
   }
@@ -3184,7 +3234,7 @@ int32_t ctgHandleGetDbCfgRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf*
 
 _return:
 
-  newCode = ctgHandleTaskEnd(pTask, code);
+  newCode = ctgHandleTaskEndByReq(tReq, code);
   if (newCode && TSDB_CODE_SUCCESS == code) {
     code = newCode;
   }
@@ -3206,7 +3256,7 @@ int32_t ctgHandleGetQnodeRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf*
 
 _return:
 
-  newCode = ctgHandleTaskEnd(pTask, code);
+  newCode = ctgHandleTaskEndByReq(tReq, code);
   if (newCode && TSDB_CODE_SUCCESS == code) {
     code = newCode;
   }
@@ -3225,7 +3275,7 @@ int32_t ctgHandleGetDnodeRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf*
 
 _return:
 
-  newCode = ctgHandleTaskEnd(pTask, code);
+  newCode = ctgHandleTaskEndByReq(tReq, code);
   if (newCode && TSDB_CODE_SUCCESS == code) {
     code = newCode;
   }
@@ -3243,7 +3293,7 @@ int32_t ctgHandleGetIndexRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf*
 
 _return:
 
-  newCode = ctgHandleTaskEnd(pTask, code);
+  newCode = ctgHandleTaskEndByReq(tReq, code);
   if (newCode && TSDB_CODE_SUCCESS == code) {
     code = newCode;
   }
@@ -3261,7 +3311,7 @@ int32_t ctgHandleGetUdfRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf* p
 
 _return:
 
-  newCode = ctgHandleTaskEnd(pTask, code);
+  newCode = ctgHandleTaskEndByReq(tReq, code);
   if (newCode && TSDB_CODE_SUCCESS == code) {
     code = newCode;
   }
@@ -3287,7 +3337,7 @@ int32_t ctgHandleGetUserRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf* 
 
 _return:
 
-  newCode = ctgHandleTaskEnd(pTask, code);
+  newCode = ctgHandleTaskEndByReq(tReq, code);
   if (newCode && TSDB_CODE_SUCCESS == code) {
     code = newCode;
   }
@@ -3306,7 +3356,7 @@ int32_t ctgHandleGetSvrVerRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf
 
 _return:
 
-  newCode = ctgHandleTaskEnd(pTask, code);
+  newCode = ctgHandleTaskEndByReq(tReq, code);
   if (newCode && TSDB_CODE_SUCCESS == code) {
     code = newCode;
   }
@@ -3399,7 +3449,7 @@ _return:
   }
 
   if (pTask->res && taskDone) {
-    int32_t newCode = ctgHandleTaskEnd(pTask, code);
+    int32_t newCode = ctgHandleTaskEndByReq(tReq, code);
     if (newCode && TSDB_CODE_SUCCESS == code) {
       code = newCode;
     }
@@ -3547,7 +3597,7 @@ _return:
     }
   }
 
-  newCode = ctgHandleTaskEnd(pTask, code);
+  newCode = ctgHandleTaskEndByReq(tReq, code);
   if (newCode && TSDB_CODE_SUCCESS == code) {
     code = newCode;
   }
@@ -3758,7 +3808,7 @@ _return:
   }
 
   if (pTask->res && taskDone) {
-    int32_t newCode = ctgHandleTaskEnd(pTask, code);
+    int32_t newCode = ctgHandleTaskEndByReq(tReq, code);
     if (newCode && TSDB_CODE_SUCCESS == code) {
       code = newCode;
     }
@@ -3806,12 +3856,12 @@ int32_t ctgHandleGetVStbRefDbsRsp(SCtgTaskReq* tReq, int32_t reqType, const SDat
     return ctgFinalizeVStbRefDbsTask(pTask);
   }
 
-  CTG_ERR_JRET(ctgLaunchVStbLayerMetaTask(pTask));
+  CTG_ERR_JRET(ctgLaunchVStbLayerMetaTask(tReq));
   return TSDB_CODE_SUCCESS;
 
 _return:
 
-  newCode = ctgHandleTaskEnd(pTask, code);
+  newCode = ctgHandleTaskEndByReq(tReq, code);
   if (newCode && TSDB_CODE_SUCCESS == code) {
     code = newCode;
   }
@@ -3890,9 +3940,7 @@ int32_t ctgLaunchGetTbMetaTask(SCtgTask* pTask) {
   }
 
   SCtgTbMetaCtx* pCtx = (SCtgTbMetaCtx*)pTask->taskCtx;
-  SCtgTaskReq    tReq;
-  tReq.pTask = pTask;
-  tReq.msgIdx = -1;
+  SCtgTaskReq    tReq = ctgMakeTaskReq(pTask, -1);
   CTG_ERR_RET(ctgAsyncRefreshTbMeta(&tReq, pCtx->flag, pCtx->pName, &pCtx->vgId));
 
   return TSDB_CODE_SUCCESS;
@@ -3952,12 +4000,9 @@ int32_t ctgLaunchGetTbMetasTask(SCtgTask* pTask) {
       CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
     }
 
-    CTG_ERR_RET(ctgInitTaskMsgCtxBatchs(pTask, pMsgCtx));
-
-    SCtgTaskReq tReq;
+    SCtgTaskReq tReq = ctgMakeTaskReq(pTask, pFetch->fetchIdx);
     tReq.autoCreateCtb = (pFetch->flag & CTG_FLAG_NOT_STB) ? 1 : 0;
-    tReq.pTask = pTask;
-    tReq.msgIdx = pFetch->fetchIdx;
+    CTG_ERR_RET(ctgInitTaskMsgCtxBatchs(&tReq, pMsgCtx));
     CTG_ERR_RET(ctgAsyncRefreshTbMeta(&tReq, pFetch->flag, pName, &pFetch->vgId));
   }
 
@@ -4000,9 +4045,7 @@ int32_t ctgLaunchGetDbVgTask(SCtgTask* pTask) {
     tstrncpy(input.db, pCtx->dbFName, tListLen(input.db));
     input.vgVersion = CTG_DEFAULT_INVALID_VERSION;
 
-    SCtgTaskReq tReq;
-    tReq.pTask = pTask;
-    tReq.msgIdx = -1;
+    SCtgTaskReq tReq = ctgMakeTaskReq(pTask, -1);
     CTG_ERR_RET(ctgGetDBVgInfoFromMnode(pCtg, pConn, &input, NULL, &tReq));
   }
 
@@ -4051,9 +4094,7 @@ int32_t ctgLaunchGetTbHashTask(SCtgTask* pTask) {
     tstrncpy(input.db, pCtx->dbFName, tListLen(input.db));
     input.vgVersion = CTG_DEFAULT_INVALID_VERSION;
 
-    SCtgTaskReq tReq;
-    tReq.pTask = pTask;
-    tReq.msgIdx = -1;
+    SCtgTaskReq tReq = ctgMakeTaskReq(pTask, -1);
     CTG_ERR_RET(ctgGetDBVgInfoFromMnode(pCtg, pConn, &input, NULL, &tReq));
   }
 
@@ -4086,9 +4127,7 @@ int32_t ctgLaunchGetTbHashsTask(SCtgTask* pTask) {
     CTG_ERR_RET(ctgAcquireVgInfoFromCache(pCtg, pReq->dbFName, &dbCache));
 
     if (NULL != dbCache) {
-      SCtgTaskReq tReq;
-      tReq.pTask = pTask;
-      tReq.msgIdx = -1;
+      SCtgTaskReq tReq = ctgMakeTaskReq(pTask, -1);
       CTG_ERR_JRET(ctgGetVgInfosFromHashValue(pCtg, &pConn->mgmtEps, &tReq, dbCache->vgCache.vgInfo, pCtx,
                                               pReq->dbFName, pReq->pTables, false));
 
@@ -4142,16 +4181,13 @@ int32_t ctgLaunchGetTbHashsTask(SCtgTask* pTask) {
       CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
     }
 
-    CTG_ERR_JRET(ctgInitTaskMsgCtxBatchs(pTask, pMsgCtx));
+    SCtgTaskReq tReq = ctgMakeTaskReq(pTask, pFetch->fetchIdx);
+    CTG_ERR_JRET(ctgInitTaskMsgCtxBatchs(&tReq, pMsgCtx));
 
     SBuildUseDBInput input = {0};
     tstrncpy(input.db, pReq->dbFName, tListLen(input.db));
 
     input.vgVersion = CTG_DEFAULT_INVALID_VERSION;
-
-    SCtgTaskReq tReq;
-    tReq.pTask = pTask;
-    tReq.msgIdx = pFetch->fetchIdx;
     CTG_ERR_RET(ctgGetDBVgInfoFromMnode(pCtg, pConn, &input, NULL, &tReq));
   }
 
@@ -4221,7 +4257,8 @@ int32_t ctgLaunchGetTbCfgTask(SCtgTask* pTask) {
       SCtgTbMetaParam param;
       param.pName = pCtx->pName;
       param.flag = 0;
-      CTG_ERR_JRET(ctgLaunchSubTask(&pTask, CTG_TASK_GET_TB_META, ctgGetTbCfgCb, &param));
+      SCtgTaskReq tReq = ctgMakeTaskReq(pTask, -1);
+      CTG_ERR_JRET(ctgLaunchSubTask(&tReq, CTG_TASK_GET_TB_META, ctgGetTbCfgCb, &param));
       return TSDB_CODE_SUCCESS;
     }
   }
@@ -4232,7 +4269,8 @@ int32_t ctgLaunchGetTbCfgTask(SCtgTask* pTask) {
     if (NULL == pCtx->pVgInfo) {
       CTG_ERR_JRET(ctgGetTbHashVgroupFromCache(pCtg, pCtx->pName, &pCtx->pVgInfo));
       if (NULL == pCtx->pVgInfo) {
-        CTG_ERR_JRET(ctgLaunchSubTask(&pTask, CTG_TASK_GET_DB_VGROUP, ctgGetTbCfgCb, dbFName));
+        SCtgTaskReq tReq = ctgMakeTaskReq(pTask, -1);
+        CTG_ERR_JRET(ctgLaunchSubTask(&tReq, CTG_TASK_GET_DB_VGROUP, ctgGetTbCfgCb, dbFName));
         return TSDB_CODE_SUCCESS;
       }
     }
@@ -4277,7 +4315,8 @@ int32_t ctgLaunchGetTbTagTask(SCtgTask* pTask) {
   if (NULL == pCtx->pVgInfo) {
     CTG_ERR_JRET(ctgGetTbHashVgroupFromCache(pCtg, pCtx->pName, &pCtx->pVgInfo));
     if (NULL == pCtx->pVgInfo) {
-      CTG_ERR_JRET(ctgLaunchSubTask(&pTask, CTG_TASK_GET_DB_VGROUP, ctgGetTbTagCb, dbFName));
+      SCtgTaskReq tReq = ctgMakeTaskReq(pTask, -1);
+      CTG_ERR_JRET(ctgLaunchSubTask(&tReq, CTG_TASK_GET_DB_VGROUP, ctgGetTbTagCb, dbFName));
       return TSDB_CODE_SUCCESS;
     }
   }
@@ -4513,7 +4552,8 @@ int32_t ctgLaunchGetUserTask(SCtgTask* pTask) {
     SCtgTbMetaParam param;
     param.pName = &pCtx->user.tbName;
     param.flag = CTG_FLAG_SYNC_OP;
-    CTG_ERR_JRET(ctgLaunchSubTask(&pTask, CTG_TASK_GET_TB_META, ctgGetUserCb, &param));
+    SCtgTaskReq tReq = ctgMakeTaskReq(pTask, -1);
+    CTG_ERR_JRET(ctgLaunchSubTask(&tReq, CTG_TASK_GET_TB_META, ctgGetUserCb, &param));
   } else {
     CTG_ERR_JRET(ctgGetUserDbAuthFromMnode(pCtg, pConn, pCtx->user.user, NULL, pTask));
   }
@@ -4616,11 +4656,8 @@ int32_t ctgLaunchGetViewsTask(SCtgTask* pTask) {
       CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
     }
 
-    CTG_ERR_RET(ctgInitTaskMsgCtxBatchs(pTask, pMsgCtx));
-
-    SCtgTaskReq tReq;
-    tReq.pTask = pTask;
-    tReq.msgIdx = pFetch->fetchIdx;
+    SCtgTaskReq tReq = ctgMakeTaskReq(pTask, pFetch->fetchIdx);
+    CTG_ERR_RET(ctgInitTaskMsgCtxBatchs(&tReq, pMsgCtx));
     CTG_ERR_RET(ctgGetViewInfoFromMnode(pCtg, pConn, pName, NULL, &tReq));
   }
 
@@ -4716,11 +4753,8 @@ int32_t ctgLaunchGetTbTSMATask(SCtgTask* pTask) {
       CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
     }
 
-    CTG_ERR_RET(ctgInitTaskMsgCtxBatchs(pTask, pMsgCtx));
-
-    SCtgTaskReq tReq;
-    tReq.pTask = pTask;
-    tReq.msgIdx = pFetch->fetchIdx;
+    SCtgTaskReq tReq = ctgMakeTaskReq(pTask, pFetch->fetchIdx);
+    CTG_ERR_RET(ctgInitTaskMsgCtxBatchs(&tReq, pMsgCtx));
 
     switch (pFetch->fetchType) {
       case FETCH_TSMA_SOURCE_TB_META: {
@@ -4770,9 +4804,8 @@ int32_t ctgLaunchGetTSMATask(SCtgTask* pTask) {
       CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
     }
 
-    CTG_ERR_RET(ctgInitTaskMsgCtxBatchs(pTask, pMsgCtx));
-
-    SCtgTaskReq tReq = {.pTask = pTask, .msgIdx = 0};
+    SCtgTaskReq tReq = ctgMakeTaskReq(pTask, 0);
+    CTG_ERR_RET(ctgInitTaskMsgCtxBatchs(&tReq, pMsgCtx));
     if (NULL == taosArrayPush(pCtx->pResList, &(SMetaRes){0})) {
       ctgError("taosArrayPush SMetaRes failed, code:%x", terrno);
       CTG_ERR_RET(terrno);
@@ -4799,9 +4832,9 @@ int32_t ctgLaunchGetTSMATask(SCtgTask* pTask) {
     int32_t exists = false;
     CTG_ERR_RET(ctgTbMetaExistInCache(pCtg, pTsma->targetDbFName, pTsma->targetTb, &exists));
     if (!exists) {
-      SCtgTaskReq tReq = {.pTask = pTask, .msgIdx = 0};
+      SCtgTaskReq tReq = ctgMakeTaskReq(pTask, 0);
       SCtgMsgCtx* pMsgCtx = CTG_GET_TASK_MSGCTX(pTask, 0);
-      CTG_ERR_RET(ctgInitTaskMsgCtxBatchs(pTask, pMsgCtx));
+      CTG_ERR_RET(ctgInitTaskMsgCtxBatchs(&tReq, pMsgCtx));
       CTG_RET(ctgGetTbMetaFromMnodeImpl(pCtg, pConn, pTsma->targetDbFName, pTsma->targetTb, NULL, &tReq));
     } else {
       CTG_ERR_RET(ctgHandleTaskEnd(pTask, 0));
@@ -4863,18 +4896,20 @@ static int32_t ctgLaunchGetTbNamesTask(SCtgTask* pTask) {
       CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
     }
 
-    CTG_ERR_RET(ctgInitTaskMsgCtxBatchs(pTask, pMsgCtx));
-
-    SCtgTaskReq tReq;
-    tReq.pTask = pTask;
-    tReq.msgIdx = pFetch->fetchIdx;
+    SCtgTaskReq tReq = ctgMakeTaskReq(pTask, pFetch->fetchIdx);
+    CTG_ERR_RET(ctgInitTaskMsgCtxBatchs(&tReq, pMsgCtx));
     CTG_ERR_RET(ctgAsyncRefreshTbMeta(&tReq, pFetch->flag, pName, &pFetch->vgId));
   }
 
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t ctgLaunchGetVStbRefDbsTask(SCtgTask* pTask) {
+static int32_t ctgLaunchGetVStbRefDbsTaskByReq(SCtgTaskReq* pReq) {
+  SCtgTask*          pTask = pReq ? pReq->pTask : NULL;
+  if (NULL == pTask) {
+    CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
+  }
+
   SCatalog*          pCtg = pTask->pJob->pCtg;
   SRequestConnInfo*  pConn = &pTask->pJob->conn;
   SCtgVStbRefDbsCtx* pCtx = (SCtgVStbRefDbsCtx*)pTask->taskCtx;
@@ -4912,7 +4947,7 @@ int32_t ctgLaunchGetVStbRefDbsTask(SCtgTask* pTask) {
       SCtgTbMetaParam param;
       param.pName = pCtx->pNames;
       param.flag = 0;
-      CTG_ERR_RET(ctgLaunchSubTask(&pTask, CTG_TASK_GET_TB_META, ctgGetVStbRefDbsCb, &param));
+      CTG_ERR_RET(ctgLaunchSubTask(pReq, CTG_TASK_GET_TB_META, ctgGetVStbRefDbsCb, &param));
       return TSDB_CODE_SUCCESS;
     }
   }
@@ -4925,7 +4960,7 @@ int32_t ctgLaunchGetVStbRefDbsTask(SCtgTask* pTask) {
   if (NULL == pCtx->pVgroups) {
     CTG_ERR_RET(ctgAcquireVgInfoFromCache(pCtg, dbFName, &dbCache));
     if (NULL == dbCache) {
-      CTG_ERR_RET(ctgLaunchSubTask(&pTask, CTG_TASK_GET_DB_VGROUP, ctgGetVStbRefDbsCb, dbFName));
+      CTG_ERR_RET(ctgLaunchSubTask(pReq, CTG_TASK_GET_DB_VGROUP, ctgGetVStbRefDbsCb, dbFName));
       return TSDB_CODE_SUCCESS;
     }
 
@@ -4956,10 +4991,7 @@ int32_t ctgLaunchGetVStbRefDbsTask(SCtgTask* pTask) {
   for (int32_t i = 0; i < pCtx->vgNum; ++i) {
     SVgroupInfo* pVg = (SVgroupInfo*)taosArrayGet(pCtx->pVgroups, i);
 
-    SCtgTaskReq tReq;
-    tReq.pTask = pTask;
-    tReq.msgIdx = -1;
-    CTG_ERR_JRET(ctgGetVSubtablesMetaFromVnode(pCtg, pConn, pCtx->pMeta->suid, pVg, &tReq));
+    CTG_ERR_JRET(ctgGetVSubtablesMetaFromVnode(pCtg, pConn, pCtx->pMeta->suid, pVg, pReq));
 
     if (NULL == taosArrayPush(pCtx->pSubTablesList, &(SVSubTablesRsp){0})) {
       ctgError("taosArrayPush SVSubTablesRsp failed, code:%x", terrno);
@@ -4987,6 +5019,11 @@ _return:
   }
 
   CTG_RET(code);
+}
+
+int32_t ctgLaunchGetVStbRefDbsTask(SCtgTask* pTask) {
+  SCtgTaskReq tReq = ctgMakeTaskReq(pTask, -1);
+  return ctgLaunchGetVStbRefDbsTaskByReq(&tReq);
 }
 
 int32_t ctgDumpTbTSMARes(SCtgTask* pTask) {
@@ -5017,8 +5054,12 @@ int32_t ctgRelaunchGetTbMetaTask(SCtgTask* pTask) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t ctgGetTbCfgCb(SCtgTask* pTask) {
+int32_t ctgGetTbCfgCb(SCtgTaskReq* pReq) {
   int32_t code = 0;
+  SCtgTask* pTask = pReq ? pReq->pTask : NULL;
+  if (NULL == pTask) {
+    CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
+  }
 
   CTG_ERR_JRET(pTask->subRes.code);
 
@@ -5041,11 +5082,15 @@ int32_t ctgGetTbCfgCb(SCtgTask* pTask) {
 
 _return:
 
-  CTG_RET(ctgHandleTaskEnd(pTask, code ? code : pTask->subRes.code));
+  CTG_RET(ctgHandleTaskEndByReq(pReq, code ? code : pTask->subRes.code));
 }
 
-int32_t ctgGetVStbRefDbsCb(SCtgTask* pTask) {
+int32_t ctgGetVStbRefDbsCb(SCtgTaskReq* pReq) {
   int32_t code = 0;
+  SCtgTask* pTask = pReq ? pReq->pTask : NULL;
+  if (NULL == pTask) {
+    CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
+  }
 
   CTG_ERR_JRET(pTask->subRes.code);
 
@@ -5080,19 +5125,23 @@ int32_t ctgGetVStbRefDbsCb(SCtgTask* pTask) {
     }
 
     ++pCtx->refLayer;
-    CTG_ERR_JRET(ctgLaunchVStbLayerMetaTask(pTask));
+    CTG_ERR_JRET(ctgLaunchVStbLayerMetaTask(pReq));
     return TSDB_CODE_SUCCESS;
   }
 
-  CTG_RET(ctgLaunchGetVStbRefDbsTask(pTask));
+  CTG_RET(ctgLaunchGetVStbRefDbsTaskByReq(pReq));
 
 _return:
 
-  CTG_RET(ctgHandleTaskEnd(pTask, code ? code : pTask->subRes.code));
+  CTG_RET(ctgHandleTaskEndByReq(pReq, code ? code : pTask->subRes.code));
 }
 
-int32_t ctgGetTbTagCb(SCtgTask* pTask) {
+int32_t ctgGetTbTagCb(SCtgTaskReq* pReq) {
   int32_t code = 0;
+  SCtgTask* pTask = pReq ? pReq->pTask : NULL;
+  if (NULL == pTask) {
+    CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
+  }
 
   CTG_ERR_JRET(pTask->subRes.code);
 
@@ -5113,11 +5162,15 @@ int32_t ctgGetTbTagCb(SCtgTask* pTask) {
 
 _return:
 
-  CTG_RET(ctgHandleTaskEnd(pTask, pTask->subRes.code));
+  CTG_RET(ctgHandleTaskEndByReq(pReq, pTask->subRes.code));
 }
 
-int32_t ctgGetUserCb(SCtgTask* pTask) {
+int32_t ctgGetUserCb(SCtgTaskReq* pReq) {
   int32_t code = 0;
+  SCtgTask* pTask = pReq ? pReq->pTask : NULL;
+  if (NULL == pTask) {
+    CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
+  }
 
   SCtgUserCtx* pCtx = (SCtgUserCtx*)pTask->taskCtx;
   pCtx->subTaskCode = pTask->subRes.code;
@@ -5126,7 +5179,7 @@ int32_t ctgGetUserCb(SCtgTask* pTask) {
 
 _return:
 
-  CTG_RET(ctgHandleTaskEnd(pTask, pTask->subRes.code));
+  CTG_RET(ctgHandleTaskEndByReq(pReq, pTask->subRes.code));
 }
 
 int32_t ctgCompDbVgTasks(SCtgTask* pTask, void* param, bool* equal) {
@@ -5297,14 +5350,18 @@ _return:
   CTG_RET(code);
 }
 
-int32_t ctgSetSubTaskCb(SCtgTask* pSub, SCtgTask* pTask) {
+int32_t ctgSetSubTaskCb(SCtgTask* pSub, SCtgTaskReq* pReq) {
   int32_t code = 0;
+  SCtgTask* pTask = pReq ? pReq->pTask : NULL;
+  if (NULL == pTask) {
+    CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
+  }
 
   CTG_LOCK(CTG_WRITE, &pSub->lock);
   if (CTG_TASK_DONE == pSub->status) {
     pTask->subRes.code = pSub->code;
     CTG_ERR_JRET((*gCtgAsyncFps[pSub->type].cloneFp)(pSub, &pTask->subRes.res));
-    CTG_ERR_JRET(pTask->subRes.fp(pTask));
+    CTG_ERR_JRET(pTask->subRes.fp(pReq));
   } else {
     if (NULL == pSub->pParents) {
       pSub->pParents = taosArrayInit(4, POINTER_BYTES);
@@ -5338,21 +5395,31 @@ SCtgTask* ctgGetTask(SCtgJob* pJob, int32_t taskId) {
   return NULL;
 }
 
-int32_t ctgLaunchSubTask(SCtgTask** ppTask, CTG_TASK_TYPE type, ctgSubTaskCbFp fp, void* param) {
-  SCtgJob* pJob = (*ppTask)->pJob;
+int32_t ctgLaunchSubTask(SCtgTaskReq* pReq, CTG_TASK_TYPE type, ctgSubTaskCbFp fp, void* param) {
+  SCtgTask* pTask = pReq ? pReq->pTask : NULL;
+  if (NULL == pTask) {
+    CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
+  }
+
+  SCtgJob* pJob = pTask->pJob;
   int32_t  subTaskId = -1;
   bool     newTask = false;
-  int32_t  taskId = (*ppTask)->taskId;
+  int32_t  taskId = pTask->taskId;
 
-  ctgClearSubTaskRes(&(*ppTask)->subRes);
-  (*ppTask)->subRes.type = type;
-  (*ppTask)->subRes.fp = fp;
+  ctgClearSubTaskRes(&pTask->subRes);
+  pTask->subRes.type = type;
+  pTask->subRes.fp = fp;
 
   CTG_ERR_RET(ctgSearchExistingTask(pJob, type, param, &subTaskId));
   if (subTaskId < 0) {
     CTG_ERR_RET(ctgInitTask(pJob, type, param, &subTaskId));
     newTask = true;
-    *ppTask = ctgGetTask(pJob, taskId);
+    pReq->pTask = ctgGetTask(pJob, taskId);
+    if (NULL == pReq->pTask) {
+      qError("fail to get parent task:%d after init subtask", taskId);
+      CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
+    }
+    pTask = pReq->pTask;
   }
 
   SCtgTask* pSub = taosArrayGet(pJob->pTasks, subTaskId);
@@ -5365,10 +5432,10 @@ int32_t ctgLaunchSubTask(SCtgTask** ppTask, CTG_TASK_TYPE type, ctgSubTaskCbFp f
     pSub->subTask = true;
   }
 
-  CTG_ERR_RET(ctgSetSubTaskCb(pSub, *ppTask));
+  CTG_ERR_RET(ctgSetSubTaskCb(pSub, pReq));
 
   if (newTask) {
-    SCtgMsgCtx* pMsgCtx = ctgGetTaskLinkMsgCtx(*ppTask);
+    SCtgMsgCtx* pMsgCtx = ctgGetTaskLinkMsgCtx(pTask);
     if (NULL == pMsgCtx) {
       qError("fail to get parent link SCtgMsgCtx");
       CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
@@ -5381,7 +5448,10 @@ int32_t ctgLaunchSubTask(SCtgTask** ppTask, CTG_TASK_TYPE type, ctgSubTaskCbFp f
     }
 
     SHashObj* pPrevSubBatchs = pSubMsgCtx->pBatchs;
-    SHashObj* pLaunchBatchs = gCtgCurrentBatchs ? gCtgCurrentBatchs : pMsgCtx->pBatchs;
+    SHashObj* pLaunchBatchs = ctgGetReqBatchs(pReq);
+    if (NULL == pLaunchBatchs) {
+      pLaunchBatchs = pMsgCtx->pBatchs;
+    }
     pSubMsgCtx->pBatchs = pLaunchBatchs;
 
     int32_t ret = (*gCtgAsyncFps[pSub->type].launchFp)(pSub);
