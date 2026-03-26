@@ -80,7 +80,6 @@ int32_t schedulerExecJob(SSchedulerReq *pReq, int64_t *pJobId) {
   SCH_ERR_JRET(schSwitchJobStatus(pJob, JOB_TASK_STATUS_EXEC, pReq));
 
 _return:
-
   SCH_RET(schHandleOpEndEvent(pJob, SCH_OP_EXEC, pReq, code));
 }
 
