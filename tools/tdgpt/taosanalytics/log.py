@@ -37,12 +37,22 @@ class AppLogger():
         path.parent.mkdir(parents=True, exist_ok=True)
 
         logger = cls.get_instance()
-
-        # avoid adding duplicate file handlers for the same log file
         abs_file_path = os.path.abspath(file_path)
-        for h in logger.handlers:
-            if isinstance(h, logging.FileHandler) and getattr(h, "baseFilename", None) == abs_file_path:
-                return
+
+        # remove and close any existing file handlers that point to a different file
+        # to avoid writing logs to multiple files and leaking file descriptors;
+        # if a handler for this exact file already exists, nothing to do
+        has_matching = False
+        for h in list(logger.handlers):
+            if isinstance(h, logging.FileHandler):
+                if getattr(h, "baseFilename", None) == abs_file_path:
+                    has_matching = True
+                else:
+                    logger.removeHandler(h)
+                    h.close()
+
+        if has_matching:
+            return
 
         handler = logging.FileHandler(file_path)
         handler.setFormatter(logging.Formatter(cls._LOG_STR_FORMAT))
