@@ -146,20 +146,17 @@ typedef struct SDBVgInfoReq {
 
 typedef struct SDBVgInfoMgr {
   SHashObj* dbVgInfoMap;
+  SRWLatch  lock;
 } SDBVgInfoMgr;
 
 struct SqlFunctionCtx;
 typedef struct SInsertTableInfo {
-  int64_t     uid;
-  char        tbname[TSDB_TABLE_NAME_LEN];
-  SVgroupInfo vgInfo;
+  int64_t                  uid;
+  int64_t                  vgid;
+  int32_t                  version;
+  STSchema*                pSchema;
+  char*                    tbname;
 } SInsertTableInfo;
-
-typedef struct SInsertStreamInfo {
-  int32_t   version;
-  STSchema* pSchema;
-  SHashObj* pInsertGrpInfo;
-} SInsertStreamInfo;
 
 int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags, bool groupSort, SReadHandle* pHandle,
                                 STableListInfo* pTableListInfo, SNode* pTagCond, SNode* pTagIndexCond,
