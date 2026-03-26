@@ -1001,7 +1001,6 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
         }
         if (finished) {
           ++pExec->runtimeInfo.funcInfo.curIdx;
-          ++pExec->runtimeInfo.funcInfo.curIdx;
           ST_TASK_DLOG("[runner calc]gid:%" PRId64 " finished, %d, curIdx: %d, curIdx: %d, nextOutIdx: %d",
                        pReq->gid, pExec->runtimeInfo.funcInfo.withExternalWindow, pExec->runtimeInfo.funcInfo.curIdx,
                        pExec->runtimeInfo.funcInfo.curIdx, nextOutIdx);

@@ -1140,8 +1140,8 @@ int32_t resetAggSup(SExprSupp* pExprSupp, SAggSupporter* pSup, SExecTaskInfo* pT
                     SFunctionStateStore* pStore) {
   int32_t    code = 0, lino = 0, num = 0;
   SExprInfo* pExprInfo = NULL;
-  cleanupAggSup(pSup);
   cleanupExprSuppWithoutFilter(pExprSupp);
+  cleanupAggSup(pSup);
   code = createExprInfo(pNodeList, pGroupKeys, &pExprInfo, &num);
   QUERY_CHECK_CODE(code, lino, _error);
   code = initAggSup(pExprSupp, pSup, pExprInfo, num, keyBufSize, pKey, pState, pStore);
