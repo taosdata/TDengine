@@ -1,6 +1,8 @@
 # encoding:utf-8
 # pylint: disable=c0103
 """ anomaly detection register/display functions """
+import os
+
 import numpy as np
 from matplotlib import pyplot as plt
 from taosanalytics.conf import Configure
@@ -62,5 +64,5 @@ def draw_anomaly_results(input_list, res, fig_name, valid_code, algo_name:str):
 
     plt.grid(True, alpha=0.3)
 
-    plt.savefig(fig_name)
+    plt.savefig(os.path.join(base_path, fig_name))
     plt.close()
