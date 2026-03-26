@@ -1124,7 +1124,7 @@ int taos_txn_rollback(TAOS *taos) {
   if (pTscObj->txnState != UTXN_STAGE_ACTIVE) {
     taosThreadMutexUnlock(&pTscObj->mutex);
     releaseTscObj(connId);
-    return TSDB_CODE_SUCCESS;  // idempotent: no txn → success
+    return TSDB_CODE_TXN_NOT_IN_PROGRESS;
   }
 
   SRpcMsg rpcRsp = {0};
@@ -1143,7 +1143,7 @@ int taos_txn_rollback(TAOS *taos) {
 
   taosThreadMutexUnlock(&pTscObj->mutex);
   releaseTscObj(connId);
-  return TSDB_CODE_SUCCESS;  // rollback is idempotent
+  return code;
 #else
   return 0;
 #endif

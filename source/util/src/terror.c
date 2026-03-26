@@ -1020,8 +1020,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_INDEX_INVALID_FILE,             "Index file is inval
 TAOS_DEFINE_ERROR(TSDB_CODE_SCALAR_CONVERT_ERROR,           "Operation not supported between data types")
 
 //utxn
-TAOS_DEFINE_ERROR(TSDB_CODE_TXN_ALREADY_IN_PROGRESS,        "Txn already in progress")
-TAOS_DEFINE_ERROR(TSDB_CODE_TXN_NOT_IN_PROGRESS,            "Txn not in progress")
+TAOS_DEFINE_ERROR(TSDB_CODE_TXN_ALREADY_IN_PROGRESS,        "Transaction already in progress, please COMMIT or ROLLBACK first")
+TAOS_DEFINE_ERROR(TSDB_CODE_TXN_NOT_IN_PROGRESS,            "No transaction in progress")
 TAOS_DEFINE_ERROR(TSDB_CODE_TXN_ALREADY_EXISTS,             "Txn already exists")
 TAOS_DEFINE_ERROR(TSDB_CODE_TXN_NOT_EXIST,                  "Txn not exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TXN_IN_CREATING,            "Txn in creating")

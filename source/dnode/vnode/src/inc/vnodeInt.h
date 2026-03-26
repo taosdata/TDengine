@@ -688,6 +688,11 @@ int32_t vnodeTxnRegisterDdl(SVnode* pVnode, int64_t txnId, int8_t opType, const 
                             void* pReqData, int32_t reqDataLen);
 int32_t vnodeTxnShadowTableStatus(SVnode* pVnode, int64_t txnId, const char* name);
 
+// Check if a non-txn DDL operation conflicts with any active transaction's shadow.
+// Returns TSDB_CODE_SUCCESS if no conflict, error code if conflict detected.
+// incomingOp: 0=query/DML, 1=CREATE, 2=ALTER, 3=DROP (EShadowOpType values)
+int32_t vnodeTxnCheckConflict(SVnode* pVnode, const char* tableName, int8_t incomingOp);
+
 #ifdef __cplusplus
 }
 #endif

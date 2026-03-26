@@ -805,6 +805,102 @@ int32_t vnodeTxnShadowTableStatus(SVnode *pVnode, int64_t txnId, const char *nam
   return result;
 }
 
+/**
+ * Check if a non-transaction DDL/DML operation conflicts with any active txn shadow.
+ *
+ * Scans ALL active txn entries (there should be at most one per VNode in practice)
+ * and checks if the target table has a shadow state that would conflict.
+ *
+ * Conflict matrix (from design doc §16):
+ *   PREPARED_CREATE + non-txn CREATE → CONFLICT
+ *   PREPARED_CREATE + non-txn SELECT/INSERT/DELETE/ALTER/DROP → TABLE_NOT_EXIST (shadow invisible)
+ *   PREPARED_DROP   + non-txn DROP/ALTER/DELETE → CONFLICT (resource busy)
+ *   PREPARED_DROP   + non-txn CREATE → TABLE_ALREADY_EXISTS
+ *   PREPARED_DROP   + non-txn SELECT/INSERT → OK (read old data)
+ *   PREPARED_ALTER  + non-txn ALTER/DROP → CONFLICT
+ *   PREPARED_ALTER  + non-txn SELECT/INSERT/DELETE → OK (use old schema)
+ *
+ * @param pVnode      The vnode
+ * @param tableName   The target table name
+ * @param incomingOp  0=query/DML, EShadowOpType values for DDL (1=CREATE, 2=ALTER, 3=DROP)
+ * @return TSDB_CODE_SUCCESS if no conflict, error code otherwise
+ */
+int32_t vnodeTxnCheckConflict(SVnode *pVnode, const char *tableName, int8_t incomingOp) {
+  if (pVnode->pTxnHash == NULL || tableName == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  taosThreadMutexLock(&pVnode->txnMutex);
+
+  // Scan all active txn entries for shadow state on this table
+  void *pIter = taosHashIterate(pVnode->pTxnHash, NULL);
+  while (pIter) {
+    SVnodeTxnEntry *pEntry = (SVnodeTxnEntry *)pIter;
+    if (pEntry->pShadowOps == NULL) {
+      pIter = taosHashIterate(pVnode->pTxnHash, pIter);
+      continue;
+    }
+
+    // Scan shadow ops in reverse order to get the latest state for this table
+    int8_t  shadowState = 0;  // 0=none, SHADOW_OP_CREATE_TB/ALTER_TB/DROP_TB
+    int32_t numOps = taosArrayGetSize(pEntry->pShadowOps);
+    for (int32_t i = numOps - 1; i >= 0; i--) {
+      SVnodeShadowOp *pOp = (SVnodeShadowOp *)taosArrayGet(pEntry->pShadowOps, i);
+      if (strncmp(pOp->name, tableName, TSDB_TABLE_FNAME_LEN) == 0) {
+        shadowState = pOp->opType;
+        break;
+      }
+    }
+
+    if (shadowState == 0) {
+      pIter = taosHashIterate(pVnode->pTxnHash, pIter);
+      continue;
+    }
+
+    // Found shadow state — apply conflict rules
+    switch (shadowState) {
+      case SHADOW_OP_CREATE_TB:
+        // Table exists in shadow (not yet committed)
+        if (incomingOp == SHADOW_OP_CREATE_TB) {
+          code = TSDB_CODE_VND_TXN_CONFLICT;  // CREATE vs PREPARED_CREATE → conflict
+        }
+        // All other ops: table is invisible to non-txn → will naturally fail as "not exist"
+        break;
+
+      case SHADOW_OP_DROP_TB:
+        // Table is logically deleted in shadow (not yet committed)
+        if (incomingOp == SHADOW_OP_DROP_TB || incomingOp == SHADOW_OP_ALTER_TB) {
+          code = TSDB_CODE_VND_TXN_CONFLICT;  // DROP/ALTER vs PREPARED_DROP → resource busy
+        } else if (incomingOp == SHADOW_OP_CREATE_TB) {
+          code = TSDB_CODE_TDB_TABLE_ALREADY_EXIST;  // CREATE vs PREPARED_DROP → name occupied
+        }
+        // SELECT/INSERT (incomingOp=0): allowed (read old data), no conflict
+        break;
+
+      case SHADOW_OP_ALTER_TB:
+        // Table schema is being modified in shadow
+        if (incomingOp == SHADOW_OP_ALTER_TB || incomingOp == SHADOW_OP_DROP_TB) {
+          code = TSDB_CODE_VND_TXN_CONFLICT;  // ALTER/DROP vs PREPARED_ALTER → conflict
+        }
+        // SELECT/INSERT/DELETE/CREATE (incomingOp=0 or CREATE): no conflict
+        break;
+    }
+
+    if (code != TSDB_CODE_SUCCESS) {
+      taosHashCancelIterate(pVnode->pTxnHash, pIter);
+      vWarn("vgId:%d, txn conflict: table=%s, shadowState=%d, incomingOp=%d, txnId:%" PRId64, TD_VID(pVnode), tableName,
+            shadowState, incomingOp, pEntry->txnId);
+      break;
+    }
+
+    pIter = taosHashIterate(pVnode->pTxnHash, pIter);
+  }
+
+  taosThreadMutexUnlock(&pVnode->txnMutex);
+  return code;
+}
+
 // ============================================================================
 // Combined DDL Registration (lazy-create + lock + shadow op)
 // ============================================================================

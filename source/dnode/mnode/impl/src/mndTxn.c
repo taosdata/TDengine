@@ -484,13 +484,188 @@ int32_t mndTxnAddShadowOp(SMnode *pMnode, utxn_id_t txnId, int8_t opType, const 
  * Currently checks if the RPC message carries a txnId in its extended info.
  * Returns txnId > 0 if within a batch txn, 0 otherwise.
  *
- * TODO: Implement connection→txnId mapping via connId lookup.
- *       For now returns 0 (no-op), to be wired when DDL messages carry txnId.
+ * Scans all active STxnObj in SDB, finds the one whose createUser matches and is ACTIVE.
+ * For now, since only one global user txn is supported, a simple scan is efficient enough.
  */
 utxn_id_t mndTxnGetActiveTxnId(SMnode *pMnode, SRpcMsg *pReq) {
-  (void)pMnode;
-  (void)pReq;
-  return 0;  // Placeholder — will be wired when STB DDL messages carry txnId
+  if (pMnode == NULL || pReq == NULL) return 0;
+
+  const char *user = RPC_MSG_USER(pReq);
+  if (user == NULL || user[0] == '\0') return 0;
+
+  SSdb     *pSdb = pMnode->pSdb;
+  void     *pIter = NULL;
+  STxnObj  *pTxn = NULL;
+  utxn_id_t txnId = 0;
+
+  while (1) {
+    pIter = sdbFetch(pSdb, SDB_TXN, pIter, (void **)&pTxn);
+    if (pIter == NULL) break;
+    if (pTxn->stage == UTXN_STAGE_ACTIVE && strcmp(pTxn->createUser, user) == 0) {
+      txnId = pTxn->id;
+      sdbRelease(pSdb, pTxn);
+      sdbCancelFetch(pSdb, pIter);
+      break;
+    }
+    sdbRelease(pSdb, pTxn);
+  }
+  return txnId;
+}
+
+/**
+ * Apply MNode shadow ops on COMMIT — replay STB DDL via original message handlers.
+ *
+ * For each shadow op, we:
+ *   1. Deserialize the stored request to clear the txnId field
+ *   2. Re-serialize with txnId=0 so the handler takes the non-shadow (normal) path
+ *   3. Build a synthetic SRpcMsg and dispatch through pMnode->msgFp[]
+ *
+ * Each STB DDL handler creates its own independent Trans internally.
+ * mndTransPrepare commits the SDB change synchronously (via Raft);
+ * VNode broadcast (schema push) is async but not needed before child table COMMIT.
+ *
+ * @param pMnode     The mnode
+ * @param pReq       The original COMMIT RpcMsg (for conn info: user, traceId, etc.)
+ * @param pTxn       The user batch txn being committed
+ * @return 0 on success, error code on failure (partial replay is logged but stops)
+ */
+static int32_t mndTxnApplyShadowOps(SMnode *pMnode, SRpcMsg *pReq, STxnObj *pTxn) {
+  if (pTxn->pShadowOps == NULL || taosArrayGetSize(pTxn->pShadowOps) == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t numOps = taosArrayGetSize(pTxn->pShadowOps);
+  mInfo("txn:%" PRIu64 ", applying %d MNode STB shadow ops (redo-log COMMIT)", pTxn->id, numOps);
+
+  for (int32_t i = 0; i < numOps; i++) {
+    SMndShadowOp *pOp = (SMndShadowOp *)taosArrayGet(pTxn->pShadowOps, i);
+    int32_t       code = 0;
+    tmsg_t        msgType = 0;
+
+    mInfo("txn:%" PRIu64 ", replaying shadow op %d/%d: opType=%d, stb=%s", pTxn->id, i + 1, numOps, pOp->opType,
+          pOp->name);
+
+    // Determine message type and clear txnId in serialized data
+    switch (pOp->opType) {
+      case MND_SHADOW_OP_CREATE_STB: {
+        msgType = TDMT_MND_CREATE_STB;
+        SMCreateStbReq req = {0};
+        if (tDeserializeSMCreateStbReq(pOp->pReqData, pOp->reqDataLen, &req) != 0) {
+          mError("txn:%" PRIu64 ", failed to deserialize CREATE_STB shadow op %d", pTxn->id, i);
+          tFreeSMCreateStbReq(&req);
+          return TSDB_CODE_INVALID_MSG;
+        }
+        req.txnId = 0;  // Clear txnId so handler uses non-shadow path
+        // Re-serialize
+        int32_t newLen = tSerializeSMCreateStbReq(NULL, 0, &req);
+        void   *pNewCont = rpcMallocCont(newLen);
+        if (pNewCont == NULL) {
+          tFreeSMCreateStbReq(&req);
+          return TSDB_CODE_OUT_OF_MEMORY;
+        }
+        tSerializeSMCreateStbReq(pNewCont, newLen, &req);
+        tFreeSMCreateStbReq(&req);
+
+        // Build synthetic SRpcMsg
+        SRpcMsg synMsg = {0};
+        synMsg.msgType = msgType;
+        synMsg.pCont = pNewCont;
+        synMsg.contLen = newLen;
+        synMsg.info = pReq->info;  // Carry over conn info (user, node, traceId)
+
+        MndMsgFp fp = pMnode->msgFp[TMSG_INDEX(msgType)];
+        if (fp == NULL) {
+          rpcFreeCont(pNewCont);
+          mError("txn:%" PRIu64 ", no handler for msgType %d", pTxn->id, msgType);
+          return TSDB_CODE_MSG_NOT_PROCESSED;
+        }
+        code = fp(&synMsg);
+        break;
+      }
+      case MND_SHADOW_OP_DROP_STB: {
+        msgType = TDMT_MND_DROP_STB;
+        SMDropStbReq req = {0};
+        if (tDeserializeSMDropStbReq(pOp->pReqData, pOp->reqDataLen, &req) != 0) {
+          mError("txn:%" PRIu64 ", failed to deserialize DROP_STB shadow op %d", pTxn->id, i);
+          tFreeSMDropStbReq(&req);
+          return TSDB_CODE_INVALID_MSG;
+        }
+        req.txnId = 0;
+        int32_t newLen = tSerializeSMDropStbReq(NULL, 0, &req);
+        void   *pNewCont = rpcMallocCont(newLen);
+        if (pNewCont == NULL) {
+          tFreeSMDropStbReq(&req);
+          return TSDB_CODE_OUT_OF_MEMORY;
+        }
+        tSerializeSMDropStbReq(pNewCont, newLen, &req);
+        tFreeSMDropStbReq(&req);
+
+        SRpcMsg synMsg = {0};
+        synMsg.msgType = msgType;
+        synMsg.pCont = pNewCont;
+        synMsg.contLen = newLen;
+        synMsg.info = pReq->info;
+
+        MndMsgFp fp = pMnode->msgFp[TMSG_INDEX(msgType)];
+        if (fp == NULL) {
+          rpcFreeCont(pNewCont);
+          mError("txn:%" PRIu64 ", no handler for msgType %d", pTxn->id, msgType);
+          return TSDB_CODE_MSG_NOT_PROCESSED;
+        }
+        code = fp(&synMsg);
+        break;
+      }
+      case MND_SHADOW_OP_ALTER_STB: {
+        msgType = TDMT_MND_ALTER_STB;
+        SMAlterStbReq req = {0};
+        if (tDeserializeSMAlterStbReq(pOp->pReqData, pOp->reqDataLen, &req) != 0) {
+          mError("txn:%" PRIu64 ", failed to deserialize ALTER_STB shadow op %d", pTxn->id, i);
+          tFreeSMAltertbReq(&req);
+          return TSDB_CODE_INVALID_MSG;
+        }
+        req.txnId = 0;
+        int32_t newLen = tSerializeSMAlterStbReq(NULL, 0, &req);
+        void   *pNewCont = rpcMallocCont(newLen);
+        if (pNewCont == NULL) {
+          tFreeSMAltertbReq(&req);
+          return TSDB_CODE_OUT_OF_MEMORY;
+        }
+        tSerializeSMAlterStbReq(pNewCont, newLen, &req);
+        tFreeSMAltertbReq(&req);
+
+        SRpcMsg synMsg = {0};
+        synMsg.msgType = msgType;
+        synMsg.pCont = pNewCont;
+        synMsg.contLen = newLen;
+        synMsg.info = pReq->info;
+
+        MndMsgFp fp = pMnode->msgFp[TMSG_INDEX(msgType)];
+        if (fp == NULL) {
+          rpcFreeCont(pNewCont);
+          mError("txn:%" PRIu64 ", no handler for msgType %d", pTxn->id, msgType);
+          return TSDB_CODE_MSG_NOT_PROCESSED;
+        }
+        code = fp(&synMsg);
+        break;
+      }
+      default:
+        mError("txn:%" PRIu64 ", unknown shadow op type %d", pTxn->id, pOp->opType);
+        return TSDB_CODE_MND_TXN_ERROR;
+    }
+
+    // ACTION_IN_PROGRESS is expected (Trans framework async completion)
+    if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
+      mError("txn:%" PRIu64 ", shadow op %d/%d failed: %s", pTxn->id, i + 1, numOps, tstrerror(code));
+      return code;
+    }
+    mInfo("txn:%" PRIu64 ", shadow op %d/%d applied (code=%s)", pTxn->id, i + 1, numOps, tstrerror(code));
+
+    // Free the shadow data now that it's been replayed
+    taosMemoryFreeClear(pOp->pReqData);
+  }
+
+  mInfo("txn:%" PRIu64 ", all %d MNode STB shadow ops applied", pTxn->id, numOps);
+  return TSDB_CODE_SUCCESS;
 }
 
 /**
@@ -1147,6 +1322,14 @@ static int32_t mndProcessCommitTxnReq(SRpcMsg *pReq) {
     }
   }
 
+  // Step 1: Apply MNode-side STB shadow ops (redo-log replay)
+  // These must be applied BEFORE VNode COMMIT broadcast, because child tables
+  // may depend on super tables that were created within the transaction.
+  // Each STB DDL creates its own Trans internally; SDB changes are committed
+  // synchronously via Raft, while VNode schema broadcast is async.
+  TAOS_CHECK_EXIT(mndTxnApplyShadowOps(pMnode, pReq, pTxn));
+
+  // Step 2: Broadcast COMMIT to participant VNodes (triggers child/normal table shadow replay)
   TAOS_CHECK_EXIT(mndCommitTxn(pMnode, pReq, pTxn));
 
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;

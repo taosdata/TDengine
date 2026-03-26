@@ -1553,6 +1553,19 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, 
     }
 
     // do create table (non-transactional path)
+    // First check if table name conflicts with any active txn shadow
+    {
+      int32_t conflictCode = vnodeTxnCheckConflict(pVnode, tbName, SHADOW_OP_CREATE_TB);
+      if (conflictCode != TSDB_CODE_SUCCESS) {
+        cRsp.code = conflictCode;
+        if (taosArrayPush(rsp.pArray, &cRsp) == NULL) {
+          terrno = TSDB_CODE_OUT_OF_MEMORY;
+          rcode = -1;
+          goto _exit;
+        }
+        continue;
+      }
+    }
     if (metaCreateTable2(pVnode->pMeta, ver, pCreateReq, &cRsp.pMeta) < 0) {
       if (pCreateReq->flags & TD_CREATE_IF_NOT_EXISTS && terrno == TSDB_CODE_TDB_TABLE_ALREADY_EXIST) {
         cRsp.code = TSDB_CODE_SUCCESS;
@@ -1819,6 +1832,17 @@ static int32_t vnodeProcessAlterTbReq(SVnode *pVnode, int64_t ver, void *pReq, i
   }
 
   // process (non-transactional path)
+  // Check for conflict with active txn shadow
+  {
+    char alterTbNameFull[TSDB_TABLE_FNAME_LEN];
+    (void)snprintf(alterTbNameFull, TSDB_TABLE_FNAME_LEN, "%s.%s", pVnode->config.dbname, vAlterTbReq.tbName);
+    int32_t conflictCode = vnodeTxnCheckConflict(pVnode, alterTbNameFull, SHADOW_OP_ALTER_TB);
+    if (conflictCode != TSDB_CODE_SUCCESS) {
+      vAlterTbRsp.code = conflictCode;
+      tDecoderClear(&dc);
+      goto _exit;
+    }
+  }
   if (metaAlterTable(pVnode->pMeta, ver, &vAlterTbReq, &vMetaRsp) < 0) {
     vAlterTbRsp.code = terrno;
     tDecoderClear(&dc);
@@ -1915,6 +1939,21 @@ static int32_t vnodeProcessDropTbReq(SVnode *pVnode, int64_t ver, void *pReq, in
     }
 
     /* non-transactional path */
+    // Check for conflict with active txn shadow
+    {
+      char dropTbNameFull[TSDB_TABLE_FNAME_LEN];
+      (void)snprintf(dropTbNameFull, TSDB_TABLE_FNAME_LEN, "%s.%s", pVnode->config.dbname, pDropTbReq->name);
+      int32_t conflictCode = vnodeTxnCheckConflict(pVnode, dropTbNameFull, SHADOW_OP_DROP_TB);
+      if (conflictCode != TSDB_CODE_SUCCESS) {
+        dropTbRsp.code = conflictCode;
+        if (taosArrayPush(rsp.pArray, &dropTbRsp) == NULL) {
+          terrno = TSDB_CODE_OUT_OF_MEMORY;
+          pRsp->code = terrno;
+          goto _exit;
+        }
+        continue;
+      }
+    }
     ret = metaDropTable2(pVnode->pMeta, ver, pDropTbReq);
     if (ret < 0) {
       if (pDropTbReq->igNotExists && terrno == TSDB_CODE_TDB_TABLE_NOT_EXIST) {
