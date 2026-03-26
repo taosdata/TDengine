@@ -175,7 +175,7 @@ def do_initial_check(request):
         req_json = request.json
     except Exception as e:
         AppLogger.error('recv invalid request, invalid json format:%s', request.data)
-        raise ValueError(e)
+        raise
 
     AppLogger.debug('req payload: %s', req_json)
     return req_json
@@ -188,7 +188,7 @@ def do_check_before_exec(request, check_rows=True):
         validate_pay_load(req_json, check_rows)
     except ValueError as e:
         AppLogger.error('validate req json failed, %s', e)
-        raise ValueError(e)
+        raise
 
     payload = req_json["data"]
 

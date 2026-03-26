@@ -5,8 +5,11 @@ import importlib.util
 import logging
 import platform
 import os.path
-import torch   # do not remove it
+import torch  # do not remove it
+
+os.environ.setdefault('KERAS_BACKEND', 'torch')
 import keras
+
 from typing import Optional
 
 _ANODE_SECTION_NAME = "taosanode"
@@ -35,7 +38,8 @@ class Configure:
                 if os.path.exists(instance.path):
                     instance.reload()
                 else:
-                    print(f"Configuration file {instance.path} is not available, start by using minimum config variables")
+                    print(
+                        f"Configuration file {instance.path} is not available, start by using minimum config variables")
 
                 cls._instance = instance
         return cls._instance
@@ -62,15 +66,15 @@ class Configure:
         base_path = "c:/TDengine/tdgpt/"
 
         return {
-                "log_dir": os.path.join(base_path, "log"),
-                "log_file": "taosanode.app.log",
-                "model_dir": os.path.join(base_path, "model"),
-                "conf_path": os.path.join(base_path, "conf/taosanode.config.py"),
-                "log_level": logging.DEBUG,
-                "draw_result": False,
-                "host": "0.0.0.0",
-                "port": 6035,
-            }
+            "log_dir": os.path.join(base_path, "log"),
+            "log_file": "taosanode.app.log",
+            "model_dir": os.path.join(base_path, "model"),
+            "conf_path": os.path.join(base_path, "conf/taosanode.config.py"),
+            "log_level": logging.DEBUG,
+            "draw_result": False,
+            "host": "0.0.0.0",
+            "port": 6035,
+        }
 
     def _get_default_conf_linux(self):
         return {
@@ -92,7 +96,7 @@ class Configure:
 
         # update the log_dir for unit test cases while powered by github action.
         if os.environ.get('GITHUB_ACTIONS'):
-           default['log_dir'] = '/home/runner/work/TDengine/TDengine/tools/tdgpt/log/'
+            default['log_dir'] = '/home/runner/work/TDengine/TDengine/tools/tdgpt/log/'
 
         return default
 

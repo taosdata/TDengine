@@ -44,11 +44,7 @@ def _init_app():
 app = Flask(__name__)
 app.config["PROPAGATE_EXCEPTIONS"] = True
 
-# Initialize on module import when used as a WSGI module (e.g. gunicorn).
-# When running as __main__, initialization is deferred until after argument
-# parsing so that a -c/--config path is applied before services are loaded.
-if __name__ != '__main__':
-    _init_app()
+
 
 
 @app.route("/")
@@ -121,7 +117,12 @@ def parse_args():
     return parser.parse_args()
 
 
-if __name__ == '__main__':
+# Initialize on module import when used as a WSGI module (e.g. gunicorn).
+# When running as __main__, initialization is deferred until after argument
+# parsing so that a -c/--config path is applied before services are loaded.
+if __name__ != '__main__':
+    _init_app()
+else:
     # Parse args before initializing so the correct config file is used from
     # the start; services are loaded only once, with the final configuration.
     args = parse_args()
@@ -134,5 +135,6 @@ if __name__ == '__main__':
     # Run development server
     conf = Configure.get_instance()
     host, port = conf.get_server_bind()
+
     AppLogger.info("Starting development server on %s:%d", host, port)
     app.run(host=host, port=port)
