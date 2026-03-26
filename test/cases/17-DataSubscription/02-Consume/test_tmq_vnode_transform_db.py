@@ -121,7 +121,7 @@ class TestCase:
 
         time.sleep(1)
         #restart dnode & remove wal
-        # tmqCom.restartAndRemoveWal()
+        # tmqCom.restartAndRemoveWal(True)
 
         # redistribute vgroup
         tmqCom.redistributeVgroups()
@@ -200,7 +200,7 @@ class TestCase:
 
         time.sleep(1)
         #restart dnode & remove wal
-        # tmqCom.restartAndRemoveWal()
+        # tmqCom.restartAndRemoveWal(True)
 
         # redistribute vgroup
         tmqCom.redistributeVgroups()
