@@ -1,5 +1,5 @@
 # encoding:utf-8
-"""misc service: encapsulates miscellaneous tool business logic"""
+"""misc handlers: encapsulates miscellaneous tool business logic"""
 
 import numpy as np
 

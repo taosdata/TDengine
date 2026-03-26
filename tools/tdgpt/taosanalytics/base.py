@@ -1,6 +1,6 @@
 # encoding:utf-8
 # pylint: disable=c0103
-"""main service module"""
+"""main handlers module"""
 from abc import abstractmethod, ABC
 
 
@@ -33,21 +33,20 @@ class AnalyticsService(ABC):
 
 
 class AbstractAnalyticsService(AnalyticsService, ABC):
-    """ abstract base analytics service class definition"""
+    """ abstract base analytics handlers class definition"""
     name = ''
     desc = ''
     status = ''
+    is_builtins = False
 
     def __init__(self):
         self.list = None
         self.ts_list = None
 
-
     def set_input_list(self, input_list: list, input_ts_list: list = None):
         """ set the input list """
         self.list = input_list
         self.ts_list = input_ts_list
-
 
     def set_params(self, params: dict) -> None:
         """set the parameters for current algo """
@@ -59,10 +58,14 @@ class AbstractAnalyticsService(AnalyticsService, ABC):
 
     def get_desc(self) -> str:
         return self.desc
+    
+    @property
+    def is_builtins(self) -> bool:
+        return self.is_builtins
 
 
 class AbstractAnomalyDetectionService(AbstractAnalyticsService, ABC):
-    """ abstract anomaly detection service, all anomaly detection algorithm class should be
+    """ abstract anomaly detection handlers, all anomaly detection algorithm class should be
      inherent from this class"""
 
     def __init__(self):
@@ -95,14 +98,14 @@ class AbstractAnomalyDetectionService(AbstractAnalyticsService, ABC):
                     raise ValueError("multiple dimensions of data for anomaly detection are not equalled")
 
                 self.input_data_lists = list
-                self.list = input_list[0]     # keep the first element of the self.input_data_lists
+                self.list = input_list[0]  # keep the first element of the self.input_data_lists
             else:
                 self.list = input_list
                 self.input_data_lists.append(input_list)
 
 
 class AbstractForecastService(AbstractAnalyticsService, ABC):
-    """abstract forecast service, all forecast algorithms class should be inherent from
+    """abstract forecast handlers, all forecast algorithms class should be inherent from
     this base class"""
 
     def __init__(self):
@@ -131,7 +134,6 @@ class AbstractForecastService(AbstractAnalyticsService, ABC):
             self.dynamic_real = dynamic_real_list
 
         self.set_input_list(input_list, input_ts_list)
-
 
     def set_params(self, params: dict) -> None:
         if not {'start_ts', 'time_step', 'rows'}.issubset(params.keys()):
@@ -168,9 +170,11 @@ class AbstractForecastService(AbstractAnalyticsService, ABC):
             "forecast_rows": self.rows, "return_conf": self.return_conf, "conf": self.conf
         }
 
+
 class AbstractImputationService(AbstractAnalyticsService, ABC):
-    """abstract imputation service, all imputation algorithms class should be inherent from
+    """abstract imputation handlers, all imputation algorithms class should be inherent from
     this base class"""
+
     def __init__(self):
         super().__init__()
         self.type = "imputation"
@@ -178,7 +182,6 @@ class AbstractImputationService(AbstractAnalyticsService, ABC):
     def set_input_data(self, input_list: list, input_ts_list: list = None):
         """ set the input data """
         self.set_input_list(input_list, input_ts_list)
-
 
     def set_params(self, params: dict) -> None:
         pass
@@ -188,8 +191,10 @@ class AbstractImputationService(AbstractAnalyticsService, ABC):
             "dummy": "dummy"
         }
 
+
 class AbstractCorrelationService(AbstractAnalyticsService, ABC):
-    """ abstract correlation analysis service"""
+    """ abstract correlation analysis handlers"""
+
     def __init__(self):
         super().__init__()
         self.list1 = None

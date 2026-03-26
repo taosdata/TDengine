@@ -12,9 +12,6 @@ import keras
 
 from typing import Optional
 
-_ANODE_SECTION_NAME = "taosanode"
-
-
 class Configure:
     """ configuration class (singleton) """
 
@@ -69,6 +66,7 @@ class Configure:
             "log_dir": os.path.join(base_path, "log"),
             "log_file": "taosanode.app.log",
             "model_dir": os.path.join(base_path, "model"),
+            "img_dir": os.path.join(base_path, "img"),
             "conf_path": os.path.join(base_path, "conf/taosanode.config.py"),
             "log_level": logging.DEBUG,
             "draw_result": False,
@@ -81,6 +79,7 @@ class Configure:
             "log_dir": "/var/log/taos/taosanode/",
             "log_file": "taosanode.app.log",
             "model_dir": '/usr/local/taos/taosanode/model/',
+            "img_dir":'/usr/local/taos/taosanode/img/',
             "conf_path": "/etc/taos/taosanode.config.py",
             "log_level": logging.DEBUG,
             "draw_result": False,
@@ -125,6 +124,9 @@ class Configure:
     def get_server_bind(self) -> tuple:
         """return (host, port) for the HTTP server"""
         return self._conf['host'], self._conf['port']
+
+    def get_img_dir(self) -> str:
+        return self._conf["img_dir"]
 
     def reload(self):
         """ load the info from config file """

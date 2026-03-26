@@ -3,13 +3,14 @@
 
 from pandas import Series
 from pyculiarity import detect_vec
-from taosanalytics.analytics_base import AbstractAnomalyDetectionService
+from taosanalytics.base import AbstractAnomalyDetectionService
 
 
 class _SHESDService(AbstractAnomalyDetectionService):
     """ s-h-esd algorithm is to check the anomaly data in the input list """
     name = 'shesd'
     desc = ""
+    is_builtins = True
 
     def __init__(self, n_period=0, direction="both", anoms=0.05):
         super().__init__()

@@ -1,4 +1,4 @@
-"""perform the build release package and install and then test the restful service"""
+"""perform the build release package and install and then test the restful handlers"""
 
 import unittest
 import os

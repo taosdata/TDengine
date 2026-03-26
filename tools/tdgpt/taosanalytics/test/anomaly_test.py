@@ -6,7 +6,7 @@ import pandas as pd
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../../")
 
-from taosanalytics.algo.anomaly import draw_ad_results
+from taosanalytics.algo.anomaly import draw_anomaly_results
 from taosanalytics.service_registry import loader
 from taosanalytics.log import setup_log_info
 
@@ -43,7 +43,7 @@ class AnomalyDetectionTest(unittest.TestCase):
         s.set_params({"k": 2})
 
         r = s.execute()
-        draw_ad_results(AnomalyDetectionTest.input_list, r, "ksigma", s.valid_code)
+        draw_anomaly_results(AnomalyDetectionTest.input_list, r, "ksigma", s.valid_code, "ksigma")
 
         self.assertEqual(r[-1], -1)
         self.assertEqual(len(r), len(AnomalyDetectionTest.input_list))
@@ -63,7 +63,7 @@ class AnomalyDetectionTest(unittest.TestCase):
             self.assertEqual(1, 0, e)
 
         r = s.execute()
-        draw_ad_results(AnomalyDetectionTest.input_list, r, "iqr", s.valid_code)
+        draw_anomaly_results(AnomalyDetectionTest.input_list, r, "iqr", s.valid_code, "iqr")
 
         self.assertEqual(r[-1], -1)
         self.assertEqual(len(r), len(AnomalyDetectionTest.input_list))
@@ -81,7 +81,7 @@ class AnomalyDetectionTest(unittest.TestCase):
         s.set_params({"alpha": 0.95})
 
         r = s.execute()
-        draw_ad_results(AnomalyDetectionTest.input_list, r, "grubbs", s.valid_code)
+        draw_anomaly_results(AnomalyDetectionTest.input_list, r, "grubbs", s.valid_code, "grubbs")
 
         self.assertEqual(r[-1], -1)
         self.assertEqual(len(r), len(AnomalyDetectionTest.input_list))
@@ -98,7 +98,7 @@ class AnomalyDetectionTest(unittest.TestCase):
 
         ver = sys.version_info
 
-        # Python3.12 not loaded shesd service
+        # Python3.12 not loaded shesd handlers
         if (ver.major, ver.minor) == (3, 12):
             self.assertTrue(s is None)
         else:
@@ -106,7 +106,7 @@ class AnomalyDetectionTest(unittest.TestCase):
             s.set_input_list(AnomalyDetectionTest.input_list, None)
 
             r = s.execute()
-            draw_ad_results(AnomalyDetectionTest.input_list, r, "shesd", s.valid_code)
+            draw_anomaly_results(AnomalyDetectionTest.input_list, r, "shesd", s.valid_code, "shesd")
 
             self.assertEqual(r[-1], -1)
 
@@ -122,7 +122,7 @@ class AnomalyDetectionTest(unittest.TestCase):
         s.set_input_list(AnomalyDetectionTest.input_list, None)
 
         r = s.execute()
-        draw_ad_results(AnomalyDetectionTest.input_list, r, "lof", s.valid_code)
+        draw_anomaly_results(AnomalyDetectionTest.input_list, r, "lof", s.valid_code, "lof")
 
         self.assertEqual(r[-1], -1)
         self.assertEqual(r[-2], -1)
@@ -162,7 +162,7 @@ class AnomalyDetectionTest(unittest.TestCase):
         # r = s.execute()
         #
         # num_of_error = -(sum(filter(lambda x: x == -1, r)))
-        # draw_ad_results(data, r, "autoencoder")
+        # draw_anomaly_results(data, r, "autoencoder")
         #
         # self.assertEqual(num_of_error, 109)
 

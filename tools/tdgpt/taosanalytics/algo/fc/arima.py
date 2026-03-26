@@ -4,7 +4,7 @@
 import pmdarima as pm
 
 from taosanalytics.algo.forecast import insert_ts_list
-from taosanalytics.analytics_base import AbstractForecastService
+from taosanalytics.base import AbstractForecastService
 from taosanalytics.log import AppLogger
 
 
@@ -12,6 +12,7 @@ class _ArimaService(AbstractForecastService):
     """ ARIMA algorithm is to do the fc in the input list """
     name = "arima"
     desc = "do time series data fc by using ARIMA model"
+    is_builtins = True
 
     def __init__(self):
         super().__init__()

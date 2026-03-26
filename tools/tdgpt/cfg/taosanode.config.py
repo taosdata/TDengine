@@ -15,7 +15,7 @@ workers = 2
 worker_class = 'sync'
 
 # Number of threads per process (recommended for model deployment)
-threads = max(multiprocessing.cpu_count() / 4 + 1, 2)
+threads = max(multiprocessing.cpu_count() // 4 + 1, 2)
 
 # Maximum number of requests, worker will restart after reaching limit, helps release memory
 max_requests = 1000
@@ -34,7 +34,7 @@ accesslog = '/var/log/taos/taosanode/access.log'
 errorlog = '/var/log/taos/taosanode/error.log'
 
 # only valid on the Windows system.
-waitresslog = 'C:/TDengine/tdgpt/log/waitress.log'
+waitresslog = 'C:/TDengine/taosanode/log/waitress.log'
 
 # log level: debug, info, warning, error, critical
 loglevel = 'debug'
@@ -43,10 +43,10 @@ loglevel = 'debug'
 proc_name = 'tdgpt_taosanode_app'
 
 # set the pid file 
-pidfile = 'c:/TDengine/tdgpt/taosanode.pid' if on_windows else '/usr/local/taos/taosanode/taosanode.pid'
+pidfile = 'c:/TDengine/taosanode/taosanode.pid' if on_windows else '/usr/local/taos/taosanode/taosanode.pid'
 
 # set the taosanoded basic python library directory
-pythonpath = 'c:/TDengine/tdgpt/taosanode/taosanalytics/' if on_windows else '/usr/local/taos/taosanode/lib/taosanalytics/'
+pythonpath = 'c:/TDengine/taosanode/taosanode/taosanalytics/' if on_windows else '/usr/local/taos/taosanode/lib/taosanalytics/'
 
 # wsgi app name
 wsgi_app = 'app:app'
@@ -57,17 +57,18 @@ preload_app = True
 # [taosanode]
 # The following configuration parameters are valid on both Windows and Linux system.
 # default app log file
-app_log = 'c:/TDengine/tdgpt/log/taosanode.app.log' if on_windows else '/var/log/taos/taosanode/taosanode.app.log'
+app_log = 'c:/TDengine/taosanode/log/taosanode.app.log' if on_windows else '/var/log/taos/taosanode/taosanode.app.log'
 
 # model storage directory
-model_dir = 'c:/TDengine/tdgpt/model/' if on_windows else '/usr/local/taos/taosanode/model/'
+model_dir = 'c:/TDengine/taosanode/model/' if on_windows else '/usr/local/taos/taosanode/model/'
 
 # default log level
 log_level = 'DEBUG'
 
 # draw the query results
-draw_result = False
+draw_result = True
+img_dir = 'c:/TDengine/taosanode/img/' if on_windows else '/usr/local/taos/taosanode/img/'
 
-# moe default service host
+# moe default handlers host
 tdtsfm_1 = 'http://127.0.0.1:6036/tdtsfm'
 timemoe_fc = 'http://127.0.0.1:6037/ds_predict'

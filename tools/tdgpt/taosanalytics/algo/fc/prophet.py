@@ -5,13 +5,14 @@ from prophet import Prophet
 import pandas as pd
 
 from taosanalytics.algo.forecast import insert_ts_list
-from taosanalytics.analytics_base import AbstractForecastService
+from taosanalytics.base import AbstractForecastService
 
 
 class _ProphetService(AbstractForecastService):
     """Prophet algorithm to do forecast on input list"""
     name = "prophet"
     desc = "do time series data forecast using Facebook Prophet model"
+    is_builtins = True
 
     def __init__(self):
         super().__init__()

@@ -29,25 +29,27 @@ def do_ad_check(input_list, ts_list, algo_name, params):
                               n_error,
                               res)
 
-    draw_ad_results(input_list, res, algo_name, s.valid_code)
+    draw_anomaly_results(input_list, res, algo_name, s.valid_code, algo_name)
 
     ano_window, mask_list = convert_results_to_windows(res, ts_list, s.valid_code)
     return res, ano_window, mask_list
 
 
-def draw_ad_results(input_list, res, fig_name, valid_code):
+def draw_anomaly_results(input_list, res, fig_name, valid_code, algo_name:str):
     """ draw the detected anomaly points """
 
     # not in debug, do not visualize the anomaly detection result
     if not Configure.get_instance().get_draw_result_option():
         return
 
+    base_path = Configure.get_instance().get_img_dir()
+
     plt.figure(figsize=(9, 6))
 
-    plt.plot(input_list, 'b-', label='Data')
+    plt.plot(input_list[0], 'b-', label='Data')
 
     outlier_indices = np.where(np.array(res) != valid_code)
-    outlier_val = np.array(input_list)[outlier_indices]
+    outlier_val = np.array(input_list[0])[outlier_indices]
 
     plt.scatter(outlier_indices, outlier_val,
                 color='red', s=100, marker='o',
@@ -55,9 +57,9 @@ def draw_ad_results(input_list, res, fig_name, valid_code):
                 label=f'Detected Anomaly Points: ({len(outlier_val)})',
                 zorder=5)
 
-    plt.title("Anomaly Detection", fontsize=14, fontweight='bold')
-    plt.legend()
-    plt.tight_layout()
+    plt.title(f"Anomaly Detection ({algo_name})", fontsize=14, fontweight='bold')
+    plt.legend(loc='upper right')
+
     plt.grid(True, alpha=0.3)
 
     plt.savefig(fig_name)

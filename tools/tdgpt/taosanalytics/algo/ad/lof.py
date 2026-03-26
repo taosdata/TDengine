@@ -4,7 +4,7 @@
 import numpy as np
 import sklearn.neighbors as neighbor
 
-from taosanalytics.analytics_base import AbstractAnomalyDetectionService
+from taosanalytics.base import AbstractAnomalyDetectionService
 from taosanalytics.log import AppLogger
 
 
@@ -13,6 +13,7 @@ class _LofService(AbstractAnomalyDetectionService):
     name = 'lof'
     desc = """Local Outlier Factor, Ref: M. M. Breunig, H. P. Kriegel, R. T. Ng, J. Sander.
     LOF:Identifying Density-based Local Outliers. SIGMOD, 2000."""
+    is_builtins = True
 
     def __init__(self, n_neighbors=10, algo="auto"):
         super().__init__()
