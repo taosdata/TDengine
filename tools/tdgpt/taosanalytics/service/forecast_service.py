@@ -44,7 +44,7 @@ def handle_forecast(request):
             get_dynamic_data(payload, req_json["schema"]),
         )
 
-        res = {"option": options, "rows": params["rows"]}
+        res = {"option": options, "rows": params.get("rows", 0)}
         res.update(res1)
 
         AppLogger.debug("forecast result: %s", res)
