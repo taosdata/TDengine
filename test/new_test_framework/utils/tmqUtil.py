@@ -89,7 +89,6 @@ class TMQCom:
             tdLog.info("wait vgroup split done...")
             time.sleep(1)
         tdLog.info("splitSql ok")
-
     
     def redistributeVgroups(self):
         dnodesList = []

@@ -197,10 +197,10 @@ class TestCase:
 
         time.sleep(1)
         # restart dnode & remove wal
-        self.restartAndRemoveWal()
+        tmqCom.restartAndRemoveWal(True)
 
         # redistribute vgroup
-        self.redistributeVgroups()
+        tmqCom.redistributeVgroups()
 
         tdLog.info("start consume processor")
         tmqCom.startTmqSimProcess(pollDelay=paraDict['pollDelay'],dbName=paraDict["dbName"],showMsg=paraDict['showMsg'], showRow=paraDict['showRow'],snapshot=paraDict['snapshot'])
