@@ -167,6 +167,7 @@ typedef struct SSTriggerWalProgress {
 typedef struct {
   int64_t               gid;
   SSTriggerWalProgress *pProgress;
+  int32_t               attemptCount;  // 1-based, incremented on each NEED_RETRY for logging
 } SSTriggerPendingCreateTableEntry;
 
 typedef enum ESTriggerWalMode {

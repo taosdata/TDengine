@@ -4022,7 +4022,7 @@ static int32_t stTriggerTaskSendCreateTableReq(SStreamTriggerTask *pTask, SSTrig
 
   code = stTriggerTaskAcquireRequest(pTask, sessionId, gid, &pCalcReq);
   if (code != TSDB_CODE_SUCCESS || pCalcReq == NULL) {
-    return TSDB_CODE_SUCCESS;  // no slot or busy, skip
+    return TSDB_CODE_NEED_RETRY;  // no slot or busy, keep in queue and retry later
   }
   pCalcReq->createTable = 1;
   SSTriggerCalcParam param = {0};
@@ -5448,14 +5448,15 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
               SSTriggerVirtTableInfo *pVirtTableInfo =
                   tSimpleHashGet(pTask->pVirtTableInfos, &vtbUid, sizeof(int64_t));
               if (pVirtTableInfo == NULL) continue;
-              SSTriggerPendingCreateTableEntry entry = {.gid = pVirtTableInfo->tbGid, .pProgress = pProgress};
+              SSTriggerPendingCreateTableEntry entry = {
+                  .gid = pVirtTableInfo->tbGid, .pProgress = pProgress, .attemptCount = 1};
               void *px = taosArrayPush(pContext->pPendingCreateTableGids, &entry);
               QUERY_CHECK_NULL(px, code, lino, _end, terrno);
             }
           }
         } else {
           for (int32_t i = 0; i < nrows; i++) {
-            SSTriggerPendingCreateTableEntry entry = {.gid = pGidData[i], .pProgress = pProgress};
+            SSTriggerPendingCreateTableEntry entry = {.gid = pGidData[i], .pProgress = pProgress, .attemptCount = 1};
             void *px = taosArrayPush(pContext->pPendingCreateTableGids, &entry);
             QUERY_CHECK_NULL(px, code, lino, _end, terrno);
           }
@@ -5917,7 +5918,19 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
           taosArrayClearEx(groupInfo.gInfo, tDestroySStreamGroupValue);
           QUERY_CHECK_CODE(code, lino, _end);
         }
-        (void)stTriggerTaskSendCreateTableReq(pTask, pContext, pContext->sessionId, pRequest->gid);
+        code = stTriggerTaskSendCreateTableReq(pTask, pContext, pContext->sessionId, pRequest->gid);
+        if (code == TSDB_CODE_NEED_RETRY) {
+          SSTriggerPendingCreateTableEntry *pFirst =
+              (SSTriggerPendingCreateTableEntry *)taosArrayGet(pContext->pPendingCreateTableGids, 0);
+          int32_t total = (int32_t)taosArrayGetSize(pContext->pPendingCreateTableGids);
+          ST_TASK_DLOG("create-table failed no slot, stream:%s attempt#%d(retry#%d) total_waiting:%d keep in queue",
+                       pTask->streamName != NULL ? pTask->streamName : "", pFirst != NULL ? pFirst->attemptCount : 1,
+                       pFirst != NULL ? (pFirst->attemptCount - 1) : 0, total);
+          if (pFirst != NULL) pFirst->attemptCount++;
+          code = TSDB_CODE_SUCCESS;  // not a failure, will retry when calc response frees a slot
+          goto _end;
+        }
+        QUERY_CHECK_CODE(code, lino, _end);
         (void)taosArrayRemove(pContext->pPendingCreateTableGids, 0);
         if (taosArrayGetSize(pContext->pPendingCreateTableGids) > 0) {
           SSTriggerPendingCreateTableEntry *pNext =
@@ -6274,6 +6287,58 @@ static int32_t stRealtimeContextProcCalcRsp(SSTriggerRealtimeContext *pContext, 
   if (pRsp->code == TSDB_CODE_SUCCESS) {
     code = stTriggerTaskReleaseRequest(pTask, &pReq);
     QUERY_CHECK_CODE(code, lino, _end);
+
+    // retry pending create-table when slot freed (previous attempt may have failed due to no slot)
+    if (pContext->status == STRIGGER_CONTEXT_DETERMINE_BOUND && pContext->pPendingCreateTableGids != NULL &&
+        taosArrayGetSize(pContext->pPendingCreateTableGids) > 0) {
+      SSTriggerPendingCreateTableEntry *pFirst =
+          (SSTriggerPendingCreateTableEntry *)taosArrayGet(pContext->pPendingCreateTableGids, 0);
+      if (pFirst != NULL) {
+        // Slot-freed retry path: STRIGGER_PULL_GROUP_COL_VALUE may not have run for this gid, so pGroupColVals
+        // can lack an entry; stTriggerTaskSendCreateTableReq only fills from hash — pull first if missing.
+        bool needTagForCreate = (pTask->hasPartitionBy || (pTask->placeHolderBitmap & PLACE_HOLDER_PARTITION_IDX) ||
+                                 (pTask->placeHolderBitmap & PLACE_HOLDER_PARTITION_TBNAME));
+        if (needTagForCreate && pContext->pGroupColVals != NULL) {
+          void *hx = tSimpleHashGet(pContext->pGroupColVals, &pFirst->gid, sizeof(int64_t));
+          if (hx == NULL) {
+            code = stRealtimeContextSendPullReqForGid(pContext, pFirst->pProgress, pFirst->gid);
+            QUERY_CHECK_CODE(code, lino, _end);
+            goto _end;
+          }
+        }
+        code = stTriggerTaskSendCreateTableReq(pTask, pContext, pContext->sessionId, pFirst->gid);
+        if (code == TSDB_CODE_SUCCESS) {
+          (void)taosArrayRemove(pContext->pPendingCreateTableGids, 0);
+          if (taosArrayGetSize(pContext->pPendingCreateTableGids) > 0) {
+            SSTriggerPendingCreateTableEntry *pNext =
+                (SSTriggerPendingCreateTableEntry *)taosArrayGet(pContext->pPendingCreateTableGids, 0);
+            QUERY_CHECK_NULL(pNext, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+            code = stRealtimeContextSendPullReqForGid(pContext, pNext->pProgress, pNext->gid);
+            QUERY_CHECK_CODE(code, lino, _end);
+          } else {
+            taosArrayDestroy(pContext->pPendingCreateTableGids);
+            pContext->pPendingCreateTableGids = NULL;
+            pContext->boundDetermined = true;
+            pContext->status = STRIGGER_CONTEXT_IDLE;
+            code = stRealtimeContextCheck(pContext);
+            QUERY_CHECK_CODE(code, lino, _end);
+          }
+          goto _end;
+        }
+        if (code != TSDB_CODE_NEED_RETRY) {
+          QUERY_CHECK_CODE(code, lino, _end);
+        }
+        {
+          int32_t total = (int32_t)taosArrayGetSize(pContext->pPendingCreateTableGids);
+          ST_TASK_DLOG(
+              "create-table retry failed no slot, stream:%s attempt#%d(retry#%d) total_waiting:%d keep in queue",
+              pTask->streamName != NULL ? pTask->streamName : "", pFirst->attemptCount, pFirst->attemptCount - 1,
+              total);
+          pFirst->attemptCount++;
+        }
+        code = TSDB_CODE_SUCCESS;  // NEED_RETRY: keep in queue, retry when next slot frees
+      }
+    }
 
     if (pContext->status == STRIGGER_CONTEXT_ACQUIRE_REQUEST) {
       // continue check if the context is waiting for any available request
