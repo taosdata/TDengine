@@ -1800,30 +1800,26 @@ int32_t validateExprSubQuery(SNode* pNode) {
 
 void getExprSubQueryResType(SNode* pNode, SDataType* pType) {
   int32_t code = TSDB_CODE_SUCCESS;
-  
+
   switch (nodeType(pNode)) {
     case QUERY_NODE_SELECT_STMT: {
       SSelectStmt* pSelect = (SSelectStmt*)pNode;
-      SExprNode* pExpr = (SExprNode*)nodesListGetNode(pSelect->pProjectionList, 0);
+      SExprNode*   pExpr = (SExprNode*)nodesListGetNode(pSelect->pProjectionList, 0);
       memcpy(pType, &pExpr->resType, sizeof(*pType));
       break;
     }
     case QUERY_NODE_SET_OPERATOR: {
       SSetOperator* pSet = (SSetOperator*)pNode;
-      SExprNode* pExpr = (SExprNode*)nodesListGetNode(pSet->pProjectionList, 0);
+      SExprNode*    pExpr = (SExprNode*)nodesListGetNode(pSet->pProjectionList, 0);
       memcpy(pType, &pExpr->resType, sizeof(*pType));
       break;
     }
     default:
       break;
   }
-
-  return;
 }
 
 void getExprSubQueryResCols(SNode* pNode, int32_t* cols) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  
   switch (nodeType(pNode)) {
     case QUERY_NODE_SELECT_STMT: {
       SSelectStmt* pSelect = (SSelectStmt*)pNode;
@@ -1838,10 +1834,7 @@ void getExprSubQueryResCols(SNode* pNode, int32_t* cols) {
     default:
       break;
   }
-
-  return;
 }
-
 
 int32_t updateExprSubQueryType(SNode* pNode, ESubQueryType* type) {
   int32_t code = TSDB_CODE_SUCCESS;

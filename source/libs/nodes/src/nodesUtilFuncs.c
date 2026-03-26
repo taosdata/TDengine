@@ -1655,6 +1655,8 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pExternal->pTimeRange);
       taosMemoryFreeClear(pExternal->timezone);
       nodesDestroyNode(pExternal->pCol);
+      nodesDestroyNode(pExternal->pSubquery);
+      nodesDestroyNode(pExternal->pFill);
       break;
     }
     case QUERY_NODE_HINT: {

@@ -100,6 +100,7 @@ typedef struct SExternalWindowOperator {
   uint64_t           lastTGrpId;
   uint64_t           lastCGrpId;
   SExtWinTrigGrpCtx* pTGrpCtx;
+  bool               ownTGrpCtx;
   SArray*            pGrpIds;       // single calc or trig group ids
   SArray*            pCTGrpIds;
   
@@ -407,12 +408,24 @@ void destroyExternalWindowOperatorInfo(void* param) {
     }
     taosMemoryFree(pInfo->pFreeBlocks);
   }
+
+  taosArrayDestroy(pInfo->pGrpIds);
+  taosArrayDestroy(pInfo->pCTGrpIds);
+
+  if (pInfo->ownTGrpCtx && pInfo->pTGrpCtx) {
+    extWinDestroyTGrpCtx(pInfo->pTGrpCtx);
+    taosMemoryFree(pInfo->pTGrpCtx);
+    pInfo->pTGrpCtx = NULL;
+  }
   
   cleanupAggSup(&pInfo->aggSup);
   cleanupExprSupp(&pInfo->scalarSupp);
-  for (int32_t i = 0; i < pInfo->resultRows.resRowsSize && NULL != pInfo->resultRows.pResultRows[i]; ++i) {
-    taosMemoryFreeClear(pInfo->resultRows.pResultRows[i]);
+  for (int32_t i = 0; i < pInfo->resultRows.resRowsSize; ++i) {
+    if (pInfo->resultRows.pResultRows && pInfo->resultRows.pResultRows[i]) {
+      taosMemoryFreeClear(pInfo->resultRows.pResultRows[i]);
+    }
   }
+  taosMemoryFreeClear(pInfo->resultRows.pResultRows);
   
   pInfo->binfo.resultRowInfo.openWindow = tdListFree(pInfo->binfo.resultRowInfo.openWindow);
 
@@ -885,6 +898,7 @@ static int32_t extWinSwitchInitTGrpCtx(SExternalWindowOperator* pExtW, SExecTask
     pInfo->groupId = pId->baseGId;
     pExtW->lastTGrpId = pId->baseGId;
     pExtW->pTGrpCtx = pInfo->curGrpCalc->pRunnerGrpCtx;
+    pExtW->ownTGrpCtx = false;
 
     qDebug("%s %s extWin switch to tgrp %" PRIu64, 
       GET_TASKID(pTaskInfo), EXT_WIN_TYPE_STR(pExtW->isMergeAlignedExtW), pId->baseGId);
@@ -894,6 +908,7 @@ static int32_t extWinSwitchInitTGrpCtx(SExternalWindowOperator* pExtW, SExecTask
 
   pExtW->pTGrpCtx = taosMemoryCalloc(1, sizeof(SExtWinTrigGrpCtx));
   TSDB_CHECK_NULL(pExtW->pTGrpCtx, code, lino, _exit, terrno);
+  pExtW->ownTGrpCtx = true;
 
 _exit:
 
@@ -1419,6 +1434,7 @@ int32_t resetMergeAlignedExtWinOperator(SOperatorInfo* pOperator) {
   pExtW->lastTGrpId = 0;
   pExtW->lastCGrpId = 0;
   pExtW->pTGrpCtx = NULL;
+  pExtW->ownTGrpCtx = false;
 
 _exit:
 
@@ -1578,6 +1594,7 @@ static int32_t resetExternalWindowOperator(SOperatorInfo* pOperator) {
   pExtW->lastTGrpId = 0;
   pExtW->lastCGrpId = 0;
   pExtW->pTGrpCtx = NULL;
+  pExtW->ownTGrpCtx = false;
   pExtW->isDynWindow = false;
 
   extWinResetResultRows(&pExtW->resultRows);
@@ -2614,6 +2631,7 @@ static int32_t extWinNonAggOutputMultiGrpRes(SOperatorInfo* pOperator, SExternal
       if (pStream->curGrpCalc->pRunnerGrpCtx) {
         pExtW->lastTGrpId = *(uint64_t*)tSimpleHashGetKey(pStream->curGrpCalc, NULL);
         pExtW->pTGrpCtx = pStream->curGrpCalc->pRunnerGrpCtx;
+        pExtW->ownTGrpCtx = false;
         
         TAOS_CHECK_EXIT(extWinNonAggOutputSingleGrpRes(pOperator, pExtW, &pBlock));
         if (pBlock != NULL && pBlock->info.rows > 0) {
@@ -2908,6 +2926,7 @@ static int32_t extWinAggOutputMulNoOrderTGrpsRes(SOperatorInfo* pOperator, SExte
   if (pStream->curGrpCalc) {
     pExtW->lastTGrpId = *(uint64_t*)tSimpleHashGetKey(pStream->curGrpCalc, NULL);
     pExtW->pTGrpCtx = pStream->curGrpCalc->pRunnerGrpCtx;
+    pExtW->ownTGrpCtx = false;
     if (pExtW->calcWithPartition) {
       TAOS_CHECK_EXIT(extWinAggOutputMulNoOrderCGrpsRes(pOperator, pExtW));
     } else {
@@ -2920,6 +2939,7 @@ static int32_t extWinAggOutputMulNoOrderTGrpsRes(SOperatorInfo* pOperator, SExte
       if (pStream->curGrpCalc->pRunnerGrpCtx) {
         pExtW->lastTGrpId = *(uint64_t*)tSimpleHashGetKey(pStream->curGrpCalc, NULL);
         pExtW->pTGrpCtx = pStream->curGrpCalc->pRunnerGrpCtx;
+        pExtW->ownTGrpCtx = false;
         pExtW->lastCGrpId = 0;
 
         if (pExtW->calcWithPartition) {
@@ -2998,6 +3018,7 @@ static int32_t extWinAggOutputMulOrderTGrpsRes(SOperatorInfo* pOperator, SExtern
     pStream->curGrpCalc = tSimpleHashGet(pStream->pGroupCalcInfos, grpId, sizeof(*grpId));
     TSDB_CHECK_NULL(pStream->curGrpCalc, code, lino, _exit, terrno);
     pExtW->pTGrpCtx = pStream->curGrpCalc->pRunnerGrpCtx;
+    pExtW->ownTGrpCtx = false;
 
     TAOS_CHECK_EXIT(extWinAggOutputSingleCGrpRes(pOperator, pExtW, &grpDone));
     if (pBlock->info.rows > 0) {
@@ -3034,6 +3055,7 @@ static int32_t extWinAggOutputMulOrderTCGrpsRes(SOperatorInfo* pOperator, SExter
     pStream->curGrpCalc = tSimpleHashGet(pStream->pGroupCalcInfos, tGrpId, sizeof(*tGrpId));
     TSDB_CHECK_NULL(pStream->curGrpCalc, code, lino, _exit, terrno);
     pExtW->pTGrpCtx = pStream->curGrpCalc->pRunnerGrpCtx;
+    pExtW->ownTGrpCtx = false;
 
     pExtW->pTGrpCtx->pCCtx = tSimpleHashGet(pExtW->pTGrpCtx->pCGCtxs, cGrpId, sizeof(*cGrpId));
     TSDB_CHECK_NULL(pExtW->pTGrpCtx->pCCtx, code, lino, _exit, terrno);
@@ -3137,7 +3159,7 @@ _exit:
 static void extWinFreeResultRow(SExternalWindowOperator* pExtW) {
   if (pExtW->resultRows.resRowAllcNum * pExtW->aggSup.resultRowSize >= 1048576) {
     int32_t i = 1;
-    while (i < pExtW->resultRows.resRowSize && pExtW->resultRows.pResultRows[i]) {
+    while (i < pExtW->resultRows.resRowsSize && pExtW->resultRows.pResultRows[i]) {
       taosMemoryFreeClear(pExtW->resultRows.pResultRows[i]);
       pExtW->resultRows.resRowAllcNum -= pExtW->resultRows.resRowSize;
       i++;
@@ -3253,6 +3275,7 @@ static int32_t extWinAggHandleMultiTGrpEmptyWins(SOperatorInfo* pOperator, SExte
     }
 
     pExtW->pTGrpCtx = pGroup->pRunnerGrpCtx;
+    pExtW->ownTGrpCtx = false;
     TAOS_CHECK_EXIT(extWinAggHandleEmptyWins(pOperator, NULL, true, NULL));
     
     pGroup = tSimpleHashIterate(pStream->pGroupCalcInfos, pGroup, &iter);
@@ -3298,6 +3321,7 @@ static void extWinPrepareForOutput(SOperatorInfo* pOperator, SExternalWindowOper
   // inheriting the calc phase's current group/cgrp cursor.
   if (pStream->isMultiGroupCalc) {
     pExtW->pTGrpCtx = NULL;
+    pExtW->ownTGrpCtx = false;
   }
 
   if ((!pStream->isMultiGroupCalc) && pExtW->calcWithPartition && pExtW->pTGrpCtx) {
@@ -3311,6 +3335,7 @@ static int32_t extWinEnsureDynParamOpenCtx(SExternalWindowOperator* pExtW) {
   if (pExtW->pTGrpCtx == NULL) {
     pExtW->pTGrpCtx = taosMemoryCalloc(1, sizeof(*pExtW->pTGrpCtx));
     TSDB_CHECK_NULL(pExtW->pTGrpCtx, code, lino, _exit, terrno);
+    pExtW->ownTGrpCtx = true;
   }
 
   if (pExtW->pTGrpCtx->pCCtx == NULL) {

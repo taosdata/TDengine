@@ -966,8 +966,21 @@ int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, co
       }
     }
   } else if(FUNCTION_TYPE_EXTERNAL_WINDOW_COLUMN == t) {
+    if (NULL == pParamNodes || LIST_LENGTH(pParamNodes) < 2) {
+      uError("invalid stream external window column param list %p, len: %d", pParamNodes,
+             pParamNodes ? LIST_LENGTH(pParamNodes) : 0);
+      return TSDB_CODE_INTERNAL_ERROR;
+    }
+
     SNode* pParamNode = nodesListGetNode(pParamNodes, 1);
-    const SStreamGroupValue* pVal = fmGetExternalWindowColumnFuncVal(pStreamRuntimeInfo, ((SValueNode*)pParamNode)->placeholderNo);
+    if (NULL == pParamNode || QUERY_NODE_VALUE != nodeType(pParamNode)) {
+      uError("invalid stream external window column param node %p type %d for func: %d", pParamNode,
+             pParamNode ? nodeType(pParamNode) : -1, funcId);
+      return TSDB_CODE_INTERNAL_ERROR;
+    }
+
+    const SStreamGroupValue* pVal =
+        fmGetExternalWindowColumnFuncVal(pStreamRuntimeInfo, ((SValueNode*)pParamNode)->placeholderNo);
     if (!pVal) {
       uError("failed to set stream pseudo func param val, NULL val for funcId: %d", funcId);
       return TSDB_CODE_INTERNAL_ERROR;

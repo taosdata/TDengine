@@ -410,6 +410,9 @@ static EDealRes rewriteExpr(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
     case QUERY_NODE_EXTERNAL_WINDOW: {
       SExternalWindowNode* pExternal = (SExternalWindowNode*)pNode;
       res = rewriteExpr(&pExternal->pCol, order, rewriter, pContext);
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = rewriteExpr(&pExternal->pFill, order, rewriter, pContext);
+      }
       break;
     }
     case QUERY_NODE_INTERVAL_WINDOW: {

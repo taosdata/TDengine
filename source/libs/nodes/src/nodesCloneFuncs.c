@@ -552,7 +552,9 @@ static int32_t remoteTableCopy(const SRemoteTableNode* pSrc, SRemoteTableNode* p
   COPY_SCALAR_FIELD(type);
   COPY_SCALAR_FIELD(flag);
   COPY_SCALAR_FIELD(resCols);
-  COPY_SCALAR_FIELD(pResBlks);
+  // pResBlks is runtime-owned result storage and must not be shared across clones.
+  pDst->pResBlks = NULL;
+  pDst->flag &= ~REMOTE_TABLE_FLAG_RES_ALLOCED;
   COPY_SCALAR_FIELD(subQIdx);
   return TSDB_CODE_SUCCESS;
 }

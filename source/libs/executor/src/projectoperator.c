@@ -143,7 +143,7 @@ int32_t createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhysiNode* 
   pInfo->binfo.inputTsOrder = pProjPhyNode->node.inputTsOrder;
   pInfo->binfo.outputTsOrder = pProjPhyNode->node.outputTsOrder;
   pInfo->inputIgnoreGroup = pProjPhyNode->inputIgnoreGroup;
-  pInfo->outputIgnoreGroup = false;//pProjPhyNode->ignoreGroupId;
+  pInfo->outputIgnoreGroup = pProjPhyNode->ignoreGroupId;
 
   if (pTaskInfo->execModel == OPTR_EXEC_MODEL_QUEUE) {
     pInfo->mergeDataBlocks = false;
@@ -351,12 +351,8 @@ int32_t doProjectOperation(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
 
       if (pProjectInfo->mergeDataBlocks) {
         pFinalRes->info.scanFlag = scanFlag = pBlock->info.scanFlag;
-        // propagate upstream baseGId for consumers that rely on T-group id (e.g., external window)
-        pFinalRes->info.id.baseGId = pBlock->info.id.baseGId;
       } else {
         pRes->info.scanFlag = scanFlag = pBlock->info.scanFlag;
-        // propagate upstream baseGId for consumers that rely on T-group id (e.g., external window)
-        pRes->info.id.baseGId = pBlock->info.id.baseGId;
       }
 
       code = setInputDataBlock(pSup, pBlock, order, scanFlag, false);

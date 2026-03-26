@@ -856,6 +856,44 @@ int32_t sclSetStreamExtWinParam(int32_t funcId, SNodeList* pParamNodes, SScalarP
   return code;
 }
 
+static int32_t sclAssignExternalWindowColumnRes(SColumnInfoData* pResColData, int64_t offset, int64_t rows,
+                                                SSTriggerCalcParam *pParams, SNode* pParamNode) {
+  if (pParamNode == NULL || nodeType(pParamNode) != QUERY_NODE_VALUE) {
+    sclError("invalid param node for external window column, node:%p, type:%d", pParamNode,
+             pParamNode ? nodeType(pParamNode) : -1);
+    return TSDB_CODE_INTERNAL_ERROR;
+  }
+
+  if (pParams == NULL || pParams->pExternalWindowData == NULL) {
+    sclError("invalid external window data for external window column, pParams:%p", pParams);
+    return TSDB_CODE_INTERNAL_ERROR;
+  }
+
+  int32_t placeHoderIndex = ((SValueNode*)pParamNode)->placeholderNo;
+  int32_t extWinDataSize = (int32_t)taosArrayGetSize(pParams->pExternalWindowData);
+  if (placeHoderIndex < 0 || placeHoderIndex >= extWinDataSize) {
+    sclError("invalid external window column index: %d, valid range: [0, %d)", placeHoderIndex, extWinDataSize);
+    return TSDB_CODE_INTERNAL_ERROR;
+  }
+
+  SStreamGroupValue *pValue = taosArrayGet(pParams->pExternalWindowData, placeHoderIndex);
+  if (pValue == NULL) {
+    sclError("null external window column data at index: %d", placeHoderIndex);
+    return TSDB_CODE_INTERNAL_ERROR;
+  }
+
+  if (pValue->isNull) {
+    colDataSetNItemsNull(pResColData, offset, rows);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  const char* pData = (IS_VAR_DATA_TYPE(pValue->data.type) || pValue->data.type == TSDB_DATA_TYPE_DECIMAL)
+                        ? (const char*)pValue->data.pData
+                        : (const char*)&pValue->data.val;
+
+  return colDataSetNItems(pResColData, offset, pData, rows, 1, false);
+}
+
 int32_t scalarAssignPlaceHolderRes(SColumnInfoData* pResColData, int64_t offset, int64_t rows, int16_t funcId, const void* pExtraParams, SNode* pParamNode) {
   int32_t t = fmGetFuncTypeFromId(funcId);
   SStreamRuntimeFuncInfo* pInfo = (SStreamRuntimeFuncInfo*)pExtraParams;
@@ -909,30 +947,7 @@ int32_t scalarAssignPlaceHolderRes(SColumnInfoData* pResColData, int64_t offset,
       return colDataSetNItems(pResColData, offset, (const char *)buf, rows, 1, false);
     }
     case FUNCTION_TYPE_EXTERNAL_WINDOW_COLUMN: {
-      // external window column from external data, handle type accordingly
-      int32_t placeHoderIndex = ((SValueNode*)pParamNode)->placeholderNo;
-      if (placeHoderIndex < 0) {
-        sclError("invalid external window column index: %d", ((SValueNode*)pParamNode)->placeholderNo);
-        return TSDB_CODE_INTERNAL_ERROR;
-      }
-      SStreamGroupValue *pValue = taosArrayGet(pParams->pExternalWindowData, placeHoderIndex);
-      if (pValue == NULL) {
-        sclError("null external window column data");
-        return TSDB_CODE_INTERNAL_ERROR;
-      }
-
-      if (pValue->isNull) {
-        colDataSetNItemsNull(pResColData, offset, rows);
-        return TSDB_CODE_SUCCESS;
-      }
-      
-      if (IS_VAR_DATA_TYPE(pValue->data.type) || pValue->data.type == TSDB_DATA_TYPE_DECIMAL) {
-        // variable-length type: use pData pointer directly
-        return colDataSetNItems(pResColData, offset, (const char *)pValue->data.pData, rows, 1, false);
-      }
-      
-      // fixed-length type: use val field (stored as int64_t)
-      return colDataSetNItems(pResColData, offset, (const char *)&pValue->data.val, rows, 1, false);
+      return sclAssignExternalWindowColumnRes(pResColData, offset, rows, pParams, pParamNode);
     }
     case FUNCTION_TYPE_TIDLESTART:
       pData = &pParams->idlestart;
