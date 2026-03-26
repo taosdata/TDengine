@@ -1101,8 +1101,9 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator,
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
   SExprSupp*     pExprSup = &pOperator->exprSupp;
 
-  SColumnInfoData* pStateColInfoData = 
-    taosArrayGet(pBlock->pDataBlock, pInfo->stateCol.slotId);
+  int32_t stateColIndex = -1;
+  SColumnInfoData* pStateColInfoData =
+    getDataBlockColBySlotId(pBlock, pInfo->stateCol.slotId, &stateColIndex);
   if (!pStateColInfoData) {
     pTaskInfo->code = terrno;
     T_LONG_JMP(pTaskInfo->env, terrno);
@@ -1111,8 +1112,8 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator,
   int32_t numOfOutput = pOperator->exprSupp.numOfExprs;
   int32_t bytes = pStateColInfoData->info.bytes;
 
-  SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock,
-                                               pInfo->tsSlotId);
+  int32_t tsColIndex = -1;
+  SColumnInfoData* pColInfoData = getDataBlockColBySlotId(pBlock, pInfo->tsSlotId, &tsColIndex);
   if (NULL == pColInfoData) {
     pTaskInfo->code = terrno;
     T_LONG_JMP(pTaskInfo->env, terrno);
@@ -1120,7 +1121,7 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator,
   TSKEY* tsList = (TSKEY*)pColInfoData->pData;
 
   struct SColumnDataAgg* pAgg = (pBlock->pBlockAgg != NULL) ?
-                                &pBlock->pBlockAgg[pInfo->stateCol.slotId] :
+                                &pBlock->pBlockAgg[stateColIndex] :
                                 NULL;
   EStateWinExtendOption  extendOption = pInfo->extendOption;
   SWindowRowsSup*        pRowSup = &pInfo->winSup;
@@ -1279,7 +1280,12 @@ static int32_t openStateWindowAggOptr(SOperatorInfo* pOperator) {
       pSup, pUnfinishedBlock, order, pUnfinishedBlock->info.scanFlag, true);
     QUERY_CHECK_CODE(code, lino, _end);
 
-    code = blockDataUpdateTsWindow(pUnfinishedBlock, pInfo->tsSlotId);
+    int32_t tsColIndex = findDataBlockColIndexBySlotId(pUnfinishedBlock, pInfo->tsSlotId);
+    if (tsColIndex < 0) {
+      code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
+    code = blockDataUpdateTsWindow(pUnfinishedBlock, tsColIndex);
     QUERY_CHECK_CODE(code, lino, _end);
 
     // there is an scalar expression that 
@@ -1756,7 +1762,8 @@ static void doSessionWindowAggImpl(SOperatorInfo* pOperator, SSessionAggOperator
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
   SExprSupp*     pSup = &pOperator->exprSupp;
 
-  SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, pInfo->tsSlotId);
+  int32_t tsColIndex = -1;
+  SColumnInfoData* pColInfoData = getDataBlockColBySlotId(pBlock, pInfo->tsSlotId, &tsColIndex);
   if (!pColInfoData) {
     pTaskInfo->code = terrno;
     T_LONG_JMP(pTaskInfo->env, terrno);
@@ -1890,7 +1897,12 @@ static int32_t doSessionWindowAggNext(SOperatorInfo* pOperator, SSDataBlock** pp
     code = setInputDataBlock(pSup, pBlock, order, pBlock->info.scanFlag, true);
     QUERY_CHECK_CODE(code, lino, _end);
 
-    code = blockDataUpdateTsWindow(pBlock, pInfo->tsSlotId);
+    int32_t tsColIdx = findDataBlockColIndexBySlotId(pBlock, pInfo->tsSlotId);
+    if (tsColIdx < 0) {
+      code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
+    code = blockDataUpdateTsWindow(pBlock, tsColIdx);
     QUERY_CHECK_CODE(code, lino, _end);
 
     doSessionWindowAggImpl(pOperator, pInfo, pBlock);
@@ -1981,7 +1993,6 @@ int32_t createStatewindowOperatorInfo(SOperatorInfo* downstream, SStateWindowPhy
   pOperator->exprSupp.hasWindow = true;
   int32_t      tsSlotId = ((SColumnNode*)pStateNode->window.pTspk)->slotId;
   SColumnNode* pColNode = (SColumnNode*)(pStateNode->pStateKey);
-
   if (pStateNode->window.pExprs != NULL) {
     int32_t    numOfScalarExpr = 0;
     SExprInfo* pScalarExprInfo = NULL;

@@ -579,6 +579,8 @@ _return:
   return code;
 }
 
+bool hasExternalWindowDerivedFromSubquery(SSelectStmt* pSelect);
+
 static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SRealTableNode* pRealTable,
                                    SLogicNode** pLogicNode) {
   SScanLogicNode* pScan = NULL;
@@ -2512,6 +2514,7 @@ static int32_t createWindowLogicNodeByStreamExternal(SLogicPlanContext* pCxt, SE
     return TSDB_CODE_PLAN_INTERNAL_ERROR;
   }
 
+  pWindow->pSubquery = pExternal->pSubquery;
   return createExternalWindowLogicNodeFinalize(pCxt, pSelect, pWindow, pLogicNode);
 }
 static int32_t createWindowLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
@@ -3114,7 +3117,8 @@ static int32_t createProjectLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSel
   TSWAP(pProject->node.pLimit, pSelect->pLimit);
   TSWAP(pProject->node.pSlimit, pSelect->pSlimit);
   pProject->ignoreGroupId = pSelect->isSubquery ? true : (NULL == pSelect->pPartitionByList);
-  pProject->node.groupAction = (inStreamCalcClause(pCxt->pPlanCxt) && pCxt->pPlanCxt->streamCxt.hasExtWindow)
+  pProject->node.groupAction = (hasExternalWindowDerivedFromSubquery(pSelect) ||
+                                (inStreamCalcClause(pCxt->pPlanCxt) && pCxt->pPlanCxt->streamCxt.hasExtWindow))
                                    ? GROUP_ACTION_KEEP
                                    : GROUP_ACTION_CLEAR;
   pProject->node.requireDataOrder = DATA_ORDER_LEVEL_NONE;

@@ -285,4 +285,7 @@ int32_t doDropStreamTableByTbName(SMsgCb* pMsgCb, void* pOutput, SSTriggerDropRe
 int32_t parseErrorMsgFromAnalyticServer(SJson* pJson, const char* typeStr, const char* pId);
 int32_t qFetchRemoteNode(void* pCtx, int32_t subQIdx, SNode* pRes);
 
+int32_t          findDataBlockColIndexBySlotId(const SSDataBlock* pBlock, int32_t slotId);
+SColumnInfoData* getDataBlockColBySlotId(const SSDataBlock* pBlock, int32_t slotId, int32_t* pIndex);
+
 #endif  // TDENGINE_EXECUTIL_H

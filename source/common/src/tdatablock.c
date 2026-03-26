@@ -103,6 +103,10 @@ static int32_t getDataLen(int32_t type, const char* pData) {
 
 int32_t calcStrBytesByType(int8_t type, char* data) { return getDataLen(type, data); }
 
+int32_t blockDataGetPagedColumnReservedBytes(const SColumnInfoData* pColumnInfoData) {
+  return pColumnInfoData->info.bytes;
+}
+
 static int32_t checkAllocLen(SColumnInfoData* pColumnInfoData, char** pData, int32_t dataLen){
   SVarColAttr* pAttr = &pColumnInfoData->varmeta;
   char* buf = NULL;
@@ -1242,7 +1246,7 @@ int32_t blockDataFromBuf1(SSDataBlock* pBlock, const char* buf, size_t capacity)
       memcpy(pCol->pData, pStart, colLength);
     }
 
-    pStart += pCol->info.bytes * capacity;
+    pStart += blockDataGetPagedColumnReservedBytes(pCol) * capacity;
   }
 
   return TSDB_CODE_SUCCESS;

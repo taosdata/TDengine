@@ -265,13 +265,13 @@ int32_t doSortMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
         return code;
       }
 
-      SColumnInfoData* pSrc = taosArrayGet(p->pDataBlock, pmInfo->srcSlotId);
+      SColumnInfoData* pSrc = getDataBlockColBySlotId(p, pmInfo->srcSlotId, NULL);
       if (pSrc == NULL) {
         code = terrno;
         return code;
       }
 
-      SColumnInfoData* pDst = taosArrayGet(pDataBlock->pDataBlock, pmInfo->dstSlotId);
+      SColumnInfoData* pDst = getDataBlockColBySlotId(pDataBlock, pmInfo->dstSlotId, NULL);
       if (pDst == NULL) {
         code = terrno;
         return code;

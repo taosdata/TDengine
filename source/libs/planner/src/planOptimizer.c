@@ -4774,6 +4774,13 @@ static int32_t rewriteUniqueOptCreateAgg(SIndefRowsFuncLogicNode* pIndef, SLogic
   pAgg->node.requireDataOrder = DATA_ORDER_LEVEL_IN_BLOCK;  // first function requirement
   pAgg->node.resultDataOrder = DATA_ORDER_LEVEL_NONE;
 
+  if (LIST_LENGTH(pAgg->node.pChildren) == 1 &&
+      QUERY_NODE_LOGIC_PLAN_PARTITION == nodeType(nodesListGetNode(pAgg->node.pChildren, 0))) {
+    SPartitionLogicNode* pPart = (SPartitionLogicNode*)nodesListGetNode(pAgg->node.pChildren, 0);
+    pAgg->isPartTb = keysHasTbname(pPart->pPartitionKeys);
+    pAgg->isGroupTb = pAgg->isPartTb;
+  }
+
   bool   hasSelectPrimaryKey = false;
   SNode* pPrimaryKey = NULL;
   SNode* pNode = NULL;
@@ -8970,6 +8977,7 @@ _return:
   return code;
 }
 
+static SNode* findWindowTspkFromScanCols(SNodeList* pScanCols, const SNode* pTspk);
 static int32_t vtableWindowOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
   if (inStreamCalcClause(pCxt->pPlanCxt)) {
     // stream calc query does not support scan path optimization
@@ -8985,6 +8993,7 @@ static int32_t vtableWindowOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogi
   SWindowLogicNode*       pNewWindow = NULL;
   SVirtualScanLogicNode*  pVirtualScan = NULL;
   SNode*                  pStateColScan = NULL;
+  SNode*                  pMatchedTspk = NULL;
   SMergeLogicNode*        pMerge = NULL;
   SHashObj*               pExtWinMap = NULL;
   SDynQueryCtrlLogicNode* pDynWindowNode = NULL;
@@ -8996,9 +9005,11 @@ static int32_t vtableWindowOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogi
 
   PLAN_ERR_JRET(findDepTableScanNode((SColumnNode*)pNewWindow->pStateExpr, pVirtualScan, &pStateColScan));
   pNewWindow->node.pChildren = NULL;
+  pMatchedTspk = findWindowTspkFromScanCols(((SScanLogicNode*)pStateColScan)->pScanCols, pNewWindow->pTspk);
+  QUERY_CHECK_NULL(pMatchedTspk, code, lino, _return, TSDB_CODE_PLAN_INTERNAL_ERROR)
   nodesDestroyNode(pNewWindow->pTspk);
   pNewWindow->pTspk = NULL;
-  PLAN_ERR_JRET(nodesCloneNode(nodesListGetNode(((SScanLogicNode*)pStateColScan)->pScanCols, 0), (SNode**)&pNewWindow->pTspk));
+  PLAN_ERR_JRET(nodesCloneNode(pMatchedTspk, (SNode**)&pNewWindow->pTspk));
   PLAN_ERR_JRET(nodesListMakeAppend(&pNewWindow->node.pChildren, pStateColScan));
   ((SLogicNode*)pStateColScan)->pParent = (SLogicNode*)pNewWindow;
   // pNewWindow --> pStateColScan
@@ -9530,6 +9541,40 @@ _return:
   planError("%s failed , code: %d", __func__, code);
   nodesDestroyNode(pNewCol);
   return code;
+}
+
+static SNode* findWindowTspkFromScanCols(SNodeList* pScanCols, const SNode* pTspk) {
+  if (NULL == pScanCols || NULL == pTspk) {
+    return NULL;
+  }
+
+  SNode* pScanCol = NULL;
+  FOREACH(pScanCol, pScanCols) {
+    if (nodesEqualNode(pScanCol, pTspk)) {
+      return pScanCol;
+    }
+  }
+
+  if (QUERY_NODE_COLUMN == nodeType(pTspk)) {
+    const SColumnNode* pTargetCol = (const SColumnNode*)pTspk;
+    FOREACH(pScanCol, pScanCols) {
+      if (QUERY_NODE_COLUMN != nodeType(pScanCol)) {
+        continue;
+      }
+      SColumnNode* pCol = (SColumnNode*)pScanCol;
+      if (pCol->tableId == pTargetCol->tableId && pCol->colId == pTargetCol->colId) {
+        return pScanCol;
+      }
+    }
+  }
+
+  FOREACH(pScanCol, pScanCols) {
+    if (QUERY_NODE_COLUMN == nodeType(pScanCol) && ((SColumnNode*)pScanCol)->isPrimTs) {
+      return pScanCol;
+    }
+  }
+
+  return NULL;
 }
 
 static int32_t rebuildVstbScanTargets(SDynQueryCtrlLogicNode* pDynVstbScan, SLogicNode* pNode);

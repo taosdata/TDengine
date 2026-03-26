@@ -5235,3 +5235,34 @@ _exit:
 
   return code;
 }
+
+int32_t findDataBlockColIndexBySlotId(const SSDataBlock* pBlock, int32_t slotId) {
+  if (NULL == pBlock || NULL == pBlock->pDataBlock) {
+    return -1;
+  }
+
+  int32_t numOfCols = (int32_t)taosArrayGetSize(pBlock->pDataBlock);
+  if (slotId >= 0 && slotId < numOfCols) {
+    SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
+    if (NULL != pCol && pCol->info.slotId == slotId) {
+      return slotId;
+    }
+  }
+
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, i);
+    if (NULL != pCol && pCol->info.slotId == slotId) {
+      return i;
+    }
+  }
+
+  return -1;
+}
+
+SColumnInfoData* getDataBlockColBySlotId(const SSDataBlock* pBlock, int32_t slotId, int32_t* pIndex) {
+  int32_t index = findDataBlockColIndexBySlotId(pBlock, slotId);
+  if (NULL != pIndex) {
+    *pIndex = index;
+  }
+  return (index >= 0) ? taosArrayGet(pBlock->pDataBlock, index) : NULL;
+}

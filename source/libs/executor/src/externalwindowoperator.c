@@ -3898,7 +3898,6 @@ static int32_t extWinValidateNonStreamBlock(SSDataBlock* pBlock, SColumnInfoData
            pStartCol ? pStartCol->info.type : -1, pEndCol ? pEndCol->info.type : -1);
     TAOS_CHECK_EXIT(TSDB_CODE_INVALID_PARA);
   }
-
   *ppStartCol = pStartCol;
   *ppEndCol = pEndCol;
   *pNumRows = numRows;
@@ -4168,7 +4167,6 @@ static int32_t extWinBuildGroupedCalcInfosFromBlocks(SArray* pBlocks, SStreamRun
     TAOS_CHECK_EXIT(extWinValidateNonStreamBlock(pBlock, &pStartCol, &pEndCol, &numRows, &numCols));
 
     uint64_t groupId = extWinGetRemoteResultGroupId(pBlock);
-
     for (int32_t row = 0; row < numRows; ++row) {
       SSTriggerCalcParam param = {0};
       TAOS_CHECK_EXIT(extWinBuildTriggerParamForRow(pBlock, pStartCol, pEndCol, numCols, row, &param));
@@ -4199,7 +4197,6 @@ static int32_t extWinInitNonStreamWindowDataFromBlock(SExternalWindowPhysiNode* 
            pPhynode->pSubquery ? nodeType(pPhynode->pSubquery) : -1);
     return TSDB_CODE_SUCCESS;
   }
-
   TSDB_CHECK_NULL(pTaskInfo, code, lino, _exit, TSDB_CODE_INVALID_PARA);
 
   if (pTaskInfo->pStreamRuntimeInfo == NULL) {
@@ -4230,14 +4227,12 @@ static int32_t extWinInitNonStreamWindowDataFromBlock(SExternalWindowPhysiNode* 
 
   pBlocks = pRemote->pResBlks;
 #endif
-
   // For non-stream external_window, whether trigger windows should be built as
   // grouped calc infos must follow the OUTER query partition semantics instead of
   // raw remote block ids. Remote subquery result blocks may carry non-zero ids
   // even when the subquery is semantically non-grouped, which would incorrectly
   // split one logical external window into multiple TGrps.
   bool groupedRemoteResult = pPhynode->calcWithPartition && hasGroupedRemoteResult(pBlocks);
-
   pRt->isMultiGroupCalc = groupedRemoteResult ? 1 : 0;
   pRt->curGrpCalc = NULL;
   pRt->groupId = 0;
