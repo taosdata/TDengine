@@ -111,6 +111,7 @@ def _early_args():
     p.add_argument("--no-tsma",   action="store_true", dest="no_tsma")
     p.add_argument("--no-stream", action="store_true", dest="no_stream")
     p.add_argument("--no-user",   action="store_true", dest="no_user")
+    p.add_argument("--no-index",  action="store_true", dest="no_index")
     p.add_argument("--help",       "-h", action="store_true")
     args, _ = p.parse_known_args()
     return args
@@ -316,6 +317,8 @@ def _parse_args():
                         help="Skip Stream creation and verification checks")
     parser.add_argument("--no-user", action="store_true", dest="no_user", default=False,
                         help="Skip test_user / privilege creation and verification checks")
+    parser.add_argument("--no-index", action="store_true", dest="no_index", default=False,
+                        help="Skip tag index creation and verification checks")
     args = parser.parse_args()
 
     if args.quick:
@@ -453,8 +456,11 @@ def _prepare_resources(fqdn, cfg_dir, from_ver, args, rp):
             else:
                 rp.info(f"Stream skipped: base version {from_ver} < 3.3.7.0")
 
-            st.idx_before = st.rm.create_tag_indexes()
-            rp.info(f"Tag indexes created: {sorted(st.idx_before.keys())}")
+            if args.no_index:
+                rp.info("Tag indexes skipped: --no-index specified")
+            else:
+                st.idx_before = st.rm.create_tag_indexes()
+                rp.info(f"Tag indexes created: {sorted(st.idx_before.keys())}")
 
             st.rm.create_topic()
             rp.info(f"Topic '{config.TOPIC_NAME}' created")
@@ -592,6 +598,7 @@ def _spawn_cold_phase2(args, base_path, fqdn, cfg_dir, from_ver, to_ver,
             "no_tsma":         args.no_tsma,
             "no_stream":       args.no_stream,
             "no_user":         args.no_user,
+            "no_index":        args.no_index,
         }, _f)
 
     _env = os.environ.copy()
@@ -744,6 +751,8 @@ def _collect_results(metrics, checks, fqdn, cfg_dir, from_ver,
     rm = phase2_st.rm
     if phase2_st.idx_before is not None:
         _safe_verify("Tag indexes preserved after upgrade", rm.verify_tag_indexes, phase2_st.idx_before)
+    elif args.no_index:
+        rp.info("Tag indexes check skipped: --no-index specified")
     else:
         _chk("Tag indexes preserved after upgrade", False, "baseline snapshot not captured (Phase 2 error)")
 
@@ -871,6 +880,8 @@ def _run_cold_phase2(state_file: str):
 
     from_ver         = st["from_ver"]
     to_ver           = st["to_ver"]
+    rp._from_ver     = from_ver
+    rp._to_ver       = to_ver
     fqdn             = st["fqdn"]
     base_path        = st["base_path"]
     cfg_dir          = st["cfg_dir"]
@@ -888,6 +899,7 @@ def _run_cold_phase2(state_file: str):
     no_tsma          = st.get("no_tsma", False)
     no_stream        = st.get("no_stream", False)
     no_user          = st.get("no_user", False)
+    no_index         = st.get("no_index", False)
 
     if st.get("quick"):
         config.SUBTABLE_COUNT         = 100
@@ -1107,6 +1119,8 @@ def _run_cold_phase2(state_file: str):
     if _idx_before is not None:
         idx_ok, idx_msg = rm.verify_tag_indexes(_idx_before)
         _chk("Tag indexes preserved after upgrade", idx_ok, idx_msg)
+    elif no_index:
+        rp.info("Tag indexes check skipped: --no-index specified")
     else:
         _chk("Tag indexes preserved after upgrade", False,
              "baseline snapshot not captured (Phase 2 error)")
