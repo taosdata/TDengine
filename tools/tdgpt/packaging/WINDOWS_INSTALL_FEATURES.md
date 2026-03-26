@@ -1,0 +1,1041 @@
+# TDGPT Windows 安装脚本功能列表
+
+## 📋 项目概述
+
+为 TDGPT 项目创建 Windows 安装脚本，实现与 Linux `install.sh` 功能对等的自动化安装流程。
+
+**实现日期：** 2026-03-13
+**参考项目：** IDMP Windows 安装方案
+**核心原则：** 与 Linux 行为保持一致
+
+---
+
+## 🏗️ 架构设计
+
+### 三层安装架构
+
+```text
+用户双击 .exe 安装程序
+    ↓
+【第一层】Inno Setup (tdgpt.iss)
+    - GUI 安装向导
+    - 文件复制到 C:\TDengine\taosanode
+    - 创建快捷方式
+    - 注册表配置（PATH）
+    ↓
+【第二层】install.bat
+    - 检查 Python 环境
+    - 调用 install.py
+    - 传递安装参数（-o, -a）
+    ↓
+【第三层】install.py
+    - 创建虚拟环境
+    - 安装 Python 依赖
+    - 提取模型文件
+    - 配置服务
+    - 生成安装报告
+    ↓
+安装完成
+```
+
+**为什么需要三层？**
+
+- **Inno Setup**：GUI 安装程序，用户体验好，但脚本功能有限
+- **install.bat**：简单桥接，检查环境，调用 Python 脚本
+- **install.py**：核心逻辑，功能强大，易于维护
+
+---
+
+## 📁 文件结构
+
+### 修改的文件
+
+| 文件 | 路径 | 说明 |
+|------|------|------|
+| tdgpt.iss | `/packaging/installer/tdgpt.iss` | Inno Setup 脚本，移除 venv 删除，确保目录创建 |
+| win_release.py | `/packaging/win_release.py` | 打包脚本，生成 install.bat，复制 install.py/uninstall.py |
+
+### 新创建的文件
+
+| 文件 | 路径 | 行数 | 说明 |
+|------|------|------|------|
+| install.py | `/script/install.py` | 550+ | 核心安装脚本 |
+| uninstall.py | `/script/uninstall.py` | 350+ | 卸载脚本 |
+| WINDOWS_INSTALL_IMPLEMENTATION.md | `/packaging/` | - | 实现总结文档 |
+
+---
+
+## ✨ 核心功能
+
+### install.py - 安装脚本
+
+#### 1. 环境检测与验证
+
+- ✅ **Python 版本检查**
+  - 检测 Python 3.10/3.11/3.12
+  - 尝试多个命令：python, python3, python3.10, python3.11, python3.12
+  - 如果不符合要求，提示用户安装并退出
+
+- ✅ **pip 版本验证**
+  - 检查 pip 是否可用
+  - 验证 pip 版本
+
+- ✅ **磁盘空间检查**
+  - 检查安装目录所在磁盘的可用空间
+  - 最小要求：20GB
+  - 如果空间不足，错误退出
+
+- ✅ **管理员权限检查**
+  - 检查是否以管理员权限运行
+  - 如果不是，警告用户（不阻止安装）
+
+#### 2. 安装模式选择
+
+- ✅ **在线模式（默认）**
+  - 自动创建 Python 虚拟环境
+  - 从 PyPI 安装依赖包
+  - 支持自定义 pip 镜像源（环境变量 `PIP_INDEX_URL`）
+  - 安装所有必需模型的 venv
+
+- ✅ **离线模式（-o 参数）**
+  - 跳过已存在的虚拟环境
+  - 使用预打包的 wheels 文件（如果提供）
+  - 不尝试联网下载依赖
+  - 验证必需的 venv 是否存在
+
+- ✅ **模型选择**
+  - 默认：仅安装必需模型（tdtsfm、timemoe）
+  - 安装向导中可通过 checkbox 选择可选模型（默认勾选 Moirai、MomentFM）
+  - 全部模式（-a 参数）：安装所有模型
+  - 指定模式（--model 参数）：安装指定模型，可重复使用
+    - 示例：`python install.py --model moirai --model moment`
+
+#### 3. 目录结构初始化
+
+**默认安装目录：** `C:\TDengine\taosanode`（可在安装向导中自定义）
+
+```text
+<安装目录>\                    # 默认 C:\TDengine\taosanode
+├── bin\              # 脚本和可执行文件（服务管理脚本）
+├── cfg\              # 配置文件（taosanode.config.py）
+│                       卸载时保留，不覆盖用户自定义配置
+├── lib\              # Python 库（taosanalytics）
+├── model\            # 模型文件（tdtsfm、timemoe 等 tar.gz 解压后的目录）
+│                       卸载时保留
+├── resource\         # 资源文件（SQL 脚本）
+├── log\              # 日志目录
+│   ├── taosanode.log           # 统一管理日志（服务管理+配置+进程管理+模型管理）
+│   ├── taosanode_stdout.log    # 主服务进程输出（仅 Windows）
+│   └── model_{name}.log        # 各模型进程输出（如 model_tdtsfm.log）
+├── data\             # 数据目录（运行时数据）
+│   └── pids\         # PID 文件目录（taosanode 和模型服务的进程 ID）
+│                       卸载时保留
+├── venv\             # 主虚拟环境（Python 依赖）
+│                       卸载时保留
+├── timesfm_venv\     # timesfm 虚拟环境（可选）
+├── moirai_venv\      # moirai 虚拟环境（可选）
+├── chronos_venv\     # chronos 虚拟环境（可选）
+└── momentfm_venv\    # momentfm 虚拟环境（可选）
+```
+
+**路径说明：**
+
+| 路径 | 默认值 | 说明 | 卸载时保留 |
+|------|--------|------|-----------|
+| 安装目录 | `C:\TDengine\taosanode` | 可在安装向导中自定义 | - |
+| 配置目录 | `<安装目录>\cfg` | taosanode.config.py 等配置文件 | ✅ |
+| 日志目录 | `<安装目录>\log` | taosanode.log（统一管理日志）、taosanode_stdout.log、model_{name}.log | ❌ |
+| 数据目录 | `<安装目录>\data` | 运行时数据、PID 文件 | ✅ |
+| 模型目录 | `<安装目录>\model` | 模型文件（解压后） | ✅ |
+| 虚拟环境 | `<安装目录>\venv` | Python 依赖包 | ✅ |
+| 脚本目录 | `<安装目录>\bin` | 服务管理脚本 | ❌ |
+| 库目录 | `<安装目录>\lib` | taosanalytics Python 库 | ❌ |
+
+**自定义安装目录：**
+
+- 安装向导中可以修改安装路径（默认 `C:\TDengine\taosanode`）
+- 所有路径均基于安装目录自动推导，无需手动修改配置文件
+- `taosanode.config.py` 通过 `os.path.dirname(__file__)` 自动检测安装位置
+- `taosanode_service.py` 通过脚本所在的 `bin\` 目录自动推导安装根目录
+
+#### 4. 虚拟环境管理
+
+- ✅ **主虚拟环境创建**
+  - 使用 `python -m venv C:\TDengine\taosanode\venv`
+  - 激活虚拟环境
+  - 升级 pip：`python -m pip install --upgrade pip`
+  - 安装依赖：`pip install -r requirements_ess.txt`
+  - 记录安装日志
+
+- ✅ **额外虚拟环境创建（-a 模式）**
+  - timesfm_venv：torch 2.3.1+cpu、jax、timesfm、flask 3.0.3
+  - moirai_venv：torch 2.3.1+cpu、uni2ts、flask
+  - chronos_venv：torch 2.3.1+cpu、chronos-forecasting、flask
+  - momentfm_venv：torch 2.3.1+cpu、transformers 4.33.3、momentfm、flask
+
+- ✅ **离线模式处理**
+  - 检查 venv 是否已存在
+  - 如果存在且离线模式，跳过重新创建
+  - 如果不存在，提示用户需要在线模式或手动创建
+
+#### 5. 配置文件处理
+
+- ✅ **配置文件初始化**
+  - 由 Inno Setup 复制 `cfg\taosanode.config.py` 到安装目录
+  - 如果已存在配置文件，Inno Setup 会保留（onlyifdoesntexist 标志）
+  - 不覆盖用户的自定义配置
+
+#### 6. 模型文件处理
+
+- ✅ **模型文件提取**
+  - 检查 model 目录下的 tar.gz 文件
+  - 提取必需模型：tdtsfm.tar.gz、timemoe.tar.gz
+  - 提取可选模型（-a 模式）：chronos.tar.gz、moment-large.tar.gz、moirai.tar.gz、timesfm.tar.gz
+  - 使用 Python tarfile 模块
+
+- ✅ **模型验证**
+  - 验证模型文件完整性
+  - 检查必需模型是否存在
+  - 如果缺失，警告用户
+
+#### 7. 服务管理
+
+- ✅ **Windows 服务注册**
+  - 调用 `taosanode_service.py install`
+  - 使用 WinSW（Windows Service Wrapper）
+  - 设置服务为自动启动
+
+- ✅ **服务验证**
+  - 检查服务是否成功注册
+  - 验证服务状态
+  - 如果失败，提供详细错误信息
+
+#### 8. 环境变量配置
+
+- ✅ **PATH 环境变量**
+  - 由 Inno Setup 自动添加 `C:\TDengine\taosanode\bin` 到系统 PATH
+  - 使用注册表修改
+  - 验证 PATH 是否正确设置
+
+#### 9. 安装验证
+
+- ✅ **环境验证**
+  - 检查所有目录是否创建成功
+  - 验证虚拟环境是否可用
+
+- ✅ **生成安装报告**
+  - 记录安装时间、版本、配置
+  - 保存到 `C:\TDengine\taosanode\install.log`
+  - 显示安装摘要
+
+#### 10. 错误处理与日志
+
+- ✅ **详细日志记录**
+  - 记录每个安装步骤
+  - 记录错误和警告
+  - 保存到 `install.log`
+
+- ✅ **用户交互**
+  - 显示安装进度
+  - 彩色输出（成功/警告/错误）
+  - Windows 10+ 支持 ANSI 颜色
+
+---
+
+### uninstall.py - 卸载脚本
+
+#### 1. 服务停止与卸载
+
+- ✅ **停止服务**
+  - 停止主服务：`taosanode_service.py stop`
+  - 停止所有模型服务：`taosanode_service.py model-stop all`
+  - 强制终止残留进程（仅 taosanode 相关）
+
+- ✅ **卸载服务**
+  - 卸载 Windows 服务注册：`taosanode_service.py uninstall`
+
+#### 2. 文件清理
+
+- ✅ **删除程序文件**
+  - 删除：bin、lib、resource、log
+  - **保留**：cfg（配置）、model（模型）、data（数据）、venv（虚拟环境）
+
+- ✅ **可选删除（通过参数控制）**
+  - `--remove-venv`：删除虚拟环境
+  - `--remove-data`：删除数据目录
+  - `--remove-model`：删除模型目录
+  - `--keep-all`：仅停止服务，保留所有文件
+
+#### 3. 环境清理
+
+- ✅ **从 PATH 中移除**
+  - 读取系统 PATH 环境变量
+  - 移除安装目录
+  - 更新注册表
+
+- ✅ **删除快捷方式**
+  - 由 Inno Setup 自动处理
+
+#### 4. 卸载报告
+
+- ✅ **生成卸载报告**
+  - 记录卸载配置
+  - 保存到 `uninstall.log`
+
+- ✅ **显示保留的目录**
+  - 提示用户保留了哪些目录
+  - 提示如何手动删除（如果需要）
+
+---
+
+## 🎯 与 Linux install.sh 的对应关系
+
+| Linux 功能 | Windows 实现 | 文件 | 说明 |
+|-----------|-------------|------|------|
+| 参数解析（-d, -a, -o, -h） | argparse | install.py | 支持 -o（离线）、-a（全部模型） |
+| Python 版本检查 | check_python_version() | install.py | 检测 3.10/3.11/3.12 |
+| pip 版本检查 | check_pip_version() | install.py | 验证 pip 可用性 |
+| 磁盘空间检查 | check_disk_space() | install.py | 最小 20GB |
+| 目录创建 | create_directories() | install.py | log、data/pids、model |
+| 配置文件安装 | Inno Setup | tdgpt.iss | onlyifdoesntexist 标志 |
+| 模型文件提取 | extract_models() | install.py | tar.gz 解压 |
+| 主虚拟环境创建 | create_venv("venv") | install.py | requirements_ess.txt |
+| 额外虚拟环境创建 | install_venvs() | install.py | -a 模式 |
+| 服务注册 | install_service() | install.py | 调用 taosanode_service.py |
+| 卸载 | uninstall.py | uninstall.py | 保留 cfg、model、data、venv |
+
+---
+
+## 📝 使用方法
+
+### 安装
+
+#### 方式 1：GUI 安装（推荐）
+
+```bash
+# 双击 .exe 安装程序
+tdengine-tdgpt-oss-1.0.0-Windows-x64.exe
+
+# 安装向导会自动：
+# 1. 复制文件到 C:\TDengine\taosanode
+# 2. 执行 install.bat
+# 3. install.bat 调用 install.py
+# 4. 创建 venv、安装依赖、配置服务
+```
+
+#### 方式 2：命令行安装（高级用户）
+
+```bash
+# 在线模式（默认）
+python C:\TDengine\taosanode\install.py
+
+# 离线模式
+python C:\TDengine\taosanode\install.py -o
+
+# 安装所有模型
+python C:\TDengine\taosanode\install.py -a
+
+# 离线 + 所有模型
+python C:\TDengine\taosanode\install.py -o -a
+
+# 自定义 pip 镜像
+set PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
+python C:\TDengine\taosanode\install.py
+```
+
+### 卸载
+
+#### 方式 1：控制面板卸载（推荐）
+
+```text
+控制面板 → 程序 → 程序和功能 → TDGPT → 卸载
+```
+
+#### 方式 2：命令行卸载（高级用户）
+
+```bash
+# 标准卸载（保留 cfg、model、data、venv）
+python C:\TDengine\taosanode\uninstall.py
+
+# 删除虚拟环境
+python C:\TDengine\taosanode\uninstall.py --remove-venv
+
+# 删除数据目录
+python C:\TDengine\taosanode\uninstall.py --remove-data
+
+# 删除模型目录
+python C:\TDengine\taosanode\uninstall.py --remove-model
+
+# 完全删除
+python C:\TDengine\taosanode\uninstall.py --remove-venv --remove-data --remove-model
+
+# 仅停止服务，保留所有文件
+python C:\TDengine\taosanode\uninstall.py --keep-all
+```
+
+### 打包
+
+```bash
+# 社区版
+python packaging/win_release.py -e community -v 1.0.0 -m D:\models
+
+# 企业版
+python packaging/win_release.py -e enterprise -v 1.0.0 -m D:\models
+
+# 离线模式打包（包含 wheels）
+python packaging/win_release.py -e community -v 1.0.0 -m D:\models --offline
+
+# 包含所有模型
+python packaging/win_release.py -e community -v 1.0.0 -m D:\models -a
+
+# 离线 + 所有模型
+python packaging/win_release.py -e community -v 1.0.0 -m D:\models --offline -a
+```
+
+---
+
+## 🔑 关键设计决策
+
+### 1. 混合方案（Inno Setup + install.bat + install.py）
+
+**原因：**
+
+- Inno Setup：GUI 安装程序，用户体验好
+- install.bat：简单桥接，检查环境
+- install.py：核心逻辑，功能强大，易于维护
+
+**优点：**
+
+- 兼容性好
+- 功能完整
+- 易于调试和扩展
+
+### 2. 卸载保留策略
+
+**保留：** cfg、model、data、venv
+**删除：** bin、lib、resource、log
+
+**原因：**
+
+- 与 Linux 行为一致
+- 保护用户数据和配置
+- 方便升级（保留 venv 可加速重装）
+
+### 3. 离线/在线模式
+
+**在线模式：**
+
+- 自动创建 venv
+- 从 PyPI 安装依赖
+- 适合首次安装
+
+**离线模式（-o）：**
+
+- 跳过已存在的 venv
+- 使用预打包 wheels（如果有）
+- 适合升级和受限环境
+
+### 4. 模型选择
+
+**默认：** 仅安装必需模型（tdtsfm、timemoe）
+**全部模式（-a）：** 安装所有模型
+
+**原因：**
+
+- 节省磁盘空间（每个模型 venv 约 2-3GB）
+- 加快安装速度
+- 用户可按需安装
+
+### 5. 错误处理策略
+
+**非阻塞警告：**
+
+- 管理员权限检查
+- 服务注册失败
+
+**阻塞错误：**
+
+- Python 版本不符
+- 磁盘空间不足
+- venv 创建失败
+
+**原因：**
+
+- 确保核心功能可用
+- 不过度限制用户
+
+---
+
+## 🧪 测试建议
+
+### 1. 基本安装测试
+
+- [ ] 在线模式安装
+- [ ] 离线模式安装
+- [ ] 全部模型安装
+- [ ] 离线 + 全部模型安装
+
+### 2. 环境测试
+
+- [ ] Python 3.10
+- [ ] Python 3.11
+- [ ] Python 3.12
+- [ ] 管理员权限
+- [ ] 普通用户权限
+- [ ] 不同磁盘空间情况
+- [ ] 有/无网络连接
+
+### 3. 升级测试
+
+- [ ] 安装旧版本
+- [ ] 运行新版本安装程序
+- [ ] 验证配置和数据是否保留
+- [ ] 验证 venv 是否正确更新
+
+### 4. 卸载测试
+
+- [ ] 标准卸载
+- [ ] 删除 venv
+- [ ] 完全删除
+- [ ] 验证保留的目录
+
+### 5. 打包测试
+
+- [ ] 社区版打包
+- [ ] 企业版打包
+- [ ] 离线模式打包
+- [ ] 全部模型打包
+
+---
+
+## 📚 相关文档
+
+### 已有文档
+
+- [INSTALL-CN.md](../INSTALL-CN.md) - 中文安装指南
+- [packaging/README.md](README.md) - 英文打包文档
+- [packaging/README-CN.md](README-CN.md) - 中文打包文档
+
+### 新增文档
+
+- [WINDOWS_INSTALL_IMPLEMENTATION.md](WINDOWS_INSTALL_IMPLEMENTATION.md) - 实现总结文档（本文档的详细版）
+
+### 需要更新的文档
+
+- [ ] INSTALL-CN.md：添加 install.py 和 uninstall.py 的使用说明
+- [ ] packaging/README.md：更新打包流程说明
+- [ ] packaging/README-CN.md：更新中文打包文档
+
+---
+
+## 🚀 后续改进建议
+
+### 已完成的改进 ✅
+
+#### 1. GUI 安装向导
+
+- ✅ 在 Inno Setup 中添加了离线/在线模式选择页面
+- ✅ 添加了模型选择页面（checkbox 多选，默认勾选 Moirai + MomentFM）
+- ✅ 用户选择会自动传递给 install.py（-o 和 --model 参数）
+
+#### 2. 进度条显示
+
+- ✅ 在 install.py 中添加了 `print_progress()` 方法
+- ✅ 虚拟环境创建过程显示进度条（1/4 到 4/4）
+- ✅ 使用彩色进度条（█ 和 ░ 字符）
+
+#### 3. 日志整合
+
+- ✅ 合并为 `taosanode.log`（统一管理日志）+ `taosanode_stdout.log` + `model_{name}.log`
+- ✅ 通过 logger name 字段区分日志来源（Config/ProcessManager/TaosanodeService/ModelService）
+
+#### 4. 脚本国际化
+
+- ✅ 所有脚本注释和日志输出改为英文
+
+#### 5. 卸载一致性
+
+- ✅ Linux uninstall.sh 保留 cfg 目录（与 Windows 一致）
+
+### 后续改进
+
+1. **健康检查**：安装后自动运行健康检查脚本
+2. **回滚功能**：安装失败时自动回滚
+3. **多语言支持**：支持中文和英文安装界面
+
+---
+
+## ⚠️ 已知限制
+
+1. **Python 依赖**：需要用户预先安装 Python 3.10/3.11/3.12
+2. **管理员权限**：服务注册需要管理员权限（但不强制）
+3. **网络连接**：在线模式需要网络连接（可通过离线模式解决）
+4. **磁盘空间**：完整安装需要约 20GB 空间
+5. **防火墙**：已移除自动配置功能，需要用户手动配置
+
+---
+
+## 📞 支持
+
+如有问题，请参考：
+
+- 安装日志：`<安装目录>\install.log`
+- 卸载日志：`<安装目录>\uninstall.log`
+- 服务日志：`<安装目录>\log\taosanode.log`（统一管理日志）
+- 主服务输出：`<安装目录>\log\taosanode_stdout.log`（仅 Windows）
+- 模型日志：`<安装目录>\log\model_{name}.log`
+
+---
+
+## 📝 更新日志
+
+### 2026-03-16
+
+- ✅ 日志整合：合并为 taosanode.log + taosanode_stdout.log + model_{name}.log
+- ✅ 所有脚本注释和日志输出改为英文
+- ✅ ISS 安装向导改为 checkbox 多选模型，默认勾选 Moirai + MomentFM
+- ✅ install.py 新增 `--model` 参数支持选择性安装模型
+- ✅ Linux uninstall.sh 保留 cfg 目录（与 Windows 一致）
+- ✅ 支持自定义安装目录（DisableDirPage=no）
+- ✅ 补充路径说明文档
+
+### 2026-03-13
+
+- ✅ 创建 install.py 核心安装脚本
+- ✅ 创建 uninstall.py 卸载脚本
+- ✅ 修改 tdgpt.iss，移除 venv 删除
+- ✅ 修改 win_release.py，生成 install.bat
+- ✅ 移除防火墙配置功能
+- ✅ 创建功能列表文档
+
+---
+
+**文档版本：** 2.0
+**最后更新：** 2026-03-16
+**维护者：** TDGPT 开发团队
+
+## 2026-03-17 补充说明
+
+- 在线安装模式下，安装向导支持选择 pip 源。
+- 默认使用官方 PyPI，不默认勾选国内镜像。
+- 可选预置镜像包括清华镜像、阿里云镜像，也支持填写自定义镜像 URL。
+- 标准卸载默认保留 `cfg`、`model`、`data`、`venv`。
+- 只有显式使用 `--remove-model` 时，才会删除 `model` 目录。
+
+## 2026-03-17 目录、日志与安装向导补充
+
+### 当前 Windows 目录布局
+
+```text
+<安装目录>\
+├── bin\
+├── cfg\
+├── data\
+├── log\
+├── model\
+├── requirements\
+└── venvs\
+    ├── venv\
+    ├── timesfm_venv\
+    ├── moirai_venv\
+    ├── chronos_venv\
+    └── momentfm_venv\
+```
+
+### 安装向导补充
+
+- 在线安装时支持选择 pip 源，默认仍然是官方 PyPI。
+- 完成安装前新增“安装并注册 Windows 服务”选项，默认勾选。
+- 安装完成页会提示以下命令：
+  - `net start Taosanode`
+  - `net stop Taosanode`
+  - `<安装目录>\bin\start-taosanode.bat`
+  - `<安装目录>\bin\stop-taosanode.bat`
+- 非静默安装完成后会自动打开 `<安装目录>\log\install.log`。
+
+### Current log files and purpose
+
+- `<安装目录>\log\install.log`
+  - 安装器调用 `install.bat/install.py` 的完整输出和安装摘要。
+- `<安装目录>\log\uninstall.log`
+  - 卸载器调用 `uninstall.bat/uninstall.py` 的完整输出和卸载摘要。
+- `<安装目录>\log\taosanode-service.log`
+  - 服务注册、服务管理脚本、主服务启动生命周期日志。
+- `<安装目录>\log\taosanode-winsw.wrapper.log`
+  - WinSW wrapper lifecycle log.
+- `<安装目录>\log\taosanode.app.log`
+  - taosanode 应用日志。
+
+### 合并策略说明
+
+- 安装日志已经合并为一个文件：`log\install.log`。
+- 卸载日志已经合并为一个文件：`log\uninstall.log`。
+- 服务管理日志已经统一写入 `log\taosanode-service.log`。
+- WinSW stdout/stderr 已关闭，只保留一个明确命名的 wrapper 日志：`log\taosanode-winsw.wrapper.log`。
+
+### 标准卸载保留策略
+
+- 默认保留：`cfg`、`data`、`model`、`venvs`、`log`。
+- 默认删除：`bin`、`lib`、`resource`、`requirements` 和安装脚本。
+- `model` 只有在显式执行 `uninstall.py --remove-model` 时才会删除。
+
+## 2026-03-18 补充说明
+
+### 安装器与打包结构调整
+
+- Windows 安装流程继续使用英文界面，但本文档保持中文记录。
+- 打包目录结构统一为：
+  - requirements 文件放到 `<安装目录>\requirements\`
+  - 虚拟环境放到 `<安装目录>\venvs\`
+  - 日志统一放到 `<安装目录>\log\`
+- `packaging\bin\WinSW.exe` 会打入安装产物，并复制为 `<安装目录>\bin\taosanode-winsw.exe`。
+- WinSW 配置文件会生成到 `<安装目录>\bin\taosanode-winsw.xml`。
+
+### Python 依赖安装流程补充
+
+- Windows 主运行环境依赖入口调整为 `requirements_windows_core.txt`。
+- TensorFlow CPU 依赖拆分到 `requirements_tensorflow.txt`，用于在线安装时按需追加。
+- 在线安装向导支持选择 pip 源：
+  - 官方 PyPI
+  - 清华源
+  - 阿里云源
+  - 自定义 URL
+- 默认仍然是官方 PyPI，不自动切换国内源。
+- 离线 Python 模式下不再单独询问 TensorFlow，因为离线包预期已经包含对应环境内容。
+
+### 模型安装流程补充
+
+- 安装向导中的模型准备方式调整为三种：
+  - 暂不安装模型
+  - 在线下载所选模型
+  - 导入离线模型包
+- 在线下载默认勾选的模型调整为：
+  - `Moirai Small`
+  - `MOMENT Base`
+- 在线模型下载支持：
+  - 官方 Hugging Face
+  - HF Mirror
+  - 自定义端点 URL
+- Windows 侧统一模型顺序调整为：
+  1. `tdtsfm`
+  2. `timemoe`
+  3. `moirai`
+  4. `chronos`
+  5. `timesfm`
+  6. `moment`
+- `TDtsfm v1.0` 当前仍然只能通过离线方式导入。
+- `start-model.bat all` / `model-start all` 调整为运行时按模型目录存在性判断，缺失目录直接跳过，不再作为硬错误处理。
+
+### 服务、完成页与日志补充
+
+- 安装向导加入“安装并注册 Taosanode Windows 服务”选项，默认勾选。
+- 完成页补充展示：
+  - `net start Taosanode`
+  - `net stop Taosanode`
+  - `start-taosanode.bat`
+  - `stop-taosanode.bat`
+  - `start-model.bat all`
+  - `stop-model.bat all`
+  - `status-model.bat`
+- 非静默安装完成后会自动打开 `<安装目录>\log\install.log`。
+- 安装日志统一写入 `<安装目录>\log\install.log`。
+- 卸载日志统一写入 `<安装目录>\log\uninstall.log`。
+- Python 服务管理日志统一写入 `<安装目录>\log\taosanode-service.log`。
+- WinSW wrapper 日志写入 `<安装目录>\log\taosanode-winsw.wrapper.log`。
+- taosanode 主进程输出写入 `<安装目录>\log\taosanode.app.log`。
+- 模型运行日志写入 `<安装目录>\log\model_<name>.log`。
+
+### 卸载策略补充
+
+- 标准卸载默认保留：
+  - `cfg`
+  - `data`
+  - `model`
+  - `venvs`
+  - `log`
+- 标准卸载默认删除：
+  - `bin`
+  - `lib`
+  - `resource`
+  - `requirements`
+  - 安装辅助脚本
+- `model` 目录默认保留，只有显式执行 `uninstall.py --remove-model` 才会删除。
+
+## 2026-03-19 补充说明
+
+### 离线导入页与导入逻辑调整
+
+- 离线模型导入页从“每个模型一个文件选择框”调整为“一个可选的离线总包输入框”。
+- 该离线总包用于一次性导入多个模型，不再要求用户逐个模型选择压缩包。
+- 额外离线包支持格式：
+  - `zip`
+  - `tar`
+  - `tar.gz`
+  - `tgz`
+- 安装器仍然会自动扫描并导入 `<安装目录>\model\` 下打包时自带的离线模型压缩包。
+- 如果用户额外选择了一个离线总包，安装脚本会导入该总包中识别出的全部模型内容。
+- 离线总包支持两种布局：
+  - 包内已经是各模型目录
+  - 包内再嵌套各模型 zip/tar 压缩包
+- 本次导入时，只会替换本次实际导入到的模型目录，不会无差别覆盖全部已有模型目录。
+
+### 截断问题修复说明
+
+- 之前离线说明文字被截断，原因是 Inno Setup 自定义文本控件使用了固定高度，超出部分不会自动展开。
+- 现在离线导入流程改为标准文件选择页，避免长说明文本因为固定高度被裁切。
+- 完成页说明区域也改成自动计算高度，降低长文本被截断的风险。
+
+### 脚本与运行时行为补充
+
+- `install.py` 新增可选参数 `--offline-model-package`。
+- `install.py` 会在安装摘要中记录所选离线总包路径。
+- `install.py` 继续以 `requirements_windows_core.txt` 作为 Windows 主环境依赖入口。
+- 在线安装时，仅为所选在线模型创建额外模型虚拟环境。
+- 离线导入模式下，不会在安装阶段额外创建模型专属虚拟环境。
+- `taosanode_service.py` 的 `start all` 汇总逻辑已调整为准确统计：
+  - 已启动模型
+  - 缺失目录而跳过的模型
+  - 启动失败的模型
+- `taosanode_service.py` 的 `stop all` 汇总逻辑已调整为准确统计：
+  - 本次真正停止的模型
+  - 原本就未运行的模型
+  - 停止失败的模型
+
+### 重新安装语义补充
+
+- `暂不安装模型`
+  - 保持现有模型目录不变。
+- `在线下载所选模型`
+  - 仅刷新本次选择的在线模型。
+  - 未选中的模型目录保持不变。
+- `导入离线模型包`
+  - 导入 `<安装目录>\model` 中自带的离线包。
+  - 如用户额外选择离线总包，也会导入该总包中识别出的模型。
+  - 只替换本次实际导入的模型目录。
+
+### 2026-03-19 完成的验证
+
+- 重新构建了社区版测试包：
+  - `python packaging/win_release.py -e community -v 3.4.0.11.0316 --skip-model-check`
+- 验证产物：
+  - `D:\tdgpt-e2e-20260319-r5\tdengine-tdgpt-oss-3.4.0.11.0316-Windows-x64.exe`
+- 已验证默认安装目录在线安装：
+  - `C:\TDengine\taosanode`
+- 已验证使用清华 pip 源在线安装依赖。
+- 已验证使用 `https://hf-mirror.com` 在线下载模型。
+- 已验证默认在线模型选择为：
+  - `moirai`
+  - `moment`
+- 已验证服务注册与控制：
+  - 安装服务
+  - `net start Taosanode`
+  - `net stop Taosanode`
+- 已验证 `start-model.bat all` 只启动存在模型目录的模型。
+- 已验证默认在线模型运行端口：
+  - `moirai` 监听 `127.0.0.1:6039`
+  - `moment` 监听 `127.0.0.1:6062`
+- 已验证 `stop-model.bat all` 在修复后可以输出准确的停止汇总信息。
+
+## 2026-03-22 补充说明
+
+### taosanode 启动失败诊断恢复
+
+- 恢复了 Windows 主服务启动前的 `taosanalytics.app` 预检查逻辑。
+- 预检查会单独启动一个 Python 子进程执行导入测试，并把以下信息统一写入 `<安装目录>\log\taosanode-service.log`：
+  - 返回码
+  - stdout
+  - stderr
+- 这样当 `torch`、`fbgemm.dll`、VC++ Runtime 或其他原生依赖缺失导致导入失败时，不会再只看到重复的 `Starting taosanode service...`，日志里会有明确失败上下文。
+- 如果主服务子进程提前退出，也会额外记录退出码，并清理 `taosanode.pid`，避免 `status` 因残留 pid 文件产生误导。
+
+### 当前安装向导默认值说明
+
+- 当前 Windows 安装向导的模型安装来源默认值为 `在线下载所选模型`，不是 `暂不安装模型`。
+- 当前前置检查只检查 Python，要求为 `Python 3.10 / 3.11 / 3.12`。
+
+### 在线安装 venv 复用策略调整
+
+- 在线安装模式下，如果检测到已有 venv 完整可用，将直接复用，不再默认删除后重建。
+- 当前复用判定至少检查以下条件：
+  - `venv\Scripts\python.exe` 存在
+  - `python -m pip --version` 可正常执行
+- 只有在以下情况下才会自动重建对应 venv：
+  - venv 目录存在但 `python.exe` 缺失
+  - `pip` 校验失败
+  - 其他导致环境明显损坏的异常
+- 这样重装/升级时会明显减少重复创建 venv 和重复下载依赖导致的耗时。
+
+### 安装进度文件机制调整
+
+- 原先安装器与 `install.py` 会同时读写同一个 `install-progress.ini`，在 Windows 下可能因为文件共享语义导致偶发竞争。
+- 现在改为由 `install.py` 与 `install.bat` 仅追加写入 `<安装目录>\log\install-progress.log`。
+- 安装向导不再按 INI 覆盖读取，而是读取该日志中的“最后一条有效进度记录”。
+- 如果日志最后一行正处于写入中或不完整，安装向导会自动回退到上一条完整记录继续显示。
+- 这样可以减少进度展示与实际安装流程之间的文件竞争，避免进度文件本身导致安装失败。
+
+### 安装向导磁盘空间显示调整
+
+- 安装向导首页原先显示的空间需求更接近安装包自身大小，无法反映 Python venv、可选 TensorFlow、模型文件和运行期目录的实际占用。
+- 现在通过 Inno Setup 的 `ExtraDiskSpaceRequired` 将安装向导展示的预估空间统一提高为 `20 GB`。
+- 这样首页展示会更接近 TDGPT 在完整安装、模型下载和环境创建场景下的保守磁盘需求，避免用户误以为只需要数 MB 空间。
+
+### Windows VC++ 运行库前置要求
+
+- Windows 机器除 Python 3.10 / 3.11 / 3.12 外，还需要预装 `Microsoft Visual C++ Redistributable x64`。
+- 推荐直接安装最新支持版本：
+  - `https://aka.ms/vc14/vc_redist.x64.exe`
+- 这是 TensorFlow、PyTorch 以及其他依赖原生 DLL 的 Python 包在 Windows 上运行所需的公共运行库。
+- 典型缺失现象包括：
+  - `ImportError: Could not find the DLL(s) 'msvcp140_1.dll'`
+  - `fbgemm.dll or one of its dependencies`
+- 安装向导现在会在开始阶段额外检查以下关键 DLL：
+  - `msvcp140.dll`
+  - `msvcp140_1.dll`
+  - `vcruntime140.dll`
+- 如果未检测到这些 DLL，会直接提示安装 VC++ 运行库，而不是等到服务启动时才失败。
+
+### start-model.bat 默认行为调整
+
+- Windows 安装后的 `start-model.bat` 现在支持“无参数默认按 `all` 处理”。
+- 用户直接双击 `start-model.bat`，或在命令行中只执行 `start-model.bat` 时，会自动尝试启动当前安装目录下实际存在的模型目录。
+- 缺失目录的模型会被跳过，不再因为未传参数而直接退出。
+- `start-model.bat all` 的原有行为保持不变，仍然是“启动存在目录的模型，跳过不存在的模型”。
+
+### 已存在安装目录提示恢复
+
+- Windows 安装向导现在重新增加“已检测到现有 TDGPT / Taosanode 安装”的确认提示。
+- 触发条件不是简单的“目录存在”，而是目标目录下检测到以下安装标志之一：
+  - `bin\taosanode_service.py`
+  - `cfg\taosanode.config.py`
+  - `install.py`
+  - `venvs`
+  - `model`
+- 这样可以避免用户选择普通已有目录时被误报。
+- 提示文案会明确说明继续安装会更新打包文件，并尽量复用现有 `cfg`、`log`、`model`、`venvs`。
+- 同时会明确说明标准卸载默认不会删除 `model` 目录，除非显式执行删除模型的卸载参数。
+
+### 重装前自动停止旧 WinSW 服务
+
+- 针对多次重装时 `bin\taosanode-winsw.exe` 被占用导致的 `DeleteFile failed; code 5`，安装向导现在会在正式复制文件前自动执行旧服务清理。
+- 清理顺序为：
+  - 检测是否存在 `Taosanode` Windows 服务
+  - 先执行 `sc stop Taosanode`
+  - 再尝试调用现有目录下的 `taosanode-winsw.exe stop`
+- 最后执行 `taskkill /F /T /IM taosanode-winsw.exe`
+- 清理完成后，安装器会额外检查 `taosanode-winsw.exe` 是否已经解除占用。
+- 如果文件仍被锁定，会在进入复制阶段前直接给出明确错误提示，而不是等到文件替换过程中弹出 Windows 的“重试/跳过”错误框。
+
+### 在线模型下载限流自动重试
+
+- 针对通过 Hugging Face 镜像在线下载模型时出现的 `429 Too Many Requests`，Windows 安装脚本现在会自动重试，而不是第一次限流就直接安装失败。
+- 当前重试逻辑会：
+  - 识别异常信息中的 `Retry after <N> seconds`
+  - 按镜像返回的等待时间自动休眠
+  - 缺少明确等待时间时，按保守退避时间重试
+- 默认最多重试 `6` 次，基础等待时间为 `15` 秒。
+- 安装日志中会明确打印：
+  - 当前第几次下载尝试失败
+  - 计划等待多少秒后重试
+- 这样可以覆盖镜像站短时间 API 限流、窗口刷新后可继续下载的场景，减少在线安装中途失败。
+
+## 2026-03-22 继续补充说明
+
+### 安装阶段耗时日志
+
+- Windows `install.py` 现在会把主要安装阶段的开始和结束时间写入安装日志。
+- 当前会记录的关键阶段包括：
+  - 磁盘空间检查
+  - Python 检查
+  - pip 检查
+  - 创建目录
+  - 停止已有 Taosanode 服务
+  - 主 venv 准备
+  - TensorFlow 依赖安装
+  - 额外模型 venv 准备
+  - 离线模型导入 / 在线模型下载
+  - Windows 服务注册
+- 安装完成后的 `install.log` 摘要中会额外附带 `Phase timings` 清单，便于直接看出时间主要花在了哪一段。
+- 这样当界面长时间停留在某个阶段时，可以通过日志明确判断究竟是：
+  - 旧服务停止慢
+  - venv 创建慢
+  - pip 安装慢
+  - 模型下载/导入慢
+
+### sample_ad_model 启动降级
+
+- `sample_ad_model` 是内置的示例异常检测模型，依赖：
+  - `model\sample-ad-autoencoder\sample-ad-autoencoder.keras`
+  - `model\sample-ad-autoencoder\sample-ad-autoencoder.info`
+- 之前如果这两个样例文件缺失，模块导入阶段就会尝试加载并报错，可能干扰 Taosanode 启动判断。
+- 现在调整为：
+  - 如果样例模型文件存在，则按原逻辑预加载
+  - 如果样例模型文件缺失，则仅记录 info，并把该算法保持为 unavailable
+  - 不再因为样例模型缺失影响 Taosanode 主服务启动
+- 后续如果用户把样例模型文件补到正确目录，`sample_ad_model` 在实际调用参数设置时仍会再次尝试按需加载。
+
+### 在线下载限流策略调整
+
+- 对于 Hugging Face / HF Mirror 在线模型下载阶段的 `429 Too Many Requests`，当前策略改为直接失败，不再自动重试。
+- 原因是自动重试会显著拉长安装等待时间，也容易让用户误以为安装器卡住。
+- 现在保留完整错误输出，用户可以根据日志自行决定：
+  - 稍后重试
+  - 切换镜像源
+  - 改用离线模型导入
+
+### Windows 主服务 preflight 启动策略调整
+
+- Windows `taosanode` 服务启动时，原先默认会先单独执行一次完整的 `from taosanalytics.app import app` 预检查，然后正式启动时再在服务进程中完整导入一次应用。
+- 这样虽然诊断最完整，但在模型和主服务依赖都较重时，会导致主服务冷启动时间明显变长。
+- 现在调整为：
+  - 默认执行轻量 preflight
+  - 轻量 preflight 仅检查基础依赖和配置导入，如 `waitress`、`flask`、`numpy`、`taosanalytics.conf`
+  - 随后由正式服务进程完成一次真实的 `taosanalytics.app` 导入
+- 如果正式导入失败，仍会自动补充详细依赖诊断日志，不会丢失排障信息。
+- 如需恢复完整预检查，可使用：
+  - 命令行参数 `--full-preflight`
+  - 或环境变量 `TAOSANODE_PREFLIGHT_MODE=full`
+
+### model-status 端口展示补充
+
+- `model-status` 现在会额外显示每个模型服务对应的端口。
+- 当前 Windows 默认端口对齐为：
+  - `tdtsfm`: `6036`
+  - `timemoe`: `6037`
+  - `chronos`: `6038`
+  - `moirai`: `6039`
+  - `timesfm`: `6061`
+  - `moment`: `6062`
+- 端口展示配置位于：
+  - `cfg/taosanode.config.py` 的 `models` 字段
+- 其中 `chronos / moirai / timesfm / moment` 之前展示为 `0`，现在已与实际模型脚本监听端口对齐。
+
+### start-taosanode 启动成功判定调整
+
+- Windows 下的 `start-taosanode.bat` 不再把“服务命令返回成功”直接当成“主服务已经可用”。
+- 现在批处理会在发起启动后，额外调用 `taosanode_service.py wait-ready`，轮询：
+  - `http://127.0.0.1:6035/status`
+- 只有当 `/status` 返回 ready 时，才在窗口中提示 `Taosanode is ready.`。
+- 如果 30 秒内没有确认 ready，会提示：
+  - 启动命令已经返回
+  - 但 readiness 尚未确认
+  - 需要查看 `status-taosanode.bat` 或 `log\taosanode-service.log`
+- 这样可以避免用户把“服务进程已创建”误认为“anode 已完成导入并可对外提供服务”。
+
+### 在线安装复用已有模型目录
+
+- Windows 在线模型安装现在会优先检查 `<安装目录>\model\<model_name>` 是否已经存在完整模型文件。
+- 如果目标目录下已经具备该模型要求的关键文件，会直接跳过该模型的在线下载，不再覆盖或重建该目录。
+- 例如 `timesfm` 当前会检查：
+  - `model.safetensors`
+  - `config.json`
+  - `torch_model.ckpt`
+- 这样对于用户手动提前放好的模型目录，重新安装并选择在线模式时会优先复用，而不是再次下载。
+
+### 模型来源选项顺序调整
+
+- Windows 安装向导中的“Model Installation Source”顺序已调整为：
+  - `Import packaged offline model archives`
+  - `Do not install models now`
+  - `Download selected models online`
+- 默认选项也同步调整为第一项，即优先提示用户使用离线导入。
+- 在线下载模式仍然保留，但放到最后，减少用户在默认安装路径下直接走大模型在线下载的概率。

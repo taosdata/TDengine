@@ -283,7 +283,7 @@ def before_test_class(request):
     time.sleep(request.session.create_dnode_num)
     # check dnodes ready
     count = 0
-    timeout = 10
+    timeout = 20
     while count < timeout:
         tdSql.query("select * from information_schema.ins_dnodes")
         status = 0
@@ -507,11 +507,34 @@ def add_common_methods(request):
     request.cls.balanceVGroup = balanceVGroup
 
     def balanceVGroupLeader(self):
-        sql = f"balance vgroup leader"
-        tdSql.execute(sql, show=True)
-        if self.waitTransactionZero() is False:
-            tdLog.exit(f"{sql} transaction not finished")
-            return False
+        for i in range(3):
+            sql = f"balance vgroup leader"
+            tdSql.execute(sql, show=True)
+
+            if self.waitTransactionZero():
+                break  # Success, exit retry loop
+
+            tdLog.info(f"Attempt {i + 1} failed, trying to kill transaction before retry...")
+            sql = "show transactions;"
+            rows = tdSql.query(sql)
+            if rows > 0:
+                for _ in range(5):
+                    tranId = tdSql.getData(0, 0)
+                    tdLog.info(f'kill transaction {tranId}')
+                    tdSql.execute(f'kill transaction {tranId}', queryTimes=1)
+                    # Wait for transactions to go to zero after killing
+                    if not self.waitTransactionZero():
+                        tdLog.info("Transactions not drained after kill, retrying show transactions...")
+                    sql = "show transactions;"
+                    rows = tdSql.query(sql)
+                    if rows == 0:
+                        break
+                else:
+                    tdLog.exit("Failed to drain transactions after kill; aborting balance vgroup leader retries")
+                    return False
+        else:  # This block executes if the loop completes without a `break`
+            tdLog.exit("balance vgroup leader failed after 3 retries")
+            return False       
         return True
 
     request.cls.balanceVGroupLeader = balanceVGroupLeader
@@ -766,6 +789,36 @@ def add_common_methods(request):
         return False
 
     request.cls.waitCompactsZero = waitCompactsZero
+
+    def waitCompactsRetentionsZero(self, seconds=300, interval=1):
+        # wait end
+        compacts_cleared = False
+        for i in range(seconds):
+            sql = "show compacts;"
+            rows = tdSql.query(sql)
+            if rows == 0:
+                tdLog.info("compacts count became zero.")
+                compacts_cleared = True
+                break
+            time.sleep(interval)
+
+        if not compacts_cleared:
+            tdLog.warning(f"compacts did not become zero in {seconds} seconds")
+            return False
+
+        # wait for retentions
+        for i in range(seconds):
+            sql = "SHOW RETENTIONS;"
+            rows = tdSql.query(sql)
+            if rows == 0:
+                tdLog.info("RETENTIONS count became zero.")
+                return True
+            time.sleep(interval)
+
+        tdLog.warning(f"retentions did not become zero in {seconds} seconds")
+        return False
+
+    request.cls.waitCompactsRetentionsZero = waitCompactsRetentionsZero
 
     # check file exist
     def checkFileExist(self, pathFile):

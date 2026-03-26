@@ -88,6 +88,8 @@ extern "C" {
 #define EVENT_NONE         0
 #define EVENT_WINDOW_CLOSE BIT_FLAG_MASK(0)
 #define EVENT_WINDOW_OPEN  BIT_FLAG_MASK(1)
+#define EVENT_IDLE         BIT_FLAG_MASK(2)
+#define EVENT_RESUME       BIT_FLAG_MASK(3)
 
 #define NOTIFY_NONE              0
 #define NOTIFY_HISTORY           BIT_FLAG_MASK(0)

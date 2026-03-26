@@ -512,6 +512,7 @@ typedef struct SStreamTriggerOptions {
   SNode*    pMaxDelay;
   SNode*    pExpiredTime;
   SNode*    pFillHisStartTime;
+  SNode*    pIdleTimeout;
   int64_t   pEventType;
   int64_t   fillHistoryStartTime;
   bool      ignoreDisorder;

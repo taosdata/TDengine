@@ -247,6 +247,10 @@ void setCreateStreamEventTypes(SCMCreateStreamReq *expect, int64_t eventTypes) {
   expect->eventTypes = eventTypes;
 }
 
+void setCreateStreamIdleTimeout(SCMCreateStreamReq *expect, int64_t idleTimeoutMs) {
+  expect->idleTimeoutMs = idleTimeoutMs;
+}
+
 void setCreateStreamFlags(SCMCreateStreamReq *expect, int64_t flags) {
   expect->flags = flags;
 }
@@ -965,6 +969,29 @@ TEST_F(ParserStreamTest, TestTriggerOption) {
   setCreateStreamSql(&expect, "create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 stream_options(event_type(window_open | window_close)) into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2 ");
   run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 stream_options(event_type(window_open | window_close)) into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2 ");
 
+  // Test EVENT_IDLE and EVENT_RESUME (requires IDLE_TIMEOUT)
+  resetCreateStreamOutCols(&expect);
+  addCreateStreamOutCols(&expect, "_tidlestart", TSDB_DATA_TYPE_TIMESTAMP, 0, 8, 0, 0);
+  addCreateStreamOutCols(&expect, "_tidleend", TSDB_DATA_TYPE_TIMESTAMP, 0, 8, 0, 0);
+  setCreateStreamPlaceHolderBitmap(&expect, PLACE_HOLDER_IDLE_START | PLACE_HOLDER_IDLE_END);
+  resetCreateStreamQueryScanPlan(&expect);
+  addCreateStreamQueryScanPlan(&expect, false, "{\"NodeType\":\"1137\",\"Name\":\"PhysiSubplan\",\"PhysiSubplan\":{\"Id\":{\"QueryId\":\"0\",\"GroupId\":\"2\",\"SubplanId\":\"2\"},\"SubplanType\":\"3\",\"MsgType\":\"769\",\"Level\":\"1\",\"DbFName\":\"0.stream_querydb\",\"User\":\"\",\"NodeAddr\":{\"Id\":\"1\",\"InUse\":\"0\",\"NumOfEps\":\"0\"},\"RootNode\":{\"NodeType\":\"1101\",\"Name\":\"PhysiTableScan\",\"PhysiTableScan\":{\"OutputDataBlockDesc\":{\"NodeType\":\"19\",\"Name\":\"DataBlockDesc\",\"DataBlockDesc\":{\"DataBlockId\":\"2\",\"TotalRowSize\":\"8\",\"OutputRowSize\":\"8\",\"Slots\":[{\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{\"SlotId\":\"0\",\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"Reserve\":false,\"Output\":true,\"Name\":\"1011735779866557034\",\"Tag\":false}}],\"Precision\":\"0\"}},\"InputOrder\":\"0\",\"OutputOrder\":\"0\",\"DynamicOp\":false,\"ForceCreateNonBlockingOptr\":false,\"ScanCols\":[{\"NodeType\":\"18\",\"Name\":\"Target\",\"Target\":{\"DataBlockId\":\"2\",\"SlotId\":\"0\",\"Expr\":{\"NodeType\":\"1\",\"Name\":\"Column\",\"Column\":{\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"AliasName\":\"\",\"UserAlias\":\"\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"TableId\":\"30\",\"TableType\":\"0\",\"ColId\":\"1\",\"ProjId\":\"0\",\"ColType\":\"1\",\"DbName\":\"\",\"TableName\":\"stream_t2\",\"TableAlias\":\"stream_t2\",\"ColName\":\"ts\",\"DataBlockId\":\"0\",\"SlotId\":\"0\",\"TableHasPk\":false,\"IsPk\":false,\"NumOfPKs\":\"0\",\"HasDep\":false,\"HasRef\":false,\"RefDb\":\"\",\"RefTable\":\"\",\"RefCol\":\"\",\"IsPrimTs\":false}}}}],\"TableId\":\"30\",\"STableId\":\"0\",\"TableType\":\"3\",\"TableName\":{\"NameType\":\"2\",\"AcctId\":\"0\",\"DbName\":\"stream_querydb\",\"TableName\":\"stream_t2\"},\"GroupOrderScan\":false,\"VirtualStableScan\":false,\"ScanCount\":\"1\",\"ReverseScanCount\":\"0\",\"StartKey\":\"-9223372036854775808\",\"EndKey\":\"9223372036854775807\",\"Ratio\":1,\"DataRequired\":\"1\",\"Interval\":\"0\",\"Offset\":\"0\",\"Sliding\":\"0\",\"IntervalUnit\":\"0\",\"SlidingUnit\":\"0\",\"TriggerType\":\"0\",\"Watermark\":\"0\",\"IgnoreExpired\":\"0\",\"GroupSort\":false,\"AssignBlockUid\":false,\"IgnoreUpdate\":\"0\",\"FilesetDelimited\":false,\"NeedCountEmptyTable\":false,\"ParaTablesSort\":false,\"SmallDataTsSort\":false}},\"DataSink\":{\"NodeType\":\"1133\",\"Name\":\"PhysiDispatch\",\"PhysiDispatch\":{\"InputDataBlockDesc\":{\"NodeType\":\"19\",\"Name\":\"DataBlockDesc\",\"DataBlockDesc\":{\"DataBlockId\":\"2\",\"TotalRowSize\":\"8\",\"OutputRowSize\":\"8\",\"Slots\":[{\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{\"SlotId\":\"0\",\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"Reserve\":false,\"Output\":true,\"Name\":\"\",\"Tag\":false}}],\"Precision\":\"0\"}}}},\"ShowRewrite\":false,\"IsView\":false,\"IsAudit\":false,\"RowThreshold\":\"4096\",\"DyRowThreshold\":false,\"DynTbname\":false,\"ProcessOneBlock\":false}}");
+  setCreateStreamQueryCalcPlan(&expect, "{\"NodeType\":\"1138\",\"PhysiPlan\":{\"QueryId\":\"0\",\"NumOfSubplans\":\"1\",\"Subplans\":{\"NodeType\":\"15\",\"NodeList\":{\"DataType\":{\"Type\":\"0\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"0\"},\"UserAlias\":\"\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"NodeList\":[{\"NodeType\":\"1137\",\"PhysiSubplan\":{\"Id\":{\"QueryId\":\"0\",\"GroupId\":\"1\",\"SubplanId\":\"1\"},\"SubplanType\":\"5\",\"MsgType\":\"771\",\"Level\":\"0\",\"DbFName\":\"\",\"User\":\"\",\"NodeAddr\":{\"Id\":\"0\",\"InUse\":\"0\",\"NumOfEps\":\"0\"},\"Child\":[{\"NodeType\":\"2\",\"Value\":{\"DataType\":{\"Type\":\"5\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"UserAlias\":\"\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"LiteralSize\":\"0\",\"Flag\":false,\"Translate\":true,\"NotReserved\":false,\"IsNull\":false,\"Unit\":\"0\",\"Datum\":\"8589934594\"}}],\"RootNode\":{\"NodeType\":\"1108\",\"PhysiProject\":{\"OutputDataBlockDesc\":{\"NodeType\":\"19\",\"DataBlockDesc\":{\"DataBlockId\":\"1\",\"TotalRowSize\":\"16\",\"OutputRowSize\":\"16\",\"Slots\":[{\"NodeType\":\"20\",\"SlotDesc\":{\"SlotId\":\"0\",\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"Reserve\":false,\"Output\":true,\"Tag\":false}},{\"NodeType\":\"20\",\"SlotDesc\":{\"SlotId\":\"1\",\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"Reserve\":false,\"Output\":true,\"Tag\":false}}],\"Precision\":\"0\"}},\"Children\":[{\"NodeType\":\"1111\",\"PhysiExchange\":{\"OutputDataBlockDesc\":{\"NodeType\":\"19\",\"DataBlockDesc\":{\"DataBlockId\":\"0\",\"TotalRowSize\":\"8\",\"OutputRowSize\":\"8\",\"Slots\":[{\"NodeType\":\"20\",\"SlotDesc\":{\"SlotId\":\"0\",\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"Reserve\":false,\"Output\":true,\"Tag\":false}}],\"Precision\":\"0\"}},\"InputOrder\":\"0\",\"OutputOrder\":\"0\",\"DynamicOp\":false,\"ForceCreateNonBlockingOptr\":false,\"SrcStartGroupId\":\"2\",\"SrcEndGroupId\":\"2\",\"SeqRecvData\":false,\"DynTbname\":false,\"GrpSingleChannel\":false,\"SingleSource\":false}}],\"InputOrder\":\"0\",\"OutputOrder\":\"0\",\"DynamicOp\":false,\"ForceCreateNonBlockingOptr\":false,\"Projections\":[{\"NodeType\":\"18\",\"Target\":{\"DataBlockId\":\"1\",\"SlotId\":\"0\",\"Expr\":{\"NodeType\":\"5\",\"Function\":{\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"UserAlias\":\"_tidlestart\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"Id\":\"188\",\"Type\":\"3537\",\"Parameters\":[{\"NodeType\":\"2\",\"Value\":{\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"UserAlias\":\"\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"LiteralSize\":\"0\",\"Flag\":false,\"Translate\":true,\"NotReserved\":true,\"IsNull\":false,\"Unit\":\"0\",\"Datum\":\"0\"}}],\"UdfBufSize\":\"0\",\"HasPk\":false,\"PkBytes\":\"0\",\"IsMergeFunc\":false,\"MergeFuncOf\":\"0\",\"TrimType\":\"0\",\"SrcFuncInputDataType\":{\"Type\":\"0\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"0\"}}}}},{\"NodeType\":\"18\",\"Target\":{\"DataBlockId\":\"1\",\"SlotId\":\"1\",\"Expr\":{\"NodeType\":\"5\",\"Function\":{\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"UserAlias\":\"_tidleend\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"Id\":\"189\",\"Type\":\"3538\",\"Parameters\":[{\"NodeType\":\"2\",\"Value\":{\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"UserAlias\":\"\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"LiteralSize\":\"0\",\"Flag\":false,\"Translate\":true,\"NotReserved\":true,\"IsNull\":false,\"Unit\":\"0\",\"Datum\":\"0\"}}],\"UdfBufSize\":\"0\",\"HasPk\":false,\"PkBytes\":\"0\",\"IsMergeFunc\":false,\"MergeFuncOf\":\"0\",\"TrimType\":\"0\",\"SrcFuncInputDataType\":{\"Type\":\"0\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"0\"}}}}}],\"MergeDataBlock\":true,\"IgnoreGroupId\":true,\"InputIgnoreGroup\":false}},\"DataSink\":{\"NodeType\":\"1133\",\"PhysiDispatch\":{\"InputDataBlockDesc\":{\"NodeType\":\"19\",\"DataBlockDesc\":{\"DataBlockId\":\"1\",\"TotalRowSize\":\"16\",\"OutputRowSize\":\"16\",\"Slots\":[{\"NodeType\":\"20\",\"SlotDesc\":{\"SlotId\":\"0\",\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"Reserve\":false,\"Output\":true,\"Tag\":false}},{\"NodeType\":\"20\",\"SlotDesc\":{\"SlotId\":\"1\",\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"Reserve\":false,\"Output\":true,\"Tag\":false}}],\"Precision\":\"0\"}}}},\"ShowRewrite\":false,\"IsView\":false,\"IsAudit\":false,\"RowThreshold\":\"4096\",\"DyRowThreshold\":false,\"DynTbname\":false,\"ProcessOneBlock\":false}}]}}}}");
+  setCreateStreamIdleTimeout(&expect, 5000);  // 5s
+  setCreateStreamEventTypes(&expect, EVENT_IDLE);
+  setCreateStreamSql(&expect, "create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 stream_options(idle_timeout(5s) | event_type(idle)) into stream_outdb.stream_out as select _tidlestart, _tidleend from stream_querydb.stream_t2 ");
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 stream_options(idle_timeout(5s) | event_type(idle)) into stream_outdb.stream_out as select _tidlestart, _tidleend from stream_querydb.stream_t2 ");
+
+  setCreateStreamEventTypes(&expect, EVENT_RESUME);
+  setCreateStreamSql(&expect, "create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 stream_options(idle_timeout(5s) | event_type(resume)) into stream_outdb.stream_out as select _tidlestart, _tidleend from stream_querydb.stream_t2 ");
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 stream_options(idle_timeout(5s) | event_type(resume)) into stream_outdb.stream_out as select _tidlestart, _tidleend from stream_querydb.stream_t2 ");
+
+  setCreateStreamEventTypes(&expect, EVENT_IDLE | EVENT_RESUME);
+  setCreateStreamSql(&expect, "create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 stream_options(idle_timeout(5s) | event_type(idle | resume)) into stream_outdb.stream_out as select _tidlestart, _tidleend from stream_querydb.stream_t2 ");
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 stream_options(idle_timeout(5s) | event_type(idle | resume)) into stream_outdb.stream_out as select _tidlestart, _tidleend from stream_querydb.stream_t2 ");
+
+  setCreateStreamIdleTimeout(&expect, 0);  // Reset
+
   clearCreateStreamReq();
 }
 
@@ -1218,6 +1245,22 @@ TEST_F(ParserStreamTest, TestNotify) {
   setCreateStreamNotify(&expect, EVENT_WINDOW_OPEN | EVENT_WINDOW_CLOSE, false, false);
   setCreateStreamSql(&expect, "create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 notify('ws://localhost:8080', 'ws://localhost:8080/notify') on (window_close|window_open) into stream_outdb.stream_out as select _tlocaltime, avg(c1) from stream_querydb.stream_t2");
   run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 notify('ws://localhost:8080', 'ws://localhost:8080/notify') on (window_close|window_open) into stream_outdb.stream_out as select _tlocaltime, avg(c1) from stream_querydb.stream_t2");
+
+  // Test IDLE and RESUME events in NOTIFY (requires IDLE_TIMEOUT in stream_options)
+  setCreateStreamIdleTimeout(&expect, 5000);  // 5s
+  setCreateStreamNotify(&expect, EVENT_IDLE, false, false);
+  setCreateStreamSql(&expect, "create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 stream_options(idle_timeout(5s)) notify('ws://localhost:8080', 'ws://localhost:8080/notify') on (idle) into stream_outdb.stream_out as select _tlocaltime, avg(c1) from stream_querydb.stream_t2");
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 stream_options(idle_timeout(5s)) notify('ws://localhost:8080', 'ws://localhost:8080/notify') on (idle) into stream_outdb.stream_out as select _tlocaltime, avg(c1) from stream_querydb.stream_t2");
+
+  setCreateStreamNotify(&expect, EVENT_RESUME, false, false);
+  setCreateStreamSql(&expect, "create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 stream_options(idle_timeout(5s)) notify('ws://localhost:8080', 'ws://localhost:8080/notify') on (resume) into stream_outdb.stream_out as select _tlocaltime, avg(c1) from stream_querydb.stream_t2");
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 stream_options(idle_timeout(5s)) notify('ws://localhost:8080', 'ws://localhost:8080/notify') on (resume) into stream_outdb.stream_out as select _tlocaltime, avg(c1) from stream_querydb.stream_t2");
+
+  setCreateStreamNotify(&expect, EVENT_IDLE | EVENT_RESUME, false, false);
+  setCreateStreamSql(&expect, "create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 stream_options(idle_timeout(5s)) notify('ws://localhost:8080', 'ws://localhost:8080/notify') on (idle | resume) into stream_outdb.stream_out as select _tlocaltime, avg(c1) from stream_querydb.stream_t2");
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 stream_options(idle_timeout(5s)) notify('ws://localhost:8080', 'ws://localhost:8080/notify') on (idle | resume) into stream_outdb.stream_out as select _tlocaltime, avg(c1) from stream_querydb.stream_t2");
+
+  setCreateStreamIdleTimeout(&expect, 0);  // Reset
 
   // where condition
   // TODO(smj) add later
@@ -1979,6 +2022,80 @@ TEST_F(ParserStreamTest, TestPeriodOffset) {
 
   // Negative offset (should fail with syntax error)
   run("create stream stream_streamdb.s1 period(1w, -1d) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _wstart, avg(c1) from stream_querydb.stream_t2 interval(1w)", TSDB_CODE_PAR_SYNTAX_ERROR, PARSER_STAGE_PARSE);
+}
+
+// T016: IDLE_TIMEOUT syntax parsing tests
+TEST_F(ParserStreamTest, TestIdleTimeout) {
+  useDb("root", "stream_streamdb");
+
+  // Valid: IDLE_TIMEOUT with milliseconds (minimum: 1000a = 1s)
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 stream_options(idle_timeout(1000a)) into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2");
+
+  // Valid: IDLE_TIMEOUT with seconds
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 stream_options(idle_timeout(1s)) into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2");
+
+  // Valid: IDLE_TIMEOUT with minutes
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 stream_options(idle_timeout(5m)) into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2");
+
+  // Valid: IDLE_TIMEOUT with hours
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 stream_options(idle_timeout(1h)) into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2");
+
+  // Valid: IDLE_TIMEOUT with days (maximum: 10d)
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 stream_options(idle_timeout(10d)) into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2");
+
+  // Valid: EVENT_TYPE(IDLE) with IDLE_TIMEOUT
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 stream_options(idle_timeout(5s) | event_type(idle)) into stream_outdb.stream_out as select _tidlestart, _tidleend from stream_querydb.stream_t2");
+
+  // Valid: EVENT_TYPE(RESUME) with IDLE_TIMEOUT
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 stream_options(idle_timeout(5s) | event_type(resume)) into stream_outdb.stream_out as select _tidlestart, _tidleend from stream_querydb.stream_t2");
+
+  // Valid: EVENT_TYPE(IDLE|RESUME) with IDLE_TIMEOUT
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 stream_options(idle_timeout(5s) | event_type(idle|resume)) into stream_outdb.stream_out as select _tidlestart, _tidleend from stream_querydb.stream_t2");
+}
+
+// T051-T052: IDLE_TIMEOUT configuration validation tests (boundary values and error cases)
+TEST_F(ParserStreamTest, TestIdleTimeoutValidation) {
+  useDb("root", "stream_streamdb");
+
+  // Invalid: IDLE_TIMEOUT below minimum (< 1s = 1000ms)
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 stream_options(idle_timeout(999a)) into stream_outdb.stream_out as select _tidlestart from stream_querydb.stream_t2",
+      TSDB_CODE_STREAM_INVALID_TRIGGER);
+
+  // Invalid: IDLE_TIMEOUT above maximum (> 10d = 864000000ms)
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 stream_options(idle_timeout(11d)) into stream_outdb.stream_out as select _tidlestart from stream_querydb.stream_t2",
+      TSDB_CODE_STREAM_INVALID_TRIGGER);
+
+  // Invalid: EVENT_TYPE(IDLE) without IDLE_TIMEOUT
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 stream_options(event_type(idle)) into stream_outdb.stream_out as select _tidlestart from stream_querydb.stream_t2",
+      TSDB_CODE_STREAM_INVALID_TRIGGER);
+
+  // Invalid: EVENT_TYPE(RESUME) without IDLE_TIMEOUT
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 stream_options(event_type(resume)) into stream_outdb.stream_out as select _tidlestart from stream_querydb.stream_t2",
+      TSDB_CODE_STREAM_INVALID_TRIGGER);
+
+  // Invalid: using window placeholders when event type includes IDLE
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 stream_options(idle_timeout(5s) | event_type(idle)) into stream_outdb.stream_out as select _twstart, _twend from stream_querydb.stream_t2",
+      TSDB_CODE_STREAM_INVALID_PLACE_HOLDER);
+
+  // Invalid: using window placeholders when event type includes RESUME
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 stream_options(idle_timeout(5s) | event_type(resume)) into stream_outdb.stream_out as select _twend, _twduration from stream_querydb.stream_t2",
+      TSDB_CODE_STREAM_INVALID_PLACE_HOLDER);
+
+  // Invalid: using _twduration when event type includes IDLE|RESUME
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 stream_options(idle_timeout(5s) | event_type(idle|resume)) into stream_outdb.stream_out as select _tidlestart, _twduration from stream_querydb.stream_t2",
+      TSDB_CODE_STREAM_INVALID_PLACE_HOLDER);
+
+  // Invalid: using _twrownum when event type includes IDLE
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 stream_options(idle_timeout(5s) | event_type(idle)) into stream_outdb.stream_out as select _tidlestart, _twrownum from stream_querydb.stream_t2",
+      TSDB_CODE_STREAM_INVALID_PLACE_HOLDER);
+
+  // Invalid: using idle placeholders when event type does not include IDLE/RESUME
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 stream_options(event_type(window_close)) into stream_outdb.stream_out as select _tidlestart, _tidleend from stream_querydb.stream_t2",
+      TSDB_CODE_STREAM_INVALID_PLACE_HOLDER);
+
+  // Invalid: using idle placeholders without IDLE/RESUME event type
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _tidleend, avg(c1) from stream_querydb.stream_t2",
+      TSDB_CODE_STREAM_INVALID_PLACE_HOLDER);
 }
 
 }  // namespace ParserTest

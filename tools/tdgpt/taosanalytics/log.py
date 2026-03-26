@@ -94,7 +94,8 @@ def setup_log_info(name: str):
     """ prepare the log info for unit test """
     _GIT_HUB_HOST = "/home/runner/work/TDengine/TDengine/tools/tdgpt/log/"
 
-    base_dir = _GIT_HUB_HOST if os.environ.get('GITHUB_ACTIONS') else Configure.get_instance().get_log_dir()
+    # base_dir = _GIT_HUB_HOST if os.environ.get('GITHUB_ACTIONS') else Configure.get_instance().get_log_dir()
+    base_dir = Configure.get_instance().get_log_dir()
 
     log_file = os.path.join(base_dir, name)
     AppLogger.set_handler(log_file)

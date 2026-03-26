@@ -860,6 +860,7 @@ int32_t msmBuildTriggerDeployInfo(SMnode* pMnode, SStmStatus* pInfo, SStmTaskDep
   pMsg->fillHistoryStartTime = pStream->pCreate->fillHistoryStartTime;
   pMsg->watermark = pStream->pCreate->watermark;
   pMsg->expiredTime = pStream->pCreate->expiredTime;
+  pMsg->idleTimeoutMs = pStream->pCreate->idleTimeoutMs;
   pMsg->trigger = pInfo->pCreate->trigger;
 
   pMsg->eventTypes = pStream->pCreate->eventTypes;
