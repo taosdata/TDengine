@@ -103,12 +103,12 @@ class ServiceRegistry:
 
             if not os.path.exists(service_directory):
                 AppLogger.fatal(
-                    "service directory:%s not lib exists, failed to load service",
+                    "service directory:%s does not exist, failed to load service",
                     service_directory)
 
                 if required:
                     # fail fast if try to register the built-in service to diagnose the bug.
-                    raise FileNotFoundError(f"service directory:{service_directory} not found")
+                    raise FileNotFoundError(f"service directory:{service_directory} does not exist")
                 else:
                     # ignore the failure and continue in case of registering custom models
                     return
