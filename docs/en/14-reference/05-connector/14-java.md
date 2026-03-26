@@ -13,7 +13,7 @@ import RequestId from "../../assets/resources/_request_id.mdx";
 
 :::warning Native and REST Connections Being Deprecated
 
-<font color="red">Java's native connection and REST connection will be deprecated on 2027-01-01</font>, please migrate to WebSocket connection.
+<font color="red">Java's native connection and REST connection are deprecated and will be discontinued on 2027-01-01</font>, please migrate to WebSocket connection.
 
 For detailed migration guide, please refer to: [Connection Methods](../#connection-methods)
 
