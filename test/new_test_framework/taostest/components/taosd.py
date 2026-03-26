@@ -220,7 +220,8 @@ class TaosD:
             print(f"taosd path: {dnode['taosdPath']}")
             taosdPath = dnode['taosdPath']
             parentPath = os.path.dirname(taosdPath)
-            taosk_path = os.path.join(parentPath, "taosk")
+            taosk_name = "taosk.exe" if platform.system().lower() == "windows" else "taosk"
+            taosk_path = os.path.join(parentPath, taosk_name)
 
             if not os.path.exists(taosk_path):
                 self.logger.error(f"taosk not found at: {taosk_path}")
@@ -231,13 +232,13 @@ class TaosD:
             
             # Add server key (optional, auto-generated if not provided)
             if svr_key:
-                cmd_parts.extend(['--encrypt-server', f"'{svr_key}'"])
+                cmd_parts.extend(['--encrypt-server', svr_key])
             else:
                 cmd_parts.append('--encrypt-server')
             
             # Add database key (optional, auto-generated if not provided)
             if db_key:
-                cmd_parts.extend(['--encrypt-database', f"'{db_key}'"])
+                cmd_parts.extend(['--encrypt-database', db_key])
             else:
                 cmd_parts.append('--encrypt-database')
             
@@ -250,7 +251,7 @@ class TaosD:
             
             if generate_data:
                 if data_key:
-                    cmd_parts.extend(['--encrypt-data', f"'{data_key}'"])
+                    cmd_parts.extend(['--encrypt-data', data_key])
                 else:
                     cmd_parts.append('--encrypt-data')
             
