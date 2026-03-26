@@ -1535,6 +1535,8 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, 
               pCreateReq->txnId, terrno);
       } else {
         cRsp.code = TSDB_CODE_SUCCESS;
+        vnodeTxnTrackTable(pVnode, pCreateReq->txnId, pCreateReq->uid);
+        metaTxnIdxUpsert(pVnode->pMeta, pCreateReq->uid, pCreateReq->txnId, META_TXN_PRE_CREATE, -1);
       }
       if (taosArrayPush(rsp.pArray, &cRsp) == NULL) {
         terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -1547,7 +1549,7 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, 
     // do create table (non-transactional path)
     // First check if table name conflicts with any active txn shadow
     {
-      int32_t conflictCode = vnodeTxnCheckConflict(pVnode, tbName, SHADOW_OP_CREATE_TB);
+      int32_t conflictCode = vnodeTxnCheckConflict(pVnode, tbName, TXN_CONFLICT_OP_CREATE);
       if (conflictCode != TSDB_CODE_SUCCESS) {
         cRsp.code = conflictCode;
         if (taosArrayPush(rsp.pArray, &cRsp) == NULL) {
@@ -1806,17 +1808,16 @@ static int32_t vnodeProcessAlterTbReq(SVnode *pVnode, int64_t ver, void *pReq, i
   if (vAlterTbReq.txnId != 0) {
     vnodeTxnEnsureEntry(pVnode, vAlterTbReq.txnId);
 
-    // Save old version for rollback tracking
+    // Save old version for rollback tracking via public API
     tb_uid_t alterUid = 0;
+    int64_t  alterOldVersion = -1;
     {
-      void   *nameValue = NULL;
-      int32_t nameValueSize = 0;
-      if (tdbTbGet(pVnode->pMeta->pNameIdx, vAlterTbReq.tbName, strlen(vAlterTbReq.tbName) + 1, &nameValue,
-                   &nameValueSize) == 0) {
-        alterUid = *(tb_uid_t *)nameValue;
-        int64_t oldVersion = ((SUidIdxVal *)nameValue)->version;
-        vnodeTxnTrackAlter(pVnode, vAlterTbReq.txnId, alterUid, oldVersion);
-        tdbFreeClear(nameValue);
+      SMetaEntry *pOldEntry = NULL;
+      if (metaFetchEntryByName(pVnode->pMeta, vAlterTbReq.tbName, &pOldEntry) == 0 && pOldEntry != NULL) {
+        alterUid = pOldEntry->uid;
+        alterOldVersion = pOldEntry->version;
+        vnodeTxnTrackAlter(pVnode, vAlterTbReq.txnId, alterUid, alterOldVersion);
+        metaFetchEntryFree(&pOldEntry);
       }
     }
 
@@ -1824,9 +1825,10 @@ static int32_t vnodeProcessAlterTbReq(SVnode *pVnode, int64_t ver, void *pReq, i
     if (metaAlterTable(pVnode->pMeta, ver, &vAlterTbReq, &vMetaRsp) < 0) {
       vAlterTbRsp.code = terrno;
     } else {
-      // Mark the new entry with PRE_ALTER
+      // Mark the new entry with PRE_ALTER, persist oldVersion for rollback
       if (alterUid != 0) {
-        metaMarkTableTxnStatus(pVnode->pMeta, alterUid, vAlterTbReq.txnId, META_TXN_PRE_ALTER);
+        metaMarkTableTxnStatus(pVnode->pMeta, alterUid, vAlterTbReq.txnId, META_TXN_PRE_ALTER, alterOldVersion);
+        metaTxnIdxUpsert(pVnode->pMeta, alterUid, vAlterTbReq.txnId, META_TXN_PRE_ALTER, alterOldVersion);
       }
       vAlterTbRsp.code = TSDB_CODE_SUCCESS;
     }
@@ -1839,7 +1841,7 @@ static int32_t vnodeProcessAlterTbReq(SVnode *pVnode, int64_t ver, void *pReq, i
   {
     char alterTbNameFull[TSDB_TABLE_FNAME_LEN];
     (void)snprintf(alterTbNameFull, TSDB_TABLE_FNAME_LEN, "%s.%s", pVnode->config.dbname, vAlterTbReq.tbName);
-    int32_t conflictCode = vnodeTxnCheckConflict(pVnode, alterTbNameFull, SHADOW_OP_ALTER_TB);
+    int32_t conflictCode = vnodeTxnCheckConflict(pVnode, alterTbNameFull, TXN_CONFLICT_OP_ALTER);
     if (conflictCode != TSDB_CODE_SUCCESS) {
       vAlterTbRsp.code = conflictCode;
       tDecoderClear(&dc);
@@ -1928,6 +1930,8 @@ static int32_t vnodeProcessDropTbReq(SVnode *pVnode, int64_t ver, void *pReq, in
               pDropTbReq->txnId, terrno);
       } else {
         dropTbRsp.code = TSDB_CODE_SUCCESS;
+        vnodeTxnTrackTable(pVnode, pDropTbReq->txnId, pDropTbReq->uid);
+        metaTxnIdxUpsert(pVnode->pMeta, pDropTbReq->uid, pDropTbReq->txnId, META_TXN_PRE_DROP, -1);
       }
       if (taosArrayPush(rsp.pArray, &dropTbRsp) == NULL) {
         terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -1942,7 +1946,7 @@ static int32_t vnodeProcessDropTbReq(SVnode *pVnode, int64_t ver, void *pReq, in
     {
       char dropTbNameFull[TSDB_TABLE_FNAME_LEN];
       (void)snprintf(dropTbNameFull, TSDB_TABLE_FNAME_LEN, "%s.%s", pVnode->config.dbname, pDropTbReq->name);
-      int32_t conflictCode = vnodeTxnCheckConflict(pVnode, dropTbNameFull, SHADOW_OP_DROP_TB);
+      int32_t conflictCode = vnodeTxnCheckConflict(pVnode, dropTbNameFull, TXN_CONFLICT_OP_DROP);
       if (conflictCode != TSDB_CODE_SUCCESS) {
         dropTbRsp.code = conflictCode;
         if (taosArrayPush(rsp.pArray, &dropTbRsp) == NULL) {
@@ -3677,7 +3681,7 @@ static int32_t vnodeProcessBatchDeleteReq(SVnode *pVnode, int64_t ver, void *pRe
     {
       char fullTbName[TSDB_TABLE_FNAME_LEN];
       (void)snprintf(fullTbName, TSDB_TABLE_FNAME_LEN, "%s.%s", pVnode->config.dbname, name);
-      int32_t conflictCode = vnodeTxnCheckConflict(pVnode, fullTbName, SHADOW_OP_DROP_TB);
+      int32_t conflictCode = vnodeTxnCheckConflict(pVnode, fullTbName, TXN_CONFLICT_OP_DROP);
       if (conflictCode != TSDB_CODE_SUCCESS) {
         vWarn("vgId:%d, batch delete conflict for table %s, code:0x%x", TD_VID(pVnode), name, conflictCode);
         tDecoderClear(&mr.coder);

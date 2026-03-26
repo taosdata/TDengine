@@ -245,6 +245,10 @@ int32_t metaOpenImpl(SVnode *pVnode, SMeta **ppMeta, const char *metaDir, int8_t
   code = tdbTbOpen("stream.task.db", sizeof(int64_t), -1, taskIdxKeyCmpr, pMeta->pEnv, &pMeta->pStreamDb, 0);
   TSDB_CHECK_CODE(code, lino, _exit);
 
+  // open pTxnIdx — small B+ tree tracking pending txn entries (key=uid, value=STxnIdxVal)
+  code = tdbTbOpen("txn.idx", sizeof(tb_uid_t), sizeof(STxnIdxVal), uidIdxKeyCmpr, pMeta->pEnv, &pMeta->pTxnIdx, 0);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
   code = metaCacheOpen(pMeta);
   TSDB_CHECK_CODE(code, lino, _exit);
 
@@ -822,6 +826,7 @@ static void metaCleanup(SMeta **ppMeta) {
 #ifdef BUILD_NO_CALL
     if (pMeta->pIdx) metaCloseIdx(pMeta);
 #endif
+    if (pMeta->pTxnIdx) tdbTbClose(pMeta->pTxnIdx);
     if (pMeta->pStreamDb) tdbTbClose(pMeta->pStreamDb);
     if (pMeta->pNcolIdx) tdbTbClose(pMeta->pNcolIdx);
     if (pMeta->pBtimeIdx) tdbTbClose(pMeta->pBtimeIdx);

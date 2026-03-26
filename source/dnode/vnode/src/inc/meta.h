@@ -104,6 +104,9 @@ struct SMeta {
   // stream
   TTB* pStreamDb;
 
+  // batch meta txn: track pending txn entries for O(k) startup rebuild
+  TTB* pTxnIdx;
+
   SMetaCache* pCache;
 };
 
@@ -144,6 +147,14 @@ typedef struct {
   tb_uid_t uid;
   int64_t  smaUid;
 } SSmaIdxKey;
+
+#pragma pack(push, 1)
+typedef struct {
+  int64_t txnId;
+  int8_t  txnStatus;
+  int64_t txnOldVersion;
+} STxnIdxVal;
+#pragma pack(pop)
 
 typedef struct {
   int64_t  btime;

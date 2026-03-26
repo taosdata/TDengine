@@ -140,6 +140,81 @@ int32_t metaFetchEntryByName(SMeta *pMeta, const char *name, SMetaEntry **ppEntr
 
 void metaFetchEntryFree(SMetaEntry **ppEntry) { metaCloneEntryFree(ppEntry); }
 
+// ============================================================================
+// txn.idx — small B+ tree tracking pending txn entries for O(k) startup rebuild
+// Key: uid (tb_uid_t).  Value: STxnIdxVal {txnId, txnStatus, txnOldVersion}.
+// ============================================================================
+
+int32_t metaTxnIdxUpsert(SMeta *pMeta, tb_uid_t uid, int64_t txnId, int8_t txnStatus, int64_t txnOldVersion) {
+  STxnIdxVal val = {.txnId = txnId, .txnStatus = txnStatus, .txnOldVersion = txnOldVersion};
+  int32_t    code = tdbTbUpsert(pMeta->pTxnIdx, &uid, sizeof(uid), &val, sizeof(val), pMeta->txn);
+  if (code != 0) {
+    metaError("vgId:%d, metaTxnIdxUpsert failed, uid:%" PRId64 " txnId:%" PRId64 " code:0x%x", TD_VID(pMeta->pVnode),
+              uid, txnId, code);
+  }
+  return code;
+}
+
+int32_t metaTxnIdxDelete(SMeta *pMeta, tb_uid_t uid) {
+  int32_t code = tdbTbDelete(pMeta->pTxnIdx, &uid, sizeof(uid), pMeta->txn);
+  if (code != 0 && code != TSDB_CODE_NOT_FOUND) {
+    metaError("vgId:%d, metaTxnIdxDelete failed, uid:%" PRId64 " code:0x%x", TD_VID(pMeta->pVnode), uid, code);
+  }
+  return TSDB_CODE_SUCCESS;  // tolerate missing entries
+}
+
+/**
+ * Scan txn.idx (O(k) where k = pending txn entries, typically 0~dozens).
+ * Used by vnodeTxnRebuildFromMeta at VNode startup to reconstruct in-memory txn state.
+ * Returns an SArray of SMetaTxnScanEntry (caller must destroy).
+ */
+int32_t metaScanTxnEntries(SMeta *pMeta, SArray **ppResult) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  TBC    *pCursor = NULL;
+
+  SArray *pResult = taosArrayInit(16, sizeof(SMetaTxnScanEntry));
+  if (pResult == NULL) return terrno;
+
+  code = tdbTbcOpen(pMeta->pTxnIdx, &pCursor, NULL);
+  if (code != 0) {
+    taosArrayDestroy(pResult);
+    return code;
+  }
+
+  code = tdbTbcMoveToFirst(pCursor);
+  if (code != 0) {
+    tdbTbcClose(pCursor);
+    taosArrayDestroy(pResult);
+    return code;
+  }
+
+  for (;;) {
+    const void *pKey = NULL;
+    int         kLen = 0;
+    const void *pVal = NULL;
+    int         vLen = 0;
+
+    if (tdbTbcGet(pCursor, &pKey, &kLen, &pVal, &vLen) < 0) break;
+
+    tb_uid_t          uid = *(tb_uid_t *)pKey;
+    const STxnIdxVal *pTxnVal = (const STxnIdxVal *)pVal;
+
+    SMetaTxnScanEntry scanEntry = {
+        .uid = uid,
+        .txnId = pTxnVal->txnId,
+        .txnStatus = pTxnVal->txnStatus,
+        .txnOldVersion = pTxnVal->txnOldVersion,
+    };
+    taosArrayPush(pResult, &scanEntry);
+
+    if (tdbTbcMoveToNext(pCursor) < 0) break;
+  }
+
+  tdbTbcClose(pCursor);
+  *ppResult = pResult;
+  return TSDB_CODE_SUCCESS;
+}
+
 // Entry Table
 static int32_t metaEntryTableUpsert(SMeta *pMeta, const SMetaHandleParam *pParam, EMetaTableOp op) {
   const SMetaEntry *pEntry = pParam->pEntry;

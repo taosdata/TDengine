@@ -699,7 +699,7 @@ int32_t metaCreateTable2(SMeta *pMeta, int64_t version, SVCreateTbReq *pReq, STa
  * Reads the entry from pTbDb, updates txnId/txnStatus, re-encodes, and writes back.
  * Indexes are NOT modified — the entry remains visible but filtered by txnStatus.
  */
-int32_t metaMarkTableTxnStatus(SMeta *pMeta, int64_t uid, int64_t txnId, int8_t txnStatus) {
+int32_t metaMarkTableTxnStatus(SMeta *pMeta, int64_t uid, int64_t txnId, int8_t txnStatus, int64_t txnOldVersion) {
   int32_t code = TSDB_CODE_SUCCESS;
   void   *uidValue = NULL, *tbValue = NULL;
   int32_t uidValueSize = 0, tbValueSize = 0;
@@ -738,6 +738,7 @@ int32_t metaMarkTableTxnStatus(SMeta *pMeta, int64_t uid, int64_t txnId, int8_t 
   // Update txn fields
   entry.txnId = txnId;
   entry.txnStatus = txnStatus;
+  entry.txnOldVersion = txnOldVersion;
 
   // Re-encode and write back to the same key (in-place update)
   int32_t  encodeSize = 0;
@@ -767,6 +768,61 @@ int32_t metaMarkTableTxnStatus(SMeta *pMeta, int64_t uid, int64_t txnId, int8_t 
   return code;
 }
 
+/**
+ * Rollback an ALTER operation: delete the new version entry from pTbDb,
+ * restore pUidIdx to point at the old version, and clear txnId/txnStatus
+ * on the old entry.
+ *
+ * @param pMeta       The meta handle
+ * @param uid         The table UID
+ * @param oldVersion  The version to restore to
+ * @return TSDB_CODE_SUCCESS on success
+ */
+int32_t metaRollbackAlterTable(SMeta *pMeta, int64_t uid, int64_t oldVersion) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  void   *uidValue = NULL;
+  int32_t uidValueSize = 0;
+
+  // Read current version (the new-version entry created by ALTER)
+  code = tdbTbGet(pMeta->pUidIdx, &uid, sizeof(uid), &uidValue, &uidValueSize);
+  if (code) {
+    metaError("vgId:%d, rollback alter: uid %" PRId64 " not found in uidIdx", TD_VID(pMeta->pVnode), uid);
+    return TSDB_CODE_TDB_TABLE_NOT_EXIST;
+  }
+  int64_t newVersion = ((SUidIdxVal *)uidValue)->version;
+  tdbFreeClear(uidValue);
+
+  if (newVersion == oldVersion) {
+    // No new version was created, just clear txnStatus
+    return metaMarkTableTxnStatus(pMeta, uid, 0, META_TXN_NORMAL, -1);
+  }
+
+  // Delete the new-version entry from pTbDb
+  STbDbKey newKey = {.version = newVersion, .uid = uid};
+  code = tdbTbDelete(pMeta->pTbDb, &newKey, sizeof(newKey), pMeta->txn);
+  if (code) {
+    metaError("vgId:%d, rollback alter: failed to delete new ver %" PRId64 " for uid %" PRId64, TD_VID(pMeta->pVnode),
+              newVersion, uid);
+    return code;
+  }
+
+  // Restore pUidIdx to point at old version
+  SUidIdxVal uidVal = {.version = oldVersion};
+  code = tdbTbUpsert(pMeta->pUidIdx, &uid, sizeof(uid), &uidVal, sizeof(uidVal), pMeta->txn);
+  if (code) {
+    metaError("vgId:%d, rollback alter: failed to restore uidIdx for uid %" PRId64 " to ver %" PRId64,
+              TD_VID(pMeta->pVnode), uid, oldVersion);
+    return code;
+  }
+
+  // Clear txnId/txnStatus on the old entry
+  code = metaMarkTableTxnStatus(pMeta, uid, 0, META_TXN_NORMAL, -1);
+
+  metaInfo("vgId:%d, rollback alter: uid %" PRId64 " restored to version %" PRId64, TD_VID(pMeta->pVnode), uid,
+           oldVersion);
+  return code;
+}
+
 int32_t metaDropTable2(SMeta *pMeta, int64_t version, SVDropTbReq *pReq) {
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -791,7 +847,7 @@ int32_t metaDropTable2(SMeta *pMeta, int64_t version, SVDropTbReq *pReq) {
   // The entry remains visible (snapshot isolation) but INSERT on it fails.
   // On COMMIT: physically delete. On ROLLBACK: clear back to NORMAL.
   if (pReq->txnId != 0) {
-    code = metaMarkTableTxnStatus(pMeta, pReq->uid, pReq->txnId, META_TXN_PRE_DROP);
+    code = metaMarkTableTxnStatus(pMeta, pReq->uid, pReq->txnId, META_TXN_PRE_DROP, -1);
     if (code) {
       metaError("vgId:%d, %s failed to mark PRE_DROP for uid:%" PRId64 " name:%s txnId:%" PRId64, TD_VID(pMeta->pVnode),
                 __func__, pReq->uid, pReq->name, pReq->txnId);

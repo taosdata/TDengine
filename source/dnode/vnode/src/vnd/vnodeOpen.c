@@ -491,6 +491,17 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, STfs *pMoun
     vError("vgId:%d, failed to upgrade meta since %s", TD_VID(pVnode), tstrerror(terrno));
   }
 
+  // init txn manager and rebuild in-memory txn state from B+ tree
+  vInfo("vgId:%d, start to init vnode txn manager", TD_VID(pVnode));
+  if (vnodeTxnInit(pVnode) < 0) {
+    vError("vgId:%d, failed to init txn manager since %s", TD_VID(pVnode), tstrerror(terrno));
+    goto _err;
+  }
+  if (vnodeTxnRebuildFromMeta(pVnode) < 0) {
+    vError("vgId:%d, failed to rebuild txn state from meta since %s", TD_VID(pVnode), tstrerror(terrno));
+    goto _err;
+  }
+
   // open tsdb
   vInfo("vgId:%d, start to open vnode tsdb", TD_VID(pVnode));
   if ((terrno = tsdbOpen(pVnode, &VND_TSDB(pVnode), VNODE_TSDB_DIR, NULL, rollback, force)) < 0) {
@@ -591,6 +602,7 @@ _err:
   if (pVnode->pTq) tqClose(pVnode->pTq);
   if (pVnode->pWal) walClose(pVnode->pWal);
   if (pVnode->pTsdb) tsdbClose(&pVnode->pTsdb);
+  vnodeTxnCleanup(pVnode);
   if (pVnode->pMeta) metaClose(&pVnode->pMeta);
   if (pVnode->pBse) {
     bseClose(pVnode->pBse);
@@ -621,6 +633,7 @@ void vnodeClose(SVnode *pVnode) {
     tqClose(pVnode->pTq);
     walClose(pVnode->pWal);
     if (pVnode->pTsdb) tsdbClose(&pVnode->pTsdb);
+    vnodeTxnCleanup(pVnode);
     if (pVnode->pMeta) metaClose(&pVnode->pMeta);
     vnodeCloseBufPool(pVnode);
 

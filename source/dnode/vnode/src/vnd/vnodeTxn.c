@@ -119,6 +119,81 @@ void vnodeTxnCleanup(SVnode *pVnode) {
   vInfo("vgId:%d, txn manager cleaned up", TD_VID(pVnode));
 }
 
+// ============================================================================
+// Rebuild in-memory txn state from B+ tree (VNode startup / snapshot recovery)
+// ============================================================================
+
+// Forward declarations for static helpers used by vnodeTxnRebuildFromMeta
+static SVnodeTxnEntry *vnodeGetTxnEntry(SVnode *pVnode, int64_t txnId);
+static int32_t         vnodeCreateTxnEntry(SVnode *pVnode, int64_t txnId, int64_t term);
+static void            vnodeTxnTrackUid(SVnodeTxnEntry *pEntry, tb_uid_t uid);
+
+/**
+ * After VNode restart or snapshot recovery, the B+ tree may contain entries
+ * with txnId != 0 (PRE_CREATE / PRE_ALTER / PRE_DROP). The in-memory
+ * SVnodeTxnEntry hash was lost. This function scans the B+ tree and
+ * reconstructs SVnodeTxnEntry for each unique txnId found.
+ *
+ * Must be called AFTER metaOpen (B+ tree available) and vnodeTxnInit (hash ready).
+ */
+int32_t vnodeTxnRebuildFromMeta(SVnode *pVnode) {
+  if (pVnode->pTxnHash == NULL || pVnode->pMeta == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SArray *pScanResult = NULL;
+  int32_t code = metaScanTxnEntries(pVnode->pMeta, &pScanResult);
+  if (code != 0) {
+    vError("vgId:%d, failed to scan txn entries from meta, code:0x%x", TD_VID(pVnode), code);
+    return code;
+  }
+
+  int32_t numEntries = taosArrayGetSize(pScanResult);
+  if (numEntries == 0) {
+    taosArrayDestroy(pScanResult);
+    vInfo("vgId:%d, txn rebuild: no pending txn entries found in B+ tree", TD_VID(pVnode));
+    return TSDB_CODE_SUCCESS;
+  }
+
+  vInfo("vgId:%d, txn rebuild: found %d entries with txnId != 0", TD_VID(pVnode), numEntries);
+
+  // No need to lock txnMutex since no requests are being processed yet during startup.
+  for (int32_t i = 0; i < numEntries; i++) {
+    SMetaTxnScanEntry *pScan = (SMetaTxnScanEntry *)taosArrayGet(pScanResult, i);
+
+    // Ensure SVnodeTxnEntry exists for this txnId
+    SVnodeTxnEntry *pEntry = vnodeGetTxnEntry(pVnode, pScan->txnId);
+    if (pEntry == NULL) {
+      code = vnodeCreateTxnEntry(pVnode, pScan->txnId, 0 /* term unknown after restart */);
+      if (code != 0) {
+        vError("vgId:%d, txn rebuild: failed to create entry for txnId:%" PRId64, TD_VID(pVnode), pScan->txnId);
+        continue;
+      }
+      pEntry = vnodeGetTxnEntry(pVnode, pScan->txnId);
+      if (pEntry == NULL) continue;
+    }
+
+    // Track this UID
+    vnodeTxnTrackUid(pEntry, pScan->uid);
+
+    // If PRE_ALTER, also reconstruct the ALTER old version record
+    if (pScan->txnStatus == META_TXN_PRE_ALTER && pScan->txnOldVersion >= 0) {
+      SVnodeAlterRecord rec = {.uid = pScan->uid, .oldVersion = pScan->txnOldVersion};
+      taosArrayPush(pEntry->pAlterOldVersions, &rec);
+    }
+
+    vDebug("vgId:%d, txn rebuild: uid:%" PRId64 " txnId:%" PRId64 " status:%d oldVer:%" PRId64, TD_VID(pVnode),
+           pScan->uid, pScan->txnId, pScan->txnStatus, pScan->txnOldVersion);
+  }
+
+  taosArrayDestroy(pScanResult);
+
+  // Log summary
+  int32_t numTxns = taosHashGetSize(pVnode->pTxnHash);
+  vInfo("vgId:%d, txn rebuild complete: %d unique txns, %d total entries", TD_VID(pVnode), numTxns, numEntries);
+  return TSDB_CODE_SUCCESS;
+}
+
 // Get transaction entry by txnId
 static SVnodeTxnEntry *vnodeGetTxnEntry(SVnode *pVnode, int64_t txnId) {
   return (SVnodeTxnEntry *)taosHashGet(pVnode->pTxnHash, &txnId, sizeof(int64_t));
@@ -300,7 +375,7 @@ static int32_t vnodeTxnPromoteShadowEntries(SVnode *pVnode, SVnodeTxnEntry *pEnt
       case META_TXN_PRE_CREATE:
       case META_TXN_PRE_ALTER:
         // Promote: clear txnId/txnStatus → NORMAL
-        code = metaMarkTableTxnStatus(pVnode->pMeta, uid, 0, META_TXN_NORMAL);
+        code = metaMarkTableTxnStatus(pVnode->pMeta, uid, 0, META_TXN_NORMAL, -1);
         if (code == 0) {
           vInfo("vgId:%d, commit: promoted uid %" PRId64 " (status %d → NORMAL)", TD_VID(pVnode), uid, pME->txnStatus);
         } else {
@@ -329,6 +404,9 @@ static int32_t vnodeTxnPromoteShadowEntries(SVnode *pVnode, SVnodeTxnEntry *pEnt
         vDebug("vgId:%d, commit: uid %" PRId64 " has status %d, skip", TD_VID(pVnode), uid, pME->txnStatus);
         break;
     }
+
+    // Remove from txn.idx regardless of status
+    metaTxnIdxDelete(pVnode->pMeta, uid);
 
     metaFetchEntryFree(&pME);
   }
@@ -392,7 +470,7 @@ static int32_t vnodeTxnUndoShadowEntries(SVnode *pVnode, SVnodeTxnEntry *pEntry)
 
       case META_TXN_PRE_DROP:
         // Table was marked for drop — restore to NORMAL
-        code = metaMarkTableTxnStatus(pVnode->pMeta, uid, 0, META_TXN_NORMAL);
+        code = metaMarkTableTxnStatus(pVnode->pMeta, uid, 0, META_TXN_NORMAL, -1);
         if (code == 0) {
           vInfo("vgId:%d, rollback: restored PRE_DROP uid %" PRId64 " to NORMAL", TD_VID(pVnode), uid);
         } else {
@@ -402,9 +480,10 @@ static int32_t vnodeTxnUndoShadowEntries(SVnode *pVnode, SVnodeTxnEntry *pEntry)
 
       case META_TXN_PRE_ALTER: {
         // ALTER created a new version — need to delete it and restore old version.
-        // Find the old version from pAlterOldVersions.
-        int64_t oldVersion = -1;
-        if (pEntry->pAlterOldVersions) {
+        // Primary source: txnOldVersion persisted in B+ tree entry (survives snapshot).
+        // Fallback: in-memory pAlterOldVersions (only available if WAL was replayed).
+        int64_t oldVersion = pME->txnOldVersion;
+        if (oldVersion < 0 && pEntry->pAlterOldVersions) {
           int32_t nAlter = taosArrayGetSize(pEntry->pAlterOldVersions);
           for (int32_t j = nAlter - 1; j >= 0; j--) {
             SVnodeAlterRecord *pRec = (SVnodeAlterRecord *)taosArrayGet(pEntry->pAlterOldVersions, j);
@@ -416,22 +495,17 @@ static int32_t vnodeTxnUndoShadowEntries(SVnode *pVnode, SVnodeTxnEntry *pEntry)
         }
 
         if (oldVersion >= 0) {
-          // Delete the new-version entry from pTbDb
-          STbDbKey newKey = {.version = pME->version, .uid = uid};
-          tdbTbDelete(pVnode->pMeta->pTbDb, &newKey, sizeof(newKey), pVnode->pMeta->txn);
-
-          // Restore pUidIdx to point at old version
-          SUidIdxVal uidVal = {.version = oldVersion};
-          tdbTbUpsert(pVnode->pMeta->pUidIdx, &uid, sizeof(uid), &uidVal, sizeof(uidVal), pVnode->pMeta->txn);
-
-          // Clear txnId on the old entry (it was marked PRE_ALTER too)
-          metaMarkTableTxnStatus(pVnode->pMeta, uid, 0, META_TXN_NORMAL);
-
-          vInfo("vgId:%d, rollback: restored ALTER uid %" PRId64 " to version %" PRId64, TD_VID(pVnode), uid,
-                oldVersion);
+          code = metaRollbackAlterTable(pVnode->pMeta, uid, oldVersion);
+          if (code == 0) {
+            vInfo("vgId:%d, rollback: restored ALTER uid %" PRId64 " to version %" PRId64, TD_VID(pVnode), uid,
+                  oldVersion);
+          } else {
+            vError("vgId:%d, rollback: metaRollbackAlterTable failed for uid %" PRId64 ", code:0x%x", TD_VID(pVnode),
+                   uid, code);
+          }
         } else {
           // Fallback: just clear txnStatus on the current entry
-          metaMarkTableTxnStatus(pVnode->pMeta, uid, 0, META_TXN_NORMAL);
+          metaMarkTableTxnStatus(pVnode->pMeta, uid, 0, META_TXN_NORMAL, -1);
           vWarn("vgId:%d, rollback: ALTER uid %" PRId64 " old version not found, cleared status", TD_VID(pVnode), uid);
         }
         break;
@@ -441,6 +515,9 @@ static int32_t vnodeTxnUndoShadowEntries(SVnode *pVnode, SVnodeTxnEntry *pEntry)
         vDebug("vgId:%d, rollback: uid %" PRId64 " has status %d, skip", TD_VID(pVnode), uid, pME->txnStatus);
         break;
     }
+
+    // Remove from txn.idx regardless of status
+    metaTxnIdxDelete(pVnode->pMeta, uid);
 
     metaFetchEntryFree(&pME);
   }
