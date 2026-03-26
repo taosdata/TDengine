@@ -137,6 +137,12 @@ if(NOT ${TD_WINDOWS})
 # unused code that is dragged in from Arrow/Parquet static libraries.
 target_compile_options(taosBackup PRIVATE -ffunction-sections -fdata-sections)
 
+# Code coverage instrumentation
+if(ENABLE_COVERAGE)
+    target_compile_options(taosBackup PRIVATE --coverage)
+    target_link_options(taosBackup PRIVATE --coverage)
+endif()
+
 # Prevent ZSTD symbol interposition: libtaos.so exports TSZ's ZSTD symbols
 # (ZSTD_compressBlock_doubleFast etc.) which collide with ext_arrow's statically
 # bundled ZSTD.  With a PIE binary, PLT lookup can resolve internal ZSTD calls

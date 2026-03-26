@@ -117,12 +117,23 @@ static int stmt2AllocColBuffers(Stmt2RestoreCtx *ctx, int64_t numRows,
         if (ctx->varWriteOffsets)
             memset(ctx->varWriteOffsets, 0, ctx->colBindsCap * sizeof(int32_t));
         /* also reset per-column length arrays for var/decimal columns:
-         * only zero out the rows that will actually be used (numRows), not
-         * the full rowBufCap — avoids writing megabytes of zeros when batch
-         * capacity is large but the current file is small. */
+         * zero only the rows that will actually be used, capped at rowBufCap
+         * (the allocated length).  numRows can exceed rowBufCap when the file
+         * has more rows than the batch capacity, causing a heap overflow if
+         * numRows is used directly. */
+        int64_t zeroRows = (numRows < (int64_t)ctx->rowBufCap) ? numRows : (int64_t)ctx->rowBufCap;
         for (int i = 0; i < numCols; i++) {
+            /* Update buffer_type: when this buffer is reused between tables with
+             * different schemas (e.g. NTB-0 has INT col, NTB-1 has FLOAT col),
+             * the old buffer_type from the previous table must be overwritten. */
+            int backupColIdx = i;
+            if (ctx->stbChange && ctx->stbChange->schemaChanged && ctx->stbChange->colMappings &&
+                i < ctx->stbChange->matchColCount) {
+                backupColIdx = ctx->stbChange->colMappings[i].backupIdx;
+            }
+            ctx->colBinds[i].buffer_type = fieldInfos[backupColIdx].type;
             TAOS_STMT2_BIND *bind = &ctx->colBinds[i];
-            if (bind->length) memset(bind->length, 0, numRows * sizeof(int32_t));
+            if (bind->length) memset(bind->length, 0, (size_t)zeroRows * sizeof(int32_t));
         }
         return TSDB_CODE_SUCCESS;
     }

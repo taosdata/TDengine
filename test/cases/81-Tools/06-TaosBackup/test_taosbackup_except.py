@@ -355,7 +355,7 @@ class TestTaosBackupRetry:
             tdLog.info("WARNING: pause thread did not finish in time")
 
     def teardown_method(self, method):
-        """Safety net: resume taosd after any test that may have paused it."""
+        """Safety net: resume taosd and ensure taosadapter is up after each test."""
         if hasattr(self, "_pause_thread") and self._pause_thread.is_alive():
             self._pause_stop_evt.set()
             self._pause_thread.join(timeout=self._SRV_PAUSETIME + 10)
@@ -365,6 +365,24 @@ class TestTaosBackupRetry:
                 os.kill(pid, signal.SIGCONT)
             except OSError:
                 pass
+        # Restart taosadapter if kill-tests left it dead, so the next
+        # test class starts with a healthy adapter.
+        try:
+            out = subprocess.check_output(
+                ["pidof", "taosadapter"], stderr=subprocess.DEVNULL
+            )
+            if out.strip():
+                return  # adapter is alive
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            pass
+        taosadapter = etool.taosAdapterFile()
+        if taosadapter:
+            tdLog.info("teardown: taosadapter not running, restarting it")
+            os.system(
+                f"nohup {taosadapter} --logLevel=error"
+                f" > ~/taosa_teardown.log 2>&1 &"
+            )
+            time.sleep(3)  # wait for adapter to bind port 6041 before next class
 
     # =========================================================================
     # Helpers for restore-retry test
@@ -641,8 +659,9 @@ class TestTaosBackupRetry:
             tdLog.exit(f"backup FAILED (ret={ret})")
 
         tdLog.info("=== step 4: restore with taosadapter kill/restart ===")
+        # -k 15 -z 2000: up to 30 s of retries so adapter has time to restart
         restore_cmd = (
-            f"{taosbackup} -T 2 -k 3 -z 1000"
+            f"{taosbackup} -T 2 -k 15 -z 2000"
             f" -W \"{src_db}={self._RR_DB_DST}\" -i {tmpdir}"
         )
         self._start_kill_thread(taosadapter, presleep=2, sleep=5, count=3)

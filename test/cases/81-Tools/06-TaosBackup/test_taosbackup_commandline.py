@@ -411,3 +411,55 @@ class TestTaosBackupCommandline:
         # 6. -B/-v boundary values for restore (STMT2 and STMT1)
         self.checkDataBatch(db, jsonFile, tmpdir)
         tdLog.info("6. data-batch -B/-v boundary restore tests ......... [Passed]")
+
+    def test_taosbackup_all_databases(self):
+        """taosBackup backup without -D to exercise getAllDatabases() in backup.c
+
+        When no -D flag is provided, backupMain() calls getAllDatabases() which
+        issues SHOW DATABASES and iterates all non-system databases.  This
+        covers ~45 lines in backup.c that are never reached by -D tests,
+        including the capacity-doubling realloc path.
+
+        Steps:
+          1. Insert a small dataset into cmd_alldb.
+          2. Backup with no -D (native mode, -T 2).
+          3. Verify SUCCESS in output.
+          4. Restore cmd_alldb into cmd_alldb_r and verify row count.
+
+        Since: v3.0.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-03-24 Alex Duan Created to cover backup.c getAllDatabases()
+
+        """
+        taosbackup, benchmark, tmpdir = self.findPrograme()
+        db     = "cmd_alldb"
+        dst_db = "cmd_alldb_r"
+
+        tdLog.info("=== step 1: insert small dataset ===")
+        ret = self.exec(f"{benchmark} -d {db} -t 4 -n 500 -y")
+        if ret != 0:
+            tdLog.exit(f"taosBenchmark failed (ret={ret})")
+
+        tdLog.info("=== step 2: backup ALL databases (no -D) ===")
+        self.clearPath(tmpdir)
+        rlist = self.taosbackup(f"-Z native -T 2 -o {tmpdir}")
+        self.checkListString(rlist, RESULT_SUCCESS)
+        tdLog.info("backup all-dbs SUCCESS")
+
+        tdLog.info("=== step 3: restore cmd_alldb ===")
+        tdSql.execute(f"drop database if exists {dst_db}")
+        rlist = self.taosbackup(f'-Z native -W "{db}={dst_db}" -i {tmpdir}')
+        self.checkListString(rlist, RESULT_SUCCESS)
+
+        tdLog.info("=== step 4: verify row count ===")
+        tdSql.query(f"SELECT count(*) FROM {dst_db}.meters")
+        count = tdSql.getData(0, 0)
+        if count == 0:
+            tdLog.exit("restored table is empty")
+        tdSql.execute(f"drop database if exists {dst_db}")
+        tdLog.info(f"test_taosbackup_all_databases PASSED (rows={count})")

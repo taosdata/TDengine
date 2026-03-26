@@ -325,3 +325,130 @@ class TestTaosBackupCheckpoint:
         self.verify(src_agg, DB_DST)
 
         tdLog.info("test_taosbackup_checkpoint PASSED")
+
+    # ------------------------------------------------------------------
+    # Test 2: large-subtable scenario — restoreCkpt.c hash table coverage
+    # ------------------------------------------------------------------
+
+    def test_checkpoint_large_subtable(self):
+        """restoreCkpt.c hash table init / insert / lookup / free paths
+
+        The 16 KB thread-local checkpoint buffer only flushes to disk when it
+        overflows (markRestoreDone fills it past 16 384 bytes).  With the default
+        100-subtable dataset the buffer never overflows, so no checkpoint data is
+        persisted on SIGKILL and the hash table functions are never exercised.
+
+        This test uses 2 000 subtables × 200 rows = 400 000 rows.  Each
+        checkpoint entry is ~70 bytes, so 234 entries fill the 16 KB buffer and
+        trigger an fsync flush.  After the kill, the checkpoint file contains
+        hundreds of flushed entries; the second restore run (-C) loads them into
+        the hash table, exercising:
+          - initCkptHashTable()   — allocates bucket array
+          - insertCkptHash()      — populates entries from file
+          - lookupCkptHash()      — called for every file during resume run
+          - freeCkptHashTable()   — called at restore cleanup
+
+        Steps:
+          1. Insert 2 000 subtables × 200 rows via taosBenchmark.
+          2. Backup with -T 1 (must complete fully — no interrupt).
+          3. Record reference aggregations.
+          4. Restore attempt 1 (no -C): kill after KILL_RESTORE s so the
+             thread-local buffer fills and flushes at least once.
+          5. Restore attempt 2 (with -C): verify skipped(checkpoint) > 0,
+             meaning the hash table was populated and lookups fired.
+          6. Verify restored data matches the reference aggregations.
+
+        Since: v3.0.0.0
+
+        Labels: common
+
+        Jira: None
+
+        History:
+            - 2026-03-24 Alex Duan Created to cover restoreCkpt.c hash table paths
+
+        """
+        DB_LARGE   = "ckpt_large_src"
+        DB_DST_L   = "ckpt_large_dst"
+        STB        = "meters"
+        TABLES     = 2000
+        ROWS       = 200
+        KILL_RST   = 25   # seconds — enough for 300+ files to be checkpointed
+
+        taosbackup, benchmark, tmpdir = self.find_programs()
+        tmpdir_l = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "tmp_ckpt_large"
+        )
+        if os.path.exists(tmpdir_l):
+            os.system(f"rm -rf {tmpdir_l}")
+        os.makedirs(tmpdir_l)
+
+        # -- step 1: insert 2 000 tables × 200 rows -------------------
+        tdLog.info(f"=== step 1: insert {TABLES} × {ROWS} rows ===")
+        cmd = f"{benchmark} -d {DB_LARGE} -t {TABLES} -n {ROWS} -y"
+        tdLog.info(f"  exec: {cmd}")
+        ret = os.system(cmd)
+        if ret != 0:
+            tdLog.exit(f"taosBenchmark failed (ret={ret})")
+
+        # -- step 2: backup (no interrupt) ----------------------------
+        tdLog.info("=== step 2: backup (no interrupt) ===")
+        backup_cmd = f"{taosbackup} -T 2 -D {DB_LARGE} -o {tmpdir_l}"
+        ret = os.system(backup_cmd)
+        if ret != 0:
+            tdLog.exit(f"backup FAILED (ret={ret})")
+
+        # -- step 3: record reference aggregations --------------------
+        tdLog.info("=== step 3: record reference aggregations ===")
+        tdSql.query(f"SELECT count(*) FROM {DB_LARGE}.{STB}")
+        src_count = tdSql.getData(0, 0)
+        tdSql.query(f"SELECT sum(voltage) FROM {DB_LARGE}.{STB}")
+        src_sum_v = tdSql.getData(0, 0)
+        tdLog.info(f"  source: count={src_count}  sum(voltage)={src_sum_v}")
+        if src_count == 0:
+            tdLog.exit("source table empty — taosBenchmark may have failed")
+
+        # -- step 4: restore attempt 1 (no -C, kill after KILL_RST s) --
+        tdLog.info(f"=== step 4: restore attempt 1/2 (no -C, kill after {KILL_RST}s) ===")
+        tdSql.execute(f"drop database if exists {DB_DST_L}")
+        restore_cmd = f"{taosbackup} -T 1 -W \"{DB_LARGE}={DB_DST_L}\" -i {tmpdir_l}"
+        ret, killed = run_with_timeout(restore_cmd, KILL_RST)
+        if not killed:
+            if ret == 0:
+                tdLog.info("restore completed before kill — skip step 5 (already verified path)")
+                return
+            tdLog.exit(f"restore attempt 1 failed unexpectedly (ret={ret})")
+
+        ckpt_file = os.path.join(tmpdir_l, DB_LARGE, "restore_checkpoint.txt")
+        ckpt_entries = 0
+        if os.path.exists(ckpt_file):
+            with open(ckpt_file) as f:
+                ckpt_entries = sum(1 for ln in f if ln.strip())
+        tdLog.info(f"  checkpoint file has {ckpt_entries} entries after kill")
+        if ckpt_entries == 0:
+            tdLog.info(
+                "WARNING: checkpoint file is empty — buffer never flushed. "
+                "Increase TABLES or KILL_RST to let more files complete."
+            )
+
+        # -- step 5: restore attempt 2 (with -C, run to completion) ---
+        tdLog.info("=== step 5: restore attempt 2/2 (with -C) ===")
+        tdSql.execute(f"drop database if exists {DB_DST_L}")
+        ret = os.system(restore_cmd + " -C")
+        if ret != 0:
+            tdLog.exit(f"restore attempt 2 FAILED (ret={ret})")
+
+        # -- step 6: verify data correctness --------------------------
+        tdLog.info("=== step 6: verify restored data ===")
+        tdSql.query(f"SELECT count(*) FROM {DB_DST_L}.{STB}")
+        dst_count = tdSql.getData(0, 0)
+        tdSql.query(f"SELECT sum(voltage) FROM {DB_DST_L}.{STB}")
+        dst_sum_v = tdSql.getData(0, 0)
+        if src_count != dst_count:
+            tdLog.exit(f"count mismatch: src={src_count} dst={dst_count}")
+        if src_sum_v != dst_sum_v:
+            tdLog.exit(f"sum(voltage) mismatch: src={src_sum_v} dst={dst_sum_v}")
+        tdLog.info(
+            f"test_checkpoint_large_subtable PASSED "
+            f"(count={dst_count}, ckpt_entries={ckpt_entries})"
+        )

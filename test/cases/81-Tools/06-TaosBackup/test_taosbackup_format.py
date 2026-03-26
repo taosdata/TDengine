@@ -14,6 +14,8 @@
 from new_test_framework.utils import tdLog, tdSql, etool
 import os
 import shutil
+import socket
+import time
 import zlib
 
 
@@ -78,6 +80,19 @@ class TestTaosBackupFormat:
         if os.path.exists(path):
             shutil.rmtree(path)
         os.makedirs(path)
+
+    def _wait_adapter_ready(self, host="127.0.0.1", port=6041, timeout=60):
+        """Poll until taosadapter accepts TCP connections or timeout expires."""
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            try:
+                s = socket.create_connection((host, port), timeout=2)
+                s.close()
+                tdLog.info(f"taosadapter ready on {host}:{port}")
+                return
+            except OSError:
+                time.sleep(1)
+        tdLog.info(f"WARNING: taosadapter not ready after {timeout}s, proceeding anyway")
 
     def insertData(self):
         """Insert test data via taosBenchmark using insertFormat.json."""
@@ -359,6 +374,11 @@ class TestTaosBackupFormat:
               against STMT1 and STMT2 restore paths.
         """
         tdLog.info("=== test_taosbackup_format START ===")
+
+        # Ensure taosadapter is accepting connections before any backup attempt.
+        # The prior except test class kills/restarts adapter; without this guard
+        # the backup hangs indefinitely on a dead adapter (connection pool spin).
+        self._wait_adapter_ready()
 
         # Step 1 – generate data
         tdLog.info("Step 1: insert data via taosBenchmark")
