@@ -663,6 +663,15 @@ int32_t vHashGet(SVHashTable* ht, const void* obj, void** retObj);
 int32_t vHashDrop(SVHashTable* ht, const void* obj);
 
 // vnodeTxn.c — Batch metadata transaction
+// Shadow operation types for redo-log (child/normal table DDL only)
+// Redo-log model: DDL is NOT applied to meta during txn; stored as shadow ops.
+// COMMIT replays shadow ops to meta; ROLLBACK discards them.
+typedef enum {
+  SHADOW_OP_CREATE_TB = 1,  // Redo: create the child/normal table on COMMIT
+  SHADOW_OP_ALTER_TB = 2,   // Redo: alter the table on COMMIT
+  SHADOW_OP_DROP_TB = 3,    // Redo: drop the table on COMMIT
+} EShadowOpType;
+
 int32_t vnodeTxnInit(SVnode* pVnode);
 void    vnodeTxnCleanup(SVnode* pVnode);
 int32_t vnodeProcessTxnCommitReq(SVnode* pVnode, int64_t ver, void* pReq, int32_t len, SRpcMsg* pRsp);
@@ -673,8 +682,11 @@ int32_t vnodeCollectIdleTxns(SVnode* pVnode, SArray* pQueries);
 void    vnodeTxnProcessActiveAck(SVnode* pVnode, utxn_id_t txnId, int8_t alive);
 int32_t vnodeTxnLockTable(SVnode* pVnode, const char* tableName, int64_t txnId);
 void    vnodeTxnUnlockTables(SVnode* pVnode, int64_t txnId);
-int32_t vnodeTxnAddShadowOp(SVnode* pVnode, int64_t txnId, int8_t opType, const char* name, tb_uid_t uid,
-                            tb_uid_t suid);
+int32_t vnodeTxnAddShadowOp(SVnode* pVnode, int64_t txnId, int8_t opType, const char* name, tb_uid_t uid, tb_uid_t suid,
+                            void* pReqData, int32_t reqDataLen);
+int32_t vnodeTxnRegisterDdl(SVnode* pVnode, int64_t txnId, int8_t opType, const char* name, tb_uid_t uid, tb_uid_t suid,
+                            void* pReqData, int32_t reqDataLen);
+int32_t vnodeTxnShadowTableStatus(SVnode* pVnode, int64_t txnId, const char* name);
 
 #ifdef __cplusplus
 }

@@ -1315,6 +1315,7 @@ typedef struct {
   int64_t  keep;
   int8_t   virtualStb;
   int8_t   secureDelete;
+  int64_t  txnId;  // batch meta txn ID (0 = not in txn)
 } SMCreateStbReq;
 
 int32_t tSerializeSMCreateStbReq(void* buf, int32_t bufLen, SMCreateStbReq* pReq);
@@ -1337,6 +1338,7 @@ typedef struct {
   tb_uid_t suid;
   int32_t  sqlLen;
   char*    sql;
+  int64_t  txnId;  // batch meta txn ID (0 = not in txn)
 } SMDropStbReq;
 
 int32_t tSerializeSMDropStbReq(void* buf, int32_t bufLen, SMDropStbReq* pReq);
@@ -1356,6 +1358,7 @@ typedef struct {
   int64_t keep;
   SArray* pTypeMods;
   int8_t  secureDelete;
+  int64_t txnId;  // batch meta txn ID (0 = not in txn)
 } SMAlterStbReq;
 
 int32_t tSerializeSMAlterStbReq(void* buf, int32_t bufLen, SMAlterStbReq* pReq);
@@ -4944,6 +4947,7 @@ typedef struct SVCreateTbReq {
   SColCmprWrapper colCmpr;
   SExtSchema*     pExtSchemas;
   SColRefWrapper  colRef;  // col reference for virtual table
+  int64_t         txnId;   // batch meta txn ID (0 = not in txn)
 } SVCreateTbReq;
 
 int  tEncodeSVCreateTbReq(SEncoder* pCoder, const SVCreateTbReq* pReq);
@@ -5019,6 +5023,7 @@ typedef struct {
   int64_t  uid;
   int8_t   igNotExists;
   int8_t   isVirtual;
+  int64_t  txnId;  // batch meta txn ID (0 = not in txn)
 } SVDropTbReq;
 
 typedef struct {
@@ -5109,6 +5114,7 @@ typedef struct SVAlterTbReq {
   char* refTbName;
   char* refColName;
   // TSDB_ALTER_TABLE_REMOVE_COLUMN_REF
+  int64_t txnId;  // batch meta txn ID (0 = not in txn)
 } SVAlterTbReq;
 
 int32_t tEncodeSVAlterTbReq(SEncoder* pEncoder, const SVAlterTbReq* pReq);

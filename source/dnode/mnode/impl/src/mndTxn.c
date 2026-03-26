@@ -172,6 +172,11 @@ void mndTxnFreeObj(STxnObj *pObj) {
       pObj->pVgList = NULL;
     }
     if (pObj->pShadowOps) {
+      int32_t sz = taosArrayGetSize(pObj->pShadowOps);
+      for (int32_t i = 0; i < sz; i++) {
+        SMndShadowOp *pOp = (SMndShadowOp *)taosArrayGet(pObj->pShadowOps, i);
+        taosMemoryFreeClear(pOp->pReqData);
+      }
       taosArrayDestroy(pObj->pShadowOps);
       pObj->pShadowOps = NULL;
     }
@@ -436,10 +441,10 @@ int8_t mndTxnIsAlive(SMnode *pMnode, utxn_id_t txnId) {
  * @param dbName   DB name
  */
 int32_t mndTxnAddShadowOp(SMnode *pMnode, utxn_id_t txnId, int8_t opType, const char *stbName, tb_uid_t uid,
-                          const char *dbName) {
+                          const char *dbName, void *pReqData, int32_t reqDataLen) {
   STxnObj *pTxn = mndAcquireTxn(pMnode, txnId);
   if (pTxn == NULL) {
-    mError("txn:%" PRIu64 ", not found, cannot add shadow op", txnId);
+    mError("txn:%" PRIu64 ", not found, cannot add shadow op", txnId);taosMemoryFreeClear(pReqData);
     return TSDB_CODE_TXN_NOT_EXIST;
   }
 
@@ -450,6 +455,7 @@ int32_t mndTxnAddShadowOp(SMnode *pMnode, utxn_id_t txnId, int8_t opType, const 
     if (pTxn->pShadowOps == NULL) {
       taosWUnLockLatch(&pTxn->lock);
       mndReleaseTxn(pMnode, pTxn);
+      taosMemoryFreeClear(pReqData);
       return TSDB_CODE_OUT_OF_MEMORY;
     }
   }
@@ -459,6 +465,8 @@ int32_t mndTxnAddShadowOp(SMnode *pMnode, utxn_id_t txnId, int8_t opType, const 
   op.uid = uid;
   tstrncpy(op.name, stbName, sizeof(op.name));
   tstrncpy(op.db, dbName, sizeof(op.db));
+  op.pReqData = pReqData;  // ownership transferred
+  op.reqDataLen = reqDataLen;
 
   taosArrayPush(pTxn->pShadowOps, &op);
   pTxn->lastActiveTime = taosGetTimestampMs();
@@ -466,7 +474,8 @@ int32_t mndTxnAddShadowOp(SMnode *pMnode, utxn_id_t txnId, int8_t opType, const 
   taosWUnLockLatch(&pTxn->lock);
   mndReleaseTxn(pMnode, pTxn);
 
-  mInfo("txn:%" PRIu64 ", shadow op added: opType=%d, stb=%s, uid=%" PRId64, txnId, opType, stbName, uid);
+  mInfo("txn:%" PRIu64 ", shadow op added (redo): opType=%d, stb=%s, uid=%" PRId64 ", dataLen:%d", txnId, opType,
+        stbName, uid, reqDataLen);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -496,102 +505,25 @@ utxn_id_t mndTxnGetActiveTxnId(SMnode *pMnode, SRpcMsg *pReq) {
  * @param pTrans  The rollback Trans to append undo actions to
  * @param pTxn    The user batch txn being rolled back
  */
-static int32_t mndTxnUndoShadowOps(SMnode *pMnode, STrans *pTrans, STxnObj *pTxn) {
+/**
+ * Discard MNode shadow ops on ROLLBACK — simply discard all pending redo-log entries.
+ * Since STB DDL was NOT applied to SDB during the ACTIVE phase (redo-log model),
+ * there is nothing to undo. We just log and free.
+ *
+ * @param pTxn    The user batch txn being rolled back
+ */
+static int32_t mndTxnDiscardShadowOps(STxnObj *pTxn) {
   if (pTxn->pShadowOps == NULL) return TSDB_CODE_SUCCESS;
 
   int32_t numOps = taosArrayGetSize(pTxn->pShadowOps);
-  mInfo("txn:%" PRIu64 ", undoing %d MNode shadow ops", pTxn->id, numOps);
+  mInfo("txn:%" PRIu64 ", discarding %d MNode shadow ops (redo-log)", pTxn->id, numOps);
 
-  // Undo in reverse order
-  for (int32_t i = numOps - 1; i >= 0; i--) {
+  // Redo-log model: SDB was never modified, so just log and free.
+  for (int32_t i = 0; i < numOps; i++) {
     SMndShadowOp *pOp = (SMndShadowOp *)taosArrayGet(pTxn->pShadowOps, i);
-
-    switch (pOp->opType) {
-      case MND_SHADOW_OP_CREATE_STB: {
-        // Undo CREATE STABLE: drop it from SDB and broadcast to VNodes
-        SStbObj *pStb = mndAcquireStb(pMnode, pOp->name);
-        if (pStb == NULL) {
-          mWarn("txn:%" PRIu64 ", rollback: stb %s not found, already dropped?", pTxn->id, pOp->name);
-          break;
-        }
-
-        // Append SDB drop log to the rollback trans
-        SSdbRaw *pDropRaw = mndStbActionEncode(pStb);
-        if (pDropRaw != NULL) {
-          sdbSetRawStatus(pDropRaw, SDB_STATUS_DROPPED);
-          int32_t code = mndTransAppendRedolog(pTrans, pDropRaw);
-          if (code != 0) {
-            mError("txn:%" PRIu64 ", rollback: failed to append stb drop log for %s", pTxn->id, pOp->name);
-          } else {
-            mInfo("txn:%" PRIu64 ", rollback: appended stb drop log for %s, uid:%" PRId64, pTxn->id, pOp->name,
-                  pOp->uid);
-          }
-        }
-
-        // Broadcast VND_DROP_STB to each VGroup in the DB
-        SDbObj *pDb = mndAcquireDb(pMnode, pOp->db);
-        if (pDb != NULL) {
-          SSdb   *pSdb = pMnode->pSdb;
-          SVgObj *pVgroup = NULL;
-          void   *pIter = NULL;
-          while ((pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup))) {
-            if (!mndVgroupInDb(pVgroup, pDb->uid)) {
-              sdbRelease(pSdb, pVgroup);
-              continue;
-            }
-
-            // Build VND_DROP_STB message for this VGroup
-            SName stbShortName = {0};
-            if (tNameFromString(&stbShortName, pStb->name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE) == 0) {
-              SVDropStbReq dropReq = {.name = (char *)tNameGetTableName(&stbShortName), .suid = pOp->uid};
-              int32_t      bodyLen = 0;
-              int32_t      ret = 0;
-              tEncodeSize(tEncodeSVDropStbReq, &dropReq, bodyLen, ret);
-              if (ret >= 0 && bodyLen > 0) {
-                int32_t   contLen = bodyLen + sizeof(SMsgHead);
-                SMsgHead *pHead = taosMemoryMalloc(contLen);
-                if (pHead != NULL) {
-                  pHead->contLen = htonl(contLen);
-                  pHead->vgId = htonl(pVgroup->vgId);
-                  SEncoder enc = {0};
-                  tEncoderInit(&enc, POINTER_SHIFT(pHead, sizeof(SMsgHead)), bodyLen);
-                  tEncodeSVDropStbReq(&enc, &dropReq);
-                  tEncoderClear(&enc);
-
-                  STransAction action = {0};
-                  action.mTraceId = pTrans->mTraceId;
-                  action.epSet = mndGetVgroupEpset(pMnode, pVgroup);
-                  action.pCont = pHead;
-                  action.contLen = contLen;
-                  action.msgType = TDMT_VND_DROP_STB;
-                  action.acceptableCode = TSDB_CODE_SUCCESS;
-                  if (mndTransAppendRedoAction(pTrans, &action) != 0) {
-                    taosMemoryFree(pHead);
-                  }
-                }
-              }
-            }
-            sdbRelease(pSdb, pVgroup);
-          }
-          mndReleaseDb(pMnode, pDb);
-        }
-
-        mndReleaseStb(pMnode, pStb);
-        break;
-      }
-
-      case MND_SHADOW_OP_DROP_STB:
-        mWarn("txn:%" PRIu64 ", rollback: DROP STB undo not supported, stb=%s", pTxn->id, pOp->name);
-        break;
-
-      case MND_SHADOW_OP_ALTER_STB:
-        mWarn("txn:%" PRIu64 ", rollback: ALTER STB undo not supported, stb=%s", pTxn->id, pOp->name);
-        break;
-
-      default:
-        mError("txn:%" PRIu64 ", unknown shadow op type %d", pTxn->id, pOp->opType);
-        break;
-    }
+    mInfo("txn:%" PRIu64 ", discard shadow op %d/%d: opType=%d, stb=%s", pTxn->id, i + 1, numOps, pOp->opType,
+          pOp->name);
+    taosMemoryFreeClear(pOp->pReqData);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -1064,8 +996,8 @@ static int32_t mndRollbackTxn(SMnode *pMnode, SRpcMsg *pReq, STxnObj *pTxn, int3
     mInfo("txn:%" PRIu64 ", append rollback action for vgId:%d", pTxn->id, vgId);
   }
 
-  // Undo MNode-side shadow ops (STB DDL) — append undo entries to this Trans
-  TAOS_CHECK_EXIT(mndTxnUndoShadowOps(pMnode, pTrans, pTxn));
+  // Discard MNode-side shadow ops (STB DDL) — redo-log model, just free
+  mndTxnDiscardShadowOps(pTxn);
 
   TAOS_CHECK_EXIT(mndTransPrepare(pMnode, pTrans));
 

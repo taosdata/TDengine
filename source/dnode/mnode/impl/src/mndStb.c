@@ -14,6 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "mndStb.h"
 #include "audit.h"
 #include "mndDb.h"
 #include "mndDnode.h"
@@ -26,12 +27,12 @@
 #include "mndRsma.h"
 #include "mndShow.h"
 #include "mndSma.h"
-#include "mndStb.h"
+#include "mndStream.h"
 #include "mndTopic.h"
 #include "mndTrans.h"
+#include "mndTxn.h"
 #include "mndUser.h"
 #include "mndVgroup.h"
-#include "mndStream.h"
 #include "tname.h"
 
 #define STB_VER_SUPPORT_COMP    2
@@ -1079,6 +1080,7 @@ static int32_t mndCreateStb(SMnode *pMnode, SRpcMsg *pReq, SMCreateStbReq *pCrea
 
   TAOS_CHECK_GOTO(mndAddStbToTrans(pMnode, pTrans, pDb, &stbObj), NULL, _OVER);
   TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), NULL, _OVER);
+
   code = 0;
 
 _OVER:
@@ -1748,7 +1750,21 @@ static int32_t mndProcessCreateStbReq(SRpcMsg *pReq) {
     taosMemoryFreeClear(pDst.pCmpr);
     taosMemoryFreeClear(pDst.pExtSchemas);
   } else {
-    code = mndCreateStb(pMnode, pReq, &createReq, pDb, pOperUser);
+    // Batch meta txn: defer STB DDL to shadow (redo-log), do NOT apply to SDB now.
+    if (createReq.txnId != 0) {
+      SName stbName = {0};
+      tNameFromString(&stbName, createReq.name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+      void *pShadowData = taosMemoryMalloc(pReq->contLen);
+      if (pShadowData == NULL) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+      } else {
+        memcpy(pShadowData, pReq->pCont, pReq->contLen);
+        code = mndTxnAddShadowOp(pMnode, createReq.txnId, MND_SHADOW_OP_CREATE_STB, createReq.name, createReq.suid,
+                                 pDb->name, pShadowData, pReq->contLen);
+      }
+    } else {
+      code = mndCreateStb(pMnode, pReq, &createReq, pDb, pOperUser);
+    }
   }
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
@@ -3037,8 +3053,22 @@ static int32_t mndProcessAlterStbReq(SRpcMsg *pReq) {
   TAOS_CHECK_GOTO(mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_CM_ALTER, PRIV_OBJ_TBL, pDb->name, name.tname),
                   NULL, _OVER);
 
-  code = mndAlterStb(pMnode, pReq, &alterReq, pDb, pStb);
-  if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
+  // Batch meta txn: defer STB DDL to shadow (redo-log), do NOT apply to SDB now.
+  if (alterReq.txnId != 0) {
+    void *pShadowData = taosMemoryMalloc(pReq->contLen);
+    if (pShadowData == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+    } else {
+      memcpy(pShadowData, pReq->pCont, pReq->contLen);
+      code = mndTxnAddShadowOp(pMnode, alterReq.txnId, MND_SHADOW_OP_ALTER_STB, pStb->name, pStb->uid, pDb->name,
+                               pShadowData, pReq->contLen);
+    }
+  } else {
+    code = mndAlterStb(pMnode, pReq, &alterReq, pDb, pStb);
+    if (code == 0) {
+      code = TSDB_CODE_ACTION_IN_PROGRESS;
+    }
+  }
 
   if (tsAuditLevel >= AUDIT_LEVEL_DATABASE) {
     int64_t tse = taosGetTimestampMs();
@@ -3265,8 +3295,22 @@ static int32_t mndProcessDropStbReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  code = mndDropStb(pMnode, pReq, pDb, pStb);
-  if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
+  // Batch meta txn: defer STB DDL to shadow (redo-log), do NOT apply to SDB now.
+  if (dropReq.txnId != 0) {
+    void *pShadowData = taosMemoryMalloc(pReq->contLen);
+    if (pShadowData == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+    } else {
+      memcpy(pShadowData, pReq->pCont, pReq->contLen);
+      code = mndTxnAddShadowOp(pMnode, dropReq.txnId, MND_SHADOW_OP_DROP_STB, pStb->name, pStb->uid, pDb->name,
+                               pShadowData, pReq->contLen);
+    }
+  } else {
+    code = mndDropStb(pMnode, pReq, pDb, pStb);
+    if (code == 0) {
+      code = TSDB_CODE_ACTION_IN_PROGRESS;
+    }
+  }
 
   if (tsAuditLevel >= AUDIT_LEVEL_DATABASE) {
     int64_t tse = taosGetTimestampMs();

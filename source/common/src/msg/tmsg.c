@@ -835,6 +835,8 @@ int32_t tSerializeSMCreateStbReq(void *buf, int32_t bufLen, SMCreateStbReq *pReq
 
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->virtualStb));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->secureDelete));
+  // batch meta txn ID
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->txnId));
 
   tEndEncode(&encoder);
 
@@ -960,6 +962,10 @@ int32_t tDeserializeSMCreateStbReq(void *buf, int32_t bufLen, SMCreateStbReq *pR
   } else {
     pReq->secureDelete = 0;
   }
+  // batch meta txn ID
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->txnId));
+  }
 
   tEndDecode(&decoder);
 
@@ -994,6 +1000,8 @@ int32_t tSerializeSMDropStbReq(void *buf, int32_t bufLen, SMDropStbReq *pReq) {
   }
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->suid));
   ENCODESQL();
+  // batch meta txn ID
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->txnId));
   tEndEncode(&encoder);
 
 _exit:
@@ -1022,6 +1030,11 @@ int32_t tDeserializeSMDropStbReq(void *buf, int32_t bufLen, SMDropStbReq *pReq) 
   TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->suid));
 
   DECODESQL();
+
+  // batch meta txn ID
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->txnId));
+  }
 
   tEndDecode(&decoder);
 
@@ -1083,6 +1096,8 @@ int32_t tSerializeSMAlterStbReq(void *buf, int32_t bufLen, SMAlterStbReq *pReq) 
   if (pReq->alterType == TSDB_ALTER_TABLE_UPDATE_OPTIONS) {
     TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->secureDelete));
   }
+  // batch meta txn ID
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->txnId));
   tEndEncode(&encoder);
 
 _exit:
@@ -1170,6 +1185,10 @@ int32_t tDeserializeSMAlterStbReq(void *buf, int32_t bufLen, SMAlterStbReq *pReq
     TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->secureDelete));
   } else {
     pReq->secureDelete = -1;
+  }
+  // batch meta txn ID
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->txnId));
   }
   tEndDecode(&decoder);
 
@@ -15019,6 +15038,8 @@ int tEncodeSVCreateTbReq(SEncoder *pCoder, const SVCreateTbReq *pReq) {
       }
     }
   }
+  // batch meta txn ID
+  TAOS_CHECK_EXIT(tEncodeI64(pCoder, pReq->txnId));
 
   tEndEncode(pCoder);
 _exit:
@@ -15112,6 +15133,11 @@ int tDecodeSVCreateTbReq(SDecoder *pCoder, SVCreateTbReq *pReq) {
         }
       }
     }
+  }
+
+  // batch meta txn ID
+  if (!tDecodeIsEnd(pCoder)) {
+    TAOS_CHECK_EXIT(tDecodeI64(pCoder, &pReq->txnId));
   }
 
   tEndDecode(pCoder);
@@ -15262,6 +15288,8 @@ static int32_t tEncodeSVDropTbReq(SEncoder *pCoder, const SVDropTbReq *pReq) {
   TAOS_CHECK_RETURN(tEncodeI64(pCoder, pReq->uid));
   TAOS_CHECK_RETURN(tEncodeI8(pCoder, pReq->igNotExists));
   TAOS_CHECK_RETURN(tEncodeI8(pCoder, pReq->isVirtual));
+  // batch meta txn ID
+  TAOS_CHECK_RETURN(tEncodeI64(pCoder, pReq->txnId));
 
   tEndEncode(pCoder);
   return 0;
@@ -15275,6 +15303,10 @@ static int32_t tDecodeSVDropTbReq(SDecoder *pCoder, SVDropTbReq *pReq) {
   TAOS_CHECK_RETURN(tDecodeI8(pCoder, &pReq->igNotExists));
   if (!tDecodeIsEnd(pCoder)) {
     TAOS_CHECK_RETURN(tDecodeI8(pCoder, &pReq->isVirtual));
+  }
+  // batch meta txn ID
+  if (!tDecodeIsEnd(pCoder)) {
+    TAOS_CHECK_RETURN(tDecodeI64(pCoder, &pReq->txnId));
   }
 
   tEndDecode(pCoder);
@@ -15539,6 +15571,8 @@ int32_t tEncodeSVAlterTbReq(SEncoder *pEncoder, const SVAlterTbReq *pReq) {
   if (pReq->action == TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COMPRESS_OPTION || pReq->action == TSDB_ALTER_TABLE_ADD_COLUMN) {
     TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pReq->typeMod));
   }
+  // batch meta txn ID
+  TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pReq->txnId));
 
   tEndEncode(pEncoder);
 _exit:
@@ -15853,6 +15887,10 @@ int32_t tDecodeSVAlterTbReq(SDecoder *pDecoder, SVAlterTbReq *pReq) {
     if (!tDecodeIsEnd(pDecoder)) {
       TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pReq->typeMod));
     }
+  }
+  // batch meta txn ID
+  if (!tDecodeIsEnd(pDecoder)) {
+    TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pReq->txnId));
   }
 
   tEndDecode(pDecoder);

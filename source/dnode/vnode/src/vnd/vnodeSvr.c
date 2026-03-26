@@ -1521,7 +1521,38 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, 
       continue;
     }
 
-    // do create table
+    // Batch meta txn: defer DDL to shadow (redo-log), do NOT apply to meta now.
+    // The DDL becomes visible only within this txn via shadow overlay,
+    // and is applied to real meta on COMMIT.
+    if (pCreateReq->txnId != 0) {
+      // Serialize the original batch request for later COMMIT replay
+      void *pShadowData = taosMemoryMalloc(len);
+      if (pShadowData == NULL) {
+        cRsp.code = TSDB_CODE_OUT_OF_MEMORY;
+      } else {
+        memcpy(pShadowData, pReq, len);
+        tb_uid_t suid = (pCreateReq->type == TSDB_CHILD_TABLE || pCreateReq->type == TSDB_VIRTUAL_CHILD_TABLE)
+                            ? pCreateReq->ctb.suid
+                            : 0;
+        int32_t  txnCode = vnodeTxnRegisterDdl(pVnode, pCreateReq->txnId, SHADOW_OP_CREATE_TB, tbName, pCreateReq->uid,
+                                               suid, pShadowData, len);
+        if (txnCode != 0) {
+          cRsp.code = txnCode;
+          vWarn("vgId:%d, txn register failed for create table %s, txnId:%" PRId64 ", code:0x%x", TD_VID(pVnode),
+                tbName, pCreateReq->txnId, txnCode);
+        } else {
+          cRsp.code = TSDB_CODE_SUCCESS;
+        }
+      }
+      if (taosArrayPush(rsp.pArray, &cRsp) == NULL) {
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        rcode = -1;
+        goto _exit;
+      }
+      continue;
+    }
+
+    // do create table (non-transactional path)
     if (metaCreateTable2(pVnode->pMeta, ver, pCreateReq, &cRsp.pMeta) < 0) {
       if (pCreateReq->flags & TD_CREATE_IF_NOT_EXISTS && terrno == TSDB_CODE_TDB_TABLE_ALREADY_EXIST) {
         cRsp.code = TSDB_CODE_SUCCESS;
@@ -1764,7 +1795,30 @@ static int32_t vnodeProcessAlterTbReq(SVnode *pVnode, int64_t ver, void *pReq, i
     goto _exit;
   }
 
-  // process
+  // Batch meta txn: defer DDL to shadow (redo-log), do NOT apply to meta now.
+  if (vAlterTbReq.txnId != 0) {
+    void *pShadowData = taosMemoryMalloc(len);
+    if (pShadowData == NULL) {
+      vAlterTbRsp.code = TSDB_CODE_OUT_OF_MEMORY;
+    } else {
+      memcpy(pShadowData, pReq, len);
+      char alterTbName[TSDB_TABLE_FNAME_LEN];
+      (void)snprintf(alterTbName, TSDB_TABLE_FNAME_LEN, "%s.%s", pVnode->config.dbname, vAlterTbReq.tbName);
+      int32_t txnCode =
+          vnodeTxnRegisterDdl(pVnode, vAlterTbReq.txnId, SHADOW_OP_ALTER_TB, alterTbName, 0, 0, pShadowData, len);
+      if (txnCode != 0) {
+        vAlterTbRsp.code = txnCode;
+        vWarn("vgId:%d, txn register failed for alter table %s, txnId:%" PRId64 ", code:0x%x", TD_VID(pVnode),
+              alterTbName, vAlterTbReq.txnId, txnCode);
+      } else {
+        vAlterTbRsp.code = TSDB_CODE_SUCCESS;
+      }
+    }
+    tDecoderClear(&dc);
+    goto _exit;
+  }
+
+  // process (non-transactional path)
   if (metaAlterTable(pVnode->pMeta, ver, &vAlterTbReq, &vMetaRsp) < 0) {
     vAlterTbRsp.code = terrno;
     tDecoderClear(&dc);
@@ -1833,7 +1887,34 @@ static int32_t vnodeProcessDropTbReq(SVnode *pVnode, int64_t ver, void *pReq, in
     SVDropTbRsp  dropTbRsp = {0};
     tb_uid_t     tbUid = 0;
 
-    /* code */
+    // Batch meta txn: defer DDL to shadow (redo-log), do NOT apply to meta now.
+    if (pDropTbReq->txnId != 0) {
+      void *pShadowData = taosMemoryMalloc(len);
+      if (pShadowData == NULL) {
+        dropTbRsp.code = TSDB_CODE_OUT_OF_MEMORY;
+      } else {
+        memcpy(pShadowData, pReq, len);
+        char dropTbName[TSDB_TABLE_FNAME_LEN];
+        (void)snprintf(dropTbName, TSDB_TABLE_FNAME_LEN, "%s.%s", pVnode->config.dbname, pDropTbReq->name);
+        int32_t txnCode = vnodeTxnRegisterDdl(pVnode, pDropTbReq->txnId, SHADOW_OP_DROP_TB, dropTbName, pDropTbReq->uid,
+                                              pDropTbReq->suid, pShadowData, len);
+        if (txnCode != 0) {
+          dropTbRsp.code = txnCode;
+          vWarn("vgId:%d, txn register failed for drop table %s, txnId:%" PRId64 ", code:0x%x", TD_VID(pVnode),
+                dropTbName, pDropTbReq->txnId, txnCode);
+        } else {
+          dropTbRsp.code = TSDB_CODE_SUCCESS;
+        }
+      }
+      if (taosArrayPush(rsp.pArray, &dropTbRsp) == NULL) {
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        pRsp->code = terrno;
+        goto _exit;
+      }
+      continue;
+    }
+
+    /* non-transactional path */
     ret = metaDropTable2(pVnode->pMeta, ver, pDropTbReq);
     if (ret < 0) {
       if (pDropTbReq->igNotExists && terrno == TSDB_CODE_TDB_TABLE_NOT_EXIST) {
