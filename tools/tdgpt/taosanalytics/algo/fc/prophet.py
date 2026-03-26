@@ -5,8 +5,7 @@ from prophet import Prophet
 import pandas as pd
 
 from taosanalytics.algo.forecast import insert_ts_list
-from taosanalytics.conf import app_logger
-from taosanalytics.service import AbstractForecastService
+from taosanalytics.analytics_base import AbstractForecastService
 
 
 class _ProphetService(AbstractForecastService):

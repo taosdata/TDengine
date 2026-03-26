@@ -4,8 +4,8 @@
 import pmdarima as pm
 
 from taosanalytics.algo.forecast import insert_ts_list
-from taosanalytics.conf import app_logger
-from taosanalytics.service import AbstractForecastService
+from taosanalytics.analytics_base import AbstractForecastService
+from taosanalytics.log import AppLogger
 
 
 class _ArimaService(AbstractForecastService):
@@ -62,7 +62,7 @@ class _ArimaService(AbstractForecastService):
                               start_P=0,
                               D=self.diff)
 
-        app_logger.log_inst.debug(model.summary())
+        AppLogger.debug(model.summary())
 
         # predict N steps into the future
         fc = model.predict(n_periods=fc_rows, return_conf_int=self.return_conf,
