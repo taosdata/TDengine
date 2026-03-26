@@ -304,8 +304,10 @@ int32_t taoskWriteMasterKeyFile(const char *filepath, const SMasterKeyData *keyD
   taosFsyncFile(pFile);
   taosCloseFile(&pFile);
 
+#ifndef WINDOWS
   // Set file permissions (600 - owner read/write only)
   chmod(tempFile, 0600);
+#endif
 
   // Atomic replacement
   if (taosRenameFile(tempFile, filepath) != 0) {
@@ -361,8 +363,10 @@ int32_t taoskWriteDerivedKeyFile(const char *filepath, const SDerivedKeyData *ke
   taosFsyncFile(pFile);
   taosCloseFile(&pFile);
 
+#ifndef WINDOWS
   // Set file permissions (600 - owner read/write only)
   chmod(tempFile, 0600);
+#endif
 
   // Atomic replacement - this ensures only one derived key file exists
   if (taosRenameFile(tempFile, filepath) != 0) {
@@ -631,8 +635,10 @@ int32_t taoskWriteEncryptedFile(const char *filepath, const SEncryptedKeyData *k
   taosFsyncFile(pFile);
   taosCloseFile(&pFile);
 
+#ifndef WINDOWS
   // Set file permissions (600 - owner read/write only)
   chmod(tempFile, 0600);
+#endif
 
   // Atomic replacement
   if (taosRenameFile(tempFile, filepath) != 0) {
@@ -891,8 +897,10 @@ int32_t taoskBackupMasterKeysPortable(const char *masterKeyFile, const char *bac
   taosFsyncFile(pFile);
   taosCloseFile(&pFile);
 
+#ifndef WINDOWS
   // Set file permissions (600 - owner read/write only)
   chmod(tempFile, 0600);
+#endif
 
   // Atomic replacement
   if (taosRenameFile(tempFile, backupFile) != 0) {

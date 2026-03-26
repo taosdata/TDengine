@@ -162,6 +162,9 @@ create_xnode_if_needed() {
             echo "Error: Failed to create xnode: ${redacted_sql}"
             return 4
         fi
+        local show_xnodes_sql="SHOW XNODES;"
+        echo "Show xnodes result:" && ${TDENGINE_CLI} -s "${show_xnodes_sql}" | grep -i -e online -e offline -e error
+        
         echo "✓ xnode created successfully"
     fi
     

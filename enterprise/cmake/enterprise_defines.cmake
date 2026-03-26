@@ -119,13 +119,9 @@ else()
   set(TD_HAS_OPENSSL FALSE CACHE BOOL "OpenSSL is available" FORCE)
 endif()
 
-# taosk is only supported on Linux platform (requires getopt.h and uses community CBC encryption)
-if(${TD_LINUX})
-  message(STATUS "taosk encryption key management enabled for Linux platform")
-  add_definitions(-DTD_HAS_TAOSK)
-else()
-  message(STATUS "taosk is not supported on this platform (only Linux supported)")
-endif()
+# taosk encryption key management is supported on all platforms
+message(STATUS "taosk encryption key management enabled")
+add_definitions(-DTD_HAS_TAOSK)
 
 add_definitions(-DTD_ENTERPRISE)
 add_definitions(-DUSE_MOUNT)
