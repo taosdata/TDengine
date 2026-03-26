@@ -91,6 +91,7 @@ fi
 
 # ── step 1: extract target green files into ./target ─────────────────────────
 TARGET_DIR="$SCRIPT_DIR/target"
+rm -rf "$TARGET_DIR"
 mkdir -p "$TARGET_DIR"
 
 echo "===== Extracting target package ====="
@@ -132,6 +133,8 @@ for base_ver in "${BASELINE_VERSIONS[@]}"; do
 
     # versions before 3.4.0.0: skip rsma/tsma/user/index checks
     EXTRA_FLAGS=""
+    # Version comparison: printf both versions, sort by version number,
+    # take the smallest; if it equals $base_ver then base_ver < 3.4.0.0.
     if printf '%s\n%s\n' "3.4.0.0" "$base_ver" | sort -V | head -1 | grep -qx "$base_ver"; then
         if [ "$base_ver" != "3.4.0.0" ]; then
             EXTRA_FLAGS="--no-rsma --no-tsma --no-user --no-index"
