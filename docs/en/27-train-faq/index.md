@@ -301,7 +301,7 @@ This indicates that the client and server versions are incompatible. Here, the c
 
 By default, starting the taos service will use the system's default username (root) and password to attempt to connect to taosd. After changing the root password, starting a taos connection will require specifying the username and password, for example: `taos -h xxx.xxx.xxx.xxx -u root -p`, then enter the new password to connection. After changing the password, you also need to modify the password in the configuration file of the taosKeeper component (located at /etc/taos/taoskeeper.toml by default) and restart the service.
 
-If you are using containerized deployment, check the [Docker deployment section on custom passwords, upgrades, and health checks](../../operations-and-maintenance/deploy-your-cluster/docker-deployment#custom-passwords-upgrades-and-health-checks).
+If you are using containerized deployment, check the [Docker deployment section on custom passwords, upgrades, and health checks](../operations-and-maintenance/deploy-your-cluster/docker-deployment#custom-passwords-upgrades-and-health-checks).
 
 In short, `3.3.6.6` introduces `TAOS_ROOT_PASSWORD`, `3.3.8.8` and later support `TAOS_ROOT_PASSWORD_FILE` and direct image upgrade, and `3.4.1.0` and later support `taos-check startup` and `taos-check service`.
 
