@@ -50,6 +50,8 @@ fi
 # Find libtaosnative.so.* (preferred) or libtaos.so.*
 SO_FILE=$(find "$INNER_DIR/driver" -name "libtaosnative.so.*" ! -name "*.so" 2>/dev/null | head -1)
 if [ -z "$SO_FILE" ]; then
+    # Exclude *ws* to skip the WebSocket-based client library (libtaosws.so.*),
+    # which is not the native driver we need here.
     SO_FILE=$(find "$INNER_DIR/driver" -name "libtaos.so.*" ! -name "*.so" ! -name "*ws*" 2>/dev/null | head -1)
 fi
 

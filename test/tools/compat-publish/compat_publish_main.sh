@@ -26,6 +26,13 @@ BASELINE_VERSIONS_MAIN=(
     3.4.0.14
 )
 
+# Hot upgrade baseline verison
+BASELINE_VERSIONS_HOT=(
+    3.4.0.0
+    3.4.0.14
+)
+
+
 # Baseline versions for branch: 3.3.6
 BASELINE_VERSIONS_336=(
     3.1.0.0
@@ -34,6 +41,11 @@ BASELINE_VERSIONS_336=(
     3.3.6.0
     3.3.6.20
     3.3.6.31
+)
+
+BASELINE_VERSIONS_HOT_336=(
+    3.3.6.0
+    3.3.6.20
 )
 
 # ── argument check ────────────────────────────────────────────────────────────
@@ -48,8 +60,14 @@ GREEN_BASE_DIR="${2%/}"
 BRANCH="${3:-main}"
 
 case "$BRANCH" in
-    main)   BASELINE_VERSIONS=("${BASELINE_VERSIONS_MAIN[@]}") ;;
-    3.3.6)  BASELINE_VERSIONS=("${BASELINE_VERSIONS_336[@]}") ;;
+    main)
+        BASELINE_VERSIONS=("${BASELINE_VERSIONS_MAIN[@]}")
+        BASELINE_VERSIONS_HOT_SEL=("${BASELINE_VERSIONS_HOT[@]}")
+        ;;
+    3.3.6)
+        BASELINE_VERSIONS=("${BASELINE_VERSIONS_336[@]}")
+        BASELINE_VERSIONS_HOT_SEL=("${BASELINE_VERSIONS_HOT_336[@]}")
+        ;;
     *)
         echo "Error: unknown branch '${BRANCH}'. Supported: main, 3.3.6"
         exit 1
@@ -91,6 +109,7 @@ fi
 
 # ── step 1: extract target green files into ./target ─────────────────────────
 TARGET_DIR="$SCRIPT_DIR/target"
+rm -rf "$TARGET_DIR"
 mkdir -p "$TARGET_DIR"
 
 echo "===== Extracting target package ====="
@@ -108,9 +127,9 @@ TARGET_VERSION=$(basename "$TARGET_VER_DIR")
 echo "  Target version : $TARGET_VERSION"
 echo ""
 
-# ── step 2: run compat-check for each baseline version ───────────────────────
-PASS_LIST=()
-FAIL_LIST=()
+# ── step 2: run cold-upgrade compat-check for each baseline version ──────────
+COLD_PASS_LIST=()
+COLD_FAIL_LIST=()
 
 for base_ver in "${BASELINE_VERSIONS[@]}"; do
     FROM_DIR="$GREEN_BASE_DIR/$base_ver"
@@ -120,7 +139,7 @@ for base_ver in "${BASELINE_VERSIONS[@]}"; do
 
     if [ ! -d "$FROM_DIR" ]; then
         echo "  SKIP: baseline dir not found: $FROM_DIR"
-        FAIL_LIST+=("$base_ver (baseline dir missing)")
+        COLD_FAIL_LIST+=("$base_ver (baseline dir missing)")
         continue
     fi
 
@@ -132,6 +151,8 @@ for base_ver in "${BASELINE_VERSIONS[@]}"; do
 
     # versions before 3.4.0.0: skip rsma/tsma/user/index checks
     EXTRA_FLAGS=""
+    # Version comparison: printf both versions, sort by version number,
+    # take the smallest; if it equals $base_ver then base_ver < 3.4.0.0.
     if printf '%s\n%s\n' "3.4.0.0" "$base_ver" | sort -V | head -1 | grep -qx "$base_ver"; then
         if [ "$base_ver" != "3.4.0.0" ]; then
             EXTRA_FLAGS="--no-rsma --no-tsma --no-user --no-index"
@@ -155,26 +176,81 @@ for base_ver in "${BASELINE_VERSIONS[@]}"; do
 
     if [ "$RET" -eq 0 ]; then
         echo "  RESULT: PASS"
-        PASS_LIST+=("$base_ver")
+        COLD_PASS_LIST+=("$base_ver")
     else
         echo "  RESULT: FAIL (exit $RET)"
-        FAIL_LIST+=("$base_ver")
+        COLD_FAIL_LIST+=("$base_ver")
     fi
 
     echo ""
 done
 
-# ── step 3: summary ──────────────────────────────────────────────────────────
+# ── step 3: run hot (rolling) upgrade compat-check ───────────────────────────
+HOT_PASS_LIST=()
+HOT_FAIL_LIST=()
+
+for base_ver in "${BASELINE_VERSIONS_HOT_SEL[@]}"; do
+    FROM_DIR="$GREEN_BASE_DIR/$base_ver"
+    TO_DIR="$TARGET_VER_DIR"
+
+    echo "===== hot-upgrade compat-check: $base_ver -> $TARGET_VERSION ====="
+
+    if [ ! -d "$FROM_DIR" ]; then
+        echo "  SKIP: baseline dir not found: $FROM_DIR"
+        HOT_FAIL_LIST+=("$base_ver (baseline dir missing)")
+        continue
+    fi
+
+    WORK_DIR="$SCRIPT_DIR/data/hot_${base_ver}_${TARGET_VERSION}"
+    rm -rf "$WORK_DIR"
+    mkdir -p "$WORK_DIR"
+
+    pkill -9 taosd 2>/dev/null || true
+
+    LOG="$WORK_DIR/compat_test.log"
+    CMD_ARGS=(python3 run/main.py
+        --from-dir "$FROM_DIR"
+        --to-dir   "$TO_DIR"
+        --path     "$WORK_DIR"
+        --rollupdate
+    )
+    echo "  CMD: cd \"$COMPAT_CHECK_DIR\" && ${CMD_ARGS[*]}"
+    (
+        cd "$COMPAT_CHECK_DIR"
+        "${CMD_ARGS[@]}"
+    ) 2>&1 | tee "$LOG"
+    RET=${PIPESTATUS[0]}
+
+    if [ "$RET" -eq 0 ]; then
+        echo "  RESULT: PASS"
+        HOT_PASS_LIST+=("$base_ver")
+    else
+        echo "  RESULT: FAIL (exit $RET)"
+        HOT_FAIL_LIST+=("$base_ver")
+    fi
+
+    echo ""
+done
+
+# ── step 4: summary ──────────────────────────────────────────────────────────
 echo "============================================================"
 echo "  Compat-check summary  (base -> $TARGET_VERSION)"
 echo "============================================================"
-echo "  PASS (${#PASS_LIST[@]}):"
-for v in "${PASS_LIST[@]}"; do echo "    $v"; done
-
-echo "  FAIL (${#FAIL_LIST[@]}):"
-for v in "${FAIL_LIST[@]}"; do echo "    $v"; done
+echo ""
+echo "  Cold upgrade:"
+echo "    PASS (${#COLD_PASS_LIST[@]}):"
+for v in "${COLD_PASS_LIST[@]}"; do echo "      $v"; done
+echo "    FAIL (${#COLD_FAIL_LIST[@]}):"
+for v in "${COLD_FAIL_LIST[@]}"; do echo "      $v"; done
+echo ""
+echo "  Hot (rolling) upgrade:"
+echo "    PASS (${#HOT_PASS_LIST[@]}):"
+for v in "${HOT_PASS_LIST[@]}"; do echo "      $v"; done
+echo "    FAIL (${#HOT_FAIL_LIST[@]}):"
+for v in "${HOT_FAIL_LIST[@]}"; do echo "      $v"; done
 echo "============================================================"
 
-if [ ${#FAIL_LIST[@]} -gt 0 ]; then
+TOTAL_FAIL=$(( ${#COLD_FAIL_LIST[@]} + ${#HOT_FAIL_LIST[@]} ))
+if [ "$TOTAL_FAIL" -gt 0 ]; then
     exit 1
 fi
