@@ -3,7 +3,7 @@
 
 from pandas import Series
 from pyculiarity import detect_vec
-from taosanalytics.service import AbstractAnomalyDetectionService
+from taosanalytics.analytics_base import AbstractAnomalyDetectionService
 
 
 class _SHESDService(AbstractAnomalyDetectionService):

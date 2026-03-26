@@ -7,9 +7,8 @@ import pandas as pd
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../../")
 
 from taosanalytics.algo.anomaly import draw_ad_results
-from taosanalytics.conf import setup_log_info, app_logger
-from taosanalytics.servicemgmt import loader
-
+from taosanalytics.service_registry import loader
+from taosanalytics.log import setup_log_info
 
 class AnomalyDetectionTest(unittest.TestCase):
     """ anomaly detection unit test class"""
@@ -30,7 +29,7 @@ class AnomalyDetectionTest(unittest.TestCase):
     def setUpClass(cls):
         """ set up environment for unit test, set the log file path """
         setup_log_info("unit_test.log")
-        loader.load_all_service()
+        loader.register_all_services()
 
     def test_ksigma(self):
         """
@@ -157,7 +156,7 @@ class AnomalyDetectionTest(unittest.TestCase):
         # try:
         #     s.set_params({"model": "sample-ad-autoencoder"})
         # except ValueError as e:
-        #     app_logger.log_inst.error(f"failed to set the param for auto_encoder algorithm, reason:{e}")
+        #     AppLogger.error(f"failed to set the param for auto_encoder algorithm, reason:{e}")
         #     return
         #
         # r = s.execute()

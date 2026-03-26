@@ -2,7 +2,7 @@
 """ grubbs algorithm class"""
 
 from outliers import smirnov_grubbs as grubbs
-from taosanalytics.service import AbstractAnomalyDetectionService
+from taosanalytics.analytics_base import AbstractAnomalyDetectionService
 
 
 class _GrubbsService(AbstractAnomalyDetectionService):

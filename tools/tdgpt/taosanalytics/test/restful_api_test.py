@@ -9,8 +9,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../../")
 
 from flask_testing import TestCase
 from taosanalytics.app import app
-from taosanalytics.conf import setup_log_info
-
+from taosanalytics.log import setup_log_info
 
 class RestfulTest(TestCase):
     """ restful api test class """

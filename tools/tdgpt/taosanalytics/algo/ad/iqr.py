@@ -1,7 +1,7 @@
 # encoding:utf-8
 """iqr class definition"""
 import numpy as np
-from taosanalytics.service import AbstractAnomalyDetectionService
+from taosanalytics.analytics_base import AbstractAnomalyDetectionService
 
 
 class _IqrService(AbstractAnomalyDetectionService):
