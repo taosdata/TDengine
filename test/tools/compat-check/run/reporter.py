@@ -47,6 +47,8 @@ class Reporter:
                       verify_window: int,
                       check_sysinfo: bool = False,
                       gen_whitelist=None):
+        self._from_ver = from_ver
+        self._to_ver = to_ver
         print(_bar("═"))
         print(f"  TDengine Rolling Upgrade Test")
         print(_bar("─"))
@@ -140,8 +142,10 @@ class Reporter:
         m, s = divmod(int(elapsed), 60)
 
         print("\n")
+        ver_range = f"{self._from_ver}->{self._to_ver}" if hasattr(self, "_from_ver") else ""
+        ver_suffix = f"  ({ver_range})" if ver_range else ""
         print(_bar("═"))
-        print(f"  TDengine Rolling Upgrade Test  ─  SUMMARY")
+        print(f"  TDengine Compatible Upgrade Test  ─  SUMMARY{ver_suffix}")
         print(_bar("─"))
         for label, ok, detail in checks:
             FILL = 55
