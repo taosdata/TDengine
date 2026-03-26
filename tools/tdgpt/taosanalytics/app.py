@@ -35,7 +35,7 @@ def _init_app():
     AppLogger.set_log_level(conf.get_log_level())
 
     # Register all services
-    loader.load_all_service()
+    loader.register_all_services()
 
     AppLogger.info("TDgpt service initialized (config: %s)", conf.path)
 
@@ -43,9 +43,6 @@ def _init_app():
 # Create Flask app
 app = Flask(__name__)
 app.config["PROPAGATE_EXCEPTIONS"] = True
-
-
-
 
 @app.route("/")
 def index():

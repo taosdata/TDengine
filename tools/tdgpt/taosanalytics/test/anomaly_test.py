@@ -29,7 +29,7 @@ class AnomalyDetectionTest(unittest.TestCase):
     def setUpClass(cls):
         """ set up environment for unit test, set the log file path """
         setup_log_info("unit_test.log")
-        loader.load_all_service()
+        loader.register_all_services()
 
     def test_ksigma(self):
         """

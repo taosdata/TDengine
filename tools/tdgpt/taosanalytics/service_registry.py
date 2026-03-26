@@ -14,14 +14,13 @@ from taosanalytics.analytics_base import (
     AbstractCorrelationService
 )
 
-os.environ['KERAS_BACKEND'] = 'torch'
-
 
 class ServiceRegistry:
     """ Singleton register for multiple anomaly detection algorithms and fc algorithms"""
 
     def __init__(self):
         self.services = defaultdict(list)
+        self._loaded = False
 
     def get_service(self, name):
         """ get the required service """
@@ -84,15 +83,21 @@ class ServiceRegistry:
             "algo": self.get_typed_services("correlation")
         }
 
-    def load_all_service(self) -> None:
-        """ load all algorithms in the specified directory"""
+    def register_all_services(self) -> None:
+        """ register all algorithms/models in the specified directory"""
+
+        if self._loaded:
+            AppLogger.warning("already register all service abort from the register all procedure")
+            return
+
+        self._loaded = True
 
         def register_service(container, name: str, service):
             """ register service for both anomaly detection and fc """
             AppLogger.info("register service: %s", name)
             container[name].append(service)
 
-        def do_load_service(cur_directory, lib_prefix, sub_directory):
+        def _do_register(cur_directory, lib_prefix, sub_directory, required: bool = True):
             """ the implementation of load services """
             service_directory = os.path.join(cur_directory, sub_directory)
 
@@ -100,7 +105,13 @@ class ServiceRegistry:
                 AppLogger.fatal(
                     "service directory:%s not lib exists, failed to load service",
                     service_directory)
-                return
+
+                if required:
+                    # fail fast if try to register the built-in service to diagnose the bug.
+                    raise FileNotFoundError(f"service directory:{service_directory} not found")
+                else:
+                    # ignore the failure and continue in case of registering custom models
+                    return
 
             all_files = os.listdir(service_directory)
 
@@ -156,16 +167,16 @@ class ServiceRegistry:
         # start to load all services
         current_directory = os.path.dirname(os.path.abspath(__file__))
 
-        do_load_service(current_directory, 'taosanalytics.algo.ad.', 'algo/ad/')
-        do_load_service(current_directory, 'taosanalytics.algo.fc.', 'algo/fc/')
-        do_load_service(current_directory, 'taosanalytics.algo.imputat.', 'algo/imputat/')
-        do_load_service(current_directory, 'taosanalytics.algo.correl.', 'algo/correl/')
+        _do_register(current_directory, 'taosanalytics.algo.ad.', 'algo/ad/', True)
+        _do_register(current_directory, 'taosanalytics.algo.fc.', 'algo/fc/', True)
+        _do_register(current_directory, 'taosanalytics.algo.imputat.', 'algo/imputat/', True)
+        _do_register(current_directory, 'taosanalytics.algo.correl.', 'algo/correl/', True)
 
         # load user defined ML model-driven script.
         AppLogger.info("start to load custom defined models")
 
-        do_load_service(current_directory, 'taosanalytics.algo.custom.ad.', 'algo/custom/ad/')
-        do_load_service(current_directory, 'taosanalytics.algo.custom.fc.', 'algo/custom/fc/')
+        _do_register(current_directory, 'taosanalytics.algo.custom.ad.', 'algo/custom/ad/', False)
+        _do_register(current_directory, 'taosanalytics.algo.custom.fc.', 'algo/custom/fc/', False)
 
 
 loader: ServiceRegistry = ServiceRegistry()

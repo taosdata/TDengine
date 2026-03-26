@@ -110,13 +110,13 @@ class _AutoEncoderDetectionService(AbstractAnomalyDetectionService):
             model = keras.saving.load_model(model_file_path)
         else:
             AppLogger.error("failed to load autoencoder model file: %s", model_file_path)
-            raise FileNotFoundError(f"{model_file_path} not found")
+            raise FileNotFoundError("%s not found", model_file_path)
 
         if os.path.exists(model_info_path):
             info = joblib.load(model_info_path)
         else:
             AppLogger.error("failed to load autoencoder model file: %s", model_file_path)
-            raise FileNotFoundError("%s not found", model_info_path)
+            raise FileNotFoundError("%s not found", model_file_path)
 
         info["model"] = model
 

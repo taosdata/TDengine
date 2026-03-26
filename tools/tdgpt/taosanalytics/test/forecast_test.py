@@ -18,7 +18,7 @@ class ForecastTest(unittest.TestCase):
     def setUpClass(cls):
         """ set up the environment for unit test """
         setup_log_info("unit_test.log")
-        loader.load_all_service()
+        loader.register_all_services()
 
     def get_input_list(self):
         """ load data from csv """
