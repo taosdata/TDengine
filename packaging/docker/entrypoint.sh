@@ -217,4 +217,4 @@ fi
 
 echo "Starting Gunicorn with config: $CONFIG_FILE"
 cd /usr/local/taos/taosanode/lib/taosanalytics/ || exit 1
-exec /var/lib/taos/taosanode/venv/bin/gunicorn -c "$CONFIG_FILE"
+exec /usr/local/bin/gunicorn -c "$CONFIG_FILE"

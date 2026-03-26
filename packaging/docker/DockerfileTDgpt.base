@@ -38,7 +38,6 @@ COPY --from=base-builder /usr/local/bin /usr/local/bin
 ENV VIRTUAL_ENV=/var/lib/taos/taosanode/venv
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 RUN python3.10 -m venv --system-site-packages $VIRTUAL_ENV && \
-    ln -sf /usr/local/bin/gunicorn $VIRTUAL_ENV/bin/gunicorn && \
     PIP_INDEX_ARG="${PIP_INDEX_URL:+-i ${PIP_INDEX_URL}}" && \
     pip3 install --no-cache-dir transformers==4.40 ${PIP_INDEX_ARG} && \
     find $VIRTUAL_ENV -type d \( -name '__pycache__' -o -name 'tests' \) -exec rm -rf {} + 2>/dev/null
