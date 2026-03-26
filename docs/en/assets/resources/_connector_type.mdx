@@ -28,14 +28,14 @@ The key differences are:
    - Except for C/C++ and ODBC connectors, users do not need to install the client driver taosc
    - Provides compatibility guarantee, no need to ensure client and server versions are consistent
    - Must use WebSocket connection to connect to cloud service instances
-   - <font color="red">**Native connections for Go, C#, and Java will be deprecated on 2027-01-01, please migrate in advance**</font>
+   - <font color="red">**Native connections for Go, C#, and Java are deprecated and will be discontinued on 2027-01-01, please migrate in advance**</font>
 
-2. Native connection (to be deprecated):
-   - **Users using Go, C#, and Java connectors should note that native connection will be deprecated on 2027-01-01**
+2. Native connection (deprecated; to be discontinued on 2027-01-01 for Go, C#, and Java):
+   - **Users using Go, C#, and Java connectors should note that native connection is deprecated and will be discontinued on 2027-01-01**
    - The version of the client driver taosc must be consistent with that of the server-side TDengine TSDB
    - C/C++, Python, and Rust native connections will continue to be supported
 
 3. REST API:
    - Only provides the function of executing SQL
    - Does not support parameter binding or data subscription
-   - <font color="red">**REST connections for Java, Python, and Go will be deprecated on 2027-01-01, please migrate to WebSocket connection**</font>
+   - <font color="red">**REST connections for Java, Python, and Go are deprecated and will be discontinued on 2027-01-01, please migrate to WebSocket connection**</font>
