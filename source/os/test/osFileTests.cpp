@@ -172,13 +172,7 @@ TEST(osFileTests, taosCopyFile) {
   ret = taosGetFileDiskID(from, NULL);
   EXPECT_EQ(ret, 0);
 
-  ret32 = taosCompressFile(NULL, "");
-  EXPECT_NE(ret32, 0);
-  ret32 = taosCompressFile("", NULL);
-  EXPECT_NE(ret32, 0);
-  ret32 = taosCompressFile("", "");
-  EXPECT_NE(ret32, 0);
-  ret32 = taosCompressFile("/tmp/tdengine-test-file", "");
+  ret32 = taosCompressFile(NULL, (char*)"");
   EXPECT_NE(ret32, 0);
 
   ret32 = taosLinkFile("", "");

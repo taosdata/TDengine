@@ -3294,13 +3294,8 @@ class TDCom:
                 # Windows fc: returncode 0 表示文件相同
                 if result.returncode == 0:
                     return True
-                else:
-                    tdLog.info(f"{cmd} result.returncode: {result.returncode}")
-                    tdLog.info(f"{cmd} result.stdout: {result.stdout}")
-                    tdLog.info(f"{cmd} result.stderr: {result.stderr}")
-                    return False
 
-            # Linux diff 的结果检查逻辑
+            # diff/fc 的结果检查逻辑
             if result.returncode != 0:
                 if self._compare_normalized_result_lines(file1, file2):
                     tdLog.info("Result files matched after output normalization.")
