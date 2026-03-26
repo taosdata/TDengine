@@ -13,7 +13,7 @@ import RequestId from "../../assets/resources/_request_id.mdx";
 
 :::warning Native Connection Being Deprecated
 
-<font color="red">C# native connection will be deprecated on 2027-01-01</font>, please migrate to WebSocket connection.
+<font color="red">C# native connection is deprecated and will be discontinued on 2027-01-01</font>, please migrate to WebSocket connection.
 
 For detailed migration guide, please refer to: [Connection Methods](../#connection-methods)
 
