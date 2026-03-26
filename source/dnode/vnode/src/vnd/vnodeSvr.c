@@ -1521,28 +1521,20 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, 
       continue;
     }
 
-    // Batch meta txn: defer DDL to shadow (redo-log), do NOT apply to meta now.
-    // The DDL becomes visible only within this txn via shadow overlay,
-    // and is applied to real meta on COMMIT.
+    // Batch meta txn: write to B+ tree with PRE_CREATE status (shadow-in-B+tree model).
+    // The entry is physically created but invisible to non-txn queries (filtered by txnStatus).
+    // COMMIT clears txnId/txnStatus → visible. ROLLBACK deletes entry.
     if (pCreateReq->txnId != 0) {
-      // Serialize the original batch request for later COMMIT replay
-      void *pShadowData = taosMemoryMalloc(len);
-      if (pShadowData == NULL) {
-        cRsp.code = TSDB_CODE_OUT_OF_MEMORY;
+      // Register txn entry in VNode (for tracking, table locking, etc.)
+      vnodeTxnEnsureEntry(pVnode, pCreateReq->txnId);
+
+      // Write to meta with PRE_CREATE status (txnId is carried in pCreateReq)
+      if (metaCreateTable2(pVnode->pMeta, ver, pCreateReq, &cRsp.pMeta) < 0) {
+        cRsp.code = terrno;
+        vWarn("vgId:%d, txn create table %s failed, txnId:%" PRId64 ", code:0x%x", TD_VID(pVnode), tbName,
+              pCreateReq->txnId, terrno);
       } else {
-        memcpy(pShadowData, pReq, len);
-        tb_uid_t suid = (pCreateReq->type == TSDB_CHILD_TABLE || pCreateReq->type == TSDB_VIRTUAL_CHILD_TABLE)
-                            ? pCreateReq->ctb.suid
-                            : 0;
-        int32_t  txnCode = vnodeTxnRegisterDdl(pVnode, pCreateReq->txnId, SHADOW_OP_CREATE_TB, tbName, pCreateReq->uid,
-                                               suid, pShadowData, len);
-        if (txnCode != 0) {
-          cRsp.code = txnCode;
-          vWarn("vgId:%d, txn register failed for create table %s, txnId:%" PRId64 ", code:0x%x", TD_VID(pVnode),
-                tbName, pCreateReq->txnId, txnCode);
-        } else {
-          cRsp.code = TSDB_CODE_SUCCESS;
-        }
+        cRsp.code = TSDB_CODE_SUCCESS;
       }
       if (taosArrayPush(rsp.pArray, &cRsp) == NULL) {
         terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -1808,24 +1800,35 @@ static int32_t vnodeProcessAlterTbReq(SVnode *pVnode, int64_t ver, void *pReq, i
     goto _exit;
   }
 
-  // Batch meta txn: defer DDL to shadow (redo-log), do NOT apply to meta now.
+  // Batch meta txn: write ALTER to B+ tree with PRE_ALTER status (shadow-in-B+tree model).
+  // The ALTER creates a new version of the entry. On COMMIT, clear status → visible.
+  // On ROLLBACK, restore old version.
   if (vAlterTbReq.txnId != 0) {
-    void *pShadowData = taosMemoryMalloc(len);
-    if (pShadowData == NULL) {
-      vAlterTbRsp.code = TSDB_CODE_OUT_OF_MEMORY;
-    } else {
-      memcpy(pShadowData, pReq, len);
-      char alterTbName[TSDB_TABLE_FNAME_LEN];
-      (void)snprintf(alterTbName, TSDB_TABLE_FNAME_LEN, "%s.%s", pVnode->config.dbname, vAlterTbReq.tbName);
-      int32_t txnCode =
-          vnodeTxnRegisterDdl(pVnode, vAlterTbReq.txnId, SHADOW_OP_ALTER_TB, alterTbName, 0, 0, pShadowData, len);
-      if (txnCode != 0) {
-        vAlterTbRsp.code = txnCode;
-        vWarn("vgId:%d, txn register failed for alter table %s, txnId:%" PRId64 ", code:0x%x", TD_VID(pVnode),
-              alterTbName, vAlterTbReq.txnId, txnCode);
-      } else {
-        vAlterTbRsp.code = TSDB_CODE_SUCCESS;
+    vnodeTxnEnsureEntry(pVnode, vAlterTbReq.txnId);
+
+    // Save old version for rollback tracking
+    tb_uid_t alterUid = 0;
+    {
+      void   *nameValue = NULL;
+      int32_t nameValueSize = 0;
+      if (tdbTbGet(pVnode->pMeta->pNameIdx, vAlterTbReq.tbName, strlen(vAlterTbReq.tbName) + 1, &nameValue,
+                   &nameValueSize) == 0) {
+        alterUid = *(tb_uid_t *)nameValue;
+        int64_t oldVersion = ((SUidIdxVal *)nameValue)->version;
+        vnodeTxnTrackAlter(pVnode, vAlterTbReq.txnId, alterUid, oldVersion);
+        tdbFreeClear(nameValue);
       }
+    }
+
+    // Execute ALTER normally (writes new version to B+ tree)
+    if (metaAlterTable(pVnode->pMeta, ver, &vAlterTbReq, &vMetaRsp) < 0) {
+      vAlterTbRsp.code = terrno;
+    } else {
+      // Mark the new entry with PRE_ALTER
+      if (alterUid != 0) {
+        metaMarkTableTxnStatus(pVnode->pMeta, alterUid, vAlterTbReq.txnId, META_TXN_PRE_ALTER);
+      }
+      vAlterTbRsp.code = TSDB_CODE_SUCCESS;
     }
     tDecoderClear(&dc);
     goto _exit;
@@ -1911,24 +1914,20 @@ static int32_t vnodeProcessDropTbReq(SVnode *pVnode, int64_t ver, void *pReq, in
     SVDropTbRsp  dropTbRsp = {0};
     tb_uid_t     tbUid = 0;
 
-    // Batch meta txn: defer DDL to shadow (redo-log), do NOT apply to meta now.
+    // Batch meta txn: mark entry PRE_DROP in B+ tree (shadow-in-B+tree model).
+    // The table remains visible (snapshot isolation) but INSERT fails.
+    // COMMIT physically deletes. ROLLBACK clears back to NORMAL.
     if (pDropTbReq->txnId != 0) {
-      void *pShadowData = taosMemoryMalloc(len);
-      if (pShadowData == NULL) {
-        dropTbRsp.code = TSDB_CODE_OUT_OF_MEMORY;
+      vnodeTxnEnsureEntry(pVnode, pDropTbReq->txnId);
+
+      // metaDropTable2 handles txnId internally — marks PRE_DROP instead of deleting
+      ret = metaDropTable2(pVnode->pMeta, ver, pDropTbReq);
+      if (ret < 0) {
+        dropTbRsp.code = terrno;
+        vWarn("vgId:%d, txn drop table %s failed, txnId:%" PRId64 ", code:0x%x", TD_VID(pVnode), pDropTbReq->name,
+              pDropTbReq->txnId, terrno);
       } else {
-        memcpy(pShadowData, pReq, len);
-        char dropTbName[TSDB_TABLE_FNAME_LEN];
-        (void)snprintf(dropTbName, TSDB_TABLE_FNAME_LEN, "%s.%s", pVnode->config.dbname, pDropTbReq->name);
-        int32_t txnCode = vnodeTxnRegisterDdl(pVnode, pDropTbReq->txnId, SHADOW_OP_DROP_TB, dropTbName, pDropTbReq->uid,
-                                              pDropTbReq->suid, pShadowData, len);
-        if (txnCode != 0) {
-          dropTbRsp.code = txnCode;
-          vWarn("vgId:%d, txn register failed for drop table %s, txnId:%" PRId64 ", code:0x%x", TD_VID(pVnode),
-                dropTbName, pDropTbReq->txnId, txnCode);
-        } else {
-          dropTbRsp.code = TSDB_CODE_SUCCESS;
-        }
+        dropTbRsp.code = TSDB_CODE_SUCCESS;
       }
       if (taosArrayPush(rsp.pArray, &dropTbRsp) == NULL) {
         terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -3674,6 +3673,18 @@ static int32_t vnodeProcessBatchDeleteReq(SVnode *pVnode, int64_t ver, void *pRe
 
     int64_t uid = mr.me.uid;
 
+    // Check if table is in PREPARED_DROP shadow (DELETE vs PREPARED_DROP → conflict)
+    {
+      char fullTbName[TSDB_TABLE_FNAME_LEN];
+      (void)snprintf(fullTbName, TSDB_TABLE_FNAME_LEN, "%s.%s", pVnode->config.dbname, name);
+      int32_t conflictCode = vnodeTxnCheckConflict(pVnode, fullTbName, SHADOW_OP_DROP_TB);
+      if (conflictCode != TSDB_CODE_SUCCESS) {
+        vWarn("vgId:%d, batch delete conflict for table %s, code:0x%x", TD_VID(pVnode), name, conflictCode);
+        tDecoderClear(&mr.coder);
+        continue;
+      }
+    }
+
     int32_t code = tsdbDeleteTableData(pTsdb, ver, deleteReq.suid, uid, pOneReq->startTs, pOneReq->endTs, 0);
     if (code < 0) {
       terrno = code;
@@ -3721,6 +3732,11 @@ static int32_t vnodeProcessDeleteReq(SVnode *pVnode, int64_t ver, void *pReq, in
   if (pRes->affectedRows > 0) {
     for (int32_t iUid = 0; iUid < taosArrayGetSize(pRes->uidList); iUid++) {
       uint64_t uid = *(uint64_t *)taosArrayGet(pRes->uidList, iUid);
+
+      // Check if table is in PREPARED_DROP shadow (DELETE vs PREPARED_DROP → conflict)
+      code = vnodeTxnCheckDeleteConflict(pVnode, uid);
+      if (code) goto _err;
+
       // Merge runtime vnode(db-level) secureDelete to avoid stale client meta after ALTER DATABASE.
       int8_t secureDelete = pRes->secureDelete | pVnode->config.secureDelete;
       code = tsdbDeleteTableData(pVnode->pTsdb, ver, pRes->suid, uid, pRes->skey, pRes->ekey, secureDelete);

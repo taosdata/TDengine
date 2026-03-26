@@ -662,15 +662,11 @@ int32_t vHashPut(SVHashTable* ht, void* obj);
 int32_t vHashGet(SVHashTable* ht, const void* obj, void** retObj);
 int32_t vHashDrop(SVHashTable* ht, const void* obj);
 
-// vnodeTxn.c — Batch metadata transaction
-// Shadow operation types for redo-log (child/normal table DDL only)
-// Redo-log model: DDL is NOT applied to meta during txn; stored as shadow ops.
-// COMMIT replays shadow ops to meta; ROLLBACK discards them.
-typedef enum {
-  SHADOW_OP_CREATE_TB = 1,  // Redo: create the child/normal table on COMMIT
-  SHADOW_OP_ALTER_TB = 2,   // Redo: alter the table on COMMIT
-  SHADOW_OP_DROP_TB = 3,    // Redo: drop the table on COMMIT
-} EShadowOpType;
+// vnodeTxn.c — Batch metadata transaction (shadow-in-B+tree model)
+// DDL within a transaction writes directly to B+ tree with txnId/txnStatus set.
+// EMetaTxnStatus (defined in tdef.h): NORMAL, PRE_CREATE, PRE_ALTER, PRE_DROP, COMMITTED, ROLLEDBACK.
+// COMMIT: promotes shadow entries (clear txnId→0, txnStatus→NORMAL; physically delete PRE_DROP).
+// ROLLBACK: undoes shadow entries (delete PRE_CREATE; restore PRE_DROP/PRE_ALTER to NORMAL).
 
 int32_t vnodeTxnInit(SVnode* pVnode);
 void    vnodeTxnCleanup(SVnode* pVnode);
@@ -680,18 +676,20 @@ void    vnodeTxnCheckTimeout(SVnode* pVnode);
 int32_t vnodeTxnFencing(SVnode* pVnode, int64_t newTerm, int64_t newTxnId);
 int32_t vnodeCollectIdleTxns(SVnode* pVnode, SArray* pQueries);
 void    vnodeTxnProcessActiveAck(SVnode* pVnode, utxn_id_t txnId, int8_t alive);
-int32_t vnodeTxnLockTable(SVnode* pVnode, const char* tableName, int64_t txnId);
-void    vnodeTxnUnlockTables(SVnode* pVnode, int64_t txnId);
-int32_t vnodeTxnAddShadowOp(SVnode* pVnode, int64_t txnId, int8_t opType, const char* name, tb_uid_t uid, tb_uid_t suid,
-                            void* pReqData, int32_t reqDataLen);
-int32_t vnodeTxnRegisterDdl(SVnode* pVnode, int64_t txnId, int8_t opType, const char* name, tb_uid_t uid, tb_uid_t suid,
-                            void* pReqData, int32_t reqDataLen);
-int32_t vnodeTxnShadowTableStatus(SVnode* pVnode, int64_t txnId, const char* name);
 
-// Check if a non-txn DDL operation conflicts with any active transaction's shadow.
-// Returns TSDB_CODE_SUCCESS if no conflict, error code if conflict detected.
-// incomingOp: 0=query/DML, 1=CREATE, 2=ALTER, 3=DROP (EShadowOpType values)
+// Shadow-in-B+tree: ensure txn entry exists (lazy create), track ALTER old versions
+int32_t vnodeTxnEnsureEntry(SVnode* pVnode, int64_t txnId);
+void    vnodeTxnTrackAlter(SVnode* pVnode, int64_t txnId, tb_uid_t uid, int64_t oldVersion);
+
+// Check if a non-txn DDL conflicts with active txn shadow entries in B+ tree.
+// Uses EMetaTxnStatus for conflict detection instead of in-memory shadow ops.
 int32_t vnodeTxnCheckConflict(SVnode* pVnode, const char* tableName, int8_t incomingOp);
+
+// Check if a DELETE DML on a specific UID conflicts with PRE_DROP shadow.
+int32_t vnodeTxnCheckDeleteConflict(SVnode* pVnode, tb_uid_t uid);
+
+// metaTable2.c — mark existing entry with txnId/txnStatus in-place
+int32_t metaMarkTableTxnStatus(SMeta* pMeta, int64_t uid, int64_t txnId, int8_t txnStatus);
 
 #ifdef __cplusplus
 }

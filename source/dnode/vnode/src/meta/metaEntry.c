@@ -357,7 +357,11 @@ static void metaCloneColCmprFree(SColCmprWrapper *pCmpr) {
 int metaEncodeEntry(SEncoder *pCoder, const SMetaEntry *pME) {
   TAOS_CHECK_RETURN(tStartEncode(pCoder));
   TAOS_CHECK_RETURN(tEncodeI64(pCoder, pME->version));
-  TAOS_CHECK_RETURN(tEncodeI8(pCoder, pME->type));
+
+  // Batch meta txn: set bit 6 on type to signal txnId/txnStatus follow at the end.
+  // For non-txn entries (txnId == 0), type is encoded as-is — zero disk overhead.
+  int8_t encType = (pME->txnId != 0 && pME->type > 0) ? TABLE_TYPE_SET_TXN(pME->type) : pME->type;
+  TAOS_CHECK_RETURN(tEncodeI8(pCoder, encType));
   TAOS_CHECK_RETURN(tEncodeI64(pCoder, pME->uid));
 
   if (pME->type > 0) {
@@ -429,6 +433,12 @@ int metaEncodeEntry(SEncoder *pCoder, const SMetaEntry *pME) {
     TAOS_CHECK_RETURN(tEncodeI64(pCoder, pME->ntbEntry.ownerId));
   }
 
+  // Batch meta txn: append txnId + txnStatus only when bit 6 was set.
+  if (pME->txnId != 0 && pME->type > 0) {
+    TAOS_CHECK_RETURN(tEncodeI64(pCoder, pME->txnId));
+    TAOS_CHECK_RETURN(tEncodeI8(pCoder, (int8_t)pME->txnStatus));
+  }
+
   tEndEncode(pCoder);
   return 0;
 }
@@ -437,6 +447,13 @@ int metaDecodeEntryImpl(SDecoder *pCoder, SMetaEntry *pME, bool headerOnly) {
   TAOS_CHECK_RETURN(tStartDecode(pCoder));
   TAOS_CHECK_RETURN(tDecodeI64(pCoder, &pME->version));
   TAOS_CHECK_RETURN(tDecodeI8(pCoder, &pME->type));
+
+  // Batch meta txn: check bit 6 — if set, txnId + txnStatus are appended at the end.
+  bool hasTxn = TABLE_TYPE_HAS_TXN(pME->type);
+  if (hasTxn) {
+    pME->type = TABLE_TYPE_CLR_TXN(pME->type);
+  }
+
   TAOS_CHECK_RETURN(tDecodeI64(pCoder, &pME->uid));
 
   if (headerOnly) {
@@ -535,6 +552,16 @@ int metaDecodeEntryImpl(SDecoder *pCoder, SMetaEntry *pME, bool headerOnly) {
     }
   }
 
+  // Batch meta txn: decode txnId + txnStatus when bit 6 was set on type.
+  if (hasTxn) {
+    TAOS_CHECK_RETURN(tDecodeI64(pCoder, &pME->txnId));
+    int8_t status = 0;
+    TAOS_CHECK_RETURN(tDecodeI8(pCoder, &status));
+    pME->txnStatus = (uint8_t)status;
+  } else {
+    pME->txnId = 0;
+    pME->txnStatus = META_TXN_NORMAL;
+  }
 
   tEndDecode(pCoder);
   return 0;

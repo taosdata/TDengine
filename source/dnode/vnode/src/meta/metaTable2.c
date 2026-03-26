@@ -396,6 +396,11 @@ static int32_t metaCreateChildTable(SMeta *pMeta, int64_t version, SVCreateTbReq
       .ctbEntry.suid = pReq->ctb.suid,
       .ctbEntry.pTags = pReq->ctb.pTag,
   };
+  // Batch meta txn: shadow-in-B+tree — write with PRE_CREATE status, invisible until COMMIT
+  if (pReq->txnId != 0) {
+    entry.txnId = pReq->txnId;
+    entry.txnStatus = META_TXN_PRE_CREATE;
+  }
 
   // build response
   code = metaBuildCreateChildTableRsp(pMeta, &entry, ppRsp);
@@ -509,6 +514,11 @@ static int32_t metaCreateNormalTable(SMeta *pMeta, int64_t version, SVCreateTbRe
       .pExtSchemas = pReq->pExtSchemas,
   };
   TABLE_SET_COL_COMPRESSED(entry.flags);
+  // Batch meta txn: shadow-in-B+tree — write with PRE_CREATE status, invisible until COMMIT
+  if (pReq->txnId != 0) {
+    entry.txnId = pReq->txnId;
+    entry.txnStatus = META_TXN_PRE_CREATE;
+  }
 
   // build response
   code = metaBuildCreateNormalTableRsp(pMeta, &entry, ppRsp);
@@ -684,6 +694,79 @@ int32_t metaCreateTable2(SMeta *pMeta, int64_t version, SVCreateTbReq *pReq, STa
   TAOS_RETURN(code);
 }
 
+/**
+ * Mark an existing entry with txnId/txnStatus in-place (shadow-in-B+tree).
+ * Reads the entry from pTbDb, updates txnId/txnStatus, re-encodes, and writes back.
+ * Indexes are NOT modified — the entry remains visible but filtered by txnStatus.
+ */
+int32_t metaMarkTableTxnStatus(SMeta *pMeta, int64_t uid, int64_t txnId, int8_t txnStatus) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  void   *uidValue = NULL, *tbValue = NULL;
+  int32_t uidValueSize = 0, tbValueSize = 0;
+
+  // Read current version from uid index
+  code = tdbTbGet(pMeta->pUidIdx, &uid, sizeof(uid), &uidValue, &uidValueSize);
+  if (code) {
+    metaError("vgId:%d, mark txn status: uid %" PRId64 " not found", TD_VID(pMeta->pVnode), uid);
+    return TSDB_CODE_TDB_TABLE_NOT_EXIST;
+  }
+
+  int64_t  version = ((SUidIdxVal *)uidValue)->version;
+  STbDbKey key = {.version = version, .uid = uid};
+  tdbFreeClear(uidValue);
+
+  // Read the entry from B+ tree
+  code = tdbTbGet(pMeta->pTbDb, &key, sizeof(key), &tbValue, &tbValueSize);
+  if (code) {
+    metaError("vgId:%d, mark txn status: entry not found for uid %" PRId64 " ver %" PRId64, TD_VID(pMeta->pVnode), uid,
+              version);
+    return TSDB_CODE_INTERNAL_ERROR;
+  }
+
+  // Decode
+  SDecoder   decoder = {0};
+  SMetaEntry entry = {0};
+  tDecoderInit(&decoder, tbValue, tbValueSize);
+  code = metaDecodeEntry(&decoder, &entry);
+  tDecoderClear(&decoder);
+  tdbFreeClear(tbValue);
+  if (code) {
+    metaError("vgId:%d, mark txn status: decode failed for uid %" PRId64, TD_VID(pMeta->pVnode), uid);
+    return code;
+  }
+
+  // Update txn fields
+  entry.txnId = txnId;
+  entry.txnStatus = txnStatus;
+
+  // Re-encode and write back to the same key (in-place update)
+  int32_t  encodeSize = 0;
+  SEncoder encoder = {0};
+  tEncodeSize(metaEncodeEntry, &entry, encodeSize, code);
+  if (code) return code;
+
+  void *newValue = taosMemoryMalloc(encodeSize);
+  if (!newValue) return terrno;
+
+  tEncoderInit(&encoder, newValue, encodeSize);
+  code = metaEncodeEntry(&encoder, &entry);
+  tEncoderClear(&encoder);
+  if (code) {
+    taosMemoryFree(newValue);
+    return code;
+  }
+
+  code = tdbTbUpsert(pMeta->pTbDb, &key, sizeof(key), newValue, encodeSize, pMeta->txn);
+  taosMemoryFree(newValue);
+  if (code) {
+    metaError("vgId:%d, mark txn status: write back failed for uid %" PRId64, TD_VID(pMeta->pVnode), uid);
+  } else {
+    metaInfo("vgId:%d, marked uid %" PRId64 " with txnId %" PRId64 " status %d", TD_VID(pMeta->pVnode), uid, txnId,
+             txnStatus);
+  }
+  return code;
+}
+
 int32_t metaDropTable2(SMeta *pMeta, int64_t version, SVDropTbReq *pReq) {
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -701,6 +784,21 @@ int32_t metaDropTable2(SMeta *pMeta, int64_t version, SVDropTbReq *pReq) {
     code = TSDB_CODE_INVALID_PARA;
     metaError("vgId:%d, %s failed at %s:%d since %s, uid:%" PRId64 " name:%s version:%" PRId64, TD_VID(pMeta->pVnode),
               __func__, __FILE__, __LINE__, tstrerror(code), pReq->uid, pReq->name, version);
+    TAOS_RETURN(code);
+  }
+
+  // Batch meta txn: shadow-in-B+tree — mark entry as PRE_DROP instead of physically deleting.
+  // The entry remains visible (snapshot isolation) but INSERT on it fails.
+  // On COMMIT: physically delete. On ROLLBACK: clear back to NORMAL.
+  if (pReq->txnId != 0) {
+    code = metaMarkTableTxnStatus(pMeta, pReq->uid, pReq->txnId, META_TXN_PRE_DROP);
+    if (code) {
+      metaError("vgId:%d, %s failed to mark PRE_DROP for uid:%" PRId64 " name:%s txnId:%" PRId64, TD_VID(pMeta->pVnode),
+                __func__, pReq->uid, pReq->name, pReq->txnId);
+    } else {
+      metaInfo("vgId:%d, table %s uid %" PRId64 " marked PRE_DROP, txnId:%" PRId64, TD_VID(pMeta->pVnode), pReq->name,
+               pReq->uid, pReq->txnId);
+    }
     TAOS_RETURN(code);
   }
 

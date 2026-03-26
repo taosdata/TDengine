@@ -26,37 +26,28 @@
 // VNode Transaction Context Management
 // ============================================================================
 
-// Shadow operation types are defined in vnodeInt.h (EShadowOpType)
 //
-// DDL Isolation Semantics (redo-log model):
-//   - DDL within a transaction is NOT applied to real meta immediately.
-//   - Instead, the full DDL request is stored as a shadow op (pending redo).
-//   - Within the same transaction: shadow ops are visible (overlay on meta lookups).
-//   - Other transactions / non-transactional: see only committed meta (invisible).
-//   - On COMMIT: shadow ops are replayed against real meta (become permanent).
-//   - On ROLLBACK: shadow ops are simply discarded (no meta changes to undo).
+// DDL Isolation Semantics (shadow-in-B+tree model):
+//   - DDL within a transaction IS applied to real meta immediately, but with
+//     txnId/txnStatus set in the SMetaEntry (encoded via type bit 6).
+//   - COMMIT:   promotes shadow entries (clear txnId→0; physically delete PRE_DROP).
+//   - ROLLBACK: undoes shadow entries (delete PRE_CREATE; restore PRE_DROP/ALTER to NORMAL).
+//   - Visibility filtering: queries skip PRE_CREATE; INSERT fails on PRE_DROP.
 //
 // Note: Super table (STB) DDL goes through MNode Trans framework (broadcast to VNodes),
 // NOT through the client→VNode direct path. Therefore STB operations are NOT tracked
-// as shadow ops here. Only child table and normal table DDL, which go directly from
-// client to VNode via consistent hash, need shadow ops.
+// here. Only child table and normal table DDL need txn tracking.
 //
 // Domain model:
 //   - Super table: schema in MNode SDB, copy distributed to VNodes as template
 //   - Child table:  created under a super table, shares its schema, stored in VNode
 //   - Normal table: stored in VNode with its own dedicated schema
 
-// Shadow operation record — stored in pShadowOps as redo-log for COMMIT.
-// Carries the full serialized DDL request so it can be replayed on COMMIT.
-// Only records child table and normal table operations (STB DDL handled by MNode Trans).
-typedef struct SVnodeShadowOp {
-  int8_t   opType;                      // EShadowOpType
-  tb_uid_t uid;                         // Table UID
-  tb_uid_t suid;                        // Super table UID (non-zero for child tables, 0 for normal tables)
-  char     name[TSDB_TABLE_FNAME_LEN];  // Table name
-  void    *pReqData;                    // Serialized DDL request (for COMMIT replay)
-  int32_t  reqDataLen;                  // Length of serialized request data
-} SVnodeShadowOp;
+// ALTER version tracking — for ROLLBACK, we need to restore the old version pointer.
+typedef struct SVnodeAlterRecord {
+  tb_uid_t uid;
+  int64_t  oldVersion;
+} SVnodeAlterRecord;
 
 typedef struct SVnodeTxnEntry {
   int64_t txnId;       // Transaction ID
@@ -64,7 +55,8 @@ typedef struct SVnodeTxnEntry {
   int64_t startTime;   // Transaction start time
   int64_t lastActive;  // Last active time
   int8_t  stage;       // EVtxnStage
-  SArray *pShadowOps;  // Shadow operations (pending DDL)
+  SArray *pTouchedUids;       // Array of tb_uid_t — all UIDs modified by this txn
+  SArray *pAlterOldVersions;  // Array of SVnodeAlterRecord — for ALTER rollback
   SArray *pLockedTables;  // Array of char* (table names locked by this txn)
 } SVnodeTxnEntry;
 
@@ -103,14 +95,8 @@ void vnodeTxnCleanup(SVnode *pVnode) {
     void *pIter = taosHashIterate(pVnode->pTxnHash, NULL);
     while (pIter) {
       SVnodeTxnEntry *pEntry = (SVnodeTxnEntry *)pIter;
-      if (pEntry->pShadowOps) {
-        int32_t sz = taosArrayGetSize(pEntry->pShadowOps);
-        for (int32_t i = 0; i < sz; i++) {
-          SVnodeShadowOp *pOp = (SVnodeShadowOp *)taosArrayGet(pEntry->pShadowOps, i);
-          taosMemoryFreeClear(pOp->pReqData);
-        }
-        taosArrayDestroy(pEntry->pShadowOps);
-      }
+      taosArrayDestroy(pEntry->pTouchedUids);
+      taosArrayDestroy(pEntry->pAlterOldVersions);
       if (pEntry->pLockedTables) {
         int32_t sz = taosArrayGetSize(pEntry->pLockedTables);
         for (int32_t i = 0; i < sz; i++) {
@@ -146,18 +132,21 @@ static int32_t vnodeCreateTxnEntry(SVnode *pVnode, int64_t txnId, int64_t term) 
   entry.startTime = taosGetTimestampMs();
   entry.lastActive = entry.startTime;
   entry.stage = VTXN_STAGE_ACTIVE;
-  entry.pShadowOps = taosArrayInit(8, sizeof(SVnodeShadowOp));
+  entry.pTouchedUids = taosArrayInit(8, sizeof(tb_uid_t));
+  entry.pAlterOldVersions = taosArrayInit(4, sizeof(SVnodeAlterRecord));
   entry.pLockedTables = taosArrayInit(8, sizeof(char *));
 
-  if (entry.pShadowOps == NULL || entry.pLockedTables == NULL) {
-    taosArrayDestroy(entry.pShadowOps);
+  if (entry.pTouchedUids == NULL || entry.pLockedTables == NULL) {
+    taosArrayDestroy(entry.pTouchedUids);
+    taosArrayDestroy(entry.pAlterOldVersions);
     taosArrayDestroy(entry.pLockedTables);
     return terrno;
   }
 
   int32_t code = taosHashPut(pVnode->pTxnHash, &txnId, sizeof(int64_t), &entry, sizeof(SVnodeTxnEntry));
   if (code != 0) {
-    taosArrayDestroy(entry.pShadowOps);
+    taosArrayDestroy(entry.pTouchedUids);
+    taosArrayDestroy(entry.pAlterOldVersions);
     taosArrayDestroy(entry.pLockedTables);
     return code;
   }
@@ -185,202 +174,275 @@ static void vnodeRemoveTxnEntry(SVnode *pVnode, int64_t txnId) {
   SVnodeTxnEntry *pEntry = vnodeGetTxnEntry(pVnode, txnId);
   if (pEntry) {
     vnodeReleaseTxnTableLocks(pVnode, pEntry);
-    if (pEntry->pShadowOps) {
-      int32_t sz = taosArrayGetSize(pEntry->pShadowOps);
-      for (int32_t i = 0; i < sz; i++) {
-        SVnodeShadowOp *pOp = (SVnodeShadowOp *)taosArrayGet(pEntry->pShadowOps, i);
-        taosMemoryFreeClear(pOp->pReqData);
-      }
-      taosArrayDestroy(pEntry->pShadowOps);
-    }
+    taosArrayDestroy(pEntry->pTouchedUids);
+    taosArrayDestroy(pEntry->pAlterOldVersions);
     taosHashRemove(pVnode->pTxnHash, &txnId, sizeof(int64_t));
   }
 }
 
 // ============================================================================
-// Shadow Operation Management
+// Shadow-in-B+tree: Entry Management & ALTER Tracking
 // ============================================================================
 
 /**
- * Record a shadow operation for a transaction (redo-log model).
- * Called by DDL handlers when executing within an active transaction.
- * The DDL is NOT applied to meta; instead, the full request data is stored
- * so it can be replayed on COMMIT.
- *
- * Only child table and normal table operations are tracked here.
- * Super table DDL goes through MNode Trans framework and is NOT tracked.
- *
- * @param pVnode     The vnode
- * @param txnId      Transaction ID
- * @param opType     EShadowOpType (CREATE_TB / ALTER_TB / DROP_TB)
- * @param name       Table name
- * @param uid        Table UID
- * @param suid       Super table UID (non-zero for child table, 0 for normal table)
- * @param pReqData   Serialized DDL request data (ownership transferred to shadow op)
- * @param reqDataLen Length of serialized data
- * @return TSDB_CODE_SUCCESS on success
+ * Ensure a txn entry exists for the given txnId (lazy create).
+ * Called by DDL handlers in vnodeSvr.c before writing to meta.
  */
-int32_t vnodeTxnAddShadowOp(SVnode *pVnode, int64_t txnId, int8_t opType, const char *name, tb_uid_t uid, tb_uid_t suid,
-                            void *pReqData, int32_t reqDataLen) {
-  if (pVnode->pTxnHash == NULL) {
-    taosMemoryFreeClear(pReqData);
+int32_t vnodeTxnEnsureEntry(SVnode *pVnode, int64_t txnId) {
+  if (pVnode->pTxnHash == NULL || txnId == 0) {
     return TSDB_CODE_SUCCESS;
   }
 
+  int32_t code = TSDB_CODE_SUCCESS;
   taosThreadMutexLock(&pVnode->txnMutex);
 
   SVnodeTxnEntry *pEntry = vnodeGetTxnEntry(pVnode, txnId);
   if (pEntry == NULL) {
-    taosThreadMutexUnlock(&pVnode->txnMutex);
-    taosMemoryFreeClear(pReqData);
-    return TSDB_CODE_VND_TXN_EXPIRED;
+    code = vnodeCreateTxnEntry(pVnode, txnId, pVnode->maxSeenTerm);
+    if (code == 0) {
+      vInfo("vgId:%d, txn entry lazily created, txnId:%" PRId64, TD_VID(pVnode), txnId);
+    }
+  } else {
+    pEntry->lastActive = taosGetTimestampMs();
   }
-
-  SVnodeShadowOp op = {0};
-  op.opType = opType;
-  op.uid = uid;
-  op.suid = suid;
-  tstrncpy(op.name, name, sizeof(op.name));
-  op.pReqData = pReqData;  // ownership transferred
-  op.reqDataLen = reqDataLen;
-
-  taosArrayPush(pEntry->pShadowOps, &op);
-  pEntry->lastActive = taosGetTimestampMs();
 
   taosThreadMutexUnlock(&pVnode->txnMutex);
-
-  vDebug("vgId:%d, shadow op added (redo), txnId:%" PRId64 ", opType:%d, table:%s, uid:%" PRId64 ", dataLen:%d",
-         TD_VID(pVnode), txnId, opType, name, uid, reqDataLen);
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 /**
- * Apply shadow operations on COMMIT — replay redo-log to real meta.
- * DDL was NOT applied during the ACTIVE phase (deferred to shadow).
- * Now we replay each shadow op against meta to make changes permanent.
+ * Record a UID touched by this txn (for COMMIT/ROLLBACK iteration).
+ * Deduplication: only adds if not already present.
+ */
+static void vnodeTxnTrackUid(SVnodeTxnEntry *pEntry, tb_uid_t uid) {
+  if (pEntry->pTouchedUids == NULL) return;
+  int32_t sz = taosArrayGetSize(pEntry->pTouchedUids);
+  for (int32_t i = 0; i < sz; i++) {
+    if (*(tb_uid_t *)taosArrayGet(pEntry->pTouchedUids, i) == uid) {
+      return;  // already tracked
+    }
+  }
+  taosArrayPush(pEntry->pTouchedUids, &uid);
+}
+
+/**
+ * Track a table UID as modified by this txn. Called after DDL writes to meta.
+ * Used to enumerate all shadow entries during COMMIT/ROLLBACK.
+ */
+void vnodeTxnTrackTable(SVnode *pVnode, int64_t txnId, tb_uid_t uid) {
+  if (pVnode->pTxnHash == NULL || txnId == 0) return;
+
+  taosThreadMutexLock(&pVnode->txnMutex);
+  SVnodeTxnEntry *pEntry = vnodeGetTxnEntry(pVnode, txnId);
+  if (pEntry) {
+    vnodeTxnTrackUid(pEntry, uid);
+    pEntry->lastActive = taosGetTimestampMs();
+  }
+  taosThreadMutexUnlock(&pVnode->txnMutex);
+}
+
+/**
+ * Track ALTER's old version for rollback.
+ * On ROLLBACK of PRE_ALTER, we need to delete the new-version entry and
+ * restore pUidIdx to point at the old version.
+ */
+void vnodeTxnTrackAlter(SVnode *pVnode, int64_t txnId, tb_uid_t uid, int64_t oldVersion) {
+  if (pVnode->pTxnHash == NULL || txnId == 0) return;
+
+  taosThreadMutexLock(&pVnode->txnMutex);
+  SVnodeTxnEntry *pEntry = vnodeGetTxnEntry(pVnode, txnId);
+  if (pEntry) {
+    SVnodeAlterRecord rec = {.uid = uid, .oldVersion = oldVersion};
+    taosArrayPush(pEntry->pAlterOldVersions, &rec);
+    vnodeTxnTrackUid(pEntry, uid);
+    pEntry->lastActive = taosGetTimestampMs();
+  }
+  taosThreadMutexUnlock(&pVnode->txnMutex);
+}
+
+// ============================================================================
+// Shadow-in-B+tree: COMMIT — promote shadow entries
+// ============================================================================
+
+/**
+ * Promote shadow entries on COMMIT.
+ * For each UID touched by this txn, read the current entry from B+ tree:
+ *   PRE_CREATE → clear txnId/txnStatus to NORMAL (table becomes visible)
+ *   PRE_ALTER  → clear txnId/txnStatus to NORMAL (new schema becomes official)
+ *   PRE_DROP   → physically delete the entry (call metaDropTable2 with txnId=0)
  *
  * Caller must NOT hold txnMutex.
  */
-static int32_t vnodeTxnApplyShadowOps(SVnode *pVnode, SVnodeTxnEntry *pEntry) {
-  if (pEntry->pShadowOps == NULL) return TSDB_CODE_SUCCESS;
+static int32_t vnodeTxnPromoteShadowEntries(SVnode *pVnode, SVnodeTxnEntry *pEntry) {
+  if (pEntry->pTouchedUids == NULL) return TSDB_CODE_SUCCESS;
 
-  int32_t numOps = taosArrayGetSize(pEntry->pShadowOps);
-  vInfo("vgId:%d, applying %d shadow ops (redo) for txn %" PRId64, TD_VID(pVnode), numOps, pEntry->txnId);
+  int32_t numUids = taosArrayGetSize(pEntry->pTouchedUids);
+  vInfo("vgId:%d, promoting %d shadow entries for txn %" PRId64, TD_VID(pVnode), numUids, pEntry->txnId);
 
-  // Replay in forward order (same order as original DDL execution)
-  for (int32_t i = 0; i < numOps; i++) {
-    SVnodeShadowOp *pOp = (SVnodeShadowOp *)taosArrayGet(pEntry->pShadowOps, i);
+  for (int32_t i = 0; i < numUids; i++) {
+    tb_uid_t uid = *(tb_uid_t *)taosArrayGet(pEntry->pTouchedUids, i);
 
-    switch (pOp->opType) {
-      case SHADOW_OP_CREATE_TB: {
-        // Replay CREATE TABLE: deserialize and apply to meta
-        if (pOp->pReqData == NULL || pOp->reqDataLen == 0) {
-          vError("vgId:%d, commit: no request data for create table %s", TD_VID(pVnode), pOp->name);
-          break;
-        }
-        SDecoder           decoder = {0};
-        SVCreateTbBatchReq batchReq = {0};
-        tDecoderInit(&decoder, pOp->pReqData, pOp->reqDataLen);
-        if (tDecodeSVCreateTbBatchReq(&decoder, &batchReq) < 0) {
-          vError("vgId:%d, commit: failed to decode create table req for %s", TD_VID(pVnode), pOp->name);
-          tDecoderClear(&decoder);
-          break;
-        }
-        for (int32_t j = 0; j < batchReq.nReqs; j++) {
-          SVCreateTbReq *pCreateReq = batchReq.pReqs + j;
-          int32_t        code = metaCreateTable2(pVnode->pMeta, -1, pCreateReq, NULL);
-          if (code < 0) {
-            vWarn("vgId:%d, commit: metaCreateTable2 failed for %s, code:0x%x", TD_VID(pVnode), pCreateReq->name,
-                  terrno);
-          } else {
-            vInfo("vgId:%d, commit: created table %s, uid:%" PRId64, TD_VID(pVnode), pCreateReq->name, pCreateReq->uid);
-          }
-        }
-        tDecoderClear(&decoder);
-        break;
-      }
-      case SHADOW_OP_DROP_TB: {
-        // Replay DROP TABLE: apply to meta
-        if (pOp->pReqData == NULL || pOp->reqDataLen == 0) {
-          vError("vgId:%d, commit: no request data for drop table %s", TD_VID(pVnode), pOp->name);
-          break;
-        }
-        SDecoder         decoder = {0};
-        SVDropTbBatchReq batchReq = {0};
-        tDecoderInit(&decoder, pOp->pReqData, pOp->reqDataLen);
-        if (tDecodeSVDropTbBatchReq(&decoder, &batchReq) < 0) {
-          vError("vgId:%d, commit: failed to decode drop table req for %s", TD_VID(pVnode), pOp->name);
-          tDecoderClear(&decoder);
-          break;
-        }
-        for (int32_t j = 0; j < batchReq.nReqs; j++) {
-          SVDropTbReq *pDropReq = batchReq.pReqs + j;
-          int32_t      code = metaDropTable2(pVnode->pMeta, -1, pDropReq);
-          if (code < 0) {
-            vWarn("vgId:%d, commit: metaDropTable2 failed for %s, code:0x%x", TD_VID(pVnode), pDropReq->name, terrno);
-          } else {
-            vInfo("vgId:%d, commit: dropped table %s", TD_VID(pVnode), pDropReq->name);
-          }
-        }
-        tDecoderClear(&decoder);
-        break;
-      }
-      case SHADOW_OP_ALTER_TB: {
-        // Replay ALTER TABLE: apply to meta
-        if (pOp->pReqData == NULL || pOp->reqDataLen == 0) {
-          vError("vgId:%d, commit: no request data for alter table %s", TD_VID(pVnode), pOp->name);
-          break;
-        }
-        SDecoder     decoder = {0};
-        SVAlterTbReq alterReq = {0};
-        tDecoderInit(&decoder, pOp->pReqData, pOp->reqDataLen);
-        if (tDecodeSVAlterTbReq(&decoder, &alterReq) < 0) {
-          vError("vgId:%d, commit: failed to decode alter table req for %s", TD_VID(pVnode), pOp->name);
-          tDecoderClear(&decoder);
-          break;
-        }
-        STableMetaRsp metaRsp = {0};
-        int32_t       code = metaAlterTable(pVnode->pMeta, -1, &alterReq, &metaRsp);
-        if (code < 0) {
-          vWarn("vgId:%d, commit: metaAlterTable failed for %s, code:0x%x", TD_VID(pVnode), alterReq.tbName, terrno);
+    // Fetch the current entry from B+ tree
+    SMetaEntry *pME = NULL;
+    int32_t     code = metaFetchEntryByUid(pVnode->pMeta, uid, &pME);
+    if (code != 0 || pME == NULL) {
+      vWarn("vgId:%d, commit: uid %" PRId64 " not found in B+ tree, skip", TD_VID(pVnode), uid);
+      continue;
+    }
+
+    if (pME->txnId != pEntry->txnId) {
+      // Entry doesn't belong to this txn (maybe already committed/cleaned)
+      metaFetchEntryFree(&pME);
+      continue;
+    }
+
+    switch (pME->txnStatus) {
+      case META_TXN_PRE_CREATE:
+      case META_TXN_PRE_ALTER:
+        // Promote: clear txnId/txnStatus → NORMAL
+        code = metaMarkTableTxnStatus(pVnode->pMeta, uid, 0, META_TXN_NORMAL);
+        if (code == 0) {
+          vInfo("vgId:%d, commit: promoted uid %" PRId64 " (status %d → NORMAL)", TD_VID(pVnode), uid, pME->txnStatus);
         } else {
-          vInfo("vgId:%d, commit: altered table %s", TD_VID(pVnode), alterReq.tbName);
+          vError("vgId:%d, commit: failed to promote uid %" PRId64 ", code:0x%x", TD_VID(pVnode), uid, code);
         }
-        taosMemoryFreeClear(metaRsp.pSchemas);
-        taosMemoryFreeClear(metaRsp.pSchemaExt);
-        taosMemoryFreeClear(metaRsp.pColRefs);
-        destroyAlterTbReq(&alterReq);
-        tDecoderClear(&decoder);
+        break;
+
+      case META_TXN_PRE_DROP: {
+        // Physically delete: reissue drop with txnId=0
+        SVDropTbReq dropReq = {0};
+        dropReq.name = pME->name;
+        dropReq.uid = uid;
+        dropReq.suid =
+            (pME->type == TSDB_CHILD_TABLE || pME->type == TSDB_VIRTUAL_CHILD_TABLE) ? pME->ctbEntry.suid : 0;
+        dropReq.txnId = 0;  // non-txn drop = physical delete
+        code = metaDropTable2(pVnode->pMeta, -1, &dropReq);
+        if (code == 0) {
+          vInfo("vgId:%d, commit: physically dropped uid %" PRId64, TD_VID(pVnode), uid);
+        } else {
+          vError("vgId:%d, commit: failed to drop uid %" PRId64 ", code:0x%x", TD_VID(pVnode), uid, code);
+        }
         break;
       }
+
       default:
-        vError("vgId:%d, unknown shadow op type %d", TD_VID(pVnode), pOp->opType);
+        vDebug("vgId:%d, commit: uid %" PRId64 " has status %d, skip", TD_VID(pVnode), uid, pME->txnStatus);
         break;
     }
+
+    metaFetchEntryFree(&pME);
   }
 
   return TSDB_CODE_SUCCESS;
 }
 
+// ============================================================================
+// Shadow-in-B+tree: ROLLBACK — undo shadow entries
+// ============================================================================
+
 /**
- * Discard shadow operations on ROLLBACK — simply discard all pending redo-log entries.
- * Since DDL was NOT applied to meta during the ACTIVE phase (redo-log model),
- * there is nothing to undo. We just free the shadow data.
+ * Undo shadow entries on ROLLBACK.
+ * For each UID touched by this txn, read the current entry from B+ tree:
+ *   PRE_CREATE → physically delete (table was never committed)
+ *   PRE_DROP   → clear txnId/txnStatus back to NORMAL (restore table)
+ *   PRE_ALTER  → delete new version entry, restore pUidIdx to old version
  *
  * Caller must NOT hold txnMutex.
  */
-static int32_t vnodeTxnDiscardShadowOps(SVnode *pVnode, SVnodeTxnEntry *pEntry) {
-  if (pEntry->pShadowOps == NULL) return TSDB_CODE_SUCCESS;
+static int32_t vnodeTxnUndoShadowEntries(SVnode *pVnode, SVnodeTxnEntry *pEntry) {
+  if (pEntry->pTouchedUids == NULL) return TSDB_CODE_SUCCESS;
 
-  int32_t numOps = taosArrayGetSize(pEntry->pShadowOps);
-  vInfo("vgId:%d, discarding %d shadow ops (redo-log) for txn %" PRId64, TD_VID(pVnode), numOps, pEntry->txnId);
+  int32_t numUids = taosArrayGetSize(pEntry->pTouchedUids);
+  vInfo("vgId:%d, undoing %d shadow entries for txn %" PRId64, TD_VID(pVnode), numUids, pEntry->txnId);
 
-  // Redo-log model: meta was never modified, so just log and free.
-  // The actual pReqData memory is freed by vnodeRemoveTxnEntry.
-  for (int32_t i = 0; i < numOps; i++) {
-    SVnodeShadowOp *pOp = (SVnodeShadowOp *)taosArrayGet(pEntry->pShadowOps, i);
-    vDebug("vgId:%d, discard shadow op %d/%d: type=%d, table=%s, uid:%" PRId64, TD_VID(pVnode), i + 1, numOps,
-           pOp->opType, pOp->name, pOp->uid);
+  for (int32_t i = 0; i < numUids; i++) {
+    tb_uid_t uid = *(tb_uid_t *)taosArrayGet(pEntry->pTouchedUids, i);
+
+    // Fetch the current entry from B+ tree
+    SMetaEntry *pME = NULL;
+    int32_t     code = metaFetchEntryByUid(pVnode->pMeta, uid, &pME);
+    if (code != 0 || pME == NULL) {
+      vWarn("vgId:%d, rollback: uid %" PRId64 " not found in B+ tree, skip", TD_VID(pVnode), uid);
+      continue;
+    }
+
+    if (pME->txnId != pEntry->txnId) {
+      metaFetchEntryFree(&pME);
+      continue;
+    }
+
+    switch (pME->txnStatus) {
+      case META_TXN_PRE_CREATE: {
+        // Table was created by this txn — physically delete it
+        SVDropTbReq dropReq = {0};
+        dropReq.name = pME->name;
+        dropReq.uid = uid;
+        dropReq.suid =
+            (pME->type == TSDB_CHILD_TABLE || pME->type == TSDB_VIRTUAL_CHILD_TABLE) ? pME->ctbEntry.suid : 0;
+        dropReq.txnId = 0;
+        code = metaDropTable2(pVnode->pMeta, -1, &dropReq);
+        if (code == 0) {
+          vInfo("vgId:%d, rollback: deleted PRE_CREATE uid %" PRId64, TD_VID(pVnode), uid);
+        } else {
+          vError("vgId:%d, rollback: failed to delete PRE_CREATE uid %" PRId64 ", code:0x%x", TD_VID(pVnode), uid,
+                 code);
+        }
+        break;
+      }
+
+      case META_TXN_PRE_DROP:
+        // Table was marked for drop — restore to NORMAL
+        code = metaMarkTableTxnStatus(pVnode->pMeta, uid, 0, META_TXN_NORMAL);
+        if (code == 0) {
+          vInfo("vgId:%d, rollback: restored PRE_DROP uid %" PRId64 " to NORMAL", TD_VID(pVnode), uid);
+        } else {
+          vError("vgId:%d, rollback: failed to restore PRE_DROP uid %" PRId64, TD_VID(pVnode), uid);
+        }
+        break;
+
+      case META_TXN_PRE_ALTER: {
+        // ALTER created a new version — need to delete it and restore old version.
+        // Find the old version from pAlterOldVersions.
+        int64_t oldVersion = -1;
+        if (pEntry->pAlterOldVersions) {
+          int32_t nAlter = taosArrayGetSize(pEntry->pAlterOldVersions);
+          for (int32_t j = nAlter - 1; j >= 0; j--) {
+            SVnodeAlterRecord *pRec = (SVnodeAlterRecord *)taosArrayGet(pEntry->pAlterOldVersions, j);
+            if (pRec->uid == uid) {
+              oldVersion = pRec->oldVersion;
+              break;
+            }
+          }
+        }
+
+        if (oldVersion >= 0) {
+          // Delete the new-version entry from pTbDb
+          STbDbKey newKey = {.version = pME->version, .uid = uid};
+          tdbTbDelete(pVnode->pMeta->pTbDb, &newKey, sizeof(newKey), pVnode->pMeta->txn);
+
+          // Restore pUidIdx to point at old version
+          SUidIdxVal uidVal = {.version = oldVersion};
+          tdbTbUpsert(pVnode->pMeta->pUidIdx, &uid, sizeof(uid), &uidVal, sizeof(uidVal), pVnode->pMeta->txn);
+
+          // Clear txnId on the old entry (it was marked PRE_ALTER too)
+          metaMarkTableTxnStatus(pVnode->pMeta, uid, 0, META_TXN_NORMAL);
+
+          vInfo("vgId:%d, rollback: restored ALTER uid %" PRId64 " to version %" PRId64, TD_VID(pVnode), uid,
+                oldVersion);
+        } else {
+          // Fallback: just clear txnStatus on the current entry
+          metaMarkTableTxnStatus(pVnode->pMeta, uid, 0, META_TXN_NORMAL);
+          vWarn("vgId:%d, rollback: ALTER uid %" PRId64 " old version not found, cleared status", TD_VID(pVnode), uid);
+        }
+        break;
+      }
+
+      default:
+        vDebug("vgId:%d, rollback: uid %" PRId64 " has status %d, skip", TD_VID(pVnode), uid, pME->txnStatus);
+        break;
+    }
+
+    metaFetchEntryFree(&pME);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -392,7 +454,11 @@ static int32_t vnodeTxnDiscardShadowOps(SVnode *pVnode, SVnodeTxnEntry *pEntry) 
 
 /**
  * Process COMMIT request from MNode (TDMT_VND_TXN_COMMIT)
- * This finalizes the transaction and makes changes visible
+ * This finalizes the transaction and makes changes visible.
+ *
+ * Shadow-in-Snapshot model: shadow ops are persisted via VNode snapshot.
+ * Follower reconstructs shadow from WAL replay (normal) or snapshot load (catchup).
+ * If shadow is missing and no snapshot source, the txn is treated as empty for this VGroup.
  */
 int32_t vnodeProcessTxnCommitReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {
   int32_t        code = TSDB_CODE_SUCCESS;
@@ -422,23 +488,19 @@ int32_t vnodeProcessTxnCommitReq(SVnode *pVnode, int64_t ver, void *pReq, int32_
   SVnodeTxnEntry *pEntry = vnodeGetTxnEntry(pVnode, req.txnId);
   if (pEntry == NULL) {
     taosThreadMutexUnlock(&pVnode->txnMutex);
-    // Entry not found: txn expired and shadow data already cleaned up → reject commit
-    vError("vgId:%d, txn expired, cannot commit (shadow data lost), txnId:%" PRId64, TD_VID(pVnode), req.txnId);
-    return TSDB_CODE_VND_TXN_EXPIRED;
+    // Shadow missing — empty txn on this VGroup (no DDL was routed here)
+    vDebug("vgId:%d, txn entry not found on commit (no-op), txnId:%" PRId64, TD_VID(pVnode), req.txnId);
+    return TSDB_CODE_SUCCESS;
   }
 
   pEntry->stage = VTXN_STAGE_FINISHING;
   taosThreadMutexUnlock(&pVnode->txnMutex);
 
-  // Apply shadow operations — promote pending changes to permanent
-  code = vnodeTxnApplyShadowOps(pVnode, pEntry);
+  // Promote shadow entries in B+ tree (clear txnId or physically delete)
+  code = vnodeTxnPromoteShadowEntries(pVnode, pEntry);
   if (code != 0) {
-    vError("vgId:%d, failed to apply shadow ops, txnId:%" PRId64 ", code:0x%x", TD_VID(pVnode), req.txnId, code);
+    vError("vgId:%d, failed to promote shadow entries, txnId:%" PRId64 ", code:0x%x", TD_VID(pVnode), req.txnId, code);
   }
-
-  // Note: WAL persistence is inherent — this handler is invoked via sync→WAL→apply.
-  // On crash recovery, WAL replay re-invokes this handler. DDL messages carry txnId
-  // so shadow ops are reconstructed from replayed DDLs before COMMIT arrives.
 
   // Cleanup entry
   taosThreadMutexLock(&pVnode->txnMutex);
@@ -489,12 +551,8 @@ int32_t vnodeProcessTxnRollbackReq(SVnode *pVnode, int64_t ver, void *pReq, int3
   pEntry->stage = VTXN_STAGE_FINISHING;
   taosThreadMutexUnlock(&pVnode->txnMutex);
 
-  // Discard shadow operations — undo pending changes
-  vnodeTxnDiscardShadowOps(pVnode, pEntry);
-
-  // Note: WAL persistence is inherent — this handler is invoked via sync→WAL→apply.
-  // On crash recovery, WAL replay re-invokes this handler. DDL messages carry txnId
-  // so shadow ops are reconstructed from replayed DDLs before ROLLBACK arrives.
+  // Undo shadow entries in B+ tree (delete PRE_CREATE, restore PRE_DROP/ALTER)
+  vnodeTxnUndoShadowEntries(pVnode, pEntry);
 
   // Cleanup entry
   taosThreadMutexLock(&pVnode->txnMutex);
@@ -544,7 +602,17 @@ void vnodeTxnCheckTimeout(SVnode *pVnode) {
   int32_t numExpired = taosArrayGetSize(expiredTxns);
   for (int32_t i = 0; i < numExpired; i++) {
     int64_t txnId = *(int64_t *)taosArrayGet(expiredTxns, i);
-    vnodeRemoveTxnEntry(pVnode, txnId);
+    SVnodeTxnEntry *pEntry = vnodeGetTxnEntry(pVnode, txnId);
+    if (pEntry) {
+      pEntry->stage = VTXN_STAGE_FINISHING;
+      taosThreadMutexUnlock(&pVnode->txnMutex);
+
+      // Undo shadow entries in B+ tree before removing
+      vnodeTxnUndoShadowEntries(pVnode, pEntry);
+
+      taosThreadMutexLock(&pVnode->txnMutex);
+      vnodeRemoveTxnEntry(pVnode, txnId);
+    }
     vInfo("vgId:%d, expired txn rolled back, txnId:%" PRId64, TD_VID(pVnode), txnId);
   }
 
@@ -595,7 +663,17 @@ int32_t vnodeTxnFencing(SVnode *pVnode, int64_t newTerm, int64_t newTxnId) {
   int32_t numToAbort = taosArrayGetSize(toAbort);
   for (int32_t i = 0; i < numToAbort; i++) {
     int64_t txnId = *(int64_t *)taosArrayGet(toAbort, i);
-    vnodeRemoveTxnEntry(pVnode, txnId);
+    SVnodeTxnEntry *pEntry = vnodeGetTxnEntry(pVnode, txnId);
+    if (pEntry) {
+      pEntry->stage = VTXN_STAGE_FINISHING;
+      taosThreadMutexUnlock(&pVnode->txnMutex);
+
+      // Undo shadow entries in B+ tree before removing
+      vnodeTxnUndoShadowEntries(pVnode, pEntry);
+
+      taosThreadMutexLock(&pVnode->txnMutex);
+      vnodeRemoveTxnEntry(pVnode, txnId);
+    }
   }
 
   taosThreadMutexUnlock(&pVnode->txnMutex);
@@ -660,8 +738,12 @@ void vnodeTxnProcessActiveAck(SVnode *pVnode, utxn_id_t txnId, int8_t alive) {
     vDebug("vgId:%d, txn keepalive refreshed, txnId:%" PRId64, TD_VID(pVnode), txnId);
   } else {
     vInfo("vgId:%d, txn dead per MNode ack, rolling back locally, txnId:%" PRId64, TD_VID(pVnode), txnId);
+    pEntry->stage = VTXN_STAGE_FINISHING;
     taosThreadMutexUnlock(&pVnode->txnMutex);
-    vnodeTxnDiscardShadowOps(pVnode, pEntry);
+
+    // Undo shadow entries in B+ tree
+    vnodeTxnUndoShadowEntries(pVnode, pEntry);
+
     taosThreadMutexLock(&pVnode->txnMutex);
     vnodeRemoveTxnEntry(pVnode, txnId);
   }
@@ -755,74 +837,25 @@ void vnodeTxnUnlockTables(SVnode *pVnode, int64_t txnId) {
 }
 
 // ============================================================================
-// Intra-Transaction Visibility (Shadow Meta Overlay)
+// Shadow-in-B+tree: Conflict Detection via B+ tree reads
 // ============================================================================
 
 /**
- * Query the shadow status of a table within a transaction.
- * This enables intra-txn visibility: DDL within the same txn is visible
- * to subsequent operations, while invisible to other txns.
- *
- * @param pVnode    The vnode
- * @param txnId     Transaction ID to check
- * @param name      Table name to look up
- * @return  1 = table was CREATED in this txn (exists in shadow)
- *         -1 = table was DROPPED in this txn (marked as deleted)
- *          0 = table has no shadow state (check real meta)
- */
-int32_t vnodeTxnShadowTableStatus(SVnode *pVnode, int64_t txnId, const char *name) {
-  if (pVnode->pTxnHash == NULL || txnId == 0 || name == NULL) {
-    return 0;
-  }
-
-  int32_t result = 0;
-
-  taosThreadMutexLock(&pVnode->txnMutex);
-
-  SVnodeTxnEntry *pEntry = vnodeGetTxnEntry(pVnode, txnId);
-  if (pEntry == NULL || pEntry->pShadowOps == NULL) {
-    taosThreadMutexUnlock(&pVnode->txnMutex);
-    return 0;
-  }
-
-  // Scan shadow ops in reverse order to get the latest state
-  int32_t numOps = taosArrayGetSize(pEntry->pShadowOps);
-  for (int32_t i = numOps - 1; i >= 0; i--) {
-    SVnodeShadowOp *pOp = (SVnodeShadowOp *)taosArrayGet(pEntry->pShadowOps, i);
-    if (strncmp(pOp->name, name, TSDB_TABLE_FNAME_LEN) == 0) {
-      if (pOp->opType == SHADOW_OP_CREATE_TB) {
-        result = 1;  // table created in this txn
-      } else if (pOp->opType == SHADOW_OP_DROP_TB) {
-        result = -1;  // table dropped in this txn
-      }
-      // For ALTER: table exists but schema changed in shadow (visible within txn)
-      // Return 0 so caller falls through to real meta + applies shadow schema
-      break;
-    }
-  }
-
-  taosThreadMutexUnlock(&pVnode->txnMutex);
-  return result;
-}
-
-/**
- * Check if a non-transaction DDL/DML operation conflicts with any active txn shadow.
- *
- * Scans ALL active txn entries (there should be at most one per VNode in practice)
- * and checks if the target table has a shadow state that would conflict.
+ * Check if a non-transaction DDL/DML operation conflicts with any active txn shadow
+ * in the B+ tree. Reads the table's txnStatus directly from meta.
  *
  * Conflict matrix (from design doc §16):
- *   PREPARED_CREATE + non-txn CREATE → CONFLICT
- *   PREPARED_CREATE + non-txn SELECT/INSERT/DELETE/ALTER/DROP → TABLE_NOT_EXIST (shadow invisible)
- *   PREPARED_DROP   + non-txn DROP/ALTER/DELETE → CONFLICT (resource busy)
- *   PREPARED_DROP   + non-txn CREATE → TABLE_ALREADY_EXISTS
- *   PREPARED_DROP   + non-txn SELECT/INSERT → OK (read old data)
- *   PREPARED_ALTER  + non-txn ALTER/DROP → CONFLICT
- *   PREPARED_ALTER  + non-txn SELECT/INSERT/DELETE → OK (use old schema)
+ *   PRE_CREATE + non-txn CREATE → CONFLICT
+ *   PRE_CREATE + non-txn SELECT/INSERT/DELETE/ALTER/DROP → TABLE_NOT_EXIST (shadow invisible)
+ *   PRE_DROP   + non-txn DROP/ALTER/DELETE → CONFLICT (resource busy)
+ *   PRE_DROP   + non-txn CREATE → TABLE_ALREADY_EXISTS
+ *   PRE_DROP   + non-txn SELECT/INSERT → OK (read old data)
+ *   PRE_ALTER  + non-txn ALTER/DROP → CONFLICT
+ *   PRE_ALTER  + non-txn SELECT/INSERT/DELETE → OK (use old schema)
  *
  * @param pVnode      The vnode
  * @param tableName   The target table name
- * @param incomingOp  0=query/DML, EShadowOpType values for DDL (1=CREATE, 2=ALTER, 3=DROP)
+ * @param incomingOp  0=query/DML, 1=CREATE, 2=ALTER, 3=DROP
  * @return TSDB_CODE_SUCCESS if no conflict, error code otherwise
  */
 int32_t vnodeTxnCheckConflict(SVnode *pVnode, const char *tableName, int8_t incomingOp) {
@@ -830,138 +863,80 @@ int32_t vnodeTxnCheckConflict(SVnode *pVnode, const char *tableName, int8_t inco
     return TSDB_CODE_SUCCESS;
   }
 
-  int32_t code = TSDB_CODE_SUCCESS;
-  taosThreadMutexLock(&pVnode->txnMutex);
-
-  // Scan all active txn entries for shadow state on this table
-  void *pIter = taosHashIterate(pVnode->pTxnHash, NULL);
-  while (pIter) {
-    SVnodeTxnEntry *pEntry = (SVnodeTxnEntry *)pIter;
-    if (pEntry->pShadowOps == NULL) {
-      pIter = taosHashIterate(pVnode->pTxnHash, pIter);
-      continue;
-    }
-
-    // Scan shadow ops in reverse order to get the latest state for this table
-    int8_t  shadowState = 0;  // 0=none, SHADOW_OP_CREATE_TB/ALTER_TB/DROP_TB
-    int32_t numOps = taosArrayGetSize(pEntry->pShadowOps);
-    for (int32_t i = numOps - 1; i >= 0; i--) {
-      SVnodeShadowOp *pOp = (SVnodeShadowOp *)taosArrayGet(pEntry->pShadowOps, i);
-      if (strncmp(pOp->name, tableName, TSDB_TABLE_FNAME_LEN) == 0) {
-        shadowState = pOp->opType;
-        break;
-      }
-    }
-
-    if (shadowState == 0) {
-      pIter = taosHashIterate(pVnode->pTxnHash, pIter);
-      continue;
-    }
-
-    // Found shadow state — apply conflict rules
-    switch (shadowState) {
-      case SHADOW_OP_CREATE_TB:
-        // Table exists in shadow (not yet committed)
-        if (incomingOp == SHADOW_OP_CREATE_TB) {
-          code = TSDB_CODE_VND_TXN_CONFLICT;  // CREATE vs PREPARED_CREATE → conflict
-        }
-        // All other ops: table is invisible to non-txn → will naturally fail as "not exist"
-        break;
-
-      case SHADOW_OP_DROP_TB:
-        // Table is logically deleted in shadow (not yet committed)
-        if (incomingOp == SHADOW_OP_DROP_TB || incomingOp == SHADOW_OP_ALTER_TB) {
-          code = TSDB_CODE_VND_TXN_CONFLICT;  // DROP/ALTER vs PREPARED_DROP → resource busy
-        } else if (incomingOp == SHADOW_OP_CREATE_TB) {
-          code = TSDB_CODE_TDB_TABLE_ALREADY_EXIST;  // CREATE vs PREPARED_DROP → name occupied
-        }
-        // SELECT/INSERT (incomingOp=0): allowed (read old data), no conflict
-        break;
-
-      case SHADOW_OP_ALTER_TB:
-        // Table schema is being modified in shadow
-        if (incomingOp == SHADOW_OP_ALTER_TB || incomingOp == SHADOW_OP_DROP_TB) {
-          code = TSDB_CODE_VND_TXN_CONFLICT;  // ALTER/DROP vs PREPARED_ALTER → conflict
-        }
-        // SELECT/INSERT/DELETE/CREATE (incomingOp=0 or CREATE): no conflict
-        break;
-    }
-
-    if (code != TSDB_CODE_SUCCESS) {
-      taosHashCancelIterate(pVnode->pTxnHash, pIter);
-      vWarn("vgId:%d, txn conflict: table=%s, shadowState=%d, incomingOp=%d, txnId:%" PRId64, TD_VID(pVnode), tableName,
-            shadowState, incomingOp, pEntry->txnId);
-      break;
-    }
-
-    pIter = taosHashIterate(pVnode->pTxnHash, pIter);
-  }
-
-  taosThreadMutexUnlock(&pVnode->txnMutex);
-  return code;
-}
-
-// ============================================================================
-// Combined DDL Registration (lazy-create + lock + shadow op)
-// ============================================================================
-
-/**
- * Register a DDL operation within a batch transaction (redo-log model).
- * This is the main entry point called by VNode DDL handlers when txnId != 0.
- * The DDL is NOT applied to meta; it is stored as a shadow op for later COMMIT.
- *
- * Steps:
- *   1. Lazily create txn entry if not exists (enables WAL-replay reconstruction)
- *   2. Lock the table to prevent concurrent conflicting DDL
- *   3. Record shadow op with full serialized request (redo-log for COMMIT)
- *
- * @param pVnode      The vnode
- * @param txnId       Batch transaction ID (must be > 0)
- * @param opType      EShadowOpType (CREATE_TB, ALTER_TB, DROP_TB)
- * @param name        Fully-qualified table name
- * @param uid         Table UID
- * @param suid        Super table UID (0 for normal tables)
- * @param pReqData    Serialized DDL request data (ownership transferred)
- * @param reqDataLen  Length of serialized data
- * @return TSDB_CODE_SUCCESS, TSDB_CODE_VND_TXN_CONFLICT, or error
- */
-int32_t vnodeTxnRegisterDdl(SVnode *pVnode, int64_t txnId, int8_t opType, const char *name, tb_uid_t uid, tb_uid_t suid,
-                            void *pReqData, int32_t reqDataLen) {
-  if (pVnode->pTxnHash == NULL || txnId == 0) {
-    taosMemoryFreeClear(pReqData);
+  // Read the table entry from B+ tree to check txnStatus
+  SMetaEntry *pME = NULL;
+  int32_t     code = metaFetchEntryByName(pVnode->pMeta, tableName, &pME);
+  if (code != 0 || pME == NULL) {
+    // Table not found in meta — no conflict possible
     return TSDB_CODE_SUCCESS;
   }
 
-  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t ret = TSDB_CODE_SUCCESS;
+  if (pME->txnId != 0) {
+    switch (pME->txnStatus) {
+      case META_TXN_PRE_CREATE:
+        if (incomingOp == 1) {  // CREATE vs PRE_CREATE
+          ret = TSDB_CODE_VND_TXN_CONFLICT;
+        }
+        // Other ops: table is invisible to non-txn → will naturally fail as "not exist"
+        break;
 
-  taosThreadMutexLock(&pVnode->txnMutex);
+      case META_TXN_PRE_DROP:
+        if (incomingOp == 3 || incomingOp == 2) {  // DROP/ALTER vs PRE_DROP
+          ret = TSDB_CODE_VND_TXN_CONFLICT;
+        } else if (incomingOp == 1) {  // CREATE vs PRE_DROP
+          ret = TSDB_CODE_TDB_TABLE_ALREADY_EXIST;
+        }
+        // SELECT/INSERT (incomingOp=0): allowed, no conflict
+        break;
 
-  // Step 1: Lazy-create txn entry if not exists
-  SVnodeTxnEntry *pEntry = vnodeGetTxnEntry(pVnode, txnId);
-  if (pEntry == NULL) {
-    // Use current maxSeenTerm so the entry won't be prematurely fenced
-    code = vnodeCreateTxnEntry(pVnode, txnId, pVnode->maxSeenTerm);
-    if (code != 0) {
-      taosThreadMutexUnlock(&pVnode->txnMutex);
-      taosMemoryFreeClear(pReqData);
-      vError("vgId:%d, failed to create txn entry for DDL, txnId:%" PRId64 ", code:0x%x", TD_VID(pVnode), txnId, code);
-      return code;
+      case META_TXN_PRE_ALTER:
+        if (incomingOp == 2 || incomingOp == 3) {  // ALTER/DROP vs PRE_ALTER
+          ret = TSDB_CODE_VND_TXN_CONFLICT;
+        }
+        break;
+
+      default:
+        break;
     }
-    pEntry = vnodeGetTxnEntry(pVnode, txnId);
-    vInfo("vgId:%d, txn entry lazily created for DDL, txnId:%" PRId64 ", term:%" PRId64, TD_VID(pVnode), txnId,
-          pVnode->maxSeenTerm);
+
+    if (ret != TSDB_CODE_SUCCESS) {
+      vWarn("vgId:%d, txn conflict: table=%s, txnStatus=%d, incomingOp=%d, txnId:%" PRId64, TD_VID(pVnode), tableName,
+            pME->txnStatus, incomingOp, pME->txnId);
+    }
   }
 
-  taosThreadMutexUnlock(&pVnode->txnMutex);
-
-  // Step 2: Lock the table (acquires txnMutex internally)
-  code = vnodeTxnLockTable(pVnode, name, txnId);
-  if (code != 0) {
-    taosMemoryFreeClear(pReqData);
-    return code;
-  }
-
-  // Step 3: Record shadow op with serialized request data (acquires txnMutex internally)
-  code = vnodeTxnAddShadowOp(pVnode, txnId, opType, name, uid, suid, pReqData, reqDataLen);
-  return code;
+  metaFetchEntryFree(&pME);
+  return ret;
 }
+
+/**
+ * Check if a DELETE DML on a specific UID conflicts with any active txn shadow
+ * in the B+ tree. If the table is in PRE_DROP state, DELETE should be blocked.
+ *
+ * @param pVnode  The vnode
+ * @param uid     The table UID being deleted
+ * @return TSDB_CODE_SUCCESS if no conflict, TSDB_CODE_VND_TXN_CONFLICT if blocked
+ */
+int32_t vnodeTxnCheckDeleteConflict(SVnode *pVnode, tb_uid_t uid) {
+  if (pVnode->pTxnHash == NULL || uid == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SMetaEntry *pME = NULL;
+  int32_t     code = metaFetchEntryByUid(pVnode->pMeta, uid, &pME);
+  if (code != 0 || pME == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t ret = TSDB_CODE_SUCCESS;
+  if (pME->txnId != 0 && pME->txnStatus == META_TXN_PRE_DROP) {
+    ret = TSDB_CODE_VND_TXN_CONFLICT;
+    vWarn("vgId:%d, DELETE conflict: uid=%" PRId64 " is in PRE_DROP, txnId:%" PRId64, TD_VID(pVnode), uid, pME->txnId);
+  }
+
+  metaFetchEntryFree(&pME);
+  return ret;
+}
+
+// End of vnodeTxn.c
