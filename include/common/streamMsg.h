@@ -1016,6 +1016,7 @@ typedef struct SStreamRuntimeFuncInfo {
   int32_t addOptions;
   bool    hasPlaceHolder;
   int8_t* createTable;
+  char*   outNormalTable;
 } SStreamRuntimeFuncInfo;
 
 int32_t tSerializeStRtFuncInfo(SEncoder* pEncoder, const SStreamRuntimeFuncInfo* pInfo, bool needStreamRtInfo, bool needStreamGrpInfo);

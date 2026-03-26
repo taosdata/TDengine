@@ -4341,6 +4341,9 @@ void tDestroyStRtFuncInfo(SStreamRuntimeFuncInfo* pInfo){
     tSimpleHashCleanup(pInfo->pGroupReadInfos);
     pInfo->pGroupReadInfos = NULL;
   }  
+  if (pInfo->outNormalTable != NULL) {
+    taosMemoryFreeClear(pInfo->outNormalTable);
+  }
 }
 
 int32_t tSerializeSStreamMsgVTableInfo(void* buf, int32_t bufLen, const SStreamMsgVTableInfo* pRsp){

@@ -243,7 +243,7 @@ static int32_t checkInsertParam(SStreamInserterParam* streamInserterParam) {
 
   if (streamInserterParam->suid <= 0 &&
       (streamInserterParam->tbname == NULL || strlen(streamInserterParam->tbname) == 0)) {
-    stError("insertParam: invalid table name, suid:%" PRIx64 "", streamInserterParam->suid);
+    stError("insertParam: invalid table name: %s, suid:%" PRIx64 "", streamInserterParam->tbname, streamInserterParam->suid);
     return TSDB_CODE_INVALID_PARA;
   }
 
@@ -2156,6 +2156,10 @@ int32_t streamCalcOutputTbName(SNode* pExpr, char* tbname, SStreamRuntimeFuncInf
   int32_t      len = 0;
   int32_t      nextIdx = pStreamRuntimeInfo->curIdx;
   pStreamRuntimeInfo->curIdx = 0;  // always use the first window to calc tbname
+  if (pStreamRuntimeInfo->outNormalTable != NULL) {
+    tstrncpy(tbname, pStreamRuntimeInfo->outNormalTable, TSDB_DB_NAME_LEN + TSDB_TABLE_NAME_LEN + 1);
+    return code;
+  }
   // execute the expr
   switch (pExpr->type) {
     case QUERY_NODE_VALUE: {

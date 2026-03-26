@@ -41,6 +41,7 @@ static int32_t stRunnerInitTaskExecMgr(SStreamRunnerTask* pTask, const SStreamRu
     exec.runtimeInfo.execId = i + pTask->task.deployId * pTask->parallelExecutionNun;
     if (pMsg->outTblType == TSDB_NORMAL_TABLE) {
       tstrncpy(exec.tbname, pMsg->outTblName, sizeof(exec.tbname));
+      exec.runtimeInfo.funcInfo.outNormalTable = tstrdup(pMsg->outTblName);
     }
     ST_TASK_DLOG("init task exec mgr with execId:%d, topTask:%d, deployId: %d", exec.runtimeInfo.execId, pTask->topTask,
 		    pTask->task.deployId);
