@@ -339,6 +339,10 @@ static int32_t tagRefSourceOpen(SOperatorInfo* pOperator) {
     return TSDB_CODE_INVALID_PARA;
   }
 
+  if (OPTR_IS_OPENED(pOperator)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
   STagRefSourceOperatorInfo* pInfo = (STagRefSourceOperatorInfo*)pOperator->info;
   int32_t                    code = TSDB_CODE_SUCCESS;
 
@@ -347,6 +351,8 @@ static int32_t tagRefSourceOpen(SOperatorInfo* pOperator) {
 
   // Reset result block
   blockDataCleanup(pInfo->pRes);
+
+  OPTR_SET_OPENED(pOperator);
 
   qDebug("%s: TagRefSource operator opened, sourceSuid:%" PRIu64 ", scanCols:%d", __func__, pInfo->sourceSuid,
          pInfo->pScanCols ? LIST_LENGTH(pInfo->pScanCols) : 0);

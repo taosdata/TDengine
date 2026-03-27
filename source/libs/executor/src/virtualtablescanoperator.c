@@ -231,6 +231,12 @@ static int32_t collectSortableDataBlockIds(SNodeList* pTargets, SArray** ppBlock
     if (pColNode->colType == COLUMN_TYPE_TAG) {
       continue;
     }
+    // Skip primary timestamp — VTB planner intentionally does not update ts.dataBlockId
+    // (doSetMultiTableSlotId skips PRIMARYKEY_TIMESTAMP_COL_ID), so the stale value
+    // would pollute the sortable whitelist and cause data exchanges to be misclassified.
+    if (pColNode->isPrimTs || pColNode->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
+      continue;
+    }
 
     bool exists = false;
     for (int32_t i = 0; i < taosArrayGetSize(pBlockIds); ++i) {
@@ -597,10 +603,6 @@ int32_t createSortHandleFromParam(SOperatorInfo* pOperator) {
     VTS_ERR_JRET(tsortAddSource(pVirtualScanInfo->pSortHandle, ps));
     ps = NULL;
   }
-
-  qError("vtable sort selection: tagDownstream=%d pseudo=%d refSources=%d", pVirtualScanInfo->tagDownStreamId,
-         LIST_LENGTH(pVirtualScanInfo->pScanPseudoCols),
-         pVirtualScanInfo->pTagRefSourceBlockIds != NULL ? (int32_t)taosArrayGetSize(pVirtualScanInfo->pTagRefSourceBlockIds) : 0);
 
   VTS_ERR_JRET(tsortOpen(pVirtualScanInfo->pSortHandle));
 
