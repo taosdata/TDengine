@@ -209,6 +209,12 @@ char     tsKeyExpirationStrategy[ENCRYPT_KEY_EXPIRE_STRATEGY_LEN + 1] =
     "ALARM";  // Key expiration strategy (default: "ALARM")
 uint32_t tsGrant = 1;
 
+#if defined(TD_FLEX_DEPLOY)
+int8_t   tsFlexDeploy = 1;
+#else
+int8_t   tsFlexDeploy = 0;
+#endif
+
 bool tsCompareAsStrInGreatest = true;
 
 // monitor

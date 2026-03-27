@@ -116,6 +116,10 @@ ELSE()
     MESSAGE(STATUS "Enable assert not core")
 ENDIF()
 
+IF(${FLEX_DEPLOY})
+    ADD_DEFINITIONS(-DTD_FLEX_DEPLOY)
+ENDIF()
+
 SET(TAOS_LIB taos)
 SET(TAOS_LIB_STATIC taos_static)
 SET(TAOS_NATIVE_LIB taosnative)
