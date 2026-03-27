@@ -198,62 +198,6 @@ static int32_t setTagColumnValue(SColumnInfoData* pDstCol, SColumnInfoData* pSrc
   return code;
 }
 
-static int32_t collectSortableDataBlockIds(SNodeList* pTargets, SArray** ppBlockIds) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  int32_t lino = 0;
-
-  *ppBlockIds = NULL;
-  if (pTargets == NULL || LIST_LENGTH(pTargets) == 0) {
-    return code;
-  }
-
-  SArray* pBlockIds = taosArrayInit(LIST_LENGTH(pTargets), sizeof(int64_t));
-  TSDB_CHECK_NULL(pBlockIds, code, lino, _return, terrno)
-
-  SNode* pNode = NULL;
-  FOREACH(pNode, pTargets) {
-    if (nodeType(pNode) != QUERY_NODE_COLUMN) {
-      continue;
-    }
-
-    SColumnNode* pColNode = (SColumnNode*)pNode;
-    if (pColNode->colType == COLUMN_TYPE_TAG) {
-      continue;
-    }
-    // Skip primary timestamp — VTB planner intentionally does not update ts.dataBlockId
-    // (doSetMultiTableSlotId skips PRIMARYKEY_TIMESTAMP_COL_ID), so the stale value
-    // would pollute the sortable whitelist and cause data exchanges to be misclassified.
-    if (pColNode->isPrimTs || pColNode->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
-      continue;
-    }
-
-    bool exists = false;
-    for (int32_t i = 0; i < taosArrayGetSize(pBlockIds); ++i) {
-      int64_t* pBlockId = taosArrayGet(pBlockIds, i);
-      if (pBlockId != NULL && *pBlockId == pColNode->dataBlockId) {
-        exists = true;
-        break;
-      }
-    }
-
-    if (!exists) {
-      QUERY_CHECK_NULL(taosArrayPush(pBlockIds, &pColNode->dataBlockId), code, lino, _return, terrno)
-    }
-  }
-
-  if (taosArrayGetSize(pBlockIds) == 0) {
-    taosArrayDestroy(pBlockIds);
-    pBlockIds = NULL;
-  }
-
-  *ppBlockIds = pBlockIds;
-  return code;
-
-_return:
-  taosArrayDestroy(pBlockIds);
-  return code;
-}
-
 static bool isRefTagSourceBlockId(const SVirtualTableScanInfo* pInfo, int64_t blockId) {
   if (pInfo == NULL || pInfo->pRefTagCols == NULL) {
     return false;
