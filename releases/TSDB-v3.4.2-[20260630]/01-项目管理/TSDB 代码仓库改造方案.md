@@ -21,18 +21,19 @@
 
 ### 2.1 代码主仓库
 
-1. **TDengine-TSDB**：时序数据库核心代码仓库
-2. **TDengine-IDMP**：工业数据管理平台代码仓库
+1. **tsdb**：时序数据库核心代码仓库
+2. **idmp**：工业数据管理平台代码仓库
+2. **platform**：平台组代码仓库
 
 ### 2.2 文档主仓库
 
-1. **TDengine-TSDB-docs**：时序数据库专属文档仓库
-2. **TDengine-IDMP-docs**：工业数据平台专属文档仓库
-3. **TDengine-Platform-docs**：平台级公共文档仓库
+1. **taos-tsdb-docs**：时序数据库专属文档仓库
+2. **taos-idmp-docs**：工业数据平台专属文档仓库
+3. **taos-platform-docs**：平台级公共文档仓库
 
 ### 2.3 秘密文档仓库
 
-1. **TDengine-Internal-docs**：敏感技术文档和内部资料
+1. **taos-internal-docs**：敏感技术文档和内部资料
 
 ### 2.4 代码子仓库（Github）
 
@@ -63,7 +64,7 @@
 ### 2.5 同步策略（安可要求）
 
 1. **开源代码仓库**：继续在 Github 工作，向 Gitlab 单向同步
-2. **内部代码仓库**：Github 归档后，向 Gitlab 单向同步，后续在 Gitlab 开展工作
+2. **内部代码仓库**：Github 归档后，向 Gitlab 单向同步，后续在 Gitlab 开展工作（择机而定）
 
 ### 2.6 安全策略
 
@@ -74,9 +75,9 @@
 2. **基线**
   1. 参考安可已编写的制度执行
 
-## 3. TDengine-TSDB 仓库结构
+## 3. tsdb 仓库结构
 
-以 TDengine-TSDB 为例，TDengine-IDMP 可以参考实现。
+以 tsdb 为例，idmp 可以参考实现。
 
 ### 3.1 目录
 
@@ -121,8 +122,8 @@ source/
 
 ```
 docs/
-├── internal/         (submodule -> TDengine-Internal-docs) # 秘密文档
-└── public/           (submodule -> TDengine-TSDB-docs)     # 公司内部公开文档
+├── internal         (submodule -> taos-internal-docs) # 秘密文档
+└── tsdb/            (submodule -> taos-tsdb-docs)     # 公司内部公开文档
 ```
 
 ### 3.4 tools 目录
@@ -135,7 +136,7 @@ tools/
 └── security-scan/          # 安全扫描工具
 ```
 
-## 4. TDengine-TSDB-docs 仓库结构
+## 4. taos-tsdb-docs 仓库结构
 
 ```
 文档仓库根目录/
@@ -191,8 +192,8 @@ tools/
 
 | 时间                 | 工作内容                        | 负责人       |
 | ------------------ | --------------------------- | --------- |
-| 2026-03-23 ~ 03-29 | 完成代码仓库与代码编译调试               | @关胜亮 @霍琳贺 |
-| 2026-03-30 ~ 04-10 | 完成打包脚本、文档迁移、CI/CD 改造、测试迁移工作 | @王旭 @陈浩然  |
+| 2026-03-23 ~ 04-01 | 完成代码仓库与代码编译调试               | @关胜亮 @霍琳贺 |
+| 2026-04-01 ~ 04-10 | 完成打包脚本、文档迁移、CI/CD 改造、测试迁移工作 | @王旭 @陈浩然  |
 | 2026-04-11 ~ 04-15 | 完成上线与宣贯                     | @肖波       |
 
 
