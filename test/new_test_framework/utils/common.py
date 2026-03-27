@@ -2970,11 +2970,31 @@ class TDCom:
                     self.record_history_ts = ts_value
 
     def generate_query_result_file(self, test_case, idx, sql):
+        import shlex
         self.query_result_file = f"./{test_case}.{idx}.csv"
         cfgPath = self.getClientCfgPath()
-        taosCmd = f"taos -c {cfgPath} -s '{sql}' | grep -v 'Query OK'|grep -v 'Copyright'| grep -v 'Welcome to the TDengine TSDB Command' > {self.query_result_file}  "
-        # print(f"taosCmd:{taosCmd}, currentPath:{os.getcwd()}")
-        os.system(taosCmd)
+        # 构造命令参数，避免平台兼容性问题
+        cmd = ["taos", "-c", cfgPath, "-s", sql]
+        try:
+            # 捕获输出
+            result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8", errors="ignore", shell=False)
+            output = result.stdout.splitlines()
+        except Exception as e:
+            tdLog.error(f"Failed to run taos command: {e}")
+            output = []
+
+        # 过滤掉不需要的行
+        ignore_patterns = [
+            "Query OK",
+            "Copyright",
+            "Welcome to the TDengine TSDB Command"
+        ]
+        filtered = [line for line in output if not any(pat in line for pat in ignore_patterns)]
+
+        # 写入文件
+        with open(self.query_result_file, "w", encoding="utf-8") as fout:
+            for line in filtered:
+                fout.write(line.rstrip("\r\n") + "\n")
         return self.query_result_file
 
     def run_sql(self, sql, db):
@@ -3274,13 +3294,8 @@ class TDCom:
                 # Windows fc: returncode 0 表示文件相同
                 if result.returncode == 0:
                     return True
-                else:
-                    tdLog.info(f"{cmd} result.returncode: {result.returncode}")
-                    tdLog.info(f"{cmd} result.stdout: {result.stdout}")
-                    tdLog.info(f"{cmd} result.stderr: {result.stderr}")
-                    return False
 
-            # Linux diff 的结果检查逻辑
+            # diff/fc 的结果检查逻辑
             if result.returncode != 0:
                 if self._compare_normalized_result_lines(file1, file2):
                     tdLog.info("Result files matched after output normalization.")

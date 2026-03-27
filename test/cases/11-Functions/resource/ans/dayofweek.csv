@@ -230,10 +230,10 @@ taos> select dayofweek('2024-12-31')
 ==========================
                        3 |
 
-taos> select dayofweek('9999-12-31')
- dayofweek('9999-12-31') |
+taos> select dayofweek('3000-12-31')
+ dayofweek('3000-12-31') |
 ==========================
-                       6 |
+                       4 |
 
 taos> select dayofweek(ts) from ts_4893.meters limit 1
      dayofweek(ts)     |

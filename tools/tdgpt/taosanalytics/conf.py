@@ -5,6 +5,9 @@ import importlib.util
 import logging
 import platform
 import os.path
+
+os.environ.setdefault("KERAS_BACKEND", "torch")
+
 try:
     import torch  # noqa: F401 - Optional runtime dependency
 except Exception:  # pragma: no cover

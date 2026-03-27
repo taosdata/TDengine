@@ -13,11 +13,6 @@ class TestCase:
         cls.ctbNum     = 10
         cls.rowsPerTbl = 1000
 
-    def getDataPath(self):
-        selfPath = tdCom.getBuildPath()
-
-        return selfPath + '/../sim/dnode%d/data/vnode/vnode%d/wal/*';
-
     def prepareTestEnv(self):
         tdLog.printNoPrefix("======== prepare test env include database, stable, ctables, and insert data: ")
         paraDict = {'dbName':     'dbt',
@@ -62,52 +57,6 @@ class TestCase:
         # tdDnodes.start(1)
         # tdSql.query("flush database %s"%(paraDict['dbName']))
         return
-
-    def restartAndRemoveWal(self):
-        tdDnodes = cluster.dnodes
-        tdSql.query("select * from information_schema.ins_vnodes")
-        for result in tdSql.queryResult:
-            if result[2] == 'dbt':
-                tdLog.debug("dnode is %d"%(result[0]))
-                dnodeId = result[0]
-                vnodeId = result[1]
-
-                tdDnodes[dnodeId - 1].stoptaosd()
-                time.sleep(1)
-                dataPath = self.getDataPath()
-                dataPath = dataPath%(dnodeId,vnodeId)
-                os.system('rm -rf ' + dataPath)
-                tdLog.debug("dataPath:%s"%dataPath)
-                tdDnodes[dnodeId - 1].starttaosd()
-                time.sleep(1)
-                break
-        tdLog.debug("restart dnode ok")
-
-    def redistributeVgroups(self):
-        dnodesList = []
-        tdSql.query("show dnodes")
-        for result in tdSql.queryResult:
-            dnodesList.append(result[0])
-        print("dnodeList:",dnodesList)
-        tdSql.query("select * from information_schema.ins_vnodes")
-        vnodeId = 0
-        for result in tdSql.queryResult:
-            if result[2] == 'dbt':
-                tdLog.debug("dnode is %d"%(result[0]))
-                dnodesList.remove(result[0])
-                vnodeId = result[1]
-        print("its all data",dnodesList)
-        # if self.replicaVar == 1:
-        #     redistributeSql = "redistribute vgroup %d dnode %d" %(vnodeId, dnodesList[0])
-        # else:
-        redistributeSql = f"redistribute vgroup {vnodeId} " 
-        for vgdnode in dnodesList:
-            redistributeSql += f"dnode {vgdnode} "
-        print(redistributeSql)
-        
-        tdLog.debug(f"redistributeSql:{redistributeSql}")
-        tdSql.query(redistributeSql)
-        tdLog.debug("redistributeSql ok")
 
     def tmqCase1(self):
         tdLog.printNoPrefix("======== test case 1: ")
@@ -172,10 +121,10 @@ class TestCase:
         tmqCom.getStartCommitNotifyFromTmqsim()
 
         #restart dnode & remove wal
-        self.restartAndRemoveWal()
+        tmqCom.restartAndRemoveWal(True)
 
         # redistribute vgroup
-        self.redistributeVgroups();
+        tmqCom.redistributeVgroups();
 
         tdLog.info("create ctb2")
         paraDict['ctbPrefix'] = "ctbn"
@@ -221,10 +170,10 @@ class TestCase:
         tdSql.execute(sqlString)
         tdSql.query("flush database %s"%(paraDict['dbName']))
         #restart dnode & remove wal
-        self.restartAndRemoveWal()
+        tmqCom.restartAndRemoveWal(True)
 
         # redistribute vgroup
-        self.redistributeVgroups();
+        tmqCom.redistributeVgroups();
 
         expectRows = 0
         resultList = tmqCom.selectConsumeResult(expectRows)

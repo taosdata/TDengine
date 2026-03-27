@@ -1,12 +1,13 @@
 # encoding:utf-8
 # pylint: disable=c0103
 """ auto encoder algorithms to detect anomaly for time series data"""
-import os.path
+import importlib.util
+import os
+import sys
 import time
 from pathlib import Path
 
 import joblib
-import keras
 import numpy as np
 import pandas as pd
 
@@ -97,12 +98,33 @@ class _AutoEncoderDetectionService(AbstractAnomalyDetectionService):
     def get_params(self):
         return {}
 
+    @staticmethod
+    def _import_keras():
+        """Import standalone Keras with the torch backend when TensorFlow is absent."""
+        if importlib.util.find_spec("tensorflow") is None:
+            os.environ.setdefault("KERAS_BACKEND", "torch")
+            # Clear failed import leftovers before retrying with the torch backend.
+            for module_name in list(sys.modules):
+                if module_name == "keras" or module_name.startswith("keras."):
+                    sys.modules.pop(module_name, None)
+
+        import keras
+        return keras
+
     @classmethod
     def do_load_model(cls, path):
+        # Import keras lazily so the main service can still start when
+        # TensorFlow support was intentionally skipped.
+        keras = cls._import_keras()
+
         model_file_path = f'{path}.keras'
         model_info_path = f'{path}.info'
 
         app_logger.log_inst.info("try to load module:%s", model_file_path)
+        try:
+            app_logger.log_inst.info("sample_ad_model keras backend: %s", keras.backend.backend())
+        except Exception:
+            pass
 
         if os.path.exists(model_file_path):
             model = keras.models.load_model(model_file_path)
