@@ -1427,6 +1427,11 @@ void launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQuery, void
       break;
     case QUERY_EXEC_MODE_RPC:
       if (!pRequest->validateOnly) {
+        // Client-side guard: block duplicate BEGIN before sending to mnode
+        if (pQuery->pCmdMsg != NULL && pQuery->pCmdMsg->msgType == TDMT_MND_BEGIN_TXN && pRequest->pTscObj->txnId > 0) {
+          code = TSDB_CODE_TXN_ALREADY_IN_PROGRESS;
+          break;
+        }
         code = execDdlQuery(pRequest, pQuery);
       }
       break;
@@ -1645,6 +1650,11 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultM
       asyncExecLocalCmd(pRequest, pQuery);
       break;
     case QUERY_EXEC_MODE_RPC:
+      // Client-side guard: block duplicate BEGIN before sending to mnode
+      if (pQuery->pCmdMsg != NULL && pQuery->pCmdMsg->msgType == TDMT_MND_BEGIN_TXN && pRequest->pTscObj->txnId > 0) {
+        doRequestCallback(pRequest, TSDB_CODE_TXN_ALREADY_IN_PROGRESS);
+        break;
+      }
       code = asyncExecDdlQuery(pRequest, pQuery);
       break;
     case QUERY_EXEC_MODE_SCHEDULE: {

@@ -1121,8 +1121,8 @@ static int32_t mndProcessBeginTxnReq(SRpcMsg *pReq) {
   TAOS_CHECK_EXIT(tDeserializeSMTransReq(pReq->pCont, pReq->contLen, &txnReq));
 
   if (txnReq.txnId != 0) {
-    mInfo("txn:%" PRIu64 ", is already beginning, ignore begin request", txnReq.txnId);
-    code = 0;
+    mError("txn:%" PRIu64 ", client already has active transaction, reject double BEGIN", txnReq.txnId);
+    code = TSDB_CODE_TXN_ALREADY_IN_PROGRESS;
     goto _exit;
   } else {
     txnReq.txnId = mndGenTxnId(pMnode);
