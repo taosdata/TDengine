@@ -17,6 +17,7 @@
 #include "audit.h"
 #include "cos.h"
 #include "libs/new-stream/stream.h"
+#include "meta.h"
 #include "monitor.h"
 #include "taoserror.h"
 #include "tarray.h"
@@ -26,10 +27,10 @@
 #include "tlrucache.h"
 #include "tmsg.h"
 #include "tmsgcb.h"
-#include "tstrbuild.h"
-#include "tutil.h"
 #include "tsdb.h"
+#include "tstrbuild.h"
 #include "ttypes.h"
+#include "tutil.h"
 #include "vnd.h"
 #include "vnode.h"
 #include "vnodeInt.h"
@@ -2588,6 +2589,26 @@ static int32_t vnodeHandleDataWrite(SVnode *pVnode, int64_t version, SSubmitReq2
       vWarn("vgId:%d, error occurred at %s:%d since %s, version:%" PRId64 " uid:%" PRId64, TD_VID(pVnode), __FILE__,
             __LINE__, tstrerror(code), version, pTbData->uid);
       return code;
+    }
+
+    // batch meta txn: block INSERT only on PRE_CREATE (invisible tables)
+    // PRE_DROP tables allow INSERT — snapshot isolation: table still visible until COMMIT
+    {
+      void   *pTxnVal = NULL;
+      int32_t txnValLen = 0;
+      if (tdbTbGet(pVnode->pMeta->pTxnIdx, &pTbData->uid, sizeof(pTbData->uid), &pTxnVal, &txnValLen) == 0) {
+        STxnIdxVal *pIdx = (STxnIdxVal *)pTxnVal;
+        int8_t      idxTxnStatus = pIdx->txnStatus;
+        int64_t     idxTxnId = pIdx->txnId;
+        tdbFree(pTxnVal);
+        if (idxTxnStatus == META_TXN_PRE_CREATE) {
+          code = TSDB_CODE_TDB_TABLE_NOT_EXIST;
+          vWarn("vgId:%d, INSERT blocked: table uid:%" PRId64 " is pending CREATE in txn %" PRId64
+                " (invisible), version:%" PRId64,
+                TD_VID(pVnode), pTbData->uid, idxTxnId, version);
+          return code;
+        }
+      }
     }
 
     if (info.suid != pTbData->suid) {

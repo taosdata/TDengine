@@ -2025,6 +2025,20 @@ int32_t metaGetChildUidsOfSuperTable(SMeta *pMeta, tb_uid_t suid, SArray **child
       break;
     }
 
+    // batch meta txn: skip PRE_CREATE entries via txn.idx lookup
+    {
+      tb_uid_t childUid = ((SCtbIdxKey *)key)->uid;
+      void    *pTxnVal = NULL;
+      int32_t  txnValLen = 0;
+      if (tdbTbGet(pMeta->pTxnIdx, &childUid, sizeof(childUid), &pTxnVal, &txnValLen) == 0) {
+        int8_t st = ((STxnIdxVal *)pTxnVal)->txnStatus;
+        tdbFree(pTxnVal);
+        if (st == META_TXN_PRE_CREATE) {
+          continue;
+        }
+      }
+    }
+
     if (taosArrayPush(*childList, &(((SCtbIdxKey *)key)->uid)) == NULL) {
       tdbFreeClear(key);
       tdbTbcClose(cursor);

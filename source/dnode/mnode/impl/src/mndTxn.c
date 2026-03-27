@@ -48,8 +48,11 @@ static void    mndCancelRetrieveTxn(SMnode *pMnode, void *pIter);
 static int32_t mndRetrieveTxnTask(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void    mndCancelRetrieveTxnTask(SMnode *pMnode, void *pIter);
 
-// 超时扫描函数（由外部定期调用）
-static void mndTxnTimeoutScanImpl(SMnode *pMnode);
+// Forward declarations
+static void    mndTxnTimeoutScanImpl(SMnode *pMnode);
+static int32_t mndRollbackTxn(SMnode *pMnode, SRpcMsg *pReq, STxnObj *pTxn, int32_t reason);
+static int32_t mndCommitTxn(SMnode *pMnode, SRpcMsg *pReq, STxnObj *pTxn);
+static int32_t mndTxnAfterRestored(SMnode *pMnode);
 
 int32_t mndInitTxn(SMnode *pMnode) {
   SSdbTable table = {
@@ -60,6 +63,7 @@ int32_t mndInitTxn(SMnode *pMnode) {
       .insertFp = (SdbInsertFp)mndTxnActionInsert,
       .updateFp = (SdbUpdateFp)mndTxnActionUpdate,
       .deleteFp = (SdbDeleteFp)mndTxnActionDelete,
+      .afterRestoredFp = (SdbAfterRestoredFp)mndTxnAfterRestored,
   };
 
   // 初始化 STxnMgmt 运行时管理结构
@@ -101,11 +105,19 @@ static void mndTxnTimeoutScanImpl(SMnode *pMnode) {
     int64_t timeout = (int64_t)pTxn->timeoutSec * 1000;
 
     if (pTxn->stage == UTXN_STAGE_ACTIVE && elapsed > timeout) {
-      mWarn("txn:%" PRIu64 ", stage=%s, elapsed=%" PRId64 "ms > timeout=%" PRId64 "ms, marking as ZOMBIE",
-            pTxn->id, mndUtxnStageStr(pTxn->stage), elapsed, timeout);
-      // The actual ROLLBACK broadcast will be handled by the next pullup cycle
-      // once the stage is persisted as ZOMBIE. For now, just log the detection.
-      // A full implementation would create a Trans to broadcast ROLLBACK here.
+      mWarn("txn:%" PRIu64 ", stage=%s, elapsed=%" PRId64 "ms > timeout=%" PRId64 "ms, triggering ROLLBACK", pTxn->id,
+            mndUtxnStageStr(pTxn->stage), elapsed, timeout);
+
+      // Build a synthetic SRpcMsg for the rollback Trans (no real client connection)
+      SRpcMsg synReq = {0};
+      synReq.info.node = pMnode;
+
+      int32_t code = mndRollbackTxn(pMnode, &synReq, pTxn, TSDB_CODE_VND_TXN_EXPIRED);
+      if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
+        mError("txn:%" PRIu64 ", timeout rollback failed: %s", pTxn->id, tstrerror(code));
+      } else {
+        mInfo("txn:%" PRIu64 ", timeout rollback initiated", pTxn->id);
+      }
     }
     sdbRelease(pSdb, pTxn);
   }
@@ -114,6 +126,76 @@ static void mndTxnTimeoutScanImpl(SMnode *pMnode) {
 // 手动触发超时扫描（供 mndMain.c 定期调用）
 void mndTxnDoTimeoutScan(SMnode *pMnode) {
   mndTxnTimeoutScanImpl(pMnode);
+}
+
+/**
+ * Leader switchover recovery: scan all STxnObj in SDB after Raft restore,
+ * and continue pushing in-flight transactions based on their stage.
+ *
+ * Per skill.md §6.3:
+ *   ACTIVE       → refresh lastActiveTime, await further ops or timeout
+ *   COMMITTING   → re-create Trans to broadcast COMMIT to VNodes
+ *   ROLLINGBACK  → re-create Trans to broadcast ROLLBACK to VNodes
+ *   COMPLETED/ZOMBIE → delete from SDB immediately
+ */
+static int32_t mndTxnAfterRestored(SMnode *pMnode) {
+  SSdb   *pSdb = pMnode->pSdb;
+  void   *pIter = NULL;
+  int32_t numRecovered = 0;
+
+  mInfo("txn, scanning SDB for in-flight transactions after leader restore");
+
+  while (1) {
+    STxnObj *pTxn = NULL;
+    pIter = sdbFetch(pSdb, SDB_TXN, pIter, (void **)&pTxn);
+    if (pIter == NULL) break;
+
+    SRpcMsg synReq = {0};
+    synReq.info.node = pMnode;
+
+    switch (pTxn->stage) {
+      case UTXN_STAGE_ACTIVE: {
+        // Refresh lastActiveTime; timeout scan will handle expiration if needed
+        mInfo("txn:%" PRIu64 ", restored in ACTIVE stage, resetting lastActiveTime", pTxn->id);
+        taosWLockLatch(&pTxn->lock);
+        pTxn->lastActiveTime = taosGetTimestampMs();
+        taosWUnLockLatch(&pTxn->lock);
+        numRecovered++;
+        break;
+      }
+      case UTXN_STAGE_COMMITTING: {
+        mInfo("txn:%" PRIu64 ", restored in COMMITTING stage, re-broadcasting COMMIT", pTxn->id);
+        int32_t code = mndCommitTxn(pMnode, &synReq, pTxn);
+        if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
+          mError("txn:%" PRIu64 ", failed to re-broadcast COMMIT after restore: %s", pTxn->id, tstrerror(code));
+        }
+        numRecovered++;
+        break;
+      }
+      case UTXN_STAGE_ROLLINGBACK: {
+        mInfo("txn:%" PRIu64 ", restored in ROLLINGBACK stage, re-broadcasting ROLLBACK", pTxn->id);
+        int32_t code = mndRollbackTxn(pMnode, &synReq, pTxn, TSDB_CODE_VND_TXN_EXPIRED);
+        if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
+          mError("txn:%" PRIu64 ", failed to re-broadcast ROLLBACK after restore: %s", pTxn->id, tstrerror(code));
+        }
+        numRecovered++;
+        break;
+      }
+      case UTXN_STAGE_COMPLETED:
+      case UTXN_STAGE_ZOMBIE: {
+        mInfo("txn:%" PRIu64 ", restored in %s stage, will be cleaned by timeout scan", pTxn->id,
+              mndUtxnStageStr(pTxn->stage));
+        numRecovered++;
+        break;
+      }
+      default:
+        break;
+    }
+    sdbRelease(pSdb, pTxn);
+  }
+
+  mInfo("txn, leader restore scan complete, recovered %d transactions", numRecovered);
+  return 0;
 }
 
 // 启动超时扫描（暂时为空实现，未来可改为定时器）
@@ -1079,7 +1161,7 @@ static void *mndBuildVTxnRollbackReq(SMnode *pMnode, int32_t vgId, STxnObj *pTxn
  * Commit a user transaction: broadcast TDMT_VND_TXN_COMMIT to all participant VGroups.
  * Uses the existing Trans framework for reliable delivery, retry, and ACK tracking.
  *
- * Flow: ACTIVE → COMMITTING (SDB update via commitlog) + redo actions to VNodes.
+ * Flow: ACTIVE → COMMITTING (SDB redo log) + redo actions to VNodes → delete STxnObj (commit log).
  */
 static int32_t mndCommitTxn(SMnode *pMnode, SRpcMsg *pReq, STxnObj *pTxn) {
   int32_t code = 0, lino = 0;
@@ -1091,11 +1173,28 @@ static int32_t mndCommitTxn(SMnode *pMnode, SRpcMsg *pReq, STxnObj *pTxn) {
 
   mndTransSetKillMode(pTrans, TRN_KILL_MODE_SKIP);
 
-  // Update STxnObj stage → COMMITTING in SDB via commitlog
-  STxnObj updatedObj = *pTxn;
-  updatedObj.stage = UTXN_STAGE_COMMITTING;
-  updatedObj.lastActiveTime = taosGetTimestampMs();
-  TAOS_CHECK_EXIT(mndSetCreateTxnCommitLogs(pMnode, pTrans, &updatedObj));
+  // Redo log: update STxnObj stage → COMMITTING immediately (for leader switchover recovery)
+  {
+    STxnObj redoObj = *pTxn;
+    redoObj.stage = UTXN_STAGE_COMMITTING;
+    redoObj.lastActiveTime = taosGetTimestampMs();
+    SSdbRaw *pRedoRaw = mndTxnActionEncode(&redoObj);
+    if (pRedoRaw == NULL) {
+      TAOS_CHECK_EXIT(terrno ? terrno : TSDB_CODE_MND_RETURN_VALUE_NULL);
+    }
+    TAOS_CHECK_EXIT(mndTransAppendRedolog(pTrans, pRedoRaw));
+    TAOS_CHECK_EXIT(sdbSetRawStatus(pRedoRaw, SDB_STATUS_READY));
+  }
+
+  // Commit log: delete STxnObj after all redo actions succeed
+  {
+    SSdbRaw *pDropRaw = mndTxnActionEncode(pTxn);
+    if (pDropRaw == NULL) {
+      TAOS_CHECK_EXIT(terrno ? terrno : TSDB_CODE_MND_RETURN_VALUE_NULL);
+    }
+    TAOS_CHECK_EXIT(mndTransAppendCommitlog(pTrans, pDropRaw));
+    TAOS_CHECK_EXIT(sdbSetRawStatus(pDropRaw, SDB_STATUS_DROPPED));
+  }
 
   // Add redo actions: send COMMIT to each participant VGroup
   int32_t numVgs = (pTxn->pVgList != NULL) ? taosArrayGetSize(pTxn->pVgList) : 0;
@@ -1142,11 +1241,28 @@ static int32_t mndRollbackTxn(SMnode *pMnode, SRpcMsg *pReq, STxnObj *pTxn, int3
 
   mndTransSetKillMode(pTrans, TRN_KILL_MODE_SKIP);
 
-  // Update STxnObj stage → ROLLINGBACK in SDB via commitlog
-  STxnObj updatedObj = *pTxn;
-  updatedObj.stage = UTXN_STAGE_ROLLINGBACK;
-  updatedObj.lastActiveTime = taosGetTimestampMs();
-  TAOS_CHECK_EXIT(mndSetCreateTxnCommitLogs(pMnode, pTrans, &updatedObj));
+  // Redo log: update STxnObj stage → ROLLINGBACK immediately (for leader switchover recovery)
+  {
+    STxnObj redoObj = *pTxn;
+    redoObj.stage = UTXN_STAGE_ROLLINGBACK;
+    redoObj.lastActiveTime = taosGetTimestampMs();
+    SSdbRaw *pRedoRaw = mndTxnActionEncode(&redoObj);
+    if (pRedoRaw == NULL) {
+      TAOS_CHECK_EXIT(terrno ? terrno : TSDB_CODE_MND_RETURN_VALUE_NULL);
+    }
+    TAOS_CHECK_EXIT(mndTransAppendRedolog(pTrans, pRedoRaw));
+    TAOS_CHECK_EXIT(sdbSetRawStatus(pRedoRaw, SDB_STATUS_READY));
+  }
+
+  // Commit log: delete STxnObj after all redo actions succeed
+  {
+    SSdbRaw *pDropRaw = mndTxnActionEncode(pTxn);
+    if (pDropRaw == NULL) {
+      TAOS_CHECK_EXIT(terrno ? terrno : TSDB_CODE_MND_RETURN_VALUE_NULL);
+    }
+    TAOS_CHECK_EXIT(mndTransAppendCommitlog(pTrans, pDropRaw));
+    TAOS_CHECK_EXIT(sdbSetRawStatus(pDropRaw, SDB_STATUS_DROPPED));
+  }
 
   // Add redo actions: send ROLLBACK to each participant VGroup
   int32_t numVgs = (pTxn->pVgList != NULL) ? taosArrayGetSize(pTxn->pVgList) : 0;
@@ -1191,21 +1307,35 @@ static int32_t mndBeginTxn(SMnode *pMnode, SRpcMsg *pReq, SUserObj *pUser, SMTra
   obj.id = pTransReq->txnId;
   obj.createTime = taosGetTimestampMs();
   obj.lastActiveTime = obj.createTime;
+  obj.term = mndGetTerm(pMnode);
   obj.timeoutSec = 30;  // pReq->timeoutSec;
   obj.stage = UTXN_STAGE_ACTIVE;
 
   TSDB_CHECK_NULL((pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pReq, "begin-txn")), code,
                   lino, _exit, terrno);
-  mInfo("trans:%d, used to create txn %" PRIu64, pTrans->id, obj.id);
+  mInfo("trans:%d, used to create txn %" PRIu64 " term:%" PRId64, pTrans->id, obj.id, obj.term);
 
   // mndTransSetDbName(pTrans, obj.dbFName, obj.name);
   mndTransSetKillMode(pTrans, TRN_KILL_MODE_SKIP);
   TAOS_CHECK_EXIT(mndTransCheckConflict(pMnode, pTrans));
 
   mndTransSetOper(pTrans, MND_OPER_BEGIN_TXN);
-  // TAOS_CHECK_EXIT(mndSetCreateRsmaPrepareActions(pMnode, pTrans, &obj));
-  // TAOS_CHECK_EXIT(mndSetCreateRsmaRedoActions(pMnode, pTrans, pDb, pStb, &obj, pReq));
   TAOS_CHECK_EXIT(mndSetCreateTxnCommitLogs(pMnode, pTrans, &obj));
+
+  // Return txnId to client via RPC response (§3.2: <-- txnId ---)
+  {
+    SMTransReq rspReq = {0};
+    rspReq.txnId = obj.id;
+    int32_t rspLen = tSerializeSMTransReq(NULL, 0, &rspReq);
+    if (rspLen > 0) {
+      void *pRsp = rpcMallocCont(rspLen);
+      if (pRsp != NULL) {
+        tSerializeSMTransReq(pRsp, rspLen, &rspReq);
+        mndTransSetRpcRsp(pTrans, pRsp, rspLen);
+      }
+    }
+  }
+
   TAOS_CHECK_EXIT(mndTransPrepare(pMnode, pTrans));
 _exit:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {

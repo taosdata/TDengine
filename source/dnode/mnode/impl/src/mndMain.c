@@ -459,6 +459,12 @@ void mndDoTimerPullupTask(SMnode *pMnode, int64_t sec) {
   if (sec % tsScanPullupInterval == 0) {
     mndPullupScans(pMnode);
   }
+
+  // User batch transaction timeout scan (every 5 seconds)
+  if (sec % 5 == 0) {
+    mndTxnDoTimeoutScan(pMnode);
+  }
+
   if (tsInstancePullupInterval > 0 && sec % tsInstancePullupInterval == 0) {  // check instance expired
     mndPullupInstances(pMnode);
   }
