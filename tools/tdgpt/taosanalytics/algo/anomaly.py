@@ -76,7 +76,7 @@ def draw_anomaly_results(input_list, res, fig_name, valid_code, algo_name:str):
 
     plt.title(f"Anomaly Detection ({algo_name})", fontsize=14, fontweight='bold')
     plt.legend(loc='upper right')
-
+    plt.tight_layout()
     plt.grid(True, alpha=0.3)
 
     plt.savefig(os.path.join(base_path, fig_name))
