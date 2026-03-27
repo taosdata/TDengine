@@ -435,7 +435,6 @@ int32_t doColsMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
   }
 
   qDebug("start to merge columns, %s", GET_TASKID(pTaskInfo));
-
   blockDataCleanup(pInfo->binfo.pRes);
   code = blockDataEnsureCapacity(pInfo->binfo.pRes, numOfRows);
   QUERY_CHECK_CODE(code, lino, _return);
