@@ -1807,14 +1807,8 @@ int32_t ctgHandleGetTbMetaRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf
         CTG_ERR_JRET(terrno);
       }
       TAOS_MEMCPY(pOut->tbMeta, pOut->vctbMeta, sizeof(SVCTableMeta));
-      TAOS_MEMCPY(pOut->tbMeta + sizeof(STableMeta), pOut->vctbMeta + sizeof(SVCTableMeta), colRefSize);
       pOut->tbMeta->colRef = (SColRef *)((char *)pOut->tbMeta + sizeof(STableMeta));
-      if (pOut->vctbMeta->tagRef && tagRefSize > 0) {
-        pOut->tbMeta->tagRef = (SColRef *)((char *)pOut->tbMeta + sizeof(STableMeta) + colRefSize);
-        TAOS_MEMCPY(pOut->tbMeta->tagRef, pOut->vctbMeta->tagRef, tagRefSize);
-      } else {
-        pOut->tbMeta->tagRef = NULL;
-      }
+      TAOS_MEMCPY(pOut->tbMeta->colRef, pOut->vctbMeta->colRef, colRefSize);
     }
     pOut->tbMeta->numOfColRefs = pOut->vctbMeta->numOfColRefs;
     pOut->tbMeta->numOfTagRefs = pOut->vctbMeta->numOfTagRefs;
@@ -2028,8 +2022,8 @@ int32_t ctgHandleGetTbMetasRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBu
     } else  {
       pOut->tbMeta = taosMemoryRealloc(pOut->tbMeta, sizeof(STableMeta) + colRefSize);
       TAOS_MEMCPY(pOut->tbMeta, pOut->vctbMeta, sizeof(SVCTableMeta));
-      TAOS_MEMCPY(pOut->tbMeta + sizeof(STableMeta), pOut->vctbMeta + sizeof(SVCTableMeta), colRefSize);
       pOut->tbMeta->colRef = (SColRef *)((char *)pOut->tbMeta + sizeof(STableMeta));
+      TAOS_MEMCPY(pOut->tbMeta->colRef, pOut->vctbMeta->colRef, colRefSize);
     }
     pOut->tbMeta->numOfColRefs = pOut->vctbMeta->numOfColRefs;
     pOut->tbMeta->rversion = pOut->vctbMeta->rversion;
@@ -2252,8 +2246,8 @@ static int32_t ctgHandleGetTbNamesRsp(SCtgTaskReq* tReq, int32_t reqType, const 
     } else  {
       pOut->tbMeta = taosMemoryRealloc(pOut->tbMeta, sizeof(STableMeta) + colRefSize);
       TAOS_MEMCPY(pOut->tbMeta, pOut->vctbMeta, sizeof(SVCTableMeta));
-      TAOS_MEMCPY(pOut->tbMeta + sizeof(STableMeta), pOut->vctbMeta + sizeof(SVCTableMeta), colRefSize);
       pOut->tbMeta->colRef = (SColRef *)((char *)pOut->tbMeta + sizeof(STableMeta));
+      TAOS_MEMCPY(pOut->tbMeta->colRef, pOut->vctbMeta->colRef, colRefSize);
     }
     pOut->tbMeta->numOfColRefs = pOut->vctbMeta->numOfColRefs;
     pOut->tbMeta->rversion = pOut->vctbMeta->rversion;
