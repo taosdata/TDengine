@@ -990,7 +990,15 @@ int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, co
     } else {
       ((SValueNode*)pFirstParam)->isNull = false;
       if (IS_VAR_DATA_TYPE(pVal->data.type)) {
-        code = nodesSetValueNodeValue((SValueNode*)pFirstParam, pVal->data.pData);
+        // pVal->data.pData already includes the VARSTR header from colDataGetData,
+        // so copy it directly as datum.p expects VARSTR format [header][raw data].
+        char* tmp = taosMemoryMalloc(pVal->data.nData);
+        if (tmp == NULL) {
+          return TSDB_CODE_OUT_OF_MEMORY;
+        }
+        taosMemoryFree(((SValueNode*)pFirstParam)->datum.p);
+        ((SValueNode*)pFirstParam)->datum.p = tmp;
+        memcpy(tmp, pVal->data.pData, pVal->data.nData);
       } else {
         code = nodesSetValueNodeValue((SValueNode*)pFirstParam, (void*)&pVal->data.val);
       }

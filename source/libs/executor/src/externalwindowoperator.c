@@ -134,6 +134,8 @@ typedef struct SExternalWindowOperator {
   int32_t            orgTableVgId;
   tb_uid_t           orgTableUid;
   STimeWindow        orgTableTimeRange;
+
+  SExecTaskInfo*     pTaskInfo;  // for pRunnerGrpCtx cleanup in destroy
 } SExternalWindowOperator;
 
 static char* extWinModeStr(EExtWinMode mode) {
@@ -417,7 +419,27 @@ static void destroyExternalWindowOperatorInfo(void* param) {
     taosMemoryFree(pInfo->pTGrpCtx);
     pInfo->pTGrpCtx = NULL;
   }
-  
+
+  // Free executor-specific pRunnerGrpCtx stored inside grouped calc info entries.
+  // These contain SExtWinTrigGrpCtx which must be cleaned up here (before
+  // doDestroyTask calls tDestroyStRtFuncInfo) since extWinDestroyTGrpCtx is
+  // only accessible from this translation unit.
+  if (pInfo->pTaskInfo != NULL && pInfo->pTaskInfo->pStreamRuntimeInfo != NULL) {
+    SStreamRuntimeFuncInfo* pRt = &pInfo->pTaskInfo->pStreamRuntimeInfo->funcInfo;
+    if (pRt->pGroupCalcInfos != NULL) {
+      int32_t iter = 0;
+      void*   pIter = NULL;
+      while ((pIter = tSimpleHashIterate(pRt->pGroupCalcInfos, pIter, &iter)) != NULL) {
+        SSTriggerGroupCalcInfo* pGrpCalc = (SSTriggerGroupCalcInfo*)pIter;
+        if (pGrpCalc->pRunnerGrpCtx != NULL) {
+          extWinDestroyTGrpCtx(pGrpCalc->pRunnerGrpCtx);
+          taosMemoryFree(pGrpCalc->pRunnerGrpCtx);
+          pGrpCalc->pRunnerGrpCtx = NULL;
+        }
+      }
+    }
+  }
+
   cleanupAggSup(&pInfo->aggSup);
   cleanupExprSupp(&pInfo->scalarSupp);
   for (int32_t i = 0; i < pInfo->resultRows.resRowsSize; ++i) {
@@ -1523,6 +1545,7 @@ int32_t createMergeAlignedExternalWindowOperator(SOperatorInfo* pDownstream, SPh
   }
 
   SExternalWindowOperator* pExtW = pMAExtW->pExtW;
+  pExtW->pTaskInfo = pTaskInfo;
   SExprSupp* pSup = &pOperator->exprSupp;
   pSup->hasWindowOrGroup = true;
   pSup->hasWindow = true;
@@ -3172,7 +3195,7 @@ static int32_t extWinAggOutputRes(SOperatorInfo* pOperator, SSDataBlock** ppRes)
   SSDataBlock*    pBlock = pExtW->binfo.pRes;
   int32_t         code = TSDB_CODE_SUCCESS;
   int32_t         lino = 0;
-  SStreamRuntimeFuncInfo* pStream = &pTaskInfo->pStreamRuntimeInfo->funcInfo;
+  SStreamRuntimeFuncInfo*  pStream = pTaskInfo->pStreamRuntimeInfo ? &pTaskInfo->pStreamRuntimeInfo->funcInfo : NULL;
 
   pBlock->info.version = pTaskInfo->version;
   blockDataCleanup(pBlock);
@@ -3717,6 +3740,7 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
     goto _error;
   }
   initOperatorCostInfo(pOperator);
+  pExtW->pTaskInfo = pTaskInfo;
   pExtW->needGroupSort = pPhynode->needGroupSort;
   // In non-stream (batch) mode, temporarily disable calcWithPartition to tolerate
   // upstream that does not provide distinct C-group ids (groupId==baseGId).
@@ -4287,6 +4311,7 @@ static int32_t extWinInitNonStreamWindowDataFromBlock(SExternalWindowPhysiNode* 
   if (pTaskInfo->pStreamRuntimeInfo == NULL) {
     pTaskInfo->pStreamRuntimeInfo = (SStreamRuntimeInfo*)taosMemoryCalloc(1, sizeof(SStreamRuntimeInfo));
     TSDB_CHECK_NULL(pTaskInfo->pStreamRuntimeInfo, code, lino, _exit, terrno);
+    pTaskInfo->ownStreamRtInfo = true;
   }
 
   // Initialize basic runtime function parameters.
@@ -4343,6 +4368,11 @@ static int32_t extWinInitNonStreamWindowDataFromBlock(SExternalWindowPhysiNode* 
   
   if (groupedRemoteResult) {
     TAOS_CHECK_EXIT(extWinBuildGroupedCalcInfosFromBlocks(pBlocks, pRt, &extWinTimeRange));
+    // The grouped path uses per-group pParams (in pGroupCalcInfos) instead of
+    // pStreamPesudoFuncVals.  extWinInitCGrpCtx later overwrites the pointer,
+    // orphaning the original SArray.  Free it now while we still can.
+    taosArrayDestroy(pRt->pStreamPesudoFuncVals);
+    pRt->pStreamPesudoFuncVals = NULL;
   } else {
     TAOS_CHECK_EXIT(extWinBuildNonGroupedCalcInfosFromBlocks(pBlocks, pRt, &extWinTimeRange));
   }
