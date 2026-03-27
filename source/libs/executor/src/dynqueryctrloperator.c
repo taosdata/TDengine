@@ -1317,7 +1317,8 @@ _return:
  *
  * @return TSDB_CODE_SUCCESS on success, otherwise error code.
  */
-static int32_t buildMergeOperatorParamForTsScan(SDynQueryCtrlOperatorInfo* pInfo, SOperatorParam** ppRes) {
+static int32_t buildMergeOperatorParamForTsScan(SDynQueryCtrlOperatorInfo* pInfo, int32_t numOfDownstream,
+                                                SOperatorParam** ppRes) {
   int32_t                   code = TSDB_CODE_SUCCESS;
   int32_t                   lino = 0;
   SOperatorParam*           pParam = NULL;
@@ -1330,13 +1331,13 @@ static int32_t buildMergeOperatorParamForTsScan(SDynQueryCtrlOperatorInfo* pInfo
   pParam->opType = QUERY_NODE_PHYSICAL_PLAN_MERGE;
   pParam->downstreamIdx = 0;
   pParam->reUse = false;
-  pParam->pChildren = taosArrayInit(1, POINTER_BYTES);
+  pParam->pChildren = taosArrayInit(numOfDownstream, POINTER_BYTES);
   QUERY_CHECK_NULL(pParam->pChildren, code, lino, _return, terrno)
 
   pParam->value = taosMemoryMalloc(sizeof(SMergeOperatorParam));
   QUERY_CHECK_NULL(pParam->value, code, lino, _return, terrno)
 
-  for (int32_t i = 0; i < taosHashGetSize(pVtbScan->otbVgIdToOtbInfoArrayMap); i++) {
+  for (int32_t i = 0; i < numOfDownstream; i++) {
     code = buildBatchExchangeOperatorParamForVirtual(&pExchangeParam, i, NULL, 0, pVtbScan->otbVgIdToOtbInfoArrayMap,
                                                      (STimeWindow){.skey = INT64_MAX, .ekey = INT64_MIN},
                                                      EX_SRC_TYPE_VSTB_TS_SCAN,
@@ -3217,7 +3218,7 @@ int32_t vtbTsScanNext(SOperatorInfo* pOperator, SSDataBlock** pRes) {
   QUERY_CHECK_CODE(code, line, _return);
 
   if (pVtbScan->genNewParam) {
-    code = buildMergeOperatorParamForTsScan(pInfo, &pMergeParam);
+    code = buildMergeOperatorParamForTsScan(pInfo, pMergeOp->numOfDownstream, &pMergeParam);
     QUERY_CHECK_CODE(code, line, _return);
 
     code = pMergeOp->fpSet.getNextExtFn(pMergeOp, pMergeParam, &pResult);
