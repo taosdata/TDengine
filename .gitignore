@@ -1,0 +1,46 @@
+# repo tool internal directory
+.repo/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Build outputs
+build/
+debug/
+release/
+*.o
+*.so
+*.dylib
+*.a
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Node.js
+node_modules/
+
+# Java
+target/
+*.class
+*.jar
+
+# Go
+vendor/
+
+# Rust
+*/target/
+
+# Logs
+*.log
