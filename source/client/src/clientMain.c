@@ -2046,6 +2046,73 @@ int32_t prepareAndParseSqlSyntax(SSqlCallbackWrapper **ppWrapper, SRequestObj *p
   return code;
 }
 
+// Returns true if the given node type is a SHOW statement.
+// SHOW statements are read-only and allowed inside a client transaction.
+static bool nodeIsShowStmt(ENodeType type) {
+  // These SHOW_CREATE_* and a few others have node type values < 400.
+  // They are all explicitly enumerated here.
+  if (type == QUERY_NODE_SHOW_CREATE_VIEW_STMT || type == QUERY_NODE_SHOW_CREATE_DATABASE_STMT ||
+      type == QUERY_NODE_SHOW_CREATE_TABLE_STMT || type == QUERY_NODE_SHOW_CREATE_STABLE_STMT ||
+      type == QUERY_NODE_SHOW_TABLE_DISTRIBUTED_STMT || type == QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT ||
+      type == QUERY_NODE_SHOW_SCORES_STMT || type == QUERY_NODE_SHOW_TABLE_TAGS_STMT ||
+      type == QUERY_NODE_SHOW_DB_ALIVE_STMT || type == QUERY_NODE_SHOW_CLUSTER_ALIVE_STMT ||
+      type == QUERY_NODE_SHOW_CREATE_TSMA_STMT || type == QUERY_NODE_SHOW_CREATE_VTABLE_STMT ||
+      type == QUERY_NODE_SHOW_CREATE_RSMA_STMT) {
+    return true;
+  }
+  // The main SHOW statements occupy the contiguous range
+  // [QUERY_NODE_SHOW_DNODES_STMT, QUERY_NODE_SHOW_VALIDATE_VTABLE_STMT] (currently 400-463).
+  // The comment in tmsg.h ("the order of QUERY_NODE_SHOW_* must be aligned with the order of
+  // sysTableShowAdapter") guarantees all entries in this range are SHOW statements.
+  return (type >= QUERY_NODE_SHOW_DNODES_STMT && type <= QUERY_NODE_SHOW_VALIDATE_VTABLE_STMT);
+}
+
+// Check whether a parsed statement is permitted inside an active client transaction.
+// Allowed: table DDL (CREATE/DROP/ALTER TABLE), read-only queries (SELECT, SHOW, EXPLAIN,
+//          DESCRIBE), context-setting (USE DATABASE), and local client operations.
+// Blocked: everything else (database DDL, user/node management, DML, etc.).
+static int32_t checkStmtAllowedInTransaction(SQuery* pQuery) {
+  if (pQuery == NULL || pQuery->pRoot == NULL) return TSDB_CODE_SUCCESS;
+  ENodeType type = nodeType(pQuery->pRoot);
+
+  switch (type) {
+    // --- Table DDL: the core purpose of a BEGIN transaction ---
+    case QUERY_NODE_CREATE_TABLE_STMT:
+    case QUERY_NODE_CREATE_MULTI_TABLES_STMT:
+    case QUERY_NODE_DROP_TABLE_STMT:
+    case QUERY_NODE_DROP_SUPER_TABLE_STMT:
+    case QUERY_NODE_ALTER_TABLE_STMT:
+    case QUERY_NODE_ALTER_SUPER_TABLE_STMT:
+    case QUERY_NODE_CREATE_VIRTUAL_TABLE_STMT:
+    case QUERY_NODE_CREATE_VIRTUAL_SUBTABLE_STMT:
+    case QUERY_NODE_DROP_VIRTUAL_TABLE_STMT:
+    case QUERY_NODE_ALTER_VIRTUAL_TABLE_STMT:
+
+    // --- Read-only data queries (industry-standard: allowed inside transactions) ---
+    case QUERY_NODE_SELECT_STMT:
+    case QUERY_NODE_SET_OPERATOR:
+    case QUERY_NODE_EXPLAIN_STMT:
+    case QUERY_NODE_DESCRIBE_STMT:
+
+    // --- Context setting (USE DATABASE) ---
+    case QUERY_NODE_USE_DATABASE_STMT:
+
+    // --- Local client operations (no server-side effect) ---
+    case QUERY_NODE_ALTER_LOCAL_STMT:
+    case QUERY_NODE_RESET_QUERY_CACHE_STMT:
+      return TSDB_CODE_SUCCESS;
+
+    default:
+      break;
+  }
+
+  // All SHOW statements are read-only and allowed inside a transaction
+  if (nodeIsShowStmt(type)) return TSDB_CODE_SUCCESS;
+
+  // Everything else is blocked inside a transaction
+  return TSDB_CODE_TXN_ONLY_TABLE_DDL_ALLOWED;
+}
+
 void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
   SSqlCallbackWrapper *pWrapper = NULL;
   int32_t              code = TSDB_CODE_SUCCESS;
@@ -2067,6 +2134,15 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
 
   if (TSDB_CODE_SUCCESS == code) {
     pRequest->stmtType = pRequest->pQuery->pRoot->type;
+    // Validate that the statement is permitted within an active client transaction.
+    // Industry-standard behavior: allow table DDL (CREATE/DROP/ALTER TABLE) and read-only
+    // operations (SELECT, SHOW, USE, DESCRIBE, EXPLAIN); block everything else.
+    if (pRequest->pTscObj->inTransaction) {
+      code = checkStmtAllowedInTransaction(pRequest->pQuery);
+    }
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
     code = phaseAsyncQuery(pWrapper);
   }
 

@@ -3154,6 +3154,47 @@ void syncQueryFn(void* param, void* res, int32_t code) {
   }
 }
 
+// Trim leading whitespace from a SQL string pointer.
+static const char* skipLeadingWhitespace(const char* sql) {
+  while (*sql == ' ' || *sql == '\t' || *sql == '\r' || *sql == '\n') sql++;
+  return sql;
+}
+
+// Check if sql is a transaction control command (BEGIN/COMMIT/ROLLBACK) and handle it.
+// Returns true if the command was handled (caller should not proceed with normal parsing).
+// pRequest must have pTscObj set. On handling, calls doRequestCallback internally.
+static bool handleTransactionControlCmd(SRequestObj* pRequest, const char* sql) {
+  const char* p = skipLeadingWhitespace(sql);
+  size_t      len = strlen(p);
+  // Strip trailing whitespace and semicolons to isolate the keyword
+  while (len > 0 && (p[len - 1] == ' ' || p[len - 1] == '\t' || p[len - 1] == '\r' || p[len - 1] == '\n' ||
+                     p[len - 1] == ';')) {
+    len--;
+  }
+  if (len == 0) return false;
+
+  STscObj* pTscObj = pRequest->pTscObj;
+
+  if (len == sizeof("begin") - 1 && strncasecmp(p, "begin", sizeof("begin") - 1) == 0) {
+    pTscObj->inTransaction = true;
+    tscDebug("req:0x%" PRIx64 ", begin transaction, conn:0x%" PRIx64, pRequest->self, pTscObj->id);
+    doRequestCallback(pRequest, TSDB_CODE_SUCCESS);
+    return true;
+  } else if (len == sizeof("commit") - 1 && strncasecmp(p, "commit", sizeof("commit") - 1) == 0) {
+    pTscObj->inTransaction = false;
+    tscDebug("req:0x%" PRIx64 ", commit transaction, conn:0x%" PRIx64, pRequest->self, pTscObj->id);
+    doRequestCallback(pRequest, TSDB_CODE_SUCCESS);
+    return true;
+  } else if (len == sizeof("rollback") - 1 && strncasecmp(p, "rollback", sizeof("rollback") - 1) == 0) {
+    pTscObj->inTransaction = false;
+    tscDebug("req:0x%" PRIx64 ", rollback transaction, conn:0x%" PRIx64, pRequest->self, pTscObj->id);
+    doRequestCallback(pRequest, TSDB_CODE_SUCCESS);
+    return true;
+  }
+
+  return false;
+}
+
 void taosAsyncQueryImpl(uint64_t connId, const char* sql, __taos_async_fn_t fp, void* param, bool validateOnly,
                         int8_t source) {
   if (sql == NULL || NULL == fp) {
@@ -3180,6 +3221,11 @@ void taosAsyncQueryImpl(uint64_t connId, const char* sql, __taos_async_fn_t fp, 
   if (code != TSDB_CODE_SUCCESS) {
     terrno = code;
     fp(param, NULL, terrno);
+    return;
+  }
+
+  // Handle BEGIN/COMMIT/ROLLBACK as client-side transaction control commands
+  if (handleTransactionControlCmd(pRequest, sql)) {
     return;
   }
 
@@ -3221,6 +3267,11 @@ void taosAsyncQueryImplWithReqid(uint64_t connId, const char* sql, __taos_async_
   if (code != TSDB_CODE_SUCCESS) {
     terrno = code;
     fp(param, NULL, terrno);
+    return;
+  }
+
+  // Handle BEGIN/COMMIT/ROLLBACK as client-side transaction control commands
+  if (handleTransactionControlCmd(pRequest, sql)) {
     return;
   }
 

@@ -1016,6 +1016,9 @@ TAOS_DEFINE_ERROR(TSDB_CODE_INDEX_INVALID_FILE,             "Index file is inval
 //scalar
 TAOS_DEFINE_ERROR(TSDB_CODE_SCALAR_CONVERT_ERROR,           "Operation not supported between data types")
 
+//txn
+TAOS_DEFINE_ERROR(TSDB_CODE_TXN_ONLY_TABLE_DDL_ALLOWED,     "Only table DDL (CREATE/DROP/ALTER TABLE) allowed in transaction")
+
 //tmq
 TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_INVALID_MSG,                "Invalid message")
 TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_NEED_INITIALIZED,           "Assignment or poll interface need to be called first")

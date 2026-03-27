@@ -231,6 +231,7 @@ typedef struct STscObj {
 
   SConnAccessInfo sessInfo;
   void*           pSessMetric;
+  bool            inTransaction;  // true when a client-side BEGIN transaction is active
 } STscObj;
 
 typedef struct STscDbg {
