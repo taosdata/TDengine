@@ -12,6 +12,7 @@
 # -*- coding: utf-8 -*-
 
 from new_test_framework.utils import tdLog, tdSql, etool
+import hashlib
 import os
 import shutil
 import socket
@@ -339,6 +340,83 @@ class TestTaosBackupFormat:
         tdLog.info(f"doFormatTest({fmt}) .......................... [passed]")
 
     # -----------------------------------------------------------------------
+    # Write-buffer overflow – covers storageTaos.c lines 52-66
+    # -----------------------------------------------------------------------
+
+    def do_binary_buffer_overflow_test(self):
+        """Trigger writeTaosFile large-write and buffer-overflow paths.
+
+        TAOS_FILE_WRITE_BUF_SIZE = 4 MB.  For each CTB file the write buffer
+        starts with the small header + schema (a few hundred bytes).  When the
+        first compressed data-block arrives it is either:
+
+          • larger than the cap  → 'len >= writeBufCap' branch (lines 52-60):
+              flushWriteBuffer() is called first (writeBufPos > 0 → the header
+              bytes are flushed, exercising lines 25/29/31), then the block is
+              written directly to disk.
+          • such that accumulated writes exceed the cap → 'writeBufPos + len >
+              writeBufCap' branch (lines 64-66).
+
+        We create a single CTB with binary(2000) filled with SHA-256-based hex
+        strings (32 independent segments per row).  SHA-256 hex output is
+        pseudo-random and incompressible by LZ4, so the stored block size is
+        essentially equal to the raw size:
+
+            4096 rows × 2000 bytes ≈ 8 MB  >>  TAOS_FILE_WRITE_BUF_SIZE (4 MB)
+
+        That makes each fetched batch trigger the 'len >= cap' branch.
+        Before the first large write, writeBufPos holds the header/schema bytes
+        (> 0), so flushWriteBuffer() performs an actual disk write and the
+        'taosFile->writeBufPos = 0' reset on line 29 is hit.
+        """
+        db = "fmt_buf_ovflow"
+        dst = "fmt_buf_ovflow_r"
+        tmpdir = "./taosbackuptest/tmpdir_buf_overflow"
+        self.makeDir(tmpdir)
+
+        tdSql.execute(f"drop database if exists {db}")
+        tdSql.execute(f"create database {db}")
+        tdSql.execute(f"create table {db}.t1 (ts timestamp, data binary(2000))")
+
+        # Build 5 000 rows each with 2 000 bytes of pseudo-random hex data.
+        # Using 32 _different_ SHA-256 digests per row prevents LZ4 from
+        # finding any repeating patterns across the column.
+        ROWS = 5000
+        BASE_TS = 1640000000000
+        BATCH = 200
+        for batch_start in range(0, ROWS, BATCH):
+            vals = []
+            for i in range(batch_start, min(batch_start + BATCH, ROWS)):
+                segments = [
+                    hashlib.sha256(f"r{i}s{j}".encode()).hexdigest()
+                    for j in range(32)
+                ]
+                data = "".join(segments)[:1999]
+                vals.append(f"({BASE_TS + i * 1000}, '{data}')")
+            tdSql.execute(f"insert into {db}.t1 values{','.join(vals)}")
+
+        # Binary backup: the first 4096-row block is ~8 MB compressed
+        # (incompressible SHA-256 data), which is > the 4 MB write buffer cap.
+        rlist = etool.taosbackup(f"-F binary -D {db} -o {tmpdir}")
+        out = "\n".join(rlist) if rlist else ""
+        if "SUCCESS" not in out:
+            tdLog.exit(f"binary backup (buffer overflow test) failed:\n{out[:400]}")
+        tdLog.info("buffer-overflow binary backup SUCCESS")
+
+        # Restore and verify row count is preserved exactly.
+        tdSql.execute(f"drop database if exists {dst}")
+        rlist2 = etool.taosbackup(f'-F binary -v 2 -W "{db}={dst}" -i {tmpdir}')
+        out2 = "\n".join(rlist2) if rlist2 else ""
+        if "SUCCESS" not in out2:
+            tdLog.exit(f"restore (buffer overflow test) failed:\n{out2[:400]}")
+        tdSql.query(f"select count(*) from {dst}.t1")
+        tdSql.checkData(0, 0, ROWS)
+
+        tdSql.execute(f"drop database if exists {db}")
+        tdSql.execute(f"drop database if exists {dst}")
+        tdLog.info("do_binary_buffer_overflow_test .............. [passed]")
+
+    # -----------------------------------------------------------------------
     # Main test entry point
     # -----------------------------------------------------------------------
 
@@ -355,6 +433,9 @@ class TestTaosBackupFormat:
         5.  Backup SRC_DB in parquet format.
         6.  Restore with STMT1 (-v 1) → fmt_par_v1; verify correctness.
         7.  Restore with STMT2 (-v 2) → fmt_par_v2; verify correctness.
+        8.  Binary backup of a wide-binary CTB (binary(2000) × 5000 rows of
+            pseudo-random SHA-256 data) to exercise the 4 MB write-buffer
+            overflow paths in storageTaos.c (lines 52-60, 64-66).
 
         Verification per restore:
             · COUNT(*)  matches source
@@ -399,4 +480,155 @@ class TestTaosBackupFormat:
         tdLog.info("Step 5-7: parquet format")
         self.doFormatTest("parquet", "./taosbackuptest/tmpdir_fmt_parquet")
 
+        # Step 8 – large binary column triggers writeTaosFile buffer-overflow path
+        tdLog.info("Step 8: binary buffer overflow path in storageTaos.c")
+        self.do_binary_buffer_overflow_test()
+
         tdLog.info("test_taosbackup_format ...................... [passed]")
+
+    # -----------------------------------------------------------------------
+    # Parquet-specific: NULL tag values and TIMESTAMP tag type
+    # -----------------------------------------------------------------------
+
+    def test_parquet_null_and_timestamp_tags(self):
+        """taosBackup parquet NULL and TIMESTAMP tag restore
+
+        The parquet tag-restore path (restoreMeta.c) has dedicated branches for:
+          - isNull  → emit literal NULL in the CREATE TABLE … TAGS() SQL
+          - TSDB_DATA_TYPE_TIMESTAMP → emit raw int64 epoch value
+
+        These branches are distinct from the binary-format path covered by
+        test_taosbackup_coverage_extra.py, so a parquet-specific test is needed.
+
+        Test matrix: one parquet backup → restore with STMT1 (-v 1) and STMT2 (-v 2).
+
+        Branches covered (restoreMeta.c – parquet tag restore thread):
+            L~1628  if (isNull) { … snprintf(…, "NULL"); continue; }
+            L~1680  case TSDB_DATA_TYPE_TIMESTAMP: snprintf(…, PRId64, …);
+
+        Since: v3.0.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-03-26 Alex Duan Created; parquet-format NULL/TIMESTAMP tag tests
+
+        """
+        tdLog.info("=== test_parquet_null_and_timestamp_tags START ===")
+
+        src_db = "fmt_parq_tags_src"
+        dst_v1 = "fmt_parq_tags_v1"
+        dst_v2 = "fmt_parq_tags_v2"
+        stb    = "sensors"
+        tmpdir = "./taosbackuptest/tmpdir_parq_tags"
+        self.makeDir(tmpdir)
+
+        # ---- setup ---------------------------------------------------------
+        tdLog.info("Step 1: create STB with TIMESTAMP tag and nullable INT tag")
+        tdSql.execute(f"drop database if exists {src_db}")
+        tdSql.execute(
+            f"create database {src_db} vgroups 1 replica 1 precision 'ms'"
+        )
+        tdSql.execute(
+            f"create stable {src_db}.{stb} "
+            f"(ts timestamp, v float) "
+            f"tags (tid int, created_at timestamp, name varchar(20))"
+        )
+        # s0: all tags non-NULL including TIMESTAMP tag
+        tdSql.execute(
+            f"create table {src_db}.s0 using {src_db}.{stb} "
+            f"tags(1, '2024-01-01 00:00:00.000', 'sensor_A')"
+        )
+        tdSql.execute(f"insert into {src_db}.s0 values(now(), 1.1)")
+        # s1: NULL int tag  → exercises isNull branch
+        tdSql.execute(
+            f"create table {src_db}.s1 using {src_db}.{stb} "
+            f"tags(NULL, '2024-06-01 12:00:00.000', 'sensor_B')"
+        )
+        tdSql.execute(f"insert into {src_db}.s1 values(now()+1s, 2.2)")
+        # s2: NULL timestamp tag  → exercises isNull for TIMESTAMP type
+        tdSql.execute(
+            f"create table {src_db}.s2 using {src_db}.{stb} "
+            f"tags(3, NULL, 'sensor_C')"
+        )
+        tdSql.execute(f"insert into {src_db}.s2 values(now()+2s, 3.3)")
+
+        # ---- backup (parquet) ----------------------------------------------
+        tdLog.info("Step 2: backup with -F parquet")
+        rlist = etool.taosbackup(f"-F parquet -D {src_db} -o {tmpdir}")
+        output = "\n".join(rlist) if rlist else ""
+        if "SUCCESS" not in output:
+            tdLog.exit(f"Backup (parquet) failed:\n{output[:600]}")
+        tdLog.info("backup (parquet) SUCCESS")
+
+        # ---- restore STMT1 -------------------------------------------------
+        tdLog.info("Step 3: restore with STMT1 (-v 1)")
+        tdSql.execute(f"drop database if exists {dst_v1}")
+        rlist = etool.taosbackup(f'-v 1 -W "{src_db}={dst_v1}" -i {tmpdir}')
+        out1 = "\n".join(rlist) if rlist else ""
+        if "SUCCESS" not in out1:
+            tdLog.exit(f"Restore (parquet/STMT1 → {dst_v1}) failed:\n{out1[:600]}")
+        tdLog.info(f"restore (parquet/STMT1) SUCCESS")
+
+        # verify row count
+        tdSql.query(f"select count(*) from {dst_v1}.{stb}")
+        if tdSql.getData(0, 0) != 3:
+            tdLog.exit(f"[STMT1] row count mismatch, expected 3")
+
+        # verify NULL int tag preserved (s1.tid must be NULL)
+        tdSql.query(f"select tid from {dst_v1}.s1")
+        val = tdSql.getData(0, 0)
+        if val is not None:
+            tdLog.exit(f"[STMT1] s1.tid should be NULL after parquet restore, got {val!r}")
+
+        # verify TIMESTAMP tag preserved for s0 (non-NULL)
+        tdSql.query(f"select created_at from {dst_v1}.s0")
+        val = tdSql.getData(0, 0)
+        if val is None:
+            tdLog.exit(f"[STMT1] s0.created_at should not be NULL after parquet restore")
+
+        # verify NULL TIMESTAMP tag preserved for s2
+        tdSql.query(f"select created_at from {dst_v1}.s2")
+        val = tdSql.getData(0, 0)
+        if val is not None:
+            tdLog.exit(f"[STMT1] s2.created_at should be NULL after parquet restore, got {val!r}")
+
+        tdLog.info("parquet NULL/TIMESTAMP tags STMT1 PASSED")
+
+        # ---- restore STMT2 -------------------------------------------------
+        tdLog.info("Step 4: restore with STMT2 (-v 2)")
+        tdSql.execute(f"drop database if exists {dst_v2}")
+        rlist = etool.taosbackup(f'-v 2 -W "{src_db}={dst_v2}" -i {tmpdir}')
+        out2 = "\n".join(rlist) if rlist else ""
+        if "SUCCESS" not in out2:
+            tdLog.exit(f"Restore (parquet/STMT2 → {dst_v2}) failed:\n{out2[:600]}")
+        tdLog.info(f"restore (parquet/STMT2) SUCCESS")
+
+        # verify row count
+        tdSql.query(f"select count(*) from {dst_v2}.{stb}")
+        if tdSql.getData(0, 0) != 3:
+            tdLog.exit(f"[STMT2] row count mismatch, expected 3")
+
+        # verify NULL int tag preserved
+        tdSql.query(f"select tid from {dst_v2}.s1")
+        val = tdSql.getData(0, 0)
+        if val is not None:
+            tdLog.exit(f"[STMT2] s1.tid should be NULL after parquet restore, got {val!r}")
+
+        # verify TIMESTAMP tag preserved
+        tdSql.query(f"select created_at from {dst_v2}.s0")
+        val = tdSql.getData(0, 0)
+        if val is None:
+            tdLog.exit(f"[STMT2] s0.created_at should not be NULL after parquet restore")
+
+        # verify NULL TIMESTAMP tag preserved
+        tdSql.query(f"select created_at from {dst_v2}.s2")
+        val = tdSql.getData(0, 0)
+        if val is not None:
+            tdLog.exit(f"[STMT2] s2.created_at should be NULL after parquet restore, got {val!r}")
+
+        tdLog.info("parquet NULL/TIMESTAMP tags STMT2 PASSED")
+
+        tdLog.info("test_parquet_null_and_timestamp_tags ........ [passed]")

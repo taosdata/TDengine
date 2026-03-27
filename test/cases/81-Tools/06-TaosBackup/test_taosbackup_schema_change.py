@@ -215,12 +215,20 @@ class TestTaosBackupSchemaChange:
             f"-f {os.path.dirname(os.path.abspath(__file__))}/json/schemaChangeNew.json"
         )
 
-        # Drop and recreate meters2/meters3 with incompatible schemas
+        # Drop and recreate meters2/meters3 with incompatible schemas;
+        # also create an NTB with zero column overlap to cover the
+        # matchCount==0 path in buildNtbSchemaChange() (bckSchemaChange.c:418).
+        # schemaChangeNew.json recreates newdd with only STBs (no NTBs), so
+        # newdb.ntbd1 does not exist yet — we create it here with completely
+        # different column names so queryServerSchema() returns a non-NULL
+        # schema yet the name+type intersection with the backup's ntbd1
+        # (ts, c1, c2, c3, c4) is empty.
         sqls = [
             f"drop table {newdb}.meters2",
             f"create table {newdb}.meters2(nts timestamp, age int) tags(area int)",
             f"drop table {newdb}.meters3",
             f"create table {newdb}.meters3(ts timestamp, fc float) tags(area int)",
+            f"create table {newdb}.ntbd1(ts_new timestamp, xval bigint, ystr nchar(20))",
         ]
         tdSql.executes(sqls)
 

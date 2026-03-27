@@ -23,8 +23,6 @@ void destroyConnectionPool();
 
 TAOS* getConnection(int *code);
 
-TAOS* createConnection();
-
 void releaseConnection(TAOS* conn);
 
 // Close and evict a stale/broken connection from the pool.

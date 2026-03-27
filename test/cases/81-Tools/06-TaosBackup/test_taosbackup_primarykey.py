@@ -127,7 +127,7 @@ class TestTaosBackupPrimaryKey:
         Jira: None
 
         History:
-            - 2026-03-04 Migrated and adapted from 04-Taosdump/test_taosdump_primarykey.py
+            - 2026-03-04 Alex Duan Migrated and adapted from 04-Taosdump/test_taosdump_primarykey.py
 
         """
         db = "pridb"
@@ -137,6 +137,7 @@ class TestTaosBackupPrimaryKey:
         jsonFile = f"{os.path.dirname(os.path.abspath(__file__))}/json/primaryKey.json"
 
         self.insertData(benchmark, jsonFile, db)
+        tdSql.execute(f"drop database if exists {newdb}")
         self.dumpOut(taosbackup, db, tmpdir)
         self.dumpIn(taosbackup, db, newdb, tmpdir)
         self.verifyResult(db, newdb, jsonFile)

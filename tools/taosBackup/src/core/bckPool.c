@@ -219,63 +219,6 @@ TAOS* getConnection(int *code) {
     }
 }
 
-TAOS* createConnection() {
-    pthread_mutex_lock(&g_pool.mutex);
-
-    // Try to reserve a slot
-    int idx = reserveSlot();
-
-    if (idx >= 0) {
-        // Reserved a slot, unlock and connect
-        pthread_mutex_unlock(&g_pool.mutex);
-
-        TAOS *conn = taos_connect(argHost(), argUser(), argPassword(), NULL, argPort());
-
-        pthread_mutex_lock(&g_pool.mutex);
-        if (conn) {
-            commitSlot(idx, conn);
-            pthread_mutex_unlock(&g_pool.mutex);
-            return conn;
-        } else {
-            rollbackSlot(idx);
-            pthread_mutex_unlock(&g_pool.mutex);
-            return NULL;
-        }
-    }
-
-    // Pool is full, need to replace an existing connection
-    pthread_mutex_unlock(&g_pool.mutex);
-
-    TAOS *conn = taos_connect(argHost(), argUser(), argPassword(), NULL, argPort());
-    if (!conn) {
-        return NULL;
-    }
-
-    pthread_mutex_lock(&g_pool.mutex);
-
-    // Replace idle connection
-    for (int i = 0; i < g_pool.size; i++) {
-        if (g_pool.state[i] == CONN_IDLE) {
-            if (g_pool.pool[i]) {
-                taos_close(g_pool.pool[i]);
-            }
-            g_pool.pool[i] = conn;
-            g_pool.state[i] = CONN_BUSY;
-            pthread_mutex_unlock(&g_pool.mutex);
-            return conn;
-        }
-    }
-
-    // Replace first connection
-    if (g_pool.pool[0]) {
-        taos_close(g_pool.pool[0]);
-    }
-    g_pool.pool[0] = conn;
-    g_pool.state[0] = CONN_BUSY;
-
-    pthread_mutex_unlock(&g_pool.mutex);
-    return conn;
-}
 
 void releaseConnection(TAOS* conn) {
     if (!conn) return;

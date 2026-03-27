@@ -11,11 +11,12 @@
 
 # -*- coding: utf-8 -*-
 
-from new_test_framework.utils import tdLog, tdSql, etool
+from new_test_framework.utils import tdLog, tdSql, etool, sc
 import copy
 import json
 import os
 import resource
+import shutil
 import signal
 import subprocess
 import time
@@ -48,26 +49,16 @@ def _killTask(stopEvent, taosadapter, presleep, sleep, count):
     tdLog.info("killTask exited.")
 
 
-def _taosd_pids():
-    """Return list of taosd PIDs (may be >1 if taosd forks)."""
-    try:
-        out = subprocess.check_output(["pidof", "taosd"], stderr=subprocess.DEVNULL)
-        return [int(p) for p in out.decode().split() if p.strip()]
-    except (subprocess.CalledProcessError, ValueError, FileNotFoundError):
-        return []
-
-
 def _pauseTaosdTask(stopEvent, presleep, pausetime):
-    """Background task: SIGSTOP taosd after *presleep* s to simulate an
-    unresponsive server, hold for *pausetime* s, then SIGCONT to resume.
+    """Background task: stop taosd after *presleep* s to simulate an
+    unresponsive server, hold for *pausetime* s, then start it again.
 
-    Using SIGSTOP/SIGCONT instead of a real stop/start:
-    - taosd stays alive so the test framework never loses its connection.
-    - Recovery is instant on SIGCONT.
-    - SIGCONT is sent unconditionally via try/finally so taosd can never
-      be left paused even if the test thread exits early.
+    Uses sc.dnodeStop(1) / sc.dnodeStart(1) for proper framework-level
+    node control instead of raw SIGSTOP/SIGCONT signals.
+    sc.dnodeStart is called unconditionally via try/finally so taosd is
+    never left stopped even if the test thread exits early.
     """
-    tdLog.info(f"pauseTaosdTask: pre-sleep {presleep}s before pausing taosd")
+    tdLog.info(f"pauseTaosdTask: pre-sleep {presleep}s before stopping taosd")
     slept = 0
     while slept < presleep:
         if stopEvent.is_set():
@@ -76,30 +67,16 @@ def _pauseTaosdTask(stopEvent, presleep, pausetime):
         time.sleep(0.5)
         slept += 0.5
 
-    pids = _taosd_pids()
-    if not pids:
-        tdLog.info("pauseTaosdTask: taosd not found – skipping fault injection")
-        return
-
-    tdLog.info(f"pauseTaosdTask: SIGSTOP taosd pids={pids}")
-    for pid in pids:
-        try:
-            os.kill(pid, signal.SIGSTOP)
-        except OSError as e:
-            tdLog.info(f"pauseTaosdTask: SIGSTOP pid={pid} failed: {e}")
+    tdLog.info("pauseTaosdTask: sc.dnodeStop(1)")
+    sc.dnodeStop(1)
 
     try:
-        tdLog.info(f"pauseTaosdTask: taosd paused, holding {pausetime}s")
+        tdLog.info(f"pauseTaosdTask: taosd stopped, holding {pausetime}s")
         time.sleep(pausetime)
     finally:
-        pids2 = _taosd_pids() or pids
-        tdLog.info(f"pauseTaosdTask: SIGCONT taosd pids={pids2}")
-        for pid in pids2:
-            try:
-                os.kill(pid, signal.SIGCONT)
-            except OSError as e:
-                tdLog.info(f"pauseTaosdTask: SIGCONT pid={pid} failed: {e}")
-        tdLog.info("pauseTaosdTask: taosd resumed")
+        tdLog.info("pauseTaosdTask: sc.dnodeStart(1)")
+        sc.dnodeStart(1)
+        tdLog.info("pauseTaosdTask: taosd restarted")
 
 
 # ---------------------------------------------------------------------------
@@ -112,8 +89,8 @@ class TestTaosBackupRetry:
 
     Covers:
       1. taosadapter kill/restart during backup   (native + WebSocket)
-      2. taosd SIGSTOP/SIGCONT during backup      (connection-pool backoff)
-      3. taosd SIGSTOP/SIGCONT during restore     (connection-pool backoff)
+      2. taosd stop/start during backup       (connection-pool backoff)
+      3. taosd stop/start during restore       (connection-pool backoff)
       4. taosadapter kill/restart during restore  (adapter retry)
       5. pthread_create failure safety            (no hang/crash/use-after-free)
     """
@@ -124,9 +101,9 @@ class TestTaosBackupRetry:
     _SRV_STB           = "meters"
     _SRV_CHILD_TABLES  = 20
     _SRV_INSERT_ROWS   = 50000      # 1 M rows – keeps backup busy
-    _SRV_PRESLEEP_BCK  = 3          # seconds after backup starts → SIGSTOP
-    _SRV_PRESLEEP_RST  = 3          # seconds after restore starts → SIGSTOP
-    _SRV_PAUSETIME     = 6          # seconds taosd is held in SIGSTOP
+    _SRV_PRESLEEP_BCK  = 3          # seconds after backup starts → sc.dnodeStop
+    _SRV_PRESLEEP_RST  = 3          # seconds after restore starts → sc.dnodeStop
+    _SRV_PAUSETIME     = 6          # seconds taosd is held stopped
 
     # ── constants for restore-retry test ─────────────────────────────────
     _RR_DB_SRC = "exdb"      # must match except_small.json dbinfo.name
@@ -348,23 +325,21 @@ class TestTaosBackupRetry:
 
     def _stop_pause_thread(self):
         """Cancel pre-sleep (if still waiting) and join.  The try/finally in
-        _pauseTaosdTask guarantees SIGCONT is sent before the thread exits."""
+        _pauseTaosdTask guarantees sc.dnodeStart is called before the thread exits."""
         self._pause_stop_evt.set()
         self._pause_thread.join(timeout=self._SRV_PAUSETIME + 10)
         if self._pause_thread.is_alive():
             tdLog.info("WARNING: pause thread did not finish in time")
 
     def teardown_method(self, method):
-        """Safety net: resume taosd and ensure taosadapter is up after each test."""
+        """Safety net: ensure taosd and taosadapter are up after each test;
+        also remove tmp_* directories created by this test."""
+        import glob
         if hasattr(self, "_pause_thread") and self._pause_thread.is_alive():
             self._pause_stop_evt.set()
             self._pause_thread.join(timeout=self._SRV_PAUSETIME + 10)
-        # SIGCONT on a running process is a harmless no-op.
-        for pid in _taosd_pids():
-            try:
-                os.kill(pid, signal.SIGCONT)
-            except OSError:
-                pass
+        # Ensure taosd is running (sc.dnodeStart is a no-op if already up).
+        sc.dnodeStart(1)
         # Restart taosadapter if kill-tests left it dead, so the next
         # test class starts with a healthy adapter.
         try:
@@ -383,6 +358,14 @@ class TestTaosBackupRetry:
                 f" > ~/taosa_teardown.log 2>&1 &"
             )
             time.sleep(3)  # wait for adapter to bind port 6041 before next class
+        # Clean up tmp directories
+        test_dir = os.path.dirname(os.path.abspath(__file__))
+        for d in glob.glob(os.path.join(test_dir, "tmp_*")):
+            shutil.rmtree(d, ignore_errors=True)
+        # Also clean the relative ./tmp used by findPrograme()
+        tmp_rel = os.path.join(test_dir, "tmp")
+        if os.path.isdir(tmp_rel):
+            shutil.rmtree(tmp_rel, ignore_errors=True)
 
     # =========================================================================
     # Helpers for restore-retry test
@@ -490,13 +473,13 @@ class TestTaosBackupRetry:
         self._run_retry_test(newdb="nwredb", websocket=True)
 
     def test_taosbackup_server_restart_backup(self):
-        """taosBackup: taosd unresponsive (SIGSTOP) during backup
+        """taosBackup: taosd unresponsive (sc.dnodeStop) during backup
 
         1. taosBenchmark inserts _SRV_CHILD_TABLES × _SRV_INSERT_ROWS rows.
         2. Record reference aggregations (count, sum(voltage), avg(current)).
         3. Start backup with retry headroom (-k 5 -z 2000).
-           A background thread SIGSTOPs taosd after _SRV_PRESLEEP_BCK s,
-           holds it for _SRV_PAUSETIME s, then SIGCONTs it.
+           A background thread stops taosd after _SRV_PRESLEEP_BCK s,
+           holds it for _SRV_PAUSETIME s, then restarts it.
         4. Backup must complete successfully despite the outage.
         5. Restore the backup to _SRV_DB_DST.
         6. Verify aggregations match the reference values.
@@ -524,7 +507,7 @@ class TestTaosBackupRetry:
         if src_agg["count"] == 0:
             tdLog.exit("source table is empty – taosBenchmark may have failed")
 
-        tdLog.info("=== step 3: backup with taosd SIGSTOP mid-flight ===")
+        tdLog.info("=== step 3: backup with taosd stopped mid-flight ===")
         backup_cmd = (
             f"{taosbackup} -T 2 -k 5 -z 2000"
             f" -D {self._SRV_DB_SRC} -o {tmpdir}"
@@ -553,14 +536,14 @@ class TestTaosBackupRetry:
         tdLog.info("test_taosbackup_server_restart_backup PASSED")
 
     def test_taosbackup_server_restart_restore(self):
-        """taosBackup: taosd unresponsive (SIGSTOP) during restore
+        """taosBackup: taosd unresponsive (sc.dnodeStop) during restore
 
         1. taosBenchmark inserts data into _SRV_DB_SRC.
         2. Record reference aggregations.
         3. Backup _SRV_DB_SRC to disk (no fault injection during backup).
         4. Start restore to _SRV_DB_DST with retry headroom (-k 5 -z 2000).
-           A background thread SIGSTOPs taosd after _SRV_PRESLEEP_RST s,
-           holds it for _SRV_PAUSETIME s, then SIGCONTs it.
+           A background thread stops taosd after _SRV_PRESLEEP_RST s,
+           holds it for _SRV_PAUSETIME s, then restarts it.
         5. Restore must complete successfully despite the outage.
         6. Verify aggregations match the reference values.
 
@@ -594,7 +577,7 @@ class TestTaosBackupRetry:
         if ret != 0:
             tdLog.exit(f"backup FAILED (ret={ret})")
 
-        tdLog.info("=== step 4: restore with taosd SIGSTOP mid-flight ===")
+        tdLog.info("=== step 4: restore with taosd stopped mid-flight ===")
         restore_cmd = (
             f"{taosbackup} -T 2 -k 5 -z 2000"
             f" -W \"{self._SRV_DB_SRC}={self._SRV_DB_DST}\" -i {tmpdir}"

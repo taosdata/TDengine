@@ -57,7 +57,19 @@ class TestTaosBackupBasic:
     # ------------------- do_taosbackup_basic ----------------
     #
     def do_taosbackup_basic(self):
-        """Basic STB + CTB + NTB dump/restore test (no virtual tables)."""
+        """Basic STB/CTB/NTB backup restore.
+
+        Since: v3.0.0.0
+
+        Labels: common
+
+        Jira: None
+
+        History:
+
+            - 2026-03-04 Alex Duan Created
+
+        """
         tmpdir = "./taosbackuptest/tmpdir_basic"
 
         tdSql.execute("drop database if exists db")
@@ -138,7 +150,19 @@ class TestTaosBackupBasic:
     # ------------------- do_taosbackup_rename_db ----------------
     #
     def do_taosbackup_rename_db(self):
-        """Test -W rename database option during restore."""
+        """Rename database on restore.
+
+        Since: v3.0.0.0
+
+        Labels: common
+
+        Jira: None
+
+        History:
+
+            - 2026-03-04 Alex Duan Created
+
+        """
         ts = 1538548685000
         tmpdir1 = "./taosbackuptest/tmp1"
         tmpdir2 = "./taosbackuptest/tmp2"
@@ -224,7 +248,19 @@ class TestTaosBackupBasic:
     # ------------------- do_taosbackup_schemaonly ----------------
     #
     def do_taosbackup_schemaonly(self):
-        """Test -s/--schemaonly option: backup only schemas, no data."""
+        """Schema-only backup no data.
+
+        Since: v3.0.0.0
+
+        Labels: common
+
+        Jira: None
+
+        History:
+
+            - 2026-03-04 Alex Duan Created
+
+        """
         tmpdir = "./taosbackuptest/tmpdir_schema"
 
         tdSql.execute("drop database if exists db")
@@ -275,7 +311,19 @@ class TestTaosBackupBasic:
     # ------------------- do_taosbackup_db_ntb ----------------
     #
     def do_taosbackup_db_ntb(self):
-        """Backup/restore a specific normal table in a database."""
+        """Backup specific child table.
+
+        Since: v3.0.0.0
+
+        Labels: common
+
+        Jira: None
+
+        History:
+
+            - 2026-03-04 Alex Duan Created
+
+        """
         tmpdir = "./taosbackuptest/tmpdir_ntb"
 
         tdSql.execute("drop database if exists db")
@@ -323,7 +371,19 @@ class TestTaosBackupBasic:
     # ------------------- do_taosbackup_db_stb ----------------
     #
     def do_taosbackup_db_stb(self):
-        """Backup/restore a specific super table in a database."""
+        """Backup specific super table.
+
+        Since: v3.0.0.0
+
+        Labels: common
+
+        Jira: None
+
+        History:
+
+            - 2026-03-04 Alex Duan Created
+
+        """
         tmpdir = "./taosbackuptest/tmpdir_stb"
 
         tdSql.execute("drop database if exists db")
@@ -373,7 +433,19 @@ class TestTaosBackupBasic:
     # ------------------- do_taosbackup_format_parquet ----------------
     #
     def do_taosbackup_format_parquet(self):
-        """Test -F parquet format: backup and restore using Parquet format."""
+        """Parquet format backup restore.
+
+        Since: v3.0.0.0
+
+        Labels: common
+
+        Jira: None
+
+        History:
+
+            - 2026-03-04 Alex Duan Created
+
+        """
         tmpdir = "./taosbackuptest/tmpdir_parquet"
 
         tdSql.execute("drop database if exists db")
@@ -432,7 +504,19 @@ class TestTaosBackupBasic:
         return "".join(random.choice(chars) for _ in range(length))
 
     def do_taosbackup_test_large_data(self):
-        """Test backup/restore with large data (many records, wide binary columns)."""
+        """Large data backup restore.
+
+        Since: v3.0.0.0
+
+        Labels: common
+
+        Jira: None
+
+        History:
+
+            - 2026-03-04 Alex Duan Created
+
+        """
         tmpdir = "./taosbackuptest/tmpdir_large"
         ts = 1601481600000
         numberOfRecords = 150
@@ -519,7 +603,19 @@ class TestTaosBackupBasic:
     # ------------------- do_taosbackup_many_cols ----------------
     #
     def do_taosbackup_many_cols(self):
-        """Test backup/restore with many columns (up to 300 columns)."""
+        """Many columns backup restore.
+
+        Since: v3.0.0.0
+
+        Labels: common
+
+        Jira: None
+
+        History:
+
+            - 2026-03-04 Alex Duan Created
+
+        """
         tmpdir = "./taosbackuptest/tmpdir_many_cols"
 
         tdSql.prepare()
@@ -582,7 +678,19 @@ class TestTaosBackupBasic:
     # ------------------- do_taosbackup_tag_threads ----------------
     #
     def do_taosbackup_tag_threads(self):
-        """Test -m tag-thread-num option."""
+        """Tag thread backup option.
+
+        Since: v3.0.0.0
+
+        Labels: common
+
+        Jira: None
+
+        History:
+
+            - 2026-03-04 Alex Duan Created
+
+        """
         tmpdir = "./taosbackuptest/tmpdir_tag_threads"
 
         tdSql.execute("drop database if exists db")
@@ -627,7 +735,19 @@ class TestTaosBackupBasic:
     # ------------------- do_taosbackup_stmt_version ----------------
     #
     def do_taosbackup_stmt_version(self):
-        """Test -v stmt-version option (restore with STMT v1 legacy mode)."""
+        """STMT version restore option.
+
+        Since: v3.0.0.0
+
+        Labels: common
+
+        Jira: None
+
+        History:
+
+            - 2026-03-04 Alex Duan Created
+
+        """
         tmpdir = "./taosbackuptest/tmpdir_stmt_ver"
 
         tdSql.execute("drop database if exists db")
@@ -678,7 +798,19 @@ class TestTaosBackupBasic:
     # ------------------- do_taosbackup_special_types ----------------
     #
     def do_taosbackup_special_types(self):
-        """Test backup/restore with VARBINARY, GEOMETRY, DECIMAL, BLOB columns."""
+        """Special column types backup.
+
+        Since: v3.0.0.0
+
+        Labels: common
+
+        Jira: None
+
+        History:
+
+            - 2026-03-04 Alex Duan Created
+
+        """
         tmpdir = "./taosbackuptest/tmpdir_special_types"
 
         tdSql.execute("drop database if exists db")
@@ -794,7 +926,19 @@ class TestTaosBackupBasic:
     # ------------------- do_taosbackup_skip_empty_ctb ----------------
     #
     def do_taosbackup_skip_empty_ctb(self):
-        """New code: empty child tables produce no .dat file (skip-empty-table path)."""
+        """Skip empty child tables.
+
+        Since: v3.0.0.0
+
+        Labels: common
+
+        Jira: None
+
+        History:
+
+            - 2026-03-04 Alex Duan Created
+
+        """
         tmpdir = "./taosbackuptest/tmpdir_skip_empty_ctb"
 
         tdSql.execute("drop database if exists db")
@@ -838,7 +982,19 @@ class TestTaosBackupBasic:
     # ------------------- do_taosbackup_skip_empty_ntb ----------------
     #
     def do_taosbackup_skip_empty_ntb(self):
-        """New code: empty normal tables produce no .dat file (skip-empty-ntb path)."""
+        """Skip empty normal tables.
+
+        Since: v3.0.0.0
+
+        Labels: common
+
+        Jira: None
+
+        History:
+
+            - 2026-03-04 Alex Duan Created
+
+        """
         tmpdir = "./taosbackuptest/tmpdir_skip_empty_ntb"
 
         tdSql.execute("drop database if exists db")
@@ -879,7 +1035,19 @@ class TestTaosBackupBasic:
     # ------------------- do_taosbackup_skip_empty_time_range ----------------
     #
     def do_taosbackup_skip_empty_time_range(self):
-        """New code: CTBs with no rows in the requested time range get no .dat file."""
+        """Skip out-of-range CTBs.
+
+        Since: v3.0.0.0
+
+        Labels: common
+
+        Jira: None
+
+        History:
+
+            - 2026-03-04 Alex Duan Created
+
+        """
         tmpdir = "./taosbackuptest/tmpdir_skip_time_range"
 
         tdSql.execute("drop database if exists db")
@@ -930,7 +1098,19 @@ class TestTaosBackupBasic:
     # ------------------- do_taosbackup_complete_flag ----------------
     #
     def do_taosbackup_complete_flag(self):
-        """New code: backup_complete.flag lifecycle — created after backup, deleted at start of next fresh run."""
+        """Backup complete flag lifecycle.
+
+        Since: v3.0.0.0
+
+        Labels: common
+
+        Jira: None
+
+        History:
+
+            - 2026-03-04 Alex Duan Created
+
+        """
         tmpdir = "./taosbackuptest/tmpdir_complete_flag"
 
         tdSql.execute("drop database if exists db")
@@ -970,10 +1150,17 @@ class TestTaosBackupBasic:
     # ------------------- do_taosbackup_prefilter_empty_ctb ----------------
     #
     def do_taosbackup_prefilter_empty_ctb(self):
-        """Pre-filter empty CTBs using last(ts) aggregate (no time filter path).
-        Verifies:
-          - non-empty CTBs produce .dat files and all rows are restored correctly
-          - empty CTBs produce no .dat files and restore with 0 rows (schema present)
+        """Pre-filter empty CTBs.
+
+        Since: v3.0.0.0
+
+        Labels: common
+
+        Jira: None
+
+        History:
+            - 2026-03-04 Alex Duan Created
+
         """
         tmpdir = "./taosbackuptest/tmpdir_prefilter_notf"
 
@@ -1031,9 +1218,18 @@ class TestTaosBackupBasic:
     # ------------------- do_taosbackup_prefilter_empty_ctb_time_filter ----------------
     #
     def do_taosbackup_prefilter_empty_ctb_time_filter(self):
-        """Pre-filter empty CTBs using last_row(ts) aggregate (-S/-E time filter path).
-        Verifies that in-range CTBs are fully backed up, out-of-range CTBs produce no
-        .dat file, and mixed CTBs retain only in-range rows after restore.
+        """Pre-filter CTBs time filter.
+
+        Since: v3.0.0.0
+
+        Labels: common
+
+        Jira: None
+
+        History:
+
+            - 2026-03-04 Alex Duan Created
+
         """
         tmpdir = "./taosbackuptest/tmpdir_prefilter_tf"
 
@@ -1116,9 +1312,17 @@ class TestTaosBackupBasic:
     # ------------------- do_taosbackup_prefilter_spec_tables_time_filter ----------------
     #
     def do_taosbackup_prefilter_spec_tables_time_filter(self):
-        """Pre-filter empty CTBs with spec-tables and time filter combined.
-        The inner WHERE clause merges tbname IN(...) and ts range; verifies that
-        -S/-E is applied even when specific CTBs are named on the command line.
+        """Pre-filter spec-tables time filter.
+
+        Since: v3.0.0.0
+
+        Labels: common
+
+        Jira: None
+
+        History:
+            - 2026-03-04 Alex Duan Created
+
         """
         tmpdir = "./taosbackuptest/tmpdir_prefilter_spec_tf"
 
@@ -1215,7 +1419,8 @@ class TestTaosBackupBasic:
         Jira: None
 
         History:
-            - 2026-03-04 Migrated and adapted from 04-Taosdump/test_taosdump_basic.py
+
+        - 2026-03-04 Alex Duan Created
 
         """
         self.do_taosbackup_basic()
