@@ -1,0 +1,67 @@
+name: Deploy Case Docs
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - 'main'
+    paths:
+      - 'tests/e2e/test_function/*_test.py'
+      - 'explorer/tests/*.spec.ts'
+      - 'tests/integration/**/*.rs'
+      - '.github/workflows/deploy-case-docs.yml'
+      - '.github/scripts/generate_case_md.py'
+
+jobs:
+  generate_and_deploy:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+
+      - name: Install MkDocs and dependencies
+        run: |
+          pip install mkdocs mkdocs-material mike "mkdocstrings[python]" pyyaml
+
+      - name: Set target branch name
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BRANCH_NAME="${{ github.head_ref }}"
+          else
+            BRANCH_NAME="${{ github.ref_name }}"
+          fi
+          # Mike does not accept slashes in version names — replace with hyphens
+          MIKE_VERSION="${BRANCH_NAME//\//-}"
+          echo "Target branch: $BRANCH_NAME  Mike version: $MIKE_VERSION"
+          echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
+          echo "MIKE_VERSION=$MIKE_VERSION" >> $GITHUB_ENV
+
+      - name: Generate markdown documentation
+        run: |
+          python .github/scripts/generate_case_md.py
+        shell: bash
+
+      - name: Deploy documentation with Mike
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+          git fetch origin gh-pages || true
+          cd tests/e2e
+          mike deploy --push "$MIKE_VERSION" \
+            --config-file mkdocs.yml \
+            --branch gh-pages \
+            --allow-empty
+          echo ""
+          echo "📚 Docs deployed: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/$MIKE_VERSION/"
+        shell: bash

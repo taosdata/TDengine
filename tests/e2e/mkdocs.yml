@@ -1,7 +1,18 @@
 site_name: TaosX Cases Docs
+docs_dir: docs
+
 theme:
   name: "material"
 
 plugins:
   - search
   - mkdocstrings
+  - mike
+
+# nav is auto-generated at CI time by .github/scripts/generate_case_md.py
+# Do not edit manually — changes will be overwritten on next workflow run
+nav:
+  - Home: index.md
+  - E2E Test Cases: []
+  - Playwright Test Cases: []
+  - Integration Test Cases: []
