@@ -20,7 +20,6 @@
 #include "plannodes.h"
 #include "scalar.h"
 #include "streamInt.h"
-#include "streamReader.h"
 #include "taos.h"
 #include "taoserror.h"
 #include "tarray.h"

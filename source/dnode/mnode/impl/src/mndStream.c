@@ -519,6 +519,7 @@ static int32_t mndStreamCreateOutTable(SMnode *pMnode, STrans *pTrans, const SCM
 
   // Build undo action (drop table if transaction fails)
   SVDropTbReq dropReq = {0};
+  dropReq.name = createReq.name;  // vnode metaCheckDropTableReq requires name
   dropReq.uid = createReq.uid;
   dropReq.igNotExists = 1;  // Ignore if table doesn't exist
   dropReq.isVirtual = 0;
