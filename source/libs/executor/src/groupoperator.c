@@ -828,7 +828,7 @@ static void doHashPartition(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
       for (int32_t i = 0; i < numOfCols; ++i) {
         SExprInfo* pExpr = &pOperator->exprSupp.pExprInfo[i];
         int32_t    slotId = pExpr->base.pParam[0].pCol->slotId;
-        SColumnInfoData* pSrcColInfoData = getDataBlockColBySlotId(pBlock, slotId, NULL);
+        SColumnInfoData* pSrcColInfoData = taosArrayGet(pBlock->pDataBlock, slotId);
         SColumnInfoData* pDstColInfoData = taosArrayGet(pInfo->binfo.pRes->pDataBlock, i);
         QUERY_CHECK_NULL(pSrcColInfoData, code, lino, _end, terrno);
         QUERY_CHECK_NULL(pDstColInfoData, code, lino, _end, terrno);
