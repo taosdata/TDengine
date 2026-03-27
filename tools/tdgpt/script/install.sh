@@ -334,12 +334,6 @@ function install_model() {
   if [ ${custom_dir_set} -eq 0 ];then 
     ${csudo}ln -sf ${modelDir} "${install_main_dir}/model"
   fi
-  
-function install_img() {
-  ${csudo}mkdir -p ${imgDir} && ${csudo}chmod 777 ${imgDir}
-  if [ ${custom_dir_set} -eq 0 ];then 
-    ${csudo}ln -sf ${imgDir} "${install_main_dir}/img"
-  fi
 
   # Default models: extract them into modelDir
   [ -f "${script_dir}/model/${tar_td_model_name}" ] && tar -zxf "${script_dir}/model/${tar_td_model_name}" -C "${modelDir}" || :
@@ -351,6 +345,13 @@ function install_img() {
       model_tar="${script_dir}/model/${extra_model}.tar.gz"
       [ -f "$model_tar" ] && tar -zxf "$model_tar" -C "${modelDir}" || :
     done
+  fi
+}
+
+function install_img() {
+  ${csudo}mkdir -p ${imgDir} && ${csudo}chmod 777 ${imgDir}
+  if [ ${custom_dir_set} -eq 0 ];then
+    ${csudo}ln -sf ${imgDir} "${install_main_dir}/img"
   fi
 }
 

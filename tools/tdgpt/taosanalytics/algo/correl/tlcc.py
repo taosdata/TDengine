@@ -6,7 +6,7 @@ class _TlccService(AbstractCorrelationService):
     """ Moving Time-Lagged Cross-Correlation (TLCC) analysis """
     name = 'tlcc'
     desc = """calculate the TLCC value for two time series data"""
-    is_builtins = True
+    _builtins = True
 
     def __init__(self):
         super().__init__()

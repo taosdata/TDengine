@@ -10,7 +10,7 @@ class _GrubbsService(AbstractAnomalyDetectionService):
     name = 'grubbs'
     desc = """Grubbs' test is to detect the presence of one outlier in a data set that is normally
     distributed"""
-    is_builtins = True
+    _builtins = True
 
     def __init__(self, alpha_val=0.95):
         super().__init__()

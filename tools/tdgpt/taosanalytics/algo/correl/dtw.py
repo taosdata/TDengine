@@ -9,7 +9,7 @@ class _DtwService(AbstractCorrelationService):
     """ dtw analysis """
     name = 'dtw'
     desc = """found the dynamic time wrap for two given time series data"""
-    is_builtins = True
+    _builtins = True
 
     def __init__(self):
         super().__init__()

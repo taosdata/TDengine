@@ -37,7 +37,7 @@ class AbstractAnalyticsService(AnalyticsService, ABC):
     name = ''
     desc = ''
     status = ''
-    is_builtins = False
+    _builtins = False
 
     def __init__(self):
         self.list = None
@@ -61,7 +61,7 @@ class AbstractAnalyticsService(AnalyticsService, ABC):
     
     @property
     def is_builtins(self) -> bool:
-        return self.is_builtins
+        return self._builtins
 
 
 class AbstractAnomalyDetectionService(AbstractAnalyticsService, ABC):

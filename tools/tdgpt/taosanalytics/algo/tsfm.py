@@ -12,7 +12,7 @@ from taosanalytics.log import AppLogger
 
 class TsfmBaseService(AbstractForecastService):
     """tsfm base service class"""
-    is_builtins = True
+    _builtins = True
 
     def __init__(self):
         super().__init__()

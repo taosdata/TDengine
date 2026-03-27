@@ -13,7 +13,7 @@ class _LofService(AbstractAnomalyDetectionService):
     name = 'lof'
     desc = """Local Outlier Factor, Ref: M. M. Breunig, H. P. Kriegel, R. T. Ng, J. Sander.
     LOF:Identifying Density-based Local Outliers. SIGMOD, 2000."""
-    is_builtins = True
+    _builtins = True
 
     def __init__(self, n_neighbors=10, algo="auto"):
         super().__init__()

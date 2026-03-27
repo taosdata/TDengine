@@ -78,8 +78,16 @@ def draw_forecast_results(input_list, return_conf, conf_val, fc, fig_name):
         return
 
     base_path = Configure.get_instance().get_img_dir()
-    if not os.path.exists(base_path):
-        os.mkdir(base_path)
+
+    try:
+        os.makedirs(base_path, exist_ok=True)
+    except OSError as exc:
+        AppLogger.error("failed to create image directory '%s': %s", base_path, exc)
+        return
+
+    if not os.access(base_path, os.W_OK):
+        AppLogger.error("image directory '%s' is not writable", base_path)
+        return
 
     AppLogger.debug('draw forecast result in debug model')
     plt.clf()

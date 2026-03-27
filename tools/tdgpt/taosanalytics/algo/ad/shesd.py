@@ -10,7 +10,7 @@ class _SHESDService(AbstractAnomalyDetectionService):
     """ s-h-esd algorithm is to check the anomaly data in the input list """
     name = 'shesd'
     desc = ""
-    is_builtins = True
+    _builtins = True
 
     def __init__(self, n_period=0, direction="both", anoms=0.05):
         super().__init__()

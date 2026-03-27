@@ -12,7 +12,7 @@ class _ArimaService(AbstractForecastService):
     """ ARIMA algorithm is to do the fc in the input list """
     name = "arima"
     desc = "do time series data fc by using ARIMA model"
-    is_builtins = True
+    _builtins = True
 
     def __init__(self):
         super().__init__()

@@ -12,7 +12,7 @@ class _HoltWintersService(AbstractForecastService):
     """ Holt winters algorithm is to do the fc in the input list """
     name = "holtwinters"
     desc = "forecast algorithm by using exponential smoothing"
-    is_builtins = True
+    _builtins = True
 
     def __init__(self):
         super().__init__()

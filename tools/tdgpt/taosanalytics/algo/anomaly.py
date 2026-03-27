@@ -45,13 +45,28 @@ def draw_anomaly_results(input_list, res, fig_name, valid_code, algo_name:str):
         return
 
     base_path = Configure.get_instance().get_img_dir()
+    try:
+        os.makedirs(base_path, exist_ok=True)
+    except OSError as exc:
+        AppLogger.error("failed to create image directory '%s': %s", base_path, exc)
+        return
+
+    if not os.access(base_path, os.W_OK):
+        AppLogger.error("image directory '%s' is not writable", base_path)
+        return
 
     plt.figure(figsize=(9, 6))
 
-    plt.plot(input_list[0], 'b-', label='Data')
+    if isinstance(input_list[0], list):
+        # 2-d list
+        input = input_list[0]
+    else:
+        input = input_list
+
+    plt.plot(input, 'b-', label='Data')
 
     outlier_indices = np.where(np.array(res) != valid_code)
-    outlier_val = np.array(input_list[0])[outlier_indices]
+    outlier_val = np.array(input)[outlier_indices]
 
     plt.scatter(outlier_indices, outlier_val,
                 color='red', s=100, marker='o',
@@ -66,3 +81,5 @@ def draw_anomaly_results(input_list, res, fig_name, valid_code, algo_name:str):
 
     plt.savefig(os.path.join(base_path, fig_name))
     plt.close()
+
+    AppLogger.debug("draw results completed in debug model")

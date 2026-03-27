@@ -12,7 +12,7 @@ class _ProphetService(AbstractForecastService):
     """Prophet algorithm to do forecast on input list"""
     name = "prophet"
     desc = "do time series data forecast using Facebook Prophet model"
-    is_builtins = True
+    _builtins = True
 
     def __init__(self):
         super().__init__()

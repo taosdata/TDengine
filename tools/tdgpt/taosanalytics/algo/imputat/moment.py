@@ -13,7 +13,7 @@ class _MomentImputationService(AbstractImputationService):
     """moment imputation service class"""
     name = 'moment'
     desc = "Time-Series Foundation Model by CMU"
-    is_builtins = True
+    _builtins = True
 
     def __init__(self):
         super().__init__()

@@ -76,7 +76,7 @@ model_dir = (_os.path.join(_install_dir, 'model') + '/').replace('\\', '/') if (
 log_level = 'DEBUG'
 
 # draw the query results
-draw_result = True
+draw_result = False
 img_dir = (_os.path.join(_install_dir, 'img') + '/').replace('\\', '/') if (on_windows or on_github_actions) else '/usr/local/taos/taosanode/img/'
 
 # moe default service host
