@@ -1131,10 +1131,21 @@ static int tdbPagerRestore(SPager *pPager, const char *jFileName) {
     return terrno = TAOS_SYSTEM_ERROR(ERRNO);
   }
 
+#ifdef WINDOWS
+  if (tdbOsRemove(jFileName) < 0) {
+    ERRNO = GetLastError();
+    if (ERRNO != ENOENT) {
+      tdbWarn("failed to remove file due to %s. jFileName:%s, ERRNO:0x%x", strerror(ERRNO), pPager->jFileName, ERRNO);
+    }
+  }
+
+  if (taosCheckExistFile(pPager->jFileName)) return terrno = TAOS_SYSTEM_ERROR(ERRNO);
+#else
   if (tdbOsRemove(jFileName) < 0 && ERRNO != ENOENT) {
     tdbError("failed to remove file due to %s. jFileName:%s", strerror(ERRNO), pPager->jFileName);
     return terrno = TAOS_SYSTEM_ERROR(ERRNO);
   }
+#endif
 
   return 0;
 }
