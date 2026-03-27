@@ -2725,6 +2725,14 @@ int32_t virtualTableScanProcessColRefInfo(SOperatorInfo* pOperator, SArray* pCol
         QUERY_CHECK_CODE(code, line, _return);
       }
 
+      // TagRef columns get their values from the Tag Scan path (useTagScan=true set above),
+      // not from the Table Scan exchange. Do not add tag-ref source tables to otbNameToOtbInfoMap
+      // because that would cause the Table Scan to scan the tag-ref source's data rows, producing
+      // extra NULL rows in the result.
+      if (pKV->refType == 1) {
+        continue;
+      }
+
       // Parse db/tb/col ref and resolve source table vgId.
       code = extractColRefName(pKV->colrefName, &refDbName, &refTbName, &refColName);
       QUERY_CHECK_CODE(code, line, _return);

@@ -8730,6 +8730,16 @@ static bool pdaMayBeOptimized(SLogicNode* pNode, void* pCtx) {
   }
 
   SVirtualScanLogicNode* pVScan = (SVirtualScanLogicNode *)nodesListGetNode(pNode->pChildren, 0);
+
+  // All VirtualScan children must be plain table-scan nodes.
+  // TagRefSource children cannot participate in PDA restructuring.
+  SNode* pChild;
+  FOREACH(pChild, pVScan->node.pChildren) {
+    if (nodeType(pChild) != QUERY_NODE_LOGIC_PLAN_SCAN) {
+      return false;
+    }
+  }
+
   SNode*                 pCol;
   FOREACH(pCol, pVScan->pScanCols) {
     SColumnNode* pScanCol = (SColumnNode* )pCol;
