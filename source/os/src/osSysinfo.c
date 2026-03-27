@@ -64,6 +64,82 @@ typedef struct {
 #include <DbgHelp.h>
 #pragma warning(pop)
 
+// Write a single stack frame line to hFile.
+// dbghelp functions are available via the statically-linked dbghelp.lib.
+static void taosWinWriteOneFrame(HANDLE hFile, HANDLE hProcess, DWORD64 pc, DWORD idx) {
+  char         symBuf[sizeof(SYMBOL_INFO) + MAX_SYM_NAME];
+  PSYMBOL_INFO pSym = (PSYMBOL_INFO)symBuf;
+  pSym->SizeOfStruct = sizeof(SYMBOL_INFO);
+  pSym->MaxNameLen   = MAX_SYM_NAME;
+
+  DWORD64 symDisp = 0;
+  char   *symName = (char *)"<unknown>";
+  if (SymFromAddr(hProcess, pc, &symDisp, pSym)) {
+    symName = pSym->Name;
+  }
+
+  IMAGEHLP_LINE64 li = {0};
+  li.SizeOfStruct     = sizeof(IMAGEHLP_LINE64);
+  DWORD lineDisp      = 0;
+
+  char line[4096];
+  int  n;
+  if (SymGetLineFromAddr64(hProcess, pc, &lineDisp, &li)) {
+    n = _snprintf_s(line, sizeof(line), _TRUNCATE, "#%-3lu 0x%016I64X  %s  (%s:%lu)\r\n",
+                    (unsigned long)idx, pc, symName, li.FileName, (unsigned long)li.LineNumber);
+  } else {
+    n = _snprintf_s(line, sizeof(line), _TRUNCATE, "#%-3lu 0x%016I64X  %s\r\n",
+                    (unsigned long)idx, pc, symName);
+  }
+  DWORD w = 0;
+  if (n > 0) (void)WriteFile(hFile, line, (DWORD)n, &w, NULL);
+}
+
+// Walk the call stack from the exception context and write each frame to hFile.
+static void taosWinWriteStackTrace(HANDLE hFile, PEXCEPTION_POINTERS ep) {
+  HANDLE  hProcess = GetCurrentProcess();
+  HANDLE  hThread  = GetCurrentThread();
+  CONTEXT ctx      = *ep->ContextRecord; /* copy: StackWalk64 modifies it */
+
+  SymSetOptions(SYMOPT_UNDNAME | SYMOPT_DEFERRED_LOADS | SYMOPT_LOAD_LINES);
+  SymInitialize(hProcess, NULL, TRUE);
+
+  STACKFRAME64 sf   = {0};
+  DWORD        mach;
+#if defined(_M_X64)
+  mach                = IMAGE_FILE_MACHINE_AMD64;
+  sf.AddrPC.Offset    = ctx.Rip; sf.AddrPC.Mode    = AddrModeFlat;
+  sf.AddrFrame.Offset = ctx.Rbp; sf.AddrFrame.Mode = AddrModeFlat;
+  sf.AddrStack.Offset = ctx.Rsp; sf.AddrStack.Mode = AddrModeFlat;
+#elif defined(_M_IX86)
+  mach                = IMAGE_FILE_MACHINE_I386;
+  sf.AddrPC.Offset    = ctx.Eip; sf.AddrPC.Mode    = AddrModeFlat;
+  sf.AddrFrame.Offset = ctx.Ebp; sf.AddrFrame.Mode = AddrModeFlat;
+  sf.AddrStack.Offset = ctx.Esp; sf.AddrStack.Mode = AddrModeFlat;
+#elif defined(_M_ARM64)
+  mach                = IMAGE_FILE_MACHINE_ARM64;
+  sf.AddrPC.Offset    = ctx.Pc; sf.AddrPC.Mode    = AddrModeFlat;
+  sf.AddrFrame.Offset = ctx.Fp; sf.AddrFrame.Mode = AddrModeFlat;
+  sf.AddrStack.Offset = ctx.Sp; sf.AddrStack.Mode = AddrModeFlat;
+#else
+  SymCleanup(hProcess);
+  return; /* unsupported architecture */
+#endif
+
+  static const char hdr[] = "=== Stack Trace ===\r\n";
+  DWORD w = 0;
+  (void)WriteFile(hFile, hdr, (DWORD)(sizeof(hdr) - 1), &w, NULL);
+
+  for (DWORD i = 0; i < 128; i++) {
+    if (!StackWalk64(mach, hProcess, hThread, &sf, (PVOID)&ctx,
+                     NULL, SymFunctionTableAccess64, SymGetModuleBase64, NULL))
+      break;
+    if (sf.AddrPC.Offset == 0) break;
+    taosWinWriteOneFrame(hFile, hProcess, sf.AddrPC.Offset, i);
+  }
+  SymCleanup(hProcess);
+}
+
 LONG WINAPI FlCrashDump(PEXCEPTION_POINTERS ep) {
   typedef BOOL(WINAPI * FxMiniDumpWriteDump)(IN HANDLE hProcess, IN DWORD ProcessId, IN HANDLE hFile,
                                              IN MINIDUMP_TYPE                           DumpType,
@@ -71,7 +147,8 @@ LONG WINAPI FlCrashDump(PEXCEPTION_POINTERS ep) {
                                              IN CONST PMINIDUMP_USER_STREAM_INFORMATION UserStreamParam,
                                              IN CONST PMINIDUMP_CALLBACK_INFORMATION    CallbackParam);
 
-  HMODULE dll = LoadLibrary("dbghelp.dll");
+  // ── 1. load dbghelp ──────────────────────────────────────────────────────
+  HMODULE dll = LoadLibraryA("dbghelp.dll");
   if (dll == NULL) return EXCEPTION_CONTINUE_SEARCH;
   FxMiniDumpWriteDump mdwd = (FxMiniDumpWriteDump)(GetProcAddress(dll, "MiniDumpWriteDump"));
   if (mdwd == NULL) {
@@ -79,31 +156,78 @@ LONG WINAPI FlCrashDump(PEXCEPTION_POINTERS ep) {
     return EXCEPTION_CONTINUE_SEARCH;
   }
 
-  TCHAR path[MAX_PATH];
-  DWORD len = GetModuleFileName(NULL, path, _countof(path));
-  path[len - 3] = 'd';
-  path[len - 2] = 'm';
-  path[len - 1] = 'p';
+  // ── 2. build timestamped file paths next to the running executable ───────
+  //      Keeping dumps beside the exe makes them easy to find.
+  SYSTEMTIME st;
+  GetLocalTime(&st);
 
-  HANDLE file = CreateFile(path, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-  if (file == INVALID_HANDLE_VALUE) {
-    FreeLibrary(dll);
-    return EXCEPTION_CONTINUE_SEARCH;
+  wchar_t exePath[MAX_PATH];
+  DWORD   exeLen = GetModuleFileNameW(NULL, exePath, MAX_PATH);
+  /* strip the executable filename, keep the trailing backslash */
+  while (exeLen > 0 && exePath[exeLen - 1] != L'\\') exeLen--;
+  exePath[exeLen] = L'\0';  /* exePath is now the directory with trailing '\' */
+
+  wchar_t dmpPath[MAX_PATH];
+  wchar_t logPath[MAX_PATH];
+  _snwprintf_s(dmpPath, MAX_PATH, _TRUNCATE,
+               L"%staosd_%04d%02d%02d_%02d%02d%02d.dmp",
+               exePath, st.wYear, st.wMonth, st.wDay,
+               st.wHour, st.wMinute, st.wSecond);
+  _snwprintf_s(logPath, MAX_PATH, _TRUNCATE,
+               L"%staosd_%04d%02d%02d_%02d%02d%02d_stack.log",
+               exePath, st.wYear, st.wMonth, st.wDay,
+               st.wHour, st.wMinute, st.wSecond);
+
+  // ── 3. write MiniDump with comprehensive type ─────────────────────────────
+  HANDLE dmpFile = CreateFileW(dmpPath, GENERIC_WRITE, 0, NULL,
+                               CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+  if (dmpFile != INVALID_HANDLE_VALUE) {
+    MINIDUMP_EXCEPTION_INFORMATION mei;
+    mei.ThreadId          = GetCurrentThreadId();
+    mei.ExceptionPointers = ep;
+    mei.ClientPointers    = FALSE;
+
+    MINIDUMP_TYPE dumpType = (MINIDUMP_TYPE)(
+        MiniDumpWithDataSegs                    |  /* global/static variables     */
+        MiniDumpWithProcessThreadData           |  /* all thread stacks + locals  */
+        MiniDumpWithHandleData                  |  /* open handles                */
+        MiniDumpWithUnloadedModules             |  /* recently unloaded DLLs      */
+        MiniDumpWithIndirectlyReferencedMemory);   /* memory pointed-to by locals */
+
+    (*mdwd)(GetCurrentProcess(), GetCurrentProcessId(), dmpFile,
+            dumpType, &mei, NULL, NULL);
+    CloseHandle(dmpFile);
   }
 
-  MINIDUMP_EXCEPTION_INFORMATION mei;
-  mei.ThreadId = GetCurrentThreadId();
-  mei.ExceptionPointers = ep;
-  mei.ClientPointers = FALSE;
+  // ── 4. write stack trace text log (usable without PDB on developer side) ──
+  HANDLE logFile = CreateFileW(logPath, GENERIC_WRITE, 0, NULL,
+                               CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+  if (logFile != INVALID_HANDLE_VALUE) {
+    char  hdr[512];
+    DWORD w = 0;
+    int   n = _snprintf_s(hdr, sizeof(hdr), _TRUNCATE,
+                          "ExceptionCode:    0x%08lX\r\n"
+                          "ExceptionAddress: 0x%016I64X\r\n"
+                          "ThreadId:         %lu\r\n"
+                          "\r\n",
+                          ep->ExceptionRecord->ExceptionCode,
+                          (DWORD64)(ULONG_PTR)ep->ExceptionRecord->ExceptionAddress,
+                          (unsigned long)GetCurrentThreadId());
+    if (n > 0) (void)WriteFile(logFile, hdr, (DWORD)n, &w, NULL);
+    taosWinWriteStackTrace(logFile, ep);
+    CloseHandle(logFile);
+  }
 
-  (*mdwd)(GetCurrentProcess(), GetCurrentProcessId(), file, MiniDumpWithHandleData, &mei, NULL, NULL);
-
-  CloseHandle(file);
   FreeLibrary(dll);
 
+  // Return EXCEPTION_CONTINUE_SEARCH so Windows Error Reporting (WER) also
+  // gets a chance to run and produce its own full memory dump.
+  // That gives two artefacts to choose from:
+  //   - our taosd_*_stack.log : human-readable, no tools needed
+  //   - our taosd_*.dmp       : extended MiniDump, ~20-80 MB, needs PDB
+  //   - WER dump              : full memory dump, = process RSS, needs nothing
   return EXCEPTION_CONTINUE_SEARCH;
 }
-LONG WINAPI exceptionHandler(LPEXCEPTION_POINTERS exception);
 
 #elif defined(_TD_DARWIN_64)
 
@@ -1368,7 +1492,9 @@ int64_t taosGetOsUptime() {
 void taosSetCoreDump(bool enable) {
   if (!enable) return;
 #ifdef WINDOWS
-  SetUnhandledExceptionFilter(exceptionHandler);
+  /* Only one handler can be active at a time; FlCrashDump supersedes the
+   * external exceptionHandler.  Registering both caused the second call to
+   * silently discard the first, so exceptionHandler was never invoked. */
   SetUnhandledExceptionFilter(&FlCrashDump);
 #elif defined(_TD_DARWIN_64) || defined(TD_ASTRA)
 #else
