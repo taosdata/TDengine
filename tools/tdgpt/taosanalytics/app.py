@@ -20,7 +20,6 @@ from taosanalytics.log import AppLogger
 from taosanalytics.model_file_mgt import ModelFileManager
 from taosanalytics.service_registry import loader
 
-from taosanalytics.util import parse_args
 
 def _init_app():
     """Initialize configuration, logger, and load services. Called on module import."""
@@ -109,6 +108,7 @@ def handle_batch_req():
 if __name__ == '__main__':
     # Parse args before initializing so the correct config file is used from
     # the start; services are loaded only once, with the final configuration.
+    from taosanalytics.util import parse_args
     args = parse_args()
 
     if args.conf_path:
