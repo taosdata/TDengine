@@ -7,7 +7,7 @@ toc_max_heading_level: 4
 
 taosgen is a performance benchmarking tool for time-series data products, supporting data generation, write performance testing, and more. taosgen uses "jobs" as the basic unit, where a job is user-defined and consists of a set of operations to accomplish a specific task. Each job contains one or more steps and can be connected to other jobs via dependencies, forming a Directed Acyclic Graph (DAG) execution flow for flexible and efficient task orchestration.
 
-taosgen currently supports Linux and macOS systems.
+taosgen currently supports Windows, Linux and macOS systems.
 
 ## Comparison of taosBenchmark and taosgen Features
 

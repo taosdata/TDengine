@@ -46,6 +46,10 @@ class _AutoEncoderDetectionService(AbstractAnomalyDetectionService):
         return AnalyticsService._toStatusName[
             AnalyticsService.UNAVAILABLE if info is None else AnalyticsService.READY]
 
+    # @classmethod
+    # def get_model_base_path(cls) -> str:
+    #     return str(Path(conf.get_model_directory()) / 'sample-ad-autoencoder' / 'sample-ad-autoencoder')
+
     def execute(self):
         if self.input_is_empty():
             return []
@@ -82,8 +86,6 @@ class _AutoEncoderDetectionService(AbstractAnomalyDetectionService):
 
     def set_params(self, params):
         info = ModelFileManager.get_instance().get_model(self.name)
-        if info is None:
-            failed_load_model_except(self.name)
 
         self.mean = info["mean"]
         self.std = info["std"]

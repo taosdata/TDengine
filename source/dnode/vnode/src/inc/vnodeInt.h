@@ -189,6 +189,7 @@ STSchema*       metaGetTbTSchema(SMeta* pMeta, tb_uid_t uid, int32_t sver, int l
 int32_t         metaGetTbTSchemaEx(SMeta* pMeta, tb_uid_t suid, tb_uid_t uid, int32_t sver, STSchema** ppTSchema);
 SRSchema*       metaGetTbTSchemaR(SMeta* pMeta, tb_uid_t uid, int32_t sver, int lock);
 int             metaGetTableEntryByName(SMetaReader* pReader, const char* name);
+int             metaGetTableEntryByVersionName(SMetaReader *pReader, int64_t version, const char *name);
 int             metaAlterCache(SMeta* pMeta, int32_t nPage);
 int             metaCreateRsma(SMeta* pMeta, int64_t version, SVCreateRsmaReq* pReq);
 int             metaDropRsma(SMeta* pMeta, int64_t version, SVDropRsmaReq* pReq);

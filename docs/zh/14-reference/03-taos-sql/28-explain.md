@@ -58,6 +58,24 @@ EXPLAIN [ANALYZE] [VERBOSE {true | false}] query_or_subquery;
 - 适合确认优化器是否做了谓词下推、标签索引下推、主键过滤下推
 - 适合定位排序键、合并键、网络交换模式、窗口参数等细节
 
+### `query_or_subquery`
+
+`query_or_subquery` 即被分析的 **`SELECT` 查询**（可含子查询），例如  
+`SELECT * FROM (SELECT * FROM meters) t WHERE t.c1 > 10`。
+
+常见查询形态包括：
+
+- 简单查询（单表、超级表、虚拟表）
+- 含 `WHERE` / `GROUP BY` / `ORDER BY` / `LIMIT`
+- 含窗口（如 `INTERVAL`、`SESSION`、`STATE_WINDOW`、`EVENT_WINDOW`）
+- 含子查询、关联、嵌套等复杂结构
+
+不适用（无可解释的查询计划，或语法不支持）：
+
+- **数据变更**：`INSERT`、`UPDATE`、`DELETE`
+- **元数据与实例管理**：DDL（含 `CREATE` / `DROP` / `ALTER` 等）、`SHOW ...`、
+`USE ...`，以及账户、节点、权限等管理类语句
+
 ## 返回结果说明
 
 `EXPLAIN` 的返回结果只有一列，列名为 `QUERY_PLAN`。每一行是计划树中的一个节点或一条详细统计信息。
@@ -270,6 +288,55 @@ EXPLAIN [ANALYZE] [VERBOSE {true | false}] query_or_subquery;
 | `Execution Time:` | 执行计划实际运行耗时 | 是判断最终端到端耗时的总指标 |
 | `Planning Time:` | 生成执行计划耗时 | 计划时间高时，应关注 SQL 复杂度、关联层级和优化器开销 |
 
+## 子查询
+
+当查询中包含需要单独生成执行子计划的子查询时，`EXPLAIN` 的结果通常分为两部分：
+
+- 先输出主查询（主计划）的计划树
+- 再按独立段落输出子查询对应的子计划，并在段首显示 `InitPlan n`
+
+这类格式不是把所有子查询逻辑简单缩进到主树下，而是把主计划与子计划分别展示。
+`InitPlan n` 是子查询计划的标题行，用于标识这是一个被主查询**引用**的子计划。
+主计划中的算子会通过这个标题表示在何处引用子计划的结果，通常用 `$(InitPlan n)` 作为占位符。
+
+阅读时可重点关注以下几点：
+
+- 主计划仍然位于最前面，其中会展示主查询的执行计划，包括主查询的算子、子查询的引用位置（可能由于 verbose 级别被隐藏）等
+- 每个 `InitPlan n` 后面都会跟着一棵独立的计划树，表示该子查询自身的执行计划
+- 如果存在多个子查询，结果中可能出现多个 `InitPlan n`
+- `Planning Time`、`Execution Time` 仍然位于所有计划输出之后
+
+例如，下面的 SQL 包含两个标量子查询：
+
+```sql
+SELECT * FROM meters
+WHERE
+current > (SELECT avg(current) FROM meters WHERE location = 'Beijing')
+and voltage < (SELECT avg(voltage) FROM meters WHERE location = 'Beijing');
+```
+
+对应的 `EXPLAIN ANALYZE VERBOSE true` 结果通常会先给出主计划，再给出子查询的 `InitPlan`，例如：
+
+```text
+-> Projection
+   -> Table Scan on meters
+      Filter: conditions=((`demo`.`meters`.`current` > $(InitPlan 1)) AND (`demo`.`meters`.`voltage` < $(InitPlan 2)))
+   InitPlan 2
+     -> Aggregate (functions=1)
+        -> Table Scan on meters
+   InitPlan 1
+     -> Aggregate (functions=1)
+        -> Table Scan on meters
+```
+
+其中：
+
+- 最前面的 `Projection -> Table Scan` 是外层主查询
+- `InitPlan 1` 下面的 `Aggregate -> Table Scan` 是子查询自己的执行计划
+- 子查询先执行，结果再供主查询中的过滤条件引用
+
+因此，在分析含子查询语句时，不能只看主计划最上面的几行，也要继续查看后续是否存在 `InitPlan n` 段，以确认子查询本身是否发生全表扫描、聚合、排序或其他高成本操作
+
 ## 使用示例
 
 ### 1. 查看普通查询的执行计划
@@ -354,7 +421,91 @@ QUERY_PLAN: Execution Time: 24.992 ms
 -- 注意：需要手动创建标签索引
 ```
 
-### 4. 聚合查询
+### 4. 子查询
+
+```sql
+taos> EXPLAIN ANALYZE VERBOSE true SELECT * FROM meters WHERE voltage > (SELECT avg(voltage) FROM meters WHERE location = 'Beijing') \G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Data Exchange 4:1 (cost=3.021..24.317 rows=149340 width=39)
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=6 width=39
+*************************** 3.row ***************************
+QUERY_PLAN:       Network: mode=concurrent fetch_times=4.8(8) fetch_rows=37335.0(49780) fetch_cost=7.728(9.353)
+*************************** 4.row ***************************
+QUERY_PLAN:       Exec cost: compute=1.067 create=2026-03-23 14:34:10.244872 start=0.010 times=91 input_wait=5.704 output_wait=18.525
+*************************** 5.row ***************************
+QUERY_PLAN:    -> Projection (cost=1.282(1.618)..14.188(17.264) rows=37335.0(49780) columns=6 width=39 input_order=asc)
+*************************** 6.row ***************************
+QUERY_PLAN:          Output: columns=6 width=39
+*************************** 7.row ***************************
+QUERY_PLAN:          Output: Ignore Group Id: true
+*************************** 8.row ***************************
+QUERY_PLAN:          Merge ResBlocks: False
+*************************** 9.row ***************************
+QUERY_PLAN:          Exec cost: compute=0.077(0.107) create=2026-03-23 14:34:10.239770(2026-03-23 14:34:10.239812) start=0.018(0.038) times=23.5(31) input_wait=12.247(15.116) output_wait=1.874(2.509)
+*************************** 10.row ***************************
+QUERY_PLAN:       -> Table Scan on meters (cost=1.269(1.607)..14.195(17.268) rows=37335.0(49780) columns=4 pseudo_columns=2 width=39 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 11.row ***************************
+QUERY_PLAN:             Output: columns=6 width=39
+*************************** 12.row ***************************
+QUERY_PLAN:             Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 13.row ***************************
+QUERY_PLAN:             Filter: conditions=(`test`.`meters`.`voltage` > $(InitPlan 1)) efficiency=49.8%
+*************************** 14.row ***************************
+QUERY_PLAN:             Exec cost: compute=12.241(15.108) create=2026-03-23 14:34:10.239762(2026-03-23 14:34:10.239806) start=0.026(0.047) times=23.5(31) input_wait=0.000(0.000) output_wait=1.956(2.597)
+*************************** 15.row ***************************
+QUERY_PLAN:             I/O cost: total_blocks=22.5(30) file_load_blocks=0.0(0) stt_load_blocks=0.0(0) mem_load_blocks=22.5(30) sma_load_blocks=0.0(0) composed_blocks=22.5(30)
+*************************** 16.row ***************************
+QUERY_PLAN:                file_load_elapsed=0.000(0.000) stt_load_elapsed=0.000(0.000) mem_load_elapsed=7.833(9.995) sma_load_elapsed=0.000(0.000) composed_elapsed=7.833(9.995)
+*************************** 17.row ***************************
+QUERY_PLAN:                check_rows=75000.0(100000) slowest_vgroup_id=4 slow_deviation=12.5% cost_ratio=2.6 data_deviation=-11.1%
+*************************** 18.row ***************************
+QUERY_PLAN:    InitPlan 1
+*************************** 19.row ***************************
+QUERY_PLAN:       -> Aggregate (cost=0.418..0.418 rows=1 functions=1 width=8 input_order=asc)
+*************************** 20.row ***************************
+QUERY_PLAN:             Output: columns=1 width=8 blocking=1
+*************************** 21.row ***************************
+QUERY_PLAN:             Merge ResBlocks: True
+*************************** 22.row ***************************
+QUERY_PLAN:             Exec cost: compute=0.017 create=2026-03-23 14:34:10.238829 start=0.011 times=2 input_wait=0.390 output_wait=0.002
+*************************** 23.row ***************************
+QUERY_PLAN:          -> Data Exchange 4:1 (cost=0.354..0.425 rows=3 width=58)
+*************************** 24.row ***************************
+QUERY_PLAN:                Output: columns=1 width=58
+*************************** 25.row ***************************
+QUERY_PLAN:                Network: mode=concurrent fetch_times=1.0(1) fetch_rows=0.8(1) fetch_cost=0.299(0.344)
+*************************** 26.row ***************************
+QUERY_PLAN:                Exec cost: compute=0.056 create=2026-03-23 14:34:10.238815 start=0.025 times=4 input_wait=0.333 output_wait=0.012
+*************************** 27.row ***************************
+QUERY_PLAN:             -> Aggregate (cost=1.206(2.221)..1.206(2.221) rows=0.8(1) functions=1 width=58 input_order=asc)
+*************************** 28.row ***************************
+QUERY_PLAN:                   Output: columns=1 width=58 blocking=1
+*************************** 29.row ***************************
+QUERY_PLAN:                   Merge ResBlocks: False
+*************************** 30.row ***************************
+QUERY_PLAN:                   Exec cost: compute=0.054(0.094) create=2026-03-23 14:34:10.236093(2026-03-23 14:34:10.236152) start=0.016(0.033) times=1.8(2) input_wait=1.145(2.114) output_wait=0.001(0.002)
+*************************** 31.row ***************************
+QUERY_PLAN:                -> Table Scan on meters (cost=0.329(0.561)..1.207(2.203) rows=15000.0(20000) columns=2 pseudo_columns=1 width=30 order=[asc|1 desc|0] mode=ts_order data_load=sma)
+*************************** 32.row ***************************
+QUERY_PLAN:                      Output: columns=3 width=30
+*************************** 33.row ***************************
+QUERY_PLAN:                      Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 34.row ***************************
+QUERY_PLAN:                      Exec cost: compute=1.143(2.110) create=2026-03-23 14:34:10.236076(2026-03-23 14:34:10.236149) start=0.033(0.058) times=5.5(7) input_wait=0.000(0.000) output_wait=0.042(0.078)
+*************************** 35.row ***************************
+QUERY_PLAN:                      I/O cost: total_blocks=4.5(6) file_load_blocks=0.0(0) stt_load_blocks=0.0(0) mem_load_blocks=4.5(6) sma_load_blocks=4.5(6) composed_blocks=4.5(6)
+*************************** 36.row ***************************
+QUERY_PLAN:                         file_load_elapsed=0.000(0.000) stt_load_elapsed=0.000(0.000) mem_load_elapsed=1.047(1.958) sma_load_elapsed=0.000(0.000) composed_elapsed=1.047(1.958)
+*************************** 37.row ***************************
+QUERY_PLAN:                         check_rows=15000.0(20000) slowest_vgroup_id=2 slow_deviation=80.5% cost_ratio=131.9 data_deviation=0.0%
+*************************** 38.row ***************************
+QUERY_PLAN: Planning Time: 0.815 ms
+*************************** 39.row ***************************
+QUERY_PLAN: Execution Time: 64.835 ms
+```
+
+### 5. 聚合查询
 
 ```sql
 taos> EXPLAIN ANALYZE VERBOSE true SELECT tbname, count(*), avg(current) FROM meters PARTITION BY tbname \G;
@@ -396,7 +547,7 @@ QUERY_PLAN: Planning Time: 8.821 ms
 QUERY_PLAN: Execution Time: 10.767 ms
 ```
 
-### 5. 时间窗口查询
+### 6. 时间窗口查询
 
 ```sql
 taos> EXPLAIN ANALYZE VERBOSE true SELECT _wstart, _wend, count(*), avg(current) FROM meters INTERVAL(10s) \G;
