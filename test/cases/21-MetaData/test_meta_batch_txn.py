@@ -33,8 +33,7 @@ class TestBatchMetaTxn:
     def setup_class(cls):
         tdLog.debug("start to execute %s" % __file__)
 
-    def setup_method(self):
-        """Clean state before each test."""
+    def s0_reset_env(self):
         tdSql.execute("drop database if exists txn_db")
         tdSql.execute("create database txn_db vgroups 2")
         tdSql.execute("use txn_db")
@@ -44,26 +43,13 @@ class TestBatchMetaTxn:
         except:
             pass
 
-    def teardown_method(self):
-        """Clean up after each test."""
-        try:
-            tdSql.execute("ROLLBACK")
-        except:
-            pass
-        tdSql.execute("drop database if exists txn_db")
 
     # =========================================================================
     # 1. Basic BEGIN / COMMIT lifecycle
     # =========================================================================
-    def test_begin_commit_create_tables(self):
-        """BEGIN → CREATE multiple child tables → COMMIT → all visible
-
-        Since: v3.3.6.0
-        Labels: common,ci
-        Jira: TD-XXXXX
-        History: - 2026-03-27 Created
-        """
-        tdLog.info("======== test_begin_commit_create_tables")
+    def s1_begin_commit_create_tables(self):
+        self.s0_reset_env()
+        tdLog.info("======== s1_begin_commit_create_tables")
 
         # Setup super table
         tdSql.execute("create table stb (ts timestamp, v int) tags (t1 int)")
@@ -94,14 +80,9 @@ class TestBatchMetaTxn:
     # =========================================================================
     # 2. BEGIN / ROLLBACK lifecycle
     # =========================================================================
-    def test_begin_rollback_create_tables(self):
-        """BEGIN → CREATE tables → ROLLBACK → tables not visible
-
-        Since: v3.3.6.0
-        Labels: common,ci
-        History: - 2026-03-27 Created
-        """
-        tdLog.info("======== test_begin_rollback_create_tables")
+    def s2_begin_rollback_create_tables(self):
+        self.s0_reset_env()
+        tdLog.info("======== s2_begin_rollback_create_tables")
 
         tdSql.execute("create table stb (ts timestamp, v int) tags (t1 int)")
 
@@ -122,14 +103,9 @@ class TestBatchMetaTxn:
     # =========================================================================
     # 3. DROP within transaction + COMMIT
     # =========================================================================
-    def test_begin_commit_drop_tables(self):
-        """BEGIN → DROP existing tables → COMMIT → tables gone
-
-        Since: v3.3.6.0
-        Labels: common,ci
-        History: - 2026-03-27 Created
-        """
-        tdLog.info("======== test_begin_commit_drop_tables")
+    def s3_begin_commit_drop_tables(self):
+        self.s0_reset_env()
+        tdLog.info("======== s3_begin_commit_drop_tables")
 
         tdSql.execute("create table stb (ts timestamp, v int) tags (t1 int)")
         tdSql.execute("create table ct1 using stb tags(1)")
@@ -154,14 +130,9 @@ class TestBatchMetaTxn:
     # =========================================================================
     # 4. DROP within transaction + ROLLBACK (tables restored)
     # =========================================================================
-    def test_begin_rollback_drop_tables(self):
-        """BEGIN → DROP tables → ROLLBACK → tables still exist
-
-        Since: v3.3.6.0
-        Labels: common,ci
-        History: - 2026-03-27 Created
-        """
-        tdLog.info("======== test_begin_rollback_drop_tables")
+    def s4_begin_rollback_drop_tables(self):
+        self.s0_reset_env()
+        tdLog.info("======== s4_begin_rollback_drop_tables")
 
         tdSql.execute("create table stb (ts timestamp, v int) tags (t1 int)")
         tdSql.execute("create table ct1 using stb tags(1)")
@@ -181,14 +152,9 @@ class TestBatchMetaTxn:
     # =========================================================================
     # 5. ALTER within transaction + COMMIT
     # =========================================================================
-    def test_begin_commit_alter_table(self):
-        """BEGIN → ALTER TABLE (add column) → COMMIT → new column visible
-
-        Since: v3.3.6.0
-        Labels: common,ci
-        History: - 2026-03-27 Created
-        """
-        tdLog.info("======== test_begin_commit_alter_table")
+    def s5_begin_commit_alter_table(self):
+        self.s0_reset_env()
+        tdLog.info("======== s5_begin_commit_alter_table")
 
         tdSql.execute("create table tb1 (ts timestamp, v1 int)")
         tdSql.execute("insert into tb1 values(now, 1)")
@@ -210,14 +176,9 @@ class TestBatchMetaTxn:
     # =========================================================================
     # 6. ALTER within transaction + ROLLBACK (column not added)
     # =========================================================================
-    def test_begin_rollback_alter_table(self):
-        """BEGIN → ALTER TABLE (add column) → ROLLBACK → column not visible
-
-        Since: v3.3.6.0
-        Labels: common,ci
-        History: - 2026-03-27 Created
-        """
-        tdLog.info("======== test_begin_rollback_alter_table")
+    def s6_begin_rollback_alter_table(self):
+        self.s0_reset_env()
+        tdLog.info("======== s6_begin_rollback_alter_table")
 
         tdSql.execute("create table tb1 (ts timestamp, v1 int)")
 
@@ -234,14 +195,9 @@ class TestBatchMetaTxn:
     # =========================================================================
     # 7. Mixed operations: CREATE + DROP + ALTER in single txn
     # =========================================================================
-    def test_mixed_ddl_commit(self):
-        """BEGIN → CREATE t1, DROP t2, ALTER t3 → COMMIT → all take effect
-
-        Since: v3.3.6.0
-        Labels: common,ci
-        History: - 2026-03-27 Created
-        """
-        tdLog.info("======== test_mixed_ddl_commit")
+    def s7_mixed_ddl_commit(self):
+        self.s0_reset_env()
+        tdLog.info("======== s7_mixed_ddl_commit")
 
         tdSql.execute("create table stb (ts timestamp, v int) tags (t1 int)")
         tdSql.execute("create table ct_drop using stb tags(1)")
@@ -272,14 +228,9 @@ class TestBatchMetaTxn:
                 break
         assert found, "Column v2 not found on tb_alter after COMMIT"
 
-    def test_mixed_ddl_rollback(self):
-        """BEGIN → CREATE t1, DROP t2, ALTER t3 → ROLLBACK → all undone
-
-        Since: v3.3.6.0
-        Labels: common,ci
-        History: - 2026-03-27 Created
-        """
-        tdLog.info("======== test_mixed_ddl_rollback")
+    def s8_mixed_ddl_rollback(self):
+        self.s0_reset_env()
+        tdLog.info("======== s8_mixed_ddl_rollback")
 
         tdSql.execute("create table stb (ts timestamp, v int) tags (t1 int)")
         tdSql.execute("create table ct_keep using stb tags(1)")
@@ -308,19 +259,9 @@ class TestBatchMetaTxn:
     # =========================================================================
     # 8. Visibility: PRE_CREATE tables invisible to non-txn queries
     # =========================================================================
-    def test_visibility_pre_create(self):
-        """Tables created in uncommitted txn should be invisible to SHOW/SELECT
-
-        Since: v3.3.6.0
-        Labels: common,ci
-        History: - 2026-03-27 Created
-
-        NOTE: This test validates within the SAME connection. For full cross-
-        connection isolation testing, a multi-connection test harness is needed.
-        The core visibility filtering is in the VNode meta layer, so we verify
-        the COMMIT/ROLLBACK semantics which exercise the same code paths.
-        """
-        tdLog.info("======== test_visibility_pre_create")
+    def s9_visibility_pre_create(self):
+        self.s0_reset_env()
+        tdLog.info("======== s9_visibility_pre_create")
 
         tdSql.execute("create table stb (ts timestamp, v int) tags (t1 int)")
 
@@ -338,14 +279,9 @@ class TestBatchMetaTxn:
     # =========================================================================
     # 9. Visibility: PRE_DROP — old data still readable
     # =========================================================================
-    def test_visibility_pre_drop(self):
-        """PRE_DROP table: data readable until COMMIT
-
-        Since: v3.3.6.0
-        Labels: common,ci
-        History: - 2026-03-27 Created
-        """
-        tdLog.info("======== test_visibility_pre_drop")
+    def s10_visibility_pre_drop(self):
+        self.s0_reset_env()
+        tdLog.info("======== s10_visibility_pre_drop")
 
         tdSql.execute("create table stb (ts timestamp, v int) tags (t1 int)")
         tdSql.execute("create table ct1 using stb tags(1)")
@@ -364,49 +300,29 @@ class TestBatchMetaTxn:
     # =========================================================================
     # 10. BEGIN/COMMIT/ROLLBACK guards
     # =========================================================================
-    def test_guard_double_begin(self):
-        """BEGIN inside active transaction should error
-
-        Since: v3.3.6.0
-        Labels: common,ci
-        History: - 2026-03-27 Created
-        """
-        tdLog.info("======== test_guard_double_begin")
+    def s11_guard_double_begin(self):
+        self.s0_reset_env()
+        tdLog.info("======== s11_guard_double_begin")
 
         tdSql.execute("BEGIN")
         tdSql.error("BEGIN")  # Should fail: already in transaction
         tdSql.execute("ROLLBACK")
 
-    def test_guard_commit_no_txn(self):
-        """COMMIT without active transaction should error
-
-        Since: v3.3.6.0
-        Labels: common,ci
-        History: - 2026-03-27 Created
-        """
-        tdLog.info("======== test_guard_commit_no_txn")
+    def s12_guard_commit_no_txn(self):
+        self.s0_reset_env()
+        tdLog.info("======== s12_guard_commit_no_txn")
 
         tdSql.error("COMMIT")  # No active transaction
 
-    def test_guard_rollback_no_txn(self):
-        """ROLLBACK without active transaction should error
-
-        Since: v3.3.6.0
-        Labels: common,ci
-        History: - 2026-03-27 Created
-        """
-        tdLog.info("======== test_guard_rollback_no_txn")
+    def s13_guard_rollback_no_txn(self):
+        self.s0_reset_env()
+        tdLog.info("======== s13_guard_rollback_no_txn")
 
         tdSql.error("ROLLBACK")  # No active transaction
 
-    def test_guard_start_transaction_syntax(self):
-        """START TRANSACTION is equivalent to BEGIN
-
-        Since: v3.3.6.0
-        Labels: common,ci
-        History: - 2026-03-27 Created
-        """
-        tdLog.info("======== test_guard_start_transaction_syntax")
+    def s14_guard_start_transaction_syntax(self):
+        self.s0_reset_env()
+        tdLog.info("======== s14_guard_start_transaction_syntax")
 
         tdSql.execute("START TRANSACTION")
         tdSql.execute("ROLLBACK")
@@ -414,14 +330,9 @@ class TestBatchMetaTxn:
     # =========================================================================
     # 11. Normal tables (non-child) in transaction
     # =========================================================================
-    def test_normal_table_create_commit(self):
-        """BEGIN → CREATE normal table → COMMIT → visible
-
-        Since: v3.3.6.0
-        Labels: common,ci
-        History: - 2026-03-27 Created
-        """
-        tdLog.info("======== test_normal_table_create_commit")
+    def s15_normal_table_create_commit(self):
+        self.s0_reset_env()
+        tdLog.info("======== s15_normal_table_create_commit")
 
         tdSql.execute("BEGIN")
         tdSql.execute("create table nt1 (ts timestamp, v int)")
@@ -435,14 +346,9 @@ class TestBatchMetaTxn:
         tdSql.query("select * from nt2")
         tdSql.checkRows(1)
 
-    def test_normal_table_create_rollback(self):
-        """BEGIN → CREATE normal table → ROLLBACK → not visible
-
-        Since: v3.3.6.0
-        Labels: common,ci
-        History: - 2026-03-27 Created
-        """
-        tdLog.info("======== test_normal_table_create_rollback")
+    def s16_normal_table_create_rollback(self):
+        self.s0_reset_env()
+        tdLog.info("======== s16_normal_table_create_rollback")
 
         tdSql.execute("BEGIN")
         tdSql.execute("create table nt1 (ts timestamp, v int)")
@@ -453,14 +359,9 @@ class TestBatchMetaTxn:
     # =========================================================================
     # 12. Empty transaction (BEGIN → COMMIT with no DDL)
     # =========================================================================
-    def test_empty_transaction(self):
-        """BEGIN → COMMIT with no operations should succeed
-
-        Since: v3.3.6.0
-        Labels: common,ci
-        History: - 2026-03-27 Created
-        """
-        tdLog.info("======== test_empty_transaction")
+    def s17_empty_transaction(self):
+        self.s0_reset_env()
+        tdLog.info("======== s17_empty_transaction")
 
         tdSql.execute("BEGIN")
         tdSql.execute("COMMIT")
@@ -472,14 +373,9 @@ class TestBatchMetaTxn:
     # =========================================================================
     # 13. Cross-VGroup transaction
     # =========================================================================
-    def test_cross_vgroup_commit(self):
-        """Transaction spanning multiple VGroups should COMMIT atomically
-
-        Since: v3.3.6.0
-        Labels: common,ci
-        History: - 2026-03-27 Created
-        """
-        tdLog.info("======== test_cross_vgroup_commit")
+    def s18_cross_vgroup_commit(self):
+        self.s0_reset_env()
+        tdLog.info("======== s18_cross_vgroup_commit")
 
         # Database created with vgroups=2, so tables will hash to different VGroups
         tdSql.execute("create table stb (ts timestamp, v int) tags (t1 int)")
@@ -500,14 +396,9 @@ class TestBatchMetaTxn:
         tdSql.query("select count(*) from stb")
         tdSql.checkData(0, 0, 20)
 
-    def test_cross_vgroup_rollback(self):
-        """Transaction spanning multiple VGroups should ROLLBACK atomically
-
-        Since: v3.3.6.0
-        Labels: common,ci
-        History: - 2026-03-27 Created
-        """
-        tdLog.info("======== test_cross_vgroup_rollback")
+    def s19_cross_vgroup_rollback(self):
+        self.s0_reset_env()
+        tdLog.info("======== s19_cross_vgroup_rollback")
 
         tdSql.execute("create table stb (ts timestamp, v int) tags (t1 int)")
 
@@ -523,14 +414,9 @@ class TestBatchMetaTxn:
     # =========================================================================
     # 14. Transaction after previous commit (reusability)
     # =========================================================================
-    def test_sequential_transactions(self):
-        """Multiple sequential BEGIN/COMMIT cycles should work
-
-        Since: v3.3.6.0
-        Labels: common,ci
-        History: - 2026-03-27 Created
-        """
-        tdLog.info("======== test_sequential_transactions")
+    def s20_sequential_transactions(self):
+        self.s0_reset_env()
+        tdLog.info("======== s20_sequential_transactions")
 
         tdSql.execute("create table stb (ts timestamp, v int) tags (t1 int)")
 
@@ -556,14 +442,9 @@ class TestBatchMetaTxn:
     # =========================================================================
     # 15. Batch CREATE TABLE syntax in transaction
     # =========================================================================
-    def test_batch_create_syntax(self):
-        """Batch CREATE TABLE (multiple tables in one statement) within txn
-
-        Since: v3.3.6.0
-        Labels: common,ci
-        History: - 2026-03-27 Created
-        """
-        tdLog.info("======== test_batch_create_syntax")
+    def s21_batch_create_syntax(self):
+        self.s0_reset_env()
+        tdLog.info("======== s21_batch_create_syntax")
 
         tdSql.execute("create table stb (ts timestamp, v int) tags (t1 int)")
 
@@ -577,14 +458,9 @@ class TestBatchMetaTxn:
     # =========================================================================
     # 16. Batch DROP TABLE syntax in transaction
     # =========================================================================
-    def test_batch_drop_syntax(self):
-        """Batch DROP TABLE (multiple tables in one statement) within txn
-
-        Since: v3.3.6.0
-        Labels: common,ci
-        History: - 2026-03-27 Created
-        """
-        tdLog.info("======== test_batch_drop_syntax")
+    def s22_batch_drop_syntax(self):
+        self.s0_reset_env()
+        tdLog.info("======== s22_batch_drop_syntax")
 
         tdSql.execute("create table stb (ts timestamp, v int) tags (t1 int)")
         tdSql.execute("create table ct1 using stb tags(1)")
@@ -597,3 +473,63 @@ class TestBatchMetaTxn:
 
         tdSql.query("show tables")
         tdSql.checkRows(0)
+
+    def test_meta_batch_txn(self):
+        """Batch meta txn: full lifecycle
+
+        1. BEGIN and COMMIT create multiple child tables
+        2. BEGIN and ROLLBACK create tables, verify not visible
+        3. BEGIN and COMMIT drop existing tables
+        4. BEGIN and ROLLBACK drop tables, verify restored
+        5. BEGIN and COMMIT alter table add column
+        6. BEGIN and ROLLBACK alter table, column not added
+        7. Mixed DDL (CREATE+DROP+ALTER) with COMMIT
+        8. Mixed DDL (CREATE+DROP+ALTER) with ROLLBACK
+        9. PRE_CREATE visibility filtering
+        10. PRE_DROP visibility filtering
+        11. Double BEGIN guard
+        12. COMMIT without active transaction guard
+        13. ROLLBACK without active transaction guard
+        14. START TRANSACTION syntax equivalence
+        15. Normal table create and commit
+        16. Normal table create and rollback
+        17. Empty transaction (no-op BEGIN/COMMIT/ROLLBACK)
+        18. Cross vgroup commit (2 vgroups, 20 tables)
+        19. Cross vgroup rollback
+        20. Sequential transactions reuse
+        21. Batch CREATE TABLE syntax in transaction
+        22. Batch DROP TABLE syntax in transaction
+
+
+        Since: v3.3.6.0
+
+        Labels: common,ci
+
+        Jira: TD-XXXXX
+
+        History:
+            - 2026-03-27 Created
+
+        """
+        self.s1_begin_commit_create_tables()
+        self.s2_begin_rollback_create_tables()
+        self.s3_begin_commit_drop_tables()
+        self.s4_begin_rollback_drop_tables()
+        self.s5_begin_commit_alter_table()
+        self.s6_begin_rollback_alter_table()
+        self.s7_mixed_ddl_commit()
+        self.s8_mixed_ddl_rollback()
+        self.s9_visibility_pre_create()
+        self.s10_visibility_pre_drop()
+        self.s11_guard_double_begin()
+        self.s12_guard_commit_no_txn()
+        self.s13_guard_rollback_no_txn()
+        self.s14_guard_start_transaction_syntax()
+        self.s15_normal_table_create_commit()
+        self.s16_normal_table_create_rollback()
+        self.s17_empty_transaction()
+        self.s18_cross_vgroup_commit()
+        self.s19_cross_vgroup_rollback()
+        self.s20_sequential_transactions()
+        self.s21_batch_create_syntax()
+        self.s22_batch_drop_syntax()

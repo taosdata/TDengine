@@ -849,13 +849,6 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
 
   switch (pMsg->msgType) {
     /* META */
-    // TODO [batch-meta-txn]: once DDL structs carry txnId, call vnodeTxnLockTable()
-    // before each DDL handler to detect table-level conflicts across transactions.
-    // Example:
-    //   if (req.txnId != 0) {
-    //     code = vnodeTxnLockTable(pVnode, req.name, req.txnId);
-    //     if (code != 0) return code;
-    //   }
     case TDMT_VND_CREATE_STB:
       code = vnodeProcessCreateStbReq(pVnode, ver, pReq, len, pRsp);
       TSDB_CHECK_CODE(code, lino, _err);
@@ -1529,6 +1522,18 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, 
       // Register txn entry in VNode (for tracking, table locking, etc.)
       vnodeTxnEnsureEntry(pVnode, pCreateReq->txnId);
 
+      // Acquire table-level lock to detect cross-txn conflicts
+      int32_t lockCode = vnodeTxnLockTable(pVnode, tbName, pCreateReq->txnId);
+      if (lockCode != TSDB_CODE_SUCCESS) {
+        cRsp.code = lockCode;
+        if (taosArrayPush(rsp.pArray, &cRsp) == NULL) {
+          terrno = TSDB_CODE_OUT_OF_MEMORY;
+          rcode = -1;
+          goto _exit;
+        }
+        continue;
+      }
+
       // Write to meta with PRE_CREATE status (txnId is carried in pCreateReq)
       if (metaCreateTable2(pVnode->pMeta, ver, pCreateReq, &cRsp.pMeta) < 0) {
         cRsp.code = terrno;
@@ -1812,6 +1817,18 @@ static int32_t vnodeProcessAlterTbReq(SVnode *pVnode, int64_t ver, void *pReq, i
   if (vAlterTbReq.txnId != 0) {
     vnodeTxnEnsureEntry(pVnode, vAlterTbReq.txnId);
 
+    // Acquire table-level lock to detect cross-txn conflicts
+    {
+      char alterTbNameFull[TSDB_TABLE_FNAME_LEN];
+      (void)snprintf(alterTbNameFull, TSDB_TABLE_FNAME_LEN, "%s.%s", pVnode->config.dbname, vAlterTbReq.tbName);
+      int32_t lockCode = vnodeTxnLockTable(pVnode, alterTbNameFull, vAlterTbReq.txnId);
+      if (lockCode != TSDB_CODE_SUCCESS) {
+        vAlterTbRsp.code = lockCode;
+        tDecoderClear(&dc);
+        goto _exit;
+      }
+    }
+
     // Save old version for rollback tracking via public API
     tb_uid_t alterUid = 0;
     int64_t  alterPrevVer = -1;
@@ -1925,6 +1942,22 @@ static int32_t vnodeProcessDropTbReq(SVnode *pVnode, int64_t ver, void *pReq, in
     // COMMIT physically deletes. ROLLBACK clears back to NORMAL.
     if (pDropTbReq->txnId != 0) {
       vnodeTxnEnsureEntry(pVnode, pDropTbReq->txnId);
+
+      // Acquire table-level lock to detect cross-txn conflicts
+      {
+        char dropTbNameFull[TSDB_TABLE_FNAME_LEN];
+        (void)snprintf(dropTbNameFull, TSDB_TABLE_FNAME_LEN, "%s.%s", pVnode->config.dbname, pDropTbReq->name);
+        int32_t lockCode = vnodeTxnLockTable(pVnode, dropTbNameFull, pDropTbReq->txnId);
+        if (lockCode != TSDB_CODE_SUCCESS) {
+          dropTbRsp.code = lockCode;
+          if (taosArrayPush(rsp.pArray, &dropTbRsp) == NULL) {
+            terrno = TSDB_CODE_OUT_OF_MEMORY;
+            pRsp->code = terrno;
+            goto _exit;
+          }
+          continue;
+        }
+      }
 
       // metaDropTable2 handles txnId internally — marks PRE_DROP instead of deleting
       ret = metaDropTable2(pVnode->pMeta, ver, pDropTbReq);

@@ -692,6 +692,9 @@ void    vnodeTxnTrackAlter(SVnode* pVnode, int64_t txnId, tb_uid_t uid, int64_t 
 // Uses EMetaTxnStatus for conflict detection instead of in-memory shadow ops.
 int32_t vnodeTxnCheckConflict(SVnode* pVnode, const char* tableName, int8_t incomingOp);
 
+// Acquire table-level lock for a txn; returns TSDB_CODE_VND_TXN_CONFLICT on cross-txn conflict.
+int32_t vnodeTxnLockTable(SVnode* pVnode, const char* tableName, int64_t txnId);
+
 // Check if a DELETE DML on a specific UID conflicts with PRE_DROP shadow.
 int32_t vnodeTxnCheckDeleteConflict(SVnode* pVnode, tb_uid_t uid);
 
