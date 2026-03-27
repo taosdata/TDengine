@@ -276,7 +276,7 @@ dotnet add package TDengine.Connector
 Java 连接器建立连接的参数有 URL 和 Properties。TDengine TSDB 的 JDBC URL 规范格式为：
 
 ```text
-jdbc:[TAOS|TAOS-WS]://[host_name]:[port]/[database_name]?[user={user}|&password={password}|&charset={charset}|&cfgdir={config_dir}|&locale={locale}|&timezone={timezone}|&batchfetch={batchfetch}]
+jdbc:[TAOS|TAOS-WS]://[host_name]:[port]/[database_name]?[user={user}|&password={password}|&charset={charset}|&cfgdir={config_dir}|&locale={locale}|&timezone={timezone}|&batchfetch={batchfetch}|&varcharAsString=true]
 ```
 
 URL 和 Properties 的详细参数说明和如何使用详见 [url 规范](../../reference/connector/java/#url-规范)

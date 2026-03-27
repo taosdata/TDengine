@@ -39,7 +39,7 @@ SparkSession spark = SparkSession.builder()
     .getOrCreate();
 
 // connect TDengine and create reader
-String url     = "jdbc:TAOS-WS://localhost:6041/?user=root&password=taosdata";
+String url     = "jdbc:TAOS-WS://localhost:6041/?user=root&password=taosdata&varcharAsString=true";
 String driver  = "com.taosdata.jdbc.ws.WebSocketDriver";
 DataFrameReader dataFrameReader = spark.read()
     .format("jdbc")
@@ -62,7 +62,7 @@ Data writing uses parameter binding and is accomplished in three steps:
 
     ```java
       // create connect
-      String url = "jdbc:TAOS-WS://localhost:6041/?user=root&password=taosdata";
+      String url = "jdbc:TAOS-WS://localhost:6041/?user=root&password=taosdata&varcharAsString=true";
       Connection connection = DriverManager.getConnection(url);
     ```
 
@@ -133,7 +133,7 @@ Data reading is achieved through table mapping and is completed in four steps:
 
     ```java
     // create reader
-    String url = "jdbc:TAOS-WS://localhost:6041/?user=root&password=taosdata";
+    String url = "jdbc:TAOS-WS://localhost:6041/?user=root&password=taosdata&varcharAsString=true";
     int    timeout  = 60; // seconds
     DataFrameReader reader = spark.read()
         .format("jdbc") 

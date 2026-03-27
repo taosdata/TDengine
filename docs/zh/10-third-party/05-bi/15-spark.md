@@ -39,7 +39,7 @@ driverClass 指定为“com.taosdata.jdbc.ws.WebSocketDriver”。
       .getOrCreate();
   
   // connect TDengine TSDB and create reader
-  String url     = "jdbc:TAOS-WS://localhost:6041/?user=root&password=taosdata";
+  String url     = "jdbc:TAOS-WS://localhost:6041/?user=root&password=taosdata&varcharAsString=true";
   String driver  = "com.taosdata.jdbc.ws.WebSocketDriver";
   DataFrameReader dataFrameReader = spark.read()
       .format("jdbc")
@@ -62,7 +62,7 @@ driverClass 指定为“com.taosdata.jdbc.ws.WebSocketDriver”。
 
     ``` java
       // create connect
-      String url = "jdbc:TAOS-WS://localhost:6041/?user=root&password=taosdata";
+      String url = "jdbc:TAOS-WS://localhost:6041/?user=root&password=taosdata&varcharAsString=true";
       Connection connection = DriverManager.getConnection(url);
     ```
 
@@ -133,7 +133,7 @@ driverClass 指定为“com.taosdata.jdbc.ws.WebSocketDriver”。
 
     ``` java
     // create reader
-    String url = "jdbc:TAOS-WS://localhost:6041/?user=root&password=taosdata";
+    String url = "jdbc:TAOS-WS://localhost:6041/?user=root&password=taosdata&varcharAsString=true";
     int    timeout  = 60; // seconds
     DataFrameReader reader = spark.read()
         .format("jdbc") 
