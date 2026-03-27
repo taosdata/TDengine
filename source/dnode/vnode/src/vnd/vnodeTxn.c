@@ -667,7 +667,13 @@ void vnodeTxnCheckTimeout(SVnode *pVnode) {
   while (pIter) {
     SVnodeTxnEntry *pEntry = (SVnodeTxnEntry *)pIter;
 
-    if (now - pEntry->lastActive > timeout) {
+    int64_t elapsed = now - pEntry->lastActive;
+    // Clock regression protection: skip if clock moved backward (NTP correction)
+    if (elapsed < 0) {
+      pIter = taosHashIterate(pVnode->pTxnHash, pIter);
+      continue;
+    }
+    if (elapsed > timeout) {
       vWarn("vgId:%d, txn expired, txnId:%" PRId64 ", lastActive:%" PRId64 ", now:%" PRId64,
             TD_VID(pVnode), pEntry->txnId, pEntry->lastActive, now);
       taosArrayPush(expiredTxns, &pEntry->txnId);

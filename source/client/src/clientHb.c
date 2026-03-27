@@ -1381,6 +1381,22 @@ int32_t hbGatherAllInfo(SAppHbMgr *pAppHbMgr, SClientHbBatchReq **pBatchReq) {
     pOneReq->userDualIp = pTscObj->optionInfo.userDualIp;
     tstrncpy(pOneReq->sVer, td_version, TSDB_VERSION_LEN);
 
+    // Batch meta txn keepalive: add txnId into info hash (per-connection)
+    utxn_id_t curTxnId = pTscObj->txnId;
+    if (curTxnId > 0) {
+      if (NULL == pOneReq->info) {
+        pOneReq->info = taosHashInit(64, hbKeyHashFunc, 1, HASH_ENTRY_LOCK);
+      }
+      if (pOneReq->info != NULL) {
+        utxn_id_t *pTxnVal = taosMemoryMalloc(sizeof(utxn_id_t));
+        if (pTxnVal != NULL) {
+          *pTxnVal = curTxnId;
+          SKv kv = {.key = HEARTBEAT_KEY_TXN_KEEPALIVE, .valueLen = sizeof(utxn_id_t), .value = pTxnVal};
+          taosHashPut(pOneReq->info, &kv.key, sizeof(kv.key), &kv, sizeof(kv));
+        }
+      }
+    }
+
     pOneReq = taosArrayPush((*pBatchReq)->reqs, pOneReq);
     if (NULL == pOneReq) {
       releaseTscObj(connKey->tscRid);

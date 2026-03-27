@@ -1648,6 +1648,21 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultM
       code = asyncExecDdlQuery(pRequest, pQuery);
       break;
     case QUERY_EXEC_MODE_SCHEDULE: {
+      // Track VNode vgIds for batch metadata transaction (async SCHEDULE path)
+      STscObj* pTscObjAsync = pRequest->pTscObj;
+      if (pTscObjAsync->txnState == UTXN_STAGE_ACTIVE && pQuery->pRoot != NULL &&
+          nodeType(pQuery->pRoot) == QUERY_NODE_VNODE_MODIFY_STMT) {
+        SVnodeModifyOpStmt* pModStmt = (SVnodeModifyOpStmt*)pQuery->pRoot;
+        if (pModStmt->pDataBlocks != NULL) {
+          int32_t nBlocks = (int32_t)taosArrayGetSize(pModStmt->pDataBlocks);
+          for (int32_t i = 0; i < nBlocks; ++i) {
+            SVgDataBlocks* pVgBlk = *(SVgDataBlocks**)taosArrayGet(pModStmt->pDataBlocks, i);
+            if (pVgBlk != NULL) {
+              tscTxnTrackVgId(pTscObjAsync, pVgBlk->vg.vgId);
+            }
+          }
+        }
+      }
       code = asyncExecSchQuery(pRequest, pQuery, pResultMeta, pWrapper);
       break;
     }

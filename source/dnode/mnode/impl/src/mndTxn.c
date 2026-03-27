@@ -104,6 +104,14 @@ static void mndTxnTimeoutScanImpl(SMnode *pMnode) {
     int64_t elapsed = now - pTxn->lastActiveTime;
     int64_t timeout = (int64_t)pTxn->timeoutSec * 1000;
 
+    // Clock regression protection: skip if clock moved backward (NTP correction)
+    if (elapsed < 0) {
+      mDebug("txn:%" PRIu64 ", clock regression detected, elapsed=%" PRId64 "ms, skip timeout check", pTxn->id,
+             elapsed);
+      sdbRelease(pSdb, pTxn);
+      continue;
+    }
+
     if (pTxn->stage == UTXN_STAGE_ACTIVE && elapsed > timeout) {
       mWarn("txn:%" PRIu64 ", stage=%s, elapsed=%" PRId64 "ms > timeout=%" PRId64 "ms, triggering ROLLBACK", pTxn->id,
             mndUtxnStageStr(pTxn->stage), elapsed, timeout);
@@ -505,6 +513,17 @@ int8_t mndTxnIsAlive(SMnode *pMnode, utxn_id_t txnId) {
   }
   mndReleaseTxn(pMnode, pTxn);
   return alive;
+}
+
+void mndTxnRefreshKeepalive(SMnode *pMnode, utxn_id_t txnId) {
+  STxnObj *pTxn = mndAcquireTxn(pMnode, txnId);
+  if (pTxn == NULL) return;
+
+  if (pTxn->stage == UTXN_STAGE_ACTIVE) {
+    pTxn->lastActiveTime = taosGetTimestampMs();
+    mTrace("txn:%" PRIu64 ", keepalive refreshed via client HB", txnId);
+  }
+  mndReleaseTxn(pMnode, pTxn);
 }
 
 // ============================================================================
