@@ -51,6 +51,40 @@ static int32_t doGroupSort(SOperatorInfo* pOperator, SSDataBlock** pResBlock);
 static void destroySortOperatorInfo(void* param);
 static void calcSortOperMaxTupleLength(SSortOperatorInfo* pSortOperInfo, SNodeList* pSortKeys);
 
+// Check whether the given slotId is the output of a Sort scalar pre-calculation expression.
+// The planner's rewritePrecalcExprs pushes expression results (e.g. ts+1000) into extra slots
+// in the child's output descriptor. This helper identifies such slots.
+static bool sortIsExprResultSlot(const SOperatorInfo* pOperator, int32_t slotId) {
+  if (pOperator == NULL || pOperator->exprSupp.pExprInfo == NULL || slotId < 0) {
+    return false;
+  }
+  for (int32_t idx = 0; idx < pOperator->exprSupp.numOfExprs; ++idx) {
+    if (pOperator->exprSupp.pExprInfo[idx].base.resSchema.slotId == slotId) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Find the slot index of the original (non-expression) primary timestamp column in the
+// Sort's internal data block.  The internal block may contain both the original ts column
+// and an expression-derived ts column (e.g. ts+1000).  We return the first TIMESTAMP
+// column whose slot is NOT an expression result.
+static int32_t sortFindOrigTsSlot(const SOperatorInfo* pOperator, const SSDataBlock* pBlock) {
+  if (pBlock == NULL || pBlock->pDataBlock == NULL) {
+    return -1;
+  }
+  int32_t colCount = (int32_t)taosArrayGetSize(pBlock->pDataBlock);
+  for (int32_t idx = 0; idx < colCount; ++idx) {
+    SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, idx);
+    if (pCol != NULL && pCol->info.type == TSDB_DATA_TYPE_TIMESTAMP &&
+        !sortIsExprResultSlot(pOperator, idx)) {
+      return idx;
+    }
+  }
+  return -1;
+}
+
 static void destroySortOpGroupIdCalc(SSortOpGroupIdCalc* pCalc);
 
 static int32_t resetSortOperState(SOperatorInfo* pOper) {
@@ -283,7 +317,7 @@ static int32_t nextTupleWithGroupId(SSortHandle* pHandle, SSortOperatorInfo* pIn
 }
 
 static int32_t getSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock, int32_t capacity, SArray* pColMatchInfo,
-                                SSortOperatorInfo* pInfo, SSDataBlock** pResBlock) {
+                                  const SOperatorInfo* pOperator, SSortOperatorInfo* pInfo, SSDataBlock** pResBlock) {
   QRY_PARAM_CHECK(pResBlock);
   blockDataCleanup(pDataBlock);
 
@@ -332,7 +366,24 @@ static int32_t getSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock,
       SColMatchItem* pmInfo = taosArrayGet(pColMatchInfo, i);
       QUERY_CHECK_NULL(pmInfo, code, lino, _error, terrno);
 
-      SColumnInfoData* pSrc = taosArrayGet(p->pDataBlock, pmInfo->srcSlotId);
+      int32_t srcSlotId = pmInfo->srcSlotId;
+
+      // Fix: when the planner's setListSlotId resolves Sort pTargets by name, it may
+      // mistakenly bind the primary timestamp column to the scalar expression result slot
+      // (e.g. slot for ts+1000) instead of the original ts slot, because pushdownDataBlockSlots
+      // added the expression slot with the same column name.  This causes the downstream
+      // Project operator to apply the expression again (ts+1000 becomes ts+2000).
+      // Detect this case and fall back to the original timestamp slot.
+      if (pmInfo->colId == PRIMARYKEY_TIMESTAMP_COL_ID &&
+          pmInfo->dataType.type == TSDB_DATA_TYPE_TIMESTAMP &&
+          sortIsExprResultSlot(pOperator, srcSlotId)) {
+        int32_t origSlot = sortFindOrigTsSlot(pOperator, p);
+        if (origSlot >= 0 && origSlot != srcSlotId) {
+          srcSlotId = origSlot;
+        }
+      }
+
+      SColumnInfoData* pSrc = taosArrayGet(p->pDataBlock, srcSlotId);
       QUERY_CHECK_NULL(pSrc, code, lino, _error, terrno);
 
       SColumnInfoData* pDst = taosArrayGet(pDataBlock->pDataBlock, pmInfo->dstSlotId);
@@ -460,7 +511,7 @@ int32_t doSort(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
 
     recordOpExecBeforeDownstream(pOperator);
     code = getSortedBlockData(pInfo->pSortHandle, pInfo->binfo.pRes, pOperator->resultInfo.capacity,
-                                pInfo->matchInfo.pList, pInfo, &pBlock);
+                                pInfo->matchInfo.pList, pOperator, pInfo, &pBlock);
     recordOpExecAfterDownstream(pOperator, pBlock ? pBlock->info.rows : 0);
     QUERY_CHECK_CODE(code, lino, _end);
     if (pBlock == NULL) {

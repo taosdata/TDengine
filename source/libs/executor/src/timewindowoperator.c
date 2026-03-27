@@ -1105,8 +1105,11 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator,
   SColumnInfoData* pStateColInfoData =
     getDataBlockColBySlotId(pBlock, pInfo->stateCol.slotId, &stateColIndex);
   if (!pStateColInfoData) {
-    pTaskInfo->code = terrno;
-    T_LONG_JMP(pTaskInfo->env, terrno);
+    int32_t code = terrno;
+    if (TSDB_CODE_SUCCESS == code) code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    pTaskInfo->code = code;
+    qError("%s failed to get state column data, slotId:%d, code:%s", __func__, pInfo->stateCol.slotId, tstrerror(code));
+    T_LONG_JMP(pTaskInfo->env, code);
   }
   uint64_t gid = pBlock->info.id.groupId;
   int32_t numOfOutput = pOperator->exprSupp.numOfExprs;
@@ -1115,8 +1118,11 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator,
   int32_t tsColIndex = -1;
   SColumnInfoData* pColInfoData = getDataBlockColBySlotId(pBlock, pInfo->tsSlotId, &tsColIndex);
   if (NULL == pColInfoData) {
-    pTaskInfo->code = terrno;
-    T_LONG_JMP(pTaskInfo->env, terrno);
+    int32_t code = terrno;
+    if (TSDB_CODE_SUCCESS == code) code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    pTaskInfo->code = code;
+    qError("%s failed to get ts column data, slotId:%d, code:%s", __func__, pInfo->tsSlotId, tstrerror(code));
+    T_LONG_JMP(pTaskInfo->env, code);
   }
   TSKEY* tsList = (TSKEY*)pColInfoData->pData;
 

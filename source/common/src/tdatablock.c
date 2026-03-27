@@ -587,7 +587,9 @@ int32_t colDataAssign(SColumnInfoData* pColumnInfoData, const SColumnInfoData* p
   }
 
   pColumnInfoData->hasNull = pSource->hasNull;
+  int16_t slotId = pColumnInfoData->info.slotId;
   pColumnInfoData->info = pSource->info;
+  pColumnInfoData->info.slotId = slotId;
   return 0;
 }
 
