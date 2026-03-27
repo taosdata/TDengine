@@ -1392,6 +1392,24 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
   }
 }
 
+static bool isTxnAllowedStmtType(int32_t stmtType) {
+  switch (stmtType) {
+    case QUERY_NODE_CREATE_TABLE_STMT:
+    case QUERY_NODE_CREATE_MULTI_TABLES_STMT:
+    case QUERY_NODE_CREATE_SUBTABLE_CLAUSE:
+    case QUERY_NODE_DROP_TABLE_STMT:
+    case QUERY_NODE_DROP_SUPER_TABLE_STMT:
+    case QUERY_NODE_ALTER_TABLE_STMT:
+    case QUERY_NODE_ALTER_SUPER_TABLE_STMT:
+    case QUERY_NODE_BEGIN_TRANS_STMT:
+    case QUERY_NODE_COMMIT_TRANS_STMT:
+    case QUERY_NODE_ROLLBACK_TRANS_STMT:
+      return true;
+    default:
+      return false;
+  }
+}
+
 void launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQuery, void** res) {
   int32_t code = 0;
   int32_t subplanNum = 0;
@@ -1401,6 +1419,16 @@ void launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQuery, void
     if (nodeType(pQuery->pRoot) == QUERY_NODE_DELETE_STMT) {
       pRequest->secureDelete = ((SDeleteStmt*)pQuery->pRoot)->secureDelete;
     }
+  }
+
+  // Reject non-table-DDL operations inside a transaction
+  if (pRequest->pTscObj->txnId > 0 && pQuery->pRoot != NULL && !isTxnAllowedStmtType(pQuery->pRoot->type)) {
+    code = TSDB_CODE_TXN_INVALID_OPERATION;
+    pRequest->code = code;
+    if (res) {
+      *res = pRequest;
+    }
+    return;
   }
 
   if (pQuery->pRoot && !pRequest->inRetry) {
@@ -1625,6 +1653,12 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultM
 
   if (pRequest->parseOnly) {
     doRequestCallback(pRequest, 0);
+    return;
+  }
+
+  // Reject non-table-DDL operations inside a transaction
+  if (pRequest->pTscObj->txnId > 0 && pQuery->pRoot != NULL && !isTxnAllowedStmtType(pQuery->pRoot->type)) {
+    doRequestCallback(pRequest, TSDB_CODE_TXN_INVALID_OPERATION);
     return;
   }
 

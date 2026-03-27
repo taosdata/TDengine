@@ -1233,6 +1233,7 @@ int32_t  taosGetErrSize();
 #define TSDB_CODE_TXN_PREPARED_ALTER             TAOS_DEF_ERROR_CODE(0, 0x3317)  // Table is being altered in a transaction (old schema visible)
 #define TSDB_CODE_TXN_PREPARED_DROP              TAOS_DEF_ERROR_CODE(0, 0x3318)  // Table is being dropped in a transaction (old data visible)
 #define TSDB_CODE_TXN_DELETE_ON_DROPPING         TAOS_DEF_ERROR_CODE(0, 0x3319)  // Cannot DELETE on a table being dropped (protect metadata)
+#define TSDB_CODE_TXN_INVALID_OPERATION          TAOS_DEF_ERROR_CODE(0, 0x331A)  // Only table DDL allowed in transaction
 
 //tmq
 #define TSDB_CODE_TMQ_INVALID_MSG                TAOS_DEF_ERROR_CODE(0, 0x4000)

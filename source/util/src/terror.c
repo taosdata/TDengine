@@ -1030,6 +1030,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TXN_SEQ_NOT_EXIST,              "Txn seq not exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TXN_SEQ_IN_CREATING,        "Txn seq in creating")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TXN_SEQ_IN_DROPPING,        "Txn seq in dropping")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TXN_SEQ_NOT_READY,          "Txn seq not ready")
+TAOS_DEFINE_ERROR(TSDB_CODE_TXN_INVALID_OPERATION,           "Only table DDL (CREATE/DROP/ALTER TABLE) allowed in transaction")
 
 //tmq
 TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_INVALID_MSG,                "Invalid message")
