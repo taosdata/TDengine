@@ -797,7 +797,7 @@ profile = get_env "BUILD_PROFILE"
 if eq ${profile} "dev"
   cp target/debug/xnoded.exe target/deploy/xnoded.exe
 else
-  upx_run target/${profile}/xnoded.exe target/deploy/xnoded.exe
+  cp target/${profile}/xnoded.exe target/deploy/xnoded.exe
 end
 """
 
