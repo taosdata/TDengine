@@ -85,6 +85,14 @@ impl MssqlQuery {
         manager.create_pool()
     }
 
+    pub async fn ping(&mut self) -> anyhow::Result<()> {
+        let mut conn = self.pool.get().await?;
+        conn.query("SELECT 1", &[])
+            .await
+            .context("failed to ping mssql")?;
+        Ok(())
+    }
+
     pub async fn select_all(
         &mut self,
         sql: &str,

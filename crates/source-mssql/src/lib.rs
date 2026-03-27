@@ -44,7 +44,13 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
                     MSSQL_ID.to_string(),
                     format!("failed to connect to dsn: {}, cause: {}", dsn, err),
                 ),
-                Ok(_cli) => DataSourceValidation::valid(MSSQL_ID.to_string(), None),
+                Ok(mut cli) => match cli.ping().await {
+                    Err(err) => DataSourceValidation::invalid(
+                        MSSQL_ID.to_string(),
+                        format!("failed to connect to dsn: {}, cause: {}", dsn, err),
+                    ),
+                    Ok(_) => DataSourceValidation::valid(MSSQL_ID.to_string(), None),
+                },
             }
         }
     }
