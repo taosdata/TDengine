@@ -2175,8 +2175,18 @@ int32_t ctgCallSubCb(SCtgTaskReq* pReq) {
     }
 
     SCtgTaskReq parentReq = {.pTask = pParent, .msgIdx = -1, .pBatchs = ctgGetReqBatchs(pReq)};
+    SCtgMsgCtx* pParentMsgCtx = ctgGetTaskLinkMsgCtx(pParent);
+    if (NULL == pParentMsgCtx) {
+      qError("fail to get parent link SCtgMsgCtx");
+      CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
+    }
+
+    SHashObj* pPrevParentBatchs = pParentMsgCtx->pBatchs;
+    pParentMsgCtx->pBatchs = parentReq.pBatchs;
+
     // all parents' cb should be called even if one fails
     int32_t ret = pParent->subRes.fp(&parentReq);
+    pParentMsgCtx->pBatchs = pPrevParentBatchs;
     if (ret) {
       code = ret;
       qDebug("QID:0x%" PRIx64 ", job:0x%" PRIx64
