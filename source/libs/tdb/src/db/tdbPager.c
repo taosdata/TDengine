@@ -62,7 +62,7 @@ static int hashset_add_member(hashset_t set, void *item) {
   size_t h, probed = 0;
 
   if (value == 0) {
-    return -1;
+    return 0;
   }
 
   for (h = set->mask & (prime * value); set->items[h] != 0; h = set->mask & (h + prime2)) {
@@ -109,6 +109,11 @@ static int hashset_add(hashset_t set, void *item) {
     int nt = hashset_add_member(set, (void *)old_items[i]);
   }
   tdbOsFree(old_items);
+
+  // the item is not added before, we need to add it after resizing
+  if (ret < 0) {
+    ret = hashset_add_member(set, item);
+  }
 
   return ret;
 }
@@ -835,7 +840,7 @@ int tdbPagerInsertFreePage(SPager *pPager, SPage *pPage, TXN *pTxn) {
   int tdbTbPushFreePage(TTB *pTb, SPage *pPage, TXN *pTxn);
   
   SPgno pgno = TDB_PAGE_PGNO(pPage);
-  ASSERT_CORE(pgno <= pPager->dbFileSize, "pgno:%u exceeds dbFileSize:%u.", pgno, pPager->dbFileSize);
+  ASSERT_CORE(pgno > 0 && pgno <= pPager->dbFileSize, "invalid pgno:%u, db file size %u.", pgno, pPager->dbFileSize);
 
   tdbTrace("tdb/insert-free-page: tbc recycle page: %d.", TDB_PAGE_PGNO(pPage));
   int code = tdbTbPushFreePage(pPager->pEnv->pFreeDb, pPage, pTxn);
@@ -886,7 +891,7 @@ static int tdbPagerAllocPage(SPager *pPager, SPgno *ppgno, TXN *pTxn) {
     return ret;
   }
 
-  ASSERT_CORE(*ppgno <= pPager->dbFileSize, "pgno:%u exceeds dbFileSize:%u.", *ppgno, pPager->dbFileSize);
+  ASSERT_CORE(*ppgno <= pPager->dbFileSize, "invalid pgno:%u, db file size:%u.", *ppgno, pPager->dbFileSize);
   if (*ppgno != 0) return 0;
 
   // Allocate the page by extending the pager
@@ -1014,7 +1019,7 @@ static int tdbPagerWritePageToJournal(SPager *pPager, SPage *pPage) {
   SPgno pgno;
 
   pgno = TDB_PAGE_PGNO(pPage);
-  ASSERT_CORE(pgno <= pPager->dbFileSize, "pgno:%u exceeds dbFileSize:%u.", pgno, pPager->dbFileSize);
+  ASSERT_CORE(pgno > 0 && pgno <= pPager->dbFileSize, "invalid pgno:%u, db file size %u.", pgno, pPager->dbFileSize);
 
   ret = tdbOsWrite(pPager->pActiveTxn->jfd, &pgno, sizeof(pgno));
   if (ret < 0) {
@@ -1060,7 +1065,7 @@ static int tdbPagerPWritePageToDB(SPager *pPager, SPage *pPage) {
   int ret;
 
   SPgno pgno = TDB_PAGE_PGNO(pPage);
-  ASSERT_CORE(pgno <= pPager->dbFileSize, "pgno:%u exceeds dbFileSize:%u.", pgno, pPager->dbFileSize);
+  ASSERT_CORE(pgno > 0 && pgno <= pPager->dbFileSize, "invalid pgno:%u, db file size %u.", pgno, pPager->dbFileSize);
   offset = (i64)pPage->pageSize * (TDB_PAGE_PGNO(pPage) - 1);
 
   char *buf = tdbEncryptPage(pPager, pPage->pData, pPage->pageSize, __FUNCTION__, offset);

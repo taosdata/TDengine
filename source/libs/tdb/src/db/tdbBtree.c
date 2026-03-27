@@ -1446,7 +1446,7 @@ static int tdbBtreeEncodePayload(SPage *pPage, SCell *pCell, int nHeader, const 
     return ret;
   }
 
-  ASSERT_CORE(pgno <= pBt->pPager->dbFileSize, "page number %u exceeds db file size %u", pgno, pBt->pPager->dbFileSize);
+  ASSERT_CORE(pgno > 0 && pgno <= pBt->pPager->dbFileSize, "invalid page number %u, db file size %u", pgno, pBt->pPager->dbFileSize);
 
   // local buffer for cell
   SCell *pBuf = tdbRealloc(NULL, pBt->pageSize);
@@ -1521,7 +1521,7 @@ static int tdbBtreeEncodePayload(SPage *pPage, SCell *pCell, int nHeader, const 
             return ret;
           }
 
-          ASSERT_CORE(pgno <= pBt->pPager->dbFileSize, "page number %u exceeds db file size %u", pgno, pBt->pPager->dbFileSize);
+          ASSERT_CORE(pgno > 0 && pgno <= pBt->pPager->dbFileSize, "invalid page number %u, db file size %u", pgno, pBt->pPager->dbFileSize);
         }
       } else {
         // fetch next ofp, a new ofp and make it dirty
@@ -1531,7 +1531,7 @@ static int tdbBtreeEncodePayload(SPage *pPage, SCell *pCell, int nHeader, const 
           tdbPCacheRelease(pBt->pPager->pCache, ofp, pTxn);
           return ret;
         }
-        ASSERT_CORE(pgno <= pBt->pPager->dbFileSize, "page number %u exceeds db file size %u", pgno, pBt->pPager->dbFileSize);
+        ASSERT_CORE(pgno > 0 && pgno <= pBt->pPager->dbFileSize, "invalid page number %u, db file size %u", pgno, pBt->pPager->dbFileSize);
       }
 
       memcpy(pBuf + bytes, &pgno, sizeof(pgno));
@@ -1565,9 +1565,8 @@ static int tdbBtreeEncodePayload(SPage *pPage, SCell *pCell, int nHeader, const 
         tdbPCacheRelease(pBt->pPager->pCache, ofp, pTxn);
         return ret;
       }
+      ASSERT_CORE(pgno > 0 && pgno <= pBt->pPager->dbFileSize, "invalid page number %u, db file size %u", pgno, pBt->pPager->dbFileSize);
     }
-
-    ASSERT_CORE(pgno <= pBt->pPager->dbFileSize, "page number %u exceeds db file size %u", pgno, pBt->pPager->dbFileSize);
 
     memcpy(pBuf, ((SCell *)pVal) + vLen - nLeft, bytes);
     memcpy(pBuf + bytes, &pgno, sizeof(pgno));
@@ -1623,7 +1622,7 @@ static int tdbBtreeEncodeCell(SPage *pPage, const void *pKey, int kLen, const vo
     }
 
     SPgno pgno = *(SPgno *)pVal;
-    ASSERT_CORE(pgno != 0 && pgno <= pBt->pPager->dbFileSize, "page number %u exceeds db file size %u", pgno, pBt->pPager->dbFileSize);
+    ASSERT_CORE(pgno != 0 && pgno <= pBt->pPager->dbFileSize, "invalid page number %u, db file size %u", pgno, pBt->pPager->dbFileSize);
 
     ((SPgno *)(pCell + nHeader))[0] = ((SPgno *)pVal)[0];
     nHeader = nHeader + sizeof(SPgno);
@@ -2106,25 +2105,18 @@ int tdbBtcMoveToLast(SBTC *pBtc) {
 
 
 static int tdbBtreeDecodeCurrentCell(SBTC *pBtc, void **ppKey, int *kLen, void **ppVal, int *vLen) {
-  SCell       *pCell;
   SCellDecoder cd = {0};
   void        *pKey, *pVal;
-  int          ret;
 
-  // current cursor points to an invalid position
-  if (pBtc->idx < 0) {
-    tdbError("tdb/btree-decode-current-cell: invalid cursor position.");
-    return TSDB_CODE_FAILED;
-  }
-
-  pCell = tdbPageGetCell(pBtc->pPage, pBtc->idx);
-
-  ret = tdbBtreeDecodeCell(pBtc->pPage, pCell, &cd, pBtc->pTxn, pBtc->pBt);
+  SCell* pCell = tdbPageGetCell(pBtc->pPage, pBtc->idx);
+  int ret = tdbBtreeDecodeCell(pBtc->pPage, pCell, &cd, pBtc->pTxn, pBtc->pBt);
   if (ret < 0) {
     tdbError("tdb/btree-decode-current-cell: decode cell failed with ret: %d.", ret);
     goto _exit;
   }
 
+  // BUG: Will `*ppKey` and `*ppVal` always be NULL? The interface of this function is ambiguous,
+  // it is hard to manage memory and there could be memory leaks.
   pKey = tdbRealloc(*ppKey, cd.kLen);
   if (pKey == NULL) {
     ret = terrno;
@@ -2165,6 +2157,11 @@ _exit:
 
 
 int tdbBtreeNext(SBTC *pBtc, void **ppKey, int *kLen, void **ppVal, int *vLen) {
+  // current cursor points to an invalid position
+  if (pBtc->idx < 0) {
+    return TSDB_CODE_FAILED;
+  }
+
   int ret = tdbBtreeDecodeCurrentCell(pBtc, ppKey, kLen, ppVal, vLen);
   if (ret < 0) {
     tdbError("tdb/btree-next: decode current cell failed with ret: %d.", ret);
@@ -2182,6 +2179,11 @@ int tdbBtreeNext(SBTC *pBtc, void **ppKey, int *kLen, void **ppVal, int *vLen) {
 
 
 int tdbBtreePrev(SBTC *pBtc, void **ppKey, int *kLen, void **ppVal, int *vLen) {
+  // current cursor points to an invalid position
+  if (pBtc->idx < 0) {
+    return TSDB_CODE_FAILED;
+  }
+
   int ret = tdbBtreeDecodeCurrentCell(pBtc, ppKey, kLen, ppVal, vLen);
   if (ret < 0) {
     tdbError("tdb/btree-prev: decode current cell failed with ret: %d.", ret);
@@ -2323,10 +2325,10 @@ static int tdbBtcMoveDownward(SBTC *pBtc) {
   if (pBtc->idx < TDB_PAGE_TOTAL_CELLS(pBtc->pPage)) {
     pCell = tdbPageGetCell(pBtc->pPage, pBtc->idx);
     pgno = ((SPgno *)pCell)[0];
-    ASSERT_CORE(pgno <= pBtc->pBt->pPager->dbFileSize, "page number %u exceeds db file size %u", pgno, pBtc->pBt->pPager->dbFileSize);
+    ASSERT_CORE(pgno > 0 && pgno <= pBtc->pBt->pPager->dbFileSize, "invalid page number %u, db file size %u", pgno, pBtc->pBt->pPager->dbFileSize);
   } else {
     pgno = ((SIntHdr *)pBtc->pPage->pData)->pgno;
-    ASSERT_CORE(pgno <= pBtc->pBt->pPager->dbFileSize, "page number %u exceeds db file size %u", pgno, pBtc->pBt->pPager->dbFileSize);
+    ASSERT_CORE(pgno > 0 && pgno <= pBtc->pBt->pPager->dbFileSize, "invalid page number %u, db file size %u", pgno, pBtc->pBt->pPager->dbFileSize);
   }
 
   if (!pgno) {
