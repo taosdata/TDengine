@@ -151,14 +151,18 @@ sudo systemctl disable taosanode
 
 ### 前置条件
 
-1. **安装 Python 3.10+**：
+1. **Python 3.10 / 3.11 / 3.12** - 需要安装 Python 并添加到 PATH
    - 从 [python.org](https://www.python.org/downloads/) 下载
    - 安装时勾选"Add Python to PATH"
    - 验证安装：`python --version`
 
-2. **管理员权限**：
+2. **Microsoft Visual C++ Redistributable x64** - TensorFlow、PyTorch 以及其他原生 Python 依赖所必需
+   - 下载地址：[VC++ Redistributable](https://aka.ms/vc14/vc_redist.x64.exe)
+
+3. **管理员权限**：
    - 服务安装需要管理员权限
    - 以管理员身份运行命令提示符
+
 
 ### 安装步骤
 
