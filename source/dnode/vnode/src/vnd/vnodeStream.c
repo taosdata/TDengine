@@ -2761,8 +2761,23 @@ static int32_t processTsNonVTable(SVnode* pVnode, SStreamTsResponse* tsRsp, SStr
 
   pTaskInner->options->suid = sStreamReaderInfo->suid;
   STREAM_CHECK_RET_GOTO(getAllTs(pVnode, pResBlock, pTaskInner, pList, pNum));
-  STREAM_CHECK_CONDITION_GOTO(pResBlock->info.rows == 0, TDB_CODE_SUCCESS);
+
   int32_t order = pTaskInner->options->order;
+
+  if (pResBlock->info.rows == 0 && sStreamReaderInfo->groupByTbname) {
+    tsRsp->tsInfo = taosArrayInit(pNum, sizeof(STsInfo));
+    STREAM_CHECK_NULL_GOTO(tsRsp->tsInfo, terrno);
+    for (int32_t i = 0; i < pNum; i++) {
+      STsInfo* tsInfo = taosArrayReserve(tsRsp->tsInfo, 1);
+      STREAM_CHECK_NULL_GOTO(tsInfo, terrno);
+      tsInfo->gId = pList[i].uid;
+      tsInfo->ts = 0;
+      ST_TASK_DLOG("%s no data but return gId (uid):%" PRIu64 " for tbname partition", __func__, tsInfo->gId);
+    }
+    goto end;
+  }
+
+  STREAM_CHECK_CONDITION_GOTO(pResBlock->info.rows == 0, TDB_CODE_SUCCESS);
 
   if (sStreamReaderInfo->groupByTbname) {
     STREAM_CHECK_RET_GOTO(processTsOutPutAllTables(sStreamReaderInfo, tsRsp, pResBlock, order));

@@ -230,6 +230,7 @@ typedef struct {
   SArray* forceOutCols;  // array of SStreamOutCol, only available when forceOutput is true
   SArray* colCids;       // array of SStreamCidCol, only available when colCids is not empty
   SArray* tagCids;       // array of SStreamCidTag, only available when tagCids is not empty
+  int8_t  nodelayCreateSubtable;  // 1 = create sub-tables at stream create time; 0 = default
 } SCMCreateStreamReq;
 
 typedef enum SStreamMsgType {
@@ -512,7 +513,8 @@ typedef struct {
   SArray* runnerList;  // SArray<SStreamRunnerTarget>
 
   int32_t leaderSnodeId;
-  char*   streamName;  
+  char*   streamName;
+  int8_t  nodelayCreateSubtable;  // 1 = create sub-tables at stream create time; 0 = create on the fly during trigger
 } SStreamTriggerDeployMsg;
 
 typedef struct SStreamRunnerDeployMsg {
