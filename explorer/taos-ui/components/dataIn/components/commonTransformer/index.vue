@@ -439,7 +439,12 @@
               <template #default="scope">
                 <div class="box-expression">
                   <template v-if="scope.row['Name'] == 'SubTableName'">
-                    <el-input v-model="scope.row.Expression" size="default" :placeholder="exprformat"></el-input>
+                    <el-input
+                      v-model="scope.row.Expression"
+                      size="default"
+                      :placeholder="exprformat"
+                      @blur="scope.row.Expression = scope.row.Expression.trim()"
+                    ></el-input>
                   </template>
                   <template v-else>
                     <el-select
