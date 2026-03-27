@@ -2701,6 +2701,7 @@ int32_t tCloneStreamCreateDeployPointers(SCMCreateStreamReq *pSrc, SCMCreateStre
   }
 
   pDst->triggerTblUid = pSrc->triggerTblUid;
+  pDst->triggerTblSuid = pSrc->triggerTblSuid;
   pDst->triggerTblType = pSrc->triggerTblType;
   pDst->triggerPrec = pSrc->triggerPrec;
   pDst->deleteReCalc = pSrc->deleteReCalc;

@@ -2697,15 +2697,26 @@ static int32_t getAllTs(SVnode* pVnode, SSDataBlock*  pResBlock, SStreamReaderTa
   int32_t code = 0;
   int32_t lino = 0;
 
+  stDebug("%s getAllTs enter: pNum:%d suid:%"PRId64" order:%d skey:%"PRId64" ekey:%"PRId64" verRange:[%"PRId64",%"PRId64"]",
+          pTaskInner->idStr, pNum, pTaskInner->options->suid, pTaskInner->options->order,
+          pTaskInner->options->twindows.skey, pTaskInner->options->twindows.ekey,
+          (int64_t)-1, pTaskInner->options->ver);
+  for (int32_t i = 0; i < pNum; i++) {
+    stDebug("%s getAllTs table[%d]: uid:%"PRId64, pTaskInner->idStr, i, pList[i].uid);
+  }
+
   STREAM_CHECK_RET_GOTO(pTaskInner->storageApi->tsdReader.tsdCreateFirstLastTsIter(pVnode, &pTaskInner->options->twindows, &(SVersionRange){.minVer = -1, .maxVer = pTaskInner->options->ver},
                                                 pTaskInner->options->suid, pList, pNum, pTaskInner->options->order, &pTaskInner->pReader, pTaskInner->idStr));
   bool hasNext = true;
+  int32_t iterCount = 0;
   while(1){
     STREAM_CHECK_RET_GOTO(pTaskInner->storageApi->tsdReader.tsdNextFirstLastTsBlock(pTaskInner->pReader, pResBlock, &hasNext));
+    stDebug("%s getAllTs iter[%d]: hasNext:%d pResBlock->info.rows:%"PRId64, pTaskInner->idStr, iterCount++, hasNext, pResBlock->info.rows);
     STREAM_CHECK_CONDITION_GOTO(!hasNext, TDB_CODE_SUCCESS);
   }
 
 end:
+  stDebug("%s getAllTs done: code:%d pResBlock->info.rows:%"PRId64, pTaskInner->idStr, code, pResBlock ? pResBlock->info.rows : -1);
   pTaskInner->storageApi->tsdReader.tsdDestroyFirstLastTsIter(pTaskInner->pReader);
   pTaskInner->pReader = NULL;
   return code;
@@ -2750,17 +2761,22 @@ static int32_t processTsNonVTable(SVnode* pVnode, SStreamTsResponse* tsRsp, SStr
   int32_t lino = 0;
   STableKeyInfo* pList = NULL;
   void* pTask = sStreamReaderInfo->pTask;
-  
+
   SSDataBlock*  pResBlock = NULL;
 
   int32_t        pNum = 0;
   int64_t        suid = 0;
   STREAM_CHECK_RET_GOTO(qStreamGetTableList(sStreamReaderInfo, 0, &pList, &pNum));
+  ST_TASK_DLOG("vgId:%d %s qStreamGetTableList returned pNum:%d", TD_VID(pVnode), __func__, pNum);
   STREAM_CHECK_CONDITION_GOTO(pNum == 0, TSDB_CODE_SUCCESS);
   STREAM_CHECK_RET_GOTO(createDataBlockTsUid(&pResBlock, pNum));
 
   pTaskInner->options->suid = sStreamReaderInfo->suid;
+  ST_TASK_DLOG("vgId:%d %s calling getAllTs: suid:%"PRId64" order:%d skey:%"PRId64" ekey:%"PRId64" ver:%"PRId64,
+               TD_VID(pVnode), __func__, pTaskInner->options->suid, pTaskInner->options->order,
+               pTaskInner->options->twindows.skey, pTaskInner->options->twindows.ekey, pTaskInner->options->ver);
   STREAM_CHECK_RET_GOTO(getAllTs(pVnode, pResBlock, pTaskInner, pList, pNum));
+  ST_TASK_DLOG("vgId:%d %s getAllTs done: pResBlock rows:%"PRId64, TD_VID(pVnode), __func__, pResBlock->info.rows);
   STREAM_CHECK_CONDITION_GOTO(pResBlock->info.rows == 0, TDB_CODE_SUCCESS);
   int32_t order = pTaskInner->options->order;
 
@@ -2882,7 +2898,11 @@ static int32_t vnodeProcessStreamFirstTsReq(SVnode* pVnode, SRpcMsg* pMsg, SSTri
   size_t                  size = 0;
 
   void* pTask = sStreamReaderInfo->pTask;
-  ST_TASK_DLOG("vgId:%d %s start, startTime:%"PRId64" ver:%"PRId64" gid:%"PRId64, TD_VID(pVnode), __func__, req->firstTsReq.startTime, req->firstTsReq.ver, req->firstTsReq.gid);
+  ST_TASK_DLOG("vgId:%d %s start, startTime:%"PRId64" ver:%"PRId64" gid:%"PRId64
+               " applied:%"PRId64" tableListNum:%d isVtable:%d groupByTbname:%d partitionCols:%p",
+               TD_VID(pVnode), __func__, req->firstTsReq.startTime, req->firstTsReq.ver, req->firstTsReq.gid,
+               pVnode->state.applied, qStreamGetTableListNum(sStreamReaderInfo),
+               sStreamReaderInfo->isVtableStream, sStreamReaderInfo->groupByTbname, sStreamReaderInfo->partitionCols);
   int32_t        pNum = 0;
 
   tsRsp.ver = pVnode->state.applied;
