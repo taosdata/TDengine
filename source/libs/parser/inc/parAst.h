@@ -306,6 +306,8 @@ SNode* createDropIndexStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SNode*
 SNode* createCreateComponentNodeStmt(SAstCreateContext* pCxt, ENodeType type, const SToken* pDnodeId);
 SNode* createDropComponentNodeStmt(SAstCreateContext* pCxt, ENodeType type, const SToken* pDnodeId);
 SNode* createRestoreComponentNodeStmt(SAstCreateContext* pCxt, ENodeType type, const SToken* pDnodeId);
+SNode* createRestoreComponentNodeStmtWithVgId(SAstCreateContext* pCxt, ENodeType type, const SToken* pDnodeId,
+                                              const SToken* pVgId);
 SNode* createCreateTopicStmtUseQuery(SAstCreateContext* pCxt, bool ignoreExists, SToken* pTopicName, SNode* pQuery);
 SNode* createCreateTopicStmtUseDb(SAstCreateContext* pCxt, bool ignoreExists, SToken* pTopicName, SToken* pSubDbName,
                                   int8_t withMeta);
