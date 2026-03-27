@@ -83,79 +83,79 @@ class ServiceRegistry:
             "algo": self.get_typed_services("correlation")
         }
 
-    def register_service_from_file(self, file_path: str) -> list:
-        """Load and register algorithms from a single .py file.
-
-        :param file_path: absolute path to the algorithm .py file
-        :return: list of algorithm names successfully registered
-        :raises FileNotFoundError: if the file does not exist
-        :raises ValueError: if the file is not a .py file
-        :raises RuntimeError: if import fails or no valid algorithm class is found
-        """
-        if not os.path.isfile(file_path):
-            msg = f"algorithm file not found: {file_path}"
-            AppLogger.error(msg)
-            raise FileNotFoundError(msg)
-
-        if not file_path.endswith('.py'):
-            msg = f"not a Python source file: {file_path}"
-            AppLogger.error(msg)
-            raise ValueError(msg)
-
-        # derive dotted module name from path relative to the package root
-        pkg_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        rel = os.path.relpath(os.path.abspath(file_path), pkg_root)
-        module_name = rel.replace(os.sep, '.')[:-3]  # strip .py
-
-        AppLogger.info("loading algorithm from file: %s (module: %s)", file_path, module_name)
-
-        try:
-            module = importlib.import_module(module_name)
-        except Exception as e:
-            msg = f"failed to import module {module_name}: {e}"
-            AppLogger.error(msg)
-            raise RuntimeError(msg) from e
-
-        _ABSTRACT_NAMES = {
-            AbstractAnomalyDetectionService.__name__,
-            AbstractForecastService.__name__,
-            AbstractImputationService.__name__,
-            AbstractCorrelationService.__name__,
-        }
-
-        registered = []
-
-        for class_name, algo_cls in inspect.getmembers(module, inspect.isclass):
-            # skip abstract base classes and non-private classes (convention: algo classes start with _)
-            if class_name in _ABSTRACT_NAMES or not class_name.startswith('_'):
-                continue
-
-            algo_name = getattr(algo_cls, 'name', None)
-            if not algo_name:
-                AppLogger.warning("class %s in %s has no 'name' attribute, skipping", class_name, file_path)
-                continue
-
-            # skip if already registered
-            if self.services.get(algo_name):
-                AppLogger.warning("algorithm '%s' is already registered, skipping", algo_name)
-                continue
-
-            try:
-                obj = algo_cls()
-                self.services[algo_name].append(obj)
-                AppLogger.info("registered algorithm '%s' from %s", algo_name, file_path)
-                registered.append(algo_name)
-            except Exception as e:
-                msg = f"failed to instantiate {class_name} from {module_name}: {e}"
-                AppLogger.error(msg)
-                raise RuntimeError(msg) from e
-
-        if not registered:
-            msg = f"no valid algorithm class found in {file_path}"
-            AppLogger.error(msg)
-            raise RuntimeError(msg)
-
-        return registered
+    # def register_service_from_file(self, file_path: str) -> list:
+    #     """Load and register algorithms from a single .py file.
+    #
+    #     :param file_path: absolute path to the algorithm .py file
+    #     :return: list of algorithm names successfully registered
+    #     :raises FileNotFoundError: if the file does not exist
+    #     :raises ValueError: if the file is not a .py file
+    #     :raises RuntimeError: if import fails or no valid algorithm class is found
+    #     """
+    #     if not os.path.isfile(file_path):
+    #         msg = f"algorithm file not found: {file_path}"
+    #         AppLogger.error(msg)
+    #         raise FileNotFoundError(msg)
+    #
+    #     if not file_path.endswith('.py'):
+    #         msg = f"not a Python source file: {file_path}"
+    #         AppLogger.error(msg)
+    #         raise ValueError(msg)
+    #
+    #     # derive dotted module name from path relative to the package root
+    #     pkg_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    #     rel = os.path.relpath(os.path.abspath(file_path), pkg_root)
+    #     module_name = rel.replace(os.sep, '.')[:-3]  # strip .py
+    #
+    #     AppLogger.info("loading algorithm from file: %s (module: %s)", file_path, module_name)
+    #
+    #     try:
+    #         module = importlib.import_module(module_name)
+    #     except Exception as e:
+    #         msg = f"failed to import module {module_name}: {e}"
+    #         AppLogger.error(msg)
+    #         raise RuntimeError(msg) from e
+    #
+    #     _ABSTRACT_NAMES = {
+    #         AbstractAnomalyDetectionService.__name__,
+    #         AbstractForecastService.__name__,
+    #         AbstractImputationService.__name__,
+    #         AbstractCorrelationService.__name__,
+    #     }
+    #
+    #     registered = []
+    #
+    #     for class_name, algo_cls in inspect.getmembers(module, inspect.isclass):
+    #         # skip abstract base classes and non-private classes (convention: algo classes start with _)
+    #         if class_name in _ABSTRACT_NAMES or not class_name.startswith('_'):
+    #             continue
+    #
+    #         algo_name = getattr(algo_cls, 'name', None)
+    #         if not algo_name:
+    #             AppLogger.warning("class %s in %s has no 'name' attribute, skipping", class_name, file_path)
+    #             continue
+    #
+    #         # skip if already registered
+    #         if self.services.get(algo_name):
+    #             AppLogger.warning("algorithm '%s' is already registered, skipping", algo_name)
+    #             continue
+    #
+    #         try:
+    #             obj = algo_cls()
+    #             self.services[algo_name].append(obj)
+    #             AppLogger.info("registered algorithm '%s' from %s", algo_name, file_path)
+    #             registered.append(algo_name)
+    #         except Exception as e:
+    #             msg = f"failed to instantiate {class_name} from {module_name}: {e}"
+    #             AppLogger.error(msg)
+    #             raise RuntimeError(msg) from e
+    #
+    #     if not registered:
+    #         msg = f"no valid algorithm class found in {file_path}"
+    #         AppLogger.error(msg)
+    #         raise RuntimeError(msg)
+    #
+    #     return registered
 
     def register_all_services(self) -> None:
         """ register all algorithms/models in the specified directory"""
