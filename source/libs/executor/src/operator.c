@@ -709,9 +709,17 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
     }
     code = createVirtualTableMergeOperatorInfo(ops, size, (SVirtualScanPhysiNode*)pPhyNode, pTaskInfo, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_HASH_EXTERNAL == type) {
-    code = createExternalWindowOperator(ops[0], pPhyNode, pTaskInfo, &pOptr);
+    if (pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM) {
+      code = createStreamExternalWindowOperator(ops[0], pPhyNode, pTaskInfo, &pOptr);
+    } else {
+      code = createExternalWindowOperator(ops[0], pPhyNode, pTaskInfo, &pOptr);
+    }
   } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_EXTERNAL == type) {
-    code = createMergeAlignedExternalWindowOperator(ops[0], pPhyNode, pTaskInfo, &pOptr);
+    if (pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM) {
+      code = createStreamMergeAlignedExternalWindowOperator(ops[0], pPhyNode, pTaskInfo, &pOptr);
+    } else {
+      code = createMergeAlignedExternalWindowOperator(ops[0], pPhyNode, pTaskInfo, &pOptr);
+    }
   } else {
     code = TSDB_CODE_INVALID_PARA;
     pTaskInfo->code = code;

@@ -1012,6 +1012,7 @@ typedef struct SStreamRuntimeFuncInfo {
   bool    withExternalWindow;
   bool    isWindowTrigger;
   int8_t  precision;
+  int32_t curOutIdx; // to indicate the window index for current block, valid value start from 1
   int32_t triggerType;
   int32_t addOptions;
   bool    hasPlaceHolder;

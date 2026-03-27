@@ -163,7 +163,7 @@ static int extWinGrpIdCompare(const void* p1, const void* p2) {
   return (*gId1) < (*gId2) ? -1 : 1;
 }
 
-void extWinDestroyCGrpCtx(void* param) {
+static void extWinDestroyCGrpCtx(void* param) {
   if (NULL == param) {
     return;
   }
@@ -173,7 +173,7 @@ void extWinDestroyCGrpCtx(void* param) {
   taosArrayDestroy(pCtx->pWins);
 }
 
-void extWinDestroyTGrpCtx(void* param) {
+static void extWinDestroyTGrpCtx(void* param) {
   if (NULL == param) {
     return;
   }
@@ -384,7 +384,7 @@ static void extWinDestroyBlkNode(SExternalWindowOperator* pInfo, SListNode* pNod
 }
 
 
-void destroyExternalWindowOperatorInfo(void* param) {
+static void destroyExternalWindowOperatorInfo(void* param) {
   if (NULL == param) {
     return;
   }
@@ -561,13 +561,13 @@ typedef struct SMergeAlignedExternalWindowOperator {
 static int32_t extWinInitNonStreamWindowDataFromBlock(SExternalWindowPhysiNode* pPhynode, SExecTaskInfo* pTaskInfo,
                                                        STimeWindow* pTimeRange);
 
-void destroyMergeAlignedExternalWindowOperator(void* pOperator) {
+static void destroyMergeAlignedExternalWindowOperator(void* pOperator) {
   SMergeAlignedExternalWindowOperator* pMAExtW = (SMergeAlignedExternalWindowOperator*)pOperator;
   destroyExternalWindowOperatorInfo(pMAExtW->pExtW);
   taosMemoryFreeClear(pMAExtW);
 }
 
-int64_t* extWinExtractTsCol(SSDataBlock* pBlock, int32_t primaryTsIndex, SExecTaskInfo* pTaskInfo) {
+static int64_t* extWinExtractTsCol(SSDataBlock* pBlock, int32_t primaryTsIndex, SExecTaskInfo* pTaskInfo) {
   TSKEY* tsCols = NULL;
 
   if (pBlock->pDataBlock != NULL && pBlock->info.dataLoad) {
@@ -1285,7 +1285,7 @@ _exit:
   return code;
 }
 
-void mergeAlignExtWinDo(SOperatorInfo* pOperator) {
+static void mergeAlignExtWinDo(SOperatorInfo* pOperator) {
   SExecTaskInfo*                       pTaskInfo = pOperator->pTaskInfo;
   SMergeAlignedExternalWindowOperator* pMAExtW = pOperator->info;
   SExternalWindowOperator*             pExtW = pMAExtW->pExtW;
@@ -1405,7 +1405,7 @@ _exit:
   return code;
 }
 
-int32_t resetMergeAlignedExtWinOperator(SOperatorInfo* pOperator) {
+static int32_t resetMergeAlignedExtWinOperator(SOperatorInfo* pOperator) {
   int32_t code = 0, lino = 0;
   SMergeAlignedExternalWindowOperator* pMAExtW = pOperator->info;
   SExternalWindowOperator*             pExtW = pMAExtW->pExtW;
