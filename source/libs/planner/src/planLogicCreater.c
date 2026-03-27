@@ -2461,9 +2461,6 @@ _return:
 
 static int32_t createWindowLogicNodeByStreamExternal(SLogicPlanContext* pCxt, SExternalWindowNode* pExternal,
                                                SSelectStmt* pSelect, SLogicNode** pLogicNode) {
-  if (pCxt->pPlanCxt->streamCxt.hasExtWindow) return TSDB_CODE_SUCCESS;
-  pCxt->pPlanCxt->streamCxt.hasExtWindow = true;
-
   SWindowLogicNode* pWindow = NULL;
   int32_t           code = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_WINDOW, (SNode**)&pWindow);
   if (NULL == pWindow) {
