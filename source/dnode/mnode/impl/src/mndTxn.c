@@ -1091,7 +1091,7 @@ static int32_t mndBeginTxn(SMnode *pMnode, SRpcMsg *pReq, SUserObj *pUser, SMTra
     rspReq.txnId = obj.id;
     int32_t rspLen = tSerializeSMTransReq(NULL, 0, &rspReq);
     if (rspLen > 0) {
-      void *pRsp = rpcMallocCont(rspLen);
+      void *pRsp = taosMemoryCalloc(1, rspLen);
       if (pRsp != NULL) {
         tSerializeSMTransReq(pRsp, rspLen, &rspReq);
         mndTransSetRpcRsp(pTrans, pRsp, rspLen);
