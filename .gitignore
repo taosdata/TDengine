@@ -65,6 +65,7 @@ docker/ci/zig-x86_64-linux-*.tar.xz
 .license_report.md
 .claude/
 CLAUDE.md
+.worktrees/
 
 # Allow King Historian CSV template to be committed
 !crates/source-kinghistorian/example/*.csv

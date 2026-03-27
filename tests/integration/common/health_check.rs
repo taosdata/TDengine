@@ -32,10 +32,46 @@ pub async fn check_taos_health(host: &str, port: u16) -> anyhow::Result<()> {
 }
 
 /// Check if Kafka is running
+#[cfg(feature = "test-kafka")]
 pub async fn check_kafka_health(broker: &str) -> anyhow::Result<()> {
-    // TODO: Implement Kafka health check when kafka crate is available
-    tracing::info!("Kafka health check placeholder for: {}", broker);
+    use anyhow::Context;
+    use rdkafka::consumer::{BaseConsumer, Consumer};
+    use rdkafka::ClientConfig;
+
+    let metadata = tokio::task::spawn_blocking({
+        let broker = broker.to_string();
+        move || {
+            let consumer: BaseConsumer = ClientConfig::new()
+                .set("bootstrap.servers", &broker)
+                .set(
+                    "group.id",
+                    format!("integration_health_check_{}", uuid::Uuid::new_v4()),
+                )
+                .create()
+                .with_context(|| format!("create kafka consumer for broker {broker}"))?;
+            consumer
+                .fetch_metadata(None, Duration::from_secs(5))
+                .with_context(|| format!("fetch kafka metadata from broker {broker}"))
+        }
+    })
+    .await
+    .context("join kafka metadata fetch task")??;
+
+    if metadata.brokers().is_empty() {
+        anyhow::bail!("kafka broker {broker} returned empty broker metadata");
+    }
+
+    println!(
+        "✓ Kafka health check passed ({broker}, brokers: {}, topics: {})",
+        metadata.brokers().len(),
+        metadata.topics().len()
+    );
     Ok(())
+}
+
+#[cfg(not(feature = "test-kafka"))]
+pub async fn check_kafka_health(broker: &str) -> anyhow::Result<()> {
+    anyhow::bail!("Kafka health check requires the `test-kafka` feature (broker: {broker})")
 }
 
 /// Check if MySQL is running
@@ -76,9 +112,12 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "test-kafka")]
     #[tokio::test]
-    async fn test_kafka_health_placeholder() {
-        assert!(check_kafka_health("localhost:9092").await.is_ok());
+    async fn test_kafka_health_check_reports_unreachable_broker() {
+        let result = check_kafka_health("127.0.0.1:1").await;
+
+        assert!(result.is_err());
     }
 
     #[tokio::test]

@@ -75,10 +75,13 @@ impl<'de> Deserialize<'de> for FilterImpl {
                 formatter.write_str("a string or a map")
             }
 
-            fn visit_str<E>(self, value: &str) -> Result<Self::Value, E> {
-                Ok(FilterImpl::Expr(expr::ExprRecordFilter::new(
-                    value.to_string(),
-                )))
+            fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                expr::ExprRecordFilter::try_new(value.to_string())
+                    .map(FilterImpl::Expr)
+                    .map_err(serde::de::Error::custom)
             }
 
             fn visit_map<M>(self, mut map: M) -> Result<Self::Value, M::Error>
@@ -88,6 +91,19 @@ impl<'de> Deserialize<'de> for FilterImpl {
                 let mut fields = LinkedHashMap::new();
                 while let Some((key, value)) = map.next_entry::<String, JsonValue>()? {
                     fields.insert(key, value);
+                }
+                let is_condition_expr = fields
+                    .keys()
+                    .all(|key| key == "expr" || key == "null_if_error")
+                    && fields.contains_key("expr");
+                if is_condition_expr {
+                    let expr = serde_json::from_value::<crate::plugins::expr::ConditionExpr>(
+                        JsonValue::Object(fields.into_iter().collect()),
+                    )
+                    .map_err(serde::de::Error::custom)?;
+                    return Ok(FilterImpl::Expr(expr::ExprRecordFilter::from_condition(
+                        expr,
+                    )));
                 }
                 Ok(FilterImpl::Match(r#match::MatchRecordFilter::new(fields)))
             }
@@ -109,10 +125,13 @@ impl<'de> Deserialize<'de> for Filter {
                 formatter.write_str("array or string or map")
             }
 
-            fn visit_str<E>(self, value: &str) -> Result<Self::Value, E> {
-                Ok(Filter(vec![FilterImpl::Expr(expr::ExprRecordFilter::new(
-                    value.to_string(),
-                ))]))
+            fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                expr::ExprRecordFilter::try_new(value.to_string())
+                    .map(|expr| Filter(vec![FilterImpl::Expr(expr)]))
+                    .map_err(serde::de::Error::custom)
             }
 
             fn visit_map<M>(self, mut map: M) -> Result<Self::Value, M::Error>
@@ -173,6 +192,15 @@ mod tests {
         let filter = r#"{ "b": "^b\\d{3}$" }"#;
         let filter: Filter = serde_json::from_str(filter).unwrap();
         dbg!(filter);
+    }
+
+    #[test]
+    fn test_invalid_expr_filter_returns_deserialize_error() {
+        let err = serde_json::from_str::<FilterImpl>(r#""a >""#).unwrap_err();
+        assert!(err.to_string().contains("Syntax error"));
+
+        let err = serde_json::from_str::<Filter>(r#""a >""#).unwrap_err();
+        assert!(err.to_string().contains("Syntax error"));
     }
 
     use arrow::array::{

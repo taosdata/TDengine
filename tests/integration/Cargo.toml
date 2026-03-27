@@ -15,7 +15,7 @@ default = []
 integration = []
 
 # Data source tests
-test-kafka = []
+test-kafka = ["fake-data", "rdkafka", "dotenv"]
 test-mysql = []
 test-oracle = []
 test-postgres = []
@@ -85,3 +85,4 @@ taosx-utils = { workspace = true, features = ["backoff", "taos_conn"] }
 fake-data = { path = "../../crates/fake_data", optional = true }
 rumqttc-next = { version = "0.27", optional = true }
 dotenv = { version = "0.15", optional = true }
+rdkafka = { version = "0.39.0", features = ["cmake-build"], optional = true }

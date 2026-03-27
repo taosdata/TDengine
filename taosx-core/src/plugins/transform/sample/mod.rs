@@ -11,6 +11,7 @@ use linked_hash_map::LinkedHashMap;
 use multi_schema::MultiSchemaSamples;
 use serde::{Deserialize, Serialize};
 
+use crate::plugins::expr::ConditionExpr;
 use crate::plugins::transform::{
     modeler::ModeledJsonOutput,
     parse::{FieldParser, ParserImpl},
@@ -54,6 +55,10 @@ pub struct DsSampleIn {
     pub parser: crate::Pipeline,
     /// Sample data input, an array of object.
     pub input: Vec<LinkedHashMap<String, serde_json::Value>>,
+    /// Optional matches condition to pre-filter rows after parsing.
+    /// When set, only rows satisfying this condition are processed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub matches: Option<ConditionExpr>,
 }
 
 impl DsSampleIn {
@@ -79,7 +84,9 @@ impl DsSampleIn {
             .context("Could not build record reader from json stream")?;
         let batch = reader.next().unwrap()?;
 
-        let output = self.parser.transform(&batch)?;
+        let output = self
+            .parser
+            .transform_with_prefilter(&batch, self.matches.as_ref())?;
 
         if let Some(tz) = tz {
             let _ = arrow::array::timezone::Tz::from_str(tz).context("Invalid timezone")?;
@@ -113,7 +120,9 @@ impl DsSampleIn {
             .context("Could not build record reader from json stream")?;
         let batch = reader.next().unwrap()?;
 
-        let batch = self.parser.transform_records(&batch)?;
+        let batch = self
+            .parser
+            .transform_records_with_prefilter(&batch, self.matches.as_ref())?;
 
         let json_batches = to_json_valid_batches(&[batch]);
 

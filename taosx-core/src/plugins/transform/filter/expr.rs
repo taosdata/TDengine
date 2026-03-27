@@ -1,17 +1,23 @@
 use arrow::array::BooleanArray;
 use serde::{Deserialize, Serialize};
 
-use crate::plugins::expr::BooleanExpr;
+use crate::plugins::expr::ConditionExpr;
 
 use super::{RecordFilter, RecordFilterError};
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ExprRecordFilter {
-    expr: String,
+    expr: ConditionExpr,
 }
 
 impl ExprRecordFilter {
-    pub fn new(expr: String) -> Self {
+    pub fn try_new(expr: String) -> Result<Self, Box<rhai::EvalAltResult>> {
+        Ok(Self {
+            expr: ConditionExpr::try_new(expr, true)?,
+        })
+    }
+
+    pub fn from_condition(expr: ConditionExpr) -> Self {
         Self { expr }
     }
 }
@@ -21,13 +27,9 @@ impl RecordFilter for ExprRecordFilter {
         &self,
         records: &arrow::record_batch::RecordBatch,
     ) -> Result<arrow::record_batch::RecordBatch, RecordFilterError> {
-        let expr = BooleanExpr::try_new(self.expr.clone());
-        let filter = match expr {
-            Ok(expr) => expr.eval(records).unwrap(),
-            Err(_) => {
-                // 没有符合的列则默认全部保留
-                vec![true; records.num_rows()]
-            }
+        let filter = match self.expr.eval(records) {
+            Ok(result) => result,
+            Err(_) => vec![true; records.num_rows()],
         };
         let filter = BooleanArray::from(filter);
         Ok(arrow::compute::filter_record_batch(records, &filter).unwrap())
@@ -48,12 +50,18 @@ mod tests {
     fn test_filter_by_expression() {
         let record_batch = init_record_batch();
 
-        let filter = ExprRecordFilter::new(String::from("!a && b == 1 && c > 1"));
+        let filter = ExprRecordFilter::try_new(String::from("!a && b == 1 && c > 1")).unwrap();
 
         let new_batch = filter.filter_records(&record_batch).unwrap();
         dbg!(&new_batch);
 
         assert_eq!(new_batch.num_rows(), 1);
+    }
+
+    #[test]
+    fn test_invalid_expression_returns_error() {
+        let err = ExprRecordFilter::try_new(String::from("a >")).unwrap_err();
+        assert!(err.to_string().contains("Syntax error"));
     }
 
     fn init_record_batch() -> RecordBatch {

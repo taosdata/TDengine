@@ -29,6 +29,8 @@ pub struct IpcMetrics {
     pub total_parsed_rows: AtomicU64,
     /// 当前任务，执行解析后过滤器筛掉的总行数
     pub total_filter_skipped_rows: AtomicU64,
+    /// Current task, rows that did not match any multi-pipeline rule.
+    pub total_unmatched_rows: AtomicU64,
     /// 当前任务，执行解析后前置合法检查筛掉的行数
     pub total_check_skipped_rows: AtomicU64,
     /// 当前任务，待写入的行数
@@ -66,6 +68,8 @@ pub struct IpcMetrics {
     pub parsed_rows: AtomicU64,
     /// 本次运行，过滤器筛掉的行数
     pub filter_skipped_rows: AtomicU64,
+    /// Current run, rows that did not match any multi-pipeline rule.
+    pub unmatched_rows: AtomicU64,
     /// 本次运行，前置合法检查筛掉的行数
     pub check_skipped_rows: AtomicU64,
     /// 本次运行，待写入的行数
@@ -119,6 +123,10 @@ impl std::ops::AddAssign for IpcMetrics {
         );
         self.total_filter_skipped_rows.fetch_add(
             rhs.total_filter_skipped_rows.load(Ordering::Relaxed),
+            Ordering::Relaxed,
+        );
+        self.total_unmatched_rows.fetch_add(
+            rhs.total_unmatched_rows.load(Ordering::Relaxed),
             Ordering::Relaxed,
         );
         self.total_check_skipped_rows.fetch_add(
@@ -190,6 +198,10 @@ impl std::ops::AddAssign for IpcMetrics {
             .fetch_add(rhs.parsed_rows.load(Ordering::Relaxed), Ordering::Relaxed);
         self.filter_skipped_rows.fetch_add(
             rhs.filter_skipped_rows.load(Ordering::Relaxed),
+            Ordering::Relaxed,
+        );
+        self.unmatched_rows.fetch_add(
+            rhs.unmatched_rows.load(Ordering::Relaxed),
             Ordering::Relaxed,
         );
         self.check_skipped_rows.fetch_add(
@@ -276,6 +288,15 @@ impl IpcMetrics {
         }
         self.total_filter_skipped_rows.fetch_add(n, SeqCst);
         self.filter_skipped_rows.fetch_add(n, SeqCst);
+        update_metrics(self.task_id(), self.job_id());
+    }
+
+    pub fn add_unmatched_rows(&self, n: u64) {
+        if n == 0 {
+            return;
+        }
+        self.total_unmatched_rows.fetch_add(n, SeqCst);
+        self.unmatched_rows.fetch_add(n, SeqCst);
         update_metrics(self.task_id(), self.job_id());
     }
 

@@ -7,6 +7,5 @@
     "types": ["vite/client", "vitest/globals", "./config/global.d.ts"],
     "outDir": "./dist"
   },
-  "include": ["**/*.ts", "**/*.tsx", "**/*.vue", "**/*.d.ts"],
-  "exclude": ["__tests__/*", "*.test.*", "*.spec.*"]
+  "include": ["**/*.ts", "**/*.tsx", "**/*.vue", "**/*.d.ts"]
 }

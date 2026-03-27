@@ -14,11 +14,10 @@ use taos::{AsyncTBuilder, Dsn, TaosBuilder};
 use taoslog::QidManager;
 use taoslog::utils::{QidMetadataGetter, QidMetadataSetter};
 use taosx_core::core_metrics::{TaskMetrics, get_metrics_arc_from_i64, init_task_metrics};
-use taosx_core::plugins;
 use taosx_core::sink::{handle_point_message_init, read_cache_and_rewrite};
 use taosx_core::utils::trace::Qid;
 use taosx_core::{
-    IpcStreamWorker, Parser,
+    IpcStreamWorker, TransformConfig,
     core_metrics::get_metrics,
     sink::{
         IpcErrorStrategy, MessageMetadata, RPC_ACK_PROCESSED, RPC_ACK_RECEIVED, RPC_ACK_STREAM_END,
@@ -75,6 +74,16 @@ struct AppMetadata {
     data_trace_id: u64,
 }
 
+fn deserialize_task_parser(
+    parser: Option<&serde_json::Value>,
+) -> anyhow::Result<Option<TransformConfig>> {
+    parser
+        .cloned()
+        .map(serde_json::from_value)
+        .transpose()
+        .context("deserialize task parser")
+}
+
 async fn ipc_stream_writer(
     notify_sender: AgentNotifySender,
     agent_id: i64,
@@ -123,11 +132,7 @@ async fn ipc_stream_writer(
     )
     .in_current_span()
     .await?;
-    let parser: Option<Arc<Parser>> = task
-        .parser
-        .as_ref()
-        .map(|v| serde_json::from_value(v.clone()).unwrap())
-        .map(Arc::new);
+    let mut parser = deserialize_task_parser(task.parser.as_ref())?;
     let metadata = worker.parser.metadata();
     let metrics_arc = {
         if let Some(arc) = get_metrics(task_id, job_id) {
@@ -137,6 +142,10 @@ async fn ipc_stream_writer(
             get_metrics(task_id, job_id).ok_or_else(|| anyhow::format_err!("metrics not found"))?
         }
     };
+    if let Some(parser) = parser.as_mut() {
+        parser.set_metrics(metrics_arc.clone());
+    }
+    let parser = parser.map(Arc::new);
 
     let metrics = metrics_arc.ipc();
     if worker.lush_model_config.get().is_none()
@@ -498,7 +507,7 @@ async fn spawn_stream_writer(
             notify_sender
                 .send(AgentNotify::AgentActivity(
                     agent_id,
-                    Activity::ipc_finished(task_id, job_id),
+                    Activity::ipc_finished(agent_id, task_id, job_id),
                 ))
                 .ok();
 
@@ -591,21 +600,12 @@ impl PutStream {
             .get_task(task_id, job_id)
             .await
             .with_context(|| format!("Cannot find task {task_id}"))?;
-        let mut parser: Option<Parser> = task
-            .parser
-            .as_ref()
-            .map(|v| serde_json::from_value(v.clone()).unwrap());
+        let mut parser = deserialize_task_parser(task.parser.as_ref())?;
+        let parser_metrics = get_metrics_arc_from_i64(Some((task_id, job_id)));
         if let Some(parser) = parser.as_mut() {
-            match parser {
-                plugins::Parser::Inner(parser) => {
-                    parser.organize_archive(task.id, job_id)?;
-                    parser.organize_cache(task.id, job_id)?;
-                }
-                plugins::Parser::WithSample { parser, input: _ } => {
-                    parser.organize_archive(task.id, job_id)?;
-                    parser.organize_cache(task.id, job_id)?;
-                }
-            };
+            parser.set_metrics(parser_metrics);
+            parser.organize_archive(task.id, job_id)?;
+            parser.organize_cache(task.id, job_id)?;
         }
 
         // the queue for transmitting cache and archived data
@@ -1044,5 +1044,20 @@ mod tests {
         assert_ne!(RPC_ACK_RECEIVED, RPC_ACK_PROCESSED);
         assert_ne!(RPC_ACK_RECEIVED, RPC_ACK_STREAM_END);
         assert_ne!(RPC_ACK_PROCESSED, RPC_ACK_STREAM_END);
+    }
+
+    #[test]
+    fn test_deserialize_task_parser_reports_invalid_payload() {
+        let result = deserialize_task_parser(Some(&serde_json::json!({
+            "global": "invalid"
+        })));
+
+        assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("deserialize task parser")
+        );
     }
 }

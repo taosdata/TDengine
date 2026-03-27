@@ -10640,6 +10640,7 @@ dependencies = [
  "fastrand 2.3.0",
  "ha-core",
  "nix",
+ "rdkafka",
  "reqwest",
  "rumqttc-next",
  "serde",

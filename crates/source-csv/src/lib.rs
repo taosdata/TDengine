@@ -22,7 +22,7 @@ use taosx_core::core_metrics::{CoreMetrics, get_metrics_arc_or, insert_metrics};
 use taosx_core::sink::channel_based_transformer;
 use taosx_core::sink::ipc_metric::IpcMetrics;
 use taosx_core::utils::breakpoints;
-use taosx_core::{Parser, TaskNotifySender, utils};
+use taosx_core::{TaskNotifySender, TransformConfig, utils};
 use taosx_ipc::types::dsv::DataSourceValidation;
 use taosx_utils::dsn::json_to_dsn;
 use tokio::sync::Semaphore;
@@ -148,7 +148,7 @@ pub async fn csv_header(
 
 async fn csv_to_taos_with_channel(
     mut from: Dsn,
-    mut parser: Option<Parser>,
+    mut parser: Option<TransformConfig>,
     to: Dsn,
     cancel: CancellationToken,
     task_job_id: Option<(i64, i64)>,
@@ -442,7 +442,7 @@ fn process_new_file(task_job_id: Option<(i64, i64)>, paths: Vec<PathBuf>) {
 #[instrument(skip_all)]
 pub async fn csv_to_taos(
     from: Dsn,
-    parser: Option<Parser>,
+    parser: Option<TransformConfig>,
     to: Dsn,
     cancel: CancellationToken,
     task_job_id: Option<(i64, i64)>,

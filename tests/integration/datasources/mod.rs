@@ -37,14 +37,14 @@ pub mod pi;
 pub mod historian;
 
 /// 读取带 `INTEGRATION_TEST_` 前缀的环境变量，返回 `anyhow::Result<String>`。
-#[cfg(all(test, any(feature = "test-all-datasources", feature = "test-mqtt")))]
+#[cfg(all(test, any(feature = "test-kafka", feature = "test-mqtt")))]
 pub(crate) fn env_var(key: &str) -> anyhow::Result<String> {
     use anyhow::Context;
     std::env::var(format!("INTEGRATION_TEST_{}", key))
         .with_context(|| format!("INTEGRATION_TEST_{} not set", key))
 }
 
-#[cfg(all(test, any(feature = "test-all-datasources", feature = "test-mqtt")))]
+#[cfg(all(test, any(feature = "test-kafka", feature = "test-mqtt")))]
 pub async fn resolve_agent_via(
     client: &crate::core::api::ApiClient,
     with_agent: bool,

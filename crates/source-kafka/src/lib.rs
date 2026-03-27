@@ -23,7 +23,7 @@ use taosx_ipc::ack::LushAck;
 use taosx_ipc::prelude::ArrowDataType;
 
 use taosx_core::core_metrics::{CoreMetrics, get_metrics_arc_from_i64};
-use taosx_core::{Parser, TaskNotify, TaskNotifySender, Via};
+use taosx_core::{TaskNotify, TaskNotifySender, TransformConfig, Via};
 
 use crate::config::task::KafkaTaskConfig;
 use crate::context::CustomContext;
@@ -94,7 +94,7 @@ pub struct PendingState {
 #[instrument(skip_all)]
 pub async fn kafka_to_taos(
     from: Dsn,
-    mut parser: Option<Parser>,
+    mut parser: Option<TransformConfig>,
     to: Dsn,
     upstream_cancel: CancellationToken,
     with_agent: Option<Via>,

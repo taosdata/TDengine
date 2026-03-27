@@ -11,7 +11,7 @@
 use std::{
     borrow::{Borrow, Cow},
     cell::OnceCell,
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{BTreeMap, HashMap},
     ops::Range,
     str::FromStr,
     sync::Arc,
@@ -38,7 +38,6 @@ use arrow_schema::{FieldRef, TimeUnit};
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use either::Either;
-use faststr::FastStr;
 use flume::Sender;
 use handling_strategy::{HandlingResult, ProcessOnAbnormal};
 use itertools::Itertools;
@@ -52,14 +51,13 @@ use taos::{
     },
 };
 use thiserror::Error;
-use tinytemplate::TinyTemplate;
 
 pub use select::Select;
 use taosx_ipc::prelude::IpcDataType;
 use tracing::instrument;
 
 use super::expr;
-use crate::plugins::transform::{modeler::stable::FastStrExpr, parse::ArrayForTaos};
+use crate::plugins::transform::parse::ArrayForTaos;
 use crate::{core_metrics::CoreMetrics, plugins::transform::modeler::Table};
 use crate::{
     get_data_dir,
@@ -82,10 +80,13 @@ pub mod parse;
 pub mod filter;
 pub mod map;
 pub mod modeler;
+pub mod multi_pipeline;
 pub mod mutate;
 pub mod sample;
 
 pub mod handling_strategy;
+
+pub use multi_pipeline::{MultiPipeline, Rule, TransformConfig};
 
 #[derive(Debug, Default, Deserialize, Serialize, Clone)]
 pub struct Pipeline {
@@ -110,6 +111,16 @@ impl Pipeline {
     }
 
     pub fn transform(&self, records: &RecordBatch) -> Result<Vec<ModeledRecordBatch>, Error> {
+        self.transform_with_prefilter(records, None)
+    }
+
+    /// Transform records, optionally pre-filtering rows by `matches` after parsing.
+    /// The filter is applied on the parsed batch (after `parse`) and before mutations.
+    pub fn transform_with_prefilter(
+        &self,
+        records: &RecordBatch,
+        matches: Option<&expr::ConditionExpr>,
+    ) -> Result<Vec<ModeledRecordBatch>, Error> {
         self.check()?;
         let batch = self
             .parse
@@ -118,6 +129,18 @@ impl Pipeline {
             .transpose()?;
 
         let batch = batch.unwrap_or_else(|| records.clone());
+
+        let batch = if let Some(filter) = matches {
+            filter.filter(&batch)?
+        } else {
+            batch
+        };
+
+        // If the filter removed all rows, skip the mutate and model steps.
+        if batch.num_rows() == 0 {
+            return Ok(vec![]);
+        }
+
         let batch = self
             .mutate
             .iter()
@@ -130,12 +153,33 @@ impl Pipeline {
     }
 
     pub fn transform_records(&self, records: &RecordBatch) -> Result<RecordBatch, Error> {
+        self.transform_records_with_prefilter(records, None)
+    }
+
+    /// Transform records to a flat batch, optionally pre-filtering by `matches` after parsing.
+    pub fn transform_records_with_prefilter(
+        &self,
+        records: &RecordBatch,
+        matches: Option<&expr::ConditionExpr>,
+    ) -> Result<RecordBatch, Error> {
         let batch = self
             .parse
             .as_ref()
             .map(|parse| parse.transform_record_batch(records))
             .transpose()?
             .unwrap_or_else(|| records.clone());
+
+        let batch = if let Some(filter) = matches {
+            filter.filter(&batch)?
+        } else {
+            batch
+        };
+
+        // If the filter removed all rows, skip the mutate steps.
+        if batch.num_rows() == 0 {
+            return Ok(batch);
+        }
+
         self.mutate
             .iter()
             .try_fold(batch, |batch, mutate| mutate.transform_record_batch(&batch))
@@ -1096,6 +1140,7 @@ mod pipeline_tests {
 /// }]
 /// ```
 #[derive(Debug, Deserialize, Serialize, Clone)]
+#[serde(deny_unknown_fields)]
 pub struct Parser {
     #[serde(default)]
     global: Arc<TableOptions>,
@@ -1287,452 +1332,18 @@ impl Parser {
         filter_ts: bool,
         archive_tx: Option<&Sender<ArchiveType>>,
     ) -> Result<Message, Error> {
-        // (ts, value, point_name, ${point_name}, site_controller_id)
         let transformed_batch = self
             .transform_records(records)
             .context("parser transform origin recordbatch error")?;
-        let schema = transformed_batch.schema();
-        // tracing::info!("Parse message {:?}", batch);
-
-        let pivot_fields = schema
-            .fields()
-            .iter()
-            .filter_map(|f| {
-                f.name()
-                    .strip_prefix("${")
-                    .and_then(|name| name.strip_suffix("}"))
-                    .map(|name| (name, f.name().as_str()))
-            })
-            .collect_vec();
-
-        let stables = self
-            .s_model
-            .as_ref()
-            .map(|s| s.apply(&transformed_batch, self.global()))
-            .transpose()
-            .context("apply stable name error")?;
-
-        let mut data = vec![];
-
-        let json_batch = OnceCell::new();
-
-        'table: for table in &self.model {
-            let mut archive_indices = HashMap::new();
-            let mut skip_indices = HashMap::new();
-            let mut use_current_time_indices = HashMap::new();
-
-            // get the columns and tags
-            let mut columns_indices = Vec::from_iter(0..transformed_batch.num_columns());
-            let spec_columns = if let Some(cols) = &table.columns {
-                let mut indices = Vec::new();
-                for name in cols {
-                    // TS-6763: 首先找名字完全匹配的列，再找 metadata 里 name 匹配的列
-                    if let Ok(index) = schema.index_of(name) {
-                        indices.push(index);
-                        continue;
-                    }
-                    if let Some((index, _)) =
-                        Self::get_schema_column_with_name(&schema, name.as_str())
-                    {
-                        indices.push(index);
-                        continue;
-                    }
-                    tracing::warn!("Selected column {name} not found in stream message");
-                }
-                indices
-            } else {
-                Vec::new()
-            };
-            let (tags, columns) = if let Some(tags) = &table.tags {
-                let mut indices = vec![];
-                for name in tags {
-                    if let Ok(index) = schema.index_of(name) {
-                        indices.push(index);
-                        columns_indices[index] = usize::MAX;
-                        continue;
-                    }
-                    let (i, _) = Self::get_schema_column_with_name(&schema, name.as_str())
-                        .ok_or_else(|| anyhow::format_err!("Invalid field name `{name}`"))?;
-                    indices.push(i);
-                    columns_indices[i] = usize::MAX;
-                }
-                let tags = transformed_batch.project(&indices)?;
-                let cols = if spec_columns.is_empty() {
-                    columns_indices
-                        .into_iter()
-                        .filter(|v| *v != usize::MAX)
-                        .collect_vec()
-                } else {
-                    spec_columns
-                };
-                (Some(tags), transformed_batch.project(&cols).unwrap())
-            } else {
-                let cols = if spec_columns.is_empty() {
-                    columns_indices
-                } else {
-                    spec_columns
-                };
-                (None, transformed_batch.project(&cols).unwrap())
-            };
-
-            // check the field length of columns and tags
-            let all_fields: Vec<&Arc<arrow_schema::Field>> = if let Some(tags) = &tags {
-                columns
-                    .schema_ref()
-                    .fields()
-                    .iter()
-                    .chain(tags.schema_ref().fields().iter())
-                    .collect()
-            } else {
-                columns.schema_ref().fields().iter().collect()
-            };
-            for field in all_fields.clone() {
-                let field_name = field.name();
-                if field_name.len() > 64 {
-                    match self
-                        .global
-                        .process_on_abnormal
-                        .field_name_length_overflow
-                        .handle(
-                            vec![field_name.clone()],
-                            64,
-                            format!("the length of field name '{field_name}' should not exceed 64"),
-                        ) {
-                        Ok((HandlingResult::Skip, err)) => {
-                            tracing::warn!("skip the batch due to {err}");
-                            break 'table;
-                        }
-                        Ok((HandlingResult::Archive, err)) => {
-                            tracing::warn!("archive and skip the batch due to {err}");
-                            let mut err_vec = vec![None; transformed_batch.num_rows()];
-                            if let Some(v) = err_vec.first_mut() {
-                                *v = Some(err.to_string());
-                            }
-                            if let Some(v) = err_vec.last_mut() {
-                                *v = Some(err.to_string());
-                            }
-                            let mut err_timestamp_vec = vec![0; transformed_batch.num_rows()];
-                            let now = Utc::now().timestamp_nanos_opt().unwrap_or_default();
-                            if let Some(v) = err_timestamp_vec.first_mut() {
-                                *v = now;
-                            }
-                            if let Some(v) = err_timestamp_vec.last_mut() {
-                                *v = now;
-                            }
-                            archive_records_blocking(
-                                &transformed_batch,
-                                err_vec,
-                                err_timestamp_vec,
-                                archive_tx,
-                            )
-                            .context("archive field name error")?;
-                            break 'table;
-                        }
-                        Ok((HandlingResult::Modify(_), _)) => todo!(), // TODO1
-                        Ok((HandlingResult::ModifyAndArchive(_), _)) => todo!(), // TODO1
-                        Ok((HandlingResult::Retry, _)) => unreachable!(),
-                        Err(e) => {
-                            Err(Error::FieldNameLengthOverflowError(
-                                field_name.to_string(),
-                                e,
-                            ))?;
-                        }
-                    }
-                }
-            }
-
-            // check primary timestamp
-            if filter_ts {
-                for row in 0..columns.num_rows() {
-                    let col = columns.column(0);
-                    let ts = get_primary_timestamp_ns(all_fields[0].name(), col, row)?;
-                    // primary timestamp null
-                    if ts.is_none() {
-                        match self
-                            .global
-                            .process_on_abnormal
-                            .primary_timestamp_null
-                            .handle("the primary timestamp should not be null".to_string())
-                        {
-                            Ok((HandlingResult::Skip, err)) => {
-                                let _ = skip_indices.insert(row, err);
-                            }
-                            Ok((HandlingResult::Archive, err)) => {
-                                let _ = skip_indices.insert(row, err.clone());
-                                let _ = archive_indices.insert(row, err);
-                            }
-                            Ok((HandlingResult::Modify(_), err)) => {
-                                let _ = use_current_time_indices.insert(row, err);
-                            }
-                            Ok((HandlingResult::ModifyAndArchive(_), err)) => {
-                                let _ = use_current_time_indices.insert(row, err.clone());
-                                let _ = archive_indices.insert(row, err);
-                            }
-                            Ok((HandlingResult::Retry, _)) => unreachable!(),
-                            Err(_) => {
-                                Err(Error::NullPrimaryKey(all_fields[0].name().clone()))?;
-                            }
-                        }
-                        continue;
-                    }
-                    // primary timestamp overflow
-                    let ts = ts.unwrap();
-                    let ts = ts / 1_000_000;
-                    let mut primary_timestamp_overflow_flag = false;
-                    if let Some(max_ts) = self.global.maximum_timestamp
-                        && ts > max_ts.timestamp_millis()
-                    {
-                        primary_timestamp_overflow_flag = true;
-                    }
-                    if let Some(min_ts) = self.global.minimum_timestamp
-                        && ts < min_ts.timestamp_millis()
-                    {
-                        primary_timestamp_overflow_flag = true;
-                    }
-                    if primary_timestamp_overflow_flag {
-                        match self
-                            .global
-                            .process_on_abnormal
-                            .primary_timestamp_overflow
-                            .handle(format!("the primary timestamp {ts} overflow"))
-                        {
-                            Ok((HandlingResult::Skip, err)) => {
-                                let _ = skip_indices.insert(row, err);
-                            }
-                            Ok((HandlingResult::Archive, err)) => {
-                                let _ = skip_indices.insert(row, err.clone());
-                                let _ = archive_indices.insert(row, err);
-                            }
-                            Ok((HandlingResult::Modify(_), _)) => unreachable!(),
-                            Ok((HandlingResult::ModifyAndArchive(_), _)) => unreachable!(),
-                            Ok((HandlingResult::Retry, _)) => unreachable!(),
-                            Err(e) => {
-                                Err(Error::PrimaryTimestampOverflow(format!("{e:#}")))?;
-                            }
-                        }
-                    }
-                }
-            }
-
-            let name = table.name.replace("${", "{");
-            let mut template = TinyTemplate::new();
-            template.add_template("name", &name).unwrap();
-            let using = table.using.as_ref().map(|using| using.replace("${", "{"));
-            if let Some(using) = using.as_ref() {
-                template.add_template("using", using).unwrap();
-            }
-
-            let skipped: HashSet<usize> = HashSet::from_iter(skip_indices.keys().cloned());
-            let tables = (0..transformed_batch.num_rows())
-                .filter(|row| !skipped.contains(row))
-                .map(|row| {
-                    match generate_table_name(
-                        self.global.process_on_abnormal.clone(),
-                        table,
-                        row,
-                        &transformed_batch,
-                        &table.name,
-                        &json_batch,
-                    )? {
-                        (HandlingResult::Skip, err) => {
-                            let _ = skip_indices.insert(row, err);
-                            anyhow::Ok((String::default(), row))
-                        }
-                        (HandlingResult::Archive, err) => {
-                            let _ = skip_indices.insert(row, err.clone());
-                            let _ = archive_indices.insert(row, err);
-                            Ok((String::default(), row))
-                        }
-                        (HandlingResult::Modify(mut name), _) => {
-                            Ok((name.pop().unwrap_or_default(), row))
-                        }
-                        (HandlingResult::ModifyAndArchive(mut name), err) => {
-                            let _ = archive_indices.insert(row, err);
-                            Ok((name.pop().unwrap_or_default(), row))
-                        }
-                        (HandlingResult::Retry, _) => unreachable!(),
-                    }
-                })
-                .try_collect::<_, Vec<_>, _>()
-                .context("generate table name error")?
-                .into_iter()
-                .into_group_map();
-
-            // 1. archive records
-            if !archive_indices.is_empty() {
-                let mut archive_indices_vec = Vec::with_capacity(archive_indices.len());
-                let mut err_vec = Vec::with_capacity(archive_indices.len());
-                let mut err_timestamp_vec = Vec::with_capacity(archive_indices.len());
-                let now = Utc::now().timestamp_nanos_opt().unwrap_or_default();
-                archive_indices.iter().for_each(|(row, err)| {
-                    archive_indices_vec.push(*row);
-                    err_vec.push(Some(err.clone()));
-                    err_timestamp_vec.push(now);
-                });
-                let archive_batches = archive_indices_vec
-                    .iter()
-                    .map(|row| transformed_batch.slice(*row, 1))
-                    .collect_vec();
-                let archive_batch = concat_batches(&transformed_batch.schema(), &archive_batches)
-                    .context("concat archive batch error")?;
-                archive_records_blocking(&archive_batch, err_vec, err_timestamp_vec, archive_tx)
-                    .context("archive abnormal batch error")?;
-            }
-
-            let ts_field_name = table
-                .columns
-                .as_ref()
-                .and_then(|v| v.first())
-                .context("ts field not found")?;
-
-            if let Some(metrics) = self.metrics.as_ref() {
-                let metrics = metrics.ipc();
-                // check_skipped_rows: 写入前检查过滤掉的 rows
-                metrics.add_check_skipped_rows(skip_indices.len() as u64);
-            }
-            let using_expr = table
-                .using
-                .as_ref()
-                .map(|name| FastStrExpr::new(name.clone().into()));
-            // name: sub_table_name, indices: group row index
-            for (name, indices) in tables {
-                // 2. skip records
-                let indices = if skip_indices.is_empty() {
-                    indices
-                } else {
-                    indices
-                        .into_iter()
-                        .filter(|row| !skip_indices.contains_key(row))
-                        .collect_vec()
-                };
-
-                // 3. if we did not set a useful name or the indices is empty, skip this table
-                if name.is_empty() || indices.is_empty() {
-                    continue;
-                }
-
-                // 4. modify records
-                let columns = if use_current_time_indices.is_empty() {
-                    columns.clone()
-                } else {
-                    let time_array: Vec<_> = (0..columns.num_rows())
-                        .map(|row| {
-                            if use_current_time_indices.contains_key(&row) {
-                                Utc::now().timestamp_nanos_opt()
-                            } else {
-                                match get_primary_timestamp_ns(
-                                    all_fields[0].name(),
-                                    columns.column(0),
-                                    row,
-                                ) {
-                                    Ok(Some(ts)) => Some(ts),
-                                    _ => None,
-                                }
-                            }
-                        })
-                        .collect();
-                    RecordBatch::try_new(
-                        columns.schema(),
-                        columns
-                            .columns()
-                            .iter()
-                            .enumerate()
-                            .map(|(i, col)| {
-                                if i == 0 {
-                                    Arc::new(TimestampNanosecondArray::from(time_array.clone()))
-                                } else {
-                                    col.clone()
-                                }
-                            })
-                            .collect::<Vec<_>>(),
-                    )?
-                };
-
-                let ranges = indices_to_ranges(&indices);
-                let name_row = indices[0];
-
-                let using = using_expr
-                    .as_ref()
-                    .map(|expr| expr.eval(&transformed_batch, name_row))
-                    .transpose()?
-                    .map(|using| self.global().canonical_table_name(&using).to_string());
-
-                let tags = tags
-                    .as_ref()
-                    .map(|batch| Arc::new(batch.slice(name_row, 1)));
-
-                let using = match (&stables, using) {
-                    (Some(map), Some(using)) => map
-                        .get(&FastStr::from(using))
-                        .map(|m| Arc::new(STable::Model(m.clone()))),
-                    (None, Some(using)) => Some(Arc::new(STable::Name(using))),
-                    (_, None) => None,
-                };
-
-                // without pivot
-                if pivot_fields.is_empty() {
-                    let sub_table_batches = ranges
-                        .iter()
-                        .map(|range| columns.slice(range.start, range.len()))
-                        .collect_vec();
-                    let sub_table_batch = arrow::compute::concat_batches(
-                        &columns.schema(),
-                        sub_table_batches.iter(),
-                    )?;
-                    if let Some(metrics) = self.metrics.as_ref() {
-                        let metrics = metrics.ipc();
-                        // 没有 pivot，设置 write_ready_rows
-                        metrics.add_write_ready_rows(sub_table_batch.num_rows() as u64);
-                    }
-                    let meta = MessageTableMeta::new(name, using, tags);
-                    let item = MessageArrowRecords {
-                        table: meta,
-                        records: sub_table_batch,
-                        opts: self.global.clone(),
-                    };
-                    data.push(item);
-                } else {
-                    let meta = MessageTableMeta::new(name.clone(), using.clone(), tags.clone());
-
-                    let batches = ranges
-                        .iter()
-                        .map(|range| transformed_batch.slice(range.start, range.len()))
-                        .collect_vec();
-                    let pivot_batch = arrow::compute::concat_batches(
-                        transformed_batch.schema_ref(),
-                        batches.iter(),
-                    )?;
-
-                    let common_cols = table.columns.as_ref().map(|cols| {
-                        cols.iter()
-                            .filter(|col| !pivot_fields.iter().any(|(a, b)| a == col || b == col))
-                            .map(|s| s.as_str())
-                            .collect::<Vec<_>>()
-                    });
-                    // let common_cols = table.columns.as_ref()
-                    let pivot_batches = pivot(
-                        &pivot_batch,
-                        ts_field_name,
-                        &pivot_fields,
-                        common_cols.as_deref(),
-                    )?;
-                    for batch in pivot_batches {
-                        if let Some(metrics) = self.metrics.as_ref() {
-                            let metrics = metrics.ipc();
-                            // 有 pivot，设置 write_ready_rows
-                            metrics.add_write_ready_rows(batch.num_rows() as u64);
-                        }
-
-                        data.push(MessageArrowRecords {
-                            table: meta.clone(),
-                            records: batch,
-                            opts: self.global.clone(),
-                        })
-                    }
-                }
-            }
-        }
-        Ok(Message::Records(data))
+        multi_pipeline::build_records_message(
+            &self.global,
+            self.metrics.as_ref(),
+            &self.model,
+            self.s_model.as_ref(),
+            &transformed_batch,
+            filter_ts,
+            archive_tx,
+        )
     }
 
     pub fn parse(&self, records: &RecordBatch) -> Result<RecordBatch, Error> {

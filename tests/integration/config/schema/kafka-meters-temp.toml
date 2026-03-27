@@ -1,0 +1,21 @@
+# Fake data schema for meters "temp" Kafka messages.
+# Generates JSON routed by the rule: kind == "temp"
+
+type = "object"
+
+[properties.kind]
+type = "string"
+fixed = "temp"
+
+[properties.device]
+type = "string"
+samples = ["alpha", "beta", "gamma"]
+
+[properties.value]
+type = "float"
+range = { min = 15.0, max = 35.0 }
+
+[properties.ts]
+type = "timestamp"
+start_time = 2026-01-01T00:00:00
+interval = "1ms"

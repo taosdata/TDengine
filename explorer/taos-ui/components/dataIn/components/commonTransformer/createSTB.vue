@@ -234,6 +234,7 @@ const dataInProps = getDataInProps();
 const props = defineProps<{
   activeType: string;
   database: string;
+  ruleId?: string;
 }>();
 
 const state = reactive({
@@ -512,7 +513,7 @@ async function createStable() {
 
       await createStableReq(state.stable_form, props.database).then(() => {
         ElMessage.success(t('msg.createSuccess'));
-        emit('create-stable-succ', state.stable_form.name);
+        emit('create-stable-succ', state.stable_form.name, props.ruleId);
       });
     }
   });
@@ -580,7 +581,7 @@ async function createTemplateStable() {
         return;
       }
       transformerState.s_model = s_model;
-      emit('create-template-stable-succ', state.stable_form.name);
+      emit('create-template-stable-succ', state.stable_form.name, props.ruleId);
     }
   });
 }

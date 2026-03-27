@@ -58,7 +58,7 @@ pub struct TaskOpts {
     pub from: Dsn,
     pub transform: Vec<Action>,
     pub to: Dsn,
-    pub parser: Option<taosx_core::plugins::Parser>,
+    pub parser: Option<taosx_core::plugins::TransformConfig>,
     pub health: Option<taosx_core::task_set::prelude::HealthOpts>,
     pub cancel: CancellationToken,
     pub with_agent: Option<Via>,

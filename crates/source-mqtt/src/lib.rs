@@ -25,7 +25,7 @@ use taosx_core::plugins::runners::{get_data_dir, set_tcp_keepalive};
 use taosx_core::plugins::transform::sample::DsSampleIn;
 use taosx_core::sink::persist::PersistConfig;
 use taosx_core::utils::codec::Processor;
-use taosx_core::{Parser, Via, build_ipc};
+use taosx_core::{TransformConfig, Via, build_ipc};
 
 use crate::config::MqttConfig;
 
@@ -44,7 +44,7 @@ pub const MQTT_ID: &str = "mqtt";
 #[instrument(skip_all)]
 pub async fn mqtt_to_taos(
     from: Dsn,
-    mut parser: Option<Parser>,
+    mut parser: Option<TransformConfig>,
     to: Dsn,
     upstream_cancel_token: CancellationToken,
     with_agent: Option<Via>,

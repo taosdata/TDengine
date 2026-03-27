@@ -16,6 +16,51 @@ export interface TableRow {
   joinwith?: string;
 }
 
+export interface TransformCapabilities {
+  supportsRuleBlocks: boolean;
+  supportsMultipleRules: boolean;
+}
+
+export interface ConditionExpr {
+  expr: string;
+  null_if_error?: boolean;
+}
+
+export interface TransformRule {
+  matches: ConditionExpr;
+  mutate: Recordable[];
+  model: Recordable;
+}
+
+export interface TransformRuleState extends TransformRule {
+  id: string;
+}
+
+export interface TransformParserConfig {
+  global?: Recordable;
+  parse?: ParseType;
+  model?: Recordable;
+  mutate?: Recordable[];
+  rules?: TransformRuleState[];
+  s_model?: Recordable;
+}
+
+export interface TransformConfigBase {
+  parser: TransformParserConfig;
+  format?: {
+    pageCount: number;
+    pageSize: number;
+    currentPage: number;
+  };
+}
+
+export interface TransformFormState extends TransformConfigBase {
+  input?: Recordable[];
+  samples?: Recordable[];
+}
+
+export type TransformConfig = TransformFormState;
+
 export interface TransformerState {
   csvParser: csvParser | null;
   transformExtractParseData: TransformExtractParseDataType | null;
@@ -86,6 +131,7 @@ export interface TopParseType {
   parser: {
     mutate?: Recordable[];
     parse?: ParseType;
+    rules?: TransformRule[];
   };
 }
 
@@ -94,6 +140,7 @@ export interface SpbTopParseType {
   parser: {
     mutate?: Recordable[];
     parse?: ParseType;
+    rules?: TransformRule[];
   };
 }
 
@@ -124,16 +171,14 @@ export interface JsonParseExtractType {
 }
 
 interface TransformerFilterParseDataType {
-  filter: string;
+  filter: ConditionExpr;
 }
 
 export interface TransformerfullparamsType {
-  parser: {
-    global?: Recordable;
+  parser: TransformParserConfig & {
     parse: ParseType;
-    model: Recordable;
-    mutate: Recordable[];
-    s_model?: Recordable;
+    model?: Recordable;
+    mutate?: Recordable[];
   };
   input: Recordable[];
   format: {
@@ -141,15 +186,15 @@ export interface TransformerfullparamsType {
     pageSize: number;
     currentPage: number;
   };
+  /** Optional matches filter for rule block preview: only rows satisfying this condition are shown. */
+  matches?: ConditionExpr;
 }
 
 export interface TransformerSpbfullparamsType {
-  parser: {
-    global?: Recordable;
+  parser: TransformParserConfig & {
     parse: ParseType;
-    model: Recordable;
-    mutate: Recordable[];
-    s_model?: Recordable;
+    model?: Recordable;
+    mutate?: Recordable[];
   };
   samples: Recordable[];
   format: {

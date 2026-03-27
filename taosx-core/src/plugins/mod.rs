@@ -1,6 +1,5 @@
 use anyhow::Context;
 use futures::TryStreamExt;
-use serde::{Deserialize, Serialize};
 use sink::persist::PersistConfig;
 use std::sync::{Arc, OnceLock};
 use std::time::Duration;
@@ -24,53 +23,34 @@ pub use sink::IpcStreamWorker;
 pub use taosx_ipc::types::*;
 pub use transform::Pipeline;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq)]
 #[serde(untagged)]
-pub enum Parser {
-    Inner(transform::Parser),
+pub enum TransformConfig {
+    Inner(transform::TransformConfig),
     WithSample {
-        parser: transform::Parser,
+        parser: transform::TransformConfig,
         input: Option<Vec<serde_json::Value>>,
     },
 }
 
-#[test]
-#[ignore]
-fn test_parser_serde() {
-    let parser = r#"{
-  "parse": { "payload": { "json": ["value::double"] } },
-  "model": {
-    "table": "{topic}",
-    "using": "mqtt",
-    "tags": ["topic"],
-    "columns": ["ts", "value", "qos"]
-  }
-}"#;
-    let parser: Parser = serde_json::from_str(parser).unwrap();
-    dbg!(&parser);
-    let json = serde_json::to_string(&parser).unwrap();
-    assert_eq!(
-        json,
-        r#"{"parser":{"parse":{"payload":""}},"format":{"a":1}}"#
-    );
-}
+pub type Parser = TransformConfig;
 
-impl std::ops::Deref for Parser {
-    type Target = transform::Parser;
+impl std::ops::Deref for TransformConfig {
+    type Target = transform::TransformConfig;
 
     fn deref(&self) -> &Self::Target {
         match self {
-            Parser::Inner(parser) => parser,
-            Parser::WithSample { parser, .. } => parser,
+            TransformConfig::Inner(parser) => parser,
+            TransformConfig::WithSample { parser, .. } => parser,
         }
     }
 }
 
-impl std::ops::DerefMut for Parser {
+impl std::ops::DerefMut for TransformConfig {
     fn deref_mut(&mut self) -> &mut Self::Target {
         match self {
-            Parser::Inner(parser) => parser,
-            Parser::WithSample { parser, .. } => parser,
+            TransformConfig::Inner(parser) => parser,
+            TransformConfig::WithSample { parser, .. } => parser,
         }
     }
 }
@@ -150,7 +130,7 @@ pub struct Via {
 #[instrument(skip_all)]
 pub async fn build_ipc(
     socket: Option<&str>,
-    parser: Option<Parser>,
+    parser: Option<TransformConfig>,
     to: &Dsn,
     connector: Option<&'static str>,
     opc_model_config: Option<Arc<PointModelConfig>>,

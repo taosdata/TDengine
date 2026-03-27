@@ -53,7 +53,7 @@ use tokio::sync::{Mutex, Notify, OnceCell};
 use tracing::{debug, error, info, instrument};
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 
-use crate::Parser;
+use crate::TransformConfig;
 use crate::core_metrics::{CoreMetrics, TaskMetrics};
 use crate::core_metrics::{get_metrics_arc_from_i64, get_metrics_arc_or};
 use crate::plugins::runners::opc::config::OPCConfig;
@@ -265,7 +265,7 @@ async fn ipc_tcp_read(
     opc_model_config: Option<&PointModelConfig>,
     lush_model_config: Option<&LushModelConfig>,
     cancel: CancellationToken,
-    parser: Option<Parser>,
+    parser: Option<TransformConfig>,
     connector: Option<&'static str>,
     task_job_id: Option<(i64, i64)>,
     batch_counter: Option<Arc<BatchCounter>>,
@@ -1872,7 +1872,7 @@ async fn consume_flat_record(
     batch: &RecordBatch,
     count: &mut usize,
     cancel: &CancellationToken,
-    parser: &Parser,
+    parser: &TransformConfig,
     target_precision: taos::Precision,
     metrics: &IpcMetrics,
     notifier: Option<&crate::TaskNotifySender>,
@@ -2522,7 +2522,7 @@ async fn ipc_flat_stream_worker(
     stream: impl Stream<Item = Result<RecordBatch, ArrowError>> + Send + 'static,
     sink: impl Sink<LushAck, Error = ArrowError> + Send + 'static,
     cancel: CancellationToken,
-    parser: Option<&Parser>,
+    parser: Option<&TransformConfig>,
     target_precision: taos::Precision,
     notifier: crate::TaskNotifySender,
     ipc_error_strategy: IpcErrorStrategy,
@@ -2610,7 +2610,7 @@ async fn ipc_flat_stream_reader<R: Read + Send + 'static, W: Write + Send + 'sta
     ipc_reader: IpcReader<R>,
     ipc_ack_writer: AckWriter<W>,
     cancel: CancellationToken,
-    parser: Option<&Parser>,
+    parser: Option<&TransformConfig>,
     target_precision: taos::Precision,
     notifier: crate::TaskNotifySender,
     ipc_error_strategy: IpcErrorStrategy,
@@ -2779,7 +2779,7 @@ async fn ipc_process<R: Read + Send + 'static, W: Write + Send + 'static>(
     opc_model_config: Option<&PointModelConfig>,
     lush_model_config: Option<&LushModelConfig>,
     cancel: CancellationToken,
-    parser: Option<Parser>,
+    parser: Option<TransformConfig>,
     connector: Option<&str>,
     task_job_id: Option<(i64, i64)>,
     batch_counter: Option<Arc<BatchCounter>>,
@@ -3171,7 +3171,7 @@ impl IpcStreamWorker {
     pub async fn process_record(
         &self,
         record: RecordBatch,
-        parser: Option<&Parser>,
+        parser: Option<&TransformConfig>,
         metrics: &IpcMetrics,
         metrics_arc: &Arc<CoreMetrics>,
         tables_messages_in_progress: &Arc<AtomicUsize>,
@@ -3548,7 +3548,7 @@ pub async fn listen_tcp_socket(
     lush_model_config: Option<Arc<LushModelConfig>>,
     cancel: CancellationToken,
     with_agent: Option<Via>,
-    parser: Option<Parser>,
+    parser: Option<TransformConfig>,
     connector: Option<&'static str>,
     task_job_id: Option<(i64, i64)>,
     notifier: crate::TaskNotifySender,
@@ -3787,7 +3787,7 @@ async fn bind_tcp(
 pub async fn channel_based_transformer(
     target: TaosPool,
     cancel: &CancellationToken,
-    parser: Option<Parser>,
+    parser: Option<TransformConfig>,
     connector: Option<&'static str>,
     task_job_id: Option<(i64, i64)>,
     notifier: crate::TaskNotifySender,
@@ -3935,7 +3935,7 @@ pub async fn channel_based_transformer(
 pub async fn read_cache_and_rewrite(
     task_job_id: (i64, i64),
     pool: &TaosPool,
-    parser: &Parser,
+    parser: &TransformConfig,
     archive_tx: &Sender<ArchiveType>,
     cancel: &CancellationToken,
 ) -> anyhow::Result<()> {
@@ -3999,7 +3999,7 @@ async fn read_file_and_rewrite(
     taos: &mut Option<deadpool::managed::Object<Manager<TaosBuilder>>>,
     target_precision: taos::Precision,
     metrics: &IpcMetrics,
-    parser: &Parser,
+    parser: &TransformConfig,
     archive_tx: Option<&Sender<ArchiveType>>,
     cancel: &CancellationToken,
 ) -> anyhow::Result<()> {

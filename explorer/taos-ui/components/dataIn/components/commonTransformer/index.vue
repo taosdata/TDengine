@@ -241,7 +241,380 @@
         </li>
       </ul>
     </section>
-    <section class="extract">
+    <section v-if="usesRuleBlocks" class="rule-blocks">
+      <div class="block-title top">
+        <span>{{ t('dataIn.transformer.ruleBlocks') }}</span>
+      </div>
+      <div class="rule-blocks__list">
+        <RuleBlockCard
+          v-for="(rule, index) in ruleBlocks"
+          :key="rule.id"
+          :rule="rule"
+          :index="index"
+          :active="rule.id === activeRuleId"
+          :can-move-up="index > 0"
+          :can-move-down="index < ruleBlocks.length - 1"
+          @select="activateRuleBlock"
+          @update:rule="updateRuleBlock"
+          @remove="removeRuleBlock"
+          @move-up="moveRuleBlock($event, 'up')"
+          @move-down="moveRuleBlock($event, 'down')"
+          @preview-matches="previewMatches($event)"
+        >
+          <template v-if="rule.id === activeRuleId">
+            <section class="extract">
+              <div class="block-title top">
+                <span>{{ t('dataIn.transformer.extract') }}</span>
+                <el-popover placement="top" trigger="hover" width="520">
+                  <div style="position: relative">
+                    <i style="position: absolute; right: 0" class="el-icon-close"></i>
+                    <DocsContent :style="docsStyle" :content="t('dataIn.transformer.subextractdesc')" />
+                  </div>
+                  <template #reference>
+                    <span style="margin-left: 1px">
+                      <Icon name="label_info" class="info-icon-custom"></Icon>
+                    </span>
+                  </template>
+                </el-popover>
+              </div>
+              <template v-for="(item, extractIndex) in extractArr" :key="item.key">
+                <ExtractSplit
+                  ref="extractRef"
+                  :item-data="item"
+                  :index-key="extractIndex"
+                  :datasource-type="sourceForm.type"
+                  :msg-form="msgForm"
+                  :extract-arr="extractArr"
+                  :extract-columns="item.columns"
+                  :identified-columns="identifiedColumns"
+                  :is-viewable="isViewable"
+                  :rule-id="activeRuleId"
+                  :matches="activeRuleBlock?.matches"
+                  @update-extract-arr="updateExtractArr"
+                  @validate-msgbody="validateMsgBody"
+                  @delete-extract="deleteExtract"
+                  @select-column="changeColumnStatus"
+                  @set-extract-name="setExtractName"
+                  @change-extract-expr="changeExtractExpr"
+                ></ExtractSplit>
+              </template>
+              <el-tooltip placement="top" effect="light" :open-delay="0" :disabled="!dataInProps.isCommunity">
+                <template #content>
+                  <span v-dompurify-html="t('common.communityTip')"></span>
+                </template>
+                <el-button
+                  :type="dataInProps.isIdmp ? 'default' : 'primary'"
+                  icon="el-icon-plus"
+                  size="default"
+                  class="btn-icon-small"
+                  plain
+                  :disabled="columnsArr.length == 0 || dataInProps.isCommunity"
+                  @click="addNewExtract"
+                >
+                  {{ t('dataIn.transformer.addExtract') }}
+                </el-button>
+              </el-tooltip>
+            </section>
+
+            <section class="filter">
+              <div class="block-title">
+                <span>{{ t('dataIn.transformer.filter') }}</span>
+                <el-popover placement="top" effect="light" trigger="hover" width="520">
+                  <div style="position: relative">
+                    <i style="position: absolute; right: 0" class="el-icon-close"></i>
+                    <DocsContent :style="docsStyle" :content="t('dataIn.transformer.filterdesc')" />
+                  </div>
+                  <template #reference>
+                    <span style="margin-left: 1px">
+                      <Icon name="label_info" class="info-icon-custom"></Icon>
+                    </span>
+                  </template>
+                </el-popover>
+              </div>
+              <template v-for="(item, filterIndex) in filterArr" :key="filterIndex">
+                <FilterExpression
+                  ref="filterRef"
+                  :index="filterIndex"
+                  :item-data="item"
+                  :payload="msgForm.msgbody"
+                  :msg-form="msgForm"
+                  :datasource-type="sourceForm.type"
+                  :identified-columns="identifiedColumns"
+                  :rule-id="activeRuleId"
+                  :matches="activeRuleBlock?.matches"
+                  @validate-msgbody="validateMsgBody"
+                  @delete-filter="deleteFilter"
+                  @change-filter="changeFilter"
+                >
+                </FilterExpression>
+              </template>
+              <el-tooltip placement="top" effect="light" :open-delay="0" :disabled="!dataInProps.isCommunity">
+                <template #content>
+                  <span v-dompurify-html="t('common.communityTip')"></span>
+                </template>
+                <el-button
+                  :type="dataInProps.isIdmp ? 'default' : 'primary'"
+                  icon="el-icon-plus"
+                  size="default"
+                  class="btn-icon-small"
+                  plain
+                  :disabled="filterArr.length >= 1 || columnsArr.length == 0 || dataInProps.isCommunity"
+                  @click="addNewFilter"
+                >
+                  {{ t('dataIn.transformer.addfilter') }}
+                </el-button>
+              </el-tooltip>
+            </section>
+
+            <section>
+              <div class="block-title">
+                <span>{{ t('dataIn.transformer.superconfig') }}</span>
+              </div>
+              <div class="table-content">
+                <div class="table-title" style="margin-bottom: 16px">
+                  <div class="title">
+                    <span class="stb-label">
+                      {{ t('dataIn.transformer.targetSt') }}
+                    </span>
+                    <el-form ref="sruleFormRef" :model="sruleForm" :rules="srules">
+                      <el-form-item prop="s_name">
+                        <el-select
+                          v-model="sruleForm.s_name"
+                          allow-create
+                          default-first-option
+                          size="default"
+                          :placeholder="
+                            sourceForm.targetDB
+                              ? t('dataIn.transformer.stableSelectOrCreateTip')
+                              : t('dataIn.transformer.databaseSelectTip')
+                          "
+                          :disabled="!sourceForm.targetDB || columnsArr.length === 0"
+                          @change="() => getSTbaleList(false)"
+                        >
+                          <el-option
+                            v-for="(item, stableIndex) in stableLists"
+                            :key="stableIndex"
+                            :label="item"
+                            :value="item"
+                          ></el-option>
+                        </el-select>
+                      </el-form-item>
+                    </el-form>
+                  </div>
+                  <el-tooltip placement="top" effect="light" :open-delay="0" :disabled="!dataInProps.isCommunity">
+                    <template #content>
+                      <span v-dompurify-html="t('common.communityTip')"></span>
+                    </template>
+                    <el-dropdown v-if="supportTransform.supportTopicBody" size="default" @command="createStable">
+                      <el-button size="default" :type="dataInProps.isIdmp ? 'default' : 'primary'" plain>
+                        {{ t('dataIn.transformer.createstb') }}
+                        <el-icon class="el-icon--right"><arrow-down /></el-icon>
+                      </el-button>
+                      <template #dropdown>
+                        <el-dropdown-menu>
+                          <el-dropdown-item command="sqlCreate">{{ t('dataIn.transformer.createstb') }}</el-dropdown-item>
+                          <el-dropdown-item command="templateCreate">{{
+                            t('dataIn.transformer.templatestb')
+                          }}</el-dropdown-item>
+                        </el-dropdown-menu>
+                      </template>
+                    </el-dropdown>
+                    <el-button
+                      v-else
+                      :type="dataInProps.isIdmp ? 'default' : 'primary'"
+                      class="btn-icon-small"
+                      size="default"
+                      icon="Plus"
+                      plain
+                      :disabled="sourceForm.targetDB == '' || columnsArr.length === 0 || dataInProps.isCommunity"
+                      @click="createStable('sqlCreate')"
+                    >
+                      {{ t('dataIn.transformer.createstb') }}
+                    </el-button>
+                  </el-tooltip>
+                </div>
+                <div v-if="tableData.length > 0" :key="refreshKey" class="table-detail">
+                  <el-table ref="mappingTable" :data="pageTableData" border style="width: 100%">
+                    <el-table-column prop="Name" show-overflow-tooltip label="Name" width="120px">
+                      <template #default="scope">
+                        <div style="display: flex; align-items: end">
+                          <el-icon v-if="scope.row.Expression.toString()" style="margin-right: 2px; color: rgb(56 155 255)">
+                            <SuccessFilled />
+                          </el-icon>
+                          <Icon
+                            v-if="params_tags.includes(scope.row['Name'])"
+                            :name="'tag'"
+                            class="console-tree-icon"
+                            style="width: 20px; height: 20px"
+                          ></Icon>
+                          <Icon
+                            v-if="scope.row.PrimaryKey"
+                            :name="'key'"
+                            class="console-tree-icon"
+                            style="width: 20px; height: 20px"
+                          ></Icon>
+
+                          <span>{{ scope.row['Name'] }}</span>
+                        </div>
+                      </template>
+                    </el-table-column>
+                    <el-table-column prop="Type" show-overflow-tooltip label="Type" width="130px"></el-table-column>
+                    <el-table-column prop="Expression" label="Expression">
+                      <template #header>
+                        <el-tooltip placement="top" effect="light" :open-delay="0">
+                          <template #content>
+                            <DocsContent :style="docsStyle" :content="t('dataIn.transformer.expressiondesc')" />
+                          </template>
+                          <span>Expression <Icon name="label_info" class="info-icon-custom"></Icon></span>
+                        </el-tooltip>
+                      </template>
+                      <template #default="scope">
+                        <div class="box-expression">
+                          <template v-if="scope.row['Name'] == 'SubTableName'">
+                            <el-input v-model="scope.row.Expression" size="default" :placeholder="exprformat"></el-input>
+                          </template>
+                          <template v-else>
+                            <el-select
+                              v-model="scope.row.exprname"
+                              size="default"
+                              class="mapping-rule-select"
+                              style="width: 110px; min-width: 110px"
+                              @change="changeCurrentMapExpr(scope)"
+                            >
+                              <el-option v-for="item in mappingTypes" :key="item" :label="item" :value="item">{{
+                                item
+                              }}</el-option>
+                            </el-select>
+
+                            <el-select
+                              v-if="
+                                scope.row.exprname == 'mapping' || scope.row.exprname == 'sum' || scope.row.exprname == 'join'
+                              "
+                              v-model="scope.row.Expression"
+                              :placeholder="t('dataIn.transformer.coltip')"
+                              :clearable="scope.row.exprname == 'mapping'"
+                              size="default"
+                              filterable
+                              class="mapping-rule-expression"
+                              :multiple="scope.row.exprname != 'mapping'"
+                              @clear="onMappingExpressionCleared(scope.row)"
+                            >
+                              <el-option
+                                v-for="val in mappingcolumns"
+                                :key="val.label"
+                                :value="val.value"
+                                :label="val.label"
+                              ></el-option>
+                            </el-select>
+                            <el-input
+                              v-else
+                              :key="'expr'"
+                              v-model="scope.row.Expression"
+                              class="mapping-rule-expression"
+                              :placeholder="
+                                scope.row.exprname == 'format'
+                                  ? exprformat
+                                  : scope.row.exprname == 'expr'
+                                    ? exprexpression
+                                    : scope.row.exprname == 'value'
+                                      ? t('dataIn.transformer.valuetip')
+                                      : ''
+                              "
+                              size="default"
+                              :disabled="scope.row['exprname'] == 'generator'"
+                              @change="
+                                statisticCol;
+                                relayout();
+                              "
+                            ></el-input>
+                            <el-input
+                              v-if="scope.row.exprname == 'join'"
+                              :key="'exprjoin'"
+                              v-model="scope.row.joinwith"
+                              size="default"
+                              class="mapping-rule-extra"
+                              style="height: 32px"
+                            >
+                              <template #prepend>with</template>
+                            </el-input>
+                            <el-input
+                              v-else-if="scope.row.exprname == 'mapping' && scope.row.dataRange"
+                              :key="'default-value-of-' + scope.row['Name']"
+                              v-model="scope.row.default"
+                              size="default"
+                              type="number"
+                              :placeholder="t('dataIn.transformer.defaultValuePlaceholder')"
+                              :maxlength="scope.row.dataRange[2]"
+                              class="mapping-rule-extra"
+                              @blur="onDefaultValueInput(scope.row.Name, scope.row.default, scope.row.dataRange)"
+                            >
+                            </el-input>
+                            <el-select
+                              v-else-if="scope.row.exprname == 'mapping' && scope.row.dataType == 'BOOL'"
+                              v-model="scope.row.default"
+                              :placeholder="t('dataIn.transformer.defaultValuePlaceholder')"
+                              size="default"
+                              class="mapping-rule-extra"
+                            >
+                              <el-option label="true" value="true"></el-option>
+                              <el-option label="false" value="false"></el-option>
+                              <el-option label="null" value="null"></el-option>
+                            </el-select>
+                            <el-input
+                              v-else-if="scope.row.exprname == 'mapping' && scope.row.dataType"
+                              v-model="scope.row.default"
+                              size="default"
+                              :placeholder="t('dataIn.transformer.defaultValuePlaceholder')"
+                              class="mapping-rule-extra"
+                            ></el-input>
+                          </template>
+                          <div v-if="scope.row.defaultValueError" class="default-value-error">
+                            {{ scope.row.defaultValueError }}
+                          </div>
+                        </div>
+                      </template>
+                    </el-table-column>
+                  </el-table>
+                  <div class="block-page">
+                    <el-pagination
+                      :class="['pagination', pageCount < 20 ? 'hide' : '']"
+                      :page-size="pageSize"
+                      layout="total,prev, pager, next, jumper,slot"
+                      :total="pageCount"
+                      @current-change="handleCurrentChange"
+                    >
+                      <div key="1">
+                        <span style="margin-left: 6px; font-weight: 400; color: #16191f">
+                          {{ t('dataIn.transformer.configuredcount') }}
+                          {{ configuredCount }}
+                          {{ t('dataIn.transformer.unit') }}</span
+                        >
+                      </div>
+                    </el-pagination>
+
+                    <el-button size="default" @click="calculateMappingResult">
+                      <Icon name="PREVIEW" style="width: 16px; height: 16px"></Icon>
+                    </el-button>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </template>
+        </RuleBlockCard>
+      </div>
+      <el-button
+        :type="dataInProps.isIdmp ? 'default' : 'primary'"
+        icon="Plus"
+        size="default"
+        class="rule-blocks__add-btn"
+        plain
+        :disabled="dataInProps.isCommunity"
+        @click="addRuleBlock"
+      >
+        {{ t('dataIn.transformer.addRule') }}
+      </el-button>
+    </section>
+    <section v-if="!usesRuleBlocks" class="extract">
       <div class="block-title top">
         <span>{{ t('dataIn.transformer.extract') }}</span>
         <el-popover placement="top" trigger="hover" width="520">
@@ -267,6 +640,7 @@
           :extract-columns="item.columns"
           :identified-columns="identifiedColumns"
           :is-viewable="isViewable"
+          :rule-id="activeRuleId"
           @update-extract-arr="updateExtractArr"
           @validate-msgbody="validateMsgBody"
           @delete-extract="deleteExtract"
@@ -292,7 +666,7 @@
         </el-button>
       </el-tooltip>
     </section>
-    <section class="filter">
+    <section v-if="!usesRuleBlocks" class="filter">
       <div class="block-title">
         <span>{{ t('dataIn.transformer.filter') }}</span>
         <el-popover placement="top" effect="light" trigger="hover" width="520">
@@ -316,6 +690,7 @@
           :msg-form="msgForm"
           :datasource-type="sourceForm.type"
           :identified-columns="identifiedColumns"
+          :rule-id="activeRuleId"
           @validate-msgbody="validateMsgBody"
           @delete-filter="deleteFilter"
           @change-filter="changeFilter"
@@ -339,7 +714,7 @@
         </el-button>
       </el-tooltip>
     </section>
-    <section>
+    <section v-if="!usesRuleBlocks">
       <div class="block-title">
         <span>{{ t('dataIn.transformer.superconfig') }}</span>
       </div>
@@ -586,6 +961,7 @@
         :key="componentKey"
         :active-type="activeType"
         :database="sourceForm.targetDB"
+        :rule-id="activeRuleId"
         @close="closeDialog"
         @create-stable-succ="createStableSucc"
         @create-template-stable-succ="createTemplateStableSucc"
@@ -598,9 +974,12 @@
 import type { ComponentInternalInstance } from 'vue';
 import ExtractSplit from './extractSplit.vue';
 import FilterExpression from './filterExpression.vue';
+import RuleBlockCard from './ruleBlockCard.vue';
+import { resolveActiveRuleIdAfterRemoval } from './ruleBlockState';
 import DocsContent from 'components/MdRender.vue';
 import CusSelect from './cusSelect.vue';
 import CreateStable from './createSTB.vue';
+import { getTransformCapabilities, normalizeConditionExpr, toBackendPayload, toRuleFormState } from './ruleAdapter';
 import { getDataInProps } from '../../model/useDataIn.js';
 import { t } from 'locales';
 import {
@@ -623,6 +1002,9 @@ import { isEmpty, cloneDeep } from 'lodash-es';
 import {
   SpbTopParseType,
   TableRow,
+  TransformConfig,
+  TransformFormState,
+  TransformRuleState,
   TopParseType,
   TransformerfullparamsType,
   TransformerSpbfullparamsType,
@@ -646,6 +1028,16 @@ interface parseruleFormProp {
   expression: string;
   depth: undefined;
   keep: boolean;
+}
+
+interface RuleBlockState extends TransformRuleState {
+  hydrated: boolean;
+  extractArr: Recordable[];
+  filterArr: Recordable[];
+  tableData: TableRow[];
+  stableName: string;
+  sModel: Recordable;
+  currentPage: number;
 }
 const parseruleForm = reactive<parseruleFormProp>({
   type: 'json',
@@ -689,6 +1081,12 @@ const dialogForm = reactive({
 const showCreateDialog = ref<boolean>(false);
 const stableLists = ref<string[]>([]);
 const sruleFormRef = ref<FormInstance>();
+// sruleFormRef may resolve to an array when the form is inside a v-for slot (rule blocks).
+// This helper normalises it to a single FormInstance.
+function getSruleForm(): FormInstance | undefined {
+  const r = sruleFormRef.value as FormInstance | FormInstance[] | undefined;
+  return Array.isArray(r) ? r[0] : r;
+}
 const mappingTable = ref();
 const sruleForm = reactive({
   s_name: ''
@@ -705,6 +1103,8 @@ const tableData = ref<TableRow[]>([]);
 const pageTableData = ref<any[]>([]);
 const extractArr = ref<Recordable[]>([]);
 const filterArr = ref<Recordable[]>([]);
+const ruleBlocks = ref<RuleBlockState[]>([]);
+const activeRuleId = ref('');
 let mappingParser = reactive<Recordable>({});
 const timeout = ref(30);
 const request = ref(false);
@@ -735,8 +1135,283 @@ const docsStyle = computed(() => {
   };
 });
 
+function createRuleBlockState(rule?: Partial<TransformRuleState>, hydrated = true, sModel: Recordable = {}) {
+  return {
+    id: rule?.id || `rule-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    matches: normalizeConditionExpr(rule?.matches),
+    mutate: cloneDeep(rule?.mutate || []),
+    model: cloneDeep(rule?.model || {}),
+    hydrated,
+    extractArr: [],
+    filterArr: [],
+    tableData: [],
+    stableName: rule?.model?.using || '',
+    sModel: cloneDeep(sModel),
+    currentPage: 1
+  } as RuleBlockState;
+}
+
+function resetCurrentRuleState() {
+  extractArr.value = [];
+  filterArr.value = [];
+  tableData.value = [];
+  pageTableData.value = [];
+  sruleForm.s_name = '';
+  currentPage.value = 1;
+  transformerState.transformExtractParseData = null;
+  transformerState.transformerFilterParseData = null;
+  transformerState.s_model = {};
+  mappingParser = reactive<Recordable>({});
+  refreshRuleColumnsVisibility([]);
+}
+
+function refreshRuleColumnsVisibility(extractItems = extractArr.value) {
+  const selected = new Set(extractItems.map(item => item.columnname).filter(Boolean));
+  columnsArr.value = columnsArr.value.map(item => ({
+    ...item,
+    show: !selected.has(item.name)
+  }));
+  extractAddStatus.value = columnsArr.value.length > 0 && columnsArr.value.every(item => !item.show);
+}
+
+function syncSharedRuleSModel(sharedSModel: Recordable) {
+  if (!usesRuleBlocks.value) {
+    return;
+  }
+
+  ruleBlocks.value.forEach(block => {
+    block.sModel = cloneDeep(sharedSModel);
+  });
+}
+
+function persistActiveRuleBlockState() {
+  if (!usesRuleBlocks.value || !activeRuleBlock.value) {
+    return;
+  }
+
+  activeRuleBlock.value.extractArr = cloneDeep(extractArr.value);
+  activeRuleBlock.value.filterArr = cloneDeep(filterArr.value);
+  activeRuleBlock.value.tableData = cloneDeep(tableData.value);
+  activeRuleBlock.value.stableName = sruleForm.s_name;
+  activeRuleBlock.value.sModel = cloneDeep(transformerState.s_model);
+  activeRuleBlock.value.currentPage = currentPage.value;
+  activeRuleBlock.value.hydrated = true;
+  syncSharedRuleSModel(activeRuleBlock.value.sModel);
+}
+
+function loadRuleBlockState(block: RuleBlockState) {
+  extractArr.value = cloneDeep(block.extractArr);
+  filterArr.value = cloneDeep(block.filterArr);
+  tableData.value = cloneDeep(block.tableData);
+  sruleForm.s_name = block.stableName;
+  transformerState.s_model = cloneDeep(block.sModel);
+  currentPage.value = block.currentPage || 1;
+  setPageTableData();
+
+  const extractMutate = block.mutate.find(item => Object.keys(item).toString() === 'extract') as
+    | TransformExtractParseDataType
+    | undefined;
+  const filterMutate = block.mutate.find(item => Object.keys(item).toString() === 'filter');
+  transformerState.transformExtractParseData = extractMutate || null;
+  transformerState.transformerFilterParseData = filterMutate
+    ? { filter: normalizeConditionExpr(filterMutate.filter) }
+    : null;
+  refreshRuleColumnsVisibility(block.extractArr);
+}
+
+async function hydrateRuleBlock(block: RuleBlockState) {
+  resetCurrentRuleState();
+  await nextTick();
+  echoExtractData(block.mutate ?? []);
+  const echoMapData = echoFilterData(block.mutate ?? []);
+  echoMappingData({
+    model: block.model,
+    s_model: block.sModel,
+    tableData: echoMapData
+  });
+  block.hydrated = true;
+}
+
+async function activateRuleBlock(ruleId: string) {
+  if (!usesRuleBlocks.value) {
+    return;
+  }
+
+  if (activeRuleId.value === ruleId) {
+    return;
+  }
+
+  persistActiveRuleBlockState();
+  activeRuleId.value = ruleId;
+  const block = activeRuleBlock.value;
+  if (!block) {
+    return;
+  }
+
+  if (!block.hydrated) {
+    await hydrateRuleBlock(block);
+    return;
+  }
+
+  loadRuleBlockState(block);
+}
+
+function updateRuleBlock(rule: TransformRuleState) {
+  const block = ruleBlocks.value.find(item => item.id === rule.id);
+  if (!block) {
+    return;
+  }
+  block.matches = rule.matches;
+}
+
+function addRuleBlock() {
+  persistActiveRuleBlockState();
+  const sharedSModel = cloneDeep(transformerState.s_model);
+  const block = createRuleBlockState(undefined, true, sharedSModel);
+  ruleBlocks.value.push(block);
+  activeRuleId.value = block.id;
+  resetCurrentRuleState();
+  transformerState.s_model = cloneDeep(sharedSModel);
+}
+
+function moveRuleBlock(ruleId: string, direction: 'up' | 'down') {
+  persistActiveRuleBlockState();
+  const index = ruleBlocks.value.findIndex(rule => rule.id === ruleId);
+  if (index < 0) {
+    return;
+  }
+  const targetIndex = direction === 'up' ? index - 1 : index + 1;
+  if (targetIndex < 0 || targetIndex >= ruleBlocks.value.length) {
+    return;
+  }
+  const [block] = ruleBlocks.value.splice(index, 1);
+  ruleBlocks.value.splice(targetIndex, 0, block);
+}
+
+async function removeRuleBlock(ruleId: string) {
+  persistActiveRuleBlockState();
+  const currentActiveRuleId = activeRuleId.value;
+  const index = ruleBlocks.value.findIndex(rule => rule.id === ruleId);
+  if (index < 0) {
+    return;
+  }
+
+  const nextActiveRuleId = resolveActiveRuleIdAfterRemoval(
+    ruleBlocks.value.map(rule => rule.id),
+    ruleId,
+    currentActiveRuleId
+  );
+  ruleBlocks.value.splice(index, 1);
+
+  if (!ruleBlocks.value.length) {
+    const block = createRuleBlockState();
+    ruleBlocks.value.push(block);
+    activeRuleId.value = block.id;
+    loadRuleBlockState(block);
+    return;
+  }
+
+  if (nextActiveRuleId === currentActiveRuleId && ruleId !== currentActiveRuleId) {
+    activeRuleId.value = currentActiveRuleId;
+    return;
+  }
+
+  const nextRule = ruleBlocks.value.find(rule => rule.id === nextActiveRuleId) || ruleBlocks.value[0];
+  activeRuleId.value = nextRule.id;
+  if (nextRule.hydrated) {
+    loadRuleBlockState(nextRule);
+    return;
+  }
+  await hydrateRuleBlock(nextRule);
+}
+
+async function previewMatches(ruleId: string) {
+  const block = ruleBlocks.value.find(rule => rule.id === ruleId);
+  if (!block?.matches?.expr) return;
+
+  const topParse = transformerState.topParse as any;
+  if (!topParse) {
+    ElMessage.warning(t('dataIn.transformer.nexttip'));
+    return;
+  }
+
+  const parser: Recordable = {
+    parser: {
+      parse: topParse.parser?.parse,
+      mutate: topParse.parser?.mutate
+    },
+    input: supportTransform.is_sparkplugb
+      ? topParse.samples
+      : generateInput(),
+    matches: block.matches
+  };
+
+  if (supportTransform.is_sparkplugb) {
+    parser['samples'] = parser['input'];
+    delete parser['input'];
+  }
+
+  try {
+    const result = await dataInProps.transform.api.getParser(parser);
+    if (result.message) {
+      ElMessage.error(result.message);
+      return;
+    }
+
+    const resultTableData: any[] = result
+      .map((item: Recordable) => {
+        const fields = item.fields;
+        const columns = item.columns;
+        const fieldNames = fields.map((field: Recordable) => field.name);
+        return columns.map((row: any) => {
+          const rowDict: Recordable = {};
+          fieldNames.forEach((fieldName: string, index: number) => {
+            rowDict[fieldName] = filterEmpty(row[index]);
+          });
+          return rowDict;
+        });
+      })
+      .flat(Infinity);
+
+    transformerState.transformResultTable = resultTableData;
+    nextTick(() => {
+      transformerState.showResultTb = true;
+      transformerState.resultTbTitle = 'matchesResTb';
+      transformerState.transResultName = 'matches';
+    });
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+function ensureRuleBlocks() {
+  if (!usesRuleBlocks.value) {
+    ruleBlocks.value = [];
+    activeRuleId.value = '';
+    return;
+  }
+
+  if (!ruleBlocks.value.length) {
+    const block = createRuleBlockState();
+    ruleBlocks.value = [block];
+    activeRuleId.value = block.id;
+    resetCurrentRuleState();
+  }
+}
+
+async function ensureRuleContext(ruleId?: string) {
+  if (!usesRuleBlocks.value || !ruleId || activeRuleId.value === ruleId) {
+    return;
+  }
+
+  await activateRuleBlock(ruleId);
+}
+
 const isEditable = computed(() => currentPageType.value === 'edit' || currentPageType.value === 'copy');
 const isViewable = computed(() => currentPageType.value === 'view');
+const transformCapabilities = computed(() => getTransformCapabilities(sourceForm.type));
+const usesRuleBlocks = computed(() => transformCapabilities.value.supportsRuleBlocks);
+const activeRuleBlock = computed(() => ruleBlocks.value.find(rule => rule.id === activeRuleId.value) || null);
 
 watch(
   tableData,
@@ -752,9 +1427,25 @@ watch(
 watch(isEn, () => {
   refreshKey.value += 1;
   nextTick(() => {
-    sruleFormRef.value?.clearValidate();
+    getSruleForm()?.clearValidate();
   });
 });
+
+watch(
+  usesRuleBlocks,
+  enabled => {
+    if (enabled) {
+      ensureRuleBlocks();
+      return;
+    }
+
+    ruleBlocks.value = [];
+    activeRuleId.value = '';
+  },
+  {
+    immediate: true
+  }
+);
 
 //csv需要单独处理
 watch(
@@ -887,7 +1578,7 @@ function onMappingExpressionCleared(row?: TableRow) {
   relayout();
 }
 async function getMsgBody() {
-  sruleFormRef.value?.clearValidate();
+  getSruleForm()?.clearValidate();
   sourceParent?.refs.formRef.validate(async (valid: boolean) => {
     if (valid) {
       await onValid();
@@ -1261,6 +1952,7 @@ async function handleParseResult(topParser: TopParseType) {
     transformerState.transResultName = '';
   }
   transformerState.stbDefaultColumns = columnsArr.value;
+  refreshRuleColumnsVisibility();
 }
 // 处理 mapping 的结果
 async function getParserData(data: TransformerfullparamsType | TransformerSpbfullparamsType) {
@@ -1342,7 +2034,10 @@ function handleExtractArr(columnsArr: any[], extractArr: Recordable) {
   const arr = extractArr.filter((obj: Recordable) => names.includes(obj.columnname));
   extractArr.value = arr;
 }
-function updateExtractArr(index: number, filterName: string) {
+function updateExtractArr(index: number, filterName: string, ruleId?: string) {
+  if (usesRuleBlocks.value && ruleId && ruleId !== activeRuleId.value) {
+    return;
+  }
   extractArr.value[index]['type'] = filterName;
 }
 function setPageTableData() {
@@ -1495,6 +2190,18 @@ async function echoParser(parse: TransformerfullparamsType | TransformerSpbfullp
 
   await submitParse();
 
+  if (usesRuleBlocks.value) {
+    const ruleState = toRuleFormState(parse as TransformConfig, sourceForm.type);
+    const sharedSModel = cloneDeep(ruleState.parser.s_model || {});
+    ruleBlocks.value = (ruleState.parser.rules || []).map(rule => createRuleBlockState(rule, false, sharedSModel));
+    ensureRuleBlocks();
+    if (ruleBlocks.value[0]) {
+      activeRuleId.value = ruleBlocks.value[0].id;
+      await hydrateRuleBlock(ruleBlocks.value[0]);
+    }
+    return;
+  }
+
   echoExtractData(parse?.parser.mutate ?? []);
   const echoMapData = echoFilterData(parse?.parser.mutate ?? []);
   const transformEchoMapData = {
@@ -1615,7 +2322,7 @@ function echoMappingData(transformEchoMapData: Recordable) {
   nextTick(async () => {
     sruleForm.s_name = transformEchoMapData.model?.using;
     transformerState.s_model = transformEchoMapData.s_model;
-    await getSTbaleList(true, !!transformEchoMapData.s_model, transformEchoMapData);
+    await getSTbaleList(true, !!(transformEchoMapData.s_model && Object.keys(transformEchoMapData.s_model).length), transformEchoMapData);
     echoFetchMap(transformEchoMapData);
     if (sourceForm.type !== 'csv' && !supportTransform.supportSQL) {
       selectJson();
@@ -1702,7 +2409,7 @@ async function validateMsgBody(): Promise<boolean> {
 
 async function validateTargetStb(): Promise<boolean> {
   return new Promise(resolve => {
-    sruleFormRef.value?.validate((valid: boolean) => {
+    getSruleForm()?.validate((valid: boolean) => {
       resolve(valid);
     });
   });
@@ -1814,7 +2521,7 @@ async function calculateMappingResult() {
         ? [
             { ...transformerState.transformExtractParseData },
             {
-              filter: Object.values(transformerState.transformerFilterParseData).toString()
+              filter: cloneDeep(transformerState.transformerFilterParseData.filter)
             },
             {
               map: mutateMap
@@ -1822,7 +2529,7 @@ async function calculateMappingResult() {
           ]
         : [
             {
-              filter: Object.values(transformerState.transformerFilterParseData).toString()
+              filter: cloneDeep(transformerState.transformerFilterParseData.filter)
             },
             {
               map: mutateMap
@@ -1869,6 +2576,12 @@ async function calculateMappingResult() {
     } as TransformerfullparamsType;
   }
 
+  // When previewing inside a rule block, include the matches condition so the
+  // backend filters rows to only those that would match this rule.
+  if (usesRuleBlocks.value && activeRuleBlock.value?.matches?.expr) {
+    (parserfullData as TransformerfullparamsType).matches = activeRuleBlock.value.matches;
+  }
+
   // mqtt 用模版的方式创建超级表增加的参数
   if (JSON.stringify(transformerState.s_model) !== '{}') {
     parserfullData.parser['s_model'] = transformerState.s_model;
@@ -1884,6 +2597,14 @@ async function calculateMappingResult() {
   isbreak.value = false;
 
   mappingParser = Object.assign(mappingParser, parserfullData);
+  if (usesRuleBlocks.value && activeRuleBlock.value) {
+    activeRuleBlock.value.model = cloneDeep(parserfullData.parser.model || {});
+    activeRuleBlock.value.mutate = cloneDeep(parserfullData.parser.mutate || []);
+    activeRuleBlock.value.stableName = sruleForm.s_name;
+    activeRuleBlock.value.sModel = cloneDeep(transformerState.s_model);
+    activeRuleBlock.value.hydrated = true;
+    persistActiveRuleBlockState();
+  }
   await getParserData(parserfullData);
 }
 //设置extract的name
@@ -1891,18 +2612,107 @@ function setExtractName(index: number, name: string) {
   extractArr.value[index]['columnname'] = name;
 }
 //给filter赋值
-function changeFilter(key: any, value: string) {
+function changeFilter(key: any, value: string, ruleId?: string) {
+  if (usesRuleBlocks.value && ruleId && ruleId !== activeRuleId.value) {
+    return;
+  }
   const index = filterArr.value.findIndex(val => val.key == key);
   filterArr.value[index]['expression'] = value;
 }
 //extract的expression赋值
-function changeExtractExpr(colname: string, value: string) {
+function changeExtractExpr(colname: string, value: string, ruleId?: string) {
+  if (usesRuleBlocks.value && ruleId && ruleId !== activeRuleId.value) {
+    return;
+  }
   const index = extractArr.value.findIndex((item: any) => item.columnname == colname);
   extractArr.value[index]['expression'] = value;
 }
 
 //获取transformer的所有参数
 async function getTransformerParams() {
+  if (usesRuleBlocks.value) {
+    persistActiveRuleBlockState();
+    const previousRuleId = activeRuleId.value;
+    const compiledRules: TransformRuleState[] = [];
+
+    for (const block of ruleBlocks.value) {
+      if (block.hydrated) {
+        activeRuleId.value = block.id;
+        loadRuleBlockState(block);
+        await calculateMappingResult();
+        if (isbreak.value) {
+          if (previousRuleId) {
+            await activateRuleBlock(previousRuleId);
+          }
+          return;
+        }
+
+        compiledRules.push({
+          id: block.id,
+          matches: block.matches,
+          model: cloneDeep(mappingParser.parser.model || {}),
+          mutate: cloneDeep(mappingParser.parser.mutate || [])
+        });
+        continue;
+      }
+
+      compiledRules.push({
+        id: block.id,
+        matches: block.matches,
+        model: cloneDeep(block.model || {}),
+        mutate: cloneDeep(block.mutate || [])
+      });
+    }
+
+    if (previousRuleId) {
+      await activateRuleBlock(previousRuleId);
+    }
+
+    const parserDataFormat = {
+      pageCount: pageCount.value,
+      pageSize: pageSize.value,
+      currentPage: currentPage.value
+    };
+    const sharedRuleSModel = cloneDeep(
+      ruleBlocks.value.find(block => JSON.stringify(block.sModel) !== '{}')?.sModel || {}
+    );
+    const parserBase = {
+      parser: {
+        global: getWriteConfigData(sourceForm.data),
+        parse: transformerState.topParse?.parser.parse,
+        rules: compiledRules,
+        ...(JSON.stringify(sharedRuleSModel) !== '{}' ? { s_model: sharedRuleSModel } : {})
+      },
+      format: parserDataFormat
+    } as TransformFormState;
+
+    let parserData;
+    if (supportTransform.is_sparkplugb) {
+      const topparse = transformerState.topParse as SpbTopParseType;
+      parserData = {
+        ...parserBase,
+        samples: topparse?.samples
+      } as TransformFormState;
+    } else {
+      const topparse = transformerState.topParse as TopParseType;
+      parserData = {
+        ...parserBase,
+        input: isCSV.value
+          ? transformerState.csvTransformerParser?.inputList
+          : supportTransform.supportSQL
+            ? topparse?.input
+            : generateInput()
+      } as TransformFormState;
+    }
+
+    const ruleFormState = toRuleFormState(parserData as TransformConfig, sourceForm.type);
+    transformerState.transformerfullparams = toBackendPayload(
+      ruleFormState,
+      sourceForm.type
+    ) as TransformerfullparamsType | TransformerSpbfullparamsType;
+    return;
+  }
+
   await calculateMappingResult();
   if (isbreak.value) return;
   const parserDataParser = {
@@ -1944,7 +2754,10 @@ async function getTransformerParams() {
   transformerState.transformerfullparams = parserData;
   // this.$emit("getTransformerParams", parserData);
 }
-function changeColumnStatus(index: number, name: string) {
+function changeColumnStatus(index: number, name: string, ruleId?: string) {
+  if (usesRuleBlocks.value && ruleId && ruleId !== activeRuleId.value) {
+    return;
+  }
   //选中的列不能再选中
   const ind = columnsArr.value.findIndex(item => item.name == name);
   columnsArr.value[ind]['show'] = false;
@@ -2016,13 +2829,15 @@ function closeDialog() {
   showCreateDialog.value = false;
 }
 //创建或者查询
-async function createStableSucc(stbName: string) {
+async function createStableSucc(stbName: string, ruleId?: string) {
+  await ensureRuleContext(ruleId);
   await getInitStables();
   sruleForm.s_name = stbName;
   getSTbaleList(false);
   closeDialog();
 }
-async function createTemplateStableSucc(stbName: string) {
+async function createTemplateStableSucc(stbName: string, ruleId?: string) {
+  await ensureRuleContext(ruleId);
   sruleForm.s_name = stbName;
   getSTbaleList(false, true);
   closeDialog();
@@ -2198,7 +3013,8 @@ function addNewFilter() {
   });
 }
 //删除filter
-function deleteFilter(key: number) {
+async function deleteFilter(key: number, ruleId?: string) {
+  await ensureRuleContext(ruleId);
   ElMessageBox.confirm(t('dataIn.deletetip'), t('dataIn.warning'), {
     confirmButtonText: t('dataIn.ok'),
     cancelButtonText: t('dataIn.cancel'),
@@ -2210,7 +3026,9 @@ function deleteFilter(key: number) {
       transformerState.transformerFilterParseData = null;
     } else {
       transformerState.transformerFilterParseData = {
-        filter: filterArr.value[0].expression || ''
+        filter: {
+          expr: filterArr.value[0].expression || ''
+        }
       };
     }
 
@@ -2221,7 +3039,8 @@ function deleteFilter(key: number) {
     }
   });
 }
-function deleteExtract(index: number, name: string) {
+async function deleteExtract(index: number, name: string, ruleId?: string) {
+  await ensureRuleContext(ruleId);
   if (!name) {
     // 没有设置name的情况下，直接删除
     extractArr.value.splice(index, 1);
@@ -2705,5 +3524,20 @@ $color-description: rgb(137 130 130);
 
 .stb-label {
   color: #4259ce;
+}
+
+.rule-blocks {
+  padding-bottom: 12px;
+
+  &__list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+
+  &__add-btn {
+    width: 100%;
+  }
 }
 </style>

@@ -1,0 +1,21 @@
+# Fake data schema for meters "power" Kafka messages.
+# Generates JSON routed by the rule: kind == "power"
+
+type = "object"
+
+[properties.kind]
+type = "string"
+fixed = "power"
+
+[properties.device]
+type = "string"
+samples = ["alpha", "beta", "gamma"]
+
+[properties.value]
+type = "float"
+range = { min = 1.0, max = 20.0 }
+
+[properties.ts]
+type = "timestamp"
+start_time = 2026-01-01T00:00:00
+interval = "1ms"

@@ -257,6 +257,7 @@ $color-description: rgb(137 130 130);
   .block-wrapper {
     padding: 0px 15px 0px 15px;
     margin-bottom: 10px;
+    overflow: hidden;
     border: 1px solid #ececef;
     border-radius: 12px;
     overflow: hidden;

@@ -229,7 +229,7 @@ async fn task_opts_init(
 
     let breakpoints = load_breakpoints(task_id, job_id);
 
-    let parser: Option<plugins::Parser> = task
+    let parser: Option<plugins::TransformConfig> = task
         .parser
         .as_ref()
         .map(|v| serde_json::from_value(v.clone()))
@@ -249,29 +249,15 @@ async fn task_opts_init(
         };
         let (_, minimum_timestamp, maximum_timestamp) =
             get_timestamp_range(&pool, &mut None, 3, &cancel).await?;
-        let metrics = get_metrics_arc_from_i64(Some((task_id, job_id)));
-        let parser = match parser {
-            plugins::Parser::Inner(parser) => {
-                let mut parser = parser;
-                parser.set_maximum_timestamp(maximum_timestamp);
-                if let Some(minimum_timestamp) = minimum_timestamp {
-                    parser.set_minimum_timestamp(minimum_timestamp);
-                }
-                parser.organize_archive(task.id, job_id);
-                parser.organize_cache(task.id, job_id);
-                plugins::Parser::Inner(parser)
-            }
-            plugins::Parser::WithSample { parser, input } => {
-                let mut parser = parser;
-                parser.set_maximum_timestamp(maximum_timestamp);
-                if let Some(minimum_timestamp) = minimum_timestamp {
-                    parser.set_minimum_timestamp(minimum_timestamp);
-                }
-                parser.organize_archive(task.id, job_id);
-                parser.organize_cache(task.id, job_id);
-                plugins::Parser::WithSample { parser, input }
-            }
-        };
+        let mut parser = parser;
+        parser.set_maximum_timestamp(maximum_timestamp);
+        if let Some(minimum_timestamp) = minimum_timestamp {
+            parser.set_minimum_timestamp(minimum_timestamp);
+        }
+        let parser_metrics = get_metrics_arc_from_i64(Some((task_id, job_id)));
+        parser.set_metrics(parser_metrics);
+        parser.organize_archive(task.id, job_id)?;
+        parser.organize_cache(task.id, job_id)?;
         Some(parser)
     } else {
         None

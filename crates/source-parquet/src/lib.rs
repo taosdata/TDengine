@@ -9,13 +9,13 @@ use taos::{
 };
 use tokio_util::sync::CancellationToken;
 
-use taosx_core::{Parser, TaskNotifySender, sink::channel_based_transformer};
+use taosx_core::{TaskNotifySender, TransformConfig, sink::channel_based_transformer};
 
 use crate::config::{Config, Projection};
 
 pub async fn parquet_to_taos(
     from: Dsn,
-    parser: Option<Parser>,
+    parser: Option<TransformConfig>,
     to: Dsn,
     task_id: Option<(i64, i64)>,
     cancel: CancellationToken,

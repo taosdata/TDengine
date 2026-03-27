@@ -87,7 +87,8 @@ export default {
         inline: ['element-plus', 'vue-i18n']
       }
     },
-    workspace: ['assets', 'utils', 'locales', 'constants', 'components', 'hooks', 'config'],
+    include: ['**/*.{test,spec}.ts'],
+    exclude: ['dist/**', 'node_modules/**'],
     // 启用覆盖率报告
     coverage: {
       // 指定覆盖率报告的输出目录

@@ -377,9 +377,9 @@ impl Activity {
             status: ActivityStatus::Agent(AgentStatus::Unknown),
         }
     }
-    pub fn ipc_finished(task_id: i64, job_id: i64) -> Self {
+    pub fn ipc_finished(agent_id: i64, task_id: i64, job_id: i64) -> Self {
         Self {
-            agent_id: -1,
+            agent_id,
             task_id,
             job_id,
             at: Utc::now(),

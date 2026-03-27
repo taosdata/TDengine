@@ -25,6 +25,7 @@
 <script setup lang="ts">
 import { t } from 'locales';
 import { transformerState, supportTransform } from './util';
+import type { ConditionExpr } from './type';
 import { getDataInProps } from 'components/dataIn/model/useDataIn';
 import { ElMessage } from 'element-plus';
 const dataInProps = getDataInProps();
@@ -36,6 +37,9 @@ const props = defineProps<{
   identifiedColumns: Recordable[];
   msgForm: Recordable;
   datasourceType: string;
+  ruleId?: string;
+  /** When inside a rule block, pre-filter preview rows by this condition. */
+  matches?: ConditionExpr;
 }>();
 
 const isexecuted = ref(false);
@@ -81,9 +85,11 @@ function executeFilter() {
 }
 function changeFilterCont() {
   isexecuted.value = false;
-  transformerState.transformerFilterParseData = {
-    filter: ruleForm.filter_name
-  };
+    transformerState.transformerFilterParseData = {
+      filter: {
+        expr: ruleForm.filter_name
+      }
+    };
 }
 function initData(val: Recordable) {
   if (val) {
@@ -112,7 +118,7 @@ async function getParserData(data: any) {
       ElMessage.error(result.message);
       return;
     }
-    emit('change-filter', props.itemData.key, ruleForm.filter_name);
+    emit('change-filter', props.itemData.key, ruleForm.filter_name, props.ruleId);
     result[0].columns?.length > 0
       ? (tableData.value = result[0].columns.map((data: { [x: string]: { toString: () => any } }) => {
           return Object.fromEntries(
@@ -198,7 +204,7 @@ function filterEmpty(val: any) {
 
 //删除filter
 function deleteFilter() {
-  emit('delete-filter', props.itemData.key);
+  emit('delete-filter', props.itemData.key, props.ruleId);
 }
 
 const generateInput: any = inject('generateInput');
@@ -209,9 +215,9 @@ function submitFilter() {
     parser = {
       parser: {
         parse: transformerState.topParse?.parser.parse,
-        mutate: transformerState.transformExtractParseData
-          ? [{ ...transformerState.transformExtractParseData }, { filter: ruleForm.filter_name.trim() }]
-          : [{ filter: ruleForm.filter_name.trim() }]
+            mutate: transformerState.transformExtractParseData
+              ? [{ ...transformerState.transformExtractParseData }, { filter: { expr: ruleForm.filter_name.trim() } }]
+              : [{ filter: { expr: ruleForm.filter_name.trim() } }]
       },
       samples: Array.from(Object.values(generateInput()[0]))
     };
@@ -219,17 +225,24 @@ function submitFilter() {
     parser = {
       parser: {
         parse: transformerState.topParse?.parser.parse,
-        mutate: transformerState.transformExtractParseData
-          ? [{ ...transformerState.transformExtractParseData }, { filter: ruleForm.filter_name.trim() }]
-          : [{ filter: ruleForm.filter_name.trim() }]
+            mutate: transformerState.transformExtractParseData
+              ? [{ ...transformerState.transformExtractParseData }, { filter: { expr: ruleForm.filter_name.trim() } }]
+              : [{ filter: { expr: ruleForm.filter_name.trim() } }]
       },
       input: props.datasourceType === 'csv' ? transformerState.csvTransformerParser?.inputList : generateInput()
     };
   }
 
-  transformerState.transformerFilterParseData = {
-    filter: ruleForm.filter_name
-  };
+  // When inside a rule block, pre-filter rows by the rule's matches condition.
+  if (props.matches?.expr) {
+    parser['matches'] = props.matches;
+  }
+
+    transformerState.transformerFilterParseData = {
+      filter: {
+        expr: ruleForm.filter_name
+      }
+    };
   isexecuted.value = true;
   getParserData(parser);
 }

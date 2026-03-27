@@ -824,13 +824,16 @@ impl SuperTableConfig {
         }
     }
 
-    fn get_filter(&self) -> Option<Filter> {
+    fn get_filter(&self) -> anyhow::Result<Option<Filter>> {
         match &self.filter {
             Some(filter) => {
-                let filter_impl = FilterImpl::Expr(ExprRecordFilter::new(filter.to_string()));
-                Some(Filter::new(vec![filter_impl]))
+                let filter_impl =
+                    FilterImpl::Expr(ExprRecordFilter::try_new(filter.to_string()).map_err(
+                        |error| anyhow!("invalid filter expression `{filter}`: {error}"),
+                    )?);
+                Ok(Some(Filter::new(vec![filter_impl])))
             }
-            None => None,
+            None => Ok(None),
         }
     }
 
@@ -882,10 +885,12 @@ impl SuperTableConfig {
     }
 }
 
-impl From<SuperTableConfig> for Parser {
-    fn from(val: SuperTableConfig) -> Self {
+impl TryFrom<SuperTableConfig> for Parser {
+    type Error = anyhow::Error;
+
+    fn try_from(val: SuperTableConfig) -> Result<Self, Self::Error> {
         let map = val.get_map_transform();
-        let filter = val.get_filter();
+        let filter = val.get_filter()?;
         let mut mutate = Vec::<Mutate>::new();
         if let Some(filter) = filter {
             mutate.push(Mutate::Filter(filter));
@@ -913,7 +918,7 @@ impl From<SuperTableConfig> for Parser {
         // )
         // .expect("Deserialize ParserImpl failed");
         // Parser::new(Some(parse), mutate, model)
-        Parser::new(None, mutate, None, model)
+        Ok(Parser::new(None, mutate, None, model))
     }
 }
 
@@ -1035,12 +1040,38 @@ mod tests {
         test_parse_element_data();
 
         let config = PIPointModelConfig::from_csv("point_model.csv").unwrap();
-        let config: LushModelConfig = config.into();
+        let config = LushModelConfig::try_from(config).unwrap();
         println!("{:?}", config);
 
         let config = PIElementModelConfig::from_csv("element_model.csv").unwrap();
-        let config: LushModelConfig = config.into();
+        let config = LushModelConfig::try_from(config).unwrap();
         println!("{:?}", config);
+    }
+
+    #[test]
+    fn test_invalid_filter_returns_error() {
+        let config = SuperTableConfig {
+            super_table_name: "meters".to_string(),
+            sub_table_name_pattern: "${point_name}".to_string(),
+            template_name: None,
+            filter: Some("a >".to_string()),
+            schema: vec![SchemaRow {
+                column_name: "ts".to_string(),
+                column_type: ColumnType::Key,
+                column_data_type: "TIMESTAMP".to_string(),
+                column_map: "$ts".to_string(),
+            }],
+        };
+
+        let parser_err = Parser::try_from(config.clone()).unwrap_err();
+        assert!(parser_err.to_string().contains("invalid filter expression"));
+
+        let lush_err = LushModelConfig::try_from(PIPointModelConfig {
+            super_tables: vec![config],
+            points: vec![],
+        })
+        .unwrap_err();
+        assert!(lush_err.to_string().contains("failed to build parser"));
     }
 
     const POINT_DATA: &str = r#"

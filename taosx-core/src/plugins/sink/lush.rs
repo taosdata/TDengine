@@ -161,7 +161,7 @@ impl TryFrom<Dsn> for LushModelConfig {
                                 transform_config_file
                             )
                         })?;
-                        Ok(point_model_config.into())
+                        LushModelConfig::try_from(point_model_config)
                     }
                     PiModelType::MultiColumn => {
                         let element_model_config: PIElementModelConfig =
@@ -173,7 +173,7 @@ impl TryFrom<Dsn> for LushModelConfig {
                                     )
                                 },
                             )?;
-                        Ok(element_model_config.into())
+                        LushModelConfig::try_from(element_model_config)
                     }
                 }
             }
@@ -188,15 +188,22 @@ impl TryFrom<Dsn> for LushModelConfig {
     }
 }
 
-impl From<PIPointModelConfig> for LushModelConfig {
-    fn from(config: PIPointModelConfig) -> Self {
+impl TryFrom<PIPointModelConfig> for LushModelConfig {
+    type Error = anyhow::Error;
+
+    fn try_from(config: PIPointModelConfig) -> Result<Self, Self::Error> {
         let super_table_config: HashMap<String, SuperTableConfig> =
             LushModelConfig::index_super_table_by_name(config.super_tables);
         let mut super_table_sqls: HashMap<String, String> = HashMap::new();
         let mut super_table_parsers: HashMap<String, Parser> = HashMap::new();
         for (super_table_name, config) in super_table_config.iter() {
             super_table_sqls.insert(super_table_name.to_owned(), config.get_sql());
-            super_table_parsers.insert(super_table_name.to_owned(), config.to_owned().into());
+            super_table_parsers.insert(
+                super_table_name.to_owned(),
+                config.to_owned().try_into().with_context(|| {
+                    format!("failed to build parser for super table `{super_table_name}`")
+                })?,
+            );
         }
         let mut sub_super_mapping: HashMap<String, String> = HashMap::new();
         for point in config.points {
@@ -204,18 +211,20 @@ impl From<PIPointModelConfig> for LushModelConfig {
             // 暂不支持点级别配对应的超级表
             sub_super_mapping.insert(point.super_table.clone(), point.super_table);
         }
-        LushModelConfig {
+        Ok(LushModelConfig {
             table_id_column: "point_name".to_string(),
             super_table_parsers,
             super_table_sqls,
             super_table_name_mapping: sub_super_mapping,
             skip_null: false,
-        }
+        })
     }
 }
 
-impl From<PIElementModelConfig> for LushModelConfig {
-    fn from(config: PIElementModelConfig) -> Self {
+impl TryFrom<PIElementModelConfig> for LushModelConfig {
+    type Error = anyhow::Error;
+
+    fn try_from(config: PIElementModelConfig) -> Result<Self, Self::Error> {
         let super_table_name_mapping = config
             .super_tables
             .iter()
@@ -236,7 +245,12 @@ impl From<PIElementModelConfig> for LushModelConfig {
         let mut super_table_sqls: HashMap<String, String> = HashMap::new();
         for (super_table_name, config) in super_table_config.iter() {
             super_table_sqls.insert(super_table_name.to_owned(), config.get_sql());
-            super_table_parsers.insert(super_table_name.to_owned(), config.to_owned().into());
+            super_table_parsers.insert(
+                super_table_name.to_owned(),
+                config.to_owned().try_into().with_context(|| {
+                    format!("failed to build parser for super table `{super_table_name}`")
+                })?,
+            );
         }
         // old code that use element_id to index super_table
         // let mut sub_super_mapping: HashMap<String, String> = HashMap::new();
@@ -244,13 +258,13 @@ impl From<PIElementModelConfig> for LushModelConfig {
         //     sub_super_mapping.insert(element.element_id, element.super_table);
         // }
 
-        LushModelConfig {
+        Ok(LushModelConfig {
             table_id_column: "element_id".to_string(),
             super_table_parsers,
             super_table_sqls,
             super_table_name_mapping,
             skip_null: true,
-        }
+        })
     }
 }
 

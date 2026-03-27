@@ -16,7 +16,7 @@ use taos::{AsyncTBuilder, Dsn};
 use taosx_core::core_metrics::{CoreMetrics, get_metrics_arc_from_i64};
 use taosx_core::sink::{channel_based_transformer, ipc_forward};
 use taosx_core::utils::trace::BatchCounter;
-use taosx_core::{Parser, TaskNotify, TaskNotifySender, Via};
+use taosx_core::{TaskNotify, TaskNotifySender, TransformConfig, Via};
 use taosx_ipc::ack::LushAck;
 use taosx_ipc::prelude::ArrowDataType;
 use tokio::sync::{OwnedSemaphorePermit, oneshot};
@@ -88,7 +88,7 @@ pub struct PendingState {
 #[instrument(skip_all)]
 pub async fn pulsar_to_taos(
     from: Dsn,
-    parser: Option<Parser>,
+    parser: Option<TransformConfig>,
     to: Dsn,
     upstream_cancel: CancellationToken,
     with_agent: Option<Via>,

@@ -14,27 +14,68 @@ mod functions;
 #[derive(Debug, Clone, PartialEq)]
 pub struct BooleanExpr(Expr);
 
+// Rule predicates should be deterministic: null means "does not match".
+fn boolean_predicate_values(predicate: &BooleanArray) -> Vec<bool> {
+    predicate
+        .iter()
+        .map(|value| value.unwrap_or(false))
+        .collect()
+}
+
+fn boolean_predicate_filter(predicate: &BooleanArray) -> BooleanArray {
+    BooleanArray::from(boolean_predicate_values(predicate))
+}
+
+fn as_boolean_predicate(values: &ArrayRef) -> Result<&BooleanArray, EvalError> {
+    values
+        .as_any()
+        .downcast_ref::<BooleanArray>()
+        .ok_or(EvalError::ValueTypeNotMatch(
+            DataType::Boolean,
+            "non-BooleanArray",
+        ))
+}
+
 impl BooleanExpr {
     pub fn eval(&self, records: &RecordBatch) -> Result<Vec<bool>, EvalError> {
         let values = self.0.eval_as(records, DataType::Boolean)?;
+        let predicate = as_boolean_predicate(&values)?;
 
-        Ok(values
-            .as_any()
-            .downcast_ref::<BooleanArray>()
-            .unwrap()
-            .values()
-            .iter()
-            .collect())
+        Ok(boolean_predicate_values(predicate))
     }
 
     pub fn filter(&self, records: &RecordBatch) -> Result<RecordBatch, EvalError> {
         let values = self.0.eval_as(records, DataType::Boolean)?;
-        let predicate = values.as_any().downcast_ref::<BooleanArray>().unwrap();
-        Ok(arrow::compute::filter_record_batch(records, predicate)?)
+        let predicate = as_boolean_predicate(&values)?;
+        let predicate = boolean_predicate_filter(predicate);
+        Ok(arrow::compute::filter_record_batch(records, &predicate)?)
     }
 
     pub fn try_new(expr: String) -> Result<Self, EvalAltResult> {
         Expr::try_new(expr, true).map(BooleanExpr)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ConditionExpr(Expr);
+
+impl ConditionExpr {
+    pub fn eval(&self, records: &RecordBatch) -> Result<Vec<bool>, EvalError> {
+        let values = self.0.eval_as(records, DataType::Boolean)?;
+        let predicate = as_boolean_predicate(&values)?;
+
+        Ok(boolean_predicate_values(predicate))
+    }
+
+    pub fn filter(&self, records: &RecordBatch) -> Result<RecordBatch, EvalError> {
+        let values = self.0.eval_as(records, DataType::Boolean)?;
+        let predicate = as_boolean_predicate(&values)?;
+        let predicate = boolean_predicate_filter(predicate);
+        Ok(arrow::compute::filter_record_batch(records, &predicate)?)
+    }
+
+    pub fn try_new(expr: impl Into<String>, null_if_error: bool) -> Result<Self, EvalAltResult> {
+        Expr::try_new(expr, null_if_error).map(Self)
     }
 }
 
@@ -49,6 +90,43 @@ impl<'de> serde::de::Deserialize<'de> for BooleanExpr {
 impl serde::Serialize for BooleanExpr {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.0.expr.serialize(serializer)
+    }
+}
+
+impl<'de> serde::de::Deserialize<'de> for ConditionExpr {
+    fn deserialize<D: serde::de::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        struct ConditionExprVisitor;
+
+        impl<'de> serde::de::Visitor<'de> for ConditionExprVisitor {
+            type Value = ConditionExpr;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("a condition expression string or map")
+            }
+
+            fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                ConditionExpr::try_new(value, true).map_err(serde::de::Error::custom)
+            }
+
+            fn visit_map<A>(self, map: A) -> Result<Self::Value, A::Error>
+            where
+                A: serde::de::MapAccess<'de>,
+            {
+                let expr = Expr::deserialize(serde::de::value::MapAccessDeserializer::new(map))?;
+                Ok(ConditionExpr(expr))
+            }
+        }
+
+        deserializer.deserialize_any(ConditionExprVisitor)
+    }
+}
+
+impl serde::Serialize for ConditionExpr {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        self.0.serialize(serializer)
     }
 }
 
@@ -351,7 +429,7 @@ pub fn array_from_rhai_dynamics(values: Vec<Dynamic>) -> Option<ArrayRef> {
 
 #[cfg(test)]
 mod tests {
-    use arrow::{array::*, datatypes::*};
+    use arrow::{array::*, buffer::*, datatypes::*};
 
     use super::*;
 
@@ -870,6 +948,55 @@ mod tests {
         assert_eq!(filtered.num_rows(), 2);
         let id_col = filtered.column(0).as_primitive::<Int32Type>();
         assert_eq!(id_col.iter().collect_vec(), [Some(4), Some(5)]);
+    }
+
+    #[test]
+    fn test_boolean_predicate_values_treat_nulls_as_false() {
+        let predicate = BooleanArray::new(
+            BooleanBuffer::from_iter([true, true, false]),
+            Some(NullBuffer::from(vec![true, false, true])),
+        );
+
+        assert_eq!(
+            boolean_predicate_values(&predicate),
+            vec![true, false, false]
+        );
+    }
+
+    #[test]
+    fn test_boolean_predicate_filter_treats_nulls_as_false() {
+        let predicate = BooleanArray::new(
+            BooleanBuffer::from_iter([true, true, false]),
+            Some(NullBuffer::from(vec![true, false, true])),
+        );
+
+        assert_eq!(
+            boolean_predicate_filter(&predicate).iter().collect_vec(),
+            vec![Some(true), Some(false), Some(false)]
+        );
+    }
+
+    #[test]
+    fn test_condition_expr_eval_treats_nulls_as_false() {
+        let id_array = Int32Array::from(vec![1, 2, 3]);
+        let batch =
+            RecordBatch::try_from_iter(vec![("id", Arc::new(id_array) as ArrayRef)]).unwrap();
+
+        let expr = ConditionExpr::try_new("missing > 0", true).unwrap();
+
+        assert_eq!(expr.eval(&batch).unwrap(), vec![false, false, false]);
+    }
+
+    #[test]
+    fn test_condition_expr_filter_excludes_null_rows() {
+        let id_array = Int32Array::from(vec![1, 2, 3]);
+        let batch =
+            RecordBatch::try_from_iter(vec![("id", Arc::new(id_array) as ArrayRef)]).unwrap();
+
+        let expr = ConditionExpr::try_new("missing > 0", true).unwrap();
+        let filtered = expr.filter(&batch).unwrap();
+
+        assert_eq!(filtered.num_rows(), 0);
     }
 
     #[test]

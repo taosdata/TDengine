@@ -1,3 +1,4 @@
+import { reactive } from 'vue';
 import { TransformerState } from './type';
 export const VariableTableColumnType = ['BINARY', 'NCHAR', 'VARCHAR', 'VARBINARY', 'GEOMETRY'];
 
@@ -126,21 +127,24 @@ export function validateJsonKeys(data: string[]): void {
 }
 
 export function checkParseData(data: Recordable) {
-  const mutateRules = data.parser?.mutate;
-  if (!mutateRules) {
-    return;
-  }
+  const mutateGroups = data.parser?.rules?.length
+    ? data.parser.rules.map((rule: Recordable) => rule.mutate || [])
+    : data.parser?.mutate
+      ? [data.parser.mutate]
+      : [];
 
-  // 检查 extract 规则
-  for (let i = 0; i < mutateRules.length; i++) {
-    if (mutateRules[i].extract) {
-      const extract = mutateRules[i].extract;
-      if ('' in extract) {
-        return 'datasource.transformer.extractrule.nofield';
-      }
-      for (const key in extract) {
-        if ('' in extract[key]) {
-          return 'datasource.transformer.extractrule.norule';
+  for (let groupIndex = 0; groupIndex < mutateGroups.length; groupIndex++) {
+    const mutateRules = mutateGroups[groupIndex];
+    for (let i = 0; i < mutateRules.length; i++) {
+      if (mutateRules[i].extract) {
+        const extract = mutateRules[i].extract;
+        if ('' in extract) {
+          return 'datasource.transformer.extractrule.nofield';
+        }
+        for (const key in extract) {
+          if ('' in extract[key]) {
+            return 'datasource.transformer.extractrule.norule';
+          }
         }
       }
     }

@@ -6,13 +6,13 @@ import elZhLocale from 'element-plus/es/locale/lang/zh-cn';
 const modules: Record<string, any> = {};
 const modulesFiles = import.meta.glob<true, string, any>('./**/*.ts', { eager: true });
 
-for (const path in modulesFiles) {
+for (const [path, mod] of Object.entries(modulesFiles)) {
   const moduleName = path.replace(/\.\/([^/]+).*/, '$1');
   const namespace = path.replace(/.+\/([^/.]+)\.\w+/, '$1');
   if (!modules[moduleName]) {
     modules[moduleName] = {};
   }
-  modules[moduleName][namespace] = modulesFiles[path].default;
+  modules[moduleName][namespace] = mod.default;
 }
 const messages = {
   en: {

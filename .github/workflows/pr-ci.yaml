@@ -114,6 +114,10 @@ jobs:
           INTEGRATION_TEST_TAOSX_API_BASE_URL: http://192.168.0.201:6060/api/x/
           INTEGRATION_TEST_MQTT_TASK_TO_DSN: taos+ws://192.168.0.201:6041/integration_test
           INTEGRATION_TEST_AGENT_NAME: integration_test_agent
+          INTEGRATION_TEST_KAFKA_BROKER: 192.168.1.45:19092
+          INTEGRATION_TEST_KAFKA_TASK_TO_DSN: taos+ws://root:taosdata@192.168.0.201:6041/integration_test
+          INTEGRATION_TEST_TAOSX_API_USERNAME: root
+          INTEGRATION_TEST_TAOSX_API_PASSWORD: taosdata
         run: |
           cargo make test
 

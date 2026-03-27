@@ -12,7 +12,7 @@ use tokio_util::sync::CancellationToken;
 use taosx_core::dsv::DataSourceValidation;
 use taosx_core::plugins::transform::sample::DsSampleIn;
 use taosx_core::utils::port_pool::PortPool;
-use taosx_core::{Action, Parser, TaskNotifySender, Via, build_ipc};
+use taosx_core::{Action, TaskNotifySender, TransformConfig, Via, build_ipc};
 
 use appender::column_meta::ColumnMeta;
 use config::OracleConfig;
@@ -145,7 +145,7 @@ fn get_sample_sync(dsn: Dsn) -> anyhow::Result<DsSampleIn> {
 /// migrate or synchronize data from oracle to taos
 pub async fn oracle_to_taos(
     from: Dsn,
-    parser: Option<Parser>,
+    parser: Option<TransformConfig>,
     _transform: Vec<Action>,
     to: Dsn,
     _jobs: usize,

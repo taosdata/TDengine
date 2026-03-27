@@ -11,7 +11,7 @@ use std::{
 };
 
 use crate::{
-    Action, Parser, TaskNotify, TaskNotifySender,
+    Action, TaskNotify, TaskNotifySender, TransformConfig,
     core_metrics::CoreMetrics,
     plugins::transform::sample::DsSampleIn,
     utils::breakpoints::{BreakpointDb, breakpoints_db_dir},
@@ -391,7 +391,7 @@ impl TaskGuard {
 pub struct TaskOpts {
     pub from: Dsn,
     pub transform: Vec<Action>,
-    pub parser: Option<Parser>,
+    pub parser: Option<TransformConfig>,
     pub to: Dsn,
 }
 

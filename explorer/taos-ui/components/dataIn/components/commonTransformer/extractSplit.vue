@@ -95,7 +95,7 @@ import JsonExtractExpression from './jsonExtractExpression.vue';
 import { cloneDeep } from 'lodash-es';
 import { transformerState, supportTransform, defaultColsMap, hiddenColsMap, checkParseData, filterEmpty } from './util';
 import { t } from 'locales';
-import { TransformExtractParseDataType, TopParseType, SpbTopParseType } from './type';
+import { TransformExtractParseDataType, TopParseType, SpbTopParseType, ConditionExpr } from './type';
 import { getDataInProps } from 'components/dataIn/model/useDataIn';
 import { ElMessage } from 'element-plus';
 const dataInProps = getDataInProps();
@@ -109,6 +109,9 @@ const props = defineProps<{
   extractArr: Recordable[];
   msgForm: Recordable;
   isViewable: boolean;
+  ruleId?: string;
+  /** When inside a rule block, pre-filter preview rows by the rule's matches condition. */
+  matches?: ConditionExpr;
 }>();
 
 const isJson = ref<boolean>(true);
@@ -182,7 +185,7 @@ onMounted(() => {
 });
 
 function changeExtractExpr(val: string) {
-  emit('change-extract-expr', ruleForm.col_name, val);
+  emit('change-extract-expr', ruleForm.col_name, val, props.ruleId);
 }
 function initData(val: Recordable) {
   ruleForm.col_name = val.columnname;
@@ -191,11 +194,11 @@ function initData(val: Recordable) {
 }
 function selectCol() {
   disabled.value = true;
-  emit('select-column', props.indexKey, ruleForm.col_name);
+  emit('select-column', props.indexKey, ruleForm.col_name, props.ruleId);
 }
 function changeExtractType() {
   const index = props.extractArr.findIndex(item => item.columnname == ruleForm.col_name);
-  emit('update-extract-arr', index, ruleForm.filter_name);
+  emit('update-extract-arr', index, ruleForm.filter_name, props.ruleId);
 }
 function submit() {
   emit('validate-msgbody');
@@ -573,13 +576,17 @@ function getParserParams(isall?: boolean): Recordable {
             }
           }
         ];
-    return {
+    const spbParser: Recordable = {
       parser: {
         parse: topparse.parser.parse,
         mutate: topparse['parser']['mutate']
       },
       samples: topparse.samples
     };
+    if (props.matches?.expr) {
+      spbParser['matches'] = props.matches;
+    }
+    return spbParser;
   }
 
   const topparse = cloneDeep(transformerState.topParse) as TopParseType;
@@ -621,10 +628,15 @@ function getParserParams(isall?: boolean): Recordable {
           : inputList
   };
 
+  // When inside a rule block, pre-filter rows by the rule's matches condition.
+  if (props.matches?.expr) {
+    (parser as Recordable)['matches'] = props.matches;
+  }
+
   return parser;
 }
 function deleteExtract() {
-  emit('delete-extract', props.indexKey, ruleForm.col_name);
+  emit('delete-extract', props.indexKey, ruleForm.col_name, props.ruleId);
 }
 
 defineExpose({

@@ -16,7 +16,7 @@ use tokio_util::sync::CancellationToken;
 use tracing::Instrument;
 
 use futures_ext::select::select_cancel;
-use taosx_core::{build_ipc, core_metrics::get_metrics_arc_from_i64, plugins::Parser};
+use taosx_core::{build_ipc, core_metrics::get_metrics_arc_from_i64, plugins::TransformConfig};
 
 use source_mqtt::{
     client::{GenericMessagePoller, MessagePoller},
@@ -41,7 +41,7 @@ pub async fn sparkplugb_to_taos(
     from: &Dsn,
     to: &Dsn,
     with_agent: Option<Via>,
-    mut parser: Option<Parser>,
+    mut parser: Option<TransformConfig>,
     task_job_id: Option<(i64, i64)>,
     notify: TaskNotifySender,
     cancel: &CancellationToken,

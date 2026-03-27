@@ -1,5 +1,4 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import type { ComponentRenderProxy, VNode, ComponentPublicInstance, FunctionalComponent } from 'vue';
 
 declare const BMap: any;
 declare const BMapGL: any;
@@ -14,7 +13,7 @@ declare global {
     onBMapGLCallback: any;
   }
   // vue
-  type VueNode = VNodeChild | JSX.Element;
+  type VueNode = import('vue').VNodeChild | JSX.Element;
 
   declare type Writable<T> = {
     -readonly [P in keyof T]: T[P];
@@ -81,9 +80,9 @@ declare global {
 
   namespace JSX {
     // tslint:disable no-empty-interface
-    type Element = VNode;
+    type Element = import('vue').VNode;
     // tslint:disable no-empty-interface
-    type ElementClass = ComponentRenderProxy;
+    type ElementClass = import('vue').ComponentRenderProxy;
     interface ElementAttributesProperty {
       $props: any;
     }
@@ -96,9 +95,6 @@ declare global {
   }
 }
 
-declare module 'vue' {
-  export type JSXComponent<Props = any> = { new (): ComponentPublicInstance<Props> } | FunctionalComponent<Props>;
-}
 declare module '*.vue' {
   import type { DefineComponent } from 'vue';
   // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/ban-types
@@ -138,5 +134,3 @@ declare interface SortQuery {
 }
 // 分页加排序
 declare type PageSort = PageQuery & SortQuery;
-
-
