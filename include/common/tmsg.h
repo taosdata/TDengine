@@ -365,6 +365,7 @@ typedef enum ENodeType {
   QUERY_NODE_SURROUND,
   QUERY_NODE_REMOTE_ROW,
   QUERY_NODE_REMOTE_ZERO_ROWS,
+  QUERY_NODE_TAG_REF_COLUMN,
   
   // Statement nodes are used in parser and planner module.
   QUERY_NODE_SET_OPERATOR = 100,
@@ -4415,6 +4416,8 @@ typedef struct SVTableScanOperatorParam {
   uint64_t        uid;
   STimeWindow     window;
   SOperatorParam* pTagScanOp;
+  int32_t         tagDownStreamId;
+  char            tbName[TSDB_TABLE_NAME_LEN];
   SArray*         pOpParamArray;  // SArray<SOperatorParam>
   SArray*         pRefColGroups;  // SArray<SRefColIdGroup>
   SArray*         pResolvedTags;  // SArray<STagVal>, resolved tag values from source tables

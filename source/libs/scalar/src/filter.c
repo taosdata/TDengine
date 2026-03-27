@@ -5132,8 +5132,33 @@ EDealRes fltReviseRewriter(SNode **pNode, void *pContext) {
   return DEAL_RES_ERROR;
 }
 
+static EDealRes fltNormalizeBuiltinFuncRewriter(SNode **pNode, void *pContext) {
+  if (QUERY_NODE_FUNCTION != nodeType(*pNode)) {
+    return DEAL_RES_CONTINUE;
+  }
+
+  SFunctionNode *pFunc = (SFunctionNode *)*pNode;
+  if (pFunc->funcId != 0 && pFunc->funcType != FUNCTION_TYPE_TBNAME) {
+    return DEAL_RES_CONTINUE;
+  }
+
+  if (FUNCTION_TYPE_TBNAME != pFunc->funcType && 0 != strcmp(pFunc->functionName, "tbname")) {
+    return DEAL_RES_CONTINUE;
+  }
+
+  int32_t code = fmGetFuncInfo(pFunc, NULL, 0);
+  if (TSDB_CODE_SUCCESS != code) {
+    *(int32_t *)pContext = code;
+    return DEAL_RES_ERROR;
+  }
+
+  return DEAL_RES_CONTINUE;
+}
+
 int32_t fltReviseNodes(SFilterInfo *pInfo, SNode **pNode, SFltTreeStat *pStat) {
   int32_t code = 0;
+  nodesRewriteExprPostOrder(pNode, fltNormalizeBuiltinFuncRewriter, &code);
+  FLT_ERR_JRET(code);
   nodesRewriteExprPostOrder(pNode, fltReviseRewriter, (void *)pStat);
 
   FLT_ERR_JRET(pStat->code);
@@ -5546,6 +5571,12 @@ int32_t filterSetDataFromColId(SFilterInfo *info, void *param) {
   return fltSetColFieldDataImpl(info, param, fltGetDataFromColId, true);
 }
 
+void filterInfoSetTableCtx(SFilterInfo *pFilterInfo, void *pTable) {
+  if (pFilterInfo != NULL) {
+    pFilterInfo->pTable = pTable;
+  }
+}
+
 int32_t filterInitFromNode(SNode *pNode, SFilterInfo **pInfo, uint32_t options, void* pSclExtraParams) {
   SFilterInfo *info = NULL;
   if (pNode == NULL) {
@@ -5627,6 +5658,7 @@ int32_t filterExecute(SFilterInfo *info, SSDataBlock *pSrc, SColumnInfoData **p,
 
     gTaskScalarExtra.pStreamInfo = (void*)info->pStreamRtInfo;
     gTaskScalarExtra.pStreamRange = NULL;
+    output.param = info->pTable;
     code =
         scalarCalculate(info->sclCtx.node, pList, &output, &gTaskScalarExtra);
     taosArrayDestroy(pList);

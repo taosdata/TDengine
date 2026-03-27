@@ -200,12 +200,13 @@ typedef struct SVirtualScanLogicNode {
 
 // Tag reference column information
 typedef struct STagRefColumn {
-  col_id_t colId;               // Column ID in virtual table
-  col_id_t sourceColId;          // Tag column ID in source table
-  char     colName[TSDB_COL_NAME_LEN];
-  char     sourceColName[TSDB_COL_NAME_LEN];  // Tag name in source table
-  int32_t  bytes;                // Tag bytes
-  int8_t   type;                 // Tag data type
+  ENodeType type;
+  col_id_t  colId;        // Column ID in virtual table
+  col_id_t  sourceColId;  // Tag column ID in source table
+  char      colName[TSDB_COL_NAME_LEN];
+  char      sourceColName[TSDB_COL_NAME_LEN];  // Tag name in source table
+  int32_t   bytes;                             // Tag bytes
+  int8_t    dataType;                          // Tag data type
 } STagRefColumn;
 
 // Tag reference source node - represents a source table that provides referenced tags

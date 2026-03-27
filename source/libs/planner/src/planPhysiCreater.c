@@ -449,7 +449,6 @@ static EDealRes doSetSlotId(SNode* pNode, void* pContext) {
     }
     // pIndex is definitely not NULL, otherwise it is a bug
     if (NULL == pIndex) {
-      planError("doSetSlotId failed, invalid slot name %s", name);
       dumpSlots("left datablock desc", pCxt->pLeftHash);
       dumpSlots("right datablock desc", pCxt->pRightHash);
       pCxt->errCode = TSDB_CODE_PLAN_SLOT_NOT_FOUND;
@@ -726,6 +725,99 @@ static int32_t sortScanCols(SNodeList* pScanCols) {
   taosArrayDestroy(pArray);
 
   return TSDB_CODE_SUCCESS;
+}
+
+static bool physiScanHasColumn(SNodeList* pList, const SColumnNode* pCol) {
+  if (pList == NULL || pCol == NULL) {
+    return false;
+  }
+
+  SNode* pNode = NULL;
+  FOREACH(pNode, pList) {
+    SColumnNode* pExist = NULL;
+    if (nodeType(pNode) == QUERY_NODE_TARGET) {
+      STargetNode* pTarget = (STargetNode*)pNode;
+      if (pTarget->pExpr != NULL && nodeType(pTarget->pExpr) == QUERY_NODE_COLUMN) {
+        pExist = (SColumnNode*)pTarget->pExpr;
+      }
+    } else if (nodeType(pNode) == QUERY_NODE_COLUMN) {
+      pExist = (SColumnNode*)pNode;
+    }
+
+    if (pExist == NULL) {
+      continue;
+    }
+
+    if (pExist->colId == pCol->colId && pExist->colType == pCol->colType && pExist->hasRef == pCol->hasRef &&
+        0 == strcmp(pExist->tableAlias, pCol->tableAlias) && 0 == strcmp(pExist->refDbName, pCol->refDbName) &&
+        0 == strcmp(pExist->refTableName, pCol->refTableName) && 0 == strcmp(pExist->refColName, pCol->refColName)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+static int32_t appendPhysiScanColumn(SNodeList** ppList, const SColumnNode* pCol) {
+  if (ppList == NULL || pCol == NULL || physiScanHasColumn(*ppList, pCol)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SNode* pClone = NULL;
+  int32_t code = nodesCloneNode((SNode*)pCol, &pClone);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodesListMakeStrictAppend(ppList, pClone);
+  }
+  return code;
+}
+
+static int32_t appendPhysiScanTarget(SNodeList** ppList, const STargetNode* pTarget) {
+  if (ppList == NULL || pTarget == NULL || pTarget->pExpr == NULL || nodeType(pTarget->pExpr) != QUERY_NODE_COLUMN) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SColumnNode* pCol = (SColumnNode*)pTarget->pExpr;
+  if (physiScanHasColumn(*ppList, pCol)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SNode*  pClone = NULL;
+  int32_t code = nodesCloneNode((SNode*)pTarget, &pClone);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodesListMakeStrictAppend(ppList, pClone);
+  }
+  return code;
+}
+
+static int32_t appendPhysiLocalTagsFromList(SNodeList* pSrc, SNodeList** ppDst) {
+  if (pSrc == NULL || ppDst == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  SNode*  pNode = NULL;
+  FOREACH(pNode, pSrc) {
+    SColumnNode* pCol = NULL;
+    if (nodeType(pNode) == QUERY_NODE_TARGET) {
+      STargetNode* pTarget = (STargetNode*)pNode;
+      if (pTarget->pExpr != NULL && nodeType(pTarget->pExpr) == QUERY_NODE_COLUMN) {
+        pCol = (SColumnNode*)pTarget->pExpr;
+      }
+    } else if (nodeType(pNode) == QUERY_NODE_COLUMN) {
+      pCol = (SColumnNode*)pNode;
+    }
+
+    if (pCol == NULL || pCol->colType != COLUMN_TYPE_TAG || pCol->hasRef) {
+      continue;
+    }
+
+    code = appendPhysiScanColumn(ppDst, pCol);
+    if (TSDB_CODE_SUCCESS != code) {
+      break;
+    }
+  }
+
+  return code;
 }
 
 static int32_t createScanCols(SPhysiPlanContext* pCxt, SScanPhysiNode* pScanPhysiNode, SNodeList* pScanCols) {
@@ -1894,6 +1986,8 @@ static int32_t createVirtualTableScanPhysiNodeFinalize(SPhysiPlanContext* pCxt,
                                                        SVirtualScanPhysiNode* pScanPhysiNode,
                                                        SPhysiNode** pPhyNode) {
   int32_t code = TSDB_CODE_SUCCESS;
+  SNodeList* pCondCols = NULL;
+  SNodeList* pCondScanCols = NULL;
 
   PLAN_ERR_JRET(createVirtualScanCols(pCxt, pScanPhysiNode, pScanLogicNode->pScanCols));
   PLAN_ERR_JRET(addDataBlockSlots(pCxt, pScanPhysiNode->scan.pScanCols, pScanPhysiNode->scan.node.pOutputDataBlockDesc));
@@ -1901,6 +1995,14 @@ static int32_t createVirtualTableScanPhysiNodeFinalize(SPhysiPlanContext* pCxt,
     pScanPhysiNode->scan.pScanPseudoCols = NULL;
     PLAN_ERR_JRET(nodesCloneList(pScanLogicNode->pScanPseudoCols, &pScanPhysiNode->scan.pScanPseudoCols));
     PLAN_ERR_JRET(addDataBlockSlots(pCxt, pScanPhysiNode->scan.pScanPseudoCols, pScanPhysiNode->scan.node.pOutputDataBlockDesc));
+  }
+
+  if (NULL != pScanLogicNode->node.pConditions) {
+    PLAN_ERR_JRET(nodesCollectColumnsFromNode(pScanLogicNode->node.pConditions, NULL, COLLECT_COL_TYPE_ALL, &pCondCols));
+    if (pCondCols != NULL) {
+      PLAN_ERR_JRET(nodesCloneList(pCondCols, &pCondScanCols));
+    }
+    PLAN_ERR_JRET(addDataBlockSlots(pCxt, pCondCols, pScanPhysiNode->scan.node.pOutputDataBlockDesc));
   }
 
   PLAN_ERR_JRET(setConditionsSlotId(pCxt, (const SLogicNode*)pScanLogicNode, (SPhysiNode*)pScanPhysiNode));
@@ -1921,6 +2023,14 @@ static int32_t createVirtualTableScanPhysiNodeFinalize(SPhysiPlanContext* pCxt,
   if (pScanLogicNode->pLocalTags) {
     PLAN_ERR_JRET(nodesCloneList(pScanLogicNode->pLocalTags, &pScanPhysiNode->pLocalTags));
   }
+  if (NULL == pScanPhysiNode->pLocalTags || LIST_LENGTH(pScanPhysiNode->pLocalTags) <= 0) {
+    if (pScanPhysiNode->pLocalTags != NULL && LIST_LENGTH(pScanPhysiNode->pLocalTags) <= 0) {
+      nodesDestroyList(pScanPhysiNode->pLocalTags);
+      pScanPhysiNode->pLocalTags = NULL;
+    }
+    PLAN_ERR_JRET(appendPhysiLocalTagsFromList(pScanLogicNode->pScanPseudoCols, &pScanPhysiNode->pLocalTags));
+    pScanPhysiNode->hasLocalTag = (pScanPhysiNode->pLocalTags != NULL && LIST_LENGTH(pScanPhysiNode->pLocalTags) > 0);
+  }
   if (pScanLogicNode->pRefTagCols) {
     PLAN_ERR_JRET(nodesCloneList(pScanLogicNode->pRefTagCols, &pScanPhysiNode->pRefTagCols));
   }
@@ -1928,10 +2038,36 @@ static int32_t createVirtualTableScanPhysiNodeFinalize(SPhysiPlanContext* pCxt,
     PLAN_ERR_JRET(nodesCloneNode(pScanLogicNode->pTagFilterCond, &pScanPhysiNode->pTagFilterCond));
   }
 
+  SNode*  pNode = NULL;
+  int32_t condIdx = 0;
+  FOREACH(pNode, pCondScanCols) {
+    if (nodeType(pNode) != QUERY_NODE_COLUMN) {
+      ++condIdx;
+      continue;
+    }
+
+    SColumnNode* pCondCol = (SColumnNode*)pNode;
+    if (pCondCol->colType == COLUMN_TYPE_TAG) {
+      if (pCondCol->hasRef) {
+        PLAN_ERR_JRET(appendPhysiScanColumn(&pScanPhysiNode->pRefTagCols, pCondCol));
+      } else {
+        PLAN_ERR_JRET(appendPhysiScanTarget(&pScanPhysiNode->scan.pScanPseudoCols,
+                                            (STargetNode*)nodesListGetNode(pCondCols, condIdx)));
+      }
+    } else {
+      PLAN_ERR_JRET(appendPhysiScanColumn(&pScanPhysiNode->scan.pScanCols, pCondCol));
+    }
+    ++condIdx;
+  }
+
   *pPhyNode = (SPhysiNode*)pScanPhysiNode;
+  nodesDestroyList(pCondCols);
+  nodesDestroyList(pCondScanCols);
   return code;
 
 _return:
+  nodesDestroyList(pCondCols);
+  nodesDestroyList(pCondScanCols);
   nodesDestroyNode((SNode*)pScanPhysiNode);
   return code;
 }
@@ -1953,6 +2089,11 @@ static int32_t createVirtualTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan
   (void)tNameGetFullDbName(&pScanLogicNode->tableName, pSubplan->dbFName);
   PLAN_ERR_RET(createVirtualTableScanPhysiNodeFinalize(pCxt, pChildren, pScanLogicNode, (SVirtualScanPhysiNode*)pVirtualScan, pPhyNode));
   PLAN_ERR_RET(setMultiBlockSlotId(pCxt, pChildren, true, pScanLogicNode->node.pTargets, &pVirtualScan->pTargets));
+  if (pVirtualScan->pRefTagCols != NULL) {
+    nodesDestroyList(pVirtualScan->pRefTagCols);
+    pVirtualScan->pRefTagCols = NULL;
+  }
+  PLAN_ERR_RET(setMultiBlockSlotId(pCxt, pChildren, true, pScanLogicNode->pRefTagCols, &pVirtualScan->pRefTagCols));
   return code;
 }
 
@@ -2048,7 +2189,7 @@ static int32_t createTagRefSourcePhysiNode(SPhysiPlanContext* pCxt, SSubplan* pS
       pScanCol->tableId = pLogicNode->sourceSuid;
       pScanCol->colId = pTagRef->colId;
       pScanCol->colType = COLUMN_TYPE_TAG;
-      pScanCol->node.resType.type = pTagRef->type;
+      pScanCol->node.resType.type = pTagRef->dataType;
       pScanCol->node.resType.bytes = pTagRef->bytes;
       tstrncpy(pScanCol->colName, pTagRef->sourceColName, TSDB_COL_NAME_LEN);
       tstrncpy(pScanCol->dbName, pLogicNode->sourceTableName.dbname, TSDB_DB_NAME_LEN);
@@ -2449,6 +2590,7 @@ static int32_t createAggPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
   SNodeList* pPrecalcExprs = NULL;
   SNodeList* pGroupKeys = NULL;
   SNodeList* pAggFuncs = NULL;
+  SNodeList* pCondCols = NULL;
   int32_t    code = rewritePrecalcExprs(pCxt, pAggLogicNode->pGroupKeys, &pPrecalcExprs, &pGroupKeys);
   if (TSDB_CODE_SUCCESS == code) {
     code = rewritePrecalcExprs(pCxt, pAggLogicNode->pAggFuncs, &pPrecalcExprs, &pAggFuncs);
@@ -2465,6 +2607,16 @@ static int32_t createAggPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
     code = setListSlotId(pCxt, pChildTupe->dataBlockId, -1, pPrecalcExprs, &pAgg->pExprs);
     if (TSDB_CODE_SUCCESS == code) {
       code = pushdownDataBlockSlots(pCxt, pAgg->pExprs, pChildTupe);
+    }
+  }
+
+  if (TSDB_CODE_SUCCESS == code && NULL != pAggLogicNode->node.pConditions) {
+    code = nodesCollectColumnsFromNode(pAggLogicNode->node.pConditions, NULL, COLLECT_COL_TYPE_ALL, &pCondCols);
+    if (TSDB_CODE_SUCCESS == code && NULL != pCondCols) {
+      code = pushdownDataBlockSlots(pCxt, pCondCols, pChildTupe);
+    }
+    if (TSDB_CODE_SUCCESS == code && NULL != pCondCols) {
+      code = addDataBlockSlots(pCxt, pCondCols, pAgg->node.pOutputDataBlockDesc);
     }
   }
 
@@ -2495,6 +2647,7 @@ static int32_t createAggPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
   nodesDestroyList(pPrecalcExprs);
   nodesDestroyList(pGroupKeys);
   nodesDestroyList(pAggFuncs);
+  nodesDestroyList(pCondCols);
 
   return code;
 }

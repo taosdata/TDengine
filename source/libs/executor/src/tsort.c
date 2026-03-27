@@ -897,6 +897,22 @@ int32_t msortComparFn(const void* pLeft, const void* pRight, void* param) {
       return fn(left1, right1);
     }
 
+    if (pLeftTsCol->hasNull || pRightTsCol->hasNull || pLeftTsCol->pData == NULL || pRightTsCol->pData == NULL) {
+      bool leftNull = (pLeftTsCol->pData == NULL);
+      if (!leftNull && pLeftTsCol->hasNull) {
+        leftNull = colDataIsNull_t(pLeftTsCol, pLeftSource->src.rowIndex, false);
+      }
+
+      bool rightNull = (pRightTsCol->pData == NULL);
+      if (!rightNull && pRightTsCol->hasNull) {
+        rightNull = colDataIsNull_t(pRightTsCol, pRightSource->src.rowIndex, false);
+      }
+
+      if (leftNull && rightNull) return 0;
+      if (leftNull) return pOrder->nullFirst ? -1 : 1;
+      if (rightNull) return pOrder->nullFirst ? 1 : -1;
+    }
+
     int64_t*         leftTs = (int64_t*)(pLeftTsCol->pData) + pLeftSource->src.rowIndex;
     int64_t*         rightTs = (int64_t*)(pRightTsCol->pData) + pRightSource->src.rowIndex;
 

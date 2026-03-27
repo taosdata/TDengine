@@ -1354,7 +1354,7 @@ void freeVirtualTableScanGetOperatorParam(SOperatorParam* pParam) {
     pVTableScanParam->pRefColGroups = NULL;
   }
   if (pVTableScanParam->pResolvedTags) {
-    taosArrayDestroy(pVTableScanParam->pResolvedTags);
+    taosArrayDestroyEx(pVTableScanParam->pResolvedTags, destroyTagVal);
     pVTableScanParam->pResolvedTags = NULL;
   }
   freeOpParamItem(&pVTableScanParam->pTagScanOp);

@@ -1781,12 +1781,7 @@ static int32_t createColumnsByVirtualTable(STranslateContext* pCxt, const STable
   SColumnNode*      pCol = NULL;
   SHashObj*         pColRefMap = NULL;
   int32_t           nums = pMeta->tableInfo.numOfColumns +
-                (igTags ? 0 : ((TSDB_SUPER_TABLE == pMeta->tableType ||
-                                TSDB_VIRTUAL_CHILD_TABLE == pMeta->tableType ||
-                                TSDB_VIRTUAL_NORMAL_TABLE == pMeta->tableType)
-                                   ? pMeta->tableInfo.numOfTags
-                                   : 0));
-
+                (igTags ? 0 : (TSDB_SUPER_TABLE == pMeta->tableType ? pMeta->tableInfo.numOfTags : 0));
   if ((pMeta->numOfColRefs > 0 && pMeta->colRef) || (pMeta->numOfTagRefs > 0 && pMeta->tagRef)) {
     pColRefMap =
         taosHashInit(pMeta->numOfColRefs + pMeta->numOfTagRefs, taosGetDefaultHashFunction(TSDB_DATA_TYPE_SMALLINT),
@@ -1866,7 +1861,12 @@ static int32_t createTbnameFunctionNode(SColumnNode* pCol, SFunctionNode** pFunc
   }
 
   tstrncpy((*pFuncNode)->node.aliasName, (*pFuncNode)->functionName, TSDB_COL_NAME_LEN);
-  return TSDB_CODE_SUCCESS;
+  code = fmGetFuncInfo(*pFuncNode, NULL, 0);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)*pFuncNode);
+    *pFuncNode = NULL;
+  }
+  return code;
 }
 
 static int32_t findAndSetRealTableColumn(STranslateContext* pCxt, SColumnNode** pColRef, STableNode* pTable,
@@ -2214,9 +2214,13 @@ static int32_t biMakeTbnameProjectAstNode(char* funcName, char* tableAlias, SNod
   }
   if (TSDB_CODE_SUCCESS == code) {
     tstrncpy(tbNameFunc->functionName, "tbname", TSDB_FUNC_NAME_LEN);
+    tbNameFunc->funcType = FUNCTION_TYPE_TBNAME;
     if (valNode != NULL) {
       code = nodesListMakeStrictAppend(&tbNameFunc->pParameterList, (SNode*)valNode);
       valNode = NULL;
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      code = fmGetFuncInfo(tbNameFunc, NULL, 0);
     }
   }
   if (TSDB_CODE_SUCCESS == code) {
@@ -2234,6 +2238,10 @@ static int32_t biMakeTbnameProjectAstNode(char* funcName, char* tableAlias, SNod
         tstrncpy(multiResFunc->functionName, funcName, TSDB_FUNC_NAME_LEN);
         code = nodesListMakeStrictAppend(&multiResFunc->pParameterList, (SNode*)tbNameFunc);
         if (TSDB_CODE_SUCCESS != code) tbNameFunc = NULL;
+      }
+
+      if (TSDB_CODE_SUCCESS == code) {
+        code = fmGetFuncInfo(multiResFunc, NULL, 0);
       }
 
       if (TSDB_CODE_SUCCESS == code) {
@@ -3862,6 +3870,12 @@ static int32_t createTbnameFunction(SFunctionNode** ppFunc) {
   tstrncpy(pFunc->node.userAlias, "tbname", TSDB_COL_NAME_LEN);
   pFunc->node.resType.type = TSDB_DATA_TYPE_BINARY;
   pFunc->node.resType.bytes = TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE;
+  pFunc->funcType = FUNCTION_TYPE_TBNAME;
+  code = fmGetFuncInfo(pFunc, NULL, 0);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pFunc);
+    return code;
+  }
   *ppFunc = pFunc;
   return code;
 }
@@ -19503,6 +19517,8 @@ static int32_t buildCreateTSMAReqBuildStreamQueryCondition(STranslateContext* pC
   tstrncpy(tbnameFunc->functionName, "tbname", TSDB_FUNC_NAME_LEN);
   tstrncpy(tbnameFunc->node.userAlias, "tbname", TSDB_FUNC_NAME_LEN);
   tstrncpy(tbnameFunc->node.aliasName, "tbname", TSDB_FUNC_NAME_LEN);
+  tbnameFunc->funcType = FUNCTION_TYPE_TBNAME;
+  PAR_ERR_JRET(fmGetFuncInfo(tbnameFunc, NULL, 0));
 
   if (pStmt->pOptions->recursiveTsma) {
     PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&phColFunc));

@@ -728,9 +728,12 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
       bool isNullVal = (data == NULL) || (pColInfoData->info.type == TSDB_DATA_TYPE_JSON && tTagIsJsonNull(data));
       if (isNullVal) {
         colDataSetNNULL(pColInfoData, 0, pBlock->info.rows);
-      } else if (pColInfoData->info.type != TSDB_DATA_TYPE_JSON) {
-        code = colDataSetNItems(pColInfoData, 0, data, pBlock->info.rows, 1, false);
-        if (IS_VAR_DATA_TYPE(((const STagVal*)p)->type)) {
+      } else {
+        for (int32_t i = 0; i < pBlock->info.rows; ++i) {
+          code = colDataSetVal(pColInfoData, i, data, false);
+          QUERY_CHECK_CODE(code, lino, _end);
+        }
+        if (pColInfoData->info.type != TSDB_DATA_TYPE_JSON && IS_VAR_DATA_TYPE(((const STagVal*)p)->type)) {
           char* tmp = taosMemoryCalloc(1, varDataLen(data) + 1);
           if (tmp != NULL) {
             memcpy(tmp, varDataVal(data), varDataLen(data));
@@ -739,12 +742,6 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
             taosMemoryFree(tmp);
           }
           taosMemoryFree(data);
-        }
-        QUERY_CHECK_CODE(code, lino, _end);
-      } else {  // todo opt for json tag
-        for (int32_t i = 0; i < pBlock->info.rows; ++i) {
-          code = colDataSetVal(pColInfoData, i, data, false);
-          QUERY_CHECK_CODE(code, lino, _end);
         }
       }
     }
@@ -796,6 +793,9 @@ int32_t setTbNameColData(const SSDataBlock* pBlock, SColumnInfoData* pColInfoDat
   SScalarParam srcParam = {.numOfRows = pBlock->info.rows, .columnData = &infoData};
   SScalarParam param = {.columnData = pColInfoData};
 
+  code = colInfoDataEnsureCapacity(pColInfoData, pBlock->info.rows, false);
+  QUERY_CHECK_CODE(code, lino, _end);
+
   if (fpSet.process != NULL) {
     code = fpSet.process(&srcParam, 1, &param);
     QUERY_CHECK_CODE(code, lino, _end);
@@ -830,6 +830,9 @@ int32_t setVgIdColData(const SSDataBlock* pBlock, SColumnInfoData* pColInfoData,
   SScalarParam srcParam = {.numOfRows = pBlock->info.rows, .columnData = &infoData};
   SScalarParam param = {.columnData = pColInfoData};
 
+  code = colInfoDataEnsureCapacity(pColInfoData, pBlock->info.rows, false);
+  QUERY_CHECK_CODE(code, lino, _end);
+
   if (fpSet.process != NULL) {
     code = fpSet.process(&srcParam, 1, &param);
     QUERY_CHECK_CODE(code, lino, _end);
@@ -862,6 +865,9 @@ int32_t setVgVerColData(const SSDataBlock* pBlock, SColumnInfoData* pColInfoData
 
   SScalarParam srcParam = {.numOfRows = pBlock->info.rows, .columnData = &infoData};
   SScalarParam param = {.columnData = pColInfoData};
+
+  code = colInfoDataEnsureCapacity(pColInfoData, pBlock->info.rows, false);
+  QUERY_CHECK_CODE(code, lino, _end);
 
   if (fpSet.process != NULL) {
     code = fpSet.process(&srcParam, 1, &param);

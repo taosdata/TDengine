@@ -346,13 +346,13 @@ _return:
   return code;
 }
 
-static int32_t buildTagListForExchangeBasicParam(SExchangeOperatorBasicParam* pBasic, SArray* pTagList) {
+static int32_t cloneTagList(SArray* pTagList, SArray** ppCloned) {
   int32_t  code = TSDB_CODE_SUCCESS;
   int32_t  lino = 0;
   STagVal  tmpTag;
 
-  pBasic->tagList = taosArrayInit(1, sizeof(STagVal));
-  QUERY_CHECK_NULL(pBasic->tagList, code, lino, _return, terrno)
+  *ppCloned = taosArrayInit(1, sizeof(STagVal));
+  QUERY_CHECK_NULL(*ppCloned, code, lino, _return, terrno)
 
   for (int32_t i = 0; i < taosArrayGetSize(pTagList); ++i) {
     STagVal* pSrcTag = (STagVal*)taosArrayGet(pTagList, i);
@@ -368,21 +368,56 @@ static int32_t buildTagListForExchangeBasicParam(SExchangeOperatorBasicParam* pB
       tmpTag.i64 = pSrcTag->i64;
     }
 
-    QUERY_CHECK_NULL(taosArrayPush(pBasic->tagList, &tmpTag), code, lino, _return, terrno)
+    QUERY_CHECK_NULL(taosArrayPush(*ppCloned, &tmpTag), code, lino, _return, terrno)
     tmpTag = (STagVal){0};
   }
 
   return code;
 _return:
-  if (pBasic->tagList) {
-    taosArrayDestroyEx(pBasic->tagList, destroyTagVal);
-    pBasic->tagList = NULL;
+  if (*ppCloned) {
+    taosArrayDestroyEx(*ppCloned, destroyTagVal);
+    *ppCloned = NULL;
   }
   if (tmpTag.pData) {
     taosMemoryFree(tmpTag.pData);
   }
   qError("%s failed at line: %d, code: %d", __func__, lino, code);
   return code;
+}
+
+static int32_t appendResolvedTagVal(SArray* pResolvedTags, col_id_t dstColId, const SSchema* pSchema, const STag* pTagData) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  STagVal srcVal = {.cid = pSchema->colId};
+  STagVal dstVal = {.cid = dstColId, .type = pSchema->type};
+
+  if (!tTagGet(pTagData, &srcVal)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (IS_VAR_DATA_TYPE(pSchema->type)) {
+    if (srcVal.pData != NULL && srcVal.nData > 0) {
+      dstVal.nData = srcVal.nData;
+      dstVal.pData = taosMemoryMalloc(dstVal.nData);
+      QUERY_CHECK_NULL(dstVal.pData, code, lino, _return, terrno)
+      memcpy(dstVal.pData, srcVal.pData, dstVal.nData);
+    }
+  } else {
+    dstVal.i64 = srcVal.i64;
+  }
+
+  QUERY_CHECK_NULL(taosArrayPush(pResolvedTags, &dstVal), code, lino, _return, terrno)
+  return TSDB_CODE_SUCCESS;
+
+_return:
+  if (dstVal.pData != NULL) {
+    taosMemoryFreeClear(dstVal.pData);
+  }
+  return code;
+}
+
+static int32_t buildTagListForExchangeBasicParam(SExchangeOperatorBasicParam* pBasic, SArray* pTagList) {
+  return cloneTagList(pTagList, &pBasic->tagList);
 }
 
 static int32_t buildBatchOrgTbInfoForExchangeBasicParam(SExchangeOperatorBasicParam* pBasic, SArray* pOrgTbInfoArray) {
@@ -1024,6 +1059,7 @@ static int32_t buildVtbScanOperatorParam(SDynQueryCtrlOperatorInfo* pInfo, SOper
   QUERY_CHECK_NULL(pVScan->pOpParamArray, code, lino, _return, terrno)
   pVScan->uid = uid;
   pVScan->window = pInfo->vtbScan.window;
+  pVScan->tagDownStreamId = -1;
   if (pInfo->vtbScan.refColGroups) {
     pVScan->pRefColGroups = taosArrayInit(taosArrayGetSize(pInfo->vtbScan.refColGroups), sizeof(SRefColIdGroup));
     QUERY_CHECK_NULL(pVScan->pRefColGroups, code, lino, _return, terrno)
@@ -2095,28 +2131,112 @@ static int32_t resolveTagValsForVtbChild(SOperatorInfo* pOperator, SArray* pColR
                                          const char* vtbName, SArray** ppResolvedTags) {
   int32_t                    code = TSDB_CODE_SUCCESS;
   int32_t                    lino = 0;
-
-  // Check if there are any TagRef columns (refType == 1)
-  bool hasTagRef = false;
-  for (int32_t i = 0; i < taosArrayGetSize(pColRefInfo); i++) {
-    SColRefInfo* pKV = (SColRefInfo*)taosArrayGet(pColRefInfo, i);
-    if (pKV->refType == 1) {  // TagRef column
-      hasTagRef = true;
-      break;
-    }
-  }
-
-  if (hasTagRef) {
-    // TagRef is no longer handled by DynQueryCtrl
-    // It should be processed by TagRefSourcePhysiNode operators
-    qWarn("%s: TagRef columns detected; should be handled by TagRefSource operator, not DynQueryCtrl", __func__);
-    *ppResolvedTags = NULL;
+  *ppResolvedTags = NULL;
+  if (pOperator == NULL || pOperator->info == NULL || pColRefInfo == NULL || taosArrayGetSize(pColRefInfo) == 0) {
     return TSDB_CODE_SUCCESS;
   }
 
-  // No TagRef columns, return NULL for backward compatibility
-  *ppResolvedTags = NULL;
+  SDynQueryCtrlOperatorInfo* pInfo = pOperator->info;
+  SVtbScanDynCtrlInfo*       pVtbScan = &pInfo->vtbScan;
+  SColRefInfo*               pRefInfo = taosArrayGet(pColRefInfo, 0);
+  QUERY_CHECK_NULL(pRefInfo, code, lino, _return, terrno)
+
+  SArray* pTagList = NULL;
+  if (pVtbScan->hasPartition) {
+    uint64_t* pGroupId = taosHashGet(pVtbScan->vtbUidToGroupIdMap, &pRefInfo->uid, sizeof(pRefInfo->uid));
+    if (pGroupId == NULL) {
+      return TSDB_CODE_SUCCESS;
+    }
+
+    SHashObj** ppUidTagListMap = taosHashGet(pVtbScan->vtbGroupIdTagListMap, pGroupId, sizeof(*pGroupId));
+    if (ppUidTagListMap == NULL || *ppUidTagListMap == NULL) {
+      return TSDB_CODE_SUCCESS;
+    }
+
+    SArray** ppTagList = taosHashGet(*ppUidTagListMap, &pRefInfo->uid, sizeof(pRefInfo->uid));
+    if (ppTagList != NULL) {
+      pTagList = *ppTagList;
+    }
+  } else if (pVtbScan->vtbUidTagListMap != NULL) {
+    SArray** ppTagList = taosHashGet(pVtbScan->vtbUidTagListMap, &pRefInfo->uid, sizeof(pRefInfo->uid));
+    if (ppTagList != NULL) {
+      pTagList = *ppTagList;
+    }
+  }
+
+  if (pTagList == NULL) {
+    // keep going: TagRef columns in dynamic VSTB scan do not use DynQueryCtrl tag cache
+    // and must be resolved from their source child table metadata below.
+  } else {
+    code = cloneTagList(pTagList, ppResolvedTags);
+    QUERY_CHECK_CODE(code, lino, _return);
+  }
+
+  SStorageAPI* pAPI = &pOperator->pTaskInfo->storageAPI;
+  for (int32_t i = 0; i < taosArrayGetSize(pColRefInfo); ++i) {
+    SColRefInfo* pKV = taosArrayGet(pColRefInfo, i);
+    QUERY_CHECK_NULL(pKV, code, lino, _return, terrno)
+    if (pKV->refType != 1 || pKV->colrefName == NULL || !colNeedScan(pOperator, pKV->colId)) {
+      continue;
+    }
+
+    char*     refDbName = NULL;
+    char*     refTbName = NULL;
+    char*     refColName = NULL;
+    SName     name = {0};
+    char      dbFName[TSDB_DB_FNAME_LEN] = {0};
+    int32_t   vgId = 0;
+    SDBVgInfo* dbVgInfo = NULL;
+    STableCfgRsp cfgRsp = {0};
+
+    code = extractColRefName(pKV->colrefName, &refDbName, &refTbName, &refColName);
+    QUERY_CHECK_CODE(code, lino, _ref_cleanup);
+
+    toName(pVtbScan->acctId, refDbName, refTbName, &name);
+    code = getDbVgInfo(pOperator, &name, &dbVgInfo);
+    QUERY_CHECK_CODE(code, lino, _ref_cleanup);
+    code = tNameGetFullDbName(&name, dbFName);
+    QUERY_CHECK_CODE(code, lino, _ref_cleanup);
+    code = getVgId(dbVgInfo, dbFName, &vgId, name.tname);
+    QUERY_CHECK_CODE(code, lino, _ref_cleanup);
+
+    code = fetchRemoteTableCfg(pOperator, dbVgInfo, dbFName, name.tname, vgId, &cfgRsp);
+    QUERY_CHECK_CODE(code, lino, _ref_cleanup);
+
+    if (cfgRsp.pTags != NULL && cfgRsp.pSchemas != NULL) {
+      const SSchema* pTagSchema = NULL;
+      for (int32_t tagIdx = 0; tagIdx < cfgRsp.numOfTags; ++tagIdx) {
+        SSchema* pSchema = &cfgRsp.pSchemas[cfgRsp.numOfColumns + tagIdx];
+        if (0 == strcmp(pSchema->name, refColName)) {
+          pTagSchema = pSchema;
+          break;
+        }
+      }
+
+      if (pTagSchema != NULL) {
+        if (*ppResolvedTags == NULL) {
+          *ppResolvedTags = taosArrayInit(taosArrayGetSize(pColRefInfo), sizeof(STagVal));
+          QUERY_CHECK_NULL(*ppResolvedTags, code, lino, _ref_cleanup, terrno)
+        }
+        code = appendResolvedTagVal(*ppResolvedTags, pKV->colId, pTagSchema, (const STag*)cfgRsp.pTags);
+        QUERY_CHECK_CODE(code, lino, _ref_cleanup);
+      }
+    }
+
+_ref_cleanup:
+    tFreeSTableCfgRsp(&cfgRsp);
+    taosMemoryFree(refDbName);
+    taosMemoryFree(refTbName);
+    taosMemoryFree(refColName);
+    QUERY_CHECK_CODE(code, lino, _return);
+  }
+
   return TSDB_CODE_SUCCESS;
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed for %s at line %d since %s", __func__, vtbName, lino, tstrerror(code));
+  }
+  return code;
 }
 
 int32_t dynProcessUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
@@ -2468,7 +2588,11 @@ int32_t processOrgTbVg(SVtbScanDynCtrlInfo* pVtbScan, SExecTaskInfo* pTaskInfo, 
         taosArrayDestroy(tmpArray);
       }
     }
-    atomic_store_64(&pTaskInfo->pStreamRuntimeInfo->vtableDeployInfo.uid, (int64_t)(pVtbScan->isSuperTable ? pVtbScan->suid : pVtbScan->uid));
+    uint64_t deployUid = pVtbScan->uid;
+    if (pVtbScan->isSuperTable) {
+      deployUid = pVtbScan->dynTbUid != 0 ? pVtbScan->dynTbUid : pVtbScan->suid;
+    }
+    atomic_store_64(&pTaskInfo->pStreamRuntimeInfo->vtableDeployInfo.uid, (int64_t)deployUid);
     (void)atomic_val_compare_exchange_8(pTaskInfo->pStreamRuntimeInfo->vtableDeployGot, 0, 1);
     taosHashClear(pVtbScan->curOrgTbVg);
     pVtbScan->needRedeploy = true;
@@ -2590,8 +2714,9 @@ int32_t virtualTableScanProcessColRefInfo(SOperatorInfo* pOperator, SArray* pCol
       char    dbFname[TSDB_DB_FNAME_LEN] = {0};
       char    orgTbFName[TSDB_TABLE_FNAME_LEN] = {0};
 
-      if (ppRefMap != NULL) {
-        // Track colref -> colId mapping for later slot grouping.
+      if (ppRefMap != NULL && pKV->refType != 1) {
+        // Only ordinary col-ref slots participate in virtual-scan ref-slot grouping.
+        // TagRef is handled by TagRefSource operators and must not be merged/copied as row data.
         if (refMap == NULL) {
           refMap = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), true, HASH_NO_LOCK);
           QUERY_CHECK_NULL(refMap, code, line, _return, terrno)
@@ -3146,6 +3271,7 @@ int32_t virtualTableScanBuildDownStreamOpParam(SOperatorInfo* pOperator, tb_uid_
   SDynQueryCtrlOperatorInfo* pInfo = pOperator->info;
   SVtbScanDynCtrlInfo*       pVtbScan = (SVtbScanDynCtrlInfo*)&pInfo->vtbScan;
   SExecTaskInfo*             pTaskInfo = pOperator->pTaskInfo;
+  SOperatorInfo*             pVtbScanOp = pOperator->pDownstream[0];
   bool                       singleSourceMode = pVtbScan->isSuperTable && pVtbScan->scanAllCols;
 
   pVtbScan->vtbScanParam = NULL;
@@ -3182,7 +3308,14 @@ int32_t virtualTableScanBuildDownStreamOpParam(SOperatorInfo* pOperator, tb_uid_
     pIter = taosHashIterate(pVtbScan->otbNameToOtbInfoMap, pIter);
   }
 
-  ((SVTableScanOperatorParam*)pVtbScan->vtbScanParam->value)->pTagScanOp = NULL;
+  SVTableScanOperatorParam* pParam = pVtbScan->vtbScanParam->value;
+  pParam->pTagScanOp = NULL;
+  pParam->tagDownStreamId = -1;
+  if (pVtbScan->isSuperTable && pVtbScanOp != NULL && pVtbScanOp->numOfDownstream > 1) {
+    code = buildExchangeOperatorParamForVTagScan(&pParam->pTagScanOp, 0, vgId, uid);
+    QUERY_CHECK_CODE(code, line, _return);
+    pParam->tagDownStreamId = 0;
+  }
 
 _return:
   if (code) {
@@ -3234,18 +3367,27 @@ int32_t virtualTableScanGetNext(SOperatorInfo* pOperator, SSDataBlock** pRes) {
 
       {
         const char* vtbChildName = NULL;
+        size_t      vtbChildNameLen = 0;
+        char        vtbChildNameBuf[TSDB_TABLE_NAME_LEN] = {0};
         if (pVtbScan->isSuperTable && pVtbScan->childTableMap) {
           void* iter = taosHashIterate(pVtbScan->childTableMap, NULL);
           while (iter) {
             int32_t* pIdx = (int32_t*)iter;
             if (*pIdx == pVtbScan->curTableIdx) {
-              size_t keyLen = 0;
-              vtbChildName = taosHashGetKey(iter, &keyLen);
+              vtbChildName = taosHashGetKey(iter, &vtbChildNameLen);
               taosHashCancelIterate(pVtbScan->childTableMap, iter);
               break;
             }
             iter = taosHashIterate(pVtbScan->childTableMap, iter);
           }
+        }
+
+        if (vtbChildName != NULL) {
+          size_t copyLen = TMIN(vtbChildNameLen, sizeof(vtbChildNameBuf) - 1);
+          if (copyLen > 0) {
+            memcpy(vtbChildNameBuf, vtbChildName, copyLen);
+          }
+          vtbChildName = vtbChildNameBuf;
         }
 
         SArray* pResolvedTags = NULL;
@@ -3255,6 +3397,10 @@ int32_t virtualTableScanGetNext(SOperatorInfo* pOperator, SSDataBlock** pRes) {
           ((SVTableScanOperatorParam*)pVtbScan->vtbScanParam->value)->pResolvedTags = pResolvedTags;
         } else if (pResolvedTags) {
           taosArrayDestroy(pResolvedTags);
+        }
+        if (vtbChildName != NULL && pVtbScan->vtbScanParam != NULL) {
+          tstrncpy(((SVTableScanOperatorParam*)pVtbScan->vtbScanParam->value)->tbName, vtbChildName,
+                   TSDB_TABLE_NAME_LEN);
         }
       }
 

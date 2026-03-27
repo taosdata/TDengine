@@ -603,37 +603,28 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCt
   }
 
   if (isVirtualChild) {
-    // Virtual child table - copy as SVCTableMeta with inline colRef/tagRef
-    int32_t metaSize = sizeof(SVCTableMeta);
-    *pTableMeta = taosMemoryCalloc(1, metaSize + colRefSize + tagRefSize);
-    if (NULL == *pTableMeta) {
-      CTG_ERR_RET(terrno);
-    }
-
-    // Copy the SVCTableMeta part
-    TAOS_MEMCPY(*pTableMeta, tbMeta, metaSize);
-
-    // Copy colRef if exists
+    // Virtual child table - save colRef/tagRef to temp buffers, then merge with STB meta below
     if (colRefSize > 0) {
-      (*pTableMeta)->colRef = (SColRef*)((char*)*pTableMeta + metaSize);
-      // Copy from inline data (after SVCTableMeta in the original buffer)
-      TAOS_MEMCPY((void*)(*pTableMeta)->colRef, (char*)tbMeta + metaSize, colRefSize);
+      tmpColRef = taosMemoryMalloc(colRefSize);
+      if (NULL == tmpColRef) {
+        CTG_ERR_RET(terrno);
+      }
+      TAOS_MEMCPY(tmpColRef, (char*)tbMeta + sizeof(SVCTableMeta), colRefSize);
     }
-    // Copy tagRef if exists
     if (tagRefSize > 0) {
-      (*pTableMeta)->tagRef = (SColRef*)((char*)*pTableMeta + metaSize + colRefSize);
-      TAOS_MEMCPY((void*)(*pTableMeta)->tagRef, (char*)tbMeta + metaSize + colRefSize, tagRefSize);
+      tmpTagRef = taosMemoryMalloc(tagRefSize);
+      if (NULL == tmpTagRef) {
+        taosMemoryFreeClear(tmpColRef);
+        CTG_ERR_RET(terrno);
+      }
+      TAOS_MEMCPY(tmpTagRef, (char*)tbMeta + sizeof(SVCTableMeta) + colRefSize, tagRefSize);
     }
 
-    CTG_UNLOCK(CTG_READ, &tbCache->metaLock);
-    taosHashRelease(dbCache->tbCache, tbCache);
-    *pTb = NULL;
-
-    ctgDebug("vctb:%s, get meta from cache, type:%d, db:%s", ctx->pName->tname, tbMeta->tableType, dbFName);
-    return TSDB_CODE_SUCCESS;
+    ctgDebug("vctb:%s, get meta from cache, will continue to get its stb meta, tbType:%d, db:%s",
+             ctx->pName->tname, tbMeta->tableType, dbFName);
   }
 
-  // PROCESS FOR NORMAL CHILD TABLE
+  // PROCESS FOR CHILD TABLE (both normal and virtual)
   ctgDebug("ctgCopyTbMeta ctb:%s tbType=%d", ctx->pName->tname, tbMeta->tableType);
   int32_t metaSize = sizeof(SCTableMeta);
 

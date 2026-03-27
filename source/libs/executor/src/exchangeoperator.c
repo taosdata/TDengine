@@ -1369,7 +1369,9 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
 
     switch (pDataInfo->type) {
       case EX_SRC_TYPE_VSTB_SCAN: {
-        code = buildTableScanOperatorParamEx(&req.pOpParam, pDataInfo->pSrcUidList, pDataInfo->srcOpType, pDataInfo->orgTbInfo, pDataInfo->tableSeq, &pDataInfo->window, pDataInfo->isNewParam, DYN_TYPE_VSTB_SINGLE_SCAN);
+        code = buildTableScanOperatorParamEx(&req.pOpParam, pDataInfo->pSrcUidList, pDataInfo->srcOpType,
+                                             pDataInfo->orgTbInfo, pDataInfo->tableSeq, &pDataInfo->window,
+                                             pDataInfo->isNewParam, DYN_TYPE_VSTB_SINGLE_SCAN);
         clearVtbScanDataInfo(pDataInfo);
         QUERY_CHECK_CODE(code, lino, _end);
         break;

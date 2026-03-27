@@ -57,6 +57,37 @@ void setOperatorResetStateFn(SOperatorInfo* pOperator, __optr_reset_state_fn_t r
   pOperator->fpSet.resetStateFn = resetFn;
 }
 
+static int32_t buildTagRefSourceScanNode(SReadHandle* pHandle, STagRefSourcePhysiNode* pTagRefSourceNode,
+                                         SExecTaskInfo* pTaskInfo, SScanPhysiNode* pScanNode) {
+  if (pHandle == NULL || pTagRefSourceNode == NULL || pTaskInfo == NULL || pScanNode == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  SMetaReader mr = {0};
+  SStorageAPI* pAPI = &pTaskInfo->storageAPI;
+
+  pAPI->metaReaderFn.initReader(&mr, pHandle->vnode, META_READER_LOCK, &pAPI->metaFn);
+  int32_t code = pAPI->metaReaderFn.getTableEntryByName(&mr, pTagRefSourceNode->sourceTableName.tname);
+  if (code != TSDB_CODE_SUCCESS) {
+    pAPI->metaReaderFn.clearReader(&mr);
+    return code;
+  }
+
+  memset(pScanNode, 0, sizeof(*pScanNode));
+  pScanNode->pScanCols = pTagRefSourceNode->pScanCols;
+  pScanNode->uid = mr.me.uid;
+  pScanNode->tableType = mr.me.type;
+  pScanNode->tableName = pTagRefSourceNode->sourceTableName;
+  if (mr.me.type == TSDB_CHILD_TABLE || mr.me.type == TSDB_VIRTUAL_CHILD_TABLE) {
+    pScanNode->suid = mr.me.ctbEntry.suid;
+  } else {
+    pScanNode->suid = pTagRefSourceNode->sourceSuid;
+  }
+
+  pAPI->metaReaderFn.clearReader(&mr);
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t optrDummyOpenFn(SOperatorInfo* pOperator) {
   OPTR_SET_OPENED(pOperator);
   pOperator->cost.openCost = 0;
@@ -309,9 +340,10 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
         return terrno;
       }
 
-      // Since virtual stable scan use virtual super table's uid in scan operator, the origin table might be stored on
-      // different vnode, so we should not get table schema for virtual stable scan.
-      if (!pTableScanNode->scan.virtualStableScan) {
+      // Virtual stable/child/normal table scans should not resolve queried schema from local uid metadata here.
+      if (!pTableScanNode->scan.virtualStableScan &&
+          pTableScanNode->scan.tableType != TSDB_VIRTUAL_CHILD_TABLE &&
+          pTableScanNode->scan.tableType != TSDB_VIRTUAL_NORMAL_TABLE) {
         code = initQueriedTableSchemaInfo(pHandle, &pTableScanNode->scan, dbname, pTaskInfo);
         if (code) {
           pTaskInfo->code = code;
@@ -367,11 +399,15 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
           return code;
         }
 
-        code = initQueriedTableSchemaInfo(pHandle, &pTableScanNode->scan, dbname, pTaskInfo);
-        if (code) {
-          pTaskInfo->code = code;
-          tableListDestroy(pTableListInfo);
-          return code;
+        if (!pTableScanNode->scan.virtualStableScan &&
+            pTableScanNode->scan.tableType != TSDB_VIRTUAL_CHILD_TABLE &&
+            pTableScanNode->scan.tableType != TSDB_VIRTUAL_NORMAL_TABLE) {
+          code = initQueriedTableSchemaInfo(pHandle, &pTableScanNode->scan, dbname, pTaskInfo);
+          if (code) {
+            pTaskInfo->code = code;
+            tableListDestroy(pTableListInfo);
+            return code;
+          }
         }
       }
 
@@ -447,11 +483,15 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
         return terrno;
       }
 
-      code = initQueriedTableSchemaInfo(pHandle, &pTagScanPhyNode->scan, dbname, pTaskInfo);
-      if (code != TSDB_CODE_SUCCESS) {
-        pTaskInfo->code = code;
-        tableListDestroy(pTableListInfo);
-        return code;
+      if (!pTagScanPhyNode->scan.virtualStableScan &&
+          pTagScanPhyNode->scan.tableType != TSDB_VIRTUAL_CHILD_TABLE &&
+          pTagScanPhyNode->scan.tableType != TSDB_VIRTUAL_NORMAL_TABLE) {
+        code = initQueriedTableSchemaInfo(pHandle, &pTagScanPhyNode->scan, dbname, pTaskInfo);
+        if (code != TSDB_CODE_SUCCESS) {
+          pTaskInfo->code = code;
+          tableListDestroy(pTableListInfo);
+          return code;
+        }
       }
 
       if (!pTagScanPhyNode->onlyMetaCtbIdx) {
@@ -481,24 +521,30 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
     } else if (QUERY_NODE_PHYSICAL_PLAN_TAG_REF_SOURCE == type) {
       STagRefSourcePhysiNode* pTagRefSourceNode = (STagRefSourcePhysiNode*)pPhyNode;
       STableListInfo*         pTableListInfo = tableListCreate();
+      SScanPhysiNode          sourceScan = {0};
       if (!pTableListInfo) {
         pTaskInfo->code = terrno;
         qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
         return terrno;
       }
 
-      // Initialize schema info for source table
-      code = initQueriedTableSchemaInfo(pHandle, (SScanPhysiNode*)pTagRefSourceNode, dbname, pTaskInfo);
+      code = buildTagRefSourceScanNode(pHandle, pTagRefSourceNode, pTaskInfo, &sourceScan);
       if (code != TSDB_CODE_SUCCESS) {
         pTaskInfo->code = code;
         tableListDestroy(pTableListInfo);
         return code;
       }
 
-      // Create table list info for source super table
+      code = initQueriedTableSchemaInfo(pHandle, &sourceScan, dbname, pTaskInfo);
+      if (code != TSDB_CODE_SUCCESS) {
+        pTaskInfo->code = code;
+        tableListDestroy(pTableListInfo);
+        return code;
+      }
+
       if (pHandle) {
-        code = createScanTableListInfo((SScanPhysiNode*)pTagRefSourceNode, NULL, false, pHandle, pTableListInfo,
-                                       pTagCond, pTagIndexCond, pTaskInfo, NULL);
+        code = createScanTableListInfo(&sourceScan, NULL, false, pHandle, pTableListInfo, pTagCond, pTagIndexCond,
+                                       pTaskInfo, NULL);
         if (code != TSDB_CODE_SUCCESS) {
           pTaskInfo->code = code;
           qError("failed to getTableList for TagRefSource, code:%s", tstrerror(code));

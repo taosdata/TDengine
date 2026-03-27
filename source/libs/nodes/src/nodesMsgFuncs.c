@@ -244,6 +244,11 @@ static int32_t tlvEncodeObj(STlvEncoder* pEncoder, int16_t type, FToMsg func, co
     return TSDB_CODE_SUCCESS;
   }
 
+  const SNode* pNode = (const SNode*)pObj;
+  if (QUERY_NODE_TAG_REF_COLUMN == pNode->type || QUERY_NODE_WHEN_THEN == pNode->type) {
+    nodesError("tlvEncodeObj: outerType=%d nodeType=%d name=%s", type, pNode->type, nodesNodeName(pNode->type));
+  }
+
   if (pEncoder->offset + sizeof(STlv) > pEncoder->allocSize) {
     pEncoder->allocSize = TMAX(pEncoder->allocSize * 2, pEncoder->allocSize + sizeof(STlv));
     void* pNewBuf = taosMemoryRealloc(pEncoder->pBuf, pEncoder->allocSize);
@@ -575,9 +580,15 @@ static int32_t tlvDecodeObjArrayFromTlv(STlv* pTlv, FToObject func, void* pArray
 static int32_t tlvDecodeDynObjFromTlv(STlv* pTlv, FMakeObject makeFunc, FToObject toFunc, void** pObj) {
   int32_t code = makeFunc(pTlv->type, (SNode**)pObj);
   if (NULL == *pObj) {
+    nodesError("tlvDecodeDynObjFromTlv make node failed, type=%d", pTlv->type);
     return code;
   }
-  return tlvDecodeObjFromTlv(pTlv, toFunc, *pObj);
+  code = tlvDecodeObjFromTlv(pTlv, toFunc, *pObj);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesError("tlvDecodeDynObjFromTlv decode failed, type=%d(%s), code:%x", pTlv->type,
+               nodesNodeName(nodeType(*pObj)), code);
+  }
+  return code;
 }
 
 static int32_t tlvDecodeDynObj(STlvDecoder* pDecoder, FMakeObject makeFunc, FToObject toFunc, void** pObj) {
@@ -1905,6 +1916,79 @@ static int32_t msgToSlotDescNode(STlvDecoder* pDecoder, void* pObj) {
   return code;
 }
 
+enum { TAG_REF_COLUMN_CODE_INLINE_ATTRS = 1 };
+
+static int32_t tagRefColumnInlineToMsg(const void* pObj, STlvEncoder* pEncoder) {
+  const STagRefColumn* pNode = (const STagRefColumn*)pObj;
+
+  int32_t code = tlvEncodeValueI16(pEncoder, pNode->colId);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeValueI16(pEncoder, pNode->sourceColId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeValueCStr(pEncoder, pNode->colName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeValueCStr(pEncoder, pNode->sourceColName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeValueI32(pEncoder, pNode->bytes);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeValueI8(pEncoder, pNode->dataType);
+  }
+
+  return code;
+}
+
+static int32_t tagRefColumnToMsg(const void* pObj, STlvEncoder* pEncoder) {
+  const STagRefColumn* pNode = (const STagRefColumn*)pObj;
+  nodesError("tagRefColumnToMsg: type=%d colId=%d sourceColId=%d dataType=%d",
+             ((const SNode*)pObj)->type, pNode->colId, pNode->sourceColId, pNode->dataType);
+  return tlvEncodeObj(pEncoder, TAG_REF_COLUMN_CODE_INLINE_ATTRS, tagRefColumnInlineToMsg, pObj);
+}
+
+static int32_t msgToTagRefColumnInline(STlvDecoder* pDecoder, void* pObj) {
+  STagRefColumn* pNode = (STagRefColumn*)pObj;
+
+  int32_t code = tlvDecodeValueI16(pDecoder, &pNode->colId);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvDecodeValueI16(pDecoder, &pNode->sourceColId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvDecodeValueCStr(pDecoder, pNode->colName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvDecodeValueCStr(pDecoder, pNode->sourceColName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvDecodeValueI32(pDecoder, &pNode->bytes);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvDecodeValueI8(pDecoder, &pNode->dataType);
+  }
+
+  return code;
+}
+
+static int32_t msgToTagRefColumn(STlvDecoder* pDecoder, void* pObj) {
+  STagRefColumn* pNode = (STagRefColumn*)pObj;
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  STlv*   pTlv = NULL;
+  tlvForEach(pDecoder, pTlv, code) {
+    switch (pTlv->type) {
+      case TAG_REF_COLUMN_CODE_INLINE_ATTRS:
+        code = tlvDecodeObjFromTlv(pTlv, msgToTagRefColumnInline, pNode);
+        break;
+      default:
+        break;
+    }
+  }
+
+  return code;
+}
+
 enum { EP_CODE_FQDN = 1, EP_CODE_port };
 
 static int32_t epInlineToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -2451,6 +2535,12 @@ enum {
   PHY_VIRTUAL_TABLE_SCAN_CODE_SUBTABLE,
   PHY_VIRTUAL_TABLE_SCAN_CODE_IGNORE_EXPIRED,
   PHY_VIRTUAL_TABLE_SCAN_CODE_IGNORE_CHECK_UPDATE,
+  PHY_VIRTUAL_TABLE_SCAN_CODE_TAG_REF_SOURCES,
+  PHY_VIRTUAL_TABLE_SCAN_CODE_LOCAL_TAGS,
+  PHY_VIRTUAL_TABLE_SCAN_CODE_REF_TAG_COLS,
+  PHY_VIRTUAL_TABLE_SCAN_CODE_TAG_FILTER_COND,
+  PHY_VIRTUAL_TABLE_SCAN_CODE_HAS_TAG_REF,
+  PHY_VIRTUAL_TABLE_SCAN_CODE_HAS_LOCAL_TAG,
 };
 
 static int32_t physiVirtualTableScanNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -2489,6 +2579,24 @@ static int32_t physiVirtualTableScanNodeToMsg(const void* pObj, STlvEncoder* pEn
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeI8(pEncoder, PHY_VIRTUAL_TABLE_SCAN_CODE_IGNORE_CHECK_UPDATE, pNode->igCheckUpdate);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, PHY_VIRTUAL_TABLE_SCAN_CODE_TAG_REF_SOURCES, nodeListToMsg, pNode->pTagRefSources);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, PHY_VIRTUAL_TABLE_SCAN_CODE_LOCAL_TAGS, nodeListToMsg, pNode->pLocalTags);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, PHY_VIRTUAL_TABLE_SCAN_CODE_REF_TAG_COLS, nodeListToMsg, pNode->pRefTagCols);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, PHY_VIRTUAL_TABLE_SCAN_CODE_TAG_FILTER_COND, nodeToMsg, pNode->pTagFilterCond);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, PHY_VIRTUAL_TABLE_SCAN_CODE_HAS_TAG_REF, pNode->hasTagRef);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, PHY_VIRTUAL_TABLE_SCAN_CODE_HAS_LOCAL_TAG, pNode->hasLocalTag);
+  }
 
   return code;
 }
@@ -2526,6 +2634,24 @@ static int32_t msgToPhysiVirtualTableScanNode(STlvDecoder* pDecoder, void* pObj)
         break;
       case PHY_VIRTUAL_TABLE_SCAN_CODE_IGNORE_CHECK_UPDATE:
         code = tlvDecodeI8(pTlv, &pNode->igCheckUpdate);
+        break;
+      case PHY_VIRTUAL_TABLE_SCAN_CODE_TAG_REF_SOURCES:
+        code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pTagRefSources);
+        break;
+      case PHY_VIRTUAL_TABLE_SCAN_CODE_LOCAL_TAGS:
+        code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pLocalTags);
+        break;
+      case PHY_VIRTUAL_TABLE_SCAN_CODE_REF_TAG_COLS:
+        code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pRefTagCols);
+        break;
+      case PHY_VIRTUAL_TABLE_SCAN_CODE_TAG_FILTER_COND:
+        code = msgToNodeFromTlv(pTlv, (void**)&pNode->pTagFilterCond);
+        break;
+      case PHY_VIRTUAL_TABLE_SCAN_CODE_HAS_TAG_REF:
+        code = tlvDecodeBool(pTlv, &pNode->hasTagRef);
+        break;
+      case PHY_VIRTUAL_TABLE_SCAN_CODE_HAS_LOCAL_TAG:
+        code = tlvDecodeBool(pTlv, &pNode->hasLocalTag);
         break;
       default:
         break;
@@ -5398,6 +5524,9 @@ static int32_t specificNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
       break;
     case QUERY_NODE_LEFT_VALUE:
       break;
+    case QUERY_NODE_TAG_REF_COLUMN:
+      code = tagRefColumnToMsg(pObj, pEncoder);
+      break;
     case QUERY_NODE_WHEN_THEN:
       code = whenThenNodeToMsg(pObj, pEncoder);
       break;
@@ -5578,6 +5707,9 @@ static int32_t msgToSpecificNode(STlvDecoder* pDecoder, void* pObj) {
     case QUERY_NODE_DOWNSTREAM_SOURCE:
       code = msgToDownstreamSourceNode(pDecoder, pObj);
     case QUERY_NODE_LEFT_VALUE:
+      break;
+    case QUERY_NODE_TAG_REF_COLUMN:
+      code = msgToTagRefColumn(pDecoder, pObj);
       break;
     case QUERY_NODE_WHEN_THEN:
       code = msgToWhenThenNode(pDecoder, pObj);

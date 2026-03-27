@@ -7019,7 +7019,7 @@ int32_t tDeserializeSTableCfgRsp(void *buf, int32_t bufLen, STableCfgRsp *pRsp) 
       if (!tDecodeIsEnd(&decoder)) {
         TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pRsp->numOfTagRefs));
         if (pRsp->numOfTagRefs > 0) {
-          pRsp->pTagRefs = taosMemoryMalloc(sizeof(SColRef) * pRsp->numOfTagRefs);
+          pRsp->pTagRefs = taosMemoryCalloc(pRsp->numOfTagRefs, sizeof(SColRef));
           if (pRsp->pTagRefs == NULL) {
             TAOS_CHECK_EXIT(terrno);
           }
@@ -10033,7 +10033,7 @@ static int32_t tDecodeSTableMetaRsp(SDecoder *pDecoder, STableMetaRsp *pRsp) {
   if (!tDecodeIsEnd(pDecoder)) {
     TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &pRsp->numOfTagRefs));
     if (hasRefCol(pRsp->tableType) && pRsp->numOfTagRefs > 0) {
-      pRsp->pTagRefs = taosMemoryMalloc(sizeof(SColRef) * pRsp->numOfTagRefs);
+      pRsp->pTagRefs = taosMemoryCalloc(pRsp->numOfTagRefs, sizeof(SColRef));
       if (pRsp->pTagRefs == NULL) {
         TAOS_CHECK_RETURN(terrno);
       }
@@ -13385,6 +13385,12 @@ int32_t tSerializeSOperatorParam(SEncoder *pEncoder, SOperatorParam *pOpParam) {
     case QUERY_NODE_PHYSICAL_PLAN_MERGE: {
       break;
     }
+    case QUERY_NODE_PHYSICAL_PLAN_DYN_QUERY_CTRL: {
+      SDynQueryCtrlOperatorParam* pDyn = (SDynQueryCtrlOperatorParam*)pOpParam->value;
+      TAOS_CHECK_RETURN(tEncodeI64(pEncoder, pDyn->window.skey));
+      TAOS_CHECK_RETURN(tEncodeI64(pEncoder, pDyn->window.ekey));
+      break;
+    }
     case QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN: {
       STagScanOperatorParam *pTagScan = (STagScanOperatorParam *)pOpParam->value;
       TAOS_CHECK_RETURN(tEncodeI64(pEncoder, pTagScan->vcUid));
@@ -13507,6 +13513,16 @@ int32_t tDeserializeSOperatorParam(SDecoder *pDecoder, SOperatorParam *pOpParam)
     case QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL:
     case QUERY_NODE_PHYSICAL_PLAN_MERGE: {
       pOpParam->value = NULL;
+      break;
+    }
+    case QUERY_NODE_PHYSICAL_PLAN_DYN_QUERY_CTRL: {
+      pOpParam->value = taosMemoryCalloc(1, sizeof(SDynQueryCtrlOperatorParam));
+      if (NULL == pOpParam->value) {
+        TAOS_CHECK_RETURN(terrno);
+      }
+      SDynQueryCtrlOperatorParam* pDyn = pOpParam->value;
+      TAOS_CHECK_RETURN(tDecodeI64(pDecoder, &pDyn->window.skey));
+      TAOS_CHECK_RETURN(tDecodeI64(pDecoder, &pDyn->window.ekey));
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN: {

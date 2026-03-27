@@ -357,6 +357,9 @@ static int32_t makeNode(ENodeType type, int32_t size, SNode** ppNode) {
   int32_t code = nodesCalloc(1, size, (void**)&p);
   if (TSDB_CODE_SUCCESS == code) {
     setNodeType(p, type);
+    if (QUERY_NODE_TAG_REF_COLUMN == type) {
+      nodesError("makeNode tag ref: requested=%d actual=%d size=%d", type, nodeType(p), size);
+    }
     *ppNode = p;
   }
   return code;
@@ -488,6 +491,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
       break;
     case QUERY_NODE_COLUMN_REF:
       code = makeNode(type, sizeof(SColumnRefNode), &pNode);
+      break;
+    case QUERY_NODE_TAG_REF_COLUMN:
+      code = makeNode(type, sizeof(STagRefColumn), &pNode);
       break;
     case QUERY_NODE_WHEN_THEN:
       code = makeNode(type, sizeof(SWhenThenNode), &pNode);
@@ -1571,8 +1577,9 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pOptions->pInterval);
       break;
     }
-    case QUERY_NODE_LEFT_VALUE:  // no pointer field
-    case QUERY_NODE_COLUMN_REF:  // no pointer field
+    case QUERY_NODE_LEFT_VALUE:      // no pointer field
+    case QUERY_NODE_COLUMN_REF:      // no pointer field
+    case QUERY_NODE_TAG_REF_COLUMN:  // no pointer field
       break;
     case QUERY_NODE_WHEN_THEN: {
       SWhenThenNode* pWhenThen = (SWhenThenNode*)pNode;

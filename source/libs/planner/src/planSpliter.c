@@ -2047,6 +2047,17 @@ static int32_t virtualTableSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
     pExchange->node.pParent = ((SLogicNode*)pChild)->pParent;
 
     SLogicSubplan *sub = splCreateScanSubplan(pCxt, (SLogicNode*)pChild, 0);
+    planError("VirtualtableSplit child subplan: childType=%d groupId=%d subplanVgroups=%p num=%d childVgroups=%p childNum=%d",
+              nodeType((SLogicNode*)pChild), sub ? sub->id.groupId : -1, sub ? sub->pVgroupList : NULL,
+              (sub && sub->pVgroupList) ? sub->pVgroupList->numOfVgroups : 0,
+              QUERY_NODE_LOGIC_PLAN_TAG_REF_SOURCE == nodeType((SLogicNode*)pChild)
+                  ? ((STagRefSourceLogicNode*)pChild)->pVgroupList
+                  : (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType((SLogicNode*)pChild) ? ((SScanLogicNode*)pChild)->pVgroupList : NULL),
+              QUERY_NODE_LOGIC_PLAN_TAG_REF_SOURCE == nodeType((SLogicNode*)pChild)
+                  ? ((((STagRefSourceLogicNode*)pChild)->pVgroupList) ? ((STagRefSourceLogicNode*)pChild)->pVgroupList->numOfVgroups : 0)
+                  : (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType((SLogicNode*)pChild) && ((SScanLogicNode*)pChild)->pVgroupList
+                         ? ((SScanLogicNode*)pChild)->pVgroupList->numOfVgroups
+                         : 0));
     sub->processOneBlock = needProcessOneBlockEachTime(info.pVirtual);
     PLAN_ERR_JRET(nodesListMakeStrictAppend(&info.pSubplan->pChildren, (SNode*)sub));
     ++(pCxt->groupId);

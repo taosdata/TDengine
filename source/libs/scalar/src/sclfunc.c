@@ -4563,13 +4563,53 @@ int32_t isWinFilledFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam
 }
 
 int32_t qPseudoTagFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  char   *p = colDataGetData(pInput->columnData, 0);
-  int32_t code = colDataSetNItems(pOutput->columnData, pOutput->numOfRows, p, pInput->numOfRows, 1, true);
-  if (code) {
+  char*       p = NULL;
+  const char* tbName = NULL;
+  int32_t     numOfRows = 0;
+  char        tbNameBuf[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
+
+  if (inputNum > 0 && pInput != NULL) {
+    numOfRows = pInput->numOfRows;
+    if (pInput->columnData != NULL) {
+      p = colDataGetData(pInput->columnData, 0);
+    } else if (pInput->param != NULL) {
+      tbName = (const char*)pInput->param;
+    }
+  }
+
+  if (tbName == NULL && pOutput != NULL && pOutput->param != NULL) {
+    tbName = (const char*)pOutput->param;
+  }
+  if (numOfRows <= 0 && pOutput != NULL) {
+    numOfRows = pOutput->numOfRows;
+  }
+
+  if (p == NULL && tbName != NULL) {
+    STR_TO_VARSTR(tbNameBuf, tbName);
+    p = tbNameBuf;
+  }
+
+  if (p == NULL || numOfRows <= 0) {
+    qError("qPseudoTagFunction invalid inputNum:%d inRows:%d outRows:%d inParam:%p outParam:%p tbName:%s",
+           inputNum, pInput ? pInput->numOfRows : -1, pOutput ? pOutput->numOfRows : -1,
+           pInput ? pInput->param : NULL, pOutput ? pOutput->param : NULL,
+           tbName ? tbName : "(null)");
+    return TSDB_CODE_QRY_INVALID_INPUT;
+  }
+
+  int32_t code = colInfoDataEnsureCapacity(pOutput->columnData, numOfRows, true);
+  if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
 
-  pOutput->numOfRows += pInput->numOfRows;
+  for (int32_t i = 0; i < numOfRows; ++i) {
+    code = colDataSetVal(pOutput->columnData, i, p, false);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+  }
+
+  pOutput->numOfRows = numOfRows;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -4577,6 +4617,12 @@ int32_t qPseudoTagFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam 
 int32_t countScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   SColumnInfoData *pInputData = pInput->columnData;
   SColumnInfoData *pOutputData = pOutput->columnData;
+  int32_t          code = TSDB_CODE_SUCCESS;
+
+  code = colInfoDataEnsureCapacity(pOutputData, 1, false);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
 
   int64_t *out = (int64_t *)pOutputData->pData;
   *out = 0;

@@ -1131,6 +1131,10 @@ static int32_t findTagRefIndexByName(SColRef* pTagRef, SVirtualTableNode* pVirtu
     if (!pTagRef[i].hasRef) {
       continue;
     }
+    if ((pTagRef[i].colName[0] != '\0' && 0 == strcasecmp(pTagRef[i].colName, colName)) ||
+        (pTagRef[i].refColName[0] != '\0' && 0 == strcasecmp(pTagRef[i].refColName, colName))) {
+      return i;
+    }
     int32_t schemaIndex = findSchemaIndex(pVirtualTable->pMeta->schema, totalCols, pTagRef[i].id);
     if (schemaIndex < 0) {
       continue;
@@ -1186,6 +1190,86 @@ _return:
   return code;
 }
 
+static int32_t eliminateDupVirtualTagCols(SNodeList* pCols) {
+  if (pCols == NULL || LIST_LENGTH(pCols) <= 1) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t   code = TSDB_CODE_SUCCESS;
+  SHashObj* colsMap =
+      taosHashInit(LIST_LENGTH(pCols), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+  if (colsMap == NULL) {
+    return terrno;
+  }
+
+  SNode* pNode = NULL;
+  FOREACH(pNode, pCols) {
+    if (nodeType(pNode) != QUERY_NODE_COLUMN) {
+      continue;
+    }
+
+    SColumnNode* pCol = (SColumnNode*)pNode;
+    char         key[TSDB_COL_FNAME_EX_LEN] = {0};
+
+    if (pCol->colId > 0) {
+      snprintf(key, sizeof(key), "id:%d", pCol->colId);
+    } else if (pCol->hasRef) {
+      snprintf(key, sizeof(key), "ref:%s.%s.%s", pCol->refDbName, pCol->refTableName, pCol->refColName);
+    } else if ('\0' != pCol->tableAlias[0]) {
+      snprintf(key, sizeof(key), "alias:%s.%s", pCol->tableAlias, pCol->colName);
+    } else {
+      snprintf(key, sizeof(key), "name:%s", pCol->colName);
+    }
+
+    if (NULL != taosHashGet(colsMap, key, strlen(key))) {
+      ERASE_NODE(pCols);
+    } else {
+      PLAN_ERR_JRET(taosHashPut(colsMap, key, strlen(key), NULL, 0));
+    }
+  }
+
+_return:
+  taosHashCleanup(colsMap);
+  return code;
+}
+
+static int32_t eliminateDupTagRefSources(SNodeList* pSources) {
+  if (pSources == NULL || LIST_LENGTH(pSources) <= 1) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t   code = TSDB_CODE_SUCCESS;
+  SHashObj* sourceMap =
+      taosHashInit(LIST_LENGTH(pSources), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+  if (sourceMap == NULL) {
+    return terrno;
+  }
+
+  SNode* pNode = NULL;
+  FOREACH(pNode, pSources) {
+    if (nodeType(pNode) != QUERY_NODE_LOGIC_PLAN_TAG_REF_SOURCE) {
+      continue;
+    }
+
+    STagRefSourceLogicNode* pSource = (STagRefSourceLogicNode*)pNode;
+    STagRefColumn*          pRefCol =
+        (STagRefColumn*)(pSource->pRefCols ? nodesListGetNode(pSource->pRefCols, 0) : NULL);
+    char key[TSDB_COL_FNAME_EX_LEN] = {0};
+    snprintf(key, sizeof(key), "%s.%s.%s", pSource->sourceTableName.dbname, pSource->sourceTableName.tname,
+             pRefCol != NULL ? pRefCol->sourceColName : "");
+
+    if (NULL != taosHashGet(sourceMap, key, strlen(key))) {
+      ERASE_NODE(pSources);
+    } else {
+      PLAN_ERR_JRET(taosHashPut(sourceMap, key, strlen(key), NULL, 0));
+    }
+  }
+
+_return:
+  taosHashCleanup(sourceMap);
+  return code;
+}
+
 static int32_t cloneVgroups(SVgroupsInfo **pDst, SVgroupsInfo* pSrc) {
   if (pSrc == NULL) {
     *pDst = NULL;
@@ -1198,6 +1282,38 @@ static int32_t cloneVgroups(SVgroupsInfo **pDst, SVgroupsInfo* pSrc) {
   }
   memcpy(*pDst, pSrc, len);
   return TSDB_CODE_SUCCESS;
+}
+
+static int32_t appendCondTagPseudoCols(SNode* pCond, SNodeList** ppPseudoCols) {
+  if (pCond == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SNodeList* pCondCols = NULL;
+  int32_t    code = nodesCollectColumnsFromNode(pCond, NULL, COLLECT_COL_TYPE_ALL, &pCondCols);
+  if (TSDB_CODE_SUCCESS != code || pCondCols == NULL) {
+    nodesDestroyList(pCondCols);
+    return code;
+  }
+
+  SNode* pNode = NULL;
+  FOREACH(pNode, pCondCols) {
+    if (nodeType(pNode) != QUERY_NODE_COLUMN || ((SColumnNode*)pNode)->colType != COLUMN_TYPE_TAG) {
+      continue;
+    }
+
+    SNode* pClone = NULL;
+    code = nodesCloneNode(pNode, &pClone);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = nodesListMakeStrictAppend(ppPseudoCols, pClone);
+    }
+    if (TSDB_CODE_SUCCESS != code) {
+      break;
+    }
+  }
+
+  nodesDestroyList(pCondCols);
+  return code;
 }
 
 // ====================================================================
@@ -1257,6 +1373,88 @@ static bool isTagUsedInProjection(SNodeList* pTargets, SColumnNode* pCol) {
   SCheckTagInFilterCtx ctx = {.pTargetCol = pCol, .found = false};
   nodesWalkExprs(pTargets, checkTagInFilterImpl, &ctx);
   return ctx.found;
+}
+
+static bool isTagUsedInAnyClause(SSelectStmt* pSelect, SColumnNode* pCol, bool* pUsedInFilter, bool* pUsedInNonFilter) {
+  bool usedInFilter = isTagUsedInFilter(pSelect != NULL ? pSelect->pWhere : NULL, pCol);
+  bool usedInNonFilter = false;
+
+  if (pSelect != NULL && pCol != NULL) {
+    usedInNonFilter = isTagUsedInProjection(pSelect->pProjectionList, pCol) ||
+                      isTagUsedInProjection(pSelect->pPartitionByList, pCol) ||
+                      isTagUsedInProjection(pSelect->pGroupByList, pCol) ||
+                      isTagUsedInProjection(pSelect->pOrderByList, pCol);
+
+    if (!usedInNonFilter && pSelect->pHaving != NULL) {
+      SCheckTagInFilterCtx ctx = {.pTargetCol = pCol, .found = false};
+      nodesWalkExpr(pSelect->pHaving, checkTagInFilterImpl, &ctx);
+      usedInNonFilter = ctx.found;
+    }
+  }
+
+  if (pUsedInFilter != NULL) {
+    *pUsedInFilter = usedInFilter;
+  }
+  if (pUsedInNonFilter != NULL) {
+    *pUsedInNonFilter = usedInNonFilter;
+  }
+
+  return usedInFilter || usedInNonFilter;
+}
+
+static int32_t keepOnlyLocalTagPseudoCols(SVirtualTableNode* pVirtualTable, SVirtualScanLogicNode* pVtableScan) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  if (pVtableScan->pScanPseudoCols == NULL) {
+    return code;
+  }
+
+  SNodeList* pRemainPseudoCols = NULL;
+  PLAN_ERR_RET(nodesMakeList(&pRemainPseudoCols));
+
+  SNode* pNode = NULL;
+  FOREACH(pNode, pVtableScan->pScanPseudoCols) {
+    bool keepInPseudoCols = true;
+
+    if (nodeType(pNode) == QUERY_NODE_COLUMN) {
+      SColumnNode* pCol = (SColumnNode*)pNode;
+      int32_t      tagRefIndex = findTagRefIndex(pVirtualTable->pMeta->tagRef, pVirtualTable, pCol->colId);
+      if (tagRefIndex == -1) {
+        tagRefIndex = findTagRefIndexByName(pVirtualTable->pMeta->tagRef, pVirtualTable, pCol->colName);
+      }
+      if (tagRefIndex == -1) {
+        int32_t totalCols = pVirtualTable->pMeta->tableInfo.numOfColumns + pVirtualTable->pMeta->tableInfo.numOfTags;
+        int32_t tagSchemaIndex = findSchemaIndex(pVirtualTable->pMeta->schema, totalCols, pCol->colId);
+        if (tagSchemaIndex >= pVirtualTable->pMeta->tableInfo.numOfColumns) {
+          int32_t tagPos = tagSchemaIndex - pVirtualTable->pMeta->tableInfo.numOfColumns;
+          if (tagPos >= 0 && tagPos < pVirtualTable->pMeta->numOfTagRefs &&
+              pVirtualTable->pMeta->tagRef[tagPos].hasRef) {
+            tagRefIndex = tagPos;
+          }
+        }
+      }
+
+      if (tagRefIndex != -1 && pVirtualTable->pMeta->tagRef[tagRefIndex].hasRef) {
+        keepInPseudoCols = false;
+      }
+    }
+
+    if (keepInPseudoCols) {
+      SNode* pClone = NULL;
+      PLAN_ERR_RET(nodesCloneNode(pNode, &pClone));
+      PLAN_ERR_RET(nodesListMakeStrictAppend(&pRemainPseudoCols, pClone));
+    }
+  }
+
+  nodesDestroyList(pVtableScan->pScanPseudoCols);
+  if (LIST_LENGTH(pRemainPseudoCols) == 0) {
+    nodesDestroyList(pRemainPseudoCols);
+    pVtableScan->pScanPseudoCols = NULL;
+  } else {
+    pVtableScan->pScanPseudoCols = pRemainPseudoCols;
+  }
+
+  return code;
 }
 
 /**
@@ -1462,6 +1660,15 @@ static void freeTagClassifyResult(STagClassifyResult* pResult) {
   if (NULL == pResult) {
     return;
   }
+  if (pResult->pRefSourceMap) {
+    void* pIter = NULL;
+    while ((pIter = taosHashIterate(pResult->pRefSourceMap, pIter)) != NULL) {
+      SNodeList** ppRefCols = (SNodeList**)pIter;
+      if (ppRefCols != NULL && *ppRefCols != NULL) {
+        nodesDestroyList(*ppRefCols);
+      }
+    }
+  }
   nodesDestroyList(pResult->pLocalTags);
   nodesDestroyList(pResult->pRefTagCols);
   if (pResult->pRefSourceMap) {
@@ -1597,19 +1804,10 @@ static int32_t buildVirtualScanTree(SLogicPlanContext* pCxt, SSelectStmt* pSelec
               pRefSource->isUsedInFilter, pRefSource->isUsedInProjection);
   }
 
-  // Merge TagRefSource targets to pVtableScan's targets for WHERE clause processing
-  FOREACH(pNode, pVtableScan->pTagRefSources) {
-    STagRefSourceLogicNode* pRefSource = (STagRefSourceLogicNode*)pNode;
-    if (pRefSource->node.pTargets) {
-      PLAN_ERR_JRET(nodesListAppendList(pVtableScan->node.pTargets, pRefSource->node.pTargets));
-    }
-  }
-
   // IMPORTANT: Move pTagRefSources to pChildren is complete
   // We can clear pTagRefSources list to avoid double-free issues
   // The nodes are now owned by pVtableScan->pChildren and will be destroyed there
   nodesClearList(pVtableScan->pTagRefSources);
-  taosMemoryFreeClear(pVtableScan->pTagRefSources);
   pVtableScan->pTagRefSources = NULL;
 
   return TSDB_CODE_SUCCESS;
@@ -1680,6 +1878,18 @@ static int32_t createTagRefSourceLogicNode(SLogicPlanContext* pCxt, SSelectStmt*
                                            SColRef* pTagRef, SRealTableNode* pRefTable,
                                            STagRefSourceLogicNode** ppTagRefSource) {
   int32_t code = TSDB_CODE_SUCCESS;
+  const char* pTagName = pTagRef->colName;
+
+  if (pVirtualTable != NULL && pVirtualTable->pMeta != NULL) {
+    int32_t totalCols = pVirtualTable->pMeta->tableInfo.numOfColumns + pVirtualTable->pMeta->tableInfo.numOfTags;
+    int32_t schemaIndex = findSchemaIndex(pVirtualTable->pMeta->schema, totalCols, pTagRef->id);
+    if (schemaIndex >= 0) {
+      pTagName = pVirtualTable->pMeta->schema[schemaIndex].name;
+    }
+  }
+  if (pTagName == NULL || pTagName[0] == '\0') {
+    pTagName = pTagRef->refColName;
+  }
 
   PLAN_ERR_JRET(nodesMakeNode(QUERY_NODE_LOGIC_PLAN_TAG_REF_SOURCE, (SNode**)ppTagRefSource));
   STagRefSourceLogicNode* pTagRefSource = *ppTagRefSource;
@@ -1698,12 +1908,18 @@ static int32_t createTagRefSourceLogicNode(SLogicPlanContext* pCxt, SSelectStmt*
   if (pRefTable->pVgroupList) {
     PLAN_ERR_JRET(cloneVgroups(&pTagRefSource->pVgroupList, pRefTable->pVgroupList));
   }
+  planError("TagRefSource logic vgroups: source=%s.%s refVgroups=%p num=%d metaVgId=%d",
+            pTagRefSource->sourceTableName.dbname, pTagRefSource->sourceTableName.tname, pRefTable->pVgroupList,
+            pRefTable->pVgroupList ? pRefTable->pVgroupList->numOfVgroups : 0, pRefTable->pMeta ? pRefTable->pMeta->vgId : 0);
+  planError("TagRefSource logic cloned vgroups: source=%s.%s cloned=%p num=%d",
+            pTagRefSource->sourceTableName.dbname, pTagRefSource->sourceTableName.tname, pTagRefSource->pVgroupList,
+            pTagRefSource->pVgroupList ? pTagRefSource->pVgroupList->numOfVgroups : 0);
 
   // Create tag reference column entry
-  STagRefColumn* pTagRefCol = taosMemoryCalloc(1, sizeof(STagRefColumn));
-  if (pTagRefCol == NULL) {
-    PLAN_ERR_JRET(terrno);
-  }
+  STagRefColumn* pTagRefCol = NULL;
+  PLAN_ERR_JRET(nodesMakeNode(QUERY_NODE_TAG_REF_COLUMN, (SNode**)&pTagRefCol));
+  planDebug("TagRefColumn logic create: expect=%d actual=%d", QUERY_NODE_TAG_REF_COLUMN, nodeType(pTagRefCol));
+  planError("TagRefColumn logic create: expect=%d actual=%d", QUERY_NODE_TAG_REF_COLUMN, nodeType(pTagRefCol));
 
   // Find the schema info for this tag in the source table
   col_id_t sourceColId = 0;
@@ -1715,10 +1931,14 @@ static int32_t createTagRefSourceLogicNode(SLogicPlanContext* pCxt, SSelectStmt*
 
   pTagRefCol->colId = pTagRef->id;
   pTagRefCol->sourceColId = sourceColId;
-  tstrncpy(pTagRefCol->colName, pTagRef->colName, TSDB_COL_NAME_LEN);
+  tstrncpy(pTagRefCol->colName, pTagName, TSDB_COL_NAME_LEN);
   tstrncpy(pTagRefCol->sourceColName, pTagRef->refColName, TSDB_COL_NAME_LEN);
   pTagRefCol->bytes = pSourceSchema->bytes;
-  pTagRefCol->type = pSourceSchema->type;
+  pTagRefCol->dataType = pSourceSchema->type;
+  planDebug("TagRefColumn logic populated: actual=%d colId=%d sourceColId=%d dataType=%d",
+            nodeType(pTagRefCol), pTagRefCol->colId, pTagRefCol->sourceColId, pTagRefCol->dataType);
+  planError("TagRefColumn logic populated: actual=%d colId=%d sourceColId=%d dataType=%d",
+            nodeType(pTagRefCol), pTagRefCol->colId, pTagRefCol->sourceColId, pTagRefCol->dataType);
 
   PLAN_ERR_JRET(nodesMakeList(&pTagRefSource->pRefCols));
   PLAN_ERR_JRET(nodesListStrictAppend(pTagRefSource->pRefCols, (SNode*)pTagRefCol));
@@ -1736,18 +1956,18 @@ static int32_t createTagRefSourceLogicNode(SLogicPlanContext* pCxt, SSelectStmt*
 
   // Create a column node for the target (output column)
   // The target represents the tag value that will be fetched from the source table
-  SColumnNode* pTargetCol = taosMemoryCalloc(1, sizeof(SColumnNode));
-  if (NULL == pTargetCol) {
-    PLAN_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
-  }
-  pTargetCol->node.type = QUERY_NODE_COLUMN;
+  SColumnNode* pTargetCol = NULL;
+  PLAN_ERR_JRET(nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pTargetCol));
   pTargetCol->node.resType.type = pSourceSchema->type;
   pTargetCol->node.resType.bytes = pSourceSchema->bytes;
   pTargetCol->colId = pTagRef->id;
-  tstrncpy(pTargetCol->colName, pTagRef->colName, TSDB_COL_NAME_LEN);
+  tstrncpy(pTargetCol->colName, pTagName, TSDB_COL_NAME_LEN);
   // Use virtual table info for the target column (as seen by the query)
   tstrncpy(pTargetCol->dbName, pVirtualTable != NULL ? pVirtualTable->table.dbName : "", TSDB_DB_NAME_LEN);
   if (pVirtualTable != NULL) {
+    tstrncpy(pTargetCol->tableAlias,
+             pVirtualTable->table.tableAlias[0] != '\0' ? pVirtualTable->table.tableAlias : pVirtualTable->table.tableName,
+             TSDB_TABLE_NAME_LEN);
     tstrncpy(pTargetCol->tableName,
              pVirtualTable->table.tableAlias[0] != '\0' ? pVirtualTable->table.tableAlias : pVirtualTable->table.tableName,
              TSDB_TABLE_NAME_LEN);
@@ -1766,18 +1986,17 @@ static int32_t createTagRefSourceLogicNode(SLogicPlanContext* pCxt, SSelectStmt*
   nodesDestroyList(pTargetCols); // Safe to destroy now as targets are cloned
 
   planDebug("Set pTargets for TagRefSource: tag %s from %s.%s",
-            pTagRef->colName, pTagRef->refDbName, pTagRef->refTableName);
+            pTagName, pTagRef->refDbName, pTagRef->refTableName);
 
   // === Set filter conditions for this TagRef Source node ===
   // Extract filter conditions from WHERE clause that involve this tag reference
   if (pSelect != NULL && pSelect->pWhere != NULL && pVirtualTable != NULL) {
     // Create a temporary column node for this tagRef to match conditions in WHERE clause
-    SColumnNode* pTagColNode = taosMemoryCalloc(1, sizeof(SColumnNode));
-    if (pTagColNode != NULL) {
-      pTagColNode->node.type = QUERY_NODE_COLUMN;
+    SColumnNode* pTagColNode = NULL;
+    if (TSDB_CODE_SUCCESS == nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pTagColNode)) {
       pTagColNode->node.resType.type = pSourceSchema->type;
       pTagColNode->colId = pTagRef->id;
-      tstrncpy(pTagColNode->colName, pTagRef->colName, TSDB_COL_NAME_LEN);
+      tstrncpy(pTagColNode->colName, pTagName, TSDB_COL_NAME_LEN);
       // Use virtual table info to match WHERE clause references
       tstrncpy(pTagColNode->dbName, pVirtualTable->table.dbName, TSDB_DB_NAME_LEN);
       tstrncpy(pTagColNode->tableName, pVirtualTable->table.tableAlias[0] != '\0' ?
@@ -1792,21 +2011,21 @@ static int32_t createTagRefSourceLogicNode(SLogicPlanContext* pCxt, SSelectStmt*
       PLAN_ERR_JRET(extractFilterConditionForSingleRef(pSelect->pWhere, pTagColNode,
                                                        &pTagRefSource->node.pConditions));
 
-      taosMemoryFree(pTagColNode);
+      nodesDestroyNode((SNode*)pTagColNode);
 
       if (pTagRefSource->node.pConditions != NULL) {
         planDebug("Set filter condition on TagRefSource node for tag %s from %s.%s",
-                  pTagRef->colName, pTagRef->refDbName, pTagRef->refTableName);
+                  pTagName, pTagRef->refDbName, pTagRef->refTableName);
       }
     }
   }
 
   planDebug("Created TagRefSourceLogicNode for tag %s from %s.%s",
-            pTagRef->colName, pTagRef->refDbName, pTagRef->refTableName);
+            pTagName, pTagRef->refDbName, pTagRef->refTableName);
 
 _return:
-  taosMemoryFree(pTagRefCol);
-  taosMemoryFree(pTargetCol);
+  nodesDestroyNode((SNode*)pTagRefCol);
+  nodesDestroyNode((SNode*)pTargetCol);
   if (code != TSDB_CODE_SUCCESS) {
     nodesDestroyNode((SNode*)*ppTagRefSource);
     *ppTagRefSource = NULL;
@@ -1824,7 +2043,6 @@ static int32_t createVirtualSuperTableLogicNode(SLogicPlanContext* pCxt, SSelect
   SNode*                  pNode = NULL;
   bool                    scanAllCols = true;
   SNode*                  pTagScan = NULL;
-  bool                    useTagScan = false;
 
   // Virtual table scan node -> Real table scan node
   PLAN_ERR_JRET(createScanLogicNode(pCxt, pSelect, (SRealTableNode*)nodesListGetNode(pVirtualTable->refTables, 0), &pRealTableScan));
@@ -1861,17 +2079,10 @@ static int32_t createVirtualSuperTableLogicNode(SLogicPlanContext* pCxt, SSelect
     PLAN_ERR_JRET(createColumnByRewriteExprs(((SScanLogicNode*)pRealTableScan)->pScanCols, &((SScanLogicNode*)pRealTableScan)->node.pTargets));
   }
 
-  if (pVtableScan->pScanPseudoCols && LIST_LENGTH(pVtableScan->pScanPseudoCols) > 0) {
-    PLAN_ERR_JRET(createTagScanLogicNode(pCxt, pSelect, pVtableScan, (SLogicNode**)&pTagScan));
-  }
-  if (pTagScan == NULL) {
-    useTagScan = false;
-  }
-
   // ====================================================================
   // TagRef Processing for Virtual Super Table
   // ====================================================================
-  // Virtual super table can have tagRef in both WHERE clause (for filtering) and SELECT clause (for output)
+  // Virtual super table can have tagRef in filter/order/group/projection clauses.
   // RefSource nodes are created to scan source tables for referenced tag values
 
   SHashObj* pRefTableNodeMap = NULL;  // For tagRef processing
@@ -1898,6 +2109,8 @@ static int32_t createVirtualSuperTableLogicNode(SLogicPlanContext* pCxt, SSelect
   // === Phase 0: Classify tags into local tags and referenced tags ===
   STagClassifyResult tagResult = {0};
   PLAN_ERR_JRET(initTagClassifyResult(&tagResult));
+  PLAN_ERR_JRET(appendCondTagPseudoCols(pSelect->pWhere, &pVtableScan->pScanPseudoCols));
+  PLAN_ERR_JRET(eliminateDupVirtualTagCols(pVtableScan->pScanPseudoCols));
   PLAN_ERR_JRET(classifyTagColumns(pVirtualTable, pVtableScan, &tagResult));
 
   // Set flags based on classification
@@ -1910,7 +2123,10 @@ static int32_t createVirtualSuperTableLogicNode(SLogicPlanContext* pCxt, SSelect
   }
   if (tagResult.pRefTagCols && LIST_LENGTH(tagResult.pRefTagCols) > 0) {
     PLAN_ERR_JRET(nodesCloneList(tagResult.pRefTagCols, &pVtableScan->pRefTagCols));
+    PLAN_ERR_JRET(eliminateDupVirtualTagCols(pVtableScan->pRefTagCols));
   }
+
+  PLAN_ERR_JRET(keepOnlyLocalTagPseudoCols(pVirtualTable, pVtableScan));
 
   planDebug("[SuperTable] TagRef classification: hasTagRef=%d, hasLocalTag=%d, refTags=%d, localTags=%d",
             pVtableScan->hasTagRef, pVtableScan->hasLocalTag,
@@ -1918,10 +2134,10 @@ static int32_t createVirtualSuperTableLogicNode(SLogicPlanContext* pCxt, SSelect
             tagResult.pLocalTags ? LIST_LENGTH(tagResult.pLocalTags) : 0);
 
   // === Phase 1: Handle tagRef that need source table scan ===
-  if (pVtableScan->pScanPseudoCols) {
+  if (pVtableScan->pRefTagCols) {
     PLAN_ERR_JRET(nodesMakeList(&pVtableScan->pTagRefSources));
 
-    FOREACH(pNode, pVtableScan->pScanPseudoCols) {
+    FOREACH(pNode, pVtableScan->pRefTagCols) {
       if (nodeType(pNode) != QUERY_NODE_COLUMN) {
         continue;
       }
@@ -1947,12 +2163,11 @@ static int32_t createVirtualSuperTableLogicNode(SLogicPlanContext* pCxt, SSelect
       if (tagRefIndex != -1 && pVirtualTable->pMeta->tagRef[tagRefIndex].hasRef) {
         SColRef* pTagRef = &pVirtualTable->pMeta->tagRef[tagRefIndex];
 
-        // Check if tagRef needs source table scan (used in WHERE or SELECT)
-        bool usedInFilter = isTagUsedInFilter(pSelect->pWhere, pCol);
-        bool usedInProjection = isTagUsedInProjection(pSelect->pProjectionList, pCol);
+        bool usedInFilter = false;
+        bool usedInProjection = false;
 
-        if (usedInFilter || usedInProjection) {
-          planDebug("[SuperTable] TagRef %s (ref: %s.%s.%s) used in WHERE[%d] SELECT[%d], creating TagRefSource",
+        if (isTagUsedInAnyClause(pSelect, pCol, &usedInFilter, &usedInProjection)) {
+          planDebug("[SuperTable] TagRef %s (ref: %s.%s.%s) used in filter[%d] nonFilter[%d], creating TagRefSource",
                     pCol->colName, pTagRef->refDbName, pTagRef->refTableName, pTagRef->refColName,
                     usedInFilter, usedInProjection);
 
@@ -1979,12 +2194,13 @@ static int32_t createVirtualSuperTableLogicNode(SLogicPlanContext* pCxt, SSelect
     }
 
     // If no tag references need source table scan, clear the refSources list
-    if (LIST_LENGTH(pVtableScan->pTagRefSources) == 0) {
-      nodesDestroyList(pVtableScan->pTagRefSources);
-      pVtableScan->pTagRefSources = NULL;
-    } else {
-      // Set hasTagRef flag
-      pVtableScan->hasTagRef = true;
+      if (LIST_LENGTH(pVtableScan->pTagRefSources) == 0) {
+        nodesDestroyList(pVtableScan->pTagRefSources);
+        pVtableScan->pTagRefSources = NULL;
+      } else {
+        PLAN_ERR_JRET(eliminateDupTagRefSources(pVtableScan->pTagRefSources));
+        // Set hasTagRef flag
+        pVtableScan->hasTagRef = true;
 
       // === Step 1: Build pTagRefCols from pTagRefSources (before moving nodes) ===
       SNodeList* pTagRefCols = NULL;
@@ -2020,6 +2236,10 @@ static int32_t createVirtualSuperTableLogicNode(SLogicPlanContext* pCxt, SSelect
     }
   }
 
+  if (pVtableScan->pScanPseudoCols && LIST_LENGTH(pVtableScan->pScanPseudoCols) > 0) {
+    PLAN_ERR_JRET(createTagScanLogicNode(pCxt, pSelect, pVtableScan, (SLogicNode**)&pTagScan));
+  }
+
   // NOTE: All refs in this implementation are TAG refs only
   // Column references (colRef) are handled separately and are not related to tagRef
 
@@ -2036,6 +2256,7 @@ static int32_t createVirtualSuperTableLogicNode(SLogicPlanContext* pCxt, SSelect
 
   PLAN_ERR_JRET(createColumnByRewriteExprs(pVtableScan->pScanCols, &pVtableScan->node.pTargets));
   PLAN_ERR_JRET(createColumnByRewriteExprs(pVtableScan->pScanPseudoCols, &pVtableScan->node.pTargets));
+  PLAN_ERR_JRET(createColumnByRewriteExprs(pVtableScan->pRefTagCols, &pVtableScan->node.pTargets));
 
   // Virtual child table uid and ref col scan on ins_columns
   // TODO(smj) : create a fake logic node, no need to collect column
@@ -2051,7 +2272,7 @@ static int32_t createVirtualSuperTableLogicNode(SLogicPlanContext* pCxt, SSelect
   PLAN_ERR_JRET(nodesMakeNode(QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL, (SNode**)&pDynCtrl));
   pDynCtrl->qType = DYN_QTYPE_VTB_SCAN;
   pDynCtrl->vtbScan.scanAllCols = pVtableScan->scanAllCols;
-  pDynCtrl->vtbScan.useTagScan = false;
+  pDynCtrl->vtbScan.useTagScan = (pTagScan != NULL);
   if (pVtableScan->tableType == TSDB_SUPER_TABLE) {
     pDynCtrl->vtbScan.isSuperTable = true;
     pDynCtrl->vtbScan.suid = pVtableScan->stableId;
@@ -2082,6 +2303,15 @@ static int32_t createVirtualSuperTableLogicNode(SLogicPlanContext* pCxt, SSelect
   ((SScanLogicNode*)pInsColumnsScan)->node.pParent = (SLogicNode*)pDynCtrl;
   pVtableScan->node.dynamicOp = true;
   *pLogicNode = (SLogicNode*)pDynCtrl;
+
+  if (pRefTableNodeMap != NULL) {
+    taosHashCleanup(pRefTableNodeMap);
+    pRefTableNodeMap = NULL;
+  }
+  if (tagResult.pLocalTags != NULL) {
+    nodesClearList(tagResult.pLocalTags);
+  }
+  freeTagClassifyResult(&tagResult);
 
   return code;
 _return:
@@ -2134,6 +2364,8 @@ static int32_t createVirtualNormalChildTableLogicNode(SLogicPlanContext* pCxt, S
   // === Phase 0: Classify tags into local tags and referenced tags ===
   STagClassifyResult tagResult = {0};
   PLAN_ERR_JRET(initTagClassifyResult(&tagResult));
+  PLAN_ERR_JRET(appendCondTagPseudoCols(pSelect->pWhere, &pVtableScan->pScanPseudoCols));
+  PLAN_ERR_JRET(eliminateDupVirtualTagCols(pVtableScan->pScanPseudoCols));
   PLAN_ERR_JRET(classifyTagColumns(pVirtualTable, pVtableScan, &tagResult));
 
   // Set flags based on classification
@@ -2146,6 +2378,7 @@ static int32_t createVirtualNormalChildTableLogicNode(SLogicPlanContext* pCxt, S
   }
   if (tagResult.pRefTagCols && LIST_LENGTH(tagResult.pRefTagCols) > 0) {
     PLAN_ERR_JRET(nodesCloneList(tagResult.pRefTagCols, &pVtableScan->pRefTagCols));
+    PLAN_ERR_JRET(eliminateDupVirtualTagCols(pVtableScan->pRefTagCols));
   }
 
   planDebug("[ChildTable] TagRef classification: hasTagRef=%d, hasLocalTag=%d, refTags=%d, localTags=%d",
@@ -2227,6 +2460,7 @@ static int32_t createVirtualNormalChildTableLogicNode(SLogicPlanContext* pCxt, S
       nodesDestroyList(pVtableScan->pTagRefSources);
       pVtableScan->pTagRefSources = NULL;
     } else {
+      PLAN_ERR_JRET(eliminateDupTagRefSources(pVtableScan->pTagRefSources));
       // For child table, pass NULL to keep TagRefSource as children of pVtableScan
       // (since there's no single scanTable like in super table case)
       PLAN_ERR_JRET(buildVirtualScanTree(pCxt, pSelect, pVtableScan, NULL));
@@ -2305,11 +2539,11 @@ static int32_t createVirtualNormalChildTableLogicNode(SLogicPlanContext* pCxt, S
           }
         }
         if (!moved && tagRefIndex != -1 && pVirtualTable->pMeta->tagRef[tagRefIndex].hasRef) {
-          // Referenced tags are kept in the tag-scan (pRemainPseudoCols) so that the
-          // tag value stored in the virtual table's own metadata is used.  The fallback
-          // mechanism in the executor will attempt to refresh from the source table when
-          // it resides on the same vnode, but the tag-scan value serves as a reliable
-          // baseline even for cross-vnode scenarios.
+          // Referenced tags are produced by TagRefSource + VirtualTableScan merge and
+          // should not remain in scan pseudo cols, otherwise the executor's pseudo-column
+          // refill path overwrites the merged ref-tag value with the virtual table's own
+          // single-row tag block value.
+          moved = true;
         } else if (pCol->hasRef) {
           int32_t schemaIndex = findSchemaIndex(
               pVirtualTable->pMeta->schema,
@@ -2386,7 +2620,7 @@ static int32_t createVirtualNormalChildTableLogicNode(SLogicPlanContext* pCxt, S
   // set output
   PLAN_ERR_JRET(createColumnByRewriteExprs(pVtableScan->pScanCols, &pVtableScan->node.pTargets));
   PLAN_ERR_JRET(createColumnByRewriteExprs(pVtableScan->pScanPseudoCols, &pVtableScan->node.pTargets));
-
+  PLAN_ERR_JRET(createColumnByRewriteExprs(pVtableScan->pRefTagCols, &pVtableScan->node.pTargets));
   *pLogicNode = (SLogicNode*)pVtableScan;
   taosHashCleanup(pRefTablesMap);
   taosHashCleanup(pRefTableNodeMap);
@@ -2431,7 +2665,22 @@ static int32_t createVirtualTableLogicNode(SLogicPlanContext* pCxt, SSelectStmt*
   PLAN_ERR_JRET(nodesCollectColumns(pSelect, SQL_CLAUSE_FROM, pVirtualTable->table.tableAlias, COLLECT_COL_TYPE_COL,
                                     &pVtableScan->pScanCols));
 
-  PLAN_ERR_JRET(nodesCollectColumns(pSelect, SQL_CLAUSE_FROM, pVirtualTable->table.tableAlias, COLLECT_COL_TYPE_TAG,
+  PLAN_ERR_JRET(nodesCollectColumns(pSelect, SQL_CLAUSE_WHERE, pVirtualTable->table.tableAlias, COLLECT_COL_TYPE_TAG,
+                                    &pVtableScan->pScanPseudoCols));
+
+  PLAN_ERR_JRET(nodesCollectColumns(pSelect, SQL_CLAUSE_PARTITION_BY, pVirtualTable->table.tableAlias,
+                                    COLLECT_COL_TYPE_TAG, &pVtableScan->pScanPseudoCols));
+
+  PLAN_ERR_JRET(nodesCollectColumns(pSelect, SQL_CLAUSE_GROUP_BY, pVirtualTable->table.tableAlias, COLLECT_COL_TYPE_TAG,
+                                    &pVtableScan->pScanPseudoCols));
+
+  PLAN_ERR_JRET(nodesCollectColumns(pSelect, SQL_CLAUSE_HAVING, pVirtualTable->table.tableAlias, COLLECT_COL_TYPE_TAG,
+                                    &pVtableScan->pScanPseudoCols));
+
+  PLAN_ERR_JRET(nodesCollectColumns(pSelect, SQL_CLAUSE_SELECT, pVirtualTable->table.tableAlias, COLLECT_COL_TYPE_TAG,
+                                    &pVtableScan->pScanPseudoCols));
+
+  PLAN_ERR_JRET(nodesCollectColumns(pSelect, SQL_CLAUSE_ORDER_BY, pVirtualTable->table.tableAlias, COLLECT_COL_TYPE_TAG,
                                     &pVtableScan->pScanPseudoCols));
 
   PLAN_ERR_JRET(nodesCollectFuncs(pSelect, SQL_CLAUSE_FROM, pVirtualTable->table.tableAlias, fmIsScanPseudoColumnFunc,

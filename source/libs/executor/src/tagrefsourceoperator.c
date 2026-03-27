@@ -114,7 +114,6 @@ static int32_t tagRefSourceScanOneTable(SOperatorInfo* pOperator, SSDataBlock* p
     // Continue to next table instead of failing completely
     goto _end;
   }
-
   // Iterate through each referenced column and extract tag value
   // Use slotIndex to map to the correct column in result block
   int32_t slotIndex = 0;
@@ -141,12 +140,11 @@ static int32_t tagRefSourceScanOneTable(SOperatorInfo* pOperator, SSDataBlock* p
 
       // Find the tag in the child table's tags
       const char* pTagVal = pAPI->metaFn.extractTagVal((*mr).me.ctbEntry.pTags, pColInfo->info.type, &val);
-
       char* data = NULL;
       bool  isNull = false;
 
       if (pColInfo->info.type != TSDB_DATA_TYPE_JSON && pTagVal != NULL) {
-        data = tTagValToData((const STagVal*)&val, false);
+        data = tTagValToData((const STagVal*)pTagVal, false);
       } else {
         data = (char*)pTagVal;
       }
@@ -160,10 +158,22 @@ static int32_t tagRefSourceScanOneTable(SOperatorInfo* pOperator, SSDataBlock* p
       if (code != TSDB_CODE_SUCCESS) {
         qDebug("%s: failed to set col value, slotIndex:%d, row:%d, code:%s", __func__, slotIndex, rowIndex,
                tstrerror(code));
+      } else {
+        if (pColInfo->info.type == TSDB_DATA_TYPE_INT) {
+          qError("tagref source fill: tag=%s sourceColId=%d slot=%d isNull=%d value=%d", pRefCol->colName,
+                 pRefCol->sourceColId, slotIndex, isNull, isNull ? 0 : *(int32_t*)data);
+        } else if (pColInfo->info.type == TSDB_DATA_TYPE_BOOL) {
+          qError("tagref source fill: tag=%s sourceColId=%d slot=%d isNull=%d value=%d", pRefCol->colName,
+                 pRefCol->sourceColId, slotIndex, isNull, isNull ? 0 : (int32_t)(*(bool*)data));
+        } else {
+          qError("tagref source fill: tag=%s sourceColId=%d slot=%d isNull=%d type=%d", pRefCol->colName,
+                 pRefCol->sourceColId, slotIndex, isNull, pColInfo->info.type);
+        }
       }
 
       // Free allocated data for var types
-      if ((pColInfo->info.type != TSDB_DATA_TYPE_JSON) && IS_VAR_DATA_TYPE(val.type) && (data != NULL)) {
+      if ((pColInfo->info.type != TSDB_DATA_TYPE_JSON) && (pTagVal != NULL) &&
+          IS_VAR_DATA_TYPE(((const STagVal*)pTagVal)->type) && (data != NULL)) {
         taosMemoryFree(data);
       }
 
