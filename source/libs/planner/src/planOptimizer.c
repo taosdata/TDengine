@@ -9569,7 +9569,8 @@ static SNode* findWindowTspkFromScanCols(SNodeList* pScanCols, const SNode* pTsp
   }
 
   FOREACH(pScanCol, pScanCols) {
-    if (QUERY_NODE_COLUMN == nodeType(pScanCol) && ((SColumnNode*)pScanCol)->isPrimTs) {
+    if (QUERY_NODE_COLUMN == nodeType(pScanCol) &&
+        (((SColumnNode*)pScanCol)->isPrimTs || ((SColumnNode*)pScanCol)->colId == PRIMARYKEY_TIMESTAMP_COL_ID)) {
       return pScanCol;
     }
   }
