@@ -1,6 +1,6 @@
 # encoding:utf-8
 # pylint: disable=c0103
-"""main handlers module"""
+"""main service module"""
 from abc import abstractmethod, ABC
 
 
@@ -33,7 +33,7 @@ class AnalyticsService(ABC):
 
 
 class AbstractAnalyticsService(AnalyticsService, ABC):
-    """ abstract base analytics handlers class definition"""
+    """ abstract base analytics service class definition"""
     name = ''
     desc = ''
     status = ''
@@ -65,7 +65,7 @@ class AbstractAnalyticsService(AnalyticsService, ABC):
 
 
 class AbstractAnomalyDetectionService(AbstractAnalyticsService, ABC):
-    """ abstract anomaly detection handlers, all anomaly detection algorithm class should be
+    """ abstract anomaly detection service, all anomaly detection algorithm class should be
      inherent from this class"""
 
     def __init__(self):
@@ -105,7 +105,7 @@ class AbstractAnomalyDetectionService(AbstractAnalyticsService, ABC):
 
 
 class AbstractForecastService(AbstractAnalyticsService, ABC):
-    """abstract forecast handlers, all forecast algorithms class should be inherent from
+    """abstract forecast service, all forecast algorithms class should be inherent from
     this base class"""
 
     def __init__(self):
@@ -172,7 +172,7 @@ class AbstractForecastService(AbstractAnalyticsService, ABC):
 
 
 class AbstractImputationService(AbstractAnalyticsService, ABC):
-    """abstract imputation handlers, all imputation algorithms class should be inherent from
+    """abstract imputation service, all imputation algorithms class should be inherent from
     this base class"""
 
     def __init__(self):
@@ -193,7 +193,7 @@ class AbstractImputationService(AbstractAnalyticsService, ABC):
 
 
 class AbstractCorrelationService(AbstractAnalyticsService, ABC):
-    """ abstract correlation analysis handlers"""
+    """ abstract correlation analysis service"""
 
     def __init__(self):
         super().__init__()

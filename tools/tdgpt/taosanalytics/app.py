@@ -1,6 +1,6 @@
 # encoding:utf-8
 # pylint: disable=c0103
-"""the main route definition for restful handlers"""
+"""the main route definition for restful service"""
 import os
 import os.path
 import sys

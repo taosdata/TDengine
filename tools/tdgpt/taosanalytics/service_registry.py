@@ -23,12 +23,12 @@ class ServiceRegistry:
         self._loaded = False
 
     def get_service(self, name):
-        """ get the required handlers """
+        """ get the required service """
         serv = self.services.get(name, [])[0] if self.services.get(name) else None
         return copy.copy(serv)
 
     def get_typed_services(self, type_str: str) -> list:
-        """ get specified type handlers """
+        """ get specified type service """
         all_items = []
         for key, val in self.services.items():
             if val[0].type == type_str:
@@ -37,12 +37,12 @@ class ServiceRegistry:
                            "status": val[0].get_status()}
                     all_items.append(one)
                 except AttributeError as e:
-                    AppLogger.error("failed to get handlers: %s info, reason: %s", key, e)
+                    AppLogger.error("failed to get service: %s info, reason: %s", key, e)
 
         return all_items
 
     def get_service_list(self):
-        """ return all available handlers info """
+        """ return all available service info """
         info = {
             "protocol": 1.0,
             "version": 0.1,
@@ -57,21 +57,21 @@ class ServiceRegistry:
         return info
 
     def get_anomaly_detection_algo_list(self):
-        """ get all available handlers list """
+        """ get all available service list """
         return {
             "type": "anomaly-detection",
             "algo": self.get_typed_services("anomaly-detection")
         }
 
     def get_imputation_algo_list(self):
-        """ get all available handlers list """
+        """ get all available service list """
         return {
             "type": "imputation",
             "algo": self.get_typed_services("imputation")
         }
 
     def get_forecast_algo_list(self):
-        """ get all available handlers list """
+        """ get all available service list """
         return {
             "type": "forecast",
             "algo": self.get_typed_services("forecast")
@@ -161,12 +161,12 @@ class ServiceRegistry:
         """ register all algorithms/models in the specified directory"""
 
         if self._loaded:
-            AppLogger.warning("already register all handlers abort from the register all procedure")
+            AppLogger.warning("already register all service abort from the register all procedure")
             return
 
         def register_service(container, name: str, service):
-            """ register handlers for both anomaly detection and fc """
-            AppLogger.info("register handlers: %s", name)
+            """ register service for both anomaly detection and fc """
+            AppLogger.info("register service: %s", name)
             container[name].append(service)
 
         def register_services_in_dir(cur_directory, lib_prefix, sub_directory, required: bool = True):
@@ -175,12 +175,12 @@ class ServiceRegistry:
 
             if not os.path.exists(service_directory):
                 AppLogger.fatal(
-                    "handlers directory:%s does not exist, failed to load handlers",
+                    "service directory:%s does not exist, failed to load service",
                     service_directory)
 
                 if required:
-                    # fail fast if try to register the built-in handlers to diagnose the bug.
-                    raise FileNotFoundError(f"handlers directory:{service_directory} does not exist")
+                    # fail fast if try to register the built-in service to diagnose the bug.
+                    raise FileNotFoundError(f"service directory:{service_directory} does not exist")
                 else:
                     # ignore the failure and continue in case of registering custom models
                     return

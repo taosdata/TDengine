@@ -27,7 +27,7 @@ class TsfmBaseService(AbstractForecastService):
         if self.rows <= 0:
             raise ValueError("forecast rows is not specified yet")
 
-        # let's request the gpt handlers
+        # let's request the gpt service
         data = {
             "input": self.list,
             "ts": self.ts_list,
@@ -40,15 +40,15 @@ class TsfmBaseService(AbstractForecastService):
         try:
             response = requests.post(self.service_host, data=json.dumps(data), headers=self.headers)
         except Exception as e:
-            AppLogger.error("failed to connect the handlers: %s", self.service_host, exc_info=True)
+            AppLogger.error("failed to connect the service: %s", self.service_host, exc_info=True)
             raise
 
         if response.status_code == 404:
-            AppLogger.error(f"failed to connect the handlers: {self.service_host}")
+            AppLogger.error(f"failed to connect the service: {self.service_host}")
             raise ValueError("invalid host url")
         elif response.status_code != 200:
-            AppLogger.error(f"failed to request the handlers: {self.service_host}, reason: {response.text}")
-            raise ValueError(f"failed to request the handlers, {response.text}")
+            AppLogger.error(f"failed to request the service: {self.service_host}, reason: {response.text}")
+            raise ValueError(f"failed to request the service, {response.text}")
 
         resp_json = response.json()
         AppLogger.debug(f"recv rsp, {resp_json}")
@@ -85,14 +85,14 @@ class TsfmBaseService(AbstractForecastService):
             elif "http://" not in self.service_host:
                 self.service_host = "http://" + self.service_host
 
-        AppLogger.info("%s specify gpt host handlers: %s", self.__class__.__name__,
+        AppLogger.info("%s specify gpt host service: %s", self.__class__.__name__,
                                  self.service_host)
 
     def get_status(self) -> str:
         try:
             _ = requests.get(self.service_host, headers=self.headers, timeout=5)
         except Exception as e:
-            AppLogger.error("failed to connect the handlers: %s %s", self.service_host, str(e))
+            AppLogger.error("failed to connect the service: %s %s", self.service_host, str(e))
             return AnalyticsService._toStatusName[AnalyticsService.UNAVAILABLE]
 
         return super().get_status()
