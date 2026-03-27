@@ -221,6 +221,16 @@ TDengine TSDB 提供了可视化管理 TDengine TSDB 集群的能力，要想使
 
 本节将介绍如何在 Docker 容器中启动 TDengine TSDB 服务并对其进行访问。你可以在 docker run 命令行或者 docker-compose 文件中使用环境变量来控制容器中服务的行为。
 
+### 自定义密码、升级与健康检查{#custom-passwords-upgrades-and-health-checks}
+
+如果使用了自定义 root 密码，请注意 Docker 镜像在不同版本阶段的行为差异：
+
+- 对于 `3.3.6.6-3.3.8.4` 版本，如果是在旧版本中修改过 root 密码，需要在 `data` 目录（默认 `/var/lib/taos`）下 `touch` 一个空文件 `.docker-entrypoint-root-password-changed` 后再启动容器。
+- 对于 `3.3.8.8` 及以上版本，可以通过 `TAOS_ROOT_PASSWORD` 或 `TAOS_ROOT_PASSWORD_FILE` 提供当前 root 密码，镜像也可以直接升级；但如果此前已经修改过 root 密码，则在升级、重启容器或重建 Pod 之前，仍需确保部署配置中提供的是当前实际密码。
+- 对于 `3.4.1.0` 及以上版本，`taos-check startup` 和 `taos-check service` 可用于健康检查，其中 `taos-check service` 会复用上述密码来源。如果密码没有同步更新，健康检查以及其他使用 root 账号鉴权的组件可能会失败。
+
+后文涉及 hostname、docker compose 以及 Kubernetes 探针时，不再重复展开这些版本差异；凡是涉及 root 密码、升级或 `taos-check` 行为的场景，均以上述说明为准。
+
 ### 启动 TDengine TSDB
 
 TDengine TSDB 镜像启动时默认激活 HTTP 服务，使用下列命令便可创建一个带有 HTTP 服务的容器化 TDengine TSDB 环境。
@@ -283,6 +293,7 @@ Query OK, 1 rows in database (0.010654s)
 :::note
 
 - `v3.3.6.0` 版本后，默认的 `fqdn` 从 `buildkitsandbox` 变更为 `localhost`，如果是全新启动不会有任何问题，如果是升级启动，运行容器时需要将 `-e TAOS_FQDN=<old_value>` 和 `-h <old_value>` 指定为之前的 `fqdn`，否则可能会无法启动。
+- 如果涉及 root 密码变更、镜像升级或 `taos-check` 的版本差异，请以前文“Docker 镜像在不同版本阶段的行为差异”中的说明为准。
   
 :::
 
@@ -340,6 +351,7 @@ services:
 ```
 
 配置中的环境变量 TAOS_FIRST_EP 用于主动连接的集群中首个 dnode 的 endpoint，效果与 /etc/taos/taos.cfg 中的 firstEp 参数一致。
+如果集群使用了自定义 root 密码，请在每个服务中同步配置对应的密码环境变量，并确保其与数据库实际密码保持一致；版本差异与升级要求仍以前文说明为准。
 启动集群：
 
 ```shell
@@ -414,6 +426,12 @@ spec:
 根据 Kubernetes 对各类部署的说明，我们将使用 StatefulSet 作为 TDengine TSDB 的部署资源类型。创建文件 tdengine.yaml，其中 replicas 定义集群节点的数量为 3。节点时区为中国（Asia/Shanghai），每个节点分配 5GB 标准（standard）存储，你也可以根据实际情况进行相应修改。
 
 请特别注意 startupProbe 的配置，在 dnode 的 Pod 掉线一段时间后，再重新启动，这个时候新上线的 dnode 会短暂不可用。如果 startupProbe 配置过小，Kubernetes 会认为该 Pod 处于不正常的状态，并尝试重启该 Pod，该 dnode 的 Pod 会频繁重启，始终无法恢复到正常状态。
+
+下面的示例中，`taos-check startup` 用于 startupProbe，检查 TDengine 是否完成启动；`taos-check service` 用于 readinessProbe 和 livenessProbe，检查 SQL 服务是否已经能够对外提供服务。
+
+- `taos-check startup` 和 `taos-check service` 从 `3.4.1.0` 版本开始支持。
+- 这类 SQL 探针会复用 `TAOS_ROOT_PASSWORD_FILE` 或 `TAOS_ROOT_PASSWORD` 作为认证密码，因此如果 root 密码被修改，在重启容器、升级镜像或重建 Pod 之前，必须同步更新对应的环境变量或 Secret。
+- Docker 场景下不同版本的密码与升级处理方式，请参考本节前文“Docker 部署”中的说明。
 
 ```yaml
 ---
@@ -494,18 +512,21 @@ spec:
             exec:
               command:
                 - taos-check
+                - startup
             failureThreshold: 360
             periodSeconds: 10
           readinessProbe:
             exec:
               command:
                 - taos-check
+                - service
             initialDelaySeconds: 5
             timeoutSeconds: 5000
           livenessProbe:
             exec:
               command:
                 - taos-check
+                - service
             initialDelaySeconds: 15
             periodSeconds: 20
   volumeClaimTemplates:
