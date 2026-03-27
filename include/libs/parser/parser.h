@@ -154,6 +154,7 @@ typedef struct SParseContext {
   SArray*     pTableVgroupPos;  // sql table pos => catalog data pos
   int64_t     allocatorId;
   utxn_id_t   txnId;
+  SArray*     pTxnVgList;  // borrowed ref to STscObj->pTxnVgList (read-only during parse)
   parseSqlFn  parseSqlFp;
   void*       parseSqlParam;
   SArray*     pSubMetaList;

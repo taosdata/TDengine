@@ -20528,8 +20528,14 @@ static int32_t translateTransStmt(STranslateContext* pCxt, int32_t msgType) {
   req.msgType = msgType;
   req.txnId = pCxt->pParseCxt->txnId;
 
+  // For COMMIT/ROLLBACK, include the client-tracked VGroup list
+  if (msgType == TDMT_MND_COMMIT_TXN || msgType == TDMT_MND_ROLLBACK_TXN) {
+    req.pVgList = pCxt->pParseCxt->pTxnVgList;  // borrowed ref, no ownership transfer
+  }
+
   PAR_ERR_JRET(buildCmdMsg(pCxt, msgType, (FSerializeFunc)tSerializeSMTransReq, &req));
 _return:
+  req.pVgList = NULL;  // ensure no double-free (pVgList belongs to STscObj)
   return code;
 #else
   return TSDB_CODE_OPS_NOT_SUPPORT;  // supported later
@@ -22598,6 +22604,7 @@ static int32_t buildNormalTableBatchReq(STranslateContext* pCxt, const SCreateTa
                                         const SVgroupInfo* pVgroupInfo, SVgroupCreateTableBatch* pBatch) {
   SVCreateTbReq req = {0};
   req.type = TD_NORMAL_TABLE;
+  req.txnId = pCxt->pParseCxt->txnId;
   req.name = taosStrdup(pStmt->tableName);
   if (!req.name) {
     tdDestroySVCreateTbReq(&req);
@@ -22810,9 +22817,10 @@ static int32_t rewriteCreateTable(STranslateContext* pCxt, SQuery* pQuery) {
 static int32_t addCreateTbReqIntoVgroup(SHashObj* pVgroupHashmap, const char* dbName, uint64_t suid,
                                         const char* sTableName, const char* tableName, SArray* tagName, uint8_t tagNum,
                                         const STag* pTag, int32_t ttl, const char* comment, bool ignoreExists,
-                                        SVgroupInfo* pVgInfo) {
+                                        SVgroupInfo* pVgInfo, int64_t txnId) {
   struct SVCreateTbReq req = {0};
   req.type = TD_CHILD_TABLE;
+  req.txnId = txnId;
   req.name = taosStrdup(tableName);
   req.ttl = ttl;
   if (comment != NULL) {
@@ -23065,7 +23073,7 @@ static int32_t rewriteCreateSubTable(STranslateContext* pCxt, SCreateSubTableCla
     const char* comment = pStmt->pOptions->commentNull ? NULL : pStmt->pOptions->comment;
     code = addCreateTbReqIntoVgroup(pVgroupHashmap, pStmt->dbName, pSuperTableMeta->uid, pStmt->useTableName,
                                     pStmt->tableName, tagName, pSuperTableMeta->tableInfo.numOfTags, pTag,
-                                    pStmt->pOptions->ttl, comment, pStmt->ignoreExists, &info);
+                                    pStmt->pOptions->ttl, comment, pStmt->ignoreExists, &info, pCxt->pParseCxt->txnId);
   } else {
     taosMemoryFree(pTag);
   }
@@ -23484,7 +23492,7 @@ static int32_t createSubTableFromFile(SMsgBuf* pMsgBuf, SParseContext* pParseCxt
       code = addCreateTbReqIntoVgroup(pModifyStmt->pVgroupsHashObj, pCreateInfo->useDbName, pSuperTableMeta->uid,
                                       pCreateInfo->useTableName, pData->ctbName.tname, pData->aTagNames,
                                       pSuperTableMeta->tableInfo.numOfTags, pData->pTag, TSDB_DEFAULT_TABLE_TTL, NULL,
-                                      pCreateInfo->ignoreExists, &pData->vg);
+                                      pCreateInfo->ignoreExists, &pData->vg, pParseCxt->txnId);
     }
 
     if (TSDB_CODE_SUCCESS == code) {
@@ -23702,6 +23710,7 @@ static int32_t buildDropTableVgroupHashmap(STranslateContext* pCxt, SDropTableCl
   if (TSDB_CODE_SUCCESS == code) {
     SVDropTbReq req = {.suid = pTableMeta->suid, .igNotExists = pClause->ignoreNotExists};
     req.isVirtual = isVirtualTable(pTableMeta);
+    req.txnId = pCxt->pParseCxt->txnId;
     req.name = pClause->tableName;
     code = addDropTbReqIntoVgroup(pVgroupHashmap, &info, &req);
   }
@@ -25310,6 +25319,7 @@ static int32_t rewriteAlterTableImpl(STranslateContext* pCxt, SAlterTableStmt* p
   }
 
   SVAlterTbReq req = {0};
+  req.txnId = pCxt->pParseCxt->txnId;
   int32_t      code = buildAlterTbReq(pCxt, pStmt, pTableMeta, &req);
 
   SArray* pArray = NULL;

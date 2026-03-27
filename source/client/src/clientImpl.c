@@ -398,6 +398,8 @@ int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtC
       .setQueryFp = setQueryRequest,
       .timezone = pTscObj->optionInfo.timezone,
       .charsetCxt = pTscObj->optionInfo.charsetCxt,
+      .txnId = pTscObj->txnId,
+      .pTxnVgList = pTscObj->pTxnVgList,
   };
 
   cxt.mgmtEpSet = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
@@ -1429,6 +1431,22 @@ void launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQuery, void
       }
       break;
     case QUERY_EXEC_MODE_SCHEDULE: {
+      // Track VNode vgIds for batch metadata transaction (SCHEDULE path)
+      STscObj* pTscObjSch = pRequest->pTscObj;
+      if (pTscObjSch->txnState == UTXN_STAGE_ACTIVE && pQuery->pRoot != NULL &&
+          nodeType(pQuery->pRoot) == QUERY_NODE_VNODE_MODIFY_STMT) {
+        SVnodeModifyOpStmt* pModifyStmt = (SVnodeModifyOpStmt*)pQuery->pRoot;
+        if (pModifyStmt->pDataBlocks != NULL) {
+          int32_t numBlocks = (int32_t)taosArrayGetSize(pModifyStmt->pDataBlocks);
+          for (int32_t i = 0; i < numBlocks; ++i) {
+            SVgDataBlocks* pVgData = *(SVgDataBlocks**)taosArrayGet(pModifyStmt->pDataBlocks, i);
+            if (pVgData != NULL) {
+              tscTxnTrackVgId(pTscObjSch, pVgData->vg.vgId);
+            }
+          }
+        }
+      }
+
       SArray* pMnodeList = taosArrayInit(4, sizeof(SQueryNodeLoad));
       if (NULL == pMnodeList) {
         code = terrno;

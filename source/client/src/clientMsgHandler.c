@@ -1389,6 +1389,90 @@ int32_t processCreateXnodeTaskRsp(void* param, SDataBuf* pMsg, int32_t code) {
   return code;
 }
 
+#ifdef TD_ENTERPRISE
+static int32_t processBeginTxnRsp(void* param, SDataBuf* pMsg, int32_t code) {
+  SRequestObj* pRequest = param;
+  setErrno(pRequest, code);
+
+  if (code == TSDB_CODE_SUCCESS && pMsg->pData != NULL && pMsg->len > 0) {
+    STscObj*   pTscObj = pRequest->pTscObj;
+    SMTransReq rsp = {0};
+    if (tDeserializeSMTransReq(pMsg->pData, pMsg->len, &rsp) == 0) {
+      taosThreadMutexLock(&pTscObj->mutex);
+      pTscObj->txnId = rsp.txnId;
+      pTscObj->txnState = UTXN_STAGE_ACTIVE;
+      if (pTscObj->pTxnVgList == NULL) {
+        pTscObj->pTxnVgList = taosArrayInit(4, sizeof(int32_t));
+      }
+      taosThreadMutexUnlock(&pTscObj->mutex);
+      tscInfo("conn:0x%" PRIx64 ", txn:%" PRIu64 " began (SQL path)", pTscObj->id, pTscObj->txnId);
+    }
+    tFreeSMTransReq(&rsp);
+  }
+
+  taosMemoryFree(pMsg->pEpSet);
+  taosMemoryFree(pMsg->pData);
+  if (pRequest->body.queryFp != NULL) {
+    doRequestCallback(pRequest, code);
+  } else {
+    if (tsem_post(&pRequest->body.rspSem) != 0) {
+      tscError("failed to post semaphore");
+    }
+  }
+  return code;
+}
+
+static void tscResetTxnState(STscObj* pTscObj) {
+  taosThreadMutexLock(&pTscObj->mutex);
+  pTscObj->txnState = 0;
+  pTscObj->txnId = 0;
+  taosArrayDestroy(pTscObj->pTxnVgList);
+  pTscObj->pTxnVgList = NULL;
+  taosThreadMutexUnlock(&pTscObj->mutex);
+}
+
+static int32_t processCommitTxnRsp(void* param, SDataBuf* pMsg, int32_t code) {
+  SRequestObj* pRequest = param;
+  setErrno(pRequest, code);
+
+  STscObj* pTscObj = pRequest->pTscObj;
+  tscInfo("conn:0x%" PRIx64 ", txn:%" PRIu64 " commit %s (SQL path)", pTscObj->id, pTscObj->txnId,
+          (code == 0) ? "success" : tstrerror(code));
+  tscResetTxnState(pTscObj);
+
+  taosMemoryFree(pMsg->pEpSet);
+  taosMemoryFree(pMsg->pData);
+  if (pRequest->body.queryFp != NULL) {
+    doRequestCallback(pRequest, code);
+  } else {
+    if (tsem_post(&pRequest->body.rspSem) != 0) {
+      tscError("failed to post semaphore");
+    }
+  }
+  return code;
+}
+
+static int32_t processRollbackTxnRsp(void* param, SDataBuf* pMsg, int32_t code) {
+  SRequestObj* pRequest = param;
+  setErrno(pRequest, code);
+
+  STscObj* pTscObj = pRequest->pTscObj;
+  tscInfo("conn:0x%" PRIx64 ", txn:%" PRIu64 " rollback %s (SQL path)", pTscObj->id, pTscObj->txnId,
+          (code == 0) ? "success" : tstrerror(code));
+  tscResetTxnState(pTscObj);
+
+  taosMemoryFree(pMsg->pEpSet);
+  taosMemoryFree(pMsg->pData);
+  if (pRequest->body.queryFp != NULL) {
+    doRequestCallback(pRequest, code);
+  } else {
+    if (tsem_post(&pRequest->body.rspSem) != 0) {
+      tscError("failed to post semaphore");
+    }
+  }
+  return code;
+}
+#endif
 
 __async_send_cb_fn_t getMsgRspHandle(int32_t msgType) {
   switch (msgType) {
@@ -1418,6 +1502,15 @@ __async_send_cb_fn_t getMsgRspHandle(int32_t msgType) {
       return processCreateTotpSecretRsp;
     case TDMT_MND_CREATE_XNODE_TASK:
       return processCreateXnodeTaskRsp;
+
+#ifdef TD_ENTERPRISE
+    case TDMT_MND_BEGIN_TXN:
+      return processBeginTxnRsp;
+    case TDMT_MND_COMMIT_TXN:
+      return processCommitTxnRsp;
+    case TDMT_MND_ROLLBACK_TXN:
+      return processRollbackTxnRsp;
+#endif
 
     default:
       return genericRspCallback;
