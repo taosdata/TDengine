@@ -105,42 +105,42 @@ taos> select distinct (select f1 from db2.tba) from st1;
 taos> select distinct (select 0 from st1 limit 1), f1 from st1;
  (select 0 from st1 limit 1) |     f1      |
 ============================================
-                           0 |           6 |
-                           0 |           4 |
-                           0 |           3 |
-                           0 |           5 |
                            0 |           2 |
+                           0 |           3 |
+                           0 |           4 |
+                           0 |           6 |
                            0 |           1 |
+                           0 |           5 |
 
 taos> select distinct (select 1 from st1 limit 1), f1 from st1;
  (select 1 from st1 limit 1) |     f1      |
 ============================================
+                           1 |           5 |
+                           1 |           4 |
                            1 |           2 |
                            1 |           6 |
-                           1 |           5 |
                            1 |           1 |
                            1 |           3 |
-                           1 |           4 |
 
 taos> select distinct (select 2 from st1 limit 1), f1 from st1;
  (select 2 from st1 limit 1) |     f1      |
 ============================================
-                           2 |           4 |
-                           2 |           2 |
                            2 |           1 |
-                           2 |           6 |
                            2 |           5 |
+                           2 |           4 |
+                           2 |           6 |
+                           2 |           2 |
                            2 |           3 |
 
 taos> select distinct (select f1 from db2.tba), f1 from st1;
  (select f1 from db2.tba) |     f1      |
 =========================================
-                        0 |           2 |
-                        0 |           5 |
                         0 |           3 |
-                        0 |           6 |
-                        0 |           4 |
                         0 |           1 |
+                        0 |           4 |
+                        0 |           5 |
+                        0 |           2 |
+                        0 |           6 |
 
 taos> select distinct tags (select 0 from st1 limit 1) + 1 from st1;
  (select 0 from st1 limit 1) + 1 |
@@ -305,122 +305,122 @@ taos> select sum((select f1 from db2.tba)) from st1;
 taos> select case when (select 0 from st1 limit 1) > 0 then 1 else 2 end, sum(f1) from st1 group by f1;
  case when (select 0 from st1 limit 1) > 0 then 1 else 2 end |        sum(f1)        |
 ======================================================================================
-                                                           2 |                     5 |
+                                                           2 |                     6 |
                                                            2 |                     1 |
+                                                           2 |                     2 |
+                                                           2 |                     5 |
                                                            2 |                     3 |
                                                            2 |                     4 |
-                                                           2 |                     6 |
-                                                           2 |                     2 |
 
 taos> select case when (select 1 from st1 limit 1) > 0 then 1 else 2 end, sum(f1) from st1 group by f1;
  case when (select 1 from st1 limit 1) > 0 then 1 else 2 end |        sum(f1)        |
 ======================================================================================
-                                                           1 |                     5 |
+                                                           1 |                     6 |
                                                            1 |                     1 |
+                                                           1 |                     2 |
+                                                           1 |                     5 |
                                                            1 |                     3 |
                                                            1 |                     4 |
-                                                           1 |                     6 |
-                                                           1 |                     2 |
 
 taos> select case when (select 2 from st1 limit 1) > 0 then 1 else 2 end, sum(f1) from st1 group by f1;
  case when (select 2 from st1 limit 1) > 0 then 1 else 2 end |        sum(f1)        |
 ======================================================================================
-                                                           1 |                     5 |
+                                                           1 |                     6 |
                                                            1 |                     1 |
+                                                           1 |                     2 |
+                                                           1 |                     5 |
                                                            1 |                     3 |
                                                            1 |                     4 |
-                                                           1 |                     6 |
-                                                           1 |                     2 |
 
 taos> select case when (select f1 from db2.tba) > 0 then 1 else 2 end, sum(f1) from st1 group by f1;
  case when (select f1 from db2.tba) > 0 then 1 else 2 end |        sum(f1)        |
 ===================================================================================
-                                                        2 |                     5 |
+                                                        2 |                     6 |
                                                         2 |                     1 |
+                                                        2 |                     2 |
+                                                        2 |                     5 |
                                                         2 |                     3 |
                                                         2 |                     4 |
-                                                        2 |                     6 |
-                                                        2 |                     2 |
 
 taos> select case when 1 = 1 then 2 / (select 0 from st1 limit 1) else 2 end, sum(f1) from st1 group by f1;
  case when 1 = 1 then 2 / (select 0 from st1 limit 1) else 2 end |        sum(f1)        |
 ==========================================================================================
- NULL                                                            |                     5 |
+ NULL                                                            |                     6 |
  NULL                                                            |                     1 |
+ NULL                                                            |                     2 |
+ NULL                                                            |                     5 |
  NULL                                                            |                     3 |
  NULL                                                            |                     4 |
- NULL                                                            |                     6 |
- NULL                                                            |                     2 |
 
 taos> select case when 1 = 1 then 2 / (select 1 from st1 limit 1) else 2 end, sum(f1) from st1 group by f1;
  case when 1 = 1 then 2 / (select 1 from st1 limit 1) else 2 end |        sum(f1)        |
 ==========================================================================================
- 2                                                               |                     5 |
+ 2                                                               |                     6 |
  2                                                               |                     1 |
+ 2                                                               |                     2 |
+ 2                                                               |                     5 |
  2                                                               |                     3 |
  2                                                               |                     4 |
- 2                                                               |                     6 |
- 2                                                               |                     2 |
 
 taos> select case when 1 = 1 then 2 / (select 2 from st1 limit 1) else 2 end, sum(f1) from st1 group by f1;
  case when 1 = 1 then 2 / (select 2 from st1 limit 1) else 2 end |        sum(f1)        |
 ==========================================================================================
- 1                                                               |                     5 |
+ 1                                                               |                     6 |
  1                                                               |                     1 |
+ 1                                                               |                     2 |
+ 1                                                               |                     5 |
  1                                                               |                     3 |
  1                                                               |                     4 |
- 1                                                               |                     6 |
- 1                                                               |                     2 |
 
 taos> select case when 1 = 1 then 2 / (select f1 from db2.tba) else 2 end, sum(f1) from st1 group by f1;
  case when 1 = 1 then 2 / (select f1 from db2.tba) else 2 end |        sum(f1)        |
 =======================================================================================
- NULL                                                         |                     5 |
+ NULL                                                         |                     6 |
  NULL                                                         |                     1 |
+ NULL                                                         |                     2 |
+ NULL                                                         |                     5 |
  NULL                                                         |                     3 |
  NULL                                                         |                     4 |
- NULL                                                         |                     6 |
- NULL                                                         |                     2 |
 
 taos> select case when 0 = 1 then 1 else (select 0 from st1 limit 1) is null end, sum(f1) from st1 group by f1;
  case when 0 = 1 then 1 else (select 0 from st1 limit 1) is null  |        sum(f1)        |
 ===========================================================================================
-                                                                0 |                     5 |
+                                                                0 |                     6 |
                                                                 0 |                     1 |
+                                                                0 |                     2 |
+                                                                0 |                     5 |
                                                                 0 |                     3 |
                                                                 0 |                     4 |
-                                                                0 |                     6 |
-                                                                0 |                     2 |
 
 taos> select case when 0 = 1 then 1 else (select 1 from st1 limit 1) is null end, sum(f1) from st1 group by f1;
  case when 0 = 1 then 1 else (select 1 from st1 limit 1) is null  |        sum(f1)        |
 ===========================================================================================
-                                                                0 |                     5 |
+                                                                0 |                     6 |
                                                                 0 |                     1 |
+                                                                0 |                     2 |
+                                                                0 |                     5 |
                                                                 0 |                     3 |
                                                                 0 |                     4 |
-                                                                0 |                     6 |
-                                                                0 |                     2 |
 
 taos> select case when 0 = 1 then 1 else (select 2 from st1 limit 1) is null end, sum(f1) from st1 group by f1;
  case when 0 = 1 then 1 else (select 2 from st1 limit 1) is null  |        sum(f1)        |
 ===========================================================================================
-                                                                0 |                     5 |
+                                                                0 |                     6 |
                                                                 0 |                     1 |
+                                                                0 |                     2 |
+                                                                0 |                     5 |
                                                                 0 |                     3 |
                                                                 0 |                     4 |
-                                                                0 |                     6 |
-                                                                0 |                     2 |
 
 taos> select case when 0 = 1 then 1 else (select f1 from db2.tba) is null end, sum(f1) from st1 group by f1;
  case when 0 = 1 then 1 else (select f1 from db2.tba) is null end |        sum(f1)        |
 ===========================================================================================
-                                                                0 |                     5 |
+                                                                0 |                     6 |
                                                                 0 |                     1 |
+                                                                0 |                     2 |
+                                                                0 |                     5 |
                                                                 0 |                     3 |
                                                                 0 |                     4 |
-                                                                0 |                     6 |
-                                                                0 |                     2 |
 
 taos> select (select 0 from st1 limit 1) from information_schema.ins_tables limit 3;
  (select 0 from st1 limit 1) |
@@ -1632,41 +1632,41 @@ taos> select avg(f1) from st1 group by f1, (select 0 from st1 limit 1);
           avg(f1)          |
 ============================
                          2 |
+                         1 |
                          6 |
+                         4 |
                          3 |
                          5 |
-                         4 |
-                         1 |
 
 taos> select avg(f1) from st1 group by f1, (select 1 from st1 limit 1);
           avg(f1)          |
 ============================
-                         1 |
-                         5 |
-                         2 |
                          3 |
-                         4 |
+                         1 |
+                         2 |
                          6 |
+                         5 |
+                         4 |
 
 taos> select avg(f1) from st1 group by f1, (select 2 from st1 limit 1);
           avg(f1)          |
 ============================
-                         6 |
                          1 |
+                         2 |
                          4 |
                          3 |
-                         2 |
                          5 |
+                         6 |
 
 taos> select avg(f1) from st1 group by f1, (select f1 from db2.tba);
           avg(f1)          |
 ============================
-                         2 |
-                         3 |
-                         5 |
-                         1 |
-                         4 |
                          6 |
+                         3 |
+                         4 |
+                         1 |
+                         2 |
+                         5 |
 
 taos> select avg(f1) from st1 group by (select 0 from st1 limit 1) + 1;
           avg(f1)          |
@@ -1693,22 +1693,22 @@ taos> select avg(f1) from st1 group by f1 having avg((select 0 from st1 limit 1)
 taos> select avg(f1) from st1 group by f1 having avg((select 1 from st1 limit 1)) > 0;
           avg(f1)          |
 ============================
-                         5 |
+                         6 |
                          1 |
+                         2 |
+                         5 |
                          3 |
                          4 |
-                         6 |
-                         2 |
 
 taos> select avg(f1) from st1 group by f1 having avg((select 2 from st1 limit 1)) > 0;
           avg(f1)          |
 ============================
-                         5 |
+                         6 |
                          1 |
+                         2 |
+                         5 |
                          3 |
                          4 |
-                         6 |
-                         2 |
 
 taos> select avg(f1) from st1 group by f1 having avg((select f1 from db2.tba)) > 0;
 
@@ -1717,64 +1717,64 @@ taos> select avg(f1) from st1 group by f1 having (select 0 from st1 limit 1) > 0
 taos> select avg(f1) from st1 group by f1 having (select 1 from st1 limit 1) > 0;
           avg(f1)          |
 ============================
-                         5 |
+                         6 |
                          1 |
+                         2 |
+                         5 |
                          3 |
                          4 |
-                         6 |
-                         2 |
 
 taos> select avg(f1) from st1 group by f1 having (select 2 from st1 limit 1) > 0;
           avg(f1)          |
 ============================
-                         5 |
+                         6 |
                          1 |
+                         2 |
+                         5 |
                          3 |
                          4 |
-                         6 |
-                         2 |
 
 taos> select avg(f1) from st1 group by f1 having (select f1 from db2.tba) > 0;
 
 taos> select avg(f1) from st1 group by f1 having avg((select 0 from st1 limit 1) + 1) > 0;
           avg(f1)          |
 ============================
-                         5 |
+                         6 |
                          1 |
+                         2 |
+                         5 |
                          3 |
                          4 |
-                         6 |
-                         2 |
 
 taos> select avg(f1) from st1 group by f1 having avg((select 1 from st1 limit 1) + 1) > 0;
           avg(f1)          |
 ============================
-                         5 |
+                         6 |
                          1 |
+                         2 |
+                         5 |
                          3 |
                          4 |
-                         6 |
-                         2 |
 
 taos> select avg(f1) from st1 group by f1 having avg((select 2 from st1 limit 1) + 1) > 0;
           avg(f1)          |
 ============================
-                         5 |
+                         6 |
                          1 |
+                         2 |
+                         5 |
                          3 |
                          4 |
-                         6 |
-                         2 |
 
 taos> select avg(f1) from st1 group by f1 having avg((select f1 from db2.tba) + 1) > 0;
           avg(f1)          |
 ============================
-                         5 |
+                         6 |
                          1 |
+                         2 |
+                         5 |
                          3 |
                          4 |
-                         6 |
-                         2 |
 
 taos> select interp(f1) from st1 range((select 0 from st1 limit 1)) FILL(PREV);
 

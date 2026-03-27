@@ -106,41 +106,41 @@ taos> select distinct 1 < all (select 0 from st1), f1 from st1;
  1 < all (select 0 from st1) |     f1      |
 ============================================
  false                       |           3 |
- false                       |           6 |
  false                       |           5 |
  false                       |           4 |
+ false                       |           6 |
  false                       |           1 |
  false                       |           2 |
 
 taos> select distinct 1 > all (select 0 from st1), f1 from st1;
  1 > all (select 0 from st1) |     f1      |
 ============================================
- true                        |           1 |
  true                        |           5 |
- true                        |           4 |
  true                        |           3 |
- true                        |           6 |
  true                        |           2 |
+ true                        |           4 |
+ true                        |           6 |
+ true                        |           1 |
 
 taos> select distinct NULL = any (select 2 from st1), f1 from st1;
  null = any (select 2 from st1) |     f1      |
 ===============================================
- NULL                           |           2 |
- NULL                           |           6 |
- NULL                           |           5 |
- NULL                           |           1 |
  NULL                           |           4 |
+ NULL                           |           1 |
+ NULL                           |           6 |
  NULL                           |           3 |
+ NULL                           |           2 |
+ NULL                           |           5 |
 
 taos> select distinct exists (select f1 from db2.tbx), f1 from st1;
  exists (select f1 from db2.tbx) |     f1      |
 ================================================
- true                            |           1 |
  true                            |           5 |
- true                            |           4 |
  true                            |           3 |
- true                            |           6 |
  true                            |           2 |
+ true                            |           4 |
+ true                            |           6 |
+ true                            |           1 |
 
 taos> select distinct tags 1 < all (select 0 from st1) + 1 from st1;
 
@@ -233,42 +233,42 @@ DB error: syntax error near "exists (select f1 from db2.tbx)) from st1;" [0x8000
 taos> select case when 1 < all (select 0 from st1) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when 1 < all (select 0 from st1) then 1 else 2 end |        sum(f1)        |
 ==================================================================================
-                                                       2 |                     5 |
+                                                       2 |                     6 |
                                                        2 |                     1 |
+                                                       2 |                     2 |
+                                                       2 |                     5 |
                                                        2 |                     3 |
                                                        2 |                     4 |
-                                                       2 |                     6 |
-                                                       2 |                     2 |
 
 taos> select case when 1 > all (select 0 from st1) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when 1 > all (select 0 from st1) then 1 else 2 end |        sum(f1)        |
 ==================================================================================
-                                                       1 |                     5 |
+                                                       1 |                     6 |
                                                        1 |                     1 |
+                                                       1 |                     2 |
+                                                       1 |                     5 |
                                                        1 |                     3 |
                                                        1 |                     4 |
-                                                       1 |                     6 |
-                                                       1 |                     2 |
 
 taos> select case when NULL = any (select 2 from st1) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when null = any (select 2 from st1) then 1 else 2 end |        sum(f1)        |
 =====================================================================================
-                                                          2 |                     5 |
+                                                          2 |                     6 |
                                                           2 |                     1 |
+                                                          2 |                     2 |
+                                                          2 |                     5 |
                                                           2 |                     3 |
                                                           2 |                     4 |
-                                                          2 |                     6 |
-                                                          2 |                     2 |
 
 taos> select case when exists (select f1 from db2.tbx) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when exists (select f1 from db2.tbx) then 1 else 2 end |        sum(f1)        |
 ======================================================================================
-                                                           1 |                     5 |
+                                                           1 |                     6 |
                                                            1 |                     1 |
+                                                           1 |                     2 |
+                                                           1 |                     5 |
                                                            1 |                     3 |
                                                            1 |                     4 |
-                                                           1 |                     6 |
-                                                           1 |                     2 |
 
 taos> select case when 1 < all (select 0 from st1) > 0 then 1 else 2 end, sum(f1) from st1 group by f1;
 
@@ -285,82 +285,82 @@ DB error: syntax error near "> 0 then 1 else 2 end, sum(f1) from st1 group by f1
 taos> select case when 1 = 1 then 1 < all (select 0 from st1) else 2 end, sum(f1) from st1 group by f1;
  case when 1 = 1 then 1 < all (select 0 from st1) else 2 end |        sum(f1)        |
 ======================================================================================
-                                                           0 |                     5 |
+                                                           0 |                     6 |
                                                            0 |                     1 |
+                                                           0 |                     2 |
+                                                           0 |                     5 |
                                                            0 |                     3 |
                                                            0 |                     4 |
-                                                           0 |                     6 |
-                                                           0 |                     2 |
 
 taos> select case when 1 = 1 then 1 > all (select 0 from st1) else 2 end, sum(f1) from st1 group by f1;
  case when 1 = 1 then 1 > all (select 0 from st1) else 2 end |        sum(f1)        |
 ======================================================================================
-                                                           1 |                     5 |
+                                                           1 |                     6 |
                                                            1 |                     1 |
+                                                           1 |                     2 |
+                                                           1 |                     5 |
                                                            1 |                     3 |
                                                            1 |                     4 |
-                                                           1 |                     6 |
-                                                           1 |                     2 |
 
 taos> select case when 1 = 1 then NULL = any (select 2 from st1) else 2 end, sum(f1) from st1 group by f1;
  case when 1 = 1 then null = any (select 2 from st1) else 2 end |        sum(f1)        |
 =========================================================================================
- NULL                                                           |                     5 |
+ NULL                                                           |                     6 |
  NULL                                                           |                     1 |
+ NULL                                                           |                     2 |
+ NULL                                                           |                     5 |
  NULL                                                           |                     3 |
  NULL                                                           |                     4 |
- NULL                                                           |                     6 |
- NULL                                                           |                     2 |
 
 taos> select case when 1 = 1 then exists (select f1 from db2.tbx) else 2 end, sum(f1) from st1 group by f1;
  case when 1 = 1 then exists (select f1 from db2.tbx) else 2 end |        sum(f1)        |
 ==========================================================================================
-                                                               1 |                     5 |
+                                                               1 |                     6 |
                                                                1 |                     1 |
+                                                               1 |                     2 |
+                                                               1 |                     5 |
                                                                1 |                     3 |
                                                                1 |                     4 |
-                                                               1 |                     6 |
-                                                               1 |                     2 |
 
 taos> select case when 0 = 1 then 1 else 1 < all (select 0 from st1) end, sum(f1) from st1 group by f1;
  case when 0 = 1 then 1 else 1 < all (select 0 from st1) end |        sum(f1)        |
 ======================================================================================
-                                                           0 |                     5 |
+                                                           0 |                     6 |
                                                            0 |                     1 |
+                                                           0 |                     2 |
+                                                           0 |                     5 |
                                                            0 |                     3 |
                                                            0 |                     4 |
-                                                           0 |                     6 |
-                                                           0 |                     2 |
 
 taos> select case when 0 = 1 then 1 else 1 > all (select 0 from st1) end, sum(f1) from st1 group by f1;
  case when 0 = 1 then 1 else 1 > all (select 0 from st1) end |        sum(f1)        |
 ======================================================================================
-                                                           1 |                     5 |
+                                                           1 |                     6 |
                                                            1 |                     1 |
+                                                           1 |                     2 |
+                                                           1 |                     5 |
                                                            1 |                     3 |
                                                            1 |                     4 |
-                                                           1 |                     6 |
-                                                           1 |                     2 |
 
 taos> select case when 0 = 1 then 1 else NULL = any (select 2 from st1) end, sum(f1) from st1 group by f1;
  case when 0 = 1 then 1 else null = any (select 2 from st1) end |        sum(f1)        |
 =========================================================================================
- NULL                                                           |                     5 |
+ NULL                                                           |                     6 |
  NULL                                                           |                     1 |
+ NULL                                                           |                     2 |
+ NULL                                                           |                     5 |
  NULL                                                           |                     3 |
  NULL                                                           |                     4 |
- NULL                                                           |                     6 |
- NULL                                                           |                     2 |
 
 taos> select case when 0 = 1 then 1 else exists (select f1 from db2.tbx) end, sum(f1) from st1 group by f1;
  case when 0 = 1 then 1 else exists (select f1 from db2.tbx) end |        sum(f1)        |
 ==========================================================================================
-                                                               1 |                     5 |
+                                                               1 |                     6 |
                                                                1 |                     1 |
+                                                               1 |                     2 |
+                                                               1 |                     5 |
                                                                1 |                     3 |
                                                                1 |                     4 |
-                                                               1 |                     6 |
-                                                               1 |                     2 |
 
 taos> select 1 < all (select 0 from st1) from information_schema.ins_tables limit 3;
  1 < all (select 0 from st1) |

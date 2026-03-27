@@ -10617,6 +10617,7 @@ static int32_t applyOptimizeRule(SPlanContext* pCxt, SLogicSubplan* pLogicSubpla
       cxt.optimized = false;
       int32_t code = optimizeRuleSet[i].optimizeFunc(&cxt, pLogicSubplan);
       if (TSDB_CODE_SUCCESS != code) {
+        planError("optimize rule [%s] failed, code:%s", optimizeRuleSet[i].pName, tstrerror(code));
         return code;
       }
       if (cxt.optimized) {

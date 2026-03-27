@@ -11106,12 +11106,10 @@ static int32_t translateSelectFrom(STranslateContext* pCxt, SSelectStmt* pSelect
     code = checkHavingGroupBy(pCxt, pSelect);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    parserError("parser trace: entering translateOrderBy for QID:0x%" PRIx64, pCxt->pParseCxt ? pCxt->pParseCxt->requestId : 0);
     code = checkGroupByListForBlob(pCxt, pSelect);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = translateOrderBy(pCxt, pSelect);
-    parserError("parser trace: leaving translateOrderBy, code=%d", code);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkIsEmptyResult(pCxt, pSelect);

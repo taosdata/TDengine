@@ -141,6 +141,7 @@ static int32_t createSubQueryPlans(SPlanContext* pSrc, SQueryPlan* pParent, SArr
 
   int32_t subQIdx = 0;
   FOREACH(pNode, pSubQueries) {
+    planDebug("QID:0x%" PRIx64 ", createSubQueryPlans subQIdx:%d, nodeType:%d", pSrc->queryId, subQIdx, nodeType(pNode));
     initSubQueryPlanContext(&ctx, pSrc, pNode);
     ctx.forceNoMergeDataBlock = ctx.forceNoMergeDataBlock || isPartitionedExternalWindowSubquery(pRoot, subQIdx);
     TAOS_CHECK_EXIT(qCreateQueryPlan(&ctx, &pPlan, pExecNodeList));
@@ -160,35 +161,25 @@ _exit:
 int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNodeList) {
   SLogicSubplan*   pLogicSubplan = NULL;
   SQueryLogicPlan* pLogicPlan = NULL;
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
 
-  int32_t code = nodesAcquireAllocator(pCxt->allocatorId);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = createLogicPlan(pCxt, &pLogicSubplan);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = optimizeLogicPlan(pCxt, pLogicSubplan);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = splitLogicPlan(pCxt, pLogicSubplan);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = scaleOutLogicPlan(pCxt, pLogicSubplan, &pLogicPlan);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = createPhysiPlan(pCxt, pLogicPlan, pPlan, pExecNodeList);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = validateQueryPlan(pCxt, *pPlan);
-  }
+  TAOS_CHECK_EXIT(nodesAcquireAllocator(pCxt->allocatorId));
+  TAOS_CHECK_EXIT(createLogicPlan(pCxt, &pLogicSubplan));
+  TAOS_CHECK_EXIT(optimizeLogicPlan(pCxt, pLogicSubplan));
+  TAOS_CHECK_EXIT(splitLogicPlan(pCxt, pLogicSubplan));
+  TAOS_CHECK_EXIT(scaleOutLogicPlan(pCxt, pLogicSubplan, &pLogicPlan));
+  TAOS_CHECK_EXIT(createPhysiPlan(pCxt, pLogicPlan, pPlan, pExecNodeList));
+  TAOS_CHECK_EXIT(validateQueryPlan(pCxt, *pPlan));
   (void)nodesReleaseAllocator(pCxt->allocatorId);
+  TAOS_CHECK_EXIT(createSubQueryPlans(pCxt, *pPlan, pExecNodeList));
+  TAOS_CHECK_EXIT(dumpQueryPlan(*pPlan));
 
-  if (TSDB_CODE_SUCCESS == code) {
-    code = createSubQueryPlans(pCxt, *pPlan, pExecNodeList);
+_exit:
+  if (TSDB_CODE_SUCCESS != code) {
+    (void)nodesReleaseAllocator(pCxt->allocatorId);
+    planError("QID:0x%" PRIx64 ", qCreateQueryPlan failed at line:%d, code:%s", pCxt->queryId, lino, tstrerror(code));
   }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = dumpQueryPlan(*pPlan);
-  }
-  
   nodesDestroyNode((SNode*)pLogicSubplan);
   nodesDestroyNode((SNode*)pLogicPlan);
   

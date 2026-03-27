@@ -481,7 +481,7 @@ static int32_t stbSplAppendWStart(SNodeList** pFuncs, int32_t* pIndex, uint8_t p
 
   code = fmGetFuncInfo(pWStart, NULL, 0);
   if (TSDB_CODE_SUCCESS == code) {
-    code = nodesListStrictAppend(*pFuncs, (SNode*)pWStart);
+    code = nodesListMakeStrictAppend(pFuncs, (SNode*)pWStart);
   }
   if (TSDB_CODE_SUCCESS == code) {
     *pIndex = index;
@@ -813,15 +813,16 @@ static int32_t stbSplCreateMergeKeysByPrimaryKey(SNode* pPrimaryKey, EOrder orde
 }
 
 static int32_t stbSplSplitIntervalForBatch(SSplitContext* pCxt, SStableSplitInfo* pInfo) {
-  if (((SWindowLogicNode*)pInfo->pSplitNode)->winType == WINDOW_TYPE_EXTERNAL) {
-    if (!((SWindowLogicNode*)pInfo->pSplitNode)->pFuncs) {
+  SWindowLogicNode* pWindow = (SWindowLogicNode*)pInfo->pSplitNode;
+  if (pWindow->winType == WINDOW_TYPE_EXTERNAL) {
+    if (!pWindow->pFuncs) {
       // only have projection in external window.
       return TSDB_CODE_SUCCESS;
     }
   }
   SLogicNode* pPartWindow = NULL;
   SNodeList*  pMergeKeys = NULL;
-  int32_t     code = stbSplCreatePartWindowNode(pCxt, (SWindowLogicNode*)pInfo->pSplitNode,
+  int32_t     code = stbSplCreatePartWindowNode(pCxt, pWindow,
                                                 &pPartWindow, &pMergeKeys);
   if (TSDB_CODE_SUCCESS == code) {
     ((SWindowLogicNode*)pPartWindow)->windowAlgo = ((SWindowLogicNode*)pInfo->pSplitNode)->winType == WINDOW_TYPE_INTERVAL ? INTERVAL_ALGO_HASH : EXTERNAL_ALGO_HASH;
