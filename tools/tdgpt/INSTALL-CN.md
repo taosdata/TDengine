@@ -163,7 +163,6 @@ sudo systemctl disable taosanode
    - 服务安装需要管理员权限
    - 以管理员身份运行命令提示符
 
-
 ### 安装步骤
 
 1. **解压安装包**：
