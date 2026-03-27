@@ -79,7 +79,7 @@ log_level = 'DEBUG'
 draw_result = True
 img_dir = (_os.path.join(_install_dir, 'img') + '/').replace('\\', '/') if (on_windows or on_github_actions) else '/usr/local/taos/taosanode/img/'
 
-# moe default handlers host
+# moe default service host
 tdtsfm_1 = 'http://127.0.0.1:6036/tdtsfm'
 timemoe_fc = 'http://127.0.0.1:6037/ds_predict'
 

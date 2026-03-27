@@ -155,7 +155,7 @@ class UtilTest(unittest.TestCase):
 
 class ServiceTest(unittest.TestCase):
     def setUp(self):
-        """ load all handlers before start unit test """
+        """ load all service before start unit test """
         loader.register_all_services()
 
     def test_get_all_algos(self):

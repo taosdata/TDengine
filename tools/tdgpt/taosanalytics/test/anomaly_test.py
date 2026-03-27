@@ -98,7 +98,7 @@ class AnomalyDetectionTest(unittest.TestCase):
 
         ver = sys.version_info
 
-        # Python3.12 not loaded shesd handlers
+        # Python3.12 not loaded shesd service
         if (ver.major, ver.minor) == (3, 12):
             self.assertTrue(s is None)
         else:

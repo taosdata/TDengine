@@ -232,7 +232,7 @@ def parse_time_delta_string(time_str: str):
 
 def parse_args():
     """Parse command line arguments (only used when running directly with python)"""
-    parser = argparse.ArgumentParser(description='TDgpt analytics handlers')
+    parser = argparse.ArgumentParser(description='TDgpt analytics service')
     parser.add_argument('-c', '--config', dest='conf_path', default=None,
                         help='path to configuration file')
     return parser.parse_args()
