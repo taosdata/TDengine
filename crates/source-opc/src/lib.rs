@@ -407,8 +407,34 @@ async fn opc_datasets_by_command(config: &OPCConfig) -> anyhow::Result<Vec<DataS
     }
     temp_path.close()?;
 
-    let res: Vec<DataSet> = serde_json::from_slice(&output.stdout)?;
+    let json_bytes = extract_json_bytes(&output.stdout);
+    if json_bytes.len() < output.stdout.len() {
+        tracing::warn!(
+            "opc points stdout contains non-JSON content ({} bytes), extracted {} bytes",
+            output.stdout.len(),
+            json_bytes.len(),
+        );
+    }
+    let res: Vec<DataSet> = serde_json::from_slice(json_bytes)?;
     Ok(res)
+}
+
+/// 从可能包含非 JSON 内容的 stdout 中提取合法 JSON 字节切片。
+///
+/// OPC 插件（尤其是 OPCDA）会在 stdout 中混入调试信息（如 `---HDB_Release end`），
+/// 此函数定位最外层的 `[...]` 或 `{...}` 并返回对应字节切片。
+/// 若未找到匹配括号则返回原始切片，保留原始反序列化错误信息。
+fn extract_json_bytes(raw: &[u8]) -> &[u8] {
+    for &(open, close) in &[(b'[', b']'), (b'{', b'}')] {
+        if let (Some(start), Some(end)) = (
+            raw.iter().position(|&b| b == open),
+            raw.iter().rposition(|&b| b == close),
+        ) && end > start
+        {
+            return &raw[start..=end];
+        }
+    }
+    raw
 }
 
 /// 过滤 opc 错误日志，去掉 info 日志
@@ -473,15 +499,23 @@ async fn is_valid_impl(dsn: &Dsn) -> anyhow::Result<DataSourceValidation> {
         .arg("check")
         .arg("--conf")
         .arg(config_file.path())
-        .stdout(std::process::Stdio::inherit())
+        .stdout(std::process::Stdio::piped())
         .output()
         .await
         .inspect_err(|err| tracing::error!(conf=%config_file.path().display(), "{err:?}"))
         .context("failed to execute taosx-opc check")?;
 
     let result = if output.status.success() {
+        let json_bytes = extract_json_bytes(&output.stdout);
+        if json_bytes.len() < output.stdout.len() {
+            tracing::warn!(
+                "opc check stdout contains non-JSON content ({} bytes), extracted {} bytes",
+                output.stdout.len(),
+                json_bytes.len(),
+            );
+        }
         let mut result: DataSourceValidation =
-            serde_json::from_slice(&output.stdout).map_err(|err| {
+            serde_json::from_slice(json_bytes).map_err(|err| {
                 anyhow::anyhow!(
                     "failed to deserialize opc validation result: {}, cause: {}",
                     String::from_utf8_lossy(&output.stdout),
@@ -1136,5 +1170,47 @@ mod tests {
         assert_eq!(record.len(), DA_ROW.len());
         assert_eq!(record.get(1).unwrap(), item.id);
         assert_eq!(record.get(15).unwrap(), item.name.unwrap());
+    }
+
+    #[test]
+    fn test_extract_json_bytes() {
+        // pure array / object
+        assert_eq!(extract_json_bytes(b"[1,2,3]"), b"[1,2,3]");
+        assert_eq!(
+            extract_json_bytes(b"{\"key\":\"value\"}"),
+            b"{\"key\":\"value\"}"
+        );
+
+        // leading / trailing noise (simulates OPCDA debug output)
+        assert_eq!(
+            extract_json_bytes(b"---HDB_Release end\n[1,2,3]"),
+            b"[1,2,3]"
+        );
+        assert_eq!(
+            extract_json_bytes(b"[1,2,3]\nsome trailing text"),
+            b"[1,2,3]"
+        );
+        assert_eq!(
+            extract_json_bytes(b"noise before\n{\"a\":1}\nnoise after"),
+            b"{\"a\":1}"
+        );
+
+        // array bracket found first → array wins even if object present inside
+        assert_eq!(extract_json_bytes(b"[{\"a\":1}]"), b"[{\"a\":1}]");
+
+        // multiline array with surrounding noise
+        assert_eq!(
+            extract_json_bytes(b"prefix\n[\n  {\"id\": 1}\n]\nsuffix"),
+            b"[\n  {\"id\": 1}\n]"
+        );
+
+        // no JSON → returns original slice unchanged
+        assert_eq!(extract_json_bytes(b"no json here"), b"no json here");
+
+        // only opening bracket with no matching close → returns original
+        assert_eq!(extract_json_bytes(b"[no close"), b"[no close");
+
+        // empty input
+        assert_eq!(extract_json_bytes(b""), b"");
     }
 }

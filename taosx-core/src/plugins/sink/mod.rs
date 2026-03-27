@@ -1,12 +1,20 @@
 use anyhow::{Context, anyhow, bail};
 use archive::utils::files::read_parquet_file;
 use archive::{Archive, ArchiveConsumer, ArchiveType, Cache, get_rewrite_files};
-use arrow::array::{Array, StringArray};
-use arrow::{datatypes::Schema, record_batch::RecordBatch};
+use arrow::array::{
+    Array, BooleanArray, StringArray, TimestampMicrosecondArray, TimestampMillisecondArray,
+    TimestampNanosecondArray, TimestampSecondArray,
+};
+use arrow::{
+    compute::filter_record_batch,
+    datatypes::{DataType, Schema},
+    record_batch::RecordBatch,
+};
 use arrow_compute_ext::RecordBatchExt;
 use arrow_schema::ArrowError;
+use arrow_schema::TimeUnit;
 use async_backtrace::framed;
-use chrono::{TimeDelta, Utc};
+use chrono::{DateTime, TimeDelta, Utc};
 use dashmap::DashMap;
 use deadpool::managed::{Object, PoolError, TimeoutType};
 use faststr::FastStr;
@@ -37,7 +45,10 @@ use taos::{
 };
 use taoslog::QidManager;
 use taoslog::utils::QidMetadataGetter;
-use taosx_ipc::{prelude::*, stream::point::PointMessage};
+use taosx_ipc::{
+    prelude::*,
+    stream::point::{PointMessage, RecordMessage},
+};
 use tokio::sync::{Mutex, Notify, OnceCell};
 use tracing::{debug, error, info, instrument};
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
@@ -1196,6 +1207,113 @@ fn opc_object_node_sqls(
     Ok(sqls)
 }
 
+/// Filter rows in a `RecordMessage` whose "ts" column falls outside the valid TDengine range:
+///   (min_ts, max_ts)  where min_ts = now - KEEP  and  max_ts = now + 100 years
+/// Null timestamps are always filtered out.
+///
+/// Return values:
+/// - `Ok(Some(m))` – filtering succeeded and at least one row remains.
+/// - `Ok(None)`    – filtering succeeded but every row was removed (all out-of-range).
+/// - `Err(e)`      – a schema/type error made filtering impossible (missing "ts" column,
+///   unexpected downcast, or Arrow filter failure).  The caller should log the error and process
+///   the batch unfiltered rather than silently dropping it.
+///
+/// Note: when the "ts" column exists but is not a Timestamp type the batch is passed through
+/// unchanged (returns `Ok(Some(original_message))`), because non-timestamp data cannot be
+/// range-checked.  Likewise, a missing "ts" column also passes through unchanged.
+fn filter_record_message_by_ts(
+    message: &RecordMessage,
+    min_ts: Option<&DateTime<Utc>>,
+    max_ts: &DateTime<Utc>,
+) -> anyhow::Result<Option<RecordMessage>> {
+    let schema = message.schema();
+    let ts_index = match schema.index_of("ts") {
+        Ok(idx) => idx,
+        // No "ts" column: cannot apply timestamp filtering, pass through unchanged.
+        Err(_) => return Ok(Some(RecordMessage::from_record(message.record().clone()))),
+    };
+    let col = message.record().column(ts_index);
+
+    let keep = match col.data_type() {
+        DataType::Timestamp(TimeUnit::Second, _) => {
+            let array = col
+                .as_any()
+                .downcast_ref::<TimestampSecondArray>()
+                .context("failed to downcast 'ts' column to TimestampSecondArray")?;
+            let min = min_ts.map(|m| m.timestamp());
+            let max = max_ts.timestamp();
+            BooleanArray::from_iter((0..array.len()).map(|i| {
+                if array.is_null(i) {
+                    Some(false)
+                } else {
+                    let v = array.value(i);
+                    Some(min.is_none_or(|m| v > m) && v < max)
+                }
+            }))
+        }
+        DataType::Timestamp(TimeUnit::Millisecond, _) => {
+            let array = col
+                .as_any()
+                .downcast_ref::<TimestampMillisecondArray>()
+                .context("failed to downcast 'ts' column to TimestampMillisecondArray")?;
+            let min = min_ts.map(|m| m.timestamp_millis());
+            let max = max_ts.timestamp_millis();
+            BooleanArray::from_iter((0..array.len()).map(|i| {
+                if array.is_null(i) {
+                    Some(false)
+                } else {
+                    let v = array.value(i);
+                    Some(min.is_none_or(|m| v > m) && v < max)
+                }
+            }))
+        }
+        DataType::Timestamp(TimeUnit::Microsecond, _) => {
+            let array = col
+                .as_any()
+                .downcast_ref::<TimestampMicrosecondArray>()
+                .context("failed to downcast 'ts' column to TimestampMicrosecondArray")?;
+            let min = min_ts.map(|m| m.timestamp_micros());
+            let max = max_ts.timestamp_micros();
+            BooleanArray::from_iter((0..array.len()).map(|i| {
+                if array.is_null(i) {
+                    Some(false)
+                } else {
+                    let v = array.value(i);
+                    Some(min.is_none_or(|m| v > m) && v < max)
+                }
+            }))
+        }
+        DataType::Timestamp(TimeUnit::Nanosecond, _) => {
+            let array = col
+                .as_any()
+                .downcast_ref::<TimestampNanosecondArray>()
+                .context("failed to downcast 'ts' column to TimestampNanosecondArray")?;
+            let min = min_ts.and_then(|m| m.timestamp_nanos_opt());
+            let max = max_ts
+                .timestamp_nanos_opt()
+                .context("max_ts nanosecond value overflows i64")?;
+            BooleanArray::from_iter((0..array.len()).map(|i| {
+                if array.is_null(i) {
+                    Some(false)
+                } else {
+                    let v = array.value(i);
+                    Some(min.is_none_or(|m| v > m) && v < max)
+                }
+            }))
+        }
+        // Non-timestamp "ts" column: pass through unchanged.
+        _ => return Ok(Some(RecordMessage::from_record(message.record().clone()))),
+    };
+
+    let filtered = filter_record_batch(message.record(), &keep)
+        .context("failed to apply timestamp filter to record batch")?;
+    if filtered.num_rows() > 0 {
+        Ok(Some(RecordMessage::from_record(filtered)))
+    } else {
+        Ok(None)
+    }
+}
+
 /// 处理 PointMessage
 #[instrument(skip_all, fields(target_precision = ?target_precision))]
 async fn consume_point_record(
@@ -1206,6 +1324,7 @@ async fn consume_point_record(
     config: &PointModelConfig,
     target_precision: taos::Precision,
     metrics: &IpcMetrics,
+    cancel: &CancellationToken,
 ) -> anyhow::Result<usize> {
     if unsafe { crate::global::DRY_RUN } {
         tracing::trace!("consume point record in dry-run mode");
@@ -1218,13 +1337,65 @@ async fn consume_point_record(
 
     let need_transform = config.need_transform();
 
+    // Determine valid timestamp range for this target database.
+    // min_ts = now - KEEP (from database config), max_ts = now + 100 years (TDengine limit).
+    // If the query fails (e.g. network error), skip pre-filtering and rely on per-row error handling.
+    let ts_range = get_minimum_timestamp(pool, taos, DEFAULT_MAX_RETRIES_FOR_CONNECTION, cancel)
+        .in_current_span()
+        .await
+        .map(|(_, min_ts)| (min_ts, Utc::now() + TimeDelta::days(365 * 100)))
+        .map_err(|err| {
+            tracing::warn!(%err, "Failed to get minimum timestamp, timestamp pre-filtering disabled");
+        })
+        .ok();
+
     for message in record.records() {
         let message_rows = message.record().num_rows() as u64;
+
+        // Filter rows whose "ts" falls outside (min_ts, max_ts) before generating SQL,
+        // so that a single bad timestamp never poisons an otherwise-valid batch.
+        // Only applied when ts_range was successfully retrieved.
+        let message = if let Some((ref min_ts, ref max_ts)) = ts_range {
+            match filter_record_message_by_ts(message, min_ts.as_ref(), max_ts) {
+                Ok(Some(m)) => {
+                    let drained = message_rows - m.record().num_rows() as u64;
+                    if drained > 0 {
+                        tracing::warn!(
+                            rows = message_rows,
+                            drained,
+                            "Filtered out rows with out-of-range timestamps"
+                        );
+                        metrics.add_drained_rows(drained);
+                    }
+                    m
+                }
+                Ok(None) => {
+                    tracing::warn!(
+                        rows = message_rows,
+                        "All rows have out-of-range timestamps, skipping batch"
+                    );
+                    metrics.add_drained_rows(message_rows);
+                    continue;
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        %e,
+                        rows = message_rows,
+                        "Timestamp filtering failed, processing batch as-is"
+                    );
+                    RecordMessage::from_record(message.record().clone())
+                }
+            }
+        } else {
+            // ts_range unavailable: pass the message through unfiltered
+            RecordMessage::from_record(message.record().clone())
+        };
+
         let (stable_insert_map, child_table_create_sql_map) = if need_transform {
-            let transformed_msg = handle_transform(message, config).await?;
+            let transformed_msg = handle_transform(&message, config).await?;
             point_records_to_sql(&transformed_msg, config, target_precision).await?
         } else {
-            point_records_to_sql(message, config, target_precision).await?
+            point_records_to_sql(&message, config, target_precision).await?
         };
 
         for (stable_name, sql_vec) in stable_insert_map {
@@ -1653,6 +1824,16 @@ async fn consume_point_record(
                                 taos.replace(pool.get().await?);
                                 retry += 1;
                                 continue 'outer;
+                            } else if code == 0x060B {
+                                // 0x060B: Timestamp data out of range
+                                // Pre-filtering should have prevented this, but if ts_range
+                                // was unavailable the row may still reach here. Skip and log.
+                                tracing::warn!(
+                                    sql = sql_insertion.sql,
+                                    "Timestamp out of range, skipping this SQL insertion"
+                                );
+                                metrics.add_failed_sqls(1);
+                                break 'outer;
                             } else {
                                 metrics.add_failed_sqls(1);
                                 Err(err)?;
@@ -1667,7 +1848,7 @@ async fn consume_point_record(
             }
         }
 
-        metrics.add_processed_rows(message_rows);
+        metrics.add_processed_rows(message.record().num_rows() as u64);
     }
     Ok(points)
 }
@@ -2194,6 +2375,7 @@ async fn ipc_point_reader<R: Read + Send + 'static, W: Write + Send + 'static>(
         pool: TaosPool,
         config: Option<&'a PointModelConfig>,
         target_precision: taos::Precision,
+        cancel: CancellationToken,
     }
 
     async fn parse(
@@ -2217,6 +2399,7 @@ async fn ipc_point_reader<R: Read + Send + 'static, W: Write + Send + 'static>(
             context.config.as_ref().unwrap(),
             context.target_precision,
             metrics,
+            &context.cancel,
         )
         .await;
         metrics.add_processed_messages(raw_rows as u64);
@@ -2227,6 +2410,7 @@ async fn ipc_point_reader<R: Read + Send + 'static, W: Write + Send + 'static>(
         pool: pool.clone(),
         config,
         target_precision,
+        cancel: cancel.clone(),
     };
 
     let (ack_tx, ack_rx) = flume::bounded(1);
@@ -3099,6 +3283,7 @@ impl IpcStreamWorker {
                         .ok_or_else(|| anyhow::format_err!("OPC table config not found"))?,
                     self.target_precision,
                     metrics,
+                    &self.cancel,
                 )
                 .await?;
                 Ok(count)
@@ -4186,5 +4371,232 @@ mod tests {
             assert_eq!(s, e, "Mismatch at index {}", i);
             println!("{}", s);
         }
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Unit tests for filter_record_message_by_ts
+    // ──────────────────────────────────────────────────────────────────────────
+
+    use arrow::array::{TimestampMicrosecondArray, TimestampNanosecondArray, TimestampSecondArray};
+
+    /// Build a minimal RecordMessage with an "id" (Utf8) column and a "ts" column
+    /// of the given timestamps.  Extra columns are omitted – the filter only needs "ts".
+    fn make_ms_message(ts_values: Vec<Option<i64>>) -> RecordMessage {
+        use arrow_schema::{Field, TimeUnit};
+        let schema = Arc::new(arrow::datatypes::Schema::new(vec![
+            Field::new("id", DataType::Utf8, false),
+            Field::new("ts", DataType::Timestamp(TimeUnit::Millisecond, None), true),
+        ]));
+        let ids: Vec<Option<&str>> = ts_values.iter().map(|_| Some("p1")).collect();
+        let batch = RecordBatch::try_new(
+            schema,
+            vec![
+                Arc::new(StringArray::from(ids)) as _,
+                Arc::new(TimestampMillisecondArray::from(ts_values)) as _,
+            ],
+        )
+        .unwrap();
+        RecordMessage::from_record(batch)
+    }
+
+    // 2021-07-13 00:00:00 UTC in ms
+    const BASE_MS: i64 = 1_626_134_400_000;
+
+    fn dt_ms(ms: i64) -> DateTime<Utc> {
+        DateTime::from_timestamp_millis(ms).unwrap()
+    }
+
+    #[test]
+    fn filter_ts_all_valid_passes_through() {
+        let msg = make_ms_message(vec![
+            Some(BASE_MS + 1_000),
+            Some(BASE_MS + 2_000),
+            Some(BASE_MS + 3_000),
+        ]);
+        let min = dt_ms(BASE_MS);
+        let max = dt_ms(BASE_MS + 1_000_000);
+        let result = filter_record_message_by_ts(&msg, Some(&min), &max)
+            .unwrap()
+            .unwrap();
+        assert_eq!(result.record().num_rows(), 3);
+    }
+
+    #[test]
+    fn filter_ts_removes_rows_at_or_before_min() {
+        // row 0: exactly at min  → filtered (boundary: must be > min)
+        // row 1: before min      → filtered
+        // row 2: after min       → kept
+        let msg = make_ms_message(vec![
+            Some(BASE_MS),         // == min → filtered
+            Some(BASE_MS - 1_000), // < min  → filtered
+            Some(BASE_MS + 1_000), // > min  → kept
+        ]);
+        let min = dt_ms(BASE_MS);
+        let max = dt_ms(BASE_MS + 1_000_000);
+        let result = filter_record_message_by_ts(&msg, Some(&min), &max)
+            .unwrap()
+            .unwrap();
+        assert_eq!(result.record().num_rows(), 1);
+    }
+
+    #[test]
+    fn filter_ts_removes_rows_at_or_after_max() {
+        // row 0: before max  → kept
+        // row 1: exactly max → filtered (boundary: must be < max)
+        // row 2: after max   → filtered
+        let max_ms = BASE_MS + 1_000_000;
+        let msg = make_ms_message(vec![
+            Some(BASE_MS + 1_000),
+            Some(max_ms),         // == max → filtered
+            Some(max_ms + 1_000), // > max  → filtered
+        ]);
+        let max = dt_ms(max_ms);
+        let result = filter_record_message_by_ts(&msg, None, &max)
+            .unwrap()
+            .unwrap();
+        assert_eq!(result.record().num_rows(), 1);
+    }
+
+    #[test]
+    fn filter_ts_removes_null_timestamps() {
+        let msg = make_ms_message(vec![
+            Some(BASE_MS + 1_000),
+            None, // null → always filtered
+            Some(BASE_MS + 3_000),
+        ]);
+        let max = dt_ms(BASE_MS + 1_000_000);
+        let result = filter_record_message_by_ts(&msg, None, &max)
+            .unwrap()
+            .unwrap();
+        assert_eq!(result.record().num_rows(), 2);
+    }
+
+    #[test]
+    fn filter_ts_returns_none_when_all_rows_removed() {
+        let msg = make_ms_message(vec![
+            Some(BASE_MS - 2_000), // too old
+            None,                  // null
+        ]);
+        let min = dt_ms(BASE_MS);
+        let max = dt_ms(BASE_MS + 1_000_000);
+        let result = filter_record_message_by_ts(&msg, Some(&min), &max);
+        assert!(matches!(result, Ok(None)));
+    }
+
+    #[test]
+    fn filter_ts_no_ts_column_passes_through() {
+        // A batch without a "ts" column cannot be range-filtered; it should be
+        // returned unchanged (Ok(Some(original))) rather than silently dropped.
+        let schema = Arc::new(arrow::datatypes::Schema::new(vec![
+            arrow_schema::Field::new("id", DataType::Utf8, false),
+        ]));
+        let batch =
+            RecordBatch::try_new(schema, vec![Arc::new(StringArray::from(vec!["p1"])) as _])
+                .unwrap();
+        let msg = RecordMessage::from_record(batch);
+        let max = dt_ms(BASE_MS + 1_000_000);
+        let result = filter_record_message_by_ts(&msg, None, &max);
+        let m = result.expect("should be Ok").expect("should be Some");
+        assert_eq!(m.record().num_rows(), 1);
+    }
+
+    #[test]
+    fn filter_ts_no_min_only_max_filter_applied() {
+        // Without min, very old timestamps should still be kept.
+        let msg = make_ms_message(vec![
+            Some(1_000),           // year ~1970 – no min filter → kept
+            Some(BASE_MS + 1_000), // normal                     → kept
+        ]);
+        let max = dt_ms(BASE_MS + 1_000_000);
+        let result = filter_record_message_by_ts(&msg, None, &max)
+            .unwrap()
+            .unwrap();
+        assert_eq!(result.record().num_rows(), 2);
+    }
+
+    #[test]
+    fn filter_ts_second_precision() {
+        use arrow_schema::{Field, TimeUnit};
+        let base_s = BASE_MS / 1_000;
+        let schema = Arc::new(arrow::datatypes::Schema::new(vec![
+            Field::new("id", DataType::Utf8, false),
+            Field::new("ts", DataType::Timestamp(TimeUnit::Second, None), true),
+        ]));
+        let batch = RecordBatch::try_new(
+            schema,
+            vec![
+                Arc::new(StringArray::from(vec!["p1", "p2", "p3"])) as _,
+                Arc::new(TimestampSecondArray::from(vec![
+                    Some(base_s - 1), // too old → filtered
+                    Some(base_s + 1), // valid   → kept
+                    None,             // null    → filtered
+                ])) as _,
+            ],
+        )
+        .unwrap();
+        let msg = RecordMessage::from_record(batch);
+        let min = DateTime::from_timestamp(base_s, 0).unwrap();
+        let max = DateTime::from_timestamp(base_s + 1_000, 0).unwrap();
+        let result = filter_record_message_by_ts(&msg, Some(&min), &max)
+            .unwrap()
+            .unwrap();
+        assert_eq!(result.record().num_rows(), 1);
+    }
+
+    #[test]
+    fn filter_ts_microsecond_precision() {
+        use arrow_schema::{Field, TimeUnit};
+        let base_us = BASE_MS * 1_000;
+        let schema = Arc::new(arrow::datatypes::Schema::new(vec![
+            Field::new("id", DataType::Utf8, false),
+            Field::new("ts", DataType::Timestamp(TimeUnit::Microsecond, None), true),
+        ]));
+        let batch = RecordBatch::try_new(
+            schema,
+            vec![
+                Arc::new(StringArray::from(vec!["p1", "p2"])) as _,
+                Arc::new(TimestampMicrosecondArray::from(vec![
+                    Some(base_us + 1_000), // valid
+                    Some(base_us - 1_000), // too old → filtered
+                ])) as _,
+            ],
+        )
+        .unwrap();
+        let msg = RecordMessage::from_record(batch);
+        let min = DateTime::from_timestamp_micros(base_us).unwrap();
+        let max = DateTime::from_timestamp_micros(base_us + 1_000_000_000).unwrap();
+        let result = filter_record_message_by_ts(&msg, Some(&min), &max)
+            .unwrap()
+            .unwrap();
+        assert_eq!(result.record().num_rows(), 1);
+    }
+
+    #[test]
+    fn filter_ts_nanosecond_precision() {
+        use arrow_schema::{Field, TimeUnit};
+        // Use a moderate base so nanos don't overflow i64
+        let base_ns = BASE_MS * 1_000_000; // ms → ns
+        let schema = Arc::new(arrow::datatypes::Schema::new(vec![
+            Field::new("id", DataType::Utf8, false),
+            Field::new("ts", DataType::Timestamp(TimeUnit::Nanosecond, None), true),
+        ]));
+        let batch = RecordBatch::try_new(
+            schema,
+            vec![
+                Arc::new(StringArray::from(vec!["p1", "p2"])) as _,
+                Arc::new(TimestampNanosecondArray::from(vec![
+                    Some(base_ns + 1_000_000), // valid
+                    Some(base_ns - 1_000_000), // too old → filtered
+                ])) as _,
+            ],
+        )
+        .unwrap();
+        let msg = RecordMessage::from_record(batch);
+        let min = DateTime::from_timestamp_nanos(base_ns);
+        let max = DateTime::from_timestamp_nanos(base_ns + 1_000_000_000_000);
+        let result = filter_record_message_by_ts(&msg, Some(&min), &max)
+            .unwrap()
+            .unwrap();
+        assert_eq!(result.record().num_rows(), 1);
     }
 }
