@@ -474,6 +474,58 @@ class TestBatchMetaTxn:
         tdSql.query("show tables")
         tdSql.checkRows(0)
 
+    # =========================================================================
+    # 17. Non-DDL operations rejected inside a transaction
+    # =========================================================================
+    def s23_reject_use_db_inside_txn(self):
+        self.s0_reset_env()
+        tdLog.info("======== s23_reject_use_db_inside_txn")
+
+        tdSql.execute("BEGIN")
+        # USE DATABASE is not a table DDL — must be rejected
+        tdSql.error("use txn_db")
+        tdSql.execute("ROLLBACK")
+
+    def s24_reject_show_inside_txn(self):
+        self.s0_reset_env()
+        tdLog.info("======== s24_reject_show_inside_txn")
+
+        tdSql.execute("create table stb (ts timestamp, v int) tags (t1 int)")
+
+        tdSql.execute("BEGIN")
+        # SHOW STABLES is not a table DDL — must be rejected
+        tdSql.error("show stables")
+        tdSql.execute("ROLLBACK")
+
+    def s25_reject_select_inside_txn(self):
+        self.s0_reset_env()
+        tdLog.info("======== s25_reject_select_inside_txn")
+
+        tdSql.execute("create table stb (ts timestamp, v int) tags (t1 int)")
+        tdSql.execute("create table ct1 using stb tags(1)")
+        tdSql.execute("insert into ct1 values(now, 1)")
+
+        tdSql.execute("BEGIN")
+        # SELECT is not a table DDL — must be rejected
+        tdSql.error("select * from ct1")
+        tdSql.execute("ROLLBACK")
+
+    def s26_reject_insert_inside_txn(self):
+        self.s0_reset_env()
+        tdLog.info("======== s26_reject_insert_inside_txn")
+
+        tdSql.execute("create table stb (ts timestamp, v int) tags (t1 int)")
+        tdSql.execute("create table ct1 using stb tags(1)")
+
+        tdSql.execute("BEGIN")
+        # INSERT is not a table DDL — must be rejected
+        tdSql.error("insert into ct1 values(now, 99)")
+        tdSql.execute("ROLLBACK")
+
+        # Verify no data was inserted (the insert was rejected, not rolled back)
+        tdSql.query("select * from ct1")
+        tdSql.checkRows(0)
+
     def test_meta_batch_txn(self):
         """Batch meta txn: full lifecycle
 
@@ -499,6 +551,10 @@ class TestBatchMetaTxn:
         20. Sequential transactions reuse
         21. Batch CREATE TABLE syntax in transaction
         22. Batch DROP TABLE syntax in transaction
+        23. USE DATABASE rejected inside transaction
+        24. SHOW STABLES rejected inside transaction
+        25. SELECT rejected inside transaction
+        26. INSERT rejected inside transaction
 
 
         Since: v3.3.6.0
@@ -533,3 +589,7 @@ class TestBatchMetaTxn:
         self.s20_sequential_transactions()
         self.s21_batch_create_syntax()
         self.s22_batch_drop_syntax()
+        self.s23_reject_use_db_inside_txn()
+        self.s24_reject_show_inside_txn()
+        self.s25_reject_select_inside_txn()
+        self.s26_reject_insert_inside_txn()
