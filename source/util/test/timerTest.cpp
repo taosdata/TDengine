@@ -62,7 +62,7 @@ int gettimeofday(struct timeval* tp, void* tzp) {
 #include "tlog.h"
 #include "ttimer.h"
 
-// 调整系统时间的辅助函数，返回是否有权限
+// Helper function to adjust system time, returns whether permission is granted
 // adjust system time helper. On Windows we don't attempt to change system time here
 // (would require elevated privileges and different API). Return false so tests
 // that require changing system time will be skipped on Windows.
@@ -151,7 +151,7 @@ static bool adjustSystemTime(int64_t offsetMs) {
 #endif
 
 // ============================================================
-// 测试 1：系统时间向前跳（+1 小时），timer 应在预期时间内触发
+// Test 1: System time jumps forward (+1 hour), timer should trigger within expected time
 // ============================================================
 TEST(timerTest, TimerCorrectWhenTimeJumpForward) {
   void* ctrl = taosTmrInit(100, 10, 10000, "timerTest");
@@ -166,7 +166,7 @@ TEST(timerTest, TimerCorrectWhenTimeJumpForward) {
   int64_t startMonoMs = taosGetMonotonicMs();
   const int32_t     delayMs = 500;
 
-  // 启动一个 500ms 后触发的 timer
+  // Start a timer that triggers after 500ms
   taosTmrStart(
       [](void* p, tmr_h id) {
         auto* wf = static_cast<WaitFlag*>(p);
@@ -180,13 +180,13 @@ TEST(timerTest, TimerCorrectWhenTimeJumpForward) {
       },
       delayMs, &waitFlag, ctrl);
 
-  // timer 启动后立即将系统时间向前拨 1 小时
+  // Immediately adjust system time forward by 1 hour after timer starts
   bool hasPrivilege = adjustSystemTime(3600LL * 1000);
   if (!hasPrivilege) {
     GTEST_LOG_(WARNING) << "adjustSystemTime failed (no privilege?) - continuing test anyway";
   }
 
-  // 等待最多 3 秒（轮询以兼容老旧编译器）
+  // Wait up to 3 seconds (polling for compatibility with older compilers)
   int waited = 0;
   bool signaled = false;
   while (waited < 3000) {
@@ -208,14 +208,14 @@ TEST(timerTest, TimerCorrectWhenTimeJumpForward) {
     GTEST_LOG_(INFO) << "timer fired, elapsed=" << elapsed << "ms";
   }
 
-  // 时间还原
+  // Restore time
   adjustSystemTime(-3600LL * 1000);
 
   taosTmrCleanUp(ctrl);
 }
 
 // ============================================================
-// 测试 2：系统时间向后跳（-1 小时），timer 应在预期时间内触发
+// Test 2: System time jumps backward (-1 hour), timer should trigger within expected time
 // ============================================================
 TEST(timerTest, TimerCorrectWhenTimeJumpBackward) {
   void* ctrl = taosTmrInit(100, 10, 10000, "timerTest");
@@ -243,13 +243,13 @@ TEST(timerTest, TimerCorrectWhenTimeJumpBackward) {
       },
       delayMs, &waitFlag2, ctrl);
 
-  // timer 启动后立即将系统时间向后拨 1 小时
+  // Immediately adjust system time backward by 1 hour after timer starts
   bool hasPrivilege = adjustSystemTime(-3600LL * 1000);
   if (!hasPrivilege) {
     GTEST_LOG_(WARNING) << "adjustSystemTime failed (no privilege?) - continuing test anyway";
   }
 
-  // 等待最多 3 秒（轮询以兼容老旧编译器）
+  // Wait up to 3 seconds (polling for compatibility with older compilers)
   int waited2 = 0;
   bool signaled2 = false;
   while (waited2 < 3000) {
@@ -271,7 +271,7 @@ TEST(timerTest, TimerCorrectWhenTimeJumpBackward) {
     GTEST_LOG_(INFO) << "timer fired, elapsed=" << elapsed << "ms";
   }
 
-  // 时间还原
+  // Restore time
   adjustSystemTime(3600LL * 1000);
   taosTmrCleanUp(ctrl);
 }
