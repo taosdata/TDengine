@@ -1,10 +1,12 @@
 """
 Tests for Config class
 """
-import pytest
+import importlib.util
 import os
 import tempfile
 import shutil
+
+import pytest
 
 
 class TestConfig:
@@ -96,3 +98,18 @@ models = {
         assert isinstance(mock_config.app_log, str)
         assert isinstance(mock_config.model_dir, str)
         assert isinstance(mock_config.venv_dir, str)
+
+    def test_gunicorn_threads_is_integer(self):
+        """Gunicorn config must provide an integer threads value."""
+        config_path = os.path.join(
+            os.path.dirname(__file__),
+            "..",
+            "cfg",
+            "taosanode.config.py",
+        )
+        spec = importlib.util.spec_from_file_location("taosanode_config", config_path)
+        config_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(config_module)
+
+        assert isinstance(config_module.threads, int)
+        assert config_module.threads >= 2
