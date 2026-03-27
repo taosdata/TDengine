@@ -39,7 +39,7 @@ float min_f(float a, float b);
 float max_f(float a, float b);
 double getRealPrecision_double(double valueRangeSize, int errBoundMode, double absErrBound, double relBoundRatio, int *status);
 double getRealPrecision_float(float valueRangeSize, int errBoundMode, double absErrBound, double relBoundRatio, int *status);
-double getRealPrecision_int(long valueRangeSize, int errBoundMode, double absErrBound, double relBoundRatio, int *status);
+double getRealPrecision_int(int64_t valueRangeSize, int errBoundMode, double absErrBound, double relBoundRatio, int *status);
 void symTransform_8bytes(unsigned char data[8]);
 void symTransform_2bytes(unsigned char data[2]);
 void symTransform_4bytes(unsigned char data[4]);

@@ -1700,11 +1700,14 @@ static int32_t vnodeProcessDropStbReq(SVnode *pVnode, int64_t ver, void *pReq, i
   // process request
   tbUidList = taosArrayInit(8, sizeof(int64_t));
   if (tbUidList == NULL) goto _exit;
+  if (vnodeGetCtbIdList(pVnode, req.suid, tbUidList) != 0){
+    rcode = terrno;
+    goto _exit;
+  }
   if (metaDropSuperTable(pVnode->pMeta, ver, &req) < 0) {
     rcode = terrno;
     goto _exit;
   }
-
   if (tqDeleteTbUidList(pVnode->pTq, tbUidList) < 0) {
     rcode = terrno;
     goto _exit;
@@ -1970,6 +1973,12 @@ static int32_t vnodeProcessDropTbReq(SVnode *pVnode, int64_t ver, void *pReq, in
     }
 
     if (taosArrayPush(rsp.pArray, &dropTbRsp) == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      pRsp->code = terrno;
+      goto _exit;
+    }
+
+    if (taosArrayPush(tbUids, &pDropTbReq->uid) == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       pRsp->code = terrno;
       goto _exit;

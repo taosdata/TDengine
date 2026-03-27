@@ -1366,7 +1366,7 @@ int32_t initTimezoneInfo(void) {
     // minute_offset is in POSIX timezone convention (east-negative, west-positive).
     // For TZ env var, use the same convention: e.g., "-8:00" for UTC+8 (East 8).
      // Derive sign from the full minute_offset to handle sub-hour offsets correctly.
-     char sign = (minute_offset <= 0) ? '+' : '-';
+     char sign = (minute_offset < 0) ? '-' : '+';
      LONG abs_minutes = (minute_offset < 0) ? -minute_offset : minute_offset;
      int32_t offset_hours = (int32_t)(abs_minutes / 60);
      int32_t offset_mins = (int32_t)(abs_minutes % 60);

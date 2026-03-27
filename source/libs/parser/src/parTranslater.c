@@ -1500,7 +1500,8 @@ bool isPrimaryKeyImpl(SNode* pExpr) {
                FUNCTION_TYPE_TPREV_TS == pFunc->funcType || FUNCTION_TYPE_TCURRENT_TS == pFunc->funcType ||
                FUNCTION_TYPE_TNEXT_TS == pFunc->funcType || FUNCTION_TYPE_TWSTART == pFunc->funcType ||
                FUNCTION_TYPE_TWEND == pFunc->funcType || FUNCTION_TYPE_TPREV_LOCALTIME == pFunc->funcType ||
-               FUNCTION_TYPE_TNEXT_LOCALTIME == pFunc->funcType || FUNCTION_TYPE_TLOCALTIME == pFunc->funcType) {
+               FUNCTION_TYPE_TNEXT_LOCALTIME == pFunc->funcType || FUNCTION_TYPE_TLOCALTIME == pFunc->funcType ||
+               FUNCTION_TYPE_TIDLESTART == pFunc->funcType || FUNCTION_TYPE_TIDLEEND == pFunc->funcType) {
       return true;
     }
   } else if (QUERY_NODE_OPERATOR == nodeType(pExpr)) {
@@ -3946,6 +3947,16 @@ static EDealRes translatePlaceHolderFunc(STranslateContext* pCxt, SNode** pFunc)
       ((SValueNode*)extraValue)->isNull = true;
 
       pFuncNode->node.resType = pExpr->resType;
+      break;
+    }
+    case FUNCTION_TYPE_TIDLESTART: {
+      BIT_FLAG_SET_MASK(pCxt->streamInfo.placeHolderBitmap, PLACE_HOLDER_IDLE_START);
+      PAR_ERR_JRET(nodesMakeValueNodeFromTimestamp(0, &extraValue));
+      break;
+    }
+    case FUNCTION_TYPE_TIDLEEND: {
+      BIT_FLAG_SET_MASK(pCxt->streamInfo.placeHolderBitmap, PLACE_HOLDER_IDLE_END);
+      PAR_ERR_JRET(nodesMakeValueNodeFromTimestamp(0, &extraValue));
       break;
     }
     default:
@@ -7515,7 +7526,7 @@ static int32_t prepareColumnExpansion(STranslateContext* pCxt, ESqlClause clause
   if (TSDB_CODE_SUCCESS == code && LIST_LENGTH(pSelect->pProjectionBindList) > len) {
     code = translateExprList(pCxt, pSelect->pProjectionBindList);
   }
-  if (pSelect->pProjectionBindList != NULL) {
+  if (LIST_LENGTH(pSelect->pProjectionBindList) > 0) {
     pSelect->hasAggFuncs = true;
   }
   return code;
@@ -16464,6 +16475,28 @@ static int32_t createStreamReqBuildTriggerOptions(STranslateContext* pCxt, SCrea
     pReq->eventTypes = (pOptions->pEventType == EVENT_NONE ? EVENT_WINDOW_CLOSE : pOptions->pEventType);
   }
 
+  if (pOptions->pIdleTimeout) {
+    SNode* tmpStmt = pCxt->pCurrStmt;
+    pCxt->pCurrStmt = NULL;
+    PAR_ERR_JRET(translateExpr(pCxt, &pOptions->pIdleTimeout));
+    pCxt->pCurrStmt = tmpStmt;
+
+    int64_t idleTimeoutMs = ((SValueNode*)pOptions->pIdleTimeout)->datum.i;
+    // Validate range: 1s to 10d (1000ms to 864000000ms)
+    if (idleTimeoutMs < 1000 || idleTimeoutMs > 864000000) {
+      PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER,
+                                           "IDLE_TIMEOUT must be between 1s and 10d"));
+    }
+    pReq->idleTimeoutMs = idleTimeoutMs;
+  } else {
+    pReq->idleTimeoutMs = 0;
+    // Check: IDLE/RESUME events require IDLE_TIMEOUT (both calc and notify)
+    if ((pReq->eventTypes & (EVENT_IDLE | EVENT_RESUME)) || (pReq->notifyEventTypes & (EVENT_IDLE | EVENT_RESUME))) {
+      PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER,
+                                           "IDLE or RESUME event requires IDLE_TIMEOUT configuration"));
+    }
+  }
+
   pReq->igDisorder = (int8_t)pOptions->ignoreDisorder;
   pReq->deleteReCalc = (int8_t)pOptions->deleteRecalc;
   pReq->deleteOutTbl = (int8_t)pOptions->deleteOutputTable;
@@ -17520,12 +17553,17 @@ _return:
 static int32_t createStreamReqCheckPlaceHolder(STranslateContext* pCxt, SCMCreateStreamReq* pReq,
                                                int32_t placeHolderBitmap, SNodeList* pTriggerPartition) {
   int32_t code = TSDB_CODE_SUCCESS;
+  bool hasIdleResumeEvent = (pReq->eventTypes & (EVENT_IDLE | EVENT_RESUME)) != 0;
   if (BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, PLACE_HOLDER_CURRENT_TS) ||
       BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, PLACE_HOLDER_PREV_TS) ||
       BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, PLACE_HOLDER_NEXT_TS)) {
     if (!(pReq->triggerType == WINDOW_TYPE_INTERVAL && pReq->trigger.sliding.interval == 0)) {
       PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_PLACE_HOLDER,
                                            "_tcurrent_ts/_tprev_ts/_tnext_ts can only be used in sliding window"));
+    }
+    if (hasIdleResumeEvent) {
+      PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_PLACE_HOLDER,
+                                           "_tcurrent_ts/_tprev_ts/_tnext_ts can not be used when event type includes IDLE or RESUME"));
     }
   }
 
@@ -17539,6 +17577,10 @@ static int32_t createStreamReqCheckPlaceHolder(STranslateContext* pCxt, SCMCreat
                                            "_twstart/_twend/_twduration/_twrownum can not be used in period window and "
                                            "sliding window without interval"));
     }
+    if (hasIdleResumeEvent) {
+      PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_PLACE_HOLDER,
+                                           "_twstart/_twend/_twduration/_twrownum can not be used when event type includes IDLE or RESUME"));
+    }
   }
 
   if (BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, PLACE_HOLDER_PREV_LOCAL) ||
@@ -17546,6 +17588,10 @@ static int32_t createStreamReqCheckPlaceHolder(STranslateContext* pCxt, SCMCreat
     if (pReq->triggerType != WINDOW_TYPE_PERIOD) {
       PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_PLACE_HOLDER,
                                            "_tprev_localtime/_tnext_localtime can only be used in period window"));
+    }
+    if (hasIdleResumeEvent) {
+      PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_PLACE_HOLDER,
+                                           "_tprev_localtime/_tnext_localtime can not be used when event type includes IDLE or RESUME"));
     }
   }
 
@@ -17560,6 +17606,13 @@ static int32_t createStreamReqCheckPlaceHolder(STranslateContext* pCxt, SCMCreat
     if (pReq->eventTypes != EVENT_WINDOW_CLOSE) {
       PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_PLACE_HOLDER,
                                            "%%%%trows can only be used when event type is window close"));
+    }
+  }
+
+  if (BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, PLACE_HOLDER_IDLE_START) || BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, PLACE_HOLDER_IDLE_END)) {
+    if (pReq->eventTypes != EVENT_IDLE && pReq->eventTypes != EVENT_RESUME && pReq->eventTypes != (EVENT_IDLE | EVENT_RESUME)) {
+      PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_PLACE_HOLDER,
+                                           "_tidlestart/_tidleend can be used when event type only includes IDLE or RESUME"));
     }
   }
 
@@ -18102,6 +18155,7 @@ static int32_t createStreamReqBuildDefaultReq(STranslateContext* pCxt, SCreateSt
   pReq->calcTsSlotId = -1;
   pReq->triPkSlotId = -1;
   pReq->calcPkSlotId = -1;
+  pReq->idleTimeoutMs = 0;
 
   return TSDB_CODE_SUCCESS;
 }
@@ -18895,13 +18949,16 @@ static int32_t translateGrantCheckFillObject(STranslateContext* pCxt, SGrantStmt
     case PRIV_OBJ_STREAM:
       TAOS_CHECK_EXIT(privExpandAll(&pReq->privileges.privSet, objType, objLevel));
       break;
+    case PRIV_OBJ_XTASK:
+      TAOS_CHECK_EXIT(privExpandAll(&pReq->privileges.privSet, objType, objLevel));
+      break;
     case PRIV_OBJ_MOUNT:
       break;
     case PRIV_OBJ_AUDIT:
       break;
     case PRIV_OBJ_TOKEN:
       break;
-    case PRIV_OBJ_NONE: 
+    case PRIV_OBJ_NONE:
       break;
     default:
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
@@ -20128,7 +20185,12 @@ static int32_t translateDropTSMA(STranslateContext* pCxt, SDropTSMAStmt* pStmt) 
   }
   PAR_ERR_JRET(tNameExtractFullName(&name, dropStreamReq.name[0]));
 
-  PAR_ERR_JRET(getTsma(pCxt, &name, &pTsma));
+  code = getTsma(pCxt, &name, &pTsma);
+  if (code == TSDB_CODE_MND_SMA_NOT_EXIST && dropReq.igNotExists) {
+    code = TSDB_CODE_SUCCESS;
+    goto _return;
+  }
+  PAR_ERR_JRET(code);
   toName(pCxt->pParseCxt->acctId, pStmt->dbName, pTsma->tb, &name);
   PAR_ERR_JRET(collectUseTable(&name, pCxt->pTargetTables));
 

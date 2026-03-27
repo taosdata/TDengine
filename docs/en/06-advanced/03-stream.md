@@ -45,17 +45,17 @@ true_for_expr: {
   | duration_time OR COUNT count_val
 }
 
-stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISORDER | DELETE_RECALC | DELETE_OUTPUT_TABLE | FILL_HISTORY[(start_time)] | FILL_HISTORY_FIRST[(start_time)] | CALC_NOTIFY_ONLY | LOW_LATENCY_CALC | PRE_FILTER(expr) | FORCE_OUTPUT | MAX_DELAY(delay_time) | EVENT_TYPE(event_types)}
+stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISORDER | DELETE_RECALC | DELETE_OUTPUT_TABLE | FILL_HISTORY[(start_time)] | FILL_HISTORY_FIRST[(start_time)] | CALC_NOTIFY_ONLY | LOW_LATENCY_CALC | PRE_FILTER(expr) | FORCE_OUTPUT | MAX_DELAY(delay_time) | EVENT_TYPE(event_types) | IDLE_TIMEOUT(duration_time)}
 
 notification_definition:
     NOTIFY(url [, ...]) [ON (event_types)] [WHERE condition] [NOTIFY_OPTIONS(notify_option[|notify_option])]
 
 notify_option: [NOTIFY_HISTORY | ON_FAILURE_PAUSE]
-    
+
 event_types:
-    event_type [|event_type]    
-    
-event_type: {WINDOW_OPEN | WINDOW_CLOSE}    
+    event_type [|event_type]
+
+event_type: {WINDOW_OPEN | WINDOW_CLOSE | IDLE | RESUME}
 
 tag_definition:
     tag_name type_name [COMMENT 'string_value'] AS expr
@@ -96,6 +96,8 @@ A computation task is the calculation executed by the stream after an event is t
 - `_twend`: end timestamp of current window
 - `_twduration`: duration of current window
 - `_twrownum`: number of rows in current window
+- `_tidlestart`: the time (processing time) of the last data received before the group entered idle state (nanosecond precision). Applicable only for IDLE/RESUME triggers. Cannot be mixed with `_twstart/_twend`.
+- `_tidleend`: the trigger time of the IDLE or RESUME event (nanosecond precision). Applicable only for IDLE/RESUME triggers. Cannot be mixed with `_twstart/_twend`.
 - `_tprev_localtime`: system time of previous trigger
 - `_tnext_localtime`: system time of next trigger
 - `_tgrpid`: ID of trigger group
@@ -119,8 +121,9 @@ Control options are used to manage trigger and computation behavior. Multiple op
 - PRE_FILTER(expr) specifies data filtering on the trigger table before evaluation. Only rows that meet the condition will be considered for triggering.
 - FORCE_OUTPUT forces an output row even when a trigger produces no computation result.
 - MAX_DELAY(delay_time) defines the maximum waiting time (processing time) before a window is forcibly triggered if it has not yet closed.
-- EVENT_TYPE(event_types) specifies the types of events that can trigger (open or close) a window.
+- EVENT_TYPE(event_types) specifies the types of events that can trigger a window, including window open/close events and idle (IDLE) and resume (RESUME) events.
 - IGNORE_NODATA_TRIGGER ignores triggers when the trigger table has no input data.
+- IDLE_TIMEOUT(duration_time) enables group idle detection and specifies the idle timeout duration (valid range: 1s to 10d). Must be used together with `EVENT_TYPE(IDLE)` and/or `EVENT_TYPE(RESUME)`.
 
 ### Notification Mechanism
 
