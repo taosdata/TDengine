@@ -3,8 +3,20 @@
 # =========================================================
 
 option(
+    BUILD_ENTERPRISE
+    "If build enterprise edition (requires sibling taos-internal repo)"
+    OFF
+)
+
+option(
     BUILD_TEST
     "If build unit tests using googletest"
+    OFF
+)
+
+option(
+    USE_CONAN
+    "Use Conan for dependency management"
     OFF
 )
 

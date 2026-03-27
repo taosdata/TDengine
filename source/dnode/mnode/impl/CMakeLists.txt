@@ -5,14 +5,14 @@ if(TD_PRIVILEGE)
 endif()
 
 if(TD_ENTERPRISE)
-  LIST(APPEND MNODE_SRC ${TD_ENTERPRISE_DIR}/src/plugins/privilege/src/privilege.c)
-  LIST(APPEND MNODE_SRC ${TD_ENTERPRISE_DIR}/src/plugins/mnode/src/mndDb.c)
-  LIST(APPEND MNODE_SRC ${TD_ENTERPRISE_DIR}/src/plugins/mnode/src/mndVgroup.c)
-  LIST(APPEND MNODE_SRC ${TD_ENTERPRISE_DIR}/src/plugins/mnode/src/mndDnode.c)
-  LIST(APPEND MNODE_SRC ${TD_ENTERPRISE_DIR}/src/plugins/view/src/mndView.c)
-  LIST(APPEND MNODE_SRC ${TD_ENTERPRISE_DIR}/src/plugins/mnode/src/mndMount.c)
-  LIST(APPEND MNODE_SRC ${TD_ENTERPRISE_DIR}/src/plugins/token/src/mndTokenImpl.c)
-  LIST(APPEND MNODE_SRC ${TD_ENTERPRISE_DIR}/src/plugins/xnode/src/mndXnodeImpl.c)
+  LIST(APPEND MNODE_SRC ${TD_ENTERPRISE_DIR}/source/plugins/privilege/src/privilege.c)
+  LIST(APPEND MNODE_SRC ${TD_ENTERPRISE_DIR}/source/plugins/mnode/src/mndDb.c)
+  LIST(APPEND MNODE_SRC ${TD_ENTERPRISE_DIR}/source/plugins/mnode/src/mndVgroup.c)
+  LIST(APPEND MNODE_SRC ${TD_ENTERPRISE_DIR}/source/plugins/mnode/src/mndDnode.c)
+  LIST(APPEND MNODE_SRC ${TD_ENTERPRISE_DIR}/source/plugins/view/src/mndView.c)
+  LIST(APPEND MNODE_SRC ${TD_ENTERPRISE_DIR}/source/plugins/mnode/src/mndMount.c)
+  LIST(APPEND MNODE_SRC ${TD_ENTERPRISE_DIR}/source/plugins/token/src/mndTokenImpl.c)
+  LIST(APPEND MNODE_SRC ${TD_ENTERPRISE_DIR}/source/plugins/xnode/src/mndXnodeImpl.c)
 
   if(${BUILD_WITH_S3})
     add_definitions(-DUSE_S3)
@@ -35,13 +35,13 @@ target_include_directories(
   PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
   PUBLIC "${TD_SOURCE_DIR}/source/libs/totp/inc"
   "${TD_SOURCE_DIR}/include/libs/txnode/inc"
-  PRIVATE "${TD_ENTERPRISE_DIR}/src/plugins/privilege/inc"
+  PRIVATE "${TD_ENTERPRISE_DIR}/source/plugins/privilege/inc"
 )
 
 if(TD_ENTERPRISE)
   target_include_directories(
     mnode
-    PRIVATE "${TD_ENTERPRISE_DIR}/src/plugins/taosk/inc"
+    PRIVATE "${TD_ENTERPRISE_DIR}/source/plugins/taosk/inc"
   )
 endif()
 target_link_libraries(

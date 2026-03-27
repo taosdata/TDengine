@@ -108,11 +108,11 @@ if(TD_VNODE_PLUGINS)
     target_sources(
         vnode
         PRIVATE
-        ${TD_ENTERPRISE_DIR}/src/plugins/vnode/src/tsdbCompact.c
-        ${TD_ENTERPRISE_DIR}/src/plugins/vnode/src/metaCompact.c
-        ${TD_ENTERPRISE_DIR}/src/plugins/vnode/src/tsdbCompactMonitor.c
-        ${TD_ENTERPRISE_DIR}/src/plugins/vnode/src/vnodeCompact.c
-        ${TD_ENTERPRISE_DIR}/src/plugins/vnode/src/tsdbRollup.c
+        ${TD_ENTERPRISE_DIR}/source/plugins/vnode/src/tsdbCompact.c
+        ${TD_ENTERPRISE_DIR}/source/plugins/vnode/src/metaCompact.c
+        ${TD_ENTERPRISE_DIR}/source/plugins/vnode/src/tsdbCompactMonitor.c
+        ${TD_ENTERPRISE_DIR}/source/plugins/vnode/src/vnodeCompact.c
+        ${TD_ENTERPRISE_DIR}/source/plugins/vnode/src/tsdbRollup.c
     )
 endif()
 

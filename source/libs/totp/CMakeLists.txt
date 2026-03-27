@@ -1,7 +1,7 @@
 aux_source_directory(src TOTP_SRC)
 
 IF(TD_ENTERPRISE)
-  LIST(APPEND TOTP_SRC ${TD_ENTERPRISE_DIR}/src/plugins/totp/totpImpl.c)
+  LIST(APPEND TOTP_SRC ${TD_ENTERPRISE_DIR}/source/plugins/totp/totpImpl.c)
 ENDIF()
 
 add_library(totp STATIC ${TOTP_SRC})

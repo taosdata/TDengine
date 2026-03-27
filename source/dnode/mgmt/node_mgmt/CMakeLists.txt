@@ -30,6 +30,6 @@ if(TD_ENTERPRISE)
   # Include taosk headers for encryption key management
   target_include_directories(
     dnode
-    PRIVATE "${TD_ENTERPRISE_DIR}/src/plugins/taosk/inc"
+    PRIVATE "${TD_ENTERPRISE_DIR}/source/plugins/taosk/inc"
   )
 endif()
