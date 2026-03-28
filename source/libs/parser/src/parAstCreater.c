@@ -2637,7 +2637,11 @@ SNode* createExternalWindowClause(SAstCreateContext* pCxt, SNode* pSubquery, STo
 
   return (SNode*)pExtWin;
 _err:
-  nodesDestroyNode((SNode*)pExtWin);
+  if (pExtWin) {
+    pExtWin->pSubquery = NULL;
+    pExtWin->pFill = NULL;
+    nodesDestroyNode((SNode*)pExtWin);
+  }
   nodesDestroyNode(pSubquery);
   nodesDestroyNode(pFill);
   return NULL;

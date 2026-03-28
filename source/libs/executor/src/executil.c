@@ -3550,13 +3550,13 @@ int32_t tableListGetTableGroupId(const STableListInfo* pTableList, uint64_t tabl
   int32_t* slot = taosHashGet(pTableList->map, &tableUid, sizeof(tableUid));
   if (slot == NULL) {
     qDebug("table:%" PRIu64 " not found in table list", tableUid);
-    return -1;
+    return TSDB_CODE_PAR_TABLE_NOT_EXIST;
   }
 
   STableKeyInfo* pKeyInfo = taosArrayGet(pTableList->pTableList, *slot);
   if (pKeyInfo == NULL) {
     qDebug("table:%" PRIu64 " not found in table list", tableUid);
-    return -1;
+    return TSDB_CODE_PAR_TABLE_NOT_EXIST;
   }
 
   *gid = pKeyInfo->groupId;
