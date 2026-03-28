@@ -293,37 +293,45 @@ class Config:
             "tdtsfm": {
                 "script": "tdtsfm-server.py",
                 "default_model": None,
-                "port": 6036,
+                "port": 6061,
+                "endpoint": "/tdtsfm",
+                "algo_name": "tdtsfm_1",
                 "required": True,
             },
             "timemoe": {
                 "script": "timemoe-server.py",
                 "default_model": "Maple728/TimeMoE-200M",
-                "port": 6037,
+                "port": 6062,
+                "endpoint": "/ds_predict",
+                "algo_name": "timemoe_fc",
                 "required": True,
             },
             "moirai": {
                 "script": "moirai-server.py",
                 "default_model": "Salesforce/moirai-moe-1.0-R-small",
-                "port": 6039,
+                "port": 6064,
+                "endpoint": "/ds_predict",
                 "required": False,
             },
             "chronos": {
                 "script": "chronos-server.py",
                 "default_model": "amazon/chronos-bolt-base",
-                "port": 6038,
+                "port": 6063,
+                "endpoint": "/ds_predict",
                 "required": False,
             },
             "timesfm": {
                 "script": "timesfm-server.py",
                 "default_model": "google/timesfm-2.0-500m-pytorch",
-                "port": 6061,
+                "port": 6065,
+                "endpoint": "/ds_predict",
                 "required": False,
             },
             "moment": {
                 "script": "moment-server.py",
                 "default_model": "AutonLab/MOMENT-1-base",
-                "port": 6062,
+                "port": 6066,
+                "endpoint": "/imputation",
                 "required": False,
             },
         }
@@ -1402,12 +1410,16 @@ class ModelService:
             raise ValueError(f"Unknown model: {model_name}")
 
         model_dir = os.path.join(self.config.model_dir, model_name)
+        port = model_config.get("port", 0)
         args = []
 
         if model_name == "tdtsfm":
             args = [model_dir, "--action", "server"]
         elif model_config.get("default_model"):
             args = [model_dir, model_config["default_model"], "False"]
+        if port:
+            args += ["--port", str(port)]
+
 
         return args
 
