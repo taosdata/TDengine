@@ -12,9 +12,9 @@ public class WSConnectExample {
     public static void main(String[] args) throws Exception {
         // use
         // String jdbcUrl =
-        // "jdbc:TAOS-WS://localhost:6041/dbName?user=root&password=taosdata";
+        // "jdbc:TAOS-WS://localhost:6041/dbName?user=root&password=taosdata&varcharAsString=true";
         // if you want to connect a specified database named "dbName".
-        String jdbcUrl = "jdbc:TAOS-WS://localhost:6041?user=root&password=taosdata";
+        String jdbcUrl = "jdbc:TAOS-WS://localhost:6041?user=root&password=taosdata&varcharAsString=true";
         Properties connProps = new Properties();
         connProps.setProperty(TSDBDriver.PROPERTY_KEY_ENABLE_AUTO_RECONNECT, "true");
         connProps.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");

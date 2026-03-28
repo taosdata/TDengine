@@ -21,16 +21,16 @@ public class Util {
 
     public static Connection getConnection() throws SQLException {
         String jdbcURL = System.getenv("TDENGINE_JDBC_URL");
-        if (jdbcURL == null || jdbcURL == "") {
-            jdbcURL = "jdbc:TAOS-WS://localhost:6041/?user=root&password=taosdata";
+        if (jdbcURL == null || jdbcURL.isEmpty()) {
+            jdbcURL = "jdbc:TAOS-WS://localhost:6041/?user=root&password=taosdata&varcharAsString=true";
         }
         return DriverManager.getConnection(jdbcURL);
     }
 
     public static Connection getConnection(int batchSize, int cacheSize, int writeThreadNum) throws SQLException {
         String jdbcURL = System.getenv("TDENGINE_JDBC_URL");
-        if (jdbcURL == null || jdbcURL == "") {
-            jdbcURL = "jdbc:TAOS-WS://localhost:6041/?user=root&password=taosdata";
+        if (jdbcURL == null || jdbcURL.isEmpty()) {
+            jdbcURL = "jdbc:TAOS-WS://localhost:6041/?user=root&password=taosdata&varcharAsString=true";
         }
         Properties properties = new Properties();
         properties.setProperty(TSDBDriver.PROPERTY_KEY_ASYNC_WRITE, "stmt");

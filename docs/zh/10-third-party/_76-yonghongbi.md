@@ -26,7 +26,7 @@ description: 使用 TDengine 连接永洪 BI
 3. 然后请复制下面的内容到“URL”字段：
 
 ```bash
-jdbc:TAOS-WS://localhost:6041?user=root&password=taosdata
+jdbc:TAOS-WS://localhost:6041?user=root&password=taosdata&varcharAsString=true
 ```
 
 4. 接着在“认证方式”选择“无身份认证”。

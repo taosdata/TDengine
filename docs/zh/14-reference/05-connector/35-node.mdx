@@ -23,6 +23,7 @@ Node.js 连接器源码托管在 [GitHub](https://github.com/taosdata/taos-conne
 
 | Node.js 连接器 版本 |          主要变化         |   TDengine TSDB 版本    |
 | ------------------| ----------------------| ----------------|
+|        3.3.0       | 支持负载均衡和故障转移 | - |
 |        3.2.3       | 1. 支持令牌身份认证 <br/> 2. 支持上报连接器版本信息 | - |
 |        3.2.2       | 修复 Windows 系统上的时区处理问题 | - |
 |        3.2.1       | 修复 SQL 查询结果排序问题 | - |
@@ -101,16 +102,21 @@ Node.js 连接器（`@tdengine/websocket`）, 其通过 taosAdapter 提供的 We
 ### URL 规范
 
 ```text
-[+<protocol>]://[[<username>:<password>@]<host>:<port>][/<database>][?<p1>=<v1>[&<p2>=<v2>]]
-|------------|---|-----------|-----------|------|------|------------|-----------------------|
-|   protocol |   | username  | password  | host | port |  database  |  params               |
+[+<protocol>]://[<username>:<password>@][<host1>:<port1>[,...<hostN>:<portN>]][/<database>][?<p1>=<v1>[&<p2>=<v2>]]
+|-----------|---|-----------|-----------|------------------------------------|------------|-----------------------|
+|  protocol |   | username  | password  |  addresses                         |  database  |  params               |
 ```
 
-- **protocol**：使用 websocket 协议建立连接。例如`ws://localhost:6041`
-- **username/password**：数据库的用户名和密码。
-- **host/port**：参数支持合法的域名或 IP 地址。`@tdengine/websocket` 同时支持 IPV4 和 IPV6 两种地址格式，对于 IPv6 地址，必须使用中括号括起来（例如 `[::1]` 或 `[2001:db8:1234:5678::1]`），以避免端口号解析冲突。
+- **protocol**：使用 WebSocket 协议建立连接。例如 `ws://localhost:6041`。
+- **username/password**：数据库用户名和密码。
+- **addresses**：地址列表，支持一个或多个 `host:port`，多个地址之间使用英文逗号分隔（例如 `localhost:6041,localhost:6042`）。`@tdengine/websocket` 同时支持 IPv4 和 IPv6 两种地址格式。对于 IPv6 地址，必须使用中括号包裹（例如 `[::1]` 或 `[2001:db8:1234:5678::1]`），以避免与端口号解析冲突。
 - **database**：数据库名称。
-- **params**：其他参数。例如 token。
+- **params**：
+  - `token`：用于 TDengine TSDB 云服务身份认证。
+  - `bearer_token`：用于 TDengine TSDB 身份认证，优先级高于用户名/密码。
+  - `retries`：连接失败时的最大重试次数，默认为 5。
+  - `retry_backoff_ms`：连接失败时的初始等待时间（毫秒），默认为 200。该值会随连续失败按指数增长，直到达到最大等待时间。
+  - `retry_backoff_max_ms`：连接失败时的最大等待时间（毫秒），默认为 2000。
 
 - 完整 DSN 示例：
 
@@ -120,6 +126,9 @@ ws://root:taosdata@localhost:6041
 
 // IPV6:
 ws://root:taosdata@[::1]:6041
+
+// 多地址（可用于负载均衡和故障转移场景）:
+ws://root:taosdata@localhost:6041,localhost:6042,localhost:6043
 ```
 
 ### WSConfig
