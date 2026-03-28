@@ -540,7 +540,7 @@ EXTERNAL_WINDOW (
 [ORDER BY ...]
 ```
 
-Where：
+Where:
 
 - The first two columns of the subquery must be of timestamp type, representing the window start time and window end time respectively
 - Columns from the 3rd column onward become "window attribute columns"
@@ -613,7 +613,6 @@ ORDER BY w.equipment_id, fault_start_time;
 - The first two columns of the window subquery must be of timestamp type, representing window start and end times
 - Window data must be sorted in ascending order by _wstart
 - If the external window (inner subquery) uses PARTITION BY, the outer query must also use PARTITION BY; otherwise, a syntax error occurs
-- FILL is not supported in this release
 - Variable-length functions (like DIFF, INTERP) are not supported within window scope
 
 ## Time Range Expression

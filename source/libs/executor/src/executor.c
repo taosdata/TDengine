@@ -243,7 +243,7 @@ static int32_t checkInsertParam(SStreamInserterParam* streamInserterParam) {
 
   if (streamInserterParam->suid <= 0 &&
       (streamInserterParam->tbname == NULL || strlen(streamInserterParam->tbname) == 0)) {
-    stError("insertParam: invalid table name: %s, suid:%" PRIx64 "", streamInserterParam->tbname, streamInserterParam->suid);
+    stError("insertParam: invalid table name: %s, suid:%" PRIx64 "", streamInserterParam->tbname ? streamInserterParam->tbname : "(null)", streamInserterParam->suid);
     return TSDB_CODE_INVALID_PARA;
   }
 

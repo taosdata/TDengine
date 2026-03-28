@@ -1801,8 +1801,6 @@ int32_t validateExprSubQuery(SNode* pNode) {
 }
 
 void getExprSubQueryResType(SNode* pNode, SDataType* pType) {
-  int32_t code = TSDB_CODE_SUCCESS;
-
   switch (nodeType(pNode)) {
     case QUERY_NODE_SELECT_STMT: {
       SSelectStmt* pSelect = (SSelectStmt*)pNode;
@@ -1834,6 +1832,7 @@ void getExprSubQueryResCols(SNode* pNode, int32_t* cols) {
       break;
     }
     default:
+      *cols = 0;
       break;
   }
 }

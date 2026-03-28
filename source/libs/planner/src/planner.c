@@ -163,6 +163,7 @@ int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNo
   SQueryLogicPlan* pLogicPlan = NULL;
   int32_t          code = TSDB_CODE_SUCCESS;
   int32_t          lino = 0;
+  bool             allocatorReleased = false;
 
   TAOS_CHECK_EXIT(nodesAcquireAllocator(pCxt->allocatorId));
   TAOS_CHECK_EXIT(createLogicPlan(pCxt, &pLogicSubplan));
@@ -172,12 +173,15 @@ int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNo
   TAOS_CHECK_EXIT(createPhysiPlan(pCxt, pLogicPlan, pPlan, pExecNodeList));
   TAOS_CHECK_EXIT(validateQueryPlan(pCxt, *pPlan));
   (void)nodesReleaseAllocator(pCxt->allocatorId);
+  allocatorReleased = true;
   TAOS_CHECK_EXIT(createSubQueryPlans(pCxt, *pPlan, pExecNodeList));
   TAOS_CHECK_EXIT(dumpQueryPlan(*pPlan));
 
 _exit:
   if (TSDB_CODE_SUCCESS != code) {
-    (void)nodesReleaseAllocator(pCxt->allocatorId);
+    if (!allocatorReleased) {
+      (void)nodesReleaseAllocator(pCxt->allocatorId);
+    }
     planError("QID:0x%" PRIx64 ", qCreateQueryPlan failed at line:%d, code:%s", pCxt->queryId, lino, tstrerror(code));
   }
   nodesDestroyNode((SNode*)pLogicSubplan);

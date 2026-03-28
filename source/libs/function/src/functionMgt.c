@@ -35,10 +35,10 @@ static int32_t         initFunctionCode = 0;
 
 static void InitSpecialFuncId() {
   // just to make sure the funcId of these functions are initialized before used.
-  int32_t tmp = fmGetTwstartFuncId();
-  tmp = fmGetTwendFuncId();
-  tmp = fmGetTwdurationFuncId();
-  tmp = fmGetExternalWindowColumnFuncId();
+  (void)fmGetTwstartFuncId();
+  (void)fmGetTwendFuncId();
+  (void)fmGetTwdurationFuncId();
+  (void)fmGetExternalWindowColumnFuncId();
 }
 
 static void doInitFunctionTable() {
@@ -448,6 +448,9 @@ bool fmIsPrimaryKeyFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, 
 bool fmIsPlaceHolderFunc(int32_t funcId) {return isSpecificClassifyFunc(funcId, FUNC_MGT_PLACE_HOLDER_FUNC); }
 
 bool fmIsPlaceHolderFuncForExternalWin(int32_t funcId) {
+  if (funcId < 0 || funcId >= funcMgtBuiltinsNum) {
+    return false;
+  }
   return (funcMgtBuiltins[funcId].type == FUNCTION_TYPE_WSTART || funcMgtBuiltins[funcId].type == FUNCTION_TYPE_WEND ||
           funcMgtBuiltins[funcId].type == FUNCTION_TYPE_WDURATION);
 }
