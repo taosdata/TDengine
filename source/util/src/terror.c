@@ -558,7 +558,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_VND_VNODE_OFFLINE,            "Vnode is offline")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_EXCEED_MAX_COL_ID,        "Exceed max column id")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_SAME_TAG,                 "Tags are same")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_TXN_STALE_TERM,          "Vnode txn stale term")
-TAOS_DEFINE_ERROR(TSDB_CODE_VND_TXN_CONFLICT,            "Vnode txn conflict")
+TAOS_DEFINE_ERROR(TSDB_CODE_VND_TXN_CONFLICT,            "Table is locked by an uncommitted transaction")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_TXN_EXPIRED,             "Vnode txn expired")
 
 // tsdb

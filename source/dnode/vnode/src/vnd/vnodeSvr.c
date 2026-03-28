@@ -1555,7 +1555,7 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, 
     // do create table (non-transactional path)
     // First check if table name conflicts with any active txn shadow
     {
-      int32_t conflictCode = vnodeTxnCheckConflict(pVnode, tbName, TXN_CONFLICT_OP_CREATE);
+      int32_t conflictCode = vnodeTxnCheckConflict(pVnode, pCreateReq->name, TXN_CONFLICT_OP_CREATE);
       if (conflictCode != TSDB_CODE_SUCCESS) {
         cRsp.code = conflictCode;
         if (taosArrayPush(rsp.pArray, &cRsp) == NULL) {
@@ -1860,9 +1860,7 @@ static int32_t vnodeProcessAlterTbReq(SVnode *pVnode, int64_t ver, void *pReq, i
   // process (non-transactional path)
   // Check for conflict with active txn shadow
   {
-    char alterTbNameFull[TSDB_TABLE_FNAME_LEN];
-    (void)snprintf(alterTbNameFull, TSDB_TABLE_FNAME_LEN, "%s.%s", pVnode->config.dbname, vAlterTbReq.tbName);
-    int32_t conflictCode = vnodeTxnCheckConflict(pVnode, alterTbNameFull, TXN_CONFLICT_OP_ALTER);
+    int32_t conflictCode = vnodeTxnCheckConflict(pVnode, vAlterTbReq.tbName, TXN_CONFLICT_OP_ALTER);
     if (conflictCode != TSDB_CODE_SUCCESS) {
       vAlterTbRsp.code = conflictCode;
       tDecoderClear(&dc);
@@ -1981,9 +1979,7 @@ static int32_t vnodeProcessDropTbReq(SVnode *pVnode, int64_t ver, void *pReq, in
     /* non-transactional path */
     // Check for conflict with active txn shadow
     {
-      char dropTbNameFull[TSDB_TABLE_FNAME_LEN];
-      (void)snprintf(dropTbNameFull, TSDB_TABLE_FNAME_LEN, "%s.%s", pVnode->config.dbname, pDropTbReq->name);
-      int32_t conflictCode = vnodeTxnCheckConflict(pVnode, dropTbNameFull, TXN_CONFLICT_OP_DROP);
+      int32_t conflictCode = vnodeTxnCheckConflict(pVnode, pDropTbReq->name, TXN_CONFLICT_OP_DROP);
       if (conflictCode != TSDB_CODE_SUCCESS) {
         dropTbRsp.code = conflictCode;
         if (taosArrayPush(rsp.pArray, &dropTbRsp) == NULL) {
@@ -3742,9 +3738,7 @@ static int32_t vnodeProcessBatchDeleteReq(SVnode *pVnode, int64_t ver, void *pRe
 
     // Check if table is in PREPARED_DROP shadow (DELETE vs PREPARED_DROP → conflict)
     {
-      char fullTbName[TSDB_TABLE_FNAME_LEN];
-      (void)snprintf(fullTbName, TSDB_TABLE_FNAME_LEN, "%s.%s", pVnode->config.dbname, name);
-      int32_t conflictCode = vnodeTxnCheckConflict(pVnode, fullTbName, TXN_CONFLICT_OP_DROP);
+      int32_t conflictCode = vnodeTxnCheckConflict(pVnode, name, TXN_CONFLICT_OP_DROP);
       if (conflictCode != TSDB_CODE_SUCCESS) {
         vWarn("vgId:%d, batch delete conflict for table %s, code:0x%x", TD_VID(pVnode), name, conflictCode);
         tDecoderClear(&mr.coder);

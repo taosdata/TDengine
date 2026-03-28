@@ -290,6 +290,19 @@ static int32_t metaCheckCreateChildTableReq(SMeta *pMeta, int64_t version, SVCre
       return TSDB_CODE_TDB_TABLE_IN_OTHER_STABLE;
     }
 
+    // Batch meta txn: if existing entry is a PRE_CREATE shadow from another txn,
+    // return TXN_CONFLICT instead of TABLE_ALREADY_EXIST
+    {
+      SMetaEntry *pExist = NULL;
+      if (metaFetchEntryByUid(pMeta, pReq->uid, &pExist) == 0 && pExist != NULL) {
+        if (pExist->txnId != 0 && pExist->txnStatus == META_TXN_PRE_CREATE && pExist->txnId != pReq->txnId) {
+          metaFetchEntryFree(&pExist);
+          return TSDB_CODE_VND_TXN_CONFLICT;
+        }
+        metaFetchEntryFree(&pExist);
+      }
+    }
+
     return TSDB_CODE_TDB_TABLE_ALREADY_EXIST;
   }
 
@@ -443,6 +456,20 @@ static int32_t metaCheckCreateNormalTableReq(SMeta *pMeta, int64_t version, SVCr
     // for auto create table, we return the uid of the existing table
     pReq->uid = *(tb_uid_t *)value;
     tdbFree(value);
+
+    // Batch meta txn: if existing entry is a PRE_CREATE shadow from another txn,
+    // return TXN_CONFLICT instead of TABLE_ALREADY_EXIST
+    {
+      SMetaEntry *pExist = NULL;
+      if (metaFetchEntryByUid(pMeta, pReq->uid, &pExist) == 0 && pExist != NULL) {
+        if (pExist->txnId != 0 && pExist->txnStatus == META_TXN_PRE_CREATE && pExist->txnId != pReq->txnId) {
+          metaFetchEntryFree(&pExist);
+          return TSDB_CODE_VND_TXN_CONFLICT;
+        }
+        metaFetchEntryFree(&pExist);
+      }
+    }
+
     return TSDB_CODE_TDB_TABLE_ALREADY_EXIST;
   }
 
