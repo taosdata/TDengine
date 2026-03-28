@@ -174,6 +174,7 @@ taosgen -h 127.0.0.1 -c config.yaml
       - tbname_index（整数）：指定表名称所在的列索引（从 0 开始），默认为 -1，表示未生效。
       - exclude_indices（字符串）：如果仅想使用部分标签列时，此参数用于指定剔除的无用标签列的索引（从 0 开始），列索引之间使用英文逗号，分隔，默认值为空，表示不剔除。
     - columns：时序数据列的配置参数。
+      - loading_mode（字符串）：CSV 数据加载模式，可选值为 "preload"（全量加载到内存）和 "streaming"（流式逐行读取），默认为 "preload"。
       - file_path（字符串）：时序数据 CSV 文件路径。支持单个文件、目录路径（自动识别目录下所有 `.csv` 文件）和 glob 通配符（如 `data_*.csv`）。多文件按文件名字母升序读取并逻辑串联为连续数据流，所有文件须具有相同的列结构。
       - has_header（布尔）：是否包含表头行，默认为 true。
       - repeat_read（布尔）：是否重复读取数据，默认为 false。
@@ -206,7 +207,6 @@ taosgen -h 127.0.0.1 -c config.yaml
     - rows_per_table（整数），每个数据表写入的行数，默认值为 10000，-1 表示无限数据。
     - rows_per_batch（整数），表示每次批量请求写入的最大行数，默认值为 10000。
     - num_cached_batches（整数），表示提前生成数据并缓存批量请求的数量，0 表示关闭数据缓存，默认值为 10000。
-    - loading_mode（字符串）：CSV 数据加载模式，可选值为 "preload"（全量加载到内存）和 "streaming"（流式逐行读取），默认为 "preload"。
     - tables_reuse_data（布尔）：多表是否复用相同数据，默认为 true。
 
 ##### 列配置包含属性
