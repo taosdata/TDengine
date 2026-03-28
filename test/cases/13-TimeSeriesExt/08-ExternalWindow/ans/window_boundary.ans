@@ -25,8 +25,23 @@ taos> select cast(_wstart as bigint) as ws, cast(_wend as bigint) as we, ts from
          1700200900000 |         1700200960000 | 2023-11-17 14:01:40.000 |
 
 taos> select cast(_wstart as bigint) as ws, cast(_wend as bigint) as we, w.mark, count(*) as c from ext_bnd_src external_window((select ts, endtime, mark from ext_bnd_win) w) order by ws, w.mark;
+          ws           |          we           |    mark     |           c           |
+======================================================================================
+         1700199940000 |         1700200000000 |         100 |                     1 |
+         1700200000000 |         1700200060000 |         101 |                     2 |
+         1700200060000 |         1700200300000 |         102 |                     3 |
+         1700200240000 |         1700200480000 |         103 |                     2 |
+         1700200900000 |         1700200960000 |         104 |                     1 |
 
-DB error: Table does not exist: w [0x80002603] 
+taos> select cast(_wstart as bigint) as ws, cast(_wend as bigint) as we, w.mark, count(*) as c from ext_bnd_src external_window((select ts, endtime, mark from ext_bnd_win) w) order by w.mark desc, ws;
+          ws           |          we           |    mark     |           c           |
+======================================================================================
+         1700200900000 |         1700200960000 |         104 |                     1 |
+         1700200240000 |         1700200480000 |         103 |                     2 |
+         1700200060000 |         1700200300000 |         102 |                     3 |
+         1700200000000 |         1700200060000 |         101 |                     2 |
+         1700199940000 |         1700200000000 |         100 |                     1 |
+
 taos> select cast(_wstart as bigint) as ws, cast(_wend as bigint) as we, count(*) as c from ext_bnd_src external_window((select ts, endtime, mark from ext_bnd_win where mark <> 999) w) order by ws;
           ws           |          we           |           c           |
 ========================================================================

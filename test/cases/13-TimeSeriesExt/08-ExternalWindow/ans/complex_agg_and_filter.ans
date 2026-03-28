@@ -27,8 +27,13 @@ taos> select cast(_wstart as bigint) as ws, avg(v) as avgv, sum(v2) as sv2 from 
          1700400900000 |                      19.5 |                   309 |
 
 taos> select cast(_wstart as bigint) as ws, w.mark, count(*) as c, sum(v) as sv from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w) order by ws, w.mark;
+          ws           |    mark     |           c           |          sv           |
+======================================================================================
+         1700400000000 |         101 |                     3 |                    41 |
+         1700400300000 |         102 |                     4 |                    68 |
+         1700400600000 |         103 |                     2 |                    37 |
+         1700400900000 |         104 |                     2 |                    39 |
 
-DB error: Table does not exist: w [0x80002603] 
 taos> select cast(_wstart as bigint) as ws, cast(ts as bigint) - cast(_wstart as bigint) as delta, count(*) as c from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w) order by ws, delta;
 
 DB error: Not a single-group group function, 'ts' is used incorrectly [0x8000260C] 

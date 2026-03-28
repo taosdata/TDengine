@@ -545,7 +545,7 @@ EXTERNAL_WINDOW (
 
 **核心特性：**
 
-1. **窗口定义的灵活性：** 支持普通子查询、INTERVAL、EVENT_WINDOW、SESSION 等方式生成窗口。 
+1. **窗口定义的灵活性：** 支持普通子查询、INTERVAL、EVENT_WINDOW、SESSION 等方式生成窗口。
 
 2. **聚合和计算：** 支持 COUNT、AVG、SUM、MAX、MIN、FIRST、LAST 等聚合函数，以及标量表达式运算。
 
@@ -569,6 +569,7 @@ EXTERNAL_WINDOW (
 **使用示例：**
 
 **场景背景** - 工厂设备监控系统：
+
 - `equipment_faults`：设备故障事件表（超级表），包含故障代码 `fault_code`、故障等级 `fault_level`
 - `system_alarms`：系统告警事件表（超级表），包含告警代码 `alarm_code`、测量值 `alarm_value`
 - 两表均以 `equipment_id`（设备标识符）作为标签

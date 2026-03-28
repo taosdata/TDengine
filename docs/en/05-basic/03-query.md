@@ -572,6 +572,7 @@ Columns after the first two columns in the subquery (e.g., equipment_id, fault_c
 **Usage Example:**
 
 **Scenario Background** - Factory Equipment Monitoring System:
+
 - `equipment_faults`: equipment fault events table (supertable), includes fault code `fault_code` and fault level `fault_level`
 - `system_alarms`: system alarm events table (supertable), includes alarm code `alarm_code` and measured value `alarm_value`
 - Both tables use `equipment_id` (equipment identifier) as a tag

@@ -8344,6 +8344,9 @@ static int32_t translateExternalWindowSelectList(STranslateContext* pCxt, SSelec
   STranslateExtCtx extCxt = {
       .pSubquery = pSubQuery, .subQueryAliasName = pExternalWin->aliasName, .code = TSDB_CODE_SUCCESS};
   nodesRewriteExprsPostOrder(pSelect->pProjectionList, replaceExternalWindowPlace, &extCxt);
+  if (TSDB_CODE_SUCCESS == extCxt.code && NULL != pSelect->pOrderByList) {
+    nodesRewriteExprsPostOrder(pSelect->pOrderByList, replaceExternalWindowPlace, &extCxt);
+  }
   return pCxt->errCode = extCxt.code;
 }
 
