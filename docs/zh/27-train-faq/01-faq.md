@@ -140,7 +140,7 @@ mvn dependency:copy-dependencies -DoutputDirectory=./lib -DincludeScope=compile
 
 ### 2.5 遇到报错 "DND ERROR Version not compatible, client: 3000700, server: 3020300"
 
-说明客户端和服务端版本不兼容，这里 client 的版本是 3.0.7.0，server 版本是 3.2.3.0。目前的兼容策略是前三位一致，client 和 server 才能兼容。
+说明客户端和服务端版本不兼容，这里 client 的版本是 3.0.7.0，server 版本是 3.2.3.0。目前的兼容策略是前三位一致，客户端和服务端才能兼容。
 
 ### 2.6 修改 database 的 root 密码后，启动 taos 遇到报错 "failed to connect to server, reason: Authentication failure"
 
