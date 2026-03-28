@@ -520,7 +520,6 @@ end;
 
 function InitializeSetup(): Boolean;
 var
-  PythonVersionText: AnsiString;
   MessageText: string;
 begin
   Result := ResolveLockedInstallDir(MessageText);
@@ -528,24 +527,6 @@ begin
   begin
     MsgBox(MessageText, mbCriticalError, MB_OK);
     exit;
-  end;
-
-  if HasExistingMainVenvPython() then
-  begin
-    LogTdgpt('InitializeSetup: using existing main virtual environment python from ' + LockedInstallDir);
-    Result := True;
-  end
-  else
-  begin
-    Result := CheckPythonPrerequisite(PythonVersionText);
-    if not Result then
-    begin
-      MessageText :=
-        'Python 3.10, 3.11, or 3.12 was not found in PATH.' + #13#10 + #13#10 +
-        'Please install Python first, enable "Add Python to PATH", and then run the installer again.';
-      MsgBox(MessageText, mbCriticalError, MB_OK);
-      exit;
-    end;
   end;
 
   Result := CheckVCRuntimePrerequisite();
@@ -873,6 +854,10 @@ begin
   if LockedInstallDir <> '' then
     WizardForm.DirEdit.Text := LockedInstallDir;
   ApplyInstallDefaults(IsUpgradeInstall());
+
+  // Support /OFFLINE command-line parameter for silent installation
+  if ExpandConstant('{param:OFFLINE|}') <> '' then
+    OfflinePackagePage.Values[0] := ExpandConstant('{param:OFFLINE|}');
 end;
 
 function ShouldSkipPage(PageID: Integer): Boolean;
@@ -897,6 +882,8 @@ begin
 end;
 
 function NextButtonClick(CurPageID: Integer): Boolean;
+var
+  PythonVersionText: AnsiString;
 begin
   Result := True;
 
@@ -928,6 +915,15 @@ begin
   if CurPageID = InstallModePage.ID then
   begin
     IsOnlineMode := InstallModePage.Values[0];
+    if IsOnlineMode and (not HasExistingMainVenvPython()) and (not CheckPythonPrerequisite(PythonVersionText)) then
+    begin
+      MsgBox(
+        'Online mode requires Python 3.10, 3.11, or 3.12 in PATH.' + #13#10 + #13#10 +
+        'Please install Python first, or switch to Offline package mode.',
+        mbCriticalError, MB_OK);
+      Result := False;
+      exit;
+    end;
     if not IsOnlineMode then
     begin
       InstallTensorFlow := True;
@@ -1349,4 +1345,3 @@ begin
       DeleteFile(ExpandConstant('{app}\taosanode.pid'));
   end;
 end;
-

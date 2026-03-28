@@ -89,9 +89,10 @@ script/
 
 生成后的安装包在运行时有以下要求：
 
+- Windows 10（1803 或更高版本）或 Windows Server 2019+
 - 目标机器需要已安装 Microsoft Visual C++ Redistributable x64
 - 在线首次安装时，目标机器需要在 `PATH` 中提供 Python `3.10` / `3.11` / `3.12`
-- 离线安装时，不要求系统自带 Python，因为外部离线 tar 会提供 `python/runtime` 和 `venvs`
+- 离线安装时，**不要求**系统自带 Python——安装器会通过系统内置的 `tar.exe`（Windows 10 1803+ 自带）从离线 tar 包中自动引导 Python 运行时
 
 ## 基础安装包里包含什么
 
@@ -237,6 +238,65 @@ tdengine-tdgpt-oss-<version>-Windows-x64.exe
 tdengine-tdgpt-enterprise-<version>-Windows-x64.exe
 ```
 
+## 静默安装与命令行安装
+
+安装器支持完全静默（无人值守）安装，适用于脚本化部署和 All-in-One 打包场景。
+
+### 静默离线安装（不需要系统 Python）
+
+```bat
+tdgpt-setup.exe /VERYSILENT /NORESTART /OFFLINE="D:\packages\tdgpt-offline.tar"
+```
+
+| 参数 | 说明 |
+| --- | --- |
+| `/VERYSILENT` | 完全静默，不显示任何界面 |
+| `/SILENT` | 静默安装，仅显示进度条 |
+| `/NORESTART` | 安装后不自动重启 |
+| `/OFFLINE="路径"` | 指定外部离线 tar 包路径 |
+| `/DIR="路径"` | 覆盖安装目录（仅首次安装有效） |
+
+传入 `/OFFLINE` 后，安装器自动使用离线模式。Python 运行时通过系统 `tar.exe` 从 tar 包中引导，无需系统自带 Python。
+
+### 静默在线安装（需要系统 Python）
+
+```bat
+tdgpt-setup.exe /VERYSILENT /NORESTART
+```
+
+静默安装的默认模式是离线模式。如果不传 `/OFFLINE`，且系统 PATH 中没有 Python 3.10–3.12，安装器会失败并在日志中记录明确的错误信息。
+
+### Python 发现优先级
+
+安装过程中，`install.bat` 按以下顺序查找 Python 解释器：
+
+1. **已有 venv Python** — `<install_dir>\venvs\venv\Scripts\python.exe`（升级场景）
+2. **已有 packaged runtime** — `<install_dir>\python\runtime\python.exe`（之前已解压过）
+3. **系统 Python** — PATH 中的 `python` 或 `python3`（在线模式）
+4. **从离线 tar 引导** — 使用 `tar.exe` 从离线包中只抽取 `python/runtime/` 到临时目录 `_bootstrap`，然后用该 Python 执行 `install.py`
+
+`_bootstrap` 临时目录在安装完成后自动清理。
+
+### All-in-One (AIO) 集成示例
+
+```bat
+REM install-all.bat AIO 打包示例
+installers\tdgpt-setup.exe /VERYSILENT /NORESTART /OFFLINE="%CD%\offline-packages\tdgpt-offline.tar"
+if errorlevel 1 (
+    echo TDgpt 安装失败
+    exit /b 1
+)
+echo TDgpt 安装成功
+```
+
+### 检查安装结果
+
+静默安装完成后，可通过以下方式确认：
+
+- 退出码：`0` = 成功，非零 = 失败
+- 安装日志：`C:\TDengine\taosanode\log\install.log`
+- 服务状态：`sc query Taosanode`
+
 ## 安装器行为
 
 当前安装向导行为如下：
@@ -247,6 +307,7 @@ tdengine-tdgpt-enterprise-<version>-Windows-x64.exe
 - 升级安装默认复用现有 `venvs` 和模型文件
 - 离线首次安装必须提供一个外部 tar 包
 - 离线升级时可以把 tar 路径留空，直接复用现有 runtime 和模型文件
+- 支持 `/OFFLINE` 命令行参数，用于静默安装时预设离线包路径
 
 当前批处理包装脚本行为如下：
 
@@ -341,3 +402,7 @@ C:\TDengine\taosanode\venvs\venv\Scripts\python.exe C:\TDengine\taosanode\bin\ta
 - 修正日志文件名，去掉过时的 WinSW wrapper 日志说明
 - 明确 Windows 服务是自动安装
 - 明确模型归档打包是可选能力，不再是必填
+- 新增静默安装文档，包括 `/OFFLINE` 参数说明
+- 新增 Python 发现优先级文档
+- 新增 AIO 集成示例
+- 新增 Windows 10 1803+ 的 `tar.exe` 引导要求说明

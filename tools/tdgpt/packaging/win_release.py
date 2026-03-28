@@ -546,22 +546,38 @@ set "PYTHONUTF8=1"
 set "PYTHONIOENCODING=utf-8"
 set "TDGPT_LOG_REDIRECTED=1"
 set "EXISTING_VENV_PYTHON=%INSTALL_DIR%\\venvs\\venv\\Scripts\\python.exe"
+set "PACKAGED_PYTHON=%INSTALL_DIR%\\python\\runtime\\python.exe"
 set "PYTHON_CMD="
 
 call :append_progress running 1 "Initializing {install_info.app_name} setup" "Preparing installation environment"
 
+REM Priority 1: existing venv Python (upgrade scenario)
 if exist "%EXISTING_VENV_PYTHON%" (
     set "PYTHON_CMD=%EXISTING_VENV_PYTHON%"
-) else (
-    call :resolve_python
-    if not defined PYTHON_CMD (
-        echo ERROR: Python not found in PATH
-        echo Please install Python 3.10/3.11/3.12 and make sure python or python3 is available in PATH.
-        call :append_progress error 100 "Installation failed" "Python 3.10/3.11/3.12 was not found in PATH"
-        exit /b 1
-    )
+    goto :run_install
 )
 
+REM Priority 2: packaged runtime Python (previously extracted)
+if exist "%PACKAGED_PYTHON%" (
+    set "PYTHON_CMD=%PACKAGED_PYTHON%"
+    goto :run_install
+)
+
+REM Priority 3: system Python in PATH (online mode)
+call :resolve_python
+if defined PYTHON_CMD goto :run_install
+
+REM Priority 4: bootstrap Python from offline tar using system tar.exe
+call :bootstrap_python_from_offline %*
+if defined PYTHON_CMD goto :run_install
+
+echo ERROR: No Python interpreter available.
+echo For online mode, install Python 3.10/3.11/3.12 and add to PATH.
+echo For offline mode, provide an offline package with --offline-package.
+call :append_progress error 100 "Installation failed" "No Python interpreter available"
+exit /b 1
+
+:run_install
 > "%LOG_FILE%" echo [%date% %time%] {install_info.app_name} installation started
 >> "%LOG_FILE%" echo Install directory: %INSTALL_DIR%
 >> "%LOG_FILE%" echo Python command: %PYTHON_CMD%
@@ -577,11 +593,13 @@ if "%PROGRESS_FILE%"=="" (
 if errorlevel 1 (
     >> "%LOG_FILE%" echo [%date% %time%] Installation failed
     call :ensure_error_progress "Installation failed" "See install.log for details"
+    if exist "%INSTALL_DIR%\\_bootstrap" rd /s /q "%INSTALL_DIR%\\_bootstrap" 2>nul
     exit /b 1
 )
 
 >> "%LOG_FILE%" echo [%date% %time%] Installation completed successfully
 call :append_progress success 100 "Installation complete" "{install_info.app_name} is ready"
+if exist "%INSTALL_DIR%\\_bootstrap" rd /s /q "%INSTALL_DIR%\\_bootstrap" 2>nul
 exit /b 0
 
 :append_progress
@@ -611,6 +629,36 @@ if not errorlevel 1 (
 )
 set "PYTHON_CMD="
 exit /b 1
+
+:bootstrap_python_from_offline
+set "OFFLINE_PKG="
+:parse_offline_args
+if "%~1"=="" goto :parse_offline_done
+if /I "%~1"=="--offline-package" (
+    set "OFFLINE_PKG=%~2"
+    shift
+)
+shift
+goto :parse_offline_args
+:parse_offline_done
+if "%OFFLINE_PKG%"=="" exit /b 1
+if not exist "%OFFLINE_PKG%" (
+    echo WARNING: Offline package not found: %OFFLINE_PKG%
+    exit /b 1
+)
+set "BOOTSTRAP_DIR=%INSTALL_DIR%\\_bootstrap"
+if exist "%BOOTSTRAP_DIR%" rd /s /q "%BOOTSTRAP_DIR%"
+mkdir "%BOOTSTRAP_DIR%"
+echo Bootstrapping Python from offline package: %OFFLINE_PKG%
+tar -xf "%OFFLINE_PKG%" -C "%BOOTSTRAP_DIR%" python/runtime/ 2>nul
+if exist "%BOOTSTRAP_DIR%\\python\\runtime\\python.exe" (
+    set "PYTHON_CMD=%BOOTSTRAP_DIR%\\python\\runtime\\python.exe"
+    echo Python runtime extracted successfully.
+) else (
+    echo WARNING: Could not extract Python runtime from offline package.
+    rd /s /q "%BOOTSTRAP_DIR%" 2>nul
+)
+exit /b 0
 """)
     logging.info("Created install.bat")
 

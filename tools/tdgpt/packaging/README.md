@@ -89,9 +89,10 @@ If you also want to generate the external offline tar bundle, prepare:
 
 The generated installer has these runtime expectations:
 
+- Windows 10 (version 1803 or later) or Windows Server 2019+
 - Microsoft Visual C++ Redistributable x64 must be installed
 - For online first install, the target machine needs Python `3.10` / `3.11` / `3.12` in `PATH`
-- For offline install, system Python is not required because the external offline tar provides `python/runtime` and `venvs`
+- For offline install, system Python is **not** required — the installer bootstraps Python from the offline tar using the built-in `tar.exe` (available since Windows 10 1803)
 
 ## What The Base Installer Contains
 
@@ -239,6 +240,65 @@ tdengine-tdgpt-enterprise-<version>-Windows-x64.exe
 
 The package name no longer includes `-base`.
 
+## Silent and Command-Line Installation
+
+The installer supports fully silent (unattended) installation, which is useful for scripted deployments and All-in-One packaging.
+
+### Silent Offline Install (No System Python Required)
+
+```bat
+tdgpt-setup.exe /VERYSILENT /NORESTART /OFFLINE="D:\packages\tdgpt-offline.tar"
+```
+
+| Parameter | Description |
+| --- | --- |
+| `/VERYSILENT` | No UI at all, completely silent |
+| `/SILENT` | Minimal UI, shows only the progress bar |
+| `/NORESTART` | Do not reboot after installation |
+| `/OFFLINE="path"` | Path to the external offline tar package |
+| `/DIR="path"` | Override install directory (only for first install) |
+
+When `/OFFLINE` is provided, the installer automatically uses offline mode. The Python runtime is bootstrapped from the tar package using the system `tar.exe`, so no system Python is needed.
+
+### Silent Online Install (Requires System Python)
+
+```bat
+tdgpt-setup.exe /VERYSILENT /NORESTART
+```
+
+Online mode is not the default in silent installation. To force online mode, the target machine must have Python 3.10–3.12 in `PATH`. If the installer detects no Python and no offline package, it will fail with a clear error in the install log.
+
+### Python Discovery Priority
+
+During installation, the `install.bat` helper locates a Python interpreter in this order:
+
+1. **Existing venv Python** — `<install_dir>\venvs\venv\Scripts\python.exe` (upgrade scenario)
+2. **Packaged runtime Python** — `<install_dir>\python\runtime\python.exe` (previously extracted)
+3. **System Python** — `python` or `python3` in `PATH` (online mode)
+4. **Bootstrap from offline tar** — uses `tar.exe` to extract `python/runtime/` from the offline package into a temporary `_bootstrap` directory, then runs `install.py` with that Python
+
+The `_bootstrap` directory is cleaned up automatically after installation completes.
+
+### All-in-One (AIO) Integration Example
+
+```bat
+REM install-all.bat for AIO packaging
+installers\tdgpt-setup.exe /VERYSILENT /NORESTART /OFFLINE="%CD%\offline-packages\tdgpt-offline.tar"
+if errorlevel 1 (
+    echo TDgpt installation failed
+    exit /b 1
+)
+echo TDgpt installed successfully
+```
+
+### Checking Installation Results
+
+After silent installation, check:
+
+- Exit code: `0` = success, non-zero = failure
+- Install log: `C:\TDengine\taosanode\log\install.log`
+- Service status: `sc query Taosanode`
+
 ## Installer Behavior
 
 Current wizard behavior:
@@ -249,6 +309,7 @@ Current wizard behavior:
 - Upgrade installs reuse existing `venvs` and model files by default
 - Offline first install requires one external tar package
 - Offline upgrade can leave the tar path blank to reuse the current runtime and model files
+- The `/OFFLINE` command-line parameter pre-populates the offline package path for silent installation
 
 Current wrapper behavior:
 
@@ -343,3 +404,7 @@ Key corrections made:
 - corrected log file names and removed outdated WinSW wrapper log claims
 - clarified that service installation is automatic
 - clarified that model archive bundling is optional
+- added silent installation documentation with `/OFFLINE` parameter
+- added Python discovery priority documentation
+- added AIO integration example
+- added Windows 10 1803+ requirement for offline `tar.exe` bootstrap
