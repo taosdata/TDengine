@@ -6866,7 +6866,7 @@ static int32_t doReservoirSample(SqlFunctionCtx* pCtx, SSampleInfo* pInfo, char*
     }
     pInfo->numSampled++;
   } else {
-    int32_t j = taosRand() % (pInfo->totalPoints);
+    int32_t j = (int32_t)(taosRand() % (uint64_t)pInfo->totalPoints);
     if (j < pInfo->samples) {
       sampleAssignResult(pInfo, data, j);
       if (pCtx->subsidiaries.num > 0) {

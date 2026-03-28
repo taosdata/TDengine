@@ -1460,6 +1460,19 @@ static int32_t createVTableScanInfoFromBatchParam(SOperatorInfo* pOperator) {
       for (int32_t j = 0; j < taosArrayGetSize(pInfo->base.matchInfo.pList); j++) {
         SColMatchItem* pItem = taosArrayGet(pInfo->base.matchInfo.pList, j);
         if (pItem->colId == pPair->vtbColId) {
+          if (pItem->dataType.type != pPair->type.type) {
+            qError("column type does not match for vtable colId:%d, org colId:%d, org table name:%s",
+                   pPair->vtbColId, pPair->orgColId, orgTable.me.name);
+            code = TSDB_CODE_VTABLE_COLUMN_TYPE_MISMATCH;
+            goto _return;
+          }
+          if (!IS_VAR_DATA_TYPE(pItem->dataType.type) &&
+              pItem->dataType.bytes != pPair->type.bytes) {
+            qError("column bytes does not match for vtable colId:%d, org colId:%d, org table name:%s",
+                   pPair->vtbColId, pPair->orgColId, orgTable.me.name);
+            code = TSDB_CODE_VTABLE_COLUMN_TYPE_MISMATCH;
+            goto _return;
+          }
           SColIdSlotIdPair colIdSlotIdPair = {.orgColId = pPair->orgColId, .vtbSlotId = pItem->dstSlotId};
           QUERY_CHECK_NULL(taosArrayPush(pBlockColArray, &colIdSlotIdPair), code, lino, _return, terrno);
           qDebug("dynamic vtable scan block col map orgColId:%d, vtbSlotId:%d, %s", colIdSlotIdPair.orgColId,
@@ -1608,6 +1621,10 @@ static int32_t createVTableScanInfoFromBatchParam(SOperatorInfo* pOperator) {
 _return:
   if (code) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    taosArrayDestroy(pColArray);
+    taosArrayDestroy(pBlockColArray);
+    pInfo->lastBlockColArray = NULL;
+    pInfo->lastColArray = NULL;
   }
   pAPI->metaReaderFn.clearReader(&superTable);
   pAPI->metaReaderFn.clearReader(&orgTable);
@@ -1720,13 +1737,13 @@ static int32_t createVTableScanInfoFromParam(SOperatorInfo* pOperator) {
     SColMatchItem* pItem = findMatchItemByColId(pMatchList, pPair->vtbColId);
     if (pItem) {
       if (pItem->dataType.type != pPair->type.type) {
-        qError("column type not match for vtable colId:%d, org colId:%d, org table name:%s", pPair->vtbColId,
+        qError("column type does not match for vtable colId:%d, org colId:%d, org table name:%s", pPair->vtbColId,
                pPair->orgColId, orgTable.me.name);
         code = TSDB_CODE_VTABLE_COLUMN_TYPE_MISMATCH;
         goto _return;
       }
       if (!IS_VAR_DATA_TYPE(pItem->dataType.type) && pItem->dataType.bytes != pPair->type.bytes) {
-        qError("column bytes not match for vtable colId:%d, org colId:%d, org table name:%s", pPair->vtbColId,
+        qError("column bytes does not match for vtable colId:%d, org colId:%d, org table name:%s", pPair->vtbColId,
                pPair->orgColId, orgTable.me.name);
         code = TSDB_CODE_VTABLE_COLUMN_TYPE_MISMATCH;
         goto _return;

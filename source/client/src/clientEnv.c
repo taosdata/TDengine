@@ -759,6 +759,12 @@ void doDestroyRequest(void *p) {
   taosMemoryFree(pRequest->body.interParam);
 
   qDestroyQuery(pRequest->pQuery);
+
+  // `pRequest->parseMeta` may be filled during stmt parsing and must be released
+  // when the request object is destroyed, otherwise LeakSanitizer will report
+  // catalog async response result leaks.
+  catalogFreeMetaData(&pRequest->parseMeta);
+  TAOS_MEMSET(&pRequest->parseMeta, 0, sizeof(pRequest->parseMeta));
   nodesDestroyAllocator(pRequest->allocatorRefId);
 
   taosMemoryFreeClear(pRequest->effectiveUser);

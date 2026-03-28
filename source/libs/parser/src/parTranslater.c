@@ -19565,13 +19565,16 @@ static int32_t translateGrantCheckFillObject(STranslateContext* pCxt, SGrantStmt
     case PRIV_OBJ_STREAM:
       TAOS_CHECK_EXIT(privExpandAll(&pReq->privileges.privSet, objType, objLevel));
       break;
+    case PRIV_OBJ_XTASK:
+      TAOS_CHECK_EXIT(privExpandAll(&pReq->privileges.privSet, objType, objLevel));
+      break;
     case PRIV_OBJ_MOUNT:
       break;
     case PRIV_OBJ_AUDIT:
       break;
     case PRIV_OBJ_TOKEN:
       break;
-    case PRIV_OBJ_NONE: 
+    case PRIV_OBJ_NONE:
       break;
     default:
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
@@ -20798,7 +20801,12 @@ static int32_t translateDropTSMA(STranslateContext* pCxt, SDropTSMAStmt* pStmt) 
   }
   PAR_ERR_JRET(tNameExtractFullName(&name, dropStreamReq.name[0]));
 
-  PAR_ERR_JRET(getTsma(pCxt, &name, &pTsma));
+  code = getTsma(pCxt, &name, &pTsma);
+  if (code == TSDB_CODE_MND_SMA_NOT_EXIST && dropReq.igNotExists) {
+    code = TSDB_CODE_SUCCESS;
+    goto _return;
+  }
+  PAR_ERR_JRET(code);
   toName(pCxt->pParseCxt->acctId, pStmt->dbName, pTsma->tb, &name);
   PAR_ERR_JRET(collectUseTable(&name, pCxt->pTargetTables));
 

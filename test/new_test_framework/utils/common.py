@@ -2970,11 +2970,31 @@ class TDCom:
                     self.record_history_ts = ts_value
 
     def generate_query_result_file(self, test_case, idx, sql):
+        import shlex
         self.query_result_file = f"./{test_case}.{idx}.csv"
         cfgPath = self.getClientCfgPath()
-        taosCmd = f"taos -c {cfgPath} -s '{sql}' | grep -v 'Query OK'|grep -v 'Copyright'| grep -v 'Welcome to the TDengine TSDB Command' > {self.query_result_file}  "
-        # print(f"taosCmd:{taosCmd}, currentPath:{os.getcwd()}")
-        os.system(taosCmd)
+        # Construct command parameters to avoid platform compatibility issues
+        cmd = ["taos", "-c", cfgPath, "-s", sql]
+        try:
+            # Capture output
+            result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8", errors="ignore", shell=False)
+            output = result.stdout.splitlines()
+        except Exception as e:
+            tdLog.error(f"Failed to run taos command: {e}")
+            output = []
+
+        # Filter out unwanted lines
+        ignore_patterns = [
+            "Query OK",
+            "Copyright",
+            "Welcome to the TDengine TSDB Command"
+        ]
+        filtered = [line for line in output if not any(pat in line for pat in ignore_patterns)]
+
+        # Write to file
+        with open(self.query_result_file, "w", encoding="utf-8") as fout:
+            for line in filtered:
+                fout.write(line.rstrip("\r\n") + "\n")
         return self.query_result_file
 
     def run_sql(self, sql, db):
@@ -2990,7 +3010,7 @@ class TDCom:
             tdLog.error(f"SQL执行失败: {sql}\n{e}")
 
     def execute_query_file(self, inputfile, max_workers=8):
-        # 规范化路径以支持 Windows
+        # Normalize path to support Windows
         inputfile = os.path.normpath(inputfile)
 
         if not os.path.exists(inputfile):
@@ -2999,7 +3019,7 @@ class TDCom:
 
         tdLog.info(f"Executing query file: {inputfile}")
 
-        # 尝试多种编码以支持不同平台
+        # Try multiple encodings to support different platforms
         lines = []
         for encoding in ['utf-8', 'gbk', 'utf-8-sig', 'latin-1']:
             try:
@@ -3013,7 +3033,7 @@ class TDCom:
             tdLog.exit(f"Failed to read file '{inputfile}' with supported encodings.")
             return
 
-        # 假设第一行是 use 语句
+        # Assume the first line is a use statement
         db = lines[0].split()[1].rstrip(";")
         sql_lines = [line.replace("\\G", "").rstrip(";") + ";" for line in lines[1:]]
 
@@ -3030,9 +3050,36 @@ class TDCom:
                 f"Generating query result file: {self.query_result_file} using input file: {inputfile}"
             )
             if platform.system().lower() == "windows":
-                # 过滤 taos> 行
+                # Filter taos> lines
                 os.system(
-                    f"taos -c {cfgPath} -f {inputfile} | grep -v 'Query OK'|grep -v 'Copyright'| grep -v 'Welcome to the TDengine TSDB Command' | sed 's/([0-9]\+\.[0-9]\+s)//g' | sed 's/cost=[0-9]\+\.[0-9]\+\.\.[0-9]\+\.[0-9]\+//g' | sed 's/Planning Time: [0-9]\+\.[0-9]\+ ms//g' | sed 's/Execution Time: [0-9]\+\.[0-9]\+ ms//g' | sed 's/max_row_task=[0-9]\+, //g' > {self.query_result_file}.raw "
+                    f"taos -c {cfgPath} -f {inputfile} "
+                    "| grep -v 'Query OK'|grep -v 'Copyright'| grep -v 'Welcome to the TDengine TSDB Command' "
+                    "| grep -v 'Exec cost:' "
+                    "| sed -E 's/[[:space:]]*\\([0-9]+\\.[0-9]+s\\)/ /g' "
+                    "| sed -E 's/cost=[0-9]+\\.[0-9]+\\.\\.[0-9]+\\.[0-9]+//g' "
+                    "| sed -E 's/cost=[0-9]+\\.[0-9]+\\([0-9]+\\.[0-9]+\\)\\.\\.[0-9]+\\.[0-9]+\\([0-9]+\\.[0-9]+\\)//g' "
+                    "| sed -E 's/file_load_elapsed=[0-9]+\\.[0-9]+\\([0-9]+\\.[0-9]+\\)//g' "
+                    "| sed -E 's/file_load_elapsed=[0-9]+\\.[0-9]+//g' "
+                    "| sed -E 's/stt_load_elapsed=[0-9]+\\.[0-9]+\\([0-9]+\\.[0-9]+\\)//g' "
+                    "| sed -E 's/stt_load_elapsed=[0-9]+\\.[0-9]+//g' "
+                    "| sed -E 's/mem_load_elapsed=[0-9]+\\.[0-9]+\\([0-9]+\\.[0-9]+\\)//g' "
+                    "| sed -E 's/mem_load_elapsed=[0-9]+\\.[0-9]+//g' "
+                    "| sed -E 's/sma_load_elapsed=[0-9]+\\.[0-9]+\\([0-9]+\\.[0-9]+\\)//g' "
+                    "| sed -E 's/sma_load_elapsed=[0-9]+\\.[0-9]+//g' "
+                    "| sed -E 's/composed_elapsed=[0-9]+\\.[0-9]+\\([0-9]+\\.[0-9]+\\)//g' "
+                    "| sed -E 's/composed_elapsed=[0-9]+\\.[0-9]+//g' "
+                    "| sed -E 's/slowest_vgroup_id=[0-9]+//g' "
+                    "| sed -E 's/fetch_cost=[0-9]+\\.[0-9]+\\([0-9]+\\.[0-9]+\\)//g' "
+                    "| sed -E 's/fetch_cost=[0-9]+\\.[0-9]+//g' "
+                    "| sed -E 's/fetch_times=[0-9]+\\.[0-9]+\\([0-9]+\\)//g' "
+                    "| sed -E 's/fetch_times=[0-9]+//g' "
+                    "| sed -E 's/slow_deviation=[0-9]+\\.[0-9]+%//g' "
+                    "| sed -E 's/cost_ratio=[0-9]+\\.[0-9]+//g' "
+                    "| sed -E 's/data_deviation=-?[0-9]+\\.[0-9]+%//g' "
+                    "| sed -E 's/Planning Time: [0-9]+\\.[0-9]+ ms//g' "
+                    "| sed -E 's/Execution Time: [0-9]+\\.[0-9]+ ms//g' "
+                    "| sed -E 's/max_row_task=[0-9]+, //g' "
+                    f"> {self.query_result_file}.raw "
                 )
                 time.sleep(1)
                 with (
@@ -3041,10 +3088,10 @@ class TDCom:
                 ):
                     for line in fin:
                         stripped = line.rstrip()
-                        # 跳过整行是 taos> 或 taos> 后全是空白的行
+                        # Skip lines that are entirely taos> or taos> followed by whitespace
                         if re.match(r"^taos>\s*$", stripped):
                             continue
-                        # taos> 开头的行去除行尾空白
+                        # Remove trailing whitespace from lines starting with taos>
                         if stripped.startswith("taos>"):
                             fout.write(stripped + "\n")
                         else:
@@ -3072,6 +3119,9 @@ class TDCom:
                     "| sed -E 's/composed_elapsed=[0-9]+\\.[0-9]+//g' "
                     "| sed -E 's/slowest_vgroup_id=[0-9]+//g' "
                     "| sed -E 's/fetch_cost=[0-9]+\\.[0-9]+\\([0-9]+\\.[0-9]+\\)//g' "
+                    "| sed -E 's/fetch_cost=[0-9]+\\.[0-9]+//g' "
+                    "| sed -E 's/fetch_times=[0-9]+\\.[0-9]+\\([0-9]+\\)//g' "
+                    "| sed -E 's/fetch_times=[0-9]+//g' "
                     "| sed -E 's/slow_deviation=[0-9]+\\.[0-9]+%//g' "
                     "| sed -E 's/cost_ratio=[0-9]+\\.[0-9]+//g' "
                     "| sed -E 's/data_deviation=-?[0-9]+\\.[0-9]+%//g' "
@@ -3216,11 +3266,11 @@ class TDCom:
                 file1 = os.path.abspath(os.path.normpath(file1))
                 file2 = os.path.abspath(os.path.normpath(file2))
 
-                # 创建临时文件，过滤空行
+                # Create temporary files, filter empty lines
                 with tempfile.NamedTemporaryFile(mode='w', delete=False, encoding='utf-8') as tmp1, \
                     tempfile.NamedTemporaryFile(mode='w', delete=False, encoding='utf-8') as tmp2:
 
-                    # 复制非空行到临时文件
+                    # Copy non-empty lines to temporary file
                     with open(file1, 'r', encoding='utf-8', errors='ignore') as f:
                         tmp1.writelines(line for line in f if line.strip())
                     temp1 = tmp1.name
@@ -3241,16 +3291,11 @@ class TDCom:
                     os.unlink(temp1)
                     os.unlink(temp2)
 
-                # Windows fc: returncode 0 表示文件相同
+                # Windows fc: returncode 0 means files are identical
                 if result.returncode == 0:
                     return True
-                else:
-                    tdLog.info(f"{cmd} result.returncode: {result.returncode}")
-                    tdLog.info(f"{cmd} result.stdout: {result.stdout}")
-                    tdLog.info(f"{cmd} result.stderr: {result.stderr}")
-                    return False
 
-            # Linux diff 的结果检查逻辑
+            # Result check logic for diff/fc
             if result.returncode != 0:
                 if self._compare_normalized_result_lines(file1, file2):
                     tdLog.info("Result files matched after output normalization.")

@@ -391,7 +391,7 @@ TAOS_RES *taosQuery(TAOS *taos, const char *sql, int32_t *code) {
             if (i > 0) {
                 okPrint("Retry %d to execute taosQuery %s successfully!\n", i, sql);
             }
-            infoPrint("debug: taosQuery succeeded. sql=%s \n", sql);
+            debugPrint("debug: taosQuery succeeded. sql=%s \n", sql);
             return res;
         }
 

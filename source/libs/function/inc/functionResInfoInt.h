@@ -430,7 +430,7 @@ typedef struct SMavgInfo {
 
 typedef struct SSampleInfo {
   int32_t  samples;
-  int32_t  totalPoints;
+  int64_t  totalPoints;
   int32_t  numSampled;
   uint8_t  colType;
   uint16_t colBytes;
