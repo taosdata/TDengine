@@ -311,6 +311,8 @@ static char* getSyntaxErrFormat(int32_t errCode) {
     case TSDB_CODE_PAR_NOT_ALLOWED_FILL_VALUES:
       return "Fill values can only be used with fill VALUE/VALUE_F "
              "or PREV/NEXT/NEAR mode with surrounding time";
+    case TSDB_CODE_PAR_EXT_WIN_COL_IN_WHERE:
+      return "WHERE clause cannot reference EXTERNAL_WINDOW column: %s";
     default:
       return "Unknown error";
   }

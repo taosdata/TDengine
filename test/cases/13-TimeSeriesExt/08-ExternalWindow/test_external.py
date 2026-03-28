@@ -1256,6 +1256,17 @@ class TestExternal:
             expectErrInfo="Invalid column name",
             fullMatched=False,
         )
+        
+        # Window attribute columns are not allowed in WHERE.
+        tdSql.error(
+            "select cast(_wstart as bigint) as ws, count(*) as c "
+            "from ext_src "
+            "where w.wc > 0 "
+            "external_window((select _wstart, _wend, count(*) as wc from ext_win interval(10m)) w)",
+            expectedErrno=0x800026B1,
+            expectErrInfo="WHERE clause cannot reference EXTERNAL_WINDOW column",
+            fullMatched=False,
+        )
 
     def fill_external_window_negative(self):
         """Test that FILL clause is rejected for external_window."""

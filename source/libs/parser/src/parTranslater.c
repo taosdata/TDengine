@@ -2048,6 +2048,18 @@ static EDealRes translateColumnWithPrefix(STranslateContext* pCxt, SColumnNode**
         continue;
       }
 
+      if (SQL_CLAUSE_WHERE == pCxt->currClause && NULL != pCxt->pCurrStmt &&
+          QUERY_NODE_SELECT_STMT == nodeType(pCxt->pCurrStmt)) {
+        SSelectStmt* pSelect = (SSelectStmt*)pCxt->pCurrStmt;
+        if (NULL != pSelect->pWindow && QUERY_NODE_EXTERNAL_WINDOW == nodeType(pSelect->pWindow)) {
+          SExternalWindowNode* pExtWin = (SExternalWindowNode*)pSelect->pWindow;
+          if ('\0' != pExtWin->aliasName[0] &&
+              0 == strncmp((*pCol)->tableAlias, pExtWin->aliasName, TSDB_COL_NAME_LEN)) {
+            return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_EXT_WIN_COL_IN_WHERE, (*pCol)->colName);
+          }
+        }
+      }
+
       return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_TABLE_NOT_EXIST, (*pCol)->tableAlias);
     }
 

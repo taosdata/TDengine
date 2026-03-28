@@ -117,6 +117,7 @@ Below are the business error codes for each module.
 | 0x8000013F | Decimal value parse error         | Decimal value parse error                                    | Preserve the scene and logs, report issue on github |
 | 0x80000140 | Edition not compatible            | Edition incompatibility between nodes                        | Check editions(enterprise or community) of all nodes (including server and client), ensure node editions are consistent or compatible |
 | 0x80000141 | Invalid signature                 | Message signature is invalid or mismatch                     | Check if client and server are using the same signature algorithm |
+| 0x80000142 | External window subquery must return time-ordered rows | The EXTERNAL WINDOW subquery result is not sorted by time | Ensure the EXTERNAL WINDOW subquery returns time-ordered rows, add ORDER BY ts to the subquery if necessary |
 
 #### tsc
 
@@ -561,6 +562,7 @@ Below are the business error codes for each module.
 | 0x80002690 | Create child table using virtual super table                                                           | Create non-virtual child table using virtual super table                   | Check and correct the SQL statement                          |
 | 0x800026AF | Invalid offset unit                                                                                    | Invalid time unit used in offset clause                                    | Check and correct the SQL statement                          |
 | 0x800026B0 | Invalid offset value                                                                                   | Invalid offset value in time window                                        | Check and correct the SQL statement                          |
+| 0x800026B1 | WHERE clause cannot reference EXTERNAL_WINDOW column                                                   | The WHERE clause references a column from the EXTERNAL_WINDOW subquery alias | Move the filter condition to the SELECT list or use HAVING, do not reference EXTERNAL_WINDOW columns in WHERE |
 | 0x80002696 | Invalid sliding offset                                                                                 | Invalid sliding offset                                                     | Check and correct the SQL statement                          |
 | 0x80002697 | Invalid interval offset                                                                                | Invalid interval offset                                                    | Check and correct the SQL statement                          |
 | 0x80002698 | Invalid extend value                                                                                   | Invalid extend value                                                       | Check and correct the SQL statement                          |
