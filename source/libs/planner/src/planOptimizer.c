@@ -803,6 +803,78 @@ static int32_t pdcDealScan(SOptimizeContext* pCxt, SScanLogicNode* pScan) {
   return code;
 }
 
+// Check if a condition involves any tag column (COLUMN_TYPE_TAG).
+// For VSTBs, the super table meta does NOT carry per-tag ref info,
+// so any tag column condition must stay on VirtualScan (could be ref-tag).
+// Pure tbname conditions use FUNCTION_TYPE_TBNAME with no tag columns.
+static bool pdcCondHasTagColumn(SNode* pCond) {
+  SNodeList* pCondCols = NULL;
+  if (TSDB_CODE_SUCCESS != nodesCollectColumnsFromNode(pCond, NULL, COLLECT_COL_TYPE_ALL, &pCondCols) ||
+      NULL == pCondCols) {
+    nodesDestroyList(pCondCols);
+    return false;
+  }
+
+  bool found = false;
+  SNode* pNode = NULL;
+  FOREACH(pNode, pCondCols) {
+    if (QUERY_NODE_COLUMN != nodeType(pNode)) continue;
+    SColumnNode* pCol = (SColumnNode*)pNode;
+    if (COLUMN_TYPE_TAG == pCol->colType) {
+      found = true;
+      break;
+    }
+  }
+
+  nodesDestroyList(pCondCols);
+  return found;
+}
+
+// Split a tag condition into SystemScan-safe part and VirtualScan-only part.
+// For VSTBs, super table meta has no per-tag ref info, so any condition with
+// COLUMN_TYPE_TAG columns must stay on VirtualScan. Only pure tbname conditions
+// (which use FUNCTION_TYPE_TBNAME, no tag columns) are safe for SystemScan.
+static int32_t pdcSplitTagCondForVstb(SNode** ppTagCond, SNode** ppSysTagCond, SNode** ppRefTagCond) {
+  if (NULL == ppTagCond || NULL == *ppTagCond) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  SNode*  pCond = *ppTagCond;
+
+  if (QUERY_NODE_LOGIC_CONDITION == nodeType(pCond) &&
+      LOGIC_COND_TYPE_AND == ((SLogicConditionNode*)pCond)->condType) {
+    // AND-ed conditions: split each child
+    SNode* pChild = NULL;
+    FOREACH(pChild, ((SLogicConditionNode*)pCond)->pParameterList) {
+      SNode* pClone = NULL;
+      code = nodesCloneNode(pChild, &pClone);
+      if (TSDB_CODE_SUCCESS != code) return code;
+
+      if (pdcCondHasTagColumn(pChild)) {
+        code = nodesMergeNode(ppRefTagCond, &pClone);
+      } else {
+        code = nodesMergeNode(ppSysTagCond, &pClone);
+      }
+      if (TSDB_CODE_SUCCESS != code) {
+        nodesDestroyNode(pClone);
+        return code;
+      }
+    }
+    nodesDestroyNode(pCond);
+    *ppTagCond = NULL;
+  } else {
+    // Single condition
+    if (pdcCondHasTagColumn(pCond)) {
+      *ppRefTagCond = pCond;
+    } else {
+      *ppSysTagCond = pCond;
+    }
+    *ppTagCond = NULL;
+  }
+  return code;
+}
+
 static int32_t pdcDealVirtualSuperTableScan(SOptimizeContext* pCxt, SDynQueryCtrlLogicNode* pScan) {
   planDebug("pdcDealVirtualSuperTableScan ENTER: pConditions=%p, optimizedFlag=0x%x, qType=%d",
             pScan->node.pConditions, pScan->node.optimizedFlag, pScan->qType);
@@ -856,19 +928,36 @@ static int32_t pdcDealVirtualSuperTableScan(SOptimizeContext* pCxt, SDynQueryCtr
     PLAN_ERR_JRET(pushDownCondOptCalcTimeRange(pCxt, &pOrgScan->scanRange, &pPrimaryKeyCond, &pOtherCond, &pOrgScan->pPrimaryCond));
   }
 
-  // For virtual super tables, referenced tags store NULL in vnode meta,
-  // so tag predicates cannot be pushed down to the system-table scan's
-  // tag filter (doFilterByTagCond). Keep them on the virtual scan node
-  // so they are applied after tag values are resolved from source tables.
-  if (pTagCond) {
-    PLAN_ERR_JRET(nodesMergeNode(&pOtherCond, &pTagCond));
+  // For virtual super tables, ref-tag values store NULL in vnode meta,
+  // so ref-tag predicates cannot be pushed to SystemScan's tag filter.
+  // However, tbname and local-tag predicates CAN be pushed to SystemScan
+  // (they have real values). Split tag conditions accordingly.
+  SNode* pSysTagCond = NULL;
+  SNode* pRefTagCond = NULL;
+  SNode* pSysTagIdxCond = NULL;
+  SNode* pRefTagIdxCond = NULL;
+
+  PLAN_ERR_JRET(pdcSplitTagCondForVstb(&pTagCond, &pSysTagCond, &pRefTagCond));
+  PLAN_ERR_JRET(pdcSplitTagCondForVstb(&pTagIndexCond, &pSysTagIdxCond, &pRefTagIdxCond));
+
+  // Ref-tag conditions (or conditions we can't verify) stay on VirtualScan
+  if (pRefTagCond) {
+    PLAN_ERR_JRET(nodesMergeNode(&pOtherCond, &pRefTagCond));
   }
-  if (pTagIndexCond) {
-    PLAN_ERR_JRET(nodesMergeNode(&pOtherCond, &pTagIndexCond));
+  if (pRefTagIdxCond) {
+    PLAN_ERR_JRET(nodesMergeNode(&pOtherCond, &pRefTagIdxCond));
   }
+
+  // tbname conditions go to SystemScan (original behavior)
+  pSysScan->pTagCond = pSysTagCond;
+  pSysTagCond = NULL;
+  pSysScan->pTagIndexCond = pSysTagIdxCond;
+  pSysTagIdxCond = NULL;
+
   pVscan->node.pConditions = pOtherCond;
-  planDebug("pdcDealVirtualSuperTableScan: pVscan->node.pConditions=%p (pOtherCond=%p), pTagCond=%p, pTagIndexCond=%p",
-            pVscan->node.pConditions, pOtherCond, pTagCond, pTagIndexCond);
+  pOtherCond = NULL;
+  planDebug("pdcDealVirtualSuperTableScan: pVscan->pConditions=%p, pSysScan->pTagCond=%p, pSysScan->pTagIndexCond=%p",
+            pVscan->node.pConditions, pSysScan->pTagCond, pSysScan->pTagIndexCond);
 
   OPTIMIZE_FLAG_SET_MASK(pScan->node.optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE);
   pCxt->optimized = true;
@@ -879,6 +968,10 @@ _return:
   nodesDestroyNode(pOtherCond);
   nodesDestroyNode(pTagIndexCond);
   nodesDestroyNode(pTagCond);
+  nodesDestroyNode(pSysTagCond);
+  nodesDestroyNode(pRefTagCond);
+  nodesDestroyNode(pSysTagIdxCond);
+  nodesDestroyNode(pRefTagIdxCond);
   return code;
 }
 
