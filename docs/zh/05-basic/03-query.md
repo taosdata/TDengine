@@ -602,7 +602,7 @@ ORDER BY w.equipment_id, fault_start_time;
 - 每行代表一个故障窗口（由 `equipment_faults` 驱动），窗口时长为故障发生后 60 秒
 - `alarm_count`、`max_alarm_value`、`avg_alarm_value`：该窗口内来自 `system_alarms` 的统计指标
 - `w.equipment_id`、`w.fault_code`、`w.fault_level`：窗口属性列，用于过滤和展示故障信息
-- `HAVING`条件同时使用了标准聚合函数 (`COUNT`) 和窗口属性列(`w.fault_level`)
+- `HAVING`条件同时使用了标准聚合函数 (`COUNT`) 和窗口属性列 (`w.fault_level`)
 - `PARTITION BY` 对齐：内外查询均按 `equipment_id` 分组，确保每台设备的告警只与该设备的故障窗口匹配
 
 **约束与限制：**
