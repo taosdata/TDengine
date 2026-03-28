@@ -59,14 +59,14 @@ def draw_anomaly_results(input_list, res, fig_name, valid_code, algo_name:str):
 
     if isinstance(input_list[0], list):
         # 2-d list
-        input = input_list[0]
+        input_series = input_list[0]
     else:
-        input = input_list
+        input_series = input_list
 
-    plt.plot(input, 'b-', label='Data')
+    plt.plot(input_series, 'b-', label='Data')
 
     outlier_indices = np.where(np.array(res) != valid_code)
-    outlier_val = np.array(input)[outlier_indices]
+    outlier_val = np.array(input_series)[outlier_indices]
 
     plt.scatter(outlier_indices, outlier_val,
                 color='red', s=100, marker='o',
