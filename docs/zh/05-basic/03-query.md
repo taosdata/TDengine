@@ -518,6 +518,100 @@ count_window(1000);
 Query OK, 10 row(s) in set (0.062794s)
 ```
 
+### 外部窗口
+
+外部窗口（External Window）用于“先定义窗口，再在窗口内计算”。
+
+与 INTERVAL、EVENT_WINDOW 等内建窗口不同，外部窗口的时间范围由子查询显式给出，适合做跨事件关联、窗口复用、分层过滤等复杂分析。
+
+**语法：**
+
+```sql
+SELECT ... 
+FROM table_name
+[PARTITION BY expr_list]
+EXTERNAL_WINDOW (
+    (subquery_that_defines_windows) window_alias
+)
+[HAVING condition]
+[ORDER BY ...]
+```
+
+其中：
+
+- 子查询的前两列必须是 timestamp 类型，分别表示窗口开始时间和窗口结束时间
+- 子查询第 3 列及之后的列会成为“窗口属性列”
+- 外部查询会在每个窗口范围内独立计算
+
+**核心特性：**
+
+1. **窗口定义的灵活性：** 支持普通子查询、INTERVAL、EVENT_WINDOW、SESSION 等方式生成窗口。 
+
+2. **聚合和计算：** 支持 COUNT、AVG、SUM、MAX、MIN、FIRST、LAST 等聚合函数，以及标量表达式运算。
+
+3. **伪列支持：** `_wstart`（窗口开始时间）、`_wend`（窗口结束时间）、`_wduration`（窗口时长）可在 SELECT、HAVING、ORDER BY 子句中使用。
+
+4. **分组和对齐：**
+    - 当外部窗口（内部子查询）与外部查询都使用 PARTITION BY 时，按分组键自动对齐，同组数据仅匹配同组窗口。
+    - 当外部窗口使用 PARTITION BY，但外部查询未使用 PARTITION BY 时，语法禁止。
+    - 当外部窗口未使用 PARTITION BY 时，按全局窗口计算。
+
+5. **嵌套调用支持：** 支持多层外部窗口嵌套，实现复杂事件序列分析。
+
+### 窗口属性列如何引用
+
+子查询中前两列之后的列（例如 equipment_id、fault_code、fault_level）会作为窗口属性列。引用规则如下：
+
+1. 必须使用窗口别名引用：`window_alias.column_name`，例如 `w.equipment_id`、`w.fault_level`。
+2. 可用于 SELECT、HAVING、ORDER BY 子句。
+3. **不能在 WHERE 子句中引用**（WHERE 用于过滤外部表记录，此时窗口尚未生成；窗口属性只有在窗口定义后才可用，应该在 HAVING 中使用）。
+
+**使用示例：**
+
+**场景背景** - 工厂设备监控系统：
+- `equipment_faults`：设备故障事件表（超级表），包含故障代码 `fault_code`、故障等级 `fault_level`
+- `system_alarms`：系统告警事件表（超级表），包含告警代码 `alarm_code`、测量值 `alarm_value`
+- 两表均以 `equipment_id`（设备标识符）作为标签
+
+**目标** - 以每台设备的故障事件为时间窗口，统计故障发生后 60 秒内触发的告警情况。输出应包含：故障信息、该窗口内告警数量、最大测量值，并过滤出"有告警响应或属于严重故障"的窗口，按设备和故障时间排序。
+
+```sql
+SELECT
+    w.equipment_id,
+    w.fault_code,
+    w.fault_level,
+    _wstart                AS fault_start_time,
+    COUNT(sa.*)            AS alarm_count,
+    MAX(sa.alarm_value)    AS max_alarm_value,
+    AVG(sa.alarm_value)    AS avg_alarm_value
+FROM system_alarms sa
+PARTITION BY sa.equipment_id
+EXTERNAL_WINDOW (
+    (SELECT ts, ts + 60s, equipment_id, fault_code, fault_level
+     FROM equipment_faults
+     PARTITION BY equipment_id
+    ) w
+)
+HAVING COUNT(sa.*) > 0 OR w.fault_level = 'CRITICAL'
+ORDER BY w.equipment_id, fault_start_time;
+```
+
+**结果说明：**
+
+- 每行代表一个故障窗口（由 `equipment_faults` 驱动），窗口时长为故障发生后 60 秒
+- `alarm_count`、`max_alarm_value`、`avg_alarm_value`：该窗口内来自 `system_alarms` 的统计指标
+- `w.equipment_id`、`w.fault_code`、`w.fault_level`：窗口属性列，用于过滤和展示故障信息
+- `HAVING` 条件同时使用了标准聚合函数(`COUNT`) 和窗口属性列(`w.fault_level`)
+- `PARTITION BY` 对齐：内外查询均按 `equipment_id` 分组，确保每台设备的告警只与该设备的故障窗口匹配
+
+**约束与限制：**
+
+- 暂时不支持在流计算和订阅中使用
+- 窗口子查询的前两列必须为 timestamp 类型，分别表示窗口开始和结束时间
+- 窗口数据必须按 _wstart 升序排列
+- 若外部窗口（内部子查询）使用了分组，则外部查询必须同时使用 PARTITION BY；否则语法报错
+- 不支持窗口作用域内的不定行函数（如 DIFF、INTERP）
+
 ## 时间范围表达式
 
 在时序数据库的查询中，经常需要根据主键列的时间范围进行查询，TDengine 提供了一系列函数和表达式来方便用户进行时间范围的表达，这里列出了常见的时间范围表达式及其与 MySQL 和 PostgreSQL 的区别：

@@ -2449,8 +2449,8 @@ static int32_t createWindowLogicNodeByExternal(SLogicPlanContext* pCxt, SExterna
   PLAN_ERR_RET(nodesCloneNode(pSelect->pTimeRange, &pWindow->pTimeRange));
 
   if (NULL == pExternal->pCol) {
+    planError("%s failed, External window can not find pk column", __func__);
     nodesDestroyNode((SNode*)pWindow);
-    planError("External window can not find pk column");
     return TSDB_CODE_PLAN_INTERNAL_ERROR;
   }
 
