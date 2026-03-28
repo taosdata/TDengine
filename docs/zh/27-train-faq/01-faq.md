@@ -37,7 +37,7 @@ description: 一些常见问题的解决方法汇总
 
 ## 1. 安装与部署 {#安装与部署}
 
-### 1.1 Windows 平台运行 TDengine TSDB 出现丢失 MSVCP1400.DLL 解决方法？
+### 1.1 Windows 平台运行 TDengine TSDB 出现丢失 msvcp140.dll 解决方法？
 
 1. 重新安装 Microsoft Visual C++ Redistributable‌：由于 msvcp140.dll 是 Microsoft Visual C++ Redistributable 的一部分，重新安装这个包通常可以解决大部分问题。可以从 Microsoft 官方网站下载相应的版本进行安装‌
 2. 手动上网下载并替换 msvcp140.dll 文件‌：可以从可靠的源下载 msvcp140.dll 文件，并将其复制到系统的相应目录下。确保下载的文件与您的系统架构（32 位或 64 位）相匹配，并确保来源的安全性‌
