@@ -142,13 +142,19 @@ func (s *Stmt2) Prepare(sql string) error {
 // VARBINARY            | []byte
 // GEOMETRY             | []byte
 // JSON                 | []byte
+// DECIMAL/DECIMAL64    | string
+// BLOB                 | []byte/string
 func (s *Stmt2) Bind(params []*stmt.TaosStmt2BindData) error {
 	if s.isInsert == nil {
 		return errors.New("stmt2 is not prepared")
 	}
 	locker.Lock()
 	defer locker.Unlock()
-	err := wrapper.TaosStmt2BindParam(s.stmt2, *s.isInsert, params, s.fields, -1)
+	buffer, err := stmt.MarshalStmt2Binary(params, *s.isInsert, s.fields)
+	if err != nil {
+		return err
+	}
+	err = wrapper.TaosStmt2BindBinary(s.stmt2, buffer, -1)
 	return err
 }
 

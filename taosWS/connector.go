@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql/driver"
 
-	"github.com/taosdata/driver-go/v3/common"
+	"github.com/taosdata/driver-go/v3/ws/unified"
 )
 
 type connector struct {
@@ -14,30 +14,20 @@ type connector struct {
 // Connect implements driver.Connector interface.
 // Connect returns a connection to the database.
 func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
-	// Connect to Server
-	if len(c.cfg.User) == 0 {
-		c.cfg.User = common.DefaultUser
+	_ = ctx
+	if c == nil || c.cfg == nil {
+		return nil, unified.ErrNilConfig
 	}
-	if len(c.cfg.Passwd) == 0 {
-		c.cfg.Passwd = common.DefaultPassword
+	normalizedCfg := unified.BuildConnectionConfig(c.cfg, unified.TaosWSConnectionDefaults)
+	unifiedConnector, err := unified.NewConnector(normalizedCfg, "/ws")
+	if err != nil {
+		return nil, err
 	}
-	if c.cfg.Port == 0 {
-		c.cfg.Port = common.DefaultHttpPort
+	unifiedClient, err := unifiedConnector.Connect()
+	if err != nil {
+		return nil, NewBadConnError(err)
 	}
-	if len(c.cfg.Net) == 0 {
-		c.cfg.Net = "ws"
-	}
-	if len(c.cfg.Addr) == 0 {
-		c.cfg.Addr = "127.0.0.1"
-	}
-	if c.cfg.ReadTimeout == 0 {
-		c.cfg.ReadTimeout = common.DefaultMessageTimeout
-	}
-	if c.cfg.WriteTimeout == 0 {
-		c.cfg.WriteTimeout = common.DefaultWriteWait
-	}
-	tc, err := newTaosConn(c.cfg)
-	return tc, err
+	return newTaosConnWithClient(normalizedCfg, unifiedClient), nil
 }
 
 // Driver implements driver.Connector interface.

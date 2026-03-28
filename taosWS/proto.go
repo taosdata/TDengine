@@ -1,175 +1,37 @@
 package taosWS
 
-import (
-	"encoding/json"
+import unifiedproto "github.com/taosdata/driver-go/v3/ws/unified/proto"
 
-	stmtCommon "github.com/taosdata/driver-go/v3/common/stmt"
-)
+type RespInterface = unifiedproto.RespInterface
 
-type RespInterface interface {
-	GetReqID() uint64
-}
+type BaseResp = unifiedproto.BaseResp
 
-type BaseResp struct {
-	Code    int    `json:"code"`
-	Message string `json:"message"`
-	Action  string `json:"action"`
-	ReqID   uint64 `json:"req_id"`
-	Timing  int64  `json:"timing"`
-}
+type WSConnectReq = unifiedproto.WSConnectReq
+type WSConnectResp = unifiedproto.WSConnectResp
+type WSQueryReq = unifiedproto.WSQueryReq
+type WSQueryResp = unifiedproto.WSQueryResp
+type WSFetchReq = unifiedproto.WSFetchReq
+type WSFetchResp = unifiedproto.WSFetchResp
+type WSFetchBlockReq = unifiedproto.WSFetchBlockReq
+type WSFreeResultReq = unifiedproto.WSFreeResultReq
+type WSAction = unifiedproto.WSAction
 
-func (b *BaseResp) GetReqID() uint64 {
-	return b.ReqID
-}
-
-type WSConnectReq struct {
-	ReqID       uint64 `json:"req_id"`
-	User        string `json:"user"`
-	Password    string `json:"password"`
-	DB          string `json:"db"`
-	TZ          string `json:"tz"`
-	App         string `json:"app"`
-	Connector   string `json:"connector"`
-	TOTPCode    string `json:"totp_code"`
-	BearerToken string `json:"bearer_token"`
-}
-
-type WSConnectResp struct {
-	BaseResp
-}
-
-type WSQueryReq struct {
-	ReqID uint64 `json:"req_id"`
-	SQL   string `json:"sql"`
-}
-
-type WSQueryResp struct {
-	BaseResp
-	ID               uint64   `json:"id"`
-	IsUpdate         bool     `json:"is_update"`
-	AffectedRows     int      `json:"affected_rows"`
-	FieldsCount      int      `json:"fields_count"`
-	FieldsNames      []string `json:"fields_names"`
-	FieldsTypes      []uint8  `json:"fields_types"`
-	FieldsLengths    []int64  `json:"fields_lengths"`
-	Precision        int      `json:"precision"`
-	FieldsPrecisions []int64  `json:"fields_precisions"`
-	FieldsScales     []int64  `json:"fields_scales"`
-}
-
-type WSFetchReq struct {
-	ReqID uint64 `json:"req_id"`
-	ID    uint64 `json:"id"`
-}
-
-type WSFetchResp struct {
-	BaseResp
-	ID        uint64 `json:"id"`
-	Completed bool   `json:"completed"`
-	Lengths   []int  `json:"lengths"`
-	Rows      int    `json:"rows"`
-}
-
-type WSFetchBlockReq struct {
-	ReqID uint64 `json:"req_id"`
-	ID    uint64 `json:"id"`
-}
-
-type WSFreeResultReq struct {
-	ReqID uint64 `json:"req_id"`
-	ID    uint64 `json:"id"`
-}
-
-type WSAction struct {
-	Action string          `json:"action"`
-	Args   json.RawMessage `json:"args"`
-}
-
-type StmtPrepareRequest struct {
-	ReqID  uint64 `json:"req_id"`
-	StmtID uint64 `json:"stmt_id"`
-	SQL    string `json:"sql"`
-}
-
-type StmtPrepareResponse struct {
-	BaseResp
-	StmtID   uint64 `json:"stmt_id"`
-	IsInsert bool   `json:"is_insert"`
-}
-
-type StmtInitReq struct {
-	ReqID uint64 `json:"req_id"`
-}
-
-type StmtInitResp struct {
-	BaseResp
-	StmtID uint64 `json:"stmt_id"`
-}
-type StmtCloseRequest struct {
-	ReqID  uint64 `json:"req_id"`
-	StmtID uint64 `json:"stmt_id"`
-}
-
-type StmtCloseResponse struct {
-	BaseResp
-	StmtID uint64 `json:"stmt_id,omitempty"`
-}
-
-type StmtGetColFieldsRequest struct {
-	ReqID  uint64 `json:"req_id"`
-	StmtID uint64 `json:"stmt_id"`
-}
-
-type StmtGetColFieldsResponse struct {
-	BaseResp
-	StmtID uint64                  `json:"stmt_id"`
-	Fields []*stmtCommon.StmtField `json:"fields"`
-}
+type StmtPrepareRequest = unifiedproto.StmtPrepareRequest
+type StmtPrepareResponse = unifiedproto.StmtPrepareResponse
+type StmtInitReq = unifiedproto.StmtInitReq
+type StmtInitResp = unifiedproto.StmtInitResp
+type StmtCloseRequest = unifiedproto.StmtCloseRequest
+type StmtCloseResponse = unifiedproto.StmtCloseResponse
+type StmtGetColFieldsRequest = unifiedproto.StmtGetColFieldsRequest
+type StmtGetColFieldsResponse = unifiedproto.StmtGetColFieldsResponse
+type StmtBindResponse = unifiedproto.StmtBindResponse
+type StmtAddBatchRequest = unifiedproto.StmtAddBatchRequest
+type StmtAddBatchResponse = unifiedproto.StmtAddBatchResponse
+type StmtExecRequest = unifiedproto.StmtExecRequest
+type StmtExecResponse = unifiedproto.StmtExecResponse
+type StmtUseResultRequest = unifiedproto.StmtUseResultRequest
+type StmtUseResultResponse = unifiedproto.StmtUseResultResponse
 
 const (
-	BindMessage = 2
+	BindMessage = unifiedproto.BindMessage
 )
-
-type StmtBindResponse struct {
-	BaseResp
-	StmtID uint64 `json:"stmt_id"`
-}
-
-type StmtAddBatchRequest struct {
-	ReqID  uint64 `json:"req_id"`
-	StmtID uint64 `json:"stmt_id"`
-}
-
-type StmtAddBatchResponse struct {
-	BaseResp
-	StmtID uint64 `json:"stmt_id"`
-}
-
-type StmtExecRequest struct {
-	ReqID  uint64 `json:"req_id"`
-	StmtID uint64 `json:"stmt_id"`
-}
-
-type StmtExecResponse struct {
-	BaseResp
-	StmtID   uint64 `json:"stmt_id"`
-	Affected int    `json:"affected"`
-}
-
-type StmtUseResultRequest struct {
-	ReqID  uint64 `json:"req_id"`
-	StmtID uint64 `json:"stmt_id"`
-}
-
-type StmtUseResultResponse struct {
-	BaseResp
-	StmtID           uint64   `json:"stmt_id"`
-	ResultID         uint64   `json:"result_id"`
-	FieldsCount      int      `json:"fields_count"`
-	FieldsNames      []string `json:"fields_names"`
-	FieldsTypes      []uint8  `json:"fields_types"`
-	FieldsLengths    []int64  `json:"fields_lengths"`
-	Precision        int      `json:"precision"`
-	FieldsPrecisions []int64  `json:"fields_precisions"`
-	FieldsScales     []int64  `json:"fields_scales"`
-}

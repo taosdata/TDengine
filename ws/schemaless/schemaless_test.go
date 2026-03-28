@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -168,16 +169,37 @@ func startTaosadapter(cmd *exec.Cmd, port string) error {
 		return err
 	}
 	for i := 0; i < 30; i++ {
+		if !isProcessAlive(cmd) {
+			return errors.New("taosadapter exited before ready")
+		}
 		time.Sleep(time.Millisecond * 100)
 		resp, err := http.Get(fmt.Sprintf("http://127.0.0.1:%s/-/ping", port))
 		if err != nil {
 			continue
 		}
 		_ = resp.Body.Close()
+		if !isProcessAlive(cmd) {
+			return errors.New("taosadapter exited before ready")
+		}
 		time.Sleep(time.Second)
 		return nil
 	}
+	if cmd.Process != nil {
+		_ = cmd.Process.Signal(syscall.SIGINT)
+		_, _ = cmd.Process.Wait()
+		cmd.Process = nil
+	}
 	return errors.New("taosadapter start failed")
+}
+
+func isProcessAlive(cmd *exec.Cmd) bool {
+	if cmd == nil || cmd.Process == nil {
+		return false
+	}
+	if runtime.GOOS == "windows" {
+		return cmd.ProcessState == nil
+	}
+	return cmd.Process.Signal(syscall.Signal(0)) == nil
 }
 
 func stopTaosadapter(cmd *exec.Cmd) {
@@ -190,13 +212,44 @@ func stopTaosadapter(cmd *exec.Cmd) {
 	time.Sleep(time.Second)
 }
 
-func TestSchemalessReconnect(t *testing.T) {
-	port := "36041"
-	cmd := newTaosadapter(port)
-	err := startTaosadapter(cmd, port)
-	if err != nil {
-		t.Fatal(err)
+func getAvailablePort(t *testing.T) string {
+	t.Helper()
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer func() {
+		_ = listener.Close()
+	}()
+	return strconv.Itoa(listener.Addr().(*net.TCPAddr).Port)
+}
+
+func startTaosadapterOnFreePort(t *testing.T) (string, *exec.Cmd) {
+	t.Helper()
+	var lastErr error
+	for i := 0; i < 8; i++ {
+		port := getAvailablePort(t)
+		cmd := newTaosadapter(port)
+		err := startTaosadapter(cmd, port)
+		if err == nil {
+			return port, cmd
+		}
+		lastErr = err
+		if cmd.Process != nil {
+			_ = cmd.Process.Signal(syscall.SIGINT)
+			_, _ = cmd.Process.Wait()
+			cmd.Process = nil
+		}
+		time.Sleep(100 * time.Millisecond)
 	}
+	require.NoError(t, lastErr)
+	return "", nil
+}
+
+func TestSchemalessReconnect(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping reconnect test in short mode - requires taosadapter restart")
+	}
+	port, cmd := startTaosadapterOnFreePort(t)
+	var err error
 	defer func() {
 		stopTaosadapter(cmd)
 	}()
@@ -208,6 +261,10 @@ func TestSchemalessReconnect(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer func() {
+		cleanErr := doRequest("drop database if exists test_schemaless_reconnect")
+		assert.NoError(t, cleanErr)
+	}()
 	s, err := NewSchemaless(NewConfig(fmt.Sprintf("ws://localhost:%s", port), 1,
 		SetDb("test_schemaless_reconnect"),
 		SetReadTimeout(3*time.Second),
@@ -219,33 +276,22 @@ func TestSchemalessReconnect(t *testing.T) {
 			t.Log(err)
 		}),
 		SetAutoReconnect(true),
-		SetReconnectIntervalMs(2000),
-		SetReconnectRetryCount(3),
+		SetReconnectIntervalMs(500),
+		SetReconnectRetryCount(1),
 	))
 	if err != nil {
 		t.Fatal(err)
 	}
 	stopTaosadapter(cmd)
-	time.Sleep(time.Second * 3)
-	startChan := make(chan struct{})
-	go func() {
-		time.Sleep(time.Second * 10)
-		cmd = newTaosadapter(port)
-		err = startTaosadapter(cmd, port)
-		startChan <- struct{}{}
-		if err != nil {
-			t.Error(err)
-			return
-		}
-	}()
 	data := "measurement,host=host1 field1=2i,field2=2.0 1577837300000\n" +
 		"measurement,host=host1 field1=2i,field2=2.0 1577837400000\n" +
 		"measurement,host=host1 field1=2i,field2=2.0 1577837500000\n" +
 		"measurement,host=host1 field1=2i,field2=2.0 1577837600000"
 	err = s.Insert(data, InfluxDBLineProtocol, "ms", 0, 0)
 	assert.Error(t, err)
-	<-startChan
-	time.Sleep(time.Second)
+	cmd = newTaosadapter(port)
+	err = startTaosadapter(cmd, port)
+	assert.NoError(t, err)
 	err = s.Insert(data, InfluxDBLineProtocol, "ms", 0, 0)
 	assert.NoError(t, err)
 	err = s.Insert(data, InfluxDBLineProtocol, "ms", 0, 0)

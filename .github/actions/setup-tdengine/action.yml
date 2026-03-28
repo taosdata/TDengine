@@ -1,0 +1,149 @@
+name: 'Setup TDengine'
+description: 'Universal TDengine setup action supporting multiple modes'
+
+inputs:
+  mode:
+    description: 'Setup mode: nightly, build, or fixed'
+    required: true
+    default: 'nightly'
+  branch:
+    description: 'TDengine branch (for nightly mode)'
+    required: false
+    default: 'main'
+  commit-id:
+    description: 'TDengine commit ID (for build mode)'
+    required: false
+    default: ''
+  event-key:
+    description: 'Event key for cache (for build mode)'
+    required: false
+    default: ''
+  package-path:
+    description: 'Path to TDengine package (for fixed mode)'
+    required: false
+    default: ''
+  version:
+    description: 'Version string for logging'
+    required: false
+    default: 'unknown'
+  install-args:
+    description: 'Extra arguments passed to install.sh'
+    required: false
+    default: ''
+  start-services:
+    description: 'Whether to start taosd and taosadapter'
+    required: false
+    default: 'true'
+  config-files:
+    description: 'Comma-separated list of config files'
+    required: false
+    default: 'taos.cfg,taosadapter.toml'
+  nightly-url:
+    description: 'Base URL for nightly builds (required for nightly mode)'
+    required: false
+    default: ''
+
+runs:
+  using: "composite"
+  steps:
+    - name: Validate inputs
+      shell: bash
+      run: |
+        set +o pipefail  # Ignore pipe errors
+        case "${{ inputs.mode }}" in
+          nightly)
+            if [ -z "${{ inputs.branch }}" ] || [ -z "${{ inputs.nightly-url }}" ]; then
+              echo "Error: branch and nightly-url are required for nightly mode"
+              exit 1
+            fi
+            ;;
+          build)
+            if [ -z "${{ inputs.commit-id }}" ] || [ -z "${{ inputs.event-key }}" ]; then
+              echo "Error: commit-id and event-key are required for build mode"
+              exit 1
+            fi
+            ;;
+          fixed)
+            if [ -z "${{ inputs.package-path }}" ]; then
+              echo "Error: package-path is required for fixed mode"
+              exit 1
+            fi
+            ;;
+          *)
+            echo "Error: mode must be one of [nightly, build, fixed]"
+            exit 1
+            ;;
+        esac
+
+    - name: Setup nightly build
+      if: inputs.mode == 'nightly'
+      id: setup-nightly
+      shell: bash
+      run: |
+        echo "Downloading TDengine nightly for branch: ${{ inputs.branch }}"
+        set -o pipefail
+        if ! wget "${{ inputs.nightly-url }}/tsdb-nightly-${{ inputs.branch }}.tar.gz?v=$(date +%s)" \
+          -O "tdengine-nightly.tar.gz" 2>&1 | tail -n5; then
+          echo "Error: failed to download nightly package"
+          exit 1
+        fi
+        echo "package_path=tdengine-nightly.tar.gz" >> $GITHUB_OUTPUT
+        echo "package_type=tar.gz" >> $GITHUB_OUTPUT
+
+    - name: Restore build cache
+      if: inputs.mode == 'build'
+      id: cache-server
+      uses: actions/cache@v5
+      with:
+        path: server.tar.gz
+        key: ${{ runner.os }}-build-${{ inputs.event-key }}-${{ inputs.commit-id }}
+
+    - name: Setup build mode paths
+      if: inputs.mode == 'build'
+      id: setup-build
+      shell: bash
+      run: |
+        echo "package_path=server.tar.gz" >> $GITHUB_OUTPUT
+        echo "package_type=tar.gz" >> $GITHUB_OUTPUT
+
+    - name: Setup fixed mode paths
+      if: inputs.mode == 'fixed'
+      id: setup-fixed
+      shell: bash
+      run: |
+        package_path="${{ inputs.package-path }}"
+        if [ -d "$package_path" ]; then
+          package_type="dir"
+        elif [ -f "$package_path" ]; then
+          package_type="tar.gz"
+        else
+          echo "Error: package-path not found or inaccessible: $package_path"
+          exit 1
+        fi
+        echo "package_path=$package_path" >> $GITHUB_OUTPUT
+        echo "package_type=$package_type" >> $GITHUB_OUTPUT
+
+    - name: Determine package info
+      id: package-info
+      shell: bash
+      run: |
+        if [ "${{ inputs.mode }}" == "nightly" ]; then
+          echo "path=${{ steps.setup-nightly.outputs.package_path }}" >> $GITHUB_OUTPUT
+          echo "type=${{ steps.setup-nightly.outputs.package_type }}" >> $GITHUB_OUTPUT
+        elif [ "${{ inputs.mode }}" == "build" ]; then
+          echo "path=${{ steps.setup-build.outputs.package_path }}" >> $GITHUB_OUTPUT
+          echo "type=${{ steps.setup-build.outputs.package_type }}" >> $GITHUB_OUTPUT
+        else
+          echo "path=${{ steps.setup-fixed.outputs.package_path }}" >> $GITHUB_OUTPUT
+          echo "type=${{ steps.setup-fixed.outputs.package_type }}" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Install and setup TDengine
+      uses: ./.github/actions/setup-tdengine-base
+      with:
+        install-package: ${{ steps.package-info.outputs.path }}
+        package-type: ${{ steps.package-info.outputs.type }}
+        install-args: ${{ inputs.install-args }}
+        start-services: ${{ inputs.start-services }}
+        config-files: ${{ inputs.config-files }}
+        version: ${{ inputs.version }}

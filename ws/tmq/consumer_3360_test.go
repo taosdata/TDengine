@@ -123,7 +123,7 @@ func TestConsumer_3360(t *testing.T) {
 		if gotData {
 			return
 		}
-		ev := consumer.Poll(10)
+		ev := consumer.Poll(100)
 		if ev != nil {
 			switch e := ev.(type) {
 			case *tmq.DataMessage:

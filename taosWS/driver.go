@@ -13,14 +13,11 @@ type TDengineDriver struct{}
 // Open new Connection.
 // the DSN string is formatted
 func (d TDengineDriver) Open(dsn string) (driver.Conn, error) {
-	cfg, err := ParseDSN(dsn)
+	connector, err := d.OpenConnector(dsn)
 	if err != nil {
 		return nil, err
 	}
-	c := &connector{
-		cfg: cfg,
-	}
-	return c.Connect(context.Background())
+	return connector.Connect(context.Background())
 }
 
 func init() {
@@ -38,7 +35,5 @@ func (d TDengineDriver) OpenConnector(dsn string) (driver.Connector, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &connector{
-		cfg: cfg,
-	}, nil
+	return NewConnector(cfg)
 }

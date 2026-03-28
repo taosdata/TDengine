@@ -10,52 +10,46 @@ jobs:
     runs-on: ubuntu-22.04
     strategy:
       matrix:
-        td_version: [ 'main', '3.0' ]
+        td_version: ['main', '3.0']
     name: Build ${{ matrix.td_version }}
     outputs:
       commit_id: ${{ steps.get_commit_id.outputs.commit_id }}
     steps:
-      - name: checkout TDengine by pr
-        if: github.event_name == 'pull_request'
+      - name: Checkout TDengine
         uses: actions/checkout@v6
         with:
           repository: 'taosdata/TDengine'
           path: 'TDengine'
           ref: ${{ matrix.td_version }}
 
-      - name: get_commit_id
+      - name: Get commit ID
         id: get_commit_id
         run: |
           cd TDengine
           echo "commit_id=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
 
-
-      - name: Cache server by pr
-        if: github.event_name == 'pull_request'
-        id: cache-server-pr
+      - name: Cache server
+        id: cache-server
         uses: actions/cache@v5
         with:
           path: server.tar.gz
           key: ${{ runner.os }}-build-${{ matrix.td_version }}-${{ steps.get_commit_id.outputs.commit_id }}
 
-      - name: prepare install
-        if: >
-          (github.event_name == 'pull_request' && steps.cache-server-pr.outputs.cache-hit != 'true')
+      - name: Install dependencies
+        if: steps.cache-server.outputs.cache-hit != 'true'
         run: sudo apt install -y libgeos-dev
 
-      - name: install TDengine
-        if: >
-          (github.event_name == 'pull_request' && steps.cache-server-pr.outputs.cache-hit != 'true')
+      - name: Build TDengine
+        if: steps.cache-server.outputs.cache-hit != 'true'
         run: |
           cd TDengine
-          mkdir debug
+          mkdir -p debug
           cd debug
-          cmake .. -DBUILD_TEST=off -DBUILD_HTTP=false -DVERNUMBER=3.9.9.9 
+          cmake .. -DBUILD_TEST=off -DBUILD_HTTP=false -DVERNUMBER=3.9.9.9
           make -j 4
 
-      - name: package
-        if: >
-          (github.event_name == 'pull_request' && steps.cache-server-pr.outputs.cache-hit != 'true')
+      - name: Package TDengine
+        if: steps.cache-server.outputs.cache-hit != 'true'
         run: |
           mkdir -p ./release
           cp ./TDengine/debug/build/bin/taos ./release/
@@ -64,7 +58,7 @@ jobs:
           cp ./TDengine/debug/build/lib/libtaos.so.3.9.9.9 ./release/
           cp ./TDengine/debug/build/lib/librocksdb.so.8.1.1 ./release/ ||:
           cp ./TDengine/include/client/taos.h ./release/
-          cat >./release/install.sh<<EOF 
+          cat >./release/install.sh<<EOF
           chmod +x ./taos
           chmod +x ./taosd
           chmod +x ./taosadapter
@@ -86,13 +80,14 @@ jobs:
     needs: build
     strategy:
       matrix:
-        go: [ '1.14', 'stable' ]
-        td_version: [ 'main', '3.0' ]
+        go: ['1.14', '1.17', '1.22', 'stable']
+        td_version: ['main', '3.0']
     name: Go ${{ matrix.td_version }} ${{ matrix.go }}
     steps:
-      - name: get cache server by pr
-        if: github.event_name == 'pull_request'
-        id: get-cache-server-pr
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Cache server
         uses: actions/cache@v5
         with:
           path: server.tar.gz
@@ -100,35 +95,15 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-build-${{ matrix.td_version }}-
 
-
-      - name: prepare install
+      - name: Install dependencies
         run: sudo apt install -y libgeos-dev
 
-      - name: install
-        run: |
-          tar -zxvf server.tar.gz
-          cd release && sudo sh install.sh
-
-      - name: checkout
-        uses: actions/checkout@v6
-
-      - name: copy taos cfg
-        run: |
-          sudo mkdir -p /etc/taos
-          sudo cp ./.github/workflows/taos.cfg /etc/taos/taos.cfg
-          sudo cp ./.github/workflows/taosadapter.toml /etc/taos/taosadapter.toml
-
-      - name: shell
-        run: |
-          cat >start.sh<<EOF 
-          ulimit -n 65535 && TAOS_SUPPORT_VNODES=256 taosd
-          EOF
-
-      - name: taosd
-        run: nohup sudo sh ./start.sh &
-
-      - name: start taosadapter
-        run: sudo taosadapter &
+      - name: Setup TDengine from build
+        uses: ./.github/actions/setup-tdengine
+        with:
+          mode: 'build'
+          commit-id: ${{ needs.build.outputs.commit_id }}
+          event-key: ${{ matrix.td_version }}
 
       - name: Set up Go
         uses: actions/setup-go@v6
@@ -137,4 +112,9 @@ jobs:
           cache-dependency-path: go.sum
 
       - name: Test
-        run: sudo go test -v --count=1 -coverprofile=coverage.txt -covermode=atomic ./...
+        run: |
+          packages="./..."
+          if [ "${{ matrix.go }}" = "1.14" ] || [ "${{ matrix.go }}" = "1.17" ]; then
+            packages="$(go list ./... | grep -v '^github.com/taosdata/driver-go/v3/examples/')"
+          fi
+          sudo go test -v --count=1 -coverprofile=coverage.txt -covermode=atomic $packages

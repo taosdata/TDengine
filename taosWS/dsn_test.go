@@ -152,14 +152,3 @@ func TestParseDsn(t *testing.T) {
 		})
 	}
 }
-
-func TestTryUnescape(t *testing.T) {
-	escaped := tryUnescape("%3F") // ?
-	assert.Equal(t, "?", escaped)
-	escaped = tryUnescape("%3f") // ?
-	assert.Equal(t, "?", escaped)
-	escaped = tryUnescape("%25") // %
-	assert.Equal(t, "%", escaped)
-	escaped = tryUnescape("%")
-	assert.Equal(t, "%", escaped)
-}

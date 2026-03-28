@@ -384,6 +384,50 @@ func TestColumnType_AddGeometry(t *testing.T) {
 	assert.Equal(t, expected, values)
 }
 
+func TestColumnType_AddDecimal(t *testing.T) {
+	colType := NewColumnType(1)
+
+	colType.AddDecimal()
+
+	expected := []*types.ColumnType{
+		{
+			Type: types.TaosDecimalType,
+		},
+	}
+
+	values, err := colType.GetValue()
+	assert.NoError(t, err)
+	assert.Equal(t, expected, values)
+
+	colType.AddDecimal()
+
+	values, err = colType.GetValue()
+	assert.NoError(t, err)
+	assert.Equal(t, expected, values)
+}
+
+func TestColumnType_AddBlob(t *testing.T) {
+	colType := NewColumnType(1)
+
+	colType.AddBlob()
+
+	expected := []*types.ColumnType{
+		{
+			Type: types.TaosBlobType,
+		},
+	}
+
+	values, err := colType.GetValue()
+	assert.NoError(t, err)
+	assert.Equal(t, expected, values)
+
+	colType.AddBlob()
+
+	values, err = colType.GetValue()
+	assert.NoError(t, err)
+	assert.Equal(t, expected, values)
+}
+
 func TestColumnType_GetValue(t *testing.T) {
 	// Initialize ColumnType with size 3
 	colType := NewColumnType(3)

@@ -3,24 +3,24 @@ on:
   schedule:
     - cron: '0 0 * * *'
   push:
+
 jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - name: get TDengine
-        run: |
-          wget "${{ secrets.NIGHTLY_TDENGINE_ENTERPRISE_BASE_URL }}/tsdb-nightly-main.tar.gz?v=$(date +%s)" -O tsdb-nightly-main.tar.gz
+      - name: Checkout code
+        uses: actions/checkout@v6
 
-      - name: install
-        run: |
-          tar -zxf tsdb-nightly-main.tar.gz
-          cd tsdb-nightly-main
-          ls -al
-          sudo ./install.sh
+      - name: Setup TDengine nightly
+        uses: ./.github/actions/setup-tdengine
+        with:
+          mode: 'nightly'
+          branch: 'main'
+          start-services: 'false'
+          nightly-url: ${{ secrets.NIGHTLY_TDENGINE_ENTERPRISE_BASE_URL }}
 
-      - uses: actions/checkout@v6
-
-      - uses: actions/setup-go@v6
+      - name: Set up Go
+        uses: actions/setup-go@v6
         with:
           go-version: 'stable'
 
@@ -36,14 +36,12 @@ jobs:
           fi
           echo "✅ No vulnerabilities found"
 
-      - name: feishu_report
+      - name: Feishu notification
         if: failure() && github.event_name == 'schedule'
         env:
           FEISHU_WEBHOOK_URL: ${{ secrets.FEISHU_WEBHOOK_URL }}
         run: |
-          REPO_NAME=${GITHUB_REPOSITORY}
           WORKFLOW_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
-
           curl -X POST $FEISHU_WEBHOOK_URL \
                -H 'Content-Type: application/json' \
                -d "{
@@ -56,7 +54,7 @@ jobs:
                        \"tag\": \"div\",
                        \"text\": {
                          \"tag\": \"lark_md\",
-                         \"content\": \"${REPO_NAME} Dependency check failed. [View Workflow](${WORKFLOW_URL})\"
+                         \"content\": \"${GITHUB_REPOSITORY} Dependency check failed. [View Workflow](${WORKFLOW_URL})\"
                        }
                      }
                    ]

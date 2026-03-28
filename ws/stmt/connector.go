@@ -1,50 +1,41 @@
 package stmt
 
 import (
-	"context"
 	"errors"
-	"net"
-	"net/url"
 	"sync"
 	"time"
 
-	"github.com/gorilla/websocket"
 	"github.com/taosdata/driver-go/v3/common"
-	"github.com/taosdata/driver-go/v3/common/tdversion"
 	"github.com/taosdata/driver-go/v3/ws/client"
+	"github.com/taosdata/driver-go/v3/ws/unified"
 )
 
+// Deprecated: use unified.Client from package ws/unified instead.
 type Connector struct {
-	client              *WSConn
-	writeTimeout        time.Duration
-	readTimeout         time.Duration
-	config              *Config
-	timezone            *time.Location
-	customErrorHandler  func(*Connector, error)
-	customCloseHandler  func()
-	url                 string
-	chanLength          uint
-	dialer              *websocket.Dialer
-	autoReconnect       bool
-	reconnectIntervalMs int
-	reconnectRetryCount int
-	user                string
-	password            string
-	db                  string
-	totpCode            string
-	bearerToken         string
-	closed              bool
+	unifiedClient      *unified.Client
+	config             *Config
+	timezone           *time.Location
+	customErrorHandler func(*Connector, error)
+	customCloseHandler func()
+	closed             bool
 	sync.Mutex
 }
 
 var (
+	// Deprecated: use unified error types from package ws/unified instead.
 	//revive:disable-next-line
 	ConnectTimeoutErr = errors.New("stmt connect timeout")
-	ErrConnIsClosed   = errors.New("stmt Connector is closed")
+	// Deprecated: use unified errors from package ws/unified instead.
+	ErrConnIsClosed = errors.New("stmt Connector is closed")
+	// Deprecated: use unified errors from package ws/unified instead.
+	ErrUnifiedClientUninitialized = errors.New("stmt unified client is not initialized")
 )
 
+// Deprecated: use unified.NewClient from package ws/unified instead.
 func NewConnector(config *Config) (*Connector, error) {
-	var connector *Connector
+	if config == nil {
+		return nil, errors.New("nil config")
+	}
 	readTimeout := common.DefaultMessageTimeout
 	writeTimeout := common.DefaultWriteWait
 	if config.MessageTimeout > 0 {
@@ -53,221 +44,92 @@ func NewConnector(config *Config) (*Connector, error) {
 	if config.WriteWait > 0 {
 		writeTimeout = config.WriteWait
 	}
-	dialer := common.DefaultDialer
-	dialer.EnableCompression = config.EnableCompression
-	u, err := url.Parse(config.Url)
-	if err != nil {
-		return nil, err
-	}
-	u.Path = "/ws"
-	ws, _, err := dialer.Dial(u.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-	ws.EnableWriteCompression(config.EnableCompression)
-	if err = tdversion.WSCheckVersion(ws); err != nil {
-		_ = ws.Close()
-		return nil, err
-	}
-	defer func() {
-		if connector == nil {
-			_ = ws.Close()
-		}
-	}()
-	if config.MessageTimeout <= 0 {
-		config.MessageTimeout = common.DefaultMessageTimeout
-	}
-	err = connect(ws, config.User, config.Password, config.DB, config.TotpCode, config.BearerToken, writeTimeout, readTimeout, config.Timezone)
-	if err != nil {
-		return nil, err
-	}
-	wsClient := client.NewClient(ws, config.ChanLength)
-	wsConn := NewWSConn(wsClient, writeTimeout, readTimeout)
-	connector = &Connector{
-		client:              wsConn,
-		writeTimeout:        writeTimeout,
-		readTimeout:         readTimeout,
-		config:              config,
-		customErrorHandler:  config.ErrorHandler,
-		customCloseHandler:  config.CloseHandler,
-		url:                 u.String(),
-		dialer:              &dialer,
-		chanLength:          config.ChanLength,
-		autoReconnect:       config.AutoReconnect,
-		reconnectIntervalMs: config.ReconnectIntervalMs,
-		reconnectRetryCount: config.ReconnectRetryCount,
-		user:                config.User,
-		password:            config.Password,
-		db:                  config.DB,
-		totpCode:            config.TotpCode,
-		bearerToken:         config.BearerToken,
-		timezone:            config.Timezone,
-	}
-	wsClient.ErrorHandler = connector.handleError
-	wsConn.initClient()
-	return connector, nil
-}
 
-func connect(ws *websocket.Conn, user string, password string, db string, totpCode string, bearerToken string, writeTimeout time.Duration, readTimeout time.Duration, timezone *time.Location) error {
-	req := &ConnectReq{
-		ReqID:       0,
-		User:        user,
-		Password:    password,
-		DB:          db,
-		App:         common.GetProcessName(),
-		Connector:   common.GetConnectorInfo("ws"),
-		TOTPCode:    totpCode,
-		BearerToken: bearerToken,
+	connector := &Connector{
+		config:             config,
+		customErrorHandler: config.ErrorHandler,
+		customCloseHandler: config.CloseHandler,
+		timezone:           config.Timezone,
 	}
-	if timezone != nil {
-		req.TZ = timezone.String()
+
+	unifiedCfg := &unified.Config{
+		Endpoints:           []string{config.Url},
+		ChanLength:          config.ChanLength,
+		AutoReconnect:       config.AutoReconnect,
+		ReconnectIntervalMs: config.ReconnectIntervalMs,
+		ReconnectRetryCount: config.ReconnectRetryCount,
+		DbName:              config.DB,
+		ReadTimeout:         readTimeout,
+		WriteTimeout:        writeTimeout,
+		EnableCompression:   config.EnableCompression,
+		User:                config.User,
+		Passwd:              config.Password,
+		BearerToken:         config.BearerToken,
+		TotpCode:            config.TotpCode,
+		Timezone:            config.Timezone,
 	}
-	args, err := client.JsonI.Marshal(req)
+	unifiedClient, err := unified.NewClient(unifiedCfg, "/ws")
 	if err != nil {
-		return err
+		return nil, err
 	}
-	action := &client.WSAction{
-		Action: STMTConnect,
-		Args:   args,
+	unifiedClient.SetErrorHandler(func(err error) {
+		connector.handleError(mapUnifiedError(err))
+	})
+	if err = unifiedClient.Connect(); err != nil {
+		unifiedClient.Close()
+		return nil, mapUnifiedError(err)
 	}
-	connectAction, err := client.JsonI.Marshal(action)
-	if err != nil {
-		return err
-	}
-	_ = ws.SetWriteDeadline(time.Now().Add(writeTimeout))
-	err = ws.WriteMessage(websocket.TextMessage, connectAction)
-	if err != nil {
-		return err
-	}
-	done := make(chan struct{})
-	ctx, cancel := context.WithTimeout(context.Background(), readTimeout)
-	var respBytes []byte
-	go func() {
-		_, respBytes, err = ws.ReadMessage()
-		close(done)
-	}()
-	select {
-	case <-done:
-		cancel()
-	case <-ctx.Done():
-		cancel()
-		return ConnectTimeoutErr
-	}
-	if err != nil {
-		return err
-	}
-	var resp ConnectResp
-	err = client.JsonI.Unmarshal(respBytes, &resp)
-	return client.HandleResponseError(err, resp.Code, resp.Message)
+	connector.unifiedClient = unifiedClient
+	return connector, nil
 }
 
 func (c *Connector) handleError(err error) {
 	if c.customErrorHandler != nil {
 		c.customErrorHandler(c, err)
 	}
-	//c.Close()
 }
 
-func (c *Connector) generateReqID() uint64 {
-	return uint64(common.GetReqID())
-}
-
-func (c *Connector) reconnect() error {
-	reconnected := false
-	for i := 0; i < c.reconnectRetryCount; i++ {
-		time.Sleep(time.Duration(c.reconnectIntervalMs) * time.Millisecond)
-		conn, _, err := c.dialer.Dial(c.url, nil)
-		if err != nil {
-			continue
-		}
-		conn.EnableWriteCompression(c.dialer.EnableCompression)
-		err = connect(conn, c.user, c.password, c.db, c.totpCode, c.bearerToken, c.writeTimeout, c.readTimeout, c.timezone)
-		if err != nil {
-			_ = conn.Close()
-			continue
-		}
-		if err = tdversion.WSCheckVersion(conn); err != nil {
-			_ = conn.Close()
-			continue
-		}
-		if c.client != nil {
-			c.client.Close()
-		}
-		cl := client.NewClient(conn, c.chanLength)
-		cl.ErrorHandler = c.handleError
-		wsConn := NewWSConn(cl, c.writeTimeout, c.readTimeout)
-		wsConn.initClient()
-		reconnected = true
-		c.client = wsConn
-		break
+func mapUnifiedError(err error) error {
+	if err == nil {
+		return nil
 	}
-	if !reconnected {
-		if c.client != nil {
-			c.client.Close()
-		}
-		return errors.New("reconnect failed")
+	if unified.IsErrorType(err, unified.ErrorTypeConnectTimeout) {
+		return ConnectTimeoutErr
 	}
-	return nil
+	if unified.IsConnectionDisconnectedError(err) || errors.Is(err, client.ClosedError) {
+		return client.ClosedError
+	}
+	return err
 }
 
+func (c *Connector) isClosed() bool {
+	c.Lock()
+	defer c.Unlock()
+	return c.closed
+}
+
+// Deprecated: use (*unified.Client).InitStmt instead.
 func (c *Connector) Init() (*Stmt, error) {
 	c.Lock()
 	defer c.Unlock()
+
 	if c.closed {
 		return nil, ErrConnIsClosed
 	}
-	reqID := c.generateReqID()
-	req := &InitReq{
-		ReqID: reqID,
+	if c.unifiedClient == nil {
+		return nil, ErrUnifiedClientUninitialized
 	}
-	args, err := client.JsonI.Marshal(req)
+	core, err := c.unifiedClient.InitStmt(0)
 	if err != nil {
-		return nil, err
+		return nil, mapUnifiedError(err)
 	}
-	action := &client.WSAction{
-		Action: STMTInit,
-		Args:   args,
-	}
-	envelope := client.GlobalEnvelopePool.Get()
-	defer client.GlobalEnvelopePool.Put(envelope)
-	err = client.JsonI.NewEncoder(envelope.Msg).Encode(action)
-	if err != nil {
-		return nil, err
-	}
-	respBytes, err := c.client.sendText(reqID, envelope)
-	if err != nil {
-		if !c.autoReconnect {
-			return nil, err
-		}
-
-		var opError *net.OpError
-		if !c.client.client.IsRunning() || errors.Is(err, client.ClosedError) || errors.As(err, &opError) {
-			err = c.reconnect()
-			if err != nil {
-				return nil, err
-			}
-			respBytes, err = c.client.sendText(reqID, envelope)
-			if err != nil {
-				return nil, err
-			}
-		} else {
-			return nil, err
-		}
-	}
-	var resp InitResp
-	err = client.JsonI.Unmarshal(respBytes, &resp)
-	err = client.HandleResponseError(err, resp.Code, resp.Message)
-	if err != nil {
-		return nil, err
-	}
-	s := &Stmt{
-		id:        resp.StmtID,
-		connector: c.client,
-		timezone:  c.timezone,
-	}
-	return s, nil
+	return &Stmt{
+		core:      core,
+		connector: c,
+	}, nil
 }
 
+// Deprecated: use (*unified.Client).Close instead.
 func (c *Connector) Close() error {
 	c.Lock()
 	defer c.Unlock()
@@ -275,7 +137,9 @@ func (c *Connector) Close() error {
 		return nil
 	}
 	c.closed = true
-	c.client.Close()
+	if c.unifiedClient != nil {
+		c.unifiedClient.Close()
+	}
 	if c.customCloseHandler != nil {
 		c.customCloseHandler()
 	}

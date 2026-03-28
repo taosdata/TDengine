@@ -6,30 +6,32 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - name: get TDengine
-        run: |
-          wget "${{ secrets.NIGHTLY_TDENGINE_ENTERPRISE_BASE_URL }}/tsdb-nightly-main.tar.gz?v=$(date +%s)" -O tsdb-nightly-main.tar.gz
+      - name: Checkout code
+        uses: actions/checkout@v6
 
-      - name: install
-        run: |
-          tar -zxf tsdb-nightly-main.tar.gz
-          cd tsdb-nightly-main
-          ls -al
-          sudo ./install.sh
+      - name: Setup TDengine nightly
+        uses: ./.github/actions/setup-tdengine
+        with:
+          mode: 'nightly'
+          branch: 'main'
+          start-services: 'false'
+          nightly-url: ${{ secrets.NIGHTLY_TDENGINE_ENTERPRISE_BASE_URL }}
 
-      - uses: actions/checkout@v6
-
-      - uses: actions/setup-go@v6
+      - name: Set up Go
+        uses: actions/setup-go@v6
         with:
           go-version: 'stable'
 
       - name: Install go-licenses
         run: go install github.com/google/go-licenses/v2@latest
 
-      - name: Run license check scan
-        run: go-licenses check ./...  --include_tests --allowed_licenses=AFL-1.1,AFL-1.2,AFL-2.0,AFL-2.1,AFL-3.0,Apache-1.0,Apache-1.1,Apache-2.0,Artistic-1.0-cl8,Artistic-1.0-Perl,Artistic-1.0,Artistic-2.0,BSL-1.0,BSD-2-Clause-FreeBSD,BSD-2-Clause-NetBSD,BSD-2-Clause,BSD-3-Clause-Attribution,BSD-3-Clause-Clear,BSD-3-Clause-LBNL,BSD-3-Clause,BSD-4-Clause,BSD-4-Clause-UC,BSD-Protection,CC-BY-1.0,CC-BY-2.0,CC-BY-2.5,CC-BY-3.0,CC-BY-4.0,FTL,ISC,ImageMagick,Libpng,Lil-1.0,Linux-OpenIB,LPL-1.02,LPL-1.0,MS-PL,MIT,NCSA,OpenSSL,PHP-3.01,PHP-3.0,PIL,Python-2.0,Python-2.0-complete,PostgreSQL,SGI-B-1.0,SGI-B-1.1,SGI-B-2.0,Unicode-DFS-2015,Unicode-DFS-2016,Unicode-TOU,UPL-1.0,W3C-19980720,W3C-20150513,W3C,X11,Xnet,Zend-2.0,zlib-acknowledgement,Zlib,ZPL-1.1,ZPL-2.0,ZPL-2.1
+      - name: Run license check
+        run: |
+          go-licenses check ./... \
+            --include_tests \
+            --allowed_licenses=AFL-1.1,AFL-1.2,AFL-2.0,AFL-2.1,AFL-3.0,Apache-1.0,Apache-1.1,Apache-2.0,Artistic-1.0-cl8,Artistic-1.0-Perl,Artistic-1.0,Artistic-2.0,BSL-1.0,BSD-2-Clause-FreeBSD,BSD-2-Clause-NetBSD,BSD-2-Clause,BSD-3-Clause-Attribution,BSD-3-Clause-Clear,BSD-3-Clause-LBNL,BSD-3-Clause,BSD-4-Clause,BSD-4-Clause-UC,BSD-Protection,CC-BY-1.0,CC-BY-2.0,CC-BY-2.5,CC-BY-3.0,CC-BY-4.0,FTL,ISC,ImageMagick,Libpng,Lil-1.0,Linux-OpenIB,LPL-1.02,LPL-1.0,MS-PL,MIT,NCSA,OpenSSL,PHP-3.01,PHP-3.0,PIL,Python-2.0,Python-2.0-complete,PostgreSQL,SGI-B-1.0,SGI-B-1.1,SGI-B-2.0,Unicode-DFS-2015,Unicode-DFS-2016,Unicode-TOU,UPL-1.0,W3C-19980720,W3C-20150513,W3C,X11,Xnet,Zend-2.0,zlib-acknowledgement,Zlib,ZPL-1.1,ZPL-2.0,ZPL-2.1
 
-      - name: check license report
+      - name: Check license report
         run: |
           go-licenses report --include_tests --ignore github.com/taosdata/driver-go ./... > tmp_license_report.csv
           cmp -s tmp_license_report.csv license_report.csv

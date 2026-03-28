@@ -1,520 +1,708 @@
 package taosWS
 
 import (
-	"bytes"
 	"database/sql/driver"
 	"errors"
 	"fmt"
-	"reflect"
 	"strconv"
 	"time"
 
 	"github.com/taosdata/driver-go/v3/common"
-	"github.com/taosdata/driver-go/v3/common/param"
-	"github.com/taosdata/driver-go/v3/common/serializer"
-	stmtCommon "github.com/taosdata/driver-go/v3/common/stmt"
+	commonstmt "github.com/taosdata/driver-go/v3/common/stmt"
 	"github.com/taosdata/driver-go/v3/types"
+	"github.com/taosdata/driver-go/v3/ws/unified"
 )
 
 type Stmt struct {
-	stmtID        uint64
-	conn          *taosConn
-	buffer        bytes.Buffer
-	pSql          string
-	isInsert      bool
-	cols          []*stmtCommon.StmtField
-	colTypes      *param.ColumnType
-	queryColTypes []*types.ColumnType
+	conn       *taosConn
+	stmtHandle *unified.Stmt
+	isInsert   bool
+	cols       []*commonstmt.StmtField
 }
 
 func (stmt *Stmt) Close() error {
-	if stmt.conn == nil || stmt.conn.isClosed() || stmt.conn.messageError != nil {
+	if stmt.conn == nil || stmt.conn.isClosed() {
 		return driver.ErrBadConn
 	}
-	err := stmt.conn.stmtClose(stmt.stmtID)
-	stmt.buffer.Reset()
+	if stmt.stmtHandle == nil {
+		return driver.ErrBadConn
+	}
+	err := stmt.stmtHandle.Close(0)
+	err = mapUnifiedConnError(err)
+	stmt.stmtHandle = nil
 	stmt.conn = nil
 	return err
 }
 
 func (stmt *Stmt) NumInput() int {
-	if stmt.colTypes != nil {
+	if stmt.cols != nil {
 		return len(stmt.cols)
 	}
 	return -1
 }
 
 func (stmt *Stmt) Exec(args []driver.Value) (driver.Result, error) {
-	if stmt.conn.isClosed() {
+	if stmt.conn == nil || stmt.conn.isClosed() || stmt.stmtHandle == nil {
 		return nil, driver.ErrBadConn
+	}
+	if stmt.isInsert && stmt.cols == nil {
+		if err := stmt.ensureInsertColumnMeta(); err != nil {
+			return nil, err
+		}
 	}
 	if len(args) != len(stmt.cols) {
 		return nil, fmt.Errorf("stmt exec error: wrong number of parameters")
 	}
-	block, err := serializer.SerializeRawBlock(param.NewParamsWithRowValue(args), stmt.colTypes)
-	if err != nil {
-		return nil, err
+	if len(args) == 0 {
+		return nil, unified.ErrStmtParamsEmpty
 	}
-	err = stmt.conn.stmtBindParam(stmt.stmtID, block)
-	if err != nil {
-		return nil, err
+	cols := make([][]driver.Value, len(args))
+	for i := 0; i < len(args); i++ {
+		cols[i] = []driver.Value{args[i]}
 	}
-	err = stmt.conn.stmtAddBatch(stmt.stmtID)
+	err := stmt.stmtHandle.Bind([]*commonstmt.TaosStmt2BindData{{
+		Cols: cols,
+	}})
 	if err != nil {
-		return nil, err
+		return nil, mapUnifiedConnError(err)
 	}
-	affected, err := stmt.conn.stmtExec(stmt.stmtID)
+	affected, err := stmt.stmtHandle.Exec(0)
 	if err != nil {
-		return nil, err
+		return nil, mapUnifiedConnError(err)
 	}
 	return driver.RowsAffected(affected), nil
 }
 
 func (stmt *Stmt) Query(args []driver.Value) (driver.Rows, error) {
-	if stmt.conn.isClosed() {
+	if stmt.conn == nil || stmt.conn.isClosed() || stmt.stmtHandle == nil {
 		return nil, driver.ErrBadConn
 	}
-	block, err := serializer.SerializeRawBlock(param.NewParamsWithRowValue(args), param.NewColumnTypeWithValue(stmt.queryColTypes))
-	if err != nil {
-		return nil, err
+	if len(args) == 0 {
+		return nil, unified.ErrStmtParamsEmpty
 	}
-	err = stmt.conn.stmtBindParam(stmt.stmtID, block)
-	if err != nil {
-		return nil, err
+	cols := make([][]driver.Value, len(args))
+	for i := 0; i < len(args); i++ {
+		cols[i] = []driver.Value{args[i]}
 	}
-	err = stmt.conn.stmtAddBatch(stmt.stmtID)
+	err := stmt.stmtHandle.Bind([]*commonstmt.TaosStmt2BindData{{
+		Cols: cols,
+	}})
 	if err != nil {
-		return nil, err
+		return nil, mapUnifiedConnError(err)
 	}
-	_, err = stmt.conn.stmtExec(stmt.stmtID)
+	_, err = stmt.stmtHandle.Exec(0)
 	if err != nil {
-		return nil, err
+		return nil, mapUnifiedConnError(err)
 	}
-	return stmt.conn.stmtUseResult(stmt.stmtID)
+	rs, err := stmt.stmtHandle.UseResult(0)
+	if err != nil {
+		return nil, mapUnifiedConnError(err)
+	}
+	return newRowsFromUnified(rs), nil
+}
+
+func (stmt *Stmt) ensureInsertColumnMeta() error {
+	if stmt.stmtHandle == nil {
+		return driver.ErrBadConn
+	}
+	cols, err := stmt.stmtHandle.ColFields()
+	if err != nil {
+		return mapUnifiedConnError(err)
+	}
+	stmt.cols = cols
+	return nil
 }
 
 func (stmt *Stmt) CheckNamedValue(v *driver.NamedValue) error {
 	if stmt.isInsert {
 		if stmt.cols == nil {
-			cols, err := stmt.conn.stmtGetColFields(stmt.stmtID)
-			if err != nil {
+			if err := stmt.ensureInsertColumnMeta(); err != nil {
 				return err
 			}
-			colTypes := make([]*types.ColumnType, len(cols))
-			for i, col := range cols {
-				t, err := col.GetType()
-				if err != nil {
-					return err
-				}
-				colTypes[i] = t
-			}
-			stmt.cols = cols
-			stmt.colTypes = param.NewColumnTypeWithValue(colTypes)
 		}
 		if v.Ordinal > len(stmt.cols) {
 			return nil
 		}
-		if v.Value == nil {
-			return nil
+		fieldType := stmt.cols[v.Ordinal-1].FieldType
+		converted, err := convertInsertValue(v.Value, fieldType, int(stmt.cols[v.Ordinal-1].Precision))
+		if err != nil {
+			return err
 		}
-		switch stmt.cols[v.Ordinal-1].FieldType {
-		case common.TSDB_DATA_TYPE_NULL:
-			v.Value = nil
-		case common.TSDB_DATA_TYPE_BOOL:
-			rv := reflect.ValueOf(v.Value)
-			switch rv.Kind() {
-			case reflect.Bool:
-				v.Value = types.TaosBool(rv.Bool())
-			case reflect.Float32, reflect.Float64:
-				v.Value = types.TaosBool(rv.Float() > 0)
-			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-				v.Value = types.TaosBool(rv.Int() > 0)
-			case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-				v.Value = types.TaosBool(rv.Uint() > 0)
-			case reflect.String:
-				vv, err := strconv.ParseBool(rv.String())
-				if err != nil {
-					return err
-				}
-				v.Value = types.TaosBool(vv)
-			default:
-				return fmt.Errorf("CheckNamedValue:%v can not convert to bool", v)
-			}
-		case common.TSDB_DATA_TYPE_TINYINT:
-			rv := reflect.ValueOf(v.Value)
-			switch rv.Kind() {
-			case reflect.Bool:
-				if rv.Bool() {
-					v.Value = types.TaosTinyint(1)
-				} else {
-					v.Value = types.TaosTinyint(0)
-				}
-			case reflect.Float32, reflect.Float64:
-				v.Value = types.TaosTinyint(rv.Float())
-			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-				v.Value = types.TaosTinyint(rv.Int())
-			case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-				v.Value = types.TaosTinyint(rv.Uint())
-			case reflect.String:
-				vv, err := strconv.ParseInt(rv.String(), 0, 8)
-				if err != nil {
-					return err
-				}
-				v.Value = types.TaosTinyint(vv)
-			default:
-				return fmt.Errorf("CheckNamedValue:%v can not convert to tinyint", v)
-			}
-		case common.TSDB_DATA_TYPE_SMALLINT:
-			rv := reflect.ValueOf(v.Value)
-			switch rv.Kind() {
-			case reflect.Bool:
-				if rv.Bool() {
-					v.Value = types.TaosSmallint(1)
-				} else {
-					v.Value = types.TaosSmallint(0)
-				}
-			case reflect.Float32, reflect.Float64:
-				v.Value = types.TaosSmallint(rv.Float())
-			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-				v.Value = types.TaosSmallint(rv.Int())
-			case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-				v.Value = types.TaosSmallint(rv.Uint())
-			case reflect.String:
-				vv, err := strconv.ParseInt(rv.String(), 0, 16)
-				if err != nil {
-					return err
-				}
-				v.Value = types.TaosSmallint(vv)
-			default:
-				return fmt.Errorf("CheckNamedValue:%v can not convert to smallint", v)
-			}
-		case common.TSDB_DATA_TYPE_INT:
-			rv := reflect.ValueOf(v.Value)
-			switch rv.Kind() {
-			case reflect.Bool:
-				if rv.Bool() {
-					v.Value = types.TaosInt(1)
-				} else {
-					v.Value = types.TaosInt(0)
-				}
-			case reflect.Float32, reflect.Float64:
-				v.Value = types.TaosInt(rv.Float())
-			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-				v.Value = types.TaosInt(rv.Int())
-			case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-				v.Value = types.TaosInt(rv.Uint())
-			case reflect.String:
-				vv, err := strconv.ParseInt(rv.String(), 0, 32)
-				if err != nil {
-					return err
-				}
-				v.Value = types.TaosInt(vv)
-			default:
-				return fmt.Errorf("CheckNamedValue:%v can not convert to int", v)
-			}
-		case common.TSDB_DATA_TYPE_BIGINT:
-			rv := reflect.ValueOf(v.Value)
-			switch rv.Kind() {
-			case reflect.Bool:
-				if rv.Bool() {
-					v.Value = types.TaosBigint(1)
-				} else {
-					v.Value = types.TaosBigint(0)
-				}
-			case reflect.Float32, reflect.Float64:
-				v.Value = types.TaosBigint(rv.Float())
-			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-				v.Value = types.TaosBigint(rv.Int())
-			case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-				v.Value = types.TaosBigint(rv.Uint())
-			case reflect.String:
-				vv, err := strconv.ParseInt(rv.String(), 0, 64)
-				if err != nil {
-					return err
-				}
-				v.Value = types.TaosBigint(vv)
-			default:
-				return fmt.Errorf("CheckNamedValue:%v can not convert to bigint", v)
-			}
-		case common.TSDB_DATA_TYPE_FLOAT:
-			rv := reflect.ValueOf(v.Value)
-			switch rv.Kind() {
-			case reflect.Bool:
-				if rv.Bool() {
-					v.Value = types.TaosFloat(1)
-				} else {
-					v.Value = types.TaosFloat(0)
-				}
-			case reflect.Float32, reflect.Float64:
-				v.Value = types.TaosFloat(rv.Float())
-			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-				v.Value = types.TaosFloat(rv.Int())
-			case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-				v.Value = types.TaosFloat(rv.Uint())
-			case reflect.String:
-				vv, err := strconv.ParseFloat(rv.String(), 32)
-				if err != nil {
-					return err
-				}
-				v.Value = types.TaosFloat(vv)
-			default:
-				return fmt.Errorf("CheckNamedValue:%v can not convert to float", v)
-			}
-		case common.TSDB_DATA_TYPE_DOUBLE:
-			rv := reflect.ValueOf(v.Value)
-			switch rv.Kind() {
-			case reflect.Bool:
-				if rv.Bool() {
-					v.Value = types.TaosDouble(1)
-				} else {
-					v.Value = types.TaosDouble(0)
-				}
-			case reflect.Float32, reflect.Float64:
-				v.Value = types.TaosDouble(rv.Float())
-			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-				v.Value = types.TaosDouble(rv.Int())
-			case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-				v.Value = types.TaosDouble(rv.Uint())
-			case reflect.String:
-				vv, err := strconv.ParseFloat(rv.String(), 64)
-				if err != nil {
-					return err
-				}
-				v.Value = types.TaosDouble(vv)
-			default:
-				return fmt.Errorf("CheckNamedValue:%v can not convert to double", v)
-			}
-		case common.TSDB_DATA_TYPE_BINARY:
-			switch v.Value.(type) {
-			case string:
-				v.Value = types.TaosBinary(v.Value.(string))
-			case []byte:
-				v.Value = types.TaosBinary(v.Value.([]byte))
-			default:
-				return fmt.Errorf("CheckNamedValue:%v can not convert to binary", v)
-			}
-		case common.TSDB_DATA_TYPE_VARBINARY:
-			switch v.Value.(type) {
-			case string:
-				v.Value = types.TaosVarBinary(v.Value.(string))
-			case []byte:
-				v.Value = types.TaosVarBinary(v.Value.([]byte))
-			default:
-				return fmt.Errorf("CheckNamedValue:%v can not convert to varbinary", v)
-			}
-
-		case common.TSDB_DATA_TYPE_GEOMETRY:
-			switch v.Value.(type) {
-			case string:
-				v.Value = types.TaosGeometry(v.Value.(string))
-			case []byte:
-				v.Value = types.TaosGeometry(v.Value.([]byte))
-			default:
-				return fmt.Errorf("CheckNamedValue:%v can not convert to geometry", v)
-			}
-		case common.TSDB_DATA_TYPE_TIMESTAMP:
-			t, is := v.Value.(time.Time)
-			if is {
-				v.Value = types.TaosTimestamp{
-					T:         t,
-					Precision: int(stmt.cols[v.Ordinal-1].Precision),
-				}
-				return nil
-			}
-			rv := reflect.ValueOf(v.Value)
-			switch rv.Kind() {
-			case reflect.Float32, reflect.Float64:
-				t := common.TimestampConvertToTime(int64(rv.Float()), int(stmt.cols[v.Ordinal-1].Precision))
-				v.Value = types.TaosTimestamp{
-					T:         t,
-					Precision: int(stmt.cols[v.Ordinal-1].Precision),
-				}
-			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-				t := common.TimestampConvertToTime(rv.Int(), int(stmt.cols[v.Ordinal-1].Precision))
-				v.Value = types.TaosTimestamp{
-					T:         t,
-					Precision: int(stmt.cols[v.Ordinal-1].Precision),
-				}
-			case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-				t := common.TimestampConvertToTime(int64(rv.Uint()), int(stmt.cols[v.Ordinal-1].Precision))
-				v.Value = types.TaosTimestamp{
-					T:         t,
-					Precision: int(stmt.cols[v.Ordinal-1].Precision),
-				}
-			case reflect.String:
-				t, err := time.Parse(time.RFC3339Nano, rv.String())
-				if err != nil {
-					return err
-				}
-				v.Value = types.TaosTimestamp{
-					T:         t,
-					Precision: int(stmt.cols[v.Ordinal-1].Precision),
-				}
-			default:
-				return fmt.Errorf("CheckNamedValue:%v can not convert to timestamp", v)
-			}
-		case common.TSDB_DATA_TYPE_NCHAR:
-			switch v.Value.(type) {
-			case string:
-				v.Value = types.TaosNchar(v.Value.(string))
-			case []byte:
-				v.Value = types.TaosNchar(v.Value.([]byte))
-			default:
-				return fmt.Errorf("CheckNamedValue:%v can not convert to nchar", v)
-			}
-		case common.TSDB_DATA_TYPE_UTINYINT:
-			rv := reflect.ValueOf(v.Value)
-			switch rv.Kind() {
-			case reflect.Bool:
-				if rv.Bool() {
-					v.Value = types.TaosUTinyint(1)
-				} else {
-					v.Value = types.TaosUTinyint(0)
-				}
-			case reflect.Float32, reflect.Float64:
-				v.Value = types.TaosUTinyint(rv.Float())
-			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-				v.Value = types.TaosUTinyint(rv.Int())
-			case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-				v.Value = types.TaosUTinyint(rv.Uint())
-			case reflect.String:
-				vv, err := strconv.ParseUint(rv.String(), 0, 8)
-				if err != nil {
-					return err
-				}
-				v.Value = types.TaosUTinyint(vv)
-			default:
-				return fmt.Errorf("CheckNamedValue:%v can not convert to tinyint unsigned", v)
-			}
-		case common.TSDB_DATA_TYPE_USMALLINT:
-			rv := reflect.ValueOf(v.Value)
-			switch rv.Kind() {
-			case reflect.Bool:
-				if rv.Bool() {
-					v.Value = types.TaosUSmallint(1)
-				} else {
-					v.Value = types.TaosUSmallint(0)
-				}
-			case reflect.Float32, reflect.Float64:
-				v.Value = types.TaosUSmallint(rv.Float())
-			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-				v.Value = types.TaosUSmallint(rv.Int())
-			case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-				v.Value = types.TaosUSmallint(rv.Uint())
-			case reflect.String:
-				vv, err := strconv.ParseUint(rv.String(), 0, 16)
-				if err != nil {
-					return err
-				}
-				v.Value = types.TaosUSmallint(vv)
-			default:
-				return fmt.Errorf("CheckNamedValue:%v can not convert to smallint unsigned", v)
-			}
-		case common.TSDB_DATA_TYPE_UINT:
-			rv := reflect.ValueOf(v.Value)
-			switch rv.Kind() {
-			case reflect.Bool:
-				if rv.Bool() {
-					v.Value = types.TaosUInt(1)
-				} else {
-					v.Value = types.TaosUInt(0)
-				}
-			case reflect.Float32, reflect.Float64:
-				v.Value = types.TaosUInt(rv.Float())
-			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-				v.Value = types.TaosUInt(rv.Int())
-			case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-				v.Value = types.TaosUInt(rv.Uint())
-			case reflect.String:
-				vv, err := strconv.ParseUint(rv.String(), 0, 32)
-				if err != nil {
-					return err
-				}
-				v.Value = types.TaosUInt(vv)
-			default:
-				return fmt.Errorf("CheckNamedValue:%v can not convert to int unsigned", v)
-			}
-		case common.TSDB_DATA_TYPE_UBIGINT:
-			rv := reflect.ValueOf(v.Value)
-			switch rv.Kind() {
-			case reflect.Bool:
-				if rv.Bool() {
-					v.Value = types.TaosUBigint(1)
-				} else {
-					v.Value = types.TaosUBigint(0)
-				}
-			case reflect.Float32, reflect.Float64:
-				v.Value = types.TaosUBigint(rv.Float())
-			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-				v.Value = types.TaosUBigint(rv.Int())
-			case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-				v.Value = types.TaosUBigint(rv.Uint())
-			case reflect.String:
-				vv, err := strconv.ParseUint(rv.String(), 0, 64)
-				if err != nil {
-					return err
-				}
-				v.Value = types.TaosUBigint(vv)
-			default:
-				return fmt.Errorf("CheckNamedValue:%v can not convert to bigint unsigned", v)
-			}
-		default:
-			return fmt.Errorf("CheckNamedValue: unsupported field type %s", common.GetTypeName(int(stmt.cols[v.Ordinal-1].FieldType)))
-		}
+		v.Value = converted
 		return nil
 	}
-	if v.Value == nil {
-		return errors.New("CheckNamedValue: value is nil")
-	}
-	if v.Ordinal == 1 {
-		stmt.queryColTypes = nil
-	}
-	if len(stmt.queryColTypes) < v.Ordinal {
-		tmp := stmt.queryColTypes
-		stmt.queryColTypes = make([]*types.ColumnType, v.Ordinal)
-		copy(stmt.queryColTypes, tmp)
-	}
-	t, is := v.Value.(time.Time)
-	if is {
-		v.Value = types.TaosBinary(t.Format(time.RFC3339Nano))
-		stmt.queryColTypes[v.Ordinal-1] = &types.ColumnType{Type: types.TaosBinaryType}
-		return nil
-	}
-	rv := reflect.ValueOf(v.Value)
-	switch rv.Kind() {
-	case reflect.Bool:
-		v.Value = types.TaosBool(rv.Bool())
-		stmt.queryColTypes[v.Ordinal-1] = &types.ColumnType{Type: types.TaosBoolType}
-	case reflect.Float32, reflect.Float64:
-		v.Value = types.TaosDouble(rv.Float())
-		stmt.queryColTypes[v.Ordinal-1] = &types.ColumnType{Type: types.TaosDoubleType}
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		v.Value = types.TaosBigint(rv.Int())
-		stmt.queryColTypes[v.Ordinal-1] = &types.ColumnType{Type: types.TaosBigintType}
-	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		v.Value = types.TaosUBigint(rv.Uint())
-		stmt.queryColTypes[v.Ordinal-1] = &types.ColumnType{Type: types.TaosUBigintType}
-	case reflect.String:
-		strVal := rv.String()
-		v.Value = types.TaosBinary(strVal)
-		stmt.queryColTypes[v.Ordinal-1] = &types.ColumnType{
-			Type:   types.TaosBinaryType,
-			MaxLen: len(strVal),
-		}
-	case reflect.Slice:
-		ek := rv.Type().Elem().Kind()
-		if ek == reflect.Uint8 {
-			bsVal := rv.Bytes()
-			v.Value = types.TaosBinary(bsVal)
-			stmt.queryColTypes[v.Ordinal-1] = &types.ColumnType{
-				Type:   types.TaosBinaryType,
-				MaxLen: len(bsVal),
-			}
-		} else {
-			return fmt.Errorf("CheckNamedValue: can not convert query value %v", v)
-		}
-	default:
+	converted, err := convertQueryValue(v.Value)
+	if err != nil {
 		return fmt.Errorf("CheckNamedValue: can not convert query value %v", v)
 	}
+	v.Value = converted
 	return nil
+}
+
+func convertInsertValue(value driver.Value, fieldType int8, precision int) (driver.Value, error) {
+	if value == nil {
+		return nil, nil
+	}
+	switch fieldType {
+	case common.TSDB_DATA_TYPE_NULL:
+		return nil, nil
+	case common.TSDB_DATA_TYPE_BOOL:
+		v, err := toBool(value)
+		if err != nil {
+			return nil, fmt.Errorf("CheckNamedValue: can not convert to bool, value type %T", value)
+		}
+		return v, nil
+	case common.TSDB_DATA_TYPE_TINYINT:
+		v, err := toSignedInt(value, 8)
+		if err != nil {
+			return nil, fmt.Errorf("CheckNamedValue: can not convert to tinyint, value type %T", value)
+		}
+		return int8(v), nil
+	case common.TSDB_DATA_TYPE_SMALLINT:
+		v, err := toSignedInt(value, 16)
+		if err != nil {
+			return nil, fmt.Errorf("CheckNamedValue: can not convert to smallint, value type %T", value)
+		}
+		return int16(v), nil
+	case common.TSDB_DATA_TYPE_INT:
+		v, err := toSignedInt(value, 32)
+		if err != nil {
+			return nil, fmt.Errorf("CheckNamedValue: can not convert to int, value type %T", value)
+		}
+		return int32(v), nil
+	case common.TSDB_DATA_TYPE_BIGINT:
+		v, err := toSignedInt(value, 64)
+		if err != nil {
+			return nil, fmt.Errorf("CheckNamedValue: can not convert to bigint, value type %T", value)
+		}
+		return v, nil
+	case common.TSDB_DATA_TYPE_UTINYINT:
+		v, err := toUnsignedInt(value, 8)
+		if err != nil {
+			return nil, fmt.Errorf("CheckNamedValue: can not convert to tinyint unsigned, value type %T", value)
+		}
+		return uint8(v), nil
+	case common.TSDB_DATA_TYPE_USMALLINT:
+		v, err := toUnsignedInt(value, 16)
+		if err != nil {
+			return nil, fmt.Errorf("CheckNamedValue: can not convert to smallint unsigned, value type %T", value)
+		}
+		return uint16(v), nil
+	case common.TSDB_DATA_TYPE_UINT:
+		v, err := toUnsignedInt(value, 32)
+		if err != nil {
+			return nil, fmt.Errorf("CheckNamedValue: can not convert to int unsigned, value type %T", value)
+		}
+		return uint32(v), nil
+	case common.TSDB_DATA_TYPE_UBIGINT:
+		v, err := toUnsignedInt(value, 64)
+		if err != nil {
+			return nil, fmt.Errorf("CheckNamedValue: can not convert to bigint unsigned, value type %T", value)
+		}
+		return v, nil
+	case common.TSDB_DATA_TYPE_FLOAT:
+		v, err := toFloat(value, 32)
+		if err != nil {
+			return nil, fmt.Errorf("CheckNamedValue: can not convert to float, value type %T", value)
+		}
+		return float32(v), nil
+	case common.TSDB_DATA_TYPE_DOUBLE:
+		v, err := toFloat(value, 64)
+		if err != nil {
+			return nil, fmt.Errorf("CheckNamedValue: can not convert to double, value type %T", value)
+		}
+		return v, nil
+	case common.TSDB_DATA_TYPE_TIMESTAMP:
+		v, err := toTimestamp(value, precision)
+		if err != nil {
+			return nil, fmt.Errorf("CheckNamedValue: can not convert to timestamp, value type %T", value)
+		}
+		return v, nil
+	case common.TSDB_DATA_TYPE_BINARY:
+		v, err := toBytes(value)
+		if err != nil {
+			return nil, fmt.Errorf("CheckNamedValue: can not convert to binary, value type %T", value)
+		}
+		return v, nil
+	case common.TSDB_DATA_TYPE_VARBINARY:
+		v, err := toBytes(value)
+		if err != nil {
+			return nil, fmt.Errorf("CheckNamedValue: can not convert to varbinary, value type %T", value)
+		}
+		return v, nil
+	case common.TSDB_DATA_TYPE_BLOB:
+		v, err := toBytes(value)
+		if err != nil {
+			return nil, fmt.Errorf("CheckNamedValue: can not convert to blob, value type %T", value)
+		}
+		return v, nil
+	case common.TSDB_DATA_TYPE_GEOMETRY:
+		v, err := toBytes(value)
+		if err != nil {
+			return nil, fmt.Errorf("CheckNamedValue: can not convert to geometry, value type %T", value)
+		}
+		return v, nil
+	case common.TSDB_DATA_TYPE_DECIMAL, common.TSDB_DATA_TYPE_DECIMAL64:
+		v, err := toString(value)
+		if err != nil {
+			return nil, fmt.Errorf("CheckNamedValue: can not convert to decimal, value type %T", value)
+		}
+		return v, nil
+	case common.TSDB_DATA_TYPE_NCHAR:
+		v, err := toString(value)
+		if err != nil {
+			return nil, fmt.Errorf("CheckNamedValue: can not convert to nchar, value type %T", value)
+		}
+		return v, nil
+	default:
+		return nil, fmt.Errorf("CheckNamedValue: unsupported field type %s", common.GetTypeName(int(fieldType)))
+	}
+}
+
+func convertQueryValue(value driver.Value) (driver.Value, error) {
+	switch v := value.(type) {
+	case nil:
+		return nil, errors.New("CheckNamedValue: value is nil")
+	case time.Time:
+		return []byte(v.Format(time.RFC3339Nano)), nil
+	case types.TaosTimestamp:
+		return []byte(v.T.Format(time.RFC3339Nano)), nil
+	case bool:
+		return v, nil
+	case types.TaosBool:
+		return bool(v), nil
+	case float32:
+		return float64(v), nil
+	case float64:
+		return v, nil
+	case types.TaosFloat:
+		return float64(v), nil
+	case types.TaosDouble:
+		return float64(v), nil
+	case int:
+		return int64(v), nil
+	case int8:
+		return int64(v), nil
+	case int16:
+		return int64(v), nil
+	case int32:
+		return int64(v), nil
+	case int64:
+		return v, nil
+	case types.TaosTinyint:
+		return int64(v), nil
+	case types.TaosSmallint:
+		return int64(v), nil
+	case types.TaosInt:
+		return int64(v), nil
+	case types.TaosBigint:
+		return int64(v), nil
+	case uint:
+		return uint64(v), nil
+	case uint8:
+		return uint64(v), nil
+	case uint16:
+		return uint64(v), nil
+	case uint32:
+		return uint64(v), nil
+	case uint64:
+		return v, nil
+	case types.TaosUTinyint:
+		return uint64(v), nil
+	case types.TaosUSmallint:
+		return uint64(v), nil
+	case types.TaosUInt:
+		return uint64(v), nil
+	case types.TaosUBigint:
+		return uint64(v), nil
+	case string:
+		return []byte(v), nil
+	case types.TaosNchar:
+		return []byte(v), nil
+	case types.TaosDecimal:
+		return []byte(v), nil
+	case []byte:
+		return append([]byte(nil), v...), nil
+	case types.TaosBinary:
+		return append([]byte(nil), v...), nil
+	case types.TaosVarBinary:
+		return append([]byte(nil), v...), nil
+	case types.TaosGeometry:
+		return append([]byte(nil), v...), nil
+	case types.TaosJson:
+		return append([]byte(nil), v...), nil
+	case types.TaosBlob:
+		return append([]byte(nil), v...), nil
+	default:
+		return nil, fmt.Errorf("unsupported query value type %T", value)
+	}
+}
+
+func toBool(value interface{}) (bool, error) {
+	switch v := value.(type) {
+	case bool:
+		return v, nil
+	case types.TaosBool:
+		return bool(v), nil
+	case float32:
+		return v > 0, nil
+	case float64:
+		return v > 0, nil
+	case types.TaosFloat:
+		return v > 0, nil
+	case types.TaosDouble:
+		return v > 0, nil
+	case int:
+		return v > 0, nil
+	case int8:
+		return v > 0, nil
+	case int16:
+		return v > 0, nil
+	case int32:
+		return v > 0, nil
+	case int64:
+		return v > 0, nil
+	case types.TaosTinyint:
+		return v > 0, nil
+	case types.TaosSmallint:
+		return v > 0, nil
+	case types.TaosInt:
+		return v > 0, nil
+	case types.TaosBigint:
+		return v > 0, nil
+	case uint:
+		return v > 0, nil
+	case uint8:
+		return v > 0, nil
+	case uint16:
+		return v > 0, nil
+	case uint32:
+		return v > 0, nil
+	case uint64:
+		return v > 0, nil
+	case types.TaosUTinyint:
+		return v > 0, nil
+	case types.TaosUSmallint:
+		return v > 0, nil
+	case types.TaosUInt:
+		return v > 0, nil
+	case types.TaosUBigint:
+		return v > 0, nil
+	case string:
+		return strconv.ParseBool(v)
+	case types.TaosNchar:
+		return strconv.ParseBool(string(v))
+	default:
+		return false, fmt.Errorf("unsupported bool type %T", value)
+	}
+}
+
+func toSignedInt(value interface{}, bitSize int) (int64, error) {
+	switch v := value.(type) {
+	case bool:
+		if v {
+			return 1, nil
+		}
+		return 0, nil
+	case types.TaosBool:
+		if v {
+			return 1, nil
+		}
+		return 0, nil
+	case float32:
+		return int64(v), nil
+	case float64:
+		return int64(v), nil
+	case types.TaosFloat:
+		return int64(v), nil
+	case types.TaosDouble:
+		return int64(v), nil
+	case int:
+		return int64(v), nil
+	case int8:
+		return int64(v), nil
+	case int16:
+		return int64(v), nil
+	case int32:
+		return int64(v), nil
+	case int64:
+		return v, nil
+	case types.TaosTinyint:
+		return int64(v), nil
+	case types.TaosSmallint:
+		return int64(v), nil
+	case types.TaosInt:
+		return int64(v), nil
+	case types.TaosBigint:
+		return int64(v), nil
+	case uint:
+		return int64(v), nil
+	case uint8:
+		return int64(v), nil
+	case uint16:
+		return int64(v), nil
+	case uint32:
+		return int64(v), nil
+	case uint64:
+		return int64(v), nil
+	case types.TaosUTinyint:
+		return int64(v), nil
+	case types.TaosUSmallint:
+		return int64(v), nil
+	case types.TaosUInt:
+		return int64(v), nil
+	case types.TaosUBigint:
+		return int64(v), nil
+	case string:
+		return strconv.ParseInt(v, 0, bitSize)
+	case types.TaosNchar:
+		return strconv.ParseInt(string(v), 0, bitSize)
+	default:
+		return 0, fmt.Errorf("unsupported signed integer type %T", value)
+	}
+}
+
+func toUnsignedInt(value interface{}, bitSize int) (uint64, error) {
+	switch v := value.(type) {
+	case bool:
+		if v {
+			return 1, nil
+		}
+		return 0, nil
+	case types.TaosBool:
+		if v {
+			return 1, nil
+		}
+		return 0, nil
+	case float32:
+		return uint64(v), nil
+	case float64:
+		return uint64(v), nil
+	case types.TaosFloat:
+		return uint64(v), nil
+	case types.TaosDouble:
+		return uint64(v), nil
+	case int:
+		return uint64(v), nil
+	case int8:
+		return uint64(v), nil
+	case int16:
+		return uint64(v), nil
+	case int32:
+		return uint64(v), nil
+	case int64:
+		return uint64(v), nil
+	case types.TaosTinyint:
+		return uint64(v), nil
+	case types.TaosSmallint:
+		return uint64(v), nil
+	case types.TaosInt:
+		return uint64(v), nil
+	case types.TaosBigint:
+		return uint64(v), nil
+	case uint:
+		return uint64(v), nil
+	case uint8:
+		return uint64(v), nil
+	case uint16:
+		return uint64(v), nil
+	case uint32:
+		return uint64(v), nil
+	case uint64:
+		return v, nil
+	case types.TaosUTinyint:
+		return uint64(v), nil
+	case types.TaosUSmallint:
+		return uint64(v), nil
+	case types.TaosUInt:
+		return uint64(v), nil
+	case types.TaosUBigint:
+		return uint64(v), nil
+	case string:
+		return strconv.ParseUint(v, 0, bitSize)
+	case types.TaosNchar:
+		return strconv.ParseUint(string(v), 0, bitSize)
+	default:
+		return 0, fmt.Errorf("unsupported unsigned integer type %T", value)
+	}
+}
+
+func toFloat(value interface{}, bitSize int) (float64, error) {
+	switch v := value.(type) {
+	case bool:
+		if v {
+			return 1, nil
+		}
+		return 0, nil
+	case types.TaosBool:
+		if v {
+			return 1, nil
+		}
+		return 0, nil
+	case float32:
+		return float64(v), nil
+	case float64:
+		return v, nil
+	case types.TaosFloat:
+		return float64(v), nil
+	case types.TaosDouble:
+		return float64(v), nil
+	case int:
+		return float64(v), nil
+	case int8:
+		return float64(v), nil
+	case int16:
+		return float64(v), nil
+	case int32:
+		return float64(v), nil
+	case int64:
+		return float64(v), nil
+	case types.TaosTinyint:
+		return float64(v), nil
+	case types.TaosSmallint:
+		return float64(v), nil
+	case types.TaosInt:
+		return float64(v), nil
+	case types.TaosBigint:
+		return float64(v), nil
+	case uint:
+		return float64(v), nil
+	case uint8:
+		return float64(v), nil
+	case uint16:
+		return float64(v), nil
+	case uint32:
+		return float64(v), nil
+	case uint64:
+		return float64(v), nil
+	case types.TaosUTinyint:
+		return float64(v), nil
+	case types.TaosUSmallint:
+		return float64(v), nil
+	case types.TaosUInt:
+		return float64(v), nil
+	case types.TaosUBigint:
+		return float64(v), nil
+	case string:
+		return strconv.ParseFloat(v, bitSize)
+	case types.TaosNchar:
+		return strconv.ParseFloat(string(v), bitSize)
+	default:
+		return 0, fmt.Errorf("unsupported float type %T", value)
+	}
+}
+
+func toBytes(value interface{}) ([]byte, error) {
+	switch v := value.(type) {
+	case []byte:
+		return append([]byte(nil), v...), nil
+	case string:
+		return []byte(v), nil
+	case types.TaosBinary:
+		return append([]byte(nil), v...), nil
+	case types.TaosVarBinary:
+		return append([]byte(nil), v...), nil
+	case types.TaosGeometry:
+		return append([]byte(nil), v...), nil
+	case types.TaosJson:
+		return append([]byte(nil), v...), nil
+	case types.TaosBlob:
+		return append([]byte(nil), v...), nil
+	case types.TaosNchar:
+		return []byte(v), nil
+	default:
+		return nil, fmt.Errorf("unsupported bytes type %T", value)
+	}
+}
+
+func toString(value interface{}) (string, error) {
+	switch v := value.(type) {
+	case string:
+		return v, nil
+	case types.TaosNchar:
+		return string(v), nil
+	case []byte:
+		return string(v), nil
+	case types.TaosBinary:
+		return string(v), nil
+	case types.TaosVarBinary:
+		return string(v), nil
+	case types.TaosGeometry:
+		return string(v), nil
+	case types.TaosJson:
+		return string(v), nil
+	case types.TaosBlob:
+		return string(v), nil
+	case types.TaosDecimal:
+		return string(v), nil
+	default:
+		return "", fmt.Errorf("unsupported string type %T", value)
+	}
+}
+
+func toTimestamp(value interface{}, precision int) (int64, error) {
+	switch v := value.(type) {
+	case time.Time:
+		return common.TimeToTimestamp(v, precision), nil
+	case types.TaosTimestamp:
+		return common.TimeToTimestamp(v.T, precision), nil
+	case float32:
+		return int64(v), nil
+	case float64:
+		return int64(v), nil
+	case types.TaosFloat:
+		return int64(v), nil
+	case types.TaosDouble:
+		return int64(v), nil
+	case int:
+		return int64(v), nil
+	case int8:
+		return int64(v), nil
+	case int16:
+		return int64(v), nil
+	case int32:
+		return int64(v), nil
+	case int64:
+		return v, nil
+	case types.TaosTinyint:
+		return int64(v), nil
+	case types.TaosSmallint:
+		return int64(v), nil
+	case types.TaosInt:
+		return int64(v), nil
+	case types.TaosBigint:
+		return int64(v), nil
+	case uint:
+		return int64(v), nil
+	case uint8:
+		return int64(v), nil
+	case uint16:
+		return int64(v), nil
+	case uint32:
+		return int64(v), nil
+	case uint64:
+		return int64(v), nil
+	case types.TaosUTinyint:
+		return int64(v), nil
+	case types.TaosUSmallint:
+		return int64(v), nil
+	case types.TaosUInt:
+		return int64(v), nil
+	case types.TaosUBigint:
+		return int64(v), nil
+	case string:
+		t, err := time.Parse(time.RFC3339Nano, v)
+		if err != nil {
+			return 0, err
+		}
+		return common.TimeToTimestamp(t, precision), nil
+	case types.TaosNchar:
+		t, err := time.Parse(time.RFC3339Nano, string(v))
+		if err != nil {
+			return 0, err
+		}
+		return common.TimeToTimestamp(t, precision), nil
+	default:
+		return 0, fmt.Errorf("unsupported timestamp type %T", value)
+	}
 }

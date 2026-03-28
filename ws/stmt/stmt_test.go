@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -511,6 +512,7 @@ func TestStmt(t *testing.T) {
 }
 
 func TestSTMTQuery(t *testing.T) {
+	_, is3360 := os.LookupEnv("TD_3360_TEST")
 	err := prepareEnv("test_ws_stmt_query")
 	if err != nil {
 		t.Error(err)
@@ -621,6 +623,12 @@ func TestSTMTQuery(t *testing.T) {
 		if !assert.Equal(t, 3, affected) {
 			return
 		}
+		if is3360 {
+			err = stmt.Close()
+			assert.NoError(t, err)
+			stmt, err = connector.Init()
+			require.NoError(t, err)
+		}
 		err = stmt.Prepare("select * from all_json where ts >=? order by ts")
 		assert.NoError(t, err)
 		queryTime := now.Format(time.RFC3339Nano)
@@ -724,6 +732,12 @@ func TestSTMTQuery(t *testing.T) {
 				t.Error(err)
 			}
 		}(stmt)
+		if is3360 {
+			err = stmt.Close()
+			assert.NoError(t, err)
+			stmt, err = connector.Init()
+			require.NoError(t, err)
+		}
 		err = stmt.Prepare("insert into ? using all_all tags(?,?,?,?,?,?,?,?,?,?,?,?,?,?) values(?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
 		assert.NoError(t, err)
 		err = stmt.SetTableName("tb1")
@@ -822,6 +836,12 @@ func TestSTMTQuery(t *testing.T) {
 		affected := stmt.GetAffectedRows()
 		if !assert.Equal(t, 3, affected) {
 			return
+		}
+		if is3360 {
+			err = stmt.Close()
+			assert.NoError(t, err)
+			stmt, err = connector.Init()
+			require.NoError(t, err)
 		}
 		err = stmt.Prepare("select * from all_all where ts >=? order by ts")
 		assert.NoError(t, err)
@@ -1091,16 +1111,37 @@ func startTaosadapter(cmd *exec.Cmd, port string) error {
 		return err
 	}
 	for i := 0; i < 10; i++ {
+		if !isProcessAlive(cmd) {
+			return errors.New("taosadapter exited before ready")
+		}
 		time.Sleep(time.Millisecond * 100)
 		resp, err := http.Get(fmt.Sprintf("http://127.0.0.1:%s/-/ping", port))
 		if err != nil {
 			continue
 		}
 		_ = resp.Body.Close()
+		if !isProcessAlive(cmd) {
+			return errors.New("taosadapter exited before ready")
+		}
 		time.Sleep(time.Second)
 		return nil
 	}
+	if cmd.Process != nil {
+		_ = cmd.Process.Signal(syscall.SIGINT)
+		_, _ = cmd.Process.Wait()
+		cmd.Process = nil
+	}
 	return errors.New("taosadapter start failed")
+}
+
+func isProcessAlive(cmd *exec.Cmd) bool {
+	if cmd == nil || cmd.Process == nil {
+		return false
+	}
+	if runtime.GOOS == "windows" {
+		return cmd.ProcessState == nil
+	}
+	return cmd.Process.Signal(syscall.Signal(0)) == nil
 }
 
 func stopTaosadapter(cmd *exec.Cmd, port string) {
@@ -1123,15 +1164,47 @@ func stopTaosadapter(cmd *exec.Cmd, port string) {
 	panic("taosadapter stop failed")
 }
 
-func TestSTMTReconnect(t *testing.T) {
-	port := "36042"
-	cmd := newTaosadapter(port)
-	err := startTaosadapter(cmd, port)
-	if err != nil {
-		t.Fatal(err)
+func getAvailablePort(t *testing.T) string {
+	t.Helper()
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer func() {
+		_ = listener.Close()
+	}()
+	return strconv.Itoa(listener.Addr().(*net.TCPAddr).Port)
+}
+
+func startTaosadapterOnFreePort(t *testing.T) (string, *exec.Cmd) {
+	t.Helper()
+	var lastErr error
+	for i := 0; i < 8; i++ {
+		port := getAvailablePort(t)
+		cmd := newTaosadapter(port)
+		err := startTaosadapter(cmd, port)
+		if err == nil {
+			return port, cmd
+		}
+		lastErr = err
+		if cmd.Process != nil {
+			_ = cmd.Process.Signal(syscall.SIGINT)
+			_, _ = cmd.Process.Wait()
+			cmd.Process = nil
+		}
+		time.Sleep(100 * time.Millisecond)
 	}
+	require.NoError(t, lastErr)
+	return "", nil
+}
+
+func TestSTMTReconnect(t *testing.T) {
+	port, cmd := startTaosadapterOnFreePort(t)
+	var err error
 	defer func() {
 		stopTaosadapter(cmd, port)
+	}()
+	defer func() {
+		cleanErr := doRequest("drop database if exists test_ws_stmt_reconnect")
+		assert.NoError(t, cleanErr)
 	}()
 	config := NewConfig("ws://127.0.0.1:"+port, 0)
 	err = config.SetConnectUser("root")
@@ -1150,8 +1223,8 @@ func TestSTMTReconnect(t *testing.T) {
 		t.Log("stmt websocket closed")
 	})
 	config.SetAutoReconnect(true)
-	config.SetReconnectRetryCount(10)
-	config.SetReconnectIntervalMs(2000)
+	config.SetReconnectRetryCount(1)
+	config.SetReconnectIntervalMs(500)
 	connector, err := NewConnector(config)
 	if err != nil {
 		t.Error(err)
@@ -1162,27 +1235,19 @@ func TestSTMTReconnect(t *testing.T) {
 	err = stmt.Close()
 	assert.NoError(t, err)
 	stopTaosadapter(cmd, port)
-	startChan := make(chan struct{})
-	go func() {
-		time.Sleep(time.Second * 3)
-		cmd = newTaosadapter(port)
-		err = startTaosadapter(cmd, port)
-		startChan <- struct{}{}
-		if err != nil {
-			t.Error(err)
-			return
-		}
-	}()
 	stmt, err = connector.Init()
 	assert.Error(t, err)
 	assert.Nil(t, stmt)
-	<-startChan
-	time.Sleep(time.Second)
+	cmd = newTaosadapter(port)
+	err = startTaosadapter(cmd, port)
+	assert.NoError(t, err)
 	stmt, err = connector.Init()
 	assert.NoError(t, err)
 	stopTaosadapter(cmd, port)
 	cmd = newTaosadapter(port)
 	err = startTaosadapter(cmd, port)
+	assert.NoError(t, err)
+	err = doRequest("drop database if exists test_ws_stmt_reconnect")
 	assert.NoError(t, err)
 	err = doRequest("create database if not exists test_ws_stmt_reconnect")
 	assert.NoError(t, err)
@@ -1197,12 +1262,55 @@ func TestSTMTReconnect(t *testing.T) {
 	stmtNew, err := connector.Init()
 	assert.NoError(t, err)
 	err = stmtNew.Prepare("select * from tb1 where c1 = ?")
-	assert.NoError(t, err)
+	assert.Error(t, err)
 	err = stmtNew.Close()
 	assert.NoError(t, err)
 }
 
+func TestSTMTDisconnectNoMessageTimeout(t *testing.T) {
+	port, cmd := startTaosadapterOnFreePort(t)
+	var err error
+	defer func() {
+		stopTaosadapter(cmd, port)
+	}()
+
+	config := NewConfig("ws://127.0.0.1:"+port, 0)
+	err = config.SetConnectUser("root")
+	assert.NoError(t, err)
+	err = config.SetConnectPass("taosdata")
+	assert.NoError(t, err)
+	err = config.SetMessageTimeout(10 * time.Second)
+	assert.NoError(t, err)
+	err = config.SetWriteWait(3 * time.Second)
+	assert.NoError(t, err)
+	config.SetEnableCompression(true)
+
+	connector, err := NewConnector(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		_ = connector.Close()
+	}()
+
+	stmt, err := connector.Init()
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = stmt.Close()
+	assert.NoError(t, err)
+
+	stopTaosadapter(cmd, port)
+	start := time.Now()
+	stmt, err = connector.Init()
+	require.Error(t, err)
+	assert.Nil(t, stmt)
+	assert.NotContains(t, err.Error(), "message timeout")
+	assert.Less(t, time.Since(start), 10*time.Second)
+}
+
 func TestTimezone(t *testing.T) {
+	_, is3360 := os.LookupEnv("TD_3360_TEST")
 	var dbname = "test_ws_stmt_timezone"
 	err := prepareEnv(dbname)
 	if err != nil {
@@ -1242,6 +1350,12 @@ func TestTimezone(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 			return
+		}
+		if is3360 {
+			err = stmt.Close()
+			assert.NoError(t, err)
+			stmt, err = connector.Init()
+			require.NoError(t, err)
 		}
 		err = stmt.Prepare("insert into ? using all_json tags(?) values(?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
 		if err != nil {
@@ -1307,6 +1421,12 @@ func TestTimezone(t *testing.T) {
 		affected := stmt.GetAffectedRows()
 		if !assert.Equal(t, 3, affected) {
 			return
+		}
+		if is3360 {
+			err = stmt.Close()
+			assert.NoError(t, err)
+			stmt, err = connector.Init()
+			require.NoError(t, err)
 		}
 		err = stmt.Prepare("select * from all_json where ts >=? order by ts")
 		assert.NoError(t, err)

@@ -13,51 +13,35 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ 'ubuntu-latest' ]
-        go: [ 'stable' ]
+        os: ['ubuntu-latest']
+        go: ['stable']
     name: enterprise-${{ matrix.os }}-${{ matrix.go }}
     steps:
-      - name: get branch push
+      - name: Determine branch
         id: get-branch
         run: |
-          if [[ "${{ github.event_name }}" == "push" ]]; then
-            echo "branch=${{ github.ref_name }}" >> $GITHUB_OUTPUT
-          elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            echo "branch=${{ github.base_ref }}" >> $GITHUB_OUTPUT
-          else
-            echo "branch=main" >> $GITHUB_OUTPUT
-          fi
+          case "${{ github.event_name }}" in
+            push)
+              echo "branch=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+              ;;
+            pull_request)
+              echo "branch=${{ github.base_ref }}" >> $GITHUB_OUTPUT
+              ;;
+            *)
+              echo "branch=main" >> $GITHUB_OUTPUT
+              ;;
+          esac
 
-      - name: get TDengine
-        run: |
-          wget "${{ secrets.NIGHTLY_TDENGINE_ENTERPRISE_BASE_URL }}/tsdb-nightly-${{ steps.get-branch.outputs.branch }}.tar.gz?v=$(date +%s)" -O tsdb-nightly-${{ steps.get-branch.outputs.branch }}.tar.gz
-
-      - name: install
-        run: |
-          tar -zxf tsdb-nightly-${{ steps.get-branch.outputs.branch }}.tar.gz
-          cd tsdb-nightly-${{ steps.get-branch.outputs.branch }}
-          ls -al
-          sudo ./install.sh
-
-      - name: checkout
+      - name: Checkout code
         uses: actions/checkout@v6
 
-      - name: copy taos cfg
-        run: |
-          sudo mkdir -p /etc/taos
-          sudo cp ./.github/workflows/taos.cfg /etc/taos/taos.cfg
-
-      - name: shell
-        run: |
-          cat >start.sh<<EOF 
-          ulimit -n 65535 && taosd
-          EOF
-
-      - name: taosd
-        run: nohup sudo sh ./start.sh &
-
-      - name: taosadapter
-        run: nohup sudo taosadapter &
+      - name: Setup TDengine nightly
+        uses: ./.github/actions/setup-tdengine
+        with:
+          mode: 'nightly'
+          branch: ${{ steps.get-branch.outputs.branch }}
+          start-services: 'true'
+          nightly-url: ${{ secrets.NIGHTLY_TDENGINE_ENTERPRISE_BASE_URL }}
 
       - name: Set up Go
         uses: actions/setup-go@v6
@@ -74,7 +58,7 @@ jobs:
           go mod download
           go test -coverpkg=./... -v --count=1 -coverprofile=coverage.txt -covermode=atomic ./...
 
-      - name: Upload coverage to Codecov
+      - name: Upload coverage
         uses: codecov/codecov-action@v5
         with:
           files: ./coverage.txt
@@ -82,7 +66,8 @@ jobs:
           CODECOV_TOKEN: ${{ secrets.CODECOV_ORG_TOKEN }}
           OS: linux
 
-      - uses: actions/upload-artifact@v6
+      - name: Upload logs on failure
+        uses: actions/upload-artifact@v6
         if: always() && (steps.test.outcome == 'failure' || steps.test.outcome == 'cancelled')
         with:
           name: enterprise-${{ matrix.os }}-${{ matrix.go }}-log

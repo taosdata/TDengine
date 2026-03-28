@@ -15,40 +15,24 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ 'ubuntu-latest' ]
-        go: [ '1.14', 'stable' ]
+        os: ['ubuntu-latest']
+        go: ['1.14', '1.17', '1.22', 'stable']
     name: Go-${{ matrix.os }}-${{ matrix.go }}
     steps:
-      - name: get TDengine
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Download TDengine 3.3.6.0
         run: |
           wget https://github.com/taosdata/TDengine/releases/download/ver-3.3.6.0/TDengine-server-3.3.6.0-Linux-x64.tar.gz
 
-      - name: install
-        run: |
-          tar -zxf TDengine-server-3.3.6.0-Linux-x64.tar.gz
-          cd TDengine-server-3.3.6.0
-          sudo ./install.sh -e no
-
-      - name: checkout
-        uses: actions/checkout@v6
-
-      - name: copy taos cfg
-        run: |
-          sudo mkdir -p /etc/taos
-          sudo cp ./.github/workflows/taos.cfg /etc/taos/taos.cfg
-          sudo cp ./.github/workflows/taosadapter.toml /etc/taos/taosadapter.toml
-
-      - name: shell
-        run: |
-          cat >start.sh<<EOF 
-          ulimit -n 65535 && TAOS_SUPPORT_VNODES=256 taosd
-          EOF
-
-      - name: taosd
-        run: nohup sudo sh ./start.sh &
-
-      - name: start taosadapter
-        run: sudo taosadapter &
+      - name: Setup TDengine
+        uses: ./.github/actions/setup-tdengine
+        with:
+          mode: 'fixed'
+          package-path: 'TDengine-server-3.3.6.0-Linux-x64.tar.gz'
+          version: '3.3.6.0'
+          install-args: '-e no'
 
       - name: Set up Go
         uses: actions/setup-go@v6
@@ -64,45 +48,34 @@ jobs:
         run: |
           go version
           go env
-          go test -v ./...
+          packages="./..."
+          if [ "${{ matrix.go }}" = "1.14" ] || [ "${{ matrix.go }}" = "1.17" ]; then
+            packages="$(go list ./... | grep -v '^github.com/taosdata/driver-go/v3/examples/')"
+          fi
+          go test -v $packages
 
   test_asan:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ 'ubuntu-latest' ]
-        go: [ 'stable' ]
+        os: ['ubuntu-latest']
+        go: ['stable']
+    name: ASAN-${{ matrix.os }}-${{ matrix.go }}
     steps:
-      - name: get TDengine
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Download TDengine 3.3.6.0
         run: |
           wget https://github.com/taosdata/TDengine/releases/download/ver-3.3.6.0/TDengine-server-3.3.6.0-Linux-x64.tar.gz
 
-      - name: install
-        run: |
-          tar -zxf TDengine-server-3.3.6.0-Linux-x64.tar.gz
-          cd TDengine-server-3.3.6.0
-          sudo ./install.sh -e no
-
-      - name: checkout
-        uses: actions/checkout@v6
-
-      - name: copy taos cfg
-        run: |
-          sudo mkdir -p /etc/taos
-          sudo cp ./.github/workflows/taos.cfg /etc/taos/taos.cfg
-          sudo cp ./.github/workflows/taosadapter.toml /etc/taos/taosadapter.toml
-
-      - name: shell
-        run: |
-          cat >start.sh<<EOF 
-          ulimit -n 65535 && TAOS_SUPPORT_VNODES=256 taosd
-          EOF
-
-      - name: taosd
-        run: nohup sudo sh ./start.sh &
-
-      - name: start taosadapter
-        run: sudo taosadapter &
+      - name: Setup TDengine
+        uses: ./.github/actions/setup-tdengine
+        with:
+          mode: 'fixed'
+          package-path: 'TDengine-server-3.3.6.0-Linux-x64.tar.gz'
+          version: '3.3.6.0'
+          install-args: '-e no'
 
       - name: Set up Go
         uses: actions/setup-go@v6
@@ -110,7 +83,7 @@ jobs:
           go-version: ${{ matrix.go }}
           cache-dependency-path: go.sum
 
-      - name: Test
+      - name: Test with ASAN
         env:
           TDENGINE_CLOUD_ENDPOINT: ${{ secrets.TDENGINE_CLOUD_ENDPOINT }}
           TDENGINE_CLOUD_TOKEN: ${{ secrets.TDENGINE_CLOUD_TOKEN }}

@@ -1,75 +1,108 @@
 package stmt
 
 import (
-	"bytes"
 	"database/sql/driver"
-	"encoding/json"
 	"io"
 	"reflect"
 	"time"
-	"unsafe"
 
 	"github.com/taosdata/driver-go/v3/common"
-	"github.com/taosdata/driver-go/v3/common/parser"
-	"github.com/taosdata/driver-go/v3/common/pointer"
 	"github.com/taosdata/driver-go/v3/ws/client"
+	"github.com/taosdata/driver-go/v3/ws/unified"
 )
 
+// Rows is a compatibility wrapper around unified.ResultSet.
+// The primary path is created by stmt.UseResult() and delegates to unified.
+// When created by deprecated NewRows, it carries metadata only.
+// Deprecated: use unified.ResultSet from package ws/unified instead.
 type Rows struct {
-	buf              *bytes.Buffer
-	blockPtr         unsafe.Pointer
-	blockOffset      int
-	blockSize        int
-	timezone         *time.Location
-	resultID         uint64
-	block            []byte
-	conn             *WSConn
-	client           *client.Client
-	fieldsCount      int
+	resultSet *unified.ResultSet
+
+	// Compatibility-only metadata for legacy constructor NewRows.
 	fieldsNames      []string
 	fieldsTypes      []uint8
 	fieldsLengths    []int64
 	fieldsPrecisions []int64
 	fieldsScales     []int64
-	precision        int
 }
 
-func NewRows(conn *WSConn, client *client.Client, resp *UseResultResp, timezone *time.Location) *Rows {
+// NewRows is kept for API compatibility only.
+// Deprecated: compatibility-only metadata wrapper; it no longer fetches row data.
+// Use stmt.UseResult() or unified.ResultSet from package ws/unified instead.
+func NewRows(_ *WSConn, _ *client.Client, resp *UseResultResp, _ *time.Location) *Rows {
+	rows := &Rows{}
+	if resp == nil {
+		return rows
+	}
+	rows.fieldsNames = append(rows.fieldsNames, resp.FieldsNames...)
+	rows.fieldsTypes = append(rows.fieldsTypes, resp.FieldsTypes...)
+	rows.fieldsLengths = append(rows.fieldsLengths, resp.FieldsLengths...)
+	rows.fieldsPrecisions = append(rows.fieldsPrecisions, resp.FieldsPrecisions...)
+	rows.fieldsScales = append(rows.fieldsScales, resp.FieldsScales...)
+	return rows
+}
+
+func newRowsFromResultSet(resultSet *unified.ResultSet) *Rows {
 	return &Rows{
-		buf:              &bytes.Buffer{},
-		timezone:         timezone,
-		resultID:         resp.ResultID,
-		conn:             conn,
-		client:           client,
-		fieldsCount:      resp.FieldsCount,
-		fieldsNames:      resp.FieldsNames,
-		fieldsTypes:      resp.FieldsTypes,
-		fieldsLengths:    resp.FieldsLengths,
-		fieldsPrecisions: resp.FieldsPrecisions,
-		fieldsScales:     resp.FieldsScales,
-		precision:        resp.Precision,
+		resultSet: resultSet,
 	}
 }
+
+// Deprecated: use unified.ResultSet.ColumnTypePrecisionScale instead.
 func (rs *Rows) ColumnTypePrecisionScale(index int) (precision, scale int64, ok bool) {
-	if rs.fieldsTypes[index] == common.TSDB_DATA_TYPE_DECIMAL || rs.fieldsTypes[index] == common.TSDB_DATA_TYPE_DECIMAL64 {
-		return rs.fieldsPrecisions[index], rs.fieldsScales[index], true
+	if rs.resultSet != nil {
+		return rs.resultSet.ColumnTypePrecisionScale(index)
 	}
-	return 0, 0, false
+	if index < 0 || index >= len(rs.fieldsTypes) {
+		return 0, 0, false
+	}
+	if rs.fieldsTypes[index] != common.TSDB_DATA_TYPE_DECIMAL && rs.fieldsTypes[index] != common.TSDB_DATA_TYPE_DECIMAL64 {
+		return 0, 0, false
+	}
+	if index >= len(rs.fieldsPrecisions) || index >= len(rs.fieldsScales) {
+		return 0, 0, false
+	}
+	return rs.fieldsPrecisions[index], rs.fieldsScales[index], true
 }
 
+// Deprecated: use unified.ResultSet.Columns instead.
 func (rs *Rows) Columns() []string {
-	return rs.fieldsNames
+	if rs.resultSet != nil {
+		return rs.resultSet.Columns()
+	}
+	return append([]string(nil), rs.fieldsNames...)
 }
 
+// Deprecated: use unified.ResultSet.ColumnTypeDatabaseTypeName instead.
 func (rs *Rows) ColumnTypeDatabaseTypeName(i int) string {
+	if rs.resultSet != nil {
+		return rs.resultSet.ColumnTypeDatabaseTypeName(i)
+	}
+	if i < 0 || i >= len(rs.fieldsTypes) {
+		return ""
+	}
 	return common.GetTypeName(int(rs.fieldsTypes[i]))
 }
 
+// Deprecated: use unified.ResultSet.ColumnTypeLength instead.
 func (rs *Rows) ColumnTypeLength(i int) (length int64, ok bool) {
-	return rs.fieldsLengths[i], ok
+	if rs.resultSet != nil {
+		return rs.resultSet.ColumnTypeLength(i)
+	}
+	if i < 0 || i >= len(rs.fieldsLengths) {
+		return 0, false
+	}
+	return rs.fieldsLengths[i], true
 }
 
+// Deprecated: use unified.ResultSet.ColumnTypeScanType instead.
 func (rs *Rows) ColumnTypeScanType(i int) reflect.Type {
+	if rs.resultSet != nil {
+		return rs.resultSet.ColumnTypeScanType(i)
+	}
+	if i < 0 || i >= len(rs.fieldsTypes) {
+		return common.UnknownType
+	}
 	t, exist := common.ColumnTypeMap[int(rs.fieldsTypes[i])]
 	if !exist {
 		return common.UnknownType
@@ -77,131 +110,18 @@ func (rs *Rows) ColumnTypeScanType(i int) reflect.Type {
 	return t
 }
 
+// Deprecated: use unified.ResultSet.Close instead.
 func (rs *Rows) Close() error {
-	rs.blockPtr = nil
-	rs.block = nil
-	return rs.freeResult()
+	if rs.resultSet != nil {
+		return rs.resultSet.Close()
+	}
+	return nil
 }
 
+// Deprecated: use unified.ResultSet.Next instead.
 func (rs *Rows) Next(dest []driver.Value) error {
-	if rs.blockPtr == nil || rs.blockOffset >= rs.blockSize {
-		err := rs.taosFetchBlock()
-		if err != nil {
-			return err
-		}
+	if rs.resultSet != nil {
+		return rs.resultSet.Next(dest)
 	}
-	if rs.blockSize == 0 {
-		rs.blockPtr = nil
-		rs.block = nil
-		return io.EOF
-	}
-	var err error
-	if rs.timezone == nil {
-		err = parser.ReadRow(dest, rs.blockPtr, rs.blockSize, rs.blockOffset, rs.fieldsTypes, rs.precision, rs.fieldsScales)
-	} else {
-		err = parser.ReadRowWithTimeFormat(dest, rs.blockPtr, rs.blockSize, rs.blockOffset, rs.fieldsTypes, rs.precision, rs.fieldsScales, rs.FormatTime)
-	}
-	if err != nil {
-		return err
-	}
-	rs.blockOffset += 1
-	return nil
-}
-
-func (rs *Rows) FormatTime(ts int64, precision int) driver.Value {
-	return common.TimestampConvertToTimeWithLocation(ts, precision, rs.timezone)
-}
-
-func (rs *Rows) taosFetchBlock() error {
-	reqID := rs.conn.generateReqID()
-	req := &WSFetchReq{
-		ReqID: reqID,
-		ID:    rs.resultID,
-	}
-	args, err := json.Marshal(req)
-	if err != nil {
-		return err
-	}
-	action := &client.WSAction{
-		Action: WSFetch,
-		Args:   args,
-	}
-	rs.buf.Reset()
-	envelope := client.GlobalEnvelopePool.Get()
-	defer client.GlobalEnvelopePool.Put(envelope)
-	err = client.JsonI.NewEncoder(envelope.Msg).Encode(action)
-	if err != nil {
-		return err
-	}
-	respBytes, err := rs.conn.sendText(reqID, envelope)
-	if err != nil {
-		return err
-	}
-	var resp WSFetchResp
-	err = client.JsonI.Unmarshal(respBytes, &resp)
-	err = client.HandleResponseError(err, resp.Code, resp.Message)
-	if err != nil {
-		return err
-	}
-	if resp.Completed {
-		rs.blockSize = 0
-		return nil
-	}
-	rs.blockSize = resp.Rows
-	return rs.fetchBlock()
-}
-
-func (rs *Rows) fetchBlock() error {
-	req := &WSFetchBlockReq{
-		ReqID: rs.resultID,
-		ID:    rs.resultID,
-	}
-	args, err := client.JsonI.Marshal(req)
-	if err != nil {
-		return err
-	}
-	action := &client.WSAction{
-		Action: WSFetchBlock,
-		Args:   args,
-	}
-	rs.buf.Reset()
-	envelope := client.GlobalEnvelopePool.Get()
-	defer client.GlobalEnvelopePool.Put(envelope)
-	err = client.JsonI.NewEncoder(envelope.Msg).Encode(action)
-	if err != nil {
-		return err
-	}
-	respBytes, err := rs.conn.sendText(rs.resultID, envelope)
-	if err != nil {
-		return err
-	}
-	rs.block = respBytes
-	rs.blockPtr = pointer.AddUintptr(unsafe.Pointer(&rs.block[0]), 16)
-	rs.blockOffset = 0
-	return nil
-}
-
-func (rs *Rows) freeResult() error {
-	reqID := rs.conn.generateReqID()
-	req := &WSFreeResultRequest{
-		ReqID: reqID,
-		ID:    rs.resultID,
-	}
-	args, err := client.JsonI.Marshal(req)
-	if err != nil {
-		return err
-	}
-	action := &client.WSAction{
-		Action: WSFreeResult,
-		Args:   args,
-	}
-	rs.buf.Reset()
-	envelope := client.GlobalEnvelopePool.Get()
-	defer client.GlobalEnvelopePool.Put(envelope)
-	err = client.JsonI.NewEncoder(envelope.Msg).Encode(action)
-	if err != nil {
-		return err
-	}
-	rs.conn.sendTextWithoutResp(envelope)
-	return nil
+	return io.EOF
 }

@@ -671,7 +671,7 @@ func TestTaosSchemalessInsertRawTTLWithReqID(t *testing.T) {
 func TestTaosSchemalessInsertRawTTLWithReqIDTBNameKey(t *testing.T) {
 	conn := prepareEnv()
 	defer TaosClose(conn)
-	//defer cleanEnv(conn)
+	defer cleanEnv(conn)
 	cases := []struct {
 		name      string
 		row       string

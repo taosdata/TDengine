@@ -3473,7 +3473,7 @@ func TestStmt2AllTypeBytes(t *testing.T) {
 	}
 	defer TaosClose(conn)
 	defer func() {
-		err = exec(conn, "drop database if exists test_stmt2_all")
+		err = exec(conn, "drop database if exists test_stmt2_all_bytes")
 		if err != nil {
 			t.Error(err)
 			return

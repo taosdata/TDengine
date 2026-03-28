@@ -52,7 +52,7 @@ func TestTmq_3360(t *testing.T) {
 	}
 
 	defer func() {
-		err = execWithoutResult(conn, "drop database if exists af_test_tmq")
+		err = execWithoutResult(conn, fmt.Sprintf("drop database if exists %s", database))
 		assert.NoError(t, err)
 	}()
 	for _, sql := range sqls {
@@ -60,7 +60,7 @@ func TestTmq_3360(t *testing.T) {
 		assert.NoError(t, err)
 	}
 	defer func() {
-		err = execWithoutResult(conn, "drop topic if exists test_tmq_common")
+		err = execWithoutResult(conn, fmt.Sprintf("drop topic if exists %s", topic))
 		assert.NoError(t, err)
 	}()
 	now := time.Now()

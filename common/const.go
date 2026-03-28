@@ -55,6 +55,21 @@ var TypeLengthMap = map[int]int{
 	TSDB_DATA_TYPE_UBIGINT:   8,
 }
 
+var TypeLengthArr = [TSDB_DATA_TYPE_MAX]int{
+	TSDB_DATA_TYPE_BOOL:      1,
+	TSDB_DATA_TYPE_TINYINT:   1,
+	TSDB_DATA_TYPE_SMALLINT:  2,
+	TSDB_DATA_TYPE_INT:       4,
+	TSDB_DATA_TYPE_BIGINT:    8,
+	TSDB_DATA_TYPE_FLOAT:     4,
+	TSDB_DATA_TYPE_DOUBLE:    8,
+	TSDB_DATA_TYPE_TIMESTAMP: 8,
+	TSDB_DATA_TYPE_UTINYINT:  1,
+	TSDB_DATA_TYPE_USMALLINT: 2,
+	TSDB_DATA_TYPE_UINT:      4,
+	TSDB_DATA_TYPE_UBIGINT:   8,
+}
+
 const (
 	Int8Size    = unsafe.Sizeof(int8(0))
 	Int16Size   = unsafe.Sizeof(int16(0))

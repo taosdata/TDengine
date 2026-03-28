@@ -4,11 +4,13 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"fmt"
+	"os"
 	"reflect"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/taosdata/driver-go/v3/types"
 )
 
 func TestStmtExec(t *testing.T) {
@@ -258,6 +260,7 @@ func TestStmtConvertExec(t *testing.T) {
 		bind        []interface{}
 		expectValue interface{}
 		expectError bool
+		skipOn3360  bool
 	}{
 		//bool
 		{
@@ -1072,9 +1075,69 @@ func TestStmtConvertExec(t *testing.T) {
 			bind:        []interface{}{now, []int{1}},
 			expectError: true,
 		},
+		{
+			name:        "decimal_string",
+			tbType:      "ts timestamp,v decimal(10,4)",
+			pos:         "?,?",
+			bind:        []interface{}{now, "123.45"},
+			expectValue: "123.4500",
+			skipOn3360:  true,
+		},
+		{
+			name:        "decimal_bytes",
+			tbType:      "ts timestamp,v decimal(10,4)",
+			pos:         "?,?",
+			bind:        []interface{}{now, []byte("123.45")},
+			expectValue: "123.4500",
+			skipOn3360:  true,
+		},
+		{
+			name:        "decimal_err",
+			tbType:      "ts timestamp,v decimal(10,4)",
+			pos:         "?,?",
+			bind:        []interface{}{now, []int{1}},
+			expectError: true,
+			skipOn3360:  true,
+		},
+		{
+			name:        "blob_string",
+			tbType:      "ts timestamp,v blob",
+			pos:         "?,?",
+			bind:        []interface{}{now, "blob"},
+			expectValue: []byte("blob"),
+			skipOn3360:  true,
+		},
+		{
+			name:        "blob_bytes",
+			tbType:      "ts timestamp,v blob",
+			pos:         "?,?",
+			bind:        []interface{}{now, []byte("blob")},
+			expectValue: []byte("blob"),
+			skipOn3360:  true,
+		},
+		{
+			name:        "blob_taos_blob",
+			tbType:      "ts timestamp,v blob",
+			pos:         "?,?",
+			bind:        []interface{}{now, types.TaosBlob([]byte("blob"))},
+			expectValue: []byte("blob"),
+			skipOn3360:  true,
+		},
+		{
+			name:        "blob_err",
+			tbType:      "ts timestamp,v blob",
+			pos:         "?,?",
+			bind:        []interface{}{now, []int{1}},
+			expectError: true,
+			skipOn3360:  true,
+		},
 	}
+	_, is3360 := os.LookupEnv("TD_3360_TEST")
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			if is3360 && tt.skipOn3360 {
+				t.Skip("skip incompatible case on TD 3.3.6.0")
+			}
 			tbName := fmt.Sprintf("test_%s", tt.name)
 			tbType := tt.tbType
 			drop := fmt.Sprintf("drop table if exists %s", tbName)
@@ -1168,6 +1231,22 @@ func TestStmtConvertExec(t *testing.T) {
 }
 
 func TestStmtConvertQuery(t *testing.T) {
+	_, is3360 := os.LookupEnv("TD_3360_TEST")
+	if is3360 {
+		t.Skip("skip decimal/blob query conversion cases on TD 3.3.6.0")
+	}
+	testStmtConvertQuery(t, true)
+}
+
+func TestStmtConvertQuery_3360Compatible(t *testing.T) {
+	testStmtConvertQuery(t, false)
+}
+
+func testStmtConvertQuery(t *testing.T, includeDecimalBlob bool) {
+	dbName := "test_stmt_driver_ws_convert_q"
+	if !includeDecimalBlob {
+		dbName = "test_stmt_driver_ws_convert_q_3360"
+	}
 	db, err := sql.Open(driverName, dataSourceName)
 	if err != nil {
 		t.Error(err)
@@ -1179,55 +1258,71 @@ func TestStmtConvertQuery(t *testing.T) {
 			t.Error(err)
 		}
 	}()
-	_, err = exec(db, "drop database if exists test_stmt_driver_ws_convert_q")
+	_, err = exec(db, fmt.Sprintf("drop database if exists %s", dbName))
 	if err != nil {
 		t.Error(err)
 		return
 	}
 	defer func() {
-		_, err = exec(db, "drop database if exists test_stmt_driver_ws_convert_q")
+		_, err = exec(db, fmt.Sprintf("drop database if exists %s", dbName))
 		if err != nil {
 			t.Error(err)
 			return
 		}
 	}()
-	_, err = exec(db, "create database test_stmt_driver_ws_convert_q")
+	_, err = exec(db, fmt.Sprintf("create database %s", dbName))
 	if err != nil {
 		t.Error(err)
 		return
 	}
-	_, err = exec(db, "use test_stmt_driver_ws_convert_q")
+	_, err = exec(db, fmt.Sprintf("use %s", dbName))
 	if err != nil {
 		t.Error(err)
 		return
 	}
-	_, err = exec(db, "create table t0 (ts timestamp,"+
-		"c1 bool,"+
-		"c2 tinyint,"+
-		"c3 smallint,"+
-		"c4 int,"+
-		"c5 bigint,"+
-		"c6 tinyint unsigned,"+
-		"c7 smallint unsigned,"+
-		"c8 int unsigned,"+
-		"c9 bigint unsigned,"+
-		"c10 float,"+
-		"c11 double,"+
-		"c12 binary(20),"+
-		"c13 nchar(20)"+
-		")")
+	createSQL := "create table t0 (ts timestamp," +
+		"c1 bool," +
+		"c2 tinyint," +
+		"c3 smallint," +
+		"c4 int," +
+		"c5 bigint," +
+		"c6 tinyint unsigned," +
+		"c7 smallint unsigned," +
+		"c8 int unsigned," +
+		"c9 bigint unsigned," +
+		"c10 float," +
+		"c11 double," +
+		"c12 binary(20)," +
+		"c13 nchar(20)"
+	if includeDecimalBlob {
+		createSQL += "," +
+			"c14 decimal(10,4)," +
+			"c15 blob"
+	}
+	createSQL += ")"
+	_, err = exec(db, createSQL)
 	if err != nil {
 		t.Error(err)
 		return
 	}
 	now := time.Now()
 	after1s := now.Add(time.Second)
-	_, err = exec(db, fmt.Sprintf("insert into t0 values('%s',true,2,3,4,5,6,7,8,9,10,11,'binary','nchar')", now.Format(time.RFC3339Nano)))
+	insertSQL := fmt.Sprintf("insert into t0 values('%s',true,2,3,4,5,6,7,8,9,10,11,'binary','nchar'", now.Format(time.RFC3339Nano))
+	if includeDecimalBlob {
+		insertSQL += ",12.34,'blob'"
+	}
+	insertSQL += ")"
+	_, err = exec(db, insertSQL)
 	if err != nil {
 		t.Error(err)
 		return
 	}
-	_, err = exec(db, fmt.Sprintf("insert into t0 values('%s',null,null,null,null,null,null,null,null,null,null,null,null,null)", after1s.Format(time.RFC3339Nano)))
+	nullInsertSQL := fmt.Sprintf("insert into t0 values('%s',null,null,null,null,null,null,null,null,null,null,null,null,null", after1s.Format(time.RFC3339Nano))
+	if includeDecimalBlob {
+		nullInsertSQL += ",null,null"
+	}
+	nullInsertSQL += ")"
+	_, err = exec(db, nullInsertSQL)
 	if err != nil {
 		t.Error(err)
 		return
@@ -2146,6 +2241,13 @@ func TestStmtConvertQuery(t *testing.T) {
 			bind:        "bin%",
 			expectValue: "binary",
 		},
+		{
+			name:        "binary_taos_blob",
+			field:       "c12",
+			where:       "c12 = ?",
+			bind:        types.TaosBlob([]byte("binary")),
+			expectValue: "binary",
+		},
 
 		// nchar
 		{
@@ -2169,9 +2271,33 @@ func TestStmtConvertQuery(t *testing.T) {
 			bind:        "nch%",
 			expectValue: "nchar",
 		},
+		{
+			name:        "decimal_string",
+			field:       "c14",
+			where:       "c14 = ?",
+			bind:        "12.3400",
+			expectValue: "12.3400",
+		},
+		{
+			name:        "decimal_taos_decimal",
+			field:       "c14",
+			where:       "c14 = ?",
+			bind:        types.TaosDecimal("12.3400"),
+			expectValue: "12.3400",
+		},
+		{
+			name:        "blob_by_ts",
+			field:       "c15",
+			where:       "ts = ?",
+			bind:        now,
+			expectValue: []byte("blob"),
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			if !includeDecimalBlob && (tt.field == "c14" || tt.field == "c15") {
+				t.Skip("skip decimal/blob case in 3.3.6.0 compatible query conversion test")
+			}
 			sql := fmt.Sprintf("select %s from t0 where %s", tt.field, tt.where)
 
 			stmt, err := db.Prepare(sql)
@@ -2215,11 +2341,16 @@ func TestStmtConvertQuery(t *testing.T) {
 					t.Error(err)
 					return
 				}
-				v, err := values[0].(driver.Valuer).Value()
-				if err != nil {
-					t.Error(err)
+				value, ok := values[0].(driver.Valuer)
+				if ok {
+					v, err := value.Value()
+					if err != nil {
+						t.Error(err)
+					}
+					data = append(data, v)
+				} else {
+					data = append(data, *values[0].(*[]byte))
 				}
-				data = append(data, v)
 			}
 			if tt.expectNoValue {
 				if len(data) > 0 {
@@ -2230,6 +2361,16 @@ func TestStmtConvertQuery(t *testing.T) {
 			}
 			if len(data) != 1 {
 				t.Errorf("expect %d got %d", 1, len(data))
+				return
+			}
+			expectBytes, isBytes := tt.expectValue.([]byte)
+			if isBytes {
+				gotBytes, ok := data[0].([]byte)
+				if !ok {
+					t.Errorf("expect []byte got %T", data[0])
+					return
+				}
+				assert.Equal(t, expectBytes, gotBytes)
 				return
 			}
 			if data[0] != tt.expectValue {

@@ -1,0 +1,120 @@
+name: ws-reliability-report
+
+on:
+  schedule:
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  reliability:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup TDengine nightly
+        uses: ./.github/actions/setup-tdengine
+        with:
+          mode: 'nightly'
+          branch: 'main'
+          start-services: 'true'
+          nightly-url: ${{ secrets.NIGHTLY_TDENGINE_ENTERPRISE_BASE_URL }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: stable
+          cache-dependency-path: go.sum
+
+      - name: Run ws reliability gate
+        id: ws_gate
+        run: |
+          set -euo pipefail
+          started_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          started_epoch="$(date +%s)"
+          status="success"
+          if ! LOOP_COUNT=20 ./ws/reliability_gate.sh full-integration 2>&1 | tee ws_reliability_gate.out; then
+            status="failure"
+          fi
+          ended_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          ended_epoch="$(date +%s)"
+          duration_seconds="$((ended_epoch - started_epoch))"
+          echo "status=${status}" >> "$GITHUB_OUTPUT"
+          echo "started_at=${started_at}" >> "$GITHUB_OUTPUT"
+          echo "ended_at=${ended_at}" >> "$GITHUB_OUTPUT"
+          echo "duration_seconds=${duration_seconds}" >> "$GITHUB_OUTPUT"
+          if [ "${status}" = "failure" ]; then
+            exit 1
+          fi
+
+      - name: Build reliability report
+        if: always()
+        run: |
+          set +e
+          if [ -f ws_reliability_gate.out ]; then
+            grep -E '^ok[[:space:]]+github.com/taosdata/driver-go/v3/ws/' ws_reliability_gate.out > ws_reliability_packages.txt || true
+          else
+            : > ws_reliability_packages.txt
+          fi
+          {
+            echo "# WS Reliability Report"
+            echo
+            echo "- Workflow status: ${{ job.status }}"
+            echo "- Gate status: ${{ steps.ws_gate.outputs.status }}"
+            echo "- Started at (UTC): ${{ steps.ws_gate.outputs.started_at }}"
+            echo "- Ended at (UTC): ${{ steps.ws_gate.outputs.ended_at }}"
+            echo "- Duration (seconds): ${{ steps.ws_gate.outputs.duration_seconds }}"
+            echo
+            echo "## Gate Command"
+            echo
+            echo "- \`LOOP_COUNT=20 ./ws/reliability_gate.sh full-integration\`"
+            echo
+            echo "## Package Results"
+            echo
+            if [ -s ws_reliability_packages.txt ]; then
+              sed 's/^/- /' ws_reliability_packages.txt
+            else
+              echo "- no package results captured"
+            fi
+          } | tee ws_reliability_report.md
+          cat ws_reliability_report.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Collect failure logs
+        if: failure()
+        run: |
+          mkdir -p ws-reliability-logs
+          cp -f taosd.out ws-reliability-logs/taosd.out || true
+          cp -f taosadapter.out ws-reliability-logs/taosadapter.out || true
+          cp -f ws_reliability_gate.out ws-reliability-logs/ws_reliability_gate.out || true
+          sudo cp -r /var/log/taos ws-reliability-logs/var-log-taos || true
+
+      - name: Upload report artifacts
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: ws-reliability-report-${{ github.run_id }}
+          path: |
+            ws_reliability_report.md
+            ws_reliability_gate.out
+            ws_reliability_packages.txt
+            taosd.out
+            taosadapter.out
+          if-no-files-found: warn
+
+      - name: Upload failure logs
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: ws-reliability-failure-logs-${{ github.run_id }}
+          path: ws-reliability-logs
+          if-no-files-found: warn
+
+      - name: Cleanup
+        if: always()
+        run: |
+          sudo pkill -f taosadapter || true
+          sudo pkill -f taosd || true

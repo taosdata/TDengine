@@ -1,7 +1,6 @@
 package stmt
 
 import (
-	"bytes"
 	"database/sql/driver"
 	"encoding/binary"
 	"fmt"
@@ -29,32 +28,56 @@ const (
 	BindDataIsNullOffset      = BindDataNumOffset + 4
 )
 
+const FixedHeaderLen = uint32(28)
+
+var isVarDataType = [common.TSDB_DATA_TYPE_MAX]bool{
+	common.TSDB_DATA_TYPE_BINARY:    true,
+	common.TSDB_DATA_TYPE_NCHAR:     true,
+	common.TSDB_DATA_TYPE_JSON:      true,
+	common.TSDB_DATA_TYPE_VARBINARY: true,
+	common.TSDB_DATA_TYPE_DECIMAL:   true,
+	common.TSDB_DATA_TYPE_DECIMAL64: true,
+	common.TSDB_DATA_TYPE_GEOMETRY:  true,
+	common.TSDB_DATA_TYPE_BLOB:      true,
+}
+
+func IsVarDataType(colType int8) bool {
+	if colType < 0 || colType >= common.TSDB_DATA_TYPE_MAX {
+		return false
+	}
+	return isVarDataType[colType]
+}
+
 func MarshalStmt2Binary(bindData []*TaosStmt2BindData, isInsert bool, fields []*Stmt2AllField) ([]byte, error) {
-	var colType []*Stmt2AllField
-	var tagType []*Stmt2AllField
+	return marshalStmt2BinaryWithHeader(bindData, isInsert, fields, 0)
+}
+
+func marshalStmt2BinaryWithHeader(bindData []*TaosStmt2BindData, isInsert bool, fields []*Stmt2AllField, binaryHeaderLength int) ([]byte, error) {
+	var colFields []*Stmt2AllField
+	var tagFields []*Stmt2AllField
+	needTableName := false
 	for i := 0; i < len(fields); i++ {
 		switch fields[i].BindType {
 		case TAOS_FIELD_COL:
-			colType = append(colType, fields[i])
+			colFields = append(colFields, fields[i])
 		case TAOS_FIELD_TAG:
-			tagType = append(tagType, fields[i])
+			tagFields = append(tagFields, fields[i])
 		}
 	}
-	// count
-	count := len(bindData)
-	if count == 0 {
+	tableCount := len(bindData)
+	if tableCount == 0 {
 		return nil, fmt.Errorf("empty data")
 	}
-	needTableNames := false
-	needTags := false
-	needCols := false
-	tagCount := len(tagType)
-	colCount := len(colType)
+	colCount := len(colFields)
+	tagCount := len(tagFields)
+	needTags := tagCount > 0
+	needCols := colCount > 0
+	var queryParam [][]driver.Value
 	if isInsert {
-		for i := 0; i < count; i++ {
+		for i := 0; i < tableCount; i++ {
 			data := bindData[i]
 			if data.TableName != "" {
-				needTableNames = true
+				needTableName = true
 			}
 			if len(data.Tags) != tagCount {
 				return nil, fmt.Errorf("tag count not match, data count:%d, type count:%d", len(data.Tags), tagCount)
@@ -64,13 +87,14 @@ func MarshalStmt2Binary(bindData []*TaosStmt2BindData, isInsert bool, fields []*
 			}
 		}
 	} else {
+		needCols = true
 		if tagCount != 0 {
 			return nil, fmt.Errorf("query not need tag types")
 		}
 		if colCount != 0 {
 			return nil, fmt.Errorf("query not need col types")
 		}
-		if count != 1 {
+		if tableCount != 1 {
 			return nil, fmt.Errorf("query only need one data")
 		}
 
@@ -85,367 +109,768 @@ func MarshalStmt2Binary(bindData []*TaosStmt2BindData, isInsert bool, fields []*
 			return nil, fmt.Errorf("query need col")
 		}
 		colCount = len(data.Cols)
+		colFields = make([]*Stmt2AllField, colCount)
+		queryParam = make([][]driver.Value, colCount)
 		for j := 0; j < colCount; j++ {
 			if len(data.Cols[j]) != 1 {
 				return nil, fmt.Errorf("query col data must be one row, col:%d, count:%d", j, len(data.Cols[j]))
 			}
+			queryParam[j] = []driver.Value{data.Cols[j][0]}
+			colFields[j] = &Stmt2AllField{}
+			switch v := data.Cols[j][0].(type) {
+			case string:
+				colFields[j].FieldType = common.TSDB_DATA_TYPE_BINARY
+			case []byte:
+				colFields[j].FieldType = common.TSDB_DATA_TYPE_BINARY
+			case int8:
+				colFields[j].FieldType = common.TSDB_DATA_TYPE_TINYINT
+			case int16:
+				colFields[j].FieldType = common.TSDB_DATA_TYPE_SMALLINT
+			case int32:
+				colFields[j].FieldType = common.TSDB_DATA_TYPE_INT
+			case int64:
+				colFields[j].FieldType = common.TSDB_DATA_TYPE_BIGINT
+			case uint8:
+				colFields[j].FieldType = common.TSDB_DATA_TYPE_UTINYINT
+			case uint16:
+				colFields[j].FieldType = common.TSDB_DATA_TYPE_USMALLINT
+			case uint32:
+				colFields[j].FieldType = common.TSDB_DATA_TYPE_UINT
+			case uint64:
+				colFields[j].FieldType = common.TSDB_DATA_TYPE_UBIGINT
+			case float32:
+				colFields[j].FieldType = common.TSDB_DATA_TYPE_FLOAT
+			case float64:
+				colFields[j].FieldType = common.TSDB_DATA_TYPE_DOUBLE
+			case bool:
+				colFields[j].FieldType = common.TSDB_DATA_TYPE_BOOL
+			case time.Time:
+				colFields[j].FieldType = common.TSDB_DATA_TYPE_BINARY
+				queryParam[j] = []driver.Value{v.Format(time.RFC3339Nano)}
+			default:
+				return nil, fmt.Errorf("unsupported query param type %T", v)
+			}
 		}
 	}
-
-	header := make([]byte, DataPosition)
-	// count
-	binary.LittleEndian.PutUint32(header[CountPosition:], uint32(count))
-	// tag count
-	if tagCount != 0 {
-		needTags = true
-		binary.LittleEndian.PutUint32(header[TagCountPosition:], uint32(tagCount))
-	}
-	// col count
-	if colCount != 0 {
-		needCols = true
-		binary.LittleEndian.PutUint32(header[ColCountPosition:], uint32(colCount))
-	}
-	if !needTableNames && !needTags && !needCols {
+	if !needTableName && !needTags && !needCols {
 		return nil, fmt.Errorf("no data")
 	}
-	tmpBuf := &bytes.Buffer{}
-	tableNameBuf := &bytes.Buffer{}
-	var tableNameLength []uint16
-	if needTableNames {
-		tableNameLength = make([]uint16, count)
-	}
-	tagBuf := &bytes.Buffer{}
-	var tagDataLength []uint32
-	if needTags {
-		tagDataLength = make([]uint32, count)
-	}
-	colBuf := &bytes.Buffer{}
-	var colDataLength []uint32
-	if needCols {
-		colDataLength = make([]uint32, count)
-	}
-	for index, data := range bindData {
-		// table name
-		if needTableNames {
-			if data.TableName != "" {
-				if len(data.TableName) > math.MaxUint16-1 {
-					return nil, fmt.Errorf("table name too long, index:%d, length:%d", index, len(data.TableName))
-				}
-				tableNameBuf.WriteString(data.TableName)
-			}
-			tableNameBuf.WriteByte(0)
-			tableNameLength[index] = uint16(len(data.TableName) + 1)
-		}
+	var tableNameLengthLen = uint32(0)
+	var tableNameBufferLen uint32
 
-		// tag
+	var tagsDataLengthLen = uint32(0)
+	var tagsBufferLen = uint32(0)
+	var colsDataLengthLen = uint32(0)
+	var colsBufferLen = uint32(0)
+	var tableColLengthList []uint32
+
+	var utf8TableNameLen []uint16
+	var tableTagLengthList []uint32
+	if needTableName {
+		utf8TableNameLen = make([]uint16, tableCount)
+	}
+	if needTags {
+		tableTagLengthList = make([]uint32, tableCount)
+	}
+	if needCols {
+		tableColLengthList = make([]uint32, tableCount)
+	}
+	for tmpTableIndex := 0; tmpTableIndex < len(bindData); tmpTableIndex++ {
+		// calculate table name
+		if needTableName {
+			var tableName = bindData[tmpTableIndex].TableName
+			if len(tableName) > math.MaxUint16-1 {
+				return nil, fmt.Errorf("table name too long, index:%d, length:%d", tmpTableIndex, len(tableName))
+			}
+			utf8TableNameLen[tmpTableIndex] = uint16(len(tableName) + 1)
+			tableNameBufferLen += uint32(len(tableName) + 1)
+		}
+		// calculate tags
 		if needTags {
-			length := 0
-			for i := 0; i < len(data.Tags); i++ {
-				tag := data.Tags[i]
-				tagDataBuffer, err := generateBindColData([]driver.Value{tag}, tagType[i], tmpBuf)
-				if err != nil {
-					return nil, err
-				}
-				length += len(tagDataBuffer)
-				tagBuf.Write(tagDataBuffer)
-			}
-			tagDataLength[index] = uint32(length)
-		}
-		// col
-		if needCols {
-			length := 0
-			for i := 0; i < len(data.Cols); i++ {
-				col := data.Cols[i]
-				var colDataBuffer []byte
-				var err error
-				if isInsert {
-					colDataBuffer, err = generateBindColData(col, colType[i], tmpBuf)
+			var tableTagLength = uint32(0)
+			for i := 0; i < tagCount; i++ {
+				tagVal := bindData[tmpTableIndex].Tags[i]
+				if IsVarDataType(tagFields[i].FieldType) {
+					bsCount := uint32(0)
+					if tagVal != nil {
+						switch tagVal := tagVal.(type) {
+						case []byte:
+							bsCount = uint32(len(tagVal))
+						case string:
+							bsCount = uint32(len(tagVal))
+						default:
+							return nil, fmt.Errorf("unsupported tag type %T", tagVal)
+						}
+					}
+					totalLength := 4 + // TotalLength field length
+						4 + // DataType field length
+						4 + // Num field length
+						1 + // IsNull field length
+						1 + // HaveLength field length
+						4 + // Length field length, each length is 4 bytes
+						4 + // BufferLength field length
+						bsCount // Buffer field length
+					tableTagLength += totalLength
+					tagsBufferLen += totalLength
 				} else {
-					colDataBuffer, err = generateBindQueryData(col[0])
+					var typeLength = uint32(common.TypeLengthArr[int(tagFields[i].FieldType)])
+					if tagVal == nil {
+						typeLength = 0
+					}
+					totalLength := 4 + // TotalLength field length
+						4 + // DataType field length
+						4 + // Num field length
+						1 + // IsNull field length
+						1 + // HaveLength field length
+						4 + // BufferLength field length
+						typeLength // Buffer field length
+					tableTagLength += totalLength
+					tagsBufferLen += totalLength
 				}
-				if err != nil {
-					return nil, err
-				}
-				length += len(colDataBuffer)
-				colBuf.Write(colDataBuffer)
 			}
-			colDataLength[index] = uint32(length)
+			tableTagLengthList[tmpTableIndex] = tableTagLength
+		}
+		// calculate cols
+		if needCols {
+			var tableColLength = uint32(0)
+			colData := bindData[tmpTableIndex].Cols
+			if !isInsert {
+				colData = queryParam
+			}
+			rows := len(colData[0])
+			for i := 0; i < colCount; i++ {
+				if len(colData[i]) != rows {
+					return nil, fmt.Errorf("col row count not match, table_index:%d, col_index:%d, rows:%d, expect:%d", tmpTableIndex, i, len(colData[i]), rows)
+				}
+			}
+			for i := 0; i < colCount; i++ {
+				if IsVarDataType(colFields[i].FieldType) {
+					var bsCount = uint32(0)
+					for j := 0; j < rows; j++ {
+						var colVal = colData[i][j]
+						if colVal == nil {
+							continue
+						}
+						switch colVal := colVal.(type) {
+						case []byte:
+							bsCount += uint32(len(colVal))
+						case string:
+							bsCount += uint32(len(colVal))
+						default:
+							return nil, fmt.Errorf("unsupported column type %T", colVal)
+						}
+					}
+					totalLength := 4 + // TotalLength field length
+						4 + // DataType field length
+						4 + // Num field length
+						(uint32)(1*rows) + // IsNull field length
+						1 + // HaveLength field length
+						(uint32)(4*rows) + // Length field length, each length is 4 bytes
+						4 + // BufferLength field length
+						bsCount // Buffer field length
+					tableColLength += totalLength
+					colsBufferLen += totalLength
+				} else {
+					bufferLength := uint32(common.TypeLengthArr[int(colFields[i].FieldType)] * rows)
+					if checkAllNull(colData[i]) {
+						bufferLength = 0
+					}
+					totalLength := 4 + // TotalLength field length
+						4 + // DataType field length
+						4 + // Num field length
+						(uint32)(1*rows) + // IsNull field length
+						1 + // HaveLength field length
+						4 + // BufferLength field length
+						bufferLength // Buffer field length
+					tableColLength += totalLength
+					colsBufferLen += totalLength
+				}
+			}
+			tableColLengthList[tmpTableIndex] = tableColLength
 		}
 	}
-	tableTotalLength := tableNameBuf.Len()
-	tagTotalLength := tagBuf.Len()
-	colTotalLength := colBuf.Len()
-	tagOffset := DataPosition + tableTotalLength + len(tableNameLength)*2
-	colOffset := tagOffset + tagTotalLength + len(tagDataLength)*4
-	totalLength := colOffset + colTotalLength + len(colDataLength)*4
-	if needTableNames {
-		binary.LittleEndian.PutUint32(header[TableNamesOffsetPosition:], uint32(DataPosition))
+	// table name
+	if needTableName {
+		tableNameLengthLen = (uint32)(tableCount * 2)
 	}
 	if needTags {
-		binary.LittleEndian.PutUint32(header[TagsOffsetPosition:], uint32(tagOffset))
+		tagsDataLengthLen = (uint32)(tableCount * 4)
 	}
 	if needCols {
-		binary.LittleEndian.PutUint32(header[ColsOffsetPosition:], uint32(colOffset))
+		colsDataLengthLen = (uint32)(tableCount * 4)
 	}
-	binary.LittleEndian.PutUint32(header[TotalLengthPosition:], uint32(totalLength))
-	buffer := make([]byte, totalLength)
-	copy(buffer, header)
-	if needTableNames {
-		offset := DataPosition
-		for _, length := range tableNameLength {
-			binary.LittleEndian.PutUint16(buffer[offset:], length)
-			offset += 2
-		}
-		copy(buffer[offset:], tableNameBuf.Bytes())
+	var tableNameLength = tableNameLengthLen + tableNameBufferLen
+	var tagsDataLength = tagsDataLengthLen + tagsBufferLen
+	var colsDataLength = colsDataLengthLen + colsBufferLen
+	var totalBufferLen = FixedHeaderLen + tableNameLength + tagsDataLength + colsDataLength
+	var tableNameOffset = FixedHeaderLen
+	var tagsOffset = tableNameOffset + tableNameLength
+	var colsOffset = tagsOffset + tagsDataLength
+	buffer := make([]byte, totalBufferLen+uint32(binaryHeaderLength))
+	writeU32(buffer, binaryHeaderLength+0, totalBufferLen)       // TotalLength
+	writeU32(buffer, binaryHeaderLength+4, (uint32)(tableCount)) // Count
+	if needTags {
+		writeU32(buffer, binaryHeaderLength+8, (uint32)(tagCount)) // TagCount
+	}
+	if needCols {
+		writeU32(buffer, binaryHeaderLength+12, (uint32)(colCount)) // ColCount
+	}
+	if needTableName {
+		writeU32(buffer, binaryHeaderLength+16, FixedHeaderLen) // TableNamesOffset
 	}
 	if needTags {
-		offset := tagOffset
-		for _, length := range tagDataLength {
-			binary.LittleEndian.PutUint32(buffer[offset:], length)
-			offset += 4
-		}
-		copy(buffer[offset:], tagBuf.Bytes())
+		writeU32(buffer, binaryHeaderLength+20, tagsOffset) // TagsOffset
 	}
 	if needCols {
-		offset := colOffset
-		for _, length := range colDataLength {
-			binary.LittleEndian.PutUint32(buffer[offset:], length)
-			offset += 4
+		writeU32(buffer, binaryHeaderLength+24, colsOffset) // ColsOffset
+	}
+
+	var tableNameLengthOffset = binaryHeaderLength + (int)(tableNameOffset)
+	var tableNameBufferOffset = tableNameLengthOffset + (int)(tableNameLengthLen)
+	var tagsLengthOffset = binaryHeaderLength + (int)(tagsOffset)
+	var tagsBufferOffset = tagsLengthOffset + (int)(tagsDataLengthLen)
+	var colsLengthOffset = binaryHeaderLength + (int)(colsOffset)
+	var colsBufferOffset = colsLengthOffset + (int)(colsDataLengthLen)
+
+	if needTags {
+		// tags length
+		copyUint32SliceToBytes(buffer[tagsLengthOffset:], tableTagLengthList)
+	}
+	// cols length
+	if needCols {
+		copyUint32SliceToBytes(buffer[colsLengthOffset:], tableColLengthList)
+	}
+	if needTableName {
+		copyUint16SliceToBytes(buffer[tableNameLengthOffset:], utf8TableNameLen)
+	}
+
+	var tmpTableNameOffset = tableNameBufferOffset
+
+	var tagOffset = tagsBufferOffset
+	var colOffset = colsBufferOffset
+	var err error
+
+	for tableIndex := 0; tableIndex < len(bindData); tableIndex++ {
+		if needTableName {
+			tableName := bindData[tableIndex].TableName
+			if len(tableName) > 0 {
+				copy(buffer[tmpTableNameOffset:], tableName)
+			}
+			tmpTableNameOffset += int(utf8TableNameLen[tableIndex])
 		}
-		copy(buffer[offset:], colBuf.Bytes())
+		if needTags {
+			tagOffset, err = writeBindTag(tagFields, bindData[tableIndex].Tags, buffer, tagOffset)
+			if err != nil {
+				return nil, err
+			}
+		}
+		if needCols {
+			if isInsert {
+				colOffset, err = writeBindCol(colFields, bindData[tableIndex].Cols, buffer, colOffset)
+			} else {
+				colOffset, err = writeBindCol(colFields, queryParam, buffer, colOffset)
+			}
+			if err != nil {
+				return nil, err
+			}
+		}
 	}
 	return buffer, nil
 }
 
-func getBindDataHeaderLength(num int, needLength bool) int {
-	length := 17 + num
-	if needLength {
-		length += num * 4
-	}
-	return length
+func writeU32(buffer []byte, offset int, value uint32) {
+	binary.LittleEndian.PutUint32(buffer[offset:offset+4], value)
 }
 
-func generateBindColData(data []driver.Value, colType *Stmt2AllField, tmpBuffer *bytes.Buffer) ([]byte, error) {
-	num := len(data)
-	tmpBuffer.Reset()
-	needLength := needLength(colType.FieldType)
-	headerLength := getBindDataHeaderLength(num, needLength)
-	tmpHeader := make([]byte, headerLength)
-	// type
-	binary.LittleEndian.PutUint32(tmpHeader[BindDataTypeOffset:], uint32(colType.FieldType))
-	// num
-	binary.LittleEndian.PutUint32(tmpHeader[BindDataNumOffset:], uint32(num))
-	// is null
-	isNull := tmpHeader[BindDataIsNullOffset : BindDataIsNullOffset+num]
-	// has length
-	if needLength {
-		tmpHeader[BindDataIsNullOffset+num] = 1
-	}
-	bufferLengthOffset := BindDataIsNullOffset + num + 1
-	isAllNull := checkAllNull(data)
-	if isAllNull {
-		for i := 0; i < num; i++ {
-			isNull[i] = 1
-		}
-	} else {
-		switch colType.FieldType {
-		case common.TSDB_DATA_TYPE_BOOL:
-			for i := 0; i < num; i++ {
-				if data[i] == nil {
-					isNull[i] = 1
-					tmpBuffer.WriteByte(0)
-				} else {
-					v, ok := data[i].(bool)
-					if !ok {
-						return nil, fmt.Errorf("data type not match, expect bool, but get %T, value:%v", data[i], data[i])
-					}
-					if v {
-						tmpBuffer.WriteByte(1)
-					} else {
-						tmpBuffer.WriteByte(0)
-					}
-				}
-			}
-		case common.TSDB_DATA_TYPE_TINYINT:
-			for i := 0; i < num; i++ {
-				if data[i] == nil {
-					isNull[i] = 1
-					tmpBuffer.WriteByte(0)
-				} else {
-					v, ok := data[i].(int8)
-					if !ok {
-						return nil, fmt.Errorf("data type not match, expect int8, but get %T, value:%v", data[i], data[i])
-					}
-					tmpBuffer.WriteByte(byte(v))
-				}
-			}
+func writeU16(buffer []byte, offset int, value uint16) {
+	binary.LittleEndian.PutUint16(buffer[offset:offset+2], value)
+}
 
-		case common.TSDB_DATA_TYPE_SMALLINT:
-			for i := 0; i < num; i++ {
-				if data[i] == nil {
-					isNull[i] = 1
-					writeUint16(tmpBuffer, uint16(0))
-				} else {
-					v, ok := data[i].(int16)
-					if !ok {
-						return nil, fmt.Errorf("data type not match, expect int16, but get %T, value:%v", data[i], data[i])
-					}
-					writeUint16(tmpBuffer, uint16(v))
-				}
-			}
+func writeU64(buffer []byte, offset int, value uint64) {
+	binary.LittleEndian.PutUint64(buffer[offset:offset+8], value)
+}
 
-		case common.TSDB_DATA_TYPE_INT:
-			for i := 0; i < num; i++ {
-				if data[i] == nil {
-					isNull[i] = 1
-					writeUint32(tmpBuffer, uint32(0))
-				} else {
-					v, ok := data[i].(int32)
-					if !ok {
-						return nil, fmt.Errorf("data type not match, expect int32, but get %T, value:%v", data[i], data[i])
-					}
-					writeUint32(tmpBuffer, uint32(v))
-				}
+func writeI64(buffer []byte, offset int, value int64) {
+	binary.LittleEndian.PutUint64(buffer[offset:offset+8], uint64(value))
+}
+
+func writeI32(buffer []byte, offset int, value int32) {
+	binary.LittleEndian.PutUint32(buffer[offset:offset+4], uint32(value))
+}
+
+func writeI16(buffer []byte, offset int, value int16) {
+	binary.LittleEndian.PutUint16(buffer[offset:offset+2], uint16(value))
+}
+
+func writeFloat32(buffer []byte, offset int, value float32) {
+	binary.LittleEndian.PutUint32(buffer[offset:offset+4], math.Float32bits(value))
+}
+
+func writeFloat64(buffer []byte, offset int, value float64) {
+	binary.LittleEndian.PutUint64(buffer[offset:offset+8], math.Float64bits(value))
+}
+
+func writeBindTag(tagFields []*Stmt2AllField, tagVal []driver.Value, buffer []byte, offset int) (int, error) {
+	var startOffset = offset
+	for i := 0; i < len(tagVal); i++ {
+		totalLength := uint32(0)
+		// write DataType
+		writeU32(buffer, startOffset+DataTypeOffset, (uint32)(tagFields[i].FieldType))
+		// write Num
+		writeU32(buffer, startOffset+NumOffset, 1)
+		// hasLength
+		isVarData := IsVarDataType(tagFields[i].FieldType)
+		if tagVal[i] == nil {
+			buffer[startOffset+IsNullOffset] = 1
+			if isVarData {
+				// have length
+				buffer[startOffset+HaveLengthOffset] = 1
+				// length
+				//writeU32(buffer, startOffset+HaveLengthOffset+4, 0)
+				// write TotalLength
+				totalLength = 4 + // TotalLength field length
+					4 + // DataType field length
+					4 + // Num field length
+					1 + // IsNull field length
+					1 + // HaveLength field length
+					4 + // Length field length, each length is 4 bytes
+					4 // BufferLength field length
+			} else {
+				// write TotalLength
+				totalLength = 4 + // TotalLength field length
+					4 + // DataType field length
+					4 + // Num field length
+					1 + // IsNull field length
+					1 + // HaveLength field length
+					4 // BufferLength field length
 			}
-		case common.TSDB_DATA_TYPE_BIGINT:
-			for i := 0; i < num; i++ {
-				if data[i] == nil {
-					isNull[i] = 1
-					writeUint64(tmpBuffer, 0)
-				} else {
-					v, ok := data[i].(int64)
+			writeU32(buffer, startOffset+TotalLengthOffset, totalLength)
+		} else {
+			if !isVarData {
+				var dataLength = uint32(common.TypeLengthArr[int(tagFields[i].FieldType)])
+				switch tagFields[i].FieldType {
+				case common.TSDB_DATA_TYPE_BOOL:
+					val, ok := tagVal[i].(bool)
 					if !ok {
-						return nil, fmt.Errorf("data type not match, expect int64, but get %T, value:%v", data[i], data[i])
+						return 0, fmt.Errorf("tag field type not match, expect bool, actual %T, tag_index: %d, tag_name: %s", tagVal[i], i, tagFields[i].Name)
 					}
-					writeUint64(tmpBuffer, uint64(v))
-				}
-			}
-		case common.TSDB_DATA_TYPE_FLOAT:
-			for i := 0; i < num; i++ {
-				if data[i] == nil {
-					isNull[i] = 1
-					writeUint32(tmpBuffer, 0)
-				} else {
-					v, ok := data[i].(float32)
+					if val {
+						buffer[startOffset+FixedBufferOffset] = 1
+					}
+				case common.TSDB_DATA_TYPE_TINYINT:
+					val, ok := tagVal[i].(int8)
 					if !ok {
-						return nil, fmt.Errorf("data type not match, expect float32, but get %T, value:%v", data[i], data[i])
+						return 0, fmt.Errorf("tag field type not match, expect int8, actual %T, tag_index: %d, tag_name: %s", tagVal[i], i, tagFields[i].Name)
 					}
-					writeUint32(tmpBuffer, math.Float32bits(v))
-				}
-			}
-		case common.TSDB_DATA_TYPE_DOUBLE:
-			for i := 0; i < num; i++ {
-				if data[i] == nil {
-					isNull[i] = 1
-					writeUint64(tmpBuffer, 0)
-				} else {
-					v, ok := data[i].(float64)
+					buffer[startOffset+FixedBufferOffset] = byte(val)
+				case common.TSDB_DATA_TYPE_SMALLINT:
+					val, ok := tagVal[i].(int16)
 					if !ok {
-						return nil, fmt.Errorf("data type not match, expect float64, but get %T, value:%v", data[i], data[i])
+						return 0, fmt.Errorf("tag field type not match, expect int16, actual %T, tag_index: %d, tag_name: %s", tagVal[i], i, tagFields[i].Name)
 					}
-					writeUint64(tmpBuffer, math.Float64bits(v))
-				}
-			}
-		case common.TSDB_DATA_TYPE_TIMESTAMP:
-			precision := int(colType.Precision)
-			for i := 0; i < num; i++ {
-				if data[i] == nil {
-					isNull[i] = 1
-					writeUint64(tmpBuffer, 0)
-				} else {
-					switch v := data[i].(type) {
+					writeI16(buffer, startOffset+FixedBufferOffset, val)
+				case common.TSDB_DATA_TYPE_INT:
+					val, ok := tagVal[i].(int32)
+					if !ok {
+						return 0, fmt.Errorf("tag field type not match, expect int32, actual %T, tag_index: %d, tag_name: %s", tagVal[i], i, tagFields[i].Name)
+					}
+					writeI32(buffer, startOffset+FixedBufferOffset, val)
+				case common.TSDB_DATA_TYPE_BIGINT:
+					val, ok := tagVal[i].(int64)
+					if !ok {
+						return 0, fmt.Errorf("tag field type not match, expect int64, actual %T, tag_index: %d, tag_name: %s", tagVal[i], i, tagFields[i].Name)
+					}
+					writeI64(buffer, startOffset+FixedBufferOffset, val)
+				case common.TSDB_DATA_TYPE_FLOAT:
+					val, ok := tagVal[i].(float32)
+					if !ok {
+						return 0, fmt.Errorf("tag field type not match, expect float32, actual %T, tag_index: %d, tag_name: %s", tagVal[i], i, tagFields[i].Name)
+					}
+					writeFloat32(buffer, startOffset+FixedBufferOffset, val)
+				case common.TSDB_DATA_TYPE_DOUBLE:
+					val, ok := tagVal[i].(float64)
+					if !ok {
+						return 0, fmt.Errorf("tag field type not match, expect float64, actual %T, tag_index: %d, tag_name: %s", tagVal[i], i, tagFields[i].Name)
+					}
+					writeFloat64(buffer, startOffset+FixedBufferOffset, val)
+				case common.TSDB_DATA_TYPE_TIMESTAMP:
+					switch tagVal[i].(type) {
 					case int64:
-						writeUint64(tmpBuffer, uint64(v))
+						writeI64(buffer, startOffset+FixedBufferOffset, tagVal[i].(int64))
 					case time.Time:
-						ts := common.TimeToTimestamp(v, precision)
-						writeUint64(tmpBuffer, uint64(ts))
+						writeI64(buffer, startOffset+FixedBufferOffset, common.TimeToTimestamp(tagVal[i].(time.Time), int(tagFields[i].Precision)))
 					default:
-						return nil, fmt.Errorf("data type not match, expect int64 or time.Time, but get %T, value:%v", data[i], data[i])
+						return 0, fmt.Errorf("tag field type not match, expect int64 or time.Time, actual %T, tag_index: %d, tag_name: %s", tagVal[i], i, tagFields[i].Name)
 					}
-				}
-			}
-		case common.TSDB_DATA_TYPE_BINARY, common.TSDB_DATA_TYPE_NCHAR, common.TSDB_DATA_TYPE_VARBINARY, common.TSDB_DATA_TYPE_GEOMETRY, common.TSDB_DATA_TYPE_JSON, common.TSDB_DATA_TYPE_BLOB:
-			for i := 0; i < num; i++ {
-				if data[i] == nil {
-					isNull[i] = 1
-				} else {
-					switch v := data[i].(type) {
-					case string:
-						tmpBuffer.WriteString(v)
-						binary.LittleEndian.PutUint32(tmpHeader[bufferLengthOffset+i*4:], uint32(len(v)))
-					case []byte:
-						tmpBuffer.Write(v)
-						binary.LittleEndian.PutUint32(tmpHeader[bufferLengthOffset+i*4:], uint32(len(v)))
-					default:
-						return nil, fmt.Errorf("data type not match, expect string or []byte, but get %T, value:%v", data[i], data[i])
-					}
-				}
-			}
-		case common.TSDB_DATA_TYPE_UTINYINT:
-			for i := 0; i < num; i++ {
-				if data[i] == nil {
-					isNull[i] = 1
-					tmpBuffer.WriteByte(0)
-				} else {
-					v, ok := data[i].(uint8)
+				case common.TSDB_DATA_TYPE_UTINYINT:
+					val, ok := tagVal[i].(uint8)
 					if !ok {
-						return nil, fmt.Errorf("data type not match, expect uint8, but get %T, value:%v", data[i], data[i])
+						return 0, fmt.Errorf("tag field type not match, expect uint8, actual %T, tag_index: %d, tag_name: %s", tagVal[i], i, tagFields[i].Name)
 					}
-					tmpBuffer.WriteByte(v)
-				}
-			}
-		case common.TSDB_DATA_TYPE_USMALLINT:
-			for i := 0; i < num; i++ {
-				if data[i] == nil {
-					isNull[i] = 1
-					writeUint16(tmpBuffer, 0)
-				} else {
-					v, ok := data[i].(uint16)
+					buffer[startOffset+FixedBufferOffset] = val
+				case common.TSDB_DATA_TYPE_USMALLINT:
+					val, ok := tagVal[i].(uint16)
 					if !ok {
-						return nil, fmt.Errorf("data type not match, expect uint16, but get %T, value:%v", data[i], data[i])
+						return 0, fmt.Errorf("tag field type not match, expect uint16, actual %T, tag_index: %d, tag_name: %s", tagVal[i], i, tagFields[i].Name)
 					}
-					writeUint16(tmpBuffer, v)
-				}
-			}
-		case common.TSDB_DATA_TYPE_UINT:
-			for i := 0; i < num; i++ {
-				if data[i] == nil {
-					isNull[i] = 1
-					writeUint32(tmpBuffer, 0)
-				} else {
-					v, ok := data[i].(uint32)
+					writeU16(buffer, startOffset+FixedBufferOffset, val)
+				case common.TSDB_DATA_TYPE_UINT:
+					val, ok := tagVal[i].(uint32)
 					if !ok {
-						return nil, fmt.Errorf("data type not match, expect uint32, but get %T, value:%v", data[i], data[i])
+						return 0, fmt.Errorf("tag field type not match, expect uint32, actual %T, tag_index: %d, tag_name: %s", tagVal[i], i, tagFields[i].Name)
 					}
-					writeUint32(tmpBuffer, v)
-				}
-			}
-		case common.TSDB_DATA_TYPE_UBIGINT:
-			for i := 0; i < num; i++ {
-				if data[i] == nil {
-					isNull[i] = 1
-					writeUint64(tmpBuffer, 0)
-				} else {
-					v, ok := data[i].(uint64)
+					writeU32(buffer, startOffset+FixedBufferOffset, val)
+				case common.TSDB_DATA_TYPE_UBIGINT:
+					val, ok := tagVal[i].(uint64)
 					if !ok {
-						return nil, fmt.Errorf("data type not match, expect uint64, but get %T, value:%v", data[i], data[i])
+						return 0, fmt.Errorf("tag field type not match, expect uint64, actual %T, tag_index: %d, tag_name: %s", tagVal[i], i, tagFields[i].Name)
 					}
-					writeUint64(tmpBuffer, v)
+					writeU64(buffer, startOffset+FixedBufferOffset, val)
+				default:
+					return 0, fmt.Errorf("tag field type not support: %d, tag_index: %d, tag_name: %s", tagFields[i].FieldType, i, tagFields[i].Name)
 				}
+				totalLength = 4 + // TotalLength field length
+					4 + // DataType field length
+					4 + // Num field length
+					1 + // IsNull field length
+					1 + // HaveLength field length
+					4 + // BufferLength field length
+					dataLength // Buffer field length
+				writeU32(buffer, startOffset+TotalLengthOffset, totalLength)
+				// write BufferLength
+				writeU32(buffer, startOffset+FixedBufferLengthOffset, dataLength)
+			} else {
+				var dataLength uint32
+				switch tagVal[i].(type) {
+				case string:
+					val := tagVal[i].(string)
+					dataLength = uint32(len(val))
+					copy(buffer[startOffset+HaveLengthOffset+1+4+4:], val)
+				case []byte:
+					val := tagVal[i].([]byte)
+					dataLength = uint32(len(val))
+					copy(buffer[startOffset+HaveLengthOffset+1+4+4:], val)
+				default:
+					return 0, fmt.Errorf("tag field type not match, expect string or []byte, actual %T, tag_index: %d, tag_name: %s", tagVal[i], i, tagFields[i].Name)
+				}
+				totalLength = 4 + // TotalLength field length
+					4 + // DataType field length
+					4 + // Num field length
+					1 + // IsNull field length
+					1 + // HaveLength field length
+					4 + // Length field length, each length is 4 bytes
+					4 + // BufferLength field length
+					dataLength // Buffer field length
+				writeU32(buffer, startOffset+TotalLengthOffset, totalLength)
+				buffer[startOffset+HaveLengthOffset] = 1
+				// write LengthField
+				writeU32(buffer, startOffset+HaveLengthOffset+1, dataLength)
+				// write BufferLength
+				writeU32(buffer, startOffset+HaveLengthOffset+1+4, dataLength)
 			}
-		default:
-			return nil, fmt.Errorf("unsupported type: %d", colType.FieldType)
+		}
+		startOffset += (int)(totalLength)
+	}
+	return startOffset, nil
+}
+
+const (
+	TotalLengthOffset       = 0
+	DataTypeOffset          = 4
+	NumOffset               = 8
+	IsNullOffset            = 12
+	HaveLengthOffset        = 13
+	FixedBufferLengthOffset = 14
+	FixedBufferOffset       = 18
+)
+
+func writeBindCol(colFields []*Stmt2AllField, colVals [][]driver.Value, buffer []byte, offset int) (int, error) {
+	var startOffset = offset
+	if len(colVals) != len(colFields) {
+		return 0, fmt.Errorf("col count not match, data count:%d, field count:%d", len(colVals), len(colFields))
+	}
+	var rows = len(colVals[0])
+	for colIndex := 0; colIndex < len(colVals); colIndex++ {
+		if len(colVals[colIndex]) != rows {
+			return 0, fmt.Errorf("col row count not match, col_index:%d, rows:%d, expect:%d", colIndex, len(colVals[colIndex]), rows)
 		}
 	}
-	buffer := tmpBuffer.Bytes()
-	// bufferLength
-	binary.LittleEndian.PutUint32(tmpHeader[headerLength-4:], uint32(len(buffer)))
-	totalLength := len(buffer) + headerLength
-	binary.LittleEndian.PutUint32(tmpHeader[BindDataTotalLengthOffset:], uint32(totalLength))
-	dataBuffer := make([]byte, totalLength)
-	copy(dataBuffer, tmpHeader)
-	copy(dataBuffer[headerLength:], buffer)
-	return dataBuffer, nil
+	var haveLengthOffset = IsNullOffset + rows
+	var fixedBufferLengthOffset = haveLengthOffset + 1
+	var fixedBufferOffset = fixedBufferLengthOffset + 4
+	var variableLengthOffset = haveLengthOffset + 1
+	var variableBufferLengthOffset = variableLengthOffset + (4 * rows)
+	var variableBufferOffset = variableBufferLengthOffset + 4
+
+	for colIndex := 0; colIndex < len(colVals); colIndex++ {
+		var colData = colVals[colIndex]
+		var colField = colFields[colIndex]
+		totalLength := 0
+		// write DataType
+		writeU32(buffer, startOffset+DataTypeOffset, uint32(colField.FieldType))
+		// write Num
+		writeU32(buffer, startOffset+NumOffset, uint32(rows))
+		// hasLength
+		var isVarData = IsVarDataType(colField.FieldType)
+		if isVarData {
+			buffer[startOffset+haveLengthOffset] = 1
+			var variableOffset = startOffset + variableBufferOffset
+			// variable length data
+			var totalVarBufferLength = 0
+			for rowIndex := 0; rowIndex < rows; rowIndex++ {
+				var value = colData[rowIndex]
+				if value == nil {
+					buffer[startOffset+IsNullOffset+rowIndex] = 1
+				} else {
+					switch value := value.(type) {
+					case []byte:
+						bs := value
+						// write length
+						writeU32(buffer, startOffset+variableLengthOffset+(4*rowIndex), uint32(len(bs)))
+						copy(buffer[variableOffset:], bs)
+						totalVarBufferLength += len(bs)
+						variableOffset += len(bs)
+					case string:
+						str := value
+						// write length
+						writeU32(buffer, startOffset+variableLengthOffset+(4*rowIndex), uint32(len(str)))
+						copy(buffer[variableOffset:], str)
+						totalVarBufferLength += len(str)
+						variableOffset += len(str)
+					default:
+						return 0, fmt.Errorf("col field type not support: %d, value: %v, col_name: %s", colField.FieldType, value, colField.Name)
+					}
+				}
+			}
+			totalLength = 4 + // TotalLength field length
+				4 + // DataType field length
+				4 + // Num field length
+				(1 * rows) + // IsNull field length
+				1 + // HaveLength field length
+				(4 * rows) + // Length field length, each length is 4 bytes
+				4 + // BufferLength field length
+				totalVarBufferLength // Buffer field length
+			// write TotalLength
+			writeU32(buffer, startOffset+TotalLengthOffset, (uint32)(totalLength))
+			// write BufferLength
+			writeU32(buffer, startOffset+variableBufferLengthOffset, (uint32)(totalVarBufferLength))
+		} else {
+			var typeLength = common.TypeLengthArr[int(colField.FieldType)]
+			var fixedOffset = startOffset + fixedBufferOffset
+			if checkAllNull(colData) {
+				for rowIndex := 0; rowIndex < rows; rowIndex++ {
+					buffer[startOffset+IsNullOffset+rowIndex] = 1
+				}
+				totalLength = 4 + // TotalLength field length
+					4 + // DataType field length
+					4 + // Num field length
+					(1 * rows) + // IsNull field length
+					1 + // HaveLength field length
+					4 // BufferLength field length
+				// write TotalLength
+				writeU32(buffer, startOffset+TotalLengthOffset, (uint32)(totalLength))
+				// write BufferLength
+				writeU32(buffer, startOffset+fixedBufferLengthOffset, 0)
+				startOffset += totalLength
+				continue
+			}
+			switch colField.FieldType {
+			case common.TSDB_DATA_TYPE_BOOL:
+				for rowIndex := 0; rowIndex < rows; rowIndex++ {
+					var value = colData[rowIndex]
+					if value == nil {
+						buffer[startOffset+IsNullOffset+rowIndex] = 1
+					} else {
+						v, ok := value.(bool)
+						if !ok {
+							return 0, fmt.Errorf("col field type not match, expect bool, actual %T, col_index: %d, col_name: %s", value, colIndex, colField.Name)
+						}
+						if v {
+							buffer[fixedOffset] = 1
+						} else {
+							buffer[fixedOffset] = 0
+						}
+					}
+					fixedOffset += typeLength
+				}
+			case common.TSDB_DATA_TYPE_TINYINT:
+				for rowIndex := 0; rowIndex < rows; rowIndex++ {
+					var value = colData[rowIndex]
+					if value == nil {
+						buffer[startOffset+IsNullOffset+rowIndex] = 1
+					} else {
+						v, ok := value.(int8)
+						if !ok {
+							return 0, fmt.Errorf("col field type not match, expect int8, actual %T, col_index: %d, col_name: %s", value, colIndex, colField.Name)
+						}
+						buffer[fixedOffset] = byte(v)
+					}
+					fixedOffset += typeLength
+				}
+			case common.TSDB_DATA_TYPE_SMALLINT:
+				for rowIndex := 0; rowIndex < rows; rowIndex++ {
+					var value = colData[rowIndex]
+					if value == nil {
+						buffer[startOffset+IsNullOffset+rowIndex] = 1
+					} else {
+						v, ok := value.(int16)
+						if !ok {
+							return 0, fmt.Errorf("col field type not match, expect int16, actual %T, col_index: %d, col_name: %s", value, colIndex, colField.Name)
+						}
+						writeI16(buffer, fixedOffset, v)
+					}
+					fixedOffset += typeLength
+				}
+			case common.TSDB_DATA_TYPE_INT:
+				for rowIndex := 0; rowIndex < rows; rowIndex++ {
+					var value = colData[rowIndex]
+					if value == nil {
+						buffer[startOffset+IsNullOffset+rowIndex] = 1
+					} else {
+						v, ok := value.(int32)
+						if !ok {
+							return 0, fmt.Errorf("col field type not match, expect int32, actual %T, col_index: %d, col_name: %s", value, colIndex, colField.Name)
+						}
+						writeI32(buffer, fixedOffset, v)
+					}
+					fixedOffset += typeLength
+				}
+			case common.TSDB_DATA_TYPE_BIGINT:
+				for rowIndex := 0; rowIndex < rows; rowIndex++ {
+					var value = colData[rowIndex]
+					if value == nil {
+						buffer[startOffset+IsNullOffset+rowIndex] = 1
+					} else {
+						v, ok := value.(int64)
+						if !ok {
+							return 0, fmt.Errorf("col field type not match, expect int64, actual %T, col_index: %d, col_name: %s", value, colIndex, colField.Name)
+						}
+						writeI64(buffer, fixedOffset, v)
+					}
+					fixedOffset += typeLength
+				}
+			case common.TSDB_DATA_TYPE_FLOAT:
+				for rowIndex := 0; rowIndex < rows; rowIndex++ {
+					var value = colData[rowIndex]
+					if value == nil {
+						buffer[startOffset+IsNullOffset+rowIndex] = 1
+					} else {
+						v, ok := value.(float32)
+						if !ok {
+							return 0, fmt.Errorf("col field type not match, expect float32, actual %T, col_index: %d, col_name: %s", value, colIndex, colField.Name)
+						}
+						writeFloat32(buffer, fixedOffset, v)
+					}
+					fixedOffset += typeLength
+				}
+			case common.TSDB_DATA_TYPE_DOUBLE:
+				for rowIndex := 0; rowIndex < rows; rowIndex++ {
+					var value = colData[rowIndex]
+					if value == nil {
+						buffer[startOffset+IsNullOffset+rowIndex] = 1
+					} else {
+						v, ok := value.(float64)
+						if !ok {
+							return 0, fmt.Errorf("col field type not match, expect float64, actual %T, col_index: %d, col_name: %s", value, colIndex, colField.Name)
+						}
+						writeFloat64(buffer, fixedOffset, v)
+					}
+					fixedOffset += typeLength
+				}
+			case common.TSDB_DATA_TYPE_TIMESTAMP:
+				for rowIndex := 0; rowIndex < rows; rowIndex++ {
+					var value = colData[rowIndex]
+					if value == nil {
+						buffer[startOffset+IsNullOffset+rowIndex] = 1
+					} else {
+						switch value := value.(type) {
+						case int64:
+							writeI64(buffer, fixedOffset, value)
+						case time.Time:
+							v := value
+							ts := common.TimeToTimestamp(v, int(colField.Precision))
+							writeI64(buffer, fixedOffset, ts)
+						default:
+							return 0, fmt.Errorf("col field type not match, expect int64 or time.Time, actual %T, col_index: %d, col_name: %s", value, colIndex, colField.Name)
+						}
+					}
+					fixedOffset += typeLength
+				}
+			case common.TSDB_DATA_TYPE_UTINYINT:
+				for rowIndex := 0; rowIndex < rows; rowIndex++ {
+					var value = colData[rowIndex]
+					if value == nil {
+						buffer[startOffset+IsNullOffset+rowIndex] = 1
+					} else {
+						v, ok := value.(uint8)
+						if !ok {
+							return 0, fmt.Errorf("col field type not match, expect uint8, actual %T, col_index: %d, col_name: %s", value, colIndex, colField.Name)
+						}
+						buffer[fixedOffset] = v
+					}
+					fixedOffset += typeLength
+				}
+			case common.TSDB_DATA_TYPE_USMALLINT:
+				for rowIndex := 0; rowIndex < rows; rowIndex++ {
+					var value = colData[rowIndex]
+					if value == nil {
+						buffer[startOffset+IsNullOffset+rowIndex] = 1
+					} else {
+						v, ok := value.(uint16)
+						if !ok {
+							return 0, fmt.Errorf("col field type not match, expect uint16, actual %T, col_index: %d, col_name: %s", value, colIndex, colField.Name)
+						}
+						writeU16(buffer, fixedOffset, v)
+					}
+					fixedOffset += typeLength
+				}
+			case common.TSDB_DATA_TYPE_UINT:
+				for rowIndex := 0; rowIndex < rows; rowIndex++ {
+					var value = colData[rowIndex]
+					if value == nil {
+						buffer[startOffset+IsNullOffset+rowIndex] = 1
+					} else {
+						v, ok := value.(uint32)
+						if !ok {
+							return 0, fmt.Errorf("col field type not match, expect uint32, actual %T, col_index: %d, col_name: %s", value, colIndex, colField.Name)
+						}
+						writeU32(buffer, fixedOffset, v)
+					}
+					fixedOffset += typeLength
+				}
+			case common.TSDB_DATA_TYPE_UBIGINT:
+				for rowIndex := 0; rowIndex < rows; rowIndex++ {
+					var value = colData[rowIndex]
+					if value == nil {
+						buffer[startOffset+IsNullOffset+rowIndex] = 1
+					} else {
+						v, ok := value.(uint64)
+						if !ok {
+							return 0, fmt.Errorf("col field type not match, expect uint64, actual %T, col_index: %d, col_name: %s", value, colIndex, colField.Name)
+						}
+						writeU64(buffer, fixedOffset, v)
+					}
+					fixedOffset += typeLength
+				}
+			default:
+				return 0, fmt.Errorf("col field type not support: %d, col_name: %s", colField.FieldType, colField.Name)
+			}
+			totalFixedBufferLength := typeLength * rows
+			totalLength = 4 + // TotalLength field length
+				4 + // DataType field length
+				4 + // Num field length
+				(1 * rows) + // IsNull field length
+				1 + // HaveLength field length
+				4 + // BufferLength field length
+				totalFixedBufferLength // Buffer field length
+			// write TotalLength
+			writeU32(buffer, startOffset+TotalLengthOffset, (uint32)(totalLength))
+			// write BufferLength
+			writeU32(buffer, startOffset+fixedBufferLengthOffset, (uint32)(totalFixedBufferLength))
+		}
+		startOffset += totalLength
+	}
+	return startOffset, nil
 }
 
 func checkAllNull(data []driver.Value) bool {
@@ -455,139 +880,6 @@ func checkAllNull(data []driver.Value) bool {
 		}
 	}
 	return true
-}
-
-func generateBindQueryData(data driver.Value) ([]byte, error) {
-	var colType uint32
-	var haveLength = false
-	var length = 0
-	var buf []byte
-	switch v := data.(type) {
-	case string:
-		colType = common.TSDB_DATA_TYPE_BINARY
-		haveLength = true
-		length = len(v)
-		buf = make([]byte, length)
-		copy(buf, v)
-	case []byte:
-		colType = common.TSDB_DATA_TYPE_BINARY
-		haveLength = true
-		length = len(v)
-		buf = make([]byte, length)
-		copy(buf, v)
-	case int8:
-		colType = common.TSDB_DATA_TYPE_TINYINT
-		buf = make([]byte, 1)
-		buf[0] = byte(v)
-	case int16:
-		colType = common.TSDB_DATA_TYPE_SMALLINT
-		buf = make([]byte, 2)
-		binary.LittleEndian.PutUint16(buf, uint16(v))
-	case int32:
-		colType = common.TSDB_DATA_TYPE_INT
-		buf = make([]byte, 4)
-		binary.LittleEndian.PutUint32(buf, uint32(v))
-	case int64:
-		colType = common.TSDB_DATA_TYPE_BIGINT
-		buf = make([]byte, 8)
-		binary.LittleEndian.PutUint64(buf, uint64(v))
-	case uint8:
-		colType = common.TSDB_DATA_TYPE_UTINYINT
-		buf = make([]byte, 1)
-		buf[0] = byte(v)
-	case uint16:
-		colType = common.TSDB_DATA_TYPE_USMALLINT
-		buf = make([]byte, 2)
-		binary.LittleEndian.PutUint16(buf, v)
-	case uint32:
-		colType = common.TSDB_DATA_TYPE_UINT
-		buf = make([]byte, 4)
-		binary.LittleEndian.PutUint32(buf, v)
-	case uint64:
-		colType = common.TSDB_DATA_TYPE_UBIGINT
-		buf = make([]byte, 8)
-		binary.LittleEndian.PutUint64(buf, v)
-	case float32:
-		colType = common.TSDB_DATA_TYPE_FLOAT
-		buf = make([]byte, 4)
-		binary.LittleEndian.PutUint32(buf, math.Float32bits(v))
-	case float64:
-		colType = common.TSDB_DATA_TYPE_DOUBLE
-		buf = make([]byte, 8)
-		binary.LittleEndian.PutUint64(buf, math.Float64bits(v))
-	case bool:
-		colType = common.TSDB_DATA_TYPE_BOOL
-		buf = make([]byte, 1)
-		if v {
-			buf[0] = 1
-		} else {
-			buf[0] = 0
-		}
-	case time.Time:
-		buf = make([]byte, 0, 35)
-		colType = common.TSDB_DATA_TYPE_BINARY
-		haveLength = true
-		buf = v.AppendFormat(buf, time.RFC3339Nano)
-		length = len(buf)
-	default:
-		return nil, fmt.Errorf("unsupported type: %T", data)
-	}
-	headerLength := getBindDataHeaderLength(1, haveLength)
-	totalLength := len(buf) + headerLength
-	dataBuf := make([]byte, totalLength)
-	// type
-	binary.LittleEndian.PutUint32(dataBuf[BindDataTypeOffset:], colType)
-	// num
-	binary.LittleEndian.PutUint32(dataBuf[BindDataNumOffset:], 1)
-	// is null
-	dataBuf[BindDataIsNullOffset] = 0
-	// has length
-	if haveLength {
-		dataBuf[BindDataIsNullOffset+1] = 1
-		binary.LittleEndian.PutUint32(dataBuf[BindDataIsNullOffset+2:], uint32(length))
-
-	}
-	// bufferLength
-	binary.LittleEndian.PutUint32(dataBuf[headerLength-4:], uint32(len(buf)))
-	copy(dataBuf[headerLength:], buf)
-	binary.LittleEndian.PutUint32(dataBuf[BindDataTotalLengthOffset:], uint32(totalLength))
-	return dataBuf, nil
-}
-
-func writeUint64(buffer *bytes.Buffer, v uint64) {
-	buffer.WriteByte(byte(v))
-	buffer.WriteByte(byte(v >> 8))
-	buffer.WriteByte(byte(v >> 16))
-	buffer.WriteByte(byte(v >> 24))
-	buffer.WriteByte(byte(v >> 32))
-	buffer.WriteByte(byte(v >> 40))
-	buffer.WriteByte(byte(v >> 48))
-	buffer.WriteByte(byte(v >> 56))
-}
-
-func writeUint32(buffer *bytes.Buffer, v uint32) {
-	buffer.WriteByte(byte(v))
-	buffer.WriteByte(byte(v >> 8))
-	buffer.WriteByte(byte(v >> 16))
-	buffer.WriteByte(byte(v >> 24))
-}
-
-func writeUint16(buffer *bytes.Buffer, v uint16) {
-	buffer.WriteByte(byte(v))
-	buffer.WriteByte(byte(v >> 8))
-}
-
-func needLength(colType int8) bool {
-	switch colType {
-	case common.TSDB_DATA_TYPE_BINARY,
-		common.TSDB_DATA_TYPE_NCHAR,
-		common.TSDB_DATA_TYPE_JSON,
-		common.TSDB_DATA_TYPE_VARBINARY,
-		common.TSDB_DATA_TYPE_GEOMETRY,
-		common.TSDB_DATA_TYPE_BLOB:
-		return true
-	}
-	return false
 }
 
 type Stmt2AllField struct {

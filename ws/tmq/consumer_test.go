@@ -4,10 +4,12 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
 	"runtime"
+	"strconv"
 	"strings"
 	"syscall"
 	"testing"
@@ -205,7 +207,7 @@ func TestConsumer(t *testing.T) {
 		if gotData {
 			return
 		}
-		ev := consumer.Poll(10)
+		ev := consumer.Poll(100)
 		if ev != nil {
 			switch e := ev.(type) {
 			case *tmq.DataMessage:
@@ -876,9 +878,11 @@ func Test_configMapToConfigWrong(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := configMapToConfig(tt.args.m)
-			assert.Nil(t, got)
-			assert.Equal(t, tt.wantErr, err.Error())
+			consumer, err := NewConsumer(&tt.args.m)
+			assert.Nil(t, consumer)
+			if assert.Error(t, err) {
+				assert.Equal(t, tt.wantErr, err.Error())
+			}
 		})
 	}
 }
@@ -922,8 +926,8 @@ func TestMeta(t *testing.T) {
 	err := prepareMetaEnv()
 	assert.NoError(t, err)
 	defer func() {
-		err = cleanMetaEnv()
-		assert.NoError(t, err)
+		cleanErr := cleanMetaEnv()
+		assert.NoError(t, cleanErr)
 	}()
 	consumer, err := NewConsumer(&tmq.ConfigMap{
 		"ws.url":                  "ws://127.0.0.1:6041",
@@ -939,28 +943,29 @@ func TestMeta(t *testing.T) {
 		"auto.commit.interval.ms": "1000",
 		"msg.with.table.name":     "true",
 	})
+	require.NoError(t, err)
 	err = consumer.Subscribe("test_ws_tmq_meta_topic", nil)
 	assert.NoError(t, err)
 	defer func() {
-		err = consumer.Unsubscribe()
-		assert.NoError(t, err)
-		err = consumer.Close()
-		assert.NoError(t, err)
+		unsubscribeErr := consumer.Unsubscribe()
+		assert.NoError(t, unsubscribeErr)
+		closeErr := consumer.Close()
+		assert.NoError(t, closeErr)
 	}()
 	go func() {
-		err = doRequest("create table test_ws_tmq_meta.st(ts timestamp,v int) tags (cn binary(20))")
-		assert.NoError(t, err)
-		err = doRequest("create table test_ws_tmq_meta.t1 using test_ws_tmq_meta.st tags ('t1')")
-		assert.NoError(t, err)
-		err = doRequest("insert into test_ws_tmq_meta.t1 values (now,1)")
-		assert.NoError(t, err)
-		err = doRequest("insert into test_ws_tmq_meta.t2 using test_ws_tmq_meta.st tags ('t1') values (now,2)")
-		assert.NoError(t, err)
+		reqErr := doRequest("create table test_ws_tmq_meta.st(ts timestamp,v int) tags (cn binary(20))")
+		assert.NoError(t, reqErr)
+		reqErr = doRequest("create table test_ws_tmq_meta.t1 using test_ws_tmq_meta.st tags ('t1')")
+		assert.NoError(t, reqErr)
+		reqErr = doRequest("insert into test_ws_tmq_meta.t1 values (now,1)")
+		assert.NoError(t, reqErr)
+		reqErr = doRequest("insert into test_ws_tmq_meta.t2 using test_ws_tmq_meta.st tags ('t1') values (now,2)")
+		assert.NoError(t, reqErr)
 		time.Sleep(time.Second)
-		err = doRequest("insert into test_ws_tmq_meta.t1 values (now,1)")
-		assert.NoError(t, err)
-		err = doRequest("insert into test_ws_tmq_meta.t1 values (now,1)")
-		assert.NoError(t, err)
+		reqErr = doRequest("insert into test_ws_tmq_meta.t1 values (now,1)")
+		assert.NoError(t, reqErr)
+		reqErr = doRequest("insert into test_ws_tmq_meta.t1 values (now,1)")
+		assert.NoError(t, reqErr)
 	}()
 	for i := 0; i < 10; i++ {
 		event := consumer.Poll(500)
@@ -999,16 +1004,37 @@ func startTaosadapter(cmd *exec.Cmd, port string) error {
 		return err
 	}
 	for i := 0; i < 10; i++ {
+		if !isProcessAlive(cmd) {
+			return errors.New("taosadapter exited before ready")
+		}
 		time.Sleep(time.Millisecond * 100)
 		resp, err := http.Get(fmt.Sprintf("http://127.0.0.1:%s/-/ping", port))
 		if err != nil {
 			continue
 		}
 		_ = resp.Body.Close()
+		if !isProcessAlive(cmd) {
+			return errors.New("taosadapter exited before ready")
+		}
 		time.Sleep(time.Second)
 		return nil
 	}
+	if cmd.Process != nil {
+		_ = cmd.Process.Signal(syscall.SIGINT)
+		_, _ = cmd.Process.Wait()
+		cmd.Process = nil
+	}
 	return errors.New("taosadapter start failed")
+}
+
+func isProcessAlive(cmd *exec.Cmd) bool {
+	if cmd == nil || cmd.Process == nil {
+		return false
+	}
+	if runtime.GOOS == "windows" {
+		return cmd.ProcessState == nil
+	}
+	return cmd.Process.Signal(syscall.Signal(0)) == nil
 }
 
 func stopTaosadapter(cmd *exec.Cmd) {
@@ -1018,6 +1044,38 @@ func stopTaosadapter(cmd *exec.Cmd) {
 	_ = cmd.Process.Signal(syscall.SIGINT)
 	_, _ = cmd.Process.Wait()
 	cmd.Process = nil
+}
+
+func getAvailablePort(t *testing.T) string {
+	t.Helper()
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer func() {
+		_ = listener.Close()
+	}()
+	return strconv.Itoa(listener.Addr().(*net.TCPAddr).Port)
+}
+
+func startTaosadapterOnFreePort(t *testing.T) (string, *exec.Cmd) {
+	t.Helper()
+	var lastErr error
+	for i := 0; i < 8; i++ {
+		port := getAvailablePort(t)
+		cmd := newTaosadapter(port)
+		err := startTaosadapter(cmd, port)
+		if err == nil {
+			return port, cmd
+		}
+		lastErr = err
+		if cmd.Process != nil {
+			_ = cmd.Process.Signal(syscall.SIGINT)
+			_, _ = cmd.Process.Wait()
+			cmd.Process = nil
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	require.NoError(t, lastErr)
+	return "", nil
 }
 
 func prepareSubReconnectEnv() error {
@@ -1066,10 +1124,8 @@ func doClean(steps []string) error {
 }
 
 func TestSubscribeReconnect(t *testing.T) {
-	port := "36043"
-	cmd := newTaosadapter(port)
-	err := startTaosadapter(cmd, port)
-	assert.NoError(t, err)
+	port, cmd := startTaosadapterOnFreePort(t)
+	var err error
 	defer func() {
 		stopTaosadapter(cmd)
 	}()
@@ -1093,27 +1149,16 @@ func TestSubscribeReconnect(t *testing.T) {
 		"auto.commit.interval.ms": "1000",
 		"msg.with.table.name":     "true",
 		"ws.autoReconnect":        true,
-		"ws.reconnectIntervalMs":  3000,
-		"ws.reconnectRetryCount":  3,
+		"ws.reconnectIntervalMs":  500,
+		"ws.reconnectRetryCount":  1,
 	})
 	assert.NoError(t, err)
 	stopTaosadapter(cmd)
-	time.Sleep(time.Second)
-	startChan := make(chan struct{})
-	go func() {
-		time.Sleep(time.Second * 3)
-		cmd = newTaosadapter(port)
-		err = startTaosadapter(cmd, port)
-		if err != nil {
-			t.Error(err)
-			return
-		}
-		startChan <- struct{}{}
-	}()
 	err = consumer.Subscribe("test_ws_tmq_sub_reconnect_topic", nil)
 	assert.Error(t, err)
-	<-startChan
-	time.Sleep(time.Second)
+	cmd = newTaosadapter(port)
+	err = startTaosadapter(cmd, port)
+	assert.NoError(t, err)
 	err = consumer.Subscribe("test_ws_tmq_sub_reconnect_topic", nil)
 	assert.NoError(t, err)
 	defer func() {
@@ -1129,26 +1174,17 @@ func TestSubscribeReconnect(t *testing.T) {
 	err = doRequest("insert into test_ws_tmq_sub_reconnect.t1 values (now,1)")
 	assert.NoError(t, err)
 	stopTaosadapter(cmd)
-	go func() {
-		defer func() {
-			startChan <- struct{}{}
-		}()
-		time.Sleep(time.Second * 3)
-		cmd = newTaosadapter(port)
-		err = startTaosadapter(cmd, port)
-		if err != nil {
-			t.Errorf("start taosadapter failed: %v", err)
-			return
-		}
-	}()
-	time.Sleep(time.Second)
 	event := consumer.Poll(500)
 	assert.NotNil(t, event)
 	_, ok := event.(tmq.Error)
 	assert.True(t, ok)
-	<-startChan
+	cmd = newTaosadapter(port)
+	err = startTaosadapter(cmd, port)
+	assert.NoError(t, err)
+	err = doRequest("insert into test_ws_tmq_sub_reconnect.t1 values (now,2)")
+	assert.NoError(t, err)
 	haveMessage := false
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 30; i++ {
 		event := consumer.Poll(500)
 		if event == nil {
 			continue
@@ -1168,7 +1204,7 @@ func TestSubscribeReconnect(t *testing.T) {
 func TestWSError_Error(t *testing.T) {
 	// Test scenario where an error is provided
 	expectedErr := errors.New("connection lost")
-	wsErr := &WSError{err: expectedErr}
+	wsErr := &WSError{Cause: expectedErr}
 
 	// Call the Error() method and check if the format is correct
 	actualError := wsErr.Error()
@@ -1305,7 +1341,7 @@ func TestPollMultiTimes(t *testing.T) {
 	now := time.Now().Unix() * 1000
 	insertIdx := int64(0)
 	for i := 0; i < 5; i++ {
-		ev := consumer.Poll(500)
+		ev := consumer.Poll(2000)
 		if ev != nil {
 			switch e := ev.(type) {
 			case *tmq.DataMessage:

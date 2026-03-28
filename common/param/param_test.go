@@ -228,6 +228,29 @@ func TestParam_SetGeometry(t *testing.T) {
 	assert.Equal(t, expected, param.GetValues()) // Should not modify values
 }
 
+func TestParam_SetBlob(t *testing.T) {
+	blobData := []byte{0x01, 0x02, 0x03, 0x04}
+	param := NewParam(1)
+	param.SetBlob(0, blobData)
+
+	expected := []driver.Value{taosTypes.TaosBlob(blobData)}
+	assert.Equal(t, expected, param.GetValues())
+
+	param.SetBlob(1, blobData)
+	assert.Equal(t, expected, param.GetValues())
+}
+
+func TestParam_SetDecimal(t *testing.T) {
+	param := NewParam(1)
+	param.SetDecimal(0, "123.456")
+
+	expected := []driver.Value{taosTypes.TaosDecimal("123.456")}
+	assert.Equal(t, expected, param.GetValues())
+
+	param.SetDecimal(1, "999.999")
+	assert.Equal(t, expected, param.GetValues())
+}
+
 func TestParam_AddBool(t *testing.T) {
 	param := NewParam(2) // Initialize with size 2
 
@@ -600,6 +623,40 @@ func TestParam_AddGeometry(t *testing.T) {
 	// Test when offset is out of range
 	param.AddGeometry([]byte{0x07, 0x08, 0x09})  // Attempt to add at index 2 with size 2
 	assert.Equal(t, expected, param.GetValues()) // Should not modify values
+}
+
+func TestParam_AddBlob(t *testing.T) {
+	blobData := []byte{0x01, 0x02, 0x03}
+	param := NewParam(2)
+
+	param.AddBlob(blobData)
+	expected := []driver.Value{taosTypes.TaosBlob(blobData), nil}
+	assert.Equal(t, expected, param.GetValues())
+
+	param.AddBlob([]byte{0x04, 0x05, 0x06})
+	expected = []driver.Value{
+		taosTypes.TaosBlob(blobData),
+		taosTypes.TaosBlob([]byte{0x04, 0x05, 0x06}),
+	}
+	assert.Equal(t, expected, param.GetValues())
+
+	param.AddBlob([]byte{0x07, 0x08, 0x09})
+	assert.Equal(t, expected, param.GetValues())
+}
+
+func TestParam_AddDecimal(t *testing.T) {
+	param := NewParam(2)
+
+	param.AddDecimal("1.2300")
+	expected := []driver.Value{taosTypes.TaosDecimal("1.2300"), nil}
+	assert.Equal(t, expected, param.GetValues())
+
+	param.AddDecimal("4.5600")
+	expected = []driver.Value{taosTypes.TaosDecimal("1.2300"), taosTypes.TaosDecimal("4.5600")}
+	assert.Equal(t, expected, param.GetValues())
+
+	param.AddDecimal("7.8900")
+	assert.Equal(t, expected, param.GetValues())
 }
 
 func TestParam_AddValue(t *testing.T) {

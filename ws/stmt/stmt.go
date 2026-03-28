@@ -1,258 +1,99 @@
 package stmt
 
 import (
-	"encoding/binary"
-	"time"
-
 	"github.com/taosdata/driver-go/v3/common/param"
-	"github.com/taosdata/driver-go/v3/common/serializer"
 	"github.com/taosdata/driver-go/v3/ws/client"
+	"github.com/taosdata/driver-go/v3/ws/unified"
 )
 
+// Deprecated: use unified.Stmt from package ws/unified instead.
 type Stmt struct {
-	connector    *WSConn
-	timezone     *time.Location
-	id           uint64
+	core         *unified.Stmt
+	connector    *Connector
 	lastAffected int
 }
 
+func (s *Stmt) connectorClosed() bool {
+	return s != nil && s.connector != nil && s.connector.isClosed()
+}
+
+// Deprecated: use (*unified.Stmt).Prepare instead.
 func (s *Stmt) Prepare(sql string) error {
-	reqID := s.connector.generateReqID()
-	req := &PrepareReq{
-		ReqID:  reqID,
-		StmtID: s.id,
-		SQL:    sql,
+	if s.core == nil || s.connectorClosed() {
+		return client.ClosedError
 	}
-	args, err := client.JsonI.Marshal(req)
-	if err != nil {
-		return err
-	}
-	action := &client.WSAction{
-		Action: STMTPrepare,
-		Args:   args,
-	}
-	envelope := client.GlobalEnvelopePool.Get()
-	defer client.GlobalEnvelopePool.Put(envelope)
-	err = client.JsonI.NewEncoder(envelope.Msg).Encode(action)
-	if err != nil {
-		return err
-	}
-	respBytes, err := s.connector.sendText(reqID, envelope)
-	if err != nil {
-		return err
-	}
-	var resp PrepareResp
-	err = client.JsonI.Unmarshal(respBytes, &resp)
-	return client.HandleResponseError(err, resp.Code, resp.Message)
+	return mapUnifiedError(s.core.Prepare(0, sql))
 }
 
+// Deprecated: use (*unified.Stmt).SetTableName instead.
 func (s *Stmt) SetTableName(name string) error {
-	reqID := s.connector.generateReqID()
-	req := &SetTableNameReq{
-		ReqID:  reqID,
-		StmtID: s.id,
-		Name:   name,
+	if s.core == nil || s.connectorClosed() {
+		return client.ClosedError
 	}
-	args, err := client.JsonI.Marshal(req)
-	if err != nil {
-		return err
-	}
-	action := &client.WSAction{
-		Action: STMTSetTableName,
-		Args:   args,
-	}
-	envelope := client.GlobalEnvelopePool.Get()
-	defer client.GlobalEnvelopePool.Put(envelope)
-	err = client.JsonI.NewEncoder(envelope.Msg).Encode(action)
-	if err != nil {
-		return err
-	}
-	respBytes, err := s.connector.sendText(reqID, envelope)
-	if err != nil {
-		return err
-	}
-	var resp SetTableNameResp
-	err = client.JsonI.Unmarshal(respBytes, &resp)
-	return client.HandleResponseError(err, resp.Code, resp.Message)
+	return mapUnifiedError(s.core.SetTableName(name))
 }
 
+// Deprecated: use (*unified.Stmt).SetTags instead.
 func (s *Stmt) SetTags(tags *param.Param, bindType *param.ColumnType) error {
-	tagValues := tags.GetValues()
-	reverseTags := make([]*param.Param, len(tagValues))
-	for i := 0; i < len(tagValues); i++ {
-		reverseTags[i] = param.NewParam(1).AddValue(tagValues[i])
+	if s.core == nil || s.connectorClosed() {
+		return client.ClosedError
 	}
-	block, err := serializer.SerializeRawBlock(reverseTags, bindType)
-	if err != nil {
-		return err
-	}
-	reqID := s.connector.generateReqID()
-	reqData := make([]byte, 24)
-	binary.LittleEndian.PutUint64(reqData, reqID)
-	binary.LittleEndian.PutUint64(reqData[8:], s.id)
-	binary.LittleEndian.PutUint64(reqData[16:], SetTagsMessage)
-	envelope := client.GlobalEnvelopePool.Get()
-	defer client.GlobalEnvelopePool.Put(envelope)
-	envelope.Msg.Grow(24 + len(block))
-	envelope.Msg.Write(reqData)
-	envelope.Msg.Write(block)
-	respBytes, err := s.connector.sendBinary(reqID, envelope)
-	if err != nil {
-		return err
-	}
-	var resp SetTagsResp
-	err = client.JsonI.Unmarshal(respBytes, &resp)
-	return client.HandleResponseError(err, resp.Code, resp.Message)
+	return mapUnifiedError(s.core.SetTags(tags, bindType))
 }
 
+// Deprecated: use (*unified.Stmt).BindParam instead.
 func (s *Stmt) BindParam(params []*param.Param, bindType *param.ColumnType) error {
-	block, err := serializer.SerializeRawBlock(params, bindType)
-	if err != nil {
-		return err
+	if s.core == nil || s.connectorClosed() {
+		return client.ClosedError
 	}
-	reqID := s.connector.generateReqID()
-	reqData := make([]byte, 24)
-	binary.LittleEndian.PutUint64(reqData, reqID)
-	binary.LittleEndian.PutUint64(reqData[8:], s.id)
-	binary.LittleEndian.PutUint64(reqData[16:], BindMessage)
-	envelope := client.GlobalEnvelopePool.Get()
-	defer client.GlobalEnvelopePool.Put(envelope)
-	envelope.Msg.Grow(24 + len(block))
-	envelope.Msg.Write(reqData)
-	envelope.Msg.Write(block)
-	err = client.JsonI.NewEncoder(envelope.Msg).Encode(reqData)
-	if err != nil {
-		return err
-	}
-	respBytes, err := s.connector.sendBinary(reqID, envelope)
-	if err != nil {
-		return err
-	}
-	var resp BindResp
-	err = client.JsonI.Unmarshal(respBytes, &resp)
-	return client.HandleResponseError(err, resp.Code, resp.Message)
+	return mapUnifiedError(s.core.BindParam(params, bindType))
 }
 
+// Deprecated: use (*unified.Stmt).AddBatch instead.
 func (s *Stmt) AddBatch() error {
-	reqID := s.connector.generateReqID()
-	req := &AddBatchReq{
-		ReqID:  reqID,
-		StmtID: s.id,
+	if s.core == nil || s.connectorClosed() {
+		return client.ClosedError
 	}
-	args, err := client.JsonI.Marshal(req)
-	if err != nil {
-		return err
-	}
-	action := &client.WSAction{
-		Action: STMTAddBatch,
-		Args:   args,
-	}
-	envelope := client.GlobalEnvelopePool.Get()
-	defer client.GlobalEnvelopePool.Put(envelope)
-	err = client.JsonI.NewEncoder(envelope.Msg).Encode(action)
-	if err != nil {
-		return err
-	}
-	respBytes, err := s.connector.sendText(reqID, envelope)
-	if err != nil {
-		return err
-	}
-	var resp AddBatchResp
-	err = client.JsonI.Unmarshal(respBytes, &resp)
-	return client.HandleResponseError(err, resp.Code, resp.Message)
+	return mapUnifiedError(s.core.AddBatch())
 }
 
+// Deprecated: use (*unified.Stmt).Exec instead.
 func (s *Stmt) Exec() error {
-	reqID := s.connector.generateReqID()
-	req := &ExecReq{
-		ReqID:  reqID,
-		StmtID: s.id,
+	if s.core == nil || s.connectorClosed() {
+		return client.ClosedError
 	}
-	args, err := client.JsonI.Marshal(req)
+	affected, err := s.core.Exec(0)
 	if err != nil {
-		return err
+		return mapUnifiedError(err)
 	}
-	action := &client.WSAction{
-		Action: STMTExec,
-		Args:   args,
-	}
-	envelope := client.GlobalEnvelopePool.Get()
-	defer client.GlobalEnvelopePool.Put(envelope)
-	err = client.JsonI.NewEncoder(envelope.Msg).Encode(action)
-	if err != nil {
-		return err
-	}
-	respBytes, err := s.connector.sendText(reqID, envelope)
-	if err != nil {
-		return err
-	}
-	var resp ExecResp
-	err = client.JsonI.Unmarshal(respBytes, &resp)
-	err = client.HandleResponseError(err, resp.Code, resp.Message)
-	if err != nil {
-		return err
-	}
-	s.lastAffected = resp.Affected
+	s.lastAffected = affected
 	return nil
 }
 
+// Deprecated: use (*unified.Stmt).AffectedRows instead.
 func (s *Stmt) GetAffectedRows() int {
-	return s.lastAffected
+	if s.core == nil {
+		return s.lastAffected
+	}
+	return s.core.AffectedRows()
 }
 
+// Deprecated: use (*unified.Stmt).UseResult instead.
 func (s *Stmt) UseResult() (*Rows, error) {
-	reqID := s.connector.generateReqID()
-	req := &UseResultReq{
-		ReqID:  reqID,
-		StmtID: s.id,
+	if s.core == nil || s.connectorClosed() {
+		return nil, client.ClosedError
 	}
-	args, err := client.JsonI.Marshal(req)
+	result, err := s.core.UseResult(0)
 	if err != nil {
-		return nil, err
+		return nil, mapUnifiedError(err)
 	}
-	action := &client.WSAction{
-		Action: STMTUseResult,
-		Args:   args,
-	}
-	envelope := client.GlobalEnvelopePool.Get()
-	defer client.GlobalEnvelopePool.Put(envelope)
-	err = client.JsonI.NewEncoder(envelope.Msg).Encode(action)
-	if err != nil {
-		return nil, err
-	}
-	respBytes, err := s.connector.sendText(reqID, envelope)
-	if err != nil {
-		return nil, err
-	}
-	var resp UseResultResp
-	err = client.JsonI.Unmarshal(respBytes, &resp)
-	err = client.HandleResponseError(err, resp.Code, resp.Message)
-	if err != nil {
-		return nil, err
-	}
-	return NewRows(s.connector, s.connector.client, &resp, s.timezone), nil
+	return newRowsFromResultSet(result), nil
 }
 
+// Deprecated: use (*unified.Stmt).Close instead.
 func (s *Stmt) Close() error {
-	reqID := s.connector.generateReqID()
-	req := &CloseReq{
-		ReqID:  reqID,
-		StmtID: s.id,
+	if s.core == nil {
+		return nil
 	}
-	args, err := client.JsonI.Marshal(req)
-	if err != nil {
-		return err
-	}
-	action := &client.WSAction{
-		Action: STMTClose,
-		Args:   args,
-	}
-	envelope := client.GlobalEnvelopePool.Get()
-	defer client.GlobalEnvelopePool.Put(envelope)
-	err = client.JsonI.NewEncoder(envelope.Msg).Encode(action)
-	if err != nil {
-		return err
-	}
-	s.connector.sendTextWithoutResp(envelope)
-	return nil
+	return mapUnifiedError(s.core.Close(0))
 }

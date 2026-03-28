@@ -2,6 +2,8 @@ package stmt
 
 import (
 	"database/sql/driver"
+	"encoding/binary"
+	"fmt"
 	"math"
 	"testing"
 	"time"
@@ -1518,6 +1520,50 @@ func TestMarshalBinary(t *testing.T) {
 					},
 				},
 				isInsert: false,
+				fieldType: []*Stmt2AllField{
+					{
+						BindType: TAOS_FIELD_QUERY,
+					},
+					{
+						BindType: TAOS_FIELD_QUERY,
+					},
+					{
+						BindType: TAOS_FIELD_QUERY,
+					},
+					{
+						BindType: TAOS_FIELD_QUERY,
+					},
+					{
+						BindType: TAOS_FIELD_QUERY,
+					},
+					{
+						BindType: TAOS_FIELD_QUERY,
+					},
+					{
+						BindType: TAOS_FIELD_QUERY,
+					},
+					{
+						BindType: TAOS_FIELD_QUERY,
+					},
+					{
+						BindType: TAOS_FIELD_QUERY,
+					},
+					{
+						BindType: TAOS_FIELD_QUERY,
+					},
+					{
+						BindType: TAOS_FIELD_QUERY,
+					},
+					{
+						BindType: TAOS_FIELD_QUERY,
+					},
+					{
+						BindType: TAOS_FIELD_QUERY,
+					},
+					{
+						BindType: TAOS_FIELD_QUERY,
+					},
+				},
 			},
 			want: []byte{
 				// total Length
@@ -2384,8 +2430,12 @@ func TestMarshalBinary(t *testing.T) {
 						{false},
 					},
 				}},
-				isInsert:  false,
-				fieldType: nil,
+				isInsert: false,
+				fieldType: []*Stmt2AllField{
+					{
+						BindType: TAOS_FIELD_QUERY,
+					},
+				},
 			},
 			want: []byte{
 				// total Length
@@ -2529,6 +2579,620 @@ func TestMarshalBinary(t *testing.T) {
 				return
 			}
 			assert.Equal(t, tt.want, got)
+			got, err = marshalStmt2BinaryLegacy(tt.args.t, tt.args.isInsert, tt.args.fieldType)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("MarshalStmt2Binary() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			assert.Equal(t, tt.want, got)
 		})
+	}
+}
+
+func TestMarshalStmt2Binary2ColRowsMismatch(t *testing.T) {
+	fields := []*Stmt2AllField{
+		{
+			Name:      "c1",
+			FieldType: common.TSDB_DATA_TYPE_INT,
+			BindType:  TAOS_FIELD_COL,
+		},
+		{
+			Name:      "c2",
+			FieldType: common.TSDB_DATA_TYPE_INT,
+			BindType:  TAOS_FIELD_COL,
+		},
+	}
+	tests := []struct {
+		name string
+		cols [][]driver.Value
+	}{
+		{
+			name: "first col longer",
+			cols: [][]driver.Value{
+				{int32(1), int32(2)},
+				{int32(3)},
+			},
+		},
+		{
+			name: "first col shorter",
+			cols: [][]driver.Value{
+				{int32(1)},
+				{int32(2), int32(3)},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var err error
+			assert.NotPanics(t, func() {
+				_, err = MarshalStmt2Binary([]*TaosStmt2BindData{
+					{
+						Cols: tt.cols,
+					},
+				}, true, fields)
+			})
+			if assert.Error(t, err) {
+				assert.Contains(t, err.Error(), "col row count not match")
+			}
+		})
+	}
+}
+
+func TestMarshalStmt2Binary2BoolWithNil(t *testing.T) {
+	bindData := []*TaosStmt2BindData{
+		{
+			Cols: [][]driver.Value{
+				{true, nil, true},
+			},
+		},
+	}
+	fields := []*Stmt2AllField{
+		{
+			Name:      "b",
+			FieldType: common.TSDB_DATA_TYPE_BOOL,
+			BindType:  TAOS_FIELD_COL,
+		},
+	}
+	want, err := marshalStmt2BinaryLegacy(bindData, true, fields)
+	assert.NoError(t, err)
+	got, err := MarshalStmt2Binary(bindData, true, fields)
+	assert.NoError(t, err)
+	assert.Equal(t, want, got)
+}
+
+func TestMarshalStmt2Binary2AllNullFixedBufferLength(t *testing.T) {
+	bindData := []*TaosStmt2BindData{
+		{
+			Cols: [][]driver.Value{
+				{nil, nil},
+			},
+		},
+	}
+	fields := []*Stmt2AllField{
+		{
+			Name:      "c",
+			FieldType: common.TSDB_DATA_TYPE_INT,
+			BindType:  TAOS_FIELD_COL,
+		},
+	}
+	want, err := marshalStmt2BinaryLegacy(bindData, true, fields)
+	assert.NoError(t, err)
+	got, err := MarshalStmt2Binary(bindData, true, fields)
+	assert.NoError(t, err)
+	assert.Equal(t, want, got)
+
+	colOffset := int(binary.LittleEndian.Uint32(got[ColsOffsetPosition : ColsOffsetPosition+4]))
+	colDataOffset := colOffset + 4
+	bufferLengthOffset := colDataOffset + BindDataIsNullOffset + 2 + 1
+	bufferLength := binary.LittleEndian.Uint32(got[bufferLengthOffset : bufferLengthOffset+4])
+	assert.EqualValues(t, 0, bufferLength)
+}
+
+func TestMarshalStmt2Binary2TBNameFieldWithEmptyTableNameInsert(t *testing.T) {
+	bindData := []*TaosStmt2BindData{
+		{
+			TableName: "",
+			Cols: [][]driver.Value{
+				{int32(1)},
+			},
+		},
+	}
+	fields := []*Stmt2AllField{
+		{
+			FieldType: common.TSDB_DATA_TYPE_BINARY,
+			BindType:  TAOS_FIELD_TBNAME,
+		},
+		{
+			FieldType: common.TSDB_DATA_TYPE_INT,
+			BindType:  TAOS_FIELD_COL,
+		},
+	}
+	want, err := marshalStmt2BinaryLegacy(bindData, true, fields)
+	assert.NoError(t, err)
+	got, err := MarshalStmt2Binary(bindData, true, fields)
+	assert.NoError(t, err)
+	assert.Equal(t, want, got)
+}
+
+func TestMarshalStmt2Binary2TBNameFieldWithEmptyTableNameQuery(t *testing.T) {
+	bindData := []*TaosStmt2BindData{
+		{
+			Cols: [][]driver.Value{
+				{int32(1)},
+			},
+		},
+	}
+	fields := []*Stmt2AllField{
+		{
+			FieldType: common.TSDB_DATA_TYPE_BINARY,
+			BindType:  TAOS_FIELD_TBNAME,
+		},
+	}
+	want, err := marshalStmt2BinaryLegacy(bindData, false, fields)
+	assert.NoError(t, err)
+	got, err := MarshalStmt2Binary(bindData, false, fields)
+	assert.NoError(t, err)
+	assert.Equal(t, want, got)
+}
+
+func TestIsVarDataTypeIncludesDecimal(t *testing.T) {
+	assert.True(t, IsVarDataType(common.TSDB_DATA_TYPE_DECIMAL))
+	assert.True(t, IsVarDataType(common.TSDB_DATA_TYPE_DECIMAL64))
+	assert.True(t, IsVarDataType(common.TSDB_DATA_TYPE_BLOB))
+	assert.False(t, IsVarDataType(common.TSDB_DATA_TYPE_INT))
+	assert.False(t, IsVarDataType(-1))
+	assert.False(t, IsVarDataType(common.TSDB_DATA_TYPE_MAX))
+}
+
+func TestMarshalStmt2Binary2InsertDecimalAndBlob(t *testing.T) {
+	bindData := []*TaosStmt2BindData{
+		{
+			TableName: "tb1",
+			Tags: []driver.Value{
+				"12.3456",
+				[]byte("98.7654"),
+				[]byte{0x61, 0x62},
+			},
+			Cols: [][]driver.Value{
+				{"1.2300", nil},
+				{[]byte("4.5600"), "7.8900"},
+				{[]byte{0x01, 0x02}, "blob_text"},
+			},
+		},
+	}
+	fields := []*Stmt2AllField{
+		{
+			FieldType: common.TSDB_DATA_TYPE_BINARY,
+			BindType:  TAOS_FIELD_TBNAME,
+		},
+		{
+			FieldType: common.TSDB_DATA_TYPE_DECIMAL,
+			BindType:  TAOS_FIELD_TAG,
+		},
+		{
+			FieldType: common.TSDB_DATA_TYPE_DECIMAL64,
+			BindType:  TAOS_FIELD_TAG,
+		},
+		{
+			FieldType: common.TSDB_DATA_TYPE_BLOB,
+			BindType:  TAOS_FIELD_TAG,
+		},
+		{
+			FieldType: common.TSDB_DATA_TYPE_DECIMAL,
+			BindType:  TAOS_FIELD_COL,
+		},
+		{
+			FieldType: common.TSDB_DATA_TYPE_DECIMAL64,
+			BindType:  TAOS_FIELD_COL,
+		},
+		{
+			FieldType: common.TSDB_DATA_TYPE_BLOB,
+			BindType:  TAOS_FIELD_COL,
+		},
+	}
+	got, err := MarshalStmt2Binary(bindData, true, fields)
+	assert.NoError(t, err)
+	if assert.Greater(t, len(got), DataPosition) {
+		assert.Equal(t, uint32(1), binary.LittleEndian.Uint32(got[CountPosition:CountPosition+4]))
+		assert.Equal(t, uint32(3), binary.LittleEndian.Uint32(got[TagCountPosition:TagCountPosition+4]))
+		assert.Equal(t, uint32(3), binary.LittleEndian.Uint32(got[ColCountPosition:ColCountPosition+4]))
+	}
+}
+
+func TestMarshalStmt2Binary2InsertDecimalTypeMismatch(t *testing.T) {
+	tests := []struct {
+		name   string
+		field  int8
+		isTag  bool
+		value  driver.Value
+		errMsg string
+	}{
+		{
+			name:   "decimal col type mismatch",
+			field:  common.TSDB_DATA_TYPE_DECIMAL,
+			isTag:  false,
+			value:  int32(1),
+			errMsg: "unsupported column type",
+		},
+		{
+			name:   "decimal64 col type mismatch",
+			field:  common.TSDB_DATA_TYPE_DECIMAL64,
+			isTag:  false,
+			value:  true,
+			errMsg: "unsupported column type",
+		},
+		{
+			name:   "decimal tag type mismatch",
+			field:  common.TSDB_DATA_TYPE_DECIMAL,
+			isTag:  true,
+			value:  int32(1),
+			errMsg: "unsupported tag type",
+		},
+		{
+			name:   "decimal64 tag type mismatch",
+			field:  common.TSDB_DATA_TYPE_DECIMAL64,
+			isTag:  true,
+			value:  float64(1.2),
+			errMsg: "unsupported tag type",
+		},
+		{
+			name:   "blob col type mismatch",
+			field:  common.TSDB_DATA_TYPE_BLOB,
+			isTag:  false,
+			value:  int32(1),
+			errMsg: "unsupported column type",
+		},
+		{
+			name:   "blob tag type mismatch",
+			field:  common.TSDB_DATA_TYPE_BLOB,
+			isTag:  true,
+			value:  true,
+			errMsg: "unsupported tag type",
+		},
+	}
+
+	for i := 0; i < len(tests); i++ {
+		tc := tests[i]
+		t.Run(tc.name, func(t *testing.T) {
+			item := &TaosStmt2BindData{TableName: "tb1"}
+			field := &Stmt2AllField{
+				FieldType: tc.field,
+			}
+			if tc.isTag {
+				item.Tags = []driver.Value{tc.value}
+				field.BindType = TAOS_FIELD_TAG
+			} else {
+				item.Cols = [][]driver.Value{{tc.value}}
+				field.BindType = TAOS_FIELD_COL
+			}
+			_, err := MarshalStmt2Binary([]*TaosStmt2BindData{item}, true, []*Stmt2AllField{
+				{
+					FieldType: common.TSDB_DATA_TYPE_BINARY,
+					BindType:  TAOS_FIELD_TBNAME,
+				},
+				field,
+			})
+			assert.Error(t, err)
+			assert.Contains(t, err.Error(), tc.errMsg)
+		})
+	}
+}
+
+func TestWriteBindTagErrorBranches(t *testing.T) {
+	buffer := make([]byte, 256)
+
+	_, err := writeBindTag([]*Stmt2AllField{
+		{
+			Name:      "unsupported",
+			FieldType: common.TSDB_DATA_TYPE_NULL,
+		},
+	}, []driver.Value{int32(1)}, buffer, 0)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "tag field type not support")
+
+	_, err = writeBindTag([]*Stmt2AllField{
+		{
+			Name:      "decimal",
+			FieldType: common.TSDB_DATA_TYPE_DECIMAL,
+		},
+	}, []driver.Value{int32(1)}, buffer, 0)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "expect string or []byte")
+}
+
+func TestWriteBindTagDecimalAndBlob(t *testing.T) {
+	buffer := make([]byte, 256)
+	fields := []*Stmt2AllField{
+		{
+			Name:      "tag_decimal",
+			FieldType: common.TSDB_DATA_TYPE_DECIMAL,
+		},
+		{
+			Name:      "tag_blob",
+			FieldType: common.TSDB_DATA_TYPE_BLOB,
+		},
+	}
+	values := []driver.Value{
+		"12.3400",
+		[]byte{0x01, 0x02, 0x03},
+	}
+	end, err := writeBindTag(fields, values, buffer, 0)
+	assert.NoError(t, err)
+	if !assert.Greater(t, end, 0) {
+		return
+	}
+
+	assert.Equal(t, uint32(common.TSDB_DATA_TYPE_DECIMAL), binary.LittleEndian.Uint32(buffer[DataTypeOffset:DataTypeOffset+4]))
+	assert.Equal(t, uint32(1), binary.LittleEndian.Uint32(buffer[NumOffset:NumOffset+4]))
+	assert.Equal(t, byte(1), buffer[HaveLengthOffset])
+	assert.Equal(t, uint32(7), binary.LittleEndian.Uint32(buffer[HaveLengthOffset+1:HaveLengthOffset+1+4]))
+	assert.Equal(t, uint32(7), binary.LittleEndian.Uint32(buffer[HaveLengthOffset+1+4:HaveLengthOffset+1+8]))
+	assert.Equal(t, []byte("12.3400"), buffer[HaveLengthOffset+1+8:HaveLengthOffset+1+8+7])
+
+	firstTotal := int(binary.LittleEndian.Uint32(buffer[TotalLengthOffset : TotalLengthOffset+4]))
+	assert.Equal(t, uint32(common.TSDB_DATA_TYPE_BLOB), binary.LittleEndian.Uint32(buffer[firstTotal+DataTypeOffset:firstTotal+DataTypeOffset+4]))
+	assert.Equal(t, uint32(1), binary.LittleEndian.Uint32(buffer[firstTotal+NumOffset:firstTotal+NumOffset+4]))
+	assert.Equal(t, byte(1), buffer[firstTotal+HaveLengthOffset])
+	assert.Equal(t, uint32(3), binary.LittleEndian.Uint32(buffer[firstTotal+HaveLengthOffset+1:firstTotal+HaveLengthOffset+1+4]))
+	assert.Equal(t, uint32(3), binary.LittleEndian.Uint32(buffer[firstTotal+HaveLengthOffset+1+4:firstTotal+HaveLengthOffset+1+8]))
+	assert.Equal(t, []byte{0x01, 0x02, 0x03}, buffer[firstTotal+HaveLengthOffset+1+8:firstTotal+HaveLengthOffset+1+8+3])
+
+	secondTotal := int(binary.LittleEndian.Uint32(buffer[firstTotal+TotalLengthOffset : firstTotal+TotalLengthOffset+4]))
+	assert.Equal(t, firstTotal+secondTotal, end)
+}
+
+func TestWriteBindColErrorBranches(t *testing.T) {
+	buffer := make([]byte, 256)
+
+	_, err := writeBindCol([]*Stmt2AllField{
+		{
+			Name:      "c1",
+			FieldType: common.TSDB_DATA_TYPE_INT,
+		},
+	}, [][]driver.Value{}, buffer, 0)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "col count not match")
+
+	_, err = writeBindCol([]*Stmt2AllField{
+		{
+			Name:      "c1",
+			FieldType: common.TSDB_DATA_TYPE_INT,
+		},
+		{
+			Name:      "c2",
+			FieldType: common.TSDB_DATA_TYPE_INT,
+		},
+	}, [][]driver.Value{
+		{int32(1)},
+		{},
+	}, buffer, 0)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "col row count not match")
+
+	_, err = writeBindCol([]*Stmt2AllField{
+		{
+			Name:      "decimal",
+			FieldType: common.TSDB_DATA_TYPE_DECIMAL,
+		},
+	}, [][]driver.Value{
+		{int32(1)},
+	}, buffer, 0)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "col field type not support")
+}
+
+func TestWriteBindColDecimalAndBlob(t *testing.T) {
+	buffer := make([]byte, 512)
+	fields := []*Stmt2AllField{
+		{
+			Name:      "col_decimal",
+			FieldType: common.TSDB_DATA_TYPE_DECIMAL,
+		},
+		{
+			Name:      "col_blob",
+			FieldType: common.TSDB_DATA_TYPE_BLOB,
+		},
+	}
+	values := [][]driver.Value{
+		{"1.2300", nil, []byte("9.9900")},
+		{[]byte{0x11}, "blob_text", nil},
+	}
+	end, err := writeBindCol(fields, values, buffer, 0)
+	assert.NoError(t, err)
+	if !assert.Greater(t, end, 0) {
+		return
+	}
+
+	rows := 3
+	haveLengthOffset := IsNullOffset + rows
+	variableLengthOffset := haveLengthOffset + 1
+	variableBufferLengthOffset := variableLengthOffset + (4 * rows)
+	variableBufferOffset := variableBufferLengthOffset + 4
+
+	assert.Equal(t, uint32(common.TSDB_DATA_TYPE_DECIMAL), binary.LittleEndian.Uint32(buffer[DataTypeOffset:DataTypeOffset+4]))
+	assert.Equal(t, uint32(rows), binary.LittleEndian.Uint32(buffer[NumOffset:NumOffset+4]))
+	assert.Equal(t, byte(0), buffer[IsNullOffset])
+	assert.Equal(t, byte(1), buffer[IsNullOffset+1])
+	assert.Equal(t, byte(0), buffer[IsNullOffset+2])
+	assert.Equal(t, byte(1), buffer[haveLengthOffset])
+	assert.Equal(t, uint32(6), binary.LittleEndian.Uint32(buffer[variableLengthOffset:variableLengthOffset+4]))
+	assert.Equal(t, uint32(0), binary.LittleEndian.Uint32(buffer[variableLengthOffset+4:variableLengthOffset+8]))
+	assert.Equal(t, uint32(6), binary.LittleEndian.Uint32(buffer[variableLengthOffset+8:variableLengthOffset+12]))
+	assert.Equal(t, uint32(12), binary.LittleEndian.Uint32(buffer[variableBufferLengthOffset:variableBufferLengthOffset+4]))
+	assert.Equal(t, []byte("1.23009.9900"), buffer[variableBufferOffset:variableBufferOffset+12])
+
+	firstTotal := int(binary.LittleEndian.Uint32(buffer[TotalLengthOffset : TotalLengthOffset+4]))
+	assert.Equal(t, uint32(common.TSDB_DATA_TYPE_BLOB), binary.LittleEndian.Uint32(buffer[firstTotal+DataTypeOffset:firstTotal+DataTypeOffset+4]))
+	assert.Equal(t, uint32(rows), binary.LittleEndian.Uint32(buffer[firstTotal+NumOffset:firstTotal+NumOffset+4]))
+	assert.Equal(t, byte(0), buffer[firstTotal+IsNullOffset])
+	assert.Equal(t, byte(0), buffer[firstTotal+IsNullOffset+1])
+	assert.Equal(t, byte(1), buffer[firstTotal+IsNullOffset+2])
+	assert.Equal(t, byte(1), buffer[firstTotal+haveLengthOffset])
+	assert.Equal(t, uint32(1), binary.LittleEndian.Uint32(buffer[firstTotal+variableLengthOffset:firstTotal+variableLengthOffset+4]))
+	assert.Equal(t, uint32(9), binary.LittleEndian.Uint32(buffer[firstTotal+variableLengthOffset+4:firstTotal+variableLengthOffset+8]))
+	assert.Equal(t, uint32(0), binary.LittleEndian.Uint32(buffer[firstTotal+variableLengthOffset+8:firstTotal+variableLengthOffset+12]))
+	assert.Equal(t, uint32(10), binary.LittleEndian.Uint32(buffer[firstTotal+variableBufferLengthOffset:firstTotal+variableBufferLengthOffset+4]))
+	assert.Equal(t, []byte{0x11}, buffer[firstTotal+variableBufferOffset:firstTotal+variableBufferOffset+1])
+	assert.Equal(t, []byte("blob_text"), buffer[firstTotal+variableBufferOffset+1:firstTotal+variableBufferOffset+10])
+
+	secondTotal := int(binary.LittleEndian.Uint32(buffer[firstTotal+TotalLengthOffset : firstTotal+TotalLengthOffset+4]))
+	assert.Equal(t, firstTotal+secondTotal, end)
+}
+
+func TestWriteBindColFixedTypeMismatchBranches(t *testing.T) {
+	tests := []struct {
+		name      string
+		fieldType int8
+		value     driver.Value
+		errMsg    string
+	}{
+		{name: "bool", fieldType: common.TSDB_DATA_TYPE_BOOL, value: "x", errMsg: "expect bool"},
+		{name: "tinyint", fieldType: common.TSDB_DATA_TYPE_TINYINT, value: "x", errMsg: "expect int8"},
+		{name: "smallint", fieldType: common.TSDB_DATA_TYPE_SMALLINT, value: "x", errMsg: "expect int16"},
+		{name: "int", fieldType: common.TSDB_DATA_TYPE_INT, value: "x", errMsg: "expect int32"},
+		{name: "bigint", fieldType: common.TSDB_DATA_TYPE_BIGINT, value: "x", errMsg: "expect int64"},
+		{name: "float", fieldType: common.TSDB_DATA_TYPE_FLOAT, value: "x", errMsg: "expect float32"},
+		{name: "double", fieldType: common.TSDB_DATA_TYPE_DOUBLE, value: "x", errMsg: "expect float64"},
+		{name: "timestamp", fieldType: common.TSDB_DATA_TYPE_TIMESTAMP, value: "x", errMsg: "expect int64 or time.Time"},
+		{name: "utinyint", fieldType: common.TSDB_DATA_TYPE_UTINYINT, value: "x", errMsg: "expect uint8"},
+		{name: "usmallint", fieldType: common.TSDB_DATA_TYPE_USMALLINT, value: "x", errMsg: "expect uint16"},
+		{name: "uint", fieldType: common.TSDB_DATA_TYPE_UINT, value: "x", errMsg: "expect uint32"},
+		{name: "ubigint", fieldType: common.TSDB_DATA_TYPE_UBIGINT, value: "x", errMsg: "expect uint64"},
+	}
+
+	for i := 0; i < len(tests); i++ {
+		tc := tests[i]
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := writeBindCol([]*Stmt2AllField{
+				{
+					Name:      tc.name,
+					FieldType: tc.fieldType,
+				},
+			}, [][]driver.Value{
+				{tc.value},
+			}, make([]byte, 256), 0)
+			assert.Error(t, err)
+			assert.Contains(t, err.Error(), tc.errMsg)
+		})
+	}
+}
+
+func TestWriteBindColTimestampInt64Branch(t *testing.T) {
+	offset, err := writeBindCol([]*Stmt2AllField{
+		{
+			Name:      "ts",
+			FieldType: common.TSDB_DATA_TYPE_TIMESTAMP,
+			Precision: common.PrecisionMilliSecond,
+		},
+	}, [][]driver.Value{
+		{int64(1711111111000)},
+	}, make([]byte, 256), 0)
+	assert.NoError(t, err)
+	assert.Greater(t, offset, 0)
+}
+
+func BenchmarkMarshalBinary(b *testing.B) {
+	bindData := make([]*TaosStmt2BindData, 1000)
+	now := time.Now().UnixNano() / int64(time.Millisecond)
+	for i := 0; i < 1000; i++ {
+		bindData[i] = &TaosStmt2BindData{
+			TableName: fmt.Sprintf("d_%d", i),
+			Cols: [][]driver.Value{
+				{
+					now,
+				},
+				{
+					float32(i),
+				},
+				{
+					int32(i),
+				},
+				{
+					float32(i),
+				},
+			},
+		}
+	}
+	fields := []*Stmt2AllField{
+		{
+			FieldType: common.TSDB_DATA_TYPE_BINARY,
+			BindType:  TAOS_FIELD_TBNAME,
+		},
+		{
+			FieldType: common.TSDB_DATA_TYPE_TIMESTAMP,
+			BindType:  TAOS_FIELD_COL,
+			Precision: common.PrecisionMilliSecond,
+		},
+		{
+			FieldType: common.TSDB_DATA_TYPE_FLOAT,
+			BindType:  TAOS_FIELD_COL,
+		},
+		{
+			FieldType: common.TSDB_DATA_TYPE_INT,
+			BindType:  TAOS_FIELD_COL,
+		},
+		{
+			FieldType: common.TSDB_DATA_TYPE_FLOAT,
+			BindType:  TAOS_FIELD_COL,
+		},
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if _, err := MarshalStmt2Binary(bindData, true, fields); err != nil {
+			b.Fatalf("MarshalStmt2Binary failed: %v", err)
+		}
+	}
+}
+
+func BenchmarkMarshalBinaryLegacy(b *testing.B) {
+	bindData := make([]*TaosStmt2BindData, 1000)
+	now := time.Now().UnixNano() / int64(time.Millisecond)
+	for i := 0; i < 1000; i++ {
+		bindData[i] = &TaosStmt2BindData{
+			TableName: fmt.Sprintf("d_%d", i),
+			Cols: [][]driver.Value{
+				{
+					now,
+				},
+				{
+					float32(i),
+				},
+				{
+					int32(i),
+				},
+				{
+					float32(i),
+				},
+			},
+		}
+	}
+	fields := []*Stmt2AllField{
+		{
+			FieldType: common.TSDB_DATA_TYPE_BINARY,
+			BindType:  TAOS_FIELD_TBNAME,
+		},
+		{
+			FieldType: common.TSDB_DATA_TYPE_TIMESTAMP,
+			BindType:  TAOS_FIELD_COL,
+			Precision: common.PrecisionMilliSecond,
+		},
+		{
+			FieldType: common.TSDB_DATA_TYPE_FLOAT,
+			BindType:  TAOS_FIELD_COL,
+		},
+		{
+			FieldType: common.TSDB_DATA_TYPE_INT,
+			BindType:  TAOS_FIELD_COL,
+		},
+		{
+			FieldType: common.TSDB_DATA_TYPE_FLOAT,
+			BindType:  TAOS_FIELD_COL,
+		},
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if _, err := marshalStmt2BinaryLegacy(bindData, true, fields); err != nil {
+			b.Fatalf("marshalStmt2BinaryLegacy failed: %v", err)
+		}
 	}
 }
