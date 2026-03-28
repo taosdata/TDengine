@@ -1464,7 +1464,14 @@ static int32_t mergeAlignExtWinNext(SOperatorInfo* pOperator, SSDataBlock** ppRe
   blockDataCleanup(pRes);
 
   mergeAlignExtWinDo(pOperator);
-  
+
+  if (pRes->info.rows > 0 && pOperator->exprSupp.pFilterInfo != NULL) {
+    SColumnInfoData* pFilterRes = NULL;
+    TAOS_CHECK_EXIT(doFilter(pRes, pOperator->exprSupp.pFilterInfo, NULL, &pFilterRes));
+    colDataDestroy(pFilterRes);
+    taosMemoryFree(pFilterRes);
+  }
+
   size_t rows = pRes->info.rows;
   (*ppRes) = (rows == 0) ? NULL : pRes;
 
@@ -1578,6 +1585,10 @@ int32_t createMergeAlignedExternalWindowOperator(SOperatorInfo* pDownstream, SPh
                       &pTaskInfo->storageAPI.functionStore);
     QUERY_CHECK_CODE(code, lino, _error);
   }
+
+  code = filterInitFromNode((SNode*)pNode->pConditions, &pOperator->exprSupp.pFilterInfo, 0,
+                            pTaskInfo->pStreamRuntimeInfo);
+  QUERY_CHECK_CODE(code, lino, _error);
 
   SSDataBlock* pResBlock = createDataBlockFromDescNode(pPhynode->window.node.pOutputDataBlockDesc);
   QUERY_CHECK_NULL(pResBlock, code, lino, _error, terrno);

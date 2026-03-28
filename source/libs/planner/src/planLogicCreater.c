@@ -2015,6 +2015,12 @@ static int32_t createExternalWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SS
   }
 
   pWindow->inputHasOrder = (pWindow->isSingleTable || pWindow->node.requireDataOrder == DATA_ORDER_LEVEL_GLOBAL);
+
+  if (TSDB_CODE_SUCCESS == code && NULL != pSelect->pHaving) {
+    pWindow->node.pConditions = NULL;
+    code = nodesCloneNode(pSelect->pHaving, &pWindow->node.pConditions);
+  }
+
   nodesDestroyList(pOutputPartitionKeys);
 
   *pLogicNode = (SLogicNode*)pWindow;
