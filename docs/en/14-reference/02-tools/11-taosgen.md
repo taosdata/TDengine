@@ -1,4 +1,4 @@
----
+﻿---
 title: taosgen Reference Manual
 sidebar_label: taosgen
 slug: /tdengine-reference/tools/taosgen
@@ -171,12 +171,12 @@ These parameters can also be set via command line options (`--log-dir`, `--log-f
   - name (string): Name of the schema.
   - from_csv: Configuration for using CSV files as data sources.
     - tags: Tag configuration.
-      - file_path (string): Path to tag data CSV file.
+      - file_path (string): Path to tag data CSV file. Supports a single file, a directory path (automatically discovers all `.csv` files in the directory), and glob patterns (e.g., `tags_*.csv`). Multiple files are read in alphabetical order by filename. All files must have the same column structure.
       - has_header (bool): Whether the file contains a header row, default: true.
       - tbname_index (int): Column index for table name (starting from 0), default: -1 (inactive).
       - exclude_indices (string): Indices of unused tag columns to exclude (comma-separated, 0-based), default: empty (no exclusion).
     - columns: Configuration for time-series data columns.
-      - file_path (string): Path to time-series data CSV file.
+      - file_path (string): Path to time-series data CSV file. Supports a single file, a directory path (automatically discovers all `.csv` files in the directory), and glob patterns (e.g., `data_*.csv`). Multiple files are read in alphabetical order and logically concatenated into a continuous data stream. All files must have the same column structure.
       - has_header (bool): Whether the file contains a header row, default: true.
       - repeat_read (bool): Whether to read data repeatedly, default: false.
       - tbname_index (int): Column index for child table name (starting from 0), default: -1 (inactive).
@@ -199,6 +199,7 @@ These parameters can also be set via command line options (`--log-dir`, `--log-f
     - rows_per_table (int): Number of rows to write per table, default: 10000, -1 means unlimited.
     - rows_per_batch (int): Maximum number of rows per batch request, default: 10,000.
     - num_cached_batches (int): Number of batches to pre-generate and cache, 0 means caching is disabled, default is 10000.
+    - loading_mode (string): CSV data loading mode. Options: "preload" (load all data into memory) and "streaming" (stream rows on demand). Default: "preload".
     - tables_reuse_data (bool): Whether multiple tables reuse the same data, default is true.
 
 ##### Column Configuration Attributes
