@@ -331,6 +331,15 @@ When using an IPv6 address (supported in v3.7.1 and above), the address needs to
 root:taosdata@ws([::1]:6041)/testdb
 ```
 
+Starting from `v3.8.0`, the Go connector unifies WebSocket access through `ws/unified`; `taosWS` remains available as the standard interface.
+
+:::note
+
+1. Multi-endpoint failover is supported by both `taosWS` and `ws/unified`, for example: `root:taosdata@ws(localhost:6041,localhost:6042)/testdb`.
+2. `taosWS` is the standard interface and supports the official connection pool; `ws/unified` is the unified interface and does not support the official connection pool.
+
+:::
+
 Supported DSN parameters are as follows:
 
 Native connection:
@@ -346,8 +355,15 @@ WebSocket connection:
 - `readTimeout` the timeout for reading data, default is 5m.
 - `writeTimeout` the timeout for writing data, default is 10s.
 - `timezone` specifies the timezone used for the connection. Both SQL parsing and query results will be converted according to this timezone. Only IANA timezone formats are supported, and special characters need to be encoded. Taking the Shanghai timezone (`Asia/Shanghai`) as an example: `timezone=Asia%2FShanghai`.
+- `token` specifies the token used by cloud services.
 - `bearerToken` the token used for authentication.
 - `totpCode` the TOTP code used for two-factor authentication.
+- `autoReconnect` whether to enable automatic reconnect, default is false (supported since `v3.8.0`).
+- `chanLength` message channel length, default is 1 (supported since `v3.8.0`).
+- `reconnectIntervalMs` reconnect interval in milliseconds, default is 2000 (supported since `v3.8.0`).
+- `reconnectRetryCount` reconnect retry count, default is 3 (supported since `v3.8.0`).
+
+> Note: After reconnect succeeds, the current DB on the connection is lost. Specify DB in DSN and avoid switching DB later.
 
 </TabItem>
 
@@ -482,8 +498,16 @@ SQLAlchemy supports configuring multiple server addresses through the `hosts` pa
 
 <TabItem label="Go" value="go">
 
+`taosWS` standard interface example:
+
 ```go
 {{#include docs/examples/go/connect/wsexample/main.go}}
+```
+
+Starting from `v3.8.0`, the Go connector unifies WebSocket access through `ws/unified`. You can create a connection as follows:
+
+```go
+{{#include docs/examples/go/connect/unified/main.go}}
 ```
 
 </TabItem>
