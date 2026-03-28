@@ -1412,13 +1412,26 @@ static bool nodeIsShowStmt(int16_t type) {
   return false;
 }
 
-static bool isTxnAllowedStmtType(int32_t type) {
+static bool isTxnAllowedStmtType(SNode* pRoot) {
+  int32_t type = pRoot->type;
+
   // Table-level DDL — allowed
   if (type == QUERY_NODE_CREATE_TABLE_STMT || type == QUERY_NODE_CREATE_MULTI_TABLES_STMT ||
       type == QUERY_NODE_DROP_TABLE_STMT || type == QUERY_NODE_ALTER_TABLE_STMT ||
       type == QUERY_NODE_ALTER_SUPER_TABLE_STMT || type == QUERY_NODE_DROP_SUPER_TABLE_STMT ||
       type == QUERY_NODE_CREATE_SUBTABLE_CLAUSE || type == QUERY_NODE_CREATE_SUBTABLE_FROM_FILE_CLAUSE) {
     return true;
+  }
+
+  // VNODE_MODIFY_STMT wraps both CREATE TABLE and INSERT after translation.
+  // Allow only when the original statement was a CREATE TABLE variant, not INSERT/DELETE.
+  if (type == QUERY_NODE_VNODE_MODIFY_STMT) {
+    int32_t origType = ((SVnodeModifyOpStmt*)pRoot)->sqlNodeType;
+    if (origType == QUERY_NODE_CREATE_TABLE_STMT || origType == QUERY_NODE_CREATE_MULTI_TABLES_STMT ||
+        origType == QUERY_NODE_CREATE_VIRTUAL_TABLE_STMT || origType == QUERY_NODE_CREATE_VIRTUAL_SUBTABLE_STMT) {
+      return true;
+    }
+    return false;  // INSERT / DELETE wrapped in VNODE_MODIFY_STMT — blocked
   }
 
   // SELECT — allowed
@@ -1459,7 +1472,7 @@ void launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQuery, void
   }
 
   // Reject non-table-DDL operations inside a transaction
-  if (pRequest->pTscObj->txnId > 0 && pQuery->pRoot != NULL && !isTxnAllowedStmtType(pQuery->pRoot->type)) {
+  if (pRequest->pTscObj->txnId > 0 && pQuery->pRoot != NULL && !isTxnAllowedStmtType(pQuery->pRoot)) {
     code = TSDB_CODE_TXN_INVALID_OPERATION;
     pRequest->code = code;
     if (res) {
@@ -1694,7 +1707,7 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultM
   }
 
   // Reject non-table-DDL operations inside a transaction
-  if (pRequest->pTscObj->txnId > 0 && pQuery->pRoot != NULL && !isTxnAllowedStmtType(pQuery->pRoot->type)) {
+  if (pRequest->pTscObj->txnId > 0 && pQuery->pRoot != NULL && !isTxnAllowedStmtType(pQuery->pRoot)) {
     doRequestCallback(pRequest, TSDB_CODE_TXN_INVALID_OPERATION);
     return;
   }
