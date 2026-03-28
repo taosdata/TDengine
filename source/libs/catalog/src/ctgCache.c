@@ -630,6 +630,8 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCt
 
   *pTableMeta = taosMemoryCalloc(1, metaSize);
   if (NULL == *pTableMeta) {
+    taosMemoryFreeClear(tmpColRef);
+    taosMemoryFreeClear(tmpTagRef);
     CTG_ERR_RET(terrno);
   }
 
@@ -642,7 +644,12 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCt
   ctgDebug("ctb:%s, get meta from cache, will continue to get its stb meta, tbType:%d, db:%s", ctx->pName->tname,
            ctx->tbInfo.tbType, dbFName);
 
-  CTG_ERR_RET(ctgAcquireStbMetaFromCache(dbCache, pCtg, dbFName, ctx->tbInfo.suid, &tbCache));
+  int32_t stbCode = ctgAcquireStbMetaFromCache(dbCache, pCtg, dbFName, ctx->tbInfo.suid, &tbCache);
+  if (stbCode != TSDB_CODE_SUCCESS) {
+    taosMemoryFreeClear(tmpColRef);
+    taosMemoryFreeClear(tmpTagRef);
+    CTG_ERR_RET(stbCode);
+  }
   if (NULL == tbCache) {
     taosMemoryFreeClear(tmpColRef);
     taosMemoryFreeClear(tmpTagRef);

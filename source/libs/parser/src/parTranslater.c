@@ -24220,7 +24220,7 @@ static int32_t buildUpdateMultiTagValReq(STranslateContext* pCxt, SAlterTableStm
 
     SAlterTableStmt* pTagStmt = NULL;
     SNode*           pNode = NULL;
-    int8_t           dummpy = 0;
+    int8_t           dummy = 0;
     FOREACH(pNode, pNodeList) {
       SMultiTagUpdateVal val = {0};
       pTagStmt = (SAlterTableStmt*)pNode;
@@ -24231,7 +24231,7 @@ static int32_t buildUpdateMultiTagValReq(STranslateContext* pCxt, SAlterTableStm
         TAOS_CHECK_GOTO(code, &lino, _err);
       }
 
-      code = taosHashPut(pUnique, pTagStmt->colName, strlen(pTagStmt->colName), &dummpy, sizeof(dummpy));
+      code = taosHashPut(pUnique, pTagStmt->colName, strlen(pTagStmt->colName), &dummy, sizeof(dummy));
       TAOS_CHECK_GOTO(code, &lino, _err);
 
       code = buildUpdateTagValReqImpl2(pCxt, pTagStmt, pTableMeta, pTagStmt->colName, &val);

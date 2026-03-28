@@ -1239,7 +1239,7 @@ int32_t nodesCloneNode(const SNode* pNode, SNode** ppNode) {
 
   if (QUERY_NODE_TAG_REF_COLUMN == nodeType(pNode)) {
     const STagRefColumn* pTagRef = (const STagRefColumn*)pNode;
-    qError("nodes clone tag ref src: type=%d colId=%d sourceColId=%d dataType=%d",
+    qDebug("nodes clone tag ref src: type=%d colId=%d sourceColId=%d dataType=%d",
            nodeType(pNode), pTagRef->colId, pTagRef->sourceColId, pTagRef->dataType);
   }
 
@@ -1257,7 +1257,7 @@ int32_t nodesCloneNode(const SNode* pNode, SNode** ppNode) {
       code = tagRefColumnCopy((const STagRefColumn*)pNode, (STagRefColumn*)pDst);
       if (TSDB_CODE_SUCCESS == code) {
         const STagRefColumn* pTagRef = (const STagRefColumn*)pDst;
-        qError("nodes clone tag ref dst: type=%d colId=%d sourceColId=%d dataType=%d",
+        qDebug("nodes clone tag ref dst: type=%d colId=%d sourceColId=%d dataType=%d",
                nodeType(pDst), pTagRef->colId, pTagRef->sourceColId, pTagRef->dataType);
       }
       break;

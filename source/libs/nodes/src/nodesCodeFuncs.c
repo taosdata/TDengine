@@ -11559,10 +11559,6 @@ static const char* jkNodeName = "Name";
 static int32_t nodeToJson(const void* pObj, SJson* pJson) {
   const SNode* pNode = (const SNode*)pObj;
 
-  if (QUERY_NODE_TAG_REF_COLUMN == pNode->type || QUERY_NODE_WHEN_THEN == pNode->type) {
-    qError("nodes nodeToJson: type=%d name=%s", pNode->type, nodesNodeName(pNode->type));
-  }
-
   int32_t code = tjsonAddIntegerToObject(pJson, jkNodeType, pNode->type);
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddStringToObject(pJson, jkNodeName, nodesNodeName(pNode->type));

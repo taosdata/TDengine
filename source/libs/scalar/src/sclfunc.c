@@ -4602,11 +4602,9 @@ int32_t qPseudoTagFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam 
     return code;
   }
 
-  for (int32_t i = 0; i < numOfRows; ++i) {
-    code = colDataSetVal(pOutput->columnData, i, p, false);
-    if (code != TSDB_CODE_SUCCESS) {
-      return code;
-    }
+  code = colDataSetNItems(pOutput->columnData, 0, p, numOfRows, numOfRows, true);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
   }
 
   pOutput->numOfRows = numOfRows;

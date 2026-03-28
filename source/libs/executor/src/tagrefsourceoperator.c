@@ -67,10 +67,6 @@ typedef struct STagRefSourceOperatorInfo {
   SNodeList*    pScanCols;        // Columns to scan from source table
   SVgroupsInfo* pVgroupList;      // Vgroup information (for distributed)
 
-  // Usage flags
-  bool isUsedInFilter;      // Used in WHERE clause
-  bool isUsedInProjection;  // Used in SELECT clause
-
   // Scan state
   int32_t curPos;         // Current position in table list
   bool    scanCompleted;  // Scan completion flag
@@ -83,9 +79,6 @@ typedef struct STagRefSourceOperatorInfo {
   SNode*          pTagIndexCond;  // Tag index condition
   SColMatchInfo   matchInfo;
   SLimitInfo      limitInfo;
-
-  // Vnode communication
-  void* pCtbCursor;  // Child table cursor
 
   // Data block capacity
   int32_t capacity;
@@ -160,13 +153,13 @@ static int32_t tagRefSourceScanOneTable(SOperatorInfo* pOperator, SSDataBlock* p
                tstrerror(code));
       } else {
         if (pColInfo->info.type == TSDB_DATA_TYPE_INT) {
-          qError("tagref source fill: tag=%s sourceColId=%d slot=%d isNull=%d value=%d", pRefCol->colName,
+          qDebug("tagref source fill: tag=%s sourceColId=%d slot=%d isNull=%d value=%d", pRefCol->colName,
                  pRefCol->sourceColId, slotIndex, isNull, isNull ? 0 : *(int32_t*)data);
         } else if (pColInfo->info.type == TSDB_DATA_TYPE_BOOL) {
-          qError("tagref source fill: tag=%s sourceColId=%d slot=%d isNull=%d value=%d", pRefCol->colName,
+          qDebug("tagref source fill: tag=%s sourceColId=%d slot=%d isNull=%d value=%d", pRefCol->colName,
                  pRefCol->sourceColId, slotIndex, isNull, isNull ? 0 : (int32_t)(*(bool*)data));
         } else {
-          qError("tagref source fill: tag=%s sourceColId=%d slot=%d isNull=%d type=%d", pRefCol->colName,
+          qDebug("tagref source fill: tag=%s sourceColId=%d slot=%d isNull=%d type=%d", pRefCol->colName,
                  pRefCol->sourceColId, slotIndex, isNull, pColInfo->info.type);
         }
       }
@@ -244,6 +237,10 @@ static int32_t tagRefSourceGetNext(SOperatorInfo* pOperator, SSDataBlock** ppRes
     // Ignore certain errors and continue to next table
     if (code != TSDB_CODE_OUT_OF_MEMORY && code != TSDB_CODE_QRY_REACH_QMEM_THRESHOLD &&
         code != TSDB_CODE_QRY_QUERY_MEM_EXHAUSTED) {
+      if (code != TSDB_CODE_SUCCESS) {
+        qDebug("%s: tagRefSourceScanOneTable failed, pos:%d, code:%s, continuing", __func__, pInfo->curPos,
+               tstrerror(code));
+      }
       code = TSDB_CODE_SUCCESS;
     }
     QUERY_CHECK_CODE(code, lino, _end);
@@ -320,11 +317,6 @@ static void destroyTagRefSourceOperatorInfo(void* param) {
 
   // Free match info
   taosArrayDestroy(pInfo->matchInfo.pList);
-
-  // Close child table cursor if open
-  if (pInfo->pCtbCursor != NULL && pInfo->pStorageAPI != NULL) {
-    pInfo->pStorageAPI->metaFn.closeCtbCursor(pInfo->pCtbCursor);
-  }
 
   // Note: pTableListInfo is owned by the caller, don't free here
 
@@ -421,10 +413,6 @@ int32_t createTagRefSourceOperatorInfo(STagRefSourcePhysiNode* pTagRefSourceNode
     QUERY_CHECK_CODE(code, lino, _error);
   }
 
-  // Set usage flags
-  pInfo->isUsedInFilter = pTagRefSourceNode->isUsedInFilter;
-  pInfo->isUsedInProjection = pTagRefSourceNode->isUsedInProjection;
-
   // Clone vgroup list if exists
   if (pTagRefSourceNode->pVgroupList) {
     pInfo->pVgroupList =
@@ -448,7 +436,6 @@ int32_t createTagRefSourceOperatorInfo(STagRefSourcePhysiNode* pTagRefSourceNode
   // Initialize scan state
   pInfo->curPos = 0;
   pInfo->scanCompleted = false;
-  pInfo->pCtbCursor = NULL;
 
   // Create result data block
   pInfo->pRes = createDataBlockFromDescNode(pDescNode);
@@ -457,14 +444,15 @@ int32_t createTagRefSourceOperatorInfo(STagRefSourcePhysiNode* pTagRefSourceNode
   // Initialize limit info
   initLimitInfo(pTagRefSourceNode->node.pLimit, pTagRefSourceNode->node.pSlimit, &pInfo->limitInfo);
 
-  // Set capacity
-  pInfo->capacity = 4096;
+  // Set capacity (use fixed default since resultInfo is not yet initialized)
+#define TAG_REF_SOURCE_DEFAULT_CAPACITY 4096
+  pInfo->capacity = TAG_REF_SOURCE_DEFAULT_CAPACITY;
   code = blockDataEnsureCapacity(pInfo->pRes, pInfo->capacity);
   QUERY_CHECK_CODE(code, lino, _error);
 
   // Initialize column match info
-  int32_t numOfCols = 0;
   if (pTagRefSourceNode->pScanCols) {
+    int32_t numOfCols = 0;
     code = extractColMatchInfo(pTagRefSourceNode->pScanCols, pDescNode, &numOfCols, COL_MATCH_FROM_COL_ID,
                                &pInfo->matchInfo);
     QUERY_CHECK_CODE(code, lino, _error);

@@ -348,6 +348,8 @@ _return:
   return code;
 }
 
+static void cleanupSavedTagRefBlocks(SVirtualTableScanInfo* pInfo);
+
 void cleanUpVirtualScanInfo(SVirtualTableScanInfo* pVirtualScanInfo) {
   if (pVirtualScanInfo->pSortInfo) {
     taosArrayDestroy(pVirtualScanInfo->pSortInfo);
@@ -367,6 +369,12 @@ void cleanUpVirtualScanInfo(SVirtualTableScanInfo* pVirtualScanInfo) {
     pVirtualScanInfo->pSortCtxList = NULL;
   }
   pVirtualScanInfo->vtableName[0] = '\0';
+
+  taosArrayDestroy(pVirtualScanInfo->pTagRefSourceBlockIds);
+  pVirtualScanInfo->pTagRefSourceBlockIds = NULL;
+  cleanupSavedTagRefBlocks(pVirtualScanInfo);
+  tSimpleHashCleanup(pVirtualScanInfo->pTagRefDownstreamMap);
+  pVirtualScanInfo->pTagRefDownstreamMap = NULL;
 }
 
 static void cleanupRefSlotGroups(SVirtualTableScanInfo* pInfo) {
@@ -729,7 +737,7 @@ static int32_t doGetVtableMergedBlockData(SVirtualScanMergeOperatorInfo* pInfo, 
             }
             rowNums++;
             if (pInfo->virtualScanInfo.tsSlotId != -1) {
-              VTS_ERR_RET(
+              VTS_ERR_JRET(
                   colDataSetVal(taosArrayGet(p->pDataBlock, pInfo->virtualScanInfo.tsSlotId), rowNums, pData, false));
             }
             lastTs = *(int64_t*)pData;
@@ -738,7 +746,7 @@ static int32_t doGetVtableMergedBlockData(SVirtualScanMergeOperatorInfo* pInfo, 
             int64_t slotKey = blockId << 16 | i;
             void*   slotId = tSimpleHashGet(pInfo->virtualScanInfo.dataSlotMap, &slotKey, sizeof(slotKey));
             if (slotId) {
-              VTS_ERR_RET(colDataSetVal(taosArrayGet(p->pDataBlock, *(int32_t*)slotId), rowNums, pData, false));
+              VTS_ERR_JRET(colDataSetVal(taosArrayGet(p->pDataBlock, *(int32_t*)slotId), rowNums, pData, false));
             }
           }
           continue;
@@ -750,9 +758,9 @@ static int32_t doGetVtableMergedBlockData(SVirtualScanMergeOperatorInfo* pInfo, 
         void*   slotId = tSimpleHashGet(pInfo->virtualScanInfo.dataSlotMap, &slotKey, sizeof(slotKey));
         if (slotId == NULL) {
           qError("failed to get slotId from dataSlotMap, blockId:%d, slotId:%d", blockId, i);
-          VTS_ERR_RET(TSDB_CODE_VTABLE_SCAN_INTERNAL_ERROR);
+          VTS_ERR_JRET(TSDB_CODE_VTABLE_SCAN_INTERNAL_ERROR);
         }
-        VTS_ERR_RET(colDataSetVal(taosArrayGet(p->pDataBlock, *(int32_t*)slotId), rowNums, pData, false));
+        VTS_ERR_JRET(colDataSetVal(taosArrayGet(p->pDataBlock, *(int32_t*)slotId), rowNums, pData, false));
       }
     }
   }
@@ -800,7 +808,7 @@ static int32_t doGetVStableMergedBlockData(SVirtualScanMergeOperatorInfo* pInfo,
         }
         rowNums++;
         if (pInfo->virtualScanInfo.tsSlotId != -1) {
-          VTS_ERR_RET(
+          VTS_ERR_JRET(
               colDataSetVal(taosArrayGet(p->pDataBlock, pInfo->virtualScanInfo.tsSlotId), rowNums, pData, false));
         }
         lastTs = *(int64_t*)pData;
@@ -826,13 +834,13 @@ static int32_t doGetVStableMergedBlockData(SVirtualScanMergeOperatorInfo* pInfo,
           if (ppSlots && taosArrayGetSize(*ppSlots) > 1) {
             for (int32_t k = 0; k < taosArrayGetSize(*ppSlots); k++) {
               int32_t slotId = *(int32_t*)taosArrayGet(*ppSlots, k);
-              VTS_ERR_RET(colDataSetVal(taosArrayGet(p->pDataBlock, slotId), rowNums, pData, false));
+              VTS_ERR_JRET(colDataSetVal(taosArrayGet(p->pDataBlock, slotId), rowNums, pData, false));
             }
             continue;
           }
         }
         if (pColInfo->info.slotId != -1) {
-          VTS_ERR_RET(colDataSetVal(taosArrayGet(p->pDataBlock, pColInfo->info.slotId), rowNums, pData, false));
+          VTS_ERR_JRET(colDataSetVal(taosArrayGet(p->pDataBlock, pColInfo->info.slotId), rowNums, pData, false));
         }
       }
     }
@@ -1180,14 +1188,6 @@ static bool isSingleRowTagBlockAllNull(SSDataBlock* pTagBlock) {
   return true;
 }
 
-static EDealRes logFilterFuncNode(SNode* pNode, void* pContext) {
-  if (QUERY_NODE_FUNCTION != nodeType(pNode)) {
-    return DEAL_RES_CONTINUE;
-  }
-
-  return DEAL_RES_CONTINUE;
-}
-
 int32_t virtualTableGetNext(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
   int32_t                        code = TSDB_CODE_SUCCESS;
   int32_t                        lino = 0;
@@ -1457,6 +1457,8 @@ int32_t resetVirtualTableMergeOperState(SOperatorInfo* pOper) {
   cleanupSavedTagRefBlocks(pInfo);
   tSimpleHashCleanup(pInfo->pTagRefDownstreamMap);
   pInfo->pTagRefDownstreamMap = NULL;
+  taosArrayDestroy(pInfo->pTagRefSourceBlockIds);
+  pInfo->pTagRefSourceBlockIds = NULL;
 
 _exit:
 
@@ -1535,10 +1537,6 @@ int32_t createVirtualTableMergeOperatorInfo(SOperatorInfo** pDownstream, int32_t
   }
 
   pVirtualScanInfo->scanAllCols = pVirtualScanPhyNode->scanAllCols;
-
-  if (pVirtualScanPhyNode->scan.node.pConditions != NULL) {
-    nodesWalkExpr((SNode*)pVirtualScanPhyNode->scan.node.pConditions, logFilterFuncNode, NULL);
-  }
 
   VTS_ERR_JRET(filterInitFromNode((SNode*)pVirtualScanPhyNode->scan.node.pConditions, &pOperator->exprSupp.pFilterInfo,
                                   0, pTaskInfo->pStreamRuntimeInfo));

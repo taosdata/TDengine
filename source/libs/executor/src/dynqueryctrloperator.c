@@ -392,6 +392,7 @@ static int32_t appendResolvedTagVal(SArray* pResolvedTags, col_id_t dstColId, co
   STagVal dstVal = {.cid = dstColId, .type = pSchema->type};
 
   if (!tTagGet(pTagData, &srcVal)) {
+    qDebug("appendResolvedTagVal: tag cid=%d not found in source, treating as NULL", pSchema->colId);
     return TSDB_CODE_SUCCESS;
   }
 

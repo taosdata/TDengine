@@ -245,9 +245,6 @@ static int32_t tlvEncodeObj(STlvEncoder* pEncoder, int16_t type, FToMsg func, co
   }
 
   const SNode* pNode = (const SNode*)pObj;
-  if (QUERY_NODE_TAG_REF_COLUMN == pNode->type || QUERY_NODE_WHEN_THEN == pNode->type) {
-    nodesError("tlvEncodeObj: outerType=%d nodeType=%d name=%s", type, pNode->type, nodesNodeName(pNode->type));
-  }
 
   if (pEncoder->offset + sizeof(STlv) > pEncoder->allocSize) {
     pEncoder->allocSize = TMAX(pEncoder->allocSize * 2, pEncoder->allocSize + sizeof(STlv));
