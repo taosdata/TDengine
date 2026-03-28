@@ -393,7 +393,7 @@ Use the DIFF function, which allows you to view the difference between two conse
 
 ### 4.5 Which is faster: querying data from a super table with TAG filter, or directly from a child table?
 
-Directly querying from child table is fast. The query from super table with TAG filter is designed to meet the convenience of querying. It can filter data from multiple child tables at the same time. If the goal is to pursue performance and the child table has been clearly queried, directly querying from the sub table can achieve higher performance
+Directly querying a child table is faster. Querying a supertable with a TAG filter is provided for convenience, as it allows filtering data from multiple child tables at once. If performance is the primary goal and the target child table is known, querying it directly will yield better performance.
 
 ## 5. Data Subscription (TMQ) {#data-subscription}
 
