@@ -1101,33 +1101,26 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator,
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
   SExprSupp*     pExprSup = &pOperator->exprSupp;
 
-  int32_t stateColIndex = -1;
-  SColumnInfoData* pStateColInfoData =
-    getDataBlockColBySlotId(pBlock, pInfo->stateCol.slotId, &stateColIndex);
+  SColumnInfoData* pStateColInfoData = 
+    taosArrayGet(pBlock->pDataBlock, pInfo->stateCol.slotId);
   if (!pStateColInfoData) {
-    int32_t code = terrno;
-    if (TSDB_CODE_SUCCESS == code) code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
-    pTaskInfo->code = code;
-    qError("%s failed to get state column data, slotId:%d, code:%s", __func__, pInfo->stateCol.slotId, tstrerror(code));
-    T_LONG_JMP(pTaskInfo->env, code);
+    pTaskInfo->code = terrno;
+    T_LONG_JMP(pTaskInfo->env, terrno);
   }
   uint64_t gid = pBlock->info.id.groupId;
   int32_t numOfOutput = pOperator->exprSupp.numOfExprs;
   int32_t bytes = pStateColInfoData->info.bytes;
 
-  int32_t tsColIndex = -1;
-  SColumnInfoData* pColInfoData = getDataBlockColBySlotId(pBlock, pInfo->tsSlotId, &tsColIndex);
+  SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock,
+                                               pInfo->tsSlotId);
   if (NULL == pColInfoData) {
-    int32_t code = terrno;
-    if (TSDB_CODE_SUCCESS == code) code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
-    pTaskInfo->code = code;
-    qError("%s failed to get ts column data, slotId:%d, code:%s", __func__, pInfo->tsSlotId, tstrerror(code));
-    T_LONG_JMP(pTaskInfo->env, code);
+    pTaskInfo->code = terrno;
+    T_LONG_JMP(pTaskInfo->env, terrno);
   }
   TSKEY* tsList = (TSKEY*)pColInfoData->pData;
 
   struct SColumnDataAgg* pAgg = (pBlock->pBlockAgg != NULL) ?
-                                &pBlock->pBlockAgg[stateColIndex] :
+                                &pBlock->pBlockAgg[pInfo->stateCol.slotId] :
                                 NULL;
   EStateWinExtendOption  extendOption = pInfo->extendOption;
   SWindowRowsSup*        pRowSup = &pInfo->winSup;
@@ -1286,12 +1279,7 @@ static int32_t openStateWindowAggOptr(SOperatorInfo* pOperator) {
       pSup, pUnfinishedBlock, order, pUnfinishedBlock->info.scanFlag, true);
     QUERY_CHECK_CODE(code, lino, _end);
 
-    int32_t tsColIndex = findDataBlockColIndexBySlotId(pUnfinishedBlock, pInfo->tsSlotId);
-    if (tsColIndex < 0) {
-      code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
-      QUERY_CHECK_CODE(code, lino, _end);
-    }
-    code = blockDataUpdateTsWindow(pUnfinishedBlock, tsColIndex);
+    code = blockDataUpdateTsWindow(pUnfinishedBlock, pInfo->tsSlotId);
     QUERY_CHECK_CODE(code, lino, _end);
 
     // there is an scalar expression that 
@@ -1768,8 +1756,7 @@ static void doSessionWindowAggImpl(SOperatorInfo* pOperator, SSessionAggOperator
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
   SExprSupp*     pSup = &pOperator->exprSupp;
 
-  int32_t tsColIndex = -1;
-  SColumnInfoData* pColInfoData = getDataBlockColBySlotId(pBlock, pInfo->tsSlotId, &tsColIndex);
+  SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, pInfo->tsSlotId);
   if (!pColInfoData) {
     pTaskInfo->code = terrno;
     T_LONG_JMP(pTaskInfo->env, terrno);
@@ -1903,12 +1890,7 @@ static int32_t doSessionWindowAggNext(SOperatorInfo* pOperator, SSDataBlock** pp
     code = setInputDataBlock(pSup, pBlock, order, pBlock->info.scanFlag, true);
     QUERY_CHECK_CODE(code, lino, _end);
 
-    int32_t tsColIdx = findDataBlockColIndexBySlotId(pBlock, pInfo->tsSlotId);
-    if (tsColIdx < 0) {
-      code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
-      QUERY_CHECK_CODE(code, lino, _end);
-    }
-    code = blockDataUpdateTsWindow(pBlock, tsColIdx);
+    code = blockDataUpdateTsWindow(pBlock, pInfo->tsSlotId);
     QUERY_CHECK_CODE(code, lino, _end);
 
     doSessionWindowAggImpl(pOperator, pInfo, pBlock);
@@ -1999,6 +1981,7 @@ int32_t createStatewindowOperatorInfo(SOperatorInfo* downstream, SStateWindowPhy
   pOperator->exprSupp.hasWindow = true;
   int32_t      tsSlotId = ((SColumnNode*)pStateNode->window.pTspk)->slotId;
   SColumnNode* pColNode = (SColumnNode*)(pStateNode->pStateKey);
+
   if (pStateNode->window.pExprs != NULL) {
     int32_t    numOfScalarExpr = 0;
     SExprInfo* pScalarExprInfo = NULL;

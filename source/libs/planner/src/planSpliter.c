@@ -622,7 +622,7 @@ static int32_t stbSplCreatePartWindowNode(SSplitContext* pCxt, SWindowLogicNode*
                                           pMergeTspk->node.resType.precision,
                                           pCxt->pPlanCxt->streamCxt.triggerWinType));
   }
-  if (pMergeWindow->winType == WINDOW_TYPE_EXTERNAL) {
+  if (pMergeWindow->winType == WINDOW_TYPE_EXTERNAL && !inStreamCalcClause(pCxt->pPlanCxt)) {
     /**
       For external window query, we still need an explicit _wstart placeholder
       on the partial window output so merged external-window aggregation can
