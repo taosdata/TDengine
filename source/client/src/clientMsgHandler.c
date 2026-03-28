@@ -1428,6 +1428,17 @@ static void tscResetTxnState(STscObj* pTscObj) {
   pTscObj->txnId = 0;
   taosArrayDestroy(pTscObj->pTxnVgList);
   pTscObj->pTxnVgList = NULL;
+  // Batch meta txn: free cached table metadata
+  if (pTscObj->pTxnTableMeta) {
+    void* pIter = taosHashIterate(pTscObj->pTxnTableMeta, NULL);
+    while (pIter) {
+      STableMeta** ppMeta = (STableMeta**)pIter;
+      taosMemoryFreeClear(*ppMeta);
+      pIter = taosHashIterate(pTscObj->pTxnTableMeta, pIter);
+    }
+    taosHashCleanup(pTscObj->pTxnTableMeta);
+    pTscObj->pTxnTableMeta = NULL;
+  }
   taosThreadMutexUnlock(&pTscObj->mutex);
 }
 

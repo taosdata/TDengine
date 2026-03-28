@@ -499,6 +499,28 @@ static int32_t vnodeTxnUndoShadowEntries(SVnode *pVnode, SVnodeTxnEntry *pEntry)
           if (code == 0) {
             vInfo("vgId:%d, rollback: restored ALTER uid %" PRId64 " to version %" PRId64, TD_VID(pVnode), uid,
                   prevVersion);
+            // Chained undo: if restored entry is PRE_CREATE from same txn, also delete it
+            // (handles CREATE→ALTER→ROLLBACK: after ALTER undo, PRE_CREATE must also be undone)
+            SMetaEntry *pRestored = NULL;
+            if (metaFetchEntryByUid(pVnode->pMeta, uid, &pRestored) == 0 && pRestored != NULL) {
+              if (pRestored->txnId == pEntry->txnId && pRestored->txnStatus == META_TXN_PRE_CREATE) {
+                SVDropTbReq dropReq = {0};
+                dropReq.name = pRestored->name;
+                dropReq.uid = uid;
+                dropReq.suid = (pRestored->type == TSDB_CHILD_TABLE || pRestored->type == TSDB_VIRTUAL_CHILD_TABLE)
+                                   ? pRestored->ctbEntry.suid
+                                   : 0;
+                dropReq.txnId = 0;
+                int32_t dropCode = metaDropTable2(pVnode->pMeta, -1, &dropReq);
+                if (dropCode == 0) {
+                  vInfo("vgId:%d, rollback: chained delete PRE_CREATE uid %" PRId64, TD_VID(pVnode), uid);
+                } else {
+                  vError("vgId:%d, rollback: chained delete PRE_CREATE uid %" PRId64 " failed, code:0x%x",
+                         TD_VID(pVnode), uid, dropCode);
+                }
+              }
+              metaFetchEntryFree(&pRestored);
+            }
           } else {
             vError("vgId:%d, rollback: metaRollbackAlterTable failed for uid %" PRId64 ", code:0x%x", TD_VID(pVnode),
                    uid, code);

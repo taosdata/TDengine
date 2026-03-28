@@ -400,6 +400,7 @@ int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtC
       .charsetCxt = pTscObj->optionInfo.charsetCxt,
       .txnId = pTscObj->txnId,
       .pTxnVgList = pTscObj->pTxnVgList,
+      .pTxnTableMeta = pTscObj->pTxnTableMeta,
   };
 
   cxt.mgmtEpSet = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
@@ -1137,6 +1138,29 @@ int32_t handleQueryExecRsp(SRequestObj* pRequest) {
     case TDMT_VND_ALTER_TABLE:
     case TDMT_MND_ALTER_STB: {
       code = handleAlterTbExecRes(pRes->res, pCatalog);
+
+      // Batch meta txn: update table meta cache if ALTER was within a transaction
+      STscObj* pTscObj = pRequest->pTscObj;
+      if (pRes->res != NULL && pRes->msgType == TDMT_VND_ALTER_TABLE && pTscObj->txnId > 0 &&
+          pTscObj->pTxnTableMeta != NULL) {
+        STableMetaRsp* pMetaRsp = (STableMetaRsp*)pRes->res;
+        STableMeta*    pTableMeta = NULL;
+        bool           isStb = (pMetaRsp->tableType == TSDB_SUPER_TABLE);
+        if (queryCreateTableMetaFromMsg(pMetaRsp, isStb, &pTableMeta) == 0 && pTableMeta != NULL) {
+          char fullName[TSDB_TABLE_FNAME_LEN];
+          snprintf(fullName, sizeof(fullName), "%s.%s", pMetaRsp->dbFName, pMetaRsp->tbName);
+          taosThreadMutexLock(&pTscObj->mutex);
+          // Free old entry if present, then insert updated one
+          STableMeta** ppOld = (STableMeta**)taosHashGet(pTscObj->pTxnTableMeta, fullName, strlen(fullName));
+          if (ppOld && *ppOld) {
+            taosMemoryFree(*ppOld);
+          }
+          taosHashPut(pTscObj->pTxnTableMeta, fullName, strlen(fullName), &pTableMeta, sizeof(STableMeta*));
+          tscDebug("conn:0x%" PRIx64 ", txn:%" PRIu64 " updated table meta cache for %s (ALTER)", pTscObj->id,
+                   pTscObj->txnId, fullName);
+          taosThreadMutexUnlock(&pTscObj->mutex);
+        }
+      }
       break;
     }
     case TDMT_VND_CREATE_TABLE: {
@@ -1146,6 +1170,32 @@ int32_t handleQueryExecRsp(SRequestObj* pRequest) {
         void* res = taosArrayGetP(pList, i);
         // handleCreateTbExecRes will handle res == null
         code = handleCreateTbExecRes(res, pCatalog);
+
+        // Batch meta txn: cache table meta for same-txn visibility (DROP/ALTER within txn)
+        STscObj* pTscObj = pRequest->pTscObj;
+        if (res != NULL && pTscObj->txnId > 0) {
+          STableMetaRsp* pMetaRsp = (STableMetaRsp*)res;
+          STableMeta*    pTableMeta = NULL;
+          bool           isStb = (pMetaRsp->tableType == TSDB_SUPER_TABLE);
+          if (queryCreateTableMetaFromMsg(pMetaRsp, isStb, &pTableMeta) == 0 && pTableMeta != NULL) {
+            taosThreadMutexLock(&pTscObj->mutex);
+            if (pTscObj->pTxnTableMeta == NULL) {
+              pTscObj->pTxnTableMeta =
+                  taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+            }
+            if (pTscObj->pTxnTableMeta != NULL) {
+              // Key: "db.tablename" (dbFName already has "acctId.db" format)
+              char fullName[TSDB_TABLE_FNAME_LEN];
+              snprintf(fullName, sizeof(fullName), "%s.%s", pMetaRsp->dbFName, pMetaRsp->tbName);
+              taosHashPut(pTscObj->pTxnTableMeta, fullName, strlen(fullName), &pTableMeta, sizeof(STableMeta*));
+              tscDebug("conn:0x%" PRIx64 ", txn:%" PRIu64 " cached table meta for %s", pTscObj->id, pTscObj->txnId,
+                       fullName);
+            } else {
+              taosMemoryFree(pTableMeta);
+            }
+            taosThreadMutexUnlock(&pTscObj->mutex);
+          }
+        }
       }
       break;
     }

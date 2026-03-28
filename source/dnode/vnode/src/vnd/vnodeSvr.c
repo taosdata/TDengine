@@ -1957,7 +1957,9 @@ static int32_t vnodeProcessDropTbReq(SVnode *pVnode, int64_t ver, void *pReq, in
         }
       }
 
-      // metaDropTable2 handles txnId internally — marks PRE_DROP instead of deleting
+      // metaDropTable2 handles txnId internally:
+      //   - Same-txn undo (CREATE→DROP or CREATE→ALTER→DROP): physically delete + cleanup txn.idx
+      //   - Normal txn DROP: mark PRE_DROP + update txn.idx
       ret = metaDropTable2(pVnode->pMeta, ver, pDropTbReq);
       if (ret < 0) {
         dropTbRsp.code = terrno;
@@ -1965,8 +1967,8 @@ static int32_t vnodeProcessDropTbReq(SVnode *pVnode, int64_t ver, void *pReq, in
               pDropTbReq->txnId, terrno);
       } else {
         dropTbRsp.code = TSDB_CODE_SUCCESS;
+        // Track uid for COMMIT/ROLLBACK iteration (harmless if already tracked; dedup in vnodeTxnTrackUid)
         vnodeTxnTrackTable(pVnode, pDropTbReq->txnId, pDropTbReq->uid);
-        metaTxnIdxUpsert(pVnode->pMeta, pDropTbReq->uid, pDropTbReq->txnId, META_TXN_PRE_DROP, -1);
       }
       if (taosArrayPush(rsp.pArray, &dropTbRsp) == NULL) {
         terrno = TSDB_CODE_OUT_OF_MEMORY;

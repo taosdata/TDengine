@@ -155,6 +155,7 @@ typedef struct SParseContext {
   int64_t     allocatorId;
   utxn_id_t   txnId;
   SArray*     pTxnVgList;  // borrowed ref to STscObj->pTxnVgList (read-only during parse)
+  SHashObj*   pTxnTableMeta;  // borrowed ref to STscObj->pTxnTableMeta (same-txn table cache)
   parseSqlFn  parseSqlFp;
   void*       parseSqlParam;
   SArray*     pSubMetaList;

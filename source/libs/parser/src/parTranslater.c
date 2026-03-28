@@ -801,6 +801,20 @@ int32_t getTargetMetaImpl(SParseContext* pParCxt, SParseMetaCache* pMetaCache, c
     code = catalogGetTableMeta(pParCxt->pCatalog, &conn, pName, pMeta);
   }
 
+  // Batch meta txn: if table not found in catalog but exists in same-txn cache, use cached meta
+  if (TSDB_CODE_PAR_TABLE_NOT_EXIST == code && pParCxt->txnId > 0 && pParCxt->pTxnTableMeta) {
+    char fullName[TSDB_TABLE_FNAME_LEN];
+    if (tNameExtractFullName(pName, fullName) == 0) {
+      STableMeta** ppCached = (STableMeta**)taosHashGet(pParCxt->pTxnTableMeta, fullName, strlen(fullName));
+      if (ppCached && *ppCached) {
+        *pMeta = tableMetaDup(*ppCached);
+        if (*pMeta) {
+          code = TSDB_CODE_SUCCESS;
+        }
+      }
+    }
+  }
+
   if (TSDB_CODE_SUCCESS != code && TSDB_CODE_PAR_TABLE_NOT_EXIST != code) {
     parserError("QID:0x%" PRIx64 ", catalogGetTableMeta error, code:%s, dbName:%s, tbName:%s", pParCxt->requestId,
                 tstrerror(code), pName->dbname, pName->tname);
@@ -23775,6 +23789,18 @@ static int32_t buildDropTableVgroupHashmap(STranslateContext* pCxt, SDropTableCl
     req.txnId = pCxt->pParseCxt->txnId;
     req.name = pClause->tableName;
     code = addDropTbReqIntoVgroup(pVgroupHashmap, &info, &req);
+  }
+
+  // Batch meta txn: remove dropped table from txn cache so it's no longer visible
+  if (TSDB_CODE_SUCCESS == code && pCxt->pParseCxt->txnId > 0 && pCxt->pParseCxt->pTxnTableMeta) {
+    char fullName[TSDB_TABLE_FNAME_LEN];
+    if (tNameExtractFullName(name, fullName) == 0) {
+      STableMeta** ppCached = (STableMeta**)taosHashGet(pCxt->pParseCxt->pTxnTableMeta, fullName, strlen(fullName));
+      if (ppCached && *ppCached) {
+        taosMemoryFreeClear(*ppCached);
+        taosHashRemove(pCxt->pParseCxt->pTxnTableMeta, fullName, strlen(fullName));
+      }
+    }
   }
 
 over:

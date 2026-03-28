@@ -687,6 +687,9 @@ int32_t metaCloneEntry(const SMetaEntry *pEntry, SMetaEntry **ppEntry) {
   (*ppEntry)->version = pEntry->version;
   (*ppEntry)->type = pEntry->type;
   (*ppEntry)->uid = pEntry->uid;
+  (*ppEntry)->txnId = pEntry->txnId;
+  (*ppEntry)->txnStatus = pEntry->txnStatus;
+  (*ppEntry)->txnPrevVer = pEntry->txnPrevVer;
 
   if (pEntry->type < 0) {
     return TSDB_CODE_SUCCESS;

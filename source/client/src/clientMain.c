@@ -2181,7 +2181,8 @@ int32_t createParseContext(const SRequestObj *pRequest, SParseContext **pCxt, SS
                            .timezone = pTscObj->optionInfo.timezone,
                            .charsetCxt = pTscObj->optionInfo.charsetCxt,
                            .txnId = pTscObj->txnId,
-                           .pTxnVgList = pTscObj->pTxnVgList};
+                           .pTxnVgList = pTscObj->pTxnVgList,
+                           .pTxnTableMeta = pTscObj->pTxnTableMeta};
   int8_t biMode = atomic_load_8(&((STscObj *)pTscObj)->biMode);
   (*pCxt)->biMode = biMode;
   return TSDB_CODE_SUCCESS;

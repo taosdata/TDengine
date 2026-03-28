@@ -842,8 +842,9 @@ int32_t metaRollbackAlterTable(SMeta *pMeta, int64_t uid, int64_t prevVersion) {
     return code;
   }
 
-  // Clear txnId/txnStatus on the old entry
-  code = metaMarkTableTxnStatus(pMeta, uid, 0, META_TXN_NORMAL, -1);
+  // Do NOT clear txnId/txnStatus on the old entry — it retains its original state.
+  // For pre-existing tables: old entry already has txnId=0, txnStatus=NORMAL.
+  // For same-txn CREATE→ALTER: old entry retains PRE_CREATE, enabling chained rollback.
 
   metaInfo("vgId:%d, rollback alter: uid %" PRId64 " restored to version %" PRId64, TD_VID(pMeta->pVnode), uid,
            prevVersion);
@@ -870,15 +871,80 @@ int32_t metaDropTable2(SMeta *pMeta, int64_t version, SVDropTbReq *pReq) {
     TAOS_RETURN(code);
   }
 
-  // Batch meta txn: shadow-in-B+tree — mark entry as PRE_DROP instead of physically deleting.
-  // The entry remains visible (snapshot isolation) but INSERT on it fails.
-  // On COMMIT: physically delete. On ROLLBACK: clear back to NORMAL.
+  // Batch meta txn: handle DROP within transaction.
   if (pReq->txnId != 0) {
+    // Check if the table was created (or altered) within the same txn.
+    // PRE_CREATE: simple undo (physically delete the entry).
+    // PRE_ALTER from same txn: undo ALTER first, then check if restored entry is PRE_CREATE.
+    // This handles CREATE→DROP and CREATE→ALTER→DROP chains.
+    SMetaEntry *pExist = NULL;
+    int32_t     fetchCode = metaFetchEntryByUid(pMeta, pReq->uid, &pExist);
+    if (fetchCode == 0 && pExist != NULL && pExist->txnId == pReq->txnId) {
+      if (pExist->txnStatus == META_TXN_PRE_ALTER) {
+        // Same-txn ALTER→DROP: undo ALTER first to restore previous version
+        int64_t prevVer = pExist->txnPrevVer;
+        metaFetchEntryFree(&pExist);
+        if (prevVer >= 0) {
+          code = metaRollbackAlterTable(pMeta, pReq->uid, prevVer);
+          if (code != 0) {
+            metaError("vgId:%d, %s failed to undo ALTER for uid:%" PRId64 " name:%s txnId:%" PRId64,
+                      TD_VID(pMeta->pVnode), __func__, pReq->uid, pReq->name, pReq->txnId);
+            TAOS_RETURN(code);
+          }
+          // Re-fetch to check if restored entry is PRE_CREATE
+          fetchCode = metaFetchEntryByUid(pMeta, pReq->uid, &pExist);
+          if (fetchCode == 0 && pExist != NULL && pExist->txnId == pReq->txnId &&
+              pExist->txnStatus == META_TXN_PRE_CREATE) {
+            // Fall through to PRE_CREATE undo below
+          } else {
+            // Restored entry is pre-existing (NORMAL) — mark as PRE_DROP
+            metaFetchEntryFree(&pExist);
+            goto _mark_pre_drop;
+          }
+        } else {
+          // No prevVer, fall through to normal PRE_DROP
+          goto _mark_pre_drop;
+        }
+      }
+
+      if (pExist != NULL && pExist->txnStatus == META_TXN_PRE_CREATE) {
+        // Same-txn CREATE→DROP: undo the create by physically deleting the entry
+        metaFetchEntryFree(&pExist);
+        SMetaEntry delEntry = {
+            .version = version,
+            .uid = pReq->uid,
+        };
+        if (pReq->isVirtual) {
+          delEntry.type = (pReq->suid == 0) ? -TSDB_VIRTUAL_NORMAL_TABLE : -TSDB_VIRTUAL_CHILD_TABLE;
+        } else {
+          delEntry.type = (pReq->suid == 0) ? -TSDB_NORMAL_TABLE : -TSDB_CHILD_TABLE;
+        }
+        code = metaHandleEntry2(pMeta, &delEntry);
+        if (code == 0) {
+          // Also clean up txn.idx entry that was created during the original CREATE
+          metaTxnIdxDelete(pMeta, pReq->uid);
+          metaInfo("vgId:%d, table %s uid %" PRId64 " PRE_CREATE undone (same-txn DROP), txnId:%" PRId64,
+                   TD_VID(pMeta->pVnode), pReq->name, pReq->uid, pReq->txnId);
+        } else {
+          metaError("vgId:%d, %s failed to undo PRE_CREATE for uid:%" PRId64 " name:%s txnId:%" PRId64,
+                    TD_VID(pMeta->pVnode), __func__, pReq->uid, pReq->name, pReq->txnId);
+        }
+        TAOS_RETURN(code);
+      }
+      metaFetchEntryFree(&pExist);
+    } else {
+      metaFetchEntryFree(&pExist);
+    }
+
+  _mark_pre_drop:
+    // Normal txn DROP: mark as PRE_DROP (snapshot isolation — entry remains visible to other sessions)
     code = metaMarkTableTxnStatus(pMeta, pReq->uid, pReq->txnId, META_TXN_PRE_DROP, -1);
     if (code) {
       metaError("vgId:%d, %s failed to mark PRE_DROP for uid:%" PRId64 " name:%s txnId:%" PRId64, TD_VID(pMeta->pVnode),
                 __func__, pReq->uid, pReq->name, pReq->txnId);
     } else {
+      // Update txn.idx to reflect PRE_DROP status
+      metaTxnIdxUpsert(pMeta, pReq->uid, pReq->txnId, META_TXN_PRE_DROP, -1);
       metaInfo("vgId:%d, table %s uid %" PRId64 " marked PRE_DROP, txnId:%" PRId64, TD_VID(pMeta->pVnode), pReq->name,
                pReq->uid, pReq->txnId);
     }
