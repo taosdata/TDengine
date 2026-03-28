@@ -3514,10 +3514,7 @@ static int32_t extWinOpen(SOperatorInfo* pOperator) {
   }
 
   while (1) {
-    SSDataBlock* pBlock = getNextBlockFromDownstreamRemain(pOperator, 0);
-    if (pOperator->pDownstreamGetParams) {
-      pOperator->pDownstreamGetParams[0] = NULL;
-    }
+    SSDataBlock* pBlock = getNextBlockFromDownstreamRemainDetach(pOperator, 0);
     if (pBlock == NULL) {
       if (EEXT_MODE_AGG == pExtW->mode) {
         TAOS_CHECK_EXIT((pInfo && pInfo->isMultiGroupCalc) ? extWinAggHandleMultiTGrpEmptyWins(pOperator, pExtW)

@@ -9641,6 +9641,17 @@ static int32_t translateWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
   if (NULL == pSelect->pWindow) {
     return TSDB_CODE_SUCCESS;
   }
+  if (QUERY_NODE_EXTERNAL_WINDOW == nodeType(pSelect->pWindow)) {
+    if (pCxt->pParseCxt->stmtBindVersion > 0) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_WINDOW_PC,
+                                     "External window query can not be used in stmt query");
+    }
+    SExternalWindowNode* pExtWin = (SExternalWindowNode*)pSelect->pWindow;
+    if (NULL != pExtWin->pFill) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_FILL_NOT_ALLOWED_FUNC,
+                                     "Fill not allowed in external window query");
+    }
+  }
   if (pSelect->pFromTable->type == QUERY_NODE_REAL_TABLE &&
       ((SRealTableNode*)pSelect->pFromTable)->pMeta->tableType == TSDB_SYSTEM_TABLE) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYSTABLE_NOT_ALLOWED, "WINDOW");

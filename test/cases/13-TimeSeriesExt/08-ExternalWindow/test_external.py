@@ -1,5 +1,7 @@
 import os
 
+import taos
+from taos import new_bind_params
 from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, tdCom
 
 
@@ -69,11 +71,9 @@ class TestExternal:
         self.complex_semantics_regression()
         self.cross_mix_and_join_regression()
         self.large_block_and_time_condition_regression()
-
-        # to do: used group by in subquey
-        # to do: vitual table with external window
-        # to do: FILL 本期未实现，测试加上
-        # to do: test in stmt scenario
+        self.vtable_external_window_regression()
+        self.stmt_external_window_regression()
+        self.fill_external_window_negative()
 
     def mock_test_external_window_single_block(self):
         dbName = "external_window_test_single_block"
@@ -1257,6 +1257,75 @@ class TestExternal:
             fullMatched=False,
         )
 
+    def fill_external_window_negative(self):
+        """Test that FILL clause is rejected for external_window."""
+        tdLog.info("=============== external window: fill negative regression")
+        tdSql.execute(f"use {self.dbName}")
+
+        # FILL NONE — semantic error (grammar accepts fill_mode: none/null/null_f/linear)
+        tdSql.error(
+            "select cast(_wstart as bigint) as ws, count(*) as c "
+            "from ext_cx_src "
+            "external_window((select ts, endtime, mark from ext_cx_win) w "
+            "fill(none))",
+            expectedErrno=0x80002657,
+            expectErrInfo="Fill not allowed in external window query",
+            fullMatched=False,
+        )
+
+        # FILL NULL
+        tdSql.error(
+            "select cast(_wstart as bigint) as ws, count(*) as c "
+            "from ext_cx_src "
+            "external_window((select ts, endtime, mark from ext_cx_win) w "
+            "fill(null))",
+            expectedErrno=0x80002657,
+            expectErrInfo="Fill not allowed in external window query",
+            fullMatched=False,
+        )
+
+        # FILL LINEAR
+        tdSql.error(
+            "select cast(_wstart as bigint) as ws, count(*) as c "
+            "from ext_cx_src "
+            "external_window((select ts, endtime, mark from ext_cx_win) w "
+            "fill(linear))",
+            expectedErrno=0x80002657,
+            expectErrInfo="Fill not allowed in external window query",
+            fullMatched=False,
+        )
+
+        # FILL PREV — syntax error (prev/next/near not in external_window_fill_opt grammar)
+        tdSql.error(
+            "select cast(_wstart as bigint) as ws, count(*) as c "
+            "from ext_cx_src "
+            "external_window((select ts, endtime, mark from ext_cx_win) w "
+            "fill(prev))",
+            expectedErrno=0x80002600,
+        )
+
+        # FILL NEXT — syntax error
+        tdSql.error(
+            "select cast(_wstart as bigint) as ws, count(*) as c "
+            "from ext_cx_src "
+            "external_window((select ts, endtime, mark from ext_cx_win) w "
+            "fill(next))",
+            expectedErrno=0x80002600,
+        )
+
+        # FILL NULL with partition by — semantic error
+        tdSql.error(
+            "select t1, cast(_wstart as bigint) as ws, count(*) as c "
+            "from ext_cx_src partition by t1 "
+            "external_window((select ts, endtime, mark from ext_cx_win) w "
+            "fill(null))",
+            expectedErrno=0x80002657,
+            expectErrInfo="Fill not allowed in external window query",
+            fullMatched=False,
+        )
+
+        tdLog.info("=============== external window: fill negative regression done")
+
     def complex_agg_and_filter_no_sort(self):
         tdLog.info("=============== external window: complex agg and filter no sort")
         tdSql.execute(f"use {self.dbName}")
@@ -1581,3 +1650,511 @@ class TestExternal:
             f"({t0 + 780000}, 23, 203)"
             f"({t0 + 1020000}, 24, 204)"
         )
+
+    def prepare_for_vtable_external_window(self):
+        """Prepare origin tables and virtual tables for external_window + vtable tests."""
+        tdLog.info("=============== external window: vtable combination dataset")
+        tdSql.execute(f"use {self.dbName}")
+
+        t0 = 1700900000000
+
+        # ---- origin source: super table with two child tables ----
+        tdSql.execute("drop table if exists ext_vt_org_src")
+        tdSql.execute(
+            "create table ext_vt_org_src (ts timestamp, v int, v2 int) tags(t1 int)"
+        )
+        tdSql.execute("create table ext_vt_org_src_1 using ext_vt_org_src tags(1)")
+        tdSql.execute("create table ext_vt_org_src_2 using ext_vt_org_src tags(2)")
+
+        tdSql.execute(
+            f"insert into ext_vt_org_src_1 values"
+            f"({t0 + 60000}, 10, 100)"
+            f"({t0 + 120000}, 11, 101)"
+            f"({t0 + 360000}, 12, 102)"
+            f"({t0 + 660000}, 13, 103)"
+        )
+        tdSql.execute(
+            f"insert into ext_vt_org_src_2 values"
+            f"({t0 + 180000}, 20, 200)"
+            f"({t0 + 420000}, 21, 201)"
+            f"({t0 + 720000}, 22, 202)"
+        )
+
+        # ---- origin window definition (normal table) ----
+        tdSql.execute("drop table if exists ext_vt_org_win")
+        tdSql.execute(
+            "create table ext_vt_org_win (ts timestamp, endtime timestamp, mark int)"
+        )
+        tdSql.execute(
+            f"insert into ext_vt_org_win values"
+            f"({t0}, {t0 + 300000}, 101)"
+            f"({t0 + 300000}, {t0 + 600000}, 102)"
+            f"({t0 + 600000}, {t0 + 900000}, 103)"
+        )
+
+        # ---- virtual source: normal vtable referencing child_1 only ----
+        tdSql.execute("drop table if exists ext_vt_vsrc_ntb")
+        tdSql.execute(
+            "create vtable ext_vt_vsrc_ntb ("
+            "ts timestamp, "
+            "v int from ext_vt_org_src_1.v, "
+            "v2 int from ext_vt_org_src_1.v2)"
+        )
+
+        # ---- virtual source: virtual super table + child tables ----
+        tdSql.execute("drop table if exists ext_vt_vsrc_stb")
+        tdSql.execute(
+            "create stable ext_vt_vsrc_stb "
+            "(ts timestamp, v int, v2 int) tags(t1 int) virtual 1"
+        )
+        tdSql.execute(
+            "create vtable ext_vt_vsrc_stb_1 ("
+            "v from ext_vt_org_src_1.v, "
+            "v2 from ext_vt_org_src_1.v2) "
+            "using ext_vt_vsrc_stb tags(1)"
+        )
+        tdSql.execute(
+            "create vtable ext_vt_vsrc_stb_2 ("
+            "v from ext_vt_org_src_2.v, "
+            "v2 from ext_vt_org_src_2.v2) "
+            "using ext_vt_vsrc_stb tags(2)"
+        )
+
+        # ---- virtual window: normal vtable referencing ext_vt_org_win ----
+        tdSql.execute("drop table if exists ext_vt_vwin_ntb")
+        tdSql.execute(
+            "create vtable ext_vt_vwin_ntb ("
+            "ts timestamp, "
+            "endtime timestamp from ext_vt_org_win.endtime, "
+            "mark int from ext_vt_org_win.mark)"
+        )
+
+    def vtable_external_window_regression(self):
+        """Test external_window combined with virtual tables.
+
+        Three scenarios:
+        1. Subquery references a virtual table (window definition from vtable)
+        2. Outer query references a virtual table (source data from vtable)
+        3. Both subquery and outer query reference virtual tables
+        """
+        tdLog.info("=============== external window: vtable combination regression")
+        self.prepare_for_vtable_external_window()
+        tdSql.execute(f"use {self.dbName}")
+
+        t0 = 1700900000000
+
+        # ==================================================================
+        # Scenario 1: subquery is virtual table
+        #   Window definition comes from vtable, outer query uses origin table.
+        # ==================================================================
+
+        # 1a) Agg path: origin super table + vtable window subquery
+        tdSql.query(
+            "select cast(_wstart as bigint) as ws, cast(_wend as bigint) as we, "
+            "w.mark, count(*) as c, sum(v) as sv "
+            "from ext_vt_org_src "
+            "external_window((select ts, endtime, mark from ext_vt_vwin_ntb) w) "
+            "order by ws"
+        )
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, t0)
+        tdSql.checkData(0, 1, t0 + 300000)
+        tdSql.checkData(0, 2, 101)
+        tdSql.checkData(0, 3, 3)
+        tdSql.checkData(0, 4, 41)
+        tdSql.checkData(1, 0, t0 + 300000)
+        tdSql.checkData(1, 1, t0 + 600000)
+        tdSql.checkData(1, 2, 102)
+        tdSql.checkData(1, 3, 2)
+        tdSql.checkData(1, 4, 33)
+        tdSql.checkData(2, 0, t0 + 600000)
+        tdSql.checkData(2, 1, t0 + 900000)
+        tdSql.checkData(2, 2, 103)
+        tdSql.checkData(2, 3, 2)
+        tdSql.checkData(2, 4, 35)
+
+        # 1b) Projection path: origin super table + vtable window subquery
+        tdSql.query(
+            "select cast(_wstart as bigint) as ws, w.mark, cast(ts as bigint) as ts64, v "
+            "from ext_vt_org_src "
+            "external_window((select ts, endtime, mark from ext_vt_vwin_ntb) w) "
+            "order by ws, ts64"
+        )
+        tdSql.checkRows(7)
+        tdSql.checkData(0, 0, t0)
+        tdSql.checkData(0, 1, 101)
+        tdSql.checkData(0, 2, t0 + 60000)
+        tdSql.checkData(0, 3, 10)
+        tdSql.checkData(6, 0, t0 + 600000)
+        tdSql.checkData(6, 1, 103)
+        tdSql.checkData(6, 2, t0 + 720000)
+        tdSql.checkData(6, 3, 22)
+
+        # 1c) Partition by t1: origin super table + vtable window subquery
+        tdSql.query(
+            "select t1, cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv "
+            "from ext_vt_org_src partition by t1 "
+            "external_window((select ts, endtime, mark from ext_vt_vwin_ntb) w) "
+            "order by t1, ws"
+        )
+        tdSql.checkRows(6)
+        tdSql.checkData(0, 0, 1)
+        tdSql.checkData(0, 1, t0)
+        tdSql.checkData(0, 2, 2)
+        tdSql.checkData(0, 3, 21)
+        tdSql.checkData(3, 0, 2)
+        tdSql.checkData(3, 1, t0)
+        tdSql.checkData(3, 2, 1)
+        tdSql.checkData(3, 3, 20)
+
+        # ==================================================================
+        # Scenario 2: outer query is virtual table
+        #   Source data comes from vtable, window definition from origin table.
+        # ==================================================================
+
+        # 2a) Virtual normal table (references child_1 only) with origin window, agg
+        tdSql.query(
+            "select cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv "
+            "from ext_vt_vsrc_ntb "
+            "external_window((select ts, endtime, mark from ext_vt_org_win) w) "
+            "order by ws"
+        )
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, t0)
+        tdSql.checkData(0, 1, 2)
+        tdSql.checkData(0, 2, 21)
+        tdSql.checkData(1, 0, t0 + 300000)
+        tdSql.checkData(1, 1, 1)
+        tdSql.checkData(1, 2, 12)
+        tdSql.checkData(2, 0, t0 + 600000)
+        tdSql.checkData(2, 1, 1)
+        tdSql.checkData(2, 2, 13)
+
+        # 2b) Virtual super table with origin window, agg
+        tdSql.query(
+            "select cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv "
+            "from ext_vt_vsrc_stb "
+            "external_window((select ts, endtime, mark from ext_vt_org_win) w) "
+            "order by ws"
+        )
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, t0)
+        tdSql.checkData(0, 1, 3)
+        tdSql.checkData(0, 2, 41)
+        tdSql.checkData(1, 1, 2)
+        tdSql.checkData(1, 2, 33)
+        tdSql.checkData(2, 1, 2)
+        tdSql.checkData(2, 2, 35)
+
+        # 2c) Virtual super table with partition by t1
+        tdSql.query(
+            "select t1, cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv "
+            "from ext_vt_vsrc_stb partition by t1 "
+            "external_window((select ts, endtime, mark from ext_vt_org_win) w) "
+            "order by t1, ws"
+        )
+        tdSql.checkRows(6)
+        tdSql.checkData(0, 0, 1)
+        tdSql.checkData(0, 1, t0)
+        tdSql.checkData(0, 2, 2)
+        tdSql.checkData(0, 3, 21)
+        tdSql.checkData(3, 0, 2)
+        tdSql.checkData(3, 1, t0)
+        tdSql.checkData(3, 2, 1)
+        tdSql.checkData(3, 3, 20)
+
+        # 2d) Virtual super table, projection path
+        tdSql.query(
+            "select cast(_wstart as bigint) as ws, cast(ts as bigint) as ts64, v "
+            "from ext_vt_vsrc_stb "
+            "external_window((select ts, endtime, mark from ext_vt_org_win) w) "
+            "order by ws, ts64"
+        )
+        tdSql.checkRows(7)
+        tdSql.checkData(0, 0, t0)
+        tdSql.checkData(0, 1, t0 + 60000)
+        tdSql.checkData(0, 2, 10)
+        tdSql.checkData(6, 0, t0 + 600000)
+        tdSql.checkData(6, 1, t0 + 720000)
+        tdSql.checkData(6, 2, 22)
+
+        # 2e) Virtual super table with partition by tbname
+        tdSql.query(
+            "select tbname, cast(_wstart as bigint) as ws, count(*) as c "
+            "from ext_vt_vsrc_stb partition by tbname "
+            "external_window((select ts, endtime, mark from ext_vt_org_win) w) "
+            "order by tbname, ws"
+        )
+        tdSql.checkRows(6)
+        tdSql.checkData(0, 0, "ext_vt_vsrc_stb_1")
+        tdSql.checkData(0, 1, t0)
+        tdSql.checkData(0, 2, 2)
+        tdSql.checkData(3, 0, "ext_vt_vsrc_stb_2")
+        tdSql.checkData(3, 1, t0)
+        tdSql.checkData(3, 2, 1)
+
+        # 2f) Virtual child table directly with origin window, agg
+        tdSql.query(
+            "select cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv "
+            "from ext_vt_vsrc_stb_1 "
+            "external_window((select ts, endtime, mark from ext_vt_org_win) w) "
+            "order by ws"
+        )
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, t0)
+        tdSql.checkData(0, 1, 2)
+        tdSql.checkData(0, 2, 21)
+        tdSql.checkData(1, 1, 1)
+        tdSql.checkData(1, 2, 12)
+        tdSql.checkData(2, 1, 1)
+        tdSql.checkData(2, 2, 13)
+
+        # ==================================================================
+        # Scenario 3: both subquery and outer query are virtual tables
+        # ==================================================================
+
+        # 3a) Virtual normal src + virtual window, agg
+        tdSql.query(
+            "select cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv "
+            "from ext_vt_vsrc_ntb "
+            "external_window((select ts, endtime, mark from ext_vt_vwin_ntb) w) "
+            "order by ws"
+        )
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, t0)
+        tdSql.checkData(0, 1, 2)
+        tdSql.checkData(0, 2, 21)
+        tdSql.checkData(1, 1, 1)
+        tdSql.checkData(1, 2, 12)
+        tdSql.checkData(2, 1, 1)
+        tdSql.checkData(2, 2, 13)
+
+        # 3b) Virtual super src + virtual window, agg with w.mark
+        tdSql.query(
+            "select cast(_wstart as bigint) as ws, w.mark, count(*) as c, sum(v) as sv "
+            "from ext_vt_vsrc_stb "
+            "external_window((select ts, endtime, mark from ext_vt_vwin_ntb) w) "
+            "order by ws"
+        )
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, t0)
+        tdSql.checkData(0, 1, 101)
+        tdSql.checkData(0, 2, 3)
+        tdSql.checkData(0, 3, 41)
+        tdSql.checkData(1, 2, 2)
+        tdSql.checkData(1, 3, 33)
+        tdSql.checkData(2, 2, 2)
+        tdSql.checkData(2, 3, 35)
+
+        # 3c) Virtual super src + virtual window, partition by t1
+        tdSql.query(
+            "select t1, cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv "
+            "from ext_vt_vsrc_stb partition by t1 "
+            "external_window((select ts, endtime, mark from ext_vt_vwin_ntb) w) "
+            "order by t1, ws"
+        )
+        tdSql.checkRows(6)
+        tdSql.checkData(0, 0, 1)
+        tdSql.checkData(0, 1, t0)
+        tdSql.checkData(0, 2, 2)
+        tdSql.checkData(0, 3, 21)
+        tdSql.checkData(3, 0, 2)
+        tdSql.checkData(3, 1, t0)
+        tdSql.checkData(3, 2, 1)
+        tdSql.checkData(3, 3, 20)
+
+        # 3d) Virtual super src + virtual window, projection path
+        tdSql.query(
+            "select cast(_wstart as bigint) as ws, w.mark, cast(ts as bigint) as ts64, v "
+            "from ext_vt_vsrc_stb "
+            "external_window((select ts, endtime, mark from ext_vt_vwin_ntb) w) "
+            "order by ws, ts64"
+        )
+        tdSql.checkRows(7)
+        tdSql.checkData(0, 0, t0)
+        tdSql.checkData(0, 1, 101)
+        tdSql.checkData(0, 2, t0 + 60000)
+        tdSql.checkData(0, 3, 10)
+        tdSql.checkData(6, 0, t0 + 600000)
+        tdSql.checkData(6, 1, 103)
+        tdSql.checkData(6, 2, t0 + 720000)
+        tdSql.checkData(6, 3, 22)
+
+        # 3e) Virtual super src + virtual window, partition by tbname with projection
+        tdSql.query(
+            "select tbname, cast(_wstart as bigint) as ws, cast(ts as bigint) as ts64, v "
+            "from ext_vt_vsrc_stb partition by tbname "
+            "external_window((select ts, endtime, mark from ext_vt_vwin_ntb) w) "
+            "order by tbname, ws, ts64"
+        )
+        tdSql.checkRows(7)
+        tdSql.checkData(0, 0, "ext_vt_vsrc_stb_1")
+        tdSql.checkData(0, 1, t0)
+        tdSql.checkData(0, 2, t0 + 60000)
+        tdSql.checkData(0, 3, 10)
+        tdSql.checkData(4, 0, "ext_vt_vsrc_stb_2")
+        tdSql.checkData(4, 1, t0)
+        tdSql.checkData(4, 2, t0 + 180000)
+        tdSql.checkData(4, 3, 20)
+
+        # 3f) Subquery filter on virtual window
+        tdSql.query(
+            "select cast(_wstart as bigint) as ws, count(*) as c "
+            "from ext_vt_vsrc_stb "
+            "external_window((select ts, endtime, mark from ext_vt_vwin_ntb where mark >= 102) w) "
+            "order by ws"
+        )
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, t0 + 300000)
+        tdSql.checkData(0, 1, 2)
+        tdSql.checkData(1, 0, t0 + 600000)
+        tdSql.checkData(1, 1, 2)
+
+        # 3g) Source-side time filter + both virtual tables
+        tdSql.query(
+            f"select cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv "
+            f"from ext_vt_vsrc_stb "
+            f"where ts >= {t0 + 300000} "
+            f"external_window((select ts, endtime, mark from ext_vt_vwin_ntb) w) "
+            f"order by ws"
+        )
+        # ts >= t0+300000 filters source: src_1 keeps t0+360k(12),t0+660k(13); src_2 keeps t0+420k(21),t0+720k(22)
+        # Window [t0, t0+300000] has no qualifying rows -> not output
+        # Window [t0+300000, t0+600000]: count=2, sum=33
+        # Window [t0+600000, t0+900000]: count=2, sum=35
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, t0 + 300000)
+        tdSql.checkData(0, 1, 2)
+        tdSql.checkData(0, 2, 33)
+        tdSql.checkData(1, 0, t0 + 600000)
+        tdSql.checkData(1, 1, 2)
+        tdSql.checkData(1, 2, 35)
+
+        # 3h) Cross-verify: origin tables and virtual tables produce same results
+        tdSql.query(
+            "select cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv "
+            "from ext_vt_org_src "
+            "external_window((select ts, endtime, mark from ext_vt_org_win) w) "
+            "order by ws"
+        )
+        origin_rows = tdSql.queryRows
+        origin_data = [tdSql.queryResult[i] for i in range(origin_rows)]
+
+        tdSql.query(
+            "select cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv "
+            "from ext_vt_vsrc_stb "
+            "external_window((select ts, endtime, mark from ext_vt_vwin_ntb) w) "
+            "order by ws"
+        )
+        tdSql.checkRows(origin_rows)
+        for i in range(origin_rows):
+            tdSql.checkData(i, 0, origin_data[i][0])
+            tdSql.checkData(i, 1, origin_data[i][1])
+            tdSql.checkData(i, 2, origin_data[i][2])
+
+    def _stmt_conn(self):
+        """Create a taos connection for STMT tests."""
+        buildPath = tdCom.getBuildPath()
+        config = buildPath + "../sim/dnode1/cfg/"
+        return taos.connect(host="localhost", config=config)
+
+    def _assert_stmt_external_window_error(self, conn, sql, params, case_label):
+        """Assert that a STMT query with external_window raises an error."""
+        stmt = conn.statement(sql)
+        try:
+            stmt.bind_param(params)
+            stmt.execute()
+            raise AssertionError(f"{case_label}: expected error but succeeded")
+        except Exception as err:
+            err_msg = str(err)
+            tdLog.info(f"{case_label}: got expected error: {err_msg}")
+            if "External window query can not be used in stmt query" not in err_msg:
+                raise AssertionError(
+                    f"{case_label}: unexpected error message: {err_msg}"
+                )
+
+    def stmt_external_window_regression(self):
+        """Test that external_window is forbidden in STMT (parameterised) queries."""
+        tdLog.info("=============== external window: stmt negative regression")
+        tdSql.execute(f"use {self.dbName}")
+
+        conn = self._stmt_conn()
+        conn.select_db(self.dbName)
+
+        t0 = 1700400000000  # same base as ext_cx_* tables
+
+        # ---- 1. STMT with bind param in outer WHERE ----
+        sql = (
+            "select cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv "
+            "from ext_cx_src "
+            "where ts >= ? "
+            "external_window((select ts, endtime, mark from ext_cx_win) w) "
+            "order by ws"
+        )
+        params = new_bind_params(1)
+        params[0].timestamp(t0 + 300000)
+        self._assert_stmt_external_window_error(conn, sql, params, "stmt case 1")
+
+        # ---- 2. STMT with bind param in subquery WHERE ----
+        sql = (
+            "select cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv "
+            "from ext_cx_src "
+            "external_window((select ts, endtime, mark from ext_cx_win where mark >= ?) w) "
+            "order by ws"
+        )
+        params = new_bind_params(1)
+        params[0].int(103)
+        self._assert_stmt_external_window_error(conn, sql, params, "stmt case 2")
+
+        # ---- 3. STMT with bind params in both outer and subquery ----
+        sql = (
+            "select cast(_wstart as bigint) as ws, count(*) as c "
+            "from ext_cx_src "
+            "where ts >= ? "
+            "external_window((select ts, endtime, mark from ext_cx_win where mark <= ?) w) "
+            "order by ws"
+        )
+        params = new_bind_params(2)
+        params[0].timestamp(t0 + 300000)
+        params[1].int(103)
+        self._assert_stmt_external_window_error(conn, sql, params, "stmt case 3")
+
+        # ---- 4. STMT aggregate with partition by ----
+        sql = (
+            "select t1, cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv "
+            "from ext_cx_src partition by t1 "
+            "external_window((select ts, endtime, mark from ext_cx_win where mark >= ?) w) "
+            "order by t1, ws"
+        )
+        params = new_bind_params(1)
+        params[0].int(101)
+        self._assert_stmt_external_window_error(conn, sql, params, "stmt case 4")
+
+        # ---- 5. STMT projection path ----
+        sql = (
+            "select cast(_wstart as bigint) as ws, w.mark, cast(ts as bigint) as ts64, v "
+            "from ext_cx_src "
+            "external_window((select ts, endtime, mark from ext_cx_win where mark <= ?) w) "
+            "order by ws, ts64"
+        )
+        params = new_bind_params(1)
+        params[0].int(102)
+        self._assert_stmt_external_window_error(conn, sql, params, "stmt case 5")
+
+        # ---- 6. STMT with no bind params (pure external_window, still via stmt path) ----
+        sql = (
+            "select cast(_wstart as bigint) as ws, count(*) as c "
+            "from ext_cx_src "
+            "external_window((select ts, endtime, mark from ext_cx_win) w) "
+            "order by ws"
+        )
+        stmt = conn.statement(sql)
+        try:
+            stmt.execute()
+            raise AssertionError("stmt case 6: expected error but succeeded")
+        except Exception as err:
+            err_msg = str(err)
+            tdLog.info(f"stmt case 6: got expected error: {err_msg}")
+
+        conn.close()
+        tdLog.info("=============== external window: stmt negative regression done")
