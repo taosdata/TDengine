@@ -35,7 +35,7 @@ However, when the system is running normally, be sure to set the debugFlag to 13
 
 ## 1. Installation & Deployment {#installation-and-deployment}
 
-### 1.1 How to solve the MSVCP1400.DLL error when running TDengine on Windows?
+### 1.1 How to solve the MSVCP140.DLL error when running TDengine on Windows?
 
 1. Reinstall Microsoft Visual C++ Redistributable: As msvcp140.dll is part of Microsoft Visual C++ Redistributable, reinstalling this package usually resolves most issues. You can download the corresponding version from the official Microsoft website for installation
 2. Manually download and replace the msvcp140.dll file online: You can download the msvcp140.dll file from a reliable source and copy it to the corresponding directory in the system. Ensure that the downloaded files match your system architecture (32-bit or 64-bit) and ensure the security of the source
