@@ -161,14 +161,14 @@ LONG WINAPI FlCrashDump(PEXCEPTION_POINTERS ep) {
   SYSTEMTIME st;
   GetLocalTime(&st);
 
-  wchar_t exePath[MAX_PATH];
+  TdWchar exePath[MAX_PATH];
   DWORD   exeLen = GetModuleFileNameW(NULL, exePath, MAX_PATH);
   /* strip the executable filename, keep the trailing backslash */
   while (exeLen > 0 && exePath[exeLen - 1] != L'\\') exeLen--;
   exePath[exeLen] = L'\0';  /* exePath is now the directory with trailing '\' */
 
-  wchar_t dmpPath[MAX_PATH];
-  wchar_t logPath[MAX_PATH];
+  TdWchar dmpPath[MAX_PATH];
+  TdWchar logPath[MAX_PATH];
   _snwprintf_s(dmpPath, MAX_PATH, _TRUNCATE,
                L"%staosd_%04d%02d%02d_%02d%02d%02d.dmp",
                exePath, st.wYear, st.wMonth, st.wDay,
