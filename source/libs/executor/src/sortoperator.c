@@ -51,9 +51,7 @@ static int32_t doGroupSort(SOperatorInfo* pOperator, SSDataBlock** pResBlock);
 static void destroySortOperatorInfo(void* param);
 static void calcSortOperMaxTupleLength(SSortOperatorInfo* pSortOperInfo, SNodeList* pSortKeys);
 
-// Check whether the given slotId is the output of a Sort scalar pre-calculation expression.
-// The planner's rewritePrecalcExprs pushes expression results (e.g. ts+1000) into extra slots
-// in the child's output descriptor. This helper identifies such slots.
+// True if slotId is produced by Sort's scalar pre-calculation expression.
 static bool sortIsExprResultSlot(const SOperatorInfo* pOperator, int32_t slotId) {
   if (pOperator == NULL || pOperator->exprSupp.pExprInfo == NULL || slotId < 0) {
     return false;
@@ -66,20 +64,24 @@ static bool sortIsExprResultSlot(const SOperatorInfo* pOperator, int32_t slotId)
   return false;
 }
 
-// Find the slot index of the original (non-expression) primary timestamp column in the
-// Sort's internal data block.  The internal block may contain both the original ts column
-// and an expression-derived ts column (e.g. ts+1000).  We return the first TIMESTAMP
-// column whose slot is NOT an expression result.
-static int32_t sortFindOrigTsSlot(const SOperatorInfo* pOperator, const SSDataBlock* pBlock) {
+// Find original primary timestamp slot in Sort's internal block.
+// Match by PRIMARYKEY_TIMESTAMP_COL_ID and skip expression-result slots.
+static int32_t sortFindPrimaryTsSlot(const SOperatorInfo* pOperator, const SSDataBlock* pBlock) {
   if (pBlock == NULL || pBlock->pDataBlock == NULL) {
     return -1;
   }
   int32_t colCount = (int32_t)taosArrayGetSize(pBlock->pDataBlock);
   for (int32_t idx = 0; idx < colCount; ++idx) {
     SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, idx);
-    if (pCol != NULL && pCol->info.type == TSDB_DATA_TYPE_TIMESTAMP &&
-        !sortIsExprResultSlot(pOperator, idx)) {
-      return idx;
+    if (pCol == NULL) {
+      continue;
+    }
+
+    int32_t slotId = pCol->info.slotId;
+    if (pCol->info.colId == PRIMARYKEY_TIMESTAMP_COL_ID &&
+        pCol->info.type == TSDB_DATA_TYPE_TIMESTAMP &&
+        !sortIsExprResultSlot(pOperator, slotId)) {
+      return slotId;
     }
   }
   return -1;
@@ -367,26 +369,23 @@ static int32_t getSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock,
       QUERY_CHECK_NULL(pmInfo, code, lino, _error, terrno);
 
       int32_t srcSlotId = pmInfo->srcSlotId;
+      SColumnInfoData* pSrc = getDataBlockColBySlotId(p, srcSlotId, NULL);
+      QUERY_CHECK_NULL(pSrc, code, lino, _error, terrno);
+      int32_t resolvedSrcSlotId = pSrc->info.slotId;
 
-      // Fix: when the planner's setListSlotId resolves Sort pTargets by name, it may
-      // mistakenly bind the primary timestamp column to the scalar expression result slot
-      // (e.g. slot for ts+1000) instead of the original ts slot, because pushdownDataBlockSlots
-      // added the expression slot with the same column name.  This causes the downstream
-      // Project operator to apply the expression again (ts+1000 becomes ts+2000).
-      // Detect this case and fall back to the original timestamp slot.
+        // If primary ts was bound to expression slot (e.g. ts+1000),
+        // fall back to the original primary ts slot.
       if (pmInfo->colId == PRIMARYKEY_TIMESTAMP_COL_ID &&
           pmInfo->dataType.type == TSDB_DATA_TYPE_TIMESTAMP &&
-          sortIsExprResultSlot(pOperator, srcSlotId)) {
-        int32_t origSlot = sortFindOrigTsSlot(pOperator, p);
-        if (origSlot >= 0 && origSlot != srcSlotId) {
-          srcSlotId = origSlot;
+          sortIsExprResultSlot(pOperator, resolvedSrcSlotId)) {
+        int32_t origSlot = sortFindPrimaryTsSlot(pOperator, p);
+        if (origSlot >= 0 && origSlot != resolvedSrcSlotId) {
+          pSrc = getDataBlockColBySlotId(p, origSlot, NULL);
+          QUERY_CHECK_NULL(pSrc, code, lino, _error, terrno);
         }
       }
 
-      SColumnInfoData* pSrc = taosArrayGet(p->pDataBlock, srcSlotId);
-      QUERY_CHECK_NULL(pSrc, code, lino, _error, terrno);
-
-      SColumnInfoData* pDst = taosArrayGet(pDataBlock->pDataBlock, pmInfo->dstSlotId);
+      SColumnInfoData* pDst = getDataBlockColBySlotId(pDataBlock, pmInfo->dstSlotId, NULL);
       QUERY_CHECK_NULL(pDst, code, lino, _error, terrno);
 
       code = colDataAssign(pDst, pSrc, p->info.rows, &pDataBlock->info);
@@ -665,12 +664,12 @@ int32_t getGroupSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock, i
         return terrno;
       }
 
-      SColumnInfoData* pSrc = taosArrayGet(p->pDataBlock, pmInfo->srcSlotId);
+      SColumnInfoData* pSrc = getDataBlockColBySlotId(p, pmInfo->srcSlotId, NULL);
       if (pSrc == NULL) {
         return terrno;
       }
 
-      SColumnInfoData* pDst = taosArrayGet(pDataBlock->pDataBlock, pmInfo->dstSlotId);
+      SColumnInfoData* pDst = getDataBlockColBySlotId(pDataBlock, pmInfo->dstSlotId, NULL);
       if (pDst == NULL) {
         return terrno;
       }
