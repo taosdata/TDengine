@@ -128,7 +128,7 @@ mvn dependency:copy-dependencies -DoutputDirectory=./lib -DincludeScope=compile
 
 ### 2.3 为什么 RESTful 接口无响应、Grafana 无法添加 TDengine TSDB 为数据源、TDengine TSDB GUI 选了 6041 端口还是无法连接成功？
 
-这个现象可能是因为 taosAdapter 没有被正确启动引起的，需要执行：```systemctl start taosadapter``` 命令来启动 taosAdapter 服务。
+这个现象可能是因为 taosAdapter 没有被正确启动引起的，需要执行：`systemctl start taosadapter` 命令来启动 taosAdapter 服务。
 
 需要说明的是，taosAdapter 的日志路径 path 需要单独配置，默认路径是 /var/log/taos；日志等级 logLevel 有 8 个等级，默认等级是 info，配置成 panic 可关闭日志输出。请注意操作系统 `/` 目录的空间大小，可通过命令行参数、环境变量或配置文件来修改配置，默认配置文件是 /etc/taos/taosadapter.toml。
 
