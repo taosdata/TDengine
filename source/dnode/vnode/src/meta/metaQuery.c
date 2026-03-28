@@ -481,8 +481,11 @@ int32_t metaTbCursorNext(SMTbCursor *pTbCur, ETableType jumpTableType) {
     }
 
     // batch meta txn: skip PRE_CREATE entries (shadow-created, not yet committed)
+    // but allow same-txn visibility: if cursor's txnId matches the entry's, don't skip
     if (pTbCur->mr.me.txnStatus == META_TXN_PRE_CREATE) {
-      continue;
+      if (pTbCur->txnId == 0 || pTbCur->txnId != pTbCur->mr.me.txnId) {
+        continue;
+      }
     }
 
     break;
@@ -514,8 +517,11 @@ int32_t metaTbCursorPrev(SMTbCursor *pTbCur, ETableType jumpTableType) {
     }
 
     // batch meta txn: skip PRE_CREATE entries (shadow-created, not yet committed)
+    // but allow same-txn visibility: if cursor's txnId matches the entry's, don't skip
     if (pTbCur->mr.me.txnStatus == META_TXN_PRE_CREATE) {
-      continue;
+      if (pTbCur->txnId == 0 || pTbCur->txnId != pTbCur->mr.me.txnId) {
+        continue;
+      }
     }
 
     break;
@@ -795,13 +801,18 @@ tb_uid_t metaCtbCursorNext(SMCtbCursor *pCtbCur) {
     }
 
     // batch meta txn: skip PRE_CREATE entries via txn.idx lookup
+    // but allow same-txn visibility: if cursor's txnId matches the entry's, don't skip
     void   *pTxnVal = NULL;
     int32_t txnValLen = 0;
     if (tdbTbGet(pCtbCur->pMeta->pTxnIdx, &pCtbIdxKey->uid, sizeof(pCtbIdxKey->uid), &pTxnVal, &txnValLen) == 0) {
-      int8_t st = ((STxnIdxVal *)pTxnVal)->txnStatus;
+      STxnIdxVal *pIdx = (STxnIdxVal *)pTxnVal;
+      int8_t      st = pIdx->txnStatus;
+      int64_t     entryTxnId = pIdx->txnId;
       tdbFree(pTxnVal);
       if (st == META_TXN_PRE_CREATE) {
-        continue;
+        if (pCtbCur->txnId == 0 || pCtbCur->txnId != entryTxnId) {
+          continue;
+        }
       }
     }
 

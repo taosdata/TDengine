@@ -331,6 +331,7 @@ typedef struct SSchJob {
   void                *pWorkerCb;
   int32_t              execPhase;      // Add phase tracking for query execution
   int64_t              phaseStartTime; // When current phase started (ms)
+  int64_t              txnId;          // batch meta txn ID for same-txn visibility
 } SSchJob;
 
 typedef struct SSchTaskCtx {

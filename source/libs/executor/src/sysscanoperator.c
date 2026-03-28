@@ -815,6 +815,7 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
 
   if (pInfo->pCur == NULL) {
     pInfo->pCur = pAPI->metaFn.openTableMetaCursor(pInfo->readHandle.vnode);
+    if (pInfo->pCur) pInfo->pCur->txnId = pInfo->readHandle.txnId;
   } else {
     code = pAPI->metaFn.resumeTableMetaCursor(pInfo->pCur, 0, 0);
     if (code != 0) {
@@ -1082,6 +1083,7 @@ static SSDataBlock* sysTableScanUserVcCols(SOperatorInfo* pOperator) {
 
   if (pInfo->pCur == NULL) {
     pInfo->pCur = pAPI->metaFn.openTableMetaCursor(pInfo->readHandle.vnode);
+    if (pInfo->pCur) pInfo->pCur->txnId = pInfo->readHandle.txnId;
   } else {
     code = pAPI->metaFn.resumeTableMetaCursor(pInfo->pCur, 0, 0);
     if (code != 0) {
@@ -1286,6 +1288,7 @@ static SSDataBlock* sysTableScanVirtualTableRef(SOperatorInfo* pOperator) {
 
   if (pInfo->pCur == NULL) {
     pInfo->pCur = pAPI->metaFn.openTableMetaCursor(pInfo->readHandle.vnode);
+    if (pInfo->pCur) pInfo->pCur->txnId = pInfo->readHandle.txnId;
   } else {
     code = pAPI->metaFn.resumeTableMetaCursor(pInfo->pCur, 0, 0);
     if (code != 0) {
@@ -1528,6 +1531,7 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
   int32_t ret = 0;
   if (pInfo->pCur == NULL) {
     pInfo->pCur = pAPI->metaFn.openTableMetaCursor(pInfo->readHandle.vnode);
+    if (pInfo->pCur) pInfo->pCur->txnId = pInfo->readHandle.txnId;
     QUERY_CHECK_NULL(pInfo->pCur, code, lino, _end, terrno);
   } else {
     code = pAPI->metaFn.resumeTableMetaCursor(pInfo->pCur, 0, 0);
@@ -3737,6 +3741,7 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
   if (pInfo->pCur == NULL) {
     pInfo->pCur = pAPI->metaFn.openTableMetaCursor(pInfo->readHandle.vnode);
     QUERY_CHECK_NULL(pInfo->pCur, code, lino, _end, terrno);
+    pInfo->pCur->txnId = pInfo->readHandle.txnId;
     firstMetaCursor = 1;
   }
   if (!firstMetaCursor) {
@@ -4166,6 +4171,7 @@ static SSDataBlock* sysTableBuildVgUsage(SOperatorInfo* pOperator) {
       code = terrno;
       QUERY_CHECK_CODE(code, lino, _end);
     }
+    if (pInfo->pCur) pInfo->pCur->txnId = pInfo->readHandle.txnId;
   }
 
   SSDataBlock* pBlock = pInfo->pRes;
@@ -5876,6 +5882,7 @@ static int32_t vnodeEstimateRawDataSize(SOperatorInfo* pOperator, SDbSizeStatisI
     if (pInfo->pCur == NULL) {
       TAOS_CHECK_GOTO(terrno, &line, _exit);
     }
+    pInfo->pCur->txnId = pInfo->readHandle.txnId;
   }
 
   SArray* pIdList = taosArrayInit(16, sizeof(STableId));

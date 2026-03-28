@@ -1290,6 +1290,8 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
         qMsg.compress = 1;
       }
 
+      qMsg.txnId = pJob->txnId;
+
       SCH_ERR_JRET(schBuildSubJobEndpoints(pTask, &qMsg.subEndPoints, pJob));
 
       msgSize = tSerializeSSubQueryMsg(NULL, 0, &qMsg);

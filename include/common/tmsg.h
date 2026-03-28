@@ -4366,6 +4366,7 @@ typedef struct SSubQueryMsg {
   uint32_t msgLen;
   char*    msg;
   SArray*  subEndPoints;  // subJobs's endpoints, element is SDownstreamSourceNode*
+  int64_t  txnId;         // batch meta txn ID (0 = not in txn)
 } SSubQueryMsg;
 
 int32_t tSerializeSSubQueryMsg(void* buf, int32_t bufLen, SSubQueryMsg* pReq);

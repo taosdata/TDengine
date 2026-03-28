@@ -13358,6 +13358,9 @@ int32_t tSerializeSSubQueryMsg(void *buf, int32_t bufLen, SSubQueryMsg *pReq) {
     TAOS_CHECK_EXIT(tSerializeSDownstreamSourceNode(&encoder, pSource));
   }
 
+  // batch meta txn: txnId for same-txn visibility
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->txnId));
+
   tEndEncode(&encoder);
 
 _exit:
@@ -13450,6 +13453,14 @@ int32_t tDeserializeSSubQueryMsg(void *buf, int32_t bufLen, SSubQueryMsg *pReq) 
       TAOS_CHECK_EXIT(tDeserializeSDownstreamSourceNode(&decoder, *ppSource));
     }
   }
+
+  // batch meta txn: txnId for same-txn visibility
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->txnId));
+  } else {
+    pReq->txnId = 0;
+  }
+
   tEndDecode(&decoder);
 
 _exit:

@@ -113,6 +113,7 @@ typedef struct SMTbCursor {
   int32_t     vLen;
   SMetaReader mr;
   int8_t      paused;
+  int64_t     txnId;  // batch meta txn: same-txn visibility bypass
 } SMTbCursor;
 
 typedef struct SMCtbCursor {
@@ -125,6 +126,7 @@ typedef struct SMCtbCursor {
   int           vLen;
   int8_t        paused;
   int           lock;
+  int64_t       txnId;  // batch meta txn: same-txn visibility bypass
 } SMCtbCursor;
 
 typedef struct SRowBuffPos {

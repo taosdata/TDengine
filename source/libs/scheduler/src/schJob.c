@@ -1085,6 +1085,7 @@ int32_t schInitJob(int64_t *pJobId, SSchedulerReq *pReq) {
   pJob->source       = pReq->source;
   pJob->secureDelete = pReq->secureDelete;
   pJob->pWorkerCb    = pReq->pWorkerCb;
+  pJob->txnId = pReq->txnId;
   pJob->subJobId = -1;
   pJob->queryId = pReq->pDag->queryId;
   (void)atomic_add_fetch_64(&pJob->seriesId, 1);

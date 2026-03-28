@@ -666,6 +666,11 @@ int32_t qWorkerProcessQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int
   qwMsg.msgInfo.needFetch = msg.needFetch;
   qwMsg.msgInfo.compressMsg = msg.compress;
 
+  // batch meta txn: propagate txnId to SReadHandle for same-txn visibility
+  if (node && msg.txnId > 0) {
+    ((SReadHandle *)node)->txnId = msg.txnId;
+  }
+
   QW_SCH_TASK_DLOG("processQuery start, node:%p, type:%s, compress:%d, handle:%p, SQL:%s, code:0x%x, subEndPointsNum:%d", 
     node, TMSG_INFO(pMsg->msgType), msg.compress, pMsg->info.handle, msg.sql, qwMsg.code, (int32_t)taosArrayGetSize(*qwMsg.subEndPoints));
 
