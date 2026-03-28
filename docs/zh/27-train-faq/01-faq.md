@@ -86,7 +86,7 @@ mvn dependency:copy-dependencies -DoutputDirectory=./lib -DincludeScope=compile
 
 - 云服务器：检查云服务器的安全组是否打开 TCP/UDP 端口 6030/6041 的访问权限
 - 本地虚拟机：检查网络能否 ping 通，尽量避免使用 `localhost` 作为 hostname
-- 公司服务器：如果为 NAT 网络环境，请务必检查服务器能否将消息返回值客户端
+- 公司服务器：如果为 NAT 网络环境，请务必检查服务器能否将消息返回给客户端
 
 2. 确保客户端与服务端版本号是完全一致的，开源社区版和企业版也不能混用
 
