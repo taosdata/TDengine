@@ -2004,6 +2004,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#11-Functions.03-Selection.test_fun_select_lag_lead.TestFunSelectLagLead.test_func_select_lag_lead" class="md-nav__link">
+        Fun: lag()/lead() 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#11-Functions.03-Selection.test_fun_select_last.TestFunLast.test_func_select_last" class="md-nav__link">
         Fun: last() 
       </a>
@@ -4135,6 +4146,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#11-Functions.03-Selection.test_fun_select_lag_lead.TestFunSelectLagLead.test_func_select_lag_lead" class="md-nav__link">
+        Fun: lag()/lead() 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#11-Functions.03-Selection.test_fun_select_last.TestFunLast.test_func_select_last" class="md-nav__link">
         Fun: last() 
       </a>
@@ -4492,6 +4514,45 @@
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/03-Selection/test_fun_select_first_last.py" target="_blank">
                       cases/11-Functions/03-Selection/test_fun_select_first_last.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="11-Functions.03-Selection.test_fun_select_lag_lead.TestFunSelectLagLead.test_func_select_lag_lead" class="doc doc-heading">
+
+<a href="#11-Functions.03-Selection.test_fun_select_lag_lead.TestFunSelectLagLead.test_func_select_lag_lead" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Fun: lag()/lead()</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Validate lag/lead can be parsed and executed in selection queries.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Validate optional default-parameter form is accepted.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Validate partition by tbname path can execute and return expected row count.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Validate multiple lag/lead combinations (same column and different columns) return correct results.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Validate lag/lead correctness on large result sets spanning multiple data blocks.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Validate lag/lead behavior with subqueries and window-query constraints.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">7. Validate lag/lead behavior with partition by non-tbname on multi-subtable timelines.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">8. Validate stream-query usage of lag/lead keeps current behavior unchanged.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">9. Validate lag/lead with null inputs, descending timelines, empty results, and large offsets on small inputs.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">10. Validate lag/lead support GEOMETRY input type.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">11. Validate non-NULL default values for GEOMETRY and DECIMAL input types.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/03-Selection/test_fun_select_lag_lead.py" target="_blank">
+                      cases/11-Functions/03-Selection/test_fun_select_lag_lead.py
                     </a>
                   </div>
         </div>

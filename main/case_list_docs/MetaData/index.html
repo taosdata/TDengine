@@ -3015,17 +3015,6 @@
         
   
     <li class="md-nav__item">
-      <a href="#21-MetaData.test_meta_batch_txn.TestBatchMetaTxn.test_meta_batch_txn" class="md-nav__link">
-        Batch meta txn: full lifecycle 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
       <a href="#21-MetaData.test_meta_bugs.TestMetaBugs.test_meta_bugs" class="md-nav__link">
         Meta bugs 
       </a>
@@ -3891,17 +3880,6 @@
         
   
     <li class="md-nav__item">
-      <a href="#21-MetaData.test_meta_batch_txn.TestBatchMetaTxn.test_meta_batch_txn" class="md-nav__link">
-        Batch meta txn: full lifecycle 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
       <a href="#21-MetaData.test_meta_bugs.TestMetaBugs.test_meta_bugs" class="md-nav__link">
         Meta bugs 
       </a>
@@ -3973,61 +3951,6 @@
 
 <h1 id="21-meta-data">21-Meta Data<a class="headerlink" href="#21-meta-data" title="Permanent link">&para;</a></h1>
 
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
-<h2 id="21-MetaData.test_meta_batch_txn.TestBatchMetaTxn.test_meta_batch_txn" class="doc doc-heading">
-
-<a href="#21-MetaData.test_meta_batch_txn.TestBatchMetaTxn.test_meta_batch_txn" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>Batch meta txn: full lifecycle</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. BEGIN and COMMIT create multiple child tables</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. BEGIN and ROLLBACK create tables, verify not visible</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. BEGIN and COMMIT drop existing tables</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. BEGIN and ROLLBACK drop tables, verify restored</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. BEGIN and COMMIT alter table add column</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. BEGIN and ROLLBACK alter table, column not added</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">7. Mixed DDL (CREATE+DROP+ALTER) with COMMIT</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">8. Mixed DDL (CREATE+DROP+ALTER) with ROLLBACK</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">9. PRE_CREATE visibility filtering</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">10. PRE_DROP visibility filtering</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">11. Double BEGIN guard</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">12. COMMIT without active transaction guard</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">13. ROLLBACK without active transaction guard</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">14. START TRANSACTION syntax equivalence</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">15. Normal table create and commit</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">16. Normal table create and rollback</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">17. Empty transaction (no-op BEGIN/COMMIT/ROLLBACK)</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">18. Cross vgroup commit (2 vgroups, 20 tables)</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">19. Cross vgroup rollback</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">20. Sequential transactions reuse</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">21. Batch CREATE TABLE syntax in transaction</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">22. Batch DROP TABLE syntax in transaction</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">23. USE DATABASE rejected inside transaction</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">24. SHOW STABLES rejected inside transaction</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">25. SELECT rejected inside transaction</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">26. INSERT rejected inside transaction</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/21-MetaData/test_meta_batch_txn.py" target="_blank">
-                      cases/21-MetaData/test_meta_batch_txn.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
   
 <div class="doc doc-object doc-function">
   
