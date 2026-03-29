@@ -1945,7 +1945,9 @@ static int restoreStbTags(DBInfo *dbInfo, StbInfo *stbInfo) {
         logInfo("tag thread %d started for %s.%s", i + 1, dbName, stbName);
         threads[i].conn    = getConnection(&code);
         if (!threads[i].conn) {
+            // Join already-started threads before freeing shared state
             for (int j = 0; j < i; j++) {
+                pthread_join(threads[j].pid, NULL);
                 releaseConnection(threads[j].conn);
             }
             taosMemoryFree(threads);
@@ -1957,10 +1959,13 @@ static int restoreStbTags(DBInfo *dbInfo, StbInfo *stbInfo) {
         if (pthread_create(&threads[i].pid, NULL, restoreTagThread, (void *)&threads[i]) != 0) {
             logError("create restore tag thread failed(%s) for stb: %s.%s", 
                      strerror(errno), dbName, stbName);
-            // release connections for already-created threads
-            for (int j = 0; j <= i; j++) {
+            // Join already-started threads before freeing shared state
+            for (int j = 0; j < i; j++) {
+                pthread_join(threads[j].pid, NULL);
                 releaseConnection(threads[j].conn);
             }
+            // Release connection for thread i (never started)
+            releaseConnection(threads[i].conn);
             taosMemoryFree(threads);
             freeArrayPtr(tagFiles);
             return TSDB_CODE_BCK_CREATE_THREAD_FAILED;

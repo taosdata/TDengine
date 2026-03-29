@@ -565,7 +565,7 @@ static int restoreStbData(DBInfo *dbInfo, const char *stbName, StbChangeMap *cha
                 releaseConnection(threads[j].conn);
             }
             // Release connections for threads that were never started
-            for (int j = i; j <= i; j++) {
+            for (int j = i; j < threadCnt; j++) {
                 releaseConnection(threads[j].conn);
             }
             // cleanup

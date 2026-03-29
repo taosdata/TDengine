@@ -233,15 +233,15 @@ static int bindBlockData(StmtRestoreCtx *ctx,
             char    *isNull  = (char    *)prevIsNull;
             if (prevNumRows < blockRows) {
                 char    *nb = (char    *)taosMemoryRealloc(buffer,  (size_t)blockRows * stride);
-                if (!nb) return TSDB_CODE_BCK_MALLOC_FAILED;
+                if (!nb) { bind->buffer = buffer; return TSDB_CODE_BCK_MALLOC_FAILED; }
                 bind->buffer = nb; buffer = nb;
 
                 int32_t *nl = (int32_t *)taosMemoryRealloc(lengths, (size_t)blockRows * sizeof(int32_t));
-                if (!nl) return TSDB_CODE_BCK_MALLOC_FAILED;
+                if (!nl) { bind->length = lengths; return TSDB_CODE_BCK_MALLOC_FAILED; }
                 bind->length = nl; lengths = nl;
 
                 char    *nn = (char    *)taosMemoryRealloc(isNull,  (size_t)blockRows);
-                if (!nn) return TSDB_CODE_BCK_MALLOC_FAILED;
+                if (!nn) { bind->is_null = isNull; return TSDB_CODE_BCK_MALLOC_FAILED; }
                 bind->is_null = nn; isNull = nn;
             }
 
@@ -330,15 +330,24 @@ static int bindBlockData(StmtRestoreCtx *ctx,
             char    *isNull  = (char    *)prevIsNull;
             if (prevNumRows < blockRows) {
                 char    *nb = (char    *)taosMemoryRealloc(buffer,  (size_t)blockRows * actualBytes);
-                if (!nb) return TSDB_CODE_BCK_MALLOC_FAILED;
+                if (!nb) { 
+                    bind->buffer = buffer; 
+                    return TSDB_CODE_BCK_MALLOC_FAILED; 
+                }
                 bind->buffer = nb; buffer = nb;
 
                 int32_t *nl = (int32_t *)taosMemoryRealloc(lengths, (size_t)blockRows * sizeof(int32_t));
-                if (!nl) return TSDB_CODE_BCK_MALLOC_FAILED;
+                if (!nl) { 
+                    bind->length = lengths; 
+                    return TSDB_CODE_BCK_MALLOC_FAILED; 
+                }
                 bind->length = nl; lengths = nl;
 
                 char    *nn = (char    *)taosMemoryRealloc(isNull,  (size_t)blockRows);
-                if (!nn) return TSDB_CODE_BCK_MALLOC_FAILED;
+                if (!nn) { 
+                    bind->is_null = isNull; 
+                    return TSDB_CODE_BCK_MALLOC_FAILED; 
+                }
                 bind->is_null = nn; isNull = nn;
             }
 
@@ -375,11 +384,17 @@ static int bindBlockData(StmtRestoreCtx *ctx,
             char *isNull  = (char *)prevIsNull;
             if (prevNumRows < blockRows) {
                 char *nb = (char *)taosMemoryRealloc(buffer, (size_t)blockRows * typeBytes);
-                if (!nb) return TSDB_CODE_BCK_MALLOC_FAILED;
+                if (!nb) { 
+                    bind->buffer = buffer; 
+                    return TSDB_CODE_BCK_MALLOC_FAILED; 
+                }
                 bind->buffer = nb; buffer = nb;
 
                 char *nn = (char *)taosMemoryRealloc(isNull, (size_t)blockRows);
-                if (!nn) return TSDB_CODE_BCK_MALLOC_FAILED;
+                if (!nn) { 
+                    bind->is_null = isNull; 
+                    return TSDB_CODE_BCK_MALLOC_FAILED; 
+                }
                 bind->is_null = nn; isNull = nn;
             }
 

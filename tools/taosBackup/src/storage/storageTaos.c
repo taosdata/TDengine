@@ -74,11 +74,11 @@ int writeTaosFile(TaosFile* taosFile, void *data, int len) {
 
 TaosFile* createTaosFile(const char *fileName, TAOS_FIELD_E* fields, int numFields, int *code) {
     TaosFile* taosFile = (TaosFile*)taosMemoryMalloc(sizeof(TaosFile) + sizeof(FieldInfo) * numFields);
-    memset(taosFile, 0, sizeof(TaosFile));
     if (taosFile == NULL) {
         logError("malloc TaosFile failed");
         return NULL;
     }
+    memset(taosFile, 0, sizeof(TaosFile));
 
     taosFile->fileName = fileName;
     if (taosFile->fileName == NULL) {
@@ -138,7 +138,14 @@ int closeTaosFile(TaosFile* taosFile) {
     if (taosFile->fp) {
         // flush remaining write buffer before updating header
         if (taosFile->writeBuf) {
-            flushWriteBuffer(taosFile);
+            int flushCode = flushWriteBuffer(taosFile);
+            if (flushCode != TSDB_CODE_SUCCESS) {
+                logError("flush write buffer failed: %s", taosFile->fileName);
+                taosCloseFile(&taosFile->fp);
+                taosFile->fp = NULL;
+                taosMemoryFree(taosFile);
+                return flushCode;
+            }
         }
         // update header
         taosLSeekFile(taosFile->fp, 0, SEEK_SET);
@@ -146,10 +153,10 @@ int closeTaosFile(TaosFile* taosFile) {
         int64_t wl = taosWriteFile(taosFile->fp, &taosFile->header, sizeof(TaosFileHeader));
         int code = (wl == sizeof(TaosFileHeader)) ? TSDB_CODE_SUCCESS : TSDB_CODE_BCK_WRITE_FILE_FAILED;
         if (code != TSDB_CODE_SUCCESS) {
+            logError("update taos file header failed: %s", taosFile->fileName);
             if (taosFile->fp) taosCloseFile(&taosFile->fp);
             taosFile->fp = NULL;
             taosMemoryFree(taosFile);
-            logError("update taos file header failed: %s", taosFile->fileName);
             return code;
         }
         // close file
@@ -266,11 +273,11 @@ int resultToFileTaos(TAOS_RES *res, const char *fileName, char *writeBuf, int32_
 
     // create file (borrow writeBuf from caller if provided)
     TaosFile* taosFile = (TaosFile*)taosMemoryMalloc(sizeof(TaosFile) + sizeof(FieldInfo) * numFields);
-    memset(taosFile, 0, sizeof(TaosFile));
     if (taosFile == NULL) {
         logError("malloc TaosFile failed");
         return TSDB_CODE_BCK_MALLOC_FAILED;
     }
+    memset(taosFile, 0, sizeof(TaosFile));
 
     taosFile->fileName = fileName;
     memcpy(taosFile->header.magic, TAOSFILE_MAGIC, 4);
@@ -345,14 +352,9 @@ int resultToFileTaos(TAOS_RES *res, const char *fileName, char *writeBuf, int32_
                                     &assist,
                                     numFields);
         if (code != TSDB_CODE_SUCCESS) {
-            // TODO ignore or failed
             logError("write data block to file failed(%d): %s", code, fileName);
             tBufferDestroy(&assist);
-            code = closeTaosFile(taosFile);
-            if (code != TSDB_CODE_SUCCESS) {
-                logError("close Taos file failed(%d): %s", code, fileName);
-                return code;
-            }
+            closeTaosFile(taosFile);
             return code;
         }
 

@@ -190,8 +190,6 @@ static void* backDataThread(void *arg) {
     }
     TAOS_RES *res = NULL;
     {
-        int retryCount   = argRetryCount();
-        int retrySleepMs = argRetrySleepMs();
         int attempt = 0;
         while (1) {
             res = taos_query(conn, sql);
@@ -557,8 +555,6 @@ static void* backNtbDataThread(void *arg) {
     }
     TAOS_RES *res = NULL;
     {
-        int retryCount   = argRetryCount();
-        int retrySleepMs = argRetrySleepMs();
         int attempt = 0;
         while (1) {
             res = taos_query(conn, sql);

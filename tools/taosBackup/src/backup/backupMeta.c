@@ -88,6 +88,7 @@ int backCreateStbSql(const char *dbName, const char *stbName) {
     // Replace all embedded newlines/CR with spaces so that each STB occupies
     // exactly ONE line in stb.sql.  Write the entire cleaned DDL in one call
     // (much faster than byte-by-byte writing).
+    int writeCode = TSDB_CODE_SUCCESS;
     char *buf = (char *)taosMemoryMalloc(ddlLen + 2);
     if (buf) {
         int n = 0;
@@ -95,14 +96,20 @@ int backCreateStbSql(const char *dbName, const char *stbName) {
             buf[n++] = (ddl[i] == '\n' || ddl[i] == '\r') ? ' ' : ddl[i];
         }
         buf[n++] = '\n';
-        taosWriteFile(fp, buf, n);
+        if (taosWriteFile(fp, buf, n) != n) {
+            logError("write stb DDL to file failed: %s", sqlFile);
+            writeCode = TSDB_CODE_BCK_WRITE_FILE_FAILED;
+        }
         taosMemoryFree(buf);
+    } else {
+        logError("malloc stb DDL buffer failed for: %s.%s", dbName, stbName);
+        writeCode = TSDB_CODE_BCK_MALLOC_FAILED;
     }
 
     taosCloseFile(&fp);
     taos_free_result(res);
     releaseConnection(conn);
-    return TSDB_CODE_SUCCESS;
+    return writeCode;
 }
 
 int backStbSchema(const char *dbName, const char *stbName, char ** selectTags) {
@@ -203,7 +210,7 @@ TagThread * splitTaskTag(DBInfo *dbInfo, StbInfo *stbInfo, int *code, int *outCo
     // query table count
     *code = queryValueInt(sql, 0, &tableCnt);
     if (*code != TSDB_CODE_SUCCESS) {
-        logError("query table count failed(%d): %s", code, sql);
+        logError("query table count failed(%d): %s", *code, sql);
         return NULL;
     }
     // zero
@@ -282,6 +289,15 @@ int backChildTableTags(DBInfo *dbInfo, StbInfo *stbInfo) {
     for (int i = 0; i < count; i++) {
         if(pthread_create(&threads[i].pid, NULL, backTagThread, (void *)&threads[i]) != 0) {
             logError("create backup thread failed(%s) for stb:%s", strerror(errno), stbInfo->stbName);
+            // Join already-started threads before freeing shared state
+            for (int j = 0; j < i; j++) {
+                pthread_join(threads[j].pid, NULL);
+                releaseConnection(threads[j].conn);
+            }
+            // Release connections for threads that were never started
+            for (int j = i; j < count; j++) {
+                releaseConnection(threads[j].conn);
+            }
             freePtr(threads);
             return TSDB_CODE_BCK_CREATE_THREAD_FAILED;
         }
@@ -428,8 +444,13 @@ int backNormalTablesSql(const char *dbName) {
         TAOS_ROW row = taos_fetch_row(res);
         if (row && row[1]) {
             int32_t *lens = taos_fetch_lengths(res);
-            taosWriteFile(fp, row[1], lens[1]);
-            taosWriteFile(fp, "\n", 1);
+            if (taosWriteFile(fp, row[1], lens[1]) != lens[1] ||
+                taosWriteFile(fp, "\n", 1) != 1) {
+                logError("write ntb sql to file failed: %s", ntbSqlFile);
+                code = TSDB_CODE_BCK_WRITE_FILE_FAILED;
+                taos_free_result(res);
+                break;
+            }
         }
         taos_free_result(res);
     }
@@ -530,14 +551,15 @@ int backVirtualTablesSql(const char *dbName) {
             // Virtual NORMAL tables have no USING/TAGS clause — write the full DDL as-is.
             char *tagsPos = strstr(ddl, " TAGS (");
             if (!tagsPos) tagsPos = strstr(ddl, " TAGS(");
-            if (tagsPos) {
-                // child table skeleton: write everything up to " TAGS ("
-                taosWriteFile(fp, ddl, (int64_t)(tagsPos - ddl));
-            } else {
-                // virtual normal table: write full DDL
-                taosWriteFile(fp, ddl, (int64_t)lens[1]);
+            // child table: write up to " TAGS ("; virtual normal: write full DDL
+            int64_t ddlWriteLen = tagsPos ? (int64_t)(tagsPos - ddl) : (int64_t)lens[1];
+            if (taosWriteFile(fp, ddl, ddlWriteLen) != ddlWriteLen ||
+                taosWriteFile(fp, "\n", 1) != 1) {
+                logError("write vtb sql to file failed: %s", vtbSqlFile);
+                code = TSDB_CODE_BCK_WRITE_FILE_FAILED;
+                taos_free_result(res);
+                break;
             }
-            taosWriteFile(fp, "\n", 1);
         }
         taos_free_result(res);
     }
