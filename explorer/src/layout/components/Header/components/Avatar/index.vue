@@ -9,7 +9,7 @@
           <el-dropdown-item>
             <router-link class="drop-block" to="/profile">
               <Icon name="profile" class="dropdown_icon"></Icon>
-              {{ $t('login.profile') }}
+              {{ $t('profile.title') }}
             </router-link>
           </el-dropdown-item>
           <div class="custom-divider"></div>
@@ -17,7 +17,7 @@
             <div class="drop-block" @click="logout">
               <!-- 图标有问题，需特殊处理 -->
               <Icon name="signout" class="dropdown_icon" style="width: 20px; height: 20px"></Icon>
-              <span style="color: #4259ce">{{ $t('signOut') }}</span>
+              <span class="signout-text">{{ $t('signOut') }}</span>
             </div>
           </el-dropdown-item>
         </el-dropdown-menu>
@@ -85,5 +85,8 @@ async function logout() {
 }
 .custom-divider {
   display: none;
+}
+.signout-text {
+  color: $color-primary;
 }
 </style>

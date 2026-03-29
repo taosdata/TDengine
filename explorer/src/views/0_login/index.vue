@@ -24,7 +24,7 @@
         </div>
 
         <!-- OAuth SSO Login Button -->
-        <el-form-item v-if="oauthEnabled && !oauthBind" style="margin-bottom: 20px">
+        <el-form-item v-if="oauthEnabled && !oauthBind && loginMode === 'password'" style="margin-bottom: 20px">
           <el-button class="oauth-button" type="success" @click="loginWithOAuth">
             {{
               $t('login.loginWith', {
@@ -33,8 +33,9 @@
             }}
           </el-button>
         </el-form-item>
-        <el-divider v-if="oauthEnabled && !oauthBind"> <b>OR</b> </el-divider>
+        <el-divider v-if="oauthEnabled && !oauthBind && loginMode === 'password'"> <b>OR</b> </el-divider>
         <el-form
+          v-if="loginMode === 'password'"
           ref="dynamicValidateFormRef"
           :model="dynamicValidateForm"
           :rules="formRules"
@@ -64,6 +65,7 @@
                 v-model="dynamicValidateForm.password"
                 type="password"
                 show-password
+                :placeholder="$t('login.passwordTips')"
                 @keyup.enter="submitForm(dynamicValidateFormRef)"
               ></el-input>
             </el-form-item>
@@ -75,6 +77,43 @@
             }}</el-button>
           </el-form-item>
         </el-form>
+
+        <!-- Token Login Form -->
+        <el-form
+          v-if="loginMode === 'token'"
+          ref="tokenFormRef"
+          :model="tokenForm"
+          :rules="tokenRules"
+          label-width="0px"
+          class="demo-dynamic"
+          size="large"
+        >
+          <div style="margin-bottom: 20px">
+            <p class="label-form">
+              <span>{{ $t('profile.tokenLogin') }}</span>
+            </p>
+            <el-form-item prop="token">
+              <el-input
+                v-model="tokenForm.token"
+                type="password"
+                show-password
+                :placeholder="$t('profile.tokenPlaceholderInput')"
+                @keyup.enter="submitTokenLogin"
+              ></el-input>
+            </el-form-item>
+          </div>
+
+          <el-form-item style="margin-bottom: 30px">
+            <el-button v-loading="loading" type="primary" class="signin" @click="submitTokenLogin">{{
+              $t('login.signin')
+            }}</el-button>
+          </el-form-item>
+        </el-form>
+
+        <div class="login-mode-switch" @click="toggleLoginMode">
+          <span v-if="loginMode === 'password'">{{ $t('profile.tokenLogin') }}</span>
+          <span v-else>{{ $t('profile.passwordLogin') }}</span>
+        </div>
 
         <div class="language" @click="switchLanguage">{{ locallanguage }}</div>
       </div>
@@ -111,6 +150,31 @@
       </template>
     </el-dialog>
 
+    <!-- TOTP Verification Dialog -->
+    <el-dialog
+      v-model="totpDialogVisible"
+      :title="$t('profile.totpAuth')"
+      width="400px"
+      center
+      :close-on-click-modal="false"
+    >
+      <p style="margin-bottom: 16px; color: #666; font-size: 14px;">
+        {{ $t('profile.totpStep2Desc') }}
+      </p>
+      <el-input
+        v-model="totpCodeInput"
+        :placeholder="$t('profile.totpCodePlaceholder')"
+        maxlength="6"
+        @keyup.enter="confirmTotpLogin"
+      />
+      <template #footer>
+        <div class="dialog-footer" style="text-align: right">
+          <el-button @click="totpDialogVisible = false">{{ $t('profile.cancel') }}</el-button>
+          <el-button type="primary" :loading="loading" @click="confirmTotpLogin">{{ $t('profile.totpVerify') }}</el-button>
+        </div>
+      </template>
+    </el-dialog>
+
     <div v-if="!$IS_OEM" class="copyright">
       <span>{{ $t('login.copyright') }}</span>
     </div>
@@ -123,6 +187,7 @@ import { sendSQLReq } from '@/api/explorer';
 import { FormInstance } from 'element-plus';
 import dataJson from './data.json';
 import { getUrls, reportTaosdInfo, firstLoginWith, getLoginOptions, fetchCaptcha } from '@/api/login';
+import { loginWithToken } from '@/api/profile';
 import { getOAuthStatus, oauthAuthorize, oauthBindTsdb, oauthMe } from '@/api/oauth';
 import { encrypt } from '@/utils/index';
 import useLicense from '@/hooks/useLicense';
@@ -192,6 +257,20 @@ const trimmedPassword = computed(() => {
   return dynamicValidateForm.password.trim();
 });
 const pageLoading = ref(true);
+const loginMode = ref<'password' | 'token'>('password');
+const tokenForm = reactive({ token: '' });
+const tokenFormRef = ref<FormInstance>();
+const totpDialogVisible = ref<boolean>(false);
+const totpCodeInput = ref<string>('');
+const tokenRules = reactive({
+  token: [
+    {
+      required: true,
+      message: t('profile.tokenRequired'),
+      trigger: 'blur'
+    }
+  ]
+});
 const formRules = reactive({
   cluster: [
     {
@@ -516,6 +595,12 @@ async function basicAuthLogin() {
       }
     } else {
       loading.value = false;
+      // Check if TOTP is required
+      if (res && res.need_totp) {
+        totpCodeInput.value = '';
+        totpDialogVisible.value = true;
+        return;
+      }
       if (res && (res.desc === 'captchaRequired' || res.desc === 'captchaInputError')) {
         $error(t(`login.${res.desc}`));
         dynamicValidateForm.captcha = '';
@@ -531,6 +616,13 @@ async function basicAuthLogin() {
     }
   } catch (error) {
     console.log('error', error);
+    // Check if the error response indicates TOTP is required
+    if (error.response && error.response.data && error.response.data.need_totp) {
+      totpCodeInput.value = '';
+      totpDialogVisible.value = true;
+      loading.value = false;
+      return;
+    }
     if (error.response && error.response.data.desc) {
       console.log('api response:', error.response);
       $error(error.response.data.desc);
@@ -646,6 +738,70 @@ async function getUserAuthority() {
 function loginWithOAuth() {
   // Redirect to OAuth authorization endpoint
   oauthAuthorize();
+}
+
+function toggleLoginMode() {
+  loginMode.value = loginMode.value === 'password' ? 'token' : 'password';
+}
+
+function submitTokenLogin() {
+  tokenFormRef.value?.validate(async (valid: boolean) => {
+    if (valid) {
+      loading.value = true;
+      try {
+        const res: any = await loginWithToken(tokenForm.token.trim());
+        if (res && res.code === 0) {
+          store.commit('app/SET_LOGIN_WITH_SESSION', true);
+          localStorage.setItem('username', res.username || '');
+          store.commit('app/SAVE_LOGIN_INFO', {
+            username: res.username || '',
+            pwd: ''
+          });
+          await getGrantsFull();
+          ElMessage.success(t('profile.tokenLoginSuccess'));
+          router.push({ path: '/explorer' });
+        } else {
+          ElMessage.error(res?.desc || t('profile.tokenLoginFailed'));
+        }
+      } catch (err: any) {
+        ElMessage.error(err?.desc || err?.message || t('profile.tokenLoginFailed'));
+      } finally {
+        loading.value = false;
+      }
+    }
+  });
+}
+
+async function confirmTotpLogin() {
+  const code = totpCodeInput.value.trim();
+  if (!code || code.length !== 6) {
+    ElMessage.warning(t('profile.totpCodePlaceholder'));
+    return;
+  }
+  loading.value = true;
+  try {
+    const sql = 'select server_version()';
+    const captcha = loginCaptchaEnabled.value ? (dynamicValidateForm.captcha || '').trim() : undefined;
+    const res: any = await firstLoginWith(trimmedUsername.value, trimmedPassword.value, sql, captcha, code);
+    if (res && res.code == 0 && !res.desc) {
+      totpDialogVisible.value = false;
+      store.commit('app/SET_LOGIN_WITH_SESSION', true);
+      localStorage.setItem('username', trimmedUsername.value);
+      localStorage.setItem('pwd', encryptedPwd.value);
+      store.commit('app/SAVE_LOGIN_INFO', {
+        username: trimmedUsername.value,
+        pwd: trimmedPassword.value
+      });
+      await getGrantsFull();
+      router.push({ path: '/explorer' });
+    } else {
+      ElMessage.error(res?.desc || t('profile.totpVerifyFailed'));
+    }
+  } catch (err: any) {
+    ElMessage.error(err?.response?.data?.desc || t('profile.totpVerifyFailed'));
+  } finally {
+    loading.value = false;
+  }
 }
 
 function switchLanguage() {
@@ -862,21 +1018,18 @@ function switchLanguage() {
     font-size: 16px;
     font-weight: 700;
     color: #fff;
+  }
 
-    //   color: #606266;
-    //   background-color: #fff;
-    //   border: 1px solid #dcdfe6;
+  .login-mode-switch {
+    margin-top: 10px;
+    text-align: center;
+    color: $color-primary;
+    cursor: pointer;
+    font-size: 14px;
 
-    //   &:hover {
-    //     color: #409eff;
-    //     background-color: #ecf5ff;
-    //     border-color: #c6e2ff;
-    //   }
-
-    //   .oauth-icon {
-    //     margin-right: 8px;
-    //     vertical-align: middle;
-    //   }
+    &:hover {
+      text-decoration: underline;
+    }
   }
 }
 </style>

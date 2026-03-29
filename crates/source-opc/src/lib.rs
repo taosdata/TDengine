@@ -425,14 +425,42 @@ async fn opc_datasets_by_command(config: &OPCConfig) -> anyhow::Result<Vec<DataS
 /// 此函数定位最外层的 `[...]` 或 `{...}` 并返回对应字节切片。
 /// 若未找到匹配括号则返回原始切片，保留原始反序列化错误信息。
 fn extract_json_bytes(raw: &[u8]) -> &[u8] {
-    for &(open, close) in &[(b'[', b']'), (b'{', b'}')] {
-        if let (Some(start), Some(end)) = (
-            raw.iter().position(|&b| b == open),
-            raw.iter().rposition(|&b| b == close),
-        ) && end > start
-        {
-            return &raw[start..=end];
+    // Scan for every `{` or `[` in order of appearance and attempt bracket-depth
+    // matching.  Return the first successfully matched JSON value.  This handles
+    // noisy output where stray brackets in log lines precede the real JSON.
+    let mut pos = 0;
+    while pos < raw.len() {
+        let Some(offset) = raw[pos..].iter().position(|&b| b == b'{' || b == b'[') else {
+            break;
+        };
+        let start = pos + offset;
+        let open = raw[start];
+        let close = if open == b'{' { b'}' } else { b']' };
+
+        let mut depth = 0i32;
+        let mut in_string = false;
+        let mut escape_next = false;
+        for (i, &b) in raw[start..].iter().enumerate() {
+            if escape_next {
+                escape_next = false;
+                continue;
+            }
+            match b {
+                b'\\' if in_string => escape_next = true,
+                b'"' => in_string = !in_string,
+                _ if in_string => {}
+                b2 if b2 == open => depth += 1,
+                b2 if b2 == close => {
+                    depth -= 1;
+                    if depth == 0 {
+                        return &raw[start..=start + i];
+                    }
+                }
+                _ => {}
+            }
         }
+        // No match from this bracket — skip it and try the next one.
+        pos = start + 1;
     }
     raw
 }
@@ -514,6 +542,13 @@ async fn is_valid_impl(dsn: &Dsn) -> anyhow::Result<DataSourceValidation> {
                 json_bytes.len(),
             );
         }
+
+        tracing::trace!(
+            "stdout: {}, json_bytes: {}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(json_bytes)
+        );
+
         let mut result: DataSourceValidation =
             serde_json::from_slice(json_bytes).map_err(|err| {
                 anyhow::anyhow!(
@@ -1209,6 +1244,18 @@ mod tests {
 
         // only opening bracket with no matching close → returns original
         assert_eq!(extract_json_bytes(b"[no close"), b"[no close");
+
+        // stray bracket in noise before real JSON object — skip it and find the object
+        assert_eq!(
+            extract_json_bytes(b"some { noise\n{\"valid\":true}"),
+            b"{\"valid\":true}"
+        );
+
+        // stray [ in noise before real JSON object (no matching ])
+        assert_eq!(
+            extract_json_bytes(b"log [info start\n{\"a\":1}"),
+            b"{\"a\":1}"
+        );
 
         // empty input
         assert_eq!(extract_json_bytes(b""), b"");

@@ -10,6 +10,7 @@ use actix_web::web;
 use http::header::AUTHORIZATION;
 use http_auth_basic::Credentials;
 
+#[derive(Clone)]
 pub enum AuthType {
     Basic,
     Bearer,
@@ -23,6 +24,7 @@ impl AuthType {
     }
 }
 /// Authentication result containing username and password for TDengine connection
+#[derive(Clone)]
 pub struct TsdbCredential {
     pub auth_type: AuthType,
     pub username: String,

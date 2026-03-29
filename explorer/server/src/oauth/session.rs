@@ -1833,4 +1833,65 @@ impl SessionManager {
 
     //     Ok(sessions)
     // }
+
+    // ========== taosx Token Management ==========
+
+    /// Store an encrypted taosx token for a user (upsert).
+    pub async fn store_taosx_token(
+        &self,
+        username: &str,
+        token_name: &str,
+        token_value: &str,
+    ) -> Result<()> {
+        let encrypted = self
+            .encrypt_token(token_value)
+            .context("Failed to encrypt taosx token")?;
+        sqlx::query(
+            r#"
+            INSERT INTO taosx_tokens (username, token_name, encrypted_token, created_at, updated_at)
+            VALUES (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            ON CONFLICT(username) DO UPDATE SET
+                token_name = excluded.token_name,
+                encrypted_token = excluded.encrypted_token,
+                updated_at = CURRENT_TIMESTAMP
+            "#,
+        )
+        .bind(username)
+        .bind(token_name)
+        .bind(&encrypted)
+        .execute(&self.pool)
+        .await
+        .context("Failed to store taosx token")?;
+        Ok(())
+    }
+
+    /// Retrieve and decrypt the taosx token for a user.
+    pub async fn get_taosx_token(&self, username: &str) -> Result<Option<String>> {
+        let row: Option<(String,)> =
+            sqlx::query_as("SELECT encrypted_token FROM taosx_tokens WHERE username = ?")
+                .bind(username)
+                .fetch_optional(&self.pool)
+                .await
+                .context("Failed to fetch taosx token")?;
+
+        match row {
+            Some((encrypted,)) => {
+                let decrypted = self
+                    .decrypt_token(&encrypted)
+                    .context("Failed to decrypt taosx token")?;
+                Ok(Some(decrypted))
+            }
+            None => Ok(None),
+        }
+    }
+
+    /// Delete the taosx token record for a user.
+    pub async fn delete_taosx_token(&self, username: &str) -> Result<()> {
+        sqlx::query("DELETE FROM taosx_tokens WHERE username = ?")
+            .bind(username)
+            .execute(&self.pool)
+            .await
+            .context("Failed to delete taosx token")?;
+        Ok(())
+    }
 }

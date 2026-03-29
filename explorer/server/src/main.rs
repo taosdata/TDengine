@@ -494,6 +494,7 @@ async fn main() -> anyhow::Result<()> {
             // ====== x apis end =====
             .route("/grafana/{grafana_path:.*}", web::to(grafana_api))
             .route("/api/-/login", web::to(login))
+            .route("/api/-/login/token", web::post().to(login_with_token))
             .route("/api/-/login-options", web::get().to(login_options))
             .route("/api/-/oauth/me", web::get().to(oauth::handlers::oauth_me))
             .route("/api/-/me", web::get().to(oauth::handlers::oauth_me))
@@ -556,6 +557,8 @@ async fn main() -> anyhow::Result<()> {
             .route("/api/-/import", web::to(import))
             .route("/api/-/license", web::to(renew_license))
             .route("/api/-/profile", web::to(profile))
+            .route("/api/-/profile/totp/enable", web::post().to(totp_enable))
+            .route("/api/-/profile/totp/disable", web::post().to(totp_disable))
             .route("/api/-/captcha", web::get().to(generate_captcha_image))
             .route(
                 "/api/-/verification-code",
@@ -1263,6 +1266,8 @@ struct LoginBody {
     password: Option<String>,
     #[serde(default)]
     captcha: Option<String>,
+    #[serde(default)]
+    totp_code: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -1327,7 +1332,18 @@ async fn login(
 
     let tz = query.get("tz");
     let sql = "select server_version()";
-    match args.query(&auth, sql, tz).await {
+
+    // Build DSN with optional TOTP code
+    let dsn = match args.build_dsn_with_totp(&auth, body.totp_code.as_deref()) {
+        Ok(dsn) => dsn,
+        Err(err) => return HttpResponse::InternalServerError().json(err),
+    };
+
+    // Clear cached connection pool for this user to force fresh authentication.
+    // This ensures TOTP-enabled users can't bypass verification via stale connections.
+    clear_pool(&dsn, auth.username.clone());
+
+    match args.query_with_dsn(&dsn, sql, tz).await {
         Ok(mut ok) => {
             let mut resp = HttpResponseBuilder::new(StatusCode::OK);
 
@@ -1357,10 +1373,48 @@ async fn login(
                 }
             }
 
+            // For TOTP-authenticated logins, use taosx token for session so subsequent
+            // REST proxy calls don't need TOTP codes (which expire every 30s).
+            let session_auth = if body.totp_code.is_some() {
+                // Ensure taosx token exists (create if needed using TOTP-authenticated DSN)
+                if let Err(e) =
+                    create_taosx_token_if_needed(&args, &dsn, &session_manager, &auth.username)
+                        .await
+                {
+                    tracing::error!(
+                        "Failed to create taosx token for {}: {:#}",
+                        auth.username,
+                        e
+                    );
+                }
+                // Retrieve the stored taosx token
+                match session_manager.get_taosx_token(&auth.username).await {
+                    Ok(Some(token_value)) => {
+                        tracing::info!(
+                            "Using taosx token for TOTP user session: {}",
+                            auth.username
+                        );
+                        TsdbCredential::basic(
+                            auth.username.clone(),
+                            format!("__token__{}", token_value),
+                        )
+                    }
+                    _ => {
+                        tracing::warn!(
+                            "No taosx token found for TOTP user {}, session may not work for queries",
+                            auth.username
+                        );
+                        auth.clone()
+                    }
+                }
+            } else {
+                auth.clone()
+            };
+
             // Create session for basic auth and set session_id cookie
             const BASIC_AUTH_TTL: i64 = 3600; // 1 hour session expiration
             match session_manager
-                .create_self_provided_session(&auth, Some(BASIC_AUTH_TTL))
+                .create_self_provided_session(&session_auth, Some(BASIC_AUTH_TTL))
                 .await
             {
                 Ok(session) => {
@@ -1398,9 +1452,411 @@ async fn login(
             resp.json(ok)
         }
         Err(err) => {
+            // Check if TSDB requires TOTP verification (TSDB_CODE_MND_WRONG_TOTP_CODE)
+            let err_desc_lower = err.desc.to_lowercase();
+            if err_desc_lower.contains("totp")
+                || err_desc_lower.contains("two-factor")
+                || err_desc_lower.contains("mfa")
+            {
+                tracing::info!("User requires TOTP verification");
+                return HttpResponse::Unauthorized().json(serde_json::json!({
+                    "code": err.code,
+                    "desc": err.desc,
+                    "need_totp": true,
+                }));
+            }
             tracing::error!("Failed to authenticate user: {:#}", err);
             if err.desc.contains("[0x0357]") {
                 HttpResponse::Unauthorized().json(err)
+            } else {
+                HttpResponse::InternalServerError().json(err)
+            }
+        }
+    }
+}
+
+// ========== Token Login ==========
+
+#[derive(Debug, Deserialize)]
+struct TokenLoginBody {
+    token: String,
+}
+
+#[instrument(skip_all)]
+async fn login_with_token(
+    args: web::Data<Args>,
+    session_manager: web::Data<SessionManager>,
+    body: web::Json<TokenLoginBody>,
+) -> impl Responder {
+    let token_str = body.into_inner().token.trim().to_string();
+    if token_str.is_empty() {
+        return HttpResponse::BadRequest().json(RestErrResponse::new("Token is required"));
+    }
+
+    // Build DSN with token parameter
+    let dsn = match args.build_dsn_with_token(&token_str) {
+        Ok(dsn) => dsn,
+        Err(err) => return HttpResponse::InternalServerError().json(err),
+    };
+
+    // Attempt connection with token
+    match args
+        .query_with_dsn(&dsn, "SELECT current_user()", None)
+        .await
+    {
+        Ok(ok) => {
+            // Extract current_user() from query result (format: "username@host")
+            let current_user_raw = ok
+                .data
+                .first()
+                .and_then(|row| row.first())
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+
+            // Strip host part: "abc@zyyang" → "abc"
+            let current_user = current_user_raw
+                .split('@')
+                .next()
+                .unwrap_or(current_user_raw)
+                .to_string();
+
+            if current_user.is_empty() {
+                return HttpResponse::Unauthorized()
+                    .json(RestErrResponse::new("Failed to determine user from token"));
+            }
+
+            // Create session: use token as password placeholder since we don't have the real password
+            let auth = TsdbCredential::basic(current_user.clone(), format!("__token__{token_str}"));
+            match session_manager
+                .create_self_provided_session(&auth, Some(3600))
+                .await
+            {
+                Ok(session) => {
+                    let session_id = session.session_id();
+                    tracing::info!("Created token login session for user: {}", current_user);
+
+                    let session_cookie = Cookie::build("session_id", session_id)
+                        .path("/")
+                        .http_only(true)
+                        .same_site(awc::cookie::SameSite::Lax)
+                        .max_age(actix_web::cookie::time::Duration::seconds(3600))
+                        .finish();
+
+                    HttpResponse::Ok()
+                        .append_header(("X-Explorer-Version", build::PKG_VERSION))
+                        .cookie(session_cookie)
+                        .json(serde_json::json!({
+                            "code": 0,
+                            "token": session_id,
+                            "username": current_user,
+                        }))
+                }
+                Err(e) => {
+                    tracing::error!("Failed to create token login session: {:#}", e);
+                    HttpResponse::InternalServerError().json(RestErrResponse::new(format!(
+                        "Failed to create session: {e:#}"
+                    )))
+                }
+            }
+        }
+        Err(err) => {
+            tracing::warn!("Token login failed: {:#}", err);
+            HttpResponse::Unauthorized().json(serde_json::json!({
+                "code": err.code,
+                "desc": "Invalid or expired token",
+            }))
+        }
+    }
+}
+
+// ========== TOTP Enable/Disable ==========
+
+#[derive(Debug, Deserialize)]
+struct TotpEnableBody {
+    #[serde(default)]
+    totp_code: Option<String>,
+    /// Encrypted password (required for step 2 verification when session uses token auth)
+    #[serde(default)]
+    encrypted_password: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct TotpDisableBody {
+    totp_code: String,
+    /// Encrypted password (required to verify TOTP code via user:pass+totp DSN)
+    encrypted_password: String,
+}
+
+/// Helper: get TSDB credentials from current session.
+async fn get_session_credentials(
+    req: &HttpRequest,
+    session_manager: &SessionManager,
+) -> Result<(String, String), HttpResponse> {
+    let session_id = oauth::middleware::extract_session_id_from_request(req).ok_or_else(|| {
+        HttpResponse::Unauthorized().json(RestErrResponse::new("No session found"))
+    })?;
+
+    let session = session_manager
+        .verify_session(&session_id)
+        .await
+        .map_err(|e| {
+            HttpResponse::InternalServerError()
+                .json(RestErrResponse::new(format!("Session error: {e:#}")))
+        })?
+        .ok_or_else(|| {
+            HttpResponse::Unauthorized().json(RestErrResponse::new("Invalid or expired session"))
+        })?;
+
+    let username = session
+        .get_tsdb_username()
+        .ok_or_else(|| {
+            HttpResponse::InternalServerError()
+                .json(RestErrResponse::new("No TSDB username in session"))
+        })?
+        .to_string();
+
+    let password = session_manager
+        .get_decrypted_tsdb_password(&session)
+        .map_err(|e| {
+            HttpResponse::InternalServerError().json(RestErrResponse::new(format!(
+                "Failed to decrypt credentials: {e:#}"
+            )))
+        })?
+        .ok_or_else(|| {
+            HttpResponse::InternalServerError()
+                .json(RestErrResponse::new("No TSDB password in session"))
+        })?;
+
+    Ok((username, password))
+}
+
+#[instrument(skip_all)]
+async fn totp_enable(
+    args: web::Data<Args>,
+    session_manager: web::Data<SessionManager>,
+    req: HttpRequest,
+    body: web::Json<TotpEnableBody>,
+) -> impl Responder {
+    let (username, password) = match get_session_credentials(&req, &session_manager).await {
+        Ok(creds) => creds,
+        Err(resp) => return resp,
+    };
+
+    let body = body.into_inner();
+
+    if let Some(totp_code) = body.totp_code {
+        // Step 2: Verify TOTP binding by connecting with user:pass + totp_code.
+        // We must use the real password (not __token__) so TSDB actually validates the TOTP code.
+        let real_password = if let Some(ref encrypted) = body.encrypted_password {
+            let xor = TimeBasedXor::new(args.security.xor_allowed_duration_secs());
+            match xor.decrypt(encrypted) {
+                Ok(p) => p,
+                Err(_) => {
+                    return HttpResponse::BadRequest()
+                        .json(RestErrResponse::new("Invalid password"));
+                }
+            }
+        } else if !password.starts_with("__token__") {
+            // Session has real password (non-TOTP user enabling for the first time)
+            password.clone()
+        } else {
+            return HttpResponse::BadRequest().json(RestErrResponse::new(
+                "Password is required for TOTP verification",
+            ));
+        };
+
+        let verify_auth = TsdbCredential::basic(username.clone(), real_password);
+        let dsn = match args.build_dsn_with_totp(&verify_auth, Some(&totp_code)) {
+            Ok(dsn) => dsn,
+            Err(err) => return HttpResponse::InternalServerError().json(err),
+        };
+
+        match args.query_with_dsn(&dsn, "SELECT 1", None).await {
+            Ok(_) => {
+                tracing::info!("TOTP binding verified for user: {}", username);
+
+                // Auto-create taosx token for this user
+                if let Err(e) =
+                    create_taosx_token_if_needed(&args, &dsn, &session_manager, &username).await
+                {
+                    tracing::error!("Failed to create taosx token for {}: {:#}", username, e);
+                    // Don't fail the TOTP binding — the taosx token is a convenience feature
+                }
+
+                HttpResponse::Ok().json(R::<()>::success(()))
+            }
+            Err(err) => {
+                tracing::warn!("TOTP verification failed for user {}: {:#}", username, err);
+                HttpResponse::BadRequest().json(serde_json::json!({
+                    "code": err.code,
+                    "desc": "TOTP verification failed: invalid code",
+                }))
+            }
+        }
+    } else {
+        // Step 1: Generate TOTP secret (uses session credentials — token auth is fine here,
+        // we're just executing a SQL command, not verifying a TOTP code)
+        let auth = TsdbCredential::basic(username.clone(), password.clone());
+        let sql = format!("CREATE TOTP_SECRET FOR USER {}", username);
+        match args.query(&auth, &sql, None).await {
+            Ok(ok) => {
+                let secret = ok
+                    .data
+                    .first()
+                    .and_then(|row| row.first())
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
+
+                if secret.is_empty() {
+                    return HttpResponse::InternalServerError()
+                        .json(RestErrResponse::new("Failed to get TOTP secret from TSDB"));
+                }
+
+                HttpResponse::Ok().json(serde_json::json!({
+                    "code": 0,
+                    "data": {
+                        "secret": secret,
+                        "uri": format!(
+                            "otpauth://totp/TDengine:{}?secret={}&issuer=TDengine",
+                            username, secret
+                        ),
+                    },
+                }))
+            }
+            Err(err) => {
+                tracing::error!("Failed to create TOTP secret for {}: {:#}", username, err);
+                HttpResponse::InternalServerError().json(err)
+            }
+        }
+    }
+}
+
+/// Auto-create taosx token when TOTP is enabled, if not already existing.
+async fn create_taosx_token_if_needed(
+    args: &Args,
+    dsn: &Dsn,
+    session_manager: &SessionManager,
+    username: &str,
+) -> anyhow::Result<()> {
+    let token_name = format!("__taosx_{}__", username);
+
+    // Check if we already have this token in SQLite AND it works (no PROVIDER restriction)
+    if let Some(token_value) = session_manager.get_taosx_token(username).await? {
+        // Verify the token actually works by testing a connection
+        let test_dsn_result = args.build_dsn_with_token(&token_value);
+        if let Ok(test_dsn) = test_dsn_result
+            && args
+                .query_with_dsn(&test_dsn, "SELECT 1", None)
+                .await
+                .is_ok()
+        {
+            tracing::debug!("taosx token verified for user: {}", username);
+            return Ok(());
+        }
+        // Token exists but doesn't work — drop and recreate
+        tracing::warn!(
+            "taosx token for user {} exists but is invalid, recreating",
+            username
+        );
+        let drop_sql = format!("DROP TOKEN IF EXISTS {}", token_name);
+        let _ = args.query_with_dsn(dsn, &drop_sql, None).await;
+        session_manager.delete_taosx_token(username).await?;
+    }
+
+    // Check if it exists in TSDB (might be a stale/restricted token)
+    let check_sql = format!(
+        "SELECT name FROM information_schema.ins_tokens WHERE name = '{}' AND `user` = '{}'",
+        token_name, username
+    );
+    let existing = args.query_with_dsn(dsn, &check_sql, None).await;
+    if let Ok(ref res) = existing
+        && !res.data.is_empty()
+    {
+        // Drop old token (may have PROVIDER restriction)
+        tracing::info!("Dropping old taosx token in TSDB for user: {}", username);
+        let drop_sql = format!("DROP TOKEN IF EXISTS {}", token_name);
+        let _ = args.query_with_dsn(dsn, &drop_sql, None).await;
+    }
+
+    // Create the token in TSDB (no PROVIDER restriction to allow full user privileges)
+    let create_sql = format!(
+        "CREATE TOKEN IF NOT EXISTS {} FROM USER {} ENABLE 1 TTL 0 EXTRA_INFO '__auto__'",
+        token_name, username
+    );
+    let result = args
+        .query_with_dsn(dsn, &create_sql, None)
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to create taosx token in TSDB: {}", e.desc))?;
+
+    let token_value = result
+        .data
+        .first()
+        .and_then(|row| row.first())
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| anyhow::anyhow!("TSDB did not return token value"))?;
+
+    // Encrypt and store in SQLite
+    session_manager
+        .store_taosx_token(username, &token_name, token_value)
+        .await?;
+
+    tracing::info!("Created and stored taosx token for user: {}", username);
+    Ok(())
+}
+
+#[instrument(skip_all)]
+async fn totp_disable(
+    args: web::Data<Args>,
+    session_manager: web::Data<SessionManager>,
+    req: HttpRequest,
+    body: web::Json<TotpDisableBody>,
+) -> impl Responder {
+    let (username, _session_password) = match get_session_credentials(&req, &session_manager).await
+    {
+        Ok(creds) => creds,
+        Err(resp) => return resp,
+    };
+
+    let body = body.into_inner();
+    let totp_code = body.totp_code.trim().to_string();
+    if totp_code.is_empty() {
+        return HttpResponse::BadRequest().json(RestErrResponse::new("TOTP code is required"));
+    }
+
+    // Decrypt the user-provided password so TSDB actually validates the TOTP code.
+    // Using session password (__token__) would bypass TOTP verification via bearer_token priority.
+    let xor = TimeBasedXor::new(args.security.xor_allowed_duration_secs());
+    let real_password = match xor.decrypt(&body.encrypted_password) {
+        Ok(p) => p,
+        Err(_) => {
+            return HttpResponse::BadRequest().json(RestErrResponse::new("Invalid password"));
+        }
+    };
+
+    let auth = TsdbCredential::basic(username.clone(), real_password);
+
+    // Verify TOTP code by connecting with user:pass + totp_code
+    let dsn = match args.build_dsn_with_totp(&auth, Some(&totp_code)) {
+        Ok(dsn) => dsn,
+        Err(err) => return HttpResponse::InternalServerError().json(err),
+    };
+
+    // Use the verified connection to execute DROP TOTP_SECRET
+    let drop_sql = format!("DROP TOTP_SECRET FROM USER {}", username);
+    match args.query_with_dsn(&dsn, &drop_sql, None).await {
+        Ok(_) => {
+            tracing::info!("TOTP disabled for user: {}", username);
+            HttpResponse::Ok().json(R::<()>::success(()))
+        }
+        Err(err) => {
+            tracing::warn!("Failed to disable TOTP for {}: {:#}", username, err);
+            let err_lower = err.desc.to_lowercase();
+            if err_lower.contains("totp") {
+                HttpResponse::BadRequest().json(serde_json::json!({
+                    "code": err.code,
+                    "desc": "TOTP verification failed: invalid code",
+                }))
             } else {
                 HttpResponse::InternalServerError().json(err)
             }
@@ -2086,8 +2542,40 @@ impl Args {
             .unwrap_or("taos://localhost:6030")
             .parse()
             .map_err(RestErrResponse::new)?;
-        dsn.username = Some(auth.username.clone());
-        dsn.password = Some(auth.password.clone());
+        // If password is a token placeholder (from TOTP or token login), use token auth
+        if let Some(token) = auth.password.strip_prefix("__token__") {
+            dsn.username = Some(auth.username.clone());
+            dsn.set("bearer_token", token);
+        } else {
+            dsn.username = Some(auth.username.clone());
+            dsn.password = Some(auth.password.clone());
+        }
+        Ok(dsn)
+    }
+
+    /// Build DSN with optional TOTP code for two-factor authentication.
+    fn build_dsn_with_totp(
+        &self,
+        auth: &oauth::middleware::TsdbCredential,
+        totp_code: Option<&str>,
+    ) -> Result<Dsn, RestErrResponse> {
+        let mut dsn = self.build_dsn(auth)?;
+        if let Some(code) = totp_code {
+            dsn.set("totp_code", code);
+        }
+        Ok(dsn)
+    }
+
+    /// Build DSN for token-based authentication (no username/password).
+    fn build_dsn_with_token(&self, token: &str) -> Result<Dsn, RestErrResponse> {
+        let mut dsn: Dsn = self
+            .profile
+            .cluster
+            .as_deref()
+            .unwrap_or("taos://localhost:6030")
+            .parse()
+            .map_err(RestErrResponse::new)?;
+        dsn.set("bearer_token", token);
         Ok(dsn)
     }
 
@@ -2182,6 +2670,18 @@ impl Args {
         let mut qid = Span.get_qid::<Qid>().unwrap_or_else(Qid::init);
         qid.add_sequence_id();
         self.query_inner(&dsn, sql, tz, qid.get()).await
+    }
+
+    /// Execute a SQL query using a pre-built DSN (for TOTP/Token auth flows).
+    async fn query_with_dsn(
+        &self,
+        dsn: &Dsn,
+        sql: &str,
+        tz: Option<&String>,
+    ) -> Result<RestOkResponse, RestErrResponse> {
+        let mut qid = Span.get_qid::<Qid>().unwrap_or_else(Qid::init);
+        qid.add_sequence_id();
+        self.query_inner(dsn, sql, tz, qid.get()).await
     }
 
     // 开源版想在登录前就获取TDengine版本信息，使用root用户尝试登录获取。

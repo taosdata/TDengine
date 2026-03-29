@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, str::FromStr, sync::Arc};
 
 use actix_files::NamedFile;
 use actix_web::{
@@ -25,6 +25,7 @@ use tracing::instrument;
 use super::{get_dsn, types::*};
 use crate::{
     Args,
+    oauth::{self, session::SessionManager},
     sql::{exec, query, query_one},
     x_api::{JsonResult, JsonStatusResult, Result},
 };
@@ -88,11 +89,12 @@ pub async fn get_task(
 #[instrument(skip_all)]
 pub async fn create_task(
     args: web::Data<Args>,
+    session_manager: web::Data<SessionManager>,
     Json(task): Json<Task>,
     req: HttpRequest,
 ) -> JsonStatusResult<GetTaskResult> {
     Ok((
-        Json(create_task_inner(&args, &req, task, true).await?),
+        Json(create_task_inner(&args, &session_manager, &req, task, true).await?),
         StatusCode::CREATED,
     ))
 }
@@ -100,6 +102,7 @@ pub async fn create_task(
 #[instrument(skip_all)]
 async fn create_task_inner(
     args: &Args,
+    session_manager: &SessionManager,
     req: &HttpRequest,
     task: Task,
     start: bool,
@@ -115,7 +118,30 @@ async fn create_task_inner(
     };
     // create
     let task_name = task.name.clone();
-    let config: HaTask = task.try_into()?;
+    let mut config: HaTask = task.try_into()?;
+
+    // Inject bearer_token into `to` DSN if user has a taosx token and none is already set.
+    // This allows tasks to authenticate via token even when TOTP is enabled.
+    if let Some(username) = extract_username_from_request(req).await
+        && let Ok(Some(token_value)) = session_manager.get_taosx_token(&username).await
+        && let Ok(mut to_dsn) = Dsn::from_str(&config.to)
+        && to_dsn.get("bearer_token").is_none()
+    {
+        to_dsn.set("bearer_token", &token_value);
+        config.to = to_dsn.to_string();
+        tracing::debug!(
+            "Injected bearer_token into task `to` DSN for user: {}",
+            username
+        );
+    }
+
+    // Fallback: convert `__token__`-prefixed password to `bearer_token` param.
+    // This handles the case where the user logged in via token and the frontend
+    // sent `__token__<real_token>` as a literal password in the `to` DSN.
+    if let Some(fixed) = fix_token_password_in_dsn(&config.to) {
+        config.to = fixed;
+    }
+
     let status = TaskStatus::Created;
     let mut sql = format!(
         "CREATE XNODE TASK '{}' FROM '{}' TO '{}' WITH STATUS '{status}'",
@@ -169,13 +195,34 @@ async fn create_task_inner(
 
 pub async fn update_task(
     args: web::Data<Args>,
+    session_manager: web::Data<SessionManager>,
     task_id: Path<i64>,
     Json(task): Json<Task>,
     req: HttpRequest,
 ) -> JsonResult<()> {
     // update
     let task_id = task_id.into_inner();
-    let config: HaTask = task.try_into()?;
+    let mut config: HaTask = task.try_into()?;
+
+    // Inject bearer_token into `to` DSN if user has a taosx token and none is already set.
+    if let Some(username) = extract_username_from_request(&req).await
+        && let Ok(Some(token_value)) = session_manager.get_taosx_token(&username).await
+        && let Ok(mut to_dsn) = Dsn::from_str(&config.to)
+        && to_dsn.get("bearer_token").is_none()
+    {
+        to_dsn.set("bearer_token", &token_value);
+        config.to = to_dsn.to_string();
+        tracing::debug!(
+            "Injected bearer_token into updated task `to` DSN for user: {}",
+            username
+        );
+    }
+
+    // Fallback: convert `__token__`-prefixed password to `bearer_token` param.
+    if let Some(fixed) = fix_token_password_in_dsn(&config.to) {
+        config.to = fixed;
+    }
+
     let mut sql = format!(
         "ALTER XNODE TASK {} FROM '{}' TO '{}'",
         task_id, config.from, config.to
@@ -220,11 +267,13 @@ pub async fn delete_task(
 
 pub async fn start_task(
     args: web::Data<Args>,
+    session_manager: web::Data<SessionManager>,
     task_id: Path<i64>,
     req: HttpRequest,
 ) -> JsonResult<()> {
     let task_id = task_id.into_inner();
     let dsn = get_dsn(&args, &req).await?;
+    inject_bearer_token_if_needed(&dsn, &session_manager, &req, task_id).await?;
     let sql = format!("START XNODE TASK {}", task_id);
     exec(&dsn, &sql).await?;
     Ok(Json(()))
@@ -244,12 +293,14 @@ pub async fn stop_task(
 
 pub async fn batch_start_tasks(
     args: web::Data<Args>,
+    session_manager: web::Data<SessionManager>,
     task_ids: web::Json<BatchOpsParam>,
     req: HttpRequest,
 ) -> JsonResult<()> {
     let task_ids = task_ids.into_inner().ids;
     let dsn = get_dsn(&args, &req).await?;
     for task_id in task_ids {
+        inject_bearer_token_if_needed(&dsn, &session_manager, &req, task_id).await?;
         let sql = format!("START XNODE TASK {}", task_id);
         exec(&dsn, &sql).await?;
     }
@@ -342,12 +393,13 @@ async fn export_task_inner(
 
 pub async fn import_task(
     args: web::Data<Args>,
+    session_manager: web::Data<SessionManager>,
     params: Json<ExportTaskResult>,
     req: HttpRequest,
 ) -> JsonResult<()> {
     let exported_task = params.into_inner();
     for task in exported_task.tasks {
-        create_task_inner(&args, &req, task.into(), false).await?;
+        create_task_inner(&args, &session_manager, &req, task.into(), false).await?;
     }
     Ok(Json(()))
 }
@@ -429,4 +481,78 @@ pub async fn get_all_task_job_metrics(dsn: Dsn, task_id: i64) -> anyhow::Result<
     let res = get_task_metrics_string(task.status.unwrap_or(TaskStatus::Created), Arc::new(result))
         .context("serialize metrics to string error")?;
     Ok(res)
+}
+
+/// Extract username from request auth headers (session or basic auth).
+async fn extract_username_from_request(req: &HttpRequest) -> Option<String> {
+    match oauth::middleware::extract_auth_from_request(req).await {
+        Ok(Some(auth)) => Some(auth.username),
+        _ => None,
+    }
+}
+
+/// Convert `__token__`-prefixed passwords in a DSN to proper `bearer_token` params.
+///
+/// When a user logs in via token, the frontend stores `__token__<real_token>` as the
+/// password in localStorage. The `to` DSN built by the frontend thus contains this
+/// prefixed value as a literal password, which TDengine cannot authenticate.
+/// This function detects the prefix, strips it, and sets `bearer_token` instead.
+fn fix_token_password_in_dsn(to: &str) -> Option<String> {
+    let mut dsn = Dsn::from_str(to).ok()?;
+    let token = dsn
+        .password
+        .as_deref()
+        .and_then(|p| p.strip_prefix("__token__"))
+        .map(|t| t.to_string())?;
+    dsn.set("bearer_token", &token);
+    dsn.password = None;
+    Some(dsn.to_string())
+}
+
+/// For existing tasks: query current `to` DSN, inject `bearer_token` if user has a taosx token,
+/// then ALTER the task to update the DSN before starting.
+async fn inject_bearer_token_if_needed(
+    dsn: &Dsn,
+    session_manager: &SessionManager,
+    req: &HttpRequest,
+    task_id: i64,
+) -> Result<()> {
+    let sql = format!("SHOW XNODE TASKS WHERE ID = {task_id}");
+    let Some(task) = query_one::<TaskRecord>(dsn, &sql).await? else {
+        return Ok(());
+    };
+
+    let mut to_dsn_str = task.to.clone();
+    let mut changed = false;
+
+    // Try injecting from taosx_tokens table first.
+    if let Some(username) = extract_username_from_request(req).await
+        && let Ok(Some(token_value)) = session_manager.get_taosx_token(&username).await
+        && let Ok(mut to_dsn) = Dsn::from_str(&to_dsn_str)
+        && to_dsn.get("bearer_token").is_none_or(|v| v != &token_value)
+    {
+        to_dsn.set("bearer_token", &token_value);
+        to_dsn_str = to_dsn.to_string();
+        changed = true;
+        tracing::debug!(
+            "Injected bearer_token into existing task {} `to` DSN for user: {}",
+            task_id,
+            username
+        );
+    }
+
+    // Fallback: convert `__token__`-prefixed password to `bearer_token` param.
+    if let Some(fixed) = fix_token_password_in_dsn(&to_dsn_str) {
+        to_dsn_str = fixed;
+        changed = true;
+    }
+
+    if changed {
+        let alter_sql = format!(
+            "ALTER XNODE TASK {} FROM '{}' TO '{}'",
+            task_id, task.from, to_dsn_str
+        );
+        exec(dsn, &alter_sql).await?;
+    }
+    Ok(())
 }

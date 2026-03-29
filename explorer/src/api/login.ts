@@ -15,7 +15,7 @@ export function getUrls() {
     }
   });
 }
-export function firstLoginWith(username: string, password: string, sql: string, captcha?: string) {
+export function firstLoginWith(username: string, password: string, sql: string, captcha?: string, totp_code?: string) {
   const xor = new TimeBasedXor(60);
   const encrypted_password = xor.encrypt(password);
   return request({
@@ -27,7 +27,8 @@ export function firstLoginWith(username: string, password: string, sql: string, 
       username,
       encrypted_password,
       sql,
-      ...(captcha ? { captcha } : {})
+      ...(captcha ? { captcha } : {}),
+      ...(totp_code ? { totp_code } : {})
     }
   });
 }

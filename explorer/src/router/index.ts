@@ -43,7 +43,25 @@ const layoutCommonChildren = [
   },
   {
     path: 'profile',
-    component: () => import('@/views/profile/index.vue')
+    component: () => import('@/views/profile/index.vue'),
+    redirect: '/profile/basic',
+    children: [
+      {
+        path: 'basic',
+        name: 'basic',
+        component: () => import('@/views/profile/views/basicInfo.vue')
+      },
+      {
+        path: 'totp',
+        name: 'totp',
+        component: () => import('@/views/profile/views/totpAuth.vue')
+      },
+      {
+        path: 'tokens',
+        name: 'tokens',
+        component: () => import('@/views/profile/views/tokenManagement.vue')
+      }
+    ]
   },
   {
     path: 'landing',
