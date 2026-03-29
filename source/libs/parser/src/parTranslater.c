@@ -13728,6 +13728,7 @@ static int32_t buildCreateStbReq(STranslateContext* pCxt, SCreateTableStmt* pStm
   if (TSDB_CODE_SUCCESS == code) {
     pReq->virtualStb = pStmt->pOptions->virtualStb;
     pReq->secureDelete = pStmt->pOptions->secureDelete;
+    pReq->txnId = pCxt->pParseCxt->txnId;
   }
   return code;
 }
@@ -13752,6 +13753,7 @@ static int32_t doTranslateDropSuperTable(STranslateContext* pCxt, const SName* p
     code = tNameExtractFullName(pTableName, dropReq.name);
     if (TSDB_CODE_SUCCESS == code) {
       dropReq.igNotExists = ignoreNotExists;
+      dropReq.txnId = pCxt->pParseCxt->txnId;
       code = buildCmdMsg(pCxt, TDMT_MND_DROP_STB, (FSerializeFunc)tSerializeSMDropStbReq, &dropReq);
     }
     tFreeSMDropStbReq(&dropReq);
@@ -14156,6 +14158,7 @@ static int32_t translateAlterSuperTable(STranslateContext* pCxt, SAlterTableStmt
     code = buildAlterSuperTableReq(pCxt, pStmt, &alterReq);
   }
   if (TSDB_CODE_SUCCESS == code) {
+    alterReq.txnId = pCxt->pParseCxt->txnId;
     code = buildCmdMsg(pCxt, TDMT_MND_ALTER_STB, (FSerializeFunc)tSerializeSMAlterStbReq, &alterReq);
   }
   tFreeSMAltertbReq(&alterReq);

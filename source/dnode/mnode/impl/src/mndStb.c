@@ -1762,6 +1762,71 @@ static int32_t mndProcessCreateStbReq(SRpcMsg *pReq) {
         code = mndTxnAddShadowOp(pMnode, createReq.txnId, MND_SHADOW_OP_CREATE_STB, createReq.name, createReq.suid,
                                  pDb->name, pShadowData, pReq->contLen);
       }
+      // Shadow op path: build SMCreateStbRsp with schema for client-side pTxnTableMeta caching
+      if (code == 0) {
+        SMCreateStbRsp stbRsp = {0};
+        stbRsp.pMeta = taosMemoryCalloc(1, sizeof(STableMetaRsp));
+        if (stbRsp.pMeta) {
+          STableMetaRsp *pRsp = stbRsp.pMeta;
+          int32_t        numCols = createReq.numOfColumns;
+          int32_t        numTags = createReq.numOfTags;
+          int32_t        totalCols = numCols + numTags;
+          pRsp->pSchemas = taosMemoryCalloc(totalCols, sizeof(SSchema));
+          pRsp->pSchemaExt = taosMemoryCalloc(numCols, sizeof(SSchemaExt));
+          if (pRsp->pSchemas) {
+            tstrncpy(pRsp->dbFName, pDb->name, sizeof(pRsp->dbFName));
+            tstrncpy(pRsp->tbName, stbName.tname, sizeof(pRsp->tbName));
+            tstrncpy(pRsp->stbName, stbName.tname, sizeof(pRsp->stbName));
+            pRsp->dbId = pDb->uid;
+            pRsp->numOfColumns = numCols;
+            pRsp->numOfTags = numTags;
+            pRsp->precision = pDb->cfg.precision;
+            pRsp->tableType = TSDB_SUPER_TABLE;
+            pRsp->sversion = createReq.colVer;
+            pRsp->tversion = createReq.tagVer;
+            pRsp->suid = createReq.suid;
+            pRsp->tuid = createReq.suid;
+            // Fill column schemas from SFieldWithOptions (SArray of SFieldWithOptions*)
+            for (int32_t i = 0; i < numCols && createReq.pColumns; i++) {
+              SFieldWithOptions *pField = taosArrayGet(createReq.pColumns, i);
+              SSchema           *pSchema = &pRsp->pSchemas[i];
+              tstrncpy(pSchema->name, pField->name, sizeof(pSchema->name));
+              pSchema->type = pField->type;
+              pSchema->bytes = pField->bytes;
+              pSchema->flags = pField->flags;
+              pSchema->colId = i + 1;  // colId starts from 1 for user columns
+            }
+            // Fill tag schemas from SField (SArray of SField*)
+            for (int32_t i = 0; i < numTags && createReq.pTags; i++) {
+              SField  *pField = taosArrayGet(createReq.pTags, i);
+              SSchema *pSchema = &pRsp->pSchemas[numCols + i];
+              tstrncpy(pSchema->name, pField->name, sizeof(pSchema->name));
+              pSchema->type = pField->type;
+              pSchema->bytes = pField->bytes;
+              pSchema->flags = pField->flags;
+              pSchema->colId = numCols + i + 1;
+            }
+          }
+          // Encode response and set as RPC reply
+          SEncoder ec = {0};
+          uint32_t contLen = 0;
+          int32_t  ret = 0;
+          tEncodeSize(tEncodeSMCreateStbRsp, &stbRsp, contLen, ret);
+          if (ret == 0) {
+            void *pCont = rpcMallocCont(contLen);
+            if (pCont) {
+              tEncoderInit(&ec, pCont, contLen);
+              (void)tEncodeSMCreateStbRsp(&ec, &stbRsp);
+              tEncoderClear(&ec);
+              pReq->info.rsp = pCont;
+              pReq->info.rspLen = contLen;
+            }
+          }
+        }
+        tFreeSMCreateStbRsp(&stbRsp);
+      }
+      // Shadow op path: respond immediately (no STrans to handle deferred response)
+      goto _OVER;
     } else {
       code = mndCreateStb(pMnode, pReq, &createReq, pDb, pOperUser);
     }

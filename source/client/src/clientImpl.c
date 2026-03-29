@@ -1257,6 +1257,31 @@ int32_t handleQueryExecRsp(SRequestObj* pRequest) {
     }
     case TDMT_MND_CREATE_STB: {
       code = handleCreateTbExecRes(pRes->res, pCatalog);
+
+      // Batch meta txn: cache STB meta for same-txn child table creation
+      STscObj* pTscObj2 = pRequest->pTscObj;
+      if (pRes->res != NULL && pTscObj2->txnId > 0) {
+        STableMetaRsp* pMetaRsp2 = (STableMetaRsp*)pRes->res;
+        STableMeta*    pTableMeta2 = NULL;
+        bool           isStb2 = (pMetaRsp2->tableType == TSDB_SUPER_TABLE);
+        if (queryCreateTableMetaFromMsg(pMetaRsp2, isStb2, &pTableMeta2) == 0 && pTableMeta2 != NULL) {
+          char fullName2[TSDB_TABLE_FNAME_LEN];
+          snprintf(fullName2, sizeof(fullName2), "%s.%s", pMetaRsp2->dbFName, pMetaRsp2->tbName);
+          taosThreadMutexLock(&pTscObj2->mutex);
+          if (pTscObj2->pTxnTableMeta == NULL) {
+            pTscObj2->pTxnTableMeta =
+                taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+          }
+          if (pTscObj2->pTxnTableMeta) {
+            taosHashPut(pTscObj2->pTxnTableMeta, fullName2, strlen(fullName2), &pTableMeta2, sizeof(STableMeta*));
+            tscDebug("conn:0x%" PRIx64 ", txn:%" PRIu64 " cached STB meta for %s", pTscObj2->id, pTscObj2->txnId,
+                     fullName2);
+          } else {
+            taosMemoryFree(pTableMeta2);
+          }
+          taosThreadMutexUnlock(&pTscObj2->mutex);
+        }
+      }
       break;
     }
     case TDMT_VND_SUBMIT: {
