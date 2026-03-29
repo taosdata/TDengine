@@ -1419,8 +1419,7 @@ class TestTaosBackupBasic:
         Jira: None
 
         History:
-
-        - 2026-03-04 Alex Duan Created
+            - 2026-03-04 Alex Duan Created
 
         """
         self.do_taosbackup_basic()
