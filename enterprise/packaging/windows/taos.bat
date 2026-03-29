@@ -1,7 +1,9 @@
 @echo off
 
 echo.
-echo To use TDengine TSDB services, please run start-all.bat under C:\TDengine directory, or you can use following instructions to edit configuration files and run commands manually in terminal as Administrator:"
+echo To use TDengine TSDB services, please run start-all.bat under C:\TDengine directory.
+echo Supported actions: start-all.bat [start^|status^|stop]
+echo Or you can use following instructions to edit configuration files and run commands manually in terminal as Administrator:
 echo.
 echo To configure TDengine TSDB:   edit C:\TDengine\cfg\taos.cfg
 echo To configure taosadapter:     edit C:\TDengine\cfg\taosadapter.toml
