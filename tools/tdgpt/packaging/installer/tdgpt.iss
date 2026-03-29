@@ -28,7 +28,7 @@ UninstallDisplayIcon={#MyAppIco}
 Compression=lzma
 SolidCompression=yes
 CloseApplications=no
-DisableDirPage=no
+DisableDirPage=yes
 Uninstallable=yes
 ArchitecturesAllowed=x64
 ArchitecturesInstallIn64BitMode=x64
@@ -362,12 +362,17 @@ end;
 function HasExistingMainVenvPython(): Boolean;
 var
   ExistingPython: string;
+  OutputText: AnsiString;
 begin
   Result := False;
   if LockedInstallDir = '' then
     exit;
   ExistingPython := AddBackslash(LockedInstallDir) + 'venvs\venv\Scripts\python.exe';
-  Result := FileExists(ExistingPython);
+  if not FileExists(ExistingPython) then
+    exit;
+  Result := ReadCommandOutput(ExistingPython, OutputText);
+  if not Result then
+    LogTdgpt('Ignoring unusable existing main venv python: ' + ExistingPython);
 end;
 
 function ConfirmExistingInstall(TargetDir: string): Boolean;
@@ -689,8 +694,8 @@ begin
   begin
     if InstallModePage <> nil then
     begin
-      InstallModePage.Values[0] := False;
-      InstallModePage.Values[1] := True;
+      InstallModePage.Values[0] := True;
+      InstallModePage.Values[1] := False;
     end;
     IsOnlineMode := False;
     ModelSource := 'none';
@@ -708,8 +713,8 @@ begin
 
   if InstallModePage <> nil then
   begin
-    InstallModePage.Values[0] := False;
-    InstallModePage.Values[1] := True;
+    InstallModePage.Values[0] := True;
+    InstallModePage.Values[1] := False;
   end;
   IsOnlineMode := False;
   ModelSource := 'offline';
@@ -726,7 +731,7 @@ end;
 
 procedure InitializeWizard();
 begin
-  IsOnlineMode := True;
+  IsOnlineMode := False;
   UseCustomPip := False;
   UseCustomModelMirror := False;
   PipIndexUrl := '';
@@ -744,15 +749,15 @@ begin
   ExistingInstallConfirmedDir := '';
 
   InstallModePage := CreateInputOptionPage(
-    wpSelectDir,
+    wpWelcome,
     'Python Package Mode',
     'Select how Python dependencies should be installed',
     'Online mode downloads Python packages during setup. Offline package mode imports one external tar package that contains python runtime, virtual environments, and optional model archives. During upgrade, leaving the offline package blank reuses the existing environment and model files.',
     True,
     False);
-  InstallModePage.Add('Online mode');
   InstallModePage.Add('Offline package (recommended)');
-  InstallModePage.Values[1] := True;
+  InstallModePage.Add('Online mode');
+  InstallModePage.Values[0] := True;
 
   PipSourcePage := CreateInputOptionPage(
     InstallModePage.ID,
@@ -914,7 +919,7 @@ begin
 
   if CurPageID = InstallModePage.ID then
   begin
-    IsOnlineMode := InstallModePage.Values[0];
+    IsOnlineMode := InstallModePage.Values[1];
     if IsOnlineMode and (not HasExistingMainVenvPython()) and (not CheckPythonPrerequisite(PythonVersionText)) then
     begin
       MsgBox(

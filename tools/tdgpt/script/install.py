@@ -11,6 +11,7 @@ import os
 import platform
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import tarfile
@@ -226,23 +227,34 @@ def find_reexec_python(current_python: Path) -> Optional[List[str]]:
     return None
 
 
+def is_replaceable_offline_import_python(current_python: Path) -> bool:
+    replaceable_roots = [VENVS_DIR.resolve(), PACKAGED_PYTHON_DIR.resolve()]
+    for root in replaceable_roots:
+        try:
+            current_python.relative_to(root)
+            return True
+        except ValueError:
+            continue
+    return False
+
+
 def maybe_reexec_for_offline_import(args: argparse.Namespace) -> None:
     if not args.offline:
+        return
+    if not (args.offline_package or args.offline_model_package):
         return
     if os.environ.get("TDGPT_REEXEC_OFFLINE_IMPORT", "") == "1":
         return
 
     current_python = Path(sys.executable).resolve()
-    try:
-        current_python.relative_to(VENVS_DIR)
-    except ValueError:
+    if not is_replaceable_offline_import_python(current_python):
         return
 
     reexec_command = find_reexec_python(current_python)
     if not reexec_command:
         print(
-            "ERROR: Offline import needs a Python interpreter outside the current virtual environment "
-            "because the installer must replace venvs during import."
+            "ERROR: Offline import needs a Python interpreter outside the current installation tree "
+            "because the installer must replace python/runtime or venvs during import."
         )
         print("ERROR: Install Python 3.10/3.11/3.12 in PATH and run the installer again.")
         sys.exit(1)
@@ -631,6 +643,81 @@ class WindowsInstaller:
             [str(item) for item in MODEL_SPECS[model_name]["flag_files"]],
         )
 
+    def should_skip_system_tar_for_prefix_extract(self, destination_dir: Path, prefixes: List[str]) -> bool:
+        """Avoid system tar overwrite on Windows when extracting into an existing install tree.
+
+        Windows tar.exe (libarchive) is fast for fresh extraction, but it is unreliable when
+        asked to overwrite an existing python/runtime or venv tree in place. In upgrade flows
+        this often emits "Can't unlink already-existing object" and then falls back to Python
+        tarfile anyway. Detect that case early and go straight to the Python path.
+        """
+        try:
+            install_root = self.install_dir.resolve()
+            dest_root = destination_dir.resolve()
+        except Exception:
+            install_root = self.install_dir
+            dest_root = destination_dir
+
+        if dest_root != install_root:
+            return False
+
+        normalized_prefixes: List[str] = []
+        for item in prefixes:
+            normalized = item.strip("/").replace("\\", "/")
+            if normalized and normalized not in normalized_prefixes:
+                normalized_prefixes.append(normalized)
+
+        overwrite_sensitive_roots = (
+            "python/runtime",
+            "venvs/venv",
+            "venvs/moirai_venv",
+            "venvs/chronos_venv",
+            "venvs/timesfm_venv",
+            "venvs/momentfm_venv",
+        )
+
+        for prefix in normalized_prefixes:
+            if any(prefix == root or prefix.startswith(root + "/") for root in overwrite_sensitive_roots):
+                return True
+        return False
+
+    @staticmethod
+    def _rmtree_onerror(func, path, exc_info) -> None:
+        try:
+            os.chmod(path, stat.S_IWRITE)
+        except Exception:
+            pass
+        func(path)
+
+    def remove_tree_with_retry(self, path: Path, label: str, attempts: int = 5, delay: float = 1.0) -> bool:
+        if not path.exists():
+            return True
+
+        last_error: Optional[Exception] = None
+        retried_after_process_cleanup = False
+        for attempt in range(1, attempts + 1):
+            try:
+                shutil.rmtree(path, onerror=self._rmtree_onerror)
+                if not path.exists():
+                    return True
+            except Exception as exc:
+                last_error = exc
+                if not retried_after_process_cleanup and isinstance(exc, PermissionError):
+                    self.print_warning(
+                        f"Removal of {label} was blocked by an in-use file. "
+                        "Trying to stop existing installation-tree Python processes once before retrying."
+                    )
+                    self.stop_existing_install_tree_python_processes()
+                    retried_after_process_cleanup = True
+            time.sleep(delay)
+
+        detail = f": {last_error}" if last_error else ""
+        self.print_error(
+            f"Failed to remove existing {label} before offline import{detail}. "
+            f"Path: {path}"
+        )
+        return False
+
     def extract_selected_prefixes_to_dir(self, archive_path: Path, destination_dir: Path, prefixes: List[str]) -> bool:
         normalized_prefixes = []
         for item in prefixes:
@@ -642,7 +729,15 @@ class WindowsInstaller:
 
         destination_dir.mkdir(parents=True, exist_ok=True)
         tar_exe = shutil.which("tar")
-        if tar_exe:
+        use_system_tar = tar_exe is not None and not self.should_skip_system_tar_for_prefix_extract(
+            destination_dir, normalized_prefixes
+        )
+        if tar_exe and not use_system_tar:
+            self.print_info(
+                f"Skipping system tar for selective extraction into existing install tree: "
+                f"{archive_path.name} -> {destination_dir}"
+            )
+        if use_system_tar:
             self.print_info(
                 f"Extracting selected package content with system tar: {archive_path.name} -> {destination_dir}"
             )
@@ -729,17 +824,24 @@ class WindowsInstaller:
         )
 
         if PACKAGED_PYTHON_DIR.exists():
-            shutil.rmtree(PACKAGED_PYTHON_DIR, ignore_errors=True)
+            if not self.remove_tree_with_retry(PACKAGED_PYTHON_DIR, "Python runtime directory"):
+                return False
         for venv_name in venv_prefixes:
-            shutil.rmtree(self.get_venv_path(venv_name), ignore_errors=True)
+            if not self.remove_tree_with_retry(self.get_venv_path(venv_name), f"{venv_name} directory"):
+                return False
         direct_model_root_required = any(prefix.startswith("model/") for prefix in model_prefixes.values())
         if direct_model_root_required:
             self.model_dir.mkdir(parents=True, exist_ok=True)
         for prefix in model_prefixes.values():
             if not prefix.startswith("model/"):
-                shutil.rmtree(self.install_dir / prefix.split("/", 1)[0], ignore_errors=True)
+                if not self.remove_tree_with_retry(
+                    self.install_dir / prefix.split("/", 1)[0],
+                    f"offline model source directory {prefix.split('/', 1)[0]}",
+                ):
+                    return False
         for model_name in model_prefixes:
-            shutil.rmtree(self.model_dir / model_name, ignore_errors=True)
+            if not self.remove_tree_with_retry(self.model_dir / model_name, f"model directory {model_name}"):
+                return False
 
         if not self.extract_selected_prefixes_to_dir(package_path, self.install_dir, install_prefixes):
             return False
@@ -1081,6 +1183,101 @@ class WindowsInstaller:
             self.print_error(f"Failed to create directories: {exc}")
             return False
 
+    def find_install_tree_python_processes(self) -> List[Tuple[int, str]]:
+        prefixes = [
+            str((self.install_dir / "python" / "runtime").resolve()).lower(),
+            str(self.venvs_dir.resolve()).lower(),
+        ]
+        prefixes_literal = ", ".join("'" + item.replace("'", "''") + "'" for item in prefixes)
+        powershell_exe = Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32" / "WindowsPowerShell" / "v1.0" / "powershell.exe"
+        script = (
+            "$prefixes = @(" + prefixes_literal + "); "
+            "$items = @(); "
+            "Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath } | ForEach-Object { "
+            "  $exe = $_.ExecutablePath.ToLower(); "
+            "  foreach ($prefix in $prefixes) { "
+            "    if ($exe.StartsWith($prefix)) { "
+            "      $items += [PSCustomObject]@{ ProcessId = $_.ProcessId; ExecutablePath = $_.ExecutablePath }; "
+            "      break; "
+            "    } "
+            "  } "
+            "}; "
+            "$items | ConvertTo-Json -Compress"
+        )
+        try:
+            result = subprocess.run(
+                [
+                    str(powershell_exe),
+                    "-NoProfile",
+                    "-NonInteractive",
+                    "-ExecutionPolicy",
+                    "Bypass",
+                    "-Command",
+                    script,
+                ],
+                capture_output=True,
+                text=True,
+                timeout=30,
+                check=False,
+            )
+        except Exception as exc:
+            self.print_warning(f"Unable to inspect existing installation-tree Python processes: {exc}")
+            return []
+
+        if result.returncode != 0:
+            detail = (result.stderr or result.stdout or "").strip()
+            if detail:
+                self.print_warning(f"Unable to inspect existing installation-tree Python processes: {detail}")
+            return []
+
+        payload = (result.stdout or "").strip()
+        if not payload:
+            return []
+        try:
+            decoded = json.loads(payload)
+        except Exception:
+            return []
+
+        if isinstance(decoded, dict):
+            decoded = [decoded]
+        if not isinstance(decoded, list):
+            return []
+
+        processes: List[Tuple[int, str]] = []
+        for item in decoded:
+            if not isinstance(item, dict):
+                continue
+            try:
+                pid = int(item.get("ProcessId"))
+            except Exception:
+                continue
+            exe_path = str(item.get("ExecutablePath") or "").strip()
+            if pid <= 0 or not exe_path or pid == os.getpid():
+                continue
+            processes.append((pid, exe_path))
+        return processes
+
+    def stop_existing_install_tree_python_processes(self) -> None:
+        processes = self.find_install_tree_python_processes()
+        if not processes:
+            self.print_info("No existing installation-tree Python processes were detected.")
+            return
+
+        self.print_warning("Stopping existing Python processes from the current installation tree before offline import...")
+        for pid, exe_path in processes:
+            self.print_warning(f"Stopping PID {pid}: {exe_path}")
+            try:
+                subprocess.run(
+                    ["taskkill", "/F", "/T", "/PID", str(pid)],
+                    capture_output=True,
+                    text=True,
+                    timeout=20,
+                    check=False,
+                )
+            except Exception as exc:
+                self.print_warning(f"Unable to stop PID {pid}: {exc}")
+        time.sleep(2)
+
     def stop_existing_service(self) -> None:
         self.print_info("Stopping any existing Taosanode service before installation...")
         try:
@@ -1120,6 +1317,7 @@ class WindowsInstaller:
         except Exception:
             pass
         time.sleep(2)
+        self.stop_existing_install_tree_python_processes()
 
     def service_exists(self, service_name: str = "Taosanode") -> bool:
         try:

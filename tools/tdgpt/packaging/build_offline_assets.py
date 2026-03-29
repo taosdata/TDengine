@@ -145,14 +145,21 @@ def remap_seed_member_name(member_name: str) -> str:
     return f"model/{canonical_model}"
 
 
-def copy_tar_members(
-    source_tar: Path,
-    dest_tar: tarfile.TarFile,
-    watched_prefixes: Optional[Iterable[str]] = None,
-) -> tuple[int, set[str]]:
-    count = 0
+def normalize_prefixes(prefixes: Optional[Iterable[str]]) -> list[str]:
+    normalized: list[str] = []
+    for item in prefixes or []:
+        prefix = item.strip("/").replace("\\", "/")
+        if not prefix:
+            continue
+        prefix = prefix + "/"
+        if prefix not in normalized:
+            normalized.append(prefix)
+    return normalized
+
+
+def inspect_tar_prefixes(source_tar: Path, watched_prefixes: Iterable[str]) -> set[str]:
     found_prefixes: set[str] = set()
-    normalized_prefixes = [item.strip("/").replace("\\", "/") + "/" for item in (watched_prefixes or [])]
+    normalized_prefixes = normalize_prefixes(watched_prefixes)
     with tarfile.open(source_tar, "r:*") as src:
         for member in src:
             member_name = remap_seed_member_name(member.name)
@@ -161,6 +168,27 @@ def copy_tar_members(
             for prefix in normalized_prefixes:
                 if member_name.startswith(prefix):
                     found_prefixes.add(prefix)
+    return found_prefixes
+
+
+def copy_tar_members(
+    source_tar: Path,
+    dest_tar: tarfile.TarFile,
+    include_prefixes: Optional[Iterable[str]] = None,
+    exclude_prefixes: Optional[Iterable[str]] = None,
+) -> int:
+    count = 0
+    include_normalized = normalize_prefixes(include_prefixes)
+    exclude_normalized = normalize_prefixes(exclude_prefixes)
+    with tarfile.open(source_tar, "r:*") as src:
+        for member in src:
+            member_name = remap_seed_member_name(member.name)
+            if not member_name:
+                continue
+            if include_normalized and not any(member_name.startswith(prefix) for prefix in include_normalized):
+                continue
+            if exclude_normalized and any(member_name.startswith(prefix) for prefix in exclude_normalized):
+                continue
             member = copy.copy(member)
             member.name = member_name
             fileobj = src.extractfile(member) if member.isfile() else None
@@ -170,7 +198,7 @@ def copy_tar_members(
                 if fileobj is not None:
                     fileobj.close()
             count += 1
-    return count, found_prefixes
+    return count
 
 
 def create_manifest_lines(
@@ -207,28 +235,30 @@ def build_bundle(
 
     with tarfile.open(output_file, "w") as tar_obj:
         existing_prefixes: set[str] = set()
+        seed_handled_prefixes = [
+            "python/runtime",
+            "venvs/venv",
+            *[f"venvs/{item.name}" for item in extra_venvs],
+        ]
         if seed_package is not None:
-            info(f"Streaming seed package into bundle: {seed_package}")
-            copied, existing_prefixes = copy_tar_members(
+            info(f"Inspecting seed package prefixes: {seed_package}")
+            existing_prefixes = inspect_tar_prefixes(
                 seed_package,
-                tar_obj,
-                watched_prefixes=[
-                    "python/runtime",
-                    "venvs/venv",
-                    *[f"venvs/{item.name}" for item in extra_venvs],
-                    *[f"model/{item}" for item in sorted(set(MODEL_NAME_ALIASES.values()))],
-                ],
+                watched_prefixes=seed_handled_prefixes,
             )
-            info(f"Copied {copied} members from seed package")
 
         if "python/runtime/" in existing_prefixes:
-            info("Skipping Python runtime because seed package already contains python/runtime")
+            info("Adding Python runtime from seed package")
+            copied = copy_tar_members(seed_package, tar_obj, include_prefixes=["python/runtime"])
+            info(f"Copied {copied} Python runtime members from seed package")
         else:
             info(f"Adding Python runtime from {runtime_dir}")
             add_directory_to_tar(tar_obj, runtime_dir, "python/runtime")
 
         if "venvs/venv/" in existing_prefixes:
-            info("Skipping main venv because seed package already contains venvs/venv")
+            info("Adding main venv from seed package")
+            copied = copy_tar_members(seed_package, tar_obj, include_prefixes=["venvs/venv"])
+            info(f"Copied {copied} main venv members from seed package")
         else:
             info(f"Adding main venv from {main_venv_dir}")
             add_directory_to_tar(tar_obj, main_venv_dir, "venvs/venv")
@@ -236,10 +266,21 @@ def build_bundle(
         for extra_venv in extra_venvs:
             prefix = f"venvs/{extra_venv.name}/"
             if prefix in existing_prefixes:
-                info(f"Skipping extra venv because seed package already contains {prefix[:-1]}")
+                info(f"Adding extra venv from seed package: {prefix[:-1]}")
+                copied = copy_tar_members(seed_package, tar_obj, include_prefixes=[prefix[:-1]])
+                info(f"Copied {copied} members for {prefix[:-1]} from seed package")
                 continue
             info(f"Adding extra venv from {extra_venv}")
             add_directory_to_tar(tar_obj, extra_venv, f"venvs/{extra_venv.name}")
+
+        if seed_package is not None:
+            info(f"Streaming seed package model payloads after runtime and venvs: {seed_package}")
+            copied = copy_tar_members(
+                seed_package,
+                tar_obj,
+                exclude_prefixes=seed_handled_prefixes,
+            )
+            info(f"Copied {copied} members from seed package")
 
         manifest = create_manifest_lines(seed_package, runtime_dir, main_venv_dir, extra_venvs)
         data = manifest.encode("utf-8")

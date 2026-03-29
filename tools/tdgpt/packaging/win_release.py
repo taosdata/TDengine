@@ -548,19 +548,23 @@ set "TDGPT_LOG_REDIRECTED=1"
 set "EXISTING_VENV_PYTHON=%INSTALL_DIR%\\venvs\\venv\\Scripts\\python.exe"
 set "PACKAGED_PYTHON=%INSTALL_DIR%\\python\\runtime\\python.exe"
 set "PYTHON_CMD="
+set "OFFLINE_WITH_PACKAGE=0"
 
 call :append_progress running 1 "Initializing {install_info.app_name} setup" "Preparing installation environment"
+call :detect_offline_import %*
+
+if "%OFFLINE_WITH_PACKAGE%"=="1" goto :resolve_offline_python
 
 REM Priority 1: existing venv Python (upgrade scenario)
 if exist "%EXISTING_VENV_PYTHON%" (
-    set "PYTHON_CMD=%EXISTING_VENV_PYTHON%"
-    goto :run_install
+    call :try_python "%EXISTING_VENV_PYTHON%"
+    if defined PYTHON_CMD goto :run_install
 )
 
 REM Priority 2: packaged runtime Python (previously extracted)
 if exist "%PACKAGED_PYTHON%" (
-    set "PYTHON_CMD=%PACKAGED_PYTHON%"
-    goto :run_install
+    call :try_python "%PACKAGED_PYTHON%"
+    if defined PYTHON_CMD goto :run_install
 )
 
 REM Priority 3: system Python in PATH (online mode)
@@ -575,6 +579,17 @@ echo ERROR: No Python interpreter available.
 echo For online mode, install Python 3.10/3.11/3.12 and add to PATH.
 echo For offline mode, provide an offline package with --offline-package.
 call :append_progress error 100 "Installation failed" "No Python interpreter available"
+exit /b 1
+
+:resolve_offline_python
+REM Offline package import must not run with python/runtime or venv Python from the target tree.
+REM Always bootstrap a temporary Python runtime from the provided offline package first.
+call :bootstrap_python_from_offline %*
+if defined PYTHON_CMD goto :run_install
+
+echo ERROR: Offline import could not bootstrap Python from the offline package.
+echo Make sure tar.exe is available and the offline package contains python/runtime/.
+call :append_progress error 100 "Installation failed" "Offline bootstrap Python is unavailable"
 exit /b 1
 
 :run_install
@@ -616,6 +631,20 @@ if exist "%PROGRESS_FILE%" (
 call :append_progress error 100 "%~1" "%~2"
 exit /b 0
 
+:detect_offline_import
+set "OFFLINE_WITH_PACKAGE=0"
+set "SEEN_OFFLINE_FLAG=0"
+:detect_offline_args
+if "%~1"=="" exit /b 0
+if /I "%~1"=="-o" set "SEEN_OFFLINE_FLAG=1"
+if /I "%~1"=="--offline" set "SEEN_OFFLINE_FLAG=1"
+if /I "%~1"=="--offline-package" (
+    if "%SEEN_OFFLINE_FLAG%"=="1" if not "%~2"=="" set "OFFLINE_WITH_PACKAGE=1"
+    shift
+)
+shift
+goto :detect_offline_args
+
 :resolve_python
 python --version >nul 2>&1
 if not errorlevel 1 (
@@ -629,6 +658,13 @@ if not errorlevel 1 (
 )
 set "PYTHON_CMD="
 exit /b 1
+
+:try_python
+set "PYTHON_CMD="
+%~1 --version >nul 2>&1
+if errorlevel 1 exit /b 1
+set "PYTHON_CMD=%~1"
+exit /b 0
 
 :bootstrap_python_from_offline
 set "OFFLINE_PKG="
@@ -653,9 +689,9 @@ echo Bootstrapping Python from offline package: %OFFLINE_PKG%
 tar -xf "%OFFLINE_PKG%" -C "%BOOTSTRAP_DIR%" python/runtime/ 2>nul
 if exist "%BOOTSTRAP_DIR%\\python\\runtime\\python.exe" (
     set "PYTHON_CMD=%BOOTSTRAP_DIR%\\python\\runtime\\python.exe"
-    echo Python runtime extracted successfully.
+    echo Bootstrap Python runtime extracted successfully.
 ) else (
-    echo WARNING: Could not extract Python runtime from offline package.
+    echo WARNING: Could not extract bootstrap Python runtime from offline package.
     rd /s /q "%BOOTSTRAP_DIR%" 2>nul
 )
 exit /b 0
