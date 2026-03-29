@@ -3461,8 +3461,9 @@ class TestExternal:
         )
         tdSql.checkRows(6)
 
-        # -- Test 4: No partition by in outer (error case per doc constraints) --
-        # "当外部窗口使用 PARTITION BY，但外部查询未使用 PARTITION BY 时，语法禁止"
+        # -- Test 4: Subquery has PARTITION BY but outer query has none -> syntax error --
+        # Doc 约束与限制: "若外部窗口（内部子查询）使用了分组，则外部查询必须同时使用 PARTITION BY；否则语法报错"
+        # The subquery below uses partition by groupid; the outer query has no partition by -> error.
         tdSql.error(
             "select cast(_wstart as bigint) as ws, "
             "count(a.*) as alert_count "
@@ -3471,11 +3472,13 @@ class TestExternal:
             "(select ts, ts + 60s, groupid, location "
             " from doc_meters "
             " where voltage >= 225 "
-            " partition by groupid) w)"
+            " partition by groupid order by ts) w)"
         )
 
-        # -- Test 5: No partition by in subquery -> all data share same windows --
-        # "当外部窗口未使用 PARTITION BY 时，所有数据共享同一组窗口"
+        # -- Test 5: No partition by in subquery -> all data share one global window set --
+        # Doc 分组和对齐 bullet 3: "当子查询未使用 PARTITION BY 时，内部子查询只生成一组共享窗口。"
+        # Both subquery and outer query have no PARTITION BY here, so all alerts from all groups
+        # are counted together against the single shared window set derived from all voltage events.
         tdSql.query(
             "select cast(_wstart as bigint) as ws, "
             "count(a.*) as alert_count "
@@ -3511,6 +3514,40 @@ class TestExternal:
         tdSql.checkData(0, 0, 2)
         tdSql.checkData(2, 0, 1)
 
+        # -- Test 7: ORDER BY in partitioned subquery breaks partition alignment (doc limitation) --
+        # Doc "分组和对齐" bullet 5 (限制与注意事项，未来版本可能变化):
+        #   "当内外查询都使用 PARTITION BY，且窗口子查询中再使用 ORDER BY 时，
+        #    排序可能打乱各分组窗口流的原有组织方式；外部查询可能作用于合并后的窗口流，
+        #    表现为内部分组语义失效（等同未分组），不再按内外分组一一对齐。"
+        #
+        # Compare with Test 1 (no ORDER BY in subquery) which yields 6 rows:
+        #   Group 1 sees only its 4 windows → 4 rows
+        #   Group 2 sees only its 2 windows → 2 rows
+        #
+        # With ORDER BY ts added to the subquery, all 6 windows are merged into one sorted stream.
+        # Each outer partition (a.groupid=1 and a.groupid=2) now sees ALL 6 merged windows:
+        #   Merged windows (sorted by ts): [+10s], [+20s], [+30s], [+60s], [+150s], [+180s]
+        #   Group 1 alerts (+15s, +25s, +50s, +75s, +100s, +200s) match all 6 windows → 6 rows
+        #   Group 2 alerts (+40s, +80s, +160s, +190s) match all 6 windows → 6 rows
+        # Total: 12 rows (doubled from 6), demonstrating the alignment failure.
+        tdSql.query(
+            "select w.groupid, "
+            "cast(_wstart as bigint) as ws, "
+            "count(a.*) as alert_count "
+            "from doc_alerts a "
+            "partition by a.groupid "
+            "external_window("
+            "(select ts, ts + 60s, groupid, location "
+            " from doc_meters "
+            " where voltage >= 225 "
+            " partition by groupid order by ts) w) "
+            "having count(a.*) > 0 "
+            "order by ws"
+        )
+        # 12 rows: each of the 6 merged windows is matched by both outer partitions
+        # (vs 6 rows in Test 1 where each group only sees its own windows)
+        tdSql.checkRows(12)
+
         tdLog.info("=============== scenario 5.5: doc smart meter example done")
 
     def scenario_nested_layered_aggregation(self):
@@ -3518,7 +3555,7 @@ class TestExternal:
 
         Demonstrates the doc description:
         "先用第一层外部窗口按事件划定时间范围并聚合出中间指标，
-         再用第二层外部窗口在更大的时间范围内对这些中间指标做二次聚合。"
+         再用第二层外部窗口在新的时间范围内对这些中间指标做二次聚合。"
 
         Level 1: Use event markers (etype=1 start, etype=2 end) to build windows,
                  aggregate sensor readings within each event window (avg, count).
@@ -3531,11 +3568,12 @@ class TestExternal:
         lt0 = 1717400000000
 
         # -- Level 1: event windows from event_markers -> aggregate sensor data --
-        # Sensor 1 events: [lt0, lt0+120s], [lt0+180s, lt0+300s], [lt0+360s, lt0+540s]
+        # This query uses etype=1 start markers + lead(ts, 1), so windows are
+        # start-to-next-start, not explicit start/end pairs.
+        # Sensor 1 start markers at: lt0, lt0+180s, lt0+360s -> windows [0,180s], [180s,360s]
         # Sensor 1 readings every 10s: val = 10.0 + i*0.5 for i in 0..59
-        #   [0, 120s]: i=0..12 -> 13 readings, vals 10.0..16.0
-        #   [180s, 300s]: i=18..30 -> 13 readings, vals 19.0..25.0
-        #   [360s, 540s]: i=36..54 -> 19 readings, vals 28.0..37.0
+        #   [0, 180s]: i=0..18 -> 19 readings
+        #   [180s, 360s]: i=18..36 -> 19 readings
         tdSql.query(
             "select cast(_wstart as bigint) as ws, cast(_wend as bigint) as we, "
             "count(*) as c, avg(val) as av "
@@ -3568,7 +3606,7 @@ class TestExternal:
         tdSql.checkRows(5)
 
         # -- Level 2: Nested - use level-1 aggregate windows to drive level-2 --
-        # Inner: event windows [start, end] from paired markers on sensor 1
+        # Inner: start-to-next-start windows from etype=1 markers on sensor 1
         # Middle: aggregate sensor 1 data in those windows -> produces _wstart, _wend, count, avg
         # Outer: use those same windows to aggregate sensor 2 data
         tdSql.query(
@@ -3580,7 +3618,7 @@ class TestExternal:
             " external_window("
             " (select ts, lead(ts, 1) from layered_event_s1 "
             "  where etype = 1 order by ts) w1"
-            ")) w2) "
+            ") order by _wstart) w2) "
             "order by ws"
         )
         # Level-1 produces 2 windows (start-to-start): [lt0, lt0+180s], [lt0+180s, lt0+360s]
@@ -3601,30 +3639,29 @@ class TestExternal:
             "from layered_sensor "
             "partition by sid "
             "external_window("
-            "(select _wstart, _wend, count(*) as inner_cnt "
+            "(select _wstart, _wend, sid, count(*) as inner_cnt "
             " from layered_sensor "
             " partition by sid "
             " external_window("
             " (select ts, lead(ts, 1) from layered_event "
-            "  where etype = 1 partition by sid order by ts) w1"
+            "  where etype = 1 partition by sid) w1"
             ")) w2) "
             "order by sid, ws"
         )
-        # The middle-level external_window with lead() + partition by sid merges
-        # windows from both sids, losing partition alignment. The outer query
-        # sees all 3 windows (2 from sid=1 + 1 from sid=2) and only sid=2
-        # data matches because the merged output carries sid=2's partition context.
-        # Windows: [lt0, +180k], [lt0+60k, +300k], [lt0+180k, +360k]
+        # Expected partition-alignment behavior for this nested case:
+        # both sid=1 and sid=2 windows are preserved and matched by sid.
+        # sid=1 windows: [lt0, +180k], [lt0+180k, +360k]
+        # sid=2 window:  [lt0+60k, +300k]
         tdSql.checkRows(3)
-        tdSql.checkData(0, 0, 2)
+        tdSql.checkData(0, 0, 1)
         tdSql.checkData(0, 1, lt0)
         tdSql.checkData(0, 2, 19)
-        tdSql.checkData(1, 0, 2)
-        tdSql.checkData(1, 1, lt0 + 60000)
-        tdSql.checkData(1, 2, 25)
+        tdSql.checkData(1, 0, 1)
+        tdSql.checkData(1, 1, lt0 + 180000)
+        tdSql.checkData(1, 2, 19)
         tdSql.checkData(2, 0, 2)
-        tdSql.checkData(2, 1, lt0 + 180000)
-        tdSql.checkData(2, 2, 19)
+        tdSql.checkData(2, 1, lt0 + 60000)
+        tdSql.checkData(2, 2, 25)
 
         # -- 3-level nesting: event->sensor1->sensor2->count --
         tdSql.query(

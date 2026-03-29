@@ -555,9 +555,11 @@ Where:
 3. **Pseudo-column Support:** `_wstart` (window start time), `_wend` (window end time), and `_wduration` (window duration) can be used in SELECT, HAVING, and ORDER BY clauses.
 
 4. **Grouping and Alignment:**
-    - When both the external window (inner subquery) and outer query use PARTITION BY, automatic alignment is performed by grouping key; data from the same group only matches windows for that group.
-    - When the external window uses PARTITION BY but the outer query does not, it is prohibited by syntax.
-    - When the external window does not use PARTITION BY, all data shares the same set of windows for computation, without distinguishing groups.
+    - When both the inner subquery that generates time windows and the outer query use `PARTITION BY`, alignment is performed by grouping key: data from the same group only matches windows for that group.
+    - If a group has no matching data within a particular window, that group will not produce a result row for that window (it is silently omitted).
+    - When the subquery does not use `PARTITION BY`, the subquery generates a single shared set of windows; if the outer query uses partitioning, each outer partition performs its computations independently over this shared window set.
+    - When the subquery uses `PARTITION BY` but the outer query does not use `PARTITION BY`, it is prohibited by syntax.
+    - **Current Limitation**: When both the inner and outer queries use `PARTITION BY` and the window subquery also uses `ORDER BY`, the sorting may disrupt the original organization of each partition's window stream; the outer query may operate on the merged window stream, causing the internal partition semantics to fail (treated as unpartitioned), and the per-group alignment between inner and outer partitions is lost.
 
 5. **Nested Calls Support:** Multiple levels of external window nesting are supported, meaning the subquery of an external window can itself use EXTERNAL_WINDOW, enabling layered aggregation. For example: the first-level external window defines time ranges by events and aggregates intermediate metrics, then the second-level external window performs secondary aggregation on those intermediate metrics within new time ranges.
 
@@ -577,6 +579,8 @@ Columns after the first two columns in the subquery (e.g., `groupid`, `location`
 Following the smart meter data model used throughout this chapter. The supertable `meters` contains columns `ts`, `current`, `voltage`, `phase`, with tags `groupid` and `location`. Assume there is also an alert events table `alerts` (supertable), containing columns `ts`, `alert_code`, `alert_value`, with tags `groupid` and `location`.
 
 **Objective** - Use voltage anomaly events for each meter group as time windows (within 60 seconds from the moment voltage >= 225V), and collect alert statistics within each window. Output should include: group information, number of alerts in the window, and maximum alert value. Filter for windows where "alerts were triggered", sorted by group and time.
+
+**Note**: This example intentionally omits `ORDER BY` from the window subquery. In this scenario, the subquery already outputs the window stream in partition order; adding an explicit sort would trigger the "partition alignment failure" limitation described above.
 
 ```sql
 SELECT
@@ -611,7 +615,7 @@ ORDER BY w.groupid, event_start_time;
 
 - Currently not supported in stream processing and subscriptions
 - The first two columns of the window subquery must be of timestamp type, representing window start and end times
-- The window rows returned by the subquery must be sorted in ascending order by window start time (i.e., the first column)
+- The window rows returned by the subquery must be kept in order: in the unpartitioned case, sorted by window start time (i.e., the first column) in ascending order; in the partitioned case, sorted within each partition by window start time in ascending order
 - If the external window (inner subquery) uses PARTITION BY, the outer query must also use PARTITION BY; otherwise, a syntax error occurs
 - Variable-length functions (like DIFF, INTERP) are not supported within window scope
 
