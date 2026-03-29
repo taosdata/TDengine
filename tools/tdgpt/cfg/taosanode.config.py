@@ -22,7 +22,7 @@ workers = 2
 worker_class = 'sync'
 
 # Number of threads per process (recommended for model deployment)
-threads = max(multiprocessing.cpu_count() / 4 + 1, 2)
+threads = max(multiprocessing.cpu_count() // 4 + 1, 2)
 
 # Maximum number of requests, worker will restart after reaching limit, helps release memory
 max_requests = 1000
@@ -77,6 +77,7 @@ log_level = 'DEBUG'
 
 # draw the query results
 draw_result = False
+img_dir = (_os.path.join(_install_dir, 'img', '')).replace('\\', '/') if (on_windows or on_github_actions) else '/usr/local/taos/taosanode/img/'
 
 # moe default service host
 tdtsfm_1 = 'http://127.0.0.1:6036/tdtsfm'

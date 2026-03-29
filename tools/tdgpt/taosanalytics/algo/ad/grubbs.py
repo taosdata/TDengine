@@ -2,7 +2,7 @@
 """ grubbs algorithm class"""
 
 from outliers import smirnov_grubbs as grubbs
-from taosanalytics.analytics_base import AbstractAnomalyDetectionService
+from taosanalytics.base import AbstractAnomalyDetectionService
 
 
 class _GrubbsService(AbstractAnomalyDetectionService):
@@ -10,6 +10,7 @@ class _GrubbsService(AbstractAnomalyDetectionService):
     name = 'grubbs'
     desc = """Grubbs' test is to detect the presence of one outlier in a data set that is normally
     distributed"""
+    _builtins = True
 
     def __init__(self, alpha_val=0.95):
         super().__init__()

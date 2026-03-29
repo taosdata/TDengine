@@ -5,13 +5,14 @@
 from statsmodels.tsa.holtwinters import ExponentialSmoothing, SimpleExpSmoothing
 
 from taosanalytics.algo.forecast import insert_ts_list
-from taosanalytics.analytics_base import AbstractForecastService
+from taosanalytics.base import AbstractForecastService
 
 
 class _HoltWintersService(AbstractForecastService):
     """ Holt winters algorithm is to do the fc in the input list """
     name = "holtwinters"
     desc = "forecast algorithm by using exponential smoothing"
+    _builtins = True
 
     def __init__(self):
         super().__init__()

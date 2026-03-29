@@ -1,13 +1,14 @@
 # encoding:utf-8
 """iqr class definition"""
 import numpy as np
-from taosanalytics.analytics_base import AbstractAnomalyDetectionService
+from taosanalytics.base import AbstractAnomalyDetectionService
 
 
 class _IqrService(AbstractAnomalyDetectionService):
     """ IQR algorithm is to check the anomaly data in the input list """
     name = 'iqr'
     desc = """found the anomaly data according to the inter-quartile range"""
+    _builtins = True
 
     def __init__(self):
         super().__init__()

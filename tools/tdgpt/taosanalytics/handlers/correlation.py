@@ -1,5 +1,5 @@
 # encoding:utf-8
-"""correlation service: encapsulates correlation business logic"""
+"""correlation handlers: encapsulates correlation business logic"""
 
 from taosanalytics.algo.correlation import do_dtw, do_tlcc
 from taosanalytics.log import AppLogger

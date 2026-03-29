@@ -1,11 +1,12 @@
 import numpy as np
-from taosanalytics.analytics_base import AbstractCorrelationService
+from taosanalytics.base import AbstractCorrelationService
 
 
 class _TlccService(AbstractCorrelationService):
     """ Moving Time-Lagged Cross-Correlation (TLCC) analysis """
     name = 'tlcc'
     desc = """calculate the TLCC value for two time series data"""
+    _builtins = True
 
     def __init__(self):
         super().__init__()

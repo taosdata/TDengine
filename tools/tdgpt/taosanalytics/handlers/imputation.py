@@ -1,5 +1,5 @@
 # encoding:utf-8
-"""imputation service: encapsulates imputation business logic"""
+"""imputation handlers: encapsulates imputation business logic"""
 
 from taosanalytics.algo.imputation import do_imputation, do_set_imputation_params, check_freq_param
 from taosanalytics.log import AppLogger

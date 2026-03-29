@@ -4,7 +4,7 @@
 import json
 import requests
 
-from taosanalytics.analytics_base import AbstractImputationService, AnalyticsService
+from taosanalytics.base import AbstractImputationService, AnalyticsService
 from taosanalytics.conf import Configure
 from taosanalytics.log import AppLogger
 
@@ -13,6 +13,7 @@ class _MomentImputationService(AbstractImputationService):
     """moment imputation service class"""
     name = 'moment'
     desc = "Time-Series Foundation Model by CMU"
+    _builtins = True
 
     def __init__(self):
         super().__init__()
