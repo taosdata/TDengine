@@ -537,6 +537,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_REMOTE_ZERO_ROWS:
       code = makeNode(type, sizeof(SRemoteZeroRowsNode), &pNode);
       break;
+    case QUERY_NODE_REMOTE_TABLE:
+      code = makeNode(type, sizeof(SRemoteTableNode), &pNode);
+      break;
     case QUERY_NODE_UPDATE_TAG_VALUE:
       code = makeNode(type, sizeof(SUpdateTagValueNode), &pNode);
       break;
@@ -1321,6 +1324,15 @@ static void destroyHintValue(EHintOption option, void* value) {
   taosMemoryFree(value);
 }
 
+void destroySSDataBlock(void* param) {
+  if (NULL == param) {
+    return;
+  }
+
+  SSDataBlock* pBlock = (SSDataBlock*)param;
+  blockDataDestroy(pBlock);
+}
+
 void nodesDestroyNode(SNode* pNode) {
   if (NULL == pNode) {
     return;
@@ -1349,6 +1361,14 @@ void nodesDestroyNode(SNode* pNode) {
         taosHashCleanup(pRemote->pHashFilter);
         taosHashCleanup(pRemote->pHashFilterOthers);
       }
+      break;
+    }
+    case QUERY_NODE_REMOTE_TABLE: {
+      SRemoteTableNode* pRemote = (SRemoteTableNode*)pNode;
+      if (pRemote->pResBlks && (pRemote->flag & REMOTE_TABLE_FLAG_RES_ALLOCED)) {
+        taosArrayDestroyEx(pRemote->pResBlks, destroySSDataBlock);
+      }
+      pRemote->pResBlks = NULL;
       break;
     }
     case QUERY_NODE_UPDATE_TAG_VALUE: {
@@ -1634,6 +1654,10 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(pExternal->pProjectionList);
       nodesDestroyNode(pExternal->pTimeRange);
       taosMemoryFreeClear(pExternal->timezone);
+      nodesDestroyNode(pExternal->pCol);
+      nodesDestroyNode(pExternal->pSubquery);
+      nodesDestroyNode(pExternal->pFill);
+      break;
     }
     case QUERY_NODE_HINT: {
       SHintNode* pHint = (SHintNode*)pNode;
@@ -2384,6 +2408,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_PHYSICAL_PLAN_HASH_EXTERNAL:
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_EXTERNAL: {
       SExternalWindowPhysiNode* pPhyNode = (SExternalWindowPhysiNode*)pNode;
+      nodesDestroyNode(pPhyNode->pSubquery);
       nodesDestroyNode(pPhyNode->pTimeRange);
       destroyWinodwPhysiNode((SWindowPhysiNode*)pPhyNode);
       break;

@@ -523,6 +523,99 @@ The above SQL query returns the data from the supertable meters where the timest
 Query OK, 10 row(s) in set (0.062794s)
 ```
 
+### External Window
+
+External Window is a flexible windowing mechanism provided by TDengine TSDB that allows users to perform complex aggregation and correlation queries based on explicitly defined time windows. Unlike standard windows, external windows allow users to explicitly define the window start and end times through subqueries, enabling more sophisticated processing and analysis of time-series data.
+
+**Syntax:**
+
+```sql
+SELECT ... 
+FROM table_name
+[PARTITION BY expr_list]
+EXTERNAL_WINDOW (
+    (subquery_that_defines_windows) window_alias
+)
+[HAVING condition]
+[ORDER BY ...]
+```
+
+Where:
+
+- The first two columns of the subquery must be of timestamp type, representing the window start time and window end time respectively
+- Columns from the 3rd column onward become "window attribute columns"
+- The outer query performs independent calculations within each window range
+
+**Key Features:**
+
+1. **Flexible Window Definition:** Supports defining windows through regular subqueries, INTERVAL, EVENT_WINDOW, SESSION, and other window types.
+
+2. **Aggregation and Computation:** Supports aggregate functions like COUNT, AVG, SUM, MAX, MIN, FIRST, LAST, and scalar expressions.
+
+3. **Pseudo-column Support:** `_wstart` (window start time), `_wend` (window end time), and `_wduration` (window duration) can be used in SELECT, HAVING, and ORDER BY clauses.
+
+4. **Grouping and Alignment:**
+    - When both the external window (inner subquery) and outer query use PARTITION BY, automatic alignment is performed by grouping key; data from the same group only matches windows for that group.
+    - When the external window uses PARTITION BY but the outer query does not, it is prohibited by syntax.
+    - When the external window does not use PARTITION BY, calculations are performed on a global window basis.
+
+5. **Nested Calls Support:** Multiple levels of external window nesting are supported for complex event sequence analysis.
+
+### How to Reference Window Attribute Columns
+
+Columns after the first two columns in the subquery (e.g., equipment_id, fault_code, fault_level) become window attribute columns. The referencing rules are:
+
+1. Must be referenced using the window alias: `window_alias.column_name`, e.g., `w.equipment_id`, `w.fault_level`.
+2. Can be used in SELECT, HAVING, ORDER BY clauses.
+3. **Cannot be referenced in the WHERE clause** (WHERE filters outer table records before windows are generated; window attributes are only available after window definition and should be used in HAVING).
+
+**Usage Example:**
+
+**Scenario Background** - Factory Equipment Monitoring System:
+
+- `equipment_faults`: equipment fault events table (supertable), includes fault code `fault_code` and fault level `fault_level`
+- `system_alarms`: system alarm events table (supertable), includes alarm code `alarm_code` and measured value `alarm_value`
+- Both tables use `equipment_id` (equipment identifier) as a tag
+
+**Objective** - Use each equipment's fault event as a time window, collect alarm statistics within 60 seconds after the fault occurs. Output should include: fault information, number of alarms in the window, maximum measured value. Filter for windows with "alarm responses or critical faults", sorted by equipment and fault time.
+
+```sql
+SELECT
+    w.equipment_id,
+    w.fault_code,
+    w.fault_level,
+    _wstart                AS fault_start_time,
+    COUNT(sa.*)            AS alarm_count,
+    MAX(sa.alarm_value)    AS max_alarm_value,
+    AVG(sa.alarm_value)    AS avg_alarm_value
+FROM system_alarms sa
+PARTITION BY sa.equipment_id
+EXTERNAL_WINDOW (
+    (SELECT ts, ts + 60s, equipment_id, fault_code, fault_level
+     FROM equipment_faults
+     PARTITION BY equipment_id
+    ) w
+)
+HAVING COUNT(sa.*) > 0 OR w.fault_level = 'CRITICAL'
+ORDER BY w.equipment_id, fault_start_time;
+```
+
+**Result Explanation:**
+
+- Each row represents a fault window (driven by `equipment_faults`), with a window duration of 60 seconds after the fault occurred
+- `alarm_count`, `max_alarm_value`, `avg_alarm_value`: statistical metrics from `system_alarms` within the window
+- `w.equipment_id`, `w.fault_code`, `w.fault_level`: window attribute columns for filtering and displaying fault information
+- `HAVING` condition uses both standard aggregate functions (`COUNT`) and window attribute columns (`w.fault_level`)
+- `PARTITION BY` alignment: both inner and outer queries group by `equipment_id`, ensuring that each equipment's alarms only match that equipment's fault windows
+
+**Constraints and Limitations:**
+
+- Currently not supported in stream processing and subscriptions
+- The first two columns of the window subquery must be of timestamp type, representing window start and end times
+- Window data must be sorted in ascending order by _wstart
+- If the external window (inner subquery) uses PARTITION BY, the outer query must also use PARTITION BY; otherwise, a syntax error occurs
+- Variable-length functions (like DIFF, INTERP) are not supported within window scope
+
 ## Time Range Expression
 
 In queries of time series databases, it is often necessary to query based on the time range of the primary key column. TDengine provides a series of functions and expressions to facilitate users in expressing time ranges. Here, common time range expressions and their differences from MySQL and PostgreSQL are listed:
