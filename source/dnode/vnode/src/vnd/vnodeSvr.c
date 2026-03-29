@@ -1854,6 +1854,11 @@ static int32_t vnodeProcessAlterTbReq(SVnode *pVnode, int64_t ver, void *pReq, i
       }
       vAlterTbRsp.code = TSDB_CODE_SUCCESS;
     }
+    // Return new schema to client for same-txn visibility (pTxnTableMeta update)
+    if (NULL != vMetaRsp.pSchemas) {
+      vnodeUpdateMetaRsp(pVnode, &vMetaRsp);
+      vAlterTbRsp.pMeta = &vMetaRsp;
+    }
     tDecoderClear(&dc);
     goto _exit;
   }

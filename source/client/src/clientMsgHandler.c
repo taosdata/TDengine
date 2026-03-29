@@ -556,6 +556,77 @@ int32_t processAlterStbRsp(void* param, SDataBuf* pMsg, int32_t code) {
   return code;
 }
 
+// Batch meta txn: handle VNode ALTER TABLE response — extract new schema, update catalog and pTxnTableMeta
+int32_t processAlterTbRsp(void* param, SDataBuf* pMsg, int32_t code) {
+  SRequestObj* pRequest = param;
+  if (code != TSDB_CODE_SUCCESS) {
+    setErrno(pRequest, code);
+  } else {
+    SVAlterTbRsp alterRsp = {0};
+    SDecoder     coder = {0};
+    tDecoderInit(&coder, pMsg->pData, pMsg->len);
+    if (pMsg->len > 0) {
+      code = tDecodeSVAlterTbRsp(&coder, &alterRsp);
+      if (code != TSDB_CODE_SUCCESS) {
+        setErrno(pRequest, code);
+      }
+    }
+    tDecoderClear(&coder);
+
+    pRequest->body.resInfo.execRes.msgType = TDMT_VND_ALTER_TABLE;
+    pRequest->body.resInfo.execRes.res = alterRsp.pMeta;
+  }
+
+  taosMemoryFree(pMsg->pData);
+  taosMemoryFree(pMsg->pEpSet);
+
+  if (pRequest->body.queryFp != NULL) {
+    SExecResult* pRes = &pRequest->body.resInfo.execRes;
+
+    if (code == TSDB_CODE_SUCCESS) {
+      SCatalog* pCatalog = NULL;
+      int32_t   ret = catalogGetHandle(pRequest->pTscObj->pAppInfo->clusterId, &pCatalog);
+      if (pRes->res != NULL) {
+        ret = handleAlterTbExecRes(pRes->res, pCatalog);
+
+        // Update pTxnTableMeta if within a transaction
+#ifdef TD_ENTERPRISE
+        STscObj* pTscObj = pRequest->pTscObj;
+        if (pTscObj->txnId > 0 && pTscObj->pTxnTableMeta != NULL) {
+          STableMetaRsp* pMetaRsp = (STableMetaRsp*)pRes->res;
+          STableMeta*    pTableMeta = NULL;
+          bool           isStb = (pMetaRsp->tableType == TSDB_SUPER_TABLE);
+          if (queryCreateTableMetaFromMsg(pMetaRsp, isStb, &pTableMeta) == 0 && pTableMeta != NULL) {
+            char fullName[TSDB_TABLE_FNAME_LEN];
+            snprintf(fullName, sizeof(fullName), "%s.%s", pMetaRsp->dbFName, pMetaRsp->tbName);
+            taosThreadMutexLock(&pTscObj->mutex);
+            STableMeta** ppOld = (STableMeta**)taosHashGet(pTscObj->pTxnTableMeta, fullName, strlen(fullName));
+            if (ppOld && *ppOld) {
+              taosMemoryFree(*ppOld);
+            }
+            taosHashPut(pTscObj->pTxnTableMeta, fullName, strlen(fullName), &pTableMeta, sizeof(STableMeta*));
+            tscDebug("conn:0x%" PRIx64 ", txn:%" PRIu64 " updated table meta cache for %s (ALTER)", pTscObj->id,
+                     pTscObj->txnId, fullName);
+            taosThreadMutexUnlock(&pTscObj->mutex);
+          }
+        }
+#endif
+      }
+
+      if (ret != TSDB_CODE_SUCCESS) {
+        code = ret;
+      }
+    }
+
+    doRequestCallback(pRequest, code);
+  } else {
+    if (tsem_post(&pRequest->body.rspSem) != 0) {
+      tscError("failed to post semaphore");
+    }
+  }
+  return code;
+}
+
 static int32_t buildShowVariablesBlock(SArray* pVars, SSDataBlock** block) {
   int32_t      code = 0;
   int32_t      line = 0;
@@ -1515,6 +1586,8 @@ __async_send_cb_fn_t getMsgRspHandle(int32_t msgType) {
       return processCreateXnodeTaskRsp;
 
 #ifdef TD_ENTERPRISE
+    case TDMT_VND_ALTER_TABLE:
+      return processAlterTbRsp;
     case TDMT_MND_BEGIN_TXN:
       return processBeginTxnRsp;
     case TDMT_MND_COMMIT_TXN:

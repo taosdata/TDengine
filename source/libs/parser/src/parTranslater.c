@@ -782,6 +782,20 @@ int32_t getTargetMetaImpl(SParseContext* pParCxt, SParseMetaCache* pMetaCache, c
                           bool couldBeView) {
   int32_t code = TSDB_CODE_SUCCESS;
 
+  // Batch meta txn: check same-txn cache first (has latest schema after CREATE/ALTER)
+  if (pParCxt->txnId > 0 && pParCxt->pTxnTableMeta) {
+    char fullName[TSDB_TABLE_FNAME_LEN];
+    if (tNameExtractFullName(pName, fullName) == 0) {
+      STableMeta** ppCached = (STableMeta**)taosHashGet(pParCxt->pTxnTableMeta, fullName, strlen(fullName));
+      if (ppCached && *ppCached) {
+        *pMeta = tableMetaDup(*ppCached);
+        if (*pMeta) {
+          return TSDB_CODE_SUCCESS;
+        }
+      }
+    }
+  }
+
   if (pParCxt->async) {
     code = getTableMetaFromCache(pMetaCache, pName, pMeta);
 #ifdef TD_ENTERPRISE
@@ -799,20 +813,6 @@ int32_t getTargetMetaImpl(SParseContext* pParCxt, SParseMetaCache* pMetaCache, c
                              .requestObjRefId = pParCxt->requestRid,
                              .mgmtEps = pParCxt->mgmtEpSet};
     code = catalogGetTableMeta(pParCxt->pCatalog, &conn, pName, pMeta);
-  }
-
-  // Batch meta txn: if table not found in catalog but exists in same-txn cache, use cached meta
-  if (TSDB_CODE_PAR_TABLE_NOT_EXIST == code && pParCxt->txnId > 0 && pParCxt->pTxnTableMeta) {
-    char fullName[TSDB_TABLE_FNAME_LEN];
-    if (tNameExtractFullName(pName, fullName) == 0) {
-      STableMeta** ppCached = (STableMeta**)taosHashGet(pParCxt->pTxnTableMeta, fullName, strlen(fullName));
-      if (ppCached && *ppCached) {
-        *pMeta = tableMetaDup(*ppCached);
-        if (*pMeta) {
-          code = TSDB_CODE_SUCCESS;
-        }
-      }
-    }
   }
 
   if (TSDB_CODE_SUCCESS != code && TSDB_CODE_PAR_TABLE_NOT_EXIST != code) {
@@ -851,44 +851,80 @@ static int32_t getTableCfg(STranslateContext* pCxt, const SName* pName, STableCf
     code = collectUseTable(pName, pCxt->pTables);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    if (pParCxt->async) {
-      code = getTableCfgFromCache(pCxt->pMetaCache, pName, pCfg);
-    } else {
-      SRequestConnInfo conn = {.pTrans = pParCxt->pTransporter,
-                               .requestId = pParCxt->requestId,
-                               .requestObjRefId = pParCxt->requestRid,
-                               .mgmtEps = pParCxt->mgmtEpSet,
-                               .txnId = pParCxt->txnId};
-      code = catalogRefreshGetTableCfg(pParCxt->pCatalog, &conn, pName, pCfg);
-    }
-  }
-
-  // Batch meta txn: if table not found but exists in same-txn cache, build a minimal STableCfg
-  if (TSDB_CODE_SUCCESS != code && pParCxt->txnId > 0 && pParCxt->pTxnTableMeta) {
-    char fullName[TSDB_TABLE_FNAME_LEN];
-    if (tNameExtractFullName(pName, fullName) == 0) {
-      STableMeta** ppCached = (STableMeta**)taosHashGet(pParCxt->pTxnTableMeta, fullName, strlen(fullName));
-      if (ppCached && *ppCached) {
-        STableMeta* pMeta = *ppCached;
-        STableCfg*  pTmpCfg = taosMemoryCalloc(1, sizeof(STableCfg));
-        if (pTmpCfg) {
-          tstrncpy(pTmpCfg->tbName, pName->tname, TSDB_TABLE_NAME_LEN);
-          tstrncpy(pTmpCfg->dbFName, fullName, TSDB_DB_FNAME_LEN);  // will be overwritten by caller
-          pTmpCfg->tableType = pMeta->tableType;
-          pTmpCfg->numOfColumns = pMeta->tableInfo.numOfColumns;
-          pTmpCfg->numOfTags = pMeta->tableInfo.numOfTags;
-          int32_t total = pMeta->tableInfo.numOfColumns + pMeta->tableInfo.numOfTags;
-          if (total > 0) {
-            pTmpCfg->pSchemas = taosMemoryMalloc(sizeof(SSchema) * total);
-            if (pTmpCfg->pSchemas) {
-              memcpy(pTmpCfg->pSchemas, pMeta->schema, sizeof(SSchema) * total);
+    // Batch meta txn: check pTxnTableMeta FIRST for normal tables when inside a transaction.
+    // Child tables need full STableCfg (stbName, tag values) that STableMeta doesn't carry,
+    // so they must go through the VNode/catalog path.
+    bool foundInTxnCache = false;
+    if (pParCxt->txnId > 0 && pParCxt->pTxnTableMeta) {
+      char fullName[TSDB_TABLE_FNAME_LEN];
+      if (tNameExtractFullName(pName, fullName) == 0) {
+        STableMeta** ppCached = (STableMeta**)taosHashGet(pParCxt->pTxnTableMeta, fullName, strlen(fullName));
+        if (ppCached && *ppCached && (*ppCached)->tableType == TSDB_NORMAL_TABLE) {
+          STableMeta* pMeta = *ppCached;
+          STableCfg*  pTmpCfg = taosMemoryCalloc(1, sizeof(STableCfg));
+          if (pTmpCfg) {
+            tstrncpy(pTmpCfg->tbName, pName->tname, TSDB_TABLE_NAME_LEN);
+            tstrncpy(pTmpCfg->dbFName, fullName, TSDB_DB_FNAME_LEN);
+            pTmpCfg->tableType = pMeta->tableType;
+            pTmpCfg->numOfColumns = pMeta->tableInfo.numOfColumns;
+            pTmpCfg->numOfTags = pMeta->tableInfo.numOfTags;
+            int32_t total = pMeta->tableInfo.numOfColumns + pMeta->tableInfo.numOfTags;
+            if (total > 0) {
+              pTmpCfg->pSchemas = taosMemoryMalloc(sizeof(SSchema) * total);
+              if (pTmpCfg->pSchemas) {
+                memcpy(pTmpCfg->pSchemas, pMeta->schema, sizeof(SSchema) * total);
+              }
             }
+            if (pMeta->tableInfo.numOfColumns > 0) {
+              pTmpCfg->pSchemaExt = taosMemoryCalloc(pMeta->tableInfo.numOfColumns, sizeof(SSchemaExt));
+            }
+            *pCfg = pTmpCfg;
+            foundInTxnCache = true;
           }
-          if (pMeta->tableInfo.numOfColumns > 0) {
-            pTmpCfg->pSchemaExt = taosMemoryCalloc(pMeta->tableInfo.numOfColumns, sizeof(SSchemaExt));
+        }
+      }
+    }
+
+    if (!foundInTxnCache) {
+      if (pParCxt->async) {
+        code = getTableCfgFromCache(pCxt->pMetaCache, pName, pCfg);
+      } else {
+        SRequestConnInfo conn = {.pTrans = pParCxt->pTransporter,
+                                 .requestId = pParCxt->requestId,
+                                 .requestObjRefId = pParCxt->requestRid,
+                                 .mgmtEps = pParCxt->mgmtEpSet,
+                                 .txnId = pParCxt->txnId};
+        code = catalogRefreshGetTableCfg(pParCxt->pCatalog, &conn, pName, pCfg);
+      }
+    }
+
+    // Batch meta txn: fallback for normal tables only
+    if (TSDB_CODE_SUCCESS != code && !foundInTxnCache && pParCxt->txnId > 0 && pParCxt->pTxnTableMeta) {
+      char fullName[TSDB_TABLE_FNAME_LEN];
+      if (tNameExtractFullName(pName, fullName) == 0) {
+        STableMeta** ppCached = (STableMeta**)taosHashGet(pParCxt->pTxnTableMeta, fullName, strlen(fullName));
+        if (ppCached && *ppCached && (*ppCached)->tableType == TSDB_NORMAL_TABLE) {
+          STableMeta* pMeta = *ppCached;
+          STableCfg*  pTmpCfg = taosMemoryCalloc(1, sizeof(STableCfg));
+          if (pTmpCfg) {
+            tstrncpy(pTmpCfg->tbName, pName->tname, TSDB_TABLE_NAME_LEN);
+            tstrncpy(pTmpCfg->dbFName, fullName, TSDB_DB_FNAME_LEN);
+            pTmpCfg->tableType = pMeta->tableType;
+            pTmpCfg->numOfColumns = pMeta->tableInfo.numOfColumns;
+            pTmpCfg->numOfTags = pMeta->tableInfo.numOfTags;
+            int32_t total = pMeta->tableInfo.numOfColumns + pMeta->tableInfo.numOfTags;
+            if (total > 0) {
+              pTmpCfg->pSchemas = taosMemoryMalloc(sizeof(SSchema) * total);
+              if (pTmpCfg->pSchemas) {
+                memcpy(pTmpCfg->pSchemas, pMeta->schema, sizeof(SSchema) * total);
+              }
+            }
+            if (pMeta->tableInfo.numOfColumns > 0) {
+              pTmpCfg->pSchemaExt = taosMemoryCalloc(pMeta->tableInfo.numOfColumns, sizeof(SSchemaExt));
+            }
+            *pCfg = pTmpCfg;
+            code = TSDB_CODE_SUCCESS;
           }
-          *pCfg = pTmpCfg;
-          code = TSDB_CODE_SUCCESS;
         }
       }
     }
@@ -907,29 +943,31 @@ static int32_t refreshGetTableMeta(STranslateContext* pCxt, const char* pDbName,
   SName          name = {0};
   toName(pCxt->pParseCxt->acctId, pDbName, pTableName, &name);
   int32_t code = TSDB_CODE_SUCCESS;
-  if (pParCxt->async) {
-    code = getTableMetaFromCache(pCxt->pMetaCache, &name, pMeta);
-  } else {
-    SRequestConnInfo conn = {.pTrans = pParCxt->pTransporter,
-                             .requestId = pParCxt->requestId,
-                             .requestObjRefId = pParCxt->requestRid,
-                             .mgmtEps = pParCxt->mgmtEpSet};
 
-    code = catalogRefreshGetTableMeta(pParCxt->pCatalog, &conn, &name, pMeta, false);
-  }
-
-  // Batch meta txn: if table not found but exists in same-txn cache, use cached meta
-  if (TSDB_CODE_PAR_TABLE_NOT_EXIST == code && pParCxt->txnId > 0 && pParCxt->pTxnTableMeta) {
+  // Batch meta txn: check same-txn cache first (has latest schema after ALTER)
+  if (pParCxt->txnId > 0 && pParCxt->pTxnTableMeta) {
     char fullName[TSDB_TABLE_FNAME_LEN];
     if (tNameExtractFullName(&name, fullName) == 0) {
       STableMeta** ppCached = (STableMeta**)taosHashGet(pParCxt->pTxnTableMeta, fullName, strlen(fullName));
       if (ppCached && *ppCached) {
         *pMeta = tableMetaDup(*ppCached);
         if (*pMeta) {
-          code = TSDB_CODE_SUCCESS;
+          return TSDB_CODE_SUCCESS;
         }
       }
     }
+  }
+
+  if (pParCxt->async) {
+    code = getTableMetaFromCache(pCxt->pMetaCache, &name, pMeta);
+  } else {
+    SRequestConnInfo conn = {.pTrans = pParCxt->pTransporter,
+                             .requestId = pParCxt->requestId,
+                             .requestObjRefId = pParCxt->requestRid,
+                             .mgmtEps = pParCxt->mgmtEpSet,
+                             .txnId = pParCxt->txnId};
+
+    code = catalogRefreshGetTableMeta(pParCxt->pCatalog, &conn, &name, pMeta, false);
   }
 
   if (TSDB_CODE_SUCCESS != code) {
