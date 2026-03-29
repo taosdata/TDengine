@@ -143,6 +143,20 @@ class Configure:
 
         self._conf.update(conf_vars)
 
+        # Auto-derive model service URLs from models configuration.
+        # This makes models[x]["port"] + models[x]["endpoint"] the single
+        # source of truth; no need to maintain separate URL constants.
+        models = self._conf.get('models')
+        if models:
+            for model_name, model_cfg in models.items():
+                port = model_cfg.get('port')
+                endpoint = model_cfg.get('endpoint', '/ds_predict')
+                if port:
+                    # Use algo_name as config key if specified (for SQL-visible names
+                    # like tdtsfm_1, timemoe_fc), otherwise use the model key.
+                    conf_key = model_cfg.get('algo_name', model_name)
+                    self._conf[conf_key] = f'http://127.0.0.1:{port}{endpoint}'
+
 
 class AppLogger():
     """ system log_inst class """
@@ -159,7 +173,9 @@ class AppLogger():
         # create directory if not exists
         path.parent.mkdir(parents=True, exist_ok=True)
 
-        handler = logging.FileHandler(file_path)
+        # Use UTF-8 with BOM on Windows so common editors do not mis-detect the log as GBK/ANSI.
+        encoding = "utf-8-sig" if platform.system().lower() == "windows" else "utf-8"
+        handler = logging.FileHandler(file_path, encoding=encoding)
         handler.setFormatter(logging.Formatter(self.LOG_STR_FORMAT))
 
         self.log_inst.addHandler(handler)

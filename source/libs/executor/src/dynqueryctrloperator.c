@@ -3481,7 +3481,7 @@ int32_t vtbWindowOpen(SOperatorInfo* pOperator) {
       QUERY_CHECK_NULL(pWindow, code, lino, _return, terrno)
       pWindow->tw.skey = wstartCol[i];
       pWindow->tw.ekey = wendCol[i] + 1;
-      pWindow->winOutIdx = -1;
+      pWindow->resWinIdx = -1;
     }
 
     QUERY_CHECK_NULL(taosArrayPush(pDynInfo->vtbWindow.pWins, &pWin), code, lino, _return, terrno);

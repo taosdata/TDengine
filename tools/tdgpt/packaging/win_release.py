@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-TDGPT Windows Packaging Script
+TDgpt Windows Packaging Script
 Generate install package for Windows Platform using Inno Setup
 
 Usage:
@@ -20,6 +20,7 @@ import shutil
 import logging
 import datetime
 import re
+import json
 import subprocess
 
 # Configure logging
@@ -43,9 +44,10 @@ class InstallInfo:
         self.install_dir = ""
         self.package_name = ""
         self.product_name = ""
+        self.app_name = "TDgpt-OSS"
+        self.product_full_name = "TDgpt-OSS - TDengine Analytics Node"
         self.model_dir = ""
         self.all_models = False
-        self.offline = False
         self.iscc_path = ""
         self.skip_model_check = False
 
@@ -62,14 +64,14 @@ def check_python_version():
         logging.error(f"Python 3.10/3.11/3.12 required, found {version.major}.{version.minor}")
         logging.error("Please install Python 3.10, 3.11, or 3.12 from https://www.python.org/")
         sys.exit(1)
-    logging.info(f"Python {version.major}.{version.minor}.{version.micro} detected ✓")
+    logging.info(f"Python {version.major}.{version.minor}.{version.micro} detected")
     return True
 
 
 def parse_arguments():
     """Parse command line arguments"""
 
-    parser = argparse.ArgumentParser(description='Release TDGPT on Windows')
+    parser = argparse.ArgumentParser(description='Release TDgpt on Windows')
     parser.add_argument('-e', '--edition', type=str, required=True,
                         help='Set edition type (enterprise or community)')
     parser.add_argument('-v', '--version', type=str, required=True,
@@ -80,8 +82,6 @@ def parse_arguments():
                         help='Pack all models')
     parser.add_argument('-o', '--output', type=str, default="D:\\tdgpt-release",
                         help='Set output directory (default: D:\\tdgpt-release)')
-    parser.add_argument('--offline', action='store_true',
-                        help='Include offline installation packages (wheels)')
     parser.add_argument('--iscc-path', type=str,
                         default=r"C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
                         help='Path to Inno Setup compiler')
@@ -107,11 +107,14 @@ def parse_arguments():
     tdgpt_version.ver_type = args.edition
     tdgpt_version.version = args.version
 
-    # Set product name
+    # Set product metadata
     if args.edition == "enterprise":
         install_info.product_name = "tdengine-tdgpt-enterprise"
+        install_info.app_name = "TDgpt-Enterprise"
     else:
         install_info.product_name = "tdengine-tdgpt-oss"
+        install_info.app_name = "TDgpt-OSS"
+    install_info.product_full_name = f"{install_info.app_name} - TDengine Analytics Node"
 
     install_info.source_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     install_info.release_dir = args.output
@@ -120,7 +123,6 @@ def parse_arguments():
     install_info.model_dir = args.model_dir
     install_info.all_models = args.all_models
     install_info.iscc_path = args.iscc_path
-    install_info.offline = args.offline
     install_info.skip_model_check = args.skip_model_check
 
     return args
@@ -129,10 +131,12 @@ def parse_arguments():
 def print_params():
     """Print configuration parameters"""
     logging.info("=" * 60)
-    logging.info("TDGPT Windows Packaging Configuration")
+    logging.info("TDgpt Windows Packaging Configuration")
     logging.info("=" * 60)
     logging.info(f"Edition: {tdgpt_version.ver_type}")
     logging.info(f"Version: {tdgpt_version.version}")
+    logging.info(f"App Name: {install_info.app_name}")
+    logging.info(f"Product Full Name: {install_info.product_full_name}")
     logging.info(f"Product Name: {install_info.product_name}")
     logging.info(f"Source Directory: {install_info.source_dir}")
     logging.info(f"Release Directory: {install_info.release_dir}")
@@ -140,7 +144,6 @@ def print_params():
     logging.info(f"Package Name: {install_info.package_name}")
     logging.info(f"Model Directory: {install_info.model_dir}")
     logging.info(f"All Models: {install_info.all_models}")
-    logging.info(f"Offline Mode: {install_info.offline}")
     logging.info("=" * 60)
 
 
@@ -168,6 +171,20 @@ def copy_config_files():
     if os.path.exists(src_config):
         shutil.copy2(src_config, dst_config)
         logging.info("Copied taosanode.config.py")
+
+    metadata = {
+        "edition": tdgpt_version.ver_type,
+        "app_name": install_info.app_name,
+        "product_full_name": install_info.product_full_name,
+        "package_name": install_info.package_name,
+        "product_name": install_info.product_name,
+        "version": tdgpt_version.version,
+    }
+    metadata_file = os.path.join(cfg_dir, "package-metadata.json")
+    with open(metadata_file, "w", encoding="utf-8") as file_obj:
+        json.dump(metadata, file_obj, indent=2, ensure_ascii=False)
+        file_obj.write("\n")
+    logging.info("Created package-metadata.json")
 
     logging.info("Configuration files copied")
 
@@ -239,41 +256,8 @@ def copy_requirements():
     if copied == 0:
         logging.warning("No requirements*.txt files found to package")
 
-
-def prepare_offline_packages():
-    """Prepare offline installation packages (wheels)"""
-    if not install_info.offline:
-        logging.info("Offline mode not enabled, skipping wheel files")
-        return
-
-    wheels_dir = os.path.join(install_info.install_dir, "wheels")
-    os.makedirs(wheels_dir, exist_ok=True)
-
-    # Look for pre-downloaded wheels in packaging directory
-    source_wheels = os.path.join(install_info.source_dir, "packaging", "wheels")
-
-    if os.path.exists(source_wheels):
-        wheel_count = 0
-        for item in os.listdir(source_wheels):
-            src = os.path.join(source_wheels, item)
-            dst = os.path.join(wheels_dir, item)
-            if os.path.isfile(src) and item.endswith('.whl'):
-                shutil.copy2(src, dst)
-                wheel_count += 1
-            elif os.path.isdir(src):
-                shutil.copytree(src, dst, dirs_exist_ok=True)
-
-        if wheel_count > 0:
-            logging.info(f"Copied {wheel_count} wheel files for offline installation")
-        else:
-            logging.warning("No wheel files found in packaging/wheels directory")
-    else:
-        logging.warning(f"Offline wheels directory not found: {source_wheels}")
-        logging.warning("Installation will require internet connection")
-
-
 def copy_model_files():
-    """Copy model files if model directory is specified"""
+    """Copy packaged model archives if model directory is specified."""
     if not install_info.model_dir or not os.path.exists(install_info.model_dir):
         logging.info("No model directory specified or directory does not exist, skipping model files")
         return
@@ -375,14 +359,21 @@ def copy_icon_file():
 def create_service_wrappers(bin_dir):
     """Create Windows batch wrappers for Python service scripts"""
 
+    python_guard = """set "PYTHON_EXE=%~dp0..\\venvs\\venv\\Scripts\\python.exe"
+if not exist "%PYTHON_EXE%" (
+    echo ERROR: Main Python environment not found: %PYTHON_EXE%
+    echo Run install.bat again to recreate the TDgpt environment.
+"""
+
     # start-taosanode.bat
     start_bat = os.path.join(bin_dir, "start-taosanode.bat")
-    with open(start_bat, 'w') as f:
+    with open(start_bat, 'w', encoding='utf-8') as f:
         f.write("""@echo off
 chcp 65001 >nul
-set "PYTHON_EXE=%~dp0..\\venvs\\venv\\Scripts\\python.exe"
-if not exist "%PYTHON_EXE%" set "PYTHON_EXE=python"
-REM Start taosanode service
+""" + python_guard + """    echo Press Enter to close this window.
+    pause >nul
+    exit /b 1
+)
 echo Starting Taosanode...
 echo.
 set "TDGPT_EXIT_CODE=0"
@@ -393,9 +384,9 @@ if not errorlevel 1 (
     echo.
     echo Taosanode is managed as a Windows service.
     if not errorlevel 1 (
-        "%PYTHON_EXE%" "%~dp0taosanode_service.py" wait-ready --timeout 30
+        "%PYTHON_EXE%" "%~dp0taosanode_service.py" wait-ready --timeout 90
         if errorlevel 1 (
-            echo Taosanode start command returned, but readiness was not confirmed within 30 seconds.
+            echo Taosanode start command returned, but readiness was not confirmed within 90 seconds.
             echo Check status-taosanode.bat or ..\\log\\taosanode-service.log for details.
         ) else (
             echo Taosanode is ready.
@@ -409,9 +400,9 @@ if not errorlevel 1 (
     set "TDGPT_EXIT_CODE=%errorlevel%"
     echo.
     if not errorlevel 1 (
-        "%PYTHON_EXE%" "%~dp0taosanode_service.py" wait-ready --timeout 30
+        "%PYTHON_EXE%" "%~dp0taosanode_service.py" wait-ready --timeout 90
         if errorlevel 1 (
-            echo Taosanode start command returned, but readiness was not confirmed within 30 seconds.
+            echo Taosanode start command returned, but readiness was not confirmed within 90 seconds.
             echo Check status-taosanode.bat or ..\\log\\taosanode-service.log for details.
         ) else (
             echo Taosanode is ready.
@@ -429,29 +420,29 @@ exit /b %TDGPT_EXIT_CODE%
 
     # stop-taosanode.bat
     stop_bat = os.path.join(bin_dir, "stop-taosanode.bat")
-    with open(stop_bat, 'w') as f:
+    with open(stop_bat, 'w', encoding='utf-8') as f:
         f.write("""@echo off
 chcp 65001 >nul
-set "PYTHON_EXE=%~dp0..\\venvs\\venv\\Scripts\\python.exe"
-if not exist "%PYTHON_EXE%" set "PYTHON_EXE=python"
-REM Stop taosanode service
+""" + python_guard + """    exit /b 1
+)
 sc query Taosanode >nul 2>&1
 if not errorlevel 1 (
     "%PYTHON_EXE%" "%~dp0taosanode_service.py" stop-service %*
 ) else (
     "%PYTHON_EXE%" "%~dp0taosanode_service.py" stop %*
 )
+exit /b %errorlevel%
 """)
     logging.info("Created stop-taosanode.bat")
 
     # status-taosanode.bat
     status_bat = os.path.join(bin_dir, "status-taosanode.bat")
-    with open(status_bat, 'w') as f:
+    with open(status_bat, 'w', encoding='utf-8') as f:
         f.write("""@echo off
 chcp 65001 >nul
-set "PYTHON_EXE=%~dp0..\\venvs\\venv\\Scripts\\python.exe"
-if not exist "%PYTHON_EXE%" set "PYTHON_EXE=python"
-REM Show taosanode status
+""" + python_guard + """    pause
+    exit /b 1
+)
 sc query Taosanode >nul 2>&1
 if not errorlevel 1 (
     echo Windows service status:
@@ -460,18 +451,19 @@ if not errorlevel 1 (
 )
 "%PYTHON_EXE%" "%~dp0taosanode_service.py" status %*
 pause
+exit /b %errorlevel%
 """)
     logging.info("Created status-taosanode.bat")
 
     # start-model.bat
     start_model_bat = os.path.join(bin_dir, "start-model.bat")
-    with open(start_model_bat, 'w') as f:
+    with open(start_model_bat, 'w', encoding='utf-8') as f:
         f.write("""@echo off
 chcp 65001 >nul
-set "PYTHON_EXE=%~dp0..\\venvs\\venv\\Scripts\\python.exe"
-if not exist "%PYTHON_EXE%" set "PYTHON_EXE=python"
-REM Start model service
-REM Usage: start-model.bat [model_name|all]
+""" + python_guard + """    echo Press Enter to close this window.
+    pause >nul
+    exit /b 1
+)
 if "%~1"=="" (
     echo No model name specified. Defaulting to "all".
     echo Existing model directories will be started automatically.
@@ -505,31 +497,31 @@ exit /b %TDGPT_EXIT_CODE%
 
     # stop-model.bat
     stop_model_bat = os.path.join(bin_dir, "stop-model.bat")
-    with open(stop_model_bat, 'w') as f:
+    with open(stop_model_bat, 'w', encoding='utf-8') as f:
         f.write("""@echo off
 chcp 65001 >nul
-set "PYTHON_EXE=%~dp0..\\venvs\\venv\\Scripts\\python.exe"
-if not exist "%PYTHON_EXE%" set "PYTHON_EXE=python"
-REM Stop model service
-REM Usage: stop-model.bat [model_name|all]
+""" + python_guard + """    exit /b 1
+)
 if "%~1"=="" (
     echo Usage: stop-model.bat [model_name^|all]
     exit /b 1
 )
 "%PYTHON_EXE%" "%~dp0taosanode_service.py" model-stop %*
+exit /b %errorlevel%
 """)
     logging.info("Created stop-model.bat")
 
     # status-model.bat
     status_model_bat = os.path.join(bin_dir, "status-model.bat")
-    with open(status_model_bat, 'w') as f:
+    with open(status_model_bat, 'w', encoding='utf-8') as f:
         f.write("""@echo off
 chcp 65001 >nul
-set "PYTHON_EXE=%~dp0..\\venvs\\venv\\Scripts\\python.exe"
-if not exist "%PYTHON_EXE%" set "PYTHON_EXE=python"
-REM Show model status
+""" + python_guard + """    pause
+    exit /b 1
+)
 "%PYTHON_EXE%" "%~dp0taosanode_service.py" model-status %*
 pause
+exit /b %errorlevel%
 """)
     logging.info("Created status-model.bat")
 
@@ -537,12 +529,9 @@ pause
 def create_install_script():
     """Create install.bat for post-installation setup"""
     install_bat = os.path.join(install_info.install_dir, "install.bat")
-
-    # Determine offline mode flag
-    offline_flag = "-o" if install_info.offline else ""
     all_models_flag = "-a" if install_info.all_models else ""
 
-    with open(install_bat, 'w') as f:
+    with open(install_bat, 'w', encoding='utf-8') as f:
         f.write(f"""@echo off
 chcp 65001 >nul
 setlocal enabledelayedexpansion
@@ -556,37 +545,76 @@ set "PROGRESS_FILE=%TDGPT_PROGRESS_FILE%"
 set "PYTHONUTF8=1"
 set "PYTHONIOENCODING=utf-8"
 set "TDGPT_LOG_REDIRECTED=1"
+set "EXISTING_VENV_PYTHON=%INSTALL_DIR%\\venvs\\venv\\Scripts\\python.exe"
+set "PACKAGED_PYTHON=%INSTALL_DIR%\\python\\runtime\\python.exe"
+set "PYTHON_CMD="
+set "OFFLINE_WITH_PACKAGE=0"
 
-call :append_progress running 1 "Initializing TDGPT setup" "Preparing installation environment"
+call :append_progress running 1 "Initializing {install_info.app_name} setup" "Preparing installation environment"
+call :detect_offline_import %*
 
-REM Check if Python is available
-python --version >nul 2>&1
-if errorlevel 1 (
-    echo ERROR: Python not found in PATH
-    echo Please install Python 3.10/3.11/3.12 from https://www.python.org/
-    call :append_progress error 100 "Installation failed" "Python 3.10/3.11/3.12 was not found in PATH"
-    exit /b 1
+if "%OFFLINE_WITH_PACKAGE%"=="1" goto :resolve_offline_python
+
+REM Priority 1: existing venv Python (upgrade scenario)
+if exist "%EXISTING_VENV_PYTHON%" (
+    call :try_python "%EXISTING_VENV_PYTHON%"
+    if defined PYTHON_CMD goto :run_install
 )
 
-> "%LOG_FILE%" echo [%date% %time%] TDGPT installation started
+REM Priority 2: packaged runtime Python (previously extracted)
+if exist "%PACKAGED_PYTHON%" (
+    call :try_python "%PACKAGED_PYTHON%"
+    if defined PYTHON_CMD goto :run_install
+)
+
+REM Priority 3: system Python in PATH (online mode)
+call :resolve_python
+if defined PYTHON_CMD goto :run_install
+
+REM Priority 4: bootstrap Python from offline tar using system tar.exe
+call :bootstrap_python_from_offline %*
+if defined PYTHON_CMD goto :run_install
+
+echo ERROR: No Python interpreter available.
+echo For online mode, install Python 3.10/3.11/3.12 and add to PATH.
+echo For offline mode, provide an offline package with --offline-package.
+call :append_progress error 100 "Installation failed" "No Python interpreter available"
+exit /b 1
+
+:resolve_offline_python
+REM Offline package import must not run with python/runtime or venv Python from the target tree.
+REM Always bootstrap a temporary Python runtime from the provided offline package first.
+call :bootstrap_python_from_offline %*
+if defined PYTHON_CMD goto :run_install
+
+echo ERROR: Offline import could not bootstrap Python from the offline package.
+echo Make sure tar.exe is available and the offline package contains python/runtime/.
+call :append_progress error 100 "Installation failed" "Offline bootstrap Python is unavailable"
+exit /b 1
+
+:run_install
+> "%LOG_FILE%" echo [%date% %time%] {install_info.app_name} installation started
 >> "%LOG_FILE%" echo Install directory: %INSTALL_DIR%
+>> "%LOG_FILE%" echo Python command: %PYTHON_CMD%
 >> "%LOG_FILE%" echo PIP_INDEX_URL=%PIP_INDEX_URL%
 >> "%LOG_FILE%" echo Command args: %*
 
 if "%PROGRESS_FILE%"=="" (
-    python "%INSTALL_DIR%\\install.py" --log-file "%LOG_FILE%" {offline_flag} {all_models_flag} %* >> "%LOG_FILE%" 2>&1
+    "%PYTHON_CMD%" "%INSTALL_DIR%\\install.py" --log-file "%LOG_FILE%" {all_models_flag} %* >> "%LOG_FILE%" 2>&1
 ) else (
-    python "%INSTALL_DIR%\\install.py" --log-file "%LOG_FILE%" {offline_flag} {all_models_flag} --progress-file "%PROGRESS_FILE%" %* >> "%LOG_FILE%" 2>&1
+    "%PYTHON_CMD%" "%INSTALL_DIR%\\install.py" --log-file "%LOG_FILE%" {all_models_flag} --progress-file "%PROGRESS_FILE%" %* >> "%LOG_FILE%" 2>&1
 )
 
 if errorlevel 1 (
     >> "%LOG_FILE%" echo [%date% %time%] Installation failed
     call :ensure_error_progress "Installation failed" "See install.log for details"
+    if exist "%INSTALL_DIR%\\_bootstrap" rd /s /q "%INSTALL_DIR%\\_bootstrap" 2>nul
     exit /b 1
 )
 
 >> "%LOG_FILE%" echo [%date% %time%] Installation completed successfully
-call :append_progress success 100 "Installation complete" "TDGPT is ready"
+call :append_progress success 100 "Installation complete" "{install_info.app_name} is ready"
+if exist "%INSTALL_DIR%\\_bootstrap" rd /s /q "%INSTALL_DIR%\\_bootstrap" 2>nul
 exit /b 0
 
 :append_progress
@@ -602,6 +630,71 @@ if exist "%PROGRESS_FILE%" (
 )
 call :append_progress error 100 "%~1" "%~2"
 exit /b 0
+
+:detect_offline_import
+set "OFFLINE_WITH_PACKAGE=0"
+set "SEEN_OFFLINE_FLAG=0"
+:detect_offline_args
+if "%~1"=="" exit /b 0
+if /I "%~1"=="-o" set "SEEN_OFFLINE_FLAG=1"
+if /I "%~1"=="--offline" set "SEEN_OFFLINE_FLAG=1"
+if /I "%~1"=="--offline-package" (
+    if "%SEEN_OFFLINE_FLAG%"=="1" if not "%~2"=="" set "OFFLINE_WITH_PACKAGE=1"
+    shift
+)
+shift
+goto :detect_offline_args
+
+:resolve_python
+python --version >nul 2>&1
+if not errorlevel 1 (
+    set "PYTHON_CMD=python"
+    exit /b 0
+)
+python3 --version >nul 2>&1
+if not errorlevel 1 (
+    set "PYTHON_CMD=python3"
+    exit /b 0
+)
+set "PYTHON_CMD="
+exit /b 1
+
+:try_python
+set "PYTHON_CMD="
+%~1 --version >nul 2>&1
+if errorlevel 1 exit /b 1
+set "PYTHON_CMD=%~1"
+exit /b 0
+
+:bootstrap_python_from_offline
+set "OFFLINE_PKG="
+:parse_offline_args
+if "%~1"=="" goto :parse_offline_done
+if /I "%~1"=="--offline-package" (
+    set "OFFLINE_PKG=%~2"
+    shift
+)
+shift
+goto :parse_offline_args
+:parse_offline_done
+if "%OFFLINE_PKG%"=="" exit /b 1
+if not exist "%OFFLINE_PKG%" (
+    echo WARNING: Offline package not found: %OFFLINE_PKG%
+    exit /b 1
+)
+set "BOOTSTRAP_DIR=%INSTALL_DIR%\\_bootstrap"
+if exist "%BOOTSTRAP_DIR%" rd /s /q "%BOOTSTRAP_DIR%"
+mkdir "%BOOTSTRAP_DIR%"
+echo Bootstrapping Python from offline package: %OFFLINE_PKG%
+tar -xf "%OFFLINE_PKG%" -C "%BOOTSTRAP_DIR%" python/runtime/ 2>nul
+if exist "%BOOTSTRAP_DIR%\\python\\runtime\\python.exe" (
+    set "PYTHON_CMD=%BOOTSTRAP_DIR%\\python\\runtime\\python.exe"
+    echo Bootstrap Python runtime extracted successfully.
+) else (
+    echo WARNING: Could not extract bootstrap Python runtime from offline package.
+    rd /s /q "%BOOTSTRAP_DIR%" 2>nul
+)
+exit /b 0
 """)
     logging.info("Created install.bat")
 
@@ -609,8 +702,8 @@ exit /b 0
 def create_uninstall_script():
     """Create uninstall.bat - called by Inno Setup during uninstallation"""
     uninstall_bat = os.path.join(install_info.install_dir, "uninstall.bat")
-    with open(uninstall_bat, 'w') as f:
-        f.write("""@echo off
+    with open(uninstall_bat, 'w', encoding='utf-8') as f:
+        f.write(f"""@echo off
 chcp 65001 >nul
 
 set INSTALL_DIR=%~dp0
@@ -619,27 +712,32 @@ set "LOG_DIR=%INSTALL_DIR%\\log"
 if not exist "%LOG_DIR%" mkdir "%LOG_DIR%"
 set "LOG_FILE=%LOG_DIR%\\uninstall.log"
 set "TDGPT_LOG_REDIRECTED=1"
+set "EXISTING_VENV_PYTHON=%INSTALL_DIR%\\venvs\\venv\\Scripts\\python.exe"
+set "PYTHON_CMD="
 
-> "%LOG_FILE%" echo [%date% %time%] TDGPT uninstall started
+> "%LOG_FILE%" echo [%date% %time%] {install_info.app_name} uninstall started
 
-REM Check if Python is available
-python --version >nul 2>&1
-if errorlevel 1 (
-    >> "%LOG_FILE%" echo Python not found in PATH, skip uninstall.py
-    goto FORCE_KILL
+if exist "%EXISTING_VENV_PYTHON%" (
+    set "PYTHON_CMD=%EXISTING_VENV_PYTHON%"
+) else (
+    call :resolve_python
+    if not defined PYTHON_CMD (
+        >> "%LOG_FILE%" echo Python not found in PATH, skip uninstall.py
+        goto FORCE_KILL
+    )
 )
 
 REM Check if uninstall.py exists
 if exist "%INSTALL_DIR%\\uninstall.py" (
-    python "%INSTALL_DIR%\\uninstall.py" --log-file "%LOG_FILE%" >> "%LOG_FILE%" 2>&1
+    "%PYTHON_CMD%" "%INSTALL_DIR%\\uninstall.py" --log-file "%LOG_FILE%" >> "%LOG_FILE%" 2>&1
     >> "%LOG_FILE%" echo [%date% %time%] uninstall.py completed
     exit /b 0
 )
 
 REM Fallback: Stop services using taosanode_service.py
 if exist "%INSTALL_DIR%\\bin\\taosanode_service.py" (
-    python "%INSTALL_DIR%\\bin\\taosanode_service.py" stop >> "%LOG_FILE%" 2>&1
-    python "%INSTALL_DIR%\\bin\\taosanode_service.py" model-stop all >> "%LOG_FILE%" 2>&1
+    "%PYTHON_CMD%" "%INSTALL_DIR%\\bin\\taosanode_service.py" stop >> "%LOG_FILE%" 2>&1
+    "%PYTHON_CMD%" "%INSTALL_DIR%\\bin\\taosanode_service.py" model-stop all >> "%LOG_FILE%" 2>&1
 )
 
 :FORCE_KILL
@@ -651,6 +749,20 @@ for /f "tokens=2" %%i in ('tasklist /FI "IMAGENAME eq python.exe" /FO LIST ^| fi
 :END
 >> "%LOG_FILE%" echo [%date% %time%] Uninstall helper completed
 exit /b 0
+
+:resolve_python
+python --version >nul 2>&1
+if not errorlevel 1 (
+    set "PYTHON_CMD=python"
+    exit /b 0
+)
+python3 --version >nul 2>&1
+if not errorlevel 1 (
+    set "PYTHON_CMD=python3"
+    exit /b 0
+)
+set "PYTHON_CMD="
+exit /b 1
 """)
     logging.info("Created uninstall.bat")
 
@@ -694,6 +806,8 @@ def create_iss_script():
 
     # Replace placeholders
     iss_content = iss_content.replace('{{VERSION}}', tdgpt_version.version)
+    iss_content = iss_content.replace('{{APP_NAME}}', install_info.app_name)
+    iss_content = iss_content.replace('{{PRODUCT_FULL_NAME}}', install_info.product_full_name)
     iss_content = iss_content.replace('{{PACKAGE_NAME}}', install_info.package_name)
     iss_content = iss_content.replace('{{SOURCE_DIR}}', install_dir_iss)
     iss_content = iss_content.replace('{{OUTPUT_DIR}}', release_dir_iss)
@@ -801,7 +915,6 @@ def main():
     copy_python_files()
     copy_resource_files()
     copy_requirements()
-    prepare_offline_packages()  # Prepare offline wheels if --offline flag is set
     copy_model_files()
     copy_enterprise_files()
     copy_service_scripts()  # New unified service scripts
@@ -813,50 +926,13 @@ def main():
     create_install_script()
     create_uninstall_script()
 
-    # Validate model directory (required for production packaging)
-    if not install_info.skip_model_check:
-        model_dir = os.path.join(install_info.install_dir, "model")
-
-        # Check if model directory exists and has files
-        if not os.path.exists(model_dir) or not os.listdir(model_dir):
-            logging.error("=" * 60)
-            logging.error("ERROR: Model directory is empty or missing")
-            logging.error(f"Expected location: {model_dir}")
-            logging.error("")
-            logging.error("Model files are REQUIRED for production packaging.")
-            logging.error("Please specify model directory using --model-dir option:")
-            logging.error(f"  python {sys.argv[0]} -e {tdgpt_version.ver_type} -v {tdgpt_version.version} -m <model_dir>")
-            logging.error("")
-            logging.error("For testing only, you can skip this check with --skip-model-check")
-            logging.error("=" * 60)
-            return 1
-
-        # Check required model files for production
-        required_models = ['timemoe.tar.gz', 'tdtsfm.tar.gz']
-        missing_models = []
-        for model_file in required_models:
-            model_path = os.path.join(model_dir, model_file)
-            if not os.path.exists(model_path):
-                missing_models.append(model_file)
-
-        if missing_models:
-            logging.error("=" * 60)
-            logging.error("ERROR: Required model files are missing")
-            logging.error(f"Missing files: {', '.join(missing_models)}")
-            logging.error(f"Model directory: {model_dir}")
-            logging.error("")
-            logging.error("Production packaging requires:")
-            logging.error("  - timemoe.tar.gz")
-            logging.error("  - tdtsfm.tar.gz")
-            logging.error("=" * 60)
-            return 1
-
-        logging.info("Model validation passed: all required files present")
-    else:
+    if install_info.skip_model_check:
         logging.warning("=" * 60)
         logging.warning("WARNING: Model validation SKIPPED (--skip-model-check)")
         logging.warning("This is for TESTING ONLY - NOT for production!")
         logging.warning("=" * 60)
+    else:
+        logging.info("Base installer does not require bundled runtime, venv, or model validation.")
 
     # Create Inno Setup script and build installer
     iss_path = create_iss_script()

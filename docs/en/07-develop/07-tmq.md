@@ -69,7 +69,7 @@ The `td.connect.websocket.scheme` parameter is provided to indicate the protocol
 
 Supported properties list for creating consumers:
 
-- `ws.url`: WebSocket connection address.
+- `ws.url`: WebSocket connection address. Starting from `v3.8.0`, multi-endpoint failover is supported, for example: `ws://node1:6041,ws://node2:6041`.
 - `ws.message.channelLen`: WebSocket message channel buffer length, default 0.
 - `ws.message.timeout`: WebSocket message timeout, default 5m.
 - `ws.message.writeWait`: WebSocket message write timeout, default 10s.

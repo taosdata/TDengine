@@ -2603,6 +2603,50 @@ _err:
   return NULL;
 }
 
+SNode* createExternalWindowClause(SAstCreateContext* pCxt, SNode* pSubquery, SToken* pAlias, SNode* pFill) {
+  SExternalWindowNode* pExtWin = NULL;
+  CHECK_PARSER_STATUS(pCxt);
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_EXTERNAL_WINDOW, (SNode**)&pExtWin);
+  CHECK_MAKE_NODE(pExtWin);
+
+  if (QUERY_NODE_SELECT_STMT == nodeType(pSubquery)) {
+    ((SSelectStmt*)pSubquery)->subQType= E_SUB_QUERY_TABLE;
+  } else if (QUERY_NODE_SET_OPERATOR == nodeType(pSubquery)) {
+    ((SSetOperator*)pSubquery)->subQType= E_SUB_QUERY_TABLE;
+  }
+
+    pExtWin->pCol = createPrimaryKeyCol(pCxt, NULL);
+    CHECK_MAKE_NODE(pExtWin->pCol);
+
+  // Attach subquery and optional fill node
+  pExtWin->pSubquery = pSubquery;
+  pExtWin->pFill = pFill;
+
+  // Set alias if provided; enforce length constraint (report error if too long)
+  pExtWin->aliasName[0] = '\0';
+  if (pAlias && pAlias->type != TK_NK_NIL) {
+    trimEscape(pCxt, pAlias, false);
+    if (pAlias->n >= TSDB_COL_NAME_LEN || pAlias->n == 0) {
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, pAlias->z);
+      goto _err;
+    }
+    int32_t len = pAlias->n;
+    strncpy(pExtWin->aliasName, pAlias->z, len);
+    pExtWin->aliasName[len] = '\0';
+  }
+
+  return (SNode*)pExtWin;
+_err:
+  if (pExtWin) {
+    pExtWin->pSubquery = NULL;
+    pExtWin->pFill = NULL;
+    nodesDestroyNode((SNode*)pExtWin);
+  }
+  nodesDestroyNode(pSubquery);
+  nodesDestroyNode(pFill);
+  return NULL;
+}
+
 SNode* addJLimitClause(SAstCreateContext* pCxt, SNode* pJoin, SNode* pJLimit) {
   CHECK_PARSER_STATUS(pCxt);
   if (NULL == pJLimit) {
@@ -7212,7 +7256,7 @@ _err:
 }
 
 SNode* createStreamOutTableNode(SAstCreateContext* pCxt, SNode* pIntoTable, SNode* pOutputSubTable, SNodeList* pColList,
-                                SNodeList* pTagList) {
+                                SNodeList* pTagList, int32_t nodelayCreateSubtable) {
   SStreamOutTableNode* pOutTable = NULL;
   CHECK_PARSER_STATUS(pCxt);
   pCxt->errCode = nodesMakeNode(QUERY_NODE_STREAM_OUT_TABLE, (SNode**)&pOutTable);
@@ -7221,6 +7265,7 @@ SNode* createStreamOutTableNode(SAstCreateContext* pCxt, SNode* pIntoTable, SNod
   pOutTable->pSubtable = pOutputSubTable;
   pOutTable->pCols = pColList;
   pOutTable->pTags = pTagList;
+  pOutTable->nodelayCreateSubtable = (nodelayCreateSubtable != 0) ? 1 : 0;
   return (SNode*)pOutTable;
 
 _err:
@@ -7555,6 +7600,7 @@ SNode* createCreateStreamStmt(SAstCreateContext* pCxt, bool ignoreExists, SNode*
   pStmt->pTags = pOutTable ? ((SStreamOutTableNode*)pOutTable)->pTags : NULL;
   pStmt->pSubtable = pOutTable ? ((SStreamOutTableNode*)pOutTable)->pSubtable : NULL;
   pStmt->pCols = pOutTable ? ((SStreamOutTableNode*)pOutTable)->pCols : NULL;
+  pStmt->nodelayCreateSubtable = pOutTable ? ((SStreamOutTableNode*)pOutTable)->nodelayCreateSubtable : 0;
   return (SNode*)pStmt;
 _err:
   nodesDestroyNode(pOutTable);
