@@ -64,22 +64,37 @@ sudo systemctl status taos-explorer
 
 <TabItem label="Windows 系统" value="windows">
 
-安装完成后，请以管理员身份打开一个 cmd 窗口，执行以下脚本，启动所有服务：
+安装完成后，请以管理员身份打开一个 cmd 窗口。`start-all.bat` 是统一入口脚本，无参数时默认执行启动，也支持 `status` 和 `stop` 子命令。
+
+启动所有服务：
 
 ```cmd
 C:\TDengine\start-all.bat
 ```
 
-可以使用以下命令查看服务的状态：
+查看服务状态：
+
+```cmd
+C:\TDengine\start-all.bat status
+```
+
+停止所有服务：
+
+```cmd
+C:\TDengine\start-all.bat stop
+```
+
+如果需要分别查看各个 Windows Service 的原始状态，可以使用以下命令：
 
 ```cmd
 sc query taosd
 sc query taosadapter
+sc query taosx
 sc query taoskeeper
 sc query taos-explorer
 ```
 
-如果查看到服务的状态为 "RUNNING", 则说明服务已经启动成功。
+如果 `start-all.bat status` 中显示服务状态为 `running`，或者 `sc query` 输出中包含 `RUNNING`，则说明对应服务已经启动成功。
 
 </TabItem>
 
