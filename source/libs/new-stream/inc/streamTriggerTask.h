@@ -171,6 +171,13 @@ typedef struct SSTriggerWalProgress {
   SSDataBlock              *pCalcBlock;
 } SSTriggerWalProgress;
 
+// (gid, pProgress) for nodelay create-table; each gid must be pulled from its owning reader
+typedef struct {
+  int64_t               gid;
+  SSTriggerWalProgress *pProgress;
+  int32_t               attemptCount;  // 1-based, incremented on each NEED_RETRY for logging
+} SSTriggerPendingCreateTableEntry;
+
 typedef enum ESTriggerWalMode {
   STRIGGER_WAL_META_ONLY,
   STRIGGER_WAL_META_WITH_DATA,
@@ -259,6 +266,9 @@ typedef struct SSTriggerRealtimeContext {
   bool    recovering;
   int64_t lastCheckpointTime;
   int64_t lastReportTime;
+
+  // LAST_TS create-table: need groupInfo before send create-table req; pull GROUP_COL_VALUE first
+  SArray *pPendingCreateTableGids;  // SArray<SSTriggerPendingCreateTableEntry>, (gid, pProgress) per reader
 } SSTriggerRealtimeContext;
 
 typedef struct SSTriggerTsdbProgress {
@@ -430,6 +440,7 @@ typedef struct SStreamTriggerTask {
   SArray            *pNotifyAddrUrls;
   int32_t            addOptions;
   bool               notifyHistory;
+  int8_t             nodelayCreateSubtable;  // 1 = sub-tables created at stream create; 0 = create on the fly
 
   // task info
   int32_t leaderSnodeId;
