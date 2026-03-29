@@ -143,4 +143,9 @@ MESSAGE(STATUS "cpu:        " ${TD_VER_CPUTYPE})
 MESSAGE(STATUS "os:         " ${TD_VER_OSTYPE})
 MESSAGE(STATUS "============= compile version parameter information end  ============= ")
 
+SET(TD_VER_NUMBER  "${TD_VER_NUMBER}"  CACHE STRING "Global TD version number" FORCE)
+SET(TD_VER_OSTYPE  "${TD_VER_OSTYPE}"  CACHE STRING "Global TD target OS type" FORCE)
+SET(TD_VER_CPUTYPE "${TD_VER_CPUTYPE}" CACHE STRING "Global TD target CPU type" FORCE)
+SET(TD_VER_DATE    "${TD_VER_DATE}"    CACHE STRING "Global TD build date" FORCE)
+
 STRING(REPLACE "." "_" TD_LIB_VER_NUMBER ${TD_VER_NUMBER})

@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.16)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 project(
-  TDengine
+  TDengine-TSDB
   VERSION 3.0
   DESCRIPTION
     "An open-source big data platform designed and optimized for the Internet of Things(IOT)"
@@ -19,10 +19,11 @@ set(TD_SOURCE_DIR ${TD_COMMUNITY_DIR})
 set(TD_SUPPORT_DIR "${TD_SOURCE_DIR}/cmake")
 set(TD_CONTRIB_DIR "${TD_SOURCE_DIR}/contrib")
 
+message(STATUS "TDengine-TSDB Community")
 message(STATUS "Community directory: " ${TD_COMMUNITY_DIR})
-message(STATUS "Source directory: " ${TD_SOURCE_DIR})
-message(STATUS "Support directory: " ${TD_SUPPORT_DIR})
-message(STATUS "Contrib directory: " ${TD_CONTRIB_DIR})
+message(STATUS "Source directory:    " ${TD_SOURCE_DIR})
+message(STATUS "Support directory:   " ${TD_SUPPORT_DIR})
+message(STATUS "Contrib directory:   " ${TD_CONTRIB_DIR})
 
 include(cmake/preinclude.cmake)
 include(cmake/platform.cmake)
