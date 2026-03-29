@@ -2072,6 +2072,7 @@ typedef struct {
   SMsgHead header;
   char     dbFName[TSDB_DB_FNAME_LEN];
   char     tbName[TSDB_TABLE_NAME_LEN];
+  int64_t  txnId;  // batch meta txn: same-txn visibility for PRE_CREATE entries
 } STableCfgReq;
 
 typedef struct {
@@ -3300,6 +3301,7 @@ typedef struct {
   char     tbName[TSDB_TABLE_NAME_LEN];
   uint8_t  option;
   uint8_t  autoCreateCtb;
+  int64_t  txnId;  // batch meta txn: same-txn visibility for PRE_CREATE entries
 } STableInfoReq;
 
 int32_t tSerializeSTableInfoReq(void* buf, int32_t bufLen, STableInfoReq* pReq);

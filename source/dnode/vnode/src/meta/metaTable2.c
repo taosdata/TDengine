@@ -372,7 +372,7 @@ static int32_t metaBuildCreateChildTableRsp(SMeta *pMeta, const SMetaEntry *pEnt
   }
 
   *ppRsp = taosMemoryCalloc(1, sizeof(STableMetaRsp));
-  if (NULL == ppRsp) {
+  if (NULL == *ppRsp) {
     return terrno;
   }
 
@@ -381,7 +381,7 @@ static int32_t metaBuildCreateChildTableRsp(SMeta *pMeta, const SMetaEntry *pEnt
   (*ppRsp)->suid = pEntry->ctbEntry.suid;
   tstrncpy((*ppRsp)->tbName, pEntry->name, TSDB_TABLE_NAME_LEN);
 
-  return code;
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t metaCreateChildTable(SMeta *pMeta, int64_t version, SVCreateTbReq *pReq, STableMetaRsp **ppRsp) {
@@ -420,6 +420,9 @@ static int32_t metaCreateChildTable(SMeta *pMeta, int64_t version, SVCreateTbReq
   if (code) {
     metaError("vgId:%d, %s failed at %s:%d since %s", TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__,
               tstrerror(code));
+  }
+  if (ppRsp && *ppRsp) {
+    tstrncpy((*ppRsp)->stbName, pReq->ctb.stbName, TSDB_TABLE_NAME_LEN);
   }
 
   // handle entry

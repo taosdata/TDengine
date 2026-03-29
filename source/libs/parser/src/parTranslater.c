@@ -857,10 +857,43 @@ static int32_t getTableCfg(STranslateContext* pCxt, const SName* pName, STableCf
       SRequestConnInfo conn = {.pTrans = pParCxt->pTransporter,
                                .requestId = pParCxt->requestId,
                                .requestObjRefId = pParCxt->requestRid,
-                               .mgmtEps = pParCxt->mgmtEpSet};
+                               .mgmtEps = pParCxt->mgmtEpSet,
+                               .txnId = pParCxt->txnId};
       code = catalogRefreshGetTableCfg(pParCxt->pCatalog, &conn, pName, pCfg);
     }
   }
+
+  // Batch meta txn: if table not found but exists in same-txn cache, build a minimal STableCfg
+  if (TSDB_CODE_SUCCESS != code && pParCxt->txnId > 0 && pParCxt->pTxnTableMeta) {
+    char fullName[TSDB_TABLE_FNAME_LEN];
+    if (tNameExtractFullName(pName, fullName) == 0) {
+      STableMeta** ppCached = (STableMeta**)taosHashGet(pParCxt->pTxnTableMeta, fullName, strlen(fullName));
+      if (ppCached && *ppCached) {
+        STableMeta* pMeta = *ppCached;
+        STableCfg*  pTmpCfg = taosMemoryCalloc(1, sizeof(STableCfg));
+        if (pTmpCfg) {
+          tstrncpy(pTmpCfg->tbName, pName->tname, TSDB_TABLE_NAME_LEN);
+          tstrncpy(pTmpCfg->dbFName, fullName, TSDB_DB_FNAME_LEN);  // will be overwritten by caller
+          pTmpCfg->tableType = pMeta->tableType;
+          pTmpCfg->numOfColumns = pMeta->tableInfo.numOfColumns;
+          pTmpCfg->numOfTags = pMeta->tableInfo.numOfTags;
+          int32_t total = pMeta->tableInfo.numOfColumns + pMeta->tableInfo.numOfTags;
+          if (total > 0) {
+            pTmpCfg->pSchemas = taosMemoryMalloc(sizeof(SSchema) * total);
+            if (pTmpCfg->pSchemas) {
+              memcpy(pTmpCfg->pSchemas, pMeta->schema, sizeof(SSchema) * total);
+            }
+          }
+          if (pMeta->tableInfo.numOfColumns > 0) {
+            pTmpCfg->pSchemaExt = taosMemoryCalloc(pMeta->tableInfo.numOfColumns, sizeof(SSchemaExt));
+          }
+          *pCfg = pTmpCfg;
+          code = TSDB_CODE_SUCCESS;
+        }
+      }
+    }
+  }
+
   if (TSDB_CODE_SUCCESS != code) {
     parserError("QID:0x%" PRIx64 ", catalogRefreshGetTableCfg error, code:%s, dbName:%s, tbName:%s",
                 pCxt->pParseCxt->requestId, tstrerror(code), pName->dbname, pName->tname);
@@ -884,6 +917,21 @@ static int32_t refreshGetTableMeta(STranslateContext* pCxt, const char* pDbName,
 
     code = catalogRefreshGetTableMeta(pParCxt->pCatalog, &conn, &name, pMeta, false);
   }
+
+  // Batch meta txn: if table not found but exists in same-txn cache, use cached meta
+  if (TSDB_CODE_PAR_TABLE_NOT_EXIST == code && pParCxt->txnId > 0 && pParCxt->pTxnTableMeta) {
+    char fullName[TSDB_TABLE_FNAME_LEN];
+    if (tNameExtractFullName(&name, fullName) == 0) {
+      STableMeta** ppCached = (STableMeta**)taosHashGet(pParCxt->pTxnTableMeta, fullName, strlen(fullName));
+      if (ppCached && *ppCached) {
+        *pMeta = tableMetaDup(*ppCached);
+        if (*pMeta) {
+          code = TSDB_CODE_SUCCESS;
+        }
+      }
+    }
+  }
+
   if (TSDB_CODE_SUCCESS != code) {
     parserError("QID:0x%" PRIx64 ", catalogRefreshGetTableMeta error, code:%s, dbName:%s, tbName:%s",
                 pCxt->pParseCxt->requestId, tstrerror(code), pDbName, pTableName);

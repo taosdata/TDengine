@@ -102,6 +102,7 @@ typedef struct SMetaReader {
   void*              pBuf;
   int32_t            szBuf;
   struct SStoreMeta* pAPI;
+  int64_t            txnId;  // batch meta txn: same-txn visibility for PRE_CREATE entries
 } SMetaReader;
 
 typedef struct SMTbCursor {

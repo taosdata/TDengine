@@ -2055,7 +2055,8 @@ static int32_t getAllMetaAsync(SSqlCallbackWrapper *pWrapper, catalogCallback fp
   SRequestConnInfo conn = {.pTrans = pWrapper->pParseCtx->pTransporter,
                            .requestId = pWrapper->pParseCtx->requestId,
                            .requestObjRefId = pWrapper->pParseCtx->requestRid,
-                           .mgmtEps = pWrapper->pParseCtx->mgmtEpSet};
+                           .mgmtEps = pWrapper->pParseCtx->mgmtEpSet,
+                           .txnId = pWrapper->pParseCtx->txnId};
 
   pWrapper->pRequest->metric.ctgStart = taosGetTimestampUs();
 

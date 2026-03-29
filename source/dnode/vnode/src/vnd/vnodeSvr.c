@@ -1543,6 +1543,7 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, 
         cRsp.code = TSDB_CODE_SUCCESS;
         vnodeTxnTrackTable(pVnode, pCreateReq->txnId, pCreateReq->uid);
         metaTxnIdxUpsert(pVnode->pMeta, pCreateReq->uid, pCreateReq->txnId, META_TXN_PRE_CREATE, -1);
+        vnodeUpdateMetaRsp(pVnode, cRsp.pMeta);
       }
       if (taosArrayPush(rsp.pArray, &cRsp) == NULL) {
         terrno = TSDB_CODE_OUT_OF_MEMORY;

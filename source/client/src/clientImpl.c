@@ -1177,7 +1177,63 @@ int32_t handleQueryExecRsp(SRequestObj* pRequest) {
           STableMetaRsp* pMetaRsp = (STableMetaRsp*)res;
           STableMeta*    pTableMeta = NULL;
           bool           isStb = (pMetaRsp->tableType == TSDB_SUPER_TABLE);
-          if (queryCreateTableMetaFromMsg(pMetaRsp, isStb, &pTableMeta) == 0 && pTableMeta != NULL) {
+
+          if (pMetaRsp->tableType == TSDB_CHILD_TABLE) {
+            // For child tables, construct STableMeta by merging CTB header + STB schema from catalog cache.
+            // The VNode response only carries basic child table info (uid, suid, stbName) — no schema.
+            STableMeta* pStbMeta = NULL;
+            SName       stbName = {0};
+            char        stbFullName[TSDB_TABLE_FNAME_LEN];
+            snprintf(stbFullName, sizeof(stbFullName), "%s.%s", pMetaRsp->dbFName, pMetaRsp->stbName);
+            tNameFromString(&stbName, stbFullName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+            int32_t stbCode = catalogGetCachedSTableMeta(pCatalog, &stbName, &pStbMeta);
+            // Fallback: STB might have been created in the same txn, check pTxnTableMeta
+            if ((stbCode != TSDB_CODE_SUCCESS || pStbMeta == NULL) && pTscObj->pTxnTableMeta != NULL) {
+              STableMeta** ppStb = (STableMeta**)taosHashGet(pTscObj->pTxnTableMeta, stbFullName, strlen(stbFullName));
+              if (ppStb && *ppStb) {
+                pStbMeta = *ppStb;
+                stbCode = TSDB_CODE_SUCCESS;
+              }
+            }
+            if (stbCode == TSDB_CODE_SUCCESS && pStbMeta != NULL) {
+              int32_t numOfCols = pStbMeta->tableInfo.numOfColumns;
+              int32_t numOfTags = pStbMeta->tableInfo.numOfTags;
+              int32_t totalCols = numOfCols + numOfTags;
+              int32_t metaSize = sizeof(STableMeta) + sizeof(SSchema) * totalCols;
+              int32_t schemaExtSize = pStbMeta->schemaExt ? sizeof(SSchemaExt) * numOfCols : 0;
+              pTableMeta = taosMemoryCalloc(1, metaSize + schemaExtSize);
+              if (pTableMeta) {
+                // Child table header
+                pTableMeta->uid = pMetaRsp->tuid;
+                pTableMeta->suid = pMetaRsp->suid;
+                pTableMeta->vgId = pMetaRsp->vgId;
+                pTableMeta->tableType = TSDB_CHILD_TABLE;
+                // STB schema portion
+                pTableMeta->sversion = pStbMeta->sversion;
+                pTableMeta->tversion = pStbMeta->tversion;
+                pTableMeta->tableInfo = pStbMeta->tableInfo;
+                pTableMeta->ownerId = pStbMeta->ownerId;
+                memcpy(pTableMeta->schema, pStbMeta->schema, sizeof(SSchema) * totalCols);
+                if (pStbMeta->schemaExt) {
+                  pTableMeta->schemaExt = (SSchemaExt*)((char*)pTableMeta + metaSize);
+                  memcpy(pTableMeta->schemaExt, pStbMeta->schemaExt, schemaExtSize);
+                }
+              }
+            }
+            // Only free pStbMeta if it came from catalog (not from pTxnTableMeta hash reference)
+            if (stbCode == TSDB_CODE_SUCCESS && pStbMeta != NULL) {
+              STableMeta** ppStb = pTscObj->pTxnTableMeta ? (STableMeta**)taosHashGet(pTscObj->pTxnTableMeta,
+                                                                                      stbFullName, strlen(stbFullName))
+                                                          : NULL;
+              if (!ppStb || *ppStb != pStbMeta) {
+                taosMemoryFree(pStbMeta);
+              }
+            }
+          } else {
+            (void)queryCreateTableMetaFromMsg(pMetaRsp, isStb, &pTableMeta);
+          }
+
+          if (pTableMeta != NULL) {
             taosThreadMutexLock(&pTscObj->mutex);
             if (pTscObj->pTxnTableMeta == NULL) {
               pTscObj->pTxnTableMeta =
@@ -1475,11 +1531,13 @@ static bool isTxnAllowedStmtType(SNode* pRoot) {
   }
 
   // VNODE_MODIFY_STMT wraps both CREATE TABLE and INSERT after translation.
-  // Allow only when the original statement was a CREATE TABLE variant, not INSERT/DELETE.
+  // Allow only when the original statement was a table DDL variant, not INSERT/DELETE.
   if (type == QUERY_NODE_VNODE_MODIFY_STMT) {
     int32_t origType = ((SVnodeModifyOpStmt*)pRoot)->sqlNodeType;
     if (origType == QUERY_NODE_CREATE_TABLE_STMT || origType == QUERY_NODE_CREATE_MULTI_TABLES_STMT ||
-        origType == QUERY_NODE_CREATE_VIRTUAL_TABLE_STMT || origType == QUERY_NODE_CREATE_VIRTUAL_SUBTABLE_STMT) {
+        origType == QUERY_NODE_CREATE_VIRTUAL_TABLE_STMT || origType == QUERY_NODE_CREATE_VIRTUAL_SUBTABLE_STMT ||
+        origType == QUERY_NODE_DROP_TABLE_STMT || origType == QUERY_NODE_DROP_VIRTUAL_TABLE_STMT ||
+        origType == QUERY_NODE_ALTER_TABLE_STMT || origType == QUERY_NODE_ALTER_VIRTUAL_TABLE_STMT) {
       return true;
     }
     return false;  // INSERT / DELETE wrapped in VNODE_MODIFY_STMT — blocked

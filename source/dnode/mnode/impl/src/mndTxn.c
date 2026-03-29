@@ -97,6 +97,8 @@ int32_t mndInitTxn(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_COMMIT_TXN_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_ROLLBACK_TXN, mndProcessRollbackTxnReq);
   mndSetMsgHandle(pMnode, TDMT_MND_ROLLBACK_TXN_RSP, mndTransProcessRsp);
+  mndSetMsgHandle(pMnode, TDMT_VND_TXN_COMMIT_RSP, mndTransProcessRsp);
+  mndSetMsgHandle(pMnode, TDMT_VND_TXN_ROLLBACK_RSP, mndTransProcessRsp);
 
   //   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_TXN, mndRetrieveTxn);
   //   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_TXN, mndCancelRetrieveTxn);
@@ -936,7 +938,7 @@ static int32_t mndCommitTxn(SMnode *pMnode, SRpcMsg *pReq, STxnObj *pTxn) {
 
   mndTransSetKillMode(pTrans, TRN_KILL_MODE_SKIP);
 
-  // Redo log: update STxnObj stage → COMMITTING immediately (for leader switchover recovery)
+  // Prepare log: update STxnObj stage → COMMITTING atomically with Raft proposal
   {
     STxnObj redoObj = *pTxn;
     redoObj.stage = UTXN_STAGE_COMMITTING;
@@ -945,7 +947,7 @@ static int32_t mndCommitTxn(SMnode *pMnode, SRpcMsg *pReq, STxnObj *pTxn) {
     if (pRedoRaw == NULL) {
       TAOS_CHECK_EXIT(terrno ? terrno : TSDB_CODE_MND_RETURN_VALUE_NULL);
     }
-    TAOS_CHECK_EXIT(mndTransAppendRedolog(pTrans, pRedoRaw));
+    TAOS_CHECK_EXIT(mndTransAppendPrepareLog(pTrans, pRedoRaw));
     TAOS_CHECK_EXIT(sdbSetRawStatus(pRedoRaw, SDB_STATUS_READY));
   }
 
@@ -1004,7 +1006,7 @@ static int32_t mndRollbackTxn(SMnode *pMnode, SRpcMsg *pReq, STxnObj *pTxn, int3
 
   mndTransSetKillMode(pTrans, TRN_KILL_MODE_SKIP);
 
-  // Redo log: update STxnObj stage → ROLLINGBACK immediately (for leader switchover recovery)
+  // Prepare log: update STxnObj stage → ROLLINGBACK atomically with Raft proposal
   {
     STxnObj redoObj = *pTxn;
     redoObj.stage = UTXN_STAGE_ROLLINGBACK;
@@ -1013,7 +1015,7 @@ static int32_t mndRollbackTxn(SMnode *pMnode, SRpcMsg *pReq, STxnObj *pTxn, int3
     if (pRedoRaw == NULL) {
       TAOS_CHECK_EXIT(terrno ? terrno : TSDB_CODE_MND_RETURN_VALUE_NULL);
     }
-    TAOS_CHECK_EXIT(mndTransAppendRedolog(pTrans, pRedoRaw));
+    TAOS_CHECK_EXIT(mndTransAppendPrepareLog(pTrans, pRedoRaw));
     TAOS_CHECK_EXIT(sdbSetRawStatus(pRedoRaw, SDB_STATUS_READY));
   }
 

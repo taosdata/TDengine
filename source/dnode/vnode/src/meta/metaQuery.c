@@ -110,9 +110,11 @@ int metaReaderGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid) {
   int code = metaGetTableEntryByVersion(pReader, version1, uid);
   if (code) return code;
 
-  // batch meta txn: PRE_CREATE entries are invisible to external readers
+  // batch meta txn: PRE_CREATE entries are invisible unless same-txn reader
   if (pReader->me.txnStatus == META_TXN_PRE_CREATE) {
-    return terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
+    if (pReader->txnId == 0 || pReader->txnId != pReader->me.txnId) {
+      return terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
+    }
   }
 
   // batch meta txn: PRE_ALTER entries — redirect to old version for snapshot isolation
@@ -196,9 +198,11 @@ int metaReaderGetTableEntryByVersionUid(SMetaReader *pReader, int64_t version, t
   code = metaGetTableEntryByVersion(pReader, version, uid);
   if (code) return code;
 
-  // batch meta txn: PRE_CREATE entries are invisible to external readers
+  // batch meta txn: PRE_CREATE entries are invisible unless same-txn reader
   if (pReader->me.txnStatus == META_TXN_PRE_CREATE) {
-    return terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
+    if (pReader->txnId == 0 || pReader->txnId != pReader->me.txnId) {
+      return terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
+    }
   }
 
   // batch meta txn: PRE_ALTER entries — redirect to old version for snapshot isolation
@@ -224,9 +228,11 @@ int metaReaderGetTableEntryByUidCache(SMetaReader *pReader, tb_uid_t uid) {
   code = metaGetTableEntryByVersion(pReader, info.version, uid);
   if (code) return code;
 
-  // batch meta txn: PRE_CREATE entries are invisible to external readers
+  // batch meta txn: PRE_CREATE entries are invisible unless same-txn reader
   if (pReader->me.txnStatus == META_TXN_PRE_CREATE) {
-    return terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
+    if (pReader->txnId == 0 || pReader->txnId != pReader->me.txnId) {
+      return terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
+    }
   }
 
   // batch meta txn: PRE_ALTER entries — redirect to old version for snapshot isolation
