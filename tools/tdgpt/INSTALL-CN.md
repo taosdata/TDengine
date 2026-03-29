@@ -37,9 +37,13 @@
 ### 网络端口
 
 - **6035**: 主 taosanode 服务
-- **6036**: tdtsfm 模型服务
-- **6037**: timemoe 模型服务
-- **6038-6040**: 可选模型服务（chronos、timesfm、moirai、moment）
+- **6061**: tdtsfm 模型服务
+- **6062**: timemoe 模型服务
+- **6063**: chronos 模型服务
+- **6064**: moirai 模型服务
+- **6065**: timesfm 模型服务
+- **6066**: moment 模型服务
+- **6067-6070**: 预留模型服务端口
 
 ---
 
@@ -239,12 +243,12 @@ python C:\TDengine\taosanode\bin\taosanode_service.py status
 
 ```batch
 # 自动打开端口（以管理员身份运行）
-netsh advfirewall firewall add rule name="TDGPT" dir=in action=allow protocol=TCP localport=6035,6036,6037 profile=any
+netsh advfirewall firewall add rule name="TDGPT" dir=in action=allow protocol=TCP localport=6035,6061-6070 profile=any
 
 # 或手动配置：
 # 1. 打开 Windows Defender 防火墙（高级安全）
 # 2. 点击"入站规则" → "新建规则"
-# 3. 选择"端口" → "TCP" → 特定本地端口：6035,6036,6037
+# 3. 选择"端口" → "TCP" → 特定本地端口：6035,6061-6070
 # 4. 允许连接
 ```
 
@@ -343,17 +347,17 @@ model_dir = 'c:/TDengine/taosanode/model/'  # Windows
 models = {
     "tdtsfm": {
         "script": "tdtsfm-server.py",
-        "port": 6036,
+        "port": 6061,
         "required": True,  # 必需
     },
     "timemoe": {
         "script": "timemoe-server.py",
-        "port": 6037,
+        "port": 6062,
         "required": True,  # 必需
     },
     "chronos": {
         "script": "chronos-server.py",
-        "port": 0,
+        "port": 6063,
         "required": False,  # 可选
     },
     # ... 其他模型
@@ -395,12 +399,12 @@ net start Taosanode
 
 | 模型 | 必需 | 端口 | 描述 |
 |------|------|------|------|
-| tdtsfm | 是 | 6036 | 时间序列基础模型 |
-| timemoe | 是 | 6037 | 时间序列专家混合 |
-| chronos | 否 | 6038 | Amazon Chronos |
-| timesfm | 否 | 6039 | Google TimesFM |
-| moirai | 否 | 6040 | Salesforce Moirai |
-| moment | 否 | 6041 | AutonLab MOMENT |
+| tdtsfm | 是 | 6061 | 时间序列基础模型 |
+| timemoe | 是 | 6062 | 时间序列专家混合 |
+| chronos | 否 | 6063 | Amazon Chronos |
+| moirai | 否 | 6064 | Salesforce Moirai |
+| timesfm | 否 | 6065 | Google TimesFM |
+| moment | 否 | 6066 | AutonLab MOMENT |
 
 ### 启动模型
 

@@ -13,6 +13,7 @@
 # pip install src/connector/python/
 
 # -*- coding: utf-8 -*-
+import glob
 import sys, os
 import re
 import platform
@@ -34,6 +35,20 @@ def _filter_leftover_output(output, ignored_paths=None):
             continue
         lines.append(stripped)
     return lines
+
+
+def _collect_leftover_paths(path_pattern, ignored_paths=None):
+    ignored_paths = ignored_paths or set()
+    matches = glob.glob(path_pattern)
+    if not matches and not glob.has_magic(path_pattern) and os.path.exists(path_pattern):
+        matches = [path_pattern]
+
+    leftovers = []
+    for match in sorted(matches):
+        if match in ignored_paths:
+            continue
+        leftovers.append(match)
+    return leftovers
 
 
 # input for server
@@ -77,50 +92,24 @@ def UninstallTaos(version, verMode, uninstall, name):
             if process.returncode != 0:
                 uninstall_failed = True
                 print("rm%s exited with code %s" % (name, process.returncode))
-            # 检查目录清除情况
-            out = subprocess.getoutput("ls /etc/systemd/system/%s*" % name)
-            filtered = _filter_leftover_output(out, ignored_paths)
-            if filtered:
-                print("Uninstall left some files: %s" % "\n".join(filtered))
-                leftFile = True
-                leftover_files.extend(filtered)
-            out = subprocess.getoutput("ls /usr/bin/%s*" % name)
-            filtered = _filter_leftover_output(out, ignored_paths)
-            if filtered:
-                print("Uninstall left some files: %s" % "\n".join(filtered))
-                leftFile = True
-                leftover_files.extend(filtered)
-            out = subprocess.getoutput("ls /usr/local/bin/%s*" % name)
-            filtered = _filter_leftover_output(out, ignored_paths)
-            if filtered:
-                print("Uninstall left some files: %s" % "\n".join(filtered))
-                leftFile = True
-                leftover_files.extend(filtered)
-            out = subprocess.getoutput("ls /usr/lib/lib%s*" % name)
-            filtered = _filter_leftover_output(out, ignored_paths)
-            if filtered:
-                print("Uninstall left some files: %s" % "\n".join(filtered))
-                leftFile = True
-                leftover_files.extend(filtered)
-            out = subprocess.getoutput("ls /usr/lib64/lib%s*" % name)
-            filtered = _filter_leftover_output(out, ignored_paths)
-            if filtered:
-                print("Uninstall left some files: %s" % "\n".join(filtered))
-                leftFile = True
-                leftover_files.extend(filtered)
-            out = subprocess.getoutput("ls /usr/include/%s*" % name)
-            filtered = _filter_leftover_output(out, ignored_paths)
-            if filtered:
-                print("Uninstall left some files: %s" % "\n".join(filtered))
-                leftFile = True
-                leftover_files.extend(filtered)
-            out = subprocess.getoutput("ls /usr/local/%s" % name)
-            # print(out)
-            filtered = _filter_leftover_output(out, ignored_paths)
-            if filtered:
-                print("Uninstall left some files in /usr/local/%s：%s" % (name, "\n".join(filtered)))
-                leftFile = True
-                leftover_files.extend(filtered)
+            paths_to_check = [
+                ("/etc/systemd/system/%s*" % name, False),
+                ("/usr/bin/%s*" % name, False),
+                ("/usr/local/bin/%s*" % name, False),
+                ("/usr/lib/lib%s*" % name, False),
+                ("/usr/lib64/lib%s*" % name, False),
+                ("/usr/include/%s*" % name, False),
+                ("/usr/local/%s" % name, True),
+            ]
+            for path_pattern, is_install_dir in paths_to_check:
+                filtered = _collect_leftover_paths(path_pattern, ignored_paths)
+                if filtered:
+                    if is_install_dir:
+                        print("Uninstall left some files in /usr/local/%s：%s" % (name, "\n".join(filtered)))
+                    else:
+                        print("Uninstall left some files: %s" % "\n".join(filtered))
+                    leftFile = True
+                    leftover_files.extend(filtered)
             if not leftFile:
                 print("*******Test Result: uninstall test passed ************")
 
@@ -140,25 +129,17 @@ def UninstallTaos(version, verMode, uninstall, name):
             if process.returncode != 0:
                 uninstall_failed = True
                 print("rm%s exited with code %s" % (name, process.returncode))
-            # 检查目录清除情况
-            out = subprocess.getoutput("ls /usr/local/bin/%s*" % name)
-            filtered = _filter_leftover_output(out, ignored_paths)
-            if filtered:
-                print("Uninstall left some files: %s" % "\n".join(filtered))
-                leftFile = True
-                leftover_files.extend(filtered)
-            out = subprocess.getoutput("ls /usr/local/lib/lib%s*" % name)
-            filtered = _filter_leftover_output(out, ignored_paths)
-            if filtered:
-                print("Uninstall left some files: %s" % "\n".join(filtered))
-                leftFile = True
-                leftover_files.extend(filtered)
-            out = subprocess.getoutput("ls /usr/local/include/%s*" % name)
-            filtered = _filter_leftover_output(out, ignored_paths)
-            if filtered:
-                print("Uninstall left some files: %s" % "\n".join(filtered))
-                leftFile = True
-                leftover_files.extend(filtered)
+            paths_to_check = [
+                "/usr/local/bin/%s*" % name,
+                "/usr/local/lib/lib%s*" % name,
+                "/usr/local/include/%s*" % name,
+            ]
+            for path_pattern in paths_to_check:
+                filtered = _collect_leftover_paths(path_pattern, ignored_paths)
+                if filtered:
+                    print("Uninstall left some files: %s" % "\n".join(filtered))
+                    leftFile = True
+                    leftover_files.extend(filtered)
             # out = subprocess.getoutput("ls /usr/local/Cellar/tdengine/")
             # print(out)
             # if out:
@@ -175,8 +156,8 @@ def UninstallTaos(version, verMode, uninstall, name):
                 uninstall_failed = True
                 print("unins000 exited with code %s" % process.returncode)
             time.sleep(10)
-            for file in ["C:\TDengine\\taos.exe", "C:\TDengine\\unins000.exe", "C:\ProDB\prodb.exe",
-                         "C:\ProDB\\unins000.exe"]:
+            for file in [r"C:\TDengine\taos.exe", r"C:\TDengine\unins000.exe", r"C:\ProDB\prodb.exe",
+                         r"C:\ProDB\unins000.exe"]:
                 if os.path.exists(file):
                     leftFile = True
                     leftover_files.append(file)

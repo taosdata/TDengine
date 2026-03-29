@@ -66,7 +66,7 @@ def time_moe():
 ```Python
     app.run(
             host='0.0.0.0',
-            port=6037,
+            port=6062,
             threaded=True,  
             debug=False     
         )
@@ -98,7 +98,7 @@ export HF_ENDPOINT=https://hf-mirror.com
 
 ```text
 Running on all addresses (0.0.0.0)
-Running on http://127.0.0.1:6037
+Running on http://127.0.0.1:6062
 ```
 
 # 检查服务状态
@@ -106,7 +106,7 @@ Running on http://127.0.0.1:6037
 使用 Shell 命令可以验证服务是否正常
 
 ```bash
-curl 127.0.0.1:6037/ds_predict
+curl 127.0.0.1:6062/ds_predict
 ```
 
 如果看到如下返回信息表明服务正常，自此部署 Time-MoE 完成。
@@ -140,7 +140,7 @@ class _TimeMOEService(TsfmBaseService):
 
         # 如果  taosanode.ini 配置文件中没有设置服务 URL 地址，这里使用默认地址
         if  self.service_host is None:
-            self.service_host = 'http://127.0.0.1:6037/timemoe'
+            self.service_host = 'http://127.0.0.1:6062/timemoe'
 
     def execute(self):
         # 检查是否支持历史协变量分析，如果不支持，触发异常。time-moe 不支持历史协变量分析，因此触发异常
@@ -161,7 +161,7 @@ TDgpt 已经内置 Time-MoE 模型的支持，能够使用 Time-MoE 的能力进
 
 ```ini
 [tsfm-service]
-timemoe-fc = http://127.0.0.1:6037/ds_predict
+timemoe-fc = http://127.0.0.1:6062/ds_predict
 ```
 
 添加服务的地址。此时的 `key` 是模型的名称，此时即为 `timemoe-fc`，`value` 是 Time-MoE 本地服务的地址：`http://127.0.0.1:5001/ds_predict`。
@@ -229,7 +229,7 @@ pip install flask
 def main():
     app.run(
         host='0.0.0.0',
-        port=6038,
+        port=6063,
         threaded=True,
         debug=False
     )
