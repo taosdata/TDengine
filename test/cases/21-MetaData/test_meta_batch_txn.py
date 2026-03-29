@@ -22,9 +22,14 @@ Tests cover:
   - Conflict detection for concurrent non-txn DDL
   - BEGIN/COMMIT/ROLLBACK SQL guard semantics
   - Cross-VNode transaction COMMIT/ROLLBACK
+  - Super table (STB) creation/rollback in transaction
+  - STB transaction isolation (cross-session visibility)
+  - Same-txn child table creation using same-txn STB
+  - ALTER TABLE visibility (DESC) within transaction
+  - SHOW CREATE TABLE for child tables within transaction
 """
 
-from new_test_framework.utils import tdLog, tdSql
+from new_test_framework.utils import tdLog, tdSql, tdCom
 import time
 
 
@@ -474,6 +479,200 @@ class TestBatchMetaTxn:
         tdSql.query("show tables")
         tdSql.checkRows(0)
 
+    # =========================================================================
+    # 17. CREATE STB in transaction + COMMIT
+    # =========================================================================
+    def s23_stb_create_commit(self):
+        self.s0_reset_env()
+        tdLog.info("======== s23_stb_create_commit")
+
+        tdSql.execute("BEGIN")
+        tdSql.execute("create table stb_txn (ts timestamp, c0 int, c1 float) tags(t0 int)")
+        tdSql.execute("COMMIT")
+
+        # STB should be visible after commit
+        tdSql.query("show txn_db.stables")
+        tdSql.checkRows(1)
+
+        # Can create child tables using the committed STB
+        tdSql.execute("create table ct1 using stb_txn tags(1)")
+        tdSql.execute("insert into ct1 values(now, 1, 1.0)")
+        tdSql.query("select * from ct1")
+        tdSql.checkRows(1)
+
+    # =========================================================================
+    # 18. CREATE STB in transaction + ROLLBACK
+    # =========================================================================
+    def s24_stb_create_rollback(self):
+        self.s0_reset_env()
+        tdLog.info("======== s24_stb_create_rollback")
+
+        tdSql.execute("BEGIN")
+        tdSql.execute("create table stb_txn (ts timestamp, c0 int) tags(t0 int)")
+        tdSql.execute("ROLLBACK")
+
+        # STB should be gone after rollback
+        tdSql.query("show txn_db.stables")
+        tdSql.checkRows(0)
+
+        # Creating child table should fail
+        tdSql.error("create table ct1 using stb_txn tags(1)")
+
+    # =========================================================================
+    # 19. STB transaction isolation — other sessions cannot see uncommitted STB
+    # =========================================================================
+    def s25_stb_isolation(self):
+        self.s0_reset_env()
+        tdLog.info("======== s25_stb_isolation")
+
+        # Open a second connection
+        tdSql2 = tdCom.newTdSql()
+        tdSql2.execute("use txn_db")
+
+        tdSql.execute("BEGIN")
+        tdSql.execute("create table stb_iso (ts timestamp, c0 int) tags(t0 int)")
+
+        # Second session should NOT see the uncommitted STB
+        tdSql2.query("show txn_db.stables")
+        tdSql2.checkRows(0)
+
+        # Commit — now it should be visible
+        tdSql.execute("COMMIT")
+
+        tdSql2.query("show txn_db.stables")
+        tdSql2.checkRows(1)
+
+        tdSql2.close()
+
+    # =========================================================================
+    # 20. Same-txn child table creation using STB created in same txn
+    # =========================================================================
+    def s26_same_txn_stb_child(self):
+        self.s0_reset_env()
+        tdLog.info("======== s26_same_txn_stb_child")
+
+        tdSql.execute("BEGIN")
+        tdSql.execute("create table stb_same (ts timestamp, c0 int, c1 varchar(10)) tags(t0 int)")
+        # Create child table using the STB from the same transaction
+        tdSql.execute("create table ct1 using stb_same tags(1)")
+        tdSql.execute("create table ct2 using stb_same tags(2)")
+        tdSql.execute("COMMIT")
+
+        # Both STB and child tables should be visible
+        tdSql.query("show txn_db.stables")
+        tdSql.checkRows(1)
+
+        tdSql.query("show tables")
+        tdSql.checkRows(2)
+
+        # Insert data and verify
+        tdSql.execute("insert into ct1 values(now, 1, 'hello')")
+        tdSql.execute("insert into ct2 values(now, 2, 'world')")
+        tdSql.query("select count(*) from stb_same")
+        tdSql.checkData(0, 0, 2)
+
+    # =========================================================================
+    # 21. Same-txn child table creation + ROLLBACK
+    # =========================================================================
+    def s27_same_txn_stb_child_rollback(self):
+        self.s0_reset_env()
+        tdLog.info("======== s27_same_txn_stb_child_rollback")
+
+        tdSql.execute("BEGIN")
+        tdSql.execute("create table stb_rb (ts timestamp, c0 int) tags(t0 int)")
+        tdSql.execute("create table ct1 using stb_rb tags(1)")
+        tdSql.execute("ROLLBACK")
+
+        # Both STB and child should be gone
+        tdSql.query("show txn_db.stables")
+        tdSql.checkRows(0)
+
+        tdSql.query("show tables")
+        tdSql.checkRows(0)
+
+    # =========================================================================
+    # 22. ALTER TABLE visibility within transaction (DESC shows new column)
+    # =========================================================================
+    def s28_alter_table_desc_in_txn(self):
+        self.s0_reset_env()
+        tdLog.info("======== s28_alter_table_desc_in_txn")
+
+        tdSql.execute("BEGIN")
+        tdSql.execute("create table ntb_alt (ts timestamp, c0 int)")
+        tdSql.execute("alter table ntb_alt add column c100 int")
+
+        # DESC should show 3 columns within the same txn
+        tdSql.query("describe ntb_alt")
+        tdSql.checkRows(3)
+        col_names = [tdSql.queryResult[i][0] for i in range(tdSql.queryRows)]
+        assert 'c100' in col_names, "Column c100 not visible after ALTER in same txn"
+
+        tdSql.execute("COMMIT")
+
+        # Still 3 columns after commit
+        tdSql.query("describe ntb_alt")
+        tdSql.checkRows(3)
+
+    # =========================================================================
+    # 23. SHOW CREATE TABLE for child table in transaction
+    # =========================================================================
+    def s29_show_create_table_ctb_in_txn(self):
+        self.s0_reset_env()
+        tdLog.info("======== s29_show_create_table_ctb_in_txn")
+
+        tdSql.execute("create table stb_sc (ts timestamp, c0 int) tags(t0 int)")
+
+        tdSql.execute("BEGIN")
+        tdSql.execute("create table ctb_sc using stb_sc tags(1)")
+
+        # SHOW CREATE TABLE for child table should work
+        tdSql.query("show create table ctb_sc")
+        tdSql.checkRows(1)
+
+        tdSql.execute("COMMIT")
+
+    # =========================================================================
+    # 24. Mixed STB + child + normal table + ALTER in single txn
+    # =========================================================================
+    def s30_mixed_stb_child_normal_alter(self):
+        self.s0_reset_env()
+        tdLog.info("======== s30_mixed_stb_child_normal_alter")
+
+        tdSql.execute("BEGIN")
+
+        # Create STB
+        tdSql.execute("create table stb_mix (ts timestamp, c0 int, c1 float) tags(t0 int, t1 varchar(16))")
+
+        # Create child tables using same-txn STB
+        tdSql.execute("create table ct_mix1 using stb_mix tags(1, 'aaa')")
+        tdSql.execute("create table ct_mix2 using stb_mix tags(2, 'bbb')")
+
+        # Create normal table
+        tdSql.execute("create table ntb_mix (ts timestamp, v1 int)")
+
+        # ALTER normal table
+        tdSql.execute("alter table ntb_mix add column v2 bigint")
+
+        tdSql.execute("COMMIT")
+
+        # Verify everything
+        tdSql.query("show txn_db.stables")
+        tdSql.checkRows(1)
+
+        tdSql.query("show tables")
+        tdSql.checkRows(3)  # ct_mix1, ct_mix2, ntb_mix
+
+        tdSql.query("describe ntb_mix")
+        col_names = [tdSql.queryResult[i][0] for i in range(tdSql.queryRows)]
+        assert 'v2' in col_names, "Column v2 not found after COMMIT"
+
+        # Insert and verify
+        tdSql.execute("insert into ct_mix1 values(now, 1, 1.0)")
+        tdSql.execute("insert into ct_mix2 values(now, 2, 2.0)")
+        tdSql.execute("insert into ntb_mix values(now, 10, 20)")
+        tdSql.query("select count(*) from stb_mix")
+        tdSql.checkData(0, 0, 2)
+
     def test_meta_batch_txn(self):
         """Batch meta txn: full lifecycle
 
@@ -499,6 +698,14 @@ class TestBatchMetaTxn:
         20. Sequential transactions reuse
         21. Batch CREATE TABLE syntax in transaction
         22. Batch DROP TABLE syntax in transaction
+        23. CREATE STB in txn + COMMIT
+        24. CREATE STB in txn + ROLLBACK
+        25. STB transaction isolation (cross-session)
+        26. Same-txn child table creation using same-txn STB
+        27. Same-txn STB + child table + ROLLBACK
+        28. ALTER TABLE visibility via DESC within txn
+        29. SHOW CREATE TABLE for child table within txn
+        30. Mixed STB + child + normal + ALTER in single txn
 
 
         Since: v3.3.6.0
@@ -509,6 +716,7 @@ class TestBatchMetaTxn:
 
         History:
             - 2026-03-27 Created
+            - 2026-03-29 Added STB txn isolation, same-txn child table, ALTER visibility tests
 
         """
         self.s1_begin_commit_create_tables()
@@ -533,3 +741,11 @@ class TestBatchMetaTxn:
         self.s20_sequential_transactions()
         self.s21_batch_create_syntax()
         self.s22_batch_drop_syntax()
+        self.s23_stb_create_commit()
+        self.s24_stb_create_rollback()
+        self.s25_stb_isolation()
+        self.s26_same_txn_stb_child()
+        self.s27_same_txn_stb_child_rollback()
+        self.s28_alter_table_desc_in_txn()
+        self.s29_show_create_table_ctb_in_txn()
+        self.s30_mixed_stb_child_normal_alter()

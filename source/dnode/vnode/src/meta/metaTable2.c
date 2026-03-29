@@ -758,9 +758,9 @@ int32_t metaMarkTableTxnStatus(SMeta *pMeta, int64_t uid, int64_t txnId, int8_t 
   SMetaEntry entry = {0};
   tDecoderInit(&decoder, tbValue, tbValueSize);
   code = metaDecodeEntry(&decoder, &entry);
-  tDecoderClear(&decoder);
-  tdbFreeClear(tbValue);
   if (code) {
+    tDecoderClear(&decoder);
+    tdbFreeClear(tbValue);
     metaError("vgId:%d, mark txn status: decode failed for uid %" PRId64, TD_VID(pMeta->pVnode), uid);
     return code;
   }
@@ -771,17 +771,29 @@ int32_t metaMarkTableTxnStatus(SMeta *pMeta, int64_t uid, int64_t txnId, int8_t 
   entry.txnPrevVer = txnPrevVer;
 
   // Re-encode and write back to the same key (in-place update)
+  // NOTE: decoder/tbValue must stay alive until after encoding because
+  // the decoded entry's schema pointers reference decoder-managed memory.
   int32_t  encodeSize = 0;
   SEncoder encoder = {0};
   tEncodeSize(metaEncodeEntry, &entry, encodeSize, code);
-  if (code) return code;
+  if (code) {
+    tDecoderClear(&decoder);
+    tdbFreeClear(tbValue);
+    return code;
+  }
 
   void *newValue = taosMemoryMalloc(encodeSize);
-  if (!newValue) return terrno;
+  if (!newValue) {
+    tDecoderClear(&decoder);
+    tdbFreeClear(tbValue);
+    return terrno;
+  }
 
   tEncoderInit(&encoder, newValue, encodeSize);
   code = metaEncodeEntry(&encoder, &entry);
   tEncoderClear(&encoder);
+  tDecoderClear(&decoder);
+  tdbFreeClear(tbValue);
   if (code) {
     taosMemoryFree(newValue);
     return code;
