@@ -856,7 +856,45 @@ int32_t sclSetStreamExtWinParam(int32_t funcId, SNodeList* pParamNodes, SScalarP
   return code;
 }
 
-int32_t scalarAssignPlaceHolderRes(SColumnInfoData* pResColData, int64_t offset, int64_t rows, int16_t funcId, const void* pExtraParams) {
+static int32_t sclAssignExternalWindowColumnRes(SColumnInfoData* pResColData, int64_t offset, int64_t rows,
+                                                SSTriggerCalcParam *pParams, SNode* pParamNode) {
+  if (pParamNode == NULL || nodeType(pParamNode) != QUERY_NODE_VALUE) {
+    sclError("invalid param node for external window column, node:%p, type:%d", pParamNode,
+             pParamNode ? nodeType(pParamNode) : -1);
+    return TSDB_CODE_INTERNAL_ERROR;
+  }
+
+  if (pParams == NULL || pParams->pExternalWindowData == NULL) {
+    sclError("invalid external window data for external window column, pParams:%p", pParams);
+    return TSDB_CODE_INTERNAL_ERROR;
+  }
+
+  int32_t placeHoderIndex = ((SValueNode*)pParamNode)->placeholderNo;
+  int32_t extWinDataSize = (int32_t)taosArrayGetSize(pParams->pExternalWindowData);
+  if (placeHoderIndex < 0 || placeHoderIndex >= extWinDataSize) {
+    sclError("invalid external window column index: %d, valid range: [0, %d)", placeHoderIndex, extWinDataSize);
+    return TSDB_CODE_INTERNAL_ERROR;
+  }
+
+  SStreamGroupValue *pValue = taosArrayGet(pParams->pExternalWindowData, placeHoderIndex);
+  if (pValue == NULL) {
+    sclError("null external window column data at index: %d", placeHoderIndex);
+    return TSDB_CODE_INTERNAL_ERROR;
+  }
+
+  if (pValue->isNull) {
+    colDataSetNItemsNull(pResColData, offset, rows);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  const char* pData = (IS_VAR_DATA_TYPE(pValue->data.type) || pValue->data.type == TSDB_DATA_TYPE_DECIMAL)
+                        ? (const char*)pValue->data.pData
+                        : (const char*)&pValue->data.val;
+
+  return colDataSetNItems(pResColData, offset, pData, rows, 1, false);
+}
+
+int32_t scalarAssignPlaceHolderRes(SColumnInfoData* pResColData, int64_t offset, int64_t rows, int16_t funcId, const void* pExtraParams, SNode* pParamNode) {
   int32_t t = fmGetFuncTypeFromId(funcId);
   SStreamRuntimeFuncInfo* pInfo = (SStreamRuntimeFuncInfo*)pExtraParams;
   SSTriggerCalcParam *pParams = taosArrayGet(pInfo->pStreamPesudoFuncVals, pInfo->curIdx);
@@ -907,6 +945,9 @@ int32_t scalarAssignPlaceHolderRes(SColumnInfoData* pResColData, int64_t offset,
         }
       }
       return colDataSetNItems(pResColData, offset, (const char *)buf, rows, 1, false);
+    }
+    case FUNCTION_TYPE_EXTERNAL_WINDOW_COLUMN: {
+      return sclAssignExternalWindowColumnRes(pResColData, offset, rows, pParams, pParamNode);
     }
     case FUNCTION_TYPE_TIDLESTART:
       pData = &pParams->idlestart;
@@ -1591,14 +1632,14 @@ static int32_t sclCalcStreamExtWinsTimeRange(SScalarCtx *ctx,          SOperator
     if (node->opType == OP_TYPE_GREATER_THAN) {
       for (int32_t i = 0; i < winNum; ++i) {
         int64_t tsVal = pTsValList[(tsValRows == 1) ? 0 : i];
-        ctx->stream.pWins[i].tw.skey = (-1 == ctx->stream.pWins[i].winOutIdx) ? TMAX(tsVal + 1, ctx->stream.pWins[i].tw.skey) : (tsVal + 1);
-        ctx->stream.pWins[i].winOutIdx = -1;
+        ctx->stream.pWins[i].tw.skey = (-1 == ctx->stream.pWins[i].resWinIdx) ? TMAX(tsVal + 1, ctx->stream.pWins[i].tw.skey) : (tsVal + 1);
+        ctx->stream.pWins[i].resWinIdx = -1;
       }
     } else if (node->opType == OP_TYPE_GREATER_EQUAL) {
       for (int32_t i = 0; i < winNum; ++i) {
         int64_t tsVal = pTsValList[(tsValRows == 1) ? 0 : i];
-        ctx->stream.pWins[i].tw.skey = (-1 == ctx->stream.pWins[i].winOutIdx) ? TMAX(tsVal, ctx->stream.pWins[i].tw.skey) : tsVal;
-        ctx->stream.pWins[i].winOutIdx = -1;
+        ctx->stream.pWins[i].tw.skey = (-1 == ctx->stream.pWins[i].resWinIdx) ? TMAX(tsVal, ctx->stream.pWins[i].tw.skey) : tsVal;
+        ctx->stream.pWins[i].resWinIdx = -1;
       }
     } else {
       qError("invalid op type:%d in ext win range start expr", node->opType);
@@ -1612,14 +1653,14 @@ static int32_t sclCalcStreamExtWinsTimeRange(SScalarCtx *ctx,          SOperator
       if (node->opType == OP_TYPE_LOWER_THAN) {
         for (int32_t i = 0; i < winNum; ++i) {
           int64_t tsVal = pTsValList[(tsValRows == 1) ? 0 : i];
-          ctx->stream.pWins[i].tw.ekey = (-2 == ctx->stream.pWins[i].winOutIdx) ? TMIN(tsVal, ctx->stream.pWins[i].tw.ekey) : tsVal;
-          ctx->stream.pWins[i].winOutIdx = -2;
+          ctx->stream.pWins[i].tw.ekey = (-2 == ctx->stream.pWins[i].resWinIdx) ? TMIN(tsVal, ctx->stream.pWins[i].tw.ekey) : tsVal;
+          ctx->stream.pWins[i].resWinIdx = -2;
         }
       } else if (node->opType == OP_TYPE_LOWER_EQUAL) {
         for (int32_t i = 0; i < winNum; ++i) {
           int64_t tsVal = pTsValList[(tsValRows == 1) ? 0 : i];
-          ctx->stream.pWins[i].tw.ekey = (-2 == ctx->stream.pWins[i].winOutIdx) ? TMIN(tsVal + 1, ctx->stream.pWins[i].tw.ekey) : (tsVal + 1);
-          ctx->stream.pWins[i].winOutIdx = -2;
+          ctx->stream.pWins[i].tw.ekey = (-2 == ctx->stream.pWins[i].resWinIdx) ? TMIN(tsVal + 1, ctx->stream.pWins[i].tw.ekey) : (tsVal + 1);
+          ctx->stream.pWins[i].resWinIdx = -2;
         }
       } else {
         qError("invalid op type:%d in ext win range end expr", node->opType);
@@ -2527,7 +2568,8 @@ EDealRes sclCalcWalker(SNode *pNode, void *pContext) {
   if (QUERY_NODE_VALUE == nodeType(pNode) || QUERY_NODE_NODE_LIST == nodeType(pNode) ||
       QUERY_NODE_COLUMN == nodeType(pNode) || QUERY_NODE_LEFT_VALUE == nodeType(pNode) ||
       QUERY_NODE_WHEN_THEN == nodeType(pNode) || QUERY_NODE_REMOTE_VALUE_LIST == nodeType(pNode) ||
-      QUERY_NODE_REMOTE_ROW == nodeType(pNode) || QUERY_NODE_REMOTE_ZERO_ROWS == nodeType(pNode)) {
+      QUERY_NODE_REMOTE_ROW == nodeType(pNode) || QUERY_NODE_REMOTE_ZERO_ROWS == nodeType(pNode) ||
+      QUERY_NODE_REMOTE_TABLE == nodeType(pNode)) {
     return DEAL_RES_CONTINUE;
   }
 

@@ -42,6 +42,8 @@ public class WSHighVolumeDemo {
         // of variable-length data types
         properties.setProperty(TSDBDriver.PROPERTY_KEY_STRICT_CHECK, "false");
 
+        properties.setProperty(TSDBDriver.PROPERTY_KEY_VARCHAR_AS_STRING, "true");
+
         try (Connection conn = DriverManager.getConnection(url, properties)) {
             init(conn);
 

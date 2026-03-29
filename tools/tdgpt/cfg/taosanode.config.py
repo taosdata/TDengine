@@ -21,8 +21,8 @@ workers = 2
 # For IO-intensive applications, consider eventlet or gevent
 worker_class = 'sync'
 
-# Number of threads per process (recommended for model deployment)
-threads = max(multiprocessing.cpu_count() / 4 + 1, 2)
+# Number of threads per process (Gunicorn requires an integer value)
+threads = max(multiprocessing.cpu_count() // 4 + 1, 2)
 
 # Maximum number of requests, worker will restart after reaching limit, helps release memory
 max_requests = 1000

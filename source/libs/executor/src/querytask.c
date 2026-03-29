@@ -23,6 +23,7 @@
 
 #include "tdatablock.h"
 #include "tmsg.h"
+#include "streamMsg.h"
 
 #include "executorInt.h"
 #include "index.h"
@@ -391,6 +392,18 @@ void doDestroyTask(SExecTaskInfo* pTaskInfo) {
   if (!pTaskInfo->paramSet) {
     freeOperatorParam(pTaskInfo->pOpParam, OP_GET_PARAM);
     pTaskInfo->pOpParam = NULL;
+  }
+  if (pTaskInfo->ownStreamRtInfo && pTaskInfo->pStreamRuntimeInfo != NULL) {
+    SStreamRuntimeFuncInfo* pRt = &pTaskInfo->pStreamRuntimeInfo->funcInfo;
+
+    // When isMultiGroupCalc, pStreamPesudoFuncVals is aliased to curGrpCalc->pParams
+    // inside pGroupCalcInfos.  NULL it out so tDestroyStRtFuncInfo won't free it twice.
+    if (pRt->isMultiGroupCalc && pRt->pGroupCalcInfos != NULL) {
+      pRt->pStreamPesudoFuncVals = NULL;
+      pRt->pStreamPartColVals = NULL;
+    }
+    tDestroyStRtFuncInfo(pRt);
+    taosMemoryFreeClear(pTaskInfo->pStreamRuntimeInfo);
   }
   taosMemoryFreeClear(pTaskInfo->sql);
   taosMemoryFreeClear(pTaskInfo->id.str);

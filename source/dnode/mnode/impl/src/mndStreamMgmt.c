@@ -845,6 +845,7 @@ int32_t msmBuildTriggerDeployInfo(SMnode* pMnode, SStmStatus* pInfo, SStmTaskDep
   pMsg->fillHistoryFirst = pStream->pCreate->fillHistoryFirst;
   pMsg->lowLatencyCalc = pStream->pCreate->lowLatencyCalc;
   pMsg->igNoDataTrigger = pStream->pCreate->igNoDataTrigger;
+  pMsg->enableMultiGroupCalc = pStream->pCreate->enableMultiGroupCalc;
   pMsg->isTriggerTblVirt = STREAM_IS_VIRTUAL_TABLE(pStream->pCreate->triggerTblType, pStream->pCreate->flags);
   pMsg->triggerHasPF = pStream->pCreate->triggerHasPF;
   pMsg->isTriggerTblStb = (pStream->pCreate->triggerTblType == TSDB_SUPER_TABLE);

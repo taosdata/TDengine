@@ -75,10 +75,33 @@ static void initSubQueryPlanContext(SPlanContext* pDst, SPlanContext* pSrc, SNod
   memcpy(pDst, pSrc, sizeof(*pSrc));
 
   pDst->groupId++;
-  pDst->withExtWindow = false;
+  pDst->streamCxt.hasExtWindow = false;
   pDst->hasScan = false;
   
   pDst->pAstRoot = pRoot;
+}
+
+static bool isPartitionedExternalWindowSubquery(SNode* pRoot, int32_t subQIdx) {
+  if (pRoot == NULL || subQIdx < 0) {
+    return false;
+  }
+
+  if (QUERY_NODE_SELECT_STMT != nodeType(pRoot)) {
+    return false;
+  }
+
+  SSelectStmt* pSelect = (SSelectStmt*)pRoot;
+  if (pSelect->pWindow == NULL || QUERY_NODE_EXTERNAL_WINDOW != nodeType(pSelect->pWindow)) {
+    return false;
+  }
+
+  SExternalWindowNode* pExternal = (SExternalWindowNode*)pSelect->pWindow;
+  if (pSelect->pPartitionByList == NULL || pExternal->pSubquery == NULL ||
+      QUERY_NODE_REMOTE_TABLE != nodeType(pExternal->pSubquery)) {
+    return false;
+  }
+
+  return ((SRemoteTableNode*)pExternal->pSubquery)->subQIdx == subQIdx;
 }
 
 static int32_t createSubQueryPlans(SPlanContext* pSrc, SQueryPlan* pParent, SArray* pExecNodeList) {
@@ -116,14 +139,18 @@ static int32_t createSubQueryPlans(SPlanContext* pSrc, SQueryPlan* pParent, SArr
       return code;
   }
 
+  int32_t subQIdx = 0;
   FOREACH(pNode, pSubQueries) {
+    planDebug("QID:0x%" PRIx64 ", createSubQueryPlans subQIdx:%d, nodeType:%d", pSrc->queryId, subQIdx, nodeType(pNode));
     initSubQueryPlanContext(&ctx, pSrc, pNode);
+    ctx.forceNoMergeDataBlock = ctx.forceNoMergeDataBlock || isPartitionedExternalWindowSubquery(pRoot, subQIdx);
     TAOS_CHECK_EXIT(qCreateQueryPlan(&ctx, &pPlan, pExecNodeList));
     TAOS_CHECK_EXIT(nodesListMakeStrictAppend(&pParent->pChildren, (SNode*)pPlan));
     pParent->numOfSubplans += pPlan->numOfSubplans;
     pPlan->subSql = nodesGetSubSql(pNode);
     nodesGetSubQType(pNode, (int32_t*)&pPlan->subQType);
     pSrc->groupId = ++ctx.groupId;
+    ++subQIdx;
   }
 
 _exit:
@@ -134,35 +161,29 @@ _exit:
 int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNodeList) {
   SLogicSubplan*   pLogicSubplan = NULL;
   SQueryLogicPlan* pLogicPlan = NULL;
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  bool             allocatorReleased = false;
 
-  int32_t code = nodesAcquireAllocator(pCxt->allocatorId);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = createLogicPlan(pCxt, &pLogicSubplan);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = optimizeLogicPlan(pCxt, pLogicSubplan);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = splitLogicPlan(pCxt, pLogicSubplan);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = scaleOutLogicPlan(pCxt, pLogicSubplan, &pLogicPlan);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = createPhysiPlan(pCxt, pLogicPlan, pPlan, pExecNodeList);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = validateQueryPlan(pCxt, *pPlan);
-  }
+  TAOS_CHECK_EXIT(nodesAcquireAllocator(pCxt->allocatorId));
+  TAOS_CHECK_EXIT(createLogicPlan(pCxt, &pLogicSubplan));
+  TAOS_CHECK_EXIT(optimizeLogicPlan(pCxt, pLogicSubplan));
+  TAOS_CHECK_EXIT(splitLogicPlan(pCxt, pLogicSubplan));
+  TAOS_CHECK_EXIT(scaleOutLogicPlan(pCxt, pLogicSubplan, &pLogicPlan));
+  TAOS_CHECK_EXIT(createPhysiPlan(pCxt, pLogicPlan, pPlan, pExecNodeList));
+  TAOS_CHECK_EXIT(validateQueryPlan(pCxt, *pPlan));
   (void)nodesReleaseAllocator(pCxt->allocatorId);
+  allocatorReleased = true;
+  TAOS_CHECK_EXIT(createSubQueryPlans(pCxt, *pPlan, pExecNodeList));
+  TAOS_CHECK_EXIT(dumpQueryPlan(*pPlan));
 
-  if (TSDB_CODE_SUCCESS == code) {
-    code = createSubQueryPlans(pCxt, *pPlan, pExecNodeList);
+_exit:
+  if (TSDB_CODE_SUCCESS != code) {
+    if (!allocatorReleased) {
+      (void)nodesReleaseAllocator(pCxt->allocatorId);
+    }
+    planError("QID:0x%" PRIx64 ", qCreateQueryPlan failed at line:%d, code:%s", pCxt->queryId, lino, tstrerror(code));
   }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = dumpQueryPlan(*pPlan);
-  }
-  
   nodesDestroyNode((SNode*)pLogicSubplan);
   nodesDestroyNode((SNode*)pLogicPlan);
   

@@ -116,6 +116,10 @@ ELSE()
     MESSAGE(STATUS "Enable assert not core")
 ENDIF()
 
+IF(${FLEX_DEPLOY})
+    ADD_DEFINITIONS(-DTD_FLEX_DEPLOY)
+ENDIF()
+
 SET(TAOS_LIB taos)
 SET(TAOS_LIB_STATIC taos_static)
 SET(TAOS_NATIVE_LIB taosnative)
@@ -138,7 +142,10 @@ IF(TD_WINDOWS)
         MESSAGE("${Green} will build Release version! ${ColourReset}")
         # NOTE: let cmake to choose default compile options
         message(STATUS "do NOT forget to remove the following line and check if it works or not!!!")
-        SET(COMMON_FLAGS "/W3 /D_WIN32 /DWIN32 /Zi- /O2 /GL /MD")
+        # /Zi  : generate a separate PDB file (previously /Zi- which disabled it entirely).
+        # The PDB is NOT shipped to the user but must be archived internally per version
+        # so that crash dumps from the field can be symbolicated with WinDbg / VS.
+        SET(COMMON_FLAGS "/W3 /D_WIN32 /DWIN32 /Zi /O2 /GL /MD")
     ELSE()
         MESSAGE("${Green} will build Debug version! ${ColourReset}")
         # NOTE: let cmake to choose default compile options
@@ -146,6 +153,11 @@ IF(TD_WINDOWS)
     ENDIF()
 
     SET(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /MANIFEST:NO /FORCE:MULTIPLE")
+    # /DEBUG:FULL  keep full debug info in the PDB for Release builds so that
+    # crash dumps collected from the field can be fully symbolicated.
+    # The flag is harmless for Debug builds (they already carry full info).
+    SET(CMAKE_EXE_LINKER_FLAGS_RELEASE "${CMAKE_EXE_LINKER_FLAGS_RELEASE} /DEBUG:FULL /OPT:REF /OPT:ICF")
+    SET(CMAKE_SHARED_LINKER_FLAGS_RELEASE "${CMAKE_SHARED_LINKER_FLAGS_RELEASE} /DEBUG:FULL /OPT:REF /OPT:ICF")
 
     # IF (MSVC AND (MSVC_VERSION GREATER_EQUAL 1900))
     # SET(COMMON_FLAGS "${COMMON_FLAGS} /Wv:18")

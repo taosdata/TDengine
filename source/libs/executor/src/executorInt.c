@@ -16,6 +16,7 @@
 #include "filter.h"
 #include "function.h"
 #include "functionMgt.h"
+#include "../../function/inc/functionResInfoInt.h"
 #include "os.h"
 #include "querynodes.h"
 #include "tfill.h"
@@ -669,6 +670,7 @@ int32_t copyResultrowToDataBlock(SExprInfo* pExprInfo, int32_t numOfExprs, SResu
                                  SSDataBlock* pBlock, const int32_t* rowEntryOffset, SExecTaskInfo* pTaskInfo) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
+  int32_t groupKeyIdx = 0;
   for (int32_t j = 0; j < numOfExprs; ++j) {
     int32_t slotId = pExprInfo[j].base.resSchema.slotId;
 
@@ -677,6 +679,33 @@ int32_t copyResultrowToDataBlock(SExprInfo* pExprInfo, int32_t numOfExprs, SResu
       if (strcmp(pCtx[j].pExpr->pExpr->_function.functionName, "_group_key") == 0 ||
           strcmp(pCtx[j].pExpr->pExpr->_function.functionName, "_group_const_value") == 0) {
         // for groupkey along with functions that output multiple lines(e.g. Histogram)
+        if (strcmp(pCtx[j].pExpr->pExpr->_function.functionName, "_group_key") == 0 &&
+            pCtx[j].resultInfo->numOfRes == 0 && pTaskInfo->pStreamRuntimeInfo != NULL) {
+          SArray* pVals = pTaskInfo->pStreamRuntimeInfo->funcInfo.pStreamPartColVals;
+          if (pVals != NULL && groupKeyIdx < taosArrayGetSize(pVals)) {
+            SStreamGroupValue* pValue = taosArrayGet(pVals, groupKeyIdx);
+            if (pValue != NULL) {
+              SGroupKeyInfo* pInfo = GET_ROWCELL_INTERBUF(pCtx[j].resultInfo);
+              pInfo->hasResult = true;
+              pInfo->isNull = pValue->isNull;
+              if (!pValue->isNull) {
+                if (IS_VAR_DATA_TYPE(pValue->data.type) || pValue->data.type == TSDB_DATA_TYPE_DECIMAL) {
+                  if (pValue->data.pData != NULL && pValue->data.nData > 0) {
+                    memcpy(pInfo->data, pValue->data.pData, pValue->data.nData);
+                  }
+                } else {
+                  memcpy(pInfo->data, &pValue->data.val, pExprInfo[j].base.resSchema.bytes);
+                }
+              }
+              pCtx[j].resultInfo->numOfRes = 1;
+            }
+          }
+        }
+
+        if (strcmp(pCtx[j].pExpr->pExpr->_function.functionName, "_group_key") == 0) {
+          ++groupKeyIdx;
+        }
+
         // need to match groupkey result for each output row of that function.
         if (pCtx[j].resultInfo->numOfRes != 0) {
           pCtx[j].resultInfo->numOfRes = pRow->numOfRows;
@@ -772,7 +801,7 @@ void doCopyToSDataBlockByHash(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock, SEx
   while ((pData = tSimpleHashIterate(pHashmap, pData, &iter)) != NULL) {
     void*               key = tSimpleHashGetKey(pData, &keyLen);
     SResultRowPosition* pos = pData;
-    uint64_t            groupId = *(uint64_t*)key;
+    uint64_t            groupId = calcGroupId((char*)key + sizeof(uint64_t), keyLen - sizeof(uint64_t));
 
     SFilePage* page = getBufPage(pBuf, pos->pageId);
     if (page == NULL) {
