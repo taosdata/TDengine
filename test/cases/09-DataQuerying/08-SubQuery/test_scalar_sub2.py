@@ -291,20 +291,29 @@ class TestScalarSubQuery2:
 
         """
 
+        tdLog.info(">>> test_scalar_sub_query2 begin")
         self.prepareData()
+        tdLog.info(">>> prepareData done, start execSqlCase")
         self.execSqlCase()
         self.fileIdx += 1
+        tdLog.info(">>> execSqlCase done, start execFuncCase")
         self.execFuncCase()
         self.fileIdx += 1
+        tdLog.info(">>> execFuncCase done, start execCorrelatedCase")
         self.execCorrelatedCase()
+        tdLog.info(">>> execCorrelatedCase done, start rmoveSqlTmpFiles")
         self.rmoveSqlTmpFiles()
+        tdLog.info(">>> test_scalar_sub_query2 end")
      
     def prepareData(self):
         tdLog.info("start to prepare data for scalar sub query test case")
+        tdLog.info(">>> create snode")
         tdSql.execute(f"create snode on dnode 1")
+        tdLog.info(">>> drop/create db1")
         tdSql.execute(f"drop database if exists db1")
         tdSql.execute(f"create database db1")
         tdSql.execute(f"use db1")
+        tdLog.info(">>> execute db1 DDL/DML batch")
         sqls = [
             "CREATE STABLE `st1` (`ts` TIMESTAMP, `f1` int, f2 int) TAGS (`tg1` int)",
             "CREATE TABLE tb1 USING st1 TAGS (1)",
@@ -328,7 +337,9 @@ class TestScalarSubQuery2:
             "create vtable vtb1 (ts timestamp, f1 int from tb1.f1)",
         ]
         tdSql.executes(sqls)
+        tdLog.info(">>> db1 DDL/DML batch done")
 
+        tdLog.info(">>> drop/create db2")
         tdSql.execute(f"drop database if exists db2")
         tdSql.execute(f"create database db2")
         tdSql.execute(f"use db2")
@@ -338,11 +349,12 @@ class TestScalarSubQuery2:
         ]
         tdSql.executes(sqls)
         tdSql.execute(f"use db1")
+        tdLog.info(">>> prepareData completed")
 
     def checkResultWithResultFile(self, sqlFile, resFile):
-        tdLog.info(f"check result with sql: {sqlFile}")
+        tdLog.info(f">>> checkResultWithResultFile sql: {sqlFile}, res: {resFile}")
         tdCom.compare_testcase_result(sqlFile, resFile, self.caseName + "." + str(self.fileIdx))
-        tdLog.info("check result with result file succeed")
+        tdLog.info(">>> checkResultWithResultFile succeed")
 
     def openSqlTmpFile(self):
         tmp_file = os.path.join(self.currentDir, f"{self.caseName}_generated_queries{self.fileIdx}.sql")
@@ -361,6 +373,7 @@ class TestScalarSubQuery2:
         tdLog.info(f"execSqlCase begin")
 
         self.openSqlTmpFile()
+        tdLog.info(f">>> execSqlCase: subSqls loop ({len(self.subSqls)} x {len(self.scalarSqls)})")
 
         for self.mainIdx in range(len(self.subSqls)):
             for self.subIdx in range(len(self.scalarSqls)):
@@ -376,6 +389,9 @@ class TestScalarSubQuery2:
                 self.generated_queries_file.write(self.querySql.strip() + "\n")
                 self.generated_queries_file.flush()
 
+        tdLog.info(f">>> execSqlCase: subSqls loop done, saved_count={self.saved_count}")
+
+        tdLog.info(f">>> execSqlCase: specSqls loop ({len(self.specSqls)})")
         for self.mainIdx in range(len(self.specSqls)):
             self.querySql = self.specSqls[self.mainIdx].replace("{tableName}", "st1")
             # ensure exactly one trailing semicolon
@@ -387,6 +403,9 @@ class TestScalarSubQuery2:
             self.generated_queries_file.write(self.querySql.strip() + "\n")
             self.generated_queries_file.flush()
 
+        tdLog.info(f">>> execSqlCase: specSqls loop done, saved_count={self.saved_count}")
+
+        tdLog.info(f">>> execSqlCase: unsupportedSqls loop ({len(self.unsupportedSqls)})")
         for self.mainIdx in range(len(self.unsupportedSqls)):
             self.querySql = self.unsupportedSqls[self.mainIdx].replace("{scalarSql}", self.scalarSqls[1])
             self.querySql = self.querySql.replace("{tableName}", "tb3")
@@ -399,10 +418,14 @@ class TestScalarSubQuery2:
             self.generated_queries_file.write(self.querySql.strip() + "\n")
             self.generated_queries_file.flush()
 
+        tdLog.info(f">>> execSqlCase: unsupportedSqls loop done, saved_count={self.saved_count}")
+
         self.generated_queries_file.close()
         tmp_file = os.path.join(self.currentDir, f"{self.caseName}_generated_queries{self.fileIdx}.sql")
         res_file = os.path.join(self.currentDir, f"ans/{self.caseName}.{self.fileIdx}.csv")
+        tdLog.info(f">>> execSqlCase: calling checkResultWithResultFile")
         self.checkResultWithResultFile(tmp_file, res_file)
+        tdLog.info(f">>> execSqlCase done")
 
         return True
 
@@ -410,6 +433,7 @@ class TestScalarSubQuery2:
         tdLog.info(f"execFuncCase begin")
 
         self.openSqlTmpFile()
+        tdLog.info(f">>> execFuncCase: func_1_param loop ({len(self.func_1_param)})")
 
         for self.funcIdx in range(len(self.func_1_param)):
             self.querySql = self.funcSqls[0].replace("{funcName}", self.func_1_param[self.funcIdx])
@@ -424,6 +448,7 @@ class TestScalarSubQuery2:
             self.generated_queries_file.write(self.querySql.strip() + "\n")
             self.generated_queries_file.flush()
 
+        tdLog.info(f">>> execFuncCase: func_1c_param loop ({len(self.func_1c_param)})")
         for self.funcIdx in range(len(self.func_1c_param)):
             self.querySql = self.funcSqls[0].replace("{funcName}", self.func_1c_param[self.funcIdx])
             self.querySql = self.querySql.replace("{scalarSql}", self.scalarcSqls[1])
@@ -437,6 +462,7 @@ class TestScalarSubQuery2:
             self.generated_queries_file.write(self.querySql.strip() + "\n")
             self.generated_queries_file.flush()
 
+        tdLog.info(f">>> execFuncCase: func_2_param loop ({len(self.func_2_param)})")
         for self.funcIdx in range(len(self.func_2_param)):
             self.querySql = self.funcSqls[1].replace("{funcName}", self.func_2_param[self.funcIdx])
             self.querySql = self.querySql.replace("{scalarSql}", self.scalarSqls[1])
@@ -450,6 +476,7 @@ class TestScalarSubQuery2:
             self.generated_queries_file.write(self.querySql.strip() + "\n")
             self.generated_queries_file.flush()
 
+        tdLog.info(f">>> execFuncCase: func_3_param loop ({len(self.func_3_param)})")
         for self.funcIdx in range(len(self.func_3_param)):
             self.querySql = self.funcSqls[2].replace("{funcName}", self.func_3_param[self.funcIdx])
             self.querySql = self.querySql.replace("{scalarSql}", self.scalarSqls[1])
@@ -463,6 +490,7 @@ class TestScalarSubQuery2:
             self.generated_queries_file.write(self.querySql.strip() + "\n")
             self.generated_queries_file.flush()
 
+        tdLog.info(f">>> execFuncCase: func_nc_param loop ({len(self.func_nc_param)})")
         for self.funcIdx in range(len(self.func_nc_param)):
             self.querySql = self.funcSqls[3].replace("{funcName}", self.func_nc_param[self.funcIdx])
             self.querySql = self.querySql.replace("{scalarSql}", self.scalarSqls[1])
@@ -476,6 +504,7 @@ class TestScalarSubQuery2:
             self.generated_queries_file.write(self.querySql.strip() + "\n")
             self.generated_queries_file.flush()
 
+        tdLog.info(f">>> execFuncCase: speFuncSqls loop ({len(self.speFuncSqls)})")
         for self.funcIdx in range(len(self.speFuncSqls)):
             self.querySql = self.speFuncSqls[self.funcIdx].replace("{scalarSql}", self.scalarSqls[1])
             self.querySql = self.querySql.replace("{tableName}", "tb3")
@@ -488,6 +517,7 @@ class TestScalarSubQuery2:
             self.generated_queries_file.write(self.querySql.strip() + "\n")
             self.generated_queries_file.flush()
 
+        tdLog.info(f">>> execFuncCase: speCFuncSqls loop ({len(self.speCFuncSqls)})")
         for self.funcIdx in range(len(self.speCFuncSqls)):
             self.querySql = self.speCFuncSqls[self.funcIdx].replace("{scalarSql}", self.scalarcSqls[1])
             self.querySql = self.querySql.replace("{tableName}", "tb3")
@@ -500,10 +530,14 @@ class TestScalarSubQuery2:
             self.generated_queries_file.write(self.querySql.strip() + "\n")
             self.generated_queries_file.flush()
 
+        tdLog.info(f">>> execFuncCase: all loops done, saved_count={self.saved_count}")
+
         self.generated_queries_file.close()
         tmp_file = os.path.join(self.currentDir, f"{self.caseName}_generated_queries{self.fileIdx}.sql")
         res_file = os.path.join(self.currentDir, f"ans/{self.caseName}.{self.fileIdx}.csv")
+        tdLog.info(f">>> execFuncCase: calling checkResultWithResultFile")
         self.checkResultWithResultFile(tmp_file, res_file)
+        tdLog.info(f">>> execFuncCase done")
 
         return True
 
@@ -523,9 +557,13 @@ class TestScalarSubQuery2:
             self.generated_queries_file.write(self.querySql.strip() + "\n")
             self.generated_queries_file.flush()
 
+        tdLog.info(f">>> execCorrelatedCase: loop done, saved_count={self.saved_count}")
+
         self.generated_queries_file.close()
         tmp_file = os.path.join(self.currentDir, f"{self.caseName}_generated_queries{self.fileIdx}.sql")
         res_file = os.path.join(self.currentDir, f"ans/{self.caseName}.{self.fileIdx}.csv")
+        tdLog.info(f">>> execCorrelatedCase: calling checkResultWithResultFile")
         self.checkResultWithResultFile(tmp_file, res_file)
+        tdLog.info(f">>> execCorrelatedCase done")
 
         return True   

@@ -107,6 +107,8 @@ int32_t sortPriKeyOptGetSequencingNodesImpl(SLogicNode* pNode, bool groupSort, S
 bool isColRefExpr(const SColumnNode* pCol, const SExprNode* pExpr);
 void rewriteTargetsWithResId(SNodeList* pTargets);
 bool checkScanLogicNode(SLogicNode* pNode);
+bool inStreamCalcClause(SPlanContext* pCxt);
+bool inStreamTriggerClause(SPlanContext* pCxt);
 
 #ifdef __cplusplus
 }

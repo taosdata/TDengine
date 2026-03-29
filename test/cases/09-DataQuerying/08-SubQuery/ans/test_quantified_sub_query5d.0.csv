@@ -3677,12 +3677,12 @@ DB error: Not supported subquery as expr [0x800026A6]
 taos> select distinct (select exists (select f1 from st1 where f1 > 1)), f1 from st1;
  (select exists (select f1 from st1 where f1 > 1)) |     f1      |
 ==================================================================
- true                                              |           1 |
  true                                              |           5 |
- true                                              |           4 |
  true                                              |           3 |
- true                                              |           6 |
  true                                              |           2 |
+ true                                              |           4 |
+ true                                              |           6 |
+ true                                              |           1 |
 
 taos> select distinct (select f1 < any (select f1 from st1) from st1), f1 from st1;
 
@@ -3739,9 +3739,9 @@ taos> select distinct (select distinct f1 = all (select f1 from st1) from st1), 
  (select distinct f1 = all (select f1 from st1) from st1) |     f1      |
 =========================================================================
  false                                                    |           3 |
- false                                                    |           6 |
  false                                                    |           5 |
  false                                                    |           4 |
+ false                                                    |           6 |
  false                                                    |           1 |
  false                                                    |           2 |
 
@@ -3749,21 +3749,21 @@ taos> select distinct (select distinct f1 != all (select f1 from st1) from st1),
  (select distinct f1 != all (select f1 from st1) from st1) |     f1      |
 ==========================================================================
  false                                                     |           3 |
- false                                                     |           6 |
  false                                                     |           5 |
  false                                                     |           4 |
+ false                                                     |           6 |
  false                                                     |           1 |
  false                                                     |           2 |
 
 taos> select distinct (select distinct exists (select f1 from st1 where f1 > 1) from st1), f1 from st1;
  (select distinct exists (select f1 from st1 where f1 > 1) from s |     f1      |
 =================================================================================
- true                                                             |           1 |
  true                                                             |           5 |
- true                                                             |           4 |
  true                                                             |           3 |
- true                                                             |           6 |
  true                                                             |           2 |
+ true                                                             |           4 |
+ true                                                             |           6 |
+ true                                                             |           1 |
 
 taos> select distinct (select distinct f1 < any (select f1 from st1), f1 from st1), f1 from st1;
 
@@ -3790,9 +3790,9 @@ taos> select distinct (select distinct tags f1 = all (select f1 from st1) from s
  (select distinct tags f1 = all (select f1 from st1) from st1) |     f1      |
 ==============================================================================
  false                                                         |           3 |
- false                                                         |           6 |
  false                                                         |           5 |
  false                                                         |           4 |
+ false                                                         |           6 |
  false                                                         |           1 |
  false                                                         |           2 |
 
@@ -3800,21 +3800,21 @@ taos> select distinct (select distinct tags f1 != all (select f1 from st1) from 
  (select distinct tags f1 != all (select f1 from st1) from st1) |     f1      |
 ===============================================================================
  false                                                          |           3 |
- false                                                          |           6 |
  false                                                          |           5 |
  false                                                          |           4 |
+ false                                                          |           6 |
  false                                                          |           1 |
  false                                                          |           2 |
 
 taos> select distinct (select distinct tags exists (select f1 from st1 where f1 > 1) from st1), f1 from st1;
  (select distinct tags exists (select f1 from st1 where f1 > 1) f |     f1      |
 =================================================================================
- true                                                             |           1 |
  true                                                             |           5 |
- true                                                             |           4 |
  true                                                             |           3 |
- true                                                             |           6 |
  true                                                             |           2 |
+ true                                                             |           4 |
+ true                                                             |           6 |
+ true                                                             |           1 |
 
 taos> select distinct (select f1 < any (select f1 from st1), f1 < any (select f1 from st1) from st1), f1 from st1;
 
@@ -4026,12 +4026,12 @@ DB error: Invalid usage of expr: f1 [0x80002667]
 taos> select distinct (select exists (select f1 from st1 where f1 > 1) from st1 SESSION(ts, 1d)), f1 from st1;
  (select exists (select f1 from st1 where f1 > 1) from st1 sessio |     f1      |
 =================================================================================
- true                                                             |           1 |
  true                                                             |           5 |
- true                                                             |           4 |
  true                                                             |           3 |
- true                                                             |           6 |
  true                                                             |           2 |
+ true                                                             |           4 |
+ true                                                             |           6 |
+ true                                                             |           1 |
 
 taos> select distinct (select sum(case when f1 < any (select f1 from st1) then 1 else 2 end) from st1 STATE_WINDOW(f1)), f1 from st1;
 
@@ -4177,22 +4177,22 @@ DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select distinct (select f1 from st1 where f1 = all (select f1 from st1) order by f1), f1 from st1;
  (select f1 from st1 where f1 = all (select f1 from st1) order by |     f1      |
 =================================================================================
- NULL                                                             |           2 |
- NULL                                                             |           6 |
- NULL                                                             |           5 |
- NULL                                                             |           1 |
  NULL                                                             |           4 |
+ NULL                                                             |           1 |
+ NULL                                                             |           6 |
  NULL                                                             |           3 |
+ NULL                                                             |           2 |
+ NULL                                                             |           5 |
 
 taos> select distinct (select f1 from st1 where f1 != all (select f1 from st1) order by f1), f1 from st1;
  (select f1 from st1 where f1 != all (select f1 from st1) order b |     f1      |
 =================================================================================
- NULL                                                             |           2 |
- NULL                                                             |           6 |
- NULL                                                             |           5 |
- NULL                                                             |           1 |
  NULL                                                             |           4 |
+ NULL                                                             |           1 |
+ NULL                                                             |           6 |
  NULL                                                             |           3 |
+ NULL                                                             |           2 |
+ NULL                                                             |           5 |
 
 taos> select distinct (select f1 from st1 where exists (select f1 from st1 where f1 > 1) order by f1), f1 from st1;
 
@@ -4221,22 +4221,22 @@ DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select distinct (select f1 from st1 where f1 = all (select f1 from st1) order by f1), f1 from st1;
  (select f1 from st1 where f1 = all (select f1 from st1) order by |     f1      |
 =================================================================================
- NULL                                                             |           2 |
- NULL                                                             |           6 |
- NULL                                                             |           5 |
- NULL                                                             |           1 |
  NULL                                                             |           4 |
+ NULL                                                             |           1 |
+ NULL                                                             |           6 |
  NULL                                                             |           3 |
+ NULL                                                             |           2 |
+ NULL                                                             |           5 |
 
 taos> select distinct (select f1 from st1 where f1 != all (select f1 from st1) order by f1), f1 from st1;
  (select f1 from st1 where f1 != all (select f1 from st1) order b |     f1      |
 =================================================================================
- NULL                                                             |           2 |
- NULL                                                             |           6 |
- NULL                                                             |           5 |
- NULL                                                             |           1 |
  NULL                                                             |           4 |
+ NULL                                                             |           1 |
+ NULL                                                             |           6 |
  NULL                                                             |           3 |
+ NULL                                                             |           2 |
+ NULL                                                             |           5 |
 
 taos> select distinct (select f1 from st1 where exists (select f1 from st1 where f1 > 1) order by f1), f1 from st1;
 
@@ -4250,22 +4250,22 @@ DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select distinct (select f1 = all (select f1 from st1) from st1 where f1 = all (select f1 from st1) order by f1), f1 from st1;
  (select f1 = all (select f1 from st1) from st1 where f1 = all (s |     f1      |
 =================================================================================
- NULL                                                             |           2 |
- NULL                                                             |           6 |
- NULL                                                             |           5 |
- NULL                                                             |           1 |
  NULL                                                             |           4 |
+ NULL                                                             |           1 |
+ NULL                                                             |           6 |
  NULL                                                             |           3 |
+ NULL                                                             |           2 |
+ NULL                                                             |           5 |
 
 taos> select distinct (select f1 != all (select f1 from st1) from st1 where f1 != all (select f1 from st1) order by f1), f1 from st1;
  (select f1 != all (select f1 from st1) from st1 where f1 != all  |     f1      |
 =================================================================================
- NULL                                                             |           2 |
- NULL                                                             |           6 |
- NULL                                                             |           5 |
- NULL                                                             |           1 |
  NULL                                                             |           4 |
+ NULL                                                             |           1 |
+ NULL                                                             |           6 |
  NULL                                                             |           3 |
+ NULL                                                             |           2 |
+ NULL                                                             |           5 |
 
 taos> select distinct (select exists (select f1 from st1 where f1 > 1) from st1 where exists (select f1 from st1 where f1 > 1) order by f1), f1 from st1;
 
@@ -4279,22 +4279,22 @@ DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select distinct (select f1 = all (select f1 from st1) from st1 where f1 = all (select f1 from st1) order by f1), f1 from st1;
  (select f1 = all (select f1 from st1) from st1 where f1 = all (s |     f1      |
 =================================================================================
- NULL                                                             |           2 |
- NULL                                                             |           6 |
- NULL                                                             |           5 |
- NULL                                                             |           1 |
  NULL                                                             |           4 |
+ NULL                                                             |           1 |
+ NULL                                                             |           6 |
  NULL                                                             |           3 |
+ NULL                                                             |           2 |
+ NULL                                                             |           5 |
 
 taos> select distinct (select f1 != all (select f1 from st1) from st1 where f1 != all (select f1 from st1) order by f1), f1 from st1;
  (select f1 != all (select f1 from st1) from st1 where f1 != all  |     f1      |
 =================================================================================
- NULL                                                             |           2 |
- NULL                                                             |           6 |
- NULL                                                             |           5 |
- NULL                                                             |           1 |
  NULL                                                             |           4 |
+ NULL                                                             |           1 |
+ NULL                                                             |           6 |
  NULL                                                             |           3 |
+ NULL                                                             |           2 |
+ NULL                                                             |           5 |
 
 taos> select distinct (select exists (select f1 from st1 where f1 > 1) from st1 where exists (select f1 from st1 where f1 > 1) order by f1), f1 from st1;
 
@@ -4368,22 +4368,22 @@ DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select distinct (select f1 from st1 partition by f1 having(f1 = all (select f1 from st1)) order by f1), f1 from st1;
  (select f1 from st1 partition by f1 having(f1 = all (select f1 f |     f1      |
 =================================================================================
- NULL                                                             |           2 |
- NULL                                                             |           6 |
- NULL                                                             |           5 |
- NULL                                                             |           1 |
  NULL                                                             |           4 |
+ NULL                                                             |           1 |
+ NULL                                                             |           6 |
  NULL                                                             |           3 |
+ NULL                                                             |           2 |
+ NULL                                                             |           5 |
 
 taos> select distinct (select f1 from st1 partition by f1 having(f1 != all (select f1 from st1)) order by f1), f1 from st1;
  (select f1 from st1 partition by f1 having(f1 != all (select f1  |     f1      |
 =================================================================================
- NULL                                                             |           2 |
- NULL                                                             |           6 |
- NULL                                                             |           5 |
- NULL                                                             |           1 |
  NULL                                                             |           4 |
+ NULL                                                             |           1 |
+ NULL                                                             |           6 |
  NULL                                                             |           3 |
+ NULL                                                             |           2 |
+ NULL                                                             |           5 |
 
 taos> select distinct (select f1 from st1 partition by f1 having(exists (select f1 from st1 where f1 > 1)) order by f1), f1 from st1;
 
@@ -9089,12 +9089,12 @@ DB error: Not supported subquery as expr [0x800026A6]
 taos> select case when (select exists (select f1 from st1 where f1 > 1)) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when (select exists (select f1 from st1 where f1 > 1)) then |        sum(f1)        |
 ===========================================================================================
-                                                                1 |                     5 |
+                                                                1 |                     6 |
                                                                 1 |                     1 |
+                                                                1 |                     2 |
+                                                                1 |                     5 |
                                                                 1 |                     3 |
                                                                 1 |                     4 |
-                                                                1 |                     6 |
-                                                                1 |                     2 |
 
 taos> select case when (select f1 < any (select f1 from st1) from st1) then 1 else 2 end, sum(f1) from st1 group by f1;
 
@@ -9150,32 +9150,32 @@ DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select case when (select distinct f1 = all (select f1 from st1) from st1) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when (select distinct f1 = all (select f1 from st1) from st |        sum(f1)        |
 ===========================================================================================
-                                                                2 |                     5 |
+                                                                2 |                     6 |
                                                                 2 |                     1 |
+                                                                2 |                     2 |
+                                                                2 |                     5 |
                                                                 2 |                     3 |
                                                                 2 |                     4 |
-                                                                2 |                     6 |
-                                                                2 |                     2 |
 
 taos> select case when (select distinct f1 != all (select f1 from st1) from st1) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when (select distinct f1 != all (select f1 from st1) from s |        sum(f1)        |
 ===========================================================================================
-                                                                2 |                     5 |
+                                                                2 |                     6 |
                                                                 2 |                     1 |
+                                                                2 |                     2 |
+                                                                2 |                     5 |
                                                                 2 |                     3 |
                                                                 2 |                     4 |
-                                                                2 |                     6 |
-                                                                2 |                     2 |
 
 taos> select case when (select distinct exists (select f1 from st1 where f1 > 1) from st1) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when (select distinct exists (select f1 from st1 where f1 > |        sum(f1)        |
 ===========================================================================================
-                                                                1 |                     5 |
+                                                                1 |                     6 |
                                                                 1 |                     1 |
+                                                                1 |                     2 |
+                                                                1 |                     5 |
                                                                 1 |                     3 |
                                                                 1 |                     4 |
-                                                                1 |                     6 |
-                                                                1 |                     2 |
 
 taos> select case when (select distinct f1 < any (select f1 from st1), f1 from st1) then 1 else 2 end, sum(f1) from st1 group by f1;
 
@@ -9201,32 +9201,32 @@ DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select case when (select distinct tags f1 = all (select f1 from st1) from st1) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when (select distinct tags f1 = all (select f1 from st1) fr |        sum(f1)        |
 ===========================================================================================
-                                                                2 |                     5 |
+                                                                2 |                     6 |
                                                                 2 |                     1 |
+                                                                2 |                     2 |
+                                                                2 |                     5 |
                                                                 2 |                     3 |
                                                                 2 |                     4 |
-                                                                2 |                     6 |
-                                                                2 |                     2 |
 
 taos> select case when (select distinct tags f1 != all (select f1 from st1) from st1) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when (select distinct tags f1 != all (select f1 from st1) f |        sum(f1)        |
 ===========================================================================================
-                                                                2 |                     5 |
+                                                                2 |                     6 |
                                                                 2 |                     1 |
+                                                                2 |                     2 |
+                                                                2 |                     5 |
                                                                 2 |                     3 |
                                                                 2 |                     4 |
-                                                                2 |                     6 |
-                                                                2 |                     2 |
 
 taos> select case when (select distinct tags exists (select f1 from st1 where f1 > 1) from st1) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when (select distinct tags exists (select f1 from st1 where |        sum(f1)        |
 ===========================================================================================
-                                                                1 |                     5 |
+                                                                1 |                     6 |
                                                                 1 |                     1 |
+                                                                1 |                     2 |
+                                                                1 |                     5 |
                                                                 1 |                     3 |
                                                                 1 |                     4 |
-                                                                1 |                     6 |
-                                                                1 |                     2 |
 
 taos> select case when (select f1 < any (select f1 from st1), f1 < any (select f1 from st1) from st1) then 1 else 2 end, sum(f1) from st1 group by f1;
 
@@ -9438,12 +9438,12 @@ DB error: Invalid usage of expr: f1 [0x80002667]
 taos> select case when (select exists (select f1 from st1 where f1 > 1) from st1 SESSION(ts, 1d)) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when (select exists (select f1 from st1 where f1 > 1) from  |        sum(f1)        |
 ===========================================================================================
-                                                                1 |                     5 |
+                                                                1 |                     6 |
                                                                 1 |                     1 |
+                                                                1 |                     2 |
+                                                                1 |                     5 |
                                                                 1 |                     3 |
                                                                 1 |                     4 |
-                                                                1 |                     6 |
-                                                                1 |                     2 |
 
 taos> select case when (select sum(case when f1 < any (select f1 from st1) then 1 else 2 end) from st1 STATE_WINDOW(f1)) then 1 else 2 end, sum(f1) from st1 group by f1;
 
@@ -9589,22 +9589,22 @@ DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select case when (select f1 from st1 where f1 = all (select f1 from st1) order by f1) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when (select f1 from st1 where f1 = all (select f1 from st1 |        sum(f1)        |
 ===========================================================================================
-                                                                2 |                     5 |
+                                                                2 |                     6 |
                                                                 2 |                     1 |
+                                                                2 |                     2 |
+                                                                2 |                     5 |
                                                                 2 |                     3 |
                                                                 2 |                     4 |
-                                                                2 |                     6 |
-                                                                2 |                     2 |
 
 taos> select case when (select f1 from st1 where f1 != all (select f1 from st1) order by f1) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when (select f1 from st1 where f1 != all (select f1 from st |        sum(f1)        |
 ===========================================================================================
-                                                                2 |                     5 |
+                                                                2 |                     6 |
                                                                 2 |                     1 |
+                                                                2 |                     2 |
+                                                                2 |                     5 |
                                                                 2 |                     3 |
                                                                 2 |                     4 |
-                                                                2 |                     6 |
-                                                                2 |                     2 |
 
 taos> select case when (select f1 from st1 where exists (select f1 from st1 where f1 > 1) order by f1) then 1 else 2 end, sum(f1) from st1 group by f1;
 
@@ -9633,22 +9633,22 @@ DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select case when (select f1 from st1 where f1 = all (select f1 from st1) order by f1) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when (select f1 from st1 where f1 = all (select f1 from st1 |        sum(f1)        |
 ===========================================================================================
-                                                                2 |                     5 |
+                                                                2 |                     6 |
                                                                 2 |                     1 |
+                                                                2 |                     2 |
+                                                                2 |                     5 |
                                                                 2 |                     3 |
                                                                 2 |                     4 |
-                                                                2 |                     6 |
-                                                                2 |                     2 |
 
 taos> select case when (select f1 from st1 where f1 != all (select f1 from st1) order by f1) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when (select f1 from st1 where f1 != all (select f1 from st |        sum(f1)        |
 ===========================================================================================
-                                                                2 |                     5 |
+                                                                2 |                     6 |
                                                                 2 |                     1 |
+                                                                2 |                     2 |
+                                                                2 |                     5 |
                                                                 2 |                     3 |
                                                                 2 |                     4 |
-                                                                2 |                     6 |
-                                                                2 |                     2 |
 
 taos> select case when (select f1 from st1 where exists (select f1 from st1 where f1 > 1) order by f1) then 1 else 2 end, sum(f1) from st1 group by f1;
 
@@ -9662,22 +9662,22 @@ DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select case when (select f1 = all (select f1 from st1) from st1 where f1 = all (select f1 from st1) order by f1) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when (select f1 = all (select f1 from st1) from st1 where f |        sum(f1)        |
 ===========================================================================================
-                                                                2 |                     5 |
+                                                                2 |                     6 |
                                                                 2 |                     1 |
+                                                                2 |                     2 |
+                                                                2 |                     5 |
                                                                 2 |                     3 |
                                                                 2 |                     4 |
-                                                                2 |                     6 |
-                                                                2 |                     2 |
 
 taos> select case when (select f1 != all (select f1 from st1) from st1 where f1 != all (select f1 from st1) order by f1) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when (select f1 != all (select f1 from st1) from st1 where  |        sum(f1)        |
 ===========================================================================================
-                                                                2 |                     5 |
+                                                                2 |                     6 |
                                                                 2 |                     1 |
+                                                                2 |                     2 |
+                                                                2 |                     5 |
                                                                 2 |                     3 |
                                                                 2 |                     4 |
-                                                                2 |                     6 |
-                                                                2 |                     2 |
 
 taos> select case when (select exists (select f1 from st1 where f1 > 1) from st1 where exists (select f1 from st1 where f1 > 1) order by f1) then 1 else 2 end, sum(f1) from st1 group by f1;
 
@@ -9691,22 +9691,22 @@ DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select case when (select f1 = all (select f1 from st1) from st1 where f1 = all (select f1 from st1) order by f1) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when (select f1 = all (select f1 from st1) from st1 where f |        sum(f1)        |
 ===========================================================================================
-                                                                2 |                     5 |
+                                                                2 |                     6 |
                                                                 2 |                     1 |
+                                                                2 |                     2 |
+                                                                2 |                     5 |
                                                                 2 |                     3 |
                                                                 2 |                     4 |
-                                                                2 |                     6 |
-                                                                2 |                     2 |
 
 taos> select case when (select f1 != all (select f1 from st1) from st1 where f1 != all (select f1 from st1) order by f1) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when (select f1 != all (select f1 from st1) from st1 where  |        sum(f1)        |
 ===========================================================================================
-                                                                2 |                     5 |
+                                                                2 |                     6 |
                                                                 2 |                     1 |
+                                                                2 |                     2 |
+                                                                2 |                     5 |
                                                                 2 |                     3 |
                                                                 2 |                     4 |
-                                                                2 |                     6 |
-                                                                2 |                     2 |
 
 taos> select case when (select exists (select f1 from st1 where f1 > 1) from st1 where exists (select f1 from st1 where f1 > 1) order by f1) then 1 else 2 end, sum(f1) from st1 group by f1;
 
@@ -9780,22 +9780,22 @@ DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select case when (select f1 from st1 partition by f1 having(f1 = all (select f1 from st1)) order by f1) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when (select f1 from st1 partition by f1 having(f1 = all (s |        sum(f1)        |
 ===========================================================================================
-                                                                2 |                     5 |
+                                                                2 |                     6 |
                                                                 2 |                     1 |
+                                                                2 |                     2 |
+                                                                2 |                     5 |
                                                                 2 |                     3 |
                                                                 2 |                     4 |
-                                                                2 |                     6 |
-                                                                2 |                     2 |
 
 taos> select case when (select f1 from st1 partition by f1 having(f1 != all (select f1 from st1)) order by f1) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when (select f1 from st1 partition by f1 having(f1 != all ( |        sum(f1)        |
 ===========================================================================================
-                                                                2 |                     5 |
+                                                                2 |                     6 |
                                                                 2 |                     1 |
+                                                                2 |                     2 |
+                                                                2 |                     5 |
                                                                 2 |                     3 |
                                                                 2 |                     4 |
-                                                                2 |                     6 |
-                                                                2 |                     2 |
 
 taos> select case when (select f1 from st1 partition by f1 having(exists (select f1 from st1 where f1 > 1)) order by f1) then 1 else 2 end, sum(f1) from st1 group by f1;
 
@@ -9875,12 +9875,12 @@ DB error: Not supported subquery as expr [0x800026A6]
 taos> select case when f1 = 1 then (select exists (select f1 from st1 where f1 > 1)) else 2 end, sum(f1) from st1 group by f1;
  case when f1 = 1 then (select exists (select f1 from st1 where f |        sum(f1)        |
 ===========================================================================================
-                                                                2 |                     5 |
+                                                                2 |                     6 |
                                                                 1 |                     1 |
+                                                                2 |                     2 |
+                                                                2 |                     5 |
                                                                 2 |                     3 |
                                                                 2 |                     4 |
-                                                                2 |                     6 |
-                                                                2 |                     2 |
 
 taos> select case when f1 = 1 then (select f1 < any (select f1 from st1) from st1) else 2 end, sum(f1) from st1 group by f1;
 
@@ -9936,32 +9936,32 @@ DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select case when f1 = 1 then (select distinct f1 = all (select f1 from st1) from st1) else 2 end, sum(f1) from st1 group by f1;
  case when f1 = 1 then (select distinct f1 = all (select f1 from  |        sum(f1)        |
 ===========================================================================================
-                                                                2 |                     5 |
+                                                                2 |                     6 |
                                                                 0 |                     1 |
+                                                                2 |                     2 |
+                                                                2 |                     5 |
                                                                 2 |                     3 |
                                                                 2 |                     4 |
-                                                                2 |                     6 |
-                                                                2 |                     2 |
 
 taos> select case when f1 = 1 then (select distinct f1 != all (select f1 from st1) from st1) else 2 end, sum(f1) from st1 group by f1;
  case when f1 = 1 then (select distinct f1 != all (select f1 from |        sum(f1)        |
 ===========================================================================================
-                                                                2 |                     5 |
+                                                                2 |                     6 |
                                                                 0 |                     1 |
+                                                                2 |                     2 |
+                                                                2 |                     5 |
                                                                 2 |                     3 |
                                                                 2 |                     4 |
-                                                                2 |                     6 |
-                                                                2 |                     2 |
 
 taos> select case when f1 = 1 then (select distinct exists (select f1 from st1 where f1 > 1) from st1) else 2 end, sum(f1) from st1 group by f1;
  case when f1 = 1 then (select distinct exists (select f1 from st |        sum(f1)        |
 ===========================================================================================
-                                                                2 |                     5 |
+                                                                2 |                     6 |
                                                                 1 |                     1 |
+                                                                2 |                     2 |
+                                                                2 |                     5 |
                                                                 2 |                     3 |
                                                                 2 |                     4 |
-                                                                2 |                     6 |
-                                                                2 |                     2 |
 
 taos> select case when f1 = 1 then (select distinct f1 < any (select f1 from st1), f1 from st1) else 2 end, sum(f1) from st1 group by f1;
 
@@ -9987,32 +9987,32 @@ DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select case when f1 = 1 then (select distinct tags f1 = all (select f1 from st1) from st1) else 2 end, sum(f1) from st1 group by f1;
  case when f1 = 1 then (select distinct tags f1 = all (select f1  |        sum(f1)        |
 ===========================================================================================
-                                                                2 |                     5 |
+                                                                2 |                     6 |
                                                                 0 |                     1 |
+                                                                2 |                     2 |
+                                                                2 |                     5 |
                                                                 2 |                     3 |
                                                                 2 |                     4 |
-                                                                2 |                     6 |
-                                                                2 |                     2 |
 
 taos> select case when f1 = 1 then (select distinct tags f1 != all (select f1 from st1) from st1) else 2 end, sum(f1) from st1 group by f1;
  case when f1 = 1 then (select distinct tags f1 != all (select f1 |        sum(f1)        |
 ===========================================================================================
-                                                                2 |                     5 |
+                                                                2 |                     6 |
                                                                 0 |                     1 |
+                                                                2 |                     2 |
+                                                                2 |                     5 |
                                                                 2 |                     3 |
                                                                 2 |                     4 |
-                                                                2 |                     6 |
-                                                                2 |                     2 |
 
 taos> select case when f1 = 1 then (select distinct tags exists (select f1 from st1 where f1 > 1) from st1) else 2 end, sum(f1) from st1 group by f1;
  case when f1 = 1 then (select distinct tags exists (select f1 fr |        sum(f1)        |
 ===========================================================================================
-                                                                2 |                     5 |
+                                                                2 |                     6 |
                                                                 1 |                     1 |
+                                                                2 |                     2 |
+                                                                2 |                     5 |
                                                                 2 |                     3 |
                                                                 2 |                     4 |
-                                                                2 |                     6 |
-                                                                2 |                     2 |
 
 taos> select case when f1 = 1 then (select f1 < any (select f1 from st1), f1 < any (select f1 from st1) from st1) else 2 end, sum(f1) from st1 group by f1;
 
@@ -10224,12 +10224,12 @@ DB error: Invalid usage of expr: f1 [0x80002667]
 taos> select case when f1 = 1 then (select exists (select f1 from st1 where f1 > 1) from st1 SESSION(ts, 1d)) else 2 end, sum(f1) from st1 group by f1;
  case when f1 = 1 then (select exists (select f1 from st1 where f |        sum(f1)        |
 ===========================================================================================
-                                                                2 |                     5 |
+                                                                2 |                     6 |
                                                                 1 |                     1 |
+                                                                2 |                     2 |
+                                                                2 |                     5 |
                                                                 2 |                     3 |
                                                                 2 |                     4 |
-                                                                2 |                     6 |
-                                                                2 |                     2 |
 
 taos> select case when f1 = 1 then (select sum(case when f1 < any (select f1 from st1) then 1 else 2 end) from st1 STATE_WINDOW(f1)) else 2 end, sum(f1) from st1 group by f1;
 
@@ -10375,22 +10375,22 @@ DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select case when f1 = 1 then (select f1 from st1 where f1 = all (select f1 from st1) order by f1) else 2 end, sum(f1) from st1 group by f1;
  case when f1 = 1 then (select f1 from st1 where f1 = all (select |        sum(f1)        |
 ===========================================================================================
-                                                                2 |                     5 |
+                                                                2 |                     6 |
  NULL                                                             |                     1 |
+                                                                2 |                     2 |
+                                                                2 |                     5 |
                                                                 2 |                     3 |
                                                                 2 |                     4 |
-                                                                2 |                     6 |
-                                                                2 |                     2 |
 
 taos> select case when f1 = 1 then (select f1 from st1 where f1 != all (select f1 from st1) order by f1) else 2 end, sum(f1) from st1 group by f1;
  case when f1 = 1 then (select f1 from st1 where f1 != all (selec |        sum(f1)        |
 ===========================================================================================
-                                                                2 |                     5 |
+                                                                2 |                     6 |
  NULL                                                             |                     1 |
+                                                                2 |                     2 |
+                                                                2 |                     5 |
                                                                 2 |                     3 |
                                                                 2 |                     4 |
-                                                                2 |                     6 |
-                                                                2 |                     2 |
 
 taos> select case when f1 = 1 then (select f1 from st1 where exists (select f1 from st1 where f1 > 1) order by f1) else 2 end, sum(f1) from st1 group by f1;
 
@@ -10419,22 +10419,22 @@ DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select case when f1 = 1 then (select f1 from st1 where f1 = all (select f1 from st1) order by f1) else 2 end, sum(f1) from st1 group by f1;
  case when f1 = 1 then (select f1 from st1 where f1 = all (select |        sum(f1)        |
 ===========================================================================================
-                                                                2 |                     5 |
+                                                                2 |                     6 |
  NULL                                                             |                     1 |
+                                                                2 |                     2 |
+                                                                2 |                     5 |
                                                                 2 |                     3 |
                                                                 2 |                     4 |
-                                                                2 |                     6 |
-                                                                2 |                     2 |
 
 taos> select case when f1 = 1 then (select f1 from st1 where f1 != all (select f1 from st1) order by f1) else 2 end, sum(f1) from st1 group by f1;
  case when f1 = 1 then (select f1 from st1 where f1 != all (selec |        sum(f1)        |
 ===========================================================================================
-                                                                2 |                     5 |
+                                                                2 |                     6 |
  NULL                                                             |                     1 |
+                                                                2 |                     2 |
+                                                                2 |                     5 |
                                                                 2 |                     3 |
                                                                 2 |                     4 |
-                                                                2 |                     6 |
-                                                                2 |                     2 |
 
 taos> select case when f1 = 1 then (select f1 from st1 where exists (select f1 from st1 where f1 > 1) order by f1) else 2 end, sum(f1) from st1 group by f1;
 
@@ -10448,22 +10448,22 @@ DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select case when f1 = 1 then (select f1 = all (select f1 from st1) from st1 where f1 = all (select f1 from st1) order by f1) else 2 end, sum(f1) from st1 group by f1;
  case when f1 = 1 then (select f1 = all (select f1 from st1) from |        sum(f1)        |
 ===========================================================================================
-                                                                2 |                     5 |
+                                                                2 |                     6 |
  NULL                                                             |                     1 |
+                                                                2 |                     2 |
+                                                                2 |                     5 |
                                                                 2 |                     3 |
                                                                 2 |                     4 |
-                                                                2 |                     6 |
-                                                                2 |                     2 |
 
 taos> select case when f1 = 1 then (select f1 != all (select f1 from st1) from st1 where f1 != all (select f1 from st1) order by f1) else 2 end, sum(f1) from st1 group by f1;
  case when f1 = 1 then (select f1 != all (select f1 from st1) fro |        sum(f1)        |
 ===========================================================================================
-                                                                2 |                     5 |
+                                                                2 |                     6 |
  NULL                                                             |                     1 |
+                                                                2 |                     2 |
+                                                                2 |                     5 |
                                                                 2 |                     3 |
                                                                 2 |                     4 |
-                                                                2 |                     6 |
-                                                                2 |                     2 |
 
 taos> select case when f1 = 1 then (select exists (select f1 from st1 where f1 > 1) from st1 where exists (select f1 from st1 where f1 > 1) order by f1) else 2 end, sum(f1) from st1 group by f1;
 
@@ -10477,22 +10477,22 @@ DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select case when f1 = 1 then (select f1 = all (select f1 from st1) from st1 where f1 = all (select f1 from st1) order by f1) else 2 end, sum(f1) from st1 group by f1;
  case when f1 = 1 then (select f1 = all (select f1 from st1) from |        sum(f1)        |
 ===========================================================================================
-                                                                2 |                     5 |
+                                                                2 |                     6 |
  NULL                                                             |                     1 |
+                                                                2 |                     2 |
+                                                                2 |                     5 |
                                                                 2 |                     3 |
                                                                 2 |                     4 |
-                                                                2 |                     6 |
-                                                                2 |                     2 |
 
 taos> select case when f1 = 1 then (select f1 != all (select f1 from st1) from st1 where f1 != all (select f1 from st1) order by f1) else 2 end, sum(f1) from st1 group by f1;
  case when f1 = 1 then (select f1 != all (select f1 from st1) fro |        sum(f1)        |
 ===========================================================================================
-                                                                2 |                     5 |
+                                                                2 |                     6 |
  NULL                                                             |                     1 |
+                                                                2 |                     2 |
+                                                                2 |                     5 |
                                                                 2 |                     3 |
                                                                 2 |                     4 |
-                                                                2 |                     6 |
-                                                                2 |                     2 |
 
 taos> select case when f1 = 1 then (select exists (select f1 from st1 where f1 > 1) from st1 where exists (select f1 from st1 where f1 > 1) order by f1) else 2 end, sum(f1) from st1 group by f1;
 
@@ -10566,22 +10566,22 @@ DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select case when f1 = 1 then (select f1 from st1 partition by f1 having(f1 = all (select f1 from st1)) order by f1) else 2 end, sum(f1) from st1 group by f1;
  case when f1 = 1 then (select f1 from st1 partition by f1 having |        sum(f1)        |
 ===========================================================================================
-                                                                2 |                     5 |
+                                                                2 |                     6 |
  NULL                                                             |                     1 |
+                                                                2 |                     2 |
+                                                                2 |                     5 |
                                                                 2 |                     3 |
                                                                 2 |                     4 |
-                                                                2 |                     6 |
-                                                                2 |                     2 |
 
 taos> select case when f1 = 1 then (select f1 from st1 partition by f1 having(f1 != all (select f1 from st1)) order by f1) else 2 end, sum(f1) from st1 group by f1;
  case when f1 = 1 then (select f1 from st1 partition by f1 having |        sum(f1)        |
 ===========================================================================================
-                                                                2 |                     5 |
+                                                                2 |                     6 |
  NULL                                                             |                     1 |
+                                                                2 |                     2 |
+                                                                2 |                     5 |
                                                                 2 |                     3 |
                                                                 2 |                     4 |
-                                                                2 |                     6 |
-                                                                2 |                     2 |
 
 taos> select case when f1 = 1 then (select f1 from st1 partition by f1 having(exists (select f1 from st1 where f1 > 1)) order by f1) else 2 end, sum(f1) from st1 group by f1;
 
@@ -10661,12 +10661,12 @@ DB error: Not supported subquery as expr [0x800026A6]
 taos> select case when f1 = 1 then 1 else (select exists (select f1 from st1 where f1 > 1)) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else (select exists (select f1 from st1  |        sum(f1)        |
 ===========================================================================================
-                                                                1 |                     5 |
+                                                                1 |                     6 |
                                                                 1 |                     1 |
+                                                                1 |                     2 |
+                                                                1 |                     5 |
                                                                 1 |                     3 |
                                                                 1 |                     4 |
-                                                                1 |                     6 |
-                                                                1 |                     2 |
 
 taos> select case when f1 = 1 then 1 else (select f1 < any (select f1 from st1) from st1) end, sum(f1) from st1 group by f1;
 
@@ -10722,32 +10722,32 @@ DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select case when f1 = 1 then 1 else (select distinct f1 = all (select f1 from st1) from st1) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else (select distinct f1 = all (select f |        sum(f1)        |
 ===========================================================================================
-                                                                0 |                     5 |
+                                                                0 |                     6 |
                                                                 1 |                     1 |
+                                                                0 |                     2 |
+                                                                0 |                     5 |
                                                                 0 |                     3 |
                                                                 0 |                     4 |
-                                                                0 |                     6 |
-                                                                0 |                     2 |
 
 taos> select case when f1 = 1 then 1 else (select distinct f1 != all (select f1 from st1) from st1) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else (select distinct f1 != all (select  |        sum(f1)        |
 ===========================================================================================
-                                                                0 |                     5 |
+                                                                0 |                     6 |
                                                                 1 |                     1 |
+                                                                0 |                     2 |
+                                                                0 |                     5 |
                                                                 0 |                     3 |
                                                                 0 |                     4 |
-                                                                0 |                     6 |
-                                                                0 |                     2 |
 
 taos> select case when f1 = 1 then 1 else (select distinct exists (select f1 from st1 where f1 > 1) from st1) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else (select distinct exists (select f1  |        sum(f1)        |
 ===========================================================================================
-                                                                1 |                     5 |
+                                                                1 |                     6 |
                                                                 1 |                     1 |
+                                                                1 |                     2 |
+                                                                1 |                     5 |
                                                                 1 |                     3 |
                                                                 1 |                     4 |
-                                                                1 |                     6 |
-                                                                1 |                     2 |
 
 taos> select case when f1 = 1 then 1 else (select distinct f1 < any (select f1 from st1), f1 from st1) end, sum(f1) from st1 group by f1;
 
@@ -10773,32 +10773,32 @@ DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select case when f1 = 1 then 1 else (select distinct tags f1 = all (select f1 from st1) from st1) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else (select distinct tags f1 = all (sel |        sum(f1)        |
 ===========================================================================================
-                                                                0 |                     5 |
+                                                                0 |                     6 |
                                                                 1 |                     1 |
+                                                                0 |                     2 |
+                                                                0 |                     5 |
                                                                 0 |                     3 |
                                                                 0 |                     4 |
-                                                                0 |                     6 |
-                                                                0 |                     2 |
 
 taos> select case when f1 = 1 then 1 else (select distinct tags f1 != all (select f1 from st1) from st1) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else (select distinct tags f1 != all (se |        sum(f1)        |
 ===========================================================================================
-                                                                0 |                     5 |
+                                                                0 |                     6 |
                                                                 1 |                     1 |
+                                                                0 |                     2 |
+                                                                0 |                     5 |
                                                                 0 |                     3 |
                                                                 0 |                     4 |
-                                                                0 |                     6 |
-                                                                0 |                     2 |
 
 taos> select case when f1 = 1 then 1 else (select distinct tags exists (select f1 from st1 where f1 > 1) from st1) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else (select distinct tags exists (selec |        sum(f1)        |
 ===========================================================================================
-                                                                1 |                     5 |
+                                                                1 |                     6 |
                                                                 1 |                     1 |
+                                                                1 |                     2 |
+                                                                1 |                     5 |
                                                                 1 |                     3 |
                                                                 1 |                     4 |
-                                                                1 |                     6 |
-                                                                1 |                     2 |
 
 taos> select case when f1 = 1 then 1 else (select f1 < any (select f1 from st1), f1 < any (select f1 from st1) from st1) end, sum(f1) from st1 group by f1;
 
@@ -11010,12 +11010,12 @@ DB error: Invalid usage of expr: f1 [0x80002667]
 taos> select case when f1 = 1 then 1 else (select exists (select f1 from st1 where f1 > 1) from st1 SESSION(ts, 1d)) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else (select exists (select f1 from st1  |        sum(f1)        |
 ===========================================================================================
-                                                                1 |                     5 |
+                                                                1 |                     6 |
                                                                 1 |                     1 |
+                                                                1 |                     2 |
+                                                                1 |                     5 |
                                                                 1 |                     3 |
                                                                 1 |                     4 |
-                                                                1 |                     6 |
-                                                                1 |                     2 |
 
 taos> select case when f1 = 1 then 1 else (select sum(case when f1 < any (select f1 from st1) then 1 else 2 end) from st1 STATE_WINDOW(f1)) end, sum(f1) from st1 group by f1;
 
@@ -11161,22 +11161,22 @@ DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select case when f1 = 1 then 1 else (select f1 from st1 where f1 = all (select f1 from st1) order by f1) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else (select f1 from st1 where f1 = all  |        sum(f1)        |
 ===========================================================================================
- NULL                                                             |                     5 |
+ NULL                                                             |                     6 |
                                                                 1 |                     1 |
+ NULL                                                             |                     2 |
+ NULL                                                             |                     5 |
  NULL                                                             |                     3 |
  NULL                                                             |                     4 |
- NULL                                                             |                     6 |
- NULL                                                             |                     2 |
 
 taos> select case when f1 = 1 then 1 else (select f1 from st1 where f1 != all (select f1 from st1) order by f1) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else (select f1 from st1 where f1 != all |        sum(f1)        |
 ===========================================================================================
- NULL                                                             |                     5 |
+ NULL                                                             |                     6 |
                                                                 1 |                     1 |
+ NULL                                                             |                     2 |
+ NULL                                                             |                     5 |
  NULL                                                             |                     3 |
  NULL                                                             |                     4 |
- NULL                                                             |                     6 |
- NULL                                                             |                     2 |
 
 taos> select case when f1 = 1 then 1 else (select f1 from st1 where exists (select f1 from st1 where f1 > 1) order by f1) end, sum(f1) from st1 group by f1;
 
@@ -11205,22 +11205,22 @@ DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select case when f1 = 1 then 1 else (select f1 from st1 where f1 = all (select f1 from st1) order by f1) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else (select f1 from st1 where f1 = all  |        sum(f1)        |
 ===========================================================================================
- NULL                                                             |                     5 |
+ NULL                                                             |                     6 |
                                                                 1 |                     1 |
+ NULL                                                             |                     2 |
+ NULL                                                             |                     5 |
  NULL                                                             |                     3 |
  NULL                                                             |                     4 |
- NULL                                                             |                     6 |
- NULL                                                             |                     2 |
 
 taos> select case when f1 = 1 then 1 else (select f1 from st1 where f1 != all (select f1 from st1) order by f1) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else (select f1 from st1 where f1 != all |        sum(f1)        |
 ===========================================================================================
- NULL                                                             |                     5 |
+ NULL                                                             |                     6 |
                                                                 1 |                     1 |
+ NULL                                                             |                     2 |
+ NULL                                                             |                     5 |
  NULL                                                             |                     3 |
  NULL                                                             |                     4 |
- NULL                                                             |                     6 |
- NULL                                                             |                     2 |
 
 taos> select case when f1 = 1 then 1 else (select f1 from st1 where exists (select f1 from st1 where f1 > 1) order by f1) end, sum(f1) from st1 group by f1;
 
@@ -11234,22 +11234,22 @@ DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select case when f1 = 1 then 1 else (select f1 = all (select f1 from st1) from st1 where f1 = all (select f1 from st1) order by f1) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else (select f1 = all (select f1 from st |        sum(f1)        |
 ===========================================================================================
- NULL                                                             |                     5 |
+ NULL                                                             |                     6 |
                                                                 1 |                     1 |
+ NULL                                                             |                     2 |
+ NULL                                                             |                     5 |
  NULL                                                             |                     3 |
  NULL                                                             |                     4 |
- NULL                                                             |                     6 |
- NULL                                                             |                     2 |
 
 taos> select case when f1 = 1 then 1 else (select f1 != all (select f1 from st1) from st1 where f1 != all (select f1 from st1) order by f1) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else (select f1 != all (select f1 from s |        sum(f1)        |
 ===========================================================================================
- NULL                                                             |                     5 |
+ NULL                                                             |                     6 |
                                                                 1 |                     1 |
+ NULL                                                             |                     2 |
+ NULL                                                             |                     5 |
  NULL                                                             |                     3 |
  NULL                                                             |                     4 |
- NULL                                                             |                     6 |
- NULL                                                             |                     2 |
 
 taos> select case when f1 = 1 then 1 else (select exists (select f1 from st1 where f1 > 1) from st1 where exists (select f1 from st1 where f1 > 1) order by f1) end, sum(f1) from st1 group by f1;
 
@@ -11263,22 +11263,22 @@ DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select case when f1 = 1 then 1 else (select f1 = all (select f1 from st1) from st1 where f1 = all (select f1 from st1) order by f1) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else (select f1 = all (select f1 from st |        sum(f1)        |
 ===========================================================================================
- NULL                                                             |                     5 |
+ NULL                                                             |                     6 |
                                                                 1 |                     1 |
+ NULL                                                             |                     2 |
+ NULL                                                             |                     5 |
  NULL                                                             |                     3 |
  NULL                                                             |                     4 |
- NULL                                                             |                     6 |
- NULL                                                             |                     2 |
 
 taos> select case when f1 = 1 then 1 else (select f1 != all (select f1 from st1) from st1 where f1 != all (select f1 from st1) order by f1) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else (select f1 != all (select f1 from s |        sum(f1)        |
 ===========================================================================================
- NULL                                                             |                     5 |
+ NULL                                                             |                     6 |
                                                                 1 |                     1 |
+ NULL                                                             |                     2 |
+ NULL                                                             |                     5 |
  NULL                                                             |                     3 |
  NULL                                                             |                     4 |
- NULL                                                             |                     6 |
- NULL                                                             |                     2 |
 
 taos> select case when f1 = 1 then 1 else (select exists (select f1 from st1 where f1 > 1) from st1 where exists (select f1 from st1 where f1 > 1) order by f1) end, sum(f1) from st1 group by f1;
 
@@ -11352,22 +11352,22 @@ DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select case when f1 = 1 then 1 else (select f1 from st1 partition by f1 having(f1 = all (select f1 from st1)) order by f1) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else (select f1 from st1 partition by f1 |        sum(f1)        |
 ===========================================================================================
- NULL                                                             |                     5 |
+ NULL                                                             |                     6 |
                                                                 1 |                     1 |
+ NULL                                                             |                     2 |
+ NULL                                                             |                     5 |
  NULL                                                             |                     3 |
  NULL                                                             |                     4 |
- NULL                                                             |                     6 |
- NULL                                                             |                     2 |
 
 taos> select case when f1 = 1 then 1 else (select f1 from st1 partition by f1 having(f1 != all (select f1 from st1)) order by f1) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else (select f1 from st1 partition by f1 |        sum(f1)        |
 ===========================================================================================
- NULL                                                             |                     5 |
+ NULL                                                             |                     6 |
                                                                 1 |                     1 |
+ NULL                                                             |                     2 |
+ NULL                                                             |                     5 |
  NULL                                                             |                     3 |
  NULL                                                             |                     4 |
- NULL                                                             |                     6 |
- NULL                                                             |                     2 |
 
 taos> select case when f1 = 1 then 1 else (select f1 from st1 partition by f1 having(exists (select f1 from st1 where f1 > 1)) order by f1) end, sum(f1) from st1 group by f1;
 
@@ -19283,12 +19283,12 @@ DB error: Not supported subquery as expr [0x800026A6]
 taos> select f1, (select exists (select f1 from st1 where f1 > 1)) from st1 group by f1;
      f1      | (select exists (select f1 from st1 where f1 > 1)) |
 ==================================================================
-           5 | true                                              |
+           6 | true                                              |
            1 | true                                              |
+           2 | true                                              |
+           5 | true                                              |
            3 | true                                              |
            4 | true                                              |
-           6 | true                                              |
-           2 | true                                              |
 
 taos> select f1, (select f1 < any (select f1 from st1) from st1) from st1 group by f1;
 
@@ -19344,32 +19344,32 @@ DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select f1, (select distinct f1 = all (select f1 from st1) from st1) from st1 group by f1;
      f1      | (select distinct f1 = all (select f1 from st1) from st1) |
 =========================================================================
-           5 | false                                                    |
+           6 | false                                                    |
            1 | false                                                    |
+           2 | false                                                    |
+           5 | false                                                    |
            3 | false                                                    |
            4 | false                                                    |
-           6 | false                                                    |
-           2 | false                                                    |
 
 taos> select f1, (select distinct f1 != all (select f1 from st1) from st1) from st1 group by f1;
      f1      | (select distinct f1 != all (select f1 from st1) from st1) |
 ==========================================================================
-           5 | false                                                     |
+           6 | false                                                     |
            1 | false                                                     |
+           2 | false                                                     |
+           5 | false                                                     |
            3 | false                                                     |
            4 | false                                                     |
-           6 | false                                                     |
-           2 | false                                                     |
 
 taos> select f1, (select distinct exists (select f1 from st1 where f1 > 1) from st1) from st1 group by f1;
      f1      | (select distinct exists (select f1 from st1 where f1 > 1) from s |
 =================================================================================
-           5 | true                                                             |
+           6 | true                                                             |
            1 | true                                                             |
+           2 | true                                                             |
+           5 | true                                                             |
            3 | true                                                             |
            4 | true                                                             |
-           6 | true                                                             |
-           2 | true                                                             |
 
 taos> select f1, (select distinct f1 < any (select f1 from st1), f1 from st1) from st1 group by f1;
 
@@ -19395,32 +19395,32 @@ DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select f1, (select distinct tags f1 = all (select f1 from st1) from st1) from st1 group by f1;
      f1      | (select distinct tags f1 = all (select f1 from st1) from st1) |
 ==============================================================================
-           5 | false                                                         |
+           6 | false                                                         |
            1 | false                                                         |
+           2 | false                                                         |
+           5 | false                                                         |
            3 | false                                                         |
            4 | false                                                         |
-           6 | false                                                         |
-           2 | false                                                         |
 
 taos> select f1, (select distinct tags f1 != all (select f1 from st1) from st1) from st1 group by f1;
      f1      | (select distinct tags f1 != all (select f1 from st1) from st1) |
 ===============================================================================
-           5 | false                                                          |
+           6 | false                                                          |
            1 | false                                                          |
+           2 | false                                                          |
+           5 | false                                                          |
            3 | false                                                          |
            4 | false                                                          |
-           6 | false                                                          |
-           2 | false                                                          |
 
 taos> select f1, (select distinct tags exists (select f1 from st1 where f1 > 1) from st1) from st1 group by f1;
      f1      | (select distinct tags exists (select f1 from st1 where f1 > 1) f |
 =================================================================================
-           5 | true                                                             |
+           6 | true                                                             |
            1 | true                                                             |
+           2 | true                                                             |
+           5 | true                                                             |
            3 | true                                                             |
            4 | true                                                             |
-           6 | true                                                             |
-           2 | true                                                             |
 
 taos> select f1, (select f1 < any (select f1 from st1), f1 < any (select f1 from st1) from st1) from st1 group by f1;
 
@@ -19632,12 +19632,12 @@ DB error: Invalid usage of expr: f1 [0x80002667]
 taos> select f1, (select exists (select f1 from st1 where f1 > 1) from st1 SESSION(ts, 1d)) from st1 group by f1;
      f1      | (select exists (select f1 from st1 where f1 > 1) from st1 sessio |
 =================================================================================
-           5 | true                                                             |
+           6 | true                                                             |
            1 | true                                                             |
+           2 | true                                                             |
+           5 | true                                                             |
            3 | true                                                             |
            4 | true                                                             |
-           6 | true                                                             |
-           2 | true                                                             |
 
 taos> select f1, (select sum(case when f1 < any (select f1 from st1) then 1 else 2 end) from st1 STATE_WINDOW(f1)) from st1 group by f1;
 
@@ -19783,22 +19783,22 @@ DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select f1, (select f1 from st1 where f1 = all (select f1 from st1) order by f1) from st1 group by f1;
      f1      | (select f1 from st1 where f1 = all (select f1 from st1) order by |
 =================================================================================
-           5 | NULL                                                             |
+           6 | NULL                                                             |
            1 | NULL                                                             |
+           2 | NULL                                                             |
+           5 | NULL                                                             |
            3 | NULL                                                             |
            4 | NULL                                                             |
-           6 | NULL                                                             |
-           2 | NULL                                                             |
 
 taos> select f1, (select f1 from st1 where f1 != all (select f1 from st1) order by f1) from st1 group by f1;
      f1      | (select f1 from st1 where f1 != all (select f1 from st1) order b |
 =================================================================================
-           5 | NULL                                                             |
+           6 | NULL                                                             |
            1 | NULL                                                             |
+           2 | NULL                                                             |
+           5 | NULL                                                             |
            3 | NULL                                                             |
            4 | NULL                                                             |
-           6 | NULL                                                             |
-           2 | NULL                                                             |
 
 taos> select f1, (select f1 from st1 where exists (select f1 from st1 where f1 > 1) order by f1) from st1 group by f1;
 
@@ -19827,22 +19827,22 @@ DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select f1, (select f1 from st1 where f1 = all (select f1 from st1) order by f1) from st1 group by f1;
      f1      | (select f1 from st1 where f1 = all (select f1 from st1) order by |
 =================================================================================
-           5 | NULL                                                             |
+           6 | NULL                                                             |
            1 | NULL                                                             |
+           2 | NULL                                                             |
+           5 | NULL                                                             |
            3 | NULL                                                             |
            4 | NULL                                                             |
-           6 | NULL                                                             |
-           2 | NULL                                                             |
 
 taos> select f1, (select f1 from st1 where f1 != all (select f1 from st1) order by f1) from st1 group by f1;
      f1      | (select f1 from st1 where f1 != all (select f1 from st1) order b |
 =================================================================================
-           5 | NULL                                                             |
+           6 | NULL                                                             |
            1 | NULL                                                             |
+           2 | NULL                                                             |
+           5 | NULL                                                             |
            3 | NULL                                                             |
            4 | NULL                                                             |
-           6 | NULL                                                             |
-           2 | NULL                                                             |
 
 taos> select f1, (select f1 from st1 where exists (select f1 from st1 where f1 > 1) order by f1) from st1 group by f1;
 
@@ -19856,22 +19856,22 @@ DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select f1, (select f1 = all (select f1 from st1) from st1 where f1 = all (select f1 from st1) order by f1) from st1 group by f1;
      f1      | (select f1 = all (select f1 from st1) from st1 where f1 = all (s |
 =================================================================================
-           5 | NULL                                                             |
+           6 | NULL                                                             |
            1 | NULL                                                             |
+           2 | NULL                                                             |
+           5 | NULL                                                             |
            3 | NULL                                                             |
            4 | NULL                                                             |
-           6 | NULL                                                             |
-           2 | NULL                                                             |
 
 taos> select f1, (select f1 != all (select f1 from st1) from st1 where f1 != all (select f1 from st1) order by f1) from st1 group by f1;
      f1      | (select f1 != all (select f1 from st1) from st1 where f1 != all  |
 =================================================================================
-           5 | NULL                                                             |
+           6 | NULL                                                             |
            1 | NULL                                                             |
+           2 | NULL                                                             |
+           5 | NULL                                                             |
            3 | NULL                                                             |
            4 | NULL                                                             |
-           6 | NULL                                                             |
-           2 | NULL                                                             |
 
 taos> select f1, (select exists (select f1 from st1 where f1 > 1) from st1 where exists (select f1 from st1 where f1 > 1) order by f1) from st1 group by f1;
 
@@ -19885,22 +19885,22 @@ DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select f1, (select f1 = all (select f1 from st1) from st1 where f1 = all (select f1 from st1) order by f1) from st1 group by f1;
      f1      | (select f1 = all (select f1 from st1) from st1 where f1 = all (s |
 =================================================================================
-           5 | NULL                                                             |
+           6 | NULL                                                             |
            1 | NULL                                                             |
+           2 | NULL                                                             |
+           5 | NULL                                                             |
            3 | NULL                                                             |
            4 | NULL                                                             |
-           6 | NULL                                                             |
-           2 | NULL                                                             |
 
 taos> select f1, (select f1 != all (select f1 from st1) from st1 where f1 != all (select f1 from st1) order by f1) from st1 group by f1;
      f1      | (select f1 != all (select f1 from st1) from st1 where f1 != all  |
 =================================================================================
-           5 | NULL                                                             |
+           6 | NULL                                                             |
            1 | NULL                                                             |
+           2 | NULL                                                             |
+           5 | NULL                                                             |
            3 | NULL                                                             |
            4 | NULL                                                             |
-           6 | NULL                                                             |
-           2 | NULL                                                             |
 
 taos> select f1, (select exists (select f1 from st1 where f1 > 1) from st1 where exists (select f1 from st1 where f1 > 1) order by f1) from st1 group by f1;
 
@@ -19974,22 +19974,22 @@ DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select f1, (select f1 from st1 partition by f1 having(f1 = all (select f1 from st1)) order by f1) from st1 group by f1;
      f1      | (select f1 from st1 partition by f1 having(f1 = all (select f1 f |
 =================================================================================
-           5 | NULL                                                             |
+           6 | NULL                                                             |
            1 | NULL                                                             |
+           2 | NULL                                                             |
+           5 | NULL                                                             |
            3 | NULL                                                             |
            4 | NULL                                                             |
-           6 | NULL                                                             |
-           2 | NULL                                                             |
 
 taos> select f1, (select f1 from st1 partition by f1 having(f1 != all (select f1 from st1)) order by f1) from st1 group by f1;
      f1      | (select f1 from st1 partition by f1 having(f1 != all (select f1  |
 =================================================================================
-           5 | NULL                                                             |
+           6 | NULL                                                             |
            1 | NULL                                                             |
+           2 | NULL                                                             |
+           5 | NULL                                                             |
            3 | NULL                                                             |
            4 | NULL                                                             |
-           6 | NULL                                                             |
-           2 | NULL                                                             |
 
 taos> select f1, (select f1 from st1 partition by f1 having(exists (select f1 from st1 where f1 > 1)) order by f1) from st1 group by f1;
 

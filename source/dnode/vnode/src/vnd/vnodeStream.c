@@ -2486,10 +2486,18 @@ static int32_t processCalaTimeRange(SStreamTriggerReaderCalcInfo* sStreamReaderC
     sStreamReaderCalcInfo->tmpRtFuncInfo.isWindowTrigger = req->pStRtFuncInfo->isWindowTrigger;
     sStreamReaderCalcInfo->tmpRtFuncInfo.precision = req->pStRtFuncInfo->precision;
 
-    SSTriggerCalcParam* pFirst = taosArrayGet(req->pStRtFuncInfo->pStreamPesudoFuncVals, 0);
-    SSTriggerCalcParam* pLast = taosArrayGetLast(req->pStRtFuncInfo->pStreamPesudoFuncVals);
-    STREAM_CHECK_NULL_GOTO(pFirst, terrno);
-    STREAM_CHECK_NULL_GOTO(pLast, terrno);
+    SSTriggerCalcParam* pFirst = NULL;
+    SSTriggerCalcParam* pLast = NULL;
+    if (req->pStRtFuncInfo->isMultiGroupCalc) {
+      SSTriggerGroupReadInfo* pGrp = taosArrayGet(req->pStRtFuncInfo->curGrpRead, 0);
+      pFirst = &pGrp->firstParam;
+      pLast = &pGrp->lastParam;
+    } else {
+      pFirst = taosArrayGet(req->pStRtFuncInfo->pStreamPesudoFuncVals, 0);
+      pLast = taosArrayGetLast(req->pStRtFuncInfo->pStreamPesudoFuncVals);
+      STREAM_CHECK_NULL_GOTO(pFirst, terrno);
+      STREAM_CHECK_NULL_GOTO(pLast, terrno);
+    }
 
     if (!node->needCalc) {
       pWin->skey = pFirst->wstart;
@@ -3943,6 +3951,7 @@ static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg, SQueueI
   void*              taskAddr = NULL;
   SArray*            pResList = NULL;
   bool               hasNext = false;
+  SStreamTriggerReaderCalcInfo* sStreamReaderCalcInfo = NULL;
 
   SResFetchReq req = {0};
   STREAM_CHECK_CONDITION_GOTO(tDeserializeSResFetchReq(pMsg->pCont, pMsg->contLen, &req) < 0,
@@ -3951,7 +3960,7 @@ static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg, SQueueI
   STREAM_CHECK_NULL_GOTO(calcInfoList, terrno);
 
   STREAM_CHECK_CONDITION_GOTO(req.execId < 0, TSDB_CODE_INVALID_PARA);
-  SStreamTriggerReaderCalcInfo* sStreamReaderCalcInfo = taosArrayGetP(calcInfoList, req.execId);
+  sStreamReaderCalcInfo = taosArrayGetP(calcInfoList, req.execId);
   STREAM_CHECK_NULL_GOTO(sStreamReaderCalcInfo, terrno);
   sStreamReaderCalcInfo->rtInfo.execId = req.execId;
 
@@ -3961,7 +3970,7 @@ static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg, SQueueI
 
   if (req.reset) {
     int64_t uid = 0;
-    if (req.dynTbname) {
+    if (req.dynTbname && !req.pStRtFuncInfo->isMultiGroupCalc) {
       SArray* vals = req.pStRtFuncInfo->pStreamPartColVals;
       for (int32_t i = 0; i < taosArrayGetSize(vals); ++i) {
         SStreamGroupValue* pValue = taosArrayGet(vals, i);
@@ -4006,6 +4015,7 @@ static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg, SQueueI
       STREAM_CHECK_RET_GOTO(qCreateStreamExecTaskInfo(&sStreamReaderCalcInfo->pTaskInfo,
                                                     sStreamReaderCalcInfo->calcScanPlan, &handle, NULL, TD_VID(pVnode),
                                                     req.taskId));
+      STREAM_CHECK_RET_GOTO(qSetTaskId(sStreamReaderCalcInfo->pTaskInfo, req.taskId, req.queryId));
     } else {
       STREAM_CHECK_RET_GOTO(qResetTableScan(sStreamReaderCalcInfo->pTaskInfo, &handle));
     }
@@ -4035,9 +4045,15 @@ static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg, SQueueI
   }
 
 end:
+
   STREAM_CHECK_RET_GOTO(streamBuildFetchRsp(pResList, hasNext, &buf, &size, pVnode->config.tsdbCfg.precision));
   taosArrayDestroy(pResList);
   streamReleaseTask(taskAddr);
+
+  if (sStreamReaderCalcInfo && sStreamReaderCalcInfo->rtInfo.funcInfo.isMultiGroupCalc) {
+    sStreamReaderCalcInfo->rtInfo.funcInfo.pStreamPesudoFuncVals = NULL;
+    sStreamReaderCalcInfo->rtInfo.funcInfo.pStreamPartColVals = NULL;
+  }
 
   if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST || code == TSDB_CODE_TDB_TABLE_NOT_EXIST){
     code = TDB_CODE_SUCCESS;
