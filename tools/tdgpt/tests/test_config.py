@@ -39,8 +39,8 @@ class TestConfig:
 
     def test_config_model_ports(self, mock_config):
         """Test that model ports are configured"""
-        assert mock_config.models["tdtsfm"]["port"] == 6036
-        assert mock_config.models["timemoe"]["port"] == 6037
+        assert mock_config.models["tdtsfm"]["port"] == 6061
+        assert mock_config.models["timemoe"]["port"] == 6062
 
     def test_config_paths_created(self, mock_config):
         """Test that config creates necessary paths"""
@@ -60,8 +60,8 @@ class TestConfig:
 bind = '127.0.0.1:8080'
 workers = 4
 models = {
-    "tdtsfm": {"script": "tdtsfm-server.py", "port": 6036, "required": True},
-    "timemoe": {"script": "timemoe-server.py", "port": 6037, "required": True},
+    "tdtsfm": {"script": "tdtsfm-server.py", "port": 6061, "required": True},
+    "timemoe": {"script": "timemoe-server.py", "port": 6062, "required": True},
 }
 """)
 
