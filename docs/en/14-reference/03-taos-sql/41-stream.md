@@ -43,17 +43,17 @@ true_for_expr: {
   | duration_time OR COUNT count_val
 }
 
-stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISORDER | DELETE_RECALC | DELETE_OUTPUT_TABLE | FILL_HISTORY[(start_time)] | FILL_HISTORY_FIRST[(start_time)] | CALC_NOTIFY_ONLY | LOW_LATENCY_CALC | PRE_FILTER(expr) | FORCE_OUTPUT | MAX_DELAY(delay_time) | EVENT_TYPE(event_types) | IGNORE_NODATA_TRIGGER}
+stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISORDER | DELETE_RECALC | DELETE_OUTPUT_TABLE | FILL_HISTORY[(start_time)] | FILL_HISTORY_FIRST[(start_time)] | CALC_NOTIFY_ONLY | LOW_LATENCY_CALC | PRE_FILTER(expr) | FORCE_OUTPUT | MAX_DELAY(delay_time) | EVENT_TYPE(event_types) | IGNORE_NODATA_TRIGGER | IDLE_TIMEOUT(duration_time)}
 
 notification_definition:
     NOTIFY(url [, ...]) [ON (event_types)] [WHERE condition] [NOTIFY_OPTIONS(notify_option[|notify_option])]
 
 notify_option: [NOTIFY_HISTORY | ON_FAILURE_PAUSE]
-    
+
 event_types:
-    event_type [|event_type]    
-    
-event_type: {WINDOW_OPEN | WINDOW_CLOSE}    
+    event_type [|event_type]
+
+event_type: {WINDOW_OPEN | WINDOW_CLOSE | IDLE | RESUME}
 
 tag_definition:
     tag_name type_name [COMMENT 'string_value'] AS expr
@@ -75,8 +75,8 @@ PERIOD(period_time[, offset_time])
 
 A scheduled trigger is driven by a fixed interval based on the system time, essentially functioning as a scheduled task. It does not belong to the category of window triggers. Parameter definitions are as follows:
 
-- period_time: The scheduling interval. Supported time units include milliseconds (a), seconds (s), minutes (m), hours (h), and days (d). The supported range is [10a, 3650d].
-- offset_time: (Optional) The scheduling offset. Supported units include milliseconds (a), seconds (s), minutes (m), and hours (h). The offset value must be less than 1 day.
+- period_time: The scheduling interval. Supported time units include milliseconds (a), seconds (s), minutes (m), hours (h), days (d), weeks (w), months (n), and years (y). The supported range is [10a, 3650d].
+- offset_time: (Optional) The scheduling offset. Supported units include milliseconds (a), seconds (s), minutes (m), hours (h), and days (d). For week/month/year units, the offset must be strictly less than the trigger period; for month units, validation is based on 28 days/month (e.g., `PERIOD(1n, 28d)` is invalid).
 
 Usage Notes:
 
@@ -84,9 +84,11 @@ Usage Notes:
   - If the scheduling interval is 5 hours 30 minutes, the trigger times for the day will be [00:00, 05:30, 11:00, 16:30, 22:00]. The trigger times for subsequent days will be the same.
   - With the same interval but an offset of 1 minute, the trigger times will be [00:01, 05:31, 11:01, 16:31, 22:01] each day.
   - Under the same conditions, if the stream is created when the system time is 12:00, the trigger times for the current day will be [16:31, 22:01]. From the next day onwards, the trigger times will be [00:01, 05:31, 11:01, 16:31, 22:01].
-- When the scheduling interval is greater than or equal to 1 day, the base time is calculated as midnight (00:00) of the current day plus the scheduling offset, and it will not reset on subsequent days. For example:
-  - If the scheduling interval is 1 day 1 hour and the stream is created when the system time is 05-01 12:00, the trigger times will be [05-02 01:00, 05-03 02:00, 05-04 03:00, 05-05 04:00, …].
-  - Under the same conditions, if the time offset is 1 minute, the trigger times will be [05-02 01:01, 05-03 02:02, 05-04 03:03, 05-05 04:04, …].
+- When the scheduling interval is greater than or equal to 1 day, the base time is calculated from the server timezone's Unix epoch (1970-01-01 00:00:00) plus the scheduling offset, aligned by integer multiples of the trigger interval to ensure global consistency across all tasks. For example:
+  - With a scheduling interval of 2 days, all tasks using this interval will trigger at times that are integer multiples of 2 days from the epoch (e.g., 1970-01-03 00:00:00, 1970-01-05 00:00:00, ...), ensuring global alignment.
+  - With a scheduling interval of 1 week (`PERIOD(1w)`), triggers align to every Monday at 00:00:00; `PERIOD(1w, 1d)` triggers every Tuesday at 00:00:00.
+  - With a scheduling interval of 1 month (`PERIOD(1n)`), triggers align to the 1st of each month at 00:00:00; `PERIOD(1n, 14d)` triggers on the 15th of each month at 00:00:00.
+  - With a scheduling interval of 1 year (`PERIOD(1y)`), triggers align to January 1st at 00:00:00 each year; `PERIOD(1y, 31d)` triggers on February 1st at 00:00:00 each year.
 
 Applicable scenarios: Situations requiring scheduled computation driven continuously by system time, such as generating daily statistics every hour, or sending scheduled statistical reports once a day.
 
@@ -346,6 +348,8 @@ When performing calculations, you may need to use contextual information from th
 | Window Trigger    | _twend           | End timestamp of currently open window. Used only with WINDOW_CLOSE trigger. |
 | Window Trigger    | _twduration      | Duration of currently open window. Used only with WINDOW_CLOSE trigger. |
 | Window Trigger    | _twrownum        | Number of rows in currently open window. Used only with WINDOW_CLOSE trigger. |
+| Idle Trigger      | _tidlestart      | The time (processing time) of the last data received by the group before it entered idle state. Nanosecond precision Unix epoch. Applicable only for IDLE/RESUME triggers. Cannot be mixed with `_twstart/_twend`. Since output tables are usually millisecond-precision, use `cast(_tidlestart/1000000 as timestamp)` to convert. |
+| Idle Trigger      | _tidleend        | The trigger time of the IDLE or RESUME event. Nanosecond precision Unix epoch. Applicable only for IDLE/RESUME triggers. Cannot be mixed with `_twstart/_twend`. Since output tables are usually millisecond-precision, use `cast(_tidleend/1000000 as timestamp)` to convert.|
 | All               | _tgrpid          | ID of trigger group (data type BIGINT)                       |
 | All               | _tlocaltime      | System time of current trigger (nanosecond precision)        |
 | All               | %%n              | Reference to trigger group column<br/>n is the column number in `[PARTITION BY col1[, ...]]`, starting with 1 |
@@ -363,7 +367,7 @@ Usage Restrictions:
 ```sql
 [STREAM_OPTIONS(stream_option [|...])]
 
-stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISORDER | DELETE_RECALC | DELETE_OUTPUT_TABLE | FILL_HISTORY[(start_time)] | FILL_HISTORY_FIRST[(start_time)] | CALC_NOTIFY_ONLY | LOW_LATENCY_CALC | PRE_FILTER(expr) | FORCE_OUTPUT | MAX_DELAY(delay_time) | EVENT_TYPE(event_types) | IGNORE_NODATA_TRIGGER}
+stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISORDER | DELETE_RECALC | DELETE_OUTPUT_TABLE | FILL_HISTORY[(start_time)] | FILL_HISTORY_FIRST[(start_time)] | CALC_NOTIFY_ONLY | LOW_LATENCY_CALC | PRE_FILTER(expr) | FORCE_OUTPUT | MAX_DELAY(delay_time) | EVENT_TYPE(event_types) | IGNORE_NODATA_TRIGGER | IDLE_TIMEOUT(duration_time)}
 ```
 
 Control options are used to manage trigger and computation behavior. Multiple options can be specified, but the same option cannot be specified more than once. The available options include:
@@ -383,10 +387,13 @@ Control options are used to manage trigger and computation behavior. Multiple op
 - EVENT_TYPE(event_types) specifies the types of events that can trigger a window. Multiple types may be selected. Default: WINDOW_CLOSE. Not applicable for sliding triggers without INTERVAL or for periodic (PERIOD) triggers (automatically ignored). Options:
   - WINDOW_OPEN: Window start event.
   - WINDOW_CLOSE: Window close event.
+  - IDLE: Group idle event. Triggered once when a group has not received any new data for longer than the `IDLE_TIMEOUT` duration. Requires `IDLE_TIMEOUT` to be configured.
+  - RESUME: Group resume event. Triggered immediately when an idle group receives new data again. Requires `IDLE_TIMEOUT` to be configured.
 - IGNORE_NODATA_TRIGGER ignores triggers when the trigger table has no input data. Applicable for sliding (SLIDING), time window (INTERVAL), and periodic (PERIOD) triggers.
   - Sliding and periodic triggers: If there is no data between two trigger times, the trigger is ignored.
   - Time window triggers: If no data exists in the window, the trigger is ignored.
   - Default: If not specified, triggers will occur even when no input data is present.
+- IDLE_TIMEOUT(duration_time) enables group idle detection and specifies the idle timeout duration. When a group has not received any new data for longer than this duration, it is considered idle and an IDLE event is triggered; when the idle group receives new data again, a RESUME event is triggered. Must be used together with `EVENT_TYPE(IDLE)` and/or `EVENT_TYPE(RESUME)`. Supported time units: milliseconds (a), seconds (s), minutes (m), hours (h), days (d). Valid range: `[1s, 10d]`. Idle detection is based on processing time (the time data arrives and is processed by the stream), using a monotonic clock to avoid being affected by system clock adjustments.
 
 ### Notification Mechanism in Stream Processing
 
@@ -401,7 +408,7 @@ notification_definition:
 event_types:
     event_type [|event_type]    
     
-event_type: {WINDOW_OPEN | WINDOW_CLOSE | ON_TIME}   
+event_type: {WINDOW_OPEN | WINDOW_CLOSE | ON_TIME | IDLE | RESUME}
 ```
 
 Details:
@@ -411,6 +418,8 @@ Details:
   - WINDOW_OPEN: Window open event; sent when a group window in the trigger table opens.
   - WINDOW_CLOSE: Window close event; sent when a group window in the trigger table closes.
   - ON_TIME: Scheduled trigger event; sent at the trigger time.
+  - IDLE: Group idle event; sent when a group enters idle state. Requires `IDLE_TIMEOUT` to be configured in `STREAM_OPTIONS`.
+  - RESUME: Group resume event; sent when an idle group receives data again. Requires `IDLE_TIMEOUT` to be configured in `STREAM_OPTIONS`.
 - [WHERE condition]: Specifies a condition that must be met for a notification to be sent. The condition may reference only columns from the computation result and/or constants.
 - [NOTIFY_OPTIONS(notify_option[|notify_option])]: Optional. Specifies one or more options to control notification behavior (use | to combine). Supported options:
   - NOTIFY_HISTORY: Send notifications during historical computation. Default: not sent.
@@ -526,7 +535,7 @@ The following sections describe each field in the notification message.
 These fields are shared by all event objects:
 
 - tableName: String. The name of the target child table associated with the event. When there is no output, this field does not exist.
-- eventType: String. The type of event. Supported values are WINDOW_OPEN, WINDOW_CLOSE, and WINDOW_INVALIDATION.
+- eventType: String. The type of event. Supported values are WINDOW_OPEN, WINDOW_CLOSE, WINDOW_INVALIDATION, IDLE, and RESUME.
 - eventTime: Long integer. The time the event was generated, in milliseconds since 00:00, Jan 1 1970 UTC.
 - triggerId: String. A unique identifier for the trigger event. Ensures that open and close events (if both exist) share the same ID, allowing external systems to correlate them. If taosd crashes and restarts, some events may be resent, but the same event will always retain the same triggerId.
 - triggerType: String. The type of trigger. Supported values include the two non-window types Period and SLIDING, as well as the five window types INTERVAL, State, Session, Event, and Count.
@@ -608,6 +617,21 @@ These fields apply only when triggerType is Count.
 - If eventType = WINDOW_CLOSE, the event object includes:
   - windowStart: Long integer timestamp indicating the window’s start time. Precision matches the time precision of the result table.
   - result: The computation result, expressed as key–value pairs containing the names of the result columns and their corresponding values.
+
+##### Fields for Idle Triggers
+
+These fields apply only when eventType is IDLE or RESUME.
+
+- If eventType = IDLE, the event object includes:
+  - idleStart: Long integer. The time of the last data received by the group before it entered idle state. Nanosecond precision Unix epoch.
+  - idleEnd: Long integer. The time the IDLE event was triggered. Nanosecond precision Unix epoch.
+  - idleDurationMs: Long integer. The duration of idle time in milliseconds, calculated using the monotonic clock.
+- If eventType = RESUME, the event object includes:
+  - idleStart: Long integer. The timestamp when the idle period began (same as the idleStart of the corresponding IDLE event). Nanosecond precision Unix epoch.
+  - idleEnd: Long integer. The time the RESUME event was triggered. Nanosecond precision Unix epoch.
+  - idleDurationMs: Long integer. The total duration from idle start to resume in milliseconds, calculated using the monotonic clock.
+
+The IDLE and RESUME events of the same idle cycle for a group share the same `triggerId`, allowing external systems to correlate the two events.
 
 ##### Fields for Window Invalidation
 
@@ -1017,4 +1041,73 @@ CREATE stream stream_consumer_energy
      SELECT cast(_tlocaltime/1000000 AS timestamp) ,sum(current*voltage) AS sum_power
           FROM meters
           WHERE ts >= cast(_tprev_localtime/1000000 AS timestamp) AND ts <= cast(_tlocaltime/1000000 AS timestamp);
+```
+
+- Every Monday at 00:00:00, compute the weekly device operation summary for the previous week and write the results to the weekly_summary table.
+
+```SQL
+CREATE STREAM weekly_device_summary
+  PERIOD(1w)
+  FROM meters PARTITION BY location
+  INTO weekly_summary
+  AS
+    SELECT _wstart AS week_start,
+           location,
+           AVG(current) AS avg_current,
+           MAX(voltage) AS max_voltage,
+           COUNT(*) AS record_count
+    FROM meters
+    INTERVAL(1w)
+    PARTITION BY location;
+```
+
+- On the 1st of each month at 00:00:00, compute the energy consumption bill for the previous month and write the results to the monthly_bill table.
+
+```SQL
+CREATE STREAM monthly_energy_bill
+  PERIOD(1n)
+  FROM meters PARTITION BY location, groupId
+  INTO monthly_bill
+  AS
+    SELECT _wstart AS month_start,
+           location,
+           groupId,
+           SUM(current * voltage) AS total_energy
+    FROM meters
+    INTERVAL(1n)
+    PARTITION BY location, groupId;
+```
+
+- On the 15th of each month at 00:00:00, compute the mid-month settlement report (using the offset parameter).
+
+```SQL
+CREATE STREAM mid_month_settlement
+  PERIOD(1n, 14d)
+  FROM meters PARTITION BY location
+  INTO mid_month_settlement_table
+  AS
+    SELECT _wstart AS period_start,
+           location,
+           SUM(current * voltage) AS total_energy
+    FROM meters
+    INTERVAL(1n)
+    PARTITION BY location;
+```
+
+- On January 1st at 00:00:00 each year, archive the full data from the previous year.
+
+```SQL
+CREATE STREAM yearly_archive
+  PERIOD(1y)
+  FROM meters PARTITION BY location, groupId
+  INTO yearly_archive_table
+  AS
+    SELECT _wstart AS year_start,
+           location,
+           groupId,
+           AVG(current) AS avg_current,
+           SUM(current * voltage) AS total_energy
+    FROM meters
+    INTERVAL(1y)
+    PARTITION BY location, groupId;
 ```

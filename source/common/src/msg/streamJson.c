@@ -419,6 +419,7 @@ static const char* jkCreateStreamReqFillHistoryFirst     = "fillHistoryFirst";
 static const char* jkCreateStreamReqCalcNotifyOnly       = "calcNotifyOnly";
 static const char* jkCreateStreamReqLowLatencyCalc       = "lowLatencyCalc";
 static const char* jkCreateStreamReqIgNoDataTrigger      = "igNoDataTrigger";
+static const char* jkCreateStreamReqMultiGroupCalc       = "multiGroupCalc";
 
 static const char* jkCreateStreamReqPNotifyAddrUrls      = "pNotifyAddrUrls";
 static const char* jkCreateStreamReqNotifyEventTypes     = "notifyEventTypes";
@@ -435,6 +436,7 @@ static const char* jkCreateStreamReqFillHistoryStartTime =
   "fillHistoryStartTime";
 static const char* jkCreateStreamReqWatermark            = "watermark";
 static const char* jkCreateStreamReqExpiredTime          = "expiredTime";
+static const char* jkCreateStreamReqIdleTimeoutMs        = "idleTimeoutMs";
 static const char* jkCreateStreamReqTrigger              = "trigger";
 
 static const char* jkCreateStreamReqTriggerTblType       = "triggerTblType";
@@ -531,6 +533,8 @@ static int32_t scmCreateStreamReqToJsonImpl(const void* pObj, void* pJson) {
     pJson, jkCreateStreamReqLowLatencyCalc, pReq->lowLatencyCalc));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(
     pJson, jkCreateStreamReqIgNoDataTrigger, pReq->igNoDataTrigger));
+  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(
+    pJson, jkCreateStreamReqMultiGroupCalc, pReq->enableMultiGroupCalc));
 
   // notify part
   TAOS_CHECK_RETURN(tjsonAddArray(
@@ -581,6 +585,8 @@ static int32_t scmCreateStreamReqToJsonImpl(const void* pObj, void* pJson) {
     pJson, jkCreateStreamReqWatermark, pReq->watermark));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(
     pJson, jkCreateStreamReqExpiredTime, pReq->expiredTime));
+  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(
+    pJson, jkCreateStreamReqIdleTimeoutMs, pReq->idleTimeoutMs));
   // trigger
   switch (pReq->triggerType) {
     case WINDOW_TYPE_SESSION:
@@ -789,6 +795,8 @@ int32_t jsonToSCMCreateStreamReq(const void* pJson, void* pObj) {
     pJson, jkCreateStreamReqLowLatencyCalc, &pReq->lowLatencyCalc));
   TAOS_CHECK_RETURN(tjsonGetTinyIntValue(
     pJson, jkCreateStreamReqIgNoDataTrigger, &pReq->igNoDataTrigger));
+  TAOS_CHECK_RETURN(tjsonGetTinyIntValue(
+    pJson, jkCreateStreamReqMultiGroupCalc, &pReq->enableMultiGroupCalc));
 
   // notify part
   TAOS_CHECK_RETURN(tjsonToTArray(
@@ -824,6 +832,8 @@ int32_t jsonToSCMCreateStreamReq(const void* pJson, void* pObj) {
     pJson, jkCreateStreamReqWatermark, &pReq->watermark));
   TAOS_CHECK_RETURN(tjsonGetBigIntValue(
     pJson, jkCreateStreamReqExpiredTime, &pReq->expiredTime));
+  TAOS_CHECK_RETURN(tjsonGetBigIntValue(
+    pJson, jkCreateStreamReqIdleTimeoutMs, &pReq->idleTimeoutMs));
   // trigger
   switch (pReq->triggerType) {
     case WINDOW_TYPE_SESSION:

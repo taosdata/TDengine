@@ -611,14 +611,24 @@ int32_t convertCalendarTimeFromUnitToPrecision(
 }
 
 int32_t convertStringToTimestamp(int16_t type, char* inputData, int64_t timePrec, int64_t* timeVal, timezone_t tz, void* charsetCxt) {
-  int32_t charLen = varDataLen(inputData);
-  char*   newColData;
-  if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_VARBINARY) {
+  int32_t charLen = 0;
+  char*   dataVal = NULL;
+
+  if (IS_STR_DATA_BLOB(type)) {
+    charLen = blobDataLen(inputData);
+    dataVal = blobDataVal(inputData);
+  } else {
+    charLen = varDataLen(inputData);
+    dataVal = varDataVal(inputData);
+  }
+
+  char* newColData;
+  if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_VARBINARY || IS_STR_DATA_BLOB(type)) {
     newColData = taosMemoryCalloc(1, charLen + 1);
     if (NULL == newColData) {
       TAOS_RETURN(terrno);
     }
-    (void)memcpy(newColData, varDataVal(inputData), charLen);
+    (void)memcpy(newColData, dataVal, charLen);
     int32_t ret = taosParseTime(newColData, timeVal, charLen, (int32_t)timePrec, tz);
     if (ret != TSDB_CODE_SUCCESS) {
       taosMemoryFree(newColData);
@@ -630,7 +640,7 @@ int32_t convertStringToTimestamp(int16_t type, char* inputData, int64_t timePrec
     if (NULL == newColData) {
       TAOS_RETURN(terrno);
     }
-    int len = taosUcs4ToMbs((TdUcs4*)varDataVal(inputData), charLen, newColData, charsetCxt);
+    int len = taosUcs4ToMbs((TdUcs4*)dataVal, charLen, newColData, charsetCxt);
     if (len < 0) {
       taosMemoryFree(newColData);
       TAOS_RETURN(TSDB_CODE_FAILED);
@@ -694,6 +704,116 @@ int32_t getDuration(int64_t val, char unit, int64_t* result, int32_t timePrecisi
     }
   }
   TAOS_RETURN(TSDB_CODE_SUCCESS);
+}
+
+/**
+ * @brief Align timestamp to natural calendar boundary (Monday/Month start/Year start)
+ *
+ * @param timestamp Input timestamp in specified precision
+ * @param unit Time unit: 'w' (week), 'n' (month), 'y' (year)
+ * @param value Period multiplier (e.g., 2 for 2 weeks)
+ * @param offset Offset from boundary in same precision as timestamp
+ * @param precision Time precision (TSDB_TIME_PRECISION_MILLI/MICRO/NANO)
+ * @param tz Timezone for calendar calculations
+ * @return Aligned timestamp at natural boundary + offset
+ *
+ * Examples:
+ * - alignToNaturalBoundary(ts, 'w', 1, 0, ...) -> Monday 00:00:00
+ * - alignToNaturalBoundary(ts, 'n', 1, 0, ...) -> 1st of month 00:00:00
+ * - alignToNaturalBoundary(ts, 'y', 1, 0, ...) -> Jan 1st 00:00:00
+ */
+int64_t alignToNaturalBoundary(int64_t timestamp, char unit, int64_t value, int64_t offset, int32_t precision,
+                               timezone_t tz) {
+  // Convert timestamp to seconds for calendar calculations
+  int64_t   precisionFactor = TSDB_TICK_PER_SECOND(precision);
+  time_t    t = timestamp / precisionFactor;
+  struct tm tm;
+  if (taosLocalTime(&t, &tm, NULL, 0,  tz) == NULL){
+    uError("%s failed to get local time, code:%d", __FUNCTION__, ERRNO);
+    return timestamp;
+  }
+
+  int64_t aligned = 0;
+
+  switch (unit) {
+    case 'w': {
+      // Align to Monday 00:00:00
+      int daysSinceMonday = (tm.tm_wday + 6) % 7;  // Convert Sunday=0 to Monday=0
+      tm.tm_mday -= daysSinceMonday;
+      tm.tm_hour = 0;
+      tm.tm_min = 0;
+      tm.tm_sec = 0;
+
+      // For multi-week periods, align based on epoch
+      time_t mondayTime = taosMktime(&tm, tz);
+      if (value > 1) {
+        // Calculate epoch Monday (1970-01-05 00:00:00) in the same timezone
+        struct tm epochTm = {0};
+        epochTm.tm_year = 70;   // 1970
+        epochTm.tm_mon = 0;     // January
+        epochTm.tm_mday = 5;    // 5th (first Monday)
+        epochTm.tm_hour = 0;
+        epochTm.tm_min = 0;
+        epochTm.tm_sec = 0;
+        epochTm.tm_isdst = -1;
+        time_t epochMonday = taosMktime(&epochTm, tz);
+
+        int64_t weeksSinceEpoch = (mondayTime - epochMonday) / (7 * 86400);
+        int64_t alignedWeeks = (weeksSinceEpoch / value) * value;
+        mondayTime = epochMonday + alignedWeeks * 7 * 86400;
+      }
+
+      aligned = (int64_t)mondayTime * precisionFactor;
+      break;
+    }
+
+    case 'n': {
+      // Align to 1st of month 00:00:00
+      tm.tm_mday = 1;
+      tm.tm_hour = 0;
+      tm.tm_min = 0;
+      tm.tm_sec = 0;
+
+      // For multi-month periods, align based on epoch
+      if (value > 1) {
+        int monthsSinceEpoch = (tm.tm_year - 70) * 12 + tm.tm_mon;
+        int alignedMonths = (monthsSinceEpoch / value) * value;
+        tm.tm_year = 70 + alignedMonths / 12;
+        tm.tm_mon = alignedMonths % 12;
+      }
+
+      aligned = (int64_t)taosMktime(&tm, tz) * precisionFactor;
+      break;
+    }
+
+    case 'y': {
+      // Align to Jan 1st 00:00:00
+      tm.tm_mon = 0;
+      tm.tm_mday = 1;
+      tm.tm_hour = 0;
+      tm.tm_min = 0;
+      tm.tm_sec = 0;
+
+      // For multi-year periods, align based on epoch
+      if (value > 1) {
+        int yearsSinceEpoch = tm.tm_year - 70;
+        int alignedYears = (yearsSinceEpoch / value) * value;
+        tm.tm_year = 70 + alignedYears;
+      }
+
+      aligned = (int64_t)taosMktime(&tm, tz) * precisionFactor;
+      break;
+    }
+
+    default:
+      // For other units, return timestamp as-is
+      return timestamp;
+  }
+
+  // Apply offset to the aligned boundary
+  // Offset is already in the same precision as the timestamp
+  // Example: PERIOD(1w, 1d) -> Monday 00:00:00 + 1 day = Tuesday 00:00:00
+  return aligned + offset;
 }
 
 /*
@@ -929,10 +1049,20 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
     if (IS_CALENDAR_TIME_DURATION(pInterval->intervalUnit)) {
       int64_t news = (ts / pInterval->sliding) * pInterval->sliding;
       if (pInterval->slidingUnit == 'd' || pInterval->slidingUnit == 'w') {
-#if defined(WINDOWS)
-        int64_t timezone = getWindowsTimezoneOffset();
-#endif
-        news += (int64_t)(timezone * TSDB_TICK_PER_SECOND(precision));
+        // taosGet*TimezoneOffset() returns east-positive (tm_gmtoff) values.
+        // The day/week anchor logic here expects west-positive offsets, so
+        // shift by subtracting the east-positive offset.
+        int64_t tz_offset = 0;
+        if (pInterval->timezone != NULL) {
+          // taosGetTZOffsetSeconds() returns east-positive for any timezone_t on all platforms.
+          int32_t code = 0;
+          tz_offset = taosGetTZOffsetSeconds(pInterval->timezone, &code);
+        } else {
+          // Use global configured timezone (also east-positive on all platforms).
+          int32_t code = 0;
+          tz_offset = taosGetLocalTimezoneOffset(&code);
+        }
+        news -= (int64_t)(tz_offset * TSDB_TICK_PER_SECOND(precision));
       }
 
       start = news;
@@ -959,21 +1089,30 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
       }
     } else {
       int64_t delta = ts - pInterval->interval;
-      int32_t factor = (delta >= 0) ? 1 : -1;
-
-      start = (delta / pInterval->sliding + factor) * pInterval->sliding;
+      start = (delta / pInterval->sliding) * pInterval->sliding;
 
       if (pInterval->intervalUnit == 'd' || pInterval->intervalUnit == 'w') {
         /*
          * here we revised the start time of day according to the local time zone,
          * but in case of DST, the start time of one day need to be dynamically decided.
+         *
+         * taosGet*TimezoneOffset() returns east-positive (tm_gmtoff) values.
+         * The day/week anchor logic here expects west-positive offsets, so
+         * shift by subtracting the east-positive offset.
          */
-        // todo refactor to extract function that is available for Linux/Windows/Mac platform
-#if defined(WINDOWS)
-        int64_t timezone = getWindowsTimezoneOffset();
-#endif
+        // Get timezone offset from pInterval->timezone or global config.
+        int64_t tz_offset = 0;
+        if (pInterval->timezone != NULL) {
+          // taosGetTZOffsetSeconds() returns east-positive for any timezone_t on all platforms.
+          int32_t code = 0;
+          tz_offset = taosGetTZOffsetSeconds(pInterval->timezone, &code);
+        } else {
+          // Use global configured timezone (also east-positive on all platforms).
+          int32_t code = 0;
+          tz_offset = taosGetLocalTimezoneOffset(&code);
+        }
 
-        start += (int64_t)(timezone * TSDB_TICK_PER_SECOND(precision));
+        start -= (int64_t)(tz_offset * TSDB_TICK_PER_SECOND(precision));
       }
 
       int64_t end = 0;

@@ -159,7 +159,7 @@ The syntax for the window clause is as follows:
 window_clause: {
     SESSION(ts_col, tol_val)
   | STATE_WINDOW(col [, extend[, zeroth_state]]) [TRUE_FOR(true_for_expr)]
-  | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [FILL(fill_mod_and_val)]
+  | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [fill_clause]
   | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition [TRUE_FOR(true_for_expr)]
 }
 ```
@@ -185,7 +185,7 @@ Time windows can be divided into: sliding time windows and tumbling time windows
 ```sql
 INTERVAL(interval_val [, interval_offset]) 
 [SLIDING (sliding_val)] 
-[FILL(fill_mod_and_val)]
+[fill_clause]
 ```
 
 The time window clause includes 3 sub-clauses:
@@ -322,38 +322,9 @@ Query OK, 5 row(s) in set (0.016812s)
 
 #### FILL Clause
 
-The FILL clause is used to specify the fill mode when data is missing in a window interval. The fill modes include the following:
+The INTERVAL clause supports using the FILL clause to specify the data filling method when data is missing. For how to use the FILL clause, please refer to [FILL Clause](../14-reference/03-taos-sql/20-select.md#fill-clause).
 
-1. No fill: NONE (default fill mode).
-1. VALUE fill: Fixed value fill, where the fill value must be specified. For example: FILL(VALUE, 1.23). Note that the final fill value is determined by the type of the corresponding column, such as FILL(VALUE, 1.23) for an INT type column, the fill value would be 1.
-1. PREV fill: Fill with the previous non-NULL value. For example: FILL(PREV).
-1. NULL fill: Fill with NULL. For example: FILL(NULL).
-1. LINEAR fill: Perform linear interpolation based on the nearest non-NULL values before and after. For example: FILL(LINEAR).
-1. NEXT fill: Fill with the next non-NULL value. For example: FILL(NEXT).
-
-Among these fill modes, except for the NONE mode which does not fill by default, other modes will be ignored if there is no data in the entire query time range, resulting in no fill data and an empty query result. This behavior is reasonable under some modes (PREV, NEXT, LINEAR) because no data means no fill value can be generated.
-
-For other modes (NULL, VALUE), theoretically, fill values can be generated. Whether to output fill values depends on the application's requirements. To meet the needs of applications that require forced filling of data or NULL, and to maintain compatibility with existing fill modes, TDengine also supports two new fill modes:
-
-1. NULL_F: Force fill with NULL values
-1. VALUE_F: Force fill with VALUE
-
-The differences between NULL, NULL_F, VALUE, and VALUE_F for different scenarios are as follows:
-
-1. INTERVAL clause: NULL_F, VALUE_F are forced fill modes; NULL, VALUE are non-forced modes. In this mode, their semantics match their names.
-1. Stream computing's INTERVAL clause: NULL_F and NULL behave the same, both are non-forced modes; VALUE_F and VALUE behave the same, both are non-forced modes. That is, there is no forced mode in stream computing's INTERVAL.
-1. INTERP clause: NULL and NULL_F behave the same, both are forced modes; VALUE and VALUE_F behave the same, both are forced modes. That is, there is no non-forced mode in INTERP.
-
-:::note
-
-1. Using the FILL statement may generate a large amount of filled output, be sure to specify the time range for the query.
-1. For each query, the system can return no more than 10 million results with interpolation.
-1. In time dimension aggregation, the returned results have a strictly monotonic increasing time sequence.
-1. If the query target is a supertable, the aggregate function will apply to the data of all tables under the supertable that meet the value filtering conditions. If the query does not use a PARTITION BY statement, the results are returned in a strictly monotonic increasing time sequence; if the query uses a PARTITION BY statement for grouping, the results within each PARTITION are strictly monotonic increasing in time sequence.
-
-:::
-
-Example:
+#### Example
 
 ```sql
 SELECT tbname, _wstart, _wend, avg(voltage)
@@ -551,6 +522,99 @@ The above SQL query returns the data from the supertable meters where the timest
  2022-01-01 00:15:00.000 | 2022-01-01 00:16:30.000 |          1000 |
 Query OK, 10 row(s) in set (0.062794s)
 ```
+
+### External Window
+
+External Window is a flexible windowing mechanism provided by TDengine TSDB that allows users to perform complex aggregation and correlation queries based on explicitly defined time windows. Unlike standard windows, external windows allow users to explicitly define the window start and end times through subqueries, enabling more sophisticated processing and analysis of time-series data.
+
+**Syntax:**
+
+```sql
+SELECT ... 
+FROM table_name
+[PARTITION BY expr_list]
+EXTERNAL_WINDOW (
+    (subquery_that_defines_windows) window_alias
+)
+[HAVING condition]
+[ORDER BY ...]
+```
+
+Where:
+
+- The first two columns of the subquery must be of timestamp type, representing the window start time and window end time respectively
+- Columns from the 3rd column onward become "window attribute columns"
+- The outer query performs independent calculations within each window range
+
+**Key Features:**
+
+1. **Flexible Window Definition:** Supports defining windows through regular subqueries, INTERVAL, EVENT_WINDOW, SESSION, and other window types.
+
+2. **Aggregation and Computation:** Supports aggregate functions like COUNT, AVG, SUM, MAX, MIN, FIRST, LAST, and scalar expressions.
+
+3. **Pseudo-column Support:** `_wstart` (window start time), `_wend` (window end time), and `_wduration` (window duration) can be used in SELECT, HAVING, and ORDER BY clauses.
+
+4. **Grouping and Alignment:**
+    - When both the external window (inner subquery) and outer query use PARTITION BY, automatic alignment is performed by grouping key; data from the same group only matches windows for that group.
+    - When the external window uses PARTITION BY but the outer query does not, it is prohibited by syntax.
+    - When the external window does not use PARTITION BY, calculations are performed on a global window basis.
+
+5. **Nested Calls Support:** Multiple levels of external window nesting are supported for complex event sequence analysis.
+
+### How to Reference Window Attribute Columns
+
+Columns after the first two columns in the subquery (e.g., equipment_id, fault_code, fault_level) become window attribute columns. The referencing rules are:
+
+1. Must be referenced using the window alias: `window_alias.column_name`, e.g., `w.equipment_id`, `w.fault_level`.
+2. Can be used in SELECT, HAVING, ORDER BY clauses.
+3. **Cannot be referenced in the WHERE clause** (WHERE filters outer table records before windows are generated; window attributes are only available after window definition and should be used in HAVING).
+
+**Usage Example:**
+
+**Scenario Background** - Factory Equipment Monitoring System:
+
+- `equipment_faults`: equipment fault events table (supertable), includes fault code `fault_code` and fault level `fault_level`
+- `system_alarms`: system alarm events table (supertable), includes alarm code `alarm_code` and measured value `alarm_value`
+- Both tables use `equipment_id` (equipment identifier) as a tag
+
+**Objective** - Use each equipment's fault event as a time window, collect alarm statistics within 60 seconds after the fault occurs. Output should include: fault information, number of alarms in the window, maximum measured value. Filter for windows with "alarm responses or critical faults", sorted by equipment and fault time.
+
+```sql
+SELECT
+    w.equipment_id,
+    w.fault_code,
+    w.fault_level,
+    _wstart                AS fault_start_time,
+    COUNT(sa.*)            AS alarm_count,
+    MAX(sa.alarm_value)    AS max_alarm_value,
+    AVG(sa.alarm_value)    AS avg_alarm_value
+FROM system_alarms sa
+PARTITION BY sa.equipment_id
+EXTERNAL_WINDOW (
+    (SELECT ts, ts + 60s, equipment_id, fault_code, fault_level
+     FROM equipment_faults
+     PARTITION BY equipment_id
+    ) w
+)
+HAVING COUNT(sa.*) > 0 OR w.fault_level = 'CRITICAL'
+ORDER BY w.equipment_id, fault_start_time;
+```
+
+**Result Explanation:**
+
+- Each row represents a fault window (driven by `equipment_faults`), with a window duration of 60 seconds after the fault occurred
+- `alarm_count`, `max_alarm_value`, `avg_alarm_value`: statistical metrics from `system_alarms` within the window
+- `w.equipment_id`, `w.fault_code`, `w.fault_level`: window attribute columns for filtering and displaying fault information
+- `HAVING` condition uses both standard aggregate functions (`COUNT`) and window attribute columns (`w.fault_level`)
+- `PARTITION BY` alignment: both inner and outer queries group by `equipment_id`, ensuring that each equipment's alarms only match that equipment's fault windows
+
+**Constraints and Limitations:**
+
+- Currently not supported in stream processing and subscriptions
+- The first two columns of the window subquery must be of timestamp type, representing window start and end times
+- Window data must be sorted in ascending order by _wstart
+- If the external window (inner subquery) uses PARTITION BY, the outer query must also use PARTITION BY; otherwise, a syntax error occurs
+- Variable-length functions (like DIFF, INTERP) are not supported within window scope
 
 ## Time Range Expression
 

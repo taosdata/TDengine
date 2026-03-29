@@ -29,6 +29,7 @@ TAOSDUMP = "taosdump"
 TAOSBACKUP = "taosBackup"
 TAOSBENCHMARK = "taosBenchmark"
 TAOSADAPTER = "taosadapter"
+TAOSK = "taosk"
 
 # taos
 def taosFile():
@@ -93,6 +94,18 @@ def taosAdapterFile():
         str: The full path to the `taosAdapter` binary file, with `.exe` appended if on Windows.
     """
     bmFile = binFile(TAOSADAPTER)
+    if isWin():
+        bmFile += ".exe"
+    return bmFile
+
+# taosk
+def taoskFile():
+    """Get the path to the `taosk` binary file.
+
+    Returns:
+        str: The full path to the `taosk` binary file, with `.exe` appended if on Windows.
+    """
+    bmFile = binFile(TAOSK)
     if isWin():
         bmFile += ".exe"
     return bmFile

@@ -2040,25 +2040,21 @@ char *queryCreateTableSql(void** taos_v, const char *dbName, char *tbName, bool 
         return NULL;
     }
 
-    // detect virtual table flag by checking tailing "VIRTUAL 1"
+    // detect virtual table flag by searching for "VIRTUAL 1" anywhere in output
+    // (it may be followed by other options such as SECURE_DELETE N, so end-of-string
+    // check is not sufficient)
     if (isVirtual) {
-        size_t end = (size_t)len;
-        // trim trailing whitespace and optional ';'
-        while (end > 0) {
-            char ch = data[end - 1];
-            if (ch == ' ' || ch == '\t' || ch == '\r' || ch == '\n' || ch == ';') {
-                end--;
-            } else {
+        const char keyword[] = "VIRTUAL 1";
+        size_t klen = sizeof(keyword) - 1;
+        bool found = false;
+        for (size_t i = 0; i + klen <= (size_t)len; i++) {
+            if ((i == 0 || data[i - 1] == ' ' || data[i - 1] == '\t') &&
+                strncasecmp(data + i, keyword, klen) == 0) {
+                found = true;
                 break;
             }
         }
-        const char suffix[] = "VIRTUAL 1";
-        size_t suffix_len = sizeof(suffix) - 1;
-        if (end >= suffix_len && strncasecmp(data + end - suffix_len, suffix, suffix_len) == 0) {
-            *isVirtual = true;
-        } else {
-            *isVirtual = false;
-        }
+        *isVirtual = found;
     }
 
     // prefix check
@@ -2549,6 +2545,12 @@ static void dumpCreateDbClause(
             : "CREATE DATABASE IF NOT EXISTS %s ",
             dbInfo->name);
     if (isDumpProperty) {
+        // vgroups
+        char vgroups[32] = "";
+        if (0 < dbInfo->vgroups) {
+            sprintf(vgroups, "VGROUPS %d", dbInfo->vgroups);
+        }
+
         char strict[STRICT_LEN] = "";
         if (0 == strcmp(dbInfo->strict, "strict")) {
             sprintf(strict, "STRICT %d", 1);
@@ -2611,8 +2613,10 @@ static void dumpCreateDbClause(
         }
 
         pstr += sprintf(pstr,
+                "%s "
                 "%s %s %s %s %s %s "
                 "%s %s PRECISION '%s' %s %s ",
+                vgroups,
                 (g_majorVersionOfClient < 3)?"":strict,
                 (g_majorVersionOfClient < 3)?quorum:"",
                 (g_majorVersionOfClient < 3)?days:duration,

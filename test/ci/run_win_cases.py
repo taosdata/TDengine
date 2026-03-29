@@ -73,11 +73,13 @@ def clean_taos_process(keywords=None):
     :param keywords: List[str]，用于匹配进程命令行的关键字列表。如果为 None，则默认匹配 'taos'。
     """
     if keywords is None:
-        keywords = ["taos", "taosd", "taosadapter", "taoskeeper", "taos-explorer", "taosx", "tmq_sim", "taosdump", "taosBenchmark" ]
+        keywords = ["taos", "taosd", "taosadapter", "taoskeeper", "taos-explorer", "taosdump", "taosBenchmark", "tmq_", "sml_", "write_raw_block_test", "get_db_name_test", "taosudf" ]
+    keywords = [k.lower() for k in keywords]  
 
     current_pid = os.getpid()
 
     for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+        pid = None
         try:
             if proc.info["pid"] == current_pid:
                 continue
@@ -85,6 +87,7 @@ def clean_taos_process(keywords=None):
             cmdline_parts = proc.info.get("cmdline") or []
             cmdline = " ".join(cmdline_parts).lower()
             proc_name = (proc.info.get("name") or "").lower()
+            pid = proc.info["pid"]
 
             # 跳过 Jenkins agent，避免断开 remoting channel 导致当前用例被系统回收
             if "agent.jar" in cmdline or "jenkins" in cmdline:
@@ -96,16 +99,73 @@ def clean_taos_process(keywords=None):
                 proc.terminate()  # 优雅终止进程
                 try:
                     proc.wait(timeout=5)  # 等待进程终止
-                    logger.info(f"Process {proc.info['pid']} terminated successfully.")
+                    logger.info(f"Process {pid} terminated successfully.")
                 except psutil.TimeoutExpired:
-                    logger.warning(f"Process {proc.info['pid']} did not terminate in time. Forcing termination.")
+                    logger.warning(f"Process {pid} did not terminate in time. Forcing termination.")
                     proc.kill()  # 强制终止进程
-                    proc.wait(timeout=5)  # 再次等待进程终止
-                    logger.info(f"Process {proc.info['pid']} killed successfully.")
+                    try:
+                        proc.wait(timeout=5)  # 再次等待进程终止
+                        logger.info(f"Process {pid} killed successfully.")
+                    except psutil.TimeoutExpired:
+                        logger.error(f"Process {pid} still alive after kill(), trying system command.")
+                        _force_kill_process(pid, proc_name)
         except psutil.NoSuchProcess:
-            logger.info(f"Process {proc.info.get('pid')} does not exist or already terminated.")
+            logger.info(f"Process {pid} does not exist or already terminated.")
         except Exception as e:
-            logger.error(f"Error while terminating process {proc.info.get('pid')}: {e}")
+            logger.error(f"Error while terminating process {pid}: {e}")
+
+
+def _force_kill_process(pid, proc_name=None):
+    """
+    使用系统命令强制终止顽固进程。
+    当 psutil 的 terminate/kill 都失败时作为备选方案。
+    """
+    import subprocess
+    import platform
+    
+    if pid is None:
+        return
+    
+    name_str = f" ({proc_name})" if proc_name else ""
+    logger.info(f"Force killing process {pid}{name_str} using system command...")
+    
+    try:
+        if platform.system() == "Windows":
+            # Windows: 先尝试 taskkill /t (包括子进程)
+            result = subprocess.run(
+                ["taskkill", "/f", "/t", "/pid", str(pid)],
+                capture_output=True,
+                text=True
+            )
+            if result.returncode == 0:
+                logger.info(f"Process {pid} killed by taskkill.")
+                return
+            else:
+                logger.warning(f"taskkill failed: {result.stderr.strip()}")
+            
+            # 如果 taskkill 失败，使用 wmic（更强力的方法）
+            result = subprocess.run(
+                ["wmic", "process", "where", f"processid={pid}", "delete"],
+                capture_output=True,
+                text=True
+            )
+            if "Instance deletion successful" in result.stdout or result.returncode == 0:
+                logger.info(f"Process {pid} killed by wmic.")
+            else:
+                logger.error(f"wmic failed: {result.stderr.strip() if result.stderr else result.stdout}")
+        else:
+            # Linux/Mac: 使用 kill -9
+            result = subprocess.run(
+                ["kill", "-9", str(pid)],
+                capture_output=True,
+                text=True
+            )
+            if result.returncode == 0:
+                logger.info(f"Process {pid} killed by kill -9.")
+            else:
+                logger.error(f"kill -9 failed: {result.stderr.strip()}")
+    except Exception as e:
+        logger.error(f"Error during force kill of {pid}: {e}")
 
 def zip_dir(dir_path, zip_path):
     with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
@@ -167,16 +227,30 @@ def process_pytest_file(input_file, log_path="C:\\CI_logs",
         # 1. 结束残留进程
         clean_taos_process()
         
-        # 2. 等待句柄释放
-        time.sleep(1)
+        # 2. 等待句柄释放（Windows 需要更长时间）
+        time.sleep(3)
         
-        # 3. 删除 sim 目录，失败则终止
+        # 3. 删除 sim 目录，使用 safe_rmtree 带重试机制
         if os.path.exists(work_dir):
             try:
-                shutil.rmtree(work_dir)
+                safe_rmtree(work_dir, retries=15, delay=2)
                 logger.info(f"Removed {work_dir}")
             except Exception as e:
                 logger.error(f"CRITICAL: Failed to remove {work_dir}: {e}")
+                # 列出占用文件的进程，帮助诊断
+                if sys.platform == "win32":
+                    try:
+                        logger.info("Attempting to identify processes holding handles to work_dir...")
+                        # 使用 psutil 检查是否有进程仍在使用该目录
+                        for proc in psutil.process_iter(['pid', 'name']):
+                            try:
+                                for item in proc.open_files():
+                                    if work_dir in item.path:
+                                        logger.warning(f"Process {proc.pid} ({proc.name()}) is holding: {item.path}")
+                            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                                pass
+                    except Exception as diag_e:
+                        logger.error(f"Failed to diagnose handle holders: {diag_e}")
                 raise RuntimeError(f"Cleanup failed: cannot remove work_dir") from e
 
     with open(input_file, 'r', encoding="utf-8", errors="ignore") as f:
@@ -185,6 +259,31 @@ def process_pytest_file(input_file, log_path="C:\\CI_logs",
             if not line or line.startswith('#'):
                 continue
 
+            # 先用 win_ignore_cases 匹配，统一处理需要跳过的 case
+            # 提取第五列 command，检查其路径部分是否在排除列表中
+            should_skip = False
+            if len(exclusion_list) > 0:
+                parts = line.split(',')
+                if len(parts) >= 5:
+                    command = parts[4].strip()
+                    # 提取 command 中的路径部分进行匹配
+                    # 如 "pytest cases/xx/test.py" -> "cases/xx/test.py"
+                    # 如 "bash 82-UnitTest/test.sh" -> "82-UnitTest/test.sh"
+                    if command:
+                        cmd_parts = command.split(' ')
+                        for i in range(1, len(cmd_parts)):
+                            if cmd_parts[i] in exclusion_list:
+                                should_skip = True
+                                break
+            
+            if should_skip:
+                skipped_cases += 1
+                logger.info(f"Case in win_ignore_cases, skip: {line}")
+                result_str = f"Skip\t{line}\t\t\t\n"
+                with open(result_file, "a", encoding="utf-8") as rf:
+                    rf.write(result_str)
+                continue
+            
             # 解析 pytest 命令 - 格式: priority,rerunTimes,sanitizer(y/n),path,command
             # 检查格式: 第三列是 y/n，第五列决定使用 ./ci/pytest.sh 还是 pytest
             parts = line.split(',')
@@ -197,7 +296,7 @@ def process_pytest_file(input_file, log_path="C:\\CI_logs",
                 logger.error(f"格式错误: 第三列必须是 y 或 n, 实际为 '{sanitizer}': {line}")
                 continue
             
-            # 根据原逻辑解析
+            # 根据原逻辑解析 pytest 命令
             if "ci/pytest.sh " in line:
                 pytest_cmd = line.split("ci/pytest.sh ")[1]
             else:
@@ -207,16 +306,7 @@ def process_pytest_file(input_file, log_path="C:\\CI_logs",
                 logger.warning(f"异常pytest命令: {pytest_cmd}")
                 continue
 
-            case_base_name = pytest_cmd.split(" ")[1]
-            if case_base_name and len(exclusion_list) > 0 and case_base_name in exclusion_list:
-                skipped_cases += 1
-                logger.info(f"Case {case_base_name} not support runnning on Windows. Skip test.")
-                result_str = f"Skip\t{pytest_cmd}\t\t\t\n"
-                with open(result_file, "a", encoding="utf-8") as rf:
-                    rf.write(result_str)
-                continue
-
-            case_name = pytest_cmd.split("/")[-1].replace(" ", "_")
+            case_name = pytest_cmd.split("/")[-1].replace(" ", "_")  # 获取用例名称
             total_cases += 1
             log_file = os.path.join(log_dir, f"{case_name}.log")
 

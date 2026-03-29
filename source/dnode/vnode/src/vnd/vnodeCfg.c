@@ -24,6 +24,7 @@ const SVnodeCfg vnodeCfgDefault = {.vgId = -1,
                                    .szCache = 256,
                                    .cacheLast = 3,
                                    .cacheLastSize = 8,
+                                   .cacheLastShardBits = -1,  // -1 means auto-calculate
                                    .szBuf = 96 * 1024 * 1024,
                                    .isHeap = false,
                                    .isWeak = 0,
@@ -100,6 +101,7 @@ int vnodeEncodeConfig(const void *pObj, SJson *pJson) {
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "szCache", pCfg->szCache));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "cacheLast", pCfg->cacheLast));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "cacheLastSize", pCfg->cacheLastSize));
+  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "cacheLastShardBits", pCfg->cacheLastShardBits));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "szBuf", pCfg->szBuf));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "isHeap", pCfg->isHeap));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "isWeak", pCfg->isWeak));
@@ -122,6 +124,7 @@ int vnodeEncodeConfig(const void *pObj, SJson *pJson) {
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "tsdbPageSize", pCfg->tsdbPageSize));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "isAudit", pCfg->isAudit));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "allowDrop", pCfg->allowDrop));
+  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "secureDelete", pCfg->secureDelete));
   if (pCfg->tsdbCfg.retentions[0].keep > 0) {
     int32_t nRetention = 1;
     if (pCfg->tsdbCfg.retentions[1].freq > 0) {
@@ -222,6 +225,11 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   if (code) return code;
   tjsonGetNumberValue(pJson, "cacheLastSize", pCfg->cacheLastSize, code);
   if (code) return code;
+  tjsonGetNumberValue(pJson, "cacheLastShardBits", pCfg->cacheLastShardBits, code);
+  if (code) {
+    pCfg->cacheLastShardBits = -1;  // Default to auto-calculate for old configs
+    code = 0;
+  }
   tjsonGetNumberValue(pJson, "szBuf", pCfg->szBuf, code);
   if (code) return code;
   tjsonGetNumberValue(pJson, "isHeap", pCfg->isHeap, code);
@@ -408,6 +416,14 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   tjsonGetNumberValue(pJson, "isAudit", pCfg->isAudit, code);
   if (pCfg->isAudit < TSDB_MIN_DB_IS_AUDIT || pCfg->isAudit > TSDB_MAX_DB_IS_AUDIT) {
     pCfg->isAudit = 0;
+  }
+  if (tjsonGetObjectItem(pJson, "secureDelete") != NULL) {
+    tjsonGetNumberValue(pJson, "secureDelete", pCfg->secureDelete, code);
+    if (pCfg->secureDelete < TSDB_MIN_DB_SECURE_DELETE || pCfg->secureDelete > TSDB_MAX_DB_SECURE_DELETE) {
+      pCfg->secureDelete = TSDB_DEFAULT_DB_SECURE_DELETE;
+    }
+  } else {
+    pCfg->secureDelete = TSDB_DEFAULT_DB_SECURE_DELETE;
   }
   if (tjsonGetObjectItem(pJson, "allowDrop") == NULL) {
     pCfg->allowDrop = TSDB_DEFAULT_DB_ALLOW_DROP;

@@ -46,17 +46,17 @@ true_for_expr: {
   | duration_time OR COUNT count_val
 }
 
-stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISORDER | DELETE_RECALC | DELETE_OUTPUT_TABLE | FILL_HISTORY[(start_time)] | FILL_HISTORY_FIRST[(start_time)] | CALC_NOTIFY_ONLY | LOW_LATENCY_CALC | PRE_FILTER(expr) | FORCE_OUTPUT | MAX_DELAY(delay_time) | EVENT_TYPE(event_types)}
+stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISORDER | DELETE_RECALC | DELETE_OUTPUT_TABLE | FILL_HISTORY[(start_time)] | FILL_HISTORY_FIRST[(start_time)] | CALC_NOTIFY_ONLY | LOW_LATENCY_CALC | PRE_FILTER(expr) | FORCE_OUTPUT | MAX_DELAY(delay_time) | EVENT_TYPE(event_types) | IDLE_TIMEOUT(duration_time)}
 
 notification_definition:
     NOTIFY(url [, ...]) [ON (event_types)] [WHERE condition] [NOTIFY_OPTIONS(notify_option[|notify_option])]
 
 notify_option: [NOTIFY_HISTORY | ON_FAILURE_PAUSE]
-    
+
 event_types:
-    event_type [|event_type]    
-    
-event_type: {WINDOW_OPEN | WINDOW_CLOSE}    
+    event_type [|event_type]
+
+event_type: {WINDOW_OPEN | WINDOW_CLOSE | IDLE | RESUME}
 
 tag_definition:
     tag_name type_name [COMMENT 'string_value'] AS expr
@@ -97,6 +97,8 @@ tag_definition:
 - `_twend`：本次触发窗口的结束时间戳
 - `_twduration`：本次触发窗口的持续时间
 - `_twrownum`：本次触发窗口的记录条数
+- `_tidlestart`：分组进入空闲前最后一次收到数据的时间（ns 精度），只适用于 `IDLE`/`RESUME` 触发，不可与 `_twstart/_twend` 混用
+- `_tidleend`：IDLE 或 RESUME 事件的触发时间（ns 精度），只适用于 `IDLE`/`RESUME` 触发，不可与 `_twstart/_twend` 混用
 - `_tprev_localtime`：上一次触发时刻的系统时间
 - `_tnext_localtime`：下一次触发时刻的系统时间
 - `_tgrpid`：触发分组的 ID 值
@@ -120,8 +122,9 @@ tag_definition:
 - PRE_FILTER(expr) ：指定在触发进行前对触发表进行数据过滤处理，只有符合条件的数据才会进入触发判断。
 - FORCE_OUTPUT：指定计算结果强制输出选项。
 - MAX_DELAY(delay_time)：指定在窗口未关闭时的最长等待的时长（处理时间）。
-- EVENT_TYPE(event_types)：指定窗口触发的事件类型，包括窗口启动事件和窗口关闭事件。
+- EVENT_TYPE(event_types)：指定窗口触发的事件类型，包括窗口启动事件和窗口关闭事件，以及空闲（IDLE）和恢复（RESUME）事件。
 - IGNORE_NODATA_TRIGGER：指定忽略触发表无输入数据时的触发。
+- IDLE_TIMEOUT(duration_time)：开启分组空闲检测，指定空闲超时时长（有效范围 1s 到 10d）。需与 `EVENT_TYPE(IDLE)` 和（或）`EVENT_TYPE(RESUME)` 配合使用。
 
 ### 通知机制
 

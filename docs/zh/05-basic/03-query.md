@@ -159,7 +159,7 @@ Query OK, 10 row(s) in set (2.415961s)
 window_clause: {
     SESSION(ts_col, tol_val)
   | STATE_WINDOW(col [, extend[, zeroth_state]]) [TRUE_FOR(true_for_expr)]
-  | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [WATERMARK(watermark_val)] [FILL(fill_mod_and_val)]
+  | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [WATERMARK(watermark_val)] [fill_clause]
   | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition [TRUE_FOR(true_for_expr)]
   | COUNT_WINDOW(count_val[, sliding_val])
 }
@@ -182,7 +182,7 @@ window_clause: {
 ```sql
 INTERVAL(interval_val [, interval_offset]) 
 [SLIDING (sliding_val)] 
-[FILL(fill_mod_and_val)]
+[fill_clause]
 ```
 
 时间窗口子句包括 3 个子句：
@@ -317,40 +317,15 @@ Query OK, 5 row(s) in set (0.016812s)
 
 #### FILL 子句
 
-1. 不进行填充：NONE（默认填充模式）。
-2. VALUE 填充：固定值填充，此时需要指定填充的数值。例如：FILL(VALUE, 1.23)。这里需要注意，最终填充的值受由相应列的类型决定，如 FILL(VALUE, 1.23)，相应列为 INT 类型，则填充值为 1，若查询列表中有多列需要 FILL，则需要给每一个 FILL 列指定 VALUE，如 `SELECT _wstart, min(c1), max(c1) FROM ... FILL(VALUE, 0, 0)`。注意，SELECT 表达式中只有包含普通列时才需要指定 FILL VALUE，如 `_wstart`、`_wstart+1a`、`now`、`1+1` 以及使用 partition by 时的 partition key (如 tbname) 都不需要指定 VALUE,，如 `timediff(last(ts), _wstart)` 则需要指定 VALUE。
-3. PREV 填充：使用前一个非 NULL 值填充数据。例如：FILL(PREV)。
-4. NULL 填充：使用 NULL 填充数据。例如：FILL(NULL)。
-5. LINEAR 填充：根据前后距离最近的非 NULL 值做线性插值填充。例如：FILL(LINEAR)。
-6. NEXT 填充：使用下一个非 NULL 值填充数据。例如：FILL(NEXT)。
+INTERVAL 子句支持使用 FILL 子句来指定数据缺失时的数据填充方法。关于 FILL 子句如何使用请参考 [FILL 子句](../14-reference/03-taos-sql/20-select.md#fill-子句)。
 
-以上填充模式中，除了 NONE 模式默认不填充值之外，其他模式在查询的整个时间范围内如果没有数据 FILL 子句将被忽略，即不产生填充数据，查询结果为空。这种行为在部分模式（PREV、NEXT、LINEAR）下具有合理性，因为在这些模式下没有数据意味着无法产生填充数值。
-
-对另外一些模式（NULL、VALUE）来说，理论上是可以产生填充数值的，至于需不需要输出填充数值，取决于应用的需求。所以为了满足这类需要强制填充数据或 NULL 的应用的需求，同时不破坏现有填充模式的行为兼容性，TDengine TSDB 还支持两种新的填充模式：
-
-1. NULL_F：强制填充 NULL 值
-2. VALUE_F：强制填充 VALUE 值
-
-NULL、NULL_F、VALUE、VALUE_F 这几种填充模式针对不同场景区别如下：
-
-1. INTERVAL 子句：NULL_F、VALUE_F 为强制填充模式；NULL、VALUE 为非强制模式。在这种模式下下各自的语义与名称相符
-2. 流计算中的 INTERVAL 子句：NULL_F 与 NULL 行为相同，均为非强制模式；VALUE_F 与 VALUE 行为相同，均为非强制模式。即流计算中的 INTERVAL 没有强制模式
-3. INTERP 子句：NULL 与 NULL_F 行为相同，均为强制模式；VALUE 与 VALUE_F 行为相同，均为强制模式。即 INTERP 中没有非强制模式。
-
-**注意** ：
-
-1. 使用 FILL 语句的时候可能生成大量的填充输出，务必指定查询的时间区间。
-2. 针对每次查询，系统可返回不超过 1 千万条具有插值的结果。
-3. 在时间维度聚合中，返回的结果中时间序列严格单调递增。
-4. 如果查询对象是超级表，则聚合函数会作用于该超级表下满足值过滤条件的所有表的数据。如果查询中没有使用 PARTITION BY 语句，则返回的结果按照时间序列严格单调递增；如果查询中使用了 PARTITION BY 语句分组，则返回结果中每个 PARTITION 内按照时间序列严格单调递增。
-
-示例：
+#### 示例
 
 ```sql
 SELECT tbname, _wstart, _wend, avg(voltage)
 FROM meters
-WHERE ts >= "2022-01-01T00:00:00+08:00" 
-AND ts < "2022-01-01T00:05:00+08:00" 
+WHERE ts >= "2022-01-01T00:00:00+08:00"
+AND ts < "2022-01-01T00:05:00+08:00"
 PARTITION BY tbname
 INTERVAL(1m) FILL(prev)
 SLIMIT 2;
@@ -542,6 +517,101 @@ count_window(1000);
  2022-01-01 00:15:00.000 | 2022-01-01 00:16:30.000 |          1000 |
 Query OK, 10 row(s) in set (0.062794s)
 ```
+
+### 外部窗口
+
+外部窗口（External Window）用于“先定义窗口，再在窗口内计算”。
+
+与 INTERVAL、EVENT_WINDOW 等内建窗口不同，外部窗口的时间范围由子查询显式给出，适合做跨事件关联、窗口复用、分层过滤等复杂分析。
+
+**语法：**
+
+```sql
+SELECT ... 
+FROM table_name
+[PARTITION BY expr_list]
+EXTERNAL_WINDOW (
+    (subquery_that_defines_windows) window_alias
+)
+[HAVING condition]
+[ORDER BY ...]
+```
+
+其中：
+
+- 子查询的前两列必须是 timestamp 类型，分别表示窗口开始时间和窗口结束时间
+- 子查询第 3 列及之后的列会成为“窗口属性列”
+- 外部查询会在每个窗口范围内独立计算
+
+**核心特性：**
+
+1. **窗口定义的灵活性：** 支持普通子查询、INTERVAL、EVENT_WINDOW、SESSION 等方式生成窗口。
+
+2. **聚合和计算：** 支持 COUNT、AVG、SUM、MAX、MIN、FIRST、LAST 等聚合函数，以及标量表达式运算。
+
+3. **伪列支持：** `_wstart`（窗口开始时间）、`_wend`（窗口结束时间）、`_wduration`（窗口时长）可在 SELECT、HAVING、ORDER BY 子句中使用。
+
+4. **分组和对齐：**
+    - 当外部窗口（内部子查询）与外部查询都使用 PARTITION BY 时，按分组键自动对齐，同组数据仅匹配同组窗口。
+    - 当外部窗口使用 PARTITION BY，但外部查询未使用 PARTITION BY 时，语法禁止。
+    - 当外部窗口未使用 PARTITION BY 时，按全局窗口计算。
+
+5. **嵌套调用支持：** 支持多层外部窗口嵌套，实现复杂事件序列分析。
+
+### 窗口属性列如何引用
+
+子查询中前两列之后的列（例如 equipment_id、fault_code、fault_level）会作为窗口属性列。引用规则如下：
+
+1. 必须使用窗口别名引用：`window_alias.column_name`，例如 `w.equipment_id`、`w.fault_level`。
+2. 可用于 SELECT、HAVING、ORDER BY 子句。
+3. **不能在 WHERE 子句中引用**（WHERE 用于过滤外部表记录，此时窗口尚未生成；窗口属性只有在窗口定义后才可用，应该在 HAVING 中使用）。
+
+**使用示例：**
+
+**场景背景** - 工厂设备监控系统：
+
+- `equipment_faults`：设备故障事件表（超级表），包含故障代码 `fault_code`、故障等级 `fault_level`
+- `system_alarms`：系统告警事件表（超级表），包含告警代码 `alarm_code`、测量值 `alarm_value`
+- 两表均以 `equipment_id`（设备标识符）作为标签
+
+**目标** - 以每台设备的故障事件为时间窗口，统计故障发生后 60 秒内触发的告警情况。输出应包含：故障信息、该窗口内告警数量、最大测量值，并过滤出"有告警响应或属于严重故障"的窗口，按设备和故障时间排序。
+
+```sql
+SELECT
+    w.equipment_id,
+    w.fault_code,
+    w.fault_level,
+    _wstart                AS fault_start_time,
+    COUNT(sa.*)            AS alarm_count,
+    MAX(sa.alarm_value)    AS max_alarm_value,
+    AVG(sa.alarm_value)    AS avg_alarm_value
+FROM system_alarms sa
+PARTITION BY sa.equipment_id
+EXTERNAL_WINDOW (
+    (SELECT ts, ts + 60s, equipment_id, fault_code, fault_level
+     FROM equipment_faults
+     PARTITION BY equipment_id
+    ) w
+)
+HAVING COUNT(sa.*) > 0 OR w.fault_level = 'CRITICAL'
+ORDER BY w.equipment_id, fault_start_time;
+```
+
+**结果说明：**
+
+- 每行代表一个故障窗口（由 `equipment_faults` 驱动），窗口时长为故障发生后 60 秒
+- `alarm_count`、`max_alarm_value`、`avg_alarm_value`：该窗口内来自 `system_alarms` 的统计指标
+- `w.equipment_id`、`w.fault_code`、`w.fault_level`：窗口属性列，用于过滤和展示故障信息
+- `HAVING`条件同时使用了标准聚合函数 (`COUNT`) 和窗口属性列 (`w.fault_level`)
+- `PARTITION BY` 对齐：内外查询均按 `equipment_id` 分组，确保每台设备的告警只与该设备的故障窗口匹配
+
+**约束与限制：**
+
+- 暂时不支持在流计算和订阅中使用
+- 窗口子查询的前两列必须为 timestamp 类型，分别表示窗口开始和结束时间
+- 窗口数据必须按 _wstart 升序排列
+- 若外部窗口（内部子查询）使用了分组，则外部查询必须同时使用 PARTITION BY；否则语法报错
+- 不支持窗口作用域内的不定行函数（如 DIFF、INTERP）
 
 ## 时间范围表达式
 

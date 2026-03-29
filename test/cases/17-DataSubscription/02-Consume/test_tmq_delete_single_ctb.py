@@ -62,12 +62,12 @@ class TestCase:
         return
 
     def delData(self,tsql,dbName,ctbPrefix,ctbNum,startTs=0,endTs=0,ctbStartIdx=0):
-        tdLog.debug("start to del data ............")
+        tdLog.info("start to del data ............")
         for i in range(ctbNum):
             sql = "delete from %s.%s%d where _c0 >= %d and _c0 <= %d "%(dbName,ctbPrefix,i+ctbStartIdx,startTs,endTs)
             tsql.execute(sql)
 
-        tdLog.debug("del data ............ [OK]")
+        tdLog.info("del data ............ [OK]")
         return
 
     def threadFunctionForDeletaData(self, paraDict):

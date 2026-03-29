@@ -109,6 +109,17 @@ IF("${ADVANCED_SECURITY}" MATCHES "true")
     ADD_DEFINITIONS(-DTD_ENABLE_ADVANCED_SECURITY)
 ENDIF()
 
+IF("${ASSERT_NOT_CORE}" MATCHES "true")
+    ADD_DEFINITIONS(-DASSERT_NOT_CORE)
+    MESSAGE(STATUS "Disable assert not core")
+ELSE()
+    MESSAGE(STATUS "Enable assert not core")
+ENDIF()
+
+IF(${FLEX_DEPLOY})
+    ADD_DEFINITIONS(-DTD_FLEX_DEPLOY)
+ENDIF()
+
 SET(TAOS_LIB taos)
 SET(TAOS_LIB_STATIC taos_static)
 SET(TAOS_NATIVE_LIB taosnative)
@@ -131,7 +142,10 @@ IF(TD_WINDOWS)
         MESSAGE("${Green} will build Release version! ${ColourReset}")
         # NOTE: let cmake to choose default compile options
         message(STATUS "do NOT forget to remove the following line and check if it works or not!!!")
-        SET(COMMON_FLAGS "/W3 /D_WIN32 /DWIN32 /Zi- /O2 /GL /MD")
+        # /Zi  : generate a separate PDB file (previously /Zi- which disabled it entirely).
+        # The PDB is NOT shipped to the user but must be archived internally per version
+        # so that crash dumps from the field can be symbolicated with WinDbg / VS.
+        SET(COMMON_FLAGS "/W3 /D_WIN32 /DWIN32 /Zi /O2 /GL /MD")
     ELSE()
         MESSAGE("${Green} will build Debug version! ${ColourReset}")
         # NOTE: let cmake to choose default compile options
@@ -139,6 +153,11 @@ IF(TD_WINDOWS)
     ENDIF()
 
     SET(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /MANIFEST:NO /FORCE:MULTIPLE")
+    # /DEBUG:FULL  keep full debug info in the PDB for Release builds so that
+    # crash dumps collected from the field can be fully symbolicated.
+    # The flag is harmless for Debug builds (they already carry full info).
+    SET(CMAKE_EXE_LINKER_FLAGS_RELEASE "${CMAKE_EXE_LINKER_FLAGS_RELEASE} /DEBUG:FULL /OPT:REF /OPT:ICF")
+    SET(CMAKE_SHARED_LINKER_FLAGS_RELEASE "${CMAKE_SHARED_LINKER_FLAGS_RELEASE} /DEBUG:FULL /OPT:REF /OPT:ICF")
 
     # IF (MSVC AND (MSVC_VERSION GREATER_EQUAL 1900))
     # SET(COMMON_FLAGS "${COMMON_FLAGS} /Wv:18")
@@ -228,6 +247,7 @@ ELSE()
     ENDIF()
 
     INCLUDE(CheckCCompilerFlag)
+    INCLUDE(CheckCXXCompilerFlag)
 
     IF(TD_ARM_64 OR TD_ARM_32)
         SET(COMPILER_SUPPORT_SSE42 false)
@@ -253,6 +273,9 @@ ELSE()
         CHECK_C_COMPILER_FLAG("-mavx512vbmi" COMPILER_SUPPORT_AVX512BMI)
         CHECK_C_COMPILER_FLAG("-mavx512vl" COMPILER_SUPPORT_AVX512VL)
     ENDIF()
+
+    CHECK_C_COMPILER_FLAG("-Wno-stringop-overread" COMPILER_SUPPORT_WNO_STRINGOP_OVERREAD)
+    CHECK_CXX_COMPILER_FLAG("-Wno-stringop-overread" COMPILER_SUPPORT_CXX_WNO_STRINGOP_OVERREAD)
 
     IF(COMPILER_SUPPORT_SSE42)
         SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -msse4.2")
@@ -307,8 +330,14 @@ ELSE()
         SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS_REL}")
         SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS_REL}")
     elseif(TD_LINUX)
-        SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Werror -fPIC -g3 -gdwarf-2 -Wno-format-truncation -Wno-write-strings -Wno-format-overflow -Wno-stringop-overread")
-        SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror -fPIC -g3 -gdwarf-2 -Wno-format-truncation -Wno-write-strings -Wno-format-overflow -Wno-conversion-null -Wno-stringop-overread")
+        SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Werror -fPIC -g3 -gdwarf-2 -Wno-format-truncation -Wno-write-strings -Wno-format-overflow")
+        SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror -fPIC -g3 -gdwarf-2 -Wno-format-truncation -Wno-write-strings -Wno-format-overflow -Wno-conversion-null")
+        IF(COMPILER_SUPPORT_WNO_STRINGOP_OVERREAD)
+            SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-stringop-overread")
+        ENDIF()
+        IF(COMPILER_SUPPORT_CXX_WNO_STRINGOP_OVERREAD)
+            SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-stringop-overread")
+        ENDIF()
     elseif(TD_DARWIN)
         SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Werror -Werror=return-type -fPIC -g3 -gdwarf-2 -Wformat=2 -Wno-format-nonliteral -Wno-format-y2k -Wno-deprecated-declarations")
         SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror -Werror=return-type -fPIC -g3 -gdwarf-2 -Wno-reserved-user-defined-literal -Wformat=2 -Wno-format-nonliteral -Wno-format-y2k -Wno-deprecated-declarations -Wno-literal-conversion -Wno-writable-strings -Wno-unused-value -Wno-format -Wno-null-conversion")

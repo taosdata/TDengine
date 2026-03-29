@@ -44,11 +44,13 @@ typedef struct SDeleterRes {
   int64_t  affectedRows;
   char     tableName[TSDB_TABLE_NAME_LEN];
   char     tsColName[TSDB_COL_NAME_LEN];
+  int8_t   secureDelete;
 } SDeleterRes;
 
 typedef struct SDeleterParam {
   uint64_t suid;
   SArray*  pUidList;
+  int8_t   secureDelete;
 } SDeleterParam;
 
 typedef enum {

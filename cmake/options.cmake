@@ -254,33 +254,23 @@ option(
 
 ENDIF ()
 
-# NOTE: only ON under TD_LINUX
-option(
-    BUILD_WITH_ANALYSIS
-    "If build with analysis"
-    ${TD_LINUX}
-)
+IF (${TD_LINUX} OR ${TD_WINDOWS})
+    option(BUILD_WITH_ANALYSIS "If build with analysis" ON)
+ELSE()
+    option(BUILD_WITH_ANALYSIS "If build with analysis" OFF)
+ENDIF()
 
 # NOTE: set option variable in this ways is not a good practice
-IF(NOT TD_ENTERPRISE)
-  MESSAGE("switch shared storage off with community version")
+IF((NOT TD_ENTERPRISE) OR TD_WINDOWS)
+  MESSAGE("switch shared storage off with community/windows edition")
   set(BUILD_SHARED_STORAGE OFF)
   set(BUILD_WITH_S3 OFF)
   set(BUILD_WITH_COS OFF)
-  set(BUILD_WITH_ANALYSIS OFF)
+ELSE()
+  MESSAGE("switch shared storage ON with enterprise Linux edition")
+  set(BUILD_SHARED_STORAGE ON)
+  set(BUILD_WITH_S3 ON)  
 ENDIF ()
-
-# NOTE: set option variable in this ways is not a good practice
-IF(${BUILD_WITH_ANALYSIS})
-    message("build with analysis")
-    set(BUILD_SHARED_STORAGE ON)
-    set(BUILD_WITH_S3 ON)
-ENDIF()
-
-# NOTE: set option variable in this ways is not a good practice
-IF(${TD_LINUX})
-    set(BUILD_WITH_ANALYSIS ON)
-ENDIF()
 
 IF(${BUILD_SHARED_STORAGE})
   add_definitions(-DUSE_SHARED_STORAGE)
@@ -359,12 +349,6 @@ option(
 ENDIF ()
 
 option(
-    BUILD_DOCS
-    "If use doxygen build documents"
-    OFF
-)
-
-option(
    BUILD_WITH_INVERTEDINDEX
    "If use invertedIndex"
    ON
@@ -387,6 +371,12 @@ option(
     BUILD_LIBSASL
     "If build libsasl2"
     ON
+)
+
+option(
+    FLEX_DEPLOY
+    "If enable flexible deployment mode"
+    OFF
 )
 
 message(STATUS "BUILD_SHARED_STORAGE:${BUILD_SHARED_STORAGE}")

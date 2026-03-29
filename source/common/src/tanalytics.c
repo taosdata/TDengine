@@ -20,7 +20,12 @@
 #include "osTime.h"
 
 #ifdef USE_ANALYTICS
-#include <curl/curl.h>
+
+#if defined(WINDOWS)
+#define CURL_STATICLIB
+#endif
+
+#include "curl/curl.h"
 
 #define ANALYTICS_ALOG_SPLIT_CHAR ","
 
@@ -221,7 +226,7 @@ bool taosAnalyGetOptStr(const char *option, const char *optName, char *optValue,
   int32_t valLen = taosHashGetValueSize(pVal);
 
   if (optValue != NULL && optMaxLen >= 1) {
-    int32_t len = MIN(valLen + 1, optMaxLen);
+    int32_t len = TMIN(valLen + 1, optMaxLen);
     tstrncpy(optValue, (char *)pVal, len);
   }
 
@@ -314,7 +319,7 @@ static int32_t taosCurlGetRequest(const char *url, SCurlResp *pRsp) {
   if (curl_easy_setopt(curl, CURLOPT_URL, url) != 0) goto _OVER;
   if (curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, taosCurlWriteData) != 0) goto _OVER;
   if (curl_easy_setopt(curl, CURLOPT_WRITEDATA, pRsp) != 0) goto _OVER;
-  if (curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, 1000) != 0) goto _OVER;
+  if (curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, 20000) != 0) goto _OVER;
 
   uDebug("curl get request will sent, url:%s", url);
   code = curl_easy_perform(curl);
@@ -588,7 +593,6 @@ static int32_t taosAnalyJsonBufWriteColBegin(SAnalyticBuf *pBuf, int32_t colInde
 static int32_t taosAnalyJsonBufWriteColEnd(SAnalyticBuf *pBuf, int32_t colIndex) {
   if (colIndex == pBuf->numOfCols - 1) {
     return taosAnalyJsonBufWriteStrUseCol(pBuf, "\n]\n", 0, colIndex);
-
   } else {
     return taosAnalyJsonBufWriteStrUseCol(pBuf, "\n],\n", 0, colIndex);
   }

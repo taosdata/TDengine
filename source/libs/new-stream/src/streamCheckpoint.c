@@ -290,7 +290,7 @@ int32_t streamSyncWriteCheckpoint(int64_t streamId, SEpSet* epSet, void* data, i
 
   if (data == NULL) {
     int32_t ret = streamReadCheckPoint(streamId, &data, &dataLen);
-    if (ret != TSDB_CODE_SUCCESS || terrno == TAOS_SYSTEM_ERROR(ENOENT)) {
+    if (ret != TSDB_CODE_SUCCESS || errorIsFileNotExist(terrno)) {
       dataLen = 2 * INT_BYTES + LONG_BYTES;
       taosMemoryFreeClear(data);
       data = taosMemoryCalloc(1, 2 * INT_BYTES + LONG_BYTES);

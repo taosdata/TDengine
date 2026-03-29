@@ -16,6 +16,7 @@
 #include <gtest/gtest.h>
 #include <inttypes.h>
 #include <iostream>
+#include <cstring>
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wwrite-strings"
@@ -51,16 +52,205 @@ TEST(osTest, locale) {
 }
 
 TEST(osTest, memory) {
-  int32_t ret = taosMemoryDbgInitRestore();
+  // Test taosMemoryDbgInit
+  int32_t ret = taosMemoryDbgInit();
+#if defined(LINUX) && !defined(_ALPINE) && !defined(TD_ASTRA)
   EXPECT_EQ(ret, 0);
+#else
+  EXPECT_NE(ret, 0);
+#endif
 
+  // Test taosMemoryDbgInitRestore
+  ret = taosMemoryDbgInitRestore();
+#if defined(LINUX) && !defined(_ALPINE) && !defined(TD_ASTRA)
+  EXPECT_EQ(ret, 0);
+#else
+  EXPECT_NE(ret, 0);
+#endif
+
+  // Test taosMemSize with NULL
   int64_t ret64 = taosMemSize(NULL);
   EXPECT_EQ(ret64, 0);
+
+  // Test basic memory allocation and free
+  void *ptr1 = taosMemMalloc(1024);
+  ASSERT_NE(ptr1, nullptr);
+  
+  ret64 = taosMemSize(ptr1);
+#if defined(WINDOWS) || defined(_TD_DARWIN_64) || !defined(TD_ASTRA)
+  EXPECT_GT(ret64, 0);
+#endif
+  
+  taosMemFree(ptr1);
+  
+  // Test taosMemCalloc
+  void *ptr2 = taosMemCalloc(10, 100);
+  ASSERT_NE(ptr2, nullptr);
+  taosMemFree(ptr2);
+  
+  // Test taosMemRealloc
+  void *ptr3 = taosMemMalloc(512);
+  ASSERT_NE(ptr3, nullptr);
+  
+  void *ptr4 = taosMemRealloc(ptr3, 1024);
+  ASSERT_NE(ptr4, nullptr);
+  taosMemFree(ptr4);
+  
+  // Test taosMemRealloc with NULL (should behave like malloc)
+  void *ptr5 = taosMemRealloc(NULL, 256);
+  ASSERT_NE(ptr5, nullptr);
+  taosMemFree(ptr5);
+  
+  // Test taosStrdupi
+  const char *testStr = "Hello TDengine";
+  char *ptr6 = (char*)taosMemMalloc(strlen(testStr) + 1);
+  ASSERT_NE(ptr6, nullptr);
+  strcpy(ptr6, testStr);
+  
+  char *dupStr = taosStrdupi(ptr6);
+  ASSERT_NE(dupStr, nullptr);
+  EXPECT_STREQ(dupStr, testStr);
+  taosMemFree(dupStr);
+  taosMemFree(ptr6);
+  
+  // Test taosMemTrim with NULL trimed parameter
+  ret = taosMemTrim(0, NULL);
+  EXPECT_EQ(ret, TSDB_CODE_SUCCESS);
+  
+  // Test taosMemTrim with trimed parameter
+  bool trimed = false;
+  ret = taosMemTrim(0, &trimed);
+  EXPECT_EQ(ret, TSDB_CODE_SUCCESS);
+  
+  // Test taosMemMallocAlign
+#if defined(LINUX) && !defined(USE_TD_MEMORY)
+  void *alignedPtr = taosMemMallocAlign(16, 1024);
+  ASSERT_NE(alignedPtr, nullptr);
+  
+  // Check alignment
+  EXPECT_EQ((uintptr_t)alignedPtr % 16, 0);
+  taosMemFree(alignedPtr);
+  
+  // Test large alignment
+  void *alignedPtr2 = taosMemMallocAlign(256, 2048);
+  ASSERT_NE(alignedPtr2, nullptr);
+  EXPECT_EQ((uintptr_t)alignedPtr2 % 256, 0);
+  taosMemFree(alignedPtr2);
+#else
+  // On non-Linux or USE_TD_MEMORY, should return NULL or fallback to malloc
+  void *alignedPtr3 = taosMemMallocAlign(16, 1024);
+#ifdef USE_TD_MEMORY
+  EXPECT_EQ(alignedPtr3, nullptr);
+#else
+  if (alignedPtr3 != nullptr) {
+    taosMemFree(alignedPtr3);
+  }
+#endif
+#endif
+
+  // Test edge cases
+  void *zero_alloc = taosMemMalloc(0);
+  if (zero_alloc != nullptr) {
+    taosMemFree(zero_alloc);
+  }
+  
+  void *zero_calloc = taosMemCalloc(0, 100);
+  if (zero_calloc != nullptr) {
+    taosMemFree(zero_calloc);
+  }
+  
+  void *zero_calloc2 = taosMemCalloc(100, 0);
+  if (zero_calloc2 != nullptr) {
+    taosMemFree(zero_calloc2);
+  }
+  
+  // Test free NULL (should not crash)
+  taosMemFree(NULL);
 }
 
-TEST(osTest, rand2) {
-  char str[128] = {0};
-  taosRandStr2(str, 100);
+TEST(osTest, rand) {
+  // Test taosSeedRand and taosRand
+  taosSeedRand(12345);
+  uint32_t r1 = taosRand();
+  EXPECT_GT(r1, 0);
+
+  taosSeedRand(12345);
+  uint32_t r2 = taosRand();
+  EXPECT_EQ(r1, r2);  // Same seed should produce same result
+
+  // Test taosRandR (thread-safe random)
+  uint32_t seed = 54321;
+  uint32_t r3 = taosRandR(&seed);
+  EXPECT_GT(r3, 0);
+
+  uint32_t seed2 = 54321;
+  uint32_t r4 = taosRandR(&seed2);
+  EXPECT_EQ(r3, r4);  // Same seed should produce same result
+
+  // Test taosSafeRand
+  uint32_t safeRand1 = taosSafeRand();
+  uint32_t safeRand2 = taosSafeRand();
+  // Safe random should produce different values (with high probability)
+  // We just check they are valid
+  EXPECT_GE(safeRand1, 0);
+  EXPECT_GE(safeRand2, 0);
+
+  // Test taosSafeRandBytes
+  uint8_t bytes[32] = {0};
+  taosSafeRandBytes(bytes, 32);
+  // Check that at least some bytes are non-zero (with very high probability)
+  bool hasNonZero = false;
+  for (int i = 0; i < 32; i++) {
+    if (bytes[i] != 0) {
+      hasNonZero = true;
+      break;
+    }
+  }
+  EXPECT_TRUE(hasNonZero);
+
+  // Test with different sizes
+  uint8_t bytes2[1] = {0};
+  taosSafeRandBytes(bytes2, 1);
+
+  uint8_t bytes3[128] = {0};
+  taosSafeRandBytes(bytes3, 128);
+
+  // Test taosRandStr
+  char str1[64] = {0};
+  taosRandStr(str1, 63);
+  EXPECT_EQ(strlen(str1), 63);
+
+  // Verify characters are from the expected set
+  const char* validChars = "abcdefghijklmnopqrstuvwxyz0123456789-_.";
+  for (size_t i = 0; i < strlen(str1); i++) {
+    EXPECT_NE(strchr(validChars, str1[i]), nullptr);
+  }
+
+  // Test with different sizes
+  char str2[10] = {0};
+  taosRandStr(str2, 5);
+  EXPECT_EQ(strlen(str2), 5);
+
+  // Test taosRandStr2
+  char str3[128] = {0};
+  taosRandStr2(str3, 100);
+  EXPECT_EQ(strlen(str3), 100);
+
+  // Verify characters are from the expected set
+  const char* validChars2 = "abcdefghijklmnopqrstuvwxyz0123456789@";
+  for (size_t i = 0; i < strlen(str3); i++) {
+    EXPECT_NE(strchr(validChars2, str3[i]), nullptr);
+  }
+
+  // Test with different sizes
+  char str4[20] = {0};
+  taosRandStr2(str4, 10);
+  EXPECT_EQ(strlen(str4), 10);
+
+  // Test edge case: size 1
+  char str5[2] = {0};
+  taosRandStr2(str5, 1);
+  EXPECT_EQ(strlen(str5), 1);
 }
 
 TEST(osTest, socket2) {
@@ -92,7 +282,8 @@ TEST(osTest, socket2) {
 }
 
 TEST(osTest, time2) {
-  taosGetLocalTimezoneOffset();
+  int32_t code = 0;
+  taosGetLocalTimezoneOffset(&code);
 
   char  buf[12] = {0};
   char  fmt[12] = {0};

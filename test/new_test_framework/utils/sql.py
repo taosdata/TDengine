@@ -756,6 +756,7 @@ class TDSql:
         Raises:
             SystemExit: If the expected error does not occur or if the error information does not match the expected information.
         """
+        filename, lineno = _fast_caller(1)
         expectErrNotOccured = True
         if show:
             tdLog.info(sql)
@@ -774,19 +775,19 @@ class TDSql:
             ).replace("'", "")
             # self.error_info = (','.join(error_info.split(",")[:-1]).split("(",1)[1:][0]).replace("'","")
         if expectErrNotOccured:
-            filename, lineno = _fast_caller(1)
             tdLog.exit(
                 "%s(%d) failed: sql:%s, expect error not occured"
                 % (filename, lineno, sql)
             )
         else:
+            filename, lineno = _fast_caller(1)
             self.queryRows = 0
             self.queryCols = 0
             self.queryResult = None
             if fullMatched:
                 if expectedErrno != None:
                     expectedErrno_rest = expectedErrno & 0x0000FFFF
-                    if expectedErrno == self.errno or expectedErrno_rest == self.errno:
+                    if expectedErrno == self.errno or expectedErrno_rest == (self.errno & 0x0000FFFF):
                         tdLog.info(
                             "sql:%s, expected errno %s occured" % (sql, expectedErrno)
                         )
@@ -822,7 +823,24 @@ class TDSql:
             else:
                 if expectedErrno != None:
                     expectedErrno_rest = expectedErrno & 0x0000FFFF
-                    if expectedErrno in self.errno or expectedErrno_rest in self.errno:
+                    if isinstance(self.errno, (list, tuple, set)):
+                        errno_matched = (
+                            expectedErrno in self.errno
+                            or expectedErrno_rest in self.errno
+                        )
+                    elif isinstance(self.errno, int):
+                        errno_matched = (
+                            expectedErrno == self.errno
+                            or expectedErrno_rest == (self.errno & 0x0000FFFF)
+                        )
+                    else:
+                        errno_text = str(self.errno)
+                        errno_matched = (
+                            str(expectedErrno) in errno_text
+                            or str(expectedErrno_rest) in errno_text
+                        )
+
+                    if errno_matched:
                         tdLog.info(
                             "sql:%s, expected errno %s occured" % (sql, expectedErrno)
                         )

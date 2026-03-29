@@ -167,7 +167,7 @@ void sifMakeLogicNode(SNode **pNode, ELogicConditionType opType, SNode **nodeLis
   *pNode = (SNode *)onode;
 }
 
-void sifMakeTargetNode(SNode **pNode, int16_t dataBlockId, int16_t slotId, SNode *snode) {
+void sifMakeTargetNode(SNode **pNode, int64_t dataBlockId, int16_t slotId, SNode *snode) {
   SNode       *node = (SNode *)nodesMakeNode(QUERY_NODE_TARGET);
   STargetNode *onode = (STargetNode *)node;
   onode->pExpr = snode;
