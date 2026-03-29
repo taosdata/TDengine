@@ -24,8 +24,10 @@ class _SHESDService(AbstractAnomalyDetectionService):
         if self.input_is_empty():
             return []
 
+        period = self.period if self.period > 0 else max(2, len(self.list) // 2)
+
         results = detect_vec(Series(self.list), max_anoms=self.max_anoms, direction=self.direction,
-                             period=self.period)
+                             period=period)
 
         res_val = results['anoms']['anoms']
 
