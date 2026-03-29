@@ -75,7 +75,7 @@ ENDIF()
 #
 # collect --version information
 #
-MESSAGE("collect --version show info:")
+MESSAGE(STATUS "collect --version show info:")
 # version
 IF (DEFINED TD_VER_NUMBER)
     # TODO: global compile flags???

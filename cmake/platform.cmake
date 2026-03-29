@@ -9,7 +9,7 @@ else()
     set(CXX_COMPILER_IS_GNU FALSE)
 endif()
 
-MESSAGE("Current system: ${CMAKE_SYSTEM_NAME}")
+MESSAGE(STATUS "Current system: ${CMAKE_SYSTEM_NAME}")
 
 IF (${CMAKE_SYSTEM_NAME} MATCHES "Linux" OR ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
 
@@ -21,7 +21,7 @@ IF (${CMAKE_SYSTEM_NAME} MATCHES "Linux" OR ${CMAKE_SYSTEM_NAME} MATCHES "Darwin
         set(CMAKE_SHARED_LIBRARY_CREATE_CXX_FLAGS "${CMAKE_SHARED_LIBRARY_CREATE_CXX_FLAGS} -undefined dynamic_lookup")
     ENDIF ()
 
-    MESSAGE("Current system processor: ${CMAKE_SYSTEM_PROCESSOR}")
+    MESSAGE(STATUS "Current system processor: ${CMAKE_SYSTEM_PROCESSOR}")
 
     IF (${CMAKE_SYSTEM_NAME} MATCHES "Linux")
 
@@ -57,14 +57,14 @@ IF (${CMAKE_SYSTEM_NAME} MATCHES "Linux" OR ${CMAKE_SYSTEM_NAME} MATCHES "Darwin
         ADD_DEFINITIONS("-DDARWIN -Wno-tautological-pointer-compare")
 
         IF (${CMAKE_SYSTEM_PROCESSOR} MATCHES "arm64")
-            MESSAGE("Current system arch is arm64")
+            MESSAGE(STATUS "Current system arch is arm64")
             SET(TD_DARWIN_64 TRUE)
             SET(TD_DARWIN_ARM64 TRUE)
             ADD_DEFINITIONS("-D_TD_DARWIN_64")
             ADD_DEFINITIONS("-D_TD_DARWIN_ARM64")
         ENDIF ()
         IF (${CMAKE_SYSTEM_PROCESSOR} MATCHES "x86_64")
-            MESSAGE("Current system arch is x86_64")
+            MESSAGE(STATUS "Current system arch is x86_64")
             SET(TD_DARWIN_64 TRUE)
             SET(TD_DARWIN_X64 TRUE)
             ADD_DEFINITIONS("-D_TD_DARWIN_64")
@@ -216,5 +216,5 @@ else ()
 endif()
 MESSAGE(STATUS "DEPS_DIR: " ${TD_DEPS_DIR})
 
-MESSAGE("C Compiler: ${CMAKE_C_COMPILER} (${CMAKE_C_COMPILER_ID}, ${CMAKE_C_COMPILER_VERSION})")
-MESSAGE("CXX Compiler: ${CMAKE_CXX_COMPILER} (${CMAKE_C_COMPILER_ID}, ${CMAKE_CXX_COMPILER_VERSION})")
+MESSAGE(STATUS "C Compiler: ${CMAKE_C_COMPILER} (${CMAKE_C_COMPILER_ID}, ${CMAKE_C_COMPILER_VERSION})")
+MESSAGE(STATUS "CXX Compiler: ${CMAKE_CXX_COMPILER} (${CMAKE_C_COMPILER_ID}, ${CMAKE_CXX_COMPILER_VERSION})")
