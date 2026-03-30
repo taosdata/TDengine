@@ -140,8 +140,15 @@ class TaosD:
                     start_cmd = f"mintty -h never {taosd_path} -c {dnode['config_dir']}"
                     self._remote.cmd_windows(cfg["fqdn"], [start_cmd])
                 else:
-                    start_cmd = f"screen -L -d -m {taosd_path} -c {dnode['config_dir']}  "
-                    self._remote.cmd(cfg["fqdn"], ["ulimit -n 1048576", start_cmd])
+                    if cfg["fqdn"] == self._local_host or cfg["fqdn"] == "localhost":
+                        start_cmd = (
+                            f"nohup {taosd_path} -c {dnode['config_dir']} "
+                            "> /dev/null 2>&1 &"
+                        )
+                        self._remote.cmd(cfg["fqdn"], [start_cmd])
+                    else:
+                        start_cmd = f"screen -L -d -m {taosd_path} -c {dnode['config_dir']}  "
+                        self._remote.cmd(cfg["fqdn"], ["ulimit -n 1048576", start_cmd])
         
         if self.taosd_valgrind == 0:
             time.sleep(0.1)
@@ -155,16 +162,19 @@ class TaosD:
                     i += 1
                     if i > 50:
                         break
-                with open(logFile) as f:
-                    timeout = time.time() + 10 * 2
-                    while True:
-                        line = f.readline().encode('utf-8')
-                        if bkey in line:
-                            break
-                        if time.time() > timeout:
-                            self.logger.error('wait too long for taosd start')
-                            break
-                    self.logger.debug("the dnode:%d has been started." % (index))
+                if os.path.exists(logFile):
+                    with open(logFile) as f:
+                        timeout = time.time() + 10 * 2
+                        while True:
+                            line = f.readline().encode('utf-8')
+                            if bkey in line:
+                                break
+                            if time.time() > timeout:
+                                self.logger.error('wait too long for taosd start')
+                                break
+                else:
+                    self.logger.warning("skip taosd log readiness check because %s is not generated yet", logFile)
+                self.logger.debug("the dnode:%d has been started." % (index))
         else:
             self.logger.debug(
                 "wait 10 seconds for the dnode:%d to start." %(index))
@@ -191,8 +201,22 @@ class TaosD:
             generate_meta = True
             generate_data = True
             
-            # Check dnode config for encryption settings
-            if "encrypt" in dnode.get("config", {}):
+            # Check dedicated dnode encryption settings first so they won't be
+            # serialized into taos.cfg as an invalid dict literal.
+            if "encrypt" in dnode:
+                need_encrypt = True
+                encrypt_cfg = dnode["encrypt"]
+                if isinstance(encrypt_cfg, dict):
+                    svr_key = encrypt_cfg.get("svrKey")
+                    db_key = encrypt_cfg.get("dbKey")
+                    data_key = encrypt_cfg.get("dataKey")
+                    generate_config = encrypt_cfg.get("generateConfig", True)
+                    generate_meta = encrypt_cfg.get("generateMeta", True)
+                    generate_data = encrypt_cfg.get("generateData", True)
+
+            # Backward-compatible path for callers that still attach encrypt
+            # settings under the config payload.
+            elif "encrypt" in dnode.get("config", {}):
                 need_encrypt = True
                 encrypt_cfg = dnode["config"]["encrypt"]
                 if isinstance(encrypt_cfg, dict):

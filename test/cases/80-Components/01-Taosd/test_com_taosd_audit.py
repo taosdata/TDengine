@@ -1,146 +1,60 @@
-from new_test_framework.utils import tdLog, tdSql, tdDnodes, tdCom, cluster
-import taos
-import sys
-import time
 import socket
-# import pexpect
-import os
-import http.server
-import gzip
-import threading
-import json
-import pickle
-import platform
+import time
 
-import threading
+from new_test_framework.utils import tdLog, tdSql
 
-telemetryPort = '6043'
-serverPort = '6030'
-hostname = "localhost" #socket.gethostname()
 
-createTableReceived = False
-insertReceived = False
-selectReceived = False
-deleteReceived = False
-class RequestHandlerImpl(http.server.BaseHTTPRequestHandler):
-    hostPort = hostname + ":" + serverPort
+def _is_local_port_free(port):
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.settimeout(0.2)
+        return sock.connect_ex(("127.0.0.1", port)) != 0
 
-    def telemetryInfoCheck(self, infoDict=''):
-        global createThreadExited
-        global createTableReceived
-        global insertReceived
-        global selectReceived
-        global deleteReceived
-        
-        if  "records" not in infoDict or len(infoDict["records"]) == 0:
-            tdLog.exit("records is null!")
 
-        count = 0
-        while count < len(infoDict["records"]):
+def _pick_local_ports():
+    for port in range(16030, 20000):
+        mqtt_port = port + 53
+        if _is_local_port_free(port) and _is_local_port_free(mqtt_port):
+            return str(port), str(mqtt_port)
+    raise RuntimeError("failed to find free local ports for taosd audit test")
 
-            if "operation" not in infoDict["records"][count]:
-                tdLog.exit("operation is null!")
-            else:
-                if infoDict["records"][count]["operation"] == "createTable":
-                    tdLog.info("operation is %s!"%infoDict["records"][count]["operation"])
-                    createTableReceived = True
-                elif infoDict["records"][count]["operation"] == "insert":
-                    tdLog.info("operation is %s!"%infoDict["records"][count]["operation"])
-                    insertReceived = True
-                elif infoDict["records"][count]["operation"] == "select":
-                    tdLog.info("operation is %s!"%infoDict["records"][count]["operation"])
-                    selectReceived = True
-                elif infoDict["records"][count]["operation"] == "delete":
-                    tdLog.info("operation is %s!"%infoDict["records"][count]["operation"])
-                    deleteReceived = True
-                else:
-                    if "details" not in infoDict["records"][count] or infoDict["records"][count]["details"] != "delete from db3.tb":
-                        tdLog.exit("details is null!")
-                    else:
-                        tdLog.info("details is %s!"%infoDict["records"][count]["details"])
-            count = count + 1
 
-        if createTableReceived and insertReceived and deleteReceived and selectReceived:
-            tdLog.info("set createThreadExited to True")
-            createThreadExited = True 
-            # shutdown the server and exit case
-            assassin = threading.Thread(target=self.server.shutdown)
-            assassin.daemon = True
-            assassin.start()
-            print ("==== shutdown http server ====")           
-        else:
-            tdLog.info("waiting for all telemetry info received %d, %d, %d, %d"%(createTableReceived, insertReceived, selectReceived, deleteReceived))
+SERVER_PORT, MQTT_PORT = _pick_local_ports()
 
-    def do_GET(self):
-        """
-        process GET request
-        """
-
-    def do_POST(self):
-        """
-        process POST request
-        """
-        print ("receive POST request")
-        contentEncoding = self.headers["Content-Encoding"]
-
-        if contentEncoding == 'gzip':
-            req_body = self.rfile.read(int(self.headers["Content-Length"]))
-            plainText = gzip.decompress(req_body).decode()
-        else:
-            plainText = self.rfile.read(int(self.headers["Content-Length"])).decode()
-
-        print(plainText)
-        # 1. send response code and header
-        self.send_response(200)
-        self.send_header("Content-Type", "text/html; charset=utf-8")
-        self.end_headers()
-
-        # 2. send response content
-        #self.wfile.write(("Hello World: " + req_body + "\n").encode("utf-8"))
-
-        # 3. check request body info
-        infoDict = json.loads(plainText)
-        #print("================")
-        # print(infoDict)
-        
-        self.telemetryInfoCheck(infoDict)
 
 class TestTaosdAudit:
-    global hostname
-    global serverPort
-    if (platform.system().lower() == 'windows' and not tdDnodes.dnodes[0].remoteIP == ""):
-        try:
-            config = eval(tdDnodes.dnodes[0].remoteIP )
-            hostname = config["host"]
-        except Exception:
-            hostname = tdDnodes.dnodes[0].remoteIP
-    rpcDebugFlagVal = '143'
-    clientCfgDict = {'serverPort': '', 'firstEp': '', 'secondEp':'', 'rpcDebugFlag':'135', 'fqdn':''}
-    clientCfgDict["serverPort"]    = serverPort
-    clientCfgDict["firstEp"]       = hostname + ':' + serverPort
-    clientCfgDict["secondEp"]      = hostname + ':' + serverPort
-    clientCfgDict["rpcDebugFlag"]  = rpcDebugFlagVal
-    clientCfgDict["fqdn"]          = hostname
+    hostname = "localhost"
+    serverPort = SERVER_PORT
+    mqttPort = MQTT_PORT
+    rpcDebugFlagVal = "143"
 
-    updatecfgDict = {'clientCfg': {}, 'serverPort': '', 'firstEp': '', 'secondEp':'', 'rpcDebugFlag':'135', 'fqdn':''}
-    updatecfgDict["clientCfg"]  = clientCfgDict
-    updatecfgDict["serverPort"] = serverPort
-    updatecfgDict["firstEp"]    = hostname + ':' + serverPort
-    updatecfgDict["secondEp"]   = hostname + ':' + serverPort
-    updatecfgDict["fqdn"]       = hostname
+    clientCfgDict = {
+        "serverPort": serverPort,
+        "firstEp": f"{hostname}:{serverPort}",
+        "secondEp": f"{hostname}:{serverPort}",
+        "rpcDebugFlag": rpcDebugFlagVal,
+        "fqdn": hostname,
+    }
 
-    updatecfgDict["monitorFqdn"]       = hostname
-    updatecfgDict["monitorPort"]          = '6043'
-    updatecfgDict["monitor"]            = '0'
-    updatecfgDict["monitorInterval"]        = "5"
-    updatecfgDict["monitorMaxLogs"]        = "10"
-    updatecfgDict["monitorComp"]        = "1"
-    updatecfgDict["monitorForceV2"]        = "0"
-
-    updatecfgDict["audit"]            = '1'
-    updatecfgDict["uDebugFlag"]            = '143'
-    updatecfgDict["auditLevel"]            = '5'
-    updatecfgDict["auditHttps"]            = '0'
+    updatecfgDict = {
+        "clientCfg": clientCfgDict,
+        "serverPort": serverPort,
+        "firstEp": f"{hostname}:{serverPort}",
+        "secondEp": f"{hostname}:{serverPort}",
+        "fqdn": hostname,
+        "audit": "1",
+        "auditLevel": "5",
+        "auditCreateTable": "1",
+        "auditInterval": "500",
+        "auditHttps": "0",
+        "auditUseToken": "1",
+        "encryptAlgorithm": "sm4",
+        "encryptScope": "all",
+        "enableAuditDelete": "1",
+        "enableAuditInsert": "1",
+        "enableAuditSelect": "1",
+        "mqttPort": mqttPort,
+        "uDebugFlag": "143",
+    }
 
     encryptConfig = {
         "svrKey": "sdfsadfasdfasfas",
@@ -148,119 +62,130 @@ class TestTaosdAudit:
         "dataKey": "sdfsadfasdfasfas",
         "generateConfig": True,
         "generateMeta": True,
-        "generateData": True
-
+        "generateData": True,
     }
 
-    print ("===================: ", updatecfgDict)
+    auditDb = "audit"
+    businessDb = "db3"
+    auditUser = "audit"
+    auditToken = "audit_token"
+    auditPassword = "123456Ab@"
 
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
-        tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), logSql)
-        self.dnodes = cluster.dnodes
+    def wait_until(self, sql, checker, timeout=30, desc="condition"):
+        last_rows = None
+        for _ in range(timeout):
+            tdSql.query(sql)
+            last_rows = tdSql.queryResult
+            if checker(last_rows):
+                return last_rows
+            time.sleep(1)
+
+        tdSql.query(sql)
+        raise AssertionError(
+            f"waited {timeout}s for {desc}, sql={sql}, rows={tdSql.queryResult}"
+        )
+
+    def prepare_audit_sink(self):
+        tdLog.info("create audit database")
+        tdSql.execute(
+            "create database audit precision 'ns' is_audit 1 wal_level 2 "
+            "ENCRYPT_ALGORITHM 'SM4-CBC'"
+        )
+
+        tdLog.info("create audit user")
+        tdSql.execute(f"create user {self.auditUser} pass '{self.auditPassword}' sysinfo 0")
+
+        tdLog.info("grant SYSAUDIT_LOG to audit user")
+        tdSql.execute(f"grant role `SYSAUDIT_LOG` to {self.auditUser}")
+
+        tdLog.info("create audit token")
+        token = tdSql.getFirstValue(
+            f"create token {self.auditToken} from user {self.auditUser}"
+        )
+        assert isinstance(token, str) and len(token) > 0
+
+        # audit db/token is delivered to dnode by status heartbeat, not synchronously.
+        time.sleep(3)
+
+    def generate_audit_records(self):
+        tdLog.info("create business database and tables")
+        tdSql.execute(f"create database {self.businessDb} vgroups 4")
+        tdSql.execute(
+            f"create table {self.businessDb}.stb (ts timestamp, f int) tags (t int)"
+        )
+        tdSql.execute(
+            f"create table {self.businessDb}.tb using {self.businessDb}.stb tags (1)"
+        )
+
+        tdLog.info("generate insert/select/delete audit records")
+        tdSql.execute(
+            f"insert into {self.businessDb}.tb using {self.businessDb}.stb tags (1) values (now, 2)"
+        )
+        tdSql.query(f"select * from {self.businessDb}.stb")
+        tdSql.execute(f"delete from {self.businessDb}.tb")
 
     def test_taosd_audit(self):
-        """Taosd telemetry audit
-        
-        1. Create database with vgroups 4
-        2. Create super table and table
-        3. Insert data into table
-        4. Delete data from table
-        5. Start http server to receive telemetry info
-        6. Check telemetry info content valid
-        7. Stop http server
+        """Taosd local audit persistence
 
-        
-        Since: v3.0.0.0
+        1. Enable audit without starting taoskeeper or an HTTP receiver
+        2. Create the audit database, audit user and token
+        3. Generate createTable/insert/select/delete audit events
+        4. Verify taosd creates `audit.operations` and `audit.t_operations_<cluster>`
+        5. Verify audit records are flushed into the local audit database
+
+        Since: v3.4.0.10
 
         Labels: common,ci
 
         Jira: None
 
         History:
-            - 2025-12-02 Alex Duan Migrated from uncatalog/system-test/0-others/test_taosd_audit.py
-
+            - 2026-03-24 Added direct local audit sink validation
         """
         tdSql.prepare()
-        # time.sleep(2)
 
-        tdLog.info("create audit database")
-        sql = "create database audit is_audit 1 wal_level 2 ENCRYPT_ALGORITHM 'SM4-CBC';"
-        tdSql.query(sql)
+        self.prepare_audit_sink()
+        self.generate_audit_records()
 
-        tdLog.info("create user audit pass '123456Ab@' sysinfo 0;")
-        sql = "create user audit pass '123456Ab@' sysinfo 0;"
-        tdSql.query(sql)
+        stable_sql = (
+            "select count(*) from information_schema.ins_stables "
+            f"where db_name = '{self.auditDb}' and stable_name = 'operations'"
+        )
+        subtable_sql = (
+            "select count(*) from information_schema.ins_tables "
+            f"where db_name = '{self.auditDb}' and stable_name = 'operations' "
+            "and table_name like 't_operations_%'"
+        )
+        record_sql = (
+            "select operation, details from audit.operations "
+            f"where `db` = '{self.businessDb}' "
+            "and operation in ('createTable', 'insert', 'select', 'delete') "
+            "order by ts"
+        )
 
-        sql = "grant role `SYSAUDIT_LOG` to audit;"
-        tdLog.info(sql)
-        tdSql.execute(sql)
+        self.wait_until(
+            stable_sql,
+            lambda rows: rows and rows[0][0] == 1,
+            timeout=30,
+            desc="audit stable operations to be created locally",
+        )
+        self.wait_until(
+            subtable_sql,
+            lambda rows: rows and rows[0][0] >= 1,
+            timeout=30,
+            desc="audit child table to be created locally",
+        )
+        records = self.wait_until(
+            record_sql,
+            lambda rows: rows
+            and {"createTable", "insert", "select", "delete"}.issubset(
+                {row[0] for row in rows}
+            ),
+            timeout=30,
+            desc="expected audit records to be flushed locally",
+        )
 
-        tdLog.info("create token audit_token from user audit;")
-        sql = "create token audit_token from user audit;"
-        tdSql.query(sql)
-        print(tdSql.queryResult)
-
-        time.sleep(3)
-
-        vgroups = "4"
-        tdLog.info("create database")
-        sql = "create database db3 vgroups " + vgroups
-        tdSql.query(sql)
-
-        tdLog.info("create stb")
-        sql = "create table db3.stb (ts timestamp, f int) tags (t int)"
-        tdSql.query(sql)
-
-        newTdSql1=tdCom.newTdSql()
-        t1 = threading.Thread(target=self.createTbThread, args=('', newTdSql1))
-        t1.start()
-
-        tdLog.info("starting http server")
-        # create http server: bing ip/port , and  request processor
-        if (platform.system().lower() == 'windows' and not tdDnodes.dnodes[0].remoteIP == ""):
-            RequestHandlerImplStr = base64.b64encode(pickle.dumps(RequestHandlerImpl)).decode()
-            cmdStr = "import pickle\nimport http\nRequestHandlerImpl=pickle.loads(base64.b64decode(\"%s\".encode()))\nclass NewRequestHandlerImpl(RequestHandlerImpl):\n    hostPort = \'%s\'\nhttp.server.HTTPServer((\"\", %s), NewRequestHandlerImpl).serve_forever()"%(RequestHandlerImplStr,hostname+":"+serverPort,telemetryPort)
-            tdDnodes.dnodes[0].remoteExec({}, cmdStr)
-        else:
-            serverAddress = ("", int(telemetryPort))
-            http.server.HTTPServer(serverAddress, RequestHandlerImpl).serve_forever()
-            tdLog.info("http server exited")
-        
-
-
-
-    def createTbThread(self, sql, newTdSql):
-        # wait for http server ready
-        time.sleep(2)
-        tdLog.info("create tb")
-        sql = "create table db3.tb using db3.stb tags (1)"
-        tdSql.execute(sql, queryTimes = 1)
-
-        time.sleep(2)
-        tdLog.info("insert tb")
-        sql = "INSERT INTO db3.tb USING db3.stb TAGS (1) VALUES (NOW, 2);"
-        tdSql.execute(sql, queryTimes = 1)
-
-        time.sleep(2)
-        tdLog.info("select tb")
-        sql = "SELECT * FROM db3.stb;"
-        tdSql.query(sql)
-
-        time.sleep(2)
-        tdLog.info("delete tb")
-        sql = "delete from db3.tb"
-        tdSql.execute(sql, queryTimes = 1)
-        
-        global createThreadExited
-        while True:               
-            tdLog.info("createThreadExited = %s"%createThreadExited)
-            if createThreadExited == True:
-
-                break
-
-            time.sleep(5)
-        tdLog.info("exit createTbThread")
-        
-
+        details_by_op = {row[0]: row[1] for row in records}
+        delete_detail = details_by_op["delete"]
+        assert delete_detail is not None
+        assert "delete from db3.tb" in delete_detail.lower()

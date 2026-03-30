@@ -23,7 +23,9 @@ message(STATUS "TD_SOURCE_DIR:${TD_SOURCE_DIR}")
 target_include_directories(
     ${TAOS_NATIVE_LIB}
     PUBLIC "${TD_SOURCE_DIR}/include/client"
-    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
+    PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/inc"
+        "${TD_SOURCE_DIR}/include/libs/audit"
 )
 set(TAOSD_MODULE "")
 if(${TAOSD_INTEGRATED})
@@ -45,7 +47,9 @@ endif()
 target_include_directories(
     ${TAOS_NATIVE_LIB_STATIC}
     PUBLIC "${TD_SOURCE_DIR}/include/client"
-    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
+    PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/inc"
+        "${TD_SOURCE_DIR}/include/libs/audit"
 )
 target_link_libraries(
     ${TAOS_NATIVE_LIB_STATIC}

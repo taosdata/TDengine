@@ -494,19 +494,40 @@ class BeforeTest:
         tdCom.init(request.session.taos_bin_path, request.session.cfg_path, request.session.work_dir)
        
     def update_cfg(self, updatecfgDict):
+        dnodes = self.request.session.yaml_data["settings"][0]["spec"]["dnodes"]
         for key, value in updatecfgDict.items():
             if key == "clientCfg":
                 continue
-            for dnode in self.request.session.yaml_data["settings"][0]["spec"]["dnodes"]:
+            for dnode in dnodes:
                 dnode["config"][key] = value
+
+        if len(dnodes) == 1:
+            dnode = dnodes[0]
+            host = dnode["config"].get("fqdn", dnode["endpoint"].split(":")[0])
+            port = str(dnode["config"].get("serverPort", dnode["endpoint"].split(":")[1]))
+            endpoint = f"{host}:{port}"
+
+            dnode["endpoint"] = endpoint
+            self.request.session.yaml_data["settings"][0]["fqdn"] = [host]
+            self.request.session.yaml_data["settings"][0]["spec"]["config"]["firstEP"] = endpoint
+
+            if self.request.session.servers:
+                self.request.session.servers[0]["host"] = host
+                self.request.session.servers[0]["port"] = int(port)
+                self.request.session.servers[0]["endpoint"] = endpoint
+
+            self.request.session.host = host
+            self.request.session.port = int(port)
+            self.request.session.cfg_path = dnode["config_dir"]
+
         with open(os.path.join(self.root_dir, 'env', 'ci_default.yaml'), 'w') as file:
             yaml.dump(self.request.session.yaml_data, file)
 
     def update_encrypt_config(self, encryptConfig):
         for dnode in self.request.session.yaml_data["settings"][0]["spec"]["dnodes"]:
-            if "config" not in dnode:
-                dnode["config"] = {}
-            dnode["config"]["encrypt"] = encryptConfig
+            dnode["encrypt"] = encryptConfig
+            if "config" in dnode and "encrypt" in dnode["config"]:
+                del dnode["config"]["encrypt"]
         with open(os.path.join(self.root_dir, 'env', 'ci_default.yaml'), 'w') as file:
             yaml.dump(self.request.session.yaml_data, file)
 

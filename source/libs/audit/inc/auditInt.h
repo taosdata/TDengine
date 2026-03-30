@@ -17,16 +17,23 @@
 #define _TD_AUDIT_INT_H_
 
 #include "audit.h"
+#include "taos.h"
 #include "tarray.h"
 
 typedef struct {
   SAuditCfg       cfg;
   SArray *records;
   TdThreadMutex   recordLock;
+  TdThreadMutex   connLock;
+  TAOS           *conn;
   int32_t         dnodeId;
   TdThreadRwlock  infoLock;
   char            auditDB[TSDB_DB_FNAME_LEN];
   char            auditToken[TSDB_TOKEN_LEN];
+  char            connDb[TSDB_DB_FNAME_LEN];
+  char            connToken[TSDB_TOKEN_LEN];
+  char            connUser[TSDB_USER_LEN];
+  bool            tableReady;
 } SAudit;
 
 #endif /*_TD_AUDIT_INT_H_*/
