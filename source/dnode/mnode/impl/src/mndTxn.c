@@ -854,6 +854,8 @@ static int32_t mndSetCreateTxnCommitLogs(SMnode *pMnode, STrans *pTrans, STxnObj
 /**
  * Collect all VGroup IDs that need TXN_COMMIT/TXN_ROLLBACK messages.
  * Sources: (1) pTxn->pVgList (child/normal table VGroups), (2) DB VGroups from CREATE_STB shadow ops.
+ * Fallback: if both sources are empty (e.g. after full cluster restart where pShadowOps are lost),
+ * broadcast to ALL VGroups — VNodes with no matching txn entry will return success (idempotent).
  * Returns a deduplicated SHashObj (key=vgId, value=unused byte).  Caller must destroy with taosHashCleanup.
  */
 static SHashObj *mndCollectTxnVgroupIds(SMnode *pMnode, STxnObj *pTxn) {
@@ -894,6 +896,24 @@ static SHashObj *mndCollectTxnVgroupIds(SMnode *pMnode, STxnObj *pTxn) {
         sdbRelease(pSdb, pVgroup);
       }
       mndReleaseDb(pMnode, pDb);
+    }
+  }
+
+  // (3) Fallback: if no VGroups identified (e.g. after full cluster restart — pVgList only populated
+  //     at COMMIT time by client, and pShadowOps are in-memory only), broadcast to ALL VGroups.
+  //     VNodes without this txn's shadow entries will return success (idempotent).
+  if (taosHashGetSize(pVgSet) == 0) {
+    mInfo("txn:%" PRIu64 ", no VGroups from pVgList/pShadowOps, broadcasting to all VGroups", pTxn->id);
+    SSdb   *pSdb = pMnode->pSdb;
+    SVgObj *pVgroup = NULL;
+    void   *pIter = NULL;
+    while (1) {
+      pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
+      if (pIter == NULL) break;
+      int32_t vgId = pVgroup->vgId;
+      int8_t  dummy = 1;
+      taosHashPut(pVgSet, &vgId, sizeof(vgId), &dummy, sizeof(dummy));
+      sdbRelease(pSdb, pVgroup);
     }
   }
 

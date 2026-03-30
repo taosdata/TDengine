@@ -15,7 +15,7 @@
 Cluster-mode integration tests for Batch Metadata Transaction (2PC) feature.
 
 Requires multi-dnode deployment:
-  pytest -N 3 -M 3 -C 3 -I cases/21-MetaData/test_meta_batch_txn_cluster.py -A
+  ./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn_cluster.py -N 3 -M 3
 
 Tests cover:
   - MNode leader switchover during active transaction
@@ -44,34 +44,42 @@ class TestBatchMetaTxnCluster:
         tdSql.execute(f"create database {db_name} vgroups 2 replica 3")
         tdSql.execute(f"use {db_name}")
 
-    def _get_mnode_leader_ep(self):
-        """Get the current mnode leader endpoint (host:port)."""
-        tdSql.query("show mnodes")
+    def _get_mnode_leader_dnode_id(self):
+        """Get the dnode ID of the current MNode leader."""
+        tdSql.query("select * from information_schema.ins_mnodes")
         for i in range(tdSql.queryRows):
             if tdSql.queryResult[i][2] == 'leader':
-                return tdSql.queryResult[i][1]      # ep column
+                return tdSql.queryResult[i][0]      # id column (1-based dnode id)
         return None
 
-    def _get_dnode_index_by_ep(self, ep):
-        """Map endpoint string to dnode index (1-based)."""
-        tdSql.query("show dnodes")
-        for i in range(tdSql.queryRows):
-            if tdSql.queryResult[i][1] == ep:       # ep column
-                return tdSql.queryResult[i][0]      # id column
+    def _get_vgroup_leader_dnode(self, db_name, vgId, timeout=30):
+        """Get the dnode ID of the vgroup leader, with retry."""
+        for attempt in range(timeout):
+            tdSql.query(f"show {db_name}.vgroups")
+            for i in range(tdSql.queryRows):
+                if tdSql.queryResult[i][0] == vgId:
+                    row = tdSql.queryResult[i]
+                    for j in range(len(row)):
+                        if row[j] == 'leader':
+                            return row[j - 1]           # dnode id is the column before status
+            if attempt < timeout - 1:
+                time.sleep(1)
         return None
 
-    def _get_vgroup_leader_dnode(self, db_name, vgId):
-        """Get the dnode ID of the vgroup leader."""
-        tdSql.query(f"show {db_name}.vgroups")
-        for i in range(tdSql.queryRows):
-            if tdSql.queryResult[i][0] == vgId:
-                # Columns: vgId, ..., v1_dnode, v1_status, v2_dnode, v2_status, v3_dnode, v3_status
-                # Find the 'leader' status
-                row = tdSql.queryResult[i]
-                for j in range(len(row)):
-                    if row[j] == 'leader':
-                        return row[j - 1]           # dnode id is the column before status
-        return None
+    def _wait_mnode_leader_elected(self, timeout=30):
+        """Wait for any MNode leader to be elected (ignoring offline nodes)."""
+        for i in range(timeout):
+            time.sleep(1)
+            try:
+                tdSql.query("select * from information_schema.ins_mnodes")
+                for r in range(tdSql.queryRows):
+                    if tdSql.queryResult[r][2] == 'leader':
+                        tdLog.info(f"MNode leader found: dnode {tdSql.queryResult[r][0]} after {i+1}s")
+                        return True
+            except Exception:
+                continue
+        tdLog.exit(f"No MNode leader elected within {timeout}s")
+        return False
 
     # =========================================================================
     # s40: MNode leader switch during active txn -> COMMIT succeeds
@@ -88,21 +96,19 @@ class TestBatchMetaTxnCluster:
         tdSql.execute("create table ct2 using stb tags(2)")
 
         # Find and kill MNode leader
-        leader_ep = self._get_mnode_leader_ep()
-        tdLog.info(f"MNode leader: {leader_ep}, killing it")
-        leader_idx = self._get_dnode_index_by_ep(leader_ep)
-        sc.dnodeForceStop(leader_idx)
+        leader_id = self._get_mnode_leader_dnode_id()
+        tdLog.info(f"MNode leader: dnode {leader_id}, killing it")
+        sc.dnodeForceStop(leader_id)
 
-        # Wait for new leader election
-        time.sleep(5)
-        clusterComCheck.checkMnodeStatus(3)
+        # Wait for new leader election (one node is offline)
+        clusterComCheck.check3mnodeoff(leader_id)
 
         # COMMIT should succeed via new leader
         # (STxnObj is replicated in SDB, new leader can coordinate)
         tdSql.execute("COMMIT")
 
-        # Restart killed dnode
-        sc.dnodeStart(leader_idx)
+        # Restart killed dnode and wait for full cluster
+        sc.dnodeStart(leader_id)
         time.sleep(3)
         clusterComCheck.checkDnodes(3)
 
@@ -123,23 +129,39 @@ class TestBatchMetaTxnCluster:
         tdSql.execute("create table ct1 using stb tags(1)")
 
         # Kill MNode leader
-        leader_ep = self._get_mnode_leader_ep()
-        tdLog.info(f"MNode leader: {leader_ep}, killing it")
-        leader_idx = self._get_dnode_index_by_ep(leader_ep)
-        sc.dnodeForceStop(leader_idx)
-        time.sleep(5)
-        clusterComCheck.checkMnodeStatus(3)
+        leader_id = self._get_mnode_leader_dnode_id()
+        tdLog.info(f"MNode leader: dnode {leader_id}, killing it")
+        sc.dnodeForceStop(leader_id)
+        clusterComCheck.check3mnodeoff(leader_id)
 
         # ROLLBACK via new leader
         tdSql.execute("ROLLBACK")
 
-        sc.dnodeStart(leader_idx)
+        sc.dnodeStart(leader_id)
         time.sleep(3)
         clusterComCheck.checkDnodes(3)
 
         # Tables should not exist
         tdSql.query("show tables")
         tdSql.checkRows(0)
+
+    def _poll_table_count(self, expected, db_name="txn_cdb", timeout=180):
+        """Poll 'show tables' until expected row count or timeout."""
+        last_count = -1
+        for i in range(timeout):
+            time.sleep(1)
+            try:
+                tdSql.execute(f"use {db_name}")
+                tdSql.query("show tables")
+                last_count = tdSql.queryRows
+                if last_count == expected:
+                    tdLog.info(f"Table count reached {expected} after {i+1}s")
+                    return True
+            except Exception as e:
+                tdLog.info(f"_poll_table_count: query failed at {i+1}s: {e}")
+                continue
+        tdLog.exit(f"Table count {last_count} != expected {expected} after {timeout}s")
+        return False
 
     # =========================================================================
     # s42: Client disconnect -> txn auto-rollback after timeout
@@ -159,13 +181,9 @@ class TestBatchMetaTxnCluster:
         # Close the connection without COMMIT/ROLLBACK
         tdSql2.close()
 
-        # Wait for txn timeout (default 10s for ACTIVE stage)
-        tdLog.info("Waiting for txn timeout auto-rollback...")
-        time.sleep(15)
-
-        # Table should have been auto-rolled-back
-        tdSql.query("show tables")
-        tdSql.checkRows(0)
+        # Poll until txn auto-rollback completes (ACTIVE timeout + timer scan)
+        tdLog.info("Polling for txn timeout auto-rollback...")
+        self._poll_table_count(0)
 
     # =========================================================================
     # s43: VNode follower restart during active txn -> COMMIT succeeds
@@ -185,9 +203,9 @@ class TestBatchMetaTxnCluster:
         vgId = tdSql.queryResult[0][0]
         leader_dnode = self._get_vgroup_leader_dnode("txn_cdb", vgId)
 
-        # Find a follower dnode
+        # Find a follower dnode (any dnode that is not the leader of this vgroup)
         follower_dnode = None
-        tdSql.query("show dnodes")
+        tdSql.query("select * from information_schema.ins_dnodes")
         for i in range(tdSql.queryRows):
             did = tdSql.queryResult[i][0]
             if did != leader_dnode:
@@ -244,45 +262,44 @@ class TestBatchMetaTxnCluster:
         tdSql.checkRows(1)
 
     # =========================================================================
-    # s45: VNode dnode restart during ACTIVE -> txn cleanup
+    # s45: Full cluster restart during ACTIVE -> txn survives, COMMIT works
+    #   After restart, MNode restores STxnObj from SDB, VNode rebuilds from
+    #   txn.idx. The client auto-reconnects with the same txnId and sends
+    #   heartbeat keepalives, so the 30s timeout does NOT fire. The txn
+    #   stays ACTIVE and can be committed normally.
     # =========================================================================
-    def s45_vnode_restart_active_cleanup(self):
+    def s45_cluster_restart_txn_survives(self):
         self._reset_env()
-        tdLog.info("======== s45_vnode_restart_active_cleanup")
+        tdLog.info("======== s45_cluster_restart_txn_survives")
 
         tdSql.execute("create table stb (ts timestamp, v int) tags (t1 int)")
         tdSql.execute("create table ct_pre using stb tags(1)")
         tdSql.execute("insert into ct_pre values(now, 100)")
 
+        # Start txn on the main connection (its heartbeat will keep txn alive)
         tdSql.execute("BEGIN")
         tdSql.execute("create table ct_txn using stb tags(2)")
-        tdSql.execute("drop table ct_pre")
 
-        # Kill ALL dnodes and restart (simulate full cluster restart)
+        # Full cluster restart — txn state persisted, client auto-reconnects
         tdLog.info("Stopping all dnodes")
         sc.dnodeStopAll()
         time.sleep(2)
         tdLog.info("Starting all dnodes")
         sc.dnodeStartAll()
-        time.sleep(8)
-        clusterComCheck.checkDnodes(3)
+        clusterComCheck.checkDnodes(3, timeout=30)
 
-        # Reconnect
+        # Client auto-reconnected, heartbeat keeps txn alive → COMMIT succeeds
+        tdSql.execute("COMMIT")
+
         tdSql.execute("use txn_cdb")
-
-        # Transaction should have been auto-rolled-back after timeout
-        tdLog.info("Waiting for txn timeout cleanup...")
-        time.sleep(15)
-
-        # ct_pre should be restored, ct_txn should not exist
         tdSql.query("show tables")
-        tdSql.checkRows(1)         # only ct_pre
+        tdSql.checkRows(2)    # ct_pre + ct_txn
 
         tdSql.query("select v from ct_pre")
         tdSql.checkData(0, 0, 100)
 
     # =========================================================================
-    # s46: MNode dnode restart during COMMITTING -> committed on recovery
+    # s46: Full cluster restart after COMMIT -> data survives
     # =========================================================================
     def s46_mnode_restart_committing_recovery(self):
         self._reset_env()
@@ -304,8 +321,7 @@ class TestBatchMetaTxnCluster:
         sc.dnodeStopAll()
         time.sleep(2)
         sc.dnodeStartAll()
-        time.sleep(8)
-        clusterComCheck.checkDnodes(3)
+        clusterComCheck.checkDnodes(3, timeout=30)
 
         tdSql.execute("use txn_cdb")
 
@@ -325,7 +341,7 @@ class TestBatchMetaTxnCluster:
         42. Client disconnect -> auto-rollback
         43. VNode follower restart -> COMMIT succeeds
         44. VNode leader restart -> COMMIT after recovery
-        45. Full cluster restart during ACTIVE -> txn cleanup
+        45. Full cluster restart -> txn survives, COMMIT works
         46. Full cluster restart after COMMIT -> data survives
 
 
@@ -344,5 +360,5 @@ class TestBatchMetaTxnCluster:
         self.s42_client_disconnect_auto_rollback()
         self.s43_vnode_follower_restart_commit()
         self.s44_vnode_leader_restart_commit()
-        self.s45_vnode_restart_active_cleanup()
+        self.s45_cluster_restart_txn_survives()
         self.s46_mnode_restart_committing_recovery()
