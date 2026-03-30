@@ -64,12 +64,22 @@ ALL_MODELS = ["tdtsfm", "timemoe", "moirai", "chronos", "timesfm", "moment"]
 ENABLED_MODELS_FILE = INSTALL_DIR / "cfg" / "enabled_models.txt"
 
 
-def load_package_metadata() -> Dict[str, str]:
-    defaults = {
-        "edition": "community",
-        "app_name": "TDgpt",
-        "product_full_name": "TDgpt - TDengine Analytics Node",
+def build_package_metadata_defaults(edition: str = "community") -> Dict[str, str]:
+    normalized_edition = str(edition or "community").strip().lower()
+    if normalized_edition == "enterprise":
+        app_name = "TDengine TDgpt-Enterprise"
+    else:
+        normalized_edition = "community"
+        app_name = "TDengine TDgpt-OSS"
+    return {
+        "edition": normalized_edition,
+        "app_name": app_name,
+        "product_full_name": f"{app_name} - TDengine Analytics Node",
     }
+
+
+def load_package_metadata() -> Dict[str, str]:
+    defaults = build_package_metadata_defaults()
     if not PACKAGE_METADATA_FILE.exists():
         return defaults
     try:
@@ -79,12 +89,14 @@ def load_package_metadata() -> Dict[str, str]:
         return defaults
     if not isinstance(payload, dict):
         return defaults
+    edition_defaults = build_package_metadata_defaults(str(payload.get("edition", defaults["edition"])))
+    defaults.update(edition_defaults)
     defaults.update({str(key): str(value) for key, value in payload.items() if value is not None})
     return defaults
 
 
 PACKAGE_METADATA = load_package_metadata()
-APP_DISPLAY_NAME = PACKAGE_METADATA.get("app_name", "TDgpt")
+APP_DISPLAY_NAME = PACKAGE_METADATA.get("app_name", "TDengine TDgpt-OSS")
 PRODUCT_FULL_NAME = PACKAGE_METADATA.get("product_full_name", f"{APP_DISPLAY_NAME} - TDengine Analytics Node")
 
 MODEL_SPECS: Dict[str, Dict[str, object]] = {

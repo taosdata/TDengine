@@ -82,6 +82,33 @@ class TestTaosanodeService:
         assert failure_kind == "bind"
         collect.assert_not_called()
 
+    def test_background_unknown_failure_triggers_full_diagnostics(self, taosanode_service):
+        with patch.object(taosanode_service, "_collect_startup_failure_diagnostics") as collect:
+            failure_kind = taosanode_service._handle_startup_failure(
+                "python.exe",
+                {},
+                taosanode_service.config.install_dir,
+                phase="background",
+                reason="background child exited early with code 3221225477",
+            )
+
+        assert failure_kind == "unknown"
+        collect.assert_called_once()
+
+    def test_access_violation_log_is_classified_as_native_failure(self, taosanode_service):
+        with patch.object(taosanode_service, "_collect_startup_failure_diagnostics") as collect:
+            failure_kind = taosanode_service._handle_startup_failure(
+                "python.exe",
+                {},
+                taosanode_service.config.install_dir,
+                phase="background",
+                reason="background child exited early",
+                detail_text="Windows fatal exception: access violation\nexit code 0xc0000005",
+            )
+
+        assert failure_kind == "import_native"
+        collect.assert_called_once()
+
     def test_startup_diagnostic_cooldown_suppresses_duplicate_runs(self, taosanode_service, monkeypatch):
         monkeypatch.setenv("TAOSANODE_STARTUP_DIAGNOSTIC_COOLDOWN", "300")
         with patch.object(taosanode_service, "_collect_preflight_diagnostics") as collect:

@@ -44,8 +44,8 @@ class InstallInfo:
         self.install_dir = ""
         self.package_name = ""
         self.product_name = ""
-        self.app_name = "TDgpt-OSS"
-        self.product_full_name = "TDgpt-OSS - TDengine Analytics Node"
+        self.app_name = "TDengine TDgpt-OSS"
+        self.product_full_name = "TDengine TDgpt-OSS - TDengine Analytics Node"
         self.model_dir = ""
         self.all_models = False
         self.iscc_path = ""
@@ -110,10 +110,10 @@ def parse_arguments():
     # Set product metadata
     if args.edition == "enterprise":
         install_info.product_name = "tdengine-tdgpt-enterprise"
-        install_info.app_name = "TDgpt-Enterprise"
+        install_info.app_name = "TDengine TDgpt-Enterprise"
     else:
         install_info.product_name = "tdengine-tdgpt-oss"
-        install_info.app_name = "TDgpt-OSS"
+        install_info.app_name = "TDengine TDgpt-OSS"
     install_info.product_full_name = f"{install_info.app_name} - TDengine Analytics Node"
 
     install_info.source_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
