@@ -320,12 +320,17 @@ typedef struct SCtgVStbRefDbsCtx {
 
   STableMeta*     pMeta;
 
+  int32_t         refLayer;       // current resolving ref layer, starts from first-hop referenced table meta layer
   int32_t         vgNum;
   bool            clonedVgroups;
   SArray*         pVgroups;
   int32_t         resCode;
   int32_t         resDoneNum;
-  SArray*         pResList;
+  SArray*         pSubTablesList; // first-hop vnode rsp, SArray<SVSubTablesRsp>
+  SArray*         pLayerRefs;     // current resolving layer refs, SArray<SColRef>
+  SArray*         pLayerReqs;     // current layer batch-meta reqs, SArray<STablesReq>
+  SHashObj*       pFinalDbs;      // referenced db set across all resolved layers, key/value is db name
+  SArray*         pResList;       // final result, SArray<SVStbRefDbsRsp>
   int32_t         resIdx;
 } SCtgVStbRefDbsCtx;
 
@@ -476,7 +481,8 @@ typedef struct SCtgTaskCallbackParam {
 } SCtgTaskCallbackParam;
 
 typedef struct SCtgTask SCtgTask;
-typedef int32_t (*ctgSubTaskCbFp)(SCtgTask*);
+struct SCtgTaskReq;
+typedef int32_t (*ctgSubTaskCbFp)(struct SCtgTaskReq*);
 
 typedef struct SCtgSubRes {
   CTG_TASK_TYPE  type;
@@ -840,8 +846,12 @@ typedef struct SCtgCacheItemInfo {
    (CTG_TASK_GET_VIEW == (_taskType)) || (CTG_TASK_GET_TB_TSMA == (_taskType)) ||                \
    (CTG_TASK_GET_TB_NAME == (_taskType)))
 
+#define CTG_HAS_MULTI_MSGCTX(_taskType) \
+  (CTG_IS_BATCH_TASK(_taskType) || (CTG_TASK_GET_V_STBREFDBS == (_taskType)))
+
 #define CTG_GET_TASK_MSGCTX(_task, _id) \
-  (CTG_IS_BATCH_TASK((_task)->type) ? taosArrayGet((_task)->msgCtxs, (_id)) : &(_task)->msgCtx)
+  (((_id) >= 0 && CTG_HAS_MULTI_MSGCTX((_task)->type) && (_task)->msgCtxs) ? taosArrayGet((_task)->msgCtxs, (_id)) \
+                                                                             : &(_task)->msgCtx)
 
 #define CTG_META_SIZE(pMeta) \
   (sizeof(STableMeta) + ((pMeta)->tableInfo.numOfTags + (pMeta)->tableInfo.numOfColumns) * sizeof(SSchema))
@@ -1139,12 +1149,13 @@ int32_t ctgInitJob(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgJob** job, const
                    void* param);
 int32_t ctgLaunchJob(SCtgJob* pJob);
 int32_t ctgMakeAsyncRes(SCtgJob* pJob);
-int32_t ctgLaunchSubTask(SCtgTask** ppTask, CTG_TASK_TYPE type, ctgSubTaskCbFp fp, void* param);
-int32_t ctgGetTbCfgCb(SCtgTask* pTask);
-int32_t ctgGetVStbRefDbsCb(SCtgTask* pTask);
+int32_t ctgLaunchSubTask(SCtgTaskReq* pReq, CTG_TASK_TYPE type, ctgSubTaskCbFp fp, void* param);
+int32_t ctgGetTbCfgCb(SCtgTaskReq* pReq);
+int32_t ctgGetVStbRefDbsCb(SCtgTaskReq* pReq);
 void    ctgFreeHandle(SCatalog* pCatalog);
 
 void    ctgFreeSViewMeta(SViewMeta* pMeta);
+void    ctgFreeBatchMeta(void* meta);
 void    ctgFreeMsgSendParam(void* param);
 void    ctgFreeBatch(SCtgBatch* pBatch);
 void    ctgFreeBatchs(SHashObj* pBatchs);
@@ -1219,8 +1230,8 @@ int32_t  ctgBuildUseDbOutput(SUseDbOutput** ppOut, SDBVgInfo* vgInfo);
 
 int32_t ctgGetTbMeta(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbMetaCtx* ctx, STableMeta** pTableMeta);
 int32_t ctgGetCachedStbNameFromSuid(SCatalog* pCtg, char* dbFName, uint64_t suid, char** stbName);
-int32_t ctgGetTbTagCb(SCtgTask* pTask);
-int32_t ctgGetUserCb(SCtgTask* pTask);
+int32_t ctgGetTbTagCb(SCtgTaskReq* pReq);
+int32_t ctgGetUserCb(SCtgTaskReq* pReq);
 
 int32_t ctgGetTbTSMAFromCache(SCatalog* pCtg, SCtgTbTSMACtx* pCtx, int32_t dbIdx, int32_t* fetchIdx, int32_t baseResIdx,
                               SArray* pList);
@@ -1238,7 +1249,9 @@ bool     hasOutOfDateTSMACache(SArray* pTsmas);
 bool     isCtgTSMACacheOutOfDate(STSMACache* pTsmaCache);
 int32_t  ctgGetStreamProgressFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTbName, SStreamProgressRsp* out, SCtgTaskReq* tReq,
                                        void* bInput, int32_t nodeId);
-int32_t ctgGetVStbRefDbsFromVnode(SCatalog* pCtg, SRequestConnInfo* pConn, int64_t suid, SVgroupInfo* vgroupInfo, SCtgTaskReq* tReq);
+int32_t ctgAddBatch(SCatalog* pCtg, int32_t vgId, SRequestConnInfo* pConn, SCtgTaskReq* tReq, int32_t msgType,
+                    void* msg, uint32_t msgLen);
+int32_t ctgGetVSubtablesMetaFromVnode(SCatalog* pCtg, SRequestConnInfo* pConn, int64_t suid, SVgroupInfo* vgroupInfo, SCtgTaskReq* tReq);
 int32_t ctgAddTSMAFetch(SArray** pFetchs, int32_t dbIdx, int32_t tbIdx, int32_t* fetchIdx, int32_t resIdx, int32_t flag,
                         CTG_TSMA_FETCH_TYPE fetchType, const SName* sourceTbName);
 int32_t ctgOpUpdateDbTsmaVersion(SCtgCacheOperation* pOper);
