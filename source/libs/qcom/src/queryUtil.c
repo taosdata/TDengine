@@ -279,7 +279,7 @@ int32_t asyncSendMsgToServerExt(void* pTransporter, SEpSet* epSet, int64_t* pTra
   }
 
   memcpy(pMsg, pInfo->msgInfo.pData, pInfo->msgInfo.len);
-  taosMemoryFreeClear(pInfo->msgInfo.pData);
+  //taosMemoryFreeClear(pInfo->msgInfo.pData);
   SRpcMsg rpcMsg = {
     .msgType = pInfo->msgType,
     .pCont = pMsg,
