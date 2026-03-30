@@ -235,6 +235,10 @@ _return:
 
 // processType = 0 means all type. 1 means number, 2 means var, 3 means float, 4 means var&integer
 int32_t scalarGenerateSetFromList(void **data, void *pNode, uint32_t type, STypeMod typeMod, int8_t processType) {
+  if (IS_INVALID_TYPE(type)) {
+    sclError("invalid type:%u in set generation", type);
+    SCL_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
+  }
   SHashObj *pObj = taosHashInit(256, taosGetDefaultHashFunction(type), true, false);
   if (NULL == pObj) {
     sclError("taosHashInit failed, size:%d", 256);
@@ -556,6 +560,10 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
       param->hashParam.hasValue = true;
 
       int32_t  type = ctx->type.selfType;
+      if (IS_INVALID_TYPE(type)) {
+        sclError("invalid selfType:%d for nodeList IN expression", type);
+        SCL_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
+      }
       STypeMod typeMod = 0;
       SNode   *nodeItem = NULL;
       FOREACH(nodeItem, nodeList->pNodeList) {
@@ -1111,9 +1119,9 @@ int32_t sclGetNodeType(SNode *pNode, SScalarCtx *ctx, int32_t *type, STypeMod *p
     }
   }
 
-  *type = -1;
-  *pTypeMod = 0;
-  return TSDB_CODE_SUCCESS;
+  sclError("unsupported node type for type resolution, nodeType:%d, node:%p", nodeType(pNode), pNode);
+  terrno = TSDB_CODE_QRY_INVALID_INPUT;
+  return TSDB_CODE_QRY_INVALID_INPUT;
 }
 
 int32_t sclSetOperatorValueType(SOperatorNode *node, SScalarCtx *ctx) {
