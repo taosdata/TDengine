@@ -154,7 +154,7 @@ Typical command:
 
 ```bash
 python packaging/build_offline_assets.py ^
-  --output-file D:\offline-tar\tdgpt-offline-full-bundle-win-x64.tar ^
+   --output-file D:\offline-tar\tdengine-tdgpt-offline-assets-3.4.1.0.0325-windows-x64.tar ^
   --seed-package D:\offline-seed\tdgpt-model-seed.tar ^
   --python-runtime-dir C:\TDengine\python311 ^
   --main-venv-dir C:\TDengine\taosanode\venvs\venv ^
@@ -168,11 +168,17 @@ If you do not want to prepare a Python runtime directory in advance:
 
 ```bash
 python packaging/build_offline_assets.py ^
-  --output-file D:\offline-tar\tdgpt-offline-full-bundle-win-x64.tar ^
+   --output-file D:\offline-tar\tdengine-tdgpt-offline-assets-3.4.1.0.0325-windows-x64.tar ^
   --main-venv-dir C:\TDengine\taosanode\venvs\venv ^
   --extra-venv-dir C:\TDengine\taosanode\venvs\moirai_venv ^
   --uv-exe packaging\bin\uv.exe ^
   --python-version 3.11
+```
+
+Recommended offline assets package name:
+
+```text
+tdengine-tdgpt-offline-assets-<version>-windows-x64.tar
 ```
 
 What the tar contains:
@@ -234,8 +240,8 @@ These archives are optional. The installer can still be built without bundled mo
 The generated installer name is:
 
 ```text
-tdengine-tdgpt-oss-<version>-Windows-x64.exe
-tdengine-tdgpt-enterprise-<version>-Windows-x64.exe
+tdengine-tdgpt-oss-<version>-windows-x64.exe
+tdengine-tdgpt-enterprise-<version>-windows-x64.exe
 ```
 
 The package name no longer includes `-base`.
@@ -247,7 +253,7 @@ The installer supports fully silent (unattended) installation, which is useful f
 ### Silent Offline Install (No System Python Required)
 
 ```bat
-tdgpt-setup.exe /VERYSILENT /NORESTART /OFFLINE="D:\packages\tdgpt-offline.tar"
+tdgpt-setup.exe /VERYSILENT /NORESTART /OFFLINE="D:\packages\tdengine-tdgpt-offline-assets-3.4.1.0.0325-windows-x64.tar"
 ```
 
 | Parameter | Description |
@@ -283,7 +289,7 @@ The `_bootstrap` directory is cleaned up automatically after installation comple
 
 ```bat
 REM install-all.bat for AIO packaging
-installers\tdgpt-setup.exe /VERYSILENT /NORESTART /OFFLINE="%CD%\offline-packages\tdgpt-offline.tar"
+installers\tdgpt-setup.exe /VERYSILENT /NORESTART /OFFLINE="%CD%\offline-packages\tdengine-tdgpt-offline-assets-3.4.1.0.0325-windows-x64.tar"
 if errorlevel 1 (
     echo TDgpt installation failed
     exit /b 1
@@ -304,6 +310,7 @@ After silent installation, check:
 Current wizard behavior:
 
 - Default recommended install source: `Offline package`
+- When offline mode is selected, setup automatically pre-fills an offline assets package from the same directory as the installer when it finds `tdengine-tdgpt-offline-assets-<version>-windows-x64.tar`
 - Online install is still available
 - Windows service is installed automatically, not shown as an optional checkbox
 - Upgrade installs reuse existing `venvs` and model files by default
