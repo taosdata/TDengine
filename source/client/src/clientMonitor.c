@@ -1,4 +1,5 @@
 #include "clientMonitor.h"
+#include "audit.h"
 #include "cJSON.h"
 #include "clientInt.h"
 #include "clientLog.h"
@@ -1217,12 +1218,24 @@ static bool needSendReport(SAppInstServerCFG* pCfg, ENodeType type) {
   return false;
 }
 
+static bool isInternalAuditConnection(STscObj* pTscObj) {
+  if (pTscObj == NULL) {
+    return false;
+  }
+
+  return strncmp(pTscObj->optionInfo.userApp, AUDIT_INTERNAL_USER_APP, TSDB_APP_NAME_LEN) == 0;
+}
+
 static void reportSqlExecResult(SRequestObj* pRequest, ENodeType type) {
   int32_t  code = TSDB_CODE_SUCCESS;
   STscObj* pTscObj = pRequest->pTscObj;
 
   if (pTscObj == NULL || pTscObj->pAppInfo == NULL) {
     tscError("[report][%s] invalid tsc obj", nodesNodeName(type));
+    return;
+  }
+  if (isInternalAuditConnection(pTscObj)) {
+    tscTrace("[report][%s] internal audit connection, skip audit", nodesNodeName(type));
     return;
   }
   if (pRequest->code != TSDB_CODE_SUCCESS) {

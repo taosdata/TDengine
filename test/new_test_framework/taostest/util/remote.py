@@ -23,6 +23,38 @@ class Remote:
         self._logger: Logger = logger
         self._local_host = platform.node()
 
+    def _run_local_cmd(self, cmd_line, error_output=None) -> Union[str, None]:
+        if error_output is None:
+            result = subprocess.run(
+                cmd_line,
+                shell=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+        else:
+            with open(error_output, "ab") as f:
+                result = subprocess.run(cmd_line, shell=True, stdout=f, stderr=f)
+
+        if result.returncode != 0:
+            if error_output is not None:
+                err_msg = f"see {error_output} for details"
+            else:
+                try:
+                    err_msg = result.stderr.decode("utf-8")
+                except UnicodeDecodeError:
+                    err_msg = result.stderr.decode("gbk", errors="ignore")
+            tdLog.error(f"running command: {cmd_line}")
+            tdLog.error(err_msg)
+            return None
+
+        if error_output is not None:
+            return ""
+
+        try:
+            return result.stdout.decode("utf-8").strip()
+        except UnicodeDecodeError:
+            return result.stdout.decode("gbk", errors="ignore").strip()
+
     def cmd_old(self, host, cmd_list, password="") -> Union[str, None]:
         """
         用于执行本地shell命令或远程shell命令。
@@ -69,20 +101,7 @@ class Remote:
             tdLog.debug("cmd on %s: %s", host, cmd_line)
         # 执行本地shell命令
         if host == self._local_host or host == "localhost":
-            if error_output is None:
-                result = await asyncio.to_thread(subprocess.run, cmd_line, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            else:
-                with open(error_output, "a") as f:
-                    result = await asyncio.to_thread(subprocess.run, cmd_line, shell=True, stdout=f, stderr=f)
-            if result.returncode != 0:
-                try:
-                    err_msg = result.stderr.decode("utf-8")
-                except UnicodeDecodeError:
-                    err_msg = result.stderr.decode("gbk", errors="ignore")
-                tdLog.error(f"running command: {cmd_line}")
-                tdLog.error(err_msg)
-                return None
-            return result.stdout.decode().strip()
+            return self._run_local_cmd(cmd_line, error_output)
         # 执行远程shell命令
         try:
             async with asyncssh.connect(host, username="root", password=password, known_hosts=None) as conn:
@@ -101,6 +120,16 @@ class Remote:
 
 
     def cmd(self, host, cmd_list, password="", error_output=None) -> Union[str, None]:
+        if isinstance(cmd_list, list):
+            cmd_line = " & ".join(cmd_list)
+        else:
+            cmd_line = cmd_list
+        if host == self._local_host or host == "localhost":
+            if "taos" in cmd_line:
+                tdLog.info("cmd on %s: %s", host, cmd_line)
+            else:
+                tdLog.debug("cmd on %s: %s", host, cmd_line)
+            return self._run_local_cmd(cmd_line, error_output)
         return asyncio.run(self.async_cmd(host, cmd_list, password, error_output))
     
 

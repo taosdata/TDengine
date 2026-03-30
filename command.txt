@@ -1,0 +1,1 @@
+pytest cases/80-Components/01-Taosd/test_com_taosd_audit.py -q -s --log-level=DEBUG --clean 

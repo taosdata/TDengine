@@ -29,6 +29,10 @@ extern "C" {
 #endif
 
 #define AUDIT_DETAIL_MAX 65472
+#define AUDIT_STORAGE_DETAIL_MAX 50000
+#define AUDIT_MAX_SQL_LEN        1000000
+#define AUDIT_INTERNAL_USER_APP  "__audit_internal__"
+#define AUDIT_INTERNAL_CONNECTOR "taosd.audit.sink"
 
 typedef struct {
   const char *server;

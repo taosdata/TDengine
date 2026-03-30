@@ -11,4 +11,4 @@ target_include_directories(
   PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 
-target_link_libraries(audit os util common transport mnode)
+target_link_libraries(audit os util common transport mnode ${TAOS_NATIVE_LIB_STATIC})
