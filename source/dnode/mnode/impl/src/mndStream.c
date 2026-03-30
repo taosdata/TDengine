@@ -1333,7 +1333,7 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
       code = mndStreamCreateOutStb(pMnode, pTrans, pStream->pCreate, RPC_MSG_USER(pReq));
       TSDB_CHECK_CODE(code, lino, _OVER);
       mstsInfo("stream:%s created output super table:%s", pStream->pCreate->name, pStream->pCreate->outTblName);
-    } else if (TSDB_NORMAL_TABLE == pStream->pCreate->outTblType) {
+    } else if (TSDB_NORMAL_TABLE == pStream->pCreate->outTblType && pStream->pCreate->nodelayCreateSubtable) {
       // Create normal table in vnode
       code = mndStreamCreateOutTable(pMnode, pTrans, pStream->pCreate);
       TSDB_CHECK_CODE(code, lino, _OVER);
