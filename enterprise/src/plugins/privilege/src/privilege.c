@@ -1525,7 +1525,7 @@ static int32_t mndCheckObjPrivExpandConflicts(SPrivSet *privSet, bool legacyMode
 }
 
 static int32_t mndAlterLegacyDbGrant(SMnode *pMnode, void *pNew, SAlterRoleReq *pAlterReq, int objTypeSize,
-                                     EPrivObjType sdbType) {
+                                     ESdbType sdbType) {
   int32_t code = 0;
   bool    legacyMode = (tsEnableGrantLegacySyntax == 1 ? true : false);
 
