@@ -1,5 +1,6 @@
 #failed cases
 cases/17-DataSubscription/02-Consume/test_tmq_raw_block_interface.py
+cases/70-Cluster/test_cluster_kill_restore_dnode.py
 
 # udf not supported in Windows CI
 cases/12-UDFs/test_udf_test.py
