@@ -478,7 +478,7 @@ pub async fn filter_opc_log<S: AsRef<str>>(error_log: S) -> String {
     error.trim_end().to_string() // remove last '\n'
 }
 
-/// 连通性检查
+/// Connectivity check with failover support.
 pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
     #[cfg(not(windows))]
     if dsn.driver == "opcda" {
@@ -488,10 +488,32 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
         );
     }
 
-    is_valid_impl(dsn)
-        .await
-        .inspect_err(|err| tracing::error!("{err:?}"))
-        .unwrap_or_else(|err| DataSourceValidation::invalid("opc".to_string(), err.to_string()))
+    let endpoints = match failover::get_check_endpoints(dsn.clone()) {
+        Ok(eps) => eps,
+        Err(err) => {
+            tracing::error!("{err:?}");
+            return DataSourceValidation::invalid("opc".to_string(), err.to_string());
+        }
+    };
+
+    let mut last_result =
+        DataSourceValidation::invalid("opc".to_string(), "no endpoints configured".to_string());
+
+    for endpoint in endpoints {
+        let result = is_valid_impl(&endpoint)
+            .await
+            .inspect_err(|err| tracing::error!("{err:?}"))
+            .unwrap_or_else(|err| {
+                DataSourceValidation::invalid("opc".to_string(), err.to_string())
+            });
+
+        if result.valid {
+            return result;
+        }
+        last_result = result;
+    }
+
+    last_result
 }
 
 async fn is_valid_impl(dsn: &Dsn) -> anyhow::Result<DataSourceValidation> {
