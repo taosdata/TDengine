@@ -148,7 +148,6 @@ if (g_interrupted) {
 **原因：** `test_taosbackup_except.py` 测试了服务端重启场景，但重启后 taosBackup 重连成功，未触发"重连失败后退避"这一分支。`releaseConnectionBad` 只在连接被服务端主动断开时调用。  
 **覆盖方式：** 需要在备份/恢复执行**中途**停止 taosd 并延迟重启，或发送 SIGINT 给 taosBackup 进程。
 
-
 ---
 
 ## 四、汇总分类
