@@ -122,7 +122,7 @@ class TestStateWindowNullBlock:
         tdSql.checkData(4, 3, 2000)
         tdSql.checkData(4, 4, 2000)
 
-        tdSql.query("select _wstart, _wend, s, count(*), sum(v) from t1 state_window(s, 1)", show=True)
+        tdSql.query("select _wstart, _wend, s, count(*), sum(v) from t1 state_window(s) extend(1)", show=True)
         tdSql.checkRows(5)
         tdSql.checkData(0, 0, "2025-10-31 00:00:00.000")
         tdSql.checkData(0, 1, "2025-10-31 00:33:19.999")
@@ -150,7 +150,7 @@ class TestStateWindowNullBlock:
         tdSql.checkData(4, 3, 2000)
         tdSql.checkData(4, 4, 2000)
 
-        tdSql.query("select _wstart, _wend, s, count(*), sum(v) from t1 state_window(s, 2)", show=True)
+        tdSql.query("select _wstart, _wend, s, count(*), sum(v) from t1 state_window(s) extend(2)", show=True)
         tdSql.checkRows(5)
         tdSql.checkData(0, 0, "2025-10-31 00:00:00.000")
         tdSql.checkData(0, 1, "2025-10-31 00:33:19.000")
@@ -210,7 +210,7 @@ class TestStateWindowNullBlock:
         tdSql.checkData(4, 3, 2000)
         tdSql.checkData(4, 4, 2000)
 
-        tdSql.query("select _wstart, _wend, s, count(*), sum(v) from t2 state_window(s, 1)", show=True)
+        tdSql.query("select _wstart, _wend, s, count(*), sum(v) from t2 state_window(s) extend(1)", show=True)
         tdSql.checkRows(5)
         tdSql.checkData(0, 0, "2025-10-31 00:00:00.000")
         tdSql.checkData(0, 1, "2025-10-31 00:33:19.999")
@@ -238,7 +238,7 @@ class TestStateWindowNullBlock:
         tdSql.checkData(4, 3, 2000)
         tdSql.checkData(4, 4, 2000)
 
-        tdSql.query("select _wstart, _wend, s, count(*), sum(v) from t2 state_window(s, 2)", show=True)
+        tdSql.query("select _wstart, _wend, s, count(*), sum(v) from t2 state_window(s) extend(2)", show=True)
         tdSql.checkRows(5)
         tdSql.checkData(0, 0, "2025-10-31 00:00:00.000")
         tdSql.checkData(0, 1, "2025-10-31 00:33:19.000")
@@ -298,7 +298,7 @@ class TestStateWindowNullBlock:
         tdSql.checkData(4, 3, 2000)
         tdSql.checkData(4, 4, 2000)
 
-        tdSql.query("select _wstart, _wend, s, count(*), sum(v) from t3 state_window(s, 1)", show=True)
+        tdSql.query("select _wstart, _wend, s, count(*), sum(v) from t3 state_window(s) extend(1)", show=True)
         tdSql.checkRows(5)
         tdSql.checkData(0, 0, "2025-10-31 00:00:00.000")
         tdSql.checkData(0, 1, "2025-10-31 00:33:19.999")
@@ -326,7 +326,7 @@ class TestStateWindowNullBlock:
         tdSql.checkData(4, 3, 2000)
         tdSql.checkData(4, 4, 2000)
 
-        tdSql.query("select _wstart, _wend, s, count(*), sum(v) from t3 state_window(s, 2)", show=True)
+        tdSql.query("select _wstart, _wend, s, count(*), sum(v) from t3 state_window(s) extend(2)", show=True)
         tdSql.checkRows(5)
         tdSql.checkData(0, 0, "2025-10-31 00:00:00.000")
         tdSql.checkData(0, 1, "2025-10-31 00:33:19.000")
@@ -386,7 +386,7 @@ class TestStateWindowNullBlock:
         tdSql.checkData(4, 3, 1995)
         tdSql.checkData(4, 4, 1995)
 
-        tdSql.query("select _wstart, _wend, s, count(*), sum(v) from t4 state_window(s, 1)", show=True)
+        tdSql.query("select _wstart, _wend, s, count(*), sum(v) from t4 state_window(s) extend(1)", show=True)
         tdSql.checkRows(5)
         tdSql.checkData(0, 0, "2025-10-31 00:00:04.000")
         tdSql.checkData(0, 1, "2025-10-31 00:33:19.999")
@@ -414,7 +414,7 @@ class TestStateWindowNullBlock:
         tdSql.checkData(4, 3, 2000)
         tdSql.checkData(4, 4, 2000)
 
-        tdSql.query("select _wstart, _wend, s, count(*), sum(v) from t4 state_window(s, 2)", show=True)
+        tdSql.query("select _wstart, _wend, s, count(*), sum(v) from t4 state_window(s) extend(2)", show=True)
         tdSql.checkRows(5)
         tdSql.checkData(0, 0, "2025-10-31 00:00:00.000")
         tdSql.checkData(0, 1, "2025-10-31 00:33:19.000")
@@ -464,7 +464,7 @@ class TestStateWindowNullBlock:
         tdSql.checkData(2, 3, 6000)
         tdSql.checkData(2, 4, 4000)
 
-        tdSql.query("select _wstart, _wend, s, count(*), sum(v) from t5 state_window(s, 1)", show=True)
+        tdSql.query("select _wstart, _wend, s, count(*), sum(v) from t5 state_window(s) extend(1)", show=True)
         tdSql.checkRows(3)
         tdSql.checkData(0, 0, "2025-10-31 00:00:00.000")
         tdSql.checkData(0, 1, "2025-10-31 00:33:19.999")
@@ -482,7 +482,7 @@ class TestStateWindowNullBlock:
         tdSql.checkData(2, 3, 6000)
         tdSql.checkData(2, 4, 4000)
 
-        tdSql.query("select _wstart, _wend, s, count(*), sum(v) from t5 state_window(s, 2)", show=True)
+        tdSql.query("select _wstart, _wend, s, count(*), sum(v) from t5 state_window(s) extend(2)", show=True)
         tdSql.checkRows(3)
         tdSql.checkData(0, 0, "2025-10-31 00:00:00.000")
         tdSql.checkData(0, 1, "2025-10-31 00:33:19.000")
@@ -522,7 +522,7 @@ class TestStateWindowNullBlock:
         tdSql.checkData(2, 3, 5995)
         tdSql.checkData(2, 4, 3995)
 
-        tdSql.query("select _wstart, _wend, s, count(*), sum(v) from t6 state_window(s, 1)", show=True)
+        tdSql.query("select _wstart, _wend, s, count(*), sum(v) from t6 state_window(s) extend(1)", show=True)
         tdSql.checkRows(3)
         tdSql.checkData(0, 0, "2025-10-31 00:00:05.000")
         tdSql.checkData(0, 1, "2025-10-31 00:33:19.999")
@@ -540,7 +540,7 @@ class TestStateWindowNullBlock:
         tdSql.checkData(2, 3, 6000)
         tdSql.checkData(2, 4, 4000)
 
-        tdSql.query("select _wstart, _wend, s, count(*), sum(v) from t6 state_window(s, 2)", show=True)
+        tdSql.query("select _wstart, _wend, s, count(*), sum(v) from t6 state_window(s) extend(2)", show=True)
         tdSql.checkRows(3)
         tdSql.checkData(0, 0, "2025-10-31 00:00:00.000")
         tdSql.checkData(0, 1, "2025-10-31 00:33:19.000")
@@ -566,13 +566,13 @@ class TestStateWindowNullBlock:
         tdSql.checkData(0, 1, "2025-10-01 01:00:00.000")
         tdSql.checkData(0, 2, 1)
         tdSql.checkData(0, 3, 1)
-        tdSql.query("select _wstart, _wend, count(*), sum(v) from d0 state_window(v, 1)", show=True)
+        tdSql.query("select _wstart, _wend, count(*), sum(v) from d0 state_window(v) extend(1)", show=True)
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, "2025-10-01 01:00:00.000")
         tdSql.checkData(0, 1, "2025-10-01 01:23:19.000")
         tdSql.checkData(0, 2, 1400)
         tdSql.checkData(0, 3, 1)
-        tdSql.query("select _wstart, _wend, count(*), sum(v) from d0 state_window(v, 2)", show=True)
+        tdSql.query("select _wstart, _wend, count(*), sum(v) from d0 state_window(v) extend(2)", show=True)
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, "2025-10-01 00:00:00.000")
         tdSql.checkData(0, 1, "2025-10-01 01:00:00.000")
@@ -628,7 +628,7 @@ class TestStateWindowNullBlock:
         tdSql.checkData(4, 3, 2)
         tdSql.checkData(4, 4, "a")
 
-        tdSql.query("select _wstart, _wend, count(*), v, s from tt partition by v state_window(s, 1) order by _wstart", show=1)
+        tdSql.query("select _wstart, _wend, count(*), v, s from tt partition by v state_window(s) extend(1) order by _wstart", show=1)
         tdSql.checkRows(5)
         tdSql.checkData(0, 0, "2025-12-01 12:00:00.000")
         tdSql.checkData(0, 1, "2025-12-01 12:00:02.999")
@@ -656,7 +656,7 @@ class TestStateWindowNullBlock:
         tdSql.checkData(4, 3, 2)
         tdSql.checkData(4, 4, "a")
 
-        tdSql.query("select _wstart, _wend, count(*), v, s from tt partition by v state_window(s, 2) order by _wstart", show=1)
+        tdSql.query("select _wstart, _wend, count(*), v, s from tt partition by v state_window(s) extend(2) order by _wstart", show=1)
         tdSql.checkRows(5)
         tdSql.checkData(0, 0, "2025-12-01 11:59:57.000")
         tdSql.checkData(0, 1, "2025-12-01 12:00:00.000")

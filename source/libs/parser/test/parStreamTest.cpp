@@ -23,6 +23,13 @@ using namespace std;
 namespace ParserTest {
 class ParserStreamTest : public ParserDdlTest {};
 
+TEST_F(ParserDdlTest, stateWindowKeywordSyntax) {
+  run("create stream stream_streamdb.s_keyword_extend state_window(c1) extend(1) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2");
+  run("create stream stream_streamdb.s_keyword_zeroth state_window(c1) extend(0) zeroth_state(0) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2");
+  run("create stream stream_streamdb.s_keyword_no_zeroth state_window(c1) zeroth_state(no_zeroth) true_for(1s) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2");
+  run("create stream stream_streamdb.s_keyword_mix state_window(c1, 1) extend(1) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2", TSDB_CODE_PAR_SYNTAX_ERROR, PARSER_STAGE_PARSE);
+}
+
 /*
 * CREATE STREAM [IF NOT EXISTS] stream_name stream_options [INTO [db_name.]table_name] [OUTPUT_SUBTABLE(tbname_expr)] [(column_name1, column_name2 [PRIMARY KEY][, ...])] [TAGS (tag_definition [, ...])] [AS subquery]
 *

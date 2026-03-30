@@ -147,6 +147,9 @@ TEST_F(ParserSelectTest, selectFunc) {
   run("SELECT MAX(c1), c2 FROM t1 INTERVAL(10s)");
   run("SELECT MAX(c1), c2 FROM t1 SESSION(ts, 10s)");
   run("SELECT MAX(c1), c2 FROM t1 STATE_WINDOW(c3)");
+  run("SELECT MAX(c1), c2 FROM t1 STATE_WINDOW(c3) EXTEND(1)");
+  run("SELECT MAX(c1), c2 FROM t1 STATE_WINDOW(c3) EXTEND(1) ZEROTH_STATE(0)");
+  run("SELECT MAX(c1), c2 FROM t1 STATE_WINDOW(c3) ZEROTH_STATE(NO_ZEROTH)");
 }
 
 TEST_F(ParserSelectTest, IndefiniteRowsFunc) {

@@ -399,6 +399,8 @@ static int32_t stateWindowNodeCopy(const SStateWindowNode* pSrc, SStateWindowNod
   CLONE_NODE_FIELD(pCol);
   CLONE_NODE_FIELD(pExpr);
   CLONE_NODE_FIELD(pTrueForLimit);
+  CLONE_NODE_FIELD(pExtend);
+  CLONE_NODE_FIELD(pZeroth);
   return TSDB_CODE_SUCCESS;
 }
 

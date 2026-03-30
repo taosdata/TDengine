@@ -51,16 +51,16 @@ class TestStateWindowZeroth:
 
     def check_zeroth_state_query(self):
         # invalid zeroth parameter
-        tdSql.error("select _wstart, _wend, count(*) from ntb state_window(cint, 0, null)", show=True)
-        tdSql.error("select _wstart, _wend, count(*) from ntb state_window(cint, 0, cint)", show=True)
-        tdSql.error("select _wstart, _wend, count(*) from ntb state_window(cint, 0, cint+1)", show=True)
-        tdSql.error("select _wstart, _wend, count(*) from ntb state_window(cint, 0, 1/1)", show=True)
-        tdSql.error("select _wstart, _wend, count(*) from ntb state_window(cint, 0, 1.5)", show=True)
-        tdSql.error("select _wstart, _wend, count(*) from ntb state_window(cint, 0, asdf)", show=True)
-        tdSql.error("select _wstart, _wend, count(*) from ntb state_window(cbool, 0, null)", show=True)
+        tdSql.error("select _wstart, _wend, count(*) from ntb state_window(cint) extend(0) zeroth_state(null)", show=True)
+        tdSql.error("select _wstart, _wend, count(*) from ntb state_window(cint) extend(0) zeroth_state(cint)", show=True)
+        tdSql.error("select _wstart, _wend, count(*) from ntb state_window(cint) extend(0) zeroth_state(cint+1)", show=True)
+        tdSql.error("select _wstart, _wend, count(*) from ntb state_window(cint) extend(0) zeroth_state(1/1)", show=True)
+        tdSql.error("select _wstart, _wend, count(*) from ntb state_window(cint) extend(0) zeroth_state(1.5)", show=True)
+        tdSql.error("select _wstart, _wend, count(*) from ntb state_window(cint) extend(0) zeroth_state(asdf)", show=True)
+        tdSql.error("select _wstart, _wend, count(*) from ntb state_window(cbool) extend(0) zeroth_state(null)", show=True)
 
         # normal table
-        tdSql.query("select _wstart, _wend, count(*) from ntb state_window(cint, 0, 0)", show=True)
+        tdSql.query("select _wstart, _wend, count(*) from ntb state_window(cint) extend(0) zeroth_state(0)", show=True)
         tdSql.checkRows(5)
         tdSql.checkData(0, 2, 1)
         tdSql.checkData(1, 2, 2)
@@ -68,13 +68,13 @@ class TestStateWindowZeroth:
         tdSql.checkData(3, 2, 2)
         tdSql.checkData(4, 2, 2)
 
-        tdSql.query("select _wstart, _wend, count(*) from ntb state_window(cint, 0, 1)", show=True)
+        tdSql.query("select _wstart, _wend, count(*) from ntb state_window(cint) extend(0) zeroth_state(1)", show=True)
         tdSql.checkRows(3)
         tdSql.checkData(0, 2, 2)
         tdSql.checkData(1, 2, 4)
         tdSql.checkData(2, 2, 2)
 
-        tdSql.query("select _wstart, _wend, count(*) from ntb state_window(cint, 0, -1)", show=True)
+        tdSql.query("select _wstart, _wend, count(*) from ntb state_window(cint) extend(0) zeroth_state(-1)", show=True)
         tdSql.checkRows(5)
         tdSql.checkData(0, 2, 1)
         tdSql.checkData(1, 2, 2)
@@ -82,20 +82,20 @@ class TestStateWindowZeroth:
         tdSql.checkData(3, 2, 2)
         tdSql.checkData(4, 2, 2)
 
-        tdSql.query("select _wstart, _wend, count(*) from ntb state_window(cbool, 0, true)", show=True)
+        tdSql.query("select _wstart, _wend, count(*) from ntb state_window(cbool) extend(0) zeroth_state(true)", show=True)
         tdSql.checkRows(3)
         tdSql.checkData(0, 2, 3)
         tdSql.checkData(1, 2, 1)
         tdSql.checkData(2, 2, 2)
 
-        tdSql.query("select _wstart, _wend, count(*) from ntb state_window(cbool, 0, false)", show=True)
+        tdSql.query("select _wstart, _wend, count(*) from ntb state_window(cbool) extend(0) zeroth_state(false)", show=True)
         tdSql.checkRows(4)
         tdSql.checkData(0, 2, 1)
         tdSql.checkData(1, 2, 1)
         tdSql.checkData(2, 2, 2)
         tdSql.checkData(3, 2, 1)
 
-        tdSql.query("select _wstart, _wend, count(*) from ntb state_window(cstr, 0, 'a')", show=True)
+        tdSql.query("select _wstart, _wend, count(*) from ntb state_window(cstr) extend(0) zeroth_state('a')", show=True)
         tdSql.checkRows(5)
         tdSql.checkData(0, 2, 1)
         tdSql.checkData(1, 2, 1)
@@ -103,7 +103,7 @@ class TestStateWindowZeroth:
         tdSql.checkData(3, 2, 2)
         tdSql.checkData(4, 2, 2)
 
-        tdSql.query("select _wstart, _wend, count(*) from ntb state_window(cstr, 0, 'A')", show=True)
+        tdSql.query("select _wstart, _wend, count(*) from ntb state_window(cstr) extend(0) zeroth_state('A')", show=True)
         tdSql.checkRows(7)
         tdSql.checkData(0, 2, 2)
         tdSql.checkData(1, 2, 1)
@@ -114,13 +114,13 @@ class TestStateWindowZeroth:
         tdSql.checkData(6, 2, 2)
 
         # test cast 
-        tdSql.query("select _wstart, _wend, count(*) from ntb state_window(cint, 0, '2')", show=True)
+        tdSql.query("select _wstart, _wend, count(*) from ntb state_window(cint) extend(0) zeroth_state('2')", show=True)
         tdSql.checkRows(3)
         tdSql.checkData(0, 2, 1)
         tdSql.checkData(1, 2, 4)
         tdSql.checkData(2, 2, 2)
 
-        tdSql.query("select _wstart, _wend, count(*) from ntb state_window(cint, 0, 'A')", show=True)
+        tdSql.query("select _wstart, _wend, count(*) from ntb state_window(cint) extend(0) zeroth_state('A')", show=True)
         tdSql.checkRows(5)
         tdSql.checkData(0, 2, 1)
         tdSql.checkData(1, 2, 2)
@@ -128,19 +128,19 @@ class TestStateWindowZeroth:
         tdSql.checkData(3, 2, 2)
         tdSql.checkData(4, 2, 2)
 
-        tdSql.query("select _wstart, _wend, count(*) from ntb state_window(cint, 0, true)", show=True)
+        tdSql.query("select _wstart, _wend, count(*) from ntb state_window(cint) extend(0) zeroth_state(true)", show=True)
         tdSql.checkRows(3)
         tdSql.checkData(0, 2, 2)
         tdSql.checkData(1, 2, 4)
         tdSql.checkData(2, 2, 2)
 
-        tdSql.query("select _wstart, _wend, count(*) from ntb state_window(cint, 0, '1.5')", show=True)
+        tdSql.query("select _wstart, _wend, count(*) from ntb state_window(cint) extend(0) zeroth_state('1.5')", show=True)
         tdSql.checkRows(3)
         tdSql.checkData(0, 2, 2)
         tdSql.checkData(1, 2, 4)
         tdSql.checkData(2, 2, 2)
 
-        tdSql.query("select _wstart, _wend, count(*) from ntb state_window(cint, 0, '100A')", show=True)
+        tdSql.query("select _wstart, _wend, count(*) from ntb state_window(cint) extend(0) zeroth_state('100A')", show=True)
         tdSql.checkRows(5)
         tdSql.checkData(0, 2, 1)
         tdSql.checkData(1, 2, 2)
@@ -148,34 +148,34 @@ class TestStateWindowZeroth:
         tdSql.checkData(3, 2, 2)
         tdSql.checkData(4, 2, 2)
 
-        tdSql.query("select _wstart, _wend, count(*) from ntb state_window(cbool, 0, 'true')", show=True)
+        tdSql.query("select _wstart, _wend, count(*) from ntb state_window(cbool) extend(0) zeroth_state('true')", show=True)
         tdSql.checkRows(4)
         tdSql.checkData(0, 2, 1)
         tdSql.checkData(1, 2, 1)
         tdSql.checkData(2, 2, 2)
         tdSql.checkData(3, 2, 1)
 
-        tdSql.query("select _wstart, _wend, count(*) from ntb state_window(cbool, 0, 'false')", show=True)
+        tdSql.query("select _wstart, _wend, count(*) from ntb state_window(cbool) extend(0) zeroth_state('false')", show=True)
         tdSql.checkRows(4)
         tdSql.checkData(0, 2, 1)
         tdSql.checkData(1, 2, 1)
         tdSql.checkData(2, 2, 2)
         tdSql.checkData(3, 2, 1)
 
-        tdSql.query("select _wstart, _wend, count(*) from ntb state_window(cbool, 0, 0)", show=True)
+        tdSql.query("select _wstart, _wend, count(*) from ntb state_window(cbool) extend(0) zeroth_state(0)", show=True)
         tdSql.checkRows(4)
         tdSql.checkData(0, 2, 1)
         tdSql.checkData(1, 2, 1)
         tdSql.checkData(2, 2, 2)
         tdSql.checkData(3, 2, 1)
 
-        tdSql.query("select _wstart, _wend, count(*) from ntb state_window(cbool, 0, 10)", show=True)
+        tdSql.query("select _wstart, _wend, count(*) from ntb state_window(cbool) extend(0) zeroth_state(10)", show=True)
         tdSql.checkRows(3)
         tdSql.checkData(0, 2, 3)
         tdSql.checkData(1, 2, 1)
         tdSql.checkData(2, 2, 2)
 
-        tdSql.query("select _wstart, _wend, count(*) from ntb state_window(cstr, 0, 97)", show=True)
+        tdSql.query("select _wstart, _wend, count(*) from ntb state_window(cstr) extend(0) zeroth_state(97)", show=True)
         tdSql.checkRows(7)
         tdSql.checkData(0, 2, 2)
         tdSql.checkData(1, 2, 1)
@@ -185,7 +185,7 @@ class TestStateWindowZeroth:
         tdSql.checkData(5, 2, 2)
         tdSql.checkData(6, 2, 2)
 
-        tdSql.query("select _wstart, _wend, count(*) from ntb state_window(cstr, 0, true)", show=True)
+        tdSql.query("select _wstart, _wend, count(*) from ntb state_window(cstr) extend(0) zeroth_state(true)", show=True)
         tdSql.checkRows(7)
         tdSql.checkData(0, 2, 2)
         tdSql.checkData(1, 2, 1)
@@ -195,7 +195,7 @@ class TestStateWindowZeroth:
         tdSql.checkData(5, 2, 2)
         tdSql.checkData(6, 2, 2)
 
-        tdSql.query("select _wstart, _wend, count(*), cnchar from ntb state_window(cnchar, 0, '未知')", show=True)
+        tdSql.query("select _wstart, _wend, count(*), cnchar from ntb state_window(cnchar) extend(0) zeroth_state('未知')", show=True)
         tdSql.checkRows(5)
         tdSql.checkData(0, 2, 1)
         tdSql.checkData(0, 3, '正常')
@@ -209,19 +209,19 @@ class TestStateWindowZeroth:
         tdSql.checkData(4, 3, '正常')
 
         # super table 
-        tdSql.error("select _wstart, _wend, count(*) from stb state_window(cint, 0, 0)", show=True)
+        tdSql.error("select _wstart, _wend, count(*) from stb state_window(cint) extend(0) zeroth_state(0)", show=True)
 
-        tdSql.error("select _wstart, _wend, count(*) from stb state_window(cint, 0, 1)", show=True)
+        tdSql.error("select _wstart, _wend, count(*) from stb state_window(cint) extend(0) zeroth_state(1)", show=True)
 
-        tdSql.error("select _wstart, _wend, count(*) from stb state_window(cint, 0, -1)", show=True)
+        tdSql.error("select _wstart, _wend, count(*) from stb state_window(cint) extend(0) zeroth_state(-1)", show=True)
 
-        tdSql.error("select _wstart, _wend, count(*) from stb state_window(cbool, 0, true)", show=True)
+        tdSql.error("select _wstart, _wend, count(*) from stb state_window(cbool) extend(0) zeroth_state(true)", show=True)
 
-        tdSql.error("select _wstart, _wend, count(*) from stb state_window(cbool, 0, false)", show=True)
+        tdSql.error("select _wstart, _wend, count(*) from stb state_window(cbool) extend(0) zeroth_state(false)", show=True)
 
-        tdSql.error("select _wstart, _wend, count(*) from stb state_window(cstr, 0, 'a')", show=True)
+        tdSql.error("select _wstart, _wend, count(*) from stb state_window(cstr) extend(0) zeroth_state('a')", show=True)
 
-        tdSql.error("select _wstart, _wend, count(*) from stb state_window(cstr, 0, 'A')", show=True)
+        tdSql.error("select _wstart, _wend, count(*) from stb state_window(cstr) extend(0) zeroth_state('A')", show=True)
 
     def check_zeroth_state_stream_compute(self):
         # create streams
@@ -231,11 +231,11 @@ class TestStateWindowZeroth:
             stream='''create stream st0 count_window(1) from ctb1
                         into res_st0 as select _wstart, _wduration,
                         _wend, count(*) cnt_all, sum(cfloat) sum_cfloat
-                        from ctb1 state_window(cint, 0, 1)''',
+                        from ctb1 state_window(cint) extend(0) zeroth_state(1)''',
             res_query='''select _wstart, _wduration, _wend, cnt_all, sum_cfloat
                         from res_st0''',
             exp_query='''select _wstart, _wduration, _wend, count(*), sum(cfloat)
-                        from ctb1 state_window(cint, 0) having(cint != 1)''',
+                        from ctb1 state_window(cint) extend(0) having(cint != 1)''',
         )
         streams.append(stream)
 
@@ -244,11 +244,11 @@ class TestStateWindowZeroth:
             stream='''create stream st1 count_window(1) from ctb1
                         into res_st1 as select _wstart, _wduration,
                         _wend, count(*) cnt_all, sum(cfloat) sum_cfloat
-                        from ctb1 state_window(cbool, 0, false)''',
+                        from ctb1 state_window(cbool) extend(0) zeroth_state(false)''',
             res_query='''select _wstart, _wduration, _wend, cnt_all, sum_cfloat
                         from res_st1''',
             exp_query='''select _wstart, _wduration, _wend, count(*), sum(cfloat)
-                        from ctb1 state_window(cbool, 0) having(cbool != false)''',
+                        from ctb1 state_window(cbool) extend(0) having(cbool != false)''',
         )
         streams.append(stream)
 
@@ -257,11 +257,11 @@ class TestStateWindowZeroth:
             stream='''create stream st2 count_window(1) from ctb1
                         into res_st2 as select _wstart, _wduration,
                         _wend, count(*) cnt_all, sum(cfloat) sum_cfloat, cstr
-                        from ctb1 state_window(cstr, 0, 'b')''',
+                        from ctb1 state_window(cstr) extend(0) zeroth_state('b')''',
             res_query='''select _wstart, _wduration, _wend, cnt_all, sum_cfloat, cstr
                         from res_st2''',
             exp_query='''select _wstart, _wduration, _wend, count(*), sum(cfloat), cstr
-                        from ctb1 state_window(cstr, 0) having(cstr != 'b')''',
+                        from ctb1 state_window(cstr) extend(0) having(cstr != 'b')''',
         )
         streams.append(stream)
 
@@ -270,11 +270,11 @@ class TestStateWindowZeroth:
             stream='''create stream st3 count_window(1) from stb
                         partition by tbname into res_st3 as
                         select _wstart, _wduration, _wend, count(*) cnt_all,
-                        sum(cfloat) sum_cfloat from %%tbname state_window(cint, 0, 2)''',
+                        sum(cfloat) sum_cfloat from %%tbname state_window(cint) extend(0) zeroth_state(2)''',
             res_query='''select _wstart, _wduration, _wend, cnt_all, sum_cfloat
                         from res_st3''',
             exp_query='''select _wstart, _wduration, _wend, count(*), sum(cfloat)
-                        from ctb1 state_window(cint, 0, 2)''',
+                        from ctb1 state_window(cint) extend(0) zeroth_state(2)''',
         )
         streams.append(stream)
 
@@ -283,11 +283,11 @@ class TestStateWindowZeroth:
             stream='''create stream st4 count_window(1) from stb
                         partition by tbname into res_st4 as
                         select _wstart, _wduration, _wend, count(*) cnt_all,
-                        sum(cfloat) sum_cfloat from %%tbname state_window(cbool, 0, true)''',
+                        sum(cfloat) sum_cfloat from %%tbname state_window(cbool) extend(0) zeroth_state(true)''',
             res_query='''select _wstart, _wduration, _wend, cnt_all, sum_cfloat
                         from res_st4''',
             exp_query='''select _wstart, _wduration, _wend, count(*), sum(cfloat)
-                        from ctb1 state_window(cbool, 0, true)''',
+                        from ctb1 state_window(cbool) extend(0) zeroth_state(true)''',
         )
         streams.append(stream)
 
@@ -296,11 +296,11 @@ class TestStateWindowZeroth:
             stream='''create stream st5 count_window(1) from stb
                         partition by tbname into res_st5 as
                         select _wstart, _wduration, _wend, count(*) cnt_all,
-                        sum(cfloat) sum_cfloat, cstr from %%tbname state_window(cstr, 0, 'a')''',
+                        sum(cfloat) sum_cfloat, cstr from %%tbname state_window(cstr) extend(0) zeroth_state('a')''',
             res_query='''select _wstart, _wduration, _wend, cnt_all, sum_cfloat, cstr
                         from res_st5''',
             exp_query='''select _wstart, _wduration, _wend, count(*), sum(cfloat), cstr
-                        from ctb1 state_window(cstr, 0, 'a')''',
+                        from ctb1 state_window(cstr) extend(0) zeroth_state('a')''',
         )
         streams.append(stream)
 
@@ -321,76 +321,76 @@ class TestStateWindowZeroth:
         streams: list[StreamItem] = []
         stream = StreamItem (
             id=6,
-            stream='''create stream st6 state_window(cint, 0, 3) from ctb1 into
+            stream='''create stream st6 state_window(cint) extend(0) zeroth_state(3) from ctb1 into
                         res_st6 as select _twstart wstart, _twduration wdur, _twend wend,
                         count(*) cnt_all, sum(cfloat) sum_cfloat from %%trows;''',
             res_query='''select * from res_st6''',
             exp_query='''select _wstart, _wduration, _wend, count(*), sum(cfloat)
                         from ctb1 where ts >= "2025-10-02" and ts < "2025-10-03"
-                        state_window(cint, 0) having(cint != 3)''',
+                        state_window(cint) extend(0) having(cint != 3)''',
         )
         streams.append(stream)
 
         stream = StreamItem (
             id=7,
-            stream='''create stream st7 state_window(cbool, 0, true) from ctb1 into
+            stream='''create stream st7 state_window(cbool) extend(0) zeroth_state(true) from ctb1 into
                         res_st7 as select _twstart wstart, _twduration wdur, _twend wend,
                         count(*) cnt_all, sum(cfloat) sum_cfloat from %%trows;''',
             res_query='''select * from res_st7''',
             exp_query='''select _wstart, _wduration, _wend, count(*), sum(cfloat)
                         from ctb1 where ts >= "2025-10-02" and ts < "2025-10-03"
-                        state_window(cbool, 0) having(cbool != true)''',
+                        state_window(cbool) extend(0) having(cbool != true)''',
         )
         streams.append(stream)
 
         stream = StreamItem (
             id=8,
-            stream='''create stream st8 state_window(cstr, 0, 'c') from ctb1 into
+            stream='''create stream st8 state_window(cstr) extend(0) zeroth_state('c') from ctb1 into
                         res_st8 as select _twstart wstart, _twduration wdur, _twend wend,
                         count(*) cnt_all, sum(cfloat) sum_cfloat from %%trows;''',
             res_query='''select * from res_st8''',
             exp_query='''select _wstart, _wduration, _wend, count(*), sum(cfloat)
                         from ctb1 where ts >= "2025-10-02" and ts < "2025-10-03"
-                        state_window(cstr, 0) having(cstr != 'c')''',
+                        state_window(cstr) extend(0) having(cstr != 'c')''',
         )
         streams.append(stream)
 
         stream = StreamItem (
             id=9,
-            stream='''create stream st9 state_window(cint, 0, 1) from stb partition by tbname
+            stream='''create stream st9 state_window(cint) extend(0) zeroth_state(1) from stb partition by tbname
                         into res_st9 as select _twstart wstart, _twduration wdur, _twend wend,
                         count(*) cnt_all, sum(cfloat) sum_cfloat from %%tbname
                         where ts >= _twstart and ts <= _twend;''',
             res_query='''select wstart, wdur, wend, cnt_all, sum_cfloat from res_st9''',
             exp_query='''select _wstart, _wduration, _wend, count(*), sum(cfloat)
                         from ctb1 where ts >= "2025-10-02" and ts < "2025-10-03"
-                        state_window(cint, 0) having(cint != 1)''',
+                        state_window(cint) extend(0) having(cint != 1)''',
         )
         streams.append(stream)
 
         stream = StreamItem (
             id=10,
-            stream='''create stream st10 state_window(cbool, 0, true) from stb partition by tbname
+            stream='''create stream st10 state_window(cbool) extend(0) zeroth_state(true) from stb partition by tbname
                         into res_st10 as select _twstart wstart, _twduration wdur, _twend wend,
                         count(*) cnt_all, sum(cfloat) sum_cfloat from %%tbname
                         where ts >= _twstart and ts <= _twend;''',
             res_query='''select wstart, wdur, wend, cnt_all, sum_cfloat from res_st10''',
             exp_query='''select _wstart, _wduration, _wend, count(*), sum(cfloat)
                         from ctb1 where ts >= "2025-10-02" and ts < "2025-10-03"
-                        state_window(cbool, 0) having(cbool != true)''',
+                        state_window(cbool) extend(0) having(cbool != true)''',
         )
         streams.append(stream)
 
         stream = StreamItem (
             id=11,
-            stream='''create stream st11 state_window(cstr, 0, 'd') from stb partition by tbname
+            stream='''create stream st11 state_window(cstr) extend(0) zeroth_state('d') from stb partition by tbname
                         into res_st11 as select _twstart wstart, _twduration wdur, _twend wend,
                         count(*) cnt_all, sum(cfloat) sum_cfloat from %%tbname
                         where ts >= _twstart and ts <= _twend;''',
             res_query='''select wstart, wdur, wend, cnt_all, sum_cfloat from res_st11''',
             exp_query='''select _wstart, _wduration, _wend, count(*), sum(cfloat)
                         from ctb1 where ts >= "2025-10-02" and ts < "2025-10-03"
-                        state_window(cstr, 0) having(cstr != 'd')''',
+                        state_window(cstr) extend(0) having(cstr != 'd')''',
         )
         streams.append(stream)
 
@@ -421,7 +421,7 @@ class TestStateWindowZeroth:
     def check_zeroth_state_stream_trigger_history(self):
         stream = StreamItem (
             id=12,
-            stream='''create stream st12 state_window(cbool, 0, true) from ctb2 STREAM_OPTIONS(fill_history)
+            stream='''create stream st12 state_window(cbool) extend(0) zeroth_state(true) from ctb2 STREAM_OPTIONS(fill_history)
                         into res_st12 as select _twstart wstart, _twduration wdur, _twend wend,
                         count(*) cnt_all, sum(cfloat) sum_cfloat from %%trows;''',
             res_query='''select wstart, wdur, wend, cnt_all, sum_cfloat from res_st12''',

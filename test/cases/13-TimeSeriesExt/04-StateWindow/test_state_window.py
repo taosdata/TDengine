@@ -283,7 +283,7 @@ class TestStateWindow:
         tdSql.query("""
             select _wstart, _wduration, _wend, count(*), count(s), count(v),
             avg(v), first(v), cols(last(v), ts), cols(last_row(v), ts), s
-            from ntb state_window(s, 2)
+            from ntb state_window(s) extend(2)
         """, show=True)
         tdSql.checkRows(4)
         tdSql.checkData(0, 0, "2025-09-01 10:00:00.000")
@@ -334,7 +334,7 @@ class TestStateWindow:
         tdSql.checkData(3, 9, "2025-09-01 10:00:13.000")
         tdSql.checkData(3, 10, "b")
         
-        sql = "select _wstart, _wduration, _wend, s from ntb state_window(s, 2)"
+        sql = "select _wstart, _wduration, _wend, s from ntb state_window(s) extend(2)"
         tdSql.query(sql, show=True)
         tdSql.checkRows(4)
         tdSql.checkData(0, 0, "2025-09-01 10:00:00.000")
@@ -354,19 +354,19 @@ class TestStateWindow:
         tdSql.checkData(3, 2, "2025-09-01 10:00:13.000")
         tdSql.checkData(3, 3, "b")
         
-        sql = "select _wstart, ss from (select _wstart as ts1, _wduration, _wend, s as ss from ntb state_window(s, 2) ) state_window(ss)"
+        sql = "select _wstart, ss from (select _wstart as ts1, _wduration, _wend, s as ss from ntb state_window(s) extend(2) ) state_window(ss)"
         tdSql.query(sql, show=True)
         tdSql.checkRows(4)
 
-        sql = "select ss from (select _wstart as ts1, _wduration, _wend, s as ss from ntb state_window(s, 2) ) state_window(ss)"
+        sql = "select ss from (select _wstart as ts1, _wduration, _wend, s as ss from ntb state_window(s) extend(2) ) state_window(ss)"
         tdSql.query(sql, show=True)
         tdSql.checkRows(4)
                 
-        sql = "select 1 from ntb state_window(s, 2)"
+        sql = "select 1 from ntb state_window(s) extend(2)"
         tdSql.query(sql, show=True)
         tdSql.checkRows(4)
         
-        sql = "select _wstart, _wduration, _wend, v from ntb state_window(s, 2)"
+        sql = "select _wstart, _wduration, _wend, v from ntb state_window(s) extend(2)"
         tdSql.error(sql, show=True)
     
     def test_state_window_group(self):
@@ -405,7 +405,7 @@ class TestStateWindow:
         tdSql.execute("insert into ctb3 values('2026-01-12 12:00:11', NULL, 1);")
         tdSql.execute("insert into ctb3 values('2026-01-12 12:00:12', NULL, 1);")
 
-        tdSql.query("select _wstart, _wend, _wduration, count(*) from stb partition by tbname state_window(vb, 1);")
+        tdSql.query("select _wstart, _wend, _wduration, count(*) from stb partition by tbname state_window(vb) extend(1);")
         tdSql.checkRows(3)
         tdSql.checkData(0, 0, "2026-01-12 12:00:04.000")
         tdSql.checkData(0, 1, "2026-01-12 12:00:04.999")
