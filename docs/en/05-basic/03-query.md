@@ -555,65 +555,69 @@ Where:
 3. **Pseudo-column Support:** `_wstart` (window start time), `_wend` (window end time), and `_wduration` (window duration) can be used in SELECT, HAVING, and ORDER BY clauses.
 
 4. **Grouping and Alignment:**
-    - When both the external window (inner subquery) and outer query use PARTITION BY, automatic alignment is performed by grouping key; data from the same group only matches windows for that group.
-    - When the external window uses PARTITION BY but the outer query does not, it is prohibited by syntax.
-    - When the external window does not use PARTITION BY, calculations are performed on a global window basis.
+    - The subquery can use `PARTITION BY` or `GROUP BY` for grouping, while the outer query can only use `PARTITION BY` for grouping.
+    - When both the subquery and the outer query use grouping, alignment is performed by grouping key: data from the same group only matches windows for that group.
+    - If a group has no matching data within a particular window, that group will not produce a result row for that window (it is silently omitted).
+    - When the subquery does not use grouping, the subquery generates a single shared set of windows; if the outer query uses partitioning, each outer partition performs its computations independently over this shared window set.
+    - When the subquery uses grouping but the outer query does not use grouping, it is prohibited by syntax.
+    - **Current Limitation**: When both the inner and outer queries use grouping and the window subquery also uses `ORDER BY`, the sorting may disrupt the original organization of each partition's window stream; the outer query may operate on the merged window stream, causing the internal partition semantics to fail (treated as unpartitioned), and the per-group alignment between inner and outer partitions is lost.
 
-5. **Nested Calls Support:** Multiple levels of external window nesting are supported for complex event sequence analysis.
+5. **Nested Calls Support:** Multiple levels of external window nesting are supported, meaning the subquery of an external window can itself use EXTERNAL_WINDOW, enabling layered aggregation. For example: the first-level external window defines time ranges by events and aggregates intermediate metrics, then the second-level external window performs secondary aggregation on those intermediate metrics within new time ranges.
 
-### How to Reference Window Attribute Columns
+#### How to Reference Window Attribute Columns
 
-Columns after the first two columns in the subquery (e.g., equipment_id, fault_code, fault_level) become window attribute columns. The referencing rules are:
+Columns after the first two columns in the subquery (e.g., `groupid`, `location`) become window attribute columns. The referencing rules are:
 
-1. Must be referenced using the window alias: `window_alias.column_name`, e.g., `w.equipment_id`, `w.fault_level`.
-2. Can be used in SELECT, HAVING, ORDER BY clauses.
+1. Must be referenced column-by-column using the window alias in the format `window_alias.column_name`, e.g., `w.groupid`, `w.location`.
+2. Window attribute columns can only appear in the form `w.column_name` in the outer query's SELECT, HAVING, and ORDER BY clauses.
 3. **Cannot be referenced in the WHERE clause** (WHERE filters outer table records before windows are generated; window attributes are only available after window definition and should be used in HAVING).
+4. In the current implementation, the window alias is not a complete "virtual table" — **the `w.*` wildcard is not supported for expanding all window attribute columns**, nor can `w` be referenced as a standalone table in FROM/JOIN. If needed, explicitly select columns in the subquery and reference them column-by-column in the outer query.
 
 **Usage Example:**
 
-**Scenario Background** - Factory Equipment Monitoring System:
+**Scenario Background** - Smart Meter Monitoring System:
 
-- `equipment_faults`: equipment fault events table (supertable), includes fault code `fault_code` and fault level `fault_level`
-- `system_alarms`: system alarm events table (supertable), includes alarm code `alarm_code` and measured value `alarm_value`
-- Both tables use `equipment_id` (equipment identifier) as a tag
+Following the smart meter data model used throughout this chapter. The supertable `meters` contains columns `ts`, `current`, `voltage`, `phase`, with tags `groupid` and `location`. Assume there is also an alert events table `alerts` (supertable), containing columns `ts`, `alert_code`, `alert_value`, with tags `groupid` and `location`.
 
-**Objective** - Use each equipment's fault event as a time window, collect alarm statistics within 60 seconds after the fault occurs. Output should include: fault information, number of alarms in the window, maximum measured value. Filter for windows with "alarm responses or critical faults", sorted by equipment and fault time.
+**Objective** - Use voltage anomaly events for each meter group as time windows (within 60 seconds from the moment voltage >= 225V), and collect alert statistics within each window. Output should include: group information, number of alerts in the window, and maximum alert value. Filter for windows where "alerts were triggered", sorted by group and time.
+
+**Note**: This example intentionally omits `ORDER BY` from the window subquery. In this scenario, the subquery already outputs the window stream in partition order; adding an explicit sort would trigger the "partition alignment failure" limitation described above.
 
 ```sql
 SELECT
-    w.equipment_id,
-    w.fault_code,
-    w.fault_level,
-    _wstart                AS fault_start_time,
-    COUNT(sa.*)            AS alarm_count,
-    MAX(sa.alarm_value)    AS max_alarm_value,
-    AVG(sa.alarm_value)    AS avg_alarm_value
-FROM system_alarms sa
-PARTITION BY sa.equipment_id
+    w.groupid,
+    w.location,
+    _wstart                AS event_start_time,
+    COUNT(a.*)             AS alert_count,
+    MAX(a.alert_value)     AS max_alert_value,
+    AVG(a.alert_value)     AS avg_alert_value
+FROM alerts a
+PARTITION BY a.groupid
 EXTERNAL_WINDOW (
-    (SELECT ts, ts + 60s, equipment_id, fault_code, fault_level
-     FROM equipment_faults
-     PARTITION BY equipment_id
+    (SELECT ts, ts + 60s, groupid, location
+     FROM meters
+     WHERE voltage >= 225
+     PARTITION BY groupid
     ) w
 )
-HAVING COUNT(sa.*) > 0 OR w.fault_level = 'CRITICAL'
-ORDER BY w.equipment_id, fault_start_time;
+HAVING COUNT(a.*) > 0
+ORDER BY w.groupid, event_start_time;
 ```
 
 **Result Explanation:**
 
-- Each row represents a fault window (driven by `equipment_faults`), with a window duration of 60 seconds after the fault occurred
-- `alarm_count`, `max_alarm_value`, `avg_alarm_value`: statistical metrics from `system_alarms` within the window
-- `w.equipment_id`, `w.fault_code`, `w.fault_level`: window attribute columns for filtering and displaying fault information
-- `HAVING` condition uses both standard aggregate functions (`COUNT`) and window attribute columns (`w.fault_level`)
-- `PARTITION BY` alignment: both inner and outer queries group by `equipment_id`, ensuring that each equipment's alarms only match that equipment's fault windows
+- Each row represents a voltage anomaly event window (driven by records in `meters` where `voltage >= 225`), with a window duration of 60 seconds after the event
+- `alert_count`, `max_alert_value`, `avg_alert_value`: statistical metrics from `alerts` within the window
+- `w.groupid`, `w.location`: window attribute columns from the subquery's tag columns, used to display group information
+- `HAVING` condition uses the aggregate function (`COUNT`) to filter windows with at least one alert
+- `PARTITION BY` alignment: both inner and outer queries group by `groupid`, ensuring that each meter group's alerts only match that group's anomaly windows
 
-**Constraints and Limitations:**
+#### Constraints and Limitations
 
 - Currently not supported in stream processing and subscriptions
 - The first two columns of the window subquery must be of timestamp type, representing window start and end times
-- Window data must be sorted in ascending order by _wstart
-- If the external window (inner subquery) uses PARTITION BY, the outer query must also use PARTITION BY; otherwise, a syntax error occurs
+- The window rows returned by the subquery must be kept in order: in the ungrouped case, sorted by window start time (i.e., the first column) in ascending order; in the grouped case, sorted within each group by window start time in ascending order; if these conditions are not met, an error is reported during execution
+- If the external window (inner subquery) uses grouping, the outer query must also use PARTITION BY; otherwise, a syntax error occurs
 - Variable-length functions (like DIFF, INTERP) are not supported within window scope
 
 ## Time Range Expression
