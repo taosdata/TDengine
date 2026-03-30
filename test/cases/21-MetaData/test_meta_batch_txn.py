@@ -42,11 +42,6 @@ class TestBatchMetaTxn:
         tdSql.execute("drop database if exists txn_db")
         tdSql.execute("create database txn_db vgroups 2")
         tdSql.execute("use txn_db")
-        # Ensure no lingering transaction
-        try:
-            tdSql.execute("ROLLBACK")
-        except:
-            pass
 
 
     # =========================================================================
@@ -60,25 +55,31 @@ class TestBatchMetaTxn:
         tdSql.execute("create table stb (ts timestamp, v int) tags (t1 int)")
 
         # Begin transaction
+        tdLog.info("Starting transaction to create child tables")
         tdSql.execute("BEGIN")
 
         # Create child tables within transaction
+        tdLog.info("Creating child tables ct1, ct2, ct3 within transaction")
         tdSql.execute("create table ct1 using stb tags(1)")
         tdSql.execute("create table ct2 using stb tags(2)")
         tdSql.execute("create table ct3 using stb tags(3)")
 
         # Commit
+        tdLog.info("Committing transaction")
         tdSql.execute("COMMIT")
 
         # Verify all tables exist after commit
+        tdLog.info("Verifying child tables are visible after COMMIT")
         tdSql.query("show tables")
         tdSql.checkRows(3)
 
         # Verify data can be inserted
+        tdLog.info("Inserting data into child tables")
         tdSql.execute("insert into ct1 values(now, 1)")
         tdSql.execute("insert into ct2 values(now, 2)")
         tdSql.execute("insert into ct3 values(now, 3)")
 
+        tdLog.info("Verifying data in super table")
         tdSql.query("select count(*) from stb")
         tdSql.checkData(0, 0, 3)
 
@@ -525,23 +526,33 @@ class TestBatchMetaTxn:
         self.s0_reset_env()
         tdLog.info("======== s25_stb_isolation")
 
-        # Open a second connection
+        # Session B: independent connection
         tdSql2 = tdCom.newTdSql()
         tdSql2.execute("use txn_db")
 
+        # Session A: BEGIN and CREATE STABLE
         tdSql.execute("BEGIN")
         tdSql.execute("create table stb_iso (ts timestamp, c0 int) tags(t0 int)")
 
-        # Second session should NOT see the uncommitted STB
+        # Session B: should NOT see the uncommitted STB
         tdSql2.query("show txn_db.stables")
         tdSql2.checkRows(0)
 
-        # Commit — now it should be visible
+        # Session B: should NOT be able to create child table using uncommitted STB
+        tdSql2.error("create table txn_db.ct_iso using txn_db.stb_iso tags(1)")
+
+        # Session A: COMMIT
         tdSql.execute("COMMIT")
 
+        # Session B: should now see the STB
         tdSql2.query("show txn_db.stables")
         tdSql2.checkRows(1)
 
+        # Session B: can now create child tables
+        tdSql2.execute("create table txn_db.ct_iso using txn_db.stb_iso tags(1)")
+        tdSql2.execute("insert into txn_db.ct_iso values(now, 42)")
+        tdSql2.query("select * from txn_db.ct_iso")
+        tdSql2.checkRows(1)
         tdSql2.close()
 
     # =========================================================================
@@ -673,6 +684,190 @@ class TestBatchMetaTxn:
         tdSql.query("select count(*) from stb_mix")
         tdSql.checkData(0, 0, 2)
 
+    # =========================================================================
+    # 25. DROP STABLE in transaction + COMMIT
+    # =========================================================================
+    def s31_drop_stb_commit(self):
+        self.s0_reset_env()
+        tdLog.info("======== s31_drop_stb_commit")
+
+        tdSql.execute("create table stb_drop (ts timestamp, c0 int) tags(t0 int)")
+        tdSql.execute("create table ct1 using stb_drop tags(1)")
+        tdSql.execute("insert into ct1 values(now, 1)")
+
+        # Verify STB and child exist
+        tdSql.query("show txn_db.stables")
+        tdSql.checkRows(1)
+
+        tdSql.execute("BEGIN")
+        tdSql.execute("drop table stb_drop")
+        tdSql.execute("COMMIT")
+
+        # STB and all children should be gone after commit
+        tdSql.query("show txn_db.stables")
+        tdSql.checkRows(0)
+        tdSql.query("show tables")
+        tdSql.checkRows(0)
+
+    # =========================================================================
+    # 26. DROP STABLE in transaction + ROLLBACK
+    # =========================================================================
+    def s32_drop_stb_rollback(self):
+        self.s0_reset_env()
+        tdLog.info("======== s32_drop_stb_rollback")
+
+        tdSql.execute("create table stb_keep (ts timestamp, c0 int) tags(t0 int)")
+        tdSql.execute("create table ct1 using stb_keep tags(1)")
+        tdSql.execute("insert into ct1 values(now, 100)")
+
+        tdSql.execute("BEGIN")
+        tdSql.execute("drop table stb_keep")
+        tdSql.execute("ROLLBACK")
+
+        # STB and child should still exist
+        tdSql.query("show txn_db.stables")
+        tdSql.checkRows(1)
+        tdSql.query("select c0 from ct1")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 100)
+
+    # =========================================================================
+    # 27. ALTER STABLE add column in transaction + COMMIT
+    # =========================================================================
+    def s33_alter_stb_commit(self):
+        self.s0_reset_env()
+        tdLog.info("======== s33_alter_stb_commit")
+
+        tdSql.execute("create table stb_alt (ts timestamp, c0 int) tags(t0 int)")
+
+        tdSql.execute("BEGIN")
+        tdSql.execute("alter table stb_alt add column c1 float")
+        tdSql.execute("COMMIT")
+
+        # New column should be visible after commit
+        tdSql.query("describe stb_alt")
+        col_names = [tdSql.queryResult[i][0] for i in range(tdSql.queryRows)]
+        assert 'c1' in col_names, "Column c1 not found on stb_alt after COMMIT"
+
+        # Verify child table can use new column
+        tdSql.execute("create table ct1 using stb_alt tags(1)")
+        tdSql.execute("insert into ct1 values(now, 1, 2.0)")
+        tdSql.query("select c1 from ct1")
+        tdSql.checkRows(1)
+
+    # =========================================================================
+    # 28. ALTER STABLE add column in transaction + ROLLBACK
+    # =========================================================================
+    def s34_alter_stb_rollback(self):
+        self.s0_reset_env()
+        tdLog.info("======== s34_alter_stb_rollback")
+
+        tdSql.execute("create table stb_alt (ts timestamp, c0 int) tags(t0 int)")
+
+        tdSql.execute("BEGIN")
+        tdSql.execute("alter table stb_alt add column c1 float")
+        tdSql.execute("ROLLBACK")
+
+        # Column should NOT exist after rollback
+        tdSql.query("describe stb_alt")
+        col_names = [tdSql.queryResult[i][0] for i in range(tdSql.queryRows)]
+        assert 'c1' not in col_names, "Column c1 should not exist after ROLLBACK"
+
+    # =========================================================================
+    # 29. DROP STABLE cross-session isolation
+    # =========================================================================
+    def s35_drop_stb_isolation(self):
+        self.s0_reset_env()
+        tdLog.info("======== s35_drop_stb_isolation")
+
+        tdSql.execute("create table stb_ds (ts timestamp, c0 int) tags(t0 int)")
+        tdSql.execute("create table ct1 using stb_ds tags(1)")
+        tdSql.execute("insert into ct1 values(now, 1)")
+
+        tdSql2 = tdCom.newTdSql()
+        tdSql2.execute("use txn_db")
+
+        # Session A: BEGIN and DROP STABLE (redo-log: deferred)
+        tdSql.execute("BEGIN")
+        tdSql.execute("drop table stb_ds")
+
+        # Session B: should STILL see the STB (not yet committed)
+        tdSql2.query("show txn_db.stables")
+        tdSql2.checkRows(1)
+
+        # Session B: can still query child table data
+        tdSql2.query("select c0 from txn_db.ct1")
+        tdSql2.checkRows(1)
+        tdSql2.checkData(0, 0, 1)
+
+        # Session A: COMMIT
+        tdSql.execute("COMMIT")
+
+        # Session B: STB and child should now be gone
+        tdSql2.query("show txn_db.stables")
+        tdSql2.checkRows(0)
+        tdSql2.close()
+
+    # =========================================================================
+    # 30. ALTER STABLE cross-session isolation
+    # =========================================================================
+    def s36_alter_stb_isolation(self):
+        self.s0_reset_env()
+        tdLog.info("======== s36_alter_stb_isolation")
+
+        tdSql.execute("create table stb_as (ts timestamp, c0 int) tags(t0 int)")
+
+        tdSql2 = tdCom.newTdSql()
+        tdSql2.execute("use txn_db")
+
+        # Session A: BEGIN and ALTER STABLE (redo-log: deferred)
+        tdSql.execute("BEGIN")
+        tdSql.execute("alter table stb_as add column c1 float")
+
+        # Session B: should see OLD schema (no c1 column)
+        tdSql2.query("describe txn_db.stb_as")
+        col_names = [tdSql2.queryResult[i][0] for i in range(tdSql2.queryRows)]
+        assert 'c1' not in col_names, "Session B should not see c1 before COMMIT"
+
+        # Session A: COMMIT
+        tdSql.execute("COMMIT")
+
+        # Session B: should now see new schema with c1
+        tdSql2.query("describe txn_db.stb_as")
+        col_names = [tdSql2.queryResult[i][0] for i in range(tdSql2.queryRows)]
+        assert 'c1' in col_names, "Session B should see c1 after COMMIT"
+        tdSql2.close()
+
+    # =========================================================================
+    # 31. CREATE STB catalog isolation (other session can't use uncommitted STB)
+    # =========================================================================
+    def s37_create_stb_catalog_isolation(self):
+        self.s0_reset_env()
+        tdLog.info("======== s37_create_stb_catalog_isolation")
+
+        tdSql2 = tdCom.newTdSql()
+        tdSql2.execute("use txn_db")
+
+        # Session A: BEGIN and CREATE STABLE
+        tdSql.execute("BEGIN")
+        tdSql.execute("create table stb_cat (ts timestamp, c0 int) tags(t0 int)")
+
+        # Session B: cannot create child table using uncommitted STB
+        tdSql2.error("create table txn_db.ct_cat using txn_db.stb_cat tags(1)")
+
+        # Session A: can create child table (uses pTxnTableMeta)
+        tdSql.execute("create table ct_own using stb_cat tags(1)")
+
+        # Session A: COMMIT
+        tdSql.execute("COMMIT")
+
+        # Session B: can now use the STB
+        tdSql2.execute("create table txn_db.ct_cat using txn_db.stb_cat tags(2)")
+        tdSql2.query("show txn_db.tables")
+        # ct_own + ct_cat = 2
+        tdSql2.checkRows(2)
+        tdSql2.close()
+
     def test_meta_batch_txn(self):
         """Batch meta txn: full lifecycle
 
@@ -706,6 +901,13 @@ class TestBatchMetaTxn:
         28. ALTER TABLE visibility via DESC within txn
         29. SHOW CREATE TABLE for child table within txn
         30. Mixed STB + child + normal + ALTER in single txn
+        31. DROP STABLE in txn + COMMIT
+        32. DROP STABLE in txn + ROLLBACK
+        33. ALTER STABLE add column in txn + COMMIT
+        34. ALTER STABLE add column in txn + ROLLBACK
+        35. DROP STABLE cross-session isolation
+        36. ALTER STABLE cross-session isolation
+        37. CREATE STB catalog isolation (other session can't use uncommitted STB)
 
 
         Since: v3.3.6.0
@@ -717,6 +919,7 @@ class TestBatchMetaTxn:
         History:
             - 2026-03-27 Created
             - 2026-03-29 Added STB txn isolation, same-txn child table, ALTER visibility tests
+            - 2026-03-30 Added STB DROP/ALTER/isolation, catalog isolation tests
 
         """
         self.s1_begin_commit_create_tables()
@@ -749,3 +952,10 @@ class TestBatchMetaTxn:
         self.s28_alter_table_desc_in_txn()
         self.s29_show_create_table_ctb_in_txn()
         self.s30_mixed_stb_child_normal_alter()
+        self.s31_drop_stb_commit()
+        self.s32_drop_stb_rollback()
+        self.s33_alter_stb_commit()
+        self.s34_alter_stb_rollback()
+        self.s35_drop_stb_isolation()
+        self.s36_alter_stb_isolation()
+        self.s37_create_stb_catalog_isolation()

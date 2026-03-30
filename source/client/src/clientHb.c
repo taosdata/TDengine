@@ -1399,7 +1399,6 @@ int32_t hbGatherAllInfo(SAppHbMgr *pAppHbMgr, SClientHbBatchReq **pBatchReq) {
         pOneReq->info = taosHashInit(64, hbKeyHashFunc, 1, HASH_ENTRY_LOCK);
       }
       if (pOneReq->info != NULL) {
-        int32_t    kvKey = HEARTBEAT_KEY_TXN_KEEPALIVE;
         utxn_id_t *pTxnVal = taosMemoryMalloc(sizeof(utxn_id_t));
         if (pTxnVal != NULL) {
           *pTxnVal = curTxnId;

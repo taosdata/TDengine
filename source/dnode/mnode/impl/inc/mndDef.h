@@ -980,9 +980,11 @@ typedef struct {
   int8_t      source;
   SColCmpr*   pCmpr;
   int64_t     keep;
+  utxn_id_t   txnId;           // batch-meta-txn: 0=normal, >0=created within this txn (invisible to others)
   SExtSchema* pExtSchemas;
   int8_t      virtualStb;
   int8_t      secureDelete;
+
 } SStbObj;
 
 typedef struct {

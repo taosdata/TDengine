@@ -208,10 +208,24 @@ int32_t metaCreateSuperTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq
     TABLE_SET_VIRTUAL(entry.flags);
   }
 
+  // batch-meta-txn: mark STB as PRE_CREATE (invisible to other sessions)
+  if (pReq->txnId > 0) {
+    entry.txnId = pReq->txnId;
+    entry.txnStatus = META_TXN_PRE_CREATE;
+  }
+
   code = metaHandleEntry2(pMeta, &entry);
   if (TSDB_CODE_SUCCESS == code) {
-    metaInfo("vgId:%d, super table %s suid:%" PRId64 " is created, version:%" PRId64, TD_VID(pMeta->pVnode), pReq->name,
-             pReq->suid, version);
+    metaInfo("vgId:%d, super table %s suid:%" PRId64 " is created, version:%" PRId64 " txnId:%" PRIu64,
+             TD_VID(pMeta->pVnode), pReq->name, pReq->suid, version, pReq->txnId);
+    // batch-meta-txn: add to txn.idx for COMMIT/ROLLBACK handling
+    if (pReq->txnId > 0) {
+      code = metaTxnIdxUpsert(pMeta, pReq->suid, pReq->txnId, META_TXN_PRE_CREATE, 0);
+      if (code != TSDB_CODE_SUCCESS) {
+        metaError("vgId:%d, failed to upsert txn.idx for stb:%s uid:%" PRId64, TD_VID(pMeta->pVnode), pReq->name,
+                  pReq->suid);
+      }
+    }
   } else {
     metaError("vgId:%d, failed to create stb:%s uid:%" PRId64 " since %s", TD_VID(pMeta->pVnode), pReq->name,
               pReq->suid, tstrerror(code));

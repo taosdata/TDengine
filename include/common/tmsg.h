@@ -4903,6 +4903,7 @@ typedef struct SVCreateStbReq {
   SColCmprWrapper colCmpr;
   int64_t         keep;
   int64_t         ownerId;
+  utxn_id_t       txnId;  // batch-meta-txn: >0 = STB belongs to this txn (VNode marks as PRE_CREATE)
   SExtSchema*     pExtSchemas;
   int8_t          virtualStb;
   int8_t          secureDelete;

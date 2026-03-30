@@ -446,11 +446,13 @@ int32_t processCreateSTableRsp(void* param, SDataBuf* pMsg, int32_t code) {
       SCatalog* pCatalog = NULL;
       int32_t   ret = catalogGetHandle(pRequest->pTscObj->pAppInfo->clusterId, &pCatalog);
       if (pRes->res != NULL) {
-        ret = handleCreateTbExecRes(pRes->res, pCatalog);
-
-        // Batch meta txn: cache STB meta for same-txn child table creation
-#ifdef TD_ENTERPRISE
+        // Batch meta txn: skip global catalog cache update during txn to prevent
+        // cross-session pollution. Only populate per-connection pTxnTableMeta.
         STscObj* pTscObj = pRequest->pTscObj;
+        if (pTscObj->txnId == 0) {
+          ret = handleCreateTbExecRes(pRes->res, pCatalog);
+        }
+#ifdef TD_ENTERPRISE
         if (pTscObj->txnId > 0) {
           STableMetaRsp* pMetaRsp = (STableMetaRsp*)pRes->res;
           STableMeta*    pTableMeta = NULL;

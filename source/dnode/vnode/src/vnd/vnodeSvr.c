@@ -1439,6 +1439,13 @@ static int32_t vnodeProcessCreateStbReq(SVnode *pVnode, int64_t ver, void *pReq,
     goto _err;
   }
 
+  // batch-meta-txn: track STB in VNode txn entry for COMMIT/ROLLBACK
+  if (req.txnId > 0) {
+    vnodeTxnEnsureEntry(pVnode, req.txnId);
+    vnodeTxnTrackTable(pVnode, req.txnId, req.suid);
+    vInfo("vgId:%d, stb:%s uid:%" PRId64 " tracked in txn %" PRIu64, TD_VID(pVnode), req.name, req.suid, req.txnId);
+  }
+
   tDecoderClear(&coder);
   return 0;
 

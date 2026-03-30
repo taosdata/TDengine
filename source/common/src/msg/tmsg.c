@@ -1181,7 +1181,7 @@ int32_t tDeserializeSMAlterStbReq(void *buf, int32_t bufLen, SMAlterStbReq *pReq
       }
     }
   }
-  if (!tDecodeIsEnd(&decoder)) {
+  if (!tDecodeIsEnd(&decoder) && (pReq->alterType == TSDB_ALTER_TABLE_UPDATE_OPTIONS)) {
     TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->secureDelete));
   } else {
     pReq->secureDelete = -1;
@@ -14936,6 +14936,8 @@ int tEncodeSVCreateStbReq(SEncoder *pCoder, const SVCreateStbReq *pReq) {
   TAOS_CHECK_EXIT(tEncodeI8(pCoder, pReq->virtualStb));
   TAOS_CHECK_EXIT(tEncodeI64v(pCoder, pReq->ownerId));
   TAOS_CHECK_EXIT(tEncodeI8(pCoder, pReq->secureDelete));
+  // batch-meta-txn: txnId for VNode-side PRE_CREATE marking
+  TAOS_CHECK_EXIT(tEncodeU64v(pCoder, pReq->txnId));
   tEndEncode(pCoder);
 
 _exit:
@@ -14991,6 +14993,12 @@ int tDecodeSVCreateStbReq(SDecoder *pCoder, SVCreateStbReq *pReq) {
     TAOS_CHECK_EXIT(tDecodeI8(pCoder, &pReq->secureDelete));
   } else {
     pReq->secureDelete = 0;
+  }
+  // batch-meta-txn: txnId for VNode-side PRE_CREATE marking
+  if (!tDecodeIsEnd(pCoder)) {
+    TAOS_CHECK_EXIT(tDecodeU64v(pCoder, &pReq->txnId));
+  } else {
+    pReq->txnId = 0;
   }
   tEndDecode(pCoder);
 

@@ -852,6 +852,55 @@ static int32_t mndSetCreateTxnCommitLogs(SMnode *pMnode, STrans *pTrans, STxnObj
 // ============================================================================
 
 /**
+ * Collect all VGroup IDs that need TXN_COMMIT/TXN_ROLLBACK messages.
+ * Sources: (1) pTxn->pVgList (child/normal table VGroups), (2) DB VGroups from CREATE_STB shadow ops.
+ * Returns a deduplicated SHashObj (key=vgId, value=unused byte).  Caller must destroy with taosHashCleanup.
+ */
+static SHashObj *mndCollectTxnVgroupIds(SMnode *pMnode, STxnObj *pTxn) {
+  SHashObj *pVgSet = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
+  if (pVgSet == NULL) return NULL;
+
+  // (1) Add VGroups from pVgList (child / normal table tracking)
+  int32_t numVgs = (pTxn->pVgList != NULL) ? taosArrayGetSize(pTxn->pVgList) : 0;
+  for (int32_t i = 0; i < numVgs; i++) {
+    int32_t vgId = *(int32_t *)taosArrayGet(pTxn->pVgList, i);
+    int8_t  dummy = 1;
+    taosHashPut(pVgSet, &vgId, sizeof(vgId), &dummy, sizeof(dummy));
+  }
+
+  // (2) Add DB VGroups from CREATE_STB shadow ops (undo-log model: STB already distributed to all DB VGroups)
+  if (pTxn->pShadowOps != NULL) {
+    int32_t numOps = taosArrayGetSize(pTxn->pShadowOps);
+    for (int32_t i = 0; i < numOps; i++) {
+      SMndShadowOp *pOp = (SMndShadowOp *)taosArrayGet(pTxn->pShadowOps, i);
+      if (pOp->opType != MND_SHADOW_OP_CREATE_STB) continue;
+
+      SDbObj *pDb = mndAcquireDbByStb(pMnode, pOp->name);
+      if (pDb == NULL) continue;
+
+      SSdb   *pSdb = pMnode->pSdb;
+      SVgObj *pVgroup = NULL;
+      void   *pIter = NULL;
+      while (1) {
+        pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
+        if (pIter == NULL) break;
+        if (!mndVgroupInDb(pVgroup, pDb->uid)) {
+          sdbRelease(pSdb, pVgroup);
+          continue;
+        }
+        int32_t vgId = pVgroup->vgId;
+        int8_t  dummy = 1;
+        taosHashPut(pVgSet, &vgId, sizeof(vgId), &dummy, sizeof(dummy));
+        sdbRelease(pSdb, pVgroup);
+      }
+      mndReleaseDb(pMnode, pDb);
+    }
+  }
+
+  return pVgSet;
+}
+
+/**
  * Build a serialized SVTxnCommitReq message with SMsgHead for a given VGroup
  */
 static void *mndBuildVTxnCommitReq(SMnode *pMnode, int32_t vgId, STxnObj *pTxn, int32_t *pContLen) {
@@ -939,27 +988,65 @@ static int32_t mndCommitTxn(SMnode *pMnode, SRpcMsg *pReq, STxnObj *pTxn) {
     TAOS_CHECK_EXIT(sdbSetRawStatus(pDropRaw, SDB_STATUS_DROPPED));
   }
 
-  // Add redo actions: send COMMIT to each participant VGroup
-  int32_t numVgs = (pTxn->pVgList != NULL) ? taosArrayGetSize(pTxn->pVgList) : 0;
-  for (int32_t i = 0; i < numVgs; i++) {
-    int32_t vgId = *(int32_t *)taosArrayGet(pTxn->pVgList, i);
-    int32_t contLen = 0;
-    void   *pCont = mndBuildVTxnCommitReq(pMnode, vgId, pTxn, &contLen);
-    if (pCont == NULL) {
-      TAOS_CHECK_EXIT(terrno ? terrno : TSDB_CODE_OUT_OF_MEMORY);
+  // Commit log: promote CREATE_STB shadow ops by clearing txnId on SStbObj
+  if (pTxn->pShadowOps != NULL) {
+    int32_t numOps = taosArrayGetSize(pTxn->pShadowOps);
+    for (int32_t i = 0; i < numOps; i++) {
+      SMndShadowOp *pOp = (SMndShadowOp *)taosArrayGet(pTxn->pShadowOps, i);
+      if (pOp->opType == MND_SHADOW_OP_CREATE_STB) {
+        SStbObj *pStb = mndAcquireStb(pMnode, pOp->name);
+        if (pStb != NULL) {
+          // Shallow clone: only modify txnId, share pointer fields for encoding
+          SStbObj stbClone;
+          memcpy(&stbClone, pStb, sizeof(SStbObj));
+          stbClone.txnId = 0;
+          SSdbRaw *pRaw = mndStbActionEncode(&stbClone);
+          if (pRaw != NULL) {
+            TAOS_CHECK_EXIT(sdbSetRawStatus(pRaw, SDB_STATUS_READY));
+            TAOS_CHECK_EXIT(mndTransAppendCommitlog(pTrans, pRaw));
+            mInfo("txn:%" PRIu64 ", append STB promote commit log for stb=%s", pTxn->id, pOp->name);
+          }
+          mndReleaseStb(pMnode, pStb);
+        }
+      }
     }
+  }
 
-    STransAction action = {0};
-    action.mTraceId = pTrans->mTraceId;
-    action.epSet = mndGetVgroupEpsetById(pMnode, vgId);
-    action.pCont = pCont;
-    action.contLen = contLen;
-    action.msgType = TDMT_VND_TXN_COMMIT;
-    action.acceptableCode = TSDB_CODE_SUCCESS;  // idempotent
-    action.groupId = vgId;
+  // Add redo actions: send COMMIT to each participant VGroup (pVgList + CREATE_STB DB VGroups)
+  {
+    SHashObj *pVgSet = mndCollectTxnVgroupIds(pMnode, pTxn);
+    if (pVgSet != NULL) {
+      void *pIter = taosHashIterate(pVgSet, NULL);
+      while (pIter != NULL) {
+        int32_t vgId = *(int32_t *)taosHashGetKey(pIter, NULL);
+        int32_t contLen = 0;
+        void   *pCont = mndBuildVTxnCommitReq(pMnode, vgId, pTxn, &contLen);
+        if (pCont == NULL) {
+          taosHashCancelIterate(pVgSet, pIter);
+          taosHashCleanup(pVgSet);
+          TAOS_CHECK_EXIT(terrno ? terrno : TSDB_CODE_OUT_OF_MEMORY);
+        }
 
-    TAOS_CHECK_EXIT(mndTransAppendRedoAction(pTrans, &action));
-    mInfo("txn:%" PRIu64 ", append commit action for vgId:%d", pTxn->id, vgId);
+        STransAction action = {0};
+        action.mTraceId = pTrans->mTraceId;
+        action.epSet = mndGetVgroupEpsetById(pMnode, vgId);
+        action.pCont = pCont;
+        action.contLen = contLen;
+        action.msgType = TDMT_VND_TXN_COMMIT;
+        action.acceptableCode = TSDB_CODE_SUCCESS;  // idempotent
+        action.groupId = vgId;
+
+        code = mndTransAppendRedoAction(pTrans, &action);
+        if (code != 0) {
+          taosHashCancelIterate(pVgSet, pIter);
+          taosHashCleanup(pVgSet);
+          TAOS_CHECK_EXIT(code);
+        }
+        mInfo("txn:%" PRIu64 ", append commit action for vgId:%d", pTxn->id, vgId);
+        pIter = taosHashIterate(pVgSet, pIter);
+      }
+      taosHashCleanup(pVgSet);
+    }
   }
 
   TAOS_CHECK_EXIT(mndTransPrepare(pMnode, pTrans));
@@ -1007,27 +1094,41 @@ static int32_t mndRollbackTxn(SMnode *pMnode, SRpcMsg *pReq, STxnObj *pTxn, int3
     TAOS_CHECK_EXIT(sdbSetRawStatus(pDropRaw, SDB_STATUS_DROPPED));
   }
 
-  // Add redo actions: send ROLLBACK to each participant VGroup
-  int32_t numVgs = (pTxn->pVgList != NULL) ? taosArrayGetSize(pTxn->pVgList) : 0;
-  for (int32_t i = 0; i < numVgs; i++) {
-    int32_t vgId = *(int32_t *)taosArrayGet(pTxn->pVgList, i);
-    int32_t contLen = 0;
-    void   *pCont = mndBuildVTxnRollbackReq(pMnode, vgId, pTxn, reason, &contLen);
-    if (pCont == NULL) {
-      TAOS_CHECK_EXIT(terrno ? terrno : TSDB_CODE_OUT_OF_MEMORY);
+  // Add redo actions: send ROLLBACK to each participant VGroup (pVgList + CREATE_STB DB VGroups)
+  {
+    SHashObj *pVgSet = mndCollectTxnVgroupIds(pMnode, pTxn);
+    if (pVgSet != NULL) {
+      void *pIter = taosHashIterate(pVgSet, NULL);
+      while (pIter != NULL) {
+        int32_t vgId = *(int32_t *)taosHashGetKey(pIter, NULL);
+        int32_t contLen = 0;
+        void   *pCont = mndBuildVTxnRollbackReq(pMnode, vgId, pTxn, reason, &contLen);
+        if (pCont == NULL) {
+          taosHashCancelIterate(pVgSet, pIter);
+          taosHashCleanup(pVgSet);
+          TAOS_CHECK_EXIT(terrno ? terrno : TSDB_CODE_OUT_OF_MEMORY);
+        }
+
+        STransAction action = {0};
+        action.mTraceId = pTrans->mTraceId;
+        action.epSet = mndGetVgroupEpsetById(pMnode, vgId);
+        action.pCont = pCont;
+        action.contLen = contLen;
+        action.msgType = TDMT_VND_TXN_ROLLBACK;
+        action.acceptableCode = TSDB_CODE_SUCCESS;  // idempotent
+        action.groupId = vgId;
+
+        code = mndTransAppendRedoAction(pTrans, &action);
+        if (code != 0) {
+          taosHashCancelIterate(pVgSet, pIter);
+          taosHashCleanup(pVgSet);
+          TAOS_CHECK_EXIT(code);
+        }
+        mInfo("txn:%" PRIu64 ", append rollback action for vgId:%d", pTxn->id, vgId);
+        pIter = taosHashIterate(pVgSet, pIter);
+      }
+      taosHashCleanup(pVgSet);
     }
-
-    STransAction action = {0};
-    action.mTraceId = pTrans->mTraceId;
-    action.epSet = mndGetVgroupEpsetById(pMnode, vgId);
-    action.pCont = pCont;
-    action.contLen = contLen;
-    action.msgType = TDMT_VND_TXN_ROLLBACK;
-    action.acceptableCode = TSDB_CODE_SUCCESS;  // idempotent
-    action.groupId = vgId;
-
-    TAOS_CHECK_EXIT(mndTransAppendRedoAction(pTrans, &action));
-    mInfo("txn:%" PRIu64 ", append rollback action for vgId:%d", pTxn->id, vgId);
   }
 
   // Undo MNode-side shadow ops — CREATE_STB: append DROP to this Trans; DROP/ALTER: discard

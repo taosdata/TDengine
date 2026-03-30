@@ -38,8 +38,9 @@
 #define STB_VER_SUPPORT_COMP    2
 #define STB_VER_SUPPORT_VIRTUAL 3
 #define STB_VER_SUPPORT_OWNER   4
-#define STB_VER_NUMBER          STB_VER_SUPPORT_OWNER
-#define STB_RESERVE_SIZE        55
+#define STB_VER_SUPPORT_TXN     5
+#define STB_VER_NUMBER          STB_VER_SUPPORT_TXN
+#define STB_RESERVE_SIZE        47
 
 static int32_t  mndStbActionInsert(SSdb *pSdb, SStbObj *pStb);
 static int32_t  mndStbActionDelete(SSdb *pSdb, SStbObj *pStb);
@@ -209,6 +210,8 @@ SSdbRaw *mndStbActionEncode(SStbObj *pStb) {
   SDB_SET_BINARY(pRaw, dataPos, pStb->createUser, TSDB_USER_LEN, _OVER)
   SDB_SET_INT64(pRaw, dataPos, pStb->ownerId, _OVER)
   SDB_SET_INT8(pRaw, dataPos, pStb->secureDelete, _OVER)
+  // batch-meta-txn - STB_VER_SUPPORT_TXN
+  SDB_SET_INT64(pRaw, dataPos, (int64_t)pStb->txnId, _OVER)
   SDB_SET_RESERVE(pRaw, dataPos, STB_RESERVE_SIZE, _OVER)
   SDB_SET_DATALEN(pRaw, dataPos, _OVER)
 
@@ -368,6 +371,14 @@ SSdbRow *mndStbActionDecode(SSdbRaw *pRaw) {
     pStb->secureDelete = 0;
   }
 
+  if (sver >= STB_VER_SUPPORT_TXN) {
+    int64_t txnIdVal = 0;
+    SDB_GET_INT64(pRaw, dataPos, &txnIdVal, _OVER)
+    pStb->txnId = (utxn_id_t)txnIdVal;
+  } else {
+    pStb->txnId = 0;
+  }
+
   SDB_GET_RESERVE(pRaw, dataPos, STB_RESERVE_SIZE, _OVER)
 
   terrno = 0;
@@ -473,6 +484,7 @@ static int32_t mndStbActionUpdate(SSdb *pSdb, SStbObj *pOld, SStbObj *pNew) {
   pOld->keep = pNew->keep;
   pOld->ownerId = pNew->ownerId;
   pOld->secureDelete = pNew->secureDelete;
+  pOld->txnId = pNew->txnId;
 
   if (pNew->numOfColumns > 0) {
     pOld->numOfColumns = pNew->numOfColumns;
@@ -575,6 +587,7 @@ void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb, int3
   req.source = pStb->source;
   req.virtualStb = pStb->virtualStb;
   req.secureDelete = pStb->secureDelete;
+  req.txnId = pStb->txnId;  // batch-meta-txn: VNode marks STB as PRE_CREATE
   // todo
   req.schemaRow.nCols = pStb->numOfColumns;
   req.schemaRow.version = pStb->colVer;
@@ -935,6 +948,7 @@ int32_t mndBuildStbFromReq(SMnode *pMnode, SStbObj *pDst, SMCreateStbReq *pCreat
   pDst->keep = pCreate->keep;
   pDst->virtualStb = pCreate->virtualStb;
   pDst->secureDelete = pCreate->secureDelete;
+  pDst->txnId = pCreate->txnId;  // batch-meta-txn: mark STB as txn-owned (invisible to other sessions)
   pCreate->pFuncs = NULL;
 
   if (pDst->commentLen > 0) {
@@ -3387,6 +3401,20 @@ static int32_t mndProcessTableMetaReq(SRpcMsg *pReq) {
     TAOS_CHECK_GOTO(mndBuildPerfsTableSchema(pMnode, infoReq.dbFName, infoReq.tbName, &metaRsp), NULL, _OVER);
   } else {
     mInfo("stb:%s.%s, start to retrieve meta", infoReq.dbFName, infoReq.tbName);
+    // batch-meta-txn: check if STB is owned by an uncommitted txn
+    {
+      char tbFName[TSDB_TABLE_FNAME_LEN] = {0};
+      snprintf(tbFName, sizeof(tbFName), "%s.%s", infoReq.dbFName, infoReq.tbName);
+      SStbObj *pStb = mndAcquireStb(pMnode, tbFName);
+      if (pStb != NULL && pStb->txnId != 0 && pStb->txnId != (utxn_id_t)infoReq.txnId) {
+        mInfo("stb:%s, owned by txn %" PRIu64 ", requester txnId=%" PRId64 ", deny access", tbFName, pStb->txnId,
+              infoReq.txnId);
+        mndReleaseStb(pMnode, pStb);
+        code = TSDB_CODE_PAR_TABLE_NOT_EXIST;
+        goto _OVER;
+      }
+      if (pStb) mndReleaseStb(pMnode, pStb);
+    }
     TAOS_CHECK_GOTO(mndBuildStbSchema(pMnode, infoReq.dbFName, infoReq.tbName, &metaRsp, true), NULL, _OVER);
   }
 
@@ -3683,6 +3711,12 @@ static int32_t mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
     if (pShow->pIter == NULL) break;
 
     if (pDb != NULL && pStb->dbUid != pDb->uid) {
+      sdbRelease(pSdb, pStb);
+      continue;
+    }
+
+    // batch-meta-txn: hide STBs created within an uncommitted transaction
+    if (pStb->txnId != 0) {
       sdbRelease(pSdb, pStb);
       continue;
     }
