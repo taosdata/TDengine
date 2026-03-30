@@ -58,7 +58,7 @@ Name: "{app}\data"; Permissions: everyone-modify; Flags: uninsneveruninstall
 Name: "{app}\data\pids"; Permissions: everyone-modify; Flags: uninsneveruninstall
 
 [Run]
-Filename: "notepad.exe"; Parameters: """{app}\log\install.log"""; Description: "Open installation log"; Flags: postinstall nowait skipifsilent
+Filename: "notepad.exe"; Parameters: """{app}\log\install.log"""; Description: "View the installation log now (clear this checkbox to skip opening it)"; Flags: postinstall nowait skipifsilent
 
 [UninstallRun]
 Filename: "{cmd}"; Parameters: "/C call ""{app}\uninstall.bat"" & exit /b 0"; Flags: runhidden waituntilterminated
@@ -121,6 +121,66 @@ end;
 function NormalizeDir(Value: string): string;
 begin
   Result := RemoveBackslashUnlessRoot(Trim(Value));
+end;
+
+function PreferredOfflineAssetsBaseName(): string;
+begin
+  Result := 'tdengine-tdgpt-offline-assets-' + ExpandConstant('{#MyAppVersion}') + '-windows-x64';
+end;
+
+function FindOfflinePackageByPattern(BaseDir: string; Pattern: string): string;
+var
+  FindRec: TFindRec;
+begin
+  Result := '';
+  if not FindFirst(AddBackslash(BaseDir) + Pattern, FindRec) then
+    exit;
+  try
+    Result := AddBackslash(BaseDir) + FindRec.Name;
+  finally
+    FindClose(FindRec);
+  end;
+end;
+
+function DetectDefaultOfflinePackage(): string;
+var
+  SearchDir: string;
+  BaseName: string;
+begin
+  Result := '';
+  SearchDir := ExtractFileDir(ExpandConstant('{srcexe}'));
+  if SearchDir = '' then
+    exit;
+
+  BaseName := PreferredOfflineAssetsBaseName();
+  Result := FindOfflinePackageByPattern(SearchDir, BaseName + '.tar');
+  if Result <> '' then
+    exit;
+  Result := FindOfflinePackageByPattern(SearchDir, BaseName + '.tar.gz');
+  if Result <> '' then
+    exit;
+  Result := FindOfflinePackageByPattern(SearchDir, BaseName + '.tgz');
+  if Result <> '' then
+    exit;
+end;
+
+procedure TryPopulateDefaultOfflinePackage();
+var
+  DetectedPath: string;
+begin
+  if OfflinePackagePage = nil then
+    exit;
+  if Trim(OfflinePackagePage.Values[0]) <> '' then
+    exit;
+  if ExpandConstant('{param:OFFLINE|}') <> '' then
+    exit;
+
+  DetectedPath := DetectDefaultOfflinePackage();
+  if DetectedPath = '' then
+    exit;
+
+  OfflinePackagePage.Values[0] := DetectedPath;
+  LogTdgpt('Detected default offline package: ' + DetectedPath);
 end;
 
 function ExtractExecutablePath(CommandLine: string): string;
@@ -839,7 +899,7 @@ begin
     CustomModelMirrorPage.ID,
     'Offline Package Import',
     'Select one offline tar package',
-    'Choose one .tar.gz package that can contain python-runtime.tar.gz, venv-*.tar.gz, and model-*.tar.gz payloads. New offline installs require this package. Upgrade installs can leave it blank to reuse the existing environment and model files.');
+    'Setup automatically looks for tdengine-tdgpt-offline-assets-<version>-windows-x64.tar in the same directory as the installer. You can keep that default or browse to another tar package. New offline installs require this package. Upgrade installs can leave it blank to reuse the existing environment and model files.');
   OfflinePackagePage.Add('Offline package:', 'Tar archives|*.tar.gz;*.tgz;*.tar|All files|*.*', '.tar.gz');
 
   InstallProgressPage := CreateOutputProgressPage(
@@ -863,6 +923,8 @@ begin
   // Support /OFFLINE command-line parameter for silent installation
   if ExpandConstant('{param:OFFLINE|}') <> '' then
     OfflinePackagePage.Values[0] := ExpandConstant('{param:OFFLINE|}');
+
+  TryPopulateDefaultOfflinePackage();
 end;
 
 function ShouldSkipPage(PageID: Integer): Boolean;
@@ -1137,8 +1199,12 @@ procedure UpdateFinishedPageText();
 var
   Notes: String;
 begin
+  WizardForm.FinishedHeadingLabel.Caption := '{#MyAppName} installation completed';
   WizardForm.FinishedLabel.AutoSize := False;
   WizardForm.FinishedLabel.Width := WizardForm.FinishedPage.ClientWidth - WizardForm.FinishedLabel.Left;
+  WizardForm.FinishedLabel.Caption :=
+    'Installation is complete. Please review the installation log before closing Setup. ' +
+    'The log checkbox below is selected by default; clear it if you do not want to open the log file.';
   WizardForm.AdjustLabelHeight(WizardForm.FinishedLabel);
   FinishNotesLabel.Top := WizardForm.FinishedLabel.Top + WizardForm.FinishedLabel.Height + ScaleY(6);
   Notes := 'Installation log:' + #13#10 + '  ' + ExpandConstant('{app}\log\install.log') + #13#10 + #13#10;
