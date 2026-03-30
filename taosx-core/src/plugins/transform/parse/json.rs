@@ -693,6 +693,25 @@ impl Parse for Json {
                             }));
                             array.finish()
                         }
+                        DataType::Struct(_) | DataType::List(_) => {
+                            // The list contains complex types (objects or nested arrays).
+                            // Serialize the entire list value as a single JSON string
+                            // rather than element-by-element, e.g. [{}] -> "[{}]".
+                            let field = Field::new(f.name(), DataType::Utf8, f.is_nullable());
+                            let values = json_values
+                                .iter()
+                                .map(|(_, v)| {
+                                    v.as_object()
+                                        .and_then(|v| v.get(name))
+                                        .filter(|v| !v.is_null())
+                                        .and_then(|v| serde_json::to_string(v).ok())
+                                })
+                                .collect_vec();
+                            let array: ArrayRef = Arc::new(StringArray::from_iter(values));
+                            r_fields.push(field);
+                            r_arrays.push(array);
+                            continue;
+                        }
                         _ => {
                             let field = Field::new_list(
                                 f.name(),
@@ -1275,6 +1294,39 @@ mod tests {
 
         dbg!(&records);
         dbg!(&indices);
+    }
+
+    #[test]
+    fn json_list_with_complex_types_serialized_as_string() -> anyhow::Result<()> {
+        let extract = Json {
+            json: Select::All,
+            keep: false,
+            depth: None,
+        };
+
+        let field = Field::new("payload", DataType::Utf8, false);
+        let array: ArrayRef = Arc::new(StringArray::from(vec![
+            r#"{"ts": 100, "items": [{"a": 1}, {"b": 2}]}"#,
+            r#"{"ts": 200, "items": [{"a": 3}]}"#,
+            r#"{"ts": 300, "items": null}"#,
+        ]));
+
+        let (batch, _) = extract.parse_array(&field, &array)?;
+
+        // "items" should be a Utf8 column: the whole list is one JSON string
+        let items_col = batch
+            .column_by_name("items")
+            .expect("items column should exist");
+        assert_eq!(
+            items_col.data_type(),
+            &DataType::Utf8,
+            "list of objects must be serialized to Utf8, not List<Utf8>"
+        );
+        let items = items_col.as_any().downcast_ref::<StringArray>().unwrap();
+        assert_eq!(items.value(0), r#"[{"a":1},{"b":2}]"#);
+        assert_eq!(items.value(1), r#"[{"a":3}]"#);
+        assert!(items.is_null(2));
+        Ok(())
     }
 
     #[test]
