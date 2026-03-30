@@ -6,11 +6,53 @@ import tempfile
 import shutil
 import os
 import sys
+from unittest import mock
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'script'))
 
 from taosanode_service import Config, ProcessManager, TaosanodeService, ModelService
+
+
+class _SimpleMocker:
+    """Minimal pytest-mock compatible helper for this test suite."""
+
+    Mock = mock.Mock
+    MagicMock = mock.MagicMock
+    call = mock.call
+    ANY = mock.ANY
+
+    class _PatchProxy:
+        def __init__(self, owner):
+            self._owner = owner
+
+        def __call__(self, target, *args, **kwargs):
+            return self._owner._start(mock.patch(target, *args, **kwargs))
+
+        def object(self, target, attribute, *args, **kwargs):
+            return self._owner._start(mock.patch.object(target, attribute, *args, **kwargs))
+
+    def __init__(self):
+        self._patchers = []
+        self.patch = self._PatchProxy(self)
+
+    def _start(self, patcher):
+        started = patcher.start()
+        self._patchers.append(patcher)
+        return started
+
+    def stopall(self):
+        while self._patchers:
+            self._patchers.pop().stop()
+
+
+@pytest.fixture
+def mocker():
+    helper = _SimpleMocker()
+    try:
+        yield helper
+    finally:
+        helper.stopall()
 
 
 @pytest.fixture

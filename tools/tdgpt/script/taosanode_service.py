@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-TDGPT Taosanode Unified Service Manager
+TDgpt Taosanode Unified Service Manager
 Cross-platform service management for Linux and Windows
 
 Usage:
@@ -26,6 +26,7 @@ Examples:
 import os
 import sys
 import ast
+import json
 import platform
 import subprocess
 import signal
@@ -33,6 +34,7 @@ import time
 import argparse
 import logging
 import re
+import errno
 import urllib.request
 import urllib.error
 from logging.handlers import RotatingFileHandler
@@ -69,6 +71,18 @@ MODELS = {}
 _logger = None
 
 
+def get_windows_friendly_log_encoding(log_file: str) -> str:
+    """Use UTF-8 with BOM for new Windows log files so common editors detect Unicode correctly."""
+    if platform.system().lower() != "windows":
+        return "utf-8"
+    try:
+        if os.path.exists(log_file) and os.path.getsize(log_file) > 0:
+            return "utf-8"
+    except OSError:
+        pass
+    return "utf-8-sig"
+
+
 def setup_logger(name: str, log_file: str, level=logging.INFO) -> logging.Logger:
     """Create and configure a logger instance
 
@@ -97,7 +111,9 @@ def setup_logger(name: str, log_file: str, level=logging.INFO) -> logging.Logger
         file_handler = RotatingFileHandler(
             log_file,
             maxBytes=10*1024*1024,  # 10MB
-            backupCount=5
+            backupCount=5,
+            encoding=get_windows_friendly_log_encoding(log_file),
+            errors="replace",
         )
         file_handler.setLevel(level)
         file_formatter = logging.Formatter(
@@ -130,7 +146,13 @@ def redirect_stdio_if_needed():
         return
 
     os.makedirs(os.path.dirname(target), exist_ok=True)
-    _redirect_stream = open(target, "a", encoding="utf-8", buffering=1)
+    _redirect_stream = open(
+        target,
+        "a",
+        encoding=get_windows_friendly_log_encoding(target),
+        errors="replace",
+        buffering=1,
+    )
     sys.stdout = _redirect_stream
     sys.stderr = _redirect_stream
 
@@ -271,37 +293,45 @@ class Config:
             "tdtsfm": {
                 "script": "tdtsfm-server.py",
                 "default_model": None,
-                "port": 6036,
+                "port": 6061,
+                "endpoint": "/tdtsfm",
+                "algo_name": "tdtsfm_1",
                 "required": True,
             },
             "timemoe": {
                 "script": "timemoe-server.py",
                 "default_model": "Maple728/TimeMoE-200M",
-                "port": 6037,
+                "port": 6062,
+                "endpoint": "/ds_predict",
+                "algo_name": "timemoe_fc",
                 "required": True,
             },
             "moirai": {
                 "script": "moirai-server.py",
                 "default_model": "Salesforce/moirai-moe-1.0-R-small",
-                "port": 6039,
+                "port": 6064,
+                "endpoint": "/ds_predict",
                 "required": False,
             },
             "chronos": {
                 "script": "chronos-server.py",
                 "default_model": "amazon/chronos-bolt-base",
-                "port": 6038,
+                "port": 6063,
+                "endpoint": "/ds_predict",
                 "required": False,
             },
             "timesfm": {
                 "script": "timesfm-server.py",
                 "default_model": "google/timesfm-2.0-500m-pytorch",
-                "port": 6061,
+                "port": 6065,
+                "endpoint": "/ds_predict",
                 "required": False,
             },
             "moment": {
                 "script": "moment-server.py",
                 "default_model": "AutonLab/MOMENT-1-base",
-                "port": 6062,
+                "port": 6066,
+                "endpoint": "/imputation",
                 "required": False,
             },
         }
@@ -652,46 +682,184 @@ class TaosanodeService:
     def _env_flag_enabled(value: str) -> bool:
         return value.strip().lower() in {"1", "true", "yes", "on", "full"}
 
-    def _should_use_full_preflight(self, full_preflight: bool = False) -> bool:
-        if full_preflight:
-            return True
-        mode = os.environ.get("TAOSANODE_PREFLIGHT_MODE", "").strip().lower()
-        if mode:
-            return mode in {"full", "heavy"}
-        return self._env_flag_enabled(os.environ.get("TAOSANODE_FULL_PREFLIGHT", ""))
+    def _get_startup_diagnostic_stamp_path(self) -> str:
+        return os.path.join(self.config.log_dir, "taosanode-startup-diagnostics.json")
 
-    def _preflight_light_dependencies(self, python_exe: str, env: Dict[str, str], cwd: str) -> bool:
-        """Run a lightweight preflight to avoid importing the full app twice on Windows."""
-        self.logger.info("Running taosanode lightweight preflight check...")
-        lib_root = os.path.join(self.config.install_dir, "lib").replace("\\", "\\\\")
-        probes = [
-            ("import waitress", "import waitress; print('waitress ok')"),
-            ("import flask", "import flask; print('flask ok')"),
-            ("import numpy", "import numpy; print('numpy ok')"),
-            (
-                "import taosanalytics.conf",
-                f"import sys; sys.path.insert(0, r'{lib_root}'); import taosanalytics.conf; print('conf ok')"
-            ),
-        ]
+    def _get_startup_diagnostic_cooldown_seconds(self) -> int:
+        raw_value = os.environ.get("TAOSANODE_STARTUP_DIAGNOSTIC_COOLDOWN", "300").strip()
+        try:
+            cooldown = int(raw_value)
+        except ValueError:
+            cooldown = 300
+        return max(0, cooldown)
 
-        for label, code in probes:
+    def _collect_startup_failure_diagnostics(
+        self,
+        python_exe: str,
+        env: Dict[str, str],
+        cwd: str,
+        reason: str,
+    ) -> None:
+        """Run one full diagnostic pass after startup failure, but suppress noisy repeats during auto-restart."""
+        cooldown = self._get_startup_diagnostic_cooldown_seconds()
+        stamp_path = self._get_startup_diagnostic_stamp_path()
+        now = time.time()
+
+        if cooldown > 0:
             try:
-                result = self._run_python_probe(python_exe, env, cwd, label, code)
-            except Exception as exc:
-                self.logger.exception(f"Lightweight preflight probe failed to execute for {label}: {exc}")
-                self._collect_preflight_diagnostics(python_exe, env, cwd)
-                return False
-            self._log_probe_result(label, result)
-            if result.returncode != 0:
-                self.logger.error(f"Lightweight preflight failed on probe: {label}")
-                self._collect_preflight_diagnostics(python_exe, env, cwd)
-                return False
+                with open(stamp_path, "r", encoding="utf-8") as fh:
+                    last_run = json.load(fh)
+                last_ts = float(last_run.get("timestamp", 0))
+            except Exception:
+                last_ts = 0.0
 
-        self.logger.info(
-            "Taosanode lightweight preflight succeeded. "
-            "Use --full-preflight or TAOSANODE_PREFLIGHT_MODE=full for a full app import preflight."
-        )
-        return True
+            if last_ts > 0 and now - last_ts < cooldown:
+                remaining = max(0, int(cooldown - (now - last_ts)))
+                self.logger.info(
+                    "Skipping repeated startup diagnostics during restart cooldown "
+                    f"({remaining}s remaining). Last reason: {last_run.get('reason', 'unknown')}"
+                )
+                return
+
+        try:
+            os.makedirs(self.config.log_dir, exist_ok=True)
+            with open(stamp_path, "w", encoding="utf-8") as fh:
+                json.dump(
+                    {
+                        "timestamp": now,
+                        "reason": reason,
+                        "recorded_at": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(now)),
+                    },
+                    fh,
+                    ensure_ascii=True,
+                    indent=2,
+                )
+        except OSError as exc:
+            self.logger.warning(f"Failed to write startup diagnostic stamp: {exc}")
+
+        self.logger.info(f"Collecting full startup diagnostics after failed start: {reason}")
+        self._collect_preflight_diagnostics(python_exe, env, cwd)
+
+    @staticmethod
+    def _normalize_failure_text(*parts: Optional[str]) -> str:
+        return "\n".join(part for part in parts if part).lower()
+
+    def _read_log_tail(self, path: str, max_bytes: int = 32768) -> str:
+        try:
+            with open(path, "rb") as fh:
+                fh.seek(0, os.SEEK_END)
+                size = fh.tell()
+                fh.seek(max(0, size - max_bytes), os.SEEK_SET)
+                chunk = fh.read()
+        except OSError:
+            return ""
+        return chunk.decode("utf-8", errors="replace")
+
+    def _is_import_or_native_failure(self, exc: Optional[BaseException], text: str, phase: str) -> bool:
+        if isinstance(exc, (ModuleNotFoundError, ImportError)):
+            return True
+
+        if phase in {"bootstrap", "import"} and "waitress" in text and "failed" in text:
+            return True
+
+        native_markers = [
+            "modulenotfounderror",
+            "importerror",
+            "dll load failed",
+            "error loading",
+            "vcruntime",
+            "msvcp",
+            "the specified module could not be found",
+            "the specified procedure could not be found",
+            "is not a valid win32 application",
+            "one or more of its dependencies",
+            "winerror 126",
+            "winerror 127",
+            "winerror 193",
+            "winerror 1114",
+            "libiomp5md.dll",
+        ]
+        return any(marker in text for marker in native_markers)
+
+    def _is_bind_failure(self, exc: Optional[BaseException], text: str) -> bool:
+        if isinstance(exc, OSError):
+            if getattr(exc, "errno", None) in {errno.EADDRINUSE, errno.EACCES}:
+                return True
+            if getattr(exc, "winerror", None) in {10013, 10048}:
+                return True
+
+        bind_markers = [
+            "address already in use",
+            "only one usage of each socket address",
+            "winerror 10048",
+            "winerror 10013",
+            "an attempt was made to access a socket in a way forbidden by its access permissions",
+        ]
+        return any(marker in text for marker in bind_markers)
+
+    def _classify_startup_failure(
+        self,
+        phase: str,
+        exc: Optional[BaseException] = None,
+        detail_text: str = "",
+    ) -> str:
+        text = self._normalize_failure_text(str(exc) if exc else "", detail_text)
+        if phase in {"serve", "background"} and self._is_bind_failure(exc, text):
+            return "bind"
+        if self._is_import_or_native_failure(exc, text, phase):
+            return "import_native"
+        if phase == "serve":
+            return "serve"
+        return "unknown"
+
+    def _handle_startup_failure(
+        self,
+        python_exe: str,
+        env: Dict[str, str],
+        cwd: str,
+        phase: str,
+        reason: str,
+        exc: Optional[BaseException] = None,
+        detail_text: str = "",
+    ) -> str:
+        failure_kind = self._classify_startup_failure(phase, exc=exc, detail_text=detail_text)
+        combined_text = "\n".join(part for part in [reason, str(exc) if exc else "", detail_text] if part)
+        root_cause = self._extract_root_cause(combined_text)
+        if root_cause:
+            self.logger.error(f"Startup root cause: {root_cause}")
+
+        if failure_kind == "import_native":
+            self._collect_startup_failure_diagnostics(python_exe, env, cwd, reason)
+        else:
+            self.logger.info(f"Skipping full startup diagnostics for failure category: {failure_kind}")
+        return failure_kind
+
+    def _get_requested_preflight_mode(self, full_preflight: bool = False) -> str:
+        if full_preflight:
+            return "full"
+
+        mode = os.environ.get("TAOSANODE_PREFLIGHT_MODE", "").strip().lower()
+        light_requested = False
+        if mode:
+            if mode in {"full", "heavy"}:
+                return "full"
+            if mode in {"light", "basic"}:
+                light_requested = True
+            if mode in {"off", "false", "0", "none"}:
+                return "off"
+
+        if self._env_flag_enabled(os.environ.get("TAOSANODE_FULL_PREFLIGHT", "")):
+            return "full"
+        if self._env_flag_enabled(os.environ.get("TAOSANODE_LIGHT_PREFLIGHT", "")):
+            light_requested = True
+
+        if light_requested:
+            self.logger.warning(
+                "Light preflight mode has been removed. "
+                "Windows startup now uses direct start by default. "
+                "Use --full-preflight or TAOSANODE_PREFLIGHT_MODE=full only for an explicit manual preflight."
+            )
+        return "off"
 
     def _extract_root_cause(self, stderr_text: str) -> Optional[str]:
         patterns = [
@@ -826,21 +994,33 @@ class TaosanodeService:
         return True
 
     def _run_preflight(self, python_exe: str, env: Dict[str, str], cwd: str, full_preflight: bool = False) -> bool:
-        if self._should_use_full_preflight(full_preflight):
+        mode = self._get_requested_preflight_mode(full_preflight)
+        if mode == "full":
             self.logger.info("Selected preflight mode: full")
             return self._preflight_app_import(python_exe, env, cwd)
-        self.logger.info("Selected preflight mode: light")
-        return self._preflight_light_dependencies(python_exe, env, cwd)
+        self.logger.info("Selected preflight mode: off")
+        return True
 
     def _run_windows_foreground(self, full_preflight: bool = False) -> bool:
         """Run taosanode in the current process for WinSW-managed service mode."""
         redirect_stdio_if_needed()
         python_exe = self.process_mgr._get_python_exe()
-        self._ensure_waitress(python_exe)
-
         lib_root = os.path.join(self.config.install_dir, "lib")
         lib_dir = os.path.join(self.config.install_dir, "lib", "taosanalytics")
         env = self._build_runtime_env()
+        try:
+            self._ensure_waitress(python_exe)
+        except Exception as e:
+            self._handle_startup_failure(
+                python_exe,
+                env,
+                lib_dir,
+                phase="bootstrap",
+                reason=f"foreground bootstrap failure: {e}",
+                exc=e,
+            )
+            self.logger.exception(f"Error preparing taosanode runtime in foreground: {e}")
+            return False
         if not self._run_preflight(python_exe, env, lib_dir, full_preflight=full_preflight):
             return False
 
@@ -854,7 +1034,14 @@ class TaosanodeService:
             from waitress import serve
             from taosanalytics.app import app
         except Exception as e:
-            self._collect_preflight_diagnostics(python_exe, env, lib_dir)
+            self._handle_startup_failure(
+                python_exe,
+                env,
+                lib_dir,
+                phase="import",
+                reason=f"foreground import/startup failure: {e}",
+                exc=e,
+            )
             self.logger.exception(f"Error starting taosanode in foreground: {e}")
             return False
 
@@ -876,6 +1063,14 @@ class TaosanodeService:
             )
             return True
         except Exception as e:
+            self._handle_startup_failure(
+                python_exe,
+                env,
+                lib_dir,
+                phase="serve",
+                reason=f"foreground serve failure: {e}",
+                exc=e,
+            )
             self.logger.exception(f"Error while serving taosanode in foreground: {e}")
             return False
         finally:
@@ -902,7 +1097,19 @@ class TaosanodeService:
                 return False
 
             if IS_WINDOWS:
-                self._ensure_waitress(python_exe)
+                try:
+                    self._ensure_waitress(python_exe)
+                except Exception as e:
+                    self._handle_startup_failure(
+                        python_exe,
+                        env,
+                        lib_dir,
+                        phase="bootstrap",
+                        reason=f"background bootstrap failure: {e}",
+                        exc=e,
+                    )
+                    self.logger.exception(f"Error preparing taosanode runtime: {e}")
+                    return False
                 bind_host, bind_port, wc = self._get_waitress_settings()
 
                 cmd = [
@@ -961,11 +1168,20 @@ class TaosanodeService:
                 if exit_code is None:
                     self.logger.error("Failed to start taosanode - service did not start within timeout")
                 else:
+                    log_file = os.path.join(self.config.log_dir, "taosanode-service.log")
+                    detail_text = self._read_log_tail(log_file)
                     self.logger.error(
                         f"Failed to start taosanode - child process exited early with code {exit_code}"
                     )
                     if IS_WINDOWS:
-                        self._collect_preflight_diagnostics(python_exe, env, lib_dir)
+                        self._handle_startup_failure(
+                            python_exe,
+                            env,
+                            lib_dir,
+                            phase="background",
+                            reason=f"background startup child exited early with code {exit_code}",
+                            detail_text=detail_text,
+                        )
                 self.process_mgr.remove_pid("taosanode")
                 return False
 
@@ -1021,6 +1237,7 @@ class TaosanodeService:
 
         self.logger.info(f"Waiting for taosanode readiness on {status_url}")
         deadline = time.time() + max(1, timeout)
+        last_service_state = None
         while time.time() < deadline:
             try:
                 with urllib.request.urlopen(status_url, timeout=3) as response:
@@ -1032,12 +1249,46 @@ class TaosanodeService:
                 pass
 
             if not self.process_mgr.is_running("taosanode"):
+                service_state = self._query_windows_service_state()
+                if service_state in {"START_PENDING", "RUNNING"}:
+                    if service_state != last_service_state:
+                        self.logger.info(
+                            f"Taosanode Windows service state while waiting for readiness: {service_state}"
+                        )
+                        last_service_state = service_state
+                    time.sleep(max(0.2, interval))
+                    continue
+
                 self.logger.warning("Taosanode process is not running while waiting for readiness")
                 return False
             time.sleep(max(0.2, interval))
 
         self.logger.warning(f"Taosanode readiness check timed out after {timeout} seconds: {status_url}")
         return False
+
+    def _query_windows_service_state(self, service_name: str = "Taosanode") -> Optional[str]:
+        """Best-effort SCM state lookup used while waiting for service readiness."""
+        if not IS_WINDOWS:
+            return None
+
+        try:
+            result = subprocess.run(
+                ["sc", "query", service_name],
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=False,
+            )
+        except Exception:
+            return None
+
+        if result.returncode != 0:
+            return None
+
+        match = re.search(r"STATE\s*:\s*\d+\s+([A-Z_]+)", result.stdout or "", re.IGNORECASE)
+        if not match:
+            return None
+        return match.group(1).upper()
 
     def install_service(self) -> bool:
         """Install Windows service"""
@@ -1159,12 +1410,16 @@ class ModelService:
             raise ValueError(f"Unknown model: {model_name}")
 
         model_dir = os.path.join(self.config.model_dir, model_name)
+        port = model_config.get("port", 0)
         args = []
 
         if model_name == "tdtsfm":
             args = [model_dir, "--action", "server"]
         elif model_config.get("default_model"):
             args = [model_dir, model_config["default_model"], "False"]
+        if port:
+            args += ["--port", str(port)]
+
 
         return args
 
@@ -1223,7 +1478,9 @@ class ModelService:
         handler = RotatingFileHandler(
             log_file,
             maxBytes=10*1024*1024,  # 10MB
-            backupCount=5
+            backupCount=5,
+            encoding=get_windows_friendly_log_encoding(log_file),
+            errors="replace",
         )
         formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
         handler.setFormatter(formatter)
@@ -1231,7 +1488,12 @@ class ModelService:
 
         try:
             # Start process
-            with open(log_file, 'a') as log:
+            with open(
+                log_file,
+                'a',
+                encoding=get_windows_friendly_log_encoding(log_file),
+                errors="replace",
+            ) as log:
                 if IS_WINDOWS:
                     startupinfo = subprocess.STARTUPINFO()
                     startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
@@ -1498,7 +1760,7 @@ def print_status(status):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="TDGPT Taosanode Service Manager",
+        description="TDgpt Taosanode Service Manager",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:

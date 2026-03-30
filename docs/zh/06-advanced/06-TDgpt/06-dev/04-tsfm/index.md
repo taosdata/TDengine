@@ -300,7 +300,7 @@ nohup python moment-server.py > service_output.out 2>&1 &
 
 ### 启动脚本
 
-`start-model.sh` 脚本用于启动指定或全部的时序基础模型服务。该脚本会根据用户指定的模型名称，加载对应的`Python`虚拟环境，并启动相应的模型服务脚本。
+`start-model.sh` 脚本用于启动指定或全部的时序基础模型服务。当前脚本本身只保留 Linux 入口命令，内部会统一委托 `taosanode_service.py` 读取 `taosanode.config.py`，再根据模型名称选择对应的 `Python` 虚拟环境并启动模型服务。入口脚本本身固定使用安装目录下主 `venv` 的 Python，不再回退到系统 `PATH`。
 
 使用`root` 安装完成后，您可以在 `<tdgpt根目录>/bin/` 目录下找到该脚本，我们会同步创建软链接为 `/usr/bin/start-model`，方便全局使用。
 
@@ -317,7 +317,7 @@ nohup python moment-server.py > service_output.out 2>&1 &
 **选项说明**：
 
 ```bash
-  -c 配置文件    指定配置文件（默认：/etc/taos/taosanode.ini）
+  -c 配置文件    指定配置文件（默认：`<install_dir>/cfg/taosanode.config.py`，找不到时回退 `/etc/taos/taosanode.config.py`）
   -h, --help     显示本帮助信息
 ```
 
@@ -325,11 +325,11 @@ nohup python moment-server.py > service_output.out 2>&1 &
 
 1. 在后台启动全部的模型服务：`/usr/bin/start-model all`
 2. 单独启动某个模型服务，例如：`/usr/bin/start-model timesfm`
-3. 支持通过 `-c` 参数指定自定义配置文件，未指定时默认使用`/etc/taos/taosanode.ini` 作为配置文件，例如：`/usr/bin/start-model -c /path/to/custom_taosanode.ini`
+3. 支持通过 `-c` 参数指定自定义配置文件，未指定时默认优先使用 `<install_dir>/cfg/taosanode.config.py`，找不到时回退 `/etc/taos/taosanode.config.py`，例如：`/usr/bin/start-model -c /path/to/custom_taosanode.config.py`
 
 ### 停止脚本
 
-`stop-model.sh`用于一键停止指定或全部时序基础模型服务。脚本会自动查找并终止对应模型的`Python`进程，使用方式与启动脚本一致，便于批量运维。
+`stop-model.sh`用于一键停止指定或全部时序基础模型服务。当前脚本同样保留为 Linux 入口命令，内部统一委托 `taosanode_service.py` 执行停止逻辑，使用方式与启动脚本一致，便于批量运维。
 
 **使用示例说明**：
 
