@@ -42,7 +42,7 @@ docker pull tdengine/tdgpt:3.4.0.9
 ```shell
 docker run -d \
   -p 6035:6035 \
-  -p 6036:6036 \
+  -p 6061:6061 \
   tdengine/tdgpt:3.4.0.9
 ```
 
@@ -72,12 +72,12 @@ docker pull tdengine/tdgpt-full:3.4.0.9
 docker run -d \
   --name tdgpt \
   -p 6035:6035 \
-  -p 6036:6036 \
-  -p 6037:6037 \
+  -p 6061:6061 \
+  -p 6062:6062 \
   tdengine/tdgpt-full:3.4.0.9
 ```
 
-**注意**：TDgpt 服务端使用 6035 TCP 端口。6036 和 6037 端口分别是时序基础模型 TDtsfm 的服务端口和 Time-MoE 的服务端口；
+**注意**：TDgpt 服务端使用 6035 TCP 端口。6061 和 6062 端口分别是时序基础模型 TDtsfm 的服务端口和 Time-MoE 的服务端口；从当前版本开始，Chronos、Moirai、TimesFM、Moment 等模型服务默认使用 6063-6066 端口，6067-6070 为预留模型服务端口。
 
 确定该容器已经启动并且在正常运行。
 
