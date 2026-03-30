@@ -2478,11 +2478,13 @@ static int32_t buildBootstrapSysScanExchangeParam(SOperatorParam** ppRes, SOpera
     SDownstreamSourceNode* pSrc = taosArrayGet(pExchangeInfo->pSources, i);
     QUERY_CHECK_NULL(pSrc, code, line, _return, terrno);
 
-    SArray* pFake = taosArrayInit(1, sizeof(int32_t));
-    QUERY_CHECK_NULL(pFake, code, line, _return, terrno);
+    SArray* pFakeReqs = taosArrayInit(1, sizeof(int32_t));
+    QUERY_CHECK_NULL(pFakeReqs, code, line, _return, terrno);
     code = buildExchangeOperatorBasicParam(&basic, QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN, EX_SRC_TYPE_VSTB_SYS_SCAN,
-                                           pSrc->addr.nodeId, 0, NULL, NULL, NULL, pFake, NULL, (STimeWindow){0},
+                                           pSrc->addr.nodeId, 0, NULL, NULL, NULL, pFakeReqs, NULL, (STimeWindow){0},
                                            NULL, false, true, false);
+    taosArrayDestroy(pFakeReqs);
+    pFakeReqs = NULL;
     QUERY_CHECK_CODE(code, line, _return);
 
     code = tSimpleHashPut(pExc->pBatchs, &pSrc->addr.nodeId, sizeof(pSrc->addr.nodeId), &basic, sizeof(basic));
