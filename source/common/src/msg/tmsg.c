@@ -13396,6 +13396,20 @@ int32_t tSerializeSOperatorParam(SEncoder *pEncoder, SOperatorParam *pOpParam) {
       TAOS_CHECK_RETURN(tEncodeI64(pEncoder, pTagScan->vcUid));
       break;
     }
+    case QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN: {
+      SSysTableScanOperatorParam* pSysScan = (SSysTableScanOperatorParam*)pOpParam->value;
+      int32_t                     reqNum = pSysScan->pVtbRefReqs ? taosArrayGetSize(pSysScan->pVtbRefReqs) : 0;
+
+      TAOS_CHECK_RETURN(tEncodeI32(pEncoder, reqNum));
+      for (int32_t i = 0; i < reqNum; ++i) {
+        SSysTableScanVtbRefReq* pReq = taosArrayGet(pSysScan->pVtbRefReqs, i);
+        TAOS_CHECK_RETURN(tEncodeI32(pEncoder, pReq->vgId));
+        TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pReq->dbName));
+        TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pReq->tbName));
+        TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pReq->colName));
+      }
+      break;
+    }
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN:
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN: {
       STableScanOperatorParam *pScan = (STableScanOperatorParam *)pOpParam->value;
@@ -13521,6 +13535,34 @@ int32_t tDeserializeSOperatorParam(SDecoder *pDecoder, SOperatorParam *pOpParam)
       }
       STagScanOperatorParam *pTagScan = pOpParam->value;
       TAOS_CHECK_RETURN(tDecodeI64(pDecoder, &pTagScan->vcUid));
+      break;
+    }
+    case QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN: {
+      pOpParam->value = taosMemoryCalloc(1, sizeof(SSysTableScanOperatorParam));
+      if (NULL == pOpParam->value) {
+        TAOS_CHECK_RETURN(terrno);
+      }
+
+      SSysTableScanOperatorParam* pSysScan = pOpParam->value;
+      int32_t                     reqNum = 0;
+      TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &reqNum));
+      if (reqNum > 0) {
+        pSysScan->pVtbRefReqs = taosArrayInit(reqNum, sizeof(SSysTableScanVtbRefReq));
+        if (NULL == pSysScan->pVtbRefReqs) {
+          TAOS_CHECK_RETURN(terrno);
+        }
+
+        for (int32_t i = 0; i < reqNum; ++i) {
+          SSysTableScanVtbRefReq req = {0};
+          TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &req.vgId));
+          TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, req.dbName));
+          TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, req.tbName));
+          TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, req.colName));
+          if (taosArrayPush(pSysScan->pVtbRefReqs, &req) == NULL) {
+            TAOS_CHECK_RETURN(terrno);
+          }
+        }
+      }
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN:
