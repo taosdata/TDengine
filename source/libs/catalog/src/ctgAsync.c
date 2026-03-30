@@ -4857,15 +4857,20 @@ int32_t ctgLaunchGetTSMATask(SCtgTask* pTask) {
   CTG_ERR_RET(ctgGetTSMAFromCache(pCtg, pCtx, pTsmaName));
 
   if (pCtx->pResList->size == 0) {
-    SCtgMsgCtx* pMsgCtx = CTG_GET_TASK_MSGCTX(pTask, 0);
+    SCtgMsgCtx* pMsgCtx = ctgGetTaskLinkMsgCtx(pTask);
     if (NULL == pMsgCtx) {
-      ctgError("fail to get the 0th SCtgMsgCtx, taskType:%d", pTask->type);
+      ctgError("fail to get task link msgCtx, taskType:%d", pTask->type);
+      CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
+    }
+    if (NULL == pMsgCtx->pBatchs) {
+      pMsgCtx->pBatchs = pTask->pJob->pBatchs;
+    }
+    if (NULL == pMsgCtx->pBatchs) {
+      ctgError("fail to resolve batch container for tsma task:%d", pTask->taskId);
       CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
     }
 
-    CTG_ERR_RET(ctgInitBatchTaskMsgCtx(pTask, pMsgCtx));
-
-    SCtgTaskReq tReq = ctgMakeTaskReq(pTask, 0, CTG_BATCH_SOURCE_REQ_CTX);
+    SCtgTaskReq tReq = ctgMakeTaskReq(pTask, -1, CTG_BATCH_SOURCE_REQ_CTX);
     if (NULL == taosArrayPush(pCtx->pResList, &(SMetaRes){0})) {
       ctgError("taosArrayPush SMetaRes failed, code:%x", terrno);
       CTG_ERR_RET(terrno);
@@ -4892,10 +4897,20 @@ int32_t ctgLaunchGetTSMATask(SCtgTask* pTask) {
     int32_t exists = false;
     CTG_ERR_RET(ctgTbMetaExistInCache(pCtg, pTsma->targetDbFName, pTsma->targetTb, &exists));
     if (!exists) {
-      SCtgMsgCtx* pMsgCtx = CTG_GET_TASK_MSGCTX(pTask, 0);
-      CTG_ERR_RET(ctgInitBatchTaskMsgCtx(pTask, pMsgCtx));
+      SCtgMsgCtx* pMsgCtx = ctgGetTaskLinkMsgCtx(pTask);
+      if (NULL == pMsgCtx) {
+        ctgError("fail to get task link msgCtx, taskType:%d", pTask->type);
+        CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
+      }
+      if (NULL == pMsgCtx->pBatchs) {
+        pMsgCtx->pBatchs = pTask->pJob->pBatchs;
+      }
+      if (NULL == pMsgCtx->pBatchs) {
+        ctgError("fail to resolve batch container for tsma task:%d", pTask->taskId);
+        CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
+      }
 
-      SCtgTaskReq tReq = ctgMakeTaskReq(pTask, 0, CTG_BATCH_SOURCE_REQ_CTX);
+      SCtgTaskReq tReq = ctgMakeTaskReq(pTask, -1, CTG_BATCH_SOURCE_REQ_CTX);
       CTG_RET(ctgGetTbMetaFromMnodeImpl(pCtg, pConn, pTsma->targetDbFName, pTsma->targetTb, NULL, &tReq));
     } else {
       CTG_ERR_RET(ctgHandleTaskEnd(pTask, 0));
