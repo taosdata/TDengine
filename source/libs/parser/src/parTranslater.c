@@ -11795,6 +11795,7 @@ static int32_t translateAlterDnode(STranslateContext* pCxt, SAlterDnodeStmt* pSt
 static int32_t translateRestoreDnode(STranslateContext* pCxt, SRestoreComponentNodeStmt* pStmt) {
   SRestoreDnodeReq restoreReq = {0};
   restoreReq.dnodeId = pStmt->dnodeId;
+  restoreReq.vgId = pStmt->vgId;
   switch (nodeType((SNode*)pStmt)) {
     case QUERY_NODE_RESTORE_DNODE_STMT:
       restoreReq.restoreType = RESTORE_TYPE__ALL;
