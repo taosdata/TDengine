@@ -1809,6 +1809,12 @@ int32_t ctgHandleGetTbMetaRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf
       TAOS_MEMCPY(pOut->tbMeta, pOut->vctbMeta, sizeof(SVCTableMeta));
       pOut->tbMeta->colRef = (SColRef *)((char *)pOut->tbMeta + sizeof(STableMeta));
       TAOS_MEMCPY(pOut->tbMeta->colRef, pOut->vctbMeta->colRef, colRefSize);
+      if (pOut->vctbMeta->tagRef && tagRefSize > 0) {
+        pOut->tbMeta->tagRef = (SColRef *)((char *)pOut->tbMeta + sizeof(STableMeta) + colRefSize);
+        TAOS_MEMCPY(pOut->tbMeta->tagRef, pOut->vctbMeta->tagRef, tagRefSize);
+      } else {
+        pOut->tbMeta->tagRef = NULL;
+      }
     }
     pOut->tbMeta->numOfColRefs = pOut->vctbMeta->numOfColRefs;
     pOut->tbMeta->numOfTagRefs = pOut->vctbMeta->numOfTagRefs;
