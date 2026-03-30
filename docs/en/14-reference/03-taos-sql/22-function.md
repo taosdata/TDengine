@@ -3197,6 +3197,32 @@ SELECT CURRENT_USER();
 
 **Description**: Retrieves the current user.
 
+### SLEEP
+
+```sql
+SELECT SLEEP(seconds);
+```
+
+**Description**: Pauses execution for the specified number of seconds. Returns 0 on success. The function sleeps once per query, not per row.
+
+**Parameters**:
+- `seconds`: DOUBLE - Number of seconds to sleep (supports fractional values like 0.5)
+
+**Return value**: INT - Always returns 0
+
+**Examples**:
+
+```sql
+-- Sleep for 2 seconds
+SELECT SLEEP(2);
+
+-- Sleep for 500 milliseconds
+SELECT SLEEP(0.5);
+
+-- Use in query (sleeps once, not per row)
+SELECT SLEEP(1), col1 FROM table1;
+```
+
 ## Geometry Functions
 
 ### Geometry Input Functions

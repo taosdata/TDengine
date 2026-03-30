@@ -3274,6 +3274,32 @@ SELECT SERVER_STATUS();
 
 **说明**：检测服务端是否所有 dnode 都在线，如果是则返回成功，否则返回无法建立连接的错误。如果想要查询集群的状态，推荐使用 `SHOW CLUSTER ALIVE` 与 `SELECT SERVER_STATUS()` 不同，当集群中的部分节点不可用时，它不会返回错误，而是返回不同的状态码，详见：[SHOW CLUSTER ALIVE](https://docs.taosdata.com/reference/taos-sql/show/#show-cluster-alive)
 
+#### SLEEP
+
+```sql
+SELECT SLEEP(seconds);
+```
+
+**说明**：暂停执行指定的秒数。成功时返回 0。该函数每次查询只休眠一次，不会对每一行都休眠。
+
+**参数**：
+- `seconds`：DOUBLE - 休眠的秒数（支持小数，如 0.5）
+
+**返回值**：INT - 始终返回 0
+
+**示例**：
+
+```sql
+-- 休眠 2 秒
+SELECT SLEEP(2);
+
+-- 休眠 500 毫秒
+SELECT SLEEP(0.5);
+
+-- 在查询中使用（只休眠一次，不是每行都休眠）
+SELECT SLEEP(1), col1 FROM table1;
+```
+
 ## 地理信息函数​​
 
 ### 空间对象构造
