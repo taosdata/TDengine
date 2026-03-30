@@ -1107,7 +1107,9 @@ int32_t sclGetNodeType(SNode *pNode, SScalarCtx *ctx, int32_t *type, STypeMod *p
     }
     case QUERY_NODE_FUNCTION:
     case QUERY_NODE_OPERATOR:
-    case QUERY_NODE_LOGIC_CONDITION: {
+    case QUERY_NODE_LOGIC_CONDITION:
+    case QUERY_NODE_CASE_WHEN:
+    case QUERY_NODE_WHEN_THEN: {
       SScalarParam *res = (SScalarParam *)taosHashGet(ctx->pRes, &pNode, POINTER_BYTES);
       if (NULL == res) {
         sclError("no result for node, type:%d, node:%p", nodeType(pNode), pNode);
