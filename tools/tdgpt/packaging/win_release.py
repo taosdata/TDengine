@@ -545,6 +545,7 @@ set "PROGRESS_FILE=%TDGPT_PROGRESS_FILE%"
 set "PYTHONUTF8=1"
 set "PYTHONIOENCODING=utf-8"
 set "TDGPT_LOG_REDIRECTED=1"
+set "BOOTSTRAP_DIR="
 set "EXISTING_VENV_PYTHON=%INSTALL_DIR%\\venvs\\venv\\Scripts\\python.exe"
 set "PACKAGED_PYTHON=%INSTALL_DIR%\\python\\runtime\\python.exe"
 set "PYTHON_CMD="
@@ -620,13 +621,13 @@ if "%PROGRESS_FILE%"=="" (
 if errorlevel 1 (
     >> "%LOG_FILE%" echo [%date% %time%] Installation failed
     call :ensure_error_progress "Installation failed" "See install.log for details"
-    if exist "%INSTALL_DIR%\\_bootstrap" rd /s /q "%INSTALL_DIR%\\_bootstrap" 2>nul
+    call :cleanup_bootstrap
     exit /b 1
 )
 
 >> "%LOG_FILE%" echo [%date% %time%] Installation completed successfully
 call :append_progress success 100 "Installation complete" "{install_info.app_name} is ready"
-if exist "%INSTALL_DIR%\\_bootstrap" rd /s /q "%INSTALL_DIR%\\_bootstrap" 2>nul
+call :cleanup_bootstrap
 exit /b 0
 
 :append_progress
@@ -702,7 +703,8 @@ if not exist "%OFFLINE_PKG%" (
     echo WARNING: Offline package not found: %OFFLINE_PKG%
     exit /b 1
 )
-set "BOOTSTRAP_DIR=%INSTALL_DIR%\\_bootstrap"
+call :prepare_bootstrap_dir
+if not defined BOOTSTRAP_DIR exit /b 1
 if exist "%BOOTSTRAP_DIR%" rd /s /q "%BOOTSTRAP_DIR%"
 mkdir "%BOOTSTRAP_DIR%"
 echo Bootstrapping Python from offline package: %OFFLINE_PKG%
@@ -712,8 +714,17 @@ if exist "%BOOTSTRAP_DIR%\\python\\runtime\\python.exe" (
     echo Bootstrap Python runtime extracted successfully.
 ) else (
     echo WARNING: Could not extract bootstrap Python runtime from offline package.
-    rd /s /q "%BOOTSTRAP_DIR%" 2>nul
+    call :cleanup_bootstrap
 )
+exit /b 0
+
+:prepare_bootstrap_dir
+set "BOOTSTRAP_DIR=%TEMP%\\tdgpt-bootstrap-%RANDOM%-%RANDOM%"
+exit /b 0
+
+:cleanup_bootstrap
+if defined BOOTSTRAP_DIR if exist "%BOOTSTRAP_DIR%" rd /s /q "%BOOTSTRAP_DIR%" 2>nul
+set "BOOTSTRAP_DIR="
 exit /b 0
 """)
     logging.info("Created install.bat")

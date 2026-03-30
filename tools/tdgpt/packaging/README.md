@@ -269,10 +269,10 @@ When `/OFFLINE` is provided, the installer automatically uses offline mode. The 
 ### Silent Online Install (Requires System Python)
 
 ```bat
-tdgpt-setup.exe /VERYSILENT /NORESTART
+tdgpt-setup.exe /VERYSILENT /NORESTART /ONLINE=1
 ```
 
-Online mode is not the default in silent installation. To force online mode, the target machine must have Python 3.10–3.12 in `PATH`. If the installer detects no Python and no offline package, it will fail with a clear error in the install log.
+Online mode is not the default in silent installation. To force online mode, pass `/ONLINE=1`. For fresh online install, the target machine must have Python 3.10–3.12 in `PATH`. If the installer detects no usable Python runtime for the selected path, it will fail with a clear error in the install log.
 
 ### Python Discovery Priority
 

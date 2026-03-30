@@ -872,6 +872,64 @@ begin
   ClearModelSelections();
 end;
 
+function IsTruthyParam(const Value: string): Boolean;
+var
+  Normalized: string;
+begin
+  Normalized := Uppercase(Trim(Value));
+  Result :=
+    (Normalized <> '') and
+    (Normalized <> '0') and
+    (Normalized <> 'FALSE') and
+    (Normalized <> 'NO') and
+    (Normalized <> 'OFF');
+end;
+
+procedure ApplyCommandLineModeOverrides();
+var
+  ForceOnlineValue: string;
+begin
+  ForceOnlineValue := ExpandConstant('{param:ONLINE|}');
+  if IsTruthyParam(ForceOnlineValue) then
+  begin
+    if InstallModePage <> nil then
+    begin
+      InstallModePage.Values[0] := False;
+      InstallModePage.Values[1] := True;
+    end;
+    IsOnlineMode := True;
+    if IsUpgradeInstall() then
+    begin
+      ModelSource := 'none';
+      InstallTensorFlow := False;
+      ClearModelSelections();
+      if PythonOptionsPage <> nil then
+        PythonOptionsPage.Values[0] := False;
+      if ModelSourcePage <> nil then
+      begin
+        ModelSourcePage.Values[0] := False;
+        ModelSourcePage.Values[1] := True;
+      end;
+    end
+    else
+    begin
+      ModelSource := 'online';
+      InstallTensorFlow := True;
+      SetDefaultOnlineModelSelections();
+      if PythonOptionsPage <> nil then
+        PythonOptionsPage.Values[0] := True;
+      if ModelSourcePage <> nil then
+      begin
+        ModelSourcePage.Values[0] := True;
+        ModelSourcePage.Values[1] := False;
+      end;
+    end;
+  end;
+
+  if ExpandConstant('{param:OFFLINE|}') <> '' then
+    OfflinePackagePage.Values[0] := ExpandConstant('{param:OFFLINE|}');
+end;
+
 procedure InitializeWizard();
 begin
   IsOnlineMode := False;
@@ -1003,9 +1061,8 @@ begin
     WizardForm.DirEdit.Text := LockedInstallDir;
   ApplyInstallDefaults(IsUpgradeInstall());
 
-  // Support /OFFLINE command-line parameter for silent installation
-  if ExpandConstant('{param:OFFLINE|}') <> '' then
-    OfflinePackagePage.Values[0] := ExpandConstant('{param:OFFLINE|}');
+  // Support /OFFLINE and /ONLINE command-line parameters for silent installation
+  ApplyCommandLineModeOverrides();
 
   TryPopulateDefaultOfflinePackage();
 end;

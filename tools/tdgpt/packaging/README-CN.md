@@ -267,10 +267,10 @@ tdgpt-setup.exe /VERYSILENT /NORESTART /OFFLINE="D:\packages\tdengine-tdgpt-offl
 ### 静默在线安装（需要系统 Python）
 
 ```bat
-tdgpt-setup.exe /VERYSILENT /NORESTART
+tdgpt-setup.exe /VERYSILENT /NORESTART /ONLINE=1
 ```
 
-静默安装的默认模式是离线模式。如果不传 `/OFFLINE`，且系统 PATH 中没有 Python 3.10–3.12，安装器会失败并在日志中记录明确的错误信息。
+静默安装的默认模式是离线模式。若要强制在线模式，请传入 `/ONLINE=1`。对于首次在线安装，目标机仍需在 `PATH` 中提供 Python 3.10–3.12；如果针对所选安装路径没有可用 Python 运行时，安装日志会记录明确的错误信息。
 
 ### Python 发现优先级
 
