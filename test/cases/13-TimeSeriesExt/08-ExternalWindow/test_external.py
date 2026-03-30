@@ -2425,6 +2425,131 @@ class TestExternal:
             f"({at0 + 800000}, 3, 11.0)"
         )
 
+        # ---- 5.5 Doc example: smart meter (meters + alerts) ----
+        # Mirrors the documentation example in 03-query.md "外部窗口" section.
+        # meters: ts, current, voltage, phase; tags: groupid(int), location(nchar)
+        # alerts: ts, alert_code, alert_value;   tags: groupid(int), location(nchar)
+        tdSql.execute("drop table if exists doc_meters")
+        tdSql.execute("drop table if exists doc_alerts")
+
+        tdSql.execute(
+            "create table doc_meters "
+            "(ts timestamp, current float, voltage int, phase float) "
+            "tags(groupid int, location nchar(64))"
+        )
+        tdSql.execute(
+            "create table doc_alerts "
+            "(ts timestamp, alert_code int, alert_value float) "
+            "tags(groupid int, location nchar(64))"
+        )
+
+        # Two groups of meters
+        tdSql.execute("create table doc_meters_g1_a using doc_meters tags(1, 'California.SanFrancisco')")
+        tdSql.execute("create table doc_meters_g2_a using doc_meters tags(2, 'California.LosAngeles')")
+
+        # Two groups of alerts
+        tdSql.execute("create table doc_alerts_g1_a using doc_alerts tags(1, 'California.SanFrancisco')")
+        tdSql.execute("create table doc_alerts_g2_a using doc_alerts tags(2, 'California.LosAngeles')")
+
+        mt0 = 1717340000000  # base time
+
+        # Group 1 meters: voltage readings, some >= 225 (trigger windows)
+        tdSql.execute(
+            f"insert into doc_meters_g1_a values"
+            f"({mt0},          12.0, 220, 0.31)"
+            f"({mt0 + 10000},  12.1, 225, 0.32)"   # voltage >= 225 -> window [+10s, +70s]
+            f"({mt0 + 20000},  12.2, 228, 0.33)"   # voltage >= 225 -> window [+20s, +80s]
+            f"({mt0 + 30000},  12.3, 218, 0.34)"
+            f"({mt0 + 60000},  12.4, 230, 0.35)"   # voltage >= 225 -> window [+60s, +120s]
+            f"({mt0 + 120000}, 12.5, 210, 0.36)"
+            f"({mt0 + 180000}, 12.6, 226, 0.37)"   # voltage >= 225 -> window [+180s, +240s]
+        )
+
+        # Group 2 meters: voltage readings
+        tdSql.execute(
+            f"insert into doc_meters_g2_a values"
+            f"({mt0},          11.0, 222, 0.30)"
+            f"({mt0 + 30000},  11.1, 232, 0.31)"   # voltage >= 225 -> window [+30s, +90s]
+            f"({mt0 + 90000},  11.2, 215, 0.32)"
+            f"({mt0 + 150000}, 11.3, 227, 0.33)"   # voltage >= 225 -> window [+150s, +210s]
+        )
+
+        # Group 1 alerts: scattered
+        tdSql.execute(
+            f"insert into doc_alerts_g1_a values"
+            f"({mt0 + 15000},  101, 5.0)"    # in window [+10s, +70s]
+            f"({mt0 + 25000},  102, 8.0)"    # in window [+10s, +70s] and [+20s, +80s]
+            f"({mt0 + 50000},  103, 12.0)"   # in window [+10s, +70s] and [+20s, +80s]
+            f"({mt0 + 75000},  104, 3.0)"    # in window [+20s, +80s]
+            f"({mt0 + 100000}, 105, 15.0)"   # in window [+60s, +120s]
+            f"({mt0 + 200000}, 106, 7.0)"    # in window [+180s, +240s]
+        )
+
+        # Group 2 alerts
+        tdSql.execute(
+            f"insert into doc_alerts_g2_a values"
+            f"({mt0 + 40000},  201, 9.0)"    # in window [+30s, +90s]
+            f"({mt0 + 80000},  202, 11.0)"   # in window [+30s, +90s]
+            f"({mt0 + 160000}, 203, 6.0)"    # in window [+150s, +210s]
+            f"({mt0 + 190000}, 204, 14.0)"   # in window [+150s, +210s]
+        )
+
+        # ---- 5.6 Layered aggregation tables for nested external_window ----
+        # sensor_data: raw sensor readings
+        # event_markers: event start/end markers
+        tdSql.execute("drop table if exists layered_sensor")
+        tdSql.execute("drop table if exists layered_event")
+
+        tdSql.execute(
+            "create table layered_sensor "
+            "(ts timestamp, val float) "
+            "tags(sid int)"
+        )
+        tdSql.execute(
+            "create table layered_event "
+            "(ts timestamp, etype int) "
+            "tags(sid int)"
+        )
+
+        tdSql.execute("create table layered_sensor_s1 using layered_sensor tags(1)")
+        tdSql.execute("create table layered_sensor_s2 using layered_sensor tags(2)")
+        tdSql.execute("create table layered_event_s1 using layered_event tags(1)")
+        tdSql.execute("create table layered_event_s2 using layered_event tags(2)")
+
+        lt0 = 1717400000000
+
+        # Sensor 1: readings every 10s for 10 min
+        sensor_vals_s1 = []
+        for i in range(60):
+            sensor_vals_s1.append(f"({lt0 + i * 10000}, {10.0 + i * 0.5})")
+        tdSql.execute("insert into layered_sensor_s1 values" + "".join(sensor_vals_s1))
+
+        # Sensor 2: readings every 10s for 10 min
+        sensor_vals_s2 = []
+        for i in range(60):
+            sensor_vals_s2.append(f"({lt0 + i * 10000}, {20.0 + i * 0.3})")
+        tdSql.execute("insert into layered_sensor_s2 values" + "".join(sensor_vals_s2))
+
+        # Event markers for sensor 1: 3 events
+        tdSql.execute(
+            f"insert into layered_event_s1 values"
+            f"({lt0},          1)"           # event start
+            f"({lt0 + 120000}, 2)"           # event end -> event1: [0s, 120s]
+            f"({lt0 + 180000}, 1)"           # event start
+            f"({lt0 + 300000}, 2)"           # event end -> event2: [180s, 300s]
+            f"({lt0 + 360000}, 1)"           # event start
+            f"({lt0 + 540000}, 2)"           # event end -> event3: [360s, 540s]
+        )
+
+        # Event markers for sensor 2: 2 events (deliberately different from s1)
+        tdSql.execute(
+            f"insert into layered_event_s2 values"
+            f"({lt0 + 60000},  1)"           # event start
+            f"({lt0 + 240000}, 2)"           # event end -> event1: [60s, 240s]
+            f"({lt0 + 300000}, 1)"           # event start
+            f"({lt0 + 480000}, 2)"           # event end -> event2: [300s, 480s]
+        )
+
         tdLog.info("=============== scenario: data preparation done")
 
     def scenario_fault_alarm_correlation(self):
@@ -3235,6 +3360,335 @@ class TestExternal:
 
         tdLog.info("=============== scenario 5.2.3: diff-based window done")
 
+    def scenario_doc_smart_meter_example(self):
+        """5.5 Documentation example: smart meter voltage anomaly with alerts.
+
+        Mirrors the SQL example from docs/zh/05-basic/03-query.md "外部窗口" section.
+        Uses meters (voltage >= 225 as anomaly trigger) to define 60s windows,
+        then counts alerts within each window, partitioned by groupid.
+        """
+        tdLog.info("=============== scenario 5.5: doc smart meter example")
+        tdSql.execute(f"use {self.dbName}")
+
+        mt0 = 1717340000000
+
+        # -- Test 1: Basic doc example query (PARTITION BY groupid, HAVING count > 0) --
+        # Group 1 voltage >= 225 events: +10s, +20s, +60s, +180s
+        # Group 2 voltage >= 225 events: +30s, +150s
+        # Each creates a 60s window: [event_ts, event_ts + 60s]
+        #
+        # Group 1 windows and matching alerts:
+        #   [+10s, +70s]:   alerts at +15s(5.0), +25s(8.0), +50s(12.0) -> count=3, max=12.0
+        #   [+20s, +80s]:   alerts at +25s(8.0), +50s(12.0), +75s(3.0) -> count=3, max=12.0
+        #   [+60s, +120s]:  alerts at +75s(3.0), +100s(15.0) -> count=2, max=15.0
+        #   [+180s, +240s]: alerts at +200s(7.0) -> count=1, max=7.0
+        # Group 2 windows and matching alerts:
+        #   [+30s, +90s]:   alerts at +40s(9.0), +80s(11.0) -> count=2, max=11.0
+        #   [+150s, +210s]: alerts at +160s(6.0), +190s(14.0) -> count=2, max=14.0
+        tdSql.query(
+            "select w.groupid, w.location, "
+            "cast(_wstart as bigint) as ws, "
+            "count(a.*) as alert_count, "
+            "max(a.alert_value) as max_alert_value "
+            "from doc_alerts a "
+            "partition by a.groupid "
+            "external_window("
+            "(select ts, ts + 60s, groupid, location "
+            " from doc_meters "
+            " where voltage >= 225 "
+            " partition by groupid) w) "
+            "having count(a.*) > 0 "
+            "order by w.groupid, ws"
+        )
+        # Group 1: 4 windows, all have alerts
+        # Group 2: 2 windows, all have alerts
+        tdSql.checkRows(6)
+        # Group 1 window 1: [mt0+10000, mt0+70000]
+        tdSql.checkData(0, 0, 1)
+        tdSql.checkData(0, 2, mt0 + 10000)
+        tdSql.checkData(0, 3, 3)
+        # Group 1 window 2: [mt0+20000, mt0+80000]
+        tdSql.checkData(1, 0, 1)
+        tdSql.checkData(1, 2, mt0 + 20000)
+        tdSql.checkData(1, 3, 3)
+        # Group 1 window 3: [mt0+60000, mt0+120000]
+        tdSql.checkData(2, 0, 1)
+        tdSql.checkData(2, 2, mt0 + 60000)
+        tdSql.checkData(2, 3, 2)
+        # Group 1 window 4: [mt0+180000, mt0+240000]
+        tdSql.checkData(3, 0, 1)
+        tdSql.checkData(3, 2, mt0 + 180000)
+        tdSql.checkData(3, 3, 1)
+        # Group 2 window 1: [mt0+30000, mt0+90000]
+        tdSql.checkData(4, 0, 2)
+        tdSql.checkData(4, 2, mt0 + 30000)
+        tdSql.checkData(4, 3, 2)
+        # Group 2 window 2: [mt0+150000, mt0+210000]
+        tdSql.checkData(5, 0, 2)
+        tdSql.checkData(5, 2, mt0 + 150000)
+        tdSql.checkData(5, 3, 2)
+
+        # -- Test 2: Without HAVING (includes all windows, even empty ones) --
+        tdSql.query(
+            "select w.groupid, "
+            "cast(_wstart as bigint) as ws, "
+            "count(a.*) as alert_count "
+            "from doc_alerts a "
+            "partition by a.groupid "
+            "external_window("
+            "(select ts, ts + 60s, groupid, location "
+            " from doc_meters "
+            " where voltage >= 225 "
+            " partition by groupid) w) "
+            "order by w.groupid, ws"
+        )
+        tdSql.checkRows(6)
+
+        # -- Test 3: AVG aggregation on alert_value --
+        tdSql.query(
+            "select w.groupid, "
+            "cast(_wstart as bigint) as ws, "
+            "avg(a.alert_value) as avg_val "
+            "from doc_alerts a "
+            "partition by a.groupid "
+            "external_window("
+            "(select ts, ts + 60s, groupid, location "
+            " from doc_meters "
+            " where voltage >= 225 "
+            " partition by groupid) w) "
+            "having count(a.*) > 0 "
+            "order by w.groupid, ws"
+        )
+        tdSql.checkRows(6)
+
+        # -- Test 4: Subquery has PARTITION BY but outer query has none -> syntax error --
+        # Doc 约束与限制: "若外部窗口（内部子查询）使用了分组，则外部查询必须同时使用 PARTITION BY；否则语法报错"
+        # The subquery below uses partition by groupid; the outer query has no partition by -> error.
+        tdSql.error(
+            "select cast(_wstart as bigint) as ws, "
+            "count(a.*) as alert_count "
+            "from doc_alerts a "
+            "external_window("
+            "(select ts, ts + 60s, groupid, location "
+            " from doc_meters "
+            " where voltage >= 225 "
+            " partition by groupid order by ts) w)"
+        )
+
+        # -- Test 5: No partition by in subquery -> all data share one global window set --
+        # Doc 分组和对齐 bullet 3: "当子查询未使用 PARTITION BY 时，内部子查询只生成一组共享窗口。"
+        # Both subquery and outer query have no PARTITION BY here, so all alerts from all groups
+        # are counted together against the single shared window set derived from all voltage events.
+        tdSql.query(
+            "select cast(_wstart as bigint) as ws, "
+            "count(a.*) as alert_count "
+            "from doc_alerts a "
+            "external_window("
+            "(select ts, ts + 60s, groupid, location "
+            " from doc_meters "
+            " where voltage >= 225 order by ts) w) "
+            "order by ws"
+        )
+        # Windows from both groups interleaved by time:
+        # +10s, +20s, +30s, +60s, +150s, +180s  (all voltage>=225 events sorted)
+        # All alerts (both groups) match against these global windows
+        tdSql.checkRows(6)
+
+        # -- Test 6: Window attribute column in ORDER BY --
+        tdSql.query(
+            "select w.groupid, w.location, "
+            "cast(_wstart as bigint) as ws, "
+            "count(a.*) as alert_count "
+            "from doc_alerts a "
+            "partition by a.groupid "
+            "external_window("
+            "(select ts, ts + 60s, groupid, location "
+            " from doc_meters "
+            " where voltage >= 225 "
+            " partition by groupid) w) "
+            "having count(a.*) > 0 "
+            "order by w.groupid desc, ws"
+        )
+        tdSql.checkRows(6)
+        # Group 2 first
+        tdSql.checkData(0, 0, 2)
+        tdSql.checkData(2, 0, 1)
+
+        # -- Test 7: ORDER BY in partitioned subquery breaks partition alignment (doc limitation) --
+        # Doc "分组和对齐" bullet 5 (限制与注意事项，未来版本可能变化):
+        #   "当内外查询都使用 PARTITION BY，且窗口子查询中再使用 ORDER BY 时，
+        #    排序可能打乱各分组窗口流的原有组织方式；外部查询可能作用于合并后的窗口流，
+        #    表现为内部分组语义失效（等同未分组），不再按内外分组一一对齐。"
+        #
+        # Compare with Test 1 (no ORDER BY in subquery) which yields 6 rows:
+        #   Group 1 sees only its 4 windows → 4 rows
+        #   Group 2 sees only its 2 windows → 2 rows
+        #
+        # With ORDER BY ts added to the subquery, all 6 windows are merged into one sorted stream.
+        # Each outer partition (a.groupid=1 and a.groupid=2) now sees ALL 6 merged windows:
+        #   Merged windows (sorted by ts): [+10s], [+20s], [+30s], [+60s], [+150s], [+180s]
+        #   Group 1 alerts (+15s, +25s, +50s, +75s, +100s, +200s) match all 6 windows → 6 rows
+        #   Group 2 alerts (+40s, +80s, +160s, +190s) match all 6 windows → 6 rows
+        # Total: 12 rows (doubled from 6), demonstrating the alignment failure.
+        tdSql.query(
+            "select w.groupid, "
+            "cast(_wstart as bigint) as ws, "
+            "count(a.*) as alert_count "
+            "from doc_alerts a "
+            "partition by a.groupid "
+            "external_window("
+            "(select ts, ts + 60s, groupid, location "
+            " from doc_meters "
+            " where voltage >= 225 "
+            " partition by groupid order by ts) w) "
+            "having count(a.*) > 0 "
+            "order by ws"
+        )
+        # 12 rows: each of the 6 merged windows is matched by both outer partitions
+        # (vs 6 rows in Test 1 where each group only sees its own windows)
+        tdSql.checkRows(12)
+
+        tdLog.info("=============== scenario 5.5: doc smart meter example done")
+
+    def scenario_nested_layered_aggregation(self):
+        """5.6 Nested external_window for layered aggregation.
+
+        Demonstrates the doc description:
+        "先用第一层外部窗口按事件划定时间范围并聚合出中间指标，
+         再用第二层外部窗口在新的时间范围内对这些中间指标做二次聚合。"
+
+        Level 1: Use event markers (etype=1 start, etype=2 end) to build windows,
+                 aggregate sensor readings within each event window (avg, count).
+        Level 2: Use the level-1 result windows to build larger time ranges,
+                 aggregate the raw sensor data again at a coarser granularity.
+        """
+        tdLog.info("=============== scenario 5.6: nested layered aggregation")
+        tdSql.execute(f"use {self.dbName}")
+
+        lt0 = 1717400000000
+
+        # -- Level 1: event windows from event_markers -> aggregate sensor data --
+        # This query uses etype=1 start markers + lead(ts, 1), so windows are
+        # start-to-next-start, not explicit start/end pairs.
+        # Sensor 1 start markers at: lt0, lt0+180s, lt0+360s -> windows [0,180s], [180s,360s]
+        # Sensor 1 readings every 10s: val = 10.0 + i*0.5 for i in 0..59
+        #   [0, 180s]: i=0..18 -> 19 readings
+        #   [180s, 360s]: i=18..36 -> 19 readings
+        tdSql.query(
+            "select cast(_wstart as bigint) as ws, cast(_wend as bigint) as we, "
+            "count(*) as c, avg(val) as av "
+            "from layered_sensor_s1 "
+            "external_window("
+            "(select ts, lead(ts, 1) from layered_event_s1 "
+            " where etype = 1 order by ts) w) "
+            "order by ws"
+        )
+        # event1: [lt0, lt0+180000] (from start1 to start2)
+        # event2: [lt0+180000, lt0+360000] (from start2 to start3)
+        # lead(ts, 1) gives next start event timestamp
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, lt0)
+        tdSql.checkData(1, 0, lt0 + 180000)
+
+        # Alternative: use paired start/end markers to define windows
+        # Build windows from [start_ts, end_ts] pairs using lead on interleaved events
+        tdSql.query(
+            "select cast(_wstart as bigint) as ws, cast(_wend as bigint) as we, "
+            "count(*) as c "
+            "from layered_sensor_s1 "
+            "external_window("
+            "(select ts, lead(ts, 1) from layered_event_s1 "
+            " where etype in (1, 2) order by ts) w) "
+            "order by ws"
+        )
+        # Pairs: [lt0, lt0+120s], [lt0+120s, lt0+180s], [lt0+180s, lt0+300s],
+        #        [lt0+300s, lt0+360s], [lt0+360s, lt0+540s]
+        tdSql.checkRows(5)
+
+        # -- Level 2: Nested - use level-1 aggregate windows to drive level-2 --
+        # Inner: start-to-next-start windows from etype=1 markers on sensor 1
+        # Middle: aggregate sensor 1 data in those windows -> produces _wstart, _wend, count, avg
+        # Outer: use those same windows to aggregate sensor 2 data
+        tdSql.query(
+            "select cast(_wstart as bigint) as ws, count(*) as c, avg(val) as av "
+            "from layered_sensor_s2 "
+            "external_window("
+            "(select _wstart, _wend, count(*) as inner_cnt "
+            " from layered_sensor_s1 "
+            " external_window("
+            " (select ts, lead(ts, 1) from layered_event_s1 "
+            "  where etype = 1 order by ts) w1"
+            ") order by _wstart) w2) "
+            "order by ws"
+        )
+        # Level-1 produces 2 windows (start-to-start): [lt0, lt0+180s], [lt0+180s, lt0+360s]
+        # Level-2 aggregates sensor_s2 in those windows
+        # sensor_s2: val = 20.0 + i*0.3 for i in 0..59, readings every 10s
+        #   [lt0, lt0+180s]: i=0..18 -> 19 readings (closed-closed boundary)
+        #   [lt0+180s, lt0+360s]: i=18..36 -> 19 readings
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, lt0)
+        tdSql.checkData(0, 1, 19)
+        tdSql.checkData(1, 0, lt0 + 180000)
+        tdSql.checkData(1, 1, 19)
+
+        # -- Level 2 with PARTITION BY: nested with both levels partitioned --
+        # Inner events partitioned by sid, outer sensor data partitioned by sid
+        tdSql.query(
+            "select sid, cast(_wstart as bigint) as ws, count(*) as c "
+            "from layered_sensor "
+            "partition by sid "
+            "external_window("
+            "(select _wstart, _wend, sid, count(*) as inner_cnt "
+            " from layered_sensor "
+            " partition by sid "
+            " external_window("
+            " (select ts, lead(ts, 1) from layered_event "
+            "  where etype = 1 partition by sid) w1"
+            ")) w2) "
+            "order by sid, ws"
+        )
+        # Expected partition-alignment behavior for this nested case:
+        # both sid=1 and sid=2 windows are preserved and matched by sid.
+        # sid=1 windows: [lt0, +180k], [lt0+180k, +360k]
+        # sid=2 window:  [lt0+60k, +300k]
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, 1)
+        tdSql.checkData(0, 1, lt0)
+        tdSql.checkData(0, 2, 19)
+        tdSql.checkData(1, 0, 1)
+        tdSql.checkData(1, 1, lt0 + 180000)
+        tdSql.checkData(1, 2, 19)
+        tdSql.checkData(2, 0, 2)
+        tdSql.checkData(2, 1, lt0 + 60000)
+        tdSql.checkData(2, 2, 25)
+
+        # -- 3-level nesting: event->sensor1->sensor2->count --
+        tdSql.query(
+            "select cast(_wstart as bigint) as ws, count(*) as c "
+            "from layered_sensor_s2 "
+            "external_window("
+            "(select _wstart, _wend, count(*) as c2 "
+            " from layered_sensor_s2 "
+            " external_window("
+            " (select _wstart, _wend, count(*) as c1 "
+            "  from layered_sensor_s1 "
+            "  external_window("
+            "  (select ts, lead(ts, 1) from layered_event_s1 "
+            "   where etype = 1 order by ts) w1"
+            " )) w2"
+            ")) w3) "
+            "order by ws"
+        )
+        # Windows pass through all 3 levels unchanged
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, lt0)
+        tdSql.checkData(0, 1, 19)
+        tdSql.checkData(1, 0, lt0 + 180000)
+        tdSql.checkData(1, 1, 19)
+
+        tdLog.info("=============== scenario 5.6: nested layered aggregation done")
+
     def scenario_regression(self):
         """Main entry point for all scenario-based tests."""
         tdLog.info("=============== scenario regression: start")
@@ -3248,4 +3702,6 @@ class TestExternal:
         self.scenario_event_window_external()
         self.scenario_lag_lead_advanced()
         self.scenario_diff_union_window()
+        self.scenario_doc_smart_meter_example()
+        self.scenario_nested_layered_aggregation()
         tdLog.info("=============== scenario regression: done")
