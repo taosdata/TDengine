@@ -19,6 +19,8 @@
         <el-input
           v-model="parseruleForm.expression"
           class="expression-input"
+          type="textarea"
+          :autosize="{ minRows: 1, maxRows: 7 }"
           :placeholder="t('dataIn.transformer.jsonPlaceholder')"
         />
       </div>
@@ -126,7 +128,7 @@ defineExpose({
 
 .form-row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 4px;
   min-width: 0;
 }

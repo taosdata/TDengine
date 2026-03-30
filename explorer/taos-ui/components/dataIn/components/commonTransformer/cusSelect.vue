@@ -33,6 +33,8 @@
       v-model="expression"
       :placeholder="t('dataIn.transformer.jsonPlaceholder')"
       size="default"
+      type="textarea"
+      :autosize="{ minRows: 1, maxRows: 7 }"
       @blur="$emit('update-data', expression)"
     >
     </el-input>

@@ -155,17 +155,19 @@
             >
             </el-input>
             <div v-else-if="parseruleForm.type == 'json'" class="json-wrap">
-              <span class="field-label">depth</span>
-              <el-input-number
-                v-model="parseruleForm.depth"
-                class="depth-input"
-                size="default"
-                :controls="false"
-                :min="0"
-              >
-              </el-input-number>
-              <span class="field-label">keep</span>
-              <el-switch v-model="parseruleForm.keep" class="keep-switch" size="default"></el-switch>
+              <div class="json-controls">
+                <span class="field-label">depth</span>
+                <el-input-number
+                  v-model="parseruleForm.depth"
+                  class="depth-input"
+                  size="default"
+                  :controls="false"
+                  :min="0"
+                >
+                </el-input-number>
+                <span class="field-label">keep</span>
+                <el-switch v-model="parseruleForm.keep" class="keep-switch" size="default"></el-switch>
+              </div>
               <CusSelect
                 v-model="parseruleForm.expression"
                 class="json-expression"
@@ -3200,9 +3202,17 @@ $color-description: rgb(137 130 130);
 
 .json-wrap {
   display: inline-flex;
-  align-items: center;
+  align-items: flex-start;
   width: 100%;
   column-gap: 4px;
+
+  .json-controls {
+    display: inline-flex;
+    align-items: center;
+    align-self: flex-start;
+    gap: 4px;
+    height: 32px;
+  }
 
   .field-label {
     padding: 0 6px;
