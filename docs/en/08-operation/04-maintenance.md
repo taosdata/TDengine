@@ -66,7 +66,7 @@ If the data on a data node (dnode) in the cluster is completely lost or damaged,
 restore dnode <dnode_id>; # Restore mnode, all vnodes, and qnode on dnode
 restore mnode on dnode <dnode_id>; # Restore mnode on dnode
 restore vnode on dnode <dnode_id>; # Restore all vnodes on dnode
-restore vnode on dnode <dnode_id> on vgroup_id <vgroup_id>; # Restore one vnodes on dnode
+restore vnode on dnode <dnode_id> on vgroup <vgroup_id>; # Restore one vnode on dnode
 restore qnode on dnode <dnode_id>; # Restore qnode on dnode
 ```
 
