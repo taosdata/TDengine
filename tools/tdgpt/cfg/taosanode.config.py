@@ -97,7 +97,7 @@ models = {
         "default_model": "Maple728/TimeMoE-200M",
         "port": 6062,
         "endpoint": "/ds_predict",
-        "algo_name": "timemoe_fc",
+        "algo_name": "timemoe-fc",
         "required": True,  # Must exist
     },
     "moirai": {

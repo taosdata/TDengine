@@ -119,7 +119,7 @@ def parse_arguments():
     install_info.source_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     install_info.release_dir = args.output
     install_info.install_dir = os.path.join(install_info.release_dir, "install")
-    install_info.package_name = f"{install_info.product_name}-{args.version}-Windows-x64"
+    install_info.package_name = f"{install_info.product_name}-{args.version}-windows-x64"
     install_info.model_dir = args.model_dir
     install_info.all_models = args.all_models
     install_info.iscc_path = args.iscc_path
