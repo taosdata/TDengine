@@ -1,5 +1,6 @@
 <template>
   <el-upload
+    v-bind="$attrs"
     class="upload-demo inline-upload"
     :action="dataInProps.uploadFileUrl"
     :data="{ req_id: 'taosx-demo-file' }"
@@ -58,6 +59,7 @@
 </template>
 
 <script setup lang="ts">
+defineOptions({ inheritAttrs: false });
 import { t } from 'locales';
 import { startCase } from 'lodash-es';
 import { instance } from 'config';

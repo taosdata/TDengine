@@ -10,6 +10,11 @@ export function getTimeParser(time?: DateType | null, pattern = 'YYYY-MM-DD HH:m
   return isCloud ? parseTime(time, pattern) : formatDateInTimeZone(time);
 }
 
+export function getStatusText(value?: string): string {
+  if (!value || value === 'undefined') return '-';
+  return t('dataIn.statuses.' + value);
+}
+
 // 当前的数据源页面类型
 export const currentPageType = ref<'add' | 'edit' | 'copy' | 'view'>('add');
 // 编辑操作时的任务id

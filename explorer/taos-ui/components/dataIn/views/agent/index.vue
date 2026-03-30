@@ -146,7 +146,7 @@
 
 <script setup lang="ts">
 import { ElMessage, type TableInstance } from 'element-plus';
-import { getTimeParser, agentId, agentList, getAgentList, agentMockData } from '../../model/util';
+import { getTimeParser, agentId, agentList, getAgentList, agentMockData, getStatusText } from '../../model/util';
 import AddAgent from './addAgent.vue';
 import Activities from '../../components/activities.vue';
 import PageTitle from '../../components/pageTitle.vue';
@@ -298,7 +298,6 @@ const getAgents = async () => {
 const handleResize = () => {
   maxHeight.value = window.innerHeight - 300;
 };
-const getStatusText = (value: string) => t('dataIn.statuses.' + value);
 
 const setCurrent = (row: Agent) => {
   if (row) {

@@ -105,8 +105,6 @@
         :border="dataInProps.isIdmp"
         @selection-change="handleSelectionChange"
         @cell-click="clickAgent"
-        @cell-mouse-enter="onTaskTableMouseEnter"
-        @cell-mouse-leave="onTaskTableMouseLeave"
       >
         <el-table-column type="selection" :reserve-selection="true" width="30"> </el-table-column>
         <el-table-column type="expand" width="40">
@@ -122,7 +120,7 @@
           width="25"
         >
           <template #default="scope">
-            <el-tooltip :content="scope.row.taskid" placement="top-start">
+            <el-tooltip :content="String(scope.row.taskid ?? '')" placement="top-start">
               <span class="no-wrap">{{ scope.row.taskid }}</span>
             </el-tooltip>
           </template>
@@ -276,9 +274,10 @@
             <el-dropdown
               :class="{
                 operations: !dataInProps.isIdmp,
-                show: dataInProps.isIdmp || scope.row.hover
+                show: dataInProps.isIdmp || openedTaskRowId === scope.row.id
               }"
-              :trigger="dataInProps.isIdmp ? 'click' : 'hover'"
+              trigger="click"
+              @visible-change="(visible) => onOperationDropdownVisibleChange(scope.row.id, visible)"
             >
               <span v-if="dataInProps.isIdmp" class="cursor-pointer" @click.stop>
                 <Icon name="el-more-filled" class="rotate-90deg font-size-20px" />
@@ -286,7 +285,7 @@
               <el-button v-else icon="MoreFilled" size="small" class="rotate-90!" text></el-button>
 
               <template #dropdown>
-                <el-dropdown-menu @mouseenter="onMenuMouseEnter" @mouseleave="onMenuMouseLeave">
+                <el-dropdown-menu>
                   <el-dropdown-item @click="viewTask(scope.row, scope.row.status.toLowerCase())">
                     <el-icon><View /></el-icon>
                     {{ t('common.view') }}
@@ -390,6 +389,7 @@ import {
   agentId,
   agentList,
   currentTaskStatus,
+  getStatusText,
   getSourceConfig,
   dataInMockData
 } from '../../model/util';
@@ -857,9 +857,6 @@ function getHealthStatus(activities: ActivitieProps[], lastHealthStatus: string)
   return lastHealthStatus || '';
 }
 
-function getStatusText(value: string): string {
-  return value ? t('dataIn.statuses.' + value) : '';
-}
 
 function clickAgent(row: Recordable, column: Recordable) {
   if (column.property === 'via' && row.via) {
@@ -872,49 +869,15 @@ function clickAgent(row: Recordable, column: Recordable) {
 function handleSelectionChange(val: []) {
   multipleSelection.value = val;
 }
-const hoverTimeout: Record<string, ReturnType<typeof setTimeout>> = {};
-let hoverTimeoutCache: any[] = [];
-
-function onTaskTableMouseEnter(d1: any) {
-  if (hoverTimeout[d1.id]) {
-    clearTimeout(hoverTimeout[d1.id]);
-    delete hoverTimeout[d1.id];
+const openedTaskRowId = ref<string | number | null>(null);
+function onOperationDropdownVisibleChange(rowId: string | number, visible: boolean) {
+  if (visible) {
+    openedTaskRowId.value = rowId;
+    return;
   }
-  hoverTimeout[d1.id] = setTimeout(() => {
-    d1.hover = true;
-  }, 100); // 100ms delay
-}
-
-function onTaskTableMouseLeave(d1: any) {
-  const id = d1.id.toString();
-  if (hoverTimeout[id]) {
-    clearTimeout(hoverTimeout[id]);
-    delete hoverTimeout[id];
+  if (openedTaskRowId.value === rowId) {
+    openedTaskRowId.value = null;
   }
-  hoverTimeout[id] = setTimeout(() => {
-    d1.hover = false;
-  }, 100); // 100ms delay
-}
-
-function onMenuMouseEnter() {
-  // 清除 hoverTimeout，防止鼠标移入菜单时触发 hover 状态
-  Object.keys(hoverTimeout).forEach(key => {
-    clearTimeout(hoverTimeout[key]);
-    hoverTimeoutCache.push(key);
-    delete hoverTimeout[key];
-  });
-}
-
-function onMenuMouseLeave() {
-  const cache = hoverTimeoutCache;
-  hoverTimeoutCache = [];
-  cache.forEach(v => {
-    taskList.value.forEach(item => {
-      if (item.id == v) {
-        item.hover = false;
-      }
-    });
-  });
 }
 function filterBatchIds(permitStatus: string[]): string[] {
   const result: string[] = [];
@@ -1143,6 +1106,14 @@ td {
     vertical-align: middle;
     cursor: default;
   }
+}
+
+:deep(.el-table__body tr:hover .operations) {
+  display: block;
+}
+
+:deep(.el-table__fixed-right .el-table__body tr:hover .operations) {
+  display: block;
 }
 
 /* 确保固定列在滚动时正常显示 */
