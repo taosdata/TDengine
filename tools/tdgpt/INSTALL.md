@@ -467,11 +467,17 @@ python /usr/local/taos/taosanode/bin/taosanode_service.py start
 **Windows**:
 
 ```batch
-# Check startup log
-type C:\TDengine\taosanode\log\taosanode_startup.log
+# Check service logs
+type C:\TDengine\taosanode\log\taosanode-service.log
+type C:\TDengine\taosanode\log\taosanode.app.log
 
-# Run directly to see errors
-python C:\TDengine\taosanode\bin\taosanode_service.py start
+# If present, inspect the startup failure diagnostics
+type C:\TDengine\taosanode\log\taosanode-startup-diagnostics.json
+
+# Run in foreground and force a fresh full diagnostic pass
+set TAOSANODE_STARTUP_DIAGNOSTIC_COOLDOWN=0
+set TAOSANODE_PREFLIGHT_MODE=full
+C:\TDengine\taosanode\venvs\venv\Scripts\python.exe C:\TDengine\taosanode\bin\taosanode_service.py start --foreground --full-preflight
 ```
 
 ### Port Already in Use
@@ -504,10 +510,10 @@ dir C:\TDengine\taosanode\model\
 
 ```bash
 # Linux
-tail -f /var/log/taos/taosanode/taosanode_service_tdtsfm.log
+tail -f /var/log/taos/taosanode/model_tdtsfm.log
 
 # Windows
-type C:\TDengine\taosanode\log\taosanode_service_tdtsfm.log
+type C:\TDengine\taosanode\log\model_tdtsfm.log
 ```
 
 3. Verify Python dependencies:
@@ -565,7 +571,9 @@ python <install_dir>/bin/taosanode_service.py status
 
 **A**:
 
+- **Linux**: `tail -f /var/log/taos/taosanode/taosanode-service.log`
 - **Linux**: `tail -f /var/log/taos/taosanode/taosanode.app.log`
+- **Windows**: `type C:\TDengine\taosanode\log\taosanode-service.log`
 - **Windows**: `type C:\TDengine\taosanode\log\taosanode.app.log`
 
 ### Q: How do I update the configuration?

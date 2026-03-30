@@ -448,11 +448,17 @@ python /usr/local/taos/taosanode/bin/taosanode_service.py start
 **Windows**：
 
 ```batch
-# 检查启动日志
-type C:\TDengine\taosanode\log\taosanode_startup.log
+# 检查服务日志
+type C:\TDengine\taosanode\log\taosanode-service.log
+type C:\TDengine\taosanode\log\taosanode.app.log
 
-# 直接运行查看错误
-python C:\TDengine\taosanode\bin\taosanode_service.py start
+# 如存在，检查启动失败诊断结果
+type C:\TDengine\taosanode\log\taosanode-startup-diagnostics.json
+
+# 直接以前台模式运行，并强制重新收集完整诊断
+set TAOSANODE_STARTUP_DIAGNOSTIC_COOLDOWN=0
+set TAOSANODE_PREFLIGHT_MODE=full
+C:\TDengine\taosanode\venvs\venv\Scripts\python.exe C:\TDengine\taosanode\bin\taosanode_service.py start --foreground --full-preflight
 ```
 
 ### 端口已被占用
@@ -485,10 +491,10 @@ dir C:\TDengine\taosanode\model\
 
 ```bash
 # Linux
-tail -f /var/log/taos/taosanode/taosanode_service_tdtsfm.log
+tail -f /var/log/taos/taosanode/model_tdtsfm.log
 
 # Windows
-type C:\TDengine\taosanode\log\taosanode_service_tdtsfm.log
+type C:\TDengine\taosanode\log\model_tdtsfm.log
 ```
 
 3. 验证 Python 依赖：
@@ -546,7 +552,9 @@ python <install_dir>/bin/taosanode_service.py status
 
 **A**:
 
+- **Linux**: `tail -f /var/log/taos/taosanode/taosanode-service.log`
 - **Linux**: `tail -f /var/log/taos/taosanode/taosanode.app.log`
+- **Windows**: `type C:\TDengine\taosanode\log\taosanode-service.log`
 - **Windows**: `type C:\TDengine\taosanode\log\taosanode.app.log`
 
 ### Q: 如何更新配置？
