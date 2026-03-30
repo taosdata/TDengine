@@ -19,13 +19,6 @@ elseif(${BUILD_WITH_COS})
     add_definitions(-DUSE_COS)
 endif()
 
-# taosadapter
-if(${BUILD_HTTP})
-    MESSAGE("BUILD_HTTP is on")
-else()
-    MESSAGE("BUILD_HTTP is off, use taosAdapter")
-endif()
-
 # lemon
 add_subdirectory(lemon)
 
@@ -65,7 +58,7 @@ endif(${BUILD_WITH_UV})
 
 if(${BUILD_WITH_S3})
     # INCLUDE_DIRECTORIES($ENV{HOME}/.cos-local.2/include)
-    MESSAGE("build with s3: ${BUILD_WITH_S3}")
+    MESSAGE(STATUS "build with s3: ${BUILD_WITH_S3}")
 
 # cos
 elseif(${BUILD_WITH_COS})
@@ -88,7 +81,7 @@ ENDIF()
 # ================================================================================================
 # Build test
 # ================================================================================================
-MESSAGE("build with dependency tests: ${BUILD_DEPENDENCY_TESTS}")
+MESSAGE(STATUS "build with dependency tests: ${BUILD_DEPENDENCY_TESTS}")
 
 if(${BUILD_DEPENDENCY_TESTS})
     add_subdirectory(test EXCLUDE_FROM_ALL)

@@ -38,7 +38,7 @@ ENDIF ()
 #
 # collect --version information
 #
-MESSAGE("collect --version show info:")
+MESSAGE(STATUS "collect --version show info:")
 # version
 IF (DEFINED TD_VER_NUMBER)
     ADD_DEFINITIONS(-DTD_VER_NUMBER="${TD_VER_NUMBER}")
@@ -77,7 +77,7 @@ ADD_DEFINITIONS(-DBUILD_INFO="${BUILD_INFO}")
 MESSAGE(STATUS "build:${BUILD_INFO}")
 MESSAGE("")
 
-MESSAGE("Current system is: ${CMAKE_SYSTEM_NAME}")
+MESSAGE(STATUS "Current system is: ${CMAKE_SYSTEM_NAME}")
 
 IF (CUS_NAME OR CUS_PROMPT OR CUS_EMAIL)
     ADD_DEFINITIONS(-I${CMAKE_CURRENT_SOURCE_DIR}/../../../../community/include/util)

@@ -1,7 +1,7 @@
 aux_source_directory(src CRYPT_SRC)
 
 IF(TD_ENTERPRISE)
-  LIST(APPEND CRYPT_SRC ${TD_ENTERPRISE_DIR}/src/plugins/crypt/cryptImpl.c)
+  LIST(APPEND CRYPT_SRC ${TD_ENTERPRISE_DIR}/source/plugins/crypt/cryptImpl.c)
 ENDIF()
 
 add_library(crypt STATIC ${CRYPT_SRC})

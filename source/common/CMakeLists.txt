@@ -4,7 +4,7 @@ aux_source_directory(src/msg COMMON_MSG_SRC)
 LIST(APPEND COMMON_SRC ${COMMON_MSG_SRC})
 
 if(TD_ENTERPRISE)
-  LIST(APPEND COMMON_SRC ${TD_ENTERPRISE_DIR}/src/plugins/common/src/tglobal.c)
+  LIST(APPEND COMMON_SRC ${TD_ENTERPRISE_DIR}/source/plugins/common/src/tglobal.c)
 endif()
 
 add_library(common STATIC ${COMMON_SRC})

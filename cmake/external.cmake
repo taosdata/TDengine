@@ -20,6 +20,7 @@ set(TD_INTERNALS_BASE_DIR "${CMAKE_SOURCE_DIR}/.internals" CACHE PATH "path wher
 message(STATUS "TD_INTERNALS_BASE_DIR:${TD_INTERNALS_BASE_DIR}")
 
 include(ExternalProject)
+set_directory_properties(PROPERTIES EP_UPDATE_DISCONNECTED TRUE)
 
 add_custom_target(build_externals)
 
