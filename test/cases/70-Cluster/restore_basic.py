@@ -220,7 +220,6 @@ class RestoreBasic:
         dnode.starttaosd()
 
         sql = f"select * from information_schema.ins_vnodes where status = 'offline'"
-        tdSql.execute(sql)
         rows = tdSql.query(sql)
         row = 0
         while row < rows:
@@ -232,7 +231,7 @@ class RestoreBasic:
             tdSql.execute(sql)
             row += 1
         
-        tdLog.info("chekc corrent")
+        tdLog.info("check corrent")
         self.check_corrent()
 
     def showTransactionThread(self, p, newTdSql):
