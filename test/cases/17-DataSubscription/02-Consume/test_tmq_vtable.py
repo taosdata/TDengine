@@ -240,16 +240,16 @@ class TestCase:
         self.prepareData()
         self.simClientCfg = os.path.join(tdDnodes.getSimCfgPath(), "taos.cfg")
 
-        #self.case_non_snapshot_query_topic()
-        #self.case_non_snapshot_db_topic()
+        self.case_non_snapshot_query_topic()
+        self.case_non_snapshot_db_topic()
 
         self.case_non_snapshot_stb_topic()
-        #self.case_non_snapshot_stb_topic_error()
+        self.case_non_snapshot_stb_topic_error()
 
-        #self.case_non_snapshot_no_meta_stb_topic()
+        self.case_non_snapshot_no_meta_stb_topic()
 
-        # tdSql.execute(f'flush database db_src')
-        # self.writeDataAgain()
+        tdSql.execute(f'flush database db_src')
+        self.writeDataAgain()
 
         snapshotVerIsCommitVer = True
         snapshot_db_topic_json = ''
