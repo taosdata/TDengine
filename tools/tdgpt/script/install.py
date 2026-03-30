@@ -531,6 +531,17 @@ class WindowsInstaller:
 
     def prepare_existing_runtime_reuse(self) -> bool:
         main_venv_python = self.get_venv_python("venv")
+        core_req = self.requirements_dir / VENV_CONFIGS["venv"]["requirements"]
+        core_stamp = self.get_requirements_stamp_path("venv", VENV_CONFIGS["venv"]["requirements"])
+        validation_imports = str(VENV_CONFIGS["venv"].get("validation_imports", "")).strip()
+
+        self.print_info("Offline upgrade requested without an offline package. Checking whether the existing main virtual environment can be reused.")
+        self.print_info(f"Reuse check: main venv python = {main_venv_python}")
+        self.print_info(f"Reuse check: requirements file = {core_req}")
+        self.print_info(f"Reuse check: requirements stamp = {core_stamp}")
+        if validation_imports:
+            self.print_info(f"Reuse check: validation imports = {validation_imports}")
+
         if not main_venv_python.exists():
             self.print_error(
                 "Offline upgrade cannot reuse the existing environment because "
@@ -545,8 +556,6 @@ class WindowsInstaller:
             )
             return False
 
-        core_req = self.requirements_dir / VENV_CONFIGS["venv"]["requirements"]
-        core_stamp = self.get_requirements_stamp_path("venv", VENV_CONFIGS["venv"]["requirements"])
         if core_req.exists() and core_stamp.exists() and not self.has_matching_requirements_stamp(
             "venv", VENV_CONFIGS["venv"]["requirements"], core_req
         ):
@@ -554,14 +563,19 @@ class WindowsInstaller:
                 "Offline upgrade detected changed Python dependencies for the main virtual environment. "
                 "Provide an offline package or switch to online mode so the environment can be refreshed."
             )
+            self.print_error(
+                f"Reuse check details: requirements stamp mismatch for {core_req.name}. Existing stamp: {core_stamp}"
+            )
             return False
         if core_req.exists() and not core_stamp.exists():
             self.print_warning(
                 "No dependency stamp was found for the existing main virtual environment. "
                 "The installer will reuse it after runtime validation."
             )
+            self.print_warning(
+                f"Reuse check details: missing requirements stamp file {core_stamp}. Changes to {core_req.name} cannot be verified in offline reuse mode."
+            )
 
-        validation_imports = str(VENV_CONFIGS["venv"].get("validation_imports", "")).strip()
         if validation_imports and not self.validate_venv_imports("venv", validation_imports):
             self.print_error(
                 "Offline upgrade cannot reuse the existing main virtual environment because validation failed. "
@@ -1368,10 +1382,12 @@ class WindowsInstaller:
         path = self.get_venv_path(name)
         python_exe = path / "Scripts" / "python.exe"
         if not path.exists():
+            self.print_warning(f"{description} is missing: {path}")
             return False
         if not python_exe.exists():
             self.print_warning(f"{description} is incomplete because python.exe is missing. Recreating it.")
             return False
+        self.print_info(f"Checking whether {description} can be reused with {python_exe}")
         try:
             result = subprocess.run(
                 [str(python_exe), "-m", "pip", "--version"],
@@ -1390,6 +1406,9 @@ class WindowsInstaller:
             else:
                 self.print_warning(f"{description} pip check failed. Recreating it.")
             return False
+        pip_detail = (result.stdout or result.stderr or "").strip()
+        if pip_detail:
+            self.print_info(f"{description} pip check passed: {pip_detail}")
         self.print_info(f"Reusing existing {description}.")
         return True
 
@@ -1419,6 +1438,9 @@ class WindowsInstaller:
             return True
         python_exe = self.get_venv_python(venv_name)
         inline = "import " + ", ".join(imports)
+        self.print_info(
+            f"Validating {venv_name} imports with {python_exe}: {', '.join(imports)}"
+        )
         try:
             result = subprocess.run(
                 [str(python_exe), "-c", inline],

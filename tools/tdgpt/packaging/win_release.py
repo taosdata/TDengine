@@ -549,11 +549,23 @@ set "EXISTING_VENV_PYTHON=%INSTALL_DIR%\\venvs\\venv\\Scripts\\python.exe"
 set "PACKAGED_PYTHON=%INSTALL_DIR%\\python\\runtime\\python.exe"
 set "PYTHON_CMD="
 set "OFFLINE_WITH_PACKAGE=0"
+set "FORCE_PACKAGED_PYTHON=0"
 
 call :append_progress running 1 "Initializing {install_info.app_name} setup" "Preparing installation environment"
 call :detect_offline_import %*
+call :detect_existing_install %*
 
 if "%OFFLINE_WITH_PACKAGE%"=="1" goto :resolve_offline_python
+
+REM Upgrade flows should launch install.py with the packaged runtime first.
+REM The old main venv may be unhealthy, but install.py can still decide whether
+REM that venv is reusable once it is running under a stable interpreter.
+if "%FORCE_PACKAGED_PYTHON%"=="1" (
+    if exist "%PACKAGED_PYTHON%" (
+        call :try_python "%PACKAGED_PYTHON%"
+        if defined PYTHON_CMD goto :run_install
+    )
+)
 
 REM Priority 1: existing venv Python (upgrade scenario)
 if exist "%EXISTING_VENV_PYTHON%" (
@@ -644,6 +656,14 @@ if /I "%~1"=="--offline-package" (
 )
 shift
 goto :detect_offline_args
+
+:detect_existing_install
+set "FORCE_PACKAGED_PYTHON=0"
+:detect_existing_install_args
+if "%~1"=="" exit /b 0
+if /I "%~1"=="--existing-install" set "FORCE_PACKAGED_PYTHON=1"
+shift
+goto :detect_existing_install_args
 
 :resolve_python
 python --version >nul 2>&1
