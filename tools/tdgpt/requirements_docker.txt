@@ -18,7 +18,6 @@ gunicorn==23.0.0
 h5py==3.11.0  # 或 ，2.10.0
 keras==3.9.0
 taospy
-accelerate==0.34.2
 cmdstanpy==1.2.0
 fastdtw==0.3.4
 prophet==1.1.7
