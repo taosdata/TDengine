@@ -5325,7 +5325,8 @@ _exit:
  * `pDupTs` is the pointer to store duplicateTs
  */
 int32_t tRowBuildFromBind2WithBlob(SBindInfo2 *infos, int32_t numOfInfos, bool infoSorted, const STSchema *pTSchema,
-                                   SArray *rowArray, bool *pOrdered, bool *pDupTs, SBlobSet *pBlobSet) {
+                                   const SSchemaExt *pSchemaExt, SArray *rowArray, bool *pOrdered, bool *pDupTs,
+                                   SBlobSet *pBlobSet) {
   if (infos == NULL || numOfInfos <= 0 || numOfInfos > pTSchema->numOfCols || pTSchema == NULL || rowArray == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
@@ -5402,11 +5403,45 @@ int32_t tRowBuildFromBind2WithBlob(SBindInfo2 *infos, int32_t numOfInfos, bool i
 
           // value.pData = (uint8_t *)infos[iInfo].bind->buffer + infos[iInfo].bind->buffer_length * iRow;
         } else {
-          uint8_t *val = (uint8_t *)infos[iInfo].bind->buffer + infos[iInfo].bytes * iRow;
-          if (TSDB_DATA_TYPE_BOOL == value.type && *val > 1) {
-            *val = 1;
+          if (infos[iInfo].type == TSDB_DATA_TYPE_DECIMAL) {
+            if (!pSchemaExt) {
+              uError("stmt2 decimal type without ext schema info, cannot parse decimal values");
+              code = TSDB_CODE_DECIMAL_PARSE_ERROR;
+              goto _exit;
+            }
+            uint8_t precision = 0, scale = 0;
+            decimalFromTypeMod(pSchemaExt[iInfo].typeMod, &precision, &scale);
+            Decimal128 dec = {0};
+            uint8_t  **data = &((uint8_t **)TARRAY_DATA(bufArray))[iInfo];
+            int32_t    length = infos[iInfo].bind->length[iRow];
+            code = decimal128FromStr(*(char **)data, length, precision, scale, &dec);
+            *data += length;
+            if (code != 0) goto _exit;
+            code = decimal128ToDataVal(&dec, &value);
+            if (code != 0) goto _exit;
+          } else if (infos[iInfo].type == TSDB_DATA_TYPE_DECIMAL64) {
+            if (!pSchemaExt) {
+              uError("stmt2 decimal64 type without ext schema info, cannot parse decimal values");
+              code = TSDB_CODE_DECIMAL_PARSE_ERROR;
+              goto _exit;
+            }
+            uint8_t precision = 0, scale = 0;
+            decimalFromTypeMod(pSchemaExt[iInfo].typeMod, &precision, &scale);
+            Decimal64 dec = {0};
+            uint8_t **data = &((uint8_t **)TARRAY_DATA(bufArray))[iInfo];
+            int32_t   length = infos[iInfo].bind->length[iRow];
+            code = decimal64FromStr(*(char **)data, length, precision, scale, &dec);
+            *data += length;
+            if (code != 0) goto _exit;
+            code = decimal64ToDataVal(&dec, &value);
+            if (code != 0) goto _exit;
+          } else {
+            uint8_t *val = (uint8_t *)infos[iInfo].bind->buffer + infos[iInfo].bytes * iRow;
+            if (TSDB_DATA_TYPE_BOOL == value.type && *val > 1) {
+              *val = 1;
+            }
+            valueSetDatum(&value, infos[iInfo].type, val, infos[iInfo].bytes);
           }
-          valueSetDatum(&value, infos[iInfo].type, val, infos[iInfo].bytes);
         }
         colVal = COL_VAL_VALUE(infos[iInfo].columnId, value);
       }
