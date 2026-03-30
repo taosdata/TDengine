@@ -4060,16 +4060,16 @@ static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg, SQueueI
   }
 
 end:
-
-  STREAM_CHECK_RET_GOTO(streamBuildFetchRsp(pResList, hasNext, &buf, &size, pVnode->config.tsdbCfg.precision));
-  taosArrayDestroy(pResList);
-  streamReleaseTask(taskAddr);
+  code = streamBuildFetchRsp(pResList, hasNext, &buf, &size, pVnode->config.tsdbCfg.precision);
 
   if (sStreamReaderCalcInfo && sStreamReaderCalcInfo->rtInfo.funcInfo.isMultiGroupCalc) {
     sStreamReaderCalcInfo->rtInfo.funcInfo.pStreamPesudoFuncVals = NULL;
     sStreamReaderCalcInfo->rtInfo.funcInfo.pStreamPartColVals = NULL;
   }
-
+  
+  taosArrayDestroy(pResList);
+  streamReleaseTask(taskAddr);
+  
   if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST || code == TSDB_CODE_TDB_TABLE_NOT_EXIST){
     code = TDB_CODE_SUCCESS;
   }
