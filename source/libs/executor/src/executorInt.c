@@ -1242,6 +1242,10 @@ void freeExchangeGetBasicOperatorParam(void* pParam) {
     taosArrayDestroyEx(pBasic->tagList, destroyTagVal);
     pBasic->tagList = NULL;
   }
+  if (pBasic->sysScanReqs) {
+    taosArrayDestroy(pBasic->sysScanReqs);
+    pBasic->sysScanReqs = NULL;
+  }
 }
 
 void freeExchangeGetOperatorParam(SOperatorParam* pParam) {
@@ -1268,6 +1272,15 @@ void freeMergeJoinGetOperatorParam(SOperatorParam* pParam) { freeOperatorParamIm
 void freeMergeJoinNotifyOperatorParam(SOperatorParam* pParam) { freeOperatorParamImpl(pParam, OP_NOTIFY_PARAM); }
 
 void freeTagScanGetOperatorParam(SOperatorParam* pParam) { freeOperatorParamImpl(pParam, OP_GET_PARAM); }
+
+void freeSysTableScanGetOperatorParam(SOperatorParam* pParam) {
+  SSysTableScanOperatorParam* pSysScan = (SSysTableScanOperatorParam*)pParam->value;
+  if (pSysScan != NULL) {
+    taosArrayDestroy(pSysScan->pVtbRefReqs);
+    pSysScan->pVtbRefReqs = NULL;
+  }
+  freeOperatorParamImpl(pParam, OP_GET_PARAM);
+}
 
 void freeMergeGetOperatorParam(SOperatorParam* pParam) { freeOperatorParamImpl(pParam, OP_GET_PARAM); }
 
@@ -1321,6 +1334,8 @@ void freeTableScanNotifyOperatorParam(SOperatorParam* pParam) { freeOperatorPara
 void freeTagScanNotifyOperatorParam(SOperatorParam* pParam) { freeOperatorParamImpl(pParam, OP_NOTIFY_PARAM); }
 
 void freeMergeNotifyOperatorParam(SOperatorParam* pParam) { freeOperatorParamImpl(pParam, OP_NOTIFY_PARAM); }
+
+void freeSysScanNotifyOperatorParam(SOperatorParam* pParam) { freeOperatorParamImpl(pParam, OP_NOTIFY_PARAM); }
 
 void freeOpParamItem(void* pItem) {
   SOperatorParam* pParam = *(SOperatorParam**)pItem;
@@ -1385,6 +1400,9 @@ void freeOperatorParam(SOperatorParam* pParam, SOperatorParamType type) {
       break;
     case QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN:
       type == OP_GET_PARAM ? freeTagScanGetOperatorParam(pParam) : freeTagScanNotifyOperatorParam(pParam);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN:
+      type == OP_GET_PARAM ? freeSysTableScanGetOperatorParam(pParam) : freeSysScanNotifyOperatorParam(pParam);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_HASH_AGG:
     case QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL:
