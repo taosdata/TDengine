@@ -3206,6 +3206,7 @@ SELECT SLEEP(seconds);
 **Description**: Pauses execution for the specified number of seconds. Returns 0 on success. The function sleeps once per query, not per row.
 
 **Parameters**:
+
 - `seconds`: DOUBLE - Number of seconds to sleep (supports fractional values like 0.5)
 
 **Return value**: INT - Always returns 0
