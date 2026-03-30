@@ -555,11 +555,12 @@ Where:
 3. **Pseudo-column Support:** `_wstart` (window start time), `_wend` (window end time), and `_wduration` (window duration) can be used in SELECT, HAVING, and ORDER BY clauses.
 
 4. **Grouping and Alignment:**
-    - When both the inner subquery that generates time windows and the outer query use `PARTITION BY`, alignment is performed by grouping key: data from the same group only matches windows for that group.
+    - The subquery can use `PARTITION BY` or `GROUP BY` for grouping, while the outer query can only use `PARTITION BY` for grouping.
+    - When both the subquery and the outer query use grouping, alignment is performed by grouping key: data from the same group only matches windows for that group.
     - If a group has no matching data within a particular window, that group will not produce a result row for that window (it is silently omitted).
-    - When the subquery does not use `PARTITION BY`, the subquery generates a single shared set of windows; if the outer query uses partitioning, each outer partition performs its computations independently over this shared window set.
-    - When the subquery uses `PARTITION BY` but the outer query does not use `PARTITION BY`, it is prohibited by syntax.
-    - **Current Limitation**: When both the inner and outer queries use `PARTITION BY` and the window subquery also uses `ORDER BY`, the sorting may disrupt the original organization of each partition's window stream; the outer query may operate on the merged window stream, causing the internal partition semantics to fail (treated as unpartitioned), and the per-group alignment between inner and outer partitions is lost.
+    - When the subquery does not use grouping, the subquery generates a single shared set of windows; if the outer query uses partitioning, each outer partition performs its computations independently over this shared window set.
+    - When the subquery uses grouping but the outer query does not use grouping, it is prohibited by syntax.
+    - **Current Limitation**: When both the inner and outer queries use grouping and the window subquery also uses `ORDER BY`, the sorting may disrupt the original organization of each partition's window stream; the outer query may operate on the merged window stream, causing the internal partition semantics to fail (treated as unpartitioned), and the per-group alignment between inner and outer partitions is lost.
 
 5. **Nested Calls Support:** Multiple levels of external window nesting are supported, meaning the subquery of an external window can itself use EXTERNAL_WINDOW, enabling layered aggregation. For example: the first-level external window defines time ranges by events and aggregates intermediate metrics, then the second-level external window performs secondary aggregation on those intermediate metrics within new time ranges.
 
@@ -615,8 +616,8 @@ ORDER BY w.groupid, event_start_time;
 
 - Currently not supported in stream processing and subscriptions
 - The first two columns of the window subquery must be of timestamp type, representing window start and end times
-- The window rows returned by the subquery must be kept in order: in the unpartitioned case, sorted by window start time (i.e., the first column) in ascending order; in the partitioned case, sorted within each partition by window start time in ascending order
-- If the external window (inner subquery) uses PARTITION BY, the outer query must also use PARTITION BY; otherwise, a syntax error occurs
+- The window rows returned by the subquery must be kept in order: in the ungrouped case, sorted by window start time (i.e., the first column) in ascending order; in the grouped case, sorted within each group by window start time in ascending order; if these conditions are not met, an error is reported during execution
+- If the external window (inner subquery) uses grouping, the outer query must also use PARTITION BY; otherwise, a syntax error occurs
 - Variable-length functions (like DIFF, INTERP) are not supported within window scope
 
 ## Time Range Expression
