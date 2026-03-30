@@ -2607,6 +2607,7 @@ static int32_t dynFetchInitialSysScanBlock(SOperatorInfo* pTargetOp, bool* pBoot
     QUERY_CHECK_CODE(code, line, _return);
     code = pTargetOp->fpSet.getNextExtFn(pTargetOp, pParam, ppBlock);
     QUERY_CHECK_CODE(code, line, _return);
+    pParam = NULL;
     *pBootstrapped = true;
     return code;
   }
@@ -2616,6 +2617,7 @@ static int32_t dynFetchInitialSysScanBlock(SOperatorInfo* pTargetOp, bool* pBoot
   return code;
 
 _return:
+  freeOperatorParam(pParam, OP_GET_PARAM);
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed since %s, line %d", __func__, tstrerror(code), line);
   }
@@ -4464,6 +4466,7 @@ static int32_t initVtbScanInfo(SDynQueryCtrlOperatorInfo* pInfo, SMsgCb* pMsgCb,
   QUERY_CHECK_NULL(pInfo->vtbScan.dbVgInfoMap, code, line, _return, terrno)
   pInfo->vtbScan.resolvedColRefMap = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   QUERY_CHECK_NULL(pInfo->vtbScan.resolvedColRefMap, code, line, _return, terrno)
+  taosHashSetFreeFp(pInfo->vtbScan.resolvedColRefMap, destroyResolvedColRef);
 
   pInfo->vtbScan.otbNameToOtbInfoMap = NULL;
   pInfo->vtbScan.otbVgIdToOtbInfoArrayMap = NULL;
