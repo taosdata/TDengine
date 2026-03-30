@@ -137,6 +137,7 @@ mod tests {
         }
     }
 
+    /// Verifies the configured Kafka broker is reachable before running Kafka connector scenarios.
     #[integration_test(tokio::test)]
     async fn test_kafka_broker_connection() -> anyhow::Result<()> {
         // Setup logger if not already initialized
@@ -152,6 +153,7 @@ mod tests {
         common::health_check::check_kafka_health(&broker).await
     }
 
+    /// Ensures helper-generated Kafka DSNs include expected consumer-group parameters.
     #[test]
     fn test_kafka_dsn_construction() {
         let base_dsn = "kafka://localhost:9092/test_topic";
@@ -165,6 +167,7 @@ mod tests {
         println!("✓ Kafka DSN: {}", dsn_with_params);
     }
 
+    /// Verifies generated Kafka fixture records contain stable IDs, values, and tags.
     #[test]
     fn test_kafka_sample_data_generation() {
         let data = common::fixtures::SampleData::generate(100);
@@ -179,6 +182,7 @@ mod tests {
         println!("✓ Generated {} test records", data.records.len());
     }
 
+    /// Ensures Kafka test context produces a valid TDengine DSN bound to a unique database.
     #[test]
     fn test_kafka_test_context() {
         let ctx = common::fixtures::TestContext::new();
@@ -189,6 +193,7 @@ mod tests {
         println!("✓ Test context DSN: {}", dsn);
     }
 
+    /// Verifies timeout helper succeeds when the waited condition is immediately satisfied.
     #[tokio::test]
     async fn test_kafka_with_timeout() {
         let result = common::helpers::wait_for(|| async { true }, 5, 100).await;
@@ -197,6 +202,7 @@ mod tests {
         println!("✓ Timeout check passed");
     }
 
+    /// Ensures Kafka publisher builder rejects an empty schema list with a clear error.
     #[tokio::test]
     async fn test_kafka_pub_rejects_empty_schemas() {
         let cancel = CancellationToken::new();
@@ -211,6 +217,7 @@ mod tests {
             .contains("at least one schema"));
     }
 
+    /// Verifies Kafka blocking wrapper yields control so other async tasks can progress.
     #[tokio::test(flavor = "current_thread")]
     async fn test_run_kafka_blocking_yields_to_other_tasks() {
         use std::time::{Duration, Instant};
@@ -312,6 +319,7 @@ mod tests {
         )
     }
 
+    /// Verifies topic readiness requires healthy topic state and visible healthy partitions.
     #[test]
     fn test_topic_metadata_is_ready_requires_visible_partitions() {
         use rdkafka::types::RDKafkaErrorCode;
@@ -328,6 +336,7 @@ mod tests {
         ));
     }
 
+    /// Ensures transient Kafka admin responses are treated as recoverable during topic creation.
     #[test]
     fn test_topic_creation_continues_after_transient_admin_results() {
         use rdkafka::types::RDKafkaErrorCode;
@@ -350,6 +359,7 @@ mod tests {
         .is_err());
     }
 
+    /// Verifies legacy parser JSON keeps expected fields and omits rule-based routing.
     #[test]
     fn test_legacy_kafka_parser_shape_has_no_rules() {
         let parser_json = legacy_kafka_parser_json("meters", "task_123");
@@ -497,6 +507,7 @@ mod tests {
         Ok(())
     }
 
+    /// Verifies rules-based Kafka parsing routes different message kinds into distinct child tables.
     #[integration_test(tokio::test, with_agent = [true, false])]
     async fn test_kafka_multi_rule_transform_config(with_agent: bool) -> anyhow::Result<()> {
         use ha_core::activity::TaskStatus;
@@ -657,6 +668,7 @@ mod tests {
         Ok(())
     }
 
+    /// Verifies legacy Kafka parser ingestion works without rules and still writes expected table names.
     #[integration_test(tokio::test, with_agent = [true, false])]
     async fn test_kafka_legacy_transform_config(with_agent: bool) -> anyhow::Result<()> {
         use ha_core::activity::TaskStatus;

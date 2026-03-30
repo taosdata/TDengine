@@ -28,6 +28,7 @@ mod tests {
 
     use super::*;
 
+    /// Verifies the integration test harness initializes logging and shared setup correctly.
     #[test]
     fn test_framework_initialization() {
         init_logger();

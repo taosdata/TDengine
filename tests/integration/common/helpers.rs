@@ -106,18 +106,21 @@ pub fn terminate_process(pid: u32) {
 mod tests {
     use super::*;
 
+    /// Ensures DSN builder composes protocol, host, port, and database path correctly.
     #[test]
     fn test_build_dsn() {
         let dsn = build_dsn("taos", "localhost", 6030, "test");
         assert_eq!(dsn, "taos://localhost:6030/test");
     }
 
+    /// Ensures authenticated DSN builder includes username and password in authority.
     #[test]
     fn test_build_dsn_with_auth() {
         let dsn = build_dsn_with_auth("taos", "root", "taosdata", "localhost", 6030, "test");
         assert_eq!(dsn, "taos://root:taosdata@localhost:6030/test");
     }
 
+    /// Verifies DSN parameter helper appends query parameters correctly.
     #[test]
     fn test_build_dsn_with_params() {
         let base_dsn = "taos://localhost:6030/test";
@@ -126,6 +129,7 @@ mod tests {
         assert!(dsn.contains("param2=value2"));
     }
 
+    /// Verifies generated test database names include prefix and uniqueness suffix.
     #[test]
     fn test_generate_test_db_name() {
         let name = generate_test_db_name("test");
@@ -133,6 +137,7 @@ mod tests {
         assert!(name.len() > 10);
     }
 
+    /// Verifies generated test table names include prefix and uniqueness suffix.
     #[test]
     fn test_generate_test_table_name() {
         let name = generate_test_table_name("t");
@@ -140,12 +145,14 @@ mod tests {
         assert!(name.len() > 10);
     }
 
+    /// Ensures wait helper succeeds when condition is immediately true.
     #[tokio::test]
     async fn test_wait_for_success() {
         let result = wait_for(|| async { true }, 1, 100).await;
         assert!(result.is_ok());
     }
 
+    /// Ensures wait helper times out with an error when condition never becomes true.
     #[tokio::test]
     async fn test_wait_for_timeout() {
         let result = wait_for(|| async { false }, 1, 100).await;

@@ -4,6 +4,7 @@
 
 #[cfg(test)]
 mod tests {
+    /// Placeholder ensuring MySQL integration test module is compiled and discoverable.
     #[test]
     fn test_mysql_placeholder() {
         println!("✓ MySQL tests structure ready for Phase 2 migration");

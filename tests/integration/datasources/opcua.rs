@@ -4,6 +4,7 @@
 
 #[cfg(test)]
 mod tests {
+    /// Placeholder ensuring OPC-UA integration test module is compiled and discoverable.
     #[test]
     fn test_opcua_placeholder() {
         println!("✓ OPC-UA tests structure ready for Phase 2 migration");

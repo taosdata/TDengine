@@ -163,6 +163,7 @@ impl TestContext {
 mod tests {
     use super::*;
 
+    /// Verifies fixture generation returns expected record content for sample data.
     #[test]
     fn test_sample_data_generation() {
         let data = SampleData::generate(10);
@@ -175,6 +176,7 @@ mod tests {
         );
     }
 
+    /// Ensures timestamp-seeded fixture generation starts from the requested base time.
     #[test]
     fn test_sample_data_with_time() {
         let start_time = 1000000i64;
@@ -183,6 +185,7 @@ mod tests {
         assert_eq!(data.records[0].timestamp, start_time);
     }
 
+    /// Verifies default table config contains expected database binding and schema fields.
     #[test]
     fn test_table_config_creation() {
         let config = TestTableConfig::default_with_db("test");
@@ -191,6 +194,7 @@ mod tests {
         assert_eq!(config.columns.len(), 3);
     }
 
+    /// Ensures generated CREATE TABLE SQL includes core table and tag definitions.
     #[test]
     fn test_create_table_sql() {
         let config = TestTableConfig::default_with_db("test");
@@ -200,6 +204,7 @@ mod tests {
         assert!(sql.contains("TAGS"));
     }
 
+    /// Verifies test context creates a unique database name and valid DSN.
     #[test]
     fn test_context_creation() {
         let ctx = TestContext::new();

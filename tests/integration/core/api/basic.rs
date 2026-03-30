@@ -1,6 +1,7 @@
 use crate::common::helpers::terminate_process;
 use crate::common::TestServiceConfig;
 use crate::core::api::*;
+/// Exercises the basic taosX API lifecycle for health, task CRUD, and task control endpoints.
 
 #[tokio::test]
 async fn test_taosx_api() {

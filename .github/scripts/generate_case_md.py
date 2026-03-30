@@ -14,6 +14,7 @@ Usage:
 """
 
 import ast
+import inspect
 import re
 from pathlib import Path
 
@@ -31,6 +32,85 @@ E2E_DOCS = DOCS_DIR / "e2e_test_cases"
 PLAYWRIGHT_DOCS = DOCS_DIR / "playwright_test_cases"
 INTEGRATION_DOCS = DOCS_DIR / "integration_test_cases"
 
+def _humanize_case_name(raw: str) -> str:
+    """Convert function/test title to readable phrase."""
+    text = raw.replace(">", " ").replace("_", " ").replace("-", " ").strip()
+    text = re.sub(r"\s+", " ", text)
+    return text
+
+
+def _auto_case_description(case_name: str, scope: str) -> str:
+    """Generate fallback bilingual description when source description is absent."""
+    readable = _humanize_case_name(case_name)
+    return (
+        f"- **EN**: Validates the `{readable}` scenario in `{scope}` tests.\n"
+        f"- **中文**：验证 `{readable}` 场景在 `{scope}` 测试中的行为与预期。"
+    )
+
+
+def _looks_like_code_only(text: str) -> bool:
+    """Best-effort check for comment text that is actually disabled code."""
+    t = text.strip()
+    if not t:
+        return False
+    code_like_patterns = [
+        r"^[A-Za-z_][\w.]*\s*\(",
+        r"^\s*(if|for|while|return|const|let|var|await)\b",
+        r"[;{}=>]",
+        r"^\s*test\.",
+        r"^\s*expect\(",
+    ]
+    return any(re.search(p, t) for p in code_like_patterns)
+
+
+def _normalize_markdown_lines(lines: list) -> str:
+    """Keep markdown line breaks and strip common comment prefixes."""
+    cleaned = []
+    for line in lines:
+        value = line.rstrip()
+        value = re.sub(r"^\s*\*\s?", "", value)
+        cleaned.append(value)
+
+    while cleaned and not cleaned[0].strip():
+        cleaned.pop(0)
+    while cleaned and not cleaned[-1].strip():
+        cleaned.pop()
+    normalized = []
+    for idx, line in enumerate(cleaned):
+        normalized.append(line)
+        current = line.strip()
+        next_line = cleaned[idx + 1].strip() if idx + 1 < len(cleaned) else ""
+        is_section_label = bool(re.match(r"^(用例步骤|验证点|steps|step|validation|checks?)\s*[：:]$", current, re.IGNORECASE))
+        next_is_list = bool(re.match(r"^(\d+\.|[-*+])\s+", next_line))
+        if is_section_label and next_line and next_is_list:
+            normalized.append("")
+            continue
+        current_is_paragraph = bool(current) and not bool(
+            re.match(r"^(\d+\.|[-*+])\s+|^#{1,6}\s+|^```|^>|^\|", current)
+        )
+        if current_is_paragraph and next_line and next_is_list:
+            normalized.append("")
+
+    text = "\n".join(normalized).strip()
+    if _looks_like_code_only(text):
+        return ""
+    return text
+
+
+def _normalize_markdown_text(text: str) -> str:
+    """Normalize free-form markdown text while preserving markdown structure."""
+    if not text:
+        return ""
+    dedented = inspect.cleandoc(text)
+    return _normalize_markdown_lines(dedented.splitlines())
+
+def _reset_generated_markdown(target_dir: Path) -> None:
+    """Remove existing generated markdown files to avoid stale pages."""
+    if not target_dir.exists():
+        return
+    for md_file in target_dir.glob("*.md"):
+        md_file.unlink()
+
 
 # ---------------------------------------------------------------------------
 # Python E2E generator
@@ -39,6 +119,7 @@ INTEGRATION_DOCS = DOCS_DIR / "integration_test_cases"
 def generate_e2e_docs() -> list:
     """Generate markdown for Python e2e test files. Returns list of nav entries."""
     E2E_DOCS.mkdir(parents=True, exist_ok=True)
+    _reset_generated_markdown(E2E_DOCS)
     nav_entries = []
 
     for py_file in sorted(E2E_SRC.glob("*_test.py")):
@@ -52,10 +133,9 @@ def generate_e2e_docs() -> list:
         lines = [f"# {module_name}\n\n"]
         for name, docstring in tests:
             lines.append(f"## {name}\n\n")
-            if docstring:
-                lines.append(f"{docstring.strip()}\n\n")
-            else:
-                lines.append("_No description._\n\n")
+            normalized_doc = _normalize_markdown_text(docstring) if docstring else ""
+            description = normalized_doc if normalized_doc else _auto_case_description(name, "Python E2E")
+            lines.append(f"{description}\n\n")
         md_path.write_text("".join(lines), encoding="utf-8")
         print(f"  [e2e] wrote {md_path.relative_to(REPO_ROOT)}")
         nav_entries.append({module_name: f"e2e_test_cases/{module_name}.md"})
@@ -104,6 +184,7 @@ def _extract_python_tests(file_path: Path) -> list:
 def generate_playwright_docs() -> list:
     """Generate markdown for Playwright .spec.ts files. Returns list of nav entries."""
     PLAYWRIGHT_DOCS.mkdir(parents=True, exist_ok=True)
+    _reset_generated_markdown(PLAYWRIGHT_DOCS)
     nav_entries = []
 
     for ts_file in sorted(PLAYWRIGHT_SRC.glob("*.spec.ts")):
@@ -122,8 +203,10 @@ def generate_playwright_docs() -> list:
                     lines.append(f"## {describe_title} > {test_title}\n\n")
                 else:
                     lines.append(f"## {test_title}\n\n")
-                if comment:
-                    lines.append(f"{comment.strip()}\n\n")
+                case_key = f"{describe_title} > {test_title}" if describe_title != name else test_title
+                cleaned_comment = comment.strip() if comment else ""
+                description = cleaned_comment if cleaned_comment else _auto_case_description(case_key, "Playwright")
+                lines.append(f"{description}\n\n")
         md_path.write_text("".join(lines), encoding="utf-8")
         print(f"  [playwright] wrote {md_path.relative_to(REPO_ROOT)}")
         nav_entries.append({name: f"playwright_test_cases/{name}.md"})
@@ -150,20 +233,35 @@ def _extract_playwright_tests(file_path: Path) -> list:
         stripped = line.strip()
 
         if stripped.startswith("//"):
-            pending_comment_lines.append(stripped.lstrip("/ ").strip())
+            pending_comment_lines.append(stripped[2:].lstrip())
             i += 1
+            continue
+        if stripped.startswith("/*"):
+            block = []
+            if "*/" in stripped:
+                block.append(stripped[2:].split("*/", 1)[0])
+                pending_comment_lines.extend(block)
+                i += 1
+                continue
+            block.append(stripped[2:])
+            i += 1
+            while i < len(lines):
+                block_line = lines[i].strip()
+                if "*/" in block_line:
+                    block.append(block_line.split("*/", 1)[0])
+                    i += 1
+                    break
+                block.append(block_line)
+                i += 1
+            pending_comment_lines.extend(block)
             continue
 
         m_describe = re.match(r"\s*test\.describe\(['\"`](.+?)['\"`]", line)
         if m_describe:
             if current_tests:
                 groups.append((current_describe, current_tests))
-            # Build a nested path: preserve outer > append inner
-            file_stem = file_path.stem.replace(".spec", "")
-            if current_describe == file_stem:
-                current_describe = m_describe.group(1)
-            else:
-                current_describe = f"{current_describe} > {m_describe.group(1)}"
+            # Reset to current describe title to avoid runaway concatenation across sibling blocks.
+            current_describe = m_describe.group(1)
             current_tests = []
             pending_comment_lines = []
             i += 1
@@ -172,7 +270,7 @@ def _extract_playwright_tests(file_path: Path) -> list:
         m_test = re.match(r"\s*test\(['\"`](.+?)['\"`]", line)
         if m_test:
             title = m_test.group(1)
-            comment = " ".join(pending_comment_lines) if pending_comment_lines else ""
+            comment = _normalize_markdown_lines(pending_comment_lines) if pending_comment_lines else ""
             current_tests.append((title, comment))
             pending_comment_lines = []
             i += 1
@@ -196,6 +294,7 @@ def _extract_playwright_tests(file_path: Path) -> list:
 def generate_integration_docs() -> list:
     """Generate markdown for Rust integration test files. Returns list of nav entries."""
     INTEGRATION_DOCS.mkdir(parents=True, exist_ok=True)
+    _reset_generated_markdown(INTEGRATION_DOCS)
     nav_entries = []
 
     for rs_file in sorted(INTEGRATION_SRC.rglob("*.rs")):
@@ -211,10 +310,8 @@ def generate_integration_docs() -> list:
         lines = [f"# {name}\n\n"]
         for fn_name, doc in tests:
             lines.append(f"## {fn_name}\n\n")
-            if doc:
-                lines.append(f"{doc.strip()}\n\n")
-            else:
-                lines.append("_No description._\n\n")
+            description = doc.strip() if doc else _auto_case_description(fn_name, "Rust integration")
+            lines.append(f"{description}\n\n")
         md_path.write_text("".join(lines), encoding="utf-8")
         print(f"  [integration] wrote {md_path.relative_to(REPO_ROOT)}")
         nav_entries.append({name: f"integration_test_cases/{name}.md"})
@@ -253,7 +350,7 @@ def _extract_rust_tests(file_path: Path) -> list:
         m = re.match(r"^(?:pub\s+)?(?:async\s+)?fn\s+(test_\w+)", line)
         if m:
             fn_name = m.group(1)
-            doc = " ".join(doc_lines) if doc_lines else None
+            doc = _normalize_markdown_lines(doc_lines) if doc_lines else None
             results.append((fn_name, doc))
 
         i += 1

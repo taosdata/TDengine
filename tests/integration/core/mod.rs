@@ -7,6 +7,7 @@ pub mod api;
 /// - Backup and restore
 /// - Replication
 mod tests {
+    /// Verifies core integration-test modules are wired and loadable.
     #[test]
     fn test_core_modules_structure() {
         println!("✓ Core test modules are properly structured");

@@ -171,6 +171,7 @@ impl TestEnv {
 mod tests {
     use super::*;
 
+    /// Verifies default integration test environment values are populated.
     #[test]
     fn test_env_configuration() {
         let env = TestEnv::default();
@@ -180,6 +181,7 @@ mod tests {
         assert!(!env.test_db.is_empty());
     }
 
+    /// Ensures both native and WebSocket TDengine DSNs are generated correctly.
     #[test]
     fn test_dsn_generation() {
         let env = TestEnv::default();

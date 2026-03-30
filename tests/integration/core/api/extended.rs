@@ -3,6 +3,7 @@ use crate::common::TestServiceConfig;
 use crate::core::api::*;
 
 use std::time::Duration;
+/// Exercises extended taosX API coverage including metrics, agents, and batch task operations.
 
 #[tokio::test]
 async fn test_taosx_api_extended() {

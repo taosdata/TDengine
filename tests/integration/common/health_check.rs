@@ -99,6 +99,7 @@ pub async fn check_mongodb_health(url: &str) -> anyhow::Result<()> {
 mod tests {
     use super::*;
 
+    /// Checks that TDengine health probe runs and reports availability status.
     #[tokio::test]
     async fn test_taos_health_check() {
         // This test will fail if TDengine is not running
@@ -112,6 +113,7 @@ mod tests {
         }
     }
 
+    /// Ensures unreachable Kafka broker endpoints return an error during health checks.
     #[cfg(feature = "test-kafka")]
     #[tokio::test]
     async fn test_kafka_health_check_reports_unreachable_broker() {
@@ -120,16 +122,19 @@ mod tests {
         assert!(result.is_err());
     }
 
+    /// Verifies MySQL placeholder health check returns success for now.
     #[tokio::test]
     async fn test_mysql_health_placeholder() {
         assert!(check_mysql_health("localhost", 3306).await.is_ok());
     }
 
+    /// Verifies PostgreSQL placeholder health check returns success for now.
     #[tokio::test]
     async fn test_postgres_health_placeholder() {
         assert!(check_postgres_health("localhost", 5432).await.is_ok());
     }
 
+    /// Verifies MongoDB placeholder health check returns success for now.
     #[tokio::test]
     async fn test_mongodb_health_placeholder() {
         assert!(check_mongodb_health("mongodb://localhost:27017")
