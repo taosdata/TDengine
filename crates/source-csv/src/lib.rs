@@ -22,6 +22,7 @@ use taosx_core::core_metrics::{CoreMetrics, get_metrics_arc_or, insert_metrics};
 use taosx_core::sink::channel_based_transformer;
 use taosx_core::sink::ipc_metric::IpcMetrics;
 use taosx_core::utils::breakpoints;
+use taosx_core::utils::breakpoints::BreakpointDb;
 use taosx_core::{TaskNotifySender, TransformConfig, utils};
 use taosx_ipc::types::dsv::DataSourceValidation;
 use taosx_utils::dsn::json_to_dsn;
@@ -930,6 +931,8 @@ struct CsvSource {
     paths: Vec<String>,
     readers: Vec<Reader<Box<dyn CsvReaderExt>>>,
     sender: MsgSender,
+    /// Task-level shared breakpoint DB; `None` when task_job_id is absent or DB fails to open.
+    breakpoint_db: Option<Arc<BreakpointDb>>,
 }
 unsafe impl Send for CsvSource {}
 unsafe impl Sync for CsvSource {}
@@ -939,6 +942,7 @@ impl std::fmt::Debug for CsvSource {
             .field("readers", &self.readers.len())
             .field("paths", &self.paths)
             .field("option", &self.option)
+            .field("breakpoint_db", &self.breakpoint_db.is_some())
             .finish()
     }
 }
@@ -947,11 +951,18 @@ pub async fn get_paths_from_dsn_and_breakpoints(
     task_job_id: Option<(i64, i64)>,
     dsn: &mut Dsn,
 ) -> anyhow::Result<Vec<String>> {
+    let breakpoints = get_breakpoint(task_job_id).unwrap_or_default();
+    get_paths_with_breakpoints(task_job_id, dsn, &breakpoints).await
+}
+
+/// Inner path resolution that accepts a pre-loaded breakpoints map to avoid reopening the sled DB.
+async fn get_paths_with_breakpoints(
+    task_job_id: Option<(i64, i64)>,
+    dsn: &mut Dsn,
+    breakpoints: &HashMap<String, usize>,
+) -> anyhow::Result<Vec<String>> {
     // parse csv options
     let option = CsvOption::from_dsn(dsn.clone())?;
-
-    // get breakpoint
-    let breakpoints = get_breakpoint(task_job_id).unwrap_or_default();
 
     // dsn: csv:path/to/csv/path_1/or/file_1,path/to/csv/path_2/or/file_2?has_header=&header=&skip=&delimiter=&batch_size=&concurrent=
     let dsn_paths = match &dsn.path {
@@ -991,7 +1002,6 @@ pub async fn get_paths_from_dsn_and_breakpoints(
                 tracing::info!("file '{path}' is already processed, skip it");
                 false
             } else {
-                // keep the file
                 true
             }
         })
@@ -1066,8 +1076,14 @@ impl CsvSource {
         let mut option = CsvOption::from_dsn(dsn.clone())?;
         option.task_job_id = task_job_id;
 
-        // get paths
-        let paths = get_paths_from_dsn_and_breakpoints(task_job_id, dsn).await?;
+        // Open the breakpoint DB once for this task; all concurrent file workers will share it.
+        let breakpoint_db = open_breakpoint_db(task_job_id).await;
+
+        // Load breakpoints once from the shared DB instance.
+        let breakpoints = load_breakpoints_map(&breakpoint_db).await;
+
+        // get paths using the already-loaded breakpoints to avoid reopening the sled DB
+        let paths = get_paths_with_breakpoints(task_job_id, dsn, &breakpoints).await?;
 
         if option.concurrent == 0 {
             option.concurrent = paths.len();
@@ -1087,10 +1103,7 @@ impl CsvSource {
             option.validate(&paths)?;
         }
 
-        // get breakpoint
-        let breakpoints = get_breakpoint(task_job_id).unwrap_or_default();
-
-        // extra metrics
+        // extra metrics (reuse the already-loaded breakpoints map)
         let total_csv_files = breakpoints.len() + paths.len();
         let total_csv_files_completed = breakpoints.len();
         let total_csv_files_completed_rows = breakpoints.values().sum::<usize>();
@@ -1112,6 +1125,7 @@ impl CsvSource {
             paths,
             sender,
             option: option.clone(),
+            breakpoint_db,
         })
     }
 
@@ -1202,6 +1216,7 @@ impl CsvSource {
             let task_job_id = self.option.task_job_id;
             let keep_processed_files = self.option.keep_processed_files;
             let metrics_arc = metrics_arc.clone();
+            let breakpoint_db = self.breakpoint_db.clone();
             // let total = total.clone();
             let future = tokio::spawn(
                 async move {
@@ -1229,8 +1244,19 @@ impl CsvSource {
                         add_csv_file_to_task(task_job_id, &path, FileStatus::Processing, count);
                     }
 
-                    // write to breakpoint file
-                    let _ = set_breakpoint(task_job_id, &path, count).await;
+                    // Write to breakpoint via the shared DB handle. If unavailable, log and
+                    // continue so data writing is never blocked by breakpoint errors.
+                    if let Some(db) = &breakpoint_db {
+                        if let Err(e) = db.set(&path, &count.to_string()).await {
+                            tracing::error!(
+                                "set breakpoint for task {task_job_id:?} path '{path}' failed: {e:#}"
+                            );
+                        } else {
+                            tracing::info!(
+                                "set breakpoint for task {task_job_id:?} success, '{path}: {count}'"
+                            );
+                        }
+                    }
 
                     // record to file list, the status is completed
                     add_csv_file_to_task(task_job_id, &path, FileStatus::Completed, count);
@@ -1408,6 +1434,37 @@ pub async fn is_csv_valid(from: &Dsn) -> DataSourceValidation {
     }
 }
 
+/// Opens a task-level `BreakpointDb` wrapped in an `Arc` for sharing across concurrent workers.
+/// Returns `None` when `task_job_id` is absent/invalid or the DB fails to open.
+async fn open_breakpoint_db(task_job_id: Option<(i64, i64)>) -> Option<Arc<BreakpointDb>> {
+    let (task_id, job_id) = task_job_id.filter(|(task_id, _)| *task_id > 0)?;
+    match BreakpointDb::new_with_task(task_id, job_id).await {
+        Ok(db) => Some(Arc::new(db)),
+        Err(e) => {
+            tracing::error!("failed to open breakpoint db for task ({task_id},{job_id}): {e:#}");
+            None
+        }
+    }
+}
+
+/// Converts an open `BreakpointDb` into a `HashMap<path, row_count>`.
+/// Falls back to an empty map on error so callers can proceed without breakpoints.
+async fn load_breakpoints_map(db: &Option<Arc<BreakpointDb>>) -> HashMap<String, usize> {
+    let Some(db) = db else {
+        return HashMap::new();
+    };
+    match db.get_all().await {
+        Ok(records) => records
+            .into_iter()
+            .map(|(k, v)| (k, v.parse::<usize>().unwrap_or(0)))
+            .collect(),
+        Err(e) => {
+            tracing::error!("failed to read breakpoints: {e:#}");
+            HashMap::new()
+        }
+    }
+}
+
 pub async fn set_breakpoint(
     task_job_id: Option<(i64, i64)>,
     path: &str,
@@ -1425,7 +1482,7 @@ pub async fn set_breakpoint(
     let mut result = breakpoints::breakpoints_set(task_id, job_id, path, &amount);
     while let Err(e) = result {
         tracing::error!(
-            "set breakpoint for task ({task_id},{job_id}) failed, error: {e}, retry after 1s"
+            "set breakpoint for task ({task_id},{job_id}) failed, error: {e:#}, retry after 1s"
         );
         tokio::time::sleep(Duration::from_secs(1)).await;
         result = breakpoints::breakpoints_set(task_id, job_id, path, &amount);
@@ -1456,7 +1513,7 @@ pub fn get_breakpoint(task_job_id: Option<(i64, i64)>) -> anyhow::Result<HashMap
             Ok(map)
         }
         Err(e) => {
-            tracing::error!("get breakpoint for task {task_id} failed, error: {e}");
+            tracing::error!("get breakpoint for task {task_id} failed, error: {e:#}");
             Err(e)
         }
     }
@@ -1929,6 +1986,49 @@ mod tests {
             csv.flush().await?;
         }
         Ok(())
+    }
+
+    /// Regression test for the CSV task stall caused by concurrent sled lock contention.
+    /// Uses a Barrier to ensure all N workers call set_breakpoint simultaneously, and
+    /// multi_thread runtime so workers truly run in parallel.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
+    async fn test_concurrent_breakpoint_no_lock_contention() {
+        let task_job_id: (i64, i64) = (90001, -1);
+        let n = 8usize;
+
+        let tmp = tempfile::TempDir::new().unwrap();
+        unsafe {
+            std::env::set_var("TAOSX_DATA_DIR", tmp.path());
+        }
+
+        let barrier = Arc::new(tokio::sync::Barrier::new(n));
+        let handles: Vec<_> = (0..n)
+            .map(|i| {
+                let barrier = barrier.clone();
+                let path = format!("file_{i:02}.csv");
+                tokio::spawn(async move {
+                    barrier.wait().await;
+                    set_breakpoint(Some(task_job_id), &path, i * 1000).await
+                })
+            })
+            .collect();
+
+        let results = futures_util::future::join_all(handles).await;
+        let errors: Vec<String> = results
+            .into_iter()
+            .filter_map(|join| join.ok()?.err().map(|e| e.to_string()))
+            .collect();
+
+        assert!(
+            errors.is_empty(),
+            "concurrent set_breakpoint calls failed with lock contention errors: {errors:?}"
+        );
+
+        let bp = get_breakpoint(Some(task_job_id)).unwrap();
+        assert_eq!(bp.len(), n, "expected {n} breakpoints, got {}", bp.len());
+
+        let (task_id, job_id) = task_job_id;
+        breakpoints::breakpoints_clear(task_id, job_id).unwrap();
     }
 
     fn delete_csv_file(path: impl AsRef<Path>) -> Result<(), std::io::Error> {

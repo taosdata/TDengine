@@ -102,6 +102,22 @@ impl BreakpointDb {
         .await
         .context("Spawn blocking task for breakpoint get")?
     }
+
+    pub async fn get_all(&self) -> anyhow::Result<Vec<(String, String)>> {
+        let db = self.db.clone();
+        tokio::task::spawn_blocking(move || {
+            let mut result = vec![];
+            for item in db.iter() {
+                let (key, value) = item?;
+                result.push((
+                    String::from_utf8(key.to_vec())?,
+                    String::from_utf8(value.to_vec())?,
+                ));
+            }
+            anyhow::Ok(result)
+        })
+        .await?
+    }
 }
 
 pub fn breakpoints_set(
