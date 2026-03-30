@@ -90,7 +90,7 @@ script/
 生成后的安装包在运行时有以下要求：
 
 - Windows 10（1803 或更高版本）或 Windows Server 2019+
-- 目标机器需要已安装 Microsoft Visual C++ Redistributable x64
+- 目标机器需要已安装 Microsoft Visual C++ Redistributable x64 14.44 或更高版本；建议安装最新支持的 VC++ 2015-2022 运行库
 - 在线首次安装时，目标机器需要在 `PATH` 中提供 Python `3.10` / `3.11` / `3.12`
 - 离线安装时，**不要求**系统自带 Python——安装器会通过系统内置的 `tar.exe`（Windows 10 1803+ 自带）从离线 tar 包中自动引导 Python 运行时
 

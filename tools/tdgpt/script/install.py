@@ -17,6 +17,7 @@ import sys
 import tarfile
 import tempfile
 import time
+import winreg
 import zipfile
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Tuple
@@ -54,6 +55,9 @@ MODEL_DIR = INSTALL_DIR / "model"
 PACKAGED_PYTHON_DIR = INSTALL_DIR / "python" / "runtime"
 PACKAGE_METADATA_FILE = INSTALL_DIR / "cfg" / "package-metadata.json"
 INSTALL_STATE_FILE = INSTALL_DIR / "cfg" / "install-state.json"
+MIN_VC_RUNTIME_VERSION = "14.44.0.0"
+MIN_VC_RUNTIME_FAMILY = "Visual C++ 2015-2022 Redistributable x64"
+VC_RUNTIME_DOWNLOAD_URL = "https://aka.ms/vc14/vc_redist.x64.exe"
 
 DEFAULT_ONLINE_MODELS = ["moirai", "moment"]
 ALL_MODELS = ["tdtsfm", "timemoe", "moirai", "chronos", "timesfm", "moment"]
@@ -483,6 +487,54 @@ class WindowsInstaller:
 
     def is_existing_install(self) -> bool:
         return self.install_state in {"upgrade", "repair"}
+
+    def detect_vc_runtime_version(self) -> Tuple[str, str]:
+        runtime_keys = [
+            r"SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64",
+            r"SOFTWARE\WOW6432Node\Microsoft\VisualStudio\14.0\VC\Runtimes\x64",
+        ]
+        access_modes = [
+            winreg.KEY_READ | getattr(winreg, "KEY_WOW64_64KEY", 0),
+            winreg.KEY_READ | getattr(winreg, "KEY_WOW64_32KEY", 0),
+            winreg.KEY_READ,
+        ]
+
+        for subkey in runtime_keys:
+            for access in access_modes:
+                try:
+                    with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, subkey, 0, access) as key:
+                        installed = int(winreg.QueryValueEx(key, "Installed")[0])
+                        if installed != 1:
+                            continue
+                        major = int(winreg.QueryValueEx(key, "Major")[0])
+                        minor = int(winreg.QueryValueEx(key, "Minor")[0])
+                        build = int(winreg.QueryValueEx(key, "Bld")[0])
+                        revision = int(winreg.QueryValueEx(key, "Rbld")[0])
+                        return f"{major}.{minor}.{build}.{revision}", subkey
+                except OSError:
+                    continue
+        return "", ""
+
+    def check_vc_runtime(self) -> bool:
+        detected_version, registry_key = self.detect_vc_runtime_version()
+        if not detected_version:
+            self.print_error(
+                f"{MIN_VC_RUNTIME_FAMILY} {MIN_VC_RUNTIME_VERSION}+ was not detected. "
+                f"Install or update it from {VC_RUNTIME_DOWNLOAD_URL}."
+            )
+            return False
+
+        if self.compare_versions(detected_version, MIN_VC_RUNTIME_VERSION) < 0:
+            self.print_error(
+                f"Detected {MIN_VC_RUNTIME_FAMILY} {detected_version} via {registry_key}, "
+                f"but {MIN_VC_RUNTIME_VERSION}+ is required. Update it from {VC_RUNTIME_DOWNLOAD_URL}."
+            )
+            return False
+
+        self.print_success(
+            f"Detected {MIN_VC_RUNTIME_FAMILY} {detected_version} via {registry_key}."
+        )
+        return True
 
     def get_current_interpreter(self) -> Path:
         return Path(sys.executable).resolve()
@@ -1991,6 +2043,11 @@ except Exception as exc:
             if not self.check_disk_space():
                 return False
             self.finish_phase_timer("Check disk space", timer)
+            self.set_progress(7, "Checking system requirements", "Checking Visual C++ runtime")
+            timer = self.start_phase_timer("Check Visual C++ runtime")
+            if not self.check_vc_runtime():
+                return False
+            self.finish_phase_timer("Check Visual C++ runtime", timer)
             self.set_progress(8, "Checking system requirements", "Checking Python")
             timer = self.start_phase_timer("Check Python")
             if not self.check_python():
