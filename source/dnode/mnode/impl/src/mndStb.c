@@ -912,7 +912,8 @@ int32_t mndBuildStbFromReq(SMnode *pMnode, SStbObj *pDst, SMCreateStbReq *pCreat
   memcpy(pDst->db, pDb->name, TSDB_DB_FNAME_LEN);
   pDst->createdTime = taosGetTimestampMs();
   pDst->updateTime = pDst->createdTime;
-  pDst->uid = (pCreate->source == TD_REQ_FROM_TAOX_OLD || pCreate->source == TD_REQ_FROM_TAOX || pCreate->source == TD_REQ_FROM_SML)
+  pDst->uid = (pCreate->source == TD_REQ_FROM_TAOX_OLD || pCreate->source == TD_REQ_FROM_TAOX ||
+               pCreate->source == TD_REQ_FROM_SML || pCreate->suid != 0)
                   ? pCreate->suid
                   : mndGenerateUid(pCreate->name, TSDB_TABLE_FNAME_LEN);
   pDst->dbUid = pDb->uid;
@@ -1750,86 +1751,22 @@ static int32_t mndProcessCreateStbReq(SRpcMsg *pReq) {
     taosMemoryFreeClear(pDst.pCmpr);
     taosMemoryFreeClear(pDst.pExtSchemas);
   } else {
-    // Batch meta txn: defer STB DDL to shadow (redo-log), do NOT apply to SDB now.
+    // Batch meta txn: create STB immediately (undo-log model) so VNodes have schema
+    // for same-txn child table creation. Shadow op tracks the STB for ROLLBACK undo.
     if (createReq.txnId != 0) {
-      SName stbName = {0};
-      tNameFromString(&stbName, createReq.name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
-      void *pShadowData = taosMemoryMalloc(pReq->contLen);
-      if (pShadowData == NULL) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
-      } else {
-        memcpy(pShadowData, pReq->pCont, pReq->contLen);
-        code = mndTxnAddShadowOp(pMnode, createReq.txnId, MND_SHADOW_OP_CREATE_STB, createReq.name, createReq.suid,
-                                 pDb->name, pShadowData, pReq->contLen);
+      // Generate suid (parser does not set it; normal path uses mndBuildStbFromReq → mndGenerateUid)
+      if (createReq.suid == 0) {
+        createReq.suid = mndGenerateUid(createReq.name, TSDB_TABLE_FNAME_LEN);
       }
-      // Shadow op path: build SMCreateStbRsp with schema for client-side pTxnTableMeta caching
-      if (code == 0) {
-        SMCreateStbRsp stbRsp = {0};
-        stbRsp.pMeta = taosMemoryCalloc(1, sizeof(STableMetaRsp));
-        if (stbRsp.pMeta) {
-          STableMetaRsp *pRsp = stbRsp.pMeta;
-          int32_t        numCols = createReq.numOfColumns;
-          int32_t        numTags = createReq.numOfTags;
-          int32_t        totalCols = numCols + numTags;
-          pRsp->pSchemas = taosMemoryCalloc(totalCols, sizeof(SSchema));
-          pRsp->pSchemaExt = taosMemoryCalloc(numCols, sizeof(SSchemaExt));
-          if (pRsp->pSchemas) {
-            tstrncpy(pRsp->dbFName, pDb->name, sizeof(pRsp->dbFName));
-            tstrncpy(pRsp->tbName, stbName.tname, sizeof(pRsp->tbName));
-            tstrncpy(pRsp->stbName, stbName.tname, sizeof(pRsp->stbName));
-            pRsp->dbId = pDb->uid;
-            pRsp->numOfColumns = numCols;
-            pRsp->numOfTags = numTags;
-            pRsp->precision = pDb->cfg.precision;
-            pRsp->tableType = TSDB_SUPER_TABLE;
-            pRsp->sversion = createReq.colVer;
-            pRsp->tversion = createReq.tagVer;
-            pRsp->suid = createReq.suid;
-            pRsp->tuid = createReq.suid;
-            // Fill column schemas from SFieldWithOptions (SArray of SFieldWithOptions*)
-            for (int32_t i = 0; i < numCols && createReq.pColumns; i++) {
-              SFieldWithOptions *pField = taosArrayGet(createReq.pColumns, i);
-              SSchema           *pSchema = &pRsp->pSchemas[i];
-              tstrncpy(pSchema->name, pField->name, sizeof(pSchema->name));
-              pSchema->type = pField->type;
-              pSchema->bytes = pField->bytes;
-              pSchema->flags = pField->flags;
-              pSchema->colId = i + 1;  // colId starts from 1 for user columns
-            }
-            // Fill tag schemas from SField (SArray of SField*)
-            for (int32_t i = 0; i < numTags && createReq.pTags; i++) {
-              SField  *pField = taosArrayGet(createReq.pTags, i);
-              SSchema *pSchema = &pRsp->pSchemas[numCols + i];
-              tstrncpy(pSchema->name, pField->name, sizeof(pSchema->name));
-              pSchema->type = pField->type;
-              pSchema->bytes = pField->bytes;
-              pSchema->flags = pField->flags;
-              pSchema->colId = numCols + i + 1;
-            }
-          }
-          // Encode response and set as RPC reply
-          SEncoder ec = {0};
-          uint32_t contLen = 0;
-          int32_t  ret = 0;
-          tEncodeSize(tEncodeSMCreateStbRsp, &stbRsp, contLen, ret);
-          if (ret == 0) {
-            void *pCont = rpcMallocCont(contLen);
-            if (pCont) {
-              tEncoderInit(&ec, pCont, contLen);
-              (void)tEncodeSMCreateStbRsp(&ec, &stbRsp);
-              tEncoderClear(&ec);
-              pReq->info.rsp = pCont;
-              pReq->info.rspLen = contLen;
-            }
-          }
-        }
-        tFreeSMCreateStbRsp(&stbRsp);
+      // Track STB for undo at ROLLBACK (pReqData=NULL: not needed, name+uid suffice for DROP)
+      code = mndTxnAddShadowOp(pMnode, createReq.txnId, MND_SHADOW_OP_CREATE_STB, createReq.name, createReq.suid,
+                               pDb->name, NULL, 0);
+      if (code != 0) {
+        goto _OVER;
       }
-      // Shadow op path: respond immediately (no STrans to handle deferred response)
-      goto _OVER;
-    } else {
-      code = mndCreateStb(pMnode, pReq, &createReq, pDb, pOperUser);
+      // Fall through to mndCreateStb (creates STB in SDB + distributes schema to VNodes)
     }
+    code = mndCreateStb(pMnode, pReq, &createReq, pDb, pOperUser);
   }
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
@@ -3300,6 +3237,40 @@ static int32_t mndProcessDropTtltbRsp(SRpcMsg *pRsp) { return 0; }
 static int32_t mndProcessTrimDbRsp(SRpcMsg *pRsp) { return 0; }
 static int32_t mndProcessTrimDbWalRsp(SRpcMsg *pRsp) { return 0; }
 static int32_t mndProcessS3MigrateDbRsp(SRpcMsg *pRsp) { return 0; }
+
+/**
+ * Append DROP STB actions to an existing Trans (used for txn ROLLBACK undo of immediate-created STBs).
+ * Adds SDB commit logs + VNode DROP STB redo actions to pTrans, without creating a new Trans.
+ */
+int32_t mndAppendDropStbToTrans(SMnode *pMnode, STrans *pTrans, const char *stbName) {
+  int32_t  code = 0;
+  SStbObj *pStb = mndAcquireStb(pMnode, (char *)stbName);
+  if (pStb == NULL) {
+    mWarn("stb:%s, not found in SDB, skip drop in rollback undo", stbName);
+    return TSDB_CODE_SUCCESS;  // idempotent
+  }
+
+  SDbObj *pDb = mndAcquireDbByStb(pMnode, stbName);
+  if (pDb == NULL) {
+    mndReleaseStb(pMnode, pStb);
+    mWarn("stb:%s, db not found, skip drop in rollback undo", stbName);
+    return TSDB_CODE_SUCCESS;  // idempotent
+  }
+
+  mInfo("stb:%s, appending drop actions to rollback trans:%d", stbName, pTrans->id);
+
+  code = mndSetDropStbCommitLogs(pMnode, pTrans, pStb);
+  if (code == 0) {
+    code = mndSetDropStbRedoActions(pMnode, pTrans, pDb, pStb);
+  }
+  if (code == 0) {
+    code = mndDropIdxsByStb(pMnode, pTrans, pDb, pStb);
+  }
+
+  mndReleaseDb(pMnode, pDb);
+  mndReleaseStb(pMnode, pStb);
+  return code;
+}
 
 static int32_t mndProcessDropStbReq(SRpcMsg *pReq) {
   SMnode      *pMnode = pReq->info.node;

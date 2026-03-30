@@ -664,39 +664,11 @@ static int32_t mndTxnApplyShadowOps(SMnode *pMnode, SRpcMsg *pReq, STxnObj *pTxn
     // Determine message type and clear txnId in serialized data
     switch (pOp->opType) {
       case MND_SHADOW_OP_CREATE_STB: {
-        msgType = TDMT_MND_CREATE_STB;
-        SMCreateStbReq req = {0};
-        if (tDeserializeSMCreateStbReq(pOp->pReqData, pOp->reqDataLen, &req) != 0) {
-          mError("txn:%" PRIu64 ", failed to deserialize CREATE_STB shadow op %d", pTxn->id, i);
-          tFreeSMCreateStbReq(&req);
-          return TSDB_CODE_INVALID_MSG;
-        }
-        req.txnId = 0;  // Clear txnId so handler uses non-shadow path
-        // Re-serialize
-        int32_t newLen = tSerializeSMCreateStbReq(NULL, 0, &req);
-        void   *pNewCont = rpcMallocCont(newLen);
-        if (pNewCont == NULL) {
-          tFreeSMCreateStbReq(&req);
-          return TSDB_CODE_OUT_OF_MEMORY;
-        }
-        tSerializeSMCreateStbReq(pNewCont, newLen, &req);
-        tFreeSMCreateStbReq(&req);
-
-        // Build synthetic SRpcMsg
-        SRpcMsg synMsg = {0};
-        synMsg.msgType = msgType;
-        synMsg.pCont = pNewCont;
-        synMsg.contLen = newLen;
-        synMsg.info = pReq->info;  // Carry over conn info (user, node, traceId)
-
-        MndMsgFp fp = pMnode->msgFp[TMSG_INDEX(msgType)];
-        if (fp == NULL) {
-          rpcFreeCont(pNewCont);
-          mError("txn:%" PRIu64 ", no handler for msgType %d", pTxn->id, msgType);
-          return TSDB_CODE_MSG_NOT_PROCESSED;
-        }
-        code = fp(&synMsg);
-        break;
+        // Undo-log model: STB was created immediately during txn, nothing to do at COMMIT.
+        mInfo("txn:%" PRIu64 ", CREATE_STB shadow op %d/%d: no-op (already created), stb=%s", pTxn->id, i + 1, numOps,
+              pOp->name);
+        taosMemoryFreeClear(pOp->pReqData);
+        continue;
       }
       case MND_SHADOW_OP_DROP_STB: {
         msgType = TDMT_MND_DROP_STB;
@@ -785,35 +757,41 @@ static int32_t mndTxnApplyShadowOps(SMnode *pMnode, SRpcMsg *pReq, STxnObj *pTxn
 }
 
 /**
- * Undo MNode shadow ops on ROLLBACK — reverse STB DDL changes.
+ * Undo MNode shadow ops on ROLLBACK by appending actions to the rollback Trans.
  *
- * For CREATE_STB: Remove the STB from SDB by appending a DROP redo log
- *                 to the rollback Trans, and broadcast TDMT_VND_DROP_STB
- *                 to all VNodes in the DB.
- * For DROP_STB / ALTER_STB: Not yet supported (logged as warnings).
+ * CREATE_STB uses undo-log model: STB was created immediately during txn,
+ * so at ROLLBACK we append DROP STB commit logs + redo actions to pTrans.
  *
- * @param pMnode  The mnode
- * @param pTrans  The rollback Trans to append undo actions to
- * @param pTxn    The user batch txn being rolled back
+ * DROP_STB / ALTER_STB use redo-log model: not applied during txn,
+ * so nothing to undo — just free and discard.
  */
-/**
- * Discard MNode shadow ops on ROLLBACK — simply discard all pending redo-log entries.
- * Since STB DDL was NOT applied to SDB during the ACTIVE phase (redo-log model),
- * there is nothing to undo. We just log and free.
- *
- * @param pTxn    The user batch txn being rolled back
- */
-static int32_t mndTxnDiscardShadowOps(STxnObj *pTxn) {
+static int32_t mndTxnUndoShadowOps(SMnode *pMnode, STrans *pTrans, STxnObj *pTxn) {
   if (pTxn->pShadowOps == NULL) return TSDB_CODE_SUCCESS;
 
   int32_t numOps = taosArrayGetSize(pTxn->pShadowOps);
-  mInfo("txn:%" PRIu64 ", discarding %d MNode shadow ops (redo-log)", pTxn->id, numOps);
+  mInfo("txn:%" PRIu64 ", undoing %d MNode shadow ops (ROLLBACK)", pTxn->id, numOps);
 
-  // Redo-log model: SDB was never modified, so just log and free.
   for (int32_t i = 0; i < numOps; i++) {
     SMndShadowOp *pOp = (SMndShadowOp *)taosArrayGet(pTxn->pShadowOps, i);
-    mInfo("txn:%" PRIu64 ", discard shadow op %d/%d: opType=%d, stb=%s", pTxn->id, i + 1, numOps, pOp->opType,
-          pOp->name);
+
+    switch (pOp->opType) {
+      case MND_SHADOW_OP_CREATE_STB: {
+        // Undo-log: STB was created immediately, append DROP to rollback Trans
+        mInfo("txn:%" PRIu64 ", undo CREATE_STB shadow op %d/%d: stb=%s uid=%" PRId64, pTxn->id, i + 1, numOps,
+              pOp->name, pOp->uid);
+        int32_t code = mndAppendDropStbToTrans(pMnode, pTrans, pOp->name);
+        if (code != 0) {
+          mError("txn:%" PRIu64 ", failed to append DROP STB for stb=%s: %s", pTxn->id, pOp->name, tstrerror(code));
+        }
+        break;
+      }
+      default: {
+        // DROP_STB / ALTER_STB: redo-log model, not applied during txn, just discard
+        mInfo("txn:%" PRIu64 ", discard shadow op %d/%d: opType=%d, stb=%s", pTxn->id, i + 1, numOps, pOp->opType,
+              pOp->name);
+        break;
+      }
+    }
     taosMemoryFreeClear(pOp->pReqData);
   }
 
@@ -1052,8 +1030,8 @@ static int32_t mndRollbackTxn(SMnode *pMnode, SRpcMsg *pReq, STxnObj *pTxn, int3
     mInfo("txn:%" PRIu64 ", append rollback action for vgId:%d", pTxn->id, vgId);
   }
 
-  // Discard MNode-side shadow ops (STB DDL) — redo-log model, just free
-  mndTxnDiscardShadowOps(pTxn);
+  // Undo MNode-side shadow ops — CREATE_STB: append DROP to this Trans; DROP/ALTER: discard
+  mndTxnUndoShadowOps(pMnode, pTrans, pTxn);
 
   TAOS_CHECK_EXIT(mndTransPrepare(pMnode, pTrans));
 
