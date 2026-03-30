@@ -401,6 +401,33 @@ begin
   Result := True;
 end;
 
+function SplitVersionText(const Value: string; Delimiter: Char): TArrayOfString;
+var
+  Count: Integer;
+  Index: Integer;
+  StartPos: Integer;
+  I: Integer;
+begin
+  Count := 1;
+  for I := 1 to Length(Value) do
+    if Value[I] = Delimiter then
+      Count := Count + 1;
+
+  SetArrayLength(Result, Count);
+  Index := 0;
+  StartPos := 1;
+  for I := 1 to Length(Value) do
+  begin
+    if Value[I] = Delimiter then
+    begin
+      Result[Index] := Copy(Value, StartPos, I - StartPos);
+      Index := Index + 1;
+      StartPos := I + 1;
+    end;
+  end;
+  Result[Index] := Copy(Value, StartPos, Length(Value) - StartPos + 1);
+end;
+
 function IsVCRuntimeVersionSupported(VersionText: string): Boolean;
 var
   Parts: TArrayOfString;
@@ -410,7 +437,7 @@ var
   Revision: Integer;
 begin
   Result := False;
-  Parts := SplitString(VersionText, '.');
+  Parts := SplitVersionText(VersionText, '.');
   if GetArrayLength(Parts) < 4 then
     exit;
 
