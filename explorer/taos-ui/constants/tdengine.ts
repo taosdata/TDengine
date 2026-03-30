@@ -1496,3 +1496,4 @@ export const DB_FIELDS: Recordable<Recordable> = {
   s3_compact: { type: 'number', alter: true, defaultValue: '1', version: '>=3.3.4.3' },
   ENCRYPT_ALGORITHM: { type: 'string', alter: false, defaultValue: 'none', version: '>=3.3.0.0' }
 };
+export const PENDING_EXPLORER_REDIRECT_KEY = 'PENDING_EXPLORER_REDIRECT';

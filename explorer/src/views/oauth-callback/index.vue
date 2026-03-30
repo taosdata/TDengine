@@ -28,6 +28,8 @@ import { useStore } from 'vuex';
 import { ElMessage } from 'element-plus';
 import { Loading, CircleClose } from '@element-plus/icons-vue';
 import { oauthMe } from '@/api/oauth';
+import { PENDING_EXPLORER_REDIRECT_KEY } from 'taos-ui/constants/tdengine';
+
 
 const router = useRouter();
 const route = useRoute();
@@ -37,6 +39,16 @@ const loading = ref(true);
 const error = ref(false);
 const errorMessage = ref('');
 console.log(location);
+function consumePendingExplorerRedirect(): string | undefined {
+  try {
+    const v = sessionStorage.getItem(PENDING_EXPLORER_REDIRECT_KEY) || undefined;
+    if (v) sessionStorage.removeItem(PENDING_EXPLORER_REDIRECT_KEY);
+    return v;
+  } catch {
+    return undefined;
+  }
+}
+
 onMounted(async () => {
   try {
     // If IdP returned an error, show it
@@ -80,6 +92,32 @@ onMounted(async () => {
 
     // Redirect to home page after a short delay
     setTimeout(() => {
+      const pendingRaw = consumePendingExplorerRedirect();
+      if (pendingRaw) {
+        try {
+          const target = JSON.parse(pendingRaw) as {
+            path?: string;
+            query?: Record<string, string>;
+          };
+          const path = target?.path === '/explorer' ? '/explorer' : undefined;
+          if (path) {
+            const query: Record<string, string> = {};
+            if (typeof target?.query?.db === 'string' && target.query.db) {
+              query.db = target.query.db;
+            }
+            if (typeof target?.query?.table === 'string' && target.query.table) {
+              query.table = target.query.table;
+            }
+            router.push({
+              path,
+              query: Object.keys(query).length ? query : undefined
+            });
+            return;
+          }
+        } catch {
+          // Fall through to default redirect if parsing fails
+        }
+      }
       router.push({ path: '/explorer' });
     }, 500);
   } catch (err: any) {

@@ -196,6 +196,7 @@ import { useStore } from 'vuex';
 import i18n from '@/lang';
 import { setLocale } from 'taos-ui/config';
 import Cookies from 'js-cookie';
+import { PENDING_EXPLORER_REDIRECT_KEY } from 'taos-ui/constants/tdengine';
 
 const { t } = useI18n();
 const store = useStore();
@@ -308,6 +309,41 @@ const locallanguage = computed(() => {
 
 const displaySystemTitle = computed(() => OEM_NAME + ' ' + t('login.systemTitle'));
 
+function getPostLoginTarget(): { path: string; query?: Record<string, string> } {
+  try {
+    const raw = sessionStorage.getItem(PENDING_EXPLORER_REDIRECT_KEY);
+    if (!raw) {
+      return { path: '/explorer' };
+    }
+
+    sessionStorage.removeItem(PENDING_EXPLORER_REDIRECT_KEY);
+
+    const parsed = JSON.parse(raw) as {
+      path?: string;
+      query?: Record<string, string>;
+    };
+
+    const path = parsed?.path === '/explorer' ? parsed.path : '/explorer';
+    const query: Record<string, string> = {};
+
+
+    if (typeof parsed?.query?.db === 'string' && parsed.query.db) {
+      query.db = parsed.query.db;
+    }
+    if (typeof parsed?.query?.table === 'string' && parsed.query.table) {
+      query.table = parsed.query.table;
+    }
+
+    return {
+      path,
+      query: Object.keys(query).length ? query : undefined
+    };
+  } catch {
+    sessionStorage.removeItem(PENDING_EXPLORER_REDIRECT_KEY);
+    return { path: '/explorer' };
+  }
+}
+
 async function init() {
   await getClusterAndDashboardUrl();
   localStorage.setItem('supportWebsite', dataJson.supportWebsite);
@@ -337,9 +373,7 @@ onMounted(async () => {
       if (profileResp.tsdb_username) {
         await store.dispatch('app/setOAuthLogin', true);
         ElMessage.success(t('login.oauthLoginSuccess'));
-        return await router.push({
-          path: '/explorer'
-        });
+        return await router.push(getPostLoginTarget());
       }
       pageLoading.value = false;
       if (profileResp.user_id) {
@@ -535,7 +569,7 @@ async function oauthBindSubmit() {
           });
         }
       }
-      router.push({ path: '/explorer' });
+      // getUserAuthority 已负责成功后的跳转，避免重复覆盖目标路由
     } else {
       loading.value = false;
       oauthBind.value = false;
@@ -701,9 +735,7 @@ async function getUserAuthority() {
       if (result.length > 0) {
         console.log(result[0].version);
         if (result[0].version === 'official') {
-          await router.push({
-            path: '/explorer'
-          });
+          await router.push(getPostLoginTarget());
         } else {
           const phone_email = registerKey.value || '';
           if (!phone_email) {
@@ -711,9 +743,7 @@ async function getUserAuthority() {
               path: '/register'
             });
           } else {
-            await router.push({
-              path: '/explorer'
-            });
+            await router.push(getPostLoginTarget());
           }
         }
       } else {
@@ -726,9 +756,7 @@ async function getUserAuthority() {
     if (typeof err === 'string' && err.includes('Permission denied')) {
       console.log('User login without sysinfo');
       store.state.app.sysinfo = false;
-      await router.push({
-        path: '/explorer'
-      });
+      await router.push(getPostLoginTarget());
       return;
     }
     $error(err?.desc);

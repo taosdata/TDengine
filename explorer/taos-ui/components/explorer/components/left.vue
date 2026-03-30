@@ -21,6 +21,7 @@
     </div>
     <div class="dbs-tree-container">
       <Tree
+        ref="treeRef"
         :key="treeKey"
         lazy
         :empty-text="t('explorer.noDatabase')"
@@ -77,12 +78,27 @@ import {
 } from '../../api';
 import { getSqlProvider } from '../model/useExplorer';
 import CreateDatabaseDialog from '../../dataIn/components/addDbDialog.vue';
+import { useRoute } from 'vue-router';
+import { PENDING_EXPLORER_REDIRECT_KEY } from '../../../constants/tdengine';
 
 const explorerProps = getExplorerProps();
 const dbsTreeRef = ref<HTMLElement | null>(null);
 const dialogVisible = ref(false);
+const treeRef = ref<InstanceType<typeof Tree> | null>(null);
 const showButtons = ref(true);
 let _dbsResizeObserver: ResizeObserver | null = null;
+
+const route = useRoute();
+const routeTargetDb = computed(() => route.query.db as string | undefined);
+const routeTargetTable = computed(() => route.query.table as string | undefined);
+let autoLocateDone = false;
+const locateOnceKey = ref(''); // 防止同一组 db/table 重复触发 nameFilter
+
+watch([routeTargetDb, routeTargetTable], () => {
+  autoLocateDone = false;
+  locateOnceKey.value = '';
+  refersh();
+});
 
 onMounted(() => {
   if (typeof ResizeObserver !== 'undefined' && dbsTreeRef.value) {
@@ -138,13 +154,35 @@ function handleDatabaseUpdate() {
   dialogVisible.value = false;
   refersh();
 }
+function trySelectTargetTable(list: Recordable[]) {
+  if (autoLocateDone || !routeTargetDb.value || !routeTargetTable.value) return;
+
+  const table = list.find(item => item.typeName === 'table' && item.name === routeTargetTable.value);
+  if (!table) return;
+
+  autoLocateDone = true;
+
+  nextTick(() => {
+    const key = table['node-key'];
+    treeRef.value?.setCurrentKey(key);
+
+    const node = treeRef.value?.getNode?.(key);
+    if (node?.data) {
+      treeRef.value?.setCurrentKey(node.data['node-key']);
+      sessionStorage.removeItem(PENDING_EXPLORER_REDIRECT_KEY);
+    }
+
+    fetchTableData(table);
+  });
+}
+
 async function loadNode(node: Node, resolve: LoadedCallback) {
   const data = node.data;
   switch (node.data?.typeName) {
     case 'database':
       // eslint-disable-next-line no-case-declarations
-      const result = await getStableListReq(data.name, explorerProps.stable.getPermissionList);
-      result[0].forEach(stable => {
+      const stableResult = await getStableListReq(data.name, explorerProps.stable.getPermissionList);
+      stableResult[0].forEach(stable => {
         if (stableTagFilterMap[stable['node-key']]) return;
         stableTagFilterMap[stable['node-key']] = {
           parent: data.name,
@@ -159,47 +197,70 @@ async function loadNode(node: Node, resolve: LoadedCallback) {
           }
         };
       });
-      resolve(...result);
+      resolve(...stableResult);
+
+      if (!autoLocateDone && routeTargetDb.value === data.name && routeTargetTable.value) {
+        const currentLocateKey = `${routeTargetDb.value}|${routeTargetTable.value}`;
+        if (locateOnceKey.value !== currentLocateKey) {
+          locateOnceKey.value = currentLocateKey;
+          nextTick(() => {
+            nameFilter(routeTargetTable.value as string, node);
+          });
+        }
+      }
       break;
+
     case 'stable':
       // eslint-disable-next-line no-case-declarations
       const currentStbFilter = stableTagFilterMap[data['node-key']];
       if (currentStbFilter.name) {
-        return resolve(
-          ...(await getTagHierarchy(data.parent, data.name, currentStbFilter.name, currentStbFilter.type))
-        );
-      } else {
         // eslint-disable-next-line no-case-declarations
-        let conditions = '';
+        const tagHierarchyResult = await getTagHierarchy(
+          data.parent,
+          data.name,
+          currentStbFilter.name,
+          currentStbFilter.type
+        );
+        resolve(...tagHierarchyResult);
+        trySelectTargetTable(tagHierarchyResult[0] || []);
+        return;
+      } else {
+        let resultPromise;
         if (currentStbFilter.advanced.enable) {
-          conditions =
+          const conditions =
             currentStbFilter.advanced.type == '0' ? currentStbFilter.advanced.condition : currentStbFilter.advanced.sql;
-          return resolve(
-            ...(await getTableWithTags({
-              stbName: data.name,
-              dbName: data.parent,
-              conditions,
-              pageSize: node.pageSize,
-              currentPage: node.currentPage
-            }))
-          );
-        }
-        return resolve(
-          ...(await getTableListReq({
+
+          resultPromise = getTableWithTags({
+            stbName: data.name,
+            dbName: data.parent,
+            conditions,
+            pageSize: node.pageSize,
+            currentPage: node.currentPage
+          });
+        } else {
+          resultPromise = getTableListReq({
             stbName: data.name,
             pageSize: node.pageSize,
             currentPage: node.currentPage,
             dbName: data.parent,
             filter: filterTextMap[data.parent]
-          }))
-        );
+          });
+        }
+        const result = await resultPromise;
+        resolve(...result);
+        trySelectTargetTable(result[0] || []);
+        return;
       }
+
     case 'dimension':
       // eslint-disable-next-line no-case-declarations
       const parts = data['node-key'].split(':');
       // eslint-disable-next-line no-case-declarations
       const tagName = parts[3];
-      if (data.total > 0 && data.children) return resolve(data.children);
+      if (data.total > 0 && data.children) {
+        trySelectTargetTable(data.children || []);
+        return resolve(data.children);
+      }
       // eslint-disable-next-line no-case-declarations
       let parentStb = node.parent;
       // eslint-disable-next-line no-case-declarations
@@ -208,19 +269,23 @@ async function loadNode(node: Node, resolve: LoadedCallback) {
         tagValue = parentStb.data.name + '.' + tagValue;
         parentStb = parentStb.parent;
       }
-      return resolve(
-        ...(await getTableWithTags({
-          stbName: parentStb.data.name,
-          pageSize: node.pageSize,
-          currentPage: node.currentPage,
-          dbName: parentStb.data.parent,
-          tag_value: tagValue,
-          tagName: tagName,
-          filter: filterTextMap[data.parent]
-        }))
-      );
+
+      // eslint-disable-next-line no-case-declarations
+      const dimensionResult = await getTableWithTags({
+        stbName: parentStb.data.name,
+        pageSize: node.pageSize,
+        currentPage: node.currentPage,
+        dbName: parentStb.data.parent,
+        tag_value: tagValue,
+        tagName: tagName,
+        filter: filterTextMap[data.parent]
+      });
+      resolve(...dimensionResult);
+      trySelectTargetTable(dimensionResult[0] || []);
+      return;
+
     case 'table':
-      return resolve([]); 
+      return resolve([]);
     default:
       // eslint-disable-next-line no-case-declarations
       const dataList = await getDbList();
@@ -231,7 +296,24 @@ async function loadNode(node: Node, resolve: LoadedCallback) {
 
       clearStbFilterData();
       dbList.value = dataList;
-      return resolve(dataList);
+
+      resolve(dataList);
+
+      if (routeTargetDb.value && !autoLocateDone) {
+        nextTick(() => {
+          const dbNode = node.childNodes.find((n: Node) => n.data.name === routeTargetDb.value);
+          if (dbNode && !dbNode.expanded) {
+            dbNode.expand();
+          }
+        });
+      }
+      return;
+  }
+}
+
+function allNodesLoaded(node: Node) {
+  if (node.level == 1) {
+    node.filter(filterTextMap[node.data.name]);
   }
 }
 function clearStbFilterData() {
@@ -284,11 +366,6 @@ function fetchTableData(data: Recordable) {
       `select * from \`${data.parent.split('.')[0]}\`.\`${data.name}\` order by _C0 desc limit ${viewTableDataLimit}`
     );
     panelActiveTab.value = 'grid';
-  }
-}
-function allNodesLoaded(node: Node) {
-  if (node.level == 1) {
-    node.filter(filterTextMap[node.data.name]);
   }
 }
 </script>

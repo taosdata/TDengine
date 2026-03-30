@@ -10,14 +10,45 @@ import { getOAuthStatus, oauthMe } from './api/oauth';
 import { encrypt } from '@/utils/index';
 import aesCbcMac from './utils/aesCbcMac';
 import pathDetector from './utils/pathDetector';
+import { PENDING_EXPLORER_REDIRECT_KEY } from 'taos-ui/constants/tdengine';
 
 const apiPath = pathDetector.getApiBasePath();
 
 // import pathDetector from './utils/pathDetector';
 const whiteList = ['Login', 'OAuthCallback'];
 
+function markPendingExplorerRedirect(
+  to: RouteLocationNormalized | RouteLocationNormalizedLoaded
+) {
+  const redirectedFrom = (to as any).redirectedFrom as RouteLocationNormalized | undefined;
+  const q = redirectedFrom?.query || to.query || {};
+
+  const db = typeof q.db === 'string' ? q.db : '';
+  const table = typeof q.table === 'string' ? q.table : '';
+  if (!db && !table) return;
+
+  const query: Record<string, string> = {};
+  if (db) query.db = db;
+  if (table) query.table = table;
+
+  try {
+    sessionStorage.setItem(
+      PENDING_EXPLORER_REDIRECT_KEY,
+      JSON.stringify({
+        path: '/explorer',
+        query
+      })
+    );
+  } catch {
+    // ignore
+  }
+}
+
 router.beforeEach(async (to: RouteLocationNormalized, from: RouteLocationNormalizedLoaded, next) => {
   try {
+    // 新增：无论是否已被静态 redirect 到 /login，都先尝试落盘 db/table
+    markPendingExplorerRedirect(to);
+
     if (process.env.NODE_ENV === 'development') {
       console.log('router permission check:', to, from);
     }

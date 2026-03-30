@@ -1,14 +1,7 @@
 <template>
   <div class="create-stb">
-    <el-form
-      ref="formRef"
-      :model="state.stable_form"
-      :rules="state.rules"
-      label-position="left"
-      label-width="192px"
-      @submit.prevent
-    >
-      <el-form-item prop="name" class="name_input">
+    <el-form ref="formRef" :model="state.stable_form" :rules="state.rules" label-position="left" @submit.prevent>
+      <el-form-item prop="name" class="name_input" label-width="150px">
         <template #label>
           <span>{{ t('common.name') }}</span>
           <el-tooltip class="item" effect="light" :content="t('stb.nameFormatTip')" placement="top-start">
@@ -18,187 +11,212 @@
         <el-input v-model="state.stable_form.name" size="default" :maxlength="192" :title="state.stable_form.name">
         </el-input>
       </el-form-item>
-    </el-form>
-    <el-collapse v-model="state.activeNames">
-      <el-collapse-item name="1" :title="t('stb.columns')">
-        <div v-for="(column, index) in state.stable_form.columns" :key="'column' + index" class="flex-center input-row">
-          <el-select
-            v-model="column.type"
-            size="default"
-            default-first-option
-            :disabled="index == 0"
-            class="column-prepend-btn"
-            @change="() => handleTypeChange(column, index)"
-          >
-            <el-option v-for="item in handleTypeList('dataType')" :key="item" :label="item" :value="item"></el-option>
-          </el-select>
-          <el-input-number
-            v-if="VariableTableColumnType.includes(column.type) || TwoVariableTableColumnType.includes(column.type)"
-            v-model="column.length"
-            size="default"
-            :min="1"
-            :max="column.type == 'NCHAR' ? 4093 : 65517"
-            label="Length"
-            controls-position="right"
-            class="column-width-110"
-            @change="newVal => handleChange(newVal, index)"
-          ></el-input-number>
-          <el-input-number
-            v-if="TwoVariableTableColumnType.includes(column.type)"
-            v-model="column.length2"
-            size="default"
-            default-value="0"
-            :min="1"
-            :max="column.type == 'NCHAR' ? 4093 : 65517"
-            label="Length"
-            controls-position="right"
-            class="column-width-110"
-            @change="newVal => handleChange2(newVal, index)"
-          ></el-input-number>
-          <el-input
-            v-model="column.field"
-            :class="['column-name-input', { 'column-name-input--wide': index !== 1 }]"
-            size="default"
-            :maxlength="64"
-            :placeholder="t('stb.columnName')"
-          >
-          </el-input>
-          <el-tag
-            v-if="index == 1 && version_gt_3300 && activeType == 'sqlCreate'"
-            effect="plain"
-            type="info"
-            size="large"
-          >
-            <el-checkbox
-              v-model="column.primaryKey"
-              :disabled="parmaryKeyType.findIndex(item => column.type.startsWith(item.value)) == -1"
-              ><el-tooltip placement="top" effect="light" :content="t('common.compositeKeyTooltip')"
-                >COMPOSITE KEY</el-tooltip
-              ></el-checkbox
-            >
-          </el-tag>
-          <el-tooltip
-            v-if="version_gt_3300 && activeType == 'sqlCreate'"
-            placement="top"
-            effect="light"
-            :open-delay="100"
-            :content="t('stb.encode')"
+
+      <el-collapse v-model="state.activeNames">
+        <el-collapse-item name="1" :title="t('stb.columns')">
+          <div
+            v-for="(column, index) in state.stable_form.columns"
+            :key="'column' + index"
+            class="flex-center input-row"
           >
             <el-select
-              v-model="column.encode"
+              v-model="column.type"
               size="default"
               default-first-option
-              default-value="simple8b"
-              placeholder="ENCODE"
+              :disabled="index == 0"
+              class="column-prepend-btn"
+              @change="() => handleTypeChange(column, index)"
+            >
+              <el-option v-for="item in handleTypeList('dataType')" :key="item" :label="item" :value="item"></el-option>
+            </el-select>
+            <el-input-number
+              v-if="VariableTableColumnType.includes(column.type) || TwoVariableTableColumnType.includes(column.type)"
+              v-model="column.length"
+              size="default"
+              :min="1"
+              :max="column.type == 'NCHAR' ? 4093 : 65517"
+              label="Length"
+              controls-position="right"
               class="column-width-110"
-              clearable
-            >
-              <el-option
-                v-for="item in handleEncodeList(column.type)['encodeList']"
-                :key="item.value"
-                v-bind="item"
-              ></el-option>
-            </el-select>
-          </el-tooltip>
-          <el-tooltip
-            v-if="version_gt_3300 && activeType == 'sqlCreate'"
-            placement="top"
-            effect="light"
-            :open-delay="100"
-            :content="t('stb.compress')"
-          >
-            <el-select
-              v-model="column.compress"
+              @change="newVal => handleChange(newVal, index)"
+            ></el-input-number>
+            <el-input-number
+              v-if="TwoVariableTableColumnType.includes(column.type)"
+              v-model="column.length2"
               size="default"
-              default-first-option
-              default-value="lz4"
-              placeholder="COMPRESS"
-              class="column-width-110 column-fill"
-              clearable
+              default-value="0"
+              :min="1"
+              :max="column.type == 'NCHAR' ? 4093 : 65517"
+              label="Length"
+              controls-position="right"
+              class="column-width-110"
+              @change="newVal => handleChange2(newVal, index)"
+            ></el-input-number>
+            <el-form-item
+              :prop="`columns.${index}.field`"
+              :rules="[
+                {
+                  required: true,
+                  message: t('dataIn.enterTip') + ' ' + t('stb.columnName'),
+                  trigger: 'blur'
+                }
+              ]"
+              class="dynamic-field-form-item"
             >
-              <el-option
-                v-for="item in handleEncodeList(column.type)['compressList']"
-                :key="item.value"
-                v-bind="item"
-              ></el-option>
-            </el-select>
-          </el-tooltip>
-          <el-tooltip
-            v-if="version_gt_3300 && activeType == 'sqlCreate'"
-            placement="top"
-            effect="light"
-            :open-delay="100"
-            :content="t('stb.level')"
-          >
-            <el-select
-              v-model="column.level"
-              size="default"
-              default-first-option
-              placeholder="LEVEL"
-              class="column-width-110 column-fill"
-              clearable
+              <el-input
+                v-model="column.field"
+                size="default"
+                :maxlength="64"
+                :placeholder="t('stb.columnName')"
+                style="min-width: 60px"
+              >
+              </el-input>
+            </el-form-item>
+            <el-tag
+              v-if="index == 1 && version_gt_3300 && activeType == 'sqlCreate'"
+              effect="plain"
+              type="info"
+              size="large"
             >
-              <el-option v-for="item in levelList" :key="item.value" v-bind="item"></el-option>
-            </el-select>
-          </el-tooltip>
-          <span class="action-btn">
-            <el-button icon="Minus" size="default" :disabled="!index" @click="minusColumn(index)"></el-button>
-            <!-- <el-button icon="Plus" size="default" @click="addColumn"></el-button> -->
-            <el-tooltip :content="t('stb.clickColumnTip')">
-              <el-button size="default" :disabled="!index" @click="removeToTag(index)">
-                <Icon :name="'tag'" class="console-tree-icon" style="width: 18px; height: 18px"></Icon>
-              </el-button>
+              <el-checkbox
+                v-model="column.primaryKey"
+                :disabled="parmaryKeyType.findIndex(item => column.type.startsWith(item.value)) == -1"
+                ><el-tooltip placement="top" effect="light" :content="t('common.compositeKeyTooltip')"
+                  >COMPOSITE KEY</el-tooltip
+                ></el-checkbox
+              >
+            </el-tag>
+            <el-tooltip
+              v-if="version_gt_3300 && activeType == 'sqlCreate'"
+              placement="top"
+              effect="light"
+              :open-delay="100"
+              :content="t('stb.encode')"
+            >
+              <el-select
+                v-model="column.encode"
+                size="default"
+                default-first-option
+                default-value="simple8b"
+                placeholder="ENCODE"
+                class="column-width-110"
+                clearable
+              >
+                <el-option
+                  v-for="item in handleEncodeList(column.type)['encodeList']"
+                  :key="item.value"
+                  v-bind="item"
+                ></el-option>
+              </el-select>
             </el-tooltip>
-          </span>
-        </div>
-        <el-button
-          icon="Plus"
-          size="default"
-          type="primary"
-          plain
-          style="width: 100%; margin-top: 0px"
-          @click="addColumn"
-        ></el-button>
-      </el-collapse-item>
-      <el-collapse-item name="2" :title="t('stb.tags')">
-        <div v-for="(column, index) in state.stable_form.tags" :key="'column' + index" class="flex-center input-row">
-          <el-select v-model="column.type" size="default" default-first-option class="column-prepend-btn">
-            <el-option v-for="item in handleTypeList('tagType')" :key="item" :label="item" :value="item"></el-option>
-          </el-select>
-          <el-input-number
-            v-if="VariableTableColumnType.includes(column.type)"
-            v-model="column.length"
+            <el-tooltip
+              v-if="version_gt_3300 && activeType == 'sqlCreate'"
+              placement="top"
+              effect="light"
+              :open-delay="100"
+              :content="t('stb.compress')"
+            >
+              <el-select
+                v-model="column.compress"
+                size="default"
+                default-first-option
+                default-value="lz4"
+                placeholder="COMPRESS"
+                class="column-width-110"
+                clearable
+              >
+                <el-option
+                  v-for="item in handleEncodeList(column.type)['compressList']"
+                  :key="item.value"
+                  v-bind="item"
+                ></el-option>
+              </el-select>
+            </el-tooltip>
+            <el-tooltip
+              v-if="version_gt_3300 && activeType == 'sqlCreate'"
+              placement="top"
+              effect="light"
+              :open-delay="100"
+              :content="t('stb.level')"
+            >
+              <el-select
+                v-model="column.level"
+                size="default"
+                default-first-option
+                placeholder="LEVEL"
+                class="column-width-110"
+                clearable
+              >
+                <el-option v-for="item in levelList" :key="item.value" v-bind="item"></el-option>
+              </el-select>
+            </el-tooltip>
+            <span class="action-btn">
+              <el-button icon="Minus" size="default" :disabled="!index" @click="minusColumn(index)"></el-button>
+              <!-- <el-button icon="Plus" size="default" @click="addColumn"></el-button> -->
+              <el-tooltip :content="t('stb.clickColumnTip')">
+                <el-button size="default" :disabled="!index" @click="removeToTag(index)">
+                  <Icon :name="'tag'" class="console-tree-icon" style="width: 18px; height: 18px"></Icon>
+                </el-button>
+              </el-tooltip>
+            </span>
+          </div>
+          <el-button
+            icon="Plus"
             size="default"
-            :min="1"
-            :max="column.type == 'NCHAR' ? 4093 : 16382"
-            label="Length"
-            controls-position="right"
-            class="column-width-110"
-            @change="newVal => tagLengthChange(newVal, index)"
-          ></el-input-number>
-          <el-input
-            v-model="column.field"
+            type="primary"
+            plain
+            style="width: 100%; margin-top: 18px"
+            @click="addColumn"
+          ></el-button>
+        </el-collapse-item>
+
+        <el-collapse-item name="2" :title="t('stb.tags')">
+          <div v-for="(column, index) in state.stable_form.tags" :key="'column' + index" class="flex-center input-row">
+            <el-select v-model="column.type" size="default" default-first-option class="column-prepend-btn">
+              <el-option v-for="item in handleTypeList('tagType')" :key="item" :label="item" :value="item"></el-option>
+            </el-select>
+            <el-input-number
+              v-if="VariableTableColumnType.includes(column.type)"
+              v-model="column.length"
+              size="default"
+              :min="1"
+              :max="column.type == 'NCHAR' ? 4093 : 16382"
+              label="Length"
+              controls-position="right"
+              class="column-width-110"
+              @change="newVal => tagLengthChange(newVal, index)"
+            ></el-input-number>
+            <el-form-item
+              :prop="`tags.${index}.field`"
+              :rules="[
+                {
+                  required: true,
+                  message: t('dataIn.enterTip') + ' ' + t('stb.tagName'),
+                  trigger: 'blur'
+                }
+              ]"
+              class="dynamic-field-form-item"
+            >
+              <el-input v-model="column.field" size="default" :maxlength="64" :placeholder="t('stb.tagName')">
+                <template #append>
+                  <el-button icon="Minus" @click="minusTags(index)"></el-button>
+                  <!-- <el-button icon="Plus" @click="addTags"></el-button> -->
+                </template>
+              </el-input>
+            </el-form-item>
+          </div>
+          <el-button
+            icon="Plus"
             size="default"
-            :maxlength="64"
-            :placeholder="t('stb.tagName')"
-            class="column-fill"
-          >
-          </el-input>
-          <span class="action-btn">
-            <el-button icon="Minus" size="default" @click="minusTags(index)"></el-button>
-            <!-- <el-button icon="Plus" size="default" @click="addTags"></el-button> -->
-          </span>
-        </div>
-        <el-button
-          icon="Plus"
-          size="default"
-          type="primary"
-          plain
-          style="width: 100%; margin-top: 0px"
-          @click="addTags"
-        ></el-button>
-      </el-collapse-item>
-    </el-collapse>
+            type="primary"
+            plain
+            style="width: 100%; margin-top: 18px"
+            @click="addTags"
+          ></el-button>
+        </el-collapse-item>
+      </el-collapse>
+    </el-form>
+
     <div class="buttons">
       <el-button type="primary" size="default" @click="submit">
         {{ t('common.create') }}
@@ -294,7 +312,7 @@ function validateTableName(input: string | string[]) {
   if (Array.isArray(input)) {
     return input.every(str => validateSingleTableName(str));
   }
-  
+
   return validateSingleTableName(input);
 }
 
@@ -302,12 +320,12 @@ function validateSingleTableName(str: string) {
   if (typeof str !== 'string') {
     return false;
   }
-  
+
   let braceDepth = 0;
-  
+
   for (let i = 0; i < str.length; i++) {
     const char = str[i];
-    
+
     if (char === '{') {
       braceDepth++;
     } else if (char === '}') {
@@ -321,7 +339,7 @@ function validateSingleTableName(str: string) {
       }
     }
   }
-  
+
   return braceDepth === 0;
 }
 
@@ -487,19 +505,6 @@ async function createStable() {
   formRef.value?.validate(async (valid: boolean) => {
     if (!valid) return false;
     if (valid) {
-      const { tags, columns } = state.stable_form;
-      for (let i = 0; i < columns.length; i++) {
-        const element = columns[i];
-        if (!element.field) {
-          return ElMessage.warning(t('dataIn.enterTip') + ' ' + t('stb.columnName'));
-        }
-      }
-      for (let i = 0; i < tags.length; i++) {
-        const element = tags[i];
-        if (!element.field) {
-          return ElMessage.warning(t('dataIn.enterTip') + ' ' + t('stb.tagName'));
-        }
-      }
       if (!version_gt_3300.value) {
         state.stable_form.columns = state.stable_form.columns.map(item => {
           return {
@@ -518,6 +523,7 @@ async function createStable() {
     }
   });
 }
+
 async function createTemplateStable() {
   formRef.value?.validate(async (valid: boolean) => {
     if (!valid) return false;
@@ -588,43 +594,19 @@ async function createTemplateStable() {
 </script>
 <style lang="scss" scoped>
 .create-stb {
-  :deep(.el-form-item.name_input) {
-    margin-bottom: 0;
-    margin-left: 4px;
-  }
-
   .column-prepend-btn {
     flex-shrink: 0;
     width: 150px;
   }
 
-  .column-name-input {
-    flex: 0 0 auto;
-    width: 250px;
-    min-width: 80px;
-  }
-
-  .column-name-input--wide {
-    width: 406px;
-  }
-
   .column-width-110 {
     flex-shrink: 0;
-    width: 152px;
-    min-width: 120px;
+    width: 90px;
+    min-width: 50px;
   }
 
   .input-row {
-    display: flex;
-    align-items: center;
-    width: 100%;
-    margin: 0 0 10px 0;
-    gap: 4px;
-  }
-
-  .column-fill {
-    flex: 1;
-    min-width: 70px;
+    margin-top: 18px;
   }
 
   :deep(.el-collapse) {
@@ -640,16 +622,8 @@ async function createTemplateStable() {
     border-bottom: none !important;
   }
 
-  :deep(.el-collapse-item__title) {
-    font-size: 18px;
-    font-weight: 400;
-    color: #4e6a94;
-  }
-
   :deep(.el-collapse-item__wrap) {
     border-bottom: none !important;
-    padding-left: 0;
-    padding-right: 0;
   }
 
   :deep(.el-input-number__decrease) {
@@ -705,32 +679,32 @@ async function createTemplateStable() {
 
   .action-btn {
     display: flex;
-    align-items: center;
-    gap: 4px;
-    flex-shrink: 0;
+    margin-left: 10px;
 
-    :deep(.el-button) {
-      border: 1px solid #dcdfe6;
-    }
-
-    :deep(.el-button + .el-button) {
+    .el-button + .el-button {
       margin-left: 0;
+      border-left-style: none;
     }
   }
 
   :deep(.el-tag) {
-    border-left: 1px solid #dcdfe6;
+    border-left: none;
   }
 
   .buttons {
     display: flex;
     align-items: center;
     justify-content: center;
-    margin-top: 10px;
+    margin-top: 20px;
 
     :deep(.el-button) {
       width: 60px;
     }
+  }
+
+  .dynamic-field-form-item {
+    flex: 1;
+    margin-bottom: 0;
   }
 }
 </style>
