@@ -113,6 +113,7 @@ typedef struct SVtbScanDynCtrlInfo {
   SHashObj*        newAddedVgInfo;
   SHashObj*        childTableMap;
   SHashObj*        dbVgInfoMap;
+  SHashObj*        resolvedColRefMap; // key: root db.table.col ref, value: SDynResolvedColRef*
   SHashObj*        existOrgTbVg; // key: vgId, value: NULL
   SHashObj*        curOrgTbVg; // key: vgId, value: NULL
   SMsgCb*          pMsgCb;

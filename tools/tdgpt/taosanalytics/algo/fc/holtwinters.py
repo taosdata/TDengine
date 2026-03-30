@@ -5,7 +5,7 @@
 from statsmodels.tsa.holtwinters import ExponentialSmoothing, SimpleExpSmoothing
 
 from taosanalytics.algo.forecast import insert_ts_list
-from taosanalytics.service import AbstractForecastService
+from taosanalytics.analytics_base import AbstractForecastService
 
 
 class _HoltWintersService(AbstractForecastService):

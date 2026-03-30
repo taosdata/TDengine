@@ -120,6 +120,8 @@ typedef struct SSysTableScanInfo {
 
   // for virtual supertable scan
   STableListInfo* pSubTableListInfo;
+  SArray*         pVtbRefReqs;   // SArray<SSysTableScanVtbRefReq> used by layered vc-cols lookup
+  int32_t         vtbRefReqIdx;  // next request index in pVtbRefReqs
 } SSysTableScanInfo;
 
 typedef struct {
@@ -205,6 +207,14 @@ static int32_t sysTableUserColsFillOneVirtualTableCols(const SSysTableScanInfo* 
                                                        int32_t* pNumOfRows, const SSDataBlock* dataBlock, char* tName,
                                                        char* stName, SSchemaWrapper* schemaRow, char* tableType,
                                                        SColRefWrapper* colRef, tb_uid_t uid, int32_t vgId);
+
+static int32_t sysTableUserColsFillOneVirtualTableCol(const char* dbname, int32_t* pNumOfRows,
+                                                      const SSDataBlock* dataBlock, char* tName, char* stName,
+                                                      SSchemaWrapper* schemaRow, SColRefWrapper* colRef, tb_uid_t uid,
+                                                      int32_t vgId, int32_t colIdx);
+static int32_t sysTableScanApplyVtbRefReqParam(SOperatorInfo* pOperator);
+static SSDataBlock* sysTableScanUserVcColsByReqs(SOperatorInfo* pOperator);
+
 
 // static int32_t sysTableFillOneVirtualTableRef(const SSysTableScanInfo* pInfo, const char* dbname, int32_t*
 // pNumOfRows,
@@ -803,6 +813,11 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
 
   code = blockDataEnsureCapacity(pDataBlock, pOperator->resultInfo.capacity);
   QUERY_CHECK_CODE(code, lino, _end);
+
+  if (pInfo->pVtbRefReqs != NULL) {
+    blockDataDestroy(pDataBlock);
+    return sysTableScanUserVcColsByReqs(pOperator);
+  }
 
   code = doExtractDbName(dbname, pInfo, pAPI);
   QUERY_CHECK_CODE(code, lino, _end);
@@ -2246,8 +2261,9 @@ static int32_t sysTableUserColsFillOneVirtualTableCols(const SSysTableScanInfo* 
                                                        SColRefWrapper* colRef, tb_uid_t uid, int32_t vgId) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
+
   if (schemaRow == NULL) {
-    qError("sysTableUserColsFillOneTableCols schemaRow is NULL");
+    qError("sysTableUserColsFillOneVirtualTableCol schemaRow is NULL");
     return TSDB_CODE_SUCCESS;
   }
   int32_t numOfRows = *pNumOfRows;
@@ -2437,12 +2453,348 @@ static int32_t sysTableUserColsFillOneVirtualTableCols(const SSysTableScanInfo* 
   }
 
   *pNumOfRows = numOfRows;
+  if (colIdx < 0 || colIdx >= schemaRow->nCols) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  int32_t          numOfRows = *pNumOfRows;
+  SColumnInfoData* pColInfoData = NULL;
+
+  pColInfoData = taosArrayGet(dataBlock->pDataBlock, 0);
+  QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+  code = colDataSetVal(pColInfoData, numOfRows, tName, false);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  pColInfoData = taosArrayGet(dataBlock->pDataBlock, 1);
+  QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+  code = colDataSetVal(pColInfoData, numOfRows, stName, false);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  pColInfoData = taosArrayGet(dataBlock->pDataBlock, 2);
+  QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+  code = colDataSetVal(pColInfoData, numOfRows, dbname, false);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  char colName[TSDB_COL_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
+  STR_TO_VARSTR(colName, schemaRow->pSchema[colIdx].name);
+  pColInfoData = taosArrayGet(dataBlock->pDataBlock, 3);
+  QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+  code = colDataSetVal(pColInfoData, numOfRows, colName, false);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  pColInfoData = taosArrayGet(dataBlock->pDataBlock, 4);
+  QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+  code = colDataSetVal(pColInfoData, numOfRows, (char*)&uid, false);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  pColInfoData = taosArrayGet(dataBlock->pDataBlock, 5);
+  QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+  if (!colRef || !colRef->pColRef[colIdx].hasRef) {
+    colDataSetNULL(pColInfoData, numOfRows);
+  } else {
+    code = colDataSetVal(pColInfoData, numOfRows, (char*)&colRef->pColRef[colIdx].id, false);
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+
+  pColInfoData = taosArrayGet(dataBlock->pDataBlock, 6);
+  QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+  if (!colRef || !colRef->pColRef[colIdx].hasRef) {
+    colDataSetNULL(pColInfoData, numOfRows);
+  } else {
+    char   refColName[TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_COL_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
+    char   tmpColName[TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_COL_FNAME_LEN] = {0};
+    TSlice refColNameBuf = {0};
+
+    sliceInit(&refColNameBuf, tmpColName, sizeof(tmpColName));
+    QUERY_CHECK_CODE(
+        sliceAppend(&refColNameBuf, colRef->pColRef[colIdx].refDbName, strlen(colRef->pColRef[colIdx].refDbName)),
+        lino, _end);
+    QUERY_CHECK_CODE(sliceAppend(&refColNameBuf, ".", 1), lino, _end);
+    QUERY_CHECK_CODE(sliceAppend(&refColNameBuf, colRef->pColRef[colIdx].refTableName,
+                                 strlen(colRef->pColRef[colIdx].refTableName)),
+                     lino, _end);
+    QUERY_CHECK_CODE(sliceAppend(&refColNameBuf, ".", 1), lino, _end);
+    QUERY_CHECK_CODE(
+        sliceAppend(&refColNameBuf, colRef->pColRef[colIdx].refColName, strlen(colRef->pColRef[colIdx].refColName)),
+        lino, _end);
+    STR_TO_VARSTR(refColName, tmpColName);
+
+    code = colDataSetVal(pColInfoData, numOfRows, (char*)refColName, false);
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+
+  pColInfoData = taosArrayGet(dataBlock->pDataBlock, 7);
+  QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+  code = colDataSetVal(pColInfoData, numOfRows, (char*)&vgId, false);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  pColInfoData = taosArrayGet(dataBlock->pDataBlock, 8);
+  QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+  code = colDataSetVal(pColInfoData, numOfRows, (char*)&colRef->version, false);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  *pNumOfRows = numOfRows + 1;
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   return code;
+}
+
+static int32_t sysTableUserColsFillOneVirtualTableCols(const SSysTableScanInfo* pInfo, const char* dbname,
+                                                       int32_t* pNumOfRows, const SSDataBlock* dataBlock, char* tName,
+                                                       char* stName, SSchemaWrapper* schemaRow, char* tableType,
+                                                       SColRefWrapper* colRef, tb_uid_t uid, int32_t vgId) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  TAOS_UNUSED(pInfo);
+  TAOS_UNUSED(tableType);
+
+  if (schemaRow == NULL) {
+    qError("sysTableUserColsFillOneTableCols schemaRow is NULL");
+    return TSDB_CODE_SUCCESS;
+  }
+
+  for (int32_t i = 0; i < schemaRow->nCols; ++i) {
+    code = sysTableUserColsFillOneVirtualTableCol(dbname, pNumOfRows, dataBlock, tName, stName, schemaRow, colRef,
+                                                  uid, vgId, i);
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+/*
+ * Release layered vc-cols request state cached on one systable scan operator.
+ *
+ * @param pInfo systable scan runtime info
+ *
+ * @return none
+ */
+static void destroySysTableScanVtbRefReqs(SSysTableScanInfo* pInfo) {
+  if (pInfo->pVtbRefReqs != NULL) {
+    taosArrayDestroy(pInfo->pVtbRefReqs);
+    pInfo->pVtbRefReqs = NULL;
+  }
+  pInfo->vtbRefReqIdx = 0;
+}
+
+/*
+ * Find the schema index for one requested virtual-table column.
+ *
+ * @param schemaRow schema wrapper to search
+ * @param colName   requested column name
+ * @param pColIdx   output schema index
+ *
+ * @return TSDB_CODE_SUCCESS on success, otherwise an error code
+ */
+static int32_t findVirtualTableColIndex(SSchemaWrapper* schemaRow, const char* colName, int32_t* pColIdx) {
+  for (int32_t i = 0; i < schemaRow->nCols; ++i) {
+    if (strcmp(schemaRow->pSchema[i].name, colName) == 0) {
+      *pColIdx = i;
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+
+  return TSDB_CODE_PAR_INVALID_REF_COLUMN;
+}
+
+/*
+ * Fill one requested virtual-table column row for layered vc-cols lookup.
+ *
+ * @param pOperator dyn-layer systable scan operator
+ * @param pReq      one requested table/column lookup
+ * @param dataBlock temporary result block
+ * @param pNumOfRows current output row counter
+ *
+ * @return TSDB_CODE_SUCCESS on success, otherwise an error code
+ */
+static int32_t sysTableScanFillRequestedVirtualTableCol(SOperatorInfo* pOperator, const SSysTableScanVtbRefReq* pReq,
+                                                        const SSDataBlock* dataBlock, int32_t* pNumOfRows) {
+  int32_t            code = TSDB_CODE_SUCCESS;
+  int32_t            lino = 0;
+  SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
+  SStorageAPI*       pAPI = &pTaskInfo->storageAPI;
+  SSysTableScanInfo* pInfo = pOperator->info;
+  SMetaReader        smrTable = {0};
+  SMetaReader        smrSuperTable = {0};
+  bool               smrTableInited = false;
+  bool               smrSuperTableInited = false;
+  SSchemaWrapper*    schemaRow = NULL;
+  SColRefWrapper*    colRef = NULL;
+  int32_t            colIdx = -1;
+  char               dbname[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
+  char               tableName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
+  char               stableName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
+
+  pAPI->metaReaderFn.initReader(&smrTable, pInfo->readHandle.vnode, META_READER_LOCK, &pAPI->metaFn);
+  smrTableInited = true;
+  code = pAPI->metaReaderFn.getTableEntryByName(&smrTable, pReq->tbName);
+  QUERY_CHECK_CODE(code, lino, _return);
+
+  if (smrTable.me.type != TSDB_VIRTUAL_NORMAL_TABLE && smrTable.me.type != TSDB_VIRTUAL_CHILD_TABLE) {
+    goto _return;
+  }
+
+  STR_TO_VARSTR(dbname, pReq->dbName);
+  STR_TO_VARSTR(tableName, pReq->tbName);
+
+  if (smrTable.me.type == TSDB_VIRTUAL_NORMAL_TABLE) {
+    schemaRow = &smrTable.me.ntbEntry.schemaRow;
+    colRef = &smrTable.me.colRef;
+    STR_TO_VARSTR(stableName, smrTable.me.name);
+  } else {
+    int64_t suid = smrTable.me.ctbEntry.suid;
+
+    colRef = &smrTable.me.colRef;
+    pAPI->metaReaderFn.initReader(&smrSuperTable, pInfo->readHandle.vnode, META_READER_LOCK, &pAPI->metaFn);
+    smrSuperTableInited = true;
+    code = pAPI->metaReaderFn.getTableEntryByUid(&smrSuperTable, suid);
+    QUERY_CHECK_CODE(code, lino, _return);
+
+    schemaRow = &smrSuperTable.me.stbEntry.schemaRow;
+    STR_TO_VARSTR(stableName, smrSuperTable.me.name);
+  }
+
+  QUERY_CHECK_NULL(schemaRow, code, lino, _return, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+  QUERY_CHECK_NULL(schemaRow->pSchema, code, lino, _return, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+  QUERY_CHECK_NULL(colRef, code, lino, _return, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+
+  code = findVirtualTableColIndex(schemaRow, pReq->colName, &colIdx);
+  QUERY_CHECK_CODE(code, lino, _return);
+
+  code = sysTableUserColsFillOneVirtualTableCol(dbname, pNumOfRows, dataBlock, tableName, stableName, schemaRow,
+                                                colRef, smrTable.me.uid, pReq->vgId, colIdx);
+  QUERY_CHECK_CODE(code, lino, _return);
+
+_return:
+  if (smrSuperTableInited) {
+    pAPI->metaReaderFn.clearReader(&smrSuperTable);
+  }
+  if (smrTableInited) {
+    pAPI->metaReaderFn.clearReader(&smrTable);
+  }
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s, tb:%s, col:%s, vgId:%d", __func__, lino, tstrerror(code), pReq->tbName,
+           pReq->colName, pReq->vgId);
+  }
+  return code;
+}
+
+/*
+ * Apply layered vc-cols get-param to the current systable scan operator.
+ *
+ * @param pOperator systable scan operator
+ *
+ * @return TSDB_CODE_SUCCESS on success, otherwise an error code
+ */
+static int32_t sysTableScanApplyVtbRefReqParam(SOperatorInfo* pOperator) {
+  int32_t                    code = TSDB_CODE_SUCCESS;
+  int32_t                    lino = 0;
+  SSysTableScanInfo*         pInfo = pOperator->info;
+  SSysTableScanOperatorParam* pParam = NULL;
+  const char*                name = tNameGetTableName(&pInfo->name);
+
+  if (pOperator->pOperatorGetParam == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  QUERY_CHECK_CONDITION(pOperator->pOperatorGetParam->opType == QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN, code, lino,
+                        _return, TSDB_CODE_INVALID_PARA)
+  QUERY_CHECK_CONDITION(strncasecmp(name, TSDB_INS_TABLE_VC_COLS, TSDB_TABLE_FNAME_LEN) == 0, code, lino, _return,
+                        TSDB_CODE_INVALID_PARA)
+
+  if (pOperator->status == OP_EXEC_DONE && pOperator->fpSet.resetStateFn != NULL) {
+    code = pOperator->fpSet.resetStateFn(pOperator);
+    QUERY_CHECK_CODE(code, lino, _return);
+  }
+
+  destroySysTableScanVtbRefReqs(pInfo);
+  pParam = (SSysTableScanOperatorParam*)pOperator->pOperatorGetParam->value;
+  if (pParam != NULL && pParam->pVtbRefReqs != NULL) {
+    pInfo->pVtbRefReqs = taosArrayDup(pParam->pVtbRefReqs, NULL);
+    QUERY_CHECK_NULL(pInfo->pVtbRefReqs, code, lino, _return, terrno)
+  }
+
+_return:
+  freeOperatorParam(pOperator->pOperatorGetParam, OP_GET_PARAM);
+  pOperator->pOperatorGetParam = NULL;
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+/*
+ * Scan `ins_vc_cols` with layered request params instead of full vnode cursor iteration.
+ *
+ * @param pOperator systable scan operator
+ *
+ * @return result block on success, otherwise NULL
+ */
+static SSDataBlock* sysTableScanUserVcColsByReqs(SOperatorInfo* pOperator) {
+  int32_t            code = TSDB_CODE_SUCCESS;
+  int32_t            lino = 0;
+  SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
+  SSysTableScanInfo* pInfo = pOperator->info;
+  SSDataBlock*       pDataBlock = NULL;
+  int32_t            numOfRows = 0;
+
+  if (pOperator->status == OP_EXEC_DONE) {
+    return NULL;
+  }
+
+  blockDataCleanup(pInfo->pRes);
+
+  pDataBlock = buildInfoSchemaTableMetaBlock(TSDB_INS_TABLE_VC_COLS);
+  QUERY_CHECK_NULL(pDataBlock, code, lino, _end, terrno);
+  code = blockDataEnsureCapacity(pDataBlock, pOperator->resultInfo.capacity);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  while (pInfo->vtbRefReqIdx < taosArrayGetSize(pInfo->pVtbRefReqs)) {
+    SSysTableScanVtbRefReq* pReq = taosArrayGet(pInfo->pVtbRefReqs, pInfo->vtbRefReqIdx++);
+    QUERY_CHECK_NULL(pReq, code, lino, _end, terrno);
+
+    if (pReq->vgId != pTaskInfo->id.vgId) {
+      continue;
+    }
+
+    code = sysTableScanFillRequestedVirtualTableCol(pOperator, pReq, pDataBlock, &numOfRows);
+    QUERY_CHECK_CODE(code, lino, _end);
+
+    if (numOfRows >= pOperator->resultInfo.capacity) {
+      relocateAndFilterSysTagsScanResult(pInfo, numOfRows, pDataBlock, NULL, pTaskInfo);
+      numOfRows = 0;
+      if (pInfo->pRes->info.rows > 0) {
+        break;
+      }
+    }
+  }
+
+  if (numOfRows > 0) {
+    relocateAndFilterSysTagsScanResult(pInfo, numOfRows, pDataBlock, NULL, pTaskInfo);
+    numOfRows = 0;
+  }
+
+  if (pInfo->vtbRefReqIdx >= taosArrayGetSize(pInfo->pVtbRefReqs)) {
+    setOperatorCompleted(pOperator);
+  }
+
+  pInfo->loadInfo.totalRows += pInfo->pRes->info.rows;
+
+_end:
+  blockDataDestroy(pDataBlock);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    pTaskInfo->code = code;
+    T_LONG_JMP(pTaskInfo->env, code);
+  }
+  return (pInfo->pRes->info.rows == 0) ? NULL : pInfo->pRes;
 }
 
 // ===================== Virtual Table Reference Validation =====================
@@ -5026,6 +5378,16 @@ static int32_t doSysTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes)
   SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
   SSysTableScanInfo* pInfo = pOperator->info;
   char               dbName[TSDB_DB_NAME_LEN] = {0};
+  int32_t            code = TSDB_CODE_SUCCESS;
+
+  if (pOperator->pOperatorGetParam != NULL) {
+    code = sysTableScanApplyVtbRefReqParam(pOperator);
+    if (code != TSDB_CODE_SUCCESS) {
+      pTaskInfo->code = code;
+      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+      T_LONG_JMP(pTaskInfo->env, code);
+    }
+  }
 
   while (1) {
     if (isTaskKilled(pOperator->pTaskInfo)) {
@@ -5075,7 +5437,11 @@ static int32_t doSysTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes)
       pBlock = sysTableScanFromMNode(pOperator, pInfo, name, pTaskInfo);
     }
 
-    if (!pInfo->skipFilterTable) sysTableScanFillTbName(pOperator, pInfo, name, pBlock);
+    /* record input rows before filter */
+    pOperator->cost.inputRows += (pBlock == NULL) ? 0 : pBlock->info.rows;
+    if (!pInfo->skipFilterTable && pInfo->pVtbRefReqs == NULL) {
+      sysTableScanFillTbName(pOperator, pInfo, name, pBlock);
+    }
     if (pBlock != NULL) {
       bool limitReached = applyLimitOffset(&pInfo->limitInfo, pBlock, pTaskInfo);
       if (limitReached) {
@@ -5092,7 +5458,6 @@ static int32_t doSysTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes)
     break;
   }
 
-_end:
   if (pTaskInfo->code) {
     qError("%s failed since %s", __func__, tstrerror(pTaskInfo->code));
     T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
@@ -5297,6 +5662,7 @@ static int32_t resetSysTableScanOperState(SOperatorInfo* pOper) {
     pInfo->pExtSchema = NULL;
   }
   pInfo->readHandle.mnd = NULL;
+  destroySysTableScanVtbRefReqs(pInfo);
 
   return 0;
 }
@@ -5315,6 +5681,7 @@ int32_t createSysTableScanOperatorInfo(void* readHandle, SSystemTableScanPhysiNo
     lino = __LINE__;
     goto _error;
   }
+  initOperatorCostInfo(pOperator);
 
   pOperator->pPhyNode = pScanPhyNode;
   SScanPhysiNode*     pScanNode = &pScanPhyNode->scan;
@@ -5380,6 +5747,9 @@ int32_t createSysTableScanOperatorInfo(void* readHandle, SSystemTableScanPhysiNo
 
   setOperatorInfo(pOperator, "SysTableScanOperator", QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN, false, OP_NOT_OPENED,
                   pInfo, pTaskInfo);
+  if (pScanNode->node.dynamicOp) {
+    pOperator->dynamicTask = true;
+  }
   pOperator->exprSupp.numOfExprs = taosArrayGetSize(pInfo->pRes->pDataBlock);
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doSysTableScanNext, NULL, destroySysScanOperator,
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
@@ -5463,6 +5833,7 @@ void destroySysScanOperator(void* param) {
     taosHashCleanup(pInfo->pExtSchema);
     pInfo->pExtSchema = NULL;
   }
+  destroySysTableScanVtbRefReqs(pInfo);
   tableListDestroy(pInfo->pSubTableListInfo);
 
   taosArrayDestroy(pInfo->matchInfo.pList);
@@ -5972,6 +6343,7 @@ int32_t createDataBlockInfoScanOperator(SReadHandle* readHandle, SBlockDistScanP
     pTaskInfo->code = code = terrno;
     goto _error;
   }
+  initOperatorCostInfo(pOperator);
 
   pInfo->pResBlock = createDataBlockFromDescNode(pBlockScanNode->node.pOutputDataBlockDesc);
   QUERY_CHECK_NULL(pInfo->pResBlock, code, lino, _error, terrno);

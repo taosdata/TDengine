@@ -880,7 +880,6 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_ANOMALY_WIN_TYPE,   "ANOMALY_WINDOW only
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_ANOMALY_WIN_COL,    "ANOMALY_WINDOW not support on tag column")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_ANOMALY_WIN_OPT,    "ANOMALY_WINDOW option should include algo field")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_FORECAST_CLAUSE,    "Invalid forecast clause")
-TAOS_DEFINE_ERROR(TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR,   "Syntax error in regular expression")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_VGID_LIST,          "Invalid vgid list")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_TRUE_FOR_NEGATIVE,          "True_for duration cannot be negative")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_TRUE_FOR_UNIT,              "Cannot use 'year' or 'month' as true_for duration")
@@ -1104,6 +1103,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_COLUMN_TYPE_MISMATCH,    "Virtual super table
 TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_TOO_MANY_REFERENCE,      "Virtual table has too many reference tables")
 TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_INVALID_ORIGIN_SCAN,     "Virtual table query find invalid origin scan")
 TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_INVALID_ORIGIN_TS_COL,   "Virtual table query cannot find origin timestamp column")
+TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_REF_DEPTH_EXCEEDED,      "Virtual table reference depth exceeds limit")
+TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_INVALID_REF_COLUMN,      "Virtual table query cannot resolve ref column")
 
 TAOS_DEFINE_ERROR(TSDB_CODE_BLOB_SEQ_NOT_FOUND, "Blob seq not found")
 TAOS_DEFINE_ERROR(TSDB_CODE_BLOB_NOT_SUPPORT_TAG, "Blob type not support on tag")
@@ -1170,6 +1171,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_AGENT_NOT_EXIST,          "Xnode agent not
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_AGENT_ALREADY_EXIST,      "Xnode agent already exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_NAME_DUPLICATE,           "Xnode name duplicate")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_TASK_PARSER_TOO_LONG,     "Xnode task parser too long")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_NO_PRIV,                  "No privilege to access xnode")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_TASK_NO_PRIV,             "No privilege to access xnode task")
 
 
 #ifdef TAOS_ERROR_C

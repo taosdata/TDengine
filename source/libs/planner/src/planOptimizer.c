@@ -10268,9 +10268,23 @@ static bool vstableAggShouldBeOptimized(SLogicNode* pNode, void* pCtx) {
 
   SAggLogicNode* pAgg = (SAggLogicNode*)pNode;
 
-  if (pAgg->pGroupKeys) {
-    return false;
+  if (NULL != pAgg->pGroupKeys) {
+    if (keysHasCol(pAgg->pGroupKeys)) {
+      return false;
+    }
+
+    SNode* pGroupKey = NULL;
+    FOREACH(pGroupKey, pAgg->pGroupKeys) {
+      if (nodeType(pGroupKey) != QUERY_NODE_GROUPING_SET) {
+        return false;
+      }
+      SNode* pGroupExpr = nodesListGetNode(((SGroupingSetNode*)pGroupKey)->pParameterList, 0);
+      if (!pGroupExpr || partTagsNeedOutput(pGroupExpr, pAgg->node.pTargets)) {
+        return false;
+      }
+    }
   }
+
   if (LIST_LENGTH(pAgg->node.pChildren) == 1) {
     if (nodeType(nodesListGetNode(pAgg->node.pChildren, 0)) == QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL) {
       if (((SDynQueryCtrlLogicNode*)nodesListGetNode(pAgg->node.pChildren, 0))->qType != DYN_QTYPE_VTB_SCAN) {
@@ -10760,13 +10774,28 @@ static int32_t vstableAggOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicS
 
   int32_t                 code = TSDB_CODE_SUCCESS;
   int32_t                 lino = 0;
-  SAggLogicNode*          pNewAgg = NULL;
   SPartitionLogicNode*    pPartNode = NULL;
-  SDynQueryCtrlLogicNode* pDynVstbScan = NULL;
-  SVirtualScanLogicNode*  pVirtualScanNode = NULL;
 
   OPTIMIZE_FLAG_SET_MASK(pAgg->node.optimizedFlag, OPTIMIZE_FLAG_VTB_AGG);
 
+  if (pAgg->pGroupKeys) {
+    // make a partition node to do the group calculation
+    pAgg->isGroupTb = false;
+    PLAN_ERR_JRET(nodesMakeNode(QUERY_NODE_LOGIC_PLAN_PARTITION, (SNode**)&pPartNode));
+    TSWAP(pPartNode->pPartitionKeys, pAgg->pGroupKeys);
+    pPartNode->node.groupAction = GROUP_ACTION_SET;
+    pPartNode->node.requireDataOrder = DATA_ORDER_LEVEL_NONE;
+    pPartNode->node.resultDataOrder = DATA_ORDER_LEVEL_NONE;
+
+    SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pAgg->node.pChildren, 0);
+    QUERY_CHECK_NULL(pChild, code, lino, _return, terrno);
+
+    pChild->pParent = (SLogicNode*)pPartNode;
+    TSWAP(pPartNode->node.pChildren, pAgg->node.pChildren);
+    clearChildList((SLogicNode*)pAgg);
+    PLAN_ERR_JRET(appendNewChild((SLogicNode*)pAgg, (SLogicNode*)pPartNode));
+    pPartNode = NULL;
+  }
   if (nodeType(nodesListGetNode(pAgg->node.pChildren, 0)) == QUERY_NODE_LOGIC_PLAN_PARTITION) {
     PLAN_ERR_JRET(vstableAggOptimizeWithPartition(pCxt, pLogicSubplan, pAgg));
   } else if (nodeType(nodesListGetNode(pAgg->node.pChildren, 0)) == QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL) {
@@ -10779,6 +10808,7 @@ static int32_t vstableAggOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicS
 _return:
   if (code) {
     planError("%s failed at %d, msg:%s", __func__, lino, tstrerror(code));
+    nodesDestroyNode((SNode*)pPartNode);
   }
   return code;
 }

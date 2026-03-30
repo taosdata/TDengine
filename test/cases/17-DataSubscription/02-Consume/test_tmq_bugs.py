@@ -1032,7 +1032,6 @@ class TestTmqBugs:
             - 2025-12-23 Alex Duan Migrated from uncatalog/system-test/7-tmq/test_ts_4674.py
 
         """
-
         self.do_ts4674()
         self.do_ts7662()
         self.do_td31283()

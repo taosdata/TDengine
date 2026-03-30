@@ -124,6 +124,7 @@ static const SSysDbTableSchema userDBSchema[] = {
     {.name = "single_stable", .bytes = 1, .type = TSDB_DATA_TYPE_BOOL, .sysInfo = true},
     {.name = "cachemodel", .bytes = TSDB_CACHE_MODEL_STR_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
     {.name = "cachesize", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
+    {.name = "cacheshardbits", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
     {.name = "wal_level", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT, .sysInfo = true},
     {.name = "wal_fsync_period", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
     {.name = "wal_retention_period", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
@@ -885,6 +886,8 @@ static const SSysDbTableSchema querySchema[] = {
     {.name = "sql", .bytes = TSDB_SHOW_SQL_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
     {.name = "user_app", .bytes = TSDB_APP_NAME_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
     {.name = "user_ip", .bytes = TSDB_IPv4ADDR_LEN + 6 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "phase_state", .bytes = 64 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "phase_start_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
 };
 
 static const SSysDbTableSchema appSchema[] = {

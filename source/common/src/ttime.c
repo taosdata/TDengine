@@ -611,14 +611,24 @@ int32_t convertCalendarTimeFromUnitToPrecision(
 }
 
 int32_t convertStringToTimestamp(int16_t type, char* inputData, int64_t timePrec, int64_t* timeVal, timezone_t tz, void* charsetCxt) {
-  int32_t charLen = varDataLen(inputData);
-  char*   newColData;
-  if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_VARBINARY) {
+  int32_t charLen = 0;
+  char*   dataVal = NULL;
+
+  if (IS_STR_DATA_BLOB(type)) {
+    charLen = blobDataLen(inputData);
+    dataVal = blobDataVal(inputData);
+  } else {
+    charLen = varDataLen(inputData);
+    dataVal = varDataVal(inputData);
+  }
+
+  char* newColData;
+  if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_VARBINARY || IS_STR_DATA_BLOB(type)) {
     newColData = taosMemoryCalloc(1, charLen + 1);
     if (NULL == newColData) {
       TAOS_RETURN(terrno);
     }
-    (void)memcpy(newColData, varDataVal(inputData), charLen);
+    (void)memcpy(newColData, dataVal, charLen);
     int32_t ret = taosParseTime(newColData, timeVal, charLen, (int32_t)timePrec, tz);
     if (ret != TSDB_CODE_SUCCESS) {
       taosMemoryFree(newColData);
@@ -630,7 +640,7 @@ int32_t convertStringToTimestamp(int16_t type, char* inputData, int64_t timePrec
     if (NULL == newColData) {
       TAOS_RETURN(terrno);
     }
-    int len = taosUcs4ToMbs((TdUcs4*)varDataVal(inputData), charLen, newColData, charsetCxt);
+    int len = taosUcs4ToMbs((TdUcs4*)dataVal, charLen, newColData, charsetCxt);
     if (len < 0) {
       taosMemoryFree(newColData);
       TAOS_RETURN(TSDB_CODE_FAILED);
@@ -1039,10 +1049,20 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
     if (IS_CALENDAR_TIME_DURATION(pInterval->intervalUnit)) {
       int64_t news = (ts / pInterval->sliding) * pInterval->sliding;
       if (pInterval->slidingUnit == 'd' || pInterval->slidingUnit == 'w') {
-#if defined(WINDOWS)
-        int64_t timezone = getWindowsTimezoneOffset();
-#endif
-        news += (int64_t)(timezone * TSDB_TICK_PER_SECOND(precision));
+        // taosGet*TimezoneOffset() returns east-positive (tm_gmtoff) values.
+        // The day/week anchor logic here expects west-positive offsets, so
+        // shift by subtracting the east-positive offset.
+        int64_t tz_offset = 0;
+        if (pInterval->timezone != NULL) {
+          // taosGetTZOffsetSeconds() returns east-positive for any timezone_t on all platforms.
+          int32_t code = 0;
+          tz_offset = taosGetTZOffsetSeconds(pInterval->timezone, &code);
+        } else {
+          // Use global configured timezone (also east-positive on all platforms).
+          int32_t code = 0;
+          tz_offset = taosGetLocalTimezoneOffset(&code);
+        }
+        news -= (int64_t)(tz_offset * TSDB_TICK_PER_SECOND(precision));
       }
 
       start = news;
@@ -1069,21 +1089,30 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
       }
     } else {
       int64_t delta = ts - pInterval->interval;
-      int32_t factor = (delta >= 0) ? 1 : -1;
-
-      start = (delta / pInterval->sliding + factor) * pInterval->sliding;
+      start = (delta / pInterval->sliding) * pInterval->sliding;
 
       if (pInterval->intervalUnit == 'd' || pInterval->intervalUnit == 'w') {
         /*
          * here we revised the start time of day according to the local time zone,
          * but in case of DST, the start time of one day need to be dynamically decided.
+         *
+         * taosGet*TimezoneOffset() returns east-positive (tm_gmtoff) values.
+         * The day/week anchor logic here expects west-positive offsets, so
+         * shift by subtracting the east-positive offset.
          */
-        // todo refactor to extract function that is available for Linux/Windows/Mac platform
-#if defined(WINDOWS)
-        int64_t timezone = getWindowsTimezoneOffset();
-#endif
+        // Get timezone offset from pInterval->timezone or global config.
+        int64_t tz_offset = 0;
+        if (pInterval->timezone != NULL) {
+          // taosGetTZOffsetSeconds() returns east-positive for any timezone_t on all platforms.
+          int32_t code = 0;
+          tz_offset = taosGetTZOffsetSeconds(pInterval->timezone, &code);
+        } else {
+          // Use global configured timezone (also east-positive on all platforms).
+          int32_t code = 0;
+          tz_offset = taosGetLocalTimezoneOffset(&code);
+        }
 
-        start += (int64_t)(timezone * TSDB_TICK_PER_SECOND(precision));
+        start -= (int64_t)(tz_offset * TSDB_TICK_PER_SECOND(precision));
       }
 
       int64_t end = 0;

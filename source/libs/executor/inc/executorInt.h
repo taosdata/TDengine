@@ -61,7 +61,7 @@ typedef enum EExtWinMode {
 
 /**
  * If the number of generated results is greater than this value,
- * query query will be halt and return results to client immediate.
+ * query will be halt and return results to client immediate.
  */
 typedef struct SResultInfo {  // TODO refactor
   int64_t totalRows;          // total generated result size in rows
@@ -177,6 +177,7 @@ typedef enum EExchangeSourceType {
   EX_SRC_TYPE_VSTB_TS_SCAN,
   EX_SRC_TYPE_VSTB_INTERVAL_SCAN,
   EX_SRC_TYPE_VSTB_PART_INTERVAL_SCAN,
+  EX_SRC_TYPE_VSTB_SYS_SCAN,
 } EExchangeSourceType;
 
 typedef enum {
@@ -198,6 +199,7 @@ typedef struct SExchangeOperatorBasicParam {
   SOrgTbInfo*           orgTbInfo;
   SArray*               batchOrgTbInfo; // SArray<SOrgTbInfo>
   SArray*               tagList;
+  SArray*               sysScanReqs; // SArray<SSysTableScanVtbRefReq>
   STimeWindow           window;
   SDownstreamSourceNode newDeployedSrc; // used with isNewDeployed
   /* notify scan params */

@@ -366,6 +366,7 @@ void processCommandArgs(int argc, char** argv) {
 }
 
 
+#include "SClientHbBatchReq.cpp"
 int main(int argc, char **argv) {
   processCommandArgs(argc, argv);
 

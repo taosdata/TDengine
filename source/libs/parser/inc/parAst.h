@@ -94,6 +94,7 @@ typedef enum EDatabaseOptionType {
   DB_OPTION_IS_AUDIT,
   DB_OPTION_ALLOW_DROP,
   DB_OPTION_SECURE_DELETE,
+  DB_OPTION_CACHESHARDBITS,
 } EDatabaseOptionType;
 
 typedef enum ETableOptionType {
@@ -252,9 +253,9 @@ SNode*     createNullIfNode(SAstCreateContext* pCxt, SNode* pExpr1, SNode* pExpr
 SNode*     createNvlNode(SAstCreateContext* pCxt, SNode* pExpr1, SNode* pExpr2);
 SNode*     createNvl2Node(SAstCreateContext* pCxt, SNode* pExpr1, SNode* pExpr2, SNode* pExpr3);
 SNode*     createCoalesceNode(SAstCreateContext* pCxt, SNodeList* pParamList);
-SNode*     createAlterSingleTagColumnNode(SAstCreateContext* pCtx, SToken* token, SNode* pVal);
-SNode*     createCountWindowArgs(SAstCreateContext* pCtx, const SToken* countToken, const SToken* slidingToken,
-                                 SNodeList* colList);
+SNode*     createAlterTagValueNode(SAstCreateContext* pCxt, SToken* pTagName, SNode* pVal);
+SNode*     createAlterTagValueNodeWithExpression(SAstCreateContext* pCxt, SToken* pTagName, const SToken* pattern, const SToken* replacement);
+SNode*     createCountWindowArgs(SAstCreateContext* pCtx, const SToken* countToken, const SToken* slidingToken, SNodeList* colList);
 
 SNode* addWhereClause(SAstCreateContext* pCxt, SNode* pStmt, SNode* pWhere);
 SNode* addPartitionByClause(SAstCreateContext* pCxt, SNode* pStmt, SNodeList* pPartitionByList);
@@ -344,8 +345,9 @@ SNode* createAlterTableAlterColRef(SAstCreateContext* pCxt, SNode* pRealTable, i
                                    SNode* pRef);
 SNode* createAlterTableRemoveColRef(SAstCreateContext* pCxt, SNode* pRealTable, int8_t alterType, SToken* pColName,
                                     const SToken* pLiteral);
-SNode* createAlterTableSetTag(SAstCreateContext* pCxt, SNode* pRealTable, SToken* pTagName, SNode* pVal);
-SNode* createAlterTableSetMultiTagValue(SAstCreateContext* pCxt, SNode* pRealTable, SNodeList* singleNode);
+SNode* createAlterTableUpdateTagValClause(SAstCreateContext* pCxt, SNode* pRealTable, SNodeList* pTagList);
+SNode* createAlterMultiTableUpdateTagValStmt(SAstCreateContext* pCxt, SNodeList* pTableList);
+SNode* createAlterChildTableUpdateTagValStmt(SAstCreateContext* pCxt, SNode* pRealTable, SNodeList* pTagList, SNode* pWhere);
 SNode* setAlterSuperTableType(SNode* pStmt);
 SNode* setAlterVirtualTableType(SNode* pStmt);
 SNode* createUseDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName);

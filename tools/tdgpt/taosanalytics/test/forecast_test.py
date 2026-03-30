@@ -8,9 +8,8 @@ import pandas as pd
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../../")
 
 from taosanalytics.algo.forecast import draw_fc_results
-from taosanalytics.conf import setup_log_info, app_logger
-from taosanalytics.servicemgmt import loader
-
+from taosanalytics.service_registry import loader
+from taosanalytics.log import setup_log_info
 
 class ForecastTest(unittest.TestCase):
     """forecast unit test cases"""
@@ -19,7 +18,7 @@ class ForecastTest(unittest.TestCase):
     def setUpClass(cls):
         """ set up the environment for unit test """
         setup_log_info("unit_test.log")
-        loader.load_all_service()
+        loader.register_all_services()
 
     def get_input_list(self):
         """ load data from csv """

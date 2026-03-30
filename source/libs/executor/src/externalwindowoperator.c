@@ -696,7 +696,6 @@ static int32_t mergeAlignExtWinNext(SOperatorInfo* pOperator, SSDataBlock** ppRe
   mergeAlignExtWinDo(pOperator);
   
   size_t rows = pRes->info.rows;
-  pOperator->resultInfo.totalRows += rows;
   (*ppRes) = (rows == 0) ? NULL : pRes;
 
 _exit:
@@ -748,6 +747,7 @@ int32_t createMergeAlignedExternalWindowOperator(SOperatorInfo* pDownstream, SPh
     code = terrno;
     goto _error;
   }
+  initOperatorCostInfo(pOperator);
 
   pMlExtInfo->pExtW = taosMemoryCalloc(1, sizeof(SExternalWindowOperator));
   if (!pMlExtInfo->pExtW) {
@@ -2308,7 +2308,6 @@ static int32_t extWinNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   }
 
   if (*ppRes) {
-    pOperator->resultInfo.totalRows += (*ppRes)->info.rows;
     printDataBlock(*ppRes, __func__, GET_TASKID(pTaskInfo), pTaskInfo->id.queryId);
   }
   
@@ -2327,7 +2326,7 @@ _exit:
   if (pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM && (*ppRes)) {
     printDataBlock(*ppRes, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo), pTaskInfo->id.queryId);
   }
-  
+
   return code;
 }
 
@@ -2346,6 +2345,7 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
     lino = __LINE__;
     goto _error;
   }
+  initOperatorCostInfo(pOperator);
   
   setOperatorInfo(pOperator, "ExternalWindowOperator", QUERY_NODE_PHYSICAL_PLAN_EXTERNAL_WINDOW, true, OP_NOT_OPENED,
                   pExtW, pTaskInfo);

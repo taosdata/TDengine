@@ -282,7 +282,8 @@ TEST(osTest, socket2) {
 }
 
 TEST(osTest, time2) {
-  taosGetLocalTimezoneOffset();
+  int32_t code = 0;
+  taosGetLocalTimezoneOffset(&code);
 
   char  buf[12] = {0};
   char  fmt[12] = {0};

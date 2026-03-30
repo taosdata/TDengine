@@ -36,7 +36,7 @@ from decimal import Decimal, InvalidOperation
 from typing import List
 from datetime import datetime, timedelta
 import re
-import tempfile
+
 
 @dataclass
 class DataSet:
@@ -3054,11 +3054,29 @@ class TDCom:
                 os.system(
                     f"taos -c {cfgPath} -f {inputfile} "
                     "| grep -v 'Query OK'|grep -v 'Copyright'| grep -v 'Welcome to the TDengine TSDB Command' "
+                    "| grep -v 'Exec cost:' " 
                     "| sed -E 's/[[:space:]]*\\([0-9]+\\.[0-9]+s\\)/ /g' "
+                    # cost=0.000..1.111
                     "| sed -E 's/cost=[0-9]+\\.[0-9]+\\.\\.[0-9]+\\.[0-9]+//g' "
+                    # cost=0.000(0.000)..1.111(1.111)
+                    "| sed -E 's/cost=[0-9]+\\.[0-9]+\\([0-9]+\\.[0-9]+\\)\\.\\.[0-9]+\\.[0-9]+\\([0-9]+\\.[0-9]+\\)//g' "
+                    "| sed -E 's/file_load_elapsed=[0-9]+\\.[0-9]+\\([0-9]+\\.[0-9]+\\)//g' "
+                    "| sed -E 's/file_load_elapsed=[0-9]+\\.[0-9]+//g' "
+                    "| sed -E 's/stt_load_elapsed=[0-9]+\\.[0-9]+\\([0-9]+\\.[0-9]+\\)//g' "
+                    "| sed -E 's/stt_load_elapsed=[0-9]+\\.[0-9]+//g' "
+                    "| sed -E 's/mem_load_elapsed=[0-9]+\\.[0-9]+\\([0-9]+\\.[0-9]+\\)//g' "
+                    "| sed -E 's/mem_load_elapsed=[0-9]+\\.[0-9]+//g' "
+                    "| sed -E 's/sma_load_elapsed=[0-9]+\\.[0-9]+\\([0-9]+\\.[0-9]+\\)//g' "
+                    "| sed -E 's/sma_load_elapsed=[0-9]+\\.[0-9]+//g' "
+                    "| sed -E 's/composed_elapsed=[0-9]+\\.[0-9]+\\([0-9]+\\.[0-9]+\\)//g' "
+                    "| sed -E 's/composed_elapsed=[0-9]+\\.[0-9]+//g' "
+                    "| sed -E 's/slowest_vgroup_id=[0-9]+//g' "
+                    "| sed -E 's/fetch_cost=[0-9]+\\.[0-9]+\\([0-9]+\\.[0-9]+\\)//g' "
+                    "| sed -E 's/slow_deviation=[0-9]+\\.[0-9]+%//g' "
+                    "| sed -E 's/cost_ratio=[0-9]+\\.[0-9]+//g' "
+                    "| sed -E 's/data_deviation=-?[0-9]+\\.[0-9]+%//g' "
                     "| sed -E 's/Planning Time: [0-9]+\\.[0-9]+ ms//g' "
                     "| sed -E 's/Execution Time: [0-9]+\\.[0-9]+ ms//g' "
-                    "| sed -E 's/max_row_task=[0-9]+, //g' "
                     f"> {self.query_result_file}"
                 )
             return self.query_result_file
@@ -3217,11 +3235,13 @@ class TDCom:
                         text=True,
                         capture_output=True,
                         encoding="utf-8",
-                        errors="replace",  # 改为 replace，避免编码错误
+                        errors="replace",
                     )
                 finally:
                     os.unlink(temp1)
                     os.unlink(temp2)
+
+                # Windows fc: returncode 0 表示文件相同
                 if result.returncode == 0:
                     return True
                 else:
@@ -3229,8 +3249,8 @@ class TDCom:
                     tdLog.info(f"{cmd} result.stdout: {result.stdout}")
                     tdLog.info(f"{cmd} result.stderr: {result.stderr}")
                     return False
-                
-            # 统一的结果检查逻辑（移到 if/else 外面）
+
+            # Linux diff 的结果检查逻辑
             if result.returncode != 0:
                 if self._compare_normalized_result_lines(file1, file2):
                     tdLog.info("Result files matched after output normalization.")
@@ -3265,6 +3285,7 @@ class TDCom:
             return False
         except Exception as e:
             tdLog.debug(f"An error occurred: {e}")
+            return False			
         finally:
             for normalized_file in (normalized_file1, normalized_file2):
                 if normalized_file and os.path.exists(normalized_file):

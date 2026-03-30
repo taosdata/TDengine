@@ -221,6 +221,7 @@ void*         metaGetIdx(SMeta* pMeta);
 void*         metaGetIvtIdx(SMeta* pMeta);
 int32_t       metaFlagCache(SVnode* pVnode);
 
+int32_t metaGetChildUidsByWhere(SMeta *pMeta, tb_uid_t suid, SNode *pWhere, SArray *pUidList);
 int64_t metaGetTbNum(SMeta* pMeta);
 void    metaReaderDoInit(SMetaReader* pReader, SMeta* pMeta, int32_t flags);
 
@@ -268,7 +269,6 @@ int64_t tsdbGetEarliestTs(STsdb* pTsdb);
 // tq
 int32_t tqOpen(const char* path, SVnode* pVnode);
 void    tqClose(STQ*);
-int     tqPushMsg(STQ*, tmsg_t msgType);
 int     tqRegisterPushHandle(STQ* pTq, void* handle, SRpcMsg* pMsg);
 void    tqUnregisterPushHandle(STQ* pTq, void* pHandle);
 void    tqScanWalAsync(STQ* pTq);
@@ -281,9 +281,9 @@ int32_t tqProcessTaskCheckpointReadyRsp(STQ* pTq, SRpcMsg* pMsg);
 // injection error
 void streamMetaFreeTQDuringScanWalError(STQ* pTq);
 
-int32_t tqAddTbUidList(STQ* pTq, SArray* tbUidList);
+int32_t tqAddTbUidList(STQ* pTq, const SArray* tbUidList);
 int32_t tqDeleteTbUidList(STQ* pTq, SArray* tbUidList);
-int32_t tqUpdateTbUidList(STQ* pTq, SArray* tbUidList, SArray* cidList);
+int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, SArray* cidList, SArray* cidListArray);
 
 // tq-mq
 int32_t tqProcessSubscribeReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
@@ -291,7 +291,6 @@ int32_t tqProcessDeleteSubReq(STQ* pTq, int64_t version, char* msg, int32_t msgL
 int32_t tqProcessOffsetCommitReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
 int32_t tqProcessSeekReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg);
-int32_t tqProcessPollPush(STQ* pTq);
 int32_t tqProcessVgWalInfoReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessVgCommittedInfoReq(STQ* pTq, SRpcMsg* pMsg);
 

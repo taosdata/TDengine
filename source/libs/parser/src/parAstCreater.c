@@ -33,6 +33,7 @@
 #include "tdef.h"
 #include "tmsg.h"
 #include "ttokendef.h"
+#include "tcompare.h"
 
 #define CHECK_MAKE_NODE(p) \
   do {                     \
@@ -2703,6 +2704,7 @@ SNode* createDefaultDatabaseOptions(SAstCreateContext* pCxt) {
   pOptions->buffer = TSDB_DEFAULT_BUFFER_PER_VNODE;
   pOptions->cacheModel = TSDB_DEFAULT_CACHE_MODEL;
   pOptions->cacheLastSize = TSDB_DEFAULT_CACHE_SIZE;
+  pOptions->cacheLastShardBits = -1;  // -1 means auto-calculate
   pOptions->compressionLevel = TSDB_DEFAULT_COMP_LEVEL;
   pOptions->daysPerFile = TSDB_DEFAULT_DAYS_PER_FILE;
   pOptions->fsyncPeriod = TSDB_DEFAULT_FSYNC_PERIOD;
@@ -2752,6 +2754,7 @@ SNode* createAlterDatabaseOptions(SAstCreateContext* pCxt) {
   pOptions->buffer = -1;
   pOptions->cacheModel = -1;
   pOptions->cacheLastSize = -1;
+  pOptions->cacheLastShardBits = -2;  // -2 means not set, -1 means auto-calculate
   pOptions->compressionLevel = -1;
   pOptions->daysPerFile = -1;
   pOptions->fsyncPeriod = -1;
@@ -2809,6 +2812,9 @@ static SNode* setDatabaseOptionImpl(SAstCreateContext* pCxt, SNode* pOptions, ED
       break;
     case DB_OPTION_CACHESIZE:
       pDbOptions->cacheLastSize = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
+      break;
+    case DB_OPTION_CACHESHARDBITS:
+      pDbOptions->cacheLastShardBits = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
       break;
     case DB_OPTION_COMP:
       pDbOptions->compressionLevel = taosStr2Int8(((SToken*)pVal)->z, NULL, 10);
@@ -3558,6 +3564,11 @@ SNode* createCreateVSubTableStmt(SAstCreateContext* pCxt, bool ignoreExists, SNo
   SCreateVSubTableStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_VIRTUAL_SUBTABLE_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
+
+  if (pTagRefs != NULL) {
+    pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
+    goto _err;
+  }
   tstrncpy(pStmt->dbName, ((SRealTableNode*)pRealTable)->table.dbName, sizeof(pStmt->dbName));
   tstrncpy(pStmt->tableName, ((SRealTableNode*)pRealTable)->table.tableName, sizeof(pStmt->tableName));
   tstrncpy(pStmt->useDbName, ((SRealTableNode*)pUseRealTable)->table.dbName, sizeof(pStmt->useDbName));
@@ -3893,49 +3904,119 @@ _err:
   return NULL;
 }
 
-SNode* createAlterSingleTagColumnNode(SAstCreateContext* pCtx, SToken* pTagName, SNode* pVal) {
-  CHECK_PARSER_STATUS(pCtx);
-  SAlterTableStmt* pStmt = NULL;
-  pCtx->errCode = nodesMakeNode(QUERY_NODE_ALTER_TABLE_STMT, (SNode**)&pStmt);
-  CHECK_MAKE_NODE(pStmt);
-  pStmt->alterType = TSDB_ALTER_TABLE_UPDATE_TAG_VAL;
-  CHECK_NAME(checkColumnName(pCtx, pTagName));
-  COPY_STRING_FORM_ID_TOKEN(pStmt->colName, pTagName);
-  pStmt->pVal = (SValueNode*)pVal;
-  pStmt->pNodeListTagValue = NULL;
-  return (SNode*)pStmt;
-_err:
-  return NULL;
-}
 
-SNode* createAlterTableSetTag(SAstCreateContext* pCxt, SNode* pRealTable, SToken* pTagName, SNode* pVal) {
+
+SNode* createAlterTagValueNode(SAstCreateContext* pCxt, SToken* pTagName, SNode* pVal) {
   CHECK_PARSER_STATUS(pCxt);
   CHECK_NAME(checkColumnName(pCxt, pTagName));
-  SAlterTableStmt* pStmt = NULL;
-  pCxt->errCode = nodesMakeNode(QUERY_NODE_ALTER_TABLE_STMT, (SNode**)&pStmt);
-  CHECK_MAKE_NODE(pStmt);
-  pStmt->alterType = TSDB_ALTER_TABLE_UPDATE_TAG_VAL;
-  COPY_STRING_FORM_ID_TOKEN(pStmt->colName, pTagName);
-  pStmt->pVal = (SValueNode*)pVal;
-  return createAlterTableStmtFinalize(pRealTable, pStmt);
+  SUpdateTagValueNode* pNode = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_UPDATE_TAG_VALUE, (SNode**)&pNode);
+  CHECK_MAKE_NODE(pNode);
+  COPY_STRING_FORM_ID_TOKEN(pNode->tagName, pTagName);
+  pNode->pVal = (SValueNode*)pVal;
+  return (SNode*)pNode;
+
 _err:
-  nodesDestroyNode(pVal);
-  nodesDestroyNode(pRealTable);
+  nodesDestroyNode((SNode*)pNode);
   return NULL;
 }
 
-SNode* createAlterTableSetMultiTagValue(SAstCreateContext* pCxt, SNode* pRealTable, SNodeList* pList) {
+
+// NOTE: this function only supports REGEXP_REPLACE for now, it should be extended
+// for full expression support in the future, and the prototype needs to be changed
+// accordingly.
+SNode* createAlterTagValueNodeWithExpression(SAstCreateContext* pCxt, SToken* pTagName, const SToken* pattern, const SToken* replacement) {
+  CHECK_PARSER_STATUS(pCxt);
+  CHECK_NAME(checkColumnName(pCxt, pTagName));
+  SUpdateTagValueNode* pNode = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_UPDATE_TAG_VALUE, (SNode**)&pNode);
+  CHECK_MAKE_NODE(pNode);
+  COPY_STRING_FORM_ID_TOKEN(pNode->tagName, pTagName);
+
+  pNode->regexp = taosMemoryMalloc(pattern->n + 1);
+  if (pNode->regexp == NULL) {
+    pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
+    goto _err;
+  }
+  (void)trimString(pattern->z, pattern->n, pNode->regexp, pattern->n);
+
+  int32_t code = checkRegexPattern(pNode->regexp);
+  if (code != 0) {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, code, "'%s' is not a valid regular expression", pNode->regexp);
+    goto _err;
+  }
+
+  pNode->replacement = taosMemoryMalloc(replacement->n + 1);
+  if (pNode->replacement == NULL) {
+    pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
+    goto _err;
+  }
+  (void)trimString(replacement->z, replacement->n, pNode->replacement, replacement->n);
+
+  return (SNode*)pNode;
+
+_err:
+  nodesDestroyNode((SNode*)pNode);
+  return NULL;
+}
+
+
+
+SNode* createAlterTableUpdateTagValClause(SAstCreateContext* pCxt, SNode* pRealTable, SNodeList* pTagList) {
+  CHECK_PARSER_STATUS(pCxt);
+  SAlterTableUpdateTagValClause* pClause = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_ALTER_TABLE_UPDATE_TAG_VAL_CLAUSE, (SNode**)&pClause);
+
+  CHECK_MAKE_NODE(pClause);
+  pClause->pTagList = pTagList;
+
+  tstrncpy(pClause->dbName, ((SRealTableNode*)pRealTable)->table.dbName, sizeof(pClause->dbName));
+  tstrncpy(pClause->tableName, ((SRealTableNode*)pRealTable)->table.tableName, sizeof(pClause->tableName));
+  nodesDestroyNode(pRealTable);
+
+  return (SNode*)pClause;
+
+_err:
+  nodesDestroyNode((SNode*)pClause);
+  return NULL;
+}
+
+
+
+SNode* createAlterMultiTableUpdateTagValStmt(SAstCreateContext* pCxt, SNodeList* pTableList) {
   CHECK_PARSER_STATUS(pCxt);
   SAlterTableStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_ALTER_TABLE_STMT, (SNode**)&pStmt);
 
   CHECK_MAKE_NODE(pStmt);
-  pStmt->alterType = TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL;
-  pStmt->pNodeListTagValue = pList;
-  return createAlterTableStmtFinalize(pRealTable, pStmt);
+  pStmt->alterType = TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL;
+  pStmt->pList = pTableList;
+  return (SNode*)pStmt;
+
 _err:
+  nodesDestroyNode((SNode*)pStmt);
   return NULL;
 }
+
+
+
+SNode* createAlterChildTableUpdateTagValStmt(SAstCreateContext* pCxt, SNode* pRealTable, SNodeList* pTagList, SNode* pWhere) {
+  CHECK_PARSER_STATUS(pCxt);
+  SAlterTableStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_ALTER_TABLE_STMT, (SNode**)&pStmt);
+
+  CHECK_MAKE_NODE(pStmt);
+  pStmt->alterType = TSDB_ALTER_TABLE_UPDATE_CHILD_TABLE_TAG_VAL;
+  pStmt->pList = pTagList;
+  pStmt->pWhere = pWhere;
+  return createAlterTableStmtFinalize(pRealTable, pStmt);
+
+_err:
+  nodesDestroyNode((SNode*)pStmt);
+  return NULL;
+}
+
+
 
 SNode* setAlterSuperTableType(SNode* pStmt) {
   if (!pStmt) return NULL;

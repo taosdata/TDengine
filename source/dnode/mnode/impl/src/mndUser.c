@@ -1365,23 +1365,26 @@ static int32_t mndUserPrivUpgradeUser(SMnode *pMnode, SUserObj *pObj) {
     }
   }
 #ifdef TD_ENTERPRISE
-  // read db: db.*
-  TAOS_CHECK_EXIT(mndUserPrivUpgradeRwDbs(pMnode, pObj, pPrivSet->pReadDbs, 0x01));
-  // write db: db.*
-  TAOS_CHECK_EXIT(mndUserPrivUpgradeRwDbs(pMnode, pObj, pPrivSet->pWriteDbs, 0x02));
-  // tables/views
-  TAOS_CHECK_EXIT(
-      mndUserPrivUpgradeTbViews(pMnode, pObj, &pObj->selectTbs, pPrivSet->pReadTbs, PRIV_TBL_SELECT, PRIV_OBJ_TBL));
-  TAOS_CHECK_EXIT(
-      mndUserPrivUpgradeTbViews(pMnode, pObj, &pObj->insertTbs, pPrivSet->pWriteTbs, PRIV_TBL_INSERT, PRIV_OBJ_TBL));
-  TAOS_CHECK_EXIT(mndUserPrivUpgradeTbViews(pMnode, pObj, NULL, pPrivSet->pAlterTbs, PRIV_CM_ALTER, PRIV_OBJ_TBL));
-  TAOS_CHECK_EXIT(mndUserPrivUpgradeTbViews(pMnode, pObj, NULL, pPrivSet->pReadViews, PRIV_VIEW_SELECT, PRIV_OBJ_VIEW));
-  TAOS_CHECK_EXIT(mndUserPrivUpgradeTbViews(pMnode, pObj, NULL, pPrivSet->pAlterViews, PRIV_CM_ALTER, PRIV_OBJ_VIEW));
-  TAOS_CHECK_EXIT(mndUserPrivUpgradeTbViews(pMnode, pObj, NULL, pPrivSet->pAlterViews, PRIV_CM_DROP, PRIV_OBJ_VIEW));
-  // used dbs
-  TAOS_CHECK_EXIT(mndUserPrivUpgradeUsedDbs(pMnode, pObj, pPrivSet->pUseDbs));
-  // subscribe
-  TAOS_CHECK_EXIT(mndUserPrivUpgradeTopics(pMnode, pObj, pPrivSet->pTopics));
+  if (pPrivSet) {
+    // read db: db.*
+    TAOS_CHECK_EXIT(mndUserPrivUpgradeRwDbs(pMnode, pObj, pPrivSet->pReadDbs, 0x01));
+    // write db: db.*
+    TAOS_CHECK_EXIT(mndUserPrivUpgradeRwDbs(pMnode, pObj, pPrivSet->pWriteDbs, 0x02));
+    // tables/views
+    TAOS_CHECK_EXIT(
+        mndUserPrivUpgradeTbViews(pMnode, pObj, &pObj->selectTbs, pPrivSet->pReadTbs, PRIV_TBL_SELECT, PRIV_OBJ_TBL));
+    TAOS_CHECK_EXIT(
+        mndUserPrivUpgradeTbViews(pMnode, pObj, &pObj->insertTbs, pPrivSet->pWriteTbs, PRIV_TBL_INSERT, PRIV_OBJ_TBL));
+    TAOS_CHECK_EXIT(mndUserPrivUpgradeTbViews(pMnode, pObj, NULL, pPrivSet->pAlterTbs, PRIV_CM_ALTER, PRIV_OBJ_TBL));
+    TAOS_CHECK_EXIT(
+        mndUserPrivUpgradeTbViews(pMnode, pObj, NULL, pPrivSet->pReadViews, PRIV_VIEW_SELECT, PRIV_OBJ_VIEW));
+    TAOS_CHECK_EXIT(mndUserPrivUpgradeTbViews(pMnode, pObj, NULL, pPrivSet->pAlterViews, PRIV_CM_ALTER, PRIV_OBJ_VIEW));
+    TAOS_CHECK_EXIT(mndUserPrivUpgradeTbViews(pMnode, pObj, NULL, pPrivSet->pAlterViews, PRIV_CM_DROP, PRIV_OBJ_VIEW));
+    // used dbs
+    TAOS_CHECK_EXIT(mndUserPrivUpgradeUsedDbs(pMnode, pObj, pPrivSet->pUseDbs));
+    // subscribe
+    TAOS_CHECK_EXIT(mndUserPrivUpgradeTopics(pMnode, pObj, pPrivSet->pTopics));
+  }
 #endif
   // owned dbs
   TAOS_CHECK_EXIT(mndUserPrivUpgradeOwnedDbs(pMnode, pObj));
@@ -1396,9 +1399,18 @@ static int32_t mndUserPrivUpgradeUsers(SMnode *pMnode, SRpcMsg *pReq) {
   SUserObj *pObj = NULL;
   void     *pIter = NULL;
   SUserObj  newObj = {0};
+  SUserObj *pRoot = NULL;
+  bool      forceUpgrade = false;
+
+  if (0 == mndAcquireUser(pMnode, TSDB_DEFAULT_USER, &pRoot)) {
+    if (taosHashGetSize(pRoot->roles) == 0) {
+      forceUpgrade = true;
+    }
+    mndReleaseUser(pMnode, pRoot);
+  }
 
   while ((pIter = sdbFetch(pSdb, SDB_USER, pIter, (void **)&pObj))) {
-    if (pObj->uid != 0 && pObj->legacyPrivs == NULL) {
+    if (pObj->uid != 0 && pObj->legacyPrivs == NULL && !forceUpgrade) {
       sdbRelease(pSdb, pObj);
       pObj = NULL;
       continue;
@@ -2387,6 +2399,9 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
     }
     SDB_GET_BINARY(pRaw, dataPos, key, extLen, _OVER);
     TAOS_CHECK_GOTO(tDeserializeUserObjExt(key, extLen, pUser), &lino, _OVER);
+    if (pUser->superUser && taosHashGetSize(pUser->roles) == 0) {
+      upgradeSecurity = 1;
+    }
   }
 
 #ifndef TD_ENTERPRISE

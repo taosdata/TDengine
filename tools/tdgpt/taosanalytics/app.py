@@ -1,43 +1,53 @@
 # encoding:utf-8
 # pylint: disable=c0103
 """the main route definition for restful service"""
-import os.path, sys
-
-import numpy as np
+import os
+import os.path
+import sys
+import argparse
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../")
 
-from flask import Flask, request
-
 import taosanalytics
-from taosanalytics.algo.imputation import (do_imputation, do_set_imputation_params, check_freq_param)
-from taosanalytics.algo.anomaly import do_ad_check
-from taosanalytics.algo.forecast import do_forecast, do_add_fc_params
-from taosanalytics.algo.correlation import do_dtw, do_tlcc
-from taosanalytics.algo.tool.batch import do_batch_process, update_config
+from flask import Flask, request
+from taosanalytics.service.imputation_service import handle_imputation
+from taosanalytics.service.anomaly_service import handle_anomaly
+from taosanalytics.service.forecast_service import handle_forecast
+from taosanalytics.service.correl_service import handle_correlation
+from taosanalytics.service.misc_service import handle_batch
 
-from taosanalytics.conf import conf
-from taosanalytics.model import model_manager
-from taosanalytics.servicemgmt import loader
-from taosanalytics.util import (app_logger, parse_options, get_past_dynamic_data, get_dynamic_data,
-                                get_more_data_list,
-                                do_check_before_exec, do_initial_check)
+from taosanalytics.conf import Configure
+from taosanalytics.log import AppLogger
+from taosanalytics.model_file_mgt import ModelFileManager
+from taosanalytics.service_registry import loader
 
+
+def _init_app():
+    """Initialize configuration, logger, and load services. Called on module import."""
+    # Read config path from environment variable or use default
+    conf_path = os.environ.get('TDGPT_CONF')
+
+    # Init configuration
+    conf = Configure.init(conf_path)
+
+    # Set log parameters
+    AppLogger.set_handler(conf.get_log_path())
+    AppLogger.set_log_level(conf.get_log_level())
+
+    # Register all services
+    loader.register_all_services()
+
+    AppLogger.info("TDgpt service initialized (config: %s)", conf.path)
+
+
+# Create Flask app
 app = Flask(__name__)
 app.config["PROPAGATE_EXCEPTIONS"] = True
 
-# load the all algos
-app_logger.set_handler(conf.get_log_path())
-app_logger.set_log_level(conf.get_log_level())
-loader.load_all_service()
-
-_ANODE_VER = f'TDgpt - TDengine TSDB© Time-Series Data Analytics Platform (ver {taosanalytics.__version__})'
-
-
 @app.route("/")
-def start():
+def index():
     """ default rsp """
-    return _ANODE_VER
+    return taosanalytics._ANODE_VER
 
 
 @app.route("/status")
@@ -60,183 +70,68 @@ def list_all_services():
 @app.route("/models")
 def list_all_models():
     """ list all available models """
-    return model_manager.get_model_list()
+    return ModelFileManager.get_instance().get_model_list()
 
 
 @app.route("/anomaly-detect", methods=['POST'])
 def handle_ad_request():
     """handle the anomaly detection requests"""
-    app_logger.log_inst.info('recv ad request from %s', request.remote_addr)
-
-    try:
-        req_json, payload, options, data_index, ts_index = do_check_before_exec(request, True)
-    except Exception as e:
-        app_logger.log_inst.error("failed to do anomaly-detection, %s", str(e))
-        return {"msg": str(e), "rows": -1}
-
-    algo = req_json["algo"].lower() if "algo" in req_json else "ksigma"
-
-    try:
-        ts_list = payload[ts_index].copy()
-        payload.pop(ts_index)
-    except ValueError as e:
-        return {"msg": str(e), "rows": -1}
-
-    params = parse_options(options)
-
-    try:
-        res_list, ano_window, mask_list = do_ad_check(payload, ts_list, algo, params)
-        result = {"algo": algo, "option": options, "res": ano_window, "rows": len(ano_window), "mask": mask_list}
-
-        app_logger.log_inst.debug("anomaly-detection result: %s", str(result))
-        return result
-
-    except Exception as e:
-        result = {"res": {}, "rows": -1, "msg": str(e)}
-        app_logger.log_inst.error("failed to do anomaly-detection, %s", str(e))
-
-        return result
+    AppLogger.info('recv ad request from %s', request.remote_addr)
+    return handle_anomaly(request)
 
 
 @app.route("/forecast", methods=['POST'])
 def handle_forecast_req():
     """handle the fc request """
-    app_logger.log_inst.info('recv fc from %s', request.remote_addr)
-    req_json, payload, options, data_index, ts_index = do_check_before_exec(request)
-
-    params = parse_options(options)
-
-    try:
-        do_add_fc_params(params, req_json)
-    except ValueError as e:
-        app_logger.log_inst.error("invalid fc params: %s", e)
-        return {"msg": f"{e}", "rows": -1}
-
-    # holt-winters by default
-    algo = req_json['algo'].lower() if 'algo' in req_json else 'holtwinters'
-
-    try:
-        res1 = do_forecast(payload[data_index], payload[ts_index], algo, params,
-                           get_past_dynamic_data(payload, req_json["schema"]),
-                           get_dynamic_data(payload, req_json["schema"]))
-
-        res = {"option": options, "rows": params["rows"]}
-        res.update(res1)
-
-        app_logger.log_inst.debug("forecast result: %s", res)
-        return res
-    except Exception as e:
-        app_logger.log_inst.error('forecast failed, %s', str(e))
-        return {"msg": str(e), "rows": -1}
+    AppLogger.info('recv forecast request from %s', request.remote_addr)
+    return handle_forecast(request)
 
 
 @app.route("/imputation", methods=['POST'])
 def handle_imputation_req():
     """handle the imputation request """
-    app_logger.log_inst.info('recv imputation from %s', request.remote_addr)
-    try:
-        req_json, payload, options, data_index, ts_index = do_check_before_exec(request)
-    except Exception as e:
-        return {"msg": str(e), "rows": -1}
-
-    params = parse_options(options)
-
-    try:
-        do_set_imputation_params(params, req_json)
-    except ValueError as e:
-        app_logger.log_inst.error("invalid imputation params: %s", e)
-        return {"msg": f"{e}", "rows": -1}
-
-    algo = req_json['algo'].lower() if 'algo' in req_json else 'moment'
-
-    try:
-        freq = req_json["freq"] if 'freq' in req_json else '1ms'
-        prec = req_json['prec'] if 'prec' in req_json else 'ms'
-        check_freq_param(payload[ts_index], freq, prec)
-
-        imputat_res = do_imputation(payload[data_index], payload[ts_index], algo, params)
-
-        final_res = {"option": options, "rows": len(imputat_res["ts"])}
-        final_res.update(imputat_res)
-
-        app_logger.log_inst.debug("imputation result: %s", final_res)
-        return final_res
-    except Exception as e:
-        app_logger.log_inst.error('imputation failed, %s', str(e))
-        return {"msg": str(e), "rows": -1}
+    return handle_imputation(request)
 
 
 @app.route("/correlation", methods=['POST'])
 def handle_correlation_req():
     """handle the correlation request """
-    app_logger.log_inst.info('recv correlation from %s', request.remote_addr)
-    try:
-        # check for rows limitation to reduce the dtw process time
-        req_json, payload, options, data_index, ts_index = do_check_before_exec(request, False)
-    except Exception as e:
-        return {"msg": str(e), "rows": -1}
-
-    params = parse_options(options)
-
-    algo = req_json['algo'].lower()
-
-    try:
-        second_list = get_more_data_list(payload, req_json["schema"])
-
-        if algo == 'dtw':
-            dist, path = do_dtw(payload[data_index], second_list, params)
-
-            res = {"option": options, "rows": len(path), "distance": dist, "path": path}
-            app_logger.log_inst.debug("dtw result: %s", res)
-
-            return res
-        elif algo == 'tlcc':
-            lags, ccf_vals = do_tlcc(payload[data_index], second_list, params)
-
-            res = {"option": options, "rows": len(lags), "lags": lags, "ccf_vals": ccf_vals}
-            app_logger.log_inst.debug("tlcc result: %s", res)
-
-            return res
-        else:
-            raise ValueError(f"unsupported algo: {algo}")
-    except Exception as e:
-        app_logger.log_inst.error('correlation failed, %s', str(e))
-        return {"msg": str(e), "rows": -1}
+    AppLogger.info('recv correlation from %s', request.remote_addr)
+    return handle_correlation(request)
 
 
 @app.route("/tool/batch", methods=['POST'])
 def handle_batch_req():
     """handle the batch request request """
-    app_logger.log_inst.info('recv batch req from %s', request.remote_addr)
-
-    try:
-        payload_obj = do_initial_check(request)
-    except Exception as e:
-        return {"msg": str(e), "rows": -1}
-
-    data = payload_obj.get("data", None)
-    ts = payload_obj.get("ts", None)
-    windows = payload_obj.get("window", None)
-
-    if data is None or ts is None or windows is None:
-        msg = "'data', 'ts', and 'window' are required fields in the payload."
-        app_logger.log_inst.error(msg)
-        return {"msg": msg, "rows": -1}
-
-    conf = update_config(payload_obj.get("config", None))
-
-    try:
-        # median, lower bounding, upper bounding, processed_batches
-        center, lower, upper, processed_batches = do_batch_process(np.array(ts), np.array(data), windows, conf)
-
-        res = {"rows": lower.size, "center": center.tolist(), "lower": lower.tolist(), "upper": upper.tolist()}
-        app_logger.log_inst.debug("batch processed result: %s", res)
-
-        return res
-    except Exception as e:
-        app_logger.log_inst.error('golden batch process failed, %s', str(e))
-        return {"msg": str(e), "rows": -1}
+    return handle_batch(request)
 
 
-if __name__ == '__main__':
-    app.run(port=6035)
+def parse_args():
+    """Parse command line arguments (only used when running directly with python)"""
+    parser = argparse.ArgumentParser(description='TDgpt analytics service')
+    parser.add_argument('-c', '--config', dest='conf_path', default=None,
+                        help='path to configuration file')
+    return parser.parse_args()
+
+
+# Initialize on module import when used as a WSGI module (e.g. gunicorn).
+# When running as __main__, initialization is deferred until after argument
+# parsing so that a -c/--config path is applied before services are loaded.
+if __name__ != '__main__':
+    _init_app()
+else:
+    # Parse args before initializing so the correct config file is used from
+    # the start; services are loaded only once, with the final configuration.
+    args = parse_args()
+
+    if args.conf_path:
+        os.environ['TDGPT_CONF'] = args.conf_path
+
+    _init_app()
+
+    # Run development server
+    conf = Configure.get_instance()
+    host, port = conf.get_server_bind()
+
+    AppLogger.info("Starting development server on %s:%d", host, port)
+    app.run(host=host, port=port)

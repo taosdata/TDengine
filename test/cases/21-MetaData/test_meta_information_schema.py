@@ -1089,7 +1089,7 @@ class TestDdlInSysdb:
         tdSql.query("select * from information_schema.ins_columns where db_name ='information_schema'")
         
         tdSql.query("select * from information_schema.ins_columns where db_name ='performance_schema'")
-        tdSql.checkRows(72)
+        tdSql.checkRows(74)
 
     def ins_dnodes_check(self):
         tdSql.execute('drop database if exists db2')

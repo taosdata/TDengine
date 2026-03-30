@@ -3613,6 +3613,7 @@ enum {
   PHY_EXCHANGE_CODE_BASE_NODE = 1,
   PHY_EXCHANGE_CODE_SRC_START_GROUP_ID,
   PHY_EXCHANGE_CODE_SRC_END_GROUP_ID,
+  PHY_EXCHANGE_CODE_CHILDREN_VGIDS,
   PHY_EXCHANGE_CODE_SINGLE_CHANNEL,
   PHY_EXCHANGE_CODE_SRC_ENDPOINTS,
   PHY_EXCHANGE_CODE_SEQ_RECV_DATA,
@@ -3629,6 +3630,9 @@ static int32_t physiExchangeNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeI32(pEncoder, PHY_EXCHANGE_CODE_SRC_END_GROUP_ID, pNode->srcEndGroupId);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->childrenVgIds) {
+    code = tlvEncodeObj(pEncoder, PHY_EXCHANGE_CODE_CHILDREN_VGIDS, SArrayToMsg, pNode->childrenVgIds);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeBool(pEncoder, PHY_EXCHANGE_CODE_SINGLE_CHANNEL, pNode->grpSingleChannel);
@@ -3664,6 +3668,9 @@ static int32_t msgToPhysiExchangeNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_EXCHANGE_CODE_SRC_END_GROUP_ID:
         code = tlvDecodeI32(pTlv, &pNode->srcEndGroupId);
+        break;
+      case PHY_EXCHANGE_CODE_CHILDREN_VGIDS:
+        code = msgToSArray(pTlv, (void**)&pNode->childrenVgIds);
         break;
       case PHY_EXCHANGE_CODE_SINGLE_CHANNEL:
         code = tlvDecodeBool(pTlv, &pNode->grpSingleChannel);

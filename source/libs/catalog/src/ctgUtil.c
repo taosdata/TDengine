@@ -934,6 +934,46 @@ void ctgFreeSubTaskRes(CTG_TASK_TYPE type, void** pRes) {
   }
 }
 
+/*
+ * Destroy a task result that is owned only by the task itself.
+ * type identifies the async task result layout stored in *pRes.
+ * pRes receives NULL after the owned resource is fully released.
+ * Return value is void.
+ */
+static void ctgDestroyTaskOwnRes(CTG_TASK_TYPE type, void** pRes) {
+  if (NULL == pRes || NULL == *pRes) {
+    return;
+  }
+
+  switch (type) {
+    case CTG_TASK_GET_TB_META_BATCH:
+    case CTG_TASK_GET_TB_NAME: {
+      taosArrayDestroyEx((SArray*)*pRes, ctgFreeBatchMeta);
+      *pRes = NULL;
+      break;
+    }
+    case CTG_TASK_GET_TB_HASH_BATCH: {
+      taosArrayDestroyEx((SArray*)*pRes, ctgFreeBatchHash);
+      *pRes = NULL;
+      break;
+    }
+    case CTG_TASK_GET_VIEW: {
+      taosArrayDestroyEx((SArray*)*pRes, ctgFreeViewMetaRes);
+      *pRes = NULL;
+      break;
+    }
+    case CTG_TASK_GET_TSMA:
+    case CTG_TASK_GET_TB_TSMA: {
+      taosArrayDestroyEx((SArray*)*pRes, ctgFreeTbTSMARes);
+      *pRes = NULL;
+      break;
+    }
+    default:
+      ctgFreeTaskRes(type, pRes);
+      break;
+  }
+}
+
 void ctgClearSubTaskRes(SCtgSubRes* pRes) {
   pRes->code = 0;
 
@@ -1059,6 +1099,26 @@ void ctgFreeTaskCtx(SCtgTask* pTask) {
         taosArrayDestroy(taskCtx->pVgroups);
         taskCtx->pVgroups = NULL;
       }
+      if (taskCtx->pSubTablesList) {
+        taosArrayDestroyEx(taskCtx->pSubTablesList, tDestroySVSubTablesRsp);
+        taskCtx->pSubTablesList = NULL;
+      }
+      taosArrayDestroy(taskCtx->pLayerRefs);
+      taskCtx->pLayerRefs = NULL;
+      if (taskCtx->pLayerReqs) {
+        int32_t reqNum = taosArrayGetSize(taskCtx->pLayerReqs);
+        for (int32_t i = 0; i < reqNum; ++i) {
+          STablesReq* pReq = taosArrayGet(taskCtx->pLayerReqs, i);
+          if (NULL != pReq) {
+            taosArrayDestroy(pReq->pTables);
+            pReq->pTables = NULL;
+          }
+        }
+        taosArrayDestroy(taskCtx->pLayerReqs);
+        taskCtx->pLayerReqs = NULL;
+      }
+      taosHashCleanup(taskCtx->pFinalDbs);
+      taskCtx->pFinalDbs = NULL;
       if (taskCtx->pResList) {
         taosArrayDestroyEx(taskCtx->pResList, tDestroySVStbRefDbsRsp);
       }
@@ -1075,7 +1135,11 @@ void ctgFreeTaskCtx(SCtgTask* pTask) {
 void ctgFreeTask(SCtgTask* pTask, bool freeRes) {
   ctgFreeMsgCtx(&pTask->msgCtx);
   if (freeRes || pTask->subTask) {
-    ctgFreeTaskRes(pTask->type, &pTask->res);
+    if (pTask->subTask) {
+      ctgDestroyTaskOwnRes(pTask->type, &pTask->res);
+    } else {
+      ctgFreeTaskRes(pTask->type, &pTask->res);
+    }
   }
   ctgFreeTaskCtx(pTask);
 
@@ -1310,9 +1374,9 @@ int32_t ctgGetVgInfoFromHashValue(SCatalog* pCtg, SEpSet* pMgmtEps, SDBVgInfo* d
 
   *pVgroup = *vgInfo;
 
-  ctgTrace("tb:%s, get hash vgroup, vgId:%d, epNum:%d, current ep:%s:%u", tbFullName, vgInfo->vgId,
+  ctgTrace("tb:%s, get hash vgroup, vgId:%d, epNum:%d, current ep:%s:%u, hashVal:%u", tbFullName, vgInfo->vgId,
            vgInfo->epSet.numOfEps, vgInfo->epSet.eps[vgInfo->epSet.inUse].fqdn,
-           vgInfo->epSet.eps[vgInfo->epSet.inUse].port);
+           vgInfo->epSet.eps[vgInfo->epSet.inUse].port, hashValue);
 
   CTG_RET(code);
 }
@@ -3270,4 +3334,3 @@ int32_t ctgAddTSMAFetch(SArray** pFetchs, int32_t dbIdx, int32_t tbIdx, int32_t*
 
   return TSDB_CODE_SUCCESS;
 }
-

@@ -1,5 +1,5 @@
 import numpy as np
-from taosanalytics.service import AbstractCorrelationService
+from taosanalytics.analytics_base import AbstractCorrelationService
 
 
 class _TlccService(AbstractCorrelationService):
