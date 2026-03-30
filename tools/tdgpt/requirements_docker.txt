@@ -14,6 +14,8 @@ blinker==1.9.0
 Flask==3.0.3
 matplotlib==3.9.2
 gunicorn==23.0.0
+--only-binary h5py
+h5py==3.11.0  # 或 ，2.10.0
 keras==3.9.0
 taospy
 accelerate==0.34.2
