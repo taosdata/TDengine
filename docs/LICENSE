@@ -1,0 +1,27 @@
+# TDengine-TSDB-Docs Repository Notice
+
+This repository is an **internal workspace** for TDengine-TSDB product
+research and development.
+
+## Scope and Purpose
+
+- Used only for internal product design, development, testing, release
+	documentation, and engineering collaboration.
+- Used to provide structured project context for internal AI-assisted
+	development and knowledge retrieval.
+
+## Access and Distribution Restrictions
+
+- This repository and its contents are **not for public disclosure**.
+- External publishing, redistribution, mirroring, or sharing is prohibited
+	unless explicitly approved by the company.
+- Any use outside company-authorized internal scenarios is not permitted.
+
+## Compliance and Responsibility
+
+- All contributors and users must comply with company security,
+	confidentiality, and intellectual property policies.
+- If any sensitive information is found to be exposed unintentionally,
+	report and remediate immediately according to internal procedures.
+
+All rights are reserved by the company and/or relevant rights holders.
