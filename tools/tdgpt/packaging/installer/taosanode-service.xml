@@ -2,7 +2,7 @@
 <service>
   <id>Taosanode</id>
   <name>TDengine Analytics Node</name>
-  <description>TDengine TDGPT Analytics Service</description>
+  <description>TDengine TDgpt Analytics Service</description>
   <executable>%BASE%\..\venvs\venv\Scripts\python.exe</executable>
   <arguments>%BASE%\taosanode_service.py start --foreground</arguments>
   <workingdirectory>%BASE%\..</workingdirectory>

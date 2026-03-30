@@ -120,6 +120,7 @@ static SKeyword keywordTable[] = {
     {"EXPLAIN",              TK_EXPLAIN},
     {"EVENT_TYPE",           TK_EVENT_TYPE},
     {"EVENT_WINDOW",         TK_EVENT_WINDOW},
+    {"EXTERNAL_WINDOW",      TK_EXTERNAL_WINDOW},
     {"EVERY",                TK_EVERY},
     {"FILE",                 TK_FILE},
     {"FILL",                 TK_FILL},
@@ -489,6 +490,7 @@ static SKeyword keywordTable[] = {
     {"RESUME",               TK_RESUME},
     {"_TIDLESTART",          TK_TIDLESTART},
     {"_TIDLEEND",            TK_TIDLEEND},
+    {"NODELAY_CREATE_SUBTABLE", TK_NODELAY_CREATE_SUBTABLE},
 };
 // clang-format on
 
@@ -548,7 +550,7 @@ static int32_t tKeywordCode(const char* z, int n) {
  * Return the length of the token that begins at z[0].
  * Store the token type in *type before returning.
  */
-uint32_t tGetToken(const char* z, uint32_t* tokenId, char *dupQuoteChar) {
+uint32_t tGetToken(const char* z, uint32_t* tokenId, char* dupQuoteChar) {
   uint32_t i;
   switch (*z) {
     case ' ':

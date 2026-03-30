@@ -119,6 +119,23 @@ class TestCase:
         self.checkDataVNormalTable(topicName)
         tdLog.info("case_non_snapshot_db_topic end ...")
 
+    def case_non_snapshot_stb_topic_error(self):
+        tdLog.info("case_non_snapshot_stb_topic_error start ...")
+        topicName = "non_snapshot_stb_topic_error"
+        tdSql.execute(f"create topic {topicName} with meta as stable v_stb")
+        tdSql.execute(f"create database {topicName} vgroups 1")
+
+        os.system(f"echo '\ntmqWriteRefDB {topicName}' >> {self.simClientCfg}")
+        os.system(f"echo '\ntmqWriteCheckRef true' >> {self.simClientCfg}")
+
+        buildPath = tdCom.getBuildPath()
+        cmdStr = f'{buildPath}/build/bin/tmq_vtable'
+        ret = os.system(f"{cmdStr} {topicName} 'false' '' {self.simClientCfg} 'true'")
+        if ret == 0 :
+            tdLog.exit(cmdStr)
+
+        tdLog.info("case_non_snapshot_stb_topic_error end ...")
+
     def case_non_snapshot_stb_topic(self):
         tdLog.info("case_non_snapshot_stb_topic start ...")
         non_snapshot_stb_topic_json = '{"type":"create","tableType":"super","isVirtual":true,"tableName":"v_stb","columns":[{"name":"ts","type":9,"isPrimarykey":false,"encode":"delta-i","compress":"lz4","level":"medium"},{"name":"c1","type":4,"isPrimarykey":false,"encode":"simple8b","compress":"lz4","level":"medium"},{"name":"c2","type":8,"length":32,"isPrimarykey":false,"encode":"disabled","compress":"zstd","level":"medium"},{"name":"c3","type":10,"length":32,"isPrimarykey":false,"encode":"disabled","compress":"zstd","level":"medium"}],"tags":[{"name":"location","type":8,"length":32}]}{"type":"create","tableType":"child","tableName":"v_c_t1","refs":[{"colName":"c1","refDbName":"db_src","refTableName":"c_t1","refColName":"c1"}],"using":"v_stb","tagNum":1,"tags":[{"name":"location","type":8,"value":"\\"v_c_t1\\""}],"createList":[]}{"type":"create","tableType":"child","tableName":"v_c_t2","refs":[{"colName":"c1","refDbName":"db_src","refTableName":"c_t2","refColName":"c1"},{"colName":"c2","refDbName":"db_src","refTableName":"n_t1","refColName":"c2"},{"colName":"c3","refDbName":"db_src","refTableName":"n_t2","refColName":"c3"}],"using":"v_stb","tagNum":1,"tags":[{"name":"location","type":8,"value":"\\"v_c_t2\\""}],"createList":[]}{"type":"alter","tableType":"","tableName":"v_c_t1","alterType":17,"colName":"c1"}{"type":"alter","tableType":"","tableName":"v_c_t2","alterType":16,"colName":"c3","refDbName":"db_src","refTbName":"c_t2","refColName":"c3"}'
@@ -152,23 +169,6 @@ class TestCase:
         tdSql.error(f"create topic {topicName} as select * from v_c_t1")
         tdSql.error(f"create topic {topicName} as select * from v_n_t1")
         tdLog.info("case_non_snapshot_query_topic end ...")
-
-    def case_non_snapshot_check_ref_db_topic(self):
-        tdLog.info("case_non_snapshot_check_ref_db_topic start ...")
-        topicName = "non_snapshot_check_ref_db_topic"
-        tdSql.execute(f"create topic {topicName} with meta as stable v_stb")
-        tdSql.execute(f"create database {topicName} vgroups 1")
-
-        os.system(f"echo '\ntmqWriteRefDB {topicName}' >> {self.simClientCfg}")
-        os.system(f"echo '\ntmqWriteCheckRef true' >> {self.simClientCfg}")
-
-        buildPath = tdCom.getBuildPath()
-        cmdStr = f'{buildPath}/build/bin/tmq_vtable'
-        ret = os.system(f"{cmdStr} {topicName} 'false' '' {self.simClientCfg} 'true'")
-        if ret == 0 :
-            tdLog.exit(cmdStr)
-
-        tdLog.info("case_non_snapshot_check_ref_db_topic end ...")
 
     def checkDataVChildTable(self, dbName):
         tdSql.checkResultsBySql(
@@ -240,10 +240,13 @@ class TestCase:
         self.prepareData()
         self.simClientCfg = os.path.join(tdDnodes.getSimCfgPath(), "taos.cfg")
 
-        # self.case_non_snapshot_query_topic()
-        # self.case_non_snapshot_db_topic()
+        #self.case_non_snapshot_query_topic()
+        #self.case_non_snapshot_db_topic()
+
         self.case_non_snapshot_stb_topic()
-        # self.case_non_snapshot_no_meta_stb_topic()
+        #self.case_non_snapshot_stb_topic_error()
+
+        #self.case_non_snapshot_no_meta_stb_topic()
 
         # tdSql.execute(f'flush database db_src')
         # self.writeDataAgain()
@@ -262,7 +265,5 @@ class TestCase:
         
         self.case_snapshot_db_topic(snapshot_db_topic_json)
         self.case_snapshot_stb_topic(snapshot_stb_topic)
-        
-        self.case_non_snapshot_check_ref_db_topic()
 
         tdLog.success(f"{__file__} successfully executed")
