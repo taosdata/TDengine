@@ -166,12 +166,9 @@ begin
 end;
 
 var
-  OutputMsgCheckJava: TOutputMsgMemoWizardPage;
   InputQueryPage: TInputQueryWizardPage;
   OutputMsgCheckPISDK: TOutputMsgMemoWizardPage;
-  JavaVersionString: String;
   PISDKVersionString: string;
-  JavaReady: Boolean;
   OPCInstallFileFlag: Boolean;
   ExplorerAddInput: string;
   CustomFinishedLabel: TLabel;
@@ -252,81 +249,6 @@ begin
       end;
 end;
 
-function CheckJavaVersion(version: string): Boolean;
-var
-  tokens: TStringList;
-  major, minor: Integer;
-begin
-  // Split the version number string into a major version number and a minor version number.
-  tokens := TStringList.Create;
-  try
-    tokens.StrictDelimiter := True;
-    tokens.Delimiter := '.';
-    tokens.DelimitedText := version;
-    if tokens.Count < 2 then
-    begin
-      Result := False; // The version number format is incorrect, return false.
-      Exit;
-    end;
-    major := StrToIntDef(tokens[0], -1);
-    minor := StrToIntDef(tokens[1], -1);
-    if (major > 1) or ((major = 1) and (minor >= 8)) then
-    begin
-      Result := True; // The version number is greater than or equal to 1.8, return True.
-      Exit;
-    end;
-    Result := False; // The version number is less than 1.8, return False.
-  finally
-    tokens.Free;
-  end;
-end;
-
-function GetJavaVersionDesc(): String;
-var
-  ResultCode: Integer;
-  JavaVersion: String;
-  OutputFile: string;
-  OutputText: AnsiString;
-  FileContent: TArrayOfString;
-  StartIndex: Integer;
-  EndIndex:   Integer;
-  i: Integer;
-begin
-  Log('InitializeSetup called');
-  OutputFile := ExpandConstant('{tmp}\java_version.txt');
-  if not ExecAsOriginalUser('cmd.exe', '/c java -version >> "'+ OutputFile + '" 2>&1', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
-  begin
-    JavaVersionString := 'JAVA 1.8+ required.' + #13#10 + 'No Java version found.';
-  end
-  else
-  begin
-    LoadStringsFromFile(OutputFile, FileContent);
-    JavaReady := False;
-    for i := 0 to High(FileContent) do
-    begin
-      OutputText := FileContent[i];
-
-      StartIndex := Pos('"', OutputText);
-      EndIndex := Pos('"', Copy(OutputText, StartIndex+1, Length(OutputText)-StartIndex));
-      JavaVersion := Copy(OutputText, StartIndex+1, EndIndex-1);
-      if CheckJavaVersion(JavaVersion) then
-      begin
-        JavaReady := True; 
-        Break;
-      end;
-    end;
-    if JavaReady = True then
-    begin
-        JavaVersionString := 'JAVA 1.8+ required' + #13#10 + JavaVersion + ' has been installed.' + #13#10 + 'OK.';
-    end
-    else
-    begin
-        JavaVersionString := 'JAVA 1.8+ required' + #13#10 + 'No suitable version found.' + #13#10 + 'Please check it.';
-    end;
-  end;
-  Result := JavaVersionString;
-end;
-
 function ContainsSubstringIgnoreCase(const str, substr: string): Boolean;
   begin
     Result := Pos(AnsiLowerCase(substr), AnsiLowerCase(str)) > 0;
@@ -374,10 +296,10 @@ var
 begin
   AfterID := wpSelectTasks;
   AfterID := wpInstalling;
-  JavaVersionString := GetJavaVersionDesc();
-  OutputMsgCheckJava := CreateOutputMsgMemoPage(AfterID, 'Check Java for influxdb/opentsdb Connector', 'The InfluxDB/OpenTSDB connector depends on the Java environment.'
-  + ' If you use this connector, please make sure to install the required version.', 'Java 1.8+ required', JavaVersionString);
-  AfterID := OutputMsgCheckJava.ID;
+  GetPISDKVersionDesc();
+  OutputMsgCheckPISDK := CreateOutputMsgMemoPage(AfterID, 'Check PI SDK for PI Connector', 'The PI connector depends on the PI SDK.'
+  + ' If you use this connector, please make sure to install it.', 'PI SDK required', PISDKVersionString);
+  AfterID := OutputMsgCheckPISDK.ID;
 
   InputQueryPage := CreateInputQueryPage(AfterID, 'Config Page', '', 'Set publicly accessible IP address or domain name you want expose to.');
   ComputerName := GetComputerNameString();
@@ -448,20 +370,7 @@ end;
 
 procedure CurPageChanged(CurPageID: Integer);
 var
-  AfterID: Integer;
 begin
-  if CurPageID = OutputMsgCheckJava.ID then
-    begin
-      AfterID := OutputMsgCheckJava.ID;
-      if JavaReady = False then  begin
-        MsgBox(JavaVersionString, mbInformation, MB_OK);
-        end;
-
-      GetPISDKVersionDesc();
-      OutputMsgCheckPISDK := CreateOutputMsgMemoPage(AfterID, 'Check PI SDK for PI Connector', 'The PI connector depends on the PI SDK.'
-      + ' If you use this connector, please make sure to install it.', 'PI SDK required', PISDKVersionString);
-      AfterID := OutputMsgCheckPISDK.ID;
-    end;
   if CurPageID = wpReady then
     begin
       if WizardForm.ComponentsList.Checked[0] then
