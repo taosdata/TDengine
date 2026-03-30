@@ -1,4 +1,4 @@
-# TDengine TSDB 研发文档仓库
+# TDengine-TSDB 研发文档仓库
 
 本仓库是 TDengine 时序数据库产品的研发过程文档库，覆盖产品从需求、设计、测试、安全到发布的全生命周期。所有文档以 Markdown 格式存储，图片统一放在就近的 `images/` 目录中；涉及架构图、流程图或时序图时，建议优先使用 PlantUML 或 Mermaid 等文本化方式绘制。
 
@@ -46,6 +46,10 @@
 - **`接口模块/`** — C/C++、C#、Go、JDBC、Node.js、ODBC、Python、Rust 连接器（共 8 个）
 - **`工具组件/`** — 命令行工具、可视化管理工具（Explorer）、监控指标导出工具、基准测试工具、数据备份工具、数据管道工具（taosX）、数据接入适配工具（共 7 个）
 - **`安全模块/`** — 加密算法、安全函数、身份鉴别、访问控制、传输安全、存储安全、安全审计（共 7 个）
+
+### 1.4 `overview/04-行为变更/`
+
+存放跨版本行为变更记录、兼容性差异说明与升级注意事项。
 
 ---
 
@@ -116,7 +120,7 @@ TSDB-v3.4.x-[YYYYMMDD]/
 
 - `connector/` — 连接器相关
 - `engine/` — 内核引擎相关
-- `taosX/` — 数据管道（taosX）相关
+- `tools/` — 外围工具相关
 
 ---
 
@@ -129,12 +133,15 @@ reports/
 ├── 2026Q1/
 │   ├── agile-group/
 │   ├── analysis-group/
-│   ├── connector-group/
 │   ├── query-group/
 │   ├── storage-group/
-│   └── taosx-group/
+│   └── tools-group/
 └── 2026Q2/
-    └── ... (同上)
+    ├── agile-group/
+    ├── analysis-group/
+    ├── query-group/
+    ├── storage-group/
+    └── tools-group/
 ```
 
 ---
