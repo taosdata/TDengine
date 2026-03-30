@@ -9256,15 +9256,31 @@ static int32_t jsonToDropDnodeStmt(const SJson* pJson, void* pObj) {
 }
 
 static const char* jkRestoreComponentNodeStmtDnodeId = "DnodeId";
+static const char* jkRestoreComponentNodeStmtVgId = "VgId";
 
 static int32_t restoreComponentNodeStmtToJson(const void* pObj, SJson* pJson) {
   const SRestoreComponentNodeStmt* pNode = (const SRestoreComponentNodeStmt*)pObj;
-  return tjsonAddIntegerToObject(pJson, jkRestoreComponentNodeStmtDnodeId, pNode->dnodeId);
+
+  int32_t code = tjsonAddIntegerToObject(pJson, jkRestoreComponentNodeStmtDnodeId, pNode->dnodeId);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkRestoreComponentNodeStmtVgId, pNode->vgId);
+  }
+  return code;
 }
 
 static int32_t jsonToRestoreComponentNodeStmt(const SJson* pJson, void* pObj) {
   SRestoreComponentNodeStmt* pNode = (SRestoreComponentNodeStmt*)pObj;
-  return tjsonGetIntValue(pJson, jkRestoreComponentNodeStmtDnodeId, &pNode->dnodeId);
+
+  // vgId is an optional extension, default to 0 if not present in JSON
+  pNode->vgId = 0;
+  int32_t code = tjsonGetIntValue(pJson, jkRestoreComponentNodeStmtDnodeId, &pNode->dnodeId);
+  if (TSDB_CODE_SUCCESS == code) {
+    const SJson* pVgIdJson = tjsonGetObjectItem(pJson, jkRestoreComponentNodeStmtVgId);
+    if (pVgIdJson != NULL) {
+      code = tjsonGetIntValue(pJson, jkRestoreComponentNodeStmtVgId, &pNode->vgId);
+    }
+  }
+  return code;
 }
 
 static int32_t jsonToRestoreDnodeStmt(const SJson* pJson, void* pObj) {
@@ -9606,6 +9622,7 @@ static const char* jkCreateStreamStmtQuery = "Query";
 static const char* jkCreateStreamStmtTags = "Tags";
 static const char* jkCreateStreamStmtSubtable = "Subtable";
 static const char* jkCreateStreamStmtCols = "Cols";
+static const char* jkCreateStreamStmtNodelayCreateSubtable = "nodelayCreateSubtable";
 
 static int32_t createStreamStmtToJson(const void* pObj, SJson* pJson) {
   const SCreateStreamStmt* pNode = (const SCreateStreamStmt*)pObj;
@@ -9637,6 +9654,9 @@ static int32_t createStreamStmtToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = nodeListToJson(pJson, jkCreateStreamStmtCols, pNode->pCols);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkCreateStreamStmtNodelayCreateSubtable, pNode->nodelayCreateSubtable);
   }
   return code;
 }
@@ -9674,6 +9694,9 @@ static int32_t jsonToCreateStreamStmt(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkCreateStreamStmtCols, &pNode->pCols);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    (void)tjsonGetTinyIntValue(pJson, jkCreateStreamStmtNodelayCreateSubtable, &pNode->nodelayCreateSubtable);
   }
   return code;
 }

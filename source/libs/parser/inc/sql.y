@@ -856,6 +856,7 @@ cmd ::= RESTORE MNODE ON DNODE NK_INTEGER(A).                                   
 
 /************************************************ restore vnode ***************************************************/
 cmd ::= RESTORE VNODE ON DNODE NK_INTEGER(A).                                     { pCxt->pRootNode = createRestoreComponentNodeStmt(pCxt, QUERY_NODE_RESTORE_VNODE_STMT, &A); }
+cmd ::= RESTORE VNODE ON DNODE NK_INTEGER(A) ON VGROUP NK_INTEGER(B).                                     { pCxt->pRootNode = createRestoreComponentNodeStmtWithVgId(pCxt, QUERY_NODE_RESTORE_VNODE_STMT, &A, &B); }
 
 /************************************************ create/drop/use database ********************************************/
 cmd ::= CREATE DATABASE not_exists_opt(A) db_name(B) db_options(C).               { pCxt->pRootNode = createCreateDatabaseStmt(pCxt, A, &B, C); }
@@ -1581,8 +1582,12 @@ stream_name_list(A) ::= full_stream_name(B).                                    
 stream_name_list(A) ::= stream_name_list(B) NK_COMMA full_stream_name(C).         { A = addNodeToList(pCxt, B, C); }
 
 /********** stream_outtable **********/
+%type nodelay_create_subtable_opt                                                          { int32_t }
+%destructor nodelay_create_subtable_opt                                                    { }
+nodelay_create_subtable_opt(A) ::= .                                                       { A = 0; }
+nodelay_create_subtable_opt(A) ::= NODELAY_CREATE_SUBTABLE.                                 { A = 1; }
 stream_outtable_opt(A) ::= .                                                                                                { A = NULL; }
-stream_outtable_opt(A) ::= INTO full_table_name(B) output_subtable_opt(C) column_name_opt(D) stream_tags_def_opt(E).        { A = createStreamOutTableNode(pCxt, B, C, D, E); }
+stream_outtable_opt(A) ::= INTO full_table_name(B) nodelay_create_subtable_opt(F) output_subtable_opt(C) column_name_opt(D) stream_tags_def_opt(E).        { A = createStreamOutTableNode(pCxt, B, C, D, E, F); }
 
 /********** stream_trigger **********/
 stream_trigger(A) ::= trigger_type(B) trigger_table_opt(C) stream_partition_by_opt(D)

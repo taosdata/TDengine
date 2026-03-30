@@ -1,267 +1,417 @@
-# 2. TDGPT Windows Packaging Script
+# TDgpt Windows Packaging
 
-> 📖 **Language**: [English](README.md) | [中文](README-CN.md)
+> Language: [English](README.md) | [中文](README-CN.md)
 
-This directory contains the Windows packaging script for TDGPT (TDengine Analytics Node), which creates installation programs using Inno Setup.
+This directory contains the Windows packaging flow for TDgpt (TDengine Analytics Node). The main entry is `win_release.py`, which stages files and builds an Inno Setup installer.
 
-## File Structure
+## Scope
+
+The current Windows delivery keeps only two install paths:
+
+- Base installer + online install
+- Base installer + external offline tar package
+
+The old `full-offline` all-in-one installer mode has been removed.
+
+## Main Files
 
 ```text
 packaging/
-├── win_release.py           # Python packaging script (main entry point)
-└── README_EN.md             # This documentation
+├── win_release.py              # Main Windows packaging entry
+├── installer/
+│   ├── tdgpt.iss               # Inno Setup template
+│   └── taosanode-service.xml   # WinSW service template
+├── bin/
+│   ├── WinSW.exe               # Optional cached WinSW binary for packaging
+│   ├── uv.exe                  # Optional uv binary used by offline asset bundling
+│   └── README.md               # Binary cache notes
+├── README.md
+└── README-CN.md
 
 script/
-├── taosanode_service.py     # Unified service management script (cross-platform)
-└── ...                      # Other scripts
+├── install.py                  # Windows install logic
+├── uninstall.py                # Windows uninstall logic
+└── taosanode_service.py        # Service and model manager
 ```
 
-## Unified Service Management Script
+## Build Host Prerequisites
 
-Uses **Python unified script** `taosanode_service.py` to replace the original shell/bat scripts, providing cross-platform support (Linux/Windows) with a single codebase.
+Before packaging, verify the following prerequisites on the build host.
 
-### Features
+### 1. Base Installer Packaging Prerequisites
 
-| Command | Description |
-|---------|-------------|
-| `start` | Start taosanode main service |
-| `stop` | Stop taosanode main service |
-| `status` | View service status |
-| `model-start [name]` | Start model service (name: tdtsfm, timemoe, chronos, moirai, moment, timesfm, all) |
-| `model-stop [name]` | Stop model service |
-| `model-status` | View model service status |
+1. Python `3.10`, `3.11`, or `3.12` is installed and directly available from `PATH`
+2. Inno Setup 6 is installed
+3. The source tree is complete, including at least:
+   - `packaging/win_release.py`
+   - `packaging/installer/tdgpt.iss`
+   - `script/install.py`
+   - `script/uninstall.py`
+   - `script/taosanode_service.py`
+4. If you want to bundle model archives into the base installer, prepare a model archive directory in advance, for example:
+   - `tdtsfm.tar.gz`
+   - `timemoe.tar.gz`
+   - `moirai.tar.gz`
+   - `chronos.tar.gz`
+   - `timesfm.tar.gz`
+   - `moment-large.tar.gz`
 
-### Usage Examples
+### 2. Additional Prerequisites For Offline Tar Packaging
 
-```bash
-# Main service
-python taosanode_service.py start
-python taosanode_service.py stop
-python taosanode_service.py status
+If you also want to generate the external offline tar bundle, prepare:
 
-# Model services
-python taosanode_service.py model-start tdtsfm
-python taosanode_service.py model-start all
-python taosanode_service.py model-stop all
-python taosanode_service.py model-status
-```
+1. one main venv directory
+2. zero or more model venv directories
+3. one Python runtime source, using either:
+   - an existing Python runtime directory containing `python.exe`
+   - `packaging/bin/uv.exe`, or a path passed with `--uv-exe`
+4. an optional seed package:
+   - to carry existing offline model payloads
+   - optionally to carry model venv payloads as well
 
-### Windows Batch Wrappers
+### 3. Optional Local Binary Cache
 
-For convenience of Windows users, batch wrappers are provided:
+1. `packaging/bin/WinSW.exe`
+   - reused by base installer packaging as the local WinSW cache
+   - if missing, the script tries to download it from GitHub
+2. `packaging/bin/uv.exe`
+   - reused by offline tar packaging to prepare a Python runtime automatically
+   - not required when `--python-runtime-dir` is provided
 
-```text
-bin/
-├── taosanode_service.py    # Core Python script
-├── start-taosanode.bat     # Wrapper: python taosanode_service.py start
-├── stop-taosanode.bat      # Wrapper: python taosanode_service.py stop
-├── status-taosanode.bat    # Wrapper: python taosanode_service.py status
-├── start-model.bat         # Wrapper: python taosanode_service.py model-start
-├── stop-model.bat          # Wrapper: python taosanode_service.py model-stop
-└── status-model.bat        # Wrapper: python taosanode_service.py model-status
-```
+### 4. Tooling Notes
 
-## Prerequisites
+- `ISCC.exe` defaults to `C:\Program Files (x86)\Inno Setup 6\ISCC.exe`.
+- You can override it with `--iscc-path`.
+- `win_release.py` does not package Python runtime or virtual environments into the base installer.
+- `build_offline_assets.py` prefers `packaging/bin/uv.exe` when `--python-runtime-dir` is not provided.
 
-1. **Python 3.10 / 3.11 / 3.12** - Python must be installed and added to PATH
-2. **Microsoft Visual C++ Redistributable x64** - Required by TensorFlow, PyTorch, and other native Python dependencies
-   - Download: [VC++ Redistributable](https://aka.ms/vc14/vc_redist.x64.exe)
-3. **Inno Setup 6** - For creating installation programs
-   - Download: [Inno Setup Downloads](https://jrsoftware.org/isdl.php)
-   - After installation, ensure `ISCC.exe` is in PATH or specify the path in the script
+## Target Machine Requirements
+
+The generated installer has these runtime expectations:
+
+- Windows 10 (version 1803 or later) or Windows Server 2019+
+- Microsoft Visual C++ Redistributable x64 must be installed
+- For online first install, the target machine needs Python `3.10` / `3.11` / `3.12` in `PATH`
+- For offline install, system Python is **not** required — the installer bootstraps Python from the offline tar using the built-in `tar.exe` (available since Windows 10 1803)
+
+## What The Base Installer Contains
+
+Always included:
+
+- `cfg/`
+- `lib/`
+- `resource/`
+- `requirements/`
+- `bin/`
+- `install.py`, `install.bat`
+- `uninstall.py`, `uninstall.bat`
+- WinSW executable and XML
+- package metadata
+
+Optional:
+
+- packaged model archives copied from `--model-dir` into `<install_dir>\model\`
+
+Not included:
+
+- `python/runtime`
+- extracted virtual environments
+- extracted model directories
 
 ## Usage
 
-### Basic Usage
+### Basic Commands
 
 ```bash
-# Community edition (production packaging, requires model files)
-python packaging/win_release.py -e community -v 3.4.0.11.0316 -m D:\models
+# Community edition
+python packaging/win_release.py -e community -v 3.4.1.0.0325
 
 # Enterprise edition
-python packaging/win_release.py -e enterprise -v 3.4.0.11.0316 -m D:\models
+python packaging/win_release.py -e enterprise -v 3.4.1.0.0325
 
-# Include all models
-python packaging/win_release.py -e community -v 3.4.0.11.0316 -m D:\models -a
+# Bundle model archives from a directory
+python packaging/win_release.py -e community -v 3.4.1.0.0325 -m D:\models
+
+# Bundle all recognized model archives from a directory
+python packaging/win_release.py -e community -v 3.4.1.0.0325 -m D:\models -a
 
 # Custom output directory
-python packaging/win_release.py -e community -v 3.4.0.11.0316 -m D:\models -o D:\release
-
-# Testing mode (quick workflow validation, no model files needed)
-python packaging/win_release.py -e community -v 3.4.0.11.0316 --skip-model-check
+python packaging/win_release.py -e community -v 3.4.1.0.0325 -o D:\tdgpt-release\20260325-r7
 ```
 
-### Model Files Requirements
+### Build External Offline Tar Bundle
 
-**Production Packaging (default):**
+Use `build_offline_assets.py` to generate the external offline tar consumed by Windows offline install.
 
-- Must specify model directory using `-m` parameter
-- Model directory must contain the following files:
-  - `timemoe.tar.gz` (required)
-  - `tdtsfm.tar.gz` (required)
-- Missing any required file will cause packaging to fail
+Required inputs:
 
-**Testing Mode (`--skip-model-check`):**
+- one main venv directory
+- optional extra model venv directories
+- one Python runtime directory, or `uv.exe` so the script can prepare one automatically
+- optional seed package containing offline model payloads
 
-- Skip model validation, no model files needed
-- For quick testing of packaging workflow only
-- ⚠️ **NOT for production use**
-
-## Packaging Script Parameters
-
-| Parameter | Short | Description | Required |
-|-----------|-------|-------------|----------|
-| `--edition` | `-e` | Edition type: enterprise or community | Yes |
-| `--version` | `-v` | Version number (e.g., 3.4.0.11.0316) | Yes |
-| `--model-dir` | `-m` | Model files directory (required for production) | Production only |
-| `--all-models` | `-a` | Package all models | No |
-| `--output` | `-o` | Output directory (default: D:\tdgpt-release) | No |
-| `--iscc-path` | | Inno Setup compiler path | No |
-| `--skip-model-check` | | Skip model validation (testing only) | No |
-
-## Installer Features
-
-- **Default Installation Path**: `C:\TDengine\taosanode`
-- **Service Management**: Uses unified Python script `taosanode_service.py`
-- **Virtual Environment**: Automatically creates Python virtual environment
-- **Environment Variables**: Automatically adds `bin` directory to PATH
-- **Log Directory**: `C:\TDengine\taosanode\log`
-- **Configuration Protection**: Preserves existing configuration files during upgrades
-
-## Service Management
-
-After installation, you can manage services using the following commands:
+Typical command:
 
 ```bash
-# Start/Stop/View status
+python packaging/build_offline_assets.py ^
+   --output-file D:\offline-tar\tdengine-tdgpt-offline-assets-3.4.1.0.0325-windows-x64.tar ^
+  --seed-package D:\offline-seed\tdgpt-model-seed.tar ^
+  --python-runtime-dir C:\TDengine\python311 ^
+  --main-venv-dir C:\TDengine\taosanode\venvs\venv ^
+  --extra-venv-dir C:\TDengine\taosanode\venvs\moirai_venv ^
+  --extra-venv-dir C:\TDengine\taosanode\venvs\chronos_venv ^
+  --extra-venv-dir C:\TDengine\taosanode\venvs\timesfm_venv ^
+  --extra-venv-dir C:\TDengine\taosanode\venvs\momentfm_venv
+```
+
+If you do not want to prepare a Python runtime directory in advance:
+
+```bash
+python packaging/build_offline_assets.py ^
+   --output-file D:\offline-tar\tdengine-tdgpt-offline-assets-3.4.1.0.0325-windows-x64.tar ^
+  --main-venv-dir C:\TDengine\taosanode\venvs\venv ^
+  --extra-venv-dir C:\TDengine\taosanode\venvs\moirai_venv ^
+  --uv-exe packaging\bin\uv.exe ^
+  --python-version 3.11
+```
+
+Recommended offline assets package name:
+
+```text
+tdengine-tdgpt-offline-assets-<version>-windows-x64.tar
+```
+
+What the tar contains:
+
+- `python/runtime/`
+- `venvs/venv/`
+- `venvs/<extra_venv>/`
+- model payloads copied from the optional `--seed-package`
+- `offline-assets-manifest.txt`
+
+Recommended flow:
+
+1. Build the base installer with `win_release.py`
+2. Build the external offline tar with `build_offline_assets.py`
+3. Deliver both files together
+4. In Windows setup, choose `Offline package` and select the generated tar
+
+### Parameters
+
+| Parameter | Short | Description |
+| --- | --- | --- |
+| `--edition` | `-e` | `community` or `enterprise` |
+| `--version` | `-v` | Package version, for example `3.4.1.0.0325` |
+| `--model-dir` | `-m` | Optional directory containing model archives to copy into the installer payload |
+| `--all-models` | `-a` | When `--model-dir` is provided, copy all recognized model archives |
+| `--output` | `-o` | Output directory, default `D:\tdgpt-release` |
+| `--iscc-path` |  | Override Inno Setup compiler path |
+| `--skip-model-check` |  | Legacy compatibility flag; model archive validation is no longer required by the base installer |
+
+### Offline Tar Parameters
+
+`build_offline_assets.py` supports these main parameters:
+
+| Parameter | Description |
+| --- | --- |
+| `--output-file` | Output tar path |
+| `--seed-package` | Optional seed tar containing offline model payloads and optional model venv payloads |
+| `--python-runtime-dir` | Existing Python runtime directory containing `python.exe` |
+| `--main-venv-dir` | Main taosanode venv, packaged as `venvs/venv` |
+| `--extra-venv-dir` | Extra model venv directory, repeat as needed |
+| `--uv-exe` | Optional `uv.exe` path used when `--python-runtime-dir` is omitted |
+| `--python-version` | Python version used by `uv`, default `3.11` |
+
+### Model Archive Notes
+
+If `--model-dir` is provided, `win_release.py` copies recognized archives such as:
+
+- `tdtsfm.tar.gz`
+- `timemoe.tar.gz`
+- `moirai.tar.gz`
+- `chronos.tar.gz`
+- `timesfm.tar.gz`
+- `moment-large.tar.gz`
+
+These archives are optional. The installer can still be built without bundled model archives.
+
+## Output
+
+The generated installer name is:
+
+```text
+tdengine-tdgpt-oss-<version>-windows-x64.exe
+tdengine-tdgpt-enterprise-<version>-windows-x64.exe
+```
+
+The package name no longer includes `-base`.
+
+## Silent and Command-Line Installation
+
+The installer supports fully silent (unattended) installation, which is useful for scripted deployments and All-in-One packaging.
+
+### Silent Offline Install (No System Python Required)
+
+```bat
+tdgpt-setup.exe /VERYSILENT /NORESTART /OFFLINE="D:\packages\tdengine-tdgpt-offline-assets-3.4.1.0.0325-windows-x64.tar"
+```
+
+| Parameter | Description |
+| --- | --- |
+| `/VERYSILENT` | No UI at all, completely silent |
+| `/SILENT` | Minimal UI, shows only the progress bar |
+| `/NORESTART` | Do not reboot after installation |
+| `/OFFLINE="path"` | Path to the external offline tar package |
+| `/DIR="path"` | Override install directory (only for first install) |
+
+When `/OFFLINE` is provided, the installer automatically uses offline mode. The Python runtime is bootstrapped from the tar package using the system `tar.exe`, so no system Python is needed.
+
+### Silent Online Install (Requires System Python)
+
+```bat
+tdgpt-setup.exe /VERYSILENT /NORESTART
+```
+
+Online mode is not the default in silent installation. To force online mode, the target machine must have Python 3.10–3.12 in `PATH`. If the installer detects no Python and no offline package, it will fail with a clear error in the install log.
+
+### Python Discovery Priority
+
+During installation, the `install.bat` helper locates a Python interpreter in this order:
+
+1. **Existing venv Python** — `<install_dir>\venvs\venv\Scripts\python.exe` (upgrade scenario)
+2. **Packaged runtime Python** — `<install_dir>\python\runtime\python.exe` (previously extracted)
+3. **System Python** — `python` or `python3` in `PATH` (online mode)
+4. **Bootstrap from offline tar** — uses `tar.exe` to extract `python/runtime/` from the offline package into a temporary `_bootstrap` directory, then runs `install.py` with that Python
+
+The `_bootstrap` directory is cleaned up automatically after installation completes.
+
+### All-in-One (AIO) Integration Example
+
+```bat
+REM install-all.bat for AIO packaging
+installers\tdgpt-setup.exe /VERYSILENT /NORESTART /OFFLINE="%CD%\offline-packages\tdengine-tdgpt-offline-assets-3.4.1.0.0325-windows-x64.tar"
+if errorlevel 1 (
+    echo TDgpt installation failed
+    exit /b 1
+)
+echo TDgpt installed successfully
+```
+
+### Checking Installation Results
+
+After silent installation, check:
+
+- Exit code: `0` = success, non-zero = failure
+- Install log: `C:\TDengine\taosanode\log\install.log`
+- Service status: `sc query Taosanode`
+
+## Installer Behavior
+
+Current wizard behavior:
+
+- Default recommended install source: `Offline package`
+- When offline mode is selected, setup automatically pre-fills an offline assets package from the same directory as the installer when it finds `tdengine-tdgpt-offline-assets-<version>-windows-x64.tar`
+- Online install is still available
+- Windows service is installed automatically, not shown as an optional checkbox
+- Upgrade installs reuse existing `venvs` and model files by default
+- Offline first install requires one external tar package
+- Offline upgrade can leave the tar path blank to reuse the current runtime and model files
+- The `/OFFLINE` command-line parameter pre-populates the offline package path for silent installation
+
+Current wrapper behavior:
+
+- `start-taosanode.bat`, `stop-taosanode.bat`, `status-taosanode.bat` require `<install_dir>\venvs\venv\Scripts\python.exe`
+- `start-model.bat`, `stop-model.bat`, `status-model.bat` also require the same main venv Python
+- These wrappers do not fall back to system `python`
+- `start-model.bat` defaults to `all` when no model name is provided
+
+## Service And Model Commands
+
+After install:
+
+```bat
+net start Taosanode
+net stop Taosanode
+sc query Taosanode
+
 C:\TDengine\taosanode\bin\start-taosanode.bat
 C:\TDengine\taosanode\bin\stop-taosanode.bat
 C:\TDengine\taosanode\bin\status-taosanode.bat
 
-# Model services
-C:\TDengine\taosanode\bin\start-model.bat tdtsfm
 C:\TDengine\taosanode\bin\start-model.bat
 C:\TDengine\taosanode\bin\start-model.bat all
 C:\TDengine\taosanode\bin\stop-model.bat all
 C:\TDengine\taosanode\bin\status-model.bat
 ```
 
-Or use the Python script directly:
+Direct Python invocation should use the main installed venv:
 
-```bash
-cd C:\TDengine\taosanode
-python bin\taosanode_service.py start
-python bin\taosanode_service.py model-start all
+```bat
+C:\TDengine\taosanode\venvs\venv\Scripts\python.exe C:\TDengine\taosanode\bin\taosanode_service.py start
+C:\TDengine\taosanode\venvs\venv\Scripts\python.exe C:\TDengine\taosanode\bin\taosanode_service.py model-start all
 ```
 
-## Differences from Linux Packaging
+## Logs
 
-| Feature | Linux | Windows |
-|---------|-------|---------|
-| Service Management | Python unified script | Python unified script + bat wrappers |
-| WSGI Server | gunicorn | waitress |
-| Default Path | /usr/local/taos/taosanode | C:\TDengine\taosanode |
-| Configuration File | taosanode.config.py | taosanode.config.py |
-| Process Management | signal / ps | taskkill |
+Important Windows log files:
 
-## Important Notes
+- `<install_dir>\log\install.log`
+- `<install_dir>\log\uninstall.log`
+- `<install_dir>\log\install-progress.log`
+- `<install_dir>\log\taosanode-service.log`
+- `<install_dir>\log\taosanode.app.log`
+- `<install_dir>\log\model_*.log`
 
-1. **Python Version**: Python 3.10, 3.11, or 3.12 is required
-2. **Configuration File**: `taosanode.config.py` has built-in Windows path support, automatically switching via the `on_windows` variable
-3. **Firewall**: The service uses port 6035 by default, firewall configuration may be needed
-4. **Dependencies**: Python dependencies are automatically installed on first startup, internet access may be required
+Notes:
+
+- The service manager log is `taosanode-service.log`.
+- WinSW wrapper logs such as `taosanode-service.wrapper.log`, `*.out.log`, and `*.err.log` are not part of the current default logging flow.
 
 ## Troubleshooting
 
-### Service Won't Start
+### Packaging Fails Before ISCC
 
-1. Check if Python is correctly installed and added to PATH
-2. Check log files: `C:\TDengine\taosanode\log\taosanode_service_*.log`
-3. Run the startup script manually to see errors:
+- Check Python version on the build host
+- Check the version string format
+- Check whether the output directory can be deleted and recreated
 
-   ```bash
-   cd C:\TDengine\taosanode
-   python bin\taosanode_service.py start
-   ```
+### ISCC Not Found
 
-### Dependency Installation Failed
+- Install Inno Setup 6
+- Pass `--iscc-path` explicitly if `ISCC.exe` is not under the default path
 
-1. Ensure you can access PyPI
-2. Install dependencies manually:
+### Service Wrapper Reports Main Python Missing
 
-   ```bash
-   cd C:\TDengine\taosanode
-   python -m venv venv
-   venv\Scripts\activate.bat
-   pip install -r requirements_ess.txt
-   ```
+- Verify `<install_dir>\venvs\venv\Scripts\python.exe` exists
+- For offline install, re-run setup with a valid offline tar if the environment was not imported successfully
+- For online install, re-run setup so the main venv can be rebuilt
 
-### Port Already in Use
+### Service Start Returned But Readiness Was Not Confirmed
 
-Modify the `bind` setting in the configuration file `C:\TDengine\taosanode\cfg\taosanode.config.py`.
+- Check `<install_dir>\log\taosanode-service.log`
+- Check `<install_dir>\log\taosanode.app.log`
+- Run `status-taosanode.bat`
+- Run `sc query Taosanode`
 
-## References
+## Review Summary
 
-- [Inno Setup Documentation](https://jrsoftware.org/ishelp/)
-- [TDGPT Linux Packaging Script](../script/release.sh)
-- [TDGPT Linux Installation Script](../script/install.sh)
-- [TDengine Windows Packaging Process](../../../../enterprise/packaging/new_win_release.py)
+This README was aligned with the current code in:
 
-## 2026-03-17 Layout And Installer UX Update
+- `packaging/win_release.py`
+- `packaging/installer/tdgpt.iss`
+- `script/install.py`
+- `script/taosanode_service.py`
 
-- Requirements files are now packaged under `<install_dir>\requirements\`.
-- All Windows virtual environments are now created under `<install_dir>\venvs\`.
-- The installer finish flow now includes a default-enabled checkbox to install/register the Windows service.
-- The finish page now shows both service commands and script commands:
-  - `net start Taosanode`
-  - `net stop Taosanode`
-  - `<install_dir>\bin\start-taosanode.bat`
-  - `<install_dir>\bin\stop-taosanode.bat`
-- In non-silent mode the finish page automatically opens `<install_dir>\log\install.log`.
+Key corrections made:
 
-### Log Files
-
-- `<install_dir>\log\install.log`: full install output and install summary.
-- `<install_dir>\log\uninstall.log`: full uninstall output and uninstall summary.
-- `<install_dir>\log\taosanode-service.log`: service manager lifecycle log.
-- `<install_dir>\log\taosanode-winsw.wrapper.log`: WinSW wrapper log.
-- `<install_dir>\log\taosanode.app.log`: taosanode application log.
-
-### Standard Uninstall
-
-- Standard uninstall preserves `cfg`, `data`, `model`, `venvs`, and `log`.
-- `model` is removed only when `uninstall.py --remove-model` is used explicitly.
-
-## 2026-03-18 Installer Flow Update
-
-- The Windows installer wizard is now English-only.
-- The wizard now includes:
-  - Python package source selection
-  - Optional TensorFlow CPU installation in online mode
-  - Model source selection: none / online / offline package
-  - Hugging Face endpoint selection: official / HF Mirror / custom
-  - Service registration toggle
-- Default model preparation mode is `Import packaged offline model archives`.
-- Offline Python package mode skips the TensorFlow question because the packaged offline runtime already includes it.
-- Offline model import automatically scans `<install_dir>\model\` and imports every packaged offline archive that is present.
-- Offline mode also offers one optional offline model package input. The selected archive can contain all offline models together.
-- In offline mode, the wizard does not ask users to select models. It shows one offline import page instead.
-- `start-model.bat all` and `model-start all` now check model directories at runtime. Models with existing directories are started automatically, and missing ones are skipped with a log message.
-- Offline mode does not create extra model virtual environments during setup.
-- The model list order is:
-  - `TDTSFM v1.0`
-  - `TimeMoE 200M`
-  - `Moirai Small`
-  - `Chronos Bolt Base`
-  - `TimesFM 2.0 500M`
-  - `MOMENT Base`
-- If online model download is selected, the default checked models are:
-  - `Moirai Small`
-  - `MOMENT Base`
-- Windows main environment installation now uses:
-  - `requirements_windows_core.txt`
-  - `requirements_tensorflow.txt` for optional TensorFlow CPU support
-- The installer writes append-only progress events to `<install_dir>\log\install-progress.log`, and the wizard displays the latest valid event.
-- The wizard reserves a conservative `20 GB` disk space estimate so the first page reflects Python environments and model payload growth instead of only the installer file size.
-- Online reinstall now reuses an existing healthy virtual environment and only recreates it when the environment is incomplete or pip validation fails.
-- `start-model.bat` now defaults to `all` when no argument is provided, so double-clicking it starts every model whose directory exists and skips missing ones.
+- removed obsolete `full-offline` wording
+- clarified that the base installer does not bundle runtime or venvs
+- clarified that offline install does not require system Python
+- clarified that wrapper scripts require the main installed venv Python
+- corrected log file names and removed outdated WinSW wrapper log claims
+- clarified that service installation is automatic
+- clarified that model archive bundling is optional
+- added silent installation documentation with `/OFFLINE` parameter
+- added Python discovery priority documentation
+- added AIO integration example
+- added Windows 10 1803+ requirement for offline `tar.exe` bootstrap
