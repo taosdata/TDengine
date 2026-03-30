@@ -66,7 +66,6 @@ If the data on a data node (dnode) in the cluster is completely lost or damaged,
 restore dnode <dnode_id>; # Restore mnode, all vnodes, and qnode on dnode
 restore mnode on dnode <dnode_id>; # Restore mnode on dnode
 restore vnode on dnode <dnode_id>; # Restore all vnodes on dnode
-restore vnode on dnode <dnode_id> on vgroup <vgroup_id>; # Restore one vnode on dnode
 restore qnode on dnode <dnode_id>; # Restore qnode on dnode
 ```
 
@@ -74,22 +73,6 @@ restore qnode on dnode <dnode_id>; # Restore qnode on dnode
 
 - This feature is based on the recovery of existing replication capabilities, not disaster recovery or backup recovery. Therefore, for the mnode and vnode to be recovered, the prerequisite for using this command is that the other two replicas of the mnode or vnode can still function normally.
 - This command cannot repair individual files in the data directory that are damaged or lost. For example, if individual files or data in an mnode or vnode are damaged, it is not possible to recover a specific file or block of data individually. In this case, you can choose to completely clear the data of that mnode/vnode and then perform recovery.
-
-### Monitoring Snapshot Send Progress
-
-After running `restore dnode`, TDengine synchronizes data to the target node via snapshot replication. Use the following system tables to monitor progress in real time:
-
-```sql
--- Vnode-level: overall progress for each vnode currently sending a snapshot
-SELECT * FROM information_schema.ins_snap_send_vnodes;
-
--- Fileset-level: per-time-partition file transfer details for a given vgroup
-SELECT * FROM information_schema.ins_snap_send_filesets
-WHERE vgroup_id = <vgroup_id>
-ORDER BY fid;
-```
-
-For column definitions of both tables, see [Metadata](../../tdengine-reference/sql-manual/metadata).
 
 ## Splitting Virtual Groups
 

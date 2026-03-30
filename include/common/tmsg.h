@@ -164,8 +164,6 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_USAGE,
   TSDB_MGMT_TABLE_FILESETS,
   TSDB_MGMT_TABLE_TRANSACTION_DETAIL,
-  TSDB_MGMT_TABLE_SNAP_SEND_VNODES,
-  TSDB_MGMT_TABLE_SNAP_SEND_FILESETS,
   TSDB_MGMT_TABLE_MAX,
 } EShowType;
 
@@ -1975,14 +1973,7 @@ void    tFreeSRetrieveFuncRsp(SRetrieveFuncRsp* pRsp);
 
 typedef struct {
   int32_t       statusInterval;
-  /*
-    Local timezone UTC offset in seconds (east-positive, e.g. +28800 for
-    Asia/Shanghai).  Derived from taosGetLocalTimezoneOffset() on each
-    status report.  Paired with the timezone string in
-    mndCheckClusterCfgPara: a mismatch is reported only when both the
-    timezone string AND this offset differ.
-  */
-  int64_t       checkTime;
+  int64_t       checkTime;                  // 1970-01-01 00:00:00.000
   char          timezone[TD_TIMEZONE_LEN];  // tsTimezone
   char          locale[TD_LOCALE_LEN];      // tsLocale
   char          charset[TD_LOCALE_LEN];     // tsCharset
@@ -2032,7 +2023,6 @@ typedef struct {
   int64_t syncCommitIndex;
   int64_t bufferSegmentUsed;
   int64_t bufferSegmentSize;
-  int8_t  snapshotSending;  // 1 if this vnode (as leader) is actively sending a snapshot
 } SVnodeLoad;
 
 typedef struct {
@@ -2310,57 +2300,6 @@ typedef struct {
 
 int32_t tSerializeSQueryCompactProgressRsp(void* buf, int32_t bufLen, SQueryCompactProgressRsp* pReq);
 int32_t tDeserializeSQueryCompactProgressRsp(void* buf, int32_t bufLen, SQueryCompactProgressRsp* pReq);
-
-// Dnode-level compact progress aggregation (one message per dnode, contains all vnodes)
-typedef struct {
-  int32_t compactId;  // -1 means query all compact tasks
-} SDnodeQueryCompactProgressReq;
-
-int32_t tSerializeSDnodeQueryCompactProgressReq(void *buf, int32_t bufLen, SDnodeQueryCompactProgressReq *pReq);
-int32_t tDeserializeSDnodeQueryCompactProgressReq(void *buf, int32_t bufLen, SDnodeQueryCompactProgressReq *pReq);
-
-typedef struct {
-  int32_t                   dnodeId;
-  int32_t                   numOfVnodes;
-  SQueryCompactProgressRsp *vnodeProgress;  // array of numOfVnodes elements
-} SDnodeQueryCompactProgressRsp;
-
-int32_t tSerializeSDnodeQueryCompactProgressRsp(void *buf, int32_t bufLen, SDnodeQueryCompactProgressRsp *pRsp);
-int32_t tDeserializeSDnodeQueryCompactProgressRsp(void *buf, int32_t bufLen, SDnodeQueryCompactProgressRsp *pRsp);
-void    tFreeSDnodeQueryCompactProgressRsp(SDnodeQueryCompactProgressRsp *pRsp);
-
-// Snap send progress query (mnode → dnode, dnode → mnode RSP)
-typedef struct {
-  int32_t fid;
-  int32_t fileCount;
-  int32_t finishedFileCount;
-  int64_t totalSize;
-  int64_t readSize;
-  int64_t startTime;    // ms timestamp
-  int64_t sver;
-  int64_t ever;
-  int8_t  transferType; // SNAP_DATA_TSDB(2) or SNAP_DATA_RAW(14)
-} SSnapSendFileSetInfo;
-
-typedef struct {
-  int32_t             vgId;
-  int32_t             dnodeId;
-  int32_t             totalFileSets;
-  int32_t             finishedFileSets;
-  int64_t             startTime;    // ms timestamp of reader open
-  int32_t             fileSetCount; // length of pFileSetInfos
-  SSnapSendFileSetInfo *pFileSetInfos;
-} SSnapSendVnodeInfo;
-
-typedef struct {
-  int32_t dnodeId;
-  int32_t numOfVnodes;
-  SSnapSendVnodeInfo *pVnodeInfos; // array of numOfVnodes elements
-} SDnodeQuerySnapSendProgressRsp;
-
-int32_t tSerializeSDnodeQuerySnapSendProgressRsp(void *buf, int32_t bufLen, SDnodeQuerySnapSendProgressRsp *pRsp);
-int32_t tDeserializeSDnodeQuerySnapSendProgressRsp(void *buf, int32_t bufLen, SDnodeQuerySnapSendProgressRsp *pRsp);
-void    tFreeSDnodeQuerySnapSendProgressRsp(SDnodeQuerySnapSendProgressRsp *pRsp);
 
 typedef struct {
   int32_t vgId;
@@ -2763,7 +2702,6 @@ typedef struct {
   int8_t  restoreType;
   int32_t sqlLen;
   char*   sql;
-  int32_t vgId;
 } SRestoreDnodeReq;
 
 int32_t tSerializeSRestoreDnodeReq(void* buf, int32_t bufLen, SRestoreDnodeReq* pReq);

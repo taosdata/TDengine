@@ -16,7 +16,7 @@ target_link_libraries(
   PUBLIC function
 )
 
-if(BUILD_WITH_LUCENE)
+if(${BUILD_WITH_LUCENE})
   target_include_directories(
     index
     PUBLIC "${TD_SOURCE_DIR}/deps/lucene/include"
@@ -26,12 +26,12 @@ if(BUILD_WITH_LUCENE)
     index
     PUBLIC lucene++
   )
-endif()
+endif(${BUILD_WITH_LUCENE})
 
-if(BUILD_WITH_INVERTEDINDEX)
+if(${BUILD_WITH_INVERTEDINDEX})
   add_definitions(-DUSE_INVERTED_INDEX)
-endif()
+endif(${BUILD_WITH_INVERTEDINDEX})
 
-if(BUILD_TEST)
+if(${BUILD_TEST})
   add_subdirectory(test)
-endif()
+endif(${BUILD_TEST})

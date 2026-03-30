@@ -408,11 +408,11 @@ bool funcInputGetNextRowNoPk(SFuncInputRowIter* pIter, SFuncInputRow* pRow) {
 int32_t funcInputGetNextRow(SqlFunctionCtx* pCtx, SFuncInputRow* pRow, bool* res) {
   SFuncInputRowIter* pIter = &pCtx->rowIter;
   if (pCtx->hasPrimaryKey) {
-    if (pCtx->order == TSDB_ORDER_DESC) {
-      return funcInputGetNextRowDescPk(pIter, pRow, res);
+    if (pCtx->order == TSDB_ORDER_ASC) {
+      *res = funcInputGetNextRowAscPk(pIter, pRow);
       return TSDB_CODE_SUCCESS;
     } else {
-      *res = funcInputGetNextRowAscPk(pIter, pRow);
+      return funcInputGetNextRowDescPk(pIter, pRow, res);
     }
   } else {
     *res = funcInputGetNextRowNoPk(pIter, pRow);

@@ -58,7 +58,6 @@ int32_t tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *
   // taosRealPath(pTsdb->path, NULL, slen);
   pTsdb->pVnode = pVnode;
   (void)taosThreadMutexInit(&pTsdb->mutex, NULL);
-  (void)taosThreadRwlockInit(&pTsdb->snapStatLock, NULL);
   if (!pKeepCfg) {
     tsdbSetKeepCfg(pTsdb, &pVnode->config.tsdbCfg);
   } else {
@@ -94,7 +93,6 @@ _exit:
     tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(pVnode), __func__, __FILE__, lino, tstrerror(code));
     tsdbCloseFS(&pTsdb->pFS);
     (void)taosThreadMutexDestroy(&pTsdb->mutex);
-    (void)taosThreadRwlockDestroy(&pTsdb->snapStatLock);
     taosMemoryFree(pTsdb);
   } else {
     tsdbDebug("vgId:%d, tsdb is opened at %s, days:%d, keep:%d,%d,%d, keepTimeoffset:%d", TD_VID(pVnode), pTsdb->path,
@@ -121,15 +119,7 @@ void tsdbClose(STsdb **pTsdb) {
 #ifdef TD_ENTERPRISE
     tsdbCloseCompMonitor(*pTsdb);
 #endif
-    (void)taosThreadRwlockWrlock(&(*pTsdb)->snapStatLock);
-    if ((*pTsdb)->pSnapStat != NULL) {
-      taosMemoryFree((*pTsdb)->pSnapStat->pFileSetStats);
-      taosMemoryFree((*pTsdb)->pSnapStat);
-      (*pTsdb)->pSnapStat = NULL;
-    }
-    (void)taosThreadRwlockUnlock(&(*pTsdb)->snapStatLock);
     (void)taosThreadMutexDestroy(&(*pTsdb)->mutex);
-    (void)taosThreadRwlockDestroy(&(*pTsdb)->snapStatLock);
     taosMemoryFreeClear(*pTsdb);
   }
   return;

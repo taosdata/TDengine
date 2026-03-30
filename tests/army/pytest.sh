@@ -84,19 +84,13 @@ else
   echo "AsanFile:" $AsanFile
 
   unset LD_PRELOAD
-  if [[ "${CI_ASAN_BUILD:-}" == "1" ]]; then
-    # ASAN 编译构建（GCC14 others:latest，需要 LD_PRELOAD libasan.so.8）
-    export LD_PRELOAD="$(realpath "$(gcc -print-file-name=libasan.so)") $(realpath "$(gcc -print-file-name=libstdc++.so)")"
-    echo "Preload AsanSo (CI_ASAN_BUILD=1): ${LD_PRELOAD}"
-  elif [[ -z "${CI_NO_ASAN:-}" ]]; then
-    export LD_PRELOAD="$(realpath "$(gcc -print-file-name=libasan.so)") $(realpath "$(gcc -print-file-name=libstdc++.so)")"
-    echo "Preload AsanSo:" $?
-  else
-    echo "CI_NO_ASAN set, skipping LD_PRELOAD (non-sanitizer build)"
-  fi
+  #export LD_PRELOAD=libasan.so.5
+  #export LD_PRELOAD=$(gcc -print-file-name=libasan.so)
+  export LD_PRELOAD="$(realpath "$(gcc -print-file-name=libasan.so)") $(realpath "$(gcc -print-file-name=libstdc++.so)")"
+  echo "Preload AsanSo:" $?
 
-  export ASAN_OPTIONS=detect_odr_violation=0:malloc_context_size=10:quarantine_size_mb=64
-  echo "ASAN_OPTIONS: ${ASAN_OPTIONS}"
+  export ASAN_OPTIONS=detect_odr_violation=0
+  echo "forbid check ODR violation."
 
 
   $* -a 2>$AsanFile

@@ -327,13 +327,9 @@ int32_t eventWindowAggImpl(SOperatorInfo* pOperator, SEventWindowOperatorInfo* p
         QUERY_CHECK_CODE(code, lino, _return);
         doUpdateNumOfRows(pSup->pCtx, pInfo->pRow, pSup->numOfExprs, pSup->rowEntryInfoOffset);
 
-        int64_t delta = pRowSup->win.ekey - pRowSup->win.skey;
-        if(pInfo->binfo.inputTsOrder == ORDER_DESC) {
-          delta = -delta;
-        }
-        if (delta < minWindowSize) {
+        if (pRowSup->win.ekey - pRowSup->win.skey < minWindowSize) {
           qDebug("skip small window, groupId: %" PRId64 ", windowSize: %" PRId64 ", minWindowSize: %" PRId64,
-                 pInfo->groupId, delta, minWindowSize);
+                 pInfo->groupId, pRowSup->win.ekey - pRowSup->win.skey, minWindowSize);
         } else {
           // check buffer size
           if (pRes->info.rows + pInfo->pRow->numOfRows >= pRes->info.capacity) {

@@ -39,20 +39,18 @@ int main(int argc, char** argv) {
 
 TAOS* getConnWithGlobalOption(const char *tz){
   int code = taos_options(TSDB_OPTION_TIMEZONE, tz);
-  if (code != 0) return nullptr;
+  ASSERT(code ==  0);
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  ASSERT(pConn != nullptr);
   return pConn;
 }
 
 TAOS* getConnWithOption(const char *tz){
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
-  if (pConn == nullptr) return nullptr;
+  ASSERT(pConn != nullptr);
   if (tz != NULL){
     int code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_TIMEZONE, tz);
-    if (code != 0) {
-      taos_close(pConn);
-      return nullptr;
-    }
+    ASSERT(code == 0);
   }
   return pConn;
 }
@@ -408,13 +406,13 @@ TEST(connectionCase, setConnectionOption_Test) {
 TEST(charsetCase, charset_Test) {
   // 1. build connection with different charset
   TAOS* pConnGbk = taos_connect("localhost", "root", "taosdata", NULL, 0);
-  ASSERT_NE(pConnGbk, nullptr);
+  ASSERT(pConnGbk != nullptr);
 
   TAOS* pConnUTF8 = taos_connect("localhost", "root", "taosdata", NULL, 0);
-  ASSERT_NE(pConnUTF8, nullptr);
+  ASSERT(pConnUTF8 != nullptr);
 
   TAOS* pConnDefault = taos_connect("localhost", "root", "taosdata", NULL, 0);
-  ASSERT_NE(pConnDefault, nullptr);
+  ASSERT(pConnDefault != nullptr);
 
   int32_t code = taos_options_connection(pConnGbk, TSDB_OPTION_CONNECTION_CHARSET, "gbk");
   ASSERT(code == 0);
@@ -552,7 +550,7 @@ TEST(charsetCase, charset_Test) {
 
 TEST(charsetCase, alter_charset_Test) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
-  ASSERT_NE(pConn, nullptr);
+  ASSERT(pConn != nullptr);
 
   execQueryFail(pConn, "alter dnode 1 'charset gbk'");
   execQueryFail(pConn, "local 'charset gbk'");

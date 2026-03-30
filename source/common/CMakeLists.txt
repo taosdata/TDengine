@@ -4,7 +4,7 @@ aux_source_directory(src/msg COMMON_MSG_SRC)
 LIST(APPEND COMMON_SRC ${COMMON_MSG_SRC})
 
 if(TD_ENTERPRISE)
-  LIST(APPEND COMMON_SRC ${TD_ENTERPRISE_DIR}/source/plugins/common/src/tglobal.c)
+  LIST(APPEND COMMON_SRC ${TD_ENTERPRISE_DIR}/src/plugins/common/src/tglobal.c)
 endif()
 
 add_library(common STATIC ${COMMON_SRC})
@@ -25,7 +25,7 @@ if(DEFINED GRANT_CFG_INCLUDE_DIR)
   add_definitions(-DGRANTS_CFG)
 endif()
 
-if(BUILD_WITH_ANALYSIS)
+if(${BUILD_WITH_ANALYSIS})
   add_definitions(-DUSE_ANALYTICS)
 endif()
 
@@ -39,9 +39,9 @@ if(TD_STORAGE)
 endif()
 
 if(TD_ENTERPRISE)
-  if(BUILD_WITH_S3)
+  if(${BUILD_WITH_S3})
     add_definitions(-DUSE_S3)
-  ELSEIF(BUILD_WITH_COS)
+  ELSEIF(${BUILD_WITH_COS})
     add_definitions(-DUSE_COS)
   endif()
 endif()
@@ -53,11 +53,9 @@ target_include_directories(
 
   PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
   PRIVATE "${GRANT_CFG_INCLUDE_DIR}"
-  PRIVATE "${TD_SOURCE_DIR}/include/libs/tfs"
-  PRIVATE "${TD_SOURCE_DIR}/include/libs/monitor"
 )
 
-if(TD_WINDOWS)
+if(${TD_WINDOWS})
   # This is the Windows Shell32 library, needed by RocksDB
   find_library(SHLWAPI_LIBRARY NAMES shlwapi)
   if(SHLWAPI_LIBRARY)
@@ -97,8 +95,8 @@ else()
   DEP_ext_ssl(common)
 endif()
 
-if(BUILD_S3)
-  if(BUILD_WITH_S3)
+if(${BUILD_S3})
+  if(${BUILD_WITH_S3})
     DEP_ext_libs3(common)
     DEP_ext_curl(common)
     DEP_ext_ssl(common)
@@ -106,7 +104,7 @@ if(BUILD_S3)
     add_definitions(-DUSE_S3)
   endif()
 
-  if(BUILD_WITH_COS)
+  if(${BUILD_WITH_COS})
     set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
     find_library(APR_LIBRARY apr-1 PATHS /usr/local/apr/lib/)
     find_library(APR_UTIL_LIBRARY aprutil-1 PATHS /usr/local/apr/lib/)
@@ -136,9 +134,9 @@ if(BUILD_S3)
     include_directories(${APR_INCLUDE_DIR})
 
     add_definitions(-DUSE_COS)
-  endif()
+  endif(${BUILD_WITH_COS})
 endif()
 
-if(BUILD_TEST)
+if(${BUILD_TEST})
   ADD_SUBDIRECTORY(test)
-endif()
+endif(${BUILD_TEST})

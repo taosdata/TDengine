@@ -1,4 +1,4 @@
 
-if(BUILD_TEST)
+if(${BUILD_TEST})
     add_subdirectory(taosc_test)
-endif()
+endif(${BUILD_TEST})

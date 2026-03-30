@@ -359,37 +359,6 @@ Provides information about file sets.
 | 7   |  last_compact  | TIMESTAMP     | Time of the last compaction                          |
 | 8   | should_compact | bool          | Whether the file set should be compacted             |
 
-## INS_SNAP_SEND_VNODES
-
-Provides overall progress information for vnodes currently undergoing snapshot transfer. A row appears when a vgroup's leader is transferring a snapshot to a follower, and disappears automatically when the transfer completes.
-
-| #   |    **Column Name**   | **Data Type** | **Description**                                    |
-| --- | :------------------: | ------------- | -------------------------------------------------- |
-| 1   |     vgroup_id        | INT           | vgroup ID of the vnode                             |
-| 2   |     dnode_id         | INT           | dnode ID of the leader                             |
-| 3   |   total_file_sets    | INT           | total number of filesets to transfer               |
-| 4   | finished_file_sets   | INT           | number of filesets fully transferred               |
-| 5   |     start_time       | TIMESTAMP     | time when the snapshot reader was opened           |
-| 6   |      elapsed         | VARCHAR(16)   | elapsed duration, format `H:MM:SS`                 |
-
-## INS_SNAP_SEND_FILESETS
-
-Provides file-level transfer progress for each fileset (time partition) in the active snapshot send. Rows disappear automatically when the snapshot transfer for the owning vnode completes.
-
-| #   |     **Column Name**   | **Data Type** | **Description**                                                                                                                    |
-| --- | :-------------------: | ------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| 1   |      vgroup_id        | INT           | vgroup ID of the vnode                                                                                                             |
-| 2   |         fid           | INT           | fileset ID (time-partition ID)                                                                                                     |
-| 3   |      file_count       | INT           | total number of physical files in this fileset (HEAD/DATA/SMA/STT etc.)                                                           |
-| 4   | finished_file_count   | INT           | number of physical files fully transferred                                                                                         |
-| 5   |      total_size       | BIGINT        | sum of all physical file sizes in this fileset, in bytes                                                                           |
-| 6   |      read_size        | BIGINT        | bytes read and sent so far (monotonically increasing; same unit as total_size in RAW mode; re-compressed bytes in ROW mode, use as trend indicator only) |
-| 7   |      start_time       | TIMESTAMP     | time when transfer of this fileset began                                                                                           |
-| 8   |       elapsed         | VARCHAR(16)   | elapsed time for this fileset, format `H:MM:SS`                                                                                    |
-| 9   |     start_index       | BIGINT        | start version of this fileset (sver)                                                                                               |
-| 10  |      end_index        | BIGINT        | end version of this fileset (ever)                                                                                                 |
-| 11  |    transfer_type      | VARCHAR(4)    | transfer mode: `raw` (full RAW transfer) or `row` (incremental ROW transfer)                                                      |
-
 ## INS_VNODES
 
 Provides information about vnodes in the system. Users with SYSINFO property set to 0 cannot view this table.

@@ -1841,155 +1841,6 @@ int getTableDes(TAOS *taos,
     return getTableTagValue(taos, dbName, table, &tableDes);
 }
 
-// check if type needs length suffix in CREATE SQL
-static bool typeNeedsLength(int type) {
-    return (type == TSDB_DATA_TYPE_BINARY ||
-            type == TSDB_DATA_TYPE_NCHAR ||
-            type == TSDB_DATA_TYPE_VARBINARY ||
-            type == TSDB_DATA_TYPE_GEOMETRY);
-}
-
-// build CREATE TABLE/STABLE SQL from DESCRIBE result
-// used as fallback when SHOW CREATE TABLE is truncated or fails
-static char *buildCreateSqlFromDescribe(void** taos_v, const char *dbName, char *tbName) {
-    char command[TSDB_DB_NAME_LEN + TSDB_TABLE_NAME_LEN + 128] = "";
-    snprintf(command, sizeof(command), "DESCRIBE `%s`.`%s`", dbName, tbName);
-
-    void *res = openQuery(taos_v, command);
-    if (res == NULL) {
-        errorPrint("%s() LN%d, DESCRIBE `%s`.`%s` failed\n",
-                __func__, __LINE__, dbName, tbName);
-        return NULL;
-    }
-
-    // collect columns and tags from DESCRIBE result
-    // DESCRIBE returns: field, type, length, note
-    // note == "TAG" for tag columns, empty for normal columns
-    typedef struct {
-        char name[TSDB_COL_NAME_LEN];
-        int  type;
-        int  length;
-        bool isTag;
-    } DescCol;
-
-    int capacity = 4096 + 128;  // max columns + tags
-    DescCol *descs = (DescCol *)calloc(capacity, sizeof(DescCol));
-    if (NULL == descs) {
-        errorPrint("%s() LN%d, memory allocation failed\n", __func__, __LINE__);
-        closeQuery(res);
-        return NULL;
-    }
-
-    int totalCols = 0;
-    int tagCount = 0;
-    TAOS_ROW row;
-    while ((row = taos_fetch_row(res)) != NULL && totalCols < capacity) {
-        int32_t *lengths = taos_fetch_lengths(res);
-        char typeStr[32] = {0};
-        strncpy(descs[totalCols].name,
-                (char *)row[TSDB_DESCRIBE_METRIC_FIELD_INDEX],
-                min((int)lengths[TSDB_DESCRIBE_METRIC_FIELD_INDEX], TSDB_COL_NAME_LEN - 1));
-        strncpy(typeStr, (char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
-                min((int)lengths[TSDB_DESCRIBE_METRIC_TYPE_INDEX], (int)sizeof(typeStr) - 1));
-        descs[totalCols].type = typeStrToType(typeStr);
-        descs[totalCols].length = *((int *)row[TSDB_DESCRIBE_METRIC_LENGTH_INDEX]);
-
-        if (lengths[TSDB_DESCRIBE_METRIC_NOTE_INDEX] > 0) {
-            char note[COL_NOTE_LEN] = {0};
-            strncpy(note, (char *)row[TSDB_DESCRIBE_METRIC_NOTE_INDEX],
-                    min((int)lengths[TSDB_DESCRIBE_METRIC_NOTE_INDEX], COL_NOTE_LEN - 1));
-            descs[totalCols].isTag = (strcmp(note, "TAG") == 0);
-            if (descs[totalCols].isTag) tagCount++;
-        }
-        totalCols++;
-    }
-    closeQuery(res);
-
-    if (totalCols == 0) {
-        errorPrint("%s() LN%d, DESCRIBE returned no columns for `%s`.`%s`\n",
-                __func__, __LINE__, dbName, tbName);
-        free(descs);
-        return NULL;
-    }
-
-    // tb is output to file table name
-    char *tb = tbName;
-    char tableName[TSDB_TABLE_NAME_LEN + 1];
-    if (g_args.dotReplace && replaceCopy(tableName, tbName)) {
-        tb = tableName;
-    }
-
-    // estimate buffer size: header + per-column ~(65 name + 20 type + 10 length + 3 punctuation)
-    int bufSize = 256 + totalCols * 100;
-    char *csql = (char *)calloc(1, bufSize);
-    if (NULL == csql) {
-        errorPrint("%s() LN%d, memory allocation failed\n", __func__, __LINE__);
-        free(descs);
-        return NULL;
-    }
-
-    int pos = 0;
-    bool isStable = (tagCount > 0);
-
-    // header
-    if (isStable) {
-        pos += snprintf(csql + pos, bufSize - pos,
-                "CREATE STABLE IF NOT EXISTS `%s`.`%s` (", dbName, tb);
-    } else {
-        pos += snprintf(csql + pos, bufSize - pos,
-                "CREATE TABLE IF NOT EXISTS `%s`.`%s` (", dbName, tb);
-    }
-
-    // columns (non-tag)
-    bool firstCol = true;
-    for (int i = 0; i < totalCols; i++) {
-        if (descs[i].isTag) continue;
-        if (!firstCol) {
-            pos += snprintf(csql + pos, bufSize - pos, ", ");
-        }
-        if (typeNeedsLength(descs[i].type)) {
-            pos += snprintf(csql + pos, bufSize - pos, "`%s` %s(%d)",
-                    descs[i].name, typeToStr(descs[i].type), descs[i].length);
-        } else {
-            pos += snprintf(csql + pos, bufSize - pos, "`%s` %s",
-                    descs[i].name, typeToStr(descs[i].type));
-        }
-        firstCol = false;
-    }
-    pos += snprintf(csql + pos, bufSize - pos, ")");
-
-    // tags
-    if (isStable) {
-        pos += snprintf(csql + pos, bufSize - pos, " TAGS (");
-        bool firstTag = true;
-        for (int i = 0; i < totalCols; i++) {
-            if (!descs[i].isTag) continue;
-            if (!firstTag) {
-                pos += snprintf(csql + pos, bufSize - pos, ", ");
-            }
-            if (typeNeedsLength(descs[i].type)) {
-                pos += snprintf(csql + pos, bufSize - pos, "`%s` %s(%d)",
-                        descs[i].name, typeToStr(descs[i].type), descs[i].length);
-            } else {
-                pos += snprintf(csql + pos, bufSize - pos, "`%s` %s",
-                        descs[i].name, typeToStr(descs[i].type));
-            }
-            firstTag = false;
-        }
-        pos += snprintf(csql + pos, bufSize - pos, ")");
-    }
-
-    free(descs);
-
-    warnPrint("Used DESCRIBE fallback to build CREATE %s SQL for `%s`.`%s` "
-              "(SHOW CREATE TABLE was truncated or failed)\n",
-              isStable ? "STABLE" : "TABLE", dbName, tbName);
-
-    debugPrint("%s() LN%d, fallback create sql: %s\n", __func__, __LINE__, csql);
-
-    return csql;
-}
-
 // query from server
 char *queryCreateTableSql(void** taos_v, const char *dbName, char *tbName) {
     // combine sql
@@ -2000,9 +1851,7 @@ char *queryCreateTableSql(void** taos_v, const char *dbName, char *tbName) {
     // query
     void* res = openQuery(taos_v, sql);
     if (res == NULL) {
-        warnPrint("SHOW CREATE TABLE failed for `%s`.`%s`, "
-                  "trying DESCRIBE fallback\n", dbName, tbName);
-        return buildCreateSqlFromDescribe(taos_v, dbName, tbName);
+        return NULL;
     }
 
     // read
@@ -2012,18 +1861,7 @@ char *queryCreateTableSql(void** taos_v, const char *dbName, char *tbName) {
     int32_t ret = readRow(res, 0, 1, &len, &data);    
     if (ret != 0) {
         closeQuery(res);
-        warnPrint("SHOW CREATE TABLE read failed for `%s`.`%s`, "
-                  "trying DESCRIBE fallback\n", dbName, tbName);
-        return buildCreateSqlFromDescribe(taos_v, dbName, tbName);
-    }
-
-    // check if result is truncated (VARCHAR max is 65535)
-    if (len >= 64000) {
-        warnPrint("SHOW CREATE TABLE result for `%s`.`%s` is %u bytes "
-                  "(likely truncated at 65535), using DESCRIBE fallback\n",
-                  dbName, tbName, len);
-        closeQuery(res);
-        return buildCreateSqlFromDescribe(taos_v, dbName, tbName);
+        return NULL;
     }
 
     // prefix check
@@ -2291,88 +2129,6 @@ static RecordSchema *parse_json_to_recordschema(json_t *element) {
     return recordSchema;
 }
 
-/* Write a zigzag-encoded variable-length long to FILE */
-static int avro_zigzag_write_long(FILE *fp, int64_t l) {
-    uint8_t buf[10];
-    int n = 0;
-    uint64_t v = (l >= 0) ? ((uint64_t)l << 1) : ((uint64_t)(~l) << 1 | 1);
-    while (v & ~0x7FULL) {
-        buf[n++] = (uint8_t)((v & 0x7F) | 0x80);
-        v >>= 7;
-    }
-    buf[n++] = (uint8_t)v;
-    return (fwrite(buf, 1, n, fp) == (size_t)n) ? 0 : -1;
-}
-
-/* Write an avro "bytes" value: zigzag length + raw bytes */
-static int avro_raw_write_bytes(FILE *fp, const char *data, int64_t len) {
-    if (avro_zigzag_write_long(fp, len) != 0) return -1;
-    if (len > 0 && fwrite(data, 1, len, fp) != (size_t)len) return -1;
-    return 0;
-}
-
-/* Write an avro "string" value (same encoding as bytes) */
-static int avro_raw_write_string(FILE *fp, const char *s) {
-    return avro_raw_write_bytes(fp, s, (int64_t)strlen(s));
-}
-
-/*
- * Write a complete avro file header manually, bypassing the 64KB
- * schema_buf limitation in avro-c's write_header().
- *
- * Avro Object Container File header format:
- *   magic:    "Obj" 0x01
- *   metadata: avro map {count, (key,value)..., 0}
- *             - "avro.codec" => codec name (bytes)
- *             - "avro.schema" => schema JSON (bytes)
- *   sync:     16 random bytes
- *
- * Returns 0 on success, -1 on failure.
- */
-static int writeAvroHeaderRaw(const char *path, const char *schemaJson,
-                              const char *codecName, uint8_t *syncOut) {
-    FILE *fp = fopen(path, "wb");
-    if (!fp) {
-        errorPrint("Cannot create avro file: %s\n", path);
-        return -1;
-    }
-
-    /* Magic */
-    uint8_t magic[4] = {'O', 'b', 'j', 0x01};
-    if (fwrite(magic, 1, 4, fp) != 4) goto fail;
-
-    /* Metadata map: 2 entries */
-    if (avro_zigzag_write_long(fp, 2) != 0) goto fail;
-
-    /* Entry 1: avro.codec */
-    if (avro_raw_write_string(fp, "avro.codec") != 0) goto fail;
-    if (avro_raw_write_bytes(fp, codecName, (int64_t)strlen(codecName)) != 0)
-        goto fail;
-
-    /* Entry 2: avro.schema */
-    if (avro_raw_write_string(fp, "avro.schema") != 0) goto fail;
-    if (avro_raw_write_bytes(fp, schemaJson, (int64_t)strlen(schemaJson)) != 0)
-        goto fail;
-
-    /* End of map */
-    if (avro_zigzag_write_long(fp, 0) != 0) goto fail;
-
-    /* Sync marker: 16 random bytes */
-    for (int i = 0; i < 16; i++) {
-        syncOut[i] = (uint8_t)(rand() & 0xFF);
-    }
-    if (fwrite(syncOut, 1, 16, fp) != 16) goto fail;
-
-    fclose(fp);
-    return 0;
-
-fail:
-    errorPrint("Failed to write avro header for: %s\n", path);
-    fclose(fp);
-    remove(path);
-    return -1;
-}
-
 avro_value_iface_t* prepareAvroWface(
         const char *avroFilename,
         char *jsonSchema,
@@ -2407,42 +2163,12 @@ avro_value_iface_t* prepareAvroWface(
         exit(EXIT_FAILURE);
     }
 
-    int rval;
-    size_t schemaLen = strlen(jsonSchema);
-
-    if (schemaLen >= 60 * 1024) {
-        /*
-         * Schema JSON exceeds avro-c's internal 64KB schema_buf.
-         * Bypass avro_file_writer_create_with_codec() by manually
-         * writing the avro file header, then open in append mode.
-         */
-        infoPrint("Schema length %zu bytes exceeds 60KB, "
-                  "writing avro header manually for: %s\n",
-                  schemaLen, avroFilename);
-        uint8_t sync[16];
-        const char *codecName = g_avro_codec[g_args.avro_codec];
-        if (writeAvroHeaderRaw(avroFilename, jsonSchema,
-                               codecName, sync) != 0) {
-            errorPrint("There was an error creating %s header\n",
-                    avroFilename);
-            exit(EXIT_FAILURE);
-        }
-
-        rval = avro_file_writer_open_bs(avroFilename, writer, 512*1024);
-        if (rval) {
-            errorPrint("There was an error opening %s for append. reason: %s\n",
-                    avroFilename, avro_strerror());
-            remove(avroFilename);
-            exit(EXIT_FAILURE);
-        }
-    } else {
-        rval = avro_file_writer_create_with_codec
-            (avroFilename, *schema, writer, g_avro_codec[g_args.avro_codec], 512*1024);
-        if (rval) {
-            errorPrint("There was an error creating %s. reason: %s\n",
-                    avroFilename, avro_strerror());
-            exit(EXIT_FAILURE);
-        }
+    int rval = avro_file_writer_create_with_codec
+        (avroFilename, *schema, writer, g_avro_codec[g_args.avro_codec], 70*1024);
+    if (rval) {
+        errorPrint("There was an error creating %s. reason: %s\n",
+                avroFilename, avro_strerror());
+        exit(EXIT_FAILURE);
     }
 
     avro_value_iface_t* wface =
@@ -3995,50 +3721,40 @@ static int32_t dumpInAvroTagBinary(FieldStruct *field, avro_value_t *value,
     avro_value_get_current_branch(
         value, &branch);
 
-    if (0 == avro_value_get_null(&branch)) {
+    char *buf = NULL;
+    size_t bin_size;
+
+    avro_value_get_string(&branch,
+        (const char **)&buf, &bin_size);
+
+    if (NULL == buf) {
         debugPrint2("%s | ", "NULL");
         curr_sqlstr_len += sprintf(
             sqlstr+curr_sqlstr_len, "NULL,");
     } else {
-        char *buf = NULL;
-        size_t bin_size;
-
-        avro_value_get_string(&branch,
-            (const char **)&buf, &bin_size);
-
-        if (NULL == buf) {
-            debugPrint2("%s | ", "NULL");
-            curr_sqlstr_len += sprintf(
-                sqlstr+curr_sqlstr_len, "NULL,");
-        } else {
-            debugPrint2("%s | ", (char *)buf);
-            curr_sqlstr_len += appendValues(sqlstr + curr_sqlstr_len, buf);
-        }    
+        debugPrint2("%s | ", (char *)buf);
+        curr_sqlstr_len += appendValues(sqlstr + curr_sqlstr_len, buf);
     }
     return curr_sqlstr_len;
 }
 
 static int32_t dumpInAvroTagNChar(FieldStruct *field, avro_value_t *value,
                               char *sqlstr, int32_t curr_sqlstr_len) {
+    size_t bytessize;
+    void *bytesbuf = NULL;
+
     avro_value_t nchar_branch;
     avro_value_get_current_branch(value, &nchar_branch);
 
-    if (0 == avro_value_get_null(&nchar_branch)) {
+    avro_value_get_bytes(&nchar_branch,
+        (const void **)&bytesbuf, &bytessize);
+
+    if (NULL == bytesbuf) {
         debugPrint2("%s | ", "NULL");
         curr_sqlstr_len += sprintf(sqlstr+curr_sqlstr_len, "NULL,");
     } else {
-        size_t bytessize;
-        void *bytesbuf = NULL;
-        avro_value_get_bytes(&nchar_branch,
-            (const void **)&bytesbuf, &bytessize);
-
-        if (NULL == bytesbuf) {
-            debugPrint2("%s | ", "NULL");
-            curr_sqlstr_len += sprintf(sqlstr+curr_sqlstr_len, "NULL,");
-        } else {
-            debugPrint2("%s | ", (char *)bytesbuf);
-            curr_sqlstr_len += appendValues(sqlstr + curr_sqlstr_len, (char *)bytesbuf);
-        }
+        debugPrint2("%s | ", (char *)bytesbuf);
+        curr_sqlstr_len += appendValues(sqlstr + curr_sqlstr_len, (char *)bytesbuf);
     }
     return curr_sqlstr_len;
 }
@@ -5104,27 +4820,21 @@ static void dumpInAvroDataBytes(FieldStruct *field,
                               avro_value_t *value,
                               TAOS_MULTI_BIND *bind,
                               char *is_null) {
+    size_t bytessize = 0;
+    void *bytesbuf = NULL;
+
     avro_value_t branch;
     avro_value_get_current_branch(value, &branch);
 
-    if (0 == avro_value_get_null(&branch)) {
+    avro_value_get_bytes(&branch, (const void **)&bytesbuf, &bytessize);
+    if (NULL == bytesbuf || bytessize == 0) {
         debugPrint2("%s | ", "NULL");
         bind->is_null = is_null;
     } else {
-        size_t bytessize = 0;
-        void *bytesbuf = NULL;
-
-        avro_value_get_bytes(&branch, (const void **)&bytesbuf, &bytessize);
-        if (NULL == bytesbuf) {
-            debugPrint2("%s | ", "NULL");
-            bind->is_null = is_null;
-        } else {
-            debugPrint2("bytes len =%ld | ", bytessize);
-            if (bind->length) *bind->length = (int32_t)bytessize;
-            bind->buffer_length = (int32_t)bytessize;
-            bind->buffer = bytesbuf;
-        }
+        debugPrint2("bytes len =%ld | ", bytessize);
+        bind->buffer_length = bytessize;
     }
+    bind->buffer = bytesbuf;
 }
 
 static void dumpInAvroDataBinary(FieldStruct *field,
@@ -5134,25 +4844,18 @@ static void dumpInAvroDataBinary(FieldStruct *field,
     avro_value_t branch;
     avro_value_get_current_branch(value, &branch);
 
-    if (0 == avro_value_get_null(&branch)) {
+    char *buf = NULL;
+    size_t size;
+    avro_value_get_string(&branch, (const char **)&buf, &size);
+
+    if (NULL == buf || size == 0) {
         debugPrint2("%s | ", "NULL");
         bind->is_null = is_null;
     } else {
-        char *buf = NULL;
-        size_t size;
-        avro_value_get_string(&branch, (const char **)&buf, &size);
-
-        if (NULL == buf || size == 0) {
-            debugPrint2("%s | ", "NULL");
-            bind->is_null = is_null;
-        } else {
-            debugPrint2("%s | ", (char *)buf);
-            if (size > 0 && buf[size - 1] == '\0') size -= 1;
-            if (bind->length) *bind->length = (int32_t)size;
-            bind->buffer_length = (int32_t)size;
-            bind->buffer = buf;
-        }
+        debugPrint2("%s | ", (char *)buf);
+        bind->buffer_length = strlen(buf);
     }
+    bind->buffer = buf;
 }
 
 static void dumpInAvroDataDouble(FieldStruct *field,

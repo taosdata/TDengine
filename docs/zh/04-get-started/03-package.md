@@ -6,7 +6,7 @@ description: 使用安装包快速体验 TDengine
 
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
-import PkgList from "/src/components/PkgList";
+import PkgListV3 from "/components/PkgListV3";
 
 TDengine 完整的软件包包括服务端（taosd）、应用驱动（taosc）、用于与第三方系统对接并提供 RESTful 接口的 taosAdapter、命令行程序（TDengine CLI）和一些工具软件。目前 TDinsight 仅在 Linux 系统上安装和运行，后续将支持 Windows、macOS 等系统。TDengine 除了提供多种语言的连接器之外，还通过 [taosAdapter](../../reference/components/taosadapter/) 提供 [RESTful 接口](../../reference/connector/rest-api/)。
 
@@ -41,7 +41,7 @@ TDengine 完整的软件包包括服务端（taosd）、应用驱动（taosc）�
 <TabItem label="Deb 安装" value="debinst">
 
 1. 从列表中下载获得 Deb 安装包：
-   <PkgList productName="TDengine TSDB-OSS" platform="Linux-Ubuntu"/>
+   <PkgListV3 type={6}/>
 
 2. 进入到安装包所在目录，执行如下的安装命令：
 
@@ -56,7 +56,7 @@ sudo dpkg -i tdengine-tsdb-oss-<version>-linux-x64.deb
 <TabItem label="RPM 安装" value="rpminst">
 
 1. 从列表中下载获得 RPM 安装包：
-   <PkgList productName="TDengine TSDB-OSS" platform="Linux-Red Hat"/>
+   <PkgListV3 type={5}/>
 
 2. 进入到安装包所在目录，执行如下的安装命令：
 
@@ -71,7 +71,7 @@ sudo rpm -ivh tdengine-tsdb-oss-<version>-linux-x64.rpm
 <TabItem label="tar.gz 安装" value="tarinst">
 
 1. 从列表中下载获得 tar.gz 安装包：
-   <PkgList productName="TDengine TSDB-OSS" platform="Linux-Generic"/>
+   <PkgListV3 type={0}/>
 2. 进入到安装包所在目录，使用 `tar` 解压安装包；
 3. 进入到安装包所在目录，先解压文件后，进入子目录，执行其中的 install.sh 安装脚本。
 
@@ -88,29 +88,7 @@ sudo ./install.sh
 ```
 
 :::info
-install.sh 安装脚本支持自定义安装目录（-d 参数），可以传入父目录（例如 `/opt/tdengine`）或最终安装目录（例如 `/opt/tdengine/taos`）。
-
-1. **root 用户自定义目录**：
-
-   ```bash
-   sudo ./install.sh -e no -d /opt/tdengine
-   ```
-
-   实际主程序目录为 `/opt/tdengine/taos`，但配置、数据、日志目录仍分别为 `/etc/taos`、`/var/lib/taos`、`/var/log/taos`。
-
-2. **非 root 用户自定义目录**：
-
-   ```bash
-   ./install.sh -e no -d ~/apps/tdengine
-   ```
-
-   实际主程序目录为 `~/apps/tdengine/taos`，且配置、数据、日志目录都在该自定义目录下。
-
-3. **升级/重装说明**：
-  如果之前用 `-d` 安装过，在未卸载且原安装目录仍存在的情况下，后续升级或再次执行 `install.sh` 即使不加 `-d`，也会自动复用之前的 `.install_path`，继续使用相同主程序目录。
-
-install.sh 安装脚本在执行过程中，会通过命令行交互界面询问一些配置信息。如果希望采取无交互安装方式，可以运行 `./install.sh -s` 或者 `./install.sh -e no`。
-为兼容已有自动化脚本，传入 `./install.sh -e yes` 或 `./install.sh -e no` 时，也会一并跳过其余交互提示；其中 `-e` 仍用于控制 FQDN 相关行为。运行 `./install.sh -h` 指令可以查看所有参数的详细说明信息。
+install.sh 安装脚本在执行过程中，会通过命令行交互界面询问一些配置信息。如果希望采取无交互安装方式，那么可以运行 `./install.sh -e no`。运行 `./install.sh -h` 指令可以查看所有参数的详细说明信息。
 :::
 
 </TabItem>
@@ -160,7 +138,7 @@ apt-get 方式只适用于 Debian 或 Ubuntu 系统。
 按照以下步骤安装：
 
 1. 从列表中下载获得 exe 安装程序：
-   <PkgList productName="TDengine TSDB-OSS Client" platform="Windows"/>
+   <PkgListV3 type={3}/>
 2. 运行可执行程序来安装 TDengine。
 Note: 从 3.0.1.7 版本开始，只提供 TDengine 客户端的 Windows 客户端的下载。想要使用 TDengine 服务端的 Windows 版本，请联系 TDengine 销售团队升级为企业版。
 
@@ -169,7 +147,7 @@ Note: 从 3.0.1.7 版本开始，只提供 TDengine 客户端的 Windows 客户�
 <TabItem label="macOS 安装" value="macos">
 
 1. 从列表中下载获得 pkg 安装程序；
-   <PkgList productName="TDengine TSDB-OSS" platform="macOS"/>
+   <PkgListV3 type={7}/>
 2. 运行可执行程序来安装 TDengine。如果安装被阻止，可以右键或者按 Ctrl 点击安装包，选择 `打开`。
 
 </TabItem>

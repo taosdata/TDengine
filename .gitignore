@@ -61,6 +61,3 @@ test/allure-results/
 .idea/
 cmake-build-debug/
 cmake-build-release/
-
-# Local Claude AI tool settings
-.claude/

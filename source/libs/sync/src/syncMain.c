@@ -585,17 +585,7 @@ bool syncIsReadyForRead(int64_t rid) {
   return ready;
 }
 
-bool syncSnapshotRecving(int64_t rid) {
-  SSyncNode* pSyncNode = syncNodeAcquire(rid);
-  if (pSyncNode == NULL) {
-    return false;
-  }
-
-  bool b = syncNodeSnapshotRecving(pSyncNode);
-  syncNodeRelease(pSyncNode);
-  return b;
-}
-
+#ifdef BUILD_NO_CALL
 bool syncSnapshotSending(int64_t rid) {
   SSyncNode* pSyncNode = syncNodeAcquire(rid);
   if (pSyncNode == NULL) {
@@ -606,6 +596,18 @@ bool syncSnapshotSending(int64_t rid) {
   syncNodeRelease(pSyncNode);
   return b;
 }
+
+bool syncSnapshotRecving(int64_t rid) {
+  SSyncNode* pSyncNode = syncNodeAcquire(rid);
+  if (pSyncNode == NULL) {
+    return false;
+  }
+
+  bool b = syncNodeSnapshotRecving(pSyncNode);
+  syncNodeRelease(pSyncNode);
+  return b;
+}
+#endif
 
 int32_t syncNodeLeaderTransfer(SSyncNode* pSyncNode) {
   if (pSyncNode->peersNum == 0) {
@@ -3618,7 +3620,7 @@ bool syncNodeSnapshotSending(SSyncNode* pSyncNode) {
   if (pSyncNode == NULL) return false;
   bool b = false;
   for (int32_t i = 0; i < pSyncNode->totalReplicaNum; ++i) {
-    if (pSyncNode->senders[i] != NULL && snapshotSenderIsStart(pSyncNode->senders[i])) {
+    if (pSyncNode->senders[i] != NULL && pSyncNode->senders[i]->start) {
       b = true;
       break;
     }

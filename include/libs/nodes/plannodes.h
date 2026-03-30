@@ -347,9 +347,6 @@ typedef enum EWindowAlgorithm {
   SESSION_ALGO_STREAM_CONTINUE_SEMI,
 } EWindowAlgorithm;
 
-#define WINDOW_PART_HAS  0x01
-#define WINDOW_PART_TB   0x02
-
 typedef struct SWindowLogicNode {
   SLogicNode       node;
   EWindowType      winType;
@@ -373,7 +370,7 @@ typedef struct SWindowLogicNode {
   int8_t           igExpired;
   int8_t           igCheckUpdate;
   EWindowAlgorithm windowAlgo;
-  int8_t           partType;    // bit0 is for has partition, bit1 is for tb partition
+  bool             isPartTb;
   int64_t          windowCount;
   int64_t          windowSliding;
   SNodeList*       pTsmaSubplans;

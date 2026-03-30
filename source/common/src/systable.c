@@ -435,29 +435,6 @@ static const SSysDbTableSchema userTransactionDetailSchema[] = {
     {.name = "detail", .bytes = TSDB_TRANS_DETAIL_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
 };
 
-static const SSysDbTableSchema snapSendVnodesSchema[] = {
-    {.name = "vgroup_id",          .bytes = 4,                         .type = TSDB_DATA_TYPE_INT,       .sysInfo = false},
-    {.name = "dnode_id",           .bytes = 4,                         .type = TSDB_DATA_TYPE_INT,       .sysInfo = false},
-    {.name = "total_file_sets",    .bytes = 4,                         .type = TSDB_DATA_TYPE_INT,       .sysInfo = false},
-    {.name = "finished_file_sets", .bytes = 4,                         .type = TSDB_DATA_TYPE_INT,       .sysInfo = false},
-    {.name = "start_time",         .bytes = 8,                         .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
-    {.name = "elapsed",            .bytes = 32 + VARSTR_HEADER_SIZE,   .type = TSDB_DATA_TYPE_VARCHAR,   .sysInfo = false},
-};
-
-static const SSysDbTableSchema snapSendFilesetsSchema[] = {
-    {.name = "vgroup_id",     .bytes = 4,                       .type = TSDB_DATA_TYPE_INT,       .sysInfo = false},
-    {.name = "fid",           .bytes = 4,                       .type = TSDB_DATA_TYPE_INT,       .sysInfo = false},
-    {.name = "file_count",          .bytes = 4,                       .type = TSDB_DATA_TYPE_INT,       .sysInfo = false},
-    {.name = "finished_file_count",  .bytes = 4,                       .type = TSDB_DATA_TYPE_INT,       .sysInfo = false},
-    {.name = "total_size",           .bytes = 8,                       .type = TSDB_DATA_TYPE_BIGINT,    .sysInfo = false},
-    {.name = "read_size",            .bytes = 8,                       .type = TSDB_DATA_TYPE_BIGINT,    .sysInfo = false},
-    {.name = "start_time",    .bytes = 8,                       .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
-    {.name = "elapsed",       .bytes = 32 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR,   .sysInfo = false},
-    {.name = "start_index",   .bytes = 8,                       .type = TSDB_DATA_TYPE_BIGINT,    .sysInfo = false},
-    {.name = "end_index",     .bytes = 8,                       .type = TSDB_DATA_TYPE_BIGINT,    .sysInfo = false},
-    {.name = "transfer_type", .bytes = 4 + VARSTR_HEADER_SIZE,  .type = TSDB_DATA_TYPE_VARCHAR,   .sysInfo = false},
-};
-
 static const SSysDbTableSchema anodesSchema[] = {
     {.name = "id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
     {.name = "url", .bytes = TSDB_ANALYTIC_ANODE_URL_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
@@ -578,8 +555,6 @@ static const SSysTableMeta infosMeta[] = {
     {TSDB_INS_DISK_USAGE, diskUsageSchema, tListLen(diskUsageSchema), false},
     {TSDB_INS_TABLE_FILESETS, filesetsFullSchema, tListLen(filesetsFullSchema), false},
     {TSDB_INS_TABLE_TRANSACTION_DETAILS, userTransactionDetailSchema, tListLen(userTransactionDetailSchema), false},
-    {TSDB_INS_TABLE_SNAP_SEND_VNODES,    snapSendVnodesSchema,         tListLen(snapSendVnodesSchema),        false},
-    {TSDB_INS_TABLE_SNAP_SEND_FILESETS,  snapSendFilesetsSchema,       tListLen(snapSendFilesetsSchema),      false},
 };
 
 static const SSysDbTableSchema connectionsSchema[] = {

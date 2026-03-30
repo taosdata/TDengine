@@ -11,17 +11,18 @@ settings:
         cDebugFlag: 135
         charset: UTF-8
         dDebugFlag: 131
-        dataDir: /root/workspace/TDinternal/sim/dnode1/data
+        dataDir:
+        - /Users/simondominic/dev/TDinternal/sim/dnode1/data
         enableQueryHb: 1
         jniDebugFlag: 131
         locale: en_US.UTF-8
-        logDir: /root/workspace/TDinternal/sim/dnode1/log
+        logDir: /Users/simondominic/dev/TDinternal/sim/dnode1/log
         mDebugFlag: 135
         maxShellConns: 30000
         monitor: 0
         mqttPort: 6083
         numOfLogLines: 100000000
-        qDebugFlag: 131
+        qDebugFlag: 135
         rpcDebugFlag: 135
         sDebugFlag: 131
         smaDebugFlag: 135
@@ -32,11 +33,11 @@ settings:
         tmrDebugFlag: 131
         tqDebugFlag: 135
         uDebugFlag: 131
-        vDebugFlag: 131
+        vDebugFlag: 135
         wDebugFlag: 131
-      config_dir: /root/workspace/TDinternal/sim/dnode1/cfg
+      config_dir: /Users/simondominic/dev/TDinternal/sim/dnode1/cfg
       endpoint: localhost:6030
       mqttPort: 6083
-      system: linux
-      taosdPath: /root/workspace/TDinternal/debug/build/bin/taosd
+      system: darwin
+      taosdPath: /Users/simondominic/dev/TDinternal/debug/build/bin/taosd
     version: 2.4.0.0

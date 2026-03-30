@@ -1,18 +1,4 @@
-configure_file("${CMAKE_CURRENT_SOURCE_DIR}/src/version.c.in" "${CMAKE_CURRENT_BINARY_DIR}/version.c.tmp")
-set(_version_c "${CMAKE_CURRENT_SOURCE_DIR}/src/version.c")
-set(_need_update TRUE)
-if(EXISTS "${_version_c}")
-    file(STRINGS "${CMAKE_CURRENT_BINARY_DIR}/version.c.tmp" _new_ver LIMIT_COUNT 1)
-    file(STRINGS "${_version_c}" _old_ver LIMIT_COUNT 1)
-    if("${_new_ver}" STREQUAL "${_old_ver}")
-        set(_need_update FALSE)
-    endif()
-endif()
-if(_need_update)
-    execute_process(COMMAND ${CMAKE_COMMAND} -E copy
-        "${CMAKE_CURRENT_BINARY_DIR}/version.c.tmp" "${_version_c}")
-endif()
-
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/src/version.c.in" "${CMAKE_CURRENT_SOURCE_DIR}/src/version.c")
 aux_source_directory(src UTIL_SRC)
 IF(COMPILER_SUPPORT_AVX2)
     MESSAGE(STATUS "AVX2 instructions is ACTIVATED")
@@ -25,7 +11,7 @@ if(TD_LINUX)
   DEP_ext_lzma2(util)
 endif()
 DEP_ext_geos(util)
-if(BUILD_PCRE2)          # {
+if(${BUILD_PCRE2})          # {
   DEP_ext_pcre2(util)
   target_compile_definitions(util PRIVATE -DPCRE2_STATIC)
 endif()                     # }
@@ -34,12 +20,12 @@ if(DEFINED GRANT_CFG_INCLUDE_DIR)
     add_definitions(-DGRANTS_CFG)
 endif()
 
-if(BUILD_ASSERT_NOT_CORE)
+if(${ASSERT_NOT_CORE})
     ADD_DEFINITIONS(-DASSERT_NOT_CORE)
     MESSAGE(STATUS "disable assert core")
 else()
     MESSAGE(STATUS "enable assert core")
-endif()
+endif(${ASSERT_NOT_CORE})
 
 target_include_directories(
     util
@@ -56,6 +42,6 @@ target_link_libraries(
     PUBLIC TSZ
 )
 
-if(BUILD_TEST)
+if(${BUILD_TEST})
     ADD_SUBDIRECTORY(test)
-endif()
+endif(${BUILD_TEST})

@@ -25,6 +25,6 @@ target_link_libraries(
 )
 
 # for test
-if(BUILD_TEST)
+if(${BUILD_TEST})
     add_subdirectory(test)
-endif()
+endif(${BUILD_TEST})

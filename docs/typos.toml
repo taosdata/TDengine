@@ -5,7 +5,6 @@ ine = "ine"
 datas = "datas"
 
 [default.extend-words]
-BRIN = "BRIN"
 OT = "OT"
 MAPE = "MAPE"
 mosquitto = "mosquitto"

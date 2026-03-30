@@ -297,7 +297,6 @@ extern bool    tsWalDeleteOnCorruption;
 extern bool    tsDiskIDCheckEnabled;
 extern int32_t tsTransPullupInterval;
 extern int32_t tsCompactPullupInterval;
-extern int32_t tsSnapSendPullupInterval;
 extern int32_t tsMqRebalanceInterval;
 extern int32_t tsStreamCheckpointInterval;
 extern int32_t tsThresholdItemsInWriteQueue;
