@@ -434,6 +434,17 @@ int32_t ctgProcessRspMsg(void* out, int32_t reqType, char* msg, int32_t msgSize,
       }
       break;
     }
+    case TDMT_MND_GET_STREAM_CREATE_INFO: {
+      if (TSDB_CODE_SUCCESS != rspCode) {
+        CTG_ERR_RET(rspCode);
+      }
+      code = queryProcessMsgRsp[TMSG_INDEX(reqType)](out, msg, msgSize);
+      if (code) {
+        qError("Process get stream create info rsp failed, err: %s, name: %s", tstrerror(code), target);
+        CTG_ERR_RET(code);
+      }
+      break;
+    }
     default:
       if (TSDB_CODE_SUCCESS != rspCode) {
         qError("get error rsp, error:%s", tstrerror(rspCode));
@@ -1061,6 +1072,36 @@ int32_t ctgGetRsmaMetaFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, const c
   CTG_ERR_RET(rpcSendRecvWithTimeout(pConn->pTrans, &pConn->mgmtEps, &rpcMsg, &rpcRsp, NULL, CATLOG_TIMEOUT));
 
   code = ctgProcessRspMsg(out, reqType, rpcRsp.pCont, rpcRsp.contLen, rpcRsp.code, (char*)name);
+
+  rpcFreeCont(rpcRsp.pCont);
+
+  return code;
+}
+
+int32_t ctgGetStreamCreateInfoFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, const char* streamFName,
+                                        SStreamCreateInfoRsp* out) {
+  char*   msg = NULL;
+  int32_t msgLen = 0;
+  int32_t reqType = TDMT_MND_GET_STREAM_CREATE_INFO;
+
+  ctgDebug("stream:%s, try to get stream create info from mnode", streamFName);
+
+  int32_t code = queryBuildMsg[TMSG_INDEX(reqType)]((void*)streamFName, &msg, 0, &msgLen, rpcMallocCont, rpcFreeCont);
+  if (code) {
+    ctgError("stream:%s, build get stream create info msg failed, code:%s", streamFName, tstrerror(code));
+    CTG_ERR_RET(code);
+  }
+
+  SRpcMsg rpcMsg = {
+      .msgType = reqType,
+      .pCont   = msg,
+      .contLen = msgLen,
+  };
+
+  SRpcMsg rpcRsp = {0};
+  CTG_ERR_RET(rpcSendRecvWithTimeout(pConn->pTrans, &pConn->mgmtEps, &rpcMsg, &rpcRsp, NULL, CATLOG_TIMEOUT));
+
+  code = ctgProcessRspMsg(out, reqType, rpcRsp.pCont, rpcRsp.contLen, rpcRsp.code, (char*)streamFName);
 
   rpcFreeCont(rpcRsp.pCont);
 

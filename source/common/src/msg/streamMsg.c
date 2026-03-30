@@ -4316,3 +4316,61 @@ _exit:
   tDecoderClear(&decoder);
   return code;
 }
+
+void tFreeStreamCreateInfoRsp(SStreamCreateInfoRsp* pRsp) {
+  if (pRsp) {
+    taosMemoryFreeClear(pRsp->sql);
+  }
+}
+
+int32_t tSerializeSGetStreamCreateInfoReq(void* buf, int32_t bufLen, const SGetStreamCreateInfoReq* pReq) {
+  SEncoder encoder = {0};
+  int32_t  code = 0, lino = 0, tlen;
+  tEncoderInit(&encoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->streamFName));
+  tEndEncode(&encoder);
+_exit:
+  if (code) { tlen = code; } else { tlen = encoder.pos; }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSGetStreamCreateInfoReq(void* buf, int32_t bufLen, SGetStreamCreateInfoReq* pReq) {
+  SDecoder decoder = {0};
+  int32_t  code = 0, lino = 0;
+  tDecoderInit(&decoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->streamFName));
+  tEndDecode(&decoder);
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
+
+int32_t tSerializeSStreamCreateInfoRsp(void* buf, int32_t bufLen, const SStreamCreateInfoRsp* pRsp) {
+  SEncoder encoder = {0};
+  int32_t  code = 0, lino = 0, tlen;
+  tEncoderInit(&encoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pRsp->streamFName));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pRsp->sql ? pRsp->sql : ""));
+  tEndEncode(&encoder);
+_exit:
+  if (code) { tlen = code; } else { tlen = encoder.pos; }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSStreamCreateInfoRsp(void* buf, int32_t bufLen, SStreamCreateInfoRsp* pRsp) {
+  SDecoder decoder = {0};
+  int32_t  code = 0, lino = 0;
+  tDecoderInit(&decoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pRsp->streamFName));
+  TAOS_CHECK_EXIT(tDecodeCStrAlloc(&decoder, &pRsp->sql));
+  tEndDecode(&decoder);
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}

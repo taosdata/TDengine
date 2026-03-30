@@ -20,6 +20,7 @@
 #include "osMemory.h"
 #include "osString.h"
 #include "scheduler.h"
+#include "streamMsg.h"
 #include "systable.h"
 #include "taosdef.h"
 #include "tdatablock.h"
@@ -1358,6 +1359,64 @@ static int32_t execShowCreateRsma(SShowCreateRsmaStmt* pStmt, SRetrieveTableRsp*
   return code;
 }
 
+static int32_t buildCreateStreamResultDataBlock(SSDataBlock** pOutput) {
+  QRY_PARAM_CHECK(pOutput);
+
+  SSDataBlock* pBlock = NULL;
+  int32_t      code = createDataBlock(&pBlock);
+  if (code) return code;
+
+  SColumnInfoData infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, SHOW_CREATE_STREAM_RESULT_FIELD1_LEN, 1);
+  code = blockDataAppendColInfo(pBlock, &infoData);
+  if (TSDB_CODE_SUCCESS == code) {
+    infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, SHOW_CREATE_STREAM_RESULT_FIELD2_LEN, 2);
+    code = blockDataAppendColInfo(pBlock, &infoData);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    *pOutput = pBlock;
+  } else {
+    (void)blockDataDestroy(pBlock);
+  }
+  return code;
+}
+
+static int32_t execShowCreateStream(SShowCreateStreamStmt* pStmt, SRetrieveTableRsp** pRsp) {
+  SSDataBlock* pBlock = NULL;
+  int32_t      code = buildCreateStreamResultDataBlock(&pBlock);
+  if (code != TSDB_CODE_SUCCESS) return code;
+
+  if ((code = blockDataEnsureCapacity(pBlock, 1)) != TSDB_CODE_SUCCESS) {
+    (void)blockDataDestroy(pBlock);
+    return code;
+  }
+  pBlock->info.rows = 1;
+
+  SStreamCreateInfoRsp* pMeta = (SStreamCreateInfoRsp*)pStmt->pStreamMeta;
+
+  SColumnInfoData* pCol1 = taosArrayGet(pBlock->pDataBlock, 0);
+  char             buf1[SHOW_CREATE_STREAM_RESULT_FIELD1_LEN] = {0};
+  STR_TO_VARSTR(buf1, pStmt->streamName);
+  code = colDataSetVal(pCol1, 0, buf1, false);
+  if (code != TSDB_CODE_SUCCESS) goto _exit;
+
+  SColumnInfoData* pCol2 = taosArrayGet(pBlock->pDataBlock, 1);
+  char*            buf2 = taosMemoryMalloc(SHOW_CREATE_STREAM_RESULT_FIELD2_LEN);
+  if (!buf2) {
+    code = terrno;
+    goto _exit;
+  }
+  STR_WITH_MAXSIZE_TO_VARSTR(buf2, pMeta && pMeta->sql ? pMeta->sql : "", SHOW_CREATE_STREAM_RESULT_FIELD2_LEN);
+  code = colDataSetVal(pCol2, 0, buf2, false);
+  taosMemoryFree(buf2);
+  if (code != TSDB_CODE_SUCCESS) goto _exit;
+
+  code = buildRetrieveTableRsp(pBlock, SHOW_CREATE_STREAM_RESULT_COLS, pRsp);
+
+_exit:
+  (void)blockDataDestroy(pBlock);
+  return code;
+}
+
 int32_t qExecCommand(int64_t* pConnId, bool sysInfoUser, SNode* pStmt, SRetrieveTableRsp** pRsp, int8_t biMode,
                      void* charsetCxt) {
   switch (nodeType(pStmt)) {
@@ -1377,6 +1436,8 @@ int32_t qExecCommand(int64_t* pConnId, bool sysInfoUser, SNode* pStmt, SRetrieve
       return execShowCreateView((SShowCreateViewStmt*)pStmt, pRsp);
     case QUERY_NODE_SHOW_CREATE_RSMA_STMT:
       return execShowCreateRsma((SShowCreateRsmaStmt*)pStmt, pRsp);
+    case QUERY_NODE_SHOW_CREATE_STREAM_STMT:
+      return execShowCreateStream((SShowCreateStreamStmt*)pStmt, pRsp);
     case QUERY_NODE_ALTER_LOCAL_STMT:
       return execAlterLocal((SAlterLocalStmt*)pStmt);
     case QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT:

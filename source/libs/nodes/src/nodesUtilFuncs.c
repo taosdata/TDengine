@@ -20,6 +20,7 @@
 #include "osMemory.h"
 #include "plannodes.h"
 #include "querynodes.h"
+#include "streamMsg.h"
 #include "taos.h"
 #include "taoserror.h"
 #include "tdatablock.h"
@@ -900,6 +901,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
       break;
     case QUERY_NODE_SHOW_CREATE_RSMA_STMT:
       code = makeNode(type, sizeof(SShowCreateRsmaStmt), &pNode);
+      break;
+    case QUERY_NODE_SHOW_CREATE_STREAM_STMT:
+      code = makeNode(type, sizeof(SShowCreateStreamStmt), &pNode);
       break;
     case QUERY_NODE_SHOW_TABLE_DISTRIBUTED_STMT:
       code = makeNode(type, sizeof(SShowTableDistributedStmt), &pNode);
@@ -2125,6 +2129,14 @@ void nodesDestroyNode(SNode* pNode) {
       if (pMeta != NULL) {
         tFreeRsmaInfoRsp(pMeta, true);
         taosMemFreeClear(((SShowCreateRsmaStmt*)pNode)->pRsmaMeta);
+      }
+      break;
+    }
+    case QUERY_NODE_SHOW_CREATE_STREAM_STMT: {
+      SStreamCreateInfoRsp* pMeta = (SStreamCreateInfoRsp*)((SShowCreateStreamStmt*)pNode)->pStreamMeta;
+      if (pMeta != NULL) {
+        tFreeStreamCreateInfoRsp(pMeta);
+        taosMemoryFreeClear(((SShowCreateStreamStmt*)pNode)->pStreamMeta);
       }
       break;
     }

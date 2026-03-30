@@ -387,6 +387,8 @@ const char* nodesNodeName(ENodeType type) {
       return "ShowCreateViewStmt";
     case QUERY_NODE_SHOW_CREATE_RSMA_STMT:
       return "ShowCreateRsmaStmt";
+    case QUERY_NODE_SHOW_CREATE_STREAM_STMT:
+      return "ShowCreateStreamStmt";
     case QUERY_NODE_SHOW_TABLE_DISTRIBUTED_STMT:
       return "ShowTableDistributedStmt";
     case QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT:

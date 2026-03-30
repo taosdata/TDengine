@@ -2081,6 +2081,33 @@ _return:
   CTG_API_LEAVE(code);
 }
 
+int32_t catalogGetStreamCreateInfo(SCatalog* pCtg, SRequestConnInfo* pConn, const char* streamFName,
+                                   SStreamCreateInfoRsp** pRes) {
+  CTG_API_ENTER();
+
+  if (!pCtg || !pConn || !streamFName) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+
+  SStreamCreateInfoRsp rsp = {0};
+
+  int32_t code = ctgGetStreamCreateInfoFromMnode(pCtg, pConn, streamFName, &rsp);
+  if (code != 0) goto _return;
+
+  SStreamCreateInfoRsp* result = taosMemoryMalloc(sizeof(SStreamCreateInfoRsp));
+  if (!result) {
+    code = terrno;
+    goto _return;
+  }
+  *result = rsp;
+  *pRes = result;
+  CTG_API_LEAVE(TSDB_CODE_SUCCESS);
+
+_return:
+  tFreeStreamCreateInfoRsp(&rsp);
+  CTG_API_LEAVE(code);
+}
+
 int32_t catalogAsyncUpdateDbTsmaVersion(SCatalog* pCtg, int32_t tsmaVersion, const char* dbFName, int64_t dbId) {
   CTG_API_ENTER();
   if (!pCtg || !dbFName) {

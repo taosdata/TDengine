@@ -8009,6 +8009,20 @@ _err:
   return NULL;
 }
 
+SNode* createShowCreateStreamStmt(SAstCreateContext* pCxt, SNode* pStream) {
+  CHECK_PARSER_STATUS(pCxt);
+  SShowCreateStreamStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_SHOW_CREATE_STREAM_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  tstrncpy(pStmt->dbName, ((SStreamNode*)pStream)->dbName, sizeof(pStmt->dbName));
+  tstrncpy(pStmt->streamName, ((SStreamNode*)pStream)->streamName, sizeof(pStmt->streamName));
+  nodesDestroyNode(pStream);
+  return (SNode*)pStmt;
+_err:
+  nodesDestroyNode(pStream);
+  return NULL;
+}
+
 SNode* createRollupStmt(SAstCreateContext* pCxt, SToken* pDbName, SNode* pStart, SNode* pEnd) {
   CHECK_PARSER_STATUS(pCxt);
   CHECK_NAME(checkDbName(pCxt, pDbName, false));

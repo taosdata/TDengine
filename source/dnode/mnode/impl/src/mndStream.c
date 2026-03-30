@@ -1250,6 +1250,39 @@ static int32_t mndProcessRecalcStreamReq(SRpcMsg *pReq) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t mndProcessGetStreamCreateInfoReq(SRpcMsg* pReq) {
+  int32_t                  code = 0, lino = 0;
+  SMnode*                  pMnode = pReq->info.node;
+  SGetStreamCreateInfoReq  req = {0};
+  SStreamCreateInfoRsp     rsp = {0};
+  SStreamObj*              pStream = NULL;
+  void*                    pRspBuf = NULL;
+  int32_t                  contLen = 0;
+
+  TAOS_CHECK_EXIT(tDeserializeSGetStreamCreateInfoReq(pReq->pCont, pReq->contLen, &req));
+
+  code = mndAcquireStream(pMnode, req.streamFName, &pStream);
+  if (pStream == NULL || code != 0) {
+    TAOS_CHECK_EXIT(TSDB_CODE_MND_STREAM_NOT_EXIST);
+  }
+
+  tstrncpy(rsp.streamFName, req.streamFName, TSDB_STREAM_FNAME_LEN);
+  rsp.sql = taosStrdup(pStream->pCreate->sql ? pStream->pCreate->sql : "");
+  if (!rsp.sql) TAOS_CHECK_EXIT(terrno);
+
+  if ((contLen = tSerializeSStreamCreateInfoRsp(NULL, 0, &rsp)) < 0) TAOS_CHECK_EXIT(contLen);
+  if (!(pRspBuf = rpcMallocCont(contLen))) TAOS_CHECK_EXIT(terrno);
+  if ((contLen = tSerializeSStreamCreateInfoRsp(pRspBuf, contLen, &rsp)) < 0) TAOS_CHECK_EXIT(contLen);
+
+  pReq->info.rsp = pRspBuf;
+  pReq->info.rspLen = contLen;
+
+_exit:
+  if (code != 0) rpcFreeCont(pRspBuf);
+  if (pStream) mndReleaseStream(pMnode, pStream);
+  tFreeStreamCreateInfoRsp(&rsp);
+  TAOS_RETURN(code);
+}
 
 int32_t mndInitStream(SMnode *pMnode) {
   SSdbTable table = {
@@ -1270,6 +1303,7 @@ int32_t mndInitStream(SMnode *pMnode) {
     mndSetMsgHandle(pMnode, TDMT_MND_STREAM_HEARTBEAT, mndProcessStreamHb);  
     mndSetMsgHandle(pMnode, TDMT_MND_RECALC_STREAM, mndProcessRecalcStreamReq);
   }
+  mndSetMsgHandle(pMnode, TDMT_MND_GET_STREAM_CREATE_INFO, mndProcessGetStreamCreateInfoReq);
   
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_STREAMS, mndRetrieveStream);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_STREAMS, mndCancelGetNextStream);

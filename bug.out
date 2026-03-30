@@ -1,0 +1,73 @@
+==29942==ERROR: AddressSanitizer: stack-buffer-overflow on address 0x7ffdb992794f at pc 0x7ff6e309b490 bp 0x7ffdb9926940 sp 0x7ffdb99260e8
+READ of size 16 at 0x7ffdb992794f thread T0                                                                                                                                                                                                                                                                        
+    #0 0x7ff6e309b48f in __interceptor_memcpy ../../../../src/libsanitizer/sanitizer_common/sanitizer_common_interceptors.inc:790
+    #1 0x7ff6e27b937b in tRowBuildTupleWithBlob /data/release/3.0/TDinternal/community/source/common/src/tdataformat.c:422
+    #2 0x7ff6e27b937b in tRowBuildWithBlob /data/release/3.0/TDinternal/community/source/common/src/tdataformat.c:1081
+    #3 0x7ff6e27b937b in tRowBuildWithBlob /data/release/3.0/TDinternal/community/source/common/src/tdataformat.c:1073
+    #4 0x7ff6e27c6e9c in tRowBuildFromBind2WithBlob /data/release/3.0/TDinternal/community/source/common/src/tdataformat.c:5428
+    #5 0x7ff6dccd29e9 in qBindStmtStbColsValue2 /data/release/3.0/TDinternal/community/source/libs/parser/src/parInsertStmt.c:963
+    #6 0x7ff6dcb2ed22 in stmtBindBatch2 /data/release/3.0/TDinternal/community/source/client/src/clientStmt2.c:2050
+    #7 0x7ff6dcafa757 in taos_stmt2_bind_param /data/release/3.0/TDinternal/community/source/client/src/clientMain.c:2818
+    #8 0x5c3bd9b69bbd in insert_stmt2 /mnt/e/github/TDengine-build/cmd/stmt2_bind_decimal/main.c:97
+    #9 0x5c3bd9b6ac5f in main /mnt/e/github/TDengine-build/cmd/stmt2_bind_decimal/main.c:203
+    #10 0x7ff6e2432082 in __libc_start_main ../csu/libc-start.c:308
+    #11 0x5c3bd9b6854d in _start (/mnt/e/github/TDengine-build/debug/build/bin/stmt2_bind_decimal_test+0x254d)
+
+Address 0x7ffdb992794f is located in stack of thread T0 at offset 847 in frame
+    #0 0x5c3bd9b68b29 in insert_stmt2 /mnt/e/github/TDengine-build/cmd/stmt2_bind_decimal/main.c:51
+
+  This frame has 18 object(s):
+    [32, 36) 'affected' (line 53)
+    [48, 52) 'tag_len' (line 70)
+    [64, 96) 'option' (line 54)
+    [128, 160) 'bindv' (line 96)
+    [192, 200) 'tb_names' (line 68)
+    [224, 232) 'tags' (line 72)
+    [256, 264) 'bind_cols' (line 90)
+    [288, 300) 'ts_len' (line 75)
+    [320, 332) 'mid_vals' (line 77)
+    [352, 364) 'mid_len' (line 78)
+    [384, 396) 'decimal_len' (line 83)
+    [416, 428) 'blob_len' (line 87)
+    [448, 488) 'tag_bind' (line 71)
+    [528, 688) 'col_bind' (line 89)
+    [752, 755) 'nulls' (line 76)
+    [768, 774) 'blob_buf' (line 86)
+    [800, 809) 'tag' (line 69)
+    [832, 847) 'decimal_buf' (line 82) <== Memory access at offset 847 overflows this variable
+HINT: this may be a false positive if your program uses some custom stack unwind mechanism, swapcontext or vfork
+      (longjmp and C++ exceptions *are* supported)
+SUMMARY: AddressSanitizer: stack-buffer-overflow ../../../../src/libsanitizer/sanitizer_common/sanitizer_common_interceptors.inc:790 in __interceptor_memcpy
+Shadow bytes around the buggy address:
+  0x10003731ced0: 00 00 00 00 f2 f2 f2 f2 00 f2 f2 f2 00 f2 f2 f2
+  0x10003731cee0: 00 f2 f2 f2 00 04 f2 f2 00 04 f2 f2 00 04 f2 f2
+  0x10003731cef0: 00 04 f2 f2 00 04 f2 f2 00 00 00 00 00 f2 f2 f2
+  0x10003731cf00: f2 f2 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x10003731cf10: 00 00 00 00 00 00 f2 f2 f2 f2 f2 f2 f2 f2 03 f2
+=>0x10003731cf20: 06 f2 f2 f2 00 01 f2 f2 00[07]f3 f3 00 00 00 00
+  0x10003731cf30: 00 00 00 00 00 00 00 00 f1 f1 f1 f1 00 00 00 f2
+  0x10003731cf40: f2 f2 f2 f2 00 00 00 00 00 00 00 00 f3 f3 f3 f3
+  0x10003731cf50: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x10003731cf60: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x10003731cf70: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+Shadow byte legend (one shadow byte represents 8 application bytes):
+  Addressable:           00
+  Partially addressable: 01 02 03 04 05 06 07
+  Heap left redzone:       fa
+  Freed heap region:       fd
+  Stack left redzone:      f1
+  Stack mid redzone:       f2
+  Stack right redzone:     f3
+  Stack after return:      f5
+  Stack use after scope:   f8
+  Global redzone:          f9
+  Global init order:       f6
+  Poisoned by user:        f7
+  Container overflow:      fc
+  Array cookie:            ac
+  Intra object redzone:    bb
+  ASan internal:           fe
+  Left alloca redzone:     ca
+  Right alloca redzone:    cb
+  Shadow gap:              cc
+==29942==ABORTING

@@ -22,6 +22,7 @@ extern "C" {
 
 #include "os.h"
 #include "query.h"
+#include "streamMsg.h"
 #include "taosdef.h"
 #include "tarray.h"
 #include "tcommon.h"
@@ -450,6 +451,9 @@ int32_t catalogGetTableTsmas(SCatalog* pCtg, SRequestConnInfo* pConn, const SNam
 int32_t catalogGetTsma(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTsmaName, STableTSMAInfo** pTsma);
 
 int32_t catalogGetRsma(SCatalog* pCtg, SRequestConnInfo* pConn, const char* name, SRsmaInfoRsp** pRes);
+
+int32_t catalogGetStreamCreateInfo(SCatalog* pCtg, SRequestConnInfo* pConn, const char* streamFName,
+                                   SStreamCreateInfoRsp** pRes);
 
 int32_t catalogGetUserAuth(SCatalog* pCtg, SRequestConnInfo* pConn, const char* user, SGetUserAuthRsp* pRes);
 

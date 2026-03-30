@@ -887,6 +887,17 @@ typedef struct SShowCreateRsmaStmt {
   bool      hasPrivilege;
 } SShowCreateRsmaStmt;
 
+#define SHOW_CREATE_STREAM_RESULT_COLS       2
+#define SHOW_CREATE_STREAM_RESULT_FIELD1_LEN (TSDB_STREAM_NAME_LEN + VARSTR_HEADER_SIZE)
+#define SHOW_CREATE_STREAM_RESULT_FIELD2_LEN ((int32_t)(tsMaxSQLLength + VARSTR_HEADER_SIZE))
+
+typedef struct SShowCreateStreamStmt {
+  ENodeType type;
+  char      dbName[TSDB_DB_NAME_LEN];
+  char      streamName[TSDB_STREAM_NAME_LEN];
+  void*     pStreamMeta;  // SStreamCreateInfoRsp*
+} SShowCreateStreamStmt;
+
 typedef struct SShowTableDistributedStmt {
   ENodeType type;
   char      dbName[TSDB_DB_NAME_LEN];
