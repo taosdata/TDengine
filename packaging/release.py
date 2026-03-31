@@ -333,7 +333,8 @@ def init_build_info():
         release_info.TdengineVersion = get_tdengine_version(args.ver_number)
     release_info.InstallPath = get_install_path()
 
-    # sub_module.append(SubmoduleBuildInfo(taosx_agent_name, release_info.DefaultBuildMode))
+    if release_info.Target == "agent" and not release_info.UploadAgent and not release_info.BuildAgent:
+        sub_module.append(SubmoduleBuildInfo(taosx_agent_name, release_info.DefaultBuildMode))
     if args.connector_list:
         for i, arg in enumerate(args.connector_list):
             sub_module.append(SubmoduleBuildInfo(arg, release_info.DefaultBuildMode))
@@ -408,17 +409,43 @@ def change_piconnector_assemble_file():
     )
 
 
+def find_devenv():
+    """Use vswhere to find devenv.com path automatically."""
+    vswhere = os.path.join(
+        os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)"),
+        "Microsoft Visual Studio", "Installer", "vswhere.exe"
+    )
+    if not os.path.isfile(vswhere):
+        print(f"Error: vswhere.exe not found at {vswhere}, please install Visual Studio.")
+        sys.exit(1)
+    try:
+        result = subprocess.run(
+            [vswhere, "-latest", "-requires", "Microsoft.Component.MSBuild",
+             "-find", r"Common7\IDE\devenv.com"],
+            capture_output=True, text=True, check=True
+        )
+        devenv_path = result.stdout.strip().splitlines()[0]
+        if os.path.isfile(devenv_path):
+            print(f"Found devenv: {devenv_path}")
+            return devenv_path
+    except Exception as e:
+        print(f"Error finding devenv via vswhere: {e}")
+    print("Error: devenv not found. Please ensure Visual Studio is installed.")
+    sys.exit(1)
+
+
 def build_and_install_pi(mode):
     if release_info.OS != "Windows":
         print(" PI Connector is only compatible with the Windows operating system.")
         sys.exit()
     print("build_and_install_pi start...")
+    devenv = find_devenv()
     pi_connector_path = os.path.join(taosx_dir, "plugins", "pi", "src", "TDPIConnector")
     os.chdir(pi_connector_path)
     print("solution clean...")
-    os.system("devenv TDPIConnector.sln /clean")
+    os.system(f'"{devenv}" TDPIConnector.sln /clean')
     change_piconnector_assemble_file()
-    build_cmd = f"devenv TDPIConnector.sln /build {mode} "
+    build_cmd = f'"{devenv}" TDPIConnector.sln /build {mode} '
     print(build_cmd)
     build_result = os.system(build_cmd)
     if build_result == 0:
