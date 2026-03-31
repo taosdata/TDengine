@@ -452,7 +452,7 @@ Supported parameters are as follows:
   - `reconnectIntervalMs`: Interval between reconnect rounds in milliseconds. Default is `2000`.
 
 :::note
-WebSocket failover is available in `3.2.0` and later. Native connections do not support multi-address failover. If `protocol=Native` and `host` contains multiple addresses, opening the connection throws an `ArgumentException`.
+WebSocket failover is available in `3.2.0` and later. The connector uses a **Least Connections** algorithm for address selection, preferring the node with the fewest active connections. Native connections do not support multi-address failover. If `protocol=Native` and `host` contains multiple addresses, opening the connection throws an `ArgumentException`.
 :::
 
 </TabItem>

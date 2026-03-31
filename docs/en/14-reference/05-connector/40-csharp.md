@@ -33,7 +33,7 @@ For detailed migration guide, please refer to: [Connection Methods](../#connecti
 
 | Connector Version | Major Changes                                                                                                            | TDengine Version   |
 |-------------------|--------------------------------------------------------------------------------------------------------------------------|--------------------|
-| 3.2.0             | Support WebSocket/TMQ failover with multi-address connections.                                                           | -                  |
+| 3.2.0             | Support WebSocket failover with multi-address connections.                                                               | -                  |
 | 3.1.10            | Support TDengine TSDB Token authentication.                                                                              | -                  |
 | 3.1.9             | The external interface of stmt remains unchanged; the internal implementation has been refactored into stmt2.            | -                  |
 | 3.1.8             | Support connection-level timezone settings and strictly validate the binding types of statements against database types. | -                  |
@@ -160,7 +160,7 @@ Supported parameters include:
 
 - WebSocket failover is available in `3.2.0` and later.
 - The initial WebSocket connection automatically tries the configured addresses. `autoReconnect` only controls failover after an established connection becomes unavailable.
-- When `autoReconnect=true`, the connector tries the last successful address first and then the remaining configured addresses.
+- The connector uses a **Least Connections** algorithm for address selection: it prefers the node with the fewest active connections. When `autoReconnect=true`, it tries the last successful address first and then falls back to the remaining configured addresses in least-connections order.
 - Native connections do not support multi-address failover.
 
 ##### <font color="red">Native Connection, Deprecated, will be discontinued on 2027-01-01</font>
