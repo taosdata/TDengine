@@ -1062,7 +1062,7 @@ static int getStableInfo(tools_cJSON *dbinfos, int index) {
         superTable->disorderRatio = 0;
         superTable->disorderRange = DEFAULT_DISORDER_RANGE;
         superTable->insert_interval = g_arguments->insert_interval;
-        superTable->max_sql_len = TSDB_MAX_ALLOWED_SQL_LEN;
+        superTable->max_sql_len = TOOLS_MAX_ALLOWED_SQL_LEN;
         superTable->partialColNum = 0;
         superTable->partialColFrom = 0;
         superTable->comment = NULL;
@@ -2056,8 +2056,8 @@ int32_t readSpecQueryJson(tools_cJSON * specifiedQuery) {
                            sqlFileObj->valuestring);
                 return -1;
             }
-            char *buf = benchCalloc(1, TSDB_MAX_ALLOWED_SQL_LEN, true);
-            while (fgets(buf, TSDB_MAX_ALLOWED_SQL_LEN, fp)) {
+            char *buf = benchCalloc(1, TOOLS_MAX_ALLOWED_SQL_LEN, true);
+            while (fgets(buf, TOOLS_MAX_ALLOWED_SQL_LEN, fp)) {
                 SSQL * sql = benchCalloc(1, sizeof(SSQL), true);
                 (void)benchArrayPush(g_queryInfo.specifiedQueryInfo.sqls, sql);
                 sql = benchArrayGet(g_queryInfo.specifiedQueryInfo.sqls,
@@ -2070,7 +2070,7 @@ int32_t readSpecQueryJson(tools_cJSON * specifiedQuery) {
                         sizeof(int64_t), true);
                 TOOLS_STRNCPY(sql->command, buf, bufLen - 1);
                 debugPrint("read file buffer: %s\n", sql->command);
-                memset(buf, 0, TSDB_MAX_ALLOWED_SQL_LEN);
+                memset(buf, 0, TOOLS_MAX_ALLOWED_SQL_LEN);
             }
             free(buf);
             fclose(fp);
@@ -2258,7 +2258,7 @@ int32_t readSuperQueryJson(tools_cJSON * superQuery) {
                 tools_cJSON *sqlStr = tools_cJSON_GetObjectItem(sql, "sql");
                 if (sqlStr && sqlStr->type == tools_cJSON_String) {
                     TOOLS_STRNCPY(g_queryInfo.superQueryInfo.sql[j],
-                             sqlStr->valuestring, TSDB_MAX_ALLOWED_SQL_LEN);
+                             sqlStr->valuestring, TOOLS_MAX_ALLOWED_SQL_LEN);
                 }
 
                 tools_cJSON *result = tools_cJSON_GetObjectItem(sql, "result");
