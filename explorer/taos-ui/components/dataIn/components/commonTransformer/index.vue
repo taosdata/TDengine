@@ -988,6 +988,7 @@ import {
   convert,
   supportTransform,
   transformerState,
+  resetTransformerPreviewState,
   extractAllProperties,
   getExampleList,
   validateJsonKeys,
@@ -1713,12 +1714,14 @@ async function submitParse() {
   try {
     for (let i = 0; i < pageTableData.value.length; i++) {
       if (pageTableData.value[i].defaultValueError) {
+        resetTransformerPreviewState();
         ElMessage.error(pageTableData.value[i].defaultValueError);
         return;
       }
     }
 
     if (!msgForm.msgbody) {
+      resetTransformerPreviewState();
       ElMessage.warning(t('dataIn.transformer.msgbodytip'));
       return;
     }
@@ -1730,6 +1733,7 @@ async function submitParse() {
     showIdentifyResulttb();
   } catch (error: any) {
     console.log(error);
+    resetTransformerPreviewState();
     ElMessage.error(error?.message);
   }
 }
@@ -1812,6 +1816,7 @@ function getTopParserData() {
 async function handleParseResult(topParser: TopParseType) {
   const checkResult = checkParseData(topParser);
   if (checkResult) {
+    resetTransformerPreviewState();
     ElMessage.warning(t(checkResult));
     return;
   }
@@ -1826,6 +1831,7 @@ async function handleParseResult(topParser: TopParseType) {
   transformerState.topParse = topParser;
   const result = await dataInProps.transform.api.getParser(reqData);
   if (result.message) {
+    resetTransformerPreviewState();
     ElMessage.error(result.message);
     isbreak.value = true;
     return;
@@ -1961,11 +1967,13 @@ async function getParserData(data: TransformerfullparamsType | TransformerSpbful
   try {
     const checkResult = checkParseData(data);
     if (checkResult) {
+      resetTransformerPreviewState();
       ElMessage.warning(t(checkResult));
       return;
     }
     const result = await dataInProps.transform.api.getParser(data);
     if (result.message) {
+      resetTransformerPreviewState();
       ElMessage.error(result.message);
       isbreak.value = true;
       return;
@@ -2028,6 +2036,7 @@ async function getParserData(data: TransformerfullparamsType | TransformerSpbful
     setPageTableData();
   } catch (error) {
     console.log(error);
+    resetTransformerPreviewState();
   }
 }
 function handleExtractArr(columnsArr: any[], extractArr: Recordable) {

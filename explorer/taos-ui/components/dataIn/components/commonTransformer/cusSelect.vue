@@ -34,7 +34,6 @@
       :placeholder="t('dataIn.transformer.jsonPlaceholder')"
       size="default"
       type="textarea"
-      :autosize="{ minRows: 1, maxRows: 7 }"
       @blur="$emit('update-data', expression)"
     >
     </el-input>
@@ -138,5 +137,15 @@ function showOption() {
 
 .my-checkbox {
   display: block;
+}
+
+.custom-select :deep(.el-textarea__inner) {
+  height: 32px;
+  min-height: 32px !important;
+  overflow-y: auto;
+}
+
+.custom-select :deep(.el-textarea__inner::placeholder) {
+  white-space: nowrap;
 }
 </style>

@@ -93,7 +93,15 @@ import SplitExpression from './splitExpression.vue';
 import ConvertExpression from './convertExpression.vue';
 import JsonExtractExpression from './jsonExtractExpression.vue';
 import { cloneDeep } from 'lodash-es';
-import { transformerState, supportTransform, defaultColsMap, hiddenColsMap, checkParseData, filterEmpty } from './util';
+import {
+  transformerState,
+  supportTransform,
+  defaultColsMap,
+  hiddenColsMap,
+  checkParseData,
+  filterEmpty,
+  resetTransformerPreviewState
+} from './util';
 import { t } from 'locales';
 import { TransformExtractParseDataType, TopParseType, SpbTopParseType, ConditionExpr } from './type';
 import { getDataInProps } from 'components/dataIn/model/useDataIn';
@@ -226,11 +234,13 @@ async function getParserData(data: any, isall: boolean | undefined) {
   try {
     const checkResult = checkParseData(data);
     if (checkResult) {
+      resetTransformerPreviewState();
       ElMessage.warning(t(checkResult));
       return;
     }
     const result = await dataInProps.transform.api.getParser(data);
     if (result.message) {
+      resetTransformerPreviewState();
       ElMessage.error(result.message);
       return;
     }
@@ -366,6 +376,7 @@ async function getParserData(data: any, isall: boolean | undefined) {
     transformerState.activeColumns = Object.keys(tbdata[0]);
   } catch (error) {
     console.log(error);
+    resetTransformerPreviewState();
   }
 }
 

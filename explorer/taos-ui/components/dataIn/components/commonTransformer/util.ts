@@ -225,6 +225,15 @@ export const resetTransformerState = () => {
   Object.assign(transformerState, { ...initialState });
 };
 
+export const resetTransformerPreviewState = () => {
+  transformerState.transformResultTable = [];
+  transformerState.transResultName = '';
+  transformerState.showResultTb = false;
+  transformerState.resultTbTitle = '';
+  transformerState.activeColumns = [];
+  transformerState.resultCurrentPage = 1;
+};
+
 export const defaultColsMap: Record<string, string[]> = {
   mqtt: ['topic', 'qos'],
   kafka: ['topic', 'partition', 'offset'],

@@ -20,7 +20,6 @@
           v-model="parseruleForm.expression"
           class="expression-input"
           type="textarea"
-          :autosize="{ minRows: 1, maxRows: 7 }"
           :placeholder="t('dataIn.transformer.jsonPlaceholder')"
         />
       </div>
@@ -156,5 +155,15 @@ defineExpose({
 .expression-input {
   flex: 1;
   min-width: 0;
+
+  :deep(.el-textarea__inner) {
+    height: 32px;
+    min-height: 32px !important;
+    overflow-y: auto;
+  }
+
+  :deep(.el-textarea__inner::placeholder) {
+    white-space: nowrap;
+  }
 }
 </style>
