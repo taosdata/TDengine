@@ -54,6 +54,8 @@ from .shared.config import Config
 from .shared.db import DbConn, DbManager, DbConnNative, MyTDSql
 from .shared.misc import Dice, Logging, Helper, Status, CrashGenError, Progress
 from .shared.types import TdDataType, TdValueGenerator
+from .shared.query_generator import QueryGenerator
+from .shared.schema_provider import SchemaProvider
 
 # Config.init()
 
@@ -2445,152 +2447,22 @@ class TdSuperTable:
         dbc.execute(sql)
 
     def generateQueries(self, dbc: DbConn) -> List[SqlQuery]:
-        ''' Generate queries to test/exercise this super table '''
-        ret = []  # type: List[SqlQuery]
+        '''Generate queries using grammar-driven random SQL walker.'''
+        reg_tables = self.getRegTables(dbc)
+        if not reg_tables:
+            return []
 
-        for rTbName in self.getRegTables(dbc):  # regular tables
+        # Build schema from current state
+        schema = SchemaProvider(
+            db_name=self._dbName,
+            super_table_name=self.getName(),
+            reg_table_names=[str(t) for t in reg_tables],
+            cols=list(FULL_SCHEMA_COLS.items()),
+            tags=list(FULL_SCHEMA_TAGS.items()),
+        )
 
-            filterExpr = Dice.choice([  # TODO: add various kind of WHERE conditions
-                None
-            ])
-
-            # Run the query against the regular table first
-            doAggr = (Dice.throw(2) == 0)  # 1 in 2 chance
-            if not doAggr:  # don't do aggregate query, just simple one
-                commonExpr = Dice.choice([
-                    '*',
-                    # Original speed-based scalar functions
-                    'abs(speed)',
-                    'acos(speed)',
-                    'asin(speed)',
-                    'atan(speed)',
-                    'ceil(speed)',
-                    'cos(speed)',
-                    'floor(speed)',
-                    'log(speed,2)',
-                    'pow(speed,2)',
-                    'round(speed)',
-                    'sin(speed)',
-                    'sqrt(speed)',
-                    # Original color-based string functions
-                    'char_length(color)',
-                    'concat(color,color)',
-                    'concat_ws(" ", color,color," ")',
-                    'length(color)',
-                    'lower(color)',
-                    'ltrim(color)',
-                    'substr(color , 2)',
-                    'upper(color)',
-                    # Cast and time functions
-                    'cast(speed as double)',
-                    'cast(ts as bigint)',
-                    'now()',
-                    'timediff(ts,now)',
-                    'timezone()',
-                    'TIMETRUNCATE(ts,1s)',
-                    'TIMEZONE()',
-                    'TODAY()',
-                    'distinct(color)',
-                    # New columns — numeric scalar
-                    'abs(volume)',
-                    'ceil(temperature)',
-                    'floor(latitude)',
-                    'round(temperature)',
-                    'sqrt(temperature)',
-                    'pow(humidity, 2)',
-                    'cast(level as bigint)',
-                    'cast(mileage as bigint)',
-                    'abs(humidity)',
-                    'volume + humidity',
-                    'latitude * 2',
-                    # New columns — string scalar
-                    'length(description)',
-                    'lower(model)',
-                    'upper(description)',
-                    'ltrim(model)',
-                    'char_length(description)',
-                    # New columns — select directly
-                    'is_active',
-                    'gear',
-                    'total_count',
-                    'pressure',
-                    'mileage',
-                    'location',
-                    'price',
-                ])
-                ret.append(SqlQuery(  # reg table
-                    "select {} from {}.{}".format(commonExpr, self._dbName, rTbName)))
-                ret.append(SqlQuery(  # super table
-                    "select {} from {}.{}".format(commonExpr, self._dbName, self.getName())))
-            else:  # Aggregate query
-                aggExpr = Dice.choice([
-                    'count(*)',
-                    'avg(speed)',
-                    'sum(speed)',
-                    'stddev(speed)',
-                    'min(speed)',
-                    'max(speed)',
-                    'first(speed)',
-                    'last(speed)',
-                    'top(speed, 50)',
-                    'bottom(speed, 50)',
-                    'apercentile(speed, 10)',
-                    'last_row(*)',
-                    'spread(speed)',
-                    'elapsed(ts)',
-                    'mode(speed)',
-                    'bottom(speed,1)',
-                    'top(speed,1)',
-                    'tail(speed,1)',
-                    'unique(color)',
-                    'csum(speed)',
-                    'DERIVATIVE(speed,1s,1)',
-                    'diff(speed,1)',
-                    'irate(speed)',
-                    'mavg(speed,3)',
-                    'sample(speed,5)',
-                    'STATECOUNT(speed,"LT",1)',
-                    'STATEDURATION(speed,"LT",1)',
-                    'twa(speed)',
-                    # New columns — aggregate on numeric types
-                    'avg(volume)',
-                    'sum(temperature)',
-                    'sum(latitude)',
-                    'min(humidity)',
-                    'max(level)',
-                    'first(total_count)',
-                    'last(mileage)',
-                    'stddev(latitude)',
-                    'spread(temperature)',
-                    'avg(pressure)',
-                    'sum(gear)',
-                    'min(total_count)',
-                    'max(pressure)',
-                    'count(is_active)',
-                    # DECIMAL aggregates
-                    'sum(price)',
-                    'avg(price)',
-                    'min(price)',
-                    'max(price)',
-                    # Transformation on new cols
-                    'csum(volume)',
-                    'diff(temperature,1)',
-                    'mavg(latitude,3)',
-                    'sample(mileage,5)',
-                    'mode(level)',
-                    'tail(humidity,1)',
-                ])
-
-                # if aggExpr not in ['stddev(speed)']: # STDDEV not valid for super tables?! (Done in TD-1049)
-                sql = "select {} from {}.{}".format(aggExpr, self._dbName, self.getName())
-                if Dice.throw(3) == 0:  # 1 in X chance
-                    partion_expr = Dice.choice(['color', 'tbname', 'fleet_id', 'is_online', 'manufacturer', 'is_active'])
-                    sql = sql + ' partition BY ' + partion_expr + ' order by ' + partion_expr
-                    Progress.emit(Progress.QUERY_GROUP_BY)
-                    # Logging.info("Executing GROUP-BY query: " + sql)
-                ret.append(SqlQuery(sql))
-
-        return ret
+        gen = QueryGenerator(schema)
+        return gen.generate(count=Dice.throw(5) + 3)  # 3~7 queries
 
 
 class TaskReadData(StateTransitionTask):
@@ -3365,6 +3237,15 @@ class ClientManager:
         dbManager = None
 
         # Print exec status, etc., AFTER showing messages from the server
+        # After all steps complete, before exit
+        try:
+            from .shared.query_generator import QueryGenerator
+            report = QueryGenerator.coverage_report()
+            if report and "No coverage" not in report:
+                Logging.info(report)
+        except Exception:
+            pass  # Don't let coverage reporting crash the tool
+        
         self.conclude()
         # print("TC failed (2) = {}".format(self.tc.isFailed()))
         # Linux return code: ref https://shapeshed.com/unix-exit-codes/

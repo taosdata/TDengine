@@ -35,6 +35,32 @@ class TdDataType(Enum):
     JSON             = 'JSON'
     BLOB             = 'BLOB'
 
+    def is_numeric(self) -> bool:
+        """Returns True for numeric types."""
+        numeric_types = {
+            TdDataType.INT, TdDataType.INT_UNSIGNED,
+            TdDataType.BIGINT, TdDataType.BIGINT_UNSIGNED,
+            TdDataType.FLOAT, TdDataType.DOUBLE,
+            TdDataType.SMALLINT, TdDataType.SMALLINT_UNSIGNED,
+            TdDataType.TINYINT, TdDataType.TINYINT_UNSIGNED,
+            TdDataType.DECIMAL64
+        }
+        return self in numeric_types
+
+    def is_string(self) -> bool:
+        """Returns True for string types."""
+        string_types = {
+            TdDataType.BINARY, TdDataType.BINARY16, TdDataType.BINARY200,
+            TdDataType.NCHAR, TdDataType.VARCHAR
+        }
+        return self in string_types
+
+    def sql_keyword(self) -> str:
+        """Returns the base SQL type keyword without length spec."""
+        # Extract the base type (before parentheses)
+        base_type = self.value.split('(')[0].strip()
+        return base_type
+
     @staticmethod
     def from_sql_type(sql_type_str):
         '''Map a DESCRIBE-returned type string back to a TdDataType member.'''
