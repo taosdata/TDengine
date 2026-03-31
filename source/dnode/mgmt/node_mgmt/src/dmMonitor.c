@@ -178,17 +178,6 @@ void dmCollectVnodeTxnIdle(SArray *pQueries) {
   }
 }
 
-void dmProcessVnodeTxnAcks(SArray *pAcks) {
-  SDnode       *pDnode = dmInstance();
-  SMgmtWrapper *pWrapper = &pDnode->wrappers[VNODE];
-  if (dmMarkWrapper(pWrapper) == 0) {
-    if (pWrapper->pMgmt != NULL) {
-      vmProcessTxnActiveAcks(pWrapper->pMgmt, pAcks);
-    }
-    dmReleaseWrapper(pWrapper);
-  }
-}
-
 void dmGetMnodeLoads(SMonMloadInfo *pInfo) {
   SDnode       *pDnode = dmInstance();
   SMgmtWrapper *pWrapper = &pDnode->wrappers[MNODE];

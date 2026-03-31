@@ -508,7 +508,6 @@ SMgmtInputOpt dmBuildMgmtInputOpt(SMgmtWrapper *pWrapper) {
       .setMnodeSyncTimeoutFp = dmSetMnodeSyncTimeout,
       .getQnodeLoadsFp = dmGetQnodeLoads,
       .collectVnodeTxnIdleFp = dmCollectVnodeTxnIdle,
-      .processVnodeTxnAcksFp = dmProcessVnodeTxnAcks,
       .stopDnodeFp = dmStop,
   };
 

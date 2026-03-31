@@ -238,11 +238,7 @@ static void dmProcessStatusRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
       dmMayShouldUpdateTimeWhiteList(pMgmt, statusRsp.timeWhiteVer);
       dmMayShouldUpdateAnalyticsFunc(pMgmt, statusRsp.analVer);
 
-      // Dispatch txn keepalive acks to VNodes
-      if (statusRsp.pTxnActiveAcks != NULL && taosArrayGetSize(statusRsp.pTxnActiveAcks) > 0 &&
-          pMgmt->processVnodeTxnAcksFp != NULL) {
-        (*pMgmt->processVnodeTxnAcksFp)(statusRsp.pTxnActiveAcks);
-      }
+
     }
     tFreeSStatusRsp(&statusRsp);
   }

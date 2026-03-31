@@ -541,6 +541,70 @@ void mndTxnRefreshKeepalive(SMnode *pMnode, utxn_id_t txnId) {
   mndReleaseTxn(pMnode, pTxn);
 }
 
+/**
+ * Rollback an orphan transaction on a specific VNode via Raft-safe STrans.
+ *
+ * Called when VNode reports an idle txn (via statusReq) that no longer exists
+ * in MNode SDB. Instead of ACKing alive=0 for VNode to do local rollback
+ * (which bypasses Raft replication), MNode creates an STrans that sends
+ * TDMT_VND_TXN_ROLLBACK through the normal Raft-replicated write path.
+ */
+int32_t mndRollbackOrphanTxnOnVnode(SMnode *pMnode, utxn_id_t txnId, int32_t vgId) {
+  int32_t code = 0, lino = 0;
+  STrans *pTrans = NULL;
+
+  SRpcMsg synReq = {0};
+  synReq.info.node = pMnode;
+
+  TSDB_CHECK_NULL(
+      (pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, &synReq, "orphan-txn-cleanup")), code,
+      lino, _exit, terrno);
+  mInfo("trans:%d, used to cleanup orphan txn %" PRIu64 " on vgId:%d", pTrans->id, txnId, vgId);
+
+  mndTransSetKillMode(pTrans, TRN_KILL_MODE_SKIP);
+
+  // Build ROLLBACK request for the specific VNode
+  SVTxnRollbackReq req = {0};
+  req.txnId = txnId;
+  req.term = mndGetTerm(pMnode);
+  req.reason = TSDB_CODE_VND_TXN_EXPIRED;
+
+  int32_t bodyLen = tSerializeSVTxnRollbackReq(NULL, 0, &req);
+  if (bodyLen <= 0) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
+
+  int32_t   contLen = bodyLen + sizeof(SMsgHead);
+  SMsgHead *pHead = taosMemoryMalloc(contLen);
+  if (pHead == NULL) {
+    code = terrno;
+    goto _exit;
+  }
+  pHead->contLen = htonl(contLen);
+  pHead->vgId = htonl(vgId);
+  tSerializeSVTxnRollbackReq(POINTER_SHIFT(pHead, sizeof(SMsgHead)), bodyLen, &req);
+
+  STransAction action = {0};
+  action.mTraceId = pTrans->mTraceId;
+  action.epSet = mndGetVgroupEpsetById(pMnode, vgId);
+  action.pCont = pHead;
+  action.contLen = contLen;
+  action.msgType = TDMT_VND_TXN_ROLLBACK;
+  action.acceptableCode = TSDB_CODE_SUCCESS;
+  action.groupId = vgId;
+
+  TAOS_CHECK_EXIT(mndTransAppendRedoAction(pTrans, &action));
+  TAOS_CHECK_EXIT(mndTransPrepare(pMnode, pTrans));
+
+_exit:
+  mndTransDrop(pTrans);
+  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
+    mError("txn:%" PRIu64 ", failed to rollback orphan on vgId:%d, code:0x%x", txnId, vgId, code);
+  }
+  TAOS_RETURN(code);
+}
+
 // ============================================================================
 // MNode Shadow Operation Management (STB DDL undo-log)
 // ============================================================================

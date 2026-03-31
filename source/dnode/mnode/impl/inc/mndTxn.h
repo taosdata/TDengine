@@ -65,6 +65,7 @@ const char* mndVtxnStageStr(EVtxnStage stage);
 const char* mndTxnStr(EUtxnStage stage);   // mndUtxnStageStr 的别名，供 mndTrans.c 等调用
 int8_t      mndTxnIsAlive(SMnode* pMnode, utxn_id_t txnId);  // keepalive 查询：txn 是否仍在活跃阶段
 void        mndTxnRefreshKeepalive(SMnode* pMnode, utxn_id_t txnId);  // 客户端 HB 保活：刷新 lastActiveTime
+int32_t     mndRollbackOrphanTxnOnVnode(SMnode* pMnode, utxn_id_t txnId, int32_t vgId);  // Raft-safe orphan cleanup
 
 // ============================================================================
 // MNode Shadow Operation Types — redo-log for STB DDL within user batch txn

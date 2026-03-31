@@ -91,20 +91,6 @@ void vmCollectTxnIdleQueries(SVnodeMgmt *pMgmt, SArray *pQueries) {
   (void)taosThreadRwlockUnlock(&pMgmt->hashLock);
 }
 
-void vmProcessTxnActiveAcks(SVnodeMgmt *pMgmt, SArray *pAcks) {
-  int32_t sz = (pAcks != NULL) ? (int32_t)taosArrayGetSize(pAcks) : 0;
-  for (int32_t i = 0; i < sz; ++i) {
-    STxnActiveAck *pAck = taosArrayGet(pAcks, i);
-    if (pAck == NULL) continue;
-
-    SVnodeObj *pVnode = vmAcquireVnode(pMgmt, pAck->vgId);
-    if (pVnode != NULL) {
-      vnodeTxnProcessActiveAck(pVnode->pImpl, pAck->txnId, pAck->alive);
-      vmReleaseVnode(pMgmt, pVnode);
-    }
-  }
-}
-
 void vmGetVnodeLoadsLite(SVnodeMgmt *pMgmt, SMonVloadInfo *pInfo) {
   pInfo->pVloads = taosArrayInit(pMgmt->state.totalVnodes, sizeof(SVnodeLoadLite));
   if (!pInfo->pVloads) return;

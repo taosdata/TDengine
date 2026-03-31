@@ -54,7 +54,6 @@ typedef struct SDnodeMgmt {
   SetMnodeSyncTimeoutFp        setMnodeSyncTimeoutFp;
   GetQnodeLoadsFp              getQnodeLoadsFp;
   CollectVnodeTxnIdleFp        collectVnodeTxnIdleFp;
-  ProcessVnodeTxnAcksFp        processVnodeTxnAcksFp;
   int32_t                      statusSeq;
   SDispatchWorkerPool          streamMgmtWorker;
 } SDnodeMgmt;

@@ -1098,22 +1098,19 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
       }
     }
 
-    // Process txn keepalive queries: check each queried txnId and build acks
+    // Process txn keepalive queries: for dead txns, send Raft-safe ROLLBACK via STrans
     if (hasTxnQueries) {
       int32_t nQueries = (int32_t)taosArrayGetSize(statusReq.pTxnActiveQueries);
-      statusRsp.pTxnActiveAcks = taosArrayInit(nQueries, sizeof(STxnActiveAck));
-      if (statusRsp.pTxnActiveAcks != NULL) {
-        for (int32_t i = 0; i < nQueries; ++i) {
-          STxnActiveQuery *pQuery = taosArrayGet(statusReq.pTxnActiveQueries, i);
-          if (pQuery == NULL) continue;
-          STxnActiveAck ack = {.txnId = pQuery->txnId, .vgId = pQuery->vgId, .alive = 0};
-          ack.alive = mndTxnIsAlive(pMnode, pQuery->txnId);
-          if (taosArrayPush(statusRsp.pTxnActiveAcks, &ack) == NULL) {
-            mError("txn:%" PRIu64 " failed to push txn ack", pQuery->txnId);
-          }
+      for (int32_t i = 0; i < nQueries; ++i) {
+        STxnActiveQuery *pQuery = taosArrayGet(statusReq.pTxnActiveQueries, i);
+        if (pQuery == NULL) continue;
+        if (!mndTxnIsAlive(pMnode, pQuery->txnId)) {
+          mInfo("dnode:%d, orphan txn:%" PRIu64 " on vgId:%d, initiating Raft-safe rollback", pDnode->id, pQuery->txnId,
+                pQuery->vgId);
+          mndRollbackOrphanTxnOnVnode(pMnode, pQuery->txnId, pQuery->vgId);
         }
-        mTrace("dnode:%d, processed %d txn keepalive queries", pDnode->id, nQueries);
       }
+      mTrace("dnode:%d, processed %d txn keepalive queries", pDnode->id, nQueries);
     }
 
     int32_t contLen = tSerializeSStatusRsp(NULL, 0, &statusRsp);

@@ -663,76 +663,13 @@ int32_t vnodeProcessTxnRollbackReq(SVnode *pVnode, int64_t ver, void *pReq, int3
 }
 
 // ============================================================================
-// Transaction Timeout Handling
-// ============================================================================
-
-/**
- * Check and cleanup expired transactions
- * Called periodically by background thread
- */
-void vnodeTxnCheckTimeout(SVnode *pVnode) {
-  if (pVnode->pTxnHash == NULL) {
-    return;
-  }
-
-  int64_t now = taosGetTimestampMs();
-  int64_t timeout = (int64_t)tsMetaTxnTimeout * 1000;
-
-  SArray *expiredTxns = taosArrayInit(8, sizeof(int64_t));
-  if (expiredTxns == NULL) {
-    return;
-  }
-
-  taosThreadMutexLock(&pVnode->txnMutex);
-
-  void *pIter = taosHashIterate(pVnode->pTxnHash, NULL);
-  while (pIter) {
-    SVnodeTxnEntry *pEntry = (SVnodeTxnEntry *)pIter;
-
-    int64_t elapsed = now - pEntry->lastActive;
-    // Clock regression protection: skip if clock moved backward (NTP correction)
-    if (elapsed < 0) {
-      pIter = taosHashIterate(pVnode->pTxnHash, pIter);
-      continue;
-    }
-    if (elapsed > timeout) {
-      vWarn("vgId:%d, txn expired, txnId:%" PRId64 ", lastActive:%" PRId64 ", now:%" PRId64,
-            TD_VID(pVnode), pEntry->txnId, pEntry->lastActive, now);
-      taosArrayPush(expiredTxns, &pEntry->txnId);
-    }
-
-    pIter = taosHashIterate(pVnode->pTxnHash, pIter);
-  }
-
-  int32_t numExpired = taosArrayGetSize(expiredTxns);
-  for (int32_t i = 0; i < numExpired; i++) {
-    int64_t txnId = *(int64_t *)taosArrayGet(expiredTxns, i);
-    SVnodeTxnEntry *pEntry = vnodeGetTxnEntry(pVnode, txnId);
-    if (pEntry) {
-      pEntry->stage = VTXN_STAGE_FINISHING;
-      taosThreadMutexUnlock(&pVnode->txnMutex);
-
-      // Undo shadow entries in B+ tree before removing
-      vnodeTxnUndoShadowEntries(pVnode, pEntry);
-
-      taosThreadMutexLock(&pVnode->txnMutex);
-      vnodeRemoveTxnEntry(pVnode, txnId);
-    }
-    vInfo("vgId:%d, expired txn rolled back, txnId:%" PRId64, TD_VID(pVnode), txnId);
-  }
-
-  taosThreadMutexUnlock(&pVnode->txnMutex);
-
-  taosArrayDestroy(expiredTxns);
-}
-
-// ============================================================================
 // Fencing (Lock Preemption) Logic
 // ============================================================================
 
 /**
- * Preempt locks held by lower-term transactions
- * Called when a higher-term request arrives
+ * Preempt locks held by lower-term transactions.
+ * Called from Raft-replicated COMMIT/ROLLBACK handlers, so all replicas
+ * execute identical fencing deterministically — no Raft bypass issue.
  */
 int32_t vnodeTxnFencing(SVnode *pVnode, int64_t newTerm, int64_t newTxnId) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -819,41 +756,6 @@ int32_t vnodeCollectIdleTxns(SVnode *pVnode, SArray *pQueries) {
 
   taosThreadMutexUnlock(&pVnode->txnMutex);
   return TSDB_CODE_SUCCESS;
-}
-
-/**
- * Process keepalive ACK from MNode (via statusRsp).
- * alive=1: refresh lastActive; alive=0: txn is dead, rollback locally.
- */
-void vnodeTxnProcessActiveAck(SVnode *pVnode, utxn_id_t txnId, int8_t alive) {
-  if (pVnode->pTxnHash == NULL) {
-    return;
-  }
-
-  taosThreadMutexLock(&pVnode->txnMutex);
-
-  SVnodeTxnEntry *pEntry = vnodeGetTxnEntry(pVnode, txnId);
-  if (pEntry == NULL) {
-    taosThreadMutexUnlock(&pVnode->txnMutex);
-    return;
-  }
-
-  if (alive) {
-    pEntry->lastActive = taosGetTimestampMs();
-    vDebug("vgId:%d, txn keepalive refreshed, txnId:%" PRId64, TD_VID(pVnode), txnId);
-  } else {
-    vInfo("vgId:%d, txn dead per MNode ack, rolling back locally, txnId:%" PRId64, TD_VID(pVnode), txnId);
-    pEntry->stage = VTXN_STAGE_FINISHING;
-    taosThreadMutexUnlock(&pVnode->txnMutex);
-
-    // Undo shadow entries in B+ tree
-    vnodeTxnUndoShadowEntries(pVnode, pEntry);
-
-    taosThreadMutexLock(&pVnode->txnMutex);
-    vnodeRemoveTxnEntry(pVnode, txnId);
-  }
-
-  taosThreadMutexUnlock(&pVnode->txnMutex);
 }
 
 // ============================================================================
