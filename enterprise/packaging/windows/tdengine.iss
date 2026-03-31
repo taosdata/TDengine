@@ -41,6 +41,7 @@ SetupIconFile={#MyAppIco}
 Compression=lzma
 CloseApplications=force
 SolidCompression=yes
+ChangesEnvironment=yes
 DisableDirPage=yes
 Uninstallable=yes
 ArchitecturesAllowed=x64
@@ -89,7 +90,7 @@ Name: "component"; Description: "OPC DLL(OPC Data Access Auto Interface)        
 Filename: {sys}\sc.exe; Parameters: "create taosd start= AUTO binPath= ""{app}\\taosd.exe --win_service""" ; Flags: runhidden
 Filename: {sys}\sc.exe; Parameters: "create taosadapter start= AUTO binPath= ""{app}\\taosadapter.exe""" ; Flags: runhidden
 Filename: {sys}\sc.exe; Parameters: "create taoskeeper start= AUTO binPath= ""{app}\\taoskeeper.exe""" ; Flags: runhidden
-Filename: "{cmd}"; Parameters: "/c ""echo monitorFqdn %computername% >> {app}\\cfg\\taos.cfg""" ; Flags: runhidden
+;Filename: "{cmd}"; Parameters: "/c ""echo monitorFqdn %computername% >> {app}\\cfg\\taos.cfg""" ; Flags: runhidden
 Filename: "{app}\\taosx-srv.exe"; Parameters: "install"; Flags: runhidden; Check: FileExists(ExpandConstant('{app}\taosx-srv.exe'))
 Filename: "{app}\\taosx-agent-srv.exe"; Parameters: "install" ; Flags: runhidden; Check: FileExists(ExpandConstant('{app}\taosx-agent-srv.exe'))
 Filename: "{app}\\taos-explorer-srv.exe"; Parameters: "install" ; Flags: runhidden; Check: FileExists(ExpandConstant('{app}\taos-explorer-srv.exe'))
@@ -104,6 +105,48 @@ Root: HKLM; Subkey: "SYSTEM\CurrentControlSet\Control\Session Manager\Environmen
     Check: NeedsAddPath('{#MyAppInstallDir}')
 
 [Code]
+procedure AddMonitorFqdnIfNotExists;
+var
+  FqdnLine, CfgFile, LineStr: string;
+  Lines: TArrayOfString;
+  I: Integer;
+  Found: Boolean;
+begin
+  CfgFile := ExpandConstant('{app}\cfg\taos.cfg');
+  FqdnLine := 'monitorFqdn ' + GetComputerNameString();
+  Found := False;
+  SetArrayLength(Lines, 0); 
+
+  if not FileExists(CfgFile) then
+    exit;
+  if not LoadStringsFromFile(CfgFile, Lines) then
+    exit;
+
+
+  for I := 0 to GetArrayLength(Lines) - 1 do
+  begin
+    LineStr := Trim(Lines[I]);
+    // Skip comment lines
+    if (LineStr = '') or (Copy(LineStr, 1, 1) = '#') then
+      continue;
+    // Ignore leading whitespace and comments, check if line starts with monitorFqdn
+    if Pos('monitorFqdn ', LineStr) = 1 then
+    begin
+      Found := True;
+      Break;
+    end;
+  end;
+
+  if not Found then
+  begin
+    // Ensure the new line is independent
+    if (GetArrayLength(Lines) > 0) and (Trim(Lines[GetArrayLength(Lines)-1]) <> '') then
+      Lines := Lines + [''];
+    Lines := Lines + [FqdnLine];
+    SaveStringsToFile(CfgFile, Lines, False);
+  end;
+end;
+
 function NeedsAddPath(Param: string): boolean;
 var
   OrigPath: string;
@@ -120,15 +163,48 @@ begin
   Result := Pos(';' + Param + ';', ';' + OrigPath + ';') = 0;
 end;
 
+function RemovePath(Param: string): Boolean;
+var
+  OrigPath: string;
+  NewPath: string;
+begin
+  Result := True;
+  if not RegQueryStringValue(HKEY_LOCAL_MACHINE,
+    'SYSTEM\CurrentControlSet\Control\Session Manager\Environment',
+    'Path', OrigPath)
+  then begin
+    exit;
+  end;
+
+  NewPath := ';' + OrigPath + ';';
+  while StringChangeEx(NewPath, ';' + Param + ';', ';', True) > 0 do
+  begin
+  end;
+  while StringChangeEx(NewPath, ';;', ';', True) > 0 do
+  begin
+  end;
+
+  if (Length(NewPath) > 0) and (Copy(NewPath, 1, 1) = ';') then
+    Delete(NewPath, 1, 1);
+  if (Length(NewPath) > 0) and (Copy(NewPath, Length(NewPath), 1) = ';') then
+    Delete(NewPath, Length(NewPath), 1);
+
+  if NewPath <> OrigPath then
+    Result := RegWriteExpandStringValue(HKEY_LOCAL_MACHINE,
+      'SYSTEM\CurrentControlSet\Control\Session Manager\Environment',
+      'Path', NewPath);
+end;
+
 
 procedure TaskKill(FileName: String);
 var
   ResultCode: Integer;
+  ServiceName: String;
 begin
   if (FileName = 'taosd.exe') or (FileName = 'taosadapter.exe') or (FileName = 'taos-explorer.exe')  or (FileName = 'taosx.exe')  or (FileName = 'taoskeeper.exe') then
   begin
-    Exec('sc.exe', ' stop ' + FileName, '', SW_HIDE, ewWaitUntilTerminated, ResultCode); 
-    Exec('sc.exe', ' delete ' + FileName, '', SW_HIDE, ewWaitUntilTerminated, ResultCode);  
+    ServiceName := Copy(FileName, 1, Length(FileName) - 4);
+    Exec('sc.exe', ' stop ' + ServiceName, '', SW_HIDE, ewWaitUntilTerminated, ResultCode); 
   end;
 
   Exec('taskkill.exe', '/f /im ' + '"' + FileName + '"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
@@ -369,7 +445,6 @@ begin
 end;
 
 procedure CurPageChanged(CurPageID: Integer);
-var
 begin
   if CurPageID = wpReady then
     begin
@@ -392,8 +467,8 @@ begin
   Result := False;
   for I := 1 to ParamCount do
   begin
-    Param := ParamStr(I);
-    if (Param = '/SILENT') or (Param = '-SILENT') or (Param = '/silent') or (Param = '-SILENT')  then
+    Param := Uppercase(ParamStr(I));
+    if (Param = '/SILENT') or (Param = '-SILENT') or (Param = '/VERYSILENT') or (Param = '-VERYSILENT') then
     begin
       Result := True;
       Break;
@@ -485,11 +560,18 @@ procedure DeinitializeUninstall();
 begin
 	DeleteOdbcDsnRegistry();
 	DeleteOdbcDriverRegistry();
+  RemovePath(ExpandConstant('{#MyAppInstallDir}'));
 end;
 
 function ShouldInstallOPC: Boolean;
 begin
   Result := OPCInstallFileFlag;
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+begin
+  if CurStep = ssPostInstall then
+    AddMonitorFqdnIfNotExists;
 end;
 
 [UninstallDelete]
