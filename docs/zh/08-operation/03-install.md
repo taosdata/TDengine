@@ -43,10 +43,13 @@ TDengine TSDB 完整的软件包包括服务端（taosd）、应用驱动（taos
 1. 从列表中下载获得 tar.gz 安装包：
     <PkgList productName="TDengine TSDB-OSS" platform="Linux-Generic"/>
 2. 进入到安装包所在目录，使用 `tar` 解压安装包；
+
     ```bash tsdb
     tar -zxvf tdengine-tsdb-oss-{{VERSION}}-linux-x64.tar.gz
     ```
+
 3. 进入到安装包所在目录，先解压文件后，进入子目录，执行其中的 install.sh 安装脚本。
+
     ```bash
     sudo ./install.sh
     ```
@@ -61,6 +64,7 @@ install.sh 安装脚本在执行过程中，会通过命令行交互界面询问
 1. 从列表中下载获得 deb 安装包：
     <PkgList productName="TDengine TSDB-OSS" platform="Linux-Ubuntu"/>
 2. 进入到安装包所在目录，执行如下的安装命令：
+
     ```bash tsdb
     sudo dpkg -i tdengine-tsdb-oss-{{VERSION}}-linux-x64.deb
     ```
@@ -71,6 +75,7 @@ install.sh 安装脚本在执行过程中，会通过命令行交互界面询问
 1. 从列表中下载获得 rpm 安装包：
     <PkgList productName="TDengine TSDB-OSS" platform="Linux-Red Hat"/>
 2. 进入到安装包所在目录，执行如下的安装命令：
+
     ```bash
     sudo rpm -ivh tdengine-tsdb-oss-{{VERSION}}-linux-x64.rpm
     ```
