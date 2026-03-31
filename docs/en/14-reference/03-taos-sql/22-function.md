@@ -3203,13 +3203,13 @@ SELECT CURRENT_USER();
 SELECT SLEEP(seconds);
 ```
 
-**Description**: Pauses execution for the specified number of seconds. Returns 0 on success. The function sleeps once per query, not per row.
+**Description**: Pauses execution for the specified number of seconds. Returns 0 on success, 1 if the argument is negative. The function sleeps once per query, not per row.
 
 **Parameters**:
 
-- `seconds`: DOUBLE - Number of seconds to sleep (supports fractional values like 0.5)
+- `seconds`: DOUBLE - Number of seconds to sleep (supports fractional values like 0.5); negative values skip the sleep and return 1
 
-**Return value**: INT - Always returns 0
+**Return value**: INT - Returns 0 on success, 1 for negative arguments
 
 **Examples**:
 

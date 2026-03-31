@@ -76,7 +76,7 @@ class TestSleep:
 
         1. Create database and table with data
         2. SELECT SLEEP(1), col FROM table should sleep once, not per row
-        3. Verify result rows and sleep duration
+        3. Verify result rows and sleep duration is ~1s (not 3s)
 
         Catalog:
             - Functions:System
@@ -109,14 +109,18 @@ class TestSleep:
         tdSql.checkData(0, 0, 0)
         tdSql.checkData(1, 0, 0)
         tdSql.checkData(2, 0, 0)
-        tdLog.info(f"SLEEP(1) with 3-row table elapsed {elapsed:.3f}s")
+        # sleep once, not per row: should be ~1s, not ~3s
+        if elapsed < 0.9 or elapsed > 2.5:
+            tdLog.exit(f"SLEEP(1) with 3-row table elapsed {elapsed:.3f}s, expected ~1s (once, not per row)")
+        tdLog.info(f"SLEEP(1) with 3-row table elapsed {elapsed:.3f}s, passed")
 
         tdSql.execute(f"DROP DATABASE IF EXISTS {self.dbname}")
 
     def test_sleep_negative(self):
-        """Fun: sleep() negative value should not sleep
+        """Fun: sleep() negative value returns 1 instantly (MySQL-compatible)
 
-        1. SELECT SLEEP(-1) should return 0 instantly (no sleep for negative)
+        1. SELECT SLEEP(-1) should return 1 instantly
+        2. SELECT SLEEP(-0.5) should return 1 instantly
 
         Catalog:
             - Functions:System
@@ -131,14 +135,47 @@ class TestSleep:
             - 2026-3-26 Created
 
         """
+        # integer negative
         start = time.time()
         tdSql.query("SELECT SLEEP(-1)")
         elapsed = time.time() - start
         tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 0)
+        tdSql.checkData(0, 0, 1)
         if elapsed > 0.5:
             tdLog.exit(f"SLEEP(-1) elapsed {elapsed:.3f}s, expected instant")
         tdLog.info(f"SLEEP(-1) elapsed {elapsed:.3f}s, passed")
+
+        # fractional negative
+        start = time.time()
+        tdSql.query("SELECT SLEEP(-0.5)")
+        elapsed = time.time() - start
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+        if elapsed > 0.5:
+            tdLog.exit(f"SLEEP(-0.5) elapsed {elapsed:.3f}s, expected instant")
+        tdLog.info(f"SLEEP(-0.5) elapsed {elapsed:.3f}s, passed")
+
+    def test_sleep_null(self):
+        """Fun: sleep() with NULL argument returns NULL
+
+        1. SELECT SLEEP(NULL) should return NULL
+
+        Catalog:
+            - Functions:System
+
+        Since: v3.4.0.9
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-3-26 Created
+
+        """
+        tdSql.query("SELECT SLEEP(NULL)")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, None)
 
     def test_sleep_invalid_params(self):
         """Fun: sleep() invalid parameter handling
@@ -146,7 +183,6 @@ class TestSleep:
         1. SLEEP() with no args should fail
         2. SLEEP('abc') with string should fail
         3. SLEEP(1, 2) with too many args should fail
-        4. SLEEP(NULL) should fail with type error
 
         Catalog:
             - Functions:System
@@ -164,7 +200,6 @@ class TestSleep:
         tdSql.error("SELECT SLEEP()")
         tdSql.error("SELECT SLEEP('abc')")
         tdSql.error("SELECT SLEEP(1, 2)")
-        tdSql.error("SELECT SLEEP(NULL)")
 
     def test_sleep_integer_input(self):
         """Fun: sleep() with integer input
@@ -198,8 +233,9 @@ class TestSleep:
     def test_sleep_in_expression(self):
         """Fun: sleep() used in expressions
 
-        1. SELECT SLEEP(1) + 1 should return 1
-        2. SELECT SLEEP(0) = 0 should work
+        1. SELECT SLEEP(0) + 1 should return 1
+        2. SELECT SLEEP(-1) + 1 should return 2
+        3. SELECT SLEEP(0) = 0 should return true (1)
 
         Catalog:
             - Functions:System
@@ -215,5 +251,13 @@ class TestSleep:
 
         """
         tdSql.query("SELECT SLEEP(0) + 1")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+
+        tdSql.query("SELECT SLEEP(-1) + 1")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 2)
+
+        tdSql.query("SELECT SLEEP(0) = 0")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 1)

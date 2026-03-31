@@ -4492,11 +4492,12 @@ int32_t sleepFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOut
   GET_TYPED_DATA(sleepSec, double, GET_PARAM_TYPE(&pInput[0]), colDataGetData(pInput[0].columnData, 0),
                  typeGetTypeModFromColInfo(&pInput[0].columnData->info));
 
-  if (sleepSec > 0) {
+  int32_t result = 0;
+  if (sleepSec < 0) {
+    result = 1;
+  } else if (sleepSec > 0) {
     taosMsleep((int32_t)(sleepSec * 1000));
   }
-
-  int32_t result = 0;
   colDataSetInt32(pOutput->columnData, 0, &result);
   pOutput->numOfRows = 1;
   return TSDB_CODE_SUCCESS;
