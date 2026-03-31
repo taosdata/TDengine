@@ -868,6 +868,229 @@ class TestBatchMetaTxn:
         tdSql2.checkRows(2)
         tdSql2.close()
 
+    # =========================================================================
+    # 32. Same-txn CREATE→DROP→re-CREATE chain + COMMIT
+    # =========================================================================
+    def s38_create_drop_recreate_commit(self):
+        self.s0_reset_env()
+        tdLog.info("======== s38_create_drop_recreate_commit")
+
+        tdSql.execute("create table stb (ts timestamp, v int) tags (t1 int)")
+
+        # --- Child table: CREATE→DROP→re-CREATE→COMMIT ---
+        tdSql.execute("BEGIN")
+        tdSql.execute("create table ct1 using stb tags(1)")
+        tdSql.execute("drop table ct1")
+        # ct1 was physically deleted (same-txn DROP on PRE_CREATE)
+        # Re-create with different tag value
+        tdSql.execute("create table ct1 using stb tags(99)")
+        tdSql.execute("COMMIT")
+
+        # ct1 should exist with tag=99
+        tdSql.query("show tables")
+        tdSql.checkRows(1)
+        tdSql.execute("insert into ct1 values(now, 42)")
+        tdSql.query("select * from ct1")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, 42)
+
+        # --- Normal table: CREATE→DROP→re-CREATE→COMMIT (different schema) ---
+        tdSql.execute("BEGIN")
+        tdSql.execute("create table ntb1 (ts timestamp, c1 int)")
+        tdSql.execute("drop table ntb1")
+        # Re-create with different schema
+        tdSql.execute("create table ntb1 (ts timestamp, c1 float, c2 bigint)")
+        tdSql.execute("COMMIT")
+
+        tdSql.query("describe ntb1")
+        col_names = [tdSql.queryResult[i][0] for i in range(tdSql.queryRows)]
+        assert 'c1' in col_names, "Column c1 not found"
+        assert 'c2' in col_names, "Column c2 not found"
+        tdSql.execute("insert into ntb1 values(now, 1.5, 100)")
+        tdSql.query("select * from ntb1")
+        tdSql.checkRows(1)
+
+    # =========================================================================
+    # 33. Same-txn CREATE→DROP→re-CREATE chain + ROLLBACK
+    # =========================================================================
+    def s39_create_drop_recreate_rollback(self):
+        self.s0_reset_env()
+        tdLog.info("======== s39_create_drop_recreate_rollback")
+
+        tdSql.execute("create table stb (ts timestamp, v int) tags (t1 int)")
+
+        tdSql.execute("BEGIN")
+        tdSql.execute("create table ct1 using stb tags(1)")
+        tdSql.execute("drop table ct1")
+        tdSql.execute("create table ct1 using stb tags(99)")
+        tdSql.execute("ROLLBACK")
+
+        # After ROLLBACK, the second CREATE is undone → ct1 should not exist
+        tdSql.query("show tables")
+        tdSql.checkRows(0)
+        tdSql.error("select * from ct1")
+
+    # =========================================================================
+    # 34. Same-txn CREATE→ALTER→DROP chain + COMMIT
+    # =========================================================================
+    def s40_create_alter_drop_commit(self):
+        self.s0_reset_env()
+        tdLog.info("======== s40_create_alter_drop_commit")
+
+        # --- Normal table: CREATE→ALTER→DROP→COMMIT ---
+        tdSql.execute("BEGIN")
+        tdSql.execute("create table ntb1 (ts timestamp, c1 int)")
+        tdSql.execute("alter table ntb1 add column c2 float")
+
+        # Verify ALTER is visible within the txn (DESC)
+        tdSql.query("describe ntb1")
+        col_names = [tdSql.queryResult[i][0] for i in range(tdSql.queryRows)]
+        assert 'c2' in col_names, "Column c2 should be visible after ALTER in same txn"
+
+        # Now DROP — triggers chain undo: PRE_ALTER→rollback→PRE_CREATE→physical delete
+        tdSql.execute("drop table ntb1")
+        tdSql.execute("COMMIT")
+
+        # ntb1 should NOT exist (fully undone + deleted)
+        tdSql.error("select * from ntb1")
+        tdSql.query("show tables")
+        tdSql.checkRows(0)
+
+    # =========================================================================
+    # 35. Same-txn CREATE→ALTER→DROP chain + ROLLBACK
+    # =========================================================================
+    def s41_create_alter_drop_rollback(self):
+        self.s0_reset_env()
+        tdLog.info("======== s41_create_alter_drop_rollback")
+
+        tdSql.execute("BEGIN")
+        tdSql.execute("create table ntb1 (ts timestamp, c1 int)")
+        tdSql.execute("alter table ntb1 add column c2 float")
+        tdSql.execute("drop table ntb1")
+        tdSql.execute("ROLLBACK")
+
+        # Same result as COMMIT: ntb1 was physically deleted during the DROP call,
+        # ROLLBACK has nothing left to undo
+        tdSql.error("select * from ntb1")
+        tdSql.query("show tables")
+        tdSql.checkRows(0)
+
+    # =========================================================================
+    # 36. Pre-existing table: ALTER→DROP chain + COMMIT
+    # =========================================================================
+    def s42_existing_alter_drop_commit(self):
+        self.s0_reset_env()
+        tdLog.info("======== s42_existing_alter_drop_commit")
+
+        # Pre-existing table (committed, normal status)
+        tdSql.execute("create table ntb1 (ts timestamp, c1 int)")
+        tdSql.execute("insert into ntb1 values(now, 100)")
+
+        tdSql.execute("BEGIN")
+        tdSql.execute("alter table ntb1 add column c2 float")
+        tdSql.execute("drop table ntb1")
+        tdSql.execute("COMMIT")
+
+        # For pre-existing table: ALTER marks PRE_ALTER, DROP sees PRE_ALTER from same txn
+        # → rollback ALTER (restore to NORMAL) → then mark PRE_DROP
+        # COMMIT → physically delete the PRE_DROP entry
+        tdSql.error("select * from ntb1")
+        tdSql.query("show tables")
+        tdSql.checkRows(0)
+
+    # =========================================================================
+    # 37. Pre-existing table: ALTER→DROP chain + ROLLBACK
+    # =========================================================================
+    def s43_existing_alter_drop_rollback(self):
+        self.s0_reset_env()
+        tdLog.info("======== s43_existing_alter_drop_rollback")
+
+        tdSql.execute("create table ntb1 (ts timestamp, c1 int)")
+        tdSql.execute("insert into ntb1 values(now, 100)")
+
+        # Step 1: Simple ALTER→ROLLBACK→SELECT (no DROP)
+        tdSql.execute("BEGIN")
+        tdSql.execute("alter table ntb1 add column c2 float")
+        tdSql.execute("ROLLBACK")
+
+        tdLog.info("  Step 1: ALTER→ROLLBACK, testing SELECT...")
+        tdSql.query("select c1 from ntb1")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 100)
+        tdLog.info("  Step 1: PASSED")
+
+        # Step 2: ALTER→DROP→ROLLBACK→SELECT
+        tdSql.execute("BEGIN")
+        tdSql.execute("alter table ntb1 add column c2 float")
+        tdSql.execute("drop table ntb1")
+        tdSql.execute("ROLLBACK")
+
+        tdLog.info("  Step 2: ALTER→DROP→ROLLBACK, testing SHOW TABLES...")
+        tdSql.query("show tables")
+        tdSql.checkRows(1)
+
+        tdLog.info("  Step 2: testing DESCRIBE...")
+        tdSql.query("describe ntb1")
+        col_names = [tdSql.queryResult[i][0] for i in range(tdSql.queryRows)]
+        assert 'c1' in col_names, "Column c1 should exist after ROLLBACK"
+        assert 'c2' not in col_names, "Column c2 should NOT exist after ROLLBACK"
+
+        tdLog.info("  Step 2: testing SELECT...")
+        tdSql.query("select c1 from txn_db.ntb1")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 100)
+
+    # =========================================================================
+    # 38. Same-txn operations: DESC works, INSERT blocked, SELECT behavior
+    # =========================================================================
+    def s44_same_txn_data_ops(self):
+        self.s0_reset_env()
+        tdLog.info("======== s44_same_txn_data_ops")
+
+        tdSql.execute("create table stb (ts timestamp, v int) tags (t1 int)")
+
+        # === Part A: DESC works on same-txn created table ===
+        tdSql.execute("BEGIN")
+        tdSql.execute("create table ct1 using stb tags(1)")
+        tdSql.execute("create table ntb1 (ts timestamp, c1 int, c2 float)")
+
+        # DESC child table within same txn — should work
+        tdSql.query("describe ct1")
+        assert tdSql.queryRows >= 2, "DESC ct1 should return columns"
+
+        # DESC normal table within same txn — should work
+        tdSql.query("describe ntb1")
+        tdSql.checkRows(3)  # ts + c1 + c2
+        col_names = [tdSql.queryResult[i][0] for i in range(tdSql.queryRows)]
+        assert 'c1' in col_names and 'c2' in col_names
+
+        # SHOW TABLES — should show both tables (txnId-aware cursor)
+        tdSql.query("show tables")
+        tdSql.checkRows(2)
+
+        # SHOW CREATE TABLE — should work
+        tdSql.query("show create table ct1")
+        tdSql.checkRows(1)
+
+        # === Part B: INSERT is blocked in transaction (DDL-only) ===
+        tdSql.error("insert into ct1 values(now, 1)")
+        tdSql.error("insert into ntb1 values(now, 1, 2.0)")
+
+        # === Part C: SELECT on pre-existing data is allowed ===
+        tdSql.execute("ROLLBACK")
+
+        # Create and populate table outside transaction
+        tdSql.execute("create table ct2 using stb tags(2)")
+        tdSql.execute("insert into ct2 values(now, 42)")
+
+        tdSql.execute("BEGIN")
+        # SELECT on pre-existing (committed) table within txn — should work
+        tdSql.query("select * from ct2")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, 42)
+
+        tdSql.execute("ROLLBACK")
+
     def test_meta_batch_txn(self):
         """Batch meta txn: full lifecycle
 
@@ -908,6 +1131,13 @@ class TestBatchMetaTxn:
         35. DROP STABLE cross-session isolation
         36. ALTER STABLE cross-session isolation
         37. CREATE STB catalog isolation (other session can't use uncommitted STB)
+        38. Same-txn CREATE→DROP→re-CREATE chain + COMMIT
+        39. Same-txn CREATE→DROP→re-CREATE chain + ROLLBACK
+        40. Same-txn CREATE→ALTER→DROP chain + COMMIT
+        41. Same-txn CREATE→ALTER→DROP chain + ROLLBACK
+        42. Pre-existing ALTER→DROP chain + COMMIT
+        43. Pre-existing ALTER→DROP chain + ROLLBACK
+        44. Same-txn data ops: DESC works, INSERT blocked, SELECT on committed data
 
 
         Since: v3.3.6.0
@@ -920,6 +1150,7 @@ class TestBatchMetaTxn:
             - 2026-03-27 Created
             - 2026-03-29 Added STB txn isolation, same-txn child table, ALTER visibility tests
             - 2026-03-30 Added STB DROP/ALTER/isolation, catalog isolation tests
+            - 2026-03-31 Added DDL chain tests (CREATE→DROP→re-CREATE, CREATE→ALTER→DROP), same-txn data ops
 
         """
         self.s1_begin_commit_create_tables()
@@ -959,3 +1190,10 @@ class TestBatchMetaTxn:
         self.s35_drop_stb_isolation()
         self.s36_alter_stb_isolation()
         self.s37_create_stb_catalog_isolation()
+        self.s38_create_drop_recreate_commit()
+        self.s39_create_drop_recreate_rollback()
+        self.s40_create_alter_drop_commit()
+        self.s41_create_alter_drop_rollback()
+        self.s42_existing_alter_drop_commit()
+        self.s43_existing_alter_drop_rollback()
+        self.s44_same_txn_data_ops()

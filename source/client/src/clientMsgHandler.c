@@ -1528,13 +1528,29 @@ static void tscResetTxnState(STscObj* pTscObj) {
   pTscObj->txnId = 0;
   taosArrayDestroy(pTscObj->pTxnVgList);
   pTscObj->pTxnVgList = NULL;
-  // Batch meta txn: free cached table metadata
+  // Batch meta txn: invalidate global catalog entries for txn-touched tables,
+  // then free the per-connection cache. This prevents stale metadata (e.g. from
+  // ALTER within a txn) from persisting in the global catalog after COMMIT/ROLLBACK.
   if (pTscObj->pTxnTableMeta) {
-    void* pIter = taosHashIterate(pTscObj->pTxnTableMeta, NULL);
-    while (pIter) {
-      STableMeta** ppMeta = (STableMeta**)pIter;
+    SCatalog* pCatalog = NULL;
+    int32_t   catCode = catalogGetHandle(pTscObj->pAppInfo->clusterId, &pCatalog);
+    if (catCode == TSDB_CODE_SUCCESS && pCatalog != NULL) {
+      size_t keyLen = 0;
+      void*  pIter = taosHashIterate(pTscObj->pTxnTableMeta, NULL);
+      while (pIter) {
+        char* key = (char*)taosHashGetKey(pIter, &keyLen);
+        SName name = {0};
+        if (tNameFromString(&name, key, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE) == 0) {
+          catalogRemoveTableMeta(pCatalog, &name);
+        }
+        pIter = taosHashIterate(pTscObj->pTxnTableMeta, pIter);
+      }
+    }
+    void* pIter2 = taosHashIterate(pTscObj->pTxnTableMeta, NULL);
+    while (pIter2) {
+      STableMeta** ppMeta = (STableMeta**)pIter2;
       taosMemoryFreeClear(*ppMeta);
-      pIter = taosHashIterate(pTscObj->pTxnTableMeta, pIter);
+      pIter2 = taosHashIterate(pTscObj->pTxnTableMeta, pIter2);
     }
     taosHashCleanup(pTscObj->pTxnTableMeta);
     pTscObj->pTxnTableMeta = NULL;

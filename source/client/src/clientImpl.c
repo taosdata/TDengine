@@ -1137,7 +1137,14 @@ int32_t handleQueryExecRsp(SRequestObj* pRequest) {
   switch (pRes->msgType) {
     case TDMT_VND_ALTER_TABLE:
     case TDMT_MND_ALTER_STB: {
-      code = handleAlterTbExecRes(pRes->res, pCatalog);
+      // Batch meta txn: skip global catalog update during txn to prevent
+      // cross-session pollution. Only populate per-connection pTxnTableMeta.
+      {
+        STscObj* pTscObj = pRequest->pTscObj;
+        if (pTscObj->txnId == 0) {
+          code = handleAlterTbExecRes(pRes->res, pCatalog);
+        }
+      }
 
       // Batch meta txn: update table meta cache if ALTER was within a transaction
       STscObj* pTscObj = pRequest->pTscObj;
@@ -1168,11 +1175,15 @@ int32_t handleQueryExecRsp(SRequestObj* pRequest) {
       int32_t num = taosArrayGetSize(pList);
       for (int32_t i = 0; i < num; ++i) {
         void* res = taosArrayGetP(pList, i);
-        // handleCreateTbExecRes will handle res == null
-        code = handleCreateTbExecRes(res, pCatalog);
+        // Batch meta txn: skip global catalog update during txn to prevent
+        // cross-session pollution. Only populate per-connection pTxnTableMeta.
+        STscObj* pTscObj = pRequest->pTscObj;
+        if (pTscObj->txnId == 0) {
+          // handleCreateTbExecRes will handle res == null
+          code = handleCreateTbExecRes(res, pCatalog);
+        }
 
         // Batch meta txn: cache table meta for same-txn visibility (DROP/ALTER within txn)
-        STscObj* pTscObj = pRequest->pTscObj;
         if (res != NULL && pTscObj->txnId > 0) {
           STableMetaRsp* pMetaRsp = (STableMetaRsp*)res;
           STableMeta*    pTableMeta = NULL;

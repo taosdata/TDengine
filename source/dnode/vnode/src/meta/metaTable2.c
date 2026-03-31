@@ -875,6 +875,13 @@ int32_t metaRollbackAlterTable(SMeta *pMeta, int64_t uid, int64_t prevVersion) {
   // For pre-existing tables: old entry already has txnId=0, txnStatus=NORMAL.
   // For same-txn CREATE→ALTER: old entry retains PRE_CREATE, enabling chained rollback.
 
+  // Drop the meta cache entry so next lookup reads the restored version from pUidIdx.
+  // The cache only updates to higher versions (never downgrades), so without this
+  // the stale cache entry would point to the deleted new-version entry.
+  metaWLock(pMeta);
+  metaCacheDrop(pMeta, uid);
+  metaULock(pMeta);
+
   metaInfo("vgId:%d, rollback alter: uid %" PRId64 " restored to version %" PRId64, TD_VID(pMeta->pVnode), uid,
            prevVersion);
   return code;
