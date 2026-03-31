@@ -19,7 +19,8 @@ export default {
     alias: {
       '@': './'
     },
-    extensions: ['.js', '.json', '.ts', '.vue', 'jsx', 'tsx']
+    extensions: ['.js', '.json', '.ts', '.vue', 'jsx', 'tsx'],
+    mainFields: ['module', 'jsnext:main', 'jsnext', 'main']
   },
   css: {
     preprocessorOptions: {
@@ -84,7 +85,7 @@ export default {
     setupFiles: './vitest.setup.ts',
     server: {
       deps: {
-        inline: ['element-plus', 'vue-i18n']
+        inline: ['element-plus', 'vue-i18n', 'json-big']
       }
     },
     include: ['**/*.{test,spec}.ts'],

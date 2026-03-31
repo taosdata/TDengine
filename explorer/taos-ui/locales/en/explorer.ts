@@ -45,6 +45,10 @@ export default {
   stableControl: 'STable "{0}" Access Control',
   delDBUsingByDatasource:
     'The database "{0}" is in use by data source "{1}". Stop the data source before deleting the database.',
+  delDBUsingByTask:
+    'Cannot delete database "{0}": task "{1}" is still active with status "{2}". Stop the task before deleting the database.',
+  delDBUsingByTaskQueryFailed:
+    'Unable to verify whether the database is used by active tasks. Please try again.',
   delDatabaseMsgDBMart:
     'The database "{0}" is published in DB mart. If you delete it, the already added users can not access it. Please pay attention to delete it. Do you still want to delete it?',
   delDatabaseMsg: 'Could you please confirm to delete the database "{0}"?',

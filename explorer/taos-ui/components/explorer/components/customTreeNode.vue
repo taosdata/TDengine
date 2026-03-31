@@ -223,6 +223,7 @@ import { getExplorerProps, getSqlProvider } from '../model/useExplorer';
 // import { hasOwnProperty } from 'utils/validate';
 import { cloneDeep } from 'lodash-es';
 import { deleteStableReq, deleteTableReq, getStableStructReq, NORMAL_TABLE, VIRTUAL_NORMAL_TABLE } from '../../api';
+import { findBlockingDatabaseTask } from './databaseDeleteGuard';
 import { instance } from 'config';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import Info from './info.vue';
@@ -602,8 +603,8 @@ async function edit() {
 async function del() {
   if (requestIng.value) return;
   if (!isCommunity) {
-    const inUsing = await isDatasourceUsedDB();
-    if (inUsing) return;
+    const blocked = await guardDatabaseDeleteByTask();
+    if (blocked) return;
   }
   await handleVar();
   let msg = '';
@@ -665,20 +666,32 @@ async function del() {
     });
 }
 
-async function isDatasourceUsedDB() {
+async function guardDatabaseDeleteByTask() {
   if (type.value !== 'database') return false;
-  const databaseInUsing: Recordable[] = await database.getDataSourceUsedList();
-  const datasource = databaseInUsing.find(item => item.targetDB === props.data.name);
-  if (!datasource) return false;
+
+  let tasks: Recordable[];
+  try {
+    tasks = await database.getDataSourceUsedList();
+  } catch {
+    ElMessage.error(t('explorer.delDBUsingByTaskQueryFailed'));
+    return true;
+  }
+
+  const blockingTask = findBlockingDatabaseTask(tasks, props.data.name);
+  if (!blockingTask) return false;
+
   ElMessageBox.alert(
-    t('explorer.delDBUsingByDatasource', [props.data.name, datasource.name]),
-    t('status.warning', {
+    t('explorer.delDBUsingByTask', [props.data.name, blockingTask.name, blockingTask.status]),
+    t('status.warning'),
+    {
       confirmButtonText: t('common.confirm'),
       type: 'warning'
-    })
+    }
   );
   return true;
 }
+
+defineExpose({ del });
 </script>
 
 <style lang="scss">

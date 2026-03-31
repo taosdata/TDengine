@@ -45,6 +45,8 @@ export default {
   databaseControl: '数据库“{0}”访问控制',
   stableControl: '超级表“{0}”访问控制',
   delDBUsingByDatasource: '数据库“{0}”正在被数据源“{1}”使用，请先停止该任务，然后尝试删除。',
+  delDBUsingByTask: '无法删除数据库“{0}”：任务“{1}”当前状态为“{2}”，请先停止该任务，然后再删除数据库。',
+  delDBUsingByTaskQueryFailed: '暂时无法校验数据库是否正被运行中的任务使用，请稍后重试。',
   delDatabaseMsgDBMart:
     '数据库”{0}“已经在数据库集市发布。如果你删除该数据库，已经加入的用户将无法访问该数据库，请谨慎删除。您仍然要删除该数据库吗？',
   delDatabaseMsg: '请您确认要删除数据库“{0}”？',
