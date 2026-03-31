@@ -340,12 +340,21 @@ var
   ResultCode: Integer;
   OutputFile: string;
   OutputText: AnsiString;
-  FileContent: TArrayOfString; 
+  FileContent: TArrayOfString;
+  PIPluginDir: string;
+  PIProbeExe: string;
 begin
   Log('InitializeSetup called');
   OutputFile := ExpandConstant('{tmp}\pisdk_version.txt');
+  PIPluginDir := AddBackslash(WizardDirValue()) + 'plugins\pi';
+  PIProbeExe := PIPluginDir + '\taosx-pi.exe';
 
-  if not ExecAsOriginalUser('cmd.exe', '/c taosx-pi.exe -pv >> "'+ OutputFile + '" 2>&1', ExpandConstant('{app}\plugins\pi'), SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+  if not FileExists(PIProbeExe) then
+  begin
+    Log('PI SDK probe executable not available yet: ' + PIProbeExe);
+    PISDKVersionString := 'WARNING' + #13#10 + 'PI SDK check unavailable before installation.';
+  end
+  else if not ExecAsOriginalUser('cmd.exe', '/c taosx-pi.exe -pv >> "'+ OutputFile + '" 2>&1', PIPluginDir, SW_HIDE, ewWaitUntilTerminated, ResultCode) then
   begin
     PISDKVersionString := 'WARNING' + #13#10 + 'PI SDK not found.';
   end
