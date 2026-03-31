@@ -257,7 +257,7 @@ static int createSuperTable(SDataBase* database, SSuperTable* stbInfo) {
 
     uint32_t col_buffer_len = (TSDB_COL_NAME_LEN + 15 + COMP_NAME_LEN*3) * stbInfo->cols->size;
     char         *colsBuf = benchCalloc(1, col_buffer_len, false);
-    char*         command = benchCalloc(1, TSDB_MAX_ALLOWED_SQL_LEN, false);
+    char*         command = benchCalloc(1, TOOLS_MAX_ALLOWED_SQL_LEN, false);
     int          len = 0;
 
     for (int colIndex = 0; colIndex < stbInfo->cols->size; colIndex++) {
@@ -389,7 +389,7 @@ skip:
     (void)snprintf(tagsBuf + len, tag_buffer_len - len, ")");
 
     int length = snprintf(
-        command, TSDB_MAX_ALLOWED_SQL_LEN,
+        command, TOOLS_MAX_ALLOWED_SQL_LEN,
         g_arguments->escape_character
             ? "CREATE TABLE IF NOT EXISTS `%s`.`%s` (%s TIMESTAMP%s) TAGS %s"
             : "CREATE TABLE IF NOT EXISTS %s.%s (%s TIMESTAMP%s) TAGS %s",
@@ -397,35 +397,35 @@ skip:
     tmfree(colsBuf);
     tmfree(tagsBuf);
     if (stbInfo->comment != NULL) {
-        length += snprintf(command + length, TSDB_MAX_ALLOWED_SQL_LEN - length,
+        length += snprintf(command + length, TOOLS_MAX_ALLOWED_SQL_LEN - length,
                            " COMMENT '%s'", stbInfo->comment);
     }
     if (stbInfo->delay >= 0) {
         length += snprintf(command + length,
-                           TSDB_MAX_ALLOWED_SQL_LEN - length, " DELAY %d",
+                           TOOLS_MAX_ALLOWED_SQL_LEN - length, " DELAY %d",
                            stbInfo->delay);
     }
     if (stbInfo->file_factor >= 0) {
         length +=
             snprintf(command + length,
-                     TSDB_MAX_ALLOWED_SQL_LEN - length, " FILE_FACTOR %f",
+                     TOOLS_MAX_ALLOWED_SQL_LEN - length, " FILE_FACTOR %f",
                      (float)stbInfo->file_factor / 100);
     }
     if (stbInfo->rollup != NULL) {
         length += snprintf(command + length,
-                           TSDB_MAX_ALLOWED_SQL_LEN - length,
+                           TOOLS_MAX_ALLOWED_SQL_LEN - length,
                            " ROLLUP(%s)", stbInfo->rollup);
     }
 
     if (stbInfo->max_delay != NULL) {
         length += snprintf(command + length,
-                           TSDB_MAX_ALLOWED_SQL_LEN - length,
+                           TOOLS_MAX_ALLOWED_SQL_LEN - length,
                 " MAX_DELAY %s", stbInfo->max_delay);
     }
 
     if (stbInfo->watermark != NULL) {
         length += snprintf(command + length,
-                           TSDB_MAX_ALLOWED_SQL_LEN - length,
+                           TOOLS_MAX_ALLOWED_SQL_LEN - length,
                 " WATERMARK %s", stbInfo->watermark);
     }
 
@@ -433,7 +433,7 @@ skip:
     /*
     if (stbInfo->ttl != 0) {
         length += snprintf(command + length,
-                           TSDB_MAX_ALLOWED_SQL_LEN - length,
+                           TOOLS_MAX_ALLOWED_SQL_LEN - length,
                 " TTL %d", stbInfo->ttl);
     }
     */
@@ -443,13 +443,13 @@ skip:
         Field * col = benchArrayGet(stbInfo->cols, i);
         if (col->sma) {
             if (first_sma) {
-                n = snprintf(command + length, TSDB_MAX_ALLOWED_SQL_LEN - length, " SMA(%s", col->name);
+                n = snprintf(command + length, TOOLS_MAX_ALLOWED_SQL_LEN - length, " SMA(%s", col->name);
                 first_sma = false;
             } else {
-                n = snprintf(command + length, TSDB_MAX_ALLOWED_SQL_LEN - length, ",%s", col->name);
+                n = snprintf(command + length, TOOLS_MAX_ALLOWED_SQL_LEN - length, ",%s", col->name);
             }
 
-            if (n < 0 || n > TSDB_MAX_ALLOWED_SQL_LEN - length) {
+            if (n < 0 || n > TOOLS_MAX_ALLOWED_SQL_LEN - length) {
                 errorPrint("%s() LN%d snprintf overflow on %d iteral\n", __func__, __LINE__, i);
                 break;
             } else {
@@ -458,7 +458,7 @@ skip:
         }
     }
     if (!first_sma) {
-        (void)snprintf(command + length, TSDB_MAX_ALLOWED_SQL_LEN - length, ")");
+        (void)snprintf(command + length, TOOLS_MAX_ALLOWED_SQL_LEN - length, ")");
     }
     debugPrint("create stable: <%s>\n", command);
 
@@ -557,14 +557,14 @@ int geneDbCreateCmd(SDataBase *database, char *command, int remainVnodes) {
 
             if (cfg->valuestring) {
                 n = snprintf(command + dataLen,
-                                        TSDB_MAX_ALLOWED_SQL_LEN - dataLen,
+                                        TOOLS_MAX_ALLOWED_SQL_LEN - dataLen,
                             " %s %s", cfg->name, cfg->valuestring);
             } else {
                 n = snprintf(command + dataLen,
-                                        TSDB_MAX_ALLOWED_SQL_LEN - dataLen,
+                                        TOOLS_MAX_ALLOWED_SQL_LEN - dataLen,
                             " %s %d", cfg->name, cfg->valueint);
             }
-            if (n < 0 || n >= TSDB_MAX_ALLOWED_SQL_LEN - dataLen) {
+            if (n < 0 || n >= TOOLS_MAX_ALLOWED_SQL_LEN - dataLen) {
                 errorPrint("%s() LN%d snprintf overflow on %d\n",
                            __func__, __LINE__, i);
                 break;
@@ -576,20 +576,20 @@ int geneDbCreateCmd(SDataBase *database, char *command, int remainVnodes) {
 
     // not found vgroups
     if (vgroups > 0) {
-        dataLen += snprintf(command + dataLen, TSDB_MAX_ALLOWED_SQL_LEN - dataLen, " VGROUPS %d", vgroups);
+        dataLen += snprintf(command + dataLen, TOOLS_MAX_ALLOWED_SQL_LEN - dataLen, " VGROUPS %d", vgroups);
     }
 
     switch (database->precision) {
         case TSDB_TIME_PRECISION_MILLI:
-            (void)snprintf(command + dataLen, TSDB_MAX_ALLOWED_SQL_LEN - dataLen,
+            (void)snprintf(command + dataLen, TOOLS_MAX_ALLOWED_SQL_LEN - dataLen,
                                 " PRECISION \'ms\';");
             break;
         case TSDB_TIME_PRECISION_MICRO:
-            (void)snprintf(command + dataLen, TSDB_MAX_ALLOWED_SQL_LEN - dataLen,
+            (void)snprintf(command + dataLen, TOOLS_MAX_ALLOWED_SQL_LEN - dataLen,
                                 " PRECISION \'us\';");
             break;
         case TSDB_TIME_PRECISION_NANO:
-            (void)snprintf(command + dataLen, TSDB_MAX_ALLOWED_SQL_LEN - dataLen,
+            (void)snprintf(command + dataLen, TOOLS_MAX_ALLOWED_SQL_LEN - dataLen,
                                 " PRECISION \'ns\';");
             break;
     }
@@ -792,9 +792,9 @@ static int generateChildTblName(int len, char *buffer, SDataBase *database,
                                 SSuperTable *stbInfo, uint64_t tableSeq, char* tagData, int i,
                                 char *ttl, char *tableName) {
     if (0 == len) {
-        memset(buffer, 0, TSDB_MAX_ALLOWED_SQL_LEN);
+        memset(buffer, 0, TOOLS_MAX_ALLOWED_SQL_LEN);
         len += snprintf(buffer + len,
-                        TSDB_MAX_ALLOWED_SQL_LEN - len, "CREATE TABLE");
+                        TOOLS_MAX_ALLOWED_SQL_LEN - len, "CREATE TABLE");
     }
 
     const char *tagStart = tagData + i * stbInfo->lenOfTags;  // start position of current row's TAG
@@ -821,7 +821,7 @@ static int generateChildTblName(int len, char *buffer, SDataBase *database,
 
     }
 
-    len += snprintf(buffer + len, TSDB_MAX_ALLOWED_SQL_LEN - len, fmt,
+    len += snprintf(buffer + len, TOOLS_MAX_ALLOWED_SQL_LEN - len, fmt,
                     database->dbName, tableName,
                     database->dbName, stbInfo->stbName,
                     tagsForSQL, ttl);
@@ -877,7 +877,7 @@ static void *createTable(void *sarg) {
 #ifdef LINUX
     prctl(PR_SET_NAME, "createTable");
 #endif
-    pThreadInfo->buffer = benchCalloc(1, TSDB_MAX_ALLOWED_SQL_LEN, false);
+    pThreadInfo->buffer = benchCalloc(1, TOOLS_MAX_ALLOWED_SQL_LEN, false);
     infoPrint(
               "thread[%d] start creating table from %" PRIu64 " to %" PRIu64
               "\n",
@@ -909,14 +909,14 @@ static void *createTable(void *sarg) {
         }
         if (!stbInfo->use_metric || stbInfo->tags->size == 0) {
             if (stbInfo->childTblCount == 1) {
-                (void)snprintf(pThreadInfo->buffer, TSDB_MAX_ALLOWED_SQL_LEN,
+                (void)snprintf(pThreadInfo->buffer, TOOLS_MAX_ALLOWED_SQL_LEN,
                          g_arguments->escape_character
                          ? "CREATE TABLE IF NOT EXISTS `%s`.`%s` %s;"
                          : "CREATE TABLE IF NOT EXISTS %s.%s %s;",
                          database->dbName, stbInfo->stbName,
                          stbInfo->colsOfCreateChildTable);
             } else {
-                (void)snprintf(pThreadInfo->buffer, TSDB_MAX_ALLOWED_SQL_LEN,
+                (void)snprintf(pThreadInfo->buffer, TOOLS_MAX_ALLOWED_SQL_LEN,
                          g_arguments->escape_character
                          ? "CREATE TABLE IF NOT EXISTS `%s`.`%s` %s;"
                          : "CREATE TABLE IF NOT EXISTS %s.%s %s;",
@@ -954,7 +954,7 @@ static void *createTable(void *sarg) {
             int smallBatch = getBatchOfTblCreating(pThreadInfo, stbInfo);
             if ((!smallBatch || (smallBatchCount == smallBatch))
                     && (batchNum < stbInfo->batchTblCreatingNum)
-                    && ((TSDB_MAX_ALLOWED_SQL_LEN - len) >=
+                    && ((TOOLS_MAX_ALLOWED_SQL_LEN - len) >=
                         (stbInfo->lenOfTags + EXTRA_SQL_LEN))) {
                 continue;
             } else {
@@ -1478,15 +1478,15 @@ int32_t execInsert(threadInfo *pThreadInfo, uint32_t k, int64_t *delay3) {
                         if (TSDB_SML_TELNET_PROTOCOL == protocol
                                 && stbInfo->tcpTransfer) {
                             n = snprintf(pThreadInfo->buffer + len,
-                                            TSDB_MAX_ALLOWED_SQL_LEN - len,
+                                            TOOLS_MAX_ALLOWED_SQL_LEN - len,
                                            "put %s\n", pThreadInfo->lines[i]);
                         } else {
                             n = snprintf(pThreadInfo->buffer + len,
-                                            TSDB_MAX_ALLOWED_SQL_LEN - len,
+                                            TOOLS_MAX_ALLOWED_SQL_LEN - len,
                                             "%s\n",
                                            pThreadInfo->lines[i]);
                         }
-                        if (n < 0 || n >= TSDB_MAX_ALLOWED_SQL_LEN - len) {
+                        if (n < 0 || n >= TOOLS_MAX_ALLOWED_SQL_LEN - len) {
                             errorPrint("%s() LN%d snprintf overflow on %d\n",
                                 __func__, __LINE__, i);
                             break;
@@ -1521,9 +1521,9 @@ static int smartContinueIfFail(threadInfo *pThreadInfo,
     SDataBase *  database = pThreadInfo->dbInfo;
     SSuperTable *stbInfo = pThreadInfo->stbInfo;
     char *buffer =
-        benchCalloc(1, TSDB_MAX_ALLOWED_SQL_LEN, false);
+        benchCalloc(1, TOOLS_MAX_ALLOWED_SQL_LEN, false);
     (void)snprintf(
-            buffer, TSDB_MAX_ALLOWED_SQL_LEN,
+            buffer, TOOLS_MAX_ALLOWED_SQL_LEN,
             g_arguments->escape_character ?
                 "CREATE TABLE IF NOT EXISTS `%s`.`%s` USING `%s`.`%s` TAGS (%s) %s "
                 : "CREATE TABLE IF NOT EXISTS %s.%s USING %s.%s TAGS (%s) %s ",
@@ -2686,7 +2686,7 @@ static int32_t prepareProgressDataSql(
     if (stbInfo->partialColNum == stbInfo->cols->size) {
         if (stbInfo->autoTblCreating) {
             *len =
-                snprintf(pstr, TSDB_MAX_ALLOWED_SQL_LEN,
+                snprintf(pstr, TOOLS_MAX_ALLOWED_SQL_LEN,
                         g_arguments->escape_character
                         ? "%s `%s`.`%s` USING `%s`.`%s` TAGS (%s) %s VALUES "
                         : "%s %s.%s USING %s.%s TAGS (%s) %s VALUES ",
@@ -2696,7 +2696,7 @@ static int32_t prepareProgressDataSql(
                          tagData +
                          stbInfo->lenOfTags * tableSeq, ttl);
         } else {
-            *len = snprintf(pstr, TSDB_MAX_ALLOWED_SQL_LEN,
+            *len = snprintf(pstr, TOOLS_MAX_ALLOWED_SQL_LEN,
                     g_arguments->escape_character
                            ? "%s `%s`.`%s` VALUES "
                            : "%s %s.%s VALUES ",
@@ -2706,7 +2706,7 @@ static int32_t prepareProgressDataSql(
     } else {
         if (stbInfo->autoTblCreating) {
             *len = snprintf(
-                    pstr, TSDB_MAX_ALLOWED_SQL_LEN,
+                    pstr, TOOLS_MAX_ALLOWED_SQL_LEN,
                     g_arguments->escape_character
                     ? "%s `%s`.`%s` (%s) USING `%s`.`%s` TAGS (%s) %s VALUES "
                     : "%s %s.%s (%s) USING %s.%s TAGS (%s) %s VALUES ",
@@ -2717,7 +2717,7 @@ static int32_t prepareProgressDataSql(
                     tagData +
                     stbInfo->lenOfTags * tableSeq, ttl);
         } else {
-            *len = snprintf(pstr, TSDB_MAX_ALLOWED_SQL_LEN,
+            *len = snprintf(pstr, TOOLS_MAX_ALLOWED_SQL_LEN,
                     g_arguments->escape_character
                     ? "%s `%s`.`%s` (%s) VALUES "
                     : "%s %s.%s (%s) VALUES ",
@@ -2740,13 +2740,13 @@ static int32_t prepareProgressDataSql(
                 && (!stbInfo->random_data_source)) {
             *len +=
                 snprintf(pstr + *len,
-                         TSDB_MAX_ALLOWED_SQL_LEN - *len, "(%s)",
+                         TOOLS_MAX_ALLOWED_SQL_LEN - *len, "(%s)",
                          sampleDataBuf +
                          *pos * stbInfo->lenOfCols);
         } else {
             int64_t disorderTs = getDisorderTs(stbInfo, &disorderRange);
             *len += snprintf(pstr + *len,
-                            TSDB_MAX_ALLOWED_SQL_LEN - *len,
+                            TOOLS_MAX_ALLOWED_SQL_LEN - *len,
                             "(%" PRId64 ",%s)",
                             disorderTs?disorderTs:*timestamp,
                             ownSampleDataBuf +
@@ -2762,7 +2762,7 @@ static int32_t prepareProgressDataSql(
         }
 
         generated++;
-        if (*len > (TSDB_MAX_ALLOWED_SQL_LEN
+        if (*len > (TOOLS_MAX_ALLOWED_SQL_LEN
             - stbInfo->lenOfCols)) {
             break;
         }
@@ -3861,7 +3861,7 @@ void *genInsertTheadInfo(void* arg) {
             if (stbInfo->interlaceRows > 0) {
                 pThreadInfo->buffer = new_ds(0);
             } else {
-                pThreadInfo->buffer = benchCalloc(1, TSDB_MAX_ALLOWED_SQL_LEN, true);
+                pThreadInfo->buffer = benchCalloc(1, TOOLS_MAX_ALLOWED_SQL_LEN, true);
             }
             int sockfd = createSockFd();
             if (sockfd < 0) {
@@ -4032,10 +4032,10 @@ void *genInsertTheadInfo(void* arg) {
             if (stbInfo->interlaceRows > 0) {
                 pThreadInfo->buffer = new_ds(0);
             } else {
-                pThreadInfo->buffer = benchCalloc(1, TSDB_MAX_ALLOWED_SQL_LEN, true);
+                pThreadInfo->buffer = benchCalloc(1, TOOLS_MAX_ALLOWED_SQL_LEN, true);
                 if (g_arguments->check_sql) {
-                    pThreadInfo->csql = benchCalloc(1, TSDB_MAX_ALLOWED_SQL_LEN, true);
-                    memset(pThreadInfo->csql, 0, TSDB_MAX_ALLOWED_SQL_LEN);
+                    pThreadInfo->csql = benchCalloc(1, TOOLS_MAX_ALLOWED_SQL_LEN, true);
+                    memset(pThreadInfo->csql, 0, TOOLS_MAX_ALLOWED_SQL_LEN);
                 }
             }
 
