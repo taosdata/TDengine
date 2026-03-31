@@ -250,7 +250,7 @@ Edit the project configuration file to add a reference to [TDengine.Connector](h
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="TDengine.Connector" Version="3.1.0" />
+    <PackageReference Include="TDengine.Connector" Version="3.2.0" />
   </ItemGroup>
 
 </Project>
@@ -415,34 +415,45 @@ Node.js connector uses DSN to create connections, the basic structure of the DSN
 
 ConnectionStringBuilder uses a key-value pair method to set connection parameters, where key is the parameter name and value is the parameter value, separated by a semicolon `;`.
 
-For example:
+Single-address example:
 
 ```csharp
 "protocol=WebSocket;host=127.0.0.1;port=6041;useSSL=false"
 ```
 
+Starting with `TDengine.Connector` `3.2.0`, WebSocket connections also support failover through a comma-separated `host` list. The initial connection automatically tries the configured addresses, while reconnect failover after a disconnect requires `autoReconnect=true`.
+
+```csharp
+"protocol=WebSocket;host=adapter-a:6041,adapter-b:6041;username=root;password=taosdata;autoReconnect=true;reconnectRetryCount=3;reconnectIntervalMs=2000"
+```
+
 Supported parameters are as follows:
 
-- `host`: The address of the TDengine instance.
-- `port`: The port of the TDengine instance.
-- `username`: Username for the connection.
-- `password`: Password for the connection.
-- `protocol`: Connection protocol, options are Native or WebSocket, default is Native.
-- `db`: Database to connect to.
-- `timezone`: Time zone, default is the local time zone.
-- `connTimeout`: Connection timeout, default is 1 minute.
-- `bearerToken`: Token for connecting to TDengine TSDB.
+- Common parameters:
+  - `host`: Native supports a single address only. WebSocket supports a single address or a comma-separated address list in `3.2.0` and later. Single-address formats include `host`, `host:port`, bare IPv6 `2001:db8::1`, `[2001:db8::1]`, and `[2001:db8::1]:6041`. In multi-address WebSocket lists, IPv6 entries must use brackets, for example `host=[::1]:6041,[::1]:6042`.
+  - `port`: Shared fallback port. It is applied only to addresses that do not include an explicit port. For WebSocket, if neither the address nor `port` specifies a port, the default is `6041`, or `443` when `useSSL=true`. Native connections usually use `6030`.
+  - `username`: Username for the connection.
+  - `password`: Password for the connection.
+  - `protocol`: Connection protocol. Supported values are `Native` and `WebSocket`. Default is `Native`.
+  - `db`: Database to connect to.
+  - `timezone`: Time zone used to parse time values in result sets. Default is the local time zone.
+  - `connectionTimezone`: Connection-level time zone setting, supported in `3.1.8` and later. It requires .NET 6+ and IANA time zone format, and cannot be used together with `timezone`.
+  - `bearerToken`: Token used for TDengine TSDB authentication, supported in `3.1.10` and later.
 
-Additional parameters supported for WebSocket connections:
+- WebSocket-only parameters:
+  - `connTimeout`: Connection timeout. Default is 1 minute.
+  - `readTimeout`: Read timeout. Default is 5 minutes.
+  - `writeTimeout`: Send timeout. Default is 10 seconds.
+  - `token`: Token for connecting to TDengine cloud.
+  - `useSSL`: Whether to use an SSL/TLS WebSocket connection. Default is `false`.
+  - `enableCompression`: Whether to enable WebSocket compression. Default is `false`.
+  - `autoReconnect`: Whether to automatically reconnect. Default is `false`. When multiple WebSocket addresses are configured in `3.2.0` and later, this controls runtime failover after the current connection becomes unavailable.
+  - `reconnectRetryCount`: Number of reconnect rounds. Default is `3`.
+  - `reconnectIntervalMs`: Interval between reconnect rounds in milliseconds. Default is `2000`.
 
-- `readTimeout`: Read timeout, default is 5 minutes.
-- `writeTimeout`: Send timeout, default is 10 seconds.
-- `token`: Token for connecting to TDengine cloud.
-- `useSSL`: Whether to use SSL connection, default is false.
-- `enableCompression`: Whether to enable WebSocket compression, default is false.
-- `autoReconnect`: Whether to automatically reconnect, default is false.
-- `reconnectRetryCount`: Number of retries for reconnection, default is 3.
-- `reconnectIntervalMs`: Reconnection interval in milliseconds, default is 2000.
+:::note
+WebSocket failover is available in `3.2.0` and later. The connector uses a **Least Connections** algorithm for address selection, preferring the node with the fewest active connections. Native connections do not support multi-address failover. If `protocol=Native` and `host` contains multiple addresses, opening the connection throws an `ArgumentException`.
+:::
 
 </TabItem>
 
@@ -535,6 +546,19 @@ Starting from `v3.8.0`, the Go connector unifies WebSocket access through `ws/un
 
 ```csharp
 {{#include docs/examples/csharp/wsConnect/Program.cs:main}}
+```
+
+Starting with `TDengine.Connector` `3.2.0`, you can enable WebSocket failover by using a comma-separated `host` list. For IPv6 multi-address lists, each entry must be bracketed, for example `host=[::1]:6041,[2001:db8::2]:6041`.
+
+```csharp
+using var client = DbDriver.Open(new ConnectionStringBuilder(
+    "protocol=WebSocket;" +
+    "host=adapter-a:6041,adapter-b:6041;" +
+    "username=root;" +
+    "password=taosdata;" +
+    "autoReconnect=true;" +
+    "reconnectRetryCount=3;" +
+    "reconnectIntervalMs=2000;"));
 ```
 
 </TabItem>
