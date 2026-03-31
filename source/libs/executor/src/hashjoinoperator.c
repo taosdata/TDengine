@@ -942,7 +942,7 @@ static int32_t hJoinCopyResRowsToBlock(SHJoinOperatorInfo* pJoin, int32_t rowNum
 
         int32_t probeRowIdx = pJoin->ctx.probeStartIdx;
         if (probeRowIdx < 0 || probeRowIdx >= pJoin->ctx.pProbeData->info.rows) {
-          qError("invalid probe row index:%d, probe rows:%d", probeRowIdx, pJoin->ctx.pProbeData->info.rows);
+          qError("invalid probe row index:%d, probe rows:%ld", probeRowIdx, pJoin->ctx.pProbeData->info.rows);
           return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
         }
 

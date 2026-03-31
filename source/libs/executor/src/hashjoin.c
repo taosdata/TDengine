@@ -1351,6 +1351,11 @@ int32_t hFullJoinHandleSeqRemainBuildRows(struct SOperatorInfo* pOperator, SHJoi
     return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
   }
   
+  if (hJoinBlkReachThreshold(pJoin, pJoin->finBlk->info.rows)) {
+    *loopCont = false;
+    return TSDB_CODE_SUCCESS;
+  }
+  
   while (!allFetched) {
     int32_t rowsBefore = pJoin->midBlk->info.rows;
     SBufRowInfo* pBatchStart = pCtx->pBuildRow;
@@ -1515,6 +1520,11 @@ int32_t hFullJoinHandleRemainBuildRows(struct SOperatorInfo* pOperator, SHJoinOp
   bool allFetched = false;
   SHJoinCtx* pCtx = &pJoin->ctx;
   
+  if (hJoinBlkReachThreshold(pJoin, pJoin->finBlk->info.rows)) {
+    *loopCont = false;
+    return TSDB_CODE_SUCCESS;
+  }
+
   hJoinAppendResToBlock(pOperator, pJoin->finBlk, &allFetched);
   if (allFetched && pCtx->pBuildNMatchGrp) {
     SFGroupData* pGroup = (SFGroupData*)pCtx->pBuildNMatchGrp;
@@ -1556,6 +1566,10 @@ int32_t hFullJoinHandleProbeRows(struct SOperatorInfo* pOperator, SHJoinOperator
   SHJoinCtx* pCtx = &pJoin->ctx;
   size_t bufLen = 0;
   bool allFetched = false;
+
+  if (hJoinBlkReachThreshold(pJoin, pJoin->finBlk->info.rows)) {
+    return TSDB_CODE_SUCCESS;
+  }
 
   for (; pCtx->probeStartIdx <= pCtx->probeEndIdx; ++pCtx->probeStartIdx) {
     if (hJoinCopyKeyColsDataToBuf(pProbe, pCtx->probeStartIdx, &bufLen)) {

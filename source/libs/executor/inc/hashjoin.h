@@ -62,7 +62,7 @@ extern "C" {
  * The #if 1 branch uses small values (3 rows, no size limit) for unit testing to exercise
  * multi-batch output paths. For production, switch to #else branch (4096 rows, 10 MB limit).
  */
-#if 1
+#if 0
 #define HJOIN_DEFAULT_BLK_ROWS_NUM 3 //4096
 #define HJOIN_BLK_SIZE_LIMIT 0 //10485760
 #else
