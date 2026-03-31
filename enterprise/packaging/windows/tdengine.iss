@@ -141,8 +141,13 @@ begin
   begin
     // Ensure the new line is independent
     if (GetArrayLength(Lines) > 0) and (Trim(Lines[GetArrayLength(Lines)-1]) <> '') then
-      Lines := Lines + [''];
-    Lines := Lines + [FqdnLine];
+      begin
+        SetArrayLength(Lines, GetArrayLength(Lines) + 1);
+        Lines[GetArrayLength(Lines) - 1] := '';
+      end;
+
+    SetArrayLength(Lines, GetArrayLength(Lines) + 1);
+    Lines[GetArrayLength(Lines) - 1] := FqdnLine;
     SaveStringsToFile(CfgFile, Lines, False);
   end;
 end;
@@ -346,13 +351,26 @@ begin
   end
   else
   begin
-    LoadStringsFromFile(OutputFile, FileContent);
-    OutputText := FileContent[0];
-    if ContainsSubstringIgnoreCase(OutputText, 'not found') then  begin
-      PISDKVersionString := 'WARNING' + #13#10 + 'PI SDK not found.';
+    SetArrayLength(FileContent, 0);
+    if not LoadStringsFromFile(OutputFile, FileContent) then
+    begin
+      Log('Unable to read PI SDK check output file: ' + OutputFile);
+      PISDKVersionString := 'WARNING' + #13#10 + 'Unable to read PI SDK check output.';
+    end
+    else if GetArrayLength(FileContent) = 0 then
+    begin
+      Log('PI SDK check produced no output: ' + OutputFile);
+      PISDKVersionString := 'WARNING' + #13#10 + 'PI SDK check returned no output.';
+    end
+    else
+    begin
+      OutputText := FileContent[0];
+      if ContainsSubstringIgnoreCase(OutputText, 'not found') then  begin
+        PISDKVersionString := 'WARNING' + #13#10 + 'PI SDK not found.';
       end
-    else begin
-      PISDKVersionString := OutputText + #13#10 + 'PI SDK Found' + #13#10 + 'OK';
+      else begin
+        PISDKVersionString := OutputText + #13#10 + 'PI SDK Found' + #13#10 + 'OK';
+      end;
     end
   end;
   Result := PISDKVersionString;
