@@ -80,6 +80,46 @@ impl BackupConfig {
         Ok(!topics.iter().any(|t| t.name() == self.topic))
     }
 
+    pub fn raw_from(&self) -> &Dsn {
+        &self.raw_from
+    }
+
+    /// 查询所有 vgroup 的订阅 offset 状态（ByOffset 模式预检使用）
+    /// 返回 Vec<(vgroup_id, Option<(current_offset, latest_offset)>)>
+    /// 如果 offset 不是 wal 格式（如 snapshot 阶段），对应 None
+    pub async fn query_all_vgroup_positions(
+        &self,
+    ) -> anyhow::Result<Vec<(i32, Option<(i64, i64)>)>> {
+        let taos = connect_taos_root(&self.raw_from).await?;
+        let sql = format!(
+            "SELECT vgroup_id, `offset` FROM information_schema.ins_subscriptions \
+             WHERE topic_name = '{}' AND consumer_group = '{}'",
+            self.topic, self.topic
+        );
+        tracing::debug!("query_all_vgroup_positions sql: {}", sql);
+
+        let rows: Vec<(i32, String)> = taos.query(&sql).await?.deserialize().try_collect().await?;
+
+        let mut positions = Vec::with_capacity(rows.len());
+        for (vg_id, offset) in rows {
+            if !offset.starts_with("wal") {
+                positions.push((vg_id, None));
+                continue;
+            }
+            let parsed = offset
+                .split_once(':')
+                .and_then(|(_, loc)| loc.split_once('/'))
+                .and_then(|(cur_str, lat_str)| {
+                    let cur = cur_str.parse::<i64>().ok()?;
+                    let lat = lat_str.parse::<i64>().ok()?;
+                    Some((cur, lat))
+                });
+            positions.push((vg_id, parsed));
+        }
+
+        Ok(positions)
+    }
+
     /// 在 taosd 中创建 topic
     pub async fn create_topic(&self) -> anyhow::Result<()> {
         let sql = self.create_topic_sql();
@@ -162,6 +202,12 @@ impl BackupConfig {
         dsn.remove("max_retry");
         dsn.remove("retry_interval");
         dsn.remove("use.topic.name");
+
+        // 备份计划（ByOffset）通过 offset 对比退出，不依赖 consumer timeout
+        // 设置 timeout=never 避免 consumer 默认 5s 超时导致任务过早退出
+        if self.backup_point_gen_mode == BackupPointGenMode::ByOffset {
+            dsn.set("timeout", "never");
+        }
 
         // 如果是 ws 协议，则默认启用压缩
         if let Some(protocol) = dsn.protocol.as_ref()

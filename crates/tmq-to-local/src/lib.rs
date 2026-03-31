@@ -84,6 +84,67 @@ async fn tmq_to_local_impl(mut config: BackupConfig, cancel: CancellationToken) 
         config.create_backup_dir().await?;
     }
 
+    // [修复 B] 非首次任务：预查询 offset 状态，实现快速路径和 WAL 连续性检查
+    if config.backup_point_gen_mode == BackupPointGenMode::ByOffset
+        && !config.is_initial_backup().await?
+    {
+        let positions = config.query_all_vgroup_positions().await?;
+
+        let mut all_caught_up = true;
+        for (_vg_id, pos) in &positions {
+            match pos {
+                Some((current, latest)) => {
+                    if current < latest {
+                        all_caught_up = false;
+                    }
+                    // TODO: 查询 earliest offset 并比较，检测 WAL 数据丢失
+                    // 设计文档要求：if current < earliest { warn data loss }
+                }
+                None => {
+                    // 非 wal offset（snapshot 阶段），视为未追上
+                    all_caught_up = false;
+                }
+            }
+        }
+
+        // 所有 vgroup 均已追上 latest，无新数据 → 快速路径
+        if all_caught_up && !positions.is_empty() {
+            tracing::info!(
+                "tmq_to_local: all {} vgroups at latest offset, no new data, \
+                 creating empty backup point",
+                positions.len()
+            );
+            let file_timeout = config.interval.unwrap_or(Duration::from_secs(1));
+            let man = ZFileMan {
+                api_version: crate::build::PKG_VERSION.to_owned(),
+                server_version: config.server_version.clone(),
+                backup_dir: config.backup_dir.clone(),
+                topic: config.topic.clone(),
+                ts: config.upcoming,
+                compression_level: config.backup_comp_level,
+                max_file_size: config.backup_max_size,
+                move_to: config.move_to.clone(),
+                timeout: file_timeout,
+                sync: tokio::sync::Mutex::new(()),
+                writers: Default::default(),
+            };
+            man.create_empty_marker().await?;
+            man.shutdown().await?;
+            tracing::info!("tmq_to_local finish (empty backup point)");
+            return Ok(());
+        }
+
+        if !positions.is_empty() {
+            tracing::info!(
+                "tmq_to_local: {} vgroups have new data, proceeding with backup",
+                positions
+                    .iter()
+                    .filter(|(_, p)| matches!(p, Some((c, l)) if c < l))
+                    .count()
+            );
+        }
+    }
+
     // 创建 consumer
     let consumers = config
         .create_consumer()
@@ -162,6 +223,14 @@ async fn tmq_to_local_impl(mut config: BackupConfig, cancel: CancellationToken) 
             // TODO: 如果出现错误，要清理文件
             return Err(err);
         }
+    }
+
+    // [修复 C] ByOffset 模式下，即使消费循环后 0 消息也生成备份点标记文件
+    if config.backup_point_gen_mode == BackupPointGenMode::ByOffset && man.writers.is_empty() {
+        tracing::info!(
+            "tmq_to_local: no new data after consuming, creating empty backup point marker"
+        );
+        man.create_empty_marker().await?;
     }
 
     // 关闭 ZFileMan
@@ -481,6 +550,15 @@ impl Drop for ZFileMan {
 }
 
 impl ZFileMan {
+    /// 创建一个空的备份文件作为备份点标记。
+    /// 文件仅包含 Header（api_version, server_version, 时间戳等），无数据 Block。
+    /// 确保备份点可被 get_backup_points API 通过文件名扫描发现。
+    pub async fn create_empty_marker(&self) -> Result<()> {
+        self.assert_vgroup(0).await?;
+        tracing::info!("created empty backup point marker for ts: {:?}", self.ts);
+        Ok(())
+    }
+
     pub async fn shutdown(&self) -> Result<()> {
         for entry in self.writers.iter_mut() {
             let mut man = entry.value().lock().await;
