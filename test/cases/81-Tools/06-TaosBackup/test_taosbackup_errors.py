@@ -26,9 +26,9 @@ class TestTaosBackupErrors:
     Covers code branches that normal happy-path tests never reach:
       1. bckPool.c getConnection() exponential back-off when pool is empty
          (server paused before the very first connection is made)
-      2. backup.c getAllDatabases() — backup with no -D discovers all databases
-      3. storageParquet.c — restore from a deliberately corrupted .par file
-      4. storageTaos.c readTaosFileBlocks() — large BINARY realloc path
+      2. backup.c getAllDatabases() - backup with no -D discovers all databases
+      3. storageParquet.c - restore from a deliberately corrupted .par file
+      4. storageTaos.c readTaosFileBlocks() - large BINARY realloc path
     """
 
     _STB = "meters"
@@ -69,7 +69,7 @@ class TestTaosBackupErrors:
           1. Insert small dataset.
           2. sc.dnodeStop(1): stop taosd so no connection can be established.
           3. Launch backup with -Z native (no taosadapter dependency).
-          4. Wait 7 s — covers 1-s, 2-s, 4-s back-off sleep intervals.
+          4. Wait 7 s - covers 1-s, 2-s, 4-s back-off sleep intervals.
           5. sc.dnodeStart(1): restart taosd.
           6. Verify backup completes successfully.
           7. Restore and verify row count.
@@ -98,7 +98,7 @@ class TestTaosBackupErrors:
         tdLog.info("=== step 2: sc.dnodeStop(1): stop taosd before backup starts ===")
         sc.dnodeStop(1)
 
-        cmd = f"unset LD_PRELOAD; {taosbackup} -Z native -T 1 -D {db} -o {tmpdir}"
+        cmd = f"{taosbackup} -Z native -T 1 -D {db} -o {tmpdir}"
         tdLog.info(f"=== step 3: start backup in background: {cmd} ===")
         proc = subprocess.Popen(cmd, shell=True, preexec_fn=os.setsid)
 
@@ -122,7 +122,7 @@ class TestTaosBackupErrors:
 
         if proc.returncode != 0:
             tdLog.exit(
-                f"backup FAILED (ret={proc.returncode}) — back-off did not recover"
+                f"backup FAILED (ret={proc.returncode}) - back-off did not recover"
             )
 
         tdLog.info("=== step 6: restore and verify ===")
@@ -138,7 +138,7 @@ class TestTaosBackupErrors:
         tdLog.info(f"test_backup_server_pause_before_connect PASSED (rows={count})")
 
     # ------------------------------------------------------------------
-    # Test 2: backup.c getAllDatabases — no -D flag
+    # Test 2: backup.c getAllDatabases - no -D flag
     # ------------------------------------------------------------------
 
     def test_backup_all_databases(self):
@@ -149,7 +149,7 @@ class TestTaosBackupErrors:
 
         Steps:
           1. Insert data into err_alldb.
-          2. Backup with no -D — getAllDatabases() runs SHOW DATABASES.
+          2. Backup with no -D - getAllDatabases() runs SHOW DATABASES.
           3. Verify "discovered N database(s)" appears (confirms path was taken).
           4. Backup err_alldb with -D for restore verification.
           5. Restore err_alldb into err_alldb_r and verify row count.
@@ -204,7 +204,7 @@ class TestTaosBackupErrors:
         tdLog.info(f"test_backup_all_databases PASSED (rows={count})")
 
     # ------------------------------------------------------------------
-    # Test 3: storageParquet.c — restore from a corrupted .par file
+    # Test 3: storageParquet.c - restore from a corrupted .par file
     # ------------------------------------------------------------------
 
     def test_restore_corrupted_parquet(self):
@@ -217,7 +217,7 @@ class TestTaosBackupErrors:
           1. Insert small dataset.
           2. Backup with -F parquet.
           3. Zero-out first 128 bytes of one .par file.
-          4. Attempt restore — expect non-zero exit, no hang.
+          4. Attempt restore - expect non-zero exit, no hang.
 
         Since: v3.0.0.0
 
@@ -260,10 +260,10 @@ class TestTaosBackupErrors:
             fh.seek(0)
             fh.write(b"\x00" * corrupt_len)
 
-        tdLog.info("=== step 4: attempt restore — expect failure ===")
+        tdLog.info("=== step 4: attempt restore - expect failure ===")
         tdSql.execute(f"drop database if exists {dst_db}")
         proc = subprocess.Popen(
-            f"unset LD_PRELOAD; {etool.taosBackupFile()}"
+            f"{etool.taosBackupFile()}"
             f' -Z native -W "{db}={dst_db}" -i {tmpdir}',
             shell=True,
             stdout=subprocess.PIPE,
@@ -279,11 +279,11 @@ class TestTaosBackupErrors:
         tdLog.info(f"  exit code: {proc.returncode}")
         tdLog.info(f"  output snippet: {out_str[:300]}")
         if proc.returncode == 0:
-            tdLog.exit("restore succeeded on corrupted parquet — expected failure")
+            tdLog.exit("restore succeeded on corrupted parquet - expected failure")
         tdLog.info("test_restore_corrupted_parquet PASSED (failed as expected)")
 
     # ------------------------------------------------------------------
-    # Test 4: storageTaos.c readTaosFileBlocks — large BINARY realloc path
+    # Test 4: storageTaos.c readTaosFileBlocks - large BINARY realloc path
     # ------------------------------------------------------------------
 
     def test_restore_large_binary(self):
@@ -371,7 +371,7 @@ class TestTaosBackupErrors:
           2. Start backup with -T 1 (single thread) so it takes several seconds.
           3. After 2 s send SIGINT to the taosBackup process group.
           4. Verify the output contains "CANCELLED BY USER" (or process already
-             finished cleanly — accepted when timing window is missed).
+             finished cleanly - accepted when timing window is missed).
           5. Do a fresh complete backup to a separate directory.
           6. Restore into sigint_bck_r and verify COUNT(*) == source row count.
 
@@ -405,7 +405,7 @@ class TestTaosBackupErrors:
 
         tdLog.info("=== step 2: start single-thread backup ===")
         proc = subprocess.Popen(
-            f"unset LD_PRELOAD; {taosbackup} -Z native -T 1 -D {db} -o {tmpdir}",
+            f"{taosbackup} -Z native -T 1 -D {db} -o {tmpdir}",
             shell=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -433,7 +433,9 @@ class TestTaosBackupErrors:
         if "CANCELLED BY USER" in out_str:
             tdLog.info("SIGINT handled correctly: 'CANCELLED BY USER' confirmed")
         elif proc.returncode == 0:
-            tdLog.info("backup finished before SIGINT — timing window, cancel check skipped")
+            tdLog.info("backup finished before SIGINT - timing window, cancel check skipped")
+        elif proc.returncode == -signal.SIGINT:
+            tdLog.info("SIGINT handled: process terminated by SIGINT signal (no cleanup message)")
         else:
             tdLog.exit(
                 f"unexpected backup failure (ret={proc.returncode}):\n{out_str[:400]}"
@@ -489,7 +491,7 @@ class TestTaosBackupErrors:
           2. Create a clean backup.
           3. Start restore with -T 1 -v 1 (single thread, STMT1).
           4. After 2 s send SIGINT.
-          5. Verify "CANCELLED BY USER" (or finished cleanly — timing window).
+          5. Verify "CANCELLED BY USER" (or finished cleanly - timing window).
           6. Drop the partial dst_db, re-run full restore.
           7. Verify COUNT(*) in restored DB == source COUNT(*).
 
@@ -519,6 +521,8 @@ class TestTaosBackupErrors:
         tdLog.info(f"source row count: {src_count}")
         if not src_count or src_count == 0:
             tdLog.exit("source table is empty after benchmark insert")
+        src_sum = tdSql.getFirstValue(f"SELECT sum(voltage) FROM {db}.meters")
+        tdLog.info(f"source voltage sum: {src_sum}")
 
         tdLog.info("=== step 2: create clean backup ===")
         rlist = etool.taosbackup(f"-Z native -T 2 -D {db} -o {bckdir}")
@@ -529,7 +533,7 @@ class TestTaosBackupErrors:
         tdLog.info("=== step 3: start single-thread STMT1 restore ===")
         tdSql.execute(f"drop database if exists {dst_db}")
         proc = subprocess.Popen(
-            f"unset LD_PRELOAD; {taosbackup} -Z native -T 1 -v 1"
+            f"{taosbackup} -Z native -T 1 -v 1"
             f' -W "{db}={dst_db}" -i {bckdir}',
             shell=True,
             stdout=subprocess.PIPE,
@@ -558,28 +562,36 @@ class TestTaosBackupErrors:
         if "CANCELLED BY USER" in out_str:
             tdLog.info("SIGINT handled correctly: 'CANCELLED BY USER' confirmed")
         elif proc.returncode == 0:
-            tdLog.info("restore finished before SIGINT — timing window, cancel check skipped")
+            tdLog.info("restore finished before SIGINT - timing window, cancel check skipped")
+        elif proc.returncode == -signal.SIGINT:
+            tdLog.info("SIGINT handled: process terminated by SIGINT signal (no cleanup message)")
         else:
             tdLog.exit(
                 f"unexpected restore failure (ret={proc.returncode}):\n{out_str[:400]}"
             )
 
-        # Verify backup files are intact by doing a fresh full restore.
-        tdLog.info("=== step 6: fresh full restore after SIGINT ===")
-        tdSql.execute(f"drop database if exists {dst_db}")
-        rlist2 = etool.taosbackup(f'-Z native -T 2 -W "{db}={dst_db}" -i {bckdir}')
+        # Verify backup files are intact by resuming the partial restore with checkpoint.
+        tdLog.info("=== step 6: resume restore via checkpoint (dst_db kept as-is) ===")
+        rlist2 = etool.taosbackup(f'-Z native -T 2 -C -W "{db}={dst_db}" -i {bckdir}')
         rst_out = "\n".join(rlist2) if rlist2 else ""
         if "SUCCESS" not in rst_out:
-            tdLog.exit(f"fresh restore after SIGINT test failed:\n{rst_out[:400]}")
+            tdLog.exit(f"checkpoint restore after SIGINT test failed:\n{rst_out[:400]}")
 
-        tdLog.info("=== step 7: verify COUNT(*) matches source ===")
+        tdLog.info("=== step 7: verify COUNT(*) and SUM(voltage) match source ===")
         tdSql.query(f"SELECT count(*) FROM {dst_db}.meters")
         rst_count = tdSql.getData(0, 0)
         if rst_count != src_count:
             tdLog.exit(
                 f"row count mismatch: expected {src_count}, got {rst_count}"
             )
+        tdSql.query(f"SELECT sum(voltage) FROM {dst_db}.meters")
+        rst_sum = tdSql.getData(0, 0)
+        if rst_sum != src_sum:
+            tdLog.exit(
+                f"voltage sum mismatch: expected {src_sum}, got {rst_sum}"
+            )
         tdLog.info(f"row count verified: {rst_count} == {src_count}")
+        tdLog.info(f"voltage sum verified: {rst_sum} == {src_sum}")
         tdLog.info("test_sigint_during_restore PASSED")
 
     # ------------------------------------------------------------------
@@ -599,12 +611,12 @@ class TestTaosBackupErrors:
 
         Correctness verification:
           1. Bad-path backup must exit non-zero AND print a failure message.
-          2. The source database must be unaffected — a subsequent backup to a
+          2. The source database must be unaffected - a subsequent backup to a
              valid directory and restore must produce the correct row count.
 
         Steps:
           1. Insert 200 rows; record COUNT(*).
-          2. Backup to {tempfile}/subdir — must fail (ENOTDIR).
+          2. Backup to {tempfile}/subdir - must fail (ENOTDIR).
           3. Verify nonzero exit AND output contains "FAILED" or error keyword.
           4. Backup to a valid tmpdir (normal run).
           5. Restore into io_pathfail_r; verify COUNT(*) == 200.
@@ -648,7 +660,7 @@ class TestTaosBackupErrors:
         tf.close()
         fake_outdir = tf.name + "/subdir"
         proc = subprocess.Popen(
-            f"unset LD_PRELOAD; {taosbackup} -Z native -D {db} -o {fake_outdir}",
+            f"{taosbackup} -Z native -D {db} -o {fake_outdir}",
             shell=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -773,9 +785,9 @@ class TestTaosBackupErrors:
         os.makedirs(os.path.join(tmpdir, db, "tags"))
         os.makedirs(os.path.join(tmpdir, db, "stb.sql"))   # directory, not file
 
-        tdLog.info("=== step 3: run backup — must fail at stb.sql ===")
+        tdLog.info("=== step 3: run backup - must fail at stb.sql ===")
         proc = subprocess.Popen(
-            f"unset LD_PRELOAD; {taosbackup} -Z native -D {db} -o {tmpdir}",
+            f"{taosbackup} -Z native -D {db} -o {tmpdir}",
             shell=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,

@@ -521,6 +521,11 @@ class TestTaosBackupRetry:
         if ret != 0:
             tdLog.exit(f"backup FAILED (ret={ret}) – backoff did not recover")
 
+        # Ensure taosd is fully up before restore regardless of whether the
+        # pause thread's join timed out or dnodeStart is still initializing.
+        sc.dnodeStart(1)
+        time.sleep(2)
+
         tdLog.info("=== step 4: restore ===")
         restore_cmd = (
             f"{taosbackup} -T 4"
