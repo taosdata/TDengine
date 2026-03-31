@@ -555,6 +555,7 @@ static int32_t createOperatorNodeByNode(EOperatorType opType, const SNode* pLeft
 static int32_t createIsOperatorNodeByNode(EOperatorType opType, SNode* pNode, SNode** pOp);
 static int32_t insertCondIntoSelectStmt(SSelectStmt* pSelect, SNode** pCond);
 static int32_t extractCondFromCountWindow(STranslateContext* pCxt, SCountWindowNode* pCountWindow, SNode** pCond);
+static int32_t checkExternalWindowFillQueryType(STranslateContext* pCxt, SSelectStmt* pSelect);
 static int32_t translateExprList(STranslateContext* pCxt, SNodeList* pList);
 static int32_t setCurrLevelNsFromParent(STranslateContext* pSrc, STranslateContext* pDst);
 static bool    getJoinContais(SNode* pNode);
@@ -7840,6 +7841,9 @@ static int32_t translateFillValues(STranslateContext* pCxt, SSelectStmt* pSelect
   if (NULL != pSelect->pWindow && QUERY_NODE_INTERVAL_WINDOW == nodeType(pSelect->pWindow) &&
       NULL != ((SIntervalWindowNode*)pSelect->pWindow)->pFill) {
     pFill = (SFillNode*)((SIntervalWindowNode*)pSelect->pWindow)->pFill;
+  } else if (NULL != pSelect->pWindow && QUERY_NODE_EXTERNAL_WINDOW == nodeType(pSelect->pWindow) &&
+             NULL != ((SExternalWindowNode*)pSelect->pWindow)->pFill) {
+    pFill = (SFillNode*)((SExternalWindowNode*)pSelect->pWindow)->pFill;
   } else if (pSelect->hasInterpFunc && NULL != pSelect->pFill) {
     pFill = (SFillNode*)pSelect->pFill;
   }
@@ -8376,6 +8380,9 @@ static int32_t translateSelectList(STranslateContext* pCxt, SSelectStmt* pSelect
     code = translateProjectionList(pCxt, pSelect);
   }
   if (TSDB_CODE_SUCCESS == code) {
+    code = checkExternalWindowFillQueryType(pCxt, pSelect);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
     code = checkExprListForGroupBy(pCxt, pSelect, pSelect->pProjectionList);
   }
   if (NULL == pSelect->pProjectionList || 0 >= pSelect->pProjectionList->length) {
@@ -8757,6 +8764,10 @@ static int32_t checkFill(STranslateContext* pCxt, SFillNode* pFill, SValueNode* 
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE, "Unsupported fill type");
     }
 
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (NULL == pInterval && !isInterpFill) {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -9630,7 +9641,59 @@ static int32_t translatePeriodWindow(STranslateContext* pCxt, SSelectStmt* pSele
 }
 
 static int32_t translateExternalWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
-  return TSDB_CODE_SUCCESS;
+  SExternalWindowNode* pExtWin = (SExternalWindowNode*)pSelect->pWindow;
+  if (NULL == pExtWin->pFill) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  ESqlClause savedClause = pCxt->currClause;
+  pCxt->currClause = SQL_CLAUSE_SELECT;
+
+  SFillNode* pFill = (SFillNode*)pExtWin->pFill;
+  pFill->timeRange = pSelect->timeRange;
+  PAR_ERR_RET(nodesCloneNode(pSelect->pTimeRange, &pFill->pTimeRange));
+  PAR_ERR_RET(translateSurroundingTime(pCxt, pFill->pSurroundingTime));
+
+  if (pFill->mode == FILL_MODE_LINEAR || pFill->mode == FILL_MODE_NEAR) {
+    int32_t code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FILL_MODE,
+                                           "LINEAR/NEAR fill is not supported with external window");
+    pCxt->currClause = savedClause;
+    return code;
+  }
+
+  if (pFill->pSurroundingTime != NULL) {
+    int32_t code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_SURROUND_TIME_VALUES,
+                                           "SURROUND not supported with EXTERNAL_WINDOW");
+    pCxt->currClause = savedClause;
+    return code;
+  }
+
+  if (pFill->pValues != NULL && !(pFill->mode == FILL_MODE_VALUE || pFill->mode == FILL_MODE_VALUE_F)) {
+    int32_t code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FILL_VALUES);
+    pCxt->currClause = savedClause;
+    return code;
+  }
+
+  int32_t code = checkFill(pCxt, pFill, NULL, false, pSelect->precision);
+  // Note: checkFillValues is NOT called here because the projection list
+  // has not been translated yet (funcId/resType are unresolved).
+  // translateFillValues() handles it after translateSelectList().
+  pCxt->currClause = savedClause;
+  return code;
+}
+
+static int32_t checkExternalWindowFillQueryType(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  if (NULL == pSelect->pWindow || QUERY_NODE_EXTERNAL_WINDOW != nodeType(pSelect->pWindow)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SExternalWindowNode* pExtWin = (SExternalWindowNode*)pSelect->pWindow;
+  if (NULL == pExtWin->pFill || pSelect->hasAggFuncs) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_FILL_NOT_ALLOWED_FUNC,
+                                 "Fill only supports aggregate query with external window");
 }
 
 static int32_t translateSpecificWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
@@ -9665,11 +9728,6 @@ static int32_t translateWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
     if (pCxt->pParseCxt->stmtBindVersion > 0) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_WINDOW_PC,
                                      "External window query can not be used in stmt query");
-    }
-    SExternalWindowNode* pExtWin = (SExternalWindowNode*)pSelect->pWindow;
-    if (NULL != pExtWin->pFill) {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_FILL_NOT_ALLOWED_FUNC,
-                                     "Fill not allowed in external window query");
     }
   }
   if (pSelect->pFromTable->type == QUERY_NODE_REAL_TABLE &&

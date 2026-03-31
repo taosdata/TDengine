@@ -44,6 +44,8 @@ typedef int32_t (*FCreateInsertLogicNode)(SLogicPlanContext*, SInsertStmt*, SLog
 static int32_t doCreateLogicNodeByTable(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SNode* pTable,
                                         SLogicNode** pLogicNode);
 static int32_t createQueryLogicNode(SLogicPlanContext* pCxt, SNode* pStmt, SLogicNode** pLogicNode);
+static int32_t collectFillExprs(SSelectStmt* pSelect, SNodeList** pFillExprs, SNodeList** pNotFillExprs,
+                                SNodeList** pPossibleFillNullCols);
 
 typedef struct SRewriteExprCxt {
   int32_t    errCode;
@@ -1844,6 +1846,10 @@ static int32_t createGenericAnalysisLogicNode(SLogicPlanContext* pCxt, SSelectSt
 
 static int32_t createWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SWindowLogicNode* pWindow,
                                              SLogicNode** pLogicNode) {
+  bool havingHandledByFill =
+      pSelect->pWindow != NULL && nodeType(pSelect->pWindow) == QUERY_NODE_INTERVAL_WINDOW &&
+      ((SIntervalWindowNode*)pSelect->pWindow)->pFill != NULL;
+
   pWindow->node.inputTsOrder = ORDER_UNKNOWN;
   pWindow->node.outputTsOrder = ORDER_ASC;
 
@@ -1856,7 +1862,7 @@ static int32_t createWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SSelectStm
     code = createColumnByRewriteExprs(pWindow->pFuncs, &pWindow->node.pTargets);
   }
 
-  if (TSDB_CODE_SUCCESS == code && NULL != pSelect->pHaving) {
+  if (TSDB_CODE_SUCCESS == code && NULL != pSelect->pHaving && !havingHandledByFill) {
     code = nodesCloneNode(pSelect->pHaving, &pWindow->node.pConditions);
   }
 
@@ -2012,6 +2018,15 @@ static int32_t createExternalWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SS
       
       pSelect->hasAggFuncs = false;
     }
+  }
+
+  // extFill.pFillExprs was built upstream from the projection list (in
+  // projection order), before rewriteExprsForSelect rewrote function nodes
+  // into column references.  We now rewrite the stored function nodes so
+  // they become column references matching the window output, just like
+  // pFuncs entries.  The physical planner will then slot-assign them.
+  if (pWindow->extFill.pFillExprs != NULL) {
+    PLAN_ERR_RET(rewriteExprsForSelect(pWindow->extFill.pFillExprs, pSelect, SQL_CLAUSE_EXT_WINDOW, NULL));
   }
 
   pWindow->inputHasOrder = (pWindow->isSingleTable || pWindow->node.requireDataOrder == DATA_ORDER_LEVEL_GLOBAL);
@@ -2421,6 +2436,7 @@ static int32_t createWindowLogicNodeByExternal(SLogicPlanContext* pCxt, SExterna
   PLAN_ERR_JRET(nodesMakeNode(QUERY_NODE_LOGIC_PLAN_WINDOW, (SNode**)&pWindow));
 
   pWindow->winType = WINDOW_TYPE_EXTERNAL;
+  pWindow->extFill.mode = FILL_MODE_NONE;
   pWindow->node.groupAction = GROUP_ACTION_NONE;
   pWindow->node.requireDataOrder = DATA_ORDER_LEVEL_GLOBAL;
   pWindow->node.resultDataOrder = (NULL != pSelect->pPartitionByList ? DATA_ORDER_LEVEL_IN_GROUP : DATA_ORDER_LEVEL_GLOBAL);
@@ -2455,6 +2471,34 @@ static int32_t createWindowLogicNodeByExternal(SLogicPlanContext* pCxt, SExterna
   }
 
   PLAN_ERR_RET(nodesCloneNode(pExternal->pCol, &pWindow->pTspk));
+
+  if (pExternal->pFill != NULL) {
+    SFillNode* pFill = (SFillNode*)pExternal->pFill;
+    pWindow->extFill.mode = pFill->mode;
+
+    if (pFill->mode == FILL_MODE_VALUE || pFill->mode == FILL_MODE_VALUE_F) {
+      // Build pFillExprs from the projection list NOW, before rewriteExprsForSelect
+      // rewrites function nodes into column references.  This captures the exact
+      // set and order of fill-relevant aggregates that the parser used when
+      // mapping fill(value, ...) parameters in doCheckFillValues.
+      // Later, pFuncs may contain extra aggregates from HAVING/ORDER BY which
+      // would misalign the fill-value index if we built pFillExprs from pFuncs.
+      SNode* pProj = NULL;
+      FOREACH(pProj, pSelect->pProjectionList) {
+        SNode* pExpr = (nodeType(pProj) == QUERY_NODE_TARGET) ? ((STargetNode*)pProj)->pExpr : pProj;
+        if (pExpr == NULL || nodeType(pExpr) != QUERY_NODE_FUNCTION) continue;
+        SFunctionNode* pFunc = (SFunctionNode*)pExpr;
+        if (!fmIsAggFunc(pFunc->funcId)) continue;
+        if (pFunc->funcType == FUNCTION_TYPE_GROUP_KEY ||
+            pFunc->funcType == FUNCTION_TYPE_GROUP_CONST_VALUE) continue;
+        SNode* pClone = NULL;
+        PLAN_ERR_RET(nodesCloneNode(pExpr, &pClone));
+        PLAN_ERR_RET(nodesListMakeStrictAppend(&pWindow->extFill.pFillExprs, pClone));
+      }
+    }
+
+    PLAN_ERR_RET(nodesCloneNode(pFill->pValues, &pWindow->extFill.pFillValues));
+  }
 
   pWindow->pSubquery = pExternal->pSubquery;
   return createExternalWindowLogicNodeFinalize(pCxt, pSelect, pWindow, pLogicNode);
@@ -2817,6 +2861,9 @@ typedef struct SCollectFillExprsCtx {
   bool       collectAggFuncs;
   SNodeList* pAggFuncCols;
 } SCollectFillExprsCtx;
+
+static int32_t collectFillExprs(SSelectStmt* pSelect, SNodeList** pFillExprs, SNodeList** pNotFillExprs,
+                                SNodeList** pPossibleFillNullCols);
 
 typedef struct SWalkFillSubExprCtx {
   bool                  hasFillCol;
