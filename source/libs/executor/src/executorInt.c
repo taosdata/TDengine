@@ -376,7 +376,9 @@ static int32_t doSetInputDataBlock(SExprSupp* pExprSup, SSDataBlock* pBlock, int
       } else if (pFuncParam->type == FUNC_PARAM_TYPE_VALUE) {
         // todo avoid case: top(k, 12), 12 is the value parameter.
         // sum(11), 11 is also the value parameter.
-        if (createDummyCol && pOneExpr->base.numOfParams == 1) {
+        bool needDummyCol = createDummyCol && (pOneExpr->base.numOfParams == 1 ||
+                                               (fmIsIndefiniteRowsFunc(pCtx[i].functionId) && j == 0));
+        if (needDummyCol) {
           pInput->totalRows = pBlock->info.rows;
           pInput->numOfRows = pBlock->info.rows;
           pInput->startRowIndex = 0;
