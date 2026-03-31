@@ -512,6 +512,11 @@ class StreamUtil:
         self.dropAllStreamsAndDbs()
 
     def createSnode(self, index=1):
+        tdSql.query("show snodes")
+        for row in tdSql.queryResult:
+            if row[0] == index:
+                tdLog.info(f"Snode on dnode {index} already exists, skipping creation")
+                return
         sql = f"create snode on dnode {index}"
         tdSql.execute(sql)
 
@@ -995,6 +1000,9 @@ class StreamUtil:
 
     # for StreamCheckItem, see cases/18-StreamProcessing/31-OldTsimCases/test_oldcase_twa.py
     def checkAll(self, streams):
+        # Clean up any stale state from previous failed runs before creating new state
+        self.dropAllStreamsAndDbs()
+
         for stream in streams:
             tdLog.info(f"stream:{stream.db} - create database, table, stream", color='blue')
             stream.create()
