@@ -124,7 +124,7 @@ static void printUsage(const char *prog) {
     printf("                             1000.\n");
     printf("  -W, --rename=RENAME-LIST   Rename database during restore.\n");
     printf("                             RENAME-LIST example:\n");
-    printf("                             \"db1=newdb1|db2=newdb2|...\"\n");
+    printf("                             \"db1->newdb1|db2->newdb2|...\"\n");
     printf("  -X, --dsn=DSN              DSN to connect the cloud service.\n");
     printf("                             e.g. https://host?token=<TOKEN>\n");
     printf("                             Env var TDENGINE_CLOUD_DSN is also\n");
@@ -431,28 +431,42 @@ int argsInit(int argc, char *argv[]) {
         // ---- rename ----
         else if ((strcmp(argv[i], "-W") == 0 && i + 1 < argc && (val = argv[++i])) ||
                  (val = matchLong(argc, argv, &i, "--rename", 1))) {
-            snprintf(g_renameRaw, sizeof(g_renameRaw), "%s", val);
-            // parse "db1=newDB1|db2=newDB2"
+            // build display string: replace '=' with '->' (e.g. "db1->db2")
+            { int j = 0;
+              for (int k = 0; val[k] && j < (int)sizeof(g_renameRaw) - 3; k++) {
+                  if (val[k] == '=') { g_renameRaw[j++] = '-'; g_renameRaw[j++] = '>'; }
+                  else               { g_renameRaw[j++] = val[k]; }
+              }
+              g_renameRaw[j] = '\0'; }
+            // parse "db1=newDB1|db2=newDB2" or "db1->newDB1|db2->newDB2"
             char *copy = taosStrdup(val);
             char *pair = strtok(copy, "|");
             while (pair != NULL && g_renameCount < MAX_RENAME) {
-                char *eq = strchr(pair, '=');
-                if (eq) {
+                // prefer "->" separator, fall back to "="
+                char *sep = strstr(pair, "->");
+                char *oldN, *newN;
+                if (sep) {
+                    *sep = '\0';
+                    oldN = pair;
+                    newN = sep + 2;
+                } else {
+                    char *eq = strchr(pair, '=');
+                    if (!eq) { pair = strtok(NULL, "|"); continue; }
                     *eq = '\0';
-                    // trim spaces
-                    char *oldN = pair;
-                    while (*oldN == ' ') oldN++;
-                    char *newN = eq + 1;
-                    while (*newN == ' ') newN++;
-                    char *e1 = oldN + strlen(oldN) - 1;
-                    while (e1 > oldN && *e1 == ' ') *e1-- = '\0';
-                    char *e2 = newN + strlen(newN) - 1;
-                    while (e2 > newN && *e2 == ' ') *e2-- = '\0';
-                    if (strlen(oldN) > 0 && strlen(newN) > 0) {
-                        g_renameOld[g_renameCount] = taosStrdup(oldN);
-                        g_renameNew[g_renameCount] = taosStrdup(newN);
-                        g_renameCount++;
-                    }
+                    oldN = pair;
+                    newN = eq + 1;
+                }
+                // trim spaces
+                while (*oldN == ' ') oldN++;
+                while (*newN == ' ') newN++;
+                char *e1 = oldN + strlen(oldN) - 1;
+                while (e1 > oldN && *e1 == ' ') *e1-- = '\0';
+                char *e2 = newN + strlen(newN) - 1;
+                while (e2 > newN && *e2 == ' ') *e2-- = '\0';
+                if (strlen(oldN) > 0 && strlen(newN) > 0) {
+                    g_renameOld[g_renameCount] = taosStrdup(oldN);
+                    g_renameNew[g_renameCount] = taosStrdup(newN);
+                    g_renameCount++;
                 }
                 pair = strtok(NULL, "|");
             }

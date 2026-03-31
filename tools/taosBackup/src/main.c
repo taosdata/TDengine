@@ -90,7 +90,7 @@ static void printStartSummary(enum ActionType action) {
     if (action == ACTION_RESTORE) {
         printf("  Check Point  : %s\n", argCheckpoint() ? "yes" : "no");
         const char *rl = argRenameList();
-        if (rl) printf("  Rename       : %s\n", rl);
+        if (rl) printf("  Rename DB    : %s\n", rl);
     }
     printf("===========================================================================\n");
     printf("\n");

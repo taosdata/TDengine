@@ -154,7 +154,7 @@ static int restoreDbSql(const char *dbName) {
 
     if (code != TSDB_CODE_SUCCESS) {
         // try USE database instead - database may already exist
-        logWarn("create database may already exist(0x%08X %s), trying USE `%s`: %s", code, taos_errstr(res), targetDb, execContent);
+        logDebug("database may already exist(0x%08X %s), so need not create. `%s`: %s", code, taos_errstr(res), targetDb, execContent);
     }
     if (res) taos_free_result(res);
 
@@ -254,7 +254,7 @@ static int restoreStbSql(const char *dbName) {
             if (rc == TSDB_CODE_SUCCESS) {
                 // ok
             } else if (rc == TSDB_CODE_MND_STB_ALREADY_EXIST) {
-                logWarn("stable already exists(0x%08X %s): %s", rc, taos_errstr(res), fullSql);
+                logDebug("stable already exists(0x%08X %s): %s", rc, taos_errstr(res), fullSql);
                 // fine in APPEND mode
             } else {
                 logError("create stable failed(0x%08X %s): %s", rc, taos_errstr(res), fullSql);
@@ -1504,7 +1504,7 @@ static int tagBlockCallback(void *userData,
             atomic_add_fetch_64(&g_progress.ctbDoneCur, batchCnt);
         } else {
             // Batch failed: fall back to one-by-one to identify and skip bad rows
-            logWarn("tag batch failed (0x%08X), retrying %d rows one-by-one", rc, batchCnt);
+            logDebug("tag batch failed (0x%08X), retrying %d rows one-by-one", rc, batchCnt);
             for (int r = batchStart; r < row; r++) {
                 int32_t *off2 = (int32_t *)colDataPtrs[0];
                 if (off2[r] < 0) continue;
