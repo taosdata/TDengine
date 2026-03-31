@@ -6984,7 +6984,15 @@ int32_t tDeserializeSTableCfgRsp(void *buf, int32_t bufLen, STableCfgRsp *pRsp) 
       if (!tDecodeIsEnd(&decoder)) {
         TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pRsp->numOfTagRefs));
         if (pRsp->numOfTagRefs > 0) {
-          pRsp->pTagRefs = taosMemoryCalloc(pRsp->numOfTagRefs, sizeof(SColRef));
+          pRsp->pTagRefs = taosMemoryMalloc(sizeof(SColRef) * pRsp->numOfTagRefs);
+          if (pRsp->pTagRefs == NULL) {
+            TAOS_CHECK_EXIT(terrno);
+          }
+
+          for (int32_t i = 0; i < pRsp->numOfTagRefs; ++i) {
+            SColRef *pTagRef = &pRsp->pTagRefs[i];
+            TAOS_CHECK_EXIT(tDecodeSColRef(&decoder, pTagRef));
+          }
         }
       }
     } else {
@@ -7573,8 +7581,16 @@ int32_t tSerializeSVSubTablesRspImpl(SEncoder *pEncoder, SVSubTablesRsp *pRsp) {
     TAOS_CHECK_EXIT(tEncodeU64(pEncoder, pTb->uid));
     TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pTb->numOfSrcTbls));
     TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pTb->numOfColRefs));
+    TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pTb->numOfTagRefs));
     for (int32_t n = 0; n < pTb->numOfColRefs; ++n) {
       SRefColInfo *pCol = pTb->refCols + n;
+      TAOS_CHECK_EXIT(tEncodeI16(pEncoder, pCol->colId));
+      TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pCol->refDbName));
+      TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pCol->refTableName));
+      TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pCol->refColName));
+    }
+    for (int32_t n = 0; n < pTb->numOfTagRefs; ++n) {
+      SRefColInfo *pCol = pTb->tagRefCols + n;
       TAOS_CHECK_EXIT(tEncodeI16(pEncoder, pCol->colId));
       TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pCol->refDbName));
       TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pCol->refTableName));
@@ -7627,8 +7643,11 @@ int32_t tDeserializeSVSubTablesRspImpl(SDecoder *pDecoder, SVSubTablesRsp *pRsp)
       TAOS_CHECK_EXIT(tDecodeU64(pDecoder, &tb.uid));
       TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &tb.numOfSrcTbls));
       TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &tb.numOfColRefs));
-      if (tb.numOfColRefs > 0) {
-        SVCTableRefCols *pTb = taosMemoryCalloc(1, sizeof(tb) + tb.numOfColRefs * sizeof(SRefColInfo));
+      TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &tb.numOfTagRefs));
+
+      int32_t totalRefs = tb.numOfColRefs + tb.numOfTagRefs;
+      if (totalRefs > 0) {
+        SVCTableRefCols *pTb = taosMemoryCalloc(1, sizeof(*pTb) + totalRefs * sizeof(SRefColInfo));
         if (NULL == pTb) {
           code = terrno;
           return code;
@@ -7642,12 +7661,22 @@ int32_t tDeserializeSVSubTablesRspImpl(SDecoder *pDecoder, SVSubTablesRsp *pRsp)
         pTb->uid = tb.uid;
         pTb->numOfSrcTbls = tb.numOfSrcTbls;
         pTb->numOfColRefs = tb.numOfColRefs;
+        pTb->numOfTagRefs = tb.numOfTagRefs;
         pTb->refCols = (SRefColInfo *)(pTb + 1);
-        for (int32_t n = 0; n < tb.numOfColRefs; ++n) {
+        pTb->tagRefCols = pTb->refCols + pTb->numOfColRefs;
+
+        for (int32_t n = 0; n < pTb->numOfColRefs; ++n) {
           TAOS_CHECK_EXIT(tDecodeI16(pDecoder, &pTb->refCols[n].colId));
           TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, pTb->refCols[n].refDbName));
           TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, pTb->refCols[n].refTableName));
           TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, pTb->refCols[n].refColName));
+        }
+
+        for (int32_t n = 0; n < pTb->numOfTagRefs; ++n) {
+          TAOS_CHECK_EXIT(tDecodeI16(pDecoder, &pTb->tagRefCols[n].colId));
+          TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, pTb->tagRefCols[n].refDbName));
+          TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, pTb->tagRefCols[n].refTableName));
+          TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, pTb->tagRefCols[n].refColName));
         }
       }
     }
@@ -7670,7 +7699,6 @@ int32_t tDeserializeSVSubTablesRsp(void *buf, int32_t bufLen, SVSubTablesRsp *pR
   tEndDecode(&decoder);
 
 _exit:
-
   tDecoderClear(&decoder);
   return code;
 }
@@ -7820,6 +7848,8 @@ void tDestroySVStbRefDbsRsp(void *rsp) {
   SVStbRefDbsRsp *pRsp = (SVStbRefDbsRsp *)rsp;
 
   taosArrayDestroyP(pRsp->pDbs, NULL);
+  taosMemoryFreeClear(pRsp->pTagRefCols);
+  pRsp->numOfTagRefs = 0;
 }
 
 int32_t tSerializeSQnodeListReq(void *buf, int32_t bufLen, SQnodeListReq *pReq) {
@@ -10011,7 +10041,7 @@ static int32_t tDecodeSTableMetaRsp(SDecoder *pDecoder, STableMetaRsp *pRsp) {
   if (!tDecodeIsEnd(pDecoder)) {
     TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &pRsp->numOfTagRefs));
     if (hasRefCol(pRsp->tableType) && pRsp->numOfTagRefs > 0) {
-      pRsp->pTagRefs = taosMemoryCalloc(pRsp->numOfTagRefs, sizeof(SColRef));
+      pRsp->pTagRefs = taosMemoryMalloc(sizeof(SColRef) * pRsp->numOfTagRefs);
       if (pRsp->pTagRefs == NULL) {
         TAOS_CHECK_RETURN(terrno);
       }
@@ -13383,12 +13413,6 @@ int32_t tSerializeSOperatorParam(SEncoder *pEncoder, SOperatorParam *pOpParam) {
     case QUERY_NODE_PHYSICAL_PLAN_MERGE: {
       break;
     }
-    case QUERY_NODE_PHYSICAL_PLAN_DYN_QUERY_CTRL: {
-      SDynQueryCtrlOperatorParam* pDyn = (SDynQueryCtrlOperatorParam*)pOpParam->value;
-      TAOS_CHECK_RETURN(tEncodeI64(pEncoder, pDyn->window.skey));
-      TAOS_CHECK_RETURN(tEncodeI64(pEncoder, pDyn->window.ekey));
-      break;
-    }
     case QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN: {
       STagScanOperatorParam *pTagScan = (STagScanOperatorParam *)pOpParam->value;
       TAOS_CHECK_RETURN(tEncodeI64(pEncoder, pTagScan->vcUid));
@@ -13524,16 +13548,6 @@ int32_t tDeserializeSOperatorParam(SDecoder *pDecoder, SOperatorParam *pOpParam)
     case QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL:
     case QUERY_NODE_PHYSICAL_PLAN_MERGE: {
       pOpParam->value = NULL;
-      break;
-    }
-    case QUERY_NODE_PHYSICAL_PLAN_DYN_QUERY_CTRL: {
-      pOpParam->value = taosMemoryCalloc(1, sizeof(SDynQueryCtrlOperatorParam));
-      if (NULL == pOpParam->value) {
-        TAOS_CHECK_RETURN(terrno);
-      }
-      SDynQueryCtrlOperatorParam* pDyn = pOpParam->value;
-      TAOS_CHECK_RETURN(tDecodeI64(pDecoder, &pDyn->window.skey));
-      TAOS_CHECK_RETURN(tDecodeI64(pDecoder, &pDyn->window.ekey));
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN: {
@@ -15860,6 +15874,8 @@ _exit:
   return code;
 }
 
+
+
 void tfreeMultiTagUpdateVal(void *val) {
   SUpdatedTagVal *pTag = val;
   taosMemoryFree(pTag->tagName);
@@ -15883,7 +15899,7 @@ void tfreeMultiTagUpdateVal(void *val) {
 void tfreeUpdateTableTagVal(void* val) {
   SUpdateTableTagVal* pTable = (SUpdateTableTagVal*)val;
   taosMemoryFree(pTable->tbName);
-  taosArrayDestroyEx(pTable->tags, tfreeMultiTagUpateVal);
+  taosArrayDestroyEx(pTable->tags, tfreeMultiTagUpdateVal);
 }
 
 

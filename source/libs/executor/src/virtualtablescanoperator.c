@@ -479,7 +479,7 @@ int32_t createSortHandleFromParam(SOperatorInfo* pOperator) {
 
   cleanUpVirtualScanInfo(pVirtualScanInfo);
   VTS_ERR_JRET(buildRefSlotGroupsFromParam(pVirtualScanInfo, pParam->pRefColGroups));
-  VTS_ERR_JRET(makeTSMergeKey(&pMergeKeys, pVirtualScanInfo->tsSlotId >= 0 ? pVirtualScanInfo->tsSlotId : 0));
+  VTS_ERR_JRET(makeTSMergeKey(&pMergeKeys, 0));
   pVirtualScanInfo->pSortInfo = createSortInfo(pMergeKeys);
   TSDB_CHECK_NULL(pVirtualScanInfo->pSortInfo, code, lino, _return, terrno)
   NODES_DESTORY_LIST(pMergeKeys);
@@ -491,31 +491,36 @@ int32_t createSortHandleFromParam(SOperatorInfo* pOperator) {
   tsortSetForceUsePQSort(pVirtualScanInfo->pSortHandle);
   tsortSetFetchRawDataFp(pVirtualScanInfo->pSortHandle, virtualScanloadNextDataBlockFromParam, NULL, NULL);
 
-  if (pOperator->numOfDownstream > 2) {
-    qError("virtual scan operator should not have more than 2 downstreams, current numOfDownstream:%d",
-           pOperator->numOfDownstream);
-    VTS_ERR_JRET(TSDB_CODE_VTABLE_SCAN_INVALID_DOWNSTREAM);
-  }
-
+  // Find the tag scan downstream by matching resultDataBlockId (most reliable).
+  // Don't trust pParam->tagDownStreamId blindly — it may be stale when
+  // TagRefSource exchanges shift the downstream indices.
   pVirtualScanInfo->tagDownStreamId = -1;
-  if (pParam->tagDownStreamId >= 0 &&
+  for (int32_t i = 0; i < pOperator->numOfDownstream; ++i) {
+    SOperatorInfo* pDownstream = pOperator->pDownstream[i];
+    if (pDownstream->resultDataBlockId == pVirtualScanInfo->tagBlockId) {
+      pVirtualScanInfo->tagDownStreamId = i;
+      pInfo->pSavedTagBlock = NULL;
+      break;
+    }
+  }
+  if (pVirtualScanInfo->tagDownStreamId == -1 &&
+      pParam->tagDownStreamId >= 0 &&
       pParam->tagDownStreamId < pOperator->numOfDownstream) {
     pVirtualScanInfo->tagDownStreamId = pParam->tagDownStreamId;
     pInfo->pSavedTagBlock = NULL;
   }
+
+  // Find the data scan downstream (first non-tag-scan, non-TagRefSource downstream)
+  scanOpIndex = -1;
   for (int32_t i = 0; i < pOperator->numOfDownstream; ++i) {
-    SOperatorInfo* pDownstream = pOperator->pDownstream[i];
-    if (pVirtualScanInfo->tagDownStreamId != -1) {
-      continue;
-    }
-    if (pDownstream->resultDataBlockId == pVirtualScanInfo->tagBlockId) {
-      // tag block does not need sort; keep id for choosing the real scan downstream.
-      pVirtualScanInfo->tagDownStreamId = i;
-      pInfo->pSavedTagBlock = NULL;
-      continue;
-    }
+    if (i == pVirtualScanInfo->tagDownStreamId) continue;
+    if (isRefTagSourceBlockId(pVirtualScanInfo, pOperator->pDownstream[i]->resultDataBlockId)) continue;
+    scanOpIndex = i;
+    break;
   }
-  scanOpIndex = pVirtualScanInfo->tagDownStreamId == -1 ? 0 : 1 - pVirtualScanInfo->tagDownStreamId;
+  if (scanOpIndex < 0) {
+    scanOpIndex = 0;
+  }
 
   pOperator->pDownstream[scanOpIndex]->status = OP_NOT_OPENED;
   pVirtualScanInfo->pSortCtxList = taosArrayInit(taosArrayGetSize((pParam)->pOpParamArray), POINTER_BYTES);
@@ -1117,7 +1122,8 @@ static int32_t doSetTagColumnData(SOperatorInfo* pOperator, SVirtualTableScanInf
       SColumnInfoData* pSrcCol = NULL;
       const STagVal*   pResolvedTagVal = findResolvedTagVal(pOperator, pColNode->colId);
 
-      if ((pSrcCol == NULL || colDataIsNull_s(pSrcCol, 0) ||
+      if (pResolvedTagVal == NULL &&
+          (pSrcCol == NULL || colDataIsNull_s(pSrcCol, 0) ||
            IS_JSON_NULL(pSrcCol->info.type, colDataGetData(pSrcCol, 0))) &&
           pInfo->pRefTagCols != NULL) {
         SNode*  pRefNode = NULL;
@@ -1393,8 +1399,9 @@ int32_t extractColMap(SNodeList* pNodeList, SSHashObj** pSlotMap, int32_t* tsSlo
 
     if (pColNode->isPrimTs || pColNode->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
       *tsSlotId = i;
-    } else if (pColNode->colType == COLUMN_TYPE_TAG && !pColNode->hasRef) {
-      // Only local tag outputs share the single metadata tag block.
+    } else if (pColNode->colType != COLUMN_TYPE_COLUMN && !pColNode->hasRef) {
+      // Non-data, non-ref column (e.g., tbname pseudo column or local tag).
+      // colType may be COLUMN_TYPE_TAG, COLUMN_TYPE_TBNAME, or 0 (unset for pseudo cols).
       *tagBlockId = pColNode->dataBlockId;
     } else if (pColNode->hasRef) {
       int64_t slotKey = pColNode->dataBlockId << 16 | pColNode->slotId;

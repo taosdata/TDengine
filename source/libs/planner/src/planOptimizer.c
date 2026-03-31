@@ -8762,6 +8762,19 @@ static bool eliminateVirtualScanMayBeOptimized(SLogicNode* pNode, void* pCtx) {
     return false;
   }
 
+  // Don't eliminate if the child scan references a virtual table — it needs its own
+  // Virtual Table Scan → DynQueryCtrl resolution chain at runtime.
+  SNode* pChild = nodesListGetNode(pNode->pChildren, 0);
+  if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pChild)) {
+    int8_t childTableType = ((SScanLogicNode*)pChild)->tableType;
+    planDebug("eliminateVirtualScan check: child tableType=%d (VIRTUAL_CHILD=%d VIRTUAL_NORMAL=%d)",
+              childTableType, TSDB_VIRTUAL_CHILD_TABLE, TSDB_VIRTUAL_NORMAL_TABLE);
+    if (TSDB_VIRTUAL_CHILD_TABLE == childTableType || TSDB_VIRTUAL_NORMAL_TABLE == childTableType) {
+      planDebug("eliminateVirtualScan: skip elimination, child is virtual table (type=%d)", childTableType);
+      return false;
+    }
+  }
+
   SVirtualScanLogicNode* pVScan = (SVirtualScanLogicNode *)pNode;
   SNode*                 pCol;
   FOREACH(pCol, pVScan->pScanCols) {
@@ -10286,18 +10299,20 @@ static bool vstableAggShouldBeOptimized(SLogicNode* pNode, void* pCtx) {
   }
 
   if (LIST_LENGTH(pAgg->node.pChildren) == 1) {
+    SDynQueryCtrlLogicNode* pDynCtrl = NULL;
     if (nodeType(nodesListGetNode(pAgg->node.pChildren, 0)) == QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL) {
-      if (((SDynQueryCtrlLogicNode*)nodesListGetNode(pAgg->node.pChildren, 0))->qType != DYN_QTYPE_VTB_SCAN) {
+      pDynCtrl = (SDynQueryCtrlLogicNode*)nodesListGetNode(pAgg->node.pChildren, 0);
+      if (pDynCtrl->qType != DYN_QTYPE_VTB_SCAN) {
         return false;
       }
-      // ok
     } else if (nodeType(nodesListGetNode(pAgg->node.pChildren, 0)) == QUERY_NODE_LOGIC_PLAN_PARTITION) {
         SPartitionLogicNode* pPart = (SPartitionLogicNode*)nodesListGetNode(pAgg->node.pChildren, 0);
         if (LIST_LENGTH(pPart->node.pChildren) != 1 ||
             nodeType(nodesListGetNode(pPart->node.pChildren, 0)) != QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL) {
           return false;
         }
-        if (((SDynQueryCtrlLogicNode*)nodesListGetNode(pPart->node.pChildren, 0))->qType != DYN_QTYPE_VTB_SCAN) {
+        pDynCtrl = (SDynQueryCtrlLogicNode*)nodesListGetNode(pPart->node.pChildren, 0);
+        if (pDynCtrl->qType != DYN_QTYPE_VTB_SCAN) {
           return false;
         }
         if (keysHasCol(pPart->pPartitionKeys)) {
@@ -10305,6 +10320,16 @@ static bool vstableAggShouldBeOptimized(SLogicNode* pNode, void* pCtx) {
         }
     } else {
       return false;
+    }
+
+    // VStableAgg restructures the plan, destroying VirtualScan.  If VirtualScan
+    // carries tag-filter conditions (WHERE on tags), the filter would be lost.
+    // Fall back to the unoptimized path so VirtualScan can apply the filter.
+    if (pDynCtrl && LIST_LENGTH(pDynCtrl->node.pChildren) >= 1) {
+      SLogicNode* pFirst = (SLogicNode*)nodesListGetNode(pDynCtrl->node.pChildren, 0);
+      if (QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN == nodeType(pFirst) && pFirst->pConditions) {
+        return false;
+      }
     }
   } else {
     return false;

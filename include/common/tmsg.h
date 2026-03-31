@@ -822,6 +822,8 @@ typedef struct SVCTableRefCols {
   int32_t      numOfSrcTbls;
   int32_t      numOfColRefs;
   SRefColInfo* refCols;
+  int32_t      numOfTagRefs;
+  SRefColInfo* tagRefCols;
 } SVCTableRefCols;
 
 typedef struct SVCTableMergeInfo {
@@ -2142,6 +2144,9 @@ int32_t tDeserializeSVStbRefDbsReq(void* buf, int32_t bufLen, SVStbRefDbsReq* pR
 typedef struct {
   int32_t vgId;
   SArray* pDbs;  // SArray<char* (db name)>
+  // Tag ref info synthesized from first child (local only, not serialized in vnode wire format)
+  int32_t      numOfTagRefs;
+  SRefColInfo* pTagRefCols;  // Array[numOfTagRefs]
 } SVStbRefDbsRsp;
 
 int32_t tSerializeSVStbRefDbsRsp(void* buf, int32_t bufLen, SVStbRefDbsRsp* pRsp);

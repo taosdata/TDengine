@@ -773,7 +773,7 @@ static int32_t buildExchangeOperatorParamForVScan(SOperatorParam** ppRes, int32_
   int32_t                      lino = 0;
 
   code = buildExchangeOperatorParamImpl(ppRes, downstreamIdx, QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN, EX_SRC_TYPE_VSTB_SCAN,
-                                        pOrgTbInfo->vgId, 0, NULL, pOrgTbInfo, NULL, NULL, (STimeWindow){0}, pNewSource, true, true, false, true);
+                                        pOrgTbInfo->vgId, 0, NULL, pOrgTbInfo, NULL, NULL, (STimeWindow){0}, pNewSource, false, true, true, true);
   QUERY_CHECK_CODE(code, lino, _return);
 
   return code;
@@ -2051,7 +2051,48 @@ _return:
   return code;
 }
 
-int32_t extractColRefName(const char *colref, char **refDb, char** refTb, char** refCol);
+int32_t extractColRefName(const char *colref, char **refDb, char** refTb, char** refCol) {
+  int32_t     code = TSDB_CODE_SUCCESS;
+  int32_t     line = 0;
+
+  const char *first_dot = strchr(colref, '.');
+  QUERY_CHECK_NULL(first_dot, code, line, _return, terrno)
+
+  const char *second_dot = strchr(first_dot + 1, '.');
+  QUERY_CHECK_NULL(second_dot, code, line, _return, terrno)
+
+  size_t db_len = first_dot - colref;
+  size_t table_len = second_dot - first_dot - 1;
+  size_t col_len = strlen(second_dot + 1);
+
+  *refDb = taosMemoryMalloc(db_len + 1);
+  *refTb = taosMemoryMalloc(table_len + 1);
+  *refCol = taosMemoryMalloc(col_len + 1);
+  QUERY_CHECK_NULL(*refDb, code, line, _return, terrno)
+  QUERY_CHECK_NULL(*refTb, code, line, _return, terrno)
+  QUERY_CHECK_NULL(*refCol, code, line, _return, terrno)
+
+  tstrncpy(*refDb, colref, db_len + 1);
+  tstrncpy(*refTb, first_dot + 1, table_len + 1);
+  tstrncpy(*refCol, second_dot + 1, col_len + 1);
+
+  return TSDB_CODE_SUCCESS;
+_return:
+  qError("%s failed at line %d since %s", __func__, line, tstrerror(code));
+  if (*refDb) {
+    taosMemoryFree(*refDb);
+    *refDb = NULL;
+  }
+  if (*refTb) {
+    taosMemoryFree(*refTb);
+    *refTb = NULL;
+  }
+  if (*refCol) {
+    taosMemoryFree(*refCol);
+    *refCol = NULL;
+  }
+  return code;
+}
 int32_t getDbVgInfo(SOperatorInfo* pOperator, SName *name, SDBVgInfo **dbVgInfo);
 int32_t getVgId(SDBVgInfo* dbInfo, char* dbFName, int32_t* vgId, char *tbName);
 
@@ -4374,8 +4415,6 @@ int32_t virtualTableScanBuildDownStreamOpParam(SOperatorInfo* pOperator, tb_uid_
   SVtbScanDynCtrlInfo*       pVtbScan = (SVtbScanDynCtrlInfo*)&pInfo->vtbScan;
   SExecTaskInfo*             pTaskInfo = pOperator->pTaskInfo;
   SOperatorInfo*             pVtbScanOp = pOperator->pDownstream[0];
-  bool                       singleSourceMode = pVtbScan->isSuperTable && pVtbScan->scanAllCols;
-
   pVtbScan->vtbScanParam = NULL;
   code = buildVtbScanOperatorParam(pInfo, &pVtbScan->vtbScanParam, uid);
   QUERY_CHECK_CODE(code, line, _return);
@@ -4404,9 +4443,6 @@ int32_t virtualTableScanBuildDownStreamOpParam(SOperatorInfo* pOperator, tb_uid_
       QUERY_CHECK_CODE(code, line, _return);
     }
     QUERY_CHECK_NULL(taosArrayPush(((SVTableScanOperatorParam*)pVtbScan->vtbScanParam->value)->pOpParamArray, &pExchangeParam), code, line, _return, terrno)
-    if (singleSourceMode) {
-      break;
-    }
     pIter = taosHashIterate(pVtbScan->otbNameToOtbInfoMap, pIter);
   }
 
@@ -4414,6 +4450,8 @@ int32_t virtualTableScanBuildDownStreamOpParam(SOperatorInfo* pOperator, tb_uid_
   pParam->pTagScanOp = NULL;
   pParam->tagDownStreamId = -1;
   if (pVtbScan->isSuperTable && pVtbScanOp != NULL && pVtbScanOp->numOfDownstream > 1) {
+    // Tag scan looks up the virtual child table's own metadata (e.g. tbname),
+    // which resides on the virtual child table's own vgroup, not the tag-ref source's vgroup.
     code = buildExchangeOperatorParamForVTagScan(&pParam->pTagScanOp, 0, vgId, uid);
     QUERY_CHECK_CODE(code, line, _return);
     pParam->tagDownStreamId = 0;
@@ -4508,9 +4546,7 @@ int32_t virtualTableScanGetNext(SOperatorInfo* pOperator, SSDataBlock** pRes) {
 
       // reset downstream operator's status
       pVtbScanOp->status = OP_NOT_OPENED;
-      pVtbScanOp->pOperatorGetParam = pVtbScan->vtbScanParam;
-      pVtbScan->vtbScanParam = NULL;
-      code = pVtbScanOp->fpSet.getNextFn(pVtbScanOp, pRes);
+      code = pVtbScanOp->fpSet.getNextExtFn(pVtbScanOp, pVtbScan->vtbScanParam, pRes);
       QUERY_CHECK_CODE(code, line, _return);
     }
 

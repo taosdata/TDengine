@@ -2176,14 +2176,16 @@ static int32_t createTagRefSourcePhysiNode(SPhysiPlanContext* pCxt, SSubplan* pS
     }
   }
 
-  // Create scan columns from referenced columns for source table scan
-  // pScanCols will be used to specify which columns to scan from the source table
+  // Create scan columns from referenced columns for source table scan.
+  // IMPORTANT: pScanCols must use hasRef=true with the same refDbName/refTableName/refColName
+  // as the pTargets columns. getSlotKey() uses these ref fields to generate the slot key,
+  // so matching keys ensure addDataBlockSlots reuses existing slots from pTargets
+  // rather than creating duplicate slots with different keys.
   if (pLogicNode->pRefCols) {
     PLAN_ERR_JRET(nodesMakeList(&pTagRefSource->pScanCols));
     SNode* pRefCol = NULL;
     FOREACH(pRefCol, pLogicNode->pRefCols) {
       STagRefColumn* pTagRef = (STagRefColumn*)pRefCol;
-      // Create a column node for the source table tag
       SColumnNode* pScanCol = NULL;
       PLAN_ERR_JRET(nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pScanCol));
       pScanCol->tableId = pLogicNode->sourceSuid;
@@ -2194,11 +2196,18 @@ static int32_t createTagRefSourcePhysiNode(SPhysiPlanContext* pCxt, SSubplan* pS
       tstrncpy(pScanCol->colName, pTagRef->sourceColName, TSDB_COL_NAME_LEN);
       tstrncpy(pScanCol->dbName, pLogicNode->sourceTableName.dbname, TSDB_DB_NAME_LEN);
       tstrncpy(pScanCol->tableName, pLogicNode->sourceTableName.tname, TSDB_TABLE_NAME_LEN);
+      // tableAlias must be non-empty so getSlotKey reaches the hasRef branch
+      // (empty tableAlias causes early return with just colName as key)
+      tstrncpy(pScanCol->tableAlias, pLogicNode->sourceTableName.tname, TSDB_TABLE_NAME_LEN);
+      pScanCol->hasRef = true;
+      tstrncpy(pScanCol->refDbName, pLogicNode->sourceTableName.dbname, TSDB_DB_NAME_LEN);
+      tstrncpy(pScanCol->refTableName, pLogicNode->sourceTableName.tname, TSDB_TABLE_NAME_LEN);
+      tstrncpy(pScanCol->refColName, pTagRef->sourceColName, TSDB_COL_NAME_LEN);
       PLAN_ERR_JRET(nodesListStrictAppend(pTagRefSource->pScanCols, (SNode*)pScanCol));
     }
   }
 
-  // Set scan columns slot id for data block output
+  // addDataBlockSlots reuses existing slots from pTargets since slot keys match
   if (pTagRefSource->pScanCols) {
     PLAN_ERR_JRET(addDataBlockSlots(pCxt, pTagRefSource->pScanCols, pTagRefSource->node.pOutputDataBlockDesc));
   }

@@ -1830,7 +1830,7 @@ int32_t doExtractResultBlocks(SExchangeInfo* pExchangeInfo, SSourceDataInfo* pDa
   while (index++ < pRetrieveRsp->numOfBlocks) {
     pStart = pNextStart;
 
-    if (pDataInfo->type == EX_SRC_TYPE_VSTB_SCAN) {
+    if (pDataInfo->type == EX_SRC_TYPE_VSTB_SCAN || pDataInfo->type == EX_SRC_TYPE_VSTB_TAG_SCAN) {
       pb = taosMemoryCalloc(1, sizeof(SSDataBlock));
       QUERY_CHECK_NULL(pb, code, lino, _end, terrno);
     } else if (taosArrayGetSize(pExchangeInfo->pRecycledBlocks) > 0) {
@@ -1855,7 +1855,8 @@ int32_t doExtractResultBlocks(SExchangeInfo* pExchangeInfo, SSourceDataInfo* pDa
       pStart = pDataInfo->decompBuf;
     }
 
-    code = extractDataBlockFromFetchRsp(pb, pStart, NULL, &pStart, (pDataInfo->type == EX_SRC_TYPE_VSTB_SCAN));
+    bool isVstb = (pDataInfo->type == EX_SRC_TYPE_VSTB_SCAN || pDataInfo->type == EX_SRC_TYPE_VSTB_TAG_SCAN);
+    code = extractDataBlockFromFetchRsp(pb, pStart, NULL, &pStart, isVstb);
     if (code != 0) {
       taosMemoryFreeClear(pDataInfo->pRsp);
       goto _end;

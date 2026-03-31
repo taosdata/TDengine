@@ -332,6 +332,9 @@ typedef struct SCtgVStbRefDbsCtx {
   SHashObj*       pFinalDbs;      // referenced db set across all resolved layers, key/value is db name
   SArray*         pResList;       // final result, SArray<SVStbRefDbsRsp>
   int32_t         resIdx;
+  // Synthesized tag ref info from first child table
+  int32_t         numOfTagRefs;
+  SRefColInfo*    pTagRefCols;
 } SCtgVStbRefDbsCtx;
 
 typedef STableIndexRsp STableIndex;

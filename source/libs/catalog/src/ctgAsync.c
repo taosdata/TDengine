@@ -159,9 +159,11 @@ static int32_t ctgAddVStbLayerRef(SArray** ppRefs, const char* pDbName, const ch
  * ppRefDbs accumulates the first-hop referenced dbs.
  * Return success on success, otherwise an error code.
  */
-static int32_t ctgBuildVStbFirstLayerRefs(SArray* pSubTablesList, SArray** ppLayerRefs, SHashObj** ppRefDbs) {
+static int32_t ctgBuildVStbFirstLayerRefs(SArray* pSubTablesList, SArray** ppLayerRefs, SHashObj** ppRefDbs,
+                                          int32_t* pNumOfTagRefs, SRefColInfo** ppTagRefCols) {
   int32_t   code = TSDB_CODE_SUCCESS;
   SHashObj* pDedup = NULL;
+  bool      tagRefExtracted = false;
 
   if (NULL == pSubTablesList || taosArrayGetSize(pSubTablesList) <= 0) {
     return TSDB_CODE_SUCCESS;
@@ -191,6 +193,22 @@ static int32_t ctgBuildVStbFirstLayerRefs(SArray* pSubTablesList, SArray** ppLay
         SRefColInfo* pRef = &pTb->refCols[k];
         CTG_ERR_JRET(
             ctgAddVStbLayerRef(ppLayerRefs, pRef->refDbName, pRef->refTableName, pRef->refColName, pDedup, ppRefDbs));
+      }
+
+      // Collect tag-ref source DBs (no layer ref needed — tags don't form chains)
+      for (int32_t k = 0; k < pTb->numOfTagRefs; ++k) {
+        SRefColInfo* pRef = &pTb->tagRefCols[k];
+        CTG_ERR_JRET(ctgCollectVStbFinalDb(ppRefDbs, pRef->refDbName));
+      }
+
+      // Extract tag ref info from first child that has tag refs
+      if (!tagRefExtracted && pTb->numOfTagRefs > 0 && pNumOfTagRefs && ppTagRefCols) {
+        *pNumOfTagRefs = pTb->numOfTagRefs;
+        *ppTagRefCols = taosMemoryCalloc(pTb->numOfTagRefs, sizeof(SRefColInfo));
+        if (*ppTagRefCols) {
+          memcpy(*ppTagRefCols, pTb->tagRefCols, pTb->numOfTagRefs * sizeof(SRefColInfo));
+          tagRefExtracted = true;
+        }
       }
     }
   }
@@ -465,7 +483,8 @@ _return:
  * ppResList receives SArray<SVStbRefDbsRsp> for parser-side consumption.
  * Return success on success, otherwise an error code.
  */
-static int32_t ctgBuildVStbFinalRes(SHashObj* pFinalDbs, SArray** ppResList) {
+static int32_t ctgBuildVStbFinalRes(SHashObj* pFinalDbs, SArray** ppResList,
+                                    int32_t numOfTagRefs, SRefColInfo* pTagRefCols) {
   int32_t        code = TSDB_CODE_SUCCESS;
   int32_t        dbNum = pFinalDbs ? taosHashGetSize(pFinalDbs) : 0;
   SVStbRefDbsRsp rsp = {0};
@@ -493,6 +512,15 @@ static int32_t ctgBuildVStbFinalRes(SHashObj* pFinalDbs, SArray** ppResList) {
     if (NULL == taosArrayPush(rsp.pDbs, &pDb)) {
       taosMemoryFree(pDb);
       CTG_ERR_JRET(terrno);
+    }
+  }
+
+  // Attach tag ref info (ownership transferred to rsp)
+  if (numOfTagRefs > 0 && pTagRefCols) {
+    rsp.numOfTagRefs = numOfTagRefs;
+    rsp.pTagRefCols = taosMemoryCalloc(numOfTagRefs, sizeof(SRefColInfo));
+    if (rsp.pTagRefCols) {
+      memcpy(rsp.pTagRefCols, pTagRefCols, numOfTagRefs * sizeof(SRefColInfo));
     }
   }
 
@@ -552,7 +580,8 @@ static int32_t ctgFinalizeVStbRefDbsTask(SCtgTask* pTask) {
     pCtx->pResList = NULL;
   }
 
-  code = ctgBuildVStbFinalRes(pCtx->pFinalDbs, &pCtx->pResList);
+  code = ctgBuildVStbFinalRes(pCtx->pFinalDbs, &pCtx->pResList,
+                              pCtx->numOfTagRefs, pCtx->pTagRefCols);
   if (TSDB_CODE_SUCCESS == code) {
     TSWAP(pTask->res, pCtx->pResList);
   }
@@ -3932,7 +3961,8 @@ int32_t ctgHandleGetVStbRefDbsRsp(SCtgTaskReq* tReq, int32_t reqType, const SDat
     goto _return;
   }
 
-  CTG_ERR_JRET(ctgBuildVStbFirstLayerRefs(pCtx->pSubTablesList, &pCtx->pLayerRefs, &pCtx->pFinalDbs));
+  CTG_ERR_JRET(ctgBuildVStbFirstLayerRefs(pCtx->pSubTablesList, &pCtx->pLayerRefs, &pCtx->pFinalDbs,
+                                          &pCtx->numOfTagRefs, &pCtx->pTagRefCols));
   pCtx->refLayer = 1;
 
   if (NULL == pCtx->pLayerRefs || taosArrayGetSize(pCtx->pLayerRefs) <= 0) {

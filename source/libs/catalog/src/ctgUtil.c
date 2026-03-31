@@ -1119,6 +1119,8 @@ void ctgFreeTaskCtx(SCtgTask* pTask) {
       }
       taosHashCleanup(taskCtx->pFinalDbs);
       taskCtx->pFinalDbs = NULL;
+      taosMemoryFreeClear(taskCtx->pTagRefCols);
+      taskCtx->numOfTagRefs = 0;
       if (taskCtx->pResList) {
         taosArrayDestroyEx(taskCtx->pResList, tDestroySVStbRefDbsRsp);
       }

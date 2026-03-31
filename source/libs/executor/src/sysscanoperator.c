@@ -1209,13 +1209,16 @@ static SSDataBlock* sysTableScanUserVcCols(SOperatorInfo* pOperator) {
       continue;
     }
 
-    if ((numOfRows + schemaRow->nCols) > pOperator->resultInfo.capacity) {
-      relocateAndFilterSysTagsScanResult(pInfo, numOfRows, pDataBlock, pOperator->exprSupp.pFilterInfo, pTaskInfo);
-      numOfRows = 0;
+    {
+      int32_t nTagRefs = (colRef != NULL) ? colRef->nTagRefs : 0;
+      if ((numOfRows + schemaRow->nCols + nTagRefs) > pOperator->resultInfo.capacity) {
+        relocateAndFilterSysTagsScanResult(pInfo, numOfRows, pDataBlock, pOperator->exprSupp.pFilterInfo, pTaskInfo);
+        numOfRows = 0;
 
-      if (pInfo->pRes->info.rows > 0) {
-        pAPI->metaFn.pauseTableMetaCursor(pInfo->pCur);
-        break;
+        if (pInfo->pRes->info.rows > 0) {
+          pAPI->metaFn.pauseTableMetaCursor(pInfo->pCur);
+          break;
+        }
       }
     }
     // if pInfo->pRes->info.rows == 0, also need to add the meta to pDataBlock
@@ -2255,10 +2258,10 @@ _end:
   return code;
 }
 
-static int32_t sysTableUserColsFillOneVirtualTableCols(const SSysTableScanInfo* pInfo, const char* dbname,
-                                                       int32_t* pNumOfRows, const SSDataBlock* dataBlock, char* tName,
-                                                       char* stName, SSchemaWrapper* schemaRow, char* tableType,
-                                                       SColRefWrapper* colRef, tb_uid_t uid, int32_t vgId) {
+static int32_t sysTableUserColsFillOneVirtualTableCol(const char* dbname, int32_t* pNumOfRows,
+                                                      const SSDataBlock* dataBlock, char* tName, char* stName,
+                                                      SSchemaWrapper* schemaRow, SColRefWrapper* colRef, tb_uid_t uid,
+                                                      int32_t vgId, int32_t colIdx) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
 
@@ -2266,193 +2269,6 @@ static int32_t sysTableUserColsFillOneVirtualTableCols(const SSysTableScanInfo* 
     qError("sysTableUserColsFillOneVirtualTableCol schemaRow is NULL");
     return TSDB_CODE_SUCCESS;
   }
-  int32_t numOfRows = *pNumOfRows;
-
-  int32_t numOfCols = schemaRow->nCols;
-  for (int32_t i = 0; i < numOfCols; ++i) {
-    SColumnInfoData* pColInfoData = NULL;
-
-    // table name
-    pColInfoData = taosArrayGet(dataBlock->pDataBlock, 0);
-    QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
-    code = colDataSetVal(pColInfoData, numOfRows, tName, false);
-    QUERY_CHECK_CODE(code, lino, _end);
-
-    // stable name
-    pColInfoData = taosArrayGet(dataBlock->pDataBlock, 1);
-    QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
-    code = colDataSetVal(pColInfoData, numOfRows, stName, false);
-    QUERY_CHECK_CODE(code, lino, _end);
-
-    // database name
-    pColInfoData = taosArrayGet(dataBlock->pDataBlock, 2);
-    QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
-    code = colDataSetVal(pColInfoData, numOfRows, dbname, false);
-    QUERY_CHECK_CODE(code, lino, _end);
-
-    // col name
-    char colName[TSDB_COL_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-    STR_TO_VARSTR(colName, schemaRow->pSchema[i].name);
-    pColInfoData = taosArrayGet(dataBlock->pDataBlock, 3);
-    QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
-    code = colDataSetVal(pColInfoData, numOfRows, colName, false);
-    QUERY_CHECK_CODE(code, lino, _end);
-
-    // uid
-    pColInfoData = taosArrayGet(dataBlock->pDataBlock, 4);
-    QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
-    code = colDataSetVal(pColInfoData, numOfRows, (char*)&uid, false);
-    QUERY_CHECK_CODE(code, lino, _end);
-
-    // col data source
-    pColInfoData = taosArrayGet(dataBlock->pDataBlock, 5);
-    QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
-    if (!colRef || !colRef->pColRef[i].hasRef) {
-      colDataSetNULL(pColInfoData, numOfRows);
-    } else {
-      code = colDataSetVal(pColInfoData, numOfRows, (char*)&colRef->pColRef[i].id, false);
-      QUERY_CHECK_CODE(code, lino, _end);
-    }
-
-    pColInfoData = taosArrayGet(dataBlock->pDataBlock, 6);
-    QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
-    if (!colRef || !colRef->pColRef[i].hasRef) {
-      colDataSetNULL(pColInfoData, numOfRows);
-    } else {
-      char refColName[TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_COL_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
-      char tmpColName[TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_COL_FNAME_LEN] = {0};
-      TSlice refColNameBuf = {0};
-      sliceInit(&refColNameBuf, tmpColName, sizeof(tmpColName));
-
-      QUERY_CHECK_CODE(sliceAppend(&refColNameBuf, colRef->pColRef[i].refDbName, strlen(colRef->pColRef[i].refDbName)),
-                       lino, _end);
-      QUERY_CHECK_CODE(sliceAppend(&refColNameBuf, ".", 1), lino, _end);
-      QUERY_CHECK_CODE(
-          sliceAppend(&refColNameBuf, colRef->pColRef[i].refTableName, strlen(colRef->pColRef[i].refTableName)), lino,
-          _end);
-      QUERY_CHECK_CODE(sliceAppend(&refColNameBuf, ".", 1), lino, _end);
-      QUERY_CHECK_CODE(
-          sliceAppend(&refColNameBuf, colRef->pColRef[i].refColName, strlen(colRef->pColRef[i].refColName)), lino,
-          _end);
-      STR_TO_VARSTR(refColName, tmpColName);
-
-      code = colDataSetVal(pColInfoData, numOfRows, (char*)refColName, false);
-      QUERY_CHECK_CODE(code, lino, _end);
-    }
-
-    // vgid
-    pColInfoData = taosArrayGet(dataBlock->pDataBlock, 7);
-    QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
-    code = colDataSetVal(pColInfoData, numOfRows, (char*)&vgId, false);
-    QUERY_CHECK_CODE(code, lino, _end);
-
-    // col ref version
-    pColInfoData = taosArrayGet(dataBlock->pDataBlock, 8);
-    QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
-    int32_t refVersion = colRef ? colRef->version : 0;
-    code = colDataSetVal(pColInfoData, numOfRows, (char*)&refVersion, false);
-    QUERY_CHECK_CODE(code, lino, _end);
-
-    // col type: 0=column ref, 1=tag ref
-    pColInfoData = taosArrayGet(dataBlock->pDataBlock, 9);
-    QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
-    int32_t colType = 0;
-    code = colDataSetVal(pColInfoData, numOfRows, (char*)&colType, false);
-    QUERY_CHECK_CODE(code, lino, _end);
-    ++numOfRows;
-  }
-
-  // Append virtual tag refs so planner/executor can resolve referenced tags dynamically.
-  if (colRef && colRef->nTagRefs > 0 && colRef->pTagRef) {
-    for (int32_t i = 0; i < colRef->nTagRefs; ++i) {
-      SColRef*         pTagRef = &colRef->pTagRef[i];
-      SColumnInfoData* pColInfoData = NULL;
-
-      // table name
-      pColInfoData = taosArrayGet(dataBlock->pDataBlock, 0);
-      QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
-      code = colDataSetVal(pColInfoData, numOfRows, tName, false);
-      QUERY_CHECK_CODE(code, lino, _end);
-
-      // stable name
-      pColInfoData = taosArrayGet(dataBlock->pDataBlock, 1);
-      QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
-      code = colDataSetVal(pColInfoData, numOfRows, stName, false);
-      QUERY_CHECK_CODE(code, lino, _end);
-
-      // database name
-      pColInfoData = taosArrayGet(dataBlock->pDataBlock, 2);
-      QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
-      code = colDataSetVal(pColInfoData, numOfRows, dbname, false);
-      QUERY_CHECK_CODE(code, lino, _end);
-
-      // synthetic tag column name (col_name is not used in runtime mapping).
-      char tagName[TSDB_COL_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-      char tagNameBuf[TSDB_COL_NAME_LEN] = {0};
-      snprintf(tagNameBuf, sizeof(tagNameBuf), "tag_%d", pTagRef->id);
-      STR_TO_VARSTR(tagName, tagNameBuf);
-      pColInfoData = taosArrayGet(dataBlock->pDataBlock, 3);
-      QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
-      code = colDataSetVal(pColInfoData, numOfRows, tagName, false);
-      QUERY_CHECK_CODE(code, lino, _end);
-
-      // uid
-      pColInfoData = taosArrayGet(dataBlock->pDataBlock, 4);
-      QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
-      code = colDataSetVal(pColInfoData, numOfRows, (char*)&uid, false);
-      QUERY_CHECK_CODE(code, lino, _end);
-
-      // col id for virtual tag slot
-      pColInfoData = taosArrayGet(dataBlock->pDataBlock, 5);
-      QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
-      code = colDataSetVal(pColInfoData, numOfRows, (char*)&pTagRef->id, false);
-      QUERY_CHECK_CODE(code, lino, _end);
-
-      // referenced source (db.table.col)
-      pColInfoData = taosArrayGet(dataBlock->pDataBlock, 6);
-      QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
-      if (!pTagRef->hasRef) {
-        colDataSetNULL(pColInfoData, numOfRows);
-      } else {
-        char   refColName[TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_COL_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
-        char   tmpColName[TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_COL_FNAME_LEN] = {0};
-        TSlice refColNameBuf = {0};
-        sliceInit(&refColNameBuf, tmpColName, sizeof(tmpColName));
-        QUERY_CHECK_CODE(sliceAppend(&refColNameBuf, pTagRef->refDbName, strlen(pTagRef->refDbName)), lino, _end);
-        QUERY_CHECK_CODE(sliceAppend(&refColNameBuf, ".", 1), lino, _end);
-        QUERY_CHECK_CODE(sliceAppend(&refColNameBuf, pTagRef->refTableName, strlen(pTagRef->refTableName)), lino, _end);
-        QUERY_CHECK_CODE(sliceAppend(&refColNameBuf, ".", 1), lino, _end);
-        QUERY_CHECK_CODE(sliceAppend(&refColNameBuf, pTagRef->refColName, strlen(pTagRef->refColName)), lino, _end);
-        STR_TO_VARSTR(refColName, tmpColName);
-        code = colDataSetVal(pColInfoData, numOfRows, (char*)refColName, false);
-        QUERY_CHECK_CODE(code, lino, _end);
-      }
-
-      // vgid
-      pColInfoData = taosArrayGet(dataBlock->pDataBlock, 7);
-      QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
-      code = colDataSetVal(pColInfoData, numOfRows, (char*)&vgId, false);
-      QUERY_CHECK_CODE(code, lino, _end);
-
-      // col ref version
-      pColInfoData = taosArrayGet(dataBlock->pDataBlock, 8);
-      QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
-      int32_t refVersion = colRef->version;
-      code = colDataSetVal(pColInfoData, numOfRows, (char*)&refVersion, false);
-      QUERY_CHECK_CODE(code, lino, _end);
-
-      // col type: tag
-      pColInfoData = taosArrayGet(dataBlock->pDataBlock, 9);
-      QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
-      int32_t colType = 1;
-      code = colDataSetVal(pColInfoData, numOfRows, (char*)&colType, false);
-      QUERY_CHECK_CODE(code, lino, _end);
-
-      ++numOfRows;
-    }
-  }
-
-  *pNumOfRows = numOfRows;
   if (colIdx < 0 || colIdx >= schemaRow->nCols) {
     return TSDB_CODE_INVALID_PARA;
   }
@@ -2530,7 +2346,116 @@ static int32_t sysTableUserColsFillOneVirtualTableCols(const SSysTableScanInfo* 
 
   pColInfoData = taosArrayGet(dataBlock->pDataBlock, 8);
   QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
-  code = colDataSetVal(pColInfoData, numOfRows, (char*)&colRef->version, false);
+  int32_t refVersion = colRef ? colRef->version : 0;
+  code = colDataSetVal(pColInfoData, numOfRows, (char*)&refVersion, false);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  // col type: 0=column ref, 1=tag ref
+  pColInfoData = taosArrayGet(dataBlock->pDataBlock, 9);
+  QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+  int32_t colType = 0;
+  code = colDataSetVal(pColInfoData, numOfRows, (char*)&colType, false);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  *pNumOfRows = numOfRows + 1;
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+// Fill one tag-ref row for ins_vc_cols. Same schema as column-ref rows but with colType=1.
+static int32_t sysTableUserColsFillOneVirtualTableTagRef(const char* dbname, int32_t* pNumOfRows,
+                                                         const SSDataBlock* dataBlock, char* tName, char* stName,
+                                                         SColRef* pTagRef, tb_uid_t uid, int32_t vgId,
+                                                         int32_t refVersion) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  if (pTagRef == NULL || !pTagRef->hasRef) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t          numOfRows = *pNumOfRows;
+  SColumnInfoData* pColInfoData = NULL;
+
+  // 0: tableName
+  pColInfoData = taosArrayGet(dataBlock->pDataBlock, 0);
+  QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+  code = colDataSetVal(pColInfoData, numOfRows, tName, false);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  // 1: stableName
+  pColInfoData = taosArrayGet(dataBlock->pDataBlock, 1);
+  QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+  code = colDataSetVal(pColInfoData, numOfRows, stName, false);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  // 2: dbName
+  pColInfoData = taosArrayGet(dataBlock->pDataBlock, 2);
+  QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+  code = colDataSetVal(pColInfoData, numOfRows, dbname, false);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  // 3: colName (tag name)
+  char colName[TSDB_COL_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
+  STR_TO_VARSTR(colName, pTagRef->colName);
+  pColInfoData = taosArrayGet(dataBlock->pDataBlock, 3);
+  QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+  code = colDataSetVal(pColInfoData, numOfRows, colName, false);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  // 4: uid
+  pColInfoData = taosArrayGet(dataBlock->pDataBlock, 4);
+  QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+  code = colDataSetVal(pColInfoData, numOfRows, (char*)&uid, false);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  // 5: colId
+  pColInfoData = taosArrayGet(dataBlock->pDataBlock, 5);
+  QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+  code = colDataSetVal(pColInfoData, numOfRows, (char*)&pTagRef->id, false);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  // 6: refColName (format "db.table.col")
+  {
+    char   refColName[TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_COL_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
+    char   tmpColName[TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_COL_FNAME_LEN] = {0};
+    TSlice refColNameBuf = {0};
+
+    sliceInit(&refColNameBuf, tmpColName, sizeof(tmpColName));
+    QUERY_CHECK_CODE(sliceAppend(&refColNameBuf, pTagRef->refDbName, strlen(pTagRef->refDbName)), lino, _end);
+    QUERY_CHECK_CODE(sliceAppend(&refColNameBuf, ".", 1), lino, _end);
+    QUERY_CHECK_CODE(sliceAppend(&refColNameBuf, pTagRef->refTableName, strlen(pTagRef->refTableName)), lino, _end);
+    QUERY_CHECK_CODE(sliceAppend(&refColNameBuf, ".", 1), lino, _end);
+    QUERY_CHECK_CODE(sliceAppend(&refColNameBuf, pTagRef->refColName, strlen(pTagRef->refColName)), lino, _end);
+    STR_TO_VARSTR(refColName, tmpColName);
+
+    pColInfoData = taosArrayGet(dataBlock->pDataBlock, 6);
+    QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+    code = colDataSetVal(pColInfoData, numOfRows, (char*)refColName, false);
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+
+  // 7: vgId
+  pColInfoData = taosArrayGet(dataBlock->pDataBlock, 7);
+  QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+  code = colDataSetVal(pColInfoData, numOfRows, (char*)&vgId, false);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  // 8: refVersion
+  pColInfoData = taosArrayGet(dataBlock->pDataBlock, 8);
+  QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+  code = colDataSetVal(pColInfoData, numOfRows, (char*)&refVersion, false);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  // 9: colType = 1 (tag ref)
+  pColInfoData = taosArrayGet(dataBlock->pDataBlock, 9);
+  QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+  int32_t colType = 1;
+  code = colDataSetVal(pColInfoData, numOfRows, (char*)&colType, false);
   QUERY_CHECK_CODE(code, lino, _end);
 
   *pNumOfRows = numOfRows + 1;
@@ -2560,6 +2485,18 @@ static int32_t sysTableUserColsFillOneVirtualTableCols(const SSysTableScanInfo* 
     code = sysTableUserColsFillOneVirtualTableCol(dbname, pNumOfRows, dataBlock, tName, stName, schemaRow, colRef,
                                                   uid, vgId, i);
     QUERY_CHECK_CODE(code, lino, _end);
+  }
+
+  // Emit tag-ref rows (colType=1) for DynQueryCtrl to resolve referenced tags.
+  if (colRef != NULL && colRef->pTagRef != NULL) {
+    int32_t     refVersion = colRef->version;
+    for (int32_t i = 0; i < colRef->nTagRefs; ++i) {
+      if (colRef->pTagRef[i].hasRef) {
+        code = sysTableUserColsFillOneVirtualTableTagRef(dbname, pNumOfRows, dataBlock, tName, stName,
+                                                         &colRef->pTagRef[i], uid, vgId, refVersion);
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
+    }
   }
 
 _end:
@@ -2666,11 +2603,25 @@ static int32_t sysTableScanFillRequestedVirtualTableCol(SOperatorInfo* pOperator
   QUERY_CHECK_NULL(colRef, code, lino, _return, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
 
   code = findVirtualTableColIndex(schemaRow, pReq->colName, &colIdx);
-  QUERY_CHECK_CODE(code, lino, _return);
-
-  code = sysTableUserColsFillOneVirtualTableCol(dbname, pNumOfRows, dataBlock, tableName, stableName, schemaRow,
-                                                colRef, smrTable.me.uid, pReq->vgId, colIdx);
-  QUERY_CHECK_CODE(code, lino, _return);
+  if (code == TSDB_CODE_SUCCESS && colIdx >= 0) {
+    code = sysTableUserColsFillOneVirtualTableCol(dbname, pNumOfRows, dataBlock, tableName, stableName, schemaRow,
+                                                  colRef, smrTable.me.uid, pReq->vgId, colIdx);
+    QUERY_CHECK_CODE(code, lino, _return);
+  } else {
+    // Column not found in column schema - check tag refs
+    code = TSDB_CODE_SUCCESS;
+    if (colRef != NULL && colRef->pTagRef != NULL) {
+      for (int32_t i = 0; i < colRef->nTagRefs; ++i) {
+        if (colRef->pTagRef[i].hasRef && strcmp(colRef->pTagRef[i].colName, pReq->colName) == 0) {
+          code = sysTableUserColsFillOneVirtualTableTagRef(dbname, pNumOfRows, dataBlock, tableName, stableName,
+                                                           &colRef->pTagRef[i], smrTable.me.uid, pReq->vgId,
+                                                           colRef->version);
+          QUERY_CHECK_CODE(code, lino, _return);
+          break;
+        }
+      }
+    }
+  }
 
 _return:
   if (smrSuperTableInited) {

@@ -2132,10 +2132,6 @@ void nodesDestroyNode(SNode* pNode) {
       taosMemoryFreeClear(((SShowValidateVirtualTable*)pNode)->pDbCfg);
       destroyTableCfg((STableCfg*)(((SShowValidateVirtualTable*)pNode)->pTableCfg));
       break;
-    case QUERY_NODE_SHOW_VALIDATE_VTABLE_STMT:
-      taosMemoryFreeClear(((SShowValidateVirtualTable*)pNode)->pDbCfg);
-      destroyTableCfg((STableCfg*)(((SShowValidateVirtualTable*)pNode)->pTableCfg));
-      break;
     case QUERY_NODE_SHOW_CREATE_RSMA_STMT: {
       SRsmaInfoRsp* pMeta = ((SShowCreateRsmaStmt*)pNode)->pRsmaMeta;
       if (pMeta != NULL) {
