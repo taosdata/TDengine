@@ -36,7 +36,7 @@ taosBackup 工具旨在提供高性能、紧凑存储的数据库备份恢复方
 
 ### 用法
 
-```
+```text
 taosBackup [OPTION...] dbname [tbname ...] -o outpath    # 备份指定库/表
 taosBackup [OPTION...] -o outpath                        # 备份所有库
 taosBackup [OPTION...] -i inpath                         # 恢复
@@ -75,10 +75,12 @@ taosBackup [OPTION...] --databases db1,db2,... -o outpath
 | — | `--help` | flag | — | — | 打印帮助信息 |
 
 **data-batch 默认值**（源自 `bckArgs.c`）：
+
 - STMT2（`-v 2`，默认）：默认 10,000 行，上限 16,384 行（`STMT2_BATCH_DEFAULT` / `STMT2_BATCH_MAX`）
 - STMT1（`-v 1`）：默认 60,000 行，上限 100,000 行（`STMT1_BATCH_DEFAULT` / `STMT1_BATCH_MAX`）
 
 **位置参数**：
+
 - 第一个位置参数为 database name（存入 `g_specDb`）
 - 后续位置参数为 table name（存入 `g_specTables`，上限 1000 个）
 
@@ -158,7 +160,7 @@ taosBackup -g -D db1 -o /data/backup/
 
 ### 备份文件目录结构
 
-```
+```text
 {outdir}/
 ├── {db}/
 │   ├── db.sql                       # CREATE DATABASE 语句
@@ -306,7 +308,7 @@ taosBackup -g -D db1 -o /data/backup/
 
 **启动摘要**（源自 `printStartSummary()`）：
 
-```
+```text
 ===========================================================================
   taosBackup - BACKUP
 ===========================================================================
@@ -326,7 +328,7 @@ taosBackup -g -D db1 -o /data/backup/
 
 **结束摘要**（源自 `printEndSummary()`）：
 
-```
+```text
 ===========================================================================
   Result       : SUCCESS
 ---------------------------------------------------------------------------
@@ -378,12 +380,14 @@ taosBackup -g -D db1 -o /data/backup/
 # 约束和限制
 
 **约束**：
+
 1. 需要 TDengine 服务端运行中
 2. 连接用户需要对目标数据库有读权限（备份）或写权限（恢复）
 3. STMT2 多表模式仅在 Native 连接下生效（WebSocket/DSN 模式退化为单表模式或通过环境变量 `TAOSBK_SINGLE_TABLE=1` 强制单表）
 4. Parquet 格式仅在 Linux 和 macOS 上可用（`#ifndef TD_WINDOWS` 编译守护）
 
 **限制**：
+
 1. 仅支持 TDengine v3.0.0.0+（STMT2 需 v3.3+）
 2. 单次 `-D` 最多 64 个数据库
 3. 位置参数指定表名最多 1000 个

@@ -38,7 +38,7 @@
 
 taosBackup 采用分层模块化设计：
 
-```
+```text
 ┌─────────────┐
 │   main.c    │  入口：信号处理、参数解析、分发 backup/restore
 ├─────────────┤
@@ -136,6 +136,7 @@ typedef enum {
 ```
 
 **核心逻辑**：
+
 - `getConnection(code)`：遍历池找 IDLE → 返回；无 IDLE 则找 EMPTY → 创建新连接；池满则 `pthread_cond_wait()` 等待
 - 创建失败：指数退避（1s → 2s → 4s → ... → 30s 上限），200ms sleep 粒度检查中断
 - `releaseConnection(conn)`：标记 IDLE + `pthread_cond_signal()`
@@ -238,6 +239,7 @@ typedef struct StbChangeMap {
 #### 6.1 storageTaos.c — 二进制格式
 
 **写入**：
+
 ```c
 // 文件结构
 MAGIC("TAOS", 4B) + VERSION(uint16, 2B) + TaosFileHeader + [Block]*N
@@ -265,6 +267,7 @@ typedef struct {
 - 关闭时回写 nBlocks 和 numRows
 
 **读取**：
+
 - `openTaosFileForRead()`：验证 magic/version，读取 header 和 schema
 - `readTaosFileBlocks()`：逐块读取 → 解压 → 回调处理
 - BINARY 列大值触发 realloc
@@ -272,11 +275,13 @@ typedef struct {
 #### 6.2 storageParquet.c — Parquet 格式
 
 **写入**：
+
 - `resultToFileParquet()`：从 `TAOS_RES` 获取 raw block → `parquetWriterWriteBlock()` → Arrow row-group
 - 支持 DECIMAL extended fields（precision/scale）
 - `parquetWriterClose()` 完成写入
 
 **读取**（恢复）：
+
 - `parquetReaderReadAll()`：回调 `parStmtCallback()`
 - STMT1 恢复：`taos_stmt_bind_param_batch()` + `taos_stmt_add_batch()`，每 50,000 行执行一次
 - STMT2 恢复：`taos_stmt2_bind_param()` + `taos_stmt2_exec()`
@@ -412,7 +417,7 @@ typedef struct {
 
 ### 备份数据流
 
-```
+```text
 TDengine Server
     │
     ▼ SHOW CREATE DATABASE / SHOW CREATE TABLE / DESCRIBE / SELECT *
@@ -432,7 +437,7 @@ TDengine Server
 
 ### 恢复数据流
 
-```
+```text
 ┌───────────────┐
 │  本地文件系统   │   {outdir}/{db}/ ...
 └───────────────┘
@@ -458,7 +463,7 @@ TDengine Server
 
 ### 线程模型
 
-```
+```text
 main thread
   ├── progressThread (pthread)     ← 后台进度显示
   ├── dataThread[0..T-1] (pthread) ← 数据备份/恢复（-T 控制）
@@ -467,7 +472,7 @@ main thread
 
 ### 状态转换图 — 连接池
 
-```
+```text
 CONN_EMPTY ──┬── taos_connect() ──→ CONN_IDLE
              │                          │
              │                    getConnection()

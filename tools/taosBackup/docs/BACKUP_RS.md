@@ -25,7 +25,7 @@
 
 ## 相关文档资料
 
-- TDengine 官方文档：https://docs.tdengine.com
+- TDengine 官方文档：[https://docs.tdengine.com](https://docs.tdengine.com)
 - taosdump 工具文档
 - TDengine STMT2 API 文档
 - Apache Parquet 格式规范

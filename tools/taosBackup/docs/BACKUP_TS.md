@@ -280,6 +280,7 @@
 性能测试通过独立 benchmark 脚本执行，非 pytest 用例。
 
 参考 benchmark.md 实测数据：
+
 - 备份速度：约 1.87M rows/s（1000 万行 → 5.35 秒）
 - 恢复速度：STMT2 约 0.76M rows/s（1000 万行 → 13.12 秒）
 - 压缩比：Binary 格式约 7.85:1
