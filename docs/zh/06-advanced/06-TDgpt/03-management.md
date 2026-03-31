@@ -4,11 +4,18 @@ sidebar_label: "Anode 管理"
 description: 介绍 Anode 管理指令
 ---
 
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
 import PkgListV3 from "/components/PkgListV3";
+
+本节介绍安装版 TDgpt Anode 的服务启停、模型启停、日志位置、目录结构和基本注册管理方法。
 
 ### 启停 Anode 服务
 
- Linux 系统中安装 Anode 以后会自动创建 `taosanoded` 服务，用户可使用 `systemd` 来管理 Anode 服务，使用如下命令启动/停止/检查 Anode 运行状态。
+<Tabs>
+<TabItem label="Linux 系统" value="linux-service">
+
+Linux 系统中安装 Anode 以后会自动创建 `taosanoded` 服务，用户可使用 `systemd` 来管理 Anode 服务，使用如下命令启动、停止、检查 Anode 运行状态。
 
 ```bash
 systemctl start  taosanoded
@@ -16,9 +23,29 @@ systemctl stop   taosanoded
 systemctl status taosanoded
 ```
 
+</TabItem>
+<TabItem label="Windows 系统" value="windows-service">
+
+Windows 安装完成后会自动注册 `Taosanode` 服务，推荐优先通过 Windows 服务或安装目录下的批处理脚本管理。
+
+| 方式 | 命令 | 说明 |
+| --- | --- | --- |
+| Windows 服务 | `net start Taosanode` | 启动服务 |
+| Windows 服务 | `net stop Taosanode` | 停止服务 |
+| Windows 服务 | `sc query Taosanode` | 查看服务状态 |
+| 批处理脚本 | `C:\TDengine\taosanode\bin\start-taosanode.bat` | 启动服务并等待就绪 |
+| 批处理脚本 | `C:\TDengine\taosanode\bin\stop-taosanode.bat` | 停止服务 |
+| 批处理脚本 | `C:\TDengine\taosanode\bin\status-taosanode.bat` | 查看服务状态 |
+
+</TabItem>
+</Tabs>
+
 ### 启停时间序列基础模型服务
 
-提供时序基础模型服务需要占用较大的内存资源。避免启动过程中资源不足导致失败，暂不提供自动启动时间序列基础模型的功能。如果您需要体验时序基础模型服务，需要手动执行如下命令
+<Tabs>
+<TabItem label="Linux 系统" value="linux-model">
+
+提供时序基础模型服务需要占用较大的内存资源。避免启动过程中资源不足导致失败，暂不提供自动启动时间序列基础模型的功能。如果您需要体验时序基础模型服务，需要手动执行如下命令。
 
 ```bash
 # 启动涛思时序数据基础模型
@@ -35,21 +62,75 @@ stop-model timemoe
 ```
 
 > 上述命令只在安装版本中可用，使用 Docker 镜像和云服务，该命令不可用。更多信息请参考[时序模型服务启动和停止脚本](../dev/tsfm/#时序模型服务启动和停止脚本)。
+>
+> 当前安装版 `start-model` / `stop-model` 脚本会直接使用安装目录下主虚拟环境的 Python：
+> Linux 为 `<install_dir>/venv/bin/python3` 或 `<install_dir>/venv/bin/python`。如果主虚拟环境缺失，脚本会直接报错，不再回退到系统 PATH 中的 Python。
+
+</TabItem>
+<TabItem label="Windows 系统" value="windows-model">
+
+Windows 安装完成后，可通过安装目录下脚本管理模型服务。
+
+| 场景 | 命令 | 说明 |
+| --- | --- | --- |
+| 启动单个模型 | `C:\TDengine\taosanode\bin\start-model.bat tdtsfm` | 启动指定模型 |
+| 停止单个模型 | `C:\TDengine\taosanode\bin\stop-model.bat tdtsfm` | 停止指定模型 |
+| 查看模型状态 | `C:\TDengine\taosanode\bin\status-model.bat` | 查看全部模型状态 |
+| 启动全部已存在模型目录 | `C:\TDengine\taosanode\bin\start-model.bat all` | 批量启动当前已导入模型 |
+| 停止全部模型 | `C:\TDengine\taosanode\bin\stop-model.bat all` | 批量停止全部模型 |
+
+Windows 模型脚本会固定使用主虚拟环境 `C:\TDengine\taosanode\venvs\venv\Scripts\python.exe`。如果主虚拟环境缺失，脚本会直接报错，不会回退到系统 Python。
+
+</TabItem>
+</Tabs>
 
 ### 目录及配置文件说明
 
+<Tabs>
+<TabItem label="Linux 系统" value="linux-layout">
+
 安装完成后，Anode 主体目录结构如下：
 
-| 目录/文件                              | 说明                                              |
-| ---------------------------------- |-------------------------------------------------|
-| /usr/local/taos/taosanode/bin      | 可执行文件 (脚本) 目录                                   |
+| 目录/文件 | 说明 |
+| --- | --- |
+| /usr/local/taos/taosanode/bin | 可执行文件（脚本）目录 |
 | /usr/local/taos/taosanode/resource | 资源文件目录，链接到文件夹 /var/lib/taos/taosanode/resource/ |
-| /usr/local/taos/taosanode/lib      | 库文件目录                                           |
-| /usr/local/taos/taosanode/model/   | 模型文件目录，链接到文件夹 /var/lib/taos/taosanode/model     |
-| /var/log/taos/taosanode/           | 日志文件目录                                          |
-| /etc/taos/taosanode.config.py      | 配置文件                                            |
+| /usr/local/taos/taosanode/lib | 库文件目录 |
+| /usr/local/taos/taosanode/model/ | 模型文件目录，链接到文件夹 /var/lib/taos/taosanode/model |
+| /var/log/taos/taosanode/ | 日志文件目录 |
+| /etc/taos/taosanode.config.py | 配置文件 |
+
+</TabItem>
+<TabItem label="Windows 系统" value="windows-layout">
+
+Windows 默认安装目录为 `C:\TDengine\taosanode`，关键目录如下：
+
+| 目录/文件 | 说明 |
+| --- | --- |
+| `C:\TDengine\taosanode\bin` | 可执行脚本和服务包装脚本 |
+| `C:\TDengine\taosanode\cfg` | 配置文件和安装状态文件 |
+| `C:\TDengine\taosanode\lib` | Python 业务代码 |
+| `C:\TDengine\taosanode\log` | 安装日志、服务日志、模型日志 |
+| `C:\TDengine\taosanode\model` | 模型目录 |
+| `C:\TDengine\taosanode\venvs` | 主虚拟环境和模型虚拟环境 |
+| `C:\TDengine\taosanode\python` | 外部离线 tar 导入时落地的 Python runtime 目录 |
+
+Windows 关键日志如下：
+
+| 日志文件 | 说明 |
+| --- | --- |
+| `C:\TDengine\taosanode\log\install.log` | 安装日志 |
+| `C:\TDengine\taosanode\log\uninstall.log` | 卸载日志 |
+| `C:\TDengine\taosanode\log\taosanode-service.log` | 主服务管理日志 |
+| `C:\TDengine\taosanode\log\model_*.log` | 模型服务日志 |
+
+</TabItem>
+</Tabs>
 
 #### 配置说明
+
+<Tabs>
+<TabItem label="Linux 系统" value="linux-config">
 
 配置文件 `taosanode.config.py` 默认位于 `/etc/taos/` 目录下。Anode 的服务使用 Gunicorn 驱动运行，在配置文件中同时具有 Anode 和 Gunicorn 的配置信息。
 
@@ -113,8 +194,8 @@ log_level = 'INFO'
 draw_result = False
 
 # moe default service host
-tdtsfm_1 = 'http://127.0.0.1:6036/tdtsfm'
-timemoe_fc = 'http://127.0.0.1:6037/ds_predict'
+tdtsfm_1 = 'http://127.0.0.1:6061/tdtsfm'
+timemoe_fc = 'http://127.0.0.1:6062/ds_predict'
 ```
 
 #### 提示
@@ -126,6 +207,33 @@ Anode 运行配置主要是以下：
 - app_log: Anode 服务运行产生的日志，用户可以调整其到需要的位置
 - model_dir: 采用算法针对已经存在的数据集的运行完成生成的模型存储位置
 - log_level: app-log 文件的日志级别。可选的配置选项：DEBUG，INFO，CRITICAL，ERROR，WARN
+
+</TabItem>
+<TabItem label="Windows 系统" value="windows-config">
+
+Windows 配置文件默认位于：
+
+```text
+C:\TDengine\taosanode\cfg\taosanode.config.py
+```
+
+Windows 主服务使用 Waitress 运行，常见配置项如下：
+
+```python
+bind = '0.0.0.0:6035'
+workers = 2
+
+waitress_config = {
+    'threads': 4,
+    'channel_timeout': 1200,
+    'connection_limit': 1000,
+    'cleanup_interval': 30,
+    'log_socket_errors': True,
+}
+```
+
+</TabItem>
+</Tabs>
 
 ### Anode 基本操作
 
@@ -141,7 +249,7 @@ node_url 是提供服务的 Anode 的 IP 和 PORT 组成的字符串，例如：
 
 #### 查看 Anode
 
-列出集群中所有的数据分析节点，包括其 `FQDN`, `PORT`, `STATUS`等属性。
+列出集群中所有的数据分析节点，包括其 `FQDN`, `PORT`, `STATUS` 等属性。
 
 ```sql
 SHOW ANODES;
@@ -158,36 +266,36 @@ Query OK, 1 row(s) in set (0.037205s)
 ```SQL
 SHOW ANODES FULL;
 
-taos> show anodes full;                                                      
-     id      |            type            |              algo              | 
-============================================================================ 
-           1 | anomaly-detection          | grubbs                         | 
-           1 | anomaly-detection          | lof                            | 
-           1 | anomaly-detection          | shesd                          | 
-           1 | anomaly-detection          | ksigma                         | 
-           1 | anomaly-detection          | iqr                            | 
-           1 | anomaly-detection          | sample_ad_model                | 
-           1 | forecast                   | arima                          | 
-           1 | forecast                   | holtwinters                    | 
-           1 | forecast                   | tdtsfm_1                       | 
-           1 | forecast                   | timemoe-fc                     | 
-Query OK, 10 row(s) in set (0.028750s)                                       
+taos> show anodes full;
+     id      |            type            |              algo              |
+============================================================================
+           1 | anomaly-detection          | grubbs                         |
+           1 | anomaly-detection          | lof                            |
+           1 | anomaly-detection          | shesd                          |
+           1 | anomaly-detection          | ksigma                         |
+           1 | anomaly-detection          | iqr                            |
+           1 | anomaly-detection          | sample_ad_model                |
+           1 | forecast                   | arima                          |
+           1 | forecast                   | holtwinters                    |
+           1 | forecast                   | tdtsfm_1                       |
+           1 | forecast                   | timemoe-fc                     |
+Query OK, 10 row(s) in set (0.028750s)
 ```
 
 列表中的算法分为两个部分，分别是异常检测算法集合，包含六个算法模型，四个预测算法集。算法模型如下：
 
-| 类型   | 模型名称            | 说明                  |
-| ---- | --------------- | ------------------- |
-| 异常检测 | grubbs          | 基于数学统计学检测模型         |
-| 异常检测 | lof             | 基于密度的检测模型           |
-| 异常检测 | shesd           | 季节性 ESD 算法模型          |
-| 异常检测 | ksigma          | 数学统计学检测模型           |
-| 异常检测 | iqr             | 数学统计学检测模型           |
-| 异常检测 | sample_ad_model | 基于自编码器的异常检测示例模型     |
-| 预测分析 | arima           | 移动平均自回归预测算法         |
-| 预测分析 | holtwinters     | 多次指数平滑预测算法          |
-| 预测分析 | tdtsfm_1        | 涛思时序数据基础模型 v1.0 版本  |
-| 预测分析 | timemoe-fc      | Time-MoE 时序基础模型的预测能力 |
+| 类型 | 模型名称 | 说明 |
+| --- | --- | --- |
+| 异常检测 | grubbs | 基于数学统计学检测模型 |
+| 异常检测 | lof | 基于密度的检测模型 |
+| 异常检测 | shesd | 季节性 ESD 算法模型 |
+| 异常检测 | ksigma | 数学统计学检测模型 |
+| 异常检测 | iqr | 数学统计学检测模型 |
+| 异常检测 | sample_ad_model | 基于自编码器的异常检测示例模型 |
+| 预测分析 | arima | 移动平均自回归预测算法 |
+| 预测分析 | holtwinters | 多次指数平滑预测算法 |
+| 预测分析 | tdtsfm_1 | 涛思时序数据基础模型 v1.0 版本 |
+| 预测分析 | timemoe-fc | Time-MoE 时序基础模型的预测能力 |
 
 相关算法的具体介绍和使用说明见后续章节。
 
@@ -204,4 +312,4 @@ UPDATE ALL ANODES
 DROP ANODE {anode_id}
 ```
 
-删除 Anode 只是将 Anode 从 TDengine TSDB 集群中移除，管理 Anode 的启停仍然需要使用 `systemctl` 来操作。卸载 Anode 需要使用 `rmtaosanode` 命令。
+删除 Anode 只是将 Anode 从 TDengine TSDB 集群中移除。Linux 环境下，管理 Anode 的启停仍然需要使用 `systemctl` 来操作，卸载 Anode 需要使用 `rmtaosanode` 命令。Windows 环境下，删除 Anode 不会停止本机 `Taosanode` 服务，也不会卸载本机安装；服务启停请使用安装目录下脚本或 Windows 服务命令，卸载请使用安装包卸载程序。

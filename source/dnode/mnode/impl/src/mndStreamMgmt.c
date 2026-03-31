@@ -845,6 +845,7 @@ int32_t msmBuildTriggerDeployInfo(SMnode* pMnode, SStmStatus* pInfo, SStmTaskDep
   pMsg->fillHistoryFirst = pStream->pCreate->fillHistoryFirst;
   pMsg->lowLatencyCalc = pStream->pCreate->lowLatencyCalc;
   pMsg->igNoDataTrigger = pStream->pCreate->igNoDataTrigger;
+  pMsg->enableMultiGroupCalc = pStream->pCreate->enableMultiGroupCalc;
   pMsg->isTriggerTblVirt = STREAM_IS_VIRTUAL_TABLE(pStream->pCreate->triggerTblType, pStream->pCreate->flags);
   pMsg->triggerHasPF = pStream->pCreate->triggerHasPF;
   pMsg->isTriggerTblStb = (pStream->pCreate->triggerTblType == TSDB_SUPER_TABLE);
@@ -893,6 +894,7 @@ int32_t msmBuildTriggerDeployInfo(SMnode* pMnode, SStmStatus* pInfo, SStmTaskDep
 
   pMsg->leaderSnodeId = pStream->mainSnodeId;
   pMsg->streamName = pInfo->streamName;
+  pMsg->nodelayCreateSubtable = pStream->pCreate->nodelayCreateSubtable;
 
   if (0 == pInfo->runnerNum) {
     mstsDebug("no runner task, skip set trigger's runner list, deployNum:%d", pInfo->runnerDeploys);
@@ -3583,7 +3585,8 @@ int32_t msmNormalHandleStatusUpdate(SStmGrpCtx* pCtx) {
     
     SStmTaskStatus** ppStatus = taosHashGet(mStreamMgmt.taskMap, &pTask->streamId, sizeof(pTask->streamId) + sizeof(pTask->taskId));
     if (NULL == ppStatus) {
-      msttWarn("task no longer exists in taskMap, will try to undeploy current task, taskIdx:%d", pTask->taskIdx);
+      msttWarn("task no longer exists in taskMap, streamId:0x%" PRIx64 " taskId:0x%" PRIx64 " type:%s status:%s taskIdx:%d",
+          (uint64_t)pTask->streamId, (uint64_t)pTask->taskId, gStreamTaskTypeStr[pTask->type], gStreamStatusStr[pTask->status], pTask->taskIdx);
       msmHandleStreamTaskErr(pCtx, STM_ERR_TASK_NOT_EXISTS, pTask);
       continue;
     }
@@ -3619,6 +3622,10 @@ int32_t msmNormalHandleStatusUpdate(SStmGrpCtx* pCtx) {
     (*ppStatus)->errCode = pTask->errorCode;
     (*ppStatus)->status = pTask->status;
     (*ppStatus)->lastUpTs = pCtx->currTs;
+    
+    if (STREAM_TRIGGER_TASK == pTask->type && STREAM_STATUS_RUNNING == pTask->status) {
+      mstInfo("streamId:0x%" PRIx64 " trigger task status updated to Running in streamMap", (uint64_t)pTask->streamId);
+    }
     
     if (STREAM_STATUS_RUNNING != pTask->status) {
       msmHandleTaskAbnormalStatus(pCtx, pTask, *ppStatus);

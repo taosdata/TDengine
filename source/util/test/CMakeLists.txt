@@ -153,6 +153,15 @@ add_test(
     COMMAND objpoolTest
 )
 
+# timerTest
+add_executable(timerTest "timerTest.cpp")
+DEP_ext_gtest(timerTest)
+target_link_libraries(timerTest PRIVATE os util)
+add_test(
+    NAME timerTest
+    COMMAND timerTest
+)
+
 if(${TD_LINUX})
     add_executable(utilTests utilTests.cpp stringTest.cpp)
     DEP_ext_gtest(utilTests)

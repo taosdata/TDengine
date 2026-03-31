@@ -565,14 +565,14 @@ void mstLogSStreamObj(char* tips, SStreamObj* p) {
 
   mstsDebugL("create_info: name:%s sql:%s streamDB:%s triggerDB:%s outDB:%s calcDBNum:%d triggerTblName:%s outTblName:%s "
       "igExists:%d triggerType:%d igDisorder:%d deleteReCalc:%d deleteOutTbl:%d fillHistory:%d fillHistroyFirst:%d "
-      "calcNotifyOnly:%d lowLatencyCalc:%d igNoDataTrigger:%d notifyUrlNum:%d notifyEventTypes:%d addOptions:%d notifyHistory:%d "
+      "calcNotifyOnly:%d lowLatencyCalc:%d igNoDataTrigger:%d enableMultiGroupCalc:%d notifyUrlNum:%d notifyEventTypes:%d addOptions:%d notifyHistory:%d "
       "outColsNum:%d outTagsNum:%d maxDelay:%" PRId64 " fillHistoryStartTs:%" PRId64 " watermark:%" PRId64 " expiredTime:%" PRId64 " "
       "triggerTblType:%d triggerTblUid:%" PRIx64 " triggerTblSuid:%" PRIx64 " vtableCalc:%d outTblType:%d outStbExists:%d outStbUid:%" PRIu64 " outStbSversion:%d "
       "eventTypes:0x%" PRIx64 " flags:0x%" PRIx64 " tsmaId:0x%" PRIx64 " placeHolderBitmap:0x%" PRIx64 " calcTsSlotId:%d triTsSlotId:%d calcPkSlotId:%d triPkSlotId:%d "
       "triggerTblVgId:%d outTblVgId:%d calcScanPlanNum:%d forceOutCols:%d idleTimeoutMs:%" PRId64,
       q->name, q->sql, q->streamDB, q->triggerDB, q->outDB, calcDBNum, q->triggerTblName, q->outTblName,
       q->igExists, q->triggerType, q->igDisorder, q->deleteReCalc, q->deleteOutTbl, q->fillHistory, q->fillHistoryFirst,
-      q->calcNotifyOnly, q->lowLatencyCalc, q->igNoDataTrigger, notifyUrlNum, q->notifyEventTypes, q->addOptions, q->notifyHistory,
+      q->calcNotifyOnly, q->lowLatencyCalc, q->igNoDataTrigger, q->enableMultiGroupCalc, notifyUrlNum, q->notifyEventTypes, q->addOptions, q->notifyHistory,
       outColNum, outTagNum, q->maxDelay, q->fillHistoryStartTime, q->watermark, q->expiredTime,
       q->triggerTblType, q->triggerTblUid, q->triggerTblSuid, q->vtableCalc, q->outTblType, q->outStbExists, q->outStbUid, q->outStbSversion,
       q->eventTypes, q->flags, q->tsmaId, q->placeHolderBitmap, q->calcTsSlotId, q->triTsSlotId, q->calcPkSlotId, q->triPkSlotId,
@@ -772,8 +772,10 @@ int32_t mstGetStreamStatusStr(SStreamObj* pStream, char* status, int32_t statusS
 
   (void)mstWaitLock(&mStreamMgmt.runtimeLock, true);
   
-  SStmStatus* pStatus = (SStmStatus*)taosHashGet(mStreamMgmt.streamMap, &pStream->pCreate->streamId, sizeof(pStream->pCreate->streamId));
+  int64_t streamId = pStream->pCreate->streamId;
+  SStmStatus* pStatus = (SStmStatus*)taosHashGet(mStreamMgmt.streamMap, &streamId, sizeof(streamId));
   if (NULL == pStatus) {
+    mstDebug("return Undeployed: stream not in streamMap (show streams)");
     STR_WITH_MAXSIZE_TO_VARSTR(status, gStreamStatusStr[STREAM_STATUS_UNDEPLOYED], statusSize);
     STR_WITH_MAXSIZE_TO_VARSTR(msg, "", msgSize);
     goto _exit;
@@ -808,6 +810,9 @@ int32_t mstGetStreamStatusStr(SStreamObj* pStream, char* status, int32_t statusS
     goto _exit;
   }
 
+  mstsDebug("return Idle: pStatus=%p triggerTask=%p triggerStatus=%d (show streams view)",
+      (void*)pStatus, (void*)(pStatus ? pStatus->triggerTask : NULL),
+      (pStatus && pStatus->triggerTask) ? (int)pStatus->triggerTask->status : -1);
   STR_WITH_MAXSIZE_TO_VARSTR(status, gStreamStatusStr[STREAM_STATUS_INIT], statusSize);
   snprintf(tmpBuf, sizeof(tmpBuf), "Current deploy times: %" PRId64, pStatus->deployTimes);
   STR_WITH_MAXSIZE_TO_VARSTR(msg, tmpBuf, msgSize);

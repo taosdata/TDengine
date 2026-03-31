@@ -57,6 +57,7 @@ void    tfreeSParseQueryRes(void* p);
 int32_t updateExprSubQueryType(SNode* pNode, ESubQueryType* type);
 void    getExprSubQueryResType(SNode* pNode, SDataType* pType);
 int32_t validateExprSubQuery(SNode* pNode);
+void getExprSubQueryResCols(SNode* pNode, int32_t* cols);
 
 #ifdef TD_ENTERPRISE
 int32_t translateView(STranslateContext* pCxt, SNode** pTable, SName* pName, bool inJoin);

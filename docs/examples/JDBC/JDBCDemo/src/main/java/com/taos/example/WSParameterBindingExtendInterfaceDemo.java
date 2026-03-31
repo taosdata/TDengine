@@ -16,7 +16,7 @@ public class WSParameterBindingExtendInterfaceDemo {
 
     public static void main(String[] args) throws SQLException {
 
-        String jdbcUrl = "jdbc:TAOS-WS://" + host + ":6041";
+        String jdbcUrl = "jdbc:TAOS-WS://" + host + ":6041?varcharAsString=true";
         try (Connection conn = DriverManager.getConnection(jdbcUrl, "root", "taosdata")) {
             init(conn);
 

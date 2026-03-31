@@ -47,6 +47,9 @@ import config
 from server.clusterSetup import Logger
 from resource.priv_compat import grant_keywords, revoke_default_role, snapshot_privileges
 
+_RETRY_COUNT = 10
+_RETRY_INTERVAL = 1  # seconds
+
 
 def _errno_of(exc) -> int:
     """Return the low-16-bit errno of a taos exception, or -1 for non-taos."""
@@ -56,11 +59,30 @@ def _errno_of(exc) -> int:
     return int(raw) & 0xFFFF
 
 
+def _make_conn(fqdn: str, cfg_dir: str, logger=None) -> taos.TaosConnection:
+    """Connect to TDengine with retry on transient errors."""
+    last_exc = None
+    for attempt in range(1, _RETRY_COUNT + 1):
+        try:
+            return taos.connect(host=fqdn, config=cfg_dir)
+        except Exception as e:
+            last_exc = e
+            msg = f"  Connection failed (attempt {attempt}/{_RETRY_COUNT}): {e}, retrying in {_RETRY_INTERVAL}s ..."
+            if logger:
+                logger.info(msg)
+            else:
+                print(msg, file=sys.stderr)
+            time.sleep(_RETRY_INTERVAL)
+    raise RuntimeError(
+        f"Failed to connect after {_RETRY_COUNT} attempts. Last error: {last_exc}"
+    )
+
+
 def _exec(cursor, sql: str, *,
           ignore: frozenset = frozenset(),
           logger=None) -> bool:
     """
-    Execute *sql* on *cursor*.
+    Execute *sql* on *cursor* with retry on transient server errors.
 
     Parameters
     ----------
@@ -68,7 +90,7 @@ def _exec(cursor, sql: str, *,
     sql     : SQL text to execute
     ignore  : frozenset of errno values (low 16 bits) that are expected and
               should be silently skipped (logged at INFO level).  All other
-              errors are re-raised with the failing SQL printed first.
+              errors are retried up to _RETRY_COUNT times, then re-raised.
     logger  : optional Logger for the INFO notice; falls back to stderr.
 
     Returns
@@ -76,32 +98,34 @@ def _exec(cursor, sql: str, *,
     True  – statement executed successfully
     False – error was in *ignore* and was suppressed
     """
-    try:
-        cursor.execute(sql)
-        return True
-    except Exception as exc:
-        code = _errno_of(exc)
-        if code in ignore:
-            msg = f"  SQL ignored [0x{code:04x}] ({exc}): {sql}"
+    last_exc = None
+    for attempt in range(1, _RETRY_COUNT + 1):
+        try:
+            cursor.execute(sql)
+            return True
+        except Exception as exc:
+            code = _errno_of(exc)
+            if code in ignore:
+                msg = f"  SQL ignored [0x{code:04x}] ({exc}): {sql}"
+                if logger:
+                    logger.info(msg)
+                else:
+                    print(msg, file=sys.stderr)
+                return False
+            last_exc = exc
+            msg = (
+                f"  SQL failed [0x{code:04x}] (attempt {attempt}/{_RETRY_COUNT}): {exc} | SQL: {sql}"
+                if attempt < _RETRY_COUNT
+                else f"SQL failed after {_RETRY_COUNT} attempts [0x{code:04x}] ({exc}): {sql}"
+            )
             if logger:
-                logger.info(msg)
+                logger.info(msg) if attempt < _RETRY_COUNT else logger.error(msg)
             else:
-                print(msg, file=sys.stderr)
-            return False
-        # Unexpected error: print the SQL then re-raise so the caller's
-        # traceback shows both the SQL and the original exception location.
-        err_msg = f"SQL failed [0x{code:04x}] ({exc}): {sql}"
-        if logger:
-            logger.error(err_msg)
-        else:
-            print(f"ERROR: {err_msg}", file=sys.stderr)
-        raise
+                print(f"{'WARN' if attempt < _RETRY_COUNT else 'ERROR'}: {msg}", file=sys.stderr)
+            if attempt < _RETRY_COUNT:
+                time.sleep(_RETRY_INTERVAL)
 
-
-# ==================== helpers ====================
-
-def _make_conn(fqdn: str, cfg_dir: str) -> taos.TaosConnection:
-    return taos.connect(host=fqdn, config=cfg_dir)
+    raise last_exc
 
 
 # ==================== ResourceManager ====================
@@ -136,17 +160,17 @@ class ResourceManager:
 
     def create_database(self):
         self.logger.info(f"Creating database '{config.DB_NAME}' with replica={config.REPLICA} ...")
-        conn = _make_conn(self.fqdn, self.cfg_dir)
+        conn = _make_conn(self.fqdn, self.cfg_dir, self.logger)
         cursor = conn.cursor()
         try:
-            cursor.execute(
-                f"CREATE DATABASE IF NOT EXISTS {config.DB_NAME} "
-                f"REPLICA {config.REPLICA} "
-                f"VGROUPS {config.VGROUPS} "
-                f"STT_TRIGGER 2 "
-                f"WAL_RETENTION_PERIOD 3600 "
-            )
-            cursor.execute(f"USE {config.DB_NAME}")
+            _exec(cursor,
+                  f"CREATE DATABASE IF NOT EXISTS {config.DB_NAME} "
+                  f"REPLICA {config.REPLICA} "
+                  f"VGROUPS {config.VGROUPS} "
+                  f"STT_TRIGGER 2 "
+                  f"WAL_RETENTION_PERIOD 3600 ",
+                  logger=self.logger)
+            _exec(cursor, f"USE {config.DB_NAME}", logger=self.logger)
             self.logger.success(f"Database '{config.DB_NAME}' ready.")
         finally:
             cursor.close()
@@ -158,21 +182,21 @@ class ResourceManager:
 
     def create_stable(self):
         self.logger.info(f"Creating stable '{config.STABLE_NAME}' ...")
-        conn = _make_conn(self.fqdn, self.cfg_dir)
+        conn = _make_conn(self.fqdn, self.cfg_dir, self.logger)
         cursor = conn.cursor()
         try:
-            cursor.execute(f"USE {config.DB_NAME}")
-            cursor.execute(
-                f"CREATE STABLE IF NOT EXISTS {config.STABLE_NAME} ("
-                f"  ts        TIMESTAMP,"
-                f"  current   FLOAT,"
-                f"  voltage   INT,"
-                f"  phase     FLOAT"
-                f") TAGS ("
-                f"  groupid   INT,"
-                f"  location  BINARY(64)"
-                f")"
-            )
+            _exec(cursor, f"USE {config.DB_NAME}", logger=self.logger)
+            _exec(cursor,
+                  f"CREATE STABLE IF NOT EXISTS {config.STABLE_NAME} ("
+                  f"  ts        TIMESTAMP,"
+                  f"  current   FLOAT,"
+                  f"  voltage   INT,"
+                  f"  phase     FLOAT"
+                  f") TAGS ("
+                  f"  groupid   INT,"
+                  f"  location  BINARY(64)"
+                  f")",
+                  logger=self.logger)
             self.logger.success(f"Stable '{config.STABLE_NAME}' ready.")
         finally:
             cursor.close()
@@ -184,10 +208,10 @@ class ResourceManager:
 
     def create_subtables(self):
         self.logger.info(f"Creating {config.SUBTABLE_COUNT} subtables ...")
-        conn = _make_conn(self.fqdn, self.cfg_dir)
+        conn = _make_conn(self.fqdn, self.cfg_dir, self.logger)
         cursor = conn.cursor()
         try:
-            cursor.execute(f"USE {config.DB_NAME}")
+            _exec(cursor, f"USE {config.DB_NAME}", logger=self.logger)
             # Build a single USING … TAGS multi-create statement per batch of 200
             batch_size = 200
             locations  = ["BeiJing", "ShangHai", "ShenZhen", "ChengDu", "HangZhou"]
@@ -200,7 +224,7 @@ class ResourceManager:
                         f"d{i} USING {config.STABLE_NAME} TAGS ({i % 10}, '{loc}_{i}')"
                     )
                 sql = f"CREATE TABLE IF NOT EXISTS {' '.join(parts)}"
-                cursor.execute(sql)
+                _exec(cursor, sql, logger=self.logger)
             self.logger.success(f"{config.SUBTABLE_COUNT} subtables ready.")
         finally:
             cursor.close()
@@ -229,9 +253,9 @@ class ResourceManager:
         def write_subtable(idx: int):
             """Write INIT_ROWS_PER_SUBTABLE rows for subtable d{idx}."""
             try:
-                conn   = _make_conn(self.fqdn, self.cfg_dir)
+                conn   = _make_conn(self.fqdn, self.cfg_dir, self.logger)
                 cursor = conn.cursor()
-                cursor.execute(f"USE {config.DB_NAME}")
+                _exec(cursor, f"USE {config.DB_NAME}", logger=self.logger)
 
                 rows      = config.INIT_ROWS_PER_SUBTABLE
                 batch     = config.WRITE_BATCH_SIZE
@@ -249,7 +273,7 @@ class ResourceManager:
                         phase   = round(random.uniform(0.0, 1.0), 3)
                         vals.append(f"({ts}, {current}, {voltage}, {phase})")
                     sql = f"INSERT INTO d{idx} VALUES {', '.join(vals)}"
-                    cursor.execute(sql)
+                    _exec(cursor, sql, logger=self.logger)
 
                 cursor.close()
                 conn.close()
@@ -287,14 +311,14 @@ class ResourceManager:
 
     def create_topic(self):
         self.logger.info(f"Creating topic '{config.TOPIC_NAME}' ...")
-        conn = _make_conn(self.fqdn, self.cfg_dir)
+        conn = _make_conn(self.fqdn, self.cfg_dir, self.logger)
         cursor = conn.cursor()
         try:
-            cursor.execute(f"USE {config.DB_NAME}")
-            cursor.execute(
-                f"CREATE TOPIC IF NOT EXISTS {config.TOPIC_NAME} "
-                f"AS SELECT * FROM {config.STABLE_NAME}"
-            )
+            _exec(cursor, f"USE {config.DB_NAME}", logger=self.logger)
+            _exec(cursor,
+                  f"CREATE TOPIC IF NOT EXISTS {config.TOPIC_NAME} "
+                  f"AS SELECT * FROM {config.STABLE_NAME}",
+                  logger=self.logger)
             self.logger.success(f"Topic '{config.TOPIC_NAME}' ready.")
         finally:
             cursor.close()
@@ -322,10 +346,10 @@ class ResourceManager:
         self.logger.info(
             f"Creating test user '{config.TEST_USER_NAME}' with restricted privileges ..."
         )
-        conn   = _make_conn(self.fqdn, self.cfg_dir)
+        conn   = _make_conn(self.fqdn, self.cfg_dir, self.logger)
         cursor = conn.cursor()
         try:
-            cursor.execute(f"USE {config.DB_NAME}")
+            _exec(cursor, f"USE {config.DB_NAME}", logger=self.logger)
 
             # ---- create the three permission-test stables ----
             schema = (
@@ -337,29 +361,29 @@ class ResourceManager:
                 config.TEST_USER_WRITE_STABLE,
                 config.TEST_USER_HIDDEN_STABLE,
             ):
-                cursor.execute(
-                    f"CREATE STABLE IF NOT EXISTS {config.DB_NAME}.{sname} {schema}"
-                )
+                _exec(cursor,
+                      f"CREATE STABLE IF NOT EXISTS {config.DB_NAME}.{sname} {schema}",
+                      logger=self.logger)
 
             # ---- create one subtable under each stable ----
-            cursor.execute(
-                f"CREATE TABLE IF NOT EXISTS {config.DB_NAME}.d_ro0 "
-                f"USING {config.DB_NAME}.{config.TEST_USER_READ_STABLE} TAGS(0, 'ro')"
-            )
-            cursor.execute(
-                f"CREATE TABLE IF NOT EXISTS {config.DB_NAME}.d_wo0 "
-                f"USING {config.DB_NAME}.{config.TEST_USER_WRITE_STABLE} TAGS(0, 'wo')"
-            )
-            cursor.execute(
-                f"CREATE TABLE IF NOT EXISTS {config.DB_NAME}.d_hidden0 "
-                f"USING {config.DB_NAME}.{config.TEST_USER_HIDDEN_STABLE} TAGS(0, 'hidden')"
-            )
+            _exec(cursor,
+                  f"CREATE TABLE IF NOT EXISTS {config.DB_NAME}.d_ro0 "
+                  f"USING {config.DB_NAME}.{config.TEST_USER_READ_STABLE} TAGS(0, 'ro')",
+                  logger=self.logger)
+            _exec(cursor,
+                  f"CREATE TABLE IF NOT EXISTS {config.DB_NAME}.d_wo0 "
+                  f"USING {config.DB_NAME}.{config.TEST_USER_WRITE_STABLE} TAGS(0, 'wo')",
+                  logger=self.logger)
+            _exec(cursor,
+                  f"CREATE TABLE IF NOT EXISTS {config.DB_NAME}.d_hidden0 "
+                  f"USING {config.DB_NAME}.{config.TEST_USER_HIDDEN_STABLE} TAGS(0, 'hidden')",
+                  logger=self.logger)
 
             # ---- create user ----
-            cursor.execute(
-                f"CREATE USER {config.TEST_USER_NAME} "
-                f"PASS '{config.TEST_USER_PASS}' SYSINFO 0"
-            )
+            _exec(cursor,
+                  f"CREATE USER {config.TEST_USER_NAME} "
+                  f"PASS '{config.TEST_USER_PASS}' SYSINFO 0",
+                  logger=self.logger)
 
             # ---- grant privileges (version-aware) ----
             read_kw, write_kw = grant_keywords(cursor)
@@ -368,14 +392,14 @@ class ResourceManager:
             )
             revoke_default_role(cursor, config.TEST_USER_NAME, self.logger)
 
-            cursor.execute(
-                f"GRANT {read_kw} ON {config.DB_NAME}.{config.TEST_USER_READ_STABLE} "
-                f"TO {config.TEST_USER_NAME}"
-            )
-            cursor.execute(
-                f"GRANT {write_kw} ON {config.DB_NAME}.{config.TEST_USER_WRITE_STABLE} "
-                f"TO {config.TEST_USER_NAME}"
-            )
+            _exec(cursor,
+                  f"GRANT {read_kw} ON {config.DB_NAME}.{config.TEST_USER_READ_STABLE} "
+                  f"TO {config.TEST_USER_NAME}",
+                  logger=self.logger)
+            _exec(cursor,
+                  f"GRANT {write_kw} ON {config.DB_NAME}.{config.TEST_USER_WRITE_STABLE} "
+                  f"TO {config.TEST_USER_NAME}",
+                  logger=self.logger)
 
             # ---- capture normalised privilege snapshot ----
             snap = snapshot_privileges(cursor, config.TEST_USER_NAME)
@@ -400,28 +424,34 @@ class ResourceManager:
     # Returns a snapshot (dict) to be compared after upgrade.
     # ------------------------------------------------------------------
 
+    # Semantic fields we care about when comparing tag indexes across versions.
+    # Volatile columns (create_time, internal IDs) are intentionally excluded
+    # because their values can differ between old and new server versions while
+    # the index itself is functionally identical.
+    _INDEX_SNAP_FIELDS = {"index_name", "db_name", "table_name", "col_name", "index_type"}
+
     def _show_index_snapshot(self, cursor) -> dict:
         """
         Run ``SHOW INDEXES FROM <stable> FROM <db>`` and return a dict keyed
-        by index name.  Values are raw row tuples (positional) so no column
-        name string is relied upon for cross-version comparisons.
-
-        The column that holds the index name is located via cursor.description
-        (case-insensitive search for "index_name"); position 2 is the fallback
-        per the documented schema: db_name, table_name, index_name, …
+        by index name.  Values are dicts of semantic fields only, resolved via
+        cursor.description so column renames / reorders don't break the check.
         """
-        cursor.execute(
-            f"SHOW INDEXES FROM {config.STABLE_NAME} FROM {config.DB_NAME}"
-        )
+        _exec(cursor,
+              f"SHOW INDEXES FROM {config.STABLE_NAME} FROM {config.DB_NAME}")
         desc = [d[0].lower() for d in cursor.description]
         try:
             name_pos = next(i for i, c in enumerate(desc) if c == "index_name")
         except StopIteration:
             name_pos = 2  # documented position fallback
 
+        snap_positions = {
+            col: i for i, col in enumerate(desc)
+            if col in self._INDEX_SNAP_FIELDS
+        }
+
         target = {config.TAG_INDEX_LOCATION}
         return {
-            row[name_pos]: tuple(row)
+            row[name_pos]: {field: str(row[pos]) for field, pos in snap_positions.items()}
             for row in cursor.fetchall()
             if row[name_pos] in target
         }
@@ -435,14 +465,14 @@ class ResourceManager:
             dict[str, tuple]: index_name → row tuple (positional)
         """
         self.logger.info("Creating tag indexes on stable 'meters' ...")
-        conn   = _make_conn(self.fqdn, self.cfg_dir)
+        conn   = _make_conn(self.fqdn, self.cfg_dir, self.logger)
         cursor = conn.cursor()
         try:
-            cursor.execute(f"USE {config.DB_NAME}")
-            cursor.execute(
-                f"CREATE INDEX {config.TAG_INDEX_LOCATION} "
-                f"ON {config.STABLE_NAME} (location)"
-            )
+            _exec(cursor, f"USE {config.DB_NAME}", logger=self.logger)
+            _exec(cursor,
+                  f"CREATE INDEX {config.TAG_INDEX_LOCATION} "
+                  f"ON {config.STABLE_NAME} (location)",
+                  logger=self.logger)
 
             snapshot = self._show_index_snapshot(cursor)
             self.logger.success(
@@ -457,35 +487,36 @@ class ResourceManager:
     def verify_tag_indexes(self, snapshot: dict) -> tuple:
         """
         Re-query indexes via ``SHOW INDEXES`` after upgrade and compare
-        against *snapshot* (positional row tuples from Phase 2).
+        semantic fields against *snapshot* captured in Phase 2.
 
-        Rows are compared positionally up to the length of the baseline tuple
-        so that harmlessly added trailing columns do not cause false failures.
+        Only the fields in _INDEX_SNAP_FIELDS are compared; volatile metadata
+        such as create_time and internal IDs are ignored.
 
         Returns:
-            (True,  summary_str)  – all indexes present and values unchanged
+            (True,  summary_str)  – all indexes present and fields unchanged
             (False, error_str)    – one or more indexes missing or differ
         """
         if not snapshot:
             return False, "baseline snapshot is empty – Phase 2 did not capture indexes"
 
-        conn   = _make_conn(self.fqdn, self.cfg_dir)
+        conn   = _make_conn(self.fqdn, self.cfg_dir, self.logger)
         cursor = conn.cursor()
         try:
             current = self._show_index_snapshot(cursor)
 
             errors = []
-            for name, expected_row in sorted(snapshot.items()):
+            for name, expected in sorted(snapshot.items()):
                 if name not in current:
                     errors.append(f"index '{name}' missing after upgrade")
                     continue
-                got_row = current[name]
-                n = len(expected_row)  # compare only baseline columns
-                if tuple(got_row[:n]) != tuple(expected_row[:n]):
-                    errors.append(
-                        f"index '{name}' values changed: "
-                        f"expected {expected_row[:n]} got {got_row[:n]}"
-                    )
+                got = current[name]
+                for field, exp_val in expected.items():
+                    got_val = got.get(field)
+                    if str(exp_val) != str(got_val):
+                        errors.append(
+                            f"index '{name}' field '{field}' changed: "
+                            f"{exp_val!r} → {got_val!r}"
+                        )
 
             if errors:
                 return False, "; ".join(errors)
@@ -513,7 +544,7 @@ class ResourceManager:
         named TSMA, or None if not found.  Column positions resolved
         dynamically via cursor.description.
         """
-        cursor.execute(f"SHOW {config.DB_NAME}.TSMAS")
+        _exec(cursor, f"SHOW {config.DB_NAME}.TSMAS")
         desc = [d[0].lower() for d in cursor.description]
         try:
             name_pos = next(i for i, c in enumerate(desc) if c == "tsma_name")
@@ -541,7 +572,7 @@ class ResourceManager:
         self.logger.info(
             f"Creating TSMA '{config.TSMA_NAME}' on stable '{config.STABLE_NAME}' ..."
         )
-        conn   = _make_conn(self.fqdn, self.cfg_dir)
+        conn   = _make_conn(self.fqdn, self.cfg_dir, self.logger)
         cursor = conn.cursor()
         try:
             _exec(cursor, f"USE {config.DB_NAME}", logger=self.logger)
@@ -593,7 +624,7 @@ class ResourceManager:
         if not snapshot:
             return False, "baseline snapshot is empty – Phase 2 did not capture TSMA"
 
-        conn   = _make_conn(self.fqdn, self.cfg_dir)
+        conn   = _make_conn(self.fqdn, self.cfg_dir, self.logger)
         cursor = conn.cursor()
         try:
             errors = []
@@ -637,7 +668,7 @@ class ResourceManager:
         named RSMA, or None if not found.  Column positions are resolved
         dynamically via cursor.description so renames don't break the check.
         """
-        cursor.execute(f"SHOW {config.DB_NAME}.RSMAS")
+        _exec(cursor, f"SHOW {config.DB_NAME}.RSMAS")
         desc = [d[0].lower() for d in cursor.description]
         try:
             name_pos = next(i for i, c in enumerate(desc) if c == "rsma_name")
@@ -665,7 +696,7 @@ class ResourceManager:
         self.logger.info(
             f"Creating RSMA '{config.RSMA_NAME}' on stable '{config.STABLE_NAME}' ..."
         )
-        conn   = _make_conn(self.fqdn, self.cfg_dir)
+        conn   = _make_conn(self.fqdn, self.cfg_dir, self.logger)
         cursor = conn.cursor()
         try:
             _exec(cursor, f"USE {config.DB_NAME}", logger=self.logger)
@@ -709,7 +740,7 @@ class ResourceManager:
         if not snapshot:
             return False, "baseline snapshot is empty – Phase 2 did not capture RSMA"
 
-        conn   = _make_conn(self.fqdn, self.cfg_dir)
+        conn   = _make_conn(self.fqdn, self.cfg_dir, self.logger)
         cursor = conn.cursor()
         try:
             errors = []
@@ -752,7 +783,7 @@ class ResourceManager:
         Run ``SHOW {db}.STREAMS``, return a dict of snapshot fields for the
         named stream, or None if not found.
         """
-        cursor.execute(f"SHOW {config.DB_NAME}.STREAMS")
+        _exec(cursor, f"SHOW {config.DB_NAME}.STREAMS")
         desc = [d[0].lower() for d in cursor.description]
         try:
             name_pos = next(i for i, c in enumerate(desc) if c == "stream_name")
@@ -780,7 +811,7 @@ class ResourceManager:
         self.logger.info(
             f"Creating Stream '{config.STREAM_NAME}' on stable '{config.STABLE_NAME}' ..."
         )
-        conn   = _make_conn(self.fqdn, self.cfg_dir)
+        conn   = _make_conn(self.fqdn, self.cfg_dir, self.logger)
         cursor = conn.cursor()
         try:
             # Snode already exists from create_tsma; streams need it too.
@@ -843,7 +874,7 @@ class ResourceManager:
         if not snapshot:
             return False, "baseline snapshot is empty – Phase 2 did not capture stream"
 
-        conn   = _make_conn(self.fqdn, self.cfg_dir)
+        conn   = _make_conn(self.fqdn, self.cfg_dir, self.logger)
         cursor = conn.cursor()
         try:
             errors = []
@@ -868,16 +899,16 @@ class ResourceManager:
 
     def verify_resources(self) -> bool:
         """Quick sanity check: stable + subtables + topic exist."""
-        conn   = _make_conn(self.fqdn, self.cfg_dir)
+        conn   = _make_conn(self.fqdn, self.cfg_dir, self.logger)
         cursor = conn.cursor()
         ok     = True
         try:
-            cursor.execute(f"USE {config.DB_NAME}")
+            _exec(cursor, f"USE {config.DB_NAME}", logger=self.logger)
 
-            cursor.execute(
-                f"SELECT COUNT(*) FROM information_schema.ins_tables "
-                f"WHERE db_name='{config.DB_NAME}' AND stable_name='{config.STABLE_NAME}'"
-            )
+            _exec(cursor,
+                  f"SELECT COUNT(*) FROM information_schema.ins_tables "
+                  f"WHERE db_name='{config.DB_NAME}' AND stable_name='{config.STABLE_NAME}'",
+                  logger=self.logger)
             row   = cursor.fetchone()
             count = row[0] if row else 0
             if count < config.SUBTABLE_COUNT:
@@ -888,10 +919,10 @@ class ResourceManager:
             else:
                 self.logger.info(f"  Subtables: {count} ✓")
 
-            cursor.execute(
-                f"SELECT topic_name FROM information_schema.ins_topics "
-                f"WHERE topic_name='{config.TOPIC_NAME}'"
-            )
+            _exec(cursor,
+                  f"SELECT topic_name FROM information_schema.ins_topics "
+                  f"WHERE topic_name='{config.TOPIC_NAME}'",
+                  logger=self.logger)
             if not cursor.fetchone():
                 self.logger.error(f"Topic '{config.TOPIC_NAME}' not found")
                 ok = False

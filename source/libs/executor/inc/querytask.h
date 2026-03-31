@@ -98,6 +98,7 @@ struct SExecTaskInfo {
   bool                  paramSet;
   SQueryAutoQWorkerPoolCB* pWorkerCb;
   SStreamRuntimeInfo*      pStreamRuntimeInfo;
+  bool                     ownStreamRtInfo;
   STaskSubJobCtx*          pSubJobCtx;
   bool                     enableExplain;     // enable explain flag
 };

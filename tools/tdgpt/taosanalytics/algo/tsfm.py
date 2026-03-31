@@ -38,8 +38,8 @@ class TsfmBaseService(AbstractForecastService):
         try:
             response = requests.post(self.service_host, data=json.dumps(data), headers=self.headers)
         except Exception as e:
-            app_logger.log_inst.error(f"failed to connect the service: {self.service_host} ", str(e))
-            raise e
+            app_logger.log_inst.error(f"failed to connect the service: {self.service_host} {e}")
+            raise
 
         if response.status_code == 404:
             app_logger.log_inst.error(f"failed to connect the service: {self.service_host} ")

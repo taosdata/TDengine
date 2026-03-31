@@ -2842,7 +2842,7 @@ QUERY_PLAN:                Output: columns=2 width=12
 QUERY_PLAN:                Network: mode=concurrent  fetch_rows=10 
 *************************** 19.row ***************************
 *************************** 20.row ***************************
-QUERY_PLAN:             -> Table Merge Scan on meters ( rows=10 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:             -> Table Merge Scan on meters ( rows=20 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 21.row ***************************
 QUERY_PLAN:                   Output: columns=2 width=12
 *************************** 22.row ***************************
@@ -2862,7 +2862,7 @@ QUERY_PLAN:                Output: columns=2 width=12
 QUERY_PLAN:                Network: mode=concurrent  fetch_rows=10 
 *************************** 30.row ***************************
 *************************** 31.row ***************************
-QUERY_PLAN:             -> Table Merge Scan on meters ( rows=10 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:             -> Table Merge Scan on meters ( rows=20 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 32.row ***************************
 QUERY_PLAN:                   Output: columns=2 width=12
 *************************** 33.row ***************************
@@ -2893,7 +2893,7 @@ QUERY_PLAN:                Output: columns=2 width=12
 QUERY_PLAN:                Network: mode=concurrent  fetch_rows=10 
 *************************** 47.row ***************************
 *************************** 48.row ***************************
-QUERY_PLAN:             -> Table Merge Scan on meters ( rows=10 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:             -> Table Merge Scan on meters ( rows=20 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 49.row ***************************
 QUERY_PLAN:                   Output: columns=2 width=12
 *************************** 50.row ***************************
@@ -2913,7 +2913,7 @@ QUERY_PLAN:                Output: columns=2 width=12
 QUERY_PLAN:                Network: mode=concurrent  fetch_rows=10 
 *************************** 58.row ***************************
 *************************** 59.row ***************************
-QUERY_PLAN:             -> Table Merge Scan on meters ( rows=10 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:             -> Table Merge Scan on meters ( rows=20 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 60.row ***************************
 QUERY_PLAN:                   Output: columns=2 width=12
 *************************** 61.row ***************************
@@ -2966,7 +2966,7 @@ QUERY_PLAN:                Output: columns=2 width=12
 QUERY_PLAN:                Network: mode=concurrent  fetch_rows=10 
 *************************** 19.row ***************************
 *************************** 20.row ***************************
-QUERY_PLAN:             -> Table Merge Scan on meters ( rows=10 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:             -> Table Merge Scan on meters ( rows=20 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 21.row ***************************
 QUERY_PLAN:                   Output: columns=2 width=12
 *************************** 22.row ***************************
@@ -2986,7 +2986,7 @@ QUERY_PLAN:                Output: columns=2 width=12
 QUERY_PLAN:                Network: mode=concurrent  fetch_rows=10 
 *************************** 30.row ***************************
 *************************** 31.row ***************************
-QUERY_PLAN:             -> Table Merge Scan on meters ( rows=10 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:             -> Table Merge Scan on meters ( rows=20 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 32.row ***************************
 QUERY_PLAN:                   Output: columns=2 width=12
 *************************** 33.row ***************************
@@ -3017,7 +3017,7 @@ QUERY_PLAN:                Output: columns=2 width=12
 QUERY_PLAN:                Network: mode=concurrent  fetch_rows=10 
 *************************** 47.row ***************************
 *************************** 48.row ***************************
-QUERY_PLAN:             -> Table Merge Scan on meters ( rows=10 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:             -> Table Merge Scan on meters ( rows=20 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 49.row ***************************
 QUERY_PLAN:                   Output: columns=2 width=12
 *************************** 50.row ***************************
@@ -3037,7 +3037,7 @@ QUERY_PLAN:                Output: columns=2 width=12
 QUERY_PLAN:                Network: mode=concurrent  fetch_rows=10 
 *************************** 58.row ***************************
 *************************** 59.row ***************************
-QUERY_PLAN:             -> Table Merge Scan on meters ( rows=10 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:             -> Table Merge Scan on meters ( rows=20 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 60.row ***************************
 QUERY_PLAN:                   Output: columns=2 width=12
 *************************** 61.row ***************************
@@ -3090,7 +3090,7 @@ QUERY_PLAN:                Output: columns=2 width=12
 QUERY_PLAN:                Network: mode=concurrent  fetch_rows=10 
 *************************** 19.row ***************************
 *************************** 20.row ***************************
-QUERY_PLAN:             -> Table Merge Scan on meters ( rows=10 columns=2 width=12 order=[asc|0 desc|1] mode=ts_order data_load=data)
+QUERY_PLAN:             -> Table Merge Scan on meters ( rows=20 columns=2 width=12 order=[asc|0 desc|1] mode=ts_order data_load=data)
 *************************** 21.row ***************************
 QUERY_PLAN:                   Output: columns=2 width=12
 *************************** 22.row ***************************
@@ -3110,7 +3110,7 @@ QUERY_PLAN:                Output: columns=2 width=12
 QUERY_PLAN:                Network: mode=concurrent  fetch_rows=10 
 *************************** 30.row ***************************
 *************************** 31.row ***************************
-QUERY_PLAN:             -> Table Merge Scan on meters ( rows=10 columns=2 width=12 order=[asc|0 desc|1] mode=ts_order data_load=data)
+QUERY_PLAN:             -> Table Merge Scan on meters ( rows=20 columns=2 width=12 order=[asc|0 desc|1] mode=ts_order data_load=data)
 *************************** 32.row ***************************
 QUERY_PLAN:                   Output: columns=2 width=12
 *************************** 33.row ***************************
@@ -3141,7 +3141,7 @@ QUERY_PLAN:                Output: columns=2 width=12
 QUERY_PLAN:                Network: mode=concurrent  fetch_rows=10 
 *************************** 47.row ***************************
 *************************** 48.row ***************************
-QUERY_PLAN:             -> Table Merge Scan on meters ( rows=10 columns=2 width=12 order=[asc|0 desc|1] mode=ts_order data_load=data)
+QUERY_PLAN:             -> Table Merge Scan on meters ( rows=20 columns=2 width=12 order=[asc|0 desc|1] mode=ts_order data_load=data)
 *************************** 49.row ***************************
 QUERY_PLAN:                   Output: columns=2 width=12
 *************************** 50.row ***************************
@@ -3161,7 +3161,7 @@ QUERY_PLAN:                Output: columns=2 width=12
 QUERY_PLAN:                Network: mode=concurrent  fetch_rows=10 
 *************************** 58.row ***************************
 *************************** 59.row ***************************
-QUERY_PLAN:             -> Table Merge Scan on meters ( rows=10 columns=2 width=12 order=[asc|0 desc|1] mode=ts_order data_load=data)
+QUERY_PLAN:             -> Table Merge Scan on meters ( rows=20 columns=2 width=12 order=[asc|0 desc|1] mode=ts_order data_load=data)
 *************************** 60.row ***************************
 QUERY_PLAN:                   Output: columns=2 width=12
 *************************** 61.row ***************************
@@ -3214,7 +3214,7 @@ QUERY_PLAN:                Output: columns=2 width=12
 QUERY_PLAN:                Network: mode=concurrent  fetch_rows=10 
 *************************** 19.row ***************************
 *************************** 20.row ***************************
-QUERY_PLAN:             -> Table Merge Scan on meters ( rows=10 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:             -> Table Merge Scan on meters ( rows=20 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 21.row ***************************
 QUERY_PLAN:                   Output: columns=2 width=12
 *************************** 22.row ***************************
@@ -3234,7 +3234,7 @@ QUERY_PLAN:                Output: columns=2 width=12
 QUERY_PLAN:                Network: mode=concurrent  fetch_rows=10 
 *************************** 30.row ***************************
 *************************** 31.row ***************************
-QUERY_PLAN:             -> Table Merge Scan on meters ( rows=10 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:             -> Table Merge Scan on meters ( rows=20 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 32.row ***************************
 QUERY_PLAN:                   Output: columns=2 width=12
 *************************** 33.row ***************************
@@ -3265,7 +3265,7 @@ QUERY_PLAN:                Output: columns=2 width=12
 QUERY_PLAN:                Network: mode=concurrent  fetch_rows=10 
 *************************** 47.row ***************************
 *************************** 48.row ***************************
-QUERY_PLAN:             -> Table Merge Scan on meters ( rows=10 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:             -> Table Merge Scan on meters ( rows=20 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 49.row ***************************
 QUERY_PLAN:                   Output: columns=2 width=12
 *************************** 50.row ***************************
@@ -3285,7 +3285,7 @@ QUERY_PLAN:                Output: columns=2 width=12
 QUERY_PLAN:                Network: mode=concurrent  fetch_rows=10 
 *************************** 58.row ***************************
 *************************** 59.row ***************************
-QUERY_PLAN:             -> Table Merge Scan on meters ( rows=10 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:             -> Table Merge Scan on meters ( rows=20 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 60.row ***************************
 QUERY_PLAN:                   Output: columns=2 width=12
 *************************** 61.row ***************************
@@ -3344,7 +3344,7 @@ QUERY_PLAN:             Output: columns=1 width=8
 QUERY_PLAN:             Network: mode=concurrent  fetch_rows=10 
 *************************** 14.row ***************************
 *************************** 15.row ***************************
-QUERY_PLAN:          -> Table Merge Scan on meters ( rows=10 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:          -> Table Merge Scan on meters ( rows=20 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 16.row ***************************
 QUERY_PLAN:                Output: columns=1 width=8
 *************************** 17.row ***************************
@@ -3364,7 +3364,7 @@ QUERY_PLAN:             Output: columns=1 width=8
 QUERY_PLAN:             Network: mode=concurrent  fetch_rows=10 
 *************************** 25.row ***************************
 *************************** 26.row ***************************
-QUERY_PLAN:          -> Table Merge Scan on meters ( rows=10 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:          -> Table Merge Scan on meters ( rows=20 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 27.row ***************************
 QUERY_PLAN:                Output: columns=1 width=8
 *************************** 28.row ***************************
@@ -3417,7 +3417,7 @@ QUERY_PLAN:                Output: columns=1 width=8
 QUERY_PLAN:                Network: mode=concurrent  fetch_rows=10 
 *************************** 19.row ***************************
 *************************** 20.row ***************************
-QUERY_PLAN:             -> Table Merge Scan on meters ( rows=10 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:             -> Table Merge Scan on meters ( rows=20 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 21.row ***************************
 QUERY_PLAN:                   Output: columns=1 width=8
 *************************** 22.row ***************************
@@ -3437,7 +3437,7 @@ QUERY_PLAN:                Output: columns=1 width=8
 QUERY_PLAN:                Network: mode=concurrent  fetch_rows=10 
 *************************** 30.row ***************************
 *************************** 31.row ***************************
-QUERY_PLAN:             -> Table Merge Scan on meters ( rows=10 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:             -> Table Merge Scan on meters ( rows=20 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 32.row ***************************
 QUERY_PLAN:                   Output: columns=1 width=8
 *************************** 33.row ***************************
@@ -3481,7 +3481,7 @@ QUERY_PLAN:             Output: columns=1 width=8
 QUERY_PLAN:             Network: mode=concurrent  fetch_rows=10 
 *************************** 14.row ***************************
 *************************** 15.row ***************************
-QUERY_PLAN:          -> Table Merge Scan on meters ( rows=10 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:          -> Table Merge Scan on meters ( rows=20 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 16.row ***************************
 QUERY_PLAN:                Output: columns=1 width=8
 *************************** 17.row ***************************
@@ -3501,7 +3501,7 @@ QUERY_PLAN:             Output: columns=1 width=8
 QUERY_PLAN:             Network: mode=concurrent  fetch_rows=10 
 *************************** 25.row ***************************
 *************************** 26.row ***************************
-QUERY_PLAN:          -> Table Merge Scan on meters ( rows=10 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:          -> Table Merge Scan on meters ( rows=20 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 27.row ***************************
 QUERY_PLAN:                Output: columns=1 width=8
 *************************** 28.row ***************************
@@ -3554,7 +3554,7 @@ QUERY_PLAN:                Output: columns=1 width=8
 QUERY_PLAN:                Network: mode=concurrent  fetch_rows=10 
 *************************** 19.row ***************************
 *************************** 20.row ***************************
-QUERY_PLAN:             -> Table Merge Scan on meters ( rows=10 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:             -> Table Merge Scan on meters ( rows=20 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 21.row ***************************
 QUERY_PLAN:                   Output: columns=1 width=8
 *************************** 22.row ***************************
@@ -3574,7 +3574,7 @@ QUERY_PLAN:                Output: columns=1 width=8
 QUERY_PLAN:                Network: mode=concurrent  fetch_rows=10 
 *************************** 30.row ***************************
 *************************** 31.row ***************************
-QUERY_PLAN:             -> Table Merge Scan on meters ( rows=10 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:             -> Table Merge Scan on meters ( rows=20 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 32.row ***************************
 QUERY_PLAN:                   Output: columns=1 width=8
 *************************** 33.row ***************************
@@ -3618,7 +3618,7 @@ QUERY_PLAN:             Output: columns=1 width=8
 QUERY_PLAN:             Network: mode=concurrent  fetch_rows=10 
 *************************** 14.row ***************************
 *************************** 15.row ***************************
-QUERY_PLAN:          -> Table Merge Scan on meters ( rows=10 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:          -> Table Merge Scan on meters ( rows=20 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 16.row ***************************
 QUERY_PLAN:                Output: columns=1 width=8
 *************************** 17.row ***************************
@@ -3638,7 +3638,7 @@ QUERY_PLAN:             Output: columns=1 width=8
 QUERY_PLAN:             Network: mode=concurrent  fetch_rows=10 
 *************************** 25.row ***************************
 *************************** 26.row ***************************
-QUERY_PLAN:          -> Table Merge Scan on meters ( rows=10 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:          -> Table Merge Scan on meters ( rows=20 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 27.row ***************************
 QUERY_PLAN:                Output: columns=1 width=8
 *************************** 28.row ***************************

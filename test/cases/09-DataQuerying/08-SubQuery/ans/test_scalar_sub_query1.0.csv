@@ -16864,12 +16864,12 @@ DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select distinct (select 1), f1 from st1;
       (select 1)       |     f1      |
 ======================================
+                     1 |           5 |
+                     1 |           4 |
                      1 |           2 |
                      1 |           6 |
-                     1 |           5 |
                      1 |           1 |
                      1 |           3 |
-                     1 |           4 |
 
 taos> select distinct (select f1 from st1), f1 from st1;
 
@@ -16877,22 +16877,22 @@ DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select distinct (select f1 from st1 order by ts, f1 limit 1), f1 from st1;
  (select f1 from st1 order by ts, f1 limit 1) |     f1      |
 =============================================================
-                                            1 |           4 |
                                             1 |           3 |
-                                            1 |           5 |
-                                            1 |           1 |
-                                            1 |           6 |
                                             1 |           2 |
+                                            1 |           6 |
+                                            1 |           1 |
+                                            1 |           5 |
+                                            1 |           4 |
 
 taos> select distinct (select count(*) from st1), f1 from st1;
  (select count(*) from st1) |     f1      |
 ===========================================
-                          6 |           6 |
-                          6 |           5 |
-                          6 |           4 |
-                          6 |           3 |
-                          6 |           1 |
                           6 |           2 |
+                          6 |           4 |
+                          6 |           5 |
+                          6 |           1 |
+                          6 |           3 |
+                          6 |           6 |
 
 taos> select distinct (select null from st1), f1 from st1;
 
@@ -16906,12 +16906,12 @@ DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select distinct (select avg(f1) from st1), f1 from st1;
  (select avg(f1) from st1) |     f1      |
 ==========================================
-                       3.5 |           6 |
-                       3.5 |           2 |
-                       3.5 |           3 |
                        3.5 |           1 |
-                       3.5 |           4 |
+                       3.5 |           6 |
+                       3.5 |           3 |
                        3.5 |           5 |
+                       3.5 |           2 |
+                       3.5 |           4 |
 
 taos> select distinct (select last(*) from st1), f1 from st1;
 
@@ -17554,12 +17554,12 @@ DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select case when (select 1) > 0 then 1 else 2 end, sum(f1) from st1 group by f1;
  case when (select 1) > 0 then 1 else 2 end |        sum(f1)        |
 =====================================================================
-                                          1 |                     5 |
+                                          1 |                     6 |
                                           1 |                     1 |
+                                          1 |                     2 |
+                                          1 |                     5 |
                                           1 |                     3 |
                                           1 |                     4 |
-                                          1 |                     6 |
-                                          1 |                     2 |
 
 taos> select case when (select f1 from st1) > 0 then 1 else 2 end, sum(f1) from st1 group by f1;
 
@@ -17567,22 +17567,22 @@ DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select case when (select f1 from st1 order by ts, f1 limit 1) > 0 then 1 else 2 end, sum(f1) from st1 group by f1;
  case when (select f1 from st1 order by ts, f1 limit 1) > 0 then  |        sum(f1)        |
 ===========================================================================================
-                                                                1 |                     5 |
+                                                                1 |                     6 |
                                                                 1 |                     1 |
+                                                                1 |                     2 |
+                                                                1 |                     5 |
                                                                 1 |                     3 |
                                                                 1 |                     4 |
-                                                                1 |                     6 |
-                                                                1 |                     2 |
 
 taos> select case when (select count(*) from st1) > 0 then 1 else 2 end, sum(f1) from st1 group by f1;
  case when (select count(*) from st1) > 0 then 1 else 2 end |        sum(f1)        |
 =====================================================================================
-                                                          1 |                     5 |
+                                                          1 |                     6 |
                                                           1 |                     1 |
+                                                          1 |                     2 |
+                                                          1 |                     5 |
                                                           1 |                     3 |
                                                           1 |                     4 |
-                                                          1 |                     6 |
-                                                          1 |                     2 |
 
 taos> select case when (select null from st1) > 0 then 1 else 2 end, sum(f1) from st1 group by f1;
 
@@ -17596,12 +17596,12 @@ DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select case when (select avg(f1) from st1) > 0 then 1 else 2 end, sum(f1) from st1 group by f1;
  case when (select avg(f1) from st1) > 0 then 1 else 2 end |        sum(f1)        |
 ====================================================================================
-                                                         1 |                     5 |
+                                                         1 |                     6 |
                                                          1 |                     1 |
+                                                         1 |                     2 |
+                                                         1 |                     5 |
                                                          1 |                     3 |
                                                          1 |                     4 |
-                                                         1 |                     6 |
-                                                         1 |                     2 |
 
 taos> select case when (select last(*) from st1) > 0 then 1 else 2 end, sum(f1) from st1 group by f1;
 
@@ -17624,12 +17624,12 @@ DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select case when f1 = 1 then 2 / (select 1) else 2 end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 2 / (select 1) else 2 end |        sum(f1)        |
 ==========================================================================
- 2                                               |                     5 |
+ 2                                               |                     6 |
  2                                               |                     1 |
+ 2                                               |                     2 |
+ 2                                               |                     5 |
  2                                               |                     3 |
  2                                               |                     4 |
- 2                                               |                     6 |
- 2                                               |                     2 |
 
 taos> select case when f1 = 1 then 2 / (select f1 from st1) else 2 end, sum(f1) from st1 group by f1;
 
@@ -17637,22 +17637,22 @@ DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select case when f1 = 1 then 2 / (select f1 from st1 order by ts, f1 limit 1) else 2 end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 2 / (select f1 from st1 order by ts, f1 li |        sum(f1)        |
 ===========================================================================================
- 2                                                                |                     5 |
+ 2                                                                |                     6 |
  2                                                                |                     1 |
+ 2                                                                |                     2 |
+ 2                                                                |                     5 |
  2                                                                |                     3 |
  2                                                                |                     4 |
- 2                                                                |                     6 |
- 2                                                                |                     2 |
 
 taos> select case when f1 = 1 then 2 / (select count(*) from st1) else 2 end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 2 / (select count(*) from st1) else 2 end |        sum(f1)        |
 ==========================================================================================
- 2                                                               |                     5 |
+ 2                                                               |                     6 |
  0.333333333333333                                               |                     1 |
+ 2                                                               |                     2 |
+ 2                                                               |                     5 |
  2                                                               |                     3 |
  2                                                               |                     4 |
- 2                                                               |                     6 |
- 2                                                               |                     2 |
 
 taos> select case when f1 = 1 then 2 / (select null from st1) else 2 end, sum(f1) from st1 group by f1;
 
@@ -17666,12 +17666,12 @@ DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select case when f1 = 1 then 2 / (select avg(f1) from st1) else 2 end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 2 / (select avg(f1) from st1) else 2 end |        sum(f1)        |
 =========================================================================================
- 2                                                              |                     5 |
+ 2                                                              |                     6 |
  0.571428571428571                                              |                     1 |
+ 2                                                              |                     2 |
+ 2                                                              |                     5 |
  2                                                              |                     3 |
  2                                                              |                     4 |
- 2                                                              |                     6 |
- 2                                                              |                     2 |
 
 taos> select case when f1 = 1 then 2 / (select last(*) from st1) else 2 end, sum(f1) from st1 group by f1;
 
@@ -17694,12 +17694,12 @@ DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select case when f1 = 1 then 1 else (select 1) is null end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else (select 1) is null end |        sum(f1)        |
 ==============================================================================
-                                                   0 |                     5 |
+                                                   0 |                     6 |
                                                    1 |                     1 |
+                                                   0 |                     2 |
+                                                   0 |                     5 |
                                                    0 |                     3 |
                                                    0 |                     4 |
-                                                   0 |                     6 |
-                                                   0 |                     2 |
 
 taos> select case when f1 = 1 then 1 else (select f1 from st1) is null end, sum(f1) from st1 group by f1;
 
@@ -17707,22 +17707,22 @@ DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select case when f1 = 1 then 1 else (select f1 from st1 order by ts, f1 limit 1) is null end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else (select f1 from st1 order by ts, f1 |        sum(f1)        |
 ===========================================================================================
-                                                                0 |                     5 |
+                                                                0 |                     6 |
                                                                 1 |                     1 |
+                                                                0 |                     2 |
+                                                                0 |                     5 |
                                                                 0 |                     3 |
                                                                 0 |                     4 |
-                                                                0 |                     6 |
-                                                                0 |                     2 |
 
 taos> select case when f1 = 1 then 1 else (select count(*) from st1) is null end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else (select count(*) from st1) is null  |        sum(f1)        |
 ===========================================================================================
-                                                                0 |                     5 |
+                                                                0 |                     6 |
                                                                 1 |                     1 |
+                                                                0 |                     2 |
+                                                                0 |                     5 |
                                                                 0 |                     3 |
                                                                 0 |                     4 |
-                                                                0 |                     6 |
-                                                                0 |                     2 |
 
 taos> select case when f1 = 1 then 1 else (select null from st1) is null end, sum(f1) from st1 group by f1;
 
@@ -17736,12 +17736,12 @@ DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select case when f1 = 1 then 1 else (select avg(f1) from st1) is null end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else (select avg(f1) from st1) is null e |        sum(f1)        |
 ===========================================================================================
-                                                                0 |                     5 |
+                                                                0 |                     6 |
                                                                 1 |                     1 |
+                                                                0 |                     2 |
+                                                                0 |                     5 |
                                                                 0 |                     3 |
                                                                 0 |                     4 |
-                                                                0 |                     6 |
-                                                                0 |                     2 |
 
 taos> select case when f1 = 1 then 1 else (select last(*) from st1) is null end, sum(f1) from st1 group by f1;
 
@@ -18470,12 +18470,12 @@ DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select f1, (select 1) from st1 group by f1;
      f1      |      (select 1)       |
 ======================================
-           5 |                     1 |
+           6 |                     1 |
            1 |                     1 |
+           2 |                     1 |
+           5 |                     1 |
            3 |                     1 |
            4 |                     1 |
-           6 |                     1 |
-           2 |                     1 |
 
 taos> select f1, (select f1 from st1) from st1 group by f1;
 
@@ -18483,22 +18483,22 @@ DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select f1, (select f1 from st1 order by ts, f1 limit 1) from st1 group by f1;
      f1      | (select f1 from st1 order by ts, f1 limit 1) |
 =============================================================
-           5 |                                            1 |
+           6 |                                            1 |
            1 |                                            1 |
+           2 |                                            1 |
+           5 |                                            1 |
            3 |                                            1 |
            4 |                                            1 |
-           6 |                                            1 |
-           2 |                                            1 |
 
 taos> select f1, (select count(*) from st1) from st1 group by f1;
      f1      | (select count(*) from st1) |
 ===========================================
-           5 |                          6 |
+           6 |                          6 |
            1 |                          6 |
+           2 |                          6 |
+           5 |                          6 |
            3 |                          6 |
            4 |                          6 |
-           6 |                          6 |
-           2 |                          6 |
 
 taos> select f1, (select null from st1) from st1 group by f1;
 
@@ -18512,12 +18512,12 @@ DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select f1, (select avg(f1) from st1) from st1 group by f1;
      f1      | (select avg(f1) from st1) |
 ==========================================
-           5 |                       3.5 |
+           6 |                       3.5 |
            1 |                       3.5 |
+           2 |                       3.5 |
+           5 |                       3.5 |
            3 |                       3.5 |
            4 |                       3.5 |
-           6 |                       3.5 |
-           2 |                       3.5 |
 
 taos> select f1, (select last(*) from st1) from st1 group by f1;
 
@@ -18540,12 +18540,12 @@ DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select f1, (select 1), avg((select 1)) from st1 group by f1;
      f1      |      (select 1)       |      avg((select 1))      |
 ==================================================================
-           5 |                     1 |                         1 |
+           6 |                     1 |                         1 |
            1 |                     1 |                         1 |
+           2 |                     1 |                         1 |
+           5 |                     1 |                         1 |
            3 |                     1 |                         1 |
            4 |                     1 |                         1 |
-           6 |                     1 |                         1 |
-           2 |                     1 |                         1 |
 
 taos> select f1, (select f1 from st1), avg((select f1 from st1)) from st1 group by f1;
 
@@ -18553,22 +18553,22 @@ DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select f1, (select f1 from st1 order by ts, f1 limit 1), avg((select f1 from st1 order by ts, f1 limit 1)) from st1 group by f1;
      f1      | (select f1 from st1 order by ts, f1 limit 1) | avg((select f1 from st1 order by ts, f1 limit 1)) |
 =================================================================================================================
-           5 |                                            1 |                                                 1 |
+           6 |                                            1 |                                                 1 |
            1 |                                            1 |                                                 1 |
+           2 |                                            1 |                                                 1 |
+           5 |                                            1 |                                                 1 |
            3 |                                            1 |                                                 1 |
            4 |                                            1 |                                                 1 |
-           6 |                                            1 |                                                 1 |
-           2 |                                            1 |                                                 1 |
 
 taos> select f1, (select count(*) from st1), avg((select count(*) from st1)) from st1 group by f1;
      f1      | (select count(*) from st1) | avg((select count(*) from st1)) |
 =============================================================================
-           5 |                          6 |                               6 |
+           6 |                          6 |                               6 |
            1 |                          6 |                               6 |
+           2 |                          6 |                               6 |
+           5 |                          6 |                               6 |
            3 |                          6 |                               6 |
            4 |                          6 |                               6 |
-           6 |                          6 |                               6 |
-           2 |                          6 |                               6 |
 
 taos> select f1, (select null from st1), avg((select null from st1)) from st1 group by f1;
 
@@ -18582,12 +18582,12 @@ DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select f1, (select avg(f1) from st1), avg((select avg(f1) from st1)) from st1 group by f1;
      f1      | (select avg(f1) from st1) | avg((select avg(f1) from st1)) |
 ===========================================================================
-           5 |                       3.5 |                            3.5 |
+           6 |                       3.5 |                            3.5 |
            1 |                       3.5 |                            3.5 |
+           2 |                       3.5 |                            3.5 |
+           5 |                       3.5 |                            3.5 |
            3 |                       3.5 |                            3.5 |
            4 |                       3.5 |                            3.5 |
-           6 |                       3.5 |                            3.5 |
-           2 |                       3.5 |                            3.5 |
 
 taos> select f1, (select last(*) from st1), avg((select last(*) from st1)) from st1 group by f1;
 
