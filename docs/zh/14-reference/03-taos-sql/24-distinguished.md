@@ -49,6 +49,7 @@ window_clause: {
     SESSION(ts_col, tol_val)
   | STATE_WINDOW(expr[, extend[, zeroth_state]]) [TRUE_FOR(true_for_expr)]
   | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [fill_clause]
+  | EXTERNAL_WINDOW ((subquery) window_alias) [fill_clause]
   | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition [TRUE_FOR(true_for_expr)]
   | COUNT_WINDOW(count_val[, sliding_val][, col_name ...])
   | EXTERNAL_WINDOW ((subquery) window_alias)
@@ -340,6 +341,7 @@ FROM table_name
 EXTERNAL_WINDOW (
     (subquery_that_defines_windows) window_alias
 )
+[FILL(fill_mode_and_val)]
 [HAVING condition]
 [ORDER BY ...]
 ```
@@ -431,6 +433,50 @@ ORDER BY w.groupid, event_start_time;
 - `w.groupid`、`w.location`：窗口属性列，来自子查询中的标签列，用于展示分组信息。
 - `HAVING` 条件使用聚合函数 (`COUNT`) 过滤出至少有一条告警的窗口。
 - `PARTITION BY` 对齐：内外查询均按 `groupid` 分组，确保每组电表的告警只与该组的异常窗口匹配。
+
+#### 空窗口的 FILL
+
+EXTERNAL_WINDOW 支持使用 `FILL` 控制空窗口的输出行为。默认情况下，如果某个窗口在外层查询表中没有匹配到任何数据行，该窗口不会产出结果行。增加 `FILL` 后，可以保留该窗口，并按指定模式填充聚合列。
+
+EXTERNAL_WINDOW 支持的模式如下：
+
+| 模式 | 行为 |
+|:----:|:-----|
+| `NONE` | 默认行为，空窗口不产出结果行 |
+| `NULL` | 空窗口产出一行，聚合列填充为 `NULL`；若整个查询范围内都没有数据，则不产出 |
+| `NULL_F` | 与 `NULL` 类似，但即使整个查询范围内都没有数据，也会产出空窗口行 |
+| `VALUE` | 空窗口产出一行，聚合列填充为用户指定值；若整个查询范围内都没有数据，则不产出 |
+| `VALUE_F` | 与 `VALUE` 类似，但即使整个查询范围内都没有数据，也会产出空窗口行 |
+| `PREV` | 空窗口使用前一个非空窗口的聚合结果填充；若无前值则填充为 `NULL` |
+| `NEXT` | 空窗口使用后一个非空窗口的聚合结果填充；若无后值则填充为 `NULL` |
+
+EXTERNAL_WINDOW 暂不支持 `LINEAR`、`NEAR`、`SURROUND`。
+
+`FILL` 的执行先于 `HAVING`，因此填充生成的结果行也会参与 `HAVING` 过滤。
+
+关于 FILL 子句的通用语法请参考 [FILL 子句](./20-select.md#fill-子句)。
+
+示例：
+
+```sql
+SELECT _wstart, AVG(voltage) AS avg_vol, COUNT(*) AS cnt
+FROM meters
+EXTERNAL_WINDOW (
+    (SELECT '2022-01-01 00:00:00'::TIMESTAMP,
+       '2022-01-01 00:01:00'::TIMESTAMP
+     UNION ALL
+     SELECT '2022-01-01 00:01:00'::TIMESTAMP,
+       '2022-01-01 00:02:00'::TIMESTAMP
+     UNION ALL
+     SELECT '2022-01-01 00:02:00'::TIMESTAMP,
+       '2022-01-01 00:03:00'::TIMESTAMP
+    ) w
+)
+FILL(VALUE, 0, 0)
+ORDER BY _wstart;
+```
+
+上面的 SQL 定义了 3 个一分钟的外部窗口。如果某个窗口内没有 `meters` 表的数据，则 `avg_vol` 和 `cnt` 都会被填充为 `0`。
 
 #### 约束与限制
 

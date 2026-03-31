@@ -812,6 +812,10 @@ SExprInfo*   createExpr(SNodeList* pNodeList, int32_t* numOfExprs);
 int32_t copyResultrowToDataBlock(SExprInfo* pExprInfo, int32_t numOfExprs, SResultRow* pRow, SqlFunctionCtx* pCtx,
                                  SSDataBlock* pBlock, const int32_t* rowEntryOffset, SExecTaskInfo* pTaskInfo);
 void doUpdateNumOfRows(SqlFunctionCtx* pCtx, SResultRow* pRow, int32_t numOfExprs, const int32_t* rowEntryOffset);
+bool resultRowGetGroupKeyResult(const SResultRow* pRow, int32_t index, const int32_t* rowEntryOffset,
+                                const void** ppData, bool* pIsNull);
+bool resultRowCopyGroupKeyResult(SResultRow* pDstRow, int32_t dstIndex, const SResultRow* pSrcRow, int32_t srcIndex,
+                                 const int32_t* rowEntryOffset, int32_t interBufSize);
 
 void    streamOpReleaseState(struct SOperatorInfo* pOperator);
 void    streamOpReloadState(struct SOperatorInfo* pOperator);

@@ -2691,7 +2691,7 @@ anomaly_col_list(A) ::= expr_or_subquery(B).                                    
 anomaly_col_list(A) ::= anomaly_col_list(B) NK_COMMA expr_or_subquery(C).         { A = addNodeToList(pCxt, B, releaseRawExprNode(pCxt, C)); }
 /* External window treated as a special time window clause */
 twindow_clause_opt(A) ::= 
-  EXTERNAL_WINDOW NK_LP subquery(B) table_alias(C) external_window_fill_opt(D) NK_RP. {
+  EXTERNAL_WINDOW NK_LP subquery(B) table_alias(C) NK_RP fill_opt(D). {
                                                                                     A = createExternalWindowClause(pCxt, releaseRawExprNode(pCxt, B), &C, D);
                                                                                   }
 
@@ -2748,13 +2748,6 @@ surround_opt(A) ::= .                                                           
 surround_opt(A) ::= SURROUND NK_LP duration_literal(B) NK_RP.                     { A = createSurroundNode(pCxt, releaseRawExprNode(pCxt, B), NULL); }
 surround_opt(A) ::=
   SURROUND NK_LP duration_literal(B) NK_COMMA expression_list(C) NK_RP.           { A = createSurroundNode(pCxt, releaseRawExprNode(pCxt, B), createNodeListNode(pCxt, C)); }
-
-/* External window clause syntax was folded into twindow_clause_opt */
-
-%type external_window_fill_opt                                                      { SNode* }
-%destructor external_window_fill_opt                                                { nodesDestroyNode($$); }
-external_window_fill_opt(A) ::= .                                                   { A = NULL; }
-external_window_fill_opt(A) ::= FILL NK_LP fill_mode(B) NK_RP.                      { A = createFillNode(pCxt, B, NULL); }
 
 count_window_args(A) ::= NK_INTEGER(B).                                           { A = createCountWindowArgs(pCxt, &B, NULL, NULL); }
 count_window_args(A) ::= NK_INTEGER(B) NK_COMMA NK_INTEGER(C).                    { A = createCountWindowArgs(pCxt, &B, &C, NULL); }

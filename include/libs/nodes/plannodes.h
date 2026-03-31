@@ -343,6 +343,12 @@ typedef enum EWindowAlgorithm {
   EXTERNAL_ALGO_MERGE,
 } EWindowAlgorithm;
 
+typedef struct SExtWindowFillInfo {
+  EFillMode  mode;
+  SNodeList* pFillExprs;
+  SNode*     pFillValues;
+} SExtWindowFillInfo;
+
 #define WINDOW_PART_HAS  0x01
 #define WINDOW_PART_TB   0x02
 
@@ -387,6 +393,7 @@ typedef struct SWindowLogicNode {
   bool                  extWinSplit;
   bool                  needGroupSort;
   bool                  calcWithPartition;
+  SExtWindowFillInfo    extFill;
   int32_t               orgTableVgId;
   tb_uid_t              orgTableUid;
 
@@ -868,6 +875,7 @@ typedef struct SExternalWindowPhysiNode {
   bool             extWinSplit;
   bool             needGroupSort;
   bool             calcWithPartition;
+  SExtWindowFillInfo extFill;
   int32_t          orgTableVgId; // for vtable window query
   tb_uid_t         orgTableUid;  // for vtable window query
   SNode*           pSubquery;

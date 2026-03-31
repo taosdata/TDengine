@@ -1,0 +1,106 @@
+
+taos> use test_interval_fill_matrix;
+Database changed.
+
+taos> select cast(_wstart as bigint) as ws, count(*) as cv from meters_np where ts >= 1701500000000 and ts <= 1701500240000 interval(1m) order by ws;
+          ws           |          cv           |
+================================================
+         1701500040000 |                     1 |
+         1701500160000 |                     1 |
+
+taos> select cast(_wstart as bigint) as ws, count(*) as cv from meters_np where ts >= 1701500000000 and ts <= 1701500240000 interval(1m) fill(none) order by ws;
+          ws           |          cv           |
+================================================
+         1701500040000 |                     1 |
+         1701500160000 |                     1 |
+
+taos> select cast(_wstart as bigint) as ws, count(*) as cv from meters_np where ts >= 1701500000000 and ts <= 1701500240000 interval(1m) fill(null) order by ws;
+          ws           |          cv           |
+================================================
+         1701499980000 | NULL                  |
+         1701500040000 |                     1 |
+         1701500100000 | NULL                  |
+         1701500160000 |                     1 |
+         1701500220000 | NULL                  |
+
+taos> select cast(_wstart as bigint) as ws, count(*) as cv from meters_np where ts >= 1701500000000 and ts <= 1701500240000 interval(1m) fill(null_f) order by ws;
+          ws           |          cv           |
+================================================
+         1701499980000 | NULL                  |
+         1701500040000 |                     1 |
+         1701500100000 | NULL                  |
+         1701500160000 |                     1 |
+         1701500220000 | NULL                  |
+
+taos> select cast(_wstart as bigint) as ws, count(*) as cv from meters_np where ts >= 1701500000000 and ts <= 1701500240000 interval(1m) fill(value, 777) order by ws;
+          ws           |          cv           |
+================================================
+         1701499980000 |                   777 |
+         1701500040000 |                     1 |
+         1701500100000 |                   777 |
+         1701500160000 |                     1 |
+         1701500220000 |                   777 |
+
+taos> select cast(_wstart as bigint) as ws, count(*) as cv from meters_np where ts >= 1701500000000 and ts <= 1701500240000 interval(1m) fill(value_f, 777) order by ws;
+          ws           |          cv           |
+================================================
+         1701499980000 |                   777 |
+         1701500040000 |                     1 |
+         1701500100000 |                   777 |
+         1701500160000 |                     1 |
+         1701500220000 |                   777 |
+
+taos> select cast(_wstart as bigint) as ws, avg(v) as av from meters_np where ts >= 1701500600000 and ts < 1701500720000 interval(1m) fill(null) order by ws;
+
+taos> select cast(_wstart as bigint) as ws, avg(v) as av from meters_np where ts >= 1701500600000 and ts < 1701500720000 interval(1m) fill(null_f) order by ws;
+          ws           |            av             |
+====================================================
+         1701500580000 | NULL                      |
+         1701500640000 | NULL                      |
+         1701500700000 | NULL                      |
+
+taos> select cast(_wstart as bigint) as ws, avg(v) as av from meters_np where ts >= 1701500600000 and ts < 1701500720000 interval(1m) fill(value, 777) order by ws;
+
+taos> select cast(_wstart as bigint) as ws, avg(v) as av from meters_np where ts >= 1701500600000 and ts < 1701500720000 interval(1m) fill(value_f, 777) order by ws;
+          ws           |            av             |
+====================================================
+         1701500580000 |                       777 |
+         1701500640000 |                       777 |
+         1701500700000 |                       777 |
+
+taos> select gid, cast(_wstart as bigint) as ws, count(*) as cv from meters_pt where ts >= 1701500000000 and ts <= 1701500240000 partition by gid interval(1m) fill(null) order by gid, ws;
+     gid     |          ws           |          cv           |
+==============================================================
+           1 |         1701499980000 | NULL                  |
+           1 |         1701500040000 |                     1 |
+           1 |         1701500100000 | NULL                  |
+           1 |         1701500160000 |                     1 |
+           1 |         1701500220000 | NULL                  |
+
+taos> select gid, cast(_wstart as bigint) as ws, count(*) as cv from meters_pt where ts >= 1701500000000 and ts <= 1701500240000 partition by gid interval(1m) fill(null_f) order by gid, ws;
+     gid     |          ws           |          cv           |
+==============================================================
+           1 |         1701499980000 | NULL                  |
+           1 |         1701500040000 |                     1 |
+           1 |         1701500100000 | NULL                  |
+           1 |         1701500160000 |                     1 |
+           1 |         1701500220000 | NULL                  |
+
+taos> select gid, cast(_wstart as bigint) as ws, count(*) as cv from meters_pt where ts >= 1701500000000 and ts <= 1701500240000 partition by gid interval(1m) fill(value, 777) order by gid, ws;
+     gid     |          ws           |          cv           |
+==============================================================
+           1 |         1701499980000 |                   777 |
+           1 |         1701500040000 |                     1 |
+           1 |         1701500100000 |                   777 |
+           1 |         1701500160000 |                     1 |
+           1 |         1701500220000 |                   777 |
+
+taos> select gid, cast(_wstart as bigint) as ws, count(*) as cv from meters_pt where ts >= 1701500000000 and ts <= 1701500240000 partition by gid interval(1m) fill(value_f, 777) order by gid, ws
+     gid     |          ws           |          cv           |
+==============================================================
+           1 |         1701499980000 |                   777 |
+           1 |         1701500040000 |                     1 |
+           1 |         1701500100000 |                   777 |
+           1 |         1701500160000 |                     1 |
+           1 |         1701500220000 |                   777 |
+
