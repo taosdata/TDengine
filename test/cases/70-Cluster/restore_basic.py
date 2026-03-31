@@ -163,8 +163,8 @@ class RestoreBasic:
 
     def stop_dnode(self, index):
         dnode = self.dnodes[index - 1]
+        dnode.stoptaosd()
 
-        dnode.starttaosd()
     # restore vnode
     def restore_vnode(self, index):
         tdLog.info(f"start restore vnode on dnode {index}")
