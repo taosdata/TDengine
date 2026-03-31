@@ -1122,10 +1122,7 @@ static int32_t doSetTagColumnData(SOperatorInfo* pOperator, SVirtualTableScanInf
       SColumnInfoData* pSrcCol = NULL;
       const STagVal*   pResolvedTagVal = findResolvedTagVal(pOperator, pColNode->colId);
 
-      if (pResolvedTagVal == NULL &&
-          (pSrcCol == NULL || colDataIsNull_s(pSrcCol, 0) ||
-           IS_JSON_NULL(pSrcCol->info.type, colDataGetData(pSrcCol, 0))) &&
-          pInfo->pRefTagCols != NULL) {
+      if (pResolvedTagVal == NULL && pInfo->pRefTagCols != NULL) {
         SNode*  pRefNode = NULL;
         int32_t refIdx = 0;
         FOREACH(pRefNode, pInfo->pRefTagCols) {

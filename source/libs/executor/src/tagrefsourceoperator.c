@@ -238,7 +238,7 @@ static int32_t tagRefSourceGetNext(SOperatorInfo* pOperator, SSDataBlock** ppRes
     if (code != TSDB_CODE_OUT_OF_MEMORY && code != TSDB_CODE_QRY_REACH_QMEM_THRESHOLD &&
         code != TSDB_CODE_QRY_QUERY_MEM_EXHAUSTED) {
       if (code != TSDB_CODE_SUCCESS) {
-        qDebug("%s: tagRefSourceScanOneTable failed, pos:%d, code:%s, continuing", __func__, pInfo->curPos,
+        qWarn("%s: tagRefSourceScanOneTable failed, pos:%d, code:%s, skipping", __func__, pInfo->curPos,
                tstrerror(code));
       }
       code = TSDB_CODE_SUCCESS;
