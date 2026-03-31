@@ -767,6 +767,9 @@ class TaosanodeService:
             "importerror",
             "dll load failed",
             "error loading",
+            "windows fatal exception",
+            "access violation",
+            "0xc0000005",
             "vcruntime",
             "msvcp",
             "the specified module could not be found",
@@ -828,7 +831,11 @@ class TaosanodeService:
         if root_cause:
             self.logger.error(f"Startup root cause: {root_cause}")
 
-        if failure_kind == "import_native":
+        should_collect_diagnostics = failure_kind == "import_native"
+        if failure_kind == "unknown" and phase == "background":
+            should_collect_diagnostics = True
+
+        if should_collect_diagnostics:
             self._collect_startup_failure_diagnostics(python_exe, env, cwd, reason)
         else:
             self.logger.info(f"Skipping full startup diagnostics for failure category: {failure_kind}")

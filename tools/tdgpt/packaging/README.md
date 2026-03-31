@@ -90,7 +90,7 @@ If you also want to generate the external offline tar bundle, prepare:
 The generated installer has these runtime expectations:
 
 - Windows 10 (version 1803 or later) or Windows Server 2019+
-- Microsoft Visual C++ Redistributable x64 must be installed
+- Microsoft Visual C++ Redistributable x64 14.44 or later must be installed; the latest supported VC++ 2015-2022 runtime is recommended
 - For online first install, the target machine needs Python `3.10` / `3.11` / `3.12` in `PATH`
 - For offline install, system Python is **not** required — the installer bootstraps Python from the offline tar using the built-in `tar.exe` (available since Windows 10 1803)
 
@@ -269,10 +269,10 @@ When `/OFFLINE` is provided, the installer automatically uses offline mode. The 
 ### Silent Online Install (Requires System Python)
 
 ```bat
-tdgpt-setup.exe /VERYSILENT /NORESTART
+tdgpt-setup.exe /VERYSILENT /NORESTART /ONLINE=1
 ```
 
-Online mode is not the default in silent installation. To force online mode, the target machine must have Python 3.10–3.12 in `PATH`. If the installer detects no Python and no offline package, it will fail with a clear error in the install log.
+Online mode is not the default in silent installation. To force online mode, pass `/ONLINE=1`. For fresh online install, the target machine must have Python 3.10–3.12 in `PATH`. If the installer detects no usable Python runtime for the selected path, it will fail with a clear error in the install log.
 
 ### Python Discovery Priority
 
