@@ -236,72 +236,146 @@ class TestCase:
 
         When a column has `mask(col)` in the SELECT grant, querying that
         column should return '*' instead of the actual value.
+        Supported mask types: VARCHAR, NCHAR, VARBINARY, GEOMETRY, JSON (tag only).
         """
         tdSql.connect("root", "taosdata")
 
         tdSql.execute("drop database if exists d_mask")
         tdSql.execute("create database d_mask")
         tdSql.execute("use d_mask")
+
+        # Supertable with all maskable column types (except JSON which is tag-only)
         tdSql.execute(
             "create table d_mask.stb_mask "
-            "(ts timestamp, c0 int, c1 varchar(20), c2 nchar(20)) "
-            "tags(t0 int, t1 varchar(20), t2 nchar(20))"
+            "(ts timestamp, c0 int, c1 varchar(20), c2 nchar(20), c3 varbinary(20), c4 geometry(100)) "
+            "tags(t0 int, t1 varchar(20), t2 nchar(20), t3 varbinary(20), t4 geometry(100))"
         )
-        tdSql.execute("create table d_mask.ctb_mask using d_mask.stb_mask tags(0,'tag0','tag0')")
-        tdSql.execute("create table d_mask.ntb_mask (ts timestamp, c0 int, c1 varchar(20), c2 nchar(20))")
+        tdSql.execute(
+            "create table d_mask.ctb_mask using d_mask.stb_mask "
+            "tags(0, 'tag0', 'tag0', '\\x7461673000', 'POINT(1.0 2.0)')"
+        )
+        # Normal table with all maskable column types
+        tdSql.execute(
+            "create table d_mask.ntb_mask "
+            "(ts timestamp, c0 int, c1 varchar(20), c2 nchar(20), c3 varbinary(20), c4 geometry(100))"
+        )
 
-        tdSql.execute("insert into d_mask.ctb_mask values(now, 1, 'hello', 'world')")
-        tdSql.execute("insert into d_mask.ntb_mask values(now, 2, 'foo', 'bar')")
+        # Supertable with JSON tag (JSON must be the only tag)
+        tdSql.execute(
+            "create table d_mask.stb_json "
+            "(ts timestamp, c0 int, c1 varchar(20)) "
+            "tags(jtag json)"
+        )
+        tdSql.execute(
+            "create table d_mask.ctb_json using d_mask.stb_json "
+            "tags('{\"k1\":\"v1\"}')"
+        )
+
+        tdSql.execute("insert into d_mask.ctb_mask values(now, 1, 'hello', 'world', '\\x68656c6c6f00', 'POINT(1.0 2.0)')")
+        tdSql.execute("insert into d_mask.ntb_mask values(now, 2, 'foo', 'bar', '\\x666f6f00', 'POINT(3.0 4.0)')")
+        tdSql.execute("insert into d_mask.ctb_json values(now, 3, 'jsonrow')")
 
         tdSql.execute(f"create user u_mask pass '{self.test_pass}'")
         tdSql.execute("grant use on database d_mask to u_mask")
-        # Grant select with mask on varchar/nchar columns for the supertable
+
+        # Grant select with mask on all maskable columns for the supertable
         tdSql.execute(
-            "grant select(c0, mask(c1), mask(c2), mask(t1), mask(t2)) "
+            "grant select(ts, c0, mask(c1), mask(c2), mask(c3), mask(c4), "
+            "t0, mask(t1), mask(t2), mask(t3), mask(t4)) "
             "on table d_mask.stb_mask to u_mask"
         )
-        # Grant select with mask on varchar/nchar columns for the normal table
+        # Grant select with mask on all maskable columns for the normal table
         tdSql.execute(
-            "grant select(c0, mask(c1), mask(c2)) "
+            "grant select(ts, c0, mask(c1), mask(c2), mask(c3), mask(c4)) "
             "on table d_mask.ntb_mask to u_mask"
+        )
+        # Grant select with mask on JSON tag
+        tdSql.execute(
+            "grant select(ts, c0, mask(c1), mask(jtag)) "
+            "on table d_mask.stb_json to u_mask"
         )
 
         # Switch to the restricted user and query
         tdSql.connect("u_mask", self.test_pass)
         time.sleep(2)  # wait for privileges to take effect
 
-        # --- Normal table: c1 and c2 should be masked ---
-        tdSql.query("select c0, c1, c2 from d_mask.ntb_mask")
+        # --- Normal table: select * should mask c1, c2, c3, c4 ---
+        tdSql.query("select * from d_mask.ntb_mask")
         tdSql.checkRows(1)
-        # c0 (int) is not masked, should have real value 2
+        tdSql.checkData(0, 1, 2)    # c0 (int) is not masked
+        tdSql.checkData(0, 2, '*')  # c1 (varchar masked)
+        tdSql.checkData(0, 3, '*')  # c2 (nchar masked)
+        tdSql.checkData(0, 4, '*')  # c3 (varbinary masked)
+        tdSql.checkData(0, 5, '*')  # c4 (geometry masked)
+
+        # --- Normal table: explicit columns ---
+        tdSql.query("select c0, c1, c2, c3, c4 from d_mask.ntb_mask")
+        tdSql.checkRows(1)
         tdSql.checkData(0, 0, 2)
-        # c1 (varchar masked) should be '*'
         tdSql.checkData(0, 1, '*')
-        # c2 (nchar masked) should be '*'
         tdSql.checkData(0, 2, '*')
+        tdSql.checkData(0, 3, '*')
+        tdSql.checkData(0, 4, '*')
 
-        # --- Supertable: c1 and c2 masked, c0 visible ---
-        tdSql.query("select c0, c1, c2 from d_mask.stb_mask")
+        # --- Supertable: select * should mask c1, c2, c3, c4, t1, t2, t3, t4 ---
+        tdSql.query("select * from d_mask.stb_mask")
         tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 1)
-        tdSql.checkData(0, 1, '*')
-        tdSql.checkData(0, 2, '*')
+        tdSql.checkData(0, 1, 1)    # c0 (int) visible
+        tdSql.checkData(0, 2, '*')  # c1 masked
+        tdSql.checkData(0, 3, '*')  # c2 masked
+        tdSql.checkData(0, 4, '*')  # c3 masked
+        tdSql.checkData(0, 5, '*')  # c4 masked
+        tdSql.checkData(0, 6, 0)    # t0 (int) visible
+        tdSql.checkData(0, 7, '*')  # t1 masked
+        tdSql.checkData(0, 8, '*')  # t2 masked
+        tdSql.checkData(0, 9, '*')  # t3 masked
+        tdSql.checkData(0, 10, '*') # t4 masked
 
-        # --- Permission denied for masked column used without privilege ---
-        tdSql.error(
-            "select t1 from d_mask.stb_mask",
-            expectErrInfo="Permission denied for column",
-            fullMatched=False,
-        )
-
-        # --- Supertable via child table: tag columns t1 and t2 should be masked ---
-        tdSql.query("select c0, c1, c2, t1, t2 from d_mask.ctb_mask")
+        # --- Supertable: explicit column list ---
+        tdSql.query("select c0, c1, c2, c3, c4 from d_mask.stb_mask")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 1)
         tdSql.checkData(0, 1, '*')
         tdSql.checkData(0, 2, '*')
         tdSql.checkData(0, 3, '*')
         tdSql.checkData(0, 4, '*')
+
+        # --- Masked tag columns show '*' when queried explicitly ---
+        tdSql.query("select t1, t2, t3, t4 from d_mask.stb_mask")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, '*')
+        tdSql.checkData(0, 1, '*')
+        tdSql.checkData(0, 2, '*')
+        tdSql.checkData(0, 3, '*')
+
+        # --- Child table: select * should mask c1, c2, c3, c4 ---
+        tdSql.query("select * from d_mask.ctb_mask")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, 1)    # c0 visible
+        tdSql.checkData(0, 2, '*')  # c1 masked
+        tdSql.checkData(0, 3, '*')  # c2 masked
+        tdSql.checkData(0, 4, '*')  # c3 masked
+        tdSql.checkData(0, 5, '*')  # c4 masked
+
+        # --- Child table: explicit columns with tags ---
+        tdSql.query("select c0, c1, c2, c3, c4, t1, t2, t3, t4 from d_mask.ctb_mask")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+        tdSql.checkData(0, 1, '*')
+        tdSql.checkData(0, 2, '*')
+        tdSql.checkData(0, 3, '*')
+        tdSql.checkData(0, 4, '*')
+        tdSql.checkData(0, 5, '*')
+        tdSql.checkData(0, 6, '*')
+        tdSql.checkData(0, 7, '*')
+        tdSql.checkData(0, 8, '*')
+
+        # --- JSON tag masking ---
+        tdSql.query("select c0, c1, jtag from d_mask.ctb_json")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 3)
+        tdSql.checkData(0, 1, '*')  # c1 masked
+        tdSql.checkData(0, 2, '*')  # jtag (json tag) masked
 
         # Cleanup
         tdSql.connect("root", "taosdata")

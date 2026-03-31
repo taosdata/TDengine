@@ -8129,9 +8129,12 @@ static int32_t createMaskFuncNode(STranslateContext* pCxt, SColumnNode* pCol, SN
   SValueNode*    pMaskVal = NULL;
   SNode*         pColClone = NULL;
 
-  /* mask_full only supports VARCHAR and NCHAR; skip non-string columns */
+  /* mask_full only supports variable-length string/binary types; skip others */
   if (pCol->node.resType.type != TSDB_DATA_TYPE_VARCHAR &&
-      pCol->node.resType.type != TSDB_DATA_TYPE_NCHAR) {
+      pCol->node.resType.type != TSDB_DATA_TYPE_NCHAR &&
+      pCol->node.resType.type != TSDB_DATA_TYPE_VARBINARY &&
+      pCol->node.resType.type != TSDB_DATA_TYPE_GEOMETRY &&
+      pCol->node.resType.type != TSDB_DATA_TYPE_JSON) {
     *ppFunc = NULL;
     return TSDB_CODE_SUCCESS;
   }
@@ -8174,6 +8177,14 @@ static int32_t createMaskFuncNode(STranslateContext* pCxt, SColumnNode* pCol, SN
   /* Fill in funcId and resolve result type */
   code = fmGetFuncInfo(pFunc, pCxt->msgBuf.buf, pCxt->msgBuf.len);
   if (TSDB_CODE_SUCCESS != code) goto _exit;
+
+  /* For non-displayable types (VARBINARY, GEOMETRY, JSON), force result to
+   * VARCHAR so the masked '*' value renders as text, not hex/WKB. */
+  if (pCol->node.resType.type == TSDB_DATA_TYPE_VARBINARY ||
+      pCol->node.resType.type == TSDB_DATA_TYPE_GEOMETRY ||
+      pCol->node.resType.type == TSDB_DATA_TYPE_JSON) {
+    pFunc->node.resType.type = TSDB_DATA_TYPE_VARCHAR;
+  }
 
   *ppFunc = (SNode*)pFunc;
   return TSDB_CODE_SUCCESS;

@@ -2539,10 +2539,15 @@ int32_t maskFullFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
     }
 
     if (GET_PARAM_TYPE(&pInput[1]) != GET_PARAM_TYPE(&pInput[0])) {
-      SCL_ERR_JRET(convBetweenNcharAndVarchar(varDataVal(colDataGetData(pInputData[1], colIdx2)), &fromStr,
-                                              varDataLen(colDataGetData(pInputData[1], colIdx2)), &fromLen,
-                                              GET_PARAM_TYPE(&pInput[0]), pInput->charsetCxt));
-      needFreeFrom = true;
+      /* Only VARCHAR<->NCHAR needs charset conversion; for other types
+       * (VARBINARY, GEOMETRY, JSON) just copy the mask bytes directly. */
+      if ((GET_PARAM_TYPE(&pInput[0]) == TSDB_DATA_TYPE_VARCHAR || GET_PARAM_TYPE(&pInput[0]) == TSDB_DATA_TYPE_NCHAR) &&
+          (GET_PARAM_TYPE(&pInput[1]) == TSDB_DATA_TYPE_VARCHAR || GET_PARAM_TYPE(&pInput[1]) == TSDB_DATA_TYPE_NCHAR)) {
+        SCL_ERR_JRET(convBetweenNcharAndVarchar(varDataVal(colDataGetData(pInputData[1], colIdx2)), &fromStr,
+                                                varDataLen(colDataGetData(pInputData[1], colIdx2)), &fromLen,
+                                                GET_PARAM_TYPE(&pInput[0]), pInput->charsetCxt));
+        needFreeFrom = true;
+      }
     }
 
     (void)memcpy(output, fromStr, fromLen);
