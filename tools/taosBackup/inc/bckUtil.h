@@ -30,8 +30,6 @@ void freePtr(void *ptr);
 
 bool errorCodeCanRetry(int code);
 
-unsigned int getCrc(const char *name);
-
 int obtainFileName(BackFileType fileType, 
                       const char *dbName, 
                       const char *stbName,

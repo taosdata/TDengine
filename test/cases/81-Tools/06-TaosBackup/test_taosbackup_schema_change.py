@@ -228,7 +228,7 @@ class TestTaosBackupSchemaChange:
             f"create table {newdb}.meters2(nts timestamp, age int) tags(area int)",
             f"drop table {newdb}.meters3",
             f"create table {newdb}.meters3(ts timestamp, fc float) tags(area int)",
-            f"create table {newdb}.ntbd1(ts_new timestamp, xval bigint, ystr nchar(20))",
+            f"create table {newdb}.ntbd10(ts_new timestamp, xval bigint, ystr nchar(20))",
         ]
         tdSql.executes(sqls)
 

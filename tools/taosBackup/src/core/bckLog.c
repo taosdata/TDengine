@@ -25,7 +25,11 @@
 static void logTimestamp(char *ts) {
     time_t t = time(NULL);
     struct tm tm_info;
-    localtime_r(&t, &tm_info);
+    #ifdef _WIN32
+        localtime_s(&tm_info, &t);
+    #else
+        localtime_r(&t, &tm_info);
+    #endif
     strftime(ts, 10, "%H:%M:%S", &tm_info);
 }
 

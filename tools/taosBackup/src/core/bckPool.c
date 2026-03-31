@@ -102,6 +102,12 @@ static void rollbackSlot(int idx) {
         g_pool.state[j] = g_pool.state[j + 1];
     }
     g_pool.count--;
+    
+    // Clear the now-unused tail slot to avoid stale state
+    if (g_pool.count >= 0 && g_pool.count < g_pool.size) {
+        g_pool.pool[g_pool.count] = NULL;
+        g_pool.state[g_pool.count] = CONN_EMPTY;
+    }    
 }
 
 // Exponential back-off parameters for reconnection when the pool is empty

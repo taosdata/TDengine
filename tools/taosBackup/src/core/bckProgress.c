@@ -51,25 +51,24 @@ static void progPrintLine(bool newline) {
     char ts[10];
     progFmtTimestamp(ts, sizeof(ts));
 
-    int64_t phase  = g_progress.phase;
-
+    int64_t phase  = __atomic_load_n(&g_progress.phase, __ATOMIC_RELAXED);
     // snapshot all atomic/volatile fields
-    int64_t dbIdx  = g_progress.dbIndex;
-    int64_t dbTot  = g_progress.dbTotal;
+    int64_t dbIdx  = __atomic_load_n(&g_progress.dbIndex, __ATOMIC_RELAXED);
+    int64_t dbTot  = __atomic_load_n(&g_progress.dbTotal, __ATOMIC_RELAXED);
     char    dname[PROGRESS_DB_NAME_LEN];
     memcpy(dname, (char *)g_progress.dbName, PROGRESS_DB_NAME_LEN - 1);
     dname[PROGRESS_DB_NAME_LEN - 1] = '\0';
-    int64_t stbIdx = g_progress.stbIndex;
-    int64_t stbTot = g_progress.stbTotal;
+    int64_t stbIdx = __atomic_load_n(&g_progress.stbIndex, __ATOMIC_RELAXED);
+    int64_t stbTot = __atomic_load_n(&g_progress.stbTotal, __ATOMIC_RELAXED);
     char    sname[PROGRESS_STB_NAME_LEN];
     memcpy(sname, (char *)g_progress.stbName, PROGRESS_STB_NAME_LEN - 1);
     sname[PROGRESS_STB_NAME_LEN - 1] = '\0';
-
-    int64_t ctbDone  = g_progress.ctbDoneCur;
-    int64_t ctbTot   = g_progress.ctbTotalCur;
-    int64_t doneAll  = g_progress.ctbDoneAll + ctbDone;
-    int64_t totAll   = g_progress.ctbTotalAll;
-    int64_t startMs  = g_progress.startMs;
+    int64_t ctbDoneBase = __atomic_load_n(&g_progress.ctbDoneCur, __ATOMIC_RELAXED);
+    int64_t ctbTot      = __atomic_load_n(&g_progress.ctbTotalCur, __ATOMIC_RELAXED);
+    int64_t ctbDoneAll  = __atomic_load_n(&g_progress.ctbDoneAll, __ATOMIC_RELAXED);
+    int64_t totAll      = __atomic_load_n(&g_progress.ctbTotalAll, __ATOMIC_RELAXED);
+    int64_t startMs     = __atomic_load_n(&g_progress.startMs, __ATOMIC_RELAXED);
+    int64_t doneAll = ctbDoneAll + ctbDoneBase;
 
     // elapsed seconds
     double elapsed = 0.0;
