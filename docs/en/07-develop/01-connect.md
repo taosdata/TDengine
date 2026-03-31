@@ -19,12 +19,15 @@ import VerifyLinux from "../assets/resources/_verify_linux.mdx";
 import VerifyMacOS from "../assets/resources/_verify_macos.mdx";
 import VerifyWindows from "../assets/resources/_verify_windows.mdx";
 import ConnectorType from "../assets/resources/_connector_type.mdx";
+import ConnectionDeprecation from "../assets/resources/_connection_deprecation.mdx";
 
 <ConnectorType />
 
 ## Installing the Client Driver taosc
 
 If you choose a native connection and your application is not running on the same server as TDengine, you need to install the client driver first; otherwise, you can skip this step. To avoid incompatibility between the client driver and the server, please use consistent versions.
+
+**Recommended to use WebSocket connection, no need to install client driver.**
 
 ### Installation Steps
 
@@ -544,6 +547,9 @@ Starting from `v3.8.0`, the Go connector unifies WebSocket access through `ws/un
 
 ### Native Connection
 
+<details>
+<summary><b>Native Connection (Go/C#/Java Deprecated, EOL 2027-01-01)</b></summary>
+
 Below are examples of code for establishing native connections in various languages. It demonstrates how to connect to the TDengine database using a native connection method and set some parameters for the connection. The entire process mainly involves establishing a database connection and handling exceptions.
 
 <Tabs defaultValue="java" groupId="lang">
@@ -602,6 +608,8 @@ Not supported
 If the connection fails, in most cases it is due to incorrect FQDN or firewall settings. For detailed troubleshooting methods, please see ["Encountering the error 'Unable to establish connection, what should I do?'"](../../frequently-asked-questions/) in the "Common Questions and Feedback".
 
 :::
+
+</details>
 
 ## Connection Pool
 

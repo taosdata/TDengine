@@ -11,6 +11,14 @@ import RequestId from "../../assets/resources/_request_id.mdx";
 
 `TDengine.Connector` is the C# language connector provided by TDengine. C# developers can use it to develop C# applications that access data in the TDengine cluster.
 
+:::warning Native Connection Being Deprecated
+
+<font color="red">C# native connection is deprecated and will be discontinued on 2027-01-01</font>, please migrate to WebSocket connection.
+
+For detailed migration guide, please refer to: [Connection Methods](../#connection-methods)
+
+:::
+
 ## .Net Version Compatibility
 
 - Supports .NET Framework 4.6 and above.
@@ -100,22 +108,6 @@ For example:
 "protocol=WebSocket;host=127.0.0.1;port=6041;useSSL=false"
 ```
 
-##### Native Connection
-
-For example: `"host=127.0.0.1;port=6030;username=root;password=taosdata;protocol=Native;db=test"`
-
-Supported parameters include:
-
-- `host`: Address of the TDengine instance.
-- `port`: Port of the TDengine instance.
-- `username`: Username for the connection.
-- `password`: Password for the connection.
-- `protocol`: Connection protocol, options are Native or WebSocket, default is Native.
-- `db`: Database to connect to.
-- `timezone`: The timezone used for parsing time types in the query result set. Defaults to the local timezone. For format details, see [Timezone Settings](#timezone-settings).
-- `connectionTimezone`: Connection-level timezone setting (supported in version 3.1.8 and above), only available for .NET 6+ and supports IANA timezone format exclusively. Cannot be set simultaneously with `timezone`. For details, see [Timezone Settings](#timezone-settings).
-- `bearerToken`: Token for connecting to TDengine TSDB (supported in version 3.1.10 and above).
-
 ##### WebSocket Connection
 
 For example: `"protocol=WebSocket;host=127.0.0.1;port=6041;useSSL=false;enableCompression=true;autoReconnect=true;reconnectIntervalMs=10;reconnectRetryCount=5"`
@@ -139,6 +131,22 @@ Supported parameters include:
 - `autoReconnect`: Whether to automatically reconnect, default is false.
 - `reconnectRetryCount`: Number of retries for reconnection, default is 3.
 - `reconnectIntervalMs`: Interval for reconnection in milliseconds, default is 2000.
+- `bearerToken`: Token for connecting to TDengine TSDB (supported in version 3.1.10 and above).
+
+##### <font color="red">Native Connection, Deprecated, will be discontinued on 2027-01-01</font>
+
+For example: `"host=127.0.0.1;port=6030;username=root;password=taosdata;protocol=Native;db=test"`
+
+Supported parameters include:
+
+- `host`: Address of the TDengine instance.
+- `port`: Port of the TDengine instance.
+- `username`: Username for the connection.
+- `password`: Password for the connection.
+- `protocol`: Connection protocol, options are Native or WebSocket, default is Native.
+- `db`: Database to connect to.
+- `timezone`: The timezone used for parsing time types in the query result set. Defaults to the local timezone. For format details, see [Timezone Settings](#timezone-settings).
+- `connectionTimezone`: Connection-level timezone setting (supported in version 3.1.8 and above), only available for .NET 6+ and supports IANA timezone format exclusively. Cannot be set simultaneously with `timezone`. For details, see [Timezone Settings](#timezone-settings).
 - `bearerToken`: Token for connecting to TDengine TSDB (supported in version 3.1.10 and above).
 
 #### Timezone Settings
