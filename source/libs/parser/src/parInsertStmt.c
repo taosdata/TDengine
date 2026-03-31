@@ -960,8 +960,8 @@ int32_t qBindStmtStbColsValue2(void* pBlock, SArray* pCols, SSHashObj* parsedCol
     code = tBlobSetCreate(1024, 1, ppBlob);
     TAOS_CHECK_GOTO(code, &lino, _return);
 
-    code = tRowBuildFromBind2WithBlob(pBindInfos, boundInfo->numOfBound, colInOrder, *pTSchema, pSchemaExt, pCols,
-                                      &pDataBlock->ordered, &pDataBlock->duplicateTs, *ppBlob);
+    code = tRowBuildFromBind2WithBlob(pBindInfos, boundInfo->numOfBound, parsedCols, colInOrder, *pTSchema, pSchemaExt,
+                                      pCols, &pDataBlock->ordered, &pDataBlock->duplicateTs, *ppBlob);
     TAOS_CHECK_GOTO(code, &lino, _return);
   }
 

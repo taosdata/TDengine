@@ -520,9 +520,9 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, SSHashObj *par
                            const STSchema *pTSchema, const SSchemaExt *pSchemaExt, SArray *rowArray, bool *pOrdered,
                            bool *pDupTs);
 
-int32_t tRowBuildFromBind2WithBlob(SBindInfo2 *infos, int32_t numOfInfos, bool infoSorted, const STSchema *pTSchema,
-                                   const SSchemaExt *pSchemaExt, SArray *rowArray, bool *pOrdered, bool *pDupTs,
-                                   SBlobSet *pBlobSet);
+int32_t tRowBuildFromBind2WithBlob(SBindInfo2 *infos, int32_t numOfInfos, SSHashObj *parsedCols, bool infoSorted,
+                                   const STSchema *pTSchema, const SSchemaExt *pSchemaExt, SArray *rowArray,
+                                   bool *pOrdered, bool *pDupTs, SBlobSet *pBlobSet);
 
 struct SRowBuildScanInfo {
   int32_t numOfNone;
