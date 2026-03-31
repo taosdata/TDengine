@@ -1126,6 +1126,20 @@ int32_t sclGetNodeType(SNode *pNode, SScalarCtx *ctx, int32_t *type, STypeMod *p
       *pTypeMod = typeGetTypeModFromColInfo(&res->columnData->info);
       return TSDB_CODE_SUCCESS;
     }
+    case QUERY_NODE_REMOTE_VALUE_LIST: {
+      SRemoteValueListNode *pRemote = (SRemoteValueListNode *)pNode;
+      *type = pRemote->node.resType.type;
+      *pTypeMod = typeGetTypeModFromDataType(&pRemote->node.resType);
+      return TSDB_CODE_SUCCESS;
+    }
+    case QUERY_NODE_REMOTE_VALUE:
+    case QUERY_NODE_REMOTE_ZERO_ROWS:
+    case QUERY_NODE_REMOTE_ROW: {
+      SValueNode *valNode = (SValueNode *)pNode;
+      *type = valNode->node.resType.type;
+      *pTypeMod = typeGetTypeModFromDataType(&valNode->node.resType);
+      return TSDB_CODE_SUCCESS;
+    }
   }
 
   sclError("unsupported node type for type resolution, nodeType:%d, node:%p", nodeType(pNode), pNode);
