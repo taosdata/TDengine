@@ -334,6 +334,10 @@ int32_t hLeftJoinHandleProbeRows(struct SOperatorInfo* pOperator, SHJoinOperator
   size_t bufLen = 0;
   bool allFetched = false;
 
+  if (hJoinBlkReachThreshold(pJoin, pJoin->finBlk->info.rows)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
   for (; pCtx->probeStartIdx <= pCtx->probeEndIdx; ++pCtx->probeStartIdx) {
     if (hJoinCopyKeyColsDataToBuf(pProbe, pCtx->probeStartIdx, &bufLen)) {
       HJ_ERR_RET(hJoinCopyNMatchRowsToBlock(pJoin, pJoin->finBlk, pCtx->probeStartIdx, 1));
@@ -903,6 +907,15 @@ static int32_t hFullJoinCopyBuildNMRowsToBlock(SHJoinOperatorInfo* pJoin, SSData
       pCtx->buildNMStartIdx = -1;
       break;
     } else {
+      /* Advance past the rows we just copied regardless of filter outcome.
+       * Without this, buildNMStartIdx never moves and the while(true) loop
+       * becomes infinite when pFinFilter removes all rows, or produces
+       * duplicate output on re-entry when there is no filter. */
+      pCtx->buildNMStartIdx += copyRows;
+      if (pCtx->buildNMStartIdx > pCtx->buildNMEndIdx) {
+        pCtx->buildNMStartIdx = -1;
+      }
+
       if (pJoin->pFinFilter != NULL) {
         QRY_ERR_RET(doFilter(pRes, pJoin->pFinFilter, NULL, NULL));
       }
@@ -911,6 +924,14 @@ static int32_t hFullJoinCopyBuildNMRowsToBlock(SHJoinOperatorInfo* pJoin, SSData
         *returnDirect = true;
         break;
       }
+
+      if (pCtx->buildNMStartIdx < 0) {
+        break;
+      }
+
+      /* Filter removed all rows; reset the block so the next iteration
+       * can reuse it cleanly for the remaining source rows. */
+      blockDataCleanup(pRes);
     }
   }
 

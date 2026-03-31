@@ -322,7 +322,7 @@ static void jtBuildDummyBlocksForCase(void) {
   }
 
   if (jtCtrl.largeData) {
-    createDummyBlkList(10000, 300, 10000, 300, 2);
+    createDummyBlkList(1000, 1000, 1000, 1000, 300);
   } else {
     createDummyBlkList(10, 10, 10, 10, 3);
   }
@@ -4523,11 +4523,6 @@ void initJoinTest() {
   jtCtrl.loopCnt = jtGetEnvInt("JT_LOOP_CNT", JT_MAX_LOOP, 1, JT_MAX_LOOP);
   jtCtrl.largeData = (0 != jtGetEnvInt("JT_LARGE_DATA", 0, 0, 1));
   jtCtrl.strictHmCompare = (0 != jtGetEnvInt("JT_STRICT_HM_COMPARE", 0, 0, 1));
-
-  // Large-data cases are significantly heavier, keep loop count single-digit.
-  if (jtCtrl.largeData && jtCtrl.loopCnt > 9) {
-    jtCtrl.loopCnt = 9;
-  }
 
   JT_PRINTF("joinTests config: JT_LOOP_CNT=%d, JT_LARGE_DATA=%d, JT_STRICT_HM_COMPARE=%d\n",
     jtCtrl.loopCnt, jtCtrl.largeData ? 1 : 0, jtCtrl.strictHmCompare ? 1 : 0);
