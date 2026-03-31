@@ -4,7 +4,7 @@ sidebar_label: "安装部署"
 description: 使用 docker、云服务、安装包体验 TDgpt
 ---
 
-import PkgListV37 from "/components/PkgListV37";
+import PkgList from "/src/components/PkgList";
 
 本节介绍如何通过 Docker，云服务或安装包来部署 TDgpt
 
@@ -144,7 +144,7 @@ sudo apt install build-essential
 
 1. 从列表中下载获得 tar.gz 安装包
 
-   <PkgListV37 productName="TDengine TDgpt-OSS" version="3.3.8.8" platform="Linux-Generic" pkgType="Server"/>
+   <PkgList productName="TDengine TDgpt-OSS" platform="Linux-Generic" />
 
    安装包中包含两个时序基础模型：涛思时序基础模型（TDtsfm v1.0）和 Time-MoE 时序基础模型。两个基础时序模型启动时候需要一定的内存空间，请确保安装机器至少有 16GiB 可用内存。
   
