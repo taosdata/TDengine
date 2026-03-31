@@ -717,6 +717,19 @@ begin
     Result := IsExistingTaosanodeInstall(LockedInstallDir) or ServiceExists('Taosanode');
 end;
 
+function IsTruthyParam(const Value: String): Boolean;
+var
+  Normalized: String;
+begin
+  Normalized := Lowercase(Trim(Value));
+  Result :=
+    (Normalized <> '') and
+    (Normalized <> '0') and
+    (Normalized <> 'false') and
+    (Normalized <> 'no') and
+    (Normalized <> 'off');
+end;
+
 procedure ClearModelSelections();
 begin
   SelectTdtsfm := False;
@@ -746,6 +759,55 @@ begin
     ModelSelectionPage.Values[2] := True;
     ModelSelectionPage.Values[5] := True;
   end;
+end;
+
+procedure ApplyCommandLineModeOverrides();
+var
+  OnlineParam: String;
+  OfflineParam: String;
+begin
+  OnlineParam := ExpandConstant('{param:ONLINE|}');
+  OfflineParam := ExpandConstant('{param:OFFLINE|}');
+
+  if OfflinePackagePage <> nil then
+    OfflinePackagePage.Values[0] := OfflineParam;
+
+  if not IsTruthyParam(OnlineParam) then
+    exit;
+
+  if InstallModePage <> nil then
+  begin
+    InstallModePage.Values[0] := False;
+    InstallModePage.Values[1] := True;
+  end;
+
+  IsOnlineMode := True;
+
+  if IsUpgradeInstall() then
+  begin
+    ModelSource := 'none';
+    InstallTensorFlow := False;
+    ClearModelSelections();
+    if PythonOptionsPage <> nil then
+      PythonOptionsPage.Values[0] := False;
+    if ModelSourcePage <> nil then
+    begin
+      ModelSourcePage.Values[0] := False;
+      ModelSourcePage.Values[1] := True;
+    end;
+    exit;
+  end;
+
+  ModelSource := 'online';
+  InstallTensorFlow := True;
+  if PythonOptionsPage <> nil then
+    PythonOptionsPage.Values[0] := True;
+  if ModelSourcePage <> nil then
+  begin
+    ModelSourcePage.Values[0] := True;
+    ModelSourcePage.Values[1] := False;
+  end;
+  SetDefaultOnlineModelSelections();
 end;
 
 procedure ApplyInstallDefaults(UpgradeInstall: Boolean);
@@ -919,10 +981,7 @@ begin
   if LockedInstallDir <> '' then
     WizardForm.DirEdit.Text := LockedInstallDir;
   ApplyInstallDefaults(IsUpgradeInstall());
-
-  // Support /OFFLINE command-line parameter for silent installation
-  if ExpandConstant('{param:OFFLINE|}') <> '' then
-    OfflinePackagePage.Values[0] := ExpandConstant('{param:OFFLINE|}');
+  ApplyCommandLineModeOverrides();
 
   TryPopulateDefaultOfflinePackage();
 end;
@@ -977,6 +1036,7 @@ begin
       exit;
     end;
     ApplyInstallDefaults(IsUpgradeInstall());
+    ApplyCommandLineModeOverrides();
   end;
 
   if CurPageID = InstallModePage.ID then
