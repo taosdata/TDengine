@@ -27,6 +27,7 @@ import datetime
 import random
 import threading
 import argparse
+from collections import OrderedDict
 
 import sys
 import os
@@ -52,7 +53,7 @@ from .service_manager import ServiceManager, TdeInstance
 from .shared.config import Config
 from .shared.db import DbConn, DbManager, DbConnNative, MyTDSql
 from .shared.misc import Dice, Logging, Helper, Status, CrashGenError, Progress
-from .shared.types import TdDataType
+from .shared.types import TdDataType, TdValueGenerator
 
 # Config.init()
 
@@ -65,6 +66,58 @@ if sys.version_info[0] < 3:
 # Command-line/Environment Configurations, will set a bit later
 # ConfigNameSpace = argparse.Namespace
 # gConfig:    argparse.Namespace
+# ── Full-type schema for crash_gen super table ──────────────────────────
+FULL_SCHEMA_COLS = OrderedDict([
+    ('ts',                  TdDataType.TIMESTAMP),
+    ('speed',               TdDataType.INT),
+    ('color',               TdDataType.BINARY16),
+    ('mileage',             TdDataType.INT_UNSIGNED),
+    ('volume',              TdDataType.BIGINT),
+    ('total_count',         TdDataType.BIGINT_UNSIGNED),
+    ('temperature',         TdDataType.FLOAT),
+    ('latitude',            TdDataType.DOUBLE),
+    ('humidity',            TdDataType.SMALLINT),
+    ('pressure',            TdDataType.SMALLINT_UNSIGNED),
+    ('level',               TdDataType.TINYINT),
+    ('gear',                TdDataType.TINYINT_UNSIGNED),
+    ('is_active',           TdDataType.BOOL),
+    ('description',         TdDataType.NCHAR),
+    ('model',               TdDataType.VARCHAR),
+    ('firmware',            TdDataType.VARBINARY),
+    ('location',            TdDataType.GEOMETRY),
+    ('price',               TdDataType.DECIMAL64),
+    ('icon',                TdDataType.BLOB),
+])
+
+FULL_SCHEMA_TAGS = OrderedDict([
+    ('b',                   TdDataType.BINARY200),
+    ('f',                   TdDataType.FLOAT),
+    ('fleet_id',            TdDataType.INT),
+    ('serial_no',           TdDataType.BIGINT),
+    ('region_code',         TdDataType.SMALLINT),
+    ('priority',            TdDataType.TINYINT),
+    ('is_online',           TdDataType.BOOL),
+    ('manufacturer',        TdDataType.NCHAR),
+    ('weight',              TdDataType.DOUBLE),
+    ('batch_no',            TdDataType.INT_UNSIGNED),
+])
+
+NUMERIC_COLS = [name for name, dt in FULL_SCHEMA_COLS.items()
+                if dt in (TdDataType.INT, TdDataType.INT_UNSIGNED,
+                          TdDataType.BIGINT, TdDataType.BIGINT_UNSIGNED,
+                          TdDataType.FLOAT, TdDataType.DOUBLE,
+                          TdDataType.SMALLINT, TdDataType.SMALLINT_UNSIGNED,
+                          TdDataType.TINYINT, TdDataType.TINYINT_UNSIGNED,
+                          TdDataType.DECIMAL64)]
+
+STRING_COLS = [name for name, dt in FULL_SCHEMA_COLS.items()
+               if dt in (TdDataType.BINARY16, TdDataType.NCHAR,
+                         TdDataType.VARCHAR)]
+
+FILTERABLE_COLS = {name: dt for name, dt in FULL_SCHEMA_COLS.items()
+                   if dt not in (TdDataType.TIMESTAMP, TdDataType.BLOB,
+                                 TdDataType.GEOMETRY, TdDataType.VARBINARY)}
+
 gSvcMgr: Optional[ServiceManager]  # TODO: refactor this hack, use dep injection
 # logger:     logging.Logger
 gContainer: Container
@@ -2115,8 +2168,8 @@ class TaskCreateSuperTable(StateTransitionTask):
         # wt.execSql("use db")    # should always be in place
 
         sTable.create(wt.getDbConn(),
-                      {'ts': TdDataType.TIMESTAMP, 'speed': TdDataType.INT, 'color': TdDataType.BINARY16}, {
-                          'b': TdDataType.BINARY200, 'f': TdDataType.FLOAT},
+                      FULL_SCHEMA_COLS,
+                      FULL_SCHEMA_TAGS,
                       dropIfExists=True
                       )
         # self.execWtSql(wt,"create table db.{} (ts timestamp, speed int) tags (b binary(200), f float) ".format(tblName))
@@ -2340,18 +2393,24 @@ class TdSuperTable:
     def _getTagStrForSql(self, dbc):
         tags = self._getTags(dbc)
         tagStrs = []
+        seq = random.randint(1, 10000)
         for tagName in tags:
             tagType = tags[tagName]
-            if tagType == 'BINARY':
-                tagStrs.append("'Beijing-Shanghai-LosAngeles'")
-            elif tagType == 'VARCHAR':
-                tagStrs.append("'London-Paris-Berlin'")
-            elif tagType == 'FLOAT':
-                tagStrs.append('9.9')
-            elif tagType == 'INT':
-                tagStrs.append('88')
-            else:
-                raise RuntimeError("Unexpected tag type: {}".format(tagType))
+            try:
+                tdType = TdDataType.from_sql_type(tagType)
+                tagStrs.append(TdValueGenerator.gen_tag_value(tdType, seq))
+            except ValueError:
+                # Fallback for unrecognized types from DESCRIBE
+                if 'BINARY' in tagType.upper() or 'VARCHAR' in tagType.upper() or 'NCHAR' in tagType.upper():
+                    tagStrs.append("'tag_val_{}'".format(seq))
+                elif 'INT' in tagType.upper() or 'BIGINT' in tagType.upper():
+                    tagStrs.append(str(seq % 100))
+                elif 'FLOAT' in tagType.upper() or 'DOUBLE' in tagType.upper():
+                    tagStrs.append(str(round(seq * 0.1, 2)))
+                elif 'BOOL' in tagType.upper():
+                    tagStrs.append('true')
+                else:
+                    tagStrs.append(str(seq))
         return ", ".join(tagStrs)
 
     def _getTags(self, dbc) -> dict:
@@ -2400,12 +2459,12 @@ class TdSuperTable:
             if not doAggr:  # don't do aggregate query, just simple one
                 commonExpr = Dice.choice([
                     '*',
+                    # Original speed-based scalar functions
                     'abs(speed)',
                     'acos(speed)',
                     'asin(speed)',
                     'atan(speed)',
                     'ceil(speed)',
-                    'cos(speed)',
                     'cos(speed)',
                     'floor(speed)',
                     'log(speed,2)',
@@ -2413,6 +2472,7 @@ class TdSuperTable:
                     'round(speed)',
                     'sin(speed)',
                     'sqrt(speed)',
+                    # Original color-based string functions
                     'char_length(color)',
                     'concat(color,color)',
                     'concat_ws(" ", color,color," ")',
@@ -2421,19 +2481,43 @@ class TdSuperTable:
                     'ltrim(color)',
                     'substr(color , 2)',
                     'upper(color)',
+                    # Cast and time functions
                     'cast(speed as double)',
                     'cast(ts as bigint)',
-                    # 'TO_ISO8601(color)',
-                    # 'TO_UNIXTIMESTAMP(ts)',
                     'now()',
                     'timediff(ts,now)',
                     'timezone()',
                     'TIMETRUNCATE(ts,1s)',
                     'TIMEZONE()',
                     'TODAY()',
-                    'distinct(color)'
-                ]
-                )
+                    'distinct(color)',
+                    # New columns — numeric scalar
+                    'abs(volume)',
+                    'ceil(temperature)',
+                    'floor(latitude)',
+                    'round(temperature)',
+                    'sqrt(temperature)',
+                    'pow(humidity, 2)',
+                    'cast(level as bigint)',
+                    'cast(mileage as bigint)',
+                    'abs(humidity)',
+                    'volume + humidity',
+                    'latitude * 2',
+                    # New columns — string scalar
+                    'length(description)',
+                    'lower(model)',
+                    'upper(description)',
+                    'ltrim(model)',
+                    'char_length(description)',
+                    # New columns — select directly
+                    'is_active',
+                    'gear',
+                    'total_count',
+                    'pressure',
+                    'mileage',
+                    'location',
+                    'price',
+                ])
                 ret.append(SqlQuery(  # reg table
                     "select {} from {}.{}".format(commonExpr, self._dbName, rTbName)))
                 ret.append(SqlQuery(  # super table
@@ -2442,20 +2526,16 @@ class TdSuperTable:
                 aggExpr = Dice.choice([
                     'count(*)',
                     'avg(speed)',
-                    # 'twa(speed)', # TODO: this one REQUIRES a where statement, not reasonable
                     'sum(speed)',
                     'stddev(speed)',
-                    # SELECTOR functions
                     'min(speed)',
                     'max(speed)',
                     'first(speed)',
                     'last(speed)',
-                    'top(speed, 50)',  # TODO: not supported?
-                    'bottom(speed, 50)',  # TODO: not supported?
-                    'apercentile(speed, 10)',  # TODO: TD-1316
-                    'last_row(*)',  # TODO: commented out per TD-3231, we should re-create
-                    # Transformation Functions
-                    # 'diff(speed)', # TODO: no supported?!
+                    'top(speed, 50)',
+                    'bottom(speed, 50)',
+                    'apercentile(speed, 10)',
+                    'last_row(*)',
                     'spread(speed)',
                     'elapsed(ts)',
                     'mode(speed)',
@@ -2471,14 +2551,40 @@ class TdSuperTable:
                     'sample(speed,5)',
                     'STATECOUNT(speed,"LT",1)',
                     'STATEDURATION(speed,"LT",1)',
-                    'twa(speed)'
-
-                ])  # TODO: add more from 'top'
+                    'twa(speed)',
+                    # New columns — aggregate on numeric types
+                    'avg(volume)',
+                    'sum(temperature)',
+                    'sum(latitude)',
+                    'min(humidity)',
+                    'max(level)',
+                    'first(total_count)',
+                    'last(mileage)',
+                    'stddev(latitude)',
+                    'spread(temperature)',
+                    'avg(pressure)',
+                    'sum(gear)',
+                    'min(total_count)',
+                    'max(pressure)',
+                    'count(is_active)',
+                    # DECIMAL aggregates
+                    'sum(price)',
+                    'avg(price)',
+                    'min(price)',
+                    'max(price)',
+                    # Transformation on new cols
+                    'csum(volume)',
+                    'diff(temperature,1)',
+                    'mavg(latitude,3)',
+                    'sample(mileage,5)',
+                    'mode(level)',
+                    'tail(humidity,1)',
+                ])
 
                 # if aggExpr not in ['stddev(speed)']: # STDDEV not valid for super tables?! (Done in TD-1049)
                 sql = "select {} from {}.{}".format(aggExpr, self._dbName, self.getName())
                 if Dice.throw(3) == 0:  # 1 in X chance
-                    partion_expr = Dice.choice(['color', 'tbname'])
+                    partion_expr = Dice.choice(['color', 'tbname', 'fleet_id', 'is_online', 'manufacturer', 'is_active'])
                     sql = sql + ' partition BY ' + partion_expr + ' order by ' + partion_expr
                     Progress.emit(Progress.QUERY_GROUP_BY)
                     # Logging.info("Executing GROUP-BY query: " + sql)
@@ -2610,23 +2716,24 @@ class TaskAlterTags(StateTransitionTask):
     def canBeginFrom(cls, state: AnyState):
         return state.canDropFixedSuperTable()  # if we can drop it, we can alter tags
 
+    ALTER_TAG_TYPES = ['int', 'bigint', 'float', 'double', 'binary(32)',
+                       'nchar(32)', 'bool', 'smallint', 'tinyint',
+                       'int unsigned', 'bigint unsigned',
+                       'smallint unsigned', 'tinyint unsigned']
+
     def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
-        # tblName = self._dbManager.getFixedSuperTableName()
         dbc = wt.getDbConn()
         sTable = self._db.getFixedSuperTable()
         dice = Dice.throw(4)
         if dice == 0:
-            sTable.addTag(dbc, "extraTag", "int")
-            # sql = "alter table db.{} add tag extraTag int".format(tblName)
+            tagType = random.choice(self.ALTER_TAG_TYPES)
+            sTable.addTag(dbc, "extraTag", tagType)
         elif dice == 1:
             sTable.dropTag(dbc, "extraTag")
-            # sql = "alter table db.{} drop tag extraTag".format(tblName)
         elif dice == 2:
             sTable.dropTag(dbc, "newTag")
-            # sql = "alter table db.{} drop tag newTag".format(tblName)
         else:  # dice == 3
             sTable.changeTag(dbc, "extraTag", "newTag")
-            # sql = "alter table db.{} change tag extraTag newTag".format(tblName)
 
 
 class TaskRestartService(StateTransitionTask):
@@ -2711,6 +2818,23 @@ class TaskAddData(StateTransitionTask):
             pass
             # Logging.info("Skipping unlocking table")
 
+    def _buildInsertValues(self, db):
+        """Build a full-schema VALUES row. Returns (values_str, seq, tick)."""
+        seq = db.getNextInt()
+        tick = db.getNextTick()
+        color = db.getNextColor()
+        values = []
+        for col_name, col_type in FULL_SCHEMA_COLS.items():
+            if col_name == 'ts':
+                values.append("'{}'".format(tick))
+            elif col_name == 'speed':
+                values.append(str(seq))
+            elif col_name == 'color':
+                values.append("'{}'".format(color))
+            else:
+                values.append(TdValueGenerator.gen_col_value(col_type, seq))
+        return "({})".format(", ".join(values)), seq, tick
+
     def _addDataInBatch(self, db, dbc, regTableName, te: TaskExecutor):
         numRecords = self.LARGE_NUMBER_OF_RECORDS if Config.getConfig().larger_data else self.SMALL_NUMBER_OF_RECORDS
 
@@ -2719,10 +2843,8 @@ class TaskAddData(StateTransitionTask):
 
         sql = "INSERT INTO {} VALUES ".format(fullTableName)
         for j in range(numRecords):  # number of records per table
-            nextInt = db.getNextInt()
-            nextTick = db.getNextTick()
-            nextColor = db.getNextColor()
-            sql += "('{}', {}, '{}');".format(nextTick, nextInt, nextColor)
+            valuesStr, seq, tick = self._buildInsertValues(db)
+            sql += valuesStr
 
         # Logging.info("Adding data in batch: {}".format(sql))
         try:
@@ -2735,9 +2857,7 @@ class TaskAddData(StateTransitionTask):
         numRecords = self.LARGE_NUMBER_OF_RECORDS if Config.getConfig().larger_data else self.SMALL_NUMBER_OF_RECORDS
 
         for j in range(numRecords):  # number of records per table
-            intToWrite = db.getNextInt()
-            nextTick = db.getNextTick()
-            nextColor = db.getNextColor()
+            valuesStr, intToWrite, nextTick = self._buildInsertValues(db)
             if Config.getConfig().record_ops:
                 self.prepToRecordOps()
                 if self.fAddLogReady is None:
@@ -2752,11 +2872,7 @@ class TaskAddData(StateTransitionTask):
                 fullTableName)  # so that we are verify read-back. TODO: deal with exceptions before unlock
 
             try:
-                sql = "INSERT INTO {} VALUES ('{}', {}, '{}');".format(  # removed: tags ('{}', {})
-                    fullTableName,
-                    # ds.getFixedSuperTableName(),
-                    # ds.getNextBinary(), ds.getNextFloat(),
-                    nextTick, intToWrite, nextColor)
+                sql = "INSERT INTO {} VALUES {};".format(fullTableName, valuesStr)
                 # Logging.info("Adding data: {}".format(sql))
                 dbc.execute(sql)
                 # Logging.info("Data added: {}".format(sql))
@@ -2765,11 +2881,11 @@ class TaskAddData(StateTransitionTask):
                 # Quick hack, attach an update statement here. TODO: create an "update" task
                 if (not Config.getConfig().use_shadow_db) and Dice.throw(
                         5) == 0:  # 1 in N chance, plus not using shaddow DB
-                    intToUpdate = db.getNextInt()  # Updated， but should not succeed
-                    nextColor = db.getNextColor()
-                    sql = "INSERt INTO {} VALUES ('{}', {}, '{}');".format(  # "INSERt" means "update" here
-                        fullTableName,
-                        nextTick, intToUpdate, nextColor)
+                    updateStr, intToUpdate, _ = self._buildInsertValues(db)
+                    # Re-use same timestamp to simulate an "update"
+                    updateParts = updateStr.strip('()').split(', ', 1)
+                    sql = "INSERT INTO {} VALUES ('{}', {});".format(
+                        fullTableName, nextTick, updateParts[1])
                     # sql = "UPDATE {} set speed={}, color='{}' WHERE ts='{}'".format(
                     #     fullTableName, db.getNextInt(), db.getNextColor(), nextTick)
                     dbc.execute(sql)
@@ -2921,11 +3037,19 @@ class TaskDeleteData(StateTransitionTask):
                     fullTableName)  # so that we are verify read-back. TODO: deal with exceptions before unlock
 
                 try:
-                    sql = "delete from {} where ts = '{}' ;".format(  # removed: tags ('{}', {})
-                        fullTableName,
-                        # ds.getFixedSuperTableName(),
-                        # ds.getNextBinary(), ds.getNextFloat(),
-                        nextTick)
+                    # Randomly choose delete strategy
+                    if Dice.throw(3) == 0:
+                        # Delete using new column WHERE condition
+                        filterable = [(n, t) for n, t in FILTERABLE_COLS.items()
+                                      if n not in ('ts', 'speed', 'color')]
+                        if filterable:
+                            col_name, col_type = random.choice(filterable)
+                            where_cond = TdValueGenerator.gen_where_condition(col_name, col_type, intToWrite)
+                            sql = "delete from {} where {} ;".format(fullTableName, where_cond)
+                        else:
+                            sql = "delete from {} where ts = '{}' ;".format(fullTableName, nextTick)
+                    else:
+                        sql = "delete from {} where ts = '{}' ;".format(fullTableName, nextTick)
 
                     # print(sql)
                     # Logging.info("Adding data: {}".format(sql))
