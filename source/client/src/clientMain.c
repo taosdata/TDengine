@@ -1083,23 +1083,14 @@ int taos_txn_commit(TAOS *taos) {
     releaseTscObj(connId);
     return TSDB_CODE_TXN_NOT_IN_PROGRESS;
   }
-
-  SRpcMsg rpcRsp = {0};
-  int32_t code = tscSendTxnCtrlMsg(pTscObj, TDMT_MND_COMMIT_TXN, &rpcRsp);
-  if (code == TSDB_CODE_SUCCESS) code = rpcRsp.code;
-  rpcFreeCont(rpcRsp.pCont);
-
-  tscInfo("conn:0x%" PRIx64 ", txn:%" PRIu64 " commit %s", pTscObj->id, pTscObj->txnId,
-          (code == 0) ? "success" : tstrerror(code));
-
-  // Reset txn state regardless of result
-  pTscObj->txnState = 0;
-  pTscObj->txnId = 0;
-  taosArrayDestroy(pTscObj->pTxnVgList);
-  pTscObj->pTxnVgList = NULL;
-
   taosThreadMutexUnlock(&pTscObj->mutex);
   releaseTscObj(connId);
+
+  // Use taos_query which handles the async MNode STrans response properly.
+  // The SQL path callback (processCommitTxnRsp) handles tscResetTxnState.
+  TAOS_RES *res = taos_query(taos, "COMMIT");
+  int32_t   code = taos_errno(res);
+  taos_free_result(res);
   return code;
 #else
   return 0;
@@ -1126,23 +1117,14 @@ int taos_txn_rollback(TAOS *taos) {
     releaseTscObj(connId);
     return TSDB_CODE_TXN_NOT_IN_PROGRESS;
   }
-
-  SRpcMsg rpcRsp = {0};
-  int32_t code = tscSendTxnCtrlMsg(pTscObj, TDMT_MND_ROLLBACK_TXN, &rpcRsp);
-  if (code == TSDB_CODE_SUCCESS) code = rpcRsp.code;
-  rpcFreeCont(rpcRsp.pCont);
-
-  tscInfo("conn:0x%" PRIx64 ", txn:%" PRIu64 " rollback %s", pTscObj->id, pTscObj->txnId,
-          (code == 0) ? "success" : tstrerror(code));
-
-  // Reset txn state regardless
-  pTscObj->txnState = 0;
-  pTscObj->txnId = 0;
-  taosArrayDestroy(pTscObj->pTxnVgList);
-  pTscObj->pTxnVgList = NULL;
-
   taosThreadMutexUnlock(&pTscObj->mutex);
   releaseTscObj(connId);
+
+  // Use taos_query which handles the async MNode STrans response properly.
+  // The SQL path callback (processRollbackTxnRsp) handles tscResetTxnState.
+  TAOS_RES *res = taos_query(taos, "ROLLBACK");
+  int32_t   code = taos_errno(res);
+  taos_free_result(res);
   return code;
 #else
   return 0;

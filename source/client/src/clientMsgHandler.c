@@ -1522,7 +1522,7 @@ static int32_t processBeginTxnRsp(void* param, SDataBuf* pMsg, int32_t code) {
   return code;
 }
 
-static void tscResetTxnState(STscObj* pTscObj) {
+void tscResetTxnState(STscObj* pTscObj) {
   taosThreadMutexLock(&pTscObj->mutex);
   pTscObj->txnState = 0;
   pTscObj->txnId = 0;

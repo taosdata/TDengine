@@ -427,6 +427,7 @@ int64_t      removeFromMostPrevReq(SRequestObj* pRequest);
 char* getDbOfConnection(STscObj* pObj);
 void  setConnectionDB(STscObj* pTscObj, const char* db);
 void  resetConnectDB(STscObj* pTscObj);
+void  tscResetTxnState(STscObj* pTscObj);
 
 int taos_options_imp(TSDB_OPTION option, const char* str);
 
