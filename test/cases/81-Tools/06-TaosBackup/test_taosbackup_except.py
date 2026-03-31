@@ -524,11 +524,11 @@ class TestTaosBackupRetry:
         # Ensure taosd is fully up before restore regardless of whether the
         # pause thread's join timed out or dnodeStart is still initializing.
         sc.dnodeStart(1)
-        time.sleep(2)
+        time.sleep(10)
 
         tdLog.info("=== step 4: restore ===")
         restore_cmd = (
-            f"{taosbackup} -T 4"
+            f"{taosbackup} -T 4 -k 5 -z 2000"
             f" -W \"{self._SRV_DB_SRC}={self._SRV_DB_DST}\" -i {tmpdir}"
         )
         tdLog.info(f"  exec: {restore_cmd}")
