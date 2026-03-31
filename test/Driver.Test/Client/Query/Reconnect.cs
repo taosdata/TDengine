@@ -20,7 +20,7 @@ namespace Driver.Test.Client.Query
         [Fact]
         public void QueryReconnect()
         {
-            var port = "36043";
+            var port = GetFreePort().ToString();
             var process = Tools.TaosAdapterTools.NewTaosAdapter(port);
             Tools.TaosAdapterTools.StartTaosAdapter(process, port).Wait();
             Thread.Sleep(1000);
@@ -71,7 +71,7 @@ namespace Driver.Test.Client.Query
         [Fact]
         public void SchemalessReconnect()
         {
-            var port = "36044";
+            var port = GetFreePort().ToString();
             var process = Tools.TaosAdapterTools.NewTaosAdapter(port);
             try
             {
@@ -114,7 +114,7 @@ namespace Driver.Test.Client.Query
         [Fact]
         public void StmtInitReconnect()
         {
-            var port = "36045";
+            var port = GetFreePort().ToString();
             var process = Tools.TaosAdapterTools.NewTaosAdapter(port);
             try
             {
@@ -144,7 +144,7 @@ namespace Driver.Test.Client.Query
         [Fact]
         public void StmtPrepareReconnect()
         {
-            var port = 36046;
+            var port = GetFreePort();
             var prepareFail = true;
             var prepareClose = false;
             ulong stmtId = 0;
@@ -294,7 +294,7 @@ namespace Driver.Test.Client.Query
         [Fact]
         public void StmtExecReconnect()
         {
-            var port = 36047;
+            var port = GetFreePort();
             var bindFail = false;
             var bindClose = false;
             var execFail = false;

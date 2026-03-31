@@ -18,7 +18,7 @@ namespace Driver.Test.Client.TMQ
         [Fact]
         public void SubscribeReconnect()
         {
-            var port = "36041";
+            var port = GetFreePort().ToString();
             var process = Tools.TaosAdapterTools.NewTaosAdapter(port);
             Tools.TaosAdapterTools.StartTaosAdapter(process, port).Wait();
             try
@@ -69,7 +69,7 @@ namespace Driver.Test.Client.TMQ
         [Fact]
         public void ConsumeReconnect()
         {
-            var port = "36042";
+            var port = GetFreePort().ToString();
             var process = Tools.TaosAdapterTools.NewTaosAdapter(port);
             Tools.TaosAdapterTools.StartTaosAdapter(process, port).Wait();
             try
@@ -121,5 +121,6 @@ namespace Driver.Test.Client.TMQ
                 process.Dispose();
             }
         }
+
     }
 }

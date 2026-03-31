@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Diagnostics;
 using System.Text;
 using TDengine.Driver.Impl.NativeMethods;
@@ -13,44 +13,82 @@ namespace TDengine.Driver.Client.Native
         public NativeClient(ConnectionStringBuilder builder)
         {
             Debug.Assert(builder.Protocol == TDengineConstant.ProtocolNative);
-            if (!string.IsNullOrEmpty(builder.BearerToken))
-            {
-                // Use bearer token to connect
-                _conn = NativeMethods.ConnectToken(builder.Host, builder.BearerToken, builder.Database,
-                    (ushort)builder.Port);
-            }
-            else
-            {
-                // Use username and password to connect
-                _conn = NativeMethods.Connect(builder.Host, builder.Username, builder.Password, builder.Database,
-                    (ushort)builder.Port);
-            }
-
-            if (_conn == IntPtr.Zero)
-            {
-                throw new TDengineError(NativeMethods.ErrorNo(IntPtr.Zero), NativeMethods.Error(IntPtr.Zero));
-            }
-
             _tz = builder.GetTimeZone();
-            // set app name
-            SetConnectOptions((int)TSDB_OPTION_CONNECTION.TSDB_OPTION_CONNECTION_USER_APP,
-                TDengineConstant.ProcessName, "user_app");
-            // set connector info
-            SetConnectOptions((int)TSDB_OPTION_CONNECTION.TSDB_OPTION_CONNECTION_CONNECTOR_INFO,
-                TDengineConstant.NativeConnectorInfo, "connector_info");
-            if (builder.ConnectionTimezone != null)
+
+            var hostValue = builder.Host ?? string.Empty;
+            var hostSegments = hostValue.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+            if (hostSegments.Length > 1)
             {
-                // set timezone
-                SetConnectOptions((int)TSDB_OPTION_CONNECTION.TSDB_OPTION_CONNECTION_TIMEZONE,
-                    builder.ConnectionTimezone.Id, "timezone");
+                throw new ArgumentException("native protocol does not support multiple host addresses", "host");
+            }
+
+            var selectedHost = hostValue;
+            var selectedPort = builder.Port;
+            if (hostSegments.Length > 0)
+            {
+                var failoverAddresses = builder.GetFailoverAddresses();
+                if (failoverAddresses.Count > 1)
+                {
+                    throw new ArgumentException("native protocol does not support multiple host addresses", "host");
+                }
+
+                var selectedAddress = failoverAddresses[0];
+                selectedHost = selectedAddress.Host;
+                selectedPort = selectedAddress.Port;
+            }
+            var conn = IntPtr.Zero;
+
+            try
+            {
+                if (!string.IsNullOrEmpty(builder.BearerToken))
+                {
+                    // Use bearer token to connect
+                    conn = NativeMethods.ConnectToken(selectedHost, builder.BearerToken, builder.Database,
+                        (ushort)selectedPort);
+                }
+                else
+                {
+                    // Use username and password to connect
+                    conn = NativeMethods.Connect(selectedHost, builder.Username, builder.Password,
+                        builder.Database, (ushort)selectedPort);
+                }
+
+                if (conn == IntPtr.Zero)
+                {
+                    throw new TDengineError(NativeMethods.ErrorNo(IntPtr.Zero), NativeMethods.Error(IntPtr.Zero));
+                }
+
+                // set app name
+                SetConnectOptions(conn, (int)TSDB_OPTION_CONNECTION.TSDB_OPTION_CONNECTION_USER_APP,
+                    TDengineConstant.ProcessName, "user_app");
+                // set connector info
+                SetConnectOptions(conn, (int)TSDB_OPTION_CONNECTION.TSDB_OPTION_CONNECTION_CONNECTOR_INFO,
+                    TDengineConstant.NativeConnectorInfo, "connector_info");
+                if (builder.ConnectionTimezone != null)
+                {
+                    // set timezone
+                    SetConnectOptions(conn, (int)TSDB_OPTION_CONNECTION.TSDB_OPTION_CONNECTION_TIMEZONE,
+                        builder.ConnectionTimezone.Id, "timezone");
+                }
+
+                _conn = conn;
+            }
+            catch
+            {
+                if (conn != IntPtr.Zero)
+                {
+                    NativeMethods.Close(conn);
+                }
+
+                throw;
             }
         }
 
         private const int TSDB_CODE_INVALID_PARA = 0x0118;
 
-        private void SetConnectOptions(int option, string value, string optionName)
+        private static void SetConnectOptions(IntPtr conn, int option, string value, string optionName)
         {
-            var errNo = NativeMethods.OptionsConnection(_conn, option, value);
+            var errNo = NativeMethods.OptionsConnection(conn, option, value);
             if (errNo == 0) return;
             if ((errNo & 0xffff) == TSDB_CODE_INVALID_PARA)
             {
@@ -64,9 +102,11 @@ namespace TDengine.Driver.Client.Native
 
         public void Dispose()
         {
-            if (_conn == IntPtr.Zero) return;
-            NativeMethods.Close(_conn);
-            _conn = IntPtr.Zero;
+            if (_conn != IntPtr.Zero)
+            {
+                NativeMethods.Close(_conn);
+                _conn = IntPtr.Zero;
+            }
         }
 
         public IStmt StmtInit()

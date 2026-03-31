@@ -12,6 +12,7 @@ using Xunit.Abstractions;
 
 namespace Driver.Test.Client.TMQ
 {
+    [Collection("TaosAdapterTests")]
     public partial class Consumer:IDisposable
     {
         private readonly ITestOutputHelper _output;

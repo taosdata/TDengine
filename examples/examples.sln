@@ -41,6 +41,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AllTypeQuery", "AllTypeQuer
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AllTypeStmt", "AllTypeStmt\AllTypeStmt.csproj", "{2FAFA322-4007-4ACC-95DB-5BAEAB3D0A5F}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WSFailoverQuery", "WSFailoverQuery\WSFailoverQuery.csproj", "{7A3E1A89-5D3F-4A53-A666-2F3A39D6A441}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WSFailoverPoll", "WSFailoverPoll\WSFailoverPoll.csproj", "{0C1D1FD2-8D8D-42AA-8E93-BCF7E645CD0D}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -123,6 +127,14 @@ Global
 		{2FAFA322-4007-4ACC-95DB-5BAEAB3D0A5F}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{2FAFA322-4007-4ACC-95DB-5BAEAB3D0A5F}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{2FAFA322-4007-4ACC-95DB-5BAEAB3D0A5F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7A3E1A89-5D3F-4A53-A666-2F3A39D6A441}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7A3E1A89-5D3F-4A53-A666-2F3A39D6A441}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7A3E1A89-5D3F-4A53-A666-2F3A39D6A441}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7A3E1A89-5D3F-4A53-A666-2F3A39D6A441}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0C1D1FD2-8D8D-42AA-8E93-BCF7E645CD0D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0C1D1FD2-8D8D-42AA-8E93-BCF7E645CD0D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0C1D1FD2-8D8D-42AA-8E93-BCF7E645CD0D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0C1D1FD2-8D8D-42AA-8E93-BCF7E645CD0D}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

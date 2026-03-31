@@ -170,6 +170,7 @@ jobs:
     runs-on: ubuntu-22.04
     needs: build
     strategy:
+      fail-fast: false
       matrix:
         dotnet: [ '3.1.x', '5.0.x', '6.0.x','7.0.x','8.0.x','9.0.x' ]
         include:
@@ -261,7 +262,7 @@ jobs:
           TDENGINE_CLOUD_TOKEN: ${{ secrets.TDENGINE_CLOUD_TOKEN }}
         run: |
           dotnet test -f ${{ matrix.tfm }} --logger "console;verbosity=detailed" --collect:"XPlat Code Coverage" --results-directory:./testresults
-        timeout-minutes: 15
+        timeout-minutes: 30
 
       - uses: actions/upload-artifact@v6
         if: always() && (steps.test.outcome == 'failure' || steps.test.outcome == 'cancelled')

@@ -11,10 +11,11 @@ namespace Driver.Test.Client.Query
     {
         private readonly HttpListener _httpListener;
         private readonly CancellationTokenSource _cts;
+        private readonly TaskCompletionSource<bool> _ready;
         private Task _serverTask;
 
         private readonly int _port;
-        private string Url => $"http://localhost:{_port}/";
+        private string Url => $"http://127.0.0.1:{_port}/";
 
         private Action<WebSocket, WebSocketMessageType, byte[]> _onMessage;
 
@@ -23,18 +24,40 @@ namespace Driver.Test.Client.Query
             _port = port;
             _onMessage = onMessage;
             _httpListener = new HttpListener();
-            _httpListener.Prefixes.Add(Url);
+            TryAddPrefix(Url);
+            TryAddPrefix($"http://localhost:{_port}/");
             _cts = new CancellationTokenSource();
+            _ready = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        }
+
+        private void TryAddPrefix(string prefix)
+        {
+            try
+            {
+                _httpListener.Prefixes.Add(prefix);
+            }
+            catch (HttpListenerException)
+            {
+            }
+            catch (PlatformNotSupportedException)
+            {
+            }
         }
 
         public void Start()
         {
             _httpListener.Start();
-            _serverTask = Task.Run(() => RunServer(_cts.Token));
+            _serverTask = Task.Factory.StartNew(() => RunServer(_cts.Token), _cts.Token, TaskCreationOptions.LongRunning,
+                TaskScheduler.Default).Unwrap();
+            if (!_ready.Task.Wait(TimeSpan.FromSeconds(2)))
+            {
+                throw new TimeoutException("mock websocket server failed to start listening in time");
+            }
         }
 
         private async Task RunServer(CancellationToken cancellationToken)
         {
+            _ready.TrySetResult(true);
             while (!cancellationToken.IsCancellationRequested)
             {
                 try

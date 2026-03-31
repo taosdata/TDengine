@@ -10,6 +10,7 @@ using Xunit.Abstractions;
 
 namespace Driver.Test.Client.Query
 {
+    [Collection("TaosAdapterTests")]
     public partial class Client : IDisposable
     {
         private readonly ITestOutputHelper _output;

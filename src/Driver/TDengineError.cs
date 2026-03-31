@@ -16,7 +16,9 @@ namespace TDengine.Driver
             WS_UNEXPECTED_MESSAGE = 0xf002,
             WS_CONNECTION_CLOSED = 0xf003,
             WS_WRITE_TIMEOUT = 0xf004,
-            WS_CONNEC_FAILED = 0xf005,
+            [Obsolete("Typo. Use WS_CONNECT_FAILED instead.")]
+            WS_CONNEC_FAILED = 0xf005, // typo, for compatibility, do not change the name
+            WS_CONNECT_FAILED = 0xf005,
             WS_RECEIVE_CLOSE_FRAME = 0xf006,
         }
 

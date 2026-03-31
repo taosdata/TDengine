@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Data;
 using System.Diagnostics;
+using System.Net;
 using System.Net.Http;
+using System.Net.Sockets;
 using System.Net.WebSockets;
 using System.Text;
 using System.Threading;
@@ -200,7 +202,7 @@ namespace Data.Tests
         [Fact]
         public void TestState()
         {
-            var port = 56041;
+            var port = GetFreePort();
 
             void MessageHandler(WebSocket webSocket, WebSocketMessageType messageType, byte[] message)
             {
@@ -234,7 +236,7 @@ namespace Data.Tests
             var mockServer = new MockWSServer(port, MessageHandler);
             mockServer.Start();
             var connStr =
-                $"protocol=WebSocket;host=localhost;port={port};useSSL=false;username=root;password=taosdata;";
+                $"protocol=WebSocket;host=127.0.0.1;port={port};useSSL=false;username=root;password=taosdata;";
             var connection = new TDengineConnection(connStr);
             Assert.Equal(ConnectionState.Closed, connection.State);
             connection.Open();
@@ -268,6 +270,15 @@ namespace Data.Tests
             }
 
             connection.Close();
+        }
+
+        private static int GetFreePort()
+        {
+            var listener = new TcpListener(IPAddress.Loopback, 0);
+            listener.Start();
+            var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+            listener.Stop();
+            return port;
         }
     }
 }

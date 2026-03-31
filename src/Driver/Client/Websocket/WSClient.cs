@@ -1,56 +1,80 @@
-﻿using System;
+using System;
+using System.Collections.Generic;
 using System.Diagnostics;
+using System.Threading;
 using TDengine.Driver.Impl.WebSocketMethods;
 
 namespace TDengine.Driver.Client.Websocket
 {
     public class WSClient : ITDengineClient
     {
-        private Connection _connection;
+        private volatile Connection _connection;
+        private volatile FailoverAddressLease _addressLease;
+        private int _disposed;
         private readonly TimeZoneInfo _tz;
         private readonly ConnectionStringBuilder _builder;
+        private readonly IReadOnlyList<FailoverAddress> _failoverAddresses;
         private readonly object _reconnectLock = new object();
 
         internal bool AutoReconnect => _builder.AutoReconnect;
 
-
         public WSClient(ConnectionStringBuilder builder)
         {
             Debug.Assert(builder.Protocol == TDengineConstant.ProtocolWebSocket);
-            _tz = builder.GetTimeZone();
-            _connection = new Connection(GetUrl(builder), builder.Username, builder.Password,
-                builder.Database, builder.BearerToken, builder.ConnTimeout, builder.ReadTimeout, builder.WriteTimeout,
-                builder.EnableCompression, builder.ConnectionTimezone);
-
-            _connection.Connect();
             _builder = builder;
+            _tz = builder.GetTimeZone();
+            _failoverAddresses = builder.GetFailoverAddresses();
+
+            if (!FailoverConnector.TryOpen(_failoverAddresses, 1, 0, false, null, OpenWsConnection,
+                    out var connection, out var lease, out var lastException))
+            {
+                if (lastException != null)
+                {
+                    throw lastException;
+                }
+
+                throw new TDengineError((int)TDengineError.InternalErrorCode.WS_CONNECT_FAILED,
+                    "websocket connection failed");
+            }
+
+            _connection = connection;
+            _addressLease = lease;
         }
 
         public static string GetUrl(ConnectionStringBuilder builder)
         {
+            if (builder == null) throw new ArgumentNullException(nameof(builder));
+            var addresses = builder.GetFailoverAddresses();
+            if (addresses.Count == 0)
+            {
+                throw new ArgumentException("failover addresses is empty", nameof(builder));
+            }
+
+            var address = addresses[0];
+            return GetUrl(builder, address.Host, address.Port);
+        }
+
+        internal static string GetUrl(ConnectionStringBuilder builder, string host, int port)
+        {
             var schema = "ws";
-            var port = builder.Port;
             if (builder.UseSSL)
             {
                 schema = "wss";
-                if (builder.Port == 0)
+                if (port == 0)
                 {
                     port = 443;
                 }
             }
-            else
+            else if (port == 0)
             {
-                if (builder.Port == 0)
-                {
-                    port = 6041;
-                }
+                port = 6041;
             }
 
             var token = builder.Token;
             var uriBuilder = new UriBuilder
             {
                 Scheme = schema,
-                Host = builder.Host,
+                Host = host,
                 Port = port,
                 Path = "/ws"
             };
@@ -63,63 +87,174 @@ namespace TDengine.Driver.Client.Websocket
             return uriBuilder.ToString();
         }
 
+        private Connection CreateConnection(FailoverAddress address)
+        {
+            return new Connection(GetUrl(_builder, address.Host, address.Port), _builder.Username, _builder.Password,
+                _builder.Database, _builder.BearerToken, _builder.ConnTimeout, _builder.ReadTimeout,
+                _builder.WriteTimeout, _builder.EnableCompression, _builder.ConnectionTimezone);
+        }
+
         public void Dispose()
         {
-            if (_connection != null)
+            if (Interlocked.Exchange(ref _disposed, 1) == 1)
             {
-                _connection.Close();
+                return;
+            }
+
+            Connection oldConnection;
+            FailoverAddressLease oldLease;
+
+            lock (_reconnectLock)
+            {
+                oldConnection = _connection;
+                oldLease = _addressLease;
                 _connection = null;
+                _addressLease = null;
+            }
+
+            oldConnection?.Close();
+
+            oldLease?.Dispose();
+        }
+
+        private bool IsDisposed()
+        {
+            return Volatile.Read(ref _disposed) == 1;
+        }
+
+        private void ThrowIfDisposed()
+        {
+            if (IsDisposed())
+            {
+                throw new ObjectDisposedException(nameof(WSClient));
+            }
+        }
+
+        private Connection OpenWsConnection(FailoverAddress address)
+        {
+            Connection currentConnection = null;
+            try
+            {
+                currentConnection = CreateConnection(address);
+                currentConnection.Connect();
+                return currentConnection;
+            }
+            catch
+            {
+                if (currentConnection != null)
+                {
+                    currentConnection.Close();
+                }
+
+                throw;
             }
         }
 
         private void Reconnect(bool force = false, Connection old = null)
         {
             if (!AutoReconnect)
-                return;
-            lock (_reconnectLock)
             {
-                if (_connection != null && _connection.IsAvailable()) // connection is available, no need to reconnect
-                {
-                    if (!force) return;
-                    if (old != null && _connection != old) return; // another thread has reconnected
-                }
+                return;
+            }
 
-                Connection connection = null;
-                for (int i = 0; i < _builder.ReconnectRetryCount; i++)
+            ThrowIfDisposed();
+
+            while (true)
+            {
+                FailoverAddress preferredAddress;
+                lock (_reconnectLock)
                 {
-                    try
+                    if (_connection != null && _connection.IsAvailable()) // connection is available, no need to reconnect
                     {
-                        // sleep
-                        System.Threading.Thread.Sleep(_builder.ReconnectIntervalMs);
-                        connection = new Connection(GetUrl(_builder), _builder.Username, _builder.Password,
-                            _builder.Database, _builder.BearerToken, _builder.ConnTimeout, _builder.ReadTimeout,
-                            _builder.WriteTimeout,
-                            _builder.EnableCompression, _builder.ConnectionTimezone);
-                        connection.Connect();
-                        break;
-                    }
-                    catch (Exception)
-                    {
-                        if (connection != null)
+                        if (!force)
                         {
-                            connection.Close();
-                            connection = null;
+                            return;
+                        }
+
+                        if (old != null && _connection != old)
+                        {
+                            return; // another thread has reconnected
                         }
                     }
+
+                    if (IsDisposed())
+                    {
+                        throw new ObjectDisposedException(nameof(WSClient));
+                    }
+
+                    preferredAddress = _addressLease == null ? null : _addressLease.Address;
                 }
 
-                if (connection == null)
+                if (!FailoverConnector.TryOpen(_failoverAddresses, _builder.ReconnectRetryCount,
+                        _builder.ReconnectIntervalMs, true, preferredAddress, OpenWsConnection,
+                        out var connection, out var lease, out var lastException))
                 {
-                    throw new TDengineError((int)TDengineError.InternalErrorCode.WS_RECONNECT_FAILED,
-                        "websocket connection reconnect failed");
+                    lock (_reconnectLock)
+                    {
+                        if (_connection != null && _connection.IsAvailable())
+                        {
+                            if (!force || (old != null && _connection != old))
+                            {
+                                return;
+                            }
+                        }
+
+                        if (IsDisposed())
+                        {
+                            throw new ObjectDisposedException(nameof(WSClient));
+                        }
+                    }
+
+                    var reason = lastException == null
+                        ? "websocket connection reconnect failed"
+                        : $"websocket connection reconnect failed: {lastException.Message}";
+                    throw new TDengineError((int)TDengineError.InternalErrorCode.WS_RECONNECT_FAILED, reason);
                 }
 
-                if (_connection != null)
+                Connection oldConnection = null;
+                FailoverAddressLease oldLease = null;
+                var needDiscard = false;
+                lock (_reconnectLock)
                 {
-                    _connection.Close();
+                    if (IsDisposed())
+                    {
+                        needDiscard = true;
+                    }
+                    else if (_connection != null && _connection.IsAvailable())
+                    {
+                        if (!force || (old != null && _connection != old))
+                        {
+                            needDiscard = true;
+                        }
+                    }
+
+                    if (!needDiscard)
+                    {
+                        oldConnection = _connection;
+                        oldLease = _addressLease;
+                        _connection = connection;
+                        _addressLease = lease;
+                    }
                 }
 
-                _connection = connection;
+                if (needDiscard)
+                {
+                    connection.Close();
+                    lease.Dispose();
+                    return;
+                }
+
+                if (oldConnection != null)
+                {
+                    oldConnection.Close();
+                }
+
+                if (oldLease != null)
+                {
+                    oldLease.Dispose();
+                }
+
+                return;
             }
         }
 
@@ -136,11 +271,13 @@ namespace TDengine.Driver.Client.Websocket
             }
             catch (Exception e)
             {
-                if (_connection.IsAvailable(e))
+                var currentConnection = _connection;
+                if (currentConnection != null && currentConnection.IsAvailable(e))
                 {
                     throw;
                 }
 
+                ThrowIfDisposed();
                 Reconnect();
                 return DoStmtInit(reqId);
             }
@@ -149,6 +286,11 @@ namespace TDengine.Driver.Client.Websocket
         private IStmt DoStmtInit(long reqId)
         {
             var connection = _connection;
+            if (connection == null)
+            {
+                throw new ObjectDisposedException(nameof(WSClient));
+            }
+
             var resp = connection.Stmt2Init((ulong)reqId);
             return new WSStmt(this, resp.StmtId, _tz, connection);
         }
@@ -166,11 +308,13 @@ namespace TDengine.Driver.Client.Websocket
             }
             catch (Exception e)
             {
-                if (_connection.IsAvailable(e))
+                var currentConnection = _connection;
+                if (currentConnection != null && currentConnection.IsAvailable(e))
                 {
                     throw;
                 }
 
+                ThrowIfDisposed();
                 Reconnect();
                 return DoQuery(query, reqId);
             }
@@ -179,6 +323,11 @@ namespace TDengine.Driver.Client.Websocket
         private IRows DoQuery(string query, long reqId)
         {
             var connection = _connection;
+            if (connection == null)
+            {
+                throw new ObjectDisposedException(nameof(WSClient));
+            }
+
             var resp = connection.BinaryQuery(query, (ulong)reqId);
             if (resp.IsUpdate)
             {
@@ -201,11 +350,13 @@ namespace TDengine.Driver.Client.Websocket
             }
             catch (Exception e)
             {
-                if (_connection.IsAvailable(e))
+                var currentConnection = _connection;
+                if (currentConnection != null && currentConnection.IsAvailable(e))
                 {
                     throw;
                 }
 
+                ThrowIfDisposed();
                 Reconnect();
                 return DoExec(query, reqId);
             }
@@ -213,10 +364,16 @@ namespace TDengine.Driver.Client.Websocket
 
         private long DoExec(string query, long reqId)
         {
-            var resp = _connection.BinaryQuery(query, (ulong)reqId);
+            var connection = _connection;
+            if (connection == null)
+            {
+                throw new ObjectDisposedException(nameof(WSClient));
+            }
+
+            var resp = connection.BinaryQuery(query, (ulong)reqId);
             if (!resp.IsUpdate)
             {
-                _connection.FreeResult(resp.ResultId);
+                connection.FreeResult(resp.ResultId);
             }
 
             return resp.AffectedRows;
@@ -232,11 +389,13 @@ namespace TDengine.Driver.Client.Websocket
             }
             catch (Exception e)
             {
-                if (_connection.IsAvailable(e))
+                var currentConnection = _connection;
+                if (currentConnection != null && currentConnection.IsAvailable(e))
                 {
                     throw;
                 }
 
+                ThrowIfDisposed();
                 Reconnect();
                 DoSchemalessInsert(lines, protocol, precision, ttl, reqId);
             }
@@ -247,7 +406,13 @@ namespace TDengine.Driver.Client.Websocket
             int ttl, long reqId)
         {
             var line = string.Join("\n", lines);
-            _connection.SchemalessInsert(line, protocol, precision, ttl, reqId);
+            var connection = _connection;
+            if (connection == null)
+            {
+                throw new ObjectDisposedException(nameof(WSClient));
+            }
+
+            connection.SchemalessInsert(line, protocol, precision, ttl, reqId);
         }
 
         public bool ConnectionAvailable()
@@ -258,6 +423,7 @@ namespace TDengine.Driver.Client.Websocket
 
         public Connection TryReconnectOrGetConnection(Connection old)
         {
+            ThrowIfDisposed();
             var currentConnection = _connection;
             // first check if the current connection is available
             if (currentConnection != old && currentConnection != null && currentConnection.IsAvailable())

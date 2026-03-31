@@ -1,6 +1,7 @@
 ﻿using System;
 using TDengine.Data.Client;
 using TDengine.Driver;
+using TDengine.Driver.Client;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -103,6 +104,49 @@ namespace Data.Tests
         }
 
         [Fact]
+        public void ParseHostList()
+        {
+            var builder = new TDengineConnectionStringBuilder(
+                "host=127.0.0.1:6030,127.0.0.2:6031;protocol=WebSocket;username=root;password=taosdata");
+            Assert.Equal("127.0.0.1:6030,127.0.0.2:6031", builder.Host);
+        }
+
+        [Fact]
+        public void NativeMultiHostShouldThrowWhenOpen()
+        {
+            var builder = new TDengineConnectionStringBuilder(
+                "host=127.0.0.1:6030,127.0.0.2:6031;protocol=Native;username=root;password=taosdata");
+            Assert.Throws<ArgumentException>(() =>
+            {
+                using (var client = DbDriver.Open(builder))
+                {
+                }
+            });
+        }
+
+        [Fact]
+        public void NativeDuplicateHostShouldThrowWhenOpen()
+        {
+            var builder = new TDengineConnectionStringBuilder(
+                "host=127.0.0.1:6030,127.0.0.1:6030;protocol=Native;username=root;password=taosdata");
+            Assert.Throws<ArgumentException>(() =>
+            {
+                using (var client = DbDriver.Open(builder))
+                {
+                }
+            });
+        }
+
+        [Fact]
+        public void ParseInvalidPort()
+        {
+            Assert.Throws<ArgumentException>(() =>
+            {
+                var builder = new TDengineConnectionStringBuilder("host=127.0.0.1;port=70000");
+            });
+        }
+
+        [Fact]
         public void ParseTimezone()
         {
             _testOutputHelper.WriteLine($"{Environment.Version.Major}");
@@ -155,6 +199,52 @@ namespace Data.Tests
                 new TDengineConnectionStringBuilder("host=127.0.0.1;bearerToken=abcdef;protocol=Native;db=test");
             Assert.Equal("127.0.0.1", builder.Host);
             Assert.Equal("abcdef", builder.BearerToken);
+        }
+
+        [Theory]
+        [InlineData("host=  ;protocol=WebSocket;username=root;password=taosdata")]
+        [InlineData("host=,,;protocol=WebSocket;username=root;password=taosdata")]
+        [InlineData("host=,;protocol=WebSocket;username=root;password=taosdata")]
+        public void WebSocketEmptyHostShouldThrowWhenOpen(string connectionString)
+        {
+            var builder = new TDengineConnectionStringBuilder(connectionString);
+            Assert.Throws<ArgumentException>(() =>
+            {
+                using (var client = DbDriver.Open(builder))
+                {
+                }
+            });
+        }
+
+        [Theory]
+        [InlineData("host=;protocol=Native;username=root;password=taosdata")]
+        [InlineData("host= ;protocol=Native;username=root;password=taosdata")]
+        public void NativeEmptyHostShouldNotThrowArgumentExceptionWhenOpen(string connectionString)
+        {
+            var builder = new TDengineConnectionStringBuilder(connectionString);
+            var ex = Record.Exception(() =>
+            {
+                using (var client = DbDriver.Open(builder))
+                {
+                }
+            });
+
+            Assert.False(ex is ArgumentException, ex?.ToString());
+        }
+
+        [Fact]
+        public void NullNativeHostShouldNotThrowArgumentExceptionWhenOpen()
+        {
+            var builder = new TDengineConnectionStringBuilder("protocol=Native;username=root;password=taosdata");
+            builder.Host = null;
+            var ex = Record.Exception(() =>
+            {
+                using (var client = DbDriver.Open(builder))
+                {
+                }
+            });
+
+            Assert.False(ex is ArgumentException, ex?.ToString());
         }
     }
 }

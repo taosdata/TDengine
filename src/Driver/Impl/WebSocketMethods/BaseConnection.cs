@@ -42,6 +42,8 @@ namespace TDengine.Driver.Impl.WebSocketMethods
 
         private readonly SemaphoreSlim _sendSemaphore = new SemaphoreSlim(1, 1);
 
+        private readonly CancellationTokenSource _closeCts = new CancellationTokenSource();
+
         private bool _exit = false;
         private readonly ReaderWriterLockSlim _exitLock = new ReaderWriterLockSlim();
 
@@ -104,7 +106,7 @@ namespace TDengine.Driver.Impl.WebSocketMethods
 
             if (_client.State != WebSocketState.Open)
             {
-                throw new TDengineError((int)TDengineError.InternalErrorCode.WS_CONNEC_FAILED,
+                throw new TDengineError((int)TDengineError.InternalErrorCode.WS_CONNECT_FAILED,
                     $"connect to {addr} fail");
             }
 
@@ -433,7 +435,7 @@ namespace TDengine.Driver.Impl.WebSocketMethods
                     "websocket connection is closed");
             }
 
-            using (var cts = new CancellationTokenSource())
+            using (var cts = CancellationTokenSource.CreateLinkedTokenSource(_closeCts.Token))
             {
                 cts.CancelAfter(_writeTimeout);
                 try
@@ -442,6 +444,12 @@ namespace TDengine.Driver.Impl.WebSocketMethods
                 }
                 catch (OperationCanceledException)
                 {
+                    if (_closeCts.IsCancellationRequested)
+                    {
+                        throw new TDengineError((int)TDengineError.InternalErrorCode.WS_CONNECTION_CLOSED,
+                            "websocket connection is closed");
+                    }
+
                     throw new TDengineError((int)TDengineError.InternalErrorCode.WS_WRITE_TIMEOUT,
                         "write message timeout");
                 }
@@ -500,7 +508,7 @@ namespace TDengine.Driver.Impl.WebSocketMethods
                     {
                         do
                         {
-                            result = await _client.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None)
+                            result = await _client.ReceiveAsync(new ArraySegment<byte>(buffer), _closeCts.Token)
                                 .ConfigureAwait(false);
                             if (result.MessageType == WebSocketMessageType.Close)
                             {
@@ -580,6 +588,7 @@ namespace TDengine.Driver.Impl.WebSocketMethods
             {
                 if (_exit) return;
                 _exit = true;
+                _closeCts.Cancel();
                 foreach (var kvp in _pendingRequests)
                 {
                     if (e != null)
@@ -601,9 +610,12 @@ namespace TDengine.Driver.Impl.WebSocketMethods
 
             try
             {
-                Task.Run(() =>
-                    _client.CloseAsync(WebSocketCloseStatus.NormalClosure, "", CancellationToken.None)
-                        .ConfigureAwait(false)).Wait();
+                using (var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3)))
+                {
+                    Task.Run(() =>
+                        _client.CloseAsync(WebSocketCloseStatus.NormalClosure, "", cts.Token)
+                            .ConfigureAwait(false)).Wait(cts.Token);
+                }
             }
             catch (Exception)
             {
@@ -632,21 +644,22 @@ namespace TDengine.Driver.Impl.WebSocketMethods
                     if (ae.InnerException is WebSocketException) return false;
                     if (ae.InnerException is TDengineError tInnerException)
                     {
-                        return TDengineErrorIsConnectionAvailable(tInnerException);
+                        return IsConnectionAvailableByTdengineError(tInnerException);
                     }
 
                     return true;
                 case TDengineError te:
-                    return TDengineErrorIsConnectionAvailable(te);
+                    return IsConnectionAvailableByTdengineError(te);
                 default:
                     return true;
             }
         }
 
-        private bool TDengineErrorIsConnectionAvailable(TDengineError te)
+        internal static bool IsConnectionAvailableByTdengineError(TDengineError te)
         {
             return te.Code != (int)TDengineError.InternalErrorCode.WS_CONNECTION_CLOSED &&
                    te.Code != (int)TDengineError.InternalErrorCode.WS_RECEIVE_CLOSE_FRAME &&
+                   te.Code != (int)TDengineError.InternalErrorCode.WS_WRITE_TIMEOUT &&
                    te.Code != (int)TDengineError.InternalErrorCode.WS_UNEXPECTED_MESSAGE &&
                    te.Code != (int)TDengineError.InternalErrorCode.WS_RECONNECT_FAILED;
         }

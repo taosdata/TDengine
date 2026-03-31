@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
 using TDengine.Driver.Impl.WebSocketMethods.Protocol;
 
 namespace TDengine.Driver.Impl.WebSocketMethods
@@ -7,29 +8,65 @@ namespace TDengine.Driver.Impl.WebSocketMethods
     public class TMQConnection : BaseConnection
     {
         public TMQConnection(TMQOptions options, TimeSpan connectTimeout = default,
+            TimeSpan readTimeout = default, TimeSpan writeTimeout = default) : this(options, null, connectTimeout,
+            readTimeout, writeTimeout)
+        {
+        }
+
+        internal TMQConnection(TMQOptions options, FailoverAddress address, TimeSpan connectTimeout = default,
             TimeSpan readTimeout = default, TimeSpan writeTimeout = default) : base(
-            GetUrl(options), connectTimeout, readTimeout,
+            GetUrl(options, address), connectTimeout, readTimeout,
             writeTimeout, options.TDEnableCompression == "true")
         {
         }
 
         public static string GetUrl(TMQOptions options)
         {
+            if (options == null) throw new ArgumentNullException(nameof(options));
+            var addresses = options.GetFailoverAddresses();
+            if (addresses.Count == 0)
+            {
+                throw new ArgumentException("failover addresses is empty", nameof(options));
+            }
+
+            return GetUrl(options, addresses[0]);
+        }
+
+        internal static string GetUrl(TMQOptions options, FailoverAddress address)
+        {
+            if (address == null)
+            {
+                return GetUrl(options);
+            }
+
+            return GetUrl(options, address.Host, address.Port);
+        }
+
+        internal static string GetUrl(TMQOptions options, string host, int endpointPort)
+        {
             var schema = "ws";
-            var port = options.TDConnectPort;
+            var port = endpointPort;
             if (options.TDUseSSL == "true")
             {
                 schema = "wss";
-                if (string.IsNullOrEmpty(options.TDConnectPort))
+                if (port <= 0)
                 {
-                    port = "443";
+                    if (!int.TryParse(options.TDConnectPort, NumberStyles.Integer, CultureInfo.InvariantCulture,
+                            out port) || port <= 0)
+                    {
+                        port = 443;
+                    }
                 }
             }
             else
             {
-                if (string.IsNullOrEmpty(options.TDConnectPort))
+                if (port <= 0)
                 {
-                    port = "6041";
+                    if (!int.TryParse(options.TDConnectPort, NumberStyles.Integer, CultureInfo.InvariantCulture,
+                            out port) || port <= 0)
+                    {
+                        port = 6041;
+                    }
                 }
             }
 
@@ -37,8 +74,8 @@ namespace TDengine.Driver.Impl.WebSocketMethods
             var uriBuilder = new UriBuilder
             {
                 Scheme = schema,
-                Host = options.TDConnectIp,
-                Port = Convert.ToInt32(port),
+                Host = host,
+                Port = port,
                 Path = "/rest/tmq"
             };
 
@@ -238,6 +275,8 @@ namespace TDengine.Driver.Impl.WebSocketMethods
 
     public class TMQOptions
     {
+        private const string TdConnectIpKey = "td.connect.ip";
+        private const string TdConnectPortKey = "td.connect.port";
         protected IDictionary<string, string> properties;
         public string GroupId => Get("group.id");
 
@@ -299,6 +338,67 @@ namespace TDengine.Driver.Impl.WebSocketMethods
             }
 
             return string.Empty;
+        }
+
+        internal IReadOnlyList<FailoverAddress> GetFailoverAddresses()
+        {
+            var endpoints = new List<FailoverAddress>();
+            var deduplicatedCacheKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var hostValue = TDConnectIp ?? string.Empty;
+            var hostSegments = hostValue.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+
+            if (hostSegments.Length == 0)
+            {
+                throw new ArgumentException("invalid td.connect.ip value", TdConnectIpKey);
+            }
+
+            var isMultiHost = hostSegments.Length > 1;
+            for (var i = 0; i < hostSegments.Length; i++)
+            {
+                HostEndpointParser.ParseHostEndpoint(hostSegments[i], TdConnectIpKey, out var endpointHost,
+                    out var endpointPort, "td.connect.ip", allowBareIpv6: !isMultiHost);
+                var resolvedPort = ResolvePort(endpointPort);
+                var cacheKey = HostEndpointParser.BuildFailoverCacheKey(TDengineConstant.ProtocolWebSocket,
+                    TDUseSSL == "true", endpointHost, resolvedPort);
+                if (!deduplicatedCacheKeys.Add(cacheKey))
+                {
+                    continue;
+                }
+
+                endpoints.Add(new FailoverAddress(endpointHost, resolvedPort, cacheKey));
+            }
+
+            if (endpoints.Count == 0)
+            {
+                throw new ArgumentException("invalid td.connect.ip value", TdConnectIpKey);
+            }
+
+            return endpoints;
+        }
+
+        private int ResolvePort(int endpointPort)
+        {
+            if (endpointPort > 0)
+            {
+                return endpointPort;
+            }
+
+            if (!string.IsNullOrWhiteSpace(TDConnectPort))
+            {
+                if (!int.TryParse(TDConnectPort, NumberStyles.Integer, CultureInfo.InvariantCulture, out var port))
+                {
+                    throw new ArgumentException("invalid td.connect.port value", TdConnectPortKey);
+                }
+
+                if (port <= 0 || port > ushort.MaxValue)
+                {
+                    throw new ArgumentException("invalid td.connect.port value", TdConnectPortKey);
+                }
+
+                return port;
+            }
+
+            return TDUseSSL == "true" ? 443 : 6041;
         }
 
         private Dictionary<string, bool> knownProperties = new Dictionary<string, bool>()

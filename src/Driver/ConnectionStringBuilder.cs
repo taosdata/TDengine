@@ -133,11 +133,11 @@ namespace TDengine.Driver
                     string[] keyValue = query.Split(new char[] { '=' }, 2);
                     if (keyValue.Length != 2)
                     {
-                        throw new ArgumentException($"invalid connection param ${query}");
+                        throw new ArgumentException($"invalid connection param {query}");
                     }
 
                     var keyword = keyValue[0].Trim();
-                    var value = query.Contains(",") ? query.Replace(keyword, "") : keyValue[1];
+                    var value = keyValue[1].Trim();
                     KeysEnum index;
                     var exist = KeysDict.TryGetValue(keyword, out index);
                     if (exist)
@@ -221,7 +221,15 @@ namespace TDengine.Driver
         public int Port
         {
             get => _port;
-            set => base[PortKey] = _port = value;
+            set
+            {
+                if (value < 0 || value > ushort.MaxValue)
+                {
+                    throw new ArgumentException("invalid port value", PortKey);
+                }
+
+                base[PortKey] = _port = value;
+            }
         }
 
         public string Database
@@ -538,6 +546,61 @@ namespace TDengine.Driver
             Port = 6041;
             Host = "localhost";
             Protocol = TDengineConstant.ProtocolWebSocket;
+        }
+
+        internal IReadOnlyList<FailoverAddress> GetFailoverAddresses()
+        {
+            var endpoints = new List<FailoverAddress>();
+            var deduplicatedCacheKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var hostValue = Host ?? string.Empty;
+            var hostSegments = hostValue.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+
+            if (hostSegments.Length == 0)
+            {
+                throw new ArgumentException("host value cannot be empty", HostKey);
+            }
+
+            var isMultiHost = hostSegments.Length > 1;
+            for (var i = 0; i < hostSegments.Length; i++)
+            {
+                HostEndpointParser.ParseHostEndpoint(hostSegments[i], HostKey, out var endpointHost,
+                    out var endpointPort, allowBareIpv6: !isMultiHost);
+                var resolvedPort = ResolvePort(endpointPort);
+                var cacheKey = HostEndpointParser.BuildFailoverCacheKey(Protocol, UseSSL, endpointHost, resolvedPort);
+                if (!deduplicatedCacheKeys.Add(cacheKey))
+                {
+                    continue;
+                }
+
+                endpoints.Add(new FailoverAddress(endpointHost, resolvedPort, cacheKey));
+            }
+
+            if (endpoints.Count == 0)
+            {
+                throw new ArgumentException("invalid host value", HostKey);
+            }
+
+            return endpoints;
+        }
+
+        private int ResolvePort(int endpointPort)
+        {
+            if (endpointPort > 0)
+            {
+                return endpointPort;
+            }
+
+            if (Port > 0)
+            {
+                return Port;
+            }
+
+            if (Protocol != TDengineConstant.ProtocolWebSocket)
+            {
+                return 0;
+            }
+
+            return UseSSL ? 443 : 6041;
         }
 
         public TimeZoneInfo GetTimeZone()
