@@ -161,8 +161,8 @@ window_clause: {
   | STATE_WINDOW(expr [, extend[, zeroth_state]]) [TRUE_FOR(true_for_expr)]
   | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [fill_clause]
   | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition [TRUE_FOR(true_for_expr)]
-    | COUNT_WINDOW(count_val[, sliding_val])
-    | EXTERNAL_WINDOW ((subquery) window_alias)
+  | COUNT_WINDOW(count_val[, sliding_val])
+  | EXTERNAL_WINDOW ((subquery) window_alias) [fill_clause]
 }
 ```
 
@@ -542,6 +542,7 @@ FROM table_name
 EXTERNAL_WINDOW (
     (subquery_that_defines_windows) window_alias
 )
+[FILL_CLAUSE]
 [HAVING condition]
 [ORDER BY ...]
 ```
@@ -570,6 +571,10 @@ The query result is as follows:
 ```
 
 In the SQL above, the window boundaries come from the independent `grid_events` table rather than being derived from `meters` itself. This is the core value of external windows: **decoupling window definition from data sources**. You can directly use the time ranges of arbitrary external events, such as alert records, schedules, or maintenance plans, for aggregation analysis without pre-partitioning the measurement data into windows.
+
+EXTERNAL_WINDOW also supports the `FILL` clause for empty windows. By default, an empty window produces no result row; with `FILL`, you can choose whether to keep that window and how its aggregate columns are populated. In EXTERNAL_WINDOW queries, the supported modes are `NONE`, `NULL`, `NULL_F`, `VALUE`, `VALUE_F`, `PREV`, and `NEXT`; `LINEAR`, `NEAR`, and `SURROUND` are not supported. Filled rows participate in `HAVING`, so the execution order is "fill first, then filter". For the general FILL syntax, see [FILL Clause](../14-reference/03-taos-sql/20-select.md#fill-clause).
+
+#### Constraints and Limitations
 
 For detailed explanations of external window core features such as partition alignment, window attribute column reference rules, nested usage, and constraints, see [TDengine TSDB Distinctive Queries - External Window](../14-reference/03-taos-sql/24-distinguished.md#external-window).
 

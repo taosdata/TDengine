@@ -331,6 +331,7 @@ static int32_t doFillNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
       pTaskInfo->code = code;
       T_LONG_JMP(pTaskInfo->env, code);
     }
+
     if (fillResult->info.rows > 0) {
       break;
     }
