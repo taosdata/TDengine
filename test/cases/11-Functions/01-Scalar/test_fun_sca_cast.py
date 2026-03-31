@@ -1412,6 +1412,73 @@ class TestFunCast:
         self.cast_without_from()
         self.ts5972()
 
+    def do_cast_to_json_invalid(self):
+        """Regression test: CAST(expr AS JSON) must return a proper error, not Unknown error 65535.
+
+        Reproducer from SQL fuzzing. All CAST(... AS JSON) expressions on regular (non-JSON-tag)
+        columns/literals must be rejected at translation time with a descriptive error message
+        instead of propagating TSDB_CODE_FAILED (-1 / 65535) from castFunction's default branch.
+        """
+        tdSql.execute("drop database if exists tdsqlsmith_shared;")
+        tdSql.execute("create database if not exists tdsqlsmith_shared;")
+        tdSql.execute("use tdsqlsmith_shared;")
+        tdSql.execute(
+            "create table if not exists t1(ts timestamp, id int, v int, c1 int, c2 int, "
+            "u1 int unsigned, bi bigint, ubi bigint unsigned, f float, d double, "
+            "si smallint, usi smallint unsigned, ti tinyint, uti tinyint unsigned, "
+            "ok bool, a binary(32), b varchar(64), n nchar(32), vb varbinary(64), "
+            "geo geometry(100), de decimal(18,6));"
+        )
+        tdSql.execute(
+            "create table if not exists t2(ts timestamp, id int, v int, c1 int, c2 int, "
+            "u1 int unsigned, bi bigint, ubi bigint unsigned, f float, d double, "
+            "si smallint, usi smallint unsigned, ti tinyint, uti tinyint unsigned, "
+            "ok bool, a binary(32), b varchar(64), n nchar(32), vb varbinary(64), "
+            "geo geometry(100), de decimal(18,6));"
+        )
+        tdSql.execute(
+            "create table if not exists t3(ts timestamp, id int, v int, c1 int, c2 int, "
+            "u1 int unsigned, bi bigint, ubi bigint unsigned, f float, d double, "
+            "si smallint, usi smallint unsigned, ti tinyint, uti tinyint unsigned, "
+            "ok bool, a binary(32), b varchar(64), n nchar(32), vb varbinary(64), "
+            "geo geometry(100), de decimal(18,6));"
+        )
+        tdSql.execute(
+            "insert into t1 values(now,1,10,1,2,11,111111111,222222222,1.25,2.5,12,34,7,9,"
+            "true,'alpha','beta','gamma','\\x010203','POINT(1 2)',123.456789);"
+        )
+        tdSql.execute(
+            "insert into t2 values(now,2,20,3,4,21,211111111,322222222,3.5,4.75,-12,44,-7,19,"
+            "false,'left','right','delta','\\x0A0B0C','POINT(2 3)',223.000001);"
+        )
+        tdSql.execute(
+            "insert into t3 values(now,3,30,5,6,31,311111111,422222222,5.75,6.125,22,54,17,29,"
+            "true,'foo','bar','omega','\\x112233','POINT(3 4)',323.5);"
+        )
+
+        # All of the following must return a proper error (not Unknown error 65535)
+        tdSql.error("select n, si from t3 where c1 > 2.97 order by ((-ubi) % f) % (-22) asc nulls last, cast(ti as json) desc nulls last limit 12 offset 33;")
+        tdSql.error("select bi, ubi, ubi from t2 order by cast(-pow(usi, floor(pow(id, f))) as json) desc nulls last;")
+        tdSql.error("select c1 from t1 order by +(-(-f)) asc nulls last, cast(position('s_431' in upper(a)) as json) asc nulls last limit 50 offset 43;")
+        tdSql.error("select usi, vb from t1 where usi > 6 order by cast(v as json) asc nulls last limit 5 offset 45;")
+        tdSql.error("select v from t2 order by cast(pow(abs(bi), d) & ti as json) asc nulls last;")
+        tdSql.error("select f, ts, c2 from t2 order by c1 asc nulls last, cast(case when u1 then c2 else u1 end as json) desc nulls last limit 4 offset 15;")
+        tdSql.error("select a, c2, c1 from t1 order by case when cast(+ti as json) then si else -v end desc nulls first, -de asc nulls last limit 14 offset 36;")
+        tdSql.error("select ts, n from t2 order by cast(c1 as json) asc nulls last limit 13;")
+        tdSql.error("select n from t3 order by -(abs(uti) + (case cast(c2 as json) when geo then d else u1 end)) asc nulls last, si asc nulls last limit 30;")
+        tdSql.error("select uti, si, si from t1 order by if((now() in (now(), today(), today())) or (ok between ok and ok), trim(both a from b), concat(upper(b), n) is not null) asc nulls last, cast(today() as json) desc nulls last limit 30 offset 24;")
+        tdSql.error("select ts from t1 order by position(a in b) asc nulls last, cast(ifnull(a, b) as json) desc nulls last limit 38;")
+        tdSql.error("select d, geo, b from t2 where usi > 7.4 order by cast(f as json) desc nulls last, +abs(uti) desc nulls last;")
+        tdSql.query("select de, d as y, avg(c1), avg(d) from t3 as c where not ((case isnotnull(24) when de then lower(a) < b else bi end) not in ('s_693', 's_908', 's_727')) group by de, d limit 16 offset 12;")
+        tdSql.error("select cast(d as json), ti % (ubi - ceil(ceil(u1))) from t2 order by +u1 asc nulls last;")
+        tdSql.error("select de from t1 where u1 > 8.36 order by cast(case f when ti then d else rand() end as json) desc nulls last, c2 / (-(-c2)) asc nulls first limit 13;")
+        tdSql.error("select * from t3 where ((+c1) is null) and (cast(b as json) between vb and '{\"k\":1}') order by ubi asc nulls last limit 19;")
+        tdSql.error("select b, u1, c2 from t1 where uti > 13 order by cast(2 as json) asc nulls first limit 7 offset 48;")
+        tdSql.error("select ubi, bi, n from t2 order by if(case when id then 's_359' else f end, isnotnull(cast(c1 as json)), trim(b)) | floor(id) desc nulls last limit 6 offset 6;")
+        tdSql.error("select id from t3 order by (-v) + c1 desc nulls last, cast(b as json) asc nulls last limit 28 offset 21;")
+
+        tdSql.execute("drop database if exists tdsqlsmith_shared;")
+
     # main
     def test_fun_sca_cast(self):
         """ Fun: cast()
@@ -1425,6 +1492,7 @@ class TestFunCast:
         7. CAST with function embedded
         8. CAST without from table
         9. verify JIRA TS-5972
+        10. CAST to JSON returns proper error (not Unknown error 65535)
 
         Since: v3.0.0.0
 
@@ -1441,4 +1509,5 @@ class TestFunCast:
         self.do_cast_const()
         self.do_army_cast()
         self.do_system_test_cast()
+        self.do_cast_to_json_invalid()
         
