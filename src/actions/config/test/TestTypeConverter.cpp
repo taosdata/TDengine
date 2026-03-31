@@ -20,6 +20,17 @@ void test_convert_int() {
     assert(convert_value<int32_t>("123") == 123);
     assert(convert_value<int8_t>("-42") == -42);
     assert(convert_value<uint16_t>("65535") == 65535);
+
+    // Leading '+' sign for unsigned types (from_chars compatibility fix)
+    assert(convert_value<uint8_t>("+1") == 1);
+    assert(convert_value<uint16_t>("+100") == 100);
+    assert(convert_value<uint32_t>("+4294967295") == 4294967295u);
+    assert(convert_value<uint64_t>("+18446744073709551615") == UINT64_MAX);
+
+    // Leading '+' sign for signed types (already supported by from_chars)
+    assert(convert_value<int32_t>("+42") == 42);
+    assert(convert_value<int64_t>("+9999") == 9999);
+
     std::cout << "test_convert_int passed" << std::endl;
 }
 

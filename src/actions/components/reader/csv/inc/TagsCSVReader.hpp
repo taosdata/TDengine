@@ -25,6 +25,7 @@ public:
 private:
     TagsCSV config_;
     std::optional<ColumnConfigInstanceVector> instances_;
+    std::vector<std::string> resolved_paths_;
     size_t total_columns_ = 0;
     std::vector<std::pair<size_t, ColumnTypeTag>> column_type_map_;
 

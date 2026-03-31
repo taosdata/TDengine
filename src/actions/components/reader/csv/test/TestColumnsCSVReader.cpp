@@ -264,8 +264,11 @@ void test_generate_with_invalid_data_format() {
         assert(false && "Expected an exception for invalid data format");
     } catch (const std::exception& e) {
         std::string error_message = e.what();
-        // Check if the error message contains the expected reason, like "stoll"
-        assert(error_message.find("stoll") != std::string::npos && "Error message should indicate a conversion failure");
+        // Check if the error message indicates a conversion failure
+        assert((error_message.find("stoll") != std::string::npos
+             || error_message.find("Invalid integer") != std::string::npos
+             || error_message.find("convert") != std::string::npos)
+             && "Error message should indicate a conversion failure");
         std::cout << "test_generate_with_invalid_data_format passed\n";
     }
 }

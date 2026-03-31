@@ -1,4 +1,5 @@
 #include "TagsCSVReader.hpp"
+#include "FilePathResolver.hpp"
 #include "TypeConverter.hpp"
 #include <stdexcept>
 #include <algorithm>
@@ -19,9 +20,10 @@ void TagsCSVReader::validate_config() {
         throw std::invalid_argument("CSV file path is empty for tags data");
     }
 
-    // Create a CSV reader to get total columns
+    // Resolve file paths and create a CSV reader to get total columns
+    resolved_paths_ = FilePathResolver::resolve(config_.file_path);
     CSVReader reader(
-        config_.file_path,
+        resolved_paths_,
         config_.has_header,
         config_.delimiter.empty() ? ',' : config_.delimiter[0]
     );
@@ -65,9 +67,9 @@ ColumnType TagsCSVReader::convert_to_type(const std::string& value, ColumnTypeTa
 
 std::vector<ColumnTypeVector> TagsCSVReader::generate() const {
     try {
-        // Create a CSV reader
+        // Use resolved file paths from validate_config()
         CSVReader reader(
-            config_.file_path,
+            resolved_paths_,
             config_.has_header,
             config_.delimiter.empty() ? ',' : config_.delimiter[0]
         );

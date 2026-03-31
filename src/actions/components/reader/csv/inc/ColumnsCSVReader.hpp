@@ -31,6 +31,7 @@ public:
 private:
     ColumnsCSV config_;
     std::optional<ColumnConfigInstanceVector> instances_;
+    std::vector<std::string> resolved_paths_;
     size_t total_columns_ = 0;
     size_t actual_columns_ = 0;
 

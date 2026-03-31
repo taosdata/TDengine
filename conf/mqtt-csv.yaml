@@ -11,6 +11,7 @@ schema:
       tbname_index: 2
       exclude_indices:
     columns:
+      loading_mode: preload
       file_path: ../conf/ctb-data.csv
       tbname_index : 0
       timestamp_index: 1

@@ -57,3 +57,13 @@ target_link_libraries(TestTimestampCSVConfig
     actions_config
 )
 add_test(NAME TestTimestampCSVConfig COMMAND TestTimestampCSVConfig)
+
+# Test SchemaConfig
+add_executable(TestSchemaConfig
+  TestSchemaConfig.cpp
+)
+target_link_libraries(TestSchemaConfig
+  PRIVATE
+    actions_config
+)
+add_test(NAME TestSchemaConfig COMMAND TestSchemaConfig)

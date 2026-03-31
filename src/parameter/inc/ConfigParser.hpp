@@ -84,7 +84,7 @@ namespace YAML {
                 rhs.columns.enabled = true;
                 const auto& columns_node = node["columns"];
                 static const std::set<std::string> columns_keys = {
-                    "file_path", "has_header", "repeat_read", "delimiter",
+                    "loading_mode", "file_path", "has_header", "repeat_read", "delimiter",
                     "tbname_index", "timestamp_index", "timestamp_precision", "timestamp_offset"
                 };
                 check_unknown_keys(columns_node, columns_keys, "schema::from_csv::columns");
@@ -93,6 +93,13 @@ namespace YAML {
                     rhs.columns.file_path = columns_node["file_path"].as<std::string>();
                 } else {
                     throw std::runtime_error("Missing required 'file_path' configuration for schema::from_csv::columns");
+                }
+
+                if (columns_node["loading_mode"]) {
+                    rhs.columns.loading_mode = columns_node["loading_mode"].as<std::string>();
+                    if (rhs.columns.loading_mode != "preload" && rhs.columns.loading_mode != "streaming") {
+                        throw std::runtime_error("loading_mode must be 'preload' or 'streaming', got: " + rhs.columns.loading_mode);
+                    }
                 }
 
                 if (columns_node["has_header"]) rhs.columns.has_header = columns_node["has_header"].as<bool>();

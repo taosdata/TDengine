@@ -9,8 +9,17 @@
 #include <iomanip>
 #include <ctime>
 #include <algorithm>
+#include <string_view>
+#include <cctz/civil_time.h>
+#include <cctz/time_zone.h>
 #include "StringUtils.hpp"
 
+namespace {
+const cctz::time_zone& get_cached_local_time_zone() {
+    static const cctz::time_zone tz = cctz::local_time_zone();
+    return tz;
+}
+}
 
 const std::unordered_map<std::string, int64_t> TimestampUtils::precision_map = {
     {"ns", 1},
@@ -74,6 +83,197 @@ int64_t TimestampUtils::convert_to_timestamp(const std::string& precision) {
     }
 }
 
+// ============================================================================
+// Fractional seconds helper
+// ============================================================================
+
+// Helper function to extract fractional seconds and convert to specified precision
+// Input: fractional part view (e.g., "123" from ".123456")
+// Output: nanoseconds (int64_t value)
+// Supports up to 9 decimal digits (nanosecond precision)
+static int64_t parse_fractional_to_nanos(std::string_view frac_view) {
+    if (frac_view.empty()) {
+        return 0;
+    }
+
+    int64_t frac_value = 0;
+    int frac_digits = 0;
+    for (char c : frac_view) {
+        unsigned char uc = static_cast<unsigned char>(c);
+        if (!std::isdigit(uc)) {
+            break;
+        }
+        if (frac_digits < 9) {
+            frac_value = frac_value * 10 + static_cast<int64_t>(c - '0');
+            ++frac_digits;
+        } else {
+            break;
+        }
+    }
+
+    if (frac_digits == 0) {
+        return 0;
+    }
+
+    // Convert to nanoseconds by padding with zeros on the right
+    // Examples:
+    // ".1"       -> "100000000" ns (100 million ns = 100 ms)
+    // ".123"     -> "123000000" ns (123 million ns = 123 ms)
+    // ".123456"  -> "123456000" ns (123.456 million ns = 123.456 ms)
+    // ".123456789" -> "123456789" ns (exactly 123.456789 ms)
+    for (int i = frac_digits; i < 9; ++i) {
+        frac_value *= 10;
+    }
+
+    return frac_value;
+}
+
+// ============================================================================
+// Performance optimization helpers
+// ============================================================================
+
+bool TimestampUtils::is_numeric_string(const std::string& str) {
+    if (str.empty()) return false;
+    // Check for optional leading +/-
+    size_t start = 0;
+    if (str[0] == '+' || str[0] == '-') {
+        if (str.length() < 2) return false;
+        start = 1;
+    }
+    // Check if all remaining characters are digits
+    return std::all_of(str.begin() + start, str.end(),
+                       [](unsigned char c) { return std::isdigit(c); });
+}
+
+int64_t TimestampUtils::parse_numeric_timestamp(const std::string& str) {
+    try {
+        return std::stoll(str);
+    } catch (const std::out_of_range&) {
+        throw std::runtime_error("Timestamp value out of range: " + str);
+    }
+}
+
+// Parse ISO time for UTC using strptime + timegm (no locks, no locale)
+int64_t TimestampUtils::parse_iso_utc_time(const std::string& iso_str,
+                                            const std::string& precision) {
+    struct tm time_struct = {};
+
+    // Extract fractional seconds if present (supports up to 9 digits: nanosecond precision)
+    int64_t fractional_nanos = 0;
+    std::string parse_str = iso_str;
+    std::string_view iso_view(iso_str);
+    size_t dot_pos = iso_view.find('.');
+    if (dot_pos != std::string::npos) {
+        fractional_nanos = parse_fractional_to_nanos(iso_view.substr(dot_pos + 1));
+        // Remove fractional part for strptime parsing
+        parse_str.assign(iso_view.substr(0, dot_pos));
+    }
+
+    // Use strptime instead of std::get_time to avoid C++ locale locks
+    // Performance: strptime is significantly faster in multi-threaded contexts
+#if defined(_WIN32)
+    // Windows doesn't have strptime, fallback to manual parsing
+    int year, month, day, hour, minute, second;
+    int matched = sscanf(parse_str.c_str(), "%d-%d-%d %d:%d:%d",
+                        &year, &month, &day, &hour, &minute, &second);
+    if (matched != 6) {
+        throw std::runtime_error("Invalid timestamp format: " + iso_str);
+    }
+    time_struct.tm_year = year - 1900;
+    time_struct.tm_mon = month - 1;
+    time_struct.tm_mday = day;
+    time_struct.tm_hour = hour;
+    time_struct.tm_min = minute;
+    time_struct.tm_sec = second;
+    time_struct.tm_isdst = 0;  // UTC, no DST
+#else
+    // Unix: Use strptime for better performance (avoids C++ locale)
+    if (!strptime(parse_str.c_str(), "%Y-%m-%d %H:%M:%S", &time_struct)) {
+        throw std::runtime_error("Invalid timestamp format: " + iso_str);
+    }
+    time_struct.tm_isdst = 0;  // UTC, no DST
+#endif
+
+    // Convert to time_t using timegm (no glibc locks, no timezone conversion)
+#if defined(_WIN32)
+    time_t time_val = _mkgmtime(&time_struct);
+#else
+    time_t time_val = timegm(&time_struct);
+#endif
+
+    if (time_val == -1) {
+        throw std::runtime_error("Failed to convert timestamp: " + iso_str);
+    }
+
+    // Convert base timestamp to nanoseconds and add fractional part
+    int64_t nanos_val = static_cast<int64_t>(time_val) * 1000000000LL + fractional_nanos;
+
+    // Return timestamp according to precision
+    if (precision == "s")  return nanos_val / 1000000000LL;
+    if (precision == "ms") return nanos_val / 1000000LL;
+    if (precision == "us") return nanos_val / 1000LL;
+    if (precision == "ns") return nanos_val;
+
+    return nanos_val / 1000000LL;  // Default to milliseconds
+}
+
+// Parse ISO time for local time using cctz (thread-safe, correct DST handling)
+int64_t TimestampUtils::parse_iso_local_time(const std::string& iso_str,
+                                              const std::string& precision) {
+    try {
+        std::string_view iso_view(iso_str);
+        size_t dot_pos = iso_view.find('.');
+
+        // Use cctz for thread-safe, correct local time parsing
+        // cctz handles DST correctly without global locks
+        const auto& tz = get_cached_local_time_zone();
+        std::chrono::system_clock::time_point tp;
+
+        int64_t nanos = 0;
+        if (dot_pos == std::string::npos) {
+            if (!cctz::parse("%Y-%m-%d %H:%M:%S", iso_str, tz, &tp)) {
+                throw std::runtime_error("Invalid timestamp format: " + iso_str);
+            }
+            nanos = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                tp.time_since_epoch()).count();
+        } else {
+            int64_t fractional_nanos = parse_fractional_to_nanos(iso_view.substr(dot_pos + 1));
+            std::string parse_str;
+            parse_str.assign(iso_view.substr(0, dot_pos));
+            if (!cctz::parse("%Y-%m-%d %H:%M:%S", parse_str, tz, &tp)) {
+                throw std::runtime_error("Invalid timestamp format: " + iso_str);
+            }
+            nanos = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                tp.time_since_epoch()).count();
+            nanos += fractional_nanos;
+        }
+
+        // Return timestamp according to precision
+        if (precision == "s")  return nanos / 1000000000LL;
+        if (precision == "ms") return nanos / 1000000LL;
+        if (precision == "us") return nanos / 1000LL;
+        if (precision == "ns") return nanos;
+
+        return nanos / 1000000LL;  // Default to milliseconds
+    } catch (const std::exception& e) {
+        throw std::runtime_error(std::string("Failed to parse local timestamp: ") + e.what());
+    }
+}
+
+int64_t TimestampUtils::parse_iso_timestamp(const std::string& timestamp,
+                                             const std::string& precision,
+                                             bool is_utc) {
+    if (is_utc) {
+        return parse_iso_utc_time(timestamp, precision);
+    } else {
+        return parse_iso_local_time(timestamp, precision);
+    }
+}
+
+// ============================================================================
+// Main parsing function with performance optimization
+// ============================================================================
+
 int64_t TimestampUtils::parse_timestamp(const std::variant<int64_t, std::string>& timestamp, const std::string& precision) {
     if (std::holds_alternative<int64_t>(timestamp)) {
         return std::get<int64_t>(timestamp);
@@ -83,11 +283,15 @@ int64_t TimestampUtils::parse_timestamp(const std::variant<int64_t, std::string>
     std::string trimmed = time_str;
     StringUtils::remove_all_spaces(trimmed);
 
+    // Pure numeric timestamp
+    if (is_numeric_string(trimmed)) {
+        return parse_numeric_timestamp(trimmed);
+    }
 
     // Support "now" or "now()" and "now()+10s" etc.
     if (trimmed.rfind("now", 0) == 0) {
         int64_t base = convert_to_timestamp(precision);
-        size_t pos = trimmed.find_first_of("+-", 3); // after "now"
+        size_t pos = trimmed.find_first_of("+-", 3);
         if (pos != std::string::npos) {
             char op = trimmed[pos];
             std::string offset_str = trimmed.substr(pos + 1);
@@ -150,17 +354,7 @@ int64_t TimestampUtils::parse_timestamp(const std::variant<int64_t, std::string>
         return base;
     }
 
-
-    // Try to convert string to integer timestamp
-    if (!trimmed.empty() && std::all_of(trimmed.begin(), trimmed.end(), ::isdigit)) {
-        try {
-            return std::stoll(trimmed);
-        } catch (const std::out_of_range&) {
-            throw std::runtime_error("Timestamp value out of range: " + trimmed);
-        }
-    }
-
-    // Parse ISO time format
+    // Standard path: ISO time format
     std::string iso_str = time_str;
     StringUtils::trim(iso_str);
     bool is_utc = false;
@@ -173,35 +367,7 @@ int64_t TimestampUtils::parse_timestamp(const std::variant<int64_t, std::string>
         iso_str[t_pos] = ' ';
     }
 
-    tm time_struct = {};
-    std::istringstream ss(iso_str);
-    ss >> std::get_time(&time_struct, "%Y-%m-%d %H:%M:%S");
-    if (ss.fail()) {
-        throw std::runtime_error("Invalid timestamp format: " + trimmed);
-    }
-
-    time_t time_val;
-    if (is_utc) {
-#if defined(_WIN32)
-        time_val = _mkgmtime(&time_struct);
-#else
-        time_val = timegm(&time_struct);
-#endif
-    } else {
-        // Let mktime decide DST rather than defaulting to tm_isdst=0
-        time_struct.tm_isdst = -1;
-        time_val = mktime(&time_struct);
-    }
-
-    int64_t ms_val = static_cast<int64_t>(time_val) * 1000;
-
-    // Return timestamp according to precision
-    if (precision == "s")  return ms_val / 1000;
-    if (precision == "ms") return ms_val;
-    if (precision == "us") return ms_val * 1000;
-    if (precision == "ns") return ms_val * 1000000;
-
-    return ms_val;
+    return parse_iso_timestamp(iso_str, precision, is_utc);
 }
 
 int64_t TimestampUtils::parse_step(const std::variant<int64_t, std::string>& step, const std::string& precision) {

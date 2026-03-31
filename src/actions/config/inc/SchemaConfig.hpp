@@ -86,5 +86,17 @@ struct SchemaConfig {
                 }
             }
         }
+
+        // Streaming mode validations
+        if (from_csv.columns.enabled && from_csv.columns.loading_mode == "streaming") {
+            if (from_csv.columns.tbname_index >= 0) {
+                throw std::runtime_error("loading_mode 'streaming' is incompatible with 'tbname_index' >= 0. "
+                    "Streaming mode requires tbname_index = -1.");
+            }
+            if (generation.data_disorder.enabled) {
+                throw std::runtime_error("loading_mode 'streaming' is incompatible with 'data_disorder'. "
+                    "Disorder requires buffering rows, which conflicts with streaming.");
+            }
+        }
     }
 };

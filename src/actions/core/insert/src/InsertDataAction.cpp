@@ -17,6 +17,8 @@
 #include <variant>
 #include <type_traits>
 #include <iomanip>
+#include <cctz/civil_time.h>
+#include <cctz/time_zone.h>
 
 #if !defined(_WIN32)
 #include <sched.h>
@@ -673,17 +675,11 @@ ColumnConfigInstanceVector InsertDataAction::create_tag_instances() const {
 
 void InsertDataAction::print_sink_plugin_times(const std::vector<std::unique_ptr<ISinkPlugin>>& plugins) {
     auto format_time = [](const std::chrono::system_clock::time_point& tp) -> std::string {
-        auto t = std::chrono::system_clock::to_time_t(tp);
+        static const cctz::time_zone local_tz = cctz::local_time_zone();
         auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(tp.time_since_epoch()) % 1000;
-        std::tm tm;
-#if defined(_WIN32)
-        localtime_s(&tm, &t);
-#else
-        localtime_r(&t, &tm);
-#endif
+        std::string base = cctz::format("%Y-%m-%d %H:%M:%S", tp, local_tz);
         std::ostringstream oss;
-        oss << std::put_time(&tm, "%Y-%m-%d %H:%M:%S")
-            << "." << std::setfill('0') << std::setw(3) << ms.count();
+        oss << base << "." << std::setfill('0') << std::setw(3) << ms.count();
         return oss.str();
     };
 

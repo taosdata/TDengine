@@ -8,6 +8,7 @@ struct ColumnsCSV {
     bool enabled = false;
     ColumnConfigVector schema;
 
+    std::string loading_mode = "preload";
     std::string file_path;
     bool has_header = true;
     bool repeat_read = false;

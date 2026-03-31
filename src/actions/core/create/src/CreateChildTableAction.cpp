@@ -26,7 +26,7 @@ void CreateChildTableAction::execute() {
             TableNameCSVReader csv_reader(config_.schema.tbname.csv);
             table_names = csv_reader.generate();
             for (const auto& name : table_names) {
-                LogUtils::info("Read table name from CSV: {}", name);
+                LogUtils::debug("Read table name from CSV: {}", name);
             }
         } else {
             throw std::runtime_error("Unsupported table name source type: " + config_.schema.tbname.source_type);
@@ -49,7 +49,7 @@ void CreateChildTableAction::execute() {
             tags = tags_csv.generate();
             if (global_.verbose) {
                 for (const auto& tag : tags) {
-                    LogUtils::info("Read tag from CSV: {}", fmt::streamed(tag));
+                    LogUtils::debug("Read tag from CSV: {}", fmt::streamed(tag));
                 }
             }
             if (tags.size() != table_names.size()) {

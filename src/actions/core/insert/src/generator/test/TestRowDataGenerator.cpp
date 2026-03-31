@@ -202,6 +202,7 @@ void test_csv_mode_basic() {
     columns_config.source_type = "csv";
 
     // Configure CSV data source
+    columns_config.csv.loading_mode = "preload";
     columns_config.csv.file_path = "test_data.csv";
     columns_config.csv.has_header = true;
     columns_config.csv.delimiter = ",";
@@ -298,6 +299,7 @@ void test_csv_mode_with_invalid_data() {
     ts_config.timestamp_precision = "ms";
     columns_config.csv.timestamp_strategy.strategy_type = "csv";
     columns_config.csv.timestamp_strategy.csv = ts_config;
+    columns_config.csv.loading_mode = "preload";
 
     InsertDataConfig config;
     // Define schema where 'age' is an INT
@@ -339,6 +341,7 @@ void test_csv_precision_conversion() {
 
     columns_config.csv.timestamp_strategy.strategy_type = "csv";
     columns_config.csv.timestamp_strategy.csv = ts_config;
+    columns_config.csv.loading_mode = "preload";
 
     InsertDataConfig config;
     config.schema.columns.emplace_back(ColumnConfig{"age", "INT"});

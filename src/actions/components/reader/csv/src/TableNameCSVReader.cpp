@@ -1,4 +1,5 @@
 #include "TableNameCSVReader.hpp"
+#include "FilePathResolver.hpp"
 #include <stdexcept>
 #include <algorithm>
 #include <sstream>
@@ -21,9 +22,10 @@ void TableNameCSVReader::validate_config() const {
 
 std::vector<std::string> TableNameCSVReader::generate() const {
     try {
-        // Create a CSV reader
+        // Resolve file paths and create a CSV reader
+        auto resolved_paths = FilePathResolver::resolve(config_.file_path);
         CSVReader reader(
-            config_.file_path,
+            resolved_paths,
             config_.has_header,
             config_.delimiter.empty() ? ',' : config_.delimiter[0]
         );

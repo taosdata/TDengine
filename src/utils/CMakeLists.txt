@@ -16,6 +16,9 @@ target_include_directories(utils
     ${CMAKE_CURRENT_SOURCE_DIR}/inc
 )
 
+# Find cctz package
+find_package(cctz REQUIRED)
+
 # Link dependent libraries
 target_link_libraries(utils
   PUBLIC
@@ -23,6 +26,7 @@ target_link_libraries(utils
     Threads::Threads
     Iconv::Iconv
     fmt::fmt
+    cctz::cctz
 )
 
 # Enable tests

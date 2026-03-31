@@ -10,6 +10,7 @@
 void exit_handler(int signum) {
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     LogUtils::info("Interrupt signal ({}) received. Shutting down gracefully...", signum);
+    LogUtils::shutdown();
     exit(signum);
 }
 

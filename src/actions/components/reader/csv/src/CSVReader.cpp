@@ -1,32 +1,130 @@
 #include "CSVReader.hpp"
-#include "StringUtils.hpp"
-#include <sstream>
-#include <algorithm>
-#include <cctype>
+#include "LogUtils.hpp"
+#include <csv.hpp>
 #include <cerrno>
 #include <cstring>
+#include <stdexcept>
 
+struct CSVReader::Impl {
+    std::vector<std::string> file_paths;
+    bool has_header;
+    char delimiter;
+    size_t column_count = 0;
+
+    // Multi-file state
+    size_t current_file_index = 0;
+    std::unique_ptr<csv::CSVReader> current_reader;
+    bool need_skip_header = false;  // For subsequent files with headers
+
+    Impl(const std::vector<std::string>& paths, bool header, char delim)
+        : file_paths(paths), has_header(header), delimiter(delim) {
+        if (file_paths.empty()) {
+            throw std::runtime_error("No CSV file paths provided");
+        }
+        // Open first file to determine column count
+        open_file(0);
+        column_count = determine_column_count();
+        // Re-open to reset position
+        open_file(0);
+    }
+
+    csv::CSVFormat make_format(bool skip_header_as_names) const {
+        csv::CSVFormat format;
+        format.delimiter(delimiter);
+        if (!skip_header_as_names) {
+            format.no_header();
+        }
+        format.trim({' ', '\t'});
+        return format;
+    }
+
+    size_t determine_column_count() {
+        if (has_header) {
+            return current_reader->get_col_names().size();
+        }
+        // For no-header files, read first row to get column count
+        csv::CSVRow row;
+        if (current_reader->read_row(row)) {
+            return row.size();
+        }
+        return 0;
+    }
+
+    void open_file(size_t index) {
+        current_file_index = index;
+        if (index >= file_paths.size()) {
+            current_reader.reset();
+            return;
+        }
+        // First file: use header mode if has_header
+        // Subsequent files: always no_header (header line becomes data, we skip it)
+        bool use_header_mode = (index == 0 && has_header);
+        auto format = make_format(use_header_mode);
+
+        current_reader.reset();
+        current_reader = std::make_unique<csv::CSVReader>(file_paths[index], format);
+        need_skip_header = (index > 0 && has_header);
+    }
+
+    std::optional<CSVRow> next() {
+        while (current_reader) {
+            csv::CSVRow csv_row;
+            // Use read_row() instead of iterator ++ to avoid blocking
+            // at EOF. The csv-parser's iterator::operator++ can deadlock
+            // on small files in no_header mode due to background threading.
+            if (!current_reader->read_row(csv_row)) {
+                // Current file exhausted, move to next
+                size_t next_idx = current_file_index + 1;
+                if (next_idx < file_paths.size()) {
+                    LogUtils::debug("Switching to next CSV file: {}", file_paths[next_idx]);
+                    open_file(next_idx);
+                    continue;
+                } else {
+                    current_reader.reset();
+                    return std::nullopt;
+                }
+            }
+
+            // Skip header row of subsequent files
+            if (need_skip_header) {
+                need_skip_header = false;
+                continue;
+            }
+
+            // Validate column count consistency across files
+            if (csv_row.size() != column_count) {
+                throw std::runtime_error(
+                    "Column count mismatch in file '" + file_paths[current_file_index] +
+                    "': expected " + std::to_string(column_count) +
+                    " but got " + std::to_string(csv_row.size()));
+            }
+
+            return row_to_csvrow(csv_row);
+        }
+        return std::nullopt;
+    }
+
+    static CSVRow row_to_csvrow(csv::CSVRow& row) {
+        CSVRow result;
+        result.reserve(row.size());
+        for (auto& field : row) {
+            result.push_back(field.get<std::string>());
+        }
+        return result;
+    }
+};
 
 CSVReader::CSVReader(const std::string& file_path, bool has_header, char delimiter)
-    : file_path_(file_path), has_header_(has_header), delimiter_(delimiter) {
-
-    // Open the file
-    file_stream_.open(file_path);
-    if (!file_stream_.is_open()) {
-        throw std::runtime_error("Failed to open CSV file: " + file_path + " - " + std::strerror(errno));
-    }
-
-    // Skip the header row if necessary
-    if (has_header_) {
-        skip_header();
-    }
-
-    // Determine the number of columns
-    if (auto first_row = read_next()) {
-        column_count_ = first_row->size();
-        reset();
-    }
+    : CSVReader(std::vector<std::string>{file_path}, has_header, delimiter) {
 }
+
+CSVReader::CSVReader(const std::vector<std::string>& file_paths, bool has_header, char delimiter)
+    : impl_(std::make_unique<Impl>(file_paths, has_header, delimiter)) {
+}
+
+CSVReader::CSVReader(CSVReader&&) noexcept = default;
+CSVReader& CSVReader::operator=(CSVReader&&) noexcept = default;
+CSVReader::~CSVReader() = default;
 
 std::vector<CSVRow> CSVReader::read_all() {
     reset();
@@ -38,141 +136,13 @@ std::vector<CSVRow> CSVReader::read_all() {
 }
 
 std::optional<CSVRow> CSVReader::read_next() {
-    std::string line;
-    if (!std::getline(file_stream_, line)) {
-        return std::nullopt;
-    }
-
-    if (!line.empty() && line.back() == '\r') {
-        line.pop_back();
-    }
-
-    // Skip empty lines
-    while (line.empty() && std::getline(file_stream_, line)) {}
-
-    if (line.empty()) {
-        return std::nullopt;
-    }
-
-    return parse_line(line);
+    return impl_->next();
 }
 
 size_t CSVReader::column_count() const {
-    return column_count_;
+    return impl_->column_count;
 }
 
 void CSVReader::reset() {
-    // Reset the file stream to the beginning
-    file_stream_.clear();
-    file_stream_.seekg(0);
-    if (has_header_) {
-        skip_header();
-    }
-}
-
-void CSVReader::skip_header() {
-    // Skip the header row if the file pointer is at the beginning
-    if (file_stream_.tellg() == 0) {
-        std::string header;
-        std::getline(file_stream_, header);
-    }
-}
-
-CSVRow CSVReader::parse_line(const std::string& line) {
-    CSVRow fields;
-    std::string current_field;
-    ParseState state = ParseState::START_FIELD;
-    bool escape_next = false;
-
-    for (char c : line) {
-        switch (state) {
-            case ParseState::START_FIELD:
-                if (c == '"') {
-                    state = ParseState::IN_QUOTED_FIELD;
-                } else if (c == delimiter_) {
-                    fields.push_back("");
-                    current_field.clear();
-                } else {
-                    current_field += c;
-                    state = ParseState::IN_UNQUOTED_FIELD;
-                }
-                break;
-
-            case ParseState::IN_UNQUOTED_FIELD:
-                if (c == delimiter_) {
-                    fields.push_back(std::move(current_field));
-                    current_field.clear();
-                    state = ParseState::START_FIELD;
-                } else {
-                    current_field += c;
-                }
-                break;
-
-            case ParseState::IN_QUOTED_FIELD:
-                if (escape_next) {
-                    current_field += c;
-                    escape_next = false;
-                } else if (c == '"') {
-                    state = ParseState::QUOTE_IN_QUOTED_FIELD;
-                } else if (c == '\\') {
-                    escape_next = true;
-                } else {
-                    current_field += c;
-                }
-                break;
-
-            case ParseState::QUOTE_IN_QUOTED_FIELD:
-                if (c == '"') {
-                    // Two consecutive quotes represent an escaped quote
-                    current_field += '"';
-                    state = ParseState::IN_QUOTED_FIELD;
-                } else if (c == delimiter_) {
-                    fields.push_back(std::move(current_field));
-                    current_field.clear();
-                    state = ParseState::START_FIELD;
-                } else {
-                    // A non-quote/non-delimiter character follows a quote - end the quoted field
-                    fields.push_back(std::move(current_field));
-                    current_field = std::string(1, c);
-                    state = ParseState::IN_UNQUOTED_FIELD;
-                }
-                break;
-
-            case ParseState::END_OF_ROW:
-                break;
-        }
-    }
-
-    // Handle the state at the end of the line
-    switch (state) {
-        case ParseState::START_FIELD:
-            fields.push_back("");
-            break;
-        case ParseState::IN_UNQUOTED_FIELD:
-            fields.push_back(std::move(current_field));
-            break;
-        case ParseState::IN_QUOTED_FIELD:
-            // Unclosed quote - treat as normal end
-            fields.push_back(std::move(current_field));
-            break;
-        case ParseState::QUOTE_IN_QUOTED_FIELD:
-            fields.push_back(std::move(current_field));
-            break;
-        case ParseState::END_OF_ROW:
-            break;
-    }
-
-    for (auto& field : fields) {
-        StringUtils::trim(field);
-        if (field.size() >= 2) {
-            char first = field.front();
-            char last = field.back();
-            if ((first == last) && (first == '"' || first == '\'')) {
-                field.pop_back();
-                field.erase(0, 1);
-            }
-        }
-    }
-
-    return fields;
+    impl_->open_file(0);
 }

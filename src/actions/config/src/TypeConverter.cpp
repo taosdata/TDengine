@@ -6,42 +6,92 @@
 #include <stdexcept>
 #include <algorithm>
 #include <cctype>
+#include <charconv>
+#include <limits>
+#include <system_error>
+#include <string_view>
 
 namespace TypeConverter {
 
-    template <typename T>
-    T convert_value(const std::string& value) {
-        std::string trimmed = value;
-        StringUtils::trim(trimmed);
-
-        if constexpr (std::is_same_v<T, bool>) {
-            std::string lower;
-            std::transform(trimmed.begin(), trimmed.end(), std::back_inserter(lower),
-                           [](unsigned char c) { return std::tolower(c); });
-
-            if (lower == "true" || lower == "1" || lower == "t") {
-                return true;
+    namespace {
+        std::string_view trim_view(std::string_view sv) {
+            while (!sv.empty() && std::isspace(static_cast<unsigned char>(sv.front()))) {
+                sv.remove_prefix(1);
             }
-            if (lower == "false" || lower == "0" || lower == "f") {
+            while (!sv.empty() && std::isspace(static_cast<unsigned char>(sv.back()))) {
+                sv.remove_suffix(1);
+            }
+            return sv;
+        }
+
+        bool iequals_ascii(std::string_view input, std::string_view expected_lower) {
+            if (input.size() != expected_lower.size()) {
                 return false;
             }
-            throw std::runtime_error("Invalid boolean value: " + trimmed);
-        } else if constexpr (std::is_integral_v<T>) {
-            if constexpr (std::is_signed_v<T>) {
-                return static_cast<T>(std::stoll(trimmed));
-            } else {
-                return static_cast<T>(std::stoull(trimmed));
+            for (size_t index = 0; index < input.size(); ++index) {
+                unsigned char ch = static_cast<unsigned char>(input[index]);
+                if (static_cast<char>(std::tolower(ch)) != expected_lower[index]) {
+                    return false;
+                }
             }
-        } else if constexpr (std::is_floating_point_v<T>) {
+            return true;
+        }
+
+        template <typename T>
+        T parse_integral(std::string_view sv) {
+            // std::from_chars does not accept leading '+' for any integer type,
+            // but std::stoi/stoll/stoull (the previous implementation) did. Skip it for compatibility.
+            if (!sv.empty() && sv.front() == '+') {
+                sv.remove_prefix(1);
+            }
+            T parsed{};
+            auto [ptr, ec] = std::from_chars(sv.data(), sv.data() + sv.size(), parsed);
+            if (ec != std::errc()) {
+                throw std::runtime_error("Invalid integer value");
+            }
+            // Allow trailing non-digit characters (e.g. "221.5" → 221)
+            // to match the previous std::stoi/stol/stoll behavior
+            return parsed;
+        }
+
+        template <typename T>
+        T parse_floating(std::string_view sv) {
+#if defined(__cpp_lib_to_chars) && (!defined(__GNUC__) || defined(__clang__) || (__GNUC__ >= 11))
+            T parsed{};
+            auto [ptr, ec] = std::from_chars(sv.data(), sv.data() + sv.size(), parsed);
+            if (ec == std::errc() && ptr == sv.data() + sv.size()) {
+                return parsed;
+            }
+#endif
+
+            std::string fallback(sv);
             if constexpr (std::is_same_v<T, float>) {
-                return std::stof(trimmed);
-            } else {
-                return std::stod(trimmed);
+                return std::stof(fallback);
             }
+            return std::stod(fallback);
+        }
+    }
+
+    template <typename T>
+    T convert_value(const std::string& value) {
+        std::string_view trimmed = trim_view(value);
+
+        if constexpr (std::is_same_v<T, bool>) {
+            if (trimmed == "1" || iequals_ascii(trimmed, "true") || iequals_ascii(trimmed, "t")) {
+                return true;
+            }
+            if (trimmed == "0" || iequals_ascii(trimmed, "false") || iequals_ascii(trimmed, "f")) {
+                return false;
+            }
+            throw std::runtime_error("Invalid boolean value: " + std::string(trimmed));
+        } else if constexpr (std::is_integral_v<T>) {
+            return parse_integral<T>(trimmed);
+        } else if constexpr (std::is_floating_point_v<T>) {
+            return parse_floating<T>(trimmed);
         } else if constexpr (std::is_same_v<T, std::string>) {
-            return trimmed;
+            return std::string(trimmed);
         } else if constexpr (std::is_same_v<T, std::u16string>) {
-            return StringUtils::utf8_to_u16string(trimmed);
+            return StringUtils::utf8_to_u16string(std::string(trimmed));
         } else if constexpr (std::is_same_v<T, std::vector<uint8_t>>) {
             return std::vector<uint8_t>(trimmed.begin(), trimmed.end());
         } else {

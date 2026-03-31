@@ -314,6 +314,7 @@ from_csv:
     tbname_index: 1
     exclude_indices: "2,3"
   columns:
+    loading_mode: preload
     file_path: "cols.csv"
     has_header: false
     repeat_read: true
@@ -347,6 +348,7 @@ tags:
     assert(cfg.from_csv.tags.exclude_indices_str == "2,3");
     assert(!cfg.from_csv.tags.exclude_indices.empty());
     assert(cfg.from_csv.columns.enabled == true);
+    assert(cfg.from_csv.columns.loading_mode == "preload");
     assert(cfg.from_csv.columns.file_path == "cols.csv");
     assert(cfg.from_csv.columns.has_header == false);
     assert(cfg.from_csv.columns.repeat_read == true);

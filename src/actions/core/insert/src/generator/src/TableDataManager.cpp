@@ -1,7 +1,141 @@
 #include "TableDataManager.hpp"
+#include "FilePathResolver.hpp"
+#include "StreamingCSVRowSource.hpp"
 #include <algorithm>
+#include <deque>
 #include <limits>
 #include <iostream>
+
+namespace {
+
+class ChunkReplayCoordinator {
+public:
+    ChunkReplayCoordinator(std::shared_ptr<ICSVRowSource> base_source, size_t refill_rows)
+        : base_source_(std::move(base_source)), refill_rows_(std::max<size_t>(1, refill_rows)) {}
+
+    size_t create_cursor() {
+        cursors_.push_back(0);
+        return cursors_.size() - 1;
+    }
+
+    std::optional<RowData> next(size_t cursor_id) {
+        if (cursor_id >= cursors_.size()) {
+            return std::nullopt;
+        }
+
+        size_t& cursor = cursors_[cursor_id];
+        if (!ensure_available(cursor)) {
+            return std::nullopt;
+        }
+
+        RowData row = buffer_[cursor - base_index_];
+        ++cursor;
+        compact_buffer();
+        return row;
+    }
+
+    bool has_more(size_t cursor_id) const {
+        if (cursor_id >= cursors_.size()) {
+            return false;
+        }
+
+        size_t cursor = cursors_[cursor_id];
+        if (cursor < base_index_ + buffer_.size()) {
+            return true;
+        }
+
+        return !source_exhausted_;
+    }
+
+    void reset_all() {
+        base_source_->reset();
+        source_exhausted_ = false;
+        base_index_ = 0;
+        buffer_.clear();
+        for (auto& cursor : cursors_) {
+            cursor = 0;
+        }
+    }
+
+private:
+    bool ensure_available(size_t cursor) {
+        while (cursor >= base_index_ + buffer_.size() && !source_exhausted_) {
+            size_t loaded = 0;
+            while (loaded < refill_rows_) {
+                auto row = base_source_->next();
+                if (!row) {
+                    source_exhausted_ = true;
+                    break;
+                }
+                buffer_.push_back(std::move(*row));
+                ++loaded;
+            }
+
+            if (loaded == 0) {
+                break;
+            }
+        }
+
+        return cursor < base_index_ + buffer_.size();
+    }
+
+    void compact_buffer() {
+        if (buffer_.empty() || cursors_.empty()) {
+            return;
+        }
+
+        const auto min_it = std::min_element(cursors_.begin(), cursors_.end());
+        if (min_it == cursors_.end() || *min_it <= base_index_) {
+            return;
+        }
+
+        size_t drop = *min_it - base_index_;
+        if (drop > buffer_.size()) {
+            drop = buffer_.size();
+        }
+
+        while (drop-- > 0) {
+            buffer_.pop_front();
+            ++base_index_;
+        }
+    }
+
+private:
+    std::shared_ptr<ICSVRowSource> base_source_;
+    size_t refill_rows_ = 1;
+    size_t base_index_ = 0;
+    std::deque<RowData> buffer_;
+    std::vector<size_t> cursors_;
+    bool source_exhausted_ = false;
+};
+
+class ChunkReplayCursorSource : public ICSVRowSource {
+public:
+    ChunkReplayCursorSource(std::shared_ptr<ChunkReplayCoordinator> coordinator, size_t cursor_id)
+        : coordinator_(std::move(coordinator)), cursor_id_(cursor_id) {}
+
+    std::optional<RowData> next() override {
+        return coordinator_->next(cursor_id_);
+    }
+
+    bool has_more() const override {
+        return coordinator_->has_more(cursor_id_);
+    }
+
+    void reset() override {
+        coordinator_->reset_all();
+    }
+
+    size_t total_rows() const override {
+        return 0;
+    }
+
+private:
+    std::shared_ptr<ChunkReplayCoordinator> coordinator_;
+    size_t cursor_id_;
+};
+
+}
 
 
 TableDataManager::TableDataManager(MemoryPool& pool,
@@ -36,16 +170,61 @@ bool TableDataManager::init(const std::vector<std::string>& table_names) {
     table_states_.reserve(table_names.size());
 
     try {
+        // Create shared streaming source if in streaming mode
+        std::shared_ptr<ICSVRowSource> shared_streaming_source;
+        std::shared_ptr<ChunkReplayCoordinator> chunk_replay_coordinator;
+        if (config_.schema.columns_cfg.source_type == "csv"
+            && config_.schema.columns_cfg.csv.loading_mode == "streaming") {
+            const auto& csv_config = config_.schema.columns_cfg.csv;
+            auto resolved_paths = FilePathResolver::resolve(csv_config.file_path);
+            std::string csv_precision = csv_config.timestamp_strategy.get_precision();
+            auto base_streaming_source = std::make_shared<StreamingCSVRowSource>(
+                resolved_paths,
+                csv_config.has_header,
+                csv_config.delimiter.empty() ? ',' : csv_config.delimiter[0],
+                col_instances_,
+                csv_config.timestamp_strategy,
+                csv_precision,
+                config_.timestamp_precision,
+                csv_config.repeat_read
+            );
+
+            if (csv_config.tbname_index < 0) {
+                size_t refill_rows = config_.schema.generation.rows_per_batch;
+                if (config_.schema.generation.interlace_mode.enabled) {
+                    refill_rows = static_cast<size_t>(config_.schema.generation.interlace_mode.rows);
+                }
+                if (refill_rows == 0) {
+                    refill_rows = 1;
+                }
+                chunk_replay_coordinator = std::make_shared<ChunkReplayCoordinator>(
+                    base_streaming_source,
+                    refill_rows
+                );
+            } else {
+                shared_streaming_source = base_streaming_source;
+            }
+        }
+
         // Create RowDataGenerator for each table
         for (const auto& table_name : table_names) {
             TableState state;
             try {
+                std::shared_ptr<ICSVRowSource> source_for_table = shared_streaming_source;
+                if (chunk_replay_coordinator) {
+                    source_for_table = std::make_shared<ChunkReplayCursorSource>(
+                        chunk_replay_coordinator,
+                        chunk_replay_coordinator->create_cursor()
+                    );
+                }
+
                 state.table_name = table_name;
                 state.generator = std::make_unique<RowDataGenerator>(
                     table_name,
                     config_,
                     col_instances_,
-                    pool_.is_cache_mode()
+                    pool_.is_cache_mode(),
+                    source_for_table
                 );
                 state.rows_generated = 0;
                 state.interlace_counter = 0;
