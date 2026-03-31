@@ -331,6 +331,23 @@ class TestTaosBackupRetry:
         if self._pause_thread.is_alive():
             tdLog.info("WARNING: pause thread did not finish in time")
 
+    def _wait_dnode_ready(self, timeout=60):
+        """Call sc.dnodeStart(1) then poll 'show dnodes' until dnode status is
+        'ready'.  Fails the test via tdLog.exit if *timeout* seconds elapse
+        without the dnode becoming ready."""
+        sc.dnodeStart(1)
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            try:
+                tdSql.query("show dnodes")
+                if any(row[4] == "ready" for row in tdSql.res):
+                    tdLog.info("taosd dnode is ready")
+                    return
+            except Exception:
+                pass
+            time.sleep(1)
+        tdLog.exit(f"taosd dnode did not become ready within {timeout} s")
+
     def teardown_method(self, method):
         """Safety net: ensure taosd and taosadapter are up after each test;
         also remove tmp_* directories created by this test."""
@@ -338,8 +355,8 @@ class TestTaosBackupRetry:
         if hasattr(self, "_pause_thread") and self._pause_thread.is_alive():
             self._pause_stop_evt.set()
             self._pause_thread.join(timeout=self._SRV_PAUSETIME + 10)
-        # Ensure taosd is running (sc.dnodeStart is a no-op if already up).
-        sc.dnodeStart(1)
+        # Ensure taosd is running and ready before the next test starts.
+        self._wait_dnode_ready(timeout=30)
         # Restart taosadapter if kill-tests left it dead, so the next
         # test class starts with a healthy adapter.
         try:
@@ -521,10 +538,8 @@ class TestTaosBackupRetry:
         if ret != 0:
             tdLog.exit(f"backup FAILED (ret={ret}) – backoff did not recover")
 
-        # Ensure taosd is fully up before restore regardless of whether the
-        # pause thread's join timed out or dnodeStart is still initializing.
-        sc.dnodeStart(1)
-        time.sleep(10)
+        # Ensure taosd is fully up before restore.
+        self._wait_dnode_ready()
 
         tdLog.info("=== step 4: restore ===")
         restore_cmd = (
