@@ -11527,10 +11527,6 @@ int32_t nodesNodeToString(const SNode* pNode, bool format, char** pStr, int32_t*
   *pStr = format ? tjsonToString(pJson) : tjsonToUnformattedString(pJson);
   tjsonDelete(pJson);
 
-  if (NULL == *pStr) {
-    return terrno ? terrno : TSDB_CODE_OUT_OF_MEMORY;
-  }
-
   if (NULL != pLen) {
     *pLen = strlen(*pStr) + 1;
   }

@@ -995,6 +995,7 @@ class StreamUtil:
 
     # for StreamCheckItem, see cases/18-StreamProcessing/31-OldTsimCases/test_oldcase_twa.py
     def checkAll(self, streams):
+
         for stream in streams:
             tdLog.info(f"stream:{stream.db} - create database, table, stream", color='blue')
             stream.create()
