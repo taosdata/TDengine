@@ -1106,4 +1106,34 @@ TEST(testCase, function_taosTimeTruncate) {
   ASSERT_LE(res, 1633450000000);
 }
 
+TEST(testCase, function_taosTimeTruncate_ignore_polluted_global_timezone) {
+#if defined(WINDOWS)
+  GTEST_SKIP() << "timezone pollution repro is Linux/ext_tz specific";
+#else
+  timezone_t tz = tzalloc("Asia/Shanghai");
+  ASSERT_NE(tz, nullptr);
+
+  long savedTimezone = timezone;
+
+  SInterval interval = {};
+  interval.timezone = tz;
+  interval.intervalUnit = 'd';
+  interval.slidingUnit = 'd';
+  interval.offsetUnit = 0;
+  interval.precision = TSDB_TIME_PRECISION_MILLI;
+  interval.interval = 30LL * 86400000;
+  interval.sliding = 30LL * 86400000;
+  interval.offset = 0;
+  interval.timeRange.skey = INT64_MIN;
+  interval.timeRange.ekey = INT64_MAX;
+
+  timezone = -29143;
+  int64_t res = taosTimeTruncate(1539620400000LL, &interval);
+  timezone = savedTimezone;
+
+  tzfree(tz);
+  ASSERT_EQ(res, 1539619200000LL);
+#endif
+}
+
 #pragma GCC diagnostic pop

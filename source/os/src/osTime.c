@@ -385,6 +385,33 @@ int32_t taosTime(time_t *t) {
   return 0;
 }
 
+int32_t taosGetTimezoneOffsetByTime(const time_t *timep, timezone_t tz, int32_t *pOffset) {
+  if (timep == NULL || pOffset == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+#ifdef WINDOWS
+#if _MSC_VER >= 1900
+  *pOffset = (int32_t)_timezone;
+#else
+  *pOffset = 0;
+#endif
+  return TSDB_CODE_SUCCESS;
+#elif defined(TD_ASTRA)
+  *pOffset = (int32_t)timezone;
+  return TSDB_CODE_SUCCESS;
+#else
+  struct tm tm = {0};
+  struct tm *pTm = (tz != NULL) ? localtime_rz(tz, timep, &tm) : localtime_r(timep, &tm);
+  if (pTm == NULL) {
+    return TAOS_SYSTEM_ERROR(ERRNO);
+  }
+
+  *pOffset = -(int32_t)tm.tm_gmtoff;
+  return TSDB_CODE_SUCCESS;
+#endif
+}
+
 /*
  * mktime64 - Converts date to seconds.
  * Converts Gregorian date to seconds since 1970-01-01 00:00:00.

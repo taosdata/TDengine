@@ -99,6 +99,7 @@ struct tm *taosGmTimeR(const time_t *timep, struct tm *result);
 time_t     taosTimeGm(struct tm *tmp);
 int32_t    taosTime(time_t *t);
 time_t     taosMktime(struct tm *timep, timezone_t tz);
+int32_t    taosGetTimezoneOffsetByTime(const time_t *timep, timezone_t tz, int32_t *pOffset);
 int64_t    user_mktime64(const uint32_t year, const uint32_t mon, const uint32_t day, const uint32_t hour,
                          const uint32_t min, const uint32_t sec, int64_t time_zone);
 

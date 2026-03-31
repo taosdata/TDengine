@@ -929,10 +929,15 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
     if (IS_CALENDAR_TIME_DURATION(pInterval->intervalUnit)) {
       int64_t news = (ts / pInterval->sliding) * pInterval->sliding;
       if (pInterval->slidingUnit == 'd' || pInterval->slidingUnit == 'w') {
-#if defined(WINDOWS) && _MSC_VER >= 1900
-        int64_t timezone = _timezone;
-#endif
-        news += (int64_t)(timezone * TSDB_TICK_PER_SECOND(precision));
+        time_t  tt = (time_t)(ts / TSDB_TICK_PER_SECOND(precision));
+        int32_t offset = 0;
+        int32_t code = taosGetTimezoneOffsetByTime(&tt, pInterval->timezone, &offset);
+        if (code != TSDB_CODE_SUCCESS) {
+          uError("%s failed to resolve timezone offset for ts:%" PRId64 ", precision:%d, tz:%p, code:%d",
+                 __FUNCTION__, ts, precision, pInterval->timezone, code);
+          return ts;
+        }
+        news += (int64_t)offset * TSDB_TICK_PER_SECOND(precision);
       }
 
       start = news;
@@ -965,17 +970,18 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
 
       if (pInterval->intervalUnit == 'd' || pInterval->intervalUnit == 'w') {
         /*
-         * here we revised the start time of day according to the local time zone,
-         * but in case of DST, the start time of one day need to be dynamically decided.
+         * Align day/week windows with the timezone offset at the current timestamp
+         * instead of the mutable process-global timezone state.
          */
-        // todo refactor to extract function that is available for Linux/Windows/Mac platform
-#if defined(WINDOWS) && _MSC_VER >= 1900
-        // see
-        // https://docs.microsoft.com/en-us/cpp/c-runtime-library/daylight-dstbias-timezone-and-tzname?view=vs-2019
-        int64_t timezone = _timezone;
-#endif
-
-        start += (int64_t)(timezone * TSDB_TICK_PER_SECOND(precision));
+        time_t  tt = (time_t)(ts / TSDB_TICK_PER_SECOND(precision));
+        int32_t offset = 0;
+        int32_t code = taosGetTimezoneOffsetByTime(&tt, pInterval->timezone, &offset);
+        if (code != TSDB_CODE_SUCCESS) {
+          uError("%s failed to resolve timezone offset for ts:%" PRId64 ", precision:%d, tz:%p, code:%d",
+                 __FUNCTION__, ts, precision, pInterval->timezone, code);
+          return ts;
+        }
+        start += (int64_t)offset * TSDB_TICK_PER_SECOND(precision);
       }
 
       int64_t end = 0;
