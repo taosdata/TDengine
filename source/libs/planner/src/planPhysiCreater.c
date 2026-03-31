@@ -3016,17 +3016,45 @@ static int32_t createExternalWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList*
   if (NULL == pExternal) {
     return terrno;
   }
+  pExternal->timeRange = pWindowLogicNode->timeRange;
   pExternal->isSingleTable = pWindowLogicNode->isSingleTable;
   pExternal->inputHasOrder = pWindowLogicNode->inputHasOrder;
   pExternal->needGroupSort = pWindowLogicNode->needGroupSort;
   pExternal->extWinSplit = pWindowLogicNode->extWinSplit;
   pExternal->calcWithPartition = pWindowLogicNode->calcWithPartition;
+  pExternal->extFill.mode = pWindowLogicNode->extFill.mode;
   pExternal->orgTableUid = pWindowLogicNode->orgTableUid;
   pExternal->orgTableVgId = pWindowLogicNode->orgTableVgId;
   pExternal->pSubquery = pWindowLogicNode->pSubquery;
   PLAN_ERR_JRET(nodesCloneNode(pWindowLogicNode->pTimeRange, &pExternal->pTimeRange));
 
   PLAN_ERR_JRET(createWindowPhysiNodeFinalize(pCxt, pChildren, &pExternal->window, pWindowLogicNode));
+  if (pWindowLogicNode->extFill.pFillExprs != NULL) {
+    // extFill.pFillExprs was built from the SELECT projection list in the
+    // logical planner, so its order matches fill-value parameter order.
+    // Match each entry against pFuncs to get the slotted physical version.
+    SNode* pFillExpr = NULL;
+    FOREACH(pFillExpr, pWindowLogicNode->extFill.pFillExprs) {
+      SNode* pSlotted = NULL;
+      SNode* pLF = NULL;
+      int32_t idx = 0;
+      FOREACH(pLF, pWindowLogicNode->pFuncs) {
+        if (nodesEqualNode(pLF, pFillExpr)) {
+          pSlotted = nodesListGetNode(pExternal->window.pFuncs, idx);
+          break;
+        }
+        ++idx;
+      }
+      if (pSlotted != NULL) {
+        SNode* pClone = NULL;
+        PLAN_ERR_JRET(nodesCloneNode(pSlotted, &pClone));
+        PLAN_ERR_JRET(nodesListMakeStrictAppend(&pExternal->extFill.pFillExprs, pClone));
+      }
+    }
+  }
+  if (pWindowLogicNode->extFill.pFillValues != NULL) {
+    PLAN_ERR_JRET(nodesCloneNode(pWindowLogicNode->extFill.pFillValues, &pExternal->extFill.pFillValues));
+  }
   *pPhyNode = (SPhysiNode*)pExternal;
 
   return code;

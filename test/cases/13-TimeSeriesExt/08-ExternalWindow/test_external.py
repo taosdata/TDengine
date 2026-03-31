@@ -1270,73 +1270,110 @@ class TestExternal:
         )
 
     def fill_external_window_negative(self):
-        """Test that FILL clause is rejected for external_window."""
-        tdLog.info("=============== external window: fill negative regression")
+        """Test external_window FILL support matrix."""
+        tdLog.info("=============== external window: fill regression")
         tdSql.execute(f"use {self.dbName}")
 
-        # FILL NONE — semantic error (grammar accepts fill_mode: none/null/null_f/linear)
-        tdSql.error(
+        tdSql.query(
             "select cast(_wstart as bigint) as ws, count(*) as c "
             "from ext_cx_src "
             "external_window((select ts, endtime, mark from ext_cx_win) w "
             "fill(none))",
-            expectedErrno=0x80002657,
-            expectErrInfo="Fill not allowed in external window query",
-            fullMatched=False,
         )
+        tdSql.checkRows(4)
 
-        # FILL NULL
-        tdSql.error(
+        tdSql.query(
             "select cast(_wstart as bigint) as ws, count(*) as c "
             "from ext_cx_src "
             "external_window((select ts, endtime, mark from ext_cx_win) w "
             "fill(null))",
-            expectedErrno=0x80002657,
-            expectErrInfo="Fill not allowed in external window query",
-            fullMatched=False,
         )
+        tdSql.checkRows(4)
 
-        # FILL LINEAR
+        tdSql.query(
+            "select cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv "
+            "from ext_cx_src "
+            "external_window((select ts, endtime, mark from ext_cx_win) w "
+            "fill(value, 0, 0))",
+        )
+        tdSql.checkRows(4)
+
+        tdSql.query(
+            "select cast(_wstart as bigint) as ws, count(*) as c "
+            "from ext_cx_src "
+            "external_window((select ts, endtime, mark from ext_cx_win) w "
+            "fill(prev))",
+        )
+        tdSql.checkRows(4)
+
+        tdSql.query(
+            "select cast(_wstart as bigint) as ws, count(*) as c "
+            "from ext_cx_src "
+            "external_window((select ts, endtime, mark from ext_cx_win) w "
+            "fill(next))",
+        )
+        tdSql.checkRows(4)
+
+        tdSql.query(
+            "select t1, cast(_wstart as bigint) as ws, count(*) as c "
+            "from ext_cx_src partition by t1 "
+            "external_window((select ts, endtime, mark from ext_cx_win) w "
+            "fill(null))",
+        )
+        tdSql.checkRows(8)
+
+        # FILL LINEAR remains unsupported
         tdSql.error(
             "select cast(_wstart as bigint) as ws, count(*) as c "
             "from ext_cx_src "
             "external_window((select ts, endtime, mark from ext_cx_win) w "
             "fill(linear))",
-            expectedErrno=0x80002657,
-            expectErrInfo="Fill not allowed in external window query",
+            expectedErrno=0x800026AC,
+            expectErrInfo="LINEAR/NEAR fill is not supported with external window",
             fullMatched=False,
         )
 
-        # FILL PREV — syntax error (prev/next/near not in external_window_fill_opt grammar)
+        # FILL NEAR remains unsupported
         tdSql.error(
             "select cast(_wstart as bigint) as ws, count(*) as c "
             "from ext_cx_src "
             "external_window((select ts, endtime, mark from ext_cx_win) w "
-            "fill(prev))",
-            expectedErrno=0x80002600,
+            "fill(near))",
+            expectedErrno=0x800026AC,
         )
 
-        # FILL NEXT — syntax error
+        # SURROUND remains unsupported
         tdSql.error(
             "select cast(_wstart as bigint) as ws, count(*) as c "
             "from ext_cx_src "
             "external_window((select ts, endtime, mark from ext_cx_win) w "
-            "fill(next))",
-            expectedErrno=0x80002600,
+            "fill(prev) surround(1m))",
+            expectedErrno=0x800026AE,
         )
 
-        # FILL NULL with partition by — semantic error
+        # VALUE count mismatch — too many fill values
         tdSql.error(
-            "select t1, cast(_wstart as bigint) as ws, count(*) as c "
-            "from ext_cx_src partition by t1 "
+            "select cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv "
+            "from ext_cx_src "
+            "external_window((select ts, endtime, mark from ext_cx_win) w "
+            "fill(value, 0, 0, 0))",
+            expectedErrno=0x80002605,
+            expectErrInfo="Too many fill values specified",
+            fullMatched=False,
+        )
+
+        # Non-aggregate query with fill is rejected
+        tdSql.error(
+            "select cast(_wstart as bigint) as ws, ts "
+            "from ext_cx_src "
             "external_window((select ts, endtime, mark from ext_cx_win) w "
             "fill(null))",
             expectedErrno=0x80002657,
-            expectErrInfo="Fill not allowed in external window query",
+            expectErrInfo="Fill only supports aggregate query with external window",
             fullMatched=False,
         )
 
-        tdLog.info("=============== external window: fill negative regression done")
+        tdLog.info("=============== external window: fill regression done")
 
     def complex_agg_and_filter_no_sort(self):
         tdLog.info("=============== external window: complex agg and filter no sort")

@@ -2754,7 +2754,12 @@ surround_opt(A) ::=
 %type external_window_fill_opt                                                      { SNode* }
 %destructor external_window_fill_opt                                                { nodesDestroyNode($$); }
 external_window_fill_opt(A) ::= .                                                   { A = NULL; }
+external_window_fill_opt(A) ::= fill_value(B).                                      { A = B; }
 external_window_fill_opt(A) ::= FILL NK_LP fill_mode(B) NK_RP.                      { A = createFillNode(pCxt, B, NULL); }
+external_window_fill_opt(A) ::=
+  FILL NK_LP fill_position_mode(B) NK_RP surround_opt(C).                           { A = createFillNodeWithSurroundNode(pCxt, B, C); }
+external_window_fill_opt(A) ::=
+  FILL NK_LP fill_position_mode(B) NK_COMMA expression_list(C) NK_RP.               { A = createFillNode(pCxt, B, createNodeListNode(pCxt, C)); }
 
 count_window_args(A) ::= NK_INTEGER(B).                                           { A = createCountWindowArgs(pCxt, &B, NULL, NULL); }
 count_window_args(A) ::= NK_INTEGER(B) NK_COMMA NK_INTEGER(C).                    { A = createCountWindowArgs(pCxt, &B, &C, NULL); }
