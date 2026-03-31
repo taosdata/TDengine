@@ -1117,6 +1117,7 @@ begin
       exit;
     end;
     ApplyInstallDefaults(IsUpgradeInstall());
+    ApplyCommandLineModeOverrides();
   end;
 
   if CurPageID = InstallModePage.ID then
