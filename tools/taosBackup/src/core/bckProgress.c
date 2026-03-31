@@ -51,23 +51,23 @@ static void progPrintLine(bool newline) {
     char ts[10];
     progFmtTimestamp(ts, sizeof(ts));
 
-    int64_t phase  = __atomic_load_n(&g_progress.phase, __ATOMIC_RELAXED);
+    int64_t phase  = atomic_load_64(&g_progress.phase);
     // snapshot all atomic/volatile fields
-    int64_t dbIdx  = __atomic_load_n(&g_progress.dbIndex, __ATOMIC_RELAXED);
-    int64_t dbTot  = __atomic_load_n(&g_progress.dbTotal, __ATOMIC_RELAXED);
+    int64_t dbIdx  = atomic_load_64(&g_progress.dbIndex);
+    int64_t dbTot  = atomic_load_64(&g_progress.dbTotal);
     char    dname[PROGRESS_DB_NAME_LEN];
     memcpy(dname, (char *)g_progress.dbName, PROGRESS_DB_NAME_LEN - 1);
     dname[PROGRESS_DB_NAME_LEN - 1] = '\0';
-    int64_t stbIdx = __atomic_load_n(&g_progress.stbIndex, __ATOMIC_RELAXED);
-    int64_t stbTot = __atomic_load_n(&g_progress.stbTotal, __ATOMIC_RELAXED);
+    int64_t stbIdx = atomic_load_64(&g_progress.stbIndex);
+    int64_t stbTot = atomic_load_64(&g_progress.stbTotal);
     char    sname[PROGRESS_STB_NAME_LEN];
     memcpy(sname, (char *)g_progress.stbName, PROGRESS_STB_NAME_LEN - 1);
     sname[PROGRESS_STB_NAME_LEN - 1] = '\0';
-    int64_t ctbDoneBase = __atomic_load_n(&g_progress.ctbDoneCur, __ATOMIC_RELAXED);
-    int64_t ctbTot      = __atomic_load_n(&g_progress.ctbTotalCur, __ATOMIC_RELAXED);
-    int64_t ctbDoneAll  = __atomic_load_n(&g_progress.ctbDoneAll, __ATOMIC_RELAXED);
-    int64_t totAll      = __atomic_load_n(&g_progress.ctbTotalAll, __ATOMIC_RELAXED);
-    int64_t startMs     = __atomic_load_n(&g_progress.startMs, __ATOMIC_RELAXED);
+    int64_t ctbDoneBase = atomic_load_64(&g_progress.ctbDoneCur);
+    int64_t ctbTot      = atomic_load_64(&g_progress.ctbTotalCur);
+    int64_t ctbDoneAll  = atomic_load_64(&g_progress.ctbDoneAll);
+    int64_t totAll      = atomic_load_64(&g_progress.ctbTotalAll);
+    int64_t startMs     = atomic_load_64(&g_progress.startMs);
     int64_t doneAll = ctbDoneAll + ctbDoneBase;
 
     // elapsed seconds
@@ -91,7 +91,7 @@ static void progPrintLine(bool newline) {
     // per-STB percent
     char pctBuf[16];
     if (ctbTot > 0)
-        snprintf(pctBuf, sizeof(pctBuf), "%.1f%%", 100.0 * (double)ctbDone / (double)ctbTot);
+        snprintf(pctBuf, sizeof(pctBuf), "%.1f%%", 100.0 * (double)ctbDoneBase / (double)ctbTot);
     else
         snprintf(pctBuf, sizeof(pctBuf), "-");
 
@@ -117,7 +117,7 @@ static void progPrintLine(bool newline) {
                  "  speed: %.0f/s  ETA: %s",
                  ts, dbIdx, dbTot, dbDisp,
                  stbIdx, stbTot, stbDisp,
-                 ctbDone, ctbTot, pctBuf,
+                 ctbDoneBase, ctbTot, pctBuf,
                  speed, etaBuf);
     } else {
         // DATA phase: [X/Y] db: name  [X/Y] stb: name  (file|ctb): X/Y (%)  rows: N  speed: N/s  ETA: xxx
@@ -129,7 +129,7 @@ static void progPrintLine(bool newline) {
                  "  rows: %s  speed: %.0f/s  ETA: %s",
                  ts, dbIdx, dbTot, dbDisp,
                  stbIdx, stbTot, stbDisp,
-                 unitLabel, ctbDone, ctbTot, pctBuf,
+                 unitLabel, ctbDoneBase, ctbTot, pctBuf,
                  rowsBuf, speed, etaBuf);
     }
 
