@@ -4848,6 +4848,10 @@ static int32_t selectCommonType(SDataType* commonType, const SDataType* newType)
       commonType->precision = newType->precision;
       commonType->scale = newType->scale;
     }
+    // Always update bytes to match the result decimal type size.
+    // Without this, bytes keeps the non-decimal predecessor's size (e.g. BOOL=1),
+    // causing an OOB write when castFunction allocates the output buffer.
+    commonType->bytes = tDataTypes[resultType].bytes;
   } else if (!IS_NULL_TYPE(newType->type)) {
     commonType->bytes = TMAX(TMAX(commonType->bytes, newType->bytes), TYPE_BYTES[resultType]);
   }
