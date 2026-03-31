@@ -1,5 +1,4 @@
-###################################################################
-#           Copyright (c) 2016 by TAOS Technologies, Inc.
+###################################################################           Copyright (c) 2016 by TAOS Technologies, Inc.
 #                     All rights reserved.
 #
 #  This file is proprietary and confidential to TAOS Technologies.

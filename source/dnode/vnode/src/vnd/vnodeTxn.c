@@ -571,18 +571,17 @@ int32_t vnodeProcessTxnCommitReq(SVnode *pVnode, int64_t ver, void *pReq, int32_
 
   vInfo("vgId:%d, process txn commit, txnId:%" PRId64 ", term:%" PRId64, TD_VID(pVnode), req.txnId, req.term);
 
-  taosThreadMutexLock(&pVnode->txnMutex);
-
-  // Fencing: reject stale term
-  if (req.term < pVnode->maxSeenTerm) {
-    taosThreadMutexUnlock(&pVnode->txnMutex);
-    vWarn("vgId:%d, reject txn commit due to stale term, txnId:%" PRId64 ", reqTerm:%" PRId64 ", maxTerm:%" PRId64,
-          TD_VID(pVnode), req.txnId, req.term, pVnode->maxSeenTerm);
+  // Fencing: if term advanced, abort old-term transactions first
+  code = vnodeTxnFencing(pVnode, req.term, req.txnId);
+  if (code == TSDB_CODE_VND_TXN_STALE_TERM) {
+    vWarn("vgId:%d, reject txn commit due to stale term, txnId:%" PRId64 ", reqTerm:%" PRId64, TD_VID(pVnode),
+          req.txnId, req.term);
     return TSDB_CODE_VND_TXN_STALE_TERM;
+  } else if (code != TSDB_CODE_SUCCESS) {
+    vError("vgId:%d, fencing error on commit, txnId:%" PRId64 ", code:0x%x", TD_VID(pVnode), req.txnId, code);
   }
-  if (req.term > pVnode->maxSeenTerm) {
-    pVnode->maxSeenTerm = req.term;
-  }
+
+  taosThreadMutexLock(&pVnode->txnMutex);
 
   SVnodeTxnEntry *pEntry = vnodeGetTxnEntry(pVnode, req.txnId);
   if (pEntry == NULL) {
@@ -592,6 +591,10 @@ int32_t vnodeProcessTxnCommitReq(SVnode *pVnode, int64_t ver, void *pReq, int32_
     return TSDB_CODE_SUCCESS;
   }
 
+  // Lazy term correction: entry was created with maxSeenTerm which may have been 0
+  if (pEntry->term == 0 && req.term > 0) {
+    pEntry->term = req.term;
+  }
   pEntry->stage = VTXN_STAGE_FINISHING;
   taosThreadMutexUnlock(&pVnode->txnMutex);
 
@@ -627,17 +630,17 @@ int32_t vnodeProcessTxnRollbackReq(SVnode *pVnode, int64_t ver, void *pReq, int3
   vInfo("vgId:%d, process txn rollback, txnId:%" PRId64 ", term:%" PRId64 ", reason:%d", TD_VID(pVnode), req.txnId,
         req.term, req.reason);
 
-  taosThreadMutexLock(&pVnode->txnMutex);
-
-  // Fencing: reject stale term
-  if (req.term < pVnode->maxSeenTerm) {
-    taosThreadMutexUnlock(&pVnode->txnMutex);
-    vWarn("vgId:%d, reject txn rollback due to stale term, txnId:%" PRId64, TD_VID(pVnode), req.txnId);
+  // Fencing: if term advanced, abort old-term transactions first
+  code = vnodeTxnFencing(pVnode, req.term, req.txnId);
+  if (code == TSDB_CODE_VND_TXN_STALE_TERM) {
+    vWarn("vgId:%d, reject txn rollback due to stale term, txnId:%" PRId64 ", reqTerm:%" PRId64, TD_VID(pVnode),
+          req.txnId, req.term);
     return TSDB_CODE_VND_TXN_STALE_TERM;
+  } else if (code != TSDB_CODE_SUCCESS) {
+    vError("vgId:%d, fencing error on rollback, txnId:%" PRId64 ", code:0x%x", TD_VID(pVnode), req.txnId, code);
   }
-  if (req.term > pVnode->maxSeenTerm) {
-    pVnode->maxSeenTerm = req.term;
-  }
+
+  taosThreadMutexLock(&pVnode->txnMutex);
 
   SVnodeTxnEntry *pEntry = vnodeGetTxnEntry(pVnode, req.txnId);
   if (pEntry == NULL) {
@@ -647,6 +650,10 @@ int32_t vnodeProcessTxnRollbackReq(SVnode *pVnode, int64_t ver, void *pReq, int3
     return TSDB_CODE_SUCCESS;
   }
 
+  // Lazy term correction: entry was created with maxSeenTerm which may have been 0
+  if (pEntry->term == 0 && req.term > 0) {
+    pEntry->term = req.term;
+  }
   pEntry->stage = VTXN_STAGE_FINISHING;
   taosThreadMutexUnlock(&pVnode->txnMutex);
 
@@ -676,11 +683,18 @@ int32_t vnodeTxnFencing(SVnode *pVnode, int64_t newTerm, int64_t newTxnId) {
 
   taosThreadMutexLock(&pVnode->txnMutex);
 
-  if (newTerm <= pVnode->maxSeenTerm) {
+  if (newTerm < pVnode->maxSeenTerm) {
     taosThreadMutexUnlock(&pVnode->txnMutex);
     return TSDB_CODE_VND_TXN_STALE_TERM;
   }
 
+  if (newTerm == pVnode->maxSeenTerm) {
+    // Same term — no fencing needed (common case: same MNode leader)
+    taosThreadMutexUnlock(&pVnode->txnMutex);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // newTerm > maxSeenTerm: term advanced, do fencing
   pVnode->maxSeenTerm = newTerm;
 
   SArray *toAbort = taosArrayInit(8, sizeof(int64_t));
@@ -693,7 +707,9 @@ int32_t vnodeTxnFencing(SVnode *pVnode, int64_t newTerm, int64_t newTxnId) {
   while (pIter) {
     SVnodeTxnEntry *pEntry = (SVnodeTxnEntry *)pIter;
 
-    if (pEntry->term < newTerm && pEntry->txnId != newTxnId) {
+    // Skip entries with term=0 (unknown term — created before any COMMIT/ROLLBACK arrived,
+    // or rebuilt after restart). They'll be cleaned up by their own explicit COMMIT/ROLLBACK.
+    if (pEntry->term > 0 && pEntry->term < newTerm && pEntry->txnId != newTxnId) {
       vInfo("vgId:%d, fencing: abort txn, txnId:%" PRId64 ", term:%" PRId64 ", newTerm:%" PRId64, TD_VID(pVnode),
             pEntry->txnId, pEntry->term, newTerm);
       taosArrayPush(toAbort, &pEntry->txnId);
