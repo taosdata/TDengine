@@ -1395,7 +1395,10 @@ class WindowsInstaller:
         except Exception:
             pass
         time.sleep(2)
-        self.stop_existing_install_tree_python_processes()
+        # Only offline package reimport replaces installation-tree runtimes.
+        # Online upgrades and offline reuse must keep the active environment alive.
+        if self.offline and bool(self.offline_package):
+            self.stop_existing_install_tree_python_processes()
 
     def service_exists(self, service_name: str = "Taosanode") -> bool:
         try:
