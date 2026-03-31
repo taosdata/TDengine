@@ -76,7 +76,7 @@ install.sh 安装脚本在执行过程中，会通过命令行交互界面询问
     <PkgList productName="TDengine TSDB-OSS" platform="Linux-Red Hat"/>
 2. 进入到安装包所在目录，执行如下的安装命令：
 
-    ```bash
+    ```bash tsdb
     sudo rpm -ivh tdengine-tsdb-oss-{{VERSION}}-linux-x64.rpm
     ```
 
