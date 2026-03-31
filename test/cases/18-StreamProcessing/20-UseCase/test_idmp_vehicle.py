@@ -1024,6 +1024,10 @@ class Test_IDMP_Vehicle:
         vals  = "120,100"
         ts_blank = tdSql.insertFixedVal(table, ts_blank, self.step, count, cols, vals)
 
+        # expect win1 not close
+        sql = "select * from idmp.result_stream8" # expect table not exist
+        tdSql.waitError(sql)
+
         # win2 three
         vals  = "150,200"
         count = 1
@@ -1057,6 +1061,10 @@ class Test_IDMP_Vehicle:
         count = 8
         vals  = "120,100"
         ts_blank = tdSql.insertFixedVal(table, ts_blank, self.step, count, cols, vals)
+
+        # expect win1 not close
+        sql = "select * from idmp.result_stream9" # expect table not exist
+        tdSql.waitError(sql)
 
         # win2 two trigger win1 close
         vals  = "150,200"

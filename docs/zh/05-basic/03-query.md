@@ -552,64 +552,68 @@ EXTERNAL_WINDOW (
 3. **伪列支持：** `_wstart`（窗口开始时间）、`_wend`（窗口结束时间）、`_wduration`（窗口时长）可在 SELECT、HAVING、ORDER BY 子句中使用。
 
 4. **分组和对齐：**
-    - 当外部窗口（内部子查询）与外部查询都使用 PARTITION BY 时，按分组键自动对齐，同组数据仅匹配同组窗口。
-    - 当外部窗口使用 PARTITION BY，但外部查询未使用 PARTITION BY 时，语法禁止。
-    - 当外部窗口未使用 PARTITION BY 时，按全局窗口计算。
+    - 子查询可以使用 `PARTITION BY` 或 `GROUP BY` 进行分组，外部查询只能使用 `PARTITION BY` 进行分组。
+    - 当子查询与外部查询都使用了分组时，按分组键对齐：同组数据只匹配同组窗口。
+    - 若某个分组在某个窗口内没有匹配数据，则该分组在该窗口下不会产出结果行（会被自然忽略）。
+    - 当子查询未使用分组时，内部子查询只生成一组共享窗口；若外部查询使用了分组，则每个外部分组都会在这同一组窗口上分别进行计算。
+    - 当子查询使用了分组，但外部查询未使用分组时，语法禁止。
+    - **当前限制与注意事项**：当内外查询都使用了分组，且窗口子查询中再使用 `ORDER BY` 时，排序可能打乱各分组窗口流的原有组织方式；外部查询可能作用于合并后的窗口流，表现为内部分组语义失效（等同未分组），不再按内外分组一一对齐。
 
-5. **嵌套调用支持：** 支持多层外部窗口嵌套，实现复杂事件序列分析。
+5. **嵌套调用支持：** 支持多层外部窗口嵌套，即外部窗口的子查询本身也可以使用 EXTERNAL_WINDOW，从而实现分层聚合。例如：先用第一层外部窗口按事件划定时间范围并聚合出中间指标，再用第二层外部窗口在新的时间范围内对这些中间指标做二次聚合。
 
-### 窗口属性列如何引用
+#### 窗口属性列如何引用
 
-子查询中前两列之后的列（例如 equipment_id、fault_code、fault_level）会作为窗口属性列。引用规则如下：
+子查询中前两列之后的列（例如 `groupid`、`location`）会作为窗口属性列。引用规则如下：
 
-1. 必须使用窗口别名引用：`window_alias.column_name`，例如 `w.equipment_id`、`w.fault_level`。
-2. 可用于 SELECT、HAVING、ORDER BY 子句。
+1. 必须使用窗口别名按 `别名.列名` 的方式逐列引用：`window_alias.column_name`，例如 `w.groupid`、`w.location`。
+2. 窗口属性列只能以 `w.column_name` 这种形式出现在外层查询的 SELECT、HAVING、ORDER BY 子句中。
 3. **不能在 WHERE 子句中引用**（WHERE 用于过滤外部表记录，此时窗口尚未生成；窗口属性只有在窗口定义后才可用，应该在 HAVING 中使用）。
+4. 当前实现中，窗口别名并不是一张完整的“虚拟表”，**不支持使用 `w.*` 通配符展开全部窗口属性列**，也不能在 FROM/JOIN 中单独把 `w` 当作表来引用，如有需要请在子查询中显式选择并在外层逐列引用。
 
 **使用示例：**
 
-**场景背景** - 工厂设备监控系统：
+**场景背景** - 智能电表监控系统：
 
-- `equipment_faults`：设备故障事件表（超级表），包含故障代码 `fault_code`、故障等级 `fault_level`
-- `system_alarms`：系统告警事件表（超级表），包含告警代码 `alarm_code`、测量值 `alarm_value`
-- 两表均以 `equipment_id`（设备标识符）作为标签
+沿用本章的智能电表数据模型。超级表 `meters` 包含列 `ts`、`current`、`voltage`、`phase`，标签为 `groupid` 和 `location`。假设还有一张告警事件表 `alerts`（超级表），包含列 `ts`、`alert_code`、`alert_value`，标签为 `groupid` 和 `location`。
 
-**目标** - 以每台设备的故障事件为时间窗口，统计故障发生后 60 秒内触发的告警情况。输出应包含：故障信息、该窗口内告警数量、最大测量值，并过滤出"有告警响应或属于严重故障"的窗口，按设备和故障时间排序。
+**目标** - 以每组电表的电压异常事件为时间窗口（电压 >= 225V 的时刻起 60 秒内），统计该窗口内的告警情况。输出应包含：分组信息、窗口内告警数量和最大告警值，并过滤出“有告警产生”的窗口，按分组和时间排序。
+
+**说明**：此示例故意不在窗口子查询中添加 `ORDER BY`。在该场景中，子查询本身按分组输出窗口流；额外排序会触发上述“分组对齐失效”限制行为。
 
 ```sql
 SELECT
-    w.equipment_id,
-    w.fault_code,
-    w.fault_level,
-    _wstart                AS fault_start_time,
-    COUNT(sa.*)            AS alarm_count,
-    MAX(sa.alarm_value)    AS max_alarm_value,
-    AVG(sa.alarm_value)    AS avg_alarm_value
-FROM system_alarms sa
-PARTITION BY sa.equipment_id
+    w.groupid,
+    w.location,
+    _wstart                AS event_start_time,
+    COUNT(a.*)             AS alert_count,
+    MAX(a.alert_value)     AS max_alert_value,
+    AVG(a.alert_value)     AS avg_alert_value
+FROM alerts a
+PARTITION BY a.groupid
 EXTERNAL_WINDOW (
-    (SELECT ts, ts + 60s, equipment_id, fault_code, fault_level
-     FROM equipment_faults
-     PARTITION BY equipment_id
+    (SELECT ts, ts + 60s, groupid, location
+     FROM meters
+     WHERE voltage >= 225
+     PARTITION BY groupid
     ) w
 )
-HAVING COUNT(sa.*) > 0 OR w.fault_level = 'CRITICAL'
-ORDER BY w.equipment_id, fault_start_time;
+HAVING COUNT(a.*) > 0
+ORDER BY w.groupid, event_start_time;
 ```
 
 **结果说明：**
 
-- 每行代表一个故障窗口（由 `equipment_faults` 驱动），窗口时长为故障发生后 60 秒
-- `alarm_count`、`max_alarm_value`、`avg_alarm_value`：该窗口内来自 `system_alarms` 的统计指标
-- `w.equipment_id`、`w.fault_code`、`w.fault_level`：窗口属性列，用于过滤和展示故障信息
-- `HAVING`条件同时使用了标准聚合函数 (`COUNT`) 和窗口属性列 (`w.fault_level`)
-- `PARTITION BY` 对齐：内外查询均按 `equipment_id` 分组，确保每台设备的告警只与该设备的故障窗口匹配
+- 每行代表一个电压异常事件窗口（由 `meters` 中 `voltage >= 225` 的记录驱动），窗口时长为事件发生后 60 秒
+- `alert_count`、`max_alert_value`、`avg_alert_value`：该窗口内来自 `alerts` 的统计指标
+- `w.groupid`、`w.location`：窗口属性列，来自子查询中的标签列，用于展示分组信息
+- `HAVING` 条件使用聚合函数 (`COUNT`) 过滤出至少有一条告警的窗口
+- `PARTITION BY` 对齐：内外查询均按 `groupid` 分组，确保每组电表的告警只与该组的异常窗口匹配
 
-**约束与限制：**
+#### 约束与限制
 
 - 暂时不支持在流计算和订阅中使用
 - 窗口子查询的前两列必须为 timestamp 类型，分别表示窗口开始和结束时间
-- 窗口数据必须按 _wstart 升序排列
+- 子查询返回的窗口行需要保持有序：未分组场景按窗口开始时间（即第一列）升序；分组场景在各分组内按窗口开始时间升序；如果不满足条件执行时报错
 - 若外部窗口（内部子查询）使用了分组，则外部查询必须同时使用 PARTITION BY；否则语法报错
 - 不支持窗口作用域内的不定行函数（如 DIFF、INTERP）
 

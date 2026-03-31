@@ -10,6 +10,10 @@
 #define MyAppInstallDir "C:\TDengine\taosanode"
 #define MyAppSourceDir "{{SOURCE_DIR}}"
 #define MyAppIco "{{ICON_FILE}}"
+#define MinVCRuntimeMajor 14
+#define MinVCRuntimeMinor 44
+#define MinVCRuntimeBuild 0
+#define MinVCRuntimeRbld 0
 
 [Setup]
 AppId={{a77a678d-8806-48a5-8017-1d55749b6895}
@@ -58,7 +62,7 @@ Name: "{app}\data"; Permissions: everyone-modify; Flags: uninsneveruninstall
 Name: "{app}\data\pids"; Permissions: everyone-modify; Flags: uninsneveruninstall
 
 [Run]
-Filename: "notepad.exe"; Parameters: """{app}\log\install.log"""; Description: "Open installation log"; Flags: postinstall nowait skipifsilent
+Filename: "notepad.exe"; Parameters: """{app}\log\install.log"""; Description: "View the installation log now (clear this checkbox to skip opening it)"; Flags: postinstall nowait skipifsilent
 
 [UninstallRun]
 Filename: "{cmd}"; Parameters: "/C call ""{app}\uninstall.bat"" & exit /b 0"; Flags: runhidden waituntilterminated
@@ -121,6 +125,66 @@ end;
 function NormalizeDir(Value: string): string;
 begin
   Result := RemoveBackslashUnlessRoot(Trim(Value));
+end;
+
+function PreferredOfflineAssetsBaseName(): string;
+begin
+  Result := 'tdengine-tdgpt-offline-assets-' + ExpandConstant('{#MyAppVersion}') + '-windows-x64';
+end;
+
+function FindOfflinePackageByPattern(BaseDir: string; Pattern: string): string;
+var
+  FindRec: TFindRec;
+begin
+  Result := '';
+  if not FindFirst(AddBackslash(BaseDir) + Pattern, FindRec) then
+    exit;
+  try
+    Result := AddBackslash(BaseDir) + FindRec.Name;
+  finally
+    FindClose(FindRec);
+  end;
+end;
+
+function DetectDefaultOfflinePackage(): string;
+var
+  SearchDir: string;
+  BaseName: string;
+begin
+  Result := '';
+  SearchDir := ExtractFileDir(ExpandConstant('{srcexe}'));
+  if SearchDir = '' then
+    exit;
+
+  BaseName := PreferredOfflineAssetsBaseName();
+  Result := FindOfflinePackageByPattern(SearchDir, BaseName + '.tar');
+  if Result <> '' then
+    exit;
+  Result := FindOfflinePackageByPattern(SearchDir, BaseName + '.tar.gz');
+  if Result <> '' then
+    exit;
+  Result := FindOfflinePackageByPattern(SearchDir, BaseName + '.tgz');
+  if Result <> '' then
+    exit;
+end;
+
+procedure TryPopulateDefaultOfflinePackage();
+var
+  DetectedPath: string;
+begin
+  if OfflinePackagePage = nil then
+    exit;
+  if Trim(OfflinePackagePage.Values[0]) <> '' then
+    exit;
+  if ExpandConstant('{param:OFFLINE|}') <> '' then
+    exit;
+
+  DetectedPath := DetectDefaultOfflinePackage();
+  if DetectedPath = '' then
+    exit;
+
+  OfflinePackagePage.Values[0] := DetectedPath;
+  LogTdgpt('Detected default offline package: ' + DetectedPath);
 end;
 
 function ExtractExecutablePath(CommandLine: string): string;
@@ -312,34 +376,109 @@ begin
     TryDetectPython('python3.12', VersionText);
 end;
 
-function HasVCRuntimeDll(DllName: string): Boolean;
+function TryReadVCRuntimeVersionFromKey(const KeyName: string; var VersionText: string): Boolean;
 var
-  SearchPaths: array[0..5] of string;
-  I: Integer;
+  Installed: Cardinal;
+  Major: Cardinal;
+  Minor: Cardinal;
+  Build: Cardinal;
+  Revision: Cardinal;
 begin
-  SearchPaths[0] := ExpandConstant('{sys}');
-  SearchPaths[1] := ExpandConstant('{syswow64}');
-  SearchPaths[2] := ExpandConstant('{commonpf32}\Microsoft Visual Studio\2022\VC\Redist\MSVC');
-  SearchPaths[3] := ExpandConstant('{commonpf64}\Microsoft Visual Studio\2022\VC\Redist\MSVC');
-  SearchPaths[4] := ExpandConstant('{commonpf32}\Microsoft Visual Studio\2019\VC\Redist\MSVC');
-  SearchPaths[5] := ExpandConstant('{commonpf64}\Microsoft Visual Studio\2019\VC\Redist\MSVC');
   Result := False;
-  for I := 0 to GetArrayLength(SearchPaths) - 1 do
-  begin
-    if (SearchPaths[I] <> '') and FileExists(AddBackslash(SearchPaths[I]) + DllName) then
-    begin
-      Result := True;
-      exit;
-    end;
-  end;
+  if not RegQueryDWordValue(HKEY_LOCAL_MACHINE, KeyName, 'Installed', Installed) then
+    exit;
+  if Installed <> 1 then
+    exit;
+  if not RegQueryDWordValue(HKEY_LOCAL_MACHINE, KeyName, 'Major', Major) then
+    exit;
+  if not RegQueryDWordValue(HKEY_LOCAL_MACHINE, KeyName, 'Minor', Minor) then
+    exit;
+  if not RegQueryDWordValue(HKEY_LOCAL_MACHINE, KeyName, 'Bld', Build) then
+    exit;
+  if not RegQueryDWordValue(HKEY_LOCAL_MACHINE, KeyName, 'Rbld', Revision) then
+    exit;
+  VersionText := IntToStr(Major) + '.' + IntToStr(Minor) + '.' + IntToStr(Build) + '.' + IntToStr(Revision);
+  Result := True;
 end;
 
-function CheckVCRuntimePrerequisite(): Boolean;
+function SplitVersionText(const Value: string; Delimiter: Char): TArrayOfString;
+var
+  Count: Integer;
+  Index: Integer;
+  StartPos: Integer;
+  I: Integer;
 begin
+  Count := 1;
+  for I := 1 to Length(Value) do
+    if Value[I] = Delimiter then
+      Count := Count + 1;
+
+  SetArrayLength(Result, Count);
+  Index := 0;
+  StartPos := 1;
+  for I := 1 to Length(Value) do
+  begin
+    if Value[I] = Delimiter then
+    begin
+      Result[Index] := Copy(Value, StartPos, I - StartPos);
+      Index := Index + 1;
+      StartPos := I + 1;
+    end;
+  end;
+  Result[Index] := Copy(Value, StartPos, Length(Value) - StartPos + 1);
+end;
+
+function IsVCRuntimeVersionSupported(VersionText: string): Boolean;
+var
+  Parts: TArrayOfString;
+  Major: Integer;
+  Minor: Integer;
+  Build: Integer;
+  Revision: Integer;
+begin
+  Result := False;
+  Parts := SplitVersionText(VersionText, '.');
+  if GetArrayLength(Parts) < 4 then
+    exit;
+
+  Major := StrToIntDef(Parts[0], 0);
+  Minor := StrToIntDef(Parts[1], 0);
+  Build := StrToIntDef(Parts[2], 0);
+  Revision := StrToIntDef(Parts[3], 0);
+
+  if Major > {#MinVCRuntimeMajor} then
+  begin
+    Result := True;
+    exit;
+  end;
+  if Major < {#MinVCRuntimeMajor} then
+    exit;
+  if Minor > {#MinVCRuntimeMinor} then
+  begin
+    Result := True;
+    exit;
+  end;
+  if Minor < {#MinVCRuntimeMinor} then
+    exit;
+  if Build > {#MinVCRuntimeBuild} then
+  begin
+    Result := True;
+    exit;
+  end;
+  if Build < {#MinVCRuntimeBuild} then
+    exit;
+  Result := Revision >= {#MinVCRuntimeRbld};
+end;
+
+function CheckVCRuntimePrerequisite(var DetectedVersion: string): Boolean;
+begin
+  DetectedVersion := '';
   Result :=
-    HasVCRuntimeDll('msvcp140.dll') and
-    HasVCRuntimeDll('msvcp140_1.dll') and
-    HasVCRuntimeDll('vcruntime140.dll');
+    TryReadVCRuntimeVersionFromKey('SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64', DetectedVersion) or
+    TryReadVCRuntimeVersionFromKey('SOFTWARE\WOW6432Node\Microsoft\VisualStudio\14.0\VC\Runtimes\x64', DetectedVersion);
+  if not Result then
+    exit;
+  Result := IsVCRuntimeVersionSupported(DetectedVersion);
 end;
 
 function IsExistingTaosanodeInstall(TargetDir: string): Boolean;
@@ -526,6 +665,7 @@ end;
 function InitializeSetup(): Boolean;
 var
   MessageText: string;
+  DetectedVCRuntimeVersion: string;
 begin
   Result := ResolveLockedInstallDir(MessageText);
   if not Result then
@@ -534,13 +674,16 @@ begin
     exit;
   end;
 
-  Result := CheckVCRuntimePrerequisite();
+  Result := CheckVCRuntimePrerequisite(DetectedVCRuntimeVersion);
   if Result then
     exit;
 
   MessageText :=
-    'Microsoft Visual C++ Redistributable x64 was not detected.' + #13#10 + #13#10 +
-    'Please install the latest supported Visual C++ Redistributable before continuing.' + #13#10 +
+    'Microsoft Visual C++ Redistributable x64 14.44 or later is required.' + #13#10 + #13#10;
+  if DetectedVCRuntimeVersion <> '' then
+    MessageText := MessageText + 'Detected version: ' + DetectedVCRuntimeVersion + #13#10 + #13#10;
+  MessageText := MessageText +
+    'Please install or update to the latest supported Visual C++ Redistributable before continuing.' + #13#10 +
     'Download: https://aka.ms/vc14/vc_redist.x64.exe';
   MsgBox(MessageText, mbCriticalError, MB_OK);
 end;
@@ -729,6 +872,64 @@ begin
   ClearModelSelections();
 end;
 
+function IsTruthyParam(const Value: string): Boolean;
+var
+  Normalized: string;
+begin
+  Normalized := Uppercase(Trim(Value));
+  Result :=
+    (Normalized <> '') and
+    (Normalized <> '0') and
+    (Normalized <> 'FALSE') and
+    (Normalized <> 'NO') and
+    (Normalized <> 'OFF');
+end;
+
+procedure ApplyCommandLineModeOverrides();
+var
+  ForceOnlineValue: string;
+begin
+  ForceOnlineValue := ExpandConstant('{param:ONLINE|}');
+  if IsTruthyParam(ForceOnlineValue) then
+  begin
+    if InstallModePage <> nil then
+    begin
+      InstallModePage.Values[0] := False;
+      InstallModePage.Values[1] := True;
+    end;
+    IsOnlineMode := True;
+    if IsUpgradeInstall() then
+    begin
+      ModelSource := 'none';
+      InstallTensorFlow := False;
+      ClearModelSelections();
+      if PythonOptionsPage <> nil then
+        PythonOptionsPage.Values[0] := False;
+      if ModelSourcePage <> nil then
+      begin
+        ModelSourcePage.Values[0] := False;
+        ModelSourcePage.Values[1] := True;
+      end;
+    end
+    else
+    begin
+      ModelSource := 'online';
+      InstallTensorFlow := True;
+      SetDefaultOnlineModelSelections();
+      if PythonOptionsPage <> nil then
+        PythonOptionsPage.Values[0] := True;
+      if ModelSourcePage <> nil then
+      begin
+        ModelSourcePage.Values[0] := True;
+        ModelSourcePage.Values[1] := False;
+      end;
+    end;
+  end;
+
+  if ExpandConstant('{param:OFFLINE|}') <> '' then
+    OfflinePackagePage.Values[0] := ExpandConstant('{param:OFFLINE|}');
+end;
+
 procedure InitializeWizard();
 begin
   IsOnlineMode := False;
@@ -839,7 +1040,7 @@ begin
     CustomModelMirrorPage.ID,
     'Offline Package Import',
     'Select one offline tar package',
-    'Choose one .tar.gz package that can contain python-runtime.tar.gz, venv-*.tar.gz, and model-*.tar.gz payloads. New offline installs require this package. Upgrade installs can leave it blank to reuse the existing environment and model files.');
+    'Setup automatically looks for tdengine-tdgpt-offline-assets-<version>-windows-x64.tar in the same directory as the installer. You can keep that default or browse to another tar package. New offline installs require this package. Upgrade installs can leave it blank to reuse the existing environment and model files.');
   OfflinePackagePage.Add('Offline package:', 'Tar archives|*.tar.gz;*.tgz;*.tar|All files|*.*', '.tar.gz');
 
   InstallProgressPage := CreateOutputProgressPage(
@@ -860,9 +1061,10 @@ begin
     WizardForm.DirEdit.Text := LockedInstallDir;
   ApplyInstallDefaults(IsUpgradeInstall());
 
-  // Support /OFFLINE command-line parameter for silent installation
-  if ExpandConstant('{param:OFFLINE|}') <> '' then
-    OfflinePackagePage.Values[0] := ExpandConstant('{param:OFFLINE|}');
+  // Support /OFFLINE and /ONLINE command-line parameters for silent installation
+  ApplyCommandLineModeOverrides();
+
+  TryPopulateDefaultOfflinePackage();
 end;
 
 function ShouldSkipPage(PageID: Integer): Boolean;
@@ -1137,8 +1339,12 @@ procedure UpdateFinishedPageText();
 var
   Notes: String;
 begin
+  WizardForm.FinishedHeadingLabel.Caption := '{#MyAppName} installation completed';
   WizardForm.FinishedLabel.AutoSize := False;
   WizardForm.FinishedLabel.Width := WizardForm.FinishedPage.ClientWidth - WizardForm.FinishedLabel.Left;
+  WizardForm.FinishedLabel.Caption :=
+    'Installation is complete. Please review the installation log before closing Setup. ' +
+    'The log checkbox below is selected by default; clear it if you do not want to open the log file.';
   WizardForm.AdjustLabelHeight(WizardForm.FinishedLabel);
   FinishNotesLabel.Top := WizardForm.FinishedLabel.Top + WizardForm.FinishedLabel.Height + ScaleY(6);
   Notes := 'Installation log:' + #13#10 + '  ' + ExpandConstant('{app}\log\install.log') + #13#10 + #13#10;

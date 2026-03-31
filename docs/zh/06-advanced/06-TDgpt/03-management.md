@@ -194,8 +194,8 @@ log_level = 'INFO'
 draw_result = False
 
 # moe default service host
-tdtsfm_1 = 'http://127.0.0.1:6036/tdtsfm'
-timemoe_fc = 'http://127.0.0.1:6037/ds_predict'
+tdtsfm_1 = 'http://127.0.0.1:6061/tdtsfm'
+timemoe_fc = 'http://127.0.0.1:6062/ds_predict'
 ```
 
 #### 提示
