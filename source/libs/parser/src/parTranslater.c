@@ -7983,6 +7983,18 @@ static int32_t colIdNameKVComp(const void* pLeft, const void* pRight) {
   return lhs->colId < rhs->colId ? -1 : (lhs->colId == rhs->colId ? 0 : 1);
 }
 
+static void setMaskFlagOnProjCol(SSelectStmt* pSelect, uint64_t tableId, col_id_t colId) {
+  SNode* pNode = NULL;
+  FOREACH(pNode, pSelect->pProjectionList) {
+    if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+      SColumnNode* pCol = (SColumnNode*)pNode;
+      if (pCol->tableId == tableId && pCol->colId == colId) {
+        pCol->hasMask = 1;
+      }
+    }
+  }
+}
+
 static int32_t translateCheckPrivCols(STranslateContext* pCxt, SSelectStmt* pSelect) {
   if (pCxt->pParseCxt->hasPrivCols == 0) {
     return TSDB_CODE_SUCCESS;
@@ -8073,8 +8085,15 @@ static int32_t translateCheckPrivCols(STranslateContext* pCxt, SSelectStmt* pSel
         for (; j < nPrivCols; ++j) {
           SColNameFlag* pColNameFlag = (SColNameFlag*)TARRAY_GET_ELEM(authRes.pCols, j);
           if (pColIdNameKV->colId == pColNameFlag->colId) {
-            if (IS_MASK_ON(pColNameFlag) && (pParseCxt->hasMaskCols == 0)) {
+            if (IS_MASK_ON(pColNameFlag)) {
               pParseCxt->hasMaskCols = 1;
+              size_t   keyLen = 0;
+              uint64_t tableId = 0;
+              void*    pKey = tSimpleHashGetKey(tblCol, &keyLen);
+              if (keyLen == sizeof(uint64_t)) {
+                tableId = *(uint64_t*)pKey;
+                setMaskFlagOnProjCol(pSelect, tableId, pColNameFlag->colId);
+              }
             }
             hasPriv = true;
             ++j;
@@ -8103,60 +8122,91 @@ _exit:
   return code;
 }
 
-typedef struct {
-  int32_t errCode;
-} SCheckMaskNodeCxt;
 
-static EDealRes checkMaskNode(SNode* pNode, void* pContext) {
-  SCheckMaskNodeCxt* pCxt = (SCheckMaskNodeCxt*)pContext;
-  switch (nodeType(pNode)) {
-    case QUERY_NODE_COLUMN: {
-      break;
-    }
-    case QUERY_NODE_FUNCTION: {
-      SFunctionNode* pFunc = (SFunctionNode*)pNode;
-      nodesWalkExprs(pFunc->pParameterList, checkMaskNode, pContext);
-      break;
-    }
-    case QUERY_NODE_OPERATOR: {
-      SOperatorNode* pOp = (SOperatorNode*)pNode;
-      nodesWalkExpr(pOp->pLeft, checkMaskNode, pContext);
-      nodesWalkExpr(pOp->pRight, checkMaskNode, pContext);
-      break;
-    }
-    default:
-      break;
+static int32_t createMaskFuncNode(STranslateContext* pCxt, SColumnNode* pCol, SNode** ppFunc) {
+  int32_t        code = TSDB_CODE_SUCCESS;
+  SFunctionNode* pFunc = NULL;
+  SValueNode*    pMaskVal = NULL;
+  SNode*         pColClone = NULL;
+
+  /* mask_full only supports VARCHAR and NCHAR; skip non-string columns */
+  if (pCol->node.resType.type != TSDB_DATA_TYPE_VARCHAR &&
+      pCol->node.resType.type != TSDB_DATA_TYPE_NCHAR) {
+    *ppFunc = NULL;
+    return TSDB_CODE_SUCCESS;
   }
-  return DEAL_RES_CONTINUE;
-}
 
-static int32_t nodesCheckMaskNode(SSelectStmt* pSelect, SNode* pNode) {
-  SCheckMaskNodeCxt cxt = {0};
+  code = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&pFunc);
+  if (TSDB_CODE_SUCCESS != code) goto _exit;
 
-  nodesWalkExpr(pNode, checkMaskNode, (void*)&cxt);
+  tstrncpy(pFunc->functionName, "mask_full", TSDB_FUNC_NAME_LEN);
+  tstrncpy(pFunc->node.aliasName, pCol->node.aliasName, TSDB_COL_NAME_LEN);
+  tstrncpy(pFunc->node.userAlias, pCol->node.userAlias, TSDB_COL_NAME_LEN);
+  pFunc->node.asAlias = pCol->node.asAlias;
 
-  return cxt.errCode;
-}
+  /* Clone the column node to use as the first parameter */
+  code = nodesCloneNode((SNode*)pCol, &pColClone);
+  if (TSDB_CODE_SUCCESS != code) goto _exit;
+  /* Clear mask flag on the cloned column so it is treated as a plain
+   * column reference inside the function and is not masked again. */
+  ((SColumnNode*)pColClone)->hasMask = 0;
 
-static int32_t rewriteMaskColFunc(STranslateContext* pCxt, SSelectStmt* pSelect, SNode** ppNode) {
-  (void)nodesCheckMaskNode(pSelect, *ppNode);
+  code = nodesListMakeStrictAppend(&pFunc->pParameterList, pColClone);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode(pColClone);
+    pColClone = NULL;
+    goto _exit;
+  }
+  pColClone = NULL; /* ownership transferred to pFunc */
 
+  /* Create '*' as the masking value (second parameter) */
+  code = nodesMakeValueNodeFromString("*", &pMaskVal);
+  if (TSDB_CODE_SUCCESS != code) goto _exit;
+
+  code = nodesListMakeStrictAppend(&pFunc->pParameterList, (SNode*)pMaskVal);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pMaskVal);
+    pMaskVal = NULL;
+    goto _exit;
+  }
+  pMaskVal = NULL; /* ownership transferred to pFunc */
+
+  /* Fill in funcId and resolve result type */
+  code = fmGetFuncInfo(pFunc, pCxt->msgBuf.buf, pCxt->msgBuf.len);
+  if (TSDB_CODE_SUCCESS != code) goto _exit;
+
+  *ppFunc = (SNode*)pFunc;
   return TSDB_CODE_SUCCESS;
+
+_exit:
+  if (pFunc) nodesDestroyNode((SNode*)pFunc);
+  return code;
 }
 
 static int32_t translateProcessMaskColFunc(STranslateContext* pCxt, SSelectStmt* pSelect) {
   if (pCxt->pParseCxt->hasMaskCols == 0) {
     return TSDB_CODE_SUCCESS;
   }
-#ifdef PRIV_TODO
-  int32_t        code = 0, lino = 0;
-  SParseContext* pParseCxt = pCxt->pParseCxt;
-  SCatalog*      pCatalog = pParseCxt->pCatalog;
-  SNode*         pNode = NULL;
 
-  FOREACH(pNode, pSelect->pProjectionList) { (void)rewriteMaskColFunc(pCxt, pSelect, &pNode); }
-#endif
-  return TSDB_CODE_SUCCESS;
+  int32_t code = TSDB_CODE_SUCCESS;
+  SNode*  pNode = NULL;
+  WHERE_EACH(pNode, pSelect->pProjectionList) {
+    if (QUERY_NODE_COLUMN == nodeType(pNode) && ((SColumnNode*)pNode)->hasMask) {
+      SNode* pMaskFunc = NULL;
+      code = createMaskFuncNode(pCxt, (SColumnNode*)pNode, &pMaskFunc);
+      if (TSDB_CODE_SUCCESS != code) {
+        return code;
+      }
+      if (NULL != pMaskFunc) {
+        REPLACE_NODE(pMaskFunc);
+        nodesDestroyNode(pNode);
+        WHERE_NEXT;
+        continue;
+      }
+    }
+    WHERE_NEXT;
+  }
+  return code;
 }
 #endif
 

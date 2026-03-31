@@ -231,6 +231,83 @@ class TestCase:
             tdSql.execute("revoke read,write on d3.* from u_legacy")
             self.do_check_user_privileges("u_legacy", 0)
 
+    def do_check_column_mask_privileges(self):
+        """Test column-level mask privileges for SELECT (data desensitization).
+
+        When a column has `mask(col)` in the SELECT grant, querying that
+        column should return '*' instead of the actual value.
+        """
+        tdSql.connect("root", "taosdata")
+
+        tdSql.execute("drop database if exists d_mask")
+        tdSql.execute("create database d_mask")
+        tdSql.execute("use d_mask")
+        tdSql.execute(
+            "create table d_mask.stb_mask "
+            "(ts timestamp, c0 int, c1 varchar(20), c2 nchar(20)) "
+            "tags(t0 int, t1 varchar(20), t2 nchar(20))"
+        )
+        tdSql.execute("create table d_mask.ctb_mask using d_mask.stb_mask tags(0,'tag0','tag0')")
+        tdSql.execute("create table d_mask.ntb_mask (ts timestamp, c0 int, c1 varchar(20), c2 nchar(20))")
+
+        tdSql.execute("insert into d_mask.ctb_mask values(now, 1, 'hello', 'world')")
+        tdSql.execute("insert into d_mask.ntb_mask values(now, 2, 'foo', 'bar')")
+
+        tdSql.execute(f"create user u_mask pass '{self.test_pass}'")
+        tdSql.execute("grant use on database d_mask to u_mask")
+        # Grant select with mask on varchar/nchar columns for the supertable
+        tdSql.execute(
+            "grant select(c0, mask(c1), mask(c2), mask(t1), mask(t2)) "
+            "on table d_mask.stb_mask to u_mask"
+        )
+        # Grant select with mask on varchar/nchar columns for the normal table
+        tdSql.execute(
+            "grant select(c0, mask(c1), mask(c2)) "
+            "on table d_mask.ntb_mask to u_mask"
+        )
+
+        # Switch to the restricted user and query
+        tdSql.connect("u_mask", self.test_pass)
+        time.sleep(2)  # wait for privileges to take effect
+
+        # --- Normal table: c1 and c2 should be masked ---
+        tdSql.query("select c0, c1, c2 from d_mask.ntb_mask")
+        tdSql.checkRows(1)
+        # c0 (int) is not masked, should have real value 2
+        tdSql.checkData(0, 0, 2)
+        # c1 (varchar masked) should be '*'
+        tdSql.checkData(0, 1, '*')
+        # c2 (nchar masked) should be '*'
+        tdSql.checkData(0, 2, '*')
+
+        # --- Supertable: c1 and c2 masked, c0 visible ---
+        tdSql.query("select c0, c1, c2 from d_mask.stb_mask")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+        tdSql.checkData(0, 1, '*')
+        tdSql.checkData(0, 2, '*')
+
+        # --- Permission denied for masked column used without privilege ---
+        tdSql.error(
+            "select t1 from d_mask.stb_mask",
+            expectErrInfo="Permission denied for column",
+            fullMatched=False,
+        )
+
+        # --- Supertable via child table: tag columns t1 and t2 should be masked ---
+        tdSql.query("select c0, c1, c2, t1, t2 from d_mask.ctb_mask")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+        tdSql.checkData(0, 1, '*')
+        tdSql.checkData(0, 2, '*')
+        tdSql.checkData(0, 3, '*')
+        tdSql.checkData(0, 4, '*')
+
+        # Cleanup
+        tdSql.connect("root", "taosdata")
+        tdSql.execute("drop database if exists d_mask")
+        tdSql.execute("drop user u_mask")
+
     #
     # ------------------- main ----------------
     #
@@ -268,6 +345,7 @@ class TestCase:
         # self.do_check_table_privileges()
         # self.do_check_row_privileges()
         self.do_check_column_privileges()
+        self.do_check_column_mask_privileges()
         # self.do_check_grant_privileges()
         # self.do_check_view_privileges()
         self.do_check_topic_privileges()
