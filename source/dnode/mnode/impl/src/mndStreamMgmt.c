@@ -2032,11 +2032,17 @@ static int32_t msmUpdateCalcReaderTasks(SStreamObj* pStream, SNodeList* pSubEP) 
 
       if (!pExt->deploy.msg.reader.triggerReader) {
         SStreamReaderDeployFromCalc* pCalcReaderDeploy = &pExt->deploy.msg.reader.msg.calc;
+        pSubplan = NULL;
         TAOS_CHECK_EXIT(nodesStringToNode(pCalcReaderDeploy->calcScanPlan, (SNode**)&pSubplan));
+        if (pSubplan == NULL) {
+          mstsWarn("msmUpdateCalcReaderTasks: calcScanPlan is NULL for taskId:%" PRId64 ", skip", pExt->deploy.task.taskId);
+          continue;
+        }
         TAOS_CHECK_EXIT(nodesCloneList(pSubEP, &pSubplan->pSubQ));
         TAOS_CHECK_EXIT(nodesNodeToString((SNode*)pSubplan, false, (char**)&pCalcReaderDeploy->calcScanPlan, NULL));
         pCalcReaderDeploy->freeScanPlan = true;
         nodesDestroyNode((SNode *)pSubplan);
+        pSubplan = NULL;
       }
     }
 

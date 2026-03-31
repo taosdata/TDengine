@@ -2360,6 +2360,15 @@ static int32_t vnodeHandleAutoCreateTable(SVnode      *pVnode,    // vnode
       code = terrno = 0;
       pTbData->uid = pTbData->pCreateTbReq->uid;  // update uid if table exist for using below
 
+      // If uid is 0 (e.g. stream executor did not pre-assign a uid), look up the
+      // actual uid by table name so that buildExistTableInStreamRsp can fetch the
+      // correct meta entry.  This happens when mndStreamCreateOutTable pre-created
+      // the output normal table during stream creation but the executor side still
+      // sends uid=0 in the auto-create request.
+      if (pTbData->uid == 0 && pTbData->pCreateTbReq->name != NULL) {
+        pTbData->uid = (int64_t)metaGetTableEntryUidByName(pVnode->pMeta, pTbData->pCreateTbReq->name);
+      }
+
       // stream: get sver from meta, write to pCreateTbRsp, and need to check crateTbReq is same as meta.
       code = buildExistTableInStreamRsp(pVnode, pTbData, pCreateTbRsp);
       if (code) {
@@ -2447,6 +2456,13 @@ static int32_t vnodeHandleDataWrite(SVnode *pVnode, int64_t version, SSubmitReq2
     }
     if (pTbData->flags & SUBMIT_REQ_ONLY_CREATE_TABLE) {
       continue;  // skip only crate table request
+    }
+
+    // If uid is 0 but we have a create request with a table name, resolve the uid by name.
+    // This can happen when the stream executor sends uid=0 for a normal output table that
+    // was pre-created by mndStreamCreateOutTable during stream creation.
+    if (pTbData->uid == 0 && pTbData->pCreateTbReq != NULL && pTbData->pCreateTbReq->name != NULL) {
+      pTbData->uid = (int64_t)metaGetTableEntryUidByName(pVnode->pMeta, pTbData->pCreateTbReq->name);
     }
 
     code = metaGetInfo(pVnode->pMeta, pTbData->uid, &info, NULL);
