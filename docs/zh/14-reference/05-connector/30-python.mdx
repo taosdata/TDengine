@@ -60,6 +60,7 @@ Python Connector 历史版本（建议使用最新版本的 `taospy`）：
 
 | Python Connector 版本 | 主要变化                                                                                                                                                         |   TDengine TSDB 版本    |
 | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- |
+|         2.8.9         | 数据订阅支持令牌身份验证                                                                                                                                    | - |
 |         2.8.8         | 支持 TOTP 身份验证和令牌身份验证                                                                                                                                    | - |
 |         2.8.6         | 支持 pandas 的 read_sql_table，to_sql 和 read_sql 接口                                                                                                | - |
 |         2.8.5         | 支持 taos-ws-py 的 sqlalchemy 功能                                                                                                                                  | - |
@@ -85,7 +86,8 @@ WebSocket Connector 历史版本：
 
 | WebSocket Connector 版本 | 主要变化                                                                              |   TDengine TSDB 版本    |
 | ----------------------- | ------------------------------------------------------------------------------------ | ----------------- |
-|          0.6.5           | 支持 TOTP 身份验证和令牌身份验证                                                                  | - |
+|          0.6.6           | 数据订阅支持令牌身份验证                                                                | - |
+|          0.6.5           | 支持 TOTP 身份验证和令牌身份验证                                                         | - |
 |          0.6.4           | 支持上报连接器版本信息                                                                  | - |
 |          0.6.3           | 支持配置 WebSocket 连接的响应超时时间（不含数据订阅）                                      | - |
 |          0.6.2           | 修复内存泄漏                                                                          | - |
@@ -387,7 +389,8 @@ TaosResult 对象可以通过循环遍历获取查询到的数据。
   - client.id：客户端 id。
   - td.connect.user：数据库用户名。
   - td.connect.pass：数据库密码。
-  - td.connect.token：数据库的连接 token。
+  - td.connect.token：云服务认证 token。
+  - td.connect.bearer_token：数据库认证 token，认证优先级高于用户名密码。
   - auto.offset.reset：来确定消费位置为最新数据（latest）还是包含旧数据（earliest）。
   - enable.auto.commit：是否允许自动提交。
   - auto.commit.interval.ms：自动提交间隔
@@ -572,7 +575,7 @@ TaosResult 对象可以通过循环遍历获取查询到的数据。
   - client.id：客户端 id。
   - td.connect.user：数据库用户名。
   - td.connect.pass：数据库密码。
-  - td.connect.token：数据库的连接 token。
+  - td.connect.bearer_token：数据库认证 token，认证优先级高于用户名密码。
   - auto.offset.reset：来确定消费位置为最新数据（latest）还是包含旧数据（earliest）。
   - enable.auto.commit：是否允许自动提交。
   - auto.commit.interval.ms：自动提交间隔
