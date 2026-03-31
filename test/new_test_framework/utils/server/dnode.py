@@ -496,7 +496,9 @@ class TDDnode:
             if platform.system().lower() == "windows":
                 # cmd = "mintty -h never %s -c %s" % (self.binPath, self.cfgDir)
                 self.startOnWindows(self.binPath, self.cfgDir)
-                return
+                self.running = 1
+                tdLog.debug("dnode:%d is running on Windows" % self.index)
+                cmd = ""
             else:
                 if self.asan:
                     asanDir = "%s/asan/dnode%d.asan" % (self.path, self.index)
