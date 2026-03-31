@@ -7828,9 +7828,6 @@ static const char* jkTagRefColumnDataType = "DataType";
 static int32_t tagRefColumnToJson(const void* pObj, SJson* pJson) {
   const STagRefColumn* pNode = (const STagRefColumn*)pObj;
 
-  qError("nodes tagRefColumnToJson: type=%d colId=%d sourceColId=%d dataType=%d",
-         ((const SNode*)pObj)->type, pNode->colId, pNode->sourceColId, pNode->dataType);
-
   int32_t code = tjsonAddIntegerToObject(pJson, jkTagRefColumnColId, pNode->colId);
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkTagRefColumnSourceColId, pNode->sourceColId);

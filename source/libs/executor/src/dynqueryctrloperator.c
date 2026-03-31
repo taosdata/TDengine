@@ -3140,7 +3140,13 @@ static int32_t dynCollectSysScanNextRefs(SOperatorInfo* pTargetOp, SHashObj* pRe
         continue;
       }
 
-      memcpy(nextRef.colRef, varDataVal(colDataGetData(pRefCol, i)), varDataLen(colDataGetData(pRefCol, i)));
+      int32_t refLen = varDataLen(colDataGetData(pRefCol, i));
+      if (refLen >= sizeof(nextRef.colRef)) {
+        qError("colRef length %d exceeds buffer size %d", refLen, (int32_t)sizeof(nextRef.colRef));
+        code = TSDB_CODE_INVALID_PARA;
+        QUERY_CHECK_CODE(code, line, _return);
+      }
+      memcpy(nextRef.colRef, varDataVal(colDataGetData(pRefCol, i)), refLen);
       code = taosHashPut(pNextRefMap, currentRef, strlen(currentRef), &nextRef, sizeof(nextRef));
       QUERY_CHECK_CODE(code, line, _return);
     }

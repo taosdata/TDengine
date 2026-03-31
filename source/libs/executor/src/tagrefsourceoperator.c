@@ -284,8 +284,12 @@ static int32_t tagRefSourceGetNext(SOperatorInfo* pOperator, SSDataBlock** ppRes
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d: %s", __func__, lino, tstrerror(code));
-    pTaskInfo->code = code;
-    pAPI->metaReaderFn.clearReader(&mr);
+    if (pTaskInfo != NULL) {
+      pTaskInfo->code = code;
+    }
+    if (pAPI != NULL) {
+      pAPI->metaReaderFn.clearReader(&mr);
+    }
   }
 
   return code;

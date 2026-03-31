@@ -2051,8 +2051,7 @@ static int32_t createVirtualTableScanPhysiNodeFinalize(SPhysiPlanContext* pCxt,
       if (pCondCol->hasRef) {
         PLAN_ERR_JRET(appendPhysiScanColumn(&pScanPhysiNode->pRefTagCols, pCondCol));
       } else {
-        PLAN_ERR_JRET(appendPhysiScanTarget(&pScanPhysiNode->scan.pScanPseudoCols,
-                                            (STargetNode*)nodesListGetNode(pCondCols, condIdx)));
+        PLAN_ERR_JRET(appendPhysiScanColumn(&pScanPhysiNode->scan.pScanPseudoCols, pCondCol));
       }
     } else {
       PLAN_ERR_JRET(appendPhysiScanColumn(&pScanPhysiNode->scan.pScanCols, pCondCol));

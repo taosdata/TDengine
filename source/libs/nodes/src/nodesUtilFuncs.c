@@ -357,9 +357,6 @@ static int32_t makeNode(ENodeType type, int32_t size, SNode** ppNode) {
   int32_t code = nodesCalloc(1, size, (void**)&p);
   if (TSDB_CODE_SUCCESS == code) {
     setNodeType(p, type);
-    if (QUERY_NODE_TAG_REF_COLUMN == type) {
-      nodesDebug("makeNode tag ref: requested=%d actual=%d size=%d", type, nodeType(p), size);
-    }
     *ppNode = p;
   }
   return code;

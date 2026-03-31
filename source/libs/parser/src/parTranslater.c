@@ -6464,39 +6464,6 @@ _return:
   return code;
 }
 
-static int32_t setVSuperTableMetaScanVgroupList(SVirtualTableNode* pVirtualTable, SRealTableNode* pRefScanTable,
-                                                SRealTableNode* pMetaScanTable) {
-  int32_t   code = TSDB_CODE_SUCCESS;
-  int32_t   lino = 0;
-  SHashObj* pVgHash = NULL;
-  SArray*   pVgroupList = NULL;
-  int32_t   expected = 1;
-
-  if (pVirtualTable->pVgroupList != NULL) {
-    expected = TMAX(expected, pVirtualTable->pVgroupList->numOfVgroups);
-  }
-  if (pRefScanTable->pVgroupList != NULL) {
-    expected += pRefScanTable->pVgroupList->numOfVgroups;
-  }
-
-  pVgroupList = taosArrayInit(expected, sizeof(SVgroupInfo));
-  QUERY_CHECK_NULL(pVgroupList, code, lino, _return, terrno);
-
-  pVgHash = taosHashInit(expected, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
-  QUERY_CHECK_NULL(pVgHash, code, lino, _return, terrno);
-
-  PAR_ERR_JRET(appendUniqueVgroups(pVirtualTable->pVgroupList, pVgHash, pVgroupList));
-  PAR_ERR_JRET(appendUniqueVgroups(pRefScanTable->pVgroupList, pVgHash, pVgroupList));
-
-  taosMemoryFreeClear(pMetaScanTable->pVgroupList);
-  PAR_ERR_JRET(toVgroupsInfo(pVgroupList, &pMetaScanTable->pVgroupList));
-
-_return:
-  taosHashCleanup(pVgHash);
-  taosArrayDestroy(pVgroupList);
-  return code;
-}
-
 static int32_t makeVtableMetaScanTable(STranslateContext* pCxt, SRealTableNode** pScan) {
   int32_t code = TSDB_CODE_SUCCESS;
   bool    tmpAsync = pCxt->pParseCxt->async;
@@ -6578,7 +6545,6 @@ static int32_t translateVirtualSuperTable(STranslateContext* pCxt, SNode** pTabl
   PAR_ERR_JRET(nodesListMakeAppend(&pVTable->refTables, (SNode*)pRealTable));
   refTablesAdded = true;
   PAR_ERR_JRET(makeVtableMetaScanTable(pCxt, &pInsCols));
-  //PAR_ERR_JRET(setVSuperTableMetaScanVgroupList(pVTable, pRealTable, pInsCols));
   PAR_ERR_JRET(nodesListMakeAppend(&pVTable->refTables, (SNode*)pInsCols));
 
   // Add tag-ref source tables to refTables so planner can find them via findRefTableNode

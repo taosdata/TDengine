@@ -1695,6 +1695,7 @@ int32_t extractDataBlockFromFetchRsp(SSDataBlock* pRes, char* pData, SArray* pCo
     pRes->info.dataLoad = 1;
     pRes->info.rows = pBlock->info.rows;
     pRes->info.scanFlag = MAIN_SCAN;
+    pRes->info.id.groupId = pBlock->info.id.groupId;
     code = relocateColumnData(pRes, pColList, pBlock->pDataBlock, false);
     QUERY_CHECK_CODE(code, lino, _end);
 
