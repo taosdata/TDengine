@@ -333,6 +333,115 @@ class TestBatchMetaTxnCluster:
         tdSql.query("select v from ct_0")
         tdSql.checkData(0, 0, 42)
 
+    # =========================================================================
+    # s47: Fencing — VNode leader switch (term change) during active txn
+    #   When a VNode leader switches, the new leader has a higher Raft term.
+    #   The fencing mechanism (vnodeTxnFencing) should handle old-term
+    #   shadow entries. The MNode COMMIT re-broadcasts to new VNode leaders
+    #   with the updated term. This tests that the txn can still COMMIT
+    #   correctly after a leader switch.
+    # =========================================================================
+    def s47_fencing_vnode_leader_switch(self):
+        self._reset_env()
+        tdLog.info("======== s47_fencing_vnode_leader_switch")
+
+        tdSql.execute("create table stb (ts timestamp, v int) tags (t1 int)")
+
+        # Pre-create a table outside txn to verify it survives
+        tdSql.execute("create table ct_pre using stb tags(0)")
+        tdSql.execute("insert into ct_pre values(now, 100)")
+
+        # Start transaction and create tables
+        tdSql.execute("BEGIN")
+        tdSql.execute("create table ct_fence1 using stb tags(1)")
+        tdSql.execute("create table ct_fence2 using stb tags(2)")
+
+        # Find VNode leader for our vgroup
+        tdSql.query("show txn_cdb.vgroups")
+        vgId = tdSql.queryResult[0][0]
+        leader_dnode = self._get_vgroup_leader_dnode("txn_cdb", vgId)
+        tdLog.info(f"Vgroup {vgId} leader on dnode {leader_dnode}")
+
+        # Kill VNode leader — triggers Raft election, new leader gets higher term
+        # The fencing mechanism (vnodeTxnFencing) on new leader will see
+        # term > pVnode->maxSeenTerm and abort old-term shadow entries
+        tdLog.info(f"Killing VNode leader dnode {leader_dnode} to trigger fencing")
+        sc.dnodeForceStop(leader_dnode)
+        time.sleep(5)
+
+        # Wait for new VNode leader to be elected (different dnode)
+        new_leader = self._get_vgroup_leader_dnode("txn_cdb", vgId, timeout=30)
+        assert new_leader is not None, "No new VNode leader elected"
+        assert new_leader != leader_dnode, f"Leader should have changed, still on dnode {leader_dnode}"
+        tdLog.info(f"New VNode leader for vgroup {vgId}: dnode {new_leader}")
+
+        # Restart the killed dnode
+        sc.dnodeStart(leader_dnode)
+        time.sleep(5)
+        clusterComCheck.checkDnodes(3)
+
+        # COMMIT — MNode sends TDMT_VND_TXN_COMMIT to all VNodes with current term
+        # The new leader has higher term, so it processes the commit normally
+        # The restarted old leader replays via Raft log
+        tdSql.execute("COMMIT")
+
+        # Verify: ct_fence1, ct_fence2, ct_pre should all exist
+        tdSql.query("show tables")
+        tdSql.checkRows(3)
+
+        # Verify pre-existing data survived
+        tdSql.query("select v from ct_pre")
+        tdSql.checkData(0, 0, 100)
+
+        # Verify new tables are usable
+        tdSql.execute("insert into ct_fence1 values(now, 1)")
+        tdSql.execute("insert into ct_fence2 values(now, 2)")
+        tdSql.query("select count(*) from stb")
+        tdSql.checkData(0, 0, 3)
+
+    # =========================================================================
+    # s48: Fencing — VNode leader switch during txn, then ROLLBACK
+    # =========================================================================
+    def s48_fencing_vnode_leader_switch_rollback(self):
+        self._reset_env()
+        tdLog.info("======== s48_fencing_vnode_leader_switch_rollback")
+
+        tdSql.execute("create table stb (ts timestamp, v int) tags (t1 int)")
+        tdSql.execute("create table ct_pre using stb tags(0)")
+        tdSql.execute("insert into ct_pre values(now, 200)")
+
+        # Start txn and create tables
+        tdSql.execute("BEGIN")
+        tdSql.execute("create table ct_fence3 using stb tags(3)")
+
+        # Kill VNode leader
+        tdSql.query("show txn_cdb.vgroups")
+        vgId = tdSql.queryResult[0][0]
+        leader_dnode = self._get_vgroup_leader_dnode("txn_cdb", vgId)
+        tdLog.info(f"Killing VNode leader dnode {leader_dnode} to trigger fencing")
+        sc.dnodeForceStop(leader_dnode)
+        time.sleep(5)
+
+        # Wait for new leader
+        new_leader = self._get_vgroup_leader_dnode("txn_cdb", vgId, timeout=30)
+        assert new_leader is not None, "No new VNode leader elected"
+        tdLog.info(f"New VNode leader: dnode {new_leader}")
+
+        # Restart killed dnode
+        sc.dnodeStart(leader_dnode)
+        time.sleep(5)
+        clusterComCheck.checkDnodes(3)
+
+        # ROLLBACK — undo shadow entries via new leader
+        tdSql.execute("ROLLBACK")
+
+        # Verify: only ct_pre exists, ct_fence3 does not
+        tdSql.query("show tables")
+        tdSql.checkRows(1)
+
+        tdSql.query("select v from ct_pre")
+        tdSql.checkData(0, 0, 200)
+
     def test_meta_batch_txn_cluster(self):
         """Batch meta txn: cluster-mode tests
 
@@ -343,6 +452,8 @@ class TestBatchMetaTxnCluster:
         44. VNode leader restart -> COMMIT after recovery
         45. Full cluster restart -> txn survives, COMMIT works
         46. Full cluster restart after COMMIT -> data survives
+        47. Fencing: VNode leader switch (term change) -> COMMIT
+        48. Fencing: VNode leader switch (term change) -> ROLLBACK
 
 
         Since: v3.3.6.0
@@ -353,6 +464,7 @@ class TestBatchMetaTxnCluster:
 
         History:
             - 2026-03-30 Created (cluster-mode txn robustness tests)
+            - 2026-03-31 Added fencing (VNode leader switch) tests
 
         """
         self.s40_mnode_leader_switch_commit()
@@ -362,3 +474,5 @@ class TestBatchMetaTxnCluster:
         self.s44_vnode_leader_restart_commit()
         self.s45_cluster_restart_txn_survives()
         self.s46_mnode_restart_committing_recovery()
+        self.s47_fencing_vnode_leader_switch()
+        self.s48_fencing_vnode_leader_switch_rollback()

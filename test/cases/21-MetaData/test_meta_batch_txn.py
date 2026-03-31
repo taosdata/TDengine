@@ -1091,6 +1091,405 @@ class TestBatchMetaTxn:
 
         tdSql.execute("ROLLBACK")
 
+    # =========================================================================
+    # 39. Cross-VNode mixed DDL (CREATE+DROP+ALTER across vgroups) + COMMIT
+    # =========================================================================
+    def s45_cross_vgroup_mixed_ddl_commit(self):
+        self.s0_reset_env()
+        tdLog.info("======== s45_cross_vgroup_mixed_ddl_commit")
+
+        # vgroups=2, so tables hash to different VGroups
+        tdSql.execute("create table stb (ts timestamp, v int) tags (t1 int)")
+
+        # Pre-create some tables outside txn
+        for i in range(10):
+            tdSql.execute(f"create table ct_pre{i:02d} using stb tags({i})")
+            tdSql.execute(f"insert into ct_pre{i:02d} values(now, {i})")
+
+        tdSql.query("show tables")
+        tdSql.checkRows(10)
+
+        # Mixed DDL in transaction across vgroups
+        tdSql.execute("BEGIN")
+
+        # CREATE new tables (spread across vgroups)
+        for i in range(10):
+            tdSql.execute(f"create table ct_new{i:02d} using stb tags({100 + i})")
+
+        # DROP some pre-existing tables
+        for i in range(5):
+            tdSql.execute(f"drop table ct_pre{i:02d}")
+
+        # ALTER a pre-existing table
+        tdSql.execute("create table ntb_alt (ts timestamp, c1 int)")
+        tdSql.execute("alter table ntb_alt add column c2 float")
+
+        tdSql.execute("COMMIT")
+
+        # Verify: 5 remaining pre-existing + 10 new + 1 ntb_alt = 16
+        tdSql.query("show tables")
+        tdSql.checkRows(16)
+
+        # Verify dropped tables are gone
+        tdSql.error("select * from ct_pre00")
+
+        # Verify new tables are there
+        for i in range(10):
+            tdSql.execute(f"insert into ct_new{i:02d} values(now, {200 + i})")
+
+        # Verify ALTER persisted
+        tdSql.query("describe ntb_alt")
+        col_names = [tdSql.queryResult[i][0] for i in range(tdSql.queryRows)]
+        assert 'c2' in col_names, "Column c2 should exist after COMMIT"
+
+    # =========================================================================
+    # 40. Cross-VNode mixed DDL (CREATE+DROP+ALTER across vgroups) + ROLLBACK
+    # =========================================================================
+    def s46_cross_vgroup_mixed_ddl_rollback(self):
+        self.s0_reset_env()
+        tdLog.info("======== s46_cross_vgroup_mixed_ddl_rollback")
+
+        tdSql.execute("create table stb (ts timestamp, v int) tags (t1 int)")
+
+        # Pre-create some tables outside txn
+        for i in range(10):
+            tdSql.execute(f"create table ct_pre{i:02d} using stb tags({i})")
+            tdSql.execute(f"insert into ct_pre{i:02d} values(now, {i})")
+
+        tdSql.execute("create table ntb_alt (ts timestamp, c1 int)")
+        tdSql.execute("insert into ntb_alt values(now, 99)")
+
+        tdSql.query("show tables")
+        tdSql.checkRows(11)  # 10 child + 1 normal
+
+        # Mixed DDL in transaction
+        tdSql.execute("BEGIN")
+
+        # CREATE new tables
+        for i in range(10):
+            tdSql.execute(f"create table ct_new{i:02d} using stb tags({100 + i})")
+
+        # DROP some pre-existing tables
+        for i in range(5):
+            tdSql.execute(f"drop table ct_pre{i:02d}")
+
+        # ALTER the pre-existing normal table
+        tdSql.execute("alter table ntb_alt add column c2 float")
+
+        tdSql.execute("ROLLBACK")
+
+        # All changes should be undone: back to 11 tables
+        tdSql.query("show tables")
+        tdSql.checkRows(11)
+
+        # Dropped tables should be restored
+        for i in range(5):
+            tdSql.query(f"select * from ct_pre{i:02d}")
+            tdSql.checkRows(1)
+
+        # New tables should not exist
+        tdSql.error("select * from ct_new00")
+
+        # ALTER should be undone (no c2 column)
+        tdSql.query("describe ntb_alt")
+        col_names = [tdSql.queryResult[i][0] for i in range(tdSql.queryRows)]
+        assert 'c2' not in col_names, "Column c2 should NOT exist after ROLLBACK"
+
+    # =========================================================================
+    # 41. Conflict detection: PRE_CREATE blocks concurrent CREATE
+    # =========================================================================
+    def s47_conflict_pre_create(self):
+        self.s0_reset_env()
+        tdLog.info("======== s47_conflict_pre_create")
+
+        tdSql.execute("create table stb (ts timestamp, v int) tags (t1 int)")
+
+        # Session A: BEGIN + CREATE child table
+        tdSql.execute("BEGIN")
+        tdSql.execute("create table ct_conflict using stb tags(1)")
+
+        # Session B: try to CREATE same table name (non-txn) → should fail with conflict
+        tdSql2 = tdCom.newTdSql()
+        tdSql2.execute("use txn_db")
+        tdSql2.error("create table ct_conflict using stb tags(2)")
+
+        # Session B: can create a DIFFERENT table
+        tdSql2.execute("create table ct_other using stb tags(3)")
+
+        # Cleanup
+        tdSql.execute("ROLLBACK")
+
+        # After rollback, ct_conflict should not exist, ct_other should exist
+        tdSql.query("show tables")
+        tdSql.checkRows(1)
+
+        tdSql2.close()
+
+    # =========================================================================
+    # 42. Conflict detection: PRE_DROP blocks concurrent DROP/ALTER
+    # =========================================================================
+    def s48_conflict_pre_drop(self):
+        self.s0_reset_env()
+        tdLog.info("======== s48_conflict_pre_drop")
+
+        tdSql.execute("create table stb (ts timestamp, v int) tags (t1 int)")
+        tdSql.execute("create table ct_drop using stb tags(1)")
+        tdSql.execute("insert into ct_drop values(now, 10)")
+
+        # Session A: BEGIN + DROP table (marks PRE_DROP)
+        tdSql.execute("BEGIN")
+        tdSql.execute("drop table ct_drop")
+
+        # Session B: try to DROP same table → should fail
+        tdSql2 = tdCom.newTdSql()
+        tdSql2.execute("use txn_db")
+        tdSql2.error("drop table ct_drop")
+
+        # Session B: try to ALTER same table → should fail
+        tdSql2.error("alter table ct_drop add column c2 int")
+
+        # Session B: SELECT (read) should still work (snapshot isolation)
+        tdSql2.query("select * from ct_drop")
+        tdSql2.checkRows(1)
+
+        # Session B: INSERT should still work (PRE_DROP allows writes)
+        tdSql2.execute("insert into ct_drop values(now + 1s, 20)")
+
+        # Session A: ROLLBACK → table fully restored
+        tdSql.execute("ROLLBACK")
+
+        # Verify table restored with both rows
+        tdSql.query("select count(*) from ct_drop")
+        tdSql.checkData(0, 0, 2)
+
+        tdSql2.close()
+
+    # =========================================================================
+    # 43. Conflict detection: PRE_ALTER blocks concurrent ALTER/DROP
+    # =========================================================================
+    def s49_conflict_pre_alter(self):
+        self.s0_reset_env()
+        tdLog.info("======== s49_conflict_pre_alter")
+
+        tdSql.execute("create table ntb1 (ts timestamp, c1 int)")
+        tdSql.execute("insert into ntb1 values(now, 42)")
+
+        # Session A: BEGIN + ALTER table (marks PRE_ALTER)
+        tdSql.execute("BEGIN")
+        tdSql.execute("alter table ntb1 add column c2 float")
+
+        # Session B: try to ALTER same table → should fail
+        tdSql2 = tdCom.newTdSql()
+        tdSql2.execute("use txn_db")
+        tdSql2.error("alter table ntb1 add column c3 bigint")
+
+        # Session B: try to DROP same table → should fail
+        tdSql2.error("drop table ntb1")
+
+        # Session B: SELECT should work (old schema via txnPrevVer)
+        tdSql2.query("select c1 from ntb1")
+        tdSql2.checkRows(1)
+        tdSql2.checkData(0, 0, 42)
+
+        # Session A: COMMIT → ALTER takes effect
+        tdSql.execute("COMMIT")
+
+        # Verify ALTER persisted
+        tdSql.query("describe ntb1")
+        col_names = [tdSql.queryResult[i][0] for i in range(tdSql.queryRows)]
+        assert 'c2' in col_names, "Column c2 should exist after COMMIT"
+
+        tdSql2.close()
+
+    # =========================================================================
+    # 44. Conflict detection: cross-txn conflict (two sessions with txns)
+    # =========================================================================
+    def s50_conflict_cross_txn(self):
+        self.s0_reset_env()
+        tdLog.info("======== s50_conflict_cross_txn")
+
+        tdSql.execute("create table stb (ts timestamp, v int) tags (t1 int)")
+
+        # Session A: BEGIN + CREATE child table
+        tdSql.execute("BEGIN")
+        tdSql.execute("create table ct_cross using stb tags(1)")
+
+        # Session B: also start a txn and try CREATE same table → should fail
+        tdSql2 = tdCom.newTdSql()
+        tdSql2.execute("use txn_db")
+        tdSql2.execute("BEGIN")
+        tdSql2.error("create table ct_cross using stb tags(2)")
+        tdSql2.execute("ROLLBACK")
+
+        # Session A: COMMIT succeeds
+        tdSql.execute("COMMIT")
+
+        # Verify: table created by Session A
+        tdSql.query("show tables")
+        tdSql.checkRows(1)
+
+        tdSql2.close()
+
+    # =========================================================================
+    # 45. Timeout auto-rollback: disconnect client → txn auto-rolled-back
+    # =========================================================================
+    def s51_timeout_auto_rollback(self):
+        self.s0_reset_env()
+        tdLog.info("======== s51_timeout_auto_rollback")
+
+        tdSql.execute("create table stb (ts timestamp, v int) tags (t1 int)")
+
+        # Session B: start txn and create tables, then disconnect WITHOUT commit
+        tdSql2 = tdCom.newTdSql()
+        tdSql2.execute("use txn_db")
+        tdSql2.execute("BEGIN")
+        tdSql2.execute("create table ct_timeout1 using stb tags(1)")
+        tdSql2.execute("create table ct_timeout2 using stb tags(2)")
+
+        # Close connection without COMMIT/ROLLBACK
+        tdSql2.close()
+        tdLog.info("  Session B closed, waiting for MNode timeout auto-rollback (30s + scan interval)...")
+
+        # Poll until timeout fires and tables disappear
+        # MNode timeout = 30s, scan interval = 5s → expect within ~40s
+        rolled_back = False
+        for i in range(50):  # up to 50 seconds
+            time.sleep(1)
+            tdSql.query("show txn_db.tables")
+            if tdSql.queryRows == 0:
+                tdLog.info(f"  Timeout rollback detected after {i + 1}s")
+                rolled_back = True
+                break
+
+        assert rolled_back, "Timeout auto-rollback did not fire within 50s"
+
+        # Verify tables do not exist
+        tdSql.query("show tables")
+        tdSql.checkRows(0)
+
+    def _wait_compacts_done(self, timeout=60):
+        """Poll 'show compacts' until no active compactions remain."""
+        for i in range(timeout):
+            tdSql.query("show compacts")
+            if tdSql.queryRows == 0:
+                tdLog.info(f"  Compaction finished after {i + 1}s")
+                return True
+            time.sleep(1)
+        tdLog.info(f"  Warning: compaction still active after {timeout}s")
+        return False
+
+    # =========================================================================
+    # 46. Compaction protection: META_ONLY compact during active txn → COMMIT works
+    #   Tests that compact database META_ONLY preserves txn.idx entries
+    #   and PRE_ALTER old-version entries, so COMMIT/ROLLBACK still works.
+    # =========================================================================
+    def s52_compaction_protection_commit(self):
+        self.s0_reset_env()
+        tdLog.info("======== s52_compaction_protection_commit")
+
+        tdSql.execute("create table stb (ts timestamp, v int) tags (t1 int)")
+
+        # Pre-create tables and insert data
+        tdSql.execute("create table ntb1 (ts timestamp, c1 int)")
+        tdSql.execute("insert into ntb1 values(now, 10)")
+        tdSql.execute("create table ct1 using stb tags(1)")
+        tdSql.execute("insert into ct1 values(now, 20)")
+
+        # Start transaction: CREATE (PRE_CREATE) + ALTER (PRE_ALTER) + DROP (PRE_DROP)
+        tdSql.execute("BEGIN")
+        tdSql.execute("create table ct_new using stb tags(99)")
+        tdSql.execute("alter table ntb1 add column c2 float")
+        tdSql.execute("drop table ct1")
+
+        # Trigger meta-only compaction from a SEPARATE session (non-txn)
+        # This should preserve: txn.idx entries, PRE_ALTER old version, PRE_CREATE/PRE_DROP shadows
+        tdLog.info("  Triggering META_ONLY compaction during active txn...")
+        tdSql2 = tdCom.newTdSql()
+        tdSql2.execute("compact database txn_db META_ONLY")
+        # Wait for compaction to finish
+        for i in range(60):
+            tdSql2.query("show compacts")
+            if tdSql2.queryRows == 0:
+                tdLog.info(f"  Compaction finished after {i + 1}s")
+                break
+            time.sleep(1)
+        tdSql2.close()
+
+        # COMMIT — txn.idx entries survived compaction, so commit should succeed
+        tdLog.info("  Committing txn after compaction...")
+        tdSql.execute("COMMIT")
+
+        # Verify: ct_new exists (PRE_CREATE committed)
+        tdSql.execute("insert into ct_new values(now, 99)")
+        tdSql.query("select v from ct_new")
+        tdSql.checkRows(1)
+
+        # Verify: ntb1 has c2 (PRE_ALTER committed)
+        tdSql.query("describe ntb1")
+        col_names = [tdSql.queryResult[i][0] for i in range(tdSql.queryRows)]
+        assert 'c2' in col_names, "Column c2 should exist after COMMIT"
+
+        # Verify: ct1 is gone (PRE_DROP committed)
+        tdSql.error("select * from ct1")
+
+    # =========================================================================
+    # 47. Compaction protection: META_ONLY compact during active txn → ROLLBACK works
+    #   Tests that txn.idx entries and PRE_ALTER old-version entries survive
+    #   compaction, allowing ROLLBACK to properly undo all shadow changes.
+    # =========================================================================
+    def s53_compaction_protection_rollback(self):
+        self.s0_reset_env()
+        tdLog.info("======== s53_compaction_protection_rollback")
+
+        tdSql.execute("create table stb (ts timestamp, v int) tags (t1 int)")
+
+        # Pre-create and populate
+        tdSql.execute("create table ntb1 (ts timestamp, c1 int)")
+        tdSql.execute("insert into ntb1 values(now, 10)")
+        tdSql.execute("create table ct1 using stb tags(1)")
+        tdSql.execute("insert into ct1 values(now, 20)")
+
+        # Start transaction
+        tdSql.execute("BEGIN")
+        tdSql.execute("create table ct_new using stb tags(99)")
+        tdSql.execute("alter table ntb1 add column c2 float")
+        tdSql.execute("drop table ct1")
+
+        # Trigger meta-only compaction from a SEPARATE session (non-txn)
+        tdLog.info("  Triggering META_ONLY compaction during active txn...")
+        tdSql2 = tdCom.newTdSql()
+        tdSql2.execute("compact database txn_db META_ONLY")
+        for i in range(60):
+            tdSql2.query("show compacts")
+            if tdSql2.queryRows == 0:
+                tdLog.info(f"  Compaction finished after {i + 1}s")
+                break
+            time.sleep(1)
+        tdSql2.close()
+
+        # ROLLBACK — old versions preserved during compaction should allow proper undo
+        tdLog.info("  Rolling back txn after compaction...")
+        tdSql.execute("ROLLBACK")
+
+        # Verify: ct_new does not exist (PRE_CREATE rolled back)
+        tdSql.error("select * from ct_new")
+
+        # Verify: ntb1 has only c1, no c2 (PRE_ALTER rolled back, old version restored)
+        tdSql.query("describe ntb1")
+        col_names = [tdSql.queryResult[i][0] for i in range(tdSql.queryRows)]
+        assert 'c1' in col_names, "Column c1 should exist after ROLLBACK"
+        assert 'c2' not in col_names, "Column c2 should NOT exist after ROLLBACK"
+
+        # Verify: ct1 is restored (PRE_DROP rolled back)
+        tdSql.query("select v from ct1")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 20)
+
+        # Verify original data intact
+        tdSql.query("select c1 from ntb1")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 10)
+
     def test_meta_batch_txn(self):
         """Batch meta txn: full lifecycle
 
@@ -1138,6 +1537,15 @@ class TestBatchMetaTxn:
         42. Pre-existing ALTER→DROP chain + COMMIT
         43. Pre-existing ALTER→DROP chain + ROLLBACK
         44. Same-txn data ops: DESC works, INSERT blocked, SELECT on committed data
+        45. Cross-VNode mixed DDL (CREATE+DROP+ALTER) + COMMIT
+        46. Cross-VNode mixed DDL (CREATE+DROP+ALTER) + ROLLBACK
+        47. Conflict detection: PRE_CREATE blocks concurrent CREATE
+        48. Conflict detection: PRE_DROP blocks concurrent DROP/ALTER
+        49. Conflict detection: PRE_ALTER blocks concurrent ALTER/DROP
+        50. Conflict detection: cross-txn (two sessions with txns)
+        51. Timeout auto-rollback on client disconnect
+        52. Compaction protection: META_ONLY compact during txn → COMMIT
+        53. Compaction protection: META_ONLY compact during txn → ROLLBACK
 
 
         Since: v3.3.6.0
@@ -1151,6 +1559,8 @@ class TestBatchMetaTxn:
             - 2026-03-29 Added STB txn isolation, same-txn child table, ALTER visibility tests
             - 2026-03-30 Added STB DROP/ALTER/isolation, catalog isolation tests
             - 2026-03-31 Added DDL chain tests (CREATE→DROP→re-CREATE, CREATE→ALTER→DROP), same-txn data ops
+            - 2026-03-31 Added cross-VNode mixed DDL, conflict detection, timeout auto-rollback tests
+            - 2026-03-31 Added compaction protection (META_ONLY) tests
 
         """
         self.s1_begin_commit_create_tables()
@@ -1197,3 +1607,12 @@ class TestBatchMetaTxn:
         self.s42_existing_alter_drop_commit()
         self.s43_existing_alter_drop_rollback()
         self.s44_same_txn_data_ops()
+        self.s45_cross_vgroup_mixed_ddl_commit()
+        self.s46_cross_vgroup_mixed_ddl_rollback()
+        self.s47_conflict_pre_create()
+        self.s48_conflict_pre_drop()
+        self.s49_conflict_pre_alter()
+        self.s50_conflict_cross_txn()
+        self.s51_timeout_auto_rollback()
+        self.s52_compaction_protection_commit()
+        self.s53_compaction_protection_rollback()
