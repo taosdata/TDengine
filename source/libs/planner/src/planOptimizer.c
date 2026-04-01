@@ -213,9 +213,27 @@ static EDealRes optRebuildTbanme(SNode** pNode, void* pContext) {
     tstrncpy(pFunc->functionName, "tbname", TSDB_FUNC_NAME_LEN);
     pFunc->funcType = FUNCTION_TYPE_TBNAME;
     pFunc->node.resType = ((SColumnNode*)*pNode)->node.resType;
+    code = fmGetFuncInfo(pFunc, NULL, 0);
+    if (TSDB_CODE_SUCCESS != code) {
+      nodesDestroyNode((SNode*)pFunc);
+      *(int32_t*)pContext = code;
+      return DEAL_RES_ERROR;
+    }
     nodesDestroyNode(*pNode);
     *pNode = (SNode*)pFunc;
     return DEAL_RES_IGNORE_CHILD;
+  }
+
+  if (QUERY_NODE_FUNCTION == nodeType(*pNode)) {
+    SFunctionNode* pFunc = (SFunctionNode*)*pNode;
+    if (0 == strcmp(pFunc->functionName, "tbname") && pFunc->funcId == 0) {
+      int32_t code = fmGetFuncInfo(pFunc, NULL, 0);
+      if (TSDB_CODE_SUCCESS != code) {
+        *(int32_t*)pContext = code;
+        return DEAL_RES_ERROR;
+      }
+      return DEAL_RES_IGNORE_CHILD;
+    }
   }
   return DEAL_RES_CONTINUE;
 }
@@ -785,7 +803,81 @@ static int32_t pdcDealScan(SOptimizeContext* pCxt, SScanLogicNode* pScan) {
   return code;
 }
 
+// Check if a condition involves any tag column (COLUMN_TYPE_TAG).
+// For VSTBs, the super table meta does NOT carry per-tag ref info,
+// so any tag column condition must stay on VirtualScan (could be ref-tag).
+// Pure tbname conditions use FUNCTION_TYPE_TBNAME with no tag columns.
+static bool pdcCondHasTagColumn(SNode* pCond) {
+  SNodeList* pCondCols = NULL;
+  if (TSDB_CODE_SUCCESS != nodesCollectColumnsFromNode(pCond, NULL, COLLECT_COL_TYPE_ALL, &pCondCols) ||
+      NULL == pCondCols) {
+    nodesDestroyList(pCondCols);
+    return false;
+  }
+
+  bool found = false;
+  SNode* pNode = NULL;
+  FOREACH(pNode, pCondCols) {
+    if (QUERY_NODE_COLUMN != nodeType(pNode)) continue;
+    SColumnNode* pCol = (SColumnNode*)pNode;
+    if (COLUMN_TYPE_TAG == pCol->colType) {
+      found = true;
+      break;
+    }
+  }
+
+  nodesDestroyList(pCondCols);
+  return found;
+}
+
+// Split a tag condition into SystemScan-safe part and VirtualScan-only part.
+// For VSTBs, super table meta has no per-tag ref info, so any condition with
+// COLUMN_TYPE_TAG columns must stay on VirtualScan. Only pure tbname conditions
+// (which use FUNCTION_TYPE_TBNAME, no tag columns) are safe for SystemScan.
+static int32_t pdcSplitTagCondForVstb(SNode** ppTagCond, SNode** ppSysTagCond, SNode** ppRefTagCond) {
+  if (NULL == ppTagCond || NULL == *ppTagCond) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  SNode*  pCond = *ppTagCond;
+
+  if (QUERY_NODE_LOGIC_CONDITION == nodeType(pCond) &&
+      LOGIC_COND_TYPE_AND == ((SLogicConditionNode*)pCond)->condType) {
+    // AND-ed conditions: split each child
+    SNode* pChild = NULL;
+    FOREACH(pChild, ((SLogicConditionNode*)pCond)->pParameterList) {
+      SNode* pClone = NULL;
+      code = nodesCloneNode(pChild, &pClone);
+      if (TSDB_CODE_SUCCESS != code) return code;
+
+      if (pdcCondHasTagColumn(pChild)) {
+        code = nodesMergeNode(ppRefTagCond, &pClone);
+      } else {
+        code = nodesMergeNode(ppSysTagCond, &pClone);
+      }
+      if (TSDB_CODE_SUCCESS != code) {
+        nodesDestroyNode(pClone);
+        return code;
+      }
+    }
+    nodesDestroyNode(pCond);
+    *ppTagCond = NULL;
+  } else {
+    // Single condition
+    if (pdcCondHasTagColumn(pCond)) {
+      *ppRefTagCond = pCond;
+    } else {
+      *ppSysTagCond = pCond;
+    }
+    *ppTagCond = NULL;
+  }
+  return code;
+}
+
 static int32_t pdcDealVirtualSuperTableScan(SOptimizeContext* pCxt, SDynQueryCtrlLogicNode* pScan) {
+  planDebug("pdcDealVirtualSuperTableScan ENTER: pConditions=%p, optimizedFlag=0x%x, qType=%d",
+            pScan->node.pConditions, pScan->node.optimizedFlag, pScan->qType);
   if (NULL == pScan->node.pConditions ||
       OPTIMIZE_FLAG_TEST_MASK(pScan->node.optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE)) {
     return TSDB_CODE_SUCCESS;
@@ -807,9 +899,13 @@ static int32_t pdcDealVirtualSuperTableScan(SOptimizeContext* pCxt, SDynQueryCtr
     return code;
   }
 
+  PLAN_ERR_JRET(pushDownCondOptRebuildTbanme(&pScan->node.pConditions));
   PLAN_ERR_JRET(filterPartitionCond(&pScan->node.pConditions, &pPrimaryKeyCond, &pTagIndexCond, &pTagCond, &pOtherCond));
   if (NULL != pTagCond) {
     PLAN_ERR_JRET(pushDownCondOptRebuildTbanme(&pTagCond));
+  }
+  if (NULL != pTagIndexCond) {
+    PLAN_ERR_JRET(pushDownCondOptRebuildTbanme(&pTagIndexCond));
   }
 
   SVirtualScanLogicNode *pVscan = (SVirtualScanLogicNode*)nodesListGetNode(pScan->node.pChildren, 0);
@@ -832,9 +928,36 @@ static int32_t pdcDealVirtualSuperTableScan(SOptimizeContext* pCxt, SDynQueryCtr
     PLAN_ERR_JRET(pushDownCondOptCalcTimeRange(pCxt, &pOrgScan->scanRange, &pPrimaryKeyCond, &pOtherCond, &pOrgScan->pPrimaryCond));
   }
 
+  // For virtual super tables, ref-tag values store NULL in vnode meta,
+  // so ref-tag predicates cannot be pushed to SystemScan's tag filter.
+  // However, tbname and local-tag predicates CAN be pushed to SystemScan
+  // (they have real values). Split tag conditions accordingly.
+  SNode* pSysTagCond = NULL;
+  SNode* pRefTagCond = NULL;
+  SNode* pSysTagIdxCond = NULL;
+  SNode* pRefTagIdxCond = NULL;
+
+  PLAN_ERR_JRET(pdcSplitTagCondForVstb(&pTagCond, &pSysTagCond, &pRefTagCond));
+  PLAN_ERR_JRET(pdcSplitTagCondForVstb(&pTagIndexCond, &pSysTagIdxCond, &pRefTagIdxCond));
+
+  // Ref-tag conditions (or conditions we can't verify) stay on VirtualScan
+  if (pRefTagCond) {
+    PLAN_ERR_JRET(nodesMergeNode(&pOtherCond, &pRefTagCond));
+  }
+  if (pRefTagIdxCond) {
+    PLAN_ERR_JRET(nodesMergeNode(&pOtherCond, &pRefTagIdxCond));
+  }
+
+  // tbname conditions go to SystemScan (original behavior)
+  pSysScan->pTagCond = pSysTagCond;
+  pSysTagCond = NULL;
+  pSysScan->pTagIndexCond = pSysTagIdxCond;
+  pSysTagIdxCond = NULL;
+
   pVscan->node.pConditions = pOtherCond;
-  pSysScan->pTagCond = pTagCond;
-  pSysScan->pTagIndexCond = pTagIndexCond;
+  pOtherCond = NULL;
+  planDebug("pdcDealVirtualSuperTableScan: pVscan->pConditions=%p, pSysScan->pTagCond=%p, pSysScan->pTagIndexCond=%p",
+            pVscan->node.pConditions, pSysScan->pTagCond, pSysScan->pTagIndexCond);
 
   OPTIMIZE_FLAG_SET_MASK(pScan->node.optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE);
   pCxt->optimized = true;
@@ -845,6 +968,10 @@ _return:
   nodesDestroyNode(pOtherCond);
   nodesDestroyNode(pTagIndexCond);
   nodesDestroyNode(pTagCond);
+  nodesDestroyNode(pSysTagCond);
+  nodesDestroyNode(pRefTagCond);
+  nodesDestroyNode(pSysTagIdxCond);
+  nodesDestroyNode(pRefTagIdxCond);
   return code;
 }
 
@@ -1077,8 +1204,181 @@ static int32_t pdcJoinPushDownOnCond(SOptimizeContext* pCxt, SJoinLogicNode* pJo
   return nodesMergeNode(&pJoin->pFullOnCond, pCond);
 }
 
+static bool vscanHasCondColumn(SNodeList* pList, const SColumnNode* pCol) {
+  if (pList == NULL || pCol == NULL) {
+    return false;
+  }
+
+  SNode* pNode = NULL;
+  FOREACH(pNode, pList) {
+    if (nodeType(pNode) != QUERY_NODE_COLUMN) {
+      continue;
+    }
+
+    SColumnNode* pExist = (SColumnNode*)pNode;
+    if (pExist->colId == pCol->colId && pExist->colType == pCol->colType && pExist->hasRef == pCol->hasRef &&
+        0 == strcmp(pExist->tableAlias, pCol->tableAlias) && 0 == strcmp(pExist->refDbName, pCol->refDbName) &&
+        0 == strcmp(pExist->refTableName, pCol->refTableName) && 0 == strcmp(pExist->refColName, pCol->refColName)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+static int32_t vscanAppendCondColumn(SNodeList** ppList, const SColumnNode* pCol) {
+  if (ppList == NULL || pCol == NULL || vscanHasCondColumn(*ppList, pCol)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SNode* pClone = NULL;
+  PLAN_ERR_RET(nodesCloneNode((SNode*)pCol, &pClone));
+  return nodesListMakeStrictAppend(ppList, pClone);
+}
+
+static int32_t cloneVgroups(SVgroupsInfo** pDst, SVgroupsInfo* pSrc) {
+  if (pSrc == NULL) {
+    *pDst = NULL;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t len = VGROUPS_INFO_SIZE(pSrc);
+  *pDst = taosMemoryMalloc(len);
+  if (NULL == *pDst) {
+    return terrno;
+  }
+
+  memcpy(*pDst, pSrc, len);
+  return TSDB_CODE_SUCCESS;
+}
+
+static SScanLogicNode* findVirtualTagScanChild(SVirtualScanLogicNode* pScan) {
+  if (pScan == NULL || pScan->node.pChildren == NULL) {
+    return NULL;
+  }
+
+  SNode* pChild = NULL;
+  FOREACH(pChild, pScan->node.pChildren) {
+    if (nodeType(pChild) == QUERY_NODE_LOGIC_PLAN_SCAN && ((SScanLogicNode*)pChild)->scanType == SCAN_TYPE_TAG) {
+      return (SScanLogicNode*)pChild;
+    }
+  }
+
+  return NULL;
+}
+
+static int32_t ensureVirtualTagScanChild(SVirtualScanLogicNode* pScan) {
+  if (pScan == NULL || pScan->pScanPseudoCols == NULL || LIST_LENGTH(pScan->pScanPseudoCols) <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (findVirtualTagScanChild(pScan) != NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SScanLogicNode* pTagScan = NULL;
+  int32_t         code = TSDB_CODE_SUCCESS;
+  int32_t         lino = 0;
+
+  PLAN_ERR_JRET(nodesMakeNode(QUERY_NODE_LOGIC_PLAN_SCAN, (SNode**)&pTagScan));
+  PLAN_ERR_JRET(cloneVgroups(&pTagScan->pVgroupList, pScan->pVgroupList));
+
+  pTagScan->tableId = pScan->tableId;
+  pTagScan->stableId = pScan->stableId;
+  pTagScan->tableType = pScan->tableType;
+  pTagScan->scanSeq[0] = 1;
+  pTagScan->scanSeq[1] = 0;
+  TAOS_SET_OBJ_ALIGNED(&pTagScan->scanRange, TSWINDOW_INITIALIZER);
+  pTagScan->tableName = pScan->tableName;
+  pTagScan->dataRequired = FUNC_DATA_REQUIRED_DATA_LOAD;
+  pTagScan->node.groupAction = GROUP_ACTION_NONE;
+  pTagScan->node.resultDataOrder = DATA_ORDER_LEVEL_GLOBAL;
+  pTagScan->scanType = SCAN_TYPE_TAG;
+  pTagScan->onlyMetaCtbIdx = false;
+
+  PLAN_ERR_JRET(nodesCloneList(pScan->pScanPseudoCols, &pTagScan->pScanPseudoCols));
+  PLAN_ERR_JRET(createColumnByRewriteExprs(pTagScan->pScanPseudoCols, &pTagScan->node.pTargets));
+  PLAN_ERR_JRET(nodesListMakeStrictAppend(&pScan->node.pChildren, (SNode*)pTagScan));
+  pTagScan->node.pParent = (SLogicNode*)pScan;
+
+  return code;
+
+_return:
+  planError("%s failed at line %d, code: %d", __func__, lino, code);
+  nodesDestroyNode((SNode*)pTagScan);
+  return code;
+}
+
+static int32_t pdcSyncVirtualScanCondCols(SVirtualScanLogicNode* pScan, SNode* pCond) {
+  if (pScan == NULL || pCond == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SNodeList* pCondCols = NULL;
+  SScanLogicNode* pTagScan = findVirtualTagScanChild(pScan);
+  int32_t    code = nodesCollectColumnsFromNode(pCond, NULL, COLLECT_COL_TYPE_ALL, &pCondCols);
+  if (TSDB_CODE_SUCCESS != code || pCondCols == NULL) {
+    nodesDestroyList(pCondCols);
+    return code;
+  }
+
+  SNode* pNode = NULL;
+  FOREACH(pNode, pCondCols) {
+    if (nodeType(pNode) != QUERY_NODE_COLUMN) {
+      continue;
+    }
+
+    SColumnNode* pCol = (SColumnNode*)pNode;
+    if (pCol->colType == COLUMN_TYPE_TAG) {
+      if (pCol->hasRef) {
+        code = vscanAppendCondColumn(&pScan->pRefTagCols, pCol);
+      } else {
+        code = vscanAppendCondColumn(&pScan->pScanPseudoCols, pCol);
+        if (TSDB_CODE_SUCCESS == code) {
+          code = vscanAppendCondColumn(&pScan->pLocalTags, pCol);
+        }
+        if (TSDB_CODE_SUCCESS == code && pTagScan != NULL) {
+          code = vscanAppendCondColumn(&pTagScan->pScanPseudoCols, pCol);
+        }
+        if (TSDB_CODE_SUCCESS == code && pTagScan != NULL) {
+          code = vscanAppendCondColumn(&pTagScan->node.pTargets, pCol);
+        }
+      }
+    } else {
+      code = vscanAppendCondColumn(&pScan->pScanCols, pCol);
+    }
+
+    if (TSDB_CODE_SUCCESS == code) {
+      code = vscanAppendCondColumn(&pScan->node.pTargets, pCol);
+    }
+
+    if (TSDB_CODE_SUCCESS != code) {
+      break;
+    }
+  }
+
+  if (TSDB_CODE_SUCCESS == code &&
+      pScan->pScanPseudoCols != NULL &&
+      LIST_LENGTH(pScan->pScanPseudoCols) > 0 &&
+      findVirtualTagScanChild(pScan) == NULL) {
+    code = ensureVirtualTagScanChild(pScan);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    pScan->hasLocalTag = (pScan->pLocalTags != NULL && LIST_LENGTH(pScan->pLocalTags) > 0);
+  }
+
+  nodesDestroyList(pCondCols);
+  return code;
+}
+
 static int32_t pdcPushDownCondToChild(SOptimizeContext* pCxt, SLogicNode* pChild, SNode** pCond) {
-  return nodesMergeNode(&pChild->pConditions, pCond);
+  int32_t code = nodesMergeNode(&pChild->pConditions, pCond);
+  if (TSDB_CODE_SUCCESS == code && pChild != NULL &&
+      nodeType((SNode*)pChild) == QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN) {
+    code = pdcSyncVirtualScanCondCols((SVirtualScanLogicNode*)pChild, pChild->pConditions);
+  }
+  return code;
 }
 
 static bool pdcJoinIsPrim(SNode* pNode, SSHashObj* pTables, bool constAsPrim, bool* constPrimGot) {
@@ -4179,6 +4479,13 @@ static bool eliminateProjOptMayBeOptimized(SLogicNode* pNode, void* pCtx) {
     SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pNode->pChildren, 0);
     if (LIST_LENGTH(pChild->pTargets) != LIST_LENGTH(pNode->pTargets)) {
       return false;
+    }
+    SNode* pProjTarget = NULL;
+    SNode* pChildTarget = NULL;
+    FORBOTH(pProjTarget, pNode->pTargets, pChildTarget, pChild->pTargets) {
+      if (strcmp(((SColumnNode*)pProjTarget)->colName, ((SColumnNode*)pChildTarget)->colName) != 0) {
+        return false;
+      }
     }
   }
 
@@ -8455,6 +8762,19 @@ static bool eliminateVirtualScanMayBeOptimized(SLogicNode* pNode, void* pCtx) {
     return false;
   }
 
+  // Don't eliminate if the child scan references a virtual table — it needs its own
+  // Virtual Table Scan → DynQueryCtrl resolution chain at runtime.
+  SNode* pChild = nodesListGetNode(pNode->pChildren, 0);
+  if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pChild)) {
+    int8_t childTableType = ((SScanLogicNode*)pChild)->tableType;
+    planDebug("eliminateVirtualScan check: child tableType=%d (VIRTUAL_CHILD=%d VIRTUAL_NORMAL=%d)",
+              childTableType, TSDB_VIRTUAL_CHILD_TABLE, TSDB_VIRTUAL_NORMAL_TABLE);
+    if (TSDB_VIRTUAL_CHILD_TABLE == childTableType || TSDB_VIRTUAL_NORMAL_TABLE == childTableType) {
+      planDebug("eliminateVirtualScan: skip elimination, child is virtual table (type=%d)", childTableType);
+      return false;
+    }
+  }
+
   SVirtualScanLogicNode* pVScan = (SVirtualScanLogicNode *)pNode;
   SNode*                 pCol;
   FOREACH(pCol, pVScan->pScanCols) {
@@ -8516,6 +8836,16 @@ static bool pdaMayBeOptimized(SLogicNode* pNode, void* pCtx) {
   }
 
   SVirtualScanLogicNode* pVScan = (SVirtualScanLogicNode *)nodesListGetNode(pNode->pChildren, 0);
+
+  // All VirtualScan children must be plain table-scan nodes.
+  // TagRefSource children cannot participate in PDA restructuring.
+  SNode* pChild;
+  FOREACH(pChild, pVScan->node.pChildren) {
+    if (nodeType(pChild) != QUERY_NODE_LOGIC_PLAN_SCAN) {
+      return false;
+    }
+  }
+
   SNode*                 pCol;
   FOREACH(pCol, pVScan->pScanCols) {
     SColumnNode* pScanCol = (SColumnNode* )pCol;
@@ -9969,18 +10299,20 @@ static bool vstableAggShouldBeOptimized(SLogicNode* pNode, void* pCtx) {
   }
 
   if (LIST_LENGTH(pAgg->node.pChildren) == 1) {
+    SDynQueryCtrlLogicNode* pDynCtrl = NULL;
     if (nodeType(nodesListGetNode(pAgg->node.pChildren, 0)) == QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL) {
-      if (((SDynQueryCtrlLogicNode*)nodesListGetNode(pAgg->node.pChildren, 0))->qType != DYN_QTYPE_VTB_SCAN) {
+      pDynCtrl = (SDynQueryCtrlLogicNode*)nodesListGetNode(pAgg->node.pChildren, 0);
+      if (pDynCtrl->qType != DYN_QTYPE_VTB_SCAN) {
         return false;
       }
-      // ok
     } else if (nodeType(nodesListGetNode(pAgg->node.pChildren, 0)) == QUERY_NODE_LOGIC_PLAN_PARTITION) {
         SPartitionLogicNode* pPart = (SPartitionLogicNode*)nodesListGetNode(pAgg->node.pChildren, 0);
         if (LIST_LENGTH(pPart->node.pChildren) != 1 ||
             nodeType(nodesListGetNode(pPart->node.pChildren, 0)) != QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL) {
           return false;
         }
-        if (((SDynQueryCtrlLogicNode*)nodesListGetNode(pPart->node.pChildren, 0))->qType != DYN_QTYPE_VTB_SCAN) {
+        pDynCtrl = (SDynQueryCtrlLogicNode*)nodesListGetNode(pPart->node.pChildren, 0);
+        if (pDynCtrl->qType != DYN_QTYPE_VTB_SCAN) {
           return false;
         }
         if (keysHasCol(pPart->pPartitionKeys)) {
@@ -9988,6 +10320,16 @@ static bool vstableAggShouldBeOptimized(SLogicNode* pNode, void* pCtx) {
         }
     } else {
       return false;
+    }
+
+    // VStableAgg restructures the plan, destroying VirtualScan.  If VirtualScan
+    // carries tag-filter conditions (WHERE on tags), the filter would be lost.
+    // Fall back to the unoptimized path so VirtualScan can apply the filter.
+    if (pDynCtrl && LIST_LENGTH(pDynCtrl->node.pChildren) >= 1) {
+      SLogicNode* pFirst = (SLogicNode*)nodesListGetNode(pDynCtrl->node.pChildren, 0);
+      if (QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN == nodeType(pFirst) && pFirst->pConditions) {
+        return false;
+      }
     }
   } else {
     return false;

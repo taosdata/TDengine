@@ -934,6 +934,46 @@ void ctgFreeSubTaskRes(CTG_TASK_TYPE type, void** pRes) {
   }
 }
 
+/*
+ * Destroy a task result that is owned only by the task itself.
+ * type identifies the async task result layout stored in *pRes.
+ * pRes receives NULL after the owned resource is fully released.
+ * Return value is void.
+ */
+static void ctgDestroyTaskOwnRes(CTG_TASK_TYPE type, void** pRes) {
+  if (NULL == pRes || NULL == *pRes) {
+    return;
+  }
+
+  switch (type) {
+    case CTG_TASK_GET_TB_META_BATCH:
+    case CTG_TASK_GET_TB_NAME: {
+      taosArrayDestroyEx((SArray*)*pRes, ctgFreeBatchMeta);
+      *pRes = NULL;
+      break;
+    }
+    case CTG_TASK_GET_TB_HASH_BATCH: {
+      taosArrayDestroyEx((SArray*)*pRes, ctgFreeBatchHash);
+      *pRes = NULL;
+      break;
+    }
+    case CTG_TASK_GET_VIEW: {
+      taosArrayDestroyEx((SArray*)*pRes, ctgFreeViewMetaRes);
+      *pRes = NULL;
+      break;
+    }
+    case CTG_TASK_GET_TSMA:
+    case CTG_TASK_GET_TB_TSMA: {
+      taosArrayDestroyEx((SArray*)*pRes, ctgFreeTbTSMARes);
+      *pRes = NULL;
+      break;
+    }
+    default:
+      ctgFreeTaskRes(type, pRes);
+      break;
+  }
+}
+
 void ctgClearSubTaskRes(SCtgSubRes* pRes) {
   pRes->code = 0;
 
@@ -1059,9 +1099,32 @@ void ctgFreeTaskCtx(SCtgTask* pTask) {
         taosArrayDestroy(taskCtx->pVgroups);
         taskCtx->pVgroups = NULL;
       }
+      if (taskCtx->pSubTablesList) {
+        taosArrayDestroyEx(taskCtx->pSubTablesList, tDestroySVSubTablesRsp);
+        taskCtx->pSubTablesList = NULL;
+      }
+      taosArrayDestroy(taskCtx->pLayerRefs);
+      taskCtx->pLayerRefs = NULL;
+      if (taskCtx->pLayerReqs) {
+        int32_t reqNum = taosArrayGetSize(taskCtx->pLayerReqs);
+        for (int32_t i = 0; i < reqNum; ++i) {
+          STablesReq* pReq = taosArrayGet(taskCtx->pLayerReqs, i);
+          if (NULL != pReq) {
+            taosArrayDestroy(pReq->pTables);
+            pReq->pTables = NULL;
+          }
+        }
+        taosArrayDestroy(taskCtx->pLayerReqs);
+        taskCtx->pLayerReqs = NULL;
+      }
+      taosHashCleanup(taskCtx->pFinalDbs);
+      taskCtx->pFinalDbs = NULL;
+      taosMemoryFreeClear(taskCtx->pTagRefCols);
+      taskCtx->numOfTagRefs = 0;
       if (taskCtx->pResList) {
         taosArrayDestroyEx(taskCtx->pResList, tDestroySVStbRefDbsRsp);
       }
+      taosArrayDestroyEx(pTask->msgCtxs, (FDelete)ctgFreeMsgCtx);
       taosMemoryFreeClear(taskCtx->pMeta);
       taosMemoryFreeClear(pTask->taskCtx);
       break;
@@ -1075,7 +1138,11 @@ void ctgFreeTaskCtx(SCtgTask* pTask) {
 void ctgFreeTask(SCtgTask* pTask, bool freeRes) {
   ctgFreeMsgCtx(&pTask->msgCtx);
   if (freeRes || pTask->subTask) {
-    ctgFreeTaskRes(pTask->type, &pTask->res);
+    if (pTask->subTask) {
+      ctgDestroyTaskOwnRes(pTask->type, &pTask->res);
+    } else {
+      ctgFreeTaskRes(pTask->type, &pTask->res);
+    }
   }
   ctgFreeTaskCtx(pTask);
 
@@ -1701,10 +1768,14 @@ int32_t ctgCloneMetaOutput(STableMetaOutput* output, STableMetaOutput** pOutput)
   if (output->vctbMeta) {
     int32_t metaSize = sizeof(SVCTableMeta);
     int32_t colRefSize = 0;
-    if (hasRefCol(output->vctbMeta->tableType) && (*pOutput)->vctbMeta->colRef) {
+    int32_t tagRefSize = 0;
+    if (hasRefCol(output->vctbMeta->tableType) && output->vctbMeta->colRef) {
       colRefSize = output->vctbMeta->numOfColRefs * sizeof(SColRef);
     }
-    (*pOutput)->vctbMeta = taosMemoryMalloc(metaSize + colRefSize);
+    if (hasRefCol(output->vctbMeta->tableType) && output->vctbMeta->tagRef && output->vctbMeta->numOfTagRefs > 0) {
+      tagRefSize = output->vctbMeta->numOfTagRefs * sizeof(SColRef);
+    }
+    (*pOutput)->vctbMeta = taosMemoryMalloc(metaSize + colRefSize + tagRefSize);
     if (NULL == (*pOutput)->vctbMeta) {
       qError("malloc %d failed", (int32_t)sizeof(STableMetaOutput));
       taosMemoryFreeClear(*pOutput);
@@ -1712,11 +1783,17 @@ int32_t ctgCloneMetaOutput(STableMetaOutput* output, STableMetaOutput** pOutput)
     }
 
     TAOS_MEMCPY((*pOutput)->vctbMeta, output->vctbMeta, metaSize);
-    if (hasRefCol(output->vctbMeta->tableType) && (*pOutput)->vctbMeta->colRef) {
+    if (colRefSize > 0) {
       (*pOutput)->vctbMeta->colRef = (SColRef*)((char*)(*pOutput)->vctbMeta + metaSize);
       TAOS_MEMCPY((*pOutput)->vctbMeta->colRef, output->vctbMeta->colRef, colRefSize);
     } else {
       (*pOutput)->vctbMeta->colRef = NULL;
+    }
+    if (tagRefSize > 0) {
+      (*pOutput)->vctbMeta->tagRef = (SColRef*)((char*)(*pOutput)->vctbMeta + metaSize + colRefSize);
+      TAOS_MEMCPY((*pOutput)->vctbMeta->tagRef, output->vctbMeta->tagRef, tagRefSize);
+    } else {
+      (*pOutput)->vctbMeta->tagRef = NULL;
     }
   }
 
@@ -3262,4 +3339,3 @@ int32_t ctgAddTSMAFetch(SArray** pFetchs, int32_t dbIdx, int32_t tbIdx, int32_t*
 
   return TSDB_CODE_SUCCESS;
 }
-

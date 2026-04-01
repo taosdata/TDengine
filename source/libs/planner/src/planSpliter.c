@@ -69,6 +69,9 @@ static void splSetSubplanVgroups(SLogicSubplan* pSubplan, SLogicNode* pNode) {
     TSWAP(pSubplan->pVgroupList, ((SScanLogicNode*)pNode)->pVgroupList);
   } else if (QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN == nodeType(pNode)) {
     // do nothing, since virtual table scan node is SUBPLAN_TYPE_MERGE
+  } else if (QUERY_NODE_LOGIC_PLAN_TAG_REF_SOURCE == nodeType(pNode)) {
+    // TagRefSource has its own vgroup list from the source table
+    TSWAP(pSubplan->pVgroupList, ((STagRefSourceLogicNode*)pNode)->pVgroupList);
   } else if (QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL == nodeType(pNode) && ((SDynQueryCtrlLogicNode *)pNode)->qType == DYN_QTYPE_VTB_SCAN) {
     TSWAP(pSubplan->pVgroupList, ((SDynQueryCtrlLogicNode*)pNode)->vtbScan.pVgroupList);
   } else {
@@ -356,10 +359,32 @@ static bool stbSplIsTableCountQuery(SLogicNode* pNode) {
   return QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pChild) && SCAN_TYPE_TABLE_COUNT == ((SScanLogicNode*)pChild)->scanType;
 }
 
+/**
+ * Check if TagRefSource node needs to be split across multiple vgroups
+ * Similar to stbSplIsMultiTbScan, but for TagRefSource nodes.
+ *
+ * NOTE: TagRefSource nodes under VirtualScan should NOT be split by SuperTableSplit.
+ * VirtualtableSplit will handle creating the proper exchange connections for them.
+ * This prevents creating nested exchange nodes and ensures correct plan structure.
+ */
+static bool stbSplIsMultiVgroupTagRefSource(STagRefSourceLogicNode* pTagRefSource) {
+  // Check if TagRefSource is a child of VirtualScan
+  // If so, let VirtualtableSplit handle the exchange creation
+  if (pTagRefSource->node.pParent &&
+      QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN == nodeType(pTagRefSource->node.pParent)) {
+    return false;
+  }
+  // Otherwise, split if multiple vgroups
+  return pTagRefSource->pVgroupList != NULL &&
+         pTagRefSource->pVgroupList->numOfVgroups > 1;
+}
+
 static bool stbSplNeedSplit(SFindSplitNodeCtx* pCtx, SLogicNode* pNode) {
   switch (nodeType(pNode)) {
     case QUERY_NODE_LOGIC_PLAN_SCAN:
       return stbSplIsMultiTbScan((SScanLogicNode*)pNode);
+    case QUERY_NODE_LOGIC_PLAN_TAG_REF_SOURCE:
+      return stbSplIsMultiVgroupTagRefSource((STagRefSourceLogicNode*)pNode);
     case QUERY_NODE_LOGIC_PLAN_JOIN:
       return stbSplNeedSplitJoin((SJoinLogicNode*)pNode);
     case QUERY_NODE_LOGIC_PLAN_PARTITION:
@@ -1538,6 +1563,51 @@ static int32_t stbSplSplitScanNode(SSplitContext* pCxt, SStableSplitInfo* pInfo)
   return stbSplSplitScanNodeWithoutPartTags(pCxt, pInfo);
 }
 
+/**
+ * Split TagRefSource node across multiple vgroups
+ * TagRefSource scans tags from a source table that may be distributed across multiple vgroups
+ * Similar to stbSplSplitScanNodeWithoutPartTags, but for TagRefSource nodes.
+ *
+ * NOTE: TagRefSource nodes under VirtualScan are NOT split here.
+ * stbSplIsMultiVgroupTagRefSource() returns false for such nodes, so this function
+ * is only called for TagRefSource nodes that are NOT children of VirtualScan.
+ * TagRefSource nodes under VirtualScan are handled by VirtualtableSplit.
+ */
+static int32_t stbSplSplitTagRefSourceNode(SSplitContext* pCxt, SStableSplitInfo* pInfo) {
+  STagRefSourceLogicNode* pTagRefSource = (STagRefSourceLogicNode*)pInfo->pSplitNode;
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  // Create exchange node for the TagRefSource
+  // This allows merging results from multiple vgroups
+  code = splCreateExchangeNodeForSubplan(pCxt, pInfo->pSubplan, (SLogicNode*)pTagRefSource,
+                                         pInfo->pSubplan->subplanType, false);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+
+  // Set subplan type to MERGE since we now have an exchange node
+  splSetSubplanType(pInfo->pSubplan);
+
+  // Create scan subplan for the TagRefSource
+  // Each vgroup will be handled independently during execution
+  SLogicSubplan* pScanSubplan = splCreateScanSubplan(pCxt, (SLogicNode*)pTagRefSource, SPLIT_FLAG_STABLE_SPLIT);
+  if (NULL == pScanSubplan) {
+    return terrno;
+  }
+
+  // Add the new subplan as a child of the current subplan
+  code = nodesListMakeStrictAppend(&pInfo->pSubplan->pChildren, (SNode*)pScanSubplan);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pScanSubplan);
+    return code;
+  }
+
+  // Increment groupId for the next split
+  ++(pCxt->groupId);
+
+  return code;
+}
+
 static int32_t stbSplSplitJoinNodeImpl(SSplitContext* pCxt, SLogicSubplan* pSubplan, SJoinLogicNode* pJoin, SStableSplitInfo* pInfo) {
   int32_t code = TSDB_CODE_SUCCESS;
   SNode*  pChild = NULL;
@@ -1622,6 +1692,9 @@ static int32_t stableSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
   switch (nodeType(info.pSplitNode)) {
     case QUERY_NODE_LOGIC_PLAN_SCAN:
       code = stbSplSplitScanNode(pCxt, &info);
+      break;
+    case QUERY_NODE_LOGIC_PLAN_TAG_REF_SOURCE:
+      code = stbSplSplitTagRefSourceNode(pCxt, &info);
       break;
     case QUERY_NODE_LOGIC_PLAN_JOIN:
       code = stbSplSplitJoinNode(pCxt, &info);
@@ -1975,6 +2048,17 @@ static int32_t virtualTableSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
     pExchange->node.pParent = ((SLogicNode*)pChild)->pParent;
 
     SLogicSubplan *sub = splCreateScanSubplan(pCxt, (SLogicNode*)pChild, 0);
+    planError("VirtualtableSplit child subplan: childType=%d groupId=%d subplanVgroups=%p num=%d childVgroups=%p childNum=%d",
+              nodeType((SLogicNode*)pChild), sub ? sub->id.groupId : -1, sub ? sub->pVgroupList : NULL,
+              (sub && sub->pVgroupList) ? sub->pVgroupList->numOfVgroups : 0,
+              QUERY_NODE_LOGIC_PLAN_TAG_REF_SOURCE == nodeType((SLogicNode*)pChild)
+                  ? ((STagRefSourceLogicNode*)pChild)->pVgroupList
+                  : (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType((SLogicNode*)pChild) ? ((SScanLogicNode*)pChild)->pVgroupList : NULL),
+              QUERY_NODE_LOGIC_PLAN_TAG_REF_SOURCE == nodeType((SLogicNode*)pChild)
+                  ? ((((STagRefSourceLogicNode*)pChild)->pVgroupList) ? ((STagRefSourceLogicNode*)pChild)->pVgroupList->numOfVgroups : 0)
+                  : (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType((SLogicNode*)pChild) && ((SScanLogicNode*)pChild)->pVgroupList
+                         ? ((SScanLogicNode*)pChild)->pVgroupList->numOfVgroups
+                         : 0));
     sub->processOneBlock = needProcessOneBlockEachTime(info.pVirtual);
     PLAN_ERR_JRET(nodesListMakeStrictAppend(&info.pSubplan->pChildren, (SNode*)sub));
     ++(pCxt->groupId);
@@ -2518,6 +2602,10 @@ static void setVgroupsInfo(SLogicNode* pNode, SLogicSubplan* pSubplan) {
     return;
   } else if (QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN == nodeType(pNode)) {
     // do nothing, since virtual table scan node is SUBPLAN_TYPE_MERGE
+    return;
+  } else if (QUERY_NODE_LOGIC_PLAN_TAG_REF_SOURCE == nodeType(pNode)) {
+    // TagRefSource has its own vgroup list from the source table
+    TSWAP(((STagRefSourceLogicNode*)pNode)->pVgroupList, pSubplan->pVgroupList);
     return;
   }
 

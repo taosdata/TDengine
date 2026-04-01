@@ -1577,6 +1577,18 @@ static void setVtbColumnInfoBySchema(const SVirtualTableNode* pTable, const SSch
         tstrncpy(pCol->refDbName, pTable->pMeta->colRef[i].refDbName, TSDB_DB_NAME_LEN);
         tstrncpy(pCol->refTableName, pTable->pMeta->colRef[i].refTableName, TSDB_TABLE_NAME_LEN);
         tstrncpy(pCol->refColName, pTable->pMeta->colRef[i].refColName, TSDB_COL_NAME_LEN);
+        break;
+      }
+    }
+    if (!pCol->hasRef) {
+      for (int32_t i = 0; i < pTable->pMeta->numOfTagRefs; i++) {
+        if (pTable->pMeta->tagRef[i].hasRef && pTable->pMeta->tagRef[i].id == pCol->colId) {
+          pCol->hasRef = true;
+          tstrncpy(pCol->refDbName, pTable->pMeta->tagRef[i].refDbName, TSDB_DB_NAME_LEN);
+          tstrncpy(pCol->refTableName, pTable->pMeta->tagRef[i].refTableName, TSDB_TABLE_NAME_LEN);
+          tstrncpy(pCol->refColName, pTable->pMeta->tagRef[i].refColName, TSDB_COL_NAME_LEN);
+          break;
+        }
       }
     }
   }
@@ -1785,6 +1797,15 @@ static int32_t createColumnsByVirtualTable(STranslateContext* pCxt, const STable
       SColRef* pRef = &pMeta->colRef[i];
       PAR_ERR_JRET(taosHashPut(pColRefMap, &colId, sizeof(colId), &pRef, POINTER_BYTES));
     }
+
+    for (int32_t i = 0; i < pMeta->numOfTagRefs; ++i) {
+      if (!pMeta->tagRef[i].hasRef) {
+        continue;
+      }
+      col_id_t colId = pMeta->tagRef[i].id;
+      SColRef* pRef = &pMeta->tagRef[i];
+      PAR_ERR_JRET(taosHashPut(pColRefMap, &colId, sizeof(colId), &pRef, POINTER_BYTES));
+    }
   }
 
   for (int32_t i = 0; i < nums; ++i) {
@@ -1841,7 +1862,12 @@ static int32_t createTbnameFunctionNode(SColumnNode* pCol, SFunctionNode** pFunc
   }
 
   tstrncpy((*pFuncNode)->node.aliasName, (*pFuncNode)->functionName, TSDB_COL_NAME_LEN);
-  return TSDB_CODE_SUCCESS;
+  code = fmGetFuncInfo(*pFuncNode, NULL, 0);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)*pFuncNode);
+    *pFuncNode = NULL;
+  }
+  return code;
 }
 
 static int32_t findAndSetRealTableColumn(STranslateContext* pCxt, SColumnNode** pColRef, STableNode* pTable,
@@ -2189,9 +2215,13 @@ static int32_t biMakeTbnameProjectAstNode(char* funcName, char* tableAlias, SNod
   }
   if (TSDB_CODE_SUCCESS == code) {
     tstrncpy(tbNameFunc->functionName, "tbname", TSDB_FUNC_NAME_LEN);
+    tbNameFunc->funcType = FUNCTION_TYPE_TBNAME;
     if (valNode != NULL) {
       code = nodesListMakeStrictAppend(&tbNameFunc->pParameterList, (SNode*)valNode);
       valNode = NULL;
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      code = fmGetFuncInfo(tbNameFunc, NULL, 0);
     }
   }
   if (TSDB_CODE_SUCCESS == code) {
@@ -2209,6 +2239,10 @@ static int32_t biMakeTbnameProjectAstNode(char* funcName, char* tableAlias, SNod
         tstrncpy(multiResFunc->functionName, funcName, TSDB_FUNC_NAME_LEN);
         code = nodesListMakeStrictAppend(&multiResFunc->pParameterList, (SNode*)tbNameFunc);
         if (TSDB_CODE_SUCCESS != code) tbNameFunc = NULL;
+      }
+
+      if (TSDB_CODE_SUCCESS == code) {
+        code = fmGetFuncInfo(multiResFunc, NULL, 0);
       }
 
       if (TSDB_CODE_SUCCESS == code) {
@@ -3837,6 +3871,12 @@ static int32_t createTbnameFunction(SFunctionNode** ppFunc) {
   tstrncpy(pFunc->node.userAlias, "tbname", TSDB_COL_NAME_LEN);
   pFunc->node.resType.type = TSDB_DATA_TYPE_BINARY;
   pFunc->node.resType.bytes = TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE;
+  pFunc->funcType = FUNCTION_TYPE_TBNAME;
+  code = fmGetFuncInfo(pFunc, NULL, 0);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pFunc);
+    return code;
+  }
   *ppFunc = pFunc;
   return code;
 }
@@ -6410,6 +6450,31 @@ static int32_t cloneVgroups(SVgroupsInfo** pDst, SVgroupsInfo* pSrc) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t appendUniqueVgroups(SVgroupsInfo* pSrc, SHashObj* pVgHash, SArray* pVgroupList) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  if (NULL == pSrc) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  for (int32_t i = 0; i < pSrc->numOfVgroups; ++i) {
+    SVgroupInfo* pVg = pSrc->vgroups + i;
+    if (NULL != taosHashGet(pVgHash, &pVg->vgId, sizeof(pVg->vgId))) {
+      continue;
+    }
+
+    code = taosHashPut(pVgHash, &pVg->vgId, sizeof(pVg->vgId), NULL, 0);
+    QUERY_CHECK_CODE(code, lino, _return);
+    QUERY_CHECK_NULL(taosArrayPush(pVgroupList, pVg), code, lino, _return, terrno);
+  }
+
+  return TSDB_CODE_SUCCESS;
+
+_return:
+  return code;
+}
+
 static int32_t makeVtableMetaScanTable(STranslateContext* pCxt, SRealTableNode** pScan) {
   int32_t code = TSDB_CODE_SUCCESS;
   bool    tmpAsync = pCxt->pParseCxt->async;
@@ -6429,6 +6494,8 @@ _return:
   return code;
 }
 
+static void setTableNameByColRef(SRealTableNode* pTable, SColRef* pRef);
+
 static int32_t translateVirtualSuperTable(STranslateContext* pCxt, SNode** pTable, SName* pName,
                                           SVirtualTableNode* pVTable) {
   SRealTableNode* pRealTable = (SRealTableNode*)*pTable;
@@ -6444,6 +6511,44 @@ static int32_t translateVirtualSuperTable(STranslateContext* pCxt, SNode** pTabl
   PAR_ERR_JRET(getTargetMeta(pCxt, pName, &(pVTable->pMeta), true));
   PAR_ERR_JRET(setVSuperTableVgroupList(pCxt, pName, pVTable));
   PAR_ERR_JRET(setVSuperTableRefScanVgroupList(pCxt, pName, pRealTable));
+
+  // Synthesize tagRef for super table from catalog-collected tag ref info
+  if (pVTable->pMeta->tagRef == NULL || pVTable->pMeta->numOfTagRefs == 0) {
+    SArray* pVStbRefs = NULL;
+    code = getVStbRefDbsFromCache(pCxt->pMetaCache, pName, &pVStbRefs);
+    if (code == TSDB_CODE_SUCCESS && pVStbRefs && taosArrayGetSize(pVStbRefs) > 0) {
+      SVStbRefDbsRsp* pRsp = taosArrayGet(pVStbRefs, 0);
+      if (pRsp && pRsp->numOfTagRefs > 0 && pRsp->pTagRefCols) {
+        int32_t numTags = pVTable->pMeta->tableInfo.numOfTags;
+        SColRef* pTagRefs = taosMemoryCalloc(numTags, sizeof(SColRef));
+        if (pTagRefs) {
+          // Initialize all tags as non-ref first
+          SSchema* pTagSchema = pVTable->pMeta->schema + pVTable->pMeta->tableInfo.numOfColumns;
+          for (int32_t i = 0; i < numTags; i++) {
+            pTagRefs[i].hasRef = false;
+            pTagRefs[i].id = pTagSchema[i].colId;
+            tstrncpy(pTagRefs[i].colName, pTagSchema[i].name, sizeof(pTagRefs[i].colName));
+          }
+          // Fill ref info from catalog data, matching by colId
+          for (int32_t r = 0; r < pRsp->numOfTagRefs; r++) {
+            SRefColInfo* pRef = &pRsp->pTagRefCols[r];
+            for (int32_t t = 0; t < numTags; t++) {
+              if (pTagRefs[t].id == pRef->colId) {
+                pTagRefs[t].hasRef = true;
+                tstrncpy(pTagRefs[t].refDbName, pRef->refDbName, sizeof(pTagRefs[t].refDbName));
+                tstrncpy(pTagRefs[t].refTableName, pRef->refTableName, sizeof(pTagRefs[t].refTableName));
+                tstrncpy(pTagRefs[t].refColName, pRef->refColName, sizeof(pTagRefs[t].refColName));
+                break;
+              }
+            }
+          }
+          pVTable->pMeta->tagRef = pTagRefs;
+          pVTable->pMeta->numOfTagRefs = numTags;
+        }
+      }
+    }
+    code = TSDB_CODE_SUCCESS;  // tag ref synthesis is best-effort
+  }
   if (pRealTable->pVgroupList->numOfVgroups == 0) {
     // no vgroups, means virtual super table do not have child table, make a fake one is ok.
     PAR_ERR_JRET(cloneVgroups(&pRealTable->pVgroupList, pVTable->pVgroupList));
@@ -6452,6 +6557,45 @@ static int32_t translateVirtualSuperTable(STranslateContext* pCxt, SNode** pTabl
   refTablesAdded = true;
   PAR_ERR_JRET(makeVtableMetaScanTable(pCxt, &pInsCols));
   PAR_ERR_JRET(nodesListMakeAppend(&pVTable->refTables, (SNode*)pInsCols));
+
+  // Add tag-ref source tables to refTables so planner can find them via findRefTableNode
+  if (pVTable->pMeta->tagRef && pVTable->pMeta->numOfTagRefs > 0) {
+    SHashObj* pTagRefDedup = taosHashInit(pVTable->pMeta->numOfTagRefs,
+                                          taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+    if (pTagRefDedup) {
+      bool tmpAsync = pCxt->pParseCxt->async;
+      pCxt->pParseCxt->async = false;
+      pCxt->refTable = true;
+      for (int32_t i = 0; i < pVTable->pMeta->numOfTagRefs; i++) {
+        SColRef* pTagRef = &pVTable->pMeta->tagRef[i];
+        if (!pTagRef->hasRef) continue;
+
+        char tableNameKey[TSDB_TABLE_FNAME_LEN] = {0};
+        TSlice buf = {0};
+        sliceInit(&buf, tableNameKey, sizeof(tableNameKey));
+        sliceAppend(&buf, pTagRef->refDbName, strlen(pTagRef->refDbName));
+        sliceAppend(&buf, ".", 1);
+        sliceAppend(&buf, pTagRef->refTableName, strlen(pTagRef->refTableName));
+
+        if (taosHashGet(pTagRefDedup, tableNameKey, strlen(tableNameKey)) == NULL) {
+          SRealTableNode* pRefNode = NULL;
+          PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_REAL_TABLE, (SNode**)&pRefNode));
+          setTableNameByColRef(pRefNode, pTagRef);
+          int32_t rc = translateTable(pCxt, (SNode**)&pRefNode, false);
+          if (rc == TSDB_CODE_SUCCESS) {
+            PAR_ERR_JRET(nodesListMakeAppend(&pVTable->refTables, (SNode*)pRefNode));
+            taosHashPut(pTagRefDedup, tableNameKey, strlen(tableNameKey), NULL, 0);
+          } else {
+            nodesDestroyNode((SNode*)pRefNode);
+            qWarn("translateVirtualSuperTable: failed to get tag-ref source table %s, rc=%d", tableNameKey, rc);
+          }
+        }
+      }
+      pCxt->refTable = false;
+      pCxt->pParseCxt->async = tmpAsync;
+      taosHashCleanup(pTagRefDedup);
+    }
+  }
 
   *pTable = (SNode*)pVTable;
 
@@ -6545,8 +6689,11 @@ static int32_t translateVirtualNormalChildTable(STranslateContext* pCxt, SNode**
   TSWAP(pVTable->pMeta, pRealTable->pMeta);
   TSWAP(pVTable->pVgroupList, pRealTable->pVgroupList);
 
+  qInfo("translateVCT: tb=%s tbType=%d tagRef=%p numOfTagRefs=%d colRef=%p numOfColRefs=%d uid=0x%"PRIx64,
+        pVTable->table.tableName, pMeta->tableType, pMeta->tagRef, pMeta->numOfTagRefs,
+        pMeta->colRef, pMeta->numOfColRefs, pMeta->uid);
   pTableNameHash =
-      taosHashInit(pMeta->numOfColRefs, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+      taosHashInit(pMeta->numOfColRefs + pMeta->numOfTagRefs, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
   QUERY_CHECK_NULL(pTableNameHash, code, lino, _return, terrno);
 
   bool tmpAsync = pCxt->pParseCxt->async;
@@ -6565,6 +6712,25 @@ static int32_t translateVirtualNormalChildTable(STranslateContext* pCxt, SNode**
       if (taosHashGet(pTableNameHash, tableNameKey, strlen(tableNameKey)) == NULL) {
         PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_REAL_TABLE, (SNode**)&pRTNode));
         setTableNameByColRef(pRTNode, &pMeta->colRef[i]);
+        PAR_ERR_JRET(translateTable(pCxt, (SNode**)&pRTNode, false));
+        PAR_ERR_JRET(nodesListMakeAppend(&pVTable->refTables, (SNode*)pRTNode));
+        PAR_ERR_JRET(taosHashPut(pTableNameHash, tableNameKey, strlen(tableNameKey), NULL, 0));
+      }
+    }
+  }
+  for (int32_t i = 0; i < pMeta->numOfTagRefs; i++) {
+    if (pMeta->tagRef[i].hasRef) {
+      char tableNameKey[TSDB_TABLE_FNAME_LEN] = {0};
+      TSlice buf = {0};
+      sliceInit(&buf, tableNameKey, sizeof(tableNameKey));
+
+      PAR_ERR_JRET(sliceAppend(&buf, pMeta->tagRef[i].refDbName, strlen(pMeta->tagRef[i].refDbName)));
+      PAR_ERR_JRET(sliceAppend(&buf, ".", 1));
+      PAR_ERR_JRET(sliceAppend(&buf, pMeta->tagRef[i].refTableName, strlen(pMeta->tagRef[i].refTableName)));
+
+      if (taosHashGet(pTableNameHash, tableNameKey, strlen(tableNameKey)) == NULL) {
+        PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_REAL_TABLE, (SNode**)&pRTNode));
+        setTableNameByColRef(pRTNode, &pMeta->tagRef[i]);
         PAR_ERR_JRET(translateTable(pCxt, (SNode**)&pRTNode, false));
         PAR_ERR_JRET(nodesListMakeAppend(&pVTable->refTables, (SNode*)pRTNode));
         PAR_ERR_JRET(taosHashPut(pTableNameHash, tableNameKey, strlen(tableNameKey), NULL, 0));
@@ -19567,6 +19733,8 @@ static int32_t buildCreateTSMAReqBuildStreamQueryCondition(STranslateContext* pC
   tstrncpy(tbnameFunc->functionName, "tbname", TSDB_FUNC_NAME_LEN);
   tstrncpy(tbnameFunc->node.userAlias, "tbname", TSDB_FUNC_NAME_LEN);
   tstrncpy(tbnameFunc->node.aliasName, "tbname", TSDB_FUNC_NAME_LEN);
+  tbnameFunc->funcType = FUNCTION_TYPE_TBNAME;
+  PAR_ERR_JRET(fmGetFuncInfo(tbnameFunc, NULL, 0));
 
   if (pStmt->pOptions->recursiveTsma) {
     PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&phColFunc));
@@ -24076,7 +24244,83 @@ static int32_t rewriteDropSuperTable(STranslateContext* pCxt, SQuery* pQuery) {
   TAOS_RETURN(0);
 }
 
+static int32_t buildUpdateTagValReqImpl2(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta,
+                                         char* colName, SUpdatedTagVal* pReq) {
+  int32_t  code = TSDB_CODE_SUCCESS;
+  int32_t  lino = 0;
+  SSchema* pSchema = getTagSchema(pTableMeta, colName);
+  if (NULL == pSchema) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE, "Invalid tag name: %s", colName);
+  }
 
+  if (pSchema->flags & COL_REF_BY_STM) {
+    return TSDB_CODE_PAR_COL_TAG_REF_BY_STM;
+  }
+
+  pReq->tagName = taosStrdup(colName);
+  if (NULL == pReq->tagName) {
+    TAOS_CHECK_GOTO(terrno, &lino, _err);
+  }
+
+  pReq->pTagArray = taosArrayInit(1, sizeof(STagVal));
+  if (NULL == pReq->pTagArray) {
+    TAOS_CHECK_GOTO(terrno, &lino, _err);
+  }
+  pReq->colId = pSchema->colId;
+  pReq->tagType = pSchema->type;
+
+  STag*       pTag = NULL;
+  SToken      token;
+  char        tokenBuf[TSDB_MAX_TAGS_LEN];
+  const char* tagStr = pStmt->pVal->literal;
+  NEXT_TOKEN_WITH_PREV(tagStr, token);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = checkAndTrimValue(&token, tokenBuf, &pCxt->msgBuf, pSchema->type);
+    if (TSDB_CODE_SUCCESS == code && TK_NK_VARIABLE == token.type) {
+      code = buildSyntaxErrMsg(&pCxt->msgBuf, "not expected tags values", token.z);
+    }
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = parseTagValue(&pCxt->msgBuf, &tagStr, pTableMeta->tableInfo.precision, pSchema, &token, NULL,
+                         pReq->pTagArray, &pTag, pCxt->pParseCxt->timezone, pCxt->pParseCxt->charsetCxt);
+    if (pSchema->type == TSDB_DATA_TYPE_JSON && token.type == TK_NULL && code == TSDB_CODE_SUCCESS) {
+      pReq->tagFree = true;
+    }
+  }
+  if (TSDB_CODE_SUCCESS == code && tagStr) {
+    NEXT_VALID_TOKEN(tagStr, token);
+    if (token.n != 0) {
+      code = buildSyntaxErrMsg(&pCxt->msgBuf, "not expected tags values", token.z);
+    }
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    if (pSchema->type == TSDB_DATA_TYPE_JSON) {
+      code = buildSyntaxErrMsg(&pCxt->msgBuf, "not expected tags values ", token.z);
+    } else {
+      STagVal* pTagVal = taosArrayGet(pReq->pTagArray, 0);
+      if (pTagVal) {
+        pReq->isNull = false;
+        if (IS_VAR_DATA_TYPE(pSchema->type)) {
+          pReq->nTagVal = pTagVal->nData;
+          pReq->pTagVal = pTagVal->pData;
+        } else {
+          pReq->nTagVal = pSchema->bytes;
+          pReq->pTagVal = (uint8_t*)&pTagVal->i64;
+        }
+      } else {
+        pReq->isNull = true;
+      }
+    }
+  }
+_err:
+  if (code != 0) {
+    taosArrayDestroy(pReq->pTagArray);
+    taosMemoryFree(pReq->tagName);
+  }
+  return code;
+}
 
 static int32_t buildUpdateTagValReqImpl(STranslateContext* pCxt, const char* tagStr, STableMeta* pTableMeta,
                                          char* colName, SUpdatedTagVal* pReq) {
@@ -24161,13 +24405,11 @@ _err:
   }
   return code;
 }
-
-
-
-static int32_t checkColRef(STranslateContext* pCxt, char* colName, char* pRefDbName, char* pRefTableName,
-                           char* pRefColName, SDataType type, int8_t precision) {
-  STableMeta* pRefTableMeta = NULL;
-  int32_t     code = TSDB_CODE_SUCCESS;
+static int32_t checkColRef(STranslateContext* pCxt, const char* colName, const char* pRefDbName,
+                           const char* pRefTableName, const char* pRefColName, SDataType type, int8_t precision) {
+  STableMeta*    pRefTableMeta = NULL;
+  const SSchema* pRefCol = NULL;
+  int32_t        code = TSDB_CODE_SUCCESS;
 
   PAR_ERR_JRET(getTableMeta(pCxt, pRefDbName, pRefTableName, &pRefTableMeta));
 
@@ -24175,21 +24417,8 @@ static int32_t checkColRef(STranslateContext* pCxt, char* colName, char* pRefDbN
     PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN_TYPE,
                                          "timestamp precision of virtual table and its reference table do not match"));
   }
-  // org table cannot has composite primary key
-  if (pRefTableMeta->tableInfo.numOfColumns > 1 && pRefTableMeta->schema[1].flags & COL_IS_KEY) {
-    PAR_ERR_JRET(generateSyntaxErrMsgExt(
-        &pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN,
-        "virtual table's column:\"%s\"'s reference can not from table with composite key", colName));
-  }
 
-  // org table must be child table or normal table
-  if (pRefTableMeta->tableType != TSDB_NORMAL_TABLE && pRefTableMeta->tableType != TSDB_CHILD_TABLE) {
-    PAR_ERR_JRET(generateSyntaxErrMsgExt(
-        &pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN,
-        "virtual table's column:\"%s\"'s reference can only be normal table or child table", colName));
-  }
-
-  const SSchema* pRefCol = getNormalColSchema(pRefTableMeta, pRefColName);
+  pRefCol = getNormalColSchema(pRefTableMeta, pRefColName);
   if (NULL == pRefCol) {
     PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN,
                                          "virtual table's column:\"%s\"'s reference column:\"%s\" not exist", colName,
@@ -24202,12 +24431,23 @@ static int32_t checkColRef(STranslateContext* pCxt, char* colName, char* pRefDbN
         "virtual table's column:\"%s\"'s type and reference column:\"%s\"'s type not match", colName, pRefColName));
   }
 
-  // For variable-length types (VARCHAR, NCHAR, etc.), allow different lengths
-  // Virtual table can have different length than source table
   if (!IS_VAR_DATA_TYPE(pRefCol->type) && pRefCol->bytes != type.bytes) {
     PAR_ERR_JRET(generateSyntaxErrMsgExt(
         &pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN_TYPE,
         "virtual table's column:\"%s\"'s type and reference column:\"%s\"'s type not match", colName, pRefColName));
+  }
+
+  if (pRefTableMeta->tableInfo.numOfColumns > 1 && pRefTableMeta->schema[1].flags & COL_IS_KEY) {
+    PAR_ERR_JRET(generateSyntaxErrMsgExt(
+        &pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN,
+        "virtual table's column:\"%s\"'s reference can not from table with composite key", colName));
+  }
+
+  if (pRefTableMeta->tableType != TSDB_NORMAL_TABLE && pRefTableMeta->tableType != TSDB_CHILD_TABLE &&
+      pRefTableMeta->tableType != TSDB_VIRTUAL_NORMAL_TABLE && pRefTableMeta->tableType != TSDB_VIRTUAL_CHILD_TABLE) {
+    PAR_ERR_JRET(generateSyntaxErrMsgExt(
+        &pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN,
+        "virtual table's column:\"%s\"'s reference can only be normal table, child table or virtual table", colName));
   }
 
 _return:
@@ -24677,11 +24917,14 @@ static void destroyAlterTbReqInner(SVAlterTbReq* pReq) {
       taosMemoryFreeClear(p->pData);
     }
   }
+  if (pReq->action == TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL) {
+    taosArrayDestroyEx(pReq->pMultiTag, tfreeMultiTagUpdateVal);
+  }
 
   if (pReq->action == TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL) {
     taosArrayDestroyEx(pReq->tables, tfreeUpdateTableTagVal);
   } else if (pReq->action == TSDB_ALTER_TABLE_UPDATE_CHILD_TABLE_TAG_VAL) {
-    taosArrayDestroyEx(pReq->pMultiTag, tfreeMultiTagUpateVal);
+    taosArrayDestroyEx(pReq->pMultiTag, tfreeMultiTagUpdateVal);
     taosMemoryFree(pReq->where);
   }
 
@@ -24917,14 +25160,14 @@ static int32_t doRewriteAlterMultiTableTagVal(STranslateContext* pCxt, SQuery* p
         val.replacement = taosStrdup(pTag->replacement);
         if (val.tagName == NULL || val.regexp == NULL || val.replacement == NULL) {
           code = TSDB_CODE_OUT_OF_MEMORY;
-          tfreeMultiTagUpateVal(&val);
+          tfreeMultiTagUpdateVal(&val);
           tfreeUpdateTableTagVal(&table);
           goto _error;
         }
       }
 
       if (taosArrayPush(table.tags, &val) == NULL) {
-        tfreeMultiTagUpateVal(&val);
+        tfreeMultiTagUpdateVal(&val);
         tfreeUpdateTableTagVal(&table);
         code = TSDB_CODE_OUT_OF_MEMORY;
         goto _error;
@@ -25260,13 +25503,13 @@ static int32_t doRewriteAlterChildTableTagVal(STranslateContext* pCxt, SQuery* p
         val.replacement = taosStrdup(pTag->replacement);
         if (val.tagName == NULL || val.regexp == NULL || val.replacement == NULL) {
           code = TSDB_CODE_OUT_OF_MEMORY;
-          tfreeMultiTagUpateVal(&val);
+          tfreeMultiTagUpdateVal(&val);
           goto _error;
         }
       }
 
       if (taosArrayPush(pReq->pReq->pMultiTag, &val) == NULL) {
-        tfreeMultiTagUpateVal(&val);
+        tfreeMultiTagUpdateVal(&val);
         code = TSDB_CODE_OUT_OF_MEMORY;
         goto _error;
       }
@@ -25451,7 +25694,6 @@ static int32_t rewriteCreateVirtualTable(STranslateContext* pCxt, SQuery* pQuery
   SNode*             pNode = NULL;
   int32_t            index = 0;
   SDbCfgInfo         dbCfg = {0};
-  int8_t             precision = 0;
 
   PAR_ERR_JRET(checkCreateVirtualTable(pCxt, pStmt));
 
@@ -25459,6 +25701,8 @@ static int32_t rewriteCreateVirtualTable(STranslateContext* pCxt, SQuery* pQuery
   if (NULL == pBufArray) {
     PAR_ERR_JRET(terrno);
   }
+
+  PAR_ERR_JRET(getDBCfg(pCxt, pStmt->dbName, &dbCfg));
 
   toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &name);
 
