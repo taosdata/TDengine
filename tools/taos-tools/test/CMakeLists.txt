@@ -8,7 +8,7 @@ IF(TD_LINUX)
     AUX_SOURCE_DIRECTORY(${CMAKE_CURRENT_SOURCE_DIR} SOURCE_LIST)
 
     # benchmark
-    SET(BENCHMARK_SRC 
+    SET(BENCHMARK_SRC
         "../src/benchUtil.c"
         "../src/benchLog.c"
         "../src/toolstime.c"
@@ -24,12 +24,12 @@ IF(TD_LINUX)
     )
 
     target_include_directories(
-        benchmarkTest PRIVATE 
+        benchmarkTest PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
         "${CMAKE_CURRENT_SOURCE_DIR}/../../inc"
         "${CMAKE_CURRENT_SOURCE_DIR}/../deps/toolscJson/inc/"
     )
-    
+
     add_test(
         NAME benchmarkTest
         COMMAND benchmarkTest
@@ -40,14 +40,14 @@ IF(TD_LINUX)
     DEP_ext_gtest(taosdumpTest)
     target_link_libraries(
         taosdumpTest
-        PRIVATE os
+        PUBLIC taos
     )
 
     target_include_directories(
         taosdumpTest
         PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
     )
-    
+
     add_test(
         NAME taosdumpTest
         COMMAND taosdumpTest
