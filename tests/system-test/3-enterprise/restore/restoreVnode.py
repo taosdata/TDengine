@@ -32,6 +32,8 @@ class TDTestCase:
     def run(self):
         self.basic.restore_vnode(4)
 
+        self.basic.restore_vnode_with_vg(4)
+
     # stop
     def stop(self):
         self.basic.stop()
