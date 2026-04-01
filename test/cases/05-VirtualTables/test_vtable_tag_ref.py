@@ -53,6 +53,26 @@ SRC_C = {
     'c_w': {'label': 'whiskey', 'idx': 40, 'data': [4000, 4001, 4002, 4003]},
 }
 
+# ts_tag (VGROUPS 2): Dedicated tag-source DB with 6 tables, TAGS(region NCHAR(20), score INT)
+SRC_TAG = {
+    'tg_east':  {'region': 'east',  'score': 90, 'data': [1]},
+    'tg_west':  {'region': 'west',  'score': 80, 'data': [2]},
+    'tg_north': {'region': 'north', 'score': 70, 'data': [3]},
+    'tg_south': {'region': 'south', 'score': 60, 'data': [4]},
+    'tg_mid':   {'region': 'mid',   'score': 50, 'data': [5]},
+    'tg_hub':   {'region': 'hub',   'score': 95, 'data': [6]},
+}
+
+# ts_data (VGROUPS 3): Dedicated data-source DB with 6 tables, TAGS(kind NCHAR(20), level INT)
+SRC_DATA = {
+    'd_temp':   {'kind': 'temperature', 'level': 1, 'data': [10, 11, 12]},
+    'd_humi':   {'kind': 'humidity',    'level': 2, 'data': [20, 21]},
+    'd_pres':   {'kind': 'pressure',    'level': 3, 'data': [30, 31, 32, 33]},
+    'd_wind':   {'kind': 'wind',        'level': 4, 'data': [40]},
+    'd_rain':   {'kind': 'rain',        'level': 5, 'data': [50, 51]},
+    'd_snow':   {'kind': 'snow',        'level': 6, 'data': [60, 61, 62]},
+}
+
 # td_aux local: TAGS(color NCHAR(16), pri INT)
 SRC_AUX = {
     'aux_red':   {'color': 'red',   'pri': 1, 'data': [10, 11, 12]},
@@ -162,6 +182,70 @@ COMBO = [
     ('vc15', 'ts_c', 'c_z',   70, 'a_wh', 'b_zeta',    'c_y'),
 ]
 
+# ============================================================
+# Split-DB mappings: tags from ts_tag, data (col refs) from ts_data
+# VSTB in td_split: (ts, val INT) TAGS (t_region NCHAR(20), t_score INT)
+# ============================================================
+
+# Case 1: basic — each child has tags + data from different DBs
+# (name, data_tbl, region_src, score_src)
+SPLIT_BASIC = [
+    ('sb01', 'd_temp', 'tg_east',  'tg_east'),
+    ('sb02', 'd_humi', 'tg_west',  'tg_west'),
+    ('sb03', 'd_pres', 'tg_north', 'tg_north'),
+    ('sb04', 'd_wind', 'tg_south', 'tg_south'),
+    ('sb05', 'd_rain', 'tg_mid',   'tg_mid'),
+    ('sb06', 'd_snow', 'tg_hub',   'tg_hub'),
+]
+
+# Case 2: cross-source tags — two tags from DIFFERENT children in ts_tag
+# (name, data_tbl, region_src, score_src) where region_src != score_src
+SPLIT_CROSS = [
+    ('sc01', 'd_temp', 'tg_east',  'tg_west'),
+    ('sc02', 'd_humi', 'tg_north', 'tg_south'),
+    ('sc03', 'd_pres', 'tg_mid',   'tg_hub'),
+    ('sc04', 'd_wind', 'tg_hub',   'tg_east'),
+    ('sc05', 'd_rain', 'tg_south', 'tg_north'),
+    ('sc06', 'd_snow', 'tg_west',  'tg_mid'),
+]
+
+# Case 3: dup-ref — same-named col (region) from DIFFERENT source children
+# VSTB: (ts, val INT) TAGS (r1 NCHAR(20), r2 NCHAR(20))
+# Both tags reference ts_tag.*.region but from different children
+# (name, data_tbl, r1_src, r2_src)
+SPLIT_DUP = [
+    ('sd01', 'd_temp', 'tg_east',  'tg_east'),    # same source, no diversity needed
+    ('sd02', 'd_humi', 'tg_east',  'tg_west'),    # different sources, same col name
+    ('sd03', 'd_pres', 'tg_north', 'tg_south'),   # different sources
+    ('sd04', 'd_wind', 'tg_hub',   'tg_mid'),     # different sources
+    ('sd05', 'd_rain', 'tg_west',  'tg_hub'),     # different sources
+    ('sd06', 'd_snow', 'tg_south', 'tg_east'),    # different sources
+]
+
+# Case 4: mixed literal + split-DB tag refs
+# VSTB: (ts, val INT) TAGS (lit_id INT, t_region NCHAR(20), t_score INT)
+# (name, data_tbl, lit_id, region_src, score_src)
+SPLIT_MIXED = [
+    ('sm01', 'd_temp', 1000, 'tg_east',  'tg_west'),
+    ('sm02', 'd_humi', 1000, 'tg_north', 'tg_south'),
+    ('sm03', 'd_pres', 2000, 'tg_mid',   'tg_hub'),
+    ('sm04', 'd_wind', 2000, 'tg_hub',   'tg_east'),
+    ('sm05', 'd_rain', 3000, 'tg_south', 'tg_north'),
+    ('sm06', 'd_snow', 3000, 'tg_west',  'tg_mid'),
+]
+
+# Case 5: 3-way split — tags from ts_tag, data from ts_data, extra tag from ts_a
+# VSTB: (ts, val INT) TAGS (t_region NCHAR(20), t_score INT, t_city NCHAR(20))
+# (name, data_tbl, region_src, score_src, city_src_A)
+SPLIT_TRI = [
+    ('st01', 'd_temp', 'tg_east',  'tg_west',  'a_bj'),
+    ('st02', 'd_humi', 'tg_north', 'tg_south', 'a_sh'),
+    ('st03', 'd_pres', 'tg_mid',   'tg_hub',   'a_gz'),
+    ('st04', 'd_wind', 'tg_hub',   'tg_east',  'a_sz'),
+    ('st05', 'd_rain', 'tg_south', 'tg_north', 'a_cd'),
+    ('st06', 'd_snow', 'tg_west',  'tg_mid',   'a_wh'),
+]
+
 
 def _combo_expected():
     """Pre-compute all expected rows for vst_combo STB queries."""
@@ -183,6 +267,10 @@ def _tag_val(db, tbl, tag):
         return SRC_B[tbl][tag]
     if db == 'ts_c':
         return SRC_C[tbl][tag]
+    if db == 'ts_tag':
+        return SRC_TAG[tbl][tag]
+    if db == 'ts_data':
+        return SRC_DATA[tbl][tag]
     return SRC_AUX[tbl][tag]
 
 
@@ -194,6 +282,8 @@ def _data_rows(db, tbl):
         return SRC_B[tbl]['data']
     if db == 'ts_c':
         return SRC_C[tbl]['data']
+    if db == 'ts_data':
+        return SRC_DATA[tbl]['data']
     return SRC_AUX[tbl]['data']
 
 
@@ -217,14 +307,17 @@ class TestVtableTagRef:
     def setup_class(cls):
         tdLog.info("=== setup: creating databases and tables ===")
 
-        all_dbs = ["ts_a", "ts_b", "ts_c", "td_main", "td_aux", DB_DDL, DB_DDL_CROSS]
+        all_dbs = ["ts_a", "ts_b", "ts_c", "ts_tag", "ts_data", "td_main", "td_aux", "td_split", DB_DDL, DB_DDL_CROSS]
         for db in all_dbs:
             tdSql.execute(f"DROP DATABASE IF EXISTS {db};")
         tdSql.execute("CREATE DATABASE ts_a VGROUPS 2;")
         tdSql.execute("CREATE DATABASE ts_b VGROUPS 3;")
         tdSql.execute("CREATE DATABASE ts_c VGROUPS 1;")
+        tdSql.execute("CREATE DATABASE ts_tag VGROUPS 2;")
+        tdSql.execute("CREATE DATABASE ts_data VGROUPS 3;")
         tdSql.execute("CREATE DATABASE td_main VGROUPS 4;")
         tdSql.execute("CREATE DATABASE td_aux VGROUPS 2;")
+        tdSql.execute("CREATE DATABASE td_split VGROUPS 2;")
         tdSql.execute(f"CREATE DATABASE {DB_DDL};")
         tdSql.execute(f"CREATE DATABASE {DB_DDL_CROSS};")
 
@@ -252,6 +345,24 @@ class TestVtableTagRef:
         for tbl, info in SRC_C.items():
             tdSql.execute(f"CREATE TABLE {tbl} USING st_c TAGS ('{info['label']}', {info['idx']});")
         for tbl, info in SRC_C.items():
+            for j, v in enumerate(info['data']):
+                tdSql.execute(f"INSERT INTO {tbl} VALUES ({1700000000000 + j * 1000}, {v});")
+
+        # --- ts_tag source tables (tag-only DB) ---
+        tdSql.execute("USE ts_tag;")
+        tdSql.execute("CREATE STABLE st_tag (ts TIMESTAMP, v INT) TAGS (region NCHAR(20), score INT);")
+        for tbl, info in SRC_TAG.items():
+            tdSql.execute(f"CREATE TABLE {tbl} USING st_tag TAGS ('{info['region']}', {info['score']});")
+        for tbl, info in SRC_TAG.items():
+            for j, v in enumerate(info['data']):
+                tdSql.execute(f"INSERT INTO {tbl} VALUES ({1700000000000 + j * 1000}, {v});")
+
+        # --- ts_data source tables (data-only DB) ---
+        tdSql.execute("USE ts_data;")
+        tdSql.execute("CREATE STABLE st_data (ts TIMESTAMP, v INT) TAGS (kind NCHAR(20), level INT);")
+        for tbl, info in SRC_DATA.items():
+            tdSql.execute(f"CREATE TABLE {tbl} USING st_data TAGS ('{info['kind']}', {info['level']});")
+        for tbl, info in SRC_DATA.items():
             for j, v in enumerate(info['data']):
                 tdSql.execute(f"INSERT INTO {tbl} VALUES ({1700000000000 + j * 1000}, {v});")
 
@@ -332,7 +443,55 @@ class TestVtableTagRef:
             tdSql.execute(f"CREATE VTABLE {vt} (val FROM {d}.v) USING vst_same_a "
                           f"TAGS (t_city FROM {c}.city, t_pop FROM {p}.pop);")
 
-        tdLog.info("  virtual child tables created (73 total)")
+        # --- Split-DB virtual tables: tags from ts_tag, data from ts_data ---
+        tdSql.execute("USE td_split;")
+        # vst_split_basic: tags from ts_tag, data from ts_data, both tags from same source
+        tdSql.execute("CREATE STABLE vst_split_basic (ts TIMESTAMP, val INT) "
+                      "TAGS (t_region NCHAR(20), t_score INT) VIRTUAL 1;")
+        for vt, dtbl, rsrc, ssrc in SPLIT_BASIC:
+            tdSql.execute(f"CREATE VTABLE {vt} (val FROM ts_data.{dtbl}.v) "
+                          f"USING vst_split_basic "
+                          f"TAGS (t_region FROM ts_tag.{rsrc}.region, "
+                          f"t_score FROM ts_tag.{ssrc}.score);")
+
+        # vst_split_cross: tags from different children in ts_tag
+        tdSql.execute("CREATE STABLE vst_split_cross (ts TIMESTAMP, val INT) "
+                      "TAGS (t_region NCHAR(20), t_score INT) VIRTUAL 1;")
+        for vt, dtbl, rsrc, ssrc in SPLIT_CROSS:
+            tdSql.execute(f"CREATE VTABLE {vt} (val FROM ts_data.{dtbl}.v) "
+                          f"USING vst_split_cross "
+                          f"TAGS (t_region FROM ts_tag.{rsrc}.region, "
+                          f"t_score FROM ts_tag.{ssrc}.score);")
+
+        # vst_split_dup: two tags reference same-named col 'region' from different sources
+        tdSql.execute("CREATE STABLE vst_split_dup (ts TIMESTAMP, val INT) "
+                      "TAGS (r1 NCHAR(20), r2 NCHAR(20)) VIRTUAL 1;")
+        for vt, dtbl, r1src, r2src in SPLIT_DUP:
+            tdSql.execute(f"CREATE VTABLE {vt} (val FROM ts_data.{dtbl}.v) "
+                          f"USING vst_split_dup "
+                          f"TAGS (r1 FROM ts_tag.{r1src}.region, "
+                          f"r2 FROM ts_tag.{r2src}.region);")
+
+        # vst_split_mixed: literal + cross-DB tag refs
+        tdSql.execute("CREATE STABLE vst_split_mixed (ts TIMESTAMP, val INT) "
+                      "TAGS (lit_id INT, t_region NCHAR(20), t_score INT) VIRTUAL 1;")
+        for vt, dtbl, lit, rsrc, ssrc in SPLIT_MIXED:
+            tdSql.execute(f"CREATE VTABLE {vt} (val FROM ts_data.{dtbl}.v) "
+                          f"USING vst_split_mixed "
+                          f"TAGS ({lit}, t_region FROM ts_tag.{rsrc}.region, "
+                          f"t_score FROM ts_tag.{ssrc}.score);")
+
+        # vst_split_tri: tags from ts_tag + ts_a, data from ts_data (3-way split)
+        tdSql.execute("CREATE STABLE vst_split_tri (ts TIMESTAMP, val INT) "
+                      "TAGS (t_region NCHAR(20), t_score INT, t_city NCHAR(20)) VIRTUAL 1;")
+        for vt, dtbl, rsrc, ssrc, csrc in SPLIT_TRI:
+            tdSql.execute(f"CREATE VTABLE {vt} (val FROM ts_data.{dtbl}.v) "
+                          f"USING vst_split_tri "
+                          f"TAGS (t_region FROM ts_tag.{rsrc}.region, "
+                          f"t_score FROM ts_tag.{ssrc}.score, "
+                          f"t_city FROM ts_a.{csrc}.city);")
+
+        tdLog.info("  split-DB virtual tables created (30 total)")
 
         # --- DDL test database (org_stb with rich types) ---
         tdSql.execute(f"USE {DB_DDL};")
@@ -1668,3 +1827,366 @@ class TestVtableTagRef:
         assert int(count) > 0
 
         tdLog.info("DDL db query test passed")
+
+    # ==================================================================
+    # Split-DB Tests: tags from ts_tag (DB1), data from ts_data (DB2)
+    # ==================================================================
+
+    def test_split_basic_child(self):
+        """Query: split-DB child tables — tags from ts_tag, data from ts_data
+
+        Each child: data cols from ts_data, both tags from same child in ts_tag.
+
+        Catalog: - VirtualTable
+        Since: v3.4.1.0
+        Labels: virtual, query, tag_ref, split_db
+        Jira: None
+        History: - 2026-4-1 Created
+        """
+        tdSql.execute("USE td_split;")
+        for vt, dtbl, rsrc, ssrc in SPLIT_BASIC:
+            rows = SRC_DATA[dtbl]['data']
+            region = SRC_TAG[rsrc]['region']
+            score = SRC_TAG[ssrc]['score']
+            exp = [(region, score, v) for v in rows]
+            self._check_values(f"SELECT t_region, t_score, val FROM {vt};",
+                               exp, f"split_basic child {vt}")
+
+    def test_split_basic_stb(self):
+        """Query: split-DB basic STB scan — full scan + tag filter + group by
+
+        Catalog: - VirtualTable
+        Since: v3.4.1.0
+        Labels: virtual, query, tag_ref, stb, split_db
+        Jira: None
+        History: - 2026-4-1 Created
+        """
+        tdSql.execute("USE td_split;")
+
+        total = sum(len(SRC_DATA[dtbl]['data']) for _, dtbl, _, _ in SPLIT_BASIC)
+        self._check_count("SELECT COUNT(*) FROM vst_split_basic;", total, "split_basic count")
+
+        all_rows = []
+        for vt, dtbl, rsrc, ssrc in SPLIT_BASIC:
+            region = SRC_TAG[rsrc]['region']
+            score = SRC_TAG[ssrc]['score']
+            for v in SRC_DATA[dtbl]['data']:
+                all_rows.append((vt, region, score, v))
+        self._check_values("SELECT tbname, t_region, t_score, val FROM vst_split_basic;",
+                           all_rows, "split_basic full scan")
+
+        exp = [r for r in all_rows if r[1] == 'east']
+        self._check_values("SELECT tbname, t_region, t_score, val FROM vst_split_basic "
+                           "WHERE t_region='east';", exp, "split_basic t_region=east")
+
+        exp = [r for r in all_rows if int(str(r[2])) >= 80]
+        self._check_values("SELECT tbname, t_region, t_score, val FROM vst_split_basic "
+                           "WHERE t_score >= 80;", exp, "split_basic t_score>=80")
+
+        from collections import defaultdict
+        by_region = defaultdict(lambda: [0, 0])
+        for r in all_rows:
+            by_region[r[1]][0] += 1
+            by_region[r[1]][1] += r[3]
+        exp_gb = [(region, cs[0], cs[1]) for region, cs in by_region.items()]
+        self._check_values("SELECT t_region, COUNT(*), SUM(val) FROM vst_split_basic "
+                           "GROUP BY t_region;", exp_gb, "split_basic group by region")
+
+        tdLog.info("split_basic STB passed")
+
+    def test_split_cross_child(self):
+        """Query: split-DB child tables — two tags from DIFFERENT source children
+
+        Catalog: - VirtualTable
+        Since: v3.4.1.0
+        Labels: virtual, query, tag_ref, split_db, cross_source
+        Jira: None
+        History: - 2026-4-1 Created
+        """
+        tdSql.execute("USE td_split;")
+        for vt, dtbl, rsrc, ssrc in SPLIT_CROSS:
+            rows = SRC_DATA[dtbl]['data']
+            region = SRC_TAG[rsrc]['region']
+            score = SRC_TAG[ssrc]['score']
+            exp = [(region, score, v) for v in rows]
+            self._check_values(f"SELECT t_region, t_score, val FROM {vt};",
+                               exp, f"split_cross child {vt}")
+
+    def test_split_cross_stb(self):
+        """Query: split-DB cross-source STB — tags from different children in ts_tag
+
+        Tests full scan, tag filter, and aggregate when each child's two tags
+        come from different source children in the tag DB.
+
+        Catalog: - VirtualTable
+        Since: v3.4.1.0
+        Labels: virtual, query, tag_ref, stb, split_db, cross_source
+        Jira: None
+        History: - 2026-4-1 Created
+        """
+        tdSql.execute("USE td_split;")
+
+        total = sum(len(SRC_DATA[dtbl]['data']) for _, dtbl, _, _ in SPLIT_CROSS)
+        self._check_count("SELECT COUNT(*) FROM vst_split_cross;", total, "split_cross count")
+
+        all_rows = []
+        for vt, dtbl, rsrc, ssrc in SPLIT_CROSS:
+            region = SRC_TAG[rsrc]['region']
+            score = SRC_TAG[ssrc]['score']
+            for v in SRC_DATA[dtbl]['data']:
+                all_rows.append((vt, region, score, v))
+        self._check_values("SELECT tbname, t_region, t_score, val FROM vst_split_cross;",
+                           all_rows, "split_cross full scan")
+
+        exp = [r for r in all_rows if r[1] == 'hub']
+        self._check_values("SELECT tbname, t_region, t_score, val FROM vst_split_cross "
+                           "WHERE t_region='hub';", exp, "split_cross t_region=hub")
+
+        exp = [r for r in all_rows if int(str(r[2])) <= 70]
+        self._check_values("SELECT tbname, t_region, t_score, val FROM vst_split_cross "
+                           "WHERE t_score <= 70;", exp, "split_cross t_score<=70")
+
+        from collections import defaultdict
+        by_score = defaultdict(lambda: [0, 0])
+        for r in all_rows:
+            by_score[r[2]][0] += 1
+            by_score[r[2]][1] += r[3]
+        exp_gb = [(score, cs[0], cs[1]) for score, cs in by_score.items()]
+        self._check_values("SELECT t_score, COUNT(*), SUM(val) FROM vst_split_cross "
+                           "GROUP BY t_score;", exp_gb, "split_cross group by score")
+
+        tdLog.info("split_cross STB passed")
+
+    def test_split_dup_child(self):
+        """Query: split-DB dup child — both tags ref same col 'region' from different sources
+
+        This is the key regression test for the TagRefSource dedup bug:
+        when two tags reference the same-named column from different source
+        children, the STB-level tagRef must distinguish them.
+
+        Catalog: - VirtualTable
+        Since: v3.4.1.0
+        Labels: virtual, query, tag_ref, split_db, dup_ref
+        Jira: None
+        History: - 2026-4-1 Created
+        """
+        tdSql.execute("USE td_split;")
+        for vt, dtbl, r1src, r2src in SPLIT_DUP:
+            rows = SRC_DATA[dtbl]['data']
+            r1 = SRC_TAG[r1src]['region']
+            r2 = SRC_TAG[r2src]['region']
+            exp = [(r1, r2, v) for v in rows]
+            self._check_values(f"SELECT r1, r2, val FROM {vt};",
+                               exp, f"split_dup child {vt} (r1={r1}, r2={r2})")
+
+    def test_split_dup_stb(self):
+        """Query: split-DB dup STB — same-named col from different sources in STB query
+
+        Full scan verifying every child's r1 and r2 are correct,
+        plus tag filters and group by.
+
+        Catalog: - VirtualTable
+        Since: v3.4.1.0
+        Labels: virtual, query, tag_ref, stb, split_db, dup_ref
+        Jira: None
+        History: - 2026-4-1 Created
+        """
+        tdSql.execute("USE td_split;")
+
+        total = sum(len(SRC_DATA[dtbl]['data']) for _, dtbl, _, _ in SPLIT_DUP)
+        self._check_count("SELECT COUNT(*) FROM vst_split_dup;", total, "split_dup count")
+
+        all_rows = []
+        for vt, dtbl, r1src, r2src in SPLIT_DUP:
+            r1 = SRC_TAG[r1src]['region']
+            r2 = SRC_TAG[r2src]['region']
+            for v in SRC_DATA[dtbl]['data']:
+                all_rows.append((vt, r1, r2, v))
+        self._check_values("SELECT tbname, r1, r2, val FROM vst_split_dup;",
+                           all_rows, "split_dup full scan")
+
+        # Filter on r1
+        exp = [r for r in all_rows if r[1] == 'east']
+        self._check_values("SELECT tbname, r1, r2, val FROM vst_split_dup WHERE r1='east';",
+                           exp, "split_dup r1=east")
+
+        # Filter on r2 (tests the tag that was previously collapsed by dedup)
+        exp = [r for r in all_rows if r[2] == 'west']
+        self._check_values("SELECT tbname, r1, r2, val FROM vst_split_dup WHERE r2='west';",
+                           exp, "split_dup r2=west")
+
+        # Filter where r1 != r2 (only rows where tags differ)
+        exp = [r for r in all_rows if r[1] != r[2]]
+        self._check_values("SELECT tbname, r1, r2, val FROM vst_split_dup WHERE r1 != r2;",
+                           exp, "split_dup r1!=r2")
+
+        # Group by r1
+        from collections import defaultdict
+        by_r1 = defaultdict(lambda: [0, 0])
+        for r in all_rows:
+            by_r1[r[1]][0] += 1
+            by_r1[r[1]][1] += r[3]
+        exp_gb = [(r1, cs[0], cs[1]) for r1, cs in by_r1.items()]
+        self._check_values("SELECT r1, COUNT(*), SUM(val) FROM vst_split_dup GROUP BY r1;",
+                           exp_gb, "split_dup group by r1")
+
+        # Group by r2
+        by_r2 = defaultdict(lambda: [0, 0])
+        for r in all_rows:
+            by_r2[r[2]][0] += 1
+            by_r2[r[2]][1] += r[3]
+        exp_gb2 = [(r2, cs[0], cs[1]) for r2, cs in by_r2.items()]
+        self._check_values("SELECT r2, COUNT(*), SUM(val) FROM vst_split_dup GROUP BY r2;",
+                           exp_gb2, "split_dup group by r2")
+
+        tdLog.info("split_dup STB passed")
+
+    def test_split_mixed_child(self):
+        """Query: split-DB mixed child — literal tag + cross-DB tag refs
+
+        Catalog: - VirtualTable
+        Since: v3.4.1.0
+        Labels: virtual, query, tag_ref, split_db, mixed
+        Jira: None
+        History: - 2026-4-1 Created
+        """
+        tdSql.execute("USE td_split;")
+        for vt, dtbl, lit, rsrc, ssrc in SPLIT_MIXED:
+            rows = SRC_DATA[dtbl]['data']
+            region = SRC_TAG[rsrc]['region']
+            score = SRC_TAG[ssrc]['score']
+            exp = [(lit, region, score, v) for v in rows]
+            self._check_values(f"SELECT lit_id, t_region, t_score, val FROM {vt};",
+                               exp, f"split_mixed child {vt}")
+
+    def test_split_mixed_stb(self):
+        """Query: split-DB mixed STB — literal + tag refs from separate DBs
+
+        Full scan, filter on literal, filter on ref tag, group by.
+
+        Catalog: - VirtualTable
+        Since: v3.4.1.0
+        Labels: virtual, query, tag_ref, stb, split_db, mixed
+        Jira: None
+        History: - 2026-4-1 Created
+        """
+        tdSql.execute("USE td_split;")
+
+        total = sum(len(SRC_DATA[dtbl]['data']) for _, dtbl, _, _, _ in SPLIT_MIXED)
+        self._check_count("SELECT COUNT(*) FROM vst_split_mixed;", total, "split_mixed count")
+
+        all_rows = []
+        for vt, dtbl, lit, rsrc, ssrc in SPLIT_MIXED:
+            region = SRC_TAG[rsrc]['region']
+            score = SRC_TAG[ssrc]['score']
+            for v in SRC_DATA[dtbl]['data']:
+                all_rows.append((vt, lit, region, score, v))
+        self._check_values("SELECT tbname, lit_id, t_region, t_score, val FROM vst_split_mixed;",
+                           all_rows, "split_mixed full scan")
+
+        exp = [r for r in all_rows if int(str(r[1])) == 2000]
+        self._check_values("SELECT tbname, lit_id, t_region, t_score, val FROM vst_split_mixed "
+                           "WHERE lit_id = 2000;", exp, "split_mixed lit_id=2000")
+
+        exp = [r for r in all_rows if r[2] == 'south']
+        self._check_values("SELECT tbname, lit_id, t_region, t_score, val FROM vst_split_mixed "
+                           "WHERE t_region = 'south';", exp, "split_mixed region=south")
+
+        from collections import defaultdict
+        by_lit = defaultdict(lambda: [0, 0])
+        for r in all_rows:
+            by_lit[r[1]][0] += 1
+            by_lit[r[1]][1] += r[4]
+        exp_gb = [(lit, cs[0], cs[1]) for lit, cs in by_lit.items()]
+        self._check_values("SELECT lit_id, COUNT(*), SUM(val) FROM vst_split_mixed "
+                           "GROUP BY lit_id;", exp_gb, "split_mixed group by lit_id")
+
+        tdLog.info("split_mixed STB passed")
+
+    def test_split_tri_child(self):
+        """Query: 3-way split child — tags from ts_tag + ts_a, data from ts_data
+
+        Catalog: - VirtualTable
+        Since: v3.4.1.0
+        Labels: virtual, query, tag_ref, split_db, multi_db
+        Jira: None
+        History: - 2026-4-1 Created
+        """
+        tdSql.execute("USE td_split;")
+        for vt, dtbl, rsrc, ssrc, csrc in SPLIT_TRI:
+            rows = SRC_DATA[dtbl]['data']
+            region = SRC_TAG[rsrc]['region']
+            score = SRC_TAG[ssrc]['score']
+            city = SRC_A[csrc]['city']
+            exp = [(region, score, city, v) for v in rows]
+            self._check_values(f"SELECT t_region, t_score, t_city, val FROM {vt};",
+                               exp, f"split_tri child {vt}")
+
+    def test_split_tri_stb(self):
+        """Query: 3-way split STB — tags from ts_tag + ts_a, data from ts_data
+
+        Full scan, multi-tag filter, group by on ref tags from different DBs.
+
+        Catalog: - VirtualTable
+        Since: v3.4.1.0
+        Labels: virtual, query, tag_ref, stb, split_db, multi_db
+        Jira: None
+        History: - 2026-4-1 Created
+        """
+        tdSql.execute("USE td_split;")
+
+        total = sum(len(SRC_DATA[dtbl]['data']) for _, dtbl, _, _, _ in SPLIT_TRI)
+        self._check_count("SELECT COUNT(*) FROM vst_split_tri;", total, "split_tri count")
+
+        all_rows = []
+        for vt, dtbl, rsrc, ssrc, csrc in SPLIT_TRI:
+            region = SRC_TAG[rsrc]['region']
+            score = SRC_TAG[ssrc]['score']
+            city = SRC_A[csrc]['city']
+            for v in SRC_DATA[dtbl]['data']:
+                all_rows.append((vt, region, score, city, v))
+        self._check_values(
+            "SELECT tbname, t_region, t_score, t_city, val FROM vst_split_tri;",
+            all_rows, "split_tri full scan")
+
+        # Filter on tag from ts_tag
+        exp = [r for r in all_rows if r[1] == 'mid']
+        self._check_values(
+            "SELECT tbname, t_region, t_score, t_city, val FROM vst_split_tri "
+            "WHERE t_region='mid';", exp, "split_tri region=mid")
+
+        # Filter on tag from ts_a
+        exp = [r for r in all_rows if r[3] == 'shenzhen']
+        self._check_values(
+            "SELECT tbname, t_region, t_score, t_city, val FROM vst_split_tri "
+            "WHERE t_city='shenzhen';", exp, "split_tri city=shenzhen")
+
+        # Combined filter on tags from different DBs
+        exp = [r for r in all_rows if int(str(r[2])) >= 80 and r[3] != 'guangzhou']
+        self._check_values(
+            "SELECT tbname, t_region, t_score, t_city, val FROM vst_split_tri "
+            "WHERE t_score >= 80 AND t_city != 'guangzhou';",
+            exp, "split_tri score>=80 AND city!=guangzhou")
+
+        # Group by t_city (from ts_a)
+        from collections import defaultdict
+        by_city = defaultdict(lambda: [0, 0])
+        for r in all_rows:
+            by_city[r[3]][0] += 1
+            by_city[r[3]][1] += r[4]
+        exp_gb = [(city, cs[0], cs[1]) for city, cs in by_city.items()]
+        self._check_values(
+            "SELECT t_city, COUNT(*), SUM(val) FROM vst_split_tri GROUP BY t_city;",
+            exp_gb, "split_tri group by city")
+
+        # Group by t_region (from ts_tag)
+        by_region = defaultdict(lambda: [0, 0])
+        for r in all_rows:
+            by_region[r[1]][0] += 1
+            by_region[r[1]][1] += r[4]
+        exp_gb2 = [(region, cs[0], cs[1]) for region, cs in by_region.items()]
+        self._check_values(
+            "SELECT t_region, COUNT(*), SUM(val) FROM vst_split_tri GROUP BY t_region;",
+            exp_gb2, "split_tri group by region")
+
+        tdLog.info("split_tri STB passed")
