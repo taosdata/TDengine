@@ -165,13 +165,47 @@ static int32_t ctgBuildVStbFirstLayerRefs(SArray* pSubTablesList, SArray** ppLay
         CTG_ERR_JRET(ctgCollectVStbFinalDb(ppRefDbs, pRef->refDbName));
       }
 
-      // Extract tag ref info from first child that has tag refs
-      if (!tagRefExtracted && pTb->numOfTagRefs > 0 && pNumOfTagRefs && ppTagRefCols) {
-        *pNumOfTagRefs = pTb->numOfTagRefs;
-        *ppTagRefCols = taosMemoryCalloc(pTb->numOfTagRefs, sizeof(SRefColInfo));
-        if (*ppTagRefCols) {
-          memcpy(*ppTagRefCols, pTb->tagRefCols, pTb->numOfTagRefs * sizeof(SRefColInfo));
-          tagRefExtracted = true;
+      // Extract and merge tag ref info across all children.
+      // The first child seeds the array; subsequent children improve source diversity
+      // so that tags referencing different source tables get distinct entries.
+      if (pTb->numOfTagRefs > 0 && pNumOfTagRefs && ppTagRefCols) {
+        if (!tagRefExtracted) {
+          *pNumOfTagRefs = pTb->numOfTagRefs;
+          *ppTagRefCols = taosMemoryCalloc(pTb->numOfTagRefs, sizeof(SRefColInfo));
+          if (*ppTagRefCols) {
+            memcpy(*ppTagRefCols, pTb->tagRefCols, pTb->numOfTagRefs * sizeof(SRefColInfo));
+            tagRefExtracted = true;
+          }
+        } else if (pTb->numOfTagRefs == *pNumOfTagRefs) {
+          // Check each tag: if the current entry duplicates another tag's source,
+          // and this child offers a different source, replace it for diversity.
+          for (int32_t k = 0; k < *pNumOfTagRefs; k++) {
+            SRefColInfo* pExisting = &(*ppTagRefCols)[k];
+            SRefColInfo* pNew = &pTb->tagRefCols[k];
+            if (pNew->colId != pExisting->colId) continue;
+
+            bool isDuplicate = false;
+            for (int32_t m = 0; m < *pNumOfTagRefs; m++) {
+              if (m == k) continue;
+              SRefColInfo* pOther = &(*ppTagRefCols)[m];
+              if (strcmp(pExisting->refDbName, pOther->refDbName) == 0 &&
+                  strcmp(pExisting->refTableName, pOther->refTableName) == 0 &&
+                  strcmp(pExisting->refColName, pOther->refColName) == 0) {
+                isDuplicate = true;
+                break;
+              }
+            }
+
+            if (isDuplicate) {
+              bool newIsDifferent =
+                  strcmp(pExisting->refDbName, pNew->refDbName) != 0 ||
+                  strcmp(pExisting->refTableName, pNew->refTableName) != 0 ||
+                  strcmp(pExisting->refColName, pNew->refColName) != 0;
+              if (newIsDifferent) {
+                memcpy(pExisting, pNew, sizeof(SRefColInfo));
+              }
+            }
+          }
         }
       }
     }
