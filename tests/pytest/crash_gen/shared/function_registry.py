@@ -52,6 +52,8 @@ SCALAR_STRING: List[FuncDef] = [
     {"name": "REPEAT", "args": "scol,int"},
     {"name": "POSITION", "args": "str_in_scol"},
     {"name": "SUBSTRING_INDEX", "args": "scol,str,int"},
+    {"name": "ASCII", "args": "scol"},
+    {"name": "CHAR", "args": "int"},
 ]
 
 SCALAR_CONVERT: List[FuncDef] = [
@@ -60,6 +62,7 @@ SCALAR_CONVERT: List[FuncDef] = [
     {"name": "TO_UNIXTIMESTAMP", "args": "str"},
     {"name": "TO_CHAR", "args": "ts_col,str"},
     {"name": "TO_TIMESTAMP", "args": "str,str"},
+    {"name": "TO_JSON", "args": "str"},
 ]
 
 SCALAR_DATETIME: List[FuncDef] = [
@@ -110,6 +113,9 @@ SELECTION: List[FuncDef] = [
     {"name": "UNIQUE", "args": "col"},
     {"name": "MODE", "args": "col"},
     {"name": "SAMPLE", "args": "col,int"},
+    {"name": "LAG", "args": "col,int"},
+    {"name": "LEAD", "args": "col,int"},
+    {"name": "HISTOGRAM", "args": "ncol,str,str,int"},
 ]
 
 TIMESERIES: List[FuncDef] = [
@@ -122,6 +128,7 @@ TIMESERIES: List[FuncDef] = [
     {"name": "STATECOUNT", "args": "ncol,str,ncol", "no_window": True},
     {"name": "STATEDURATION", "args": "ncol,str,ncol", "no_window": True},
     {"name": "FILL_FORWARD", "args": "col", "no_window": True},
+    {"name": "INTERP", "args": "ncol", "need_range_every_fill": True},
 ]
 
 COMPARISON: List[FuncDef] = [
@@ -140,6 +147,30 @@ SYSTEM: List[FuncDef] = [
     {"name": "CURRENT_USER", "args": "none"},
 ]
 
+GEOGRAPHIC: List[FuncDef] = [
+    {"name": "ST_GEOMFROMTEXT", "args": "str"},
+    {"name": "ST_ASTEXT", "args": "col"},
+    {"name": "ST_CONTAINS", "args": "col,col"},
+    {"name": "ST_CONTAINSPROPERLY", "args": "col,col"},
+    {"name": "ST_COVERS", "args": "col,col"},
+    {"name": "ST_EQUALS", "args": "col,col"},
+    {"name": "ST_INTERSECTS", "args": "col,col"},
+    {"name": "ST_TOUCHES", "args": "col,col"},
+]
+
+MASKING: List[FuncDef] = [
+    {"name": "MASK_FULL", "args": "scol"},
+    {"name": "MASK_PARTIAL", "args": "scol,int,int"},
+    {"name": "MASK_NONE", "args": "scol"},
+]
+
+ENCRYPTION: List[FuncDef] = [
+    {"name": "SM4_ENCRYPT", "args": "scol,str"},
+    {"name": "SM4_DECRYPT", "args": "scol,str"},
+    {"name": "AES_ENCRYPT", "args": "scol,str"},
+    {"name": "AES_DECRYPT", "args": "scol,str"},
+]
+
 # Category weights for selection probability
 CATEGORY_WEIGHTS = {
     "scalar_math": 30,
@@ -152,6 +183,9 @@ CATEGORY_WEIGHTS = {
     "timeseries": 10,
     "comparison": 5,
     "system": 3,
+    "geographic": 2,
+    "masking": 2,
+    "encryption": 2,
 }
 
 # Build derived constants
@@ -178,6 +212,9 @@ def _build_registries():
         "timeseries": TIMESERIES,
         "comparison": COMPARISON,
         "system": SYSTEM,
+        "geographic": GEOGRAPHIC,
+        "masking": MASKING,
+        "encryption": ENCRYPTION,
     }
     
     for category_name, functions in all_categories.items():
@@ -210,6 +247,9 @@ FUNCTION_CATEGORIES = {
     "timeseries": TIMESERIES,
     "comparison": COMPARISON,
     "system": SYSTEM,
+    "geographic": GEOGRAPHIC,
+    "masking": MASKING,
+    "encryption": ENCRYPTION,
 }
 
 def get_function_by_name(name: str) -> FuncDef:

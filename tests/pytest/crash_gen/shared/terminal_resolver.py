@@ -68,7 +68,8 @@ KEYWORD_MAP = {
     "NK_BITAND": "&", "NK_BITOR": "|",
     "NK_LSHIFT": "<<", "NK_RSHIFT": ">>",
     "NK_ARROW": "->", "NK_CONCAT": "||",
-    "NK_QUESTION": "?", "NK_PH": "?", "NK_HINT": "/*+",
+    "NK_QUESTION": "?", "NK_PH": "?",
+    "NK_HINT": "/*+ no_batch_scan */",  # complete hint with closing marker
     # "NK_ALIAS": "@", "NK_ID": "id",  # Now handled by improved logic in resolve()
     
     # Pseudo columns  

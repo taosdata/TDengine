@@ -127,9 +127,12 @@ class GrammarWalker:
         if symbol in LIST_PATTERNS:
             return self._expand_list(symbol)
 
-        alternatives = GRAMMAR[symbol]
-        if not alternatives:
+        full_alternatives = GRAMMAR[symbol]
+        if not full_alternatives:
             return []
+
+        # Pre-filter: remove weight-0 (banned) alternatives before any tier logic
+        alternatives = self._weights.filter_banned(symbol, full_alternatives)
 
         in_cycle = symbol in self._ancestors
         depth_pct = self._depth / self.MAX_DEPTH if self.MAX_DEPTH else 1.0
@@ -138,7 +141,7 @@ class GrammarWalker:
         # --- Tier 1: Hard limit — pick shortest ---
         if depth_pct >= 1.0 or budget_pct > 0.7:
             alt = min(alternatives, key=len)
-            alt_idx = alternatives.index(alt)
+            alt_idx = full_alternatives.index(alt)
 
         # --- Tier 2: Cycle / deep / mid-budget — non-recursive only ---
         elif in_cycle or depth_pct > 0.5 or budget_pct > 0.4:
@@ -147,13 +150,13 @@ class GrammarWalker:
                 alt, _ = self._weights.weighted_choice(symbol, non_rec)
             else:
                 alt = min(alternatives, key=len)
-            alt_idx = alternatives.index(alt)
+            alt_idx = full_alternatives.index(alt)
 
         # --- Tier 3: Normal — weighted + constrained ---
         else:
             filtered = self._constraints.filter(symbol, alternatives, self._ctx)
             alt, alt_idx = self._weights.weighted_choice(symbol, filtered)
-            alt_idx = alternatives.index(alt)
+            alt_idx = full_alternatives.index(alt)
 
         if self._coverage:
             self._coverage.record(symbol, alt_idx)

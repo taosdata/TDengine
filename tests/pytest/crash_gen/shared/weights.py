@@ -42,6 +42,14 @@ WEIGHTS = {
     # --- Function expressions: prefer simple functions over complex ones ---
     "function_expression":     [40, 40, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 10, 10],
 
+    # --- table_primary: suppress NK_PH placeholder alts ---
+    "table_primary":           [30,   # table_name alias_opt
+                               30,    # db_name.table_name alias_opt
+                               15,    # subquery alias_opt
+                               10,    # parenthesized_joined_table
+                               0,     # NK_PH TBNAME — invalid without param binding
+                               0],    # NK_PH TROWS — invalid without param binding
+
     # --- Literals: prefer meaningful values over bare integers ---
     "literal":                 [10,   # NK_INTEGER (bare numbers - lower weight)
                                15,    # NK_FLOAT
@@ -50,7 +58,7 @@ WEIGHTS = {
                                15,    # TIMESTAMP string
                                10,    # duration_literal
                                5,     # NULL
-                               5],    # NK_QUESTION
+                               0],    # NK_QUESTION — invalid without param binding
 
     # --- WHERE ---
     "where_clause_opt":        [30, 70],   # often has WHERE
@@ -78,6 +86,17 @@ WEIGHTS = {
 
     # --- EVERY ---
     "every_opt":               [70, 30],
+
+    # --- Suppress NK_PH placeholders in pseudo_column (34 alts) ---
+    # alt 27 = NK_PH NK_INTEGER, alt 28 = NK_PH TBNAME — invalid without param binding
+    "pseudo_column":           [10, 10, 5, 10, 10, 10, 10, 10, 10, 10,   # 0-9
+                                10, 10, 5, 5, 5, 5, 5, 5, 5, 5,          # 10-19
+                                5, 5, 5, 5, 5, 5, 5, 0, 0, 10,           # 20-29 (27,28=0)
+                                5, 5, 5, 5],                              # 30-33
+
+    # --- Suppress NK_QUESTION in numeric/duration contexts ---
+    "unsigned_integer":                  [10, 0],       # NK_INTEGER vs NK_QUESTION
+    "interval_sliding_duration_literal": [10, 10, 10, 0],  # VARIABLE/STRING/INTEGER/QUESTION
 }
 
 DEFAULT_WEIGHT = 10
@@ -88,6 +107,18 @@ class WeightedChooser:
 
     def __init__(self, weights_config: dict = None):
         self._config = weights_config if weights_config is not None else WEIGHTS
+
+    def filter_banned(self, rule: str, alternatives: list) -> list:
+        """Remove alternatives whose configured weight is 0 (banned).
+
+        Must be called with the FULL alternatives list from GRAMMAR so that
+        indices align with the configured weights array.
+        """
+        configured = self._config.get(rule)
+        if configured is not None and len(configured) == len(alternatives):
+            result = [a for i, a in enumerate(alternatives) if configured[i] > 0]
+            return result if result else alternatives
+        return alternatives
 
     def weighted_choice(self, rule: str, alternatives: list) -> Tuple[list, int]:
         """Return (chosen_alternative, index_in_alternatives_list).
