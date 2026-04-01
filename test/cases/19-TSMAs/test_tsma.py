@@ -1229,15 +1229,16 @@ class TestTsma:
     def test_tsma(self):
         """TSMAs basic
 
-        1. Create snode on dnode 1
-        2. Initialize data
-        3. Execute tsma ddl test cases
-        4. Execute tsma query test cases
-        5. Execute tsma flush query test cases
-        6. Execute tsma redistribute vgroups test cases if cluster dnode nums > 1
-        7. Drop tsma test.tsma5
-        8. Verify TD-32519
-        9. Drop snode
+        1. Initialize data without snode
+        2. Verify CREATE TSMA reports no available snode
+        3. Create snode on dnode 1
+        4. Execute tsma ddl test cases
+        5. Execute tsma query test cases
+        6. Execute tsma flush query test cases
+        7. Execute tsma redistribute vgroups test cases if cluster dnode nums > 1
+        8. Drop tsma test.tsma5
+        9. Verify TD-32519
+        10. Drop snode
         
 
         Since: v3.0.0.0
@@ -1248,10 +1249,22 @@ class TestTsma:
 
         """
 
-        tdLog.info("create snode")
-        tdSql.execute("create snode on dnode 1")
+        tdLog.info("ensure no snode exists")
+        tdSql.query("select * from information_schema.ins_snodes order by id")
+        snode_num = tdSql.getRows()
+        for row in range(snode_num):
+            snode_id = tdSql.getData(row, 0)
+            tdSql.execute(f"drop snode on dnode {snode_id}")
+        tdSql.query("select * from information_schema.ins_snodes order by id")
+        tdSql.checkRows(0)
 
         self.init_data()
+
+        tdLog.info("verify create tsma without snode")
+        self.create_error_tsma('tsma_no_snode', 'test', 'meters', ['avg(c1)'], '5m', -2147482580)
+
+        tdLog.info("create snode")
+        tdSql.execute("create snode on dnode 1")
         self.tsma_ddl()
         self.tsma_query_with_tsma()
         # bug to fix
