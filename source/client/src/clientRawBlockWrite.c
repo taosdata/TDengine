@@ -1065,8 +1065,15 @@ static int32_t taosCreateStb(TAOS* taos, void* meta, uint32_t metaLen) {
   pReq.igExists = true;
   pReq.virtualStb = req.virtualStb;
 
-  uDebug(LOG_ID_TAG " create stable name:%s suid:%" PRId64 " processSuid:%" PRId64, LOG_ID_VALUE, req.name, req.suid,
-         pReq.suid);
+  // §35 taosX replication: propagate txnId with replicated flag to MNode
+  if (req.txnId > 0 && !TXN_IS_REPLICATED(req.txnId)) {
+    pReq.txnId = TXN_SET_REPLICATED(req.txnId);
+  } else {
+    pReq.txnId = req.txnId;
+  }
+
+  uDebug(LOG_ID_TAG " create stable name:%s suid:%" PRId64 " processSuid:%" PRId64 " txnId:%" PRIu64, LOG_ID_VALUE,
+         req.name, req.suid, pReq.suid, pReq.txnId);
   STscObj* pTscObj = pRequest->pTscObj;
   SName    tableName = {0};
   toName(pTscObj->acctId, pRequest->pDb, req.name, &tableName);
@@ -1157,8 +1164,15 @@ static int32_t taosDropStb(TAOS* taos, void* meta, uint32_t metaLen) {
   pReq.source = TD_REQ_FROM_TAOX;
   //  pReq.suid = processSuid(req.suid, pRequest->pDb);
 
-  uDebug(LOG_ID_TAG " drop stable name:%s suid:%" PRId64 " new suid:%" PRId64, LOG_ID_VALUE, req.name, req.suid,
-         pReq.suid);
+  // §35 taosX replication: propagate txnId with replicated flag to MNode
+  if (req.txnId > 0 && !TXN_IS_REPLICATED(req.txnId)) {
+    pReq.txnId = TXN_SET_REPLICATED(req.txnId);
+  } else {
+    pReq.txnId = req.txnId;
+  }
+
+  uDebug(LOG_ID_TAG " drop stable name:%s suid:%" PRId64 " new suid:%" PRId64 " txnId:%" PRIu64, LOG_ID_VALUE, req.name,
+         req.suid, pReq.suid, pReq.txnId);
   STscObj* pTscObj = pRequest->pTscObj;
   SName    tableName = {0};
   toName(pTscObj->acctId, pRequest->pDb, req.name, &tableName);

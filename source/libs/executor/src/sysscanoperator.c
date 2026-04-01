@@ -889,6 +889,7 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
       } else {
         SMetaReader smrSuperTable = {0};
         pAPI->metaReaderFn.initReader(&smrSuperTable, pInfo->readHandle.vnode, META_READER_NOLOCK, &pAPI->metaFn);
+        smrSuperTable.txnId = pInfo->readHandle.txnId;
         code = pAPI->metaReaderFn.getTableEntryByUid(&smrSuperTable, suid);
         if (code != TSDB_CODE_SUCCESS) {
           // terrno has been set by pAPI->metaReaderFn.getTableEntryByName, therefore, return directly
@@ -953,6 +954,7 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
       } else {
         SMetaReader smrSuperTable = {0};
         pAPI->metaReaderFn.initReader(&smrSuperTable, pInfo->readHandle.vnode, META_READER_NOLOCK, &pAPI->metaFn);
+        smrSuperTable.txnId = pInfo->readHandle.txnId;
         code = pAPI->metaReaderFn.getTableEntryByUid(&smrSuperTable, suid);
         if (code != TSDB_CODE_SUCCESS) {
           // terrno has been set by pAPI->metaReaderFn.getTableEntryByName, therefore, return directly
@@ -1145,6 +1147,7 @@ static SSDataBlock* sysTableScanUserVcCols(SOperatorInfo* pOperator) {
         schemaRow = *(SSchemaWrapper**)schema;
         SMetaReader smrSuperTable = {0};
         pAPI->metaReaderFn.initReader(&smrSuperTable, pInfo->readHandle.vnode, META_READER_NOLOCK, &pAPI->metaFn);
+        smrSuperTable.txnId = pInfo->readHandle.txnId;
         code = pAPI->metaReaderFn.getTableEntryByUid(&smrSuperTable, suid);
         if (code != TSDB_CODE_SUCCESS) {
           // terrno has been set by pAPI->metaReaderFn.getTableEntryByName, therefore, return directly
@@ -1161,6 +1164,7 @@ static SSDataBlock* sysTableScanUserVcCols(SOperatorInfo* pOperator) {
       } else {
         SMetaReader smrSuperTable = {0};
         pAPI->metaReaderFn.initReader(&smrSuperTable, pInfo->readHandle.vnode, META_READER_NOLOCK, &pAPI->metaFn);
+        smrSuperTable.txnId = pInfo->readHandle.txnId;
         code = pAPI->metaReaderFn.getTableEntryByUid(&smrSuperTable, suid);
         if (code != TSDB_CODE_SUCCESS) {
           // terrno has been set by pAPI->metaReaderFn.getTableEntryByName, therefore, return directly
@@ -1340,6 +1344,7 @@ static SSDataBlock* sysTableScanVirtualTableRef(SOperatorInfo* pOperator) {
         schemaRow = *(SSchemaWrapper**)schema;
         SMetaReader smrSuperTable = {0};
         pAPI->metaReaderFn.initReader(&smrSuperTable, pInfo->readHandle.vnode, META_READER_NOLOCK, &pAPI->metaFn);
+        smrSuperTable.txnId = pInfo->readHandle.txnId;
         code = pAPI->metaReaderFn.getTableEntryByUid(&smrSuperTable, suid);
         if (code != TSDB_CODE_SUCCESS) {
           // terrno has been set by pAPI->metaReaderFn.getTableEntryByName, therefore, return directly
@@ -1356,6 +1361,7 @@ static SSDataBlock* sysTableScanVirtualTableRef(SOperatorInfo* pOperator) {
       } else {
         SMetaReader smrSuperTable = {0};
         pAPI->metaReaderFn.initReader(&smrSuperTable, pInfo->readHandle.vnode, META_READER_NOLOCK, &pAPI->metaFn);
+        smrSuperTable.txnId = pInfo->readHandle.txnId;
         code = pAPI->metaReaderFn.getTableEntryByUid(&smrSuperTable, suid);
         if (code != TSDB_CODE_SUCCESS) {
           // terrno has been set by pAPI->metaReaderFn.getTableEntryByName, therefore, return directly
@@ -1483,6 +1489,7 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
 
     SMetaReader smrChildTable = {0};
     pAPI->metaReaderFn.initReader(&smrChildTable, pInfo->readHandle.vnode, META_READER_LOCK, &pAPI->metaFn);
+    smrChildTable.txnId = pInfo->readHandle.txnId;
     code = pAPI->metaReaderFn.getTableEntryByName(&smrChildTable, condTableName);
     if (code != TSDB_CODE_SUCCESS) {
       // terrno has been set by pAPI->metaReaderFn.getTableEntryByName, therefore, return directly
@@ -1501,6 +1508,7 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
 
     SMetaReader smrSuperTable = {0};
     pAPI->metaReaderFn.initReader(&smrSuperTable, pInfo->readHandle.vnode, META_READER_NOLOCK, &pAPI->metaFn);
+    smrSuperTable.txnId = pInfo->readHandle.txnId;
     code = pAPI->metaReaderFn.getTableEntryByUid(&smrSuperTable, smrChildTable.me.ctbEntry.suid);
     if (code != TSDB_CODE_SUCCESS) {
       // terrno has been set by pAPI->metaReaderFn.getTableEntryByUid
@@ -1548,6 +1556,7 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
 
     SMetaReader smrSuperTable = {0};
     pAPI->metaReaderFn.initReader(&smrSuperTable, pInfo->readHandle.vnode, META_READER_NOLOCK, &pAPI->metaFn);
+    smrSuperTable.txnId = pInfo->readHandle.txnId;
     uint64_t suid = pInfo->pCur->mr.me.ctbEntry.suid;
     code = pAPI->metaReaderFn.getTableEntryByUid(&smrSuperTable, suid);
     if (code != TSDB_CODE_SUCCESS) {
@@ -2619,6 +2628,7 @@ static int32_t vtbRefGetTableSchemaLocal(const SSysTableScanInfo* pInfo, SStorag
   }
 
   pAPI->metaReaderFn.initReader(&srcReader, pInfo->readHandle.vnode, META_READER_NOLOCK, &pAPI->metaFn);
+  srcReader.txnId = pInfo->readHandle.txnId;
   code = pAPI->metaReaderFn.getTableEntryByName(&srcReader, refTableName);
 
   if (code != TSDB_CODE_SUCCESS) {
@@ -2631,6 +2641,7 @@ static int32_t vtbRefGetTableSchemaLocal(const SSysTableScanInfo* pInfo, SStorag
       int64_t suid = srcReader.me.ctbEntry.suid;
       pAPI->metaReaderFn.clearReader(&srcReader);
       pAPI->metaReaderFn.initReader(&srcReader, pInfo->readHandle.vnode, META_READER_NOLOCK, &pAPI->metaFn);
+      srcReader.txnId = pInfo->readHandle.txnId;
       code = pAPI->metaReaderFn.getTableEntryByUid(&srcReader, suid);
       if (code != TSDB_CODE_SUCCESS) {
         pAPI->metaReaderFn.clearReader(&srcReader);
@@ -2679,6 +2690,7 @@ static int32_t vtbRefValidateLocal(const SSysTableScanInfo* pInfo, SStorageAPI* 
   SMetaReader srcReader = {0};
 
   pAPI->metaReaderFn.initReader(&srcReader, pInfo->readHandle.vnode, META_READER_NOLOCK, &pAPI->metaFn);
+  srcReader.txnId = pInfo->readHandle.txnId;
   code = pAPI->metaReaderFn.getTableEntryByName(&srcReader, refTableName);
 
   if (code != TSDB_CODE_SUCCESS) {
@@ -2699,6 +2711,7 @@ static int32_t vtbRefValidateLocal(const SSysTableScanInfo* pInfo, SStorageAPI* 
     pAPI->metaReaderFn.clearReader(&srcReader);
 
     pAPI->metaReaderFn.initReader(&srcReader, pInfo->readHandle.vnode, META_READER_NOLOCK, &pAPI->metaFn);
+    srcReader.txnId = pInfo->readHandle.txnId;
     code = pAPI->metaReaderFn.getTableEntryByUid(&srcReader, suid);
     if (code != TSDB_CODE_SUCCESS) {
       pAPI->metaReaderFn.clearReader(&srcReader);
@@ -3359,7 +3372,7 @@ _end:
 
 static int32_t doSetUserTableMetaInfo(SStoreMetaReader* pMetaReaderFn, SStoreMeta* pMetaFn, void* pVnode,
                                       SMetaReader* pMReader, int64_t uid, const char* dbname, int32_t vgId,
-                                      SSDataBlock* p, int32_t rowIndex, const char* idStr) {
+                                      SSDataBlock* p, int32_t rowIndex, const char* idStr, int64_t txnId) {
   char    n[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
   int32_t lino = 0;
   int32_t code = pMetaReaderFn->getTableEntryByUid(pMReader, uid);
@@ -3400,6 +3413,7 @@ static int32_t doSetUserTableMetaInfo(SStoreMetaReader* pMetaReaderFn, SStoreMet
 
     SMetaReader mr1 = {0};
     pMetaReaderFn->initReader(&mr1, pVnode, META_READER_NOLOCK, pMetaFn);
+    mr1.txnId = txnId;
 
     int64_t suid = pMReader->me.ctbEntry.suid;
     code = pMetaReaderFn->getTableEntryByUid(&mr1, suid);
@@ -3562,6 +3576,7 @@ static int32_t doSetUserTableMetaInfo(SStoreMetaReader* pMetaReaderFn, SStoreMet
 
     SMetaReader mr1 = {0};
     pMetaReaderFn->initReader(&mr1, pVnode, META_READER_NOLOCK, pMetaFn);
+    mr1.txnId = txnId;
 
     int64_t suid = pMReader->me.ctbEntry.suid;
     code = pMetaReaderFn->getTableEntryByUid(&mr1, suid);
@@ -3665,9 +3680,10 @@ static SSDataBlock* sysTableBuildUserTablesByUids(SOperatorInfo* pOperator) {
 
     SMetaReader mr = {0};
     pAPI->metaReaderFn.initReader(&mr, pInfo->readHandle.vnode, META_READER_LOCK, &pAPI->metaFn);
+    mr.txnId = pInfo->readHandle.txnId;
 
     code = doSetUserTableMetaInfo(&pAPI->metaReaderFn, &pAPI->metaFn, pInfo->readHandle.vnode, &mr, *uid, dbname, vgId,
-                                  p, numOfRows, GET_TASKID(pTaskInfo));
+                                  p, numOfRows, GET_TASKID(pTaskInfo), pInfo->readHandle.txnId);
 
     pAPI->metaReaderFn.clearReader(&mr);
     QUERY_CHECK_CODE(code, lino, _end);
@@ -3811,6 +3827,7 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
 
       SMetaReader mr = {0};
       pAPI->metaReaderFn.initReader(&mr, pInfo->readHandle.vnode, META_READER_NOLOCK, &pAPI->metaFn);
+      mr.txnId = pInfo->readHandle.txnId;
 
       uint64_t suid = pInfo->pCur->mr.me.ctbEntry.suid;
       code = pAPI->metaReaderFn.getTableEntryByUid(&mr, suid);
@@ -3966,6 +3983,7 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
 
       SMetaReader mr = {0};
       pAPI->metaReaderFn.initReader(&mr, pInfo->readHandle.vnode, META_READER_NOLOCK, &pAPI->metaFn);
+      mr.txnId = pInfo->readHandle.txnId;
 
       uint64_t suid = pInfo->pCur->mr.me.ctbEntry.suid;
       code = pAPI->metaReaderFn.getTableEntryByUid(&mr, suid);
@@ -4839,6 +4857,7 @@ static SSDataBlock* sysTableScanFromMNode(SOperatorInfo* pOperator, SSysTableSca
     int64_t startTs = taosGetTimestampUs();
     tstrncpy(pInfo->req.tb, tNameGetTableName(&pInfo->name), tListLen(pInfo->req.tb));
     tstrncpy(pInfo->req.user, pInfo->pUser, tListLen(pInfo->req.user));
+    pInfo->req.txnId = pInfo->readHandle.txnId;
 
     int32_t contLen = tSerializeSRetrieveTableReq(NULL, 0, &pInfo->req);
     char*   buf1 = taosMemoryCalloc(1, contLen);

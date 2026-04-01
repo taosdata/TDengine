@@ -1029,6 +1029,7 @@ typedef struct {
   bool           sysDbRsp;
   char           db[TSDB_DB_FNAME_LEN];
   char           filterTb[TSDB_TABLE_NAME_LEN];
+  int64_t        txnId;  // batch meta txn: same-txn visibility
 } SShowObj;
 
 typedef struct {

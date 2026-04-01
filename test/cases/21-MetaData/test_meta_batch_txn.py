@@ -1490,6 +1490,277 @@ class TestBatchMetaTxn:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 10)
 
+    # =========================================================================
+    # 54. STB same-txn CREATE→DROP chain + COMMIT
+    # =========================================================================
+    def s54_stb_create_drop_recreate_commit(self):
+        self.s0_reset_env()
+        tdLog.info("======== s54_stb_create_drop_recreate_commit")
+
+        tdSql.execute("BEGIN")
+        tdSql.execute("create table stb1 (ts timestamp, c0 int) tags(t0 int)")
+        # DROP in same txn: MNode adds DROP shadow op, VNode keeps PRE_CREATE
+        tdSql.execute("drop table stb1")
+        tdSql.execute("COMMIT")
+
+        # On COMMIT: CREATE promoted, then DROP executed → net: STB gone
+        tdSql.query("show txn_db.stables")
+        tdSql.checkRows(0)
+
+    # =========================================================================
+    # 55. STB same-txn CREATE→DROP chain + ROLLBACK
+    # =========================================================================
+    def s55_stb_create_drop_recreate_rollback(self):
+        self.s0_reset_env()
+        tdLog.info("======== s55_stb_create_drop_recreate_rollback")
+
+        tdSql.execute("BEGIN")
+        tdSql.execute("create table stb1 (ts timestamp, c0 int) tags(t0 int)")
+        tdSql.execute("drop table stb1")
+        tdSql.execute("ROLLBACK")
+
+        # On ROLLBACK: CREATE undone (dropped from SDB + VNode), DROP discarded
+        tdSql.query("show txn_db.stables")
+        tdSql.checkRows(0)
+
+    # =========================================================================
+    # 56. STB same-txn CREATE→ALTER chain + COMMIT
+    # =========================================================================
+    def s56_stb_create_alter_drop_commit(self):
+        self.s0_reset_env()
+        tdLog.info("======== s56_stb_create_alter_drop_commit")
+
+        tdSql.execute("BEGIN")
+        tdSql.execute("create table stb1 (ts timestamp, c0 int) tags(t0 int)")
+        tdSql.execute("alter table stb1 add column c1 float")
+        tdSql.execute("COMMIT")
+
+        # STB should exist with both columns
+        tdSql.query("show txn_db.stables")
+        tdSql.checkRows(1)
+        tdSql.query("describe stb1")
+        col_names = [tdSql.queryResult[i][0] for i in range(tdSql.queryRows)]
+        assert 'c1' in col_names, "Column c1 should exist after CREATE+ALTER+COMMIT"
+
+        # Verify child tables work with new schema
+        tdSql.execute("create table ct1 using stb1 tags(1)")
+        tdSql.execute("insert into ct1 values(now, 1, 2.0)")
+        tdSql.query("select c1 from ct1")
+        tdSql.checkRows(1)
+
+    # =========================================================================
+    # 57. STB same-txn CREATE→ALTER chain + ROLLBACK
+    # =========================================================================
+    def s57_stb_create_alter_drop_rollback(self):
+        self.s0_reset_env()
+        tdLog.info("======== s57_stb_create_alter_drop_rollback")
+
+        tdSql.execute("BEGIN")
+        tdSql.execute("create table stb1 (ts timestamp, c0 int) tags(t0 int)")
+        tdSql.execute("alter table stb1 add column c1 float")
+        tdSql.execute("ROLLBACK")
+
+        # ROLLBACK undoes ALTER then undoes CREATE → STB gone
+        tdSql.query("show txn_db.stables")
+        tdSql.checkRows(0)
+
+    # =========================================================================
+    # 58. Pre-existing STB: ALTER→DROP chain + COMMIT
+    # =========================================================================
+    def s58_stb_existing_alter_drop_commit(self):
+        self.s0_reset_env()
+        tdLog.info("======== s58_stb_existing_alter_drop_commit")
+
+        tdSql.execute("create table stb1 (ts timestamp, c0 int) tags(t0 int)")
+        tdSql.execute("create table ct1 using stb1 tags(1)")
+        tdSql.execute("insert into ct1 values(now, 100)")
+
+        tdSql.execute("BEGIN")
+        tdSql.execute("alter table stb1 add column c2 float")
+        # DROP pre-existing table: ALTER is rolled back, then PRE_DROP on original
+        tdSql.execute("drop table stb1")
+        tdSql.execute("COMMIT")
+
+        # stb1 and children should be gone
+        tdSql.query("show txn_db.stables")
+        tdSql.checkRows(0)
+        tdSql.query("show tables")
+        tdSql.checkRows(0)
+
+    # =========================================================================
+    # 59. Pre-existing STB: ALTER→DROP chain + ROLLBACK
+    # =========================================================================
+    def s59_stb_existing_alter_drop_rollback(self):
+        self.s0_reset_env()
+        tdLog.info("======== s59_stb_existing_alter_drop_rollback")
+
+        tdSql.execute("create table stb1 (ts timestamp, c0 int) tags(t0 int)")
+        tdSql.execute("create table ct1 using stb1 tags(1)")
+        tdSql.execute("insert into ct1 values(now, 100)")
+
+        # Step 1: Simple ALTER→ROLLBACK
+        tdSql.execute("BEGIN")
+        tdSql.execute("alter table stb1 add column c2 float")
+        tdSql.execute("ROLLBACK")
+
+        tdLog.info("  Step 1: ALTER STB→ROLLBACK, verify schema...")
+        tdSql.query("describe stb1")
+        col_names = [tdSql.queryResult[i][0] for i in range(tdSql.queryRows)]
+        assert 'c2' not in col_names, "Column c2 should NOT exist after ROLLBACK"
+
+        # Step 2: ALTER→DROP→ROLLBACK
+        tdSql.execute("BEGIN")
+        tdSql.execute("alter table stb1 add column c2 float")
+        tdSql.execute("drop table stb1")
+        tdSql.execute("ROLLBACK")
+
+        tdLog.info("  Step 2: ALTER→DROP STB→ROLLBACK, verify restore...")
+        tdSql.query("show txn_db.stables")
+        tdSql.checkRows(1)
+        tdSql.query("describe stb1")
+        col_names = [tdSql.queryResult[i][0] for i in range(tdSql.queryRows)]
+        assert 'c0' in col_names, "Column c0 should exist after ROLLBACK"
+        assert 'c2' not in col_names, "Column c2 should NOT exist after ROLLBACK"
+        tdSql.query("select c0 from ct1")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 100)
+
+    # =========================================================================
+    # 60. STB conflict detection: non-txn DDL blocked by txn PRE_CREATE
+    # =========================================================================
+    def s60_stb_conflict_pre_create(self):
+        self.s0_reset_env()
+        tdLog.info("======== s60_stb_conflict_pre_create")
+
+        # Session A: BEGIN + CREATE STB
+        tdSql.execute("BEGIN")
+        tdSql.execute("create table stb_c (ts timestamp, c0 int) tags(t0 int)")
+
+        # Session B: try same name → should fail (conflict with PRE_CREATE)
+        tdSql2 = tdCom.newTdSql()
+        tdSql2.execute("use txn_db")
+        tdSql2.error("create table stb_c (ts timestamp, c0 int) tags(t0 int)")
+
+        # Session B: different STB name → OK
+        tdSql2.execute("create table stb_other (ts timestamp, c0 int) tags(t0 int)")
+
+        # Cleanup
+        tdSql.execute("ROLLBACK")
+
+        # After rollback: stb_c gone, stb_other remains
+        tdSql.query("show txn_db.stables")
+        tdSql.checkRows(1)
+        tdSql2.close()
+
+    # =========================================================================
+    # 61. STB conflict detection: non-txn DDL blocked by txn PRE_DROP
+    # =========================================================================
+    def s61_stb_conflict_pre_drop(self):
+        self.s0_reset_env()
+        tdLog.info("======== s61_stb_conflict_pre_drop")
+
+        tdSql.execute("create table stb_d (ts timestamp, c0 int) tags(t0 int)")
+        tdSql.execute("create table ct1 using stb_d tags(1)")
+
+        # Session A: BEGIN + DROP STB (marks PRE_DROP)
+        tdSql.execute("BEGIN")
+        tdSql.execute("drop table stb_d")
+
+        # Session B: try to DROP same STB → should fail
+        tdSql2 = tdCom.newTdSql()
+        tdSql2.execute("use txn_db")
+        tdSql2.error("drop table stb_d")
+
+        # Session B: try to ALTER same STB → should fail
+        tdSql2.error("alter table stb_d add column c1 float")
+
+        # Session A: ROLLBACK → STB restored
+        tdSql.execute("ROLLBACK")
+        tdSql.query("show txn_db.stables")
+        tdSql.checkRows(1)
+        tdSql2.close()
+
+    # =========================================================================
+    # 62. STB conflict detection: non-txn DDL blocked by txn PRE_ALTER
+    # =========================================================================
+    def s62_stb_conflict_pre_alter(self):
+        self.s0_reset_env()
+        tdLog.info("======== s62_stb_conflict_pre_alter")
+
+        tdSql.execute("create table stb_a (ts timestamp, c0 int) tags(t0 int)")
+
+        # Session A: BEGIN + ALTER STB (marks PRE_ALTER)
+        tdSql.execute("BEGIN")
+        tdSql.execute("alter table stb_a add column c1 float")
+
+        # Session B: try to ALTER same STB → should fail
+        tdSql2 = tdCom.newTdSql()
+        tdSql2.execute("use txn_db")
+        tdSql2.error("alter table stb_a add column c2 bigint")
+
+        # Session B: try to DROP same STB → should fail
+        tdSql2.error("drop table stb_a")
+
+        # Session A: COMMIT → ALTER takes effect
+        tdSql.execute("COMMIT")
+
+        # Verify ALTER persisted
+        tdSql.query("describe stb_a")
+        col_names = [tdSql.queryResult[i][0] for i in range(tdSql.queryRows)]
+        assert 'c1' in col_names, "Column c1 should exist after COMMIT"
+        tdSql2.close()
+
+    # =========================================================================
+    # 63. STB + child tables mixed chain: CREATE STB→CREATE CTB→DROP STB + COMMIT
+    # =========================================================================
+    def s63_stb_ctb_mixed_chain_commit(self):
+        self.s0_reset_env()
+        tdLog.info("======== s63_stb_ctb_mixed_chain_commit")
+
+        tdSql.execute("BEGIN")
+        tdSql.execute("create table stb1 (ts timestamp, c0 int) tags(t0 int)")
+        tdSql.execute("create table ct1 using stb1 tags(1)")
+        tdSql.execute("create table ct2 using stb1 tags(2)")
+
+        # Within txn: STB and children should be visible to same session
+        tdSql.query("show txn_db.stables")
+        tdSql.checkRows(1)
+        tdSql.query("show tables")
+        tdSql.checkRows(2)
+
+        tdSql.execute("COMMIT")
+
+        # After commit: STB and children should be visible
+        tdSql.query("show txn_db.stables")
+        tdSql.checkRows(1)
+        tdSql.query("show tables")
+        tdSql.checkRows(2)
+
+        # Insert and verify
+        tdSql.execute("insert into ct1 values(now, 1)")
+        tdSql.execute("insert into ct2 values(now, 2)")
+        tdSql.query("select count(*) from stb1")
+        tdSql.checkData(0, 0, 2)
+
+    # =========================================================================
+    # 64. STB + child tables mixed chain + ROLLBACK
+    # =========================================================================
+    def s64_stb_ctb_mixed_chain_rollback(self):
+        self.s0_reset_env()
+        tdLog.info("======== s64_stb_ctb_mixed_chain_rollback")
+
+        tdSql.execute("BEGIN")
+        tdSql.execute("create table stb1 (ts timestamp, c0 int) tags(t0 int)")
+        tdSql.execute("create table ct1 using stb1 tags(1)")
+        tdSql.execute("create table ct2 using stb1 tags(2)")
+        tdSql.execute("ROLLBACK")
+
+        # After rollback: nothing should exist
+        tdSql.query("show txn_db.stables")
+        tdSql.checkRows(0)
+        tdSql.query("show tables")
+        tdSql.checkRows(0)
+
     def test_meta_batch_txn(self):
         """Batch meta txn: full lifecycle
 
@@ -1546,6 +1817,17 @@ class TestBatchMetaTxn:
         51. Timeout auto-rollback on client disconnect
         52. Compaction protection: META_ONLY compact during txn → COMMIT
         53. Compaction protection: META_ONLY compact during txn → ROLLBACK
+        54. STB same-txn CREATE→DROP chain + COMMIT
+        55. STB same-txn CREATE→DROP chain + ROLLBACK
+        56. STB same-txn CREATE→ALTER chain + COMMIT
+        57. STB same-txn CREATE→ALTER chain + ROLLBACK
+        58. Pre-existing STB ALTER→DROP chain + COMMIT
+        59. Pre-existing STB ALTER→DROP chain + ROLLBACK
+        60. STB conflict: non-txn CREATE blocked by PRE_CREATE
+        61. STB conflict: non-txn DROP/ALTER blocked by PRE_DROP
+        62. STB conflict: non-txn ALTER/DROP blocked by PRE_ALTER
+        63. STB + child tables mixed chain + COMMIT
+        64. STB + child tables mixed chain + ROLLBACK
 
 
         Since: v3.3.6.0
@@ -1561,6 +1843,7 @@ class TestBatchMetaTxn:
             - 2026-03-31 Added DDL chain tests (CREATE→DROP→re-CREATE, CREATE→ALTER→DROP), same-txn data ops
             - 2026-03-31 Added cross-VNode mixed DDL, conflict detection, timeout auto-rollback tests
             - 2026-03-31 Added compaction protection (META_ONLY) tests
+            - 2026-04-01 Added STB chain tests, STB conflict detection, STB+CTB mixed chain tests
 
         """
         self.s1_begin_commit_create_tables()
@@ -1616,3 +1899,14 @@ class TestBatchMetaTxn:
         self.s51_timeout_auto_rollback()
         self.s52_compaction_protection_commit()
         self.s53_compaction_protection_rollback()
+        self.s54_stb_create_drop_recreate_commit()
+        self.s55_stb_create_drop_recreate_rollback()
+        self.s56_stb_create_alter_drop_commit()
+        self.s57_stb_create_alter_drop_rollback()
+        self.s58_stb_existing_alter_drop_commit()
+        self.s59_stb_existing_alter_drop_rollback()
+        self.s60_stb_conflict_pre_create()
+        self.s61_stb_conflict_pre_drop()
+        self.s62_stb_conflict_pre_alter()
+        self.s63_stb_ctb_mixed_chain_commit()
+        self.s64_stb_ctb_mixed_chain_rollback()

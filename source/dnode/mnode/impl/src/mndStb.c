@@ -3070,6 +3070,15 @@ static int32_t mndProcessAlterStbReq(SRpcMsg *pReq) {
   TAOS_CHECK_GOTO(mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_CM_ALTER, PRIV_OBJ_TBL, pDb->name, name.tname),
                   NULL, _OVER);
 
+  // Batch meta txn: conflict detection — block if another txn owns this STB
+  if (pStb->txnId != 0 && pStb->txnId != (utxn_id_t)alterReq.txnId) {
+    code = TSDB_CODE_TXN_RESOURCE_BUSY;
+    goto _OVER;
+  }
+  if ((code = mndTxnCheckStbConflict(pMnode, alterReq.name, (utxn_id_t)alterReq.txnId)) != 0) {
+    goto _OVER;
+  }
+
   // Batch meta txn: defer STB DDL to shadow (redo-log), do NOT apply to SDB now.
   if (alterReq.txnId != 0) {
     void *pShadowData = taosMemoryMalloc(pReq->contLen);
@@ -3254,27 +3263,30 @@ static int32_t mndProcessTrimDbWalRsp(SRpcMsg *pRsp) { return 0; }
 static int32_t mndProcessS3MigrateDbRsp(SRpcMsg *pRsp) { return 0; }
 
 /**
- * Append DROP STB actions to an existing Trans (used for txn ROLLBACK undo of immediate-created STBs).
- * Adds SDB commit logs + VNode DROP STB redo actions to pTrans, without creating a new Trans.
+ * Append DROP STB actions to an existing Trans (used for txn commit/rollback).
+ * Adds SDB prepare+commit logs + VNode DROP STB redo actions to pTrans, without creating a new Trans.
  */
 int32_t mndAppendDropStbToTrans(SMnode *pMnode, STrans *pTrans, const char *stbName) {
   int32_t  code = 0;
   SStbObj *pStb = mndAcquireStb(pMnode, (char *)stbName);
   if (pStb == NULL) {
-    mWarn("stb:%s, not found in SDB, skip drop in rollback undo", stbName);
+    mWarn("stb:%s, not found in SDB, skip drop", stbName);
     return TSDB_CODE_SUCCESS;  // idempotent
   }
 
   SDbObj *pDb = mndAcquireDbByStb(pMnode, stbName);
   if (pDb == NULL) {
     mndReleaseStb(pMnode, pStb);
-    mWarn("stb:%s, db not found, skip drop in rollback undo", stbName);
+    mWarn("stb:%s, db not found, skip drop", stbName);
     return TSDB_CODE_SUCCESS;  // idempotent
   }
 
-  mInfo("stb:%s, appending drop actions to rollback trans:%d", stbName, pTrans->id);
+  mInfo("stb:%s, appending drop actions to trans:%d", stbName, pTrans->id);
 
-  code = mndSetDropStbCommitLogs(pMnode, pTrans, pStb);
+  code = mndSetDropStbPrepareLogs(pMnode, pTrans, pStb);
+  if (code == 0) {
+    code = mndSetDropStbCommitLogs(pMnode, pTrans, pStb);
+  }
   if (code == 0) {
     code = mndSetDropStbRedoActions(pMnode, pTrans, pDb, pStb);
   }
@@ -3284,6 +3296,124 @@ int32_t mndAppendDropStbToTrans(SMnode *pMnode, STrans *pTrans, const char *stbN
 
   mndReleaseDb(pMnode, pDb);
   mndReleaseStb(pMnode, pStb);
+  return code;
+}
+
+/**
+ * Append ALTER STB actions to an existing Trans (used for txn commit).
+ * Deserializes the SMAlterStbReq, builds modified SStbObj, adds SDB logs + VNode actions.
+ */
+int32_t mndAppendAlterStbToTrans(SMnode *pMnode, STrans *pTrans, void *pReqData, int32_t reqDataLen) {
+  int32_t       code = 0;
+  SMAlterStbReq alterReq = {0};
+  SStbObj      *pOld = NULL;
+  SDbObj       *pDb = NULL;
+  SStbObj       stbObj = {0};
+  void         *pAlterCont = NULL;
+  bool          stbBuilt = false;
+
+  if (tDeserializeSMAlterStbReq(pReqData, reqDataLen, &alterReq) != 0) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  alterReq.txnId = 0;
+
+  pOld = mndAcquireStb(pMnode, alterReq.name);
+  if (pOld == NULL) {
+    code = TSDB_CODE_MND_STB_NOT_EXIST;
+    goto _OVER;
+  }
+  pDb = mndAcquireDbByStb(pMnode, alterReq.name);
+  if (pDb == NULL) {
+    code = TSDB_CODE_MND_DB_NOT_EXIST;
+    goto _OVER;
+  }
+
+  mInfo("stb:%s, appending alter actions to trans:%d", alterReq.name, pTrans->id);
+
+  // Build modified SStbObj (same logic as mndAlterStb)
+  taosRLockLatch(&pOld->lock);
+  memcpy(&stbObj, pOld, sizeof(SStbObj));
+  taosRUnLockLatch(&pOld->lock);
+  stbObj.pColumns = NULL;
+  stbObj.pTags = NULL;
+  stbObj.pFuncs = NULL;
+  stbObj.pCmpr = NULL;
+  stbObj.pExtSchemas = NULL;
+  stbObj.updateTime = taosGetTimestampMs();
+  stbObj.lock = 0;
+  stbObj.txnId = 0;  // COMMIT promotes STB: clear txnId so it becomes visible
+  stbBuilt = true;
+
+  SField *pField0 = NULL;
+  switch (alterReq.alterType) {
+    case TSDB_ALTER_TABLE_ADD_TAG:
+      code = mndAddSuperTableTag(pOld, &stbObj, alterReq.pFields, alterReq.numOfFields);
+      break;
+    case TSDB_ALTER_TABLE_DROP_TAG:
+      pField0 = taosArrayGet(alterReq.pFields, 0);
+      code = mndDropSuperTableTag(pMnode, pOld, &stbObj, pField0->name);
+      break;
+    case TSDB_ALTER_TABLE_UPDATE_TAG_NAME:
+      code = mndAlterStbTagName(pMnode, pOld, &stbObj, alterReq.pFields);
+      break;
+    case TSDB_ALTER_TABLE_UPDATE_TAG_BYTES:
+      pField0 = taosArrayGet(alterReq.pFields, 0);
+      code = mndAlterStbTagBytes(pMnode, pOld, &stbObj, pField0);
+      break;
+    case TSDB_ALTER_TABLE_ADD_COLUMN:
+      code = mndAddSuperTableColumn(pOld, &stbObj, &alterReq, alterReq.numOfFields, 0);
+      break;
+    case TSDB_ALTER_TABLE_DROP_COLUMN:
+      pField0 = taosArrayGet(alterReq.pFields, 0);
+      code = mndDropSuperTableColumn(pMnode, pOld, &stbObj, pField0->name);
+      break;
+    case TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES:
+      pField0 = taosArrayGet(alterReq.pFields, 0);
+      code = mndAlterStbColumnBytes(pMnode, pOld, &stbObj, pField0);
+      break;
+    case TSDB_ALTER_TABLE_UPDATE_OPTIONS:
+      code = mndUpdateTableOptions(pOld, &stbObj, alterReq.comment, alterReq.commentLen, alterReq.ttl, alterReq.keep,
+                                   alterReq.secureDelete);
+      break;
+    case TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS:
+      code = mndUpdateSuperTableColumnCompress(pMnode, pOld, &stbObj, alterReq.pFields, alterReq.numOfFields);
+      break;
+    case TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COMPRESS_OPTION:
+      code = mndAddSuperTableColumn(pOld, &stbObj, &alterReq, alterReq.numOfFields, 1);
+      break;
+    default:
+      code = TSDB_CODE_OPS_NOT_SUPPORT;
+      break;
+  }
+  if (code != 0) goto _OVER;
+
+  // Re-serialize altered request for VNode redo actions
+  int32_t newLen = tSerializeSMAlterStbReq(NULL, 0, &alterReq);
+  pAlterCont = taosMemoryMalloc(newLen);
+  if (pAlterCont == NULL) {
+    code = terrno;
+    goto _OVER;
+  }
+  tSerializeSMAlterStbReq(pAlterCont, newLen, &alterReq);
+
+  // Add SDB logs and VNode actions to pTrans
+  code = mndSetAlterStbPrepareLogs(pMnode, pTrans, pDb, &stbObj);
+  if (code == 0) code = mndSetAlterStbCommitLogs(pMnode, pTrans, pDb, &stbObj);
+  if (code == 0) code = mndSetAlterStbRedoActions(pMnode, pTrans, pDb, &stbObj, pAlterCont, newLen);
+  if (code == 0) pAlterCont = NULL;  // ownership transferred to pTrans
+
+_OVER:
+  taosMemoryFree(pAlterCont);
+  if (stbBuilt) {
+    taosMemoryFreeClear(stbObj.pTags);
+    taosMemoryFreeClear(stbObj.pColumns);
+    taosMemoryFreeClear(stbObj.pCmpr);
+    if (alterReq.commentLen > 0) taosMemoryFreeClear(stbObj.comment);
+    taosMemoryFreeClear(stbObj.pExtSchemas);
+  }
+  if (pDb) mndReleaseDb(pMnode, pDb);
+  if (pOld) mndReleaseStb(pMnode, pOld);
+  tFreeSMAltertbReq(&alterReq);
   return code;
 }
 
@@ -3343,6 +3473,15 @@ static int32_t mndProcessDropStbReq(SRpcMsg *pReq) {
 
   if (pDb->cfg.isMount) {
     code = TSDB_CODE_MND_MOUNT_OBJ_NOT_SUPPORT;
+    goto _OVER;
+  }
+
+  // Batch meta txn: conflict detection — block if another txn owns this STB
+  if (pStb->txnId != 0 && pStb->txnId != (utxn_id_t)dropReq.txnId) {
+    code = TSDB_CODE_TXN_RESOURCE_BUSY;
+    goto _OVER;
+  }
+  if ((code = mndTxnCheckStbConflict(pMnode, dropReq.name, (utxn_id_t)dropReq.txnId)) != 0) {
     goto _OVER;
   }
 
@@ -3717,7 +3856,8 @@ static int32_t mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
     }
 
     // batch-meta-txn: hide STBs created within an uncommitted transaction
-    if (pStb->txnId != 0) {
+    // but allow same-txn visibility
+    if (pStb->txnId != 0 && pStb->txnId != (utxn_id_t)pShow->txnId) {
       sdbRelease(pSdb, pStb);
       continue;
     }

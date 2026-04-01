@@ -104,6 +104,10 @@ int32_t mndTxnAddShadowOp(SMnode* pMnode, utxn_id_t txnId, int8_t opType, const 
 // Returns txnId > 0 if the connection is within a batch txn, 0 otherwise.
 utxn_id_t mndTxnGetActiveTxnId(SMnode* pMnode, SRpcMsg* pReq);
 
+// Check if any active txn (other than callerTxnId) has shadow ops on stbName.
+// Returns TSDB_CODE_TXN_RESOURCE_BUSY if conflict found, 0 otherwise.
+int32_t mndTxnCheckStbConflict(SMnode* pMnode, const char* stbName, utxn_id_t callerTxnId);
+
 #ifdef __cplusplus
 }
 #endif
