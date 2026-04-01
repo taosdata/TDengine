@@ -256,8 +256,13 @@ int32_t replaceChildTblName(char *inSql, char *outSql, int tblIndex) {
             "`%s`.%s", g_queryInfo.dbName,
             g_queryInfo.superQueryInfo.childTblName[tblIndex]);
 
-    TOOLS_STRNCPY(outSql, inSql, pos - inSql + 1);
-    (void)snprintf(outSql + (pos - inSql), TOOLS_MAX_ALLOWED_SQL_LEN - 1,
+    size_t offset = (size_t)(pos - inSql);
+    if (offset >= TOOLS_MAX_ALLOWED_SQL_LEN) {
+        errorPrint("sql too long, offset (%zu) exceeds TOOLS_MAX_ALLOWED_SQL_LEN", offset);
+        return -1;
+    }
+    TOOLS_STRNCPY(outSql, inSql, offset + 1);
+    (void)snprintf(outSql + offset, TOOLS_MAX_ALLOWED_SQL_LEN - offset,
              "%s%s", subTblName, pos + strlen(mark));
     return 0;
 }
