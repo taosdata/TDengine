@@ -58,6 +58,6 @@ target_link_libraries(
         PRIVATE os util nodes catalog function scalar geometry transport qcom decimal
 )
 
-if(${BUILD_TEST})
+if(BUILD_TEST)
         ADD_SUBDIRECTORY(test)
-endif(${BUILD_TEST})
+endif()

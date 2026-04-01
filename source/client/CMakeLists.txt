@@ -10,7 +10,7 @@ else()
     add_library(${TAOS_NATIVE_LIB} SHARED ${CLIENT_SRC})
 endif()
 
-if(${TD_DARWIN})
+if(TD_DARWIN)
     target_compile_options(${TAOS_NATIVE_LIB} PRIVATE -Wno-error=deprecated-non-prototype)
 endif()
 
@@ -38,7 +38,7 @@ target_link_libraries(
 
 add_library(${TAOS_NATIVE_LIB_STATIC} STATIC ${CLIENT_SRC})
 
-if(${TD_DARWIN})
+if(TD_DARWIN)
     target_compile_options(${TAOS_NATIVE_LIB_STATIC} PRIVATE -Wno-error=deprecated-non-prototype)
 endif()
 
@@ -53,8 +53,8 @@ target_link_libraries(
     PRIVATE os util common transport monitor nodes parser command planner catalog scheduler function qcom geometry decimal
 )
 
-if(${BUILD_TEST})
+if(BUILD_TEST)
     ADD_SUBDIRECTORY(test)
-endif(${BUILD_TEST})
+endif()
 
 ADD_SUBDIRECTORY(wrapper)

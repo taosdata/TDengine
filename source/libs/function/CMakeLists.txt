@@ -34,10 +34,10 @@ target_link_libraries(
 
 # SET(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/build/bin)
 
-if(${BUILD_WITH_UDF})
+if(BUILD_WITH_UDF)
 add_executable(taosudf src/udfd.c)
 
-if(${TD_DARWIN})
+if(TD_DARWIN)
     target_compile_options(taosudf PRIVATE -Wno-error=deprecated-non-prototype)
 endif()
 
@@ -64,8 +64,8 @@ if(UNIX AND NOT APPLE)
     )
 endif()
 
-if(${BUILD_TEST})
+if(BUILD_TEST)
     add_subdirectory(test)
 endif()
 
-endif(${BUILD_WITH_UDF})
+endif()

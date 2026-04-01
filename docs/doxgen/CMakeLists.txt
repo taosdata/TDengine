@@ -1,6 +1,6 @@
 # Generate API documentation
 ## https://vicrucann.github.io/tutorials/quick-cmake-doxygen/
-if(${BUILD_DOCS})
+if(BUILD_DOCS)
     find_package(Doxygen)
     if (DOXYGEN_FOUND)
         # Build the doc
@@ -20,4 +20,4 @@ if(${BUILD_DOCS})
     else(DOXYGEN_FOUND)
         message("Doxygen need to be installed to generate the doxygen documentation")
     endif(DOXYGEN_FOUND)
-endif(${BUILD_DOCS})
+endif()

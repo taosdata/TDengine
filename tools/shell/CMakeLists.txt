@@ -65,9 +65,9 @@ IF(TD_LINUX)
     target_link_libraries(shell_ut PRIVATE os common transport geometry util)
 
     # unit test
-    IF(${BUILD_TEST})
+    IF(BUILD_TEST)
         ADD_SUBDIRECTORY(test)
-    ENDIF(${BUILD_TEST})
+    ENDIF()
 ENDIF()
 
 #

@@ -1,7 +1,7 @@
 aux_source_directory(src SYNC_SRC)
 add_library(sync STATIC ${SYNC_SRC})
 
-if(${TD_DARWIN})
+if(TD_DARWIN)
     target_compile_options(sync PRIVATE -Wno-error=deprecated-non-prototype)
 endif()
 

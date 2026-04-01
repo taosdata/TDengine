@@ -138,7 +138,7 @@ add_test(
 )
 
 
-if(${TD_LINUX})
+if(TD_LINUX)
     add_executable(utilTests utilTests.cpp stringTest.cpp)
     DEP_ext_gtest(utilTests)
     target_link_libraries(utilTests PRIVATE os util common)

@@ -5,9 +5,9 @@ target_link_libraries(
 )
 
 IF(TD_ENTERPRISE)
-  IF(${BUILD_WITH_S3})
+  IF(BUILD_WITH_S3)
     add_definitions(-DUSE_S3)
-  ELSEIF(${BUILD_WITH_COS})
+  ELSEIF(BUILD_WITH_COS)
     add_definitions(-DUSE_COS)
   ENDIF()
 ENDIF()

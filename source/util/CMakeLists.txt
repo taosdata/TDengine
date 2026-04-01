@@ -25,7 +25,7 @@ if(TD_LINUX)
   DEP_ext_lzma2(util)
 endif()
 DEP_ext_geos(util)
-if(${BUILD_PCRE2})          # {
+if(BUILD_PCRE2)          # {
   DEP_ext_pcre2(util)
   target_compile_definitions(util PRIVATE -DPCRE2_STATIC)
 endif()                     # }
@@ -34,12 +34,12 @@ if(DEFINED GRANT_CFG_INCLUDE_DIR)
     add_definitions(-DGRANTS_CFG)
 endif()
 
-if(${BUILD_ASSERT_NOT_CORE})
+if(BUILD_ASSERT_NOT_CORE)
     ADD_DEFINITIONS(-DASSERT_NOT_CORE)
     MESSAGE(STATUS "disable assert core")
 else()
     MESSAGE(STATUS "enable assert core")
-endif(${BUILD_ASSERT_NOT_CORE})
+endif()
 
 target_include_directories(
     util
@@ -56,6 +56,6 @@ target_link_libraries(
     PUBLIC TSZ
 )
 
-if(${BUILD_TEST})
+if(BUILD_TEST)
     ADD_SUBDIRECTORY(test)
-endif(${BUILD_TEST})
+endif()

@@ -1,13 +1,13 @@
 # vnode
 add_subdirectory(src/tqCommon)
 add_library(vnode STATIC "")
-if (${BUILD_CONTRIB} OR NOT ${TD_LINUX})
+if (BUILD_CONTRIB OR NOT TD_LINUX)
   DEP_ext_rocksdb(vnode)
 endif()
 
-if(${TD_DARWIN})
+if(TD_DARWIN)
     target_compile_options(vnode PRIVATE -Wno-error=single-bit-bitfield-constant-conversion)
-endif(${TD_DARWIN})
+endif()
 
 set(
     VNODE_SOURCE_FILES
@@ -104,7 +104,7 @@ if(TD_VNODE_PLUGINS)
     )
 endif()
 
-if(${BUILD_CONTRIB})
+if(BUILD_CONTRIB)
     target_include_directories(
         vnode
         PUBLIC "inc"
@@ -125,7 +125,7 @@ else()
         PUBLIC "${TD_SOURCE_DIR}/include/dnode/vnode"
     )
 
-    if(${TD_LINUX})
+    if(TD_LINUX)
         target_include_directories(
             vnode
             PUBLIC "${TD_SOURCE_DIR}/deps/${TD_DEPS_DIR}/rocksdb_static"
@@ -173,14 +173,14 @@ endif()
 
 target_compile_definitions(vnode PUBLIC -DMETA_REFACT)
 
-if(${BUILD_WITH_INVERTEDINDEX})
+if(BUILD_WITH_INVERTEDINDEX)
     add_definitions(-DUSE_INVERTED_INDEX)
-endif(${BUILD_WITH_INVERTEDINDEX})
+endif()
 
-if(${BUILD_WITH_ROCKSDB})
+if(BUILD_WITH_ROCKSDB)
     add_definitions(-DUSE_ROCKSDB)
-endif(${BUILD_WITH_ROCKSDB})
+endif()
 
-if(${BUILD_TEST})
+if(BUILD_TEST)
     add_subdirectory(test)
-endif(${BUILD_TEST})
+endif()

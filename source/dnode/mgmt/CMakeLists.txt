@@ -21,9 +21,9 @@ target_include_directories(
 target_link_libraries(taosd PUBLIC dnode crypt)
 
 if(TD_ENTERPRISE)
-  if(${BUILD_WITH_S3})
+  if(BUILD_WITH_S3)
     add_definitions(-DUSE_S3)
-  elseif(${BUILD_WITH_COS})
+  elseif(BUILD_WITH_COS)
     add_definitions(-DUSE_COS)
   endif()
 endif()
