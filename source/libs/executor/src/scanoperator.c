@@ -75,6 +75,8 @@ typedef struct STableCountScanOperatorInfo {
 
 static bool    processBlockWithProbability(const SSampleExecInfo* pInfo);
 static int32_t doTableCountScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes);
+static int32_t setTagValFromTagList(SOperatorInfo* pOperator, SSDataBlock* pRes);
+static void    clearCachedTagList(STableScanInfo* pInfo);
 
 bool processBlockWithProbability(const SSampleExecInfo* pInfo) {
 #if 0
@@ -713,9 +715,12 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
       bool isNullVal = (data == NULL) || (pColInfoData->info.type == TSDB_DATA_TYPE_JSON && tTagIsJsonNull(data));
       if (isNullVal) {
         colDataSetNNULL(pColInfoData, 0, pBlock->info.rows);
-      } else if (pColInfoData->info.type != TSDB_DATA_TYPE_JSON) {
-        code = colDataSetNItems(pColInfoData, 0, data, pBlock->info.rows, 1, false);
-        if (IS_VAR_DATA_TYPE(((const STagVal*)p)->type)) {
+      } else {
+        for (int32_t i = 0; i < pBlock->info.rows; ++i) {
+          code = colDataSetVal(pColInfoData, i, data, false);
+          QUERY_CHECK_CODE(code, lino, _end);
+        }
+        if (pColInfoData->info.type != TSDB_DATA_TYPE_JSON && IS_VAR_DATA_TYPE(((const STagVal*)p)->type)) {
           char* tmp = taosMemoryCalloc(1, varDataLen(data) + 1);
           if (tmp != NULL) {
             memcpy(tmp, varDataVal(data), varDataLen(data));
@@ -724,12 +729,6 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
             taosMemoryFree(tmp);
           }
           taosMemoryFree(data);
-        }
-        QUERY_CHECK_CODE(code, lino, _end);
-      } else {  // todo opt for json tag
-        for (int32_t i = 0; i < pBlock->info.rows; ++i) {
-          code = colDataSetVal(pColInfoData, i, data, false);
-          QUERY_CHECK_CODE(code, lino, _end);
         }
       }
     }
@@ -786,6 +785,9 @@ int32_t setTbNameColData(const SSDataBlock* pBlock, SColumnInfoData* pColInfoDat
   SScalarParam srcParam = {.numOfRows = pBlock->info.rows, .columnData = &infoData};
   SScalarParam param = {.columnData = pColInfoData};
 
+  code = colInfoDataEnsureCapacity(pColInfoData, pBlock->info.rows, false);
+  QUERY_CHECK_CODE(code, lino, _end);
+
   if (fpSet.process != NULL) {
     code = fpSet.process(&srcParam, 1, &param);
     QUERY_CHECK_CODE(code, lino, _end);
@@ -820,6 +822,9 @@ int32_t setVgIdColData(const SSDataBlock* pBlock, SColumnInfoData* pColInfoData,
   SScalarParam srcParam = {.numOfRows = pBlock->info.rows, .columnData = &infoData};
   SScalarParam param = {.columnData = pColInfoData};
 
+  code = colInfoDataEnsureCapacity(pColInfoData, pBlock->info.rows, false);
+  QUERY_CHECK_CODE(code, lino, _end);
+
   if (fpSet.process != NULL) {
     code = fpSet.process(&srcParam, 1, &param);
     QUERY_CHECK_CODE(code, lino, _end);
@@ -852,6 +857,9 @@ int32_t setVgVerColData(const SSDataBlock* pBlock, SColumnInfoData* pColInfoData
 
   SScalarParam srcParam = {.numOfRows = pBlock->info.rows, .columnData = &infoData};
   SScalarParam param = {.columnData = pColInfoData};
+
+  code = colInfoDataEnsureCapacity(pColInfoData, pBlock->info.rows, false);
+  QUERY_CHECK_CODE(code, lino, _end);
 
   if (fpSet.process != NULL) {
     code = fpSet.process(&srcParam, 1, &param);
@@ -1631,8 +1639,11 @@ static int32_t createVTableScanInfoFromParam(SOperatorInfo* pOperator) {
   SArray*                  pMatchList = NULL;
 
   cleanupQueryTableDataCond(&pInfo->base.cond);
+  clearCachedTagList(pInfo);
 
   pOrgTbInfo = pParam->pOrgTbInfo;
+  pInfo->cachedTagList = pParam->pTagList;
+  pParam->pTagList = NULL;
 
   QUERY_CHECK_NULL(pOrgTbInfo, code, lino, _return, terrno);
 
@@ -1690,6 +1701,52 @@ static int32_t createVTableScanInfoFromParam(SOperatorInfo* pOperator) {
 
   for (int32_t i = 0; i < taosArrayGetSize(pOrgTbInfo->colMap); ++i) {
     SColIdNameKV* kv = taosArrayGet(pOrgTbInfo->colMap, i);
+    // Resolve referenced tag values from source child-table metadata first.
+    if (orgTable.me.type == TSDB_CHILD_TABLE && superTable.me.stbEntry.schemaTag.pSchema &&
+        orgTable.me.ctbEntry.pTags) {
+      SSchemaWrapper* pTagSchema = &superTable.me.stbEntry.schemaTag;
+      bool            isTagRef = false;
+      for (int32_t j = 0; j < pTagSchema->nCols; ++j) {
+        if (strcmp(kv->colName, pTagSchema->pSchema[j].name) == 0) {
+          isTagRef = true;
+          if (pInfo->cachedTagList == NULL) {
+            pInfo->cachedTagList = taosArrayInit(1, sizeof(STagVal));
+            QUERY_CHECK_NULL(pInfo->cachedTagList, code, lino, _return, terrno);
+          }
+
+          STagVal src = {.cid = pTagSchema->pSchema[j].colId};
+          STagVal dst = {.type = pTagSchema->pSchema[j].type, .cid = kv->colId};
+          const char* p = pAPI->metaFn.extractTagVal(orgTable.me.ctbEntry.pTags, dst.type, &src);
+          if (p != NULL) {
+            const STagVal* pExtracted = (const STagVal*)p;
+            if (IS_VAR_DATA_TYPE(dst.type)) {
+              dst.nData = pExtracted->nData;
+              dst.pData = taosMemoryMalloc(dst.nData);
+              QUERY_CHECK_NULL(dst.pData, code, lino, _return, terrno);
+              memcpy(dst.pData, pExtracted->pData, dst.nData);
+            } else {
+              dst.i64 = pExtracted->i64;
+            }
+          } else {
+            // Use nData=-1 as a fixed-type null marker.
+            dst.nData = -1;
+          }
+
+          if (NULL == taosArrayPush(pInfo->cachedTagList, &dst)) {
+            if (IS_VAR_DATA_TYPE(dst.type) && dst.pData) {
+              taosMemoryFreeClear(dst.pData);
+            }
+            code = terrno;
+            goto _return;
+          }
+          break;
+        }
+      }
+      if (isTagRef) {
+        continue;
+      }
+    }
+
     for (int32_t j = 0; j < schema->nCols; j++) {
       if (strcmp(kv->colName, schema->pSchema[j].name) == 0) {
         SColIdPair pPair = {.vtbColId = kv->colId,
@@ -2081,6 +2138,10 @@ static int32_t doVstbSingleDynamicTableScanNext(SOperatorInfo* pOperator, SSData
 
     code = blockSetVstbSlotId(result, pInfo->pBlockColMap);
     QUERY_CHECK_CODE(code, lino, _end);
+    if (pInfo->cachedTagList) {
+      code = setTagValFromTagList(pOperator, result);
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
     //code = createOneDataBlockWithTwoBlock(result, pInfo->pOrgBlock, pInfo->pBlockColMap, &res);
     //QUERY_CHECK_CODE(code, lino, _end);
 
@@ -2119,18 +2180,30 @@ static int32_t setTagValFromTagList(SOperatorInfo* pOperator, SSDataBlock* pRes)
   int32_t                  code = TSDB_CODE_SUCCESS;
   int32_t                  lino = 0;
   STableScanInfo*          pInfo = pOperator->info;
-  int32_t                  index = 0;
   char*                    tagVal = NULL;
 
-  for (int32_t i = taosArrayGetSize(pRes->pDataBlock) - taosArrayGetSize(pInfo->cachedTagList); i < taosArrayGetSize(pRes->pDataBlock); i++) {
-    SColumnInfoData* pTagCol = taosArrayGet(pRes->pDataBlock, i);
-    STagVal*         pTagVal = taosArrayGet(pInfo->cachedTagList, index);
+  for (int32_t i = 0; i < taosArrayGetSize(pInfo->cachedTagList); ++i) {
+    SColumnInfoData* pTagCol = NULL;
+    STagVal*         pTagVal = taosArrayGet(pInfo->cachedTagList, i);
 
     QUERY_CHECK_NULL(pTagVal, code, lino, _end, terrno);
-    QUERY_CHECK_NULL(pTagCol, code, lino, _end, terrno);
+    for (int32_t j = 0; j < taosArrayGetSize(pRes->pDataBlock); ++j) {
+      SColumnInfoData* pCol = taosArrayGet(pRes->pDataBlock, j);
+      if (pCol && pCol->info.colId == pTagVal->cid) {
+        pTagCol = pCol;
+        break;
+      }
+    }
+    if (pTagCol == NULL) {
+      continue;
+    }
 
-    for(int32_t j = 0; j < pRes->info.rows; j++) {
+    for (int32_t j = 0; j < pRes->info.rows; j++) {
       if (IS_VAR_DATA_TYPE(pTagVal->type)) {
+        if (pTagVal->pData == NULL) {
+          colDataSetNULL(pTagCol, j);
+          continue;
+        }
         tagVal = taosMemoryMalloc(pTagVal->nData + VARSTR_HEADER_SIZE + 1);
         QUERY_CHECK_NULL(tagVal, code, lino, _end, terrno);
 
@@ -2140,17 +2213,33 @@ static int32_t setTagValFromTagList(SOperatorInfo* pOperator, SSDataBlock* pRes)
         QUERY_CHECK_CODE(code, lino, _end);
         taosMemoryFreeClear(tagVal);
       } else {
+        if (pTagVal->nData == -1) {
+          colDataSetNULL(pTagCol, j);
+          continue;
+        }
         code = colDataSetVal(pTagCol, j, (const char*)&pTagVal->i64, false);
         QUERY_CHECK_CODE(code, lino, _end);
       }
     }
-    index++;
   }
   return code;
 _end:
   qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   taosMemoryFreeClear(tagVal);
   return code;
+}
+
+static void clearCachedTagList(STableScanInfo* pInfo) {
+  if (pInfo->cachedTagList) {
+    for (int32_t i = 0; i < taosArrayGetSize(pInfo->cachedTagList); i++) {
+      STagVal* pTagVal = (STagVal*)taosArrayGet(pInfo->cachedTagList, i);
+      if (IS_VAR_DATA_TYPE(pTagVal->type)) {
+        taosMemoryFreeClear(pTagVal->pData);
+      }
+    }
+    taosArrayDestroy(pInfo->cachedTagList);
+    pInfo->cachedTagList = NULL;
+  }
 }
 
 static void clearVstbBatchDynamicTableScanInfo(STableScanInfo* pInfo) {
@@ -2162,16 +2251,7 @@ static void clearVstbBatchDynamicTableScanInfo(STableScanInfo* pInfo) {
     taosArrayDestroy(pInfo->pBatchColMap);
     pInfo->pBatchColMap = NULL;
   }
-  if (pInfo->cachedTagList) {
-    for (int32_t i = 0; i < taosArrayGetSize(pInfo->cachedTagList); i++) {
-      STagVal* pTagVal = (STagVal*)taosArrayGet(pInfo->cachedTagList, i);
-      if (IS_VAR_DATA_TYPE(pTagVal->type)) {
-        taosMemoryFreeClear(pTagVal->pData);
-      }
-    }
-    taosArrayDestroy(pInfo->cachedTagList);
-    pInfo->cachedTagList = NULL;
-  }
+  clearCachedTagList(pInfo);
   if (pInfo->lastColArray) {
     taosArrayDestroy(pInfo->lastColArray);
     pInfo->lastColArray = NULL;

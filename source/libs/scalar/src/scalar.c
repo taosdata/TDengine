@@ -1016,6 +1016,7 @@ int32_t sclInitParamList(SScalarParam **pParams, SNodeList *pParamList, SScalarC
     }
   } else {
     paramList[0].numOfRows = *rowNum;
+    paramList[0].param = ctx->param;
   }
 
   if (0 == *rowNum) {
@@ -1289,6 +1290,12 @@ int32_t sclExecFunction(SFunctionNode *node, SScalarCtx *ctx, SScalarParam *outp
     code = sclCreateColumnInfoData(&node->node.resType, rowNum, output);
     if (code != TSDB_CODE_SUCCESS) {
       SCL_ERR_JRET(code);
+    }
+
+    if (node->funcId == 0 || 0 == strcmp(node->functionName, "tbname")) {
+      sclError("scalar dispatch function:%s funcId:%d funcType:%d rowNum:%d resType:%d resBytes:%d",
+               node->functionName, node->funcId, node->funcType, rowNum,
+               node->node.resType.type, node->node.resType.bytes);
     }
 
     if (rowNum == 0) {

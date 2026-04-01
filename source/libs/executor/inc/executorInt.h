@@ -177,6 +177,7 @@ typedef enum EExchangeSourceType {
   EX_SRC_TYPE_VSTB_TS_SCAN,
   EX_SRC_TYPE_VSTB_INTERVAL_SCAN,
   EX_SRC_TYPE_VSTB_PART_INTERVAL_SCAN,
+  EX_SRC_TYPE_VSTB_SYS_SCAN,
 } EExchangeSourceType;
 
 typedef enum {
@@ -198,6 +199,7 @@ typedef struct SExchangeOperatorBasicParam {
   SOrgTbInfo*           orgTbInfo;
   SArray*               batchOrgTbInfo; // SArray<SOrgTbInfo>
   SArray*               tagList;
+  SArray*               sysScanReqs; // SArray<SSysTableScanVtbRefReq>
   STimeWindow           window;
   SDownstreamSourceNode newDeployedSrc; // used with isNewDeployed
   /* notify scan params */
@@ -811,6 +813,8 @@ int32_t buildTableScanOperatorParam(SOperatorParam** ppRes, SArray* pUidList, in
 int32_t buildTableScanOperatorParamEx(SOperatorParam** ppRes, SArray* pUidList, int32_t srcOpType, SOrgTbInfo *pMap, bool tableSeq, STimeWindow *window, bool isNewParam, ETableScanDynType type);
 int32_t buildTableScanOperatorParamNotify(SOperatorParam** ppRes,
                                           int32_t srcOpType, TSKEY notifyTs);
+int32_t setTbNameColData(const SSDataBlock* pBlock, SColumnInfoData* pColInfoData, int32_t functionId,
+                         const char* name);
 void    freeExchangeGetBasicOperatorParam(void* pParam);
 void    freeResetOperatorParams(struct SOperatorInfo* pOperator, SOperatorParamType type, bool allFree);
 int32_t getNextBlockFromDownstreamImpl(struct SOperatorInfo* pOperator, int32_t idx, bool clearParam,
