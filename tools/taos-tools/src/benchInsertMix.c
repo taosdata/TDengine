@@ -594,7 +594,7 @@ uint32_t genBatchSql(threadInfo* info, SSuperTable* stb, SMixRatio* mix, int64_t
       ts += timestamp_step;
     }
 
-    // check over TSDB_MAX_ALLOWED_SQL_LENGTH
+    // check over TOOLS_MAX_ALLOWED_SQL_LEN
     if (len > (TOOLS_MAX_ALLOWED_SQL_LEN - stb->lenOfCols - 320)) {
       break;
     }
