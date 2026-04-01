@@ -1473,6 +1473,8 @@ typedef struct SExtractFilterCondCtx {
   bool        hasNonRefCol;    // Whether condition has non-reference columns
 } SExtractFilterCondCtx;
 
+static bool isNodeContainForeignRefColumn(SNode* pNode, SNodeList* pRefCols);
+
 /**
  * Walker function to extract filter conditions for reference columns
  */
@@ -1489,14 +1491,17 @@ static EDealRes extractFilterCondImpl(SNode* pNode, void* pContext) {
       nodesWalkExprs(pLogicCond->pParameterList, extractFilterCondImpl, pContext);
     } else if (LOGIC_COND_TYPE_OR == pLogicCond->condType) {
       bool hasRefColInOr = false;
+      bool hasForeignInOr = false;
       SNode* pChild = NULL;
       FOREACH(pChild, pLogicCond->pParameterList) {
         if (isNodeContainRefColumn(pChild, pCtx->pRefCols)) {
           hasRefColInOr = true;
-          break;
+        }
+        if (isNodeContainForeignRefColumn(pChild, pCtx->pRefCols)) {
+          hasForeignInOr = true;
         }
       }
-      if (hasRefColInOr) {
+      if (hasRefColInOr && !hasForeignInOr) {
         SNode* pClone = NULL;
         if (TSDB_CODE_SUCCESS == nodesCloneNode(pNode, &pClone)) {
           if (nodesListAppend(pCtx->pMatchedConds, pClone) != TSDB_CODE_SUCCESS) {
@@ -1510,7 +1515,8 @@ static EDealRes extractFilterCondImpl(SNode* pNode, void* pContext) {
 
   // Handle operator nodes
   if (QUERY_NODE_OPERATOR == nType) {
-    if (isNodeContainRefColumn(pNode, pCtx->pRefCols)) {
+    if (isNodeContainRefColumn(pNode, pCtx->pRefCols) &&
+        !isNodeContainForeignRefColumn(pNode, pCtx->pRefCols)) {
       SNode* pClone = NULL;
       if (TSDB_CODE_SUCCESS == nodesCloneNode(pNode, &pClone)) {
         if (nodesListAppend(pCtx->pMatchedConds, pClone) != TSDB_CODE_SUCCESS) {
@@ -1540,6 +1546,52 @@ static bool isNodeContainRefColumn(SNode* pNode, SNodeList* pRefCols) {
     }
   }
   return false;
+}
+
+typedef struct SCheckForeignTagCtx {
+  SNodeList* pRefCols;   // columns belonging to this TagRefSource
+  bool       foundForeign;
+} SCheckForeignTagCtx;
+
+static EDealRes checkForeignTagImpl(SNode* pNode, void* pContext) {
+  SCheckForeignTagCtx* pCtx = (SCheckForeignTagCtx*)pContext;
+  if (pCtx->foundForeign) {
+    return DEAL_RES_CONTINUE;
+  }
+  if (QUERY_NODE_COLUMN != nodeType(pNode)) {
+    return DEAL_RES_CONTINUE;
+  }
+  SColumnNode* pCol = (SColumnNode*)pNode;
+  if (pCol->colType != COLUMN_TYPE_TAG || !pCol->hasRef) {
+    return DEAL_RES_CONTINUE;
+  }
+  // Check whether this tag-ref column matches any column in pRefCols
+  bool matched = false;
+  SNode* pRefNode = NULL;
+  FOREACH(pRefNode, pCtx->pRefCols) {
+    SColumnNode* pRef = (SColumnNode*)pRefNode;
+    if (pCol->colId == pRef->colId &&
+        strcmp(pCol->tableName, pRef->tableName) == 0 &&
+        strcmp(pCol->dbName, pRef->dbName) == 0) {
+      matched = true;
+      break;
+    }
+  }
+  if (!matched) {
+    pCtx->foundForeign = true;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+/**
+ * Check if a node contains tag-ref columns that do NOT belong to pRefCols.
+ * Used to prevent pushing cross-TagRefSource conditions (e.g. r1 != r2)
+ * down to an individual TagRefSource node.
+ */
+static bool isNodeContainForeignRefColumn(SNode* pNode, SNodeList* pRefCols) {
+  SCheckForeignTagCtx ctx = {.pRefCols = pRefCols, .foundForeign = false};
+  nodesWalkExpr(pNode, checkForeignTagImpl, &ctx);
+  return ctx.foundForeign;
 }
 
 /**
