@@ -1,7 +1,7 @@
 set(CMAKE_VERBOSE_MAKEFILE FALSE)
 
 # set output directory
-SET(TD_BUILD_DIR ${PROJECT_BINARY_DIR}/build)
+SET(TD_BUILD_DIR ${CMAKE_BINARY_DIR}/build)
 SET(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${TD_BUILD_DIR}/bin)
 SET(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${TD_BUILD_DIR}/lib)
 if(${TD_WINDOWS})
@@ -18,51 +18,57 @@ MESSAGE(STATUS "Project binary files output path: " ${PROJECT_BINARY_DIR})
 MESSAGE(STATUS "Project executable files output path: " ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
 MESSAGE(STATUS "Project library files output path: " ${CMAKE_ARCHIVE_OUTPUT_DIRECTORY})
 
-IF(NOT DEFINED TD_GRANT)
-    SET(TD_GRANT FALSE)
-ENDIF()
+if(TD_DARWIN_64 AND BUILD_TEST)
+  add_definitions(-DCOMPILER_SUPPORTS_CXX13)
+endif()
 
-IF(NOT DEFINED BUILD_WITH_RAND_ERR)
-    SET(BUILD_WITH_RAND_ERR FALSE)
-ELSE()
-    SET(BUILD_WITH_RAND_ERR TRUE)
-ENDIF()
+add_definitions(
+  -DUSE_AUDIT
+  -DUSE_GEOS
+  -DUSE_UDF
+  -DUSE_STREAM
+  -DUSE_PRCE2
+  -DUSE_RSMA
+  -DUSE_TSMA
+  -DUSE_TQ
+  -DUSE_TOPIC
+  -DUSE_MONITOR
+  -DUSE_REPORT
+)
 
-IF("${WEBSOCKET}" MATCHES "true")
-    SET(TD_WEBSOCKET TRUE)
-    MESSAGE("Enable websocket")
-    ADD_DEFINITIONS(-DWEBSOCKET)
-ELSE()
-    SET(TD_WEBSOCKET FALSE)
-ENDIF()
+if(BUILD_ASTRA)
+  add_definitions(-DTD_ASTRA)
+endif()
 
-IF("${BUILD_TOOLS}" STREQUAL "")
-    IF(TD_LINUX)
-        IF(TD_ARM_32)
-            SET(BUILD_TOOLS "false")
-        ELSEIF(TD_ARM_64)
-            SET(BUILD_TOOLS "false")
-        ELSE()
-            SET(BUILD_TOOLS "false")
-        ENDIF()
-    ELSEIF(TD_DARWIN)
-        SET(BUILD_TOOLS "false")
-    ELSE()
-        SET(BUILD_TOOLS "false")
-    ENDIF()
-ENDIF()
+if(BUILD_ASTRA_RPC)
+  add_definitions(-DTD_ASTRA_RPC)
+endif()
 
-IF("${BUILD_TOOLS}" MATCHES "false")
-    MESSAGE(STATUS "Will _not_ build taos_tools!")
-    SET(TD_TAOS_TOOLS FALSE)
-ELSE()
-    MESSAGE("")
-    MESSAGE(STATUS "Will build taos_tools!")
-    MESSAGE("")
-    SET(TD_TAOS_TOOLS TRUE)
-ENDIF()
+if(BUILD_TAOSD_INTEGRATED)
+  add_definitions(-DTAOSD_INTEGRATED)
+endif()
 
-IF(${FLEX_DEPLOY})
+if(BUILD_AS_LIB)
+  add_definitions(-DTD_AS_LIB)
+endif()
+
+if(BUILD_WEBSOCKET)
+  set(TD_WEBSOCKET TRUE)
+  message(STATUS "Enable websocket")
+  add_definitions(-DWEBSOCKET)
+else()
+  set(TD_WEBSOCKET FALSE)
+endif()
+
+if(BUILD_TOOLS)
+  message(STATUS "Will build taos_tools!")
+  set(TD_TAOS_TOOLS TRUE)
+else()
+  message(STATUS "Will _not_ build taos_tools!")
+  set(TD_TAOS_TOOLS FALSE)
+endif()
+
+IF(${BUILD_FLEX_DEPLOY})
     ADD_DEFINITIONS(-DTD_FLEX_DEPLOY)
 ENDIF()
 
@@ -71,15 +77,13 @@ SET(TAOS_LIB_STATIC taos_static)
 SET(TAOS_NATIVE_LIB taosnative)
 SET(TAOS_NATIVE_LIB_STATIC taosnative_static)
 
-# build TSZ by default
-IF("${TSZ_ENABLED}" MATCHES "false")
-    set(VAR_TSZ "" CACHE INTERNAL "global variant empty")
-ELSE()
-    # define add
-    MESSAGE(STATUS "build with TSZ enabled")
-    ADD_DEFINITIONS(-DTD_TSZ)
-    set(VAR_TSZ "TSZ" CACHE INTERNAL "global variant tsz")
-ENDIF()
+if(BUILD_TSZ_ENABLED)
+  message(STATUS "build with TSZ enabled")
+  add_definitions(-DTD_TSZ)
+  set(VAR_TSZ "TSZ" CACHE INTERNAL "global variant tsz")
+else()
+  set(VAR_TSZ "" CACHE INTERNAL "global variant empty")
+endif()
 
 IF(TD_WINDOWS)
     MESSAGE("${Yellow} set compiler flag for Windows! ${ColourReset}")
@@ -170,7 +174,7 @@ ELSE()
     SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${COMMON_FLAGS} ${_c_cxx_flags}")
     SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${COMMON_FLAGS} ${_c_cxx_flags}")
 
-    IF(${COVER} MATCHES "true")
+    IF(${BUILD_COVERAGE})
         MESSAGE(STATUS "Test coverage mode, add extra flags")
         SET(GCC_COVERAGE_COMPILE_FLAGS "-fprofile-arcs -ftest-coverage")
         SET(GCC_COVERAGE_LINK_FLAGS "-lgcov --coverage")
@@ -276,7 +280,7 @@ ENDIF()
 
 IF(TD_LINUX_64)
     # NOTE: need to test
-    IF(${JEMALLOC_ENABLED})
+    IF(${BUILD_JEMALLOC})
         MESSAGE(STATUS "JEMALLOC Enabled")
         SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-error=attributes")
         SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=attributes")

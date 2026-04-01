@@ -26,7 +26,7 @@ target_include_directories(
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 set(TAOSD_MODULE "")
-if(${TAOSD_INTEGRATED})
+if(BUILD_TAOSD_INTEGRATED)
     set(TAOSD_MODULE "taosd")
 endif()
 target_link_libraries(

@@ -13,12 +13,19 @@ if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.24")
   cmake_policy(SET CMP0135 NEW)
 endif()
 
+if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+  set(TD_COMMUNITY_STANDALONE TRUE)
+else()
+  set(TD_COMMUNITY_STANDALONE FALSE)
+endif()
+
 set(TD_COMMUNITY_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 set(TD_SOURCE_DIR ${TD_COMMUNITY_DIR})
 set(TD_SUPPORT_DIR "${TD_SOURCE_DIR}/cmake")
 set(TD_CONTRIB_DIR "${TD_SOURCE_DIR}/contrib")
 
-message(STATUS "TDengine Community")
+message(STATUS "=== TDengine Community build configuration ===")
+message(STATUS "Standalone:          " ${TD_COMMUNITY_STANDALONE})
 message(STATUS "Community directory: " ${TD_COMMUNITY_DIR})
 message(STATUS "Source directory:    " ${TD_SOURCE_DIR})
 message(STATUS "Support directory:   " ${TD_SUPPORT_DIR})
@@ -36,10 +43,10 @@ include(cmake/external.cmake)
 set_property(GLOBAL PROPERTY GLOBAL_DEPENDS_NO_CYCLES OFF)
 add_subdirectory(contrib)
 
-if(${BUILD_TEST})
+if(BUILD_TEST)
   include(CTest)
   enable_testing()
-endif(${BUILD_TEST})
+endif()
 
 add_library(api INTERFACE)
 target_include_directories(api INTERFACE "include/client")
@@ -58,11 +65,3 @@ add_subdirectory(docs/doxgen)
 
 include(cmake/install.cmake)
 include(CPack)
-
-message(STATUS "TAOSADAPTER_BUILD_OPTIONS:${TAOSADAPTER_BUILD_OPTIONS}")
-message(STATUS "TAOSADAPTER_GIT_TAG:${TAOSADAPTER_GIT_TAG}")
-message(STATUS "TAOSADAPTER_GIT_TAG_NAME:${TAOSADAPTER_GIT_TAG_NAME}")
-message(STATUS "TAOSADAPTER_GIT_TAG_SHALLOW:${TAOSADAPTER_GIT_TAG_SHALLOW}")
-
-message(STATUS "TAOSWS_GIT_TAG_NAME:${TAOSWS_GIT_TAG_NAME}")
-

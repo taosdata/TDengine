@@ -95,7 +95,7 @@ else()
 endif()
 
 
-if(JEMALLOC_ENABLED)
+if(BUILD_JEMALLOC)
     add_dependencies(os jemalloc)
 endif()
 

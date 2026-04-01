@@ -1,4 +1,4 @@
-IF(NOT "${TSZ_ENABLED}" MATCHES "false")
+if(BUILD_TSZ_ENABLED)
   # source
   AUX_SOURCE_DIRECTORY(sz/src SRC1)
   AUX_SOURCE_DIRECTORY(zstd/dictBuilder SRC2)
@@ -22,5 +22,5 @@ IF(NOT "${TSZ_ENABLED}" MATCHES "false")
   # windows ignore warning
   IF(TD_WINDOWS)
       SET_TARGET_PROPERTIES(TSZ PROPERTIES COMPILE_FLAGS -w)
-  ENDIF()
-ENDIF()
+  endif()
+endif()
