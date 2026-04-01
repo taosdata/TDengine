@@ -2093,7 +2093,7 @@ int prepareSampleData(SDataBase* database, SSuperTable* stbInfo) {
             n = snprintf(stbInfo->partialColNameBuf + pos,
                             TOOLS_MAX_ALLOWED_SQL_LEN - pos, "%s",
                             stbInfo->primaryKeyName);
-            if (n < 0 || n > TOOLS_MAX_ALLOWED_SQL_LEN - pos) {
+            if (n < 0 || n >= TOOLS_MAX_ALLOWED_SQL_LEN - pos) {
                 errorPrint("%s() LN%d snprintf overflow\n",
                            __func__, __LINE__);
             } else {
@@ -2104,7 +2104,7 @@ int prepareSampleData(SDataBase* database, SSuperTable* stbInfo) {
                 n = snprintf(stbInfo->partialColNameBuf+pos,
                                 TOOLS_MAX_ALLOWED_SQL_LEN - pos,
                                ",%s", col->name);
-                if (n < 0 || n > TOOLS_MAX_ALLOWED_SQL_LEN - pos) {
+                if (n < 0 || n >= TOOLS_MAX_ALLOWED_SQL_LEN - pos) {
                     errorPrint("%s() LN%d snprintf overflow at %d\n",
                                __func__, __LINE__, i);
                 } else {

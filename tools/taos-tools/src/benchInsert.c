@@ -449,7 +449,7 @@ skip:
                 n = snprintf(command + length, TOOLS_MAX_ALLOWED_SQL_LEN - length, ",%s", col->name);
             }
 
-            if (n < 0 || n > TOOLS_MAX_ALLOWED_SQL_LEN - length) {
+            if (n < 0 || n >= TOOLS_MAX_ALLOWED_SQL_LEN - length) {
                 errorPrint("%s() LN%d snprintf overflow on %d iteral\n", __func__, __LINE__, i);
                 break;
             } else {

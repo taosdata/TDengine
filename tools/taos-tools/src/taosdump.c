@@ -4768,7 +4768,7 @@ static int64_t dumpInAvroTbTagsImpl(
 
             // check curr_sqlstr_len invalid size
             if(curr_sqlstr_len > TOOLS_MAX_ALLOWED_SQL_LEN - 128) {
-                errorPrint("%s() LN%d, create child table combine tags sql length (%d) over %d (TOOLS_MAX_ALLOWED_SQL_LEN - 128)!\n",
+                errorPrint("%s() LN%d, create child table combine tags sql length (%d) over %u (TOOLS_MAX_ALLOWED_SQL_LEN - 128)!\n",
                    __func__, __LINE__, curr_sqlstr_len, TOOLS_MAX_ALLOWED_SQL_LEN - 128);
 
                 avro_value_decref(&value);

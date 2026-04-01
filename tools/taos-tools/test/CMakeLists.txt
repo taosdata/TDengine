@@ -40,7 +40,7 @@ IF(TD_LINUX)
     DEP_ext_gtest(taosdumpTest)
     target_link_libraries(
         taosdumpTest
-        PUBLIC taos
+        PRIVATE taos
     )
 
     target_include_directories(

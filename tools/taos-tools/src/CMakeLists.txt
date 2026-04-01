@@ -120,8 +120,8 @@ ENDIF ()
 target_link_libraries(taosdump PRIVATE toolscJson)
 TARGET_LINK_LIBRARIES(taosBenchmark PRIVATE toolscJson)
 
-TARGET_LINK_LIBRARIES(taosdump PUBLIC taos)
-TARGET_LINK_LIBRARIES(taosBenchmark PUBLIC taos)
+TARGET_LINK_LIBRARIES(taosdump PRIVATE taos)
+TARGET_LINK_LIBRARIES(taosBenchmark PRIVATE taos)
 
 if(NOT WIN32)
   target_link_libraries(taosdump PRIVATE stdc++)
