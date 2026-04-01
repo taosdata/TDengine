@@ -84,7 +84,7 @@ def stopTaosdTask(stopEvent, presleep, pausetime):
 # test framework runs a single deploy/destroy lifecycle for the whole file.
 # ---------------------------------------------------------------------------
 
-class TestTaosBackupRetry:
+class TestTaosBackupExcept:
     """taosBackup exception handling tests.
 
     Covers:
@@ -423,59 +423,15 @@ class TestTaosBackupRetry:
     # Test methods
     # =========================================================================
 
-    def test_taosbackup_retry(self):
-        """taosBackup exception/retry
-
-        1. taosBenchmark prepares data with super table and normal table
-        2. taosBackup starts dump-out with retry options (-k 2 -z 800)
-        3. Simulates exception by kill -9 taosadapter during dump-out
-        4. taosadapter is restarted automatically
-        5. taosBackup completes dump-out (retried successfully)
-        6. taosBackup dumps in the exported data
-        7. Verify data correctness with aggregation comparison
-        8. Verify data correctness with projection comparison
-        All tested in both Native and WebSocket connection modes.
-
-        Since: v3.0.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2026-03-04 Migrated and adapted from 04-Taosdump/test_taosdump_except.py
-
-        """
+    def do_retry(self):
+        """taosadapter kill/restart during backup (native + WebSocket)."""
         # Native mode
         self._run_retry_test(newdb="nredb", websocket=False)
         # WebSocket mode
         self._run_retry_test(newdb="nwredb", websocket=True)
 
-    def test_taosbackup_server_restart_backup(self):
-        """taosBackup: taosd unresponsive (sc.dnodeStop) during backup
-
-        1. taosBenchmark inserts _SRV_CHILD_TABLES * _SRV_INSERT_ROWS rows.
-        2. Record reference aggregations (count, sum(voltage), avg(current)).
-        3. Start backup with retry headroom (-k 5 -z 2000).
-           A background thread stops taosd after _SRV_PRESLEEP_BCK s,
-           holds it for _SRV_PAUSETIME s, then restarts it.
-        4. Backup must complete successfully despite the outage.
-        5. Restore the backup to _SRV_DB_DST.
-        6. Verify aggregations match the reference values.
-
-        Exercises the exponential back-off in bckPool.c:
-        getConnection() retries 1s→2s→4s→… until taosd responds again.
-
-        Since: v3.0.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2026-03-19 Alex Duan created
-
-        """
+    def do_server_restart_backup(self):
+        """taosd unresponsive (sc.dnodeStop) during backup."""
         taosbackup, benchmark, tmpdir = self._srv_find_programs()
 
         tdLog.info("=== step 1: insert data ===")
@@ -511,31 +467,8 @@ class TestTaosBackupRetry:
         self._srv_verify(src_agg, self._SRV_DB_DST)
         tdLog.info("test_taosbackup_server_restart_backup PASSED")
 
-    def test_taosbackup_server_restart_restore(self):
-        """taosBackup: taosd unresponsive (sc.dnodeStop) during restore
-
-        1. taosBenchmark inserts data into _SRV_DB_SRC.
-        2. Record reference aggregations.
-        3. Backup _SRV_DB_SRC to disk (no fault injection during backup).
-        4. Start restore to _SRV_DB_DST with retry headroom (-k 5 -z 2000).
-           A background thread stops taosd after _SRV_PRESLEEP_RST s,
-           holds it for _SRV_PAUSETIME s, then restarts it.
-        5. Restore must complete successfully despite the outage.
-        6. Verify aggregations match the reference values.
-
-        Exercises the retry loop in restoreData.c:
-        releaseConnectionBad() + getConnection() on retriable errors.
-
-        Since: v3.0.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2026-03-19 Alex Duan created
-
-        """
+    def do_server_restart_restore(self):
+        """taosd unresponsive (sc.dnodeStop) during restore (last – no restart needed)."""
         taosbackup, benchmark, tmpdir = self._srv_find_programs()
 
         tdLog.info("=== step 1: insert data ===")
@@ -571,30 +504,8 @@ class TestTaosBackupRetry:
         self._srv_verify(src_agg, self._SRV_DB_DST)
         tdLog.info("test_taosbackup_server_restart_restore PASSED")
 
-    def test_taosbackup_restore_retry(self):
-        """taosBackup restore retry: taosadapter kill/restart during dump-in
-
-        1. taosBenchmark inserts data (except_small.json).
-        2. Record reference aggregations (count, sum(ic)).
-        3. Backup to disk (no fault injection during backup).
-        4. Start restore with retry flags (-k 3 -z 1000).
-           A background thread kills and restarts taosadapter 3 times,
-           every 5 s, starting 2 s after the restore begins.
-        5. Restore must complete successfully.
-        6. Verify count(*) and sum(ic) match the source.
-
-        Exercises the retry loop in restoreData.c on network errors.
-
-        Since: v3.0.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2026-03-19 Alex Duan created
-
-        """
+    def do_restore_retry(self):
+        """taosadapter kill/restart during restore."""
         taosbackup, benchmark, taosadapter, tmpdir = self._rr_find_programs()
         src_db = self._RR_DB_SRC
 
@@ -644,27 +555,8 @@ class TestTaosBackupRetry:
             tdLog.exit(f"sum(ic) mismatch: src={src_sum_ic} dst={dst_sum_ic}")
         tdLog.info("test_taosbackup_restore_retry PASSED")
 
-    def test_taosbackup_thread_creation_failure(self):
-        """taosBackup: clean exit when pthread_create fails mid-launch
-
-        1. Check we are not running as root (root ignores RLIMIT_NPROC).
-        2. Insert a small dataset.
-        3. Lower RLIMIT_NPROC so taosBackup cannot spawn all -T 8 threads.
-        4. Run taosBackup backup with -T 8.  Expect non-zero exit (thread
-           creation failed), but no hang, crash, or use-after-free.
-        5. Restore the original limit.
-        6. Confirm the process terminated within 60 s (no hang).
-
-        Since: v3.0.0.0
-
-        Labels: common
-
-        Jira: None
-
-        History:
-            - 2026-03-19 Alex Duan created
-
-        """
+    def do_thread_creation_failure(self):
+        """Clean exit when pthread_create fails mid-launch."""
         import pwd
 
         # Root bypasses RLIMIT_NPROC – skip gracefully
@@ -722,3 +614,30 @@ class TestTaosBackupRetry:
             tdLog.info(f"RLIMIT_NPROC restored to soft={soft_orig}")
 
         tdLog.info("test_taosbackup_thread_creation_failure PASSED")
+
+    def test_taosbackup_except(self):
+        """taosBackup exception handling tests
+
+        1. taosadapter kill/restart during backup (native + WebSocket)
+        2. taosadapter kill/restart during restore
+        3. pthread_create failure safety (clean exit, no hang/crash)
+        4. taosd unresponsive (sc.dnodeStop) during backup, then restore verify
+        5. taosd unresponsive (sc.dnodeStop) during restore (last, no restart needed)
+
+        Since: v3.0.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-03-04 Alex Duan Migrated and adapted from 04-Taosdump/test_taosdump_except.py
+            - 2026-03-19 Alex Duan Created server-restart and thread-fail tests
+            - 2026-04-01 Alex Duan Refactored into single entry point for serial execution
+
+        """
+        self.do_retry()
+        self.do_restore_retry()
+        self.do_thread_creation_failure()
+        self.do_server_restart_backup()
+        self.do_server_restart_restore()

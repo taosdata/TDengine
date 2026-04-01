@@ -194,20 +194,27 @@ static void* backDataThread(void *arg) {
         while (1) {
             res = taos_query(conn, sql);
             thread->code = taos_errno(res);
-            if (thread->code == TSDB_CODE_SUCCESS) break;
-            if (res) { taos_free_result(res); res = NULL; }
-            if (!errorCodeCanRetry(thread->code) || attempt >= retryCount || g_interrupted) break;
+            if (thread->code == TSDB_CODE_SUCCESS) 
+                break;
+            if (res) { 
+                taos_free_result(res); 
+                res = NULL; 
+            }
+            if (!errorCodeCanRetry(thread->code) || attempt >= retryCount || g_interrupted) 
+                break;
             attempt++;
             logInfo("retry query child table names: %s.%s, attempt: %d", thread->dbInfo->dbName, thread->stbInfo->stbName, attempt);
             releaseConnectionBad(conn);
             conn = getConnection(&thread->code);
-            if (!conn) return NULL;
+            if (!conn) 
+                return NULL;
             sleepMs(retrySleepMs);
         }
     }
     if (res == NULL || thread->code) {
         logError("query child table names failed(0x%08X %s): %s", thread->code, taos_errstr(res), sql);
-        if (res) taos_free_result(res);
+        if (res) 
+            taos_free_result(res);
         releaseConnection(conn);
         return NULL;
     }
