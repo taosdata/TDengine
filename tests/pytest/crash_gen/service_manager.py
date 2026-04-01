@@ -406,7 +406,9 @@ class TdeSubProcess:
             child.send_signal(sig)
             try:
                 retCode = child.wait(20) # type: ignore
-                if (- retCode) == signal.SIGSEGV: # type: ignore # Crashed
+                if retCode is None:
+                    Logging.info("Sub-sub process {} returned None exit code (already dead?)".format(child.pid))
+                elif (- retCode) == signal.SIGSEGV: # type: ignore # Crashed
                     Logging.warning("Process {} CRASHED, please check CORE file!".format(child.pid))
                 elif (- retCode) == sig : # type: ignore
                     Logging.info("Sub-sub process terminated with expected return code {}".format(sig))
