@@ -166,16 +166,177 @@ class ServiceTest(unittest.TestCase):
 
         for item in service_list["details"]:
             if item["type"] == "anomaly-detection":
+                builtins = [i for i in item["algo"] if i.get('builtins') == True]
                 if (version.major, version.minor) == (3, 12):
-                    self.assertEqual(len(item["algo"]), 4)
+                    self.assertEqual(len(builtins), 4)
                 else:
-                    self.assertEqual(len(item["algo"]), 5)
+                    self.assertEqual(len(builtins), 5)
+
             elif item["type"] == "forecast":
-                self.assertEqual(len(item["algo"]), 8)
+                builtins = [i for i in item["algo"] if i.get('builtins') == True]
+                self.assertEqual(len(builtins), 8)
+
             elif item["type"] == 'correlation':
                 self.assertEqual(len(item['algo']), 2)
             else:
                 self.assertEqual(len(item["algo"]), 1)
+
+    def test_dynamic_load_service(self):
+        """ test dynamic load service by name """
+        import os
+
+        config_path = "/tmp/arima_model_config.json0"
+        conf_file_content = """
+        {
+          "algo": "arima",
+          "best_params": {
+            "p": 1,
+            "d": 0,
+            "q": 1
+          },
+          "freq": "MS"
+        }
+        """
+        with open(config_path, "w", encoding="utf-8") as handle:
+            handle.write(conf_file_content)
+
+        try:
+            with self.assertRaises(ValueError):
+                loader.register_service_from_file(config_path)
+        finally:
+            if os.path.exists(config_path):
+                os.remove(config_path)
+
+    def test_dynamic_load_service_success(self):
+        """ test dynamic load service with valid config file """
+        import os
+
+        config_path = "/tmp/arima_model_config.json"
+        service_name = "arima_model_config"
+        conf_file_content = """
+        {
+          "algo": "arima",
+          "best_params": {
+            "p": 2,
+            "d": 1,
+            "q": 1
+          },
+          "freq": "MS"
+        }
+        """
+        with open(config_path, "w", encoding="utf-8") as handle:
+            handle.write(conf_file_content)
+
+        try:
+            if service_name in loader.services:
+                del loader.services[service_name]
+
+            loader.register_service_from_file(config_path)
+            service = loader.get_service(service_name)
+            self.assertIsNotNone(service)
+            self.assertEqual(service.name, service_name)
+        finally:
+            if service_name in loader.services:
+                del loader.services[service_name]
+            if os.path.exists(config_path):
+                os.remove(config_path)
+
+    def test_dynamic_load_service_missing_algo(self):
+        """dynamic register should fail when 'algo' field is missing"""
+        import os
+
+        config_path = "/tmp/arima_model_missing_algo.json"
+        conf_file_content = """
+        {
+          "best_params": {
+            "p": 1,
+            "d": 0,
+            "q": 1
+          },
+          "freq": "MS"
+        }
+        """
+        with open(config_path, "w", encoding="utf-8") as handle:
+            handle.write(conf_file_content)
+
+        try:
+            with self.assertRaises(ValueError):
+                loader.register_service_from_file(config_path)
+        finally:
+            if os.path.exists(config_path):
+                os.remove(config_path)
+
+    def test_dynamic_load_service_unsupported_algo(self):
+        """dynamic register should fail for unsupported algorithm names"""
+        import os
+
+        config_path = "/tmp/arima_model_bad_algo.json"
+        conf_file_content = """
+        {
+          "algo": "lstm",
+          "best_params": {
+            "p": 1
+          },
+          "freq": "MS"
+        }
+        """
+        with open(config_path, "w", encoding="utf-8") as handle:
+            handle.write(conf_file_content)
+
+        try:
+            with self.assertRaises(ValueError):
+                loader.register_service_from_file(config_path)
+        finally:
+            if os.path.exists(config_path):
+                os.remove(config_path)
+
+    def test_dynamic_load_service_invalid_json(self):
+        """dynamic register should fail when config file content is invalid"""
+        import os
+
+        config_path = "/tmp/arima_model_invalid_json.json"
+        with open(config_path, "w", encoding="utf-8") as handle:
+            handle.write('{"algo": "arima"')
+
+        try:
+            with self.assertRaises(ValueError):
+                loader.register_service_from_file(config_path)
+        finally:
+            if os.path.exists(config_path):
+                os.remove(config_path)
+
+    def test_dynamic_load_service_duplicate_name(self):
+        """dynamic register should fail when model name already exists"""
+        import os
+
+        config_path = "/tmp/arima_model_duplicate.json"
+        service_name = "arima_model_duplicate"
+        conf_file_content = """
+        {
+          "algo": "arima",
+          "best_params": {
+            "p": 1,
+            "d": 0,
+            "q": 1
+          },
+          "freq": "MS"
+        }
+        """
+        with open(config_path, "w", encoding="utf-8") as handle:
+            handle.write(conf_file_content)
+
+        try:
+            if service_name in loader.services:
+                del loader.services[service_name]
+
+            loader.register_service_from_file(config_path)
+            with self.assertRaises(RuntimeError):
+                loader.register_service_from_file(config_path)
+        finally:
+            if service_name in loader.services:
+                del loader.services[service_name]
+            if os.path.exists(config_path):
+                os.remove(config_path)
 
 if __name__ == '__main__':
     unittest.main()

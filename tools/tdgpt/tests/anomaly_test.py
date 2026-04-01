@@ -168,7 +168,7 @@ class AnomalyDetectionTest(unittest.TestCase):
 
     def test_get_all_services(self):
         """Test get all services"""
-        loader.get_anomaly_detection_algo_list()
+        loader.get_anomaly_algo_list()
 
 
 if __name__ == '__main__':

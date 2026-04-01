@@ -427,4 +427,6 @@ def main():
 
 
 if __name__ == "__main__":
+    global pretrained_model
+
     main()
