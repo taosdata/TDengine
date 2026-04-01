@@ -273,7 +273,7 @@ typedef struct {
 
 
 SJoinTestCtx jtCtx = {0};
-SJoinTestCtrl jtCtrl = {1, 1, 1, 0, 0, JT_MAX_LOOP, false, false};
+SJoinTestCtrl jtCtrl = {0, 0, 0, 0, 0, JT_MAX_LOOP, false, false};
 SJoinTestStat jtStat = {0};
 SJoinTestResInfo jtRes = {0};
 
@@ -298,6 +298,19 @@ static int32_t jtGetEnvInt(const char* key, int32_t defaultVal, int32_t minVal, 
     return maxVal;
   }
   return (int32_t)x;
+}
+
+static int32_t jtCalcHashCapacity(int32_t leftMaxRows, int32_t rightMaxRows) {
+  int64_t estimate = (int64_t)leftMaxRows * rightMaxRows;
+  if (estimate < 64) estimate = 64;
+  if (estimate > 4194304) estimate = 4194304;
+  int32_t cap = 64;
+  while (cap < estimate) cap <<= 1;
+  return cap;
+}
+
+static int32_t jtDefaultHashCapacity(void) {
+  return jtCtrl.largeData ? jtCalcHashCapacity(1000, 1000) : jtCalcHashCapacity(10, 10);
 }
 
 void createDummyBlkList(int32_t leftMaxRows, int32_t leftMaxGrpRows, int32_t rightMaxRows, int32_t rightMaxGrpRows, int32_t blkRows);
@@ -4523,14 +4536,20 @@ void initJoinTest() {
   jtCtrl.loopCnt = jtGetEnvInt("JT_LOOP_CNT", JT_MAX_LOOP, 1, JT_MAX_LOOP);
   jtCtrl.largeData = (0 != jtGetEnvInt("JT_LARGE_DATA", 0, 0, 1));
   jtCtrl.strictHmCompare = (0 != jtGetEnvInt("JT_STRICT_HM_COMPARE", 0, 0, 1));
+  bool verbose = (0 != jtGetEnvInt("JT_VERBOSE", 0, 0, 1));
+  if (verbose) {
+    jtCtrl.printTestInfo = true;
+    jtCtrl.printInputRow = true;
+    jtCtrl.printResRow = true;
+  }
 
-  JT_PRINTF("joinTests config: JT_LOOP_CNT=%d, JT_LARGE_DATA=%d, JT_STRICT_HM_COMPARE=%d\n",
-    jtCtrl.loopCnt, jtCtrl.largeData ? 1 : 0, jtCtrl.strictHmCompare ? 1 : 0);
+  JT_PRINTF("joinTests config: JT_LOOP_CNT=%d, JT_LARGE_DATA=%d, JT_STRICT_HM_COMPARE=%d, JT_VERBOSE=%d\n",
+    jtCtrl.loopCnt, jtCtrl.largeData ? 1 : 0, jtCtrl.strictHmCompare ? 1 : 0, verbose ? 1 : 0);
   
   jtCtx.leftBlkList = taosArrayInit(10, POINTER_BYTES);
   jtCtx.rightBlkList = taosArrayInit(10, POINTER_BYTES);
   TD_ALWAYS_ASSERT(jtCtx.leftBlkList && jtCtx.rightBlkList);
-  jtCtx.jtResRows = tSimpleHashInit(10000000, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+  jtCtx.jtResRows = tSimpleHashInit(jtDefaultHashCapacity(), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
   TD_ALWAYS_ASSERT(jtCtx.jtResRows);
 
   joinTestReplaceRetrieveFp();
@@ -5788,7 +5807,7 @@ TEST(hmStrictCompare, fullOuterJoinHashMerge) {
 
   auto ensureHash = [](SSHashObj** ppHash) {
     if (*ppHash == NULL) {
-      *ppHash = tSimpleHashInit(10000000, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+      *ppHash = tSimpleHashInit(jtDefaultHashCapacity(), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
       TD_ALWAYS_ASSERT(*ppHash);
     } else {
       tSimpleHashClear(*ppHash);
@@ -6024,7 +6043,7 @@ TEST(hmStrictCompare, innerJoinHashMerge) {
 
   auto ensureHash = [](SSHashObj** ppHash) {
     if (*ppHash == NULL) {
-      *ppHash = tSimpleHashInit(10000000, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+      *ppHash = tSimpleHashInit(jtDefaultHashCapacity(), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
       TD_ALWAYS_ASSERT(*ppHash);
     } else {
       tSimpleHashClear(*ppHash);
@@ -6234,6 +6253,238 @@ TEST(hmStrictCompare, innerJoinHashMerge) {
 
           char label[256] = {0};
           (void)snprintf(label, sizeof(label), "INNER cond=%d loop=%d asc=%d filter=%d seed=%u mergeRef=%d hashRef=%d mActual=%d hActual=%d",
+                        param.cond, jtCtx.loopIdx, asc, filter, runSeed,
+                        mergeRefCount, hashRefCount,
+                        (int32_t)tSimpleHashGetSize(jtCtx.pMergeActualRows),
+                        (int32_t)tSimpleHashGetSize(jtCtx.pHashActualRows));
+          assertEqual(label);
+        }
+      }
+    }
+
+    ++supportedCondIdx;
+  }
+
+  taosMemoryFree(pTask);
+}
+
+TEST(hmStrictCompare, leftOuterJoinHashMerge) {
+  if (!jtCtrl.strictHmCompare) {
+    GTEST_SKIP() << "set JT_STRICT_HM_COMPARE=1 to enable strict hash/merge comparison";
+  }
+
+  auto ensureHash = [](SSHashObj** ppHash) {
+    if (*ppHash == NULL) {
+      *ppHash = tSimpleHashInit(jtDefaultHashCapacity(), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+      TD_ALWAYS_ASSERT(*ppHash);
+    } else {
+      tSimpleHashClear(*ppHash);
+    }
+  };
+
+  auto assertEqual = [](const char* label) {
+    int32_t iter = 0;
+    void* p = NULL;
+    void* key = NULL;
+    size_t klen = 0;
+    bool anyFailure = false;
+
+    auto dumpKeyDecoded = [](const char* prefix, const void* kptr, size_t ksize, int32_t cnt) {
+      char hex[512] = {0};
+      int32_t n = 0;
+      const char* b = (const char*)kptr;
+      for (size_t i = 0; i < ksize && n < (int32_t)sizeof(hex) - 4; ++i) {
+        n += snprintf(hex + n, 5, "%02X ", (uint8_t)b[i]);
+      }
+      JT_PRINTF("%s cnt=%d resColNum=%d resColSize=%d bytes=[%s]\n",
+                prefix, cnt, jtCtx.resColNum, jtCtx.resColSize, hex);
+      int32_t nullFlagBytes = MAX_SLOT_NUM * 2;
+      JT_PRINTF("  nullFlags(L)=[");
+      for (int32_t i = 0; i < MAX_SLOT_NUM && nullFlagBytes <= (int32_t)ksize; ++i) {
+        JT_PRINTF("%d", (uint8_t)b[i] ? 1 : 0);
+      }
+      JT_PRINTF("] nullFlags(R)=[");
+      for (int32_t i = MAX_SLOT_NUM; i < MAX_SLOT_NUM * 2 && i < (int32_t)ksize; ++i) {
+        JT_PRINTF("%d", (uint8_t)b[i] ? 1 : 0);
+      }
+      JT_PRINTF("]\n");
+      int32_t off = nullFlagBytes;
+      for (int32_t ci = 0; ci < jtCtx.resColNum && off < (int32_t)ksize; ++ci) {
+        int32_t slot = jtCtx.resColInSlot[ci];
+        int32_t sslot = slot % MAX_SLOT_NUM;
+        bool isNull = (uint8_t)b[slot] != 0;
+        if (isNull) {
+          JT_PRINTF("  col[%d](slot=%d) = NULL\n", ci, slot);
+          off += JT_INPUT_COL_BYTES(sslot);
+          continue;
+        }
+        switch (jtInputColType[sslot]) {
+          case TSDB_DATA_TYPE_TIMESTAMP:
+          case TSDB_DATA_TYPE_BIGINT:
+            if (off + (int32_t)sizeof(int64_t) <= (int32_t)ksize) {
+              int64_t v; memcpy(&v, b + off, sizeof(v));
+              JT_PRINTF("  col[%d](slot=%d) = %" PRId64 "\n", ci, slot, v);
+            }
+            off += (int32_t)sizeof(int64_t);
+            break;
+          case TSDB_DATA_TYPE_INT:
+            if (off + (int32_t)sizeof(int32_t) <= (int32_t)ksize) {
+              int32_t v; memcpy(&v, b + off, sizeof(v));
+              JT_PRINTF("  col[%d](slot=%d) = %d\n", ci, slot, v);
+            }
+            off += (int32_t)sizeof(int32_t);
+            break;
+          case TSDB_DATA_TYPE_BINARY:
+            if (off + JT_BINARY_MAX_LEN <= (int32_t)ksize) {
+              JT_PRINTF("  col[%d](slot=%d) = BIN[%02X%02X%02X%02X%02X]\n", ci, slot,
+                (uint8_t)b[off], (uint8_t)b[off+1], (uint8_t)b[off+2], (uint8_t)b[off+3], (uint8_t)b[off+4]);
+            }
+            off += JT_BINARY_MAX_LEN;
+            break;
+          default:
+            off += JT_INPUT_COL_BYTES(sslot);
+            break;
+        }
+      }
+    };
+
+    auto dumpAllRows = [&dumpKeyDecoded]() {
+      JT_PRINTF("=== MERGE rows (total=%d) ===\n", (int32_t)tSimpleHashGetSize(jtCtx.pMergeActualRows));
+      int32_t iter2 = 0; void* p2 = NULL;
+      while (NULL != (p2 = tSimpleHashIterate(jtCtx.pMergeActualRows, p2, &iter2))) {
+        size_t kl = 0; void* k = tSimpleHashGetKey(p2, &kl);
+        dumpKeyDecoded("  M", k, kl, *(int32_t*)p2);
+      }
+      JT_PRINTF("=== HASH rows (total=%d) ===\n", (int32_t)tSimpleHashGetSize(jtCtx.pHashActualRows));
+      iter2 = 0; p2 = NULL;
+      while (NULL != (p2 = tSimpleHashIterate(jtCtx.pHashActualRows, p2, &iter2))) {
+        size_t kl = 0; void* k = tSimpleHashGetKey(p2, &kl);
+        dumpKeyDecoded("  H", k, kl, *(int32_t*)p2);
+      }
+    };
+
+    while (NULL != (p = tSimpleHashIterate(jtCtx.pMergeActualRows, p, &iter))) {
+      key = tSimpleHashGetKey(p, &klen);
+      int32_t* hCnt = (int32_t*)tSimpleHashGet(jtCtx.pHashActualRows, key, klen);
+      if (hCnt == NULL) {
+        if (!anyFailure) { dumpAllRows(); }
+        anyFailure = true;
+        JT_PRINTF("missing-in-hash: klen=%zu mergeRows=%d hashRows=%d\n", klen,
+                  (int32_t)tSimpleHashGetSize(jtCtx.pMergeActualRows),
+                  (int32_t)tSimpleHashGetSize(jtCtx.pHashActualRows));
+      } else if (*(int32_t*)p != *hCnt) {
+        if (!anyFailure) { dumpAllRows(); }
+        anyFailure = true;
+        JT_PRINTF("count-mismatch merge=%d hash=%d\n", *(int32_t*)p, *hCnt);
+      }
+    }
+
+    iter = 0;
+    p = NULL;
+    while (NULL != (p = tSimpleHashIterate(jtCtx.pHashActualRows, p, &iter))) {
+      key = tSimpleHashGetKey(p, &klen);
+      int32_t* mCnt = (int32_t*)tSimpleHashGet(jtCtx.pMergeActualRows, key, klen);
+      if (mCnt == NULL) {
+        if (!anyFailure) { dumpAllRows(); }
+        anyFailure = true;
+        JT_PRINTF("missing-in-merge: klen=%zu mergeRows=%d hashRows=%d\n", klen,
+                  (int32_t)tSimpleHashGetSize(jtCtx.pMergeActualRows),
+                  (int32_t)tSimpleHashGetSize(jtCtx.pHashActualRows));
+      } else if (*(int32_t*)p != *mCnt) {
+        if (!anyFailure) { dumpAllRows(); }
+        anyFailure = true;
+        JT_PRINTF("count-mismatch hash=%d merge=%d\n", *(int32_t*)p, *mCnt);
+      }
+    }
+
+    ASSERT_FALSE(anyFailure) << label << ": merge/hash output mismatch (see above)";
+  };
+
+  SJoinTestParam param;
+  TAOS_MEMSET(&param, 0, sizeof(param));
+  SExecTaskInfo* pTask = createDummyTaskInfo((char*)"hmStrictCompare:leftOuterJoinHashMerge");
+  TD_ALWAYS_ASSERT(pTask);
+
+  param.pTask = pTask;
+  param.joinType = JOIN_TYPE_LEFT;
+  param.subType = JOIN_STYPE_OUTER;
+  param.grpJoin = false;
+
+  int32_t conds[] = {TEST_NO_COND, TEST_EQ_COND, TEST_EQ_EXPR, TEST_ON_COND, TEST_FULL_COND};
+  uint32_t baseSeed = 5001;
+
+  int32_t condNum = (int32_t)(sizeof(conds) / sizeof(conds[0]));
+  int32_t supportedCondIdx = 0;
+  for (int32_t c = 0; c < condNum; ++c) {
+    param.cond = conds[c];
+    bool mergeSupported = (TEST_EQ_EXPR != param.cond);
+    bool hashSupported = (TEST_NO_COND != param.cond && TEST_ON_COND != param.cond);
+    if (!mergeSupported || !hashSupported) {
+      JT_PRINTF("strict hm compare skip LEFT_OUTER cond=%d (mergeSupported=%d hashSupported=%d)", param.cond,
+                mergeSupported ? 1 : 0, hashSupported ? 1 : 0);
+      continue;
+    }
+
+    for (jtCtx.loopIdx = 0; jtCtx.loopIdx < jtCtrl.loopCnt; ++jtCtx.loopIdx) {
+      for (int32_t asc = 0; asc < 2; ++asc) {
+        param.asc = (0 != asc);
+        for (int32_t filter = 0; filter < 2; ++filter) {
+          param.filter = (0 != filter);
+
+          uint32_t runSeed = baseSeed + (uint32_t)(supportedCondIdx * 100 + asc * 10 + filter);
+          uint32_t dataSeed = runSeed + 10000;
+
+          jtCtx.strictCompareRun = true;
+          jtCtx.strictReuseProjection = false;
+          jtCtx.strictProjectionSaved = false;
+          jtCtx.strictReuseOnCond = false;
+          jtCtx.strictOnCondSaved = false;
+          jtCtx.strictReuseEqCond = false;
+          jtCtx.strictEqCondSaved = false;
+          jtCtx.strictReuseFilter = false;
+          jtCtx.strictFilterSaved = false;
+          jtCtx.useFixedDataSeed = true;
+          jtCtx.fixedDataSeed = dataSeed;
+
+          ensureHash(&jtCtx.pMergeActualRows);
+          jtCtx.captureActualRows = true;
+          jtCtx.pActiveActualRows = jtCtx.pMergeActualRows;
+          taosSeedRand(runSeed);
+          runSingleMJoinTest((char*)"hmStrictCompare:merge", &param);
+          int32_t mergeRefCount = jtRes.rowNum;
+          ASSERT_TRUE(jtRes.succeed) << "merge expected validation failed: cond=" << param.cond
+                   << " loop=" << jtCtx.loopIdx << " asc=" << asc << " filter=" << filter
+                   << " seed=" << runSeed;
+
+          ensureHash(&jtCtx.pHashActualRows);
+          jtCtx.strictReuseProjection = true;
+          jtCtx.strictReuseOnCond = true;
+          jtCtx.strictReuseEqCond = true;
+          jtCtx.strictReuseFilter = true;
+          jtCtx.captureActualRows = true;
+          jtCtx.pActiveActualRows = jtCtx.pHashActualRows;
+          taosSeedRand(runSeed);
+          runSingleHJoinTest((char*)"hmStrictCompare:hash", &param);
+          int32_t hashRefCount = jtRes.rowNum;
+          ASSERT_TRUE(jtRes.succeed) << "hash expected validation failed: cond=" << param.cond
+                   << " loop=" << jtCtx.loopIdx << " asc=" << asc << " filter=" << filter
+                   << " seed=" << runSeed;
+
+          jtCtx.captureActualRows = false;
+          jtCtx.pActiveActualRows = NULL;
+          jtCtx.strictReuseProjection = false;
+          jtCtx.strictProjectionSaved = false;
+          jtCtx.strictReuseOnCond = false;
+          jtCtx.strictOnCondSaved = false;
+          jtCtx.strictReuseEqCond = false;
+          jtCtx.strictEqCondSaved = false;
+          jtCtx.strictReuseFilter = false;
+          jtCtx.strictFilterSaved = false;
+          jtCtx.useFixedDataSeed = false;
+          jtCtx.strictCompareRun = false;
+
+          char label[256] = {0};
+          (void)snprintf(label, sizeof(label), "LEFT_OUTER cond=%d loop=%d asc=%d filter=%d seed=%u mergeRef=%d hashRef=%d mActual=%d hActual=%d",
                         param.cond, jtCtx.loopIdx, asc, filter, runSeed,
                         mergeRefCount, hashRefCount,
                         (int32_t)tSimpleHashGetSize(jtCtx.pMergeActualRows),
