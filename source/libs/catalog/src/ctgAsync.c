@@ -78,42 +78,6 @@ static void ctgDestroyVStbLayerReqs(SArray* pReqs) {
 }
 
 /*
- * Send a vnode request to fetch the first-hop referenced tables of a virtual super table.
- * pCtg/pConn are the catalog and request connection.
- * suid/vgroupInfo identify the virtual super table vnode to query.
- * tReq is the async task request context used by batch dispatch.
- * Return success on success, otherwise an error code.
- */
-static int32_t ctgGetVSubtablesMetaFromVnode(SCatalog* pCtg, SRequestConnInfo* pConn, int64_t suid,
-                                             SVgroupInfo* vgroupInfo, SCtgTaskReq* tReq) {
-  SCtgTask* pTask = tReq ? tReq->pTask : NULL;
-  void* (*mallocFp)(int64_t) = pTask ? (void* (*)(int64_t))taosMemMalloc : rpcMallocCont;
-  void (*freeFp)(void*) = pTask ? taosMemFree : rpcFreeCont;
-  int32_t reqType = TDMT_VND_VSUBTABLES_META;
-  SEp*    pEp = &vgroupInfo->epSet.eps[vgroupInfo->epSet.inUse];
-
-  ctgDebug("try to get vstb's first-hop ref tables from vnode, vgId:%d, ep num:%d, ep %s:%d, suid:%" PRIu64,
-           vgroupInfo->vgId, vgroupInfo->epSet.numOfEps, pEp->fqdn, pEp->port, suid);
-
-  char*   msg = NULL;
-  int32_t msgLen = 0;
-  int32_t code = queryBuildMsg[TMSG_INDEX(reqType)](&suid, &msg, 0, &msgLen, mallocFp, freeFp);
-  if (code) {
-    ctgError("Build vnode vsubtables meta msg failed, code:%x, suid:%" PRIu64, code, suid);
-    CTG_ERR_RET(code);
-  }
-
-  SRequestConnInfo vConn = {
-      .pTrans = pConn->pTrans,
-      .requestId = pConn->requestId,
-      .requestObjRefId = pConn->requestObjRefId,
-      .mgmtEps = vgroupInfo->epSet,
-  };
-
-  return ctgAddBatch(pCtg, vgroupInfo->vgId, &vConn, tReq, reqType, msg, msgLen);
-}
-
-/*
  * Add one referenced db.table.col item into a resolving layer with deduplication.
  * ppRefs is the target SArray<SCtgVStbLayerRef>.
  * pDbName/pTbName/pColName describe the referenced item from metadata.
@@ -3929,35 +3893,6 @@ _return:
   CTG_RET(code);
 }
 
-/*
- * Finalize a virtual super table ref-db task after all layers are resolved.
- * pTask owns the ctx whose pFinalDbs has already accumulated all referenced-table dbs.
- * The helper builds SArray<SVStbRefDbsRsp>, swaps it into pTask->res, and ends the task.
- * Return success on success, otherwise an error code.
- */
-static int32_t ctgFinalizeVStbRefDbsTask(SCtgTask* pTask) {
-  int32_t            code = TSDB_CODE_SUCCESS;
-  int32_t            newCode = TSDB_CODE_SUCCESS;
-  SCtgVStbRefDbsCtx* pCtx = (SCtgVStbRefDbsCtx*)pTask->taskCtx;
-
-  if (pCtx->pResList) {
-    taosArrayDestroyEx(pCtx->pResList, tDestroySVStbRefDbsRsp);
-    pCtx->pResList = NULL;
-  }
-
-  code = ctgBuildVStbFinalRes(pCtx->pFinalDbs, &pCtx->pResList);
-  if (TSDB_CODE_SUCCESS == code) {
-    TSWAP(pTask->res, pCtx->pResList);
-  }
-
-  newCode = ctgHandleTaskEnd(pTask, code);
-  if (TSDB_CODE_SUCCESS == code && TSDB_CODE_SUCCESS != newCode) {
-    code = newCode;
-  }
-
-  return code;
-}
-
 int32_t ctgHandleGetVStbRefDbsRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf* pMsg, int32_t rspCode) {
   int32_t            code = 0;
   SCtgTask*          pTask = tReq->pTask;
@@ -5133,17 +5068,6 @@ static int32_t ctgLaunchGetVStbRefDbsTaskByReq(SCtgTaskReq* pReq) {
     CTG_ERR_JRET(terrno);
   }
 
-  for (int32_t i = 0; i < pCtx->vgNum; ++i) {
-    SVgroupInfo* pVg = (SVgroupInfo*)taosArrayGet(pCtx->pVgroups, i);
-
-    CTG_ERR_JRET(ctgGetVSubtablesMetaFromVnode(pCtg, pConn, pCtx->pMeta->suid, pVg, pReq));
-
-    if (NULL == taosArrayPush(pCtx->pSubTablesList, &(SVSubTablesRsp){0})) {
-      ctgError("taosArrayPush SVSubTablesRsp failed, code:%x", terrno);
-      CTG_ERR_JRET(terrno);
-    }
-  }
-
   if (NULL == pTask->msgCtxs) {
     pTask->msgCtxs = taosArrayInit_s(sizeof(SCtgMsgCtx), pCtx->vgNum);
     if (NULL == pTask->msgCtxs) {
@@ -5154,6 +5078,12 @@ static int32_t ctgLaunchGetVStbRefDbsTaskByReq(SCtgTaskReq* pReq) {
 
   for (int32_t i = 0; i < pCtx->vgNum; ++i) {
     SVgroupInfo* pVg = (SVgroupInfo*)taosArrayGet(pCtx->pVgroups, i);
+
+    if (NULL == taosArrayPush(pCtx->pSubTablesList, &(SVSubTablesRsp){0})) {
+      ctgError("taosArrayPush SVSubTablesRsp failed, code:%x", terrno);
+      CTG_ERR_JRET(terrno);
+    }
+
     SCtgMsgCtx*  pReqMsgCtx = CTG_GET_TASK_MSGCTX(pTask, i);
     if (NULL == pReqMsgCtx) {
       ctgError("fail to get the %dth pMsgCtx", i);
@@ -5273,28 +5203,37 @@ int32_t ctgGetVStbRefDbsCb(SCtgTaskReq* pReq) {
     case CTG_TASK_GET_DB_VGROUP: {
       SDBVgInfo* pDb = (SDBVgInfo*)pTask->subRes.res;
 
-    pCtx->clonedVgroups = true;
-  } else if (CTG_TASK_GET_TB_META_BATCH == pTask->subRes.type) {
-    SArray* pMetaRes = (SArray*)pTask->subRes.res;
-    SArray* pNextLayerRefs = NULL;
-
-    CTG_ERR_JRET(
-        ctgBuildVStbNextLayerReqs(pCtx->refLayer, pCtx->pLayerRefs, pCtx->pLayerReqs, pMetaRes, &pCtx->pFinalDbs,
-                                  &pNextLayerRefs));
-
-    taosArrayDestroy(pCtx->pLayerRefs);
-    pCtx->pLayerRefs = pNextLayerRefs;
-    pNextLayerRefs = NULL;
-    ctgDestroyVStbLayerReqs(pCtx->pLayerReqs);
-    pCtx->pLayerReqs = NULL;
-
-    if (NULL == pCtx->pLayerRefs || taosArrayGetSize(pCtx->pLayerRefs) <= 0) {
-      return ctgFinalizeVStbRefDbsTask(pTask);
+      pCtx->pVgroups = taosArrayDup(pDb->vgArray, NULL);
+      if (NULL == pCtx->pVgroups) {
+        CTG_ERR_JRET(terrno);
+      }
+      pCtx->clonedVgroups = true;
+      break;
     }
+    case CTG_TASK_GET_TB_META_BATCH: {
+      SArray* pMetaRes = (SArray*)pTask->subRes.res;
+      SArray* pNextLayerRefs = NULL;
 
-    ++pCtx->refLayer;
-    CTG_ERR_JRET(ctgLaunchVStbLayerMetaTask(pReq));
-    return TSDB_CODE_SUCCESS;
+      CTG_ERR_JRET(
+          ctgBuildVStbNextLayerReqs(pCtx->refLayer, pCtx->pLayerRefs, pCtx->pLayerReqs, pMetaRes, &pCtx->pFinalDbs,
+                                    &pNextLayerRefs));
+
+      taosArrayDestroy(pCtx->pLayerRefs);
+      pCtx->pLayerRefs = pNextLayerRefs;
+      pNextLayerRefs = NULL;
+      ctgDestroyVStbLayerReqs(pCtx->pLayerReqs);
+      pCtx->pLayerReqs = NULL;
+
+      if (NULL == pCtx->pLayerRefs || taosArrayGetSize(pCtx->pLayerRefs) <= 0) {
+        return ctgFinalizeVStbRefDbsTask(pTask);
+      }
+
+      ++pCtx->refLayer;
+      CTG_ERR_JRET(ctgLaunchVStbLayerMetaTask(pReq));
+      return TSDB_CODE_SUCCESS;
+    }
+    default:
+      break;
   }
 
   CTG_RET(ctgLaunchGetVStbRefDbsTaskByReq(pReq));
