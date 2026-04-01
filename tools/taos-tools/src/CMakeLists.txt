@@ -134,6 +134,9 @@ if(CMAKE_SYSTEM_NAME MATCHES "Darwin")
   if(NOT _have_argp)
     message(FATAL_ERROR "please run:brew install argp-standalone")
   endif()
+  # Suppress ld64 duplicate static library noise caused by transitive links.
+  target_link_options(taosdump PRIVATE -Wl,-no_warn_duplicate_libraries)
+  target_link_options(taosBenchmark PRIVATE -Wl,-no_warn_duplicate_libraries)
   # brew install argp-standalone
   target_include_directories(taosBenchmark PRIVATE ${BREW_PREFIX}/include)
   target_include_directories(taosdump PRIVATE ${BREW_PREFIX}/include)
