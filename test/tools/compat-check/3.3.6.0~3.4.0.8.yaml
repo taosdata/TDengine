@@ -1,0 +1,248 @@
+# Auto-generated INFORMATION_SCHEMA whitelist
+# from_version : 3.3.6.0
+# to_version   : 3.4.0.8
+# generated_at : 2026-03-22 17:00:07
+#
+# All changes listed here are treated as expected for this upgrade path.
+# Rename/copy with a shorter version prefix to apply more broadly:
+#   e.g.  3.3~3.4.yaml  applies to all 3.3.x.x -> 3.4.x.x upgrades
+
+added_tables:
+- INS_BNODES
+- INS_ENCRYPT_ALGORITHMS
+- INS_ENCRYPT_STATUS
+- INS_MOUNTS
+- INS_RETENTIONS
+- INS_RETENTION_DETAILS
+- INS_ROLES
+- INS_ROLE_COLUMN_PRIVILEGES
+- INS_ROLE_PRIVILEGES
+- INS_RSMAS
+- INS_SCANS
+- INS_SCAN_DETAILS
+- INS_SSMIGRATES
+- INS_STREAM_RECALCULATES
+- INS_TOKENS
+- INS_VIRTUAL_CHILD_COLUMNS
+- INS_XNODES
+- INS_XNODE_AGENTS
+- INS_XNODE_JOBS
+- INS_XNODE_TASKS
+modified_tables:
+- table: INS_ANODES_FULL
+  added_columns:
+  - status
+  - note
+- table: INS_COLUMNS
+  added_columns:
+  - col_id
+- table: INS_DATABASES
+  added_columns:
+  - ss_chunkpages
+  - ss_keeplocal
+  - ss_compact
+  - is_audit
+  - owner
+  - allow_drop
+  deleted_columns:
+  - s3_chunkpages
+  - s3_keeplocal
+  - s3_compact
+- table: INS_DISK_USAGE
+  added_columns:
+  - wal_size
+  - ss
+  deleted_columns:
+  - wal
+  - s3
+- table: INS_FILESETS
+  added_columns:
+  - should_compact
+  deleted_columns:
+  - shold_compact
+- table: INS_GRANTS
+  added_columns:
+  - vnodes
+  - storage_size
+- table: INS_GRANTS_LOGS
+  added_columns:
+  - revoke_info
+- table: INS_SNODES
+  added_columns:
+  - replicaId
+  - asReplicaOf
+- table: INS_STABLES
+  added_columns:
+  - keep
+  - owner
+- table: INS_STREAMS
+  added_columns:
+  - db_name
+  - snodeLeader
+  - snodeReplica
+  deleted_columns:
+  - history_id
+  - source_db
+  - target_db
+  - target_table
+  - watermark
+  - trigger
+  - sink_quota
+  - checkpoint_interval
+  - checkpoint_backup
+  - history_scan_idle
+  changed_position:
+  - col: create_time
+    before: 1
+    after: 2
+  - col: stream_id
+    before: 2
+    after: 3
+  - col: message
+    before: 15
+    after: 8
+- table: INS_STREAM_TASKS
+  added_columns:
+  - stream_id
+  - type
+  - serious_id
+  - deploy_id
+  - task_idx
+  - last_update
+  - message
+  deleted_columns:
+  - level
+  - stage
+  - in_queue
+  - process_total
+  - process_throughput
+  - out_total
+  - out_throughput
+  - info
+  - start_id
+  - start_ver
+  - checkpoint_time
+  - checkpoint_id
+  - checkpoint_ver
+  - checkpoint_size
+  - checkpoint_backup
+  - history_task_id
+  - history_task_status
+  - notify_event_stat
+  changed_type:
+  - col: stream_name
+    before: VARCHAR(64)
+    after: VARCHAR(192)
+  - col: task_id
+    before: VARCHAR(16)
+    after: VARCHAR(19)
+  - col: status
+    before: VARCHAR(12)
+    after: VARCHAR(20)
+  - col: extra_info
+    before: VARCHAR(25)
+    after: VARCHAR(64)
+  changed_position:
+  - col: task_id
+    before: 1
+    after: 2
+  - col: node_type
+    before: 2
+    after: 6
+  - col: node_id
+    before: 3
+    after: 7
+  - col: status
+    before: 5
+    after: 9
+  - col: start_time
+    before: 13
+    after: 10
+  - col: extra_info
+    before: 21
+    after: 12
+- table: INS_TOPICS
+  deleted_columns:
+  - meta
+  - type
+- table: INS_USERS
+  added_columns:
+  - totp
+  - allowed_datetime
+  - roles
+  changed_position:
+  - col: allowed_host
+    before: 6
+    after: 7
+- table: INS_USERS_FULL
+  added_columns:
+  - create_time
+  - totp
+  - change_pass
+  - session_per_user
+  - connect_time
+  - connect_idle_timeout
+  - call_per_session
+  - vnode_per_call
+  - failed_login_attempts
+  - password_life_time
+  - password_reuse_time
+  - password_reuse_max
+  - password_lock_time
+  - password_grace_time
+  - inactive_account_time
+  - allow_token_num
+  - allowed_datetime
+  - roles
+  changed_position:
+  - col: encrypted_pass
+    before: 5
+    after: 8
+  - col: allowed_host
+    before: 6
+    after: 22
+- table: INS_USER_PRIVILEGES
+  added_columns:
+  - priv_type
+  - priv_scope
+  - columns
+  - update_time
+  deleted_columns:
+  - privilege
+  changed_position:
+  - col: db_name
+    before: 2
+    after: 3
+  - col: table_name
+    before: 3
+    after: 4
+  - col: condition
+    before: 4
+    after: 5
+  - col: notes
+    before: 5
+    after: 6
+- table: INS_VGROUPS
+  added_columns:
+  - is_ready
+  - mount_vgroup_id
+  - keep_version
+  - keep_version_time
+  changed_type:
+  - col: cacheload
+    before: INT
+    after: BIGINT
+  changed_position:
+  - col: cacheload
+    before: 15
+    after: 16
+  - col: cacheelements
+    before: 16
+    after: 17
+  - col: tsma
+    before: 17
+    after: 18
+- table: INS_VNODES
+  added_columns:
+  - buffer_segment_used
+  - buffer_segment_size

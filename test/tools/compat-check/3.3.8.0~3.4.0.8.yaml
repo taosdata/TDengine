@@ -1,0 +1,121 @@
+# Auto-generated INFORMATION_SCHEMA whitelist
+# from_version : 3.3.8.0
+# to_version   : 3.4.0.8
+# generated_at : 2026-03-22 16:44:09
+#
+# All changes listed here are treated as expected for this upgrade path.
+# Rename/copy with a shorter version prefix to apply more broadly:
+#   e.g.  3.3~3.4.yaml  applies to all 3.3.x.x -> 3.4.x.x upgrades
+
+added_tables:
+- INS_ENCRYPT_ALGORITHMS
+- INS_ENCRYPT_STATUS
+- INS_ROLES
+- INS_ROLE_COLUMN_PRIVILEGES
+- INS_ROLE_PRIVILEGES
+- INS_TOKENS
+- INS_XNODES
+- INS_XNODE_AGENTS
+- INS_XNODE_JOBS
+- INS_XNODE_TASKS
+modified_tables:
+- table: INS_ANODES_FULL
+  added_columns:
+  - status
+  - note
+- table: INS_DATABASES
+  added_columns:
+  - is_audit
+  - owner
+  - allow_drop
+- table: INS_DISK_USAGE
+  added_columns:
+  - wal_size
+  deleted_columns:
+  - wal
+- table: INS_STABLES
+  added_columns:
+  - owner
+- table: INS_TOPICS
+  deleted_columns:
+  - meta
+  - type
+- table: INS_USERS
+  added_columns:
+  - totp
+  - allowed_datetime
+  - roles
+  changed_position:
+  - col: allowed_host
+    before: 6
+    after: 7
+- table: INS_USERS_FULL
+  added_columns:
+  - create_time
+  - totp
+  - change_pass
+  - session_per_user
+  - connect_time
+  - connect_idle_timeout
+  - call_per_session
+  - vnode_per_call
+  - failed_login_attempts
+  - password_life_time
+  - password_reuse_time
+  - password_reuse_max
+  - password_lock_time
+  - password_grace_time
+  - inactive_account_time
+  - allow_token_num
+  - allowed_datetime
+  - roles
+  changed_position:
+  - col: encrypted_pass
+    before: 5
+    after: 8
+  - col: allowed_host
+    before: 6
+    after: 22
+- table: INS_USER_PRIVILEGES
+  added_columns:
+  - priv_type
+  - priv_scope
+  - columns
+  - update_time
+  deleted_columns:
+  - privilege
+  changed_position:
+  - col: db_name
+    before: 2
+    after: 3
+  - col: table_name
+    before: 3
+    after: 4
+  - col: condition
+    before: 4
+    after: 5
+  - col: notes
+    before: 5
+    after: 6
+- table: INS_VGROUPS
+  added_columns:
+  - is_ready
+  - keep_version
+  - keep_version_time
+  changed_type:
+  - col: cacheload
+    before: INT
+    after: BIGINT
+  changed_position:
+  - col: cacheload
+    before: 15
+    after: 16
+  - col: cacheelements
+    before: 16
+    after: 17
+  - col: tsma
+    before: 17
+    after: 18
+  - col: mount_vgroup_id
+    before: 18
+    after: 19
