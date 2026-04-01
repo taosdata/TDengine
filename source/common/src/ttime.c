@@ -133,67 +133,48 @@ int32_t parseFraction(char* str, char** end, int32_t timePrec, int64_t* pFractio
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
-#define PARSE(str,len,result) \
-  if (len != 2) {\
-    TAOS_RETURN(TSDB_CODE_INVALID_PARA);\
-  }\
-  result = strnatoi(str, len);
 
 int32_t parseTimezone(char* str, int64_t* tzOffset) {
-  int64_t hour = 0;
-  int64_t minute = 0;
-
-  int32_t i = 0;
-  if (str[i] != '+' && str[i] != '-') {
+  if (str[0] != '+' && str[0] != '-') {
     TAOS_RETURN(TSDB_CODE_INVALID_PARA);
   }
 
-  i++;
-
-  int32_t j = i;
-  while (str[j]) {
-    if ((str[j] >= '0' && str[j] <= '9') || str[j] == ':') {
-      ++j;
-      continue;
-    }
-
+  char h1 = str[1];
+  if (h1 != '0' && h1 != '1') {
     TAOS_RETURN(TSDB_CODE_INVALID_PARA);
   }
 
-  char* sep = strchr(&str[i], ':');
-  if (sep != NULL) {
-    int32_t hourSize = (int32_t)(sep - &str[i]);
-    PARSE(&str[i], hourSize, hour);
+  char h2 = str[2];
+  if (h2 < '0' || h2 > '9') {
+    TAOS_RETURN(TSDB_CODE_INVALID_PARA);
+  }
 
-    i += hourSize + 1;
-    size_t minSize = strlen(&str[i]);
-    PARSE(&str[i], minSize, minute);
-  } else {
-    size_t hourSize = strlen(&str[i]);
-    if (hourSize > 2){
-      hourSize = 2;
+  char m1 = '0', m2 = '0';
+  if (str[3] != 0) {
+    const char *p = (str[3] == ':') ? (str + 4) : (str + 3);
+
+    m1 = p[0];
+    if (m1 < '0' || m1 > '5') {
+      TAOS_RETURN(TSDB_CODE_INVALID_PARA);
     }
-    PARSE(&str[i], hourSize, hour)
-    i += hourSize;
-    size_t minSize = strlen(&str[i]);
-    if (minSize > 0){
-      PARSE(&str[i], minSize, minute);
+
+    m2 = p[1];
+    if (m2 < '0' || m2 > '9') {
+      TAOS_RETURN(TSDB_CODE_INVALID_PARA);
+    }
+
+    if (p[2] != 0) {
+      TAOS_RETURN(TSDB_CODE_INVALID_PARA);
     }
   }
 
-  if (hour > 13 || hour < 0) {
-    TAOS_RETURN(TSDB_CODE_INVALID_PARA);
-  }
-  if (minute > 59 || minute < 0) {
+  int64_t h = (h1 - '0') * 10 + (h2 - '0');
+  int64_t m = (m1 - '0') * 10 + (m2 - '0');
+  if (h > 14 || m > 59 || (h == 14 && m != 0)) {
     TAOS_RETURN(TSDB_CODE_INVALID_PARA);
   }
 
-  if (str[0] == '+') {
-    *tzOffset = -(hour * 3600 + minute * 60);
-  } else {
-    *tzOffset = hour * 3600 + minute * 60;
-  }
-
+  *tzOffset = (h * 3600 + m * 60) * (str[0] == '+' ? 1 : -1);
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
@@ -2212,7 +2193,7 @@ static int32_t char2ts(const char* s, SArray* formats, int64_t* ts, int32_t prec
   tm.tm.tm_min = min;
   tm.tm.tm_sec = sec;
   if (!checkTm(&tm.tm)) return -2;
-  if (tzHour < -13 || tzHour > 13) return -2;
+  if (tzHour < -14 || tzHour > 14) return -2;
   tm.fsec = ms * 1000000 + us * 1000 + ns;
   int32_t ret = taosTm2Ts(&tm, ts, precision, tz);
   if (tzHour != 0) {
