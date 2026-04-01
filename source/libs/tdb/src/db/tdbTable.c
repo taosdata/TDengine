@@ -287,7 +287,7 @@ int32_t tdbTbTraversal(TTB *pTb, void *data,
   tdbFree(pValue);
   tdbTbcClose(pCur);
 
-  return ret;
+  return 0;
 }
 
 int tdbTbcMoveTo(TBC *pTbc, const void *pKey, int kLen, int *c) { return tdbBtcMoveTo(&pTbc->btc, pKey, kLen, c); }
