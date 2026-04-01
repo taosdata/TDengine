@@ -43,7 +43,7 @@ extern "C" {
 // max hostname length on Linux is 253
 #define MAX_HOSTNAME_LEN                254
 
-// come from tdef.h
+// Maximum SQL length allowed by tools
 #ifndef TOOLS_MAX_ALLOWED_SQL_LEN
 #define TOOLS_MAX_ALLOWED_SQL_LEN        (4*1024*1024u) /* sql max length */
 #endif
