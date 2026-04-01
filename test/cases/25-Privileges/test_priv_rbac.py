@@ -297,7 +297,21 @@ class TestCase:
 
         # Switch to the restricted user and query
         tdSql.connect("u_mask", self.test_pass)
-        time.sleep(2)  # wait for privileges to take effect
+        # Wait for privileges to take effect with a small retry loop to avoid flakiness
+        max_wait_seconds = 5
+        poll_interval_seconds = 0.5
+        start_time = time.time()
+        last_exception = None
+        while True:
+            try:
+                # Simple probe query that should succeed once privileges are effective
+                tdSql.query("select 1 from d_mask.ntb_mask limit 1")
+                break
+            except Exception as e:
+                last_exception = e
+                if time.time() - start_time >= max_wait_seconds:
+                    raise last_exception
+                time.sleep(poll_interval_seconds)
 
         # --- Normal table: select * should mask c1, c2, c3, c4 ---
         tdSql.query("select * from d_mask.ntb_mask")
@@ -317,6 +331,14 @@ class TestCase:
         tdSql.checkData(0, 3, '*')
         tdSql.checkData(0, 4, '*')
 
+        # Permission-denied: selecting a column not included in the mask grant should fail
+        tdSql.error("select secret_col from d_mask.ntb_mask")
+
+        # Expression/bypass: using functions on masked-only columns must not reveal original data
+        tdSql.query("select upper(c1), substr(c1, 1, 1) from d_mask.ntb_mask")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, '*')
+        tdSql.checkData(0, 1, '*')
         # --- Supertable: select * should mask c1, c2, c3, c4, t1, t2, t3, t4 ---
         tdSql.query("select * from d_mask.stb_mask")
         tdSql.checkRows(1)
