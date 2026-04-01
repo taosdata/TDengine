@@ -3071,12 +3071,15 @@ static int32_t mndProcessAlterStbReq(SRpcMsg *pReq) {
                   NULL, _OVER);
 
   // Batch meta txn: conflict detection — block if another txn owns this STB
-  if (pStb->txnId != 0 && pStb->txnId != (utxn_id_t)alterReq.txnId) {
+  // §35 taosX: skip for replicated STBs (compensating DDL from commit/rollback trans)
+  if (pStb->txnId != 0 && pStb->txnId != (utxn_id_t)alterReq.txnId && !TXN_IS_REPLICATED(pStb->txnId)) {
     code = TSDB_CODE_TXN_RESOURCE_BUSY;
     goto _OVER;
   }
-  if ((code = mndTxnCheckStbConflict(pMnode, alterReq.name, (utxn_id_t)alterReq.txnId)) != 0) {
-    goto _OVER;
+  if (!TXN_IS_REPLICATED(pStb->txnId)) {
+    if ((code = mndTxnCheckStbConflict(pMnode, alterReq.name, (utxn_id_t)alterReq.txnId)) != 0) {
+      goto _OVER;
+    }
   }
 
   // Batch meta txn: defer STB DDL to shadow (redo-log), do NOT apply to SDB now.
@@ -3477,12 +3480,15 @@ static int32_t mndProcessDropStbReq(SRpcMsg *pReq) {
   }
 
   // Batch meta txn: conflict detection — block if another txn owns this STB
-  if (pStb->txnId != 0 && pStb->txnId != (utxn_id_t)dropReq.txnId) {
+  // §35 taosX: skip for replicated STBs (compensating DDL from commit/rollback trans)
+  if (pStb->txnId != 0 && pStb->txnId != (utxn_id_t)dropReq.txnId && !TXN_IS_REPLICATED(pStb->txnId)) {
     code = TSDB_CODE_TXN_RESOURCE_BUSY;
     goto _OVER;
   }
-  if ((code = mndTxnCheckStbConflict(pMnode, dropReq.name, (utxn_id_t)dropReq.txnId)) != 0) {
-    goto _OVER;
+  if (!TXN_IS_REPLICATED(pStb->txnId)) {
+    if ((code = mndTxnCheckStbConflict(pMnode, dropReq.name, (utxn_id_t)dropReq.txnId)) != 0) {
+      goto _OVER;
+    }
   }
 
   // Batch meta txn: defer STB DDL to shadow (redo-log), do NOT apply to SDB now.

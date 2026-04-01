@@ -120,6 +120,12 @@ static void mndTxnTimeoutScanImpl(SMnode *pMnode) {
     int64_t elapsed = now - pTxn->lastActiveTime;
     int64_t timeout = (int64_t)pTxn->timeoutSec * 1000;
 
+    // §35 taosX: replicated txns have no timeout (resolved by explicit COMMIT/ROLLBACK from WAL)
+    if (TXN_IS_REPLICATED(pTxn->id)) {
+      sdbRelease(pSdb, pTxn);
+      continue;
+    }
+
     // Clock regression protection: skip if clock moved backward (NTP correction)
     if (elapsed < 0) {
       mDebug("txn:%" PRIu64 ", clock regression detected, elapsed=%" PRId64 "ms, skip timeout check", pTxn->id,
@@ -1261,9 +1267,13 @@ static int32_t mndProcessBeginTxnReq(SRpcMsg *pReq) {
   TAOS_CHECK_EXIT(tDeserializeSMTransReq(pReq->pCont, pReq->contLen, &txnReq));
 
   if (txnReq.txnId != 0) {
-    mError("txn:%" PRIu64 ", client already has active transaction, reject double BEGIN", txnReq.txnId);
-    code = TSDB_CODE_TXN_ALREADY_IN_PROGRESS;
-    goto _exit;
+    if (TXN_IS_REPLICATED(txnReq.txnId)) {
+      // §35 taosX replication: accept known replicated txnId (auto-BEGIN from taosX)
+    } else {
+      mError("txn:%" PRIu64 ", client already has active transaction, reject double BEGIN", txnReq.txnId);
+      code = TSDB_CODE_TXN_ALREADY_IN_PROGRESS;
+      goto _exit;
+    }
   } else {
     txnReq.txnId = mndGenTxnId(pMnode);
     if (txnReq.txnId < 0) {
@@ -1321,6 +1331,12 @@ static int32_t mndProcessCommitTxnReq(SRpcMsg *pReq) {
   mInfo("start to commit txn: %" PRIu64, txnReq.txnId);
   pTxn = mndAcquireTxn(pMnode, txnReq.txnId);
   if (pTxn == NULL) {
+    if (TXN_IS_REPLICATED(txnReq.txnId)) {
+      // §35 taosX: replicated txn already committed/rolled back, idempotent
+      mInfo("txn:%" PRIu64 ", replicated txn not found, treat as already committed", txnReq.txnId);
+      terrno = 0;
+      goto _exit;
+    }
     mError("txn:%" PRIu64 ", not found, cannot commit", txnReq.txnId);
     TAOS_CHECK_EXIT(TSDB_CODE_TXN_NOT_EXIST);
   }

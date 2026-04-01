@@ -996,6 +996,8 @@ end:
   return code;
 }
 
+static int32_t taosTxnSendToMnode(TAOS* taos, utxn_id_t txnId, int32_t msgType);
+
 static int32_t taosCreateStb(TAOS* taos, void* meta, uint32_t metaLen) {
   if (taos == NULL || meta == NULL) {
     uError("invalid parameter in %s", __func__);
@@ -1074,6 +1076,19 @@ static int32_t taosCreateStb(TAOS* taos, void* meta, uint32_t metaLen) {
 
   uDebug(LOG_ID_TAG " create stable name:%s suid:%" PRId64 " processSuid:%" PRId64 " txnId:%" PRIu64, LOG_ID_VALUE,
          req.name, req.suid, pReq.suid, pReq.txnId);
+
+  // §35 taosX: ensure replicated txn context exists on target MNode (auto-BEGIN)
+  // MNode needs STxnObj for CREATE_STB shadow op (undo-log model tracks STB for ROLLBACK)
+  // Note: pReq.txnId is negative after TXN_SET_REPLICATED (int64_t signed), so use != 0
+  if (pReq.txnId != 0 && TXN_IS_REPLICATED(pReq.txnId)) {
+    int32_t beginCode = taosTxnSendToMnode(taos, pReq.txnId, TDMT_MND_BEGIN_TXN);
+    if (beginCode != 0) {
+      uError(LOG_ID_TAG " auto-BEGIN for txnId:%" PRIu64 " failed: %s", LOG_ID_VALUE, pReq.txnId, tstrerror(beginCode));
+      code = beginCode;
+      goto end;
+    }
+  }
+
   STscObj* pTscObj = pRequest->pTscObj;
   SName    tableName = {0};
   toName(pTscObj->acctId, pRequest->pDb, req.name, &tableName);
@@ -2966,6 +2981,52 @@ void tmq_free_raw(tmq_raw_data raw) {
 }
 
 /**
+ * §35 taosX: Send BEGIN/COMMIT/ROLLBACK to target MNode for replicated transaction management.
+ * Routes TXN_COMMIT/TXN_ROLLBACK from source VNode WAL subscription to target MNode,
+ * so MNode-side shadow ops (STB DDL) are properly committed/rolled back.
+ * Operations are idempotent: duplicate calls (from multiple VNode WALs) return success.
+ */
+static int32_t taosTxnSendToMnode(TAOS* taos, utxn_id_t txnId, int32_t msgType) {
+  if (taos == NULL) return TSDB_CODE_INVALID_PARA;
+
+  int32_t      code = TSDB_CODE_SUCCESS;
+  int32_t      lino = 0;
+  SRequestObj* pRequest = NULL;
+  SCmdMsgInfo  pCmdMsg = {0};
+
+  RAW_RETURN_CHECK(buildRequest(*(int64_t*)taos, "", 0, NULL, false, &pRequest, 0));
+  pRequest->syncQuery = true;
+
+  STscObj* pTscObj = pRequest->pTscObj;
+
+  SMTransReq txnReq = {0};
+  txnReq.txnId = txnId;
+
+  pCmdMsg.epSet = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
+  pCmdMsg.msgType = msgType;
+  pCmdMsg.msgLen = tSerializeSMTransReq(NULL, 0, &txnReq);
+  RAW_FALSE_CHECK(pCmdMsg.msgLen > 0);
+  pCmdMsg.pMsg = taosMemoryMalloc(pCmdMsg.msgLen);
+  RAW_NULL_CHECK(pCmdMsg.pMsg);
+  RAW_FALSE_CHECK(tSerializeSMTransReq(pCmdMsg.pMsg, pCmdMsg.msgLen, &txnReq) > 0);
+
+  SQuery pQuery = {0};
+  pQuery.execMode = QUERY_EXEC_MODE_RPC;
+  pQuery.pCmdMsg = &pCmdMsg;
+  pQuery.msgType = pCmdMsg.msgType;
+  pQuery.stableQuery = false;
+
+  launchQueryImpl(pRequest, &pQuery, true, NULL);
+  code = pRequest->code;
+
+end:
+  destroyRequest(pRequest);
+  taosMemoryFree(pCmdMsg.pMsg);
+  RAW_LOG_END
+  return code;
+}
+
+/**
  * §35 taosX replication: broadcast TXN_COMMIT to all vgroups in the target database.
  * VNodes without entries for this txnId will no-op (return SUCCESS).
  */
@@ -3060,6 +3121,15 @@ static int32_t taosTxnCommit(TAOS* taos, void* meta, uint32_t metaLen) {
   launchQueryImpl(pRequest, pQuery, true, NULL);
   code = pRequest->code;
   uDebug("taosTxnCommit txnId:%" PRIu64 " return, msg:%s", req.txnId, tstrerror(code));
+
+  // §35 taosX: also send COMMIT to target MNode for replicated STB shadow ops
+  if (TXN_IS_REPLICATED(req.txnId)) {
+    int32_t mnodeCode = taosTxnSendToMnode(taos, req.txnId, TDMT_MND_COMMIT_TXN);
+    if (mnodeCode != 0) {
+      uError("taosTxnCommit: MNode COMMIT for txnId:%" PRIu64 " failed: %s", req.txnId, tstrerror(mnodeCode));
+      if (code == 0) code = mnodeCode;
+    }
+  }
 
 end:
   taosArrayDestroy(pVgList);
@@ -3162,6 +3232,15 @@ static int32_t taosTxnRollback(TAOS* taos, void* meta, uint32_t metaLen) {
   launchQueryImpl(pRequest, pQuery, true, NULL);
   code = pRequest->code;
   uDebug("taosTxnRollback txnId:%" PRIu64 " return, msg:%s", req.txnId, tstrerror(code));
+
+  // §35 taosX: also send ROLLBACK to target MNode for replicated STB shadow ops
+  if (TXN_IS_REPLICATED(req.txnId)) {
+    int32_t mnodeCode = taosTxnSendToMnode(taos, req.txnId, TDMT_MND_ROLLBACK_TXN);
+    if (mnodeCode != 0) {
+      uError("taosTxnRollback: MNode ROLLBACK for txnId:%" PRIu64 " failed: %s", req.txnId, tstrerror(mnodeCode));
+      if (code == 0) code = mnodeCode;
+    }
+  }
 
 end:
   taosArrayDestroy(pVgList);

@@ -1,0 +1,327 @@
+/*
+ * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * §35 taosX replication: target-side STB transaction test binary.
+ *
+ * Simulates the taosX replication flow for batch metadata transactions:
+ *   1. Source DB: BEGIN → CREATE STB + child tables → COMMIT/ROLLBACK
+ *   2. TMQ subscription on source VNode WAL (with_meta)
+ *   3. tmq_get_raw → tmq_write_raw on target DB
+ *   4. Verification of target state
+ *
+ * Usage: tmq_taosx_txn <scenario>
+ *   scenario 1: CREATE STB + child tables → COMMIT → verify target has STB + tables
+ *   scenario 2: CREATE STB + child tables → ROLLBACK → verify target has nothing
+ *   scenario 3: CREATE STB → ALTER STB → COMMIT → verify target has altered STB
+ *   scenario 4: CREATE STB → DROP STB → COMMIT → verify target has no STB
+ *   scenario 5: Idempotent COMMIT (replay COMMIT twice)
+ */
+
+#include <assert.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
+#include "taos.h"
+
+#define SRC_DB "src_txn_db"
+#define DST_DB "dst_txn_db"
+#define TOPIC_NAME "topic_taosx_txn"
+
+static void do_query(TAOS *taos, const char *sql) {
+  TAOS_RES *res = taos_query(taos, sql);
+  int code = taos_errno(res);
+  if (code != 0) {
+    printf("FAILED: %s — %s (0x%x)\n", sql, taos_errstr(res), code);
+    taos_free_result(res);
+    exit(1);
+  }
+  taos_free_result(res);
+}
+
+static int do_query_ok(TAOS *taos, const char *sql) {
+  TAOS_RES *res = taos_query(taos, sql);
+  int code = taos_errno(res);
+  taos_free_result(res);
+  return code;
+}
+
+static int query_count(TAOS *taos, const char *sql) {
+  TAOS_RES *res = taos_query(taos, sql);
+  if (taos_errno(res) != 0) {
+    printf("query_count FAILED: %s — %s\n", sql, taos_errstr(res));
+    taos_free_result(res);
+    return -1;
+  }
+  TAOS_ROW row = taos_fetch_row(res);
+  int count = 0;
+  if (row && row[0]) {
+    count = *(int64_t *)row[0];
+  }
+  taos_free_result(res);
+  return count;
+}
+
+static int query_rows(TAOS *taos, const char *sql) {
+  TAOS_RES *res = taos_query(taos, sql);
+  if (taos_errno(res) != 0) {
+    printf("query_rows FAILED: %s — %s\n", sql, taos_errstr(res));
+    taos_free_result(res);
+    return -1;
+  }
+  int rows = 0;
+  while (taos_fetch_row(res)) rows++;
+  taos_free_result(res);
+  return rows;
+}
+
+static TAOS *connect_db(const char *db) {
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  if (!taos) {
+    printf("FAILED: Cannot connect to TDengine\n");
+    exit(1);
+  }
+  if (db) {
+    char sql[256];
+    snprintf(sql, sizeof(sql), "use %s", db);
+    do_query(taos, sql);
+  }
+  return taos;
+}
+
+static void setup_source(int scenario) {
+  TAOS *taos = connect_db(NULL);
+
+  do_query(taos, "drop topic if exists " TOPIC_NAME);
+  do_query(taos, "drop database if exists " SRC_DB);
+  do_query(taos, "drop database if exists " DST_DB);
+  do_query(taos, "create database " SRC_DB " vgroups 1 wal_retention_period 3600");
+  do_query(taos, "create database " DST_DB " vgroups 1");
+  do_query(taos, "use " SRC_DB);
+
+  // Create TMQ topic before any DDL (to capture all WAL entries)
+  do_query(taos, "create topic " TOPIC_NAME " with meta as database " SRC_DB);
+
+  switch (scenario) {
+    case 1: {
+      // CREATE STB + child tables → COMMIT
+      do_query(taos, "BEGIN");
+      do_query(taos, "create table stb1 (ts timestamp, v int) tags (t1 int)");
+      do_query(taos, "create table ct1 using stb1 tags(1)");
+      do_query(taos, "create table ct2 using stb1 tags(2)");
+      do_query(taos, "COMMIT");
+      break;
+    }
+    case 2: {
+      // CREATE STB + child tables → ROLLBACK
+      do_query(taos, "BEGIN");
+      do_query(taos, "create table stb1 (ts timestamp, v int) tags (t1 int)");
+      do_query(taos, "create table ct1 using stb1 tags(1)");
+      do_query(taos, "ROLLBACK");
+      break;
+    }
+    case 3: {
+      // CREATE STB → ALTER STB → COMMIT
+      do_query(taos, "BEGIN");
+      do_query(taos, "create table stb1 (ts timestamp, v int) tags (t1 int)");
+      do_query(taos, "alter table stb1 add column c2 float");
+      do_query(taos, "COMMIT");
+      break;
+    }
+    case 4: {
+      // CREATE STB → DROP STB → COMMIT
+      do_query(taos, "BEGIN");
+      do_query(taos, "create table stb1 (ts timestamp, v int) tags (t1 int)");
+      do_query(taos, "drop table stb1");
+      do_query(taos, "COMMIT");
+      break;
+    }
+    case 5: {
+      // Same as scenario 1 (for idempotent COMMIT test — Python handles replay)
+      do_query(taos, "BEGIN");
+      do_query(taos, "create table stb1 (ts timestamp, v int) tags (t1 int)");
+      do_query(taos, "create table ct1 using stb1 tags(1)");
+      do_query(taos, "COMMIT");
+      break;
+    }
+    default:
+      printf("Unknown scenario: %d\n", scenario);
+      exit(1);
+  }
+
+  taos_close(taos);
+  printf("Source DB setup complete for scenario %d\n", scenario);
+}
+
+static tmq_t *create_consumer(void) {
+  tmq_conf_t *conf = tmq_conf_new();
+  tmq_conf_set(conf, "group.id", "taosx_txn_test");
+  tmq_conf_set(conf, "auto.offset.reset", "earliest");
+  tmq_conf_set(conf, "msg.with.table.name", "true");
+  tmq_conf_set(conf, "td.connect.user", "root");
+  tmq_conf_set(conf, "td.connect.pass", "taosdata");
+
+  int32_t code = 0;
+  char errstr[256] = {0};
+  tmq_t  *consumer = tmq_consumer_new(conf, errstr, sizeof(errstr));
+  tmq_conf_destroy(conf);
+  if (!consumer) {
+    printf("FAILED: Cannot create TMQ consumer: %s\n", errstr);
+    exit(1);
+  }
+
+  tmq_list_t *topics = tmq_list_new();
+  tmq_list_append(topics, TOPIC_NAME);
+  code = tmq_subscribe(consumer, topics);
+  tmq_list_destroy(topics);
+  if (code != 0) {
+    printf("FAILED: Cannot subscribe, code: %d\n", code);
+    exit(1);
+  }
+  return consumer;
+}
+
+static void replicate_to_target(void) {
+  tmq_t *consumer = create_consumer();
+  TAOS  *dst = connect_db(DST_DB);
+  int    msg_count = 0;
+  int    empty_polls = 0;
+  int    max_empty = 10;
+
+  printf("Starting replication...\n");
+  while (empty_polls < max_empty) {
+    TAOS_RES *msg = tmq_consumer_poll(consumer, 1000);
+    if (!msg) {
+      empty_polls++;
+      continue;
+    }
+    empty_polls = 0;
+    msg_count++;
+
+    int16_t msg_type = tmq_get_res_type(msg);
+    printf("  msg %d: type=%d, vg=%d\n", msg_count, msg_type, tmq_get_vgroup_id(msg));
+
+    tmq_raw_data raw = {0};
+    int32_t code = tmq_get_raw(msg, &raw);
+    if (code == 0) {
+      printf("  raw type=%d, len=%d\n", raw.raw_type, raw.raw_len);
+      int32_t ret = tmq_write_raw(dst, raw);
+      printf("  write_raw result: %s (%d)\n", tmq_err2str(ret), ret);
+      // Don't assert — some messages may fail (e.g. table already exists)
+      tmq_free_raw(raw);
+    }
+    taos_free_result(msg);
+  }
+
+  printf("Replication finished: %d messages\n", msg_count);
+  tmq_consumer_close(consumer);
+  taos_close(dst);
+}
+
+static int verify_scenario(int scenario) {
+  TAOS *dst = connect_db(DST_DB);
+  int   pass = 1;
+
+  switch (scenario) {
+    case 1: {
+      // Expect: STB stb1 + child tables ct1, ct2
+      int stb_count = query_rows(dst, "show " DST_DB ".stables");
+      printf("verify s1: stables=%d (expected 1)\n", stb_count);
+      if (stb_count != 1) pass = 0;
+
+      int tbl_count = query_rows(dst, "show " DST_DB ".tables");
+      printf("verify s1: tables=%d (expected 2)\n", tbl_count);
+      if (tbl_count != 2) pass = 0;
+      break;
+    }
+    case 2: {
+      // Expect: no STB (rolled back)
+      int stb_count = query_rows(dst, "show " DST_DB ".stables");
+      printf("verify s2: stables=%d (expected 0)\n", stb_count);
+      if (stb_count != 0) pass = 0;
+
+      int tbl_count = query_rows(dst, "show " DST_DB ".tables");
+      printf("verify s2: tables=%d (expected 0)\n", tbl_count);
+      if (tbl_count != 0) pass = 0;
+      break;
+    }
+    case 3: {
+      // Expect: STB stb1 with 3 columns (ts, v, c2)
+      int stb_count = query_rows(dst, "show " DST_DB ".stables");
+      printf("verify s3: stables=%d (expected 1)\n", stb_count);
+      if (stb_count != 1) pass = 0;
+
+      int col_count = query_rows(dst, "describe " DST_DB ".stb1");
+      printf("verify s3: columns+tags=%d (expected 4: ts,v,c2 + t1)\n", col_count);
+      if (col_count != 4) pass = 0;
+      break;
+    }
+    case 4: {
+      // Expect: no STB (created then dropped within same txn)
+      int stb_count = query_rows(dst, "show " DST_DB ".stables");
+      printf("verify s4: stables=%d (expected 0)\n", stb_count);
+      if (stb_count != 0) pass = 0;
+      break;
+    }
+    case 5: {
+      // Same as scenario 1 (idempotent — replay succeeds even on second run)
+      int stb_count = query_rows(dst, "show " DST_DB ".stables");
+      printf("verify s5: stables=%d (expected 1)\n", stb_count);
+      if (stb_count != 1) pass = 0;
+
+      int tbl_count = query_rows(dst, "show " DST_DB ".tables");
+      printf("verify s5: tables=%d (expected 2)\n", tbl_count);
+      if (tbl_count != 2) pass = 0;
+      break;
+    }
+    default:
+      printf("Unknown scenario: %d\n", scenario);
+      pass = 0;
+  }
+
+  taos_close(dst);
+  return pass;
+}
+
+static void cleanup(void) {
+  TAOS *taos = connect_db(NULL);
+  do_query_ok(taos, "drop topic if exists " TOPIC_NAME);
+  do_query_ok(taos, "drop database if exists " SRC_DB);
+  do_query_ok(taos, "drop database if exists " DST_DB);
+  taos_close(taos);
+}
+
+int main(int argc, char *argv[]) {
+  if (argc < 2) {
+    printf("Usage: %s <scenario>\n", argv[0]);
+    printf("  1: CREATE STB + child tables + COMMIT\n");
+    printf("  2: CREATE STB + child tables + ROLLBACK\n");
+    printf("  3: CREATE STB + ALTER STB + COMMIT\n");
+    printf("  4: CREATE STB + DROP STB + COMMIT\n");
+    printf("  5: Idempotent COMMIT (replay)\n");
+    return 1;
+  }
+
+  int scenario = atoi(argv[1]);
+  printf("=== tmq_taosx_txn scenario %d ===\n", scenario);
+
+  // Phase 1: Setup source with transaction
+  setup_source(scenario);
+
+  // Phase 2: Replicate via TMQ
+  replicate_to_target();
+
+  // Phase 3: Verify target
+  int pass = verify_scenario(scenario);
+
+  // Phase 4: Cleanup
+  cleanup();
+
+  if (pass) {
+    printf("=== PASS ===\n");
+    return 0;
+  } else {
+    printf("=== FAIL ===\n");
+    return 1;
+  }
+}
