@@ -1459,7 +1459,7 @@ int32_t ctgGetTbMetaFromVnode(SCatalog* pCtg, SRequestConnInfo* pConn, const SNa
   int32_t msgLen = 0;
   int32_t code = 0;
 
-  if (pConn->txnId > 0) {
+  if (pConn->txnId != 0) {
     // Batch meta txn: build STableInfoReq directly to include txnId for PRE_CREATE visibility
     STableInfoReq infoReq = {0};
     infoReq.header.vgId = vgroupInfo->vgId;

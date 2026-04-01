@@ -141,6 +141,7 @@ static void setup_source(int scenario) {
       do_query(taos, "BEGIN");
       do_query(taos, "create table stb1 (ts timestamp, v int) tags (t1 int)");
       do_query(taos, "create table ct1 using stb1 tags(1)");
+      do_query(taos, "create table ct2 using stb1 tags(2)");
       do_query(taos, "COMMIT");
       break;
     }

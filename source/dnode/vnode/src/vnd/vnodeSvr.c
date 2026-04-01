@@ -1434,7 +1434,7 @@ static int32_t vnodeProcessCreateStbReq(SVnode *pVnode, int64_t ver, void *pReq,
   }
 
   // batch-meta-txn: lock/conflict check BEFORE meta operation
-  if (req.txnId > 0) {
+  if (req.txnId != 0) {
     vnodeTxnEnsureEntry(pVnode, req.txnId);
 
     // Acquire table-level lock to detect cross-txn conflicts
@@ -1463,7 +1463,7 @@ static int32_t vnodeProcessCreateStbReq(SVnode *pVnode, int64_t ver, void *pReq,
   }
 
   // batch-meta-txn: track STB in VNode txn entry for COMMIT/ROLLBACK
-  if (req.txnId > 0) {
+  if (req.txnId != 0) {
     vnodeTxnTrackTable(pVnode, req.txnId, req.suid);
     vInfo("vgId:%d, stb:%s uid:%" PRId64 " tracked in txn %" PRIu64, TD_VID(pVnode), req.name, req.suid, req.txnId);
   }
@@ -1706,7 +1706,7 @@ static int32_t vnodeProcessAlterStbReq(SVnode *pVnode, int64_t ver, void *pReq, 
   }
 
   // batch-meta-txn: full transactional ALTER STB support
-  if (req.txnId > 0) {
+  if (req.txnId != 0) {
     vnodeTxnEnsureEntry(pVnode, req.txnId);
 
     // Acquire table-level lock to detect cross-txn conflicts
@@ -1788,7 +1788,7 @@ static int32_t vnodeProcessDropStbReq(SVnode *pVnode, int64_t ver, void *pReq, i
         TD_VID(pVnode), trace ? trace->rootId : 0, trace ? trace->msgId : 0, req.name, req.txnId);
 
   // batch-meta-txn: transactional DROP STB
-  if (req.txnId > 0) {
+  if (req.txnId != 0) {
     vnodeTxnEnsureEntry(pVnode, req.txnId);
 
     // Acquire table-level lock to detect cross-txn conflicts

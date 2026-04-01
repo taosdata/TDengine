@@ -209,7 +209,7 @@ int32_t metaCreateSuperTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq
   }
 
   // batch-meta-txn: mark STB as PRE_CREATE (invisible to other sessions)
-  if (pReq->txnId > 0) {
+  if (pReq->txnId != 0) {
     entry.txnId = pReq->txnId;
     entry.txnStatus = META_TXN_PRE_CREATE;
   }
@@ -219,7 +219,7 @@ int32_t metaCreateSuperTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq
     metaInfo("vgId:%d, super table %s suid:%" PRId64 " is created, version:%" PRId64 " txnId:%" PRIu64,
              TD_VID(pMeta->pVnode), pReq->name, pReq->suid, version, pReq->txnId);
     // batch-meta-txn: add to txn.idx for COMMIT/ROLLBACK handling
-    if (pReq->txnId > 0) {
+    if (pReq->txnId != 0) {
       code = metaTxnIdxUpsert(pMeta, pReq->suid, pReq->txnId, META_TXN_PRE_CREATE, 0);
       if (code != TSDB_CODE_SUCCESS) {
         metaError("vgId:%d, failed to upsert txn.idx for stb:%s uid:%" PRId64, TD_VID(pMeta->pVnode), pReq->name,
@@ -244,7 +244,7 @@ int32_t metaDropSuperTable(SMeta *pMeta, int64_t verison, SVDropStbReq *pReq) {
   }
 
   // batch-meta-txn: handle DROP within transaction
-  if (pReq->txnId > 0) {
+  if (pReq->txnId != 0) {
     SMetaEntry *pExist = NULL;
     int32_t     fetchCode = metaFetchEntryByUid(pMeta, pReq->suid, &pExist);
     if (fetchCode == 0 && pExist != NULL && pExist->txnId == pReq->txnId) {
@@ -3318,7 +3318,7 @@ int32_t metaAlterSuperTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq)
   }
 
   // batch-meta-txn: mark STB as PRE_ALTER with prevVersion for rollback
-  if (pReq->txnId > 0) {
+  if (pReq->txnId != 0) {
     entry.txnId = pReq->txnId;
     entry.txnStatus = META_TXN_PRE_ALTER;
     entry.txnPrevVer = pEntry->version;
@@ -3335,7 +3335,7 @@ int32_t metaAlterSuperTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq)
     metaInfo("vgId:%d, table %s uid %" PRId64 " is updated, version:%" PRId64 " txnId:%" PRIu64, TD_VID(pMeta->pVnode),
              pReq->name, pReq->suid, version, pReq->txnId);
     // batch-meta-txn: add to txn.idx for COMMIT/ROLLBACK handling
-    if (pReq->txnId > 0) {
+    if (pReq->txnId != 0) {
       int32_t idxCode = metaTxnIdxUpsert(pMeta, pReq->suid, pReq->txnId, META_TXN_PRE_ALTER, pEntry->version);
       if (idxCode != TSDB_CODE_SUCCESS) {
         metaError("vgId:%d, failed to upsert txn.idx for ALTER stb:%s uid:%" PRId64, TD_VID(pMeta->pVnode), pReq->name,

@@ -1156,10 +1156,18 @@ static int32_t taosDropStb(TAOS* taos, void* meta, uint32_t metaLen) {
   RAW_RETURN_CHECK(tDecodeSVDropStbReq(&coder, &req));
   SCatalog* pCatalog = NULL;
   RAW_RETURN_CHECK(catalogGetHandle(pRequest->pTscObj->pAppInfo->clusterId, &pCatalog));
+
+  // §35: compute replicated txnId early for catalog visibility
+  utxn_id_t replicatedTxnId = req.txnId;
+  if (replicatedTxnId > 0 && !TXN_IS_REPLICATED(replicatedTxnId)) {
+    replicatedTxnId = TXN_SET_REPLICATED(replicatedTxnId);
+  }
+
   SRequestConnInfo conn = {.pTrans = pRequest->pTscObj->pAppInfo->pTransporter,
                            .requestId = pRequest->requestId,
                            .requestObjRefId = pRequest->self,
-                           .mgmtEps = getEpSet_s(&pRequest->pTscObj->pAppInfo->mgmtEp)};
+                           .mgmtEps = getEpSet_s(&pRequest->pTscObj->pAppInfo->mgmtEp),
+                           .txnId = replicatedTxnId};
   SName            pName = {0};
   toName(pRequest->pTscObj->acctId, pRequest->pDb, req.name, &pName);
   STableMeta* pTableMeta = NULL;
@@ -1180,11 +1188,7 @@ static int32_t taosDropStb(TAOS* taos, void* meta, uint32_t metaLen) {
   //  pReq.suid = processSuid(req.suid, pRequest->pDb);
 
   // §35 taosX replication: propagate txnId with replicated flag to MNode
-  if (req.txnId > 0 && !TXN_IS_REPLICATED(req.txnId)) {
-    pReq.txnId = TXN_SET_REPLICATED(req.txnId);
-  } else {
-    pReq.txnId = req.txnId;
-  }
+  pReq.txnId = replicatedTxnId;
 
   uDebug(LOG_ID_TAG " drop stable name:%s suid:%" PRId64 " new suid:%" PRId64 " txnId:%" PRIu64, LOG_ID_VALUE, req.name,
          req.suid, pReq.suid, pReq.txnId);
@@ -1418,6 +1422,11 @@ static int32_t taosCreateTable(TAOS* taos, void* meta, uint32_t metaLen) {
     // so target VNode skips keepalive/timeout/fencing and uses isolated ID space
     if (pCreateReq->txnId > 0 && !TXN_IS_REPLICATED(pCreateReq->txnId)) {
       pCreateReq->txnId = TXN_SET_REPLICATED(pCreateReq->txnId);
+    }
+    // §35: thread replicated txnId into catalog lookups so VNode returns
+    // PRE_CREATE STB entries for child table creation in same txn
+    if (pCreateReq->txnId != 0) {
+      conn.txnId = pCreateReq->txnId;
     }
 
     SVgroupInfo pInfo = {0};
@@ -3039,9 +3048,7 @@ static int32_t taosTxnCommit(TAOS* taos, void* meta, uint32_t metaLen) {
   int32_t        code = TSDB_CODE_SUCCESS;
   int32_t        lino = 0;
   SRequestObj*   pRequest = NULL;
-  SQuery*        pQuery = NULL;
   SArray*        pVgList = NULL;
-  SArray*        pArray = NULL;
 
   void*    data = POINTER_SHIFT(meta, sizeof(SMsgHead));
   uint32_t len = metaLen - sizeof(SMsgHead);
@@ -3076,8 +3083,8 @@ static int32_t taosTxnCommit(TAOS* taos, void* meta, uint32_t metaLen) {
   (void)tNameGetFullDbName(&pName, dbFName);
   RAW_RETURN_CHECK(catalogGetDBVgList(pCatalog, &conn, dbFName, &pVgList));
 
-  pArray = taosArrayInit(taosArrayGetSize(pVgList), sizeof(void*));
-  RAW_NULL_CHECK(pArray);
+  // Send TXN_COMMIT to each VGroup via direct RPC (not through planner/scheduler,
+  // because planner's getMsgType() would remap the sqlNodeType to TDMT_VND_DROP_TABLE)
   for (int i = 0; i < taosArrayGetSize(pVgList); ++i) {
     SVgroupInfo* pInfo = (SVgroupInfo*)taosArrayGet(pVgList, i);
     int          tlen = tSerializeSVTxnCommitReq(NULL, 0, &req);
@@ -3096,30 +3103,35 @@ static int32_t taosTxnCommit(TAOS* taos, void* meta, uint32_t metaLen) {
       goto end;
     }
 
-    SVgDataBlocks* pVgData = taosMemoryCalloc(1, sizeof(SVgDataBlocks));
-    if (pVgData == NULL) {
-      taosMemoryFree(pMsg);
+    SRequestObj* pVgReq = NULL;
+    RAW_RETURN_CHECK(buildRequest(*(int64_t*)taos, "", 0, NULL, false, &pVgReq, 0));
+    pVgReq->syncQuery = true;
+    pVgReq->type = TDMT_VND_TXN_COMMIT;
+    pVgReq->body.requestMsg = (SDataBuf){.pData = pMsg, .len = tlen, .handle = NULL};
+    pMsg = NULL;  // ownership transferred
+
+    SMsgSendInfo* pSendMsg = buildMsgInfoImpl(pVgReq);
+    if (pSendMsg == NULL) {
+      destroyRequest(pVgReq);
       code = terrno;
       goto end;
     }
-    pVgData->vg = *pInfo;
-    pVgData->pData = pMsg;
-    pVgData->size = tlen;
-    pVgData->numOfTables = 0;
-    RAW_NULL_CHECK(taosArrayPush(pArray, &pVgData));
+    pSendMsg->target.type = TARGET_TYPE_VNODE;
+    pSendMsg->target.vgId = pInfo->vgId;
+
+    int32_t sendCode = asyncSendMsgToServer(pTscObj->pAppInfo->pTransporter, &pInfo->epSet, NULL, pSendMsg);
+    if (sendCode != 0) {
+      destroyRequest(pVgReq);
+      code = sendCode;
+      goto end;
+    }
+    tsem_wait(&pVgReq->body.rspSem);
+    if (pVgReq->code != 0 && code == 0) {
+      code = pVgReq->code;
+    }
+    destroyRequest(pVgReq);
   }
 
-  RAW_RETURN_CHECK(nodesMakeNode(QUERY_NODE_QUERY, (SNode**)&pQuery));
-  pQuery->execMode = QUERY_EXEC_MODE_SCHEDULE;
-  pQuery->msgType = TDMT_VND_TXN_COMMIT;
-  pQuery->stableQuery = false;
-  pQuery->pRoot = NULL;
-  RAW_RETURN_CHECK(nodesMakeNode(QUERY_NODE_DROP_TABLE_STMT, &pQuery->pRoot));
-  RAW_RETURN_CHECK(rewriteToVnodeModifyOpStmt(pQuery, pArray));
-  pArray = NULL;
-
-  launchQueryImpl(pRequest, pQuery, true, NULL);
-  code = pRequest->code;
   uDebug("taosTxnCommit txnId:%" PRIu64 " return, msg:%s", req.txnId, tstrerror(code));
 
   // §35 taosX: also send COMMIT to target MNode for replicated STB shadow ops
@@ -3134,7 +3146,6 @@ static int32_t taosTxnCommit(TAOS* taos, void* meta, uint32_t metaLen) {
 end:
   taosArrayDestroy(pVgList);
   destroyRequest(pRequest);
-  qDestroyQuery(pQuery);
   RAW_LOG_END
   return code;
 }
@@ -3151,9 +3162,7 @@ static int32_t taosTxnRollback(TAOS* taos, void* meta, uint32_t metaLen) {
   int32_t          code = TSDB_CODE_SUCCESS;
   int32_t          lino = 0;
   SRequestObj*     pRequest = NULL;
-  SQuery*          pQuery = NULL;
   SArray*          pVgList = NULL;
-  SArray*          pArray = NULL;
 
   void*    data = POINTER_SHIFT(meta, sizeof(SMsgHead));
   uint32_t len = metaLen - sizeof(SMsgHead);
@@ -3187,8 +3196,7 @@ static int32_t taosTxnRollback(TAOS* taos, void* meta, uint32_t metaLen) {
   (void)tNameGetFullDbName(&pName, dbFName);
   RAW_RETURN_CHECK(catalogGetDBVgList(pCatalog, &conn, dbFName, &pVgList));
 
-  pArray = taosArrayInit(taosArrayGetSize(pVgList), sizeof(void*));
-  RAW_NULL_CHECK(pArray);
+  // Send TXN_ROLLBACK to each VGroup via direct RPC (not through planner/scheduler)
   for (int i = 0; i < taosArrayGetSize(pVgList); ++i) {
     SVgroupInfo* pInfo = (SVgroupInfo*)taosArrayGet(pVgList, i);
     int          tlen = tSerializeSVTxnRollbackReq(NULL, 0, &req);
@@ -3207,30 +3215,35 @@ static int32_t taosTxnRollback(TAOS* taos, void* meta, uint32_t metaLen) {
       goto end;
     }
 
-    SVgDataBlocks* pVgData = taosMemoryCalloc(1, sizeof(SVgDataBlocks));
-    if (pVgData == NULL) {
-      taosMemoryFree(pMsg);
+    SRequestObj* pVgReq = NULL;
+    RAW_RETURN_CHECK(buildRequest(*(int64_t*)taos, "", 0, NULL, false, &pVgReq, 0));
+    pVgReq->syncQuery = true;
+    pVgReq->type = TDMT_VND_TXN_ROLLBACK;
+    pVgReq->body.requestMsg = (SDataBuf){.pData = pMsg, .len = tlen, .handle = NULL};
+    pMsg = NULL;
+
+    SMsgSendInfo* pSendMsg = buildMsgInfoImpl(pVgReq);
+    if (pSendMsg == NULL) {
+      destroyRequest(pVgReq);
       code = terrno;
       goto end;
     }
-    pVgData->vg = *pInfo;
-    pVgData->pData = pMsg;
-    pVgData->size = tlen;
-    pVgData->numOfTables = 0;
-    RAW_NULL_CHECK(taosArrayPush(pArray, &pVgData));
+    pSendMsg->target.type = TARGET_TYPE_VNODE;
+    pSendMsg->target.vgId = pInfo->vgId;
+
+    int32_t sendCode = asyncSendMsgToServer(pTscObj->pAppInfo->pTransporter, &pInfo->epSet, NULL, pSendMsg);
+    if (sendCode != 0) {
+      destroyRequest(pVgReq);
+      code = sendCode;
+      goto end;
+    }
+    tsem_wait(&pVgReq->body.rspSem);
+    if (pVgReq->code != 0 && code == 0) {
+      code = pVgReq->code;
+    }
+    destroyRequest(pVgReq);
   }
 
-  RAW_RETURN_CHECK(nodesMakeNode(QUERY_NODE_QUERY, (SNode**)&pQuery));
-  pQuery->execMode = QUERY_EXEC_MODE_SCHEDULE;
-  pQuery->msgType = TDMT_VND_TXN_ROLLBACK;
-  pQuery->stableQuery = false;
-  pQuery->pRoot = NULL;
-  RAW_RETURN_CHECK(nodesMakeNode(QUERY_NODE_DROP_TABLE_STMT, &pQuery->pRoot));
-  RAW_RETURN_CHECK(rewriteToVnodeModifyOpStmt(pQuery, pArray));
-  pArray = NULL;
-
-  launchQueryImpl(pRequest, pQuery, true, NULL);
-  code = pRequest->code;
   uDebug("taosTxnRollback txnId:%" PRIu64 " return, msg:%s", req.txnId, tstrerror(code));
 
   // §35 taosX: also send ROLLBACK to target MNode for replicated STB shadow ops
@@ -3245,7 +3258,6 @@ static int32_t taosTxnRollback(TAOS* taos, void* meta, uint32_t metaLen) {
 end:
   taosArrayDestroy(pVgList);
   destroyRequest(pRequest);
-  qDestroyQuery(pQuery);
   RAW_LOG_END
   return code;
 }
