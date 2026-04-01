@@ -14,6 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "meta.h"
 #include "taoserror.h"
 #include "tencode.h"
 #include "tglobal.h"
@@ -385,13 +386,20 @@ static int32_t vnodeTxnPromoteShadowEntries(SVnode *pVnode, SVnodeTxnEntry *pEnt
 
       case META_TXN_PRE_DROP: {
         // Physically delete: reissue drop with txnId=0
-        SVDropTbReq dropReq = {0};
-        dropReq.name = pME->name;
-        dropReq.uid = uid;
-        dropReq.suid =
-            (pME->type == TSDB_CHILD_TABLE || pME->type == TSDB_VIRTUAL_CHILD_TABLE) ? pME->ctbEntry.suid : 0;
-        dropReq.txnId = 0;  // non-txn drop = physical delete
-        code = metaDropTable2(pVnode->pMeta, -1, &dropReq);
+        if (pME->type == TSDB_SUPER_TABLE) {
+          // STB: first clear txn status, then physically drop via STB path
+          metaMarkTableTxnStatus(pVnode->pMeta, uid, 0, META_TXN_NORMAL, -1);
+          SVDropStbReq stbDropReq = {.name = pME->name, .suid = uid, .txnId = 0};
+          code = metaDropSuperTable(pVnode->pMeta, -1, &stbDropReq);
+        } else {
+          SVDropTbReq dropReq = {0};
+          dropReq.name = pME->name;
+          dropReq.uid = uid;
+          dropReq.suid =
+              (pME->type == TSDB_CHILD_TABLE || pME->type == TSDB_VIRTUAL_CHILD_TABLE) ? pME->ctbEntry.suid : 0;
+          dropReq.txnId = 0;  // non-txn drop = physical delete
+          code = metaDropTable2(pVnode->pMeta, -1, &dropReq);
+        }
         if (code == 0) {
           vInfo("vgId:%d, commit: physically dropped uid %" PRId64, TD_VID(pVnode), uid);
         } else {
@@ -452,13 +460,19 @@ static int32_t vnodeTxnUndoShadowEntries(SVnode *pVnode, SVnodeTxnEntry *pEntry)
     switch (pME->txnStatus) {
       case META_TXN_PRE_CREATE: {
         // Table was created by this txn — physically delete it
-        SVDropTbReq dropReq = {0};
-        dropReq.name = pME->name;
-        dropReq.uid = uid;
-        dropReq.suid =
-            (pME->type == TSDB_CHILD_TABLE || pME->type == TSDB_VIRTUAL_CHILD_TABLE) ? pME->ctbEntry.suid : 0;
-        dropReq.txnId = 0;
-        code = metaDropTable2(pVnode->pMeta, -1, &dropReq);
+        if (pME->type == TSDB_SUPER_TABLE) {
+          // STB: use STB-specific delete path
+          SMetaEntry delEntry = {.version = -1, .type = -TSDB_SUPER_TABLE, .uid = uid};
+          code = metaHandleEntry2(pVnode->pMeta, &delEntry);
+        } else {
+          SVDropTbReq dropReq = {0};
+          dropReq.name = pME->name;
+          dropReq.uid = uid;
+          dropReq.suid =
+              (pME->type == TSDB_CHILD_TABLE || pME->type == TSDB_VIRTUAL_CHILD_TABLE) ? pME->ctbEntry.suid : 0;
+          dropReq.txnId = 0;
+          code = metaDropTable2(pVnode->pMeta, -1, &dropReq);
+        }
         if (code == 0) {
           vInfo("vgId:%d, rollback: deleted PRE_CREATE uid %" PRId64, TD_VID(pVnode), uid);
         } else {
@@ -504,14 +518,20 @@ static int32_t vnodeTxnUndoShadowEntries(SVnode *pVnode, SVnodeTxnEntry *pEntry)
             SMetaEntry *pRestored = NULL;
             if (metaFetchEntryByUid(pVnode->pMeta, uid, &pRestored) == 0 && pRestored != NULL) {
               if (pRestored->txnId == pEntry->txnId && pRestored->txnStatus == META_TXN_PRE_CREATE) {
-                SVDropTbReq dropReq = {0};
-                dropReq.name = pRestored->name;
-                dropReq.uid = uid;
-                dropReq.suid = (pRestored->type == TSDB_CHILD_TABLE || pRestored->type == TSDB_VIRTUAL_CHILD_TABLE)
-                                   ? pRestored->ctbEntry.suid
-                                   : 0;
-                dropReq.txnId = 0;
-                int32_t dropCode = metaDropTable2(pVnode->pMeta, -1, &dropReq);
+                int32_t dropCode;
+                if (pRestored->type == TSDB_SUPER_TABLE) {
+                  SMetaEntry delEntry = {.version = -1, .type = -TSDB_SUPER_TABLE, .uid = uid};
+                  dropCode = metaHandleEntry2(pVnode->pMeta, &delEntry);
+                } else {
+                  SVDropTbReq dropReq = {0};
+                  dropReq.name = pRestored->name;
+                  dropReq.uid = uid;
+                  dropReq.suid = (pRestored->type == TSDB_CHILD_TABLE || pRestored->type == TSDB_VIRTUAL_CHILD_TABLE)
+                                     ? pRestored->ctbEntry.suid
+                                     : 0;
+                  dropReq.txnId = 0;
+                  dropCode = metaDropTable2(pVnode->pMeta, -1, &dropReq);
+                }
                 if (dropCode == 0) {
                   vInfo("vgId:%d, rollback: chained delete PRE_CREATE uid %" PRId64, TD_VID(pVnode), uid);
                 } else {

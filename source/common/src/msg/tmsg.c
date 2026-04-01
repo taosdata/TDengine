@@ -15423,6 +15423,8 @@ int32_t tEncodeSVDropStbReq(SEncoder *pCoder, const SVDropStbReq *pReq) {
   TAOS_CHECK_RETURN(tStartEncode(pCoder));
   TAOS_CHECK_RETURN(tEncodeCStr(pCoder, pReq->name));
   TAOS_CHECK_RETURN(tEncodeI64(pCoder, pReq->suid));
+  // batch-meta-txn: txnId for transactional DROP STB
+  TAOS_CHECK_RETURN(tEncodeU64(pCoder, pReq->txnId));
   tEndEncode(pCoder);
   return 0;
 }
@@ -15431,6 +15433,12 @@ int32_t tDecodeSVDropStbReq(SDecoder *pCoder, SVDropStbReq *pReq) {
   TAOS_CHECK_RETURN(tStartDecode(pCoder));
   TAOS_CHECK_RETURN(tDecodeCStr(pCoder, &pReq->name));
   TAOS_CHECK_RETURN(tDecodeI64(pCoder, &pReq->suid));
+  // batch-meta-txn: txnId (backward compatible)
+  if (!tDecodeIsEnd(pCoder)) {
+    TAOS_CHECK_RETURN(tDecodeU64(pCoder, &pReq->txnId));
+  } else {
+    pReq->txnId = 0;
+  }
   tEndDecode(pCoder);
   return 0;
 }

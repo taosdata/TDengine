@@ -1433,6 +1433,29 @@ static int32_t vnodeProcessCreateStbReq(SVnode *pVnode, int64_t ver, void *pReq,
     goto _err;
   }
 
+  // batch-meta-txn: lock/conflict check BEFORE meta operation
+  if (req.txnId > 0) {
+    vnodeTxnEnsureEntry(pVnode, req.txnId);
+
+    // Acquire table-level lock to detect cross-txn conflicts
+    {
+      char stbNameFull[TSDB_TABLE_FNAME_LEN];
+      (void)snprintf(stbNameFull, TSDB_TABLE_FNAME_LEN, "%s.%s", pVnode->config.dbname, req.name);
+      int32_t lockCode = vnodeTxnLockTable(pVnode, stbNameFull, req.txnId);
+      if (lockCode != TSDB_CODE_SUCCESS) {
+        pRsp->code = lockCode;
+        goto _err;
+      }
+    }
+  } else {
+    // Non-txn path: check if STB name conflicts with active txn shadow
+    int32_t conflictCode = vnodeTxnCheckConflict(pVnode, req.name, TXN_CONFLICT_OP_CREATE);
+    if (conflictCode != TSDB_CODE_SUCCESS) {
+      pRsp->code = conflictCode;
+      goto _err;
+    }
+  }
+
   code = metaCreateSuperTable(pVnode->pMeta, ver, &req);
   if (code) {
     pRsp->code = code;
@@ -1441,7 +1464,6 @@ static int32_t vnodeProcessCreateStbReq(SVnode *pVnode, int64_t ver, void *pReq,
 
   // batch-meta-txn: track STB in VNode txn entry for COMMIT/ROLLBACK
   if (req.txnId > 0) {
-    vnodeTxnEnsureEntry(pVnode, req.txnId);
     vnodeTxnTrackTable(pVnode, req.txnId, req.suid);
     vInfo("vgId:%d, stb:%s uid:%" PRId64 " tracked in txn %" PRIu64, TD_VID(pVnode), req.name, req.suid, req.txnId);
   }
@@ -1683,6 +1705,54 @@ static int32_t vnodeProcessAlterStbReq(SVnode *pVnode, int64_t ver, void *pReq, 
     return code;
   }
 
+  // batch-meta-txn: full transactional ALTER STB support
+  if (req.txnId > 0) {
+    vnodeTxnEnsureEntry(pVnode, req.txnId);
+
+    // Acquire table-level lock to detect cross-txn conflicts
+    {
+      char stbNameFull[TSDB_TABLE_FNAME_LEN];
+      (void)snprintf(stbNameFull, TSDB_TABLE_FNAME_LEN, "%s.%s", pVnode->config.dbname, req.name);
+      int32_t lockCode = vnodeTxnLockTable(pVnode, stbNameFull, req.txnId);
+      if (lockCode != TSDB_CODE_SUCCESS) {
+        pRsp->code = lockCode;
+        tDecoderClear(&dc);
+        return code;
+      }
+    }
+
+    // Save old version for rollback tracking
+    {
+      SMetaEntry *pOldEntry = NULL;
+      if (metaFetchEntryByName(pVnode->pMeta, req.name, &pOldEntry) == 0 && pOldEntry != NULL) {
+        vnodeTxnTrackAlter(pVnode, req.txnId, pOldEntry->uid, pOldEntry->version);
+        metaFetchEntryFree(&pOldEntry);
+      }
+    }
+
+    // metaAlterSuperTable handles txn markers internally (PRE_ALTER + txn.idx)
+    code = metaAlterSuperTable(pVnode->pMeta, ver, &req);
+    if (code) {
+      pRsp->code = code;
+    } else {
+      vnodeTxnTrackTable(pVnode, req.txnId, req.suid);
+      vInfo("vgId:%d, stb:%s uid:%" PRId64 " ALTER tracked in txn %" PRIu64, TD_VID(pVnode), req.name, req.suid,
+            req.txnId);
+    }
+    tDecoderClear(&dc);
+    return 0;
+  }
+
+  // Non-txn path: check for conflict with active txn shadow
+  {
+    int32_t conflictCode = vnodeTxnCheckConflict(pVnode, req.name, TXN_CONFLICT_OP_ALTER);
+    if (conflictCode != TSDB_CODE_SUCCESS) {
+      pRsp->code = conflictCode;
+      tDecoderClear(&dc);
+      return 0;
+    }
+  }
+
   code = metaAlterSuperTable(pVnode->pMeta, ver, &req);
   if (code) {
     pRsp->code = code;
@@ -1714,10 +1784,45 @@ static int32_t vnodeProcessDropStbReq(SVnode *pVnode, int64_t ver, void *pReq, i
 
   STraceId* trace = &(pOriginRpc->info.traceId);
 
-  vInfo("vgId:%d, start to process vnode-drop-stb, QID:0x%" PRIx64 ":0x%" PRIx64 ", drop stb:%s", TD_VID(pVnode), trace ? trace->rootId : 0, 
-              trace ? trace->msgId : 0, req.name);
+  vInfo("vgId:%d, start to process vnode-drop-stb, QID:0x%" PRIx64 ":0x%" PRIx64 ", drop stb:%s txnId:%" PRIu64,
+        TD_VID(pVnode), trace ? trace->rootId : 0, trace ? trace->msgId : 0, req.name, req.txnId);
 
-  // process request
+  // batch-meta-txn: transactional DROP STB
+  if (req.txnId > 0) {
+    vnodeTxnEnsureEntry(pVnode, req.txnId);
+
+    // Acquire table-level lock to detect cross-txn conflicts
+    {
+      char stbNameFull[TSDB_TABLE_FNAME_LEN];
+      (void)snprintf(stbNameFull, TSDB_TABLE_FNAME_LEN, "%s.%s", pVnode->config.dbname, req.name);
+      int32_t lockCode = vnodeTxnLockTable(pVnode, stbNameFull, req.txnId);
+      if (lockCode != TSDB_CODE_SUCCESS) {
+        rcode = lockCode;
+        goto _exit;
+      }
+    }
+
+    // metaDropSuperTable handles txn internally (PRE_DROP + txn.idx, or same-txn undo)
+    if (metaDropSuperTable(pVnode->pMeta, ver, &req) < 0) {
+      rcode = terrno;
+    } else {
+      vnodeTxnTrackTable(pVnode, req.txnId, req.suid);
+      vInfo("vgId:%d, stb:%s uid:%" PRId64 " DROP tracked in txn %" PRIu64, TD_VID(pVnode), req.name, req.suid,
+            req.txnId);
+    }
+    goto _exit;
+  }
+
+  // Non-txn path: check for conflict with active txn shadow
+  {
+    int32_t conflictCode = vnodeTxnCheckConflict(pVnode, req.name, TXN_CONFLICT_OP_DROP);
+    if (conflictCode != TSDB_CODE_SUCCESS) {
+      rcode = conflictCode;
+      goto _exit;
+    }
+  }
+
+  // process request (non-txn physical drop)
   tbUidList = taosArrayInit(8, sizeof(int64_t));
   if (tbUidList == NULL) goto _exit;
   if (vnodeGetCtbIdList(pVnode, req.suid, tbUidList) != 0){

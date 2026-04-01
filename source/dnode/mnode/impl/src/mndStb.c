@@ -665,6 +665,7 @@ static void *mndBuildVDropStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb,
 
   req.name = (char *)tNameGetTableName(&name);
   req.suid = pStb->uid;
+  req.txnId = pStb->txnId;  // batch-meta-txn: pass txnId for VNode PRE_DROP marking
 
   tEncodeSize(tEncodeSVDropStbReq, &req, contLen, ret);
   if (ret < 0) return NULL;

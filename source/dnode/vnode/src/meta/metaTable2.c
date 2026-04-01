@@ -243,6 +243,74 @@ int32_t metaDropSuperTable(SMeta *pMeta, int64_t verison, SVDropStbReq *pReq) {
     TAOS_RETURN(code);
   }
 
+  // batch-meta-txn: handle DROP within transaction
+  if (pReq->txnId > 0) {
+    SMetaEntry *pExist = NULL;
+    int32_t     fetchCode = metaFetchEntryByUid(pMeta, pReq->suid, &pExist);
+    if (fetchCode == 0 && pExist != NULL && pExist->txnId == pReq->txnId) {
+      if (pExist->txnStatus == META_TXN_PRE_ALTER) {
+        // Same-txn ALTER→DROP: undo ALTER first, then check restored state
+        int64_t prevVer = pExist->txnPrevVer;
+        metaFetchEntryFree(&pExist);
+        if (prevVer >= 0) {
+          code = metaRollbackAlterTable(pMeta, pReq->suid, prevVer);
+          if (code != 0) {
+            metaError("vgId:%d, %s failed to undo ALTER for stb uid:%" PRId64 " name:%s txnId:%" PRIu64,
+                      TD_VID(pMeta->pVnode), __func__, pReq->suid, pReq->name, pReq->txnId);
+            TAOS_RETURN(code);
+          }
+          fetchCode = metaFetchEntryByUid(pMeta, pReq->suid, &pExist);
+          if (fetchCode == 0 && pExist != NULL && pExist->txnId == pReq->txnId &&
+              pExist->txnStatus == META_TXN_PRE_CREATE) {
+            // Fall through to PRE_CREATE undo below
+          } else {
+            metaFetchEntryFree(&pExist);
+            goto _stb_mark_pre_drop;
+          }
+        } else {
+          goto _stb_mark_pre_drop;
+        }
+      }
+
+      if (pExist != NULL && pExist->txnStatus == META_TXN_PRE_CREATE) {
+        // Same-txn CREATE→DROP: undo by physically deleting STB
+        metaFetchEntryFree(&pExist);
+        SMetaEntry delEntry = {
+            .version = verison,
+            .type = -TSDB_SUPER_TABLE,
+            .uid = pReq->suid,
+        };
+        code = metaHandleEntry2(pMeta, &delEntry);
+        if (code == 0) {
+          metaTxnIdxDelete(pMeta, pReq->suid);
+          metaInfo("vgId:%d, stb %s uid %" PRId64 " PRE_CREATE undone (same-txn DROP), txnId:%" PRIu64,
+                   TD_VID(pMeta->pVnode), pReq->name, pReq->suid, pReq->txnId);
+        } else {
+          metaError("vgId:%d, %s failed to undo PRE_CREATE for stb uid:%" PRId64 " name:%s txnId:%" PRIu64,
+                    TD_VID(pMeta->pVnode), __func__, pReq->suid, pReq->name, pReq->txnId);
+        }
+        TAOS_RETURN(code);
+      }
+      metaFetchEntryFree(&pExist);
+    } else {
+      metaFetchEntryFree(&pExist);
+    }
+
+  _stb_mark_pre_drop:
+    // Normal txn DROP: mark as PRE_DROP (snapshot isolation — STB remains visible)
+    code = metaMarkTableTxnStatus(pMeta, pReq->suid, pReq->txnId, META_TXN_PRE_DROP, -1);
+    if (code) {
+      metaError("vgId:%d, %s failed to mark PRE_DROP for stb uid:%" PRId64 " name:%s txnId:%" PRIu64,
+                TD_VID(pMeta->pVnode), __func__, pReq->suid, pReq->name, pReq->txnId);
+    } else {
+      metaTxnIdxUpsert(pMeta, pReq->suid, pReq->txnId, META_TXN_PRE_DROP, -1);
+      metaInfo("vgId:%d, stb %s uid %" PRId64 " marked PRE_DROP, txnId:%" PRIu64, TD_VID(pMeta->pVnode), pReq->name,
+               pReq->suid, pReq->txnId);
+    }
+    TAOS_RETURN(code);
+  }
+
+  // Non-txn path: physical drop
   // handle entry
   SMetaEntry entry = {
       .version = verison,
@@ -3249,6 +3317,13 @@ int32_t metaAlterSuperTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq)
     entry.stbEntry.rsmaParam = pEntry->stbEntry.rsmaParam;
   }
 
+  // batch-meta-txn: mark STB as PRE_ALTER with prevVersion for rollback
+  if (pReq->txnId > 0) {
+    entry.txnId = pReq->txnId;
+    entry.txnStatus = META_TXN_PRE_ALTER;
+    entry.txnPrevVer = pEntry->version;
+  }
+
   // do handle the entry
   code = metaHandleEntry2(pMeta, &entry);
   if (code) {
@@ -3257,8 +3332,16 @@ int32_t metaAlterSuperTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq)
     metaFetchEntryFree(&pEntry);
     TAOS_RETURN(code);
   } else {
-    metaInfo("vgId:%d, table %s uid %" PRId64 " is updated, version:%" PRId64, TD_VID(pMeta->pVnode), pReq->name,
-             pReq->suid, version);
+    metaInfo("vgId:%d, table %s uid %" PRId64 " is updated, version:%" PRId64 " txnId:%" PRIu64, TD_VID(pMeta->pVnode),
+             pReq->name, pReq->suid, version, pReq->txnId);
+    // batch-meta-txn: add to txn.idx for COMMIT/ROLLBACK handling
+    if (pReq->txnId > 0) {
+      int32_t idxCode = metaTxnIdxUpsert(pMeta, pReq->suid, pReq->txnId, META_TXN_PRE_ALTER, pEntry->version);
+      if (idxCode != TSDB_CODE_SUCCESS) {
+        metaError("vgId:%d, failed to upsert txn.idx for ALTER stb:%s uid:%" PRId64, TD_VID(pMeta->pVnode), pReq->name,
+                  pReq->suid);
+      }
+    }
   }
 
   metaFetchEntryFree(&pEntry);
