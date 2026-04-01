@@ -572,13 +572,16 @@ int32_t vnodeProcessTxnCommitReq(SVnode *pVnode, int64_t ver, void *pReq, int32_
   vInfo("vgId:%d, process txn commit, txnId:%" PRId64 ", term:%" PRId64, TD_VID(pVnode), req.txnId, req.term);
 
   // Fencing: if term advanced, abort old-term transactions first
-  code = vnodeTxnFencing(pVnode, req.term, req.txnId);
-  if (code == TSDB_CODE_VND_TXN_STALE_TERM) {
-    vWarn("vgId:%d, reject txn commit due to stale term, txnId:%" PRId64 ", reqTerm:%" PRId64, TD_VID(pVnode),
-          req.txnId, req.term);
-    return TSDB_CODE_VND_TXN_STALE_TERM;
-  } else if (code != TSDB_CODE_SUCCESS) {
-    vError("vgId:%d, fencing error on commit, txnId:%" PRId64 ", code:0x%x", TD_VID(pVnode), req.txnId, code);
+  // Skip fencing for replicated transactions (no Raft term from source cluster)
+  if (!TXN_IS_REPLICATED(req.txnId)) {
+    code = vnodeTxnFencing(pVnode, req.term, req.txnId);
+    if (code == TSDB_CODE_VND_TXN_STALE_TERM) {
+      vWarn("vgId:%d, reject txn commit due to stale term, txnId:%" PRId64 ", reqTerm:%" PRId64, TD_VID(pVnode),
+            req.txnId, req.term);
+      return TSDB_CODE_VND_TXN_STALE_TERM;
+    } else if (code != TSDB_CODE_SUCCESS) {
+      vError("vgId:%d, fencing error on commit, txnId:%" PRId64 ", code:0x%x", TD_VID(pVnode), req.txnId, code);
+    }
   }
 
   taosThreadMutexLock(&pVnode->txnMutex);
@@ -631,13 +634,16 @@ int32_t vnodeProcessTxnRollbackReq(SVnode *pVnode, int64_t ver, void *pReq, int3
         req.term, req.reason);
 
   // Fencing: if term advanced, abort old-term transactions first
-  code = vnodeTxnFencing(pVnode, req.term, req.txnId);
-  if (code == TSDB_CODE_VND_TXN_STALE_TERM) {
-    vWarn("vgId:%d, reject txn rollback due to stale term, txnId:%" PRId64 ", reqTerm:%" PRId64, TD_VID(pVnode),
-          req.txnId, req.term);
-    return TSDB_CODE_VND_TXN_STALE_TERM;
-  } else if (code != TSDB_CODE_SUCCESS) {
-    vError("vgId:%d, fencing error on rollback, txnId:%" PRId64 ", code:0x%x", TD_VID(pVnode), req.txnId, code);
+  // Skip fencing for replicated transactions (no Raft term from source cluster)
+  if (!TXN_IS_REPLICATED(req.txnId)) {
+    code = vnodeTxnFencing(pVnode, req.term, req.txnId);
+    if (code == TSDB_CODE_VND_TXN_STALE_TERM) {
+      vWarn("vgId:%d, reject txn rollback due to stale term, txnId:%" PRId64 ", reqTerm:%" PRId64, TD_VID(pVnode),
+            req.txnId, req.term);
+      return TSDB_CODE_VND_TXN_STALE_TERM;
+    } else if (code != TSDB_CODE_SUCCESS) {
+      vError("vgId:%d, fencing error on rollback, txnId:%" PRId64 ", code:0x%x", TD_VID(pVnode), req.txnId, code);
+    }
   }
 
   taosThreadMutexLock(&pVnode->txnMutex);
@@ -709,7 +715,8 @@ int32_t vnodeTxnFencing(SVnode *pVnode, int64_t newTerm, int64_t newTxnId) {
 
     // Skip entries with term=0 (unknown term — created before any COMMIT/ROLLBACK arrived,
     // or rebuilt after restart). They'll be cleaned up by their own explicit COMMIT/ROLLBACK.
-    if (pEntry->term > 0 && pEntry->term < newTerm && pEntry->txnId != newTxnId) {
+    // Also skip replicated transactions (lifecycle controlled by source cluster, not local Raft term).
+    if (pEntry->term > 0 && pEntry->term < newTerm && pEntry->txnId != newTxnId && !TXN_IS_REPLICATED(pEntry->txnId)) {
       vInfo("vgId:%d, fencing: abort txn, txnId:%" PRId64 ", term:%" PRId64 ", newTerm:%" PRId64, TD_VID(pVnode),
             pEntry->txnId, pEntry->term, newTerm);
       taosArrayPush(toAbort, &pEntry->txnId);
@@ -763,7 +770,9 @@ int32_t vnodeCollectIdleTxns(SVnode *pVnode, SArray *pQueries) {
   void *pIter = taosHashIterate(pVnode->pTxnHash, NULL);
   while (pIter) {
     SVnodeTxnEntry *pEntry = (SVnodeTxnEntry *)pIter;
-    if (pEntry->stage == VTXN_STAGE_ACTIVE && (now - pEntry->lastActive > quietThreshold)) {
+    // Skip replicated transactions (lifecycle controlled by source WAL, no MNode keepalive)
+    if (pEntry->stage == VTXN_STAGE_ACTIVE && !TXN_IS_REPLICATED(pEntry->txnId) &&
+        (now - pEntry->lastActive > quietThreshold)) {
       STxnActiveQuery q = {.txnId = pEntry->txnId, .vgId = TD_VID(pVnode)};
       taosArrayPush(pQueries, &q);
     }

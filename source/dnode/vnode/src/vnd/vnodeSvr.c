@@ -1549,7 +1549,14 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, 
       } else {
         cRsp.code = TSDB_CODE_SUCCESS;
         vnodeTxnTrackTable(pVnode, pCreateReq->txnId, pCreateReq->uid);
-        metaTxnIdxUpsert(pVnode->pMeta, pCreateReq->uid, pCreateReq->txnId, META_TXN_PRE_CREATE, -1);
+        // Use txnStatus from message if set (snapshot replication may carry PRE_DROP/PRE_ALTER),
+        // otherwise default to PRE_CREATE for normal WAL/DDL path.
+        int8_t effectiveTxnStatus = pCreateReq->txnStatus > 0 ? pCreateReq->txnStatus : META_TXN_PRE_CREATE;
+        metaTxnIdxUpsert(pVnode->pMeta, pCreateReq->uid, pCreateReq->txnId, effectiveTxnStatus, -1);
+        // For snapshot PRE_DROP/PRE_ALTER: mark the entry after creation
+        if (effectiveTxnStatus != META_TXN_PRE_CREATE) {
+          metaMarkTableTxnStatus(pVnode->pMeta, pCreateReq->uid, pCreateReq->txnId, effectiveTxnStatus, -1);
+        }
         vnodeUpdateMetaRsp(pVnode, cRsp.pMeta);
       }
       if (taosArrayPush(rsp.pArray, &cRsp) == NULL) {

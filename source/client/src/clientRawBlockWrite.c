@@ -1385,6 +1385,12 @@ static int32_t taosCreateTable(TAOS* taos, void* meta, uint32_t metaLen) {
   for (int32_t iReq = 0; iReq < req.nReqs; iReq++) {
     pCreateReq = req.pReqs + iReq;
 
+    // §35 taosX replication: mark transaction IDs from source cluster as replicated
+    // so target VNode skips keepalive/timeout/fencing and uses isolated ID space
+    if (pCreateReq->txnId > 0 && !TXN_IS_REPLICATED(pCreateReq->txnId)) {
+      pCreateReq->txnId = TXN_SET_REPLICATED(pCreateReq->txnId);
+    }
+
     SVgroupInfo pInfo = {0};
     SName       pName = {0};
     toName(pTscObj->acctId, pRequest->pDb, pCreateReq->name, &pName);
@@ -1589,6 +1595,11 @@ static int32_t taosDropTable(TAOS* taos, void* meta, uint32_t metaLen) {
   for (int32_t iReq = 0; iReq < req.nReqs; iReq++) {
     pDropReq = req.pReqs + iReq;
     pDropReq->igNotExists = true;
+
+    // §35 taosX replication: mark transaction IDs from source cluster as replicated
+    if (pDropReq->txnId > 0 && !TXN_IS_REPLICATED(pDropReq->txnId)) {
+      pDropReq->txnId = TXN_SET_REPLICATED(pDropReq->txnId);
+    }
     //    pDropReq->suid = processSuid(pDropReq->suid, pRequest->pDb);
 
     SVgroupInfo pInfo = {0};
@@ -1722,6 +1733,12 @@ static int32_t taosAlterTable(TAOS* taos, void* meta, uint32_t metaLen) {
   uint32_t len = metaLen - sizeof(SMsgHead);
   tDecoderInit(&dcoder, data, len);
   RAW_RETURN_CHECK(tDecodeSVAlterTbReq(&dcoder, &req));
+
+  // §35 taosX replication: mark transaction IDs from source cluster as replicated
+  if (req.txnId > 0 && !TXN_IS_REPLICATED(req.txnId)) {
+    req.txnId = TXN_SET_REPLICATED(req.txnId);
+  }
+
   // do not deal TSDB_ALTER_TABLE_UPDATE_OPTIONS
   if (req.action == TSDB_ALTER_TABLE_UPDATE_OPTIONS) {
     uInfo(LOG_ID_TAG " alter table action is UPDATE_OPTIONS, ignore", LOG_ID_VALUE);
@@ -2934,6 +2951,212 @@ void tmq_free_raw(tmq_raw_data raw) {
   (void)memset(terrMsg, 0, ERR_MSG_LEN);
 }
 
+/**
+ * §35 taosX replication: broadcast TXN_COMMIT to all vgroups in the target database.
+ * VNodes without entries for this txnId will no-op (return SUCCESS).
+ */
+static int32_t taosTxnCommit(TAOS* taos, void* meta, uint32_t metaLen) {
+  if (taos == NULL || meta == NULL) {
+    uError("invalid parameter in %s", __func__);
+    return TSDB_CODE_INVALID_PARA;
+  }
+  SVTxnCommitReq req = {0};
+  int32_t        code = TSDB_CODE_SUCCESS;
+  int32_t        lino = 0;
+  SRequestObj*   pRequest = NULL;
+  SQuery*        pQuery = NULL;
+  SArray*        pVgList = NULL;
+  SArray*        pArray = NULL;
+
+  void*    data = POINTER_SHIFT(meta, sizeof(SMsgHead));
+  uint32_t len = metaLen - sizeof(SMsgHead);
+  RAW_RETURN_CHECK(tDeserializeSVTxnCommitReq(data, len, &req));
+
+  if (req.txnId == 0) goto end;
+
+  // Mark as replicated and clear term (no fencing for replicated txns)
+  if (!TXN_IS_REPLICATED(req.txnId)) {
+    req.txnId = TXN_SET_REPLICATED(req.txnId);
+  }
+  req.term = 0;
+
+  RAW_RETURN_CHECK(buildRequest(*(int64_t*)taos, "", 0, NULL, false, &pRequest, 0));
+  pRequest->syncQuery = true;
+  if (!pRequest->pDb) {
+    code = TSDB_CODE_PAR_DB_NOT_SPECIFIED;
+    goto end;
+  }
+
+  STscObj*  pTscObj = pRequest->pTscObj;
+  SCatalog* pCatalog = NULL;
+  RAW_RETURN_CHECK(catalogGetHandle(pTscObj->pAppInfo->clusterId, &pCatalog));
+  SRequestConnInfo conn = {.pTrans = pTscObj->pAppInfo->pTransporter,
+                           .requestId = pRequest->requestId,
+                           .requestObjRefId = pRequest->self,
+                           .mgmtEps = getEpSet_s(&pTscObj->pAppInfo->mgmtEp)};
+
+  char  dbFName[TSDB_DB_FNAME_LEN] = {0};
+  SName pName = {TSDB_TABLE_NAME_T, pTscObj->acctId, {0}, {0}};
+  tstrncpy(pName.dbname, pRequest->pDb, sizeof(pName.dbname));
+  (void)tNameGetFullDbName(&pName, dbFName);
+  RAW_RETURN_CHECK(catalogGetDBVgList(pCatalog, &conn, dbFName, &pVgList));
+
+  pArray = taosArrayInit(taosArrayGetSize(pVgList), sizeof(void*));
+  RAW_NULL_CHECK(pArray);
+  for (int i = 0; i < taosArrayGetSize(pVgList); ++i) {
+    SVgroupInfo* pInfo = (SVgroupInfo*)taosArrayGet(pVgList, i);
+    int          tlen = tSerializeSVTxnCommitReq(NULL, 0, &req);
+    if (tlen < 0) {
+      code = TSDB_CODE_INVALID_MSG;
+      goto end;
+    }
+    tlen += sizeof(SMsgHead);
+    void* pMsg = taosMemoryMalloc(tlen);
+    RAW_NULL_CHECK(pMsg);
+    ((SMsgHead*)pMsg)->vgId = htonl(pInfo->vgId);
+    ((SMsgHead*)pMsg)->contLen = htonl(tlen);
+    if (tSerializeSVTxnCommitReq(POINTER_SHIFT(pMsg, sizeof(SMsgHead)), tlen - sizeof(SMsgHead), &req) < 0) {
+      taosMemoryFree(pMsg);
+      code = TSDB_CODE_INVALID_MSG;
+      goto end;
+    }
+
+    SVgDataBlocks* pVgData = taosMemoryCalloc(1, sizeof(SVgDataBlocks));
+    if (pVgData == NULL) {
+      taosMemoryFree(pMsg);
+      code = terrno;
+      goto end;
+    }
+    pVgData->vg = *pInfo;
+    pVgData->pData = pMsg;
+    pVgData->size = tlen;
+    pVgData->numOfTables = 0;
+    RAW_NULL_CHECK(taosArrayPush(pArray, &pVgData));
+  }
+
+  RAW_RETURN_CHECK(nodesMakeNode(QUERY_NODE_QUERY, (SNode**)&pQuery));
+  pQuery->execMode = QUERY_EXEC_MODE_SCHEDULE;
+  pQuery->msgType = TDMT_VND_TXN_COMMIT;
+  pQuery->stableQuery = false;
+  pQuery->pRoot = NULL;
+  RAW_RETURN_CHECK(nodesMakeNode(QUERY_NODE_DROP_TABLE_STMT, &pQuery->pRoot));
+  RAW_RETURN_CHECK(rewriteToVnodeModifyOpStmt(pQuery, pArray));
+  pArray = NULL;
+
+  launchQueryImpl(pRequest, pQuery, true, NULL);
+  code = pRequest->code;
+  uDebug("taosTxnCommit txnId:%" PRIu64 " return, msg:%s", req.txnId, tstrerror(code));
+
+end:
+  taosArrayDestroy(pVgList);
+  destroyRequest(pRequest);
+  qDestroyQuery(pQuery);
+  RAW_LOG_END
+  return code;
+}
+
+/**
+ * §35 taosX replication: broadcast TXN_ROLLBACK to all vgroups in the target database.
+ */
+static int32_t taosTxnRollback(TAOS* taos, void* meta, uint32_t metaLen) {
+  if (taos == NULL || meta == NULL) {
+    uError("invalid parameter in %s", __func__);
+    return TSDB_CODE_INVALID_PARA;
+  }
+  SVTxnRollbackReq req = {0};
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  SRequestObj*     pRequest = NULL;
+  SQuery*          pQuery = NULL;
+  SArray*          pVgList = NULL;
+  SArray*          pArray = NULL;
+
+  void*    data = POINTER_SHIFT(meta, sizeof(SMsgHead));
+  uint32_t len = metaLen - sizeof(SMsgHead);
+  RAW_RETURN_CHECK(tDeserializeSVTxnRollbackReq(data, len, &req));
+
+  if (req.txnId == 0) goto end;
+
+  if (!TXN_IS_REPLICATED(req.txnId)) {
+    req.txnId = TXN_SET_REPLICATED(req.txnId);
+  }
+  req.term = 0;
+
+  RAW_RETURN_CHECK(buildRequest(*(int64_t*)taos, "", 0, NULL, false, &pRequest, 0));
+  pRequest->syncQuery = true;
+  if (!pRequest->pDb) {
+    code = TSDB_CODE_PAR_DB_NOT_SPECIFIED;
+    goto end;
+  }
+
+  STscObj*  pTscObj = pRequest->pTscObj;
+  SCatalog* pCatalog = NULL;
+  RAW_RETURN_CHECK(catalogGetHandle(pTscObj->pAppInfo->clusterId, &pCatalog));
+  SRequestConnInfo conn = {.pTrans = pTscObj->pAppInfo->pTransporter,
+                           .requestId = pRequest->requestId,
+                           .requestObjRefId = pRequest->self,
+                           .mgmtEps = getEpSet_s(&pTscObj->pAppInfo->mgmtEp)};
+
+  char  dbFName[TSDB_DB_FNAME_LEN] = {0};
+  SName pName = {TSDB_TABLE_NAME_T, pTscObj->acctId, {0}, {0}};
+  tstrncpy(pName.dbname, pRequest->pDb, sizeof(pName.dbname));
+  (void)tNameGetFullDbName(&pName, dbFName);
+  RAW_RETURN_CHECK(catalogGetDBVgList(pCatalog, &conn, dbFName, &pVgList));
+
+  pArray = taosArrayInit(taosArrayGetSize(pVgList), sizeof(void*));
+  RAW_NULL_CHECK(pArray);
+  for (int i = 0; i < taosArrayGetSize(pVgList); ++i) {
+    SVgroupInfo* pInfo = (SVgroupInfo*)taosArrayGet(pVgList, i);
+    int          tlen = tSerializeSVTxnRollbackReq(NULL, 0, &req);
+    if (tlen < 0) {
+      code = TSDB_CODE_INVALID_MSG;
+      goto end;
+    }
+    tlen += sizeof(SMsgHead);
+    void* pMsg = taosMemoryMalloc(tlen);
+    RAW_NULL_CHECK(pMsg);
+    ((SMsgHead*)pMsg)->vgId = htonl(pInfo->vgId);
+    ((SMsgHead*)pMsg)->contLen = htonl(tlen);
+    if (tSerializeSVTxnRollbackReq(POINTER_SHIFT(pMsg, sizeof(SMsgHead)), tlen - sizeof(SMsgHead), &req) < 0) {
+      taosMemoryFree(pMsg);
+      code = TSDB_CODE_INVALID_MSG;
+      goto end;
+    }
+
+    SVgDataBlocks* pVgData = taosMemoryCalloc(1, sizeof(SVgDataBlocks));
+    if (pVgData == NULL) {
+      taosMemoryFree(pMsg);
+      code = terrno;
+      goto end;
+    }
+    pVgData->vg = *pInfo;
+    pVgData->pData = pMsg;
+    pVgData->size = tlen;
+    pVgData->numOfTables = 0;
+    RAW_NULL_CHECK(taosArrayPush(pArray, &pVgData));
+  }
+
+  RAW_RETURN_CHECK(nodesMakeNode(QUERY_NODE_QUERY, (SNode**)&pQuery));
+  pQuery->execMode = QUERY_EXEC_MODE_SCHEDULE;
+  pQuery->msgType = TDMT_VND_TXN_ROLLBACK;
+  pQuery->stableQuery = false;
+  pQuery->pRoot = NULL;
+  RAW_RETURN_CHECK(nodesMakeNode(QUERY_NODE_DROP_TABLE_STMT, &pQuery->pRoot));
+  RAW_RETURN_CHECK(rewriteToVnodeModifyOpStmt(pQuery, pArray));
+  pArray = NULL;
+
+  launchQueryImpl(pRequest, pQuery, true, NULL);
+  code = pRequest->code;
+  uDebug("taosTxnRollback txnId:%" PRIu64 " return, msg:%s", req.txnId, tstrerror(code));
+
+end:
+  taosArrayDestroy(pVgList);
+  destroyRequest(pRequest);
+  qDestroyQuery(pQuery);
+  RAW_LOG_END
+  return code;
+}
+
 static int32_t writeRawInit() {
   while (atomic_load_8(&initedFlag) == WRITE_RAW_INIT_START) {
     int8_t old = atomic_val_compare_exchange_8(&initFlag, 0, 1);
@@ -2977,6 +3200,10 @@ static int32_t writeRawImpl(TAOS* taos, void* buf, uint32_t len, uint16_t type) 
     return taosDropTable(taos, buf, len);
   } else if (type == TDMT_VND_DELETE) {
     return taosDeleteData(taos, buf, len);
+  } else if (type == TDMT_VND_TXN_COMMIT) {
+    return taosTxnCommit(taos, buf, len);
+  } else if (type == TDMT_VND_TXN_ROLLBACK) {
+    return taosTxnRollback(taos, buf, len);
   } else if (type == RES_TYPE__TMQ_METADATA) {
     return tmqWriteRawMetaDataImpl(taos, buf, len);
   } else if (type == RES_TYPE__TMQ_RAWDATA) {

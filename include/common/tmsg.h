@@ -4953,6 +4953,7 @@ typedef struct SVCreateTbReq {
   SExtSchema*     pExtSchemas;
   SColRefWrapper  colRef;  // col reference for virtual table
   int64_t         txnId;   // batch meta txn ID (0 = not in txn)
+  int8_t          txnStatus; // EMetaTxnStatus for snapshot replication (0 = normal/PRE_CREATE)
 } SVCreateTbReq;
 
 int  tEncodeSVCreateTbReq(SEncoder* pCoder, const SVCreateTbReq* pReq);

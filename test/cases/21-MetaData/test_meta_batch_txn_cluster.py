@@ -442,6 +442,187 @@ class TestBatchMetaTxnCluster:
         tdSql.query("select v from ct_pre")
         tdSql.checkData(0, 0, 200)
 
+    # =========================================================================
+    # s49: Cross-VNode multi-dnode COMMIT
+    #   Database with replica 1, vgroups 3 on 3 dnodes. Tables hash to
+    #   different vgroups on different physical dnodes. COMMIT must
+    #   coordinate across all dnodes.
+    # =========================================================================
+    def s49_cross_vnode_multi_dnode_commit(self):
+        db = "txn_xvn"
+        tdSql.execute(f"drop database if exists {db}")
+        tdSql.execute(f"create database {db} vgroups 3 replica 1")
+        tdSql.execute(f"use {db}")
+        tdLog.info("======== s49_cross_vnode_multi_dnode_commit")
+
+        tdSql.execute("create table stb (ts timestamp, v int) tags (t1 int)")
+
+        # Pre-create some tables outside txn
+        for i in range(6):
+            tdSql.execute(f"create table ct_pre{i} using stb tags({i})")
+            tdSql.execute(f"insert into ct_pre{i} values(now, {i})")
+
+        tdSql.query("show tables")
+        tdSql.checkRows(6)
+
+        # Verify tables are on different vgroups (showing distribution)
+        tdSql.query(f"show {db}.vgroups")
+        num_vgroups = tdSql.queryRows
+        tdLog.info(f"Database has {num_vgroups} vgroups")
+        assert num_vgroups == 3, f"Expected 3 vgroups, got {num_vgroups}"
+
+        # Transaction with mixed DDL across vgroups
+        tdSql.execute("BEGIN")
+
+        # CREATE new tables (spread across vgroups by hash)
+        for i in range(9):
+            tdSql.execute(f"create table ct_new{i} using stb tags({100 + i})")
+
+        # DROP some pre-existing
+        tdSql.execute("drop table ct_pre0")
+        tdSql.execute("drop table ct_pre1")
+
+        # ALTER a pre-existing normal table
+        tdSql.execute("create table ntb_xvn (ts timestamp, c1 int)")
+        tdSql.execute("alter table ntb_xvn add column c2 float")
+
+        tdSql.execute("COMMIT")
+
+        # Verify: 4 remaining pre + 9 new + 1 ntb = 14
+        tdSql.query("show tables")
+        tdSql.checkRows(14)
+
+        # Verify dropped tables gone
+        tdSql.error("select * from ct_pre0")
+        tdSql.error("select * from ct_pre1")
+
+        # Verify new tables writable
+        for i in range(9):
+            tdSql.execute(f"insert into ct_new{i} values(now, {200 + i})")
+
+        # Verify ALTER persisted
+        tdSql.query("describe ntb_xvn")
+        cols = [tdSql.queryResult[i][0] for i in range(tdSql.queryRows)]
+        assert 'c2' in cols, "Column c2 should exist after COMMIT"
+
+        # Cleanup
+        tdSql.execute(f"drop database {db}")
+
+    # =========================================================================
+    # s50: Cross-VNode multi-dnode ROLLBACK
+    # =========================================================================
+    def s50_cross_vnode_multi_dnode_rollback(self):
+        db = "txn_xvn2"
+        tdSql.execute(f"drop database if exists {db}")
+        tdSql.execute(f"create database {db} vgroups 3 replica 1")
+        tdSql.execute(f"use {db}")
+        tdLog.info("======== s50_cross_vnode_multi_dnode_rollback")
+
+        tdSql.execute("create table stb (ts timestamp, v int) tags (t1 int)")
+
+        # Pre-create tables and a normal table
+        for i in range(6):
+            tdSql.execute(f"create table ct_pre{i} using stb tags({i})")
+            tdSql.execute(f"insert into ct_pre{i} values(now, {i})")
+        tdSql.execute("create table ntb_xvn (ts timestamp, c1 int)")
+        tdSql.execute("insert into ntb_xvn values(now, 99)")
+
+        tdSql.query("show tables")
+        tdSql.checkRows(7)   # 6 child + 1 normal
+
+        # Transaction with mixed DDL
+        tdSql.execute("BEGIN")
+
+        for i in range(9):
+            tdSql.execute(f"create table ct_new{i} using stb tags({100 + i})")
+
+        tdSql.execute("drop table ct_pre0")
+        tdSql.execute("drop table ct_pre1")
+        tdSql.execute("alter table ntb_xvn add column c2 float")
+
+        tdSql.execute("ROLLBACK")
+
+        # All changes undone: back to 7
+        tdSql.query("show tables")
+        tdSql.checkRows(7)
+
+        # Dropped tables restored
+        for i in range(2):
+            tdSql.query(f"select * from ct_pre{i}")
+            tdSql.checkRows(1)
+
+        # New tables don't exist
+        tdSql.error("select * from ct_new0")
+
+        # ALTER undone
+        tdSql.query("describe ntb_xvn")
+        cols = [tdSql.queryResult[i][0] for i in range(tdSql.queryRows)]
+        assert 'c2' not in cols, "Column c2 should NOT exist after ROLLBACK"
+
+        # Cleanup
+        tdSql.execute(f"drop database {db}")
+
+    # =========================================================================
+    # s51: Cross-VNode multi-dnode with VNode leader switch mid-txn
+    #   Combines cross-VNode distribution + fencing: kill one VNode leader
+    #   during active txn, wait for new leader election, then COMMIT.
+    # =========================================================================
+    def s51_cross_vnode_fencing_commit(self):
+        db = "txn_xvf"
+        tdSql.execute(f"drop database if exists {db}")
+        tdSql.execute(f"create database {db} vgroups 3 replica 3")
+        tdSql.execute(f"use {db}")
+        tdLog.info("======== s51_cross_vnode_fencing_commit")
+
+        tdSql.execute("create table stb (ts timestamp, v int) tags (t1 int)")
+
+        # Pre-create a table
+        tdSql.execute("create table ct_pre using stb tags(0)")
+        tdSql.execute("insert into ct_pre values(now, 100)")
+
+        # Begin txn with tables across vgroups
+        tdSql.execute("BEGIN")
+        for i in range(6):
+            tdSql.execute(f"create table ct_xvf{i} using stb tags({i + 1})")
+
+        # Find VNode leader for first vgroup and kill it
+        tdSql.query(f"show {db}.vgroups")
+        vgId = tdSql.queryResult[0][0]
+        leader_dnode = self._get_vgroup_leader_dnode(db, vgId)
+        tdLog.info(f"Vgroup {vgId} leader on dnode {leader_dnode}, killing it")
+        sc.dnodeForceStop(leader_dnode)
+        time.sleep(5)
+
+        # Wait for new leader
+        new_leader = self._get_vgroup_leader_dnode(db, vgId, timeout=30)
+        assert new_leader is not None, "No new VNode leader elected"
+        assert new_leader != leader_dnode, "Leader should have changed"
+        tdLog.info(f"New leader: dnode {new_leader}")
+
+        # Restart killed dnode
+        sc.dnodeStart(leader_dnode)
+        time.sleep(5)
+        clusterComCheck.checkDnodes(3)
+
+        # COMMIT across multiple vgroups after leader switch
+        tdSql.execute("COMMIT")
+
+        # Verify all tables: 1 pre + 6 new = 7
+        tdSql.query("show tables")
+        tdSql.checkRows(7)
+
+        tdSql.query("select v from ct_pre")
+        tdSql.checkData(0, 0, 100)
+
+        for i in range(6):
+            tdSql.execute(f"insert into ct_xvf{i} values(now, {i})")
+
+        tdSql.query("select count(*) from stb")
+        tdSql.checkData(0, 0, 7)
+
+        # Cleanup
+        tdSql.execute(f"drop database {db}")
+
     def test_meta_batch_txn_cluster(self):
         """Batch meta txn: cluster-mode tests
 
@@ -454,6 +635,9 @@ class TestBatchMetaTxnCluster:
         46. Full cluster restart after COMMIT -> data survives
         47. Fencing: VNode leader switch (term change) -> COMMIT
         48. Fencing: VNode leader switch (term change) -> ROLLBACK
+        49. Cross-VNode multi-dnode (replica 1, vgroups 3) -> COMMIT
+        50. Cross-VNode multi-dnode (replica 1, vgroups 3) -> ROLLBACK
+        51. Cross-VNode fencing: kill VNode leader mid-txn -> COMMIT
 
 
         Since: v3.3.6.0
@@ -465,6 +649,7 @@ class TestBatchMetaTxnCluster:
         History:
             - 2026-03-30 Created (cluster-mode txn robustness tests)
             - 2026-03-31 Added fencing (VNode leader switch) tests
+            - 2026-03-31 Added cross-VNode multi-dnode tests (s49-s51)
 
         """
         self.s40_mnode_leader_switch_commit()
@@ -476,3 +661,6 @@ class TestBatchMetaTxnCluster:
         self.s46_mnode_restart_committing_recovery()
         self.s47_fencing_vnode_leader_switch()
         self.s48_fencing_vnode_leader_switch_rollback()
+        self.s49_cross_vnode_multi_dnode_commit()
+        self.s50_cross_vnode_multi_dnode_rollback()
+        self.s51_cross_vnode_fencing_commit()

@@ -907,6 +907,15 @@ typedef enum {
 
 typedef int64_t utxn_id_t;
 
+// TXN_REPLICATED_FLAG: bit 63 标记复制事务（taosX 订阅同步），与本地事务 ID 空间完全隔离。
+// 本地事务 txnId ∈ [1, 2^63)；复制事务 txnId ∈ [2^63, 2^64)。
+// taosX 在将 DDL/COMMIT/ROLLBACK 消息发送到目标集群前，对 txnId 设置此标记。
+// VNode 通过此标记跳过保活和 Raft term fencing 逻辑。
+#define TXN_REPLICATED_FLAG    ((utxn_id_t)1 << 63)
+#define TXN_IS_REPLICATED(id)  ((id) & TXN_REPLICATED_FLAG)
+#define TXN_SET_REPLICATED(id) ((id) | TXN_REPLICATED_FLAG)
+#define TXN_CLR_REPLICATED(id) ((id) & ~TXN_REPLICATED_FLAG)
+
 #define MIN_RESERVE_MEM_SIZE 1024  // MB
 
 // Decimal

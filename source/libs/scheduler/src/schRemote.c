@@ -55,6 +55,8 @@ int32_t schValidateRspMsgType(SSchJob *pJob, SSchTask *pTask, int32_t msgType) {
     case TDMT_VND_SUBMIT_RSP:
     case TDMT_VND_DELETE_RSP:
     case TDMT_VND_COMMIT_RSP:
+    case TDMT_VND_TXN_COMMIT_RSP:
+    case TDMT_VND_TXN_ROLLBACK_RSP:
       break;
     default:
       SCH_TASK_ELOG("unknown rsp msg, type:%s, status:%s", TMSG_INFO(msgType), jobTaskStatusStr(taskStatus));
@@ -152,6 +154,12 @@ int32_t schProcessResponseMsg(SSchJob *pJob, SSchTask *pTask, SDataBuf *pMsg, in
 
   switch (msgType) {
     case TDMT_VND_COMMIT_RSP: {
+      SCH_ERR_JRET(rspCode);
+      SCH_ERR_JRET(schProcessOnTaskSuccess(pJob, pTask));
+      break;
+    }
+    case TDMT_VND_TXN_COMMIT_RSP:
+    case TDMT_VND_TXN_ROLLBACK_RSP: {
       SCH_ERR_JRET(rspCode);
       SCH_ERR_JRET(schProcessOnTaskSuccess(pJob, pTask));
       break;
@@ -725,6 +733,8 @@ int32_t schGetCallbackFp(int32_t msgType, __async_send_cb_fn_t *fp) {
     case TDMT_SCH_EXPLAIN:
     case TDMT_SCH_FETCH:
     case TDMT_SCH_MERGE_FETCH:
+    case TDMT_VND_TXN_COMMIT:
+    case TDMT_VND_TXN_ROLLBACK:
       *fp = schHandleCallback;
       break;
     case TDMT_SCH_DROP_TASK:
@@ -1217,7 +1227,9 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
     case TDMT_VND_DROP_TABLE:
     case TDMT_VND_ALTER_TABLE:
     case TDMT_VND_SUBMIT:
-    case TDMT_VND_COMMIT: {
+    case TDMT_VND_COMMIT:
+    case TDMT_VND_TXN_COMMIT:
+    case TDMT_VND_TXN_ROLLBACK: {
       msgSize = pTask->msgLen;
       msg = pTask->msg;
       pTask->msg = NULL;

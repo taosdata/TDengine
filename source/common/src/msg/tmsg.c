@@ -15071,6 +15071,8 @@ int tEncodeSVCreateTbReq(SEncoder *pCoder, const SVCreateTbReq *pReq) {
   }
   // batch meta txn ID
   TAOS_CHECK_EXIT(tEncodeI64(pCoder, pReq->txnId));
+  // batch meta txn status (for snapshot replication)
+  TAOS_CHECK_EXIT(tEncodeI8(pCoder, pReq->txnStatus));
 
   tEndEncode(pCoder);
 _exit:
@@ -15166,9 +15168,11 @@ int tDecodeSVCreateTbReq(SDecoder *pCoder, SVCreateTbReq *pReq) {
     }
   }
 
-  // batch meta txn ID
   if (!tDecodeIsEnd(pCoder)) {
+    // batch meta txn ID
     TAOS_CHECK_EXIT(tDecodeI64(pCoder, &pReq->txnId));
+    // batch meta txn status (for snapshot replication)
+    TAOS_CHECK_EXIT(tDecodeI8(pCoder, &pReq->txnStatus));
   }
 
   tEndDecode(pCoder);
