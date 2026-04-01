@@ -80,6 +80,35 @@ static bool mndCannotExecuteTransWithInfo(SMnode *pMnode, bool topHalf, char *st
 
 static inline char *mndStrExecutionContext(bool topHalf) { return topHalf ? "transContext" : "syncContext"; }
 
+/*
+ * Recover a persisted action error for user-visible RPC responses.
+ * Transaction-level code is not encoded into SDB, but action errCode is.
+ */
+static int32_t mndTransGetActionErrCode(SArray *pActions) {
+  if (pActions == NULL) {
+    return 0;
+  }
+
+  int32_t numOfActions = taosArrayGetSize(pActions);
+  for (int32_t i = 0; i < numOfActions; ++i) {
+    STransAction *pAction = taosArrayGet(pActions, i);
+    if (pAction != NULL && pAction->errCode != 0 && pAction->errCode != TSDB_CODE_ACTION_IN_PROGRESS &&
+        pAction->errCode != pAction->acceptableCode) {
+      return pAction->errCode;
+    }
+  }
+
+  return 0;
+}
+
+static int32_t mndTransRecoverRpcRspCode(STrans *pTrans) {
+  int32_t code = mndTransGetActionErrCode(pTrans->redoActions);
+  if (code == 0) code = mndTransGetActionErrCode(pTrans->prepareActions);
+  if (code == 0) code = mndTransGetActionErrCode(pTrans->undoActions);
+  if (code == 0) code = mndTransGetActionErrCode(pTrans->commitActions);
+  return code;
+}
+
 static void    mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans);
 static int32_t mndProcessTransTimer(SRpcMsg *pReq);
 static int32_t mndProcessTtl(SRpcMsg *pReq);
@@ -1528,6 +1557,14 @@ static int32_t mndTransPreFinish(SMnode *pMnode, STrans *pTrans) {
 static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
   bool    sendRsp = false;
   int32_t code = pTrans->code;
+
+  if (code == 0) {
+    code = mndTransRecoverRpcRspCode(pTrans);
+    if (code != 0) {
+      mInfo("trans:%d, recover rpc rsp code from persisted action errCode:0x%x(%s)", pTrans->id, code,
+            tstrerror(code));
+    }
+  }
 
   if (pTrans->stage == TRN_STAGE_FINISH) {
     sendRsp = true;
