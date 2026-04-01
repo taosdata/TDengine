@@ -333,10 +333,13 @@ class TestTaosBackupExcept:
 
     def _wait_dnode_ready(self, timeout=60):
         # Ensure taosd is running and dnode reports 'ready'.
-        tdSql.connect()
+        connected = False
         deadline = time.time() + timeout
         while time.time() < deadline:
             try:
+                if not connected:
+                    tdSql.connect()
+                    connected = True
                 tdSql.query("show dnodes")
                 if any(row[4] == "ready" for row in tdSql.queryResult):
                     tdLog.info("taosd dnode is ready")
