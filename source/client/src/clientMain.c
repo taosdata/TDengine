@@ -46,6 +46,63 @@ extern void shellStopDaemon();
 static int32_t sentinel = TSC_VAR_NOT_RELEASE;
 static int32_t createParseContext(const SRequestObj *pRequest, SParseContext **pCxt, SSqlCallbackWrapper *pWrapper);
 
+static void drainRefPool(int32_t *pRefPool, const char *poolName) {
+  if (pRefPool == NULL || *pRefPool < 0) {
+    return;
+  }
+
+  int32_t rsetId = *pRefPool;
+  void   *pObj = taosIterateRef(rsetId, 0);
+  int64_t refId = 0;
+
+  while (pObj != NULL) {
+    if (rsetId == clientReqRefPool) {
+      refId = ((SRequestObj *)pObj)->self;
+    } else if (rsetId == clientConnRefPool) {
+      refId = ((STscObj *)pObj)->id;
+    } else {
+      break;
+    }
+
+    if (refId == 0) {
+      tscWarn("skip draining %s with invalid refId", poolName);
+      break;
+    }
+
+    if (TSDB_CODE_SUCCESS != taosRemoveRef(rsetId, refId)) {
+      tscWarn("failed to remove %s ref:%" PRId64 ", code:%s", poolName, refId, tstrerror(terrno));
+      break;
+    }
+
+    pObj = taosIterateRef(rsetId, refId);
+  }
+
+  taosCloseRef(rsetId);
+  *pRefPool = -1;
+}
+
+static void stopAppTransporters(void) {
+  int32_t code = taosThreadMutexLock(&appInfo.mutex);
+  if (TSDB_CODE_SUCCESS != code) {
+    tscError("failed to lock app info, code:%s", tstrerror(TAOS_SYSTEM_ERROR(code)));
+    return;
+  }
+
+  void *pIter = taosHashIterate(appInfo.pInstMap, NULL);
+  while (pIter != NULL) {
+    SAppInstInfo **ppAppInfo = (SAppInstInfo **)pIter;
+    if (ppAppInfo != NULL && *ppAppInfo != NULL) {
+      closeTransporter(*ppAppInfo);
+    }
+    pIter = taosHashIterate(appInfo.pInstMap, pIter);
+  }
+
+  code = taosThreadMutexUnlock(&appInfo.mutex);
+  if (TSDB_CODE_SUCCESS != code) {
+    tscError("failed to unlock app info, code:%s", tstrerror(TAOS_SYSTEM_ERROR(code)));
+  }
+}
+
 int taos_options(TSDB_OPTION option, const void *arg, ...) {
   if (arg == NULL) {
     return TSDB_CODE_INVALID_PARA;
@@ -260,10 +317,10 @@ void taos_cleanup(void) {
   monitorClose();
   tscStopCrashReport();
 
-  hbMgrCleanUp();
+  hbMgrStop();
+  stopAppTransporters();
 
   catalogDestroy();
-  schedulerDestroy();
 
   fmFuncMgtDestroy();
   qCleanupKeywordsTable();
@@ -273,22 +330,33 @@ void taos_cleanup(void) {
 #endif
   tmqMgmtClose();
 
-  int32_t id = clientReqRefPool;
-  clientReqRefPool = -1;
-  taosCloseRef(id);
-
-  id = clientConnRefPool;
-  clientConnRefPool = -1;
-  taosCloseRef(id);
-
-  nodesDestroyAllocatorSet();
-  cleanupAppInfo();
-  rpcCleanup();
-  tscDebug("rpc cleanup");
+  // Order requirement:
+  // 1) Stop heartbeat and close app transporters first so inbound rpc traffic
+  //    no longer races with teardown while pAppInfo is still valid.
+  // 2) Stop task queue before draining refs so queued async callbacks stop
+  //    acquiring request/connection objects.
+  // 3) Drain request refs before connection refs so doDestroyRequest() can still
+  //    access its owning STscObj.
+  // 4) Drain connection refs before app instances so destroyTscObj() can still
+  //    access pAppInfo and deregister remaining hb state.
+  // 5) Destroy rpc global state only after app transporters have been closed.
+  // 6) Destroy allocator set after all request cleanup paths are quiesced.
 
   if (TSDB_CODE_SUCCESS != cleanupTaskQueue()) {
     tscWarn("failed to cleanup task queue");
   }
+
+  drainRefPool(&clientReqRefPool, "request pool");
+  drainRefPool(&clientConnRefPool, "connection pool");
+
+  schedulerDestroy();
+
+  cleanupAppInfo();
+  rpcCleanup();
+  tscDebug("rpc cleanup");
+  hbMgrCleanUp();
+
+  nodesDestroyAllocatorSet();
 
   sessMgtDestroy();
 

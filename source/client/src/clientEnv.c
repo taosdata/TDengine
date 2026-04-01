@@ -324,6 +324,7 @@ void closeTransporter(SAppInstInfo *pAppInfo) {
 
   tscDebug("free transporter:%p in app inst %p", pAppInfo->pTransporter, pAppInfo);
   rpcClose(pAppInfo->pTransporter);
+  pAppInfo->pTransporter = NULL;
 }
 
 static bool clientRpcRfp(int32_t code, tmsg_t msgType) {

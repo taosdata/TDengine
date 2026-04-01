@@ -426,8 +426,10 @@ void  resetConnectDB(STscObj* pTscObj);
 
 int taos_options_imp(TSDB_OPTION option, const char* str);
 
+void    closeTransporter(SAppInstInfo* pAppInfo);
 int32_t openTransporter(const char* user, const char* auth, int32_t numOfThreads, void** pDnodeConn);
 void    tscStopCrashReport();
+void    hbMgrStop();
 void    cleanupAppInfo();
 
 typedef struct AsyncArg {
