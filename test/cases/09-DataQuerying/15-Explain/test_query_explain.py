@@ -248,18 +248,16 @@ class TestExplain:
 
         testCase = "test_explain"
         tdLog.info(f"test case : {testCase}.")
-        self.sqlFile = etool.curFile(__file__, f"t/test_explain.sql")
-        self.ansFile = etool.curFile(__file__, f"r/test_explain.result")
-
+        self.sqlFile = etool.curFile(__file__, "t/test_explain.sql")
+        self.ansFile = etool.curFile(__file__, "r/test_explain.result")
         tdCom.compare_testcase_result(self.sqlFile, self.ansFile, testCase)
 
-        #resultfile = tdCom.generate_query_result(
-        #    "cases/09-DataQuerying/15-Explain/t/test_explain.sql", "test_explain"
-        #)
-        #tdLog.info(f"resultfile: {resultfile}")
-        #tdCom.compare_result_files(
-        #    resultfile, "cases/09-DataQuerying/15-Explain/r/test_explain.result"
-        #)
+        testCase = "test_explain_analyze"
+        tdLog.info(f"test case : {testCase}.")
+        self.sqlFile = etool.curFile(__file__, "t/test_explain_analyze.sql")
+        self.ansFile = etool.curFile(__file__, "r/test_explain_analyze.result")
+        tdCom.compare_testcase_result(self.sqlFile, self.ansFile, testCase)
+
         tdLog.printNoPrefix("do explain basic ...................... [passed]")
         
     #
@@ -983,6 +981,7 @@ class TestExplain:
             - 2025-8-20 Simon Guan Migrated from tsim/query/explain_tsorder.sim
             - 2025-10-31 Alex Duan Migrated from uncatalog/system-test/99-TDcase/test_TD_20582.py
             - 2025-12-19 Alex Duan Migrated from uncatalog/system-test/2-query/test_explain.py
+            - 2026-03-23 Tony Zhang add test file test_explain_analyze.sql
 
         """
         self.do_explain_basic()

@@ -4,17 +4,16 @@
 import os
 import os.path
 import sys
-import argparse
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../")
 
 import taosanalytics
 from flask import Flask, request
-from taosanalytics.service.imputation_service import handle_imputation
-from taosanalytics.service.anomaly_service import handle_anomaly
-from taosanalytics.service.forecast_service import handle_forecast
-from taosanalytics.service.correl_service import handle_correlation
-from taosanalytics.service.misc_service import handle_batch
+from taosanalytics.handlers.imputation import handle_imputation
+from taosanalytics.handlers.anomaly import handle_anomaly
+from taosanalytics.handlers.forecast import handle_forecast
+from taosanalytics.handlers.correlation import handle_correlation
+from taosanalytics.handlers.misc import handle_batch
 
 from taosanalytics.conf import Configure
 from taosanalytics.log import AppLogger
@@ -106,22 +105,10 @@ def handle_batch_req():
     return handle_batch(request)
 
 
-def parse_args():
-    """Parse command line arguments (only used when running directly with python)"""
-    parser = argparse.ArgumentParser(description='TDgpt analytics service')
-    parser.add_argument('-c', '--config', dest='conf_path', default=None,
-                        help='path to configuration file')
-    return parser.parse_args()
-
-
-# Initialize on module import when used as a WSGI module (e.g. gunicorn).
-# When running as __main__, initialization is deferred until after argument
-# parsing so that a -c/--config path is applied before services are loaded.
-if __name__ != '__main__':
-    _init_app()
-else:
+if __name__ == '__main__':
     # Parse args before initializing so the correct config file is used from
     # the start; services are loaded only once, with the final configuration.
+    from taosanalytics.util import parse_args
     args = parse_args()
 
     if args.conf_path:
@@ -132,6 +119,11 @@ else:
     # Run development server
     conf = Configure.get_instance()
     host, port = conf.get_server_bind()
-
     AppLogger.info("Starting development server on %s:%d", host, port)
+
     app.run(host=host, port=port)
+else:
+    # Initialize on module import when used as a WSGI module (e.g. gunicorn).
+    # When running as __main__, initialization is deferred until after argument
+    # parsing so that a -c/--config path is applied before services are loaded.
+    _init_app()

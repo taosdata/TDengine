@@ -2258,6 +2258,22 @@ _end:
   return code;
 }
 
+/*
+ * Fill one `ins_vc_cols` row for one virtual-table column.
+ *
+ * @param dbname     database name in varstr format
+ * @param pNumOfRows current output row counter
+ * @param dataBlock  temporary system-table block
+ * @param tName      virtual table name in varstr format
+ * @param stName     virtual stable name in varstr format
+ * @param schemaRow  schema wrapper of the virtual table column source
+ * @param colRef     virtual table column reference wrapper
+ * @param uid        virtual table uid
+ * @param vgId       vnode id of the current virtual table
+ * @param colIdx     target column index inside schemaRow/colRef
+ *
+ * @return TSDB_CODE_SUCCESS on success, otherwise an error code
+ */
 static int32_t sysTableUserColsFillOneVirtualTableCol(const char* dbname, int32_t* pNumOfRows,
                                                       const SSDataBlock* dataBlock, char* tName, char* stName,
                                                       SSchemaWrapper* schemaRow, SColRefWrapper* colRef, tb_uid_t uid,

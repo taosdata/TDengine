@@ -841,6 +841,12 @@ int32_t sclSetStreamExtWinParam(int32_t funcId, SNodeList* pParamNodes, SScalarP
       case FUNCTION_TYPE_TGRPID:
         ((int64_t*)res->columnData->pData)[i] = pInfo->groupId;
         break;
+      case FUNCTION_TYPE_TIDLESTART:
+        ((int64_t*)res->columnData->pData)[i] = pParams->idlestart;
+        break;
+      case FUNCTION_TYPE_TIDLEEND:
+        ((int64_t*)res->columnData->pData)[i] = pParams->idleend;
+        break;
       default:
         uError("invalid placeholder function type: %d in ext win range expr", t);
         return TSDB_CODE_INTERNAL_ERROR;
@@ -902,6 +908,12 @@ int32_t scalarAssignPlaceHolderRes(SColumnInfoData* pResColData, int64_t offset,
       }
       return colDataSetNItems(pResColData, offset, (const char *)buf, rows, 1, false);
     }
+    case FUNCTION_TYPE_TIDLESTART:
+      pData = &pParams->idlestart;
+      break;
+    case FUNCTION_TYPE_TIDLEEND:
+      pData = &pParams->idleend;
+      break;
     default:
       uError("invalid placeholder function type: %d in ext win range expr", t);
       return TSDB_CODE_INTERNAL_ERROR;

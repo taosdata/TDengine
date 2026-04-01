@@ -622,6 +622,7 @@ int32_t tEncodeSStreamTriggerDeployMsg(SEncoder* pEncoder, const SStreamTriggerD
   TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pMsg->fillHistoryStartTime));
   TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pMsg->watermark));
   TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pMsg->expiredTime));
+  TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pMsg->idleTimeoutMs));
 
   switch (pMsg->triggerType) {
     case WINDOW_TYPE_SESSION: {
@@ -1206,6 +1207,7 @@ int32_t tDecodeSStreamTriggerDeployMsg(SDecoder* pDecoder, SStreamTriggerDeployM
   TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pMsg->fillHistoryStartTime));
   TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pMsg->watermark));
   TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pMsg->expiredTime));
+  TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pMsg->idleTimeoutMs));
 
   switch (pMsg->triggerType) {
     case WINDOW_TYPE_SESSION:
@@ -3291,12 +3293,14 @@ int32_t tSerializeSTriggerPullRequest(void* buf, int32_t bufLen, const SSTrigger
       TAOS_CHECK_EXIT(encodePlainArray(&encoder, pRequest->cids));
       TAOS_CHECK_EXIT(encodePlainArray(&encoder, pRequest->uids));
       TAOS_CHECK_EXIT(tEncodeBool(&encoder, pRequest->fetchAllTable));
+      TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->ver));
       break;
     }
     case STRIGGER_PULL_VTABLE_PSEUDO_COL: {
       SSTriggerVirTablePseudoColRequest* pRequest = (SSTriggerVirTablePseudoColRequest*)pReq;
       TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->uid));
       TAOS_CHECK_EXIT(encodePlainArray(&encoder, pRequest->cids));
+      TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->ver));
       break;
     }
     case STRIGGER_PULL_OTABLE_INFO: {
@@ -3313,6 +3317,7 @@ int32_t tSerializeSTriggerPullRequest(void* buf, int32_t bufLen, const SSTrigger
         TAOS_CHECK_EXIT(tEncodeCStr(&encoder, oInfo->refTableName));
         TAOS_CHECK_EXIT(tEncodeCStr(&encoder, oInfo->refColName));
       }
+      TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->ver));
       break; 
     }
     default: {
@@ -3517,12 +3522,14 @@ int32_t tDeserializeSTriggerPullRequest(void* buf, int32_t bufLen, SSTriggerPull
       TAOS_CHECK_EXIT(decodePlainArray(&decoder, &pRequest->cids, sizeof(col_id_t)));
       TAOS_CHECK_EXIT(decodePlainArray(&decoder, &pRequest->uids, sizeof(int64_t)));
       TAOS_CHECK_EXIT(tDecodeBool(&decoder, &pRequest->fetchAllTable));
+      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->ver));
       break;
     }
     case STRIGGER_PULL_VTABLE_PSEUDO_COL: {
       SSTriggerVirTablePseudoColRequest* pRequest = &(pReq->virTablePseudoColReq);
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->uid));
       TAOS_CHECK_EXIT(decodePlainArray(&decoder, &pRequest->cids, sizeof(col_id_t)));
+      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->ver));
       break;
     }
     case STRIGGER_PULL_OTABLE_INFO: {
@@ -3545,6 +3552,8 @@ int32_t tDeserializeSTriggerPullRequest(void* buf, int32_t bufLen, SSTriggerPull
         TAOS_CHECK_RETURN(tDecodeCStrTo(&decoder, oInfo->refTableName));
         TAOS_CHECK_RETURN(tDecodeCStrTo(&decoder, oInfo->refColName));
       }
+      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->ver));
+
       break;
     }
     default: {

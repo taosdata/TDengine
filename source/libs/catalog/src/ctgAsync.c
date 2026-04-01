@@ -3929,6 +3929,35 @@ _return:
   CTG_RET(code);
 }
 
+/*
+ * Finalize a virtual super table ref-db task after all layers are resolved.
+ * pTask owns the ctx whose pFinalDbs has already accumulated all referenced-table dbs.
+ * The helper builds SArray<SVStbRefDbsRsp>, swaps it into pTask->res, and ends the task.
+ * Return success on success, otherwise an error code.
+ */
+static int32_t ctgFinalizeVStbRefDbsTask(SCtgTask* pTask) {
+  int32_t            code = TSDB_CODE_SUCCESS;
+  int32_t            newCode = TSDB_CODE_SUCCESS;
+  SCtgVStbRefDbsCtx* pCtx = (SCtgVStbRefDbsCtx*)pTask->taskCtx;
+
+  if (pCtx->pResList) {
+    taosArrayDestroyEx(pCtx->pResList, tDestroySVStbRefDbsRsp);
+    pCtx->pResList = NULL;
+  }
+
+  code = ctgBuildVStbFinalRes(pCtx->pFinalDbs, &pCtx->pResList);
+  if (TSDB_CODE_SUCCESS == code) {
+    TSWAP(pTask->res, pCtx->pResList);
+  }
+
+  newCode = ctgHandleTaskEnd(pTask, code);
+  if (TSDB_CODE_SUCCESS == code && TSDB_CODE_SUCCESS != newCode) {
+    code = newCode;
+  }
+
+  return code;
+}
+
 int32_t ctgHandleGetVStbRefDbsRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf* pMsg, int32_t rspCode) {
   int32_t            code = 0;
   SCtgTask*          pTask = tReq->pTask;
@@ -4911,9 +4940,12 @@ int32_t ctgLaunchGetTSMATask(SCtgTask* pTask) {
   CTG_ERR_RET(ctgGetTSMAFromCache(pCtg, pCtx, pTsmaName));
 
   if (pCtx->pResList->size == 0) {
-    SCtgMsgCtx* pMsgCtx = CTG_GET_TASK_MSGCTX(pTask, 0);
-    if (NULL == pMsgCtx) {
-      ctgError("fail to get the 0th SCtgMsgCtx, taskType:%d", pTask->type);
+    SCtgMsgCtx* pMsgCtx = &pTask->msgCtx;
+    if (NULL == pMsgCtx->pBatchs) {
+      pMsgCtx->pBatchs = pTask->pJob->pBatchs;
+    }
+    if (NULL == pMsgCtx->pBatchs) {
+      ctgError("fail to resolve batch container for tsma task:%d", pTask->taskId);
       CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
     }
 
@@ -5112,6 +5144,31 @@ static int32_t ctgLaunchGetVStbRefDbsTaskByReq(SCtgTaskReq* pReq) {
     }
   }
 
+  if (NULL == pTask->msgCtxs) {
+    pTask->msgCtxs = taosArrayInit_s(sizeof(SCtgMsgCtx), pCtx->vgNum);
+    if (NULL == pTask->msgCtxs) {
+      ctgError("taosArrayInit_s %d SCtgMsgCtx %d failed", pCtx->vgNum, (int32_t)sizeof(SCtgMsgCtx));
+      CTG_ERR_JRET(terrno);
+    }
+  }
+
+  for (int32_t i = 0; i < pCtx->vgNum; ++i) {
+    SVgroupInfo* pVg = (SVgroupInfo*)taosArrayGet(pCtx->pVgroups, i);
+    SCtgMsgCtx*  pReqMsgCtx = CTG_GET_TASK_MSGCTX(pTask, i);
+    if (NULL == pReqMsgCtx) {
+      ctgError("fail to get the %dth pMsgCtx", i);
+      CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
+    }
+
+    pReqMsgCtx->pBatchs = pMsgCtx->pBatchs;
+
+    SCtgTaskReq tReq = (SCtgTaskReq) {.pTask = pTask,
+                                      .msgIdx = i,
+                                      .autoCreateCtb = 0};
+
+    CTG_ERR_JRET(ctgGetVSubtablesMetaFromVnode(pCtg, pConn, pCtx->pMeta->suid, pVg, &tReq));
+  }
+
   if (dbCache) {
     ctgReleaseVgInfoToCache(pCtg, dbCache);
   }
@@ -5208,15 +5265,13 @@ int32_t ctgGetVStbRefDbsCb(SCtgTaskReq* pReq) {
   CTG_ERR_JRET(pTask->subRes.code);
 
   SCtgVStbRefDbsCtx* pCtx = (SCtgVStbRefDbsCtx*)pTask->taskCtx;
-  if (CTG_TASK_GET_TB_META == pTask->subRes.type) {
-    TSWAP(pCtx->pMeta, pTask->subRes.res);
-  } else if (CTG_TASK_GET_DB_VGROUP == pTask->subRes.type) {
-    SDBVgInfo* pDb = (SDBVgInfo*)pTask->subRes.res;
-
-    pCtx->pVgroups = taosArrayDup(pDb->vgArray, NULL);
-    if (NULL == pCtx->pVgroups) {
-      CTG_ERR_JRET(terrno);
+  switch (pTask->subRes.type) {
+    case CTG_TASK_GET_TB_META: {
+      TSWAP(pCtx->pMeta, pTask->subRes.res);
+      break;
     }
+    case CTG_TASK_GET_DB_VGROUP: {
+      SDBVgInfo* pDb = (SDBVgInfo*)pTask->subRes.res;
 
     pCtx->clonedVgroups = true;
   } else if (CTG_TASK_GET_TB_META_BATCH == pTask->subRes.type) {

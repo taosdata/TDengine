@@ -12,6 +12,7 @@
 # -*- coding: utf-8 -*-
 from new_test_framework.utils import tdLog, tdSql, etool, inspect, tdCom
 import os
+import platform
 
 class TestScalarFunction:
     updatecfgDict = {
@@ -670,7 +671,9 @@ class TestScalarFunction:
             - 2025-10-13 Alex Duan add doc
 
         """
-        self.run_rand()
+        # Windows has a incompatible implementation of srand/rand, skip it for now
+        if platform.system().lower() != 'windows':
+            self.run_rand()
 
     def test_fun_sca_sign(self):
         """ Fun: sign()
@@ -1073,4 +1076,4 @@ class TestScalarFunction:
             - 2025-10-16 Alex Duan add doc
 
         """
-        self.run_weekofyear()   
+        self.run_weekofyear()

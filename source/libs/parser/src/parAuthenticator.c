@@ -261,7 +261,7 @@ static int32_t rewriteAppendStableTagCond(SNode** pWhere, SNode* pTagCond, STabl
 
   return mergeStableTagCond(pWhere, pTagCondCopy);
 }
-#if 0  
+#if 0
 /**
  * @brief Fast fail path if no star(*) specified in select clause
  */
@@ -1052,10 +1052,15 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
       return authSysPrivileges(pCxt, pStmt, PRIV_NODES_SHOW);
     case QUERY_NODE_SHOW_ANODES_STMT:
     case QUERY_NODE_SHOW_ANODES_FULL_STMT:
+      return TSDB_CODE_SUCCESS;
     case QUERY_NODE_SHOW_XNODES_STMT:
-    case QUERY_NODE_SHOW_XNODE_TASKS_STMT:
     case QUERY_NODE_SHOW_XNODE_AGENTS_STMT:
+      return authSysPrivileges(pCxt, pStmt, PRIV_NODES_SHOW);
+    case QUERY_NODE_SHOW_XNODE_TASKS_STMT:
     case QUERY_NODE_SHOW_XNODE_JOBS_STMT:
+      return TSDB_CODE_SUCCESS;
+    case QUERY_NODE_CREATE_XNODE_STMT:
+    case QUERY_NODE_DROP_XNODE_STMT:
       return TSDB_CODE_SUCCESS;
     case QUERY_NODE_SHOW_CLUSTER_MACHINES_STMT:
     // case QUERY_NODE_SHOW_LICENCES_STMT: // do not check auth for basic licence info since it's used for taos logon
@@ -1125,7 +1130,6 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
     case QUERY_NODE_CREATE_SNODE_STMT:
     case QUERY_NODE_CREATE_BNODE_STMT:
     case QUERY_NODE_CREATE_ANODE_STMT:
-    case QUERY_NODE_CREATE_XNODE_STMT:
       return authSysPrivileges(pCxt, pStmt, PRIV_NODE_CREATE);
     case QUERY_NODE_DROP_DNODE_STMT:
     case QUERY_NODE_DROP_MNODE_STMT:
@@ -1133,7 +1137,6 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
     case QUERY_NODE_DROP_SNODE_STMT:
     case QUERY_NODE_DROP_BNODE_STMT:
     case QUERY_NODE_DROP_ANODE_STMT:
-    case QUERY_NODE_DROP_XNODE_STMT:
       return authSysPrivileges(pCxt, pStmt, PRIV_NODE_DROP);
     case QUERY_NODE_SHOW_TRANSACTIONS_STMT:
     case QUERY_NODE_SHOW_TRANSACTION_DETAILS_STMT:

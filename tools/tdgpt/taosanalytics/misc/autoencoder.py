@@ -10,7 +10,7 @@ import keras
 import numpy as np
 import pandas as pd
 
-from taosanalytics.analytics_base import AbstractAnomalyDetectionService, AnalyticsService
+from taosanalytics.base import AbstractAnomalyDetectionService, AnalyticsService
 from taosanalytics.conf import Configure
 from taosanalytics.error import failed_load_model_except
 from taosanalytics.log import AppLogger
@@ -45,6 +45,10 @@ class _AutoEncoderDetectionService(AbstractAnomalyDetectionService):
         info = ModelFileManager.get_instance().get_model(self.name)
         return AnalyticsService._toStatusName[
             AnalyticsService.UNAVAILABLE if info is None else AnalyticsService.READY]
+
+    # @classmethod
+    # def get_model_base_path(cls) -> str:
+    #     return str(Path(conf.get_model_directory()) / 'sample-ad-autoencoder' / 'sample-ad-autoencoder')
 
     def execute(self):
         if self.input_is_empty():
@@ -82,8 +86,6 @@ class _AutoEncoderDetectionService(AbstractAnomalyDetectionService):
 
     def set_params(self, params):
         info = ModelFileManager.get_instance().get_model(self.name)
-        if info is None:
-            failed_load_model_except(self.name)
 
         self.mean = info["mean"]
         self.std = info["std"]

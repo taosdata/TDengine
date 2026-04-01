@@ -1,5 +1,5 @@
 # encoding:utf-8
-"""forecast service: encapsulates forecast business logic"""
+"""forecast handlers: encapsulates forecast business logic"""
 
 from taosanalytics.algo.forecast import do_forecast, do_add_fc_params
 from taosanalytics.log import AppLogger

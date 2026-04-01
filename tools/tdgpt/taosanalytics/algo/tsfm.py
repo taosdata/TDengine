@@ -6,12 +6,13 @@ import requests
 
 from taosanalytics.algo.forecast import insert_ts_list
 from taosanalytics.conf import Configure
-from taosanalytics.analytics_base import AbstractForecastService, AnalyticsService
+from taosanalytics.base import AbstractForecastService, AnalyticsService
 from taosanalytics.log import AppLogger
 
 
 class TsfmBaseService(AbstractForecastService):
     """tsfm base service class"""
+    _builtins = True
 
     def __init__(self):
         super().__init__()

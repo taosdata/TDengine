@@ -1527,9 +1527,11 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
         break;
       }
       case EX_SRC_TYPE_VSTB_SYS_SCAN: {
-        code = buildSysTableScanOperatorParamForExchange(&req.pOpParam, pDataInfo->sysScanReqs);
-        clearVtbScanDataInfo(pDataInfo);
-        QUERY_CHECK_CODE(code, lino, _end);
+        if (pDataInfo->sysScanReqs) {
+          code = buildSysTableScanOperatorParamForExchange(&req.pOpParam, pDataInfo->sysScanReqs);
+          clearVtbScanDataInfo(pDataInfo);
+          QUERY_CHECK_CODE(code, lino, _end);
+        }
         break;
       }
       case EX_SRC_TYPE_STB_JOIN_SCAN:

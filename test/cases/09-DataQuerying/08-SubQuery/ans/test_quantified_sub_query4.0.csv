@@ -2172,7 +2172,7 @@ QUERY_PLAN: -> Data Exchange 2:1 ( rows=0 width=4)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=1 width=4
 *************************** 3.row ***************************
-QUERY_PLAN:       Network: mode=concurrent fetch_times=1.0(1) fetch_rows=0.0(0) 
+QUERY_PLAN:       Network: mode=concurrent  fetch_rows=0.0(0) 
 *************************** 4.row ***************************
 *************************** 5.row ***************************
 QUERY_PLAN:    -> Projection ( rows=0.0(0) columns=1 width=4 input_order=asc)
@@ -2212,7 +2212,7 @@ QUERY_PLAN:          -> Data Exchange 2:1 ( rows=6 width=16)
 *************************** 24.row ***************************
 QUERY_PLAN:                Output: columns=2 width=16
 *************************** 25.row ***************************
-QUERY_PLAN:                Network: mode=concurrent fetch_times=1.0(1) fetch_rows=3.0(4) 
+QUERY_PLAN:                Network: mode=concurrent  fetch_rows=3.0(4) 
 *************************** 26.row ***************************
 *************************** 27.row ***************************
 QUERY_PLAN:             -> Projection ( rows=3.0(4) columns=1 width=8 input_order=asc)
@@ -2247,7 +2247,7 @@ QUERY_PLAN: -> Data Exchange 2:1 ( rows=6 width=4)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=1 width=4
 *************************** 3.row ***************************
-QUERY_PLAN:       Network: mode=concurrent fetch_times=1.0(1) fetch_rows=3.0(4) 
+QUERY_PLAN:       Network: mode=concurrent  fetch_rows=3.0(4) 
 *************************** 4.row ***************************
 *************************** 5.row ***************************
 QUERY_PLAN:    -> Projection ( rows=3.0(4) columns=1 width=4 input_order=asc)
@@ -2287,7 +2287,7 @@ QUERY_PLAN:          -> Data Exchange 2:1 ( rows=6 width=16)
 *************************** 24.row ***************************
 QUERY_PLAN:                Output: columns=2 width=16
 *************************** 25.row ***************************
-QUERY_PLAN:                Network: mode=concurrent fetch_times=1.0(1) fetch_rows=3.0(4) 
+QUERY_PLAN:                Network: mode=concurrent  fetch_rows=3.0(4) 
 *************************** 26.row ***************************
 *************************** 27.row ***************************
 QUERY_PLAN:             -> Projection ( rows=3.0(4) columns=1 width=8 input_order=asc)
@@ -2322,7 +2322,7 @@ QUERY_PLAN: -> Data Exchange 2:1 ( rows=0 width=4)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=1 width=4
 *************************** 3.row ***************************
-QUERY_PLAN:       Network: mode=concurrent fetch_times=1.0(1) fetch_rows=0.0(0) 
+QUERY_PLAN:       Network: mode=concurrent  fetch_rows=0.0(0) 
 *************************** 4.row ***************************
 *************************** 5.row ***************************
 QUERY_PLAN:    -> Projection ( rows=0.0(0) columns=1 width=4 input_order=asc)
@@ -2355,7 +2355,7 @@ QUERY_PLAN:       -> Data Exchange 2:1 ( rows=6 width=8)
 *************************** 20.row ***************************
 QUERY_PLAN:             Output: columns=1 width=8
 *************************** 21.row ***************************
-QUERY_PLAN:             Network: mode=concurrent fetch_times=1.0(1) fetch_rows=3.0(4) 
+QUERY_PLAN:             Network: mode=concurrent  fetch_rows=3.0(4) 
 *************************** 22.row ***************************
 *************************** 23.row ***************************
 QUERY_PLAN:          -> Projection ( rows=3.0(4) columns=1 width=8 input_order=asc)
@@ -2390,7 +2390,7 @@ QUERY_PLAN: -> Data Exchange 2:1 ( rows=6 width=4)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=1 width=4
 *************************** 3.row ***************************
-QUERY_PLAN:       Network: mode=concurrent fetch_times=1.0(1) fetch_rows=3.0(4) 
+QUERY_PLAN:       Network: mode=concurrent  fetch_rows=3.0(4) 
 *************************** 4.row ***************************
 *************************** 5.row ***************************
 QUERY_PLAN:    -> Projection ( rows=3.0(4) columns=1 width=4 input_order=asc)
@@ -2994,7 +2994,7 @@ QUERY_PLAN:       -> Data Exchange 2:1 ( rows=0 width=62)
 *************************** 11.row ***************************
 QUERY_PLAN:             Output: columns=2 width=62
 *************************** 12.row ***************************
-QUERY_PLAN:             Network: mode=concurrent fetch_times=1.0(1) fetch_rows=0.0(0) 
+QUERY_PLAN:             Network: mode=concurrent  fetch_rows=0.0(0) 
 *************************** 13.row ***************************
 *************************** 14.row ***************************
 QUERY_PLAN:          -> GroupAggregate ( rows=0.0(0) functions=1 width=62 groups=1 input_order=asc)
@@ -3032,7 +3032,7 @@ QUERY_PLAN:          -> Data Exchange 2:1 ( rows=6 width=16)
 *************************** 32.row ***************************
 QUERY_PLAN:                Output: columns=2 width=16
 *************************** 33.row ***************************
-QUERY_PLAN:                Network: mode=concurrent fetch_times=1.0(1) fetch_rows=3.0(4) 
+QUERY_PLAN:                Network: mode=concurrent  fetch_rows=3.0(4) 
 *************************** 34.row ***************************
 *************************** 35.row ***************************
 QUERY_PLAN:             -> Projection ( rows=3.0(4) columns=1 width=8 input_order=asc)
@@ -3070,7 +3070,7 @@ QUERY_PLAN:          -> Data Exchange 2:1 ( rows=6 width=16)
 *************************** 53.row ***************************
 QUERY_PLAN:                Output: columns=2 width=16
 *************************** 54.row ***************************
-QUERY_PLAN:                Network: mode=concurrent fetch_times=1.0(1) fetch_rows=3.0(4) 
+QUERY_PLAN:                Network: mode=concurrent  fetch_rows=3.0(4) 
 *************************** 55.row ***************************
 *************************** 56.row ***************************
 QUERY_PLAN:             -> Projection ( rows=3.0(4) columns=1 width=8 input_order=asc)
@@ -3121,7 +3121,7 @@ QUERY_PLAN:       -> Data Exchange 2:1 ( rows=6 width=62)
 *************************** 11.row ***************************
 QUERY_PLAN:             Output: columns=2 width=62
 *************************** 12.row ***************************
-QUERY_PLAN:             Network: mode=concurrent fetch_times=1.0(1) fetch_rows=3.0(4) 
+QUERY_PLAN:             Network: mode=concurrent  fetch_rows=3.0(4) 
 *************************** 13.row ***************************
 *************************** 14.row ***************************
 QUERY_PLAN:          -> GroupAggregate ( rows=3.0(4) functions=1 width=62 groups=1 input_order=asc)
@@ -3159,7 +3159,7 @@ QUERY_PLAN:          -> Data Exchange 2:1 ( rows=6 width=16)
 *************************** 32.row ***************************
 QUERY_PLAN:                Output: columns=2 width=16
 *************************** 33.row ***************************
-QUERY_PLAN:                Network: mode=concurrent fetch_times=1.0(1) fetch_rows=3.0(4) 
+QUERY_PLAN:                Network: mode=concurrent  fetch_rows=3.0(4) 
 *************************** 34.row ***************************
 *************************** 35.row ***************************
 QUERY_PLAN:             -> Projection ( rows=3.0(4) columns=1 width=8 input_order=asc)
@@ -3197,7 +3197,7 @@ QUERY_PLAN:          -> Data Exchange 2:1 ( rows=6 width=16)
 *************************** 53.row ***************************
 QUERY_PLAN:                Output: columns=2 width=16
 *************************** 54.row ***************************
-QUERY_PLAN:                Network: mode=concurrent fetch_times=1.0(1) fetch_rows=3.0(4) 
+QUERY_PLAN:                Network: mode=concurrent  fetch_rows=3.0(4) 
 *************************** 55.row ***************************
 *************************** 56.row ***************************
 QUERY_PLAN:             -> Projection ( rows=3.0(4) columns=1 width=8 input_order=asc)
@@ -3248,7 +3248,7 @@ QUERY_PLAN:       -> Data Exchange 2:1 ( rows=0 width=62)
 *************************** 11.row ***************************
 QUERY_PLAN:             Output: columns=2 width=62
 *************************** 12.row ***************************
-QUERY_PLAN:             Network: mode=concurrent fetch_times=1.0(1) fetch_rows=0.0(0) 
+QUERY_PLAN:             Network: mode=concurrent  fetch_rows=0.0(0) 
 *************************** 13.row ***************************
 *************************** 14.row ***************************
 QUERY_PLAN:          -> GroupAggregate ( rows=0.0(0) functions=1 width=62 groups=1 input_order=asc)
@@ -3279,7 +3279,7 @@ QUERY_PLAN:       -> Data Exchange 2:1 ( rows=6 width=8)
 *************************** 28.row ***************************
 QUERY_PLAN:             Output: columns=1 width=8
 *************************** 29.row ***************************
-QUERY_PLAN:             Network: mode=concurrent fetch_times=1.0(1) fetch_rows=3.0(4) 
+QUERY_PLAN:             Network: mode=concurrent  fetch_rows=3.0(4) 
 *************************** 30.row ***************************
 *************************** 31.row ***************************
 QUERY_PLAN:          -> Projection ( rows=3.0(4) columns=1 width=8 input_order=asc)
@@ -3310,7 +3310,7 @@ QUERY_PLAN:       -> Data Exchange 2:1 ( rows=6 width=8)
 *************************** 45.row ***************************
 QUERY_PLAN:             Output: columns=1 width=8
 *************************** 46.row ***************************
-QUERY_PLAN:             Network: mode=concurrent fetch_times=1.0(1) fetch_rows=3.0(4) 
+QUERY_PLAN:             Network: mode=concurrent  fetch_rows=3.0(4) 
 *************************** 47.row ***************************
 *************************** 48.row ***************************
 QUERY_PLAN:          -> Projection ( rows=3.0(4) columns=1 width=8 input_order=asc)
@@ -3361,7 +3361,7 @@ QUERY_PLAN:       -> Data Exchange 2:1 ( rows=6 width=62)
 *************************** 11.row ***************************
 QUERY_PLAN:             Output: columns=2 width=62
 *************************** 12.row ***************************
-QUERY_PLAN:             Network: mode=concurrent fetch_times=1.0(1) fetch_rows=3.0(4) 
+QUERY_PLAN:             Network: mode=concurrent  fetch_rows=3.0(4) 
 *************************** 13.row ***************************
 *************************** 14.row ***************************
 QUERY_PLAN:          -> GroupAggregate ( rows=3.0(4) functions=1 width=62 groups=1 input_order=asc)

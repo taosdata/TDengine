@@ -232,6 +232,8 @@ description: TDengine TSDB 保留关键字的详细列表
 |----------------------|-|
 | ID                   | |
 | IF                   | |
+| IDLE                 | 3.3.4.0+ |
+| IDLE_TIMEOUT         | 3.3.4.0+ |
 | IGNORE               | |
 | IGNORE_DISORDER      | 3.3.7.0+ |
 | IGNORE_NODATA_TRIGGER| 3.3.7.0+ |

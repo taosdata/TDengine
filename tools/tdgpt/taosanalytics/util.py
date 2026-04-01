@@ -1,5 +1,6 @@
 # encoding:utf-8
 """utility methods to helper query processing"""
+import argparse
 import math
 import re
 
@@ -166,6 +167,7 @@ def create_sequences(values, time_steps):
         output.append(values[i: (i + time_steps)])
     return np.stack(output)
 
+
 def do_initial_check(request):
     if not request.is_json:
         AppLogger.error('recv invalid request, only json allowed. %s', request.data)
@@ -179,6 +181,7 @@ def do_initial_check(request):
 
     AppLogger.debug('req payload: %s', req_json)
     return req_json
+
 
 def do_check_before_exec(request, check_rows=True):
     req_json = do_initial_check(request)
@@ -217,7 +220,7 @@ def do_check_before_exec(request, check_rows=True):
     return req_json, payload, options, data_index, ts_index
 
 
-def parse_time_delta_string(time_str:str):
+def parse_time_delta_string(time_str: str):
     match = re.match(r'^(\d*)([smhdw]|ns|ms|us)$', time_str.lower())
     if not match:
         raise ValueError(f"failed to parse time string: {time_str}")
@@ -225,3 +228,11 @@ def parse_time_delta_string(time_str:str):
     value = int(match.group(1)) if len(match.group(1)) > 0 else 1
     unit = match.group(2)
     return value, unit
+
+
+def parse_args():
+    """Parse command line arguments (only used when running directly with python)"""
+    parser = argparse.ArgumentParser(description='TDgpt analytics service')
+    parser.add_argument('-c', '--config', dest='conf_path', default=None,
+                        help='path to configuration file')
+    return parser.parse_args()

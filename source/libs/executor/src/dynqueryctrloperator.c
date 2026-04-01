@@ -2802,9 +2802,13 @@ static int32_t buildBootstrapSysScanExchangeParam(SOperatorParam** ppRes, SOpera
     SDownstreamSourceNode* pSrc = taosArrayGet(pExchangeInfo->pSources, i);
     QUERY_CHECK_NULL(pSrc, code, line, _return, terrno);
 
+    SArray* pFakeReqs = taosArrayInit(1, sizeof(int32_t));
+    QUERY_CHECK_NULL(pFakeReqs, code, line, _return, terrno);
     code = buildExchangeOperatorBasicParam(&basic, QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN, EX_SRC_TYPE_VSTB_SYS_SCAN,
-                                           pSrc->addr.nodeId, 0, NULL, NULL, NULL, NULL, NULL, (STimeWindow){0},
+                                           pSrc->addr.nodeId, 0, NULL, NULL, NULL, pFakeReqs, NULL, (STimeWindow){0},
                                            NULL, false, true, false);
+    taosArrayDestroy(pFakeReqs);
+    pFakeReqs = NULL;
     QUERY_CHECK_CODE(code, line, _return);
 
     code = tSimpleHashPut(pExc->pBatchs, &pSrc->addr.nodeId, sizeof(pSrc->addr.nodeId), &basic, sizeof(basic));
@@ -2927,6 +2931,7 @@ static int32_t dynFetchInitialSysScanBlock(SOperatorInfo* pTargetOp, bool* pBoot
     QUERY_CHECK_CODE(code, line, _return);
     code = pTargetOp->fpSet.getNextExtFn(pTargetOp, pParam, ppBlock);
     QUERY_CHECK_CODE(code, line, _return);
+    pParam = NULL;
     *pBootstrapped = true;
     return code;
   }
@@ -2936,6 +2941,7 @@ static int32_t dynFetchInitialSysScanBlock(SOperatorInfo* pTargetOp, bool* pBoot
   return code;
 
 _return:
+  freeOperatorParam(pParam, OP_GET_PARAM);
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed since %s, line %d", __func__, tstrerror(code), line);
   }
@@ -3543,7 +3549,7 @@ static int32_t parseColRefNameView(const char* colRef, SColRefNameView* pView) {
   QUERY_CHECK_NULL(pView, code, line, _return, TSDB_CODE_INVALID_PARA);
 
   firstDot = strchr(colRef, '.');
-  secondDot = firstDot == NULL ? NULL : strchr(firstDot + 1, '.');
+  secondDot = (firstDot == NULL) ? NULL : strchr(firstDot + 1, '.');
   if (firstDot == NULL || secondDot == NULL || firstDot == colRef || secondDot == firstDot + 1 || secondDot[1] == 0) {
     code = TSDB_CODE_VTABLE_INVALID_REF_COLUMN;
     QUERY_CHECK_CODE(code, line, _return);
@@ -3605,16 +3611,22 @@ int32_t getColRefInfo(SColRefInfo *pInfo, SArray* pDataBlock, int32_t index) {
   if (colDataIsNull_s(pRefCol, index)) {
     pInfo->colrefName = NULL;
   } else {
-    pInfo->colrefName = taosMemoryCalloc(varDataTLen(colDataGetData(pRefCol, index)), 1);
+    void* data = colDataGetData(pRefCol, index);
+    pInfo->colrefName = taosMemoryCalloc(varDataTLen(data), 1);
     QUERY_CHECK_NULL(pInfo->colrefName, code, line, _return, terrno)
-    memcpy(pInfo->colrefName, varDataVal(colDataGetData(pRefCol, index)), varDataLen(colDataGetData(pRefCol, index)));
-    pInfo->colrefName[varDataLen(colDataGetData(pRefCol, index))] = 0;
+    memcpy(pInfo->colrefName, varDataVal(data), varDataLen(data));
+    pInfo->colrefName[varDataLen(data)] = 0;
   }
 
-  pInfo->colName = taosMemoryCalloc(varDataTLen(colDataGetData(pColNameCol, index)), 1);
-  QUERY_CHECK_NULL(pInfo->colName, code, line, _return, terrno)
-  memcpy(pInfo->colName, varDataVal(colDataGetData(pColNameCol, index)), varDataLen(colDataGetData(pColNameCol, index)));
-  pInfo->colName[varDataLen(colDataGetData(pColNameCol, index))] = 0;
+  if (colDataIsNull_s(pColNameCol, index)) {
+    pInfo->colName = NULL;
+  } else {
+    void* data = colDataGetData(pColNameCol, index);
+    pInfo->colName = taosMemoryCalloc(varDataTLen(data), 1);
+    QUERY_CHECK_NULL(pInfo->colName, code, line, _return, terrno)
+    memcpy(pInfo->colName, varDataVal(data), varDataLen(data));
+    pInfo->colName[varDataLen(data)] = 0;
+  }
 
   if (!colDataIsNull_s(pUidCol, index)) {
     GET_TYPED_DATA(pInfo->uid, int64_t, TSDB_DATA_TYPE_BIGINT, colDataGetNumData(pUidCol, index), 0);
@@ -4864,6 +4876,7 @@ static int32_t initVtbScanInfo(SDynQueryCtrlOperatorInfo* pInfo, SMsgCb* pMsgCb,
   QUERY_CHECK_NULL(pInfo->vtbScan.dbVgInfoMap, code, line, _return, terrno)
   pInfo->vtbScan.resolvedColRefMap = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   QUERY_CHECK_NULL(pInfo->vtbScan.resolvedColRefMap, code, line, _return, terrno)
+  taosHashSetFreeFp(pInfo->vtbScan.resolvedColRefMap, destroyResolvedColRef);
 
   pInfo->vtbScan.otbNameToOtbInfoMap = NULL;
   pInfo->vtbScan.otbVgIdToOtbInfoArrayMap = NULL;

@@ -532,7 +532,8 @@ static int32_t stbSplAppendPlaceHolder(SNodeList* pFuncs, int32_t* pIndex, uint8
   FOREACH(pFunc, pFuncs) {
     if (FUNCTION_TYPE_TWSTART == ((SFunctionNode*)pFunc)->funcType ||
         FUNCTION_TYPE_TPREV_TS == ((SFunctionNode*)pFunc)->funcType ||
-        FUNCTION_TYPE_TPREV_LOCALTIME == ((SFunctionNode*)pFunc)->funcType) {
+        FUNCTION_TYPE_TPREV_LOCALTIME == ((SFunctionNode*)pFunc)->funcType ||
+        FUNCTION_TYPE_TIDLESTART == ((SFunctionNode*)pFunc)->funcType) {
       *pIndex = index;
       return TSDB_CODE_SUCCESS;
     }

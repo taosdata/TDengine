@@ -5,12 +5,19 @@ import importlib.util
 import logging
 import platform
 import os.path
-import torch  # do not remove it
+from pathlib import Path
+from typing import Optional
 
 os.environ.setdefault('KERAS_BACKEND', 'torch')
-import keras
+try:
+    import torch  # noqa: F401 - Optional runtime dependency
+except Exception:  # pragma: no cover
+    torch = None  # noqa: F841
 
-from typing import Optional
+try:
+    import keras  # noqa: F401 - Optional runtime dependency
+except Exception:  # pragma: no cover
+    keras = None  # noqa: F841
 
 _ANODE_SECTION_NAME = "taosanode"
 
@@ -58,18 +65,20 @@ class Configure:
             cls()
         return cls._instance
 
-    def _get_default_conf_windows(self):
-        # raw_path = r"%PROGRAMDATA%"
-        # base_path = os.path.join(os.path.expandvars(raw_path), "tdgpt")
-        # keep inline with the TDengine installation configuration
+    # def _get_default_conf_windows(self):
+    #     # raw_path = r"%PROGRAMDATA%"
+    #     # base_path = os.path.join(os.path.expandvars(raw_path), "tdgpt")
+    #     # keep inline with the TDengine installation configuration
+    #
+    #     base_path = "c:/TDengine/taosanode/"
 
-        base_path = "c:/TDengine/tdgpt/"
-
+    def _get_default_conf_impl(self, base_path: str):
         return {
             "log_dir": os.path.join(base_path, "log"),
             "log_file": "taosanode.app.log",
             "model_dir": os.path.join(base_path, "model"),
-            "conf_path": os.path.join(base_path, "conf/taosanode.config.py"),
+            "img_dir": os.path.join(base_path, "img"),
+            "conf_path": os.path.join(base_path, "cfg", "taosanode.config.py"),
             "log_level": logging.DEBUG,
             "draw_result": False,
             "host": "0.0.0.0",
@@ -81,6 +90,7 @@ class Configure:
             "log_dir": "/var/log/taos/taosanode/",
             "log_file": "taosanode.app.log",
             "model_dir": '/usr/local/taos/taosanode/model/',
+            "img_dir":'/usr/local/taos/taosanode/img/',
             "conf_path": "/etc/taos/taosanode.config.py",
             "log_level": logging.DEBUG,
             "draw_result": False,
@@ -88,15 +98,23 @@ class Configure:
             "port": 6035,
         }
 
-    def _get_default_conf(self):
-        if platform.system().lower() == "windows":
-            default = self._get_default_conf_windows()
-        else:
-            default = self._get_default_conf_linux()
+    def _get_default_conf(self) -> dict:
+        package_dir = Path(__file__).resolve().parent
 
-        # update the log_dir for unit test cases while powered by github action.
-        if os.environ.get('GITHUB_ACTIONS'):
-            default['log_dir'] = '/home/runner/work/TDengine/TDengine/tools/tdgpt/log/'
+        if platform.system().lower() == "windows":
+            if package_dir.name == "taosanalytics" and package_dir.parent.name == "lib":
+                base_path = str(package_dir.parent.parent).replace("\\", "/")
+            else:
+                # default installation directory in windows
+                base_path = "c:/TDengine/taosanode"
+
+            default = self._get_default_conf_impl(base_path)
+        else:
+            if os.environ.get('GITHUB_ACTIONS') and package_dir.name == "taosanalytics":
+                base_path = str(package_dir.parent).replace("\\", "/")
+                default = self._get_default_conf_impl(base_path)
+            else:
+                default = self._get_default_conf_linux()
 
         return default
 
@@ -125,6 +143,9 @@ class Configure:
     def get_server_bind(self) -> tuple:
         """return (host, port) for the HTTP server"""
         return self._conf['host'], self._conf['port']
+
+    def get_img_dir(self) -> str:
+        return self._conf["img_dir"]
 
     def reload(self):
         """ load the info from config file """

@@ -1,6 +1,6 @@
 import numpy as np
 
-from taosanalytics.analytics_base import AbstractCorrelationService
+from taosanalytics.base import AbstractCorrelationService
 from taosanalytics.log import AppLogger
 from fastdtw import fastdtw
 
@@ -9,6 +9,7 @@ class _DtwService(AbstractCorrelationService):
     """ dtw analysis """
     name = 'dtw'
     desc = """found the dynamic time wrap for two given time series data"""
+    _builtins = True
 
     def __init__(self):
         super().__init__()

@@ -1335,6 +1335,8 @@ void freeTagScanNotifyOperatorParam(SOperatorParam* pParam) { freeOperatorParamI
 
 void freeMergeNotifyOperatorParam(SOperatorParam* pParam) { freeOperatorParamImpl(pParam, OP_NOTIFY_PARAM); }
 
+void freeSysScanNotifyOperatorParam(SOperatorParam* pParam) { freeOperatorParamImpl(pParam, OP_NOTIFY_PARAM); }
+
 void freeOpParamItem(void* pItem) {
   SOperatorParam* pParam = *(SOperatorParam**)pItem;
   pParam->reUse = false;
@@ -1408,11 +1410,7 @@ void freeOperatorParam(SOperatorParam* pParam, SOperatorParamType type) {
       type == OP_GET_PARAM ? freeTagScanGetOperatorParam(pParam) : freeTagScanNotifyOperatorParam(pParam);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN:
-      if (type == OP_GET_PARAM) {
-        freeSysTableScanGetOperatorParam(pParam);
-      } else {
-        freeOperatorParamImpl(pParam, OP_NOTIFY_PARAM);
-      }
+      type == OP_GET_PARAM ? freeSysTableScanGetOperatorParam(pParam) : freeSysScanNotifyOperatorParam(pParam);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_HASH_AGG:
     case QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL:

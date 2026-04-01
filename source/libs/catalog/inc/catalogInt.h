@@ -328,6 +328,7 @@ typedef struct SCtgVStbRefDbsCtx {
   int32_t         resDoneNum;
   SArray*         pSubTablesList; // first-hop vnode rsp, SArray<SVSubTablesRsp>
   SArray*         pLayerRefs;     // current resolving layer refs, SArray<SCtgVStbLayerRef>
+  SArray*         pColRefs;       // current resolving column refs, SArray<SColRef>
   SArray*         pLayerReqs;     // current layer batch-meta reqs, SArray<STablesReq>
   SHashObj*       pFinalDbs;      // referenced db set across all resolved layers, key/value is db name
   SArray*         pResList;       // final result, SArray<SVStbRefDbsRsp>
@@ -850,8 +851,12 @@ typedef struct SCtgCacheItemInfo {
    (CTG_TASK_GET_VIEW == (_taskType)) || (CTG_TASK_GET_TB_TSMA == (_taskType)) ||                \
    (CTG_TASK_GET_TB_NAME == (_taskType)))
 
+#define CTG_HAS_MULTI_MSGCTX(_taskType) \
+  (CTG_IS_BATCH_TASK(_taskType) || (CTG_TASK_GET_V_STBREFDBS == (_taskType)))
+
 #define CTG_GET_TASK_MSGCTX(_task, _id) \
-  (CTG_IS_BATCH_TASK((_task)->type) ? taosArrayGet((_task)->msgCtxs, (_id)) : &(_task)->msgCtx)
+  (((_id) >= 0 && CTG_HAS_MULTI_MSGCTX((_task)->type) && (_task)->msgCtxs) ? taosArrayGet((_task)->msgCtxs, (_id)) \
+                                                                             : &(_task)->msgCtx)
 
 #define CTG_META_SIZE(pMeta) \
   (sizeof(STableMeta) + ((pMeta)->tableInfo.numOfTags + (pMeta)->tableInfo.numOfColumns) * sizeof(SSchema))
@@ -1252,6 +1257,7 @@ int32_t  ctgGetStreamProgressFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, 
 int32_t ctgAddBatch(SCatalog* pCtg, int32_t vgId, SRequestConnInfo* pConn, SCtgTaskReq* tReq, int32_t msgType,
                     void* msg, uint32_t msgLen);
 int32_t ctgGetVStbRefDbsFromVnode(SCatalog* pCtg, SRequestConnInfo* pConn, int64_t suid, SVgroupInfo* vgroupInfo, SCtgTaskReq* tReq);
+int32_t ctgGetVSubtablesMetaFromVnode(SCatalog* pCtg, SRequestConnInfo* pConn, int64_t suid, SVgroupInfo* vgroupInfo, SCtgTaskReq* tReq);
 int32_t ctgAddTSMAFetch(SArray** pFetchs, int32_t dbIdx, int32_t tbIdx, int32_t* fetchIdx, int32_t resIdx, int32_t flag,
                         CTG_TSMA_FETCH_TYPE fetchType, const SName* sourceTbName);
 int32_t ctgOpUpdateDbTsmaVersion(SCtgCacheOperation* pOper);

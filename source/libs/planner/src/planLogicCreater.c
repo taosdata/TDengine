@@ -101,6 +101,8 @@ static void setColumnInfo(SFunctionNode* pFunc, SColumnNode* pCol, bool isPartit
     case FUNCTION_TYPE_TPREV_LOCALTIME:
     case FUNCTION_TYPE_TNEXT_LOCALTIME:
     case FUNCTION_TYPE_TLOCALTIME:
+    case FUNCTION_TYPE_TIDLESTART:
+    case FUNCTION_TYPE_TIDLEEND:
       pCol->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
       pCol->isPrimTs = true;
       break;
@@ -3537,7 +3539,9 @@ static EDealRes conditionOnlyPhAndConstImpl(SNode* pNode, void* pContext) {
       pFunc->funcType == FUNCTION_TYPE_TCURRENT_TS ||
       pFunc->funcType == FUNCTION_TYPE_TPREV_LOCALTIME ||
       pFunc->funcType == FUNCTION_TYPE_TNEXT_LOCALTIME ||
-      pFunc->funcType == FUNCTION_TYPE_TLOCALTIME) {
+      pFunc->funcType == FUNCTION_TYPE_TLOCALTIME ||
+      pFunc->funcType == FUNCTION_TYPE_TIDLESTART ||
+      pFunc->funcType == FUNCTION_TYPE_TIDLEEND) {
       pCxt->placeholderType = pFunc->funcType;
     } else if (pFunc->funcType != FUNCTION_TYPE_NOW &&
       pFunc->funcType != FUNCTION_TYPE_TODAY &&
@@ -3576,6 +3580,9 @@ static bool placeHolderCanMakeExternalWindow(int32_t startType, int32_t endType)
     }
     case FUNCTION_TYPE_TLOCALTIME: {
       return endType == FUNCTION_TYPE_TNEXT_LOCALTIME;
+    }
+    case FUNCTION_TYPE_TIDLESTART: {
+      return endType == FUNCTION_TYPE_TIDLEEND;
     }
     default: {
       return false;

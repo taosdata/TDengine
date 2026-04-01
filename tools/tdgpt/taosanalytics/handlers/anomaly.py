@@ -1,5 +1,5 @@
 # encoding:utf-8
-"""anomaly service: encapsulates anomaly detection business logic"""
+"""anomaly handlers: encapsulates anomaly detection business logic"""
 
 from taosanalytics.algo.anomaly import do_ad_check
 from taosanalytics.log import AppLogger

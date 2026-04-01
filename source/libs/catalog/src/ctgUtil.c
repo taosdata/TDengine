@@ -1124,6 +1124,7 @@ void ctgFreeTaskCtx(SCtgTask* pTask) {
       if (taskCtx->pResList) {
         taosArrayDestroyEx(taskCtx->pResList, tDestroySVStbRefDbsRsp);
       }
+      taosArrayDestroyEx(pTask->msgCtxs, (FDelete)ctgFreeMsgCtx);
       taosMemoryFreeClear(taskCtx->pMeta);
       taosMemoryFreeClear(pTask->taskCtx);
       break;
@@ -2165,8 +2166,10 @@ void ctgFreeTbTSMAInfo(void* p) {
 }
 
 void ctgFreeVStbRefDbs(void* p) {
+  // `taosArrayDestroyEx()` already destroys the `SArray` object itself (including its `pData`),
+  // so freeing `pRes` again would cause a double-free.
   taosArrayDestroyEx((SArray*)((SMetaRes*)p)->pRes, tDestroySVStbRefDbsRsp);
-  taosMemoryFree(((SMetaRes*)p)->pRes);
+  ((SMetaRes*)p)->pRes = NULL;
 }
 
 

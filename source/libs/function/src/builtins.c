@@ -230,6 +230,8 @@ static int32_t addTimezoneParam(SNodeList* pList, timezone_t tz) {
   varDataSetLen(pVal->datum.p, len);
   tstrncpy(varDataVal(pVal->datum.p), pVal->literal, len + 1);
 
+  //printf("%s literal:%s", __func__, pVal->literal);
+
   code = nodesListAppend(pList, (SNode*)pVal);
   if (TSDB_CODE_SUCCESS != code) {
     nodesDestroyNode((SNode*)pVal);
@@ -1169,7 +1171,9 @@ static int32_t translatePlaceHolderPseudoColumn(SFunctionNode* pFunc, char* pErr
     case FUNCTION_TYPE_TNEXT_TS:
     case FUNCTION_TYPE_TWSTART:
     case FUNCTION_TYPE_TWEND:
-    case FUNCTION_TYPE_TLOCALTIME: {
+    case FUNCTION_TYPE_TLOCALTIME:
+    case FUNCTION_TYPE_TIDLESTART:
+    case FUNCTION_TYPE_TIDLEEND: {
       pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes,
                                         .type = TSDB_DATA_TYPE_TIMESTAMP,
                                         .precision = pFunc->node.resType.precision};
@@ -6371,6 +6375,34 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE},},
     .translateFunc = translatePlaceHolderPseudoColumn,
     .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = streamPseudoScalarFunction,
+    .finalizeFunc = NULL,
+  },
+  {
+    .name = "_tidlestart",
+    .type = FUNCTION_TYPE_TIDLESTART,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_PLACE_HOLDER_FUNC | FUNC_MGT_SKIP_SCAN_CHECK_FUNC,
+    .parameters = {.minParamNum = 0,
+                   .maxParamNum = 0,
+                   .paramInfoPattern = 0,
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_TIMESTAMP_TYPE}},
+    .translateFunc = translatePlaceHolderPseudoColumn,
+    .getEnvFunc   = getTimePseudoFuncEnv,
+    .initFunc     = NULL,
+    .sprocessFunc = streamPseudoScalarFunction,
+    .finalizeFunc = NULL,
+  },
+  {
+    .name = "_tidleend",
+    .type = FUNCTION_TYPE_TIDLEEND,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_PLACE_HOLDER_FUNC | FUNC_MGT_SKIP_SCAN_CHECK_FUNC,
+    .parameters = {.minParamNum = 0,
+                   .maxParamNum = 0,
+                   .paramInfoPattern = 0,
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_TIMESTAMP_TYPE}},
+    .translateFunc = translatePlaceHolderPseudoColumn,
+    .getEnvFunc   = getTimePseudoFuncEnv,
     .initFunc     = NULL,
     .sprocessFunc = streamPseudoScalarFunction,
     .finalizeFunc = NULL,

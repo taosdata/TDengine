@@ -1,6 +1,7 @@
 # encoding:utf-8
 # pylint: disable=c0103
 """forecast helper methods"""
+import os
 import time
 
 import numpy as np
@@ -38,7 +39,7 @@ def do_forecast(input_list, ts_list, algo_name, params, past_dynamic_real=None, 
     check_fc_results(res)
 
     fc = res["res"]
-    draw_fc_results(input_list, len(fc) > 2, s.conf, fc, algo_name)
+    draw_forecast_results(input_list, len(fc) > 2, s.conf, fc, algo_name)
     return res
 
 
@@ -70,10 +71,22 @@ def insert_ts_list(res, start_ts, time_step, fc_rows):
     return res
 
 
-def draw_fc_results(input_list, return_conf, conf_val, fc, fig_name):
+def draw_forecast_results(input_list, return_conf, conf_val, fc, fig_name):
     """Visualize the forecast results """
     # controlled by option, do not visualize the anomaly detection result
     if not Configure.get_instance().get_draw_result_option():
+        return
+
+    base_path = Configure.get_instance().get_img_dir()
+
+    try:
+        os.makedirs(base_path, exist_ok=True)
+    except OSError as exc:
+        AppLogger.error("failed to create image directory '%s': %s", base_path, exc)
+        return
+
+    if not os.access(base_path, os.W_OK):
+        AppLogger.error("image directory '%s' is not writable", base_path)
         return
 
     AppLogger.debug('draw forecast result in debug model')
@@ -97,7 +110,7 @@ def draw_fc_results(input_list, return_conf, conf_val, fc, fig_name):
 
     plt.legend(['input', 'forecast', f'pred:{conf_val}'], loc='upper left')
 
-    plt.savefig(fig_name)
+    plt.savefig(os.path.join(base_path, fig_name))
     plt.close()
 
     AppLogger.debug("draw results completed in debug model")
