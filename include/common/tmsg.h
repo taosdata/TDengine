@@ -2613,6 +2613,53 @@ int32_t tSerializeSCompactDbReq(void* buf, int32_t bufLen, SCompactDbReq* pReq);
 int32_t tDeserializeSCompactDbReq(void* buf, int32_t bufLen, SCompactDbReq* pReq);
 void    tFreeSCompactDbReq(SCompactDbReq* pReq);
 
+// --- RELOAD LAST CACHE ---
+
+typedef enum EReloadStatus {
+  RELOAD_STATUS_PENDING   = 0,
+  RELOAD_STATUS_RUNNING   = 1,
+  RELOAD_STATUS_DONE      = 2,
+  RELOAD_STATUS_FAILED    = 3,
+  RELOAD_STATUS_CANCELLED = 4,
+} EReloadStatus;
+
+typedef struct SVReloadLastCacheReq {
+  int64_t  reloadUid;   // task UID assigned by mnode
+  int64_t  dbUid;
+  tb_uid_t suid;        // 0 = not specified
+  tb_uid_t uid;         // 0 = not specified
+  int16_t  cid;         // -1 = all columns
+  int8_t   cacheType;   // 0=LAST, 1=LAST_ROW, 2=BOTH
+} SVReloadLastCacheReq;
+
+typedef struct SVLastCacheReloadStatus {
+  int64_t       reloadUid;
+  EReloadStatus status;
+  int32_t       totalTables;
+  int32_t       finishedTables;
+  int64_t       startTimeMs;
+  int8_t        cancelRequested;  // set by DROP RELOAD, checked between tables
+  char          errMsg[256];
+} SVLastCacheReloadStatus;
+
+typedef struct SVQueryLastCacheStatusReq {
+  int64_t reloadUid;
+} SVQueryLastCacheStatusReq;
+
+typedef struct SVQueryLastCacheStatusRsp {
+  int32_t               vgId;
+  SVLastCacheReloadStatus status;
+} SVQueryLastCacheStatusRsp;
+
+typedef struct SVCancelLastCacheReloadReq {
+  int64_t reloadUid;
+} SVCancelLastCacheReloadReq;
+
+int32_t tSerializeSVReloadLastCacheReq(void* buf, int32_t bufLen, SVReloadLastCacheReq* pReq);
+int32_t tDeserializeSVReloadLastCacheReq(void* buf, int32_t bufLen, SVReloadLastCacheReq* pReq);
+int32_t tSerializeSVQueryLastCacheStatusRsp(void* buf, int32_t bufLen, SVQueryLastCacheStatusRsp* pRsp);
+int32_t tDeserializeSVQueryLastCacheStatusRsp(void* buf, int32_t bufLen, SVQueryLastCacheStatusRsp* pRsp);
+
 typedef struct {
   union {
     int32_t compactId;

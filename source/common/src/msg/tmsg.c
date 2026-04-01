@@ -18966,3 +18966,71 @@ _exit:
   tDecoderClear(&decoder);
   return code;
 }
+
+int32_t tSerializeSVReloadLastCacheReq(void* buf, int32_t bufLen, SVReloadLastCacheReq* pReq) {
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeI64(&encoder, pReq->reloadUid) < 0) return -1;
+  if (tEncodeI64(&encoder, pReq->dbUid) < 0) return -1;
+  if (tEncodeI64(&encoder, pReq->suid) < 0) return -1;
+  if (tEncodeI64(&encoder, pReq->uid) < 0) return -1;
+  if (tEncodeI16(&encoder, pReq->cid) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->cacheType) < 0) return -1;
+  tEndEncode(&encoder);
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSVReloadLastCacheReq(void* buf, int32_t bufLen, SVReloadLastCacheReq* pReq) {
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeI64(&decoder, &pReq->reloadUid) < 0) return -1;
+  if (tDecodeI64(&decoder, &pReq->dbUid) < 0) return -1;
+  if (tDecodeI64(&decoder, &pReq->suid) < 0) return -1;
+  if (tDecodeI64(&decoder, &pReq->uid) < 0) return -1;
+  if (tDecodeI16(&decoder, &pReq->cid) < 0) return -1;
+  if (tDecodeI8(&decoder, &pReq->cacheType) < 0) return -1;
+  tEndDecode(&decoder);
+  tDecoderClear(&decoder);
+  return 0;
+}
+
+int32_t tSerializeSVQueryLastCacheStatusRsp(void* buf, int32_t bufLen, SVQueryLastCacheStatusRsp* pRsp) {
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeI32(&encoder, pRsp->vgId) < 0) return -1;
+  if (tEncodeI64(&encoder, pRsp->status.reloadUid) < 0) return -1;
+  if (tEncodeI32(&encoder, (int32_t)pRsp->status.status) < 0) return -1;
+  if (tEncodeI32(&encoder, pRsp->status.totalTables) < 0) return -1;
+  if (tEncodeI32(&encoder, pRsp->status.finishedTables) < 0) return -1;
+  if (tEncodeI64(&encoder, pRsp->status.startTimeMs) < 0) return -1;
+  if (tEncodeI8(&encoder, pRsp->status.cancelRequested) < 0) return -1;
+  if (tEncodeCStr(&encoder, pRsp->status.errMsg) < 0) return -1;
+  tEndEncode(&encoder);
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSVQueryLastCacheStatusRsp(void* buf, int32_t bufLen, SVQueryLastCacheStatusRsp* pRsp) {
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeI32(&decoder, &pRsp->vgId) < 0) return -1;
+  if (tDecodeI64(&decoder, &pRsp->status.reloadUid) < 0) return -1;
+  int32_t status = 0;
+  if (tDecodeI32(&decoder, &status) < 0) return -1;
+  pRsp->status.status = (EReloadStatus)status;
+  if (tDecodeI32(&decoder, &pRsp->status.totalTables) < 0) return -1;
+  if (tDecodeI32(&decoder, &pRsp->status.finishedTables) < 0) return -1;
+  if (tDecodeI64(&decoder, &pRsp->status.startTimeMs) < 0) return -1;
+  if (tDecodeI8(&decoder, &pRsp->status.cancelRequested) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pRsp->status.errMsg) < 0) return -1;
+  tEndDecode(&decoder);
+  tDecoderClear(&decoder);
+  return 0;
+}
