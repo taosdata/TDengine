@@ -447,6 +447,8 @@ function removeToTag(index: number) {
   if (state.stable_form.columns.length > 1) {
     const column = state.stable_form.columns.splice(index, 1)[0];
     state.stable_form.tags.push(cloneDeep(column));
+    // 移除默认的空 tag 占位符
+    state.stable_form.tags = state.stable_form.tags.filter(tag => tag.field !== '');
   }
   // 是主键列
   if (index == 1) {

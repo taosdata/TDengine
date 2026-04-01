@@ -312,6 +312,8 @@ function moveToTag(index: number) {
   if (formData.columns.length > 1) {
     const column = formData.columns.splice(index, 1)[0];
     formData.tags.push(column);
+    // 移除默认的空 tag 占位符
+    formData.tags = formData.tags.filter(tag => tag.field);
   }
 }
 function addMoveToTag() {
