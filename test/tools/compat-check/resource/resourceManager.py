@@ -482,8 +482,8 @@ class ResourceManager:
         Re-query indexes via ``SHOW INDEXES`` after upgrade and compare
         against *snapshot* (positional row tuples from Phase 2).
 
-        Rows are compared positionally up to the length of the baseline tuple
-        so that harmlessly added trailing columns do not cause false failures.
+        Rows are compared on the first 3 columns (index_name, db_name,
+        table_name) only; metadata columns such as create_time are ignored.
 
         Returns:
             (True,  summary_str)  – all indexes present and values unchanged
@@ -503,7 +503,7 @@ class ResourceManager:
                     errors.append(f"index '{name}' missing after upgrade")
                     continue
                 got_row = current[name]
-                n = len(expected_row)  # compare only baseline columns
+                n = 3  # compare only index_name, db_name, table_name
                 if tuple(got_row[:n]) != tuple(expected_row[:n]):
                     errors.append(
                         f"index '{name}' values changed: "

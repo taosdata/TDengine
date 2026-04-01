@@ -79,11 +79,11 @@ function cleanup_taosd() {
 
 overall_ret=0
 
-# ── Step 1: Cold upgrade tests (3.3.6.0 / 3.3.8.0 / 3.4.0.0 → current, sequential) ──
+# ── Step 1: Cold upgrade tests (3.3.x.x → current, sequential) ──
 
 echo ""
 echo "============================================================"
-echo "=== Cold Upgrade Tests (3.3.6.0, 3.3.8.0, 3.4.0.0)     ==="
+echo "=== Cold Upgrade Tests ==="
 echo "============================================================"
 
 #
