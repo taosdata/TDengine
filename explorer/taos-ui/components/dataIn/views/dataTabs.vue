@@ -4,7 +4,7 @@
       {{ t('dataIn.version') }}{{ dataInProps.tasoxVersion }}
     </section>
     <el-tabs v-model="activeName" @tab-click="tabClick">
-      <el-tab-pane v-for="item in currentTabs" :key="item.key" :name="item.key" :label="item.label">
+      <el-tab-pane v-for="item in currentTabs" :key="item.key" :name="item.key" :label="item.label" lazy>
         <component :is="item.comp" :key="item.key"></component>
         <slot></slot>
       </el-tab-pane>

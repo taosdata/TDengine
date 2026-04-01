@@ -220,6 +220,13 @@ onMounted(() => {
   if (dataInProps.isCommunity) {
     agentList.value = agentMockData;
   } else {
+    // establish WS once on mount, in parallel with REST
+    if (!hasConnect.value) {
+      hasConnect.value = true;
+      const { activity, close } = useActivitySubscription(dataInProps.agent.webSocketUrl);
+      connectData.activity = activity;
+      connectData.close = close;
+    }
     getAgents();
   }
   nextTick(() => handleResize());
@@ -277,17 +284,6 @@ const getAgents = async () => {
   try {
     requestIng.value = true;
     await getAgentList(dataInProps.agent.api);
-    closeConnect();
-    nextTick(() => {
-      if (!hasConnect.value) {
-        hasConnect.value = true;
-        const { activity, close } = useActivitySubscription(dataInProps.agent.webSocketUrl);
-        connectData.activity = activity;
-        connectData.close = close;
-      } else {
-        closeConnect();
-      }
-    });
     requestIng.value = false;
   } catch (err: any) {
     requestIng.value = false;

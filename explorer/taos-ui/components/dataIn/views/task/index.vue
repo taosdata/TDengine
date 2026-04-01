@@ -513,19 +513,6 @@ async function getList() {
       return item;
     });
   }
-  // 刷新页面获取完数据后建立连接为了获取历史数据
-  closeConnect();
-
-  nextTick(() => {
-    if (!hasConnect.value) {
-      hasConnect.value = true;
-      const { activity, close } = useActivitySubscription(dataInProps.task.webSocketUrl);
-      connectData.activity = activity;
-      connectData.close = close;
-    } else {
-      closeConnect();
-    }
-  });
 }
 
 function stop(data: Recordable) {
@@ -949,6 +936,13 @@ onMounted(() => {
   if (dataInProps.isCommunity) {
     taskList.value = dataInMockData;
   } else {
+    // establish WS once on mount, in parallel with REST
+    if (!hasConnect.value) {
+      hasConnect.value = true;
+      const { activity, close } = useActivitySubscription(dataInProps.task.webSocketUrl);
+      connectData.activity = activity;
+      connectData.close = close;
+    }
     refresh();
   }
 });
