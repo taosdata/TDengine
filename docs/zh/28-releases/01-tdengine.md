@@ -23,7 +23,7 @@ TDengine 2.x 各版本安装包请访问 [这里](https://www.taosdata.com/all-d
 
 TDengine 3.x 各版本安装包下载链接如下：
 
-import Release from "/components/ReleaseV3";
+import Release from "/src/components/Release";
 
 ## 3.3.6.13
 

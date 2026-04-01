@@ -88,7 +88,7 @@ class TestSelectWithTags:
         tdLog.info(f"{tdSql.getRows()})")
         tdSql.checkRows(12800)
 
-        tdSql.query(f"select first(ts), tbname, t1, t2 from select_tags_mt0;")
+        tdSql.query(f"select first(ts), tbname, t1, t2 from select_tags_mt0;", show=True)
         tdSql.checkRows(1)
 
         tdSql.checkData(0, 0, "1970-01-01 08:01:40.000")
@@ -99,7 +99,7 @@ class TestSelectWithTags:
 
         tdSql.checkData(0, 3, "abc0")
 
-        tdSql.query(f"select last(ts), tbname, t1, t2 from select_tags_mt0;")
+        tdSql.query(f"select last(ts), tbname, t1, t2 from select_tags_mt0;", show=True)
         tdSql.checkRows(1)
 
         tdSql.checkData(0, 0, "1970-01-01 08:04:10.800")
@@ -110,7 +110,7 @@ class TestSelectWithTags:
 
         tdSql.checkData(0, 3, "abc15")
 
-        tdSql.query(f"select min(c1), tbname, t1, t2 from select_tags_mt0;")
+        tdSql.query(f"select min(c1), tbname, t1, t2 from select_tags_mt0;", show=True)
         tdSql.checkRows(1)
 
         tdSql.checkData(0, 0, 0)
@@ -121,7 +121,7 @@ class TestSelectWithTags:
 
         tdSql.checkData(0, 3, "abc0")
 
-        tdSql.query(f"select max(c1), tbname, t1, t2 from select_tags_mt0;")
+        tdSql.query(f"select max(c1), tbname, t1, t2 from select_tags_mt0;", show=True)
         tdSql.checkRows(1)
 
         tdSql.checkData(0, 0, 114)
@@ -132,19 +132,19 @@ class TestSelectWithTags:
 
         tdSql.checkData(0, 3, "abc15")
 
-        tdSql.query(f"select top(c6, 3) from select_tags_mt0 interval(10a)")
+        tdSql.query(f"select top(c6, 3) from select_tags_mt0 interval(10a)", show=True)
         tdSql.query(
             f"select top(c3,10) from select_tags_mt0 partition by tbname,t1,t2 interval(10a)"
         )
         tdSql.query(
-            f"select top(c6, 3) from select_tags_mt0 partition by tbname interval(10a)"
+            f"select top(c6, 3) from select_tags_mt0 partition by tbname interval(10a)", show=True
         )
 
-        tdSql.query(f"select top(c6, 10) from select_tags_mt0 interval(10a);")
+        tdSql.query(f"select top(c6, 10) from select_tags_mt0 interval(10a);", show=True)
         tdSql.checkRows(12800)
 
         tdSql.query(
-            f"select ts, top(c1, 80), tbname, t1, t2 from select_tags_mt0 order by ts;"
+            f"select ts, top(c1, 80), tbname, t1, t2 from select_tags_mt0 order by ts;", show=True
         )
         tdSql.checkRows(80)
 
@@ -161,7 +161,7 @@ class TestSelectWithTags:
         tdSql.checkData(0, 4, "abc12")
 
         tdSql.query(
-            f"select ts, top(c1, 80), tbname, t1, t2 from select_tags_mt0 order by ts;"
+            f"select ts, top(c1, 80), tbname, t1, t2 from select_tags_mt0 order by ts;", show=True
         )
         tdSql.checkRows(80)
 
@@ -178,7 +178,7 @@ class TestSelectWithTags:
         tdSql.checkData(0, 4, "abc12")
 
         tdSql.query(
-            f"select ts, bottom(c1, 72), tbname, t1, t2 from select_tags_mt0 order by ts;"
+            f"select ts, bottom(c1, 72), tbname, t1, t2 from select_tags_mt0 order by ts;", show=True
         )
         tdSql.checkRows(72)
 
@@ -194,7 +194,7 @@ class TestSelectWithTags:
 
         tdSql.checkData(0, 4, "abc0")
 
-        tdSql.query(f"select last_row(c1, c2), tbname, t1, t2 from select_tags_mt0;")
+        tdSql.query(f"select last_row(c1, c2), tbname, t1, t2 from select_tags_mt0;", show=True)
         tdSql.checkRows(1)
 
         tdSql.checkData(0, 0, 114)

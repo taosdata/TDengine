@@ -181,6 +181,9 @@ class RestoreBasic:
         tdLog.info(f"stop dnode {index}")
         dnode.stoptaosd()
         
+        # wait timeout, vnode status become to offline
+        time.sleep(5)
+       
         # remove dnode folder
         try:
             shutil.rmtree(del_dir)
@@ -188,8 +191,7 @@ class RestoreBasic:
         except OSError as x:
             tdLog.exit(f"remove path {del_dir} error : {x.strerror}")
 
-        dnode.starttaosd()
-        
+        dnode.starttaosd()        
         #newTdSql=tdCom.newTdSql()
         #t0 = threading.Thread(target=self.showTransactionThread, args=('', newTdSql))
         #t0.start()
@@ -200,6 +202,43 @@ class RestoreBasic:
         tdSql.execute(sql)
 
         # check result
+        self.check_corrent()
+
+    def restore_vnode_with_vg(self, index):
+        tdLog.info(f"start restore vnode on dnode {index} by vgroup")
+        dnode = self.dnodes[index - 1]
+        del_dir = f"{dnode.dataDir}/vnode"
+
+        # stop dnode
+        tdLog.info(f"stop dnode {index}")
+        dnode.stoptaosd()
+
+        # wait timeout, vnode status become to offline
+        time.sleep(5)
+        
+        # remove dnode folder
+        try:
+            shutil.rmtree(del_dir)
+            tdLog.info(f"delete dir {del_dir} successful")
+        except OSError as x:
+            tdLog.exit(f"remove path {del_dir} error : {x.strerror}")
+
+        dnode.starttaosd()
+
+        sql = f"select * from information_schema.ins_vnodes where status = 'offline'"
+        tdSql.execute(sql)
+        rows = tdSql.query(sql)
+        row = 0
+        while row < rows:
+            vgId = tdSql.getData(row, 1)
+
+            # exec restore
+            sql = f"restore vnode on dnode {index} on vgroup {vgId}"
+            tdLog.info(sql)
+            tdSql.execute(sql)
+            row += 1
+        
+        tdLog.info("chekc corrent")
         self.check_corrent()
 
     def showTransactionThread(self, p, newTdSql):

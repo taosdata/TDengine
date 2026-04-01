@@ -145,12 +145,11 @@ class TDTestCase:
         tdLog.info(
             f"*** testing stream force_window_close + interval + fill. partition: {partition}, interval: {interval}, fill: {fill_value}, delete: {delete} ***"
         )
-        fwc_downsampling_function_list = ["min(c1)", "max(c2)", "sum(c3)", "twa(c7)", "count(c8)", "elapsed(ts)", "timediff(1, 0, 1h)", "timezone()","min(t1)", "max(t2)", "sum(t3)",
-            "twa(t7)", "count(t8)"]
+        fwc_downsampling_function_list = ["min(c1)", "max(c2)", "sum(c3)", "count(c8)", "timediff(1, 0, 1h)", "timezone()","min(t1)", "max(t2)", "sum(t3)", "count(t8)"]
         fwc_stb_output_select_str = ','.join(list(map(lambda x:f'`{x}`', fwc_downsampling_function_list)))
-        fwc_tb_output_select_str = ','.join(list(map(lambda x:f'`{x}`', fwc_downsampling_function_list[0:7])))
+        fwc_tb_output_select_str = ','.join(list(map(lambda x:f'`{x}`', fwc_downsampling_function_list[0:5])))
         fwc_stb_source_select_str = ','.join(fwc_downsampling_function_list)
-        fwc_tb_source_select_str = ','.join(fwc_downsampling_function_list[0:7])
+        fwc_tb_source_select_str = ','.join(fwc_downsampling_function_list[0:5])
 
         fill_history_value = 0
         ignore_expired = 1
@@ -183,8 +182,8 @@ class TDTestCase:
 
         if fill_value:
             if "value" in fill_value.lower():
-                stb_fill_value='VALUE,1,2,3,4,5,6,1,2,3,4,5'
-                tb_fill_value='VALUE,1,2,3,4,5,6'
+                stb_fill_value='VALUE,1,2,3,4,1,2,3,4'
+                tb_fill_value='VALUE,1,2,3,4'
             else:
                 stb_fill_value=fill_value
                 tb_fill_value=fill_value

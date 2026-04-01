@@ -36,7 +36,7 @@
 #include "ttypes.h"
 
 #define SET_REVERSE_SCAN_FLAG(runtime)    ((runtime)->scanFlag = REVERSE_SCAN)
-#define GET_FORWARD_DIRECTION_FACTOR(ord) (((ord) == TSDB_ORDER_ASC) ? QUERY_ASC_FORWARD_STEP : QUERY_DESC_FORWARD_STEP)
+#define GET_FORWARD_DIRECTION_FACTOR(ord) (((ord) != TSDB_ORDER_DESC) ? QUERY_ASC_FORWARD_STEP : QUERY_DESC_FORWARD_STEP)
 
 #if 0
 static UNUSED_FUNC void *u_malloc (size_t __size) {
