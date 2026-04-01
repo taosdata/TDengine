@@ -62,7 +62,7 @@ def stopTaosdTask(stopEvent, presleep, pausetime):
     slept = 0
     while slept < presleep:
         if stopEvent.is_set():
-            tdLog.info("pauseTaosdTask: stop event during pre-sleep – cancelled")
+            tdLog.info("pauseTaosdTask: stop event during pre-sleep - cancelled")
             return
         time.sleep(0.5)
         slept += 0.5
@@ -80,7 +80,7 @@ def stopTaosdTask(stopEvent, presleep, pausetime):
 
 
 # ---------------------------------------------------------------------------
-# Single test class – all exception / retry scenarios in one place so the
+# Single test class - all exception / retry scenarios in one place so the
 # test framework runs a single deploy/destroy lifecycle for the whole file.
 # ---------------------------------------------------------------------------
 
@@ -100,7 +100,7 @@ class TestTaosBackupExcept:
     _SRV_DB_DST        = "srv_dst"
     _SRV_STB           = "meters"
     _SRV_CHILD_TABLES  = 20
-    _SRV_INSERT_ROWS   = 50000      # 1 M rows – keeps backup busy
+    _SRV_INSERT_ROWS   = 50000      # 1 M rows - keeps backup busy
     _SRV_PRESLEEP_BCK  = 3          # seconds after backup starts → sc.dnodeStop
     _SRV_PRESLEEP_RST  = 3          # seconds after restore starts → sc.dnodeStop
     _SRV_PAUSETIME     = 6          # seconds taosd is held stopped
@@ -443,7 +443,7 @@ class TestTaosBackupExcept:
         tdLog.info("=== step 2: record reference aggregations ===")
         src_agg = self._srv_get_agg(self._SRV_DB_SRC)
         if src_agg["count"] == 0:
-            tdLog.exit("source table is empty – taosBenchmark may have failed")
+            tdLog.exit("source table is empty - taosBenchmark may have failed")
 
         tdLog.info("=== step 3: backup with taosd stopped mid-flight ===")
         self._start_pause_thread(presleep=self._SRV_PRESLEEP_BCK)
@@ -451,61 +451,29 @@ class TestTaosBackupExcept:
         cmd = f"-T 2 -D {self._SRV_DB_SRC} -o {tmpdir}"
         etool.taosbackup(cmd)
 
-        # Ensure taosd is fully up before restore.
+        # Start dnode
         sc.dnodeStart(1)
         self._wait_dnode_ready()
+
+        # Continue backup with checkpoint
         etool.taosbackup(f"-C {cmd}")
 
         tdLog.info("=== step 4: restore ===")
-        restore_cmd = (
-            f"{taosbackup} -T 4 -k 5 -z 2000"
-            f" -W \"{self._SRV_DB_SRC}->{self._SRV_DB_DST}\" -i {tmpdir}"
-        )
-        tdLog.info(f"  exec: {restore_cmd}")
-        ret = os.system(restore_cmd)
-        if ret != 0:
-            tdLog.exit(f"restore FAILED (ret={ret})")
+        cmd = f" -T 2 -k 5 -z 2000 -W \"{self._SRV_DB_SRC}->{self._SRV_DB_DST}\" -i {tmpdir}"        
+        self._start_pause_thread(presleep=self._SRV_PRESLEEP_RST)
+        etool.taosbackup(cmd)
 
+        # Start dnode
+        sc.dnodeStart(1)
+        self._wait_dnode_ready()
+
+        # Continue backup with checkpoint
+        etool.taosbackup(f"-C {cmd}")
+
+        # verify
         tdLog.info("=== step 5: verify data correctness ===")
         self._srv_verify(src_agg, self._SRV_DB_DST)
         tdLog.info("test_taosbackup_server_restart_backup PASSED")
-
-    def do_server_restart_restore(self):
-        """taosd unresponsive (sc.dnodeStop) during restore (last – no restart needed)."""
-        taosbackup, benchmark, tmpdir = self._srv_find_programs()
-
-        tdLog.info("=== step 1: insert data ===")
-        self._srv_insert_data(benchmark)
-
-        tdLog.info("=== step 2: record reference aggregations ===")
-        src_agg = self._srv_get_agg(self._SRV_DB_SRC)
-        if src_agg["count"] == 0:
-            tdLog.exit("source table is empty – taosBenchmark may have failed")
-
-        tdLog.info("=== step 3: backup (no fault injection) ===")
-        backup_cmd = f"{taosbackup} -T 4 -D {self._SRV_DB_SRC} -o {tmpdir}"
-        tdLog.info(f"  exec: {backup_cmd}")
-        ret = os.system(backup_cmd)
-        if ret != 0:
-            tdLog.exit(f"backup FAILED (ret={ret})")
-
-        tdLog.info("=== step 4: restore with taosd stopped mid-flight ===")
-        restore_cmd = (
-            f"{taosbackup} -T 2 -k 10 -z 2000"
-            f" -W \"{self._SRV_DB_SRC}={self._SRV_DB_DST}\" -i {tmpdir}"
-        )
-        self._start_pause_thread(presleep=self._SRV_PRESLEEP_RST)
-        try:
-            tdLog.info(f"  exec: {restore_cmd}")
-            ret = os.system(restore_cmd)
-        finally:
-            self._stop_pause_thread()
-        if ret != 0:
-            tdLog.exit(f"restore FAILED (ret={ret}) – backoff did not recover")
-
-        tdLog.info("=== step 5: verify data correctness ===")
-        self._srv_verify(src_agg, self._SRV_DB_DST)
-        tdLog.info("test_taosbackup_server_restart_restore PASSED")
 
     def do_restore_retry(self):
         """taosadapter kill/restart during restore."""
@@ -522,7 +490,7 @@ class TestTaosBackupExcept:
         src_sum_ic = tdSql.getData(0, 0)
         tdLog.info(f"source: count={src_count}  sum_ic={src_sum_ic}")
         if src_count == 0:
-            tdLog.exit("source table empty – taosBenchmark may have failed")
+            tdLog.exit("source table empty - taosBenchmark may have failed")
 
         tdLog.info("=== step 3: backup (no fault injection) ===")
         backup_cmd = f"{taosbackup} -T 4 -D {src_db} -o {tmpdir}"
@@ -544,7 +512,7 @@ class TestTaosBackupExcept:
         finally:
             self._stop_kill_thread()
         if ret != 0:
-            tdLog.exit(f"restore FAILED (ret={ret}) – adapter retry did not recover")
+            tdLog.exit(f"restore FAILED (ret={ret}) - adapter retry did not recover")
 
         tdLog.info("=== step 5: verify data correctness ===")
         tdSql.query(f"SELECT count(*) FROM {self._RR_DB_DST}.{self._RR_STB}")
@@ -562,9 +530,9 @@ class TestTaosBackupExcept:
         """Clean exit when pthread_create fails mid-launch."""
         import pwd
 
-        # Root bypasses RLIMIT_NPROC – skip gracefully
+        # Root bypasses RLIMIT_NPROC - skip gracefully
         if os.getuid() == 0:
-            tdLog.info("running as root – skipping RLIMIT_NPROC test")
+            tdLog.info("running as root - skipping RLIMIT_NPROC test")
             return
 
         taosbackup, benchmark, tmpdir = self._tf_find_programs()
@@ -584,7 +552,7 @@ class TestTaosBackupExcept:
 
         new_soft = current_procs + 4
         if hard_orig != resource.RLIM_INFINITY and new_soft > hard_orig:
-            tdLog.info(f"hard limit ({hard_orig}) too low – skipping")
+            tdLog.info(f"hard limit ({hard_orig}) too low - skipping")
             return
 
         try:
@@ -602,7 +570,7 @@ class TestTaosBackupExcept:
                 os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
                 proc.wait()
                 tdLog.exit(
-                    "taosBackup HUNG (>60 s) when thread creation failed – "
+                    "taosBackup HUNG (>60 s) when thread creation failed - "
                     "likely a deadlock or missing join"
                 )
 
@@ -610,7 +578,7 @@ class TestTaosBackupExcept:
             tdLog.info(f"taosBackup exited with code {rc}")
             if rc < -1:
                 tdLog.exit(
-                    f"taosBackup terminated by signal {-rc} – possible crash"
+                    f"taosBackup terminated by signal {-rc} - possible crash"
                 )
         finally:
             resource.setrlimit(resource.RLIMIT_NPROC, (soft_orig, hard_orig))
@@ -643,4 +611,3 @@ class TestTaosBackupExcept:
         self.do_restore_retry()
         self.do_thread_creation_failure()
         self.do_server_restart_backup()
-        self.do_server_restart_restore()
