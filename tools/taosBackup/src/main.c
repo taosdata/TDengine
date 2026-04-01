@@ -25,7 +25,7 @@ static void signalHandler(int32_t signum, void *sigInfo, void *context) {
     g_interrupted = 1;
     const char *msg = "\nReceived interrupt signal, stopping gracefully...\n";
     // write() is async-signal-safe, printf is not
-    write(STDOUT_FILENO, msg, strlen(msg));
+    write(STDOUT_FILENO, msg, sizeof(msg)-1);
 }
 
 //
@@ -39,6 +39,7 @@ static void printStartSummary(enum ActionType action) {
     printf("  taosBackup - %s\n", action == ACTION_BACKUP ? "BACKUP" : "RESTORE");
     printf("===========================================================================\n");
     printf("  Connect Mode : %s\n", wsMode ? "WebSocket" : "Native");
+    printf("  Config Dir   : %s\n", argConfigDir());
     if (argIsDsn()) {
         printf("  DSN          : %s\n", argDsn());
     }
@@ -193,6 +194,8 @@ int main(int argc, char *argv[]) {
             return -1;
         }
     }
+    // Apply config directory before any taos_connect() call
+    taos_options(TSDB_OPTION_CONFIGDIR, argConfigDir());
     // conn pool
     // conn pool: data threads each need 2 conns (one pre-assigned, one for queries),
     // tag threads need 1 each, plus a few for main thread operations

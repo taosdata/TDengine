@@ -74,6 +74,9 @@ bool         argIsDsn();  // true when DSN/WebSocket-cloud mode is active
 #define CONN_MODE_DEFAULT    CONN_MODE_NATIVE
 int8_t argDriver();  // returns one of CONN_MODE_* constants
 
+// TDengine config directory (-c / --config-dir); default "/etc/taos"
+const char* argConfigDir();
+
 // time start-end filter
 char* argTimeFilter();
 char* argStartTime();

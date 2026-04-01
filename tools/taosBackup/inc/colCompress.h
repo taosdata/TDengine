@@ -21,7 +21,7 @@
 //
 #define TAOSFILE_MAGIC   "TAOS"
 #define TAOSBODY_MAGIC   "BLOC"
-#define TAOSFILE_VERSION 2
+#define TAOSFILE_VERSION 1
 
 // compressBlock->flag
 #define BLOCK_FLAG_NOT_COMPRESS 0x00000001

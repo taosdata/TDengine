@@ -63,6 +63,9 @@ static bool  g_dsnMode      = false;
 // driver / connect mode (set via -Z / --driver); CONN_MODE_INVALID = auto
 static int8_t g_driver = CONN_MODE_INVALID;
 
+// TDengine config directory (set via -c / --config-dir)
+static char  g_configDir[MAX_PATH_LEN] = "/etc/taos";
+
 // data-batch: max rows per STMT bind/execute call; 0 = use per-version default
 static int g_dataBatch = 0;
 static bool g_stmtVersionSet = false;
@@ -90,6 +93,7 @@ static void printUsage(const char *prog) {
     printf("  -p, --password=PASSWORD    User password. Default is taosdata.\n");
     printf("  -P, --port=PORT            Server port. Default is 6030.\n");
     printf("  -u, --user=USER            User name. Default is root.\n");
+    printf("  -c, --config-dir=CONFIG_DIR Configure directory. Default is /etc/taos.\n");
     printf("  -i, --inpath=INPATH        Input file path for restore.\n");
     printf("  -o, --outpath=OUTPATH      Output file path for backup.\n");
     printf("  -D, --databases=DATABASES  Databases to backup/restore. Use comma\n");
@@ -399,6 +403,11 @@ int argsInit(int argc, char *argv[]) {
         // ---- schemaonly ----
         else if (strcmp(argv[i], "-s") == 0 || matchLong(argc, argv, &i, "--schemaonly", 0)) {
             g_schemaOnly = 1;
+        }
+        // ---- config-dir ----
+        else if ((strcmp(argv[i], "-c") == 0 && i + 1 < argc && (val = argv[++i])) ||
+                 (val = matchLong(argc, argv, &i, "--config-dir", 1))) {
+            snprintf(g_configDir, sizeof(g_configDir), "%s", val);
         }
         // ---- debug ----
         else if (strcmp(argv[i], "-g") == 0 || matchLong(argc, argv, &i, "--debug", 0)) {
@@ -739,6 +748,10 @@ bool argIsDsn() {
 
 int8_t argDriver() {
     return g_driver;
+}
+
+const char* argConfigDir() {
+    return g_configDir;
 }
 
 // positional spec: dbname [tbname ...]

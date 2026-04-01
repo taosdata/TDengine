@@ -136,10 +136,11 @@ int queryWriteCsv(const char *sql, const char *pathFile, char ** selectTags) {
         char* type = row[1];
         int32_t* length = (int32_t*)row[2];
         char* note = row[3] ? row[3] : "";
+        int32_t noteLen = row[3] ? lens[3] : 0;
         
         // Write CSV row: field,type,length,note
         char csvRow[512];
-        int ret = snprintf(csvRow, sizeof(csvRow), "%.*s,%.*s,%d,%.*s\n", lens[0], field, lens[1], type, *length, lens[3], note);
+        int ret = snprintf(csvRow, sizeof(csvRow), "%.*s,%.*s,%d,%.*s\n", lens[0], field, lens[1], type, *length, noteLen, note);
         if (ret >= sizeof(csvRow)) {
             logError("CSV row too long for buffer");
             code = TSDB_CODE_BCK_WRITE_FILE_FAILED;

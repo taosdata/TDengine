@@ -204,6 +204,10 @@ class TestTaosBackupCommandline:
             [f"-F binary -D {db} -o {tmpdir}", [RESULT_SUCCESS]],
             # debug mode (-g): backup still succeeds with richer output
             [f"-g -D {db} -o {tmpdir}", [RESULT_SUCCESS]],
+            # config-dir (-c): use default /etc/taos explicitly
+            [f"-c /etc/taos -D {db} -o {tmpdir}", [RESULT_SUCCESS, "Config Dir   : /etc/taos"]],
+            # config-dir (long form)
+            [f"--config-dir=/etc/taos -D {db} -o {tmpdir}", [RESULT_SUCCESS, "Config Dir   : /etc/taos"]],
         ]
 
         for item in checkItems:
@@ -303,6 +307,33 @@ class TestTaosBackupCommandline:
             tdSql.execute(f"drop database if exists {newdb}")
             tdLog.info(f"  {label}: B={batch} v={stmt_ver} ............... [OK]")
 
+    def checkConfigDir(self, db, tmpdir):
+        """Test -c / --config-dir parameter.
+
+        Verifies that:
+        1. -c <dir> is accepted and shown in startup summary (Config Dir line).
+        2. --config-dir=<dir> long form works identically.
+        3. A custom (non-default) directory path is reflected in the summary.
+        """
+        results_default = [RESULT_SUCCESS, "Config Dir   : /etc/taos"]
+        results_custom  = [RESULT_SUCCESS, "Config Dir   : /tmp/taos_cfg_test"]
+
+        # short form with default dir
+        self.clearPath(tmpdir)
+        rlist = etool.taosbackup(f"-c /etc/taos -D {db} -o {tmpdir}")
+        self.checkManyString(rlist, results_default)
+
+        # long form with default dir
+        self.clearPath(tmpdir)
+        rlist = etool.taosbackup(f"--config-dir=/etc/taos -D {db} -o {tmpdir}")
+        self.checkManyString(rlist, results_default)
+
+        # custom path (dir need not exist for the summary check — taos_options
+        # accepts any path string; connection still uses the real /etc/taos config)
+        self.clearPath(tmpdir)
+        rlist = etool.taosbackup(f"-c /tmp/taos_cfg_test -D {db} -o {tmpdir}", retFail=False)
+        self.checkManyString(rlist, results_custom)
+
     def checkConnMode(self, db, tmpdir):
         """Test connection mode priority: cmd option > env variable."""
         taosbackup = etool.taosBackupFile()
@@ -365,6 +396,10 @@ class TestTaosBackupCommandline:
         6. Test -B/-v boundary values for restore:
            - STMT2: B=1 (min), B=10000 (default), B=16384 (max)
            - STMT1: B=1 (min), B=60000 (default), B=100000 (max)
+        7. Test -c / --config-dir parameter:
+           - short form (-c /etc/taos) accepted, shown in Config Dir summary line
+           - long form (--config-dir=/etc/taos) works identically
+           - custom path reflected in summary output
 
         Since: v3.0.0.0
 
@@ -376,6 +411,7 @@ class TestTaosBackupCommandline:
             - 2026-03-04 Migrated and adapted from 04-Taosdump/test_taosdump_commandline.py
             - 2026-03-06 Added -g debug mode to basicCommandLine checks
             - 2026-03-16 Added -B/-v boundary tests and extended error validation
+            - 2026-03-31 Added -c/--config-dir parameter tests (step 7)
 
         """
         taosbackup, benchmark, tmpdir = self.findPrograme()
@@ -409,6 +445,10 @@ class TestTaosBackupCommandline:
         # 6. -B/-v boundary values for restore (STMT2 and STMT1)
         self.checkDataBatch(db, jsonFile, tmpdir)
         tdLog.info("6. data-batch -B/-v boundary restore tests ......... [Passed]")
+
+        # 7. -c / --config-dir parameter
+        self.checkConfigDir(db, tmpdir)
+        tdLog.info("7. config-dir -c/--config-dir tests ................. [Passed]")
 
     def test_taosbackup_all_databases(self):
         """taosBackup backup without -D to exercise getAllDatabases() in backup.c
@@ -462,3 +502,119 @@ class TestTaosBackupCommandline:
             tdLog.exit("restored table is empty")
         tdSql.execute(f"drop database if exists {dst_db}")
         tdLog.info(f"test_taosbackup_all_databases PASSED (rows={count})")
+
+    def test_taosbackup_rename_separator(self):
+        """taosBackup: -W rename supports both '=' and '->' separators, and mixed
+
+        Verifies that the -W (rename) option accepts three separator styles:
+          1. '=' separator:  -W "src=dst"
+          2. '->' separator: -W "src->dst"
+          3. Mixed in multi-db rename: -W "src1=dst1|src2->dst2"
+
+        Each case backs up source database(s), restores with rename, and
+        verifies row count and sum(c1) match.
+
+        Since: v3.0.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-03-31 Alex Duan created
+
+        """
+        taosbackup, benchmark, tmpdir = self.findPrograme()
+
+        src = "rn_sep_src"
+        rows = 500
+        tables = 4
+
+        tdLog.info("=== step 1: insert source data ===")
+        ret = self.exec(f"{benchmark} -d {src} -t {tables} -n {rows} -y")
+        if ret != 0:
+            tdLog.exit(f"taosBenchmark failed (ret={ret})")
+        tdSql.query(f"SELECT sum(voltage) FROM {src}.meters")
+        src_sum = tdSql.getData(0, 0)
+        tdSql.query(f"SELECT count(*) FROM {src}.meters")
+        src_count = tdSql.getData(0, 0)
+        tdLog.info(f"source: count={src_count} sum(voltage)={src_sum}")
+
+        tdLog.info("=== step 2: backup ===")
+        self.clearPath(tmpdir)
+        rlist = etool.taosbackup(f"-Z native -D {src} -T 2 -o {tmpdir}")
+        self.checkListString(rlist, RESULT_SUCCESS)
+
+        # --- case 1: '=' separator ---
+        dst_eq = "rn_sep_eq"
+        tdLog.info(f"=== case 1: '=' separator: {src}={dst_eq} ===")
+        tdSql.execute(f"drop database if exists {dst_eq}")
+        rlist = etool.taosbackup(f'-Z native -W "{src}={dst_eq}" -i {tmpdir}')
+        self.checkManyString(rlist, [RESULT_SUCCESS, f"rename database: {src} -> {dst_eq}"])
+        tdSql.query(f"SELECT count(*) FROM {dst_eq}.meters")
+        tdSql.checkData(0, 0, src_count)
+        tdSql.query(f"SELECT sum(voltage) FROM {dst_eq}.meters")
+        tdSql.checkData(0, 0, src_sum)
+        tdSql.execute(f"drop database if exists {dst_eq}")
+        tdLog.info("  case 1 '=' separator ............................ [OK]")
+
+        # --- case 2: '->' separator ---
+        dst_arrow = "rn_sep_arrow"
+        tdLog.info(f"=== case 2: '->' separator: {src}->{dst_arrow} ===")
+        tdSql.execute(f"drop database if exists {dst_arrow}")
+        rlist = etool.taosbackup(f'-Z native -W "{src}->{dst_arrow}" -i {tmpdir}')
+        self.checkManyString(rlist, [RESULT_SUCCESS, f"rename database: {src} -> {dst_arrow}"])
+        tdSql.query(f"SELECT count(*) FROM {dst_arrow}.meters")
+        tdSql.checkData(0, 0, src_count)
+        tdSql.query(f"SELECT sum(voltage) FROM {dst_arrow}.meters")
+        tdSql.checkData(0, 0, src_sum)
+        tdSql.execute(f"drop database if exists {dst_arrow}")
+        tdLog.info("  case 2 '->' separator ........................... [OK]")
+
+        # --- case 3: mixed '=' and '->' in multi-db rename ---
+        # Need a second source database
+        src2 = "rn_sep_src2"
+        ret = self.exec(f"{benchmark} -d {src2} -t {tables} -n {rows} -y")
+        if ret != 0:
+            tdLog.exit(f"taosBenchmark failed for {src2} (ret={ret})")
+        tdSql.query(f"SELECT sum(voltage) FROM {src2}.meters")
+        src2_sum = tdSql.getData(0, 0)
+        tdSql.query(f"SELECT count(*) FROM {src2}.meters")
+        src2_count = tdSql.getData(0, 0)
+
+        # backup both sources
+        self.clearPath(tmpdir)
+        rlist = etool.taosbackup(f"-Z native -D {src},{src2} -T 2 -o {tmpdir}")
+        self.checkListString(rlist, RESULT_SUCCESS)
+
+        dst_mix1 = "rn_sep_mix1"
+        dst_mix2 = "rn_sep_mix2"
+        tdLog.info(f"=== case 3: mixed: {src}={dst_mix1}|{src2}->{dst_mix2} ===")
+        tdSql.execute(f"drop database if exists {dst_mix1}")
+        tdSql.execute(f"drop database if exists {dst_mix2}")
+        rlist = etool.taosbackup(
+            f'-Z native -W "{src}={dst_mix1}|{src2}->{dst_mix2}" -i {tmpdir}'
+        )
+        self.checkManyString(rlist, [
+            RESULT_SUCCESS,
+            f"rename database: {src} -> {dst_mix1}",
+            f"rename database: {src2} -> {dst_mix2}",
+        ])
+        # verify first db
+        tdSql.query(f"SELECT count(*) FROM {dst_mix1}.meters")
+        tdSql.checkData(0, 0, src_count)
+        tdSql.query(f"SELECT sum(voltage) FROM {dst_mix1}.meters")
+        tdSql.checkData(0, 0, src_sum)
+        # verify second db
+        tdSql.query(f"SELECT count(*) FROM {dst_mix2}.meters")
+        tdSql.checkData(0, 0, src2_count)
+        tdSql.query(f"SELECT sum(voltage) FROM {dst_mix2}.meters")
+        tdSql.checkData(0, 0, src2_sum)
+        tdSql.execute(f"drop database if exists {dst_mix1}")
+        tdSql.execute(f"drop database if exists {dst_mix2}")
+        tdLog.info("  case 3 mixed '=' and '->' separator ............. [OK]")
+
+        # cleanup source databases
+        tdSql.execute(f"drop database if exists {src}")
+        tdSql.execute(f"drop database if exists {src2}")
+        tdLog.info("test_taosbackup_rename_separator PASSED")

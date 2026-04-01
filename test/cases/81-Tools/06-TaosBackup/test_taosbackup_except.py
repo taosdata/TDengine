@@ -49,7 +49,7 @@ def _killTask(stopEvent, taosadapter, presleep, sleep, count):
     tdLog.info("killTask exited.")
 
 
-def _pauseTaosdTask(stopEvent, presleep, pausetime):
+def stopTaosdTask(stopEvent, presleep, pausetime):
     """Background task: stop taosd after *presleep* s to simulate an
     unresponsive server, hold for *pausetime* s, then start it again.
 
@@ -316,73 +316,35 @@ class TestTaosBackupRetry:
 
     def _start_pause_thread(self, presleep):
         self._pause_stop_evt = Event()
-        self._pause_thread = Thread(
-            target=_pauseTaosdTask,
+        self.stop_thread = Thread(
+            target=stopTaosdTask,
             args=(self._pause_stop_evt, presleep, self._SRV_PAUSETIME),
             daemon=True,
         )
-        self._pause_thread.start()
+        self.stop_thread.start()
 
     def _stop_pause_thread(self):
         """Cancel pre-sleep (if still waiting) and join.  The try/finally in
-        _pauseTaosdTask guarantees sc.dnodeStart is called before the thread exits."""
+        stopTaosdTask guarantees sc.dnodeStart is called before the thread exits."""
         self._pause_stop_evt.set()
-        self._pause_thread.join(timeout=self._SRV_PAUSETIME + 10)
-        if self._pause_thread.is_alive():
+        self.stop_thread.join(timeout=self._SRV_PAUSETIME + 10)
+        if self.stop_thread.is_alive():
             tdLog.info("WARNING: pause thread did not finish in time")
 
     def _wait_dnode_ready(self, timeout=60):
-        """Call sc.dnodeStart(1) then poll 'show dnodes' until dnode status is
-        'ready'.  Fails the test via tdLog.exit if *timeout* seconds elapse
-        without the dnode becoming ready."""
-        sc.dnodeStart(1)
+        # Ensure taosd is running and dnode reports 'ready'.
+        tdSql.connect()
         deadline = time.time() + timeout
         while time.time() < deadline:
             try:
                 tdSql.query("show dnodes")
-                if any(row[4] == "ready" for row in tdSql.res):
+                if any(row[4] == "ready" for row in tdSql.queryResult):
                     tdLog.info("taosd dnode is ready")
                     return
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"wait_dnode exception: {e}")
             time.sleep(1)
         tdLog.exit(f"taosd dnode did not become ready within {timeout} s")
-
-    def teardown_method(self, method):
-        """Safety net: ensure taosd and taosadapter are up after each test;
-        also remove tmp_* directories created by this test."""
-        import glob
-        if hasattr(self, "_pause_thread") and self._pause_thread.is_alive():
-            self._pause_stop_evt.set()
-            self._pause_thread.join(timeout=self._SRV_PAUSETIME + 10)
-        # Ensure taosd is running and ready before the next test starts.
-        self._wait_dnode_ready(timeout=30)
-        # Restart taosadapter if kill-tests left it dead, so the next
-        # test class starts with a healthy adapter.
-        try:
-            out = subprocess.check_output(
-                ["pidof", "taosadapter"], stderr=subprocess.DEVNULL
-            )
-            if out.strip():
-                return  # adapter is alive
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            pass
-        taosadapter = etool.taosAdapterFile()
-        if taosadapter:
-            tdLog.info("teardown: taosadapter not running, restarting it")
-            os.system(
-                f"nohup {taosadapter} --logLevel=error"
-                f" > ~/taosa_teardown.log 2>&1 &"
-            )
-            time.sleep(3)  # wait for adapter to bind port 6041 before next class
-        # Clean up tmp directories
-        test_dir = os.path.dirname(os.path.abspath(__file__))
-        for d in glob.glob(os.path.join(test_dir, "tmp_*")):
-            shutil.rmtree(d, ignore_errors=True)
-        # Also clean the relative ./tmp used by findPrograme()
-        tmp_rel = os.path.join(test_dir, "tmp")
-        if os.path.isdir(tmp_rel):
-            shutil.rmtree(tmp_rel, ignore_errors=True)
 
     # =========================================================================
     # Helpers for restore-retry test
@@ -492,7 +454,7 @@ class TestTaosBackupRetry:
     def test_taosbackup_server_restart_backup(self):
         """taosBackup: taosd unresponsive (sc.dnodeStop) during backup
 
-        1. taosBenchmark inserts _SRV_CHILD_TABLES × _SRV_INSERT_ROWS rows.
+        1. taosBenchmark inserts _SRV_CHILD_TABLES * _SRV_INSERT_ROWS rows.
         2. Record reference aggregations (count, sum(voltage), avg(current)).
         3. Start backup with retry headroom (-k 5 -z 2000).
            A background thread stops taosd after _SRV_PRESLEEP_BCK s,
@@ -525,26 +487,20 @@ class TestTaosBackupRetry:
             tdLog.exit("source table is empty – taosBenchmark may have failed")
 
         tdLog.info("=== step 3: backup with taosd stopped mid-flight ===")
-        backup_cmd = (
-            f"{taosbackup} -T 2 -k 5 -z 2000"
-            f" -D {self._SRV_DB_SRC} -o {tmpdir}"
-        )
         self._start_pause_thread(presleep=self._SRV_PRESLEEP_BCK)
-        try:
-            tdLog.info(f"  exec: {backup_cmd}")
-            ret = os.system(backup_cmd)
-        finally:
-            self._stop_pause_thread()
-        if ret != 0:
-            tdLog.exit(f"backup FAILED (ret={ret}) – backoff did not recover")
+
+        cmd = f"-T 2 -D {self._SRV_DB_SRC} -o {tmpdir}"
+        etool.taosbackup(cmd)
 
         # Ensure taosd is fully up before restore.
+        sc.dnodeStart(1)
         self._wait_dnode_ready()
+        etool.taosbackup(f"-C {cmd}")
 
         tdLog.info("=== step 4: restore ===")
         restore_cmd = (
             f"{taosbackup} -T 4 -k 5 -z 2000"
-            f" -W \"{self._SRV_DB_SRC}={self._SRV_DB_DST}\" -i {tmpdir}"
+            f" -W \"{self._SRV_DB_SRC}->{self._SRV_DB_DST}\" -i {tmpdir}"
         )
         tdLog.info(f"  exec: {restore_cmd}")
         ret = os.system(restore_cmd)
@@ -599,7 +555,7 @@ class TestTaosBackupRetry:
 
         tdLog.info("=== step 4: restore with taosd stopped mid-flight ===")
         restore_cmd = (
-            f"{taosbackup} -T 2 -k 5 -z 2000"
+            f"{taosbackup} -T 2 -k 10 -z 2000"
             f" -W \"{self._SRV_DB_SRC}={self._SRV_DB_DST}\" -i {tmpdir}"
         )
         self._start_pause_thread(presleep=self._SRV_PRESLEEP_RST)
