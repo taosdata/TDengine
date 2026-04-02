@@ -78,7 +78,14 @@ def do_handle_dynamic_model(request):
         with open(full_path, "w", encoding="utf-8") as handle:
             handle.write(json.dumps(model_config))
         AppLogger.info("Model %s saved to %s successfully", raw_model_name, full_path)
+    except Exception as e:
+        AppLogger.error("Error saving model %s configuration to file: %s", raw_model_name, str(e))
+        return {
+            'status': 'error',
+            'error': f"Error saving model {raw_model_name} configuration: {str(e)}"
+        }, 500
 
+    try:
         loader.register_service_from_file(full_path)
         AppLogger.info("Model %s deployed successfully", raw_model_name)
     except Exception as e:
@@ -86,7 +93,7 @@ def do_handle_dynamic_model(request):
         return {
             'status': 'error',
             'error': f"Error deploying model {raw_model_name}: {str(e)}"
-        }, 500
+        }, 400
 
     return {
         'status': 'success',

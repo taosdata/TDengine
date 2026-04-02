@@ -61,8 +61,6 @@ class DynamicForecastService(AbstractForecastService):
                 raise RuntimeError(msg) from e
 
             forecaster = ArimaModelForecaster(self.config_file_path, df, self.rows)
-            if not forecaster:
-                raise RuntimeError(f"failed to build ARIMA model forecaster with config file: {self.config_file_path}")
 
             result = forecaster.forecast()
             if not result or not {'yhat', 'yhat_lower', 'yhat_upper'}.issubset(result):
