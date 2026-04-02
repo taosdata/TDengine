@@ -35,11 +35,11 @@ class BaseModelForecaster(ABC):
             return None
 
         if not self._is_expected_algo():
-            print(f"Config file does not describe a {self.target_algo.upper()} model, skipping")
+            AppLogger.error(f"Config file does not describe a {self.target_algo.upper()} model, skipping")
             return None
 
         if not self._has_required_columns():
-            print("Dataset must contain ts and y columns, aborting reconstruction")
+            AppLogger.error("Dataset must contain ts and y columns, aborting reconstruction")
             return None
 
         self._model = self._build_model()
@@ -56,7 +56,7 @@ class BaseModelForecaster(ABC):
             with open(self.path, "r", encoding="utf-8") as handle:
                 return json.load(handle)
         except FileNotFoundError:
-            print(f"Model config not found: {self.path}")
+            AppLogger.error(f"Model config not found: {self.path}")
             return None
 
     def _is_expected_algo(self):
@@ -165,7 +165,7 @@ class ProphetModelForecaster(BaseModelForecaster):
     def _build_model(self):
         best_params = self.model_info.get('best_params') or {}
         if not isinstance(best_params, dict):
-            print("best_params missing or invalid, cannot build Prophet model")
+            AppLogger.error("best_params missing or invalid, cannot build Prophet model")
             return None
 
         freq = self.model_info.get('freq', 'D')
