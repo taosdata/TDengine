@@ -406,7 +406,9 @@ void setCreateStreamTriggerEvent(SCMCreateStreamReq *expect, const char* startCo
 }
 
 void setCreateStreamTriggerState(SCMCreateStreamReq *expect, int16_t slotId, int64_t trueForDuration) {
-  expect->trigger.stateWin.slotId = slotId;
+  expect->trigger.stateWin.pSlotIds = taosArrayInit(1, sizeof(int16_t));
+  ASSERT_NE(expect->trigger.stateWin.pSlotIds, nullptr);
+  ASSERT_NE(taosArrayPush(expect->trigger.stateWin.pSlotIds, &slotId), nullptr);
   expect->trigger.stateWin.trueForDuration = trueForDuration;
 }
 
@@ -671,7 +673,8 @@ void checkCreateStreamReq(SCMCreateStreamReq *expect, SCMCreateStreamReq *req) {
     }
     case WINDOW_TYPE_STATE: {
       ASSERT_EQ(req->trigger.stateWin.trueForDuration, expect->trigger.stateWin.trueForDuration);
-      ASSERT_EQ(req->trigger.stateWin.slotId, expect->trigger.stateWin.slotId);
+      ASSERT_EQ(taosArrayGetSize(req->trigger.stateWin.pSlotIds), taosArrayGetSize(expect->trigger.stateWin.pSlotIds));
+      ASSERT_EQ(*(int16_t*)taosArrayGet(req->trigger.stateWin.pSlotIds, 0), *(int16_t*)taosArrayGet(expect->trigger.stateWin.pSlotIds, 0));
       break;
     }
     case WINDOW_TYPE_EVENT: {

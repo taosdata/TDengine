@@ -633,8 +633,19 @@ int32_t tEncodeSStreamTriggerDeployMsg(SEncoder* pEncoder, const SStreamTriggerD
       break;
     }
     case WINDOW_TYPE_STATE: {
-      // state trigger
-      TAOS_CHECK_EXIT(tEncodeI16(pEncoder, pMsg->trigger.stateWin.slotId));
+      /*
+        state trigger
+        New format v2: I16(-1) sentinel + I32(slotNum) + N*I16(slotId) + ...
+        Old format v1:  I16(slotId) + I16(extend) + ...
+        The sentinel I16(-1) is used by the decoder to distinguish v1 vs v2,
+        since a valid slotId in v1 is always >= 0.
+      */
+      TAOS_CHECK_EXIT(tEncodeI16(pEncoder, (int16_t)-1));  // sentinel for v2 format
+      int32_t slotNum = pMsg->trigger.stateWin.pSlotIds == NULL ? 0 : taosArrayGetSize(pMsg->trigger.stateWin.pSlotIds);
+      TAOS_CHECK_EXIT(tEncodeI32(pEncoder, slotNum));
+      for (int32_t i = 0; i < slotNum; ++i) {
+        TAOS_CHECK_EXIT(tEncodeI16(pEncoder, *(int16_t*)taosArrayGet(pMsg->trigger.stateWin.pSlotIds, i)));
+      }
       TAOS_CHECK_EXIT(tEncodeI16(pEncoder, pMsg->trigger.stateWin.extend));
       TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pMsg->trigger.stateWin.trueForType));
       TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pMsg->trigger.stateWin.trueForCount));
@@ -1218,9 +1229,35 @@ int32_t tDecodeSStreamTriggerDeployMsg(SDecoder* pDecoder, SStreamTriggerDeployM
       TAOS_CHECK_EXIT(tDecodeI16(pDecoder, &pMsg->trigger.session.slotId));
       TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pMsg->trigger.session.sessionVal));
       break;
-    case WINDOW_TYPE_STATE:
-      // state trigger
-      TAOS_CHECK_EXIT(tDecodeI16(pDecoder, &pMsg->trigger.stateWin.slotId));
+    case WINDOW_TYPE_STATE: {
+      /*
+        state trigger
+        v1 format: only support one column state trigger, so directly decode
+        the single slotId as int16
+        v2 format: support multiple columns state trigger, so first decode an
+        int16 as sentinel(-1), then decode the slotIds as array
+      */
+      int16_t firstI16 = 0;
+      TAOS_CHECK_EXIT(tDecodeI16(pDecoder, &firstI16));
+      if (firstI16 == (int16_t)-1) {
+        // v2 format: sentinel(-1) + I32(slotNum) + N*I16(slotId)
+        int32_t slotNum = 0;
+        TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &slotNum));
+        if (slotNum > 0) {
+          pMsg->trigger.stateWin.pSlotIds = taosArrayInit(slotNum, sizeof(int16_t));
+          TSDB_CHECK_NULL(pMsg->trigger.stateWin.pSlotIds, code, lino, _exit, terrno);
+        }
+        for (int32_t i = 0; i < slotNum; ++i) {
+          int16_t slotId = -1;
+          TAOS_CHECK_EXIT(tDecodeI16(pDecoder, &slotId));
+          TSDB_CHECK_NULL(taosArrayPush(pMsg->trigger.stateWin.pSlotIds, &slotId), code, lino, _exit, terrno);
+        }
+      } else {
+        // v1 format: firstI16 is the single slotId
+        pMsg->trigger.stateWin.pSlotIds = taosArrayInit(1, sizeof(int16_t));
+        TSDB_CHECK_NULL(pMsg->trigger.stateWin.pSlotIds, code, lino, _exit, terrno);
+        TSDB_CHECK_NULL(taosArrayPush(pMsg->trigger.stateWin.pSlotIds, &firstI16), code, lino, _exit, terrno);
+      }
       TAOS_CHECK_EXIT(tDecodeI16(pDecoder, &pMsg->trigger.stateWin.extend));
       TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pMsg->trigger.stateWin.trueForType));
       TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pMsg->trigger.stateWin.trueForCount));
@@ -1228,6 +1265,7 @@ int32_t tDecodeSStreamTriggerDeployMsg(SDecoder* pDecoder, SStreamTriggerDeployM
       TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pMsg->trigger.stateWin.zeroth, NULL));
       TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pMsg->trigger.stateWin.expr, NULL));
       break;
+    }
     
     case WINDOW_TYPE_INTERVAL:
       // slide trigger
@@ -1745,6 +1783,7 @@ void tFreeSStreamTriggerDeployMsg(SStreamTriggerDeployMsg* pTrigger) {
   taosArrayDestroyEx(pTrigger->pNotifyAddrUrls, tFreeStreamNotifyUrl);
   switch (pTrigger->triggerType) {
     case WINDOW_TYPE_STATE:
+      taosArrayDestroy(pTrigger->trigger.stateWin.pSlotIds);
       taosMemoryFree(pTrigger->trigger.stateWin.zeroth);
       taosMemoryFree(pTrigger->trigger.stateWin.expr);
       break;
@@ -2162,7 +2201,11 @@ int32_t tDeserializeSCMCreateStreamReqImplOld(SDecoder *pDecoder, SCMCreateStrea
     }
       case WINDOW_TYPE_STATE: {
         // state trigger
-        TAOS_CHECK_EXIT(tDecodeI16(pDecoder, &pReq->trigger.stateWin.slotId));
+        int16_t slotId = -1;
+        TAOS_CHECK_EXIT(tDecodeI16(pDecoder, &slotId));
+        pReq->trigger.stateWin.pSlotIds = taosArrayInit(1, sizeof(int16_t));
+        TSDB_CHECK_NULL(pReq->trigger.stateWin.pSlotIds, code, lino, _exit, terrno);
+        TSDB_CHECK_NULL(taosArrayPush(pReq->trigger.stateWin.pSlotIds, &slotId), code, lino, _exit, terrno);
         pReq->trigger.stateWin.extend = 0;
         pReq->trigger.stateWin.trueForType = 0;
         pReq->trigger.stateWin.trueForCount = 0;
@@ -2495,6 +2538,8 @@ void tFreeSCMCreateStreamReq(SCMCreateStreamReq *pReq) {
 
   switch (pReq->triggerType) {
     case WINDOW_TYPE_STATE:
+      taosArrayDestroy(pReq->trigger.stateWin.pSlotIds);
+      pReq->trigger.stateWin.pSlotIds = NULL;
       taosMemoryFreeClear(pReq->trigger.stateWin.zeroth);
       taosMemoryFreeClear(pReq->trigger.stateWin.expr);
       break;
@@ -2592,7 +2637,10 @@ int32_t tCloneStreamCreateDeployPointers(SCMCreateStreamReq *pSrc, SCMCreateStre
   
   switch (pSrc->triggerType) {
     case WINDOW_TYPE_STATE:
-      pDst->trigger.stateWin.slotId = pSrc->trigger.stateWin.slotId;
+      if (pSrc->trigger.stateWin.pSlotIds) {
+        pDst->trigger.stateWin.pSlotIds = taosArrayDup(pSrc->trigger.stateWin.pSlotIds, NULL);
+        TSDB_CHECK_NULL(pDst->trigger.stateWin.pSlotIds, code, lino, _exit, terrno);
+      }
       pDst->trigger.stateWin.extend = pSrc->trigger.stateWin.extend;
       pDst->trigger.stateWin.trueForType = pSrc->trigger.stateWin.trueForType;
       pDst->trigger.stateWin.trueForCount = pSrc->trigger.stateWin.trueForCount;

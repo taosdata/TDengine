@@ -1,6 +1,9 @@
 #include "streamMsg.h"
 #include "tjson.h"
 
+static int32_t int16ToJson(const void* pObj, SJson* pJson);
+static int32_t jsonToInt16(const SJson* pJson, void* pObj);
+
 static const char* jkFieldName     = "name";
 static const char* jkFieldType     = "type";
 static const char* jkFieldFlags    = "flags";
@@ -9,9 +12,7 @@ static const char* jkFieldCompress = "compress";
 static const char* jkFieldTypeMod  = "typeMod";
 static int32_t sfieldWithOptionsToJson(const void* pObj, SJson* pJson) {
   const SFieldWithOptions* pField = (const SFieldWithOptions*)pObj;
-  if (NULL != pField->name) {
-    TAOS_CHECK_RETURN(tjsonAddStringToObject(pJson, jkFieldName, pField->name));
-  }
+  TAOS_CHECK_RETURN(tjsonAddStringToObject(pJson, jkFieldName, pField->name));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, jkFieldType, pField->type));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(
     pJson, jkFieldFlags, pField->flags));
@@ -83,7 +84,9 @@ static int32_t jsonToSessionTrigger(const SJson* pJson, void* pObj) {
   return TSDB_CODE_SUCCESS;
 }
 
+/* Keep slotId for backward compatibility with old JSON payloads. */
 static const char* jkStateTriggerSlotId           = "slotId";
+static const char* jkStateTriggerSlotIds          = "slotIds";
 static const char* jkStateTriggerExtend           = "extend";
 static const char* jkStateTriggerZeroth           = "zeroth";
 static const char* jkStateTriggerTrueForType      = "trueForType";
@@ -92,8 +95,16 @@ static const char* jkStateTriggerTrueForDuration  = "trueForDuration";
 static const char* jkStateTriggerExpr             = "expr";
 static int32_t stateTriggerToJson(const void* pObj, SJson* pJson) {
   const SStateWinTrigger* pTrigger = (const SStateWinTrigger*)pObj;
-  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(
-    pJson, jkStateTriggerSlotId, pTrigger->slotId));
+  TAOS_CHECK_RETURN(tjsonAddTArray(
+    pJson, jkStateTriggerSlotIds, int16ToJson, pTrigger->pSlotIds));
+  if (pTrigger->pSlotIds != NULL && taosArrayGetSize(pTrigger->pSlotIds) == 1) {
+    int16_t* pSlotId = taosArrayGet(pTrigger->pSlotIds, 0);
+    if (pSlotId == NULL) {
+      return TSDB_CODE_INVALID_PARA;
+    }
+    TAOS_CHECK_RETURN(tjsonAddIntegerToObject(
+      pJson, jkStateTriggerSlotId, *pSlotId));
+  }
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(
     pJson, jkStateTriggerExtend, pTrigger->extend));
   if (NULL != pTrigger->zeroth) {
@@ -112,8 +123,21 @@ static int32_t stateTriggerToJson(const void* pObj, SJson* pJson) {
 
 static int32_t jsonToStateTrigger(const SJson* pJson, void* pObj) {
   SStateWinTrigger* pTrigger = (SStateWinTrigger*)pObj;
-  TAOS_CHECK_RETURN(
-    tjsonGetSmallIntValue(pJson, jkStateTriggerSlotId, &pTrigger->slotId));
+  SJson* pSlotIds = tjsonGetObjectItem(pJson, jkStateTriggerSlotIds);
+  if (pSlotIds != NULL) {
+    TAOS_CHECK_RETURN(tjsonToTArray(
+      pJson, jkStateTriggerSlotIds, jsonToInt16, &pTrigger->pSlotIds, sizeof(int16_t)));
+  } else if (tjsonGetObjectItem(pJson, jkStateTriggerSlotId) != NULL) {
+    int16_t slotId = -1;
+    TAOS_CHECK_RETURN(tjsonGetSmallIntValue(pJson, jkStateTriggerSlotId, &slotId));
+    pTrigger->pSlotIds = taosArrayInit(1, sizeof(int16_t));
+    if (pTrigger->pSlotIds == NULL) {
+      return terrno;
+    }
+    if (taosArrayPush(pTrigger->pSlotIds, &slotId) == NULL) {
+      return terrno;
+    }
+  }
   TAOS_CHECK_RETURN(
     tjsonGetSmallIntValue(pJson, jkStateTriggerExtend, &pTrigger->extend));
   TAOS_CHECK_RETURN(tjsonDupStringValue(

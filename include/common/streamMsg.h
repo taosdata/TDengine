@@ -89,13 +89,13 @@ typedef struct SSessionTrigger {
 } SSessionTrigger;
 
 typedef struct SStateWinTrigger {
-  int16_t slotId;
+  SArray* pSlotIds;  // SArray<int16_t>
   int16_t extend;
-  void*   zeroth;
+  void*   zeroth;  // serialized nodelist
   int32_t trueForType;
   int32_t trueForCount;
   int64_t trueForDuration;
-  void*   expr;
+  void*   expr;  // serialized nodelist
 } SStateWinTrigger;
 
 typedef struct SSlidingTrigger {
