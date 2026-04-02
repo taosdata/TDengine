@@ -142,6 +142,12 @@ class TestTaosShellHex:
         6. Check hex display works in file dump output
         7. Check invalid multibyte bytes fallback to full hex
 
+        Since: v3.4.1.0
+
+        Labels: common,ci
+
+        Jira: None
+
         History:
             - 2026-04-02 Added hex display test for non-printable BINARY
 
