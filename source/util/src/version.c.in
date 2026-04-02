@@ -3,5 +3,6 @@ char td_compatible_version[12] = "${BUILD_VER_COMPATIBLE}";
 char td_gitinfo[48] = "${BUILD_GITINFO}";
 char td_gitinfoOfInternal[48] = "${BUILD_GITINFOI}";
 char td_buildinfo[64] = "${BUILD_VER_OSTYPE}-${BUILD_VER_CPUTYPE} ${BUILD_VER_DATE}";
+char td_edition_signature_salt[64] = "${TD_EDITION_SIGNATURE_SALT}";
 
 void libtaos_${TD_LIB_VER_NUMBER}_${BUILD_VER_OSTYPE}_${BUILD_VER_CPUTYPE}_${BUILD_VER_TYPE}() {};

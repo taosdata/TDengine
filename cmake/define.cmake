@@ -27,7 +27,7 @@ add_definitions(
   -DUSE_GEOS
   -DUSE_UDF
   -DUSE_STREAM
-  -DUSE_PRCE2
+  -DUSE_PCRE2
   -DUSE_RSMA
   -DUSE_TSMA
   -DUSE_TQ
