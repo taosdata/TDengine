@@ -1,0 +1,485 @@
+﻿using System;
+using System.Text;
+using TDengine.Driver;
+using TDengine.Driver.Client;
+using TDengine.Driver.Client.Websocket;
+using Xunit;
+
+namespace Driver.Test.Client.Query
+{
+    public partial class Client
+    {
+        [Fact]
+        public void WebSocketQueryMSTest()
+        {
+            const string db = "ws_query_test_ms";
+            this.QueryTest(this._wsConnectString, db, TDenginePrecision.TSDB_TIME_PRECISION_MILLI);
+        }
+
+        [Fact]
+        public void WebSocketQueryUSTest()
+        {
+            const string db = "ws_query_test_us";
+            this.QueryTest(this._wsConnectString, db, TDenginePrecision.TSDB_TIME_PRECISION_MICRO);
+        }
+
+        [Fact]
+        public void WebSocketQueryNSTest()
+        {
+            const string db = "ws_query_test_ns";
+            this.QueryTest(this._wsConnectString, db, TDenginePrecision.TSDB_TIME_PRECISION_NANO);
+        }
+
+        [Fact]
+        public void WebSocketQueryWithReqIDMSTest()
+        {
+            const string db = "ws_query_test_reqid_ms";
+            this.QueryWithReqIDTest(this._wsConnectString, db, TDenginePrecision.TSDB_TIME_PRECISION_MILLI);
+        }
+
+        [Fact]
+        public void WebSocketQueryWithReqIDUSTest()
+        {
+            const string db = "ws_query_test_reqid_us";
+            this.QueryWithReqIDTest(this._wsConnectString, db, TDenginePrecision.TSDB_TIME_PRECISION_MICRO);
+        }
+
+        [Fact]
+        public void WebSocketQueryWithReqIDNSTest()
+        {
+            const string db = "ws_query_test_reqid_ns";
+            this.QueryWithReqIDTest(this._wsConnectString, db, TDenginePrecision.TSDB_TIME_PRECISION_NANO);
+        }
+
+        [Fact]
+        public void WebSocketStmtMSTest()
+        {
+            const string db = "ws_stmt_test_ms";
+            this.StmtTest(this._wsConnectString, db, TDenginePrecision.TSDB_TIME_PRECISION_MILLI);
+        }
+
+        [Fact]
+        public void WebSocketStmtUSTest()
+        {
+            const string db = "ws_stmt_test_us";
+            this.StmtTest(this._wsConnectString, db, TDenginePrecision.TSDB_TIME_PRECISION_MICRO);
+        }
+
+        [Fact]
+        public void WebSocketStmtNSTest()
+        {
+            const string db = "ws_stmt_test_ns";
+            this.StmtTest(this._wsConnectString, db, TDenginePrecision.TSDB_TIME_PRECISION_NANO);
+        }
+
+        [Fact]
+        public void WebSocketStmtWithReqIDMSTest()
+        {
+            const string db = "ws_stmt_test_req_ms";
+            this.StmtWithReqIDTest(this._wsConnectString, db, TDenginePrecision.TSDB_TIME_PRECISION_MILLI);
+        }
+
+        [Fact]
+        public void WebSocketStmtWithReqIDUSTest()
+        {
+            const string db = "ws_stmt_test_req_us";
+            this.StmtWithReqIDTest(this._wsConnectString, db, TDenginePrecision.TSDB_TIME_PRECISION_MICRO);
+        }
+
+        [Fact]
+        public void WebSocketStmtWithReqIDNSTest()
+        {
+            const string db = "ws_stmt_test_req_ns";
+            this.StmtWithReqIDTest(this._wsConnectString, db, TDenginePrecision.TSDB_TIME_PRECISION_NANO);
+        }
+
+        [Fact]
+        public void WebSocketStmtColumnsMSTest()
+        {
+            const string db = "ws_stmt_columns_test_ms";
+            this.StmtBindColumnsTest(this._wsConnectString, db, TDenginePrecision.TSDB_TIME_PRECISION_MILLI);
+        }
+
+        [Fact]
+        public void WebSocketStmtColumnsUSTest()
+        {
+            const string db = "ws_stmt_columns_test_us";
+            this.StmtBindColumnsTest(this._wsConnectString, db, TDenginePrecision.TSDB_TIME_PRECISION_MICRO);
+        }
+
+        [Fact]
+        public void WebSocketStmtColumnsNSTest()
+        {
+            const string db = "ws_stmt_columns_test_ns";
+            this.StmtBindColumnsTest(this._wsConnectString, db, TDenginePrecision.TSDB_TIME_PRECISION_NANO);
+        }
+
+        [Fact]
+        public void WebSocketVarbinaryTest()
+        {
+            const string db = "ws_varbinary_test";
+            this.VarbinaryTest(this._wsConnectString, db);
+        }
+
+        [Fact]
+        public void WebSocketInfluxDBTest()
+        {
+            const string db = "ws_influxdb_test";
+            this.InfluxDBTest(this._wsConnectString, db);
+        }
+
+        [Fact]
+        public void WebSocketTelnetTest()
+        {
+            const string db = "ws_telnet_test";
+            this.TelnetTest(this._wsConnectString, db);
+        }
+
+        [Fact]
+        public void WebSocketSMLJsonTest()
+        {
+            const string db = "ws_sml_json_test";
+            this.SMLJsonTest(this._wsConnectString, db);
+        }
+
+        [Fact]
+        public void WebSocketQueryConcurrencyTest()
+        {
+            const string db = "ws_query_concurrency_test";
+            this.QueryConcurrencyTest(this._wsConnectString, db);
+        }
+
+        [Fact]
+        public void WebSocketQueryInvalidReqIdTest()
+        {
+            const string db = "ws_invalid_reqid_test";
+
+            var precision = TDenginePrecision.TSDB_TIME_PRECISION_MILLI;
+            var builder = new ConnectionStringBuilder(_wsConnectString);
+            var client = DbDriver.Open(builder);
+            var count = 10;
+            try
+            {
+                client.Exec($"drop database if exists {db}");
+                client.Exec($"create database {db} precision '{PrecisionString(precision)}'");
+                client.Exec($"use {db}");
+                client.Exec("create table t1 (ts timestamp, a int, b float, c binary(10))");
+                var ts = new long[count];
+                var dateTime = DateTime.Now;
+                var tsv = new DateTime[count];
+                for (int i = 0; i < count; i++)
+                {
+                    ts[i] = (dateTime.Add(TimeSpan.FromSeconds(i)).ToUniversalTime().Ticks -
+                             TDengineConstant.TimeZero.Ticks) / 10000;
+                    tsv[i] = TDengineConstant.ConvertTimestampToDateTime(ts[i], precision);
+                }
+
+                var valuesStr = "";
+                for (int i = 0; i < count; i++)
+                {
+                    valuesStr += $"({ts[i]}, {i}, {i}, '中文')";
+                }
+
+                client.Exec($"insert into t1 values {valuesStr}");
+                var tasks = new System.Collections.Generic.List<System.Threading.Tasks.Task>();
+                long reqid = 0x123456;
+                bool haveException = false;
+                for (var i = 0; i < count; i++)
+                {
+                    int localI = i;
+                    string query = "select * from t1 where ts = " + ts[localI];
+                    tasks.Add(System.Threading.Tasks.Task.Run(() =>
+                    {
+                        try
+                        {
+                            using (var rows = client.Query(query, reqid))
+                            {
+                                Assert.Equal(1, rows.GetOrdinal("a"));
+                                var fieldCount = rows.FieldCount;
+                                Assert.Equal(4, fieldCount);
+                                Assert.Equal("ts", rows.GetName(0));
+                                Assert.Equal("a", rows.GetName(1));
+                                Assert.Equal("b", rows.GetName(2));
+                                Assert.Equal("c", rows.GetName(3));
+                                var haveNext = rows.Read();
+                                Assert.True(haveNext);
+                                Assert.Equal(tsv[localI], rows.GetValue(0));
+                                Assert.Equal(localI, rows.GetValue(1));
+                                Assert.Equal((float)localI, rows.GetValue(2));
+                                Assert.Equal(Encoding.UTF8.GetBytes("中文"), rows.GetValue(3));
+                            }
+                        }
+                        catch (InvalidOperationException e)
+                        {
+                            Assert.Equal($"Request with reqId '0x{reqid:x}' already exists.", e.Message);
+                            haveException = true;
+                        }
+                    }));
+                }
+
+                System.Threading.Tasks.Task.WaitAll(tasks.ToArray());
+                Assert.True(haveException);
+            }
+            catch (Exception e)
+            {
+                _output.WriteLine(e.ToString());
+                throw;
+            }
+            finally
+            {
+                client.Exec($"drop database if exists {db}");
+                client.Dispose();
+            }
+        }
+
+        [Fact]
+        public void WebSocketQueryWithConnectionTimezoneMSTest()
+        {
+            const string db = "ws_query_conn_tz_ms_test";
+            QueryWithConnectionTimezoneTest(this._wsConnectString, "Europe/Paris", db,
+                TDenginePrecision.TSDB_TIME_PRECISION_MILLI);
+        }
+
+        [Fact]
+        public void WebSocketQueryWithConnectionTimezoneUSTest()
+        {
+            const string db = "ws_query_conn_tz_us_test";
+            QueryWithConnectionTimezoneTest(this._wsConnectString, "Europe/Paris", db,
+                TDenginePrecision.TSDB_TIME_PRECISION_MICRO);
+        }
+
+        [Fact]
+        public void WebSocketQueryWithConnectionTimezoneNSTest()
+        {
+            const string db = "ws_query_conn_tz_ns_test";
+            QueryWithConnectionTimezoneTest(this._wsConnectString, "Europe/Paris", db,
+                TDenginePrecision.TSDB_TIME_PRECISION_NANO);
+        }
+
+        [Fact]
+        public void WebSocketTimeoutTest()
+        {
+            var builder = new ConnectionStringBuilder(_wsConnectString);
+            builder.ReadTimeout = TimeSpan.FromTicks(100);
+            var timeout = false;
+            try
+            {
+                var client = DbDriver.Open(builder);
+            }
+            catch (TimeoutException e)
+            {
+                timeout = true;
+            }
+            catch (Exception e)
+            {
+                _output.WriteLine(e.ToString());
+                throw;
+            }
+            finally
+            {
+                Assert.True(timeout);
+            }
+        }
+
+
+        [Fact]
+        public void WebSocketStmtMSBindTimestampTest()
+        {
+            const string db = "ws_stmt_bind_stmt_test_ms";
+            this.StmtBindTimestampTest(this._wsConnectString, db, TDenginePrecision.TSDB_TIME_PRECISION_MILLI);
+        }
+
+        [Fact]
+        public void WebSocketStmtUSBindTimestampTest()
+        {
+            const string db = "ws_stmt_bind_stmt_test_us";
+            this.StmtBindTimestampTest(this._wsConnectString, db, TDenginePrecision.TSDB_TIME_PRECISION_MICRO);
+        }
+
+        [Fact]
+        public void WebSocketStmtNSBindTimestampTest()
+        {
+            const string db = "ws_stmt_bind_stmt_test_ns";
+            this.StmtBindTimestampTest(this._wsConnectString, db, TDenginePrecision.TSDB_TIME_PRECISION_NANO);
+        }
+
+        [Theory]
+        // Test SSL and non-SSL cases
+        [InlineData(false, 0, "localhost", "", "ws://localhost:6041/ws")]
+        [InlineData(true, 0, "example.com", "xyz", "wss://example.com:443/ws?token=xyz")]
+
+        // Test custom ports
+        [InlineData(false, 8080, "127.0.0.1", "abc", "ws://127.0.0.1:8080/ws?token=abc")]
+        [InlineData(true, 8443, "api.test", "", "wss://api.test:8443/ws")]
+
+        // Test IPv6 addresses (bare and bracketed)
+        [InlineData(false, 0, "2001:db8::1", "a&b", "ws://[2001:db8::1]:6041/ws?token=a&b")]
+        [InlineData(true, 443, "2001:db8::1", "", "wss://[2001:db8::1]:443/ws")]
+        [InlineData(false, 0, "[2001:db8::1]", "a&b", "ws://[2001:db8::1]:6041/ws?token=a&b")]
+        [InlineData(true, 443, "[2001:db8::1]", "", "wss://[2001:db8::1]:443/ws")]
+        [InlineData(false, 6049, "[2001:db8::1]:6049", "", "ws://[2001:db8::1]:6049/ws")]
+
+        // Test edge cases
+        [InlineData(false, 6041, "localhost", null, "ws://localhost:6041/ws")]
+        [InlineData(true, 443, "localhost", " ", "wss://localhost:443/ws?token= ")]
+        public void GetUrl_ShouldReturnCorrectUrl(bool useSsl, int port, string host, string token, string expectedUrl)
+        {
+            // Arrange
+            var builder = new ConnectionStringBuilder("")
+            {
+                UseSSL = useSsl,
+                Port = port,
+                Host = host,
+                Token = token
+            };
+
+            // Act
+            string actualUrl = WSClient.GetUrl(builder);
+
+            // Assert
+            Assert.Equal(expectedUrl, actualUrl);
+        }
+
+        [Fact]
+        public void GetUrl_ShouldHandleNullBuilder()
+        {
+            // Arrange
+            ConnectionStringBuilder builder = null;
+
+            // Act & Assert
+            Assert.Throws<ArgumentNullException>(() => WSClient.GetUrl(builder));
+        }
+
+        [Theory]
+        [InlineData(false, 0, "localhost:6042,localhost:6043", "", "ws://localhost:6042/ws")]
+        [InlineData(false, 6050, "localhost,localhost:6043", "", "ws://localhost:6050/ws")]
+        [InlineData(true, 0, "example.com,backup.example.com", "token-1", "wss://example.com:443/ws?token=token-1")]
+        [InlineData(false, 0, "[2001:db8::1]:6049,localhost:6041", "", "ws://[2001:db8::1]:6049/ws")]
+        [InlineData(false, 0, "[2001:db8::1],localhost:6041", "", "ws://[2001:db8::1]:6041/ws")]
+        [InlineData(true, 0, "[2001:db8::1],localhost", "", "wss://[2001:db8::1]:443/ws")]
+        public void GetUrl_ShouldUseFirstAddressFromHostList(bool useSsl, int port, string host, string token,
+            string expectedUrl)
+        {
+            var builder = new ConnectionStringBuilder("")
+            {
+                UseSSL = useSsl,
+                Port = port,
+                Host = host,
+                Token = token
+            };
+
+            var actualUrl = WSClient.GetUrl(builder);
+
+            Assert.Equal(expectedUrl, actualUrl);
+        }
+
+        [Theory]
+        [InlineData("localhost:,localhost:6041")]
+        [InlineData("[2001:db8::1]x:6041,localhost:6041")]
+        [InlineData("localhost:70000,localhost:6041")]
+        [InlineData("2001:db8::1,localhost:6041")]
+        [InlineData("2001:db8::1:6049,localhost:6041")]
+        [InlineData(",,")]
+        [InlineData(",")]
+        public void GetUrl_InvalidHostListShouldThrowArgumentException(string host)
+        {
+            var builder = new ConnectionStringBuilder("")
+            {
+                UseSSL = false,
+                Port = 0,
+                Host = host,
+                Token = ""
+            };
+
+            Assert.Throws<ArgumentException>(() => WSClient.GetUrl(builder));
+        }
+
+        [Theory]
+        [InlineData("localhost:0")]
+        [InlineData("localhost:0,localhost:6041")]
+        [InlineData("[2001:db8::1]:0")]
+        public void GetUrl_ExplicitPortZeroShouldThrowArgumentException(string host)
+        {
+            var builder = new ConnectionStringBuilder("")
+            {
+                UseSSL = false,
+                Port = 0,
+                Host = host,
+                Token = ""
+            };
+
+            Assert.Throws<ArgumentException>(() => WSClient.GetUrl(builder));
+        }
+
+        [Theory]
+        [InlineData(":6041")]
+        [InlineData(":")]
+        public void GetUrl_LeadingColonHostShouldThrowArgumentException(string host)
+        {
+            var builder = new ConnectionStringBuilder("")
+            {
+                UseSSL = false,
+                Port = 0,
+                Host = host,
+                Token = ""
+            };
+
+            Assert.Throws<ArgumentException>(() => WSClient.GetUrl(builder));
+        }
+
+        [Fact]
+        public void WebSocketStmtTestWrongTypeMSTest()
+        {
+            const string db = "ws_stmt_wrong_test_ms";
+            this.StmtTestWrongType(this._wsConnectString, db, TDenginePrecision.TSDB_TIME_PRECISION_MILLI);
+        }
+
+        [Fact]
+        public void WebSocketStmtTestWrongTypeUSTest()
+        {
+            const string db = "ws_stmt_wrong_test_us";
+            this.StmtTestWrongType(this._wsConnectString, db, TDenginePrecision.TSDB_TIME_PRECISION_MICRO);
+        }
+
+        [Fact]
+        public void WebSocketStmtTestWrongTypeNSTest()
+        {
+            const string db = "ws_stmt_wrong_test_ns";
+            this.StmtTestWrongType(this._wsConnectString, db, TDenginePrecision.TSDB_TIME_PRECISION_NANO);
+        }
+
+        [Fact]
+        public void WebSocketStmtTestBindTagWithoutTable()
+        {
+            const string db = "ws_stmt_bind_tag_no_table";
+            this.StmtTestBindTagWithoutTable(this._wsConnectString, db);
+        }
+
+        [Fact]
+        public void WebSocketStmtQuery()
+        {
+            const string db = "ws_stmt_query_test";
+            this.StmtQuery(this._wsConnectString, db);
+        }
+
+        [Fact]
+        public void WebSocketStmtErrorProcessTest()
+        {
+            const string db = "ws_stmt_error_process_test";
+            this.StmtErrorProcessTest(this._wsConnectString, db);
+        }
+
+        [Fact]
+        public void WebSocketStmtBindTags()
+        {
+            const string db = "ws_stmt_bind_tags_test";
+            this.StmtBindTagsTest(this._wsConnectString, db);
+        }
+
+        [Fact]
+        public void WebSocketConnectionAvailable()
+        {
+            this.ConnectionAvailable(this._wsConnectString);
+        }
+    }
+}

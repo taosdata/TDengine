@@ -1,0 +1,9 @@
+* text=auto eol=lf
+
+*.cs      text eol=lf
+*.csproj  text eol=lf
+*.sln     text eol=lf
+
+*.png     binary
+*.dll     binary
+*.exe     binary

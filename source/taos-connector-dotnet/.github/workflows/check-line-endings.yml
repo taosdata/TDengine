@@ -1,0 +1,29 @@
+name: Check Line Endings
+
+on:
+  pull_request:
+  push:
+    branches: [ main, master ]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Check for CRLF line endings
+        run: |
+          files=$(grep -rlU $'\r' \
+            --include="*.cs" \
+            --include="*.csproj" \
+            --include="*.sln" \
+            --exclude-dir=".git" \
+            --exclude-dir="bin" \
+            --exclude-dir="obj" \
+            . || true)
+          if [ -n "$files" ]; then
+            echo "❌ CRLF line endings detected:"
+            echo "$files"
+            exit 1
+          fi
+          echo "✅ All line endings are LF"

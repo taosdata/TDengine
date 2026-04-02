@@ -1,0 +1,24 @@
+debug = true
+port = 6041
+logLevel = "info"
+
+[cors]
+allowAllOrigins = true
+
+[monitor]
+disable = false
+
+[uploadKeeper]
+enable = false
+
+[statsd]
+enable = false
+
+[collectd]
+enable = false
+
+[opentsdb_telnet]
+enable = false
+
+[node_exporter]
+enable = false
