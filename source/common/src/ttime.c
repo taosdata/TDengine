@@ -174,7 +174,7 @@ int32_t parseTimezone(char* str, int64_t* tzOffset) {
     TAOS_RETURN(TSDB_CODE_INVALID_PARA);
   }
 
-  *tzOffset = (h * 3600 + m * 60) * (str[0] == '+' ? 1 : -1);
+  *tzOffset = (h * 3600 + m * 60) * (str[0] == '+' ? -1 : 1);
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
@@ -1343,7 +1343,7 @@ typedef enum {
   TSFKW_SS,
   TSFKW_TZH,
   // TSFKW_TZM,
-  // TSFKW_TZ,
+  TSFKW_TZ,
   TSFKW_US,
   TSFKW_YYYY,
   TSFKW_YYY,
@@ -1374,7 +1374,7 @@ typedef enum {
   TSFKW_ss,
   TSFKW_tzh,
   // TSFKW_tzm,
-  // TSFKW_tz,
+  TSFKW_tz,
   TSFKW_us,
   TSFKW_yyyy,
   TSFKW_yyy,
@@ -1415,7 +1415,7 @@ static const TSFormatKeyWord formatKeyWords[] = {
   {"SS", 2, TSFKW_SS, true},
   {"TZH", 3, TSFKW_TZH, false},
   //{"TZM", 3, TSFKW_TZM},
-  //{"TZ", 2, TSFKW_TZ},
+  {"TZ", 2, TSFKW_TZ, false},
   {"US", 2, TSFKW_US, true},
   {"YYYY", 4, TSFKW_YYYY, true},
   {"YYY", 3, TSFKW_YYY, true},
@@ -1447,7 +1447,7 @@ static const TSFormatKeyWord formatKeyWords[] = {
   {"ss", 2, TSFKW_SS, true},
   {"tzh", 3, TSFKW_TZH, false},
   //{"tzm", 3, TSFKW_TZM},
-  //{"tz", 2, TSFKW_tz},
+  {"tz", 2, TSFKW_TZ, false},
   {"us", 2, TSFKW_US, true},
   {"yyyy", 4, TSFKW_YYYY, true},
   {"yyy", 3, TSFKW_YYY, true},
@@ -1778,6 +1778,19 @@ static int32_t tm2char(const SArray* formats, const struct STm* tm, char* s, int
         s += strlen(s);
         break;
       }
+      case TSFKW_TZ:{
+#ifdef WINDOWS
+        int32_t gmtoffTZ = -(int32_t)getWindowsTimezoneOffset();
+#elif defined(TD_ASTRA)
+        int32_t gmtoffTZ = -timezone;
+#else
+        int32_t gmtoffTZ = tm->tm.tm_gmtoff;
+#endif
+        int32_t absOff = abs(gmtoffTZ);
+        (void)snprintf(s, outLen - (s - start), "%c%02d:%02d", (gmtoffTZ >= 0) ? '+' : '-', absOff / 3600, (absOff % 3600) / 60);
+        s += strlen(s);
+        break;
+      }
       case TSFKW_YYYY:
         (void)snprintf(s, outLen - (s - start), "%04d", tm->tm.tm_year + 1900);
         s += strlen(s);
@@ -1914,6 +1927,7 @@ static int32_t char2ts(const char* s, SArray* formats, int64_t* ts, int32_t prec
   int32_t year = 0, mon = 0, yd = 0, md = 1, wd = 0;
   int32_t hour = 0, min = 0, sec = 0, us = 0, ms = 0, ns = 0;
   int32_t tzHour = 0;
+  int32_t tzMinute = 0;
   int32_t err = 0;
   bool    withYD = false, withMD = false;
 
@@ -2045,6 +2059,52 @@ static int32_t char2ts(const char* s, SArray* formats, int64_t* ts, int32_t prec
           err = -1;
         else {
           s = newPos;
+        }
+      } break;
+      case TSFKW_TZ: {
+        // parse full timezone: Z, +HH, +HH:MM, +HHMM
+        if (*s == 'Z' || *s == 'z') {
+          tzHour = 0;
+          tzMinute = 0;
+          s++;
+        } else if (*s == '+' || *s == '-') {
+          int32_t tzSign = (*s == '+') ? 1 : -1;
+          s++;
+          // parse hour (2 digits)
+          int32_t h = 0;
+          const char* newPos = tsFormatStr2Int32(&h, s, 2, true);
+          if (NULL == newPos || h < 0 || h > 14) {
+            err = -1;
+          } else {
+            s = newPos;
+            int32_t m = 0;
+            if (*s == ':') {
+              s++;  // skip colon
+              newPos = tsFormatStr2Int32(&m, s, 2, false);
+              if (NULL == newPos || m < 0 || m > 59) {
+                err = -1;
+              } else {
+                s = newPos;
+              }
+            } else if (isdigit((unsigned char)*s)) {
+              newPos = tsFormatStr2Int32(&m, s, 2, false);
+              if (NULL == newPos || m < 0 || m > 59) {
+                err = -1;
+              } else {
+                s = newPos;
+              }
+            }
+            if (!err) {
+              if (h == 14 && m != 0) {
+                err = -1;
+              } else {
+                tzHour = tzSign * h;
+                tzMinute = tzSign * m;
+              }
+            }
+          }
+        } else {
+          err = -1;
         }
       } break;
       case TSFKW_MONTH:
@@ -2196,7 +2256,7 @@ static int32_t char2ts(const char* s, SArray* formats, int64_t* ts, int32_t prec
   if (tzHour < -14 || tzHour > 14) return -2;
   tm.fsec = ms * 1000000 + us * 1000 + ns;
   int32_t ret = taosTm2Ts(&tm, ts, precision, tz);
-  if (tzHour != 0) {
+  if (tzHour != 0 || tzMinute != 0) {
 #ifdef WINDOWS
     // getWindowsTimezoneOffset() returns the system timezone offset in seconds,
     // using the POSIX 'timezone' convention (east-negative, e.g. East 8 = -28800).
@@ -2207,7 +2267,7 @@ static int32_t char2ts(const char* s, SArray* formats, int64_t* ts, int32_t prec
 #else
     int32_t gmtoff = tm.tm.tm_gmtoff;
 #endif
-    *ts += (gmtoff - tzHour * 3600) * TICK_PER_SECOND[precision];
+    *ts += (gmtoff - tzHour * 3600 - tzMinute * 60) * TICK_PER_SECOND[precision];
   }
   return ret;
 }
