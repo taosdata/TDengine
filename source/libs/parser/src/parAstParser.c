@@ -1988,6 +1988,11 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
     case QUERY_NODE_COMPACT_DATABASE_STMT:
       code = collectMetaKeyFromCompactDatabase(pCxt, (SCompactDatabaseStmt*)pStmt);
       break;
+    case QUERY_NODE_RELOAD_LAST_CACHE_STMT:
+    case QUERY_NODE_SHOW_RELOADS_STMT:
+    case QUERY_NODE_SHOW_RELOAD_STMT:
+    case QUERY_NODE_DROP_RELOAD_STMT:
+      break;
     case QUERY_NODE_ROLLUP_DATABASE_STMT:
       code = collectMetaKeyFromRollupDatabase(pCxt, (SRollupDatabaseStmt*)pStmt);
       break;

@@ -249,6 +249,14 @@ const char* nodesNodeName(ENodeType type) {
       return "DescribeStmt";
     case QUERY_NODE_COMPACT_DATABASE_STMT:
       return "CompactDatabaseStmt";
+    case QUERY_NODE_RELOAD_LAST_CACHE_STMT:
+      return "ReloadLastCacheStmt";
+    case QUERY_NODE_SHOW_RELOADS_STMT:
+      return "ShowReloadsStmt";
+    case QUERY_NODE_SHOW_RELOAD_STMT:
+      return "ShowReloadStmt";
+    case QUERY_NODE_DROP_RELOAD_STMT:
+      return "DropReloadStmt";
     case QUERY_NODE_ROLLUP_DATABASE_STMT:
       return "RollupDatabaseStmt";
     case QUERY_NODE_SCAN_DATABASE_STMT:
@@ -10598,6 +10606,11 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return describeStmtToJson(pObj, pJson);
     case QUERY_NODE_COMPACT_DATABASE_STMT:
       return compactDatabaseStmtToJson(pObj, pJson);
+    case QUERY_NODE_RELOAD_LAST_CACHE_STMT:
+    case QUERY_NODE_SHOW_RELOADS_STMT:
+    case QUERY_NODE_SHOW_RELOAD_STMT:
+    case QUERY_NODE_DROP_RELOAD_STMT:
+      return TSDB_CODE_SUCCESS;
     case QUERY_NODE_ROLLUP_DATABASE_STMT:
       return rollupDatabaseStmtToJson(pObj, pJson);
     case QUERY_NODE_SCAN_DATABASE_STMT:
@@ -11086,6 +11099,11 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToDescribeStmt(pJson, pObj);
     case QUERY_NODE_COMPACT_DATABASE_STMT:
       return jsonToCompactDatabaseStmt(pJson, pObj);
+    case QUERY_NODE_RELOAD_LAST_CACHE_STMT:
+    case QUERY_NODE_SHOW_RELOADS_STMT:
+    case QUERY_NODE_SHOW_RELOAD_STMT:
+    case QUERY_NODE_DROP_RELOAD_STMT:
+      return TSDB_CODE_SUCCESS;
     case QUERY_NODE_ROLLUP_DATABASE_STMT:
       return jsonToRollupDatabaseStmt(pJson, pObj);
     case QUERY_NODE_SCAN_DATABASE_STMT:
