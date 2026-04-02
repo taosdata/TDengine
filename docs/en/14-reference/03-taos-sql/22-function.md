@@ -365,7 +365,7 @@ taos> select truncate(8888.88, 0);
  truncate(8888.88, 0)    |
 ============================
     8888.000000000000000 |
-     
+
 taos> select truncate(8888.88, -1);
  truncate(8888.88, -1)   |
 ============================
@@ -507,17 +507,17 @@ taos> select rand();
           rand()           |
 ============================
          0.202092426923147 |
-         
+
 taos> select rand();
           rand()           |
 ============================
          0.131537788143166 |
-         
+
 taos> select rand(1);
           rand(1)          |
 ============================
          0.000007826369259 |
-         
+
 taos> select rand(1);
           rand(1)          |
 ============================
@@ -747,7 +747,7 @@ taos> select char_length('Hello world');
  char_length('Hello world') |
 =============================
                          11 |
- 
+
 taos> select char_length('你好 世界');
       char_length('你好 世界') |
 ===============================
@@ -939,18 +939,18 @@ taos> select trim('        a         ');
  trim('        a         ') |
 =============================
  a                          |
- 
+
 taos> select trim(leading from '        a         ');
  trim(leading from '        a         ') |
 ==========================================
  a                                       |
- 
+
 
 taos> select trim(leading 'b' from 'bbbbbbbba         ');
  trim(leading 'b' from 'bbbbbbbba         ') |
 ==============================================
  a                                           |
- 
+
 taos> select trim(both 'b' from 'bbbbbabbbbbb');
  trim(both 'b' from 'bbbbbabbbbbb') |
 =====================================
@@ -1101,7 +1101,7 @@ CHAR(expr1 [, expr2] [, expr3] ...)
 - Values exceeding 255 will be converted into multi-byte results, such as `CHAR(256)` equivalent to `CHAR(1,0)`, `CHAR(256 * 256)` equivalent to `CHAR(1,0,0)`.
 - NULL values in input parameters will be skipped.
 - If the input parameters are of string type, they will be converted to numeric type for processing.
-- If the character corresponding to the input parameter is a non-printable character, the return value will still contain the character corresponding to that parameter, but it may not be displayed.
+- If input parameters include non-printable characters, `CHAR` still returns the corresponding byte sequence; when displayed in `taos`, it is rendered in hexadecimal format prefixed with `0x` for readability.
 - This function can have at most 2^31 - 1 input parameters.
 
 **Examples**:
@@ -1111,17 +1111,22 @@ taos> select char(77);
  char(77) |
 ===========
  M        |
- 
+
+taos> select CHAR(3);
+ char(3) |
+==========
+ 0x03    |
+
 taos> select char(77,77);
  char(77,77) |
 ==============
  MM          |
- 
+
 taos> select char(77 * 256 + 77);
  char(77 * 256 + 77) |
 ======================
  MM                  |
- 
+
 taos> select char(77,NULL,77);
  char(77,null,77) |
 ===================
@@ -1196,13 +1201,13 @@ taos> select position('a' in 'cba');
  position('a' in 'cba') |
 =========================
                       3 |
- 
- 
+
+
 taos> select position('' in 'cba');
  position('' in 'cba') |
 ========================
                      1 |
- 
+
 taos> select position('d' in 'cba');
  position('d' in 'cba') |
 =========================
@@ -1279,7 +1284,7 @@ taos> select repeat('abc',5);
       repeat('abc',5)      |
 ============================
  abcabcabcabcabc           |
-            
+
 taos> select repeat('abc',-1);
  repeat('abc',-1) |
 ===================
