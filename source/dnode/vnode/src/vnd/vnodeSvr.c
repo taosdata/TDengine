@@ -36,6 +36,11 @@
 
 extern taos_counter_t *tsInsertCounter;
 
+// File-scope hash: reloadUid (int64_t) -> SVLastCacheReloadStatus*
+// Protected by gVnodeReloadMutex.  Initialized on first use.
+static SHashObj     *gVnodeReloadStatuses = NULL;
+static TdThreadMutex gVnodeReloadMutex;
+
 extern int32_t vnodeProcessScanVnodeReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 extern int32_t vnodeQueryScanProgress(SVnode *pVnode, SRpcMsg *pMsg);
 
@@ -67,6 +72,11 @@ static int32_t vnodeProcessDropTSmaCtbReq(SVnode *pVnode, int64_t ver, void *pRe
 static int32_t vnodeProcessCreateRsmaReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessDropRsmaReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessAlterRsmaReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
+
+static int32_t vnodeProcessReloadLastCacheMsg(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
+static int32_t vnodeProcessQueryLastCacheStatusMsg(SVnode *pVnode, SRpcMsg *pMsg);
+static int32_t vnodeProcessCancelLastCacheReloadMsg(SVnode *pVnode, int64_t ver, void *pReq, int32_t len,
+                                                    SRpcMsg *pRsp);
 
 static int32_t vnodeCheckState(SVnode *pVnode);
 static int32_t vnodeCheckToken(SVnode *pVnode, char *member0Token, char *member1Token);
@@ -981,6 +991,12 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
     case TDMT_VND_KILL_TRIM:
       vnodeProcessKillRetentionReq(pVnode, ver, pReq, len, pRsp);
       break;
+    case TDMT_VND_RELOAD_LAST_CACHE:
+      vnodeProcessReloadLastCacheMsg(pVnode, ver, pReq, len, pRsp);
+      goto _exit;
+    case TDMT_VND_CANCEL_LAST_CACHE_RELOAD:
+      vnodeProcessCancelLastCacheReloadMsg(pVnode, ver, pReq, len, pRsp);
+      break;
     /* ARB */
     case TDMT_VND_ARB_CHECK_SYNC:
       vnodeProcessArbCheckSyncReq(pVnode, pReq, len, pRsp);
@@ -1152,6 +1168,8 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
 #endif
     case TDMT_VND_QUERY_TRIM_PROGRESS:
       return vnodeQueryRetentionProgress(pVnode, pMsg);
+    case TDMT_VND_QUERY_LAST_CACHE_STATUS:
+      return vnodeProcessQueryLastCacheStatusMsg(pVnode, pMsg);
       //    case TDMT_VND_TMQ_CONSUME:
       //      return tqProcessPollReq(pVnode->pTq, pMsg);
 #ifdef USE_TQ
@@ -3823,3 +3841,182 @@ _OVER:
 int32_t vnodeAsyncCompact(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) { return 0; }
 int32_t tsdbAsyncCompact(STsdb *tsdb, const STimeWindow *tw, ETsdbOpType type, bool force) { return 0; }
 #endif
+
+// ---------------------------------------------------------------------------
+// Reload-last-cache vnode handlers
+// ---------------------------------------------------------------------------
+
+static SHashObj *vnodeGetReloadStatusHash(void) {
+  if (gVnodeReloadStatuses == NULL) {
+    taosThreadMutexInit(&gVnodeReloadMutex, NULL);
+    gVnodeReloadStatuses =
+        taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
+  }
+  return gVnodeReloadStatuses;
+}
+
+typedef struct SVReloadBgArg {
+  SVnode                 *pVnode;
+  SVReloadLastCacheReq    req;
+  SVLastCacheReloadStatus status;
+} SVReloadBgArg;
+
+static void *vnodeReloadLastCacheBg(void *arg) {
+  SVReloadBgArg *pArg = (SVReloadBgArg *)arg;
+  SVnode        *pVnode = pArg->pVnode;
+  int64_t        reloadUid = pArg->req.reloadUid;
+
+  // Fetch the status pointer stored in the hash so callers querying status
+  // see live updates written by tsdbReloadLastCache.
+  SHashObj              *pHash = vnodeGetReloadStatusHash();
+  SVLastCacheReloadStatus *pStatus = NULL;
+  taosThreadMutexLock(&gVnodeReloadMutex);
+  SVLastCacheReloadStatus **ppStatus = taosHashGet(pHash, &reloadUid, sizeof(reloadUid));
+  if (ppStatus) pStatus = *ppStatus;
+  taosThreadMutexUnlock(&gVnodeReloadMutex);
+
+  if (pStatus) {
+    int32_t code = tsdbReloadLastCache(pVnode->pTsdb, NULL, NULL, pArg->req.cacheType, pStatus);
+    if (pStatus->cancelRequested) {
+      pStatus->status = RELOAD_STATUS_CANCELLED;
+    } else if (code != TSDB_CODE_SUCCESS) {
+      pStatus->status = RELOAD_STATUS_FAILED;
+      tstrncpy(pStatus->errMsg, tstrerror(code), sizeof(pStatus->errMsg));
+    } else {
+      pStatus->status = RELOAD_STATUS_DONE;
+    }
+  }
+
+  taosMemoryFree(pArg);
+  return NULL;
+}
+
+static int32_t vnodeProcessReloadLastCacheMsg(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {
+  int32_t              code = TSDB_CODE_SUCCESS;
+  SVReloadLastCacheReq req = {0};
+
+  if (!pVnode->restored) {
+    vInfo("vgId:%d, ignore reload-last-cache req during restoring. ver:%" PRId64, TD_VID(pVnode), ver);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (tDeserializeSVReloadLastCacheReq(pReq, len, &req) != 0) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  vInfo("vgId:%d, reload-last-cache reloadUid:%" PRId64 " cacheType:%d", TD_VID(pVnode), req.reloadUid,
+        (int32_t)req.cacheType);
+
+  // Allocate and initialise status record
+  SVLastCacheReloadStatus *pStatus = taosMemoryCalloc(1, sizeof(SVLastCacheReloadStatus));
+  if (!pStatus) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  pStatus->reloadUid   = req.reloadUid;
+  pStatus->status      = RELOAD_STATUS_RUNNING;
+  pStatus->startTimeMs = taosGetTimestampMs();
+
+  // Store in file-scope hash
+  SHashObj *pHash = vnodeGetReloadStatusHash();
+  taosThreadMutexLock(&gVnodeReloadMutex);
+  code = taosHashPut(pHash, &req.reloadUid, sizeof(req.reloadUid), &pStatus, sizeof(pStatus));
+  taosThreadMutexUnlock(&gVnodeReloadMutex);
+  if (code != TSDB_CODE_SUCCESS) {
+    taosMemoryFree(pStatus);
+    return code;
+  }
+
+  // Launch background thread (detached — we track progress via hash)
+  SVReloadBgArg *pArg = taosMemoryCalloc(1, sizeof(SVReloadBgArg));
+  if (!pArg) {
+    taosMemoryFree(pStatus);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  pArg->pVnode = pVnode;
+  pArg->req    = req;
+
+  TdThread      thread;
+  TdThreadAttr  thAttr;
+  (void)taosThreadAttrInit(&thAttr);
+  (void)taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_DETACHED);
+  int32_t ret = taosThreadCreate(&thread, &thAttr, vnodeReloadLastCacheBg, pArg);
+  (void)taosThreadAttrDestroy(&thAttr);
+  if (ret != 0) {
+    vError("vgId:%d, failed to create reload-last-cache thread: %s", TD_VID(pVnode), tstrerror(ret));
+    taosMemoryFree(pArg);
+    pStatus->status = RELOAD_STATUS_FAILED;
+    return ret;
+  }
+
+  // ACK immediately; real work runs in background
+  pRsp->msgType  = TDMT_VND_RELOAD_LAST_CACHE_RSP;
+  pRsp->code     = TSDB_CODE_SUCCESS;
+  pRsp->pCont    = NULL;
+  pRsp->contLen  = 0;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t vnodeProcessQueryLastCacheStatusMsg(SVnode *pVnode, SRpcMsg *pMsg) {
+  int32_t                  code = TSDB_CODE_SUCCESS;
+  SVQueryLastCacheStatusReq req  = {0};
+  SVQueryLastCacheStatusRsp rsp  = {0};
+
+  if (tDeserializeSVQueryLastCacheStatusReq(pMsg->pCont, pMsg->contLen, &req) != 0) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  rsp.vgId = TD_VID(pVnode);
+
+  SHashObj *pHash = vnodeGetReloadStatusHash();
+  taosThreadMutexLock(&gVnodeReloadMutex);
+  SVLastCacheReloadStatus **ppStatus = taosHashGet(pHash, &req.reloadUid, sizeof(req.reloadUid));
+  if (ppStatus && *ppStatus) {
+    rsp.status = **ppStatus;
+  } else {
+    rsp.status.reloadUid = req.reloadUid;
+    rsp.status.status    = RELOAD_STATUS_DONE;  // not found → treat as completed
+  }
+  taosThreadMutexUnlock(&gVnodeReloadMutex);
+
+  int32_t contLen = tSerializeSVQueryLastCacheStatusRsp(NULL, 0, &rsp);
+  if (contLen <= 0) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  void *pCont = rpcMallocCont(contLen);
+  if (!pCont) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  if (tSerializeSVQueryLastCacheStatusRsp(pCont, contLen, &rsp) <= 0) {
+    rpcFreeCont(pCont);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  pMsg->info.rsp    = pCont;
+  pMsg->info.rspLen = contLen;
+  return code;
+}
+
+static int32_t vnodeProcessCancelLastCacheReloadMsg(SVnode *pVnode, int64_t ver, void *pReq, int32_t len,
+                                                    SRpcMsg *pRsp) {
+  SVCancelLastCacheReloadReq req = {0};
+
+  if (tDeserializeSVCancelLastCacheReloadReq(pReq, len, &req) != 0) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  vInfo("vgId:%d, cancel reload-last-cache reloadUid:%" PRId64, TD_VID(pVnode), req.reloadUid);
+
+  SHashObj *pHash = vnodeGetReloadStatusHash();
+  taosThreadMutexLock(&gVnodeReloadMutex);
+  SVLastCacheReloadStatus **ppStatus = taosHashGet(pHash, &req.reloadUid, sizeof(req.reloadUid));
+  if (ppStatus && *ppStatus) {
+    atomic_store_8((int8_t volatile *)&(*ppStatus)->cancelRequested, 1);
+  }
+  taosThreadMutexUnlock(&gVnodeReloadMutex);
+
+  pRsp->msgType = TDMT_VND_CANCEL_LAST_CACHE_RELOAD_RSP;
+  pRsp->code    = TSDB_CODE_SUCCESS;
+  pRsp->pCont   = NULL;
+  pRsp->contLen = 0;
+  return TSDB_CODE_SUCCESS;
+}
