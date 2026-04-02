@@ -1,0 +1,149 @@
+name: ws-unified-cross-failover
+
+on:
+  schedule:
+    - cron: "0 1 * * *"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Suite mode"
+        required: false
+        default: "cross-full"
+        type: choice
+        options:
+          - cross-smoke
+          - cross-full
+          - cross-loop
+          - cross-full-loop
+      loop_count:
+        description: "Loop count for cross-loop/cross-full-loop"
+        required: false
+        default: "8"
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  cross-failover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup TDengine nightly
+        uses: ./.github/actions/setup-tdengine
+        with:
+          mode: "nightly"
+          branch: "main"
+          start-services: "true"
+          nightly-url: ${{ secrets.NIGHTLY_TDENGINE_ENTERPRISE_BASE_URL }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: stable
+          cache-dependency-path: go.sum
+
+      - name: Run unified cross-failover suite
+        id: suite
+        env:
+          INPUT_MODE: ${{ inputs.mode }}
+          INPUT_LOOP_COUNT: ${{ inputs.loop_count }}
+        run: |
+          set -euo pipefail
+          started_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          started_epoch="$(date +%s)"
+
+          if [[ "${GITHUB_EVENT_NAME}" == "schedule" ]]; then
+            mode="cross-full-loop"
+            loop_count="20"
+          else
+            input_mode="${INPUT_MODE:-cross-full}"
+            case "${input_mode}" in
+              cross-smoke|smoke)
+                mode="cross-smoke"
+                ;;
+              cross-full|full)
+                mode="cross-full"
+                ;;
+              cross-loop|loop)
+                mode="cross-loop"
+                ;;
+              cross-full-loop|full-loop)
+                mode="cross-full-loop"
+                ;;
+              *)
+                echo "unsupported mode: ${input_mode}" >&2
+                exit 1
+                ;;
+            esac
+            loop_count="${INPUT_LOOP_COUNT:-8}"
+          fi
+
+          status="success"
+          if ! LOOP_COUNT="${loop_count}" ./ws/reliability_gate.sh "${mode}" 2>&1 | tee ws_unified_cross_failover.out; then
+            status="failure"
+          fi
+
+          ended_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          ended_epoch="$(date +%s)"
+          duration_seconds="$((ended_epoch - started_epoch))"
+
+          {
+            echo "status=${status}"
+            echo "mode=${mode}"
+            echo "loop_count=${loop_count}"
+            echo "started_at=${started_at}"
+            echo "ended_at=${ended_at}"
+            echo "duration_seconds=${duration_seconds}"
+          } >> "${GITHUB_OUTPUT}"
+
+          if [[ "${status}" == "failure" ]]; then
+            exit 1
+          fi
+
+      - name: Build summary
+        if: always()
+        run: |
+          {
+            echo "# WS Unified Cross-Failover"
+            echo
+            echo "- Workflow status: ${{ job.status }}"
+            echo "- Suite status: ${{ steps.suite.outputs.status }}"
+            echo "- Mode: ${{ steps.suite.outputs.mode }}"
+            echo "- Loop count: ${{ steps.suite.outputs.loop_count }}"
+            echo "- Started at (UTC): ${{ steps.suite.outputs.started_at }}"
+            echo "- Ended at (UTC): ${{ steps.suite.outputs.ended_at }}"
+            echo "- Duration (seconds): ${{ steps.suite.outputs.duration_seconds }}"
+            echo
+            echo "## Command"
+            echo
+            echo "- \`LOOP_COUNT=${{ steps.suite.outputs.loop_count }} ./ws/reliability_gate.sh ${{ steps.suite.outputs.mode }}\`"
+          } | tee ws_unified_cross_failover_summary.md
+          cat ws_unified_cross_failover_summary.md >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Collect logs
+        if: always()
+        run: |
+          mkdir -p ws-unified-cross-failover-logs
+          cp -f ws_unified_cross_failover.out ws-unified-cross-failover-logs/ws_unified_cross_failover.out || true
+          cp -f ws_unified_cross_failover_summary.md ws-unified-cross-failover-logs/ws_unified_cross_failover_summary.md || true
+          cp -f taosd.out ws-unified-cross-failover-logs/taosd.out || true
+          cp -f taosadapter.out ws-unified-cross-failover-logs/taosadapter.out || true
+          sudo cp -r /var/log/taos ws-unified-cross-failover-logs/var-log-taos || true
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: ws-unified-cross-failover-${{ github.run_id }}
+          path: ws-unified-cross-failover-logs
+          if-no-files-found: warn
+
+      - name: Cleanup
+        if: always()
+        run: |
+          sudo pkill -f taosadapter || true
+          sudo pkill -f taosd || true
