@@ -45,6 +45,16 @@
 #include "querytask.h"
 #include "hashjoin.h"
 
+// Test-only forward declarations for non-header-exported functions in hashjoinoperator.c
+#ifdef __cplusplus
+extern "C" {
+#endif
+int32_t hJoinSetImplFp(SHJoinOperatorInfo* pJoin);
+int32_t hJoinLaunchPrimExpr(SSDataBlock* pBlock, SHJoinTableCtx* pTable, int32_t startIdx, int32_t endIdx);
+#ifdef __cplusplus
+}
+#endif
+
 
 namespace {
 
@@ -83,7 +93,7 @@ enum {
 #define JT_DATA_RAND() (jtCtx.strictCompareRun ? (int32_t)taosRandR(&jtCtx.dataGenRandState) : (int32_t)taosRand())
 
 #define COL_DISPLAY_WIDTH 18
-#define JT_MAX_LOOP 10000
+#define JT_MAX_LOOP INT_MAX
 
 #define LEFT_BLK_ID       0
 #define RIGHT_BLK_ID      1
@@ -251,6 +261,11 @@ typedef struct {
   SSHashObj* pActiveActualRows;
   SSHashObj* pMergeActualRows;
   SSHashObj* pHashActualRows;
+  bool forceFixedTotals;
+  int32_t fixedLeftTotalRows;
+  int32_t fixedRightTotalRows;
+  bool forceTbTimeRange;
+  bool fixedTbTimeRange;
 } SJoinTestCtx;
 
 typedef struct {
@@ -1126,9 +1141,14 @@ void createColCond(void* p, int32_t cond, bool mJoin) {
       TAOS_MEMSET(jtCtx.colOnList, 0, sizeof(jtCtx.colOnList));
       break;
     case TEST_ON_COND:
-      createColOnCondStart();
+      // colEqList must be cleared BEFORE createColOnCondStart(), which reads it to
+      // avoid selecting columns already used as EQ keys.  If a previous test left
+      // stale bits in colEqList (colEqNum was reset by handleTestDone but colEqList
+      // was not), the inner selection loop in createColOnCondStart() can spin
+      // forever because every random index hits a stale "occupied" slot.
       jtCtx.colEqNum = 0;
       TAOS_MEMSET(jtCtx.colEqList, 0, sizeof(jtCtx.colEqList));
+      createColOnCondStart();
       break;
     case TEST_FULL_COND:
       createColEqCondStart(p, mJoin);
@@ -1495,7 +1515,11 @@ SHashJoinPhysiNode* createDummyHashJoinPhysiNode(SJoinTestParam* param) {
   jtCtx.leftColOnly = (JOIN_TYPE_LEFT == param->joinType && JOIN_STYPE_SEMI == param->subType);
   jtCtx.rightColOnly = (JOIN_TYPE_RIGHT == param->joinType && JOIN_STYPE_SEMI == param->subType);
   jtCtx.inGrpId = 1;
-  jtCtx.tbTimeRange = jtCtx.strictCompareRun ? false : (taosRand() % 2);
+  if (jtCtx.forceTbTimeRange) {
+    jtCtx.tbTimeRange = jtCtx.fixedTbTimeRange;
+  } else {
+    jtCtx.tbTimeRange = jtCtx.strictCompareRun ? false : (taosRand() % 2);
+  }
 
   createColCond(p, param->cond, false);
   createFilterStart(param->filter);
@@ -3134,6 +3158,281 @@ void fullJoinAppendEqGrpRes(int32_t leftGrpRows, int32_t rightGrpRows) {
 }
 
 
+
+// RIGHT join reference: mirrors leftJoinAppendEqGrpRes with probe=right, build=left.
+// For each right row, find matching left rows; unmatched right rows get NULL left columns.
+void rightJoinAppendEqGrpRes(int32_t leftGrpRows, int32_t rightGrpRows) {
+  bool rightMatch = false, leftMatch = false, filterOut = false;
+  void* lValue = NULL, *rValue = NULL;
+  int64_t lBig = 0, rBig = 0, fbig = 0;
+  int64_t rightTbOffset = jtCtx.blkRowSize * leftGrpRows;
+  char* lBinary = NULL, *rBinary = NULL;
+
+  for (int32_t r = 0; r < rightGrpRows; ++r) {
+    char* rrow = jtCtx.colRowDataBuf + rightTbOffset + jtCtx.blkRowSize * r;
+
+    filterOut = false;
+    rightMatch = true;
+
+    for (int32_t c = 0; c < MAX_SLOT_NUM; ++c) {
+      rValue = rrow + jtCtx.colRowOffset[c];
+      lBinary = rBinary = NULL;
+
+      switch (jtInputColType[c]) {
+        case TSDB_DATA_TYPE_TIMESTAMP: fbig = TIMESTAMP_FILTER_VALUE; rBig = *(int64_t*)rValue; break;
+        case TSDB_DATA_TYPE_INT:       fbig = INT_FILTER_VALUE;       rBig = *(int32_t*)rValue; break;
+        case TSDB_DATA_TYPE_BINARY:    rBinary = (char*)rValue;                                  break;
+        case TSDB_DATA_TYPE_BIGINT:    fbig = BIGINT_FILTER_VALUE;    rBig = *(int64_t*)rValue; break;
+        default: break;
+      }
+
+      if (jtCtx.rightFilterNum && jtCtx.rightFilterColList[c] &&
+          ((*(bool*)(rrow + c)) || (NULL == rBinary && rBig <= fbig) ||
+           (NULL != rBinary && memcmp(rBinary, BINARY_FILTER_VALUE, JT_BINARY_MAX_LEN) <= 0))) {
+        filterOut = true;
+        break;
+      }
+
+      if (jtCtx.colEqNum && jtCtx.colEqList[c] && (*(bool*)(rrow + c))) { rightMatch = false; }
+      if (jtCtx.colOnNum && jtCtx.colOnList[c] && (*(bool*)(rrow + c))) { rightMatch = false; }
+    }
+
+    if (filterOut) continue;
+
+    if (!rightMatch) {
+      if (0 == jtCtx.leftFilterNum) { putNMatchRowToRes(rrow, MAX_SLOT_NUM, 0); }
+      continue;
+    }
+
+    rightMatch = false;
+    for (int32_t l = 0; l < leftGrpRows; ++l) {
+      char* lrow = jtCtx.colRowDataBuf + jtCtx.blkRowSize * l;
+      leftMatch = true;
+      filterOut = false;
+
+      for (int32_t c = 0; c < MAX_SLOT_NUM; ++c) {
+        rValue = rrow + jtCtx.colRowOffset[c];
+        if (!*(bool*)(lrow + c)) { lValue = lrow + jtCtx.colRowOffset[c]; }
+        lBinary = rBinary = NULL;
+
+        switch (jtInputColType[c]) {
+          case TSDB_DATA_TYPE_TIMESTAMP:
+            fbig = TIMESTAMP_FILTER_VALUE; lBig = *(int64_t*)lValue; rBig = *(int64_t*)rValue; break;
+          case TSDB_DATA_TYPE_INT:
+            fbig = INT_FILTER_VALUE;       lBig = *(int32_t*)lValue; rBig = *(int32_t*)rValue; break;
+          case TSDB_DATA_TYPE_BINARY:    lBinary = (char*)lValue; rBinary = (char*)rValue;      break;
+          case TSDB_DATA_TYPE_BIGINT:
+            fbig = BIGINT_FILTER_VALUE;    lBig = *(int64_t*)lValue; rBig = *(int64_t*)rValue; break;
+          default: break;
+        }
+
+        if (jtCtx.colEqNum && jtCtx.colEqList[c] &&
+            ((*(bool*)(lrow + c)) || (NULL == lBinary && lBig != rBig) ||
+             (NULL != lBinary && memcmp(lBinary, rBinary, JT_BINARY_MAX_LEN) != 0))) {
+          leftMatch = false; break;
+        }
+
+        if (jtCtx.colOnNum && jtCtx.colOnList[c] &&
+            ((*(bool*)(lrow + c)) || (NULL == lBinary && lBig <= rBig) ||
+             (NULL != lBinary && memcmp(lBinary, rBinary, JT_BINARY_MAX_LEN) <= 0))) {
+          leftMatch = false; break;
+        }
+
+        if (jtCtx.leftFilterNum && jtCtx.leftFilterColList[c] &&
+            ((*(bool*)(lrow + c)) || (NULL == lBinary && lBig <= fbig) ||
+             (NULL != lBinary && memcmp(lBinary, BINARY_FILTER_VALUE, JT_BINARY_MAX_LEN) <= 0))) {
+          filterOut = true;
+        }
+      }
+
+      if (leftMatch) { rightMatch = true; }
+      if (filterOut) continue;
+      if (leftMatch) { putMatchRowToRes(lrow, rrow, ALL_TABLE_COLS); }
+    }
+
+    if (!rightMatch && 0 == jtCtx.leftFilterNum) {
+      putNMatchRowToRes(rrow, MAX_SLOT_NUM, 0);
+    }
+  }
+}
+
+
+// RIGHT SEMI: mirrors semiJoinAppendEqGrpRes; outputs right rows that have at least one left match.
+void rightSemiJoinAppendEqGrpRes(int32_t leftGrpRows, int32_t rightGrpRows) {
+  bool rightMatch = false, leftMatch = false, filterOut = false;
+  void* lValue = NULL, *rValue = NULL;
+  int64_t lBig = 0, rBig = 0, fbig = 0;
+  int64_t rightTbOffset = jtCtx.blkRowSize * leftGrpRows;
+  char* lrow = NULL;
+  char* lBinary = NULL, *rBinary = NULL;
+
+  for (int32_t r = 0; r < rightGrpRows; ++r) {
+    char* rrow = jtCtx.colRowDataBuf + rightTbOffset + jtCtx.blkRowSize * r;
+
+    filterOut = false;
+    rightMatch = true;
+
+    for (int32_t c = 0; c < MAX_SLOT_NUM; ++c) {
+      rValue = rrow + jtCtx.colRowOffset[c];
+      lBinary = rBinary = NULL;
+
+      switch (jtInputColType[c]) {
+        case TSDB_DATA_TYPE_TIMESTAMP: fbig = TIMESTAMP_FILTER_VALUE; rBig = *(int64_t*)rValue; break;
+        case TSDB_DATA_TYPE_INT:       fbig = INT_FILTER_VALUE;       rBig = *(int32_t*)rValue; break;
+        case TSDB_DATA_TYPE_BINARY:    rBinary = (char*)rValue;                                  break;
+        case TSDB_DATA_TYPE_BIGINT:    fbig = BIGINT_FILTER_VALUE;    rBig = *(int64_t*)rValue; break;
+        default: break;
+      }
+
+      if (jtCtx.rightFilterNum && jtCtx.rightFilterColList[c] &&
+          ((*(bool*)(rrow + c)) || (NULL == rBinary && rBig <= fbig) ||
+           (NULL != rBinary && memcmp(rBinary, BINARY_FILTER_VALUE, JT_BINARY_MAX_LEN) <= 0))) {
+        filterOut = true;
+        break;
+      }
+
+      if (jtCtx.colEqNum && jtCtx.colEqList[c] && (*(bool*)(rrow + c))) { rightMatch = false; break; }
+      if (jtCtx.colOnNum && jtCtx.colOnList[c] && (*(bool*)(rrow + c))) { rightMatch = false; break; }
+    }
+
+    if (filterOut || !rightMatch) continue;
+
+    for (int32_t l = 0; l < leftGrpRows; ++l) {
+      lrow = jtCtx.colRowDataBuf + jtCtx.blkRowSize * l;
+      leftMatch = true;
+      filterOut = false;
+
+      for (int32_t c = 0; c < MAX_SLOT_NUM; ++c) {
+        rValue = rrow + jtCtx.colRowOffset[c];
+        if (!*(bool*)(lrow + c)) { lValue = lrow + jtCtx.colRowOffset[c]; }
+        lBinary = rBinary = NULL;
+
+        switch (jtInputColType[c]) {
+          case TSDB_DATA_TYPE_TIMESTAMP:
+            fbig = TIMESTAMP_FILTER_VALUE; lBig = *(int64_t*)lValue; rBig = *(int64_t*)rValue; break;
+          case TSDB_DATA_TYPE_INT:
+            fbig = INT_FILTER_VALUE;       lBig = *(int32_t*)lValue; rBig = *(int32_t*)rValue; break;
+          case TSDB_DATA_TYPE_BINARY:    lBinary = (char*)lValue; rBinary = (char*)rValue;      break;
+          case TSDB_DATA_TYPE_BIGINT:
+            fbig = BIGINT_FILTER_VALUE;    lBig = *(int64_t*)lValue; rBig = *(int64_t*)rValue; break;
+          default: break;
+        }
+
+        if (jtCtx.colEqNum && jtCtx.colEqList[c] &&
+            ((*(bool*)(lrow + c)) || (NULL == lBinary && lBig != rBig) ||
+             (NULL != lBinary && memcmp(lBinary, rBinary, JT_BINARY_MAX_LEN) != 0))) {
+          leftMatch = false; break;
+        }
+
+        if (jtCtx.colOnNum && jtCtx.colOnList[c] &&
+            ((*(bool*)(lrow + c)) || (NULL == lBinary && lBig <= rBig) ||
+             (NULL != lBinary && memcmp(lBinary, rBinary, JT_BINARY_MAX_LEN) <= 0))) {
+          leftMatch = false; break;
+        }
+        // leftFilterNum == 0 for RIGHT SEMI, so no left filter check needed
+      }
+
+      if (filterOut || !leftMatch) continue;
+      break;  // found the first matching left row
+    }
+
+    if (!filterOut && leftMatch) {
+      putMatchRowToRes(lrow, rrow, RIGHT_TABLE_COLS);
+    }
+  }
+}
+
+
+// RIGHT ANTI: mirrors antiJoinAppendEqGrpRes; outputs right rows that have NO left match.
+void rightAntiJoinAppendEqGrpRes(int32_t leftGrpRows, int32_t rightGrpRows) {
+  TD_ALWAYS_ASSERT(0 == jtCtx.leftFilterNum);
+
+  bool rightMatch = false, leftMatch = false, filterOut = false;
+  void* lValue = NULL, *rValue = NULL;
+  int64_t lBig = 0, rBig = 0, fbig = 0;
+  int64_t rightTbOffset = jtCtx.blkRowSize * leftGrpRows;
+  char* lBinary = NULL, *rBinary = NULL;
+
+  for (int32_t r = 0; r < rightGrpRows; ++r) {
+    char* rrow = jtCtx.colRowDataBuf + rightTbOffset + jtCtx.blkRowSize * r;
+
+    filterOut = false;
+    rightMatch = true;
+
+    for (int32_t c = 0; c < MAX_SLOT_NUM; ++c) {
+      rValue = rrow + jtCtx.colRowOffset[c];
+      lBinary = rBinary = NULL;
+
+      switch (jtInputColType[c]) {
+        case TSDB_DATA_TYPE_TIMESTAMP: fbig = TIMESTAMP_FILTER_VALUE; rBig = *(int64_t*)rValue; break;
+        case TSDB_DATA_TYPE_INT:       fbig = INT_FILTER_VALUE;       rBig = *(int32_t*)rValue; break;
+        case TSDB_DATA_TYPE_BINARY:    rBinary = (char*)rValue;                                  break;
+        case TSDB_DATA_TYPE_BIGINT:    fbig = BIGINT_FILTER_VALUE;    rBig = *(int64_t*)rValue; break;
+        default: break;
+      }
+
+      if (jtCtx.rightFilterNum && jtCtx.rightFilterColList[c] &&
+          ((*(bool*)(rrow + c)) || (NULL == rBinary && rBig <= fbig) ||
+           (NULL != rBinary && memcmp(rBinary, BINARY_FILTER_VALUE, JT_BINARY_MAX_LEN) <= 0))) {
+        filterOut = true;
+        break;
+      }
+
+      if (jtCtx.colEqNum && jtCtx.colEqList[c] && (*(bool*)(rrow + c))) { rightMatch = false; }
+      if (jtCtx.colOnNum && jtCtx.colOnList[c] && (*(bool*)(rrow + c))) { rightMatch = false; }
+    }
+
+    if (filterOut) continue;
+
+    if (!rightMatch) {
+      putNMatchRowToRes(rrow, MAX_SLOT_NUM, 0);
+      continue;
+    }
+
+    rightMatch = false;
+    for (int32_t l = 0; l < leftGrpRows; ++l) {
+      char* lrow = jtCtx.colRowDataBuf + jtCtx.blkRowSize * l;
+      leftMatch = true;
+
+      for (int32_t c = 0; c < MAX_SLOT_NUM; ++c) {
+        rValue = rrow + jtCtx.colRowOffset[c];
+        if (!*(bool*)(lrow + c)) { lValue = lrow + jtCtx.colRowOffset[c]; }
+        lBinary = rBinary = NULL;
+
+        switch (jtInputColType[c]) {
+          case TSDB_DATA_TYPE_TIMESTAMP:
+            lBig = *(int64_t*)lValue; rBig = *(int64_t*)rValue; break;
+          case TSDB_DATA_TYPE_INT:
+            lBig = *(int32_t*)lValue; rBig = *(int32_t*)rValue; break;
+          case TSDB_DATA_TYPE_BINARY: lBinary = (char*)lValue; rBinary = (char*)rValue; break;
+          case TSDB_DATA_TYPE_BIGINT:
+            lBig = *(int64_t*)lValue; rBig = *(int64_t*)rValue; break;
+          default: break;
+        }
+
+        if (jtCtx.colEqNum && jtCtx.colEqList[c] &&
+            ((*(bool*)(lrow + c)) || (NULL == lBinary && lBig != rBig) ||
+             (NULL != lBinary && memcmp(lBinary, rBinary, JT_BINARY_MAX_LEN) != 0))) {
+          leftMatch = false; break;
+        }
+
+        if (jtCtx.colOnNum && jtCtx.colOnList[c] &&
+            ((*(bool*)(lrow + c)) || (NULL == lBinary && lBig <= rBig) ||
+             (NULL != lBinary && memcmp(lBinary, rBinary, JT_BINARY_MAX_LEN) <= 0))) {
+          leftMatch = false; break;
+        }
+      }
+
+      if (leftMatch) { rightMatch = true; break; }
+    }
+
+    if (!rightMatch) {
+      putNMatchRowToRes(rrow, MAX_SLOT_NUM, 0);
+    }
+  }
+}
+
+
 void appendEqGrpRes(int32_t leftGrpRows, int32_t rightGrpRows) {
   switch (jtCtx.joinType) {
     case JOIN_TYPE_INNER:
@@ -3164,6 +3463,22 @@ void appendEqGrpRes(int32_t leftGrpRows, int32_t rightGrpRows) {
     case JOIN_TYPE_FULL:
       fullJoinAppendEqGrpRes(leftGrpRows, rightGrpRows);
       break;
+    case JOIN_TYPE_RIGHT: {
+      switch (jtCtx.subType) {
+        case JOIN_STYPE_OUTER:
+          rightJoinAppendEqGrpRes(leftGrpRows, rightGrpRows);
+          break;
+        case JOIN_STYPE_SEMI:
+          rightSemiJoinAppendEqGrpRes(leftGrpRows, rightGrpRows);
+          break;
+        case JOIN_STYPE_ANTI:
+          rightAntiJoinAppendEqGrpRes(leftGrpRows, rightGrpRows);
+          break;
+        default:
+          break;
+      }
+      break;
+    }
     default:
       break;
   }
@@ -3420,7 +3735,13 @@ void jtAppendNMatchHashGroupResRows(SSDataBlock* pBlk, int32_t rowIdx) {
 
   jtCopyRowData(pBlk, 0, rowIdx);
 
-  putNMatchRowToRes(jtCtx.colRowDataBuf, 0, MAX_SLOT_NUM);
+  // For RIGHT join the probe is the SQL-right block; its data belongs in the RIGHT output slots.
+  // For all other join types (LEFT/FULL) the probe is the SQL-left block → LEFT output slots.
+  if (JOIN_TYPE_RIGHT == jtCtx.joinType) {
+    putNMatchRowToRes(jtCtx.colRowDataBuf, MAX_SLOT_NUM, 0);
+  } else {
+    putNMatchRowToRes(jtCtx.colRowDataBuf, 0, MAX_SLOT_NUM);
+  }
 }
 
 void jtFltAppendEqHashGrpResRows(SArray* pRightBlkList, SSDataBlock* pLeftBlk, int32_t rowIdx, SArray* pBuildRows, int32_t* appendNum) {
@@ -3477,6 +3798,14 @@ void jtFltAppendEqHashGrpResRows(SArray* pRightBlkList, SSDataBlock* pLeftBlk, i
             default:
               break;
           }
+
+          // colOn semantics: SQL-left_col > SQL-right_col.
+          // For RIGHT join, probe (at pos0) is SQL-right and build (at pos_blkRowSize) is SQL-left,
+          // so swap the comparison sides to preserve the correct SQL_left > SQL_right check.
+          if (JOIN_TYPE_RIGHT == jtCtx.joinType) {
+            int64_t tmp = lBig; lBig = rBig; rBig = tmp;
+            char*  tmpB = lBinary; lBinary = rBinary; rBinary = tmpB;
+          }
           
           if ((NULL == lBinary && lBig <= rBig) || (NULL != lBinary && memcmp(lBinary, rBinary, JT_BINARY_MAX_LEN) <= 0)) {
             condMatch = false;
@@ -3491,7 +3820,13 @@ void jtFltAppendEqHashGrpResRows(SArray* pRightBlkList, SSDataBlock* pLeftBlk, i
       }
     }
     
-    putMatchRowToRes(jtCtx.colRowDataBuf, jtCtx.colRowDataBuf + jtCtx.blkRowSize, ALL_TABLE_COLS);   
+    // For RIGHT join: probe (at pos0) is SQL-right, build (at pos_blkRowSize) is SQL-left.
+    // Swap the arguments so SQL-left goes into left output slots and SQL-right into right slots.
+    if (JOIN_TYPE_RIGHT == jtCtx.joinType) {
+      putMatchRowToRes(jtCtx.colRowDataBuf + jtCtx.blkRowSize, jtCtx.colRowDataBuf, ALL_TABLE_COLS);
+    } else {
+      putMatchRowToRes(jtCtx.colRowDataBuf, jtCtx.colRowDataBuf + jtCtx.blkRowSize, ALL_TABLE_COLS);
+    }
     if (JOIN_TYPE_FULL == jtCtx.joinType) {
       jtHashMarkRightMatched(*pBlkIdx, *pRowIdx);
     }
@@ -3556,6 +3891,14 @@ void jtFltAppendNEqHashGrpResRows(SArray* pRightBlkList, SSDataBlock* pLeftBlk, 
             break;
           default:
             break;
+        }
+
+        // colOn semantics: SQL-left_col > SQL-right_col.
+        // For RIGHT join, probe (at pos0) is SQL-right and build (at pos_blkRowSize) is SQL-left,
+        // so swap the comparison sides to preserve the correct SQL_left > SQL_right check.
+        if (JOIN_TYPE_RIGHT == jtCtx.joinType) {
+          int64_t tmp = lBig; lBig = rBig; rBig = tmp;
+          char*  tmpB = lBinary; lBinary = rBinary; rBinary = tmpB;
         }
         
         if ((NULL == lBinary && lBig <= rBig) || (NULL != lBinary && memcmp(lBinary, rBinary, JT_BINARY_MAX_LEN) <= 0)) {
@@ -3691,6 +4034,24 @@ void jtHashJoinAppendResRows(SArray* pRightBlkList, SSDataBlock* pBlk, int32_t b
       }
       break;
     }
+    // For RIGHT joins the engine swaps probe/build so the LEFT join logic applies symmetrically.
+    // pBlk is the SQL-right probe block; pRightBlkList is the SQL-left build list.
+    case JOIN_TYPE_RIGHT: {
+      switch (jtCtx.subType) {
+        case JOIN_STYPE_OUTER:
+          jtHashLeftJoinAppendResRows(pRightBlkList, pBlk, blkIdx, pHash, keyBuf, rowIdx, nmatch);
+          break;
+        case JOIN_STYPE_SEMI:
+          jtHashSemiJoinAppendResRows(pRightBlkList, pBlk, blkIdx, pHash, keyBuf, rowIdx, nmatch);
+          break;
+        case JOIN_STYPE_ANTI:
+          jtHashAntiJoinAppendResRows(pRightBlkList, pBlk, blkIdx, pHash, keyBuf, rowIdx, nmatch);
+          break;
+        default:
+          break;
+      }
+      break;
+    }
     case JOIN_TYPE_FULL:
       jtHashLeftJoinAppendResRows(pRightBlkList, pBlk, blkIdx, pHash, keyBuf, rowIdx, nmatch);
       break;
@@ -3716,10 +4077,12 @@ void jtAppendHashFullRightNMatchRows(char* keyBuf) {
         continue;
       }
 
-      if (!jtCtx.mJoin && jtCtx.tbTimeRange && JT_BLK_HAS_TR(pBlk, ((SHashJoinPhysiNode*)jtCtx.pPlanNode)->timeRangeTarget) &&
-          jtFilterBlockRowsFromTimeRange(pBlk, r)) {
-        continue;
-      }
+      // Note: time-range-filtered right rows are intentionally NOT skipped here.
+      // The time range is part of the JOIN ON condition (not a pre-join filter), so
+      // right rows that fall outside the time range are simply un-matchable and must
+      // appear as (NULL_L, R) in the FULL OUTER JOIN output - exactly what the engine
+      // produces.  Skipping them here would cause the reference to undercount expected
+      // rows and trigger false "+rows" failures.
 
       if (jtFilterBlockRows(pBlk, r)) {
         continue;
@@ -3820,8 +4183,17 @@ void jtCalcHJoinResRows() {
     return;
   }
 
+  // For RIGHT join, the engine swaps probe/build sides:
+  //   probe = SQL-right table (rightBlkList, RIGHT_BLK_ID blocks)
+  //   build = SQL-left  table (leftBlkList,  LEFT_BLK_ID  blocks)
+  // Mirror the same swap here so the reference matches the engine perspective.
+  bool rightJoin = (JOIN_TYPE_RIGHT == jtCtx.joinType);
+  SArray* pBuildBlkList = rightJoin ? jtCtx.leftBlkList  : jtCtx.rightBlkList;
+  SArray* pProbeBlkList = rightJoin ? jtCtx.rightBlkList : jtCtx.leftBlkList;
+  int32_t buildTotalRows = rightJoin ? jtCtx.leftTotalRows : jtCtx.rightTotalRows;
+
   SSHashObj* pHash = NULL;
-  jtBuildHashFromBlkList(jtCtx.rightBlkList, jtCtx.rightTotalRows * 2, &pHash);
+  jtBuildHashFromBlkList(pBuildBlkList, buildTotalRows * 2, &pHash);
 
   if (JOIN_TYPE_FULL == jtCtx.joinType) {
     int32_t rightBlkNum = taosArrayGetSize(jtCtx.rightBlkList);
@@ -3850,11 +4222,11 @@ void jtCalcHJoinResRows() {
 
   char* keyBuf = (char*)taosMemoryMalloc(jtCtx.colEqHashKeySize);
   
-  int32_t blkNum = taosArrayGetSize(jtCtx.leftBlkList);
+  int32_t blkNum = taosArrayGetSize(pProbeBlkList);
   for (int32_t i = 0; i < blkNum; ++i) {
-    SSDataBlock* pBlk = (SSDataBlock*)taosArrayGetP(jtCtx.leftBlkList, i);
+    SSDataBlock* pBlk = (SSDataBlock*)taosArrayGetP(pProbeBlkList, i);
     
-    jtAppendBlkHashJoinResRows(jtCtx.rightBlkList, pBlk, i, pHash, keyBuf);
+    jtAppendBlkHashJoinResRows(pBuildBlkList, pBlk, i, pHash, keyBuf);
   }
 
   if (JOIN_TYPE_FULL == jtCtx.joinType) {
@@ -3903,6 +4275,11 @@ void createBothBlkRowsData(void) {
   } else {
     jtCtx.leftTotalRows = jtCtx.leftMaxRows * 0.5 + taosRand() % ((int32_t)(jtCtx.leftMaxRows * 0.5));
     jtCtx.rightTotalRows = jtCtx.rightMaxRows * 0.5 + taosRand() % ((int32_t)(jtCtx.rightMaxRows * 0.5));
+  }
+
+  if (jtCtx.forceFixedTotals) {
+    jtCtx.leftTotalRows = TMAX(0, jtCtx.fixedLeftTotalRows);
+    jtCtx.rightTotalRows = TMAX(0, jtCtx.fixedRightTotalRows);
   }
 
   int32_t minTotalRows = TMIN(jtCtx.leftTotalRows, jtCtx.rightTotalRows);
@@ -4533,9 +4910,9 @@ void jtInitLogFile() {
 
 void initJoinTest() {
   *(int16_t*)BINARY_FILTER_VALUE = JT_BINARY_MAX_LEN - 2;
-  jtCtrl.loopCnt = jtGetEnvInt("JT_LOOP_CNT", JT_MAX_LOOP, 1, JT_MAX_LOOP);
+  jtCtrl.loopCnt = jtGetEnvInt("JT_LOOP_CNT", 1000, 1, INT_MAX);
   jtCtrl.largeData = (0 != jtGetEnvInt("JT_LARGE_DATA", 0, 0, 1));
-  jtCtrl.strictHmCompare = (0 != jtGetEnvInt("JT_STRICT_HM_COMPARE", 0, 0, 1));
+  jtCtrl.strictHmCompare = (0 != jtGetEnvInt("JT_STRICT_HM_COMPARE", 1, 0, 1));
   bool verbose = (0 != jtGetEnvInt("JT_VERBOSE", 0, 0, 1));
   if (verbose) {
     jtCtrl.printTestInfo = true;
@@ -4607,7 +4984,9 @@ void handleTestDone() {
 
   jtCtx.inputStat = 0;
   jtCtx.colEqNum = 0;
+  TAOS_MEMSET(jtCtx.colEqList, 0, sizeof(jtCtx.colEqList));
   jtCtx.exprEqNum = 0;
+  TAOS_MEMSET(jtCtx.exprEqList, 0, sizeof(jtCtx.exprEqList));
 }
 
 void jtLaunchJoin(SSDataBlock** ppBlk) {
@@ -4692,6 +5071,192 @@ void handleCaseEnd() {
 
 }  // namespace
 
+static void jtResetCoverageOverrides(void) {
+  jtCtx.forceFixedTotals = false;
+  jtCtx.fixedLeftTotalRows = 0;
+  jtCtx.fixedRightTotalRows = 0;
+  jtCtx.forceTbTimeRange = false;
+  jtCtx.fixedTbTimeRange = false;
+}
+
+static void jtHmEnsureHash(SSHashObj** ppHash) {
+  if (*ppHash == NULL) {
+    *ppHash = tSimpleHashInit(jtDefaultHashCapacity(), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+    TD_ALWAYS_ASSERT(*ppHash);
+  } else {
+    tSimpleHashClear(*ppHash);
+  }
+}
+
+static void jtHmAssertRowsEqual(const char* label) {
+  int32_t iter = 0;
+  void* p = NULL;
+  void* key = NULL;
+  size_t klen = 0;
+  bool anyFailure = false;
+
+  while (NULL != (p = tSimpleHashIterate(jtCtx.pMergeActualRows, p, &iter))) {
+    key = tSimpleHashGetKey(p, &klen);
+    int32_t* hCnt = (int32_t*)tSimpleHashGet(jtCtx.pHashActualRows, key, klen);
+    if (hCnt == NULL || *(int32_t*)p != *hCnt) {
+      anyFailure = true;
+      break;
+    }
+  }
+
+  iter = 0;
+  p = NULL;
+  while (!anyFailure && NULL != (p = tSimpleHashIterate(jtCtx.pHashActualRows, p, &iter))) {
+    key = tSimpleHashGetKey(p, &klen);
+    int32_t* mCnt = (int32_t*)tSimpleHashGet(jtCtx.pMergeActualRows, key, klen);
+    if (mCnt == NULL || *(int32_t*)p != *mCnt) {
+      anyFailure = true;
+      break;
+    }
+  }
+
+  ASSERT_FALSE(anyFailure) << label;
+}
+
+static void jtRunHmStrictCompareCase(const char* taskName, const char* joinTag, EJoinType joinType,
+                                     EJoinSubType subType, uint32_t baseSeed, bool enforceRefValidation = true) {
+  SJoinTestParam param;
+  TAOS_MEMSET(&param, 0, sizeof(param));
+  SExecTaskInfo* pTask = createDummyTaskInfo((char*)taskName);
+  TD_ALWAYS_ASSERT(pTask);
+
+  param.pTask = pTask;
+  param.joinType = joinType;
+  param.subType = subType;
+  param.grpJoin = false;
+
+  int32_t conds[] = {TEST_NO_COND, TEST_EQ_COND, TEST_EQ_EXPR, TEST_ON_COND, TEST_FULL_COND};
+  int32_t condNum = (int32_t)(sizeof(conds) / sizeof(conds[0]));
+  int32_t supportedCondIdx = 0;
+
+  for (int32_t c = 0; c < condNum; ++c) {
+    param.cond = conds[c];
+    bool mergeSupported = (TEST_EQ_EXPR != param.cond);
+    bool hashSupported = (TEST_NO_COND != param.cond && TEST_ON_COND != param.cond);
+    if (!mergeSupported || !hashSupported) {
+      JT_PRINTF("strict hm compare skip %s cond=%d (mergeSupported=%d hashSupported=%d)", joinTag, param.cond,
+                mergeSupported ? 1 : 0, hashSupported ? 1 : 0);
+      continue;
+    }
+
+    for (jtCtx.loopIdx = 0; jtCtx.loopIdx < jtCtrl.loopCnt; ++jtCtx.loopIdx) {
+      for (int32_t asc = 0; asc < 2; ++asc) {
+        param.asc = (0 != asc);
+        for (int32_t filter = 0; filter < 2; ++filter) {
+          param.filter = (0 != filter);
+
+          uint32_t runSeed = baseSeed + (uint32_t)(supportedCondIdx * 100 + asc * 10 + filter);
+          uint32_t dataSeed = runSeed + 10000;
+
+          jtCtx.strictCompareRun = true;
+          jtCtx.strictReuseProjection = false;
+          jtCtx.strictProjectionSaved = false;
+          jtCtx.strictReuseOnCond = false;
+          jtCtx.strictOnCondSaved = false;
+          jtCtx.strictReuseEqCond = false;
+          jtCtx.strictEqCondSaved = false;
+          jtCtx.strictReuseFilter = false;
+          jtCtx.strictFilterSaved = false;
+          jtCtx.useFixedDataSeed = true;
+          jtCtx.fixedDataSeed = dataSeed;
+
+          jtHmEnsureHash(&jtCtx.pMergeActualRows);
+          jtCtx.captureActualRows = true;
+          jtCtx.pActiveActualRows = jtCtx.pMergeActualRows;
+          taosSeedRand(runSeed);
+          runSingleMJoinTest((char*)"hmStrictCompare:merge", &param);
+          int32_t mergeRefCount = jtRes.rowNum;
+          if (enforceRefValidation) {
+            ASSERT_TRUE(jtRes.succeed) << "merge expected validation failed: cond=" << param.cond
+                     << " loop=" << jtCtx.loopIdx << " asc=" << asc << " filter=" << filter
+                     << " seed=" << runSeed;
+          }
+
+          jtHmEnsureHash(&jtCtx.pHashActualRows);
+          jtCtx.strictReuseProjection = true;
+          jtCtx.strictReuseOnCond = true;
+          jtCtx.strictReuseEqCond = true;
+          jtCtx.strictReuseFilter = true;
+          jtCtx.captureActualRows = true;
+          jtCtx.pActiveActualRows = jtCtx.pHashActualRows;
+          taosSeedRand(runSeed);
+          runSingleHJoinTest((char*)"hmStrictCompare:hash", &param);
+          int32_t hashRefCount = jtRes.rowNum;
+          if (enforceRefValidation) {
+            ASSERT_TRUE(jtRes.succeed) << "hash expected validation failed: cond=" << param.cond
+                     << " loop=" << jtCtx.loopIdx << " asc=" << asc << " filter=" << filter
+                     << " seed=" << runSeed;
+          }
+
+          jtCtx.captureActualRows = false;
+          jtCtx.pActiveActualRows = NULL;
+          jtCtx.strictReuseProjection = false;
+          jtCtx.strictProjectionSaved = false;
+          jtCtx.strictReuseOnCond = false;
+          jtCtx.strictOnCondSaved = false;
+          jtCtx.strictReuseEqCond = false;
+          jtCtx.strictEqCondSaved = false;
+          jtCtx.strictReuseFilter = false;
+          jtCtx.strictFilterSaved = false;
+          jtCtx.useFixedDataSeed = false;
+          jtCtx.strictCompareRun = false;
+
+          char label[256] = {0};
+          (void)snprintf(label, sizeof(label), "%s cond=%d loop=%d asc=%d filter=%d seed=%u mergeRef=%d hashRef=%d mActual=%d hActual=%d",
+                        joinTag, param.cond, jtCtx.loopIdx, asc, filter, runSeed,
+                        mergeRefCount, hashRefCount,
+                        (int32_t)tSimpleHashGetSize(jtCtx.pMergeActualRows),
+                        (int32_t)tSimpleHashGetSize(jtCtx.pHashActualRows));
+          jtHmAssertRowsEqual(label);
+        }
+      }
+    }
+
+    ++supportedCondIdx;
+  }
+
+  taosMemoryFree(pTask);
+}
+
+static SSDataBlock* jtCreateTsTestBlock(const int64_t* vals, int32_t rows, bool withOutCol) {
+  SSDataBlock* pBlk = NULL;
+  TD_ALWAYS_ASSERT(0 == createDataBlock(&pBlk));
+
+  SColumnInfoData inCol = createColumnInfoData(TSDB_DATA_TYPE_TIMESTAMP, tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes, 0);
+  TD_ALWAYS_ASSERT(0 == blockDataAppendColInfo(pBlk, &inCol));
+  if (withOutCol) {
+    SColumnInfoData outCol = createColumnInfoData(TSDB_DATA_TYPE_TIMESTAMP, tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes, 1);
+    TD_ALWAYS_ASSERT(0 == blockDataAppendColInfo(pBlk, &outCol));
+  }
+
+  TD_ALWAYS_ASSERT(0 == blockDataEnsureCapacity(pBlk, rows));
+  SColumnInfoData* pIn = (SColumnInfoData*)taosArrayGet(pBlk->pDataBlock, 0);
+  SColumnInfoData* pOut = withOutCol ? (SColumnInfoData*)taosArrayGet(pBlk->pDataBlock, 1) : NULL;
+
+  for (int32_t i = 0; i < rows; ++i) {
+    int64_t v = vals[i];
+    TD_ALWAYS_ASSERT(0 == colDataSetVal(pIn, pBlk->info.rows, (char*)&v, false));
+    if (pOut) {
+      int64_t zero = 0;
+      TD_ALWAYS_ASSERT(0 == colDataSetVal(pOut, pBlk->info.rows, (char*)&zero, false));
+    }
+    pBlk->info.rows += 1;
+  }
+
+  return pBlk;
+}
+
+static int32_t jtGetNextNullBlock(SOperatorInfo* pDownstream, SSDataBlock** ppRes) {
+  (void)pDownstream;
+  *ppRes = NULL;
+  return TSDB_CODE_SUCCESS;
+}
+
 #if 1
 #if 1
 TEST(mInnerJoin, noCondTest) {
@@ -4719,6 +5284,7 @@ TEST(mInnerJoin, noCondTest) {
   printStatInfo(caseName); 
   taosMemoryFree(pTask);
 }
+
 #endif
 
 #if 1
@@ -5799,707 +6365,6 @@ TEST(hLeftSemiJoin, fullCondTest) {
 #endif
 #endif
 
-#if 1
-TEST(hmStrictCompare, fullOuterJoinHashMerge) {
-  if (!jtCtrl.strictHmCompare) {
-    GTEST_SKIP() << "set JT_STRICT_HM_COMPARE=1 to enable strict hash/merge comparison";
-  }
-
-  auto ensureHash = [](SSHashObj** ppHash) {
-    if (*ppHash == NULL) {
-      *ppHash = tSimpleHashInit(jtDefaultHashCapacity(), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
-      TD_ALWAYS_ASSERT(*ppHash);
-    } else {
-      tSimpleHashClear(*ppHash);
-    }
-  };
-
-  auto assertEqual = [](const char* label) {
-    int32_t iter = 0;
-    void* p = NULL;
-    void* key = NULL;
-    size_t klen = 0;
-    bool anyFailure = false;
-
-    // Helper: decode resColBuf and print human-readable columns
-    auto dumpKeyDecoded = [](const char* prefix, const void* kptr, size_t ksize, int32_t cnt) {
-      char hex[512] = {0};
-      int32_t n = 0;
-      const char* b = (const char*)kptr;
-      for (size_t i = 0; i < ksize && n < (int32_t)sizeof(hex) - 4; ++i) {
-        n += snprintf(hex + n, 5, "%02X ", (uint8_t)b[i]);
-      }
-      JT_PRINTF("%s cnt=%d resColNum=%d resColSize=%d bytes=[%s]\n",
-                prefix, cnt, jtCtx.resColNum, jtCtx.resColSize, hex);
-      // Decode null flags (first MAX_SLOT_NUM*2 bytes are bool null flags)
-      int32_t nullFlagBytes = MAX_SLOT_NUM * 2;
-      JT_PRINTF("  nullFlags(L)=[");
-      for (int32_t i = 0; i < MAX_SLOT_NUM && nullFlagBytes <= (int32_t)ksize; ++i) {
-        JT_PRINTF("%d", (uint8_t)b[i] ? 1 : 0);
-      }
-      JT_PRINTF("] nullFlags(R)=[");
-      for (int32_t i = MAX_SLOT_NUM; i < MAX_SLOT_NUM * 2 && i < (int32_t)ksize; ++i) {
-        JT_PRINTF("%d", (uint8_t)b[i] ? 1 : 0);
-      }
-      JT_PRINTF("]\n");
-      // Decode actual column values starting at offset nullFlagBytes
-      int32_t off = nullFlagBytes;
-      for (int32_t ci = 0; ci < jtCtx.resColNum && off < (int32_t)ksize; ++ci) {
-        int32_t slot = jtCtx.resColInSlot[ci];
-        int32_t sslot = slot % MAX_SLOT_NUM;
-        bool isNull = (uint8_t)b[slot] != 0;
-        if (isNull) {
-          JT_PRINTF("  col[%d](slot=%d) = NULL\n", ci, slot);
-          off += JT_INPUT_COL_BYTES(sslot);
-          continue;
-        }
-        switch (jtInputColType[sslot]) {
-          case TSDB_DATA_TYPE_TIMESTAMP:
-          case TSDB_DATA_TYPE_BIGINT:
-            if (off + (int32_t)sizeof(int64_t) <= (int32_t)ksize) {
-              int64_t v; memcpy(&v, b + off, sizeof(v));
-              JT_PRINTF("  col[%d](slot=%d) = %" PRId64 "\n", ci, slot, v);
-            }
-            off += (int32_t)sizeof(int64_t);
-            break;
-          case TSDB_DATA_TYPE_INT:
-            if (off + (int32_t)sizeof(int32_t) <= (int32_t)ksize) {
-              int32_t v; memcpy(&v, b + off, sizeof(v));
-              JT_PRINTF("  col[%d](slot=%d) = %d\n", ci, slot, v);
-            }
-            off += (int32_t)sizeof(int32_t);
-            break;
-          case TSDB_DATA_TYPE_BINARY:
-            if (off + JT_BINARY_MAX_LEN <= (int32_t)ksize) {
-              JT_PRINTF("  col[%d](slot=%d) = BIN[%02X%02X%02X%02X%02X]\n", ci, slot,
-                (uint8_t)b[off], (uint8_t)b[off+1], (uint8_t)b[off+2], (uint8_t)b[off+3], (uint8_t)b[off+4]);
-            }
-            off += JT_BINARY_MAX_LEN;
-            break;
-          default:
-            off += JT_INPUT_COL_BYTES(sslot);
-            break;
-        }
-      }
-    };
-
-    // Dump all rows in both sides for debugging
-    auto dumpAllRows = [&dumpKeyDecoded]() {
-      JT_PRINTF("=== MERGE rows (total=%d) ===\n", (int32_t)tSimpleHashGetSize(jtCtx.pMergeActualRows));
-      int32_t iter2 = 0; void* p2 = NULL;
-      while (NULL != (p2 = tSimpleHashIterate(jtCtx.pMergeActualRows, p2, &iter2))) {
-        size_t kl = 0; void* k = tSimpleHashGetKey(p2, &kl);
-        dumpKeyDecoded("  M", k, kl, *(int32_t*)p2);
-      }
-      JT_PRINTF("=== HASH rows (total=%d) ===\n", (int32_t)tSimpleHashGetSize(jtCtx.pHashActualRows));
-      iter2 = 0; p2 = NULL;
-      while (NULL != (p2 = tSimpleHashIterate(jtCtx.pHashActualRows, p2, &iter2))) {
-        size_t kl = 0; void* k = tSimpleHashGetKey(p2, &kl);
-        dumpKeyDecoded("  H", k, kl, *(int32_t*)p2);
-      }
-    };
-
-    while (NULL != (p = tSimpleHashIterate(jtCtx.pMergeActualRows, p, &iter))) {
-      key = tSimpleHashGetKey(p, &klen);
-      int32_t* hCnt = (int32_t*)tSimpleHashGet(jtCtx.pHashActualRows, key, klen);
-      if (hCnt == NULL) {
-        if (!anyFailure) { dumpAllRows(); }
-        anyFailure = true;
-        JT_PRINTF("missing-in-hash: klen=%zu mergeRows=%d hashRows=%d\n", klen,
-                  (int32_t)tSimpleHashGetSize(jtCtx.pMergeActualRows),
-                  (int32_t)tSimpleHashGetSize(jtCtx.pHashActualRows));
-      } else if (*(int32_t*)p != *hCnt) {
-        if (!anyFailure) { dumpAllRows(); }
-        anyFailure = true;
-        JT_PRINTF("count-mismatch merge=%d hash=%d\n", *(int32_t*)p, *hCnt);
-      }
-    }
-
-    iter = 0;
-    p = NULL;
-    while (NULL != (p = tSimpleHashIterate(jtCtx.pHashActualRows, p, &iter))) {
-      key = tSimpleHashGetKey(p, &klen);
-      int32_t* mCnt = (int32_t*)tSimpleHashGet(jtCtx.pMergeActualRows, key, klen);
-      if (mCnt == NULL) {
-        if (!anyFailure) { dumpAllRows(); }
-        anyFailure = true;
-        JT_PRINTF("missing-in-merge: klen=%zu mergeRows=%d hashRows=%d\n", klen,
-                  (int32_t)tSimpleHashGetSize(jtCtx.pMergeActualRows),
-                  (int32_t)tSimpleHashGetSize(jtCtx.pHashActualRows));
-      } else if (*(int32_t*)p != *mCnt) {
-        if (!anyFailure) { dumpAllRows(); }
-        anyFailure = true;
-        JT_PRINTF("count-mismatch hash=%d merge=%d\n", *(int32_t*)p, *mCnt);
-      }
-    }
-
-    ASSERT_FALSE(anyFailure) << label << ": merge/hash output mismatch (see above)";
-  };
-
-  SJoinTestParam param;
-  TAOS_MEMSET(&param, 0, sizeof(param));
-  SExecTaskInfo* pTask = createDummyTaskInfo((char*)"hmStrictCompare:fullOuterJoinHashMerge");
-  TD_ALWAYS_ASSERT(pTask);
-
-  param.pTask = pTask;
-  param.joinType = JOIN_TYPE_FULL;
-  param.subType = JOIN_STYPE_OUTER;
-  param.grpJoin = false;
-
-  int32_t conds[] = {TEST_NO_COND, TEST_EQ_COND, TEST_EQ_EXPR, TEST_ON_COND, TEST_FULL_COND};
-  uint32_t baseSeed = 3001;
-
-  int32_t condNum = (int32_t)(sizeof(conds) / sizeof(conds[0]));
-  int32_t supportedCondIdx = 0;
-  for (int32_t c = 0; c < condNum; ++c) {
-    param.cond = conds[c];
-    bool mergeSupported = (TEST_EQ_EXPR != param.cond);
-    bool hashSupported = (TEST_NO_COND != param.cond && TEST_ON_COND != param.cond);
-    if (!mergeSupported || !hashSupported) {
-      JT_PRINTF("strict hm compare skip FULL cond=%d (mergeSupported=%d hashSupported=%d)", param.cond,
-                mergeSupported ? 1 : 0, hashSupported ? 1 : 0);
-      continue;
-    }
-
-    for (jtCtx.loopIdx = 0; jtCtx.loopIdx < jtCtrl.loopCnt; ++jtCtx.loopIdx) {
-      for (int32_t asc = 0; asc < 2; ++asc) {
-        param.asc = (0 != asc);
-        for (int32_t filter = 0; filter < 2; ++filter) {
-          param.filter = (0 != filter);
-
-          uint32_t runSeed = baseSeed + (uint32_t)(supportedCondIdx * 100 + asc * 10 + filter);
-          uint32_t dataSeed = runSeed + 10000;
-
-          jtCtx.strictCompareRun = true;
-          jtCtx.strictReuseProjection = false;
-          jtCtx.strictProjectionSaved = false;
-          jtCtx.strictReuseOnCond = false;
-          jtCtx.strictOnCondSaved = false;
-          jtCtx.strictReuseEqCond = false;
-          jtCtx.strictEqCondSaved = false;
-          jtCtx.strictReuseFilter = false;
-          jtCtx.strictFilterSaved = false;
-          jtCtx.useFixedDataSeed = true;
-          jtCtx.fixedDataSeed = dataSeed;
-
-          ensureHash(&jtCtx.pMergeActualRows);
-          jtCtx.captureActualRows = true;
-          jtCtx.pActiveActualRows = jtCtx.pMergeActualRows;
-          taosSeedRand(runSeed);
-          runSingleMJoinTest((char*)"hmStrictCompare:merge", &param);
-          int32_t mergeRefCount = jtRes.rowNum;
-          ASSERT_TRUE(jtRes.succeed) << "merge expected validation failed: cond=" << param.cond
-                   << " loop=" << jtCtx.loopIdx << " asc=" << asc << " filter=" << filter
-                   << " seed=" << runSeed;
-
-          ensureHash(&jtCtx.pHashActualRows);
-          jtCtx.strictReuseProjection = true;
-          jtCtx.strictReuseOnCond = true;
-          jtCtx.strictReuseEqCond = true;
-          jtCtx.strictReuseFilter = true;
-          jtCtx.captureActualRows = true;
-          jtCtx.pActiveActualRows = jtCtx.pHashActualRows;
-          taosSeedRand(runSeed);
-          runSingleHJoinTest((char*)"hmStrictCompare:hash", &param);
-          int32_t hashRefCount = jtRes.rowNum;
-          ASSERT_TRUE(jtRes.succeed) << "hash expected validation failed: cond=" << param.cond
-                   << " loop=" << jtCtx.loopIdx << " asc=" << asc << " filter=" << filter
-                   << " seed=" << runSeed;
-
-          jtCtx.captureActualRows = false;
-          jtCtx.pActiveActualRows = NULL;
-          jtCtx.strictReuseProjection = false;
-          jtCtx.strictProjectionSaved = false;
-          jtCtx.strictReuseOnCond = false;
-          jtCtx.strictOnCondSaved = false;
-          jtCtx.strictReuseEqCond = false;
-          jtCtx.strictEqCondSaved = false;
-          jtCtx.strictReuseFilter = false;
-          jtCtx.strictFilterSaved = false;
-          jtCtx.useFixedDataSeed = false;
-          jtCtx.strictCompareRun = false;
-
-          char label[256] = {0};
-          (void)snprintf(label, sizeof(label), "FULL cond=%d loop=%d asc=%d filter=%d seed=%u mergeRef=%d hashRef=%d mActual=%d hActual=%d",
-                        param.cond, jtCtx.loopIdx, asc, filter, runSeed,
-                        mergeRefCount, hashRefCount,
-                        (int32_t)tSimpleHashGetSize(jtCtx.pMergeActualRows),
-                        (int32_t)tSimpleHashGetSize(jtCtx.pHashActualRows));
-          assertEqual(label);
-        }
-      }
-    }
-
-    ++supportedCondIdx;
-  }
-
-  taosMemoryFree(pTask);
-}
-
-TEST(hmStrictCompare, innerJoinHashMerge) {
-  if (!jtCtrl.strictHmCompare) {
-    GTEST_SKIP() << "set JT_STRICT_HM_COMPARE=1 to enable strict hash/merge comparison";
-  }
-
-  auto ensureHash = [](SSHashObj** ppHash) {
-    if (*ppHash == NULL) {
-      *ppHash = tSimpleHashInit(jtDefaultHashCapacity(), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
-      TD_ALWAYS_ASSERT(*ppHash);
-    } else {
-      tSimpleHashClear(*ppHash);
-    }
-  };
-
-  auto assertEqual = [](const char* label) {
-    int32_t iter = 0;
-    void* p = NULL;
-    void* key = NULL;
-    size_t klen = 0;
-    bool anyFailure = false;
-
-    auto dumpKeyDecoded = [](const char* prefix, const void* kptr, size_t ksize, int32_t cnt) {
-      char hex[512] = {0};
-      int32_t n = 0;
-      const char* b = (const char*)kptr;
-      for (size_t i = 0; i < ksize && n < (int32_t)sizeof(hex) - 4; ++i) {
-        n += snprintf(hex + n, 5, "%02X ", (uint8_t)b[i]);
-      }
-      JT_PRINTF("%s cnt=%d resColNum=%d resColSize=%d bytes=[%s]\n",
-                prefix, cnt, jtCtx.resColNum, jtCtx.resColSize, hex);
-      int32_t nullFlagBytes = MAX_SLOT_NUM * 2;
-      JT_PRINTF("  nullFlags(L)=[");
-      for (int32_t i = 0; i < MAX_SLOT_NUM && nullFlagBytes <= (int32_t)ksize; ++i) {
-        JT_PRINTF("%d", (uint8_t)b[i] ? 1 : 0);
-      }
-      JT_PRINTF("] nullFlags(R)=[");
-      for (int32_t i = MAX_SLOT_NUM; i < MAX_SLOT_NUM * 2 && i < (int32_t)ksize; ++i) {
-        JT_PRINTF("%d", (uint8_t)b[i] ? 1 : 0);
-      }
-      JT_PRINTF("]\n");
-      int32_t off = nullFlagBytes;
-      for (int32_t ci = 0; ci < jtCtx.resColNum && off < (int32_t)ksize; ++ci) {
-        int32_t slot = jtCtx.resColInSlot[ci];
-        int32_t sslot = slot % MAX_SLOT_NUM;
-        bool isNull = (uint8_t)b[slot] != 0;
-        if (isNull) {
-          JT_PRINTF("  col[%d](slot=%d) = NULL\n", ci, slot);
-          off += JT_INPUT_COL_BYTES(sslot);
-          continue;
-        }
-        switch (jtInputColType[sslot]) {
-          case TSDB_DATA_TYPE_TIMESTAMP:
-          case TSDB_DATA_TYPE_BIGINT:
-            if (off + (int32_t)sizeof(int64_t) <= (int32_t)ksize) {
-              int64_t v; memcpy(&v, b + off, sizeof(v));
-              JT_PRINTF("  col[%d](slot=%d) = %" PRId64 "\n", ci, slot, v);
-            }
-            off += (int32_t)sizeof(int64_t);
-            break;
-          case TSDB_DATA_TYPE_INT:
-            if (off + (int32_t)sizeof(int32_t) <= (int32_t)ksize) {
-              int32_t v; memcpy(&v, b + off, sizeof(v));
-              JT_PRINTF("  col[%d](slot=%d) = %d\n", ci, slot, v);
-            }
-            off += (int32_t)sizeof(int32_t);
-            break;
-          case TSDB_DATA_TYPE_BINARY:
-            if (off + JT_BINARY_MAX_LEN <= (int32_t)ksize) {
-              JT_PRINTF("  col[%d](slot=%d) = BIN[%02X%02X%02X%02X%02X]\n", ci, slot,
-                (uint8_t)b[off], (uint8_t)b[off+1], (uint8_t)b[off+2], (uint8_t)b[off+3], (uint8_t)b[off+4]);
-            }
-            off += JT_BINARY_MAX_LEN;
-            break;
-          default:
-            off += JT_INPUT_COL_BYTES(sslot);
-            break;
-        }
-      }
-    };
-
-    auto dumpAllRows = [&dumpKeyDecoded]() {
-      JT_PRINTF("=== MERGE rows (total=%d) ===\n", (int32_t)tSimpleHashGetSize(jtCtx.pMergeActualRows));
-      int32_t iter2 = 0; void* p2 = NULL;
-      while (NULL != (p2 = tSimpleHashIterate(jtCtx.pMergeActualRows, p2, &iter2))) {
-        size_t kl = 0; void* k = tSimpleHashGetKey(p2, &kl);
-        dumpKeyDecoded("  M", k, kl, *(int32_t*)p2);
-      }
-      JT_PRINTF("=== HASH rows (total=%d) ===\n", (int32_t)tSimpleHashGetSize(jtCtx.pHashActualRows));
-      iter2 = 0; p2 = NULL;
-      while (NULL != (p2 = tSimpleHashIterate(jtCtx.pHashActualRows, p2, &iter2))) {
-        size_t kl = 0; void* k = tSimpleHashGetKey(p2, &kl);
-        dumpKeyDecoded("  H", k, kl, *(int32_t*)p2);
-      }
-    };
-
-    while (NULL != (p = tSimpleHashIterate(jtCtx.pMergeActualRows, p, &iter))) {
-      key = tSimpleHashGetKey(p, &klen);
-      int32_t* hCnt = (int32_t*)tSimpleHashGet(jtCtx.pHashActualRows, key, klen);
-      if (hCnt == NULL) {
-        if (!anyFailure) { dumpAllRows(); }
-        anyFailure = true;
-        JT_PRINTF("missing-in-hash: klen=%zu mergeRows=%d hashRows=%d\n", klen,
-                  (int32_t)tSimpleHashGetSize(jtCtx.pMergeActualRows),
-                  (int32_t)tSimpleHashGetSize(jtCtx.pHashActualRows));
-      } else if (*(int32_t*)p != *hCnt) {
-        if (!anyFailure) { dumpAllRows(); }
-        anyFailure = true;
-        JT_PRINTF("count-mismatch merge=%d hash=%d\n", *(int32_t*)p, *hCnt);
-      }
-    }
-
-    iter = 0;
-    p = NULL;
-    while (NULL != (p = tSimpleHashIterate(jtCtx.pHashActualRows, p, &iter))) {
-      key = tSimpleHashGetKey(p, &klen);
-      int32_t* mCnt = (int32_t*)tSimpleHashGet(jtCtx.pMergeActualRows, key, klen);
-      if (mCnt == NULL) {
-        if (!anyFailure) { dumpAllRows(); }
-        anyFailure = true;
-        JT_PRINTF("missing-in-merge: klen=%zu mergeRows=%d hashRows=%d\n", klen,
-                  (int32_t)tSimpleHashGetSize(jtCtx.pMergeActualRows),
-                  (int32_t)tSimpleHashGetSize(jtCtx.pHashActualRows));
-      } else if (*(int32_t*)p != *mCnt) {
-        if (!anyFailure) { dumpAllRows(); }
-        anyFailure = true;
-        JT_PRINTF("count-mismatch hash=%d merge=%d\n", *(int32_t*)p, *mCnt);
-      }
-    }
-
-    ASSERT_FALSE(anyFailure) << label << ": merge/hash output mismatch (see above)";
-  };
-
-  SJoinTestParam param;
-  TAOS_MEMSET(&param, 0, sizeof(param));
-  SExecTaskInfo* pTask = createDummyTaskInfo((char*)"hmStrictCompare:innerJoinHashMerge");
-  TD_ALWAYS_ASSERT(pTask);
-
-  param.pTask = pTask;
-  param.joinType = JOIN_TYPE_INNER;
-  param.subType = JOIN_STYPE_NONE;
-  param.grpJoin = false;
-
-  int32_t conds[] = {TEST_NO_COND, TEST_EQ_COND, TEST_EQ_EXPR, TEST_ON_COND, TEST_FULL_COND};
-  uint32_t baseSeed = 4001;
-
-  int32_t condNum = (int32_t)(sizeof(conds) / sizeof(conds[0]));
-  int32_t supportedCondIdx = 0;
-  for (int32_t c = 0; c < condNum; ++c) {
-    param.cond = conds[c];
-    bool mergeSupported = (TEST_EQ_EXPR != param.cond);
-    bool hashSupported = (TEST_NO_COND != param.cond && TEST_ON_COND != param.cond);
-    if (!mergeSupported || !hashSupported) {
-      JT_PRINTF("strict hm compare skip INNER cond=%d (mergeSupported=%d hashSupported=%d)", param.cond,
-                mergeSupported ? 1 : 0, hashSupported ? 1 : 0);
-      continue;
-    }
-
-    for (jtCtx.loopIdx = 0; jtCtx.loopIdx < jtCtrl.loopCnt; ++jtCtx.loopIdx) {
-      for (int32_t asc = 0; asc < 2; ++asc) {
-        param.asc = (0 != asc);
-        for (int32_t filter = 0; filter < 2; ++filter) {
-          param.filter = (0 != filter);
-
-          uint32_t runSeed = baseSeed + (uint32_t)(supportedCondIdx * 100 + asc * 10 + filter);
-          uint32_t dataSeed = runSeed + 10000;
-
-          jtCtx.strictCompareRun = true;
-          jtCtx.strictReuseProjection = false;
-          jtCtx.strictProjectionSaved = false;
-          jtCtx.strictReuseOnCond = false;
-          jtCtx.strictOnCondSaved = false;
-          jtCtx.strictReuseEqCond = false;
-          jtCtx.strictEqCondSaved = false;
-          jtCtx.strictReuseFilter = false;
-          jtCtx.strictFilterSaved = false;
-          jtCtx.useFixedDataSeed = true;
-          jtCtx.fixedDataSeed = dataSeed;
-
-          ensureHash(&jtCtx.pMergeActualRows);
-          jtCtx.captureActualRows = true;
-          jtCtx.pActiveActualRows = jtCtx.pMergeActualRows;
-          taosSeedRand(runSeed);
-          runSingleMJoinTest((char*)"hmStrictCompare:merge", &param);
-          int32_t mergeRefCount = jtRes.rowNum;
-          ASSERT_TRUE(jtRes.succeed) << "merge expected validation failed: cond=" << param.cond
-                   << " loop=" << jtCtx.loopIdx << " asc=" << asc << " filter=" << filter
-                   << " seed=" << runSeed;
-
-          ensureHash(&jtCtx.pHashActualRows);
-          jtCtx.strictReuseProjection = true;
-          jtCtx.strictReuseOnCond = true;
-          jtCtx.strictReuseEqCond = true;
-          jtCtx.strictReuseFilter = true;
-          jtCtx.captureActualRows = true;
-          jtCtx.pActiveActualRows = jtCtx.pHashActualRows;
-          taosSeedRand(runSeed);
-          runSingleHJoinTest((char*)"hmStrictCompare:hash", &param);
-          int32_t hashRefCount = jtRes.rowNum;
-          ASSERT_TRUE(jtRes.succeed) << "hash expected validation failed: cond=" << param.cond
-                   << " loop=" << jtCtx.loopIdx << " asc=" << asc << " filter=" << filter
-                   << " seed=" << runSeed;
-
-          jtCtx.captureActualRows = false;
-          jtCtx.pActiveActualRows = NULL;
-          jtCtx.strictReuseProjection = false;
-          jtCtx.strictProjectionSaved = false;
-          jtCtx.strictReuseOnCond = false;
-          jtCtx.strictOnCondSaved = false;
-          jtCtx.strictReuseEqCond = false;
-          jtCtx.strictEqCondSaved = false;
-          jtCtx.strictReuseFilter = false;
-          jtCtx.strictFilterSaved = false;
-          jtCtx.useFixedDataSeed = false;
-          jtCtx.strictCompareRun = false;
-
-          char label[256] = {0};
-          (void)snprintf(label, sizeof(label), "INNER cond=%d loop=%d asc=%d filter=%d seed=%u mergeRef=%d hashRef=%d mActual=%d hActual=%d",
-                        param.cond, jtCtx.loopIdx, asc, filter, runSeed,
-                        mergeRefCount, hashRefCount,
-                        (int32_t)tSimpleHashGetSize(jtCtx.pMergeActualRows),
-                        (int32_t)tSimpleHashGetSize(jtCtx.pHashActualRows));
-          assertEqual(label);
-        }
-      }
-    }
-
-    ++supportedCondIdx;
-  }
-
-  taosMemoryFree(pTask);
-}
-
-TEST(hmStrictCompare, leftOuterJoinHashMerge) {
-  if (!jtCtrl.strictHmCompare) {
-    GTEST_SKIP() << "set JT_STRICT_HM_COMPARE=1 to enable strict hash/merge comparison";
-  }
-
-  auto ensureHash = [](SSHashObj** ppHash) {
-    if (*ppHash == NULL) {
-      *ppHash = tSimpleHashInit(jtDefaultHashCapacity(), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
-      TD_ALWAYS_ASSERT(*ppHash);
-    } else {
-      tSimpleHashClear(*ppHash);
-    }
-  };
-
-  auto assertEqual = [](const char* label) {
-    int32_t iter = 0;
-    void* p = NULL;
-    void* key = NULL;
-    size_t klen = 0;
-    bool anyFailure = false;
-
-    auto dumpKeyDecoded = [](const char* prefix, const void* kptr, size_t ksize, int32_t cnt) {
-      char hex[512] = {0};
-      int32_t n = 0;
-      const char* b = (const char*)kptr;
-      for (size_t i = 0; i < ksize && n < (int32_t)sizeof(hex) - 4; ++i) {
-        n += snprintf(hex + n, 5, "%02X ", (uint8_t)b[i]);
-      }
-      JT_PRINTF("%s cnt=%d resColNum=%d resColSize=%d bytes=[%s]\n",
-                prefix, cnt, jtCtx.resColNum, jtCtx.resColSize, hex);
-      int32_t nullFlagBytes = MAX_SLOT_NUM * 2;
-      JT_PRINTF("  nullFlags(L)=[");
-      for (int32_t i = 0; i < MAX_SLOT_NUM && nullFlagBytes <= (int32_t)ksize; ++i) {
-        JT_PRINTF("%d", (uint8_t)b[i] ? 1 : 0);
-      }
-      JT_PRINTF("] nullFlags(R)=[");
-      for (int32_t i = MAX_SLOT_NUM; i < MAX_SLOT_NUM * 2 && i < (int32_t)ksize; ++i) {
-        JT_PRINTF("%d", (uint8_t)b[i] ? 1 : 0);
-      }
-      JT_PRINTF("]\n");
-      int32_t off = nullFlagBytes;
-      for (int32_t ci = 0; ci < jtCtx.resColNum && off < (int32_t)ksize; ++ci) {
-        int32_t slot = jtCtx.resColInSlot[ci];
-        int32_t sslot = slot % MAX_SLOT_NUM;
-        bool isNull = (uint8_t)b[slot] != 0;
-        if (isNull) {
-          JT_PRINTF("  col[%d](slot=%d) = NULL\n", ci, slot);
-          off += JT_INPUT_COL_BYTES(sslot);
-          continue;
-        }
-        switch (jtInputColType[sslot]) {
-          case TSDB_DATA_TYPE_TIMESTAMP:
-          case TSDB_DATA_TYPE_BIGINT:
-            if (off + (int32_t)sizeof(int64_t) <= (int32_t)ksize) {
-              int64_t v; memcpy(&v, b + off, sizeof(v));
-              JT_PRINTF("  col[%d](slot=%d) = %" PRId64 "\n", ci, slot, v);
-            }
-            off += (int32_t)sizeof(int64_t);
-            break;
-          case TSDB_DATA_TYPE_INT:
-            if (off + (int32_t)sizeof(int32_t) <= (int32_t)ksize) {
-              int32_t v; memcpy(&v, b + off, sizeof(v));
-              JT_PRINTF("  col[%d](slot=%d) = %d\n", ci, slot, v);
-            }
-            off += (int32_t)sizeof(int32_t);
-            break;
-          case TSDB_DATA_TYPE_BINARY:
-            if (off + JT_BINARY_MAX_LEN <= (int32_t)ksize) {
-              JT_PRINTF("  col[%d](slot=%d) = BIN[%02X%02X%02X%02X%02X]\n", ci, slot,
-                (uint8_t)b[off], (uint8_t)b[off+1], (uint8_t)b[off+2], (uint8_t)b[off+3], (uint8_t)b[off+4]);
-            }
-            off += JT_BINARY_MAX_LEN;
-            break;
-          default:
-            off += JT_INPUT_COL_BYTES(sslot);
-            break;
-        }
-      }
-    };
-
-    auto dumpAllRows = [&dumpKeyDecoded]() {
-      JT_PRINTF("=== MERGE rows (total=%d) ===\n", (int32_t)tSimpleHashGetSize(jtCtx.pMergeActualRows));
-      int32_t iter2 = 0; void* p2 = NULL;
-      while (NULL != (p2 = tSimpleHashIterate(jtCtx.pMergeActualRows, p2, &iter2))) {
-        size_t kl = 0; void* k = tSimpleHashGetKey(p2, &kl);
-        dumpKeyDecoded("  M", k, kl, *(int32_t*)p2);
-      }
-      JT_PRINTF("=== HASH rows (total=%d) ===\n", (int32_t)tSimpleHashGetSize(jtCtx.pHashActualRows));
-      iter2 = 0; p2 = NULL;
-      while (NULL != (p2 = tSimpleHashIterate(jtCtx.pHashActualRows, p2, &iter2))) {
-        size_t kl = 0; void* k = tSimpleHashGetKey(p2, &kl);
-        dumpKeyDecoded("  H", k, kl, *(int32_t*)p2);
-      }
-    };
-
-    while (NULL != (p = tSimpleHashIterate(jtCtx.pMergeActualRows, p, &iter))) {
-      key = tSimpleHashGetKey(p, &klen);
-      int32_t* hCnt = (int32_t*)tSimpleHashGet(jtCtx.pHashActualRows, key, klen);
-      if (hCnt == NULL) {
-        if (!anyFailure) { dumpAllRows(); }
-        anyFailure = true;
-        JT_PRINTF("missing-in-hash: klen=%zu mergeRows=%d hashRows=%d\n", klen,
-                  (int32_t)tSimpleHashGetSize(jtCtx.pMergeActualRows),
-                  (int32_t)tSimpleHashGetSize(jtCtx.pHashActualRows));
-      } else if (*(int32_t*)p != *hCnt) {
-        if (!anyFailure) { dumpAllRows(); }
-        anyFailure = true;
-        JT_PRINTF("count-mismatch merge=%d hash=%d\n", *(int32_t*)p, *hCnt);
-      }
-    }
-
-    iter = 0;
-    p = NULL;
-    while (NULL != (p = tSimpleHashIterate(jtCtx.pHashActualRows, p, &iter))) {
-      key = tSimpleHashGetKey(p, &klen);
-      int32_t* mCnt = (int32_t*)tSimpleHashGet(jtCtx.pMergeActualRows, key, klen);
-      if (mCnt == NULL) {
-        if (!anyFailure) { dumpAllRows(); }
-        anyFailure = true;
-        JT_PRINTF("missing-in-merge: klen=%zu mergeRows=%d hashRows=%d\n", klen,
-                  (int32_t)tSimpleHashGetSize(jtCtx.pMergeActualRows),
-                  (int32_t)tSimpleHashGetSize(jtCtx.pHashActualRows));
-      } else if (*(int32_t*)p != *mCnt) {
-        if (!anyFailure) { dumpAllRows(); }
-        anyFailure = true;
-        JT_PRINTF("count-mismatch hash=%d merge=%d\n", *(int32_t*)p, *mCnt);
-      }
-    }
-
-    ASSERT_FALSE(anyFailure) << label << ": merge/hash output mismatch (see above)";
-  };
-
-  SJoinTestParam param;
-  TAOS_MEMSET(&param, 0, sizeof(param));
-  SExecTaskInfo* pTask = createDummyTaskInfo((char*)"hmStrictCompare:leftOuterJoinHashMerge");
-  TD_ALWAYS_ASSERT(pTask);
-
-  param.pTask = pTask;
-  param.joinType = JOIN_TYPE_LEFT;
-  param.subType = JOIN_STYPE_OUTER;
-  param.grpJoin = false;
-
-  int32_t conds[] = {TEST_NO_COND, TEST_EQ_COND, TEST_EQ_EXPR, TEST_ON_COND, TEST_FULL_COND};
-  uint32_t baseSeed = 5001;
-
-  int32_t condNum = (int32_t)(sizeof(conds) / sizeof(conds[0]));
-  int32_t supportedCondIdx = 0;
-  for (int32_t c = 0; c < condNum; ++c) {
-    param.cond = conds[c];
-    bool mergeSupported = (TEST_EQ_EXPR != param.cond);
-    bool hashSupported = (TEST_NO_COND != param.cond && TEST_ON_COND != param.cond);
-    if (!mergeSupported || !hashSupported) {
-      JT_PRINTF("strict hm compare skip LEFT_OUTER cond=%d (mergeSupported=%d hashSupported=%d)", param.cond,
-                mergeSupported ? 1 : 0, hashSupported ? 1 : 0);
-      continue;
-    }
-
-    for (jtCtx.loopIdx = 0; jtCtx.loopIdx < jtCtrl.loopCnt; ++jtCtx.loopIdx) {
-      for (int32_t asc = 0; asc < 2; ++asc) {
-        param.asc = (0 != asc);
-        for (int32_t filter = 0; filter < 2; ++filter) {
-          param.filter = (0 != filter);
-
-          uint32_t runSeed = baseSeed + (uint32_t)(supportedCondIdx * 100 + asc * 10 + filter);
-          uint32_t dataSeed = runSeed + 10000;
-
-          jtCtx.strictCompareRun = true;
-          jtCtx.strictReuseProjection = false;
-          jtCtx.strictProjectionSaved = false;
-          jtCtx.strictReuseOnCond = false;
-          jtCtx.strictOnCondSaved = false;
-          jtCtx.strictReuseEqCond = false;
-          jtCtx.strictEqCondSaved = false;
-          jtCtx.strictReuseFilter = false;
-          jtCtx.strictFilterSaved = false;
-          jtCtx.useFixedDataSeed = true;
-          jtCtx.fixedDataSeed = dataSeed;
-
-          ensureHash(&jtCtx.pMergeActualRows);
-          jtCtx.captureActualRows = true;
-          jtCtx.pActiveActualRows = jtCtx.pMergeActualRows;
-          taosSeedRand(runSeed);
-          runSingleMJoinTest((char*)"hmStrictCompare:merge", &param);
-          int32_t mergeRefCount = jtRes.rowNum;
-          ASSERT_TRUE(jtRes.succeed) << "merge expected validation failed: cond=" << param.cond
-                   << " loop=" << jtCtx.loopIdx << " asc=" << asc << " filter=" << filter
-                   << " seed=" << runSeed;
-
-          ensureHash(&jtCtx.pHashActualRows);
-          jtCtx.strictReuseProjection = true;
-          jtCtx.strictReuseOnCond = true;
-          jtCtx.strictReuseEqCond = true;
-          jtCtx.strictReuseFilter = true;
-          jtCtx.captureActualRows = true;
-          jtCtx.pActiveActualRows = jtCtx.pHashActualRows;
-          taosSeedRand(runSeed);
-          runSingleHJoinTest((char*)"hmStrictCompare:hash", &param);
-          int32_t hashRefCount = jtRes.rowNum;
-          ASSERT_TRUE(jtRes.succeed) << "hash expected validation failed: cond=" << param.cond
-                   << " loop=" << jtCtx.loopIdx << " asc=" << asc << " filter=" << filter
-                   << " seed=" << runSeed;
-
-          jtCtx.captureActualRows = false;
-          jtCtx.pActiveActualRows = NULL;
-          jtCtx.strictReuseProjection = false;
-          jtCtx.strictProjectionSaved = false;
-          jtCtx.strictReuseOnCond = false;
-          jtCtx.strictOnCondSaved = false;
-          jtCtx.strictReuseEqCond = false;
-          jtCtx.strictEqCondSaved = false;
-          jtCtx.strictReuseFilter = false;
-          jtCtx.strictFilterSaved = false;
-          jtCtx.useFixedDataSeed = false;
-          jtCtx.strictCompareRun = false;
-
-          char label[256] = {0};
-          (void)snprintf(label, sizeof(label), "LEFT_OUTER cond=%d loop=%d asc=%d filter=%d seed=%u mergeRef=%d hashRef=%d mActual=%d hActual=%d",
-                        param.cond, jtCtx.loopIdx, asc, filter, runSeed,
-                        mergeRefCount, hashRefCount,
-                        (int32_t)tSimpleHashGetSize(jtCtx.pMergeActualRows),
-                        (int32_t)tSimpleHashGetSize(jtCtx.pHashActualRows));
-          assertEqual(label);
-        }
-      }
-    }
-
-    ++supportedCondIdx;
-  }
-
-  taosMemoryFree(pTask);
-}
-#endif
 
 
 #if 1
@@ -6589,6 +6454,72 @@ TEST(hLeftAntiJoin, fullCondTest) {
 
 
 #if 1
+TEST(hmStrictCompare, leftAntiJoinHashMerge) {
+  if (!jtCtrl.strictHmCompare) {
+    GTEST_SKIP() << "set JT_STRICT_HM_COMPARE=1 to enable strict hash/merge comparison";
+  }
+  jtRunHmStrictCompareCase("hmStrictCompare:leftAntiJoinHashMerge", "LEFT_ANTI",
+                           JOIN_TYPE_LEFT, JOIN_STYPE_ANTI, 6001);
+}
+
+TEST(hmStrictCompare, fullOuterJoinHashMerge) {
+  if (!jtCtrl.strictHmCompare) {
+    GTEST_SKIP() << "set JT_STRICT_HM_COMPARE=1 to enable strict hash/merge comparison";
+  }
+  jtRunHmStrictCompareCase("hmStrictCompare:fullOuterJoinHashMerge", "FULL_OUTER",
+                           JOIN_TYPE_FULL, JOIN_STYPE_OUTER, 3001);
+}
+
+TEST(hmStrictCompare, innerJoinHashMerge) {
+  if (!jtCtrl.strictHmCompare) {
+    GTEST_SKIP() << "set JT_STRICT_HM_COMPARE=1 to enable strict hash/merge comparison";
+  }
+  jtRunHmStrictCompareCase("hmStrictCompare:innerJoinHashMerge", "INNER",
+                           JOIN_TYPE_INNER, JOIN_STYPE_NONE, 4001);
+}
+
+TEST(hmStrictCompare, leftOuterJoinHashMerge) {
+  if (!jtCtrl.strictHmCompare) {
+    GTEST_SKIP() << "set JT_STRICT_HM_COMPARE=1 to enable strict hash/merge comparison";
+  }
+  jtRunHmStrictCompareCase("hmStrictCompare:leftOuterJoinHashMerge", "LEFT_OUTER",
+                           JOIN_TYPE_LEFT, JOIN_STYPE_OUTER, 5001);
+}
+
+TEST(hmStrictCompare, leftSemiJoinHashMerge) {
+  if (!jtCtrl.strictHmCompare) {
+    GTEST_SKIP() << "set JT_STRICT_HM_COMPARE=1 to enable strict hash/merge comparison";
+  }
+  jtRunHmStrictCompareCase("hmStrictCompare:leftSemiJoinHashMerge", "LEFT_SEMI",
+                           JOIN_TYPE_LEFT, JOIN_STYPE_SEMI, 5001);
+}
+
+TEST(hmStrictCompare, rightOuterJoinHashMerge) {
+  if (!jtCtrl.strictHmCompare) {
+    GTEST_SKIP() << "set JT_STRICT_HM_COMPARE=1 to enable strict hash/merge comparison";
+  }
+  jtRunHmStrictCompareCase("hmStrictCompare:rightOuterJoinHashMerge", "RIGHT_OUTER",
+                           JOIN_TYPE_RIGHT, JOIN_STYPE_OUTER, 7001, true);
+}
+
+TEST(hmStrictCompare, rightSemiJoinHashMerge) {
+  if (!jtCtrl.strictHmCompare) {
+    GTEST_SKIP() << "set JT_STRICT_HM_COMPARE=1 to enable strict hash/merge comparison";
+  }
+  jtRunHmStrictCompareCase("hmStrictCompare:rightSemiJoinHashMerge", "RIGHT_SEMI",
+                           JOIN_TYPE_RIGHT, JOIN_STYPE_SEMI, 7101, true);
+}
+
+TEST(hmStrictCompare, rightAntiJoinHashMerge) {
+  if (!jtCtrl.strictHmCompare) {
+    GTEST_SKIP() << "set JT_STRICT_HM_COMPARE=1 to enable strict hash/merge comparison";
+  }
+  jtRunHmStrictCompareCase("hmStrictCompare:rightAntiJoinHashMerge", "RIGHT_ANTI",
+                           JOIN_TYPE_RIGHT, JOIN_STYPE_ANTI, 7201, true);
+}
+#endif
+
+#if 1
 TEST(functionsTest, branch) {
   struct SOperatorInfo op = {0};
   SHJoinOperatorInfo join;
@@ -6601,6 +6532,525 @@ TEST(functionsTest, branch) {
   blk.info.rows = 1;
   join.finBlk = &blk;
   hInnerJoinDo(&op);
+}
+
+TEST(hashJoinCoverage, setImplFpRightOuterUsesLeftImpl) {
+  SHJoinOperatorInfo join = {0};
+  join.joinType = JOIN_TYPE_RIGHT;
+  join.subType = JOIN_STYPE_OUTER;
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, hJoinSetImplFp(&join));
+  ASSERT_EQ(hLeftJoinDo, join.joinFp);
+  ASSERT_EQ(hJoinBuildHash, join.buildFp);
+}
+
+TEST(hashJoinCoverage, setImplFpRightSemiUsesSemiImpl) {
+  SHJoinOperatorInfo join = {0};
+  join.joinType = JOIN_TYPE_RIGHT;
+  join.subType = JOIN_STYPE_SEMI;
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, hJoinSetImplFp(&join));
+  ASSERT_EQ(hSemiJoinDo, join.joinFp);
+  ASSERT_EQ(hJoinBuildHash, join.buildFp);
+}
+
+TEST(hashJoinCoverage, setImplFpRightAntiUsesAntiImpl) {
+  SHJoinOperatorInfo join = {0};
+  join.joinType = JOIN_TYPE_RIGHT;
+  join.subType = JOIN_STYPE_ANTI;
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, hJoinSetImplFp(&join));
+  ASSERT_EQ(hAntiJoinDo, join.joinFp);
+  ASSERT_EQ(hJoinBuildHash, join.buildFp);
+}
+
+TEST(hashJoinCoverage, setImplFpFullJoinSetsFullBuildAndProbeEnd) {
+  SHJoinOperatorInfo join = {0};
+  join.joinType = JOIN_TYPE_FULL;
+  join.subType = JOIN_STYPE_OUTER;
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, hJoinSetImplFp(&join));
+  ASSERT_EQ(hFullJoinDo, join.joinFp);
+  ASSERT_EQ(hFullJoinBuildHash, join.buildFp);
+  ASSERT_NE(nullptr, join.probeEndFp);
+}
+
+TEST(hashJoinCoverage, setImplFpInvalidSubtypeReturnsError) {
+  SHJoinOperatorInfo join = {0};
+  join.joinType = JOIN_TYPE_LEFT;
+  join.subType = JOIN_STYPE_ASOF;
+
+  ASSERT_EQ(TSDB_CODE_QRY_INVALID_PLAN, hJoinSetImplFp(&join));
+}
+
+TEST(hashJoinCoverage, setImplFpInvalidJoinTypeReturnsError) {
+  SHJoinOperatorInfo join = {0};
+  join.joinType = (EJoinType)99;
+  join.subType = JOIN_STYPE_OUTER;
+
+  ASSERT_EQ(TSDB_CODE_QRY_INVALID_PLAN, hJoinSetImplFp(&join));
+}
+
+TEST(hashJoinCoverage, blkReachThresholdUsesBlockThresholdWhenUnlimited) {
+  SHJoinOperatorInfo join = {0};
+  join.ctx.limit = INT64_MAX;
+  join.pFinFilter = NULL;
+  join.blkThreshold = 3;
+
+  ASSERT_FALSE(hJoinBlkReachThreshold(&join, 2));
+  ASSERT_TRUE(hJoinBlkReachThreshold(&join, 3));
+}
+
+TEST(hashJoinCoverage, blkReachThresholdUsesLimitWhenNoFinFilter) {
+  SHJoinOperatorInfo join = {0};
+  join.ctx.limit = 5;
+  join.pFinFilter = NULL;
+  join.blkThreshold = 100;
+  join.execInfo.resRows = 3;
+
+  ASSERT_FALSE(hJoinBlkReachThreshold(&join, 1));
+  ASSERT_TRUE(hJoinBlkReachThreshold(&join, 2));
+}
+
+TEST(hashJoinCoverage, blkReachThresholdIgnoresLimitWhenFinFilterExists) {
+  SHJoinOperatorInfo join = {0};
+  join.ctx.limit = 1;
+  join.pFinFilter = (SFilterInfo*)0x1;
+  join.blkThreshold = 4;
+
+  ASSERT_FALSE(hJoinBlkReachThreshold(&join, 3));
+  ASSERT_TRUE(hJoinBlkReachThreshold(&join, 4));
+}
+
+TEST(hashJoinCoverage, handleMidRemainsSwapsBlocksAndClearsFlag) {
+  SHJoinOperatorInfo join = {0};
+  SSDataBlock* midBlk = NULL;
+  SSDataBlock* finBlk = NULL;
+
+  ASSERT_EQ(0, createDataBlock(&midBlk));
+  ASSERT_EQ(0, createDataBlock(&finBlk));
+
+  join.midBlk = midBlk;
+  join.finBlk = finBlk;
+  join.ctx.midRemains = true;
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, hJoinHandleMidRemains(&join));
+  ASSERT_EQ(finBlk, join.midBlk);
+  ASSERT_EQ(midBlk, join.finBlk);
+  ASSERT_FALSE(join.ctx.midRemains);
+
+  blockDataDestroy(join.midBlk);
+  blockDataDestroy(join.finBlk);
+}
+
+TEST(hashJoinCoverage, copyMergeMidBlkWithoutOverflow) {
+  int64_t finVals[2] = {1, 2};
+  int64_t midVals[2] = {3, 4};
+  SSDataBlock* finBlk = jtCreateTsTestBlock(finVals, 2, false);
+  SSDataBlock* midBlk = jtCreateTsTestBlock(midVals, 2, false);
+  SHJoinCtx ctx = {0};
+
+  ASSERT_EQ(0, blockDataEnsureCapacity(finBlk, 4));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, hJoinCopyMergeMidBlk(&ctx, &midBlk, &finBlk));
+  ASSERT_FALSE(ctx.midRemains);
+  ASSERT_EQ(4, finBlk->info.rows);
+  ASSERT_EQ(0, midBlk->info.rows);
+
+  blockDataDestroy(midBlk);
+  blockDataDestroy(finBlk);
+}
+
+TEST(hashJoinCoverage, copyMergeMidBlkWithOverflowKeepsRemains) {
+  int64_t finVals[2] = {1, 2};
+  int64_t midVals[2] = {3, 4};
+  SSDataBlock* finBlk = jtCreateTsTestBlock(finVals, 2, false);
+  SSDataBlock* midBlk = jtCreateTsTestBlock(midVals, 2, false);
+  SHJoinCtx ctx = {0};
+
+  ASSERT_EQ(0, blockDataEnsureCapacity(finBlk, 3));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, hJoinCopyMergeMidBlk(&ctx, &midBlk, &finBlk));
+  ASSERT_TRUE(ctx.midRemains);
+  ASSERT_EQ(3, finBlk->info.rows);
+  ASSERT_EQ(1, midBlk->info.rows);
+
+  blockDataDestroy(midBlk);
+  blockDataDestroy(finBlk);
+}
+
+TEST(hashJoinCoverage, launchPrimExprWithoutTimezone) {
+  int64_t vals[2] = {11, 29};
+  SSDataBlock* blk = jtCreateTsTestBlock(vals, 2, true);
+  SHJoinTableCtx tb;
+  TAOS_MEMSET(&tb, 0, sizeof(tb));
+  SHJoinColMap prim = {0};
+
+  prim.srcSlot = 0;
+  tb.primCol = &prim;
+  tb.primCtx.targetSlotId = 1;
+  tb.primCtx.truncateUnit = 10;
+  tb.primCtx.timezoneUnit = 0;
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, hJoinLaunchPrimExpr(blk, &tb, 0, 1));
+  SColumnInfoData* outCol = (SColumnInfoData*)taosArrayGet(blk->pDataBlock, 1);
+  ASSERT_EQ(10, ((int64_t*)outCol->pData)[0]);
+  ASSERT_EQ(20, ((int64_t*)outCol->pData)[1]);
+
+  blockDataDestroy(blk);
+}
+
+TEST(hashJoinCoverage, launchPrimExprWithTimezone) {
+  int64_t vals[1] = {11};
+  SSDataBlock* blk = jtCreateTsTestBlock(vals, 1, true);
+  SHJoinTableCtx tb;
+  TAOS_MEMSET(&tb, 0, sizeof(tb));
+  SHJoinColMap prim = {0};
+
+  prim.srcSlot = 0;
+  tb.primCol = &prim;
+  tb.primCtx.targetSlotId = 1;
+  tb.primCtx.truncateUnit = 10;
+  tb.primCtx.timezoneUnit = 2;
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, hJoinLaunchPrimExpr(blk, &tb, 0, 0));
+  SColumnInfoData* outCol = (SColumnInfoData*)taosArrayGet(blk->pDataBlock, 1);
+  ASSERT_EQ(8, ((int64_t*)outCol->pData)[0]);
+
+  blockDataDestroy(blk);
+}
+
+TEST(hashJoinCoverage, launchEqualExprWithoutExprsIsNoop) {
+  int64_t vals[1] = {11};
+  SSDataBlock* blk = jtCreateTsTestBlock(vals, 1, true);
+  SHJoinTableCtx tb;
+  TAOS_MEMSET(&tb, 0, sizeof(tb));
+  SOperatorInfo op = {0};
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, hJoinLaunchEqualExpr(&op, blk, &tb, 0, 0));
+  blockDataDestroy(blk);
+}
+
+TEST(hashJoinCoverage, launchEqualExprWithPrimExprRunsTruncate) {
+  int64_t vals[1] = {37};
+  SSDataBlock* blk = jtCreateTsTestBlock(vals, 1, true);
+  SHJoinTableCtx tb;
+  TAOS_MEMSET(&tb, 0, sizeof(tb));
+  SHJoinColMap prim = {0};
+  SOperatorInfo op = {0};
+
+  prim.srcSlot = 0;
+  tb.primCol = &prim;
+  tb.primExpr = (SNode*)0x1;
+  tb.primCtx.targetSlotId = 1;
+  tb.primCtx.truncateUnit = 10;
+  tb.primCtx.timezoneUnit = 0;
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, hJoinLaunchEqualExpr(&op, blk, &tb, 0, 0));
+  SColumnInfoData* outCol = (SColumnInfoData*)taosArrayGet(blk->pDataBlock, 1);
+  ASSERT_EQ(30, ((int64_t*)outCol->pData)[0]);
+
+  blockDataDestroy(blk);
+}
+
+TEST(hashJoinCoverage, setKeyColsDataSuccess) {
+  int64_t vals[1] = {9};
+  SSDataBlock* blk = jtCreateTsTestBlock(vals, 1, false);
+  SHJoinTableCtx tb;
+  TAOS_MEMSET(&tb, 0, sizeof(tb));
+  SHJoinColInfo key = {0};
+
+  key.srcSlot = 0;
+  key.vardata = false;
+  key.bytes = tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes;
+  tb.keyNum = 1;
+  tb.keyCols = &key;
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, hJoinSetKeyColsData(blk, &tb));
+  ASSERT_NE(nullptr, tb.keyCols[0].data);
+  ASSERT_NE(nullptr, tb.keyCols[0].colData);
+
+  blockDataDestroy(blk);
+}
+
+TEST(hashJoinCoverage, setKeyColsDataMissingSlotReturnsError) {
+  int64_t vals[1] = {9};
+  SSDataBlock* blk = jtCreateTsTestBlock(vals, 1, false);
+  SHJoinTableCtx tb;
+  TAOS_MEMSET(&tb, 0, sizeof(tb));
+  SHJoinColInfo key = {0};
+
+  key.srcSlot = 3;
+  key.vardata = false;
+  key.bytes = tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes;
+  tb.keyNum = 1;
+  tb.keyCols = &key;
+
+  ASSERT_EQ(TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR, hJoinSetKeyColsData(blk, &tb));
+  blockDataDestroy(blk);
+}
+
+TEST(hashJoinCoverage, setKeyColsDataTypeMismatchReturnsInvalidParam) {
+  SSDataBlock* blk = NULL;
+  ASSERT_EQ(0, createDataBlock(&blk));
+  SColumnInfoData binCol = createColumnInfoData(TSDB_DATA_TYPE_BINARY, JT_BINARY_MAX_LEN, 0);
+  ASSERT_EQ(0, blockDataAppendColInfo(blk, &binCol));
+  SHJoinTableCtx tb;
+  TAOS_MEMSET(&tb, 0, sizeof(tb));
+  SHJoinColInfo key = {0};
+
+  key.srcSlot = 0;
+  key.vardata = false;
+  key.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
+  tb.keyNum = 1;
+  tb.keyCols = &key;
+
+  ASSERT_EQ(TSDB_CODE_INVALID_PARA, hJoinSetKeyColsData(blk, &tb));
+  blockDataDestroy(blk);
+}
+
+TEST(hashJoinCoverage, setKeyColsDataBytesMismatchReturnsInvalidParam) {
+  int64_t vals[1] = {9};
+  SSDataBlock* blk = jtCreateTsTestBlock(vals, 1, false);
+  SHJoinTableCtx tb;
+  TAOS_MEMSET(&tb, 0, sizeof(tb));
+  SHJoinColInfo key = {0};
+
+  key.srcSlot = 0;
+  key.vardata = false;
+  key.bytes = 4;
+  tb.keyNum = 1;
+  tb.keyCols = &key;
+
+  ASSERT_EQ(TSDB_CODE_INVALID_PARA, hJoinSetKeyColsData(blk, &tb));
+  blockDataDestroy(blk);
+}
+
+TEST(hashJoinCoverage, filterTimeRangeAscOutsideReturnsFalse) {
+  int64_t vals[3] = {1, 2, 3};
+  SSDataBlock* blk = jtCreateTsTestBlock(vals, 3, false);
+  SHJoinCtx ctx = {0};
+  STimeWindow tr = {.skey = 10, .ekey = 20};
+  int32_t start = -1, end = -1;
+
+  ctx.ascTs = true;
+  ASSERT_FALSE(hJoinFilterTimeRange(&ctx, blk, &tr, 0, &start, &end));
+
+  blockDataDestroy(blk);
+}
+
+TEST(hashJoinCoverage, filterTimeRangeAscAllInside) {
+  int64_t vals[3] = {1, 2, 3};
+  SSDataBlock* blk = jtCreateTsTestBlock(vals, 3, false);
+  SHJoinCtx ctx = {0};
+  STimeWindow tr = {.skey = 1, .ekey = 3};
+  int32_t start = -1, end = -1;
+
+  ctx.ascTs = true;
+  ASSERT_TRUE(hJoinFilterTimeRange(&ctx, blk, &tr, 0, &start, &end));
+  ASSERT_EQ(0, start);
+  ASSERT_EQ(2, end);
+
+  blockDataDestroy(blk);
+}
+
+TEST(hashJoinCoverage, filterTimeRangeAscPartialInside) {
+  int64_t vals[5] = {1, 2, 3, 4, 5};
+  SSDataBlock* blk = jtCreateTsTestBlock(vals, 5, false);
+  SHJoinCtx ctx = {0};
+  STimeWindow tr = {.skey = 2, .ekey = 4};
+  int32_t start = -1, end = -1;
+
+  ctx.ascTs = true;
+  ASSERT_TRUE(hJoinFilterTimeRange(&ctx, blk, &tr, 0, &start, &end));
+  ASSERT_EQ(1, start);
+  ASSERT_EQ(3, end);
+
+  blockDataDestroy(blk);
+}
+
+TEST(hashJoinCoverage, filterTimeRangeDescPartialInside) {
+  int64_t vals[5] = {5, 4, 3, 2, 1};
+  SSDataBlock* blk = jtCreateTsTestBlock(vals, 5, false);
+  SHJoinCtx ctx = {0};
+  STimeWindow tr = {.skey = 2, .ekey = 4};
+  int32_t start = -1, end = -1;
+
+  ctx.ascTs = false;
+  ASSERT_TRUE(hJoinFilterTimeRange(&ctx, blk, &tr, 0, &start, &end));
+  ASSERT_EQ(1, start);
+  ASSERT_EQ(3, end);
+
+  blockDataDestroy(blk);
+}
+
+TEST(hashJoinCoverage, setDoneCleansHashAndBuffers) {
+  SOperatorInfo op = {0};
+  SHJoinOperatorInfo join = {0};
+  SExecTaskInfo* pTask = createDummyTaskInfo((char*)"hashJoinCoverage:setDoneCleansHashAndBuffers");
+
+  op.info = &join;
+  op.pTaskInfo = pTask;
+  join.joinType = JOIN_TYPE_INNER;
+  join.pKeyHash = tSimpleHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+  ASSERT_NE(nullptr, join.pKeyHash);
+
+  ASSERT_EQ(0, createDataBlock(&join.midBlk));
+  join.pRowBufs = taosArrayInit(4, sizeof(SBufPageInfo));
+  ASSERT_NE(nullptr, join.pRowBufs);
+
+  hJoinSetDone(&op);
+
+  ASSERT_EQ(OP_EXEC_DONE, op.status);
+  ASSERT_EQ(nullptr, join.pKeyHash);
+  ASSERT_EQ(nullptr, join.midBlk);
+  ASSERT_EQ(nullptr, join.pRowBufs);
+
+  taosMemoryFree(pTask);
+}
+
+TEST(hashJoinCoverage, buildHashEmptyInnerReturnsDirectAndDone) {
+  SOperatorInfo op = {0};
+  SHJoinOperatorInfo join = {0};
+  SOperatorInfo down = {0};
+  SOperatorInfo* downstreams[1] = {&down};
+  SExecTaskInfo* pTask = createDummyTaskInfo((char*)"hashJoinCoverage:buildHashEmptyInnerReturnsDirectAndDone");
+  bool returnDirect = false;
+
+  down.name = (char*)"dummyDown";
+  down.fpSet.getNextFn = jtGetNextNullBlock;
+
+  op.info = &join;
+  op.pTaskInfo = pTask;
+  op.pDownstream = downstreams;
+  op.numOfDownstream = 1;
+
+  join.joinType = JOIN_TYPE_INNER;
+  join.subType = JOIN_STYPE_NONE;
+  join.pBuild = &join.tbs[0];
+  join.pBuild->downStreamIdx = 0;
+  join.pKeyHash = tSimpleHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+  ASSERT_NE(nullptr, join.pKeyHash);
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, hJoinBuildHash(&op, &returnDirect));
+  ASSERT_TRUE(returnDirect);
+  ASSERT_EQ(OP_EXEC_DONE, op.status);
+  ASSERT_TRUE(join.keyHashBuilt);
+  ASSERT_EQ(nullptr, join.pKeyHash);
+
+  taosMemoryFree(pTask);
+}
+
+TEST(hashJoinCoverage, buildHashEmptySemiReturnsDirectAndDone) {
+  SOperatorInfo op = {0};
+  SHJoinOperatorInfo join = {0};
+  SOperatorInfo down = {0};
+  SOperatorInfo* downstreams[1] = {&down};
+  SExecTaskInfo* pTask = createDummyTaskInfo((char*)"hashJoinCoverage:buildHashEmptySemiReturnsDirectAndDone");
+  bool returnDirect = false;
+
+  down.name = (char*)"dummyDown";
+  down.fpSet.getNextFn = jtGetNextNullBlock;
+
+  op.info = &join;
+  op.pTaskInfo = pTask;
+  op.pDownstream = downstreams;
+  op.numOfDownstream = 1;
+
+  join.joinType = JOIN_TYPE_LEFT;
+  join.subType = JOIN_STYPE_SEMI;
+  join.pBuild = &join.tbs[0];
+  join.pBuild->downStreamIdx = 0;
+  join.pKeyHash = tSimpleHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+  ASSERT_NE(nullptr, join.pKeyHash);
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, hJoinBuildHash(&op, &returnDirect));
+  ASSERT_TRUE(returnDirect);
+  ASSERT_EQ(OP_EXEC_DONE, op.status);
+  ASSERT_TRUE(join.keyHashBuilt);
+  ASSERT_EQ(nullptr, join.pKeyHash);
+
+  taosMemoryFree(pTask);
+}
+
+TEST(hashJoinCoverage, buildHashEmptyLeftOuterDoesNotReturnDirect) {
+  SOperatorInfo op = {0};
+  SHJoinOperatorInfo join = {0};
+  SOperatorInfo down = {0};
+  SOperatorInfo* downstreams[1] = {&down};
+  SExecTaskInfo* pTask = createDummyTaskInfo((char*)"hashJoinCoverage:buildHashEmptyLeftOuterDoesNotReturnDirect");
+  bool returnDirect = false;
+
+  down.name = (char*)"dummyDown";
+  down.fpSet.getNextFn = jtGetNextNullBlock;
+
+  op.info = &join;
+  op.pTaskInfo = pTask;
+  op.pDownstream = downstreams;
+  op.numOfDownstream = 1;
+
+  join.joinType = JOIN_TYPE_LEFT;
+  join.subType = JOIN_STYPE_OUTER;
+  join.pBuild = &join.tbs[0];
+  join.pBuild->downStreamIdx = 0;
+  join.pKeyHash = tSimpleHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+  ASSERT_NE(nullptr, join.pKeyHash);
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, hJoinBuildHash(&op, &returnDirect));
+  ASSERT_FALSE(returnDirect);
+  ASSERT_NE(OP_EXEC_DONE, op.status);
+  ASSERT_TRUE(join.keyHashBuilt);
+  ASSERT_EQ(nullptr, join.pKeyHash);
+
+  taosMemoryFree(pTask);
+}
+
+TEST(hashJoinCoverage, emitBuildNMatchRowsNonFullJoinMarksDone) {
+  SHJoinOperatorInfo join = {0};
+
+  join.joinType = JOIN_TYPE_LEFT;
+  join.ctx.rowRemains = true;
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, hJoinEmitBuildNMatchRows(&join));
+  ASSERT_TRUE(join.ctx.buildNMatchDone);
+  ASSERT_FALSE(join.ctx.rowRemains);
+}
+
+TEST(hashJoinCoverage, emitBuildNMatchRowsFullWithNullHashMarksDone) {
+  SHJoinOperatorInfo join = {0};
+
+  join.joinType = JOIN_TYPE_FULL;
+  join.ctx.rowRemains = true;
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, hJoinEmitBuildNMatchRows(&join));
+  ASSERT_TRUE(join.ctx.buildNMatchDone);
+  ASSERT_FALSE(join.ctx.rowRemains);
+}
+
+TEST(hashJoinCoverage, emitBuildNMatchRowsAllMatchedGroupFinishes) {
+  SHJoinOperatorInfo join = {0};
+  SFGroupData group = {0};
+  SBufRowInfo row = {0};
+  int32_t key = 1;
+
+  join.joinType = JOIN_TYPE_FULL;
+  join.ctx.limit = INT64_MAX;
+  join.blkThreshold = 1;
+  join.pKeyHash = tSimpleHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+  ASSERT_NE(nullptr, join.pKeyHash);
+  ASSERT_EQ(0, createDataBlock(&join.finBlk));
+  ASSERT_EQ(0, blockDataEnsureCapacity(join.finBlk, 1));
+
+  group.rows = &row;
+  group.rowsNum = 1;
+  group.rowsMatchNum = 1;
+  ASSERT_EQ(0, tSimpleHashPut(join.pKeyHash, &key, sizeof(key), &group, sizeof(group)));
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, hJoinEmitBuildNMatchRows(&join));
+  ASSERT_TRUE(join.ctx.buildNMatchDone);
+  ASSERT_FALSE(join.ctx.rowRemains);
+
+  tSimpleHashCleanup(join.pKeyHash);
+  join.pKeyHash = NULL;
+  blockDataDestroy(join.finBlk);
 }
 #endif
 

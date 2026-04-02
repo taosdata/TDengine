@@ -987,6 +987,18 @@ static int32_t hFullJoinAddBlockRowsToHashImpl(SHJoinOperatorInfo* pJoin, SHJoin
       return code;
     }
   }
+
+  // Emit trailing rows that lie beyond the time-range window [buildStartIdx, buildEndIdx].
+  // These rows have valid EQ keys but timestamps outside the window, so they can never be
+  // matched.  In a FULL OUTER JOIN they must appear as (NULL_probe, build) output rows.
+  // Leading pre-window rows are handled earlier (buildNMStartIdx=0 before the loop), but
+  // trailing post-window rows are invisible to the loop and must be handled here.
+  if (pCtx->pBuildData != NULL && pCtx->buildEndIdx >= 0 &&
+      pCtx->buildEndIdx < pCtx->pBuildData->info.rows - 1) {
+    pCtx->buildNMStartIdx = pCtx->buildEndIdx + 1;
+    pCtx->buildNMEndIdx   = pCtx->pBuildData->info.rows - 1;
+    HJ_ERR_RET(hFullJoinCopyBuildNMRowsToBlock(pJoin, pJoin->finBlk, pCtx, returnDirect));
+  }
     
   return TSDB_CODE_SUCCESS;
 }
