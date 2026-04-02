@@ -116,8 +116,11 @@ In the **Offset** dropdown, select from which Offset to start consuming data. Th
 
 - Earliest: Requests the earliest offset.
 - Latest: Requests the latest offset.
+- ByTime(ms): Starts consuming from a specified timestamp, where the value is a Unix timestamp in milliseconds.
 
 Set the maximum duration to wait for insufficient data when fetching messages in **Maximum Duration to Fetch Data** (in milliseconds), the default value is 100ms.
+
+In **Character Encoding**, configure the encoding format of the message body. After receiving a message, taosX uses the specified encoding format to decode the message body to obtain the raw data. Options: UTF_8, GBK, GB18030, BIG5. Default is UTF_8.
 
 Click the **Connectivity Check** button to check if the data source is available.
 

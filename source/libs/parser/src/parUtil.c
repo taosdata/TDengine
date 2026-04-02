@@ -311,6 +311,8 @@ static char* getSyntaxErrFormat(int32_t errCode) {
     case TSDB_CODE_PAR_NOT_ALLOWED_FILL_VALUES:
       return "Fill values can only be used with fill VALUE/VALUE_F "
              "or PREV/NEXT/NEAR mode with surrounding time";
+    case TSDB_CODE_PAR_EXT_WIN_COL_IN_WHERE:
+      return "WHERE clause cannot reference EXTERNAL_WINDOW column: %s";
     default:
       return "Unknown error";
   }
@@ -1799,26 +1801,40 @@ int32_t validateExprSubQuery(SNode* pNode) {
 }
 
 void getExprSubQueryResType(SNode* pNode, SDataType* pType) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  
   switch (nodeType(pNode)) {
     case QUERY_NODE_SELECT_STMT: {
       SSelectStmt* pSelect = (SSelectStmt*)pNode;
-      SExprNode* pExpr = (SExprNode*)nodesListGetNode(pSelect->pProjectionList, 0);
+      SExprNode*   pExpr = (SExprNode*)nodesListGetNode(pSelect->pProjectionList, 0);
       memcpy(pType, &pExpr->resType, sizeof(*pType));
       break;
     }
     case QUERY_NODE_SET_OPERATOR: {
       SSetOperator* pSet = (SSetOperator*)pNode;
-      SExprNode* pExpr = (SExprNode*)nodesListGetNode(pSet->pProjectionList, 0);
+      SExprNode*    pExpr = (SExprNode*)nodesListGetNode(pSet->pProjectionList, 0);
       memcpy(pType, &pExpr->resType, sizeof(*pType));
       break;
     }
     default:
       break;
   }
+}
 
-  return;
+void getExprSubQueryResCols(SNode* pNode, int32_t* cols) {
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_SELECT_STMT: {
+      SSelectStmt* pSelect = (SSelectStmt*)pNode;
+      *cols = LIST_LENGTH(pSelect->pProjectionList);
+      break;
+    }
+    case QUERY_NODE_SET_OPERATOR: {
+      SSetOperator* pSet = (SSetOperator*)pNode;
+      *cols = LIST_LENGTH(pSet->pProjectionList);
+      break;
+    }
+    default:
+      *cols = 0;
+      break;
+  }
 }
 
 int32_t updateExprSubQueryType(SNode* pNode, ESubQueryType* type) {

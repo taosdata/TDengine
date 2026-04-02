@@ -372,7 +372,7 @@ class TestTaosdumpBasic:
         tdSql.checkData(0, 0, self.numberOfRecords)
 
         # test case for TS-1225
-        tdSql.execute("create database test")
+        tdSql.execute("create database test vgroups 3")
         tdSql.execute("use test")
         tdSql.execute(
             "create table stb(ts timestamp, c1 binary(16374), c2 binary(16374), c3 binary(16374)) tags(t1 nchar(256))"
@@ -401,6 +401,9 @@ class TestTaosdumpBasic:
         tdSql.query("show stables")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, "stb")
+        # check vgroups 
+        tdSql.query("show test.vgroups")
+        tdSql.checkRows(3)
 
         tdSql.query("select * from stb")
         tdSql.checkRows(1)

@@ -37,9 +37,10 @@ This guide covers installation and usage of TDGPT on both Linux and Windows plat
 ### Network Ports
 
 - **6035**: Main taosanode service
-- **6036**: tdtsfm model service
-- **6037**: timemoe model service
-- **6038-6040**: Optional model services (chronos, timesfm, moirai, moment)
+- **6061**: tdtsfm model service
+- **6062**: timemoe model service
+- **6063-6066**: Optional model services (chronos, moirai, timesfm, moment)
+- **6067-6070**: Reserved ports for additional model services
 
 ---
 
@@ -261,12 +262,12 @@ If you encounter connection issues, configure Windows Firewall:
 
 ```batch
 # Open ports automatically (run as Administrator)
-netsh advfirewall firewall add rule name="TDGPT" dir=in action=allow protocol=TCP localport=6035,6036,6037 profile=any
+netsh advfirewall firewall add rule name="TDGPT" dir=in action=allow protocol=TCP localport=6035,6061-6070 profile=any
 
 # Or manually:
 # 1. Open Windows Defender Firewall with Advanced Security
 # 2. Click "Inbound Rules" → "New Rule"
-# 3. Select "Port" → "TCP" → Specific local ports: 6035,6036,6037
+# 3. Select "Port" → "TCP" → Specific local ports: 6035,6061-6070
 # 4. Allow the connection
 ```
 
@@ -365,17 +366,17 @@ model_dir = 'c:/TDengine/taosanode/model/'  # Windows
 models = {
     "tdtsfm": {
         "script": "tdtsfm-server.py",
-        "port": 6036,
+        "port": 6061,
         "required": True,  # Must exist
     },
     "timemoe": {
         "script": "timemoe-server.py",
-        "port": 6037,
+        "port": 6062,
         "required": True,  # Must exist
     },
     "chronos": {
         "script": "chronos-server.py",
-        "port": 0,
+        "port": 6063,
         "required": False,  # Optional
     },
     # ... other models
@@ -417,12 +418,12 @@ net start Taosanode
 
 | Model | Required | Port | Description |
 |-------|----------|------|-------------|
-| tdtsfm | Yes | 6036 | Time Series Foundation Model |
-| timemoe | Yes | 6037 | Time Series Mixture of Experts |
-| chronos | No | 6038 | Amazon Chronos |
-| timesfm | No | 6039 | Google TimesFM |
-| moirai | No | 6040 | Salesforce Moirai |
-| moment | No | 6041 | AutonLab MOMENT |
+| tdtsfm | Yes | 6061 | Time Series Foundation Model |
+| timemoe | Yes | 6062 | Time Series Mixture of Experts |
+| chronos | No | 6063 | Amazon Chronos |
+| moirai | No | 6064 | Salesforce Moirai |
+| timesfm | No | 6065 | Google TimesFM |
+| moment | No | 6066 | AutonLab MOMENT |
 
 ### Starting Models
 

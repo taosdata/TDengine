@@ -32,8 +32,6 @@ int tdbTbOpen(const char *tbname, int keyLen, int valLen, tdb_cmpr_fn_t keyCmprF
   char    fFullName[TDB_FILENAME_LEN];
   SPage  *pPage;
   SPgno   pgno;
-  void   *pKey = NULL;
-  int     nKey = 0;
   void   *pData = NULL;
   int     nData = 0;
 
@@ -63,8 +61,6 @@ int tdbTbOpen(const char *tbname, int keyLen, int valLen, tdb_cmpr_fn_t keyCmprF
       pgno = 0;
     } else {
       pgno = *(SPgno *)pData;
-
-      tdbFree(pKey);
       tdbFree(pData);
     }
 
@@ -250,7 +246,7 @@ int tdbTbcOpen(TTB *pTb, TBC **ppTbc, TXN *pTxn) {
   }
 
   if ((ret = tdbBtcOpen(&pTbc->btc, pTb->pBt, pTxn)) != 0) {
-    taosMemoryFree(pTbc);
+    tdbOsFree(pTbc);
     return ret;
   }
 

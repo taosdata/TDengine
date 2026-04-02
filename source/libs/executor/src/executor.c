@@ -243,7 +243,7 @@ static int32_t checkInsertParam(SStreamInserterParam* streamInserterParam) {
 
   if (streamInserterParam->suid <= 0 &&
       (streamInserterParam->tbname == NULL || strlen(streamInserterParam->tbname) == 0)) {
-    stError("insertParam: invalid table name, suid:%" PRIx64 "", streamInserterParam->suid);
+    stError("insertParam: invalid table name: %s, suid:%" PRIx64 "", streamInserterParam->tbname ? streamInserterParam->tbname : "(null)", streamInserterParam->suid);
     return TSDB_CODE_INVALID_PARA;
   }
 
@@ -1800,7 +1800,7 @@ int32_t streamClearStatesForOperators(qTaskInfo_t tInfo) {
   return code;
 }
 
-int32_t streamExecuteTask(qTaskInfo_t tInfo, SSDataBlock** ppRes, uint64_t* useconds, bool* finished) {
+int32_t streamExecuteTask(qTaskInfo_t tInfo, SSDataBlock** ppRes, bool* finished) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tInfo;
   int64_t        threadId = taosGetSelfPthreadId();
   int64_t        curOwner = 0;
@@ -1863,9 +1863,6 @@ int32_t streamExecuteTask(qTaskInfo_t tInfo, SSDataBlock** ppRes, uint64_t* usec
   uint64_t el = (taosGetTimestampUs() - st);
 
   pTaskInfo->cost.elapsedTime += el;
-  if (NULL == *ppRes) {
-    *useconds = pTaskInfo->cost.elapsedTime;
-  }
 
   (void)cleanUpUdfs();
 
@@ -1960,7 +1957,8 @@ int32_t qStreamFilterTableListForReader(void* pVnode, SArray* uidList,
   if (code != TSDB_CODE_SUCCESS) {
     goto end;
   }                                              
-  code = buildGroupIdMapForAllTables(pList, &pHandle, &pScanNode, pGroupTags, false, NULL, storageAPI, groupIdMap);
+  code = buildGroupIdMapForAllTables(pList, &pHandle, &pScanNode, pGroupTags, false, NULL, storageAPI, groupIdMap,
+                                     false);
   if (code != TSDB_CODE_SUCCESS) {
     goto end;
   }
@@ -2158,6 +2156,10 @@ int32_t streamCalcOutputTbName(SNode* pExpr, char* tbname, SStreamRuntimeFuncInf
   int32_t      len = 0;
   int32_t      nextIdx = pStreamRuntimeInfo->curIdx;
   pStreamRuntimeInfo->curIdx = 0;  // always use the first window to calc tbname
+  if (pStreamRuntimeInfo->outNormalTable != NULL) {
+    tstrncpy(tbname, pStreamRuntimeInfo->outNormalTable, TSDB_DB_NAME_LEN + TSDB_TABLE_NAME_LEN + 1);
+    return code;
+  }
   // execute the expr
   switch (pExpr->type) {
     case QUERY_NODE_VALUE: {
