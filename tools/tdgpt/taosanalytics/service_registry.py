@@ -328,13 +328,18 @@ class ServiceRegistry:
         AppLogger.info("start to load custom defined models from config files")
 
         dyn_dir = Configure.get_instance().get_dynamic_model_directory()
-        for item in os.listdir(dyn_dir):
-            if item.endswith('.json'):
-                try:
-                    self.register_service_from_file(os.path.join(dyn_dir, item))
-                except Exception as e:
-                    AppLogger.error("failed to register dynamic model from file %s: %s, skipping", item, str(e))
-                    continue
+
+        if Path(dyn_dir).exists() and os.path.isdir(dyn_dir):
+            for item in os.listdir(dyn_dir):
+                if item.endswith('.json'):
+                    try:
+                        self.register_service_from_file(os.path.join(dyn_dir, item))
+                    except Exception as e:
+                        AppLogger.error("failed to register dynamic model from file %s: %s, skipping", item, str(e))
+                        continue
+        else:
+            AppLogger.debug("dynamic model directory '%s' does not exist or is not a directory, "
+                            "skipping loading dynamic models from config files", dyn_dir)
 
         # mark the register procedure.
         self._loaded = True
