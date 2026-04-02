@@ -1,0 +1,15 @@
+Package: tdengine-tsdb
+Version: 3.0.0
+Replaces: tdengine (<= 3.3.6.13)
+Provides: tdengine
+Conflicts: tdengine
+Section: utils
+Priority: optional
+#Essential: no
+#Depends: no
+#Suggests: no
+Architecture: amd64
+Installed-Size: 66666
+Maintainer: support@taosdata.com
+Homepage: http://taosdata.com
+Description: Big Data Platform Designed and Optimized for IoT.

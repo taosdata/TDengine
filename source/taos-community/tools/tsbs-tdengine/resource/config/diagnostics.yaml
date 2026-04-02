@@ -1,0 +1,150 @@
+testCases:
+    - scenarioId: "A4"
+      querySql: select count(*) from db2.diagnostics
+      dataRows: 9988779
+      verifySql: select count(*) from db2.res_a4
+      equalSql:  select count(*) from 
+                      (
+                          select ts, sum(load) from 
+                               (
+                                    select _wend ts, last(current_load) load 
+                                        from db2.diagnostics 
+                                        partition by tbname 
+                                        interval(10m)
+                               ) 
+                               partition by ts
+                      )
+      diffRows: 0
+
+    - scenarioId: "A6"
+      querySql: select count(*) from db2.diagnostics
+      dataRows: 9988779
+
+    - scenarioId: "F4"
+      querySql: select count(*) from db2.diagnostics
+      dataRows: 9988779      
+
+    - scenarioId: "T7"
+      querySql: select count(*) from db2.diagnostics
+      dataRows: 9988779  
+
+    # A8 A9
+    - scenarioId: "A8"
+      querySql: select count(*) from db2.diagnostics
+      dataRows: 9988779
+      verifySql: select count(*) from db2.res_a8
+      equalSql:  select count(*) from 
+                      (
+                        select _wstart ts, sum(tduration)/3600000 
+                            from (
+                                  select _wstart ts, _wduration tduration, count(*) 
+                                       from db2.diagnostics 
+                                       partition by tbname 
+                                       event_window start with status > 0 end with status = 0
+                                ) 
+                            interval(1h)
+                      )
+      diffRows: -1
+
+    - scenarioId: "A9"
+      querySql: select count(*) from db2.diagnostics
+      dataRows: 9988779
+      verifySql: select count(*) from db2.res_a9
+      equalSql:  select count(*) from 
+                    (
+                       select ts, count(*) from 
+                            (
+                                  select _wstart ts, sum(tduration) sduration, name from 
+                                      (
+                                         select _wstart ts, _wduration tduration, tbname name, count(*) 
+                                             from db2.diagnostics 
+                                             partition by tbname 
+                                             event_window start with status > 0 end with status = 0
+                                       ) 
+                                       partition by name 
+                                       interval(1h)
+                            ) 
+                            where sduration > 12 * 60000 
+                            partition by ts
+                    )
+      diffRows: 0
+              
+    # F2 F5 F6 F7
+
+    - scenarioId: "F2"
+      querySql: select count(*) from db2.diagnostics
+      dataRows: 9988779
+      verifySql: select count(*) from db2.res_f2
+      expectRows: 25
+
+    - scenarioId: "F5"
+      querySql: select count(*) from db2.diagnostics
+      dataRows: 9988779
+      verifySql: select count(*) from db2.res_f5
+      equalSql:  select count(*) from 
+                      (
+                           select _wstart ts, sum(tduration)/3600000, fleet from 
+                               ( 
+                                   select _wstart ts, _wduration tduration, count(*), fleet 
+                                       from db2.diagnostics 
+                                       partition by tbname 
+                                       event_window start with status > 0 end with status = 0
+                               ) 
+                               partition by fleet 
+                               interval(1h)
+                      )
+      diffRows: -8                
+
+    - scenarioId: "F6"
+      querySql: select count(*) from db2.diagnostics
+      dataRows: 9988779
+      verifySql: select count(*) from db2.res_f6
+      equalSql:  select count(*) from 
+                      (
+                           select ts, sum(cur_load)/sum(load_capacity), fleet from 
+                               (
+                                  select _wend ts, last(current_load) cur_load, load_capacity, fleet from 
+                                      db2.diagnostics 
+                                      partition by tbname 
+                                      interval(1h)
+                               ) 
+                               partition by fleet, ts
+                      )
+      diffRows: 0   
+
+    - scenarioId: "F7"
+      querySql: select count(*) from db2.diagnostics
+      dataRows: 9988779
+      verifySql: select count(*) from db2.res_f7
+      equalSql:  select count(*) from 
+                      (
+                          select ts, sum(breakdown)/count(*), fleet from 
+                              (
+                                 select _wend ts, case when last(status) > 0 then 1 else 0 end breakdown, fleet 
+                                    from db2.diagnostics 
+                                    partition by tbname 
+                                    interval(1h)
+                              ) 
+                              partition by fleet, ts
+                      )
+      diffRows: 0   
+
+    # T5 T6 T9  
+
+    - scenarioId: "T5"
+      querySql: select count(*) from db2.diagnostics
+      dataRows: 9988779
+      verifySql: select count(*) from db2.res_t5
+      expectRows: 8888
+
+    - scenarioId: "T6"
+      querySql: select count(*) from db2.diagnostics
+      dataRows: 9988779
+      verifySql: select count(*) from db2.res_t6
+      expectRows: 8888
+
+    - scenarioId: "T9"
+      querySql: select count(*) from db2.diagnostics
+      dataRows: 9988779
+      verifySql: select count(*) from db2.res_t9
+      expectRows: 8888

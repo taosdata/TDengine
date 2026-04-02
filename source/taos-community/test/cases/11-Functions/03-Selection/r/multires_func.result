@@ -1,0 +1,31 @@
+Copyright (c) 2022 by TDengine, all rights reserved.
+
+taos> source tsim/query/t/multires_func.sql
+taos> use test;
+Database changed.
+
+taos> select count(*) from tb\G;
+*************************** 1.row ***************************
+count(*): 3
+
+taos> select last(*) from tb\G;
+*************************** 1.row ***************************
+ts: 2022-05-17 00:01:08.000
+c0: 3
+c1: 3.0000000
+c2: cde
+
+taos> select last_row(*) from tb\G;
+*************************** 1.row ***************************
+ts: 2022-05-17 00:01:08.000
+c0: 3
+c1: 3.0000000
+c2: cde
+
+taos> select first(*) from tb\G;
+*************************** 1.row ***************************
+ts: 2022-05-15 00:01:08.000
+c0: 1
+c1: 1.0000000
+c2: abc
+

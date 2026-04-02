@@ -1,0 +1,30 @@
+# How to build image
+## eg:
+cd ./collectd_docker
+docker build -t "taosadapter_collectd:v1" .
+
+# How to run single container
+## eg:
+cd ./collectd_docker
+./run_collectd.sh -h
+#Usage:
+#1st arg: agent_count
+#2nd arg: container_hostname prefix
+#3rd arg: TaosadapterIp
+#4th arg: TaosadapterPort
+#5th arg: CollectdInterval
+#eg: ./run_collectd.sh 1 collectd_agent1 172.26.10.86 6047 1
+#eg: ./run_collectd.sh 2 collectd_agent* 172.26.10.86 6047 1
+#rm all: ./run_collectd.sh rm collectd_agent*
+
+# How to run all container
+## You need to edit run_all.sh to set taosadapter ip/port by manual, but count of each agent could be defined in bash_args
+./run_all.sh -h
+#Usage:
+#1st arg: collectd_count
+#2nd arg: icinga2_count
+#3rd arg: statsd_count
+#4th arg: tcollector_count
+#5th arg: telegraf_count
+#6th arg: node_exporter port range
+#eg: ./run_all.sh 10 10 1 10 50 10000:10020

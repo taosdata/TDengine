@@ -1,0 +1,80 @@
+{
+    "filetype": "insert",
+    "cfgdir": "/etc/taos/",
+    "host": "v3cluster-0001",
+    "port": 7100,
+    "user": "root",
+    "password": "taosdata",
+    "thread_count": 8,
+    "create_table_thread_count": 8,
+    "result_file": "./tpl_insert_result_tpl",
+    "confirm_parameter_prompt": "no",
+    "insert_interval": 0,
+    "interlace_rows": 0,
+    "num_of_records_per_req": 100000,
+    "databases": [
+        {
+            "dbinfo": {
+                "name": "db_auto",
+                "drop": "tpl_drop_tpl",
+		"wal_retention_period": -1,
+		"wal_retention_size": -1,
+		"drop": "no",
+                "vgroups": tpl_vgroups_tpl,
+	        "replica": tpl_replica_tpl 	
+            },
+            "super_tables": [
+                {
+                    "name":  "stb_tpl_stid_tpl",
+                    "child_table_exists": "no",
+                    "childtable_count": tpl_ctables_tpl,
+                    "childtable_prefix": "stb_tpl_stid_tpl_",
+                    "auto_create_table": "no",
+                    "batch_create_tbl_num": 50000,
+                    "data_source": "rand",
+                    "insert_mode": "taosc",
+                    "insert_rows": tpl_rows_tpl,
+                    "interlace_rows": 0,
+                    "insert_interval": 0,
+                    "max_sql_len": 10000000,
+                    "disorder_ratio": 0,
+                    "disorder_range": 1000,
+                    "timestamp_step": 10,
+                    "sample_format": "csv",
+                    "use_sample_ts": "no",
+                    "tags_file": "",
+                    "columns": [
+                        {
+                            "type": "INT"
+                        },
+                        {
+                            "type": "DOUBLE",
+                            "count": 1
+                        },
+                        {
+                            "type": "BINARY",
+                            "len": 40,
+                            "count": 1
+                        },
+                        {
+                            "type": "nchar",
+                            "len": 20,
+                            "count": 1
+                        }
+                    ],
+                    "tags": [
+                        {
+                            "type": "TINYINT",
+                            "count": 1
+                        },
+                        {
+                            "type": "BINARY",
+                            "len": 16,
+                            "count": 1
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

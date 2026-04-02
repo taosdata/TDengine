@@ -1,0 +1,369 @@
+/*
+ * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http:www.gnu.org/licenses/>.
+ */
+
+#define _DEFAULT_SOURCE
+#include "smInt.h"
+#include "stream.h"
+
+static void smProcessRunnerQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
+  SSnodeMgmt     *pMgmt = pInfo->ahandle;
+  const STraceId *trace = &pMsg->info.traceId;
+
+  dDebug("msg:%p %d, get from snode-stream-runner queue", pMsg, pMsg->msgType);
+  
+  int32_t code = sndProcessStreamMsg(pMgmt->pSnode, pInfo->workerCb, pMsg);
+  if (code < 0) {
+    dGError("snd, msg:%p failed to process stream msg %s since %s", pMsg, TMSG_INFO(pMsg->msgType), tstrerror(code));
+  }
+
+  dTrace("msg:%p, is freed", pMsg);
+  rpcFreeCont(pMsg->pCont);
+  taosFreeQitem(pMsg);
+}
+
+static void smSendErrorRrsp(SRpcMsg *pMsg, int32_t errCode) {
+  SRpcMsg             rspMsg = {0};
+
+  rspMsg.info = pMsg->info;
+  rspMsg.pCont = NULL;
+  rspMsg.contLen = 0;
+  rspMsg.code = errCode;
+  rspMsg.msgType = pMsg->msgType;
+
+  tmsgSendRsp(&rspMsg);
+}
+
+
+static int32_t smGetSingleStreamProgress(SBatchMsg *pMsg, SBatchRspMsg *pRsp) {
+  int32_t            code = TSDB_CODE_SUCCESS;
+  int32_t            lino = 0;
+  SStreamProgressReq req = {0};
+  SStreamProgressRsp rsp = {0};
+  SStreamTask       *pTask = NULL;
+  void              *taskAddr = NULL;
+
+  QUERY_CHECK_CONDITION(pMsg->msgType == TDMT_MND_GET_STREAM_PROGRESS, code, lino, _end, TSDB_CODE_INVALID_MSG);
+
+  // decode req
+  code = tDeserializeStreamProgressReq(pMsg->msg, pMsg->msgLen, &req);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  rsp.streamId = req.streamId;
+  rsp.fetchIdx = req.fetchIdx;
+  rsp.fillHisFinished = true;
+  rsp.progressDelay = 0;
+
+  code = streamAcquireTask(req.streamId, req.taskId, &pTask, &taskAddr);
+  QUERY_CHECK_CODE(code, lino, _end);
+  code = stTriggerTaskGetDelay(pTask, &rsp.progressDelay, &rsp.fillHisFinished);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  // encode response
+  pRsp->msgLen = tSerializeStreamProgressRsp(NULL, 0, &rsp);
+  QUERY_CHECK_CONDITION(pRsp->msgLen >= 0, code, lino, _end, terrno);
+  pRsp->msg = taosMemoryCalloc(1, pRsp->msgLen);
+  QUERY_CHECK_NULL(pRsp, code, lino, _end, terrno);
+  pRsp->msgLen = tSerializeStreamProgressRsp(pRsp->msg, pRsp->msgLen, &rsp);
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    stError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  if (taskAddr != NULL) {
+    streamReleaseTask(taskAddr);
+  }
+  pRsp->reqType = pMsg->msgType;
+  pRsp->msgIdx = pMsg->msgIdx;
+  pRsp->rspCode = code;
+  return code;
+}
+
+static int32_t smProcessStreamProgressRequest(SRpcMsg *pMsg) {
+  int32_t   code = TSDB_CODE_SUCCESS;
+  int32_t   lino = 0;
+  SBatchReq batchReq = {0};
+  SBatchRsp batchRsp = {0};
+  SRpcMsg   rsp = {0};
+
+  code = tDeserializeSBatchReq(pMsg->pCont, pMsg->contLen, &batchReq);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  int32_t msgNum = taosArrayGetSize(batchReq.pMsgs);
+  QUERY_CHECK_CONDITION(msgNum < MAX_META_MSG_IN_BATCH, code, lino, _end, TSDB_CODE_INVALID_PARA);
+  batchRsp.pRsps = taosArrayInit(msgNum, sizeof(SBatchRspMsg));
+  QUERY_CHECK_NULL(batchRsp.pRsps, code, lino, _end, terrno);
+
+  for (int32_t i = 0; i < msgNum; i++) {
+    SBatchRspMsg rsp = {0};
+    SBatchMsg   *req = TARRAY_GET_ELEM(batchReq.pMsgs, i);
+    code = smGetSingleStreamProgress(req, &rsp);
+    QUERY_CHECK_CODE(code, lino, _end);
+    void *px = taosArrayPush(batchRsp.pRsps, &rsp);
+    QUERY_CHECK_NULL(px, code, lino, _end, terrno);
+  }
+
+  rsp.contLen = tSerializeSBatchRsp(NULL, 0, &batchRsp);
+  QUERY_CHECK_CONDITION(rsp.contLen >= 0, code, lino, _end, terrno);
+  rsp.pCont = rpcMallocCont(rsp.contLen);
+  QUERY_CHECK_NULL(rsp.pCont, code, lino, _end, terrno);
+  rsp.contLen = tSerializeSBatchRsp(rsp.pCont, rsp.contLen, &batchRsp);
+  QUERY_CHECK_CONDITION(rsp.contLen >= 0, code, lino, _end, terrno);
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    stError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  rsp.msgType = pMsg->msgType;
+  rsp.info = pMsg->info;
+  rsp.code = code;
+  taosArrayDestroyEx(batchReq.pMsgs, tFreeSBatchReqMsg);
+  taosArrayDestroyEx(batchRsp.pRsps, tFreeSBatchRspMsg);
+  tmsgSendRsp(&rsp);
+  return code;
+}
+
+static void smProcessStreamTriggerQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
+  int32_t       code = TSDB_CODE_SUCCESS;
+  int32_t       lino = 0;
+  int64_t       streamId = 0, taskId = 0;
+  SStreamTask  *pTask = NULL;
+  void         *taskAddr = NULL;
+  SMsgSendInfo *ahandle = NULL;
+
+  SSnodeMgmt *pMgmt = pInfo->ahandle;
+  STraceId   *trace = &pMsg->info.traceId;
+  dGDebug("msg:%p, get from snode-stream-trigger queue, type:%s %" PRIx64 ":%" PRIx64, pMsg, TMSG_INFO(pMsg->msgType), TRACE_GET_ROOTID(trace), TRACE_GET_MSGID(trace));
+
+  if (pMsg->msgType == TDMT_SND_BATCH_META) {
+    code = smProcessStreamProgressRequest(pMsg);
+    if (code != TSDB_CODE_SUCCESS) {
+      dError("msg:%p, failed to process stream progress request in snode-stream-trigger queue", pMsg);
+      TAOS_CHECK_EXIT(code);
+    }
+    goto _exit;
+  } else if (pMsg->msgType == TDMT_STREAM_TRIGGER_CTRL) {
+    SSTriggerCtrlRequest ctrlReq = {0};
+    code = tDeserializeSTriggerCtrlRequest(pMsg->pCont, pMsg->contLen, &ctrlReq);
+    if (code != TSDB_CODE_SUCCESS) {
+      dError("msg:%p, invalid trigger control request in snode-stream-trigger queue", pMsg);
+      TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+    }
+    streamId = ctrlReq.streamId;
+    taskId = ctrlReq.taskId;
+  } else {
+    ahandle = pMsg->info.ahandle;
+    if (ahandle == NULL) {
+      dError("empty ahandle for msg %s", TMSG_INFO(pMsg->msgType));
+      TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+    }
+    SSTriggerAHandle* pAhandle = ahandle->param;
+    if (pAhandle == NULL) {
+      dError("empty trigger ahandle for msg %s", TMSG_INFO(pMsg->msgType));
+      TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+    }
+    streamId = pAhandle->streamId;
+    taskId = pAhandle->taskId;
+  }
+
+  TAOS_CHECK_EXIT(streamAcquireTask(streamId, taskId, &pTask, &taskAddr));
+
+  int64_t errTaskId = 0;
+  code = stTriggerTaskProcessRsp(pTask, pMsg, &errTaskId);
+  if (code != TSDB_CODE_SUCCESS) {
+    streamHandleTaskError(pTask->streamId, errTaskId, code);
+    TAOS_CHECK_EXIT(code);
+  }
+
+_exit:
+  if (taskAddr != NULL) {
+    streamReleaseTask(taskAddr);
+  }
+  if (ahandle != NULL) {
+    destroyAhandle(ahandle);
+  }
+  dTrace("msg:%p, is freed, code:%d", pMsg, code);
+  rpcFreeCont(pMsg->pCont);
+  taosFreeQitem(pMsg);
+  if (code) {
+    stError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
+  }
+}
+static int32_t smDispatchStreamTriggerRsp(struct SDispatchWorkerPool *pPool, void *pParam, int32_t *pWorkerIdx) {
+  int32_t       code = TSDB_CODE_SUCCESS;
+  int32_t       lino = 0;
+  SBatchReq     batchReq = {0};
+  SRpcMsg      *pMsg = (SRpcMsg *)pParam;
+  int64_t       streamId = 0, taskId = 0, sessionId = 0;
+  void         *taskAddr = NULL;
+  SMsgSendInfo *ahandle = NULL;
+
+  dDebug("dispatch snode %s msg", TMSG_INFO(pMsg->msgType));
+
+  if (pMsg->msgType == TDMT_SND_BATCH_META) {
+    code = tDeserializeSBatchReq(pMsg->pCont, pMsg->contLen, &batchReq);
+    if (code != TSDB_CODE_SUCCESS) {
+      dError("msg:%p, failed to deserialize batch meta request", pMsg);
+      TAOS_CHECK_EXIT(TSDB_CODE_MSG_NOT_PROCESSED);
+    }
+    SBatchMsg         *pReq = TARRAY_DATA(batchReq.pMsgs);
+    SStreamProgressReq req = {0};
+    code = tDeserializeStreamProgressReq(pReq->msg, pReq->msgLen, &req);
+    if (code != TSDB_CODE_SUCCESS) {
+      dError("msg:%p, failed to deserialize stream progress request", pMsg);
+      TAOS_CHECK_EXIT(TSDB_CODE_MSG_NOT_PROCESSED);
+    }
+    streamId = req.streamId;
+    taskId = req.taskId;
+    sessionId = 1;
+  } else if (pMsg->msgType == TDMT_STREAM_TRIGGER_CTRL) {
+    SSTriggerCtrlRequest ctrlReq = {0};
+    code = tDeserializeSTriggerCtrlRequest(pMsg->pCont, pMsg->contLen, &ctrlReq);
+    if (code != TSDB_CODE_SUCCESS) {
+      dError("msg:%p, failed to deserialize trigger control request", pMsg);
+      TAOS_CHECK_EXIT(TSDB_CODE_MSG_NOT_PROCESSED);
+    }
+    streamId = ctrlReq.streamId;
+    taskId = ctrlReq.taskId;
+    sessionId = ctrlReq.sessionId;
+  } else {
+    ahandle = pMsg->info.ahandle;
+    if (ahandle == NULL) {
+      dError("empty ahandle for msg %s", TMSG_INFO(pMsg->msgType));
+      TAOS_CHECK_EXIT(TSDB_CODE_MSG_NOT_PROCESSED);
+    }
+    SSTriggerAHandle* pAhandle = ahandle->param;
+    if (pAhandle == NULL) {
+      dError("empty trigger ahandle for msg %s", TMSG_INFO(pMsg->msgType));
+      TAOS_CHECK_EXIT(TSDB_CODE_MSG_NOT_PROCESSED);
+    }
+    streamId = pAhandle->streamId;
+    taskId = pAhandle->taskId;
+    sessionId = pAhandle->sessionId;
+  }
+
+  int64_t  buf[] = {streamId, taskId, sessionId};
+  uint32_t hashVal = MurmurHash3_32((const char *)buf, sizeof(buf));
+  *pWorkerIdx = hashVal % tsNumOfStreamTriggerThreads;
+
+_exit:
+  taosArrayDestroyEx(batchReq.pMsgs, tFreeSBatchReqMsg);
+  if (taskAddr != NULL) {
+    streamReleaseTask(taskAddr);
+  }
+  if (code) {
+    destroyAhandle(ahandle);
+    //rpcFreeCont(pMsg->pCont);
+    //taosFreeQitem(pMsg);
+    stError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
+  }
+
+  return code;
+}
+
+int32_t smStartWorker(SSnodeMgmt *pMgmt) {
+  int32_t code = 0;
+
+  SSingleWorkerCfg cfg = {
+      .min = tsNumOfStreamRunnerThreads,
+      .max = tsNumOfStreamRunnerThreads,
+      .name = "snode-stream-runner",
+      .fp = (FItem)smProcessRunnerQueue,
+      .param = pMgmt,
+      .poolType = QUERY_AUTO_QWORKER_POOL,
+      .stopNoWaitQueue = true,
+  };
+
+  if ((code = tSingleWorkerInit(&pMgmt->runnerWorker, &cfg)) != 0) {
+    dError("failed to start snode runner worker since %s", tstrerror(code));
+    return code;
+  }
+
+  SDispatchWorkerPool* pTriggerPool = &pMgmt->triggerWorkerPool;
+  pTriggerPool->max = tsNumOfStreamTriggerThreads;
+  pTriggerPool->name = "snode-stream-trigger";
+  code = tDispatchWorkerInit(pTriggerPool);
+  if (code != 0) {
+    dError("failed to start snode stream-trigger worker since %s", tstrerror(code));
+    return code;
+  }
+  code = tDispatchWorkerAllocQueue(pTriggerPool, pMgmt, (FItem)smProcessStreamTriggerQueue, smDispatchStreamTriggerRsp);
+  if (code != 0) {
+    dError("failed to start snode stream-trigger worker since %s", tstrerror(code));
+    return code;
+  }
+
+  dDebug("snode workers are initialized");
+  return code;
+}
+
+void smStopWorker(SSnodeMgmt *pMgmt) {
+  tSingleWorkerCleanup(&pMgmt->runnerWorker);
+  tDispatchWorkerCleanup(&pMgmt->triggerWorkerPool);
+  dDebug("snode workers are closed");
+}
+
+int32_t smPutMsgToQueue(SSnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
+  int32_t  code;
+  SRpcMsg *pMsg;
+
+  code = taosAllocateQitem(sizeof(SRpcMsg), RPC_QITEM, pRpc->contLen, (void **)&pMsg);
+  if (code) {
+    rpcFreeCont(pRpc->pCont);
+    pRpc->pCont = NULL;
+    return code = terrno;
+  }
+
+  SSnode *pSnode = pMgmt->pSnode;
+  if (pSnode == NULL) {
+    code = terrno;
+    dError("msg:%p failed to put into snode queue since %s, type:%s qtype:%d len:%d", pMsg, tstrerror(code),
+           TMSG_INFO(pMsg->msgType), qtype, pRpc->contLen);
+    taosFreeQitem(pMsg);
+    rpcFreeCont(pRpc->pCont);
+    pRpc->pCont = NULL;
+    return code;
+  }
+
+  memcpy(pMsg, pRpc, sizeof(SRpcMsg));
+  pRpc->pCont = NULL;
+
+  switch (qtype) {
+    case STREAM_RUNNER_QUEUE:
+      code = smPutMsgToRunnerQueue(pMgmt, pMsg);
+      break;
+    case STREAM_TRIGGER_QUEUE:
+      code = smPutMsgToTriggerQueue(pMgmt, pMsg);
+      break;
+    default:
+      code = TSDB_CODE_INVALID_PARA;
+      rpcFreeCont(pMsg->pCont);
+      taosFreeQitem(pMsg);
+      return code;
+  }
+  return code;
+}
+
+int32_t smPutMsgToRunnerQueue(SSnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  SSingleWorker *pWorker = &pMgmt->runnerWorker;
+
+  dTrace("msg:%p, put into worker %s", pMsg, pWorker->name);
+  return taosWriteQitem(pWorker->queue, pMsg);
+}
+
+int32_t smPutMsgToTriggerQueue(SSnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  int32_t code = tAddTaskIntoDispatchWorkerPool(&pMgmt->triggerWorkerPool, pMsg);
+  stDebug("msg:%p, put into pool %s, code %d", pMsg, pMgmt->triggerWorkerPool.name, code);
+  return code;
+}

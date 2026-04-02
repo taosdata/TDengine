@@ -1,0 +1,57 @@
+{
+    "filetype": "insert",
+    "cfgdir": "/etc/taos",
+    "host": "127.0.0.1",
+    "port": 6030,
+    "user": "root",
+    "password": "taosdata",
+    "num_of_records_per_req": 20000,
+    "thread_count": 4,
+    "create_table_thread_count": 1,
+    "confirm_parameter_prompt": "no",
+    "continue_if_fail": "yes",
+    "databases": [
+        {
+            "dbinfo": {
+                "name": "idmp_sample_vehicle",
+                "drop": "yes",
+                "vgroups": 4,
+                "replica": 3,
+                "precision": "ms"
+            },
+            "super_tables": [
+                {
+                    "name": "vehicles",
+                    "child_table_exists": "no",
+                    "childtable_count": 20,
+                    "insert_rows": 100,
+                    "childtable_prefix": "vehicle_110100_00",
+                    "insert_mode": "taosc",
+                    "timestamp_step": 1000,
+                    "start_timestamp":1600000000000,
+                    "generate_row_rule": 0,
+                    "columns": [
+                        { "type": "FLOAT",    "name": "longitude", "min": 1,   "max": 50 },
+                        { "type": "FLOAT",    "name": "latitude",  "min": 180, "max": 250 },
+                        { "type": "SMALLINT", "name": "elevation", "min": 0,   "max": 300 },
+                        { "type": "SMALLINT", "name": "speed",     "min": 90,   "max": 1000 },
+                        { "type": "SMALLINT", "name": "direction", "min": 0,   "max": 5 },
+                        { "type": "INT",      "name": "alarm",     "min": 0,   "max": 300 },
+                        { "type": "INT",      "name": "mileage",   "min": 0,   "max": 300 }
+                    ],
+                    "tags": [
+                        { "type": "NCHAR",   "name": "vehicle_asset", "len": 64},
+                        { "type": "VARCHAR", "name": "vehicle_id",    "len": 64,
+                            "values": ["vehicle_001", "vehicle_002", "vehicle_003", "vehicle_004",
+                                       "vehicle_005", "vehicle_006", "vehicle_007", "vehicle_008",
+                                       "vehicle_009", "vehicle_010"] },
+                        { "type": "NCHAR",   "name": "vehicle_no",    "len": 64},                                       
+                        { "type": "TINYINT", "name": "vehicle_plate_color", "len": 64},                        
+                        { "type": "VARCHAR", "name": "producer",      "len": 64},
+                        { "type": "VARCHAR", "name": "terminal_id",   "len": 64}
+                    ]
+                }
+            ]
+        }
+    ]
+}

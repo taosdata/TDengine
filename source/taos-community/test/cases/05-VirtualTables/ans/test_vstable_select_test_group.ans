@@ -1,0 +1,337 @@
+
+taos> select count(*) from test_vtable_select.vtb_virtual_stb group by u_tinyint_col order by 1 slimit 10 limit 10;
+       count(*)        |
+========================
+                    83 |
+                    93 |
+                    93 |
+                    93 |
+                    96 |
+                    97 |
+                    97 |
+                    97 |
+                    98 |
+                    99 |
+
+taos> select u_tinyint_col from test_vtable_select.vtb_virtual_stb group by u_tinyint_col order by 1 slimit 10 limit 10;
+ u_tinyint_col |
+================
+             0 |
+             1 |
+             2 |
+             3 |
+             4 |
+             5 |
+             6 |
+             7 |
+             8 |
+             9 |
+
+taos> select u_tinyint_col, count(*) from test_vtable_select.vtb_virtual_stb group by u_tinyint_col order by 1,2 slimit 10 limit 10;
+ u_tinyint_col |       count(*)        |
+========================================
+             0 |                   111 |
+             1 |                   129 |
+             2 |                   110 |
+             3 |                   126 |
+             4 |                   110 |
+             5 |                   100 |
+             6 |                   129 |
+             7 |                   121 |
+             8 |                   118 |
+             9 |                   147 |
+
+taos> select avg(u_int_col) from test_vtable_select.vtb_virtual_stb group by u_tinyint_col order by 1 slimit 10 limit 10;
+      avg(u_int_col)       |
+============================
+          710483720.441176 |
+          734904765.916667 |
+          741699396.714286 |
+          766991269.055556 |
+              778233166.76 |
+          779930224.041667 |
+          814865857.227273 |
+          824458461.318182 |
+          840663719.764706 |
+           844017440.62963 |
+
+taos> select avg(u_tinyint_col), avg(u_smallint_col), avg(u_int_col), avg(u_bigint_col), avg(tinyint_col), avg(smallint_col), avg(int_col), avg(bigint_col), avg(float_col), avg(double_col) from test_vtable_select.vtb_virtual_stb group by u_tinyint_col order by 1,2,3,4 slimit 10 limit 10;
+    avg(u_tinyint_col)     |    avg(u_smallint_col)    |      avg(u_int_col)       |     avg(u_bigint_col)     |     avg(tinyint_col)      |     avg(smallint_col)     |       avg(int_col)        |      avg(bigint_col)      |      avg(float_col)       |      avg(double_col)      |
+========================================================================================================================================================================================================================================================================================
+ NULL                      |          32973.7168716872 |          1071002438.48921 | NULL                      |         -1.22547254725473 |                166.870125 | NULL                      |     -9.22337203685478e+18 |          366.507505358905 | NULL                      |
+                         0 |          37575.1351351351 |          989117596.411765 |          1210987667.51852 |                    -17.08 |          4778.72727272727 |         -127703048.459459 |     -9.22337203685478e+18 |          9392.31295955882 |         -6115443.57321521 |
+                         1 |                   33664.4 |          1099532088.80769 |           1058638251.8046 |         -13.3478260869565 |          1718.78947368421 |         -30027481.7596899 |     -9.22337203685478e+18 |         -2106.45643028846 |         -7850763.58021534 |
+                         2 |          32309.9318181818 |            1242129222.125 |          1052616046.66176 |         -15.9642857142857 |                    5897.4 |         -69424520.5181818 |     -9.22337203685478e+18 |         -3715.11280059814 |         -1194949.94123271 |
+                         3 |                   29349.5 |              1233882333.9 |          1095339878.91139 |                        -2 |                    -573.2 |          32172489.2380952 |     -9.22337203685478e+18 |          14725.4750732422 |          4969240.44989575 |
+                         4 |          29377.5238095238 |          1070349164.27778 |          1061925403.96154 |          11.2857142857143 |          3757.54545454545 |          35308848.7181818 |     -9.22337203685478e+18 |          2073.13161892361 |           2577643.2958801 |
+                         5 |                     33644 |          1027413878.29167 |          1029478897.75758 |                    -36.75 |                 -1053.875 |                2454231.78 |     -9.22337203685478e+18 |          10077.0159708659 |         -476821.701241758 |
+                         6 |          26611.0222222222 |          1042160886.66667 |          1154060034.68966 |          11.5483870967742 |          248.789473684211 |         -108230698.100775 |     -9.22337203685478e+18 |         -6432.15936053241 |         -4215492.75849345 |
+                         7 |                   29183.5 |              1069477165.6 |          1103525945.15294 |         -24.9545454545455 |          3776.09090909091 |           37372200.231405 |     -9.22337203685478e+18 |           -2155.660234375 |           -12352779.45957 |
+                         8 |          32982.3333333333 |          1311738652.03704 |           1102343779.2381 |                     -26.7 |                       581 |          17054367.4661017 |     -9.22337203685478e+18 |         -16061.1839192708 |         -5726124.37903276 |
+
+taos> select last(*) from test_vtable_select.vtb_virtual_stb group by u_tinyint_col order by 1 slimit 10 limit 10;
+        last(ts)         | last(u_tinyint_col) | last(u_smallint_col) | last(u_int_col) |  last(u_bigint_col)   | last(tinyint_col) | last(smallint_col) | last(int_col) |   last(bigint_col)    |   last(float_col)    |     last(double_col)      | last(bool_col) | last(binary_16_col) |      last(binary_32_col)       |       last(nchar_16_col)       |       last(nchar_32_col)       |
+===============================================================================================================================================================================================================================================================================================================================================================================================
+ 2020-10-03 00:00:17.018 |                 195 |                23736 |      2051823680 |            1436742183 |                96 |              30438 |    -865628344 |  -9223372036854775808 |             -19060.4 |          -14950095.301351 | false          | Cupertino           | Chengdu - San Jose             | 五。Palo Alto                  | 坎贝尔 - Campbell              |
+ 2020-10-03 00:00:17.504 |                  15 |                29226 |      1675719399 |            1791849386 |               -88 |             -19178 |     286694351 |  -9223372036854775808 |             -41403.6 |          -42862317.489014 | true           | San Francisco       | Tianjin - Mountain View        | 一。San Franc                  | 山景城 - Mountain View         |
+ 2020-10-03 00:00:17.710 |                   2 |                61980 |      1303090907 |            1399664600 |                95 |              -1530 |    -970700610 |  -9223372036854775808 |              62276.5 |          -89950500.321264 | false          | Sunnyvale           | Chengdu - San Jose             | 五。Palo Alto                  | 旧金山 - San Francisco         |
+ 2020-10-03 00:00:17.786 |                  64 |                26535 |       448280455 |            1095349858 |               101 |               6063 |    -278369943 |  -9223372036854775808 |              15179.4 |          -17802758.275713 | true           | Campbell            | Taiyuan - Santa Clara          | 七。Mountain                   | 圣何塞 - San Jose              |
+ 2020-10-03 00:00:18.094 |                 243 |                 8984 |      1751072922 |            1711202306 |                95 |               9525 |     571260372 |  -9223372036854775808 |              74990.8 |          -86995720.158928 | true           | Cupertino           | Xian - Sunnyvale               | 三。San Diego                  | 圣地亚哥 - San Diego           |
+ 2020-10-03 00:00:18.190 |                  77 |                 6480 |      1246188547 |            1391708457 |               -58 |               6402 |    -959844561 |  -9223372036854775808 |              25574.3 |           19733278.210997 | false          | Santa Clara         | Hangzhou - San Diego           | 五。Palo Alto                  | 圣克拉拉 - Santa Clara         |
+ 2020-10-03 00:00:18.194 |                  53 |                53738 |       825185675 |             288489064 |               116 |              -6862 |    -744181335 |  -9223372036854775808 |             -3400.12 |           -60143662.16457 | true           | San Francisco       | Harbin - Campbell              | 六。Campbell                   | 旧金山 - San Francisco         |
+ 2020-10-03 00:00:18.230 |                  89 |                 7891 |      1084174609 |            1073568237 |              -118 |                756 |     250694647 |  -9223372036854775808 |              -881.67 |          -18821506.504173 | false          | San Diego           | Xian - Sunnyvale               | 八。Sunnyvale                  | 旧金山 - San Francisco         |
+ 2020-10-03 00:00:18.324 |                 129 |                27409 |      1127394202 |             665919051 |               111 |              -1400 |    -887628513 |  -9223372036854775808 |             -62154.2 |           95587562.783422 | false          | Palo Alto           | Xian - Sunnyvale               | 九。Santa Cla                  | 圣地亚哥 - San Diego           |
+ 2020-10-03 00:00:18.338 |                 225 |                12505 |      1059043753 |             936507367 |              -117 |              -6596 |     601418318 |  -9223372036854775808 |              49190.6 |           -77176314.73555 | false          | Sunnyvale           | Beijing - San Francisco        | 二。Los Angle                  | 森尼韦尔 - Sunnyvale           |
+
+taos> select count(*) from test_vtable_select.vtb_virtual_stb group by u_tinyint_col + 1 order by 1 slimit 10 limit 10;
+       count(*)        |
+========================
+                    83 |
+                    93 |
+                    93 |
+                    93 |
+                    96 |
+                    97 |
+                    97 |
+                    97 |
+                    98 |
+                    99 |
+
+taos> select u_tinyint_col + 1 from test_vtable_select.vtb_virtual_stb group by u_tinyint_col + 1 order by 1 slimit 10 limit 10;
+     u_tinyint_col + 1     |
+============================
+                         1 |
+                         2 |
+                         3 |
+                         4 |
+                         5 |
+                         6 |
+                         7 |
+                         8 |
+                         9 |
+                        10 |
+
+taos> select u_tinyint_col + 1, count(*) from test_vtable_select.vtb_virtual_stb group by u_tinyint_col + 1 order by 1,2 slimit 10 limit 10;
+     u_tinyint_col + 1     |       count(*)        |
+====================================================
+                         1 |                   111 |
+                         2 |                   129 |
+                         3 |                   110 |
+                         4 |                   126 |
+                         5 |                   110 |
+                         6 |                   100 |
+                         7 |                   129 |
+                         8 |                   121 |
+                         9 |                   118 |
+                        10 |                   147 |
+
+taos> select avg(u_int_col) from test_vtable_select.vtb_virtual_stb group by u_tinyint_col + 1 order by 1 slimit 10 limit 10;
+      avg(u_int_col)       |
+============================
+          710483720.441176 |
+          734904765.916667 |
+          741699396.714286 |
+          766991269.055556 |
+              778233166.76 |
+          779930224.041667 |
+          814865857.227273 |
+          824458461.318182 |
+          840663719.764706 |
+           844017440.62963 |
+
+taos> select avg(u_tinyint_col), avg(u_smallint_col), avg(u_int_col), avg(u_bigint_col), avg(tinyint_col), avg(smallint_col), avg(int_col), avg(bigint_col), avg(float_col), avg(double_col) from test_vtable_select.vtb_virtual_stb group by u_tinyint_col + 1 order by 1,2,3,4 slimit 10 limit 10;
+    avg(u_tinyint_col)     |    avg(u_smallint_col)    |      avg(u_int_col)       |     avg(u_bigint_col)     |     avg(tinyint_col)      |     avg(smallint_col)     |       avg(int_col)        |      avg(bigint_col)      |      avg(float_col)       |      avg(double_col)      |
+========================================================================================================================================================================================================================================================================================
+ NULL                      |          32973.7168716872 |          1071002438.48921 | NULL                      |         -1.22547254725473 |                166.870125 | NULL                      |     -9.22337203685478e+18 |          366.507505358905 | NULL                      |
+                         0 |          37575.1351351351 |          989117596.411765 |          1210987667.51852 |                    -17.08 |          4778.72727272727 |         -127703048.459459 |     -9.22337203685478e+18 |          9392.31295955882 |         -6115443.57321521 |
+                         1 |                   33664.4 |          1099532088.80769 |           1058638251.8046 |         -13.3478260869565 |          1718.78947368421 |         -30027481.7596899 |     -9.22337203685478e+18 |         -2106.45643028846 |         -7850763.58021534 |
+                         2 |          32309.9318181818 |            1242129222.125 |          1052616046.66176 |         -15.9642857142857 |                    5897.4 |         -69424520.5181818 |     -9.22337203685478e+18 |         -3715.11280059814 |         -1194949.94123271 |
+                         3 |                   29349.5 |              1233882333.9 |          1095339878.91139 |                        -2 |                    -573.2 |          32172489.2380952 |     -9.22337203685478e+18 |          14725.4750732422 |          4969240.44989575 |
+                         4 |          29377.5238095238 |          1070349164.27778 |          1061925403.96154 |          11.2857142857143 |          3757.54545454545 |          35308848.7181818 |     -9.22337203685478e+18 |          2073.13161892361 |           2577643.2958801 |
+                         5 |                     33644 |          1027413878.29167 |          1029478897.75758 |                    -36.75 |                 -1053.875 |                2454231.78 |     -9.22337203685478e+18 |          10077.0159708659 |         -476821.701241758 |
+                         6 |          26611.0222222222 |          1042160886.66667 |          1154060034.68966 |          11.5483870967742 |          248.789473684211 |         -108230698.100775 |     -9.22337203685478e+18 |         -6432.15936053241 |         -4215492.75849345 |
+                         7 |                   29183.5 |              1069477165.6 |          1103525945.15294 |         -24.9545454545455 |          3776.09090909091 |           37372200.231405 |     -9.22337203685478e+18 |           -2155.660234375 |           -12352779.45957 |
+                         8 |          32982.3333333333 |          1311738652.03704 |           1102343779.2381 |                     -26.7 |                       581 |          17054367.4661017 |     -9.22337203685478e+18 |         -16061.1839192708 |         -5726124.37903276 |
+
+taos> select last(*) from test_vtable_select.vtb_virtual_stb group by u_tinyint_col + 1 order by 1 slimit 10 limit 10;
+        last(ts)         | last(u_tinyint_col) | last(u_smallint_col) | last(u_int_col) |  last(u_bigint_col)   | last(tinyint_col) | last(smallint_col) | last(int_col) |   last(bigint_col)    |   last(float_col)    |     last(double_col)      | last(bool_col) | last(binary_16_col) |      last(binary_32_col)       |       last(nchar_16_col)       |       last(nchar_32_col)       |
+===============================================================================================================================================================================================================================================================================================================================================================================================
+ 2020-10-03 00:00:17.018 |                 195 |                23736 |      2051823680 |            1436742183 |                96 |              30438 |    -865628344 |  -9223372036854775808 |             -19060.4 |          -14950095.301351 | false          | Cupertino           | Chengdu - San Jose             | 五。Palo Alto                  | 坎贝尔 - Campbell              |
+ 2020-10-03 00:00:17.504 |                  15 |                29226 |      1675719399 |            1791849386 |               -88 |             -19178 |     286694351 |  -9223372036854775808 |             -41403.6 |          -42862317.489014 | true           | San Francisco       | Tianjin - Mountain View        | 一。San Franc                  | 山景城 - Mountain View         |
+ 2020-10-03 00:00:17.710 |                   2 |                61980 |      1303090907 |            1399664600 |                95 |              -1530 |    -970700610 |  -9223372036854775808 |              62276.5 |          -89950500.321264 | false          | Sunnyvale           | Chengdu - San Jose             | 五。Palo Alto                  | 旧金山 - San Francisco         |
+ 2020-10-03 00:00:17.786 |                  64 |                26535 |       448280455 |            1095349858 |               101 |               6063 |    -278369943 |  -9223372036854775808 |              15179.4 |          -17802758.275713 | true           | Campbell            | Taiyuan - Santa Clara          | 七。Mountain                   | 圣何塞 - San Jose              |
+ 2020-10-03 00:00:18.094 |                 243 |                 8984 |      1751072922 |            1711202306 |                95 |               9525 |     571260372 |  -9223372036854775808 |              74990.8 |          -86995720.158928 | true           | Cupertino           | Xian - Sunnyvale               | 三。San Diego                  | 圣地亚哥 - San Diego           |
+ 2020-10-03 00:00:18.190 |                  77 |                 6480 |      1246188547 |            1391708457 |               -58 |               6402 |    -959844561 |  -9223372036854775808 |              25574.3 |           19733278.210997 | false          | Santa Clara         | Hangzhou - San Diego           | 五。Palo Alto                  | 圣克拉拉 - Santa Clara         |
+ 2020-10-03 00:00:18.194 |                  53 |                53738 |       825185675 |             288489064 |               116 |              -6862 |    -744181335 |  -9223372036854775808 |             -3400.12 |           -60143662.16457 | true           | San Francisco       | Harbin - Campbell              | 六。Campbell                   | 旧金山 - San Francisco         |
+ 2020-10-03 00:00:18.230 |                  89 |                 7891 |      1084174609 |            1073568237 |              -118 |                756 |     250694647 |  -9223372036854775808 |              -881.67 |          -18821506.504173 | false          | San Diego           | Xian - Sunnyvale               | 八。Sunnyvale                  | 旧金山 - San Francisco         |
+ 2020-10-03 00:00:18.324 |                 129 |                27409 |      1127394202 |             665919051 |               111 |              -1400 |    -887628513 |  -9223372036854775808 |             -62154.2 |           95587562.783422 | false          | Palo Alto           | Xian - Sunnyvale               | 九。Santa Cla                  | 圣地亚哥 - San Diego           |
+ 2020-10-03 00:00:18.338 |                 225 |                12505 |      1059043753 |             936507367 |              -117 |              -6596 |     601418318 |  -9223372036854775808 |              49190.6 |           -77176314.73555 | false          | Sunnyvale           | Beijing - San Francisco        | 二。Los Angle                  | 森尼韦尔 - Sunnyvale           |
+
+taos> select count(*) from test_vtable_select.vtb_virtual_stb group by u_tinyint_col, tinyint_col order by 1 slimit 10 limit 10;
+       count(*)        |
+========================
+                     1 |
+                     1 |
+                     1 |
+                     1 |
+                     1 |
+                     1 |
+                     1 |
+                     1 |
+                     1 |
+                     1 |
+
+taos> select u_tinyint_col, tinyint_col from test_vtable_select.vtb_virtual_stb group by u_tinyint_col, tinyint_col order by 1,2 slimit 10 limit 10;
+ u_tinyint_col | tinyint_col |
+==============================
+ NULL          |        -128 |
+ NULL          |        -127 |
+ NULL          |        -126 |
+ NULL          |        -125 |
+ NULL          |        -124 |
+ NULL          |        -123 |
+ NULL          |        -122 |
+ NULL          |        -121 |
+ NULL          |        -120 |
+ NULL          |        -119 |
+
+taos> select u_tinyint_col, tinyint_col, count(*) from test_vtable_select.vtb_virtual_stb group by u_tinyint_col, tinyint_col order by 1,2,3 slimit 10 limit 10;
+ u_tinyint_col | tinyint_col |       count(*)        |
+======================================================
+ NULL          |        -128 |                    51 |
+ NULL          |        -127 |                    45 |
+ NULL          |        -126 |                    48 |
+ NULL          |        -125 |                    58 |
+ NULL          |        -124 |                    60 |
+ NULL          |        -123 |                    55 |
+ NULL          |        -122 |                    53 |
+ NULL          |        -121 |                    49 |
+ NULL          |        -120 |                    42 |
+ NULL          |        -119 |                    52 |
+
+taos> select avg(u_int_col), avg(tinyint_col) from test_vtable_select.vtb_virtual_stb group by u_tinyint_col, tinyint_col order by 1,2 slimit 10 limit 10;
+      avg(u_int_col)       |     avg(tinyint_col)      |
+========================================================
+ NULL                      |                      -128 |
+ NULL                      |                      -128 |
+ NULL                      |                      -128 |
+ NULL                      |                      -128 |
+ NULL                      |                      -128 |
+ NULL                      |                      -128 |
+ NULL                      |                      -128 |
+ NULL                      |                      -128 |
+ NULL                      |                      -128 |
+ NULL                      |                      -128 |
+
+taos> select avg(u_tinyint_col), avg(u_smallint_col), avg(u_int_col), avg(u_bigint_col), avg(tinyint_col), avg(smallint_col), avg(int_col), avg(bigint_col), avg(float_col), avg(double_col) from test_vtable_select.vtb_virtual_stb group by u_tinyint_col, tinyint_col order by 1,2,3,4 slimit 10 limit 10;
+    avg(u_tinyint_col)     |    avg(u_smallint_col)    |      avg(u_int_col)       |     avg(u_bigint_col)     |     avg(tinyint_col)      |     avg(smallint_col)     |       avg(int_col)        |      avg(bigint_col)      |      avg(float_col)       |      avg(double_col)      |
+========================================================================================================================================================================================================================================================================================
+ NULL                      |          25381.1904761905 |             591467100.125 | NULL                      |                       -81 |                 11003.625 | NULL                      |     -9.22337203685478e+18 |          25147.9883956909 | NULL                      |
+ NULL                      |          26774.3392857143 |          1519611726.07692 | NULL                      |                         1 |          4686.07692307692 | NULL                      |     -9.22337203685478e+18 |          13879.3396935096 | NULL                      |
+ NULL                      |          26943.2045454545 |              1322157582.5 | NULL                      |                         3 |                  -1649.25 | NULL                      |     -9.22337203685478e+18 |         -14159.5308380127 | NULL                      |
+ NULL                      |          27658.0333333333 |              1199635345.4 | NULL                      |                       -80 |                     -2302 | NULL                      |     -9.22337203685478e+18 |          5359.81409912109 | NULL                      |
+ NULL                      |          27683.5641025641 |          886133433.636364 | NULL                      |                       -41 |         -3543.18181818182 | NULL                      |     -9.22337203685478e+18 |          6428.58762428977 | NULL                      |
+ NULL                      |          27685.5283018868 |             1165409463.75 | NULL                      |                        -3 |          5154.66666666667 | NULL                      |     -9.22337203685478e+18 |         -12024.9073079427 | NULL                      |
+ NULL                      |          27725.7818181818 |                 866397748 | NULL                      |                      -101 |          3829.27272727273 | NULL                      |     -9.22337203685478e+18 |         -21521.1909679066 | NULL                      |
+ NULL                      |          27926.7755102041 |              1143776895.6 | NULL                      |                        21 |                   -3949.7 | NULL                      |     -9.22337203685478e+18 |         -14757.6142089844 | NULL                      |
+ NULL                      |          27970.4716981132 |            1546140853.125 | NULL                      |                        99 |                 -8053.625 | NULL                      |     -9.22337203685478e+18 |           15616.076171875 | NULL                      |
+ NULL                      |          28006.7627118644 |          1166812675.42857 | NULL                      |                        11 |          7031.28571428571 | NULL                      |     -9.22337203685478e+18 |         -5237.07315935407 | NULL                      |
+
+taos> select last(*) from test_vtable_select.vtb_virtual_stb group by u_tinyint_col, tinyint_col order by 1 slimit 10 limit 10;
+        last(ts)         | last(u_tinyint_col) | last(u_smallint_col) | last(u_int_col) |  last(u_bigint_col)   | last(tinyint_col) | last(smallint_col) | last(int_col) |   last(bigint_col)    |   last(float_col)    |     last(double_col)      | last(bool_col) | last(binary_16_col) |      last(binary_32_col)       |       last(nchar_16_col)       |       last(nchar_32_col)       |
+===============================================================================================================================================================================================================================================================================================================================================================================================
+ 2020-10-01 00:00:00.006 |                  49 |                51523 | NULL            |                654411 |               -91 | NULL               |    -140653792 |  -9223372036854775808 | NULL                 |            4540042.841226 | true           | NULL                | Shanghai - Los Angles          | 六。Campbell                   | NULL                           |
+ 2020-10-01 00:00:00.012 |                  77 |                36105 | NULL            |            1318736917 |                70 | NULL               |    -944313433 |  -9223372036854775808 | NULL                 |           18127464.490065 | false          | NULL                | Shanghai - Los Angles          | 七。Mountain                   | NULL                           |
+ 2020-10-01 00:00:00.018 |                 195 |                 7319 | NULL            |             586342797 |              -113 | NULL               |    -979420128 |  -9223372036854775808 | NULL                 |          -63915768.853326 | true           | NULL                | Beijing - San Francisco        | 八。Sunnyvale                  | NULL                           |
+ 2020-10-01 00:00:00.024 |                 198 |                32618 | NULL            |            2031121720 |                -9 | NULL               |     339152230 |  -9223372036854775808 | NULL                 |           22941053.781623 | false          | NULL                | Xian - Sunnyvale               | 九。Santa Cla                  | NULL                           |
+ 2020-10-01 00:00:00.030 |                 162 |                40009 |       590847882 |            1311877143 |                 9 |             -11185 |    -393387481 |  -9223372036854775808 |              26467.3 |           31137660.109619 | true           | San Francisco       | Xian - Sunnyvale               | 一。San Franc                  | 圣克拉拉 - Santa Clara         |
+ 2020-10-01 00:00:00.036 |                  73 |                62565 | NULL            |             697129730 |               -69 | NULL               |    -540335831 |  -9223372036854775808 | NULL                 |          -12458279.539132 | true           | NULL                | Xian - Sunnyvale               | 九。Santa Cla                  | NULL                           |
+ 2020-10-01 00:00:00.042 |                 138 |                63023 | NULL            |            1175174571 |               -28 | NULL               |    -309527660 |  -9223372036854775808 | NULL                 |          -44610867.597806 | true           | NULL                | Xian - Sunnyvale               | 十。Cupertino                  | NULL                           |
+ 2020-10-01 00:00:00.048 |                  86 |                28985 | NULL            |            1641500934 |                24 | NULL               |    -819226415 |  -9223372036854775808 | NULL                 |            78716789.82035 | false          | NULL                | Hong Kong - Palo Alto          | 九。Santa Cla                  | NULL                           |
+ 2020-10-01 00:00:00.054 |                 205 |                51902 | NULL            |            1696247163 |               126 | NULL               |    -813840372 |  -9223372036854775808 | NULL                 |           -7254839.451336 | true           | NULL                | Beijing - San Francisco        | 五。Palo Alto                  | NULL                           |
+ 2020-10-01 00:00:00.060 |                  46 |                50802 |       276933212 |             916525139 |                42 |               6152 |     974834340 |  -9223372036854775808 |              71374.6 |           -8400114.137924 | false          | Mountain View       | Hangzhou - San Diego           | 四。San Jose                   | 库比蒂诺 - Cupertino           |
+
+taos> select count(*) from test_vtable_select.vtb_virtual_stb group by int_tag order by int_tag slimit 10 limit 10;
+       count(*)        |
+========================
+                 23333 |
+                 23333 |
+                 23333 |
+
+taos> select int_tag from test_vtable_select.vtb_virtual_stb group by int_tag order by int_tag slimit 10 limit 10;
+   int_tag   |
+==============
+           0 |
+           1 |
+           3 |
+
+taos> select int_tag, count(*) from test_vtable_select.vtb_virtual_stb group by int_tag order by int_tag slimit 10 limit 10;
+   int_tag   |       count(*)        |
+======================================
+           0 |                 23333 |
+           1 |                 23333 |
+           3 |                 23333 |
+
+taos> select avg(u_int_col) from test_vtable_select.vtb_virtual_stb group by int_tag order by int_tag slimit 10 limit 10;
+      avg(u_int_col)       |
+============================
+           1064174999.6801 |
+            1069007372.256 |
+           1081134811.9075 |
+
+taos> select avg(u_tinyint_col), avg(u_smallint_col), avg(u_int_col), avg(u_bigint_col), avg(tinyint_col), avg(smallint_col), avg(int_col), avg(bigint_col), avg(float_col), avg(double_col) from test_vtable_select.vtb_virtual_stb group by int_tag order by int_tag slimit 10 limit 10;
+    avg(u_tinyint_col)     |    avg(u_smallint_col)    |      avg(u_int_col)       |     avg(u_bigint_col)     |     avg(tinyint_col)      |     avg(smallint_col)     |       avg(int_col)        |      avg(bigint_col)      |      avg(float_col)       |      avg(double_col)      |
+========================================================================================================================================================================================================================================================================================
+                  127.1223 |                33072.8972 |           1064174999.6801 |           1070761472.7482 |                   -0.1846 |                  169.9224 |              -146132.5514 |     -9.22337203685478e+18 |          17.6425190647364 |         -1822137.86790735 |
+                  127.6821 |                33118.0375 |            1069007372.256 | NULL                      | NULL                      | NULL                      |              3804248.7922 |     -9.22337203685478e+18 |         -142.028467958832 | NULL                      |
+                  126.0347 |                32764.4386 |           1081134811.9075 |           1072155133.4611 |                    -0.507 |                  189.9904 |              6084499.6226 |     -9.22337203685478e+18 |          1218.85630314493 |         -3475319.55607798 |
+
+taos> select last(*) from test_vtable_select.vtb_virtual_stb group by int_tag order by int_tag slimit 10 limit 10;
+        last(ts)         | last(u_tinyint_col) | last(u_smallint_col) | last(u_int_col) |  last(u_bigint_col)   | last(tinyint_col) | last(smallint_col) | last(int_col) |   last(bigint_col)    |   last(float_col)    |     last(double_col)      | last(bool_col) | last(binary_16_col) |      last(binary_32_col)       |       last(nchar_16_col)       |       last(nchar_32_col)       |
+===============================================================================================================================================================================================================================================================================================================================================================================================
+ 2020-10-01 00:00:49.995 |                  51 |                10486 |      1812337397 |             896525845 |                 6 |               8984 |    1003732609 |  -9223372036854775808 |             -68902.9 |          -46321277.573751 | true           | Santa Clara         | Hangzhou - San Diego           | 一。San Franc                  | 圣克拉拉 - Santa Clara         |
+ 2020-10-02 00:00:49.995 |                 182 |                 9886 |      1216295564 | NULL                  | NULL              | NULL               |     336031772 |  -9223372036854775808 |              27119.6 | NULL                      | NULL           | NULL                | Tianjin - Mountain View        | 六。Campbell                   | 旧金山 - San Francisco         |
+ 2020-10-03 00:00:49.995 |                 222 |                25944 |      2076303405 |              82737045 |               117 |              -6089 |      95970965 |  -9223372036854775808 |              18672.6 |            35472676.57829 | false          | Sunnyvale           | Hong Kong - Palo Alto          | 十。Cupertino                  | 旧金山 - San Francisco         |
+
+taos> select count(*) from test_vtable_select.vtb_virtual_stb group by tbname order by tbname slimit 10 limit 10;
+       count(*)        |
+========================
+                 23333 |
+                 23333 |
+                 23333 |
+
+taos> select tbname from test_vtable_select.vtb_virtual_stb group by tbname order by tbname slimit 10 limit 10;
+             tbname             |
+=================================
+ vtb_virtual_ctb_full           |
+ vtb_virtual_ctb_half_full      |
+ vtb_virtual_ctb_mix            |
+
+taos> select tbname, count(*) from test_vtable_select.vtb_virtual_stb group by tbname order by tbname slimit 10 limit 10;
+             tbname             |       count(*)        |
+=========================================================
+ vtb_virtual_ctb_full           |                 23333 |
+ vtb_virtual_ctb_half_full      |                 23333 |
+ vtb_virtual_ctb_mix            |                 23333 |
+
+taos> select avg(u_int_col) from test_vtable_select.vtb_virtual_stb group by tbname order by tbname slimit 10 limit 10;
+      avg(u_int_col)       |
+============================
+           1064174999.6801 |
+            1069007372.256 |
+           1081134811.9075 |
+
+taos> select avg(u_tinyint_col), avg(u_smallint_col), avg(u_int_col), avg(u_bigint_col), avg(tinyint_col), avg(smallint_col), avg(int_col), avg(bigint_col), avg(float_col), avg(double_col) from test_vtable_select.vtb_virtual_stb group by tbname order by tbname slimit 10 limit 10;
+    avg(u_tinyint_col)     |    avg(u_smallint_col)    |      avg(u_int_col)       |     avg(u_bigint_col)     |     avg(tinyint_col)      |     avg(smallint_col)     |       avg(int_col)        |      avg(bigint_col)      |      avg(float_col)       |      avg(double_col)      |
+========================================================================================================================================================================================================================================================================================
+                  127.1223 |                33072.8972 |           1064174999.6801 |           1070761472.7482 |                   -0.1846 |                  169.9224 |              -146132.5514 |     -9.22337203685478e+18 |          17.6425190647364 |         -1822137.86790735 |
+                  127.6821 |                33118.0375 |            1069007372.256 | NULL                      | NULL                      | NULL                      |              3804248.7922 |     -9.22337203685478e+18 |         -142.028467958832 | NULL                      |
+                  126.0347 |                32764.4386 |           1081134811.9075 |           1072155133.4611 |                    -0.507 |                  189.9904 |              6084499.6226 |     -9.22337203685478e+18 |          1218.85630314493 |         -3475319.55607798 |
+
+taos> select last(*) from test_vtable_select.vtb_virtual_stb group by tbname order by tbname slimit 10 limit 10
+        last(ts)         | last(u_tinyint_col) | last(u_smallint_col) | last(u_int_col) |  last(u_bigint_col)   | last(tinyint_col) | last(smallint_col) | last(int_col) |   last(bigint_col)    |   last(float_col)    |     last(double_col)      | last(bool_col) | last(binary_16_col) |      last(binary_32_col)       |       last(nchar_16_col)       |       last(nchar_32_col)       |
+===============================================================================================================================================================================================================================================================================================================================================================================================
+ 2020-10-01 00:00:49.995 |                  51 |                10486 |      1812337397 |             896525845 |                 6 |               8984 |    1003732609 |  -9223372036854775808 |             -68902.9 |          -46321277.573751 | true           | Santa Clara         | Hangzhou - San Diego           | 一。San Franc                  | 圣克拉拉 - Santa Clara         |
+ 2020-10-02 00:00:49.995 |                 182 |                 9886 |      1216295564 | NULL                  | NULL              | NULL               |     336031772 |  -9223372036854775808 |              27119.6 | NULL                      | NULL           | NULL                | Tianjin - Mountain View        | 六。Campbell                   | 旧金山 - San Francisco         |
+ 2020-10-03 00:00:49.995 |                 222 |                25944 |      2076303405 |              82737045 |               117 |              -6089 |      95970965 |  -9223372036854775808 |              18672.6 |            35472676.57829 | false          | Sunnyvale           | Hong Kong - Palo Alto          | 十。Cupertino                  | 旧金山 - San Francisco         |
+

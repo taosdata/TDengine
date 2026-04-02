@@ -1,0 +1,274 @@
+package db
+
+import (
+	"context"
+	"database/sql"
+	"encoding/json"
+	"fmt"
+	"math"
+	"net/url"
+	"os"
+	"strings"
+	"time"
+
+	"github.com/sirupsen/logrus"
+	_ "github.com/taosdata/driver-go/v3/taosRestful"
+	"github.com/taosdata/taoskeeper/infrastructure/config"
+	"github.com/taosdata/taoskeeper/infrastructure/log"
+	"github.com/taosdata/taoskeeper/util"
+)
+
+type Connector struct {
+	db *sql.DB
+}
+
+type Data struct {
+	Head []string        `json:"head"`
+	Data [][]interface{} `json:"data"`
+}
+
+var dbLogger = log.GetLogger("DB ")
+
+func NewConnector(username, password, host string, port int, usessl bool) (*Connector, error) {
+	var protocol string
+	if usessl {
+		protocol = "https"
+	} else {
+		protocol = "http"
+	}
+	dbLogger := dbLogger.WithFields(logrus.Fields{config.ReqIDKey: util.GetQidOwn(config.Conf.InstanceID)})
+	dbLogger.Tracef("connect to adapter, host:%s, port:%d, usessl:%v", host, port, usessl)
+
+	db, err := sql.Open("taosRestful", fmt.Sprintf("%s:%s@%s(%s:%d)/?skipVerify=true",
+		url.QueryEscape(username), url.QueryEscape(password), protocol, host, port))
+	if err != nil {
+		dbLogger.Errorf("connect to adapter failed, host:%s, port:%d, usessl:%v, error:%s", host, port, usessl, err)
+		return nil, err
+	}
+
+	dbLogger.Tracef("connect to adapter success, host:%s, port:%d, usessl:%v", host, port, usessl)
+	return &Connector{db: db}, nil
+}
+
+func NewConnectorWithDb(username, password, host string, port int, dbname string, usessl bool) (*Connector, error) {
+	return NewConnectorWithDbAndToken(username, password, "", host, port, dbname, usessl)
+}
+
+func NewConnectorWithDbAndToken(username, password, token, host string, port int, dbname string, usessl bool) (*Connector, error) {
+	var protocol string
+	if usessl {
+		protocol = "https"
+	} else {
+		protocol = "http"
+	}
+
+	var bearerToken string
+	if token != "" {
+		bearerToken = fmt.Sprintf("&bearerToken=%s", token)
+	}
+
+	dbLogger := dbLogger.WithFields(logrus.Fields{config.ReqIDKey: util.GetQidOwn(config.Conf.InstanceID)})
+	dbLogger.Tracef("connect to adapter, host:%s, port:%d, usessl:%v", host, port, usessl)
+
+	db, err := sql.Open("taosRestful", fmt.Sprintf("%s:%s@%s(%s:%d)/%s?skipVerify=true%s",
+		url.QueryEscape(username), url.QueryEscape(password), protocol, host, port, dbname, bearerToken))
+	if err != nil {
+		dbLogger.Errorf("connect to adapter failed, host:%s, port:%d, db:%s, usessl:%v, error:%s", host, port, dbname, usessl, err)
+		return nil, err
+	}
+
+	dbLogger.Tracef("connect to adapter success, host:%s, port:%d, db:%s, usessl:%v", host, port, dbname, usessl)
+	return &Connector{db: db}, nil
+}
+
+type ReqIDKeyTy string
+
+const ReqIDKey ReqIDKeyTy = "taos_req_id"
+
+type RetryConfig struct {
+	BaseDelay time.Duration
+	MaxDelay  time.Duration
+	Logger    *logrus.Entry
+}
+
+var defaultRetryConfig = RetryConfig{
+	BaseDelay: 5 * time.Second,
+	MaxDelay:  60 * time.Second,
+}
+
+type operationWithResult[T any] func() (T, error)
+
+func (c *Connector) Exec(ctx context.Context, sql string, qid uint64) (int64, error) {
+	dbLogger := dbLogger.WithFields(logrus.Fields{config.ReqIDKey: qid})
+	ctx = context.WithValue(ctx, ReqIDKey, int64(qid))
+
+	dbLogger.Tracef("call adapter to execute sql:%s", sql)
+	startTime := time.Now()
+	res, err := c.db.ExecContext(ctx, sql)
+
+	endTime := time.Now()
+	latency := endTime.Sub(startTime)
+
+	if err != nil {
+		if strings.Contains(err.Error(), "Authentication failure") {
+			dbLogger.Error("Authentication failure")
+			ctxLog, cancelLog := context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancelLog()
+			log.Close(ctxLog)
+			os.Exit(1)
+		}
+		dbLogger.Errorf("latency:%v, sql:%s, err:%s", latency, sql, err)
+		return 0, err
+	}
+
+	rowsAffected, err := res.RowsAffected()
+	if err != nil {
+		dbLogger.Errorf("latency:%v, err:%s", latency, err)
+		return rowsAffected, err
+	}
+
+	dbLogger.Tracef("response ok, rowsAffected:%v, latency:%v", rowsAffected, latency)
+
+	return rowsAffected, err
+}
+
+func logData(data *Data, logger *logrus.Entry) {
+	if data == nil {
+		logger.Tracef("No data to display")
+		return
+	}
+
+	jsonData, err := json.Marshal(data)
+	if err != nil {
+		logger.Errorf("Failed to marshal data to JSON: %v", err)
+		return
+	}
+	logger.Tracef("query result data:%s", jsonData)
+}
+
+func (c *Connector) Query(ctx context.Context, sql string, qid uint64) (*Data, error) {
+	dbLogger := dbLogger.WithFields(logrus.Fields{config.ReqIDKey: qid})
+	ctx = context.WithValue(ctx, ReqIDKey, int64(qid))
+
+	dbLogger.Tracef("call adapter to execute query, sql:%s", sql)
+
+	startTime := time.Now()
+	rows, err := c.db.QueryContext(ctx, sql)
+
+	endTime := time.Now()
+	latency := endTime.Sub(startTime)
+
+	if err != nil {
+		if strings.Contains(err.Error(), "Authentication failure") {
+			dbLogger.Error("Authentication failure")
+			ctxLog, cancelLog := context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancelLog()
+			log.Close(ctxLog)
+			os.Exit(1)
+		}
+		dbLogger.Errorf("latency:%v, sql:%s, err:%s", latency, sql, err)
+		return nil, err
+	}
+
+	dbLogger.Tracef("response ok, latency:%v, sql:%s", latency, sql)
+
+	data := &Data{}
+	data.Head, err = rows.Columns()
+	columnCount := len(data.Head)
+	if err != nil {
+		dbLogger.Errorf("get columns error, msg:%s", err)
+		return nil, err
+	}
+	scanData := make([]interface{}, columnCount)
+	for rows.Next() {
+		tmp := make([]interface{}, columnCount)
+		for i := 0; i < columnCount; i++ {
+			scanData[i] = &tmp[i]
+		}
+		err = rows.Scan(scanData...)
+		if err != nil {
+			rows.Close()
+			dbLogger.Errorf("rows scan error, msg:%s", err)
+			return nil, err
+		}
+		data.Data = append(data.Data, tmp)
+	}
+
+	if dbLogger.Logger.IsLevelEnabled(logrus.TraceLevel) {
+		logData(data, dbLogger)
+	}
+	return data, nil
+}
+
+func (c *Connector) Close() error {
+	return c.db.Close()
+}
+
+func executeWithRetry[T any](config RetryConfig, op operationWithResult[T]) (T, error) {
+	var (
+		delay   = config.BaseDelay
+		attempt = 0
+	)
+
+	for {
+		result, err := op()
+		if err == nil {
+			return result, nil
+		}
+
+		attempt++
+		config.Logger.Errorf("Attempt %d failed, error: %v, retrying in %v...",
+			attempt, err, delay)
+
+		time.Sleep(delay)
+		delay = time.Duration(math.Min(float64(delay)*2, float64(config.MaxDelay)))
+	}
+}
+
+func (c *Connector) ExecWithRetryForever(ctx context.Context, sql string, qid uint64) (int64, error) {
+	logger := dbLogger.WithFields(logrus.Fields{config.ReqIDKey: qid})
+	config := defaultRetryConfig
+	config.Logger = logger
+
+	return executeWithRetry(config, func() (int64, error) {
+		return c.Exec(ctx, sql, qid)
+	})
+}
+
+func (c *Connector) QueryWithRetryForever(ctx context.Context, sql string, qid uint64) (*Data, error) {
+	logger := dbLogger.WithFields(logrus.Fields{config.ReqIDKey: qid})
+	config := defaultRetryConfig
+	config.Logger = logger
+
+	return executeWithRetry(config, func() (*Data, error) {
+		return c.Query(ctx, sql, qid)
+	})
+}
+
+func NewConnectorWithRetryForever(username, password, host string, port int, usessl bool) (*Connector, error) {
+	logger := dbLogger.WithFields(logrus.Fields{config.ReqIDKey: util.GetQidOwn(config.Conf.InstanceID)})
+	config := defaultRetryConfig
+	config.Logger = logger
+
+	return executeWithRetry(config, func() (*Connector, error) {
+		return NewConnector(username, password, host, port, usessl)
+	})
+}
+
+func NewConnectorWithDbWithRetryForever(username, password, host string, port int, dbname string, usessl bool) (*Connector, error) {
+	logger := dbLogger.WithFields(logrus.Fields{config.ReqIDKey: util.GetQidOwn(config.Conf.InstanceID)})
+	config := defaultRetryConfig
+	config.Logger = logger
+	return executeWithRetry(config, func() (*Connector, error) {
+		return NewConnectorWithDb(username, password, host, port, dbname, usessl)
+	})
+}
+
+func NewConnectorWithDbAndTokenWithRetryForever(username, password, token, host string, port int, dbname string, usessl bool) (*Connector, error) {
+	logger := dbLogger.WithFields(logrus.Fields{config.ReqIDKey: util.GetQidOwn(config.Conf.InstanceID)})
+	config := defaultRetryConfig
+	config.Logger = logger
+	return executeWithRetry(config, func() (*Connector, error) {
+		return NewConnectorWithDbAndToken(username, password, token, host, port, dbname, usessl)
+	})
+}

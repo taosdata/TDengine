@@ -1,0 +1,8 @@
+select substring_index();
+select substring_index(, '.', 2);
+select substring_index('www.taosdata.com', , 2);
+select substring_index('www.taosdata.com', '.', );
+select substring_index(123456789, '7', 1);
+select substring_index('www.taosdata.com', c, 0);
+select substring_index('www.taosdata.com', '.', '2');
+select substring_index('www.taosdata.com', '.', 2, 3);

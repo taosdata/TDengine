@@ -1,0 +1,47 @@
+{
+  "filetype": "insert",
+  "cfgdir": "/etc/taos",
+  "host": "127.0.0.1",
+  "port": 6030,
+  "user": "root",
+  "password": "taosdata",
+  "thread_count": 8,
+  "create_table_thread_count": 2,
+  "connection_pool_size": 20,
+  "result_file": "./insert_res.txt",
+  "confirm_parameter_prompt": "no",
+  "prepared_rand": 10,
+  "chinese": "no",
+  "insert_interval": 0,
+  "num_of_records_per_req": 1,
+    "databases": [{
+        "dbinfo": {
+            "name": "test",
+            "drop": "yes"
+        },
+        "super_tables": [{
+            "name": "meters",
+            "child_table_exists":"no",
+            "childtable_count": 20,
+            "childtable_prefix": "d",
+            "escape_character": "yes",
+            "auto_create_table": "no",
+            "batch_create_tbl_numbers": "1,2,3,4",
+            "batch_create_tbl_intervals": "1000,2000,3000,4000",
+            "keep_trying": 10,
+            "trying_interval": 1000,
+            "data_source": "rand",
+            "insert_mode": "taosc",
+            "line_protocol": "line",
+            "ttl": 360,
+            "insert_rows": 0,
+            "insert_interval": 0,
+            "timestamp_step": 1,
+            "start_timestamp": "2022-10-01 00:00:00.000",
+            "tags_file": "",
+            "partial_col_num": 999,
+            "columns": [{"type": "TIMESTAMP","max": 10, "min": 0},{"type": "INT","max": 10, "min": 0}],
+            "tags": [{"type": "INT","max": 10, "min": 0}]
+        }]
+    }]
+}

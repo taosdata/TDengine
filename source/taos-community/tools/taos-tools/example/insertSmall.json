@@ -1,0 +1,56 @@
+{
+    "filetype": "insert",
+    "cfgdir": "/etc/taos",
+    "host": "127.0.0.1",
+    "port": 6030,
+    "user": "root",
+    "password": "taosdata",
+    "connection_pool_size": 8,
+    "thread_count": 10,
+    "create_table_thread_count": 4,
+    "result_file": "./insert_res.txt",
+    "confirm_parameter_prompt": "no",
+    "num_of_records_per_req": 10000,
+    "prepared_rand": 10000,
+    "chinese": "no",
+    "escape_character": "yes",
+    "continue_if_fail": "no",
+    "thread_bind_vgroup": "yes",
+    "databases": [
+        {
+            "dbinfo": {
+                "name": "test",
+                "drop": "yes",
+                "vgroups": 10,
+                "precision": "ms"
+            },
+            "super_tables": [
+                {
+                    "name": "meters",
+                    "child_table_exists": "no",
+                    "childtable_count": 100000,
+                    "childtable_prefix": "d",
+                    "data_source": "rand",
+                    "insert_mode": "taosc",
+                    "insert_rows": 1000,
+                    "interlace_rows": 1,
+                    "timestamp_step": 1,
+                    "start_timestamp": "2020-10-01 00:00:00.000",
+                    "columns": [
+                        {"type": "FLOAT", "name": "current", "count": 1, "max": 12, "min": 8 },
+                        { "type": "INT", "name": "voltage", "max": 225, "min": 215 },
+                        { "type": "FLOAT", "name": "phase", "max": 1, "min": 0 }
+                    ],
+                    "tags": [
+                        {"type": "TINYINT", "name": "groupid", "max": 10, "min": 1},
+                        {"type": "BINARY",  "name": "location", "len": 16,
+                            "values": ["San Francisco", "Los Angles", "San Diego",
+                                "San Jose", "Palo Alto", "Campbell", "Mountain View",
+                                "Sunnyvale", "Santa Clara", "Cupertino"]
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

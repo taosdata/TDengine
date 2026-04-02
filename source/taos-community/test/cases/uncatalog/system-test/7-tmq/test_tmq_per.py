@@ -1,0 +1,161 @@
+
+import taos
+import sys
+import time
+import socket
+import os
+import threading
+import math
+
+from new_test_framework.utils import tdLog, tdSql, tdCom, clusterComCheck, cluster, tmqCom
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+class TestCase:
+    def setup_class(cls):
+        tdLog.debug(f"start to excute {__file__}")
+        cls.vgroups    = 1
+        cls.ctbNum     = 1000
+        cls.rowsPerTbl = 10000
+
+    def getDataPath(self):
+        selfPath = tdCom.getBuildPath()
+
+        return selfPath + '/../sim/dnode%d/data/vnode/vnode%d/wal/*';
+
+    def prepareTestEnv(self):
+        tdLog.printNoPrefix("======== prepare test env include database, stable, ctables, and insert data: ")
+        paraDict = {'dbName':     'dbt',
+                    'dropFlag':   1,
+                    'event':      '',
+                    'vgroups':    1,
+                    'stbName':    'stb',
+                    'colPrefix':  'c',
+                    'tagPrefix':  't',
+                    'colSchema':   [{'type': 'INT', 'count':1},{'type': 'BIGINT', 'count':1},{'type': 'DOUBLE', 'count':1},{'type': 'BINARY', 'len':32, 'count':1},{'type': 'NCHAR', 'len':32, 'count':1},{'type': 'TIMESTAMP', 'count':1}],
+                    'tagSchema':   [{'type': 'INT', 'count':1},{'type': 'BIGINT', 'count':1},{'type': 'DOUBLE', 'count':1},{'type': 'BINARY', 'len':32, 'count':1},{'type': 'NCHAR', 'len':32, 'count':1}],
+                    'ctbPrefix':  'ctb',
+                    'ctbStartIdx': 0,
+                    'ctbNum':     10,
+                    'rowsPerTbl': 10000,
+                    'batchNum':   10,
+                    'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
+                    'pollDelay':  60,
+                    'showMsg':    1,
+                    'showRow':    1,
+                    'snapshot':   0}
+
+        paraDict['vgroups'] = self.vgroups
+        paraDict['ctbNum'] = self.ctbNum
+        paraDict['rowsPerTbl'] = self.rowsPerTbl
+
+        tdCom.drop_all_db()
+        tmqCom.initConsumerTable()
+        tdCom.create_database(tdSql, paraDict["dbName"],paraDict["dropFlag"], wal_retention_period=36000,vgroups=paraDict["vgroups"],replica=self.replicaVar)
+        tdLog.info("create stb")
+        tmqCom.create_stable(tdSql, dbName=paraDict["dbName"],stbName=paraDict["stbName"])
+        return
+
+    def tmqCase1(self, deleteWal=False):
+        tdLog.printNoPrefix("======== test case 1: ")
+        paraDict = {'dbName':     'dbt',
+                    'dropFlag':   1,
+                    'event':      '',
+                    'vgroups':    1,
+                    'stbName':    'stb',
+                    'colPrefix':  'c',
+                    'tagPrefix':  't',
+                    'colSchema':   [{'type': 'INT', 'count':1},{'type': 'BIGINT', 'count':1},{'type': 'DOUBLE', 'count':1},{'type': 'BINARY', 'len':32, 'count':1},{'type': 'NCHAR', 'len':32, 'count':1},{'type': 'TIMESTAMP', 'count':1}],
+                    'tagSchema':   [{'type': 'INT', 'count':1},{'type': 'BIGINT', 'count':1},{'type': 'DOUBLE', 'count':1},{'type': 'BINARY', 'len':32, 'count':1},{'type': 'NCHAR', 'len':32, 'count':1}],
+                    'ctbPrefix':  'ctb1',
+                    'ctbStartIdx': 0,
+                    'ctbNum':     10000,
+                    'rowsPerTbl': 10000,
+                    'batchNum':   10000,
+                    'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
+                    'pollDelay':  5,
+                    'showMsg':    1,
+                    'showRow':    1,
+                    'snapshot':   0}
+
+        paraDict['vgroups'] = self.vgroups
+        paraDict['ctbNum'] = self.ctbNum
+        print
+        paraDict['rowsPerTbl'] = self.rowsPerTbl
+
+        topicNameList = ['topic1']
+        # expectRowsList = []
+        tmqCom.initConsumerTable()
+
+        tdLog.info("create topics from stb ")
+        queryString = "stable %s.%s"%(paraDict['dbName'], paraDict['stbName'])
+        # sqlString = "create topic %s as stable %s" %(topicNameList[0], paraDict['stbName'])
+        sqlString = "create topic %s as %s" %(topicNameList[0], queryString)
+        tdLog.info("create topic sql: %s"%sqlString)
+        tdSql.execute(sqlString)
+        # tdSql.query(queryString)
+        # expectRowsList.append(tdSql.getRows())
+
+        # init consume info, and start tmq_sim, then check consume result
+        tdLog.info("insert consume info to consume processor")
+        consumerId   = 0
+        expectrowcnt = paraDict["rowsPerTbl"] * paraDict["ctbNum"] 
+        topicList    = topicNameList[0]
+        ifcheckdata  = 1
+        ifManualCommit = 1
+        keyList      = 'group.id:cgrp1, enable.auto.commit:true, auto.commit.interval.ms:200, auto.offset.reset:earliest'
+        tmqCom.insertConsumerInfo(consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit)
+
+        tdLog.info("create ctb1")
+        tmqCom.create_ctable(tdSql, dbName=paraDict["dbName"],stbName=paraDict["stbName"],ctbPrefix=paraDict['ctbPrefix'],
+                             ctbNum=paraDict["ctbNum"],ctbStartIdx=paraDict['ctbStartIdx'])
+
+        tdLog.info("insert ctb1 data")
+        pInsertThread = tmqCom.asyncInsertDataByInterlace(paraDict)
+        pInsertThread.join()
+
+
+        tdLog.info("start consume processor")
+        tmqCom.startTmqSimProcess(pollDelay=paraDict['pollDelay'],dbName=paraDict["dbName"],showMsg=paraDict['showMsg'], showRow=paraDict['showRow'],snapshot=paraDict['snapshot'])
+        tdLog.info("wait the consume result")
+
+        tmqCom.getStartConsumeNotifyFromTmqsim()
+        tmqCom.getStartCommitNotifyFromTmqsim()
+
+        expectRows = 1
+        tdLog.info("expectRows:%d"%expectRows)
+        resultList = tmqCom.selectConsumeResult(expectRows)
+        # for i in range(len(topicNameList)):
+        #     tdSql.query("drop topic %s"%topicNameList[i])
+
+        if deleteWal == True:
+            clusterComCheck.check_vgroups_status(vgroup_numbers=1,db_replica=self.replicaVar,db_name="dbt",count_number=240)   
+        tdLog.printNoPrefix("======== test case 1 end ...... ")
+
+    def test_per(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
+        self.prepareTestEnv()
+        self.tmqCase1(True)
+
+
+
+event = threading.Event()
+

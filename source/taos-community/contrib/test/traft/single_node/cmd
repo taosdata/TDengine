@@ -1,0 +1,6 @@
+all:
+	gcc singleNode.c -I ../../include/ ../../.libs/libraft.a -o singleNode -luv -llz4 -lpthread -g
+clean:
+	rm -f singleNode
+	sh clear.sh
+

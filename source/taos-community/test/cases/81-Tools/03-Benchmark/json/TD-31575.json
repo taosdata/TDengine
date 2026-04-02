@@ -1,0 +1,81 @@
+{
+    "filetype":"insert",
+    "cfgdir":"/etc/taos",
+    "host":"127.0.0.1",
+    "port":6030,
+    "user":"root",
+    "password":"taosdata",
+    "connection_pool_size":32,
+    "thread_count":32,
+    "create_table_thread_count":10,
+    "confirm_parameter_prompt":"no",
+    "num_of_records_per_req":1000,
+    "thread_bind_vgroup":"yes",
+    "databases":[
+        {
+            "dbinfo":{
+                "name":"power",
+                "drop":"yes",
+                "replica":1,
+                "wal_retention_period":0,
+                "wal_retention_size":0,
+                "vgroups":4,
+                "cachemodel": "'none'",
+                "cachesize":1,
+                "wal_level":1,
+                "buffer":256,
+                "duration":"14400m",
+                "stt_trigger":1
+            },
+            "super_tables":[
+                {
+                    "name":"meters",
+                    "child_table_exists":"no",
+                    "childtable_count":100,
+                    "childtable_prefix":"d",
+                    "escape_character":"yes",
+                    "auto_create_table":"no",
+                    "batch_create_tbl_num":5,
+                    "data_source":"rand",
+                    "insert_mode":"stmt",
+                    "insert_rows":320,
+                    "interlace_rows":1,
+                    "insert_interval":0,
+                    "timestamp_step":1000,
+                    "start_timestamp":"2022-10-01 00:00:00.000",
+                    "columns":[
+                        { "type": "float",      "name": "current",  "max": 1, "min": 0 },
+                        { "type": "int",        "name": "voltage",  "max": 100, "min": 0 },
+                        { "type": "float",      "name": "phase",    "max": 100, "min": 0 }
+                    ],
+                    "tags":[
+                        {
+                            "type":"binary",
+                            "name":"location",
+                            "max":64,
+                            "min":1,
+                            "values":[
+                                "San Francisco",
+                                "Los Angles",
+                                "San Diego",
+                                "San Jose",
+                                "Palo Alto",
+                                "Campbell",
+                                "Mountain View",
+                                "Sunnyvale",
+                                "Santa Clara",
+                                "Cupertino"
+                            ]
+                        },
+                        {
+                            "name":"groupId",
+                            "type":"int",
+                            "max":100000,
+                            "min":1
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

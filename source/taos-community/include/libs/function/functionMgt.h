@@ -1,0 +1,438 @@
+/*
+ * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#ifndef _TD_FUNCTION_MGT_H_
+#define _TD_FUNCTION_MGT_H_
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#include "function.h"
+#include "querynodes.h"
+
+#define FUNC_AGGREGATE_UDF_ID 5001
+#define FUNC_SCALAR_UDF_ID    5002
+
+extern const int32_t funcMgtBuiltinsNum;
+
+typedef enum EFunctionType {
+  // aggregate function
+  FUNCTION_TYPE_APERCENTILE = 1,
+  FUNCTION_TYPE_AVG,
+  FUNCTION_TYPE_COUNT,
+  FUNCTION_TYPE_ELAPSED,
+  FUNCTION_TYPE_IRATE,
+  FUNCTION_TYPE_LAST_ROW,
+  FUNCTION_TYPE_MAX,
+  FUNCTION_TYPE_MIN,
+  FUNCTION_TYPE_MODE,
+  FUNCTION_TYPE_PERCENTILE,
+  FUNCTION_TYPE_SPREAD,
+  FUNCTION_TYPE_STDDEV,
+  FUNCTION_TYPE_LEASTSQUARES,
+  FUNCTION_TYPE_SUM,
+  FUNCTION_TYPE_TWA,
+  FUNCTION_TYPE_HISTOGRAM,
+  FUNCTION_TYPE_HYPERLOGLOG,
+  FUNCTION_TYPE_STDVAR,
+  FUNCTION_TYPE_STDDEV_SAMP,
+  FUNCTION_TYPE_STDVAR_SAMP,
+  FUNCTION_TYPE_GROUP_CONCAT,
+
+  // nonstandard SQL function
+  FUNCTION_TYPE_BOTTOM = 500,
+  FUNCTION_TYPE_CSUM,
+  FUNCTION_TYPE_DERIVATIVE,
+  FUNCTION_TYPE_DIFF,
+  FUNCTION_TYPE_FIRST,
+  FUNCTION_TYPE_INTERP,
+  FUNCTION_TYPE_LAST,
+  FUNCTION_TYPE_MAVG,
+  FUNCTION_TYPE_SAMPLE,
+  FUNCTION_TYPE_TAIL,
+  FUNCTION_TYPE_TOP,
+  FUNCTION_TYPE_UNIQUE,
+  FUNCTION_TYPE_STATE_COUNT,
+  FUNCTION_TYPE_STATE_DURATION,
+  FUNCTION_TYPE_FORECAST,
+  FUNCTION_TYPE_IMPUTATION,
+  FUNCTION_TYPE_CORR,
+  FUNCTION_TYPE_ANOMALYCHECK,
+  FUNCTION_TYPE_DTW,
+  FUNCTION_TYPE_DTW_PATH,
+  FUNCTION_TYPE_TLCC,
+  FUNCTION_TYPE_LAG,
+  FUNCTION_TYPE_FILL_FORWARD,
+  FUNCTION_TYPE_EXTERNAL_WINDOW_COLUMN,
+  FUNCTION_TYPE_LEAD,
+
+  // math function
+  FUNCTION_TYPE_ABS = 1000,
+  FUNCTION_TYPE_LOG,
+  FUNCTION_TYPE_POW,
+  FUNCTION_TYPE_SQRT,
+  FUNCTION_TYPE_CEIL,
+  FUNCTION_TYPE_FLOOR,
+  FUNCTION_TYPE_ROUND,
+
+  FUNCTION_TYPE_SIN,
+  FUNCTION_TYPE_COS,
+  FUNCTION_TYPE_TAN,
+  FUNCTION_TYPE_ASIN,
+  FUNCTION_TYPE_ACOS,
+  FUNCTION_TYPE_ATAN,
+  FUNCTION_TYPE_PI,
+  FUNCTION_TYPE_EXP,
+  FUNCTION_TYPE_LN,
+  FUNCTION_TYPE_MOD,
+  FUNCTION_TYPE_RAND,
+  FUNCTION_TYPE_SIGN,
+  FUNCTION_TYPE_DEGREES,
+  FUNCTION_TYPE_RADIANS,
+  FUNCTION_TYPE_TRUNCATE,
+  FUNCTION_TYPE_GREATEST,
+  FUNCTION_TYPE_LEAST,
+  FUNCTION_TYPE_CRC32,
+
+  // string function
+  FUNCTION_TYPE_LENGTH = 1500,
+  FUNCTION_TYPE_CHAR_LENGTH,
+  FUNCTION_TYPE_CONCAT,
+  FUNCTION_TYPE_CONCAT_WS,
+  FUNCTION_TYPE_LOWER,
+  FUNCTION_TYPE_UPPER,
+  FUNCTION_TYPE_LTRIM,
+  FUNCTION_TYPE_RTRIM,
+  FUNCTION_TYPE_SUBSTR,
+  FUNCTION_TYPE_MD5,
+  FUNCTION_TYPE_CHAR,
+  FUNCTION_TYPE_ASCII,
+  FUNCTION_TYPE_POSITION,
+  FUNCTION_TYPE_TRIM,
+  FUNCTION_TYPE_REPLACE,
+  FUNCTION_TYPE_REPEAT,
+  FUNCTION_TYPE_SUBSTR_IDX,
+  FUNCTION_TYPE_BASE64,
+  FUNCTION_TYPE_FIND_IN_SET,
+  FUNCTION_TYPE_LIKE_IN_SET,
+  FUNCTION_TYPE_REGEXP_IN_SET,
+  FUNCTION_TYPE_GENERATE_TOTP_SECRET,
+  FUNCTION_TYPE_GENERATE_TOTP_CODE,
+  FUNCTION_TYPE_FROM_BASE64,
+  FUNCTION_TYPE_SHA1,
+  FUNCTION_TYPE_SHA2,
+  FUNCTION_TYPE_MASK_FULL,
+  FUNCTION_TYPE_MASK_PARTIAL,
+  FUNCTION_TYPE_MASK_NONE,
+  FUNCTION_TYPE_AES_ENCRYPT,
+  FUNCTION_TYPE_AES_DECRYPT,
+  FUNCTION_TYPE_SM4_ENCRYPT,
+  FUNCTION_TYPE_SM4_DECRYPT,
+
+  // conversion function
+  FUNCTION_TYPE_CAST = 2000,
+  FUNCTION_TYPE_TO_ISO8601,
+  FUNCTION_TYPE_TO_UNIXTIMESTAMP,
+  FUNCTION_TYPE_TO_JSON,
+  FUNCTION_TYPE_TO_TIMESTAMP,
+  FUNCTION_TYPE_TO_CHAR,
+
+  // date and time function
+  FUNCTION_TYPE_NOW = 2500,
+  FUNCTION_TYPE_TIMEDIFF,
+  FUNCTION_TYPE_TIMETRUNCATE,
+  FUNCTION_TYPE_TIMEZONE,
+  FUNCTION_TYPE_TODAY,
+  FUNCTION_TYPE_WEEK,
+  FUNCTION_TYPE_WEEKDAY,
+  FUNCTION_TYPE_WEEKOFYEAR,
+  FUNCTION_TYPE_DAYOFWEEK,
+  FUNCTION_TYPE_DATE,
+
+  // system function
+  FUNCTION_TYPE_DATABASE = 3000,
+  FUNCTION_TYPE_CLIENT_VERSION,
+  FUNCTION_TYPE_SERVER_VERSION,
+  FUNCTION_TYPE_SERVER_STATUS,
+  FUNCTION_TYPE_CURRENT_USER,
+  FUNCTION_TYPE_USER,
+
+  // pseudo column function
+  FUNCTION_TYPE_ROWTS = 3500,
+  FUNCTION_TYPE_TBNAME,
+  FUNCTION_TYPE_QSTART,
+  FUNCTION_TYPE_QEND,
+  FUNCTION_TYPE_QDURATION,
+  FUNCTION_TYPE_WSTART,
+  FUNCTION_TYPE_WEND,
+  FUNCTION_TYPE_WDURATION,
+  FUNCTION_TYPE_IROWTS,
+  FUNCTION_TYPE_ISFILLED,
+  FUNCTION_TYPE_TAGS,
+  FUNCTION_TYPE_TBUID,
+  FUNCTION_TYPE_VGID,
+  FUNCTION_TYPE_VGVER,
+  FUNCTION_TYPE_FORECAST_LOW,
+  FUNCTION_TYPE_FORECAST_HIGH,
+  FUNCTION_TYPE_FORECAST_ROWTS,
+  FUNCTION_TYPE_COLS,
+  FUNCTION_TYPE_IROWTS_ORIGIN,
+  FUNCTION_TYPE_GROUP_ID,
+  FUNCTION_TYPE_IS_WINDOW_FILLED,
+  FUNCTION_TYPE_TPREV_TS,            // _tprev_ts
+  FUNCTION_TYPE_TCURRENT_TS,         // _tcurrent_ts
+  FUNCTION_TYPE_TNEXT_TS,            // _tnext_ts
+  FUNCTION_TYPE_TWSTART,             // _twstart
+  FUNCTION_TYPE_TWEND,               // _twend
+  FUNCTION_TYPE_TWDURATION,          // _twduration
+  FUNCTION_TYPE_TWROWNUM,            // _twrownum
+  FUNCTION_TYPE_TPREV_LOCALTIME,     // _tprev_localtime
+  FUNCTION_TYPE_TNEXT_LOCALTIME,     // _tnext_localtime
+  FUNCTION_TYPE_TLOCALTIME,          // _tlocaltime
+  FUNCTION_TYPE_TGRPID,              // _tgrpid
+  FUNCTION_TYPE_PLACEHOLDER_COLUMN,  // %%n
+  FUNCTION_TYPE_PLACEHOLDER_TBNAME,  // %%tbname
+  FUNCTION_TYPE_IMPUTATION_ROWTS,
+  FUNCTION_TYPE_IMPUTATION_MARK,
+  FUNCTION_TYPE_ANOMALY_MARK,
+  FUNCTION_TYPE_TIDLESTART,          // _tidlestart
+  FUNCTION_TYPE_TIDLEEND,            // _tidleend
+
+  // internal function
+  FUNCTION_TYPE_SELECT_VALUE = 3750,
+  FUNCTION_TYPE_BLOCK_DIST,       // block distribution aggregate function
+  FUNCTION_TYPE_BLOCK_DIST_INFO,  // block distribution pseudo column function
+  FUNCTION_TYPE_TO_COLUMN,
+  FUNCTION_TYPE_GROUP_KEY,
+  FUNCTION_TYPE_CACHE_LAST_ROW,
+  FUNCTION_TYPE_CACHE_LAST,
+  FUNCTION_TYPE_TABLE_COUNT,
+  FUNCTION_TYPE_GROUP_CONST_VALUE,
+  FUNCTION_TYPE_HAS_NULL,
+
+  // distributed splitting functions
+  FUNCTION_TYPE_APERCENTILE_PARTIAL = 4000,
+  FUNCTION_TYPE_APERCENTILE_MERGE,
+  FUNCTION_TYPE_SPREAD_PARTIAL,
+  FUNCTION_TYPE_SPREAD_MERGE,
+  FUNCTION_TYPE_HISTOGRAM_PARTIAL,
+  FUNCTION_TYPE_HISTOGRAM_MERGE,
+  FUNCTION_TYPE_HYPERLOGLOG_PARTIAL,
+  FUNCTION_TYPE_HYPERLOGLOG_MERGE,
+  FUNCTION_TYPE_ELAPSED_PARTIAL,
+  FUNCTION_TYPE_ELAPSED_MERGE,
+
+  FUNCTION_TYPE_TOP_PARTIAL,
+  FUNCTION_TYPE_TOP_MERGE,
+  FUNCTION_TYPE_BOTTOM_PARTIAL,
+  FUNCTION_TYPE_BOTTOM_MERGE,
+  FUNCTION_TYPE_FIRST_PARTIAL,
+  FUNCTION_TYPE_FIRST_MERGE,
+  FUNCTION_TYPE_LAST_PARTIAL,
+  FUNCTION_TYPE_LAST_MERGE,
+  FUNCTION_TYPE_AVG_PARTIAL,
+  FUNCTION_TYPE_AVG_MERGE,
+  FUNCTION_TYPE_STD_PARTIAL,
+  FUNCTION_TYPE_STDDEV_MERGE,
+  FUNCTION_TYPE_STDVAR_MERGE,
+  FUNCTION_TYPE_IRATE_PARTIAL,
+  FUNCTION_TYPE_IRATE_MERGE,
+  FUNCTION_TYPE_AVG_STATE,
+  FUNCTION_TYPE_AVG_STATE_MERGE,
+  FUNCTION_TYPE_FIRST_STATE,
+  FUNCTION_TYPE_FIRST_STATE_MERGE,
+  FUNCTION_TYPE_LAST_STATE,
+  FUNCTION_TYPE_LAST_STATE_MERGE,
+  FUNCTION_TYPE_SPREAD_STATE,
+  FUNCTION_TYPE_SPREAD_STATE_MERGE,
+  FUNCTION_TYPE_STD_STATE,
+  FUNCTION_TYPE_STD_STATE_MERGE,
+  FUNCTION_TYPE_HYPERLOGLOG_STATE,
+  FUNCTION_TYPE_HYPERLOGLOG_STATE_MERGE,
+  FUNCTION_TYPE_CORR_PARTIAL,
+  FUNCTION_TYPE_CORR_MERGE,
+  FUNCTION_TYPE_STDDEV_SAMP_MERGE,
+  FUNCTION_TYPE_STDVAR_SAMP_MERGE,
+
+  // geometry functions
+  FUNCTION_TYPE_GEOM_FROM_TEXT = 4250,
+  FUNCTION_TYPE_AS_TEXT,
+  FUNCTION_TYPE_MAKE_POINT,
+  FUNCTION_TYPE_INTERSECTS,
+  FUNCTION_TYPE_EQUALS,
+  FUNCTION_TYPE_TOUCHES,
+  FUNCTION_TYPE_COVERS,
+  FUNCTION_TYPE_CONTAINS,
+  FUNCTION_TYPE_CONTAINS_PROPERLY,
+
+  FUNCTION_TYPE_DB_USAGE = 4300,
+  FUNCTION_TYPE_DB_USAGE_INFO,
+
+  // user defined funcion
+  FUNCTION_TYPE_UDF = 10000
+} EFunctionType;
+
+typedef enum EFuncReturnRows {
+  FUNC_RETURN_ROWS_NORMAL = 1,
+  FUNC_RETURN_ROWS_INDEFINITE,
+  FUNC_RETURN_ROWS_N,
+  FUNC_RETURN_ROWS_N_MINUS_1
+} EFuncReturnRows;
+
+struct SqlFunctionCtx;
+struct SResultRowEntryInfo;
+struct STimeWindow;
+
+int32_t fmFuncMgtInit();
+
+void fmFuncMgtDestroy();
+
+int32_t fmGetFuncInfo(SFunctionNode* pFunc, char* pMsg, int32_t msgLen);
+
+EFuncReturnRows fmGetFuncReturnRows(SFunctionNode* pFunc);
+
+bool          fmIsBuiltinFunc(const char* pFunc);
+EFunctionType fmGetFuncType(const char* pFunc);
+EFunctionType fmGetFuncTypeFromId(int32_t funcId);
+
+bool fmIsAggFunc(int32_t funcId);
+bool fmIsScalarFunc(int32_t funcId);
+bool fmIsVectorFunc(int32_t funcId);
+bool fmIsStreamVectorFunc(int32_t funcId);
+bool fmIsIndefiniteRowsFunc(int32_t funcId);
+bool fmIsStringFunc(int32_t funcId);
+bool fmIsDateTimeFunc(int32_t funcId);
+bool fmIsSelectFunc(int32_t funcId);
+bool fmIsTimelineFunc(int32_t funcId);
+bool fmIsTimeorderFunc(int32_t funcId);
+bool fmIsPseudoColumnFunc(int32_t funcId);
+bool fmIsScanPseudoColumnFunc(int32_t funcId);
+bool fmIsWindowPseudoColumnFunc(int32_t funcId);
+bool fmIsWindowClauseFunc(int32_t funcId);
+bool fmIsStreamWindowClauseFunc(int32_t funcId);
+bool fmIsSpecialDataRequiredFunc(int32_t funcId);
+bool fmIsDynamicScanOptimizedFunc(int32_t funcId);
+bool fmIsMultiResFunc(int32_t funcId);
+bool fmIsRepeatScanFunc(int32_t funcId);
+bool fmIsUserDefinedFunc(int32_t funcId);
+bool fmIsDistExecFunc(int32_t funcId);
+bool fmIsForbidFillFunc(int32_t funcId);
+bool fmIsForbidSysTableFunc(int32_t funcId);
+bool fmIsIntervalInterpoFunc(int32_t funcId);
+bool fmIsInterpFunc(int32_t funcId);
+bool fmIsLastRowFunc(int32_t funcId);
+bool fmIsLastFunc(int32_t funcId);
+bool fmIsForecastFunc(int32_t funcId);
+bool fmIsImputationCorrelationFunc(int32_t funcId);
+bool fmIsNotNullOutputFunc(int32_t funcId);
+bool fmIsSelectValueFunc(int32_t funcId);
+bool fmIsSystemInfoFunc(int32_t funcId);
+bool fmIsImplicitTsFunc(int32_t funcId);
+bool fmIsClientPseudoColumnFunc(int32_t funcId);
+bool fmIsMultiRowsFunc(int32_t funcId);
+bool fmIsKeepOrderFunc(SFunctionNode* pFunc);
+bool fmIsCumulativeFunc(int32_t funcId);
+bool fmIsInterpPseudoColumnFunc(int32_t funcId);
+bool fmIsAnalysisPseudoColumnFunc(int32_t funcId);
+bool fmIsGroupKeyFunc(int32_t funcId);
+bool fmIsBlockDistFunc(int32_t funcId);
+bool fmIsIgnoreNullFunc(int32_t funcId);
+bool fmIsConstantResFunc(SFunctionNode* pFunc);
+bool fmIsSkipScanCheckFunc(int32_t funcId);
+bool fmIsPrimaryKeyFunc(int32_t funcId);
+bool fmIsProcessByRowFunc(int32_t funcId);
+bool fmisSelectGroupConstValueFunc(int32_t funcId);
+bool fmIsElapsedFunc(int32_t funcId);
+bool fmIsDBUsageFunc(int32_t funcId);
+bool fmIsRowTsOriginFunc(int32_t funcId);
+bool fmIsSelectColsFunc(int32_t funcId);
+bool fmIsGroupIdFunc(int32_t funcId);
+bool fmIsPlaceHolderFunc(int32_t funcId);
+bool fmIsHasNullFunc(int32_t funcId);
+bool fmIsPlaceHolderFuncForExternalWin(int32_t funcId);
+
+void    getLastCacheDataType(SDataType* pType, int32_t pkBytes);
+int32_t createFunction(const char* pName, SNodeList* pParameterList, SFunctionNode** pFunc);
+int32_t createFunctionWithSrcFunc(const char* pName, const SFunctionNode* pSrcFunc, SNodeList* pParameterList,
+                                  SFunctionNode** pFunc);
+
+int32_t fmGetDistMethod(const SFunctionNode* pFunc, SFunctionNode** pPartialFunc, SFunctionNode** pMidFunc,
+                        SFunctionNode** pMergeFunc);
+
+typedef enum EFuncDataRequired {
+  FUNC_DATA_REQUIRED_DATA_LOAD = 1,
+  FUNC_DATA_REQUIRED_SMA_LOAD,
+  FUNC_DATA_REQUIRED_NOT_LOAD,
+  FUNC_DATA_REQUIRED_FILTEROUT,
+  FUNC_DATA_REQUIRED_ALL_FILTEROUT,
+} EFuncDataRequired;
+
+EFuncDataRequired fmFuncDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWindow);
+EFuncDataRequired fmFuncDynDataRequired(int32_t funcId, void* pRes, SDataBlockInfo* pBlockInfo);
+
+int32_t fmGetFuncExecFuncs(int32_t funcId, SFuncExecFuncs* pFpSet);
+int32_t fmGetScalarFuncExecFuncs(int32_t funcId, SScalarFuncExecFuncs* pFpSet);
+int32_t fmGetUdafExecFuncs(int32_t funcId, SFuncExecFuncs* pFpSet);
+
+#ifdef BUILD_NO_CALL
+int32_t fmSetNormalFunc(int32_t funcId, SFuncExecFuncs* pFpSet);
+#endif
+
+const char* fmGetFuncName(int32_t funcId);
+
+bool    fmIsTSMASupportedFunc(func_id_t funcId);
+bool    fmIsRsmaSupportedFunc(func_id_t funcId);
+int32_t fmCreateStateFuncs(SNodeList* pFuncs);
+int32_t fmCreateStateMergeFuncs(SNodeList* pFuncs);
+int32_t fmGetFuncId(const char* name);
+bool    fmIsMyStateFunc(int32_t funcId, int32_t stateFuncId);
+bool    fmIsCountLikeFunc(int32_t funcId);
+
+int32_t fmGetTwstartFuncId();
+int32_t fmGetTwendFuncId();
+int32_t fmGetTwdurationFuncId();
+int32_t fmGetExternalWindowColumnFuncId();
+
+// typedef enum SStreamPseudoFuncType {
+//   STREAM_PSEUDO_FUNC_CURRENT_TS = 0,
+//   STREAM_PSEUDO_FUNC_TWSTART = 1,
+//   STREAM_PSEUDO_FUNC_TWEND = 2,
+//   STREAM_PSEUDO_FUNC_TWDURATION = 3,
+//   STREAM_PSEUDO_FUNC_TWROWNUM = 4,
+//   STREAM_PSEUDO_FUNC_TLOCALTIME = 5,
+//   STREAM_PSEUDO_FUNC_TGRPID = 6,
+//   STREAM_PSEUDO_FUNC_PLACEHOLDER_COLUMN = 7,
+//   STREAM_PSEUDO_FUNC_PLACEHOLDER_TBNAME = 8,
+
+// } SStreamPseudoFuncType;
+
+int32_t fmGetStreamPesudoFuncEnv(int32_t funcId, SNodeList* pParamNodes, SFuncExecEnv* pEnv);
+
+const void* fmGetStreamPesudoFuncVal(int32_t funcId, const SStreamRuntimeFuncInfo* pStreamRuntimeFuncInfo);
+bool        fmIsStreamPesudoColVal(int32_t funcId);
+
+void fmGetStreamPesudoFuncValTbname(int32_t funcId, const SStreamRuntimeFuncInfo* pStreamRuntimeFuncInfo, void** data,
+                                    int32_t* dataLen);
+int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes,
+                                      const SStreamRuntimeFuncInfo* pStreamRuntimeInfo);
+
+
+bool canCoexistIndefiniteRowsFunc(int32_t funcId1, int32_t funcId2);
+#ifdef __cplusplus
+}
+#endif
+
+#endif  // _TD_FUNCTION_MGT_H_

@@ -1,0 +1,78 @@
+{
+    "filetype": "insert",
+    "cfgdir": "/etc/taos",
+    "host": "127.0.0.1",
+    "port": 6030,
+    "user": "root",
+    "password": "taosdata",
+    "connection_pool_size": 8,
+    "thread_count": 4,
+    "create_table_thread_count": 7,
+    "result_file": "./insert_res.txt",
+    "confirm_parameter_prompt": "no",
+    "insert_interval": 0,
+    "interlace_rows": 100,
+    "num_of_records_per_req": 100,
+    "prepared_rand": 3600,
+    "chinese": "no",
+    "escape_character": "yes",
+    "databases": [
+        {
+            "dbinfo": {
+                "name": "test",
+                "drop": "yes",
+                "precision": "ms"
+            },
+            "super_tables": [
+                {
+                    "name": "meters",
+                    "child_table_exists": "no",
+                    "childtable_count": 1000,
+                    "childtable_prefix": "d",
+                    "auto_create_table": "no",
+                    "batch_create_tbl_num": 5,
+                    "data_source": "rand",
+                    "insert_mode": "taosc",
+                    "non_stop_mode": "no",
+                    "line_protocol": "line",
+                    "insert_rows": 1000,
+                    "childtable_limit": 0,
+                    "childtable_offset": 0,
+                    "interlace_rows": 0,
+                    "insert_interval": 0,
+                    "partial_col_num": 0,
+                    "disorder_ratio": 0,
+                    "disorder_range": 1000,
+                    "timestamp_step": 1000,
+                    "angle_step": 500,
+                    "start_timestamp": "2020-10-01 00:00:00.000",
+                    "sample_format": "csv",
+                    "sample_file": "./sample.csv",
+                    "use_sample_ts": "no",
+                    "tags_file": "",
+                    "columns": [
+                        { "type": "FLOAT", "name": "current", "fun": "3*sin(x)+10*random(2)"},
+                        { "type": "INT",   "name": "voltage", "fun": "40*sin(x)+200*random(10)"},
+                        { "type": "FLOAT", "name": "phase",   "fun": "1*sin(x)+1*random(3)"}
+                    ],
+                    "tags": [
+                        {
+                            "type": "TINYINT",
+                            "name": "groupid",
+                            "max": 10,
+                            "min": 1
+                        },
+                        {
+                            "name": "location",
+                            "type": "BINARY",
+                            "len": 16,
+                            "values": ["San Francisco", "Los Angles", "San Diego",
+                                "San Jose", "Palo Alto", "Campbell", "Mountain View",
+                                "Sunnyvale", "Santa Clara", "Cupertino"]
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

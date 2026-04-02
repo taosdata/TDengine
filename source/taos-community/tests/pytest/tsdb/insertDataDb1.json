@@ -1,0 +1,87 @@
+{
+    "filetype": "insert",
+    "cfgdir": "/etc/taos",
+    "host": "127.0.0.1",
+    "port": 6030,
+    "user": "root",
+    "password": "taosdata",
+    "thread_count": 4,
+    "create_table_thread_count": 4,
+    "result_file": "./insert_res.txt",
+    "confirm_parameter_prompt": "no",
+    "insert_interval": 0,
+    "interlace_rows": 10,
+    "num_of_records_per_req": 1000,
+    "max_sql_len": 1024000,
+    "databases": [{
+        "dbinfo": {
+            "name": "db1",
+            "drop": "yes",
+            "replica": 1,
+
+            "cache": 50,
+
+            "precision": "ms",
+            "keep": 365,
+            "minRows": 100,
+            "maxRows": 4096,
+            "comp":2
+
+
+
+
+
+        },
+        "super_tables": [{
+            "name": "stb0",
+            "child_table_exists":"no",
+            "childtable_count": 1000,
+            "childtable_prefix": "stb00_",
+            "auto_create_table": "no",
+            "batch_create_tbl_num": 1000,
+            "data_source": "rand",
+            "insert_mode": "taosc",
+            "insert_rows": 1000,
+            "childtable_limit": 0,
+            "childtable_offset":0,
+            "interlace_rows": 0,
+            "insert_interval":0,
+            "max_sql_len": 1024000,
+            "disorder_ratio": 0,
+            "disorder_range": 1000,
+            "timestamp_step": 1,
+            "start_timestamp": "2020-10-01 00:00:00.000",
+            "sample_format": "csv",
+            "sample_file": "./sample.csv",
+            "tags_file": "",
+            "columns": [{"type": "INT"}, {"type": "DOUBLE", "count":1}, {"type": "BINARY", "len": 16, "count":1}, {"type": "BINARY", "len": 32, "count":1}],
+            "tags": [{"type": "TINYINT", "count":2}, {"type": "BINARY", "len": 16, "count":1}]
+        },
+        {
+            "name": "stb1",
+            "child_table_exists":"no",
+            "childtable_count": 10000,
+            "childtable_prefix": "stb01_",
+            "auto_create_table": "no",
+            "batch_create_tbl_num": 1000,
+            "data_source": "rand",
+            "insert_mode": "taosc",
+            "insert_rows": 200,
+            "childtable_limit": 0,
+            "childtable_offset":0,
+            "interlace_rows": 0,
+            "insert_interval":0,
+            "max_sql_len": 1024000,
+            "disorder_ratio": 0,
+            "disorder_range": 1000,
+            "timestamp_step": 1,
+            "start_timestamp": "2020-10-01 00:00:00.000",
+            "sample_format": "csv",
+            "sample_file": "./sample.csv",
+            "tags_file": "",
+            "columns": [{"type": "INT"}, {"type": "DOUBLE", "count":1}, {"type": "BINARY", "len": 16, "count":1}, {"type": "BINARY", "len": 32, "count":1}],
+            "tags": [{"type": "TINYINT", "count":2}, {"type": "BINARY", "len": 16, "count":1}]
+        }]
+    }]
+}
+

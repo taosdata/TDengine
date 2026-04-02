@@ -1,0 +1,418 @@
+/*
+ * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#include "filter.h"
+#include "function.h"
+#include "functionMgt.h"
+#include "os.h"
+#include "querynodes.h"
+#include "tfill.h"
+#include "tname.h"
+
+#include "tdatablock.h"
+#include "tmsg.h"
+#include "streamMsg.h"
+
+#include "executorInt.h"
+#include "index.h"
+#include "operator.h"
+#include "query.h"
+#include "querytask.h"
+#include "storageapi.h"
+#include "thash.h"
+#include "ttypes.h"
+#include "tref.h"
+
+#define CLEAR_QUERY_STATUS(q, st) ((q)->status &= (~(st)))
+
+int32_t doCreateTask(uint64_t queryId, uint64_t taskId, int32_t vgId, EOPTR_EXEC_MODEL model, SStorageAPI* pAPI,
+                     SExecTaskInfo** pTaskInfo) {
+  if (pTaskInfo == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SExecTaskInfo* p = taosMemoryCalloc(1, sizeof(SExecTaskInfo));
+  if (p == NULL) {
+    return terrno;
+  }
+
+  setTaskStatus(p, TASK_NOT_COMPLETED);
+  p->cost.created = taosGetTimestampUs();
+
+  p->execModel = model;
+  p->stopInfo.pStopInfo = taosArrayInit(4, sizeof(SExchangeOpStopInfo));
+  p->pResultBlockList = taosArrayInit(128, POINTER_BYTES);
+  if (p->stopInfo.pStopInfo == NULL || p->pResultBlockList == NULL) {
+    doDestroyTask(p);
+    return terrno;
+  }
+
+  p->storageAPI = *pAPI;
+  taosInitRWLatch(&p->lock);
+
+  p->id.vgId = vgId;
+  p->id.queryId = queryId;
+  p->id.taskId = taskId;
+  p->id.str = taosMemoryMalloc(64);
+  if (p->id.str == NULL) {
+    doDestroyTask(p);
+    return terrno;
+  }
+
+  buildTaskId(taskId, queryId, p->id.str, 64);
+  p->schemaInfos = taosArrayInit(1, sizeof(SSchemaInfo));
+  if (p->id.str == NULL || p->schemaInfos == NULL) {
+    doDestroyTask(p);
+    return terrno;
+  }
+
+  *pTaskInfo = p;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t getTaskCode(void* pTaskInfo) { return ((SExecTaskInfo*)pTaskInfo)->code; }
+
+bool isTaskKilled(void* pTaskInfo) { return (0 != ((SExecTaskInfo*)pTaskInfo)->code); }
+
+void setTaskKilled(SExecTaskInfo* pTaskInfo, int32_t rspCode) {
+  pTaskInfo->code = rspCode;
+  (void)stopTableScanOperator(pTaskInfo->pRoot, pTaskInfo->id.str, &pTaskInfo->storageAPI);
+}
+
+void setTaskStatus(SExecTaskInfo* pTaskInfo, int8_t status) {
+  if (status == TASK_NOT_COMPLETED) {
+    pTaskInfo->status = status;
+  } else {
+    // QUERY_NOT_COMPLETED is not compatible with any other status, so clear its position first
+    CLEAR_QUERY_STATUS(pTaskInfo, TASK_NOT_COMPLETED);
+    pTaskInfo->status |= status;
+  }
+}
+
+
+int32_t initTaskSubJobCtx(SExecTaskInfo* pTaskInfo, SArray** subEndPoints, SReadHandle* readHandle) {
+  int32_t code = 0, lino = 0;
+  int32_t subJobNum = taosArrayGetSize(*subEndPoints);
+  
+  pTaskInfo->pSubJobCtx = taosMemoryCalloc(1, sizeof(*pTaskInfo->pSubJobCtx));
+  TSDB_CHECK_NULL(pTaskInfo->pSubJobCtx, code, lino, _exit, terrno);
+  
+  STaskSubJobCtx* ctx = pTaskInfo->pSubJobCtx;
+
+  ctx->queryId = pTaskInfo->id.queryId;
+  ctx->taskId = pTaskInfo->id.taskId;
+  ctx->idStr = pTaskInfo->id.str;
+  ctx->pTaskInfo = pTaskInfo;
+  ctx->subEndPoints = *subEndPoints;
+  ctx->rpcHandle = (readHandle && readHandle->pMsgCb) ? readHandle->pMsgCb->clientRpc : NULL;
+  ctx->isStream = pTaskInfo && IS_STREAM_MODE(pTaskInfo);
+
+  *subEndPoints = NULL;
+  
+  ctx->subResNodes = taosArrayInit_s(POINTER_BYTES, subJobNum);
+  if (NULL == ctx->subResNodes) {
+    qError("%s taosArrayInit_s %d subResNodes failed, error:%s", GET_TASKID(pTaskInfo), subJobNum, tstrerror(terrno));
+    TSDB_CHECK_NULL(ctx->subResNodes, code, lino, _exit, terrno);
+  }
+  
+  TAOS_CHECK_EXIT(tsem_init(&ctx->ready, 0, 0));
+
+  int64_t refId = taosAddRef(fetchObjRefPool, ctx);
+  if (refId < 0) {
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
+    TAOS_CHECK_EXIT(terrno);
+  }
+  
+  ctx->subJobRefId = refId;
+
+  qDebug("%s subJobCtx %" PRIu64 " with %d endPoints inited", pTaskInfo->id.str, (uint64_t)refId, (int32_t)taosArrayGetSize(ctx->subEndPoints));
+
+_exit:
+
+  if (code) {
+    destroySubJobCtx(pTaskInfo->pSubJobCtx);
+    pTaskInfo->pSubJobCtx = NULL;
+    
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+
+  return code;
+}
+
+
+
+int32_t createExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHandle* pHandle, uint64_t taskId,
+                           int32_t vgId, char* sql, EOPTR_EXEC_MODEL model, SArray** subEndPoints, bool enableExplain) {
+  int32_t code = doCreateTask(pPlan->id.queryId, taskId, vgId, model, &pHandle->api, pTaskInfo);
+  if (*pTaskInfo == NULL || code != 0) {
+    nodesDestroyNode((SNode*)pPlan);
+    return code;
+  }
+
+  (*pTaskInfo)->pSubplan = pPlan;
+
+  if (NULL != sql) {
+    (*pTaskInfo)->sql = taosStrdup(sql);
+    if (NULL == (*pTaskInfo)->sql) {
+      code = terrno;
+      doDestroyTask(*pTaskInfo);
+      (*pTaskInfo) = NULL;
+      return code;
+    }
+  }
+
+  (*pTaskInfo)->pWorkerCb = pHandle->pWorkerCb;
+  (*pTaskInfo)->pStreamRuntimeInfo = pHandle->streamRtInfo;
+  (*pTaskInfo)->enableExplain = enableExplain;
+
+  if (subEndPoints && taosArrayGetSize(*subEndPoints) > 0) {
+    code = initTaskSubJobCtx(*pTaskInfo, subEndPoints, pHandle);
+    if (code != TSDB_CODE_SUCCESS) {
+      doDestroyTask(*pTaskInfo);
+      (*pTaskInfo) = NULL;
+      return code;
+    }
+  }
+  
+  setTaskScalarExtraInfo(*pTaskInfo);
+  
+  code = createOperator(pPlan->pNode, *pTaskInfo, pHandle, pPlan->pTagCond, pPlan->pTagIndexCond, pPlan->user,
+                        pPlan->dbFName, &((*pTaskInfo)->pRoot), model);
+
+  if (NULL == (*pTaskInfo)->pRoot || code != 0) {
+    doDestroyTask(*pTaskInfo);
+    (*pTaskInfo) = NULL;
+  }
+  return code;
+}
+
+void cleanupQueriedTableScanInfo(void* p) {
+  SSchemaInfo* pSchemaInfo = p;
+
+  taosMemoryFreeClear(pSchemaInfo->dbname);
+  taosMemoryFreeClear(pSchemaInfo->tablename);
+  tDeleteSchemaWrapper(pSchemaInfo->sw);
+  tDeleteSchemaWrapper(pSchemaInfo->qsw);
+}
+
+int32_t initQueriedTableSchemaInfo(SReadHandle* pHandle, SScanPhysiNode* pScanNode, const char* dbName,
+                                   SExecTaskInfo* pTaskInfo) {
+  SMetaReader mr = {0};
+  if (pHandle == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  SStorageAPI* pAPI = &pTaskInfo->storageAPI;
+
+  pAPI->metaReaderFn.initReader(&mr, pHandle->vnode, META_READER_LOCK, &pAPI->metaFn);
+  int32_t code = pAPI->metaReaderFn.getEntryGetUidCache(&mr, pScanNode->uid);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("failed to get the table meta, uid:0x%" PRIx64 ", suid:0x%" PRIx64 ", %s", pScanNode->uid, pScanNode->suid,
+           GET_TASKID(pTaskInfo));
+
+    pAPI->metaReaderFn.clearReader(&mr);
+    return code;
+  }
+
+  SSchemaInfo schemaInfo = {0};
+
+  schemaInfo.tablename = taosStrdup(mr.me.name);
+  schemaInfo.dbname = taosStrdup(dbName);
+  if (schemaInfo.tablename == NULL || schemaInfo.dbname == NULL) {
+    pAPI->metaReaderFn.clearReader(&mr);
+    cleanupQueriedTableScanInfo(&schemaInfo);
+    return terrno;
+  }
+
+  if (mr.me.type == TSDB_VIRTUAL_NORMAL_TABLE || mr.me.type == TSDB_VIRTUAL_CHILD_TABLE) {
+    schemaInfo.rversion = mr.me.colRef.version;
+  }
+
+  if (mr.me.type == TSDB_SUPER_TABLE) {
+    schemaInfo.sw = tCloneSSchemaWrapper(&mr.me.stbEntry.schemaRow);
+    schemaInfo.tversion = mr.me.stbEntry.schemaTag.version;
+  } else if (mr.me.type == TSDB_CHILD_TABLE || mr.me.type == TSDB_VIRTUAL_CHILD_TABLE) {
+    tDecoderClear(&mr.coder);
+
+    tb_uid_t suid = mr.me.ctbEntry.suid;
+    code = pAPI->metaReaderFn.getEntryGetUidCache(&mr, suid);
+    if (code != TSDB_CODE_SUCCESS) {
+      pAPI->metaReaderFn.clearReader(&mr);
+      cleanupQueriedTableScanInfo(&schemaInfo);
+      return code;
+    }
+
+    schemaInfo.sw = tCloneSSchemaWrapper(&mr.me.stbEntry.schemaRow);
+    schemaInfo.tversion = mr.me.stbEntry.schemaTag.version;
+  } else {
+    schemaInfo.sw = tCloneSSchemaWrapper(&mr.me.ntbEntry.schemaRow);
+  }
+
+  pAPI->metaReaderFn.clearReader(&mr);
+
+  if (schemaInfo.sw == NULL) {
+    cleanupQueriedTableScanInfo(&schemaInfo);
+    return terrno;
+  }
+
+  schemaInfo.qsw = extractQueriedColumnSchema(pScanNode);
+  if (schemaInfo.qsw == NULL) {
+    cleanupQueriedTableScanInfo(&schemaInfo);
+    return terrno;
+  }
+
+  void* p = taosArrayPush(pTaskInfo->schemaInfos, &schemaInfo);
+  if (p == NULL) {
+    cleanupQueriedTableScanInfo(&schemaInfo);
+    return terrno;
+  }
+
+  return code;
+}
+
+SSchemaWrapper* extractQueriedColumnSchema(SScanPhysiNode* pScanNode) {
+  int32_t numOfCols = LIST_LENGTH(pScanNode->pScanCols);
+  int32_t numOfTags = LIST_LENGTH(pScanNode->pScanPseudoCols);
+
+  SSchemaWrapper* pqSw = taosMemoryCalloc(1, sizeof(SSchemaWrapper));
+  if (pqSw == NULL) {
+    return NULL;
+  }
+
+  pqSw->pSchema = taosMemoryCalloc(numOfCols + numOfTags, sizeof(SSchema));
+  if (pqSw->pSchema == NULL) {
+    taosMemoryFree(pqSw);
+    return NULL;
+  }
+
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    STargetNode* pNode = (STargetNode*)nodesListGetNode(pScanNode->pScanCols, i);
+    SColumnNode* pColNode = (SColumnNode*)pNode->pExpr;
+
+    SSchema* pSchema = &pqSw->pSchema[pqSw->nCols++];
+    pSchema->colId = pColNode->colId;
+    pSchema->type = pColNode->node.resType.type;
+    pSchema->bytes = pColNode->node.resType.bytes;
+    tstrncpy(pSchema->name, pColNode->colName, tListLen(pSchema->name));
+  }
+
+  // this the tags and pseudo function columns, we only keep the tag columns
+  for (int32_t i = 0; i < numOfTags; ++i) {
+    STargetNode* pNode = (STargetNode*)nodesListGetNode(pScanNode->pScanPseudoCols, i);
+
+    int32_t type = nodeType(pNode->pExpr);
+    if (type == QUERY_NODE_COLUMN) {
+      SColumnNode* pColNode = (SColumnNode*)pNode->pExpr;
+
+      SSchema* pSchema = &pqSw->pSchema[pqSw->nCols++];
+      pSchema->colId = pColNode->colId;
+      pSchema->type = pColNode->node.resType.type;
+      pSchema->bytes = pColNode->node.resType.bytes;
+      tstrncpy(pSchema->name, pColNode->colName, tListLen(pSchema->name));
+    }
+  }
+
+  return pqSw;
+}
+
+static void cleanupTmqInfo(STmqTaskInfo* pTmqInfo) {
+  tDeleteSchemaWrapper(pTmqInfo->schema);
+  tOffsetDestroy(&pTmqInfo->currentOffset);
+}
+
+static void freeBlock(void* pParam) {
+  SSDataBlock* pBlock = *(SSDataBlock**)pParam;
+  blockDataDestroy(pBlock);
+}
+
+
+void destroySubJobCtx(STaskSubJobCtx* pCtx) {
+  if (pCtx->transporterId > 0) {
+    int32_t ret = asyncFreeConnById(pCtx->rpcHandle, pCtx->transporterId);
+    if (ret != 0) {
+      qDebug("%s failed to free subQ rpc handle, code:%s", pCtx->idStr, tstrerror(ret));
+    }
+    pCtx->transporterId = -1;
+  }
+
+  if (pCtx->subEndPoints != NULL) {
+    size_t size = taosArrayGetSize(pCtx->subEndPoints);
+    if (size > 0) {
+      int32_t code = tsem_destroy(&pCtx->ready);
+      if (code != TSDB_CODE_SUCCESS) {
+        qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+      }
+      taosArrayDestroy(pCtx->subResNodes);
+    }
+    if (pCtx->isStream) {
+      taosArrayDestroyP(pCtx->subEndPoints, (FDelete)nodesDestroyNode);
+    } else {
+      taosArrayDestroyP(pCtx->subEndPoints, NULL);
+    }
+    pCtx->subEndPoints = NULL;
+  }
+  
+  taosMemoryFreeClear(pCtx);  
+}
+
+void doDestroyTask(SExecTaskInfo* pTaskInfo) {
+  qDebug("%s execTask is freed", GET_TASKID(pTaskInfo));
+  destroyOperator(pTaskInfo->pRoot);
+  pTaskInfo->pRoot = NULL;
+
+  if (pTaskInfo->pSubJobCtx) {
+    int32_t  code = taosRemoveRef(fetchObjRefPool, pTaskInfo->pSubJobCtx->subJobRefId);
+    if (code != TSDB_CODE_SUCCESS) {
+      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+    }
+  }
+
+  taosArrayDestroyEx(pTaskInfo->schemaInfos, cleanupQueriedTableScanInfo);
+  cleanupTmqInfo(&pTaskInfo->tmqInfo);
+
+  if (!pTaskInfo->localFetch.localExec) {
+    nodesDestroyNode((SNode*)pTaskInfo->pSubplan);
+    pTaskInfo->pSubplan = NULL;
+  }
+
+  taosArrayDestroyEx(pTaskInfo->pResultBlockList, freeBlock);
+  taosArrayDestroy(pTaskInfo->stopInfo.pStopInfo);
+  if (!pTaskInfo->paramSet) {
+    freeOperatorParam(pTaskInfo->pOpParam, OP_GET_PARAM);
+    pTaskInfo->pOpParam = NULL;
+  }
+  if (pTaskInfo->ownStreamRtInfo && pTaskInfo->pStreamRuntimeInfo != NULL) {
+    SStreamRuntimeFuncInfo* pRt = &pTaskInfo->pStreamRuntimeInfo->funcInfo;
+
+    // When isMultiGroupCalc, pStreamPesudoFuncVals is aliased to curGrpCalc->pParams
+    // inside pGroupCalcInfos.  NULL it out so tDestroyStRtFuncInfo won't free it twice.
+    if (pRt->isMultiGroupCalc && pRt->pGroupCalcInfos != NULL) {
+      pRt->pStreamPesudoFuncVals = NULL;
+      pRt->pStreamPartColVals = NULL;
+    }
+    tDestroyStRtFuncInfo(pRt);
+    taosMemoryFreeClear(pTaskInfo->pStreamRuntimeInfo);
+  }
+  taosMemoryFreeClear(pTaskInfo->sql);
+  taosMemoryFreeClear(pTaskInfo->id.str);
+  taosMemoryFreeClear(pTaskInfo);
+}
+
+void buildTaskId(uint64_t taskId, uint64_t queryId, char* dst, int32_t len) {
+  int32_t ret = snprintf(dst, len, "TID:0x%" PRIx64 " QID:0x%" PRIx64, taskId, queryId);
+  if (ret < 0) {
+    qError("TID:0x%"PRIx64" QID:0x%"PRIx64" create task id failed,  ignore and continue", taskId, queryId);
+  }
+}

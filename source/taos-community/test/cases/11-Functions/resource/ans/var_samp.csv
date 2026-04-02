@@ -1,0 +1,128 @@
+
+taos> select VAR_SAMP(current) from ts_4893.meters
+     var_samp(current)     |
+============================
+          1.33251339284475 |
+
+taos> select VAR_SAMP(current) from ts_4893.meters interval(1d) order by 1 limit 10
+     var_samp(current)     |
+============================
+         0.728434622750457 |
+         0.728728382385443 |
+         0.731223506639638 |
+         0.731223506639638 |
+         0.731784933829941 |
+         0.739725873473078 |
+         0.742470870122621 |
+         0.743052706219817 |
+         0.743351512006314 |
+         0.745178832898261 |
+
+taos> select VAR_SAMP(id) from ts_4893.meters
+       var_samp(id)        |
+============================
+          8333416.58416582 |
+
+taos> select VAR_SAMP(id) from ts_4893.meters interval(1d) limit 10
+       var_samp(id)        |
+============================
+          22.6666666666667 |
+                      72.5 |
+                      72.5 |
+                      72.5 |
+                      72.5 |
+          67.6666666666667 |
+                      72.5 |
+                      72.5 |
+                      72.5 |
+                      72.5 |
+
+taos> select VAR_SAMP(id) from ts_4893.meters where id > 100
+       var_samp(id)        |
+============================
+          8165932.49249912 |
+
+taos> select VAR_SAMP(id) from ts_4893.meters interval(1d) order by 1 limit 10
+       var_samp(id)        |
+============================
+          22.6666666666667 |
+          31.6666666666667 |
+          67.6666666666667 |
+          67.6666666666667 |
+          67.6666666666667 |
+          67.6666666666667 |
+          67.6666666666667 |
+          67.6666666666667 |
+          67.6666666666667 |
+          67.6666666666667 |
+
+taos> select var_samp(null) from ts_4893.meters
+      var_samp(null)       |
+============================
+ NULL                      |
+
+taos> select var_samp(id) from ts_4893.d0
+       var_samp(id)        |
+============================
+          8333416.58416582 |
+
+taos> select var_samp(current) from ts_4893.d0
+     var_samp(current)     |
+============================
+          1.33251339284475 |
+
+taos> select var_samp(voltage) from ts_4893.meters
+     var_samp(voltage)     |
+============================
+           8.2741031810318 |
+
+taos> select var_samp(voltage) from ts_4893.meters where voltage is not null
+     var_samp(voltage)     |
+============================
+           8.2741031810318 |
+
+taos> select var_samp(phase) from ts_4893.meters
+      var_samp(phase)      |
+============================
+        0.0832881713151379 |
+
+taos> select var_samp(phase) from ts_4893.meters where ts between '2023-01-01 00:00:00' and '2023-12-31 23:59:59'
+      var_samp(phase)      |
+============================
+         0.082995307157809 |
+
+taos> select var_samp(total_voltage) from (select sum(voltage) as total_voltage from ts_4893.meters group by location)
+  var_samp(total_voltage)  |
+============================
+                         0 |
+
+taos> select round(var_samp(current), 2) from ts_4893.meters
+ round(var_samp(current), 2) |
+==============================
+                        1.33 |
+
+taos> select pow(var_samp(current), 2) from ts_4893.meters
+ pow(var_samp(current), 2) |
+============================
+          1.77559194211064 |
+
+taos> select log(var_samp(voltage) + 1) from ts_4893.meters
+ log(var_samp(voltage) + 1) |
+=============================
+           2.22722591174648 |
+
+taos> select groupid, var_samp(voltage) from ts_4893.meters group by groupid order by groupid
+ groupid |     var_samp(voltage)     |
+======================================
+       1 |           8.2741031810318 |
+
+taos> select location, var_samp(current) from ts_4893.meters group by location order by location
+      location      |     var_samp(current)     |
+=================================================
+ beijing            |          1.33251339284475 |
+
+taos> select location, var_samp(voltage) from ts_4893.meters group by location order by location
+      location      |     var_samp(voltage)     |
+=================================================
+ beijing            |           8.2741031810318 |
+

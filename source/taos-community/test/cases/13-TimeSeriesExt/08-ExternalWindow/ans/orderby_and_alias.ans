@@ -1,0 +1,90 @@
+
+taos> use test;
+Database changed.
+
+taos> select _wstart, _wend, w.mark, cast(ts as bigint) as ts64 from ext_ord_src external_window((select ts, endtime, mark from ext_ord_win_all) w) order by ts desc limit 8;
+         _wstart         |          _wend          |    mark     |         ts64          |
+==========================================================================================
+ 2023-11-16 10:30:00.000 | 2023-11-16 10:40:00.000 |         104 |         1700101920000 |
+ 2023-11-16 10:30:00.000 | 2023-11-16 10:40:00.000 |         104 |         1700101860000 |
+ 2023-11-16 10:20:00.000 | 2023-11-16 10:30:00.000 |         103 |         1700101320000 |
+ 2023-11-16 10:10:00.000 | 2023-11-16 10:20:00.000 |         102 |         1700100780000 |
+ 2023-11-16 10:10:00.000 | 2023-11-16 10:20:00.000 |         102 |         1700100720000 |
+ 2023-11-16 10:10:00.000 | 2023-11-16 10:20:00.000 |         102 |         1700100660000 |
+ 2023-11-16 10:00:00.000 | 2023-11-16 10:10:00.000 |         101 |         1700100120000 |
+ 2023-11-16 10:00:00.000 | 2023-11-16 10:10:00.000 |         101 |         1700100060000 |
+
+taos> select _wstart, _wend, w.mark, cast(ts as bigint) - cast(_wstart as bigint) as delta from ext_ord_src external_window((select ts, endtime, mark from ext_ord_win_all) w) order by ts desc limit 8;
+         _wstart         |          _wend          |    mark     |           delta           |
+==============================================================================================
+ 2023-11-16 10:30:00.000 | 2023-11-16 10:40:00.000 |         104 |                    120000 |
+ 2023-11-16 10:30:00.000 | 2023-11-16 10:40:00.000 |         104 |                     60000 |
+ 2023-11-16 10:20:00.000 | 2023-11-16 10:30:00.000 |         103 |                    120000 |
+ 2023-11-16 10:10:00.000 | 2023-11-16 10:20:00.000 |         102 |                    180000 |
+ 2023-11-16 10:10:00.000 | 2023-11-16 10:20:00.000 |         102 |                    120000 |
+ 2023-11-16 10:10:00.000 | 2023-11-16 10:20:00.000 |         102 |                     60000 |
+ 2023-11-16 10:00:00.000 | 2023-11-16 10:10:00.000 |         101 |                    120000 |
+ 2023-11-16 10:00:00.000 | 2023-11-16 10:10:00.000 |         101 |                     60000 |
+
+taos> select cast(_wstart as bigint) as ws, cast(_wend as bigint) as we, count(*) as c from ext_ord_src external_window((select ts, endtime, mark from ext_ord_win_all) w) order by ws;
+          ws           |          we           |           c           |
+========================================================================
+         1700100000000 |         1700100600000 |                     2 |
+         1700100600000 |         1700101200000 |                     3 |
+         1700101200000 |         1700101800000 |                     1 |
+         1700101800000 |         1700102400000 |                     2 |
+
+taos> select tbname, cast(_wstart as bigint) as ws, count(*) as c from ext_ord_src partition by tbname external_window((select ts, endtime, mark from ext_ord_win_all) w) order by tbname, ws;
+             tbname             |          ws           |           c           |
+=================================================================================
+ ext_ord_src_1                  |         1700100000000 |                     2 |
+ ext_ord_src_1                  |         1700100600000 |                     1 |
+ ext_ord_src_1                  |         1700101200000 |                     1 |
+ ext_ord_src_2                  |         1700100600000 |                     2 |
+ ext_ord_src_2                  |         1700101800000 |                     2 |
+
+taos> select t1, cast(_wstart as bigint) as ws, count(*) as c from ext_ord_src partition by t1 external_window((select ts, endtime, mark from ext_ord_win_all) w) order by t1, ws;
+     t1      |          ws           |           c           |
+==============================================================
+           1 |         1700100000000 |                     2 |
+           1 |         1700100600000 |                     1 |
+           1 |         1700101200000 |                     1 |
+           2 |         1700100600000 |                     2 |
+           2 |         1700101800000 |                     2 |
+
+taos> select t1, cast(_wstart as bigint) as ws, count(*) as c from ext_ord_src partition by t1 external_window((select _wstart, _wend, count(*) as wc from ext_ord_win partition by t1 interval(10m)) w) order by t1, ws;
+     t1      |          ws           |           c           |
+==============================================================
+           1 |         1700100000000 |                     2 |
+           1 |         1700101200000 |                     1 |
+           2 |         1700100600000 |                     2 |
+           2 |         1700101800000 |                     2 |
+
+taos> select t1, cast(_wstart as bigint) as ws, w.wc from ext_ord_src partition by t1 external_window((select _wstart, _wend, count(*) as wc from ext_ord_win partition by t1 interval(10m)) w) order by t1, ws;
+     t1      |          ws           |          wc           |
+==============================================================
+           1 |         1700100000000 |                     1 |
+           1 |         1700100000000 |                     1 |
+           1 |         1700101200000 |                     1 |
+           2 |         1700100600000 |                     1 |
+           2 |         1700100600000 |                     1 |
+           2 |         1700101800000 |                     1 |
+           2 |         1700101800000 |                     1 |
+
+taos> select tbname, cast(_wstart as bigint) as ws, count(*) as c from ext_ord_src partition by tbname external_window((select _wstart, _wend, count(*) as wc from ext_ord_win interval(10m)) w) order by tbname, ws desc;
+             tbname             |          ws           |           c           |
+=================================================================================
+ ext_ord_src_1                  |         1700101200000 |                     1 |
+ ext_ord_src_1                  |         1700100600000 |                     1 |
+ ext_ord_src_1                  |         1700100000000 |                     2 |
+ ext_ord_src_2                  |         1700101800000 |                     2 |
+ ext_ord_src_2                  |         1700100600000 |                     2 |
+
+taos> select tbname, cast(_wstart as bigint) as ws, count(*) as c from ext_ord_src partition by tbname external_window((select _wstart, _wend, count(*) as wc from ext_ord_win interval(10m)) w) order by c desc, tbname limit 4;
+             tbname             |          ws           |           c           |
+=================================================================================
+ ext_ord_src_1                  |         1700100000000 |                     2 |
+ ext_ord_src_2                  |         1700101800000 |                     2 |
+ ext_ord_src_2                  |         1700100600000 |                     2 |
+ ext_ord_src_1                  |         1700100600000 |                     1 |
+

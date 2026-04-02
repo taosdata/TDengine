@@ -1,0 +1,14 @@
+# Instructions
+
+## Create and use the database
+```shell
+$ taos
+
+> create database mp_test
+```
+
+## Execute test cases
+
+```shell
+$ mvn clean test
+```

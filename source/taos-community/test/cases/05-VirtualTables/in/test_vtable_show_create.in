@@ -1,0 +1,9 @@
+set max_binary_display_width 1500;
+show create vtable test_vtable_show_create.vtb_virtual_ntb_full;
+show create vtable test_vtable_show_create.vtb_virtual_ntb_half_full;
+show create vtable test_vtable_show_create.vtb_virtual_ntb_empty;
+show create stable test_vtable_show_create.vtb_virtual_stb;
+show create vtable test_vtable_show_create.vtb_virtual_ctb_full;
+show create vtable test_vtable_show_create.vtb_virtual_ctb_half_full;
+show create vtable test_vtable_show_create.vtb_virtual_ctb_empty;
+show create vtable test_vtable_show_create.vtb_virtual_ctb_mix;

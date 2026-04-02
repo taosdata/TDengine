@@ -1,0 +1,85 @@
+{
+    "filetype": "insert",
+    "cfgdir": "/etc/taos",
+    "host": "127.0.0.1",
+    "port": 6030,
+    "user": "root",
+    "password": "taosdata",
+    "connection_pool_size": 8,
+    "thread_count": 5,
+    "create_table_thread_count": 7,
+    "result_file": "./insert_res.txt",
+    "confirm_parameter_prompt": "no",
+    "insert_interval": 0,
+    "num_of_records_per_req": 2000,
+    "prepared_rand": 10000,
+    "chinese": "no",
+    "escape_character": "yes",
+    "databases": [
+        {
+            "dbinfo": {
+                "name": "dmeters",
+                "drop": "yes",
+                "vgroups": 4,
+                "duration": "5d",
+                "keep": "30d",
+                "pages": 512,
+                "minrows":5000,
+                "maxrows":10000,
+		        "stt_trigger":1,
+                "wal_retention_period": 1,
+                "wal_retention_size": 10,
+		        "cachemodel": "'both'",
+                "precision": "ms"
+            },
+            "super_tables": [
+                {
+                    "name": "meters",
+                    "child_table_exists": "no",
+                    "childtable_count": 100000,
+                    "childtable_prefix": "d",
+                    "auto_create_table": "no",
+                    "batch_create_tbl_num": 5,
+                    "data_source": "rand",
+                    "insert_mode": "taosc",
+                    "non_stop_mode": "no",
+                    "line_protocol": "line",
+                    "insert_rows": 900000000000000,
+                    "interlace_rows": 1,
+                    "insert_interval": 1000,
+					"partial_col_num":	2,
+					"partial_col_from":	3,                    
+                    "start_timestamp": "now",
+                    "sample_format": "csv",
+                    "sample_file": "./sample.csv",
+                    "use_sample_ts": "no",
+                    "tags_file": "",
+                    "columns": [
+                        { "type": "FLOAT", "name": "current", "fun": "3*sin(x)+10*random(2)"},
+                        { "type": "INT",   "name": "voltage", "fun": "40*sin(x)+200*random(10)"},
+                        { "type": "FLOAT", "name": "phase",   "fun": "1*sin(x)+1*random(3)"},
+                        { "type": "INT",   "name": "c1",      "fun": "count(0,100,1,0) + 100"},
+                        { "type": "INT",   "name": "c2",      "fun": "saw(-100,100,20,0) + 1000"},
+                        { "type": "float", "name": "c3",      "fun": "square(0,50,10,3)+20+ 80"},
+                        { "type": "INT",   "name": "c4",      "fun": "tri(-20,40,20,5)+50*random(12)+ 10000"}                    ],
+                    "tags": [
+                        {
+                            "type": "TINYINT",
+                            "name": "groupid",
+                            "max": 10,
+                            "min": 1
+                        },
+                        {
+                            "name": "location",
+                            "type": "BINARY",
+                            "len": 16,
+                            "values": ["San Francisco", "Los Angles", "San Diego",
+                                "San Jose", "Palo Alto", "Campbell", "Mountain View",
+                                "Sunnyvale", "Santa Clara", "Cupertino"]
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

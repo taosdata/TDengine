@@ -1,0 +1,54 @@
+{
+    "filetype": "csvfile",
+    "output_path": "./csv/",
+    "databases": [
+        {
+            "dbinfo": {
+                "name": "csvdb",
+                "precision": "ms"
+            },
+            "super_tables": [
+                {
+                    "name": "table",
+                    "childtable_count": 1010,
+                    "insert_rows": 1000,
+                    "interlace_rows": 1,
+                    "childtable_prefix": "d",
+                    "timestamp_step": 1000000,
+                    "start_timestamp": "2020-10-01 00:00:00.000",
+                    "childtable_from": 1000,
+                    "childtable_to": 1010,
+                    "csv_file_prefix": "data",
+                    "csv_ts_format": "%Y%m%d",
+                    "csv_ts_interval": "1d",
+                    "csv_output_header": "true",
+                    "csv_tbname_alias": "device_id",
+                    "csv_compress_level": "none",
+                    "columns": [
+                        { "type": "bool",        "name": "bc"},
+                        { "type": "float",       "name": "fc", "min": 1},
+                        { "type": "double",      "name": "dc", "min":10, "max":10},
+                        { "type": "tinyint",     "name": "ti"},
+                        { "type": "smallint",    "name": "si"},
+                        { "type": "int",         "name": "ic", "fillNull":"false"},
+                        { "type": "bigint",      "name": "bi"},
+                        { "type": "utinyint",    "name": "uti"},
+                        { "type": "usmallint",   "name": "usi", "min":100, "max":120},
+                        { "type": "uint",        "name": "ui"},
+                        { "type": "ubigint",     "name": "ubi"},
+                        { "type": "binary",      "name": "bin", "len": 16},
+                        { "type": "nchar",       "name": "nch", "len": 16}
+                    ],
+                    "tags": [
+                        {"type": "tinyint", "name": "groupid","max": 10,"min": 1},
+                        {"type": "binary",  "name": "location", "len": 16,
+                            "values": ["San Francisco", "Los Angles", "San Diego",
+                                "San Jose", "Palo Alto", "Campbell", "Mountain View",
+                                "Sunnyvale", "Santa Clara", "Cupertino"]
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

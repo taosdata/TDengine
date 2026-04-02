@@ -1,0 +1,8 @@
+/home/m.json
+/home/log_server.json
+/var/lib/jenkins/workspace/restore.sh
+/var/lib/jenkins/workspace/start_http.sh
+/var/lib/jenkins/workspace/TDinternal
+/var/lib/jenkins/workspace/remove_corefile.sh
+/var/lib/jenkins/workspace/CI_disk_Monitor.py
+/var/lib/jenkins/workspace/start_CI_Monitor.sh

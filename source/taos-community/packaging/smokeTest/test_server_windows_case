@@ -1,0 +1,2 @@
+system-test,python3 .\test.py -f 0-others\taosShell.py
+system-test,python3 .\test.py -f 6-cluster\5dnode3mnodeSep1VnodeStopDnodeModifyMeta.py  -N 6 -M 3

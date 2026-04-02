@@ -1,0 +1,55 @@
+# Linux Platform
+install.packages('rJDBC', repos='http://cran.us.r-project.org')
+
+# Loading RJDBC packages
+library('RJDBC')
+# Set up working path and JDBC driver storage location
+setwd('C:/TDengine')
+
+# Load JDBC Driver for TDengine
+drv<-JDBC("com.taosdata.jdbc.TSDBDriver","JDBCDriver-1.0.0-dist.jar", identifier.quote="\"")
+
+# Connect to the database
+conn<-dbConnect(drv,"jdbc:TSDB://192.168.1.114:0/?user=root&password=taosdata","root","taosdata")
+
+# Get connection information
+dbGetInfo(conn)
+
+# Using database test
+dbSendUpdate(conn, "use test")
+
+# Insert data
+dbSendUpdate(conn, "insert into t1 values(now, 99)")
+
+# View all tables
+table1<-dbGetQuery(conn,"show tables") 
+
+# Functional support for RJDBC
+
+# List all tables
+dbListTables(conn)
+
+# Is there table iris
+dbExistsTable(conn,”iris”)
+
+# Connect summary information
+summary(conn)
+dbGetInfo(conn)
+
+# Read all the data from the T1 table
+dbReadTable(conn, "t1")
+
+# Delete table t1
+dbRemoveTable(conn,"t1")
+
+# Execute any non-query SQL statements
+dbSendUpdate(conn, "create table t1(a timestamp, b int, c nchar(12))");
+
+# Write data
+dbWriteTable(conn, "t1", t_demo_n, overwrite=FALSE, append=TRUE)
+
+# Extracting data on demand using SQL statements
+dbGetQuery(conn, "select k from tu")
+
+# Close the connection
+dbDisconnect(conn)

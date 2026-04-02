@@ -1,0 +1,14 @@
+在 cmd 下进入到 C:\TDengine 目录下直接执行 `taos.exe`，连接到 TDengine 服务，进入到 TDengine CLI 界面，示例如下：
+
+```text
+taos> show databases;
+              name              |       create_time       | vgroups |        ntables        | replica | strict |  duration  |              keep              |   buffer    |  pagesize   |    pages    |   minrows   |   maxrows   | comp | precision |   status   |           retention            | single_stable | cachemodel  |  cachesize  | wal_level | wal_fsync_period | wal_retention_period |  wal_retention_size   |
+===============================================================================================================================================================================================================================================================================================================================================================================================================================
+ information_schema             | NULL                    |    NULL |                    14 |    NULL | NULL   | NULL       | NULL                           |        NULL |        NULL |        NULL |        NULL |        NULL | NULL | NULL      | ready      | NULL                           | NULL          | NULL        |        NULL |      NULL |             NULL |                 NULL |                  NULL |
+ performance_schema             | NULL                    |    NULL |                     3 |    NULL | NULL   | NULL       | NULL                           |        NULL |        NULL |        NULL |        NULL |        NULL | NULL | NULL      | ready      | NULL                           | NULL          | NULL        |        NULL |      NULL |             NULL |                 NULL |                  NULL |
+ test                           | 2022-08-04 16:46:40.506 |       2 |                     0 |       1 | off    | 14400m     | 5256000m,5256000m,5256000m     |          96 |           4 |         256 |
+100 |        4096 |    2 | ms        | ready      | NULL                           |         false | none        |           1 |         1 |             3000 |                    0 |                     0 |               0 |                     0 |
+Query OK, 3 rows in database (0.123000s)
+
+taos>
+```

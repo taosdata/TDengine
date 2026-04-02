@@ -1,0 +1,5365 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": "-- Grafana --",
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "target": {
+          "limit": 100,
+          "matchAny": false,
+          "tags": [],
+          "type": "dashboard"
+        },
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "gnetId": null,
+  "graphTooltip": 0,
+  "id": 3,
+  "iteration": 1643173897059,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "datasource": "Prometheus",
+      "gridPos": {
+        "h": 3,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 32,
+      "options": {
+        "content": "<h1><center>TDengine Cluster Dashboard (First EP: ${firstEp}, Version: ${version})</center></h1>",
+        "mode": "markdown"
+      },
+      "pluginVersion": "8.2.2",
+      "repeatDirection": "h",
+      "targets": [
+        {
+          "alias": "mnodes",
+          "formatType": "Time series",
+          "queryType": "SQL",
+          "refId": "A",
+          "sql": "show mnodes",
+          "target": "select metric",
+          "timeshift": {
+            "period": null
+          },
+          "type": "timeserie"
+        }
+      ],
+      "timeFrom": null,
+      "timeShift": null,
+      "title": "-- OVERVIEW --",
+      "transformations": [
+        {
+          "id": "calculateField",
+          "options": {
+            "binary": {
+              "left": "Time",
+              "operator": "+",
+              "reducer": "sum",
+              "right": ""
+            },
+            "mode": "binary",
+            "reduce": {
+              "reducer": "sum"
+            }
+          }
+        }
+      ],
+      "type": "text"
+    },
+    {
+      "collapsed": false,
+      "datasource": "Prometheus",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 3
+      },
+      "id": 57,
+      "panels": [],
+      "title": "Cluster Status",
+      "type": "row"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 0,
+        "y": 4
+      },
+      "id": 73,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "last"
+          ],
+          "fields": "/.*/",
+          "values": false
+        },
+        "text": {},
+        "textMode": "auto"
+      },
+      "pluginVersion": "8.2.2",
+      "targets": [
+        {
+          "colNameFormatStr": "",
+          "colNameToGroup": "",
+          "exemplar": true,
+          "expr": "taos_cluster_info_first_ep{cluster=\"$cluster\"}",
+          "format": "table",
+          "formatType": "Time series",
+          "instant": false,
+          "interval": "",
+          "legendFormat": "",
+          "queryType": "SQL",
+          "refId": "A",
+          "sql": "label_values(taos_cluster_info_first_ep{cluster=\"$cluster\"}, value)",
+          "target": "select metric",
+          "type": "timeserie"
+        }
+      ],
+      "title": "First EP",
+      "transformations": [
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "names": [
+                "value"
+              ]
+            }
+          }
+        }
+      ],
+      "type": "stat"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 3,
+        "y": 4
+      },
+      "id": 74,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/.*/",
+          "values": false
+        },
+        "text": {},
+        "textMode": "auto"
+      },
+      "pluginVersion": "8.2.2",
+      "targets": [
+        {
+          "colNameFormatStr": "",
+          "colNameToGroup": "",
+          "exemplar": true,
+          "expr": "taos_cluster_info_version{cluster=\"$cluster\"}",
+          "format": "table",
+          "formatType": "Time series",
+          "interval": "",
+          "legendFormat": "",
+          "queryType": "SQL",
+          "refId": "A",
+          "sql": "select last(version) from log.cluster_info",
+          "target": "select metric",
+          "type": "timeserie"
+        }
+      ],
+      "title": "Version",
+      "transformations": [
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "names": [
+                "value"
+              ]
+            }
+          }
+        }
+      ],
+      "type": "stat"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "MNode 被选举后经过的时长",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 6,
+        "y": 4
+      },
+      "id": 72,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "text": {},
+        "textMode": "auto"
+      },
+      "pluginVersion": "8.2.2",
+      "targets": [
+        {
+          "colNameFormatStr": "",
+          "colNameToGroup": "",
+          "exemplar": true,
+          "expr": "taos_cluster_info_master_uptime{cluster=\"$cluster\"}",
+          "formatType": "Time series",
+          "interval": "",
+          "legendFormat": "",
+          "queryType": "SQL",
+          "refId": "A",
+          "sql": "select last(master_uptime) from log.cluster_info",
+          "target": "select metric",
+          "type": "timeserie"
+        }
+      ],
+      "title": "Master Uptime",
+      "transformations": [
+        {
+          "id": "reduce",
+          "options": {
+            "includeTimeField": false,
+            "mode": "reduceFields",
+            "reducers": [
+              "lastNotNull"
+            ]
+          }
+        }
+      ],
+      "type": "stat"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "企业版授权到期时间",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 9,
+        "y": 4
+      },
+      "id": 99,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "text": {},
+        "textMode": "auto"
+      },
+      "pluginVersion": "8.2.2",
+      "targets": [
+        {
+          "colNameFormatStr": "",
+          "colNameToGroup": "",
+          "exemplar": true,
+          "expr": "taos_grants_info_expire_time{cluster=\"$cluster\"}",
+          "formatType": "Time series",
+          "interval": "",
+          "legendFormat": "",
+          "queryType": "SQL",
+          "refId": "A",
+          "sql": "select last(expire_time) from log.grants_info",
+          "target": "select metric",
+          "type": "timeserie"
+        }
+      ],
+      "title": "Expire Time",
+      "transformations": [],
+      "type": "stat"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "企业版授权已用测点数",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "A"
+            },
+            "properties": [
+              {
+                "id": "noValue",
+                "value": "unlimited"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 12,
+        "y": 4
+      },
+      "id": 100,
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "last"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showUnfilled": true,
+        "text": {}
+      },
+      "pluginVersion": "8.2.2",
+      "targets": [
+        {
+          "colNameFormatStr": "",
+          "colNameToGroup": "",
+          "exemplar": true,
+          "expr": "taos_dnodes_info_disk_engine",
+          "formatType": "Time series",
+          "interval": "",
+          "legendFormat": "used",
+          "queryType": "SQL",
+          "refId": "A",
+          "sql": "select max(timeseries_used) as used ,max(timeseries_total) as total from log.grants_info where ts >= $from and ts <= $to interval(30s)",
+          "target": "select metric",
+          "type": "timeserie"
+        },
+        {
+          "exemplar": true,
+          "expr": "taos_dnodes_info_disk_total",
+          "hide": false,
+          "interval": "",
+          "legendFormat": "total",
+          "refId": "B"
+        }
+      ],
+      "title": "Used Meassuring Points",
+      "transformations": [],
+      "type": "bargauge"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "数据库个数",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 2,
+        "x": 16,
+        "y": 4
+      },
+      "id": 65,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "text": {},
+        "textMode": "auto"
+      },
+      "pluginVersion": "8.2.2",
+      "repeatDirection": "h",
+      "targets": [
+        {
+          "alias": "dnodes",
+          "colNameFormatStr": "",
+          "colNameToGroup": "",
+          "exemplar": true,
+          "expr": "count(taos_vgroups_info_status{cluster=\"$cluster\"})",
+          "format": "time_series",
+          "formatType": "Time series",
+          "instant": false,
+          "interval": "",
+          "legendFormat": "databases",
+          "queryType": "SQL",
+          "refId": "A",
+          "sql": "show databases;",
+          "target": "select metric",
+          "timeshift": {
+            "period": null
+          },
+          "type": "timeserie"
+        }
+      ],
+      "timeFrom": null,
+      "timeShift": null,
+      "title": "Databases",
+      "transformations": [
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "names": [
+                "Time",
+                "databases"
+              ]
+            }
+          }
+        }
+      ],
+      "type": "stat"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "所有数据库的表数量之和",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 18,
+        "y": 4
+      },
+      "id": 68,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "text": {},
+        "textMode": "auto"
+      },
+      "pluginVersion": "8.2.2",
+      "repeatDirection": "h",
+      "targets": [
+        {
+          "alias": "dnodes",
+          "colNameFormatStr": "",
+          "colNameToGroup": "",
+          "exemplar": true,
+          "expr": "sum(taos_tables_per_database{cluster=\"$cluster\"})",
+          "formatType": "Time series",
+          "interval": "",
+          "legendFormat": "",
+          "queryType": "SQL",
+          "refId": "A",
+          "sql": "show databases;",
+          "target": "select metric",
+          "timeshift": {
+            "period": null
+          },
+          "type": "timeserie"
+        }
+      ],
+      "timeFrom": null,
+      "timeShift": null,
+      "title": "Tables",
+      "transformations": [],
+      "type": "stat"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 21,
+        "y": 4
+      },
+      "id": 82,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/.*/",
+          "values": false
+        },
+        "text": {},
+        "textMode": "auto"
+      },
+      "pluginVersion": "8.2.2",
+      "targets": [
+        {
+          "colNameFormatStr": "",
+          "colNameToGroup": "",
+          "exemplar": true,
+          "expr": "",
+          "formatType": "Time series",
+          "interval": "",
+          "legendFormat": "",
+          "queryType": "SQL",
+          "refId": "A",
+          "sql": "select connections_total from log.cluster_info where ts >= $from and ts <= $to",
+          "target": "select metric",
+          "type": "timeserie"
+        }
+      ],
+      "title": "Connections",
+      "type": "stat"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "当前TDengine集群DNode数量，Alive 为存活，Total 为所有",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 8
+      },
+      "id": 75,
+      "options": {
+        "displayMode": "basic",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showUnfilled": true,
+        "text": {}
+      },
+      "pluginVersion": "8.2.2",
+      "targets": [
+        {
+          "alias": "",
+          "colNameFormatStr": "",
+          "colNameToGroup": "",
+          "exemplar": true,
+          "expr": "taos_cluster_info_dnodes_total",
+          "formatType": "Time series",
+          "interval": "",
+          "legendFormat": "",
+          "queryType": "SQL",
+          "refId": "A",
+          "sql": "select dnodes_total as total,dnodes_alive as alive from log.cluster_info where ts >= $from and ts <= $to",
+          "target": "select metric",
+          "type": "timeserie"
+        }
+      ],
+      "timeFrom": null,
+      "timeShift": null,
+      "title": "DNodes",
+      "transformations": [],
+      "type": "bargauge"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "当前TDengine集群MNode数量，Alive 为存活，Total 为所有",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 8
+      },
+      "id": 101,
+      "options": {
+        "displayMode": "basic",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showUnfilled": true,
+        "text": {}
+      },
+      "pluginVersion": "8.2.2",
+      "targets": [
+        {
+          "alias": "",
+          "colNameFormatStr": "",
+          "colNameToGroup": "",
+          "exemplar": true,
+          "expr": "taos_cluster_info_mnodes_total{cluster=\"$cluster\"}",
+          "formatType": "Time series",
+          "interval": "",
+          "legendFormat": "",
+          "queryType": "SQL",
+          "refId": "A",
+          "sql": "select mnodes_total as total,mnodes_alive as alive from log.cluster_info where ts >= $from and ts <= $to",
+          "target": "select metric",
+          "type": "timeserie"
+        }
+      ],
+      "timeFrom": null,
+      "timeShift": null,
+      "title": "MNodes",
+      "transformations": [],
+      "type": "bargauge"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "当前TDengine集群 VGroups 数量，Alive 为存活，Total 为所有",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 8
+      },
+      "id": 102,
+      "options": {
+        "displayMode": "basic",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showUnfilled": true,
+        "text": {}
+      },
+      "pluginVersion": "8.2.2",
+      "targets": [
+        {
+          "alias": "",
+          "colNameFormatStr": "",
+          "colNameToGroup": "",
+          "exemplar": true,
+          "expr": "count(count(taos_vgroups_info_status{cluster=\"$cluster\"}) by (vgroup_id))",
+          "formatType": "Time series",
+          "interval": "",
+          "legendFormat": "",
+          "queryType": "SQL",
+          "refId": "A",
+          "sql": "select vgroups_total as total, vgroups_alive as alive from log.cluster_info where ts >= $from and ts <= $to",
+          "target": "select metric",
+          "type": "timeserie"
+        }
+      ],
+      "timeFrom": null,
+      "timeShift": null,
+      "title": "VGroups",
+      "transformations": [],
+      "type": "bargauge"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "当前TDengine集群 VNodes 数量，Alive 为存活，Total 为所有",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 8
+      },
+      "id": 103,
+      "options": {
+        "displayMode": "basic",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showUnfilled": true,
+        "text": {}
+      },
+      "pluginVersion": "8.2.2",
+      "targets": [
+        {
+          "alias": "",
+          "colNameFormatStr": "",
+          "colNameToGroup": "",
+          "exemplar": true,
+          "expr": "sum(taos_vgroups_info_online_vnodes{cluster=\"$cluster\"})",
+          "formatType": "Time series",
+          "interval": "",
+          "legendFormat": "",
+          "queryType": "SQL",
+          "refId": "A",
+          "sql": "select vnodes_total as total, vnodes_alive as alive from log.cluster_info where ts >= $from and ts <= $to",
+          "target": "select metric",
+          "type": "timeserie"
+        }
+      ],
+      "timeFrom": null,
+      "timeShift": null,
+      "title": "VNodes",
+      "transformations": [],
+      "type": "bargauge"
+    },
+    {
+      "alert": {
+        "alertRuleTags": {},
+        "conditions": [
+          {
+            "evaluator": {
+              "params": [
+                1
+              ],
+              "type": "lt"
+            },
+            "operator": {
+              "type": "and"
+            },
+            "query": {
+              "params": [
+                "A",
+                "1m",
+                "now"
+              ]
+            },
+            "reducer": {
+              "params": [],
+              "type": "avg"
+            },
+            "type": "query"
+          }
+        ],
+        "executionErrorState": "alerting",
+        "for": "1m",
+        "frequency": "10s",
+        "handler": 1,
+        "name": "DNodes Alive Percent alert",
+        "noDataState": "no_data",
+        "notifications": []
+      },
+      "aliasColors": {},
+      "bars": false,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": "Prometheus",
+      "fill": 1,
+      "fillGradient": 0,
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 0,
+        "y": 12
+      },
+      "hiddenSeries": false,
+      "id": 84,
+      "legend": {
+        "avg": false,
+        "current": false,
+        "max": false,
+        "min": false,
+        "show": true,
+        "total": false,
+        "values": false
+      },
+      "lines": true,
+      "linewidth": 1,
+      "nullPointMode": "null",
+      "options": {
+        "alertThreshold": true
+      },
+      "percentage": false,
+      "pluginVersion": "8.2.2",
+      "pointradius": 2,
+      "points": false,
+      "renderer": "flot",
+      "seriesOverrides": [],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "colNameFormatStr": "",
+          "colNameToGroup": "",
+          "exemplar": true,
+          "expr": "taos_cluster_info_dnodes_alive / taos_cluster_info_dnodes_total",
+          "formatType": "Time series",
+          "interval": "",
+          "legendFormat": "",
+          "queryType": "SQL",
+          "refId": "A",
+          "sql": "select avg(dnodes_alive)/avg(dnodes_total) from log.cluster_info where ts >= $from and ts <= $to interval(30s) fill(null)",
+          "target": "select metric",
+          "type": "timeserie"
+        }
+      ],
+      "thresholds": [
+        {
+          "colorMode": "critical",
+          "fill": true,
+          "line": true,
+          "op": "lt",
+          "value": 1,
+          "visible": true
+        }
+      ],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "DNodes Alive Percent",
+      "tooltip": {
+        "shared": true,
+        "sort": 0,
+        "value_type": "individual"
+      },
+      "type": "graph",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "$$hashKey": "object:71",
+          "format": "percentunit",
+          "label": null,
+          "logBase": 1,
+          "max": "1",
+          "min": "0",
+          "show": true
+        },
+        {
+          "$$hashKey": "object:72",
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
+      "alert": {
+        "alertRuleTags": {},
+        "conditions": [
+          {
+            "evaluator": {
+              "params": [
+                1
+              ],
+              "type": "lt"
+            },
+            "operator": {
+              "type": "and"
+            },
+            "query": {
+              "params": [
+                "A",
+                "1m",
+                "now"
+              ]
+            },
+            "reducer": {
+              "params": [],
+              "type": "avg"
+            },
+            "type": "query"
+          }
+        ],
+        "executionErrorState": "alerting",
+        "for": "1m",
+        "frequency": "10s",
+        "handler": 1,
+        "name": "MNodes Alive Percent alert",
+        "noDataState": "no_data",
+        "notifications": []
+      },
+      "aliasColors": {},
+      "bars": false,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": "Prometheus",
+      "fill": 1,
+      "fillGradient": 0,
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 6,
+        "y": 12
+      },
+      "hiddenSeries": false,
+      "id": 87,
+      "legend": {
+        "avg": false,
+        "current": false,
+        "max": false,
+        "min": false,
+        "show": true,
+        "total": false,
+        "values": false
+      },
+      "lines": true,
+      "linewidth": 1,
+      "nullPointMode": "null",
+      "options": {
+        "alertThreshold": true
+      },
+      "percentage": false,
+      "pluginVersion": "8.2.2",
+      "pointradius": 2,
+      "points": false,
+      "renderer": "flot",
+      "seriesOverrides": [],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "alias": "",
+          "colNameFormatStr": "",
+          "colNameToGroup": "",
+          "exemplar": true,
+          "expr": "taos_cluster_info_mnodes_alive / taos_cluster_info_mnodes_total",
+          "formatType": "Time series",
+          "interval": "",
+          "legendFormat": "",
+          "queryType": "SQL",
+          "refId": "A",
+          "sql": "select avg(mnodes_alive)/avg(mnodes_total) from log.cluster_info where ts >= $from and ts <= $to interval(30s) fill(null)",
+          "target": "select metric",
+          "type": "timeserie"
+        }
+      ],
+      "thresholds": [
+        {
+          "colorMode": "critical",
+          "fill": true,
+          "line": true,
+          "op": "lt",
+          "value": 1,
+          "visible": true
+        }
+      ],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "MNodes Alive Percent",
+      "tooltip": {
+        "shared": true,
+        "sort": 0,
+        "value_type": "individual"
+      },
+      "type": "graph",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "$$hashKey": "object:221",
+          "format": "percentunit",
+          "label": null,
+          "logBase": 1,
+          "max": "1",
+          "min": "0",
+          "show": true
+        },
+        {
+          "$$hashKey": "object:222",
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
+      "alert": {
+        "alertRuleTags": {},
+        "conditions": [
+          {
+            "evaluator": {
+              "params": [
+                1
+              ],
+              "type": "lt"
+            },
+            "operator": {
+              "type": "and"
+            },
+            "query": {
+              "params": [
+                "A",
+                "1m",
+                "now"
+              ]
+            },
+            "reducer": {
+              "params": [],
+              "type": "avg"
+            },
+            "type": "query"
+          }
+        ],
+        "executionErrorState": "alerting",
+        "for": "1m",
+        "frequency": "10s",
+        "handler": 1,
+        "name": "VGroups Alive Percent alert",
+        "noDataState": "no_data",
+        "notifications": []
+      },
+      "aliasColors": {},
+      "bars": false,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": "Prometheus",
+      "fill": 1,
+      "fillGradient": 0,
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 12,
+        "y": 12
+      },
+      "hiddenSeries": false,
+      "id": 85,
+      "legend": {
+        "avg": false,
+        "current": false,
+        "max": false,
+        "min": false,
+        "show": true,
+        "total": false,
+        "values": false
+      },
+      "lines": true,
+      "linewidth": 1,
+      "nullPointMode": "null",
+      "options": {
+        "alertThreshold": true
+      },
+      "percentage": false,
+      "pluginVersion": "8.2.2",
+      "pointradius": 2,
+      "points": false,
+      "renderer": "flot",
+      "seriesOverrides": [],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "alias": "",
+          "colNameFormatStr": "",
+          "colNameToGroup": "",
+          "exemplar": true,
+          "expr": "taos_cluster_info_vgroups_alive / taos_cluster_info_vgroups_total",
+          "formatType": "Time series",
+          "interval": "",
+          "legendFormat": "",
+          "queryType": "SQL",
+          "refId": "A",
+          "sql": "select avg(vgroups_alive)/avg(vgroups_total) from log.cluster_info where ts >= $from and ts <= $to interval(30s) fill(null)",
+          "target": "select metric",
+          "type": "timeserie"
+        }
+      ],
+      "thresholds": [
+        {
+          "colorMode": "critical",
+          "fill": true,
+          "line": true,
+          "op": "lt",
+          "value": 1,
+          "visible": true
+        }
+      ],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "VGroups Alive Percent",
+      "tooltip": {
+        "shared": true,
+        "sort": 0,
+        "value_type": "individual"
+      },
+      "type": "graph",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "$$hashKey": "object:256",
+          "format": "percentunit",
+          "label": null,
+          "logBase": 1,
+          "max": "1",
+          "min": "0",
+          "show": true
+        },
+        {
+          "$$hashKey": "object:257",
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
+      "alert": {
+        "alertRuleTags": {},
+        "conditions": [
+          {
+            "evaluator": {
+              "params": [
+                1
+              ],
+              "type": "lt"
+            },
+            "operator": {
+              "type": "and"
+            },
+            "query": {
+              "params": [
+                "A",
+                "1m",
+                "now"
+              ]
+            },
+            "reducer": {
+              "params": [],
+              "type": "avg"
+            },
+            "type": "query"
+          }
+        ],
+        "executionErrorState": "alerting",
+        "for": "1m",
+        "frequency": "10s",
+        "handler": 1,
+        "name": "VNodes Alive Percent alert",
+        "noDataState": "no_data",
+        "notifications": []
+      },
+      "aliasColors": {},
+      "bars": false,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": "Prometheus",
+      "fill": 1,
+      "fillGradient": 0,
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 18,
+        "y": 12
+      },
+      "hiddenSeries": false,
+      "id": 86,
+      "legend": {
+        "avg": false,
+        "current": false,
+        "max": false,
+        "min": false,
+        "show": true,
+        "total": false,
+        "values": false
+      },
+      "lines": true,
+      "linewidth": 1,
+      "nullPointMode": "null",
+      "options": {
+        "alertThreshold": true
+      },
+      "percentage": false,
+      "pluginVersion": "8.2.2",
+      "pointradius": 2,
+      "points": false,
+      "renderer": "flot",
+      "seriesOverrides": [],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "alias": "",
+          "colNameFormatStr": "",
+          "colNameToGroup": "",
+          "exemplar": true,
+          "expr": "taos_cluster_info_vnodes_alive / taos_cluster_info_vnodes_total",
+          "formatType": "Time series",
+          "interval": "",
+          "legendFormat": "",
+          "queryType": "SQL",
+          "refId": "A",
+          "sql": "select avg(vnodes_alive)/avg(vnodes_total) from log.cluster_info where ts >= $from and ts <= $to interval(30s) fill(null)",
+          "target": "select metric",
+          "type": "timeserie"
+        }
+      ],
+      "thresholds": [
+        {
+          "colorMode": "critical",
+          "fill": true,
+          "line": true,
+          "op": "lt",
+          "value": 1,
+          "visible": true
+        }
+      ],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "VNodes Alive Percent",
+      "tooltip": {
+        "shared": true,
+        "sort": 0,
+        "value_type": "individual"
+      },
+      "type": "graph",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "$$hashKey": "object:291",
+          "format": "percentunit",
+          "label": null,
+          "logBase": 1,
+          "max": "1",
+          "min": "0",
+          "show": true
+        },
+        {
+          "$$hashKey": "object:292",
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
+      "alert": {
+        "alertRuleTags": {},
+        "conditions": [
+          {
+            "evaluator": {
+              "params": [
+                0.95
+              ],
+              "type": "gt"
+            },
+            "operator": {
+              "type": "and"
+            },
+            "query": {
+              "params": [
+                "A",
+                "1m",
+                "now"
+              ]
+            },
+            "reducer": {
+              "params": [],
+              "type": "avg"
+            },
+            "type": "query"
+          },
+          {
+            "evaluator": {
+              "params": [
+                0,
+                1
+              ],
+              "type": "within_range"
+            },
+            "operator": {
+              "type": "and"
+            },
+            "query": {
+              "params": [
+                "A",
+                "1m",
+                "now"
+              ]
+            },
+            "reducer": {
+              "params": [],
+              "type": "avg"
+            },
+            "type": "query"
+          }
+        ],
+        "executionErrorState": "keep_state",
+        "for": "1m",
+        "frequency": "10s",
+        "handler": 1,
+        "name": "DNodes Alive Percent alert",
+        "noDataState": "ok",
+        "notifications": []
+      },
+      "aliasColors": {},
+      "bars": false,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": "Prometheus",
+      "fill": 1,
+      "fillGradient": 0,
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 0,
+        "y": 18
+      },
+      "hiddenSeries": false,
+      "id": 104,
+      "legend": {
+        "avg": false,
+        "current": false,
+        "max": false,
+        "min": false,
+        "show": true,
+        "total": false,
+        "values": false
+      },
+      "lines": true,
+      "linewidth": 1,
+      "nullPointMode": "null",
+      "options": {
+        "alertThreshold": true
+      },
+      "percentage": false,
+      "pluginVersion": "8.2.2",
+      "pointradius": 2,
+      "points": false,
+      "renderer": "flot",
+      "seriesOverrides": [],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "colNameFormatStr": "",
+          "colNameToGroup": "",
+          "exemplar": true,
+          "expr": "taos_grants_info_timeseries_used / taos_grants_info_timeseries_total {cluster=\"$cluster\"}",
+          "formatType": "Time series",
+          "interval": "",
+          "legendFormat": "percent",
+          "queryType": "SQL",
+          "refId": "A",
+          "sql": "select avg(timeseries_used)/avg(timeseries_total) as percent from log.grants_info where ts >= $from and ts <= $to interval(30s) fill(null)",
+          "target": "select metric",
+          "type": "timeserie"
+        }
+      ],
+      "thresholds": [
+        {
+          "colorMode": "critical",
+          "fill": true,
+          "line": true,
+          "op": "gt",
+          "value": 0.95,
+          "visible": true
+        }
+      ],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "Messuring Points Used Percent Alert",
+      "tooltip": {
+        "shared": true,
+        "sort": 0,
+        "value_type": "individual"
+      },
+      "type": "graph",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "$$hashKey": "object:333",
+          "decimals": null,
+          "format": "percentunit",
+          "label": null,
+          "logBase": 1,
+          "max": "1",
+          "min": "0",
+          "show": true
+        },
+        {
+          "$$hashKey": "object:334",
+          "format": "percentunit",
+          "label": null,
+          "logBase": 1,
+          "max": "1",
+          "min": "0",
+          "show": false
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
+      "alert": {
+        "alertRuleTags": {},
+        "conditions": [
+          {
+            "evaluator": {
+              "params": [
+                86400
+              ],
+              "type": "lt"
+            },
+            "operator": {
+              "type": "and"
+            },
+            "query": {
+              "params": [
+                "A",
+                "1m",
+                "now"
+              ]
+            },
+            "reducer": {
+              "params": [],
+              "type": "min"
+            },
+            "type": "query"
+          }
+        ],
+        "executionErrorState": "keep_state",
+        "for": "1m",
+        "frequency": "10s",
+        "handler": 1,
+        "name": "Grants Expire Time alert",
+        "noDataState": "no_data",
+        "notifications": []
+      },
+      "aliasColors": {},
+      "bars": false,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": "Prometheus",
+      "fill": 1,
+      "fillGradient": 0,
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 6,
+        "y": 18
+      },
+      "hiddenSeries": false,
+      "id": 105,
+      "legend": {
+        "avg": false,
+        "current": false,
+        "max": false,
+        "min": false,
+        "show": true,
+        "total": false,
+        "values": false
+      },
+      "lines": true,
+      "linewidth": 1,
+      "nullPointMode": "null",
+      "options": {
+        "alertThreshold": true
+      },
+      "percentage": false,
+      "pluginVersion": "8.2.2",
+      "pointradius": 2,
+      "points": false,
+      "renderer": "flot",
+      "seriesOverrides": [
+        {
+          "$$hashKey": "object:368",
+          "alias": "percent",
+          "yaxis": 2
+        }
+      ],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "colNameFormatStr": "",
+          "colNameToGroup": "",
+          "exemplar": true,
+          "expr": "taos_grants_info_expire_time",
+          "formatType": "Time series",
+          "interval": "",
+          "legendFormat": "",
+          "queryType": "SQL",
+          "refId": "A",
+          "sql": "select last(expire_time) as expire_time from log.grants_info where ts >= $from and ts <= $to interval(30s) fill(null)",
+          "target": "select metric",
+          "type": "timeserie"
+        }
+      ],
+      "thresholds": [
+        {
+          "colorMode": "critical",
+          "fill": true,
+          "line": true,
+          "op": "lt",
+          "value": 86400,
+          "visible": true
+        }
+      ],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "Grants Expire Time",
+      "tooltip": {
+        "shared": true,
+        "sort": 0,
+        "value_type": "individual"
+      },
+      "type": "graph",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "$$hashKey": "object:375",
+          "decimals": null,
+          "format": "s",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": "0",
+          "show": true
+        },
+        {
+          "$$hashKey": "object:376",
+          "format": "percentunit",
+          "label": null,
+          "logBase": 1,
+          "max": "1",
+          "min": "0",
+          "show": true
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
+      "alert": {
+        "alertRuleTags": {},
+        "conditions": [
+          {
+            "evaluator": {
+              "params": [
+                10
+              ],
+              "type": "gt"
+            },
+            "operator": {
+              "type": "and"
+            },
+            "query": {
+              "params": [
+                "A",
+                "1m",
+                "now"
+              ]
+            },
+            "reducer": {
+              "params": [],
+              "type": "avg"
+            },
+            "type": "query"
+          }
+        ],
+        "executionErrorState": "alerting",
+        "for": "1m",
+        "frequency": "10s",
+        "handler": 1,
+        "name": "Error Rate alert",
+        "noDataState": "no_data",
+        "notifications": []
+      },
+      "aliasColors": {},
+      "bars": false,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": "Prometheus",
+      "description": "错误率（每秒错误数）",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "cps"
+        },
+        "overrides": []
+      },
+      "fill": 1,
+      "fillGradient": 0,
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 12,
+        "y": 18
+      },
+      "hiddenSeries": false,
+      "id": 106,
+      "legend": {
+        "avg": false,
+        "current": false,
+        "max": false,
+        "min": false,
+        "show": true,
+        "total": false,
+        "values": false
+      },
+      "lines": true,
+      "linewidth": 1,
+      "nullPointMode": "null",
+      "options": {
+        "alertThreshold": true
+      },
+      "percentage": false,
+      "pluginVersion": "8.2.2",
+      "pointradius": 2,
+      "points": false,
+      "renderer": "flot",
+      "seriesOverrides": [
+        {
+          "$$hashKey": "object:410",
+          "alias": "percent",
+          "yaxis": 2
+        }
+      ],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "colNameFormatStr": "",
+          "colNameToGroup": "",
+          "exemplar": true,
+          "expr": "deriv(taos_dnodes_info_errors{cluster=\"$cluster\"}[1m])",
+          "formatType": "Time series",
+          "interval": "",
+          "legendFormat": "",
+          "queryType": "SQL",
+          "refId": "A",
+          "sql": "select derivative(errors, 1s, 1) as errors from (select sum(errors) as errors from log.dnodes_info where ts >= $from and ts <= $to interval(1s))",
+          "target": "select metric",
+          "type": "timeserie"
+        }
+      ],
+      "thresholds": [
+        {
+          "colorMode": "critical",
+          "fill": true,
+          "line": true,
+          "op": "gt",
+          "value": 10,
+          "visible": true
+        }
+      ],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "Error Rate",
+      "tooltip": {
+        "shared": true,
+        "sort": 0,
+        "value_type": "individual"
+      },
+      "type": "graph",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "$$hashKey": "object:417",
+          "decimals": null,
+          "format": "cps",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": "0",
+          "show": true
+        },
+        {
+          "$$hashKey": "object:418",
+          "format": "percentunit",
+          "label": null,
+          "logBase": 1,
+          "max": "1",
+          "min": "0",
+          "show": true
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
+      "collapsed": false,
+      "datasource": "Prometheus",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 24
+      },
+      "id": 24,
+      "panels": [],
+      "repeat": null,
+      "title": "DNodes Overview",
+      "type": "row"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 4,
+        "x": 0,
+        "y": 25
+      },
+      "id": 90,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "text": {},
+        "textMode": "value_and_name"
+      },
+      "pluginVersion": "8.2.2",
+      "repeat": null,
+      "targets": [
+        {
+          "alias": "",
+          "colNameFormatStr": "{{groupValue}}",
+          "colNameToGroup": "dnode_ep",
+          "exemplar": true,
+          "expr": "taos_dnodes_info_uptime{cluster=\"$cluster\"}",
+          "formatType": "Time series",
+          "interval": "",
+          "legendFormat": "{{dnode_ep}}",
+          "queryType": "SQL",
+          "refId": "A",
+          "sql": "select last(uptime) from log.dnodes_info where ts >= now -1m and ts <= now group by dnode_ep",
+          "target": "select metric",
+          "type": "timeserie"
+        }
+      ],
+      "timeFrom": null,
+      "timeShift": null,
+      "title": "DNodes Lifetime",
+      "type": "stat"
+    },
+    {
+      "aliasColors": {},
+      "bars": false,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "fill": 1,
+      "fillGradient": 0,
+      "gridPos": {
+        "h": 6,
+        "w": 10,
+        "x": 4,
+        "y": 25
+      },
+      "hiddenSeries": false,
+      "id": 88,
+      "legend": {
+        "alignAsTable": true,
+        "avg": false,
+        "current": false,
+        "max": false,
+        "min": false,
+        "show": true,
+        "total": false,
+        "values": false
+      },
+      "lines": true,
+      "linewidth": 1,
+      "nullPointMode": "null",
+      "options": {
+        "alertThreshold": true
+      },
+      "percentage": false,
+      "pluginVersion": "8.2.2",
+      "pointradius": 2,
+      "points": false,
+      "renderer": "flot",
+      "seriesOverrides": [],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "colNameFormatStr": "",
+          "colNameToGroup": "",
+          "exemplar": true,
+          "expr": "taos_cluster_info_dnodes_total{cluster=\"$cluster\"}",
+          "formatType": "Time series",
+          "interval": "",
+          "legendFormat": "total",
+          "queryType": "SQL",
+          "refId": "A",
+          "sql": "select avg(dnodes_total) as total, avg(dnodes_alive) as alive from log.cluster_info where ts >= $from and ts <= $to interval($interval) fill(null)",
+          "target": "select metric",
+          "type": "timeserie"
+        },
+        {
+          "colNameFormatStr": "",
+          "colNameToGroup": "",
+          "exemplar": true,
+          "expr": "taos_cluster_info_dnodes_alive{cluster=\"$cluster\"}",
+          "formatType": "Time series",
+          "hide": false,
+          "interval": "",
+          "legendFormat": "alive",
+          "queryType": "SQL",
+          "refId": "B",
+          "sql": "select avg(dnodes_total) as total, avg(dnodes_alive) as alive from log.cluster_info where ts >= $from and ts <= $to interval($interval) fill(null)",
+          "target": "select metric",
+          "type": "timeserie"
+        }
+      ],
+      "thresholds": [],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "DNodes Number",
+      "tooltip": {
+        "shared": true,
+        "sort": 0,
+        "value_type": "individual"
+      },
+      "type": "graph",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "$$hashKey": "object:128",
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        },
+        {
+          "$$hashKey": "object:129",
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": false
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
+      "aliasColors": {},
+      "bars": false,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "fill": 1,
+      "fillGradient": 0,
+      "gridPos": {
+        "h": 6,
+        "w": 10,
+        "x": 14,
+        "y": 25
+      },
+      "hiddenSeries": false,
+      "id": 89,
+      "legend": {
+        "alignAsTable": true,
+        "avg": false,
+        "current": false,
+        "max": false,
+        "min": false,
+        "show": true,
+        "total": false,
+        "values": false
+      },
+      "lines": true,
+      "linewidth": 1,
+      "nullPointMode": "null",
+      "options": {
+        "alertThreshold": true
+      },
+      "percentage": false,
+      "pluginVersion": "8.2.2",
+      "pointradius": 2,
+      "points": false,
+      "renderer": "flot",
+      "seriesOverrides": [],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "colNameFormatStr": "",
+          "colNameToGroup": "",
+          "exemplar": true,
+          "expr": "taos_cluster_info_mnodes_total{cluster=\"$cluster\"}",
+          "formatType": "Time series",
+          "interval": "",
+          "legendFormat": "total",
+          "queryType": "SQL",
+          "refId": "A",
+          "sql": "select avg(mnodes_total) as total, avg(mnodes_alive) as alive from log.cluster_info where ts >= $from and ts <= $to interval($interval) fill(null)",
+          "target": "select metric",
+          "type": "timeserie"
+        },
+        {
+          "exemplar": true,
+          "expr": "taos_cluster_info_mnodes_alive{cluster=\"$cluster\"}",
+          "hide": false,
+          "interval": "",
+          "legendFormat": "alive",
+          "refId": "B"
+        }
+      ],
+      "thresholds": [],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "MNodes Number",
+      "tooltip": {
+        "shared": true,
+        "sort": 0,
+        "value_type": "individual"
+      },
+      "type": "graph",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "$$hashKey": "object:452",
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        },
+        {
+          "$$hashKey": "object:453",
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": false
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
+      "collapsed": true,
+      "datasource": "Prometheus",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 31
+      },
+      "id": 108,
+      "panels": [
+        {
+          "aliasColors": {},
+          "bars": false,
+          "dashLength": 10,
+          "dashes": false,
+          "datasource": "Prometheus",
+          "description": "Include two parts:",
+          "fill": 1,
+          "fillGradient": 0,
+          "gridPos": {
+            "h": 9,
+            "w": 24,
+            "x": 0,
+            "y": 32
+          },
+          "hiddenSeries": false,
+          "id": 110,
+          "legend": {
+            "alignAsTable": true,
+            "avg": true,
+            "current": true,
+            "hideEmpty": false,
+            "max": true,
+            "min": true,
+            "rightSide": true,
+            "show": true,
+            "sideWidth": 600,
+            "total": false,
+            "values": true
+          },
+          "lines": true,
+          "linewidth": 1,
+          "nullPointMode": "null",
+          "options": {
+            "alertThreshold": true
+          },
+          "percentage": false,
+          "pluginVersion": "8.2.2",
+          "pointradius": 2,
+          "points": false,
+          "renderer": "flot",
+          "seriesOverrides": [
+            {
+              "$$hashKey": "object:66",
+              "alias": "/success_rate/",
+              "yaxis": 2
+            }
+          ],
+          "spaceLength": 10,
+          "stack": false,
+          "steppedLine": false,
+          "targets": [
+            {
+              "colNameFormatStr": "",
+              "colNameToGroup": "dnode_ep",
+              "exemplar": true,
+              "expr": "sum(taos_dnodes_info_req_insert{cluster=\"$cluster\"}) by (dnode_ep)",
+              "formatType": "Time series",
+              "hide": false,
+              "interval": "",
+              "legendFormat": "insert_count - {{dnode_ep}}",
+              "queryType": "SQL",
+              "refId": "A",
+              "sql": "select sum(req_insert) as insert_count, sum(req_insert_success) as insert_success, sum(req_insert_batch) as insert_batches, sum(req_insert_batch_success) as insert_batch_success from log.dnodes_info where ts >= $from and ts <= $to interval($interval) fill(null) group by dnode_ep"
+            },
+            {
+              "colNameFormatStr": "",
+              "colNameToGroup": "dnode_ep",
+              "exemplar": true,
+              "expr": "sum(taos_dnodes_info_req_insert_success{cluster=\"$cluster\"}) by (dnode_ep)",
+              "formatType": "Time series",
+              "hide": false,
+              "interval": "",
+              "legendFormat": "insert_success - {{dnode_ep}}",
+              "queryType": "SQL",
+              "refId": "B",
+              "sql": "select sum(req_insert_success)  / sum(req_insert) as success_rate from log.dnodes_info where ts >= $from and ts <= $to interval($interval) fill(null) group by dnode_ep"
+            },
+            {
+              "colNameFormatStr": "",
+              "colNameToGroup": "dnode_ep",
+              "exemplar": true,
+              "expr": "sum(taos_dnodes_info_req_insert_batch{cluster=\"$cluster\"}) by (dnode_ep)",
+              "formatType": "Time series",
+              "hide": false,
+              "interval": "",
+              "legendFormat": "insert_batches - {{dnode_ep}}",
+              "queryType": "SQL",
+              "refId": "C",
+              "sql": "select sum(req_insert) as total_inserts, sum(req_insert_batch) as total_batches from log.dnodes_info where ts >= $from and ts <= $to interval($interval) fill(null)"
+            },
+            {
+              "colNameFormatStr": "",
+              "colNameToGroup": "",
+              "exemplar": true,
+              "expr": "sum(taos_dnodes_info_req_insert_batch_success{cluster=\"$cluster\"}) by (dnode_ep)",
+              "formatType": "Time series",
+              "hide": false,
+              "interval": "",
+              "legendFormat": "insert_batches_success - {{dnode_ep}}",
+              "queryType": "SQL",
+              "refId": "D",
+              "sql": "select sum(req_insert_success)  / sum(req_insert) as success_rate from log.dnodes_info where ts >= $from and ts <= $to interval($interval) fill(null)"
+            },
+            {
+              "exemplar": true,
+              "expr": "sum(taos_dnodes_info_req_insert_success{cluster=\"$cluster\"}) by (dnode_ep) / sum(taos_dnodes_info_req_insert{cluster=\"$cluster\"}) by (dnode_ep)",
+              "hide": false,
+              "interval": "",
+              "legendFormat": "success_rate - {{dnode_ep}}",
+              "refId": "E"
+            },
+            {
+              "exemplar": true,
+              "expr": "sum(taos_dnodes_info_req_insert_batch_success{cluster=\"$cluster\"}) by (dnode_ep) / sum(taos_dnodes_info_req_insert_batch{cluster=\"$cluster\"}) by (dnode_ep)",
+              "hide": false,
+              "interval": "",
+              "legendFormat": "batch_success_rate - {{dnode_ep}}",
+              "refId": "F"
+            }
+          ],
+          "thresholds": [],
+          "timeFrom": null,
+          "timeRegions": [],
+          "timeShift": null,
+          "title": "Requests (Inserts)",
+          "tooltip": {
+            "shared": true,
+            "sort": 0,
+            "value_type": "individual"
+          },
+          "type": "graph",
+          "xaxis": {
+            "buckets": null,
+            "mode": "time",
+            "name": null,
+            "show": true,
+            "values": []
+          },
+          "yaxes": [
+            {
+              "format": "short",
+              "label": null,
+              "logBase": 1,
+              "max": null,
+              "min": null,
+              "show": true
+            },
+            {
+              "format": "percentunit",
+              "label": null,
+              "logBase": 1,
+              "max": "1",
+              "min": "0",
+              "show": true
+            }
+          ],
+          "yaxis": {
+            "align": false,
+            "alignLevel": null
+          }
+        },
+        {
+          "aliasColors": {},
+          "bars": false,
+          "dashLength": 10,
+          "dashes": false,
+          "datasource": "Prometheus",
+          "fieldConfig": {
+            "defaults": {
+              "unit": "cps"
+            },
+            "overrides": []
+          },
+          "fill": 1,
+          "fillGradient": 0,
+          "gridPos": {
+            "h": 9,
+            "w": 24,
+            "x": 0,
+            "y": 41
+          },
+          "hiddenSeries": false,
+          "id": 112,
+          "legend": {
+            "alignAsTable": true,
+            "avg": true,
+            "current": true,
+            "max": true,
+            "min": true,
+            "rightSide": true,
+            "show": true,
+            "sideWidth": 600,
+            "total": false,
+            "values": true
+          },
+          "lines": true,
+          "linewidth": 1,
+          "nullPointMode": "null",
+          "options": {
+            "alertThreshold": true
+          },
+          "percentage": false,
+          "pluginVersion": "8.2.2",
+          "pointradius": 2,
+          "points": false,
+          "renderer": "flot",
+          "seriesOverrides": [],
+          "spaceLength": 10,
+          "stack": false,
+          "steppedLine": false,
+          "targets": [
+            {
+              "colNameFormatStr": "",
+              "colNameToGroup": "dnode_ep",
+              "exemplar": true,
+              "expr": "avg(taos_dnodes_info_req_insert_rate{cluster=\"$cluster\"}) by (dnode_ep)",
+              "formatType": "Time series",
+              "interval": "",
+              "legendFormat": "insert_rate - {{dnode_ep}}",
+              "queryType": "SQL",
+              "refId": "A",
+              "sql": "select avg(req_insert_rate) as insert_rate, avg(req_insert_batch_rate) as batch_rate from log.dnodes_info where ts >= $from and ts <= $to interval($interval) fill(null) group by dnode_ep"
+            },
+            {
+              "colNameFormatStr": "",
+              "colNameToGroup": "dnode_ep",
+              "exemplar": true,
+              "expr": "avg(taos_dnodes_info_req_insert_batch_rate{cluster=\"$cluster\"}) by (dnode_ep)",
+              "formatType": "Time series",
+              "hide": false,
+              "interval": "",
+              "legendFormat": "batch_rate - {{dnode_ep}}",
+              "queryType": "SQL",
+              "refId": "B",
+              "sql": "select avg(insert_rate) as cluster_insert_rate, avg(batch_rate) as cluster_batch_rate from (select sum(req_insert_rate) as insert_rate,  sum(req_insert_batch_rate) as batch_rate from log.dnodes_info where ts >= $from and ts <= $to interval(1s)) where ts >= $from and ts <= $to interval($interval) fill(null)"
+            },
+            {
+              "exemplar": true,
+              "expr": "avg(taos_dnodes_info_req_insert_rate{cluster=\"$cluster\"})",
+              "hide": false,
+              "interval": "",
+              "legendFormat": "cluster_insert_rate",
+              "refId": "C"
+            },
+            {
+              "exemplar": true,
+              "expr": "avg(taos_dnodes_info_req_insert_batch_rate{cluster=\"$cluster\"})",
+              "hide": false,
+              "interval": "",
+              "legendFormat": "cluster_batch_rate",
+              "refId": "D"
+            }
+          ],
+          "thresholds": [],
+          "timeFrom": null,
+          "timeRegions": [],
+          "timeShift": null,
+          "title": "Requests Rate (Inserts per Second)",
+          "tooltip": {
+            "shared": true,
+            "sort": 0,
+            "value_type": "individual"
+          },
+          "type": "graph",
+          "xaxis": {
+            "buckets": null,
+            "mode": "time",
+            "name": null,
+            "show": true,
+            "values": []
+          },
+          "yaxes": [
+            {
+              "format": "cps",
+              "label": null,
+              "logBase": 1,
+              "max": null,
+              "min": null,
+              "show": true
+            },
+            {
+              "format": "short",
+              "label": null,
+              "logBase": 1,
+              "max": null,
+              "min": null,
+              "show": true
+            }
+          ],
+          "yaxis": {
+            "align": false,
+            "alignLevel": null
+          }
+        },
+        {
+          "aliasColors": {},
+          "bars": false,
+          "dashLength": 10,
+          "dashes": false,
+          "datasource": "Prometheus",
+          "fill": 1,
+          "fillGradient": 0,
+          "gridPos": {
+            "h": 8,
+            "w": 24,
+            "x": 0,
+            "y": 50
+          },
+          "hiddenSeries": false,
+          "id": 114,
+          "legend": {
+            "alignAsTable": true,
+            "avg": true,
+            "current": true,
+            "max": true,
+            "min": true,
+            "rightSide": true,
+            "show": true,
+            "sideWidth": 600,
+            "total": false,
+            "values": true
+          },
+          "lines": true,
+          "linewidth": 1,
+          "nullPointMode": "null",
+          "options": {
+            "alertThreshold": true
+          },
+          "percentage": false,
+          "pluginVersion": "8.2.2",
+          "pointradius": 2,
+          "points": false,
+          "renderer": "flot",
+          "seriesOverrides": [
+            {
+              "$$hashKey": "object:227",
+              "alias": "/rate/",
+              "yaxis": 2
+            }
+          ],
+          "spaceLength": 10,
+          "stack": false,
+          "steppedLine": false,
+          "targets": [
+            {
+              "colNameFormatStr": "",
+              "colNameToGroup": "dnode_ep",
+              "exemplar": true,
+              "expr": "sum(taos_dnodes_info_req_select{cluster=\"$cluster\"}) by (dnode_ep)",
+              "formatType": "Time series",
+              "interval": "",
+              "legendFormat": "req_select - {{dnode_ep}}",
+              "queryType": "SQL",
+              "refId": "A",
+              "sql": "select sum(req_select) as req_select from log.dnodes_info where ts >= $from and ts <= $to interval($interval) fill(null) group by dnode_ep"
+            },
+            {
+              "colNameFormatStr": "",
+              "colNameToGroup": "dnode_ep",
+              "exemplar": true,
+              "expr": "sum(taos_dnodes_info_req_select{cluster=\"$cluster\"})",
+              "formatType": "Time series",
+              "hide": false,
+              "interval": "",
+              "legendFormat": "cluster_req_select",
+              "queryType": "SQL",
+              "refId": "B",
+              "sql": "select sum(req_select) as total from log.dnodes_info where ts >= $from and ts <= $to interval($interval) fill(null)"
+            },
+            {
+              "colNameFormatStr": "",
+              "colNameToGroup": "dnode_ep",
+              "exemplar": true,
+              "expr": "avg(taos_dnodes_info_req_select_rate{cluster=\"$cluster\"}) by (dnode_ep)",
+              "formatType": "Time series",
+              "hide": false,
+              "interval": "",
+              "legendFormat": "req_select_rate - {{dnode_ep}}",
+              "queryType": "SQL",
+              "refId": "C",
+              "sql": "select avg(req_select_rate) as req_select_rate from log.dnodes_info where ts >= $from and ts <= $to interval($interval) fill(null) group by dnode_ep"
+            },
+            {
+              "colNameFormatStr": "",
+              "colNameToGroup": "dnode_ep",
+              "exemplar": true,
+              "expr": "avg(taos_dnodes_info_req_select_rate{cluster=\"$cluster\"})",
+              "formatType": "Time series",
+              "hide": false,
+              "interval": "",
+              "legendFormat": "cluster_req_select_rate",
+              "queryType": "SQL",
+              "refId": "D",
+              "sql": "select avg(req_select_rate) as req_select_rate from (select sum(req_select_rate) as req_select_rate from log.dnodes_info where ts >= $from and ts <= $to interval(1s)) where ts >= $from and ts <= $to interval($interval) fill(null)"
+            }
+          ],
+          "thresholds": [],
+          "timeFrom": null,
+          "timeRegions": [],
+          "timeShift": null,
+          "title": "Requests (Selects)",
+          "tooltip": {
+            "shared": true,
+            "sort": 0,
+            "value_type": "individual"
+          },
+          "type": "graph",
+          "xaxis": {
+            "buckets": null,
+            "mode": "time",
+            "name": null,
+            "show": true,
+            "values": []
+          },
+          "yaxes": [
+            {
+              "format": "short",
+              "label": null,
+              "logBase": 1,
+              "max": null,
+              "min": null,
+              "show": true
+            },
+            {
+              "format": "cps",
+              "label": null,
+              "logBase": 1,
+              "max": null,
+              "min": null,
+              "show": true
+            }
+          ],
+          "yaxis": {
+            "align": false,
+            "alignLevel": null
+          }
+        },
+        {
+          "aliasColors": {},
+          "bars": false,
+          "dashLength": 10,
+          "dashes": false,
+          "datasource": "Prometheus",
+          "fill": 1,
+          "fillGradient": 0,
+          "gridPos": {
+            "h": 8,
+            "w": 24,
+            "x": 0,
+            "y": 58
+          },
+          "hiddenSeries": false,
+          "id": 111,
+          "interval": null,
+          "legend": {
+            "alignAsTable": true,
+            "avg": true,
+            "current": true,
+            "max": true,
+            "min": true,
+            "rightSide": true,
+            "show": true,
+            "sideWidth": 600,
+            "total": false,
+            "values": true
+          },
+          "lines": true,
+          "linewidth": 1,
+          "nullPointMode": "null",
+          "options": {
+            "alertThreshold": true
+          },
+          "percentage": false,
+          "pluginVersion": "8.2.2",
+          "pointradius": 2,
+          "points": false,
+          "renderer": "flot",
+          "seriesOverrides": [
+            {
+              "$$hashKey": "object:100",
+              "alias": "/.*rate.*/",
+              "dashes": true,
+              "fill": 4,
+              "spaceLength": 1,
+              "yaxis": 2
+            }
+          ],
+          "spaceLength": 10,
+          "stack": false,
+          "steppedLine": false,
+          "targets": [
+            {
+              "colNameFormatStr": "",
+              "colNameToGroup": "dnode_ep",
+              "exemplar": true,
+              "expr": "sum(taos_dnodes_info_req_http{cluster=\"$cluster\"}) by (dnode_ep)",
+              "formatType": "Time series",
+              "interval": "",
+              "legendFormat": "req_http - {{dnode_ep}}",
+              "queryType": "SQL",
+              "refId": "A",
+              "sql": "select sum(req_http) as req_http from log.dnodes_info where ts >= $from and ts <= $to interval($interval) fill(null) group by dnode_ep"
+            },
+            {
+              "colNameFormatStr": "",
+              "colNameToGroup": "dnode_ep",
+              "exemplar": true,
+              "expr": "sum(taos_dnodes_info_req_http{cluster=\"$cluster\"})",
+              "formatType": "Time series",
+              "hide": false,
+              "interval": "",
+              "legendFormat": "cluster_req_http",
+              "queryType": "SQL",
+              "refId": "B",
+              "sql": "select sum(req_http) as req_http from log.dnodes_info where ts >= $from and ts <= $to interval($interval) fill(null)"
+            },
+            {
+              "colNameFormatStr": "",
+              "colNameToGroup": "dnode_ep",
+              "exemplar": true,
+              "expr": "avg(taos_dnodes_info_req_http_rate{cluster=\"$cluster\"}) by (dnode_ep)",
+              "formatType": "Time series",
+              "hide": false,
+              "interval": "",
+              "legendFormat": "req_http_rate - {{dnode_ep}}",
+              "queryType": "SQL",
+              "refId": "C",
+              "sql": "select avg(req_http_rate) as req_http_rate from log.dnodes_info where ts >= $from and ts <= $to interval($interval) fill(null) group by dnode_ep"
+            },
+            {
+              "colNameFormatStr": "",
+              "colNameToGroup": "",
+              "exemplar": true,
+              "expr": "avg(taos_dnodes_info_req_http_rate{cluster=\"$cluster\"})",
+              "formatType": "Time series",
+              "hide": false,
+              "interval": "",
+              "legendFormat": "cluster_req_http_rate",
+              "queryType": "SQL",
+              "refId": "D",
+              "sql": "select avg(req_http_rate) as req_http_rate from (select sum(req_http_rate) as req_http_rate from log.dnodes_info where ts >= $from and ts <= $to interval(1s)) where ts >= $from and ts <= $to interval($interval) fill(null)"
+            }
+          ],
+          "thresholds": [],
+          "timeFrom": null,
+          "timeRegions": [],
+          "timeShift": null,
+          "title": "Requests (HTTP)",
+          "tooltip": {
+            "shared": true,
+            "sort": 0,
+            "value_type": "individual"
+          },
+          "type": "graph",
+          "xaxis": {
+            "buckets": null,
+            "mode": "time",
+            "name": null,
+            "show": true,
+            "values": []
+          },
+          "yaxes": [
+            {
+              "format": "short",
+              "label": null,
+              "logBase": 1,
+              "max": null,
+              "min": null,
+              "show": true
+            },
+            {
+              "format": "ops",
+              "label": null,
+              "logBase": 1,
+              "max": null,
+              "min": null,
+              "show": true
+            }
+          ],
+          "yaxis": {
+            "align": false,
+            "alignLevel": null
+          }
+        }
+      ],
+      "title": "Requests",
+      "type": "row"
+    },
+    {
+      "collapsed": true,
+      "datasource": "Prometheus",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 32
+      },
+      "id": 92,
+      "panels": [
+        {
+          "datasource": "Prometheus",
+          "description": "超级表的个数",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 3,
+            "w": 3,
+            "x": 0,
+            "y": 67
+          },
+          "id": 96,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "area",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "text": {},
+            "textMode": "auto"
+          },
+          "pluginVersion": "8.2.2",
+          "repeatDirection": "h",
+          "targets": [
+            {
+              "alias": "dnodes",
+              "colNameFormatStr": "",
+              "colNameToGroup": "",
+              "exemplar": true,
+              "expr": "taos_stables_per_database{cluster=\"$cluster\", database=\"$database\"}",
+              "formatType": "Time series",
+              "interval": "",
+              "legendFormat": "",
+              "queryType": "SQL",
+              "refId": "A",
+              "sql": "show $database.stables;",
+              "target": "select metric",
+              "timeshift": {
+                "period": null
+              },
+              "type": "timeserie"
+            }
+          ],
+          "timeFrom": null,
+          "timeShift": null,
+          "title": "STables",
+          "transformations": [],
+          "type": "stat"
+        },
+        {
+          "aliasColors": {},
+          "bars": false,
+          "dashLength": 10,
+          "dashes": false,
+          "datasource": "Prometheus",
+          "fill": 1,
+          "fillGradient": 0,
+          "gridPos": {
+            "h": 9,
+            "w": 9,
+            "x": 3,
+            "y": 67
+          },
+          "hiddenSeries": false,
+          "id": 94,
+          "legend": {
+            "avg": false,
+            "current": false,
+            "max": false,
+            "min": false,
+            "show": true,
+            "total": false,
+            "values": false
+          },
+          "lines": true,
+          "linewidth": 1,
+          "nullPointMode": "null",
+          "options": {
+            "alertThreshold": true
+          },
+          "percentage": false,
+          "pluginVersion": "8.2.2",
+          "pointradius": 2,
+          "points": false,
+          "renderer": "flot",
+          "seriesOverrides": [],
+          "spaceLength": 10,
+          "stack": false,
+          "steppedLine": false,
+          "targets": [
+            {
+              "alias": "",
+              "colName": "vgroup_id",
+              "colNameFormatStr": "",
+              "colNameToGroup": "",
+              "exemplar": true,
+              "expr": "sum(taos_vgroups_info_tables_num{cluster=\"$cluster\", database_name=\"$database\"})",
+              "formatType": "Time series",
+              "groupDataByColName": "",
+              "interval": "",
+              "legendFormat": "",
+              "queryType": "SQL",
+              "refId": "A",
+              "sql": "select last(tables_num) as tables_num from (select last(ts) as ts, sum(tables_num) as tables_num from log.vgroups_info where ts > $from and ts <= $to and database_name = '$database' group by ts) where ts >= $from and ts <= $to interval($interval) fill(null)"
+            }
+          ],
+          "thresholds": [],
+          "timeFrom": null,
+          "timeRegions": [],
+          "timeShift": null,
+          "title": "Tables",
+          "tooltip": {
+            "shared": true,
+            "sort": 0,
+            "value_type": "individual"
+          },
+          "type": "graph",
+          "xaxis": {
+            "buckets": null,
+            "mode": "time",
+            "name": null,
+            "show": true,
+            "values": []
+          },
+          "yaxes": [
+            {
+              "format": "short",
+              "label": null,
+              "logBase": 1,
+              "max": null,
+              "min": null,
+              "show": true
+            },
+            {
+              "format": "short",
+              "label": null,
+              "logBase": 1,
+              "max": null,
+              "min": null,
+              "show": true
+            }
+          ],
+          "yaxis": {
+            "align": false,
+            "alignLevel": null
+          }
+        },
+        {
+          "aliasColors": {},
+          "bars": false,
+          "dashLength": 10,
+          "dashes": false,
+          "datasource": "Prometheus",
+          "fill": 1,
+          "fillGradient": 0,
+          "gridPos": {
+            "h": 9,
+            "w": 12,
+            "x": 12,
+            "y": 67
+          },
+          "hiddenSeries": false,
+          "id": 95,
+          "legend": {
+            "avg": false,
+            "current": false,
+            "max": false,
+            "min": false,
+            "show": true,
+            "total": false,
+            "values": false
+          },
+          "lines": true,
+          "linewidth": 1,
+          "nullPointMode": "null",
+          "options": {
+            "alertThreshold": true
+          },
+          "percentage": false,
+          "pluginVersion": "8.2.2",
+          "pointradius": 2,
+          "points": false,
+          "renderer": "flot",
+          "seriesOverrides": [],
+          "spaceLength": 10,
+          "stack": false,
+          "steppedLine": false,
+          "targets": [
+            {
+              "alias": "",
+              "colName": "vgroup_id",
+              "colNameFormatStr": "vgoup{{groupValue}}",
+              "colNameToGroup": "vgroup_id",
+              "exemplar": true,
+              "expr": "taos_vgroups_info_tables_num",
+              "formatType": "Time series",
+              "groupDataByColName": "",
+              "interval": "",
+              "legendFormat": "vgroup_{{vgroup_id}}",
+              "queryType": "SQL",
+              "refId": "A",
+              "sql": "select max(tables_num) as tables_num from log.vgroups_info where ts > $from and ts <= $to and database_name = '$database' interval($interval) fill(null) group by vgroup_id"
+            }
+          ],
+          "thresholds": [],
+          "timeFrom": null,
+          "timeRegions": [],
+          "timeShift": null,
+          "title": "Tables Number Foreach VGroups",
+          "tooltip": {
+            "shared": true,
+            "sort": 0,
+            "value_type": "individual"
+          },
+          "type": "graph",
+          "xaxis": {
+            "buckets": null,
+            "mode": "time",
+            "name": null,
+            "show": true,
+            "values": []
+          },
+          "yaxes": [
+            {
+              "format": "short",
+              "label": null,
+              "logBase": 1,
+              "max": null,
+              "min": null,
+              "show": true
+            },
+            {
+              "format": "short",
+              "label": null,
+              "logBase": 1,
+              "max": null,
+              "min": null,
+              "show": true
+            }
+          ],
+          "yaxis": {
+            "align": false,
+            "alignLevel": null
+          }
+        },
+        {
+          "datasource": "Prometheus",
+          "description": "所有普通表的个数（包括超级表的子表）",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 3,
+            "w": 3,
+            "x": 0,
+            "y": 70
+          },
+          "id": 98,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "area",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "text": {},
+            "textMode": "auto"
+          },
+          "pluginVersion": "8.2.2",
+          "repeatDirection": "h",
+          "targets": [
+            {
+              "alias": "dnodes",
+              "colNameFormatStr": "",
+              "colNameToGroup": "",
+              "exemplar": true,
+              "expr": "taos_tables_per_database{cluster=\"$cluster\",database=\"$database\"}",
+              "formatType": "Time series",
+              "interval": "",
+              "legendFormat": "",
+              "queryType": "SQL",
+              "refId": "A",
+              "sql": "select last(tables_num) from (select last(ts) as ts, sum(tables_num) as tables_num from log.vgroups_info where ts > $from and ts <= $to and database_name = '$database' group by ts)",
+              "target": "select metric",
+              "timeshift": {
+                "period": null
+              },
+              "type": "timeserie"
+            }
+          ],
+          "timeFrom": null,
+          "timeShift": null,
+          "title": "Total Tables",
+          "transformations": [],
+          "type": "stat"
+        },
+        {
+          "datasource": "Prometheus",
+          "description": "超级表的所有子表个数",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 3,
+            "w": 3,
+            "x": 0,
+            "y": 73
+          },
+          "id": 97,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "area",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "text": {},
+            "textMode": "auto"
+          },
+          "pluginVersion": "8.2.2",
+          "repeatDirection": "h",
+          "targets": [
+            {
+              "alias": "dnodes",
+              "colNameFormatStr": "",
+              "colNameToGroup": "",
+              "exemplar": true,
+              "expr": "taos_tables_per_database{cluster=\"$cluster\",database=\"$database\"}",
+              "formatType": "Time series",
+              "interval": "",
+              "legendFormat": "",
+              "queryType": "SQL",
+              "refId": "A",
+              "sql": "show $database.stables;",
+              "target": "select metric",
+              "timeshift": {
+                "period": null
+              },
+              "type": "timeserie"
+            }
+          ],
+          "timeFrom": null,
+          "timeShift": null,
+          "title": "Sub Tables",
+          "transformations": [],
+          "type": "stat"
+        }
+      ],
+      "repeat": "database",
+      "title": "Database: [ $database ]",
+      "type": "row"
+    },
+    {
+      "collapsed": true,
+      "datasource": "Prometheus",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 34
+      },
+      "id": 20,
+      "panels": [
+        {
+          "datasource": "Prometheus",
+          "description": "启动时长",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "mappings": [],
+              "noValue": "Down",
+              "thresholds": {
+                "mode": "percentage",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              },
+              "unit": "s"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 6,
+            "w": 4,
+            "x": 0,
+            "y": 69
+          },
+          "id": 120,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "area",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "reduceOptions": {
+              "calcs": [
+                "last"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "text": {},
+            "textMode": "auto"
+          },
+          "pluginVersion": "8.2.2",
+          "targets": [
+            {
+              "alias": "disk_used",
+              "colNameFormatStr": "",
+              "colNameToGroup": "",
+              "exemplar": true,
+              "expr": "taos_dnodes_info_uptime{cluster=\"$cluster\",dnode_ep=\"$fqdn\"}",
+              "formatType": "Time series",
+              "interval": "",
+              "legendFormat": "",
+              "queryType": "SQL",
+              "refId": "A",
+              "sql": "select last(uptime) as uptime  from log.dnodes_info where dnode_ep = '$fqdn'",
+              "target": "select metric",
+              "timeshift": {
+                "period": null
+              },
+              "type": "timeserie"
+            }
+          ],
+          "timeFrom": null,
+          "timeShift": null,
+          "title": "Uptime",
+          "transformations": [
+            {
+              "id": "reduce",
+              "options": {
+                "includeTimeField": false,
+                "mode": "reduceFields",
+                "reducers": [
+                  "lastNotNull"
+                ]
+              }
+            }
+          ],
+          "type": "stat"
+        },
+        {
+          "datasource": "Prometheus",
+          "description": "是否有MNode",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "mappings": [
+                {
+                  "options": {
+                    "0": {
+                      "index": 1,
+                      "text": "No"
+                    },
+                    "1": {
+                      "index": 0,
+                      "text": "Yes"
+                    }
+                  },
+                  "type": "value"
+                }
+              ],
+              "thresholds": {
+                "mode": "percentage",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              },
+              "unit": "none"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 6,
+            "w": 2,
+            "x": 4,
+            "y": 69
+          },
+          "id": 121,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "area",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "reduceOptions": {
+              "calcs": [
+                "last"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "text": {},
+            "textMode": "auto"
+          },
+          "pluginVersion": "8.2.2",
+          "targets": [
+            {
+              "alias": "",
+              "colNameFormatStr": "",
+              "colNameToGroup": "",
+              "exemplar": true,
+              "expr": "taos_dnodes_info_has_mnode{cluster=\"$cluster\",dnode_ep=\"$fqdn\"}",
+              "formatType": "Time series",
+              "interval": "",
+              "legendFormat": "",
+              "queryType": "SQL",
+              "refId": "A",
+              "sql": "select last(has_mnode) as has_mnode  from log.dnodes_info where dnode_ep = '$fqdn' and ts >= $from and ts < $to interval($interval) fill(null)",
+              "target": "select metric",
+              "timeshift": {
+                "period": null
+              },
+              "type": "timeserie"
+            }
+          ],
+          "timeFrom": null,
+          "timeShift": null,
+          "title": "Has MNode?",
+          "transformations": [],
+          "type": "stat"
+        },
+        {
+          "datasource": "Prometheus",
+          "description": "CPU 核数",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "mappings": [],
+              "noValue": "Down",
+              "thresholds": {
+                "mode": "percentage",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              },
+              "unit": "none"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 6,
+            "w": 2,
+            "x": 6,
+            "y": 69
+          },
+          "id": 122,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "area",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "reduceOptions": {
+              "calcs": [
+                "last"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "text": {},
+            "textMode": "auto"
+          },
+          "pluginVersion": "8.2.2",
+          "targets": [
+            {
+              "alias": "",
+              "colNameFormatStr": "",
+              "colNameToGroup": "",
+              "exemplar": true,
+              "expr": "taos_dnodes_info_cpu_cores{cluster=\"$cluster\",dnode_ep=\"$fqdn\"}",
+              "formatType": "Time series",
+              "interval": "",
+              "legendFormat": "",
+              "queryType": "SQL",
+              "refId": "A",
+              "sql": "select last(cpu_cores) as uptime  from log.dnodes_info where dnode_ep = '$fqdn' interval ($interval)",
+              "target": "select metric",
+              "timeshift": {
+                "period": null
+              },
+              "type": "timeserie"
+            }
+          ],
+          "timeFrom": null,
+          "timeShift": null,
+          "title": "CPU Cores",
+          "transformations": [],
+          "type": "stat"
+        },
+        {
+          "datasource": "Prometheus",
+          "description": "VNodes 数量",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "percentage",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              },
+              "unit": "none"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 6,
+            "w": 2,
+            "x": 8,
+            "y": 69
+          },
+          "id": 123,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "area",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "reduceOptions": {
+              "calcs": [
+                "last"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "text": {},
+            "textMode": "auto"
+          },
+          "pluginVersion": "8.2.2",
+          "targets": [
+            {
+              "alias": "",
+              "colNameFormatStr": "",
+              "colNameToGroup": "",
+              "exemplar": true,
+              "expr": "taos_dnodes_info_vnodes_num{cluster=\"$cluster\",dnode_ep=\"$fqdn\"}",
+              "formatType": "Time series",
+              "interval": "",
+              "legendFormat": "",
+              "queryType": "SQL",
+              "refId": "A",
+              "sql": "select last(vnodes_num) as vnodes_num  from log.dnodes_info where dnode_ep = '$fqdn' and ts >= $from and ts < $to interval($interval) fill(null)",
+              "target": "select metric",
+              "timeshift": {
+                "period": null
+              },
+              "type": "timeserie"
+            }
+          ],
+          "timeFrom": null,
+          "timeShift": null,
+          "title": "VNodes Number",
+          "transformations": [],
+          "type": "stat"
+        },
+        {
+          "datasource": "Prometheus",
+          "description": "Master VNodes 数量",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "percentage",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              },
+              "unit": "none"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 6,
+            "w": 2,
+            "x": 10,
+            "y": 69
+          },
+          "id": 124,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "area",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "reduceOptions": {
+              "calcs": [
+                "last"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "text": {},
+            "textMode": "auto"
+          },
+          "pluginVersion": "8.2.2",
+          "targets": [
+            {
+              "alias": "",
+              "colNameFormatStr": "",
+              "colNameToGroup": "",
+              "exemplar": true,
+              "expr": "taos_dnodes_info_masters{cluster=\"$cluster\",dnode_ep=\"$fqdn\"}",
+              "formatType": "Time series",
+              "interval": "",
+              "legendFormat": "",
+              "queryType": "SQL",
+              "refId": "A",
+              "sql": "select last(masters) as masters  from log.dnodes_info where dnode_ep = '$fqdn' and ts >= $from and ts < $to interval($interval) fill(null)",
+              "target": "select metric",
+              "timeshift": {
+                "period": null
+              },
+              "type": "timeserie"
+            }
+          ],
+          "timeFrom": null,
+          "timeShift": null,
+          "title": "VNodes Masters",
+          "transformations": [],
+          "type": "stat"
+        },
+        {
+          "datasource": "Prometheus",
+          "description": "当前 taosd 线程 CPU 使用率",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "continuous-GrYlRd"
+              },
+              "mappings": [],
+              "max": 100,
+              "min": 0,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "#EAB839",
+                    "value": 0.5
+                  },
+                  {
+                    "color": "red",
+                    "value": 0.8
+                  }
+                ]
+              },
+              "unit": "percent"
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "last(cpu_taosd)"
+                },
+                "properties": [
+                  {
+                    "id": "thresholds",
+                    "value": {
+                      "mode": "absolute",
+                      "steps": [
+                        {
+                          "color": "green",
+                          "value": null
+                        },
+                        {
+                          "color": "red",
+                          "value": 80
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "gridPos": {
+            "h": 6,
+            "w": 4,
+            "x": 12,
+            "y": 69
+          },
+          "id": 45,
+          "options": {
+            "orientation": "auto",
+            "reduceOptions": {
+              "calcs": [
+                "mean"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "showThresholdLabels": true,
+            "showThresholdMarkers": true,
+            "text": {}
+          },
+          "pluginVersion": "8.2.2",
+          "targets": [
+            {
+              "alias": "mem_taosd",
+              "colNameFormatStr": "",
+              "colNameToGroup": "",
+              "exemplar": true,
+              "expr": "taos_dnodes_info_cpu_engine{cluster=\"$cluster\",dnode_ep=\"$fqdn\"}",
+              "formatType": "Table",
+              "interval": "",
+              "legendFormat": "",
+              "queryType": "SQL",
+              "refId": "A",
+              "sql": "select  last(cpu_engine)  from log.dnodes_info where dnode_ep = '$fqdn' and ts >= $from and ts < $to",
+              "target": "select metric",
+              "type": "timeserie"
+            }
+          ],
+          "timeFrom": null,
+          "timeShift": null,
+          "title": "Current CPU  Usage of taosd",
+          "type": "gauge"
+        },
+        {
+          "datasource": "Prometheus",
+          "description": "当前 taosd 线程 内存 使用率",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "continuous-GrYlRd"
+              },
+              "mappings": [],
+              "min": 0,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              },
+              "unit": "decmbytes"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 6,
+            "w": 4,
+            "x": 16,
+            "y": 69
+          },
+          "id": 66,
+          "options": {
+            "orientation": "auto",
+            "reduceOptions": {
+              "calcs": [
+                "mean"
+              ],
+              "fields": "/^taosd$/",
+              "values": false
+            },
+            "showThresholdLabels": true,
+            "showThresholdMarkers": true,
+            "text": {}
+          },
+          "pluginVersion": "8.2.2",
+          "targets": [
+            {
+              "alias": "memory",
+              "colNameFormatStr": "",
+              "colNameToGroup": "",
+              "exemplar": true,
+              "expr": "taos_dnodes_info_mem_engine{cluster=\"$cluster\",dnode_ep=\"$fqdn\"}",
+              "formatType": "Time series",
+              "interval": "",
+              "legendFormat": "taosd",
+              "queryType": "SQL",
+              "refId": "A",
+              "sql": "select  last(mem_engine) as taosd, last(mem_total) as total  from log.dnodes_info where dnode_ep = '$fqdn' and ts >= $from and ts < $to",
+              "target": "select metric",
+              "type": "timeserie"
+            },
+            {
+              "alias": "memory",
+              "colNameFormatStr": "",
+              "colNameToGroup": "",
+              "exemplar": true,
+              "expr": "taos_dnodes_info_mem_total{cluster=\"$cluster\",dnode_ep=\"$fqdn\"}",
+              "formatType": "Time series",
+              "hide": false,
+              "interval": "",
+              "legendFormat": "total",
+              "queryType": "SQL",
+              "refId": "B",
+              "sql": "select  last(mem_engine) as taosd, last(mem_total) as total  from log.dnodes_info where dnode_ep = '$fqdn' and ts >= $from and ts < $to",
+              "target": "select metric",
+              "type": "timeserie"
+            }
+          ],
+          "timeFrom": null,
+          "timeShift": null,
+          "title": "Current Memory Usage of taosd",
+          "type": "gauge"
+        },
+        {
+          "datasource": "Prometheus",
+          "description": "",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "mappings": [],
+              "max": 1,
+              "min": 0,
+              "thresholds": {
+                "mode": "percentage",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "#EAB839",
+                    "value": 75
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  },
+                  {
+                    "color": "dark-red",
+                    "value": 95
+                  }
+                ]
+              },
+              "unit": "percentunit"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 6,
+            "w": 4,
+            "x": 20,
+            "y": 69
+          },
+          "id": 51,
+          "options": {
+            "displayMode": "gradient",
+            "orientation": "auto",
+            "reduceOptions": {
+              "calcs": [
+                "last"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "showUnfilled": true,
+            "text": {}
+          },
+          "pluginVersion": "8.2.2",
+          "targets": [
+            {
+              "alias": "disk_used",
+              "colNameFormatStr": "",
+              "colNameToGroup": "",
+              "exemplar": true,
+              "expr": "taos_disks_info_datadir_l0_used/taos_disks_info_datadir_l0_total{cluster=\"$cluster\",dnode_ep=\"$fqdn\"}",
+              "formatType": "Time series",
+              "interval": "",
+              "legendFormat": "level0",
+              "queryType": "SQL",
+              "refId": "A",
+              "sql": "select last(disk_used) as used, last(disk_total) as total,  last(disk_used) / last(disk_total) as percent  from log.dnodes_info where dnode_ep = '$fqdn' and ts >= $from and ts < $to",
+              "target": "select metric",
+              "timeshift": {
+                "period": null
+              },
+              "type": "timeserie"
+            },
+            {
+              "alias": "disk_used",
+              "colNameFormatStr": "",
+              "colNameToGroup": "",
+              "exemplar": true,
+              "expr": "taos_disks_info_datadir_l1_used/taos_disks_info_datadir_l1_total{cluster=\"$cluster\",dnode_ep=\"$fqdn\"}",
+              "formatType": "Time series",
+              "hide": false,
+              "interval": "",
+              "legendFormat": "level1",
+              "queryType": "SQL",
+              "refId": "B",
+              "sql": "select last(disk_used) as used, last(disk_total) as total,  last(disk_used) / last(disk_total) as percent  from log.dnodes_info where dnode_ep = '$fqdn' and ts >= $from and ts < $to",
+              "target": "select metric",
+              "timeshift": {
+                "period": null
+              },
+              "type": "timeserie"
+            },
+            {
+              "alias": "disk_used",
+              "colNameFormatStr": "",
+              "colNameToGroup": "",
+              "exemplar": true,
+              "expr": "taos_disks_info_datadir_l2_used/taos_disks_info_datadir_l2_total{cluster=\"$cluster\",dnode_ep=\"$fqdn\"}",
+              "formatType": "Time series",
+              "hide": false,
+              "interval": "",
+              "legendFormat": "level2",
+              "queryType": "SQL",
+              "refId": "C",
+              "sql": "select last(disk_used) as used, last(disk_total) as total,  last(disk_used) / last(disk_total) as percent  from log.dnodes_info where dnode_ep = '$fqdn' and ts >= $from and ts < $to",
+              "target": "select metric",
+              "timeshift": {
+                "period": null
+              },
+              "type": "timeserie"
+            }
+          ],
+          "timeFrom": null,
+          "timeShift": null,
+          "title": "Disk Used",
+          "transformations": [],
+          "type": "bargauge"
+        },
+        {
+          "aliasColors": {},
+          "bars": false,
+          "cacheTimeout": null,
+          "dashLength": 10,
+          "dashes": false,
+          "datasource": "Prometheus",
+          "description": "CPU 资源占用情况。",
+          "fieldConfig": {
+            "defaults": {
+              "links": []
+            },
+            "overrides": []
+          },
+          "fill": 1,
+          "fillGradient": 0,
+          "gridPos": {
+            "h": 11,
+            "w": 12,
+            "x": 0,
+            "y": 75
+          },
+          "hiddenSeries": false,
+          "hideTimeOverride": true,
+          "id": 2,
+          "legend": {
+            "alignAsTable": true,
+            "avg": true,
+            "current": true,
+            "hideZero": false,
+            "max": true,
+            "min": true,
+            "show": true,
+            "total": false,
+            "values": true
+          },
+          "lines": true,
+          "linewidth": 1,
+          "links": [],
+          "nullPointMode": "null",
+          "options": {
+            "alertThreshold": true
+          },
+          "percentage": false,
+          "pluginVersion": "8.2.2",
+          "pointradius": 2,
+          "points": false,
+          "renderer": "flot",
+          "seriesOverrides": [],
+          "spaceLength": 10,
+          "stack": false,
+          "steppedLine": false,
+          "targets": [
+            {
+              "alias": "",
+              "colNameFormatStr": "",
+              "colNameToGroup": "",
+              "exemplar": true,
+              "expr": "avg_over_time(taos_dnodes_info_cpu_engine{cluster=\"$cluster\",dnode_ep=\"$fqdn\"}[$__interval])",
+              "formatType": "Time series",
+              "hide": false,
+              "interval": "",
+              "legendFormat": "taosd",
+              "queryType": "SQL",
+              "refId": "A",
+              "sql": "select  avg(cpu_engine) as taosd, avg(cpu_system) as system from log.dnodes_info where dnode_ep='$fqdn' and ts >= $from and ts < $to  interval($interval) fill(null)",
+              "target": "select metric",
+              "type": "timeserie"
+            },
+            {
+              "alias": "",
+              "colNameFormatStr": "",
+              "colNameToGroup": "",
+              "exemplar": true,
+              "expr": "avg_over_time(taos_dnodes_info_cpu_system{cluster=\"$cluster\",dnode_ep=\"$fqdn\"}[$__interval])",
+              "formatType": "Time series",
+              "hide": false,
+              "interval": "",
+              "legendFormat": "system",
+              "queryType": "SQL",
+              "refId": "B",
+              "sql": "select  avg(cpu_engine) as taosd, avg(cpu_system) as system from log.dnodes_info where dnode_ep='$fqdn' and ts >= $from and ts < $to  interval($interval) fill(null)",
+              "target": "select metric",
+              "type": "timeserie"
+            }
+          ],
+          "thresholds": [],
+          "timeFrom": "1h",
+          "timeRegions": [],
+          "timeShift": "30s",
+          "title": "CPU Usage",
+          "tooltip": {
+            "shared": true,
+            "sort": 0,
+            "value_type": "individual"
+          },
+          "type": "graph",
+          "xaxis": {
+            "buckets": null,
+            "mode": "time",
+            "name": null,
+            "show": true,
+            "values": []
+          },
+          "yaxes": [
+            {
+              "decimals": null,
+              "format": "percent",
+              "label": "使用占比",
+              "logBase": 1,
+              "max": null,
+              "min": null,
+              "show": true
+            },
+            {
+              "format": "short",
+              "label": null,
+              "logBase": 1,
+              "max": null,
+              "min": null,
+              "show": false
+            }
+          ],
+          "yaxis": {
+            "align": false,
+            "alignLevel": null
+          }
+        },
+        {
+          "aliasColors": {},
+          "bars": false,
+          "cacheTimeout": null,
+          "dashLength": 10,
+          "dashes": false,
+          "datasource": "Prometheus",
+          "description": "内存资源占用情况",
+          "fieldConfig": {
+            "defaults": {
+              "links": []
+            },
+            "overrides": []
+          },
+          "fill": 1,
+          "fillGradient": 0,
+          "gridPos": {
+            "h": 11,
+            "w": 12,
+            "x": 12,
+            "y": 75
+          },
+          "hiddenSeries": false,
+          "hideTimeOverride": true,
+          "id": 42,
+          "legend": {
+            "alignAsTable": true,
+            "avg": true,
+            "current": true,
+            "max": true,
+            "min": true,
+            "show": true,
+            "total": false,
+            "values": true
+          },
+          "lines": true,
+          "linewidth": 1,
+          "links": [],
+          "nullPointMode": "null",
+          "options": {
+            "alertThreshold": true
+          },
+          "percentage": false,
+          "pluginVersion": "8.2.2",
+          "pointradius": 2,
+          "points": false,
+          "renderer": "flot",
+          "seriesOverrides": [],
+          "spaceLength": 10,
+          "stack": false,
+          "steppedLine": false,
+          "targets": [
+            {
+              "alias": "",
+              "colNameFormatStr": "",
+              "colNameToGroup": "",
+              "exemplar": true,
+              "expr": "avg_over_time(taos_dnodes_info_mem_engine{cluster=\"$cluster\",dnode_ep=\"$fqdn\"}[$__interval])",
+              "formatType": "Time series",
+              "hide": false,
+              "interval": "",
+              "legendFormat": "taosd",
+              "queryType": "SQL",
+              "refId": "A",
+              "sql": "select avg(mem_engine) as taosd, avg(mem_system) as system, avg(mem_total) as total from log.dnodes_info where dnode_ep='$fqdn' and ts >= $from and ts < $to  interval($interval) fill(null)",
+              "target": "select metric",
+              "type": "timeserie"
+            },
+            {
+              "alias": "",
+              "colNameFormatStr": "",
+              "colNameToGroup": "",
+              "exemplar": true,
+              "expr": "avg_over_time(taos_dnodes_info_mem_system{cluster=\"$cluster\",dnode_ep=\"$fqdn\"}[$__interval])",
+              "formatType": "Time series",
+              "hide": false,
+              "interval": "",
+              "legendFormat": "system",
+              "queryType": "SQL",
+              "refId": "B",
+              "sql": "select avg(mem_engine) as taosd, avg(mem_system) as system, avg(mem_total) as total from log.dnodes_info where dnode_ep='$fqdn' and ts >= $from and ts < $to  interval($interval) fill(null)",
+              "target": "select metric",
+              "type": "timeserie"
+            },
+            {
+              "alias": "",
+              "colNameFormatStr": "",
+              "colNameToGroup": "",
+              "exemplar": true,
+              "expr": "avg_over_time(taos_dnodes_info_mem_total{cluster=\"$cluster\",dnode_ep=\"$fqdn\"}[$__interval])",
+              "formatType": "Time series",
+              "hide": false,
+              "interval": "",
+              "legendFormat": "total",
+              "queryType": "SQL",
+              "refId": "C",
+              "sql": "select avg(mem_engine) as taosd, avg(mem_system) as system, avg(mem_total) as total from log.dnodes_info where dnode_ep='$fqdn' and ts >= $from and ts < $to  interval($interval) fill(null)",
+              "target": "select metric",
+              "type": "timeserie"
+            }
+          ],
+          "thresholds": [],
+          "timeFrom": "1h",
+          "timeRegions": [],
+          "timeShift": "30s",
+          "title": "RAM Usage",
+          "tooltip": {
+            "shared": true,
+            "sort": 0,
+            "value_type": "individual"
+          },
+          "type": "graph",
+          "xaxis": {
+            "buckets": null,
+            "mode": "time",
+            "name": null,
+            "show": true,
+            "values": []
+          },
+          "yaxes": [
+            {
+              "decimals": null,
+              "format": "decmbytes",
+              "label": "使用占比",
+              "logBase": 1,
+              "max": null,
+              "min": null,
+              "show": true
+            },
+            {
+              "format": "short",
+              "label": null,
+              "logBase": 1,
+              "max": null,
+              "min": null,
+              "show": false
+            }
+          ],
+          "yaxis": {
+            "align": false,
+            "alignLevel": null
+          }
+        },
+        {
+          "aliasColors": {},
+          "bars": false,
+          "dashLength": 10,
+          "dashes": false,
+          "datasource": "Prometheus",
+          "fill": 1,
+          "fillGradient": 0,
+          "gridPos": {
+            "h": 10,
+            "w": 12,
+            "x": 0,
+            "y": 86
+          },
+          "hiddenSeries": false,
+          "id": 117,
+          "legend": {
+            "alignAsTable": true,
+            "avg": false,
+            "current": true,
+            "hideEmpty": false,
+            "hideZero": true,
+            "max": true,
+            "min": true,
+            "rightSide": false,
+            "show": true,
+            "sideWidth": 400,
+            "total": false,
+            "values": true
+          },
+          "lines": true,
+          "linewidth": 1,
+          "nullPointMode": "null",
+          "options": {
+            "alertThreshold": true
+          },
+          "percentage": false,
+          "pluginVersion": "8.2.2",
+          "pointradius": 2,
+          "points": false,
+          "renderer": "flot",
+          "seriesOverrides": [
+            {
+              "$$hashKey": "object:84",
+              "alias": "/percent/",
+              "yaxis": 2
+            }
+          ],
+          "spaceLength": 10,
+          "stack": false,
+          "steppedLine": false,
+          "targets": [
+            {
+              "alias": "",
+              "colNameFormatStr": "",
+              "colNameToGroup": "",
+              "exemplar": true,
+              "expr": "avg_over_time(taos_disks_info_datadir_l0_used{cluster=\"$cluster\",dnode_ep=\"$fqdn\"}[$__interval])",
+              "formatType": "Time series",
+              "hide": false,
+              "interval": "",
+              "legendFormat": "level0_used",
+              "queryType": "SQL",
+              "refId": "A",
+              "sql": "select avg(datadir_l0_used) as level0_used, avg(datadir_l0_total) as level0_total, avg(datadir_l1_used) as level1_used, avg(datadir_l1_total) as level1_total, avg(datadir_l2_used) as level2_used, avg(datadir_l2_total) as level2_total from log.disks_info where dnode_ep = '$fqdn' and ts >= $from and ts < $to interval($interval) fill(null)",
+              "target": "select metric",
+              "timeshift": {
+                "period": null
+              },
+              "type": "timeserie"
+            },
+            {
+              "alias": "",
+              "colNameFormatStr": "",
+              "colNameToGroup": "",
+              "exemplar": true,
+              "expr": "avg_over_time(taos_disks_info_datadir_l1_used{cluster=\"$cluster\",dnode_ep=\"$fqdn\"}[$__interval])",
+              "formatType": "Time series",
+              "hide": false,
+              "interval": "",
+              "legendFormat": "level1_used",
+              "queryType": "SQL",
+              "refId": "D",
+              "sql": "select avg(datadir_l0_used)/avg(datadir_l0_total) as level0_percent, avg(datadir_l1_used)/avg(datadir_l1_total) as level1_percent , avg(datadir_l2_used)/avg(datadir_l2_total) as level2_percent  from log.disks_info where dnode_ep = '$fqdn' and ts >= $from and ts < $to interval($interval) fill(null)",
+              "target": "select metric",
+              "timeshift": {
+                "period": null
+              },
+              "type": "timeserie"
+            },
+            {
+              "alias": "",
+              "colNameFormatStr": "",
+              "colNameToGroup": "",
+              "exemplar": true,
+              "expr": "avg_over_time(taos_disks_info_datadir_l2_used{cluster=\"$cluster\",dnode_ep=\"$fqdn\"}[$__interval])",
+              "formatType": "Time series",
+              "hide": false,
+              "interval": "",
+              "legendFormat": "level2_used",
+              "queryType": "SQL",
+              "refId": "B",
+              "sql": "select avg(datadir_l0_used)/avg(datadir_l0_total) as level0_percent, avg(datadir_l1_used)/avg(datadir_l1_total) as level1_percent , avg(datadir_l2_used)/avg(datadir_l2_total) as level2_percent  from log.disks_info where dnode_ep = '$fqdn' and ts >= $from and ts < $to interval($interval) fill(null)",
+              "target": "select metric",
+              "timeshift": {
+                "period": null
+              },
+              "type": "timeserie"
+            },
+            {
+              "alias": "",
+              "colNameFormatStr": "",
+              "colNameToGroup": "",
+              "exemplar": true,
+              "expr": "avg_over_time(taos_disks_info_datadir_l0_total{cluster=\"$cluster\",dnode_ep=\"$fqdn\"}[$__interval])",
+              "formatType": "Time series",
+              "hide": false,
+              "interval": "",
+              "legendFormat": "level0_total",
+              "queryType": "SQL",
+              "refId": "C",
+              "sql": "select avg(datadir_l0_used) as level0_used, avg(datadir_l0_total) as level0_total, avg(datadir_l1_used) as level1_used, avg(datadir_l1_total) as level1_total, avg(datadir_l2_used) as level2_used, avg(datadir_l2_total) as level2_total from log.disks_info where dnode_ep = '$fqdn' and ts >= $from and ts < $to interval($interval) fill(null)",
+              "target": "select metric",
+              "timeshift": {
+                "period": null
+              },
+              "type": "timeserie"
+            },
+            {
+              "alias": "",
+              "colNameFormatStr": "",
+              "colNameToGroup": "",
+              "exemplar": true,
+              "expr": "avg_over_time(taos_disks_info_datadir_l1_total{cluster=\"$cluster\",dnode_ep=\"$fqdn\"}[$__interval])",
+              "formatType": "Time series",
+              "hide": false,
+              "interval": "",
+              "legendFormat": "level1_total",
+              "queryType": "SQL",
+              "refId": "E",
+              "sql": "select avg(datadir_l0_used) as level0_used, avg(datadir_l0_total) as level0_total, avg(datadir_l1_used) as level1_used, avg(datadir_l1_total) as level1_total, avg(datadir_l2_used) as level2_used, avg(datadir_l2_total) as level2_total from log.disks_info where dnode_ep = '$fqdn' and ts >= $from and ts < $to interval($interval) fill(null)",
+              "target": "select metric",
+              "timeshift": {
+                "period": null
+              },
+              "type": "timeserie"
+            },
+            {
+              "alias": "",
+              "colNameFormatStr": "",
+              "colNameToGroup": "",
+              "exemplar": true,
+              "expr": "avg_over_time(taos_disks_info_datadir_l2_total{cluster=\"$cluster\",dnode_ep=\"$fqdn\"}[$__interval])",
+              "formatType": "Time series",
+              "hide": false,
+              "interval": "",
+              "legendFormat": "level2_total",
+              "queryType": "SQL",
+              "refId": "F",
+              "sql": "select avg(datadir_l0_used) as level0_used, avg(datadir_l0_total) as level0_total, avg(datadir_l1_used) as level1_used, avg(datadir_l1_total) as level1_total, avg(datadir_l2_used) as level2_used, avg(datadir_l2_total) as level2_total from log.disks_info where dnode_ep = '$fqdn' and ts >= $from and ts < $to interval($interval) fill(null)",
+              "target": "select metric",
+              "timeshift": {
+                "period": null
+              },
+              "type": "timeserie"
+            }
+          ],
+          "thresholds": [],
+          "timeFrom": null,
+          "timeRegions": [],
+          "timeShift": null,
+          "title": "Disk Used",
+          "tooltip": {
+            "shared": false,
+            "sort": 0,
+            "value_type": "individual"
+          },
+          "transformations": [],
+          "type": "graph",
+          "xaxis": {
+            "buckets": null,
+            "mode": "time",
+            "name": null,
+            "show": true,
+            "values": []
+          },
+          "yaxes": [
+            {
+              "format": "gbytes",
+              "label": null,
+              "logBase": 1,
+              "max": null,
+              "min": null,
+              "show": true
+            },
+            {
+              "format": "percentunit",
+              "label": "Disk Used",
+              "logBase": 1,
+              "max": null,
+              "min": null,
+              "show": true
+            }
+          ],
+          "yaxis": {
+            "align": false,
+            "alignLevel": null
+          }
+        },
+        {
+          "aliasColors": {},
+          "bars": false,
+          "dashLength": 10,
+          "dashes": false,
+          "datasource": "Prometheus",
+          "fill": 1,
+          "fillGradient": 0,
+          "gridPos": {
+            "h": 10,
+            "w": 12,
+            "x": 12,
+            "y": 86
+          },
+          "hiddenSeries": false,
+          "id": 64,
+          "legend": {
+            "alignAsTable": true,
+            "avg": true,
+            "current": true,
+            "max": true,
+            "min": true,
+            "rightSide": false,
+            "show": true,
+            "sideWidth": 400,
+            "total": false,
+            "values": true
+          },
+          "lines": true,
+          "linewidth": 1,
+          "nullPointMode": "null",
+          "options": {
+            "alertThreshold": true
+          },
+          "percentage": false,
+          "pluginVersion": "8.2.2",
+          "pointradius": 2,
+          "points": false,
+          "renderer": "flot",
+          "seriesOverrides": [],
+          "spaceLength": 10,
+          "stack": false,
+          "steppedLine": false,
+          "targets": [
+            {
+              "alias": "level0",
+              "colNameFormatStr": "",
+              "colNameToGroup": "",
+              "exemplar": true,
+              "expr": "deriv(rate(taos_disks_info_datadir_l0_used{cluster=\"$cluster\", dnode_ep=\"$fqdn\"}[1m])[5m:1s])  * 1024",
+              "formatType": "Time series",
+              "hide": false,
+              "interval": "",
+              "legendFormat": "level0",
+              "queryType": "SQL",
+              "refId": "A",
+              "sql": "select derivative(value, 1m, 0) from (select avg(datadir_l0_used) * 1024 as value from log.disks_info where dnode_ep = '$fqdn' and ts >= $from and ts < $to interval($interval) fill(null))",
+              "target": "select metric",
+              "timeshift": {
+                "period": null
+              },
+              "type": "timeserie"
+            },
+            {
+              "alias": "level1",
+              "colNameFormatStr": "",
+              "colNameToGroup": "",
+              "exemplar": true,
+              "expr": "deriv(rate(taos_disks_info_datadir_l1_used{cluster=\"$cluster\", dnode_ep=\"$fqdn\"}[1m])[5m:1s])  * 1024",
+              "formatType": "Time series",
+              "hide": false,
+              "interval": "",
+              "legendFormat": "level1",
+              "queryType": "SQL",
+              "refId": "B",
+              "sql": "select derivative(value, 1m, 0) from (select avg(datadir_l1_used) * 1024 as value from log.disks_info where dnode_ep = '$fqdn' and ts >= $from and ts < $to interval($interval) fill(null))",
+              "target": "select metric",
+              "timeshift": {
+                "period": null
+              },
+              "type": "timeserie"
+            },
+            {
+              "alias": "level1",
+              "colNameFormatStr": "",
+              "colNameToGroup": "",
+              "exemplar": true,
+              "expr": "deriv(rate(taos_disks_info_datadir_l2_used{cluster=\"$cluster\", dnode_ep=\"$fqdn\"}[1m])[5m:1s])  * 1024",
+              "formatType": "Time series",
+              "hide": false,
+              "interval": "",
+              "legendFormat": "level2",
+              "queryType": "SQL",
+              "refId": "C",
+              "sql": "select derivative(value, 1m, 0) from (select avg(datadir_l1_used) * 1024 as value from log.disks_info where dnode_ep = '$fqdn' and ts >= $from and ts < $to interval($interval) fill(null))",
+              "target": "select metric",
+              "timeshift": {
+                "period": null
+              },
+              "type": "timeserie"
+            }
+          ],
+          "thresholds": [],
+          "timeFrom": null,
+          "timeRegions": [],
+          "timeShift": null,
+          "title": "Disk Used Increasing Rate per Minute",
+          "tooltip": {
+            "shared": false,
+            "sort": 0,
+            "value_type": "individual"
+          },
+          "type": "graph",
+          "xaxis": {
+            "buckets": null,
+            "mode": "time",
+            "name": null,
+            "show": true,
+            "values": []
+          },
+          "yaxes": [
+            {
+              "format": "MBs",
+              "label": null,
+              "logBase": 1,
+              "max": null,
+              "min": null,
+              "show": true
+            },
+            {
+              "format": "percentunit",
+              "label": "Disk Used",
+              "logBase": 1,
+              "max": null,
+              "min": null,
+              "show": true
+            }
+          ],
+          "yaxis": {
+            "align": false,
+            "alignLevel": null
+          }
+        },
+        {
+          "aliasColors": {},
+          "bars": false,
+          "cacheTimeout": null,
+          "dashLength": 10,
+          "dashes": false,
+          "datasource": "Prometheus",
+          "description": "io",
+          "fieldConfig": {
+            "defaults": {
+              "links": []
+            },
+            "overrides": []
+          },
+          "fill": 1,
+          "fillGradient": 0,
+          "gridPos": {
+            "h": 12,
+            "w": 12,
+            "x": 0,
+            "y": 96
+          },
+          "hiddenSeries": false,
+          "hideTimeOverride": true,
+          "id": 119,
+          "legend": {
+            "alignAsTable": true,
+            "avg": true,
+            "current": true,
+            "max": true,
+            "min": true,
+            "rightSide": false,
+            "show": true,
+            "total": false,
+            "values": true
+          },
+          "lines": true,
+          "linewidth": 1,
+          "links": [],
+          "nullPointMode": "null",
+          "options": {
+            "alertThreshold": true
+          },
+          "percentage": false,
+          "pluginVersion": "8.2.2",
+          "pointradius": 2,
+          "points": false,
+          "renderer": "flot",
+          "seriesOverrides": [
+            {
+              "$$hashKey": "object:302",
+              "alias": "/last/",
+              "dashLength": 5,
+              "dashes": true,
+              "spaceLength": 5
+            }
+          ],
+          "spaceLength": 10,
+          "stack": false,
+          "steppedLine": false,
+          "targets": [
+            {
+              "alias": "",
+              "colNameFormatStr": "",
+              "colNameToGroup": "",
+              "exemplar": true,
+              "expr": "avg_over_time(taos_dnodes_info_io_write_disk{cluster=\"$cluster\",dnode_ep=\"$fqdn\"}[$interval])",
+              "formatType": "Time series",
+              "hide": false,
+              "interval": "",
+              "legendFormat": "io_write_disk",
+              "queryType": "SQL",
+              "refId": "A",
+              "sql": "select  avg(io_read_disk) as io_read_taosd, avg(io_write_disk) as io_write_taosd from log.dnodes_info where dnode_ep = '$fqdn' and ts >= now-1h and ts < now  interval($interval) fill(null)",
+              "target": "select metric",
+              "type": "timeserie"
+            },
+            {
+              "alias": "",
+              "colNameFormatStr": "",
+              "colNameToGroup": "",
+              "exemplar": true,
+              "expr": "avg_over_time(taos_dnodes_info_io_read_disk{cluster=\"$cluster\",dnode_ep=\"$fqdn\"}[$interval])",
+              "formatType": "Time series",
+              "hide": false,
+              "interval": "",
+              "legendFormat": "io_read_disk",
+              "queryType": "SQL",
+              "refId": "B",
+              "sql": "select  avg(io_read_disk) as io_read_taosd, avg(io_write_disk) as io_write_taosd from log.dnodes_info where dnode_ep = '$fqdn' and ts >= now-1h and ts < now  interval($interval) fill(null)",
+              "target": "select metric",
+              "type": "timeserie"
+            }
+          ],
+          "thresholds": [],
+          "timeFrom": "1h",
+          "timeRegions": [],
+          "timeShift": "30s",
+          "title": "Disk IO",
+          "tooltip": {
+            "shared": true,
+            "sort": 0,
+            "value_type": "individual"
+          },
+          "type": "graph",
+          "xaxis": {
+            "buckets": null,
+            "mode": "time",
+            "name": null,
+            "show": true,
+            "values": []
+          },
+          "yaxes": [
+            {
+              "decimals": null,
+              "format": "MBs",
+              "label": "IO Rate",
+              "logBase": 1,
+              "max": null,
+              "min": null,
+              "show": true
+            },
+            {
+              "format": "short",
+              "label": null,
+              "logBase": 1,
+              "max": null,
+              "min": null,
+              "show": false
+            }
+          ],
+          "yaxis": {
+            "align": false,
+            "alignLevel": null
+          }
+        },
+        {
+          "aliasColors": {},
+          "bars": false,
+          "cacheTimeout": null,
+          "dashLength": 10,
+          "dashes": false,
+          "datasource": "Prometheus",
+          "description": "io",
+          "fieldConfig": {
+            "defaults": {
+              "links": [],
+              "unit": "Mbits"
+            },
+            "overrides": []
+          },
+          "fill": 1,
+          "fillGradient": 0,
+          "gridPos": {
+            "h": 12,
+            "w": 12,
+            "x": 12,
+            "y": 96
+          },
+          "hiddenSeries": false,
+          "hideTimeOverride": true,
+          "id": 118,
+          "legend": {
+            "alignAsTable": true,
+            "avg": true,
+            "current": true,
+            "max": true,
+            "min": true,
+            "show": true,
+            "total": false,
+            "values": true
+          },
+          "lines": true,
+          "linewidth": 1,
+          "links": [],
+          "nullPointMode": "null",
+          "options": {
+            "alertThreshold": true
+          },
+          "percentage": false,
+          "pluginVersion": "8.2.2",
+          "pointradius": 2,
+          "points": false,
+          "renderer": "flot",
+          "seriesOverrides": [
+            {
+              "$$hashKey": "object:347",
+              "alias": "/in/",
+              "transform": "negative-Y"
+            }
+          ],
+          "spaceLength": 10,
+          "stack": false,
+          "steppedLine": false,
+          "targets": [
+            {
+              "alias": "",
+              "colNameFormatStr": "",
+              "colNameToGroup": "",
+              "exemplar": true,
+              "expr": "avg_over_time(taos_dnodes_info_net_in{cluster=\"$cluster\",dnode_ep=\"$fqdn\"}[$interval])",
+              "formatType": "Time series",
+              "hide": false,
+              "interval": "",
+              "legendFormat": "net_in",
+              "queryType": "SQL",
+              "refId": "A",
+              "sql": "select  avg(net_in) as net_in, avg(net_out) as net_out from log.dnodes_info where dnode_ep = '$fqdn' and ts >= now-1h and ts < now  interval($interval) fill(null)",
+              "target": "select metric",
+              "type": "timeserie"
+            },
+            {
+              "alias": "",
+              "colNameFormatStr": "",
+              "colNameToGroup": "",
+              "exemplar": true,
+              "expr": "avg_over_time(taos_dnodes_info_net_out{cluster=\"$cluster\",dnode_ep=\"$fqdn\"}[$interval])",
+              "formatType": "Time series",
+              "hide": false,
+              "interval": "",
+              "legendFormat": "net_out",
+              "queryType": "SQL",
+              "refId": "B",
+              "sql": "select  avg(net_in) as net_in, avg(net_out) as net_out from log.dnodes_info where dnode_ep = '$fqdn' and ts >= now-1h and ts < now  interval($interval) fill(null)",
+              "target": "select metric",
+              "type": "timeserie"
+            }
+          ],
+          "thresholds": [],
+          "timeFrom": "1h",
+          "timeRegions": [],
+          "timeShift": "30s",
+          "title": "Net",
+          "tooltip": {
+            "shared": true,
+            "sort": 0,
+            "value_type": "individual"
+          },
+          "type": "graph",
+          "xaxis": {
+            "buckets": null,
+            "mode": "time",
+            "name": null,
+            "show": true,
+            "values": []
+          },
+          "yaxes": [
+            {
+              "decimals": null,
+              "format": "Mbits",
+              "label": "IO Rate",
+              "logBase": 1,
+              "max": null,
+              "min": null,
+              "show": true
+            },
+            {
+              "format": "short",
+              "label": null,
+              "logBase": 1,
+              "max": null,
+              "min": null,
+              "show": false
+            }
+          ],
+          "yaxis": {
+            "align": false,
+            "alignLevel": null
+          }
+        }
+      ],
+      "repeat": "fqdn",
+      "title": "DNode Usage [ $fqdn ]",
+      "type": "row"
+    },
+    {
+      "collapsed": true,
+      "datasource": "Prometheus",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 35
+      },
+      "id": 63,
+      "panels": [
+        {
+          "aliasColors": {},
+          "bars": false,
+          "dashLength": 10,
+          "dashes": false,
+          "datasource": "Prometheus",
+          "fieldConfig": {
+            "defaults": {
+              "displayName": "Logins Per Minute",
+              "unit": "cpm"
+            },
+            "overrides": []
+          },
+          "fill": 1,
+          "fillGradient": 0,
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 10
+          },
+          "hiddenSeries": false,
+          "id": 61,
+          "legend": {
+            "avg": false,
+            "current": false,
+            "max": false,
+            "min": false,
+            "show": true,
+            "total": false,
+            "values": false
+          },
+          "lines": true,
+          "linewidth": 1,
+          "nullPointMode": "null",
+          "options": {
+            "alertThreshold": true
+          },
+          "percentage": false,
+          "pluginVersion": "8.2.2",
+          "pointradius": 2,
+          "points": false,
+          "renderer": "flot",
+          "seriesOverrides": [
+            {
+              "$$hashKey": "object:67",
+              "alias": "logins",
+              "nullPointMode": "null as zero"
+            }
+          ],
+          "spaceLength": 10,
+          "stack": false,
+          "steppedLine": false,
+          "targets": [
+            {
+              "alias": "logins",
+              "colNameFormatStr": "",
+              "colNameToGroup": "",
+              "exemplar": true,
+              "expr": "count_over_time(taos_logs_content{cluster=\"$cluster\"}[1m])",
+              "formatType": "Time series",
+              "interval": "",
+              "legendFormat": "",
+              "queryType": "SQL",
+              "refId": "A",
+              "sql": "select count(*) from log.logs where ts >= $from and ts < $to interval (1m)",
+              "target": "select metric",
+              "type": "timeserie"
+            }
+          ],
+          "thresholds": [],
+          "timeFrom": null,
+          "timeRegions": [],
+          "timeShift": null,
+          "title": "Login Counts per Minute",
+          "tooltip": {
+            "shared": true,
+            "sort": 0,
+            "value_type": "individual"
+          },
+          "type": "graph",
+          "xaxis": {
+            "buckets": null,
+            "mode": "time",
+            "name": null,
+            "show": true,
+            "values": []
+          },
+          "yaxes": [
+            {
+              "$$hashKey": "object:74",
+              "format": "cpm",
+              "label": null,
+              "logBase": 1,
+              "max": null,
+              "min": null,
+              "show": true
+            },
+            {
+              "$$hashKey": "object:75",
+              "format": "short",
+              "label": null,
+              "logBase": 1,
+              "max": null,
+              "min": null,
+              "show": true
+            }
+          ],
+          "yaxis": {
+            "align": false,
+            "alignLevel": null
+          }
+        }
+      ],
+      "title": "Login History",
+      "type": "row"
+    }
+  ],
+  "schemaVersion": 31,
+  "style": "dark",
+  "tags": [
+    "TDengine",
+    "Prometheus",
+    "TaosKeeper"
+  ],
+  "templating": {
+    "list": [
+      {
+        "allValue": null,
+        "current": {
+          "selected": false,
+          "text": "localhost",
+          "value": "localhost"
+        },
+        "datasource": null,
+        "definition": "label_values(taos_dn_cpu_taosd, cluster)",
+        "description": null,
+        "error": null,
+        "hide": 0,
+        "includeAll": false,
+        "label": "",
+        "multi": false,
+        "name": "cluster",
+        "options": [],
+        "query": {
+          "query": "label_values(taos_dn_cpu_taosd, cluster)",
+          "refId": "StandardVariableQuery"
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "type": "query"
+      },
+      {
+        "allValue": null,
+        "current": {
+          "selected": false,
+          "text": "tdengine:6030",
+          "value": "tdengine:6030"
+        },
+        "datasource": null,
+        "definition": "label_values(taos_dn_cpu_taosd{cluster=\"$cluster\"}, fqdn)",
+        "description": null,
+        "error": null,
+        "hide": 0,
+        "includeAll": false,
+        "label": "",
+        "multi": false,
+        "name": "fqdn",
+        "options": [],
+        "query": {
+          "query": "label_values(taos_dn_cpu_taosd{cluster=\"$cluster\"}, fqdn)",
+          "refId": "StandardVariableQuery"
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "type": "query"
+      },
+      {
+        "allValue": null,
+        "current": {
+          "selected": false,
+          "text": "1",
+          "value": "1"
+        },
+        "datasource": null,
+        "definition": "label_values(taos_dn_cpu_taosd{cluster=\"$cluster\"}, dnodeid)",
+        "description": null,
+        "error": null,
+        "hide": 2,
+        "includeAll": false,
+        "label": "with DNode ID:",
+        "multi": false,
+        "name": "dnodeid",
+        "options": [],
+        "query": {
+          "query": "label_values(taos_dn_cpu_taosd{cluster=\"$cluster\"}, dnodeid)",
+          "refId": "StandardVariableQuery"
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "type": "query"
+      },
+      {
+        "allValue": null,
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "datasource": null,
+        "definition": "label_values(taos_vgroups_info_status{cluster=\"$cluster\"}, database_name)",
+        "description": null,
+        "error": null,
+        "hide": 0,
+        "includeAll": true,
+        "label": null,
+        "multi": true,
+        "name": "database",
+        "options": [],
+        "query": {
+          "query": "label_values(taos_vgroups_info_status{cluster=\"$cluster\"}, database_name)",
+          "refId": "StandardVariableQuery"
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "type": "query"
+      },
+      {
+        "allValue": null,
+        "current": {
+          "selected": false,
+          "text": "tdengine:6030",
+          "value": "tdengine:6030"
+        },
+        "datasource": null,
+        "definition": "label_values(taos_cluster_info_first_ep{cluster=\"$cluster\"}, value)",
+        "description": null,
+        "error": null,
+        "hide": 0,
+        "includeAll": false,
+        "label": null,
+        "multi": false,
+        "name": "firstEp",
+        "options": [],
+        "query": {
+          "query": "label_values(taos_cluster_info_first_ep{cluster=\"$cluster\"}, value)",
+          "refId": "StandardVariableQuery"
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "type": "query"
+      },
+      {
+        "allValue": null,
+        "current": {
+          "selected": false,
+          "text": "2.4.0.4",
+          "value": "2.4.0.4"
+        },
+        "datasource": null,
+        "definition": "label_values(taos_cluster_info_version{cluster=\"$cluster\"}, value)",
+        "description": null,
+        "error": null,
+        "hide": 0,
+        "includeAll": false,
+        "label": null,
+        "multi": false,
+        "name": "version",
+        "options": [],
+        "query": {
+          "query": "label_values(taos_cluster_info_version{cluster=\"$cluster\"}, value)",
+          "refId": "StandardVariableQuery"
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "type": "query"
+      },
+      {
+        "auto": true,
+        "auto_count": 100,
+        "auto_min": "10s",
+        "current": {
+          "selected": false,
+          "text": "5s",
+          "value": "5s"
+        },
+        "description": null,
+        "error": null,
+        "hide": 0,
+        "label": null,
+        "name": "interval",
+        "options": [
+          {
+            "selected": false,
+            "text": "auto",
+            "value": "$__auto_interval_interval"
+          },
+          {
+            "selected": true,
+            "text": "5s",
+            "value": "5s"
+          },
+          {
+            "selected": false,
+            "text": "10s",
+            "value": "10s"
+          },
+          {
+            "selected": false,
+            "text": "15s",
+            "value": "15s"
+          },
+          {
+            "selected": false,
+            "text": "20s",
+            "value": "20s"
+          },
+          {
+            "selected": false,
+            "text": "30s",
+            "value": "30s"
+          },
+          {
+            "selected": false,
+            "text": "1m",
+            "value": "1m"
+          },
+          {
+            "selected": false,
+            "text": "2m",
+            "value": "2m"
+          },
+          {
+            "selected": false,
+            "text": "5m",
+            "value": "5m"
+          },
+          {
+            "selected": false,
+            "text": "10m",
+            "value": "10m"
+          },
+          {
+            "selected": false,
+            "text": "30m",
+            "value": "30m"
+          },
+          {
+            "selected": false,
+            "text": "1h",
+            "value": "1h"
+          },
+          {
+            "selected": false,
+            "text": "6h",
+            "value": "6h"
+          },
+          {
+            "selected": false,
+            "text": "12h",
+            "value": "12h"
+          },
+          {
+            "selected": false,
+            "text": "1d",
+            "value": "1d"
+          }
+        ],
+        "query": "5s,10s,15s,20s,30s,1m,2m,5m,10m,30m,1h,6h,12h,1d",
+        "refresh": 2,
+        "skipUrlSync": false,
+        "type": "interval"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "timepicker": {
+    "refresh_intervals": [
+      "5s",
+      "10s",
+      "30s",
+      "1m",
+      "5m",
+      "15m",
+      "30m",
+      "1h",
+      "2h",
+      "1d"
+    ]
+  },
+  "timezone": "",
+  "title": "TaosKeeper Prometheus Dashboard",
+  "uid": "rSFM0Fxnk",
+  "version": 62
+}

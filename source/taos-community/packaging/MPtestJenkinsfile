@@ -1,0 +1,305 @@
+def sync_source(branch_name) {
+    sh '''
+        hostname
+        ip addr|grep 192|awk  '{print $2}'|sed "s/\\/.*//"  
+        echo ''' + branch_name + '''
+    '''
+    sh '''
+        cd ${TDENGINE_ROOT_DIR}
+        git reset --hard
+        git fetch || git fetch
+        rm -rf examples/rust/
+        git checkout ''' + branch_name + ''' -f
+        git branch
+        git pull || git pull
+        git log | head -n 20
+        git clean -fxd
+    '''
+    return 1
+}
+def run_test() {
+    sh '''
+        cd ${TDENGINE_ROOT_DIR}/packaging
+        
+    '''
+    sh '''
+        export LD_LIBRARY_PATH=${TDINTERNAL_ROOT_DIR}/debug/build/lib
+        ./fulltest.sh
+    '''
+    sh '''
+        cd ${TDENGINE_ROOT_DIR}/tests
+        ./test-all.sh b1fq
+    '''
+}
+def build_run() {
+    sync_source("${BRANCH_NAME}")
+}
+pipeline {
+    agent none
+    parameters {
+        choice(
+            name: 'sourcePath',
+            choices: ['nas','web'], 
+            description: 'Choice which way to download the installation pacakge;web is Office Web and nas means taos nas server '
+        )
+        choice(
+            name: 'verMode',
+            choices: ['all','community','enterprise'], 
+            description: 'Choice  which types of package you want do check '
+        )
+        string (
+            name:'version', 
+            defaultValue:'3.0.1.7', 
+            description: 'Release version number,eg: 3.0.0.1 or 3.0.0.'
+        )
+        string (
+            name:'baseVersion', 
+            defaultValue:'3.0.1.7', 
+            description: 'The number of baseVerison is generally not modified.Now it is 3.0.0.1'
+        )
+        string (
+            name:'toolsVersion', 
+            defaultValue:'2.2.7', 
+            description: 'Release version number,eg:2.2.0'
+        )
+        string (
+            name:'toolsBaseVersion', 
+            defaultValue:'2.1.2', 
+            description: 'The number of baseVerison is generally not modified.Now it is 2.1.2'
+        )
+    }
+    environment{
+        WORK_DIR = '/var/lib/jenkins/workspace'
+        TDINTERNAL_ROOT_DIR = '/var/lib/jenkins/workspace/TDinternal'
+        TDENGINE_ROOT_DIR = '/var/lib/jenkins/workspace/TDinternal/community'
+        BRANCH_NAME = '3.0'
+        
+        TD_SERVER_TAR = "${preServerPackag}-${version}-Linux-x64.tar.gz"
+        BASE_TD_SERVER_TAR = "TDengine-server-${baseVersion}-Linux-x64.tar.gz"
+    
+        TD_SERVER_ARM_TAR = "TDengine-server-${version}-Linux-arm64.tar.gz"
+        BASE_TD_SERVER_ARM_TAR = "TDengine-server-${baseVersion}-Linux-arm64.tar.gz"
+
+        TD_SERVER_LITE_TAR = "TDengine-server-${version}-Linux-x64-Lite.tar.gz"
+        BASE_TD_SERVER_LITE_TAR = "TDengine-server-${baseVersion}-Linux-x64-Lite.tar.gz"
+
+        TD_CLIENT_TAR = "TDengine-client-${version}-Linux-x64.tar.gz"
+        BASE_TD_CLIENT_TAR = "TDengine-client-${baseVersion}-Linux-x64.tar.gz"
+
+        TD_CLIENT_ARM_TAR = "TDengine-client-${version}-Linux-arm64.tar.gz"
+        BASE_TD_CLIENT_ARM_TAR = "TDengine-client-${baseVersion}-Linux-arm64.tar.gz"
+
+        TD_CLIENT_LITE_TAR = "TDengine-client-${version}-Linux-x64-Lite.tar.gz"
+        BASE_TD_CLIENT_LITE_TAR = "TDengine-client-${baseVersion}-Linux-x64-Lite.tar.gz"
+
+        TD_SERVER_RPM = "TDengine-server-${version}-Linux-x64.rpm"
+        
+        TD_SERVER_DEB = "TDengine-server-${version}-Linux-x64.deb"
+
+        TD_SERVER_EXE = "TDengine-server-${version}-Windows-x64.exe"
+        
+        TD_CLIENT_EXE = "TDengine-client-${version}-Windows-x64.exe"
+
+        TD_TOOLS_TAR = "taosTools-${toolsVersion}-Linux-x64.tar.gz"
+
+
+    }
+    stages {
+        stage ('Test Server') {
+            parallel {
+                stage('ubuntu16') {
+                    agent{label " ubuntu16 "}
+                    steps {
+                        timeout(time: 30, unit: 'MINUTES'){
+                            sync_source("${BRANCH_NAME}")
+                            sh '''
+                            if [ "${verMode}" = "all" ];then
+                                verMode="enterprise"
+                            fi
+                            verModeList=${verMode}                          
+                            for verModeSin in ${verModeList}
+                            do
+                                cd ${TDENGINE_ROOT_DIR}/packaging
+                                bash testpackage.sh  -m ${verModeSin} -f server  -l false -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t tar 
+                                python3 checkPackageRuning.py
+                            done 
+                            '''
+                        }
+                    }
+                }
+                stage('ubuntu18') {
+                    agent{label " ubuntu18 "}
+                    steps {
+                        timeout(time: 30, unit: 'MINUTES'){
+                            sync_source("${BRANCH_NAME}")
+                            sh '''
+                            if [ "${verMode}" = "all" ];then
+                                verMode="community enterprise"
+                            fi
+                            verModeList=${verMode}
+                            for verModeSin in ${verModeList}
+                            do
+                                cd ${TDENGINE_ROOT_DIR}/packaging
+                                bash testpackage.sh -m ${verModeSin} -f server  -l false -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t tar 
+                                python3 checkPackageRuning.py
+                            done 
+                            '''
+
+                            sh '''
+                            cd ${TDENGINE_ROOT_DIR}/packaging
+                            bash testpackage.sh -m community -f server  -l true -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t tar 
+                            python3 checkPackageRuning.py
+                            '''
+
+                            sh '''
+                            cd ${TDENGINE_ROOT_DIR}/packaging
+                            bash testpackage.sh -m community -f server  -l false -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t deb 
+                            python3 checkPackageRuning.py
+                            dpkg -r tdengine
+                            '''                                
+                        }
+                    }
+                }
+                stage('centos7') {
+                    agent{label " centos7_9 "}
+                    steps {
+                        timeout(time: 30, unit: 'MINUTES'){
+                            sync_source("${BRANCH_NAME}")
+                            sh '''
+                            if [ "${verMode}" = "all" ];then
+                                verMode="community enterprise"
+                            fi                            
+                            verModeList=${verMode}
+                            for verModeSin in ${verModeList}
+                            do
+                                cd ${TDENGINE_ROOT_DIR}/packaging
+                                bash testpackage.sh -m ${verModeSin} -f server  -l false -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t tar 
+                                python3 checkPackageRuning.py
+                            done 
+                            '''
+
+                            sh '''                            
+                            cd ${TDENGINE_ROOT_DIR}/packaging
+                            bash testpackage.sh -m community -f server  -l true -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t tar 
+                            python3 checkPackageRuning.py
+                            '''
+
+                            sh '''
+                            cd ${TDENGINE_ROOT_DIR}/packaging
+                            bash testpackage.sh -m community -f server  -l false -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t rpm 
+                            python3 checkPackageRuning.py
+                            '''
+                        }
+                    }
+                }
+                stage('centos8') {
+                    agent{label " centos8_3 "}
+                    steps {
+                        timeout(time: 30, unit: 'MINUTES'){
+                            sync_source("${BRANCH_NAME}")
+                            sh '''
+                            if [ "${verMode}" = "all" ];then
+                                verMode="community enterprise"
+                            fi                            
+                            verModeList=${verMode}
+                            for verModeSin in ${verModeList}
+                            do
+                                cd ${TDENGINE_ROOT_DIR}/packaging
+                                bash testpackage.sh -m ${verModeSin} -f server  -l false -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t tar 
+                                python3 checkPackageRuning.py
+                            done
+                            '''
+
+                            sh '''
+                            cd ${TDENGINE_ROOT_DIR}/packaging
+                            bash testpackage.sh -m community -f server  -l true -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t tar 
+                            python3 checkPackageRuning.py
+                            '''
+
+                            sh '''
+                            cd ${TDENGINE_ROOT_DIR}/packaging
+                            bash testpackage.sh -m community -f server  -l false -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t rpm 
+                            python3 checkPackageRuning.py
+                            sudo rpm -e tdengine 
+                            '''
+                        }
+                    }
+                }                  
+                stage('arm64') {
+                    agent{label 'linux_arm64'}
+                    steps {
+                        timeout(time: 30, unit: 'MINUTES'){
+                            sync_source("${BRANCH_NAME}")
+                            sh '''
+                            if [ "${verMode}" = "all" ];then
+                                verMode="community enterprise"
+                            fi                            
+                            verModeList=${verMode}
+                            for verModeSin in ${verModeList}
+                            do
+                                cd ${TDENGINE_ROOT_DIR}/packaging
+                                bash testpackage.sh -m ${verModeSin} -f server  -l false -c arm64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t tar 
+                                python3 checkPackageRuning.py
+                            done 
+                            '''
+                        }
+                    }
+                }
+            }
+        }
+        stage ('Test Client') {
+            parallel {
+                stage('ubuntu18') {
+                    agent{label " ubuntu18 "}
+                    steps {
+                        timeout(time: 30, unit: 'MINUTES'){
+                            sh '''
+                            if [ "${verMode}" = "all" ];then
+                                verMode="community enterprise"
+                            fi  
+                            verModeList=${verMode}
+                            for verModeSin in ${verModeList}
+                            do
+                                cd ${TDENGINE_ROOT_DIR}/packaging
+                                bash testpackage.sh  -m ${verModeSin} -f client  -l false -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t tar 
+                                python3 checkPackageRuning.py 192.168.0.21
+                            done 
+                            '''
+                        }
+                    }
+                }
+                stage('centos8') {
+                    agent{label " centos8_3 "}
+                    steps {
+                        timeout(time: 30, unit: 'MINUTES'){
+                            sh '''
+                            cd ${TDENGINE_ROOT_DIR}/packaging
+                            bash testpackage.sh -m community -f client  -l true -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t tar
+                            python3 checkPackageRuning.py  192.168.0.24
+                            '''         
+                        }
+                    }
+                }      
+            }
+        }  
+        stage('arm64-client') {
+            agent{label " linux_arm64 "}
+            steps {
+                timeout(time: 30, unit: 'MINUTES'){
+                    sh '''
+                    if [ "${verMode}" = "all" ];then
+                        verMode="community enterprise"
+                    fi  
+                    verModeList=${verMode}
+                    for verModeSin in ${verModeList}
+                    do
+                        cd ${TDENGINE_ROOT_DIR}/packaging
+                        bash testpackage.sh  -m ${verModeSin} -f client  -l false -c arm64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t tar
+                        python3 checkPackageRuning.py 192.168.0.21
+                    done 
+                    '''  
+                }
+            }
+        } 
+    }    
+}

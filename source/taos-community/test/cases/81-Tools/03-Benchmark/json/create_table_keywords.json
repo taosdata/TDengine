@@ -1,0 +1,69 @@
+{
+    "filetype": "insert",
+    "cfgdir": "/etc/taos",
+    "host": "127.0.0.1",
+    "port": 6030,
+    "user": "root",
+    "password": "taosdata",
+    "connection_pool_size": 4,
+    "thread_count": 4,
+    "create_table_thread_count": 8,
+    "result_file": "./res.txt",
+    "confirm_parameter_prompt": "no",
+    "num_of_records_per_req": 500,
+    "prepared_rand": 10000,
+    "chinese": "no",
+    "databases": [
+        {
+            "dbinfo": {
+                "name": "test",
+                "drop": "no",
+                "replica": 1,
+                "wal_retention_period": 3600,
+                "cachesize": 5,
+                "cachemodel": "'last_row'",
+                "stt_trigger": 1,
+                "vgroups ": 4
+            },
+            "super_tables": [
+                {
+                    "name": "meters",
+                    "childtable_exists": "no",
+                    "childtable_count": 3,
+                    "childtable_prefix": "d",
+                    "escape_character": "no",
+                    "auto_create_table": "no",
+                    "batch_create_tbl_num": 2,
+                    "data_source": "rand",
+                    "insert_mode": "stmt2",
+                    "non_stop_mode": "no",
+                    "insert_rows": 3,
+                    "childtable_offset": 0,
+                    "interlace_rows": 1,
+                    "insert_interval": 0,
+                    "partial_col_num": 0,
+                    "disorder_ratio": 0,
+                    "disorder_range": 0,
+                    "timestamp_step": 1000,
+                    "start_timestamp": "2025-1-1 0:0:0",
+                    "sample_format": "csv",
+                    "sample_file": "./sample.csv",
+                    "use_sample_ts": "no",
+                    "tags_file": "./cases/81-Tools/03-Benchmark/csv/table.csv",
+                    "use_tag_table_name": "yes",
+                    "primary_key_name":"time",
+                    "columns": [
+                        { "type": "double", "name": "`value`", "max": 1000, "min": 0 },
+                        { "type": "bigint", "name": "qulity", "max": 5, "min": 0 },
+                        { "type": "bigint", "name": "flags", "max": 10, "min": 0 }
+                    ],
+                    "tags": [
+                        { "name": "id", "type": "nchar", "len": 32 },
+                        { "name": "station", "type": "nchar", "len":32 },
+			            { "name": "type", "type": "nchar", "len":8 }
+                    ]
+                }
+            ]
+        }
+    ]
+}

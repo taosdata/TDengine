@@ -1,0 +1,6 @@
+select mod();
+select mod(, 2);
+select mod(10, );
+select mod(10, 'a');
+select mod('abc', 3);
+select mod(10, 3, 1);

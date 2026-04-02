@@ -1,0 +1,25 @@
+tdengine:
+  host: localhost
+  port: 6041
+  username: root
+  password: taosdata
+port: 6043
+taosConfigDir: /etc/taos
+log:
+  path: /var/log/taoskeeper_log
+  level: info
+  RotationInterval: 15s
+  keepDays: 30
+  rotationSize: 1GB
+  rotationCount: 30
+metrics:
+  prefix: taos
+metrics.database:
+  name: log
+metrics.database.options:
+  vgroups: 1
+  buffer: 64
+  keep: 90
+  cachemodel: both
+enviornment:
+  incgroup: "false"

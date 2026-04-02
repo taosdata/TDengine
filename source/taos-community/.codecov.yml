@@ -1,0 +1,14 @@
+default_branch: 3.0
+
+coverage:
+  precision: 2
+  notify:
+    email:
+      default:
+        to:
+          - sdsang@taosdata.com
+          - &author
+        only_pulls: false
+        layout: reach, diff, flags, files
+        flags: null
+        paths: null

@@ -1,0 +1,112 @@
+/*
+ * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#ifndef _TD_PLANNER_H_
+#define _TD_PLANNER_H_
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#include "plannodes.h"
+
+#define SYS_SCAN_FLAG  0x01
+#define HSYS_SCAN_FLAG 0x03
+
+#define IS_SYS_SCAN(_flag)  (((_flag) & (SYS_SCAN_FLAG)) != 0)
+#define IS_HSYS_SCAN(_flag) (((_flag) & (HSYS_SCAN_FLAG)) != 0)
+
+#define SET_SYS_SCAN_FLAG(_f) (_f) = SYS_SCAN_FLAG
+#define SET_HSYS_SCAN_FLAG(_f) (_f) = HSYS_SCAN_FLAG
+
+typedef struct SPlanStreamContext {
+  bool        isCalc;
+  bool        isTrigger;
+  bool        isVtableCalc;
+  bool        hasForceOutput;
+  bool        hasNotify;
+  bool        hasExtWindow;
+  SArray*     calcScanPlanArray;
+  SNode*      triggerScanSubplan;
+  ENodeType   triggerWinType;
+  SNodeList*  triggerScanList;
+} SPlanStreamContext;
+
+typedef struct SPlanContext {
+  uint64_t    queryId;
+  int32_t     acctId;
+  int32_t     groupId;
+  SEpSet      mgmtEpSet;
+  SNode*      pAstRoot;
+  bool        topicQuery;
+  bool        rSmaQuery;
+  bool        showRewrite;
+  bool        isView;
+  bool        isAudit;
+  bool        hasScan;
+  bool        forceNoMergeDataBlock;
+  int32_t     sysScanFlag;
+  char*       pMsg;
+  int32_t     msgLen;
+  const char* pUser;
+  bool        sysInfo;
+  union {
+    uint16_t privInfo;
+    struct {
+      uint16_t privLevel : 3;  // user privilege level
+      uint16_t privInfoBasic : 1;
+      uint16_t privInfoPrivileged : 1;
+      uint16_t privInfoAudit : 1;
+      uint16_t privInfoSec : 1;
+      uint16_t privPerfBasic : 1;
+      uint16_t privPerfPrivileged : 1;
+      uint16_t reserved1 : 7;
+    };
+  };
+  int64_t            allocatorId;
+  int64_t            userId;
+  void*              timezone;
+  SPlanStreamContext streamCxt;
+} SPlanContext;
+
+// Create the physical plan for the query, according to the AST.
+int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNodeList);
+
+// Set datasource of this subplan, multiple calls may be made to a subplan.
+// @pSubplan subplan to be schedule
+// @groupId id of a group of datasource subplans of this @pSubplan
+// @pSource one execution location of this group of datasource subplans
+int32_t qSetSubplanExecutionNode(SSubplan* pSubplan, int32_t groupId, SDownstreamSourceNode* pSource);
+int32_t qContinuePlanPostQuery(void *pPostPlan);
+
+void qClearSubplanExecutionNode(SSubplan* pSubplan);
+
+// Convert to subplan to display string for the scheduler to send to the executor
+int32_t qSubPlanToString(const SSubplan* pSubplan, char** pStr, int32_t* pLen);
+int32_t qStringToSubplan(const char* pStr, SSubplan** pSubplan);
+
+// Convert to subplan to msg for the scheduler to send to the executor
+int32_t qSubPlanToMsg(const SSubplan* pSubplan, char** pStr, int32_t* pLen);
+int32_t qMsgToSubplan(const char* pStr, int32_t len, SSubplan** pSubplan);
+
+SQueryPlan* qStringToQueryPlan(const char* pStr);
+
+void qDestroyQueryPlan(SQueryPlan* pPlan);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /*_TD_PLANNER_H_*/

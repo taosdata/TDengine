@@ -1,0 +1,17 @@
+python3 ./test.py -f 2-query/table_count_scan.py
+python3 ./test.py -f 2-query/pseudo_column.py
+python3 ./test.py -f 2-query/ts-range.py
+python3 ./test.py -f 2-query/tag_scan.py
+python3 ./test.py -f 2-query/show_create_db.py
+python3 ./test.py -f 5-taos-tools/taosbenchmark/auto_create_table_json.py
+python3 ./test.py -f 5-taos-tools/taosbenchmark/custom_col_tag.py
+python3 ./test.py -f 5-taos-tools/taosbenchmark/default_json.py
+python3 ./test.py -f 5-taos-tools/taosbenchmark/demo.py
+python3 ./test.py -f 5-taos-tools/taosbenchmark/insert_alltypes_json.py
+python3 ./test.py -f 5-taos-tools/taosbenchmark/invalid_commandline.py
+python3 ./test.py -f 5-taos-tools/taosbenchmark/json_tag.py
+python3 ./test.py -f 5-taos-tools/taosbenchmark/query_json.py
+python3 ./test.py -f 5-taos-tools/taosbenchmark/sample_csv_json.py
+python3 ./test.py -f 5-taos-tools/taosbenchmark/sml_json_alltypes.py
+python3 ./test.py -f 5-taos-tools/taosbenchmark/taosdemoTestQueryWithJson.py -R
+python3 ./test.py -f 5-taos-tools/taosbenchmark/telnet_tcp.py -R

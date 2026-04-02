@@ -1,0 +1,40 @@
+abs.py:    def check_boundary_values(self):
+abs.py:        self.check_boundary_values()
+and_or_for_byte.py:    def check_boundary_values(self, dbname="bound_test"):
+and_or_for_byte.py:        self.check_boundary_values()
+arccos.py:    def check_boundary_values(self, dbname="bound_test"):
+arccos.py:        self.check_boundary_values()
+arcsin.py:    def check_boundary_values(self, dbname="bound_test"):
+arcsin.py:        self.check_boundary_values()
+arctan.py:    def check_boundary_values(self, dbname="bound_test"):
+arctan.py:        self.check_boundary_values()
+avg.py:    def check_boundary_values(self, dbname="bound_test"):
+avg.py:        self.check_boundary_values()
+ceil.py:    def check_boundary_values(self, dbname="bound_test"):
+ceil.py:        self.check_boundary_values()
+cos.py:    def check_boundary_values(self, dbname="bound_test"):
+cos.py:        self.check_boundary_values()
+floor.py:    def check_boundary_values(self, dbname="bound_test"):
+floor.py:        self.check_boundary_values()
+function_stateduration.py:    def check_boundary_values(self, dbname="bound_test"):
+function_stateduration.py:        self.check_boundary_values()
+last_row.py:    def check_boundary_values(self, dbname="bound_test"):
+last_row.py:        self.check_boundary_values()
+log.py:    def check_boundary_values(self, dbname="bound_test"):
+log.py:        self.check_boundary_values()
+pow.py:    def check_boundary_values(self, dbname="bound_test"):
+pow.py:        self.check_boundary_values()
+round.py:    def check_boundary_values(self, dbname="bound_test"):
+round.py:        self.check_boundary_values()
+sin.py:    def check_boundary_values(self, dbname="testdb"):
+sin.py:        self.check_boundary_values()
+sqrt.py:    def check_boundary_values(self, dbname="bound_test"):
+sqrt.py:        self.check_boundary_values()
+statecount.py:    def check_boundary_values(self, dbname="bound_test"):
+statecount.py:        self.check_boundary_values()
+tail.py:    def check_boundary_values(self, dbname="bound_test"):
+tail.py:        self.check_boundary_values()
+tan.py:    def check_boundary_values(self, dbname="bound_test"):
+tan.py:        self.check_boundary_values()
+unique.py:    def check_boundary_values(self, dbname="bound_test"):
+unique.py:        self.check_boundary_values()

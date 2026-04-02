@@ -1,0 +1,15 @@
+set max_binary_display_width 300;
+explain verbose true select * from test_vtable_select.vtb_virtual_ntb_full;
+explain verbose true select count(*) from test_vtable_select.vtb_virtual_ntb_full where _c0 >= "2020-01-01 00:00:00" and _c0 < "2020-01-02 00:00:00";
+explain verbose true select * from test_vtable_select.vtb_virtual_ntb_full where _c0 >= "2020-01-01 00:00:00" and _c0 < "2020-01-02 00:00:00" partition by tbname;
+explain verbose true select count(*) from test_vtable_select.vtb_virtual_ntb_full;
+explain verbose true select first(*) from test_vtable_select.vtb_virtual_ntb_full;
+explain verbose true select last(*) from test_vtable_select.vtb_virtual_ntb_full;
+explain verbose true select avg(u_tinyint_col), avg(u_smallint_col), avg(u_int_col) from test_vtable_select.vtb_virtual_ntb_full;
+explain verbose true select * from test_vtable_select.vtb_virtual_ntb_full partition by tbname;
+explain verbose true select * from test_vtable_select.vtb_virtual_ntb_full partition by u_tinyint_col;
+explain verbose true select avg(u_tinyint_col), avg(u_smallint_col), avg(u_int_col) from test_vtable_select.vtb_virtual_ntb_full interval(1s);
+explain verbose true select avg(u_tinyint_col), avg(u_smallint_col), avg(u_int_col) from test_vtable_select.vtb_virtual_ntb_full state_window(bool_col);
+explain verbose true select _wstart, _wend, first(*), last(*), count(*) from test_vtable_select.vtb_virtual_ntb_full event_window start with u_tinyint_col > 50 end with u_tinyint_col > 200;
+explain verbose true select _wstart, _wend, first(*), last(*), count(*) from test_vtable_select.vtb_virtual_ntb_full session(ts, 1a);
+explain verbose true select cols(last(u_tinyint_col), u_tinyint_col as `u_tinyint_col`,  _c0 as `ts`), cols(last(u_smallint_col), u_smallint_col as `u_smallint_col`, _c0 as `ts`), cols(last(u_int_col), u_int_col as `u_int_col`, _c0 as `ts`) from test_vtable_select.vtb_virtual_ntb_full;
