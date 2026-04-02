@@ -29,6 +29,7 @@ if (${TD_LINUX})
   if (${TD_ENTERPRISE})        # {
     if(BUILD_LIBSASL)
       DEP_ext_sasl2(transport)
+      target_compile_definitions(transport PRIVATE TD_BUILD_WITH_LIBSASL)
     endif()
   endif()
 endif()
