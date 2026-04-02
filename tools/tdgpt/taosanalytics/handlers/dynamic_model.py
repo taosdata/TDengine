@@ -80,6 +80,13 @@ def do_handle_dynamic_model(request):
         AppLogger.info("Model %s saved to %s successfully", raw_model_name, full_path)
     except Exception as e:
         AppLogger.error("Error saving model %s configuration to file: %s", raw_model_name, str(e))
+
+        try:
+            if Path(full_path).exists():
+                os.unlink(full_path)
+        except Exception as cleanup_error:
+            pass
+
         return {
             'status': 'error',
             'error': f"Error saving model {raw_model_name} configuration: {str(e)}"
@@ -89,7 +96,13 @@ def do_handle_dynamic_model(request):
         loader.register_service_from_file(full_path)
         AppLogger.info("Model %s deployed successfully", raw_model_name)
     except Exception as e:
-        AppLogger.error("Error deploying dynamic model %s: %s", raw_model_name, str(e))
+        AppLogger.error("Error deploying dynamic model:%s, remove file, error:%s", raw_model_name, str(e))
+        try:
+            if Path(full_path).exists():
+                os.unlink(full_path)
+        except Exception as cleanup_error:
+            pass
+
         return {
             'status': 'error',
             'error': f"Error deploying model {raw_model_name}: {str(e)}"

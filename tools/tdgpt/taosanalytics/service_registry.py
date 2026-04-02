@@ -63,7 +63,10 @@ class DynamicForecastService(AbstractForecastService):
             forecaster = ArimaModelForecaster(self.config_file_path, df, self.rows)
 
             result = forecaster.forecast()
-            if not result or not {'yhat', 'yhat_lower', 'yhat_upper'}.issubset(result):
+
+            if (result is None or
+                    not isinstance(result, dict) or
+                    not {'yhat', 'yhat_lower', 'yhat_upper'}.issubset(result)):
                 raise RuntimeError(
                     f"failed to execute forecast with ARIMA model forecaster built from config file: {self.config_file_path}")
 
