@@ -1,0 +1,58 @@
+"parser": {
+    "format": {
+        "currentPage": 1,
+        "pageCount": 5,
+        "pageSize": 10
+    },
+    "input": [
+        {
+            "value": "{\"mytime\":1701938756205263616,\"id\": \"1\",\"message\": \"10.77-0.77-220\",\"groupid\": 1,\"location\": \"California.SanDiego\"}",
+            "key": "key",
+            "offset": "offset",
+            "partition": "partition",
+            "topic": "topic"
+        }
+    ],
+    "parser": {
+        "model": {
+            "columns": [
+                "ts", "id","current", "voltage", "phase", "col1", "col2"
+            ],
+            "name": "kafka_{groupid}",
+            "tags": [
+                "groupid", "location"
+            ],
+            "using": "kafkastb"
+        },
+        "mutate": [
+            {
+                "extract": {
+                    "message": {"split": {"n":3, "sep": "-"}}
+                }
+            },
+            {
+                "filter": "id>=1"
+            },
+            {
+                "map": {
+                    "ts": {"cast": "mytime", "as": "TIMESTAMP"},
+                    "location": {"cast": "location", "as": "VARCHAR(128)"},
+                    "groupid": {"cast": "groupid", "as": "INT"},
+                    "col2": {"as": "VARCHAR(128)", "join": ["id", "location"], "with": "-"},
+                    "col1": {"value": "123", "as": "INT"},
+                    "voltage": {"cast": "message_2", "as": "INT UNSIGNED"},
+                    "phase": {"cast": "message_1", "as": "DOUBLE"},
+                    "current": {"cast": "message_0", "as": "FLOAT"},
+                    "id": {"cast": "id", "as": "INT"}
+                }
+            }
+        ],
+        "parse": {
+            "value": {
+                "json": [
+                    "mytime","id","message","groupid","location"
+                ]
+            }
+        }
+    }
+}

@@ -1,0 +1,516 @@
+package com.taosdata.utils.arrow;
+
+import com.taosdata.caches.StatisticCache;
+import com.taosdata.model.entity.InfluxdbBucketDataEntity;
+import com.taosdata.model.entity.InfluxdbMeasurementEntity;
+import org.apache.arrow.memory.RootAllocator;
+import org.apache.arrow.vector.*;
+import org.apache.arrow.vector.complex.ListVector;
+import org.apache.arrow.vector.complex.StructVector;
+import org.apache.arrow.vector.dictionary.DictionaryProvider;
+import org.apache.arrow.vector.ipc.ArrowStreamWriter;
+import org.apache.arrow.vector.ipc.WriteChannel;
+import org.apache.arrow.vector.ipc.message.ArrowRecordBatch;
+import org.apache.arrow.vector.ipc.message.IpcOption;
+import org.apache.arrow.vector.ipc.message.MessageSerializer;
+import org.apache.arrow.vector.types.FloatingPointPrecision;
+import org.apache.arrow.vector.types.TimeUnit;
+import org.apache.arrow.vector.types.pojo.ArrowType;
+import org.apache.arrow.vector.types.pojo.Field;
+import org.apache.arrow.vector.types.pojo.FieldType;
+import org.apache.arrow.vector.types.pojo.Schema;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.nio.channels.Channels;
+import java.time.Instant;
+import java.util.*;
+
+/**
+ * arrow工具类
+ *
+ * @author ZYP
+ */
+public class ArrowUtils {
+
+    protected Logger logger = LoggerFactory.getLogger(getClass());
+
+    /**
+     * arrow数据结构信息
+     */
+    private Schema schema;
+
+    /**
+     * 构造时初始化schema信息
+     *
+     * @param influxdbMeasurementEntity
+     * @throws Exception
+     */
+    public ArrowUtils(InfluxdbMeasurementEntity influxdbMeasurementEntity) throws Exception {
+        // 根据Measurement获取arrow初始化信息
+        ArrowInitDto arrowInitDto = getArrowInit(influxdbMeasurementEntity);
+        // 封装meta信息
+        Map<String, String> metaData = generateMeta(arrowInitDto);
+        // 封装fields信息
+        List<Field> fieldList = generateFieldList(arrowInitDto);
+        // 生成schema信息
+        this.schema = new Schema(fieldList, metaData);
+        // 判断数据完整性
+        if (arrowInitDto == null || metaData.size() == 0 || fieldList.size() == 0) {
+            throw new Exception("Illegal data, generating schema error, Measurement=" + influxdbMeasurementEntity.toString());
+        }
+    }
+
+    /**
+     * 根据Measurement获取arrow初始化信息
+     *
+     * @param influxdbMeasurementEntity
+     * @return
+     */
+    private ArrowInitDto getArrowInit(InfluxdbMeasurementEntity influxdbMeasurementEntity) {
+        ArrowInitDto arrowInitDto = new ArrowInitDto();
+        // name
+        // edit at 2023.08.16 replace `.` to `_`
+        arrowInitDto.setName(influxdbMeasurementEntity.getMeasurement().replaceAll("\\.", "_"));
+        // columns
+        List<ArrowInitDto.Column> columns = new ArrayList<>();
+        columns.add(arrowInitDto.new Column("time", "timestamp"));
+        influxdbMeasurementEntity.getFieldMap().forEach((field, type) -> {
+            columns.add(arrowInitDto.new Column(field, type));
+        });
+        columns.add(arrowInitDto.new Column("__table_name__", "string"));
+        arrowInitDto.setColumns(columns);
+        // tags
+        List<ArrowInitDto.Tag> tags = new ArrayList<>();
+        influxdbMeasurementEntity.getTagSet().forEach(tag -> {
+            tags.add(arrowInitDto.new Tag(tag, "string"));
+        });
+        if (tags.size() == 0) {
+            // 为了保证结构完整性，tag为空时也要添加一个占位符，名称为_tag_null，与 taosc 保持一致
+            logger.warn("No tags found in measurement {}, adding placeholder _tag_null", influxdbMeasurementEntity.getMeasurement());
+            tags.add(arrowInitDto.new Tag("_tag_null", "string"));
+        }
+        arrowInitDto.setTags(tags);
+        // 返回实体类
+        return arrowInitDto;
+    }
+
+    /**
+     * 生成meta信息
+     *
+     * @param arrowInitDto
+     * @return
+     */
+    private static Map<String, String> generateMeta(ArrowInitDto arrowInitDto) {
+        // TODO 目前不要响应，如果需要可以将none改为code/lush
+        return new HashMap<String, String>() {{
+            put("ack", "lush");
+            put("stream", "lush");
+            put("version", "1.0");
+            put("init", arrowInitDto.toString());
+        }};
+    }
+
+    /**
+     * 生成值域列表
+     *
+     * @param arrowInitDto
+     * @return
+     */
+    private List<Field> generateFieldList(ArrowInitDto arrowInitDto) {
+        // tag fields
+        List<Field> tagFieldList = new ArrayList<>();
+        for (ArrowInitDto.Tag tag : arrowInitDto.getTags()) {
+            tagFieldList.add(new Field(tag.getName(), FieldType.nullable(getArrowType(tag.getType())), null));
+        }
+        if (tagFieldList.size() == 0) {
+            // 为了保证结构完整性，tag为空时也要添加一个占位符，名称为_tag_null，与 taosc 保持一致
+            logger.warn("No tags found in measurement {}, adding placeholder _tag_null", arrowInitDto.getName());
+            tagFieldList.add(new Field("_tag_null", FieldType.nullable(new ArrowType.Binary()), null));
+        }
+        // column fields
+        List<Field> columnFieldList = new ArrayList<>();
+        for (ArrowInitDto.Column column : arrowInitDto.getColumns()) {
+            columnFieldList.add(new Field(column.getName(), FieldType.nullable(getArrowType(column.getType())), null));
+        }
+        // __type__
+        Field typeField = new Field("__type__", FieldType.notNullable(new ArrowType.Int(8, false)), null);
+        // __tables__
+        List<Field> tableItemTagList = new ArrayList<>();
+        tableItemTagList.add(new Field("__table_name__", FieldType.nullable(new ArrowType.Binary()), null));
+        tableItemTagList.addAll(tagFieldList);
+        Field tableItemField = new Field("item", FieldType.nullable(new ArrowType.Struct()), tableItemTagList);
+        List<Field> tableFieldChildrenList = new ArrayList<>();
+        tableFieldChildrenList.add(tableItemField);
+        Field tableField = new Field("__tables__", FieldType.nullable(new ArrowType.List()), tableFieldChildrenList);
+        // __attrs__
+        List<Field> attrFieldChildrenList = new ArrayList<>();
+        attrFieldChildrenList.add(new Field("__table_name__", FieldType.nullable(new ArrowType.Binary()), null));
+        attrFieldChildrenList.addAll(tagFieldList);
+        Field attrField = new Field("__attrs__", FieldType.nullable(new ArrowType.Struct()), attrFieldChildrenList);
+        // __records__
+        List<Field> recordFieldChildrenList = new ArrayList<>();
+        recordFieldChildrenList.add(new Field("item", FieldType.nullable(new ArrowType.Struct()), columnFieldList));
+        Field recordField = new Field("__records__", FieldType.nullable(new ArrowType.List()), recordFieldChildrenList);
+        // field list
+        return new ArrayList<Field>() {{
+            add(typeField);
+            add(tableField);
+            add(attrField);
+            add(recordField);
+        }};
+    }
+
+    /**
+     * 将 subtable 转换为apache-arrow的字节流
+     *
+     * @param subtableMap
+     * @param first
+     * @return
+     * @throws IOException
+     */
+    public byte[] transformSubtable(Map<String, Map<String, Object>> subtableMap, boolean first) throws IOException {
+        // 分配1G内存
+        RootAllocator rootAllocator = new RootAllocator(1_000_000_000);
+        // 创建arrow数据结构体
+        VectorSchemaRoot vectorSchemaRoot = VectorSchemaRoot.create(this.schema, rootAllocator);
+        // 输出字节流，完整结构体的字节流
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        try {
+            // 创建字典
+            DictionaryProvider.MapDictionaryProvider dictProvider = new DictionaryProvider.MapDictionaryProvider();
+            // 用于将数据写入Arrow格式的二进制流中，它接受一个VectorSchemaRoot对象作为输入，该对象包含要写入流中的Schema和矢量数据。在向这些矢量添加数据后，可以调用ArrowStreamWriter的writeBatch方法来刷新数据到输出流中
+            ArrowStreamWriter writer = new ArrowStreamWriter(vectorSchemaRoot, dictProvider, outputStream);
+            // 开始写入
+            writer.start();
+            // 获取各值域
+            UInt1Vector typeVector = (UInt1Vector) vectorSchemaRoot.getVector("__type__");
+            ListVector tableVector = (ListVector) vectorSchemaRoot.getVector("__tables__");
+            StructVector attrVector = (StructVector) vectorSchemaRoot.getVector("__attrs__");
+            ListVector recordVector = (ListVector) vectorSchemaRoot.getVector("__records__");
+            /** 提交type=2与tableVector数据 */
+            typeVector.reset();
+            tableVector.reset();
+            attrVector.reset();
+            recordVector.reset();
+            /* __type__ */
+            typeVector.setSafe(0, 2);
+            // 设置tableVector写数据开始
+            tableVector.startNewValue(0);
+            // 序号
+            int index = 0;
+            // 遍历数据
+            for (String subtable : subtableMap.keySet()) {
+                /* __tables__ */
+                StructVector tableDataVector = (StructVector) tableVector.getChildrenFromFields().get(0);
+                // 2023.04.17 使用setIndexDefined解决了StructVector=null的问题！！！
+                tableDataVector.setIndexDefined(index);
+                // edit at 2023.08.16 replace `.` to `_`
+                setData(tableDataVector, "__table_name__", subtable.replaceAll("\\.", "_"), "string", index);
+                for (String tagName : subtableMap.get(subtable).keySet()) {
+                    setData(tableDataVector, tagName, subtableMap.get(subtable).get(tagName), "string", index);
+                }
+                index++;
+            }
+            // 设置tableVector写数据结束
+            tableVector.endValue(0, subtableMap.size());
+            // 这里固定传1
+            vectorSchemaRoot.setRowCount(1);
+            writer.writeBatch();
+            // 为了连续发送，此处不写结束信号
+            // writer.end();
+            // 如果首次提交，返回完整字节流，其后只提交RecordBatch
+            if (first) {
+                return outputStream.toByteArray();
+            } else {
+                // 2023.04.21 使用ArrowRecordBatch解决了后续数据无法传输的问题！！！
+                // 创建新的输出流
+                ByteArrayOutputStream out = new ByteArrayOutputStream();
+                // 获取RecordBatch
+                ArrowRecordBatch arrowRecordBatch = new VectorUnloader(vectorSchemaRoot).getRecordBatch();
+                // 序列化到输出流中
+                MessageSerializer.serialize(new WriteChannel(Channels.newChannel(out)), arrowRecordBatch, IpcOption.DEFAULT);
+                // 关闭RecordBatch，否则执行rootAllocator.close()时会内存溢出
+                arrowRecordBatch.close();
+                // 返回字节流
+                return out.toByteArray();
+            }
+        } catch (Exception e) {
+            logger.error("Failed to transformSubtable data to Arrow format", e);
+            throw e;
+        } finally {
+            outputStream.close();
+            vectorSchemaRoot.close();
+            rootAllocator.close();
+        }
+    }
+
+    /**
+     * 将 data 转换为apache-arrow的字节流
+     *
+     * @param influxdbBucketDataEntityList
+     * @return
+     * @throws IOException
+     */
+    public byte[] transformData(List<InfluxdbBucketDataEntity> influxdbBucketDataEntityList) throws IOException {
+        // 分配1G内存; 创建arrow数据结构体; 输出字节流，完整结构体的字节流
+        try (
+                RootAllocator rootAllocator = new RootAllocator(1_000_000_000);
+                VectorSchemaRoot vectorSchemaRoot = VectorSchemaRoot.create(this.schema, rootAllocator);
+                ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+                ArrowStreamWriter writer = new ArrowStreamWriter(vectorSchemaRoot, new DictionaryProvider.MapDictionaryProvider(), outputStream)
+        ) {
+            writer.start();
+            // 获取各值域
+            UInt1Vector typeVector = (UInt1Vector) vectorSchemaRoot.getVector("__type__");
+            ListVector tableVector = (ListVector) vectorSchemaRoot.getVector("__tables__");
+            StructVector attrVector = (StructVector) vectorSchemaRoot.getVector("__attrs__");
+            ListVector recordVector = (ListVector) vectorSchemaRoot.getVector("__records__");
+            // 提交type=3与attrVector&recordVector数据
+            typeVector.reset();
+            tableVector.reset();
+            attrVector.reset();
+            recordVector.reset();
+            // __type__
+            typeVector.setSafe(0, 3);
+            // 2023.04.04 使用startNewValue与endValue解决了valueCount=0的问题！！！
+            // 2023.04.20 将startNewValue放到循环外解决了批量的问题！！！
+            // 设置recordVector写数据开始
+            recordVector.startNewValue(0);
+            // 遍历数据
+            for (int i = 0; i < influxdbBucketDataEntityList.size(); i++) {
+                InfluxdbBucketDataEntity influxdbBucketDataEntity = influxdbBucketDataEntityList.get(i);
+                /* __attrs__ */
+                /* 暂时没有用到
+                attrVector.setIndexDefined(i);
+                setData(attrVector, "__table_name__", influxdbBucketDataEntity.getTable(), "string", i);
+                for (String tagName : influxdbBucketDataEntity.getTags().keySet()) {
+                    setData(attrVector, tagName, influxdbBucketDataEntity.getTags().get(tagName), "string", i);
+                }
+                */
+                /* __records__ */
+                StructVector recordDataVector = (StructVector) recordVector.getChildrenFromFields().get(0);
+                recordDataVector.setIndexDefined(i);
+                // edit at 2023.08.16 replace `.` to `_`
+                setData(recordDataVector, "__table_name__", influxdbBucketDataEntity.getTable().replaceAll("\\.", "_"), "string", i);
+                setData(recordDataVector, "time", influxdbBucketDataEntity.getTime(), "timestamp", i);
+                setData(recordDataVector, influxdbBucketDataEntity.getField(), influxdbBucketDataEntity.getValue(), influxdbBucketDataEntity.getInfluxdbMeasurementEntity().getFieldMap().get(influxdbBucketDataEntity.getField()), i);
+            }
+            // 设置recordVector写数据结束
+            recordVector.endValue(0, influxdbBucketDataEntityList.size());
+            // 这里固定传1
+            vectorSchemaRoot.setRowCount(1);
+            writer.writeBatch();
+            // 计数
+            StatisticCache.totalRecordBatch.incrementAndGet();
+            // 为了连续发送，此处不写结束信号
+            // writer.end();
+            // 2023.04.21 使用ArrowRecordBatch解决了后续数据无法传输的问题！！！
+            // 创建新的输出流
+            try (ArrowRecordBatch arrowRecordBatch = new VectorUnloader(vectorSchemaRoot).getRecordBatch()) {
+                ByteArrayOutputStream out = new ByteArrayOutputStream();
+                // 可能会抛异常，导致内存 leak, 所以使用 try () {}
+                MessageSerializer.serialize(new WriteChannel(Channels.newChannel(out)), arrowRecordBatch, IpcOption.DEFAULT);
+                // 返回字节流
+                return out.toByteArray();
+            }
+        } catch (Exception e) {
+            logger.error("Failed to transform data to Arrow format", e);
+            throw e;
+        }
+    }
+
+    /**
+     * 将 data 转换为apache-arrow的字节流, 使用更密集的传输方式
+     *
+     * @param influxdbBucketDataEntityList
+     * @return
+     * @throws IOException
+     */
+    public byte[] transformDataByTagTime(List<InfluxdbBucketDataEntity> influxdbBucketDataEntityList) throws IOException {
+        // 分配1G内存; 创建arrow数据结构体; 输出字节流，完整结构体的字节流
+        try (
+                RootAllocator rootAllocator = new RootAllocator(1_000_000_000);
+                VectorSchemaRoot vectorSchemaRoot = VectorSchemaRoot.create(this.schema, rootAllocator);
+                ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+                ArrowStreamWriter writer = new ArrowStreamWriter(vectorSchemaRoot, new DictionaryProvider.MapDictionaryProvider(), outputStream)
+        ) {
+            writer.start();
+            // 获取各值域
+            UInt1Vector typeVector = (UInt1Vector) vectorSchemaRoot.getVector("__type__");
+            ListVector tableVector = (ListVector) vectorSchemaRoot.getVector("__tables__");
+            StructVector attrVector = (StructVector) vectorSchemaRoot.getVector("__attrs__");
+            ListVector recordVector = (ListVector) vectorSchemaRoot.getVector("__records__");
+            // 提交type=3与attrVector&recordVector数据
+            typeVector.reset();
+            tableVector.reset();
+            attrVector.reset();
+            recordVector.reset();
+            // __type__ 类型为3表示插入
+            typeVector.setSafe(0, 3);
+            recordVector.startNewValue(0);
+            // 按时间分组
+            Map<Map.Entry<Map<String, Object>, Instant>, List<InfluxdbBucketDataEntity>> entityByTagTime = new HashMap<>();
+            for (int i = 0; i < influxdbBucketDataEntityList.size(); i++) {
+                InfluxdbBucketDataEntity entity = influxdbBucketDataEntityList.get(i);
+                Map.Entry<Map<String, Object>, Instant> key = new AbstractMap.SimpleImmutableEntry<>(entity.getTags(), entity.getTime());
+                if (!entityByTagTime.containsKey(key)) {
+                    entityByTagTime.put(key, new ArrayList<>());
+                }
+                entityByTagTime.get(key).add(entity);
+            }
+            // 遍历数据
+            Object[] keyList = entityByTagTime.keySet().toArray();
+            for (int i = 0; i < keyList.length; i++) {
+                Map.Entry<Map<String, Object>, Instant> key = (Map.Entry<Map<String, Object>, Instant>) keyList[i];
+                Instant time = key.getValue();
+                List<InfluxdbBucketDataEntity> entities = entityByTagTime.get(key);
+                StructVector recordDataVector = (StructVector) recordVector.getChildrenFromFields().get(0);
+                recordDataVector.setIndexDefined(i); // 标记i行有数据
+                setData(recordDataVector, "time", time, "timestamp", i);
+                for (int j = 0; j < entities.size(); j++) {
+                    InfluxdbBucketDataEntity entity = entities.get(j);
+                    setData(recordDataVector, "__table_name__", entity.getTable().replaceAll("\\.", "_"), "string", i);
+                    setData(recordDataVector, entity.getField(), entity.getValue(), entity.getInfluxdbMeasurementEntity().getFieldMap().get(entity.getField()), i);
+                }
+            }
+            // 设置recordVector写数据结束
+            recordVector.endValue(0, entityByTagTime.size());
+            // 这里固定传1
+            vectorSchemaRoot.setRowCount(1);
+            writer.writeBatch();
+            // 计数
+            StatisticCache.totalRecordBatch.incrementAndGet();
+            // 创建新的输出流
+            try (ArrowRecordBatch arrowRecordBatch = new VectorUnloader(vectorSchemaRoot).getRecordBatch()) {
+                ByteArrayOutputStream out = new ByteArrayOutputStream();
+                // 可能会抛异常，导致内存 leak, 所以使用 try () {}
+                MessageSerializer.serialize(new WriteChannel(Channels.newChannel(out)), arrowRecordBatch, IpcOption.DEFAULT);
+                // 返回字节流
+                return out.toByteArray();
+            }
+        } catch (Exception e) {
+            logger.error("Failed to transform data to Arrow format", e);
+            throw e;
+        }
+    }
+
+    /**
+     * 数据流关闭信号
+     *
+     * @return
+     * @throws IOException
+     */
+    public byte[] closeArrow() throws IOException {
+        // 输出字节流，完整结构体的字节流
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        try {
+            ArrowStreamWriter.writeEndOfStream(new WriteChannel(Channels.newChannel(outputStream)), IpcOption.DEFAULT);
+            return outputStream.toByteArray();
+        } catch (Exception e) {
+            throw e;
+        } finally {
+            outputStream.close();
+        }
+    }
+
+    /**
+     * 获取arrow类型
+     *
+     * @param type
+     * @return
+     */
+    private ArrowType getArrowType(String type) {
+        switch (type) {
+            case "boolean":
+            case "bool":
+                return new ArrowType.Bool();
+            case "integer":
+            case "int":
+            case "long":
+            case "bigint":
+                return new ArrowType.Int(64, true);
+            case "float":
+            case "double":
+                return new ArrowType.FloatingPoint(FloatingPointPrecision.DOUBLE);
+            case "date":
+            case "timestamp":
+                return new ArrowType.Timestamp(TimeUnit.NANOSECOND, null);
+            case "string":
+            case "binary(256)":
+            default: {
+                return new ArrowType.Binary();
+            }
+        }
+    }
+
+    /**
+     * arrow struct vector赋值
+     *
+     * @param structVector
+     * @param dataName
+     * @param dataValue
+     * @param index
+     */
+    private void setData(StructVector structVector, String dataName, Object dataValue, String dataType, int index) {
+        // 根据不同数据类型进行响应的赋值操作
+        switch (dataType) {
+            case "boolean":
+            case "bool": {
+                BitVector bitVector = (BitVector) structVector.getChild(dataName);
+                if (dataValue == null) {
+                    bitVector.setNull(index);
+                } else {
+                    bitVector.setSafe(index, ((Boolean) dataValue).booleanValue() ? 1 : 0);
+                }
+
+                break;
+            }
+            case "integer":
+            case "int":
+            case "long":
+            case "bigint": {
+                BigIntVector bigIntVector = (BigIntVector) structVector.getChild(dataName);
+                if (dataValue == null) {
+                    bigIntVector.setNull(index);
+                } else {
+                    bigIntVector.setSafe(index, ((Number) dataValue).longValue());
+                }
+                break;
+            }
+            case "float":
+            case "double": {
+                Float8Vector float8Vector = (Float8Vector) structVector.getChild(dataName);
+                if (dataValue == null) {
+                    float8Vector.setNull(index);
+                } else {
+                    float8Vector.setSafe(index, ((Number) dataValue).doubleValue());
+                }
+                break;
+            }
+            case "date":
+            case "timestamp": {
+                TimeStampNanoVector timeStampNanoVector = (TimeStampNanoVector) structVector.getChild(dataName);
+                if (dataValue == null) {
+                    timeStampNanoVector.setNull(index);
+                } else {
+                    timeStampNanoVector.setSafe(index, ((Instant) dataValue).getEpochSecond() * 1_000_000_000 + ((Instant) dataValue).getNano());
+                }
+                break;
+            }
+            case "string":
+            case "binary(256)":
+            default: {
+                VarBinaryVector varBinaryVector = (VarBinaryVector) structVector.getChild(dataName);
+                if (dataValue == null) {
+                    varBinaryVector.setNull(index);
+                } else {
+                    varBinaryVector.setSafe(index, dataValue.toString().getBytes());
+                }
+                break;
+            }
+        }
+    }
+}

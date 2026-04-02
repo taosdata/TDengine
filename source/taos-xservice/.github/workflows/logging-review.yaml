@@ -1,0 +1,33 @@
+name: Logging Style Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: logging-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    name: 📋 日志规范审查
+    runs-on: ubuntu-latest
+    # Skip drafts and forks (no access to secrets)
+    if: github.event.pull_request.draft == false && github.event.pull_request.head.repo.full_name == github.repository
+    outputs:
+      verdict: ${{ steps.review.outputs.verdict }}
+      issue_count: ${{ steps.review.outputs.issue_count }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Review logging style
+        id: review
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 .github/scripts/logging_review.py

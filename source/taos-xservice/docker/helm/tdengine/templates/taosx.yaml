@@ -1,0 +1,193 @@
+{{- $releaseName := .Release.Name }}
+{{- $serviceName := include "tdengine.fullname" . }}
+{{/* Global labels from .Values.labels */}}
+{{- $labels := .Values.labels -}}
+{{/* Chart labels from _helpers.tpl */}}
+{{- $chartLabels := include "tdengine.labels" . -}}
+{{/* Chart selector labels from _helpers.tpl */}}
+{{- $selectorLabels := include "tdengine.selectorLabels" . -}}
+{{- if .Values.services.taosx }}
+---
+# The taosx service is disabled by default. To enable it, set the following values:
+# services:
+#   taosx:
+#
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "tdengine.fullname" . }}-taosx
+  labels:
+    {{- $chartLabels | nindent 4 }}
+    {{- with $labels }}
+      {{- toYaml . | nindent 4 }}
+    {{- end }}
+    app: "tdengine"
+    component: "taosx"
+data:
+  env: |-
+{{ .Values.services.taosx.environment | toYaml | indent 4 }}
+
+  {{- range .Values.services.taosx.files }}
+  {{ .name }}: |-
+{{ .content |trim | indent 6 }}
+  {{- end }}
+
+---
+# taosx Service
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "tdengine.fullname" . }}-taosx
+  labels:
+    {{- $chartLabels | nindent 4 }}
+    {{- with .Values.labels }}
+      {{- toYaml . | nindent 4 }}
+    {{- end }}
+    app: "tdengine"
+    component: "taosx"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- $selectorLabels | nindent 6 }}
+      {{- with .Values.labels }}
+        {{- toYaml . | nindent 6 }}
+      {{- end }}
+      app: "tdengine"
+      component: "taosx"
+  template:
+    metadata:
+      {{- with .Values.services.taosx.annotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- $chartLabels | nindent 8 }}
+        {{- with $labels }}
+          {{- toYaml . | nindent 8 }}
+        {{- end }}
+        app: "tdengine"
+        component: "taosx"
+    spec:
+      {{- with .Values.services.server.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: taosx
+          image: "{{ .Values.image.repository }}{{ .Values.image.taosx | default .Values.image.server }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy | default "IfNotPresent" }}
+          ports:
+          - name: tcp6060
+            containerPort: 6060
+            protocol: TCP
+          - name: tcp6050
+            containerPort: 6050
+            protocol: TCP
+          - name: tcp6055
+            containerPort: 6055
+            protocol: TCP
+          env:
+          # POD_NAME for FQDN config
+          - name: POD_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name
+          # SERVICE_NAME and NAMESPACE for fqdn resolve
+          - name: SERVICE_NAME
+            value: {{ include "tdengine.fullname" . }}
+          - name: STS_NAME
+            value: {{ include "tdengine.fullname" . }}
+          - name: STS_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+          # TZ for timezone settings, we recommend to always set it.
+          - name: TZ
+            value: {{ .Values.timezone }}
+          - name: TAOS_SUPPORT_VNODES
+            value: "0"
+          - name: ENABLE_SERVER
+            value: "0"
+          - name: ENABLE_MONITOR
+            value: "1"
+          - name: ENABLE_TAOSX
+            value: "1"
+          # TAOS_ prefix will configured in taos.cfg, strip prefix and camelCase.
+          - name: TAOS_SERVER_PORT
+            value: "6030"
+          - name: TAOS_KEEPER_TDENGINE_HOST
+            value: "$(SERVICE_NAME).$(STS_NAMESPACE).svc.cluster.local"
+          - name: EXPLORER_CLUSTER
+            value: "http://$(SERVICE_NAME).$(STS_NAMESPACE).svc.cluster.local:6041"
+          # Must set if you want a cluster.
+          - name: TAOS_FIRST_EP
+            value: "$(STS_NAME)-0.$(SERVICE_NAME).$(STS_NAMESPACE).svc.cluster.local:$(TAOS_SERVER_PORT)"
+          # TAOS_FQND should always be set in k8s env.
+          - name: TAOS_FQDN
+            value: "$(POD_NAME).$(SERVICE_NAME).$(STS_NAMESPACE).svc.cluster.local"
+
+          
+          volumeMounts:
+          
+          {{- range .Values.services.taosx.files }}
+          - name: {{ printf "%s-%s" $serviceName .name }}
+            mountPath: {{ .mountPath }}
+            subPath: {{ .name }}
+          {{- end }}
+
+          {{- range .Values.services.taosx.volumes }}
+          - name: {{ printf "%s-%s" $serviceName .name }}
+            mountPath: {{ .mountPath }}
+          {{- end }}
+          readinessProbe:
+            httpGet:
+              path: /api/-/profile
+              port: 6060
+            initialDelaySeconds: 15
+            timeoutSeconds: 15000
+          livenessProbe:
+            tcpSocket:
+              port: 6060
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            {{- toYaml .Values.services.taosx.resources | nindent 12 }}
+      {{- with .Values.services.taosx.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.services.taosx.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.services.taosx.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+
+      volumes:
+      {{- range .Values.services.taosx.files }}
+        - name: {{ printf "%s-%s" $serviceName .name }}
+          configMap:
+            name: {{ $serviceName }}-taosx
+            items:
+              - key: {{ .name }}
+                path: {{ .name }}
+      {{- end }}
+  volumeClaimTemplates:
+  {{- range .Values.services.taosx.volumes }}
+  - metadata:
+      name: {{ printf "%s-%s" $serviceName .name }}
+      labels:
+        app: "tdengine"
+        component: "taosx"
+        {{- $chartLabels | nindent 8 }}
+        {{- with $labels }}
+          {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- toYaml .spec | nindent 6 }}
+  {{- end }}
+
+{{- end }}

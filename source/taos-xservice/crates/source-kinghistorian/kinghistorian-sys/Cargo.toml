@@ -1,0 +1,16 @@
+[package]
+name = "kinghistorian-sys"
+edition.workspace = true
+version.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+chrono.workspace = true
+bigdecimal.workspace = true
+flume.workspace = true
+dlopen2.workspace = true
+parking_lot.workspace = true
+tracing.workspace = true
+
+[build-dependencies]
+bindgen = "0.72"

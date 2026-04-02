@@ -1,0 +1,290 @@
+.\" $Id: saslauthd.mdoc,v 1.19 2009/04/11 20:08:48 mel Exp $
+.\" Copyright 1997-2001 Messaging Direct Ltd. All rights reserved.
+.\"
+.\" This manpage uses the BSD mdoc manpage macros. Please don't
+.\" downgrade it to -man. The -mdoc macros are included with
+.\" GNU roff, and, of course, with the BSD distributions.
+.\"
+.\" To make life easier for sites that don't support -mdoc,
+.\" please generate (and commit!) an updated pre-formatted
+.\" manpage in saslauthd.8 whenever you change this source
+.\" version. Only the pre-formatted manpage is installed.
+.\"
+.Dd 12 12 2005
+.Dt SASLAUTHD 8
+.Os "CMU-SASL"
+.Sh NAME
+.Nm saslauthd
+.Nd sasl authentication server
+.Sh SYNOPSIS
+.Nm
+.Fl a
+.Ar authmech
+.Op Fl \&Tvdchlr
+.Op Fl O Ar option
+.Op Fl m Ar mux_path
+.Op Fl n Ar threads
+.Op Fl s Ar size
+.Op Fl t Ar timeout
+.Sh DESCRIPTION
+.Nm
+is a daemon process that handles plaintext authentication requests
+on behalf of the SASL library.
+.Pp
+The server fulfills two roles: it isolates all code requiring superuser
+privileges into a single process, and it can be used to provide
+.Em proxy
+authentication services to clients that do not understand
+SASL based authentication.
+.Pp
+.Nm
+should be
+started from the system boot scripts when going to
+multi-user mode. When running against a protected authentication
+database (e.g. the
+.Li shadow
+mechanism),
+it must be run as the superuser. Otherwise it is recommended to run
+daemon unprivileged as saslauth:saslauth, requiring the runtime directory
+to have root:saslauthd owner. You can do so by following
+these steps in machines using
+.Xr systemd 1
+:
+
+.Bl -enum -compact
+.It
+create directory
+.Pa /etc/systemd/system/saslauthd.service.d/
+.It
+create file
+.Pa /etc/systemd/system/saslauthd.service.d/user.conf
+with content
+.Bd -literal
+[Service]
+User=saslauth
+Group=saslauth
+
+.Ed
+.It
+Reload systemd service file: run
+.Dq systemctl daemon-reload
+.El
+.Ss Options
+Options named by lower\-case letters configure the server itself.
+Upper\-case options control the behavior of specific authentication
+mechanisms; their applicability to a particular authentication
+mechanism is described in the
+.Sx AUTHENTICATION MECHANISMS
+section.
+.Bl -tag -width indent
+.It Fl a Ar authmech
+Use
+.Ar authmech
+as the authentication mechanism. (See the
+.Sx AUTHENTICATION MECHANISMS
+section below.) This parameter is mandatory.
+.It Fl O Ar option
+A mechanism specific option (e.g. rimap hostname or config file path)
+.It Fl H Ar hostname
+The remote host to be contacted by the
+.Li rimap
+authentication mechanism. (Deprecated, use -O instead)
+.It Fl m Ar path
+Use
+.Ar path
+as the pathname to the named socket to listen on for
+connection requests. This must be an absolute pathname, and MUST NOT
+include the trailing "/mux".  Note that the default for this value
+is "/var/state/saslauthd" (or what was specified at compile time)
+and that this directory must exist for saslauthd to function.
+.It Fl n Ar threads
+Use
+.Ar threads
+processes for responding to authentication queries. (default: 5)  A
+value of zero will indicate that saslauthd should fork an individual
+process for each connection.  This can solve leaks that occur in some
+deployments.
+.It Fl s Ar size
+Use
+.Ar size
+as the table size of the hash table (in kilobytes)
+.It Fl t Ar timeout
+Use
+.Ar timeout
+as the expiration time of the authentication cache (in seconds)
+.It Fl T
+Honour time-of-day login restrictions.
+.It Fl h
+Show usage information
+.It Fl c
+Enable caching of authentication credentials
+.It Fl l
+Disable the use of a lock file for controlling access to accept().
+.It Fl r
+Combine the realm with the login (with an '@' sign in between).  e.g.
+login: "foo" realm: "bar" will get passed as login: "foo@bar".  Note
+that the realm will still be passed, which may lead to unexpected
+behavior for authentication mechanisms that make use of the realm,
+however for mechanisms which don't, such as
+.Ar getpwent ,
+this is the only way to authenticate domain-specific users sharing the
+same userid.
+.It Fl v
+Print the version number and available authentication
+mechanisms on standard error, then exit.
+.It Fl d
+Debugging mode.
+.El
+.Ss Logging
+.Nm
+logs its activities via
+.Nm syslogd
+using the
+.Dv LOG_AUTH
+facility.
+.Sh AUTHENTICATION MECHANISMS
+.Nm
+supports one or more
+.Qq authentication mechanisms ,
+dependent upon the facilities provided by the underlying operating system.
+The mechanism is selected by the
+.Fl a
+flag from the following list of choices:
+.Bl -tag -width "kerberos4"
+.It Li dce
+.Em (AIX)
+.Pp
+Authenticate using the DCE authentication environment.
+.It Li getpwent
+.Em (All platforms)
+.Pp
+Authenticate using the
+.Fn getpwent
+library function. Typically this authenticates against the
+local password file. See your system's
+.Xr getpwent 3
+man page for details.
+.It Li kerberos4
+.Em (All platforms)
+.Pp
+Authenticate against the local Kerberos 4 realm. (See the
+.Sx NOTES
+section for caveats about this driver.)
+.It Li kerberos5
+.Em (All platforms)
+.Pp
+Authenticate against the local Kerberos 5 realm.
+.It Li pam
+.Em (Linux, Solaris)
+.Pp
+Authenticate using Pluggable Authentication Modules (PAM).
+.It Li rimap
+.Em (All platforms)
+.Pp
+Forward authentication requests to a remote IMAP server. This driver
+connects to a remote IMAP server, specified using the -O flag,
+and attempts to login (via an IMAP
+.Ql LOGIN
+command) using the credentials 
+supplied to the local
+server. If the remote authentication succeeds the local connection
+is also considered to be authenticated. The remote connection is closed
+as soon as the tagged response from the
+.Ql LOGIN
+command is received from the remote
+server.
+.Pp
+The
+.Ar option
+parameter to the
+.Fl O
+flag describes the remote server to forward
+authentication requests to.
+.Ar hostname
+can be a hostname (imap.example.com) or a dotted\-quad IP address
+(192.168.0.1). The latter is useful if the remote server is
+multi\-homed and has network interfaces that are unreachable from
+the local IMAP server. The remote host is contacted on the
+.Ql imap
+service port. A non\-default port can be specified by appending
+a slash and the port name or number
+to the
+.Ar hostname
+argument.
+.Pp
+The
+.Fl O
+flag and argument are mandatory when using the
+.Li rimap
+mechanism.
+.It Li shadow
+.Em (AIX, Irix, Linux, Solaris)
+.Pp
+Authenticate against the local
+.Qq shadow password file .
+The exact mechanism is system dependent.
+.Nm
+currently understands the
+.Fn getspnam
+and
+.Fn getuserpw
+library routines. Some systems
+honour the
+.Fl T
+flag.
+.It Li sasldb
+.Em (All platforms)
+.Pp
+Authenticate against the
+SASL authentication database.  Note that this is probably not what you
+want to use, and is even disabled at compile-time by default.
+If you want to use sasldb with the SASL library, you probably want to
+use the pwcheck_method of "auxprop" along with the sasldb auxprop plugin
+instead.
+.It Li ldap
+.Em (All platforms that support OpenLDAP 2.0 or higher)
+.Pp
+Authenticate against an ldap server.  The ldap configuration parameters are
+read from /usr/local/etc/saslauthd.conf.  The location of this file can be
+changed with the -O parameter. See the LDAP_SASLAUTHD file included with the
+distribution for the list of available parameters.
+.It Li sia
+.Em (Digital UNIX)
+.Pp
+Authenticate using the Digital
+.Ux
+Security Integration Architecture
+(a.k.a.
+.Qq enhanced security ) .
+.El
+.Sh NOTES
+The
+.Li kerberos4
+authentication driver consumes considerable resources. To perform an
+authentication it must obtain a ticket granting ticket
+from the TGT server
+.Sy on every authentication request.
+The Kerberos library routines that obtain the TGT also create a
+local ticket file, on the reasonable assumption that you will want
+to save the TGT for use by other Kerberos applications. These ticket
+files are unusable by
+.Nm No ,
+however there is no way not to create them. The overhead of creating
+and removing
+these ticket files can cause serious performance degradation on busy
+servers. (Kerberos
+was never intended to be used in this manner, anyway.)
+.Sh FILES
+.Bl -tag -width "/var/run/saslauthd/mux"
+.It Pa /var/run/saslauthd/mux
+The default communications socket.
+.It Pa /usr/local/etc/saslauthd.conf
+The default configuration file for ldap support.
+.El
+.Sh SEE ALSO
+.Xr passwd 1 ,
+.Xr getpwent 3 ,
+.Xr getspnam 3 ,
+.Xr getuserpw 3 ,
+.Xr sasl_checkpass 3
+.Xr sia_authenticate_user 3 ,

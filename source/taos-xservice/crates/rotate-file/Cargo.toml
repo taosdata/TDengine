@@ -1,0 +1,21 @@
+[package]
+name = "rotate-file"
+edition.workspace = true
+version.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+tokio = { workspace = true }
+futures = { workspace = true }
+faststr = { workspace = true }
+thiserror = { workspace = true }
+chrono = { workspace = true }
+flume = { workspace = true }
+tracing = { workspace = true }
+anyhow = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["full", "test-util"] }
+
+[lints]
+workspace = true

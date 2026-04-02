@@ -1,0 +1,1052 @@
+use std::sync::Arc;
+
+use arrow::array::{Array, ArrayRef, BooleanArray, NullArray};
+use rhai::{Dynamic, Engine, EvalAltResult, Scope};
+
+use arrow::datatypes::DataType;
+use arrow::record_batch::RecordBatch;
+use itertools::Itertools;
+use serde::{Deserialize, Serialize};
+use thiserror::Error;
+
+mod functions;
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct BooleanExpr(Expr);
+
+// Rule predicates should be deterministic: null means "does not match".
+fn boolean_predicate_values(predicate: &BooleanArray) -> Vec<bool> {
+    predicate
+        .iter()
+        .map(|value| value.unwrap_or(false))
+        .collect()
+}
+
+fn boolean_predicate_filter(predicate: &BooleanArray) -> BooleanArray {
+    BooleanArray::from(boolean_predicate_values(predicate))
+}
+
+fn as_boolean_predicate(values: &ArrayRef) -> Result<&BooleanArray, EvalError> {
+    values
+        .as_any()
+        .downcast_ref::<BooleanArray>()
+        .ok_or(EvalError::ValueTypeNotMatch(
+            DataType::Boolean,
+            "non-BooleanArray",
+        ))
+}
+
+impl BooleanExpr {
+    pub fn eval(&self, records: &RecordBatch) -> Result<Vec<bool>, EvalError> {
+        let values = self.0.eval_as(records, DataType::Boolean)?;
+        let predicate = as_boolean_predicate(&values)?;
+
+        Ok(boolean_predicate_values(predicate))
+    }
+
+    pub fn filter(&self, records: &RecordBatch) -> Result<RecordBatch, EvalError> {
+        let values = self.0.eval_as(records, DataType::Boolean)?;
+        let predicate = as_boolean_predicate(&values)?;
+        let predicate = boolean_predicate_filter(predicate);
+        Ok(arrow::compute::filter_record_batch(records, &predicate)?)
+    }
+
+    pub fn try_new(expr: String) -> Result<Self, EvalAltResult> {
+        Expr::try_new(expr, true).map(BooleanExpr)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ConditionExpr(Expr);
+
+impl ConditionExpr {
+    pub fn eval(&self, records: &RecordBatch) -> Result<Vec<bool>, EvalError> {
+        let values = self.0.eval_as(records, DataType::Boolean)?;
+        let predicate = as_boolean_predicate(&values)?;
+
+        Ok(boolean_predicate_values(predicate))
+    }
+
+    pub fn filter(&self, records: &RecordBatch) -> Result<RecordBatch, EvalError> {
+        let values = self.0.eval_as(records, DataType::Boolean)?;
+        let predicate = as_boolean_predicate(&values)?;
+        let predicate = boolean_predicate_filter(predicate);
+        Ok(arrow::compute::filter_record_batch(records, &predicate)?)
+    }
+
+    pub fn try_new(expr: impl Into<String>, null_if_error: bool) -> Result<Self, EvalAltResult> {
+        Expr::try_new(expr, null_if_error).map(Self)
+    }
+}
+
+impl<'de> serde::de::Deserialize<'de> for BooleanExpr {
+    fn deserialize<D: serde::de::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let inner = String::deserialize(deserializer)?;
+
+        Self::try_new(inner).map_err(serde::de::Error::custom)
+    }
+}
+
+impl serde::Serialize for BooleanExpr {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        self.0.expr.serialize(serializer)
+    }
+}
+
+impl<'de> serde::de::Deserialize<'de> for ConditionExpr {
+    fn deserialize<D: serde::de::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        struct ConditionExprVisitor;
+
+        impl<'de> serde::de::Visitor<'de> for ConditionExprVisitor {
+            type Value = ConditionExpr;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("a condition expression string or map")
+            }
+
+            fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                ConditionExpr::try_new(value, true).map_err(serde::de::Error::custom)
+            }
+
+            fn visit_map<A>(self, map: A) -> Result<Self::Value, A::Error>
+            where
+                A: serde::de::MapAccess<'de>,
+            {
+                let expr = Expr::deserialize(serde::de::value::MapAccessDeserializer::new(map))?;
+                Ok(ConditionExpr(expr))
+            }
+        }
+
+        deserializer.deserialize_any(ConditionExprVisitor)
+    }
+}
+
+impl serde::Serialize for ConditionExpr {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        self.0.serialize(serializer)
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct Expr {
+    pub expr: String,
+    pub null_if_error: bool,
+    #[serde(skip)]
+    ast: rhai::AST,
+    #[serde(skip)]
+    engine: Arc<Engine>,
+}
+
+impl std::cmp::PartialEq for Expr {
+    fn eq(&self, other: &Self) -> bool {
+        self.expr == other.expr && self.null_if_error == other.null_if_error
+    }
+}
+
+impl<'de> serde::de::Deserialize<'de> for Expr {
+    fn deserialize<D: serde::de::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        #[derive(Deserialize)]
+        struct ExprInner {
+            expr: String,
+            null_if_error: Option<bool>,
+        }
+        let inner = ExprInner::deserialize(deserializer)?;
+
+        Expr::try_new(inner.expr, inner.null_if_error.unwrap_or(true))
+            .map_err(serde::de::Error::custom)
+    }
+}
+
+#[derive(Error, Debug)]
+pub enum EvalError {
+    #[error("Arrow error: {0}")]
+    ArrowError(#[from] arrow::error::ArrowError),
+    #[error("Eval `{0}` error: {1}")]
+    RhaiError(String, Box<rhai::EvalAltResult>),
+    #[error("Scope error: currently not supported type: {0}")]
+    ScopeTypeNotSupported(DataType),
+    #[error("Eval error: value type not supported: {0}")]
+    ValueTypeNotSupported(DataType),
+    #[error("Eval error: value type not match: expect {0} but got {1}")]
+    ValueTypeNotMatch(DataType, &'static str),
+    #[error("invalid result")]
+    InvalidResult,
+}
+
+impl Expr {
+    pub fn try_new(expr: impl Into<String>, null_if_error: bool) -> Result<Self, EvalAltResult> {
+        let expr = expr.into();
+        if expr.is_empty() {
+            return Err(rhai::EvalAltResult::ErrorParsing(
+                rhai::ParseErrorType::ExprExpected("non empty".to_string()),
+                rhai::Position::START,
+            ));
+        }
+        // let mut engine = Engine::new();
+        let mut engine = Engine::new();
+        engine.register_fn("append", functions::append);
+        engine.register_fn("replace", functions::replace);
+        engine.register_fn("replace", functions::replacen);
+        engine.register_fn("truncate", functions::truncate);
+        engine.register_fn("add_or_set", functions::add_or_set);
+        engine.register_fn("between_time_range", functions::between_time_range);
+        let engine = Arc::new(engine);
+        let ast = engine.compile(&expr)?;
+        // let ast = engine.compile_expression(&expr)?;
+        Ok(Self {
+            expr,
+            null_if_error,
+            ast,
+            engine,
+        })
+    }
+
+    fn eval_inner(&self, records: &RecordBatch) -> Result<Vec<Dynamic>, EvalError> {
+        let rows = records.num_rows();
+        if rows == 0 {
+            return Ok(vec![]);
+        }
+
+        if self.expr.is_empty() {
+            return Ok(vec![Dynamic::UNIT; rows]);
+        }
+
+        let mut values = Vec::with_capacity(rows);
+        for rix in 0..rows {
+            let res = self.eval_batch_row(records, rix)?;
+            values.push(res);
+        }
+        Ok(values)
+    }
+
+    pub fn eval_batch_row(
+        &self,
+        records: &RecordBatch,
+        row: usize,
+    ) -> Result<rhai::Dynamic, EvalError> {
+        let columns = records.columns();
+        let schema = records.schema();
+        let mut scope = Scope::new();
+        for (cix, column) in columns.iter().enumerate() {
+            let field = schema.field(cix);
+            let name = field.name();
+
+            if column.is_null(row) {
+                scope.set_or_push(name, Dynamic::UNIT);
+                continue;
+            }
+
+            macro_rules! set_scope {
+                ($t:ident) => {
+                    paste::paste! {
+                        let value = column
+                            .as_any()
+                            .downcast_ref::<arrow::array::[<$t Array>]>()
+                            .unwrap()
+                            .value(row);
+                        scope.set_or_push(name, value);
+                    }
+                };
+                (Float16, $to:ty) => {
+                    paste::paste! {
+                        let value = column
+                            .as_any()
+                            .downcast_ref::<arrow::array::Float16Array>()
+                            .unwrap()
+                            .value(row);
+                        scope.set_or_push(name, value.to_f64());
+                    }
+                };
+                ($t:ident, $to:ty) => {
+                    paste::paste! {
+                        let value = column
+                            .as_any()
+                            .downcast_ref::<arrow::array::[<$t Array>]>()
+                            .unwrap()
+                            .value(row);
+                        scope.set_or_push(name, value as $to);
+                    }
+                };
+            }
+
+            match field.data_type() {
+                DataType::Boolean => {
+                    set_scope!(Boolean);
+                }
+                DataType::Int8 => {
+                    set_scope!(Int8, i64);
+                }
+                DataType::Int16 => {
+                    set_scope!(Int16, i64);
+                }
+                DataType::Int32 => {
+                    set_scope!(Int32, i64);
+                }
+                DataType::Int64 => {
+                    set_scope!(Int64, i64);
+                }
+                DataType::UInt8 => {
+                    set_scope!(UInt8, i64);
+                }
+                DataType::UInt16 => {
+                    set_scope!(UInt16, i64);
+                }
+                DataType::UInt32 => {
+                    set_scope!(UInt32, i64);
+                }
+                DataType::UInt64 => {
+                    set_scope!(UInt64, u64);
+                }
+                DataType::Float16 => {
+                    set_scope!(Float16, f64);
+                }
+                DataType::Float32 => {
+                    set_scope!(Float32, f64);
+                }
+                DataType::Float64 => {
+                    set_scope!(Float64, f64);
+                }
+                DataType::Binary => {
+                    let value = column
+                        .as_any()
+                        .downcast_ref::<arrow::array::BinaryArray>()
+                        .unwrap()
+                        .value(row);
+                    scope.set_or_push(name, String::from_utf8_lossy(value).to_string());
+                }
+                DataType::Utf8 => {
+                    let value = column
+                        .as_any()
+                        .downcast_ref::<arrow::array::StringArray>()
+                        .unwrap()
+                        .value(row);
+                    scope.set_value(name, value.to_string());
+                }
+                dt => {
+                    let _ = dt; // TODO: support more types
+
+                    // return Err(EvalError::ScopeTypeNotSupported(dt.clone()));
+                }
+            }
+        }
+        match self
+            .engine
+            .eval_ast_with_scope::<rhai::Dynamic>(&mut scope, &self.ast)
+        {
+            Ok(v) => Ok(v),
+            Err(e) => {
+                if self.null_if_error {
+                    Ok(rhai::Dynamic::UNIT)
+                } else {
+                    Err(EvalError::RhaiError(self.expr.clone(), e))
+                }
+            }
+        }
+    }
+
+    pub fn eval_as(&self, records: &RecordBatch, r#as: DataType) -> Result<ArrayRef, EvalError> {
+        let rows = records.num_rows();
+        if rows == 0 {
+            return Ok(arrow::array::new_empty_array(&r#as));
+        }
+        let values = self.eval_inner(records)?;
+        let array = array_from_rhai_dynamics(values);
+        if array.is_none() {
+            return Ok(arrow::array::new_null_array(&r#as, rows));
+        }
+        let array = array.unwrap();
+        arrow::compute::cast(&array, &r#as).map_err(Into::into)
+    }
+
+    pub fn eval(
+        &self,
+        records: &RecordBatch,
+        _as: Option<DataType>,
+    ) -> Result<ArrayRef, EvalError> {
+        match _as {
+            None => {
+                let values = self.eval_inner(records)?;
+                let result = array_from_rhai_dynamics(values);
+                if self.null_if_error {
+                    Ok(result.unwrap_or_else(|| Arc::new(NullArray::new(records.num_rows())) as _))
+                } else {
+                    result.ok_or(EvalError::InvalidResult)
+                }
+            }
+            Some(as_type) => self.eval_as(records, as_type),
+        }
+    }
+}
+
+pub fn array_from_rhai_dynamics(values: Vec<Dynamic>) -> Option<ArrayRef> {
+    debug_assert!(
+        values
+            .iter()
+            .filter_map(|v| if v.is_unit() { None } else { Some(v.type_id()) })
+            .all_equal()
+    );
+
+    if values.is_empty() {
+        return None;
+    }
+
+    let value = values.iter().find(|v| !v.is_unit())?;
+    if value.is_bool() {
+        let values: Vec<_> = values
+            .into_iter()
+            .map(|v| v.as_bool().ok())
+            .collect::<Vec<_>>();
+        let array = arrow::array::BooleanArray::from(values);
+        Some(Arc::new(array))
+    } else if value.is_int() {
+        let values: Vec<_> = values
+            .into_iter()
+            .map(|v| v.as_int().ok())
+            .collect::<Vec<_>>();
+        let array = arrow::array::Int64Array::from(values);
+        Some(Arc::new(array))
+    } else if value.is_float() {
+        let values: Vec<_> = values
+            .into_iter()
+            .map(|v| v.as_float().ok())
+            .collect::<Vec<_>>();
+        let array = arrow::array::Float64Array::from(values);
+        Some(Arc::new(array))
+    } else if value.is_string() {
+        let values: Vec<_> = values
+            .into_iter()
+            .map(|v| v.into_immutable_string().ok().map(|v| v.into_owned()))
+            .collect::<Vec<_>>();
+        let array = arrow::array::StringArray::from(values);
+        Some(Arc::new(array))
+    } else {
+        None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use arrow::{array::*, buffer::*, datatypes::*};
+
+    use super::*;
+
+    #[test]
+    fn test_serde() {
+        let expr = Expr::try_new("a + b", true).unwrap();
+        let json = serde_json::to_string(&expr).unwrap();
+        assert_eq!(json, r#"{"expr":"a + b","null_if_error":true}"#);
+
+        let expr = BooleanExpr::try_new("a < b".to_string()).unwrap();
+        let json = serde_json::to_string(&expr).unwrap();
+        assert_eq!(json, r#""a < b""#);
+    }
+
+    #[test]
+    fn test_bool() {
+        let id_array = Int32Array::from(vec![1, 2, 3, 4, 5]);
+        let schema = Schema::new(vec![Field::new("id", DataType::Int32, false)]);
+
+        let batch = RecordBatch::try_new(Arc::new(schema), vec![Arc::new(id_array)]).unwrap();
+
+        let expr = BooleanExpr::try_new("id > 3".to_string()).unwrap();
+
+        let values = expr.eval(&batch).unwrap();
+        assert_eq!(values, [false, false, false, true, true]);
+    }
+
+    #[test]
+    fn test_bool_with_empty_expr() {
+        let expr = BooleanExpr::try_new("".to_string());
+        assert!(expr.is_err());
+        assert_eq!(
+            expr.unwrap_err().to_string(),
+            "Syntax error: Expecting non empty expression (line 1, position 0)"
+        );
+    }
+
+    #[test]
+    fn test_bool_with_nulls() {
+        let id_array = Int32Array::from(vec![Some(1), None, None, Some(4), Some(5)]);
+        let schema = Schema::new(vec![Field::new("id", DataType::Int32, true)]);
+
+        let batch = RecordBatch::try_new(Arc::new(schema), vec![Arc::new(id_array)]).unwrap();
+
+        let expr = BooleanExpr::try_new("id > 3".to_string()).unwrap();
+
+        let values = expr.eval(&batch).unwrap();
+        assert_eq!(values, [false, false, false, true, true]);
+    }
+
+    #[test]
+    fn test_i8() {
+        let id_array = Int8Array::from(vec![Some(1), None, None, Some(4), Some(5)]);
+        let schema = Schema::new(vec![Field::new("id", DataType::Int8, true)]);
+
+        let batch = RecordBatch::try_new(Arc::new(schema), vec![Arc::new(id_array)]).unwrap();
+
+        let expr = BooleanExpr::try_new("id > 3".to_string()).unwrap();
+
+        let values = expr.eval(&batch).unwrap();
+        assert_eq!(values, [false, false, false, true, true]);
+    }
+
+    #[test]
+    fn test_int_plus_float() {
+        let expr = Expr::try_new("a + b", true).unwrap();
+        let i8_array = Int8Array::from(vec![Some(1), None, None, Some(4), Some(5)]);
+        let f32_array = Float32Array::from(vec![Some(1.), None, Some(1.), Some(4.), Some(5.)]);
+
+        let batch = RecordBatch::try_from_iter(vec![
+            ("a", Arc::new(i8_array) as ArrayRef),
+            ("b", Arc::new(f32_array) as ArrayRef),
+        ])
+        .unwrap();
+
+        let values = expr.eval_as(&batch, DataType::Float32).unwrap();
+        dbg!(&values);
+        assert_eq!(
+            values.as_primitive::<Float32Type>().iter().collect_vec(),
+            [Some(2.), None, None, Some(8.), Some(10.)]
+        );
+        let values = expr.eval_as(&batch, DataType::UInt64).unwrap();
+        dbg!(&values);
+        assert_eq!(
+            values.as_primitive::<UInt64Type>().iter().collect_vec(),
+            [Some(2u64), None, None, Some(8), Some(10)]
+        );
+        let values = expr.eval_as(&batch, DataType::Utf8).unwrap();
+        dbg!(&values);
+        assert_eq!(
+            values.as_string::<i32>().iter().collect_vec(),
+            [Some("2.0"), None, None, Some("8.0"), Some("10.0")]
+        );
+    }
+    #[test]
+    fn test_int_plus_int() {
+        let expr = Expr::try_new("a + b", true).unwrap();
+        let i8_array = Int8Array::from(vec![Some(1), None, None, Some(4), Some(5)]);
+        let f32_array = Int32Array::from(vec![Some(1), None, Some(1), Some(4), Some(5)]);
+
+        let batch = RecordBatch::try_from_iter(vec![
+            ("a", Arc::new(i8_array) as ArrayRef),
+            ("b", Arc::new(f32_array) as ArrayRef),
+        ])
+        .unwrap();
+
+        let values = expr.eval_as(&batch, DataType::Float32).unwrap();
+        dbg!(&values);
+        assert_eq!(
+            values.as_primitive::<Float32Type>().iter().collect_vec(),
+            [Some(2.), None, None, Some(8.), Some(10.)]
+        );
+        let values = expr.eval_as(&batch, DataType::UInt64).unwrap();
+        dbg!(&values);
+        assert_eq!(
+            values.as_primitive::<UInt64Type>().iter().collect_vec(),
+            [Some(2u64), None, None, Some(8), Some(10)]
+        );
+        let values = expr.eval_as(&batch, DataType::Utf8).unwrap();
+        dbg!(&values);
+        assert_eq!(
+            values.as_string::<i32>().iter().collect_vec(),
+            [Some("2"), None, None, Some("8"), Some("10")]
+        );
+    }
+
+    #[test]
+    fn test_string_plus_string() {
+        let expr = Expr::try_new("a + b", true).unwrap();
+        let i8_array = StringArray::from(vec![Some("1"), None, None, Some("4"), Some("5")]);
+        let f32_array = StringArray::from(vec![Some("1"), None, Some("1"), Some("4"), Some("5")]);
+
+        let batch = RecordBatch::try_from_iter(vec![
+            ("a", Arc::new(i8_array) as ArrayRef),
+            ("b", Arc::new(f32_array) as ArrayRef),
+        ])
+        .unwrap();
+
+        let values = expr.eval_as(&batch, DataType::Float32).unwrap();
+        dbg!(&values);
+        assert_eq!(
+            values.as_primitive::<Float32Type>().iter().collect_vec(),
+            [Some(11.), None, Some(1.0), Some(44.), Some(55.)]
+        );
+        let values = expr.eval_as(&batch, DataType::UInt64).unwrap();
+        dbg!(&values);
+        assert_eq!(
+            values.as_primitive::<UInt64Type>().iter().collect_vec(),
+            [Some(11u64), None, Some(1), Some(44), Some(55)]
+        );
+        let values = expr.eval_as(&batch, DataType::Utf8).unwrap();
+        dbg!(&values);
+        assert_eq!(
+            values.as_string::<i32>().iter().collect_vec(),
+            [Some("11"), None, Some("1"), Some("44"), Some("55")]
+        );
+    }
+
+    #[test]
+    fn test_string_operations() {
+        let expr = Expr::try_new(r#"a.starts_with("123")"#, true).unwrap();
+        let a = StringArray::from(vec![Some("1234567890")]);
+
+        let batch = RecordBatch::try_from_iter(vec![("a", Arc::new(a) as ArrayRef)]).unwrap();
+
+        let values = expr.eval_as(&batch, DataType::Boolean).unwrap();
+        dbg!(&values);
+        assert_eq!(values.as_boolean().iter().collect_vec(), [Some(true)]);
+    }
+
+    #[test]
+    fn test_array_from_rhai_dynamics_all_unit() {
+        let values: Vec<Dynamic> = vec![Dynamic::UNIT, Dynamic::UNIT];
+        let result = super::array_from_rhai_dynamics(values);
+        assert!(result.is_none(), "unit-only vector should produce None");
+    }
+
+    #[test]
+    fn test_array_from_rhai_dynamics_mixed_units_strings() {
+        let values: Vec<Dynamic> = vec![
+            Dynamic::UNIT,
+            Dynamic::from("hello"),
+            Dynamic::UNIT,
+            Dynamic::from("world"),
+        ];
+        let result = super::array_from_rhai_dynamics(values).unwrap();
+        let array = result
+            .as_any()
+            .downcast_ref::<arrow::array::StringArray>()
+            .unwrap();
+        assert_eq!(
+            array.iter().collect_vec(),
+            vec![None, Some("hello"), None, Some("world")]
+        );
+    }
+
+    #[test]
+    fn test_array_from_rhai_dynamics_empty() {
+        let values: Vec<Dynamic> = vec![];
+        let result = super::array_from_rhai_dynamics(values);
+        assert!(result.is_none(), "empty vector should produce None");
+    }
+
+    #[test]
+    fn test_array_from_rhai_dynamics_unsupported_type() {
+        let values: Vec<Dynamic> = vec![Dynamic::from(rhai::Map::new())];
+        let result = super::array_from_rhai_dynamics(values);
+        assert!(result.is_none(), "unsupported type should produce None");
+    }
+
+    fn get_time_str(n: i64) -> String {
+        let dt = chrono::Utc::now() + chrono::Duration::seconds(n);
+        dt.to_rfc3339()
+    }
+
+    #[test]
+    fn test_check_time_range() {
+        let a = StringArray::from(vec![
+            Some(get_time_str(-2)),
+            Some(get_time_str(-90)),
+            Some(get_time_str(60)),
+            Some(get_time_str(-604801)),
+            Some(get_time_str(3600)),
+        ]);
+        let batch = RecordBatch::try_from_iter(vec![("a", Arc::new(a) as ArrayRef)]).unwrap();
+        dbg!(&batch);
+
+        // 测试7天前到当前时间
+        let expr = Expr::try_new(r#"between_time_range(a, -604800, 0)"#, true).unwrap();
+        let values = expr.eval_as(&batch, DataType::Boolean).unwrap();
+        assert_eq!(
+            values.as_boolean().iter().collect_vec(),
+            [
+                Some(true),
+                Some(true),
+                Some(false),
+                Some(false),
+                Some(false)
+            ]
+        );
+    }
+
+    #[test]
+    fn test_string_operations_ext() {
+        let a = StringArray::from(vec![Some("11234567890")]);
+        let batch = RecordBatch::try_from_iter(vec![("a", Arc::new(a) as ArrayRef)]).unwrap();
+
+        let expr = Expr::try_new(r#"a.append("abc")"#, true).unwrap();
+        let values = expr.eval_as(&batch, DataType::Utf8).unwrap();
+        dbg!(&values);
+        assert_eq!(
+            values.as_string::<i32>().iter().collect_vec(),
+            [Some("11234567890abc")]
+        );
+
+        let expr = Expr::try_new(r#"a.replace("1","2")"#, true).unwrap();
+        let values = expr.eval_as(&batch, DataType::Utf8).unwrap();
+        dbg!(&values);
+        assert_eq!(
+            values.as_string::<i32>().iter().collect_vec(),
+            [Some("22234567890")]
+        );
+
+        let expr = Expr::try_new(r#"a.replace("1","2", 1)"#, true).unwrap();
+        let values = expr.eval_as(&batch, DataType::Utf8).unwrap();
+        dbg!(&values);
+        assert_eq!(
+            values.as_string::<i32>().iter().collect_vec(),
+            [Some("21234567890")]
+        );
+
+        let expr = Expr::try_new(r#"a.truncate(4)"#, true).unwrap();
+        let values = expr.eval_as(&batch, DataType::Utf8).unwrap();
+        dbg!(&values);
+        assert_eq!(
+            values.as_string::<i32>().iter().collect_vec(),
+            [Some("1123")]
+        );
+    }
+    #[test]
+    fn test_if_statement() {
+        let expr = Expr::try_new(
+            r#"if a.starts_with("123") {
+            "foo"
+        } else if (a.len() > 5) {
+            "bar"
+        } else {
+            "baz"
+        }"#,
+            true,
+        )
+        .unwrap();
+        let a = StringArray::from(vec![Some("1234567890"), None, Some("abcdefg"), Some("no")]);
+
+        let batch = RecordBatch::try_from_iter(vec![("a", Arc::new(a) as ArrayRef)]).unwrap();
+
+        let values = expr.eval_as(&batch, DataType::Utf8).unwrap();
+        dbg!(&values);
+        assert_eq!(
+            values.as_string::<i32>().iter().collect_vec(),
+            [Some("foo"), None, Some("bar"), Some("baz")]
+        );
+    }
+
+    #[test]
+    fn test_logical_and_operations() {
+        let a = Int32Array::from(vec![1, 2, 3, 4, 5]);
+        let b = Int32Array::from(vec![5, 4, 3, 2, 1]);
+        let batch = RecordBatch::try_from_iter(vec![
+            ("a", Arc::new(a) as ArrayRef),
+            ("b", Arc::new(b) as ArrayRef),
+        ])
+        .unwrap();
+
+        // a > 2: [false, false, true, true, true]
+        // b > 2: [true, true, true, false, false]
+        // AND:   [false, false, true, false, false]
+        let expr = BooleanExpr::try_new("a > 2 && b > 2".to_string()).unwrap();
+        let values = expr.eval(&batch).unwrap();
+        assert_eq!(values, [false, false, true, false, false]);
+    }
+
+    #[test]
+    fn test_logical_or_operations() {
+        let a = Int32Array::from(vec![1, 2, 3, 4, 5]);
+        let b = Int32Array::from(vec![5, 4, 3, 2, 1]);
+        let batch = RecordBatch::try_from_iter(vec![
+            ("a", Arc::new(a) as ArrayRef),
+            ("b", Arc::new(b) as ArrayRef),
+        ])
+        .unwrap();
+
+        let expr = BooleanExpr::try_new("a > 4 || b > 4".to_string()).unwrap();
+        let values = expr.eval(&batch).unwrap();
+        assert_eq!(values, [true, false, false, false, true]);
+    }
+
+    #[test]
+    fn test_logical_not_operations() {
+        let a = BooleanArray::from(vec![true, false, true, false]);
+        let batch = RecordBatch::try_from_iter(vec![("a", Arc::new(a) as ArrayRef)]).unwrap();
+
+        let expr = BooleanExpr::try_new("!a".to_string()).unwrap();
+        let values = expr.eval(&batch).unwrap();
+        assert_eq!(values, [false, true, false, true]);
+    }
+
+    #[test]
+    fn test_binary_column_is_exposed_as_string() {
+        let a = BinaryArray::from(vec![Some(b"hello" as &[u8]), Some(b"world")]);
+        let batch = RecordBatch::try_from_iter(vec![("a", Arc::new(a) as ArrayRef)]).unwrap();
+
+        let expr = Expr::try_new("a", true).unwrap();
+        let values = expr.eval_as(&batch, DataType::Utf8).unwrap();
+        assert_eq!(
+            values.as_string::<i32>().iter().collect_vec(),
+            [Some("hello"), Some("world")]
+        );
+    }
+
+    #[test]
+    fn test_eval_error_when_null_if_error_is_false() {
+        let a = Int32Array::from(vec![1, 2]);
+        let batch = RecordBatch::try_from_iter(vec![("a", Arc::new(a) as ArrayRef)]).unwrap();
+
+        let expr = Expr::try_new("missing + 1", false).unwrap();
+        let err = expr.eval(&batch, None).unwrap_err();
+        assert!(matches!(err, EvalError::RhaiError(_, _)));
+    }
+
+    #[test]
+    fn test_invalid_result_when_all_unit_and_no_null_if_error() {
+        let a = Int32Array::from(vec![1, 2]);
+        let batch = RecordBatch::try_from_iter(vec![("a", Arc::new(a) as ArrayRef)]).unwrap();
+
+        let expr = Expr::try_new("if a > 0 { () } else { () }", false).unwrap();
+        let err = expr.eval(&batch, None).unwrap_err();
+        assert!(matches!(err, EvalError::InvalidResult));
+    }
+
+    #[test]
+    fn test_null_if_error_returns_null_array() {
+        let a = Int32Array::from(vec![1, 2]);
+        let batch = RecordBatch::try_from_iter(vec![("a", Arc::new(a) as ArrayRef)]).unwrap();
+
+        let expr = Expr::try_new("missing + 1", true).unwrap();
+        let arr = expr.eval(&batch, Some(DataType::Int64)).unwrap();
+        assert_eq!(arr.len(), 2);
+        assert!(arr.is_null(0));
+        assert!(arr.is_null(1));
+    }
+
+    #[test]
+    fn test_arithmetic_multiplication() {
+        let expr = Expr::try_new("a * b", true).unwrap();
+        let a = Int32Array::from(vec![2, 3, 4, 5]);
+        let b = Int32Array::from(vec![3, 4, 5, 6]);
+        let batch = RecordBatch::try_from_iter(vec![
+            ("a", Arc::new(a) as ArrayRef),
+            ("b", Arc::new(b) as ArrayRef),
+        ])
+        .unwrap();
+
+        let values = expr.eval_as(&batch, DataType::Int32).unwrap();
+        assert_eq!(
+            values.as_primitive::<Int32Type>().iter().collect_vec(),
+            [Some(6), Some(12), Some(20), Some(30)]
+        );
+    }
+
+    #[test]
+    fn test_arithmetic_division() {
+        let expr = Expr::try_new("a / b", true).unwrap();
+        let a = Int32Array::from(vec![10, 20, 30, 40]);
+        let b = Int32Array::from(vec![2, 4, 5, 8]);
+        let batch = RecordBatch::try_from_iter(vec![
+            ("a", Arc::new(a) as ArrayRef),
+            ("b", Arc::new(b) as ArrayRef),
+        ])
+        .unwrap();
+
+        let values = expr.eval_as(&batch, DataType::Int32).unwrap();
+        assert_eq!(
+            values.as_primitive::<Int32Type>().iter().collect_vec(),
+            [Some(5), Some(5), Some(6), Some(5)]
+        );
+    }
+
+    #[test]
+    fn test_null_handling_in_arithmetic() {
+        let expr = Expr::try_new("a + b", true).unwrap();
+        let a = Int32Array::from(vec![Some(1), None, Some(3)]);
+        let b = Int32Array::from(vec![Some(10), Some(20), None]);
+        let batch = RecordBatch::try_from_iter(vec![
+            ("a", Arc::new(a) as ArrayRef),
+            ("b", Arc::new(b) as ArrayRef),
+        ])
+        .unwrap();
+
+        let values = expr.eval_as(&batch, DataType::Int32).unwrap();
+        assert_eq!(
+            values.as_primitive::<Int32Type>().iter().collect_vec(),
+            [Some(11), None, None]
+        );
+    }
+
+    #[test]
+    fn test_type_coercion_float_to_int() {
+        let expr = Expr::try_new("a", true).unwrap();
+        let a = Float32Array::from(vec![1.5, 2.7, 3.2, 4.9]);
+        let batch = RecordBatch::try_from_iter(vec![("a", Arc::new(a) as ArrayRef)]).unwrap();
+
+        let values = expr.eval_as(&batch, DataType::Int32).unwrap();
+        assert_eq!(
+            values.as_primitive::<Int32Type>().iter().collect_vec(),
+            [Some(1), Some(2), Some(3), Some(4)]
+        );
+    }
+
+    #[test]
+    fn test_type_coercion_int_to_string() {
+        let expr = Expr::try_new("a", true).unwrap();
+        let a = Int32Array::from(vec![1, 22, 333, 4444]);
+        let batch = RecordBatch::try_from_iter(vec![("a", Arc::new(a) as ArrayRef)]).unwrap();
+
+        let values = expr.eval_as(&batch, DataType::Utf8).unwrap();
+        assert_eq!(
+            values.as_string::<i32>().iter().collect_vec(),
+            [Some("1"), Some("22"), Some("333"), Some("4444")]
+        );
+    }
+
+    #[test]
+    fn test_comparison_equal() {
+        let a = Int32Array::from(vec![1, 2, 3, 3, 5]);
+        let b = Int32Array::from(vec![1, 3, 3, 2, 5]);
+        let batch = RecordBatch::try_from_iter(vec![
+            ("a", Arc::new(a) as ArrayRef),
+            ("b", Arc::new(b) as ArrayRef),
+        ])
+        .unwrap();
+
+        let expr = BooleanExpr::try_new("a == b".to_string()).unwrap();
+        let values = expr.eval(&batch).unwrap();
+        assert_eq!(values, [true, false, true, false, true]);
+    }
+
+    #[test]
+    fn test_comparison_not_equal() {
+        let a = Int32Array::from(vec![1, 2, 3, 3, 5]);
+        let b = Int32Array::from(vec![1, 3, 3, 2, 5]);
+        let batch = RecordBatch::try_from_iter(vec![
+            ("a", Arc::new(a) as ArrayRef),
+            ("b", Arc::new(b) as ArrayRef),
+        ])
+        .unwrap();
+
+        let expr = BooleanExpr::try_new("a != b".to_string()).unwrap();
+        let values = expr.eval(&batch).unwrap();
+        assert_eq!(values, [false, true, false, true, false]);
+    }
+
+    #[test]
+    fn test_filter_record_batch() {
+        let id_array = Int32Array::from(vec![1, 2, 3, 4, 5]);
+        let name_array = StringArray::from(vec!["a", "b", "c", "d", "e"]);
+        let batch = RecordBatch::try_from_iter(vec![
+            ("id", Arc::new(id_array) as ArrayRef),
+            ("name", Arc::new(name_array) as ArrayRef),
+        ])
+        .unwrap();
+
+        let expr = BooleanExpr::try_new("id > 3".to_string()).unwrap();
+        let filtered = expr.filter(&batch).unwrap();
+
+        assert_eq!(filtered.num_rows(), 2);
+        let id_col = filtered.column(0).as_primitive::<Int32Type>();
+        assert_eq!(id_col.iter().collect_vec(), [Some(4), Some(5)]);
+    }
+
+    #[test]
+    fn test_boolean_predicate_values_treat_nulls_as_false() {
+        let predicate = BooleanArray::new(
+            BooleanBuffer::from_iter([true, true, false]),
+            Some(NullBuffer::from(vec![true, false, true])),
+        );
+
+        assert_eq!(
+            boolean_predicate_values(&predicate),
+            vec![true, false, false]
+        );
+    }
+
+    #[test]
+    fn test_boolean_predicate_filter_treats_nulls_as_false() {
+        let predicate = BooleanArray::new(
+            BooleanBuffer::from_iter([true, true, false]),
+            Some(NullBuffer::from(vec![true, false, true])),
+        );
+
+        assert_eq!(
+            boolean_predicate_filter(&predicate).iter().collect_vec(),
+            vec![Some(true), Some(false), Some(false)]
+        );
+    }
+
+    #[test]
+    fn test_condition_expr_eval_treats_nulls_as_false() {
+        let id_array = Int32Array::from(vec![1, 2, 3]);
+        let batch =
+            RecordBatch::try_from_iter(vec![("id", Arc::new(id_array) as ArrayRef)]).unwrap();
+
+        let expr = ConditionExpr::try_new("missing > 0", true).unwrap();
+
+        assert_eq!(expr.eval(&batch).unwrap(), vec![false, false, false]);
+    }
+
+    #[test]
+    fn test_condition_expr_filter_excludes_null_rows() {
+        let id_array = Int32Array::from(vec![1, 2, 3]);
+        let batch =
+            RecordBatch::try_from_iter(vec![("id", Arc::new(id_array) as ArrayRef)]).unwrap();
+
+        let expr = ConditionExpr::try_new("missing > 0", true).unwrap();
+        let filtered = expr.filter(&batch).unwrap();
+
+        assert_eq!(filtered.num_rows(), 0);
+    }
+
+    #[test]
+    fn test_empty_batch() {
+        let empty_array: Int32Array = Int32Array::from(vec![] as Vec<Option<i32>>);
+        let batch =
+            RecordBatch::try_from_iter(vec![("a", Arc::new(empty_array) as ArrayRef)]).unwrap();
+
+        let expr = Expr::try_new("a + 10", true).unwrap();
+        let values = expr.eval_inner(&batch).unwrap();
+        assert_eq!(values.len(), 0);
+    }
+
+    #[test]
+    fn test_eval_as_empty_batch_returns_empty_array() {
+        let empty_array: Int32Array = Int32Array::from(vec![] as Vec<Option<i32>>);
+        let batch =
+            RecordBatch::try_from_iter(vec![("a", Arc::new(empty_array) as ArrayRef)]).unwrap();
+
+        let expr = Expr::try_new("a", true).unwrap();
+        let array = expr.eval_as(&batch, DataType::Int32).unwrap();
+        assert_eq!(array.len(), 0);
+        assert_eq!(array.data_type(), &DataType::Int32);
+    }
+
+    #[test]
+    fn test_expr_equality() {
+        let expr1 = Expr::try_new("a + b", true).unwrap();
+        let expr2 = Expr::try_new("a + b", true).unwrap();
+        let expr3 = Expr::try_new("a - b", true).unwrap();
+        let expr4 = Expr::try_new("a + b", false).unwrap();
+
+        assert_eq!(expr1, expr2);
+        assert_ne!(expr1, expr3);
+        assert_ne!(expr1, expr4);
+    }
+
+    #[test]
+    fn test_deserialization_with_null_if_error() {
+        let json = r#"{"expr":"a + b","null_if_error":false}"#;
+        let expr: Expr = serde_json::from_str(json).unwrap();
+        assert_eq!(expr.expr, "a + b");
+        assert!(!expr.null_if_error);
+    }
+
+    #[test]
+    fn test_deserialization_without_null_if_error() {
+        let json = r#"{"expr":"a + b"}"#;
+        let expr: Expr = serde_json::from_str(json).unwrap();
+        assert_eq!(expr.expr, "a + b");
+        assert!(expr.null_if_error); // Default value
+    }
+}

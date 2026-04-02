@@ -1,0 +1,5 @@
+tag_name,stable,tbname,value_col,tag::VARCHAR(200)::name,received_ts_col
+Bucket Brigade.Real8,stb,tb_wide,d_col,WIDE_TABLE,ts
+Bucket Brigade.String,stb,tb_wide,s_col,WIDE_TABLE,ts
+Bucket Brigade.Int4,stb,tb_wide,i_col,WIDE_TABLE,ts
+Bucket Brigade.Boolean,stb,tb_wide,b_col,WIDE_TABLE,ts

@@ -1,0 +1,67 @@
+# 服务端口
+server:
+  port: 0
+# 日志配置
+logging:
+  config: classpath:log4j2.yml
+  level:
+    _org.springframework.*: off
+    org.springframework.*: off
+    org.apache.*: off
+    io.netty.util.*: off
+spring:
+  main:
+    log-startup-info: false
+    banner-mode: off
+  profiles:
+    include: db-source, netty
+
+# task parameters
+task:
+  # whether to resume running from the last breakpoint: normal(default)/resume
+  mode: normal
+  # empty is all, follow this principle
+  buckets:
+    - taosdata
+    - test
+  measurements:
+  beginTime: 2023-05-16 08:00:00
+  # empty is now
+  endTime: 2023-06-30 16:14:00
+  # logLevel: trace/debug/info/warn/error
+  logLevel: info
+
+#performance parameters
+performance:
+  delay: 10000
+  limitConnect: 500
+  limitBatch: 5000
+  limitSpeed: -1
+  retryTimes: 3
+  # millisecond
+  retryInterval: 200
+  readWindow: 1
+  maxThread: 50
+  queueSizeT: 1000
+  queueSizeD: 200000
+  thread:
+    # MessageThread线程
+    processMessageInterval: 1
+    processMessageEmptyInterval: 10
+    # PushPrepareThread线程
+    readBucketDataBatch: 200000
+    pushPrepareInterval: 10
+    # PushThread线程
+    pushInterval: 0
+    pushEmptyInterval: 10
+    # BucketThread线程
+    createBucketInterval: 1
+    createBucketFullInterval: 200
+    # BucketDataThread线程
+    readBucketBatch: 1000
+    readBucketInterval: 1
+    readBucketFullInterval: 200
+    # ScheduleThread线程
+    scheduleInterval: 5
+    # MonitorThread线程
+    monitorInterval: 500

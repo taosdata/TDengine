@@ -1,0 +1,122 @@
+[package]
+name = "taos-explorer"
+version = "1.10.0"
+edition.workspace = true
+description = "TDengine Explorer UI"
+
+[dependencies]
+actix-cors.workspace = true
+actix-files.workspace = true
+actix-multipart.workspace = true
+actix-web.workspace = true
+actix-ws.workspace = true
+awc.workspace = true
+async-stream.workspace = true
+futures-util.workspace = true
+bytes.workspace = true
+rustls = { workspace = true, default-features = false, features = ["ring"] }
+rustls-pemfile.workspace = true
+reqwest = { workspace = true, default-features = false, features = [
+  "stream",
+  "json",
+  "deflate",
+  "rustls-tls",
+] }
+clap-verbosity-flag = { workspace = true }
+anyhow.workspace = true
+clap.workspace = true
+dotenv.workspace = true
+sqlx = { workspace = true, features = ["sqlite", "chrono", "runtime-tokio"] }
+tokio = { workspace = true, features = ["full"] }
+tokio-util = { workspace = true, features = ["compat"] }
+tokio-stream = { workspace = true, features = ["net", "sync"] }
+log = { workspace = true, features = ["serde"] }
+http-auth-basic = "0.3"
+rust-embed = { version = "8.9.0", default-features = false, features = ["actix", "mime-guess"] }
+# rust-embed-for-web = { version = "11.3.0" }
+actix-web-rust-embed-responder = { version = "2.3.0", default-features = false, features = ["support-rust-embed"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { version = "1", features = ["arbitrary_precision"] }
+thiserror.workspace = true
+toml.workspace = true
+tracing.workspace = true
+tracing-actix-web.workspace = true
+tracing-subscriber.workspace = true
+sha1 = "0.10.6"
+rand.workspace = true
+captcha = "1"
+deadpool.workspace = true
+const_format.workspace = true
+shadow-rs = { workspace = true }
+geos = { git = "https://github.com/georust/geos", rev = "47afbad2483e489911ddb456417808340e9342c3", features = [
+  "static",
+] }
+hex.workspace = true
+chrono.workspace = true
+chrono-tz.workspace = true
+scc = { workspace = true }
+bitfield.workspace = true
+taoslog = { workspace = true, features = ["ansi"] }
+http.workspace = true
+serde_with.workspace = true
+assert_cmd.workspace = true
+assert_fs.workspace = true
+regex.workspace = true
+mimalloc = { workspace = true, optional = true }
+futures.workspace = true
+pin-project-lite.workspace = true
+faststr.workspace = true
+sysinfo.workspace = true
+metrics.workspace = true
+taosx-metrics.workspace = true
+gethostname = "1"
+openidconnect = "4.0.1"
+actix-session = { version = "0.11.0", features = ["cookie-session"] }
+url = "2.5"
+uuid = { version = "1.19.0", features = ["v4", "serde"] }
+sha2 = "0.10"
+aes-gcm = "0.10"
+base64 = "0.22"
+urlencoding.workspace = true
+cbc = { version = "0.1.2", features = ["std"] }
+aes = "0.8.4"
+hkdf = "0.12.4"
+hmac = "0.12.1"
+litcrypt = "0.4.0"
+mime_guess = "2.0.5"
+
+tonic.workspace = true
+flume.workspace = true
+arrow.workspace = true
+arrow-flight.workspace = true
+itertools.workspace = true
+source-csv.workspace = true
+tempfile.workspace = true
+csv.workspace = true
+csv-async.workspace = true
+
+ha-core.workspace = true
+ha-rpc-client.workspace = true
+taosx-core.workspace = true
+taosx-utils.workspace = true
+futures-ext.workspace = true
+tmq-to-local.workspace = true
+
+[dependencies.taos]
+workspace = true
+
+[build-dependencies]
+shadow-rs = { workspace = true }
+
+[dev-dependencies]
+base64.workspace = true
+mockito = "1.6.1"
+predicates = "3.1.3"
+serial_test = "3.0"
+
+[lints]
+workspace = true
+
+[features]
+default = ["mimalloc"]
+disable-x-api = []

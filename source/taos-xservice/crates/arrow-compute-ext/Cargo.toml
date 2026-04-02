@@ -1,0 +1,11 @@
+[package]
+name = "arrow-compute-ext"
+edition.workspace = true
+version.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+arrow = { workspace = true }
+arrow-schema = { workspace = true, features = ["serde"] }
+serde_json = { workspace = true, features = ["raw_value", "preserve_order"] }
+serde = { workspace = true }

@@ -1,0 +1,31 @@
+[tool.poetry]
+name = "taosx-test"
+version = "0.1.0"
+description = ""
+authors = ["WANG Xu <feici02@outlook.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = ">=3.9.2,<4.0"
+pytest = "^7.4.2"
+pytest-rerunfailures = "^15.1"
+allure-pytest = "^2.13.2"
+pytest-timeout = "^2.2.0"
+semver = "^3.0.2"
+python-dateutil = "^2.9.0.post0"
+taos-ws-py = "^0.3.3"
+cryptography = ">=44.0.1"
+testng-taosx = { git = "https://github.com/taosdata/TestNG_taosX.git", branch = "framework-only" }
+packaging = "^23.0"
+
+[tool.poetry.group.dev.dependencies]
+pre-commit = "^3.7.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[[tool.poetry.source]]
+name = "aliyun"
+url = "https://mirrors.aliyun.com/pypi/simple"
+priority = "primary"

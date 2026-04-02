@@ -1,0 +1,3 @@
+endpoint="https://127.0.0.1:6055"
+token="eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOjEsImlhdCI6MTc0MjM2MzYzM30.4UqRy5XpXvphUMfTrfMOaTkVl9_UTyCg-t-5mnJcSDY"
+ca = "tests/tls/ca.pem"

@@ -1,0 +1,58 @@
+Rob Siemborski <rjs3+@andrew.cmu.edu> wrote and tested the conversion
+to the SASLv2 API.
+
+Ken Murchison <murch@andrew.cmu.edu> worked on the OTP, NTLM, SRP and SQL
+plugins, as well as helping to track down bugs as they appear. He also
+added support for HTTP authentication.
+
+Rob Earhart <earhart@cmu.edu> wrote the build/installation procedure,
+wrote and tested some of the code, and provided general guidance and
+coding advice.
+
+Leif Johansson <leifj@matematik.su.se> wrote the GSSAPI plugin, with
+contributions from Sam Hartman <hartmans@fundsxpress.com>.
+
+Leandro Santi <lesanti@sinectis.com.ar> added Courier authdaemon support.
+
+Alexey Melnikov <alexey.melnikov@isode.com> wrote the first pass of the
+DIGEST-MD5 and SCRAM plugins and continues to work on them.  He also wrote
+a good deal of the current Windows support.
+
+Rainer Schoepf <schoepf@uni-mainz.de> contributed the LOGIN plugin,
+based on Tim Martin's PLAIN plugin.
+
+Simon Loader <simon@surf.org.uk> wrote the MySQL auxprop module.
+
+Rolf Braun <rbraun@andrew.cmu.edu> wrote the MacOS ports.
+
+Howard Chu <hyc@highlandsun.com> put a good deal of work into OS/390
+portability, correct building of static libraries, and a slew
+of misc. bugfixes.
+
+Tim Martin <tmartin@andrew.cmu.edu> wrote, debugged, and tested
+most of the SASLv1 code.
+
+Larry Greenfield <leg+sasl@andrew.cmu.edu> complained. a lot.
+
+Chris Newman <chris.newman@oracle.com> wrote the initial version of the
+SASL API, as well as the version 2 SASL API (documented in sasl.h,
+saslutil.h, saslplug.h, and prop.h).
+
+Ryan Troll <ryan@andrew.cmu.edu> started the Windows port,
+and both Larry Greenfield and Alexey Melnikov have done more work on it.
+
+getaddrinfo.c was written by Hajimu UMEMOTO <ume@mahoroba.org>
+which is based on the IPv6 code written by KIKUCHI Takahiro
+<kick@kyoto.wide.ad.jp>
+
+Igor Brezac <igor@ipass.net> has done a good deal of work on the saslauthd
+LDAP module.
+
+Jeremy Rumpf <jrumpf@heavyload.net> implemented the credential cache, unified
+the different IPC methods under a common framework.
+
+Fabian Knittel <fknittel@gmx.de> wrote auth_pam plugin, based on
+Debian's pwcheck_pam daemon by Michael-John Turner <mj@debian.org>.
+
+saslauthd was originally contributed by Lyndon Nerenberg on
+behalf of MessagingDirect Ltd.

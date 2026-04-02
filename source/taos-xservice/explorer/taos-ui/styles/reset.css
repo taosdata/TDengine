@@ -1,0 +1,50 @@
+@use '@unocss/reset/normalize';
+
+* {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+}
+
+/* 重置滚动条样式 */
+*::-webkit-scrollbar {
+  width: 8px !important;
+  height: 8px !important;
+  background: rgb(241 241 241 / 20%);
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: rgb(220 220 220 / 80%);
+  border-radius: 4px;
+}
+
+:focus-visible {
+  outline: none;
+}
+
+a {
+  text-decoration: none;
+  cursor: pointer;
+}
+
+ul {
+  list-style: none;
+}
+
+ol {
+  list-style-position: inside;
+}
+
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+  appearance: none;
+}
+
+input[type='number'] {
+  appearance: textfield;
+}
+
+svg {
+  width: 1em;
+  height: 1em;
+}

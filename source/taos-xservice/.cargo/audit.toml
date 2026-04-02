@@ -1,0 +1,25 @@
+[advisories]
+ignore = [
+  # `rsa` is indirectly referenced by sqlx
+  "RUSTSEC-2023-0071",
+  # `proc-macro-error` is indirectly referenced by utoipa and multi_index_map
+  "RUSTSEC-2024-0370",
+  # `yaml-rust` is indirectly referenced by config
+  "RUSTSEC-2024-0320",
+  # `instant` is unmaintained. It is indirectly referenced by rhai and parking_lot
+  "RUSTSEC-2024-0384",
+  # `dotenv` is used in taosx
+  "RUSTSEC-2021-0141",
+  # derivative is indirectly referenced by ring-channel and mongodb
+  "RUSTSEC-2024-0388",
+  # idna, wait for mongodb / hickory-proto to update
+  "RUSTSEC-2024-0421",
+  # rust-decimal rejected the fix
+  "RUSTSEC-2026-0001",
+  # rustls-webpki 0.102.8: rumqttc 0.25.1 pins ^0.102, fix requires >=0.103.10.
+  # No newer rumqttc release available yet. nats 0.25.0 is optional and not compiled.
+  "RUSTSEC-2026-0049",
+]
+
+[output]
+quiet = false

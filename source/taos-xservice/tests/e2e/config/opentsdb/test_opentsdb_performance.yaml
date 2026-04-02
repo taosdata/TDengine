@@ -1,0 +1,21 @@
+task_name: opentsdb
+task_type: opentsdb
+
+from:
+  fromhost: opentsdb+http://{0}
+  metrics: perf_test
+  beginTime: "2024-01-01T00:00:00+08:00"
+  endTime: "2024-01-31T00:00:00+08:00"
+  readWindow: 60
+  delay: 10
+  log_level: info
+  read_concurrency: 50
+  write_concurrency: 50
+  batch_size: 5000
+  batch_timeout: 1000
+
+to:
+  target_type: taos
+  target_dbname: perf_opentsdb
+
+task_exec_time: 20

@@ -1,0 +1,1125 @@
+<template>
+  <div v-loading="requestIng" style="height: 100%">
+    <div v-if="$slots.actions" class="custom-header">
+      <slot
+        name="actions"
+        :refresh="refresh"
+        :add-db-source="addDbSource"
+        :handle-batch-task="handleBatchTask"
+        :handle-export-task="handleExportTask"
+        :start-case="startCase"
+        :is-disabled="isDisabled"
+        :is-community="dataInProps.isCommunity"
+        :request-ing="requestIng"
+        :multiple-selection="multipleSelection"
+        :task-list="taskList"
+      ></slot>
+    </div>
+
+    <PageTitle
+      v-else
+      :title="t('dataIn.datasource')"
+      :add-title="t('dataIn.addsource')"
+      :request-ing="requestIng"
+      :is-community="dataInProps.isCommunity"
+      @add="addDbSource"
+      @refresh="refresh"
+    >
+      <el-tooltip
+        placement="top-start"
+        effect="light"
+        :open-delay="0"
+        :disabled="!isDisabled"
+        :content="t('dataIn.batchOperateTip', [`${t('dataIn.start')}`])"
+      >
+        <el-button
+          link
+          type="primary"
+          size="default"
+          icon="VideoPlay"
+          class="action-button"
+          :disabled="isDisabled || dataInProps.isCommunity"
+          @click="handleBatchTask('start')"
+          >{{ startCase(t('dataIn.start') + t('dataIn.task')) }}</el-button
+        >
+      </el-tooltip>
+      <el-tooltip
+        :content="t('dataIn.batchOperateTip', [`${t('dataIn.stop')}`])"
+        :disabled="!isDisabled"
+        placement="top-start"
+        effect="light"
+        :open-delay="0"
+      >
+        <el-button
+          link
+          type="primary"
+          size="default"
+          icon="VideoPause"
+          class="action-button"
+          :disabled="isDisabled || dataInProps.isCommunity"
+          @click="handleBatchTask('stop')"
+          >{{ startCase(t('dataIn.stop') + t('dataIn.task')) }}</el-button
+        >
+      </el-tooltip>
+      <el-tooltip
+        :content="t('dataIn.batchOperateTip', [`${t('dataIn.delete')}`])"
+        :disabled="!isDisabled"
+        placement="top-start"
+        effect="light"
+        :open-delay="0"
+      >
+        <el-button
+          link
+          type="primary"
+          size="default"
+          icon="Delete"
+          class="action-button"
+          :disabled="isDisabled || dataInProps.isCommunity"
+          @click="handleBatchTask('delete')"
+          >{{ startCase(t('dataIn.delete') + t('dataIn.task')) }}</el-button
+        >
+      </el-tooltip>
+
+      <el-button
+        link
+        type="primary"
+        size="default"
+        icon="Sell"
+        class="action-button"
+        :disabled="isDisabled || dataInProps.isCommunity"
+        @click="handleExportTask"
+        >{{ startCase(t('dataIn.export') + t('dataIn.task')) }}</el-button
+      >
+
+      <task-import class="action-button" @import-o-k="refresh" />
+    </PageTitle>
+    <div class="container-right-table">
+      <el-table
+        ref="dataSourceTableRef"
+        class="tasks-table with-operations"
+        style="margin-top: 20px"
+        :data="taskList"
+        size="default"
+        :max-height="maxHeight"
+        row-key="id"
+        :border="dataInProps.isIdmp"
+        @selection-change="handleSelectionChange"
+        @cell-click="clickAgent"
+      >
+        <el-table-column type="selection" :reserve-selection="true" width="30"> </el-table-column>
+        <el-table-column type="expand" width="40">
+          <template #default="rowData">
+            <Activities :data="rowData.row.activities" />
+          </template>
+        </el-table-column>
+        <el-table-column
+          id="task-id-column"
+          class-name="task-id-cell"
+          :label="t('dataIn.taskid')"
+          prop="taskid"
+          width="25"
+        >
+          <template #default="scope">
+            <el-tooltip :content="String(scope.row.taskid ?? '')" placement="top-start">
+              <span class="no-wrap">{{ scope.row.taskid }}</span>
+            </el-tooltip>
+          </template>
+        </el-table-column>
+        <el-table-column
+          v-if="dataInProps.isIdmp ? props.columnPropMap?.localname : true"
+          :label="t('dataIn.listName')"
+          sortable
+          prop="localname"
+          min-width="180"
+        >
+          <template #default="scope">
+            <div class="flex-start">
+              <i class="el-circle mr-5px status-icon" :class="getStatusClass(scope.row.healthStatus)"></i>
+              <el-tooltip :content="scope.row.localname" placement="top-start">
+                <span class="no-wrap min-width-160px">{{ scope.row.localname }}</span>
+              </el-tooltip>
+            </div>
+          </template>
+        </el-table-column>
+        <el-table-column
+          v-if="dataInProps.isIdmp ? props.columnPropMap?.localtype : true"
+          :label="t('dataIn.listType')"
+          prop="localtype"
+          min-width="100"
+          sortable
+          :filters="filterMap.type"
+          :filter-method="filterHandler"
+          show-overflow-tooltip
+        >
+          <template #default="scope">
+            <span class="no-wrap">{{ scope.row.localtype }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column
+          v-if="dataInProps.isIdmp ? props.columnPropMap?.target : true"
+          :label="t('dataIn.listTarget')"
+          prop="target"
+          sortable
+          min-width="120"
+          show-overflow-tooltip
+        >
+          <template #default="scope">
+            <span class="no-wrap">{{ scope.row.target }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column
+          v-if="dataInProps.isIdmp ? props.columnPropMap?.created_at : true"
+          :label="t('dataIn.createat')"
+          prop="created_at"
+          sortable
+          min-width="180"
+          show-overflow-tooltip
+        >
+          <template #default="scope">
+            <span class="no-wrap">{{ getTimeParser(scope.row.created_at) }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column
+          v-if="dataInProps.isIdmp ? props.columnPropMap?.via : true"
+          :label="t('dataIn.via')"
+          prop="via"
+          width="80"
+        >
+          <template #default="{ row }">
+            <el-tooltip :content="agentMap[row.via]" placement="top-start">
+              <span class="no-wrap" style="cursor: pointer">{{ agentMap[row.via] }}</span>
+            </el-tooltip>
+          </template>
+        </el-table-column>
+
+        <el-table-column
+          v-if="dataInProps.isIdmp ? props.columnPropMap?.metrics : true"
+          :label="t('dataIn.metrics')"
+          prop="finished_at"
+          min-width="120"
+        >
+          <template #default="scope">
+            <el-button
+              size="small"
+              style="font-size: 12px; color: #4d6992"
+              :disabled="scope.row.status.toLowerCase() == 'cancelled' || dataInProps.isCommunity"
+              @click="viewMetrics(scope.row, scope.row.status.toLowerCase())"
+              >{{ t('common.view') }}</el-button
+            >
+          </template>
+        </el-table-column>
+
+        <el-table-column
+          v-if="dataInProps.isIdmp ? props.columnPropMap?.status : true"
+          :label="t('dataIn.status')"
+          prop="status"
+          sortable
+          :filters="filterMap.status"
+          :filter-method="filterHandler"
+          min-width="150"
+        >
+          <template #default="scope">
+            <div class="status-operation" style="display: flex; white-space: nowrap">
+              <el-tooltip
+                v-if="showErrStatus.includes(scope.row.status.toLowerCase())"
+                placement="bottom"
+                effect="light"
+                popper-class="datain"
+              >
+                <template #content>
+                  <div v-dompurify-html="scope.row.reason" style="max-height: 200px; overflow: auto"></div>
+                </template>
+                <span style="display: inline-block; width: 80px" class="no-wrap">{{
+                  getStatusText(scope.row.status)
+                }}</span>
+              </el-tooltip>
+              <span v-else class="no-wrap">{{ getStatusText(scope.row.status) }}</span>
+            </div>
+          </template>
+        </el-table-column>
+        <el-table-column
+          v-if="dataInProps.isIdmp ? props.columnPropMap?.healthStatus : true"
+          :label="t('dataIn.healthStatusTitle')"
+          prop="healthStatus"
+          width="120"
+          sortable
+          :filters="filterMap.healthStatus"
+          :filter-method="filterHandler"
+        >
+          <template #default="scope">
+            <div
+              v-if="showHealthStatus.includes((scope.row.status || '').toLowerCase())"
+              class="status-operation"
+              style="display: flex; white-space: nowrap"
+            >
+              <el-tooltip placement="bottom" effect="light" popper-class="datain">
+                <template #content>
+                  <div
+                    v-dompurify-html="
+                      scope.row.healthStatus ? t('dataIn.healthStatus.' + scope.row.healthStatus + 'Desc') : ''
+                    "
+                    style="max-height: 200px; overflow: auto"
+                  ></div>
+                </template>
+                <span style="display: inline-block; width: 80px">{{
+                  scope.row.healthStatus ? t('dataIn.healthStatus.' + scope.row.healthStatus) : '-'
+                }}</span>
+              </el-tooltip>
+            </div>
+            <span v-else style="display: inline-block; width: 80px">-</span>
+          </template>
+        </el-table-column>
+        <el-table-column class="with-operations" :width="dataInProps.isIdmp ? 45 : 50" fixed="right">
+          <template #default="scope">
+            <el-dropdown
+              :class="{
+                operations: !dataInProps.isIdmp,
+                show: dataInProps.isIdmp || openedTaskRowId === scope.row.id
+              }"
+              trigger="click"
+              @visible-change="(visible) => onOperationDropdownVisibleChange(scope.row.id, visible)"
+            >
+              <span v-if="dataInProps.isIdmp" class="cursor-pointer" @click.stop>
+                <Icon name="el-more-filled" class="rotate-90deg font-size-20px" />
+              </span>
+              <el-button v-else icon="MoreFilled" size="small" class="rotate-90!" text></el-button>
+
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item @click="viewTask(scope.row, scope.row.status.toLowerCase())">
+                    <el-icon><View /></el-icon>
+                    {{ t('common.view') }}
+                  </el-dropdown-item>
+                  <template v-if="permitStartStatus.includes(scope.row.status.toLowerCase())">
+                    <el-dropdown-item @click="start(scope.row)">
+                      <el-icon><VideoPlay /></el-icon>
+                      {{ t('dataIn.executestart').replace('{name}', scope.row.name) }}
+                    </el-dropdown-item>
+                  </template>
+                  <template v-if="permitStopStatus.includes(scope.row.status.toLowerCase())">
+                    <el-dropdown-item @click="stop(scope.row)">
+                      <el-icon><VideoPause /></el-icon>
+                      {{ t('dataIn.executestop').replace('{name}', scope.row.name) }}
+                    </el-dropdown-item>
+                  </template>
+                  <el-dropdown-item @click="refreshCurrentTask(scope.row)">
+                    <el-icon><Refresh /></el-icon>
+                    {{ t('common.refresh') }}
+                  </el-dropdown-item>
+                  <el-dropdown-item @click="exportCurrentTask(scope.row)">
+                    <el-icon><Sell /></el-icon>
+                    {{ t('common.export') }}
+                  </el-dropdown-item>
+                  <el-dropdown-item
+                    :disabled="scope.row.disableEdit || dataInProps.isCommunity"
+                    @click="edit(scope.row, scope.row.status.toLowerCase())"
+                  >
+                    <el-icon><Edit /></el-icon>
+                    {{ t('dataIn.editconfig') }}
+                  </el-dropdown-item>
+                  <el-dropdown-item @click="copyTask(scope.row, scope.row.status.toLowerCase())">
+                    <el-icon><DocumentCopy /></el-icon>
+                    {{ t('common.copy') }}
+                  </el-dropdown-item>
+                  <el-dropdown-item @click="del(scope.row)">
+                    <el-icon><Delete /></el-icon>
+                    {{ t('common.delete') }}
+                  </el-dropdown-item>
+                  <template v-if="scope.row.from.type === 'kafka'">
+                    <el-dropdown-item @click="confirmSkipToLatest(scope.row)">
+                      <el-icon><DArrowRight /></el-icon>
+                      {{ t('dataIn.tipForSkip') }}
+                    </el-dropdown-item>
+                  </template>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
+          </template>
+        </el-table-column>
+      </el-table>
+      <el-pagination
+        v-model:current-page="currentPage"
+        class="pagination"
+        layout="total, prev, pager, next"
+        :page-size="pageSize"
+        :hide-on-single-page="true"
+        :total="total"
+        @current-change="handlePageChange"
+      ></el-pagination>
+    </div>
+    <Metrics v-model="isMetricsVisible" v-bind="metricsConfig" />
+    <el-alert
+      v-if="dataInProps.isCommunity"
+      class="my-alert"
+      style="margin-top: 8px"
+      type="warning"
+      :description="t('common.communityDemoDataTip')"
+      :closable="true"
+      center
+    />
+  </div>
+
+  <el-dialog v-model="dlgConfirmSeek2End" :title="$t('tips')" width="700px">
+    <div>
+      <div style="margin-bottom: 10px; font-size: 16px">
+        {{ t('dataIn.skip2Latest', [taskToSeek.name]) }}
+      </div>
+      <div>
+        <el-checkbox v-model="isRecoverHistoryData" style="margin-left: 10px">
+          {{ t('dataIn.redoPiledupData') }}
+        </el-checkbox>
+      </div>
+    </div>
+
+    <template #footer>
+      <div class="dialog-footer">
+        <el-button class="w100" @click="dlgConfirmSeek2End = false">{{ $t('cancel') }}</el-button>
+
+        <el-button v-loading="requestIng" class="w100" type="primary" @click="skipToLatest">{{
+          $t('confirm')
+        }}</el-button>
+      </div>
+    </template>
+  </el-dialog>
+</template>
+<script setup lang="ts">
+import { startCase } from 'lodash-es';
+import {
+  getTimeParser,
+  agentId,
+  agentList,
+  currentTaskStatus,
+  getStatusText,
+  getSourceConfig,
+  dataInMockData
+} from '../../model/util';
+import { downloadByData } from '../../../../utils/files';
+import Metrics from './metrics.vue';
+import Activities from '../../components/activities.vue';
+import PageTitle from '../../components/pageTitle.vue';
+import TaskImport from '../../components/task-import.vue';
+import { ElMessage, ElMessageBox } from 'element-plus';
+import { getDataInProps } from '../../model/useDataIn';
+import { useActivitySubscription, ActivitieProps } from '../../model/useWebSocket';
+import { useRouter } from 'hooks/useCurrentRouter';
+import { t } from 'locales';
+const router = useRouter();
+
+const dataInProps = getDataInProps();
+const isMetricsVisible = ref<boolean>(false);
+
+const props = defineProps<{
+  columnPropMap?: Record<string, boolean>;
+}>();
+
+const connectData: Recordable = reactive({
+  activity: null,
+  close: null
+});
+
+const hasConnect = ref<boolean>(false);
+
+const metricsConfig = reactive({
+  type: '',
+  taskId: '',
+  data: {}
+});
+const dataSourceTableRef = ref();
+const pageSize = ref(10);
+const currentPage = ref(1);
+const total = ref(10);
+const taskList = ref<any[]>([]);
+const requestIng = ref<boolean>(false);
+const maxHeight = ref(500);
+// 不允许 start/stop 的状态 sopping, suspending
+const permitStartStatus = ['created', 'failed', 'stopped', 'suspended', 'completed'];
+const permitStopStatus = ['queued', 'running', 'interrupted', 'waiting', 'resumed'];
+const showErrStatus = ['waiting', 'suspending', 'suspended', 'failed', 'interrupted'];
+const permitDeleteStatus = ['completed', 'stopped', ' failed', 'interrupted', 'ticked'];
+const showHealthStatus = ['running', 'stopping', 'waiting', 'resumed'];
+const multipleSelection = ref<any[]>([]);
+import { isEn } from 'config';
+
+const filterMap: Recordable = reactive({
+  type: [],
+  status: [],
+  healthStatus: [],
+  healthStatusFilterSet: {}
+});
+
+const dataSourceMap: Recordable = reactive({});
+
+const agentMap = computed(() => {
+  return agentList.value.reduce((pre, cur) => {
+    pre[cur.id] = cur.name;
+    return pre;
+  }, {});
+});
+const isDisabled = computed(() => {
+  return multipleSelection.value.length < 1;
+});
+
+watch(
+  () => connectData.activity,
+  (newVal: ActivitieProps) => {
+    nextTick(() => {
+      handleTaskActivities(newVal);
+      getHealthStatusFilters();
+    });
+  },
+  {
+    immediate: true,
+    deep: true
+  }
+);
+
+async function getList() {
+  taskList.value = [];
+  const result: any = await dataInProps.task.api.getTask('datain');
+  // eslint-disable-next-line no-debugger
+  if (result.desc || result.message) {
+    throw result.desc || result.message;
+  }
+
+  if (result) {
+    const dataSourceFilterSet: Recordable = {};
+    const statusFilterSet: Recordable = {};
+    taskList.value = result.map((item: any) => {
+      item.from = item.from_json;
+      if (!dataSourceFilterSet[item.from.type]) {
+        filterMap.type.push({
+          value: item.from.type,
+          text: dataSourceMap[item.from.type] // 等数据源确定后再修改
+        });
+        dataSourceFilterSet[item.from.type] = true;
+      }
+
+      item['statusText'] = getStatusText(item.status);
+      if (!statusFilterSet[item.status]) {
+        filterMap.status.push({
+          value: item.status,
+          text: item.statusText
+        });
+        statusFilterSet[item.status] = true;
+      }
+
+      ((item['taskid'] = item.id), (item['localname'] = item.name));
+      item['localtype'] = dataSourceMap[item.from.type] ? dataSourceMap[item.from.type] : '';
+      item['target'] = item.to_expand?.subject || '';
+      item['created_at'] = item.created_at ? item.created_at.replace(/(?<=\.)\S+$/, '').replace('.', '') + 'Z' : '';
+      item['activities'] = reactive([]);
+      // 初始化 healthStatus，后端目前未返回则设为空字符串
+      item['healthStatus'] = item.healthStatus || item.health_status || '';
+      return item;
+    });
+  }
+}
+
+function stop(data: Recordable) {
+  try {
+    ElMessageBox.confirm(t('dataIn.stoptip', [data.name]), t('common.warning'), {
+      confirmButtonText: t('common.confirm'),
+      cancelButtonText: t('common.cancel'),
+      type: 'warning'
+    }).then(async () => {
+      const result: any = await dataInProps.task.api.stop(data.id);
+      if (result?.message) {
+        ElMessage({
+          dangerouslyUseHTMLString: true,
+          message: `<strong>${result.message.replaceAll('\n', '<br/>')}</strong>`,
+          type: 'warning'
+        });
+        return;
+      }
+      await refresh();
+    });
+  } catch (err) {
+    return Promise.reject(err);
+  }
+}
+
+function start(data: Recordable) {
+  try {
+    ElMessageBox.confirm(t('dataIn.starttip', [data.name]), t('common.warning'), {
+      confirmButtonText: t('common.confirm'),
+      cancelButtonText: t('common.cancel'),
+      type: 'warning'
+    }).then(async () => {
+      const result: any = await dataInProps.task.api.start(data.id);
+      if (result && result.message) {
+        ElMessage({
+          dangerouslyUseHTMLString: true,
+          message: `<strong>${result.message.replaceAll('\n', '<br/>')}</strong>`,
+          type: 'warning'
+        });
+        return;
+      }
+      await refresh();
+    });
+  } catch (err) {
+    return Promise.reject(err);
+  }
+}
+
+function del(data: Recordable) {
+  ElMessageBox.confirm(t('dataIn.deletetip', [data.name]), t('dataIn.warning'), {
+    confirmButtonText: t('dataIn.ok'),
+    cancelButtonText: t('dataIn.cancel'),
+    type: 'warning'
+  }).then(async () => {
+    const result: any = await dataInProps.task.api.delete(data.id);
+    if (result?.message) {
+      ElMessage.warning(result.message);
+      return;
+    }
+    ElMessage({
+      type: 'success',
+      message: t('dataIn.deleteok')
+    });
+    await refresh();
+  });
+}
+
+async function refreshCurrentTask(data: Recordable) {
+  try {
+    const result: any = await dataInProps.task.api.refreshTask(data.taskid);
+    if (result && (result.message || result.desc)) {
+      ElMessage.error(result.message || result.desc);
+      return;
+    }
+    const index = taskList.value.findIndex(item => item.taskid == data.taskid);
+    const theActivities = taskList.value[index]['activities'] || [];
+    taskList.value.splice(
+      index,
+      1,
+      [].concat(result).map((item: any) => {
+        ((item['taskid'] = item.id), (item['localname'] = item.name));
+        item['created_at'] = item.created_at ? item.created_at.replace(/(?<=\.)\S+$/, '').replace('.', '') + 'Z' : '';
+        // item['disableEdit'] = item.from.type === 'csv' && item.from.data.csvData.currentTab === 'upload_csv_file';
+        item['localtype'] = dataSourceMap[item.from.type] ? dataSourceMap[item.from.type] : '';
+        item['target'] = item.to_expand?.subject || '';
+        item['statusText'] = getStatusText(item.status);
+        item['activities'] = reactive(theActivities);
+        return item;
+      })[0]
+    );
+    refreshCurrentSelection(data.taskid);
+    ElMessage.success(t('dataIn.refreshsuccess'));
+  } catch (error) {
+    console.log(error);
+  }
+}
+
+async function exportCurrentTask(data: Recordable) {
+  try {
+    requestIng.value = true;
+    const res = await dataInProps.task.api.batchExportTask([data.id]);
+
+    if (res && res.code) {
+      return ElMessage.error(res.message);
+    }
+    downloadByData(res as BlobPart, `datain-tasks-${data.id}.json`);
+    setTimeout(() => {
+      requestIng.value = false;
+    }, 1000);
+  } catch (err) {
+    return Promise.reject(err);
+  }
+}
+
+function handlerConfirm(
+  content: string,
+  executeFn: RequestApiFn<Recordable[]> | null,
+  ids: any[],
+  showConfirmButton: boolean
+) {
+  try {
+    ElMessageBox.confirm(content, t('dataIn.warning'), {
+      confirmButtonText: t('dataIn.ok'),
+      cancelButtonText: t('dataIn.cancel'),
+      type: 'warning',
+      confirmButtonClass: showConfirmButton ? '' : 'not-show'
+    }).then(async () => {
+      await executeFn!({ ids });
+      dataSourceTableRef.value.clearSelection();
+      await refresh();
+    });
+  } catch (err) {
+    return Promise.reject(err);
+  }
+}
+
+async function handleExportTask() {
+  try {
+    requestIng.value = true;
+    const ids = multipleSelection.value.map(item => item.id);
+    const res = await dataInProps.task.api.batchExportTask(ids);
+
+    if (res && res.code) {
+      return ElMessage.error(res.message);
+    }
+    downloadByData(res as BlobPart, `datain-tasks-${ids.join()}.json`);
+    setTimeout(() => {
+      requestIng.value = false;
+    }, 1000);
+
+    dataSourceTableRef.value.clearSelection();
+  } catch (err) {
+    return Promise.reject(err);
+  }
+}
+
+async function handleBatchTask(type: string) {
+  let ids: any[] = [];
+  let content: string = '';
+  let executeFn: RequestApiFn<Recordable[]> | null = null;
+  let showConfirmButton: boolean = true;
+  // requestIng.value = true;
+  switch (type) {
+    case 'start':
+      ids = filterBatchIds(permitStartStatus);
+      executeFn = dataInProps.task.api.batchStartTask;
+      content = t('dataIn.taskStart', [ids]);
+      break;
+
+    case 'stop':
+      ids = filterBatchIds(permitStopStatus);
+      executeFn = dataInProps.task.api.batchStopTask;
+      content = t('dataIn.taskStop', { ids });
+      break;
+
+    case 'delete':
+      ids = filterBatchIds(permitDeleteStatus);
+      executeFn = dataInProps.task.api.batchDelTask;
+      content = t('dataIn.taskDel', [ids]);
+      break;
+  }
+  if (ids.length < 1) {
+    showConfirmButton = false;
+    content = t('dataIn.noTaskOperateTip', [`${t(`dataIn.${type}`)}`]);
+  }
+  handlerConfirm(content, executeFn, ids, showConfirmButton);
+}
+
+function handlePageChange() {}
+//非root用户不能修改root下创建的数据源
+// function getEditStatus(data: string[]) {
+//   const currentUser = localStorage.getItem('username');
+//   if (data) {
+//     const result = data
+//       .filter(item => item.includes('user'))
+//       .toString()
+//       .split('::');
+//     return currentUser == 'root' || result[1] == currentUser;
+//   } else {
+//     return false;
+//   }
+// }
+
+async function viewMetrics(data: Recordable, status: string) {
+  try {
+    const result: any = await dataInProps.metrics.api.getMetrics(data.id);
+    if (result.message) {
+      ElMessage.error(result.message);
+      return;
+    }
+    if (Object.keys(result).length === 0) {
+      switch (status) {
+        case 'running':
+          ElMessage.error(t('dataIn.metricTips.running'));
+          return;
+        case 'completed':
+          ElMessage.error(t('dataIn.metricTips.completed'));
+          return;
+        case 'stopped':
+          ElMessage.error(t('dataIn.metricTips.stopped'));
+          return;
+      }
+    }
+    isMetricsVisible.value = true;
+    metricsConfig.taskId = data.id;
+    metricsConfig.type = data.from.type;
+    metricsConfig.data = result;
+  } catch (error) {
+    console.log(error);
+  }
+}
+
+function addDbSource() {
+  router.push({
+    path: '/dataIn/add'
+  });
+}
+
+async function edit(data: Recordable, status: string) {
+  currentTaskStatus.value = status;
+  router.push({
+    path: dataInProps.isIdmp
+      ? `/management/tsdb-dataIn/tasks/${data.id}/${data.from.type}/edit`
+      : `/dataIn/${data.id}/${data.from.type}/edit`
+  });
+}
+
+async function viewTask(data: Recordable, status: string) {
+  currentTaskStatus.value = status;
+  router.push({
+    path: dataInProps.isIdmp
+      ? `/management/tsdb-dataIn/tasks/${data.id}/${data.from.type}/edit`
+      : `/dataIn/${data.id}/${data.from.type}/edit`,
+    query: { readonly: 'true' }
+  });
+}
+
+//copy一个新的task
+async function copyTask(data: Recordable, status: string) {
+  currentTaskStatus.value = status;
+  router.push({
+    path: dataInProps.isIdmp
+      ? `/management/tsdb-dataIn/tasks/${data.id}/${data.from.type}/copy`
+      : `/dataIn/${data.id}/${data.from.type}/copy`
+  });
+}
+
+async function refresh() {
+  try {
+    requestIng.value = true;
+    await getList();
+  } catch (err: any) {
+    ElMessage.error(err);
+    requestIng.value = false;
+    return;
+  }
+  requestIng.value = false;
+
+  dataSourceTableRef.value.clearSelection();
+}
+
+// 先勾选再刷新单独任务的时候更新勾选的数据
+function refreshCurrentSelection(taskid: string | number) {
+  if (multipleSelection.value.length <= 0) return;
+  const filterRow = taskList.value.filter(item => item.taskid == taskid);
+  multipleSelection.value = multipleSelection.value.map((item: any) => {
+    if (item.taskid == taskid) {
+      item = { ...filterRow[0] };
+    }
+    return item;
+  });
+}
+
+function filterHandler(value: string, row: Recordable, column: Recordable) {
+  const property = column['property'];
+  return row[property] === value;
+}
+
+function handleTaskActivities(activity: ActivitieProps) {
+  taskList.value.forEach(task => {
+    if (String(activity?.id) === String(task.taskid)) {
+      // 初始化 task.activities
+      if (!Array.isArray(task.activities)) {
+        task.activities = reactive([]);
+      }
+
+      if (task.activities.length > 0 && task.activities[0].at === activity.at) {
+        return;
+      }
+
+      task.activities.unshift(activity);
+
+      // 保持 activities 数组的长度不超过 10 条
+      if (task.activities.length > 10) {
+        task.activities.splice(10);
+      }
+
+      task['healthStatus'] = getHealthStatus(task.activities, task?.healthStatus as string);
+    }
+  });
+}
+
+function getHealthStatus(activities: ActivitieProps[], lastHealthStatus: string) {
+  for (const activity of activities) {
+    if (activity.status === 'health') {
+      return activity.activity || lastHealthStatus || '';
+    }
+  }
+  return lastHealthStatus || '';
+}
+
+
+function clickAgent(row: Recordable, column: Recordable) {
+  if (column.property === 'via' && row.via) {
+    router.push({
+      path: '/dataIn/agent'
+    });
+    agentId.value = row.via;
+  }
+}
+function handleSelectionChange(val: []) {
+  multipleSelection.value = val;
+}
+const openedTaskRowId = ref<string | number | null>(null);
+function onOperationDropdownVisibleChange(rowId: string | number, visible: boolean) {
+  if (visible) {
+    openedTaskRowId.value = rowId;
+    return;
+  }
+  if (openedTaskRowId.value === rowId) {
+    openedTaskRowId.value = null;
+  }
+}
+function filterBatchIds(permitStatus: string[]): string[] {
+  const result: string[] = [];
+  multipleSelection.value.filter((item: any) => {
+    if (permitStatus.includes(item.status)) {
+      result.push(item.id);
+    }
+  });
+  return result;
+}
+
+function handleResize() {
+  const windowHeight = window.innerHeight;
+  maxHeight.value = windowHeight - 300;
+}
+function getHealthStatusFilters() {
+  taskList.value.forEach(item => {
+    if (!item.healthStatus) return; // 空值不加入筛选
+    if (!filterMap.healthStatusFilterSet[item.healthStatus]) {
+      filterMap.healthStatus.push({
+        value: item.healthStatus,
+        text: item.healthStatus ? t('dataIn.healthStatus.' + item.healthStatus) : ''
+      });
+      filterMap.healthStatusFilterSet[item.healthStatus] = true;
+    }
+  });
+}
+function getStatusClass(status: string) {
+  let name = '';
+  switch (status) {
+    case 'ready':
+    case 'idle':
+      name = 'circle-bg-green';
+      break;
+    case 'busy':
+      name = 'circle-bg-orange';
+      break;
+    case 'bounce':
+    case 'source_error':
+    case 'sink_error':
+      name = 'circle-bg-pink';
+      break;
+    case 'fatal':
+      name = 'err-circle';
+      break;
+    default:
+      name = 'circle-bg-green';
+  }
+  return name;
+}
+
+function closeConnect() {
+  hasConnect.value = false;
+  if (connectData && connectData.close) {
+    connectData.close(dataInProps.task.webSocketUrl);
+  }
+}
+
+onMounted(() => {
+  const defaultConfig = getSourceConfig(isEn.value);
+  defaultConfig.definitionsList.forEach(item => {
+    dataSourceMap[item.id] = item.name;
+  });
+
+  nextTick(() => {
+    handleResize();
+  });
+  window.addEventListener('resize', handleResize);
+  if (dataInProps.isCommunity) {
+    taskList.value = dataInMockData;
+  } else {
+    // establish WS once on mount, in parallel with REST
+    if (!hasConnect.value) {
+      hasConnect.value = true;
+      const { activity, close } = useActivitySubscription(dataInProps.task.webSocketUrl);
+      connectData.activity = activity;
+      connectData.close = close;
+    }
+    refresh();
+  }
+});
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', handleResize);
+  closeConnect();
+});
+
+const dlgConfirmSeek2End = ref(false);
+const isRecoverHistoryData = ref(false);
+const taskToSeek = ref<Recordable>({});
+
+const confirmSkipToLatest = (item: Recordable) => {
+  taskToSeek.value = {
+    id: item.id,
+    name: item.localname
+  };
+  dlgConfirmSeek2End.value = true;
+};
+
+const skipToLatest = async () => {
+  try {
+    await dataInProps.task.api.skip2Latest(taskToSeek.value.id, isRecoverHistoryData.value);
+  } catch (error: any) {
+    console.log(error);
+    ElMessage.error(error);
+  } finally {
+    dlgConfirmSeek2End.value = false;
+    isRecoverHistoryData.value = false;
+    await refresh();
+  }
+};
+</script>
+<style lang="scss">
+.el-tooltip__popper {
+  max-width: 450px !important;
+}
+
+.not-show {
+  display: none;
+}
+</style>
+<style lang="scss" scoped>
+:deep(.el-form-item__label) {
+  margin-right: 100px;
+  white-space: nowrap !important;
+}
+
+.el-form-item {
+  display: flex;
+}
+
+.w100 {
+  width: 100px;
+}
+
+:deep(.el-form-item--mini .el-form-item__content) {
+  margin-left: 0 !important;
+}
+
+:deep(.el-input--mini .el-input__inner),
+:deep(.el-input.el-input--mini.el-input--suffix) {
+  width: 172px !important;
+}
+
+:deep(.input.el-input__inner) {
+  width: 172px !important;
+}
+
+:deep(.el-button.is-link) {
+  padding: 0 10px;
+  margin: 0;
+}
+
+/* 统一 PageTitle 内按钮的样式 */
+.action-button {
+  margin: 0;
+}
+
+:deep(.action-button.el-button.is-link) {
+  padding: 0 10px;
+  margin: 0;
+}
+
+.table-expand {
+  min-width: 70%;
+  padding: 0 5px 0 45px;
+
+  :deep(.el-table th.el-table__cell.is-leaf) {
+    border: none !important;
+  }
+
+  :deep(.el-table td.el-table__cell) {
+    border: none !important;
+  }
+}
+
+:deep(.el-table td.el-table__cell) div {
+  word-break: break-word;
+  word-wrap: break-word;
+}
+
+.el-circle {
+  display: inline-block;
+  flex-shrink: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.err-circle {
+  background-color: #fe6c6c;
+  animation: circle 1s infinite;
+}
+
+.circle-bg-pink {
+  background-color: pink;
+}
+
+.circle-bg-green {
+  background-color: #67c23a;
+}
+
+.circle-bg-orange {
+  background-color: #e6a23c;
+}
+
+.my-alert :deep(.el-alert .el-alert__description) {
+  font-size: 14px;
+}
+
+@keyframes circle {
+  0% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+  }
+}
+
+td {
+  .operations.show {
+    display: block;
+  }
+
+  .operations {
+    position: absolute;
+    top: 20%;
+    right: 10px; /* 调整右侧距离以适配固定列 */
+    z-index: 1;
+    display: none;
+    width: max-content;
+    height: 100%;
+    vertical-align: middle;
+    cursor: default;
+  }
+}
+
+:deep(.el-table__body tr:hover .operations) {
+  display: block;
+}
+
+:deep(.el-table__fixed-right .el-table__body tr:hover .operations) {
+  display: block;
+}
+
+/* 确保固定列在滚动时正常显示 */
+:deep(.el-table__fixed-right) {
+  .operations {
+    right: 10px;
+  }
+}
+
+/* 兼容 Element 单元格内部 .cell 容器 */
+:deep(.task-id-cell .cell) {
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+</style>

@@ -1,0 +1,89 @@
+# 性能测试用例配置
+version = 1
+
+# cases 数组：每个 [[cases]] 表示一个测试用例
+# 字段说明:
+# id: 唯一标识
+# name: 可读名称
+# description: 用例描述
+# file: 该用例对应的测试记录 CSV 文件名（位于同目录）
+# [cases.analysis]：相关性分析
+#   metrics = ["指标列1", "指标列2", ...] (数值型；可包含一个或多个需要分析的输出指标)
+#   factors = ["参数列1", "参数列2", ...] (数值型或可转为数值；分析这些因子与 metrics 中各指标的相关性)
+
+[[cases]]
+id = "td2td_history"
+name = "TD -> TD 查询迁移的负载测试"
+description = "TDengine Query 历史数据迁移(mode=history)的负载测试"
+file = "td2td_history.csv"
+[cases.analysis]
+metrics = ["rate"]
+factors = ["BUFFER", "VGROUPS", "tables", "rows", "cols", "interval", "workers"]
+
+[[cases]]
+id = "td2td_realtime"
+name = "TD -> TD 实时写读迁移压测"
+file = "td2td_realtime.csv"
+description = "TDengine Query 实时数据迁移(mode=realtime)的负载测试"
+
+[[cases]]
+id = "tmq2td"
+name = "TMQ -> TD 数据迁移的负载测试"
+file = "tmq2td.csv"
+description = "TMQ 订阅数据迁移的负载测试"
+[cases.analysis]
+# 输出指标：rate（同步速率）、latency（同步延迟）
+metrics = ["rate", "latency(sec)"]
+factors = [
+    "BUFFER",
+    "VGROUPS",
+    "tables",
+    "rows",
+    "cols",
+    "interval",
+    "writers",
+    "workers",
+]
+
+[[cases]]
+id = "csv2td"
+name = "CSV -> TD 数据导入的负载测试"
+file = "csv2td.csv"
+description = "CSV 文件导入 TDengine 的负载测试"
+[cases.analysis]
+# 输出指标：rate（导入速率）
+metrics = ["rate"]
+# 影响因子
+factors = [
+    "BUFFER",
+    "VGROUPS",
+    "tables",
+    "rows",
+    "cols",
+    "interval",
+    "files",
+    "batch_size",
+    "null_ratio",
+    "null_partten",
+    "read_concurrency",
+]
+
+[[cases]]
+id = "tmq2local"
+name = "TMQ -> 本地文件 数据备份的负载测试"
+file = "tmq2local.csv"
+description = "TMQ 订阅数据备份到本地文件的负载测试"
+[cases.analysis]
+# 输出指标：rate（备份速率）
+metrics = ["rate"]
+# 影响因子
+factors = [
+    "BUFFER",
+    "VGROUPS",
+    "tables",
+    "rows",
+    "cols",
+    "interval",
+    "backup_max_size",
+    "compression_level",
+]

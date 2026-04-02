@@ -1,0 +1,83 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "tdengine.fullname" . }}
+  labels:
+    {{- include "tdengine.labels" . | nindent 4 }}
+    {{- with .Values.labels }}
+      {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  type: {{ .Values.services.server.type | default "ClusterIP" }}
+  ports: {{ range $idx, $val := .Values.services.server.ports.tcp }}
+    - name: tcp{{- $idx}}
+      port: {{ $val }}
+      protocol: TCP
+    {{- end }}
+    {{- if .Values.services.server.ports.udp }}
+    {{ range $idx, $val := .Values.services.server.ports.udp }}
+    - name: udp{{- $idx}}
+      port: {{ $val }}
+      protocol: UDP
+    {{- end }}
+    {{- end }}
+  selector:
+    app: "tdengine"
+    component: "taosd"
+    {{- include "tdengine.selectorLabels" . | nindent 4 }}
+    {{- with .Values.labels }}
+      {{- toYaml . | nindent 4 }}
+    {{- end }}
+
+## The taosx service is disabled by default. To enable it, set the following values:
+## services:
+##   taosx:
+{{- if .Values.services.arbitrator }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "tdengine.fullname" . }}-arb
+  labels:
+    {{- include "tdengine.labels" . | nindent 4 }}
+spec:
+  type: {{ default "ClusterIP" .Values.services.arbitrator.type  }}
+  ports:
+    - name: arbitrator
+      port: 6032
+      protocol: TCP
+  selector:
+    app: "tdengine"
+    component: "taosd"
+    role: "arbitrator"
+    {{- with .Values.labels }}
+      {{- toYaml . | nindent 4 }}
+    {{- end }}
+{{- end }}
+
+## The taosx service is disabled by default. To enable it, set the following values:
+## services:
+##   taosx:
+{{- if .Values.services.taosx }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "tdengine.fullname" . }}-taosx
+  labels:
+    {{- include "tdengine.labels" . | nindent 4 }}
+spec:
+  type: {{ default "ClusterIP" .Values.services.taosx.type  }}
+  ports:
+    - name: taosx
+      port: 6050
+      protocol: TCP
+    - name: grpc
+      port: 6055
+      protocol: TCP
+    - name: explorer
+      port: 6060
+      protocol: TCP
+  selector:
+    {{- include "tdengine.selectorLabels" . | nindent 4 }}
+{{- end }}

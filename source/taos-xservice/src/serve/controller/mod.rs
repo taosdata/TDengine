@@ -1,0 +1,773 @@
+use std::collections::{BTreeMap, HashMap, HashSet};
+use std::fmt::Debug;
+use std::net::SocketAddr;
+use std::str::FromStr;
+use std::sync::Arc;
+use std::time::Duration;
+use std::vec;
+
+use anyhow::{Context as _, bail};
+use arrow::array::RecordBatch;
+use arrow_flight::error::FlightError;
+use flume::Sender;
+use ha_core::types::{HaTask, SplitJobResult};
+use parking_lot::RwLock;
+use serde::{Deserialize, Serialize};
+use source_opc::{da_template_row, ua_template_row};
+use taos::{AsyncTBuilder, Dsn, IntoDsn, TaosBuilder};
+use taosx_core::runners::opc::OpcType;
+use tracing::instrument;
+
+use self::trigger::Strategy;
+use super::scheduler::TaskScheduler;
+use crate::serve::rpc::utils::build_activity_batch;
+use crate::serve::scheduler;
+use crate::serve::scheduler::agent::AgentState;
+use crate::serve::scheduler::runner::InnerState;
+use crate::serve::utils::csv::encode_csv_config_file;
+use ha_core::{activity::Activity, consts::*, jwt::agent::AgentToken};
+use taosx_core::dsv::DataSourceValidation;
+use taosx_core::plugins::sink::point::csv::CsvParser;
+use taosx_core::plugins::transform::sample::DsSamples;
+use taosx_core::utils::breakpoints::{breakpoints_get_all, export_breakpoints_to_compressed_csv};
+use taosx_core::utils::get_string_content_from_param_value;
+use taosx_core::{DataSet, DataSetsReq, PutFileReq, Response, get_data_dir, list_datasets_from};
+use taosx_core::{QueryDataSourceReq, utils};
+
+pub(crate) mod agent;
+
+pub type AgentDataSetsSender = Sender<Response<Vec<DataSet>>>;
+pub type DsvSender = Sender<DataSourceValidation>;
+pub type StringSender = Sender<Response<String>>;
+pub type SplitTaskSender = Sender<Response<SplitJobResult>>;
+
+#[derive(Debug, Clone)]
+pub enum AgentAction {
+    /// Tuple for (TaskId, JobId)
+    Run(i64, i64),
+    Stop(i64, i64),
+    /// Equivalent to `Suspend`.
+    Cancel(i64, i64),
+    ListDataSets(DataSetsReq, AgentDataSetsSender),
+    /// check data source validation
+    Check(String, DsvSender),
+    /// get sample data
+    GetSample(String, StringSender),
+    /// send file to agent
+    PutFile(PutFileReq, StringSender),
+    /// query data source via connectors
+    QueryDataSource(QueryDataSourceReq, StringSender),
+    /// split task job
+    SplitTask(HaTask, SplitTaskSender),
+    /// agent
+    Exit,
+}
+
+impl AgentAction {
+    pub fn action_str(&self) -> &'static str {
+        match self {
+            AgentAction::Run(_, _) => ACTION_RUN,
+            AgentAction::Stop(_, _) => ACTION_STOP,
+            AgentAction::Cancel(_, _) => ACTION_CANCEL,
+            AgentAction::ListDataSets(_, _) => ACTION_LIST_DATA_SETS,
+            AgentAction::Check(_, _) => ACTION_CHECK,
+            AgentAction::GetSample(_, _) => ACTION_GET_SAMPLE,
+            AgentAction::PutFile(_, _) => ACTION_PUT_FILE,
+            AgentAction::QueryDataSource(_, _) => ACTION_QUERY_DATA_SOURCE,
+            AgentAction::SplitTask(_, _) => ACTION_SPLIT_TASK,
+            AgentAction::Exit => ACTION_EXIT,
+        }
+    }
+}
+
+pub(crate) struct TaskController {
+    /// Task scheduler
+    pub scheduler: TaskScheduler,
+
+    /// 合法的 agent
+    pub valid_agents: RwLock<HashSet<i64>>,
+}
+
+impl Debug for TaskController {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TaskController")
+            .field("scheduler", &"...")
+            .finish()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct TaskControllerRef(Arc<TaskController>);
+
+impl TaskControllerRef {
+    pub fn new(scheduler: TaskScheduler) -> Self {
+        Self(Arc::new(TaskController {
+            scheduler,
+            valid_agents: RwLock::new(HashSet::new()),
+        }))
+    }
+}
+
+impl std::ops::Deref for TaskControllerRef {
+    type Target = Arc<TaskController>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl From<TaskController> for TaskControllerRef {
+    fn from(value: TaskController) -> Self {
+        Self(Arc::new(value))
+    }
+}
+
+impl From<Arc<TaskController>> for TaskControllerRef {
+    fn from(value: Arc<TaskController>) -> Self {
+        Self(value)
+    }
+}
+
+impl Drop for TaskController {
+    fn drop(&mut self) {
+        self.scheduler.try_shutdown();
+    }
+}
+
+async fn set_file_contents(dsn: &mut Dsn) -> anyhow::Result<()> {
+    let dsn_clone = dsn.clone();
+    let mut map = BTreeMap::new();
+    for (k, v) in dsn_clone.params {
+        let mut new_value = String::new();
+        if v.contains("@") {
+            new_value.push_str(
+                get_string_content_from_param_value(&v, false, false)?
+                    .unwrap_or(String::new())
+                    .as_str(),
+            );
+        }
+        let new_value = if new_value.is_empty() { v } else { new_value };
+        map.insert(k, new_value);
+    }
+    dsn.params = map;
+    Ok(())
+}
+
+// 与 set_file_contents 类似，但允许排除某些 key 不进行内容内联。
+async fn set_file_contents_except(dsn: &mut Dsn, exclude: &[&str]) -> anyhow::Result<()> {
+    let dsn_clone = dsn.clone();
+    let mut map = BTreeMap::new();
+    for (k, v) in dsn_clone.params {
+        if exclude.iter().any(|ek| k == *ek) {
+            map.insert(k, v); // 保持原值
+            continue;
+        }
+        let mut new_value = String::new();
+        if v.contains('@') {
+            new_value.push_str(
+                get_string_content_from_param_value(&v, false, false)?
+                    .unwrap_or(String::new())
+                    .as_str(),
+            );
+        }
+        let new_value = if new_value.is_empty() { v } else { new_value };
+        map.insert(k, new_value);
+    }
+    dsn.params = map;
+    Ok(())
+}
+
+impl TaskController {
+    pub async fn get_task(&self, task_id: i64, job_id: i64) -> Option<Task> {
+        self.scheduler
+            .tasks
+            .read()
+            .await
+            .get_by_task_job_id(&(task_id, job_id))
+            .map(|t| t.task.task.as_ref().clone())
+    }
+
+    pub fn add_valid_agents(&self, id: i64) {
+        self.valid_agents.write().insert(id);
+    }
+
+    pub async fn list_agent_states(&self) -> HashMap<i64, AgentState> {
+        let mut states = self
+            .scheduler
+            .global_state
+            .agent_worker
+            .list_agent_states()
+            .await;
+        let valid_agents = { self.valid_agents.read().clone() };
+        for agent_id in valid_agents {
+            states.entry(agent_id).or_insert(AgentState::Idle);
+        }
+        states
+    }
+
+    pub async fn list_task_states(&self) -> HashMap<(i64, i64), InnerState> {
+        let tasks = {
+            self.scheduler
+                .tasks
+                .read()
+                .await
+                .iter_by_task_job_id()
+                .map(|v| (v.task_job_id, v.task.clone()))
+                .collect::<Vec<_>>()
+        };
+        let mut states = HashMap::with_capacity(tasks.len());
+        for (id, task) in tasks {
+            let state = task.state.read().await.clone();
+            states.insert(id, state);
+        }
+        states
+    }
+
+    pub fn is_agent_exists(&self, id: i64) -> bool {
+        self.valid_agents.read().contains(&id)
+    }
+
+    pub fn del_valid_agent(&self, id: i64) {
+        self.valid_agents.write().remove(&id);
+    }
+
+    pub fn check_agent_id(&self, token: &AgentToken) -> anyhow::Result<Option<i64>> {
+        let claim = token.jwt_decode()?;
+        let agent_id = claim.sub;
+        Ok(self.is_agent_exists(agent_id).then_some(agent_id))
+    }
+
+    #[instrument(skip_all, fields(task.id = task.id,task.agent = task.via))]
+    pub async fn start_task(
+        &self,
+        task: Task,
+        xnoded_tx: flume::Sender<Result<RecordBatch, FlightError>>,
+    ) -> anyhow::Result<()> {
+        let from: Dsn = task
+            .from
+            .parse()
+            .with_context(|| format!("Invalid data source `{}`", task.from))?;
+
+        if let Some(via) = task.via {
+            if !self.agent_alive(via).await {
+                self.scheduler
+                    .global_state
+                    .send_task_activity(Activity::error(
+                        task.id,
+                        task.job_id,
+                        format!("Agent {} is not alive", via),
+                    ));
+                bail!("Agent {} is not alive", via);
+            }
+            if from.driver == "pibackfill" || from.driver == "pi" {
+                let file_to_send = from.params.get("transform_config_file");
+                if let Some(path) = file_to_send {
+                    tracing::info!("Put file to agent {}: {}", via, path);
+                    self.put_file_to_agent(via, path.clone()).await?;
+                }
+                if from.driver == "pibackfill" {
+                    let (task_id, job_id) = (task.id, task.job_id);
+                    let breakpoints_file = export_breakpoints_to_compressed_csv(task_id, job_id)?;
+                    if let Some(breakpoints_file) = breakpoints_file {
+                        tracing::info!("Put file to agent {}: {}", via, breakpoints_file);
+                        self.put_file_to_agent(via, breakpoints_file).await?;
+                    } else {
+                        tracing::info!("No breakpoints file to send");
+                    }
+                }
+            } else {
+                let file_to_send = from.params.get("sasl_kerberos_keytab");
+                if let Some(path) = file_to_send {
+                    tracing::info!("Put file to agent {}: {}", via, path);
+                    self.put_file_to_agent(via, path.clone()).await?;
+                }
+            }
+        }
+
+        let to: Dsn = task
+            .to
+            .parse()
+            .with_context(|| format!("Invalid target `{}`", task.to))?;
+
+        if let (_, "taos") = (from.driver.as_str(), to.driver.as_str()) {
+            TaosBuilder::from_dsn(&to)?.build().await?;
+        }
+
+        self.scheduler.push_task(task, xnoded_tx).await
+    }
+
+    pub async fn stop_task(&self, task_id: i64, job_id: i64) -> anyhow::Result<()> {
+        tracing::info!(task.id = task_id, job.id = job_id, "Controller stop task");
+        if let Err(err) = self.scheduler.try_stop((task_id, job_id)).await {
+            match err {
+                scheduler::StopError::NotFound(_) => {
+                    tracing::info!(task.id = task_id, job.id = job_id, "Task not found");
+                }
+                scheduler::StopError::AlreadyStopped(_) => {
+                    tracing::info!(task.id = task_id, job.id = job_id, "Task already stopped");
+                }
+                scheduler::StopError::RemoveJob(e) => {
+                    return Err(anyhow::Error::new(e));
+                }
+            }
+        }
+        self.scheduler.wait_task((task_id, job_id)).await;
+        Ok(())
+    }
+
+    pub async fn stop_task_by_agent(&self, agent_id: i64) -> anyhow::Result<()> {
+        let tasks = self.scheduler.agent_tasks(agent_id).await;
+        let message = format!("Task is stopped because agent {agent_id} is deleted");
+        for (task_id, job_id) in tasks {
+            self.stop_task(task_id, job_id).await?;
+            let activity = Activity::stopped(task_id, job_id).message(message.clone());
+            self.scheduler.global_state.send_task_activity(activity);
+        }
+
+        Ok(())
+    }
+
+    pub async fn push_agent_action(&self, agent_id: i64, action: AgentAction) {
+        self.scheduler
+            .global_state
+            .agent_worker
+            .push_action(agent_id, action)
+            .await
+            .ok();
+    }
+
+    pub async fn stop_all_task(&self) -> anyhow::Result<()> {
+        let tasks = {
+            self.scheduler
+                .tasks
+                .read()
+                .await
+                .iter_by_task_job_id()
+                .map(|v| v.task_job_id)
+                .collect::<Vec<_>>()
+                .clone()
+        };
+        for (task_id, job_id) in tasks {
+            self.stop_task(task_id, job_id).await?;
+        }
+
+        Ok(())
+    }
+
+    pub async fn shutdown(&self) -> anyhow::Result<()> {
+        let scheduler = self.scheduler.clone();
+        let _ = tokio::time::timeout(Duration::from_secs(11), self.stop_all_task()).await;
+        scheduler.shutdown().await;
+        Ok(())
+    }
+
+    /// Check if agent is connected.
+    pub async fn agent_alive(&self, agent_id: i64) -> bool {
+        self.scheduler.agent_is_alive(agent_id).await
+    }
+
+    /// Agent connection with token.
+    ///
+    ///
+    pub async fn agent_connect_with_token(
+        &self,
+        token: &AgentToken,
+        client: Option<&SocketAddr>,
+        tx: &flume::Sender<Result<RecordBatch, FlightError>>,
+    ) -> anyhow::Result<Option<i64>> {
+        let agent_id = self.check_agent_id(token)?;
+        let Some(agent_id) = agent_id else {
+            return Ok(None);
+        };
+
+        let client = client.map(ToString::to_string).unwrap_or_default();
+        let activity = Activity::agent_connect(agent_id, &client);
+        let batch = build_activity_batch(activity).context("build activity batch error")?;
+        tx.send_async(Ok(batch)).await.ok();
+        Ok(Some(agent_id))
+    }
+
+    pub async fn list_datasets_via_agent_v1(
+        &self,
+        agent_id: i64,
+        dsn: &mut Dsn,
+        categories: String,
+        via: Option<i64>,
+    ) -> anyhow::Result<Vec<DataSet>> {
+        // convert csv_config_file to inline content
+        if let Some(csv_config_file) =
+            utils::parse_key_in_dsn::<String>(dsn, "csv_config_file").unwrap_or(None)
+        {
+            let new_value = encode_csv_config_file(csv_config_file).await?;
+            dsn.params.insert("csv_config_file".to_string(), new_value);
+        }
+        set_file_contents(dsn).await?;
+
+        let data = DataSetsReq {
+            from: Some(dsn.to_string()),
+            from_json: None,
+            categories: vec![categories],
+            via,
+            offset: 0,
+            pattern: None,
+            limit: usize::MAX / 2 - 1,
+            lang: None,
+        };
+
+        self.list_datasets_via_agent(agent_id, data).await
+    }
+
+    pub async fn list_datasets_via_agent(
+        &self,
+        agent_id: i64,
+        req: DataSetsReq,
+    ) -> anyhow::Result<Vec<DataSet>> {
+        if !self.agent_alive(agent_id).await {
+            bail!("Agent {} is not alive", agent_id);
+        }
+
+        let scheduler = self.scheduler.clone();
+        let handle =
+            tokio::spawn(async move { scheduler.list_datasets_via_agent(agent_id, req).await });
+        match tokio::time::timeout(Duration::from_secs(600), handle).await {
+            Ok(data) => data?.context("Retrieve datasets result error"),
+            Err(err) => {
+                tracing::error!("Retrieve datasets result timeout from agent");
+                Err(err).context("Retrieve datasets result timeout from agent")
+            }
+        }
+    }
+
+    pub async fn get_all_points(
+        &self,
+        from: String,
+        via: Option<i64>,
+        categories: String,
+    ) -> anyhow::Result<(String, usize)> {
+        let mut from = from.into_dsn()?;
+
+        let pattern = match from.driver.as_str() {
+            "pi" | "pibackfill" => None,
+            _ => Some(String::from(".*")),
+        };
+        let limit = usize::MAX / 2 - 1; // cause usize::MAX out of range i64 type when exec toml::to_string()
+
+        let datasets = if let Some(agent) = via {
+            self.list_datasets_via_agent_v1(agent, &mut from, categories, via)
+                .await
+        } else {
+            let data = DataSetsReq {
+                from: Some(from.to_string()),
+                from_json: None,
+                categories: vec![categories],
+                via,
+                offset: 0,
+                pattern,
+                limit,
+                lang: None,
+            };
+            list_datasets_from(&data).await
+        }
+        .context("failed to list datasets")?;
+
+        let point_count = datasets.len();
+        let data = match from.driver.as_str() {
+            "opcda" => {
+                // header
+                let mut result = source_opc::get_template(OpcType::OPCDA, false);
+                // rows
+                datasets.iter().enumerate().for_each(|(i, item)| {
+                    let row = da_template_row(i + 1, item);
+                    result.push_str(row.as_str());
+                });
+                result
+            }
+            "opcua" => {
+                // header
+                let mut result = source_opc::get_template(OpcType::OPCUA, false);
+                // rows
+                datasets.iter().enumerate().for_each(|(i, item)| {
+                    let row = ua_template_row(i + 1, item);
+                    result.push_str(row.as_str());
+                });
+                result
+            }
+            source_kinghistorian::KING_HIST_ID => source_kinghistorian::to_csv_context(datasets)
+                .await
+                .inspect_err(|err| {
+                    tracing::error!(
+                        "failed to generate kinghistorian csv content, err: {:?}",
+                        err
+                    )
+                })
+                .context("failed to generate kinghistorian csv content")?,
+            source_pspace::PSPACE_ID => {
+                let csv_format = utils::parse_key_in_dsn::<String>(&from, "csv_format")
+                    .unwrap_or(Some("full".to_string()))
+                    .unwrap_or("full".to_string());
+
+                match csv_format.as_str() {
+                    "preview" => source_pspace::preview_points(datasets)
+                        .await
+                        .inspect_err(|err| {
+                            tracing::error!("failed to preview pspace points, err: {:?}", err)
+                        })
+                        .context("failed to preview pspace points")?,
+                    "full" => source_pspace::to_csv_context(datasets)
+                        .await
+                        .inspect_err(|err| {
+                            tracing::error!(
+                                "failed to generate pspace csv config file , err: {:?}",
+                                err
+                            )
+                        })
+                        .context("failed to generate pspace csv config file")?,
+                    _ => {
+                        tracing::error!("invalid csv_format `{csv_format}` for pspace source");
+                        bail!("invalid csv_format `{csv_format}` for pspace source");
+                    }
+                }
+            }
+            _ => unimplemented!(),
+        };
+
+        Ok((data, point_count))
+    }
+
+    pub async fn query_data_source_via_agent(
+        &self,
+        request: QueryDataSourceReq,
+        agent_id: i64,
+    ) -> anyhow::Result<String> {
+        if !self.agent_alive(agent_id).await {
+            bail!("Agent {} is not alive", agent_id);
+        }
+        let scheduler = self.scheduler.clone();
+        scheduler
+            .query_datasource_via_agent(agent_id, request)
+            .await
+    }
+
+    pub async fn put_file_to_agent(&self, agent_id: i64, path: String) -> anyhow::Result<()> {
+        if !self.agent_alive(agent_id).await {
+            bail!("Agent {} is not alive", agent_id);
+        }
+
+        let scheduler = self.scheduler.clone();
+        let handle = tokio::spawn(async move {
+            let path = path.trim_start_matches("@");
+            let data = tokio::fs::read(path).await;
+            match data {
+                Ok(data) => {
+                    let res = scheduler.put_file_to_agent(agent_id, path, data).await;
+                    match res {
+                        Ok(_) => Ok(()),
+                        Err(err) => {
+                            tracing::error!("Put file {path} error: {err}");
+                            bail!("Put file {path} error: {err}");
+                        }
+                    }
+                }
+                Err(err) => {
+                    tracing::error!("Read file {path} error: {err}");
+                    bail!("Read file {path} error: {err}");
+                }
+            }
+        });
+        handle.await?
+    }
+
+    pub async fn validate_dsn_via_agent(&self, agent: i64, dsn: &Dsn) -> DataSourceValidation {
+        let scheduler = self.scheduler.clone();
+        if !self.agent_alive(agent).await {
+            return DataSourceValidation::invalid(
+                dsn.driver.to_string(),
+                format!("Agent {} is not alive", agent),
+            );
+        }
+
+        let mut dsn_agent = dsn.clone();
+        // 检查是否有需要发送到 agent 的文件
+        let file_to_send = dsn_agent.params.get("sasl_kerberos_keytab");
+        if let Some(path) = file_to_send {
+            tracing::info!("Put file to agent {}: {}", agent, path);
+            let _ = self.put_file_to_agent(agent, path.clone()).await;
+            let _ = dsn_agent.params.insert(
+                String::from("sasl_kerberos_keytab"),
+                get_data_dir()
+                    .join(path.trim_start_matches("@"))
+                    .display()
+                    .to_string(),
+            );
+        }
+        // 避免在校验时把 csv_config_file 内联为巨大字符串：
+        // 1) 如果是 @path，优先下发至 agent 并改为 agent 本地 @路径；
+        if let Some(csv_cfg) = dsn_agent.params.get("csv_config_file").cloned()
+            && csv_cfg.starts_with('@')
+            && csv_cfg.len() > 1
+        {
+            tracing::info!("Put csv_config_file to agent {}: {}", agent, csv_cfg);
+            let _ = self.put_file_to_agent(agent, csv_cfg.clone()).await;
+            let local = get_data_dir()
+                .join(csv_cfg.trim_start_matches('@'))
+                .display()
+                .to_string();
+            dsn_agent
+                .params
+                .insert("csv_config_file".to_string(), format!("@{}", local));
+        }
+        // 2) 其余 @file 参数按原逻辑内联，但跳过 csv_config_file。
+        let result = set_file_contents_except(&mut dsn_agent, &["csv_config_file"]).await;
+        if let Err(err) = result {
+            return DataSourceValidation::invalid(dsn.driver.to_string(), err.to_string());
+        }
+
+        let result = tokio::time::timeout(
+            Duration::from_secs(600),
+            scheduler.validate_dsn_via_agent(agent, dsn_agent),
+        )
+        .await;
+        let result = match result {
+            Ok(result) => result,
+            Err(_) => {
+                tracing::error!("Validate dsn timeout from agent");
+                return DataSourceValidation::invalid(
+                    dsn.driver.to_string(),
+                    "Validate dsn timeout from agent".to_string(),
+                );
+            }
+        };
+        match result {
+            Ok(dsv) => dsv,
+            Err(err) => DataSourceValidation::invalid(dsn.driver.to_string(), err.to_string()),
+        }
+    }
+
+    pub async fn get_sample_via_agent(&self, agent: i64, dsn: String) -> anyhow::Result<DsSamples> {
+        let scheduler = self.scheduler.clone();
+        if !self.agent_alive(agent).await {
+            bail!("Agent {} is not alive", agent);
+        }
+        let dsn_agent = Dsn::from_str(&dsn);
+        if let Ok(dsn_agent) = dsn_agent {
+            // 检查是否有需要发送到 agent 的文件
+            let file_to_send = dsn_agent.params.get("sasl_kerberos_keytab");
+            if let Some(path) = file_to_send {
+                tracing::info!("Put file to agent {}: {}", agent, path);
+                let _ = self.put_file_to_agent(agent, path.clone()).await;
+            }
+        }
+        scheduler.get_sample_via_agent(agent, dsn).await
+    }
+
+    // pub async fn list_datasets_via_agent()
+
+    pub async fn send_opc_csv_to_agnet(&self, agent_id: i64, dsn: &Dsn) -> anyhow::Result<()> {
+        if !self.agent_alive(agent_id).await {
+            bail!("Agent {} is not alive", agent_id);
+        }
+
+        let parser = CsvParser::from_dsn(dsn)?;
+        let (path, csv) = parser.read_to_string().await?;
+
+        tracing::debug!(
+            "send opc csv file to agent: {}, path: {:?}, csv: {}",
+            agent_id,
+            path,
+            csv
+        );
+        let scheduler = self.scheduler.clone();
+        scheduler
+            .put_file_to_agent(agent_id, path.unwrap().as_str(), csv.into_bytes())
+            .await?;
+
+        Ok(())
+    }
+}
+
+pub mod trigger;
+
+/// A streaming workflow task description.
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct Task {
+    /// Unique id for the task item.
+    pub id: i64,
+
+    pub job_id: i64,
+
+    pub name: String,
+
+    /// The stream data source.
+    pub from: String,
+
+    /// The target of the stream.
+    pub to: String,
+
+    /// The parser of the task stream.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parser: Option<serde_json::Value>,
+
+    /// Agent Id
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub via: Option<i64>,
+
+    /// Use oneshot topic for a task, delete the topic after task deleted.
+    #[serde(default)]
+    pub oneshot_topic: Option<String>,
+
+    /// Task trigger events, default will be oneshot.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub trigger: Option<Strategy>,
+}
+
+impl TryFrom<ha_core::types::StartTaskJobParam> for Task {
+    type Error = anyhow::Error;
+    fn try_from(mut param: ha_core::types::StartTaskJobParam) -> anyhow::Result<Self> {
+        macro_rules! extract_json_field {
+            ($labels:expr, $field_name:expr, $error_msg:expr) => {
+                $labels
+                    .as_mut()
+                    .and_then(|v| v.as_object_mut())
+                    .and_then(|v| v.remove($field_name))
+                    .map(serde_json::from_value)
+                    .transpose()
+                    .context($error_msg)?
+            };
+        }
+        let trigger = extract_json_field!(
+            param.labels,
+            "trigger",
+            "StartTaskJobParam field `trigger` not valid"
+        );
+        let oneshot_topic = extract_json_field!(
+            param.labels,
+            "oneshot_topic",
+            "StartTaskJobParam field `oneshot_topic` not valid"
+        );
+        Ok(Self {
+            name: param.name,
+            id: param.task_id,
+            job_id: param.job_id,
+            from: param.from,
+            to: param.to,
+            parser: param.parser,
+            via: param.via,
+            oneshot_topic,
+            trigger,
+        })
+    }
+}
+
+pub fn load_breakpoints(task_id: i64, job_id: i64) -> Option<String> {
+    let breakpoints_res = breakpoints_get_all(task_id, job_id);
+    if let Ok(breakpoints) = breakpoints_res {
+        let formatted_pairs: Vec<String> = breakpoints
+            .iter()
+            .map(|(first, second)| format!("{}:{}", first, second))
+            .collect();
+
+        Some(formatted_pairs.join("&"))
+    } else {
+        None
+    }
+}

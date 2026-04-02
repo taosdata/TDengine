@@ -1,0 +1,47 @@
+.\"
+.\" Copyright (C) 2011 Red Hat, Inc. All Rights Reserved.
+.\" Written by David Howells (dhowells@redhat.com)
+.\"
+.\" This program is free software; you can redistribute it and/or
+.\" modify it under the terms of the GNU General Public License
+.\" as published by the Free Software Foundation; either version
+.\" 2 of the License, or (at your option) any later version.
+.\"
+.TH KEY.DNS_RESOLVER 8 "18 May 2020" Linux "Linux Key Management Utilities"
+.SH NAME
+key.dns_resolver \- upcall for request\-key to handle dns_resolver keys
+.SH SYNOPSIS
+\fB/sbin/key.dns_resolver \fR<key>
+.br
+\fB/sbin/key.dns_resolver \fR--dump-config [\-c <configfile>]
+.br
+\fB/sbin/key.dns_resolver \fR\-D [\-v] [\-v] [\-c <configfile>] <desc>
+.br
+<calloutinfo>
+.SH DESCRIPTION
+This program is invoked by request\-key on behalf of the kernel when kernel
+services (such as NFS, CIFS and AFS) want to perform a hostname lookup and the
+kernel does not have the key cached.  It is not ordinarily intended to be
+called directly.
+.P
+There program has internal parameters that can be changed with a configuration
+file (see key.dns_resolver.conf(5) for more information).  The default
+configuration file is in /etc, but this can be overridden with the \fB-c\fR
+flag.
+.P
+The program can be called in debugging mode to test its functionality by
+passing a \fB\-D\fR or \fB\--debug\fR flag on the command line.  For this to
+work, the key description and the callout information must be supplied.
+Verbosity can be increased by supplying one or more \fB\-v\fR flags.
+.P
+The program may also be called with \fB--dump-config\fR to show the values that
+configurable parameters will have after parsing the config file.
+.SH ERRORS
+All errors will be logged to the syslog.
+.SH SEE ALSO
+.ad l
+.nh
+.BR key.dns_resolver.conf (5),
+.BR request\-key.conf (5),
+.BR keyrings (7),
+.BR request\-key (8)

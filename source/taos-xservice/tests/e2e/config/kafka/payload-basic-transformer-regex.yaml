@@ -1,0 +1,51 @@
+"parser": {
+    "format": {
+        "currentPage": 1,
+        "pageCount": 5,
+        "pageSize": 10
+    },
+    "input": [
+        {
+            "value": "mytime:1701927703909401600,id:1,current:10.3,voltage:219,phase:0.32,description:Beijing,location:California.SanFrancisco,groupid:3",
+            "key": "key",
+            "offset": "offset",
+            "partition": "partition",
+            "topic": "topic",
+            "ts": "2023-12-05T09:10:56+08:00"
+        }
+    ],
+    "parser": {
+        "model": {
+            "columns": [
+                "ts", "id","current", "voltage", "phase", "description"
+            ],
+            "name": "kafka_{groupid}",
+            "tags": [
+                "groupid", "location"
+            ],
+            "using": "kafkastb"
+        },
+        "mutate": [
+            {
+                "filter": "id.parse_int()>=200 && description.contains(\"jing\") && description.starts_with(\"Bei\")"
+            },
+            {
+                "map": {
+                    "ts": {"cast": "mytime", "as": "TIMESTAMP"},
+                    "location": {"cast": "location", "as": "VARCHAR(64)"},
+                    "groupid": {"cast": "groupid", "as": "INT"},
+                    "description": {"cast": "description", "as": "VARCHAR(64)"},
+                    "voltage": {"cast": "voltage", "as": "INT UNSIGNED"},
+                    "phase": {"cast": "phase", "as": "DOUBLE"},
+                    "current": {"cast": "current", "as": "FLOAT"},
+                    "id": {"cast": "id", "as": "INT"}
+                }
+            }
+        ],
+        "parse": {
+            "value": {
+                "regex": "mytime:(?P<mytime>\\d+),id:(?P<id>\\d+),current:(?P<current>\\d+(.\\d*)),voltage:(?P<voltage>\\d+),phase:(?P<phase>\\d+(.\\d*)),description:(?P<description>\\S+),location:(?P<location>\\S+),groupid:(?P<groupid>\\d+)"
+            }
+        }
+    }
+}

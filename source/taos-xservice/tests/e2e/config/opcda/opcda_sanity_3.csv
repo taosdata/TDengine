@@ -1,0 +1,6 @@
+No.,tag_name,enabled,stable,tbname,value_col,value_transform,type,quality_col,received_ts_col,ts_col,ts_transform,received_ts_transform,tag::VARCHAR(200)::name,tag::int::group
+1,device0.tagd0_0,1,opc_{type},t_{tag_name},val,val + 2,double,quality11,rts,original_ts,original_ts + 1000,rts + 1000,tagd0_0,0
+2,device0.tagd0_1,1,opc_{type},t_{tag_name},val,val / 2,double,quality11,rts,original_ts,original_ts + 1000,rts + 1000,tagd0_1,2
+3,device0.tagd0_2,1,opc_{type},t_{tag_name},val,,varchar(30),quality11,rts,original_ts,,,tagd0_2,2
+4,device0.tagd0_3,1,opc_{type},t_{tag_name},val,,bool,quality11,rts,original_ts,,,tagd0_3,3
+5,device0.tagd0_4,1,opc_{type},t_{tag_name},val,,varchar(100),quality11,rts,original_ts,,,tagd0_4,4

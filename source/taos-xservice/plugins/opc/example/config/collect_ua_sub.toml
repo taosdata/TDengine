@@ -1,0 +1,37 @@
+opc_type = "opcua"
+debug = true
+
+[connect.ua]
+endpoint = "opc.tcp://127.0.0.1:4840"
+connect_timeout = 10
+request_timeout = 10
+security_policy = "None"
+security_mode = "None"
+auth_method = "Anonymous"
+
+[collect]
+interval = 1 # collect data interval in second for opc ua observe mode and opc da
+contains_bad = true # collect bad node when collect data
+
+[collect.dump]
+enable = true # dump data to file
+path = "./tmp/opc/" # dump file path
+keep = 7 # keep dump file days
+
+[report]
+remote = "127.0.0.1:6051" # taosx's address ip:port or socket path
+concurrent = 2
+batch_size = 2
+batch_timeout = 10
+
+[collect.ua]
+collect_mode = "subscribe" # observe or subscribe. default is observe
+
+[[collect.ua.nodes]] # opc ua nodes. needs node id and value type. value type is same with data type in tdengine
+id = "ns=3;i=1001"
+
+[[collect.ua.nodes]]
+id = "ns=3;i=1002"
+
+[[collect.ua.nodes]]
+id = "ns=3;i=1003"

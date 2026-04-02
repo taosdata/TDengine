@@ -1,0 +1,7 @@
+[clog]
+repository = "https://github.com/taosdata/taosx.git"
+subtitle = "TDengine Data Replication Toolkit"
+link-style = "github"
+from-latest-tag = true
+changelog = "CHANGELOG.md"
+

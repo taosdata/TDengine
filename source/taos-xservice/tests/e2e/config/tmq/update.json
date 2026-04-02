@@ -1,0 +1,87 @@
+{
+    "filetype": "insert",
+    "cfgdir": "/etc/taos",
+    "host": "192.168.1.45",
+    "port": 6030,
+    "insert_mode": "rest",
+    "user": "root",
+    "password": "taosdata",
+    "connection_pool_size": 100,
+    "thread_count": 40,
+    "create_table_thread_count": 8,
+    "result_file": "./insert_res.txt",
+    "confirm_parameter_prompt": "no",
+    "insert_interval": 0,
+    "interlace_rows": 100,
+    "num_of_records_per_req": 5000,
+    "prepared_rand": 10000,
+    "chinese": "no",
+    "databases": [
+        {
+            "dbinfo": {
+                "name": "tmq_source",
+                "drop": "no",
+                "replica": 1,
+                "precision": "ms",
+                "keep": 3650,
+                "minRows": 100,
+                "maxRows": 4096,
+                "comp": 2
+            },
+            "super_tables": [
+                {
+                    "name": "stb_source",
+                    "child_table_exists": "yes",
+                    "childtable_count": 10,
+                    "childtable_prefix": "tb",
+                    "escape_character": "yes",
+                    "auto_create_table": "no",
+                    "batch_create_tbl_num": 1000,
+                    "data_source": "rand",
+                    "insert_mode": "rest",
+                    "non_stop_mode": "no",
+                    "line_protocol": "line",
+                    "insert_rows": 10,
+                    "interlace_rows": 0,
+                    "insert_interval": 1000,
+                    "partial_col_num": 0,
+                    "disorder_ratio": 0,
+                    "disorder_range": 1000,
+                    "timestamp_step": 1000,
+                    "start_timestamp": "2022-10-01 00:00:10",
+                    "sample_format": "csv",
+                    "sample_file": "./sample.csv",
+                    "use_sample_ts": "no",
+                    "tags_file": "",
+                    "columns": [
+                        {
+                            "type": "int",
+                            "name": "current",
+                            "count": 1,
+                            "max": 100,
+                            "min": -100
+                        }],
+                    "tags": [
+                        {
+                            "type": "TINYINT",
+                            "name": "groupid",
+                            "max": 10,
+                            "min": 1
+                        },
+                        {
+                            "name": "location",
+                            "type": "BINARY",
+                            "len": 16,
+                            "values": [
+                                "San Francisco",
+                                "Los Angles",
+                                "San Diego",
+                                "San Jose"
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

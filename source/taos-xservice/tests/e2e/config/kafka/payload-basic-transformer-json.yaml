@@ -1,0 +1,60 @@
+"parser": {
+    "parser": {
+        "parse": {
+            "value": {
+                "json": [
+                    "mytime","id","current","phase","voltage","description", "groupid","location"
+                ]
+            }
+        },
+        "model": {
+            "name": "kafka_{groupid}",
+            "using": "kafkastb",
+            "tags": [
+                "groupid", "location"
+            ],
+            "columns": [
+                "ts", "id","current", "voltage", "phase", "description",
+                "col1", "col2", "col3", "col4", "col5", "col6", "col7"
+            ]
+        },
+        "mutate": [
+            {
+                "filter": "id>=1"
+            },
+            {
+                "map": {
+                    "ts": {"cast": "mytime", "as": "TIMESTAMP"},
+                    "location": {"cast": "location", "as": "VARCHAR(64)"},
+                    "groupid": {"cast": "groupid", "as": "INT"},
+                    "col7": {"expr": "description.replace(\"hello\",\"hi\")", "as": "VARCHAR(64)"},
+                    "col6": {"expr": "description.sub_string(5)", "as": "VARCHAR(64)"},
+                    "col5": {"expr": "description.to_upper()", "as": "VARCHAR(64)"},
+                    "col4": {"expr": "description.truncate(5)", "as": "VARCHAR(64)"},
+                    "col3": {"expr": "description.append(\" !OK\")", "as": "VARCHAR(64)"},
+                    "col2": {"format": "${id}-${description}", "as": "VARCHAR(64)"},
+                    "col1": {"sum": ["current", "phase"], "as": "INT"},
+                    "description": {"cast": "description", "as": "VARCHAR(64)"},
+                    "voltage": {"cast": "voltage", "as": "INT UNSIGNED"},
+                    "phase": {"cast": "phase", "as": "DOUBLE"},
+                    "current": {"cast": "current", "as": "FLOAT"},
+                    "id": {"cast": "id", "as": "INT"}
+                }
+            }
+        ]
+    },
+    "input": [
+        {
+            "topic": "topic",
+            "partition": "partition",
+            "offset": "offset",
+            "key": "key",
+            "value": "{\"mytime\":1701938756205263616,\"id\": 1,\"current\": 10.77,\"phase\": 0.77,\"voltage\": \"220\",\"description\": \"hello taosx\", \"groupid\": 1,\"location\": \"California.SanDiego\"}",
+        }
+    ],
+    "format": {
+        "currentPage": 1,
+        "pageCount": 5,
+        "pageSize": 10
+    }
+}

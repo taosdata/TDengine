@@ -1,0 +1,24 @@
+opc_type = "opcda"
+debug = false
+
+[connect.da]  # opc da config.
+server = "Matrikon.OPC.Simulation.1" # opc da server
+nodes = ["localhost"] # opc da nodes
+
+[report]
+remote = "127.0.0.1:6051" # taosx's address ip:port or socket path
+concurrent = 2
+batch_size = 2
+batch_timeout = 10
+
+[collect]
+interval = 1 # collect data interval in second for opc ua observe mode and opc da
+contains_bad = true # collect bad node when collect data
+
+[collect.dump]
+enable = true # dump data to file
+path = "./tmp/opc/" # dump file path
+keep = 7 # keep dump file days
+
+[[collect.da.tags]]
+tag = "Random.Int8"

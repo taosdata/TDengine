@@ -1,0 +1,53 @@
+[package]
+name = "source-pulsar"
+edition.workspace = true
+version.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+arrow.workspace = true
+arrow-schema.workspace = true
+chrono.workspace = true
+faststr.workspace = true
+itertools.workspace = true
+linked-hash-map.workspace = true
+scc.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+taos.workspace = true
+tokio.workspace = true
+tokio-util.workspace = true
+tracing.workspace = true
+futures-util.workspace = true
+flume.workspace = true
+uuid.workspace = true
+pin-project-lite.workspace = true
+parking_lot.workspace = true
+
+taosx-core.workspace = true
+taosx-ipc.workspace = true
+futures-ext.workspace = true
+futures.workspace = true
+rand.workspace = true
+
+pulsar.workspace = true
+hex.workspace = true
+thiserror.workspace = true
+base64.workspace = true
+snafu.workspace = true
+async-trait.workspace = true
+md5.workspace = true
+cipher = "0.4.4"
+ecb = "0.1.2"
+aes = "0.8.4"
+aes-gcm = "0.10.3"
+generic-array = "1.3.5"
+
+taosx-utils.workspace = true
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

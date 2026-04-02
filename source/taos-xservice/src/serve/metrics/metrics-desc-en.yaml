@@ -1,0 +1,126 @@
+taosx_sys_cpus: System CPU cores
+taosx_sys_total_memory: Total system memory in bytes
+taosx_sys_used_memory: "System used memory, unit: bytes"
+taosx_sys_available_memory: "System available memory, unit: bytes"
+taosx_sys_uptime_in_seconds: system start-up duration, in seconds
+taosx_process_cpu_percent: "% CPU usage of taosx process"
+taosx_process_mem_percent: "% of memory occupied by taosx processes"
+taosx_process_io_read_bytes: Number of read bytes since the last refresh
+taosx_process_io_written_bytes: Number of written bytes since the last refresh
+taosx_process_tasks: Number of threads run by this process
+total_execute_time: Total execute time
+total_written_rows: Total rows written to TDengine.(may greater than actual value when there are duplicate records)
+total_written_points: Total points written successfully, may greater than actual value. When using the write_block interface, it is equal to the number of rows contained in the data block multiplied by the number of columns in the data block. When using SQL to write, it is equal to the number of affected rows multiplied by the number of columns in the target table.
+total_rows_per_second: Average number of rows written per second
+total_points_per_second: Average number of points written per second
+start_time: Task start time (reset each time the task is restarted)
+written_rows: Total rows written to TDengine in this task run. (sum of the affected rows returned by the execution)
+written_points: Total points written successfully in this task run (equal to written_rows multiplied by the number of columns in the data block)
+execute_time: Task execute time for this task run
+rows_per_second: Average number of rows written per second for this task run
+points_per_second: Average number of points written per second for this task run
+read_concurrency: Number of data workers concurrently reading data sources
+total_stables: Total super tables to migrate
+total_updated_tags: Total updated tag count
+total_tables: Total tables to migrate
+total_finished_tables: Total number of sub-tables successfully migrated. (may greater than the actual value if task was resumed from break point)
+total_success_blocks: Total number of data blocks successfully written
+finished_tables: Number of sub-tables successfully migrated in this task run
+success_blocks: Number of data blocks successfully written in this task run
+updated_tags: Number of updated tags in this task run
+total_messages: Total number of messages received via TMQ
+total_messages_of_meta: Total number of messages with type "Meta" received via TMQ
+total_messages_of_data: Total number of messages with type "Data" and "MetaData" received via TMQ
+total_write_raw_fails: Total times of failed to write TMQ messages
+topics: Total number of topics subscribed to via TMQ
+consumers: Total number of consumers created via TMQ
+messages: Total number of messages received via TMQ in this task run
+messages_of_meta: Total number of messages with type "Meta" received via TMQ in this task run
+messages_of_data: Total number of messages with type "Data" and "MetaData" received via TMQ in this task run
+write_raw_fails: Total times of failed to write TMQ messages in this task run
+success_messages: Total number of messages succeeded via TMQ in this task run
+total_received_batches: Total number of data batches received via IPC Stream
+total_processed_batches: Total number of data batches successfully processed by taosx
+total_failed_batches: Total number of data batches failed to process
+total_parsed_rows: Total number of rows parsed
+total_filter_skipped_rows: Total number of rows filtered out by the filter after parsing
+total_check_skipped_rows: Total number of rows filtered out by the pre-check after parsing
+total_write_ready_rows: Total number of rows ready to write
+total_processed_rows: Total number of rows successfully processed. (before transform)
+total_inserted_sqls: Total number of INSERT SQLs successfully executed by taosx
+total_failed_sqls: Total number of INSERT SQLs failed to execute by taosx
+total_created_stables: Total number of super tables that taosX try to created. (may greater than successfully created super tables)
+total_created_tables: Total number of child tables that taosX try to created.(not include auto created child tables)
+total_failed_rows: Total number of rows failed to write
+total_drained_rows: Total number of rows filtered out to write in case of timestamp out of range
+total_failed_points: Total number of points failed to write
+total_written_raw_blocks: Total number of raw blocks successfully written
+total_failed_raw_blocks: Total number of raw blocks failed to write
+total_success_messages: Total number of messages successfully written
+received_batches: Number of data batches received via IPC Stream in this task run
+processed_batches: Number of data batches successfully processed by taosx in this task run
+failed_batches: Number of data batches failed to process in this task run
+parsed_rows: Number of rows parsed in this task run
+filter_skipped_rows: Number of rows filtered out by the filter after parsing in this task run
+check_skipped_rows: Number of rows filtered out by the pre-check after parsing in this task run
+write_ready_rows: Number of rows ready to write in this task run
+processed_rows: Number of rows successfully processed in this task run. (equal to the sum of the number of data rows contained in the batch containing data)
+inserted_sqls: Number of INSERT SQLs successfully execute by taosx in this task run
+failed_sqls: Number of INSERT SQLs failed to execute by taosx in this task run
+created_stables: Number of super tables that taosX try to created in this task run.(may greater than successfully created super tables)
+created_tables: Number of child tables that taosX try to created in this task run
+failed_rows: Number of rows failed to write in this task run
+drained_rows: Number of row filtered out to write in case of timestamp out of range in this task run
+failed_points: Number of points failed to write in this task run
+written_raw_blocks: Number of raw blocks successfully written in this task run
+failed_raw_blocks: Number of raw blocks failed to write in this task run
+persist_read_messages: Number of the persisted messages being read in the current task
+persist_write_messages: Number of the persisted messages being written in the current task
+persist_received_acks: Total number of ACKs received in this task run
+persist_send_batches: Number of batches sent in this task run
+kafka_consumers: Number of Kafka consumers created
+kafka_total_partitions: Total number of partitions of Kafka topic
+kafka_consuming_partitions: Number of partitions being consumed
+kafka_consumed_messages: Number of messages has been consumed
+total_kafka_consumed_messages: Total consumed messages since task started
+kafka_sent_batches: Total batches sent since task started
+kafka_received_acks: Total received acks since task started
+pulsar_total_partitions: Pulsar topic partitions
+pulsar_consumers: Pulsar consumers
+pulsar_consumed_messages: Pulsar total consumed messages
+pulsar_send_msgs: Number of messages sent by this running task. 
+pulsar_msg_acks: Pulsar ACK messages
+pulsar_sent_batches: Number of batches sent by this running task. 
+pulsar_received_batches: Number of batches received by this running task. 
+mqtt_fetched_messages: Total number of messages fetched in this task run
+mqtt_received_bytes: Number of bytes received in this task run
+mqtt_dumped_messages: Number of messages dumped in this task run
+mqtt_fetched_acks: Total number of ACKs received in this task run
+mqtt_ack_fails: Total number of ACK failures in this task run
+mqtt_unprocessed_messages: Number of messages currently in the cache queue in this task run
+mqtt_sent_batches: Number of batches sent in this task run
+mqtt_discarded_messages: Number of messages discarded in this task run
+mqtt_discarded_dump_messages: Number of messages discarded by the dump operation during this task run
+total_csv_files: Total number of CSV files
+total_csv_files_completed: Total number of CSV files completed
+total_csv_files_completed_rows: Total number of rows in CSV files completed
+csv_files: Number of CSV files
+csv_files_completed: Number of CSV files completed in this task run
+csv_files_completed_rows: Number of rows in CSV files completed in this task run
+received_messages: Total number of messages received in this task run
+processed_messages: Total number of messages processed in this task run
+out_of_range_rows: Number of rows out of time range in this task run
+total_out_of_range_rows: Total number of rows out of time range
+archived_rows: Number of rows archived
+total_archived_rows: Total number of rows archived
+total_messages_bytes: Total number of bytes received via TMQ
+messages_bytes: Number of bytes received via TMQ in this task run
+commits: Number of messages committed in this task run
+total_commits: Total number of messages committed since task started
+task_name: Task name
+spb_received_messages: Total number of messages fetched in this task run
+spb_received_metrics: Total number of metrics fetched in this task run
+spb_fetched_acks: Total number of ACKs received in this task run
+spb_sent_batches: Number of batches sent in this task run
+tmq2mqtt_received_messages: Number of messages received from TMQ in this task run
+tmq2mqtt_published_messages: Number of messages published to MQTT in this task run

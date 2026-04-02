@@ -1,0 +1,5 @@
+tbname,point_id,stable
+tb1,ns=3;i=1015,stb_int
+tb2,ns=3;i=1013,stb_double
+tb3,ns=3;i=1014,stb_varchar
+tb4,ns=3;i=1016,stb_bool

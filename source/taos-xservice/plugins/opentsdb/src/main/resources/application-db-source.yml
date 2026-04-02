@@ -1,0 +1,5 @@
+# OpenTSDB (test based on version 2.4.0)
+opents:
+  url: http://192.168.2.12:4242
+  apiMetrics: suggest
+  apiData: api/query

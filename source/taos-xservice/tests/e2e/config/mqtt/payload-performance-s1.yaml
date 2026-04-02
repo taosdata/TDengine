@@ -1,0 +1,56 @@
+parser:
+  format:
+    currentPage: 1
+    pageCount: 5
+    pageSize: 10
+  input:
+  - payload: '{"id": 3, "current": 1.1, "phase": 2.2, "voltage": 80979, "groupid":84105, "location": "Beijing"}'
+    qos: qos
+    topic: topic
+    ts: '2023-12-05T09:10:56+08:00'
+  parser:
+    model:
+      columns:
+      - ts
+      - id
+      - current
+      - phase
+      - voltage
+      name: mqtt_{groupid}
+      tags:
+      - groupid
+      - location
+      using: mqtt_meters
+    mutate:
+    - map:
+        id:
+          as: INT
+          cast: id
+        current:
+          as: DOUBLE
+          cast: current
+        phase:
+          as: DOUBLE
+          cast: phase
+        voltage:
+          as: INT
+          cast: voltage
+        groupid:
+          as: INT
+          cast: groupid
+        location:
+          as: VARCHAR
+          cast: location
+        ts:
+          as: TIMESTAMP(ns)
+          generator: now
+    parse:
+      payload:
+        json:
+        - ts
+        - id
+        - current
+        - phase
+        - voltage
+        - groupid
+        - location

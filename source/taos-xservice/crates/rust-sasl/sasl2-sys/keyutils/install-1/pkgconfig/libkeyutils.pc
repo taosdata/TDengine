@@ -1,0 +1,8 @@
+libdir=./install-1/
+includedir=/usr/include
+
+Name: libkeyutils
+Description: keyutils library
+Version: 1.6.3
+Cflags: -I${includedir}
+Libs: -L${libdir} -lkeyutils

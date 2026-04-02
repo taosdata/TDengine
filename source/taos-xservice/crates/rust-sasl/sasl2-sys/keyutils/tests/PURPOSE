@@ -1,0 +1,82 @@
+The purpose of this testsuite is to do negative and positive testing against
+the keyutils package.
+Sub Test		Description
+------------------	-----------------------------------------------------
+/listing/noargs		Check list/rlist subcommands fail with the wrong 
+			number of arguments
+/listing/bad-args	Check list/rlist subcommands fail with bad arguments
+/listing/valid		Check list/rlist subcommands work
+/show/noargs		Check show subcommand works with no arguments
+/reading/noargs		Check read/pipe/print subcommands fail with the wrong 
+			number of arguments
+/reading/bad-args	Check read/pipe/print subcommands fail with bad 
+			arguments
+/reading/valid		Check read/pipe/print subcommands work
+/pupdate/noargs		Check pupdate subcommand fails with the wrong number 
+			of arguments
+/pupdate/bad-args	Check pupdate subcommand fails with bad arguments
+/pupdate/userupdate	Check pupdate subcommand works for user defined keys
+/newring/noargs		Check newring subcommand fails with the wrong number 
+			of arguments
+/newring/bad-args	Check newring subcommand fails with a bad arguments
+/newring/valid		Check newring subcommand works
+/session/bad-args	Check session subcommand fails with bad arguments
+/session/valid		Check session subcommand works
+/clear/noargs		Check clear subcommand fails with the wrong number of 
+			arguments
+/clear/bad-args		Check clear subcommand fails with a bad arguments
+/clear/valid		Check clear subcommand works
+/instantiating/noargs	Check instantiate/negate subcommands fail with the 
+			wrong number of arguments
+/instantiating/bad-args	Check instantiate/negate subcommands fail with bad 
+			arguments
+/permitting/noargs	Check chown/chgrp/setperm subcommands fail with the 
+			wrong number of arguments
+/permitting/bad-args	Check chown/chgrp/setperm subcommands fail with bad 
+			arguments
+/permitting/valid	Check chown/chgrp/setperm subcommands work
+/describing/noargs	Check describe/rdescribe subcommands fail with the 
+			wrong number of arguments
+/describing/bad-args	Check describe/rdescribe subcommands fail with bad 
+			arguments
+/describing/valid	Check describe/rdescribe subcommands work
+/noargs			Check keyutils with no args gives format list
+/revoke/noargs		Check revoke subcommand fails with the wrong number of 
+			arguments
+/revoke/bad-args	Check revoke subcommand fails with a bad arguments
+/revoke/valid		Check revoke subcommand works
+/padd/noargs		Check padd subcommand fails with the wrong number of 
+			arguments
+/padd/bad-args		Check padd subcommand fails with bad arguments
+/padd/useradd		Check padd subcommand works
+/timeout/noargs		Check timeout subcommand fails with the wrong number 
+			of arguments
+/timeout/bad-args	Check timeout subcommand fails with a bad arguments
+/timeout/valid		Check timeout subcommand works
+/update/noargs		Check update subcommand fails with the wrong number of 
+			arguments
+/update/bad-args	Check update subcommand fails with bad arguments
+/update/userupdate	Check update subcommand works for user defined keys
+/search/noargs		Check search subcommand fails with the wrong number of 
+			arguments
+/search/bad-args	Check search subcommand fails with a bad arguments
+/search/valid		Check search subcommand works
+/link/recursion		Check link subcommand handles recursive links correctly
+/link/noargs		Check link subcommand fails with the wrong number of 
+			arguments
+/link/bad-args		Check link subcommand fails with bad arguments
+/link/valid		Check link subcommand works
+/add/noargs		Check add subcommand fails with the wrong number of 
+			arguments
+/add/bad-args		Check add subcommand fails with a bad arguments
+/add/useradd		Check add subcommand works
+/requesting/piped	Check request/prequest2 subcommands work
+/requesting/noargs	Check request/request2 subcommands fail with the 
+			wrong number of arguments
+/requesting/bad-args	Check request/request2 subcommands fail with bad 
+			arguments
+/requesting/valid	Check request/request2 subcommands work
+/unlink/noargs		Check unlink subcommand fails with the wrong number of
+			arguments
+/unlink/bad-args	Check unlink subcommand fails with a bad arguments
+/unlink/valid		Check unlink subcommand works

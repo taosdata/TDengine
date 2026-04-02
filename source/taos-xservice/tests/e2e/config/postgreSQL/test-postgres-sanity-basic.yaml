@@ -1,0 +1,16 @@
+#匿名登录认证, , 单个主题订阅, 日志级别 info
+task_name: postgreSQL
+task_type: postgreSQL
+
+from:
+  fromhost: postgres://{0}/test
+  sql: select * from public.pg_ci where ttimezone >= ${start} and ttimezone < ${end}
+  start: '2024-05-07T00:00:00+08:00'
+  end: '2024-05-08T00:00:00+08:00'
+  read_concurrency: 0
+
+to:
+  target_type: taos
+  target_dbname: ci_db_pg
+
+task_exec_time: 10

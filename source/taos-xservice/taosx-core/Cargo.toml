@@ -1,0 +1,161 @@
+[package]
+name = "taosx-core"
+version = { workspace = true }
+edition.workspace = true
+homepage = "https://taosdata.com"
+publish = false
+description = "taosX - TDengine data integration tool"
+
+[dependencies]
+anyhow.workspace = true
+chrono = { workspace = true }
+chrono-tz = { workspace = true }
+arrow = { workspace = true }
+arrow-schema = { workspace = true, features = ["serde"] }
+arrow-flight = { workspace = true }
+serde_arrow = { workspace = true }
+faststr = { workspace = true }
+parquet = { workspace = true }
+rayon = { workspace = true }
+tonic = { workspace = true, features = ["gzip", "zstd", "tls-native-roots"] }
+zerocopy = { workspace = true }
+dashmap = { workspace = true }
+dlopen2.workspace = true
+regex = { workspace = true }
+arrow-cast-guess-precision = { workspace = true }
+arrow-compute-ext = { workspace = true }
+ring-channel = "0.12"
+async-compression.workspace = true
+async-trait.workspace = true
+bon = "3.3.0"
+bytes.workspace = true
+bitflags = "2"
+crossbeam.workspace = true
+rhai = { version = "1.18.0", features = ["sync"] }
+rhai-dylib = { version = "0.7", features = ["sync"] }
+strum = { workspace = true, features = ["derive"] }
+paste.workspace = true
+half = "2.3"
+humantime.workspace = true
+clap.workspace = true
+convert_case = "0.8"
+csv-async.workspace = true
+flate2.workspace = true
+futures = { workspace = true, features = ["thread-pool"] }
+itertools.workspace = true
+linked-hash-map.workspace = true
+log.workspace = true
+fundu.workspace = true
+scc = { workspace = true, features = ["serde"] }
+semver.workspace = true
+serde = { workspace = true, features = ["derive"] }
+sha2 = "0.10"
+thiserror = { workspace = true }
+tokio = { workspace = true, features = [
+  "rt",
+  "rt-multi-thread",
+  "io-util",
+  "io-std",
+  "net",
+  "time",
+  "process",
+  "macros",
+  "sync",
+  "signal",
+  "fs",
+] }
+tokio-util = { workspace = true, features = ["full"] }
+tokio-stream = { workspace = true, features = ["time"] }
+toml.workspace = true
+either = "1.8"
+tinytemplate = { git = "https://github.com/bitcapybara/TinyTemplate.git", rev = "9085af2b9c824e670750369827b9d6bbf24ae876" }
+serde_json_path = "0.7"
+csv.workspace = true
+glob.workspace = true
+notify.workspace = true
+futures-ext.workspace = true
+ringbuf.workspace = true
+deadpool.workspace = true
+actix-web.workspace = true
+serde_json = { workspace = true, features = ["raw_value", "preserve_order"] }
+utoipa.workspace = true
+cfg-if.workspace = true
+metrics = { workspace = true }
+async-backtrace.workspace = true
+tracing = { workspace = true, features = ["log"] }
+tracing-subscriber.workspace = true
+flume.workspace = true
+futures-util.workspace = true
+serde_with.workspace = true
+bitvec = "1"
+tempfile.workspace = true
+reqwest = { workspace = true }
+taosx-ipc.workspace = true
+taos = { workspace = true }
+shadow-rs = { workspace = true }
+md5.workspace = true
+rand.workspace = true
+base64.workspace = true
+sled = "0.34.7"
+socket2.workspace = true
+sysinfo = { workspace = true }
+chardetng = "0.1.17"
+encoding_rs.workspace = true
+bigdecimal.workspace = true
+rumqttc.workspace = true
+opendal = { workspace = true, features = ["services-s3"] }
+taoslog.workspace = true
+bitfield.workspace = true
+config = "0.14.0"
+snafu.workspace = true
+parking_lot.workspace = true
+lz4.workspace = true
+snap.workspace = true
+zstd.workspace = true
+hex.workspace = true
+serde_regex = "1"
+dateparser = "0.2.1"
+
+persist-queue = { path = "../crates/persist-queue" }
+archive.workspace = true
+taosx-utils.workspace = true
+ha-core.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+winapi = { version = "0.3", features = ["processthreadsapi"] }
+openssl = "0.10.55"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[target.'cfg(all(unix, not(target_arch = "loongarch64")))'.dependencies]
+openssl = { version = "0.10.55", features = ["vendored"] }
+
+[target.'cfg(target_arch="loongarch64")'.dependencies]
+openssl = "0.10.55"
+
+[features]
+default = ["optin", "native-tls"]
+optin = ["taos/optin"]
+rustls = ["taos/ws-rustls"]
+native-tls = ["taos/ws-native-tls"]
+disable-enterprise-only-validation = []
+disable-enterprise-connector-validation = []
+
+[build-dependencies]
+dotenv.workspace = true
+shadow-rs = { workspace = true }
+
+[dev-dependencies]
+pretty_env_logger = "0.5.0"
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
+urlencoding = { workspace = true }
+shadow-rs = { workspace = true }
+criterion.workspace = true
+
+[lints]
+workspace = true
+
+[[bench]]
+name = "json_parse"
+harness = false
