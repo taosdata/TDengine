@@ -1,5 +1,6 @@
 ---
 title: Escape Characters
+slug: /tdengine-reference/sql-manual/escape-characters
 ---
 
 ## Escape Character Table

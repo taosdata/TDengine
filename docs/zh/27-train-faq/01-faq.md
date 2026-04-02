@@ -496,11 +496,7 @@ TDengine TSDB 3.3.5.0 之前的版本，只提供以表为统计单位的压缩�
 
 TDengine TSDB 3.3.5.0 及以上的版本，还提供了数据库整体压缩率和磁盘空间占用统计。查看数据库整体的数据压缩率和磁盘空间占用的命令为 `SHOW db_name.disk_info;`，查看数据库各个模块的磁盘空间占用的命令为 `SELECT * FROM INFORMATION_SCHEMA.INS_DISK_USAGE WHERE db_name='db_name';`，db_name 为要查看的数据库名称。详细可 [查看此处](https://docs.taosdata.com/reference/taos-sql/database/#%E6%9F%A5%E7%9C%8B%E6%95%B0%E6%8D%AE%E5%BA%93%E7%9A%84%E7%A3%81%E7%9B%98%E7%A9%BA%E9%97%B4%E5%8D%A0%E7%94%A8)
 
-### 6.7 WAL 对存储空间和表观压缩率的影响
-
-WAL（Write-Ahead Log，预写式日志）是 TDengine TSDB 保证数据可靠性的核心机制。所有写入请求在落盘到数据文件之前，均以**原始未压缩格式**写入 WAL。因此，在写入初期，WAL 尚未按策略清理时，其大小可能超过已压缩的数据文件，导致观察到的总存储占用**暂时大于压缩后的数据量**，这是正常现象。随着数据持续写入，历史 WAL 会按配置自动清理，总存储占用将趋于稳定并趋近于实际压缩数据的大小。
-
-### 6.8 短时间内，通过 systemd 重启 taosd 超过一定次数后重启失败，报错：start-limit-hit
+### 6.7 短时间内，通过 systemd 重启 taosd 超过一定次数后重启失败，报错：start-limit-hit
 
 问题描述：
 TDengine TSDB 3.3.5.1 及以上的版本，taosd.service 的 systemd 配置文件中，StartLimitInterval 参数从 60 秒调整为 900 秒。若在 900 秒内 taosd 服务重启达到 3 次，后续通过 systemd 启动 taosd 服务时会失败，执行 `systemctl status taosd.service` 显示错误：Failed with result 'start-limit-hit'。
@@ -511,7 +507,7 @@ TDengine TSDB 3.3.5.1 之前的版本，StartLimitInterval 为 60 秒。若在 6
 问题解决：
 1）通过 systemd 重启 taosd 服务：推荐方法是先执行命令 `systemctl reset-failed taosd.service` 重置失败计数器，然后再通过 `systemctl restart taosd.service` 重启；若需长期调整，可手动修改 /etc/systemd/system/taosd.service 文件，将 StartLimitInterval 调小或将 StartLimitBurst 调大 (注：重新安装 taosd 会重置该参数，需要重新修改)，执行 `systemctl daemon-reload` 重新加载配置，然后再重启。2）也可以不通过 systemd 而是通过 taosd 命令直接重启 taosd 服务，此时不受 StartLimitInterval 和 StartLimitBurst 参数限制。
 
-### 6.9 我确认修改了配置文件中参数但并没有生效？
+### 6.8 我确认修改了配置文件中参数但并没有生效？
 
 问题描述：
 TDengine TSDB 3.4.0.0 及以上的版本，有些用户可能会遇到一个问题：我在 `taos.cfg` 中修改了某个配置参数，但是重启后发现并没有生效，查看日志也找不到任何报错。
@@ -519,11 +515,11 @@ TDengine TSDB 3.4.0.0 及以上的版本，有些用户可能会遇到一个问�
 问题原因：
 这是由于 TDengine TSDB 3.4.0.0 及以上版本，为了进一步提升 TDengine TSDB 的安全等级，防止恶意篡改配置文件，TDengine TSDB 禁止通过修改配置文件来改变配置参数，请您使用 ALTER 命令，通过 SQL 的方式修改配置参数的值。
 
-### 6.10 如何让 TDengine TSDB crash 时生成 core 文件？
+### 6.9 如何让 TDengine TSDB crash 时生成 core 文件？
 
 请看为此问题撰写的 [技术博客](https://www.taosdata.com/blog/2019/12/06/974.html)。
 
-### 6.11 如何在命令行程序 taos 中临时调整日志级别
+### 6.10 如何在命令行程序 taos 中临时调整日志级别
 
 为了调试方便，命令行程序 taos 新增了与日志记录相关的指令：
 
@@ -544,11 +540,11 @@ local_option: {
 
 - value 的取值可以是：131（输出错误和警告日志）、135（输出错误、警告和调试日志）、143（输出错误、警告、调试和跟踪日志）。
 
-### 6.12 修改 database 的 root 密码后，Grafana 监控插件 TDinsight 无数据展示
+### 6.11 修改 database 的 root 密码后，Grafana 监控插件 TDinsight 无数据展示
 
 TDinsight 插件中展示的数据是通过 taosKeeper 和 taosAdapter 服务收集并存储于 TD 的 log 库中，在 root 密码修改后，需要同步更新 taosKeeper 和 taosAdapter 配置文件中对应的密码信息，然后重启 taosKeeper 和 taosAdapter 服务（注：若是集群需要重启每个节点上的对应服务）。
 
-### 6.13 为什么开源版 TDengine TSDB 的主进程会建立一个与公网的连接？
+### 6.12 为什么开源版 TDengine TSDB 的主进程会建立一个与公网的连接？
 
 这个连接只会上报不涉及任何用户数据的最基本信息，用于官方了解产品在世界范围内的分布情况，进而优化产品，提升用户体验，具体采集项目为：集群名、操作系统版本、cpu 信息等。
 
@@ -560,7 +556,7 @@ TDinsight 插件中展示的数据是通过 taosKeeper 和 taosAdapter 服务收
 
 此外，对于安全性要求极高的企业版 TDengine TSDB Enterprise 来说，此参数不会工作。
 
-### 6.14 同一台服务器，数据库的数据目录 dataDir 不变，为什么原有数据库丢失且集群 ID 发生了变化？
+### 6.13 同一台服务器，数据库的数据目录 dataDir 不变，为什么原有数据库丢失且集群 ID 发生了变化？
 
 背景知识：TDengine TSDB 服务端进程（taosd）在启动时，若数据目录（dataDir，该目录在配置文件 taos.cfg 中指定）下不存在有效的数据文件子目录（如 mnode、dnode 和 vnode 等），则会自动创建这些目录。在创建新的 mnode 目录的同时，会分配一个新的集群 ID，从而产生一个新的集群。
 

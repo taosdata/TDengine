@@ -1,5 +1,6 @@
 ---
 title: Data Ingestion
+slug: /tdengine-reference/sql-manual/insert-data
 ---
 
 ## Writing Syntax

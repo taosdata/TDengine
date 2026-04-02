@@ -1414,7 +1414,7 @@ int32_t initTimezoneInfo(void) {
 
   atomic_store_32((int32_t *)&g_tz_idx, 0);
 
-  uDebug("timezone init info");
+  uInfo("[tz]timezone initTimezoneInfo.");
 #endif
   return TSDB_CODE_SUCCESS;
 }

@@ -2239,22 +2239,6 @@ static int32_t getTargetTableSchema(SInsertParseContext* pCxt, SVnodeModifyOpStm
   if (TSDB_CODE_SUCCESS == code && !pCxt->missCache) {
     code = getTargetTableMetaAndVgroup(pCxt, pStmt, &pCxt->missCache);
   }
-#ifdef TD_ENTERPRISE
-  // MAC NWD+NRU: for INSERT, user.minSecLevel <= table.secLvl <= user.maxSecLevel
-  // Only enforced when MAC is explicitly activated cluster-wide.
-  // Logic mirrors macCheckBySecLvl() in parAuthenticator.c (inline here because SInsertParseContext
-  // does not carry an SAuthCxt).
-  if (pCxt->pComCxt->macMode && TSDB_CODE_SUCCESS == code && !pCxt->missCache && pStmt->pTableMeta != NULL) {
-    int8_t secLvl = pStmt->pTableMeta->secLvl;
-    if (secLvl >= 0) {
-      if (pCxt->pComCxt->minSecLevel > secLvl) {
-        code = TSDB_CODE_MAC_NO_WRITE_DOWN;  // NWD violation
-      } else if (pCxt->pComCxt->maxSecLevel < secLvl) {
-        code = TSDB_CODE_MAC_INSUFFICIENT_LEVEL;  // NRU violation
-      }
-    }
-  }
-#endif
 
   if (TSDB_CODE_SUCCESS == code) {
     if (pPrivCols) pStmt->pPrivCols = pPrivCols;
@@ -3276,19 +3260,16 @@ static int32_t getStbRowValues(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pS
 static int32_t processCtbAutoCreationAndCtbMeta(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt,
                                                 SStbRowsDataContext* pStbRowsCxt) {
   int32_t code = TSDB_CODE_SUCCESS;
-  bool    stmtNoCreateTbReq = (pCxt->pComCxt->stmtBindVersion == 2 && pCxt->tags.numOfBound == 0);
 
-  if (!stmtNoCreateTbReq) {
-    pStbRowsCxt->pCreateCtbReq = taosMemoryCalloc(1, sizeof(SVCreateTbReq));
-    if (pStbRowsCxt->pCreateCtbReq == NULL) {
-      code = terrno;
-    }
-    if (code == TSDB_CODE_SUCCESS) {
-      code = insBuildCreateTbReq(pStbRowsCxt->pCreateCtbReq, pStbRowsCxt->ctbName.tname, pStbRowsCxt->pTag,
-                                 pStbRowsCxt->pStbMeta->uid, pStbRowsCxt->stbName.tname, pStbRowsCxt->aTagNames,
-                                 getNumOfTags(pStbRowsCxt->pStbMeta), TSDB_DEFAULT_TABLE_TTL);
-      pStbRowsCxt->pTag = NULL;
-    }
+  pStbRowsCxt->pCreateCtbReq = taosMemoryCalloc(1, sizeof(SVCreateTbReq));
+  if (pStbRowsCxt->pCreateCtbReq == NULL) {
+    code = terrno;
+  }
+  if (code == TSDB_CODE_SUCCESS) {
+    code = insBuildCreateTbReq(pStbRowsCxt->pCreateCtbReq, pStbRowsCxt->ctbName.tname, pStbRowsCxt->pTag,
+                               pStbRowsCxt->pStbMeta->uid, pStbRowsCxt->stbName.tname, pStbRowsCxt->aTagNames,
+                               getNumOfTags(pStbRowsCxt->pStbMeta), TSDB_DEFAULT_TABLE_TTL);
+    pStbRowsCxt->pTag = NULL;
   }
 
   if (code == TSDB_CODE_SUCCESS) {
@@ -3307,30 +3288,10 @@ static int32_t processCtbAutoCreationAndCtbMeta(SInsertParseContext* pCxt, SVnod
     }
     STableMeta* pBackup = NULL;
     if (TSDB_CODE_SUCCESS == code) {
-      if (stmtNoCreateTbReq) {
-        /* Resolve child uid by db+tbname; must belong to the super table in this INSERT (same suid). */
-        STableMeta* pMeta = NULL;
-        code = catalogGetTableMeta(pCxt->pComCxt->pCatalog, &conn, &pStbRowsCxt->ctbName, &pMeta);
-        if (TSDB_CODE_SUCCESS == code) {
-          if (pMeta == NULL) {
-            code = TSDB_CODE_PAR_TABLE_NOT_EXIST;
-          } else if (TSDB_CHILD_TABLE != pMeta->tableType || pMeta->suid != pStbRowsCxt->pStbMeta->uid) {
-            taosMemoryFreeClear(pMeta);
-            code = generateSyntaxErrMsg(&pCxt->msg, TSDB_CODE_TDB_TABLE_IN_OTHER_STABLE);
-          } else {
-            pStbRowsCxt->pCtbMeta->uid = pMeta->uid;
-            pStbRowsCxt->pCtbMeta->sversion = pMeta->sversion;
-            pStbRowsCxt->pCtbMeta->tversion = pMeta->tversion;
-            taosMemoryFreeClear(pMeta);
-          }
-        }
-      } else {
-        pStbRowsCxt->pCtbMeta->uid = taosHashGetSize(pStmt->pSubTableHashObj) + 1;
-      }
-      if (TSDB_CODE_SUCCESS == code) {
-        pStbRowsCxt->pCtbMeta->vgId = vg.vgId;
-        code = cloneTableMeta(pStbRowsCxt->pCtbMeta, &pBackup);
-      }
+      pStbRowsCxt->pCtbMeta->uid = taosHashGetSize(pStmt->pSubTableHashObj) + 1;
+      pStbRowsCxt->pCtbMeta->vgId = vg.vgId;
+
+      code = cloneTableMeta(pStbRowsCxt->pCtbMeta, &pBackup);
     }
     if (TSDB_CODE_SUCCESS == code) {
       code = taosHashPut(pStmt->pSubTableHashObj, ctbFName, strlen(ctbFName), &pBackup, POINTER_BYTES);
@@ -4544,21 +4505,6 @@ static int32_t setVnodeModifOpStmt(SInsertParseContext* pCxt, SCatalogReq* pCata
   if (code == TSDB_CODE_SUCCESS) {
     code = getTableMetaFromMetaData(pMetaData->pTableMeta, &pStmt->pTableMeta);
   }
-#ifdef TD_ENTERPRISE
-  // MAC NWD+NRU: retry path — metadata was just fetched from server, check must be enforced here too.
-  // (The primary NWD check in getTargetTableSchema is guarded by !missCache and therefore does not run
-  // when the first parse attempt hits a cache miss, e.g. fresh connections used by "taos -s".)
-  if (pCxt->pComCxt->macMode && code == TSDB_CODE_SUCCESS && pStmt->pTableMeta != NULL) {
-    int8_t secLvl = pStmt->pTableMeta->secLvl;
-    if (secLvl >= 0) {
-      if (pCxt->pComCxt->minSecLevel > secLvl) {
-        code = TSDB_CODE_MAC_NO_WRITE_DOWN;  // NWD violation
-      } else if (pCxt->pComCxt->maxSecLevel < secLvl) {
-        code = TSDB_CODE_MAC_INSUFFICIENT_LEVEL;  // NRU violation
-      }
-    }
-  }
-#endif
   if (code == TSDB_CODE_SUCCESS) {
     code = checkAuthUseDb(pCxt->pComCxt, &pStmt->targetTableName, pStmt->pTableMeta->isAudit);
   }

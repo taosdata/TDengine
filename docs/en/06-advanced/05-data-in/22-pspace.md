@@ -3,23 +3,33 @@ title: "pSpace"
 sidebar_label: "pSpace"
 ---
 
-import { AddDataSource, Enterprise } from '../../assets/resources/_resources.mdx';
-
-<Enterprise/>
-
 This section describes how to create data migration/data synchronization tasks through the Explorer UI to migrate/synchronize data from pSpace to the current TDengine TSDB cluster.
 
 ## Feature Overview
 
 TDengine TSDB can efficiently read data from pSpace and write it to TDengine TSDB for historical data migration or real-time data synchronization.
 
-## Procedure
+## Create a Task
 
-### Add a Data Source
+### 1. Add a New Data Source
 
-<AddDataSource connectorName="pSpace" />
+On the Data In page, click **+ Add Data Source** to enter the Add Data Source page.
 
-### Configure Connection and Authentication Information
+![pspace-en-01.png](../../assets/Common-en00-EnterDataSourcePage.png)
+
+### 2. Configure Basic Information
+
+In **Name**, enter a task name, for example: "test_pspace".
+
+In the **Type** drop-down list, select **pSpace**.
+
+**Proxy** is optional. If needed, select a proxy from the drop-down list, or click **+ Create New Proxy** on the right first.
+
+In the **Target Database** drop-down list, select a target database, or click **+ Create Database** on the right first.
+
+![pspace-en-02.png](../../assets/pspace-02.png)
+
+### 3. Configure Connection and Authentication Information
 
 In the **Connection Configuration** section, fill in **Server Address** and **Server Port**.
 
@@ -29,9 +39,9 @@ Click **Connectivity Check** to verify whether the data source is available.
 
 ![pspace-en-03.png](../../assets/pspace-03.png)
 
-### Configure Data Points
+### 4. Configure Data Points
 
-#### Select Data Points
+#### 4.1. Select Data Points
 
 In **Data Points**, configure the following items:
 
@@ -50,13 +60,13 @@ After configuring **Root Node** and **Data Point Name**, click **View Data Point
 
 ![pspace-en-04.png](../../assets/pspace-04.png)
 
-#### Upload CSV Configuration File
+#### 4.2. Upload CSV Configuration File
 
 In **Upload CSV Configuration File**, click **Download Data Points**, select the required **Root Node** and **Data Point Name**, and a CSV configuration file will be generated and downloaded locally. Modify the generated CSV file as needed and upload it again.
 
 ![pspace-en-05.png](../../assets/pspace-05.png)
 
-### Configure Collection
+### 5. Configure Collection
 
 In the **Collection Configuration** section, fill in collection-related parameters.
 
@@ -66,26 +76,26 @@ pSpace supports three collection modes: Historical Query, Real-time Subscription
 - Real-time Subscription: Subscribes to real-time changes of data points and keeps running until canceled.
 - Query Sync: Completes historical data migration first, then continuously polls new data at a fixed interval.
 
-#### Historical Query
+#### 5.1. Historical Query
 
 Select **Historical Query** mode and configure: Start Time, End Time, and Query Window.
 
 ![pspace-en-06.png](../../assets/pspace-06.png)
 
-#### Real-time Subscription
+#### 5.2. Real-time Subscription
 
 Select **Real-time Subscription** mode. No additional parameters are required.
 
-#### Query Sync
+#### 5.3. Query Sync
 
 Select **Query Sync** mode and configure: Start Time, Query Window, Out-of-order Tolerance, and Query Interval.
 
 ![pspace-en-07.png](../../assets/pspace-07.png)
 
-### Configure Advanced Options
+### 6. Configure Advanced Options
 
 In the **Advanced Options** section, configure other parameters as needed.
 
-### Complete Creation
+### 7. Complete Creation
 
 Click **Submit** to complete task creation. After submitting, return to the **Data In** page to view the task status.

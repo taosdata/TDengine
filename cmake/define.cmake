@@ -27,7 +27,7 @@ add_definitions(
   -DUSE_GEOS
   -DUSE_UDF
   -DUSE_STREAM
-  -DUSE_PCRE2
+  -DUSE_PRCE2
   -DUSE_RSMA
   -DUSE_TSMA
   -DUSE_TQ
@@ -79,10 +79,6 @@ IF(${BUILD_SHARED_STORAGE})
   ENDIF ()
 ENDIF ()
 
-if(BUILD_WITH_COS)
-    message(FATAL_ERROR "freemine: not implemented yet")
-endif()
-
 # Enable advanced security features
 IF(BUILD_ADVANCED_SECURITY)
     ADD_DEFINITIONS(-DTD_ENABLE_ADVANCED_SECURITY)
@@ -118,27 +114,11 @@ IF(TD_WINDOWS)
         # /Zi  : generate a separate PDB file (previously /Zi- which disabled it entirely).
         # The PDB is NOT shipped to the user but must be archived internally per version
         # so that crash dumps from the field can be symbolicated with WinDbg / VS.
-        IF(${BUILD_SANITIZER})
-            MESSAGE("${Green} will build with AddressSanitizer (MSVC ASan)! ${ColourReset}")
-            # /fsanitize=address: MSVC ASan (incompatible with /GL and /O2)
-            # _DISABLE_VECTOR_ANNOTATION/_DISABLE_STRING_ANNOTATION: suppress STL ASan
-            # annotations to avoid LNK2038 mismatch with pre-built libs (e.g. rocksdb)
-            # that were compiled without /fsanitize=address.
-            SET(COMMON_FLAGS "/W3 /D_WIN32 /DWIN32 /Zi /O1 /MD /fsanitize=address /D_DISABLE_VECTOR_ANNOTATION=1 /D_DISABLE_STRING_ANNOTATION=1")
-        ELSE()
-            SET(COMMON_FLAGS "/W3 /D_WIN32 /DWIN32 /Zi /O2 /GL /MD")
-        ENDIF()
+        SET(COMMON_FLAGS "/W3 /D_WIN32 /DWIN32 /Zi /O2 /GL /MD")
     ELSE()
         MESSAGE("${Green} will build Debug version! ${ColourReset}")
         # NOTE: let cmake to choose default compile options
-        IF(${BUILD_SANITIZER})
-            MESSAGE("${Green} will build Debug with AddressSanitizer (MSVC ASan)! ${ColourReset}")
-            # /fsanitize=address is compatible with /MDd; no /GL or /RTC1 in Debug
-            # so there are no incompatibility constraints unlike Release.
-            SET(COMMON_FLAGS "/w /D_WIN32 /DWIN32 /Zi /MDd /fsanitize=address /D_DISABLE_VECTOR_ANNOTATION=1 /D_DISABLE_STRING_ANNOTATION=1")
-        ELSE()
-            SET(COMMON_FLAGS "/w /D_WIN32 /DWIN32 /Zi /MDd")
-        ENDIF()
+        SET(COMMON_FLAGS "/w /D_WIN32 /DWIN32 /Zi /MDd")
     ENDIF()
 
     SET(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /MANIFEST:NO /FORCE:MULTIPLE")
@@ -238,16 +218,16 @@ ELSE()
     INCLUDE(CheckCCompilerFlag)
     INCLUDE(CheckCXXCompilerFlag)
 
-    IF(TD_ARM_64 OR TD_ARM_32 OR TD_DARWIN_ARM64)
+    IF(TD_ARM_64 OR TD_ARM_32)
         SET(COMPILER_SUPPORT_SSE42 false)
-    ELSEIF(("${CMAKE_C_COMPILER_ID}" MATCHES "Clang") OR ("${CMAKE_C_COMPILER_ID}" MATCHES "AppleClang"))
+    ELSEIF(("${CMAKE_C_COMPILER_ID}" MATCHES "Clang") OR("${CMAKE_C_COMPILER_ID}" MATCHES "AppleClang"))
         SET(COMPILER_SUPPORT_SSE42 true)
         MESSAGE(STATUS "Always enable sse4.2 for Clang/AppleClang")
     ELSE()
         CHECK_C_COMPILER_FLAG("-msse4.2" COMPILER_SUPPORT_SSE42)
     ENDIF()
 
-    IF(TD_ARM_64 OR TD_ARM_32 OR TD_DARWIN_ARM64)
+    IF(TD_ARM_64 OR TD_ARM_32)
         SET(COMPILER_SUPPORT_FMA false)
         SET(COMPILER_SUPPORT_AVX false)
         SET(COMPILER_SUPPORT_AVX2 false)
@@ -263,16 +243,8 @@ ELSE()
         CHECK_C_COMPILER_FLAG("-mavx512vl" COMPILER_SUPPORT_AVX512VL)
     ENDIF()
 
-    # Old GCC accepts unknown -Wno-* options without diagnostics unless another
-    # warning is emitted. Probe the positive warning option instead.
-    CHECK_C_COMPILER_FLAG("-Wstringop-overread" COMPILER_SUPPORT_WSTRINGOP_OVERREAD)
-    CHECK_CXX_COMPILER_FLAG("-Wstringop-overread" COMPILER_SUPPORT_CXX_WSTRINGOP_OVERREAD)
-    IF(COMPILER_SUPPORT_WSTRINGOP_OVERREAD)
-        SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-stringop-overread")
-    ENDIF()
-    IF(COMPILER_SUPPORT_CXX_WSTRINGOP_OVERREAD)
-        SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-stringop-overread")
-    ENDIF()
+    CHECK_C_COMPILER_FLAG("-Wno-stringop-overread" COMPILER_SUPPORT_WNO_STRINGOP_OVERREAD)
+    CHECK_CXX_COMPILER_FLAG("-Wno-stringop-overread" COMPILER_SUPPORT_CXX_WNO_STRINGOP_OVERREAD)
 
     IF(COMPILER_SUPPORT_SSE42)
         SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -msse4.2")
@@ -313,19 +285,27 @@ ELSE()
         ENDIF()
     ENDIF()
 
+    # build mode
+    SET(CMAKE_C_FLAGS_REL "${CMAKE_C_FLAGS} -Werror -Werror=return-type -fPIC -O3 -Wformat=2 -Wno-format-nonliteral -Wno-format-truncation -Wno-format-y2k")
+    SET(CMAKE_CXX_FLAGS_REL "${CMAKE_CXX_FLAGS} -Werror -Wno-reserved-user-defined-literal -Wno-literal-suffix -Werror=return-type -fPIC -O3 -Wformat=2 -Wno-format-nonliteral -Wno-format-truncation -Wno-format-y2k")
+
     IF(BUILD_SANITIZER)
-        # Note: -fsanitize=undefined is intentionally omitted from C_FLAGS.
-        # The manylinux2014 (CentOS 7) build container ships GCC 7 which generates
-        # ubsan v0 ABI calls (e.g. __ubsan_handle_type_mismatch) but the only
-        # available 64-bit libubsan (devtoolset-10) provides v1 symbols only
-        # (__ubsan_handle_type_mismatch_v1), causing an unresolvable link error
-        # with the mold linker.  ASan (-fsanitize=address) works correctly.
-        SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}     -Werror -Werror=return-type -fPIC -gdwarf-2 -fsanitize=address -fsanitize-recover=all -fno-sanitize=shift-base -fno-sanitize=alignment -g3 -Wformat=0")
-        SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-literal-suffix -Werror=return-type -fPIC -gdwarf-2 -fsanitize=address -fsanitize-recover=all -fno-sanitize=shift-base -fno-sanitize=alignment -g3 -Wformat=0")
+        SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}     -Werror -Werror=return-type -fPIC -gdwarf-2 -fsanitize=address -fsanitize=undefined -fsanitize-recover=all -fsanitize=float-divide-by-zero -fsanitize=float-cast-overflow -fno-sanitize=shift-base -fno-sanitize=alignment -g3 -Wformat=0")
+
+        SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-literal-suffix -Werror=return-type -fPIC -gdwarf-2 -fsanitize=address -fsanitize-recover=all -fsanitize=float-divide-by-zero -fsanitize=float-cast-overflow -fno-sanitize=shift-base -fno-sanitize=alignment -g3 -Wformat=0")
         MESSAGE(STATUS "Compile with Address Sanitizer!")
+    ELSEIF(BUILD_RELEASE)
+        SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS_REL}")
+        SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS_REL}")
     elseif(TD_LINUX)
         SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Werror -fPIC -g3 -gdwarf-2 -Wno-format-truncation -Wno-write-strings -Wno-format-overflow")
         SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror -fPIC -g3 -gdwarf-2 -Wno-format-truncation -Wno-write-strings -Wno-format-overflow -Wno-conversion-null")
+        IF(COMPILER_SUPPORT_WNO_STRINGOP_OVERREAD)
+            SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-stringop-overread")
+        ENDIF()
+        IF(COMPILER_SUPPORT_CXX_WNO_STRINGOP_OVERREAD)
+            SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-stringop-overread")
+        ENDIF()
     elseif(TD_DARWIN)
         SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Werror -Werror=return-type -fPIC -g3 -gdwarf-2 -Wformat=2 -Wno-format-nonliteral -Wno-format-y2k -Wno-deprecated-declarations")
         SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror -Werror=return-type -fPIC -g3 -gdwarf-2 -Wno-reserved-user-defined-literal -Wformat=2 -Wno-format-nonliteral -Wno-format-y2k -Wno-deprecated-declarations -Wno-literal-conversion -Wno-writable-strings -Wno-unused-value -Wno-format -Wno-null-conversion")

@@ -2,7 +2,7 @@
 ######## example-requirements.txt #######
 ##
 ####### Requirements without Version Specifiers ######
-requests>=2.32.0
+requests
 multipledispatch
 #beautifulsoup4
 ##

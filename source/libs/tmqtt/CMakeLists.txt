@@ -12,8 +12,6 @@ add_executable(taosmqtt ${MQTT_SRC})
 
 DEP_ext_cjson(taosmqtt)
 DEP_ext_libuv(taosmqtt)
-DEP_ext_geos_INC(taosmqtt)
-DEP_ext_pcre2_INC(taosmqtt)
 
 target_compile_definitions(taosmqtt PRIVATE WITH_BROKER)
 
@@ -28,7 +26,6 @@ target_include_directories(
     "${TD_SOURCE_DIR}/include/util"
     "${TD_SOURCE_DIR}/include/common"
     "${TD_SOURCE_DIR}/include/libs/transport"
-    "${TD_SOURCE_DIR}/include/libs/decimal"
     "${TD_SOURCE_DIR}/include/client"
     "${TD_SOURCE_DIR}/include/dnode/bnode"
     "${TD_SOURCE_DIR}/contrib/libmqtt/inc"

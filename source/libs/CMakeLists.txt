@@ -29,7 +29,3 @@ add_subdirectory(tss)
 add_subdirectory(decimal)
 add_subdirectory(txnode)
 add_subdirectory(totp)
-
-if(BUILD_PYUDF)
-    add_subdirectory(pyudf)
-endif()

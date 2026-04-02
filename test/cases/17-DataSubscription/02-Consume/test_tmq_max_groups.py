@@ -7,7 +7,6 @@ import platform
 import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from new_test_framework.utils import tdLog, tdSql, tdCom, tmqCom
-from new_test_framework.utils.pathFinding import find_proj_path
 
 class TestCase:
     updatecfgDict = {'debugFlag': 135}    
@@ -25,7 +24,10 @@ class TestCase:
             tool = tool + ".exe"
         selfPath = os.path.dirname(os.path.realpath(__file__))
 
-        projPath = find_proj_path(selfPath)
+        if ("community" in selfPath):
+            projPath = selfPath[:selfPath.find("community")]
+        else:
+            projPath = selfPath[:selfPath.find("test")]
 
         paths = []
         for root, dirs, files in os.walk(projPath):

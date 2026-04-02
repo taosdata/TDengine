@@ -352,12 +352,6 @@ typedef int32_t (*TScriptCloseFunc)();
   #define fnInfo(...)  {}
   #define fnDebug(...) {}
   #define fnTrace(...) {}
-  #define udfFatal(...) {}
-  #define udfError(...) {}
-  #define udfWarn(...)  {}
-  #define udfInfo(...)  {}
-  #define udfDebug(...) {}
-  #define udfTrace(...) {}
 #else
   DLL_EXPORT void taosPrintLog(const char *flags, int32_t level, int32_t dflag, const char *format, ...)
 #ifdef __GNUC__

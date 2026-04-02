@@ -81,13 +81,10 @@ if exist %binary_dir%\\build\\bin\\taosws.dll (
     copy %binary_dir%\\build\\bin\\taosws.dll %target_dir%\\ > nul
     copy %binary_dir%\\build\\include\\taosws.h %target_dir%\\include > nul
 )
-if exist %binary_dir%\\build\\bin\\taospyudf.dll (
-    copy %binary_dir%\\build\\bin\\taospyudf.dll %target_dir%\\ > nul
-)
 if exist %binary_dir%\\build\\bin\\taosdump.exe (
     copy %binary_dir%\\build\\bin\\taosdump.exe %target_dir% > nul
 )
-if /I "%Enterprise%"=="TRUE" (
+if %Enterprise% == TRUE (
     if exist %binary_dir%\\build\\bin\\taosx.exe (
         copy %binary_dir%\\build\\bin\\taosx.exe %target_dir% > nul
     )
@@ -122,16 +119,17 @@ if /I "%Enterprise%"=="TRUE" (
 
 copy %binary_dir%\\build\\bin\\taosd.exe %target_dir% > nul
 copy %binary_dir%\\build\\bin\\taosudf.exe %target_dir% > nul
+
 rem // ── Archive PDB files for crash-dump symbolication ──────────────────────
 rem //   PDBs are NOT shipped to end-users.  They must be stored internally,
 rem //   keyed by version number, so that field crash dumps can be analysed.
 rem //   Layout:  <binary_dir>\symbols\<verNumber>\*.pdb
 set pdb_archive=%binary_dir%\\symbols\\%verNumber%
-if exist "%binary_dir%\\build\\bin\\*.pdb" (
-    if not exist "%pdb_archive%" mkdir "%pdb_archive%"
-    copy "%binary_dir%\\build\\bin\\*.pdb" "%pdb_archive%\\" > nul
-    echo PDB files archived to: %pdb_archive%
+if not exist "%pdb_archive%" mkdir "%pdb_archive%"
+for %%f in (%binary_dir%\\build\\bin\\*.pdb) do (
+    copy "%%f" "%pdb_archive%\\" > nul
 )
+echo PDB files archived to: %pdb_archive%
 rem // ─────────────────────────────────────────────────────────────────────────
 if exist %binary_dir%\\build\\bin\\taosadapter.exe (
     copy %binary_dir%\\build\\bin\\taosadapter.exe %target_dir% > nul
@@ -172,9 +170,6 @@ if exist c:\\windows\\sysnative (
     if exist C:\\TDengine\\bin\\taosws.dll (
         copy /y C:\\TDengine\\bin\\taosws.dll %windir%\\sysnative > nul
     )
-    if exist C:\\TDengine\\bin\\taospyudf.dll (
-        copy /y C:\\TDengine\\bin\\taospyudf.dll %windir%\\sysnative > nul
-    )
 ) else (
     echo x64
     copy /y C:\\TDengine\\bin\\taos.dll C:\\Windows\\System32 > nul
@@ -182,9 +177,6 @@ if exist c:\\windows\\sysnative (
     copy /y C:\\TDengine\\bin\\pthreadVC3.dll C:\\Windows\\System32 > nul
     if exist C:\\TDengine\\bin\\taosws.dll (
         copy /y C:\\TDengine\\bin\\taosws.dll C:\\Windows\\System32 > nul
-    )
-    if exist C:\\TDengine\\bin\\taospyudf.dll (
-        copy /y C:\\TDengine\\bin\\taospyudf.dll C:\\Windows\\System32 > nul
     )
 )
 

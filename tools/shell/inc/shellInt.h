@@ -75,7 +75,6 @@ typedef struct {
 #endif  
   bool        is_gen_auth;
   bool        is_bi_mode;
-  bool        is_binary_as_hex;
   bool        is_raw_time;
   bool        is_version;
   bool        is_dump_config;

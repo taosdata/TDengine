@@ -1,7 +1,7 @@
 # vnode
 add_library(vnode STATIC "")
-if(TD_USE_ROCKSDB)
-    DEP_td_rocksdb(vnode)
+if (BUILD_CONTRIB OR NOT TD_LINUX)
+  DEP_ext_rocksdb(vnode)
 endif()
 
 if(TD_DARWIN)
@@ -116,15 +116,38 @@ if(TD_VNODE_PLUGINS)
     )
 endif()
 
-target_include_directories(
-    vnode
-    PUBLIC "inc"
-    PUBLIC "src/inc"
-    PUBLIC "${TD_SOURCE_DIR}/include/libs/tcs"
-    PUBLIC "${TD_SOURCE_DIR}/include/libs/scalar"
-    PUBLIC "${TD_SOURCE_DIR}/include/libs/crypt"
-    PUBLIC "${TD_SOURCE_DIR}/include/dnode/vnode"
-)
+if(BUILD_CONTRIB)
+    target_include_directories(
+        vnode
+        PUBLIC "inc"
+        PUBLIC "src/inc"
+        PUBLIC "${TD_SOURCE_DIR}/include/libs/tss"
+        PUBLIC "${TD_SOURCE_DIR}/include/libs/scalar"
+        PUBLIC "${TD_SOURCE_DIR}/include/libs/crypt"
+        PUBLIC "${TD_SOURCE_DIR}/include/dnode/vnode"
+    )
+else()
+    target_include_directories(
+        vnode
+        PUBLIC "inc"
+        PUBLIC "src/inc"
+        PUBLIC "${TD_SOURCE_DIR}/include/libs/tss"
+        PUBLIC "${TD_SOURCE_DIR}/include/libs/scalar"
+        PUBLIC "${TD_SOURCE_DIR}/include/libs/crypt"
+        PUBLIC "${TD_SOURCE_DIR}/include/dnode/vnode"
+    )
+
+    if(TD_LINUX)
+        target_include_directories(
+            vnode
+            PUBLIC "${TD_SOURCE_DIR}/deps/${TD_DEPS_DIR}/rocksdb_static"
+        )
+        target_link_directories(
+            vnode
+            PUBLIC "${TD_SOURCE_DIR}/deps/${TD_DEPS_DIR}/rocksdb_static"
+        )
+    endif()
+endif()
 
 target_link_directories(
     vnode
@@ -165,7 +188,7 @@ if(BUILD_WITH_INVERTEDINDEX)
     add_definitions(-DUSE_INVERTED_INDEX)
 endif()
 
-if(TD_USE_ROCKSDB)
+if(BUILD_WITH_ROCKSDB)
     add_definitions(-DUSE_ROCKSDB)
 endif()
 

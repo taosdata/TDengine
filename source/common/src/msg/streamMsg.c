@@ -4221,7 +4221,6 @@ int32_t tSerializeStRtFuncInfo(SEncoder* pEncoder, const SStreamRuntimeFuncInfo*
   TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pInfo->triggerType));
   TAOS_CHECK_EXIT(tEncodeBool(pEncoder, pInfo->isWindowTrigger));
   TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pInfo->precision));
-  TAOS_CHECK_EXIT(tEncodeU64(pEncoder, pInfo->streamGen));
 _exit:
   return code;
 }
@@ -4325,9 +4324,6 @@ int32_t tDeserializeStRtFuncInfo(SDecoder* pDecoder, SStreamRuntimeFuncInfo* pIn
   if (!tDecodeIsEnd(pDecoder)) {
     TAOS_CHECK_EXIT(tDecodeBool(pDecoder, &pInfo->isWindowTrigger));
     TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pInfo->precision));
-  }
-  if (!tDecodeIsEnd(pDecoder)) {
-    TAOS_CHECK_EXIT(tDecodeU64(pDecoder, &pInfo->streamGen));
   }
 _exit:
   return code;
@@ -4680,64 +4676,4 @@ _exit:
   }
   tDecoderClear(&decoder);
   return code;
-}
-
-int32_t tSerializeGetStreamCreateSqlReq(void* buf, int32_t bufLen, const SGetStreamCreateSqlReq* pReq) {
-  SEncoder encoder = {0};
-  tEncoderInit(&encoder, buf, bufLen);
-  int32_t code = 0, lino = 0;
-  TAOS_CHECK_EXIT(tStartEncode(&encoder));
-  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->name));
-  tEndEncode(&encoder);
-_exit:
-  if (code) uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-  int32_t len = encoder.pos;
-  tEncoderClear(&encoder);
-  return (code != 0) ? code : len;
-}
-
-int32_t tDeserializeGetStreamCreateSqlReq(void* buf, int32_t bufLen, SGetStreamCreateSqlReq* pReq) {
-  SDecoder decoder = {0};
-  tDecoderInit(&decoder, buf, bufLen);
-  int32_t code = 0, lino = 0;
-  TAOS_CHECK_EXIT(tStartDecode(&decoder));
-  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->name));
-  tEndDecode(&decoder);
-_exit:
-  if (code) uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-  tDecoderClear(&decoder);
-  return code;
-}
-
-int32_t tSerializeGetStreamCreateSqlRsp(void* buf, int32_t bufLen, const SGetStreamCreateSqlRsp* pRsp) {
-  SEncoder encoder = {0};
-  tEncoderInit(&encoder, buf, bufLen);
-  int32_t code = 0, lino = 0;
-  TAOS_CHECK_EXIT(tStartEncode(&encoder));
-  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pRsp->sql ? pRsp->sql : ""));
-  tEndEncode(&encoder);
-_exit:
-  if (code) uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-  int32_t len = encoder.pos;
-  tEncoderClear(&encoder);
-  return (code != 0) ? code : len;
-}
-
-int32_t tDeserializeGetStreamCreateSqlRsp(void* buf, int32_t bufLen, SGetStreamCreateSqlRsp* pRsp) {
-  SDecoder decoder = {0};
-  tDecoderInit(&decoder, buf, bufLen);
-  int32_t code = 0, lino = 0;
-  TAOS_CHECK_EXIT(tStartDecode(&decoder));
-  TAOS_CHECK_EXIT(tDecodeCStrAlloc(&decoder, &pRsp->sql));
-  tEndDecode(&decoder);
-_exit:
-  if (code) uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-  tDecoderClear(&decoder);
-  return code;
-}
-
-void tFreeGetStreamCreateSqlRsp(SGetStreamCreateSqlRsp* pRsp) {
-  if (pRsp) {
-    taosMemoryFreeClear(pRsp->sql);
-  }
 }

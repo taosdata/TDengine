@@ -557,11 +557,9 @@ static int32_t createTableCacheVal(const SMetaReader* pMetaReader, STableCachedV
   // only child table has tag value
   if (pMetaReader->me.type == TSDB_CHILD_TABLE || pMetaReader->me.type == TSDB_VIRTUAL_CHILD_TABLE) {
     STag* pTag = (STag*)pMetaReader->me.ctbEntry.pTags;
-    if (pTag != NULL) {
-      pVal->pTags = taosMemoryMalloc(pTag->len);
-      QUERY_CHECK_NULL(pVal->pTags, code, lino, _end, terrno);
-      memcpy(pVal->pTags, pTag, pTag->len);
-    }
+    pVal->pTags = taosMemoryMalloc(pTag->len);
+    QUERY_CHECK_NULL(pVal->pTags, code, lino, _end, terrno);
+    memcpy(pVal->pTags, pTag, pTag->len);
   }
 
   (*ppResVal) = pVal;
@@ -703,10 +701,7 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
     } else {  // these are tags
       STagVal tagVal = {0};
       tagVal.cid = pExpr1->base.pParam[0].pCol->colId;
-      const char* p = NULL;
-      if (val.pTags != NULL) {
-        p = pHandle->api.metaFn.extractTagVal(val.pTags, pColInfoData->info.type, &tagVal);
-      }
+      const char* p = pHandle->api.metaFn.extractTagVal(val.pTags, pColInfoData->info.type, &tagVal);
 
       char* data = NULL;
       if (pColInfoData->info.type != TSDB_DATA_TYPE_JSON && p != NULL) {
@@ -1403,7 +1398,6 @@ static int32_t createVTableScanInfoFromBatchParam(SOperatorInfo* pOperator) {
     pAPI->metaReaderFn.readerReleaseLock(&orgTable);
     qDebug("dynamic vtable scan for origin table:%s, %s", pOrgTbInfo->tbName, GET_TASKID(pTaskInfo));
     QUERY_CHECK_CODE(code, lino, _return);
-    SExtSchema *extSchema = NULL;
     switch (orgTable.me.type) {
       case TSDB_CHILD_TABLE:
         pAPI->metaReaderFn.initReader(&superTable, pInfo->base.readHandle.vnode, META_READER_LOCK, &pAPI->metaFn);
@@ -1411,11 +1405,9 @@ static int32_t createVTableScanInfoFromBatchParam(SOperatorInfo* pOperator) {
         pAPI->metaReaderFn.readerReleaseLock(&superTable);
         QUERY_CHECK_CODE(code, lino, _return);
         schema = &superTable.me.stbEntry.schemaRow;
-        extSchema = superTable.me.pExtSchemas;
         break;
       case TSDB_NORMAL_TABLE:
         schema = &orgTable.me.ntbEntry.schemaRow;
-        extSchema = orgTable.me.pExtSchemas;
         break;
       default:
         qError("invalid table type:%d", orgTable.me.type);
@@ -1451,11 +1443,10 @@ static int32_t createVTableScanInfoFromBatchParam(SOperatorInfo* pOperator) {
       SColIdNameKV* kv = taosArrayGet(pOrgTbInfo->colMap, i);
       for (int32_t j = 0; j < schema->nCols; j++) {
         if (strcmp(kv->colName, schema->pSchema[j].name) == 0) {
-          SDataType refType = {0};
-          schemaToRefDataType(&schema->pSchema[j], extSchema ? extSchema[j].typeMod : 0, &refType);
           SColIdPair pPair = {.vtbColId = kv->colId,
                               .orgColId = (col_id_t)(schema->pSchema[j].colId),
-                              .type = refType};
+                              .type.type = schema->pSchema[j].type,
+                              .type.bytes = schema->pSchema[j].bytes};
           QUERY_CHECK_NULL(taosArrayPush(pColArray, &pPair), code, lino, _return, terrno);
           qDebug("dynamic vtable scan map col:%s, orgColId:%d, vtbColId:%d, %s", kv->colName, pPair.orgColId,
                  pPair.vtbColId, GET_TASKID(pTaskInfo));
@@ -1478,14 +1469,6 @@ static int32_t createVTableScanInfoFromBatchParam(SOperatorInfo* pOperator) {
           if (!IS_VAR_DATA_TYPE(pItem->dataType.type) &&
               pItem->dataType.bytes != pPair->type.bytes) {
             qError("column bytes does not match for vtable colId:%d, org colId:%d, org table name:%s",
-                   pPair->vtbColId, pPair->orgColId, orgTable.me.name);
-            code = TSDB_CODE_VTABLE_COLUMN_TYPE_MISMATCH;
-            goto _return;
-          }
-          if (IS_DECIMAL_TYPE(pItem->dataType.type) &&
-              (pItem->dataType.precision != pPair->type.precision ||
-               pItem->dataType.scale != pPair->type.scale)) {
-            qError("column decimal type does not match for vtable colId:%d, org colId:%d, org table name:%s",
                    pPair->vtbColId, pPair->orgColId, orgTable.me.name);
             code = TSDB_CODE_VTABLE_COLUMN_TYPE_MISMATCH;
             goto _return;
@@ -1716,12 +1699,6 @@ static int32_t createVTableScanInfoFromParam(SOperatorInfo* pOperator) {
   }
   pInfo->pBlockColMap = taosArrayInit(schema->nCols, sizeof(SColIdSlotIdPair));
   QUERY_CHECK_NULL(pBlockColArray, code, lino, _return, terrno);
-  SExtSchema *extSchema = NULL;
-  if (orgTable.me.type == TSDB_CHILD_TABLE) {
-    extSchema = superTable.me.pExtSchemas;
-  } else {
-    extSchema = orgTable.me.pExtSchemas;
-  }
 
   // virtual table's origin table scan do not has ts column.
   SColIdPair tsPair = {.vtbColId = PRIMARYKEY_TIMESTAMP_COL_ID,
@@ -1734,11 +1711,10 @@ static int32_t createVTableScanInfoFromParam(SOperatorInfo* pOperator) {
     SColIdNameKV* kv = taosArrayGet(pOrgTbInfo->colMap, i);
     for (int32_t j = 0; j < schema->nCols; j++) {
       if (strcmp(kv->colName, schema->pSchema[j].name) == 0) {
-        SDataType refType = {0};
-        schemaToRefDataType(&schema->pSchema[j], extSchema ? extSchema[j].typeMod : 0, &refType);
         SColIdPair pPair = {.vtbColId = kv->colId,
                             .orgColId = (col_id_t)(schema->pSchema[j].colId),
-                            .type = refType};
+                            .type.type = schema->pSchema[j].type,
+                            .type.bytes = schema->pSchema[j].bytes};
         QUERY_CHECK_NULL(taosArrayPush(pColArray, &pPair), code, lino, _return, terrno);
         break;
       }
@@ -1769,14 +1745,6 @@ static int32_t createVTableScanInfoFromParam(SOperatorInfo* pOperator) {
       if (!IS_VAR_DATA_TYPE(pItem->dataType.type) && pItem->dataType.bytes != pPair->type.bytes) {
         qError("column bytes does not match for vtable colId:%d, org colId:%d, org table name:%s", pPair->vtbColId,
                pPair->orgColId, orgTable.me.name);
-        code = TSDB_CODE_VTABLE_COLUMN_TYPE_MISMATCH;
-        goto _return;
-      }
-      if (IS_DECIMAL_TYPE(pItem->dataType.type) &&
-          (pItem->dataType.precision != pPair->type.precision ||
-           pItem->dataType.scale != pPair->type.scale)) {
-        qError("column decimal type does not match for vtable colId:%d, org colId:%d, org table name:%s",
-               pPair->vtbColId, pPair->orgColId, orgTable.me.name);
         code = TSDB_CODE_VTABLE_COLUMN_TYPE_MISMATCH;
         goto _return;
       }

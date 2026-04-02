@@ -27,14 +27,6 @@ int32_t scalarGetOperatorParamNum(EOperatorType type) {
 }
 
 int32_t sclConvertToTsValueNode(int8_t precision, SValueNode *valueNode) {
-  if (valueNode->isNull || valueNode->datum.p == NULL) {
-    // NULL value node: update the result type to TIMESTAMP for type consistency
-    // with non-null behavior, but skip datum conversion to avoid dereferencing
-    // the NULL datum.p pointer inside convertStringToTimestamp.
-    valueNode->node.resType.type = TSDB_DATA_TYPE_TIMESTAMP;
-    valueNode->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes;
-    return TSDB_CODE_SUCCESS;
-  }
   char   *timeStr = valueNode->datum.p;
   int64_t value = 0;
   int32_t code = convertStringToTimestamp(valueNode->node.resType.type, valueNode->datum.p, precision, &value,
@@ -226,7 +218,6 @@ int32_t scalarGenerateSetFromCol(void **data, SColumnInfoData *pCol, uint32_t ty
       buf = colDataGetNumData(pRes, i);
     }
 
-    *hasNotNull = true;
     SCL_ERR_JRET(taosHashPut(pObj, buf, (size_t)len, NULL, 0));
   }
 
@@ -514,8 +505,8 @@ int32_t scalarBuildRemoteListHash(char* idStr, SRemoteValueListNode* pRemote, SC
   }
 
   pRemote->hashAllocated = true;
-  pRemote->hasNull = pRemote->hasNull || hasNull1 || hasNull2 || (rows > 0 && TSDB_DATA_TYPE_NULL == type);
-  pRemote->hasNotNull = pRemote->hasNotNull || hasNotNull;
+  pRemote->hasNull = hasNull1 || hasNull2 || (rows > 0 && TSDB_DATA_TYPE_NULL == type);
+  pRemote->hasNotNull = hasNotNull;
   pRemote->filterValueTypeMod = typeMod;
   pRemote->filterValueType = type;
 
@@ -695,45 +686,12 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
       param->colAlloced = false;
       break;
     }
-    case QUERY_NODE_REMOTE_VALUE: {
-      // After handleRemoteValueRes settles the inner SValueNode, treat the
-      // node as a plain value for parameter setup. Pass the inner val and
-      // temporarily flip its type so the QUERY_NODE_VALUE branch runs;
-      // restore so subsequent walker passes (in stream mode) keep
-      // re-dispatching sclWalkRemoteValue.
-      SRemoteValueNode *pRemote = (SRemoteValueNode *)node;
-      ENodeType         oldType = pRemote->val.node.type;
-      pRemote->val.node.type = QUERY_NODE_VALUE;
-      int32_t code = sclInitParam((SNode *)&pRemote->val, param, ctx, rowNum);
-      pRemote->val.node.type = oldType;
-      SCL_ERR_RET(code);
+    case QUERY_NODE_REMOTE_VALUE:
+      SCL_ERR_RET(TSDB_CODE_QRY_SUBQ_EXEC_ERROR);
       break;
-    }
     case QUERY_NODE_REMOTE_VALUE_LIST: {
       SRemoteValueListNode* pRemote = (SRemoteValueListNode*)node;
-      // In stream mode, the IN-list must be re-evaluated when the runner
-      // generation changes (new trigger event / new group).  Within the same
-      // runner invocation, reuse the cached hash to avoid thousands of
-      // redundant refetches.  The reader-side retry in fetchRemoteNodeImpl
-      // handles concurrent runner slot contention.
-      bool needFetch = (pRemote->flag & VALUELIST_FLAG_VAL_UNSET);
-      if (ctx->isStream && !needFetch && pRemote->streamGen != ctx->streamGen) {
-        // Generation mismatch — invalidate cached hash for new trigger event
-        if (pRemote->pHashFilter) {
-          taosHashCleanup(pRemote->pHashFilter);
-          pRemote->pHashFilter = NULL;
-        }
-        if (pRemote->pHashFilterOthers) {
-          taosHashCleanup(pRemote->pHashFilterOthers);
-          pRemote->pHashFilterOthers = NULL;
-        }
-        pRemote->hasNull = false;
-        pRemote->hasNotNull = false;
-        pRemote->hasValue = false;
-        needFetch = true;
-      }
-
-      if (!needFetch) {
+      if (!(pRemote->flag & VALUELIST_FLAG_VAL_UNSET)) {
         sclDebug("remoteValueList already got res, node:%p, hasValue:%d, hasNull:%d, hasNotNull:%d, pHashFilter:%p,%d, pHashFilterOthers:%p,%d",
           node, pRemote->hasValue, pRemote->hasNull, pRemote->hasNotNull, pRemote->pHashFilter, pRemote->pHashFilter ? taosHashGetSize(pRemote->pHashFilter) : 0,
           pRemote->pHashFilterOthers, pRemote->pHashFilterOthers ? taosHashGetSize(pRemote->pHashFilterOthers) : 0);
@@ -760,9 +718,6 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
       
       SCL_ERR_RET((*ctx->fetchFp)(ctx->pSubJobCtx, pRemote->subQIdx, node));
 
-      // Stamp generation so this hash is reused within the same runner invocation
-      pRemote->streamGen = ctx->streamGen;
-
       param->hashParam.hasHashParam = true;
       param->hashParam.hasValue = pRemote->hasValue;
       param->hashParam.hasNull = pRemote->hasNull;
@@ -785,12 +740,6 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
       if (NULL == ctx->pSubJobCtx) {
         sclError("no subJob ctx for subQIdx %d", pRemote->subQIdx);
         return TSDB_CODE_QRY_SUBQ_NOT_FOUND;
-      }
-
-      // Force per-event refetch in stream mode so a value/flags cached on
-      // a previous event isn't replayed for the current trigger.
-      if (ctx->isStream) {
-        pRemote->valSet = false;
       }
 
       if (!pRemote->valSet) {
@@ -822,16 +771,7 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
       
       SCL_ERR_RET((*ctx->fetchFp)(ctx->pSubJobCtx, pRemote->subQIdx, node));
 
-      // setZeroRowsResValue rewrites node->type to QUERY_NODE_VALUE so the
-      // recursive sclInitParam below dispatches the literal-value branch.
-      // In stream mode the next per-event walker pass must re-dispatch
-      // this REMOTE_ZERO_ROWS case (otherwise EXISTS / NOT EXISTS replay
-      // event 1's row count forever); restore the type after the read.
-      int32_t code = sclInitParam(node, param, ctx, rowNum);
-      if (ctx->isStream) {
-        pRemote->val.node.type = QUERY_NODE_REMOTE_ZERO_ROWS;
-      }
-      SCL_ERR_RET(code);
+      SCL_ERR_RET(sclInitParam(node, param, ctx, rowNum));
 
       break;
     }      
@@ -1165,13 +1105,6 @@ int32_t sclGetNodeType(SNode *pNode, SScalarCtx *ctx, int32_t *type, STypeMod *p
       *pTypeMod = typeGetTypeModFromDataType(&colNode->node.resType);
       return TSDB_CODE_SUCCESS;
     }
-    case QUERY_NODE_LEFT_VALUE:
-      // LEFT_VALUE is a row-count placeholder used in ASSIGN operators
-      // (generated by rewriteValueToOperator for constant function args).
-      // Its logical type equals the enclosing operator's result type.
-      *type = ctx->type.opResType;
-      *pTypeMod = 0;
-      return TSDB_CODE_SUCCESS;
     case QUERY_NODE_FUNCTION:
     case QUERY_NODE_OPERATOR:
     case QUERY_NODE_LOGIC_CONDITION:
@@ -1184,6 +1117,11 @@ int32_t sclGetNodeType(SNode *pNode, SScalarCtx *ctx, int32_t *type, STypeMod *p
       }
       *type = (int32_t)(res->columnData->info.type);
       *pTypeMod = typeGetTypeModFromColInfo(&res->columnData->info);
+      return TSDB_CODE_SUCCESS;
+    }
+    case QUERY_NODE_LEFT_VALUE: {
+      *type = ctx->type.opResType;
+      *pTypeMod = 0;
       return TSDB_CODE_SUCCESS;
     }
     case QUERY_NODE_REMOTE_VALUE_LIST: {
@@ -2707,9 +2645,7 @@ int32_t sclCalcConstants(SNode *pNode, bool dual, bool remoteIncluded, bool null
     ctx.stream.pStreamRuntimeFuncInfo = pExtra->pStreamInfo;
     ctx.stream.streamTsRange = pExtra->pStreamRange;
     ctx.pSubJobCtx = pExtra->pSubJobCtx;
-    ctx.isStream = pExtra->isStream;
     ctx.fetchFp = pExtra->fp;
-    ctx.streamGen = pExtra->streamGen;
   }
   
   nodesRewriteExprPostOrder(&pNode, sclConstantsRewriter, (void *)&ctx);
@@ -2891,9 +2827,7 @@ int32_t scalarCalculateInRange(SNode *pNode, SArray *pBlockList, SScalarParam *p
     ctx.stream.pStreamRuntimeFuncInfo = pExtra->pStreamInfo;
     ctx.stream.streamTsRange = pExtra->pStreamRange;
     ctx.pSubJobCtx = pExtra->pSubJobCtx;
-    ctx.isStream = pExtra->isStream;
     ctx.fetchFp = pExtra->fp;
-    ctx.streamGen = pExtra->streamGen;
   }
   
   // TODO: OPT performance

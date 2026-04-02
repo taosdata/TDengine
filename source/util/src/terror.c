@@ -127,14 +127,6 @@ TAOS_DEFINE_ERROR(TSDB_CODE_DECIMAL_PARSE_ERROR,          "Decimal value parse e
 
 TAOS_DEFINE_ERROR(TSDB_CODE_EDITION_NOT_COMPATIBLE,       "Edition not compatible")
 TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_SIGNATURE,            "Invalid signature")
-TAOS_DEFINE_ERROR(TSDB_CODE_MAC_INSUFFICIENT_LEVEL,       "Insufficient user security level for the operation")
-TAOS_DEFINE_ERROR(TSDB_CODE_MAC_OBJ_LEVEL_BELOW_DB,       "Object level below database security level")
-TAOS_DEFINE_ERROR(TSDB_CODE_MAC_OBJ_LEVEL_BELOW_USER_MIN, "Object level below user's minimum write level")
-TAOS_DEFINE_ERROR(TSDB_CODE_MAC_OBJ_LEVEL_ABOVE_USER_MAX, "Object level above user's maximum read level")
-TAOS_DEFINE_ERROR(TSDB_CODE_MAC_INVALID_LEVEL,            "Security level out of valid range [0-4]")
-TAOS_DEFINE_ERROR(TSDB_CODE_MAC_NO_WRITE_DOWN,            "User security level is too high to write (No-Write-Down)")
-TAOS_DEFINE_ERROR(TSDB_CODE_MAC_SEC_LEVEL_CONFLICTS_ROLE, "Security level is below the minimum required by user's current roles")
-TAOS_DEFINE_ERROR(TSDB_CODE_MAC_PRECHECK_FAILED,          "Cannot enable MAC: user has insufficient security level")
 
 //client
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_OPERATION,        "Invalid operation")
@@ -196,7 +188,6 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_INTERVAL_OFFSET,  "Invalid interval offs
 TAOS_DEFINE_ERROR(TSDB_CODE_NOT_SUPPORTTED_IN_WINDOWS,    "Operation not supported in windows")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_TOTP_CODE,        "Invalid TOTP code")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_TOKEN,            "Invalid token")
-TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INSTANCE_API_RATE_LIMIT,  "instance register/list API rate limit exceeded")
 
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_SESS_PER_USER_LIMIT,         "reached the maximum sessions per user limit")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_SESS_CONN_TIMEOUT,           "reached the maximum connection timeout limit")
@@ -407,8 +398,6 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_MUST_BE_DELETED,   "Stream must be droppe
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_MULTI_REPLICA_SOURCE_DB,  "Stream temporarily does not support source db having replica > 1")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_STREAMS,         "Too many streams")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_TARGET_TABLE,     "Cannot write the same stable as other stream")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_NO_CREATE_SQL,
-                  "Stream has no stored CREATE statement (created before this feature or metadata missing)")
 
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_ANODE_ALREADY_EXIST,      "Anode already exists")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_ANODE_NOT_EXIST,          "Anode not there")
@@ -503,13 +492,10 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_ROLE_NOT_AVAILABLE,       "Role not available")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_ROLE_INVALID_FORMAT,      "Invalid role format")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_ROLE_SUBROLE_EXCEEDED,    "Subrole count exceeded")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_ROLE_CONFLICTS,           "Conflicts with existing role")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_ROLE_NO_VALID_SYSDBA,     "No enabled non-root user with SYSDBA role found to satisfy SoD policy")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_ROLE_NO_VALID_SYSDBA,     "No enabled user with SYSDBA role exists")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_ROLES,           "Too many roles")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_PRIV_OBJS,       "Too many privilege objects")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_PRIVS,           "Too many privileges for single user/role")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_ROLE_NO_VALID_SYSSEC,     "No enabled non-root user with SYSSEC role found to satisfy SoD policy")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_ROLE_NO_VALID_SYSAUDIT,   "No enabled non-root user with SYSAUDIT role found to satisfy SoD policy")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_SOD_RESTRICTED,           "Operation not allowed in current SoD status")
 
 // dnode
 TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_OFFLINE,                "Dnode is offline")
@@ -728,7 +714,6 @@ TAOS_DEFINE_ERROR(TSDB_CODE_SYN_WRONG_ROLE,               "Sync got a wrong role
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_NOT_IN_RAFT_GROUP,        "Sync not in raft group")
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_TERM_NOT_MATCH,           "Sync term not match current term")
 TAOS_DEFINE_ERROR(TSDB_CODE_FAIL_GET_LOCK,                "Sync failed to get lock, will retry next time")
-TAOS_DEFINE_ERROR(TSDB_CODE_SYN_LEARNER_NO_VOTE,          "Sync learner cannot vote")
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_INTERNAL_ERROR,           "Sync internal error")
 
 //tq
@@ -1112,7 +1097,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_SCAN_INTERNAL_ERROR,     "Virtual table scan 
 TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_SCAN_INVALID_DOWNSTREAM, "Virtual table scan invalid downstream operator type")
 TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_PRIMTS_HAS_REF,          "Virtual table prim timestamp column should not has ref column")
 TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_NOT_VIRTUAL_SUPER_TABLE, "Create virtual child table must use virtual super table")
-TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_NOT_SUPPORT_DATA_TYPE,   "Virtual table does not support this data type")
+TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_NOT_SUPPORT_DATA_TYPE,   "Virtual table not support decimal type")
 TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_NOT_SUPPORT_STMT,        "Virtual table not support in STMT query and STMT insert")
 TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_NOT_SUPPORT_TOPIC,       "Virtual table not support in topic")
 TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_NOT_SUPPORT_CROSS_DB,    "Virtual super table query not support origin table from different databases")

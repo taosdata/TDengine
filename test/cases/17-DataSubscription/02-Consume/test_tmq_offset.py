@@ -2,7 +2,6 @@ import threading
 import platform
 from taos.tmq import Consumer
 from new_test_framework.utils import tdLog, tdSql, tdCom, tmqCom
-from new_test_framework.utils.pathFinding import find_proj_path
 import sys
 import os
 import time
@@ -29,7 +28,10 @@ class TestCase:
             tool = tool + ".exe"
         selfPath = os.path.dirname(os.path.realpath(__file__))
 
-        projPath = find_proj_path(selfPath)
+        if ("community" in selfPath):
+            projPath = selfPath[:selfPath.find("community")]
+        else:
+            projPath = selfPath[:selfPath.find("test")]
 
         paths = []
         for root, dirs, files in os.walk(projPath):

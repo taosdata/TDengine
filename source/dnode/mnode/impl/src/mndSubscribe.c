@@ -338,10 +338,6 @@ static int32_t processRemovedConsumers(SMqRebOutputObj *pOutput, SHashObj *pHash
     MND_TMQ_NULL_CHECK(consumerId);
     SMqConsumerEp *pConsumerEp = taosHashGet(pOutput->pSub->consumerHash, consumerId, sizeof(int64_t));
     if (pConsumerEp == NULL) {
-      mInfo("tmq rebalance sub:%s consumer:0x%" PRIx64 " not found in consumerHash, cleanup only",
-            pOutput->pSub->key, *consumerId);
-      MND_TMQ_NULL_CHECK(taosArrayPush(pOutput->removedConsumers, consumerId));
-      actualRemoved++;
       continue;
     }
 
@@ -1833,9 +1829,7 @@ static int32_t retrieveSub(SRpcMsg *pReq, SMqSubscribeObj *pSub, SUserObj *pOper
   varDataSetLen(cgroup, strlen(varDataVal(cgroup)));
 
   if (!showAll) {
-    char topicFName[TSDB_TOPIC_FNAME_LEN + 1] = {0};
-    (void)snprintf(topicFName, sizeof(topicFName), "%d.%s", pOperUser->acctId, varDataVal(topic));
-    (void)mndAcquireTopic(pMnode, topicFName, &pTopic);
+    (void)mndAcquireTopic(pMnode, topic, &pTopic);
     if (pTopic) {
       SName name = {0};  // 1.topic1
       if (0 == tNameFromString(&name, pTopic->name, T_NAME_ACCT | T_NAME_DB)) {

@@ -273,6 +273,7 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
 
   req.clusterCfg.statusInterval = tsStatusInterval;
   req.clusterCfg.statusIntervalMs = tsStatusIntervalMs;
+  req.clusterCfg.checkTime = 0;
   req.clusterCfg.ttlChangeOnWrite = tsTtlChangeOnWrite;
   req.clusterCfg.enableWhiteList = tsEnableWhiteList ? 1 : 0;
   req.clusterCfg.encryptionKeyStat = tsEncryptionKeyStat;
@@ -282,14 +283,12 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   req.clusterCfg.monitorParas.tsSlowLogScope = tsSlowLogScope;
   req.clusterCfg.monitorParas.tsSlowLogMaxLen = tsSlowLogMaxLen;
   req.clusterCfg.monitorParas.tsSlowLogThreshold = tsSlowLogThreshold;
-  req.clusterCfg.checkTime = (int64_t)taosGetLocalTimezoneOffset(&code);
-  if (code != 0) {
-    dError("failed to get local timezone offset, since %s", tstrerror(code));
-    (void)taosThreadMutexUnlock(&pMgmt->pData->statusInfolock);
-    return;
-  }
-
   tstrncpy(req.clusterCfg.monitorParas.tsSlowLogExceptDb, tsSlowLogExceptDb, TSDB_DB_NAME_LEN);
+  char timestr[32] = "1970-01-01 00:00:00.00";
+  if (taosParseTime(timestr, &req.clusterCfg.checkTime, (int32_t)strlen(timestr), TSDB_TIME_PRECISION_MILLI, NULL) !=
+      0) {
+    dError("failed to parse time since %s", tstrerror(code));
+  }
   memcpy(req.clusterCfg.timezone, tsTimezoneStr, TD_TIMEZONE_LEN);
   memcpy(req.clusterCfg.locale, tsLocale, TD_LOCALE_LEN);
   memcpy(req.clusterCfg.charset, tsCharset, TD_LOCALE_LEN);
@@ -1683,7 +1682,7 @@ _exit:
 }
 
 int32_t dmAppendVariablesToBlock(SSDataBlock *pBlock, int32_t dnodeId) {
-  int32_t code = dumpConfToDataBlock(pBlock, 1, NULL, SHOW_VAR_PRIV_ALL);
+  int32_t code = dumpConfToDataBlock(pBlock, 1, NULL);
   if (code != 0) {
     return code;
   }

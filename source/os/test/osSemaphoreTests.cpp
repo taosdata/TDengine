@@ -84,15 +84,13 @@ TEST(osSemaphoreTests, WaitAndPost) {
   int    result = tsem_init(&sem, 0, 0);
   EXPECT_EQ(result, 0);
 
-  std::thread waiter([&sem]() {
+  std::thread([&sem]() {
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     (void)tsem_post(&sem);
-  });
+  }).detach();
 
   result = tsem_wait(&sem);
   EXPECT_EQ(result, 0);
-
-  waiter.join();
 
   result = tsem_destroy(&sem);
   EXPECT_EQ(result, 0);
@@ -104,17 +102,13 @@ TEST(osSemaphoreTests, TimedWait) {
   int    result = tsem_init(&sem, 0, 0);
   EXPECT_EQ(result, 0);
 
-  std::thread twait([&sem]() {
+  std::thread([&sem]() {
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     (void)tsem_post(&sem);
-  });
+  }).detach();
 
-  // tsem_timewait uses CLOCK_REALTIME, which may produce spurious
-  // ETIMEDOUT in containers/VMs due to wall-clock adjustments.
   result = tsem_timewait(&sem, 1000);
-  EXPECT_TRUE(result == 0 || result == TSDB_CODE_TIMEOUT_ERROR);
-
-  twait.join();
+  EXPECT_EQ(result, 0);
 
   result = tsem_destroy(&sem);
   EXPECT_EQ(result, 0);
@@ -125,16 +119,15 @@ TEST(osSemaphoreTests, Performance1_1) {
   const int count = 100000;
 
   (void)tsem_init(&sem, 0, 0);
-  std::thread producer([&sem, count]() {
+  std::thread([&sem, count]() {
     for (int i = 0; i < count; ++i) {
       (void)tsem_post(&sem);
     }
-  });
+  }).detach();
 
   for (int i = 0; i < count; ++i) {
     (void)tsem_wait(&sem);
   }
-  producer.join();
   (void)tsem_destroy(&sem);
 }
 
@@ -143,16 +136,15 @@ TEST(osSemaphoreTests, Performance1_2) {
   const int count = 100000;
 
   (void)tsem2_init(&sem, 0, 0);
-  std::thread producer2([&sem, count]() {
+  std::thread([&sem, count]() {
     for (int i = 0; i < count; ++i) {
       (void)tsem2_post(&sem);
     }
-  });
+  }).detach();
 
   for (int i = 0; i < count; ++i) {
     (void)tsem2_wait(&sem);
   }
-  producer2.join();
   (void)tsem2_destroy(&sem);
 }
 
@@ -245,22 +237,21 @@ TEST(osSemaphoreTests, Performance2_1) {
   const int count = 50000;
 
   (void)tsem_init(&sem, 0, 0);
-  std::thread p1([&sem, count]() {
+  std::thread([&sem, count]() {
     for (int i = 0; i < count; ++i) {
       (void)tsem_post(&sem);
     }
-  });
-  std::thread p2([&sem, count]() {
+  }).detach();
+  
+  std::thread([&sem, count]() {
     for (int i = 0; i < count; ++i) {
       (void)tsem_post(&sem);
     }
-  });
+  }).detach();
 
   for (int i = 0; i < count * 2; ++i) {
     (void)tsem_wait(&sem);
   }
-  p1.join();
-  p2.join();
   (void)tsem_destroy(&sem);
 }
 
@@ -269,22 +260,21 @@ TEST(osSemaphoreTests, Performance2_2) {
   const int count = 50000;
 
   (void)tsem2_init(&sem, 0, 0);
-  std::thread q1([&sem, count]() {
+  std::thread([&sem, count]() {
     for (int i = 0; i < count; ++i) {
       (void)tsem2_post(&sem);
     }
-  });
-  std::thread q2([&sem, count]() {
+  }).detach();
+  
+  std::thread([&sem, count]() {
     for (int i = 0; i < count; ++i) {
       (void)tsem2_post(&sem);
     }
-  });
+  }).detach();
 
   for (int i = 0; i < count * 2; ++i) {
     (void)tsem2_wait(&sem);
   }
-  q1.join();
-  q2.join();
   (void)tsem2_destroy(&sem);
 }
 
@@ -315,16 +305,11 @@ TEST(osSemaphoreTests, Performance4_1) {
   for (int i = 0; i < count; ++i) {
     tsem_t sem;
     (void)tsem_init(&sem, 0, 0);
-    std::thread p([&sem]() {
+    std::thread([&sem, count]() {
       (void)tsem_post(&sem);
-    });
+    }).detach();
 
-    // tsem_timewait uses CLOCK_REALTIME, which may produce spurious
-    // ETIMEDOUT in containers/VMs due to wall-clock adjustments.
-    int32_t ret = tsem_timewait(&sem, 10000);
-    EXPECT_TRUE(ret == 0 || ret == TSDB_CODE_TIMEOUT_ERROR);
-
-    p.join();
+    EXPECT_EQ(tsem_timewait(&sem, 1000),0);
 
     (void)tsem_destroy(&sem);
   }
@@ -335,13 +320,11 @@ TEST(osSemaphoreTests, Performance4_2) {
   for (int i = 0; i < count; ++i) {
     tsem2_t sem;
     (void)tsem2_init(&sem, 0, 0);
-    std::thread p2([&sem]() {
+    std::thread([&sem, count]() {
       (void)tsem2_post(&sem);
-    });
+    }).detach();
 
-    EXPECT_EQ(tsem2_timewait(&sem, 10000), 0);
-
-    p2.join();
+    (void)tsem2_timewait(&sem, 1000);
 
     (void)tsem2_destroy(&sem);
   }

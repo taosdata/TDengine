@@ -2,19 +2,6 @@ import time
 from new_test_framework.utils import (tdLog, tdSql, tdStream, StreamCheckItem, waitForRows)
 
 
-def _create_db_with_retry(create_sql, retries=60):
-    """Execute a CREATE DATABASE statement with retry on 'dropping' state."""
-    for _ in range(retries):
-        try:
-            tdSql.execute(create_sql)
-            return
-        except Exception as e:
-            if 'dropping' in str(e).lower():
-                time.sleep(1)
-                continue
-            raise
-
-
 class TestStreamSubQueryInVtable3:
     """Test cases for virtual tables in IN subqueries for streams (part 3: data types + advanced)"""
     precision = 'ms'
@@ -36,13 +23,7 @@ class TestStreamSubQueryInVtable3:
             - 2026-03-23 Split from original file for CI stability
         """
 
-        tdStream.dropAllStreamsAndDbs()
-
-        try:
-            tdStream.createSnode()
-        except Exception as e:
-            if "Only one snode" not in str(e):
-                raise
+        tdStream.createSnode()
         tdSql.execute(f"alter all dnodes 'debugflag 135';")
         tdSql.execute(f"alter all dnodes 'stdebugflag 135';")
 
@@ -72,11 +53,8 @@ class TestStreamSubQueryInVtable3:
             self.restb = "res_in_vtable_datatypes3"
 
         def create(self):
-            tdSql.execute(f"drop stream if exists {self.db}.{self.stream}")
-            tdSql.execute(f"drop database if exists {self.db}")
-            tdSql.execute(f"drop database if exists {self.refdb}")
-            _create_db_with_retry(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamSubQueryInVtable3.precision}'")
-            _create_db_with_retry(f"create database {self.refdb} vgroups 1 buffer 8 precision '{TestStreamSubQueryInVtable3.precision}'")
+            tdSql.execute(f"create database if not exists {self.db} vgroups 1 buffer 8 precision '{TestStreamSubQueryInVtable3.precision}'")
+            tdSql.execute(f"create database if not exists {self.refdb} vgroups 1 buffer 8 precision '{TestStreamSubQueryInVtable3.precision}'")
             tdSql.execute(f"use {self.db}")
 
             tdSql.execute(f"create table {self.db}.{self.triggertb} (ts timestamp, id int, name nchar(50), val float, flag bool, data binary(20))")
@@ -110,11 +88,8 @@ class TestStreamSubQueryInVtable3:
             self.restb = "res_in_vtable_string3"
 
         def create(self):
-            tdSql.execute(f"drop stream if exists {self.db}.{self.stream}")
-            tdSql.execute(f"drop database if exists {self.db}")
-            tdSql.execute(f"drop database if exists {self.refdb}")
-            _create_db_with_retry(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamSubQueryInVtable3.precision}'")
-            _create_db_with_retry(f"create database {self.refdb} vgroups 1 buffer 8 precision '{TestStreamSubQueryInVtable3.precision}'")
+            tdSql.execute(f"create database if not exists {self.db} vgroups 1 buffer 8 precision '{TestStreamSubQueryInVtable3.precision}'")
+            tdSql.execute(f"create database if not exists {self.refdb} vgroups 1 buffer 8 precision '{TestStreamSubQueryInVtable3.precision}'")
             tdSql.execute(f"use {self.db}")
 
             tdSql.execute(f"create table {self.db}.{self.triggertb} (ts timestamp, user_name nchar(50), act nchar(100), val int)")
@@ -146,11 +121,8 @@ class TestStreamSubQueryInVtable3:
             self.restb = "res_in_vtable_dynamic3"
 
         def create(self):
-            tdSql.execute(f"drop stream if exists {self.db}.{self.stream}")
-            tdSql.execute(f"drop database if exists {self.db}")
-            tdSql.execute(f"drop database if exists {self.refdb}")
-            _create_db_with_retry(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamSubQueryInVtable3.precision}'")
-            _create_db_with_retry(f"create database {self.refdb} vgroups 1 buffer 8 precision '{TestStreamSubQueryInVtable3.precision}'")
+            tdSql.execute(f"create database if not exists {self.db} vgroups 1 buffer 8 precision '{TestStreamSubQueryInVtable3.precision}'")
+            tdSql.execute(f"create database if not exists {self.refdb} vgroups 1 buffer 8 precision '{TestStreamSubQueryInVtable3.precision}'")
             tdSql.execute(f"use {self.db}")
 
             tdSql.execute(f"create table {self.db}.{self.triggertb} (ts timestamp, item_id int, quantity int)")
@@ -190,11 +162,8 @@ class TestStreamSubQueryInVtable3:
             self.restb = "res_in_vtable_partition3"
 
         def create(self):
-            tdSql.execute(f"drop stream if exists {self.db}.{self.stream}")
-            tdSql.execute(f"drop database if exists {self.db}")
-            tdSql.execute(f"drop database if exists {self.refdb}")
-            _create_db_with_retry(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamSubQueryInVtable3.precision}'")
-            _create_db_with_retry(f"create database {self.refdb} vgroups 1 buffer 8 precision '{TestStreamSubQueryInVtable3.precision}'")
+            tdSql.execute(f"create database if not exists {self.db} vgroups 1 buffer 8 precision '{TestStreamSubQueryInVtable3.precision}'")
+            tdSql.execute(f"create database if not exists {self.refdb} vgroups 1 buffer 8 precision '{TestStreamSubQueryInVtable3.precision}'")
             tdSql.execute(f"use {self.db}")
 
             tdSql.execute(f"create stable {self.db}.{self.triggerstb} (ts timestamp, val int) tags (region nchar(20))")
@@ -229,11 +198,8 @@ class TestStreamSubQueryInVtable3:
             self.restb = "res_in_vtable_orderby3"
 
         def create(self):
-            tdSql.execute(f"drop stream if exists {self.db}.{self.stream}")
-            tdSql.execute(f"drop database if exists {self.db}")
-            tdSql.execute(f"drop database if exists {self.refdb}")
-            _create_db_with_retry(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamSubQueryInVtable3.precision}'")
-            _create_db_with_retry(f"create database {self.refdb} vgroups 1 buffer 8 precision '{TestStreamSubQueryInVtable3.precision}'")
+            tdSql.execute(f"create database if not exists {self.db} vgroups 1 buffer 8 precision '{TestStreamSubQueryInVtable3.precision}'")
+            tdSql.execute(f"create database if not exists {self.refdb} vgroups 1 buffer 8 precision '{TestStreamSubQueryInVtable3.precision}'")
             tdSql.execute(f"use {self.db}")
 
             tdSql.execute(f"create table {self.db}.{self.triggertb} (ts timestamp, item_id int, quantity int)")
@@ -268,11 +234,8 @@ class TestStreamSubQueryInVtable3:
             self.restb = "res_in_vtable_limit3"
 
         def create(self):
-            tdSql.execute(f"drop stream if exists {self.db}.{self.stream}")
-            tdSql.execute(f"drop database if exists {self.db}")
-            tdSql.execute(f"drop database if exists {self.refdb}")
-            _create_db_with_retry(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamSubQueryInVtable3.precision}'")
-            _create_db_with_retry(f"create database {self.refdb} vgroups 1 buffer 8 precision '{TestStreamSubQueryInVtable3.precision}'")
+            tdSql.execute(f"create database if not exists {self.db} vgroups 1 buffer 8 precision '{TestStreamSubQueryInVtable3.precision}'")
+            tdSql.execute(f"create database if not exists {self.refdb} vgroups 1 buffer 8 precision '{TestStreamSubQueryInVtable3.precision}'")
             tdSql.execute(f"use {self.db}")
 
             tdSql.execute(f"create table {self.db}.{self.triggertb} (ts timestamp, customer_id int, purchase_amount float)")

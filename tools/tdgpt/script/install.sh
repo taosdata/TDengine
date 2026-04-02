@@ -75,16 +75,14 @@ if [ $custom_dir_set -eq 1 ]; then
   installDir="${customDir}/${PREFIX}/${PRODUCTPREFIX}"
   logDir="${installDir}/log"
   dataDir="${installDir}/data"
-  modelDir="${dataDir}/model"
-  imgDir="${dataDir}/img"
+  moduleDir="${dataDir}/model"
   resourceDir="${dataDir}/resource"
   venvDir="${dataDir}/venv"
 else
   installDir="/usr/local/${PREFIX}/${PRODUCTPREFIX}"
   logDir="/var/log/${PREFIX}/${PRODUCTPREFIX}"
   dataDir="/var/lib/${PREFIX}/${PRODUCTPREFIX}"
-  modelDir="${dataDir}/model"
-  imgDir="${dataDir}/img"
+  moduleDir="${dataDir}/model"
   resourceDir="${dataDir}/resource"
   venvDir="${dataDir}/venv"
 fi
@@ -325,33 +323,26 @@ function install_config() {
 function install_log() {
   ${csudo}mkdir -p ${logDir} && ${csudo}chmod 777 ${logDir}
   if [ ${custom_dir_set} -eq 0 ];then 
-    ${csudo}ln -sf ${logDir} "${install_main_dir}/log"
+    ${csudo}ln -sf ${logDir} ${install_main_dir}/log
   fi
 }
 
-function install_model() {
-  ${csudo}mkdir -p ${modelDir} && ${csudo}chmod 777 ${modelDir}
+function install_module() {
+  ${csudo}mkdir -p ${moduleDir} && ${csudo}chmod 777 ${moduleDir}
   if [ ${custom_dir_set} -eq 0 ];then 
-    ${csudo}ln -sf ${modelDir} "${install_main_dir}/model"
+    ${csudo}ln -sf ${moduleDir} "${install_main_dir}/model"
   fi
 
-  # Default models: extract them into modelDir
-  [ -f "${script_dir}/model/${tar_td_model_name}" ] && tar -zxf "${script_dir}/model/${tar_td_model_name}" -C "${modelDir}" || :
-  [ -f "${script_dir}/model/${tar_xhs_model_name}" ] && tar -zxf "${script_dir}/model/${tar_xhs_model_name}" -C "${modelDir}" || :
+  # Default models: extract them into moduleDir
+  [ -f "${script_dir}/model/${tar_td_model_name}" ] && tar -zxf "${script_dir}/model/${tar_td_model_name}" -C "${moduleDir}" || :
+  [ -f "${script_dir}/model/${tar_xhs_model_name}" ] && tar -zxf "${script_dir}/model/${tar_xhs_model_name}" -C "${moduleDir}" || :
 
-   # In all_venv mode, directly extract specified model packages into modelDir
+   # In all_venv mode, directly extract specified model packages into moduleDir
   if [ ${all_venv} -eq 1 ]; then
     for extra_model in chronos moment-large moirai timesfm; do
       model_tar="${script_dir}/model/${extra_model}.tar.gz"
-      [ -f "$model_tar" ] && tar -zxf "$model_tar" -C "${modelDir}" || :
+      [ -f "$model_tar" ] && tar -zxf "$model_tar" -C "${moduleDir}" || :
     done
-  fi
-}
-
-function install_img() {
-  ${csudo}mkdir -p ${imgDir} && ${csudo}chmod 777 ${imgDir}
-  if [ ${custom_dir_set} -eq 0 ];then
-    ${csudo}ln -sf ${imgDir} "${install_main_dir}/img"
   fi
 }
 
@@ -553,8 +544,7 @@ function installProduct() {
   install_main_path
   install_log
   install_anode_config
-  install_model
-  install_img
+  install_module
   install_resource
   
   install_bin_and_lib

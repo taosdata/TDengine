@@ -10,19 +10,6 @@
 char* gStmtStatusStr[] = {"unknown",     "init", "prepare", "settbname", "settags",
                           "fetchFields", "bind", "bindCol", "addBatch",  "exec"};
 
-/* Free any existing siInfo.dbname and replace with a heap copy of src.
- * src may be NULL or empty — in either case dbname is left NULL. */
-static int32_t stmtDupSiInfoDbname(SStbInterlaceInfo* pSi, const char* src) {
-  taosMemoryFreeClear(pSi->dbname);
-  if (src != NULL && src[0] != '\0') {
-    pSi->dbname = taosStrdup(src);
-    if (pSi->dbname == NULL) {
-      return terrno;
-    }
-  }
-  return TSDB_CODE_SUCCESS;
-}
-
 static FORCE_INLINE int32_t stmtAllocQNodeFromBuf(STableBufInfo* pTblBuf, void** pBuf) {
   if (pTblBuf->buffOffset < pTblBuf->buffSize) {
     *pBuf = (char*)pTblBuf->pCurBuff + pTblBuf->buffOffset;
@@ -561,8 +548,6 @@ int32_t stmtCleanSQLInfo(STscStmt* pStmt) {
   qDestroyStmtDataBlock(pStmt->sql.siInfo.pDataCtx);
   taosArrayDestroyEx(pStmt->sql.siInfo.pTableCols, stmtFreeTbCols);
 
-  taosMemoryFreeClear(pStmt->sql.siInfo.dbname);
-
   (void)memset(&pStmt->sql, 0, sizeof(pStmt->sql));
   pStmt->sql.siInfo.tableColsReady = true;
 
@@ -936,12 +921,7 @@ TAOS_STMT* stmtInit(STscObj* taos, int64_t reqid, TAOS_STMT_OPTIONS* pOptions) {
   if (pStmt->stbInterlaceMode) {
     pStmt->sql.siInfo.transport = taos->pAppInfo->pTransporter;
     pStmt->sql.siInfo.acctId = taos->acctId;
-    code = stmtDupSiInfoDbname(&pStmt->sql.siInfo, taos->db);
-    if (code != TSDB_CODE_SUCCESS) {
-      STMT_ELOG("fail to dup siInfo dbname in stmtInit:%s", tstrerror(code));
-      (void)stmtClose(pStmt);
-      return NULL;
-    }
+    pStmt->sql.siInfo.dbname = taos->db;
     pStmt->sql.siInfo.mgmtEpSet = getEpSet_s(&pStmt->taos->pAppInfo->mgmtEp);
     pStmt->sql.siInfo.pTableHash = tSimpleHashInit(100, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
     if (NULL == pStmt->sql.siInfo.pTableHash) {
@@ -1362,10 +1342,6 @@ int stmtBindBatch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind, int32_t colIdx) {
 
     SParseContext ctx = {.requestId = pStmt->exec.pRequest->requestId,
                          .acctId = pStmt->taos->acctId,
-                         .minSecLevel = pStmt->taos->minSecLevel,
-                         .maxSecLevel = pStmt->taos->maxSecLevel,
-                         .sodInitial = pStmt->taos->pAppInfo->serverCfg.sodInitial,
-                         .macMode = pStmt->taos->pAppInfo->serverCfg.macActive,
                          .db = pStmt->exec.pRequest->pDb,
                          .topicQuery = false,
                          .pSql = pStmt->sql.sqlStr,

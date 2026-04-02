@@ -34,14 +34,6 @@
 
 // GRANT_CFG_DECLARE;
 
-#ifdef TD_ENTERPRISE
-static bool    taosIsClsDerivedRefreshInterval(int32_t interval);
-static int32_t taosCheckClsRefreshIntervalValue(int32_t interval, ECfgSrcType stype);
-static void    taosBackupClsRefreshInterval(int32_t interval);
-static int32_t taosSetClsDerivedRefreshInterval(int32_t interval);
-static int32_t taosHandleClsEnabledChange(bool enabled);
-#endif
-
 SConfig *tsCfg = NULL;
 // cluster
 char          tsFirst[TSDB_EP_LEN] = {0};
@@ -75,6 +67,9 @@ int8_t        tsEnableAdvancedSecurity = 1;
 int8_t        tsEnableAdvancedSecurity = 0;
 #endif
 int8_t        tsEnableGrantLegacySyntax = 0;
+
+char          tsEncryptPassAlgorithm[16] = {0};
+EEncryptAlgor tsiEncryptPassAlgorithm = 0;
 
 char tsTLSCaPath[PATH_MAX] = {0};
 char tsTLSSvrCertPath[PATH_MAX] = {0};
@@ -126,15 +121,6 @@ bool    tsAuthReq = 0;
 int32_t tsAuthReqInterval = 2592000;
 int32_t tsAuthReqHBInterval = 5;
 char    tsAuthReqUrl[TSDB_FQDN_LEN] = {0};
-bool    tsClsEnabled = 0;
-char    tsClsUrl[TSDB_GRANT_CLS_URL_LEN] = {0};
-char    tsClsLicenseId[TSDB_GRANT_CLS_ID_LEN] = {0};
-char    tsClsQuotaSlotId[TSDB_GRANT_CLS_ID_LEN] = {0};
-int32_t tsClsRefreshInterval = 3600;
-char    tsClsLastSucTime[TSDB_GRANT_CLS_TIME_LEN] = {0};
-char    tsClsLastReqTime[TSDB_GRANT_CLS_TIME_LEN] = {0};
-char    tsClsLastFailReason[TSDB_GRANT_CLS_REASON_LEN] = {0};
-int32_t gGrantClsPreRefreshInterval = 3600;
 #endif
 
 int32_t tsNumOfQueryThreads = 0;
@@ -176,7 +162,6 @@ int64_t tsSyncApplyQueueSize = 512;
 int32_t tsRoutineReportInterval = 300;
 bool    tsSyncLogHeartbeat = false;
 int32_t tsSyncTimeout = 0;
-int64_t tsSyncAssignedCheckAppliedGap = 20;
 
 // mnode
 int64_t tsMndSdbWriteDelta = 200;
@@ -184,7 +169,6 @@ int64_t tsMndLogRetention = 2000;
 bool    tsMndSkipGrant = false;
 bool    tsEnableWhiteList = false;  // ip white list cfg
 bool    tsForceKillTrans = false;
-int8_t  tsSodEnforceMode = 0;
 
 // arbitrator
 int32_t tsArbHeartBeatIntervalSec = 2;
@@ -265,11 +249,7 @@ int32_t tsAuditInterval = 5000;
 int32_t tsAuditLevel = AUDIT_LEVEL_DATABASE;
 bool    tsAuditHttps = false;
 bool    tsAuditUseToken = true;
-#ifdef TD_ENABLE_ADVANCED_SECURITY
-bool tsAuditSaveInSelf = true;
-#else
 bool    tsAuditSaveInSelf = false;
-#endif
 #else
 bool    tsEnableAudit = false;
 bool    tsEnableAuditCreateTable = false;
@@ -401,6 +381,13 @@ char    tsMetaEntryCache = 0;
 
 int32_t tsBypassFlag = 0;
 
+// the maximum allowed query buffer size during query processing for each data node.
+// -1 no limit (default)
+// 0  no query allowed, queries are disabled
+// positive value (in MB)
+int32_t tsQueryBufferSize = -1;
+int64_t tsQueryBufferSizeBytes = -1;
+int32_t tsCacheLazyLoadThreshold = 500;
 
 int32_t  tsDiskCfgNum = 0;
 SDiskCfg tsDiskCfg[TFS_MAX_DISKS] = {0};
@@ -435,10 +422,10 @@ bool     tsIfAdtFse = false;                    // ADT-FSE algorithom or origina
 char     tsCompressor[32] = "ZSTD_COMPRESSOR";  // ZSTD_COMPRESSOR or GZIP_COMPRESSOR
 
 // udf
-#ifdef USE_UDF
-bool    tsStartUdfd = true;
+#if defined(WINDOWS) || !defined(USE_UDF)
+bool tsStartUdfd = false;
 #else
-bool    tsStartUdfd = false;
+bool    tsStartUdfd = true;
 #endif
 
 // wal
@@ -1006,6 +993,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "enableStrongPassword", tsEnableStrongPassword, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SECURITY));
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "enableAdvancedSecurity", tsEnableAdvancedSecurity, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SECURITY));
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "enableGrantLegacySyntax", tsEnableGrantLegacySyntax, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SECURITY));
+  TAOS_CHECK_RETURN(cfgAddString(pCfg, "encryptPassAlgorithm", tsEncryptPassAlgorithm, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY, CFG_CATEGORY_GLOBAL, CFG_PRIV_SECURITY));
 
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "statusInterval", tsStatusInterval, 1, 30, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "metricsInterval", tsMetricsInterval, 1, 3600, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
@@ -1016,6 +1004,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "statusSRTimeoutMs", tsStatusSRTimeoutMs, 50, 30000, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "statusTimeoutMs", tsStatusTimeoutMs, 50, 30000, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
 
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "queryBufferSize", tsQueryBufferSize, -1, 500000000000, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY, CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "queryRspPolicy", tsQueryRspPolicy, 0, 1, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "numOfCommitThreads", tsNumOfCommitThreads, 1, 1024, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY,CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "numOfCompactThreads", tsNumOfCompactThreads, 1, 16, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
@@ -1057,7 +1046,6 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "walDeleteOnCorruption", tsWalDeleteOnCorruption, CFG_SCOPE_SERVER, CFG_DYN_NONE,CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
 
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "syncTimeout", tsSyncTimeout, 0, 60 * 24 * 2 * 1000, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
-  TAOS_CHECK_RETURN(cfgAddInt64(pCfg, "syncAssignedCheckAppliedGap", tsSyncAssignedCheckAppliedGap, 0, 10000, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
 
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "arbHeartBeatIntervalSec", tsArbHeartBeatIntervalSec, 1, 60 * 24 * 2, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "arbCheckSyncIntervalSec", tsArbCheckSyncIntervalSec, 1, 60 * 24 * 2, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
@@ -1130,6 +1118,8 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "udf", tsStartUdfd, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "udfdResFuncs", tsUdfdResFuncs, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "udfdLdLibPath", tsUdfdLdLibPath, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "cacheLazyLoadThreshold", tsCacheLazyLoadThreshold, 0, 100000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
+
   TAOS_CHECK_RETURN(cfgAddFloat(pCfg, "fPrecision", tsFPrecision, 0.0f, 100000.0f, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddFloat(pCfg, "dPrecision", tsDPrecision, 0.0f, 1000000.0f, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "maxRange", tsMaxRange, 0, 65536, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
@@ -1160,14 +1150,6 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "authReq", tsAuthReq, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "authReqInterval", tsAuthReqInterval, 1, 86400 * 30, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "authReqUrl", tsAuthReqUrl, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
-  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "clsEnabled", tsClsEnabled, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
-  TAOS_CHECK_RETURN(cfgAddString(pCfg, "clsUrl", tsClsUrl, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
-  TAOS_CHECK_RETURN(cfgAddString(pCfg, "clsLicenseId", tsClsLicenseId, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
-  TAOS_CHECK_RETURN(cfgAddString(pCfg, "clsQuotaSlotId", tsClsQuotaSlotId, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
-  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "clsRefreshInterval", tsClsRefreshInterval, 10, 86400, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
-  TAOS_CHECK_RETURN(cfgAddString(pCfg, "clsLastSucTime", tsClsLastSucTime, CFG_SCOPE_SERVER, CFG_DYN_NONE, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
-  TAOS_CHECK_RETURN(cfgAddString(pCfg, "clsLastReqTime", tsClsLastReqTime, CFG_SCOPE_SERVER, CFG_DYN_NONE, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
-  TAOS_CHECK_RETURN(cfgAddString(pCfg, "clsLastFailReason", tsClsLastFailReason, CFG_SCOPE_SERVER, CFG_DYN_NONE, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
 #endif
   // clang-format on
 
@@ -1784,6 +1766,9 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "minIntervalTime");
   tsMinIntervalTime = pItem->i32;
 
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "queryBufferSize");
+  tsQueryBufferSize = pItem->i32;
+
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "encryptAlgorithm");
   TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, 16));
   tstrncpy(tsEncryptAlgorithm, pItem->str, 16);
@@ -1803,6 +1788,18 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableGrantLegacySyntax");
   tsEnableGrantLegacySyntax = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "encryptPassAlgorithm");
+  TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, 16));
+  tstrncpy(tsEncryptPassAlgorithm, pItem->str, 16);
+
+  if (strlen(tsEncryptPassAlgorithm) > 0) {
+    if (strcmp(tsEncryptPassAlgorithm, "sm4") == 0) {
+      tsiEncryptPassAlgorithm = DND_CA_SM4;
+    } else {
+      uError("invalid tsEncryptAlgorithm:%s", tsEncryptPassAlgorithm);
+    }
+  }
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "numOfRpcThreads");
   tsNumOfRpcThreads = pItem->i32;
@@ -1844,37 +1841,6 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "authReqUrl");
   TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_FQDN_LEN));
   tstrncpy(tsAuthReqUrl, pItem->str, TSDB_FQDN_LEN);
-
-  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "clsRefreshInterval");
-  TAOS_CHECK_RETURN(taosCheckClsRefreshIntervalValue(pItem->i32, pItem->stype));
-  tsClsRefreshInterval = pItem->i32;
-
-  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "clsUrl");
-  TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_GRANT_CLS_URL_LEN));
-  tstrncpy(tsClsUrl, pItem->str, TSDB_GRANT_CLS_URL_LEN);
-
-  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "clsLicenseId");
-  TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_GRANT_CLS_ID_LEN));
-  tstrncpy(tsClsLicenseId, pItem->str, TSDB_GRANT_CLS_ID_LEN);
-
-  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "clsQuotaSlotId");
-  TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_GRANT_CLS_ID_LEN));
-  tstrncpy(tsClsQuotaSlotId, pItem->str, TSDB_GRANT_CLS_ID_LEN);
-
-  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "clsLastSucTime");
-  TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_GRANT_CLS_TIME_LEN));
-  tstrncpy(tsClsLastSucTime, pItem->str, TSDB_GRANT_CLS_TIME_LEN);
-
-  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "clsLastReqTime");
-  TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_GRANT_CLS_TIME_LEN));
-  tstrncpy(tsClsLastReqTime, pItem->str, TSDB_GRANT_CLS_TIME_LEN);
-
-  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "clsLastFailReason");
-  TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_GRANT_CLS_REASON_LEN));
-  tstrncpy(tsClsLastFailReason, pItem->str, TSDB_GRANT_CLS_REASON_LEN);
-
-  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "clsEnabled");
-  TAOS_CHECK_RETURN(taosHandleClsEnabledChange(pItem->bval));
 #endif
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "retentionSpeedLimitMB");
@@ -2132,9 +2098,6 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "syncTimeout");
   tsSyncTimeout = pItem->i32;
 
-  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "syncAssignedCheckAppliedGap");
-  tsSyncAssignedCheckAppliedGap = pItem->i64;
-
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "mndSdbWriteDelta");
   tsMndSdbWriteDelta = pItem->i64;
 
@@ -2160,7 +2123,13 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "udfdLdLibPath");
   TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, sizeof(tsUdfdLdLibPath)));
   tstrncpy(tsUdfdLdLibPath, pItem->str, sizeof(tsUdfdLdLibPath));
+  if (tsQueryBufferSize >= 0) {
+    tsQueryBufferSizeBytes = tsQueryBufferSize * 1048576UL;
+  }
 #endif
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "cacheLazyLoadThreshold");
+  tsCacheLazyLoadThreshold = pItem->i32;
+
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "fPrecision");
   tsFPrecision = pItem->fval;
 
@@ -2437,45 +2406,6 @@ static int32_t cfgInitWrapper(SConfig **pCfg) {
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
-#ifdef TD_ENTERPRISE
-static bool taosIsClsDerivedRefreshInterval(int32_t interval) { return interval == 1 || interval == 2; }
-
-static int32_t taosCheckClsRefreshIntervalValue(int32_t interval, ECfgSrcType stype) {
-  bool isAlterSource = (stype == CFG_STYPE_ALTER_CLIENT_CMD || stype == CFG_STYPE_ALTER_SERVER_CMD);
-
-  if ((interval >= 10 && interval <= 86400) || (!isAlterSource && taosIsClsDerivedRefreshInterval(interval))) {
-    TAOS_RETURN(TSDB_CODE_SUCCESS);
-  }
-
-  uError("cfg:clsRefreshInterval, value:%d out of range[10, 86400]", interval);
-  TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
-}
-
-static void taosBackupClsRefreshInterval(int32_t interval) {
-  if (!taosIsClsDerivedRefreshInterval(interval)) {
-    gGrantClsPreRefreshInterval = interval;
-  }
-}
-
-static int32_t taosSetClsDerivedRefreshInterval(int32_t interval) {
-  tsClsRefreshInterval = interval;
-  TAOS_RETURN(TSDB_CODE_SUCCESS);
-}
-
-static int32_t taosHandleClsEnabledChange(bool enabled) {
-  bool oldEnabled = tsClsEnabled;
-
-  tsClsEnabled = enabled;
-  if (oldEnabled == enabled && enabled == false) {
-    TAOS_RETURN(TSDB_CODE_SUCCESS);
-  }
-
-  taosBackupClsRefreshInterval(tsClsRefreshInterval);
-  TAOS_CHECK_RETURN(taosSetClsDerivedRefreshInterval(enabled ? GRANT_CLS_OPENING : GRANT_CLS_CLOSING));
-  TAOS_RETURN(TSDB_CODE_SUCCESS);
-}
-#endif
-
 int32_t setAllConfigs(SConfig *pCfg) {
   int32_t code = 0;
   int32_t lino = -1;
@@ -2686,7 +2616,7 @@ int32_t readCfgFile(const char *path, bool isGlobal) {
     array = taosGetLocalCfg(tsCfg);
     snprintf(filename, sizeof(filename), "%s%sdnode%sconfig%slocal.json", path, TD_DIRSEP, TD_DIRSEP, TD_DIRSEP);
   }
-  uInfo("load config file:%s", filename);
+  uInfo("start to read config file:%s", filename);
 
   if (!taosCheckExistFile(filename)) {
     uInfo("config file:%s does not exist", filename);
@@ -3016,30 +2946,6 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
     tstrncpy(tsAuthReqUrl, pItem->str, TSDB_FQDN_LEN);
     goto _exit;
   }
-  if (strcasecmp(name, "clsEnabled") == 0) {
-    TAOS_CHECK_GOTO(taosHandleClsEnabledChange(pItem->bval), &lino, _exit);
-    goto _exit;
-  }
-  if (strcasecmp(name, "clsUrl") == 0) {
-    TAOS_CHECK_GOTO(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_GRANT_CLS_URL_LEN), &lino, _exit);
-    tstrncpy(tsClsUrl, pItem->str, TSDB_GRANT_CLS_URL_LEN);
-    goto _exit;
-  }
-  if (strcasecmp(name, "clsLicenseId") == 0) {
-    TAOS_CHECK_GOTO(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_GRANT_CLS_ID_LEN), &lino, _exit);
-    tstrncpy(tsClsLicenseId, pItem->str, TSDB_GRANT_CLS_ID_LEN);
-    goto _exit;
-  }
-  if (strcasecmp(name, "clsQuotaSlotId") == 0) {
-    TAOS_CHECK_GOTO(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_GRANT_CLS_ID_LEN), &lino, _exit);
-    tstrncpy(tsClsQuotaSlotId, pItem->str, TSDB_GRANT_CLS_ID_LEN);
-    goto _exit;
-  }
-  if (strcasecmp(name, "clsRefreshInterval") == 0) {
-    TAOS_CHECK_GOTO(taosCheckClsRefreshIntervalValue(pItem->i32, pItem->stype), &lino, _exit);
-    tsClsRefreshInterval = pItem->i32;
-    goto _exit;
-  }
 #endif
 
   if (strcasecmp(name, "minReservedMemorySize") == 0) {
@@ -3120,7 +3026,6 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
                                          {"syncRoutineReportInterval", &tsRoutineReportInterval},
                                          {"syncLogHeartbeat", &tsSyncLogHeartbeat},
                                          {"syncTimeout", &tsSyncTimeout},
-                                         {"syncAssignedCheckAppliedGap", &tsSyncAssignedCheckAppliedGap},
                                          {"walFsyncDataSizeLimit", &tsWalFsyncDataSizeLimit},
 
                                          {"numOfCores", &tsNumOfCores},
@@ -3128,6 +3033,8 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
                                          {"enableCoreFile", &tsEnableCoreFile},
 
                                          {"telemetryInterval", &tsTelemInterval},
+
+                                         {"cacheLazyLoadThreshold", &tsCacheLazyLoadThreshold},
 
                                          {"retentionSpeedLimitMB", &tsRetentionSpeedLimitMB},
                                          {"ttlChangeOnWrite", &tsTtlChangeOnWrite},
@@ -3606,7 +3513,6 @@ int32_t taosGranted(int8_t type) {
 
 int32_t globalConfigSerialize(int32_t version, SArray *array, char **serialized) {
   char   buf[30];
-  char  *pSerialized = NULL;
   cJSON *json = cJSON_CreateObject();
   if (json == NULL) goto _exit;
   if (cJSON_AddNumberToObject(json, "file_version", GLOBAL_CONFIG_FILE_VERSION) == NULL) goto _exit;
@@ -3651,7 +3557,7 @@ int32_t globalConfigSerialize(int32_t version, SArray *array, char **serialized)
       }
     }
   }
-  pSerialized = tjsonToString(json);
+  char *pSerialized = tjsonToString(json);
 _exit:
   if (terrno != TSDB_CODE_SUCCESS) {
     uError("failed to serialize global config since %s", tstrerror(terrno));
@@ -3663,7 +3569,6 @@ _exit:
 
 int32_t localConfigSerialize(SArray *array, char **serialized) {
   char   buf[30];
-  char  *pSerialized = NULL;
   cJSON *json = cJSON_CreateObject();
   if (json == NULL) goto _exit;
 
@@ -3737,7 +3642,7 @@ int32_t localConfigSerialize(SArray *array, char **serialized) {
       }
     }
   }
-  pSerialized = tjsonToString(json);
+  char *pSerialized = tjsonToString(json);
 _exit:
   if (terrno != TSDB_CODE_SUCCESS) {
     uError("failed to serialize local config since %s", tstrerror(terrno));
@@ -3749,7 +3654,6 @@ _exit:
 
 int32_t stypeConfigSerialize(SArray *array, char **serialized) {
   char   buf[30];
-  char  *pSerialized = NULL;
   cJSON *json = cJSON_CreateObject();
   if (json == NULL) goto _exit;
 
@@ -3766,7 +3670,7 @@ int32_t stypeConfigSerialize(SArray *array, char **serialized) {
     SConfigItem *item = (SConfigItem *)taosArrayGet(array, i);
     if (cJSON_AddNumberToObject(cField, item->name, item->stype) == NULL) goto _exit;
   }
-  pSerialized = tjsonToString(json);
+  char *pSerialized = tjsonToString(json);
 _exit:
   if (terrno != TSDB_CODE_SUCCESS) {
     uError("failed to serialize local config since %s", tstrerror(terrno));

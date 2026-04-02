@@ -5,7 +5,7 @@ psutil
 pandas
 toml
 distro
-requests>=2.32.0
+requests
 pexpect
 faker
 pyopenssl

@@ -2,6 +2,7 @@
 sidebar_label: Virtual Tables
 title: Virtual Tables
 description: Various management operations for virtual tables
+slug: /tdengine-reference/sql-manual/virtualtable
 ---
 
 ## Create Virtual Table
@@ -10,7 +11,7 @@ The `CREATE VTABLE` statement is used to create virtual basic tables and virtual
 
 ### Create Virtual Supertables
 
-Refer to the `VIRTUAL` parameter in [Create Supertable](04-stable.md#create-a-supertable).
+Refer to the `VIRTUAL` parameter in [Create Supertable](../manage-supertables/#create-a-supertable).
 
 ### Create Virtual Basic Table
 
@@ -43,7 +44,7 @@ CREATE VTABLE [IF NOT EXISTS] [db_name].vtb_name
 
 Usage Notes:
 
-1. Naming rules for virtual tables/columns follow [Name Rules](91-limit.md#naming-rules).
+1. Naming rules for virtual tables/columns follow [Name Rules](../names/#naming-rules).
 2. The maximum number of columns in a virtual table is 32767.
 3. Maximum table name length: 192 characters.
 4. The first column must be TIMESTAMP and is automatically set as primary key.

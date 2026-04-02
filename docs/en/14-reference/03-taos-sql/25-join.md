@@ -1,5 +1,6 @@
 ---
 title: Join Queries
+slug: /tdengine-reference/sql-manual/join-queries
 ---
 
 ## Join Concepts

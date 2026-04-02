@@ -96,7 +96,6 @@ typedef enum EDatabaseOptionType {
   DB_OPTION_ALLOW_DROP,
   DB_OPTION_SECURE_DELETE,
   DB_OPTION_CACHESHARDBITS,
-  DB_OPTION_SECURITY_LEVEL,
 } EDatabaseOptionType;
 
 typedef enum ETableOptionType {
@@ -110,7 +109,6 @@ typedef enum ETableOptionType {
   TABLE_OPTION_KEEP,
   TABLE_OPTION_VIRTUAL,
   TABLE_OPTION_SECURE_DELETE,
-  TABLE_OPTION_SECURITY_LEVEL,
 } ETableOptionType;
 
 typedef enum EColumnOptionType {
@@ -505,7 +503,7 @@ SNode* createKillQueryStmt(SAstCreateContext* pCxt, const SToken* pQueryId);
 SNode* createBalanceVgroupStmt(SAstCreateContext* pCxt);
 SNode* createAssignLeaderStmt(SAstCreateContext* pCxt);
 SNode* createBalanceVgroupLeaderStmt(SAstCreateContext* pCxt, const SToken* pVgId);
-SNode* createBalanceVgroupLeaderDBNameStmt(SAstCreateContext* pCxt, SToken* pDbName);
+SNode* createBalanceVgroupLeaderDBNameStmt(SAstCreateContext* pCxt, const SToken* pDbName);
 SNode* createSetVgroupKeepVersionStmt(SAstCreateContext* pCxt, const SToken* pVgId, const SToken* pKeepVersion);
 SNode* createMergeVgroupStmt(SAstCreateContext* pCxt, const SToken* pVgId1, const SToken* pVgId2);
 SNode* createRedistributeVgroupStmt(SAstCreateContext* pCxt, const SToken* pVgId, SNodeList* pDnodes);
@@ -531,7 +529,6 @@ SNode* createCreateRsmaStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken* 
                             SNodeList* pFuncs, SNodeList* pIntervals);
 SNode* createDropRsmaStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SNode* pRealTable);
 SNode* createShowCreateRsmaStmt(SAstCreateContext* pCxt, ENodeType type, SNode* pRealTable);
-SNode* createShowCreateStreamStmt(SAstCreateContext* pCxt, SNode* pStream);
 SNode* createAlterRsmaStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SNode* pRsma, int8_t alterType, void* pAlterInfo);
 SNode* createKillRsmaTasksStmt(SAstCreateContext* pCxt, SNodeList* pTaskIds, STokenPair* pLevel);
 SNode* createRollupStmt(SAstCreateContext* pCxt, SToken* pDbName, SNode* pStart, SNode* pEnd);

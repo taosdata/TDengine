@@ -24,12 +24,10 @@ dumpName="${PREFIX}dump"
 keeperName="${PREFIX}keeper"
 xName="${PREFIX}x"
 explorerName="${PREFIX}-explorer"
-udfdName="${PREFIX}udf"
 inspect_name="${PREFIX}inspect"
 tarbitratorName="tarbitratord"
 mqtt_name="${PREFIX}mqtt"
 taosgen_name="${PREFIX}gen"
-taosk_name="${PREFIX}k"
 xnode_name="xnoded"
 productName="TDengine TSDB"
 
@@ -168,10 +166,14 @@ plugins_dir="${installDir}/plugins"
 share_dir="${installDir}/share"
 
 if [ "${verMode}" == "cluster" ]; then
-  services=("${serverName}" "${adapterName}" "${keeperName}" "${xName}" "${explorerName}")
-  tools=("${clientName}" "${benchmarkName}" "${dumpName}" "${demoName}" "${inspect_name}" "${udfdName}" "${mqtt_name}" "${xnode_name}" "set_core.sh" "TDinsight.sh" "$uninstallScript" "start-all.sh" "stop-all.sh" "${taosgen_name}" "${taosk_name}" "startPre.sh" "uninstall_taosx.sh")
+  if [ "${entMode}" == "full" ]; then
+    services=("${serverName}" "${adapterName}" "${keeperName}" "${xName}" "${explorerName}")
+  else
+    services=("${serverName}" "${adapterName}" "${keeperName}" "${explorerName}")
+  fi
+  tools=("${clientName}" "${benchmarkName}" "${dumpName}" "${demoName}" "${inspect_name}" "${PREFIX}udf" "${mqtt_name}" "${xnode_name}" "set_core.sh" "TDinsight.sh" "$uninstallScript" "start-all.sh" "stop-all.sh" "${taosgen_name}" "startPre.sh" "uninstall_taosx.sh")
 else
-  tools=("${clientName}" "${benchmarkName}" "${dumpName}" "${demoName}" "${udfdName}" "${mqtt_name}" "${xnode_name}" "set_core.sh" "TDinsight.sh" "$uninstallScript" "start-all.sh" "stop-all.sh" "${taosgen_name}" "startPre.sh")
+  tools=("${clientName}" "${benchmarkName}" "${dumpName}" "${demoName}" "${PREFIX}udf" "${mqtt_name}" "${xnode_name}" "set_core.sh" "TDinsight.sh" "$uninstallScript" "start-all.sh" "stop-all.sh" "${taosgen_name}" "startPre.sh")
   services=("${serverName}" "${adapterName}" "${keeperName}" "${explorerName}")
 fi
 
@@ -202,11 +204,11 @@ kill_service_of() {
   local svc=$1
   # grep -v -x "$$" : exclude the current script's own PID
   # ps -o pid=,comm= -p ... : get pid and command name
-  # awk '$2 != "${uninstallScript}" && $2 != "uninstall.sh" {print $1}' : exclude ${uninstallScript} and uninstall.sh processes
+  # awk '$2 != "rmtaos" && $2 != "uninstall.sh" {print $1}' : exclude rmtaos and uninstall.sh processes
   pids=$(ps -eo pid=,comm= | awk -v svc="$svc" '$2 == svc {print $1}' || true)
   if [ -n "$pids" ]; then
     echo "$pids" | xargs -r ps -o pid=,comm= -p 2>/dev/null \
-      | awk -v us="${uninstallScript}" '$2 != us && $2 != "uninstall.sh" {print $1}' \
+      | awk '$2 != "rmtaos" && $2 != "uninstall.sh" {print $1}' \
       | xargs -r kill -9 2>/dev/null || true
   fi
 }
@@ -408,7 +410,7 @@ function remove_data_and_config() {
       "${data_dir:?}/.udf"
       "${data_dir:?}/.running"*
       "${data_dir:?}/.taosudf"*
-      "${data_dir:?}/${xName}"*
+      "${data_dir:?}/${PREFIX}x"*
       "${data_dir:?}/explorer"*
     )
     batch_remove_paths_and_clean_dir "${data_dir:?}" "${data_remove_list[@]}"
@@ -477,6 +479,14 @@ if [ "$interactive_remove" == "yes" ]; then
   echo
 fi
 
+# if [ -e "${install_main_dir}/uninstall_${PREFIX}x.sh" ]; then
+#   if [ X$remove_flag == X"true" ]; then
+#     bash "${install_main_dir}/uninstall_${PREFIX}x.sh" --clean-all true
+#   else
+#     bash "${install_main_dir}/uninstall_${PREFIX}x.sh" --clean-all false
+#   fi
+# fi
+
 if [ "$osType" = "Darwin" ]; then
   clean_service_on_launchctl
   rm -rf /Applications/TDengine.app
@@ -515,38 +525,6 @@ elif echo $osinfo | grep -qwi "centos"; then
 fi
 
 command -v systemctl >/dev/null 2>&1 && ${sysctl_cmd} daemon-reload >/dev/null 2>&1 || true
-
-# Clean env variables from shell rc file for non-root uninstall
-function clean_env_file() {
-  if [ "$user_mode" -ne 1 ]; then
-    return 0
-  fi
-
-  local env_file=""
-  local login_shell="${SHELL##*/}"
-  if [ "$login_shell" = "zsh" ]; then
-    env_file="${HOME}/.zshrc"
-  elif [ "$login_shell" = "bash" ] || [ -z "$login_shell" ]; then
-    env_file="${HOME}/.bashrc"
-  else
-    env_file="${HOME}/.profile"
-  fi
-
-  if [ ! -f "$env_file" ]; then
-    return 0
-  fi
-
-  local tmp_file="${env_file}.tmp.$$"
-  local escaped_bin escaped_lib
-  escaped_bin=$(printf '%s' "${bin_link_dir}" | sed 's/[.[\\/^$*]/\\&/g')
-  escaped_lib=$(printf '%s' "${lib_link_dir}" | sed 's/[.[\\/^$*]/\\&/g')
-  sed -e "/^# ${productName} install path$/d" \
-      -e "\|^export PATH=\"${escaped_bin}:.*\"|d" \
-      -e "\|^export LD_LIBRARY_PATH=\"${escaped_lib}:.*\"|d" \
-      "$env_file" > "$tmp_file" && mv "$tmp_file" "$env_file" || rm -f "$tmp_file"
-}
-clean_env_file
-
 echo
 echo "${productName} is removed successfully!"
 echo

@@ -41,7 +41,6 @@ typedef struct STaskSubJobCtx {
   uint64_t           blockIdx;
   SArray*            subEndPoints;  // SArray<SDownstreamSourceNode*>
   SArray*            subResNodes;  // SArray<SNode*>
-  uint64_t           streamGen;    // incremented per runner invocation for cache invalidation
 } STaskSubJobCtx;
 
 typedef struct SScalarFetchParam {

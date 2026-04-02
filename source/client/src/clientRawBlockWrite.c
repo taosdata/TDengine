@@ -381,9 +381,6 @@ static int32_t processCreateStb(SMqMetaRsp* metaRsp, cJSON** pJson) {
 
   RAW_LOG_START
   // decode and process req
-  if (metaRsp->metaRspLen <= sizeof(SMsgHead)) {
-    RAW_RETURN_CHECK(TSDB_CODE_INVALID_DATA_FMT);
-  }
   void*   data = POINTER_SHIFT(metaRsp->metaRsp, sizeof(SMsgHead));
   int32_t len = metaRsp->metaRspLen - sizeof(SMsgHead);
   tDecoderInit(&coder, data, len);
@@ -410,9 +407,6 @@ static int32_t processAlterStb(SMqMetaRsp* metaRsp, cJSON** pJson) {
   RAW_LOG_START
 
   // decode and process req
-  if (metaRsp->metaRspLen <= sizeof(SMsgHead)) {
-    RAW_RETURN_CHECK(TSDB_CODE_INVALID_DATA_FMT);
-  }
   void*   data = POINTER_SHIFT(metaRsp->metaRsp, sizeof(SMsgHead));
   int32_t len = metaRsp->metaRspLen - sizeof(SMsgHead);
   tDecoderInit(&coder, data, len);
@@ -578,9 +572,6 @@ static int32_t processCreateTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
   SVCreateTbReq*     pCreateReq;
   RAW_LOG_START
   // decode
-  if (metaRsp->metaRspLen <= sizeof(SMsgHead)) {
-    RAW_RETURN_CHECK(TSDB_CODE_INVALID_DATA_FMT);
-  }
   void*   data = POINTER_SHIFT(metaRsp->metaRsp, sizeof(SMsgHead));
   int32_t len = metaRsp->metaRspLen - sizeof(SMsgHead);
   tDecoderInit(&decoder, data, len);
@@ -680,9 +671,6 @@ static int32_t processAlterTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
   RAW_LOG_START
 
   // decode
-  if (metaRsp->metaRspLen <= sizeof(SMsgHead)) {
-    RAW_RETURN_CHECK(TSDB_CODE_INVALID_DATA_FMT);
-  }
   void*   data = POINTER_SHIFT(metaRsp->metaRsp, sizeof(SMsgHead));
   int32_t len = metaRsp->metaRspLen - sizeof(SMsgHead);
   tDecoderInit(&decoder, data, len);
@@ -920,9 +908,6 @@ static int32_t processDropSTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
   RAW_LOG_START
 
   // decode
-  if (metaRsp->metaRspLen <= sizeof(SMsgHead)) {
-    RAW_RETURN_CHECK(TSDB_CODE_INVALID_DATA_FMT);
-  }
   void*   data = POINTER_SHIFT(metaRsp->metaRsp, sizeof(SMsgHead));
   int32_t len = metaRsp->metaRspLen - sizeof(SMsgHead);
   tDecoderInit(&decoder, data, len);
@@ -953,9 +938,6 @@ static int32_t processDeleteTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
   RAW_LOG_START
 
   // decode and process req
-  if (metaRsp->metaRspLen <= sizeof(SMsgHead)) {
-    RAW_RETURN_CHECK(TSDB_CODE_INVALID_DATA_FMT);
-  }
   void*   data = POINTER_SHIFT(metaRsp->metaRsp, sizeof(SMsgHead));
   int32_t len = metaRsp->metaRspLen - sizeof(SMsgHead);
 
@@ -990,9 +972,6 @@ static int32_t processDropTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
   int32_t          lino = 0;
   RAW_LOG_START
   // decode
-  if (metaRsp->metaRspLen <= sizeof(SMsgHead)) {
-    RAW_RETURN_CHECK(TSDB_CODE_INVALID_DATA_FMT);
-  }
   void*   data = POINTER_SHIFT(metaRsp->metaRsp, sizeof(SMsgHead));
   int32_t len = metaRsp->metaRspLen - sizeof(SMsgHead);
   tDecoderInit(&decoder, data, len);
@@ -1085,7 +1064,6 @@ static int32_t taosCreateStb(TAOS* taos, void* meta, uint32_t metaLen) {
   pReq.source = TD_REQ_FROM_TAOX;
   pReq.igExists = true;
   pReq.virtualStb = req.virtualStb;
-  pReq.securityLevel = req.securityLevel;  // Preserve source cluster's security classification
 
   uDebug(LOG_ID_TAG " create stable name:%s suid:%" PRId64 " processSuid:%" PRId64, LOG_ID_VALUE, req.name, req.suid,
          pReq.suid);
@@ -1256,8 +1234,7 @@ static STableMeta* getTableMeta(SCatalog* pCatalog, SRequestConnInfo* conn, char
   return pTableMeta;
 }
 
-static int32_t checkColRef(STableMeta* pTableMeta, char* colName, uint8_t precision, const char* pSchemaName,
-                           const SDataType* pType) {
+static int32_t checkColRef(STableMeta* pTableMeta, char* colName, uint8_t precision, const SSchema* pSchema) {
   int32_t code = TSDB_CODE_SUCCESS;
   if (pTableMeta->tableInfo.precision != precision) {
     code = TSDB_CODE_PAR_INVALID_REF_COLUMN_TYPE;
@@ -1281,22 +1258,14 @@ static int32_t checkColRef(STableMeta* pTableMeta, char* colName, uint8_t precis
   const SSchema* pRefCol = getNormalColSchema(pTableMeta, colName);
   if (NULL == pRefCol) {
     code = TSDB_CODE_PAR_INVALID_REF_COLUMN;
-    uError("virtual table's column:\"%s\"'s reference column:\"%s\" not exist", pSchemaName, colName);
+    uError("virtual table's column:\"%s\"'s reference column:\"%s\" not exist", pSchema->name, colName);
     goto end;
   }
 
-  int32_t refColIndex = getNormalColSchemaIndex(pTableMeta, colName);
-  const SSchemaExt* pRefSchemaExt =
-      (refColIndex >= 0 && pTableMeta->schemaExt && refColIndex < pTableMeta->tableInfo.numOfColumns)
-          ? pTableMeta->schemaExt + refColIndex
-          : NULL;
-  SDataType refType = {0};
-  schemaToRefDataType(pRefCol, NULL != pRefSchemaExt ? pRefSchemaExt->typeMod : 0, &refType);
-
-  if (!isSameRefDataType(pType, &refType)) {
+  if (pRefCol->type != pSchema->type || pRefCol->bytes != pSchema->bytes) {
     code = TSDB_CODE_PAR_INVALID_REF_COLUMN_TYPE;
     uError("virtual table's column:\"%s\"'s type and reference column:\"%s\"'s type not match, %d %d %d %d",
-            pSchemaName, colName, pType->type, pType->bytes, refType.type, refType.bytes);
+            pSchema->name, colName, pSchema->type, pSchema->bytes, pRefCol->type, pRefCol->bytes);
     goto end;
   }
 
@@ -1304,21 +1273,18 @@ end:
   return code;
 }
 
-static int32_t checkColRefForCreate(SCatalog* pCatalog, SRequestConnInfo* conn, SColRef* pColRef, int32_t acctId,
-                                    uint8_t precision, SSchema* pSchema, const SSchemaExt* pSchemaExt) {
+static int32_t checkColRefForCreate(SCatalog* pCatalog, SRequestConnInfo* conn, SColRef* pColRef, int32_t acctId, uint8_t precision, SSchema* pSchema) {
   STableMeta* pTableMeta = getTableMeta(pCatalog, conn, pColRef->refDbName, pColRef->refTableName, acctId);
   if (pTableMeta == NULL) {
       return terrno;
   }
-  SDataType colType = {0};
-  schemaToRefDataType(pSchema, NULL != pSchemaExt ? pSchemaExt->typeMod : 0, &colType);
-  int32_t code = checkColRef(pTableMeta, pColRef->refColName, precision, pSchema->name, &colType);
+  int32_t code = checkColRef(pTableMeta, pColRef->refColName, precision, pSchema);
   taosMemoryFreeClear(pTableMeta);
   return code;
 }
 
 static int32_t checkColRefForAdd(SCatalog* pCatalog, SRequestConnInfo* conn, int32_t acctId, char* dbName, char* tbName, char* colName, 
-  char* dbNameSrc, char* tbNameSrc, char* colNameSrc, int8_t type, int32_t bytes, STypeMod typeMod) {
+  char* dbNameSrc, char* tbNameSrc, char* colNameSrc, int8_t type, int32_t bytes) {
   int32_t code = 0;
   STableMeta* pTableMeta = getTableMeta(pCatalog, conn, dbName, tbName, acctId);
   if (pTableMeta == NULL) {
@@ -1331,9 +1297,9 @@ static int32_t checkColRefForAdd(SCatalog* pCatalog, SRequestConnInfo* conn, int
     goto end;
   }
 
-  SDataType colType = {.type = type, .bytes = bytes};
-  fillTypeFromTypeMod(&colType, typeMod);
-  code = checkColRef(pTableMeta, colName, pTableMetaSrc->tableInfo.precision, colNameSrc, &colType);
+  SSchema pSchema = {.type = type, .bytes = bytes};
+  tstrncpy(pSchema.name, colNameSrc, TSDB_COL_NAME_LEN);
+  code = checkColRef(pTableMeta, colName, pTableMetaSrc->tableInfo.precision, &pSchema);
 
 end:
   taosMemoryFreeClear(pTableMeta);
@@ -1361,14 +1327,7 @@ static int32_t checkColRefForAlter(SCatalog* pCatalog, SRequestConnInfo* conn, i
     goto end;
   }
 
-  int32_t schemaIdx = getNormalColSchemaIndex(pTableMetaSrc, colNameSrc);
-  const SSchemaExt* pSchemaExt =
-      (schemaIdx >= 0 && pTableMetaSrc->schemaExt && schemaIdx < pTableMetaSrc->tableInfo.numOfColumns)
-          ? pTableMetaSrc->schemaExt + schemaIdx
-          : NULL;
-  SDataType colType = {0};
-  schemaToRefDataType(pSchema, NULL != pSchemaExt ? pSchemaExt->typeMod : 0, &colType);
-  code = checkColRef(pTableMeta, colName, pTableMetaSrc->tableInfo.precision, pSchema->name, &colType);
+  code = checkColRef(pTableMeta, colName, pTableMetaSrc->tableInfo.precision, pSchema);
 
 end:
   taosMemoryFreeClear(pTableMeta);
@@ -1461,11 +1420,7 @@ static int32_t taosCreateTable(TAOS* taos, void* meta, uint32_t metaLen) {
         SColRef* pColRef = pCreateReq->colRef.pColRef + i;
         if (!pColRef || !pColRef->hasRef) continue;
         SSchema* pSchema = pTableMeta->schema + i;
-        const SSchemaExt* pSchemaExt =
-            (pTableMeta->schemaExt && i < pTableMeta->tableInfo.numOfColumns) ? pTableMeta->schemaExt + i : NULL;
-        RAW_RETURN_CHECK(
-            checkColRefForCreate(pCatalog, &conn, pColRef, pTscObj->acctId, pTableMeta->tableInfo.precision, pSchema,
-                                 pSchemaExt));
+        RAW_RETURN_CHECK(checkColRefForCreate(pCatalog, &conn, pColRef, pTscObj->acctId, pTableMeta->tableInfo.precision, pSchema));
       }
       
       SArray* pTagVals = NULL;
@@ -1987,7 +1942,7 @@ static int32_t taosAlterTable(TAOS* taos, void* meta, uint32_t metaLen) {
         pRequest->pDb, req.tbName, req.colName));
     }else if (req.action == TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COLUMN_REF && tmqWriteCheckRef) {
       RAW_RETURN_CHECK(checkColRefForAdd(pCatalog, &conn, pTscObj->acctId, req.refDbName, req.refTbName, req.refColName,
-        pRequest->pDb, req.tbName, req.colName, req.type, req.bytes, req.typeMod));
+        pRequest->pDb, req.tbName, req.colName, req.type, req.bytes));
     }
 
     tEncodeSize(tEncodeSVAlterTbReq, &req, tlen, code);

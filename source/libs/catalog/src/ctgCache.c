@@ -539,8 +539,34 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCt
   ctx->tbInfo.tbType = tbMeta->tableType;
 
   if (tbMeta->tableType != TSDB_CHILD_TABLE && tbMeta->tableType != TSDB_VIRTUAL_CHILD_TABLE) {
-    int32_t code = cloneTableMeta(tbMeta, pTableMeta);
-    CTG_ERR_RET(code);
+    int32_t schemaExtSize = 0;
+    int32_t colRefSize = 0;
+    int32_t metaSize = CTG_META_SIZE(tbMeta);
+    if (withExtSchema(tbMeta->tableType) && tbMeta->schemaExt != NULL) {
+      schemaExtSize = tbMeta->tableInfo.numOfColumns * sizeof(SSchemaExt);
+    }
+    if (hasRefCol(tbMeta->tableType) && tbMeta->colRef != NULL) {
+      colRefSize += tbMeta->tableInfo.numOfColumns * sizeof(SColRef);
+    }
+    *pTableMeta = taosMemoryCalloc(1, metaSize + schemaExtSize + colRefSize);
+    if (NULL == *pTableMeta) {
+      CTG_ERR_RET(terrno);
+    }
+
+    TAOS_MEMCPY(*pTableMeta, tbMeta, metaSize);
+    if (withExtSchema(tbMeta->tableType) && tbMeta->schemaExt != NULL) {
+      (*pTableMeta)->schemaExt = (SSchemaExt *)((char *)*pTableMeta + metaSize);
+      TAOS_MEMCPY((*pTableMeta)->schemaExt, tbMeta->schemaExt, schemaExtSize);
+    } else {
+      (*pTableMeta)->schemaExt = NULL;
+    }
+    if (hasRefCol(tbMeta->tableType) && tbMeta->colRef) {
+      (*pTableMeta)->colRef = (SColRef *)((char *)*pTableMeta + metaSize + schemaExtSize);
+      TAOS_MEMCPY((*pTableMeta)->colRef, tbMeta->colRef, colRefSize);
+      (*pTableMeta)->numOfColRefs = tbMeta->numOfColRefs;
+    } else {
+      (*pTableMeta)->colRef = NULL;
+    }
 
     ctgDebug("tb:%s, get meta from cache, type:%d, db:%s", ctx->pName->tname, tbMeta->tableType, dbFName);
     return TSDB_CODE_SUCCESS;
@@ -557,9 +583,6 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCt
     colRefSize += tbMeta->numOfColRefs * sizeof(SColRef);
     numOfColRefs = tbMeta->numOfColRefs;
     tmpRef = taosMemoryMalloc(colRefSize);
-    if (NULL == tmpRef) {
-      CTG_ERR_RET(terrno);
-    }
     TAOS_MEMCPY(tmpRef, tbMeta->colRef, colRefSize);
   }
   *pTableMeta = taosMemoryCalloc(1, metaSize + colRefSize);
@@ -600,7 +623,7 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCt
 
   metaSize = CTG_META_SIZE(stbMeta);
   int32_t schemaExtSize = 0;
-  if (withExtSchema(stbMeta->tableType) && stbMeta->schemaExt) {
+  if (stbMeta->schemaExt) {
     schemaExtSize = stbMeta->tableInfo.numOfColumns * sizeof(SSchemaExt);
   }
   *pTableMeta = taosMemoryRealloc(*pTableMeta, metaSize + schemaExtSize + colRefSize);
@@ -610,7 +633,7 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCt
   }
 
   TAOS_MEMCPY(&(*pTableMeta)->numOfColRefs, &stbMeta->numOfColRefs, metaSize - sizeof(SCTableMeta));
-  if (withExtSchema(stbMeta->tableType) && stbMeta->schemaExt) {
+  if (stbMeta->schemaExt) {
     (*pTableMeta)->schemaExt = (SSchemaExt*)((char*)*pTableMeta + metaSize);
     TAOS_MEMCPY((*pTableMeta)->schemaExt, stbMeta->schemaExt, schemaExtSize);
   } else {
@@ -2413,10 +2436,6 @@ int32_t ctgOpUpdateDbCfg(SCtgCacheOperation *operation) {
   }
   cacheInfo.tsmaVersion = dbCache->tsmaVersion;
 
-  // Detect securityLevel change before overwriting old cfgInfo
-  uint8_t oldSecLevel = dbCache->cfgCache.cfgInfo ? dbCache->cfgCache.cfgInfo->securityLevel : 0;
-  uint8_t newSecLevel = cfgInfo->securityLevel;
-
   ctgWLockDbCfgInfo(dbCache);
 
   freeDbCfgInfo(dbCache->cfgCache.cfgInfo);
@@ -2426,24 +2445,6 @@ int32_t ctgOpUpdateDbCfg(SCtgCacheOperation *operation) {
   ctgWUnlockDbCfgInfo(dbCache);
 
   ctgDebug("db:%s, db cfgInfo updated, cfgVer:%d", dbFName, dbCache->cfgCache.cfgInfo->cfgVersion);
-
-  // If securityLevel changed, propagate to all cached normal table metas in this DB.
-  // Normal tables inherit secLvl from DB; updating here avoids per-query DB config lookups.
-  // All ctgOp* run serialized in the single update thread, so tbCache structure is stable
-  // during iteration. tableType never changes after creation, so it can be read without a
-  // lock. The write lock is only needed to guard the secLvl field against concurrent readers.
-  if (oldSecLevel != newSecLevel && dbCache->tbCache) {
-    SCtgTbCache *pTbCache = taosHashIterate(dbCache->tbCache, NULL);
-    while (pTbCache != NULL) {
-      if (pTbCache->pMeta && pTbCache->pMeta->tableType == TSDB_NORMAL_TABLE) {
-        CTG_LOCK(CTG_WRITE, &pTbCache->metaLock);
-        pTbCache->pMeta->secLvl = newSecLevel;
-        CTG_UNLOCK(CTG_WRITE, &pTbCache->metaLock);
-      }
-      pTbCache = taosHashIterate(dbCache->tbCache, pTbCache);
-    }
-    ctgDebug("db:%s, updated secLvl of cached normal tables from %u to %u", dbFName, oldSecLevel, newSecLevel);
-  }
 
   // if (!IS_SYS_DBNAME(dbFName)) {
   CTG_ERR_JRET(ctgMetaRentUpdate(&msg->pCtg->dbRent, &cacheInfo, cacheInfo.dbId, sizeof(SDbCacheInfo),
@@ -3601,10 +3602,35 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
     SMetaRes    res = {0};
     STableMeta *pTableMeta = NULL;
     if (tbMeta->tableType != TSDB_CHILD_TABLE && tbMeta->tableType != TSDB_VIRTUAL_CHILD_TABLE) {
-      int32_t code = cloneTableMeta(tbMeta, &pTableMeta);
-      if (code != TSDB_CODE_SUCCESS) {
+      int32_t schemaExtSize = 0;
+      int32_t colRefSize = 0;
+      int32_t metaSize = CTG_META_SIZE(tbMeta);
+      if (withExtSchema(tbMeta->tableType) && tbMeta->schemaExt != NULL) {
+        schemaExtSize = tbMeta->tableInfo.numOfColumns * sizeof(SSchemaExt);
+      }
+      if (hasRefCol(tbMeta->tableType) && tbMeta->colRef) {
+        colRefSize = tbMeta->tableInfo.numOfColumns * sizeof(SColRef);
+      }
+      
+      pTableMeta = taosMemoryCalloc(1, metaSize + schemaExtSize + colRefSize);
+      if (NULL == pTableMeta) {
         ctgReleaseTbMetaToCache(pCtg, dbCache, pCache);
-        CTG_ERR_RET(code);
+        CTG_ERR_RET(terrno);
+      }
+
+      TAOS_MEMCPY(pTableMeta, tbMeta, metaSize);
+      if (withExtSchema(tbMeta->tableType) && tbMeta->schemaExt != NULL) {
+        pTableMeta->schemaExt = (SSchemaExt *)((char *)pTableMeta + metaSize);
+        TAOS_MEMCPY(pTableMeta->schemaExt, tbMeta->schemaExt, schemaExtSize);
+      } else {
+        pTableMeta->schemaExt = NULL;
+      }
+      if (hasRefCol(tbMeta->tableType) && tbMeta->colRef) {
+        pTableMeta->colRef = (SColRef *)((char *)pTableMeta + metaSize + schemaExtSize);
+        pTableMeta->numOfColRefs = tbMeta->tableInfo.numOfColumns;
+        TAOS_MEMCPY(pTableMeta->colRef, tbMeta->colRef, colRefSize);
+      } else {
+        pTableMeta->colRef = NULL;
       }
 
       CTG_UNLOCK(CTG_READ, &pCache->metaLock);
@@ -3661,10 +3687,6 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
       colRefNum = tbMeta->numOfColRefs;
       taosMemoryFreeClear(tmpRef);
       tmpRef = taosMemoryMalloc(colRefSize);
-      if (NULL == tmpRef) {
-        ctgReleaseTbMetaToCache(pCtg, dbCache, pCache);
-        CTG_ERR_RET(terrno);
-      }
       TAOS_MEMCPY(tmpRef, tbMeta->colRef, colRefSize);
     }
 
@@ -3744,7 +3766,7 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
     }
 
     int32_t schemaExtSize = 0;
-    if (withExtSchema(stbMeta->tableType) && stbMeta->schemaExt != NULL) {
+    if (stbMeta->schemaExt != NULL) {
       schemaExtSize = stbMeta->tableInfo.numOfColumns * sizeof(SSchemaExt);
     }
     metaSize = CTG_META_SIZE(stbMeta);
@@ -3758,7 +3780,6 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
     TAOS_MEMCPY(&pTableMeta->numOfColRefs, &stbMeta->numOfColRefs, metaSize + schemaExtSize - sizeof(SCTableMeta));
     if (withExtSchema(stbMeta->tableType) && stbMeta->schemaExt != NULL) {
       pTableMeta->schemaExt = (SSchemaExt *)((char *)pTableMeta + metaSize);
-      TAOS_MEMCPY(pTableMeta->schemaExt, stbMeta->schemaExt, schemaExtSize);
     } else {
       pTableMeta->schemaExt = NULL;
     }
@@ -4276,3 +4297,4 @@ _return:
   
   CTG_RET(code);
 }
+

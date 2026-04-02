@@ -133,7 +133,6 @@ typedef struct SMJoinTableCtx {
   bool               newBlk;
   SSDataBlock*       blk;
   int32_t            blkRowIdx;
-  SArray*            pBlkWinIdx;
 
   // merge join
   

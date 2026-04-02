@@ -768,13 +768,7 @@ int32_t msmBuildReaderDeployInfo(SStmTaskDeploy* pDeploy, void* calcScanPlan, SS
   } else {
     SStreamReaderDeployFromCalc* pCalc = &pMsg->msg.calc;
     pCalc->execReplica = pInfo->runnerDeploys * pInfo->runnerReplica;
-    if (calcScanPlan) {
-      pCalc->calcScanPlan = taosStrdup(calcScanPlan);
-      if (NULL == pCalc->calcScanPlan) {
-        return terrno;
-      }
-      pCalc->freeScanPlan = true;
-    }
+    pCalc->calcScanPlan = calcScanPlan;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -2019,22 +2013,20 @@ static int32_t msmUpdateCalcReaderTasks(SStreamObj* pStream, SNodeList* pSubEP) 
   int64_t   streamId = pStream->pCreate->streamId;
   void*     pIter = NULL;
   SSubplan* pSubplan = NULL;
-  SStmVgTasksToDeploy* pVg = NULL;
 
   while ((pIter = taosHashIterate(mStreamMgmt.toDeployVgMap, pIter))) {
-    pVg = (SStmVgTasksToDeploy*)pIter;
-    (void)mstWaitLock(&pVg->lock, false);
+    SStmVgTasksToDeploy* pVg = (SStmVgTasksToDeploy*)pIter;
+    (void)mstWaitLock(&pVg->lock, true);
 
     int32_t taskNum = taosArrayGetSize(pVg->taskList);
     if (atomic_load_32(&pVg->deployed) == taskNum) {
-      taosWUnLockLatch(&pVg->lock);
-      pVg = NULL;
+      taosRUnLockLatch(&pVg->lock);
       continue;
     }
 
     for (int32_t i = 0; i < taskNum; ++i) {
       SStmTaskToDeployExt* pExt = taosArrayGet(pVg->taskList, i);
-      if (pExt->deployed || pExt->deploy.task.streamId != streamId || STREAM_READER_TASK != pExt->deploy.task.type) {
+      if (pExt->deploy.task.streamId != streamId || STREAM_READER_TASK != pExt->deploy.task.type) {
         continue;
       }
 
@@ -2042,27 +2034,17 @@ static int32_t msmUpdateCalcReaderTasks(SStreamObj* pStream, SNodeList* pSubEP) 
         SStreamReaderDeployFromCalc* pCalcReaderDeploy = &pExt->deploy.msg.reader.msg.calc;
         TAOS_CHECK_EXIT(nodesStringToNode(pCalcReaderDeploy->calcScanPlan, (SNode**)&pSubplan));
         TAOS_CHECK_EXIT(nodesCloneList(pSubEP, &pSubplan->pSubQ));
-        
-        // Free old calcScanPlan before nodesNodeToString overwrites the pointer
-        if (pCalcReaderDeploy->freeScanPlan) {
-          taosMemoryFreeClear(pCalcReaderDeploy->calcScanPlan);
-        }
         TAOS_CHECK_EXIT(nodesNodeToString((SNode*)pSubplan, false, (char**)&pCalcReaderDeploy->calcScanPlan, NULL));
         pCalcReaderDeploy->freeScanPlan = true;
         nodesDestroyNode((SNode *)pSubplan);
-        pSubplan = NULL;
       }
     }
 
-    taosWUnLockLatch(&pVg->lock);
-    pVg = NULL;
+    taosRUnLockLatch(&pVg->lock);
   }
 
 _exit:
   if (code) {
-    if (pVg) taosWUnLockLatch(&pVg->lock);
-    if (pIter) taosHashCancelIterate(mStreamMgmt.toDeployVgMap, pIter);
-    nodesDestroyNode((SNode*)pSubplan);
     mstsError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
   }
 
@@ -2283,11 +2265,11 @@ static int32_t msmSTRemoveStream(int64_t streamId, bool fromStreamMap) {
 
   while ((pIter = taosHashIterate(mStreamMgmt.toDeployVgMap, pIter))) {
     SStmVgTasksToDeploy* pVg = (SStmVgTasksToDeploy*)pIter;
-    (void)mstWaitLock(&pVg->lock, false);
+    (void)mstWaitLock(&pVg->lock, true);
 
     int32_t taskNum = taosArrayGetSize(pVg->taskList);
     if (atomic_load_32(&pVg->deployed) == taskNum) {
-      taosWUnLockLatch(&pVg->lock);
+      taosRUnLockLatch(&pVg->lock);
       continue;
     }
 
@@ -2301,12 +2283,12 @@ static int32_t msmSTRemoveStream(int64_t streamId, bool fromStreamMap) {
       pExt->deployed = true;
     }
     
-    taosWUnLockLatch(&pVg->lock);
+    taosRUnLockLatch(&pVg->lock);
   }
 
   while ((pIter = taosHashIterate(mStreamMgmt.toDeploySnodeMap, pIter))) {
     SStmSnodeTasksDeploy* pSnode = (SStmSnodeTasksDeploy*)pIter;
-    (void)mstWaitLock(&pSnode->lock, false);
+    (void)mstWaitLock(&pSnode->lock, true);
 
     int32_t taskNum = taosArrayGetSize(pSnode->triggerList);
     if (atomic_load_32(&pSnode->triggerDeployed) != taskNum) {
@@ -2334,7 +2316,7 @@ static int32_t msmSTRemoveStream(int64_t streamId, bool fromStreamMap) {
       }
     }
 
-    taosWUnLockLatch(&pSnode->lock);
+    taosRUnLockLatch(&pSnode->lock);
   }
 
   
@@ -2843,7 +2825,7 @@ void msmStopAllStreamsByGrant(int32_t errCode) {
 }
 
 int32_t msmHandleGrantExpired(SMnode *pMnode, int32_t errCode) {
-  mstWarn("stream grant expired");
+  mstInfo("stream grant expired");
 
   if (0 == atomic_load_8(&mStreamMgmt.active)) {
     mstWarn("mnode stream is NOT active, ignore handling");
@@ -2990,31 +2972,24 @@ int32_t msmGrpAddDeployVgTasks(SStmGrpCtx* pCtx) {
       continue;
     }
 
-    if (taosWTryLockLatch(&pVg->lock)) {
-      taosHashRelease(mStreamMgmt.toDeployVgMap, pVg);
-      pVg = NULL;
+    if (taosRTryLockLatch(&pVg->lock)) {
       continue;
     }
-
+    
     if (atomic_load_32(&pVg->deployed) == taosArrayGetSize(pVg->taskList)) {
-      taosWUnLockLatch(&pVg->lock);
-      taosHashRelease(mStreamMgmt.toDeployVgMap, pVg);
-      pVg = NULL;
+      taosRUnLockLatch(&pVg->lock);
       continue;
     }
-
+    
     TAOS_CHECK_EXIT(msmGrpAddDeployTasks(pCtx->deployStm, pVg->taskList, &pVg->deployed));
-    taosWUnLockLatch(&pVg->lock);
-    taosHashRelease(mStreamMgmt.toDeployVgMap, pVg);
-    pVg = NULL;
+    taosRUnLockLatch(&pVg->lock);
   }
 
 _exit:
 
   if (code) {
     if (pVg) {
-      taosWUnLockLatch(&pVg->lock);
-      taosHashRelease(mStreamMgmt.toDeployVgMap, pVg);
+      taosRUnLockLatch(&pVg->lock);
     }
 
     mstError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
@@ -3058,7 +3033,6 @@ _exit:
     mstError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
   }
 
-  taosHashRelease(mStreamMgmt.toDeploySnodeMap, pSnode);
   return code;
 }
 
@@ -3643,15 +3617,15 @@ int32_t msmNormalHandleStatusUpdate(SStmGrpCtx* pCtx) {
         
         STREAM_CLR_FLAG((*ppStatus)->flags, STREAM_FLAG_REDEPLOY_RUNNER);
       }
-
-      if (STREAM_TRIGGER_TASK == pTask->type && STREAM_STATUS_RUNNING == pTask->status) {
-        mstInfo("streamId:0x%" PRIx64 " trigger task status updated to Running in streamMap", (uint64_t)pTask->streamId);
-      }
     }
     
     (*ppStatus)->errCode = pTask->errorCode;
     (*ppStatus)->status = pTask->status;
     (*ppStatus)->lastUpTs = pCtx->currTs;
+    
+    if (STREAM_TRIGGER_TASK == pTask->type && STREAM_STATUS_RUNNING == pTask->status) {
+      mstInfo("streamId:0x%" PRIx64 " trigger task status updated to Running in streamMap", (uint64_t)pTask->streamId);
+    }
     
     if (STREAM_STATUS_RUNNING != pTask->status) {
       msmHandleTaskAbnormalStatus(pCtx, pTask, *ppStatus);

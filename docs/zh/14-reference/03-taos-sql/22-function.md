@@ -1341,13 +1341,13 @@ UPPER(expr)
 TO_BASE64(expr)
 ```
 
-**功能说明**: 返回 `expr` 的 Base64 编码。对于非字符串类型，先将值转换为字符串表示再进行编码。
+**功能说明**: 传回字符串“expr”的 Base64 编码。
 
 **返回结果类型**: VARCHAR
 
 **适用数据类型**:
 
-- `expr`: BOOL、数值类型、TIMESTAMP、VARCHAR、NCHAR。
+- `expr`: VARCHAR, NCHAR.
 
 **嵌套子查询支持**：适用于内层查询和外层查询。
 
@@ -1356,32 +1356,14 @@ TO_BASE64(expr)
 **使用说明**:
 
 - 若 expr 为 NULL，返回 NULL。
-- 若 Base64 编码结果超过 VARCHAR 最大长度，返回错误。
-- BOOL 类型：TRUE 视为字符串 `'1'`、FALSE 视为字符串 `'0'`。
-- TIMESTAMP 类型：始终以 UTC 时区格式化为 `yyyy-mm-dd hh24:mi:ss.{精度}+00`（精度根据列定义为 ms/us/ns），编码结果与会话时区无关且保留完整精度。
 
 **举例**:
 
 ```sql
-taos> select to_base64(NULL);
- to_base64(null) |
-==================
- NULL            |
-
 taos> select to_base64("");
  to_base64("") |
 ================
                |
-
-taos> select to_base64(14324);
- to_base64(14324) |
-=====================
- MTQzMjQ=         |
-
-taos> select to_base64("14324");
- to_base64("14324") |
-=====================
- MTQzMjQ=          |
 
 taos> select to_base64("Hello, world!");
  to_base64("Hello, world!") |
@@ -1527,15 +1509,6 @@ Query OK, 1 row(s) in set (0.000569s)
 ```
 
 ### 脱敏函数
-
-TDengine 提供两种数据脱敏方式，适用于不同场景：
-
-| 方式 | 说明 | 典型用法 |
-|------|------|----------|
-| **脱敏函数**（本节） | 在 SQL 查询中由用户**显式调用**，对指定表达式做脱敏转换后返回结果。任何有查询权限的用户均可使用，脱敏逻辑由查询语句本身决定。 | `SELECT MASK_FULL(phone, '*') FROM t;` |
-| **授权列脱敏**（`GRANT MASK(col)`） | 由管理员通过 `GRANT` 语句将列绑定脱敏策略，对**特定用户**透明生效。该用户查询该列时，系统自动将原始值替换为 `'*'`，无需用户在 SQL 中显式调用函数。**仅企业版支持。** | `GRANT SELECT (MASK(phone)) ON db.t TO user1;` |
-
-授权列脱敏的详细语法及行为说明，请参阅 [GRANT — 列权限（脱敏）](./61-grant.md#列权限)。
 
 #### MASK_FULL
 
@@ -1832,7 +1805,6 @@ TO_CHAR(ts, format_str_literal)
 | US,us               | 微秒，000000-999999                       |                           |
 | NS,ns               | 纳秒，000000000-999999999                 |                           |
 | TZH,tzh             | 时区小时                                  | 2023-01-30 11:59:59PM +08 |
-| TZ,tz               | 时区小时和分钟                            | 2023-01-30 11:59:59PM +08:00 |
 
 **使用说明**：
 
@@ -1861,7 +1833,7 @@ TO_ISO8601(expr [, timezone])
 
 **使用说明**：
 
-- timezone 参数允许输入的时区格式为：[z/Z, +/-hhmm, +/-hh, +/-hh:mm]。例如，TO_ISO8601(1, "+00:00")。有效的时区偏移范围为 -14:00 到 +14:00。
+- timezone 参数允许输入的时区格式为：[z/Z, +/-hhmm, +/-hh, +/-hh:mm]。例如，TO_ISO8601(1, "+00:00")。
 - 输入时间戳的精度由所查询表的精度确定，若未指定表，则精度为毫秒。
 
 #### TO_JSON

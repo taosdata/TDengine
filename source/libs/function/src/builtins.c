@@ -77,7 +77,25 @@ static int32_t validateTimeUnitParam(uint8_t dbPrec, const SValueNode* pVal) {
  * 2 ±hh:mm
  * 3 ±hhmm
  * 4 ±hh
+ *
  */
+
+static bool validateHourRange(int8_t hour) {
+  if (hour < 0 || hour > 12) {
+    return false;
+  }
+
+  return true;
+}
+
+static bool validateMinuteRange(int8_t hour, int8_t minute, char sign) {
+  if (minute == 0 || (minute == 30 && (hour == 3 || hour == 5) && sign == '+')) {
+    return true;
+  }
+
+  return false;
+}
+
 static bool validateTimezoneFormat(const SValueNode* pVal) {
   if (TSDB_DATA_TYPE_BINARY != pVal->node.resType.type) {
     return false;
@@ -86,39 +104,75 @@ static bool validateTimezoneFormat(const SValueNode* pVal) {
   char*   tz = varDataVal(pVal->datum.p);
   int32_t len = varDataLen(pVal->datum.p);
 
-  if (len <= 0 || len == 2 || len == 4 || len > 6) {
+  char   buf[3] = {0};
+  int8_t hour = -1, minute = -1;
+  if (len == 0) {
     return false;
-  }
+  } else if (len == 1 && (tz[0] == 'z' || tz[0] == 'Z')) {
+    return true;
+  } else if ((tz[0] == '+' || tz[0] == '-')) {
+    switch (len) {
+      case 3:
+      case 5: {
+        for (int32_t i = 1; i < len; ++i) {
+          if (!isdigit(tz[i])) {
+            return false;
+          }
 
-  if (len == 1) {
-    return (tz[0] == 'z' || tz[0] == 'Z');
-  }
+          if (i == 2) {
+            (void)memcpy(buf, &tz[i - 1], 2);
+            hour = taosStr2Int8(buf, NULL, 10);
+            if (!validateHourRange(hour)) {
+              return false;
+            }
+          } else if (i == 4) {
+            (void)memcpy(buf, &tz[i - 1], 2);
+            minute = taosStr2Int8(buf, NULL, 10);
+            if (!validateMinuteRange(hour, minute, tz[0])) {
+              return false;
+            }
+          }
+        }
+        break;
+      }
+      case 6: {
+        for (int32_t i = 1; i < len; ++i) {
+          if (i == 3) {
+            if (tz[i] != ':') {
+              return false;
+            }
+            continue;
+          }
 
-  if (tz[0] != '+' && tz[0] != '-') {
-    return false;
-  }
+          if (!isdigit(tz[i])) {
+            return false;
+          }
 
-  char h1 = tz[1], h2 = tz[2], m1, m2;
-  if (len == 3) {
-    m1 = '0';
-    m2 = '0';
-  } else if (len == 5) {
-    m1 = tz[3];
-    m2 = tz[4];
-  } else if (tz[3] != ':') {
-    return false;
+          if (i == 2) {
+            (void)memcpy(buf, &tz[i - 1], 2);
+            hour = taosStr2Int8(buf, NULL, 10);
+            if (!validateHourRange(hour)) {
+              return false;
+            }
+          } else if (i == 5) {
+            (void)memcpy(buf, &tz[i - 1], 2);
+            minute = taosStr2Int8(buf, NULL, 10);
+            if (!validateMinuteRange(hour, minute, tz[0])) {
+              return false;
+            }
+          }
+        }
+        break;
+      }
+      default: {
+        return false;
+      }
+    }
   } else {
-    m1 = tz[4];
-    m2 = tz[5];
-  }
-
-  if (h1 < '0' || h1 > '1' || h2 < '0' || h2 > '9' || m1 < '0' || m1 > '5' || m2 < '0' || m2 > '9') {
     return false;
   }
 
-  int h = (h1 - '0') * 10 + (h2 - '0');
-  int m = (m1 - '0') * 10 + (m2 - '0');
-  return (h < 14 && m < 60) || (h == 14 && m == 0);
+  return true;
 }
 
 static int32_t countTrailingSpaces(const SValueNode* pVal, bool isLtrim) {
@@ -985,18 +1039,7 @@ static int32_t translateBase64(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
   FUNC_ERR_RET(validateParam(pFunc, pErrBuf, len));
 
   SDataType* pRestType1 = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0));
-  int32_t    inputBytes = pRestType1->bytes;
-
-  /* For non-string types, bytes is the binary storage size, not the max string length.
-     Use a conservative upper bound: DECIMAL can be up to sign + 38 digits + dot = 40 chars. */
-  if (!IS_VAR_DATA_TYPE(pRestType1->type) && pRestType1->type != TSDB_DATA_TYPE_NULL) {
-    inputBytes = TSDB_DECIMAL_MAX_PRECISION + 2;
-  }
-
-  int32_t outputLength = tbase64_encode_len(inputBytes) + VARSTR_HEADER_SIZE;
-  if (outputLength > TSDB_MAX_FIELD_LEN + VARSTR_HEADER_SIZE) {
-    outputLength = TSDB_MAX_FIELD_LEN + VARSTR_HEADER_SIZE;
-  }
+  int32_t    outputLength = tbase64_encode_len(pRestType1->bytes) + VARSTR_HEADER_SIZE;
 
   pFunc->node.resType = (SDataType){.bytes = outputLength, .type = TSDB_DATA_TYPE_VARCHAR};
   return TSDB_CODE_SUCCESS;
@@ -1848,11 +1891,6 @@ static int32_t translateCast(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
 
   // The function return type has been set during syntax parsing
   uint8_t para2Type = pFunc->node.resType.type;
-
-  if (TSDB_DATA_TYPE_JSON == para2Type) {
-    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
-                           "CAST function does not support casting to JSON type");
-  }
 
   if (IS_STR_DATA_BLOB(para2Type)) {
     pFunc->node.resType.bytes = TSDB_MAX_BLOB_LEN + BLOBSTR_HEADER_SIZE;
@@ -5808,7 +5846,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                    .inputParaInfo[0][0] = {.isLastParam = true,
                                            .startParam = 1,
                                            .endParam = 1,
-                                           .validDataType = FUNC_PARAM_SUPPORT_BOOL_TYPE | FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_DECIMAL_TYPE | FUNC_PARAM_SUPPORT_TIMESTAMP_TYPE | FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NCHAR_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
+                                           .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NCHAR_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
                                            .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
                                            .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},

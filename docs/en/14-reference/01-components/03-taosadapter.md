@@ -1,6 +1,7 @@
 ---
 title: taosAdapter Reference
 sidebar_label: taosAdapter
+slug: /tdengine-reference/components/taosadapter
 ---
 
 import Prometheus from "../../assets/resources/_prometheus.mdx"
@@ -44,11 +45,11 @@ The taosAdapter provides the following features:
 - JSON data writing:
   Supports writing JSON-formatted data to TDengine TSDB through the RESTful interface.
 - RESTful API:
-  [RESTful API](../05-connector/60-rest-api.md)
+  [RESTful API](../../client-libraries/rest-api/)
 
 ### WebSocket Interface
 
-Through the WebSocket interface of taosAdapter, connectors in various languages can achieve SQL execution, schemaless writing, parameter binding, and data subscription functionalities. Refer to the [Development Guide](../../07-develop/01-connect.md#websocket-connection) for more details.
+Through the WebSocket interface of taosAdapter, connectors in various languages can achieve SQL execution, schemaless writing, parameter binding, and data subscription functionalities. Refer to the [Development Guide](../../../developer-guide/connecting-to-tdengine/#websocket-connection) for more details.
 
 ### InfluxDB v1 write interface
 
@@ -60,7 +61,7 @@ Supported InfluxDB parameters are as follows:
 - `precision` the time precision used by TDengine
 - `u` TDengine username
 - `p` TDengine password
-- `ttl` the lifespan of automatically created subtables, determined by the TTL parameter of the first data entry in the subtable, which cannot be updated. For more information, please refer to the TTL parameter in the [table creation document](../03-taos-sql/03-table.md).
+- `ttl` the lifespan of automatically created subtables, determined by the TTL parameter of the first data entry in the subtable, which cannot be updated. For more information, please refer to the TTL parameter in the [table creation document](../../sql-manual/manage-tables/).
 - `table_name_key` the custom tag key for subtable names. If set, the subtable name will use the value of this tag key
 
 Note: Currently, InfluxDB's token authentication method is not supported, only Basic authentication and query parameter verification are supported.
@@ -500,7 +501,7 @@ Response example:
 
 ### RESTful API
 
-You can use any client that supports the HTTP protocol to write data to TDengine or query data from TDengine by accessing the RESTful interface URL `http://<fqdn>:6041/rest/sql`. For details, please refer to the [REST API documentation](../05-connector/60-rest-api.md).
+You can use any client that supports the HTTP protocol to write data to TDengine or query data from TDengine by accessing the RESTful interface URL `http://<fqdn>:6041/rest/sql`. For details, please refer to the [REST API documentation](../../client-libraries/rest-api/).
 
 ## Installation
 
@@ -598,7 +599,7 @@ The configuration parameters for the connection pool are as follows:
 
 ### HTTP Response Code Configuration
 
-taosAdapter uses the parameter `httpCodeServerError` to set whether to return a non-200 HTTP status code when the C interface returns an error. When set to true, it will return different HTTP status codes based on the error code returned by C. See [HTTP Response Codes](../05-connector/60-rest-api.md) for details.
+taosAdapter uses the parameter `httpCodeServerError` to set whether to return a non-200 HTTP status code when the C interface returns an error. When set to true, it will return different HTTP status codes based on the error code returned by C. See [HTTP Response Codes](../../client-libraries/rest-api/) for details.
 
 This configuration only affects the **RESTful interface**.
 
@@ -1510,7 +1511,7 @@ Records are written before `taos_free_result` is executed or when the task ends 
 Records are stored in CSV format without headers. Each line includes the following fields:
 
 1. `TS`: Log timestamp (format: yyyy-MM-dd HH:mm:ss.SSSSSS, timezone: server's timezone).
-1. `SQL`: Executed SQL statement. Line breaks in SQL are preserved per CSV standards. Special characters (`\n`, `\r`, `"`) are wrapped in double quotes.
+1. `SQL`: Executed SQL statement. Line breaks in SQL are preserved per CSV standards. Special characters (\n, \r, ") are wrapped in double quotes.
    SQL containing special characters cannot be directly copied for use. Example:
 
    Original SQL:

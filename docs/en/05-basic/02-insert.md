@@ -1,6 +1,7 @@
 ---
 sidebar_label: Data Ingestion
 title: Data Ingestion
+slug: /basic-features/data-ingestion
 ---
 
 This chapter uses the data model of smart meters as an example to introduce how to write, update, and delete time-series data in TDengine using SQL.

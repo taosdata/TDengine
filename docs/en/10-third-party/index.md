@@ -1,5 +1,6 @@
 ---
 title: Third-Party Tools
+slug: /third-party-tools
 ---
 
 import DocCardList from '@theme/DocCardList';

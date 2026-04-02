@@ -103,7 +103,7 @@ stmt 绑定参数的示例代码如下（TDengine TSDB v3.3.5.0 已停止维护�
 <TabItem label="Node.js" value="node">
 
 ```js
-    {{#include docs/examples/node/websocketexample/stmt_example.js}}
+    {{#include docs/examples/node/websocketexample/stmt_example.js:createConnect}}
 ```
 
 </TabItem>

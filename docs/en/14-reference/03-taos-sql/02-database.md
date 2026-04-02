@@ -1,5 +1,6 @@
 ---
 title: Databases
+slug: /tdengine-reference/sql-manual/manage-databases
 ---
 
 ## Create Database

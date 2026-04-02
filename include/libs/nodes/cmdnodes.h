@@ -51,10 +51,6 @@ extern "C" {
 // Note: This is evaluated at runtime, so it will use the configured tsMaxSQLLength value
 #define SHOW_CREATE_VIEW_RESULT_FIELD2_LEN ((int32_t)(tsMaxSQLLength + VARSTR_HEADER_SIZE))
 
-#define SHOW_CREATE_STREAM_RESULT_COLS       2
-#define SHOW_CREATE_STREAM_RESULT_FIELD1_LEN (TSDB_STREAM_FNAME_LEN + 4 + VARSTR_HEADER_SIZE)
-#define SHOW_CREATE_STREAM_RESULT_FIELD2_LEN ((int32_t)(tsMaxSQLLength + VARSTR_HEADER_SIZE))
-
 #define SHOW_LOCAL_VARIABLES_RESULT_COLS       5
 #define SHOW_LOCAL_VARIABLES_RESULT_FIELD1_LEN (TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE)
 #define SHOW_LOCAL_VARIABLES_RESULT_FIELD2_LEN (TSDB_CONFIG_PATH_LEN + VARSTR_HEADER_SIZE)
@@ -152,7 +148,6 @@ typedef struct SDatabaseOptions {
   int8_t      isAudit;
   int8_t      allowDrop;
   int8_t      secureDelete;
-  int8_t      securityLevel;
   // for auto-compact
   int32_t     compactTimeOffset;  // hours
   int32_t     compactInterval;    // minutes
@@ -273,7 +268,6 @@ typedef struct STableOptions {
   ENodeType   type;
   bool        virtualStb;
   bool        commentNull;
-  int8_t      securityLevel;
   char        comment[TSDB_TB_COMMENT_LEN];
   SNodeList*  pMaxDelay;
   int64_t     maxDelay1;
@@ -501,7 +495,6 @@ typedef struct SUserOptions {
   SNodeList* pDropIpRanges;  // only for alter user
   SNodeList* pTimeRanges;
   SNodeList* pDropTimeRanges;  // only for alter user
-  SNodeList* pSecurityLevels;
 
 } SUserOptions;
 
@@ -552,7 +545,6 @@ typedef struct SCreateUserStmt {
 
   int32_t         numTimeRanges;
   SDateTimeRange* pTimeRanges;
-  SNodeList*      pSecurityLevels;
   // for privilege check
   SUserOptions userOps;
 } SCreateUserStmt;
@@ -894,13 +886,6 @@ typedef struct SShowCreateRsmaStmt {
   void*     pTableCfg;  // STableCfg
   bool      hasPrivilege;
 } SShowCreateRsmaStmt;
-
-typedef struct SShowCreateStreamStmt {
-  ENodeType type;
-  char      dbName[TSDB_DB_NAME_LEN];
-  char      streamName[TSDB_STREAM_NAME_LEN];
-  char*     sql;
-} SShowCreateStreamStmt;
 
 typedef struct SShowTableDistributedStmt {
   ENodeType type;

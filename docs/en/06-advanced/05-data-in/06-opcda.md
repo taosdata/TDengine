@@ -1,8 +1,9 @@
 ---
 title: OPC DA
+slug: /advanced-features/data-connectors/opc-da
 ---
 
-import { AddDataSource, Enterprise } from '../../assets/resources/_resources.mdx';
+import Enterprise from '../../assets/resources/_enterprise.mdx';
 
 <Enterprise/>
 
@@ -16,13 +17,27 @@ OPC DA (Data Access) is a classic COM-based specification, only applicable to Wi
 
 TDengine can efficiently read data from OPC-DA servers and write it to TDengine, achieving real-time data storage.
 
-## Procedure
+## Creating a Task
 
-### Add a Data Source
+### 1. Add a Data Source
 
-<AddDataSource connectorName="OPC DA"/>
+On the data writing page, click the **+Add Data Source** button to enter the add data source page.
 
-### Configure Connection Information
+![Add data source](../../assets/opc-da-01.png)
+
+### 2. Configure Basic Information
+
+Enter the task name in **Name**, for example, for environmental temperature and humidity monitoring, name it **environment-monitoring**.
+
+Select **OPC-DA** from the **Type** dropdown list.
+
+If the taosX service is running on the same server as OPC-DA, **Proxy** is not necessary; otherwise, configure **Proxy**: select a specified proxy from the dropdown, or click the **+Create New Proxy** button on the right to create a new proxy and follow the prompts to configure the proxy.
+
+Select a target database from the **Target Database** dropdown list, or click the **+Create Database** button on the right to create a new database.
+
+![Configure basic settings](../../assets/opc-da-02.png)
+
+### 3. Configure Connection Information
 
 Fill in the **OPC-DA Service Address** in the **Connection Configuration** area, for example: `127.0.0.1/Matrikon.OPC.Simulation.1`, and configure the authentication method.
 
@@ -30,11 +45,11 @@ Click the **Connectivity Check** button to check if the data source is available
 
 ![Configure connection information](../../assets/opc-da-03.png)
 
-### Configure Points Set
+### 4. Configure Points Set
 
 **Points Set** can choose to use a CSV file template or **Select All Points**.
 
-#### Upload CSV Configuration File
+#### 4.1. Upload CSV Configuration File
 
 You can download the CSV blank template and configure the point information according to the template, then upload the CSV configuration file to configure the points; or download the data points according to the configured filter conditions, and download them in the format specified by the CSV template.
 
@@ -116,7 +131,7 @@ Each Row in the CSV file configures an OPC data point. The rules for Rows are as
 
 (3) Row must have more than 1 line;
 
-#### Selecting Data Points
+#### 4.2. Selecting Data Points
 
 Data points can be filtered by configuring the **Root Node ID** and **Regular Expression**.
 
@@ -126,7 +141,7 @@ Configure **Primary Key Column**, choosing `origin_ts` to use the original times
 
 ![Configure data sets](../../assets/opc-da-04.png)
 
-### Collection Configuration
+### 5. Collection Configuration
 
 In the collection configuration, set the current task's collection interval, connection timeout, and collection timeout.
 
@@ -146,7 +161,7 @@ When using **Select Data Points** in the **Data Point Set**, the collection conf
   - Update: Enable dynamic data point updates, append or delete;
 - Data Point Update Interval: Effective when "Data Point Update Mode" is `Append` and `Update`. Unit: seconds, default value is 600, minimum value: 60, maximum value: 2147483647.
 
-### Advanced Options
+### 6. Advanced Options
 
 ![Configure advanced options](../../assets/opc-da-06.png)
 
@@ -168,10 +183,10 @@ In **Maximum Retention Days**, set the maximum retention days for raw data.
 
 In **Raw Data Storage Directory**, set the path for saving raw data. If using Agent, the storage path refers to the path on the server where Agent is located, otherwise it is on the taosX server. The path can include placeholders `$DATA_DIR` and `:id` as part of the path.
 
-- On Linux platform, `$DATA_DIR` is `/var/lib/taos/taosx`, by default the storage path is `/var/lib/taos/taosx/tasks/<task_id>/rawdata`.
-- On Windows platform, `$DATA_DIR` is `C:\TDengine\data\taosx`, by default the storage path is `C:\TDengine\data\taosx\tasks\<task_id>\rawdata`.
+- On Linux platform, `$DATA_DIR` is /var/lib/taos/taosx, by default the storage path is `/var/lib/taos/taosx/tasks/<task_id>/rawdata`.
+- On Windows platform, `$DATA_DIR` is C:\TDengine\data\taosx, by default the storage path is `C:\TDengine\data\taosx\tasks\<task_id>\rawdata`.
 
-### Completion
+### 7. Completion
 
 Click the **Submit** button to complete the creation of the OPC DA to TDengine data synchronization task, return to the **Data Source List** page to view the task execution status.
 

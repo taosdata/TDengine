@@ -1,5 +1,6 @@
 ---
 title: Syntax Changes in TDengine 3.0
+slug: /tdengine-reference/sql-manual/syntax-changes
 ---
 
 ## Changes to SQL Basic Elements

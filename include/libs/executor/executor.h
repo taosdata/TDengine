@@ -152,13 +152,6 @@ int32_t qGetTableList(int64_t suid, void* pVnode, void* node, SArray** tableList
  */
 int32_t qSetTaskId(qTaskInfo_t tinfo, uint64_t taskId, uint64_t queryId);
 bool    qTaskIsDone(qTaskInfo_t tinfo);
-
-/**
- * Update the worker pool callback for a task to match the current executing
- * thread's pool. Defense-in-depth: even if CQuery routing is correct, this
- * ensures pWorkerCb always matches the actual executing pool.
- */
-void    qUpdateWorkerCb(qTaskInfo_t tinfo, void* pWorkerCb);
 /**
  * Set block for sma
  * @param tinfo
@@ -319,7 +312,6 @@ int32_t streamCalcOneScalarExpr(SNode* pExpr, SScalarParam* pDst, const SStreamR
 int32_t streamCalcOneScalarExprInRange(SNode* pExpr, SScalarParam* pDst, int32_t rowStartIdx, int32_t rowEndIdx,  const SStreamRuntimeFuncInfo* pExtraParams);
 void    cleanupQueryTableDataCond(SQueryTableDataCond* pCond);
 void    setTaskScalarExtraInfo(qTaskInfo_t tinfo);
-void    qSetStreamGen(qTaskInfo_t tinfo, uint64_t gen);
 int32_t dropStreamTable(SMsgCb* pMsgCb, void* pOutput, SSTriggerDropRequest* pReq);
 int32_t dropStreamTableByTbName(SMsgCb* pMsgCb, void* pOutput, SSTriggerDropRequest* pReq, char* tbName);
 int32_t qSemWait(qTaskInfo_t pTask, tsem_t* pSem);

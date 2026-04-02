@@ -17,7 +17,6 @@
 #include "clientInt.h"
 #include "clientLog.h"
 #include "parser.h"
-#include "taos.h"
 #include "tarray.h"
 #include "tdatablock.h"
 #include "tdef.h"
@@ -30,7 +29,6 @@
 #define tqErrorC(...) do { if (cDebugFlag & DEBUG_ERROR || tqClientDebugFlag & DEBUG_ERROR) { taosPrintLog("TQ  ERROR ", DEBUG_ERROR, tqClientDebugFlag|cDebugFlag, __VA_ARGS__); }} while(0)
 #define tqInfoC(...)  do { if (cDebugFlag & DEBUG_INFO  || tqClientDebugFlag & DEBUG_INFO)  { taosPrintLog("TQ  INFO  ", DEBUG_INFO,  tqClientDebugFlag|cDebugFlag, __VA_ARGS__); }} while(0)
 #define tqDebugC(...) do { if (cDebugFlag & DEBUG_DEBUG || tqClientDebugFlag & DEBUG_DEBUG) { taosPrintLog("TQ  DEBUG ", DEBUG_DEBUG, tqClientDebugFlag|cDebugFlag, __VA_ARGS__); }} while(0)
-#define tqTraceC(...) do { if (cDebugFlag & DEBUG_TRACE || tqClientDebugFlag & DEBUG_TRACE) { taosPrintLog("TQ  TRACE ", DEBUG_TRACE, tqClientDebugFlag|cDebugFlag, __VA_ARGS__); }} while(0)
 #define tqWarnC(...)  do { if (cDebugFlag & DEBUG_WARN  || tqClientDebugFlag & DEBUG_WARN)  { taosPrintLog("TQ  WARN  ", DEBUG_WARN,  tqClientDebugFlag|cDebugFlag, __VA_ARGS__); }} while(0)
 
 #define EMPTY_BLOCK_POLL_IDLE_DURATION 10
@@ -344,26 +342,6 @@ void tmq_conf_destroy(tmq_conf_t* conf) {
     }
     taosMemoryFree(conf);
   }
-}
-
-static void tmqRlock(tmq_t* tmq){
-  tqTraceC("tmqRlock: %p %" PRIx64 ", tmq lock: %p", tmq, tmq->consumerId, &tmq->lock);
-  taosRLockLatch(&tmq->lock);
-}
-
-static void tmqRUnlock(tmq_t* tmq){
-  tqTraceC("tmqRUnlock: %p %" PRIx64 ", tmq lock: %p", tmq, tmq->consumerId, &tmq->lock);
-  taosRUnLockLatch(&tmq->lock);
-}
-
-static void tmqWlock(tmq_t* tmq){
-  tqTraceC("tmqWlock: %p %" PRIx64 ", tmq lock: %p", tmq, tmq->consumerId, &tmq->lock);
-  taosWLockLatch(&tmq->lock);
-}
-
-static void tmqWUnlock(tmq_t* tmq){
-  tqTraceC("tmqWUnlock: %p %" PRIx64 ", tmq lock: %p", tmq, tmq->consumerId, &tmq->lock);
-  taosWUnLockLatch(&tmq->lock);
 }
 
 tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value) {
@@ -940,13 +918,13 @@ static int32_t asyncCommitOffset(tmq_t* tmq, char* pTopicName, int32_t vgId, STq
     return code;
   }
 
-  tmqRlock(tmq);
+  taosRLockLatch(&tmq->lock);
   SMqClientVg* pVg = NULL;
   code = getClientVg(tmq, pTopicName, vgId, &pVg);
   if (code == 0) {
     code = innerCommit(tmq, pTopicName, offsetVal, pVg, pParamSet);
   }
-  tmqRUnlock(tmq);
+  taosRUnLockLatch(&tmq->lock);
 
   if (code != 0){
     taosMemoryFree(pParamSet);
@@ -990,7 +968,7 @@ static int32_t innerCommitAll(tmq_t* tmq, SMqCommitCbParamSet* pParamSet){
     return TSDB_CODE_INVALID_PARA;
   }
   int32_t code = 0;
-  tmqRlock(tmq);
+  taosRLockLatch(&tmq->lock);
   int32_t numOfTopics = taosArrayGetSize(tmq->clientTopics);
   tqDebugC("consumer:0x%" PRIx64 " start to commit offset for %d topics", tmq->consumerId, numOfTopics);
 
@@ -1019,7 +997,7 @@ static int32_t innerCommitAll(tmq_t* tmq, SMqCommitCbParamSet* pParamSet){
   tqDebugC("consumer:0x%" PRIx64 " total commit:%d for %d topics", tmq->consumerId, pParamSet->waitingRspNum - DEFAULT_COMMIT_CNT,
            numOfTopics);
   END:
-  tmqRUnlock(tmq);
+  taosRUnLockLatch(&tmq->lock);
   return code;
 }
 
@@ -1123,7 +1101,7 @@ int32_t tmqHbCb(void* param, SDataBuf* pMsg, int32_t code) {
     goto END;
   }
 
-  tmqWlock(tmq);
+  taosWLockLatch(&tmq->lock);
   for (int32_t i = 0; i < taosArrayGetSize(rsp.topicPrivileges); i++) {
     STopicPrivilege* privilege = taosArrayGet(rsp.topicPrivileges, i);
     if (privilege == NULL) {
@@ -1138,7 +1116,7 @@ int32_t tmqHbCb(void* param, SDataBuf* pMsg, int32_t code) {
       }
     }
   }
-  tmqWUnlock(tmq);
+  taosWUnLockLatch(&tmq->lock);
 
   tqClientDebugFlag = rsp.debugFlag;
 
@@ -1176,7 +1154,7 @@ void tmqSendHbReq(void* param, void* tmrId) {
   if (req.topics == NULL) {
     goto END;
   }
-  tmqRlock(tmq);
+  taosRLockLatch(&tmq->lock);
   for (int i = 0; i < taosArrayGetSize(tmq->clientTopics); i++) {
     SMqClientTopic* pTopic = taosArrayGet(tmq->clientTopics, i);
     if (pTopic == NULL) {
@@ -1211,7 +1189,7 @@ void tmqSendHbReq(void* param, void* tmrId) {
                tmq->consumerId, tmq->groupId, offRows->vgId, buf, offRows->ever, offRows->rows);
     }
   }
-  tmqRUnlock(tmq);
+  taosRUnLockLatch(&tmq->lock);
 
   int32_t tlen = tSerializeSMqHbReq(NULL, 0, &req);
   if (tlen < 0) {
@@ -1455,7 +1433,7 @@ static void doUpdateLocalEp(tmq_t* tmq, int32_t epoch, const SMqAskEpRsp* pRsp) 
   tqInfoC("consumer:0x%" PRIx64 " update ep epoch from %d to epoch %d, incoming topics:%d, existed topics:%d",
           tmq->consumerId, tmq->epoch, epoch, topicNumGet, (int)taosArrayGetSize(tmq->clientTopics));
 
-  tmqWlock(tmq);
+  taosWLockLatch(&tmq->lock);
   if (topicNumGet > 0){
     buildNewTopicList(tmq, newTopics, pRsp);
   }
@@ -1464,7 +1442,7 @@ static void doUpdateLocalEp(tmq_t* tmq, int32_t epoch, const SMqAskEpRsp* pRsp) 
     taosArrayDestroyEx(tmq->clientTopics, freeClientTopic);
   }
   tmq->clientTopics = newTopics;
-  tmqWUnlock(tmq);
+  taosWUnLockLatch(&tmq->lock);
 
   atomic_store_8(&tmq->status, TMQ_CONSUMER_STATUS__READY);
   atomic_store_32(&tmq->epoch, epoch);
@@ -1685,7 +1663,7 @@ int32_t tmq_subscription(tmq_t* tmq, tmq_list_t** topics) {
       return terrno;
     }
   }
-  tmqRlock(tmq);
+  taosRLockLatch(&tmq->lock);
   for (int i = 0; i < taosArrayGetSize(tmq->clientTopics); i++) {
     SMqClientTopic* topic = taosArrayGet(tmq->clientTopics, i);
     if (topic == NULL) {
@@ -1702,7 +1680,7 @@ int32_t tmq_subscription(tmq_t* tmq, tmq_list_t** topics) {
       continue;
     }
   }
-  tmqRUnlock(tmq);
+  taosRUnLockLatch(&tmq->lock);
   return 0;
 }
 
@@ -2401,7 +2379,7 @@ static int32_t tmqPollImpl(tmq_t* tmq) {
   if (tmq == NULL) {
     return TSDB_CODE_INVALID_MSG;
   }
-  tmqWlock(tmq);
+  taosWLockLatch(&tmq->lock);
 
   int32_t code = atomic_load_32(&tmq->tokenCode);
   if (code == TSDB_CODE_MND_TOKEN_NOT_EXIST || code == TSDB_CODE_MND_TOKEN_DISABLED || code == TSDB_CODE_MND_TOKEN_EXPIRED){
@@ -2469,7 +2447,7 @@ static int32_t tmqPollImpl(tmq_t* tmq) {
   }
 
   end:
-  tmqWUnlock(tmq);
+  taosWUnLockLatch(&tmq->lock);
   tqDebugC("consumer:0x%" PRIx64 " end to poll data, code:%d", tmq->consumerId, code);
   return code;
 }
@@ -2538,14 +2516,14 @@ static int32_t processMqRspError(tmq_t* tmq, SMqRspWrapper* pRspWrapper){
     code = 0;
   }
   
-  tmqWlock(tmq);
+  taosWLockLatch(&tmq->lock);
   SMqClientVg* pVg = NULL;
   getVgInfo(tmq, pollRspWrapper->topicName, pollRspWrapper->vgId, &pVg);
   if (pVg) {
     pVg->emptyBlockReceiveTs = taosGetTimestampMs();
     atomic_store_32(&pVg->vgStatus, TMQ_VG_STATUS__IDLE);
   }
-  tmqWUnlock(tmq);
+  taosWUnLockLatch(&tmq->lock);
 
   return code;
 }
@@ -2585,15 +2563,15 @@ static int32_t processMqRsp(tmq_t* tmq, SMqRspWrapper* pRspWrapper, SMqRspObj** 
     tqDebugC("consumer:0x%" PRIx64 " ep msg received", tmq->consumerId);
     SMqAskEpRsp*        rspMsg = &pRspWrapper->epRsp;
     doUpdateLocalEp(tmq, pRspWrapper->epoch, rspMsg);
-    return code;
+    goto END;
   }
 
   code = processWrapperData(pRspWrapper);
   if (code != 0) {
-    return code;
+    goto END;
   }
   SMqPollRspWrapper* pollRspWrapper = &pRspWrapper->pollRsp;
-  tmqWlock(tmq);
+  taosWLockLatch(&tmq->lock);
   SMqClientVg* pVg = NULL;
   getVgInfo(tmq, pollRspWrapper->topicName, pollRspWrapper->vgId, &pVg);
   if(pVg == NULL) {
@@ -2669,7 +2647,7 @@ static int32_t processMqRsp(tmq_t* tmq, SMqRspWrapper* pRspWrapper, SMqRspObj** 
   }
 
 END:
-  tmqWUnlock(tmq);
+  taosWUnLockLatch(&tmq->lock);
   return code;
 }
 
@@ -2698,12 +2676,6 @@ static int32_t tmqHandleAllRsp(tmq_t* tmq, SMqRspObj** rspObj) {
 
 END:
   return code;
-}
-
-static int64_t getElapsedTime(int64_t startTime){
-  int64_t currentTime = taosGetTimestampMs();
-  int64_t elapsedTime = currentTime - startTime;
-  return elapsedTime;
 }
 
 TAOS_RES* tmq_consumer_poll(tmq_t* tmq, int64_t timeout) {
@@ -2735,11 +2707,10 @@ TAOS_RES* tmq_consumer_poll(tmq_t* tmq, int64_t timeout) {
     TSDB_CHECK_CODE(code, lino, END);
 
     if (timeout >= 0) {
-      int64_t elapsedTime = getElapsedTime(startTime);
+      int64_t currentTime = taosGetTimestampMs();
+      int64_t elapsedTime = currentTime - startTime;
+      (void)tsem2_timewait(&tmq->rspSem, (timeout - elapsedTime));
       TSDB_CHECK_CONDITION(elapsedTime < timeout && elapsedTime >= 0, code, lino, END, 0);
-      int64_t remaining = timeout - elapsedTime;  
-      int64_t waitMs = (remaining < EMPTY_BLOCK_POLL_IDLE_DURATION) ? remaining : EMPTY_BLOCK_POLL_IDLE_DURATION;  
-      (void)tsem2_timewait(&tmq->rspSem, waitMs);  
     } else {
       (void)tsem2_timewait(&tmq->rspSem, 1000);
     }
@@ -2757,7 +2728,7 @@ END:
 
 static void displayConsumeStatistics(tmq_t* pTmq) {
   if (pTmq == NULL) return;
-  tmqRlock(pTmq);
+  taosRLockLatch(&pTmq->lock);
   int32_t numOfTopics = taosArrayGetSize(pTmq->clientTopics);
   tqInfoC("consumer:0x%" PRIx64 " closing poll:%" PRId64 " rows:%" PRId64 " topics:%d, final epoch:%d",
           pTmq->consumerId, pTmq->pollCnt, pTmq->totalRows, numOfTopics, pTmq->epoch);
@@ -2774,7 +2745,7 @@ static void displayConsumeStatistics(tmq_t* pTmq) {
       tqInfoC("topic:%s, %d. vgId:%d rows:%" PRId64, pTopics->topicName, j, pVg->vgId, pVg->numOfRows);
     }
   }
-  tmqRUnlock(pTmq);
+  taosRUnLockLatch(&pTmq->lock);
   tqInfoC("consumer:0x%" PRIx64 " rows dist end", pTmq->consumerId);
 }
 
@@ -3055,21 +3026,21 @@ int32_t tmq_commit_offset_sync(tmq_t* tmq, const char* pTopicName, int32_t vgId,
   char    tname[TSDB_TOPIC_FNAME_LEN] = {0};
   (void)snprintf(tname, TSDB_TOPIC_FNAME_LEN, "%d.%s", accId, pTopicName);
 
-  tmqWlock(tmq);
+  taosWLockLatch(&tmq->lock);
   SMqClientVg* pVg = NULL;
   int32_t      code = getClientVg(tmq, tname, vgId, &pVg);
   if (code != 0) {
-    tmqWUnlock(tmq);
+    taosWUnLockLatch(&tmq->lock);
     return code;
   }
 
   SVgOffsetInfo* pOffsetInfo = &pVg->offsetInfo;
   code = checkWalRange(pOffsetInfo, offset);
   if (code != 0) {
-    tmqWUnlock(tmq);
+    taosWUnLockLatch(&tmq->lock);
     return code;
   }
-  tmqWUnlock(tmq);
+  taosWUnLockLatch(&tmq->lock);
 
   STqOffsetVal offsetVal = {.type = TMQ_OFFSET__LOG, .version = offset};
 
@@ -3119,21 +3090,21 @@ void tmq_commit_offset_async(tmq_t* tmq, const char* pTopicName, int32_t vgId, i
   char    tname[TSDB_TOPIC_FNAME_LEN] = {0};
   (void)snprintf(tname, TSDB_TOPIC_FNAME_LEN, "%d.%s", accId, pTopicName);
 
-  tmqWlock(tmq);
+  taosWLockLatch(&tmq->lock);
   SMqClientVg* pVg = NULL;
   code = getClientVg(tmq, tname, vgId, &pVg);
   if (code != 0) {
-    tmqWUnlock(tmq);
+    taosWUnLockLatch(&tmq->lock);
     goto end;
   }
 
   SVgOffsetInfo* pOffsetInfo = &pVg->offsetInfo;
   code = checkWalRange(pOffsetInfo, offset);
   if (code != 0) {
-    tmqWUnlock(tmq);
+    taosWUnLockLatch(&tmq->lock);
     goto end;
   }
-  tmqWUnlock(tmq);
+  taosWUnLockLatch(&tmq->lock);
 
   STqOffsetVal offsetVal = {.type = TMQ_OFFSET__LOG, .version = offset};
 
@@ -3394,12 +3365,12 @@ int64_t tmq_position(tmq_t* tmq, const char* pTopicName, int32_t vgId) {
   char    tname[TSDB_TOPIC_FNAME_LEN] = {0};
   (void)snprintf(tname, TSDB_TOPIC_FNAME_LEN, "%d.%s", accId, pTopicName);
 
-  tmqWlock(tmq);
+  taosWLockLatch(&tmq->lock);
 
   SMqClientVg* pVg = NULL;
   int32_t      code = getClientVg(tmq, tname, vgId, &pVg);
   if (code != 0) {
-    tmqWUnlock(tmq);
+    taosWUnLockLatch(&tmq->lock);
     return code;
   }
 
@@ -3407,19 +3378,19 @@ int64_t tmq_position(tmq_t* tmq, const char* pTopicName, int32_t vgId) {
   int32_t        type = pOffsetInfo->endOffset.type;
   if (isInSnapshotMode(type, tmq->useSnapshot)) {
     tqErrorC("consumer:0x%" PRIx64 " offset type:%d not wal version, position error", tmq->consumerId, type);
-    tmqWUnlock(tmq);
+    taosWUnLockLatch(&tmq->lock);
     return TSDB_CODE_TMQ_SNAPSHOT_ERROR;
   }
 
   code = checkWalRange(pOffsetInfo, -1);
   if (code != 0) {
-    tmqWUnlock(tmq);
+    taosWUnLockLatch(&tmq->lock);
     return code;
   }
   SEpSet  epSet = pVg->epSet;
   int64_t begin = pVg->offsetInfo.walVerBegin;
   int64_t end = pVg->offsetInfo.walVerEnd;
-  tmqWUnlock(tmq);
+  taosWUnLockLatch(&tmq->lock);
 
   int64_t position = 0;
   if (type == TMQ_OFFSET__LOG) {
@@ -3458,12 +3429,12 @@ int64_t tmq_committed(tmq_t* tmq, const char* pTopicName, int32_t vgId) {
   char    tname[TSDB_TOPIC_FNAME_LEN] = {0};
   (void)snprintf(tname, TSDB_TOPIC_FNAME_LEN, "%d.%s", accId, pTopicName);
 
-  tmqWlock(tmq);
+  taosWLockLatch(&tmq->lock);
 
   SMqClientVg* pVg = NULL;
   int32_t      code = getClientVg(tmq, tname, vgId, &pVg);
   if (code != 0) {
-    tmqWUnlock(tmq);
+    taosWUnLockLatch(&tmq->lock);
     return code;
   }
 
@@ -3471,25 +3442,25 @@ int64_t tmq_committed(tmq_t* tmq, const char* pTopicName, int32_t vgId) {
   if (isInSnapshotMode(pOffsetInfo->endOffset.type, tmq->useSnapshot)) {
     tqErrorC("consumer:0x%" PRIx64 " offset type:%d not wal version, committed error", tmq->consumerId,
              pOffsetInfo->endOffset.type);
-    tmqWUnlock(tmq);
+    taosWUnLockLatch(&tmq->lock);
     return TSDB_CODE_TMQ_SNAPSHOT_ERROR;
   }
 
   if (isInSnapshotMode(pOffsetInfo->committedOffset.type, tmq->useSnapshot)) {
     tqErrorC("consumer:0x%" PRIx64 " offset type:%d not wal version, committed error", tmq->consumerId,
              pOffsetInfo->committedOffset.type);
-    tmqWUnlock(tmq);
+    taosWUnLockLatch(&tmq->lock);
     return TSDB_CODE_TMQ_SNAPSHOT_ERROR;
   }
 
   int64_t committed = 0;
   if (pOffsetInfo->committedOffset.type == TMQ_OFFSET__LOG) {
     committed = pOffsetInfo->committedOffset.version;
-    tmqWUnlock(tmq);
+    taosWUnLockLatch(&tmq->lock);
     goto end;
   }
   SEpSet epSet = pVg->epSet;
-  tmqWUnlock(tmq);
+  taosWUnLockLatch(&tmq->lock);
 
   code = getCommittedFromServer(tmq, tname, vgId, &epSet, &committed);
   if (code != 0) {
@@ -3516,7 +3487,7 @@ int32_t tmq_get_topic_assignment(tmq_t* tmq, const char* pTopicName, tmq_topic_a
   char    tname[TSDB_TOPIC_FNAME_LEN] = {0};
   (void)snprintf(tname, TSDB_TOPIC_FNAME_LEN, "%d.%s", accId, pTopicName);
 
-  tmqWlock(tmq);
+  taosWLockLatch(&tmq->lock);
 
   SMqClientTopic* pTopic = NULL;
   int32_t         code = getTopicByName(tmq, tname, &pTopic);
@@ -3706,7 +3677,7 @@ int32_t tmq_get_topic_assignment(tmq_t* tmq, const char* pTopicName, tmq_topic_a
     *numOfAssignment = 0;
   }
   destroyCommonInfo(pCommon);
-  tmqWUnlock(tmq);
+  taosWUnLockLatch(&tmq->lock);
   return code;
 }
 
@@ -3746,12 +3717,12 @@ int32_t tmq_offset_seek(tmq_t* tmq, const char* pTopicName, int32_t vgId, int64_
   char    tname[TSDB_TOPIC_FNAME_LEN] = {0};
   (void)snprintf(tname, TSDB_TOPIC_FNAME_LEN, "%d.%s", accId, pTopicName);
 
-  tmqWlock(tmq);
+  taosWLockLatch(&tmq->lock);
 
   SMqClientVg* pVg = NULL;
   int32_t      code = getClientVg(tmq, tname, vgId, &pVg);
   if (code != 0) {
-    tmqWUnlock(tmq);
+    taosWUnLockLatch(&tmq->lock);
     return code;
   }
 
@@ -3760,13 +3731,13 @@ int32_t tmq_offset_seek(tmq_t* tmq, const char* pTopicName, int32_t vgId, int64_
   int32_t type = pOffsetInfo->endOffset.type;
   if (isInSnapshotMode(type, tmq->useSnapshot)) {
     tqErrorC("consumer:0x%" PRIx64 " offset type:%d not wal version, seek not allowed", tmq->consumerId, type);
-    tmqWUnlock(tmq);
+    taosWUnLockLatch(&tmq->lock);
     return TSDB_CODE_TMQ_SNAPSHOT_ERROR;
   }
 
   code = checkWalRange(pOffsetInfo, offset);
   if (code != 0) {
-    tmqWUnlock(tmq);
+    taosWUnLockLatch(&tmq->lock);
     return code;
   }
 
@@ -3777,7 +3748,7 @@ int32_t tmq_offset_seek(tmq_t* tmq, const char* pTopicName, int32_t vgId, int64_
   pOffsetInfo->beginOffset = pOffsetInfo->endOffset;
   pVg->seekUpdated = true;
   SEpSet epSet = pVg->epSet;
-  tmqWUnlock(tmq);
+  taosWUnLockLatch(&tmq->lock);
 
   SMqSeekReq req = {0};
   (void)snprintf(req.subKey, TSDB_SUBSCRIBE_KEY_LEN, "%s:%s", tmq->groupId, tname);

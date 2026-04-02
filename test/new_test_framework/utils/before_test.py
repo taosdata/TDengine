@@ -14,7 +14,6 @@ import configparser
 import shutil
 from .sql import tdSql
 from .log import tdLog
-from .pathFinding import find_proj_path
 from .server.cluster import cluster, clusterDnodes
 from .server.dnodes import tdDnodes
 from .taosadapter import tAdapter
@@ -148,39 +147,9 @@ class BeforeTest:
 
     def get_taos_conn(self, request):
         if request.session.restful:
-            conn = taosrest.connect(url=f"http://{request.session.host}:6041", timezone="utc")
+            return taosrest.connect(url=f"http://{request.session.host}:6041", timezone="utc")
         else:
-            # Use cfgDir (directory path) for taos_options(ConfigDir); cfgPath is a file path
-            # which some versions of TDengine C library may not interpret correctly as a config dir.
-            cfg_opt = getattr(tdDnodes.sim, 'cfgDir', None) or tdDnodes.sim.cfgPath
-            # Explicitly pass serverPort to avoid C library global-init caching stale port.
-            # The taosd startup probe (taosd.py) calls taos.connect(port=N) without config=,
-            # which initialises the C library with the default config dir (port 6030).
-            # A subsequent taos_options(CONFIGDIR, cfg_opt) may be a no-op post-init, so
-            # passing port explicitly is the only reliable way to reach a non-standard port.
-            try:
-                _port = int(
-                    request.session.yaml_data["settings"][0]["spec"]["dnodes"][0]
-                    ["config"].get("serverPort", 6030)
-                )
-            except Exception:
-                _port = 6030
-            conn = taos.connect(host=request.session.host, port=_port, config=cfg_opt)
-        # Apply pending client-side config via ALTER LOCAL.
-        # This overrides any earlier C-library initialization (e.g. from the startup probe)
-        # that may have loaded default values before the psim cfg was written.
-        pending = getattr(self, '_pending_client_cfg', {})
-        if pending:
-            cursor = conn.cursor()
-            for _k, _v in pending.items():
-                try:
-                    cursor.execute(f'alter local "{_k}" "{_v}"')
-                    tdLog.info(f"clientCfg applied via ALTER LOCAL: {_k}={_v}")
-                except Exception as _alter_err:
-                    tdLog.notice(f"clientCfg ALTER LOCAL {_k}={_v} failed (ignored): {_alter_err}")
-            cursor.close()
-            self._pending_client_cfg = {}  # consume: prevent leaking to next class
-        return conn
+            return taos.connect(host=request.session.host, config=tdDnodes.sim.cfgPath)
 
     def get_tdsql(self, conn):
         tdSql.init(conn.cursor())
@@ -236,10 +205,6 @@ class BeforeTest:
         port_base = dnode_config_template["port"] if "port" in dnode_config_template else 6030
         yaml_data["settings"][0]["spec"]["config"]["firstEP"] = f"localhost:{port_base}"
         mqttport_base = dnode_config_template["mqttPort"] if "mqttPort" in dnode_config_template else 6083
-        taosd_binary = "taosd.exe" if sys.platform == "win32" else "taosd"
-        taosadapter_binary = "taosadapter.exe" if sys.platform == "win32" else "taosadapter"
-        taoskeeper_binary = "taoskeeper.exe" if sys.platform == "win32" else "taoskeeper"
-
         for i in range(request.session.denodes_num):
             dnode_cfg_path = os.path.join(work_dir, f"dnode{i+1}", "cfg")
             log_path = os.path.join(work_dir, f"dnode{i+1}", "log")
@@ -262,7 +227,7 @@ class BeforeTest:
             dnode = {
                 "endpoint": f"localhost:{port_base + i * 100}",
                 "config_dir": dnode_cfg_path,
-                "taosdPath": os.path.join(request.session.taos_bin_path, taosd_binary),
+                "taosdPath": os.path.join(request.session.taos_bin_path, "taosd"),
                 "system": platform.system().lower(),
                 "config": dnode_config,
                 "mqttPort": dnode_config["mqttPort"],
@@ -310,7 +275,7 @@ class BeforeTest:
                         "firstEP": f"localhost:{port_base}",
                         "logDir": taos_log_dir
                     },
-                    "taosadapterPath": os.path.join(request.session.taos_bin_path, taosadapter_binary)
+                    "taosadapterPath": os.path.join(request.session.taos_bin_path, "taosadapter")
                 }
             }
             if request.session.asan:
@@ -347,7 +312,7 @@ class BeforeTest:
                         "firstEP": f"localhost:{port_base}",
                         "logDir": taos_log_dir
                     },
-                        "taoskeeperPath": os.path.join(request.session.taos_bin_path, taoskeeper_binary)
+                    "taoskeeperPath": os.path.join(request.session.taos_bin_path, "taoskeeper")
             }
                 
             }
@@ -530,8 +495,6 @@ class BeforeTest:
         tdCom.init(request.session.taos_bin_path, request.session.cfg_path, request.session.work_dir)
        
     def update_cfg(self, updatecfgDict):
-        # Collect client-side config separately; store for ALTER LOCAL application after connection
-        self._pending_client_cfg = dict(updatecfgDict.get("clientCfg", {}))
         for key, value in updatecfgDict.items():
             if key == "clientCfg":
                 continue
@@ -555,7 +518,10 @@ class BeforeTest:
         else:
             binary_file = binary
 
-        projPath = find_proj_path(selfPath)
+        if ("community" in selfPath):
+            projPath = selfPath[:selfPath.find("community")]
+        else:
+            projPath = selfPath[:selfPath.find("test")]
 
         paths = []
         debug_path = os.path.join(projPath, "debug", "build", "bin")
@@ -586,38 +552,25 @@ class BeforeTest:
         return paths[0]
 
     def get_taos_bin_path(self, taos_bin_path):
-        if taos_bin_path is not None:
-            taosd_name = "taosd.exe" if sys.platform == "win32" else "taosd"
-            if os.path.exists(os.path.join(taos_bin_path, taosd_name)):
-                return taos_bin_path
+        if taos_bin_path is not None and os.path.exists(os.path.join(taos_bin_path, "taosd")):
+            return taos_bin_path
         bin_path = self.getPath()
         if bin_path is not None:
             return os.path.dirname(bin_path)
         raise Exception("taosd binary not found in TAOS_BIN_PATH")
 
-    def get_and_mkdir_workdir(self, workdir, taos_bin_path=None):
+    def get_and_mkdir_workdir(self, workdir):
         if workdir is None:
-            # Try to derive workdir from taosd binary path.
-            # e.g. taos_bin_path = /root/tsdb/debug/build/bin
-            #   -> find 'debug' ancestor -> project root = /root/tsdb
-            #   -> workdir = /root/tsdb/sim
-            if taos_bin_path is not None:
-                path = os.path.realpath(taos_bin_path)
-                while path and path != os.path.dirname(path):
-                    if os.path.basename(path) == 'debug':
-                        if sys.platform == "win32":
-                            workdir = os.path.join(path, "sim")
-                        else:
-                            workdir = os.path.join(os.path.dirname(path), "sim")
-                        break
-                    path = os.path.dirname(path)
-            if workdir is None:
-                selfPath = os.path.dirname(os.path.realpath(__file__))
-                projPath = find_proj_path(selfPath)
-                if projPath:
-                    workdir = os.path.join(projPath, "sim")
-                else:
-                    workdir = os.path.join(selfPath, "sim")
+            selfPath = os.path.dirname(os.path.realpath(__file__))
+            projPath = None
+            if ("community" in selfPath):
+                projPath = selfPath[:selfPath.find("community")]
+            elif ("TDengine" in selfPath):
+                projPath = selfPath[:selfPath.find("test")]
+            if projPath is not None:
+                workdir = os.path.join(projPath, "sim")
+            else:
+                workdir = os.path.join(selfPath, "sim")
         tdLog.debug(f"workdir: {workdir}")
         #if os.path.exists(workdir):
         #    shutil.rmtree(workdir)

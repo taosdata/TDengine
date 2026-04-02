@@ -16,7 +16,6 @@
 #
 
 from new_test_framework.utils import tdLog, tdSql, TDSetSql
-from new_test_framework.utils.pathFinding import find_proj_path
 import taos
 from taos.tmq import Consumer
 import os
@@ -234,7 +233,10 @@ class TestWalRetention:
 
         # init cluster path
         selfPath = os.path.dirname(os.path.realpath(__file__))
-        projPath = find_proj_path(selfPath)
+        if ("community" in selfPath):
+            projPath = selfPath[:selfPath.find("community")]
+        else:
+            projPath = selfPath[:selfPath.find("test")]
         cls.projDir = f"{projPath}sim/"
         tdLog.info(f" init projPath={cls.projDir}")
 
