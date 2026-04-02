@@ -2241,6 +2241,10 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(pLogicNode->pScanCols);
       nodesDestroyList(pLogicNode->pScanPseudoCols);
       taosMemoryFreeClear(pLogicNode->pVgroupList);
+      nodesDestroyList(pLogicNode->pTagRefSources);
+      nodesDestroyList(pLogicNode->pLocalTags);
+      nodesDestroyList(pLogicNode->pRefTagCols);
+      nodesDestroyNode(pLogicNode->pTagFilterCond);
       break;
     }
     case QUERY_NODE_LOGIC_PLAN_TAG_REF_SOURCE: {
@@ -2393,6 +2397,10 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(pPhyNode->pTargets);
       nodesDestroyList(pPhyNode->pTags);
       nodesDestroyNode(pPhyNode->pSubtable);
+      nodesDestroyList(pPhyNode->pTagRefSources);
+      nodesDestroyList(pPhyNode->pLocalTags);
+      nodesDestroyList(pPhyNode->pRefTagCols);
+      nodesDestroyNode(pPhyNode->pTagFilterCond);
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_TAG_REF_SOURCE: {

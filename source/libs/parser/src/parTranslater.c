@@ -6544,6 +6544,17 @@ static int32_t translateVirtualSuperTable(STranslateContext* pCxt, SNode** pTabl
           }
           pVTable->pMeta->tagRef = pTagRefs;
           pVTable->pMeta->numOfTagRefs = numTags;
+          // Reallocate pMeta with tagRef inline to prevent memory leak.
+          // The node destroy path only frees the base pMeta block, not separately-allocated tagRef.
+          STableMeta* pNewMeta = tableMetaDup(pVTable->pMeta);
+          taosMemoryFree(pTagRefs);
+          if (pNewMeta) {
+            taosMemoryFree(pVTable->pMeta);
+            pVTable->pMeta = pNewMeta;
+          } else {
+            pVTable->pMeta->tagRef = NULL;
+            pVTable->pMeta->numOfTagRefs = 0;
+          }
         }
       }
     }
