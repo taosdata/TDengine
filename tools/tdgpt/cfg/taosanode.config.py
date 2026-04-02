@@ -83,7 +83,7 @@ dynamic_model_dir = _os.path.join(model_dir, 'dynamic')
 log_level = 'DEBUG'
 
 # draw the query results
-draw_result = True
+draw_result = False
 
 img_dir = _os.path.join(base_dir, 'img', '')
 

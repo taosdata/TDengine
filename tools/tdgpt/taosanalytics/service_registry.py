@@ -39,7 +39,7 @@ class DynamicForecastService(AbstractForecastService):
 
     def execute(self):
         """ the actual model can be loaded and executed when execute() is called. """
-        algo_name = self.algo.upper()
+        algo_name = self.algo.lower()
         AppLogger.info("execute dynamic forecast service:%s, algo:%s, params:%s", self.name, algo_name)
 
         if algo_name == 'arima':
@@ -223,10 +223,10 @@ class ServiceRegistry:
     def unregister_dynamic_service(self, name: str):
         """ unregister the dynamic service, e.g. when the model is deleted or updated."""
         if name in self.services:
-            if self.services[name][0].is_builtins:
+            if self.services[name].is_builtins:
                 raise RuntimeError(f"try to unregister built-in model:'{name}', operation not allowed")
 
-            if not isinstance(self.services[name][0], DynamicForecastService):
+            if not isinstance(self.services[name], DynamicForecastService):
                 raise RuntimeError(f"try to unregister non-dynamic model:'{name}', operation not allowed")
 
             del self.services[name]
@@ -237,7 +237,7 @@ class ServiceRegistry:
     @staticmethod
     def _register_service(container, name: str, service):
         """ register service for all kinds """
-        if 'name' in container:
+        if name in container:
             AppLogger.error("service with name '%s' already exists", name)
             raise RuntimeError(f"service with name '{name}' already exists, failed to register service")
 

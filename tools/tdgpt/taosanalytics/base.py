@@ -175,7 +175,7 @@ class AbstractForecastService(AbstractAnalyticsService, ABC):
     def get_params(self):
         return {
             "period": self.period, "start": self.start_ts, "every": self.time_step,
-            "forecast_rows": self.rows, "return_conf": self.return_conf, "conf": self.conf, 'tz': self.tz,
+            "forecast_rows": self.rows, "return_conf": self.return_conf, "conf": self.conf, 'tz': str(self.tz),
             'precision': self.precision
         }
 

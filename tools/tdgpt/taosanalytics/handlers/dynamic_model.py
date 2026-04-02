@@ -1,9 +1,17 @@
+import json
 import os
+import re
 from pathlib import Path
 
 from taosanalytics.conf import Configure
 from taosanalytics.log import AppLogger
 from taosanalytics.service_registry import loader
+
+
+def _is_valid_model_name(model_name):
+    MODEL_NAME_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$")
+    # Allow a conservative filename subset and block traversal-like names.
+    return isinstance(model_name, str) and model_name not in {".", ".."} and bool(MODEL_NAME_PATTERN.fullmatch(model_name))
 
 
 def do_handle_dynamic_model(request):
@@ -25,10 +33,9 @@ def do_handle_dynamic_model(request):
         A result based on the handling of the dynamic model.
     """
 
-    AppLogger.info('recv deploy request, ip:%s', request.remote_addr)
-    model_dir = Configure.get_instance().get_model_directory()
-
     payload = request.get_json(silent=True) or {}
+    AppLogger.info('recv deploy request, payload:%s, ip:%s', payload, request.remote_addr)
+
     if not payload:
         AppLogger.error("deploy request missing JSON payload, ip:%s", request.remote_addr)
         return {
@@ -37,17 +44,26 @@ def do_handle_dynamic_model(request):
         }, 400
 
     if not {"model_name", "config"}.issubset(payload.keys()):
-        AppLogger.error("deploy request missing required fields, ip:%s, payload:%s", request.remote_addr, payload)
+        AppLogger.error("deploy request missing required fields, payload:%s, ip:%s", payload, request.remote_addr)
         return {
             'status': 'error',
             'error': "Missing required fields in request payload, required: model_name and config"
         }, 400
 
-    model_name = payload.get("model_name")
+    raw_model_name = payload.get("model_name")
+    if not _is_valid_model_name(raw_model_name):
+        AppLogger.error("deploy request invalid model_name, model_name:%s, ip:%s", raw_model_name, request.remote_addr)
+        return {
+            'status': 'error',
+            'error': "Invalid model_name in request payload"
+        }, 400
+
+    model_name = raw_model_name + '.json'
     model_config = payload.get("config")
 
-    AppLogger.debug("deploy model with name %s, config:%s", model_name, model_config)
+    AppLogger.debug("deploy model with ndraw_result = Trueame %s, config:%s", model_name, model_config)
 
+    model_dir = Configure.get_instance().get_model_directory()
     full_path = str(os.path.join(model_dir, model_name))
 
     # check for valid model name, e.g. check if model file exists, etc.
@@ -60,7 +76,7 @@ def do_handle_dynamic_model(request):
 
     try:
         with open(full_path, "w", encoding="utf-8") as handle:
-            handle.write(model_config)
+            handle.write(json.dumps(model_config))
         AppLogger.info("Model %s saved to %s successfully", model_name, full_path)
 
         loader.register_service_from_file(full_path)
@@ -97,6 +113,13 @@ def do_handle_undeploy_model(request):
         }, 400
 
     model_name = payload.get("model_name")
+    if not _is_valid_model_name(model_name):
+        AppLogger.error("undeploy request invalid model_name, ip:%s, model_name:%s", request.remote_addr, model_name)
+        return {
+            'status': 'error',
+            'error': "Invalid model_name in request payload"
+        }, 400
+
     full_path = os.path.join(model_dir, model_name)
 
     try:
