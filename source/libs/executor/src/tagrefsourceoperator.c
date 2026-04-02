@@ -322,7 +322,7 @@ static void destroyTagRefSourceOperatorInfo(void* param) {
   // Free match info
   taosArrayDestroy(pInfo->matchInfo.pList);
 
-  // Note: pTableListInfo is owned by the caller, don't free here
+  tableListDestroy(pInfo->pTableListInfo);
 
   taosMemoryFreeClear(param);
 }

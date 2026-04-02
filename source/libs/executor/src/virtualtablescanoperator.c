@@ -499,6 +499,7 @@ int32_t createSortHandleFromParam(SOperatorInfo* pOperator) {
     SOperatorInfo* pDownstream = pOperator->pDownstream[i];
     if (pDownstream->resultDataBlockId == pVirtualScanInfo->tagBlockId) {
       pVirtualScanInfo->tagDownStreamId = i;
+      blockDataDestroy(pInfo->pSavedTagBlock);
       pInfo->pSavedTagBlock = NULL;
       break;
     }
@@ -507,6 +508,7 @@ int32_t createSortHandleFromParam(SOperatorInfo* pOperator) {
       pParam->tagDownStreamId >= 0 &&
       pParam->tagDownStreamId < pOperator->numOfDownstream) {
     pVirtualScanInfo->tagDownStreamId = pParam->tagDownStreamId;
+    blockDataDestroy(pInfo->pSavedTagBlock);
     pInfo->pSavedTagBlock = NULL;
   }
 
@@ -1248,6 +1250,8 @@ int32_t virtualTableGetNext(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
       if (pDynParam != NULL) {
         SOperatorParam* pTagOp = pDynParam->pTagScanOp;
         if (pTagOp != NULL) {
+          // Ownership stays with vtbScanParam; prevent exchange from freeing.
+          pTagOp->reUse = true;
           VTS_ERR_JRET(pTagScanOp->fpSet.getNextExtFn(pTagScanOp, pTagOp, &pTagBlock));
         }
       } else {
@@ -1355,6 +1359,8 @@ void destroyVirtualTableScanOperatorInfo(void* param) {
   tSimpleHashCleanup(pInfo->dataSlotMap);
   cleanupRefSlotGroups(pInfo);
   cleanupSavedTagRefBlocks(pInfo);
+  blockDataDestroy(pOperatorInfo->pSavedTagBlock);
+  pOperatorInfo->pSavedTagBlock = NULL;
   tSimpleHashCleanup(pInfo->pTagRefDownstreamMap);
   pInfo->pTagRefDownstreamMap = NULL;
   taosArrayDestroy(pInfo->pTagRefSourceBlockIds);
@@ -1454,6 +1460,7 @@ int32_t resetVirtualTableMergeOperState(SOperatorInfo* pOper) {
   }
 
   pMergeInfo->pSavedTuple = NULL;
+  blockDataDestroy(pMergeInfo->pSavedTagBlock);
   pMergeInfo->pSavedTagBlock = NULL;
   cleanupSavedTagRefBlocks(pInfo);
   tSimpleHashCleanup(pInfo->pTagRefDownstreamMap);

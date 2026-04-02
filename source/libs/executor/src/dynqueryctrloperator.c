@@ -4434,6 +4434,22 @@ int32_t virtualTableScanBuildDownStreamOpParam(SOperatorInfo* pOperator, tb_uid_
   SVtbScanDynCtrlInfo*       pVtbScan = (SVtbScanDynCtrlInfo*)&pInfo->vtbScan;
   SExecTaskInfo*             pTaskInfo = pOperator->pTaskInfo;
   SOperatorInfo*             pVtbScanOp = pOperator->pDownstream[0];
+
+  // Clear reUse on the old vtbScanParam so that the next setOperatorParams call
+  // (inside getNextExtFn) can free it via freeResetOperatorParams.
+  if (pVtbScanOp->pOperatorGetParam) {
+    pVtbScanOp->pOperatorGetParam->reUse = false;
+  }
+
+  // Null out downstream exchange/tag-scan operators' stale pOperatorGetParam.
+  // freeVirtualTableScanGetOperatorParam will free the exchange params owned by
+  // pOpParamArray; clearing these references prevents UAF in downstream operators.
+  for (int32_t d = 0; d < pVtbScanOp->numOfDownstream; ++d) {
+    if (pVtbScanOp->pDownstream[d]) {
+      pVtbScanOp->pDownstream[d]->pOperatorGetParam = NULL;
+    }
+  }
+
   pVtbScan->vtbScanParam = NULL;
   code = buildVtbScanOperatorParam(pInfo, &pVtbScan->vtbScanParam, uid);
   QUERY_CHECK_CODE(code, line, _return);

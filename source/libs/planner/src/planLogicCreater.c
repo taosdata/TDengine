@@ -1323,11 +1323,12 @@ static int32_t appendCondTagPseudoCols(SNode* pCond, SNodeList** ppPseudoCols) {
 // ====================================================================
 
 /**
- * Context structure for checking if a tag column is used in WHERE clause or projection
+ * Context structure for checking if a tag column is used in WHERE clause or projection.
+ * pTargetNode may be SColumnNode (QUERY_NODE_COLUMN) or STagRefColumn (QUERY_NODE_TAG_REF_COLUMN).
  */
 typedef struct SCheckTagInFilterCtx {
-  SColumnNode* pTargetCol;
-  bool found;
+  SNode* pTargetNode;
+  bool   found;
 } SCheckTagInFilterCtx;
 
 /**
@@ -1341,10 +1342,19 @@ static EDealRes checkTagInFilterImpl(SNode* pNode, void* pContext) {
 
   if (QUERY_NODE_COLUMN == nodeType(pNode)) {
     SColumnNode* pWhereCol = (SColumnNode*)pNode;
-    if (pWhereCol->colId == pCtx->pTargetCol->colId &&
-        strcmp(pWhereCol->tableName, pCtx->pTargetCol->tableName) == 0 &&
-        strcmp(pWhereCol->dbName, pCtx->pTargetCol->dbName) == 0) {
-      pCtx->found = true;
+    if (QUERY_NODE_COLUMN == nodeType(pCtx->pTargetNode)) {
+      SColumnNode* pTarget = (SColumnNode*)pCtx->pTargetNode;
+      if (pWhereCol->colId == pTarget->colId &&
+          strcmp(pWhereCol->tableName, pTarget->tableName) == 0 &&
+          strcmp(pWhereCol->dbName, pTarget->dbName) == 0) {
+        pCtx->found = true;
+      }
+    } else if (QUERY_NODE_TAG_REF_COLUMN == nodeType(pCtx->pTargetNode)) {
+      STagRefColumn* pRefCol = (STagRefColumn*)pCtx->pTargetNode;
+      if (pWhereCol->colId == pRefCol->colId &&
+          strcmp(pWhereCol->colName, pRefCol->colName) == 0) {
+        pCtx->found = true;
+      }
     }
   }
 
@@ -1359,7 +1369,7 @@ static bool isTagUsedInFilter(SNode* pWhere, SColumnNode* pCol) {
     return false;
   }
 
-  SCheckTagInFilterCtx ctx = {.pTargetCol = pCol, .found = false};
+  SCheckTagInFilterCtx ctx = {.pTargetNode = (SNode*)pCol, .found = false};
   nodesWalkExpr(pWhere, checkTagInFilterImpl, &ctx);
   return ctx.found;
 }
@@ -1372,7 +1382,7 @@ static bool isTagUsedInProjection(SNodeList* pTargets, SColumnNode* pCol) {
     return false;
   }
 
-  SCheckTagInFilterCtx ctx = {.pTargetCol = pCol, .found = false};
+  SCheckTagInFilterCtx ctx = {.pTargetNode = (SNode*)pCol, .found = false};
   nodesWalkExprs(pTargets, checkTagInFilterImpl, &ctx);
   return ctx.found;
 }
@@ -1388,7 +1398,7 @@ static bool isTagUsedInAnyClause(SSelectStmt* pSelect, SColumnNode* pCol, bool* 
                       isTagUsedInProjection(pSelect->pOrderByList, pCol);
 
     if (!usedInNonFilter && pSelect->pHaving != NULL) {
-      SCheckTagInFilterCtx ctx = {.pTargetCol = pCol, .found = false};
+      SCheckTagInFilterCtx ctx = {.pTargetNode = (SNode*)pCol, .found = false};
       nodesWalkExpr(pSelect->pHaving, checkTagInFilterImpl, &ctx);
       usedInNonFilter = ctx.found;
     }
@@ -1539,7 +1549,7 @@ static bool isNodeContainRefColumn(SNode* pNode, SNodeList* pRefCols) {
 
   SNode* pRefCol = NULL;
   FOREACH(pRefCol, pRefCols) {
-    SCheckTagInFilterCtx ctx = {.pTargetCol = (SColumnNode*)pRefCol, .found = false};
+    SCheckTagInFilterCtx ctx = {.pTargetNode = pRefCol, .found = false};
     nodesWalkExpr(pNode, checkTagInFilterImpl, &ctx);
     if (ctx.found) {
       return true;
@@ -1569,12 +1579,21 @@ static EDealRes checkForeignTagImpl(SNode* pNode, void* pContext) {
   bool matched = false;
   SNode* pRefNode = NULL;
   FOREACH(pRefNode, pCtx->pRefCols) {
-    SColumnNode* pRef = (SColumnNode*)pRefNode;
-    if (pCol->colId == pRef->colId &&
-        strcmp(pCol->tableName, pRef->tableName) == 0 &&
-        strcmp(pCol->dbName, pRef->dbName) == 0) {
-      matched = true;
-      break;
+    if (QUERY_NODE_COLUMN == nodeType(pRefNode)) {
+      SColumnNode* pRef = (SColumnNode*)pRefNode;
+      if (pCol->colId == pRef->colId &&
+          strcmp(pCol->tableName, pRef->tableName) == 0 &&
+          strcmp(pCol->dbName, pRef->dbName) == 0) {
+        matched = true;
+        break;
+      }
+    } else if (QUERY_NODE_TAG_REF_COLUMN == nodeType(pRefNode)) {
+      STagRefColumn* pRef = (STagRefColumn*)pRefNode;
+      if (pCol->colId == pRef->colId &&
+          strcmp(pCol->colName, pRef->colName) == 0) {
+        matched = true;
+        break;
+      }
     }
   }
   if (!matched) {

@@ -785,9 +785,6 @@ int32_t setTbNameColData(const SSDataBlock* pBlock, SColumnInfoData* pColInfoDat
   SScalarParam srcParam = {.numOfRows = pBlock->info.rows, .columnData = &infoData};
   SScalarParam param = {.columnData = pColInfoData};
 
-  code = colInfoDataEnsureCapacity(pColInfoData, pBlock->info.rows, false);
-  QUERY_CHECK_CODE(code, lino, _end);
-
   if (fpSet.process != NULL) {
     code = fpSet.process(&srcParam, 1, &param);
     QUERY_CHECK_CODE(code, lino, _end);
@@ -822,9 +819,6 @@ int32_t setVgIdColData(const SSDataBlock* pBlock, SColumnInfoData* pColInfoData,
   SScalarParam srcParam = {.numOfRows = pBlock->info.rows, .columnData = &infoData};
   SScalarParam param = {.columnData = pColInfoData};
 
-  code = colInfoDataEnsureCapacity(pColInfoData, pBlock->info.rows, false);
-  QUERY_CHECK_CODE(code, lino, _end);
-
   if (fpSet.process != NULL) {
     code = fpSet.process(&srcParam, 1, &param);
     QUERY_CHECK_CODE(code, lino, _end);
@@ -857,9 +851,6 @@ int32_t setVgVerColData(const SSDataBlock* pBlock, SColumnInfoData* pColInfoData
 
   SScalarParam srcParam = {.numOfRows = pBlock->info.rows, .columnData = &infoData};
   SScalarParam param = {.columnData = pColInfoData};
-
-  code = colInfoDataEnsureCapacity(pColInfoData, pBlock->info.rows, false);
-  QUERY_CHECK_CODE(code, lino, _end);
 
   if (fpSet.process != NULL) {
     code = fpSet.process(&srcParam, 1, &param);
