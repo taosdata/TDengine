@@ -15696,7 +15696,15 @@ static int32_t translateReloadLastCache(STranslateContext* pCxt, SReloadLastCach
     }
     taosMemoryFree(pMeta);
   }
-  return TSDB_CODE_SUCCESS;
+  // Build mnd request and send via RPC
+  SMndReloadLastCacheReq mndReq = {
+      .cacheType = pStmt->cacheType,
+      .scopeType = pStmt->scopeType,
+  };
+  tstrncpy(mndReq.dbName, pStmt->dbName, sizeof(mndReq.dbName));
+  tstrncpy(mndReq.tableName, pStmt->tableName, sizeof(mndReq.tableName));
+  tstrncpy(mndReq.colName, pStmt->colName, sizeof(mndReq.colName));
+  return buildCmdMsg(pCxt, TDMT_MND_RELOAD_LAST_CACHE, (FSerializeFunc)tSerializeSMndReloadLastCacheReq, &mndReq);
 }
 
 #ifdef TD_ENTERPRISE
@@ -26710,6 +26718,7 @@ static int32_t setQuery(STranslateContext* pCxt, SQuery* pQuery) {
       break;
     case QUERY_NODE_SHOW_VARIABLES_STMT:
     case QUERY_NODE_COMPACT_DATABASE_STMT:
+    case QUERY_NODE_RELOAD_LAST_CACHE_STMT:
     case QUERY_NODE_ROLLUP_DATABASE_STMT:
     case QUERY_NODE_SCAN_DATABASE_STMT:
     case QUERY_NODE_TRIM_DATABASE_STMT:

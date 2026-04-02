@@ -61,10 +61,38 @@ void mndCleanupReload(SMnode* pMnode) {
 }
 
 static int32_t mndProcessReloadLastCacheReq(SRpcMsg* pReq) {
-  // This handler is called when command.c sends TDMT_MND_RELOAD_LAST_CACHE to mnode
-  // The mnode-side processing is done in mndReloadLastCache() called from execReloadLastCache()
-  // For now return success - actual work is done synchronously in mndReloadLastCache
-  return TSDB_CODE_SUCCESS;
+  SMnode*                pMnode = pReq->info.node;
+  SMndReloadLastCacheReq req = {0};
+  int32_t                code = 0;
+
+  code = tDeserializeSMndReloadLastCacheReq(pReq->pCont, pReq->contLen, &req);
+  if (code != TSDB_CODE_SUCCESS) {
+    mError("failed to deserialize SMndReloadLastCacheReq, code:%s", tstrerror(code));
+    TAOS_RETURN(code);
+  }
+
+  int64_t reloadUid = 0;
+  code = mndReloadLastCache(pMnode, pReq, req.cacheType, req.scopeType, req.dbName, req.tableName, req.colName,
+                             &reloadUid);
+  if (code != TSDB_CODE_SUCCESS) {
+    TAOS_RETURN(code);
+  }
+
+  // Build and send response with reloadUid
+  SMndReloadLastCacheRsp rsp = {.reloadUid = reloadUid};
+  int32_t                rspLen = tSerializeSMndReloadLastCacheRsp(NULL, 0, &rsp);
+  if (rspLen < 0) {
+    TAOS_RETURN(rspLen);
+  }
+  void* pRsp = rpcMallocCont(rspLen);
+  if (!pRsp) {
+    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+  }
+  tSerializeSMndReloadLastCacheRsp(pRsp, rspLen, &rsp);
+  pReq->info.rsp = pRsp;
+  pReq->info.rspLen = rspLen;
+
+  TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
 int32_t mndReloadLastCache(SMnode* pMnode, SRpcMsg* pReq, int8_t cacheType, int8_t scopeType,

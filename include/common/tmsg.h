@@ -2668,6 +2668,23 @@ int32_t tDeserializeSVQueryLastCacheStatusRsp(void* buf, int32_t bufLen, SVQuery
 int32_t tSerializeSVCancelLastCacheReloadReq(void* buf, int32_t bufLen, SVCancelLastCacheReloadReq* pReq);
 int32_t tDeserializeSVCancelLastCacheReloadReq(void* buf, int32_t bufLen, SVCancelLastCacheReloadReq* pReq);
 
+typedef struct SMndReloadLastCacheReq {
+  int8_t cacheType;                    // 0=LAST, 1=LAST_ROW, 2=BOTH
+  int8_t scopeType;                    // 0=DATABASE, 1=STABLE, 2=TABLE
+  char   dbName[TSDB_DB_NAME_LEN];
+  char   tableName[TSDB_TABLE_NAME_LEN];
+  char   colName[TSDB_COL_NAME_LEN];
+} SMndReloadLastCacheReq;
+
+typedef struct SMndReloadLastCacheRsp {
+  int64_t reloadUid;
+} SMndReloadLastCacheRsp;
+
+int32_t tSerializeSMndReloadLastCacheReq(void* buf, int32_t bufLen, SMndReloadLastCacheReq* pReq);
+int32_t tDeserializeSMndReloadLastCacheReq(void* buf, int32_t bufLen, SMndReloadLastCacheReq* pReq);
+int32_t tSerializeSMndReloadLastCacheRsp(void* buf, int32_t bufLen, SMndReloadLastCacheRsp* pRsp);
+int32_t tDeserializeSMndReloadLastCacheRsp(void* buf, int32_t bufLen, SMndReloadLastCacheRsp* pRsp);
+
 typedef struct {
   union {
     int32_t compactId;

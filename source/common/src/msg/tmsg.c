@@ -19123,4 +19123,75 @@ _exit:
   return code;
 }
 
+int32_t tSerializeSMndReloadLastCacheReq(void* buf, int32_t bufLen, SMndReloadLastCacheReq* pReq) {
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  int32_t  tlen;
+  tEncoderInit(&encoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->cacheType));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->scopeType));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->dbName));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->tableName));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->colName));
+  tEndEncode(&encoder);
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSMndReloadLastCacheReq(void* buf, int32_t bufLen, SMndReloadLastCacheReq* pReq) {
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  tDecoderInit(&decoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->cacheType));
+  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->scopeType));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->dbName));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->tableName));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->colName));
+  tEndDecode(&decoder);
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
+
+int32_t tSerializeSMndReloadLastCacheRsp(void* buf, int32_t bufLen, SMndReloadLastCacheRsp* pRsp) {
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  int32_t  tlen;
+  tEncoderInit(&encoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRsp->reloadUid));
+  tEndEncode(&encoder);
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSMndReloadLastCacheRsp(void* buf, int32_t bufLen, SMndReloadLastCacheRsp* pRsp) {
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  tDecoderInit(&decoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRsp->reloadUid));
+  tEndDecode(&decoder);
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
 
