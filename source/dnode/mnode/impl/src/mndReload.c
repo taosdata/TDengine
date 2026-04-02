@@ -88,7 +88,10 @@ static int32_t mndProcessReloadLastCacheReq(SRpcMsg* pReq) {
   if (!pRsp) {
     TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
   }
-  tSerializeSMndReloadLastCacheRsp(pRsp, rspLen, &rsp);
+  if ((code = tSerializeSMndReloadLastCacheRsp(pRsp, rspLen, &rsp)) < 0) {
+    rpcFreeCont(pRsp);
+    TAOS_RETURN(code);
+  }
   pReq->info.rsp = pRsp;
   pReq->info.rspLen = rspLen;
 
