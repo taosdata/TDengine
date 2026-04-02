@@ -25,8 +25,6 @@ typedef struct SCtgViewTaskParam {
   SArray* pTableReqs;
 } SCtgViewTaskParam;
 
-#define CTG_VTB_REF_MAX_DEPTH 32  // keep aligned with executor-side DYN_VTB_REF_MAX_DEPTH
-
 typedef struct SCtgVStbLayerRef {
   char dbName[TSDB_DB_NAME_LEN];
   char tbName[TSDB_TABLE_NAME_LEN];
@@ -454,10 +452,6 @@ static int32_t ctgBuildVStbNextLayerReqs(int32_t curLayer, SArray* pLayerRefs, S
 
     if (hasRefCol((*ppMeta)->tableType) && (*ppMeta)->colRef) {
       SColRef* pColRef = NULL;
-
-      if (curLayer >= 5) {
-        CTG_ERR_JRET(TSDB_CODE_VTABLE_REF_DEPTH_EXCEEDED);
-      }
 
       CTG_ERR_JRET(ctgFindVStbColRef(*ppMeta, pRef->colName, &pColRef));
       CTG_ERR_JRET(ctgAddVStbLayerRef(ppNextLayerRefs, pColRef->refDbName, pColRef->refTableName,
