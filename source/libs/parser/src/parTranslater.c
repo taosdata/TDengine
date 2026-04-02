@@ -15673,6 +15673,29 @@ static int32_t translateReloadLastCache(STranslateContext* pCxt, SReloadLastCach
     int32_t    code = getDBCfg(pCxt, pStmt->dbName, &dbCfg);
     if (TSDB_CODE_SUCCESS != code) return code;
   }
+  if (pStmt->tableName[0] != '\0') {
+    STableMeta* pMeta = NULL;
+    int32_t     code = getTableMeta(pCxt, pStmt->dbName, pStmt->tableName, &pMeta);
+    if (TSDB_CODE_SUCCESS != code) {
+      taosMemoryFree(pMeta);
+      return code;
+    }
+    if (pStmt->colName[0] != '\0') {
+      int32_t totalCols = pMeta->tableInfo.numOfColumns + pMeta->tableInfo.numOfTags;
+      bool    found = false;
+      for (int32_t i = 0; i < totalCols; i++) {
+        if (0 == strcmp(pStmt->colName, pMeta->schema[i].name)) {
+          found = true;
+          break;
+        }
+      }
+      if (!found) {
+        taosMemoryFree(pMeta);
+        return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN, pStmt->colName);
+      }
+    }
+    taosMemoryFree(pMeta);
+  }
   return TSDB_CODE_SUCCESS;
 }
 
