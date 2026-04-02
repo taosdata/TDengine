@@ -1,0 +1,23 @@
+This directory provides users a script "scripts/testPerf.sh" to test the 
+performance of TDengine in different situations. Users can do tests on 
+different simulated TDengine cluster environments by configuring the
+parameters in the script. When the script is executed, a virtual environment
+will set up on your computer and data insertion speed and query speed will
+be measured. The results will be shown in "../../test_result"
+
+
+1. The script will generate a "../../build" directory, which contains binary
+files to insert and query data from TDengine cluster, and a "../../dnodes" which
+contains the data and logs about the dnode. The results are put in 
+file "../../test_result".
+
+2. Users can change the parameters in "scripts/testPerf.sh" to simulate the
+insert and query speed in different situations. Users can configure parameters
+like: numbers of servers in cluster, number of clients to insert data, number
+of records to insert for every client etc.
+
+Note 1. This script is better to run in multi-core machines and the number of
+servers should be smaller than the number of CPUs.
+
+NOTE 2. After testing, please make sure to run "./scripts/dnode.sh clean" 
+to clean the simulated environment on your computer.

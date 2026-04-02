@@ -1,0 +1,7 @@
+REGEDIT4
+[HKEY_LOCAL_MACHINE\SOFTWARE\ODBC\ODBCINST.INI\ODBC Drivers]
+"TDengine ODBC Driver x64"="Installed"
+[HKEY_LOCAL_MACHINE\SOFTWARE\ODBC\ODBCINST.INI\TDengine ODBC Driver x64]
+"Driver"="C:\\TDengine\\driver\\taosodbc.dll"
+"Setup"="C:\\TDengine\\driver\\taosodbc.dll"
+

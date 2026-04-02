@@ -1,0 +1,31 @@
+#!/bin/bash
+
+echo
+
+echo "[INFO] ########################################################################"
+echo "[INFO] Start test JDBC..."
+echo "[INFO] ########################################################################"
+echo
+
+# Get responsible directories
+if [ "${tools_dir}" == "" ]; then
+    tools_dir="$(pwd)";
+fi
+
+code_dir="$(readlink -m ${tools_dir}/..)"
+#echo "code_dir: ${code_dir}"
+#echo "tools_dir: ${tools_dir}"
+jdbc_driver_dir="${code_dir}/JDBCDriver"
+test_dir="${code_dir}/test"
+jdbc_test_dir="${test_dir}/JDBCTest"
+
+#if [ $# -lt 2 ]; then
+#   echo -e "Error! please input two paramaters at least!\nfor example, testjdbc meter1 1000000\n"
+ #  exit 2
+#fi
+mvn -f ${jdbc_driver_dir}/pom.xml install
+mvn -f ${jdbc_test_dir}/pom.xml  install
+mvn -f ${jdbc_test_dir}/pom.xml exec:java -Dexec.mainClass="TBASEJDBCRegressionTest" -Dexec.args="$1 $2 $3 $4 $5"
+#rm -rf test/JDBCTest/target
+exitValue="$?"
+echo "${exitValue}" > ${code_dir}/script/jdbc/error.count

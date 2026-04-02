@@ -1,0 +1,14 @@
+To install influxdb:
+    wget https://dl.influxdata.com/influxdb/releases/influxdb_1.7.2_amd64.deb
+    sudo dpkg -i influxdb_1.7.2_amd64.deb
+
+To install influxdb go client:
+  1. Install go 1.10
+    wget https://dl.google.com/go/go1.10.linux-amd64.tar.gz<Paste>
+	sudo tar -xvf go1.10.linux-amd64.tar.gz
+	sudo mv go /usr/local
+	export GOROOT=/usr/local/go
+	export GOPATH=$HOME/local/Golang
+	export PATH=$GOPATH/bin:$GOROOT/bin:$PATH
+  2. Install influxdb go client
+	go get github.com/influxdata/influxdb/client/v2

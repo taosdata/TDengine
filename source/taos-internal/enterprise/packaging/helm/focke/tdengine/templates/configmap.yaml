@@ -1,0 +1,11 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "tdengine.fullname" . }}-taoscfg
+  labels:
+    {{- include "tdengine.labels" . | nindent 4 }}
+data:
+{{- with .Values.taoscfg }}
+  {{- toYaml . | nindent 2 }}
+{{- end }}

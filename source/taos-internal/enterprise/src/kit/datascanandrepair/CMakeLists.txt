@@ -1,0 +1,14 @@
+PROJECT(TDengine)
+
+INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/src/client/inc)
+INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/src/dnode/inc)
+INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/src/mnode/detail/inc)
+INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/src/vnode/detail/inc)
+INCLUDE_DIRECTORIES(${TD_ENTERPRISE_DIR}/src/modules/multilevel_storage/inc)
+INCLUDE_DIRECTORIES(inc)
+
+IF(TD_LINUX)
+  AUX_SOURCE_DIRECTORY(. SRC)
+  ADD_EXECUTABLE(taosscan ${SRC})
+  TARGET_LINK_LIBRARIES(taosscan taos_static os tutil mstorage trpc)
+ENDIF()

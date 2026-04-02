@@ -1,0 +1,92 @@
+#include <winresrc.h>
+#include <winver.h>
+#include "../inc/odbcResource.h"
+
+#ifndef TDENGINE_VERSION
+#define TDENGINE_VERSION "1.5.0"
+#endif
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Dialog
+//
+
+CONFIGDSN DIALOG DISCARDABLE  65, 43, 253, 135
+STYLE DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_VISIBLE | WS_CAPTION | WS_SYSMENU
+CAPTION "TDengine ODBC DSN Configuration"
+FONT 8, "MS Sans Serif"
+BEGIN
+EDITTEXT        IDC_DS,        82, 20, 150, 12, ES_AUTOHSCROLL | WS_GROUP
+EDITTEXT        IDC_IP,        82, 36, 150, 12, ES_AUTOHSCROLL
+EDITTEXT        IDC_DBNAME,    82, 52, 150, 12, ES_AUTOHSCROLL
+EDITTEXT        IDC_USER,      82, 68, 150, 12, ES_AUTOHSCROLL
+EDITTEXT        IDC_PASSWORD,  82, 84, 150, 12, ES_PASSWORD | ES_AUTOHSCROLL
+//PUSHBUTTON    "Browse...",          IDC_BROWSE,         192, 85,  40, 14
+DEFPUSHBUTTON   "OK",                 IDOK,               142, 104, 40, 14
+PUSHBUTTON      "Cancel",             IDCANCEL,           192, 104, 40, 14
+CTEXT           "Enter options for TDengine", 1003,       53,  6,   126, 8
+RTEXT           "DataSource Name:",   IDC_DS_TEXT,        7, 22, 71, 9, NOT WS_GROUP
+RTEXT           "Database IP:",       IDC_IP_TEXT,        7, 38, 71, 9, NOT WS_GROUP
+RTEXT           "Database Name:",     IDC_DBNAME_TEXT,    7, 54, 71, 9, NOT WS_GROUP
+RTEXT           "Database User:",     IDC_USER_TEXT,      7, 70, 71, 9, NOT WS_GROUP
+RTEXT           "Database Password:", IDC_PASSWORD_TEXT,  7, 86, 71, 9, NOT WS_GROUP
+END
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Version
+//
+
+VS_VERSION_INFO VERSIONINFO
+FILEVERSION 1, 1, 4, 0
+PRODUCTVERSION 1, 1, 4, 0
+FILEFLAGSMASK 0x3fL
+FILEOS 0x40004L
+FILETYPE 0x1L
+FILESUBTYPE 0x0L
+BEGIN
+BLOCK "StringFileInfo"
+BEGIN
+BLOCK "040904e4"
+BEGIN
+VALUE "CompanyName",      "TaosData Company\0"
+VALUE "FileDescription",  "TDengine ODBC Driver\0"
+VALUE "FileVersion",      TDENGINE_VERSION "\0"
+VALUE "InternalName",     "TAOSODBC\0"
+VALUE "LegalCopyright",   "Copyright(C) 2017-2018 TaosData\0"
+VALUE "LegalTrademarks",  "\0"
+VALUE "OriginalFilename", "TAOSODBC.DLL\0"
+VALUE "PrivateBuild",     "\0"
+VALUE "ProductName",      "ODBC Driver for TDengine " TDENGINE_VERSION "\0"
+VALUE "ProductVersion",   TDENGINE_VERSION "\0"
+VALUE "SpecialBuild",    "\0"
+END
+END
+BLOCK "VarFileInfo"
+BEGIN
+VALUE "Translation", 0x409, 1252
+END
+END
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// String Table
+//
+
+STRINGTABLE DISCARDABLE 
+BEGIN
+    IDS_MSGTITLE            "TDengine ODBC Setup"
+    IDS_BADDSN              "%s Save Failed."
+    IDS_EXTTITLE            "TDengine ODBC Extension"
+    IDS_EXTERR              "Extension '%s' did not load:\n%s"
+    IDS_DRVTITLE            "TDengine ODBC Driver"
+    IDS_DLLERR              "No usable taosodbc DLL was found."
+END
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Icon
+//
+
+//ico1 ICON "sqliteodbc.ico"

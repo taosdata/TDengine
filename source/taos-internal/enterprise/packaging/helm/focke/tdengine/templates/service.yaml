@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "tdengine.fullname" . }}
+  labels:
+    {{- include "tdengine.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.service.type }}
+  ports: {{ range $idx, $val := .Values.service.ports.tcp }}
+    - name: tcp{{- $idx}}
+      port: {{ $val }}
+      protocol: TCP
+    {{- end }}
+    {{ range $idx, $val := .Values.service.ports.udp }}
+    - name: udp {{- $idx}}
+      port: {{ $val }}
+      protocol: UDP
+    {{- end }}
+  selector:
+    {{- include "tdengine.selectorLabels" . | nindent 4 }}
+    app: "taosd"
+
