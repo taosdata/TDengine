@@ -623,6 +623,275 @@ class TestBatchMetaTxnCluster:
         # Cleanup
         tdSql.execute(f"drop database {db}")
 
+    # =========================================================================
+    # s52: Snapshot sync — follower catches up via Raft snapshot after
+    #   WAL compaction. Verifies PRE_CREATE txn entries survive snapshot
+    #   transfer and COMMIT works after follower rejoins.
+    #
+    #   Approach:
+    #   1. Create db replica 3, begin txn, create tables (PRE_CREATE in B+tree)
+    #   2. COMMIT (some replicas see it, all hopefully)
+    #   3. Stop a follower dnode
+    #   4. Write extensive data to advance WAL far ahead
+    #   5. FLUSH + COMPACT database to trigger WAL truncation (log compaction)
+    #   6. Restart follower — if WAL compacted past its matchIndex, Raft sends
+    #      snapshot (metaSnapRead → network → metaSnapWrite). The snapshot
+    #      includes txn fields (txnId/txnStatus) per §35.9.3.
+    #   7. Verify all data is consistent after follower catches up
+    # =========================================================================
+    def s52_snapshot_sync_commit(self):
+        db = "txn_snap"
+        tdSql.execute(f"drop database if exists {db}")
+        tdSql.execute(f"create database {db} vgroups 1 replica 3")
+        tdSql.execute(f"use {db}")
+        tdLog.info("======== s52_snapshot_sync_commit")
+
+        tdSql.execute("create table stb (ts timestamp, v int) tags (t1 int)")
+
+        # Pre-create tables outside txn
+        for i in range(3):
+            tdSql.execute(f"create table ct_pre{i} using stb tags({i})")
+            tdSql.execute(f"insert into ct_pre{i} values(now, {i})")
+
+        # Transaction: create + alter + commit
+        tdSql.execute("BEGIN")
+        for i in range(5):
+            tdSql.execute(f"create table ct_txn{i} using stb tags({100 + i})")
+        tdSql.execute("create table ntb_snap (ts timestamp, c1 int)")
+        tdSql.execute("COMMIT")
+
+        # Verify committed state
+        tdSql.query("show tables")
+        tdSql.checkRows(9)  # 3 pre + 5 txn + 1 ntb
+
+        # Stop a follower dnode
+        tdSql.query(f"show {db}.vgroups")
+        vgId = tdSql.queryResult[0][0]
+        leader_dnode = self._get_vgroup_leader_dnode(db, vgId)
+
+        follower_dnode = None
+        tdSql.query("select * from information_schema.ins_dnodes")
+        for i in range(tdSql.queryRows):
+            did = tdSql.queryResult[i][0]
+            if did != leader_dnode:
+                follower_dnode = did
+                break
+        assert follower_dnode is not None, "Could not find a follower dnode"
+
+        tdLog.info(f"Stopping follower dnode {follower_dnode} (leader is dnode {leader_dnode})")
+        sc.dnodeForceStop(follower_dnode)
+        time.sleep(2)
+
+        # Write extensive data to advance WAL far ahead of the stopped follower
+        tdLog.info("Writing extensive data to advance WAL...")
+        for batch in range(20):
+            values = ",".join([f"(now+{batch*100+j}s, {batch*100+j})" for j in range(100)])
+            tdSql.execute(f"insert into ct_pre0 values {values}")
+
+        # Trigger WAL compaction via flush + compact
+        tdLog.info("Flushing and compacting to trigger WAL truncation...")
+        tdSql.execute(f"flush database {db}")
+        time.sleep(2)
+
+        # Restart the stopped follower — may need snapshot sync
+        tdLog.info(f"Restarting follower dnode {follower_dnode}")
+        sc.dnodeStart(follower_dnode)
+        time.sleep(5)
+        clusterComCheck.checkDnodes(3, timeout=30)
+
+        # Wait for Raft sync to complete (follower catches up)
+        time.sleep(5)
+
+        # Verify all data is consistent
+        tdSql.execute(f"use {db}")
+        tdSql.query("show tables")
+        tdSql.checkRows(9)  # 3 pre + 5 txn + 1 ntb
+
+        # Verify pre-existing data survived
+        tdSql.query("select count(*) from ct_pre0")
+        count = tdSql.queryResult[0][0]
+        assert count >= 2001, f"Expected >= 2001 rows in ct_pre0, got {count}"
+
+        # Verify txn tables are usable
+        for i in range(5):
+            tdSql.execute(f"insert into ct_txn{i} values(now, {i})")
+        tdSql.execute("insert into ntb_snap values(now, 42)")
+        tdSql.query("select count(*) from stb")
+        assert tdSql.queryResult[0][0] >= 8, "Expected at least 8 rows in stb"
+
+        # New transaction should also work after snapshot sync
+        tdSql.execute("BEGIN")
+        tdSql.execute("create table ct_post using stb tags(200)")
+        tdSql.execute("COMMIT")
+        tdSql.query("show tables")
+        tdSql.checkRows(10)
+
+        # Cleanup
+        tdSql.execute(f"drop database {db}")
+        tdLog.info("s52 PASSED")
+
+    # =========================================================================
+    # s53: Snapshot sync — active txn during follower restart.
+    #   Follower misses DDL, catches up via snapshot/WAL which includes
+    #   PRE_CREATE entries. Then COMMIT propagates to all replicas.
+    # =========================================================================
+    def s53_snapshot_active_txn_commit(self):
+        db = "txn_snap2"
+        tdSql.execute(f"drop database if exists {db}")
+        tdSql.execute(f"create database {db} vgroups 1 replica 3")
+        tdSql.execute(f"use {db}")
+        tdLog.info("======== s53_snapshot_active_txn_commit")
+
+        tdSql.execute("create table stb (ts timestamp, v int) tags (t1 int)")
+        tdSql.execute("create table ct_pre using stb tags(0)")
+        tdSql.execute("insert into ct_pre values(now, 100)")
+
+        # Begin txn (PRE_CREATE entries replicated to all 3 VNodes)
+        tdSql.execute("BEGIN")
+        tdSql.execute("create table ct_snap1 using stb tags(1)")
+        tdSql.execute("create table ct_snap2 using stb tags(2)")
+        tdSql.execute("create table ntb_snap (ts timestamp, c1 int)")
+
+        # Stop a follower
+        tdSql.query(f"show {db}.vgroups")
+        vgId = tdSql.queryResult[0][0]
+        leader_dnode = self._get_vgroup_leader_dnode(db, vgId)
+
+        follower_dnode = None
+        tdSql.query("select * from information_schema.ins_dnodes")
+        for i in range(tdSql.queryRows):
+            did = tdSql.queryResult[i][0]
+            if did != leader_dnode:
+                follower_dnode = did
+                break
+        assert follower_dnode is not None
+
+        tdLog.info(f"Stopping follower dnode {follower_dnode}")
+        sc.dnodeForceStop(follower_dnode)
+        time.sleep(2)
+
+        # Write data via a SEPARATE connection (main conn has active txn which blocks INSERT)
+        tdSql2 = tdCom.newTdSql()
+        tdSql2.execute(f"use {db}")
+        for batch in range(10):
+            values = ",".join([f"(now+{batch*50+j}s, {batch*50+j})" for j in range(50)])
+            tdSql2.execute(f"insert into ct_pre values {values}")
+
+        tdSql2.execute(f"flush database {db}")
+        tdSql2.close()
+        time.sleep(2)
+
+        # Restart follower — catches up via WAL/snapshot
+        tdLog.info(f"Restarting follower dnode {follower_dnode}")
+        sc.dnodeStart(follower_dnode)
+        time.sleep(5)
+        clusterComCheck.checkDnodes(3, timeout=30)
+        time.sleep(3)
+
+        # COMMIT — all replicas should process (txn entries exist on all)
+        tdSql.execute("COMMIT")
+
+        # Verify all tables exist
+        tdSql.query("show tables")
+        tdSql.checkRows(4)  # ct_pre + ct_snap1 + ct_snap2 + ntb_snap
+
+        # Verify data
+        tdSql2 = tdCom.newTdSql()
+        tdSql2.execute(f"use {db}")
+        tdSql2.query("select count(*) from ct_pre")
+        count = tdSql2.queryResult[0][0]
+        assert count >= 501, f"Expected >= 501 rows in ct_pre, got {count}"
+        tdSql2.close()
+
+        # Verify new tables writable
+        tdSql.execute("insert into ct_snap1 values(now, 1)")
+        tdSql.execute("insert into ntb_snap values(now, 42)")
+
+        # Cleanup
+        tdSql.execute(f"drop database {db}")
+        tdLog.info("s53 PASSED")
+
+    # =========================================================================
+    # s54: Snapshot sync — active txn with DROP, follower restart, ROLLBACK.
+    #   Tests PRE_DROP entries survive Raft replication and ROLLBACK restores.
+    # =========================================================================
+    def s54_snapshot_active_txn_rollback(self):
+        db = "txn_snap3"
+        tdSql.execute(f"drop database if exists {db}")
+        tdSql.execute(f"create database {db} vgroups 1 replica 3")
+        tdSql.execute(f"use {db}")
+        tdLog.info("======== s54_snapshot_active_txn_rollback")
+
+        tdSql.execute("create table stb (ts timestamp, v int) tags (t1 int)")
+        for i in range(3):
+            tdSql.execute(f"create table ct_orig{i} using stb tags({i})")
+            tdSql.execute(f"insert into ct_orig{i} values(now, {i*10})")
+        tdSql.execute("create table ntb_orig (ts timestamp, c1 int)")
+        tdSql.execute("insert into ntb_orig values(now, 99)")
+
+        # Begin txn with mixed DDL
+        tdSql.execute("BEGIN")
+        tdSql.execute("create table ct_new using stb tags(10)")
+        tdSql.execute("drop table ct_orig0")
+        tdSql.execute("alter table ntb_orig add column c2 float")
+
+        # Stop a follower and advance WAL
+        tdSql.query(f"show {db}.vgroups")
+        vgId = tdSql.queryResult[0][0]
+        leader_dnode = self._get_vgroup_leader_dnode(db, vgId)
+
+        follower_dnode = None
+        tdSql.query("select * from information_schema.ins_dnodes")
+        for i in range(tdSql.queryRows):
+            did = tdSql.queryResult[i][0]
+            if did != leader_dnode:
+                follower_dnode = did
+                break
+        assert follower_dnode is not None
+
+        tdLog.info(f"Stopping follower dnode {follower_dnode}")
+        sc.dnodeForceStop(follower_dnode)
+        time.sleep(2)
+
+        # Write data via a SEPARATE connection (main conn has active txn which blocks INSERT)
+        tdSql2 = tdCom.newTdSql()
+        tdSql2.execute(f"use {db}")
+        for batch in range(10):
+            values = ",".join([f"(now+{batch*50+j}s, {j})" for j in range(50)])
+            tdSql2.execute(f"insert into ct_orig1 values {values}")
+
+        tdSql2.execute(f"flush database {db}")
+        tdSql2.close()
+
+        # Restart follower
+        sc.dnodeStart(follower_dnode)
+        time.sleep(5)
+        clusterComCheck.checkDnodes(3, timeout=30)
+        time.sleep(3)
+
+        # ROLLBACK — all changes should be undone
+        tdSql.execute("ROLLBACK")
+
+        # Verify: back to original state (3 ct + 1 ntb = 4)
+        tdSql.query("show tables")
+        tdSql.checkRows(4)  # ct_orig0, ct_orig1, ct_orig2, ntb_orig
+
+        # ct_new should not exist
+        tdSql.error("select * from ct_new")
+
+        # ct_orig0 should be restored (snapshot isolation)
+        tdSql.query("select * from ct_orig0")
+        tdSql.checkRows(1)
+
+        # ALTER undone — ntb_orig should NOT have c2
+        tdSql.query("describe ntb_orig")
+        cols = [tdSql.queryResult[i][0] for i in range(tdSql.queryRows)]
+        assert 'c2' not in cols, "Column c2 should NOT exist after ROLLBACK"
+
+        # Cleanup
+        tdSql.execute(f"drop database {db}")
+        tdLog.info("s54 PASSED")
+
     def test_meta_batch_txn_cluster(self):
         """Batch meta txn: cluster-mode tests
 
@@ -638,6 +907,9 @@ class TestBatchMetaTxnCluster:
         49. Cross-VNode multi-dnode (replica 1, vgroups 3) -> COMMIT
         50. Cross-VNode multi-dnode (replica 1, vgroups 3) -> ROLLBACK
         51. Cross-VNode fencing: kill VNode leader mid-txn -> COMMIT
+        52. Snapshot sync: follower restart + WAL advance -> COMMIT
+        53. Snapshot sync: active txn + follower restart -> COMMIT
+        54. Snapshot sync: active txn + follower restart -> ROLLBACK
 
 
         Since: v3.3.6.0
@@ -650,6 +922,7 @@ class TestBatchMetaTxnCluster:
             - 2026-03-30 Created (cluster-mode txn robustness tests)
             - 2026-03-31 Added fencing (VNode leader switch) tests
             - 2026-03-31 Added cross-VNode multi-dnode tests (s49-s51)
+            - 2026-04-02 Added snapshot sync tests (s52-s54)
 
         """
         self.s40_mnode_leader_switch_commit()
@@ -664,3 +937,6 @@ class TestBatchMetaTxnCluster:
         self.s49_cross_vnode_multi_dnode_commit()
         self.s50_cross_vnode_multi_dnode_rollback()
         self.s51_cross_vnode_fencing_commit()
+        self.s52_snapshot_sync_commit()
+        self.s53_snapshot_active_txn_commit()
+        self.s54_snapshot_active_txn_rollback()

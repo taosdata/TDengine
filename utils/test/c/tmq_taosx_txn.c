@@ -95,6 +95,8 @@ static TAOS *connect_db(const char *db) {
   return taos;
 }
 
+static tmq_t *create_consumer_ex(const char *group_id);
+
 static void setup_source(int scenario) {
   TAOS *taos = connect_db(NULL);
 
@@ -214,6 +216,16 @@ static void setup_source(int scenario) {
       do_query(taos, "COMMIT");
       break;
     }
+    case 12: {
+      // Low-watermark replay: same as s1, Python wrapper handles double replay
+      do_query(taos, "BEGIN");
+      do_query(taos, "create table stb1 (ts timestamp, v int) tags (t1 int)");
+      do_query(taos, "create table ct1 using stb1 tags(1)");
+      do_query(taos, "create table ct2 using stb1 tags(2)");
+      do_query(taos, "create table ntb1 (ts timestamp, v int)");
+      do_query(taos, "COMMIT");
+      break;
+    }
     default:
       printf("Unknown scenario: %d\n", scenario);
       exit(1);
@@ -223,9 +235,11 @@ static void setup_source(int scenario) {
   printf("Source DB setup complete for scenario %d\n", scenario);
 }
 
-static tmq_t *create_consumer(void) {
+static tmq_t *create_consumer(void) { return create_consumer_ex("taosx_txn_test"); }
+
+static tmq_t *create_consumer_ex(const char *group_id) {
   tmq_conf_t *conf = tmq_conf_new();
-  tmq_conf_set(conf, "group.id", "taosx_txn_test");
+  tmq_conf_set(conf, "group.id", group_id);
   tmq_conf_set(conf, "auto.offset.reset", "earliest");
   tmq_conf_set(conf, "msg.with.table.name", "true");
   tmq_conf_set(conf, "td.connect.user", "root");
@@ -284,6 +298,38 @@ static void replicate_to_target(void) {
   }
 
   printf("Replication finished: %d messages\n", msg_count);
+  tmq_consumer_close(consumer);
+  taos_close(dst);
+}
+
+static void replicate_with_group(const char *group_id) {
+  tmq_t *consumer = create_consumer_ex(group_id);
+  TAOS  *dst = connect_db(DST_DB);
+  int    msg_count = 0;
+  int    empty_polls = 0;
+  int    max_empty = 10;
+
+  printf("Starting replication (group=%s)...\n", group_id);
+  while (empty_polls < max_empty) {
+    TAOS_RES *msg = tmq_consumer_poll(consumer, 1000);
+    if (!msg) {
+      empty_polls++;
+      continue;
+    }
+    empty_polls = 0;
+    msg_count++;
+
+    tmq_raw_data raw = {0};
+    int32_t      code = tmq_get_raw(msg, &raw);
+    if (code == 0) {
+      int32_t ret = tmq_write_raw(dst, raw);
+      printf("  replay msg %d: raw_type=%d, result=%s (%d)\n", msg_count, raw.raw_type, tmq_err2str(ret), ret);
+      tmq_free_raw(raw);
+    }
+    taos_free_result(msg);
+  }
+
+  printf("Replay finished (group=%s): %d messages\n", group_id, msg_count);
   tmq_consumer_close(consumer);
   taos_close(dst);
 }
@@ -400,6 +446,17 @@ static int verify_scenario(int scenario) {
       if (tbl_count != 12) pass = 0;
       break;
     }
+    case 12: {
+      // Low-watermark replay: STB + 2 CTBs + 1 NTB after double replay
+      int stb_count = query_rows(dst, "show " DST_DB ".stables");
+      printf("verify s12: stables=%d (expected 1)\n", stb_count);
+      if (stb_count != 1) pass = 0;
+
+      int tbl_count = query_rows(dst, "show " DST_DB ".tables");
+      printf("verify s12: tables=%d (expected 3)\n", tbl_count);
+      if (tbl_count != 3) pass = 0;
+      break;
+    }
     default:
       printf("Unknown scenario: %d\n", scenario);
       pass = 0;
@@ -431,6 +488,7 @@ int main(int argc, char *argv[]) {
     printf("  9: CREATE normal table + DROP + COMMIT\n");
     printf("  10: Mixed STB + CTB + normal table + COMMIT\n");
     printf("  11: Multi-VGroup: STB + 10 CTBs + 2 NTBs + COMMIT\n");
+    printf("  12: Low-watermark replay: double replay for idempotent recovery\n");
     return 1;
   }
 
@@ -442,6 +500,13 @@ int main(int argc, char *argv[]) {
 
   // Phase 2: Replicate via TMQ
   replicate_to_target();
+
+  // Phase 2b: For scenario 12, replay again with a new consumer group
+  // Simulates crash recovery with low-watermark offset reset
+  if (scenario == 12) {
+    printf("=== s12: Replay #2 (simulating crash recovery from beginning) ===\n");
+    replicate_with_group("taosx_txn_replay");
+  }
 
   // Phase 3: Verify target
   int pass = verify_scenario(scenario);

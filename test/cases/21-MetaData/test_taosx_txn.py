@@ -200,6 +200,18 @@ class TestTaosxTxn:
         tdLog.info("s11 PASSED")
 
     # =========================================================================
+    # s12: Low-watermark replay (crash recovery simulation)
+    #   Replays all WAL messages twice with different consumer groups.
+    #   Verifies idempotent handling: TABLE_ALREADY_EXIST, TXN_CONFLICT,
+    #   and duplicate COMMIT are all handled gracefully.
+    # =========================================================================
+    def s12_low_watermark_replay(self):
+        self.s0_cleanup()
+        tdLog.info("======== s12: Low-watermark replay → double consume → target correct")
+        _run_scenario(12)
+        tdLog.info("s12 PASSED")
+
+    # =========================================================================
     # Entry point
     # =========================================================================
     def test_taosx_txn(self):
@@ -210,6 +222,7 @@ class TestTaosxTxn:
         3. CREATE STB → ALTER STB → COMMIT → target has altered schema
         4. CREATE STB → DROP STB → COMMIT → target no STB
         5. Idempotent COMMIT replay
+        12. Low-watermark replay (crash recovery)
 
         Since: v3.3.6.0
 
@@ -219,6 +232,7 @@ class TestTaosxTxn:
 
         History:
             - 2026-04-01 Created — §35 target-side TMQ replication tests
+            - 2026-04-02 Added s12 low-watermark replay test
 
         """
         self.s1_commit_stb_and_ctb()
@@ -232,3 +246,4 @@ class TestTaosxTxn:
         self.s9_drop_ntb_commit()
         self.s10_mixed_commit()
         self.s11_multi_vgroup()
+        self.s12_low_watermark_replay()

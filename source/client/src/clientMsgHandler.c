@@ -1539,8 +1539,14 @@ void tscResetTxnState(STscObj* pTscObj) {
       void*  pIter = taosHashIterate(pTscObj->pTxnTableMeta, NULL);
       while (pIter) {
         char* key = (char*)taosHashGetKey(pIter, &keyLen);
+        // Hash keys are NOT null-terminated (stored with strlen, no +1).
+        // tNameFromString calls strlen(), so we must copy to a null-terminated buffer.
+        char nameBuf[TSDB_TABLE_FNAME_LEN + 1];
+        size_t copyLen = TMIN(keyLen, (size_t)TSDB_TABLE_FNAME_LEN);
+        memcpy(nameBuf, key, copyLen);
+        nameBuf[copyLen] = '\0';
         SName name = {0};
-        if (tNameFromString(&name, key, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE) == 0) {
+        if (tNameFromString(&name, nameBuf, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE) == 0) {
           catalogRemoveTableMeta(pCatalog, &name);
         }
         pIter = taosHashIterate(pTscObj->pTxnTableMeta, pIter);
