@@ -1256,7 +1256,7 @@ int32_t  ctgGetStreamProgressFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, 
                                        void* bInput, int32_t nodeId);
 int32_t ctgAddBatch(SCatalog* pCtg, int32_t vgId, SRequestConnInfo* pConn, SCtgTaskReq* tReq, int32_t msgType,
                     void* msg, uint32_t msgLen);
-int32_t ctgGetVStbRefDbsFromVnode(SCatalog* pCtg, SRequestConnInfo* pConn, int64_t suid, SVgroupInfo* vgroupInfo, SCtgTaskReq* tReq);
+
 int32_t ctgGetVSubtablesMetaFromVnode(SCatalog* pCtg, SRequestConnInfo* pConn, int64_t suid, SVgroupInfo* vgroupInfo, SCtgTaskReq* tReq);
 int32_t ctgAddTSMAFetch(SArray** pFetchs, int32_t dbIdx, int32_t tbIdx, int32_t* fetchIdx, int32_t resIdx, int32_t flag,
                         CTG_TSMA_FETCH_TYPE fetchType, const SName* sourceTbName);

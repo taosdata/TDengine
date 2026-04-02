@@ -1292,12 +1292,6 @@ int32_t sclExecFunction(SFunctionNode *node, SScalarCtx *ctx, SScalarParam *outp
       SCL_ERR_JRET(code);
     }
 
-    if (node->funcId == 0 || 0 == strcmp(node->functionName, "tbname")) {
-      sclError("scalar dispatch function:%s funcId:%d funcType:%d rowNum:%d resType:%d resBytes:%d",
-               node->functionName, node->funcId, node->funcType, rowNum,
-               node->node.resType.type, node->node.resType.bytes);
-    }
-
     if (rowNum == 0) {
       goto _return;
     }

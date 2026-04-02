@@ -2222,8 +2222,9 @@ _return:
  *
  * See: /root/tddoc/03-planner.md and /root/tddoc/04-virtual-super-table-query.md
  *
- * Note: The resolveTagValsForVtbChild function below is only kept for non-TagRef
- *       column references (refType != 1). All TagRef processing has been removed.
+ * Note: The resolveTagValsForVtbChild function below only processes TagRef
+ *       column references (refType == 1). All non-TagRef references are ignored.
+ *       All TagRef processing is handled here; other references are not processed.
  * ============================================================================
  */
 static int32_t resolveTagValsForVtbChild(SOperatorInfo* pOperator, SArray* pColRefInfo,

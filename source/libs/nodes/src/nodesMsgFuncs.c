@@ -1939,9 +1939,7 @@ static int32_t tagRefColumnInlineToMsg(const void* pObj, STlvEncoder* pEncoder) 
 }
 
 static int32_t tagRefColumnToMsg(const void* pObj, STlvEncoder* pEncoder) {
-  const STagRefColumn* pNode = (const STagRefColumn*)pObj;
-  nodesError("tagRefColumnToMsg: type=%d colId=%d sourceColId=%d dataType=%d",
-             ((const SNode*)pObj)->type, pNode->colId, pNode->sourceColId, pNode->dataType);
+  // Only log errors on actual encode failures, not on normal encoding.
   return tlvEncodeObj(pEncoder, TAG_REF_COLUMN_CODE_INLINE_ATTRS, tagRefColumnInlineToMsg, pObj);
 }
 

@@ -454,7 +454,7 @@ static int32_t ctgBuildVStbNextLayerReqs(int32_t curLayer, SArray* pLayerRefs, S
       SColRef* pColRef = NULL;
 
       if (curLayer >= 5) {
-        CTG_ERR_JRET(TSDB_CODE_VTABLE_TOO_MANY_REFERENCE);
+        CTG_ERR_JRET(TSDB_CODE_VTABLE_REF_DEPTH_EXCEEDED);
       }
 
       CTG_ERR_JRET(ctgFindVStbColRef(*ppMeta, pRef->colName, &pColRef));
