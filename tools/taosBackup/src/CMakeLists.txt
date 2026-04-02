@@ -149,6 +149,20 @@ if(NOT ${TD_WINDOWS})
             -Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/zstd_local.map
         )
     endif()
+
+    # Link-Time Optimization for non-Debug builds.
+    # Works together with -Os (Arrow) and --gc-sections to eliminate dead code
+    # at a finer granularity than section-level stripping alone.
+    if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
+        include(CheckIPOSupported)
+        check_ipo_supported(RESULT _ipo_ok OUTPUT _ipo_err LANGUAGES C CXX)
+        if(_ipo_ok)
+            set_target_properties(taosBackup PROPERTIES INTERPROCEDURAL_OPTIMIZATION TRUE)
+            message(STATUS "taosBackup: LTO enabled")
+        else()
+            message(STATUS "taosBackup: LTO not available (${_ipo_err}), skipping")
+        endif()
+    endif()
 endif()
 
 # link taos
@@ -169,6 +183,16 @@ if(APPLE)
     target_link_libraries(taosBackup PRIVATE
         "-framework CoreFoundation"
         "-framework Security"
+    )
+endif()
+
+# Strip DWARF debug sections after linking to shrink the installed binary.
+# --strip-debug removes .debug_* sections but keeps .symtab / .strtab so that
+# backtraces from core files still resolve to full function names.
+if(NOT ${TD_WINDOWS})
+    add_custom_command(TARGET taosBackup POST_BUILD
+        COMMAND ${CMAKE_STRIP} --strip-debug $<TARGET_FILE:taosBackup>
+        COMMENT "Stripping debug sections from taosBackup"
     )
 endif()
 
