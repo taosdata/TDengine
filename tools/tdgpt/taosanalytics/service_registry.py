@@ -40,7 +40,7 @@ class DynamicForecastService(AbstractForecastService):
     def execute(self):
         """ the actual model can be loaded and executed when execute() is called. """
         algo_name = self.algo.lower()
-        AppLogger.info("execute dynamic forecast service:%s, algo:%s, params:%s", self.name, algo_name)
+        AppLogger.info("execute dynamic forecast service:%s, algo:%s", self.name, algo_name)
 
         if algo_name == 'arima':
             # 1. build a pandas dataframe with the required columns,
@@ -89,7 +89,7 @@ class DynamicForecastService(AbstractForecastService):
 class ServiceRegistry:
     """ Singleton register for multiple anomaly detection algorithms and fc algorithms"""
 
-    _only_params_models = ['arima', 'prophet', 'theta', 'holtwinters', 'lof']
+    _only_params_models = ['arima', 'prophet', 'theta', 'holtwinters']
 
     _base_class_name = [
         AbstractAnomalyDetectionService.__name__,
