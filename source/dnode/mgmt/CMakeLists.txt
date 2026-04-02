@@ -20,6 +20,14 @@ target_include_directories(
 
 target_link_libraries(taosd PUBLIC dnode crypt)
 
+if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+  include(CheckLinkerFlag)
+  check_linker_flag(C "-Wl,-no_warn_duplicate_libraries" HAVE_NO_WARN_DUP_LIBS)
+  if(HAVE_NO_WARN_DUP_LIBS)
+    target_link_options(taosd PRIVATE -Wl,-no_warn_duplicate_libraries)
+  endif()
+endif()
+
 if(TD_ENTERPRISE)
   if(BUILD_WITH_S3)
     add_definitions(-DUSE_S3)

@@ -9,7 +9,11 @@ endif()
 if(TD_DARWIN)
     target_compile_options(${TAOS_LIB} PRIVATE -Wno-error=deprecated-non-prototype)
     # Suppress ld64 duplicate static library warnings from deep transitive deps.
-    target_link_options(${TAOS_LIB} PRIVATE -Wl,-no_warn_duplicate_libraries)
+    include(CheckLinkerFlag)
+    check_linker_flag(C "-Wl,-no_warn_duplicate_libraries" HAVE_NO_WARN_DUP_LIBS)
+    if(HAVE_NO_WARN_DUP_LIBS)
+      target_link_options(${TAOS_LIB} PRIVATE -Wl,-no_warn_duplicate_libraries)
+    endif()
 endif()
 
 # jni include
