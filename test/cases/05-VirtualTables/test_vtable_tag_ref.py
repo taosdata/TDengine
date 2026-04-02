@@ -583,11 +583,20 @@ class TestVtableTagRef:
     def test_create_old_syntax(self):
         """Create: old tag ref syntax (FROM table.tag)
 
-        Catalog: - VirtualTable
+        create: old tag ref syntax (FROM table.tag)
+
+        Catalog:
+            - VirtualTable
+
         Since: v3.3.6.0
+
         Labels: virtual, create, tag_ref
+
         Jira: None
-        History: - 2026-2-11 Created
+
+        History:
+            - 2026-2-11 Created
+
         """
         tdSql.execute(f"USE {DB_DDL};")
         tdSql.execute("CREATE VTABLE vctb_old_0 ("
@@ -604,11 +613,20 @@ class TestVtableTagRef:
     def test_create_specific_syntax(self):
         """Create: specific syntax (tag_name FROM table.tag)
 
-        Catalog: - VirtualTable
+        create: specific syntax (tag_name FROM table.tag)
+
+        Catalog:
+            - VirtualTable
+
         Since: v3.3.6.0
+
         Labels: virtual, create, tag_ref
+
         Jira: None
-        History: - 2026-2-11 Created
+
+        History:
+            - 2026-2-11 Created
+
         """
         tdSql.execute(f"USE {DB_DDL};")
         # All tags from same source
@@ -643,11 +661,20 @@ class TestVtableTagRef:
     def test_create_positional_syntax(self):
         """Create: positional syntax (table.tag / db.table.tag)
 
-        Catalog: - VirtualTable
+        create: positional syntax (table.tag / db.table.tag)
+
+        Catalog:
+            - VirtualTable
+
         Since: v3.3.6.0
+
         Labels: virtual, create, tag_ref
+
         Jira: None
-        History: - 2026-2-11 Created
+
+        History:
+            - 2026-2-11 Created
+
         """
         tdSql.execute(f"USE {DB_DDL};")
         # 2-part: table.tag
@@ -669,11 +696,20 @@ class TestVtableTagRef:
     def test_create_mixed_syntax(self):
         """Create: mixed syntax (literal + old FROM + specific + positional)
 
-        Catalog: - VirtualTable
+        create: mixed syntax (literal + old FROM + specific + positional)
+
+        Catalog:
+            - VirtualTable
+
         Since: v3.3.6.0
+
         Labels: virtual, create, tag_ref
+
         Jira: None
-        History: - 2026-2-11 Created
+
+        History:
+            - 2026-2-11 Created
+
         """
         tdSql.execute(f"USE {DB_DDL};")
         tdSql.execute("CREATE VTABLE vctb_mix_0 ("
@@ -695,11 +731,20 @@ class TestVtableTagRef:
     def test_create_cross_db(self):
         """Create: cross-database tag references
 
-        Catalog: - VirtualTable
+        create: cross-database tag references
+
+        Catalog:
+            - VirtualTable
+
         Since: v3.3.6.0
+
         Labels: virtual, create, tag_ref
+
         Jira: None
-        History: - 2026-2-11 Created
+
+        History:
+            - 2026-2-11 Created
+
         """
         tdSql.execute(f"USE {DB_DDL};")
         # Specific syntax cross-DB
@@ -739,11 +784,20 @@ class TestVtableTagRef:
     def test_metadata_show_describe(self):
         """Metadata: SHOW CREATE VTABLE, DESCRIBE, SHOW TAGS
 
-        Catalog: - VirtualTable
+        metadata: SHOW CREATE VTABLE, DESCRIBE, SHOW TAGS
+
+        Catalog:
+            - VirtualTable
+
         Since: v3.3.6.0
+
         Labels: virtual, metadata, tag_ref
+
         Jira: None
-        History: - 2026-2-11 Created
+
+        History:
+            - 2026-2-11 Created
+
         """
         tdSql.execute(f"USE {DB_DDL};")
 
@@ -770,11 +824,20 @@ class TestVtableTagRef:
     def test_error_cases(self):
         """Error: invalid tag ref patterns
 
-        Catalog: - VirtualTable
+        error: invalid tag ref patterns
+
+        Catalog:
+            - VirtualTable
+
         Since: v3.3.6.0
+
         Labels: virtual, create, tag_ref, negative
+
         Jira: None
-        History: - 2026-2-11 Created
+
+        History:
+            - 2026-2-11 Created
+
         """
         tdSql.execute(f"USE {DB_DDL};")
 
@@ -808,11 +871,20 @@ class TestVtableTagRef:
     def test_must_reference_tag_column(self):
         """Error: tag ref must point to actual tag, not data column
 
-        Catalog: - VirtualTable
+        error: tag ref must point to actual tag, not data column
+
+        Catalog:
+            - VirtualTable
+
         Since: v3.3.6.0
+
         Labels: virtual, create, tag_ref, negative
+
         Jira: None
-        History: - 2026-2-12 Created
+
+        History:
+            - 2026-2-12 Created
+
         """
         tdSql.execute(f"USE {DB_DDL};")
         err = tdSql.error("CREATE VTABLE vctb_nt_0 (int_col FROM org_child_0.int_col) USING vstb TAGS ("
@@ -833,11 +905,20 @@ class TestVtableTagRef:
     def test_drop_recreate(self):
         """Lifecycle: drop and recreate vtable with tag refs
 
-        Catalog: - VirtualTable
+        lifecycle: drop and recreate vtable with tag refs
+
+        Catalog:
+            - VirtualTable
+
         Since: v3.3.6.0
+
         Labels: virtual, create, drop, tag_ref
+
         Jira: None
-        History: - 2026-2-11 Created
+
+        History:
+            - 2026-2-11 Created
+
         """
         tdSql.execute(f"USE {DB_DDL};")
         tdSql.execute("CREATE VTABLE vctb_temp (int_col FROM org_child_0.int_col) USING vstb TAGS ("
@@ -860,11 +941,20 @@ class TestVtableTagRef:
     def test_all_literal_compat(self):
         """Compat: all literal tags (no refs) backward compatibility
 
-        Catalog: - VirtualTable
+        compat: all literal tags (no refs) backward compatibility
+
+        Catalog:
+            - VirtualTable
+
         Since: v3.3.6.0
+
         Labels: virtual, create, tag_ref
+
         Jira: None
-        History: - 2026-2-11 Created
+
+        History:
+            - 2026-2-11 Created
+
         """
         tdSql.execute(f"USE {DB_DDL};")
         tdSql.execute("CREATE VTABLE vctb_lit_0 ("
@@ -886,11 +976,18 @@ class TestVtableTagRef:
         Each child refs data and tags from ts_a tables via cross-DB.
         8 same-source + 12 cross-source tag combinations.
 
-        Catalog: - VirtualTable
+        Catalog:
+            - VirtualTable
+
         Since: v3.3.6.0
+
         Labels: virtual, query, tag_ref, cross_db
+
         Jira: None
-        History: - 2026-3-31 Created
+
+        History:
+            - 2026-3-31 Created
+
         """
         tdSql.execute("USE td_main;")
         for vt, d, c, p in SCALE:
@@ -902,11 +999,20 @@ class TestVtableTagRef:
     def test_query_scale_stb(self):
         """Query: scale virtual super table aggregation and filtering
 
-        Catalog: - VirtualTable
+        query: scale virtual super table aggregation and filtering
+
+        Catalog:
+            - VirtualTable
+
         Since: v3.3.6.0
+
         Labels: virtual, query, tag_ref, stb
+
         Jira: None
-        History: - 2026-3-31 Created
+
+        History:
+            - 2026-3-31 Created
+
         """
         tdSql.execute("USE td_main;")
 
@@ -984,11 +1090,20 @@ class TestVtableTagRef:
     def test_query_3db_child_10(self):
         """Query: 10 child tables with tags from 3 source DBs
 
-        Catalog: - VirtualTable
+        query: 10 child tables with tags from 3 source DBs
+
+        Catalog:
+            - VirtualTable
+
         Since: v3.3.6.0
+
         Labels: virtual, query, tag_ref, cross_db, multi_db
+
         Jira: None
-        History: - 2026-3-31 Created
+
+        History:
+            - 2026-3-31 Created
+
         """
         tdSql.execute("USE td_main;")
         for vt, ddb, dtbl, csrc, nsrc, lsrc in TRIDB:
@@ -1003,11 +1118,20 @@ class TestVtableTagRef:
     def test_query_3db_stb(self):
         """Query: 3-DB virtual super table queries
 
-        Catalog: - VirtualTable
+        query: 3-DB virtual super table queries
+
+        Catalog:
+            - VirtualTable
+
         Since: v3.3.6.0
+
         Labels: virtual, query, tag_ref, stb, multi_db
+
         Jira: None
-        History: - 2026-3-31 Created
+
+        History:
+            - 2026-3-31 Created
+
         """
         tdSql.execute("USE td_main;")
 
@@ -1057,11 +1181,20 @@ class TestVtableTagRef:
     def test_query_dup_child_5(self):
         """Query: 5 child tables with duplicate/overlapping tag refs
 
-        Catalog: - VirtualTable
+        query: 5 child tables with duplicate/overlapping tag refs
+
+        Catalog:
+            - VirtualTable
+
         Since: v3.3.6.0
+
         Labels: virtual, query, tag_ref, dup_ref
+
         Jira: None
-        History: - 2026-3-31 Created
+
+        History:
+            - 2026-3-31 Created
+
         """
         tdSql.execute("USE td_main;")
         for vt, dsrc, t1d, t1t, t1c, t2d, t2t, t2c, t3d, t3t, t3c in DUP:
@@ -1076,11 +1209,20 @@ class TestVtableTagRef:
     def test_query_dup_stb(self):
         """Query: dup tag ref virtual super table queries
 
-        Catalog: - VirtualTable
+        query: dup tag ref virtual super table queries
+
+        Catalog:
+            - VirtualTable
+
         Since: v3.3.6.0
+
         Labels: virtual, query, tag_ref, stb, dup_ref
+
         Jira: None
-        History: - 2026-3-31 Created
+
+        History:
+            - 2026-3-31 Created
+
         """
         tdSql.execute("USE td_main;")
 
@@ -1114,11 +1256,20 @@ class TestVtableTagRef:
     def test_query_mixed_child_8(self):
         """Query: 8 child tables with literal + cross-DB tag refs
 
-        Catalog: - VirtualTable
+        query: 8 child tables with literal + cross-DB tag refs
+
+        Catalog:
+            - VirtualTable
+
         Since: v3.3.6.0
+
         Labels: virtual, query, tag_ref, mixed, cross_db
+
         Jira: None
-        History: - 2026-3-31 Created
+
+        History:
+            - 2026-3-31 Created
+
         """
         tdSql.execute("USE td_main;")
         for vt, dsrc, lit, csrc, bsrc in MIXED:
@@ -1132,11 +1283,20 @@ class TestVtableTagRef:
     def test_query_mixed_stb(self):
         """Query: mixed literal+ref virtual super table queries
 
-        Catalog: - VirtualTable
+        query: mixed literal+ref virtual super table queries
+
+        Catalog:
+            - VirtualTable
+
         Since: v3.3.6.0
+
         Labels: virtual, query, tag_ref, stb, mixed
+
         Jira: None
-        History: - 2026-3-31 Created
+
+        History:
+            - 2026-3-31 Created
+
         """
         tdSql.execute("USE td_main;")
 
@@ -1176,11 +1336,20 @@ class TestVtableTagRef:
     def test_query_local_child_5(self):
         """Query: 5 child tables with same-DB local tag refs
 
-        Catalog: - VirtualTable
+        query: 5 child tables with same-DB local tag refs
+
+        Catalog:
+            - VirtualTable
+
         Since: v3.3.6.0
+
         Labels: virtual, query, tag_ref, same_db
+
         Jira: None
-        History: - 2026-3-31 Created
+
+        History:
+            - 2026-3-31 Created
+
         """
         tdSql.execute("USE td_aux;")
         for vt, d, c, p in LOCAL:
@@ -1194,11 +1363,20 @@ class TestVtableTagRef:
     def test_query_local_stb(self):
         """Query: local ref virtual super table queries
 
-        Catalog: - VirtualTable
+        query: local ref virtual super table queries
+
+        Catalog:
+            - VirtualTable
+
         Since: v3.3.6.0
+
         Labels: virtual, query, tag_ref, stb, same_db
+
         Jira: None
-        History: - 2026-3-31 Created
+
+        History:
+            - 2026-3-31 Created
+
         """
         tdSql.execute("USE td_aux;")
 
@@ -1231,11 +1409,20 @@ class TestVtableTagRef:
     def test_query_hybrid_child_4(self):
         """Query: 4 child tables mixing local and cross-DB tag refs
 
-        Catalog: - VirtualTable
+        query: 4 child tables mixing local and cross-DB tag refs
+
+        Catalog:
+            - VirtualTable
+
         Since: v3.3.6.0
+
         Labels: virtual, query, tag_ref, hybrid, cross_db
+
         Jira: None
-        History: - 2026-3-31 Created
+
+        History:
+            - 2026-3-31 Created
+
         """
         tdSql.execute("USE td_aux;")
         for vt, local, dtbl, csrc, cdb, ctbl, ctag in HYBRID:
@@ -1254,11 +1441,20 @@ class TestVtableTagRef:
     def test_query_hybrid_stb(self):
         """Query: hybrid virtual super table queries
 
-        Catalog: - VirtualTable
+        query: hybrid virtual super table queries
+
+        Catalog:
+            - VirtualTable
+
         Since: v3.3.6.0
+
         Labels: virtual, query, tag_ref, stb, hybrid
+
         Jira: None
-        History: - 2026-3-31 Created
+
+        History:
+            - 2026-3-31 Created
+
         """
         tdSql.execute("USE td_aux;")
 
@@ -1288,11 +1484,20 @@ class TestVtableTagRef:
     def test_query_same_db_child_6(self):
         """Query: 6 child tables with same-DB tag refs within ts_a
 
-        Catalog: - VirtualTable
+        query: 6 child tables with same-DB tag refs within ts_a
+
+        Catalog:
+            - VirtualTable
+
         Since: v3.3.6.0
+
         Labels: virtual, query, tag_ref, same_db
+
         Jira: None
-        History: - 2026-3-31 Created
+
+        History:
+            - 2026-3-31 Created
+
         """
         tdSql.execute("USE ts_a;")
         for vt, d, c, p in SAME_A:
@@ -1306,11 +1511,20 @@ class TestVtableTagRef:
     def test_query_same_db_stb(self):
         """Query: same-DB virtual super table queries in ts_a
 
-        Catalog: - VirtualTable
+        query: same-DB virtual super table queries in ts_a
+
+        Catalog:
+            - VirtualTable
+
         Since: v3.3.6.0
+
         Labels: virtual, query, tag_ref, stb, same_db
+
         Jira: None
-        History: - 2026-3-31 Created
+
+        History:
+            - 2026-3-31 Created
+
         """
         tdSql.execute("USE ts_a;")
 
@@ -1346,11 +1560,20 @@ class TestVtableTagRef:
     def test_query_advanced_aggregates(self):
         """Query: advanced aggregation across virtual super tables
 
-        Catalog: - VirtualTable
+        query: advanced aggregation across virtual super tables
+
+        Catalog:
+            - VirtualTable
+
         Since: v3.3.6.0
+
         Labels: virtual, query, tag_ref, aggregate
+
         Jira: None
-        History: - 2026-3-31 Created
+
+        History:
+            - 2026-3-31 Created
+
         """
         tdSql.execute("USE td_main;")
 
@@ -1396,11 +1619,18 @@ class TestVtableTagRef:
         Each child has 1 literal tag + 3 tag refs from ts_a/ts_b/ts_c.
         Data sources span all 3 DBs. Tests multi-child, multi-DB, multi-vgroup.
 
-        Catalog: - VirtualTable
+        Catalog:
+            - VirtualTable
+
         Since: v3.3.6.0
+
         Labels: virtual, query, tag_ref, combo, cross_db
+
         Jira: None
-        History: - 2026-3-31 Created
+
+        History:
+            - 2026-3-31 Created
+
         """
         tdSql.execute("USE td_main;")
         for vt, ddb, dtbl, lit, csrc, bsrc, lsrc in COMBO:
@@ -1415,11 +1645,20 @@ class TestVtableTagRef:
     def test_query_combo_stb_full(self):
         """Query: combo STB full scan + count
 
-        Catalog: - VirtualTable
+        query: combo STB full scan + count
+
+        Catalog:
+            - VirtualTable
+
         Since: v3.3.6.0
+
         Labels: virtual, query, tag_ref, stb, combo
+
         Jira: None
-        History: - 2026-3-31 Created
+
+        History:
+            - 2026-3-31 Created
+
         """
         tdSql.execute("USE td_main;")
         all_rows = _combo_expected()
@@ -1437,11 +1676,18 @@ class TestVtableTagRef:
 
         Tests tag-only, data-only, partial tag+data, tbname+tag projections.
 
-        Catalog: - VirtualTable
+        Catalog:
+            - VirtualTable
+
         Since: v3.3.6.0
+
         Labels: virtual, query, tag_ref, stb, combo, projection
+
         Jira: None
-        History: - 2026-3-31 Created
+
+        History:
+            - 2026-3-31 Created
+
         """
         tdSql.execute("USE td_main;")
         all_rows = _combo_expected()
@@ -1479,11 +1725,18 @@ class TestVtableTagRef:
 
         Tests equality, range, and IN-style conditions on the literal tag.
 
-        Catalog: - VirtualTable
+        Catalog:
+            - VirtualTable
+
         Since: v3.3.6.0
+
         Labels: virtual, query, tag_ref, stb, combo, filter, literal
+
         Jira: None
-        History: - 2026-3-31 Created
+
+        History:
+            - 2026-3-31 Created
+
         """
         tdSql.execute("USE td_main;")
         all_rows = _combo_expected()
@@ -1522,11 +1775,18 @@ class TestVtableTagRef:
 
         Tests conditions on each of the 3 cross-DB tag refs independently.
 
-        Catalog: - VirtualTable
+        Catalog:
+            - VirtualTable
+
         Since: v3.3.6.0
+
         Labels: virtual, query, tag_ref, stb, combo, filter, cross_db
+
         Jira: None
-        History: - 2026-3-31 Created
+
+        History:
+            - 2026-3-31 Created
+
         """
         tdSql.execute("USE td_main;")
         all_rows = _combo_expected()
@@ -1578,11 +1838,18 @@ class TestVtableTagRef:
 
         Tests combined conditions across literal and cross-DB ref tags.
 
-        Catalog: - VirtualTable
+        Catalog:
+            - VirtualTable
+
         Since: v3.3.6.0
+
         Labels: virtual, query, tag_ref, stb, combo, filter, mixed
+
         Jira: None
-        History: - 2026-3-31 Created
+
+        History:
+            - 2026-3-31 Created
+
         """
         tdSql.execute("USE td_main;")
         all_rows = _combo_expected()
@@ -1625,11 +1892,18 @@ class TestVtableTagRef:
 
         Tests combined conditions on val (data) + literal tag + ref tags.
 
-        Catalog: - VirtualTable
+        Catalog:
+            - VirtualTable
+
         Since: v3.3.6.0
+
         Labels: virtual, query, tag_ref, stb, combo, filter, data
+
         Jira: None
-        History: - 2026-3-31 Created
+
+        History:
+            - 2026-3-31 Created
+
         """
         tdSql.execute("USE td_main;")
         all_rows = _combo_expected()
@@ -1672,11 +1946,18 @@ class TestVtableTagRef:
 
         Tests COUNT, SUM, AVG, MIN, MAX with various tag filter combinations.
 
-        Catalog: - VirtualTable
+        Catalog:
+            - VirtualTable
+
         Since: v3.3.6.0
+
         Labels: virtual, query, tag_ref, stb, combo, aggregate
+
         Jira: None
-        History: - 2026-3-31 Created
+
+        History:
+            - 2026-3-31 Created
+
         """
         tdSql.execute("USE td_main;")
         all_rows = _combo_expected()
@@ -1731,11 +2012,18 @@ class TestVtableTagRef:
 
         Tests GROUP BY on literal tag, cross-DB ref tags, and combinations.
 
-        Catalog: - VirtualTable
+        Catalog:
+            - VirtualTable
+
         Since: v3.3.6.0
+
         Labels: virtual, query, tag_ref, stb, combo, group_by
+
         Jira: None
-        History: - 2026-3-31 Created
+
+        History:
+            - 2026-3-31 Created
+
         """
         tdSql.execute("USE td_main;")
         all_rows = _combo_expected()
@@ -1802,11 +2090,20 @@ class TestVtableTagRef:
     def test_query_ddl_db_data(self):
         """Query: verify data access on DDL test database vtables
 
-        Catalog: - VirtualTable
+        query: verify data access on DDL test database vtables
+
+        Catalog:
+            - VirtualTable
+
         Since: v3.3.6.0
+
         Labels: virtual, query, tag_ref
+
         Jira: None
-        History: - 2026-3-31 Created
+
+        History:
+            - 2026-3-31 Created
+
         """
         tdSql.execute(f"USE {DB_DDL};")
 
@@ -1837,11 +2134,18 @@ class TestVtableTagRef:
 
         Each child: data cols from ts_data, both tags from same child in ts_tag.
 
-        Catalog: - VirtualTable
+        Catalog:
+            - VirtualTable
+
         Since: v3.4.1.0
+
         Labels: virtual, query, tag_ref, split_db
+
         Jira: None
-        History: - 2026-4-1 Created
+
+        History:
+            - 2026-4-1 Created
+
         """
         tdSql.execute("USE td_split;")
         for vt, dtbl, rsrc, ssrc in SPLIT_BASIC:
@@ -1855,11 +2159,20 @@ class TestVtableTagRef:
     def test_split_basic_stb(self):
         """Query: split-DB basic STB scan — full scan + tag filter + group by
 
-        Catalog: - VirtualTable
+        query: split-DB basic STB scan — full scan + tag filter + group by
+
+        Catalog:
+            - VirtualTable
+
         Since: v3.4.1.0
+
         Labels: virtual, query, tag_ref, stb, split_db
+
         Jira: None
-        History: - 2026-4-1 Created
+
+        History:
+            - 2026-4-1 Created
+
         """
         tdSql.execute("USE td_split;")
 
@@ -1897,11 +2210,20 @@ class TestVtableTagRef:
     def test_split_cross_child(self):
         """Query: split-DB child tables — two tags from DIFFERENT source children
 
-        Catalog: - VirtualTable
+        query: split-DB child tables — two tags from DIFFERENT source children
+
+        Catalog:
+            - VirtualTable
+
         Since: v3.4.1.0
+
         Labels: virtual, query, tag_ref, split_db, cross_source
+
         Jira: None
-        History: - 2026-4-1 Created
+
+        History:
+            - 2026-4-1 Created
+
         """
         tdSql.execute("USE td_split;")
         for vt, dtbl, rsrc, ssrc in SPLIT_CROSS:
@@ -1918,11 +2240,18 @@ class TestVtableTagRef:
         Tests full scan, tag filter, and aggregate when each child's two tags
         come from different source children in the tag DB.
 
-        Catalog: - VirtualTable
+        Catalog:
+            - VirtualTable
+
         Since: v3.4.1.0
+
         Labels: virtual, query, tag_ref, stb, split_db, cross_source
+
         Jira: None
-        History: - 2026-4-1 Created
+
+        History:
+            - 2026-4-1 Created
+
         """
         tdSql.execute("USE td_split;")
 
@@ -1964,11 +2293,18 @@ class TestVtableTagRef:
         when two tags reference the same-named column from different source
         children, the STB-level tagRef must distinguish them.
 
-        Catalog: - VirtualTable
+        Catalog:
+            - VirtualTable
+
         Since: v3.4.1.0
+
         Labels: virtual, query, tag_ref, split_db, dup_ref
+
         Jira: None
-        History: - 2026-4-1 Created
+
+        History:
+            - 2026-4-1 Created
+
         """
         tdSql.execute("USE td_split;")
         for vt, dtbl, r1src, r2src in SPLIT_DUP:
@@ -1985,11 +2321,18 @@ class TestVtableTagRef:
         Full scan verifying every child's r1 and r2 are correct,
         plus tag filters and group by.
 
-        Catalog: - VirtualTable
+        Catalog:
+            - VirtualTable
+
         Since: v3.4.1.0
+
         Labels: virtual, query, tag_ref, stb, split_db, dup_ref
+
         Jira: None
-        History: - 2026-4-1 Created
+
+        History:
+            - 2026-4-1 Created
+
         """
         tdSql.execute("USE td_split;")
 
@@ -2044,11 +2387,20 @@ class TestVtableTagRef:
     def test_split_mixed_child(self):
         """Query: split-DB mixed child — literal tag + cross-DB tag refs
 
-        Catalog: - VirtualTable
+        query: split-DB mixed child — literal tag + cross-DB tag refs
+
+        Catalog:
+            - VirtualTable
+
         Since: v3.4.1.0
+
         Labels: virtual, query, tag_ref, split_db, mixed
+
         Jira: None
-        History: - 2026-4-1 Created
+
+        History:
+            - 2026-4-1 Created
+
         """
         tdSql.execute("USE td_split;")
         for vt, dtbl, lit, rsrc, ssrc in SPLIT_MIXED:
@@ -2064,11 +2416,18 @@ class TestVtableTagRef:
 
         Full scan, filter on literal, filter on ref tag, group by.
 
-        Catalog: - VirtualTable
+        Catalog:
+            - VirtualTable
+
         Since: v3.4.1.0
+
         Labels: virtual, query, tag_ref, stb, split_db, mixed
+
         Jira: None
-        History: - 2026-4-1 Created
+
+        History:
+            - 2026-4-1 Created
+
         """
         tdSql.execute("USE td_split;")
 
@@ -2106,11 +2465,20 @@ class TestVtableTagRef:
     def test_split_tri_child(self):
         """Query: 3-way split child — tags from ts_tag + ts_a, data from ts_data
 
-        Catalog: - VirtualTable
+        query: 3-way split child — tags from ts_tag + ts_a, data from ts_data
+
+        Catalog:
+            - VirtualTable
+
         Since: v3.4.1.0
+
         Labels: virtual, query, tag_ref, split_db, multi_db
+
         Jira: None
-        History: - 2026-4-1 Created
+
+        History:
+            - 2026-4-1 Created
+
         """
         tdSql.execute("USE td_split;")
         for vt, dtbl, rsrc, ssrc, csrc in SPLIT_TRI:
@@ -2127,11 +2495,18 @@ class TestVtableTagRef:
 
         Full scan, multi-tag filter, group by on ref tags from different DBs.
 
-        Catalog: - VirtualTable
+        Catalog:
+            - VirtualTable
+
         Since: v3.4.1.0
+
         Labels: virtual, query, tag_ref, stb, split_db, multi_db
+
         Jira: None
-        History: - 2026-4-1 Created
+
+        History:
+            - 2026-4-1 Created
+
         """
         tdSql.execute("USE td_split;")
 
