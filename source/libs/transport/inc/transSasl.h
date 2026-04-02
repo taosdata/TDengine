@@ -14,13 +14,14 @@
 #ifndef _TD_TRANSPORT_SASL_H
 #define _TD_TRANSPORT_SASL_H
 
-#if defined(TD_ENTERPRISE ) && defined(LINUX)
+/* Real Cyrus SASL headers are only needed when BUILD_LIBSASL=ON (TD_BUILD_WITH_LIBSASL). */
+#if defined(TD_ENTERPRISE) && defined(LINUX) && defined(TD_BUILD_WITH_LIBSASL)
 #include <sasl/sasl.h>
 #else
 
 typedef struct {
-  void* p; 
-}  sasl_conn_t ;
+  void* p;
+} sasl_conn_t;
 #endif
 
 #include "taoserror.h"
