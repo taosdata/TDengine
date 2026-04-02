@@ -1,4 +1,0 @@
-# Keep documentation files tracked; ignore generated certificate artifacts.
-*
-!README.md
-!.gitignore

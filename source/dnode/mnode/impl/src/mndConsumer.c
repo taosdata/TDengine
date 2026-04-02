@@ -248,7 +248,7 @@ static void storeOffsetRows(SMnode *pMnode, SMqHbReq *req, SMqConsumerObj *pCons
     if (data == NULL){
       continue;
     }
-    mDebug("heartbeat report offset rows.%s:%s", pConsumer->cgroup, data->topicName);
+    mInfo("heartbeat report offset rows.%s:%s", pConsumer->cgroup, data->topicName);
 
     SMqSubscribeObj *pSub = NULL;
     char  key[TSDB_SUBSCRIBE_KEY_LEN] = {0};
@@ -902,9 +902,7 @@ static int32_t mndConsumerActionUpdate(SSdb *pSdb, SMqConsumerObj *pOldConsumer,
 
     pOldConsumer->subscribeTime = taosGetTimestampMs();
     pOldConsumer->status = MQ_CONSUMER_STATUS_REBALANCE;
-    atomic_store_32(&pOldConsumer->hbStatus, 0);
-    atomic_store_32(&pOldConsumer->pollStatus, 0);
-    mInfo("consumer:0x%" PRIx64 " subscribe update, modify existed consumer, reset hb/poll status", pOldConsumer->consumerId);
+    mInfo("consumer:0x%" PRIx64 " subscribe update, modify existed consumer", pOldConsumer->consumerId);
   } else if (pNewConsumer->updateType == CONSUMER_UPDATE_REB) {
     (void)atomic_add_fetch_32(&pOldConsumer->epoch, 1);
     pOldConsumer->status = MQ_CONSUMER_STATUS_READY;

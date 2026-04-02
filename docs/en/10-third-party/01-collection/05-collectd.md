@@ -1,5 +1,6 @@
 ---
 title: collectd
+slug: /third-party-tools/data-collection/collectd
 ---
 
 import CollectD from "../../assets/resources/_collectd.mdx"
@@ -13,7 +14,7 @@ Simply point the collectd configuration to the domain name (or IP address) and c
 Several preparations are needed to write collectd data into TDengine.
 
 - TDengine cluster is deployed and running normally
-- taosAdapter is installed and running normally, for details please refer to [taosAdapter User Manual](../../14-reference/01-components/03-taosadapter.md)
+- taosAdapter is installed and running normally, for details please refer to [taosAdapter User Manual](../../../tdengine-reference/components/taosadapter)
 - collectd is installed. For installation of collectd, please refer to [official documentation](https://collectd.org/)
 
 ## Configuration Steps

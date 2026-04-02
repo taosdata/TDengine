@@ -129,12 +129,16 @@ def before_test_session(request):
     else:
         request.session.asan = False
 
-    # 读取环境变量并存入 session 变量
-    request.session.taos_bin_path = os.getenv('TAOS_BIN_PATH', None)
-    request.session.taos_bin_path = request.session.before_test.get_taos_bin_path(request.session.taos_bin_path)
-    
-    request.session.work_dir = os.getenv('WORK_DIR', None)
-    request.session.work_dir = request.session.before_test.get_and_mkdir_workdir(request.session.work_dir, request.session.taos_bin_path)
+        # 读取环境变量并存入 session 变量
+    request.session.taos_bin_path = os.getenv("TAOS_BIN_PATH", None)
+    request.session.taos_bin_path = request.session.before_test.get_taos_bin_path(
+        request.session.taos_bin_path
+    )
+
+    request.session.work_dir = os.getenv("WORK_DIR", None)
+    request.session.work_dir = request.session.before_test.get_and_mkdir_workdir(
+        request.session.work_dir
+    )
     if request.session.clean and os.path.exists(request.session.work_dir):
         tdLog.info(f"rm {request.session.work_dir} before deploy")
         shutil.rmtree(request.session.work_dir)
@@ -279,7 +283,7 @@ def before_test_class(request):
     time.sleep(request.session.create_dnode_num)
     # check dnodes ready
     count = 0
-    timeout = 60
+    timeout = 20
     while count < timeout:
         tdSql.query("select * from information_schema.ins_dnodes")
         status = 0

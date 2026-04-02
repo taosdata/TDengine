@@ -1,6 +1,6 @@
 ---
-sidebar_label: Network Configuration
-title: Network Configuration
+sidebar_label: network Configuration
+title: network Configuration
 toc_max_heading_level: 4
 ---
 
@@ -157,4 +157,4 @@ There is some impact: overall performance typically decreases by less than 5% (a
 
 #### Operations and upgrades
 
-Dynamic upgrades are not supported.
+Dynamic upgrades are not supported.\n

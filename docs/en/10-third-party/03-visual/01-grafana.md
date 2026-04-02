@@ -1,5 +1,6 @@
 ---
 title: Grafana
+slug: /third-party-tools/visualization/grafana
 ---
 
 import Tabs from "@theme/Tabs";
@@ -16,7 +17,7 @@ To add the TDengine data source to Grafana normally, the following preparations 
 - Grafana service has been deployed and is running normally. TDengine currently supports Grafana version 8.0 and above. It is recommended to use the latest version.  
     **Note**: Ensure that the account starting Grafana has write permissions to its installation directory, otherwise you may not be able to install plugins later.
 - TDengine cluster has been deployed and is running normally.
-- taosAdapter has been installed and is running normally. For details, please refer to the [taosAdapter user manual](../../14-reference/01-components/03-taosadapter.md)
+- taosAdapter has been installed and is running normally. For details, please refer to the [taosAdapter user manual](../../../tdengine-reference/components/taosadapter/)
 
 Record the following information:
 
@@ -51,18 +52,18 @@ On Linux or macOS, run the following command in your terminal:
 
 ```shell
 grafana-cli --pluginUrl \
-      https://downloads.tdengine.com/tdengine-tsdb-datasource/tdengine-datasource.zip \
+      https://www.tdengine.com/assets-download/grafana-plugin/tdengine-datasource.zip \
       plugins install tdengine-datasource
 # with sudo
 sudo -u grafana grafana-cli --pluginUrl \
-      https://downloads.tdengine.com/tdengine-tsdb-datasource/tdengine-datasource.zip \
+      https://www.tdengine.com/assets-download/grafana-plugin/tdengine-datasource.zip \
       plugins install tdengine-datasource
 ```
 
 On Windows, first ensure that the plugin installation directory exists (by default, it is located in the data/plugins subdirectory of your Grafana installation directory). Then, run the following command in the bin directory of the Grafana installation path using an administrator account:
 
 ```shell
-./grafana-cli.exe --pluginUrl https://downloads.tdengine.com/tdengine-tsdb-datasource/tdengine-datasource.zip plugins install tdengine-datasource
+./grafana-cli.exe --pluginUrl https://www.tdengine.com/assets-download/grafana-plugin/tdengine-datasource.zip plugins install tdengine-datasource
 ```
 
 Afterward, users can directly access the Grafana server at `http://localhost:3000` (username/password: admin/admin), and add a data source through `Configuration -> Data Sources`,
@@ -79,10 +80,10 @@ Click `Save & Test` to test, if successful, it will prompt: `TDengine Data sourc
 
 <TabItem value="manual" label="Manual Installation">
 
-Download [tdengine-datasource.zip](https://downloads.tdengine.com/tdengine-tsdb-datasource/tdengine-datasource.zip) to your local machine and unzip it into the Grafana plugins directory. Example command line download is as follows:
+Download [tdengine-datasource.zip](https://www.tdengine.com/assets-download/grafana-plugin/tdengine-datasource.zip) to your local machine and unzip it into the Grafana plugins directory. Example command line download is as follows:
 
 ```shell
-wget https://downloads.tdengine.com/tdengine-tsdb-datasource/tdengine-datasource.zip
+wget https://www.tdengine.com/assets-download/grafana-plugin/tdengine-datasource.zip
 ```
 
 For CentOS 7.2 operating system, unzip the plugin package into the /var/lib/grafana/plugins directory and restart Grafana.
@@ -110,7 +111,7 @@ Refer to [Grafana containerized installation instructions](https://grafana.com/d
 docker run -d \
   -p 3000:3000 \
   --name=grafana \
-  -e "GF_INSTALL_PLUGINS=https://downloads.tdengine.com/tdengine-tsdb-datasource/tdengine-datasource.zip;tdengine-datasource" \
+  -e "GF_INSTALL_PLUGINS=https://www.tdengine.com/assets-download/grafana-plugin/tdengine-datasource.zip;tdengine-datasource" \
   grafana/grafana
 ```
 
@@ -159,7 +160,7 @@ Using docker-compose, configure Grafana Provisioning for automated setup, and ex
           - grafana-data:/var/lib/grafana
         environment:
           # install tdengine plugin at start
-          GF_INSTALL_PLUGINS: "https://downloads.tdengine.com/tdengine-tsdb-datasource/tdengine-datasource.zip;tdengine-datasource"
+          GF_INSTALL_PLUGINS: "https://www.tdengine.com/assets-download/grafana-plugin/tdengine-datasource.zip;tdengine-datasource"
           TDENGINE_API: "http://tdengine:6041"
           #printf "$TDENGINE_USER:$TDENGINE_PASSWORD" | base64
           TDENGINE_BASIC_AUTH: "cm9vdDp0YW9zZGF0YQ=="
@@ -265,7 +266,7 @@ On top of supporting standard SQL, TDengine also offers a series of special quer
 - The `fill` statement specifies the filling mode for missing data in a window interval.
 - `Timestamp pseudocolumns` If you need to output the time window information corresponding to the aggregation results in the results, you need to use timestamp-related pseudo-columns in the SELECT clause: window start time (_wstart), window end time (_wend), etc.
 
-Detailed introduction to the above features can be found at [Distinguished Queries](../../14-reference/03-taos-sql/24-distinguished.md).
+Detailed introduction to the above features can be found at [Distinguished Queries](../../../tdengine-reference/sql-manual/time-series-extensions/).
 
 ### Creating a Dashboard
 

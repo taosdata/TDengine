@@ -1,9 +1,10 @@
 ---
 title: taosX Agent Reference
 sidebar_label: taosX Agent
+slug: /tdengine-reference/components/taosx-agent
 ---
 
-import { Enterprise } from '../../assets/resources/_resources.mdx';
+import Enterprise from '../../assets/resources/_enterprise.mdx';
 
 <Enterprise/>
 

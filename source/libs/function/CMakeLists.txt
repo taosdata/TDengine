@@ -61,14 +61,6 @@ target_link_libraries(
     PRIVATE os util common nodes function dnode
 )
 
-if(NOT TD_WINDOWS)
-    set_target_properties(taosudf PROPERTIES
-        INSTALL_RPATH "$ORIGIN:$ORIGIN/../lib:$ORIGIN/../driver"
-        BUILD_WITH_INSTALL_RPATH TRUE
-        SKIP_BUILD_RPATH FALSE
-    )
-endif()
-
 if(UNIX AND NOT APPLE)
     # ref: https://cmake.org/cmake/help/latest/release/3.4.html#deprecated-and-removed-features
     set_target_properties(taosudf PROPERTIES

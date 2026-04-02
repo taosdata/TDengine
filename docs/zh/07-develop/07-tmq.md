@@ -42,19 +42,16 @@ TDengine TSDB 消费者的概念跟 Kafka 类似，消费者通过订阅主题�
 
 - 说明：用户名
 - 类型：string
-- 备注：使用 Token 认证时不需要设置此参数
 
 #### td.connect.pass
 
 - 说明：密码
 - 类型：string
-- 备注：使用 Token 认证时不需要设置此参数
 
 #### td.connect.token
 
-- 说明：token 通过 `CREATE TOKEN` 语句生成
+- 说明：token 通过 `CREATE TOKEN` 语句生成；如果同时配置了 token 和账号名/密码，将优先使用 token 进行认证，即 token 的优先级高于账号名密码
 - 类型：string
-- 备注：使用 Token 认证时，只需设置此参数，无需设置 `td.connect.user` 和 `td.connect.pass`
 
 #### td.connect.port
 
@@ -398,7 +395,7 @@ Rust 连接器创建消费者的参数为 DSN，可以设置的参数列表请�
 <TabItem label="Node.js" value="node">
 
 ```js
-    {{#include docs/examples/node/websocketexample/tmq_seek_example.js}}
+    {{#include docs/examples/node/websocketexample/tmq_seek_example.js:subscribe}}
 ```
 
 </TabItem>

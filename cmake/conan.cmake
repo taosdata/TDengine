@@ -432,6 +432,16 @@ macro(DEP_ext_avro_LIB tgt)
     endif()
 endmacro()
 
+macro(DEP_ext_libs3 tgt)
+    # libs3 not migrated yet
+endmacro()
+
+macro(DEP_ext_libs3_INC tgt)
+endmacro()
+
+macro(DEP_ext_libs3_LIB tgt)
+endmacro()
+
 macro(DEP_ext_azure tgt)
     # azure not migrated yet
 endmacro()

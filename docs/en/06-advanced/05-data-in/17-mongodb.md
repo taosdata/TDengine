@@ -1,8 +1,9 @@
 ---
 title: MongoDB
+slug: /advanced-features/data-connectors/mongodb
 ---
 
-import { AddDataSource, Enterprise } from '../../assets/resources/_resources.mdx';
+import Enterprise from '../../assets/resources/_enterprise.mdx';
 
 <Enterprise/>
 
@@ -12,19 +13,33 @@ This section describes how to create data migration tasks through the Explorer i
 
 MongoDB is a product that lies between relational and non-relational databases, widely used in content management systems, mobile applications, and the Internet of Things, among other fields. TDengine TSDB-Enterprise can efficiently read data from MongoDB and write it into TDengine, achieving historical data migration or real-time data synchronization, and addressing technical pain points faced by businesses.
 
-## Procedure
+## Creating a Task
 
-### Add a Data Source
+### 1. Add a Data Source
 
-<AddDataSource connectorName="MongoDB" />
+Click the **+ Add Data Source** button in the top right corner of the data writing page to enter the Add Data Source page, as shown below:
 
-### Configure Connection Information
+![Add data source](../../assets/mongodb-01.png)
+
+### 2. Configure Basic Information
+
+Enter the task name in the **Name** field, for example `test_mongodb_01`.
+
+Select `MongoDB` from the **Type** dropdown menu, as shown below (the fields on the page will change after selection).
+
+**Proxy** is optional. If needed, you can select a specific proxy from the dropdown menu, or click the **+ Create New Proxy** button on the right to create a new proxy.
+
+**Target Database** is mandatory. You can select a specific database from the dropdown menu, or click the **+ Create Database** button on the right to create a new database.
+
+![Configure basic settings](../../assets/mongodb-02.png)
+
+### 3. Configure Connection Information
 
 Fill in the *connection information for the source MongoDB database* in the **Connection Configuration** area, as shown below:
 
 ![Configure connection information](../../assets/mongodb-03.png)
 
-### Configure Authentication Information
+### 4. Configure Authentication Information
 
 **User** Enter the user of the source MongoDB database, who must have read permissions in the MongoDB system.
 
@@ -34,7 +49,7 @@ Fill in the *connection information for the source MongoDB database* in the **Co
 
 ![Configure authentication information](../../assets/mongodb-04.png)
 
-### Configure Connection Options
+### 5. Configure Connection Options
 
 **Application Name** Set the application name to identify the connected application.
 
@@ -48,7 +63,7 @@ Fill in the *connection information for the source MongoDB database* in the **Co
 
 Then click the **Check Connectivity** button, where users can click this button to check if the information filled in above can normally retrieve data from the source MongoDB database.
 
-### Configure Data Query
+### 6. Configure Data Query
 
 **Database** The source database in MongoDB, which can be dynamically configured using placeholders, such as `database_${Y}`. See the table below for a list of available placeholders.
 
@@ -96,7 +111,7 @@ Different placeholders represent different time format requirements, specificall
 
 ![Configure data collection](../../assets/mongodb-06.png)
 
-### Configure Data Mapping
+### 7. Configure Data Mapping
 
 Fill in the data mapping related configuration parameters in the **Payload Transformation** area.
 
@@ -112,7 +127,7 @@ In **Mapping**, select the supertable in TDengine to which the data will be mapp
 
 ![Configure data mapping](../../assets/mongodb-07.png)
 
-### Configure Advanced Options
+### 8. Configure Advanced Options
 
 The **Advanced Options** area is collapsed by default, click the `>` on the right to expand it, as shown below:
 
@@ -122,6 +137,6 @@ The **Advanced Options** area is collapsed by default, click the `>` on the righ
 
 ![Configure advanced options](../../assets/mongodb-08.png)
 
-### Completion
+### 9. Completion
 
 Click the **Submit** button to complete the creation of the data synchronization task from MongoDB to TDengine, and return to the **Data Source List** page to view the task execution status.

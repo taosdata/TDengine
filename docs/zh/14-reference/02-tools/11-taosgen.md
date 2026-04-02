@@ -13,7 +13,7 @@ taosgen 目前支持 Windows、Linux 和 macOS 系统。
 taosgen 相比 taosBenchmark，具有以下优势和改进：
 
 - 提供作业编排能力，作业支持 DAG 依赖关系，能模拟真实业务流程。
-- 支持多种目标/协议（TDengine、MQTT、Kafka、InfluxDB），可用于数据库写入、消息发布等多种场景。
+- 支持多种目标/协议（TDengine、MQTT、Kafka），可用于数据库写入、消息发布等多种场景。
 - 更丰富的数据生成方式。支持 lua 表达式生成数据，便于模拟真实业务数据。
 - 支持即时数据生成，无需预先生成大批量数据文件，节省准备时间和模拟真实场景。
 - 支持使用多种时间间隔策略控制数据写入操作，如根据数据产生的真实时间“播放”数据。
@@ -28,8 +28,8 @@ taosgen 解决了 taosBenchmark 难以灵活配置、数据生成方式单一、
 下载二进制发布包到本地，解压缩，为了便捷访问，可以创建符号链接存放到系统执行目录中，如 Linux 系统下执行命令：
 
 ```shell
-tar zxvf taosgen-v0.8.6-linux-x64.tar.gz
-cd taosgen
+tar zxvf tsgen-v0.3.0-linux-amd64.tar.gz
+cd tsgen
 ln -sf `pwd`/taosgen /usr/bin/taosgen
 ```
 
@@ -57,10 +57,9 @@ taosgen -h 127.0.0.1 -c config.yaml
 | -p/--password         | 指定用于连接服务器的密码，默认值为 taosdata |
 | -c/--config-file      | 指定 yaml 格式配置文件的路径 |
 | -d/--log-dir          | 指定日志输出目录，默认值为 ./log |
-| -o/--log-file         | 指定完整的日志文件路径（优先级高于 --log-dir），-f 已弃用 |
-| -v/--verbose          | 提高输出详细程度 |
+| -f/--log-file         | 指定完整的日志文件路径（优先级高于 --log-dir） |
+| -?/--help             | 显示帮助信息并退出|
 | -V/--version          | 显示版本信息并退出，不能与其它参数混用 |
-| -?/--help             | 显示帮助信息并退出 |
 
 提示：当没有指定参数运行 taosgen 时，默认会创建 TDengine 数据库 tsbench、超级表 meters、1 万张子表，并为每张子表批量写入 1 万条数据。
 
@@ -68,12 +67,11 @@ taosgen -h 127.0.0.1 -c config.yaml
 
 ### 整体结构
 
-配置文件分为："tdengine"、"mqtt"、"kafka"、"influxdb"、"schema"、"concurrency"、"jobs" 几部分。
+配置文件分为："tdengine"、"mqtt"、"kafka"、"schema"、"concurrency"、"jobs" 几部分。
 
 - tdengine：描述 TDengine 数据库的相关配置参数。
 - mqtt：描述 MQTT Broker 的相关配置参数。
 - kafka：描述 Kafka Broker 的相关配置参数。
-- influxdb：描述 InfluxDB 数据库的相关配置参数。
 - schema：描述数据定义和生成的相关配置参数。
 - concurrency：描述作业执行的并发度。
 - jobs：列表结构，描述所有作业的具体相关参数。
@@ -165,14 +163,6 @@ taosgen -h 127.0.0.1 -c config.yaml
 
     更多参数请参考 [librdkafka 配置文档](https://github.com/confluentinc/librdkafka/blob/master/CONFIGURATION.md)。
 
-#### InfluxDB 参数
-
-- influxdb：描述 InfluxDB 数据库的相关配置参数，它包括以下属性：
-  - url（字符串）：InfluxDB 服务器的 HTTP 地址，默认值为 `http://localhost:8086`。
-  - token（字符串）：用于身份验证的 API Token。也可通过环境变量 `INFLUXDB_TOKEN` 设置。
-  - org（字符串）：InfluxDB 组织名称，默认值为 default。
-  - bucket（字符串）：InfluxDB Bucket 名称，默认值为 default。
-
 #### schema 参数
 
 - schema：描述数据定义和生成模式的相关配置参数。
@@ -239,8 +229,6 @@ taosgen -h 127.0.0.1 -c config.yaml
   - random：随机方式生成。
   - order：按自然数顺序增长，仅适用整数类型。
   - expression：根据表达式生成。适用整数类型、浮点数类型 float、double 和字符类型。
-- null_ratio（浮点数）：指定生成 NULL 值的比例，取值范围 [0.0, 1.0]，默认值为 0.0。NULL 表示空值，写入后替换该列的最新值为空。
-- none_ratio（浮点数）：指定生成 NONE 值的比例，取值范围 [0.0, 1.0]，默认值为 0.0。NONE 表示数据缺失，写入后不替换该列的最新值，保留原有值。null_ratio 与 none_ratio 之和不得超过 1.0。
 
 ##### 数据生成方式详解
 
@@ -249,8 +237,6 @@ taosgen -h 127.0.0.1 -c config.yaml
   - min（浮点数）：表示列的最小值，仅适用整数类型和浮点数类型，生成的值将大于或等于最小值。
   - max（浮点数）：表示列的最大值，仅适用整数类型和浮点数类型，生成的值将小于最大值。
   - values（列表）：指定随机数据的取值范围，生成的数据将从中随机选取。
-  - min_length（整数）：仅适用于变长字符类型（nchar、varchar 或 binary），指定生成字符串的最小长度。这里的“容量”指类型定义的最大长度。生效规则如下：若 `min_length` 和 `max_length` 都未设置，则生成长度固定为类型定义的最大长度；若仅设置 `min_length`，则 `max_length` 默认为类型定义的最大长度；若同时设置，则需满足 `0 ≤ min_length ≤ max_length ≤ 容量`。设置后每次生成的字符串长度会在 `min_length` 到 `max_length` 之间随机变化。
-  - max_length（整数）：仅适用于变长字符类型（nchar、varchar 或 binary），指定生成字符串的最大长度。这里的“容量”指类型定义的最大长度。若仅设置 `max_length`，则 `min_length` 默认为 `0`；若同时设置 `min_length` 和 `max_length`，则需满足 `0 ≤ min_length ≤ max_length ≤ 容量`。
 
 - order：按自然数顺序增长，仅适用整数类型，达到最大值后会自动翻转到最小值
   - min（整数）：表示列的最小值，生成的值将大于或等于最小值。
@@ -289,7 +275,6 @@ taosgen -h 127.0.0.1 -c config.yaml
 - `tdengine/insert`：用于向指定的 TDengine 数据库中写入数据
 - `mqtt/publish`：用于向指定的 MQTT Broker 发布数据
 - `kafka/produce`：用于向指定的 Kafka Broker 发布数据
-- `influxdb/write`：用于向指定的 InfluxDB 数据库写入数据
 每个行动在调用时可通过 with 字段传入参数，具体参数内容因行动类型而异。
 
 :::note
@@ -325,12 +310,8 @@ taosgen -h 127.0.0.1 -c config.yaml
 `tdengine/insert` 行动用于将数据写入到指定的子表中。它支持从生成器或 CSV 文件两种来源获取子表名称、普通列数据，并允许用户通过多种时间戳策略控制数据的时间属性。此外，还提供了丰富的写入控制策略以优化数据写入过程，具备高度灵活性和可配置性。
 
 - schema：默认使用全局的 schema 配置信息，当需要差异化时可在此行动下单独定义。
-- format（字符串）：描述数据写入时使用的格式，可选值为：sql、stmt、schemaless，默认使用 stmt。
-  - sql：使用 SQL 语句写入数据。
-  - stmt：使用参数化写入（Prepared Statement）方式写入数据，适合高性能批量写入场景。
-  - schemaless：使用行协议（Line Protocol）方式写入数据，无需预先创建超级表和子表，适合模拟 Telegraf 等采集器向 TDengine 发送数据的场景。
+- format（字符串）：描述数据写入时使用的格式，可选值为：sql、stmt，默认使用 stmt。
 - auto_create_table（布尔）：表示是否使用 TDengine 自动建表功能在写入数据时动态创建表，默认值为 false。
-- tbname_key（字符串）：仅在 schemaless 格式下生效，用于指定行协议（Line Protocol）输出中代表子表名称的 tag key。如果此参数被设置为空字符串（""），则不在行协议中输出子表名称 tag。默认值为 ""。
 - concurrency（整数）：并发写入数据的线程数量，默认值为 8。
 - failure_handling：表示失败处理策略：
   - max_retries（整数）：最大重试次数，默认值为 0。
@@ -371,7 +352,7 @@ taosgen -h 127.0.0.1 -c config.yaml
   - `{column}`：表示列数据，column 是列字段名称
 - qos（整数）：QoS 等级，取值范围为 0、1、2，默认为 0。
 - retain（布尔）：MQTT Broker 是否保留最后一条消息，默认值为 false。
-- tbname_key (字符串)：用于指定输出中代表表名的字段名称。如果此参数被设置为空字符串（""），则不输出表名信息。默认值为 ""。
+- tbname_key (字符串)：用于指定 json 格式输出中代表表名的字段名称。如果此参数被设置为空字符串 ("")，则不输出表名信息。默认值为 "table"。
 - records_per_message（整数）：每条消息包含的记录数，默认为 1。
 
 ### 发布 Kafka 数据行动的格式
@@ -394,21 +375,8 @@ taosgen -h 127.0.0.1 -c config.yaml
   - "1"：生产者只需要等待分区 Leader 副本成功接收到消息并将其写入本地日志（Log），就会认为消息发送成功，并立即向应用程序返回确认。
   - "0"：生产者完全不等待任何确认。一旦消息被成功发送到网络（甚至只是放入了生产者的发送缓冲区），就立即认为发送成功。
 - compression (字符串)：消息压缩类型，支持 "none"、"gzip"、"snappy"、"lz4"、"zstd"，默认为 "none"。
-- tbname_key (字符串)：用于指定输出中代表表名的字段名称。在 json 格式中作为 JSON 字段名，在 influx 格式中作为行协议的 tag key。如果此参数被设置为空字符串（""），则不输出表名信息。默认值为 ""。
+- tbname_key (字符串)：用于指定 json 格式输出中代表表名的字段名称。如果此参数被设置为空字符串 ("")，则不输出表名信息。默认值为 "table"。
 - records_per_message（整数）：每条消息包含的记录数，默认为 1。
-
-### 写入 InfluxDB 数据行动的格式
-
-`influxdb/write` 行动用于将数据通过 InfluxDB v2 Write API 以行协议（Line Protocol）格式写入到指定的 InfluxDB Bucket 中。它支持从生成器或 CSV 文件两种来源获取数据，并允许用户通过多种时间戳策略控制数据的时间属性。此外，还提供了丰富的写入控制策略以优化数据写入过程，具备高度灵活性和可配置性。
-
-- schema：默认使用全局的 schema 配置信息，当需要差异化时可在此行动下单独定义。schema 中的 `name` 字段将作为 InfluxDB 的 measurement 名称。
-- concurrency（整数）：并发写入数据的线程数量，默认值为 8。
-- failure_handling：参数说明请参考 [写入 TDengine 数据行动的格式](#写入-tdengine-数据行动的格式) 中的同名参数。
-- time_interval：参数说明请参考 [写入 TDengine 数据行动的格式](#写入-tdengine-数据行动的格式) 中的同名参数。
-- precision（字符串）：时间戳精度，可选值为 "ns"、"us"、"ms"、"s"，默认为 "ns"。
-- batch_size（整数）：每次 HTTP 请求包含的行协议行数，默认为 5000。InfluxDB 官方推荐值为 5000。
-- gzip（布尔）：是否对 HTTP 请求体启用 gzip 压缩，默认为 false。启用后可显著减少网络带宽占用。
-- tbname_key（字符串）：用于指定行协议（Line Protocol）输出中代表表名称的 tag key。如果此参数被设置为空字符串（""），则不在行协议中输出表名称 tag。默认值为 ""。
 
 ## 配置文件示例
 
@@ -584,36 +552,4 @@ d1,1700000310000,4.98,220.9,147.9
 
 ```yaml
 {{#include docs/examples/taosgen/taosgen_config.yaml:kafka_produce_config}}
-```
-
-### 生成器方式生成数据并写入 InfluxDB 示例
-
-该示例展示了如何使用 taosgen 工具模拟 10 台服务器的 CPU 监控数据，每台服务器每隔 10 秒产生一条包含 CPU 使用率指标的记录，产生的数据通过 InfluxDB v2 Write API 以行协议格式写入 InfluxDB。
-
-配置详解：
-
-- InfluxDB 配置参数
-  - 连接信息：通过 url 指定 InfluxDB 服务地址，通过 token 进行身份验证。
-  - 目标：将数据写入指定组织的 Bucket 中。
-- schema 配置参数
-  - 名称：指定 measurement 名称为 cpu，与 Telegraf 的 cpu 采集插件输出的 measurement 名称一致。
-  - 表名称：定义生成 10 张逻辑表的名称规则，格式为 host_0 到 host_9，用于组织和标识生成的数据。
-  - 表字段结构信息：定义 4 个 field（usage_idle、usage_system、usage_user、usage_iowait）和 2 个 tag（host、cpu）。
-    - 时间戳：使用纳秒精度，以 10 秒为步长递增，模拟 Telegraf 默认的 10 秒采集间隔。
-    - 时序数据：各 CPU 指标使用指定范围的随机数模拟。
-    - 标签数据：host 标签使用 10 个服务器名称，cpu 标签使用 5 个 CPU 核心标识。
-  - 数据生成行为：使用交错模式，每张表 100 条记录，每批 500 行。
-- 数据写入：使用 2 线程并发以行协议格式写入 InfluxDB，启用 gzip 压缩以减少带宽占用。
-
-场景说明：
-
-此配置专为模拟 Telegraf 采集的系统监控数据写入 InfluxDB 而设计。它适用于以下场景：
-
-- InfluxDB 写入性能测试：模拟大规模服务器集群的监控数据写入，测试 InfluxDB 在高并发行协议写入下的吞吐量和延迟表现。
-- Telegraf 数据模拟：生成与 Telegraf cpu 插件输出格式完全一致的数据，用于在无真实设备的环境中测试数据管道。
-- InfluxDB 到 TDengine 迁移验证：先向 InfluxDB 写入模拟数据，再测试从 InfluxDB 迁移数据到 TDengine 的完整流程。
-- 监控平台集成测试：为 Grafana 等监控平台提供持续的模拟数据流，用于验证仪表盘配置和告警规则。
-
-```yaml
-{{#include docs/examples/taosgen/taosgen_config.yaml:influxdb_write_config}}
 ```

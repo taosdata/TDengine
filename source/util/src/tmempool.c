@@ -1202,7 +1202,7 @@ int32_t taosMemPoolOpen(char* poolName, SMemPoolCfg* cfg, void** poolHandle) {
   
   taosWUnLockLatch(&gMPMgmt.poolLock);
 
-  uInfo("memory pool %s opened", poolName);
+  uInfo("mempool %s opened", poolName);
 
 _return:
 

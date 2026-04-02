@@ -1,5 +1,6 @@
 ---
 title: Operators
+slug: /tdengine-reference/sql-manual/operators
 ---
 ## Arithmetic Operators
 

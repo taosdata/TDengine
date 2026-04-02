@@ -1,8 +1,9 @@
 ---
 title: TDengine Subscription
+slug: /advanced-features/data-connectors/tdengine-3
 ---
 
-import { Enterprise } from '../../assets/resources/_resources.mdx';
+import Enterprise from '../../assets/resources/_enterprise.mdx';
 
 <Enterprise/>
 

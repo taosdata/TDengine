@@ -1,5 +1,4 @@
 from new_test_framework.utils import tdLog, tdSql, tdDnodes, tdCom, TDDnode, TDDnodes
-from new_test_framework.utils.pathFinding import find_proj_path
 import taos
 import sys
 import time
@@ -27,7 +26,10 @@ class TestUdfCluster:
     def prepare_udf_so(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
 
-        projPath = find_proj_path(selfPath)
+        if ("community" in selfPath):
+            projPath = selfPath[:selfPath.find("community")]
+        else:
+            projPath = selfPath[:selfPath.find("tests")]
         print(projPath)
 
         libudf1 = subprocess.Popen('find %s -name "libudf1.so"|grep lib|head -n1'%projPath , shell=True, stdout=subprocess.PIPE,stderr=subprocess.STDOUT).stdout.read().decode("utf-8")

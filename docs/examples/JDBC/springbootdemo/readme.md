@@ -2,14 +2,13 @@
 
 ## Need to create a test database in advance
 
-```shell
-taos -s 'create database if not exists test'
+```
+$ taos -s 'create database if not exists test'
 
-curl http://localhost:8080/weather/init
+$ curl http://localhost:8080/weather/init
 ```
 
 ### Configure application.properties
-
 ```properties
 # datasource config
 spring.datasource.driver-class-name=com.taosdata.jdbc.TSDBDriver
@@ -42,7 +41,6 @@ logging.level.com.taosdata.jdbc.springbootdemo.dao=debug
 ### Main functions
 
 * Create databases and tables
-
 ```xml
 <!-- weatherMapper.xml -->
  <update id="createDB" >
@@ -55,16 +53,13 @@ logging.level.com.taosdata.jdbc.springbootdemo.dao=debug
 ```
 
 * Insert a single record
-
 ```xml
 <!-- weatherMapper.xml -->
     <insert id="insert" parameterType="Weather" >
         insert into test.weather (ts, temperature, humidity) values (now, #{temperature,jdbcType=INTEGER}, #{humidity,jdbcType=FLOAT})
     </insert>
 ```
-
 * Insert multiple records
-
 ```xml
 <!-- weatherMapper.xml -->
 <insert id="batchInsert" parameterType="java.util.List" >
@@ -74,9 +69,7 @@ logging.level.com.taosdata.jdbc.springbootdemo.dao=debug
     </foreach>
 </insert>
 ```
-
 * Pagination query
-
 ```xml
 <!-- weatherMapper.xml -->
 <?xml version="1.0" encoding="UTF-8"?>
@@ -108,3 +101,4 @@ logging.level.com.taosdata.jdbc.springbootdemo.dao=debug
     </select>
 </mapper>
 ```
+

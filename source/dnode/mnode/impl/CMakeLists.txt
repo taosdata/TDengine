@@ -35,13 +35,13 @@ target_include_directories(
   PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
   PUBLIC "${TD_SOURCE_DIR}/source/libs/totp/inc"
   "${TD_SOURCE_DIR}/include/libs/txnode/inc"
-  PRIVATE "${TD_ENTERPRISE_DIR}/source/plugins/privilege/inc"
+  PRIVATE "${TD_ENTERPRISE_DIR}/src/plugins/privilege/inc"
 )
 
 if(TD_ENTERPRISE)
   target_include_directories(
     mnode
-    PRIVATE "${TD_ENTERPRISE_DIR}/source/plugins/taosk/inc"
+    PRIVATE "${TD_ENTERPRISE_DIR}/src/plugins/taosk/inc"
   )
 endif()
 target_link_libraries(

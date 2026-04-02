@@ -6,9 +6,6 @@
 set -e
 # set -x
 
-# cluster(enterprise)/ edge(community)/
-# entMode lite(enterprise lite)
-# pkgMode lite(community lite, only taosd and taos)
 verMode=edge
 pkgMode=full
 entMode=full
@@ -42,7 +39,6 @@ inspect_name="${PREFIX}inspect"
 set_malloc_bin="set_taos_malloc.sh"
 mqtt_name="${PREFIX}mqtt"
 taosgen_name="${PREFIX}gen"
-taosk_name="${PREFIX}k"
 xnode_name="xnoded"
 
 # Color setting
@@ -241,20 +237,11 @@ function setup_env() {
 
   # 2. User mode detection
   if [[ "$(id -u)" -ne 0 ]]; then
-    # Check systemd version >= 232 for user service support
-    local sd_ver
-    sd_ver=$(systemctl --version 2>/dev/null | head -1 | awk '{print $2}')
-    if [ -z "$sd_ver" ] || [ "$sd_ver" -lt 232 ] 2>/dev/null; then
-      echo -e "${RED}Non-root install requires systemd >= 232, current version: ${sd_ver:-unknown}${NC}"
-      echo -e "Supported: CentOS/RHEL 8+, Ubuntu 18.04+, Debian 9+, SUSE 15+"
-      echo -e "CentOS/RHEL 7 (systemd 219) does not support non-root installation."
-      exit 1
-    fi
     if ! systemctl --user show-environment &>/dev/null; then
       echo -e "${RED}Current user is not root and no systemd user session (user bus) is available.${NC}"
+      echo -e "A systemd user session is required so the installer can manage per-user systemd services."
       echo -e "Please use ssh to log in as this user and then run the installer, for example:"
       echo -e "${BOLD}ssh <username>@<host>${NC}"
-      echo -e "If the problem persists, ask root to run: loginctl enable-linger $(whoami)"
       exit 1
     fi
     user_mode=1
@@ -267,8 +254,8 @@ function setup_env() {
     mode_desc="root (system-wide)"
   fi
 
-  # 3. check existing server installation
-  taosd_bin=$(command -v "${serverName}" 2>/dev/null || true)
+  # 3. check existing taosd installation
+  taosd_bin=$(command -v taosd 2>/dev/null || true)
   if [ -n "${taosd_bin}" ]; then
       # mac will skip this check
       echo "Welcome to ${productName} Update ..."
@@ -295,24 +282,6 @@ function setup_env() {
       echo
   fi
   
-  # 3.5 Read previous install path from .install_path if not explicitly set via -d
-  if [[ $taos_dir_set -eq 0 ]]; then
-    local candidate_path=""
-    if [ -n "${taosd_parent_dir:-}" ] && [ -f "${taosd_parent_dir}/.install_path" ]; then
-      candidate_path=$(cat "${taosd_parent_dir}/.install_path")
-    elif [ -f "/usr/local/${PREFIX}/.install_path" ]; then
-      candidate_path=$(cat "/usr/local/${PREFIX}/.install_path")
-    elif [ -f "$HOME/${PREFIX}/.install_path" ]; then
-      candidate_path=$(cat "$HOME/${PREFIX}/.install_path")
-    fi
-
-    if [ -n "$candidate_path" ] && [ -d "$candidate_path" ] && \
-       [[ "$candidate_path" == */"${PREFIX}" ]]; then
-      taos_dir="$candidate_path"
-      taos_dir_set=1
-      log info "Detected previous installation path: ${taos_dir}"
-    fi
-  fi
 
   # 4. Install directory setting
   log info "Detected install mode: $mode_desc"
@@ -415,13 +384,18 @@ function setup_env() {
     remove_name="remove_client.sh"
     tools=("${clientName}" "${benchmarkName}" "${dumpName}" "${demoName}" "${inspect_name}" "${taosgen_name}" "${remove_name}")
     services=()
+    
   else
     # server/默认，按 verMode/pkgMode/entMode 细分
     # entMode lite will include xnode in the next version, so it is added to the tools list for forward compatibility.
     remove_name="remove.sh"
-    tools=("${clientName}" "${benchmarkName}" "${dumpName}" "${demoName}" "${inspect_name}" "${mqtt_name}" "${remove_name}" "${udfdName}" "${xnode_name}" set_core.sh TDinsight.sh startPre.sh start-all.sh stop-all.sh "${taosgen_name}" "${taosk_name}")
+    tools=("${clientName}" "${benchmarkName}" "${dumpName}" "${demoName}" "${inspect_name}" "${mqtt_name}" "${remove_name}" "${udfdName}" "${xnode_name}" set_core.sh TDinsight.sh startPre.sh start-all.sh stop-all.sh "${taosgen_name}")
     if [ "${verMode}" == "cluster" ]; then
-      services=("${serverName}" "${adapterName}" "${xname}" "${explorerName}" "${keeperName}")
+      if [ "${entMode}" == "lite" ]; then
+        services=("${serverName}" "${adapterName}" "${explorerName}" "${keeperName}")
+      else
+        services=("${serverName}" "${adapterName}" "${xname}" "${explorerName}" "${keeperName}")
+      fi
     elif [ "${verMode}" == "edge" ]; then
       if [ "${pkgMode}" == "full" ]; then
         services=("${serverName}" "${adapterName}" "${keeperName}" "${explorerName}")
@@ -438,11 +412,11 @@ function setup_env() {
 
 function get_config_file() {
     case "$1" in
-      "${serverName}") echo "${configFile}" ;;
-      "${adapterName}") echo "${adapterName}.toml" ;;
-      "${xname}") echo "${xname}.toml" ;;
-      "${keeperName}") echo "${keeperName}.toml" ;;
-      "${explorerName}") echo "explorer.toml" ;;
+      taosd) echo "taos.cfg" ;;
+      taosadapter) echo "taosadapter.toml" ;;
+      taosx) echo "taosx.toml" ;;
+      taoskeeper) echo "taoskeeper.toml" ;;
+      taos-explorer) echo "explorer.toml" ;;
       *) echo "" ;;
     esac
 }
@@ -454,20 +428,21 @@ function install_services() {
 }
 
 function kill_process() {
-    # use pkill if available, otherwise fallback to pgrep + while-read
+    # use pkill if available, otherwise fallback to pgrep + xargs
     if command -v pkill >/dev/null 2>&1; then
         pkill -x -9 "$1" 2>/dev/null || true
     else
-        pgrep -x "$1" | while read p; do kill -9 "$p" 2>/dev/null || :; done || :
+        pgrep -x "$1" | xargs -r kill -9 2>/dev/null || true
     fi
 }
 
 function install_main_path() {
   #create install main dir and all sub dir
-  # Note: do NOT rm data/log/cfg link dirs here.
-  # - Real directories from old versions must be preserved (data loss risk)
-  # - Symlinks are safely overwritten by ln -sf in install_log/install_config
-  # - data_link_dir is not recreated during upgrade (install_data not called)
+  if [[ $user_mode -eq 0 ]]; then
+    rm -rf "${data_link_dir}" || :
+    rm -rf "${log_link_dir}" || :
+    rm -rf "${cfg_link_dir}" || :
+  fi
   rm -rf "${bin_dir}" || :
   rm -rf "${driver_dir}" || :
   rm -rf "${install_main_dir}/examples" || :
@@ -743,10 +718,6 @@ function install_header() {
 }
 
 function add_newHostname_to_hosts() {
-  if [ "$user_mode" -eq 1 ]; then
-    echo "Warning: non-root install, skipping /etc/hosts modification"
-    return
-  fi
   localIp="127.0.0.1"
   OLD_IFS="$IFS"
   IFS=" "
@@ -761,10 +732,9 @@ function add_newHostname_to_hosts() {
 
   if grep -q "127.0.0.1  $1" /etc/hosts; then
     return
-  elif [ -w /etc/hosts ]; then
-    echo "127.0.0.1  $1" >>/etc/hosts
   else
-    echo "Warning: /etc/hosts is not writable, skipping hostname addition"
+    chmod 666 /etc/hosts
+    echo "127.0.0.1  $1" >>/etc/hosts
   fi
 }
 
@@ -917,13 +887,11 @@ function install_taosx_config() {
 function install_explorer_config() {
   local only_client=${1:-}
   [ -n "${only_client}" ] && return 0
-  local explorer_config_file
-  explorer_config_file=$(get_config_file "${explorerName}")
 
   if [ "$verMode" == "cluster" ] && [ "${entMode}" != "lite" ]; then
-    file_name="${script_dir}/${xname}/etc/${PREFIX}/${explorer_config_file}"
+    file_name="${script_dir}/${xname}/etc/${PREFIX}/explorer.toml"
   else
-    file_name="${script_dir}/cfg/${explorer_config_file}"
+    file_name="${script_dir}/cfg/explorer.toml"
   fi
   if [ $taos_dir_set -eq 1 ]; then
     mkdir -p "${dataDir}/explorer"
@@ -938,10 +906,10 @@ function install_explorer_config() {
     # replace log path
     sed -i -r "0,/path\s*=\s*/s|#*\s*(path\s*=\s*).*|\1\"${logDir}\"|" "${file_name}"
 
-    if [ -f "${configDir}/${explorer_config_file}" ]; then
-      cp "${file_name}" "${configDir}/${explorer_config_file}.new"
+    if [ -f "${configDir}/explorer.toml" ]; then
+      cp "${file_name}" "${configDir}/explorer.toml.new"
     else
-      cp "${file_name}" "${configDir}/${explorer_config_file}"
+      cp "${file_name}" "${configDir}/explorer.toml"
     fi
   fi
 }
@@ -1158,7 +1126,7 @@ function install_service_on_sysvinit() {
     chkconfig --add $1 || :
     chkconfig --level 2345 $1 on || :
   elif ((${initd_mod} == 2)); then
-    insserv $1 || :
+    insserv $1} || :
     insserv -d $1 || :
   elif ((${initd_mod} == 3)); then
     update-rc.d $1 defaults || :
@@ -1328,59 +1296,48 @@ function rpm_erase() {
 
 function finished_install_info(){
     local entries=()
-    local explorer_config_file
-    explorer_config_file=$(get_config_file "${explorerName}")
     # header
     echo
     log info_color "${productName} has been installed successfully!"
-
-    if [ "$user_mode" -eq 1 ]; then
-      if ! loginctl show-user "$(whoami)" 2>/dev/null | grep -q "Linger=yes"; then
-        echo
-        echo -e "${RED}IMPORTANT: To ensure services auto-start after reboot, ask root to run:${NC}"
-        echo -e "  loginctl enable-linger $(whoami)"
-      fi
-    fi
-
     echo
 
     # collect pairs "label|value"
     if [ "${pkgMode}" != "lite" ]; then
-      entries+=("To configure ${serverName}:|edit ${configDir}/${configFile}")
+      entries+=("To configure ${PREFIX}d:|edit ${configDir}/${configFile}")
       if [[ -f "${configDir}/${adapterName}.toml" && -f "${installDir}/bin/${adapterName}" ]]; then
-        entries+=("To configure ${adapterName}:|edit ${configDir}/${adapterName}.toml")
+        entries+=("To configure ${clientName}Adapter:|edit ${configDir}/${adapterName}.toml")
       fi
       
-      entries+=("To configure ${keeperName}:|edit ${configDir}/${keeperName}.toml")
-      entries+=("To configure ${xname}:|edit ${configDir}/${xname}.toml")
-      entries+=("To configure ${explorerName}:|edit ${configDir}/${explorer_config_file}")
+      entries+=("To configure ${clientName}Keeper:|edit ${configDir}/${keeperName}.toml")
+      entries+=("To configure ${clientName}X:|edit ${configDir}/${xname}.toml")
+      entries+=("To configure ${clientName}Explorer:|edit ${configDir}/explorer.toml")
 
       # insert a blank line between config and start
       entries+=("|")
       
       if ((service_mod == 0)); then
-        entries+=("To start ${serverName}:|${sysctl_cmd} start ${serverName}")
-        if [[ -f "${service_config_dir}/${adapterName}.service" && -f "${installDir}/bin/${adapterName}" ]]; then
-          entries+=("To start ${adapterName}:|${sysctl_cmd} start ${adapterName}")
+        entries+=("To start ${PREFIX}d:|${sysctl_cmd} start ${serverName}")
+        if [[ -f "${service_config_dir}/${clientName}adapter.service" && -f "${installDir}/bin/${clientName}adapter" ]]; then
+          entries+=("To start ${clientName}Adapter:|${sysctl_cmd} start ${clientName}adapter")
         fi
       elif ((service_mod == 1)); then
         entries+=("To start ${productName} server:|service ${serverName} start")
-        if [[ -f "${service_config_dir}/${adapterName}.service" && -f "${installDir}/bin/${adapterName}" ]]; then
-          entries+=("To start ${adapterName}:|service ${adapterName} start")
+        if [[ -f "${service_config_dir}/${clientName}adapter.service" && -f "${installDir}/bin/${clientName}adapter" ]]; then
+          entries+=("To start ${clientName}Adapter:|service ${clientName}adapter start")
         fi
       else
         entries+=("To start ${productName} server:|${serverName}")
-        if [ -f "${installDir}/bin/${adapterName}" ]; then
-          entries+=("To start ${adapterName}:|${adapterName}")
+        if [ -f "${installDir}/bin/${clientName}adapter" ]; then
+          entries+=("To start ${clientName}Adapter:|${clientName}adapter")
         fi
       fi
 
-      entries+=("To start ${keeperName}:|${sysctl_cmd} start ${keeperName}")
+      entries+=("To start ${clientName}Keeper:|${sysctl_cmd} start ${clientName}keeper")
 
       if [ "$verMode" == "cluster" ] && [ "${entMode}" != "lite" ]; then
-        entries+=("To start ${xname}:|${sysctl_cmd} start ${xname}")
+        entries+=("To start ${clientName}X:|${sysctl_cmd} start ${clientName}x")
       fi
-      entries+=("To start ${explorerName}:|${sysctl_cmd} start ${explorerName}")
+      entries+=("To start ${clientName}Explorer:|${sysctl_cmd} start ${clientName}-explorer")
       entries+=("To start all the components:|start-all.sh")
       entries+=("|")
       if [[ ${user_mode} -eq 1 ]]; then
@@ -1402,8 +1359,8 @@ function finished_install_info(){
         entries+=("|")
       fi
     else
-      entries+=("To configure ${serverName}:|edit ${configDir}/${configFile}")
-      entries+=("To start ${serverName}:|${sysctl_cmd} start ${serverName}")
+      entries+=("To configure ${PREFIX}d:|edit ${configDir}/${configFile}")
+      entries+=("To start ${PREFIX}d:|${sysctl_cmd} start ${serverName}")
       entries+=("To access ${productName} CLI:|${clientName} -h $serverFqdn")
       entries+=("To read the user manual:|https://docs.tdengine.com")
       entries+=("|")

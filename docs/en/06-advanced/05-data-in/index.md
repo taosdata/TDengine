@@ -1,10 +1,11 @@
 ---
 title: Data Connectors
+slug: /advanced-features/data-connectors
 ---
 
 import DocCardList from '@theme/DocCardList';
 import {useCurrentSidebarCategory} from '@docusaurus/theme-common';
-import { Enterprise } from '../../assets/resources/_resources.mdx';
+import Enterprise from '../../assets/resources/_enterprise.mdx';
 
 <Enterprise/>
 

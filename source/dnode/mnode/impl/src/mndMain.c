@@ -44,7 +44,6 @@
 #include "mndRsma.h"
 #include "mndScan.h"
 #include "mndScanDetail.h"
-#include "mndSecurityPolicy.h"
 #include "mndShow.h"
 #include "mndSma.h"
 #include "mndSnode.h"
@@ -54,16 +53,15 @@
 #include "mndSubscribe.h"
 #include "mndSync.h"
 #include "mndTelem.h"
-#include "mndToken.h"
 #include "mndTopic.h"
 #include "mndTrans.h"
 #include "mndUser.h"
+#include "mndToken.h"
 #include "mndVgroup.h"
 #include "mndView.h"
 #include "mndXnode.h"
 #include "tencrypt.h"
 
-#define UPGRADE_INTERVAL 10
 static inline int32_t mndAcquireRpc(SMnode *pMnode) {
   int32_t code = 0;
   (void)taosThreadRwlockRdlock(&pMnode->lock);
@@ -119,23 +117,6 @@ static void mndPullupTrans(SMnode *pMnode) {
     // TODO check return value
     if (tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg) < 0) {
       mError("failed to put into write-queue since %s, line:%d", terrstr(), __LINE__);
-    }
-  }
-}
-
-static void mndPullupUpgradeSdb(SMnode *pMnode) {
-  if (sdbIsUpgraded(pMnode->pSdb)) {
-    pMnode->version = TSDB_MNODE_BUILTIN_DATA_VERSION;
-    return;
-  }
-
-  if (pMnode->version < TSDB_MNODE_BUILTIN_DATA_VERSION && mndIsLeader(pMnode)) {
-    if (sdbUpgrade(pMnode->pSdb, pMnode->version) != 0) {
-      mError("failed to upgrade sdb while start mnode");
-      return;
-    }
-    if (sdbIsUpgraded(pMnode->pSdb)) {
-      pMnode->version = TSDB_MNODE_BUILTIN_DATA_VERSION;
     }
   }
 }
@@ -304,18 +285,6 @@ static void mndPullupAuth(SMnode *pMnode) {
   }
 }
 
-static void mndPullupCls(SMnode *pMnode) {
-  mTrace("pullup cls msg");
-  int32_t contLen = 0;
-  void   *pReq = mndBuildTimerMsg(&contLen);
-  if (pReq != NULL) {
-    SRpcMsg rpcMsg = {.msgType = TDMT_MND_CLS_HB_TIMER, .pCont = pReq, .contLen = contLen, .info.notFreeAhandle = 1, .info.ahandle = 0};
-    if (tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg) < 0) {
-      mError("failed to put into write-queue since %s, line:%d", terrstr(), __LINE__);
-    }
-  }
-}
-
 static void mndIncreaseUpTime(SMnode *pMnode) {
   mTrace("increate uptime");
   int32_t contLen = 0;
@@ -439,9 +408,6 @@ static int32_t minCronTime() {
   min = TMIN(min, telemInt);
   min = TMIN(min, tsGrantHBInterval);
   min = TMIN(min, tsUptimeInterval);
-#ifdef TD_ENTERPRISE
-  if (tsClsEnabled) min = TMIN(min, tsClsRefreshInterval);
-#endif
 
   return min <= 1 ? 2 : min;
 }
@@ -468,17 +434,8 @@ void mndDoTimerPullupTask(SMnode *pMnode, int64_t sec) {
     if (sec % tsQuerySsMigrateIntervalSec == 0) {
       mndPullupUpdateSsMigrateProgress(pMnode);
     }
-    if (tsSsEnabled == 2) {
-      // By default, both tsTrimVDbIntervalSec and tsSsAutoMigrateIntervalSec are 3600 seconds,
-      // so, delay half interval to do ss migrate to avoid conflict.
-      //
-      // NOTE: this solution is not perfect, there could still be conflict if user changes the
-      // default value, but it is good enough as user is unlikely to change the default value.
-      // The best solution is adding a new offset config to all cron tasks, but that would add
-      // extra complexity.
-      if ((sec % tsSsAutoMigrateIntervalSec) == (tsSsAutoMigrateIntervalSec / 2)) {
-        mndPullupSsMigrateDb(pMnode);
-      }
+    if (tsSsEnabled == 2 && sec % tsSsAutoMigrateIntervalSec == 0) {
+      mndPullupSsMigrateDb(pMnode);
     }
   }
 #endif
@@ -486,11 +443,6 @@ void mndDoTimerPullupTask(SMnode *pMnode, int64_t sec) {
   if (tsAuthReq) {
     if (sec % tsAuthReqHBInterval == 0) {
       mndPullupAuth(pMnode);
-    }
-  }
-  if (tsClsEnabled || tsClsRefreshInterval == GRANT_CLS_CLOSING || tsClsRefreshInterval == GRANT_CLS_OPENING) {
-    if (sec % tsClsRefreshInterval == 0) {
-      mndPullupCls(pMnode);
     }
   }
 #endif
@@ -518,10 +470,6 @@ void mndDoTimerPullupTask(SMnode *pMnode, int64_t sec) {
   }
   if (sec % tsUptimeInterval == 0) {
     mndIncreaseUpTime(pMnode);
-  }
-
-  if (pMnode->version < TSDB_MNODE_BUILTIN_DATA_VERSION && sec % UPGRADE_INTERVAL == 0) {
-    mndPullupUpgradeSdb(pMnode);
   }
 }
 
@@ -809,7 +757,6 @@ static int32_t mndInitSteps(SMnode *pMnode) {
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-sdb", mndInitSdb, mndCleanupSdb));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-trans", mndInitTrans, mndCleanupTrans));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-cluster", mndInitCluster, mndCleanupCluster));
-  TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-security-policy", mndInitSecurityPolicy, mndCleanupSecurityPolicy));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-encrypt-algorithms", mndInitEncryptAlgr, mndCleanupEncryptAlgr));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-mnode", mndInitMnode, mndCleanupMnode));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-qnode", mndInitQnode, mndCleanupQnode));
@@ -934,6 +881,16 @@ SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
     return NULL;
   }
 
+  char timestr[24] = "1970-01-01 00:00:00.00";
+  code = taosParseTime(timestr, &pMnode->checkTime, (int32_t)strlen(timestr), TSDB_TIME_PRECISION_MILLI, NULL);
+  if (code < 0) {
+    mError("failed to open mnode in step 3, parse time, since %s", tstrerror(code));
+    (void)taosThreadRwlockDestroy(&pMnode->lock);
+    taosMemoryFree(pMnode);
+    terrno = code;
+    return NULL;
+  }
+
   mInfo("vgId:1, mnode set options to syncMgmt, dnodeId:%d, numOfTotalReplicas:%d", pOption->selfIndex,
         pOption->numOfTotalReplicas);
   mndSetOptions(pMnode, pOption);
@@ -1003,7 +960,6 @@ void mndClose(SMnode *pMnode) {
 }
 
 int32_t mndStart(SMnode *pMnode) {
-  int32_t code = 0;
   mndSyncStart(pMnode);
   if (pMnode->deploy) {
     if (sdbDeploy(pMnode->pSdb) != 0) {
@@ -1012,38 +968,13 @@ int32_t mndStart(SMnode *pMnode) {
     }
     mndSetRestored(pMnode, true);
   }
-
-  if (sdbIsUpgraded(pMnode->pSdb)) {
-    pMnode->version = TSDB_MNODE_BUILTIN_DATA_VERSION;
-  } else if (pMnode->version < TSDB_MNODE_BUILTIN_DATA_VERSION) {
+  if (mndIsLeader(pMnode)) {
     if (sdbUpgrade(pMnode->pSdb, pMnode->version) != 0) {
       mError("failed to upgrade sdb while start mnode");
       return -1;
     }
-    if (sdbIsUpgraded(pMnode->pSdb)) {
-      pMnode->version = TSDB_MNODE_BUILTIN_DATA_VERSION;
-    }
   }
-
-#ifdef TD_ENTERPRISE
-  if (mndIsLeader(pMnode)) {
-    if (tsSodEnforceMode) {
-      if ((code = mndProcessEnforceSod(pMnode)) != 0) {
-        if (code == TSDB_CODE_MND_ROLE_NO_VALID_SYSDBA || code == TSDB_CODE_MND_ROLE_NO_VALID_SYSSEC ||
-            code == TSDB_CODE_MND_ROLE_NO_VALID_SYSAUDIT) {
-          mInfo("enter SoD pending mode. Enforce SoD by command line failed since %s", tstrerror(code));
-        } else if (code == TSDB_CODE_ACTION_IN_PROGRESS) {
-          mInfo("enter SoD pending mode. Enforce SoD is in progress");
-        } else {
-          mError("failed to enforce SoD by command line since %s", tstrerror(code));
-          TAOS_RETURN(code);
-        }
-      } else {
-        mndSetSoDPhase(pMnode, TSDB_SOD_PHASE_STABLE);
-      }
-    }
-  }
-#endif
+  pMnode->version = TSDB_MNODE_BUILTIN_DATA_VERSION;
   grantReset(pMnode, TSDB_GRANT_ALL, 0);
 
   return mndInitTimer(pMnode);
@@ -1151,8 +1082,7 @@ _OVER:
       pMsg->msgType == TDMT_MND_SSMIGRATE_DB_TIMER || pMsg->msgType == TDMT_MND_ARB_HEARTBEAT_TIMER ||
       pMsg->msgType == TDMT_MND_ARB_CHECK_SYNC_TIMER || pMsg->msgType == TDMT_MND_CHECK_STREAM_TIMER ||
       pMsg->msgType == TDMT_MND_UPDATE_SSMIGRATE_PROGRESS_TIMER || pMsg->msgType == TDMT_MND_SCAN_TIMER ||
-      pMsg->msgType == TDMT_MND_QUERY_TRIM_TIMER || pMsg->msgType == TDMT_MND_AUTH_HB_TIMER ||
-      pMsg->msgType == TDMT_MND_CLS_HB_TIMER) {
+      pMsg->msgType == TDMT_MND_QUERY_TRIM_TIMER || pMsg->msgType == TDMT_MND_AUTH_HB_TIMER) {
     mTrace("timer not process since mnode restored:%d stopped:%d, sync restored:%d role:%s ", pMnode->restored,
            pMnode->stopped, state.restored, syncStr(state.state));
     TAOS_RETURN(code);
@@ -1505,21 +1435,3 @@ void mndSetStop(SMnode *pMnode) {
 }
 
 bool mndGetStop(SMnode *pMnode) { return pMnode->stopped; }
-
-void mndSetSoDPhase(SMnode *pMnode, int8_t phase) {
-  (void)taosThreadRwlockWrlock(&pMnode->lock);
-  pMnode->sodPhase = phase;
-  (void)taosThreadRwlockUnlock(&pMnode->lock);
-}
-
-int8_t mndGetSoDPhase(SMnode *pMnode) {
-  int8_t result = TSDB_SOD_PHASE_STABLE;
-  (void)taosThreadRwlockRdlock(&pMnode->lock);
-  result = pMnode->sodPhase;
-  (void)taosThreadRwlockUnlock(&pMnode->lock);
-  if (result < TSDB_SOD_PHASE_STABLE || result > TSDB_SOD_PHASE_ENFORCE) {
-    mWarn("invalid SoD phase:%d, reset to stable", result);
-    result = TSDB_SOD_PHASE_STABLE;
-  }
-  return result;
-}

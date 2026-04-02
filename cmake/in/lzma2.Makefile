@@ -7,7 +7,7 @@ CC:=gcc
 AR:=ar -rcs
 RM:=rm -rf
 
-ASFLAGS := -Wa,--noexecstack
+ASFLAGS :=
 
 SONAME:=libfast-lzma2.so.1
 REAL_NAME:=libfast-lzma2.so.1.0

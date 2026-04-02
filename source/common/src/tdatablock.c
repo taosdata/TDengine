@@ -278,10 +278,6 @@ static int32_t colDataReserve(SColumnInfoData* pColumnInfoData, size_t newSize) 
 
 int32_t doCopyNItems(struct SColumnInfoData* pColumnInfoData, int32_t currentRow, const char* pData,
                             int32_t itemLen, int32_t numOfRows, bool trimValue) {
-  if (numOfRows <= 0) {
-    return TSDB_CODE_SUCCESS;
-  }
-
   if (pColumnInfoData->info.bytes < itemLen) {
     uWarn("column/tag actual data len %d is bigger than schema len %d, trim it:%d", itemLen,
           pColumnInfoData->info.bytes, trimValue);
@@ -2499,11 +2495,8 @@ static void colDataKeepFirstNRows(SColumnInfoData* pColInfoData, size_t n, size_
           }
         }
       }
-      if (newLen < 0) {
-        // All kept rows are NULL — no valid var data belongs to them.
-        uDebug("colDataKeepFirstNRows: all kept rows are NULL, newLen:%d old:%u, reset length to 0",
-               newLen, pColInfoData->varmeta.length);
-        pColInfoData->varmeta.length = 0;
+      if (newLen <= -1) {
+        uFatal("colDataKeepFirstNRows: newLen:%d  old:%d", newLen, pColInfoData->varmeta.length);
       } else {
         pColInfoData->varmeta.length = newLen;
       }

@@ -1,6 +1,7 @@
 ---
 sidebar_label: taosKeeper
 title: taosKeeper Reference
+slug: /tdengine-reference/components/taoskeeper
 toc_max_heading_level: 4
 ---
 
@@ -13,7 +14,7 @@ taosKeeper is a monitoring metric export tool for TDengine version 3.0, which ca
 
 There are two ways to install taosKeeper:
 
-- taosKeeper is automatically installed with the official TDengine installation package, for details please refer to [TDengine Installation](../../04-get-started/index.md).
+- taosKeeper is automatically installed with the official TDengine installation package, for details please refer to [TDengine Installation](../../../get-started/).
 
 - Compile and install taosKeeper separately, for details please refer to the [taosKeeper](https://github.com/taosdata/taoskeeper) repository.
 
@@ -155,7 +156,7 @@ monitor 1
 monitorFqdn localhost # FQDN for taoskeeper service
 ```
 
-For details on TDengine monitoring configuration, please refer to: [TDengine Monitoring Configuration](../../08-operation/05-monitor.md).
+For details on TDengine monitoring configuration, please refer to: [TDengine Monitoring Configuration](../../../operations-and-maintenance/monitor-your-cluster/).
 
 <Tabs>
 <TabItem label="Linux" value="linux">
@@ -290,7 +291,7 @@ Query OK, 1 row(s) in set (0.003168s)
 
 ### Configuring Monitoring with TDInsight
 
-After collecting monitoring data, you can use TDInsight to configure monitoring for TDengine. For details, please refer to the [TDinsight Reference Manual](12-tdinsight.md).
+After collecting monitoring data, you can use TDInsight to configure monitoring for TDengine. For details, please refer to the [TDinsight Reference Manual](../tdinsight/).
 
 ## Integrating Prometheus
 

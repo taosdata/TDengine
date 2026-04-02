@@ -4,7 +4,6 @@
 #include <taos.h>
 #include <taoserror.h>
 #include <toolsdef.h>
-#include "tdef.h"
 #include "dump.h"
 
 //
@@ -32,6 +31,9 @@
 #define RETRY_TYPE_CONNECT 0
 #define RETRY_TYPE_QUERY   1
 #define RETRY_TYPE_FETCH   2
+
+//come from TDengine util/tdef.h
+#define TSDB_TABLE_NAME_LEN           193                                // it is a null-terminated string
 
 //
 // ------------- struct define ----------

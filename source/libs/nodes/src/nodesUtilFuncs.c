@@ -839,7 +839,6 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_SHOW_BACKUP_NODES_STMT:
     case QUERY_NODE_SHOW_ARBGROUPS_STMT:
     case QUERY_NODE_SHOW_CLUSTER_STMT:
-    case QUERY_NODE_SHOW_SECURITY_POLICIES_STMT:
     case QUERY_NODE_SHOW_DATABASES_STMT:
     case QUERY_NODE_SHOW_FUNCTIONS_STMT:
     case QUERY_NODE_SHOW_INDEXES_STMT:
@@ -904,9 +903,6 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
       break;
     case QUERY_NODE_SHOW_CREATE_RSMA_STMT:
       code = makeNode(type, sizeof(SShowCreateRsmaStmt), &pNode);
-      break;
-    case QUERY_NODE_SHOW_CREATE_STREAM_STMT:
-      code = makeNode(type, sizeof(SShowCreateStreamStmt), &pNode);
       break;
     case QUERY_NODE_SHOW_TABLE_DISTRIBUTED_STMT:
       code = makeNode(type, sizeof(SShowTableDistributedStmt), &pNode);
@@ -1861,7 +1857,6 @@ void nodesDestroyNode(SNode* pNode) {
       SCreateUserStmt* pStmt = (SCreateUserStmt*)pNode;
       taosMemoryFree(pStmt->pIpRanges);
       taosMemoryFree(pStmt->pTimeRanges);
-      nodesDestroyList(pStmt->pSecurityLevels);
       break;
     }
     case QUERY_NODE_CREATE_ENCRYPT_ALGORITHMS_STMT: {
@@ -1909,7 +1904,6 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(opts->pDropIpRanges);
       nodesDestroyList(opts->pTimeRanges);
       nodesDestroyList(opts->pDropTimeRanges);
-      nodesDestroyList(opts->pSecurityLevels);
       break;
     }
     case QUERY_NODE_CREATE_INDEX_STMT: {
@@ -2047,7 +2041,6 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_SHOW_BACKUP_NODES_STMT:
     case QUERY_NODE_SHOW_ARBGROUPS_STMT:
     case QUERY_NODE_SHOW_CLUSTER_STMT:
-    case QUERY_NODE_SHOW_SECURITY_POLICIES_STMT:
     case QUERY_NODE_SHOW_DATABASES_STMT:
     case QUERY_NODE_SHOW_FUNCTIONS_STMT:
     case QUERY_NODE_SHOW_INDEXES_STMT:
@@ -2159,9 +2152,6 @@ void nodesDestroyNode(SNode* pNode) {
       }
       break;
     }
-    case QUERY_NODE_SHOW_CREATE_STREAM_STMT:
-      taosMemoryFreeClear(((SShowCreateStreamStmt*)pNode)->sql);
-      break;
     case QUERY_NODE_DELETE_STMT: {
       SDeleteStmt* pStmt = (SDeleteStmt*)pNode;
       nodesDestroyNode(pStmt->pFromTable);
@@ -3243,9 +3233,6 @@ char* nodesGetStrValueFromNode(SValueNode* pNode) {
     case TSDB_DATA_TYPE_VARCHAR:
     case TSDB_DATA_TYPE_VARBINARY:
     case TSDB_DATA_TYPE_GEOMETRY: {
-      if (NULL == pNode->datum.p) {
-        return NULL;
-      }
       int32_t bufSize = varDataLen(pNode->datum.p) + 2 + 1;
       void*   buf = taosMemoryMalloc(bufSize);
       if (NULL == buf) {
@@ -3970,18 +3957,12 @@ int32_t nodesMakeValueNodeFromString(char* literal, SValueNode** ppValNode) {
     pValNode->node.resType.bytes = lenStr + VARSTR_HEADER_SIZE;
     char* p = taosMemoryMalloc(lenStr + 1 + VARSTR_HEADER_SIZE);
     if (p == NULL) {
-      nodesDestroyNode((SNode*)pValNode);
       return terrno;
     }
     varDataSetLen(p, lenStr);
     memcpy(varDataVal(p), literal, lenStr + 1);
     pValNode->datum.p = p;
     pValNode->literal = tstrdup(literal);
-    if(pValNode->literal == NULL) {
-      taosMemoryFree(p);
-      nodesDestroyNode((SNode*)pValNode);
-      return terrno;
-    }
     pValNode->translate = true;
     pValNode->isNull = false;
     *ppValNode = pValNode;

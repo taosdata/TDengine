@@ -14,7 +14,7 @@ Through the Python connector of TDengine, Superset can support TDengine data sou
 Prepare the following environment:
 
 - TDengine 3.2.3.0 and above version is installed and running normally (both Enterprise and Community versions are available).
-- taosAdapter is running normally, refer to [taosAdapter](../../14-reference/01-components/03-taosadapter.md).
+- taosAdapter is running normally, refer to [taosAdapter](../../../tdengine-reference/components/taosadapter/).
 - Apache Superset version 2.1.0 or above is already installed, refre to [Apache Superset](https://superset.apache.org/).
 - The Python connector taospy version 2.7.18 or higher is installed, [Install reference link](https://pypi.org/project/taospy/).
 - The Python connector (WebSocket) taos-ws-py version 0.3.9 or higher is installed, [Install reference link](https://pypi.org/project/taos-ws-py/).
@@ -70,7 +70,7 @@ There is no difference in the use of TDengine data source compared to other data
 We chose two popular templates from the "Superset Chart" template to showcase their effects, using smart meter data as an example:
 
 1. "Aggregate" Type, which displays the maximum voltage value collected per minute during the specified time period in Group 4.
-   ![superset-demo1](../../assets/superset-01.png)
+   ![superset-demo1](../../assets/superset-01.webp)
 
 2. "RAW RECORDS" Type, which displays the collected values of current and voltage during the specified time period in Group 4.  
-    ![superset-demo2](../../assets/superset-02.png)
+    ![superset-demo2](../../assets/superset-02.webp)

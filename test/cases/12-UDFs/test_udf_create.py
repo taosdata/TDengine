@@ -1,5 +1,4 @@
 from new_test_framework.utils import tdLog, tdSql, tdCom
-from new_test_framework.utils.pathFinding import find_proj_path
 import taos
 import sys
 import time
@@ -7,6 +6,8 @@ import os
 import platform
 
 import subprocess
+if (platform.system().lower() == 'windows'):
+    import win32gui
 import threading
 
 class TestUdfCreate:
@@ -14,26 +15,14 @@ class TestUdfCreate:
     def setup_class(cls):
         tdLog.debug(f"start to excute {__file__}")
 
-    @staticmethod
-    def _find_udf_lib(proj_path, name):
-        is_win = platform.system().lower() == 'windows'
-        filename = f"{name}.dll" if is_win else f"lib{name}.so"
-        for root, _dirs, files in os.walk(proj_path):
-            if filename in files:
-                full = os.path.join(root, filename)
-                if "build" in full:
-                    return full
-        return ""
 
     def prepare_udf_so(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
-        projPath = selfPath
-        while projPath and projPath != os.path.dirname(projPath):
-            if os.path.isdir(os.path.join(projPath, "debug")):
-                break
-            projPath = os.path.dirname(projPath)
 
-        projPath = find_proj_path(selfPath)
+        if ("community" in selfPath):
+            projPath = selfPath[:selfPath.find("community")]
+        else:
+            projPath = selfPath[:selfPath.find("tests")]
         print(projPath)
 
         if platform.system().lower() == 'windows':
@@ -63,7 +52,6 @@ class TestUdfCreate:
 
     def prepare_data(self):
 
-        tdSql.execute("drop topic if exists topa")
         tdSql.execute("drop database if exists db ")
         tdSql.execute("create database if not exists db  duration 100")
         tdSql.execute("use db")
@@ -147,11 +135,6 @@ class TestUdfCreate:
 
 
     def create_udf_function(self):
-        # Drop ALL leftover functions from any previous test runs
-        functions = tdSql.getResult("show functions")
-        if functions:
-            for func in functions:
-                tdSql.execute(f"drop function if exists {func[0]}")
 
         for i in range(5):
             # create  scalar functions
@@ -173,7 +156,7 @@ class TestUdfCreate:
 
             functions = tdSql.getResult("show functions")
             for function in functions:
-                if function[0] == "udf1" or function[0] == "udf2":
+                if "udf1" in function[0] or  "udf2" in function[0]:
                     tdLog.info("drop udf functions failed ")
                     tdLog.exit("drop udf functions failed")
 
@@ -538,15 +521,17 @@ class TestUdfCreate:
 
 
     def checkRunTimeError(self):
-        if platform.system().lower() == 'windows':
+        if (platform.system().lower() == 'windows' and tdDnodes.dnodes[0].remoteIP == ""):
             while 1:
                 time.sleep(1)
-                os.system("TASKKILL /F /IM taosudf.exe >nul 2>&1")
+                hwnd = win32gui.FindWindow(None, "Microsoft Visual C++ Runtime Library")
+                if hwnd:
+                    os.system("TASKKILL /F /IM taosudf.exe")
 
     def unexpected_create(self):
-        # Note: checkRunTimeError (continuous udfd kill) is intentionally not started here.
-        # It causes unreliable scalar UDF queries in batch runs. The kill-loop was
-        # Windows-only and not needed for the core test logic (wrong-param UDF creation).
+        if (platform.system().lower() == 'windows' and tdDnodes.dnodes[0].remoteIP == ""):
+            checkErrorThread = threading.Thread(target=self.checkRunTimeError,daemon=True)
+            checkErrorThread.start()
 
         tdLog.info(" create function with out bufsize ")
         tdSql.query("drop function udf1 ")

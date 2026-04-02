@@ -343,7 +343,7 @@ static int32_t tsdbCacheDeserializeV0(char const *value, SLastCol *pLastCol) {
   }
 }
 
-int32_t tsdbCacheDeserialize(char const *value, size_t size, SLastCol **ppLastCol) {
+static int32_t tsdbCacheDeserialize(char const *value, size_t size, SLastCol **ppLastCol) {
   if (!value) {
     return TSDB_CODE_INVALID_PARA;
   }
@@ -365,45 +365,22 @@ int32_t tsdbCacheDeserialize(char const *value, size_t size, SLastCol **ppLastCo
     TAOS_RETURN(TSDB_CODE_INVALID_DATA_FMT);
   }
 
-  // version - validate before read
-  if (offset + sizeof(int8_t) > size) {
-    taosMemoryFreeClear(pLastCol);
-    TAOS_RETURN(TSDB_CODE_INVALID_DATA_FMT);
-  }
+  // version
   int8_t version = *(int8_t *)(value + offset);
   offset += sizeof(int8_t);
 
-  // numOfPKs - validate before read
-  if (offset + sizeof(uint8_t) > size) {
-    taosMemoryFreeClear(pLastCol);
-    TAOS_RETURN(TSDB_CODE_INVALID_DATA_FMT);
-  }
+  // numOfPKs
   pLastCol->rowKey.numOfPKs = *(uint8_t *)(value + offset);
   offset += sizeof(uint8_t);
 
-  if (pLastCol->rowKey.numOfPKs > TD_MAX_PK_COLS) {
-    taosMemoryFreeClear(pLastCol);
-    TAOS_RETURN(TSDB_CODE_INVALID_DATA_FMT);
-  }
-
   // pks
   for (int32_t i = 0; i < pLastCol->rowKey.numOfPKs; i++) {
-    // validate before reading SValue
-    if (offset + sizeof(SValue) > size) {
-      taosMemoryFreeClear(pLastCol);
-      TAOS_RETURN(TSDB_CODE_INVALID_DATA_FMT);
-    }
     pLastCol->rowKey.pks[i] = *(SValue *)(value + offset);
     offset += sizeof(SValue);
 
     if (IS_VAR_DATA_TYPE(pLastCol->rowKey.pks[i].type)) {
       pLastCol->rowKey.pks[i].pData = NULL;
       if (pLastCol->rowKey.pks[i].nData > 0) {
-        // validate before reading variable-length payload
-        if (offset + pLastCol->rowKey.pks[i].nData > size) {
-          taosMemoryFreeClear(pLastCol);
-          TAOS_RETURN(TSDB_CODE_INVALID_DATA_FMT);
-        }
         pLastCol->rowKey.pks[i].pData = (uint8_t *)value + offset;
         offset += pLastCol->rowKey.pks[i].nData;
       }
@@ -411,18 +388,12 @@ int32_t tsdbCacheDeserialize(char const *value, size_t size, SLastCol **ppLastCo
   }
 
   if (version >= LAST_COL_VERSION_2) {
-    // validate before reading cacheStatus
-    if (offset + sizeof(uint8_t) > size) {
-      taosMemoryFreeClear(pLastCol);
-      TAOS_RETURN(TSDB_CODE_INVALID_DATA_FMT);
-    }
     pLastCol->cacheStatus = *(uint8_t *)(value + offset);
-    offset += sizeof(uint8_t);
   }
 
-  // Final validation
   if (offset > size) {
     taosMemoryFreeClear(pLastCol);
+
     TAOS_RETURN(TSDB_CODE_INVALID_DATA_FMT);
   }
 

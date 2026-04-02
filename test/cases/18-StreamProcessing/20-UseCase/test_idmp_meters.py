@@ -644,7 +644,6 @@ class Test_IDMP_Meters:
         # blank 12
         disTs += 12 * step
 
-        time.sleep(5)
         # disorder write 1 rows
         count = 2
         vals = "39,200,200"

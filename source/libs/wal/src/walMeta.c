@@ -245,16 +245,20 @@ FORCE_INLINE int32_t walScanLogGetLastVer(SWal* pWal, int32_t fileIdx, int64_t* 
     code = TSDB_CODE_WAL_LOG_NOT_EXIST;
   }
 
-  // truncate file to remove corruption
-  // For Raft log semantics, we must truncate at the last valid entry
-  // because log entries must be continuous without gaps
+  // truncate file
   if (lastEntryEndOffset != fileSize) {
-    wWarn("vgId:%d, repair meta truncate file %s to %" PRId64 ", orig size %" PRId64 ", fileIdx:%d",
-          pWal->cfg.vgId, fnameStr, lastEntryEndOffset, fileSize, fileIdx);
-
-    if (taosFtruncateFile(pFile, lastEntryEndOffset) < 0) {
-      wError("vgId:%d, failed to truncate file %s since %s", pWal->cfg.vgId, fnameStr, strerror(terrno));
-      TAOS_CHECK_GOTO(terrno, &lino, _err);
+    if(fileIdx < sz - 1){
+      wWarn("vgId:%d, repair meta truncate file %s to %" PRId64 ", orig size %" PRId64, pWal->cfg.vgId, fnameStr,
+            lastEntryEndOffset, fileSize);
+            
+      if (taosFtruncateFile(pFile, lastEntryEndOffset) < 0) {
+        wError("vgId:%d, failed to truncate file %s since %s", pWal->cfg.vgId, fnameStr, strerror(terrno));
+        TAOS_CHECK_GOTO(terrno, &lino, _err);
+      } 
+    }
+    else{
+      wWarn("vgId:%d, skip to truncate file in repair meta %s to %" PRId64 ", orig size %" PRId64 " but fileIdx:%d is invalid",
+            pWal->cfg.vgId, fnameStr, lastEntryEndOffset, fileSize, fileIdx);
     }
 
     if (pWal->cfg.level != TAOS_WAL_SKIP && taosFsyncFile(pFile) < 0) {
@@ -266,7 +270,7 @@ FORCE_INLINE int32_t walScanLogGetLastVer(SWal* pWal, int32_t fileIdx, int64_t* 
   pFileInfo->fileSize = lastEntryEndOffset;
 
 _err:
-  if (code != 0 && code != TSDB_CODE_WAL_LOG_NOT_EXIST) {
+  if (code != 0) {
     wError("vgId:%d, failed at line %d to scan log file %s since %s", pWal->cfg.vgId, lino, fnameStr, tstrerror(code));
   }
   TAOS_UNUSED(taosCloseFile(&pFile));
@@ -598,12 +602,10 @@ int32_t walCheckAndRepairMeta(SWal* pWal) {
       totSize += pFileInfo->fileSize;
       continue;
     }
-    if (fileSize != 0) {
-      wWarn("vgId:%d, going to repair file %s, fileSize:%" PRId64 ", fileSize in meta:%" PRId64 ", LastVer:%" PRId64
-            ", firstVer:%" PRId64 ", forceRepair:%d",
-            pWal->cfg.vgId, fnameStr, fileSize, pFileInfo->fileSize, pFileInfo->lastVer, pFileInfo->firstVer,
-            tsWalForceRepair);
-    }
+    wWarn("vgId:%d, going to repair file %s, fileSize:%" PRId64 ", fileSize in meta:%" PRId64 ", LastVer:%" PRId64
+          ", firstVer:%" PRId64 ", forceRepair:%d",
+          pWal->cfg.vgId, fnameStr, fileSize, pFileInfo->fileSize, pFileInfo->lastVer, pFileInfo->firstVer,
+          tsWalForceRepair);
     updateMeta = true;
 
     TAOS_CHECK_EXIT(walTrimIdxFile(pWal, fileIdx));

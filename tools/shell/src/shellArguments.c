@@ -39,7 +39,6 @@ char   configDirShell[PATH_MAX] = {0};
 #define SHELL_PKT_LEN  "Packet length used for net test, default is 1024 bytes."
 #define SHELL_PKT_NUM  "Packet numbers used for net test, default is 100."
 #define SHELL_BI_MODE  "Set BI mode"
-#define SHELL_BINARY_AS_HEX "Display BINARY strings containing non-printable bytes in hexadecimal notation (0x...). Disabled by default."
 #define SHELL_VERSION  "Print program version."
 #define SHELL_DSN      "Use dsn to connect to the cloud server or to a remote server which provides WebSocket connection."
 #define SHELL_TIMEOUT  "Set the timeout for WebSocket query in seconds, default is 30."
@@ -63,7 +62,6 @@ void shellPrintHelp() {
   (void)printf("%s%s%s%s\r\n", indent, "-a,", indent, SHELL_AUTH);
   (void)printf("%s%s%s%s\r\n", indent, "-A,", indent, SHELL_GEN_AUTH);
   (void)printf("%s%s%s%s\r\n", indent, "-B,", indent, SHELL_BI_MODE);
-  (void)printf("%s%s%s%s\r\n", indent, "-H,", indent, SHELL_BINARY_AS_HEX);
   (void)printf("%s%s%s%s\r\n", indent, "-c,", indent, SHELL_CFG_DIR);
   (void)printf("%s%s%s%s\r\n", indent, "-C,", indent, SHELL_DMP_CFG);
   (void)printf("%s%s%s%s\r\n", indent, "-d,", indent, SHELL_DB);
@@ -139,7 +137,6 @@ static struct argp_option shellOptions[] = {
     {"timeout", 'T', "SECONDS", 0, SHELL_TIMEOUT},
     {"pktnum", 'N', "PKTNUM", 0, SHELL_PKT_NUM},
     {"bimode", 'B', 0, 0, SHELL_BI_MODE},
-    {"binary-as-hex", 'H', 0, 0, SHELL_BINARY_AS_HEX},
     {"log-output", 'o', "OUTPUT", 0, SHELL_LOG_OUTPUT},
     {"dsn", 'X', "DSN", 0, DSN_DESC},
     {DRIVER_OPT, 'Z', "DRIVER", 0, DRIVER_DESC},
@@ -192,9 +189,6 @@ static int32_t shellParseSingleOpt(int32_t key, char *arg) {
       break;
     case 'B':
       pArgs->is_bi_mode = true;
-      break;
-    case 'H':
-      pArgs->is_binary_as_hex = true;
       break;
     case 'c':
       pArgs->cfgdir = arg;
@@ -285,14 +279,6 @@ int32_t shellParseArgsWithoutArgp(int argc, char *argv[]) {
       return shellParseSingleOpt('?', NULL);
     }
 
-    if (strcmp(argv[i], "--binary-as-hex") == 0) {
-      ret = shellParseSingleOpt('H', NULL);
-      if (ret != 0) {
-        return ret;
-      }
-      continue;
-    }
-
     char   *key = argv[i];
     if (key[0] != '-') {
       (void)fprintf(stderr, "invalid option %s\r\n", key);
@@ -323,7 +309,7 @@ int32_t shellParseArgsWithoutArgp(int argc, char *argv[]) {
       (void)fprintf(stderr, "invalid option %s\r\n", key);
       return -1;
     } else if (key[1] == 'A' || key[1] == 'C' || key[1] == 'r' || key[1] == 'k' || key[1] == 't' ||
-               key[1] == 'V' || key[1] == '?' || key[1] == 1 || key[1] == 'R'|| key[1] == 'B' || key[1] == 'H') {
+               key[1] == 'V' || key[1] == '?' || key[1] == 1 || key[1] == 'R'|| key[1] == 'B') {
       ret = shellParseSingleOpt(key[1], NULL);
     } else {
       (void)fprintf(stderr, "invalid option %s\r\n", key);
@@ -491,11 +477,7 @@ int32_t shellParseArgs(int32_t argc, char *argv[]) {
       "Welcome to the %s Command Line Interface, %s Client Version:%s \r\n"
       "Copyright (c) 2025 by %s, all rights reserved.\r\n\r\n";
 #ifdef CUS_NAME
-  if (strcmp(CUS_NAME, "TDengine") == 0) {
-    strcpy(shell.info.cusName, "TDengine TSDB");
-  } else {
-    strcpy(shell.info.cusName, CUS_NAME);
-  }
+  strcpy(shell.info.cusName, CUS_NAME);
 #else
   strcpy(shell.info.cusName, "TDengine TSDB");
 #endif

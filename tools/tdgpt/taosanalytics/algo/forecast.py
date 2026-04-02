@@ -1,21 +1,23 @@
 # encoding:utf-8
 # pylint: disable=c0103
 """forecast helper methods"""
-import os
 import time
 
 import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
 
-from taosanalytics.conf import Configure
-from taosanalytics.service_registry import loader
-from taosanalytics.log import AppLogger
+from taosanalytics.conf import app_logger, conf
+from taosanalytics.servicemgmt import loader
 
 
 def do_forecast(input_list, ts_list, algo_name, params, past_dynamic_real=None, dynamic_real=None):
-    """ data forecast handler """
-    s = loader.get_service(algo_name) or loader.get_service("holtwinters")
+    """ data fc handler """
+    s = loader.get_service(algo_name)
+
+    if s is None:
+        s = loader.get_service("holtwinters")
+
     if s is None:
         raise ValueError(f"failed to load {algo_name} or holtwinters analysis service")
 
@@ -23,23 +25,23 @@ def do_forecast(input_list, ts_list, algo_name, params, past_dynamic_real=None, 
     s.set_params(params)
 
     start = time.time()
-    AppLogger.debug("start to do forecast")
+    app_logger.log_inst.debug("start to do forecast")
 
     res = s.execute()
 
-    AppLogger.debug(f"forecast done, elapsed time:{(time.time() - start) * 1000:.2f}ms")
+    app_logger.log_inst.debug("forecast done, elapsed time:%.2fms", (time.time() - start) * 1000)
 
     res["period"] = s.period
     res["algo"] = algo_name
 
-    check_forecast_results(res)
+    check_fc_results(res)
 
     fc = res["res"]
-    draw_forecast_results(input_list, len(fc) > 2, s.conf, fc, algo_name)
+    draw_fc_results(input_list, len(fc) > 2, s.conf, fc, algo_name)
     return res
 
 
-def add_forecast_params(params, json_obj):
+def do_add_fc_params(params, json_obj):
     """ add params into parameters """
     if "forecast_rows" in json_obj:
         params["rows"] = int(json_obj["forecast_rows"])
@@ -59,9 +61,6 @@ def add_forecast_params(params, json_obj):
     if "prec" in json_obj:
         params["precision"] = json_obj["prec"]
 
-    if 'tz' in json_obj:
-        params['tz'] = json_obj['tz']
-
 
 def insert_ts_list(res, start_ts, time_step, fc_rows):
     """ insert the ts list before return results """
@@ -70,25 +69,13 @@ def insert_ts_list(res, start_ts, time_step, fc_rows):
     return res
 
 
-def draw_forecast_results(input_list, return_conf, conf_val, fc, fig_name):
+def draw_fc_results(input_list, return_conf, conf_val, fc, fig_name):
     """Visualize the forecast results """
     # controlled by option, do not visualize the anomaly detection result
-    if not Configure.get_instance().get_draw_result_option():
+    if not conf.get_draw_result_option():
         return
 
-    base_path = Configure.get_instance().get_img_dir()
-
-    try:
-        os.makedirs(base_path, exist_ok=True)
-    except OSError as exc:
-        AppLogger.error("failed to create image directory '%s': %s", base_path, exc)
-        return
-
-    if not os.access(base_path, os.W_OK):
-        AppLogger.error("image directory '%s' is not writable", base_path)
-        return
-
-    AppLogger.debug('draw forecast result in debug model')
+    app_logger.log_inst.debug('draw forecast result in debug model')
     plt.clf()
 
     plt.plot(input_list)
@@ -109,29 +96,29 @@ def draw_forecast_results(input_list, return_conf, conf_val, fc, fig_name):
 
     plt.legend(['input', 'forecast', f'pred:{conf_val}'], loc='upper left')
 
-    plt.savefig(os.path.join(base_path, fig_name))
+    plt.savefig(fig_name)
     plt.close()
 
-    AppLogger.debug("draw results completed in debug model")
+    app_logger.log_inst.debug("draw results completed in debug model")
 
 
-def check_forecast_results(res):
-    AppLogger.debug("start to check forecast result")
+def check_fc_results(res):
+    app_logger.log_inst.debug("start to check forecast result")
 
     if "res" not in res:
         raise ValueError("forecast result is empty")
 
-    forecast_result = res["res"]
-    if len(forecast_result) < 2:
+    fc = res["res"]
+    if len(fc) < 2:
         raise ValueError("result length should greater than or equal to 2")
 
-    n_rows = len(forecast_result[0])
-    if n_rows != len(forecast_result[1]):
+    n_rows = len(fc[0])
+    if n_rows != len(fc[1]):
         raise ValueError("result length is not identical, ts rows:%d  res rows:%d" % (
-            n_rows, len(forecast_result[1])))
+            n_rows, len(fc[1])))
 
-    if len(forecast_result) > 2 and (len(forecast_result[2]) != n_rows or len(forecast_result[3]) != n_rows):
+    if len(fc) > 2 and (len(fc[2]) != n_rows or len(fc[3]) != n_rows):
         raise ValueError(
             "result length is not identical in confidence, ts rows:%d, lower confidence rows:%d, "
             "upper confidence rows%d" %
-            (n_rows, len(forecast_result[2]), len(forecast_result[3])))
+            (n_rows, len(fc[2]), len(fc[3])))

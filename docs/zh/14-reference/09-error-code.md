@@ -116,14 +116,6 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x80000140 | Edition not compatible                  | 社区版/企业版不匹配                                                        | 检查各节点（包括服务端和客户端）是否有社区版和企业版混用的情况，确保都是企业版或都是社区版 |
 | 0x80000141 | Invalid signature                       | 消息签名无效或不正确                                                       | 检查客户端和服务端是否使用了相同的签名算法 |
 | 0x80000142 | External window subquery must return time-ordered rows | EXTERNAL WINDOW 子查询返回的数据未按时间排序 | 确保 EXTERNAL WINDOW 子查询的结果按时间列有序返回，必要时在子查询中添加 ORDER BY ts |
-| 0x80000143 | Insufficient user security level for the operation | 用户最高安全等级低于对象安全等级（NRU 违规） | 使用更高安全等级的用户，或降低对象安全等级 |
-| 0x80000144 | Object level below database security level | 子对象安全等级低于数据库安全等级 | 先提升子对象等级至少到数据库等级，再升级数据库等级 |
-| 0x80000145 | Object level below user's minimum write level | 目标对象安全等级低于用户允许写入的最小等级 | 调整用户的 security_level 范围或对象的安全等级 |
-| 0x80000146 | Object level above user's maximum read level | 目标对象安全等级高于用户允许读取的最高等级 | 调整用户的 security_level 范围或对象的安全等级 |
-| 0x80000147 | Security level out of valid range [0-4] | 指定的安全等级不在允许范围内 | 使用 0 到 4 之间的安全等级 |
-| 0x80000148 | User security level is too high to write (No-Write-Down) | 用户最低安全等级高于对象等级（NWD 违规） | 使用最低安全等级更低的用户，或提升对象安全等级 |
-| 0x80000149 | Security level conflicts with user's role constraints | 指定的安全等级范围不满足用户角色的最低等级要求 | 调整安全等级以满足角色约束（如 SYSSEC 要求 min >= 4） |
-| 0x8000014A | Cannot enable MAC: preflight check failed | 持有安全策略权限的用户安全等级不足以激活 MAC | 先升级用户的 security_level 再启用 MAC |
 
 #### tsc
 
@@ -155,7 +147,6 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x8000023C | reached the maximum concurrency limit            | 单个用户超过了最大并发限制   |  检查参数 |
 | 0x8000023D | reached the maximum call vnode limit              | 单条 SQL 涉及到太多 VNODE   | 检查 SQL |
 | 0x8000023E | Invalid token                     | 令牌格式错误                 | 检查并重新输入正确的令牌                                                         |
-| 0x8000023F | Instance register/list API rate limit exceeded | 实例注册/列表 API 调用过于频繁，超过限流 | 降低调用频率或稍后重试；注册与列表共享同一限流窗口 |
 | 0x800002FF | Tsc internal error                | TSC 内部错误                 | 保留现场和日志，github 上报 issue                                                |
 
 #### mnode
@@ -290,7 +281,6 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x800003F5 | Stream temporarily does not support source db having replica > 1                             | 超过限制                                                                          | 操作不被允许                                                                                         |
 | 0x800003F6 | Too many streams                                                                             | 超过限制                                                                          | 不能修改，代码级别限制                                                                               |
 | 0x800003F7 | Cannot write the same stable as other stream                                                 | 内部错误                                                                          | 上报 issue                                                                                           |
-| 0x800003F9 | Stream has no stored CREATE statement (created before this feature or metadata missing)      | 不存在                                                                            | 确认建流版本是否过低导致不兼容                                                                                     |
 | 0x8000042E | Failed to load encryption provider                                                           | 加载失败                                                                            | 确认 encryptExtDir 是否配置正确                                                                                     |
 | 0x80000480 | index already exists                                                                         | 已存在                                                                            | 确认操作是否正确                                                                                     |
 | 0x80000481 | index not exist                                                                              | 不存在                                                                            | 确认操作是否正确                                                                                     |
@@ -303,9 +293,6 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x800004E3 | Encryption algorithm type not match                                                          | 不存在                                                                            | 确认操作是否正确                                                                                     |
 | 0x800004E4 | Invalid encryption algorithm format                                                          | 输入算法 id 为空                                                                            | 确认操作是否正确                                                                                     |
 | 0x800004E5 | Encryption algorithm in use                                                                  | 仍然在使用                                                                            | 删除所有使用这个算法的对象                                                                                     |
-| 0x800004FB | No enabled non-root user with SYSSEC role found                       | 三员分立策略要求有启用的 SYSSEC 角色用户           | 在激活三员分立前创建或启用 SYSSEC 角色用户 |
-| 0x800004FC | No enabled non-root user with SYSAUDIT role found                     | 三员分立策略要求有启用的 SYSAUDIT 角色用户         | 在激活三员分立前创建或启用 SYSAUDIT 角色用户 |
-| 0x800004FD | Operation not allowed in current SoD status                  | 当前三员分立模式下不允许该操作                     | 检查是否处于三员分立强制模式，使用对应角色用户执行操作 |
 
 #### Bnode
 

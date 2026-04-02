@@ -1,5 +1,6 @@
 ---
 title: TDengine Reference
+slug: /tdengine-reference
 ---
 
 import DocCardList from '@theme/DocCardList';

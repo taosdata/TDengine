@@ -4,15 +4,14 @@
 import pmdarima as pm
 
 from taosanalytics.algo.forecast import insert_ts_list
-from taosanalytics.base import AbstractForecastService
-from taosanalytics.log import AppLogger
+from taosanalytics.conf import app_logger
+from taosanalytics.service import AbstractForecastService
 
 
 class _ArimaService(AbstractForecastService):
     """ ARIMA algorithm is to do the fc in the input list """
     name = "arima"
     desc = "do time series data fc by using ARIMA model"
-    _builtins = True
 
     def __init__(self):
         super().__init__()
@@ -44,7 +43,7 @@ class _ArimaService(AbstractForecastService):
         return p
 
     def __do_forecast_helper(self, fc_rows):
-        """ do arima forecast """
+        """ do arima fc """
         # plot_acf(self.list, lags=25, title='raw_acf')
         # plot_pacf(self.list, lags=25, title='raw_pacf')
         # plt.show()
@@ -52,27 +51,24 @@ class _ArimaService(AbstractForecastService):
         seasonal = self.period > 0
 
         # Fit model
-        model = pm.auto_arima(
-            self.list,
-            start_p=self.start_p,
-            start_q=self.start_q,
-            max_p=self.max_p,
-            max_q=self.max_q,
-            d=1,
-            m=self.period,
-            seasonal=seasonal,
-            start_P=0,
-            D=self.diff
-        )
+        model = pm.auto_arima(self.list,
+                              start_p=self.start_p,
+                              start_q=self.start_q,
+                              max_p=self.max_p,
+                              max_q=self.max_q,
+                              d=1,
+                              m=self.period,
+                              seasonal=seasonal,
+                              start_P=0,
+                              D=self.diff)
 
-        AppLogger.debug(model.summary())
+        app_logger.log_inst.debug(model.summary())
 
         # predict N steps into the future
-        forecast_res = model.predict(n_periods=fc_rows, return_conf_int=self.return_conf,
-                                     alpha=self.conf)
+        fc = model.predict(n_periods=fc_rows, return_conf_int=self.return_conf,
+                           alpha=self.conf)
 
-        res1 = [forecast_res[0].tolist(), forecast_res[1][:, 0].tolist(),
-                forecast_res[1][:, 1].tolist()] if self.return_conf else [forecast_res.tolist()]
+        res1 = [fc[0].tolist(), fc[1][:, 0].tolist(), fc[1][:, 1].tolist()] if self.return_conf else [fc.tolist()]
 
         return (
             res1,
@@ -81,7 +77,8 @@ class _ArimaService(AbstractForecastService):
         )
 
     def execute(self):
-        """ do forecast the time series data"""
+        """ do fc the time series data"""
+
         if self.list is None or len(self.list) < self.period:
             raise ValueError("number of input data is less than the periods")
 
@@ -89,7 +86,7 @@ class _ArimaService(AbstractForecastService):
             raise ValueError("number of input data is too large")
 
         if self.rows <= 0:
-            raise ValueError("forecast rows is not specified yet")
+            raise ValueError("fc rows is not specified yet")
 
         res, mse, model_info = self.__do_forecast_helper(self.rows)
         insert_ts_list(res, self.start_ts, self.time_step, self.rows)

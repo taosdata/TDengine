@@ -1676,11 +1676,9 @@ static int32_t extWinIndefRowsDo(SOperatorInfo* pOperator, SSDataBlock* pInputBl
   SExternalWindowOperator* pExtW = pOperator->info;
   SSDataBlock*             pResBlock = NULL;
   SArray*                  pIdx = NULL;
-  int64_t                  rowsBefore = 0;
   int32_t                  code = TSDB_CODE_SUCCESS, lino = 0;
   
   TAOS_CHECK_EXIT(extWinGetSetWinResBlockBuf(pOperator, rows, pWin, &pResBlock, &pIdx));
-  rowsBefore = pResBlock->info.rows;
   
   if (!pExtW->pTmpBlock) {
     TAOS_CHECK_EXIT(createOneDataBlock(pInputBlock, false, &pExtW->pTmpBlock));
@@ -1693,9 +1691,7 @@ static int32_t extWinIndefRowsDo(SOperatorInfo* pOperator, SSDataBlock* pInputBl
   TAOS_CHECK_EXIT(blockDataMergeNRows(pExtW->pTmpBlock, pInputBlock, startPos, rows));
   TAOS_CHECK_EXIT(extWinIndefRowsDoImpl(pOperator, pResBlock, pExtW->pTmpBlock));
 
-  TAOS_CHECK_EXIT(extWinAppendWinIdx(pOperator->pTaskInfo, pIdx, pResBlock,
-                                     extWinGetCurWinIdx(pOperator->pTaskInfo),
-                                     (int32_t)(pResBlock->info.rows - rowsBefore)));
+  TAOS_CHECK_EXIT(extWinAppendWinIdx(pOperator->pTaskInfo, pIdx, pResBlock, extWinGetCurWinIdx(pOperator->pTaskInfo), rows));
 
 _exit:
 

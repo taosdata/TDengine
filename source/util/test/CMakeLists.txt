@@ -195,13 +195,4 @@ if(TD_LINUX)
         NAME memPoolTest
         COMMAND memPoolTest
     )
-
-    # queryAutoQWorkerTest
-    add_executable(queryAutoQWorkerTest "queryAutoQWorkerTest.cpp")
-    DEP_ext_gtest(queryAutoQWorkerTest)
-    target_link_libraries(queryAutoQWorkerTest PRIVATE os util common)
-    add_test(
-        NAME queryAutoQWorkerTest
-        COMMAND queryAutoQWorkerTest
-    )
 endif()

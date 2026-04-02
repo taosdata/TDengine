@@ -136,7 +136,7 @@ SScript *simBuildScriptObj(char *fileName) {
     }
 
     if (i == label.top) {
-      snprintf(parseErr, MAX_ERROR_LEN, "label:%s not defined", dest.label[(uint8_t)dest.top]);
+      sprintf(parseErr, "label:%s not defined", dest.label[(uint8_t)dest.top]);
       return NULL;
     }
 
@@ -148,7 +148,7 @@ SScript *simBuildScriptObj(char *fileName) {
   }
 
   if (block.top != 0) {
-    snprintf(parseErr, MAX_ERROR_LEN, "mismatched block");
+    sprintf(parseErr, "mismatched block");
     return NULL;
   }
 
@@ -157,33 +157,17 @@ SScript *simBuildScriptObj(char *fileName) {
   }
 
   SScript *script = taosMemoryMalloc(sizeof(SScript));
-  if (script == NULL) {
-    return NULL;
-  }
   memset(script, 0, sizeof(SScript));
 
   script->type = SIM_SCRIPT_TYPE_MAIN;
   script->numOfLines = numOfLines;
   tstrncpy(script->fileName, fileName, sizeof(script->fileName));
 
-  if (optionOffset > 0) {
-    script->optionBuffer = taosMemoryMalloc(optionOffset);
-    if (script->optionBuffer == NULL) {
-      taosMemoryFree(script);
-      return NULL;
-    }
-    memcpy(script->optionBuffer, optionBuffer, optionOffset);
-  }
+  script->optionBuffer = taosMemoryMalloc(optionOffset);
+  memcpy(script->optionBuffer, optionBuffer, optionOffset);
 
-  if (numOfLines > 0) {
-    script->lines = taosMemoryMalloc(sizeof(SCmdLine) * numOfLines);
-    if (script->lines == NULL) {
-      taosMemoryFree(script->optionBuffer);
-      taosMemoryFree(script);
-      return NULL;
-    }
-    memcpy(script->lines, cmdLine, sizeof(SCmdLine) * numOfLines);
-  }
+  script->lines = taosMemoryMalloc(sizeof(SCmdLine) * numOfLines);
+  memcpy(script->lines, cmdLine, sizeof(SCmdLine) * numOfLines);
 
   return script;
 }

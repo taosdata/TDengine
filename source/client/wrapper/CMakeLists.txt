@@ -1,8 +1,7 @@
 aux_source_directory(src WRAPPER_SRC)
 
 if(TD_WINDOWS)
-    configure_file(${CMAKE_CURRENT_SOURCE_DIR}/../src/taos.rc.in "${CMAKE_CURRENT_BINARY_DIR}/taos.rc")
-    add_library(${TAOS_LIB} SHARED ${WRAPPER_SRC} "${CMAKE_CURRENT_BINARY_DIR}/taos.rc")
+    add_library(${TAOS_LIB} SHARED ${WRAPPER_SRC} ${CMAKE_CURRENT_SOURCE_DIR}/../src/taos.rc.in)
 else()
     add_library(${TAOS_LIB} SHARED ${WRAPPER_SRC})
 endif()

@@ -1,8 +1,9 @@
 ---
 title: TDengine Query
+slug: /advanced-features/data-connectors/tdengine-2
 ---
 
-import { Enterprise } from '../../assets/resources/_resources.mdx';
+import Enterprise from '../../assets/resources/_enterprise.mdx';
 
 <Enterprise/>
 

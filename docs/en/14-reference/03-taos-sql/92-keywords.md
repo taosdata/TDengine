@@ -1,5 +1,6 @@
 ---
 title: Reserved Keywords
+slug: /tdengine-reference/sql-manual/reserved-keywords
 ---
 
 ## Reserved Keywords
@@ -333,7 +334,7 @@ The list of keywords is as follows:
 | NE                   | |
 | NEXT                 | |
 | NMATCH               | |
-| NODELAY_CREATE_SUBTABLE | 3.4.1.0+ |
+| NODELAY_CREATE_SUBTABLE | 3.5.0.0+ |
 | NONE                 | |
 | NORMAL               | |
 | NOT                  | |
@@ -459,8 +460,6 @@ The list of keywords is as follows:
 | S3MIGRATE            | |
 | SCHEMALESS           | |
 | SCORES               | |
-| SECURITY_LEVEL       | 3.4.1.6+ |
-| SECURITY_POLICIES    | 3.4.1.6+ |
 | SELECT               | |
 | SEMI                 | |
 | SERVER_STATUS        | |

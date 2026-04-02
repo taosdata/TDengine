@@ -19,7 +19,8 @@ class TestScalarFunction:
         "keepColumnName": "1",
         "ttlChangeOnWrite": "1",
         "querySmaOptimize": "1",
-        "slowLogScope": "none"
+        "slowLogScope": "none",
+        "queryBufferSize": 10240
     }
 
     def setup_class(cls):

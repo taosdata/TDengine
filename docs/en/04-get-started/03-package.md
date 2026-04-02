@@ -1,6 +1,7 @@
 ---
 sidebar_label: Deploy from Package
 title: Get Started with TDengine TSDB Using an Installation Package
+slug: /get-started/deploy-from-package
 ---
 
 import Tabs from "@theme/Tabs";
@@ -8,11 +9,11 @@ import TabItem from "@theme/TabItem";
 import PkgList from "/src/components/PkgList";
 import Getstarted from './_get_started.mdx';
 
-You can install TDengine TSDB on Linux and Windows. To install TDengine TSDB in a Docker container instead of on your machine, see [Get Started with TDengine TSDB in Docker](01-docker.md).
+You can install TDengine TSDB on Linux and Windows. To install TDengine TSDB in a Docker container instead of on your machine, see [Get Started with TDengine TSDB in Docker](../deploy-in-docker/).
 
 ## Before You Begin
 
-- Verify that your machine meets the minimum system requirements for TDengine TSDB. For more information, see [Supported Platforms](../14-reference/07-supported.md) and [System Requirements](../08-operation/02-planning.md).
+- Verify that your machine meets the minimum system requirements for TDengine TSDB. For more information, see [Supported Platforms](../../tdengine-reference/supported-platforms/) and [System Requirements](../../operations-and-maintenance/system-requirements/).
 - **(Windows only)** Verify that the latest version of the Microsoft Visual C++ Redistributable is installed on your machine. To download the redistributable package, see [Microsoft Visual C++ Redistributable latest supported downloads](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170).
 
 ## Procedure

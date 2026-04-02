@@ -16,7 +16,6 @@ if(TD_COMMUNITY_STANDALONE)
   set(BUILD_GITINFOI        "" CACHE STRING "Internal git commit ID override")
 endif()
 
-option(USE_CONAN               "Use Conan for dependency management"  OFF)
 option(BUILD_ADVANCED_SECURITY "If enable advanced security"          OFF)
 option(BUILD_ASSERT_NOT_CORE   "If assert not generate core file"     OFF)
 option(BUILD_WEBSOCKET         "Enable websocket"                     OFF)
@@ -36,13 +35,6 @@ endif()
 
 option(BUILD_WITH_LEMON    "If build with lemon"                    ON)
 option(BUILD_WITH_UDF      "If build with UDF"                      ON)
-option(BUILD_PYUDF         "If build Python UDF plugin (libtaospyudf)" ON)
-
-# Python UDF: auto-download a single CPython SDK from python-build-standalone
-# for compile-time headers/import-lib. Runtime still probes installed Python at
-# execution time via udfd.
-set(BUILD_PYUDF_PYTHON_VERSION  "3.15.0b1" CACHE STRING
-  "Single Python version for pyudf SDK selection (must match PBS release)")
 
 if(NOT BUILD_ASTRA)
   option(BUILD_GEOS          "If build with geos"                   ON)
@@ -51,51 +43,40 @@ if(NOT BUILD_ASTRA)
   option(BUILD_PCRE2         "If build with pcre2"                  ON)
   option(BUILD_ADDR2LINE     "If build addr2line"                   OFF)
   option(BUILD_WITH_LEVELDB  "If build with leveldb"                OFF)
-  if(TD_LINUX)
-    option(BUILD_ROCKSDB     "If build rocksdb from source"         OFF)
-    option(ROCKSDB_USE_DEPS  "If use prebuilt rocksdb from deps/"   ON)
-  else()
-    option(BUILD_ROCKSDB     "If build rocksdb from source"         ON)
-    option(ROCKSDB_USE_DEPS  "If use prebuilt rocksdb from deps/"   OFF)
-  endif()
-  option(TD_USE_ROCKSDB      "If enable rocksdb support"            ON)
+  option(BUILD_WITH_ROCKSDB  "If build with rocksdb"                ON)
   option(BUILD_WITH_LZ4      "If build with lz4"                    ON)
 else()
-  option(BUILD_ROCKSDB     "If build rocksdb from source"           OFF)
-  option(TD_USE_ROCKSDB      "If enable rocksdb support"            OFF)
   option(BUILD_WITH_LZMA2    "If build with lzma2"                  ON)
 endif()
 
-if(TD_LINUX OR TD_WINDOWS)
+if(TD_LINUX)
   option(BUILD_SHARED_STORAGE "If build with shared storage"        ON)
   option(BUILD_WITH_S3        "If build with s3"                    ON)
   option(BUILD_WITH_COS       "If build with cos"                   OFF)
-endif()
-
-if(TD_LINUX)
   option(BUILD_WITH_LZMA2     "If build with lzma2"                 ON)
 endif()
 
 if(TD_LINUX OR TD_WINDOWS)
   option(BUILD_WITH_ANALYSIS  "If build with analysis"              ON)
-else()
-  option(BUILD_WITH_ANALYSIS  "If build with analysis"              OFF)
 endif()
 
 # NOTE: set option variable in this ways is not a good practice
-if(NOT TD_ENTERPRISE)
-  MESSAGE("switch shared storage off with community edition")
+if((NOT TD_ENTERPRISE) OR TD_WINDOWS)
+  MESSAGE("switch shared storage off with community/windows edition")
   set(BUILD_SHARED_STORAGE OFF)
   set(BUILD_WITH_S3 OFF)
   set(BUILD_WITH_COS OFF)
 ELSE()
-  MESSAGE("switch shared storage ON with enterprise edition")
+  MESSAGE("switch shared storage ON with enterprise Linux edition")
   set(BUILD_SHARED_STORAGE ON)
-  set(BUILD_WITH_S3 ON)
+  set(BUILD_WITH_S3 ON)  
 ENDIF ()
 
 IF(${BUILD_SHARED_STORAGE})
+  add_definitions(-DUSE_SHARED_STORAGE)
+
   IF(${BUILD_WITH_S3})
+    add_definitions(-DUSE_S3)
     # NOTE: BUILD_WITH_S3 does NOT coexist with BUILD_WITH_COS?
     option(BUILD_WITH_COS "If build with cos" OFF)
   ELSE ()
@@ -126,24 +107,8 @@ endif()
 option(BUILD_TAOSD_INTEGRATED "Build taosd as integrated library"    OFF)
 option(BUILD_AS_LIB           "Build TDengine as library"            OFF)
 option(BUILD_RELEASE          "If build release version"             OFF)
-if(TD_LINUX)
-  option(BUILD_CONTRIB        "If build thirdpart from source"       OFF)
-else()
-  option(BUILD_CONTRIB        "If build thirdpart from source"       ON)
-endif()
-option(BUILD_LIBSASL          "If build libsasl2"                    ON)
+option(BUILD_CONTRIB          "If build thirdpart from source"       OFF)
+option(BUILD_LIBSASL          "If build libsasl2"                    OFF)
 option(BUILD_FLEX_DEPLOY      "If enable flexible deployment mode"   OFF)
 option(BUILD_WITH_RAND_ERR    "If build with random error injection" OFF)
 option(BUILD_TSZ_ENABLED      "If build with TSZ compression"        ON)
-option(BUILD_USE_PUBLIC_DEPS "Use public (internet) URLs for all external dependencies instead of internal mirrors" OFF)
-
-# When BUILD_RELEASE is ON, force CMAKE_BUILD_TYPE to Release so that
-# CMake built-in Release flags and ExternalProject configuration align.
-if(BUILD_RELEASE)
-  set(CMAKE_BUILD_TYPE "Release" CACHE STRING "" FORCE)
-  message(STATUS "[options] BUILD_RELEASE=ON => CMAKE_BUILD_TYPE forced to Release")
-endif()
-
-message(STATUS
-  "[options] BUILD_CONTRIB=${BUILD_CONTRIB}, BUILD_ROCKSDB=${BUILD_ROCKSDB}"
-)

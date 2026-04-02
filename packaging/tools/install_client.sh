@@ -84,9 +84,10 @@ fi
 update_flag=0
 
 function kill_client() {
-  pgrep -x "${clientName}" | while read p; do
-    ${csudo}kill -9 "$p" 2>/dev/null || :
-  done || true
+  pid=$(ps -ef | grep "${clientName}" | grep -v "grep" | awk '{print $2}')
+  if [ -n "$pid" ]; then
+    ${csudo}kill -9 $pid   || :
+  fi
 }
 
 function install_main_path() {

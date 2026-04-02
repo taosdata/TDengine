@@ -57,7 +57,6 @@ typedef struct SSTriggerWindow {
 typedef struct SSTriggerNotifyWindow {
   STimeWindow range;
   int64_t     wrownum;
-  bool        forceWinOpen;
   char       *pWinOpenNotify;
   char       *pWinCloseNotify;
 } SSTriggerNotifyWindow;
@@ -85,7 +84,6 @@ typedef struct SSTriggerRealtimeGroup {
     };
     struct {  // for event window trigger with sub-event
       SSTriggerNotifyWindow parentWindow;
-      char                 *pFirstSubWinOpenNotify;
       int32_t               numSubWindows;
       int32_t               conditionIdx;
     };
@@ -226,12 +224,11 @@ typedef struct SSTriggerRealtimeContext {
   SSHashObj              *pGroupColVals;  // SSHashObj<gid, SArray<SStreamGroupValue>*>
 
   // these fields need to be cleared each round
-  bool       needCheckAgain;
   SSHashObj *pSlices;  // SSHashObj<uid, SSTriggerDataSlice>
-  SObjList   dumpTableUids;  // SObjList<{uid, vgId}>, backup ids for repeated check in one round
   // these fields are shared by all groups and need to reset for each group
   bool                         needPseudoCols;
   bool                         needMergeWindow;
+  bool                         needCheckAgain;
   SSTriggerNewTimestampSorter *pSorter;
   SSTriggerNewVtableMerger    *pMerger;
   SArray                      *pParentWindows;  // SArray<SSTriggerNotifyWindow>, valid parent windows in this round

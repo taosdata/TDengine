@@ -58,7 +58,6 @@ extern "C" {
 #define SDB_GET_INT64(pData, dataPos, val, pos) SDB_GET_VAL(pData, dataPos, val, pos, sdbGetRawInt64, int64_t)
 #define SDB_GET_FLOAT(pData, dataPos, val, pos) SDB_GET_VAL(pData, dataPos, val, pos, sdbGetRawFloat, float)
 #define SDB_GET_INT32(pData, dataPos, val, pos) SDB_GET_VAL(pData, dataPos, val, pos, sdbGetRawInt32, int32_t)
-#define SDB_GET_UINT32(pData, dataPos, val, pos) SDB_GET_VAL(pData, dataPos, val, pos, sdbGetRawUInt32, uint32_t)
 #define SDB_GET_INT16(pData, dataPos, val, pos) SDB_GET_VAL(pData, dataPos, val, pos, sdbGetRawInt16, int16_t)
 #define SDB_GET_INT8(pData, dataPos, val, pos)  SDB_GET_VAL(pData, dataPos, val, pos, sdbGetRawInt8, int8_t)
 #define SDB_GET_UINT8(pData, dataPos, val, pos) SDB_GET_VAL(pData, dataPos, val, pos, sdbGetRawUInt8, uint8_t)
@@ -81,7 +80,6 @@ extern "C" {
 
 #define SDB_SET_INT64(pRaw, dataPos, val, pos) SDB_SET_VAL(pRaw, dataPos, val, pos, sdbSetRawInt64, int64_t)
 #define SDB_SET_INT32(pRaw, dataPos, val, pos) SDB_SET_VAL(pRaw, dataPos, val, pos, sdbSetRawInt32, int32_t)
-#define SDB_SET_UINT32(pRaw, dataPos, val, pos) SDB_SET_VAL(pRaw, dataPos, val, pos, sdbSetRawUInt32, uint32_t)
 #define SDB_SET_INT16(pRaw, dataPos, val, pos) SDB_SET_VAL(pRaw, dataPos, val, pos, sdbSetRawInt16, int16_t)
 #define SDB_SET_INT8(pRaw, dataPos, val, pos)  SDB_SET_VAL(pRaw, dataPos, val, pos, sdbSetRawInt8, int8_t)
 #define SDB_SET_UINT8(pRaw, dataPos, val, pos) SDB_SET_VAL(pRaw, dataPos, val, pos, sdbSetRawUInt8, uint8_t)
@@ -125,7 +123,6 @@ typedef SSdbRow *(*SdbDecodeFp)(SSdbRaw *pRaw);
 typedef SSdbRaw *(*SdbEncodeFp)(void *pObj);
 typedef bool (*sdbTraverseFp)(SMnode *pMnode, void *pObj, void *p1, void *p2, void *p3);
 typedef int32_t (*SdbUpgradeFp)(SMnode *pMnode, int32_t version);
-typedef bool (*SdbIsUpgradedFp)(SMnode *pMnode);
 
 typedef enum {
   SDB_KEY_BINARY = 1,
@@ -190,9 +187,7 @@ typedef enum {
   SDB_XNODE_AGENT = 44,
   SDB_XNODE_JOB = 45,
   SDB_XNODE_USER_PASS = 46,
-  SDB_SECURITY_POLICY = 47,
-  SDB_GRANT_CLS = 48,
-  SDB_MAX = 49
+  SDB_MAX = 47
 } ESdbType;
 
 typedef struct SSdbRaw {
@@ -240,7 +235,6 @@ typedef struct SSdb {
   SdbDecodeFp        decodeFps[SDB_MAX];
   SdbValidateFp      validateFps[SDB_MAX];
   SdbUpgradeFp       upgradeFps[SDB_MAX];
-  SdbIsUpgradedFp    isUpgradedFps[SDB_MAX];
   TdThreadMutex      filelock;
   bool               encrypted;
 } SSdb;
@@ -263,7 +257,6 @@ typedef struct {
   SdbDeleteFp        deleteFp;
   SdbValidateFp      validateFp;
   SdbUpgradeFp       upgradeFp;
-  SdbIsUpgradedFp    isUpgradedFp;
 } SSdbTable;
 
 typedef struct SSdbOpt {
@@ -305,7 +298,6 @@ int32_t sdbSetTable(SSdb *pSdb, SSdbTable table);
  */
 int32_t sdbDeploy(SSdb *pSdb);
 int32_t sdbUpgrade(SSdb *pSdb, int32_t version);
-bool    sdbIsUpgraded(SSdb *pSdb);
 /**
  * @brief prepare the initial rows of sdb.
  *
@@ -459,7 +451,6 @@ int32_t  sdbSetRawUInt8(SSdbRaw *pRaw, int32_t dataPos, uint8_t val);
 int32_t  sdbSetRawBool(SSdbRaw *pRaw, int32_t dataPos, bool val);
 int32_t  sdbSetRawInt16(SSdbRaw *pRaw, int32_t dataPos, int16_t val);
 int32_t  sdbSetRawInt32(SSdbRaw *pRaw, int32_t dataPos, int32_t val);
-int32_t  sdbSetRawUInt32(SSdbRaw *pRaw, int32_t dataPos, uint32_t val);
 int32_t  sdbSetRawInt64(SSdbRaw *pRaw, int32_t dataPos, int64_t val);
 int32_t  sdbSetRawFloat(SSdbRaw *pRaw, int32_t dataPos, float val);
 int32_t  sdbSetRawBinary(SSdbRaw *pRaw, int32_t dataPos, const char *pVal, int32_t valLen);
@@ -470,7 +461,6 @@ int32_t  sdbGetRawUInt8(SSdbRaw *pRaw, int32_t dataPos, uint8_t *val);
 int32_t  sdbGetRawBool(SSdbRaw *pRaw, int32_t dataPos, bool *val);
 int32_t  sdbGetRawInt16(SSdbRaw *pRaw, int32_t dataPos, int16_t *val);
 int32_t  sdbGetRawInt32(SSdbRaw *pRaw, int32_t dataPos, int32_t *val);
-int32_t  sdbGetRawUInt32(SSdbRaw *pRaw, int32_t dataPos, uint32_t *val);
 int32_t  sdbGetRawInt64(SSdbRaw *pRaw, int32_t dataPos, int64_t *val);
 int32_t  sdbGetRawFloat(SSdbRaw *pRaw, int32_t dataPos, float *val);
 int32_t  sdbGetRawBinary(SSdbRaw *pRaw, int32_t dataPos, char *pVal, int32_t valLen);

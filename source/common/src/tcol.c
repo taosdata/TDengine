@@ -358,13 +358,8 @@ int32_t setColCompressByOption(uint8_t type, uint8_t encode, uint16_t compressTy
   return TSDB_CODE_SUCCESS;
 }
 
-bool withColCompress(uint8_t tableType) {
-  return TSDB_SUPER_TABLE == tableType || TSDB_NORMAL_TABLE == tableType || TSDB_CHILD_TABLE == tableType;
-}
-
 bool withExtSchema(uint8_t tableType) {
-  return TSDB_SUPER_TABLE == tableType || TSDB_NORMAL_TABLE == tableType || TSDB_CHILD_TABLE == tableType ||
-         TSDB_VIRTUAL_NORMAL_TABLE == tableType || TSDB_VIRTUAL_CHILD_TABLE == tableType;
+  return TSDB_SUPER_TABLE == tableType || TSDB_NORMAL_TABLE == tableType || TSDB_CHILD_TABLE == tableType;
 }
 
 bool hasRefCol(uint8_t tableType) {

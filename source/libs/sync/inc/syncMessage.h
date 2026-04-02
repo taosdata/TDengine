@@ -117,7 +117,6 @@ typedef struct SyncAppendEntriesReply {
   SyncIndex lastSendIndex;
   int64_t   startTime;
   int16_t   fsmState;
-  SyncIndex appliedIndex;
 } SyncAppendEntriesReply;
 
 typedef struct SyncHeartbeat {

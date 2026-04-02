@@ -1,5 +1,6 @@
 ---
 title: Components
+slug: /tdengine-reference/components
 ---
 
 import DocCardList from '@theme/DocCardList';

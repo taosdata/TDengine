@@ -553,7 +553,7 @@ int32_t qwStartDynamicTaskNewExec(QW_FPARAMS_DEF, SQWTaskCtx *ctx, SQWMsg *qwMsg
   } else if (0 == atomic_load_8((int8_t *)&ctx->queryInQueue)) {
     atomic_store_8((int8_t *)&ctx->queryInQueue, 1);
     QW_TASK_DLOG("the %dth dynamic task exec started", ctx->dynExecId++);
-    QW_ERR_RET(qwBuildAndSendCQueryMsg(QW_FPARAMS(), &qwMsg->connInfo, ctx->taskType));
+    QW_ERR_RET(qwBuildAndSendCQueryMsg(QW_FPARAMS(), &qwMsg->connInfo));
   }
 
   return TSDB_CODE_SUCCESS;
@@ -1041,19 +1041,6 @@ int32_t qwProcessCQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
 
     QW_ERR_JRET(qwGetTaskCtx(QW_FPARAMS(), &ctx));
 
-    // Defense-in-depth: sync pWorkerCb to the current executing thread's pool.
-    // The primary fix is routing CQuery to the correct pool (via taskType in
-    // SQueryContinueReq), but this guards against any future cross-pool dispatch.
-    {
-      qTaskInfo_t taskHandle = atomic_load_ptr(&ctx->taskHandle);
-      if (taskHandle && qwMsg->node) {
-        SReadHandle* pHandle = (SReadHandle*)qwMsg->node;
-        if (pHandle->pWorkerCb) {
-          qUpdateWorkerCb(taskHandle, pHandle->pWorkerCb);
-        }
-      }
-    }
-
     atomic_store_8((int8_t *)&ctx->queryInQueue, 0);
     atomic_store_8((int8_t *)&ctx->queryContinue, 0);
 
@@ -1228,7 +1215,7 @@ int32_t qwProcessFetch(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
                                      ctx->dynamicTask));
       atomic_store_8((int8_t *)&ctx->queryInQueue, 1);
 
-      QW_ERR_JRET(qwBuildAndSendCQueryMsg(QW_FPARAMS(), &qwMsg->connInfo, ctx->taskType));
+      QW_ERR_JRET(qwBuildAndSendCQueryMsg(QW_FPARAMS(), &qwMsg->connInfo));
     }
   }
 
@@ -1640,6 +1627,7 @@ int32_t qWorkerInit(int8_t nodeType, int32_t nodeId, void **qWorkerMgmt, const S
   mgmt->schHash = taosHashInit(mgmt->cfg.maxSchedulerNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), false,
                                HASH_ENTRY_LOCK);
   if (NULL == mgmt->schHash) {
+    taosMemoryFreeClear(mgmt);
     qError("init %d scheduler hash failed", mgmt->cfg.maxSchedulerNum);
     QW_ERR_JRET(terrno);
   }
@@ -1692,7 +1680,7 @@ int32_t qWorkerInit(int8_t nodeType, int32_t nodeId, void **qWorkerMgmt, const S
 
 _return:
 
-  if (mgmt->refId > 0) {
+  if (mgmt->refId >= 0) {
     (void)qwRelease(mgmt->refId);  // ignore error
   } else {
     taosHashCleanup(mgmt->schHash);

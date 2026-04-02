@@ -50,7 +50,10 @@ class Test5dnode3mnodeRoll:
         buildPath = tdCom.getBuildPath()
         selfPath = os.path.dirname(os.path.realpath(__file__))
 
-        cfgPath = buildPath + "/../sim/dnode1/cfg/"
+        if ("community" in selfPath):
+            cfgPath = buildPath + "/../sim/dnode1/cfg/"
+        else:
+            cfgPath = buildPath + "/../sim/dnode1/cfg/"
 
         return cfgPath
 

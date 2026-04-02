@@ -1,8 +1,9 @@
 ---
 title: AVEVA Historian
+slug: /advanced-features/data-connectors/aveva-historian
 ---
 
-import { AddDataSource, Enterprise } from '../../assets/resources/_resources.mdx';
+import Enterprise from '../../assets/resources/_enterprise.mdx';
 
 <Enterprise/>
 
@@ -14,13 +15,27 @@ AVEVA Historian is an industrial big data analytics software, formerly known as 
 
 TDengine can efficiently read data from AVEVA Historian and write it into TDengine, enabling historical data migration or real-time data synchronization.
 
-## Procedure
+## Creating Tasks
 
-### Add a Data Source
+### 1. Add a Data Source
 
-<AddDataSource connectorName="AVEVA Historian"/>
+On the data writing page, click the **+Add Data Source** button to enter the add data source page.
 
-### Configure Connection Information
+![Add data source](../../assets/aveva-historian-01.png)
+
+### 2. Configure Basic Information
+
+Enter the task name in **Name**, such as: "test_avevaHistorian";
+
+Select **AVEVA Historian** from the **Type** dropdown list.
+
+**Proxy** is optional, if needed, you can select a specific proxy from the dropdown, or click the **+Create New Proxy** button on the right.
+
+Select a target database from the **Target Database** dropdown list, or click the **+Create Database** button on the right.
+
+![Configure basic settings](../../assets/aveva-historian-02.png)
+
+### 3. Configure Connection Information
 
 In the **Connection Configuration** area, fill in the **Server Address** and **Server Port**.
 
@@ -30,11 +45,11 @@ Click the **Connectivity Check** button to check if the data source is available
 
 ![Configure connection information](../../assets/aveva-historian-03.png)
 
-### Configure Collection Information
+### 4. Configure Collection Information
 
 Fill in the collection task related configuration parameters in the **Collection Configuration** area.
 
-#### Migrate Data
+#### 4.1. Migrate Data
 
 If you want to perform data migration, configure the following parameters:
 
@@ -52,7 +67,7 @@ In **Query Time Window**, fill in a time interval, the data migration task will 
 
 ![Migrate data](../../assets/aveva-historian-04.png)
 
-#### Synchronize Data from the History Table
+#### 4.2. Synchronize Data from the History Table
 
 If you want to synchronize data from the **Runtime.dbo.History** table to TDengine, configure the following parameters:
 
@@ -74,7 +89,7 @@ In **Disorder Time Upper Limit**, fill in a time interval, data that enters the 
 
 ![Synchronize historical data](../../assets/aveva-historian-05.png)
 
-#### Synchronize Data from the Live Table
+#### 4.3. Synchronize Data from the Live Table
 
 If you want to synchronize data from the **Runtime.dbo.Live** table to TDengine, configure the following parameters:
 
@@ -88,7 +103,7 @@ In **Real-time Synchronization Interval**, fill in a time interval, the real-tim
 
 ![Synchronize real-time data](../../assets/aveva-historian-06.png)
 
-### Configure Data Mapping
+### 5. Configure Data Mapping
 
 Fill in the data mapping related configuration parameters in the **Data Mapping** area.
 
@@ -104,7 +119,7 @@ Click **Preview** to view the results of the mapping.
 
 ![Configure mapping options](../../assets/aveva-historian-07.png)
 
-### Configure Advanced Options
+### 6. Configure Advanced Options
 
 Fill in the related configuration parameters in the **Advanced Options** area.
 
@@ -122,6 +137,6 @@ Set the storage path for raw data in **Raw Data Storage Directory**.
 
 ![Configure advanced options](../../assets/aveva-historian-08.png)
 
-### Completion of Creation
+### 7. Completion of Creation
 
 Click the **Submit** button to complete the creation of the task. After submitting the task, return to the **Data Writing** page to view the status of the task.

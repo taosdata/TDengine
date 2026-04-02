@@ -488,32 +488,6 @@ static int32_t queryBuildGetRsmaMsg(void *input, char **msg, int32_t msgSize, in
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t queryBuildGetStreamCreateSqlMsg(void *input, char **msg, int32_t msgSize, int32_t *msgLen,
-                                               void *(*mallcFp)(int64_t), void (*freeFp)(void *)) {
-  QUERY_PARAM_CHECK(input);
-  QUERY_PARAM_CHECK(msg);
-  QUERY_PARAM_CHECK(msgLen);
-
-  SGetStreamCreateSqlReq req = {0};
-  (void)snprintf(req.name, sizeof(req.name), "%s", (const char *)input);
-
-  int32_t bufLen = tSerializeGetStreamCreateSqlReq(NULL, 0, &req);
-  if (bufLen < 0) return bufLen;
-  void *pBuf = (*mallcFp)(bufLen);
-  if (pBuf == NULL) {
-    return terrno;
-  }
-  int32_t ret = tSerializeGetStreamCreateSqlReq(pBuf, bufLen, &req);
-  if (ret < 0) {
-    if (freeFp) (*freeFp)(pBuf);
-    return ret;
-  }
-
-  *msg = pBuf;
-  *msgLen = bufLen;
-  return TSDB_CODE_SUCCESS;
-}
-
 int32_t queryBuildGetStreamProgressMsg(void *input, char **msg, int32_t msgSize, int32_t *msgLen,
                                        void *(*mallcFp)(int64_t), void (*freeFp)(void *)) {
   QUERY_PARAM_CHECK(input);
@@ -759,7 +733,6 @@ int32_t queryCreateTableMetaFromMsg(STableMetaRsp *msg, bool isStb, STableMeta *
   pTableMeta->rversion = msg->rversion;
   pTableMeta->ownerId = msg->ownerId;
   pTableMeta->flag = msg->flag;
-  pTableMeta->secLvl = msg->secLvl;  // explicit copy: bit-field positions differ between STableMetaRsp and STableMeta
   pTableMeta->secureDelete = msg->secureDelete;
   if (msg->virtualStb) {
     pTableMeta->virtualStb = 1;
@@ -834,7 +807,6 @@ int32_t queryCreateTableMetaExFromMsg(STableMetaRsp *msg, bool isStb, STableMeta
   int32_t pColRefSize = (hasRefCol(msg->tableType) && msg->pColRefs) ? sizeof(SColRef) * msg->numOfColRefs : 0;
   int32_t tbNameSize = strlen(msg->tbName) + 1;
 
-
   STableMeta *pTableMeta = taosMemoryCalloc(1, metaSize + schemaExtSize + pColRefSize + tbNameSize);
   if (NULL == pTableMeta) {
     qError("calloc size[%d] failed", metaSize);
@@ -867,8 +839,8 @@ int32_t queryCreateTableMetaExFromMsg(STableMetaRsp *msg, bool isStb, STableMeta
     pTableMeta->schemaExt = NULL;
   }
 
-  if (hasRefCol(msg->tableType) && msg->pColRefs && !isStb) {
-    pTableMeta->colRef = pColRef;
+  if (hasRefCol(msg->tableType) && msg->pColRefs) {
+    pTableMeta->colRef = (SColRef *)((char *)pTableMeta + metaSize + schemaExtSize);
     memcpy(pTableMeta->colRef, msg->pColRefs, pColRefSize);
   } else {
     pTableMeta->colRef = NULL;
@@ -1275,22 +1247,6 @@ static int32_t queryProcessGetRsmaRsp(void* output, char* msg, int32_t msgSize) 
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t queryProcessGetStreamCreateSqlRsp(void* output, char* msg, int32_t msgSize) {
-  if (NULL == output || NULL == msg || msgSize <= 0) {
-    qError("queryProcessGetStreamCreateSqlRsp: invalid input param, output:%p, msg:%p, msgSize:%d", output, msg,
-           msgSize);
-    return TSDB_CODE_TSC_INVALID_INPUT;
-  }
-
-  int32_t code = tDeserializeGetStreamCreateSqlRsp(msg, msgSize, (SGetStreamCreateSqlRsp*)output);
-  if (code != 0) {
-    qError("tDeserializeGetStreamCreateSqlRsp failed, msgSize:%d, code:%s", msgSize, tstrerror(code));
-    return TSDB_CODE_INVALID_MSG;
-  }
-
-  return TSDB_CODE_SUCCESS;
-}
-
 int32_t queryProcessStreamProgressRsp(void* output, char* msg, int32_t msgSize) {
   if (!output || !msg || msgSize <= 0) {
     qError("queryProcessStreamProgressRsp: invalid input param, output:%p, msg:%p, msgSize:%d", output, msg, msgSize);
@@ -1356,7 +1312,6 @@ void initQueryModuleMsgHandle() {
   queryBuildMsg[TMSG_INDEX(TDMT_MND_GET_TSMA)] = queryBuildGetTSMAMsg;
   queryBuildMsg[TMSG_INDEX(TDMT_MND_GET_RSMA)] = queryBuildGetRsmaMsg;
   queryBuildMsg[TMSG_INDEX(TDMT_MND_GET_STREAM_PROGRESS)] = queryBuildGetStreamProgressMsg;
-  queryBuildMsg[TMSG_INDEX(TDMT_MND_GET_STREAM_CREATE_SQL)] = queryBuildGetStreamCreateSqlMsg;
   queryBuildMsg[TMSG_INDEX(TDMT_VND_VSUBTABLES_META)] = queryBuildVSubTablesMsg;
   queryBuildMsg[TMSG_INDEX(TDMT_VND_VSTB_REF_DBS)] = queryBuildVStbRefDBsMsg;
 
@@ -1379,7 +1334,6 @@ void initQueryModuleMsgHandle() {
   queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_GET_TSMA)] = queryProcessGetTbTSMARsp;
   queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_GET_RSMA)] = queryProcessGetRsmaRsp;
   queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_GET_STREAM_PROGRESS)] = queryProcessStreamProgressRsp;
-  queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_GET_STREAM_CREATE_SQL)] = queryProcessGetStreamCreateSqlRsp;
   queryProcessMsgRsp[TMSG_INDEX(TDMT_VND_VSUBTABLES_META)] = queryProcessVSubTablesRsp;
   queryProcessMsgRsp[TMSG_INDEX(TDMT_VND_VSTB_REF_DBS)] = queryProcessVStbRefDbsRsp;
 }

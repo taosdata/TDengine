@@ -50,7 +50,6 @@ class FastLzma2Conan(ConanFile):
 
         # Build make command
         cflags = "-Wall -O2 -pthread"
-        asflags = "-Wa,--noexecstack"
         if self.options.get_safe("fPIC"):
             cflags += " -fPIC"
 
@@ -60,7 +59,7 @@ class FastLzma2Conan(ConanFile):
 
         # Execute make compilation
         self.run(
-            f'make CFLAGS="{cflags}" ASFLAGS="{asflags}" CC={self.settings.get_safe("compiler", default="gcc")} libfast-lzma2',
+            f'make CFLAGS="{cflags}" CC={self.settings.get_safe("compiler", default="gcc")} libfast-lzma2',
             cwd=source_folder,
         )
 

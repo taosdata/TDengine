@@ -1,5 +1,6 @@
 ---
 title: Functions
+slug: /tdengine-reference/sql-manual/functions
 ---
 
 ## Single Row Functions
@@ -1293,13 +1294,13 @@ taos> select repeat('abc',-1);
 TO_BASE64(expr)
 ```
 
-**Function Description**: Returns the base64 encoding of `expr`. For non-string types, the value is first converted to its string representation before encoding.
+**Function Description**: Returns the base64 encoding of the string `expr`s.
 
 **Return Type**: VARCHAR.
 
 **Applicable Data Types**:
 
-- `expr`: BOOL, numeric types, TIMESTAMP, VARCHAR, NCHAR.
+- `expr`: VARCHAR, NCHAR.
 
 **Nested Subquery Support**: Applicable to both inner and outer queries.
 
@@ -1308,32 +1309,14 @@ TO_BASE64(expr)
 **Usage Notes**:
 
 - If `expr` is NULL, returns NULL.
-- If the base64-encoded result exceeds the maximum VARCHAR length, an error is returned.
-- BOOL type: TRUE is encoded as the string `'1'`, FALSE as `'0'`.
-- TIMESTAMP type: always formatted in UTC as `yyyy-mm-dd hh24:mi:ss.{precision}+00` (where precision is ms/us/ns depending on the column) before encoding. This ensures results are timezone-independent and preserve full precision.
 
 **Example**:
 
 ```sql
-taos> select to_base64(NULL);
- to_base64(null) |
-==================
- NULL            |
-
 taos> select to_base64("");
  to_base64("") |
 ================
                |
-
-taos> select to_base64(14324);
- to_base64(14324) |
-====================
- MTQzMjQ=         |
-
-taos> select to_base64("14324");
- to_base64("14324") |
-====================
- MTQzMjQ=         |
 
 taos> select to_base64("Hello, world!");
  to_base64("Hello, world!") |
@@ -1479,15 +1462,6 @@ Query OK, 1 row(s) in set (0.000569s)
 ```
 
 ### Data Masking Functions
-
-TDengine supports two approaches to data masking, each suited to different use cases:
-
-| Approach | Description | Typical Usage |
-|----------|-------------|---------------|
-| **Masking functions** (this section) | Explicitly called by the user in a SQL query to transform a given expression before returning results. Available to any user with query privileges; masking logic is determined by the query itself. | `SELECT MASK_FULL(phone, '*') FROM t;` |
-| **Grant-based column masking** (`GRANT MASK(col)`) | An administrator binds a masking policy to a column via `GRANT`. The masking is applied transparently for the specified user — the system automatically replaces the real value with `'*'` without requiring the user to modify their queries. **Enterprise Edition only.** | `GRANT SELECT (MASK(phone)) ON db.t TO user1;` |
-
-For detailed syntax and behavior of grant-based column masking, see [GRANT — Column Permissions](./61-grant.md#column-permissions).
 
 #### MASK_FULL
 
@@ -1750,7 +1724,7 @@ TO_ISO8601(expr [, timezone])
 
 **Usage Notes**:
 
-- The `timezone` parameter accepts timezone formats: [z/Z, +/-hhmm, +/-hh, +/-hh:mm]. For example, TO_ISO8601(1, "+00:00"). The valid timezone offset range is -14:00 to +14:00.
+- The `timezone` parameter accepts timezone formats: [z/Z, +/-hhmm, +/-hh, +/-hh:mm]. For example, TO_ISO8601(1, "+00:00").
 - The precision of the input timestamp is determined by the precision of the table queried, if no table is specified, the precision is milliseconds.
 
 #### TO_JSON
@@ -1848,7 +1822,6 @@ Supported Formats:
 | US,us               | Microsecond, 000000-999999                |                           |
 | NS,ns               | Nanosecond, 000000000-999999999           |                           |
 | TZH,tzh             | Time zone hours                           | 2023-01-30 11:59:59PM +08 |
-| TZ,tz               | Time zone hours and minutes               | 2023-01-30 11:59:59PM +08:00 |
 
 **Usage Instructions**:
 
@@ -3260,7 +3233,7 @@ SELECT SERVER_VERSION();
 SELECT SERVER_STATUS();
 ```
 
-**Description**: Checks if all dnodes on the server are online; if so, it returns success, otherwise, it returns an error that the connection could not be established. To check the status of the cluster, it is recommended to use `SHOW CLUSTER ALIVE;`, which, unlike `SELECT SERVER_STATUS();`, does not return an error when some nodes in the cluster are unavailable, but instead returns different status codes, see: [SHOW CLUSTER ALIVE](52-show.md#show-cluster-alive)
+**Description**: Checks if all dnodes on the server are online; if so, it returns success, otherwise, it returns an error that the connection could not be established. To check the status of the cluster, it is recommended to use `SHOW CLUSTER ALIVE;`, which, unlike `SELECT SERVER_STATUS();`, does not return an error when some nodes in the cluster are unavailable, but instead returns different status codes, see: [SHOW CLUSTER ALIVE](../show-commands/#show-cluster-alive)
 
 ### CURRENT_USER
 

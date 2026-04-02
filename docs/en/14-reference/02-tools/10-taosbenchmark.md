@@ -1,6 +1,7 @@
 ---
 title: taosBenchmark Reference
 sidebar_label: taosBenchmark
+slug: /tdengine-reference/tools/taosbenchmark
 toc_max_heading_level: 4
 ---
 
@@ -8,7 +9,7 @@ TaosBenchmark is a performance benchmarking tool for TDengine products, providin
 
 ## Get
 
-taosBenchmark is the default installation component in the TDengine server and client installation package. It can be used after installation, refer to [TDengine Installation](../../04-get-started/index.md)
+taosBenchmark is the default installation component in the TDengine server and client installation package. It can be used after installation, refer to [TDengine Installation](../../../get-started/)
 
 ## Startup
 
@@ -451,7 +452,7 @@ The subscription configuration parameters are set under `tmq_info`. The paramete
    name: Specify the topic name.
    sql:  Specify the sql statement for creating topic, Ensure that the sql is correct, and the framework will automatically create topic.
 
-For the following parameters, see the description of [Subscription](../../06-advanced/01-subscription/index.md):
+For the following parameters, see the description of [Subscription](../../../advanced/subscription/):
 
 - **client.id**
 - **auto.offset.reset**

@@ -2,7 +2,7 @@
 """ksigma class definition"""
 
 import numpy as np
-from taosanalytics.base import AbstractAnomalyDetectionService
+from taosanalytics.service import AbstractAnomalyDetectionService
 
 
 class _KSigmaService(AbstractAnomalyDetectionService):
@@ -11,7 +11,6 @@ class _KSigmaService(AbstractAnomalyDetectionService):
     desc = """the k-sigma algorithm (or 3σ rule) expresses a conventional heuristic that nearly all
     values are taken to lie within k (usually three) standard deviations of the mean, and thus
     it is empirically useful to treat 99.7% probability as near certainty"""
-    _builtins = True
 
     def __init__(self, k_val=3):
         super().__init__()

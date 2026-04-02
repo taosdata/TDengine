@@ -1,8 +1,9 @@
 ---
 title: MQTT
+slug: /advanced-features/data-connectors/mqtt
 ---
 
-import { AddDataSource, Enterprise } from '../../assets/resources/_resources.mdx';
+import Enterprise from '../../assets/resources/_enterprise.mdx';
 
 <Enterprise/>
 
@@ -14,13 +15,27 @@ MQTT stands for Message Queuing Telemetry Transport. It is a lightweight messagi
 
 TDengine can subscribe to data from an MQTT broker via an MQTT connector and write it into TDengine, enabling real-time data streaming.
 
-## Procedure
+## Creating a Task
 
-### Add a Data Source
+### 1. Add a Data Source
 
-<AddDataSource connectorName="MQTT"/>
+On the data writing page, click the **+Add Data Source** button to enter the add data source page.
 
-### Configure Connection and Authentication Information
+![Add data source](../../assets/mqtt-01.png)
+
+### 2. Configure Basic Information
+
+Enter the task name in **Name**, such as: "test_mqtt";
+
+Select **MQTT** from the **Type** dropdown list.
+
+**Broker** is optional, you can select a specific broker from the dropdown list or click the **+Create New Broker** button on the right.
+
+Select a target database from the **Target Database** dropdown list, or click the **+Create Database** button on the right.
+
+![Configure basic settings](../../assets/mqtt-02.png)
+
+### 3. Configure Connection and Authentication Information
 
 Enter the MQTT broker's address in **MQTT Address**, for example: `192.168.1.42`
 
@@ -32,13 +47,13 @@ Enter the MQTT broker's password in **Password**.
 
 ![Configure connection information](../../assets/mqtt-03.png)
 
-### Configure SSL Certificate
+### 4. Configure SSL Certificate
 
 If the MQTT broker uses an SSL certificate, upload the certificate file in **SSL Certificate**.
 
 ![Configure SSL certificate](../../assets/mqtt-04.png)
 
-### Configure Collection Information
+### 5. Configure Collection Information
 
 Fill in the collection task related configuration parameters in the **Collection Configuration** area.
 
@@ -63,13 +78,13 @@ Click the **Check Connection** button to check if the data source is available.
 
 ![Configure collection settings](../../assets/mqtt-05.png)
 
-### Configure MQTT Payload Parsing
+### 6. Configure MQTT Payload Parsing
 
 Fill in the Payload parsing related configuration parameters in the **MQTT Payload Parsing** area.
 
 taosX can use a JSON extractor to parse data and allows users to specify the data model in the database, including specifying table names and supertable names, setting ordinary columns and tag columns, etc.
 
-#### Parsing
+#### 6.1 Parsing
 
 There are three methods to obtain sample data:
 
@@ -100,7 +115,7 @@ Click the **magnifying glass icon** to view the preview of the analysis results.
 
 ![Preview analysis results](../../assets/mqtt-07.png)
 
-#### Field Splitting
+#### 6.2 Field Splitting
 
 In **Extract or Split from Column**, fill in the fields to extract or split from the message body, for example: split the `message` field into `message_0` and `message_1`, select the split extractor, fill in the separator as -, and number as 2.
 
@@ -114,7 +129,7 @@ Click the **magnifying glass icon** to view the preview of the extraction/split 
 
 ![Preview results](../../assets/mqtt-09.png)
 
-#### Data Filtering
+#### 6.3 Data Filtering
 
 In **Filter**, fill in the filtering conditions, for example: write `id != 1`, then only data with id not equal to 1 will be written to TDengine.
 
@@ -126,7 +141,7 @@ Click the **magnifying glass icon** to view the preview of the filtering results
 
 ![Preview filtering results](../../assets/mqtt-11.png)
 
-#### Table Mapping
+#### 6.4 Table Mapping
 
 In the **Target Supertable** dropdown, select a target supertable, or click the **Create Supertable** button on the right.
 
@@ -138,7 +153,7 @@ Click **Preview** to view the mapping results.
 
 ![Preview mapping results](../../assets/mqtt-13.png)
 
-### Advanced Options
+### 7. Advanced Options
 
 In the **Log Level** dropdown, select a log level. There are five options: `TRACE`, `DEBUG`, `INFO`, `WARN`, `ERROR`. The default is INFO.
 
@@ -150,6 +165,6 @@ Set the storage path for raw data in **Raw Data Storage Directory**.
 
 ![Configure advanced options](../../assets/mqtt-14.png)
 
-### Completion
+### 8. Completion
 
 Click the **Submit** button to complete the creation of the MQTT to TDengine data synchronization task, return to the **Data Source List** page to view the status of the task execution.

@@ -2,6 +2,7 @@
 toc_max_heading_level: 4
 sidebar_label: Rust
 title: Rust Client Library
+slug: /tdengine-reference/client-libraries/rust
 ---
 
 import Tabs from "@theme/Tabs";
@@ -52,7 +53,7 @@ match conn.exec(sql) {
 }
 ```
 
-For specific error codes, please refer to [Error Codes](../09-error-code.md)
+For specific error codes, please refer to [Error Codes](../../error-codes/)
 
 ## Data Type Mapping
 
@@ -82,7 +83,7 @@ Please refer to: [rust example](https://github.com/taosdata/TDengine/tree/main/d
 
 ## Frequently Asked Questions
 
-Please refer to [FAQ](../../27-train-faq/index.md)
+Please refer to [FAQ](../../../frequently-asked-questions/)
 
 ## API Reference
 

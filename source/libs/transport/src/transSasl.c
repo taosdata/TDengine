@@ -97,8 +97,6 @@ void saslBufferClear(SSaslBuffer* buf) {
   saslBufferClearImpl(buf);
 }
 
-#if !defined(TD_ENTERPRISE)
-
 void saslLibInitImpl() {
   return;
 }
@@ -134,7 +132,6 @@ int32_t saslConnHandleAuthImpl(SSaslConn * pConn, const char* input, int32_t len
 }
 
 int8_t saslConnShoudDoAuthImpl(SSaslConn * pConn) {
-  if (pConn == NULL) return 1;
   return 0;
 }
 
@@ -152,4 +149,4 @@ void saslBufferClearImpl(SSaslBuffer* buf) {
   return;
 }
 
-#endif
+//#endif

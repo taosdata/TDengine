@@ -3034,28 +3034,14 @@ _return:
   return code;
 }
 
-/* Maximum input bytes whose base64 encoding fits in TSDB_MAX_FIELD_LEN (65519):
-   tbase64_encode_len(n) = 4*((n+2)/3) <= 65519  =>  n <= 49137 */
-#define BASE64_MAX_INPUT_LEN 49137
-
-#define BASE64_TRUE  "MQ=="
-#define BASE64_FALSE "MA=="
-
-int32_t base64Function(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOutput) {
-  int32_t code = TSDB_CODE_SUCCESS;
+int32_t base64Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  int32_t          code = TSDB_CODE_SUCCESS;
   SColumnInfoData *pInputData = pInput->columnData;
   SColumnInfoData *pOutputData = pOutput->columnData;
-  int16_t inputType = GET_PARAM_TYPE(&pInput[0]);
-  char stringBuf[512];
-  char *output = taosMemoryMalloc(tbase64_encode_len(BASE64_MAX_INPUT_LEN) + VARSTR_HEADER_SIZE);
-  SArray *formats = NULL;
-  timezone_t utcTz = NULL;
-
-  if (!output) {
+  char            *outputBuf = taosMemoryMalloc(TSDB_MAX_FIELD_LEN + VARSTR_HEADER_SIZE);
+  if (outputBuf == NULL) {
     SCL_ERR_RET(terrno);
   }
-
-  char *out = output + VARSTR_HEADER_SIZE;
 
   for (int32_t i = 0; i < pInput->numOfRows; ++i) {
     if (colDataIsNull_s(pInputData, i)) {
@@ -3063,67 +3049,20 @@ int32_t base64Function(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOu
       continue;
     }
 
-    char *input = colDataGetData(pInput[0].columnData, i);
-    const uint8_t *pSrc = NULL;
-    size_t srcLen = 0;
+    char       *input = colDataGetData(pInputData, i);
+    size_t      inputLen = varDataLen(colDataGetData(pInputData, i));
+    char       *out = outputBuf + VARSTR_HEADER_SIZE;
+    VarDataLenT outputLength = tbase64_encode_len(inputLen);
 
-    if (inputType == TSDB_DATA_TYPE_BOOL) {
-      memcpy(out, *(int8_t *)input ? BASE64_TRUE : BASE64_FALSE, 4);
-      varDataSetLen(output, 4);
-      SCL_ERR_JRET(colDataSetVal(pOutputData, i, output, false));
-      continue;
-    }
+    tbase64_encode(out, (const uint8_t *)varDataVal(input), inputLen, outputLength);
+    varDataSetLen(outputBuf, outputLength);
 
-    if (IS_NUMERIC_TYPE(inputType)) {
-      if (IS_DECIMAL_TYPE(inputType)) {
-        uint8_t inputPrec = GET_PARAM_PRECISON(&pInput[0]), inputScale = GET_PARAM_SCALE(&pInput[0]);
-        SCL_ERR_JRET(decimalToStr(input, inputType, inputPrec, inputScale, stringBuf, sizeof(stringBuf)));
-      } else {
-        stringBuf[0] = '\0';
-        NUM_TO_STRING(inputType, input, (size_t)sizeof(stringBuf), stringBuf);
-      }
-      srcLen = strlen(stringBuf);
-      pSrc = (const uint8_t *)stringBuf;
-    } else if (inputType == TSDB_DATA_TYPE_TIMESTAMP) {
-      const char *format;
-      int32_t precision = pInput[0].columnData->info.precision;
-      switch (precision) {
-        case TSDB_TIME_PRECISION_MICRO: format = "yyyy-mm-dd hh24:mi:ss.us+00"; break;
-        case TSDB_TIME_PRECISION_NANO:  format = "yyyy-mm-dd hh24:mi:ss.ns+00"; break;
-        default:                        format = "yyyy-mm-dd hh24:mi:ss.ms+00"; break;
-      }
-      if (!utcTz) {
-        utcTz = tzalloc("UTC");
-        if (!utcTz) {
-          code = TSDB_CODE_OUT_OF_MEMORY;
-          goto _return;
-        }
-      }
-      SCL_ERR_JRET(taosTs2Char(format, &formats, *(int64_t *)input, precision, stringBuf, sizeof(stringBuf), utcTz));
-      srcLen = strlen(stringBuf);
-      pSrc = (const uint8_t *)stringBuf;
-    } else {
-      srcLen = varDataLen(input);
-      pSrc = (const uint8_t *)varDataVal(input);
-    }
-
-    if (srcLen > BASE64_MAX_INPUT_LEN) {
-      code = TSDB_CODE_FUNC_INVALID_RES_LENGTH;
-      goto _return;
-    }
-
-    VarDataLenT outputLength = (VarDataLenT)tbase64_encode_len(srcLen);
-    tbase64_encode((uint8_t *)out, pSrc, srcLen, outputLength);
-    varDataSetLen(output, outputLength);
-    SCL_ERR_JRET(colDataSetVal(pOutputData, i, output, false));
+    SCL_ERR_JRET(colDataSetVal(pOutputData, i, outputBuf, false));
   }
 
   pOutput->numOfRows = pInput->numOfRows;
-
 _return:
-  taosArrayDestroy(formats);
-  if (utcTz) tzfree(utcTz);
-  taosMemoryFree(output);
+  taosMemoryFree(outputBuf);
   return code;
 }
 
@@ -3800,7 +3739,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
         break;
       }
       default: {
-        code = TSDB_CODE_SCALAR_CONVERT_ERROR;
+        code = TSDB_CODE_FAILED;
         goto _end;
       }
     }
