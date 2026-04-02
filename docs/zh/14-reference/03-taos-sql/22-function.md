@@ -431,17 +431,17 @@ taos> select rand();
           rand()           |
 ============================
          0.202092426923147 |
-         
+
 taos> select rand();
           rand()           |
 ============================
          0.131537788143166 |
-         
+
 taos> select rand(1);
           rand(1)          |
 ============================
          0.000007826369259 |
-         
+
 taos> select rand(1);
           rand(1)          |
 ============================
@@ -629,7 +629,7 @@ taos> select truncate(8888.88, 0);
  truncate(8888.88, 0)    |
 ============================
     8888.000000000000000 |
-     
+
 taos> select truncate(8888.88, -1);
  truncate(8888.88, -1)   |
 ============================
@@ -817,7 +817,7 @@ CHAR(expr1 [, expr2] [, epxr3] ...)
 - 输入的值超过 255 会被转化成多字节的结果，如 `CHAR(256)` 等同于 `CHAR(1,0)`、`CHAR(256 * 256)` 等同于 `CHAR(1,0,0)`。
 - 输入参数的 NULL 值会被跳过。
 - 输入参数若为字符串类型，会将其转换为数值类型处理。
-- 若输入的参数对应的字符为不可打印字符，返回值中仍有该参数对应的字符，但是可能无法显示出来。
+- 若输入参数包含不可打印字符，`CHAR` 的返回值仍为对应字节序列；在 `taos` 中显示时，会以 `0x` 开头的十六进制形式输出，便于查看。
 - 输入参数的个数上限为 2^31 - 1 个。
 
 **举例**：
@@ -827,17 +827,22 @@ taos> select char(77);
  char(77) |
 ===========
  M        |
- 
+
+taos> select CHAR(3);
+ char(3) |
+==========
+ 0x03    |
+
 taos> select char(77,77);
  char(77,77) |
 ==============
  MM          |
- 
+
 taos> select char(77 * 256 + 77);
  char(77 * 256 + 77) |
 ======================
  MM                  |
- 
+
 taos> select char(77,NULL,77);
  char(77,null,77) |
 ===================
@@ -876,7 +881,7 @@ taos> select char_length('Hello world');
  char_length('Hello world') |
 =============================
                          11 |
- 
+
 taos> select char_length('你好 世界');
       char_length('你好 世界') |
 ===============================
@@ -1031,13 +1036,13 @@ taos> select position('a' in 'cba');
  position('a' in 'cba') |
 =========================
                       3 |
- 
- 
+
+
 taos> select position('' in 'cba');
  position('' in 'cba') |
 ========================
                      1 |
- 
+
 taos> select position('d' in 'cba');
  position('d' in 'cba') |
 =========================
@@ -1093,7 +1098,7 @@ taos> select repeat('abc',5);
       repeat('abc',5)      |
 ============================
  abcabcabcabcabc           |
-            
+
 taos> select repeat('abc',-1);
  repeat('abc',-1) |
 ===================
@@ -1299,18 +1304,18 @@ taos> select trim('        a         ');
  trim('        a         ') |
 =============================
  a                          |
- 
+
 taos> select trim(leading from '        a         ');
  trim(leading from '        a         ') |
 ==========================================
  a                                       |
- 
+
 
 taos> select trim(leading 'b' from 'bbbbbbbba         ');
  trim(leading 'b' from 'bbbbbbbba         ') |
 ==============================================
  a                                           |
- 
+
 taos> select trim(both 'b' from 'bbbbbabbbbbb');
  trim(both 'b' from 'bbbbbabbbbbb') |
 =====================================
@@ -2953,7 +2958,7 @@ IFNULL(expr1, expr2)
 **举例**：
 
 ```sql
-taos> SELECT IFNULL(1,0); 
+taos> SELECT IFNULL(1,0);
       ifnull(1,0)      |
 ========================
                      1 |
