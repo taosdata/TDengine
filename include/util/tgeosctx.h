@@ -21,6 +21,8 @@ extern "C" {
 #endif
 
 #ifdef USE_GEOS
+
+#include "os.h"
 #include <geos_c.h>
 #include <tpcre2.h>
 
