@@ -1,0 +1,98 @@
+set(TD_ENTERPRISE_DIR "${CMAKE_SOURCE_DIR}/source/taos-internal" CACHE PATH "Path to source/taos-internal repository")
+set(TD_COMMUNITY_DIR "${CMAKE_SOURCE_DIR}/source/taos-community" CACHE PATH "Path to source/taos-community repository")
+set(TD_ADAPTER_DIR "${CMAKE_SOURCE_DIR}/source/taos-adapter" CACHE PATH "Path to source/taos-adapter repository")
+set(TD_KEEPER_DIR "${TD_COMMUNITY_DIR}/tools/keeper" CACHE PATH "Path to source/taos-community/tools/keeper repository")
+
+set(TD_GEN_DIR "${CMAKE_SOURCE_DIR}/source/taos-gen" CACHE PATH "Path to source/taos-gen repository")
+set(TD_TAOSX_DIR "${CMAKE_SOURCE_DIR}/source/taos-xservice" CACHE PATH "Path to source/taos-xservice repository")
+set(TD_INSIGHT_DIR "${CMAKE_SOURCE_DIR}/source/taos-insight" CACHE PATH "Path to source/taos-insight repository")
+
+set(TD_CONNECTOR_DOTNET_DIR "${CMAKE_SOURCE_DIR}/source/taos-connector-dotnet" CACHE PATH "Path to source/taos-connector-dotnet repository")
+set(TD_CONNECTOR_GO_DIR "${CMAKE_SOURCE_DIR}/source/taos-connector-go" CACHE PATH "Path to source/taos-connector-go repository")
+set(TD_CONNECTOR_JDBC_DIR "${CMAKE_SOURCE_DIR}/source/taos-connector-jdbc" CACHE PATH "Path to source/taos-connector-jdbc repository")
+set(TD_CONNECTOR_NODE_DIR "${CMAKE_SOURCE_DIR}/source/taos-connector-node" CACHE PATH "Path to source/taos-connector-node repository")
+set(TD_CONNECTOR_ODBC_DIR "${CMAKE_SOURCE_DIR}/source/taos-connector-odbc" CACHE PATH "Path to source/taos-connector-odbc repository")
+set(TD_CONNECTOR_PYTHON_DIR "${CMAKE_SOURCE_DIR}/source/taos-connector-python" CACHE PATH "Path to source/taos-connector-python repository")
+set(TD_CONNECTOR_RUST_DIR "${CMAKE_SOURCE_DIR}/source/taos-connector-rust" CACHE PATH "Path to source/taos-connector-rust repository")
+
+set(TD_INCLUDE_DIR "${TD_COMMUNITY_DIR}/include/client" CACHE PATH "Directory containing C headers")
+set(TD_LIB_DIR "${CMAKE_BINARY_DIR}/build/lib" CACHE PATH "Directory containing built libraries")
+set(TD_BIN_DIR "${CMAKE_BINARY_DIR}/build/bin" CACHE PATH "Directory containing built executables")
+set(TD_CFG_DIR "${CMAKE_BINARY_DIR}/test/cfg" CACHE PATH "Directory containing generated runtime config files")
+
+if(NOT DEFINED BUILD_CUS_PRODUCT_NAME OR BUILD_CUS_PRODUCT_NAME STREQUAL "")
+	if(BUILD_ENTERPRISE)
+		set(BUILD_CUS_PRODUCT_NAME "TDengine TSDB-Enterprise" CACHE STRING "Product name injected into taoskeeper binary" FORCE)
+	else()
+		set(BUILD_CUS_PRODUCT_NAME "TDengine TSDB-OSS" CACHE STRING "Product name injected into taoskeeper binary" FORCE)
+	endif()
+endif()
+
+string(TIMESTAMP _default_build_ver_date "%Y-%m-%d %H:%M:%S")
+set(BUILD_VER_DATE "${_default_build_ver_date}" CACHE STRING "Build date injected into BuildInfo")
+
+set(BUILD_VER_CPUTYPE "${CMAKE_SYSTEM_PROCESSOR}" CACHE STRING "CPU type injected into BuildInfo")
+set(BUILD_VER_OSTYPE "" CACHE STRING "OS type injected into BuildInfo")
+string(TOLOWER "${CMAKE_SYSTEM_NAME}" BUILD_VER_OSTYPE)
+
+message(STATUS "BUILD_ENTERPRISE       = ${BUILD_ENTERPRISE}")
+
+message(STATUS "BUILD_ENGINE           = ${BUILD_ENGINE}")
+message(STATUS "BUILD_ADAPTER          = ${BUILD_ADAPTER}")
+message(STATUS "BUILD_KEEPER           = ${BUILD_KEEPER}")
+message(STATUS "BUILD_TOOLS            = ${BUILD_TOOLS}")
+
+message(STATUS "BUILD_GEN              = ${BUILD_GEN}")
+message(STATUS "BUILD_TAOSX            = ${BUILD_TAOSX}")
+message(STATUS "BUILD_INSIGHT          = ${BUILD_INSIGHT}")
+
+message(STATUS "BUILD_DOTNET           = ${BUILD_DOTNET}")
+message(STATUS "BUILD_GO               = ${BUILD_GO}")
+message(STATUS "BUILD_JDBC             = ${BUILD_JDBC}")
+message(STATUS "BUILD_NODE             = ${BUILD_NODE}")
+message(STATUS "BUILD_ODBC             = ${BUILD_ODBC}")
+message(STATUS "BUILD_PYTHON           = ${BUILD_PYTHON}")
+message(STATUS "BUILD_RUST             = ${BUILD_RUST}")
+
+message(STATUS "TD_ENTERPRISE_DIR      = ${TD_ENTERPRISE_DIR}")
+message(STATUS "TD_COMMUNITY_DIR       = ${TD_COMMUNITY_DIR}")
+message(STATUS "TD_ADAPTER_DIR         = ${TD_ADAPTER_DIR}")
+message(STATUS "TD_KEEPER_DIR          = ${TD_KEEPER_DIR}")
+message(STATUS "TD_GEN_DIR             = ${TD_GEN_DIR}")
+message(STATUS "TD_TAOSX_DIR           = ${TD_TAOSX_DIR}")
+message(STATUS "TD_INSIGHT_DIR         = ${TD_INSIGHT_DIR}")
+
+message(STATUS "TD_CONNECTOR_DOTNET_DIR= ${TD_CONNECTOR_DOTNET_DIR}")
+message(STATUS "TD_CONNECTOR_GO_DIR    = ${TD_CONNECTOR_GO_DIR}")
+message(STATUS "TD_CONNECTOR_JDBC_DIR  = ${TD_CONNECTOR_JDBC_DIR}")
+message(STATUS "TD_CONNECTOR_NODE_DIR  = ${TD_CONNECTOR_NODE_DIR}")
+message(STATUS "TD_CONNECTOR_ODBC_DIR  = ${TD_CONNECTOR_ODBC_DIR}")
+message(STATUS "TD_CONNECTOR_PYTHON_DIR= ${TD_CONNECTOR_PYTHON_DIR}")
+message(STATUS "TD_CONNECTOR_RUST_DIR  = ${TD_CONNECTOR_RUST_DIR}")
+
+message(STATUS "TD_INCLUDE_DIR         = ${TD_INCLUDE_DIR}")
+message(STATUS "TD_LIB_DIR             = ${TD_LIB_DIR}")
+message(STATUS "TD_BIN_DIR             = ${TD_BIN_DIR}")
+message(STATUS "TD_CFG_DIR             = ${TD_CFG_DIR}")
+
+
+message(STATUS "BUILD_TEST             = ${BUILD_TEST}")
+message(STATUS "BUILD_SANITIZER        = ${BUILD_SANITIZER}")
+message(STATUS "BUILD_COVERAGE         = ${BUILD_COVERAGE}")
+message(STATUS "BUILD_JEMALLOC         = ${BUILD_JEMALLOC}")
+
+message(STATUS "BUILD_CUS_NAME         = ${BUILD_CUS_NAME}")
+message(STATUS "BUILD_CUS_PROMPT       = ${BUILD_CUS_PROMPT}")
+message(STATUS "BUILD_CUS_EMAIL        = ${BUILD_CUS_EMAIL}")
+message(STATUS "BUILD_CUS_PRODUCT_NAME = ${BUILD_CUS_PRODUCT_NAME}")
+message(STATUS "BUILD_VER_NUMBER       = ${BUILD_VER_NUMBER}")
+message(STATUS "BUILD_VER_COMPATIBLE   = ${BUILD_VER_COMPATIBLE}")
+message(STATUS "BUILD_VER_TYPE         = ${BUILD_VER_TYPE}")
+message(STATUS "BUILD_VER_CPUTYPE      = ${BUILD_VER_CPUTYPE}")
+message(STATUS "BUILD_VER_OSTYPE       = ${BUILD_VER_OSTYPE}")
+message(STATUS "BUILD_VER_DATE         = ${BUILD_VER_DATE}")
+message(STATUS "BUILD_GITINFO          = ${BUILD_GITINFO}")
+message(STATUS "BUILD_GITINFOI         = ${BUILD_GITINFOI}")
+
+
+message(STATUS "CMAKE_BUILD_TYPE       = ${CMAKE_BUILD_TYPE}")
