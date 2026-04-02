@@ -101,34 +101,31 @@ static int32_t mndProcessReloadLastCacheReq(SRpcMsg* pReq) {
 int32_t mndReloadLastCache(SMnode* pMnode, SRpcMsg* pReq, int8_t cacheType, int8_t scopeType,
                             const char* dbName, const char* tableName, const char* colName,
                             int64_t* pReloadUid) {
-  SSdb* pSdb = pMnode->pSdb;
+  SSdb*        pSdb = pMnode->pSdb;
+  int32_t      code = TSDB_CODE_SUCCESS;
+  SReloadTask* pTask = NULL;
 
-  taosThreadMutexLock(&gReloadMutex);
-  int64_t uid = gNextReloadUid++;
-  taosThreadMutexUnlock(&gReloadMutex);
+  SReloadTask* pNewTask = taosMemoryCalloc(1, sizeof(SReloadTask));
+  if (!pNewTask) return TSDB_CODE_OUT_OF_MEMORY;
 
-  SReloadTask* pTask = taosMemoryCalloc(1, sizeof(SReloadTask));
-  if (!pTask) return TSDB_CODE_OUT_OF_MEMORY;
+  pNewTask->cacheType   = cacheType;
+  pNewTask->scopeType   = scopeType;
+  pNewTask->startTimeMs = taosGetTimestampMs();
+  pNewTask->pVgIds      = taosArrayInit(4, sizeof(int32_t));
+  tstrncpy(pNewTask->dbName,    dbName    ? dbName    : "", sizeof(pNewTask->dbName));
+  tstrncpy(pNewTask->tableName, tableName ? tableName : "", sizeof(pNewTask->tableName));
+  tstrncpy(pNewTask->colName,   colName   ? colName   : "", sizeof(pNewTask->colName));
 
-  pTask->reloadUid   = uid;
-  pTask->cacheType   = cacheType;
-  pTask->scopeType   = scopeType;
-  pTask->startTimeMs = taosGetTimestampMs();
-  pTask->pVgIds      = taosArrayInit(4, sizeof(int32_t));
-  tstrncpy(pTask->dbName,    dbName    ? dbName    : "", sizeof(pTask->dbName));
-  tstrncpy(pTask->tableName, tableName ? tableName : "", sizeof(pTask->tableName));
-  tstrncpy(pTask->colName,   colName   ? colName   : "", sizeof(pTask->colName));
-
-  if (!pTask->pVgIds) {
-    taosMemoryFree(pTask);
+  if (!pNewTask->pVgIds) {
+    taosMemoryFree(pNewTask);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   // Collect vgroup IDs for this database
   SDbObj* pDb = mndAcquireDb(pMnode, dbName ? dbName : "");
   if (!pDb) {
-    taosArrayDestroy(pTask->pVgIds);
-    taosMemoryFree(pTask);
+    taosArrayDestroy(pNewTask->pVgIds);
+    taosMemoryFree(pNewTask);
     return TSDB_CODE_MND_DB_NOT_EXIST;
   }
 
@@ -136,18 +133,32 @@ int32_t mndReloadLastCache(SMnode* pMnode, SRpcMsg* pReq, int8_t cacheType, int8
   SVgObj* pVgroup = NULL;
   while ((pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void**)&pVgroup)) != NULL) {
     if (pVgroup->dbUid == pDb->uid) {
-      taosArrayPush(pTask->pVgIds, &pVgroup->vgId);
+      if (taosArrayPush(pNewTask->pVgIds, &pVgroup->vgId) == NULL) {
+        sdbRelease(pSdb, pVgroup);
+        sdbCancelFetch(pSdb, pIter);
+        mndReleaseDb(pMnode, pDb);
+        taosArrayDestroy(pNewTask->pVgIds);
+        taosMemoryFree(pNewTask);
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
     }
     sdbRelease(pSdb, pVgroup);
   }
   mndReleaseDb(pMnode, pDb);
 
-  // Store task in active map
-  if (taosHashPut(gReloadTasks, &uid, sizeof(uid), &pTask, sizeof(pTask)) != 0) {
-    taosArrayDestroy(pTask->pVgIds);
-    taosMemoryFree(pTask);
+  // Assign UID and store task atomically under mutex
+  taosThreadMutexLock(&gReloadMutex);
+  int64_t uid = gNextReloadUid++;
+  pNewTask->reloadUid = uid;
+  code = taosHashPut(gReloadTasks, &uid, sizeof(uid), &pNewTask, sizeof(pNewTask));
+  taosThreadMutexUnlock(&gReloadMutex);
+
+  if (code != TSDB_CODE_SUCCESS) {
+    taosArrayDestroy(pNewTask->pVgIds);
+    taosMemoryFree(pNewTask);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
+  pTask = pNewTask;
   *pReloadUid = uid;
 
   // Dispatch reload request to each vgroup
@@ -166,11 +177,19 @@ int32_t mndReloadLastCache(SMnode* pMnode, SRpcMsg* pReq, int8_t cacheType, int8
     if (contLen < 0) { mndReleaseVgroup(pMnode, pVg); continue; }
     void* pCont = rpcMallocCont(contLen);
     if (!pCont) { mndReleaseVgroup(pMnode, pVg); continue; }
-    tSerializeSVReloadLastCacheReq(pCont, contLen, &req);
+    if (tSerializeSVReloadLastCacheReq(pCont, contLen, &req) < 0) {
+      rpcFreeCont(pCont);
+      mndReleaseVgroup(pMnode, pVg);
+      continue;
+    }
 
     SRpcMsg rpcMsg = {.msgType = TDMT_VND_RELOAD_LAST_CACHE, .pCont = pCont, .contLen = contLen};
     SEpSet  epSet  = mndGetVgroupEpset(pMnode, pVg);
-    (void)tmsgSendReq(&epSet, &rpcMsg);
+    int32_t ret    = tmsgSendReq(&epSet, &rpcMsg);
+    if (ret != TSDB_CODE_SUCCESS) {
+      mWarn("reloadUid:%" PRId64 ", failed to send reload-last-cache to vgId:%d, code:%s",
+            uid, vgId, tstrerror(ret));
+    }
     mndReleaseVgroup(pMnode, pVg);
   }
 
@@ -178,29 +197,34 @@ int32_t mndReloadLastCache(SMnode* pMnode, SRpcMsg* pReq, int8_t cacheType, int8
 }
 
 int32_t mndShowReloads(SMnode* pMnode, SRpcMsg* pReq, SRetrieveTableRsp** ppRsp) {
-  // Return a simple response listing all active reload tasks.
-  // Minimum viable: return NULL ppRsp with TSDB_CODE_SUCCESS (caller handles empty result)
   *ppRsp = NULL;
   return TSDB_CODE_SUCCESS;
 }
 
 int32_t mndShowReload(SMnode* pMnode, SRpcMsg* pReq, int64_t reloadUid, SRetrieveTableRsp** ppRsp) {
+  taosThreadMutexLock(&gReloadMutex);
   SReloadTask** ppTask = taosHashGet(gReloadTasks, &reloadUid, sizeof(reloadUid));
-  if (!ppTask || !*ppTask) {
-    return TSDB_CODE_MND_INVALID_COMPACT_ID;
+  bool          found  = (ppTask != NULL && *ppTask != NULL);
+  taosThreadMutexUnlock(&gReloadMutex);
+
+  if (!found) {
+    return TSDB_CODE_MND_INVALID_COMPACT_ID;  // TODO: define TSDB_CODE_MND_INVALID_RELOAD_ID
   }
   *ppRsp = NULL;
   return TSDB_CODE_SUCCESS;
 }
 
 int32_t mndDropReload(SMnode* pMnode, SRpcMsg* pReq, int64_t reloadUid) {
+  // Atomically remove the task from the map so concurrent DROP calls cannot
+  // both win the race (prevents double-free and use-after-free).
   taosThreadMutexLock(&gReloadMutex);
   SReloadTask** ppTask = taosHashGet(gReloadTasks, &reloadUid, sizeof(reloadUid));
   if (!ppTask || !*ppTask) {
     taosThreadMutexUnlock(&gReloadMutex);
-    return TSDB_CODE_MND_INVALID_COMPACT_ID;
+    return TSDB_CODE_MND_INVALID_COMPACT_ID;  // TODO: define TSDB_CODE_MND_INVALID_RELOAD_ID
   }
   SReloadTask* pTask = *ppTask;
+  taosHashRemove(gReloadTasks, &reloadUid, sizeof(reloadUid));
   taosThreadMutexUnlock(&gReloadMutex);
 
   // Send cancel signal to all vnodes
@@ -213,17 +237,21 @@ int32_t mndDropReload(SMnode* pMnode, SRpcMsg* pReq, int64_t reloadUid) {
     if (contLen < 0) { mndReleaseVgroup(pMnode, pVg); continue; }
     void* pCont = rpcMallocCont(contLen);
     if (!pCont) { mndReleaseVgroup(pMnode, pVg); continue; }
-    tSerializeSVCancelLastCacheReloadReq(pCont, contLen, &cancelReq);
+    if (tSerializeSVCancelLastCacheReloadReq(pCont, contLen, &cancelReq) < 0) {
+      rpcFreeCont(pCont);
+      mndReleaseVgroup(pMnode, pVg);
+      continue;
+    }
     SRpcMsg rpcMsg = {.msgType = TDMT_VND_CANCEL_LAST_CACHE_RELOAD, .pCont = pCont, .contLen = contLen};
     SEpSet  epSet  = mndGetVgroupEpset(pMnode, pVg);
-    (void)tmsgSendReq(&epSet, &rpcMsg);
+    int32_t ret    = tmsgSendReq(&epSet, &rpcMsg);
+    if (ret != TSDB_CODE_SUCCESS) {
+      mWarn("reloadUid:%" PRId64 ", failed to send cancel-reload to vgId:%d, code:%s",
+            reloadUid, vgId, tstrerror(ret));
+    }
     mndReleaseVgroup(pMnode, pVg);
   }
 
-  // Remove from active map
-  taosThreadMutexLock(&gReloadMutex);
-  taosHashRemove(gReloadTasks, &reloadUid, sizeof(reloadUid));
-  taosThreadMutexUnlock(&gReloadMutex);
   taosArrayDestroy(pTask->pVgIds);
   taosMemoryFree(pTask);
   return TSDB_CODE_SUCCESS;
