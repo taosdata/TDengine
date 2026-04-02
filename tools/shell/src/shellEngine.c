@@ -64,6 +64,8 @@ static int32_t shellGetGrantInfo(char *buf);
 static void  shellCleanup(void *arg);
 static void *shellCancelHandler(void *arg);
 static void *shellThreadLoop(void *arg);
+static bool  shellHasBinaryNonPrintable(const char *val, int32_t length);
+static void  shellPrintHex(const char *val, int32_t length, int32_t width);
 
 static bool shellCmdkilled = false;
 
@@ -428,6 +430,19 @@ void shellDumpFieldToFile(TdFilePtr pFile, const char *val, TAOS_FIELD *field, i
       }
       break;
     case TSDB_DATA_TYPE_BINARY:
+      if (shellHasBinaryNonPrintable(val, length)) {
+        char *tmp = (char *)taosMemoryCalloc(1, 2 + length * 2 + 1);
+        if (tmp == NULL) break;
+        tmp[0] = '0';
+        tmp[1] = 'x';
+        for (int32_t i = 0; i < length; i++) {
+          (void)sprintf(tmp + 2 + i * 2, "%02X", (unsigned char)val[i]);
+        }
+        taosFprintfFile(pFile, "%s", tmp);
+        taosMemoryFree(tmp);
+        break;
+      }
+      /* falls through */ // printable binary handled as NCHAR/JSON
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_JSON: {
       int32_t bufIndex = 0;
@@ -536,6 +551,47 @@ int64_t shellDumpResultToFile(const char *fname, TAOS_RES *tres) {
   taosCloseFile(&pFile);
 
   return numOfRows;
+}
+
+static bool shellHasBinaryNonPrintable(const char *val, int32_t length) {
+  for (int32_t i = 0; i < length; i++) {
+    unsigned char c = (unsigned char)val[i];
+
+    if (c == '\t' || c == '\n' || c == '\r') {
+      continue;
+    }
+
+    if (c < 0x20 || c == 0x7F) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static void shellPrintHex(const char *val, int32_t length, int32_t width) {
+  // "0x" prefix + 2 hex chars per byte
+  int32_t hexLen = 2 + length * 2;
+  char *hexBuf = (char *)taosMemoryCalloc(1, hexLen + 1);
+  if (hexBuf == NULL) return;
+
+  hexBuf[0] = '0';
+  hexBuf[1] = 'x';
+  for (int32_t i = 0; i < length; i++) {
+    (void)sprintf(hexBuf + 2 + i * 2, "%02X", (unsigned char)val[i]);
+  }
+
+  if (width <= 0) {
+    (void)printf("%s", hexBuf);
+  } else if (hexLen > width) {
+    if (width <= 3) {
+      (void)printf("%.*s.", width - 1, hexBuf);
+    } else {
+      (void)printf("%.*s...", width - 3, hexBuf);
+    }
+  } else {
+    (void)printf("%s%*.s", hexBuf, width - hexLen, "");
+  }
+  taosMemoryFree(hexBuf);
 }
 
 void shellPrintNChar(const char *str, int32_t length, int32_t width) {
@@ -712,6 +768,12 @@ void shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t 
       break;
     }
     case TSDB_DATA_TYPE_BINARY:
+      if (shellHasBinaryNonPrintable(val, length)) {
+        shellPrintHex(val, length, width);
+      } else {
+        shellPrintNChar(val, length, width);
+      }
+      break;
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_JSON:
       shellPrintNChar(val, length, width);
@@ -1369,7 +1431,7 @@ bool inputTotpCode(char *totpCode) {
   }
   if (EOF == getchar()) {
     // tip
-    (void)fprintf(stdout, "getchar() return EOF\r\n");    
+    (void)fprintf(stdout, "getchar() return EOF\r\n");
   }
   return ret;
 }
@@ -1410,7 +1472,7 @@ TAOS *createConnect(SShellArgs *pArgs) {
     if (pArgs->auth) {
       taos = taos_connect_auth(host, user, pArgs->auth, pArgs->database, port);
     } else {
-#ifdef TD_ENTERPRISE 
+#ifdef TD_ENTERPRISE
       if (strlen(pArgs->token) > 0) {
         // token
         (void)printf("Connect with token ...");
@@ -1422,7 +1484,7 @@ TAOS *createConnect(SShellArgs *pArgs) {
         (void)printf("... [ FAILED ]\n");
         return NULL;
       }
-#endif      
+#endif
       taos = taos_connect(host, user, pwd, pArgs->database, port);
     }
 
@@ -1432,7 +1494,7 @@ TAOS *createConnect(SShellArgs *pArgs) {
       if (code == TSDB_CODE_MND_WRONG_TOTP_CODE) {
          // totp
         char totpCode[TSDB_USER_PASSWORD_LONGLEN];
-        memset(totpCode, 0, sizeof(totpCode));  
+        memset(totpCode, 0, sizeof(totpCode));
         if (inputTotpCode(totpCode)) {
           (void)printf("Connect with TOTP code:%s ...", totpCode);
           taos = taos_connect_totp(host, user, pwd, totpCode, pArgs->database, port);
