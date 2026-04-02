@@ -9,7 +9,7 @@ IF(NOT TD_DARWIN)
     ADD_EXECUTABLE(parserTest ${SOURCE_LIST})
     DEP_ext_gtest(parserTest)
     DEP_ext_cppstub(parserTest)
-    if(${BUILD_WINGETOPT})
+    if(BUILD_WINGETOPT)
         DEP_ext_wingetopt(parserTest)
     endif()
 

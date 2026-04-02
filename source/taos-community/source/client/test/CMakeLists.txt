@@ -108,7 +108,7 @@ TARGET_INCLUDE_DIRECTORIES(
         PRIVATE "${TD_SOURCE_DIR}/source/client/inc"
 )
 
-IF(${TD_LINUX})
+IF(TD_LINUX)
         add_test(
                 NAME clientTest
                 COMMAND clientTest

@@ -176,7 +176,7 @@ TDengine 使用 CMake 作为构建系统，依赖管理主要通过以下机制�
 - `BUILD_TEST`: 是否构建测试相关依赖
 - `BUILD_WITH_UV`: 是否启用 libuv
 - `BUILD_WITH_S3`: 是否启用 S3 存储支持
-- `JEMALLOC_ENABLED`: 是否启用 jemalloc
+- `BUILD_JEMALLOC`: 是否启用 jemalloc
 - `TD_EXTERNALS_USE_ONLY`: 仅使用已安装的外部库，不下载构建
 
 ## 10. 维护指南

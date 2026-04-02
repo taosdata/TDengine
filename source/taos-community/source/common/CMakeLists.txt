@@ -5,7 +5,7 @@ LIST(APPEND COMMON_SRC ${COMMON_MSG_SRC})
 LIST(APPEND COMMON_SRC ${CMAKE_CURRENT_SOURCE_DIR}/src/dmRepair.c)
 
 if(TD_ENTERPRISE)
-  LIST(APPEND COMMON_SRC ${TD_ENTERPRISE_DIR}/src/plugins/common/src/tglobal.c)
+  LIST(APPEND COMMON_SRC ${TD_ENTERPRISE_DIR}/source/plugins/common/src/tglobal.c)
 endif()
 
 add_library(common STATIC ${COMMON_SRC})
@@ -26,7 +26,7 @@ if(DEFINED GRANT_CFG_INCLUDE_DIR)
   add_definitions(-DGRANTS_CFG)
 endif()
 
-if(${BUILD_WITH_ANALYSIS})
+if(BUILD_WITH_ANALYSIS)
   add_definitions(-DUSE_ANALYTICS)
 endif()
 
@@ -40,9 +40,9 @@ if(TD_STORAGE)
 endif()
 
 if(TD_ENTERPRISE)
-  if(${BUILD_WITH_S3})
+  if(BUILD_WITH_S3)
     add_definitions(-DUSE_S3)
-  ELSEIF(${BUILD_WITH_COS})
+  ELSEIF(BUILD_WITH_COS)
     add_definitions(-DUSE_COS)
   endif()
 endif()
@@ -56,7 +56,7 @@ target_include_directories(
   PRIVATE "${GRANT_CFG_INCLUDE_DIR}"
 )
 
-if(${TD_WINDOWS})
+if(TD_WINDOWS)
   # This is the Windows Shell32 library, needed by RocksDB
   find_library(SHLWAPI_LIBRARY NAMES shlwapi)
   if(SHLWAPI_LIBRARY)
@@ -98,17 +98,17 @@ else()
   DEP_ext_ssl(common)
 endif()
 
-if(${BUILD_SHARED_STORAGE})
+if(BUILD_S3)
   add_definitions(-DUSE_SHARED_STORAGE)
 
-  if(${BUILD_WITH_S3})
+  if(BUILD_WITH_S3)
     DEP_ext_libs3(common)
     DEP_ext_curl(common)
     DEP_ext_libxml2(common)
     add_definitions(-DUSE_S3)
   endif()
 
-  if(${BUILD_WITH_COS})
+  if(BUILD_WITH_COS)
     MESSAGE("shared storage does not support COS at present, please use s3 instead")
 
     # set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
@@ -140,9 +140,9 @@ if(${BUILD_SHARED_STORAGE})
     # include_directories(${APR_INCLUDE_DIR})
 
     # add_definitions(-DUSE_COS)
-  endif(${BUILD_WITH_COS})
+  endif()
 endif()
 
-if(${BUILD_TEST})
+if(BUILD_TEST)
   ADD_SUBDIRECTORY(test)
-endif(${BUILD_TEST})
+endif()

@@ -583,7 +583,7 @@ TDengine 项目内部维护的基础库位于`contrib`目录：
 | `BUILD_WITH_UV` | ON | 启用libuv异步I/O |
 | `BUILD_WITH_S3` | ON | 启用S3云存储支持 |
 | `BUILD_WITH_COS` | OFF | 启用腾讯云COS支持 |
-| `JEMALLOC_ENABLED` | OFF | 启用jemalloc内存分配器 |
+| `BUILD_JEMALLOC` | OFF | 启用jemalloc内存分配器 |
 | `BUILD_GEOS` | ON | 启用几何计算功能 |
 | `BUILD_PCRE2` | ON | 启用PCRE2正则表达式 |
 
