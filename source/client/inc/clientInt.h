@@ -548,6 +548,7 @@ enum { MONITORSQLTYPESELECT = 0, MONITORSQLTYPEINSERT = 1, MONITORSQLTYPEDELETE 
 void sqlReqLog(int64_t rid, bool killed, int32_t code, int8_t type);
 
 void tmqMgmtClose(void);
+void writeRawCleanup(void);
 
 #ifdef __cplusplus
 }

@@ -998,6 +998,57 @@ end:
 
 static int32_t taosTxnSendToMnode(TAOS* taos, utxn_id_t txnId, int32_t msgType);
 
+// §35 Optimization: client-side dedup cache for replicated txn MNode BEGIN RPCs.
+// Two caches (both use HASH_ENTRY_LOCK — per-bucket spinlock, no external mutex needed):
+//   pMnodeTxnBegunHash    — txnIds for which BEGIN has been sent (dedup to avoid N redundant roundtrips)
+//   pMnodeTxnCompletedHash — txnIds that have been committed/rolled-back (post-commit DDL strips txnId)
+//
+// The "completed" cache handles WAL message ordering: in the source cluster, COMMIT shadow op
+// replay (e.g., DROP_STB) creates separate STrans entries that arrive AFTER TXN_COMMIT in the WAL.
+// Without this cache, post-commit DDLs would try to join a non-existent transaction.
+//
+// Thread safety: HASH_ENTRY_LOCK provides per-bucket atomic spinlocks inside SHashObj.
+// The check-then-insert race in EnsureMnodeBegin is benign — MNode BEGIN is idempotent,
+// so at most one extra RPC in the rare case of concurrent threads hitting the same txnId.
+static SHashObj* pMnodeTxnBegunHash = NULL;      // key: utxn_id_t, value: int8_t(1)
+static SHashObj* pMnodeTxnCompletedHash = NULL;  // key: utxn_id_t, value: int8_t(1)
+
+static bool taosTxnIsAlreadyCompleted(utxn_id_t txnId) {
+  if (txnId == 0 || pMnodeTxnCompletedHash == NULL) return false;
+  return taosHashGet(pMnodeTxnCompletedHash, &txnId, sizeof(txnId)) != NULL;
+}
+
+static int32_t taosTxnEnsureMnodeBegin(TAOS* taos, utxn_id_t txnId) {
+  if (txnId == 0 || !TXN_IS_REPLICATED(txnId)) return 0;
+
+  // Check completed set first — if txn already committed/rolled-back, skip BEGIN
+  if (pMnodeTxnCompletedHash != NULL && taosHashGet(pMnodeTxnCompletedHash, &txnId, sizeof(txnId)) != NULL) {
+    return 0;
+  }
+  // Check begun set — already sent BEGIN for this txnId
+  if (pMnodeTxnBegunHash != NULL && taosHashGet(pMnodeTxnBegunHash, &txnId, sizeof(txnId)) != NULL) {
+    return 0;
+  }
+
+  // Small TOCTOU race here is benign: MNode BEGIN is idempotent
+  int32_t code = taosTxnSendToMnode(taos, txnId, TDMT_MND_BEGIN_TXN);
+  if (code == 0 && pMnodeTxnBegunHash != NULL) {
+    int8_t val = 1;
+    taosHashPut(pMnodeTxnBegunHash, &txnId, sizeof(txnId), &val, sizeof(val));
+  }
+  return code;
+}
+
+static void taosTxnMarkCompleted(utxn_id_t txnId) {
+  if (pMnodeTxnBegunHash != NULL) {
+    taosHashRemove(pMnodeTxnBegunHash, &txnId, sizeof(txnId));
+  }
+  if (pMnodeTxnCompletedHash != NULL) {
+    int8_t val = 1;
+    taosHashPut(pMnodeTxnCompletedHash, &txnId, sizeof(txnId), &val, sizeof(val));
+  }
+}
+
 static int32_t taosCreateStb(TAOS* taos, void* meta, uint32_t metaLen) {
   if (taos == NULL || meta == NULL) {
     uError("invalid parameter in %s", __func__);
@@ -1074,14 +1125,20 @@ static int32_t taosCreateStb(TAOS* taos, void* meta, uint32_t metaLen) {
     pReq.txnId = req.txnId;
   }
 
+  // §35: if this txnId was already committed/rolled-back (post-commit shadow op replay),
+  // strip txnId so MNode processes DDL non-transactionally (direct apply, not shadow op)
+  if (pReq.txnId != 0 && TXN_IS_REPLICATED(pReq.txnId) && taosTxnIsAlreadyCompleted(pReq.txnId)) {
+    uInfo(LOG_ID_TAG " txnId:%" PRIu64 " already committed, executing CREATE STB non-transactionally", LOG_ID_VALUE,
+          pReq.txnId);
+    pReq.txnId = 0;
+  }
+
   uDebug(LOG_ID_TAG " create stable name:%s suid:%" PRId64 " processSuid:%" PRId64 " txnId:%" PRIu64, LOG_ID_VALUE,
          req.name, req.suid, pReq.suid, pReq.txnId);
 
-  // §35 taosX: ensure replicated txn context exists on target MNode (auto-BEGIN)
-  // MNode needs STxnObj for CREATE_STB shadow op (undo-log model tracks STB for ROLLBACK)
-  // Note: pReq.txnId is negative after TXN_SET_REPLICATED (int64_t signed), so use != 0
+  // §35 taosX: ensure replicated txn context exists on target MNode (auto-BEGIN with dedup)
   if (pReq.txnId != 0 && TXN_IS_REPLICATED(pReq.txnId)) {
-    int32_t beginCode = taosTxnSendToMnode(taos, pReq.txnId, TDMT_MND_BEGIN_TXN);
+    int32_t beginCode = taosTxnEnsureMnodeBegin(taos, pReq.txnId);
     if (beginCode != 0) {
       uError(LOG_ID_TAG " auto-BEGIN for txnId:%" PRIu64 " failed: %s", LOG_ID_VALUE, pReq.txnId, tstrerror(beginCode));
       code = beginCode;
@@ -1189,6 +1246,25 @@ static int32_t taosDropStb(TAOS* taos, void* meta, uint32_t metaLen) {
 
   // §35 taosX replication: propagate txnId with replicated flag to MNode
   pReq.txnId = replicatedTxnId;
+
+  // §35: if this txnId was already committed/rolled-back (post-commit shadow op replay),
+  // strip txnId so MNode processes DDL non-transactionally (direct apply, not shadow op)
+  if (pReq.txnId != 0 && TXN_IS_REPLICATED(pReq.txnId) && taosTxnIsAlreadyCompleted(pReq.txnId)) {
+    uInfo(LOG_ID_TAG " txnId:%" PRIu64 " already committed, executing DROP STB non-transactionally", LOG_ID_VALUE,
+          pReq.txnId);
+    pReq.txnId = 0;
+  }
+
+  // §35 taosX: ensure replicated txn context exists on target MNode (auto-BEGIN with dedup)
+  // Fix: taosDropStb was missing this — if DROP STB is first MNode DDL, mndTxnAddShadowOp fails
+  if (pReq.txnId != 0 && TXN_IS_REPLICATED(pReq.txnId)) {
+    int32_t beginCode = taosTxnEnsureMnodeBegin(taos, pReq.txnId);
+    if (beginCode != 0) {
+      uError(LOG_ID_TAG " auto-BEGIN for txnId:%" PRIu64 " failed: %s", LOG_ID_VALUE, pReq.txnId, tstrerror(beginCode));
+      code = beginCode;
+      goto end;
+    }
+  }
 
   uDebug(LOG_ID_TAG " drop stable name:%s suid:%" PRId64 " new suid:%" PRId64 " txnId:%" PRIu64, LOG_ID_VALUE, req.name,
          req.suid, pReq.suid, pReq.txnId);
@@ -1427,6 +1503,12 @@ static int32_t taosCreateTable(TAOS* taos, void* meta, uint32_t metaLen) {
     // PRE_CREATE STB entries for child table creation in same txn
     if (pCreateReq->txnId != 0) {
       conn.txnId = pCreateReq->txnId;
+      // §35: ensure mnode txn exists for all DDL (not just STB)
+      int32_t mcode = taosTxnEnsureMnodeBegin(taos, pCreateReq->txnId);
+      if (mcode != 0) {
+        code = mcode;
+        goto end;
+      }
     }
 
     SVgroupInfo pInfo = {0};
@@ -1638,6 +1720,14 @@ static int32_t taosDropTable(TAOS* taos, void* meta, uint32_t metaLen) {
     if (pDropReq->txnId > 0 && !TXN_IS_REPLICATED(pDropReq->txnId)) {
       pDropReq->txnId = TXN_SET_REPLICATED(pDropReq->txnId);
     }
+    // §35: ensure mnode txn exists for all DDL (not just STB)
+    if (pDropReq->txnId != 0) {
+      int32_t mcode = taosTxnEnsureMnodeBegin(taos, pDropReq->txnId);
+      if (mcode != 0) {
+        code = mcode;
+        goto end;
+      }
+    }
     //    pDropReq->suid = processSuid(pDropReq->suid, pRequest->pDb);
 
     SVgroupInfo pInfo = {0};
@@ -1775,6 +1865,14 @@ static int32_t taosAlterTable(TAOS* taos, void* meta, uint32_t metaLen) {
   // §35 taosX replication: mark transaction IDs from source cluster as replicated
   if (req.txnId > 0 && !TXN_IS_REPLICATED(req.txnId)) {
     req.txnId = TXN_SET_REPLICATED(req.txnId);
+  }
+  // §35: ensure mnode txn exists for all DDL (not just STB)
+  if (req.txnId != 0) {
+    int32_t mcode = taosTxnEnsureMnodeBegin(taos, req.txnId);
+    if (mcode != 0) {
+      code = mcode;
+      goto end;
+    }
   }
 
   // do not deal TSDB_ALTER_TABLE_UPDATE_OPTIONS
@@ -2318,6 +2416,20 @@ static int32_t initRawCacheHash() {
       return terrno;
     }
     taosHashSetFreeFp(writeRawCache, freeRawCache);
+  }
+  // §35: init replicated-txn dedup caches (HASH_ENTRY_LOCK = per-bucket spinlock, lock-free externally)
+  if (pMnodeTxnBegunHash == NULL) {
+    pMnodeTxnBegunHash = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
+    if (pMnodeTxnBegunHash == NULL) {
+      return terrno;
+    }
+  }
+  if (pMnodeTxnCompletedHash == NULL) {
+    pMnodeTxnCompletedHash =
+        taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
+    if (pMnodeTxnCompletedHash == NULL) {
+      return terrno;
+    }
   }
   return 0;
 }
@@ -3141,6 +3253,7 @@ static int32_t taosTxnCommit(TAOS* taos, void* meta, uint32_t metaLen) {
       uError("taosTxnCommit: MNode COMMIT for txnId:%" PRIu64 " failed: %s", req.txnId, tstrerror(mnodeCode));
       if (code == 0) code = mnodeCode;
     }
+    taosTxnMarkCompleted(req.txnId);
   }
 
 end:
@@ -3253,6 +3366,7 @@ static int32_t taosTxnRollback(TAOS* taos, void* meta, uint32_t metaLen) {
       uError("taosTxnRollback: MNode ROLLBACK for txnId:%" PRIu64 " failed: %s", req.txnId, tstrerror(mnodeCode));
       if (code == 0) code = mnodeCode;
     }
+    taosTxnMarkCompleted(req.txnId);
   }
 
 end:
@@ -3366,4 +3480,15 @@ end:
   tDeleteMqBatchMetaRsp(&rsp);
   RAW_LOG_END
   return code;
+}
+
+void writeRawCleanup(void) {
+  taosHashCleanup(pMnodeTxnBegunHash);
+  pMnodeTxnBegunHash = NULL;
+  taosHashCleanup(pMnodeTxnCompletedHash);
+  pMnodeTxnCompletedHash = NULL;
+  taosHashCleanup(writeRawCache);
+  writeRawCache = NULL;
+  atomic_store_8(&initFlag, 0);
+  atomic_store_8(&initedFlag, WRITE_RAW_INIT_START);
 }

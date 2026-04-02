@@ -272,6 +272,7 @@ void taos_cleanup(void) {
   tzCleanup();
 #endif
   tmqMgmtClose();
+  writeRawCleanup();
 
   int32_t id = clientReqRefPool;
   clientReqRefPool = -1;
