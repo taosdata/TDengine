@@ -18,6 +18,7 @@
 #include "mndVgroup.h"
 #include "tmsgcb.h"
 #include "ttime.h"
+#include "tuuid.h"
 
 typedef struct SReloadTask {
   int64_t  reloadUid;
@@ -31,7 +32,6 @@ typedef struct SReloadTask {
 } SReloadTask;
 
 static SHashObj*     gReloadTasks = NULL;
-static int64_t       gNextReloadUid = 1;
 static TdThreadMutex gReloadMutex;
 
 static int32_t mndProcessReloadLastCacheReq(SRpcMsg* pReq);  // forward decl
@@ -154,7 +154,7 @@ int32_t mndReloadLastCache(SMnode* pMnode, SRpcMsg* pReq, int8_t cacheType, int8
 
   // Assign UID and store task atomically under mutex
   taosThreadMutexLock(&gReloadMutex);
-  int64_t uid = gNextReloadUid++;
+  int64_t uid = tGenIdPI64();
   pNewTask->reloadUid = uid;
   code = taosHashPut(gReloadTasks, &uid, sizeof(uid), &pNewTask, sizeof(pNewTask));
   taosThreadMutexUnlock(&gReloadMutex);
