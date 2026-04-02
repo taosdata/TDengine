@@ -680,6 +680,10 @@ typedef enum ENodeType {
   QUERY_NODE_DROP_XNODE_AGENT_STMT,           // XNode agent
   QUERY_NODE_ALTER_XNODE_AGENT_STMT,          // XNode agent
   QUERY_NODE_ALTER_XNODE_STMT,                // Alter xnode
+  QUERY_NODE_RELOAD_LAST_CACHE_STMT,
+  QUERY_NODE_DROP_RELOAD_STMT,
+  QUERY_NODE_SHOW_RELOADS_STMT,
+  QUERY_NODE_SHOW_RELOAD_STMT,
 } ENodeType;
 
 typedef struct {
@@ -2657,8 +2661,12 @@ typedef struct SVCancelLastCacheReloadReq {
 
 int32_t tSerializeSVReloadLastCacheReq(void* buf, int32_t bufLen, SVReloadLastCacheReq* pReq);
 int32_t tDeserializeSVReloadLastCacheReq(void* buf, int32_t bufLen, SVReloadLastCacheReq* pReq);
+int32_t tSerializeSVQueryLastCacheStatusReq(void* buf, int32_t bufLen, SVQueryLastCacheStatusReq* pReq);
+int32_t tDeserializeSVQueryLastCacheStatusReq(void* buf, int32_t bufLen, SVQueryLastCacheStatusReq* pReq);
 int32_t tSerializeSVQueryLastCacheStatusRsp(void* buf, int32_t bufLen, SVQueryLastCacheStatusRsp* pRsp);
 int32_t tDeserializeSVQueryLastCacheStatusRsp(void* buf, int32_t bufLen, SVQueryLastCacheStatusRsp* pRsp);
+int32_t tSerializeSVCancelLastCacheReloadReq(void* buf, int32_t bufLen, SVCancelLastCacheReloadReq* pReq);
+int32_t tDeserializeSVCancelLastCacheReloadReq(void* buf, int32_t bufLen, SVCancelLastCacheReloadReq* pReq);
 
 typedef struct {
   union {

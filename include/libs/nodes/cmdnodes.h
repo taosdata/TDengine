@@ -210,6 +210,15 @@ typedef struct SCompactDatabaseStmt {
   bool      force;
 } SCompactDatabaseStmt;
 
+typedef struct SReloadLastCacheStmt {
+  ENodeType type;
+  int8_t    cacheType;   // 0=LAST, 1=LAST_ROW, 2=BOTH
+  int8_t    scopeType;   // 0=DATABASE, 1=STABLE, 2=TABLE
+  char      dbName[TSDB_DB_NAME_LEN];
+  char      tableName[TSDB_TABLE_NAME_LEN];
+  char      colName[TSDB_COL_NAME_LEN];
+} SReloadLastCacheStmt;
+
 typedef struct SRollupDatabaseStmt {
   ENodeType type;
   char      dbName[TSDB_DB_NAME_LEN];
@@ -929,6 +938,20 @@ typedef struct SShowCompactDetailsStmt {
   ENodeType type;
   SNode*    pId;
 } SShowCompactDetailsStmt;
+
+typedef struct SShowReloadsStmt {
+  ENodeType type;
+} SShowReloadsStmt;
+
+typedef struct SShowReloadStmt {
+  ENodeType type;
+  int64_t   reloadUid;
+} SShowReloadStmt;
+
+typedef struct SDropReloadStmt {
+  ENodeType type;
+  int64_t   reloadUid;
+} SDropReloadStmt;
 
 typedef SShowCompactDetailsStmt SShowRetentionDetailsStmt;
 
