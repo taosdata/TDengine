@@ -1724,7 +1724,7 @@ TO_ISO8601(expr [, timezone])
 
 **Usage Notes**:
 
-- The `timezone` parameter accepts timezone formats: [z/Z, +/-hhmm, +/-hh, +/-hh:mm]. For example, TO_ISO8601(1, "+00:00").
+- The `timezone` parameter accepts timezone formats: [z/Z, +/-hhmm, +/-hh, +/-hh:mm]. For example, TO_ISO8601(1, "+00:00"). The valid timezone offset range is -14:00 to +14:00.
 - The precision of the input timestamp is determined by the precision of the table queried, if no table is specified, the precision is milliseconds.
 
 #### TO_JSON
@@ -1822,6 +1822,7 @@ Supported Formats:
 | US,us               | Microsecond, 000000-999999                |                           |
 | NS,ns               | Nanosecond, 000000000-999999999           |                           |
 | TZH,tzh             | Time zone hours                           | 2023-01-30 11:59:59PM +08 |
+| TZ,tz               | Time zone hours and minutes               | 2023-01-30 11:59:59PM +08:00 |
 
 **Usage Instructions**:
 
