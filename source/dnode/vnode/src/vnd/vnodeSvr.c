@@ -37,9 +37,16 @@
 extern taos_counter_t *tsInsertCounter;
 
 // File-scope hash: reloadUid (int64_t) -> SVLastCacheReloadStatus*
-// Protected by gVnodeReloadMutex.  Initialized on first use.
+// Protected by gVnodeReloadMutex.  Initialized via taosThreadOnce.
 static SHashObj     *gVnodeReloadStatuses = NULL;
 static TdThreadMutex gVnodeReloadMutex;
+static TdThreadOnce  gVnodeReloadOnce = PTHREAD_ONCE_INIT;
+
+static void vnodeReloadHashInitOnce(void) {
+  taosThreadMutexInit(&gVnodeReloadMutex, NULL);
+  gVnodeReloadStatuses =
+      taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
+}
 
 extern int32_t vnodeProcessScanVnodeReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 extern int32_t vnodeQueryScanProgress(SVnode *pVnode, SRpcMsg *pMsg);
@@ -3847,18 +3854,13 @@ int32_t tsdbAsyncCompact(STsdb *tsdb, const STimeWindow *tw, ETsdbOpType type, b
 // ---------------------------------------------------------------------------
 
 static SHashObj *vnodeGetReloadStatusHash(void) {
-  if (gVnodeReloadStatuses == NULL) {
-    taosThreadMutexInit(&gVnodeReloadMutex, NULL);
-    gVnodeReloadStatuses =
-        taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
-  }
+  (void)taosThreadOnce(&gVnodeReloadOnce, vnodeReloadHashInitOnce);
   return gVnodeReloadStatuses;
 }
 
 typedef struct SVReloadBgArg {
-  SVnode                 *pVnode;
-  SVReloadLastCacheReq    req;
-  SVLastCacheReloadStatus status;
+  SVnode              *pVnode;
+  SVReloadLastCacheReq req;
 } SVReloadBgArg;
 
 static void *vnodeReloadLastCacheBg(void *arg) {
@@ -3944,7 +3946,10 @@ static int32_t vnodeProcessReloadLastCacheMsg(SVnode *pVnode, int64_t ver, void 
   if (ret != 0) {
     vError("vgId:%d, failed to create reload-last-cache thread: %s", TD_VID(pVnode), tstrerror(ret));
     taosMemoryFree(pArg);
-    pStatus->status = RELOAD_STATUS_FAILED;
+    taosThreadMutexLock(&gVnodeReloadMutex);
+    taosHashRemove(pHash, &req.reloadUid, sizeof(req.reloadUid));
+    taosThreadMutexUnlock(&gVnodeReloadMutex);
+    taosMemoryFree(pStatus);
     return ret;
   }
 
