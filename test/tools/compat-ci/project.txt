@@ -1,0 +1,220 @@
+好，我现在已经充分了解了整个 CI 的结构。下面给你详细介绍当前 CI 的执行流程，以及我准备的集成方案。
+
+一、当前 CI 大体执行流程
+
+┌─────────────────────────────────────────────────────────────────┐
+│                      CI 整体执行流程                              │
+└─────────────────────────────────────────────────────────────────┘
+
+1. 外部触发 (Jenkins / GitLab CI 等)
+   └─► 编译代码 → 生成 debugSan/ 和 debugNoSan/ 两个构建产物
+       └─► 调用 test/ci/run.sh -m <vm_config.json> -t cases.task -b <branch> ...
+
+2. run.sh 初始化阶段
+   ├─ 解析 vm_config.json (JSON格式) → 拿到 hosts / workdirs / threads / 账号密码
+   ├─ 调用 prepare_cases(): 读 cases.task，按 priority 逆序排列，写入 $task_file
+   └─ 调用 transfer_debug_dirs(): 将编译产物 tar 后 scp 分发到各 worker 主机
+
+3. 并行执行阶段 (flock + background jobs)
+   ├─ 对每台 host 的每个 thread 启动 run_thread() 后台进程
+   └─ run_thread() 循环:
+      ├─ flock 加锁 → 从 $task_file 取一行任务 → 解析 priority/rerunTimes/sanitizer/path/cmd
+      └─ 调用 run_container.sh -w <workdir> -c "<cmd>" -t <thread_no> -d <exec_dir> -s y/n
+
+4. run_container.sh (宿主机执行)
+   └─ docker run tdengine-ci:0.1 \
+        -v <TDinternal>:/home/TDinternal   # 源码只读挂载
+        -v <debugSan或NoSan>:/home/TDinternal/debug/  # 编译产物
+        -v <tmp/thread_volume/$N>:/home/TDinternal/community/test  # 隔离测试目录
+        -v <tmp/thread_volume/$N/sim>:/home/TDinternal/sim  # sim 数据隔离
+        -v <tmp/thread_volume/$N/coredump>:<coredump_dir>  # coredump 收集
+        → 容器内执行 run_case.sh
+
+5. run_case.sh (容器内执行)
+   ├─ 设置 PATH / LD_LIBRARY_PATH / 建立 libtaos.so 软链
+   ├─ pip install taospy taos-ws-py pyotp
+   └─ 执行实际测试命令 (如 pytest cases/xxx.py 或 ./ci/pytest.sh ...)
+
+6. 结果收集
+   ├─ 每个 case 的 allure-results 从容器 scp 到 log_dir/allure-results/
+   ├─ failed: coredump / sim.tar.gz 收集
+   └─ 最终: allure generate → 生成 HTML 报告 → 上传 /mnt/platform/reports/
+
+cases.task 格式：
+
+
+priority, rerunTimes, sanitizer(y/n), casePath, caseCommand
+100,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_decimal.py
+关键参与文件：
+
+文件	角色
+run.sh	CI 主控，任务分发，结果汇总
+run_container.sh	启动隔离 Docker，挂载目录
+run_case.sh	容器内执行测试
+cases.task	Linux 测试任务列表
+CompatCheck/run/main.py	冷/热升级测试框架主入口
+CompatCI/cold_upgrade_task.py	冷升级 CI 适配层
+CompatCI/hot_upgrade_task.py	热升级 CI 适配层
+二、集成方案
+整体设计思路
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│                      集成后 CI 并行结构                                   │
+│                                                                         │
+│   run.sh (原有主控，不变)              run_upgrade_compat.sh (新增)        │
+│   ┌────────────────────┐              ┌───────────────────────────────┐  │
+│   │  cases.task 任务池  │              │  冷升级: 3.3.6.0 → current    │  │
+│   │  thread-0  [case]  │   并行运行    │  冷升级: 3.3.8.0 → current    │  │
+│   │  thread-1  [case]  │ ◄────────►  │  冷升级: 3.4.0.0 → current    │  │
+│   │  thread-N  [case]  │              │  热升级: 同版本号前缀自动匹配   │  │
+│   └────────────────────┘              └───────────────┬───────────────┘  │
+│                                                       │独立 Docker 容器   │
+│                                                       ▼                  │
+│                                          docker run upgrade-ci:0.1       │
+│                                          挂载 NAS green_versions/        │
+│                                          挂载 debugNoSan/ (新版本产物)    │
+└─────────────────────────────────────────────────────────────────────────┘
+方案详细步骤
+Step 1：NAS 挂载（需要的信息见后文第5点）
+将 NAS 上的绿色版本目录挂载到 CI 宿主机的固定路径，例如：
+
+
+/mnt/tdengine/green_versions/
+├── 3.3.6.0/   ← taosd + libtaos.so
+├── 3.3.8.0/
+└── 3.4.0.0/
+Step 2：新增 run_upgrade_compat.sh
+新建脚本 test/ci/run_upgrade_compat.sh，逻辑如下：
+
+
+#!/bin/bash
+# 冷/热升级兼容性测试 CI 入口
+# 在独立 Docker 容器中运行，与 cases.task 任务并行
+# 参数: -w <workdir> -b <builddir> -l <logdir>
+
+# 1. 启动一个 tdengine-ci:0.1 (或 upgrade-ci:0.1) 容器
+# 2. 挂载:
+#    - NAS green_versions → /tdengine/green_versions (只读)
+#    - debugNoSan/build   → /td_build (只读，新版本二进制)
+#    - TDinternal 源码    → /home/TDinternal (只读)
+#    - 独立 log 目录      → /upgrade_logs (可写)
+# 3. 容器内依次执行:
+#    - 冷升级 x3 (3.3.6.0, 3.3.8.0, 3.4.0.0 → current)
+#    - 热升级 x1 (同版本前缀自动匹配 → current)
+# 4. 返回 exit code，写入结果汇总
+Step 3：修改上层 CI 调用入口（coldci.sh 或 Jenkins pipeline）
+在原来调用 run.sh 的脚本里，同时后台启动升级兼容性测试：
+
+
+# 原有 cases.task 测试（不变）
+bash test/ci/run.sh -m vm_config.json -t cases.task -b $BRANCH -l $LOG_DIR &
+PID_CASES=$!
+
+# 新增：升级兼容性测试（并行）
+bash test/ci/run_upgrade_compat.sh -w $WORKDIR -l $LOG_DIR/upgrade &
+PID_UPGRADE=$!
+
+wait $PID_CASES
+RET_CASES=$?
+
+wait $PID_UPGRADE
+RET_UPGRADE=$?
+
+# 两者都通过才算整体通过
+[ $RET_CASES -eq 0 ] && [ $RET_UPGRADE -eq 0 ]
+Step 4：容器内执行逻辑
+容器内调用 CompatCI/cold_upgrade_task.py 和 CompatCI/hot_upgrade_task.py：
+
+
+# 冷升级（3个基准版本）
+cd /home/TDinternal/community/test/tools
+python3 CompatCI/cold_upgrade_task.py \
+    --green-path /tdengine/green_versions \
+    --build-dir  /td_build \
+    --versions   3.3.6.0,3.3.8.0,3.4.0.0
+
+# 热升级（自动匹配同版本前缀）
+python3 CompatCI/hot_upgrade_task.py \
+    --green-path /tdengine/green_versions \
+    --build-dir  /td_build
+Step 5：NAS 挂载所需信息
+要挂载 NAS，需要提供以下信息：
+
+信息项	说明	示例
+NAS 地址	NAS 服务器的 IP 或域名	192.168.1.100
+共享协议	NFS / SMB(CIFS) / iSCSI 等	NFS
+共享路径	NAS 上导出的路径	/volume1/tdengine/green_versions
+挂载账号	NFS 一般不需要，SMB 需要用户名	ci_user
+挂载密码	SMB 需要	xxxxxx
+权限要求	只读还是读写（绿色版本只需只读）	ro
+宿主机挂载点	挂载到宿主机的目录	/mnt/tdengine/green_versions
+Docker 内挂载点	容器内路径	/tdengine/green_versions
+与编译产物共享方式	是否与现有 debugNoSan 挂载在同一宿主机路径下	是，同 workdir 结构
+NFS 挂载命令示例（宿主机）：
+
+
+mount -t nfs 192.168.1.100:/volume1/tdengine/green_versions \
+    /mnt/tdengine/green_versions -o ro,nolock
+持久化（/etc/fstab）：
+
+
+192.168.1.100:/volume1/tdengine/green_versions  /mnt/tdengine/green_versions  nfs  ro,nolock,_netdev  0 0
+方案总结
+需求	实现方式
+只在 Linux CI 中加入	run_upgrade_compat.sh 只在 Linux CI 的调用入口处启动，Windows CI 不调用
+与 cases.task 并行运行	两者同时 & 后台运行，用 wait 收集各自 exit code，互不阻塞
+在独立 Docker 中运行	run_upgrade_compat.sh 内部 docker run 一个独立容器，端口/数据目录与普通 CI 容器隔离
+NAS green_versions 挂载	先挂到宿主机固定路径，再 -v 传入 Docker，与 debugNoSan 目录同等方式共享
+冷升级 3 个基准版本	cold_upgrade_task.py --versions 3.3.6.0,3.3.8.0,3.4.0.0
+热升级自动匹配	hot_upgrade_task.py 已有自动匹配同版本前缀的逻辑
+请 Review 以上方案，确认后我开始写具体代码实现。
+
+有几点想提前确认：
+
+上层 CI 调用入口是哪个脚本？（Jenkins Pipeline / coldci.sh / 其他）—— 方便我确定在哪里加并行启动
+升级兼容性测试用的 Docker 镜像，是复用 tdengine-ci:0.1 还是需要单独准备？（主要看里面有没有 python3 taospy 等依赖）
+NAS 用的是 NFS 还是 SMB/CIFS？
+
+
+
+-----------------------------
+交付总结
+新增文件（2 个）
+test/ci/run_upgrade_compat.sh — 宿主机侧
+
+
+功能：
+  1. 从 http://192.168.1.131/data/nas/TDengine/green_versions 下载绿色版本
+     → /green_versions/<ver>/ 有文件则跳过（缓存），flock 防并发重复下载
+  2. docker run tdengine-ci:0.1 启动独立容器，挂载 4 个目录
+  3. 输出 PASS / FAIL 退出码
+
+用法：
+  ./run_upgrade_compat.sh -w WORKDIR [-l LOG_DIR] [-e]
+test/ci/run_upgrade_compat_container.sh — 容器内侧
+
+
+功能：
+  1. pip3 install taospy pyyaml
+  2. 清理 taosd → 冷升级（3.3.6.0,3.3.8.0,3.4.0.0 一次调用 -q）
+  3. 清理 taosd → 热升级（自动匹配版本前缀 -q，无匹配则 SKIP）
+  4. 汇总打印每个版本的 PASS / FAIL / SKIP
+Jenkins Pipeline 加入方式（2 行核心改动）
+
+// 原有 cases.task 测试（后台）
+sh "bash .../run.sh -m config.json -t cases.task -b $BRANCH -e &  echo \$! > /tmp/pid_cases"
+
+// ★ 新增：升级兼容性测试（并行后台）
+sh "bash .../run_upgrade_compat.sh -w $WORKDIR -l $LOG_DIR/upgrade -e &  echo \$! > /tmp/pid_upgrade"
+
+// 等两者都结束
+sh "wait \$(cat /tmp/pid_cases);   echo 'cases ret:'\$?"
+sh "wait \$(cat /tmp/pid_upgrade); echo 'upgrade ret:'\$?"
+容器挂载关系
+
+宿主机路径                          容器内路径              权限
+─────────────────────────────────────────────────────────────
+$WORKDIR/TDinternal              → /home/TDinternal        ro
+$WORKDIR/debugNoSan              → /home/TDinternal/debug  ro  ← 当前版本二进制
+/green_versions/                 → /green_versions         ro  ← HTTP 下载缓存
+$LOG_DIR/upgrade                 → /upgrade_logs           rw
