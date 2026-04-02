@@ -15701,7 +15701,10 @@ static int32_t translateReloadLastCache(STranslateContext* pCxt, SReloadLastCach
       .cacheType = pStmt->cacheType,
       .scopeType = pStmt->scopeType,
   };
-  tstrncpy(mndReq.dbName, pStmt->dbName, sizeof(mndReq.dbName));
+  SName dbSName;
+  int32_t code = tNameSetDbName(&dbSName, pCxt->pParseCxt->acctId, pStmt->dbName, strlen(pStmt->dbName));
+  if (TSDB_CODE_SUCCESS != code) return code;
+  (void)tNameGetFullDbName(&dbSName, mndReq.dbName);
   tstrncpy(mndReq.tableName, pStmt->tableName, sizeof(mndReq.tableName));
   tstrncpy(mndReq.colName, pStmt->colName, sizeof(mndReq.colName));
   return buildCmdMsg(pCxt, TDMT_MND_RELOAD_LAST_CACHE, (FSerializeFunc)tSerializeSMndReloadLastCacheReq, &mndReq);
