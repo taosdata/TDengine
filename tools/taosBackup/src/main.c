@@ -21,12 +21,25 @@ volatile sig_atomic_t g_interrupted = 0;
 // global statistics
 BckStats g_stats = {0};
 
+#ifdef WINDOWS
+// Windows uses a console control handler instead of POSIX signals.
+// The handler is called from a separate thread by the OS.
+static BOOL signalHandler(DWORD fdwCtrlType) {
+    if (fdwCtrlType == CTRL_C_EVENT || fdwCtrlType == CTRL_BREAK_EVENT ||
+        fdwCtrlType == CTRL_CLOSE_EVENT) {
+        g_interrupted = 1;
+        return TRUE;
+    }
+    return FALSE;
+}
+#else
 static void signalHandler(int32_t signum, void *sigInfo, void *context) {
     g_interrupted = 1;
     const char *msg = "\nReceived interrupt signal, stopping gracefully...\n";
     // write() is async-signal-safe, printf is not
-    write(STDOUT_FILENO, msg, sizeof(msg)-1);
+    (void)write(STDOUT_FILENO, msg, strlen(msg));
 }
+#endif
 
 //
 // print startup summary
@@ -166,8 +179,13 @@ static void printEndSummary(enum ActionType action, int code, double elapsed) {
 int main(int argc, char *argv[]) {
     printVersion(false);
     // register signal handlers for graceful shutdown
+#ifdef WINDOWS
+    // On Windows, use SetConsoleCtrlHandler for Ctrl-C / Ctrl-Break / close
+    SetConsoleCtrlHandler((PHANDLER_ROUTINE)signalHandler, TRUE);
+#else
     taosSetSignal(SIGINT,  signalHandler);
     taosSetSignal(SIGTERM, signalHandler);
+#endif
 
     int code = TSDB_CODE_SUCCESS;
 

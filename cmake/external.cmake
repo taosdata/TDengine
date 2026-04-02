@@ -1710,18 +1710,37 @@ endif(${BUILD_LIBSASL})   # }
 endif()
 
 # arrow + parquet (Apache Arrow C++ with bundled third-party dependencies)
-# Produces: libparquet.a  libarrow.a  libarrow_bundled_dependencies.a
-# NOTE: Arrow is not supported on Windows.
-if(NOT ${TD_WINDOWS})        # {
-INIT_EXT(ext_arrow
-    INC_DIR  include
-    LIB      lib/libparquet.a lib/libarrow.a lib/libarrow_bundled_dependencies.a
-)
-get_from_local_repo_if_exists("https://github.com/apache/arrow.git")
-if(${TD_DARWIN})
-    set(CXX_FLAGS "-ffunction-sections -fdata-sections -include array")
+# Linux/macOS produces: libparquet.a  libarrow.a  libarrow_bundled_dependencies.a
+# Windows/MSVC produces: parquet_static.lib  arrow_static.lib  arrow_bundled_dependencies.lib
+if(${TD_WINDOWS})
+    INIT_EXT(ext_arrow
+        INC_DIR  include
+        LIB      lib/parquet_static.lib lib/arrow_static.lib lib/arrow_bundled_dependencies.lib
+    )
 else()
-    set(CXX_FLAGS "-ffunction-sections -fdata-sections")
+    INIT_EXT(ext_arrow
+        INC_DIR  include
+        LIB      lib/libparquet.a lib/libarrow.a lib/libarrow_bundled_dependencies.a
+    )
+endif()
+get_from_local_repo_if_exists("https://github.com/apache/arrow.git")
+# Platform-specific cmake args for the Arrow sub-build
+set(ARROW_EXTRA_CMAKE_ARGS "")
+if(NOT ${TD_WINDOWS})
+    if(${TD_DARWIN})
+        set(_arrow_cxx_flags "-ffunction-sections -fdata-sections -include array")
+    else()
+        set(_arrow_cxx_flags "-ffunction-sections -fdata-sections")
+    endif()
+    list(APPEND ARROW_EXTRA_CMAKE_ARGS
+        "-DCMAKE_C_FLAGS:STRING=-ffunction-sections -fdata-sections"
+        "-DCMAKE_CXX_FLAGS:STRING=${_arrow_cxx_flags}"
+    )
+else()
+    # Match the MSVC DLL CRT (/MD) used by the rest of the project
+    list(APPEND ARROW_EXTRA_CMAKE_ARGS
+        -DARROW_USE_STATIC_CRT:BOOL=OFF
+    )
 endif()
 ExternalProject_Add(ext_arrow
     GIT_REPOSITORY ${_git_url}
@@ -1733,8 +1752,6 @@ ExternalProject_Add(ext_arrow
     CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
     CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR:PATH=lib
     CMAKE_ARGS -DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=ON
-    CMAKE_ARGS -DCMAKE_C_FLAGS:STRING=-ffunction-sections\ -fdata-sections
-    CMAKE_ARGS -DCMAKE_CXX_FLAGS:STRING=${CXX_FLAGS}
     CMAKE_ARGS -DCMAKE_CXX_STANDARD:STRING=17
     CMAKE_ARGS -DARROW_BUILD_STATIC:BOOL=ON
     CMAKE_ARGS -DARROW_BUILD_SHARED:BOOL=OFF
@@ -1760,6 +1777,7 @@ ExternalProject_Add(ext_arrow
     CMAKE_ARGS -DPARQUET_REQUIRE_ENCRYPTION:BOOL=OFF
     CMAKE_ARGS -DARROW_SIMD_LEVEL:STRING=NONE
     CMAKE_ARGS -DARROW_RUNTIME_SIMD_LEVEL:STRING=NONE
+    CMAKE_ARGS ${ARROW_EXTRA_CMAKE_ARGS}
     BUILD_COMMAND
         COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}" --parallel 4
     INSTALL_COMMAND
@@ -1768,4 +1786,3 @@ ExternalProject_Add(ext_arrow
     VERBATIM
 )
 add_dependencies(build_externals ext_arrow)     # this is for github workflow in cache-miss step.
-endif(NOT ${TD_WINDOWS})    # }

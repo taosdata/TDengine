@@ -429,11 +429,11 @@ int backStbData(StbInfo *stbInfo) {
 
     // create threads
     for (int i = 0; i < count; i++) {
-        if(pthread_create(&threads[i].pid, NULL, backDataThread, (void *)&threads[i]) != 0) {
+        if(taosThreadCreate(&threads[i].pid, NULL, backDataThread, (void *)&threads[i]) != 0) {
             logError("create backup thread failed(%s) for stb: %s.%s", strerror(errno), stbInfo->dbInfo->dbName, stbInfo->stbName);
             // Join already-started threads before freeing shared state
             for (int j = 0; j < i; j++) {
-                pthread_join(threads[j].pid, NULL);
+                taosThreadJoin(threads[j].pid, NULL);
                 releaseConnection(threads[j].conn);
             }
             // Release connections for threads that were never started
@@ -447,7 +447,7 @@ int backStbData(StbInfo *stbInfo) {
 
     // wait threads
     for (int i = 0; i < count; i++) {
-        pthread_join(threads[i].pid, NULL);
+        taosThreadJoin(threads[i].pid, NULL);
         releaseConnection(threads[i].conn);
         if (code == TSDB_CODE_SUCCESS && threads[i].code != TSDB_CODE_SUCCESS) {
             code = threads[i].code;
@@ -701,11 +701,11 @@ static int backNormalTableData(DBInfo *dbInfo) {
     }
 
     for (int i = 0; i < threadCnt; i++) {
-        if (pthread_create(&threads[i].pid, NULL, backNtbDataThread, (void *)&threads[i]) != 0) {
+        if (taosThreadCreate(&threads[i].pid, NULL, backNtbDataThread, (void *)&threads[i]) != 0) {
             logError("create ntb backup thread failed: %s", strerror(errno));
             // Join already-started threads before freeing shared state
             for (int j = 0; j < i; j++) {
-                pthread_join(threads[j].pid, NULL);
+                taosThreadJoin(threads[j].pid, NULL);
                 releaseConnection(threads[j].conn);
             }
             // Release connections for threads that were never started
@@ -718,7 +718,7 @@ static int backNormalTableData(DBInfo *dbInfo) {
     }
 
     for (int i = 0; i < threadCnt; i++) {
-        pthread_join(threads[i].pid, NULL);
+        taosThreadJoin(threads[i].pid, NULL);
         releaseConnection(threads[i].conn);
         if (code == TSDB_CODE_SUCCESS && threads[i].code != TSDB_CODE_SUCCESS) {
             code = threads[i].code;

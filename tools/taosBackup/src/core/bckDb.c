@@ -12,7 +12,6 @@
 #include "bckArgs.h"
 #include "bckLog.h"
 #include "bckDb.h"
-#include <stdio.h>
 
 char ** getDBSuperTableNames(const char *dbName, int *code) {
     *code = TSDB_CODE_FAILED;

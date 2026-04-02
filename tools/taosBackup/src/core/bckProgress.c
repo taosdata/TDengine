@@ -11,16 +11,11 @@
 
 #include "bckProgress.h"
 #include "bck.h"
-#include <stdio.h>
-#include <string.h>
-#include <unistd.h>
-#include <pthread.h>
-#include <inttypes.h>
 
 BckProgress  g_progress     = {0};
 volatile int g_tty_progress = 0;
 
-static pthread_t    s_progThread;
+static TdThread     s_progThread;
 static volatile int s_progStop = 0;
 
 static void progFmtTimestamp(char *buf, size_t sz) {
@@ -135,7 +130,14 @@ static void progPrintLine(bool newline) {
 
     flockfile(stdout);
     if (g_tty_progress) {
-        printf("\r%s\033[K", line);
+        printf("\r%s", line);
+#ifndef WINDOWS
+        printf("\033[K");  // clear to end of line (ANSI, not supported on Windows)
+#else
+        // On Windows pad with spaces to clear leftover characters
+        printf("%-10s", "");
+        printf("\r%s", line);
+#endif
         if (newline) printf("\n");
     } else {
         printf("%s\n", line);
@@ -146,7 +148,12 @@ static void progPrintLine(bool newline) {
 
 static void *progressThread(void *arg) {
     (void)arg;
+#ifdef WINDOWS
+    // Windows console has limited ANSI support; always use non-tty (plain) mode
+    bool tty = false;
+#else
     bool tty = isatty(STDOUT_FILENO);
+#endif
     g_tty_progress = tty ? 1 : 0;
 
     int nonTtyTick = 0;  // counts 1-second ticks; print every 30s in non-tty
@@ -175,7 +182,11 @@ static void *progressThread(void *arg) {
     // in tty mode: clear the rolling line so the next log message prints cleanly
     if (tty && g_progress.phase != PROGRESS_PHASE_IDLE) {
         flockfile(stdout);
+#ifndef WINDOWS
         printf("\r\033[K");
+#else
+        printf("\r");
+#endif
         fflush(stdout);
         funlockfile(stdout);
     }
@@ -186,10 +197,10 @@ static void *progressThread(void *arg) {
 
 void progressStart(void) {
     s_progStop = 0;
-    pthread_create(&s_progThread, NULL, progressThread, NULL);
+    taosThreadCreate(&s_progThread, NULL, progressThread, NULL);
 }
 
 void progressStop(void) {
     s_progStop = 1;
-    pthread_join(s_progThread, NULL);
+    taosThreadJoin(s_progThread, NULL);
 }

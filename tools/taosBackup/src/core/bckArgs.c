@@ -11,10 +11,6 @@
     
 #include "bckArgs.h"
 #include "bck.h"
-#include <stddef.h>
-#include <string.h>
-#include <stdio.h>
-#include <stdlib.h>
 
 //
 // ---------------- global args state ----------------
@@ -64,7 +60,11 @@ static bool  g_dsnMode      = false;
 static int8_t g_driver = CONN_MODE_INVALID;
 
 // TDengine config directory (set via -c / --config-dir)
+#ifdef WINDOWS
+static char  g_configDir[MAX_PATH_LEN] = "C:\\TDengine\\cfg";
+#else
 static char  g_configDir[MAX_PATH_LEN] = "/etc/taos";
+#endif
 
 // data-batch: max rows per STMT bind/execute call; 0 = use per-version default
 static int g_dataBatch = 0;
@@ -93,7 +93,12 @@ static void printUsage(const char *prog) {
     printf("  -p, --password=PASSWORD    User password. Default is taosdata.\n");
     printf("  -P, --port=PORT            Server port. Default is 6030.\n");
     printf("  -u, --user=USER            User name. Default is root.\n");
-    printf("  -c, --config-dir=CONFIG_DIR Configure directory. Default is /etc/taos.\n");
+    printf("  -c, --config-dir=CONFIG_DIR Configure directory.\n");
+#ifdef WINDOWS
+    printf("                             Default is C:\\TDengine\\cfg.\n");
+#else
+    printf("                             Default is /etc/taos.\n");
+#endif
     printf("  -i, --inpath=INPATH        Input file path for restore.\n");
     printf("  -o, --outpath=OUTPATH      Output file path for backup.\n");
     printf("  -D, --databases=DATABASES  Databases to backup/restore. Use comma\n");

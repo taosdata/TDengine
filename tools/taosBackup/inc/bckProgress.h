@@ -12,7 +12,7 @@
 #ifndef INC_BCK_PROGRESS_H_
 #define INC_BCK_PROGRESS_H_
 
-#include <stdint.h>
+#include "tdef.h"
 
 // Maximum name lengths held in g_progress
 #define PROGRESS_DB_NAME_LEN  64

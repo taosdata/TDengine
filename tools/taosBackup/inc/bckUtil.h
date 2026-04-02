@@ -12,7 +12,7 @@
 #ifndef INC_UTIL_H_
 #define INC_UTIL_H_
 
-#include <stdbool.h>
+#include "tdef.h"
 #include "bckTypes.h"
 
 //

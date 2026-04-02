@@ -48,7 +48,7 @@ typedef struct {
     int count;
 } CkptHashTable;
 
-static pthread_mutex_t g_ckptMutex = PTHREAD_MUTEX_INITIALIZER;
+static TdThreadMutex g_ckptMutex;    // initialized in loadRestoreCheckpoint()
 static char  g_ckptPath[MAX_PATH_LEN] = "";
 static CkptHashTable g_ckptHash = {0};
 static TdFilePtr g_ckptFp = NULL;  // keep checkpoint file open
@@ -60,7 +60,12 @@ typedef struct {
     int used;
 } CkptBuffer;
 
+#ifdef WINDOWS
+// MSVC uses __declspec(thread) for thread-local storage; no static initializer
+static __declspec(thread) CkptBuffer t_ckptBuf;
+#else
 static __thread CkptBuffer t_ckptBuf = {0};
+#endif
 
 static uint32_t hashString(const char *str) {
     uint32_t hash = 5381;
@@ -139,6 +144,8 @@ static void freeCkptHashTable() {
 void loadRestoreCheckpoint(const char *dbName) {
     snprintf(g_ckptPath, sizeof(g_ckptPath), "%s/%s/restore_checkpoint.txt", argOutPath(), dbName);
     g_allowWriteCP = true;
+    // Initialize the mutex on first call (safe because restore is single-threaded at this point)
+    taosThreadMutexInit(&g_ckptMutex, NULL);
 
     // free previous
     freeCkptHashTable();
@@ -234,12 +241,12 @@ void flushCkptBuffer() {
     if (t_ckptBuf.used == 0) return;
     if (!g_allowWriteCP || !g_ckptFp) return;
 
-    pthread_mutex_lock(&g_ckptMutex);
+    taosThreadMutexLock(&g_ckptMutex);
     if (g_ckptFp) {
         taosWriteFile(g_ckptFp, t_ckptBuf.buf, t_ckptBuf.used);
         taosFsyncFile(g_ckptFp);  // ensure data is written
     }
-    pthread_mutex_unlock(&g_ckptMutex);
+    taosThreadMutexUnlock(&g_ckptMutex);
 
     t_ckptBuf.used = 0;
 }
@@ -274,6 +281,7 @@ void freeRestoreCheckpoint() {
 
     // Free hash table
     freeCkptHashTable();
+    taosThreadMutexDestroy(&g_ckptMutex);
 }
 
 // Delete the checkpoint file after a fully successful restore so that the

@@ -28,7 +28,7 @@ typedef struct {
     StbInfo*  stbInfo;
     int       index;       // thread index (1-based)
     TAOS*     conn;
-    pthread_t pid;
+    TdThread  pid;
     // file list assigned to this thread
     char    **files;       // array of file paths (NULL-terminated)
     int       fileCnt;     // number of files

@@ -11,13 +11,26 @@
 
 #ifndef INC_BCK_H_
 #define INC_BCK_H_
-// sys
-#include <stdio.h>
-#include <stdlib.h>
-#include <pthread.h>
-#include <string.h>
-#include <errno.h>
-#include <signal.h>
+// TDengine: os.h (pulled in by tdef.h) already includes all common system
+// headers (<stdio.h>, <stdlib.h>, <string.h>, <errno.h>, <signal.h>, <time.h>,
+// <stdarg.h>, <inttypes.h>, <stdbool.h>, <stdint.h>, <unistd.h>, etc.) and
+// osThread.h — no need to repeat them here.
+#include <taos.h>
+#include <tdef.h>
+#include <taoserror.h>
+
+// Windows: items not covered by os.h/osDef.h
+// (strncasecmp/strcasecmp are already mapped by osDef.h → _strnicmp/_stricmp)
+#ifdef WINDOWS
+#ifndef flockfile
+#define flockfile(f)   _lock_file(f)
+#define funlockfile(f) _unlock_file(f)
+#endif
+#ifndef STDOUT_FILENO
+#define STDOUT_FILENO 1
+#define STDERR_FILENO 2
+#endif
+#endif
 
 // global interrupt flag (set by SIGINT/SIGTERM handler)
 extern volatile sig_atomic_t g_interrupted;
@@ -38,10 +51,6 @@ typedef struct {
 } BckStats;
 
 extern BckStats g_stats;
-// taos
-#include <taos.h>
-#include <tdef.h>
-#include <taoserror.h>
 // bck
 #include "bckTypes.h"
 #include "bckUtil.h"

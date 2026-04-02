@@ -60,7 +60,7 @@ typedef struct StbChangeEntry {
 // Hash map for all super table changes in a database
 typedef struct StbChangeMap {
     StbChangeEntry *buckets[SCHEMA_CHANGE_MAP_BUCKETS];
-    pthread_mutex_t lock;
+    TdThreadMutex lock;
 } StbChangeMap;
 
 

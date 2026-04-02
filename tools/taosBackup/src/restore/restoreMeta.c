@@ -1947,7 +1947,7 @@ static int restoreStbTags(DBInfo *dbInfo, StbInfo *stbInfo) {
         if (!threads[i].conn) {
             // Join already-started threads before freeing shared state
             for (int j = 0; j < i; j++) {
-                pthread_join(threads[j].pid, NULL);
+                taosThreadJoin(threads[j].pid, NULL);
                 releaseConnection(threads[j].conn);
             }
             taosMemoryFree(threads);
@@ -1956,12 +1956,12 @@ static int restoreStbTags(DBInfo *dbInfo, StbInfo *stbInfo) {
         }
         snprintf(threads[i].tagFile, MAX_PATH_LEN, "%s", tagFiles[i]);
 
-        if (pthread_create(&threads[i].pid, NULL, restoreTagThread, (void *)&threads[i]) != 0) {
+        if (taosThreadCreate(&threads[i].pid, NULL, restoreTagThread, (void *)&threads[i]) != 0) {
             logError("create restore tag thread failed(%s) for stb: %s.%s", 
                      strerror(errno), dbName, stbName);
             // Join already-started threads before freeing shared state
             for (int j = 0; j < i; j++) {
-                pthread_join(threads[j].pid, NULL);
+                taosThreadJoin(threads[j].pid, NULL);
                 releaseConnection(threads[j].conn);
             }
             // Release connection for thread i (never started)
@@ -1974,7 +1974,7 @@ static int restoreStbTags(DBInfo *dbInfo, StbInfo *stbInfo) {
 
     // wait threads
     for (int i = 0; i < actualThreads; i++) {
-        pthread_join(threads[i].pid, NULL);
+        taosThreadJoin(threads[i].pid, NULL);
         releaseConnection(threads[i].conn);
         if (code == TSDB_CODE_SUCCESS && threads[i].code != TSDB_CODE_SUCCESS) {
             code = threads[i].code;

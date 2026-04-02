@@ -27,15 +27,15 @@ static uint32_t bkdrHash(const char *str) {
 
 void stbChangeMapInit(StbChangeMap *map) {
     memset(map->buckets, 0, sizeof(map->buckets));
-    pthread_mutex_init(&map->lock, NULL);
+    taosThreadMutexInit(&map->lock, NULL);
 }
 
 static bool stbChangeMapInsert(StbChangeMap *map, const char *key, StbChange *value) {
-    pthread_mutex_lock(&map->lock);
+    taosThreadMutexLock(&map->lock);
     uint32_t hash = bkdrHash(key) % SCHEMA_CHANGE_MAP_BUCKETS;
     StbChangeEntry *entry = (StbChangeEntry *)taosMemoryMalloc(sizeof(StbChangeEntry));
     if (entry == NULL) {
-        pthread_mutex_unlock(&map->lock);
+        taosThreadMutexUnlock(&map->lock);
         return false;
     }
 
@@ -44,7 +44,7 @@ static bool stbChangeMapInsert(StbChangeMap *map, const char *key, StbChange *va
     entry->next        = map->buckets[hash];
     map->buckets[hash] = entry;
 
-    pthread_mutex_unlock(&map->lock);
+    taosThreadMutexUnlock(&map->lock);
     return true;
 }
 
@@ -78,7 +78,7 @@ void stbChangeMapDestroy(StbChangeMap *map) {
         }
         map->buckets[i] = NULL;
     }
-    pthread_mutex_destroy(&map->lock);
+    taosThreadMutexDestroy(&map->lock);
 }
 
 

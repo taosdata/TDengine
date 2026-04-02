@@ -25,7 +25,7 @@ typedef struct {
     StbInfo*  stbInfo;
     int       index;       // thread index (1-based)
     TAOS*     conn;
-    pthread_t pid;
+    TdThread  pid;
     char      tagFile[MAX_PATH_LEN];  // tag data file to restore
     int32_t   code;    // first error code from this thread
 } RestoreTagThread;

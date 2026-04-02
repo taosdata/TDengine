@@ -31,7 +31,7 @@ typedef struct TagThread {
     int       offset;
     int       index;
     TAOS*     conn;
-    pthread_t pid;
+    TdThread  pid;
     int32_t   code;    // first error code from this thread
 } TagThread;
 

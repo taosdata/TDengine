@@ -12,9 +12,14 @@
 #include "bckArgs.h"
 #include "bckLog.h"
 #include "bckProgress.h"
-#include <stdarg.h>
-#include <stdio.h>
-#include <time.h>
+
+// Windows: provide flockfile/funlockfile via MSVC CRT _lock_file/_unlock_file
+#ifdef WINDOWS
+#ifndef flockfile
+#define flockfile(f)   _lock_file(f)
+#define funlockfile(f) _unlock_file(f)
+#endif
+#endif
 
 // Thread-safe log: prepend [HH:MM:SS] timestamp, then write atomically.
 // flockfile/funlockfile ensures the entire write+flush is atomic across threads.
@@ -23,14 +28,11 @@
 
 // Fill ts[10] with "HH:MM:SS\0"
 static void logTimestamp(char *ts) {
-    time_t t = time(NULL);
+    time_t t;
+    taosTime(&t);
     struct tm tm_info;
-    #ifdef _WIN32
-        localtime_s(&tm_info, &t);
-    #else
-        localtime_r(&t, &tm_info);
-    #endif
-    strftime(ts, 10, "%H:%M:%S", &tm_info);
+    taosLocalTime(&t, &tm_info, NULL, 0, NULL);
+    taosStrfTime(ts, 10, "%H:%M:%S", &tm_info);
 }
 
 void logError(const char *format, ...) {
@@ -69,7 +71,11 @@ void logInfo(const char *format, ...) {
     buf[total] = '\0';
     flockfile(stdout);
     // clear the progress rolling line so this message starts on a clean line
+#ifdef WINDOWS
+    if (g_tty_progress) fwrite("\r", 1, 1, stdout);
+#else
     if (g_tty_progress) fwrite("\r\033[K", 1, 4, stdout);
+#endif
     fwrite(buf, 1, total, stdout);
     fflush(stdout);
     funlockfile(stdout);
@@ -112,7 +118,11 @@ void logDebug(const char *format, ...) {
     buf[total] = '\0';
     flockfile(stdout);
     // clear the progress rolling line so this message starts on a clean line
+#ifdef WINDOWS
+    if (g_tty_progress) fwrite("\r", 1, 1, stdout);
+#else
     if (g_tty_progress) fwrite("\r\033[K", 1, 4, stdout);
+#endif
     fwrite(buf, 1, total, stdout);
     fflush(stdout);
     funlockfile(stdout);

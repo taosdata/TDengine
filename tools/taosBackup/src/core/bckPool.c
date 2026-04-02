@@ -12,12 +12,6 @@
 #include "bckArgs.h"
 #include "bckLog.h"
 #include "bckDb.h"
-#include <stdarg.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <pthread.h>
-#include <string.h>
-#include <time.h>
 
 typedef enum {
     CONN_EMPTY = 0,    // slot is empty
@@ -31,8 +25,8 @@ typedef struct {
     ConnState *state;
     int size;
     int count;
-    pthread_mutex_t mutex;
-    pthread_cond_t  cond;
+    TdThreadMutex mutex;
+    TdThreadCond  cond;
 } ConnectionPool;
 
 static ConnectionPool g_pool = {0};
@@ -50,14 +44,14 @@ int initConnectionPool(int poolSize) {
 
     g_pool.size = poolSize;
     g_pool.count = 0;
-    pthread_mutex_init(&g_pool.mutex, NULL);
-    pthread_cond_init(&g_pool.cond, NULL);
+    taosThreadMutexInit(&g_pool.mutex, NULL);
+    taosThreadCondInit(&g_pool.cond, NULL);
 
     return 0;
 }
 
 void destroyConnectionPool() {
-    pthread_mutex_lock(&g_pool.mutex);
+    taosThreadMutexLock(&g_pool.mutex);
 
     for (int i = 0; i < g_pool.count; i++) {
         if (g_pool.pool[i]) {
@@ -72,9 +66,9 @@ void destroyConnectionPool() {
     g_pool.size = 0;
     g_pool.count = 0;
 
-    pthread_mutex_unlock(&g_pool.mutex);
-    pthread_cond_destroy(&g_pool.cond);
-    pthread_mutex_destroy(&g_pool.mutex);
+    taosThreadMutexUnlock(&g_pool.mutex);
+    taosThreadCondDestroy(&g_pool.cond);
+    taosThreadMutexDestroy(&g_pool.mutex);
 }
 
 // Helper: reserve a slot and mark it CONNECTING (must hold lock)
@@ -118,7 +112,7 @@ static void rollbackSlot(int idx) {
 #define BCK_RECONNECT_MAX_MS   30000   // ceiling:   30 s
 
 TAOS* getConnection(int *code) {
-    pthread_mutex_lock(&g_pool.mutex);
+    taosThreadMutexLock(&g_pool.mutex);
 
     // Back-off state for when the pool is empty (server down).
     // Reset to initial value each time getConnection() is entered so that
@@ -128,7 +122,7 @@ TAOS* getConnection(int *code) {
     while (1) {
         // check if interrupted
         if (g_interrupted) {
-            pthread_mutex_unlock(&g_pool.mutex);
+            taosThreadMutexUnlock(&g_pool.mutex);
             *code = TSDB_CODE_BCK_USER_CANCEL;
             return NULL;
         }
@@ -137,7 +131,7 @@ TAOS* getConnection(int *code) {
         for (int i = 0; i < g_pool.count; i++) {
             if (g_pool.state[i] == CONN_IDLE && g_pool.pool[i]) {
                 g_pool.state[i] = CONN_BUSY;
-                pthread_mutex_unlock(&g_pool.mutex);
+                taosThreadMutexUnlock(&g_pool.mutex);
                 *code = TSDB_CODE_SUCCESS;
                 return g_pool.pool[i];
             }
@@ -147,7 +141,7 @@ TAOS* getConnection(int *code) {
         if (g_pool.count < g_pool.size) {
             // check interrupt before blocking in taos_connect
             if (g_interrupted) {
-                pthread_mutex_unlock(&g_pool.mutex);
+                taosThreadMutexUnlock(&g_pool.mutex);
                 *code = TSDB_CODE_BCK_USER_CANCEL;
                 return NULL;
             }
@@ -156,18 +150,18 @@ TAOS* getConnection(int *code) {
             int idx = reserveSlot();
 
             // Unlock while connecting (slow operation)
-            pthread_mutex_unlock(&g_pool.mutex);
+            taosThreadMutexUnlock(&g_pool.mutex);
 
             TAOS *conn = taos_connect(argHost(), argUser(), argPassword(), NULL, argPort());
 
             // Re-lock to commit or rollback
-            pthread_mutex_lock(&g_pool.mutex);
+            taosThreadMutexLock(&g_pool.mutex);
 
             if (conn) {
                 // successfully created new connection — reset back-off
                 reconnectWaitMs = BCK_RECONNECT_INIT_MS;
                 commitSlot(idx, conn);
-                pthread_mutex_unlock(&g_pool.mutex);
+                taosThreadMutexUnlock(&g_pool.mutex);
                 *code = TSDB_CODE_SUCCESS;
                 return conn;
             }
@@ -185,7 +179,7 @@ TAOS* getConnection(int *code) {
                         argHost(), argPort(), errCode, errStr, reconnectWaitMs);
 
                 // Unlock, sleep, re-lock, then retry the outer loop
-                pthread_mutex_unlock(&g_pool.mutex);
+                taosThreadMutexUnlock(&g_pool.mutex);
 
                 // Sleep in small slices so we can honour g_interrupted
                 int slept = 0;
@@ -198,7 +192,7 @@ TAOS* getConnection(int *code) {
                     slept += thisSlice;
                 }
 
-                pthread_mutex_lock(&g_pool.mutex);
+                taosThreadMutexLock(&g_pool.mutex);
 
                 // Advance back-off (double, cap at max)
                 reconnectWaitMs *= 2;
@@ -213,6 +207,11 @@ TAOS* getConnection(int *code) {
 
         // all connections busy, wait for release
         {
+#ifdef WINDOWS
+            // Windows: TDengine's taosThreadCondTimedWait expects relative time
+            struct timespec ts = {0, 500000000L};  // 500 ms relative
+            taosThreadCondTimedWait(&g_pool.cond, &g_pool.mutex, &ts);
+#else
             struct timespec ts;
             clock_gettime(CLOCK_REALTIME, &ts);
             ts.tv_nsec += 500000000L;  // +500ms
@@ -220,7 +219,8 @@ TAOS* getConnection(int *code) {
                 ts.tv_sec  += 1;
                 ts.tv_nsec -= 1000000000L;
             }
-            pthread_cond_timedwait(&g_pool.cond, &g_pool.mutex, &ts);
+            taosThreadCondTimedWait(&g_pool.cond, &g_pool.mutex, &ts);
+#endif
         }
     }
 }
@@ -229,17 +229,17 @@ TAOS* getConnection(int *code) {
 void releaseConnection(TAOS* conn) {
     if (!conn) return;
 
-    pthread_mutex_lock(&g_pool.mutex);
+    taosThreadMutexLock(&g_pool.mutex);
 
     for (int i = 0; i < g_pool.count; i++) {
         if (g_pool.pool[i] == conn) {
             g_pool.state[i] = CONN_IDLE;
-            pthread_cond_signal(&g_pool.cond);
+            taosThreadCondSignal(&g_pool.cond);
             break;
         }
     }
 
-    pthread_mutex_unlock(&g_pool.mutex);
+    taosThreadMutexUnlock(&g_pool.mutex);
 }
 
 // Mark a connection as broken: close it and evict it from the pool so the next
@@ -247,7 +247,7 @@ void releaseConnection(TAOS* conn) {
 void releaseConnectionBad(TAOS* conn) {
     if (!conn) return;
 
-    pthread_mutex_lock(&g_pool.mutex);
+    taosThreadMutexLock(&g_pool.mutex);
 
     for (int i = 0; i < g_pool.count; i++) {
         if (g_pool.pool[i] == conn) {
@@ -260,11 +260,11 @@ void releaseConnectionBad(TAOS* conn) {
             g_pool.pool[g_pool.count - 1] = NULL;
             g_pool.state[g_pool.count - 1] = CONN_EMPTY;
             g_pool.count--;
-            pthread_cond_signal(&g_pool.cond);
+            taosThreadCondSignal(&g_pool.cond);
             break;
         }
     }
 
-    pthread_mutex_unlock(&g_pool.mutex);
+    taosThreadMutexUnlock(&g_pool.mutex);
 }
 

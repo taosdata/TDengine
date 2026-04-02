@@ -31,7 +31,7 @@ typedef struct {
     int       offset;
     int       index;
     TAOS*     conn;
-    pthread_t pid;
+    TdThread  pid;
     int32_t   code;    // first error code from this thread
     // Thread-level reusable buffers (space-for-time optimization)
     char*     writeBuf;     // 4MB write buffer, reused across all CTBs

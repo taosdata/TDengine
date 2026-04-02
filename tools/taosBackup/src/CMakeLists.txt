@@ -117,39 +117,14 @@ ADD_EXECUTABLE(
         restore/bckSchemaChange.c
         # storage
         storage/storageTaos.c
-    )
-
-if(NOT ${TD_WINDOWS})
-    # Arrow/Parquet storage backend (Linux and macOS)
-    target_sources(taosBackup PRIVATE
         storage/storageParquet.c
         storage/parquetBlock.cpp
         storage/blockReader.c
         storage/colCompress.c
     )
-endif()
 
 # Enable C++ for the mixed C/C++ target
 SET_TARGET_PROPERTIES(taosBackup PROPERTIES LINKER_LANGUAGE CXX)
-
-if(NOT ${TD_WINDOWS})
-# Put each function/data in its own section so --gc-sections can dead-strip
-# unused code that is dragged in from Arrow/Parquet static libraries.
-target_compile_options(taosBackup PRIVATE -ffunction-sections -fdata-sections)
-
-# Prevent ZSTD symbol interposition: libtaos.so exports TSZ's ZSTD symbols
-# (ZSTD_compressBlock_doubleFast etc.) which collide with ext_arrow's statically
-# bundled ZSTD.  With a PIE binary, PLT lookup can resolve internal ZSTD calls
-# to libtaos.so's copy, causing a NULL-context crash.
-# The version script marks all ZSTD_* symbols as "local" in the binary so they
-# are never preemptable by the shared library's copy.
-if(NOT APPLE)
-    target_link_options(taosBackup PRIVATE
-        -Wl,--gc-sections
-        -Wl,-Bsymbolic-functions
-        -Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/zstd_local.map
-    )
-endif()
 
 # C++ standard required by Arrow C++ headers
 target_compile_features(taosBackup PRIVATE cxx_std_17)
@@ -159,12 +134,31 @@ target_include_directories(taosBackup PRIVATE "${ext_arrow_inc_dir}")
 
 # Declare build-time dependency so ext_arrow is compiled before taosBackup links
 add_dependencies(taosBackup ext_arrow)
+
+if(NOT ${TD_WINDOWS})
+    # Put each function/data in its own section so --gc-sections can dead-strip
+    # unused code that is dragged in from Arrow/Parquet static libraries.
+    target_compile_options(taosBackup PRIVATE -ffunction-sections -fdata-sections)
+
+    # Prevent ZSTD symbol interposition: libtaos.so exports TSZ's ZSTD symbols
+    # which collide with ext_arrow's statically bundled ZSTD.
+    if(NOT APPLE)
+        target_link_options(taosBackup PRIVATE
+            -Wl,--gc-sections
+            -Wl,-Bsymbolic-functions
+            -Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/zstd_local.map
+        )
+    endif()
 endif()
 
 # link taos
 TARGET_LINK_LIBRARIES(taosBackup PRIVATE taos)
 
-if(NOT ${TD_WINDOWS})
+if(TD_WINDOWS)
+    # Windows: link standard system libraries needed by TDengine client
+    target_link_libraries(taosBackup PRIVATE ws2_32 advapi32)
+endif()
+
 # link Arrow static libs: parquet → arrow → bundled deps (order matters for linker)
 foreach(_arrow_lib ${ext_arrow_libs})
     target_link_libraries(taosBackup PRIVATE "${_arrow_lib}")
@@ -176,7 +170,6 @@ if(APPLE)
         "-framework CoreFoundation"
         "-framework Security"
     )
-endif()
 endif()
 
 MESSAGE("")

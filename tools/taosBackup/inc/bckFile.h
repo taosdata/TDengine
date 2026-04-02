@@ -12,7 +12,7 @@
 #ifndef INC_BCKFILE_H_
 #define INC_BCKFILE_H_
 
-#include <stdbool.h>
+#include "tdef.h"
 
 //
 // ---------------- define ----------------

@@ -12,10 +12,6 @@
 #ifndef INC_PARQUET_BLOCK_H_
 #define INC_PARQUET_BLOCK_H_
 
-#include <stdint.h>
-
-#ifndef _WIN32
-
 /*
  * Pure C interface to the Apache Arrow / Parquet C++ library.
  *
@@ -68,37 +64,5 @@ int parquetReaderGetFields(ParquetReader *pr, TAOS_FIELD **outFields);
 #ifdef __cplusplus
 }  /* extern "C" */
 #endif
-
-#else  /* _WIN32 — Parquet/Arrow not supported on Windows */
-
-#include <taos.h>
-
-typedef struct ParquetWriter ParquetWriter;
-typedef struct ParquetReader ParquetReader;
-typedef int (*ParquetBindCallback)(void *userData,
-                                   TAOS_FIELD *fields, int numFields,
-                                   TAOS_MULTI_BIND *bindArray, int32_t numRows);
-
-static inline ParquetWriter *parquetWriterCreate(const char *f, TAOS_FIELD *flds,
-                                                  int n, TAOS_FIELD_E *ef, int *code) {
-    (void)f; (void)flds; (void)n; (void)ef; if (code) *code = -1; return NULL;
-}
-static inline int parquetWriterWriteBlock(ParquetWriter *pw, void *b, int r) {
-    (void)pw; (void)b; (void)r; return -1;
-}
-static inline int parquetWriterClose(ParquetWriter *pw) { (void)pw; return -1; }
-static inline ParquetReader *parquetReaderOpen(const char *f, int *code) {
-    (void)f; if (code) *code = -1; return NULL;
-}
-static inline int parquetReaderReadAll(ParquetReader *pr, ParquetBindCallback cb, void *ud) {
-    (void)pr; (void)cb; (void)ud; return -1;
-}
-static inline void parquetReaderClose(ParquetReader *pr) { (void)pr; }
-static inline int64_t parquetGetNumRowsQuick(const char *f) { (void)f; return -1; }
-static inline int parquetReaderGetFields(ParquetReader *pr, TAOS_FIELD **out) {
-    (void)pr; (void)out; return -1;
-}
-
-#endif  /* _WIN32 */
 
 #endif  /* INC_PARQUET_BLOCK_H_ */
