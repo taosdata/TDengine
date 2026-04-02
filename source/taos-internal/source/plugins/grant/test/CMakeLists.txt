@@ -7,10 +7,10 @@ IF(TD_ENTERPRISE)
   SET(TD_GRANT_DIR "${TD_ENTERPRISE_DIR}/src/plugins/grant")
 
   IF(TD_LINUX_64)
-    IF("${CPUTYPE}" STREQUAL "x64")
+    IF("${BUILD_VER_CPUTYPE}" STREQUAL "x64")
       SET(TAOS_GRANT_STUB "${TD_GRANT_DIR}/lib/libgrant_x64.a")
     ELSE()
-      MESSAGE(STATUS "grantStub: unsupported cpu type: " ${CPUTYPE})
+      MESSAGE(STATUS "grantStub: unsupported cpu type: " ${BUILD_VER_CPUTYPE})
     ENDIF()
   ELSEIF(TD_WINDOWS_64)
     SET(TAOS_GRANT_STUB "${TD_GRANT_DIR}/lib/grant_win64.lib")
@@ -27,13 +27,13 @@ TARGET_LINK_LIBRARIES(
 
 TARGET_INCLUDE_DIRECTORIES(
   grantTest
-  PUBLIC "${TD_COMMUNITY_DIR}/src/util/inc"
+  PUBLIC "${TD_COMMUNITY_DIR}/source/util/inc"
   PRIVATE "${TD_COMMUNITY_DIR}/include/common"
 )
 
 IF(TD_ENTERPRISE)
   TARGET_INCLUDE_DIRECTORIES(
     grantTest
-    PRIVATE "${TD_ENTERPRISE_DIR}/src/plugins/grant/inc"
+    PRIVATE "${TD_ENTERPRISE_DIR}/source/plugins/grant/inc"
   )
 ENDIF()
