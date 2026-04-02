@@ -5,6 +5,8 @@ import pandas as pd
 from prophet import Prophet
 from statsmodels.tsa.arima.model import ARIMA
 
+from taosanalytics.log import AppLogger
+
 
 class BaseModelForecaster(ABC):
     """
@@ -103,11 +105,11 @@ class ArimaModelForecaster(BaseModelForecaster):
     def _build_model(self):
         best_param = self.model_info.get('best_params', {})
         if not best_param:
-            print("Missing best_params, cannot build ARIMA model")
+            AppLogger.error("Missing best_params, cannot build ARIMA model")
             return None
 
         if not {'p', 'd', 'q'}.issubset(best_param.keys()):
-            print("best_params missing p/d/q, cannot build ARIMA model")
+            AppLogger.error("best_params missing p/d/q, cannot build ARIMA model")
             return None
 
         param = {'order': (best_param['p'], best_param['d'], best_param['q'])}
@@ -115,7 +117,7 @@ class ArimaModelForecaster(BaseModelForecaster):
         seasonal_order_s = self.model_info.get('seasonal_order_s', 0)
         if seasonal_order_s:
             if not {'P', 'D', 'Q'}.issubset(best_param.keys()):
-                print("best_params missing P/D/Q, cannot build seasonal ARIMA model")
+                AppLogger.error("best_params missing P/D/Q, cannot build seasonal ARIMA model")
                 return None
             param['seasonal_order'] = (best_param['P'], best_param['D'], best_param['Q'], seasonal_order_s)
         else:

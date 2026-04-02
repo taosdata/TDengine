@@ -61,6 +61,9 @@ class DynamicForecastService(AbstractForecastService):
                 raise RuntimeError(msg) from e
 
             forecaster = ArimaModelForecaster(self.config_file_path, df, self.rows)
+            if not forecaster:
+                raise RuntimeError(f"failed to build ARIMA model forecaster with config file: {self.config_file_path}")
+
             result = forecaster.forecast()
 
             result_ts = [self.start_ts + i * self.time_step for i in range(self.rows)]
@@ -193,6 +196,10 @@ class ServiceRegistry:
             except Exception as e:
                 msg = f"failed to load dynamic model configuration, file: {config_file}: {e}"
                 raise ValueError(msg) from e
+
+        if not isinstance(config, dict):
+            # valid config format, continue to parse the algorithm definition and register the service.
+            raise ValueError(f"invalid config format in file: {config_file}, expected a JSON object")
 
         if 'algo' in config:
             algo_name = config['algo']

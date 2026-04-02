@@ -58,39 +58,39 @@ def do_handle_dynamic_model(request):
             'error': "Invalid model_name in request payload"
         }, 400
 
-    model_name = raw_model_name + '.json'
+    model_file_name = raw_model_name + '.json'
     model_config = payload.get("config")
 
-    AppLogger.debug("deploy model with ndraw_result = Trueame %s, config:%s", model_name, model_config)
+    AppLogger.debug("deploy model with name %s, config:%s", raw_model_name, model_config)
 
     model_dir = Configure.get_instance().get_model_directory()
-    full_path = str(os.path.join(model_dir, model_name))
+    full_path = str(os.path.join(model_dir, model_file_name))
 
     # check for valid model name, e.g. check if model file exists, etc.
     if Path(full_path).exists():
-        AppLogger.error("model with name %s already exists", model_name)
+        AppLogger.error("model with name %s already exists", raw_model_name)
         return {
             'status': 'error',
-            'error': f"Model with name {model_name} already exists"
+            'error': f"Model with name {raw_model_name} already exists"
         }, 400
 
     try:
         with open(full_path, "w", encoding="utf-8") as handle:
             handle.write(json.dumps(model_config))
-        AppLogger.info("Model %s saved to %s successfully", model_name, full_path)
+        AppLogger.info("Model %s saved to %s successfully", raw_model_name, full_path)
 
         loader.register_service_from_file(full_path)
-        AppLogger.info("Model %s deployed successfully", model_name)
+        AppLogger.info("Model %s deployed successfully", raw_model_name)
     except Exception as e:
-        AppLogger.error("Error deploying dynamic model %s: %s", model_name, str(e))
+        AppLogger.error("Error deploying dynamic model %s: %s", raw_model_name, str(e))
         return {
             'status': 'error',
-            'error': f"Error deploying model {model_name}: {str(e)}"
+            'error': f"Error deploying model {raw_model_name}: {str(e)}"
         }, 500
 
     return {
         'status': 'success',
-        'message': f"Model {model_name} deployed successfully"
+        'message': f"Model {raw_model_name} deployed successfully"
     }, 200
 
 
