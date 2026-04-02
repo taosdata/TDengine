@@ -48,7 +48,7 @@ if(${BUILD_GEOS})
 endif()
 
 
-if(${JEMALLOC_ENABLED})
+if(${BUILD_JEMALLOC})
     find_package(jemalloc QUIET)
     if(NOT jemalloc_FOUND)
         message(STATUS "jemalloc not found in Conan packages, will use ExternalProject")

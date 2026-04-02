@@ -21,6 +21,6 @@ target_link_libraries(scalar
     PRIVATE totp
 )
 
-if(${BUILD_TEST})
+if(BUILD_TEST)
     ADD_SUBDIRECTORY(test)
-endif(${BUILD_TEST})
+endif()
