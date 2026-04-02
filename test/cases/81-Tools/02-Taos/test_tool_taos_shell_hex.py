@@ -80,6 +80,28 @@ class TestTaosShellHex:
             tdLog.exit("char(9) tab should not be displayed as 0x09")
         tdLog.info("char(9) tab correctly not displayed as hex")
 
+        # char(10) = newline - should NOT show as 0x0A
+        rlist = self.taos(f'-s "select char(10)"')
+        found_hex = False
+        for line in rlist:
+            if "0x0A" in line:
+                found_hex = True
+                break
+        if found_hex:
+            tdLog.exit("char(10) newline should not be displayed as 0x0A")
+        tdLog.info("char(10) newline correctly not displayed as hex")
+
+        # char(13) = carriage return - should NOT show as 0x0D
+        rlist = self.taos(f'-s "select char(13)"')
+        found_hex = False
+        for line in rlist:
+            if "0x0D" in line:
+                found_hex = True
+                break
+        if found_hex:
+            tdLog.exit("char(13) carriage return should not be displayed as 0x0D")
+        tdLog.info("char(13) carriage return correctly not displayed as hex")
+
     def checkMultiByteHex(self):
         """Multiple non-printable bytes should all be shown in hex."""
         tdLog.info("check multi-byte non-printable binary hex display")
