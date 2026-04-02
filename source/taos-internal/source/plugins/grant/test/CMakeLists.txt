@@ -4,7 +4,7 @@ ADD_EXECUTABLE(grantTest "grantTest.cpp")
 
 IF(TD_ENTERPRISE)
   SET(TAOS_GRANT_STUB "")
-  SET(TD_GRANT_DIR "${TD_ENTERPRISE_DIR}/src/plugins/grant")
+  SET(TD_GRANT_DIR "${TD_ENTERPRISE_DIR}/source/plugins/grant")
 
   IF(TD_LINUX_64)
     IF("${BUILD_VER_CPUTYPE}" STREQUAL "x64")

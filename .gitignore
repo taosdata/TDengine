@@ -44,3 +44,5 @@ vendor/
 
 # Logs
 *.log
+
+.externals/
