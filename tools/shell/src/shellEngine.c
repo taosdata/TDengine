@@ -65,6 +65,8 @@ static void  shellCleanup(void *arg);
 static void *shellCancelHandler(void *arg);
 static void *shellThreadLoop(void *arg);
 static bool  shellHasBinaryNonPrintable(const char *val, int32_t length);
+static void  shellHexEncode(char *dst, const char *val, int32_t length);
+static char *shellAllocHexString(const char *val, int32_t length);
 static void  shellPrintHex(const char *val, int32_t length, int32_t width);
 
 static bool shellCmdkilled = false;
@@ -431,14 +433,9 @@ void shellDumpFieldToFile(TdFilePtr pFile, const char *val, TAOS_FIELD *field, i
       break;
     case TSDB_DATA_TYPE_BINARY:
       if (shellHasBinaryNonPrintable(val, length)) {
-        char *tmp = (char *)taosMemoryCalloc(1, 2 + length * 2 + 1);
+        char *tmp = shellAllocHexString(val, length);
         if (tmp == NULL) break;
-        tmp[0] = '0';
-        tmp[1] = 'x';
-        for (int32_t i = 0; i < length; i++) {
-          (void)sprintf(tmp + 2 + i * 2, "%02X", (unsigned char)val[i]);
-        }
-        taosFprintfFile(pFile, "%s", tmp);
+        taosFprintfFile(pFile, "%s%s%s", quotationStr, tmp, quotationStr);
         taosMemoryFree(tmp);
         break;
       }
@@ -565,33 +562,100 @@ static bool shellHasBinaryNonPrintable(const char *val, int32_t length) {
       return true;
     }
   }
+
+  int32_t pos = 0;
+  while (pos < length) {
+    TdWchar wc;
+    int32_t remain = length - pos;
+    int32_t bytes = taosMbToWchar(&wc, val + pos, TMIN(MB_CUR_MAX, remain));
+    if (bytes <= 0) {
+      return true;
+    }
+
+    if (pos + bytes > length) {
+      return true;
+    }
+
+    pos += bytes;
+  }
+
   return false;
 }
 
-static void shellPrintHex(const char *val, int32_t length, int32_t width) {
-  // "0x" prefix + 2 hex chars per byte
+static void shellHexEncode(char *dst, const char *val, int32_t length) {
+  static const char hexMap[] = "0123456789ABCDEF";
+
+  for (int32_t i = 0; i < length; i++) {
+    unsigned char c = (unsigned char)val[i];
+    dst[i * 2] = hexMap[c >> 4];
+    dst[i * 2 + 1] = hexMap[c & 0x0F];
+  }
+
+  dst[length * 2] = 0;
+}
+
+static char *shellAllocHexString(const char *val, int32_t length) {
   int32_t hexLen = 2 + length * 2;
-  char *hexBuf = (char *)taosMemoryCalloc(1, hexLen + 1);
-  if (hexBuf == NULL) return;
+  char   *hexBuf = (char *)taosMemoryCalloc(1, hexLen + 1);
+  if (hexBuf == NULL) {
+    return NULL;
+  }
 
   hexBuf[0] = '0';
   hexBuf[1] = 'x';
-  for (int32_t i = 0; i < length; i++) {
-    (void)sprintf(hexBuf + 2 + i * 2, "%02X", (unsigned char)val[i]);
+  shellHexEncode(hexBuf + 2, val, length);
+  return hexBuf;
+}
+
+static void shellPrintHex(const char *val, int32_t length, int32_t width) {
+  int32_t hexLen = 2 + length * 2;
+
+  if (width <= 0 || hexLen <= width) {
+    char *hexBuf = shellAllocHexString(val, length);
+    if (hexBuf == NULL) return;
+
+    if (width <= 0) {
+      (void)printf("%s", hexBuf);
+    } else {
+      (void)printf("%s%*.s", hexBuf, width - hexLen, "");
+    }
+    taosMemoryFree(hexBuf);
+    return;
   }
 
-  if (width <= 0) {
-    (void)printf("%s", hexBuf);
-  } else if (hexLen > width) {
-    if (width <= 3) {
-      (void)printf("%.*s.", width - 1, hexBuf);
-    } else {
-      (void)printf("%.*s...", width - 3, hexBuf);
-    }
-  } else {
-    (void)printf("%s%*.s", hexBuf, width - hexLen, "");
+  bool    useSingleDot = width <= 3;
+  int32_t prefixLen = useSingleDot ? (width - 1) : (width - 3);
+  if (prefixLen <= 0) {
+    (void)printf(useSingleDot ? "." : "...");
+    return;
   }
-  taosMemoryFree(hexBuf);
+
+  char *prefixBuf = (char *)taosMemoryCalloc(1, prefixLen + 1);
+  if (prefixBuf == NULL) return;
+
+  if (prefixLen >= 1) {
+    prefixBuf[0] = '0';
+  }
+  if (prefixLen >= 2) {
+    prefixBuf[1] = 'x';
+  }
+  if (prefixLen > 2) {
+    static const char hexMap[] = "0123456789ABCDEF";
+    int32_t           hexDigits = TMIN(prefixLen - 2, length * 2);
+    for (int32_t i = 0; i < hexDigits; i++) {
+      unsigned char c = (unsigned char)val[i / 2];
+      prefixBuf[2 + i] = (i % 2 == 0) ? hexMap[c >> 4] : hexMap[c & 0x0F];
+    }
+    prefixBuf[2 + hexDigits] = 0;
+  }
+
+  if (useSingleDot) {
+    (void)printf("%.*s.", prefixLen, prefixBuf);
+  } else {
+    (void)printf("%.*s...", prefixLen, prefixBuf);
+  }
+
+  taosMemoryFree(prefixBuf);
 }
 
 void shellPrintNChar(const char *str, int32_t length, int32_t width) {

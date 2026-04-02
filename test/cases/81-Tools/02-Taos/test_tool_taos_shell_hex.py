@@ -105,11 +105,26 @@ class TestTaosShellHex:
         tdLog.info("check hex display in file dump output")
 
         # non-printable -> hex in file
-        self.checkHexToFile("select char(3)", "0x03")
-        self.checkHexToFile("select char(1, 2, 3)", "0x010203")
+        self.checkHexToFile("select char(3)", '"0x03"')
+        self.checkHexToFile("select char(1, 2, 3)", '"0x010203"')
 
         # printable -> normal text in file
-        self.checkHexToFile("select char(65)", "A")
+        self.checkHexToFile("select char(65)", '"A"')
+
+    def checkInvalidMultibyteFallbackHex(self):
+        """Invalid multibyte BINARY should fall back to full hex output."""
+        tdLog.info("check invalid multibyte binary fallback to hex")
+
+        # single invalid high byte should not be truncated/blank
+        self.checkHexCommon("select char(255)", "0xFF")
+
+        # mixed ascii + invalid high byte should render full payload in hex
+        self.checkHexCommon("select char(99, 167)", "0x63A7")
+        self.checkHexCommon("select char(38, 236, 71)", "0x26EC47")
+
+        # fallback behavior should be consistent for file dump
+        self.checkHexToFile("select char(255)", '"0xFF"')
+        self.checkHexToFile("select char(99, 167)", '"0x63A7"')
 
     # run
     def test_tool_taos_shell_hex(self):
@@ -125,15 +140,10 @@ class TestTaosShellHex:
         4. Check multi-byte non-printable values show as hex
         5. Check mixed printable/non-printable shows entire value as hex
         6. Check hex display works in file dump output
-
-        Since: v3.0.0.0
-
-        Labels: common,ci
-
-        Jira: None
+        7. Check invalid multibyte bytes fallback to full hex
 
         History:
-            - 2025-07-15 Added hex display test for non-printable BINARY
+            - 2026-04-02 Added hex display test for non-printable BINARY
 
         """
         tdLog.debug(f"start to execute {__file__}")
@@ -150,3 +160,5 @@ class TestTaosShellHex:
         self.checkMixedPrintableNonPrintable()
         # file dump output
         self.checkHexFileOutput()
+        # invalid multibyte fallback
+        self.checkInvalidMultibyteFallbackHex()
