@@ -1,0 +1,87 @@
+name: Node.js Build
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        node-version: [16.x, 20.x]
+    steps:
+      - name: Build Tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake
+          sudo apt-get install -y python3 python3-pip python-is-python3
+
+      - name: Checkout TDengine
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          repository: "taosdata/TDengine"
+          path: "TDengine"
+          ref: "main"
+
+      - name: Install system dependencies
+        run: |
+          sudo apt update -y
+          sudo apt install -y build-essential cmake \
+            libgeos-dev libjansson-dev libsnappy-dev liblzma-dev libz-dev \
+            zlib1g pkg-config libssl-dev gawk
+
+      - name: Install TDengine
+        run: |
+          cd TDengine
+          mkdir debug
+          cd debug
+          cmake .. -DBUILD_HTTP=false -DBUILD_JDBC=false -DBUILD_TOOLS=false -DBUILD_TEST=off -DBUILD_DEPENDENCY_TESTS=false
+          make -j 4
+          sudo make install
+          which taosd
+          which taosadapter
+
+      - name: Start taosd
+        run: nohup sudo taosd &
+
+      - name: Start taosadapter
+        run: nohup sudo taosadapter &
+
+      - name: Checkout current repo
+        uses: actions/checkout@v4
+        with:
+          path: "nodejs-connector"
+          clean: true
+          set-safe-directory: true
+
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Run tests
+        working-directory: nodejs-connector/nodejs
+        env:
+          TDENGINE_CLOUD_URL: ${{ secrets.TDENGINE_CLOUD_URL }}
+          TDENGINE_CLOUD_TOKEN: ${{ secrets.TDENGINE_CLOUD_TOKEN }}
+          TDENGINE_TEST_USERNAME: ${{ secrets.TDENGINE_TEST_USERNAME }}
+          TDENGINE_TEST_PASSWORD: ${{ secrets.TDENGINE_TEST_PASSWORD }}
+        run: |
+          ls -al
+          npm install
+          npm list
+          npm run example
+          npm run test
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          fail_ci_if_error: false
+          files: coverage/lcov.info
+          verbose: true
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}

@@ -1,0 +1,59 @@
+name: Node.js Compatibility
+
+on:
+  push:
+    branches:
+      - "main"
+      - "3.0"
+  pull_request:
+    branches:
+      - "main"
+      - "3.0"
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        node-version: [16.x, 20.x]
+    steps:
+      - name: Get TDengine
+        run: wget https://github.com/taosdata/TDengine/releases/download/ver-3.3.6.0/TDengine-server-3.3.6.0-Linux-x64.tar.gz
+
+      - name: Install TDengine
+        run: |
+          tar -zxf TDengine-server-3.3.6.0-Linux-x64.tar.gz
+          rm -rf TDengine-server-3.3.6.0-Linux-x64.tar.gz
+          cd TDengine-server-3.3.6.0
+          sudo ./install.sh -e no
+
+      - name: Start TDengine
+        run: |
+          nohup sudo taosd &
+          nohup sudo taosadapter &
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          path: "nodejs-connector"
+          clean: true
+          set-safe-directory: true
+
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Run tests
+        working-directory: nodejs-connector/nodejs
+        env:
+          TDENGINE_CLOUD_URL: ${{ secrets.TDENGINE_CLOUD_URL }}
+          TDENGINE_CLOUD_TOKEN: ${{ secrets.TDENGINE_CLOUD_TOKEN }}
+          TDENGINE_TEST_USERNAME: ${{ secrets.TDENGINE_TEST_USERNAME }}
+          TDENGINE_TEST_PASSWORD: ${{ secrets.TDENGINE_TEST_PASSWORD }}
+          TEST_3360: true
+        run: |
+          npm install
+          npm list
+          npm run example
+          npm run test

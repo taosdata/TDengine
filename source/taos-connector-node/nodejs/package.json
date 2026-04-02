@@ -1,0 +1,64 @@
+{
+  "name": "@tdengine/websocket",
+  "version": "3.3.0",
+  "description": "The websocket Node.js connector for TDengine. TDengine versions 3.3.2.0 and above are recommended to use this connector.",
+  "source": "index.ts",
+  "main": "lib/index.js",
+  "module": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "directories": {
+    "example": "example",
+    "test": "test"
+  },
+  "scripts": {
+    "test": "jest --coverage --coverageDirectory=../coverage",
+    "example": "tsc && node lib/example/basicSql.js",
+    "build": "tsc",
+    "prepublish": "node ./prepare.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/taosdata/taos-connector-node.git"
+  },
+  "keywords": [
+    "taosdata",
+    "taos",
+    "IOT",
+    "TypeScript",
+    "TDengine",
+    "database"
+  ],
+  "author": "TaosData Inc.",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/taosdata/taos-connector-node/issues"
+  },
+  "files": [
+    "lib"
+  ],
+  "homepage": "https://github.com/taosdata/taos-connector-node#readme",
+  "dependencies": {
+    "async-mutex": "^0.5.0",
+    "json-bigint": "^1.0.0",
+    "moment-timezone": "^0.5.45",
+    "typescript": "^5.3.3",
+    "uuid": "^9.0.1",
+    "websocket": "^1.0.34",
+    "winston": "^3.17.0",
+    "winston-daily-rotate-file": "^5.0.0"
+  },
+  "devDependencies": {
+    "@parcel/packager-ts": "^2.7.0",
+    "@parcel/transformer-typescript-types": "^2.7.0",
+    "@types/jest": "^29.2.1",
+    "@types/json-bigint": "^1.0.1",
+    "@types/node": "^18.0.0",
+    "@types/uuid": "^9.0.8",
+    "@types/websocket": "^1.0",
+    "jest": "^29.7.0",
+    "parcel": "^2.7.0",
+    "qingwa": "^1.0.7",
+    "ts-jest": "^29.0.3",
+    "typescript": "^5.3.3"
+  }
+}
