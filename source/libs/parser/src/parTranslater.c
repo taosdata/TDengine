@@ -15663,6 +15663,19 @@ static int32_t translateCompactDb(STranslateContext* pCxt, SCompactDatabaseStmt*
   return code;
 }
 
+static int32_t translateReloadLastCache(STranslateContext* pCxt, SReloadLastCacheStmt* pStmt) {
+  if (!pCxt->pParseCxt->enableSysInfo) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_PERMISSION_DENIED,
+                                   "Only sysinfo users can execute RELOAD LAST CACHE");
+  }
+  if (pStmt->dbName[0] != '\0') {
+    SDbCfgInfo dbCfg = {0};
+    int32_t    code = getDBCfg(pCxt, pStmt->dbName, &dbCfg);
+    if (TSDB_CODE_SUCCESS != code) return code;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 #ifdef TD_ENTERPRISE
 static int32_t translateRollupAdjustTimeRange(STranslateContext* pCxt, const char* dbName, STrimDbReq* req) {
   int32_t    code = TSDB_CODE_SUCCESS;
@@ -20940,6 +20953,17 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
       break;
     case QUERY_NODE_DROP_XNODE_AGENT_STMT:
       code = translateDropXnodeAgent(pCxt, (SDropXnodeAgentStmt*)pNode);
+      break;
+    case QUERY_NODE_RELOAD_LAST_CACHE_STMT:
+      code = translateReloadLastCache(pCxt, (SReloadLastCacheStmt*)pNode);
+      break;
+    case QUERY_NODE_SHOW_RELOADS_STMT:
+    case QUERY_NODE_SHOW_RELOAD_STMT:
+    case QUERY_NODE_DROP_RELOAD_STMT:
+      if (!pCxt->pParseCxt->enableSysInfo) {
+        code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_PERMISSION_DENIED,
+                                       "Only sysinfo users can execute this command");
+      }
       break;
     default:
       break;

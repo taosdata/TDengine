@@ -4140,12 +4140,11 @@ _err:
 
 SNode* createShowReloadsStmt(SAstCreateContext* pCxt) {
   CHECK_PARSER_STATUS(pCxt);
-  SNode* pStmt = NULL;
+  SShowReloadsStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_SHOW_RELOADS_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
-  return pStmt;
+  return (SNode*)pStmt;
 _err:
-  nodesDestroyNode(pStmt);
   return NULL;
 }
 
