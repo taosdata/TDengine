@@ -1,0 +1,20 @@
+{
+    "filetype": "query",
+    "cfgdir": "/etc/taos",
+    "host": "HOST",
+    "port": PORT,
+    "rest_port": 6041,
+    "user": "root",
+    "password": "taosdata",
+    "confirm_parameter_prompt": "no",
+    "query_times": QUERYTIMES,
+    "query_mode": "taosc",
+    "specified_table_query": {
+        "mixed_query": "yes",
+        "query_interval": 0,
+        "concurrent": QUERYCONCURRENCY,
+        "sql_file": "QUERYSQLFILE",
+        "sqls": [
+        ]
+     }
+}

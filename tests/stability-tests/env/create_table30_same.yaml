@@ -1,0 +1,75 @@
+settings:
+  - name: taosd
+    fqdn: [cs219]
+    spec:
+      version: 3.0.0.0  # 默认最新版
+      config: # common config for all dnodes
+        firstEP: cs219:6030
+      dnodes:
+        - host_port: cs219:6030
+          endpoint: cs219:6030
+          config_dir: /etc/taos6030
+          config: # will write into taos.cfg
+            dataDir: /data/lib/taos6030
+            logDir: /data/log/taos6030
+            debugFlag: 135
+        - host_port: cs219:6040
+          endpoint: cs219:6040
+          config_dir: /etc/taos6040
+          config: # will write into taos.cfg
+            dataDir: /data/lib/taos6040
+            logDir: /data/log/taos6040
+            debugFlag: 135
+        - host_port: cs219:6041
+          endpoint: cs219:6041
+          config_dir: /etc/taos6041
+          config: # will write into taos.cfg
+            dataDir: /data/lib/taos6041
+            logDir: /data/log/taos6041
+            debugFlag: 135
+
+  - name: taospy
+    fqdn: [cs219]
+    spec:
+      version: 2.2.0
+      client_version: 2.4.0.0
+      config:
+        firstEP: cs219:6030
+        logDir: /var/log/taos
+        debugFlag: 135
+
+  - name: create_table_tool
+    fqdn: [k8smaster, k8sslave, node223]
+    spec:
+      config:
+        - fqdn: [k8smaster, k8sslave]
+          config_dir: /etc/taos
+          db_name: db
+          stb_name: stb
+          thread_count: 1
+          table_count: 10000
+          start_offset: 0
+          vgroup_count: 2
+          create_table: 1
+          insert_data: 0
+          batch_of_tbl: 100
+          show_tables_flag: 0
+          query_flag: 0
+          batch_of_row: 1
+          total_rows_of_per_tbl: 1
+          taos_config:
+            firstEP: cs219:6030
+            dataDir: /var/lib/taos
+            logDir: /var/log/taos
+            debugFlag: 135
+        - fqdn: [node233]
+          config_dir: /etc/taos
+          thread_count: 1
+          table_count: 10000
+          vgroup_count: 2
+          batch_of_tbl: 100
+          taos_config:
+            firstEP: cs219:6030
+            dataDir: /var/lib/taos
+            logDir: /var/log/taos
+            debugFlag: 135

@@ -1,0 +1,83 @@
+{
+    "filetype": "insert",
+    "cfgdir": "/etc/taos",
+    "host": "TS-5817-1",
+    "port": 6030,
+    "user": "root",
+    "password": "taosdata",
+    "connection_pool_size": 8,
+    "thread_count": 16,
+    "create_table_thread_count": 8,
+    "result_file": "./insert_res.txt",
+    "confirm_parameter_prompt": "no",
+    "num_of_records_per_req": 100,
+    "prepared_rand": 30000,
+    "chinese": "no",
+    "escape_character": "yes",
+    "continue_if_fail": "no",
+    "databases": [
+        {
+            "dbinfo": {
+                "name": "test",
+                "drop": "no",
+                "vgroups": 24,
+                "precision": "ms",
+		"buffer": 1024,
+		"cachesize": 1,
+		"comp": 2,
+		"duration":"1440m",
+		"WAL_FSYNC_PERIOD": 3000,
+		"STT_TRIGGER": 1,
+		"keep": "3650d",
+		"pages": 256,
+		"pagesize": 4,
+		"wal_level": 1,
+		"single_stable": 0,
+		"TABLE_PREFIX": 0,
+		"TABLE_SUFFIX": 0,
+		"TSDB_PAGESIZE": 4,
+		"WAL_RETENTION_PERIOD": 0,
+		"WAL_RETENTION_SIZE": 0,
+		"replica": 3
+            },
+            "super_tables": [
+                {
+                    "name": "stb",
+                    "child_table_exists": "yes",
+                    "childtable_count": 160000,
+                    "childtable_prefix": "t1_",
+                    "auto_create_table": "no",
+                    "batch_create_tbl_num": 1,
+                    "data_source": "rand",
+                    "insert_mode": "sml-rest",
+                    "non_stop_mode": "no",
+                    "line_protocol": "line",
+                    "insert_rows": 10000000,
+                    "childtable_limit": 0,
+                    "childtable_offset": 0,
+                    "interlace_rows": 1,
+                    "insert_interval": 0,
+                    "partial_col_num": 0,
+                    "timestamp_step": 1000,
+                    "start_timestamp": "2024-01-02 00:00:00.000",
+                    "sample_format": "csv",
+                    "sample_file": "./sample.csv",
+                    "use_sample_ts": "no",
+                    "tags_file": "",
+                    "columns": [
+                        {"type": "VARCHAR", "len": 16, "count": 3 },
+                        {"type": "VARCHAR", "len": 4, "count": 1 },
+                        {"type": "VARCHAR", "len": 1, "count": 1 },
+                        { "type": "BIGINT", "count": 5},
+                        { "type": "BOOL", "count": 5},
+                        { "type": "DOUBLE", "count": 71}
+                    ],
+                    "tags": [
+                        {"type": "NCHAR", "len": 16}
+                    ]
+                }
+            ]
+        }
+    ]
+}
+

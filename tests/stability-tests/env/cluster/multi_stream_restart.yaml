@@ -1,0 +1,66 @@
+settings:
+  - name: taosd
+    fqdn: [ceph01, node221, node222]
+    spec:
+      version: 3.3.5.0  # 默认最新版
+      config: # common config for all dnodes
+        firstEP: ceph01:6030
+      dnodes:
+        - endpoint: ceph01:6030
+          config_dir: /etc/taos
+          code_dir: /root/TDengine
+          update_branch: main
+          config: # will write into taos.cfg
+            dataDir: /var/lib/taos
+            logDir: /var/log/taos
+            mDebugFlag: 135
+            tqDebugFlag: 131
+            stDebugFlag: 131
+            supportVnodes: 1024
+            asynclog: 0
+        - endpoint: node221:6030
+          config_dir: /etc/taos
+          code_dir: /root/TDengine
+          update_branch: main
+          config: # will write into taos.cfg
+            dataDir: /var/lib/taos
+            logDir: /var/log/taos
+            mDebugFlag: 135
+            tqDebugFlag: 131
+            stDebugFlag: 131
+            supportVnodes: 1024
+            asynclog: 0
+        - endpoint: node222:6030
+          config_dir: /etc/taos
+          code_dir: /root/TDengine
+          update_branch: main
+          config: # will write into taos.cfg
+            dataDir: /var/lib/taos
+            logDir: /var/log/taos
+            mDebugFlag: 135
+            tqDebugFlag: 131
+            stDebugFlag: 131
+            supportVnodes: 1024
+            asynclog: 0
+  - name: taospy
+    fqdn: [ceph01]
+    spec:
+      version: 3.3.5.0
+      client_version: 3.3.5.0
+      config:
+        firstEP: ceph01:6030
+        logDir: /var/log/taos
+        debugFlag: 131
+        asyncLog: 0
+        maxQueryTimeRange: 3
+
+  - name: taosBenchmark
+    fqdn: [node221, node222, ceph01, node221, node222]
+    spec:
+      version: 3.3.5.0
+      taos_version: 3.3.5.0
+      config_dir: /etc/taos
+      taos_config:
+        firstEP: ceph01:6030
+        logDir: /var/log/taos
+        debugFlag: 131

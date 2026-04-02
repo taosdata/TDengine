@@ -1,0 +1,3 @@
+#####
+# taostest --use=common_insert.yaml --case=Performance/Insert/perf_test.py --keep  --case-param="\"--insert-tmpl-file=cases/Performance/Insert/meters.json --insert-cfg-file=cases/Performance/Insert/mode_sml_telnet.cfg --key=CHILDTABLECOUNT=2500 --concurrency=4\"" --containers
+taostest --containers --use=common_insert.yaml --case=stability/insert/insert_test_pro.py --keep --case-param="\"--insert-tmpl-file=cases/Performance/Insert/meters.json --insert-cfg-file=cases/Performance/Insert/mode_sml_telnet.cfg --key CHILDTABLECOUNT=2500 --key DROPENABLE=no --key INSERTROWS=10000 --check-performance --concurrency 4 --pre-create-db --check-result\""

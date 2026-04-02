@@ -1,0 +1,23 @@
+settings:
+  - name: taosd
+    fqdn: [BCC-2]
+    spec:
+      version: 3.0.0.0  # 默认最新版
+      config: # common config for all dnodes
+        firstEP: BCC-2:6030
+      dnodes:
+        - endpoint: BCC-2:6030
+          config_dir: /data/var/3.0/dnode1/
+          config: # will write into taos.cfg
+            dataDir: /data/var/3.0/dnode1/
+            logDir: /data/var/3.0/dnode1/
+            debugFlag: 135
+  - name: taospy
+    fqdn: [BCC-2]
+    spec:
+      version: 2.2.0
+      client_version: 3.0.0.0
+      config:
+        firstEP: BCC-2:6030
+        logDir: /var/3.0/log/taos
+        debugFlag: 135

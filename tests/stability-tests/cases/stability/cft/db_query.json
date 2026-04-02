@@ -1,0 +1,36 @@
+{
+	"filetype": "query",
+	"cfgdir": "/root/charles/node1",
+	"host": "u1-35",
+	"port": 6130,
+	"user": "root",
+	"password": "taosdata",
+	"confirm_parameter_prompt": "no",
+    "continue_if_fail": "yes",
+	"databases": "stability_db",
+	"result_file": "./query_res.txt",
+	"query_times": 2,
+	"query_mode": "taosc",
+	"specified_table_query": {
+		"query_interval": 1,
+		"concurrent": 4,
+		"sqls": [
+			{
+				"sql": "select count(*) from ct_0",
+				"result": "./query_ctable_count.txt"
+			},
+            {
+				"sql": "select last(*) from ct_1",
+				"result": "./query_ctable_last.txt"
+			},
+			{
+				"sql": "select last(ts) from st_common",
+				"result": "./query_stable_last.txt"
+			},
+            {
+				"sql": "select last_row(*) from st_common",
+				"result": "./query_stable_last_row.txt"
+			}
+		]
+	}
+}
