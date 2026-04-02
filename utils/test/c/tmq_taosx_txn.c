@@ -15,6 +15,12 @@
  *   scenario 3: CREATE STB → ALTER STB → COMMIT → verify target has altered STB
  *   scenario 4: CREATE STB → DROP STB → COMMIT → verify target has no STB
  *   scenario 5: Idempotent COMMIT (replay COMMIT twice)
+ *   scenario 6: CREATE CTBs + ALTER child tag + COMMIT
+ *   scenario 7: CREATE CTBs + DROP child + COMMIT
+ *   scenario 8: CREATE normal table + ALTER + COMMIT
+ *   scenario 9: CREATE normal table + DROP + COMMIT
+ *   scenario 10: Mixed STB + CTB + normal table + COMMIT
+ *   scenario 11: Multi-VGroup (2 VGs): STB + 10 CTBs + 2 NTBs + COMMIT
  */
 
 #include <assert.h>
@@ -95,8 +101,12 @@ static void setup_source(int scenario) {
   do_query(taos, "drop topic if exists " TOPIC_NAME);
   do_query(taos, "drop database if exists " SRC_DB);
   do_query(taos, "drop database if exists " DST_DB);
-  do_query(taos, "create database " SRC_DB " vgroups 1 wal_retention_period 3600");
-  do_query(taos, "create database " DST_DB " vgroups 1");
+  int  vgroups = (scenario == 11) ? 2 : 1;
+  char sql[256];
+  snprintf(sql, sizeof(sql), "create database " SRC_DB " vgroups %d wal_retention_period 3600", vgroups);
+  do_query(taos, sql);
+  snprintf(sql, sizeof(sql), "create database " DST_DB " vgroups %d", vgroups);
+  do_query(taos, sql);
   do_query(taos, "use " SRC_DB);
 
   // Create TMQ topic before any DDL (to capture all WAL entries)
@@ -142,6 +152,65 @@ static void setup_source(int scenario) {
       do_query(taos, "create table stb1 (ts timestamp, v int) tags (t1 int)");
       do_query(taos, "create table ct1 using stb1 tags(1)");
       do_query(taos, "create table ct2 using stb1 tags(2)");
+      do_query(taos, "COMMIT");
+      break;
+    }
+    case 6: {
+      // CREATE STB + child tables → ALTER child table tag → COMMIT
+      do_query(taos, "create table stb1 (ts timestamp, v int) tags (t1 int)");
+      do_query(taos, "BEGIN");
+      do_query(taos, "create table ct1 using stb1 tags(1)");
+      do_query(taos, "create table ct2 using stb1 tags(2)");
+      do_query(taos, "alter table ct1 set tag t1=100");
+      do_query(taos, "COMMIT");
+      break;
+    }
+    case 7: {
+      // CREATE STB + child tables → DROP child table → COMMIT
+      do_query(taos, "create table stb1 (ts timestamp, v int) tags (t1 int)");
+      do_query(taos, "BEGIN");
+      do_query(taos, "create table ct1 using stb1 tags(1)");
+      do_query(taos, "create table ct2 using stb1 tags(2)");
+      do_query(taos, "drop table ct1");
+      do_query(taos, "COMMIT");
+      break;
+    }
+    case 8: {
+      // CREATE normal table → ALTER add column → COMMIT
+      do_query(taos, "BEGIN");
+      do_query(taos, "create table ntb1 (ts timestamp, v int)");
+      do_query(taos, "alter table ntb1 add column c2 float");
+      do_query(taos, "COMMIT");
+      break;
+    }
+    case 9: {
+      // CREATE normal table → DROP → COMMIT
+      do_query(taos, "BEGIN");
+      do_query(taos, "create table ntb1 (ts timestamp, v int)");
+      do_query(taos, "drop table ntb1");
+      do_query(taos, "COMMIT");
+      break;
+    }
+    case 10: {
+      // Mixed: CREATE STB + CTBs + normal table → COMMIT
+      do_query(taos, "BEGIN");
+      do_query(taos, "create table stb1 (ts timestamp, v int) tags (t1 int)");
+      do_query(taos, "create table ct1 using stb1 tags(1)");
+      do_query(taos, "create table ntb1 (ts timestamp, v int)");
+      do_query(taos, "COMMIT");
+      break;
+    }
+    case 11: {
+      // Multi-VGroup: create enough tables to spread across vgroups=2
+      do_query(taos, "BEGIN");
+      do_query(taos, "create table stb1 (ts timestamp, v int) tags (t1 int)");
+      for (int i = 0; i < 10; i++) {
+        char ddl[256];
+        snprintf(ddl, sizeof(ddl), "create table ct%d using stb1 tags(%d)", i, i);
+        do_query(taos, ddl);
+      }
+      do_query(taos, "create table ntb1 (ts timestamp, v int)");
+      do_query(taos, "create table ntb2 (ts timestamp, v int)");
       do_query(taos, "COMMIT");
       break;
     }
@@ -275,6 +344,62 @@ static int verify_scenario(int scenario) {
       if (tbl_count != 2) pass = 0;
       break;
     }
+    case 6: {
+      int stb_count = query_rows(dst, "show " DST_DB ".stables");
+      printf("verify s6: stables=%d (expected 1)\n", stb_count);
+      if (stb_count != 1) pass = 0;
+
+      int tbl_count = query_rows(dst, "show " DST_DB ".tables");
+      printf("verify s6: tables=%d (expected 2)\n", tbl_count);
+      if (tbl_count != 2) pass = 0;
+      break;
+    }
+    case 7: {
+      int stb_count = query_rows(dst, "show " DST_DB ".stables");
+      printf("verify s7: stables=%d (expected 1)\n", stb_count);
+      if (stb_count != 1) pass = 0;
+
+      int tbl_count = query_rows(dst, "show " DST_DB ".tables");
+      printf("verify s7: tables=%d (expected 1)\n", tbl_count);
+      if (tbl_count != 1) pass = 0;
+      break;
+    }
+    case 8: {
+      int tbl_count = query_rows(dst, "show " DST_DB ".tables");
+      printf("verify s8: tables=%d (expected 1)\n", tbl_count);
+      if (tbl_count != 1) pass = 0;
+
+      int col_count = query_rows(dst, "describe " DST_DB ".ntb1");
+      printf("verify s8: columns=%d (expected 3)\n", col_count);
+      if (col_count != 3) pass = 0;
+      break;
+    }
+    case 9: {
+      int tbl_count = query_rows(dst, "show " DST_DB ".tables");
+      printf("verify s9: tables=%d (expected 0)\n", tbl_count);
+      if (tbl_count != 0) pass = 0;
+      break;
+    }
+    case 10: {
+      int stb_count = query_rows(dst, "show " DST_DB ".stables");
+      printf("verify s10: stables=%d (expected 1)\n", stb_count);
+      if (stb_count != 1) pass = 0;
+
+      int tbl_count = query_rows(dst, "show " DST_DB ".tables");
+      printf("verify s10: tables=%d (expected 2)\n", tbl_count);
+      if (tbl_count != 2) pass = 0;
+      break;
+    }
+    case 11: {
+      int stb_count = query_rows(dst, "show " DST_DB ".stables");
+      printf("verify s11: stables=%d (expected 1)\n", stb_count);
+      if (stb_count != 1) pass = 0;
+
+      int tbl_count = query_rows(dst, "show " DST_DB ".tables");
+      printf("verify s11: tables=%d (expected 12)\n", tbl_count);
+      if (tbl_count != 12) pass = 0;
+      break;
+    }
     default:
       printf("Unknown scenario: %d\n", scenario);
       pass = 0;
@@ -300,6 +425,12 @@ int main(int argc, char *argv[]) {
     printf("  3: CREATE STB + ALTER STB + COMMIT\n");
     printf("  4: CREATE STB + DROP STB + COMMIT\n");
     printf("  5: Idempotent COMMIT (replay)\n");
+    printf("  6: CREATE CTBs + ALTER child tag + COMMIT\n");
+    printf("  7: CREATE CTBs + DROP child + COMMIT\n");
+    printf("  8: CREATE normal table + ALTER + COMMIT\n");
+    printf("  9: CREATE normal table + DROP + COMMIT\n");
+    printf("  10: Mixed STB + CTB + normal table + COMMIT\n");
+    printf("  11: Multi-VGroup: STB + 10 CTBs + 2 NTBs + COMMIT\n");
     return 1;
   }
 

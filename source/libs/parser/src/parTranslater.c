@@ -864,16 +864,19 @@ static int32_t getTableCfg(STranslateContext* pCxt, const SName* pName, STableCf
           STableCfg*  pTmpCfg = taosMemoryCalloc(1, sizeof(STableCfg));
           if (pTmpCfg) {
             tstrncpy(pTmpCfg->tbName, pName->tname, TSDB_TABLE_NAME_LEN);
-            tstrncpy(pTmpCfg->dbFName, fullName, TSDB_DB_FNAME_LEN);
+            (void)tNameGetFullDbName(pName, pTmpCfg->dbFName);
             pTmpCfg->tableType = pMeta->tableType;
             pTmpCfg->numOfColumns = pMeta->tableInfo.numOfColumns;
             pTmpCfg->numOfTags = pMeta->tableInfo.numOfTags;
             int32_t total = pMeta->tableInfo.numOfColumns + pMeta->tableInfo.numOfTags;
             if (total > 0) {
               pTmpCfg->pSchemas = taosMemoryMalloc(sizeof(SSchema) * total);
-              if (pTmpCfg->pSchemas) {
-                memcpy(pTmpCfg->pSchemas, pMeta->schema, sizeof(SSchema) * total);
+              if (pTmpCfg->pSchemas == NULL) {
+                taosMemoryFree(pTmpCfg);
+                code = terrno;
+                goto end;
               }
+              memcpy(pTmpCfg->pSchemas, pMeta->schema, sizeof(SSchema) * total);
             }
             if (pMeta->tableInfo.numOfColumns > 0) {
               pTmpCfg->pSchemaExt = taosMemoryCalloc(pMeta->tableInfo.numOfColumns, sizeof(SSchemaExt));
@@ -908,16 +911,19 @@ static int32_t getTableCfg(STranslateContext* pCxt, const SName* pName, STableCf
           STableCfg*  pTmpCfg = taosMemoryCalloc(1, sizeof(STableCfg));
           if (pTmpCfg) {
             tstrncpy(pTmpCfg->tbName, pName->tname, TSDB_TABLE_NAME_LEN);
-            tstrncpy(pTmpCfg->dbFName, fullName, TSDB_DB_FNAME_LEN);
+            (void)tNameGetFullDbName(pName, pTmpCfg->dbFName);
             pTmpCfg->tableType = pMeta->tableType;
             pTmpCfg->numOfColumns = pMeta->tableInfo.numOfColumns;
             pTmpCfg->numOfTags = pMeta->tableInfo.numOfTags;
             int32_t total = pMeta->tableInfo.numOfColumns + pMeta->tableInfo.numOfTags;
             if (total > 0) {
               pTmpCfg->pSchemas = taosMemoryMalloc(sizeof(SSchema) * total);
-              if (pTmpCfg->pSchemas) {
-                memcpy(pTmpCfg->pSchemas, pMeta->schema, sizeof(SSchema) * total);
+              if (pTmpCfg->pSchemas == NULL) {
+                taosMemoryFree(pTmpCfg);
+                code = terrno;
+                goto end;
               }
+              memcpy(pTmpCfg->pSchemas, pMeta->schema, sizeof(SSchema) * total);
             }
             if (pMeta->tableInfo.numOfColumns > 0) {
               pTmpCfg->pSchemaExt = taosMemoryCalloc(pMeta->tableInfo.numOfColumns, sizeof(SSchemaExt));
@@ -930,6 +936,7 @@ static int32_t getTableCfg(STranslateContext* pCxt, const SName* pName, STableCf
     }
   }
 
+end:
   if (TSDB_CODE_SUCCESS != code) {
     parserError("QID:0x%" PRIx64 ", catalogRefreshGetTableCfg error, code:%s, dbName:%s, tbName:%s",
                 pCxt->pParseCxt->requestId, tstrerror(code), pName->dbname, pName->tname);

@@ -1720,8 +1720,12 @@ static int32_t taosDropTable(TAOS* taos, void* meta, uint32_t metaLen) {
     if (pDropReq->txnId > 0 && !TXN_IS_REPLICATED(pDropReq->txnId)) {
       pDropReq->txnId = TXN_SET_REPLICATED(pDropReq->txnId);
     }
-    // §35: ensure mnode txn exists for all DDL (not just STB)
+    // §35: thread replicated txnId into catalog lookups so VNode returns
+    // PRE_CREATE entries for same-txn DROP (otherwise catalogGetTableMeta
+    // returns TABLE_NOT_EXIST and the DROP is silently skipped)
     if (pDropReq->txnId != 0) {
+      conn.txnId = pDropReq->txnId;
+      // §35: ensure mnode txn exists for all DDL (not just STB)
       int32_t mcode = taosTxnEnsureMnodeBegin(taos, pDropReq->txnId);
       if (mcode != 0) {
         code = mcode;
@@ -1888,6 +1892,11 @@ static int32_t taosAlterTable(TAOS* taos, void* meta, uint32_t metaLen) {
                            .requestId = pRequest->requestId,
                            .requestObjRefId = pRequest->self,
                            .mgmtEps = getEpSet_s(&pTscObj->pAppInfo->mgmtEp)};
+  // §35: thread replicated txnId into catalog lookups so VNode returns
+  // PRE_CREATE entries for same-txn ALTER
+  if (req.txnId != 0) {
+    conn.txnId = req.txnId;
+  }
 
   // Handle Type 1 batch modification with vnode grouping
   if (req.action == TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL) {

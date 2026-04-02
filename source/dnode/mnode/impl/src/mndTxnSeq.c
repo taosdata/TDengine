@@ -129,6 +129,8 @@ static int32_t triggerAllocateTxnSeq(SMnode *pMnode, utxn_id_t nextRangeId, bool
   mInfo("txnSeq, triggered allocation of txn seq with nextRangeId:%" PRIu64, nextRangeId);
 _exit:
   if (code < 0) {
+    // Reset alloc flag on error so future allocations are not permanently blocked
+    atomic_store_8(&pMnode->txnMgmt.txnSeqInAlloc, 0);
     mError("failed at line %d to allocate txn seq since %s", lino, tstrerror(code));
   }
   TAOS_RETURN(code);

@@ -146,6 +146,60 @@ class TestTaosxTxn:
         tdLog.info("s5 PASSED")
 
     # =========================================================================
+    # s6: CREATE STB + CTBs → ALTER child tag → COMMIT
+    # =========================================================================
+    def s6_alter_ctb_commit(self):
+        self.s0_cleanup()
+        tdLog.info("======== s6: CREATE CTBs → ALTER child tag → COMMIT")
+        _run_scenario(6)
+        tdLog.info("s6 PASSED")
+
+    # =========================================================================
+    # s7: CREATE STB + CTBs → DROP child → COMMIT
+    # =========================================================================
+    def s7_drop_ctb_commit(self):
+        self.s0_cleanup()
+        tdLog.info("======== s7: CREATE CTBs → DROP child → COMMIT")
+        _run_scenario(7)
+        tdLog.info("s7 PASSED")
+
+    # =========================================================================
+    # s8: CREATE normal table → ALTER → COMMIT
+    # =========================================================================
+    def s8_alter_ntb_commit(self):
+        self.s0_cleanup()
+        tdLog.info("======== s8: CREATE normal table → ALTER → COMMIT")
+        _run_scenario(8)
+        tdLog.info("s8 PASSED")
+
+    # =========================================================================
+    # s9: CREATE normal table → DROP → COMMIT
+    # =========================================================================
+    def s9_drop_ntb_commit(self):
+        self.s0_cleanup()
+        tdLog.info("======== s9: CREATE normal table → DROP → COMMIT")
+        _run_scenario(9)
+        tdLog.info("s9 PASSED")
+
+    # =========================================================================
+    # s10: Mixed STB + CTB + normal table → COMMIT
+    # =========================================================================
+    def s10_mixed_commit(self):
+        self.s0_cleanup()
+        tdLog.info("======== s10: Mixed STB+CTB+NTB → COMMIT")
+        _run_scenario(10)
+        tdLog.info("s10 PASSED")
+
+    # =========================================================================
+    # s11: Multi-VGroup (2 VGroups)
+    # =========================================================================
+    def s11_multi_vgroup(self):
+        self.s0_cleanup()
+        tdLog.info("======== s11: Multi-VGroup STB+10CTBs+2NTBs → COMMIT")
+        _run_scenario(11)
+        tdLog.info("s11 PASSED")
+
+    # =========================================================================
     # Entry point
     # =========================================================================
     def test_taosx_txn(self):
@@ -172,3 +226,9 @@ class TestTaosxTxn:
         self.s3_alter_stb_commit()
         self.s4_drop_stb_commit()
         self.s5_idempotent_commit()
+        self.s6_alter_ctb_commit()
+        self.s7_drop_ctb_commit()
+        self.s8_alter_ntb_commit()
+        self.s9_drop_ntb_commit()
+        self.s10_mixed_commit()
+        self.s11_multi_vgroup()

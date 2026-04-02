@@ -499,6 +499,17 @@ void destroyTscObj(void *pObj) {
 
   taosArrayDestroy(pTscObj->pTxnVgList);
   pTscObj->pTxnVgList = NULL;
+  // §34.2 #2: clean up pTxnTableMeta if connection closes with active txn
+  if (pTscObj->pTxnTableMeta) {
+    void *pIter = taosHashIterate(pTscObj->pTxnTableMeta, NULL);
+    while (pIter) {
+      STableMeta **ppMeta = (STableMeta **)pIter;
+      taosMemoryFreeClear(*ppMeta);
+      pIter = taosHashIterate(pTscObj->pTxnTableMeta, pIter);
+    }
+    taosHashCleanup(pTscObj->pTxnTableMeta);
+    pTscObj->pTxnTableMeta = NULL;
+  }
   (void)taosThreadMutexDestroy(&pTscObj->mutex);
   taosMemoryFree(pTscObj);
 
