@@ -11,9 +11,6 @@
 
 # -*- coding: utf-8 -*-
 
-import sys
-import time
-
 import taos
 from util.log import *
 from util.cases import *

@@ -3048,6 +3048,7 @@ int32_t tsdbReloadLastCache(STsdb *pTsdb, SArray *pUids, SArray *pCids, int8_t c
       int32_t resumeCode = metaResumeTbCursor(pTbCur, 0, 1);
       if (resumeCode != 0) {
         tsdbWarn("vgId:%d, %s resume cursor failed since %s", TD_VID(pTsdb->pVnode), __func__, tstrerror(resumeCode));
+        code = resumeCode;
         break;
       }
 
