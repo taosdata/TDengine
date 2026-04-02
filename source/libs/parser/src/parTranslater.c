@@ -17076,8 +17076,15 @@ static int32_t createStreamCheckOutCols(STranslateContext* pCxt, SNodeList* pCol
 
     if (pColDef->dataType.type != pMeta->schema[colIndex].type ||
         pColDef->dataType.bytes != pMeta->schema[colIndex].bytes || pColDef->dataType.scale != scale ||
-        pColDef->dataType.precision != precision) {
+        (pColDef->dataType.precision != precision && IS_DECIMAL_TYPE(pColDef->dataType.type))) {
       code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_OUT_TABLE, "Out table cols type mismatch");
+      goto _return;
+    }
+
+    if (pColDef->dataType.type == TSDB_DATA_TYPE_TIMESTAMP &&
+        pColDef->dataType.precision != pMeta->tableInfo.precision) {
+      code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_OUT_TABLE,
+                                     "Out table cols timestamp precision mismatch");
       goto _return;
     }
 
