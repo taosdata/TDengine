@@ -130,13 +130,13 @@ class TestFuncToTimestamp:
         self.convert_ts_and_check('23-1-01 7:10:10.123p.m.6', 'yy-MM-dd HH:MI:ss.msa.m.TZH', '23-01-01 09:10:10.123p.m.+08', '2023-1-1 21:10:10.123000')
 
         # TZ format: full timezone with hour and minute (+HH:MM, +HHMM, +HH, Z)
-        self.convert_ts_and_check('2023-10-10 12:00:00+05:30', 'yyyy-MM-dd HH24:MI:SSTZ', '2023-10-10 12:00:00+08:00', '2023-10-10 14:30:00.000000')
-        self.convert_ts_and_check('2023-10-10 12:00:00+0530', 'yyyy-MM-dd HH24:MI:SSTZ', '2023-10-10 12:00:00+08:00', '2023-10-10 14:30:00.000000')
-        self.convert_ts_and_check('2023-10-10 12:00:00+13:00', 'yyyy-MM-dd HH24:MI:SSTZ', '2023-10-10 12:00:00+08:00', '2023-10-10 07:00:00.000000')
-        self.convert_ts_and_check('2023-10-10 12:00:00Z', 'yyyy-MM-dd HH24:MI:SSTZ', '2023-10-10 12:00:00+08:00', '2023-10-10 20:00:00.000000')
-        self.convert_ts_and_check('2023-10-10 12:00:00+14:00', 'yyyy-MM-dd HH24:MI:SSTZ', '2023-10-10 12:00:00+08:00', '2023-10-10 06:00:00.000000')
-        self.convert_ts_and_check('2023-10-10 12:00:00+05:45', 'yyyy-MM-dd HH24:MI:SSTZ', '2023-10-10 12:00:00+08:00', '2023-10-10 14:15:00.000000')
-        self.convert_ts_and_check('2023-10-10 12:00:00-09:30', 'yyyy-MM-dd HH24:MI:SSTZ', '2023-10-10 12:00:00+08:00', '2023-10-11 05:30:00.000000')
+        self.convert_ts_and_check('2023-10-10 12:00:00+05:30', 'yyyy-MM-dd HH24:MI:SSTZ', '2023-10-10 14:30:00+08:00', '2023-10-10 14:30:00.000000')
+        self.convert_ts_and_check('2023-10-10 12:00:00+0530', 'yyyy-MM-dd HH24:MI:SSTZ', '2023-10-10 14:30:00+08:00', '2023-10-10 14:30:00.000000')
+        self.convert_ts_and_check('2023-10-10 12:00:00+13:00', 'yyyy-MM-dd HH24:MI:SSTZ', '2023-10-10 07:00:00+08:00', '2023-10-10 07:00:00.000000')
+        self.convert_ts_and_check('2023-10-10 12:00:00Z', 'yyyy-MM-dd HH24:MI:SSTZ', '2023-10-10 20:00:00+08:00', '2023-10-10 20:00:00.000000')
+        self.convert_ts_and_check('2023-10-10 12:00:00+14:00', 'yyyy-MM-dd HH24:MI:SSTZ', '2023-10-10 06:00:00+08:00', '2023-10-10 06:00:00.000000')
+        self.convert_ts_and_check('2023-10-10 12:00:00+05:45', 'yyyy-MM-dd HH24:MI:SSTZ', '2023-10-10 14:15:00+08:00', '2023-10-10 14:15:00.000000')
+        self.convert_ts_and_check('2023-10-10 12:00:00-09:30', 'yyyy-MM-dd HH24:MI:SSTZ', '2023-10-11 05:30:00+08:00', '2023-10-11 05:30:00.000000')
 
         # TZ format roundtrip: to_char outputs +HH:MM, to_timestamp parses it back
         tdSql.query("select to_timestamp(to_char(ts, 'yyyy-MM-dd HH24:MI:SS.msTZ'), 'yyyy-MM-dd HH24:MI:SS.msTZ') == ts from meters limit 10")
