@@ -65,6 +65,9 @@ class DynamicForecastService(AbstractForecastService):
                 raise RuntimeError(f"failed to build ARIMA model forecaster with config file: {self.config_file_path}")
 
             result = forecaster.forecast()
+            if not result or not {'yhat', 'yhat_lower', 'yhat_upper'}.issubset(result):
+                raise RuntimeError(
+                    f"failed to execute forecast with ARIMA model forecaster built from config file: {self.config_file_path}")
 
             result_ts = [self.start_ts + i * self.time_step for i in range(self.rows)]
 
@@ -81,12 +84,15 @@ class DynamicForecastService(AbstractForecastService):
 
         elif algo_name == 'prophet':
             # load prophet model and execute
-            pass
+            raise NotImplementedError("Prophet model is not implemented yet")
         elif algo_name == 'holtwinters':
             # load holtwinters model and execute
-            pass
+            raise NotImplementedError("HoltWinters model is not implemented yet")
+        elif algo_name == 'theta':
+            # load theta model and execute
+            raise NotImplementedError("Theta model is not implemented yet")
         else:
-            pass
+            raise ValueError(f"unsupported algorithm '{algo_name}' in dynamic forecast service")
 
 
 class ServiceRegistry:
@@ -189,7 +195,7 @@ class ServiceRegistry:
 
         AppLogger.info("loading algorithm/model from file: %s (module: %s)", config_file, model_name)
 
-        with open(config_file, 'r') as f:
+        with open(config_file, 'r', encoding="utf-8") as f:
             file_content = f.read()
             try:
                 config = json.loads(file_content)
@@ -269,7 +275,7 @@ class ServiceRegistry:
         all_files = os.listdir(service_directory)
 
         for item in all_files:
-            if item in ('__init__.py', '__pycache__') or not item.endswith('py'):
+            if item in ('__init__.py', '__pycache__') or not item.endswith('.py'):
                 continue
 
             full_path = os.path.join(service_directory, item)
@@ -293,6 +299,16 @@ class ServiceRegistry:
                     continue
 
                 algo_cls = getattr(module, class_name)
+
+                if algo_cls.__module__ != module.__name__:
+                    AppLogger.warning("class %s in module %s is not defined in the module, skipping",
+                                      class_name, name)
+                    continue
+
+                if algo_cls.__module__  != name:
+                    AppLogger.warning("class %s in module %s is imported from another module %s, skipping",
+                                      class_name, name, algo_cls.__module__)
+                    continue
 
                 if algo_cls is not None:
                     version = sys.version_info

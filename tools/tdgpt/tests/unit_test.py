@@ -4,12 +4,15 @@
 import os.path
 import unittest
 import sys
+import tempfile
+import types
+from unittest import mock
 
 from taosanalytics.algo.imputation import check_freq_param
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../../")
 
-from taosanalytics.service_registry import loader
+from taosanalytics.service_registry import loader, ServiceRegistry
 from taosanalytics.util import convert_results_to_windows, is_white_noise, parse_options, is_stationary, \
     parse_time_delta_string
 
@@ -337,6 +340,111 @@ class ServiceTest(unittest.TestCase):
                 del loader.services[service_name]
             if os.path.exists(config_path):
                 os.remove(config_path)
+
+    def _register_dynamic_service_for_algo(self, algo_name):
+        import os
+
+        config_path = f"/tmp/{algo_name}_model_config.json"
+        service_name = f"{algo_name}_model_config"
+        conf_file_content = f"""
+        {{
+          "algo": "{algo_name}",
+          "best_params": {{
+            "p": 1,
+            "d": 0,
+            "q": 1
+          }},
+          "freq": "MS"
+        }}
+        """
+
+        with open(config_path, "w", encoding="utf-8") as handle:
+            handle.write(conf_file_content)
+
+        if service_name in loader.services:
+            del loader.services[service_name]
+
+        loader.register_service_from_file(config_path)
+        return service_name, config_path
+
+    def test_dynamic_execute_prophet_not_implemented(self):
+        import os
+
+        service_name = None
+        config_path = None
+        try:
+            service_name, config_path = self._register_dynamic_service_for_algo("prophet")
+            service = loader.get_service(service_name)
+            self.assertIsNotNone(service)
+            with self.assertRaisesRegex(NotImplementedError, "Prophet model is not implemented yet"):
+                service.execute()
+        finally:
+            if service_name and service_name in loader.services:
+                del loader.services[service_name]
+            if config_path and os.path.exists(config_path):
+                os.remove(config_path)
+
+    def test_dynamic_execute_holtwinters_not_implemented(self):
+        import os
+
+        service_name = None
+        config_path = None
+        try:
+            service_name, config_path = self._register_dynamic_service_for_algo("holtwinters")
+            service = loader.get_service(service_name)
+            self.assertIsNotNone(service)
+            with self.assertRaisesRegex(NotImplementedError, "HoltWinters model is not implemented yet"):
+                service.execute()
+        finally:
+            if service_name and service_name in loader.services:
+                del loader.services[service_name]
+            if config_path and os.path.exists(config_path):
+                os.remove(config_path)
+
+    def test_dynamic_execute_theta_not_implemented(self):
+        import os
+
+        service_name = None
+        config_path = None
+        try:
+            service_name, config_path = self._register_dynamic_service_for_algo("theta")
+            service = loader.get_service(service_name)
+            self.assertIsNotNone(service)
+            with self.assertRaisesRegex(NotImplementedError, "Theta model is not implemented yet"):
+                service.execute()
+        finally:
+            if service_name and service_name in loader.services:
+                del loader.services[service_name]
+            if config_path and os.path.exists(config_path):
+                os.remove(config_path)
+
+    def test_register_services_in_dir_ignores_non_python_suffix(self):
+        registry = ServiceRegistry()
+
+        fake_module = types.ModuleType("taosanalytics.algo.fc.valid")
+        with mock.patch("os.path.exists", return_value=True), \
+                mock.patch("os.path.isdir", return_value=False), \
+                mock.patch("os.listdir", return_value=["fake.npy", "valid.py"]), \
+                mock.patch("importlib.import_module", return_value=fake_module) as import_mod:
+            registry._register_services_in_dir("/tmp", "taosanalytics.algo.fc.", "algo/fc/", True)
+
+        import_mod.assert_called_once_with("taosanalytics.algo.fc.valid")
+
+    def test_register_services_in_dir_skip_imported_underscored_class(self):
+        registry = ServiceRegistry()
+        module_name = "taosanalytics.algo.fc.mockmod"
+        fake_module = types.ModuleType(module_name)
+
+        imported_class = type("_ImportedForecastService", (), {"name": "_imported_forecast", "__module__": "other.module"})
+        setattr(fake_module, "_ImportedForecastService", imported_class)
+
+        with mock.patch("os.path.exists", return_value=True), \
+                mock.patch("os.path.isdir", return_value=False), \
+                mock.patch("os.listdir", return_value=["mockmod.py"]), \
+                mock.patch("importlib.import_module", return_value=fake_module):
+            registry._register_services_in_dir("/tmp", "taosanalytics.algo.fc.", "algo/fc/", True)
+
+        self.assertNotIn("_imported_forecast", registry.services)
 
 if __name__ == '__main__':
     unittest.main()

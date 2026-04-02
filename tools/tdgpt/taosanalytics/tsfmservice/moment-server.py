@@ -323,10 +323,6 @@ def download_model(model_name, root_dir, enable_ep = False):
         )
 
 def main():
-    """
-    main function
-    """
-
     global pretrained_model
 
     _model_list = [
@@ -427,6 +423,4 @@ def main():
 
 
 if __name__ == "__main__":
-    global pretrained_model
-
     main()

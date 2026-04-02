@@ -1159,12 +1159,21 @@ class ModelService:
             raise ValueError(f"Unknown model: {model_name}")
 
         model_dir = os.path.join(self.config.model_dir, model_name)
-        args = []
+        args: List[str] = []
 
+        # tdtsfm-server currently uses fixed host/port in script and accepts no CLI startup args.
         if model_name == "tdtsfm":
-            args = [model_dir, "--action", "server"]
-        elif model_config.get("default_model"):
-            args = [model_dir, model_config["default_model"], "False"]
+            return args
+
+        default_model = model_config.get("default_model")
+        if default_model:
+            args.extend(["--model-folder", model_dir, "--model-name", str(default_model)])
+        else:
+            args.extend(["--model-index", "0"])
+
+        port = model_config.get("port")
+        if port:
+            args.extend(["--port", str(port)])
 
         return args
 

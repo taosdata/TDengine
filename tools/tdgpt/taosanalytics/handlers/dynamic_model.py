@@ -120,7 +120,8 @@ def do_handle_undeploy_model(request):
             'error': "Invalid model_name in request payload"
         }, 400
 
-    full_path = os.path.join(model_dir, model_name)
+    model_file_name = model_name + '.json'
+    full_path = os.path.join(model_dir, model_file_name)
 
     try:
         if Path(str(full_path)).exists():
