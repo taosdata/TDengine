@@ -1,0 +1,25 @@
+[package]
+name = "mdsn"
+version = "0.2.25"
+edition = "2021"
+keywords = ["url", "dsn", "mdsn"]
+license = "MIT OR Apache-2.0"
+readme = "README.md"
+description = "M-DSN: A Multi-address DSN(Data Source Name) parser."
+documentation = "https://docs.rs/mdsn"
+homepage = "https://github.com/taosdata/taos-connector-rust"
+repository = "https://github.com/taosdata/taos-connector-rust.git"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+pest = { version = "2.1", optional = true }
+pest_derive = { version = "2.1", optional = true }
+itertools = "0.13.0"
+thiserror = "1.0.47"
+urlencoding = "2.1.0"
+regex = "1"
+lazy_static = "1.4.0"
+
+[features]
+pest = ["dep:pest", "pest_derive"]

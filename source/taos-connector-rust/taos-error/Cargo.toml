@@ -1,0 +1,29 @@
+[package]
+name = "taos-error"
+authors.workspace = true
+description.workspace = true
+edition.workspace = true
+license.workspace = true
+readme.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+version.workspace = true
+
+[dependencies]
+anyhow = { version = "1", features = ["backtrace"] }
+derive_more = { version = "1", features = [
+    "deref",
+    "deref_mut",
+    "display",
+    "from",
+    "into",
+] }
+mdsn = { path = "../mdsn", version = "0.2.25" }
+serde = { version = "1", features = ["derive"], optional = true }
+thiserror = "1.0.47"
+
+[build-dependencies]
+rustc_version = "0.4.0"
+
+[features]
+default = ["serde"]

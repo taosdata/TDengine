@@ -1,0 +1,94 @@
+[package]
+name = "taos-query"
+version.workspace = true
+authors.workspace = true
+documentation.workspace = true
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+readme.workspace = true
+rust-version.workspace = true
+description.workspace = true
+
+[dependencies]
+anyhow = "1"
+bytes = { version = "1.11.1", features = ["serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+chrono-tz = "0.10.4"
+derive_more = { version = "1", features = [
+	"deref",
+	"deref_mut",
+	"display",
+	"from",
+	"into",
+] }
+itertools = "0.13.0"
+mdsn = { path = "../mdsn", version = "0.2.25" }
+num_enum = "0.7.0"
+once_cell = "1.12.0"
+prettytable = "0.10.0"
+rustversion = "1.0.6"
+taos-error = { version = "0.12.4", path = "../taos-error" }
+thiserror = "1.0.47"
+url = "2.2.2"
+faststr = { version = "0.2.31", features = ["serde"] }
+either = { version = "1.12.0", features = ["serde"] }
+
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_repr = "0.1.7"
+
+nom = "7"
+paste = "1"
+rayon = { version = "1.7" }
+
+async-trait = { version = "0.1.53", optional = true }
+futures = { version = "0.3.21", optional = true, features = [
+	"executor",
+	"thread-pool",
+] }
+
+byteorder = "1.4.3"
+bitflags = "2.2.1"
+bitvec = "1.0.0"
+zerocopy = { version = "0.8.26", features = ["derive"] }
+
+deadpool = { version = "0.10.0", optional = true, features = ["rt_tokio_1"] }
+r2d2 = { version = "0.8.9", optional = true }
+
+tokio = { version = "1", features = [
+	"sync",
+	"rt-multi-thread",
+	"macros",
+	"io-util",
+] }
+lazy_static = "1.4"
+derive_builder = "0.12.0"
+tracing = { version = "0.1", features = ["log"] }
+uuid = { version = "1.11.0", features = [
+	"v4",
+	"fast-rng",
+	"macro-diagnostics",
+] }
+bigdecimal = { version = "0.4", features = ["serde"] }
+serde_with = "3.12.0"
+
+base32 = { version = "0.5.1", optional = true }
+hmac = { version = "0.12.1", optional = true }
+rand = { version = "0.9.1", optional = true }
+sha1 = { version = "0.10.6", optional = true }
+sha2 = { version = "0.10.9", optional = true }
+tokio-tungstenite = { git = "https://github.com/taosdata/tokio-tungstenite.git", version = "0.23.1", rev = "3420353", optional = true }
+
+[dev-dependencies]
+flate2 = "1"
+pretty_env_logger = "0.5.0"
+rand = "0.9.1"
+
+[build-dependencies]
+rustc_version = "0.4.0"
+
+[features]
+default = ["async", "deadpool"]
+async = ["async-trait", "futures"]
+test = ["base32", "hmac", "rand", "sha1", "sha2", "tokio-tungstenite"]

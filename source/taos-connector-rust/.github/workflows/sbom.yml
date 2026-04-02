@@ -1,0 +1,33 @@
+name: SBOM
+
+on:
+  pull_request:
+    branches: ["main", "3.0"]
+  release:
+    types: [published]
+
+jobs:
+  sbom:
+    name: Generate and Scan SBOM
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: write
+    env:
+      SBOM_FILENAME: "${{ github.event.repository.name }}-sbom.cdx.json"
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Create SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          format: cyclonedx-json
+          output-file: "${{ env.SBOM_FILENAME }}"
+          artifact-name: "${{ env.SBOM_FILENAME }}"
+
+      - name: Scan SBOM
+        uses: anchore/scan-action@v7
+        with:
+          sbom: "${{ env.SBOM_FILENAME }}"
+          cache-db: true
+          output-format: "table"

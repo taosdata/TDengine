@@ -1,0 +1,30 @@
+version: "3.8"
+
+services:
+  td2:
+    image: tdengine/tdengine:2.6.0.16
+    ports:
+      - 16030-16041:16030-16041/tcp
+      - 16030-16041:16030-16041/udp
+    environment:
+      - TAOS_ADAPTER_PORT=16041
+      - TAOS_FQDN=localhost
+    volumes:
+      - data-v2:/tmp/data/v2
+      - log-v2:/tmp/logs/v2
+      - ./tests/cfg/v2/taos.cfg:/etc/taos/taos.cfg
+  td3:
+    image: tdengine/tdengine:3.0.1.5
+    ports:
+      - 26030-26041:26030-26041/tcp
+      - 26030-26041:26030-26041/udp
+    environment:
+      - TAOS_ADAPTER_PORT=26041
+      - TAOS_FQDN=localhost
+    volumes:
+      - ./tests/cfg/v3/taos.cfg:/etc/taos/taos.cfg
+
+
+volumes:
+  data-v2:
+  log-v2:

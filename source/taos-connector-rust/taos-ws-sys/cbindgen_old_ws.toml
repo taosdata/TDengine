@@ -1,0 +1,77 @@
+language = "C"
+cpp_compat = true
+header = """
+/*
+ * Copyright (c) 2022 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#ifndef TDENGINE_TAOS_WS_H
+#define TDENGINE_TAOS_WS_H
+
+/**
+ * When using libtaosws along with libtaos, include `taos.h` in front of `taosws.h`, eg.
+ *
+ * ```c
+ * include "taos.h"
+ * include "taosws.h"
+ * ```
+ */
+#ifndef TDENGINE_TAOS_H
+
+/**
+ * Data type definitions.
+ */
+#define TSDB_DATA_TYPE_NULL       0   // 1 bytes
+#define TSDB_DATA_TYPE_BOOL       1   // 1 bytes
+#define TSDB_DATA_TYPE_TINYINT    2   // 1 byte
+#define TSDB_DATA_TYPE_SMALLINT   3   // 2 bytes
+#define TSDB_DATA_TYPE_INT        4   // 4 bytes
+#define TSDB_DATA_TYPE_BIGINT     5   // 8 bytes
+#define TSDB_DATA_TYPE_FLOAT      6   // 4 bytes
+#define TSDB_DATA_TYPE_DOUBLE     7   // 8 bytes
+#define TSDB_DATA_TYPE_VARCHAR    8   // string, alias for varchar
+#define TSDB_DATA_TYPE_TIMESTAMP  9   // 8 bytes
+#define TSDB_DATA_TYPE_NCHAR      10  // unicode string
+#define TSDB_DATA_TYPE_UTINYINT   11  // 1 byte
+#define TSDB_DATA_TYPE_USMALLINT  12  // 2 bytes
+#define TSDB_DATA_TYPE_UINT       13  // 4 bytes
+#define TSDB_DATA_TYPE_UBIGINT    14  // 8 bytes
+#define TSDB_DATA_TYPE_JSON       15  // json string
+#define TSDB_DATA_TYPE_VARBINARY  16  // binary
+#define TSDB_DATA_TYPE_DECIMAL    17  // decimal
+#define TSDB_DATA_TYPE_BLOB       18  // binary
+#define TSDB_DATA_TYPE_MEDIUMBLOB 19
+#define TSDB_DATA_TYPE_BINARY     TSDB_DATA_TYPE_VARCHAR  // string
+#define TSDB_DATA_TYPE_GEOMETRY   20  // geometry
+
+#endif
+
+/**
+ * Websocket errors defnitions.
+ *
+ * Use error code prefix `E` to distinct from taosc error codes.
+ */
+#define TSDB_CODE_WS_DSN_ERROR        0xE000
+#define TSDB_CODE_WS_INTERNAL_ERRO    0xE001
+#define TSDB_CODE_WS_INTERNAL_ERROR   0xE001
+#define TSDB_CODE_WS_CLOSED           0xE002
+#define TSDB_CODE_WS_SEND_TIMEOUT     0xE003
+#define TSDB_CODE_WS_RECV_TIMEOUT     0xE004"""
+
+trailer = """
+#endif
+"""
+
+[export]
+include = ["WS_TSDB_SML_PROTOCOL_TYPE", "WS_TSDB_SML_TIMESTAMP_TYPE"]
