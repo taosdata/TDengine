@@ -1,0 +1,77 @@
+name: Trivy Vulnerability + License Scan (PR + Scheduled)
+
+# Trigger conditions: PR/push on main/3.0 branches, daily scheduled scan (00:00 UTC)
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [ main, 3.0 ]
+    types: [ opened, synchronize, reopened ]
+  push:
+    branches: [ main, 3.0 ]
+  schedule:
+    - cron: '0 0 * * *' # Daily scan at 00:00 UTC (8:00 Beijing Time)
+
+jobs:
+  trivy-scan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write # Required for uploading SARIF to GitHub Security
+
+    steps:
+      # Step 1: Check out repository code (required for scanning local files/pom.xml)
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Step 2: Trivy FS Scan - Detect vulnerabilities in code/dependencies
+      - name: Trivy FS Scan (Code/Dependency Vulnerabilities)
+        id: run_trivy_scan # FIX: Add step ID for subsequent failure check
+        uses: aquasecurity/trivy-action@v0.34.0
+        continue-on-error: true
+        with:
+          scan-type: 'fs'
+          scan-ref: '.' # Scan project root directory
+          vuln-type: 'library'
+          format: 'sarif'
+          output: 'trivy-fs-results.sarif'
+          severity: 'CRITICAL,HIGH,MEDIUM'
+          exit-code: '1' # Set to 1 to fail step when vulnerabilities are found (match comment intent)
+          skip-dirs: 'target,node_modules' # Skip Maven build artifacts and node modules
+          skip-files: 'pom.xml.versionsBackup' # Skip temporary Maven files
+
+      # Step 3: Enforce quality gate - Fail CI if vulnerabilities are detected
+      - name: Fail CI if vulnerabilities were found
+        if: steps.run_trivy_scan.outcome == 'failure' # Only execute if scan step fails
+        run: |
+          echo "❌ Trivy scan detected vulnerabilities with CRITICAL/HIGH/MEDIUM severity, CI process failed."
+          echo "Please check the generated SARIF report or Security panel for details."
+          exit 1 # Explicitly exit to fail this step and the entire CI
+
+      # Step 4: Trivy License Scan - Detect non-compliant licenses
+      - name: Trivy License Scan
+        uses: aquasecurity/trivy-action@v0.34.0
+        continue-on-error: true # FIX: Add fault tolerance to avoid interrupting subsequent steps
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: table
+          exit-code: 1 # Fail CI on non-allowed licenses
+          skip-dirs: target # Skip build artifacts to speed up scan
+          scanners: license
+          severity: 'CRITICAL,HIGH,UNKNOWN'
+
+      # Step 5: Debug - Verify SARIF file existence and content
+      - name: Debug - Check SARIF file
+        if: always()
+        run: |
+          echo "File exists:"
+          ls -la trivy-fs-results.sarif || echo "SARIF file does not exist"
+          echo "First few lines:"
+          head -20 trivy-fs-results.sarif || echo "Failed to read SARIF file"
+
+      # Step 6: Upload SARIF report to GitHub Security (visualize vulnerabilities)
+      - name: Upload Trivy Results to GitHub Security
+        if: always()
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: 'trivy-fs-results.sarif'

@@ -1,0 +1,50 @@
+
+name: 'Dependency report'
+on:
+  pull_request:
+    branches: [ "main", "3.0" ]
+  schedule:
+    # Cron expression format: minute hour day month weekday (GitHub uses UTC time zone)
+    # Example 1: Run once daily at 00:00 UTC (equivalent to 08:00 Beijing time)
+    - cron: '0 0 * * *'
+    # Optional: To scan every Monday, replace with: 0 0 * * 1
+    # Optional: To scan hourly, replace with: 0 * * * *
+
+permissions:
+  contents: read
+  pull-requests: write
+jobs:
+  depchecktest:
+    runs-on: ubuntu-latest
+    name: depcheck_test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Java
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: 8
+          java-package: jdk
+          cache: 'maven'
+      - name: Build project with Maven
+        run: mvn clean -DskipTests package install
+      - name: Depcheck
+        uses: dependency-check/Dependency-Check_Action@main
+        env:
+          # actions/setup-java@v3 changes JAVA_HOME so it needs to be reset to match the depcheck image
+          JAVA_HOME: /opt/jdk
+        id: Depcheck
+        with:
+          project: 'jdbc'
+          path: '.'
+          format: 'HTML'
+          out: 'reports' # this is the default, no need to specify unless you wish to override it
+          args: >
+            --failOnCVSS 7
+            --enableRetired
+      - name: Upload Test results
+        uses: actions/upload-artifact@v4
+        with:
+          name: Depcheck report
+          path: ${{github.workspace}}/reports

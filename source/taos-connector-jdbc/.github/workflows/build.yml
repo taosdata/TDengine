@@ -1,0 +1,261 @@
+name: build
+permissions:
+  contents: read
+on:
+  push:
+    branches:
+      - main
+      - '3.0'
+    paths-ignore:
+      - 'LICENSE'
+      - '*.md'
+      - '*.txt'
+  pull_request:
+    branches:
+      - main
+      - '3.0'
+    paths-ignore:
+      - 'LICENSE'
+      - '*.md'
+      - '*.txt'
+
+env:
+  CACHE_VERSION: v1  # Update this version when cache strategy needs refresh
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [ Ubuntu-22.04 ]
+        java: [ 8, 11, 17 ]
+        maven: [ '3.6.3' ]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout TDengine
+        uses: actions/checkout@v3
+        with:
+          repository: 'taosdata/TDengine'
+          path: 'TDengine'
+          ref: ${{ github.event.pull_request.base.ref || github.ref_name }}
+
+      - name: Get TDengine branch and commit info
+        id: tdengine-info
+        run: |
+          cd TDengine
+          echo "commit_id=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+          echo "branch=$(git rev-parse --abbrev-ref HEAD)" >> $GITHUB_OUTPUT
+          echo "short_sha=$(git rev-parse --short=8 HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Restore TDengine debug directory cache
+        uses: actions/cache/restore@v4
+        id: cache-debug-dir
+        with:
+          path: TDengine/debug
+          key: ${{ runner.os }}-tdengine-debug-${{ env.CACHE_VERSION }}-${{ steps.tdengine-info.outputs.branch }}-${{ steps.tdengine-info.outputs.commit_id }}
+          restore-keys: |
+            ${{ runner.os }}-tdengine-debug-${{ env.CACHE_VERSION }}-${{ steps.tdengine-info.outputs.branch }}-
+            ${{ runner.os }}-tdengine-debug-${{ env.CACHE_VERSION }}-
+
+      - name: Debug cache hit status
+        run: |
+          echo "Cache hit: ${{ steps.cache-debug-dir.outputs.cache-hit }}"
+          echo "Cache key: ${{ steps.cache-debug-dir.outputs.cache-primary-key }}"
+
+      - name: Check if debug directory exists and is valid
+        id: check-debug-dir
+        run: |
+          if [ -d "TDengine/debug" ] && [ -f "TDengine/debug/CMakeCache.txt" ]; then
+            echo "Debug directory exists and appears valid"
+            echo "is_debug_valid=true" >> $GITHUB_OUTPUT
+          else
+            echo "Debug directory missing or invalid"
+            echo "is_debug_valid=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Install build dependencies
+        if: steps.cache-debug-dir.outputs.cache-hit != 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgeos-dev build-essential cmake gcc g++ make
+
+      - name: Build TDengine (if cache missed)
+        if: steps.cache-debug-dir.outputs.cache-hit != 'true'
+        id: build-step
+        run: |
+          cd TDengine
+          mkdir -p debug
+          cd debug
+          cmake .. -DBUILD_JDBC=false -DBUILD_TOOLS=false -DBUILD_HTTP=false -DBUILD_DEPENDENCY_TESTS=false
+          make -j $(nproc)
+
+      - name: Save cache on build success
+        if: always() && steps.build-step.conclusion == 'success'
+        uses: actions/cache/save@v4
+        with:
+          path: TDengine/debug
+          key: ${{ runner.os }}-tdengine-debug-${{ env.CACHE_VERSION }}-${{ steps.tdengine-info.outputs.branch }}-${{ steps.tdengine-info.outputs.commit_id }}
+
+
+      - name: Verify debug directory
+        run: |
+          echo "=== Verifying debug directory ==="
+          if [ ! -d "TDengine/debug" ]; then
+            echo "❌ Error: Debug directory not found!"
+            exit 1
+          fi
+          
+          echo "Debug directory contents:"
+          ls -la TDengine/debug/
+          
+          if [ ! -d "TDengine/debug/build" ]; then
+            echo "❌ Error: Build directory not found in debug directory!"
+            exit 1
+          fi
+          
+          file_count=$(find TDengine/debug/build -type f 2>/dev/null | wc -l)
+          echo "✅ Build directory exists with $file_count files"
+
+      - name: Install TDengine from debug directory
+        run: |
+          echo "=== Installing TDengine ==="
+          if [ ! -d "TDengine/debug" ]; then
+            echo "❌ Error: Debug directory not found for installation!"
+            exit 1
+          fi
+          
+          cd TDengine/debug
+          echo "Running make install..."
+          if ! sudo make install; then
+            echo "❌ Error: make install failed!"
+            exit 1
+          fi
+          echo "✅ TDengine installed successfully"
+
+      - name: Verify TDengine installation
+        run: |
+          echo "=== Verifying TDengine installation ==="
+          
+          # Check taosd
+          if ! which taosd >/dev/null 2>&1; then
+            echo "❌ Error: taosd not found in PATH!"
+            exit 1
+          fi
+          echo "✅ taosd found: $(which taosd)"
+          taosd --version || echo "⚠️  Could not get taosd version"
+          
+          # Check taos
+          if ! which taos >/dev/null 2>&1; then
+            echo "❌ Error: taos not found in PATH!"
+            exit 1
+          fi
+          echo "✅ taos found: $(which taos)"
+          taos --version || echo "⚠️  Could not get taos version"
+          
+          # Check installation directories
+          if [ -d "/usr/local/taos/bin" ]; then
+            echo "✅ TDengine binaries in /usr/local/taos/bin:"
+            ls -la /usr/local/taos/bin/
+          else
+            echo "⚠️  /usr/local/taos/bin/ not found"
+          fi
+          
+          echo "✅ TDengine installation verified"
+
+      - name: shell
+        run: |
+          cat >start.sh<<EOF 
+          ulimit -n 65535 && TAOS_SUPPORT_VNODES=256 taosd
+          EOF
+      - name: taosd
+        run: nohup sudo sh ./start.sh &
+
+      - name: start taosadapter
+        run: sudo taosadapter &
+
+      - name: Check service status
+        run: |
+          echo "=== Checking service status ==="
+          
+          # Check taos processes
+          if ! pgrep -f "[t]aosd" >/dev/null 2>&1; then
+            echo "❌ Error: No taosd process found!"
+            echo "taosd log:"
+            sudo tail -20 /var/log/taosd.log 2>/dev/null || echo "No taosd log found"
+            exit 1
+          fi
+          echo "✅ taosd process is running"
+          
+          if ! pgrep -f "[t]aosadapter" >/dev/null 2>&1; then
+            echo "❌ Error: No taosadapter process found!"
+            echo "taosadapter log:"
+            sudo tail -20 /var/log/taosadapter.log 2>/dev/null || echo "No taosadapter log found"
+            exit 1
+          fi
+          echo "✅ taosadapter process is running"
+          
+          # Check port 6030
+          if ! sudo netstat -tlnp | grep -q 6030; then
+            echo "❌ Error: Port 6030 not listening!"
+            echo "Current listening ports:"
+            sudo netstat -tlnp | grep LISTEN || echo "No listening ports found"
+            exit 1
+          fi
+          echo "✅ Port 6030 is listening"
+          
+          # Additional connectivity test
+          echo "Testing TDengine connectivity..."
+          if ! timeout 10s taos -s "show dnodes" >/dev/null 2>&1; then
+            echo "❌ Error: Cannot connect to TDengine!"
+            echo "Service status:"
+            ps aux | grep -E "[t]aos"
+            echo "Port check:"
+            sudo netstat -tlnp | grep -E "6030|6060" || echo "No TDengine ports found"
+            exit 1
+          fi
+          
+          echo "✅ All services are running correctly"
+      - name: Checkout JDBC connector
+        uses: actions/checkout@v4
+        with:
+          path: 'jdbc-workspace'
+
+      - name: Set up Java
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: ${{ matrix.java }}
+          java-package: jdk
+          cache: 'maven'
+
+      - name: Run JDBC tests
+        working-directory: jdbc-workspace
+        env:
+          TDENGINE_CLOUD_URL: ${{ secrets.TDENGINE_CLOUD_URL }}
+          TDENGINE_HOST: ${{ vars.TDENGINE_HOST }}
+          TDENGINE_JNI_PORT: ${{ vars.TDENGINE_JNI_PORT }}
+          TDENGINE_RS_PORT: ${{ vars.TDENGINE_RS_PORT }}
+          TDENGINE_WS_PORT: ${{ vars.TDENGINE_WS_PORT }}
+          TDENGINE_USER: ${{ secrets.TDENGINE_USER }}
+          TDENGINE_PASSWORD: ${{ secrets.TDENGINE_PASSWORD }}
+        run: mvn -B clean verify --file pom.xml
+
+      - name: Upload coverage to Codecov
+        if: matrix.java == 8
+        uses: codecov/codecov-action@b9fd7d16f6d7d1b5d2bec1a2887e65ceed900238
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: jdbc-workspace/target/site/jacoco/jacoco.xml
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
+          verbose: true
+          root_dir: jdbc-workspace
+
+      - name: Upload logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: service-logs-${{ matrix.os }}-${{ matrix.java }}-${{ matrix.maven }}
+          path: |
+            /var/log/taos/**/*
+          retention-days: 7

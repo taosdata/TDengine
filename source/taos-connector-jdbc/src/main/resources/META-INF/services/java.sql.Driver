@@ -1,0 +1,3 @@
+com.taosdata.jdbc.ws.WebSocketDriver
+com.taosdata.jdbc.TSDBDriver
+com.taosdata.jdbc.rs.RestfulDriver
