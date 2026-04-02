@@ -2032,6 +2032,11 @@ void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
     }
   }
 
+  if (!mayCreateAsyncWork()) {
+    tscDebug("client shutdown in progress, process msg inline");
+    goto _dispatch_inline;
+  }
+
   AsyncArg* arg = taosMemoryCalloc(1, sizeof(AsyncArg));
   if (NULL == arg) {
     code = terrno;
@@ -2043,9 +2048,20 @@ void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
   arg->pEpset = tEpSet;
 
   if ((code = taosAsyncExec(doProcessMsgFromServer, arg, NULL)) != 0) {
-    pMsg->code = code;
     taosMemoryFree(arg);
+    if (code == TSDB_CODE_APP_IS_STOPPING) {
+      tscDebug("task queue is stopping, process msg inline");
+      goto _dispatch_inline;
+    }
+    pMsg->code = code;
     goto _exit;
+  }
+  return;
+
+_dispatch_inline:
+  code = doProcessMsgFromServerImpl(pMsg, tEpSet);
+  if (code != 0) {
+    tscError("failed to process msg inline during client shutdown");
   }
   return;
 

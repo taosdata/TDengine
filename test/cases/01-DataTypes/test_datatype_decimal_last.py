@@ -225,7 +225,7 @@ class TaosShell:
         self.tmp_file_path = os.path.join(os.path.dirname(__file__), "taos_shell_result")
     
     def get_file_path(self):
-        return f"{self.tmp_file_path}_{self.counter_}"
+        return f"{self.tmp_file_path}_{os.getpid()}_{self.counter_}"
 
     def read_result(self):
         with open(self.get_file_path(), "r") as f:
@@ -241,8 +241,9 @@ class TaosShell:
                     col += 1
 
     def query(self, sql: str):
-        with open(self.get_file_path(), "a+") as f:
-            f.truncate(0)
+        out_path = self.get_file_path()
+        with open(out_path, "w"):
+            pass
         self.queryResult = []
         try:
             if platform.system().lower() == "windows":
@@ -250,7 +251,7 @@ class TaosShell:
                 child = wexpect.spawn("taos", timeout=60)
                 try:
                     child.expect("> ")
-                    child.sendline(f"{sql} >> {self.get_file_path()};")
+                    child.sendline(f"{sql} >> {out_path};")
                     child.expect("> ")
                     child.sendline("quit")
                     child.expect("> ")
@@ -259,14 +260,23 @@ class TaosShell:
                     tdLog.error(f"wexpect failed, child.before:\n{child.before}")
                     raise
             else:
-                command = f'taos -s "{sql} >> {self.get_file_path()}"'
+                command = ["taos", "-s", f"{sql} >> {out_path}"]
                 tdLog.debug(f"exec command: {command}")
-                result = subprocess.run(
-                    command, shell=True, check=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE
+                subprocess.run(
+                    command,
+                    check=True,
+                    stderr=subprocess.PIPE,
+                    stdout=subprocess.PIPE,
+                    text=True,
                 )
             self.read_result()
+        except subprocess.CalledProcessError as e:
+            # Surface stderr (e.g., ASAN diagnostics) without causing secondary decode errors
+            err_msg = e.stderr or ""
+            tdLog.exit(f"Command '{sql}' failed ({type(e).__name__}):\n{err_msg}")
         except Exception as e:
-            tdLog.exit(f"Command '{sql}' failed with error: {e.stderr.decode('utf-8')}")
+            extra = getattr(e, 'stderr', None) or ""
+            tdLog.exit(f"Unexpected error ({type(e).__name__}) while running '{sql}':\n{extra or str(e)}")
         return self.queryResult
 
 class DecimalColumnExpr:
@@ -1909,7 +1919,10 @@ class TestDecimal3:
 
     def check_decimal_ddl(self):
         self.log_test("test_decimal_ddl")
-        tdSql.execute("create database test cachemodel 'both'", queryTimes=1)
+        tdSql.execute(f"drop database if exists {self.db_name}", queryTimes=1)
+        tdSql.execute(
+            f"create database {self.db_name} cachemodel 'both'", queryTimes=1
+        )
         self.check_decimal_column_ddl()
 
     def check_decimal_and_stream(self):

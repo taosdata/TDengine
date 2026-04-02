@@ -1628,6 +1628,8 @@ static void hbStopThread() {
   tscDebug("hb thread stopped");
 }
 
+void hbMgrStop() { hbStopThread(); }
+
 int32_t appHbMgrInit(SAppInstInfo *pAppInstInfo, char *key, SAppHbMgr **pAppHbMgr) {
   int32_t code = TSDB_CODE_SUCCESS;
   TSC_ERR_RET(hbMgrInit());
