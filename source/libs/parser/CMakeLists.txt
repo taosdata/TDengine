@@ -16,7 +16,7 @@ set(PARSER_SRC
 )
 
 IF(TD_ENTERPRISE)
-        LIST(APPEND PARSER_SRC ${TD_ENTERPRISE_DIR}/src/plugins/view/src/parserView.c)
+        LIST(APPEND PARSER_SRC ${TD_ENTERPRISE_DIR}/source/plugins/view/src/parserView.c)
 ENDIF()
 
 message(STATUS "Debugging ............................")
@@ -58,6 +58,6 @@ target_link_libraries(
         PRIVATE os util nodes catalog function scalar planner geometry transport qcom decimal
 )
 
-if(${BUILD_TEST})
+if(BUILD_TEST)
         ADD_SUBDIRECTORY(test)
-endif(${BUILD_TEST})
+endif()
