@@ -4059,15 +4059,16 @@
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create snode on dnode 1</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Initialize data</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Execute tsma ddl test cases</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Execute tsma query test cases</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Execute tsma flush query test cases</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Execute tsma redistribute vgroups test cases if cluster dnode nums &gt; 1</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">7. Drop tsma test.tsma5</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">8. Verify TD-32519</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">9. Drop snode</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Initialize data without snode</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Verify CREATE TSMA reports no available snode</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Create snode on dnode 1</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Execute tsma ddl test cases</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Execute tsma query test cases</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Execute tsma flush query test cases</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">7. Execute tsma redistribute vgroups test cases if cluster dnode nums &gt; 1</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">8. Drop tsma test.tsma5</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">9. Verify TD-32519</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">10. Drop snode</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
