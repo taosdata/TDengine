@@ -1764,11 +1764,46 @@ else()
     list(APPEND ARROW_EXTRA_CMAKE_ARGS
         -DARROW_USE_STATIC_CRT:BOOL=OFF
     )
+    # Disable ccache/sccache detection in Arrow sub-build.
+    # Strawberry Perl ships ccache.exe but it mishandles MSVC response-file
+    # /Fo output, causing .obj files to disappear silently (LNK1181).
+    list(APPEND ARROW_EXTRA_CMAKE_ARGS
+        -DARROW_USE_CCACHE:BOOL=OFF
+        -DARROW_USE_SCCACHE:BOOL=OFF
+    )
+    # Explicitly forward compiler/linker/make so ExternalProject_Add
+    # CMake configure step does not depend on having cl.exe in PATH.
+    list(APPEND ARROW_EXTRA_CMAKE_ARGS
+        "-DCMAKE_C_COMPILER:FILEPATH=${CMAKE_C_COMPILER}"
+        "-DCMAKE_CXX_COMPILER:FILEPATH=${CMAKE_CXX_COMPILER}"
+        "-DCMAKE_LINKER:FILEPATH=${CMAKE_LINKER}"
+        "-DCMAKE_MAKE_PROGRAM:FILEPATH=${CMAKE_MAKE_PROGRAM}"
+        "-DCMAKE_AR:FILEPATH=${CMAKE_AR}"
+    )
+    # MSVC size-reduction flags for Arrow's bundled static libraries.
+    # /O1  = minimize size (MSVC equivalent of GCC -Os)
+    # /Gy  = function-level linking: each function in its own COMDAT so the
+    #        linker's /OPT:REF can dead-strip unreferenced ones
+    #        (MSVC equivalent of -ffunction-sections + --gc-sections)
+    # /Gw  = global data in separate COMDATs (MSVC equivalent of -fdata-sections)
+    # ARROW_CXX_FLAGS_* appends to - rather than replacing - CMake's defaults,
+    # per Arrow's build documentation.
+    list(APPEND ARROW_EXTRA_CMAKE_ARGS
+        "-DARROW_CXX_FLAGS_RELEASE:STRING=/O1 /Gy /Gw"
+        "-DARROW_C_FLAGS_RELEASE:STRING=/O1 /Gy /Gw"
+        "-DARROW_CXX_FLAGS_RELWITHDEBINFO:STRING=/O1 /Gy /Gw"
+        "-DARROW_C_FLAGS_RELWITHDEBINFO:STRING=/O1 /Gy /Gw"
+        "-DARROW_CXX_FLAGS_DEBUG:STRING=/Gy /Gw"
+        "-DARROW_C_FLAGS_DEBUG:STRING=/Gy /Gw"
+    )
 endif()
 ExternalProject_Add(ext_arrow
     GIT_REPOSITORY ${_git_url}
     GIT_TAG        apache-arrow-19.0.1
     GIT_SHALLOW    TRUE
+    # parquet-testing and arrow-testing are only used by Arrow's own unit
+    # tests.  Skipping them saves ~200 MB of clone traffic.
+    GIT_SUBMODULES  ""
     PREFIX         "${_base}"
     SOURCE_SUBDIR  cpp
     CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
@@ -1802,7 +1837,13 @@ ExternalProject_Add(ext_arrow
     CMAKE_ARGS -DARROW_RUNTIME_SIMD_LEVEL:STRING=NONE
     CMAKE_ARGS ${ARROW_EXTRA_CMAKE_ARGS}
     BUILD_COMMAND
-        COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}" --parallel 4
+        # Windows/jom: multiple parallel jom child processes share the same
+        # jom.exe image on disk, triggering ERROR_SHARING_VIOLATION when one
+        # process tries to map the file while another holds it open.
+        # Serialise the Arrow sub-build to avoid this.  Linux/macOS are not
+        # affected so they keep the original level of parallelism.
+        COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
+                --parallel $<IF:$<BOOL:${TD_WINDOWS}>,1,4>
     INSTALL_COMMAND
         COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
     EXCLUDE_FROM_ALL TRUE

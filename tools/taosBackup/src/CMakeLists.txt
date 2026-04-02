@@ -165,6 +165,33 @@ if(NOT ${TD_WINDOWS})
     endif()
 endif()
 
+if(TD_WINDOWS)
+    # Arrow's Windows headers use __declspec(dllimport) by default.
+    # These macros switch to the static-library ABI (no dllimport decoration),
+    # which is mandatory when linking against .lib static archives.
+    # See: https://arrow.apache.org/docs/developers/cpp/windows.html#statically-linking-to-arrow-on-windows
+    target_compile_definitions(taosBackup PRIVATE ARROW_STATIC PARQUET_STATIC)
+
+    # MSVC size-reduction equivalents of the Linux -ffunction-sections /
+    # -fdata-sections / --gc-sections / -Os chain:
+    #   /Gy  - function-level linking: each function in its own COMDAT so the
+    #          linker's /OPT:REF can discard unreferenced ones
+    #   /Gw  - each global variable in its own COMDAT (same, for data)
+    target_compile_options(taosBackup PRIVATE /Gy /Gw)
+
+    # /OPT:REF - remove unreferenced COMDATs (dead-code stripping)
+    # /OPT:ICF - merge identical COMDATs (size deduplication)
+    target_link_options(taosBackup PRIVATE /OPT:REF /OPT:ICF)
+
+    # Link-Time Code Generation for non-Debug builds.
+    # /GL (compile) + /LTCG (link) = whole-program optimisation, the MSVC
+    # equivalent of GCC/Clang -flto.  Dead-strips and inlines across TUs.
+    if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
+        target_compile_options(taosBackup PRIVATE /GL)
+        target_link_options(taosBackup PRIVATE /LTCG)
+    endif()
+endif()
+
 # link taos
 TARGET_LINK_LIBRARIES(taosBackup PRIVATE taos)
 
