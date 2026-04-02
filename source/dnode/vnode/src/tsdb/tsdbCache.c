@@ -2956,6 +2956,8 @@ int32_t tsdbReloadLastCache(STsdb *pTsdb, SArray *pUids, SArray *pCids, int8_t c
                             SVLastCacheReloadStatus *pStatus) {
   int32_t     code = 0;
   SMTbCursor *pTbCur = NULL;
+  (void)pCids;
+  (void)cacheType;
 
   if (pStatus) {
     pStatus->status = RELOAD_STATUS_RUNNING;
@@ -2977,7 +2979,7 @@ int32_t tsdbReloadLastCache(STsdb *pTsdb, SArray *pUids, SArray *pCids, int8_t c
       tb_uid_t uid = *(tb_uid_t *)taosArrayGet(pUids, i);
       tb_uid_t suid = getTableSuidByUid(uid, pTsdb);
 
-      // Use suid = -1 for normal tables so tsdbCacheDropTable fetches schema via uid
+      // suid == 0 for normal tables; tsdbCacheDropTable uses uid when suid is 0
       int32_t ret = tsdbCacheDropTable(pTsdb, uid, suid, NULL);
       if (ret != TSDB_CODE_SUCCESS) {
         tsdbWarn("vgId:%d, %s drop table cache uid:%" PRId64 " failed since %s", TD_VID(pTsdb->pVnode), __func__, uid,
@@ -3065,7 +3067,7 @@ _done:
   }
 
   if (pStatus) {
-    if (pStatus->cancelRequested) {
+    if (atomic_load_8((int8_t volatile *)&pStatus->cancelRequested)) {
       pStatus->status = RELOAD_STATUS_CANCELLED;
     } else if (code != TSDB_CODE_SUCCESS) {
       pStatus->status = RELOAD_STATUS_FAILED;
