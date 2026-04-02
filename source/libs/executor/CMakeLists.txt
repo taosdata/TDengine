@@ -2,11 +2,11 @@ aux_source_directory(src EXECUTOR_SRC)
 
 add_library(executor STATIC ${EXECUTOR_SRC})
 
-if(${TD_DARWIN})
+if(TD_DARWIN)
   target_compile_options(executor PRIVATE -Wno-error=deprecated-non-prototype)
-endif(${TD_DARWIN})
+endif()
 
-if(${BUILD_WITH_ANALYSIS})
+if(BUILD_WITH_ANALYSIS)
   add_definitions(-DUSE_ANALYTICS)
 endif()
 
@@ -21,6 +21,6 @@ target_include_directories(
   PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 
-if(${BUILD_TEST})
+if(BUILD_TEST)
   ADD_SUBDIRECTORY(test)
-endif(${BUILD_TEST})
+endif()

@@ -1,267 +1,67 @@
-# =========================================================
-# Deps options
-# =========================================================
+if(TD_COMMUNITY_STANDALONE)
+  option(BUILD_ENTERPRISE    "If build enterprise edition (requires sibling taos-internal repo)" OFF)
+  option(BUILD_TEST          "If build unit tests using googletest"  OFF)
+  option(BUILD_TOOLS         "Build tools component"                 OFF)
+  option(BUILD_SANITIZER     "Enable sanitizers"                     OFF)
+  option(BUILD_COVERAGE      "Enable code coverage"                  OFF)
+  option(BUILD_JEMALLOC      "Enable jemalloc allocator"             OFF)
 
-option(
-    BUILD_TEST
-    "If build unit tests using googletest"
-    OFF
-)
-
-# TODO: tackle 'undefined pthread_atfork referenced by libuv.a' issue found on CentOS7.9/ubuntu 18
-option(TD_PTHREAD_TWEAK "tweaking pthread experimentally, especially for CentOS7.9 or ubuntu 18" OFF)
-
-# NOTE: these are not boolean options, but are very much useful
-# TAOSADAPTER_BUILD_OPTIONS
-if(NOT DEFINED TAOSADAPTER_BUILD_OPTIONS)
-  set(TAOSADAPTER_BUILD_OPTIONS "" CACHE STRING "go build options to be used by taosadapter, separated by ':'" FORCE)
+  set(BUILD_VER_NUMBER      "" CACHE STRING "Version number override")
+  set(BUILD_VER_COMPATIBLE  "" CACHE STRING "Compatible version number override")
+  set(BUILD_VER_TYPE        "" CACHE STRING "Version type override (e.g. stable)")
+  set(BUILD_VER_DATE        "" CACHE STRING "Version date override (e.g. %Y-%m-%d %H:%M:%S %z)")
+  set(BUILD_VER_CPUTYPE     "" CACHE STRING "CPU type override")
+  set(BUILD_VER_OSTYPE      "" CACHE STRING "OS type override")
+  set(BUILD_GITINFO         "" CACHE STRING "Git commit ID override")
+  set(BUILD_GITINFOI        "" CACHE STRING "Internal git commit ID override")
 endif()
 
-# TAOSADAPTER_GIT_TAG
-# <tag/branch/commit-sha1>:[TRUE|FALSE]
-# eg.: main
-# stands for:
-#      GIT_TAG main
-#      GIT_SHALLOW TRUE
-# eg.: ver-3.3.6.0
-# stands for:
-#      GIT_TAG ver-3.3.6.0
-#      GIT_SHALLOW TRUE
-# eg.: ba3e38da6cba08a555bd67369b1829cde3dd0348:FALSE
-# stands for:
-#      GIT_TAG ba3e38da6cba08a555bd67369b1829cde3dd0348
-#      GIT_SHALLOW FALSE
-# NOTE: if you specify branch other than main, please change this to FALSE
-#       otherwise you might encounter the error like:
-#       error: pathspec 'xxx' did not match any file(s) known to git
-if(NOT DEFINED TAOSADAPTER_GIT_TAG)
-  set(TAOSADAPTER_GIT_TAG "main" CACHE STRING "which tag/branch/commit-sha1 to checkout for taosadapter.git" FORCE)
+option(BUILD_ADVANCED_SECURITY "If enable advanced security"          OFF)
+option(BUILD_ASSERT_NOT_CORE   "If assert not generate core file"     OFF)
+option(BUILD_WEBSOCKET         "Enable websocket"                     OFF)
+option(BUILD_PTHREAD_TWEAK     "Tweak pthread for CentOS7.9/Ubuntu18" OFF)
+option(BUILD_ASTRA             "Build for Astra platform"             OFF)
+option(BUILD_ASTRA_RPC         "Build with Astra RPC transport"       OFF)
+
+if(TD_WINDOWS AND NOT BUILD_ASTRA)
+  option(BUILD_PTHREAD     "If build pthread on Windows"            ON)
+  option(BUILD_GNUREGEX    "If build gnu regex on Windows"          ON)
+  option(BUILD_WITH_ICONV  "If build iconv on Windows"              ON)
+  option(BUILD_MSVCREGEX   "If build msvcregex on Windows"          ON)
+  option(BUILD_WCWIDTH     "If build wcwidth on Windows"            ON)
+  option(BUILD_WINGETOPT   "If build wingetopt on Windows"          ON)
+  option(BUILD_CRASHDUMP   "If build crashdump on Windows"          ON)
 endif()
 
-# preprocess TAOSADAPTER_GIT_TAG
-string(REPLACE ":" ";" _kv "${TAOSADAPTER_GIT_TAG}:TRUE") # NOTE: set GIT_SHALLOW to TRUE by default
-list(GET _kv 0 _k)
-list(GET _kv 1 _v)
-set(TAOSADAPTER_GIT_TAG_NAME    "${_k}" CACHE STRING "" FORCE)
-if(${_v})
-  set(TAOSADAPTER_GIT_TAG_SHALLOW TRUE CACHE BOOL "" FORCE)
+option(BUILD_WITH_LEMON    "If build with lemon"                    ON)
+option(BUILD_WITH_UDF      "If build with UDF"                      ON)
+
+if(NOT BUILD_ASTRA)
+  option(BUILD_GEOS          "If build with geos"                   ON)
+  option(BUILD_SHARED_LIBS   "If build shared libraries"            OFF)
+  option(RUST_BINDINGS       "If build with rust-bindings"          ON)
+  option(BUILD_PCRE2         "If build with pcre2"                  ON)
+  option(BUILD_ADDR2LINE     "If build addr2line"                   OFF)
+  option(BUILD_WITH_LEVELDB  "If build with leveldb"                OFF)
+  option(BUILD_WITH_ROCKSDB  "If build with rocksdb"                ON)
+  option(BUILD_WITH_LZ4      "If build with lz4"                    ON)
 else()
-  set(TAOSADAPTER_GIT_TAG_SHALLOW FALSE CACHE BOOL "" FORCE)
+  option(BUILD_WITH_LZMA2    "If build with lzma2"                  ON)
 endif()
 
-# TAOSWS_GIT_TAG
-# eg.: main
-if(NOT DEFINED TAOSWS_GIT_TAG)
-    set(TAOSWS_GIT_TAG "main" CACHE STRING "which tag/branch/commit-sha1 to checkout for taosws(rust connector)" FORCE)
+if(TD_LINUX)
+  option(BUILD_SHARED_STORAGE "If build with shared storage"        ON)
+  option(BUILD_WITH_S3        "If build with s3"                    ON)
+  option(BUILD_WITH_COS       "If build with cos"                   OFF)
+  option(BUILD_WITH_LZMA2     "If build with lzma2"                 ON)
 endif()
 
-# preprocess TAOSWS_GIT_TAG
-string(REPLACE ":" ";" _kv "${TAOSWS_GIT_TAG}:TRUE") # NOTE: set GIT_SHALLOW to TRUE by default
-list(GET _kv 0 _k)
-list(GET _kv 1 _v)
-set(TAOSWS_GIT_TAG_NAME    "${_k}" CACHE STRING "" FORCE)
-if(${_v})
-    set(TAOSWS_GIT_TAG_SHALLOW TRUE CACHE BOOL "" FORCE)
-else()
-    set(TAOSWS_GIT_TAG_SHALLOW FALSE CACHE BOOL "" FORCE)
+if(TD_LINUX OR TD_WINDOWS)
+  option(BUILD_WITH_ANALYSIS  "If build with analysis"              ON)
 endif()
-
-IF(${TD_WINDOWS})
-    IF(NOT TD_ASTRA)
-        MESSAGE("build pthread Win32")
-        option(
-                BUILD_PTHREAD
-                "If build pthread on Windows"
-                ON
-            )
-
-        MESSAGE("build gnu regex for Windows")
-        option(
-                BUILD_GNUREGEX
-                "If build gnu regex on Windows"
-                ON
-            )
-
-        MESSAGE("build iconv Win32")
-        option(
-                BUILD_WITH_ICONV
-                "If build iconv on Windows"
-                ON
-            )
-
-        MESSAGE("build msvcregex Win32")
-        option(
-                BUILD_MSVCREGEX
-                "If build msvcregex on Windows"
-                ON
-            )
-
-        MESSAGE("build wcwidth Win32")
-        option(
-                BUILD_WCWIDTH
-                "If build wcwidth on Windows"
-                ON
-            )
-
-        MESSAGE("build wingetopt Win32")
-        option(
-                BUILD_WINGETOPT
-                    "If build wingetopt on Windows"
-                ON
-            )
-
-        option(
-                TDENGINE_3
-                "TDengine 3.x for taos-tools"
-                ON
-            )
-
-        option(
-                BUILD_CRASHDUMP
-                "If build crashdump on Windows"
-                ON
-            )
-    ENDIF ()
-ELSEIF (TD_DARWIN_64)
-    IF(${BUILD_TEST})
-        add_definitions(-DCOMPILER_SUPPORTS_CXX13)
-    ENDIF ()
-ENDIF ()
-
-option(
-    BUILD_WITH_LEMON
-    "If build with lemon"
-    ON
-)
-
-option(
-    BUILD_WITH_UDF
-    "If build with UDF"
-    ON
-)
-
-IF(NOT TD_ASTRA)
-    option(
-            BUILD_GEOS
-            "If build with geos"
-            ON
-        )
-
-    option(
-        BUILD_SHARED_LIBS
-        ""
-        OFF
-        )
-
-    option(
-        RUST_BINDINGS
-        "If build with rust-bindings"
-        ON
-        )
-
-    option(
-        BUILD_PCRE2
-        "If build with pcre2"
-        ON
-    )
-
-    option(
-        JEMALLOC_ENABLED
-        "If build with jemalloc"
-        OFF
-        )
-
-    option(
-        BUILD_SANITIZER
-        "If build sanitizer"
-        OFF
-        )
-
-    option(
-        BUILD_ADDR2LINE
-        "If build addr2line"
-        OFF
-        )
-
-    option(
-        BUILD_WITH_LEVELDB
-        "If build with leveldb"
-        OFF
-    )
-
-    option(
-        BUILD_WITH_ROCKSDB
-        "If build with rocksdb"
-        ON
-    )
-
-    option(
-        BUILD_WITH_LZ4
-        "If build with lz4"
-        ON
-    )
-ELSE ()
-
-    option(
-        BUILD_WITH_LZMA2
-        "If build with lzma2"
-        ON
-    )
-
-ENDIF ()
-
-ADD_DEFINITIONS(-DUSE_AUDIT)
-ADD_DEFINITIONS(-DUSE_GEOS)
-ADD_DEFINITIONS(-DUSE_UDF)
-ADD_DEFINITIONS(-DUSE_STREAM)
-ADD_DEFINITIONS(-DUSE_PCRE2)
-ADD_DEFINITIONS(-DUSE_RSMA)
-ADD_DEFINITIONS(-DUSE_TSMA)
-ADD_DEFINITIONS(-DUSE_TQ)
-ADD_DEFINITIONS(-DUSE_TOPIC)
-ADD_DEFINITIONS(-DUSE_MONITOR)
-ADD_DEFINITIONS(-DUSE_REPORT)
-
-IF(${TD_ASTRA_RPC})
-    ADD_DEFINITIONS(-DTD_ASTRA_RPC)
-ENDIF()
-
-IF(${TD_LINUX})
-
-option(
-    BUILD_SHARED_STORAGE
-    "If build with shared storage"
-    ON
-)
-
-option(
-    BUILD_WITH_S3
-    "If build with s3"
-    ON
-)
-
-option(
-    BUILD_WITH_COS
-    "If build with cos"
-    OFF
-)
-
-option(
-    BUILD_WITH_LZMA2
-    "If build with lzma2"
-    ON
-)
-
-ENDIF ()
-
-IF (${TD_LINUX} OR ${TD_WINDOWS})
-    option(BUILD_WITH_ANALYSIS "If build with analysis" ON)
-ELSE()
-    option(BUILD_WITH_ANALYSIS "If build with analysis" OFF)
-ENDIF()
 
 # NOTE: set option variable in this ways is not a good practice
-IF((NOT TD_ENTERPRISE) OR TD_WINDOWS)
+if((NOT TD_ENTERPRISE) OR TD_WINDOWS)
   MESSAGE("switch shared storage off with community/windows edition")
   set(BUILD_SHARED_STORAGE OFF)
   set(BUILD_WITH_S3 OFF)
@@ -285,101 +85,30 @@ IF(${BUILD_SHARED_STORAGE})
     MESSAGE("shared storage does not support COS at present, please use s3 instead")
   ENDIF ()
 ELSE ()
-
   option(BUILD_WITH_S3 "If build with s3" OFF)
-
   option(BUILD_WITH_COS "If build with cos" OFF)
-
 ENDIF ()
 
-IF(${TAOSD_INTEGRATED})
-    add_definitions(-DTAOSD_INTEGRATED)
-ENDIF()
 
-IF(${TD_AS_LIB})
-    add_definitions(-DTD_AS_LIB)
-ENDIF()
+option(BUILD_WITH_SQLITE   "If build with sqlite"                  OFF)
+option(BUILD_WITH_BDB      "If build with BDB"                     OFF)
+option(BUILD_WITH_LUCENE   "If build with lucene"                  OFF)
+option(BUILD_WITH_NURAFT   "If build with NuRaft"                  OFF)
 
-option(
-    BUILD_WITH_SQLITE
-    "If build with sqlite"
-    OFF
-)
+if(NOT BUILD_ASTRA)
+  option(BUILD_WITH_UV            "If build with libuv"            ON)
+  option(BUILD_WITH_UV_TRANS      "If build with libuv_trans"      ON)
+  if(TD_LINUX)
+    option(BUILD_DEPENDENCY_TESTS "If build dependency tests"      ON)
+  endif()
+  option(BUILD_WITH_INVERTEDINDEX "If use invertedIndex"           ON)
+endif()
 
-option(
-    BUILD_WITH_BDB
-    "If build with BDB"
-    OFF
-)
-
-option(
-    BUILD_WITH_LUCENE
-    "If build with lucene"
-    off
-)
-
-option(
-    BUILD_WITH_NURAFT
-    "If build with NuRaft"
-    OFF
-)
-
-IF(NOT TD_ASTRA)
-
-option(
-    BUILD_WITH_UV
-    "If build with libuv"
-    ON
-)
-
-option(
-    BUILD_WITH_UV_TRANS
-    "If build with libuv_trans "
-    ON
-)
-
-IF(${TD_LINUX} MATCHES TRUE)
-
-option(
-    BUILD_DEPENDENCY_TESTS
-    "If build dependency tests"
-    ON
-)
-
-ENDIF ()
-
-option(
-   BUILD_WITH_INVERTEDINDEX
-   "If use invertedIndex"
-   ON
-)
-ENDIF ()
-
-option(
-   BUILD_RELEASE
-   "If build release version"
-   OFF
-)
-
-option(
-   BUILD_CONTRIB
-   "If build thirdpart from source"
-   OFF
-)
-
-option(
-    BUILD_LIBSASL
-    "If build libsasl2"
-    ON
-)
-
-option(
-    FLEX_DEPLOY
-    "If enable flexible deployment mode"
-    OFF
-)
-
-message(STATUS "BUILD_SHARED_STORAGE:${BUILD_SHARED_STORAGE}")
-message(STATUS "BUILD_WITH_S3:${BUILD_WITH_S3}")
-message(STATUS "BUILD_WITH_COS:${BUILD_WITH_COS}")
-
+option(BUILD_TAOSD_INTEGRATED "Build taosd as integrated library"    OFF)
+option(BUILD_AS_LIB           "Build TDengine as library"            OFF)
+option(BUILD_RELEASE          "If build release version"             OFF)
+option(BUILD_CONTRIB          "If build thirdpart from source"       OFF)
+option(BUILD_LIBSASL          "If build libsasl2"                    OFF)
+option(BUILD_FLEX_DEPLOY      "If enable flexible deployment mode"   OFF)
+option(BUILD_WITH_RAND_ERR    "If build with random error injection" OFF)
+option(BUILD_TSZ_ENABLED      "If build with TSZ compression"        ON)
