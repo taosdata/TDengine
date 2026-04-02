@@ -1,0 +1,139 @@
+@startuml
+'https://plantuml.com/sequence-diagram
+
+title tmq
+note left of WSClient: subscribe
+WSClient->WSServer: subscribe tmq request
+activate WSServer
+WSServer->taosc:tmq_conf_new()
+activate taosc
+taosc-->WSServer: config pointer
+deactivate taosc
+WSServer->taosc:tmq_conf_set()
+activate taosc
+taosc-->WSServer: set config result
+deactivate taosc
+WSServer->taosc:tmq_consumer_new()
+activate taosc
+taosc-->WSServer: consumer pointer
+deactivate taosc
+WSServer->taosc:tmq_conf_destroy()
+activate taosc
+taosc-->WSServer: destroy config result
+deactivate taosc
+WSServer->taosc:tmq_subscribe()
+activate taosc
+taosc-->WSServer: subscribe result
+deactivate taosc
+WSServer-->WSClient: subscribe tmq response
+
+
+
+
+note left of WSClient: poll
+WSClient->WSServer: tmq poll request
+WSServer->taosc:tmq_consumer_poll()
+activate taosc
+taosc-->WSServer: poll message
+deactivate taosc
+alt message is not nil
+
+WSServer->taosc:tmq_get_res_type()
+activate taosc
+taosc-->WSServer: mesage type
+deactivate taosc
+WSServer->taosc:tmq_get_topic_name()
+activate taosc
+taosc-->WSServer: topic name
+deactivate taosc
+WSServer->taosc:tmq_get_db_name()
+activate taosc
+taosc-->WSServer: db name
+deactivate taosc
+WSServer->taosc:tmq_get_vgroup_id()
+activate taosc
+taosc-->WSServer: vgroup id
+deactivate taosc
+end
+WSServer-->WSClient: poll response
+
+alt data message
+note left of WSClient: fetch
+WSClient->WSServer: tmq fetch request
+WSServer->taosc:taos_fetch_raw_block()
+activate taosc
+taosc-->WSServer: raw block
+deactivate taosc
+WSServer->taosc:tmq_get_table_name()
+activate taosc
+taosc-->WSServer: table name
+deactivate taosc
+WSServer->taosc:taos_num_fields()
+activate taosc
+taosc-->WSServer: fields count
+deactivate taosc
+WSServer->taosc:taos_fetch_fields()
+activate taosc
+taosc-->WSServer: fields name,type length
+deactivate taosc
+WSServer->taosc:taos_result_precision()
+activate taosc
+taosc-->WSServer: precision
+deactivate taosc
+WSServer-->WSClient: tmq fetch response
+
+note left of WSClient: fetch_block
+WSClient->WSServer: tmq fetch block request
+WSServer-->WSClient: tmq fetch block response
+
+else meta message
+note left of WSClient: fetch_raw_meta
+WSClient->WSServer: tmq fetch raw meta request
+WSServer->taosc:tmq_get_raw_meta()
+activate taosc
+taosc-->WSServer: raw meta
+deactivate taosc
+WSServer-->WSClient: tmq fetch raw meta response
+
+note left of WSClient: fetch_json_meta
+WSClient->WSServer: tmq fetch json meta request
+WSServer->taosc:tmq_get_json_meta()
+activate taosc
+taosc-->WSServer: json meta
+deactivate taosc
+WSServer->taosc:tmq_free_json_meta()
+WSServer-->WSClient: tmq fetch json meta response
+
+deactivate taosc
+'tmq_get_raw_meta
+end
+note left of WSClient: commit
+WSClient->WSServer: tmq commit request
+WSServer->taosc:tmq_commit_sync()
+activate taosc
+taosc-->WSServer: commit result
+deactivate taosc
+WSServer-->WSClient: tmq commit response
+WSServer->taosc:taos_fetch_fields()
+activate taosc
+taosc-->WSServer: fields name,type length
+deactivate taosc
+
+
+note left of WSClient: close consumer
+WSClient->WSServer: tmq close request
+WSServer->taosc:tmq_consumer_close()
+activate taosc
+taosc-->WSServer:close result
+deactivate taosc
+
+note left of WSClient: close ws connect
+WSClient->WSServer: close connect
+WSServer-->WSClient:close
+deactivate WSServer
+WSServer->taosc:taos_free_result()
+activate taosc
+WSServer->taosc:tmq_consumer_close()
+
+
+@enduml

@@ -1,0 +1,685 @@
+name: GO_LINUX
+
+on:
+  pull_request:
+    branches:
+      - 'main'
+      - '3.0'
+      - '3.1'
+      - '3.1.2'
+      - '3.3.6'
+  push:
+    branches:
+      - 'main'
+      - '3.0'
+      - '3.1'
+      - '3.1.2'
+      - '3.3.6'
+  workflow_dispatch:
+    inputs:
+      tbBranch:
+        description: 'TDengine branch'
+        required: true
+        type: string
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    name: Build-${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ 'ubuntu-latest' , 'ubuntu-24.04-arm' ]
+    outputs:
+      commit_id: ${{ steps.get_commit_id.outputs.commit_id }}
+    steps:
+      - name: checkout TDengine by pr
+        if: github.event_name == 'pull_request'
+        uses: actions/checkout@v6
+        with:
+          repository: 'taosdata/TDengine'
+          path: 'TDengine'
+          ref: ${{ github.base_ref }}
+
+      - name: checkout TDengine by push
+        if: github.event_name == 'push'
+        uses: actions/checkout@v6
+        with:
+          repository: 'taosdata/TDengine'
+          path: 'TDengine'
+          ref: ${{ github.ref_name }}
+
+      - name: checkout TDengine manually
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/checkout@v6
+        with:
+          repository: 'taosdata/TDengine'
+          path: 'TDengine'
+          ref: ${{ inputs.tbBranch }}
+
+      - name: get_commit_id
+        id: get_commit_id
+        run: |
+          cd TDengine
+          echo "commit_id=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Cache server by pr
+        if: github.event_name == 'pull_request'
+        id: cache-server-pr
+        uses: actions/cache@v5
+        with:
+          path: server.tar.gz
+          key: ${{ matrix.os }}-build-${{ github.base_ref }}-${{ steps.get_commit_id.outputs.commit_id }}
+
+      - name: Cache server by push
+        if: github.event_name == 'push'
+        id: cache-server-push
+        uses: actions/cache@v5
+        with:
+          path: server.tar.gz
+          key: ${{ matrix.os }}-build-${{ github.ref_name }}-${{ steps.get_commit_id.outputs.commit_id }}
+
+      - name: Cache server manually
+        if: github.event_name == 'workflow_dispatch'
+        id: cache-server-manually
+        uses: actions/cache@v5
+        with:
+          path: server.tar.gz
+          key: ${{ matrix.os }}-build-${{ inputs.tbBranch }}-${{ steps.get_commit_id.outputs.commit_id }}
+
+      - name: Get CMake
+        if: >
+          (github.event_name == 'workflow_dispatch' && steps.cache-server-manually.outputs.cache-hit != 'true') ||
+          (github.event_name == 'pull_request' && steps.cache-server-pr.outputs.cache-hit != 'true') ||
+          (github.event_name == 'push' && steps.cache-server-push.outputs.cache-hit != 'true')
+        uses: lukka/get-cmake@latest
+        with:
+          cmakeVersion: 3.31.6
+
+      - name: Cache externals built
+        if: >
+          (github.event_name == 'workflow_dispatch' && steps.cache-server-manually.outputs.cache-hit != 'true') ||
+          (github.event_name == 'pull_request' && steps.cache-server-pr.outputs.cache-hit != 'true') ||
+          (github.event_name == 'push' && steps.cache-server-push.outputs.cache-hit != 'true')
+        uses: actions/cache@v5
+        id: cache-ext
+        with:
+          path: TDengine/.externals
+          key: ${{ runner.os }}-${{ matrix.os }}-${{ hashFiles('TDengine/cmake/external.cmake', 'cmake/in/**') }}-build-ext-v3
+
+      - name: install TDengine
+        if: >
+          (github.event_name == 'workflow_dispatch' && steps.cache-server-manually.outputs.cache-hit != 'true') ||
+          (github.event_name == 'pull_request' && steps.cache-server-pr.outputs.cache-hit != 'true') ||
+          (github.event_name == 'push' && steps.cache-server-push.outputs.cache-hit != 'true')
+        run: |
+          cd TDengine
+          mkdir debug
+          cd debug
+          cmake .. -DBUILD_TEST=off -DBUILD_DEPENDENCY_TESTS=0
+          make -j 8
+
+      - name: package
+        if: >
+          (github.event_name == 'workflow_dispatch' && steps.cache-server-manually.outputs.cache-hit != 'true') ||
+          (github.event_name == 'pull_request' && steps.cache-server-pr.outputs.cache-hit != 'true') ||
+          (github.event_name == 'push' && steps.cache-server-push.outputs.cache-hit != 'true')
+        run: |
+          tree ./TDengine/debug/build
+          mkdir -p ./release
+          cp ./TDengine/debug/build/bin/taos ./release/
+          cp ./TDengine/debug/build/bin/taosd ./release/
+          cp ./TDengine/debug/build/lib/libtaosnative.so ./release/
+          cp ./TDengine/include/client/taos.h ./release/
+          cat >./release/install.sh<<EOF 
+          chmod +x ./taos
+          chmod +x ./taosd
+          cp ./taos /bin/
+          cp ./taosd /bin/
+          cp ./libtaosnative.so /usr/lib
+          cp ./taos.h /usr/include
+          EOF
+          tar -zcvf server.tar.gz ./release
+
+  test_build:
+    runs-on: ${{ matrix.os }}
+    needs: build
+    strategy:
+      matrix:
+        go: [ '1.24.10', 'stable' ]
+        os: [ 'ubuntu-latest' , 'ubuntu-24.04-arm' ]
+    name: Build taosAdapter ${{ matrix.os }}-${{ matrix.go }}
+    steps:
+      - name: get cache server by pr
+        if: github.event_name == 'pull_request'
+        id: get-cache-server-pr
+        uses: actions/cache@v5
+        with:
+          path: server.tar.gz
+          key: ${{ matrix.os }}-build-${{ github.base_ref }}-${{ needs.build.outputs.commit_id }}
+          restore-keys: |
+            ${{ matrix.os }}-build-${{ github.base_ref }}-
+
+      - name: get cache server by push
+        if: github.event_name == 'push'
+        id: get-cache-server-push
+        uses: actions/cache@v5
+        with:
+          path: server.tar.gz
+          key: ${{ matrix.os }}-build-${{ github.ref_name }}-${{ needs.build.outputs.commit_id }}
+          restore-keys: |
+            ${{ matrix.os }}-build-${{ github.ref_name }}-
+
+      - name: cache server manually
+        if: github.event_name == 'workflow_dispatch'
+        id: get-cache-server-manually
+        uses: actions/cache@v5
+        with:
+          path: server.tar.gz
+          key: ${{ matrix.os }}-build-${{ inputs.tbBranch }}-${{ needs.build.outputs.commit_id }}
+          restore-keys: |
+            ${{ matrix.os }}-build-${{ inputs.tbBranch }}-
+
+
+      - name: install
+        run: |
+          tar -zxvf server.tar.gz
+          cd release && sudo sh install.sh
+
+      - name: checkout
+        uses: actions/checkout@v6
+        with:
+          path: 'taosadapter'
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: ${{ matrix.go }}
+          cache-dependency-path: taosadapter/go.sum
+
+      - name: build taosAdapter
+        run: |
+          cd ./taosadapter
+          go mod download
+          go build
+
+  test_go_test:
+    runs-on: ${{ matrix.os }}
+    needs: build
+    strategy:
+      matrix:
+        go: [ '1.24.10', 'stable' ]
+        os: [ 'ubuntu-latest' , 'ubuntu-24.04-arm' ]
+    name: test taosAdapter ${{ matrix.os }}-${{ matrix.go }}
+    steps:
+      - name: get cache server by pr
+        if: github.event_name == 'pull_request'
+        id: get-cache-server-pr
+        uses: actions/cache@v5
+        with:
+          path: server.tar.gz
+          key: ${{ matrix.os }}-build-${{ github.base_ref }}-${{ needs.build.outputs.commit_id }}
+          restore-keys: |
+            ${{ matrix.os }}-build-${{ github.base_ref }}-
+
+      - name: get cache server by push
+        if: github.event_name == 'push'
+        id: get-cache-server-push
+        uses: actions/cache@v5
+        with:
+          path: server.tar.gz
+          key: ${{ matrix.os }}-build-${{ github.ref_name }}-${{ needs.build.outputs.commit_id }}
+          restore-keys: |
+            ${{ matrix.os }}-build-${{ github.ref_name }}-
+
+      - name: get cache server manually
+        if: github.event_name == 'workflow_dispatch'
+        id: get-cache-server-manually
+        uses: actions/cache@v5
+        with:
+          path: server.tar.gz
+          key: ${{ matrix.os }}-build-${{ inputs.tbBranch }}-${{ needs.build.outputs.commit_id }}
+          restore-keys: |
+            ${{ matrix.os }}-build-${{ inputs.tbBranch }}-
+
+
+      - name: install
+        run: |
+          tar -zxvf server.tar.gz
+          cd release && sudo sh install.sh
+
+      - name: checkout
+        uses: actions/checkout@v6
+
+      - name: copy taos cfg
+        run: |
+          sudo mkdir -p /etc/taos
+          sudo cp ./.github/workflows/taos.cfg /etc/taos/taos.cfg
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: ${{ matrix.go }}
+          cache-dependency-path: go.sum
+
+      - name: start shell
+        run: |
+          cat >start.sh<<EOF
+          ulimit -n 65535 && TAOS_SUPPORT_VNODES=256 taosd
+          EOF
+
+      - name: start taosd
+        run: nohup sudo sh ./start.sh & disown
+
+      - name: test
+        id: test
+        env:
+          GO_TEST_DISABLE_DISPLAY_LOG: "true"
+        run: |
+          go mod download
+          go test -coverpkg=./... -v --count=1 -coverprofile=coverage.txt -covermode=atomic ./...
+
+      - name: Upload coverage to Codecov
+        if: matrix.os == 'ubuntu-latest'
+        uses: codecov/codecov-action@v5
+        with:
+          files: ./coverage.txt
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_ORG_TOKEN }}
+          OS: linux
+
+      - name: Upload coverage to Codecov with arm
+        if: matrix.os == 'ubuntu-24.04-arm'
+        uses: codecov/codecov-action@v5
+        with:
+          files: ./coverage.txt
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_ORG_TOKEN }}
+          OS: linux-arm64
+
+      - uses: actions/upload-artifact@v6
+        if: always() && (steps.test.outcome == 'failure' || steps.test.outcome == 'cancelled')
+        with:
+          name: ${{ matrix.os }}-${{ matrix.go }}-log
+          path: /var/log/taos/
+
+  golangci:
+    name: lint
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ 'ubuntu-latest' , 'ubuntu-24.04-arm' ]
+    needs: build
+    steps:
+      - name: get cache server by pr
+        if: github.event_name == 'pull_request'
+        id: get-cache-server-pr
+        uses: actions/cache@v5
+        with:
+          path: server.tar.gz
+          key: ${{ matrix.os }}-build-${{ github.base_ref }}-${{ needs.build.outputs.commit_id }}
+          restore-keys: |
+            ${{ matrix.os }}-build-${{ github.base_ref }}-
+
+      - name: get cache server by push
+        if: github.event_name == 'push'
+        id: get-cache-server-push
+        uses: actions/cache@v5
+        with:
+          path: server.tar.gz
+          key: ${{ matrix.os }}-build-${{ github.ref_name }}-${{ needs.build.outputs.commit_id }}
+          restore-keys: |
+            ${{ matrix.os }}-build-${{ github.ref_name }}-
+
+      - name: get cache server manually
+        if: github.event_name == 'workflow_dispatch'
+        id: get-cache-server-manually
+        uses: actions/cache@v5
+        with:
+          path: server.tar.gz
+          key: ${{ matrix.os }}-build-${{ inputs.tbBranch }}-${{ needs.build.outputs.commit_id }}
+          restore-keys: |
+            ${{ matrix.os }}-build-${{ inputs.tbBranch }}-
+
+
+      - name: install
+        run: |
+          tar -zxvf server.tar.gz
+          cd release && sudo sh install.sh
+
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version: stable
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v8
+        with:
+          version: latest
+
+  build_asan:
+    runs-on: ${{ matrix.os }}
+    name: Build-asan${{ matrix.os }}
+    strategy:
+      matrix:
+        #       asan runs failed on 24.04, see: https://github.com/cockroachdb/pebble/issues/5342
+        os: [ 'ubuntu-22.04' , 'ubuntu-22.04-arm' ]
+    outputs:
+      commit_id: ${{ steps.get_commit_id.outputs.commit_id }}
+    steps:
+      - name: checkout TDengine by pr
+        if: github.event_name == 'pull_request'
+        uses: actions/checkout@v6
+        with:
+          repository: 'taosdata/TDengine'
+          path: 'TDengine'
+          ref: ${{ github.base_ref }}
+
+      - name: checkout TDengine by push
+        if: github.event_name == 'push'
+        uses: actions/checkout@v6
+        with:
+          repository: 'taosdata/TDengine'
+          path: 'TDengine'
+          ref: ${{ github.ref_name }}
+
+      - name: checkout TDengine manually
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/checkout@v6
+        with:
+          repository: 'taosdata/TDengine'
+          path: 'TDengine'
+          ref: ${{ inputs.tbBranch }}
+
+      - name: get_commit_id
+        id: get_commit_id
+        run: |
+          cd TDengine
+          echo "commit_id=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Cache server by pr
+        if: github.event_name == 'pull_request'
+        id: cache-server-pr
+        uses: actions/cache@v5
+        with:
+          path: server.tar.gz
+          key: ${{ matrix.os }}-build-asan-${{ github.base_ref }}-${{ steps.get_commit_id.outputs.commit_id }}
+
+      - name: Cache server by push
+        if: github.event_name == 'push'
+        id: cache-server-push
+        uses: actions/cache@v5
+        with:
+          path: server.tar.gz
+          key: ${{ matrix.os }}-build-asan-${{ github.ref_name }}-${{ steps.get_commit_id.outputs.commit_id }}
+
+      - name: Cache server manually
+        if: github.event_name == 'workflow_dispatch'
+        id: cache-server-manually
+        uses: actions/cache@v5
+        with:
+          path: server.tar.gz
+          key: ${{ matrix.os }}-build-asan-${{ inputs.tbBranch }}-${{ steps.get_commit_id.outputs.commit_id }}
+
+      - name: Get CMake
+        if: >
+          (github.event_name == 'workflow_dispatch' && steps.cache-server-manually.outputs.cache-hit != 'true') ||
+          (github.event_name == 'pull_request' && steps.cache-server-pr.outputs.cache-hit != 'true') ||
+          (github.event_name == 'push' && steps.cache-server-push.outputs.cache-hit != 'true')
+        uses: lukka/get-cmake@latest
+        with:
+          cmakeVersion: 3.31.6
+
+      - name: Cache externals built
+        if: >
+          (github.event_name == 'workflow_dispatch' && steps.cache-server-manually.outputs.cache-hit != 'true') ||
+          (github.event_name == 'pull_request' && steps.cache-server-pr.outputs.cache-hit != 'true') ||
+          (github.event_name == 'push' && steps.cache-server-push.outputs.cache-hit != 'true')
+        uses: actions/cache@v5
+        id: cache-ext
+        with:
+          path: TDengine/.externals
+          key: ${{ runner.os }}-${{ matrix.os }}-asan-${{ hashFiles('TDengine/cmake/external.cmake', 'cmake/in/**') }}-build-ext-v3
+
+      - name: install TDengine
+        if: >
+          (github.event_name == 'workflow_dispatch' && steps.cache-server-manually.outputs.cache-hit != 'true') ||
+          (github.event_name == 'pull_request' && steps.cache-server-pr.outputs.cache-hit != 'true') ||
+          (github.event_name == 'push' && steps.cache-server-push.outputs.cache-hit != 'true')
+        run: |
+          cd TDengine
+          mkdir debug
+          cd debug
+          cmake .. -DBUILD_TEST=off -DBUILD_DEPENDENCY_TESTS=0 -DBUILD_SANITIZER=1
+          make -j 8
+
+      - name: package
+        if: >
+          (github.event_name == 'workflow_dispatch' && steps.cache-server-manually.outputs.cache-hit != 'true') ||
+          (github.event_name == 'pull_request' && steps.cache-server-pr.outputs.cache-hit != 'true') ||
+          (github.event_name == 'push' && steps.cache-server-push.outputs.cache-hit != 'true')
+        run: |
+          mkdir -p ./release
+          cp ./TDengine/debug/build/bin/taos ./release/
+          cp ./TDengine/debug/build/bin/taosd ./release/
+          cp ./TDengine/debug/build/lib/libtaosnative.so ./release/
+          cp ./TDengine/include/client/taos.h ./release/
+          cat >./release/install.sh<<EOF 
+          chmod +x ./taos
+          chmod +x ./taosd
+          cp ./taos /bin/
+          cp ./taosd /bin/
+          cp ./libtaosnative.so /usr/lib
+          cp ./taos.h /usr/include
+          EOF
+          tar -zcvf server.tar.gz ./release
+
+
+  test_go_asan:
+    runs-on: ${{ matrix.os }}
+    needs: build_asan
+    strategy:
+      matrix:
+        go: [ 'stable' ]
+        #       asan runs failed on 24.04, see: https://github.com/cockroachdb/pebble/issues/5342
+        os: [ 'ubuntu-22.04' , 'ubuntu-22.04-arm' ]
+    name: test taosAdapter with asan ${{ matrix.os }}-${{ matrix.go }}
+    steps:
+      - name: get cache server by pr
+        if: github.event_name == 'pull_request'
+        id: get-cache-server-pr
+        uses: actions/cache@v5
+        with:
+          path: server.tar.gz
+          key: ${{ matrix.os }}-build-asan-${{ github.base_ref }}-${{ needs.build.outputs.commit_id }}
+
+      - name: get cache server by push
+        if: github.event_name == 'push'
+        id: get-cache-server-push
+        uses: actions/cache@v5
+        with:
+          path: server.tar.gz
+          key: ${{ matrix.os }}-build-asan-${{ github.ref_name }}-${{ needs.build.outputs.commit_id }}
+
+      - name: get cache server manually
+        if: github.event_name == 'workflow_dispatch'
+        id: get-cache-server-manually
+        uses: actions/cache@v5
+        with:
+          path: server.tar.gz
+          key: ${{ matrix.os }}-build-asan-${{ inputs.tbBranch }}-${{ needs.build.outputs.commit_id }}
+
+
+      - name: install
+        run: |
+          tar -zxvf server.tar.gz
+          cd release && sudo sh install.sh
+
+      - name: checkout
+        uses: actions/checkout@v6
+
+      - name: copy taos cfg
+        run: |
+          sudo mkdir -p /etc/taos
+          sudo cp ./.github/workflows/taos.cfg /etc/taos/taos.cfg
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: ${{ matrix.go }}
+          cache-dependency-path: go.sum
+
+      - name: start shell
+        run: |
+          cat >start.sh<<EOF
+          ulimit -n 65535 && TAOS_SUPPORT_VNODES=256 taosd
+          EOF
+
+      - name: start taosd
+        run: nohup sudo sh ./start.sh & disown
+
+      - name: test
+        id: test
+        env:
+          GO_TEST_DISABLE_DISPLAY_LOG: "true"
+        run: |
+          go mod download
+          go test -v --count=1 -asan ./...
+
+  govulncheck:
+    name: govulncheck
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ 'ubuntu-latest' , 'ubuntu-24.04-arm' ]
+    needs: build
+    steps:
+      - name: get cache server by pr
+        if: github.event_name == 'pull_request'
+        id: get-cache-server-pr
+        uses: actions/cache@v5
+        with:
+          path: server.tar.gz
+          key: ${{ matrix.os }}-build-${{ github.base_ref }}-${{ needs.build.outputs.commit_id }}
+          restore-keys: |
+            ${{ matrix.os }}-build-${{ github.base_ref }}-
+
+      - name: get cache server by push
+        if: github.event_name == 'push'
+        id: get-cache-server-push
+        uses: actions/cache@v5
+        with:
+          path: server.tar.gz
+          key: ${{ matrix.os }}-build-${{ github.ref_name }}-${{ needs.build.outputs.commit_id }}
+          restore-keys: |
+            ${{ matrix.os }}-build-${{ github.ref_name }}-
+
+      - name: get cache server manually
+        if: github.event_name == 'workflow_dispatch'
+        id: get-cache-server-manually
+        uses: actions/cache@v5
+        with:
+          path: server.tar.gz
+          key: ${{ matrix.os }}-build-${{ inputs.tbBranch }}-${{ needs.build.outputs.commit_id }}
+          restore-keys: |
+            ${{ matrix.os }}-build-${{ inputs.tbBranch }}-
+
+
+      - name: install
+        run: |
+          tar -zxvf server.tar.gz
+          cd release && sudo sh install.sh
+
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version: stable
+
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+
+      - name: Run vulnerability scan
+        run: govulncheck ./...
+
+  test_e2e:
+    name: test_e2e
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ 'ubuntu-latest' , 'ubuntu-24.04-arm' ]
+    needs: build
+    steps:
+      - name: get cache server by pr
+        if: github.event_name == 'pull_request'
+        id: get-cache-server-pr
+        uses: actions/cache@v5
+        with:
+          path: server.tar.gz
+          key: ${{ matrix.os }}-build-${{ github.base_ref }}-${{ needs.build.outputs.commit_id }}
+          restore-keys: |
+            ${{ matrix.os }}-build-${{ github.base_ref }}-
+
+      - name: get cache server by push
+        if: github.event_name == 'push'
+        id: get-cache-server-push
+        uses: actions/cache@v5
+        with:
+          path: server.tar.gz
+          key: ${{ matrix.os }}-build-${{ github.ref_name }}-${{ needs.build.outputs.commit_id }}
+          restore-keys: |
+            ${{ matrix.os }}-build-${{ github.ref_name }}-
+
+      - name: get cache server manually
+        if: github.event_name == 'workflow_dispatch'
+        id: get-cache-server-manually
+        uses: actions/cache@v5
+        with:
+          path: server.tar.gz
+          key: ${{ matrix.os }}-build-${{ inputs.tbBranch }}-${{ needs.build.outputs.commit_id }}
+          restore-keys: |
+            ${{ matrix.os }}-build-${{ inputs.tbBranch }}-
+
+      - name: install
+        run: |
+          tar -zxvf server.tar.gz
+          cd release && sudo sh install.sh
+
+      - name: checkout
+        uses: actions/checkout@v6
+
+      - name: copy taos cfg
+        run: |
+          sudo mkdir -p /etc/taos
+          sudo cp ./.github/workflows/taos.cfg /etc/taos/taos.cfg
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: stable
+          cache-dependency-path: go.sum
+
+      - name: start shell
+        run: |
+          cat >start.sh<<EOF
+          ulimit -n 65535 && TAOS_SUPPORT_VNODES=256 taosd
+          EOF
+
+      - name: start taosd
+        run: nohup sudo sh ./start.sh & disown
+
+      - name: build taosAdapter
+        run: |
+          go mod download
+          go build -cover
+
+      - name: run test
+        run: |
+          sudo chmod +x ./tests/e2e.sh || true
+          sudo bash ./tests/e2e.sh
+
+      - name: merge coverage
+        run: |
+          sudo go tool covdata textfmt -i=coverage -o=cov.txt
+
+      - name: Upload coverage to Codecov
+        if: matrix.os == 'ubuntu-latest'
+        uses: codecov/codecov-action@v5
+        with:
+          files: ./cov.txt
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_ORG_TOKEN }}
+          OS: linux
