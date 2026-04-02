@@ -84,10 +84,10 @@ pub fn alloc_jobs(
             let xnode = xnodes.best_xnode(via).context(NoXnodeAvailableSnafu)?;
             let job = HaTask {
                 name: task_name,
-                from: task.from.to_string(),
+                from: from.to_string(),
                 to: task_to,
                 parser: task.parser,
-                via: None,
+                via,
                 labels: None,
             };
             AllocatedJobs::Task(xnode, Box::new(job))
