@@ -212,8 +212,11 @@ int main(int argc, char *argv[]) {
             return -1;
         }
     }
-    // Apply config directory before any taos_connect() call
-    taos_options(TSDB_OPTION_CONFIGDIR, argConfigDir());
+    // Apply config directory only when user explicitly passed -c
+    const char *cfgPath = argConfigDir();
+    if (cfgPath && cfgPath[0] != '\0') {
+        taos_options(TSDB_OPTION_CONFIGDIR, cfgPath);
+    }
     // conn pool
     // conn pool: data threads each need 2 conns (one pre-assigned, one for queries),
     // tag threads need 1 each, plus a few for main thread operations

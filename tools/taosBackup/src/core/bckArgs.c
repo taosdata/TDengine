@@ -60,11 +60,7 @@ static bool  g_dsnMode      = false;
 static int8_t g_driver = CONN_MODE_INVALID;
 
 // TDengine config directory (set via -c / --config-dir)
-#ifdef WINDOWS
-static char  g_configDir[MAX_PATH_LEN] = "C:\\TDengine\\cfg";
-#else
-static char  g_configDir[MAX_PATH_LEN] = "/etc/taos";
-#endif
+static char g_configDir[MAX_PATH_LEN] = "";
 
 // data-batch: max rows per STMT bind/execute call; 0 = use per-version default
 static int g_dataBatch = 0;
