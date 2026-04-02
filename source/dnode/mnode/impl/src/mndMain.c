@@ -21,6 +21,7 @@
 #include "mndCluster.h"
 #include "mndCompact.h"
 #include "mndCompactDetail.h"
+#include "mndReload.h"
 #include "mndConfig.h"
 #include "mndConsumer.h"
 #include "mndDb.h"
@@ -793,6 +794,7 @@ static int32_t mndInitSteps(SMnode *pMnode) {
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-func", mndInitFunc, mndCleanupFunc));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-view", mndInitView, mndCleanupView));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-compact", mndInitCompact, mndCleanupCompact));
+  TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-reload", mndInitReload, mndCleanupReload));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-scan", mndInitScan, mndCleanupScan));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-retention", mndInitRetention, mndCleanupRetention));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-compact-detail", mndInitCompactDetail, mndCleanupCompactDetail));
