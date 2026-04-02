@@ -118,7 +118,7 @@ static bool validateTimezoneFormat(const SValueNode* pVal) {
 
   int h = (h1 - '0') * 10 + (h2 - '0');
   int m = (m1 - '0') * 10 + (m2 - '0');
-  return (h < 14 && m < 59) || (h == 14 && m == 0);
+  return (h < 14 && m < 60) || (h == 14 && m == 0);
 }
 
 static int32_t countTrailingSpaces(const SValueNode* pVal, bool isLtrim) {

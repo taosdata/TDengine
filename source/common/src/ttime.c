@@ -1928,6 +1928,7 @@ static int32_t char2ts(const char* s, SArray* formats, int64_t* ts, int32_t prec
   int32_t hour = 0, min = 0, sec = 0, us = 0, ms = 0, ns = 0;
   int32_t tzHour = 0;
   int32_t tzMinute = 0;
+  bool    hasTZ = false;
   int32_t err = 0;
   bool    withYD = false, withMD = false;
 
@@ -2058,6 +2059,7 @@ static int32_t char2ts(const char* s, SArray* formats, int64_t* ts, int32_t prec
         if (NULL == newPos)
           err = -1;
         else {
+          hasTZ = true;
           s = newPos;
         }
       } break;
@@ -2066,6 +2068,7 @@ static int32_t char2ts(const char* s, SArray* formats, int64_t* ts, int32_t prec
         if (*s == 'Z' || *s == 'z') {
           tzHour = 0;
           tzMinute = 0;
+          hasTZ = true;
           s++;
         } else if (*s == '+' || *s == '-') {
           int32_t tzSign = (*s == '+') ? 1 : -1;
@@ -2100,6 +2103,7 @@ static int32_t char2ts(const char* s, SArray* formats, int64_t* ts, int32_t prec
               } else {
                 tzHour = tzSign * h;
                 tzMinute = tzSign * m;
+                hasTZ = true;
               }
             }
           }
@@ -2256,7 +2260,7 @@ static int32_t char2ts(const char* s, SArray* formats, int64_t* ts, int32_t prec
   if (tzHour < -14 || tzHour > 14) return -2;
   tm.fsec = ms * 1000000 + us * 1000 + ns;
   int32_t ret = taosTm2Ts(&tm, ts, precision, tz);
-  if (tzHour != 0 || tzMinute != 0) {
+  if (hasTZ) {
 #ifdef WINDOWS
     // getWindowsTimezoneOffset() returns the system timezone offset in seconds,
     // using the POSIX 'timezone' convention (east-negative, e.g. East 8 = -28800).
