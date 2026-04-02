@@ -1,4 +1,4 @@
-message("contrib test/rocksdb:" ${BUILD_DEPENDENCY_TESTS})
+message(STATUS "contrib test/rocksdb:" ${BUILD_DEPENDENCY_TESTS})
 
 add_executable(rocksdbTest "")
 target_sources(rocksdbTest

@@ -6,7 +6,7 @@ yaml-cpp/0.8.0
 luajit/2.1.0-beta3
 paho-mqtt-cpp/1.5.3
 nlohmann_json/3.11.3
-zlib/1.2.13
+zlib/1.3.1
 lz4/1.9.4
 zstd/1.5.5
 snappy/1.2.1

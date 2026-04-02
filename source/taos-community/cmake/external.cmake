@@ -7,8 +7,8 @@ option(TD_ALIGN_EXTERNAL "keep externals' CMAKE_BUILD_TYPE align with the main p
 #      cmake --build build --config Release
 #      TD_CONFIG_NAME will be `Release`
 set(TD_CONFIG_NAME "$<IF:$<STREQUAL:z$<CONFIG>,z>,$<IF:$<STREQUAL:z${CMAKE_BUILD_TYPE},z>,Debug,${CMAKE_BUILD_TYPE}>,$<CONFIG>>")
-if(NOT ${TD_ALIGN_EXTERNAL})
-    if(NOT ${TD_WINDOWS})
+if(NOT TD_ALIGN_EXTERNAL)
+    if(NOT TD_WINDOWS)
         set(TD_CONFIG_NAME "Release")
     endif()
 endif()
@@ -20,6 +20,7 @@ set(TD_INTERNALS_BASE_DIR "${CMAKE_SOURCE_DIR}/.internals" CACHE PATH "path wher
 message(STATUS "TD_INTERNALS_BASE_DIR:${TD_INTERNALS_BASE_DIR}")
 
 include(ExternalProject)
+set_directory_properties(PROPERTIES EP_UPDATE_DISCONNECTED TRUE)
 
 add_custom_target(build_externals)
 
@@ -55,11 +56,17 @@ macro(INIT_EXT name)               # {
       set(${name}_have_dev   TRUE)
     endif()
 
-    if(${BUILD_CONTRIB} OR NOT ${${name}_have_dev})
+    if(BUILD_CONTRIB OR NOT ${${name}_have_dev})
       set(${name}_build_contrib     TRUE)
     else()
       set(${name}_build_contrib     FALSE)
     endif()
+
+    message(STATUS
+      "[external] ${name}: BUILD_CONTRIB=${BUILD_CONTRIB}, "
+      "HAVE_DEV_${arg_INIT_EXT_CHK_NAME}=${${name}_have_dev}, "
+      "build_from_source=${${name}_build_contrib}"
+    )
 
     if(${${name}_build_contrib})
       set(${name}_inc_dir      "${_ins}/${arg_INIT_EXT_INC_DIR}")
@@ -80,7 +87,7 @@ macro(INIT_EXT name)               # {
     macro(DEP_${name} tgt)           # {
         cmake_language(CALL DEP_${name}_INC ${tgt})
         cmake_language(CALL DEP_${name}_LIB ${tgt})
-        if(NOT ${TD_WINDOWS})
+        if(NOT TD_WINDOWS)
             target_link_libraries(${tgt} PUBLIC stdc++)
         endif()
     endmacro()                       # }
@@ -101,7 +108,7 @@ macro(INIT_EXT name)               # {
                 target_link_libraries(${tgt} PRIVATE Threads::Threads)
             endif()
         else()
-            if(${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")
+            if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
                 # make homebrew-installed-libs available
                 target_include_directories(${tgt} PUBLIC "${BREW_PREFIX}/include")
             endif()
@@ -120,7 +127,7 @@ macro(INIT_EXT name)               # {
             foreach(v ${${name}_libs})
                 target_link_libraries(${tgt} PRIVATE "${v}")
             endforeach()
-            if(NOT ${TD_WINDOWS})       # {
+            if(NOT TD_WINDOWS)       # {
               if("z${name}" STREQUAL "zext_libuv")
                   target_link_libraries(${tgt} PUBLIC dl)
               endif()
@@ -129,7 +136,7 @@ macro(INIT_EXT name)               # {
             foreach(v ${${name}_libs})
                 target_link_libraries(${tgt} PRIVATE "${v}")
             endforeach()
-            if(${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")
+            if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
                 # make homebrew-installed-libs available
                 target_link_directories(${tgt} PUBLIC "${BREW_PREFIX}/lib")
             endif()
@@ -173,11 +180,11 @@ macro(get_from_local_if_exists url)                       # {
 endmacro()                                                # }
 
 # zlib
-if(${TD_LINUX})
+if(TD_LINUX)
     set(ext_zlib_static libz.a)
-elseif(${TD_DARWIN})
+elseif(TD_DARWIN)
     set(ext_zlib_static libz.a)
-elseif(${TD_WINDOWS})
+elseif(TD_WINDOWS)
     set(ext_zlib_static zlibstatic$<$<STREQUAL:${TD_CONFIG_NAME},Debug>:d>.lib)
 endif()
 INIT_EXT(ext_zlib
@@ -204,8 +211,8 @@ ExternalProject_Add(ext_zlib
 add_dependencies(build_externals ext_zlib)     # this is for github workflow in cache-miss step.
 
 # pthread
-if(${BUILD_PTHREAD})        # {
-    if(${TD_WINDOWS})
+if(BUILD_PTHREAD)        # {
+    if(TD_WINDOWS)
         set(ext_pthread_static pthreadVC3.lib)
         set(ext_pthread_dll pthreadVC3.dll)
     endif()
@@ -241,8 +248,8 @@ if(${BUILD_PTHREAD})        # {
 endif()                     # }
 
 # iconv
-if(${BUILD_WITH_ICONV})     # {
-    if(${TD_WINDOWS})
+if(BUILD_WITH_ICONV)     # {
+    if(TD_WINDOWS)
         set(ext_iconv_static iconv.lib)
     endif()
     INIT_EXT(ext_iconv
@@ -273,8 +280,8 @@ if(${BUILD_WITH_ICONV})     # {
 endif()                     # }
 
 # msvc regex
-if(${BUILD_MSVCREGEX})      # {
-    if(${TD_WINDOWS})
+if(BUILD_MSVCREGEX)      # {
+    if(TD_WINDOWS)
         set(ext_msvcregex_static regex$<$<CONFIG:Debug>:_d>.lib)
     endif()
     INIT_EXT(ext_msvcregex
@@ -303,8 +310,8 @@ if(${BUILD_MSVCREGEX})      # {
 endif()                     # }
 
 # wcwidth
-if(${BUILD_WCWIDTH})        # {
-    if(${TD_WINDOWS})
+if(BUILD_WCWIDTH)        # {
+    if(TD_WINDOWS)
         set(ext_wcwidth_static wcwidth.lib)
     endif()
     INIT_EXT(ext_wcwidth
@@ -334,8 +341,8 @@ if(${BUILD_WCWIDTH})        # {
 endif()                     # }
 
 # wingetopt
-if(${BUILD_WINGETOPT})      # {
-    if(${TD_WINDOWS})
+if(BUILD_WINGETOPT)      # {
+    if(TD_WINDOWS)
         set(ext_wingetopt_static wingetopt.lib)
     endif()
     INIT_EXT(ext_wingetopt
@@ -363,14 +370,14 @@ if(${BUILD_WINGETOPT})      # {
 endif()                     # }
 
 # googletest
-if(${BUILD_TEST})           # {
-    if(${TD_LINUX})
+if(BUILD_TEST)           # {
+    if(TD_LINUX)
         set(ext_gtest_static libgtest.a)
         set(ext_gtest_main libgtest_main.a)
-    elseif(${TD_DARWIN})
+    elseif(TD_DARWIN)
         set(ext_gtest_static libgtest.a)
         set(ext_gtest_main libgtest_main.a)
-    elseif(${TD_WINDOWS})
+    elseif(TD_WINDOWS)
         set(ext_gtest_static gtest.lib)
         set(ext_gtest_main gtest_main.lib)
     endif()
@@ -399,17 +406,17 @@ if(${BUILD_TEST})           # {
         VERBATIM
     )
     add_dependencies(build_externals ext_gtest)     # this is for github workflow in cache-miss step.
-endif(${BUILD_TEST})        # }
+endif()        # }
 
 # cppstub
-if(${BUILD_TEST})           # {
-    if(${TD_LINUX})
+if(BUILD_TEST)           # {
+    if(TD_LINUX)
         set(ext_cppstub_static libcppstub.a)
         set(_platform_dir      src_linux)
-    elseif(${TD_DARWIN})
+    elseif(TD_DARWIN)
         set(ext_cppstub_static libcppstub.a)
         set(_platform_dir      src_darwin)
-    elseif(${TD_WINDOWS})
+    elseif(TD_WINDOWS)
         set(ext_cppstub_static cppstub.lib)
         set(_platform_dir      src_win)
     endif()
@@ -437,14 +444,14 @@ if(${BUILD_TEST})           # {
         VERBATIM
     )
     add_dependencies(build_externals ext_cppstub)     # this is for github workflow in cache-miss step.
-endif(${BUILD_TEST})        # }
+endif()        # }
 
 # lz4
-if(${TD_LINUX})
+if(TD_LINUX)
     set(ext_lz4_static liblz4.a)
-elseif(${TD_DARWIN})
+elseif(TD_DARWIN)
     set(ext_lz4_static liblz4.a)
-elseif(${TD_WINDOWS})
+elseif(TD_WINDOWS)
     set(ext_lz4_static lz4.lib)
 endif()
 INIT_EXT(ext_lz4
@@ -476,11 +483,11 @@ ExternalProject_Add(ext_lz4
 add_dependencies(build_externals ext_lz4)     # this is for github workflow in cache-miss step.
 
 # cJson
-if(${TD_LINUX})
+if(TD_LINUX)
     set(ext_cjson_static libcjson.a)
-elseif(${TD_DARWIN})
+elseif(TD_DARWIN)
     set(ext_cjson_static libcjson.a)
-elseif(${TD_WINDOWS})
+elseif(TD_WINDOWS)
     set(ext_cjson_static cjson.lib)
 endif()
 INIT_EXT(ext_cjson
@@ -515,11 +522,11 @@ ExternalProject_Add(ext_cjson
 add_dependencies(build_externals ext_cjson)     # this is for github workflow in cache-miss step.
 
 # xz
-if(${TD_LINUX})
+if(TD_LINUX)
     set(ext_xz_static liblzma.a)
-elseif(${TD_DARWIN})
+elseif(TD_DARWIN)
     set(ext_xz_static liblzma.a)
-elseif(${TD_WINDOWS})
+elseif(TD_WINDOWS)
     set(ext_xz_static lzma.lib)
 endif()
 INIT_EXT(ext_xz
@@ -558,15 +565,15 @@ add_dependencies(build_externals ext_xz)     # this is for github workflow in ca
 #       currently, always call DEP_ext_... in such order, for the same target:
 #       DEP_ext_xxhash(...)
 #       DEP_ext_lzma2(...)
-if(${TD_LINUX})
+if(TD_LINUX)
     set(ext_xxhash_static libxxhash.a)
-elseif(${TD_DARWIN})
+elseif(TD_DARWIN)
     set(ext_xxhash_static libxxhash.a)
-elseif(${TD_WINDOWS})
+elseif(TD_WINDOWS)
     set(ext_xxhash_static xxhash.lib)
 endif()
 get_from_local_repo_if_exists("https://github.com/Cyan4973/xxHash.git")
-if(NOT ${TD_WINDOWS})        # {
+if(NOT TD_WINDOWS)        # {
     INIT_EXT(ext_xxhash
         INC_DIR          "usr/local/include"
         LIB              "usr/local/lib/${ext_xxhash_static}"
@@ -614,7 +621,7 @@ endif()                      # }
 add_dependencies(build_externals ext_xxhash)     # this is for github workflow in cache-miss step.
 
 # lzma2
-if(${TD_LINUX})
+if(TD_LINUX)
     set(ext_lzma2_static libfast-lzma2.a)
     INIT_EXT(ext_lzma2
         INC_DIR          usr/local/include
@@ -645,12 +652,12 @@ if(${TD_LINUX})
 endif()
 
 # libuv
-if(${BUILD_WITH_UV})        # {
-    if(${TD_LINUX})
+if(BUILD_WITH_UV)        # {
+    if(TD_LINUX)
         set(ext_libuv_static libuv.a)
-    elseif(${TD_DARWIN})
+    elseif(TD_DARWIN)
         set(ext_libuv_static libuv.a)
-    elseif(${TD_WINDOWS})
+    elseif(TD_WINDOWS)
         set(ext_libuv_static libuv.lib)
     endif()
     INIT_EXT(ext_libuv
@@ -680,14 +687,14 @@ if(${BUILD_WITH_UV})        # {
         VERBATIM
     )
     add_dependencies(build_externals ext_libuv)     # this is for github workflow in cache-miss step.
-endif(${BUILD_WITH_UV})     # }
+endif()     # }
 
 # tz
-if(NOT ${TD_WINDOWS})       # {
-    if(${TD_LINUX})
+if(NOT TD_WINDOWS)       # {
+    if(TD_LINUX)
         set(ext_tz_static libtz.a)
         set(_c_flags_list -fPIC -DTHREAD_SAFE=1)
-    elseif(${TD_DARWIN})
+    elseif(TD_DARWIN)
         set(ext_tz_static libtz.a)
         set(_c_flags_list -fPIC -DHAVE_GETTEXT=0 -DTHREAD_SAFE=1) # TODO: brew install gettext?
     endif()
@@ -720,17 +727,17 @@ if(NOT ${TD_WINDOWS})       # {
         VERBATIM
     )
     add_dependencies(build_externals ext_tz)     # this is for github workflow in cache-miss step.
-endif(NOT ${TD_WINDOWS})    # }
+endif(NOT TD_WINDOWS)    # }
 
 # jemalloc
-if(${JEMALLOC_ENABLED})     # {
+if(BUILD_JEMALLOC)     # {
     find_program(HAVE_AUTOCONF autoconf)
-    if(${HAVE_AUTOCONF} STREQUAL "HAVE_AUTOCONF-NOTFOUND")
+    if(HAVE_AUTOCONF STREQUAL "HAVE_AUTOCONF-NOTFOUND")
         message(FATAL_ERROR "`autoconf` not exist, you can install it by `sudo apt install autoconf` on linux, or `brew install autoconf` on MacOS")
     endif()
-    if(${TD_LINUX})
+    if(TD_LINUX)
         set(ext_jemalloc_static jemalloc.a)
-    elseif(${TD_DARWIN})
+    elseif(TD_DARWIN)
         set(ext_jemalloc_static jemalloc.a)
     endif()
     INIT_EXT(ext_jemalloc
@@ -765,12 +772,12 @@ if(${JEMALLOC_ENABLED})     # {
 endif()                     # }
 
 # sqlite
-if(${BUILD_WITH_SQLITE})    # {
-    if(${TD_LINUX})
+if(BUILD_WITH_SQLITE)    # {
+    if(TD_LINUX)
         set(ext_sqlite_static sqlite.a)
-    elseif(${TD_DARWIN})
+    elseif(TD_DARWIN)
         set(ext_sqlite_static sqlite.a)
-    elseif(${TD_WINDOWS})
+    elseif(TD_WINDOWS)
         set(ext_sqlite_static sqlite.lib)
     endif()
     INIT_EXT(ext_sqlite
@@ -796,11 +803,11 @@ if(${BUILD_WITH_SQLITE})    # {
         VERBATIM
     )
     add_dependencies(build_externals ext_sqlite)     # this is for github workflow in cache-miss step.
-endif(${BUILD_WITH_SQLITE}) # }
+endif() # }
 
 # crashdump
-if(${BUILD_CRASHDUMP})      # {
-    if(${TD_WINDOWS})
+if(BUILD_CRASHDUMP)      # {
+    if(TD_WINDOWS)
         set(ext_crashdump_static crashdump.lib)
     endif()
     INIT_EXT(ext_crashdump
@@ -828,16 +835,16 @@ if(${BUILD_CRASHDUMP})      # {
         VERBATIM
     )
     add_dependencies(build_externals ext_crashdump)     # this is for github workflow in cache-miss step.
-endif(${BUILD_CRASHDUMP})   # }
+endif()   # }
 
 # ssl
-if(NOT ${TD_WINDOWS})       # {
+if(NOT TD_WINDOWS)       # {
     # TODO: why at this moment???
     # file(MAKE_DIRECTORY $ENV{HOME}/.cos-local.2/)
-    if(${TD_LINUX})
+    if(TD_LINUX)
         set(ext_ssl_static libssl.a)
         set(ext_crypto_static libcrypto.a)
-    elseif(${TD_DARWIN})
+    elseif(TD_DARWIN)
         set(ext_ssl_static libssl.a)
         set(ext_crypto_static libcrypto.a)
     endif()
@@ -872,16 +879,18 @@ if(NOT ${TD_WINDOWS})       # {
         VERBATIM
     )
     add_dependencies(build_externals ext_ssl)     # this is for github workflow in cache-miss step.
-endif(NOT ${TD_WINDOWS})    # }
+endif(NOT TD_WINDOWS)    # }
 
 # libcurl
-if(${TD_LINUX})
-    set(ext_curl_static libcurl.a)
-    set(_c_flags_list -fPIC)
-elseif(${TD_DARWIN})
-    set(ext_curl_static libcurl.a)
-    set(_c_flags_list)
-elseif(${TD_WINDOWS})
+if(NOT TD_WINDOWS)       # {
+    if(TD_LINUX)
+        set(ext_curl_static libcurl.a)
+        set(_c_flags_list -fPIC)
+    elseif(TD_DARWIN)
+        set(ext_curl_static libcurl.a)
+        set(_c_flags_list)
+    endif()
+else()
     set(ext_curl_static libcurl$<$<STREQUAL:${TD_CONFIG_NAME},Debug>:-d>.lib)
     set(_c_flags_list)
 endif()
@@ -955,14 +964,14 @@ endif()
 add_dependencies(build_externals ext_curl)     # this is for github workflow in cache-miss step.
 
 # geos
-if(${BUILD_GEOS})           # {
-    if(${TD_LINUX})
+if(BUILD_GEOS)           # {
+    if(TD_LINUX)
         set(ext_geos_static libgeos.a)
         set(ext_geos_c_static libgeos_c.a)
-    elseif(${TD_DARWIN})
+    elseif(TD_DARWIN)
         set(ext_geos_static libgeos.a)
         set(ext_geos_c_static libgeos_c.a)
-    elseif(${TD_WINDOWS})
+    elseif(TD_WINDOWS)
         set(ext_geos_static geos.lib)
         set(ext_geos_c_static geos_c.lib)
     endif()
@@ -983,6 +992,7 @@ if(${BUILD_GEOS})           # {
         CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR:PATH=lib
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+        CMAKE_ARGS -DCMAKE_POLICY_VERSION_MINIMUM=3.5
         CMAKE_ARGS -DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=ON
         CMAKE_ARGS -DBUILD_SHARED_LIBS:BOOL=OFF
         CMAKE_ARGS -DBUILD_TESTING:BOOL=OFF
@@ -998,10 +1008,10 @@ if(${BUILD_GEOS})           # {
 endif()                     # }
 
 # libdwarf
-if(${BUILD_ADDR2LINE})      # {
-    if(${TD_LINUX})
+if(BUILD_ADDR2LINE)      # {
+    if(TD_LINUX)
         set(ext_dwarf_static libdwarf.a)
-    elseif(${TD_DARWIN})
+    elseif(TD_DARWIN)
         set(ext_dwarf_static libdwarf.a)
     endif()
     INIT_EXT(ext_dwarf
@@ -1013,7 +1023,7 @@ if(${BUILD_ADDR2LINE})      # {
       -I${ext_zlib_install}/include
       -L${ext_zlib_install}/lib
     )
-    if (${TD_DARWIN})      # {
+    if (TD_DARWIN)      # {
       list(APPEND _c_cxx_flags_list
         -Wno-unused-command-line-argument
         -Wno-error=unused-but-set-variable
@@ -1052,13 +1062,13 @@ if(${BUILD_ADDR2LINE})      # {
         VERBATIM
     )
     add_dependencies(build_externals ext_dwarf)     # this is for github workflow in cache-miss step.
-endif(${BUILD_ADDR2LINE})   # }
+endif()   # }
 
 # addr2line
-if(${BUILD_ADDR2LINE})      # {
-    if(${TD_LINUX})
+if(BUILD_ADDR2LINE)      # {
+    if(TD_LINUX)
         set(ext_addr2line_static libaddr2line.a)
-    elseif(${TD_DARWIN})
+    elseif(TD_DARWIN)
         set(ext_addr2line_static libaddr2line.a)
     endif()
     INIT_EXT(ext_addr2line
@@ -1088,16 +1098,16 @@ if(${BUILD_ADDR2LINE})      # {
         VERBATIM
     )
     add_dependencies(build_externals ext_addr2line)     # this is for github workflow in cache-miss step.
-endif(${BUILD_ADDR2LINE})   # }
+endif()   # }
 
 # pcre2
-if(${BUILD_PCRE2})          # {
+if(BUILD_PCRE2)          # {
     # TODO: seems no necessary cause strict rules has been enforced by geos
-    if(${TD_LINUX})
+    if(TD_LINUX)
         set(ext_pcre2_static libpcre2-8.a)
-    elseif(${TD_DARWIN})
+    elseif(TD_DARWIN)
         set(ext_pcre2_static libpcre2-8.a)
-    elseif(${TD_WINDOWS})
+    elseif(TD_WINDOWS)
         set(ext_pcre2_static pcre2-8-static$<$<STREQUAL:${TD_CONFIG_NAME},Debug>:d>.lib)
     endif()
     INIT_EXT(ext_pcre2
@@ -1136,12 +1146,12 @@ endif()                     # }
 
 include(GNUInstallDirs)
 message(STATUS "Using libdir: ${CMAKE_INSTALL_LIBDIR}")
-if (${BUILD_CONTRIB} OR NOT ${TD_LINUX})         # {
-    if(${TD_LINUX})
+if (BUILD_CONTRIB OR NOT TD_LINUX)         # {
+    if(TD_LINUX)
         set(ext_rocksdb_static librocksdb.a)
-    elseif(${TD_DARWIN})
+    elseif(TD_DARWIN)
         set(ext_rocksdb_static librocksdb.a)
-    elseif(${TD_WINDOWS})
+    elseif(TD_WINDOWS)
         set(ext_rocksdb_static rocksdb.lib)
     endif()
     INIT_EXT(ext_rocksdb
@@ -1183,11 +1193,11 @@ if (${BUILD_CONTRIB} OR NOT ${TD_LINUX})         # {
 endif()                                          # }
 
 if(TD_TAOS_TOOLS)
-    if(${TD_LINUX})
+    if(TD_LINUX)
         set(ext_jansson_static libjansson.a)
-    elseif(${TD_DARWIN})
+    elseif(TD_DARWIN)
         set(ext_jansson_static libjansson.a)
-    elseif(${TD_WINDOWS})
+    elseif(TD_WINDOWS)
         set(ext_jansson_static jansson$<$<STREQUAL:${TD_CONFIG_NAME},Debug>:_d>.lib)
     endif()
     INIT_EXT(ext_jansson
@@ -1216,11 +1226,11 @@ if(TD_TAOS_TOOLS)
     )
     add_dependencies(build_externals ext_jansson)     # this is for github workflow in cache-miss step.
 
-    if(${TD_LINUX})
+    if(TD_LINUX)
         set(ext_snappy_static libsnappy.a)
-    elseif(${TD_DARWIN})
+    elseif(TD_DARWIN)
         set(ext_snappy_static libsnappy.a)
-    elseif(${TD_WINDOWS})
+    elseif(TD_WINDOWS)
         set(ext_snappy_static snappy.lib)
     endif()
     INIT_EXT(ext_snappy
@@ -1255,13 +1265,13 @@ if(TD_TAOS_TOOLS)
     )
     add_dependencies(build_externals ext_snappy)     # this is for github workflow in cache-miss step.
 
-    if(${TD_LINUX})
+    if(TD_LINUX)
         set(ext_avro_static libavro.a)
         set(_c_flags_list "")
-    elseif(${TD_DARWIN})
+    elseif(TD_DARWIN)
         set(ext_avro_static libavro.a)
         set(_c_flags_list "")
-    elseif(${TD_WINDOWS})
+    elseif(TD_WINDOWS)
         set(ext_avro_static avro.lib)
         set(_c_flags_list
             /wd4819
@@ -1280,9 +1290,14 @@ if(TD_TAOS_TOOLS)
         CHK_NAME         AVRO
     )
     get_from_local_repo_if_exists("https://github.com/apache/avro.git")
+    message(STATUS
+      "[external] ext_avro: fetching repository '${_git_url}' "
+      "(tag=7b106b12ae22853c977259710d92a237d76f2236, shallow=FALSE)"
+    )
     ExternalProject_Add(ext_avro
         GIT_REPOSITORY ${_git_url}
         GIT_TAG 7b106b12ae22853c977259710d92a237d76f2236
+        GIT_PROGRESS TRUE
         GIT_SHALLOW FALSE
         DEPENDS ext_zlib ext_jansson ext_snappy
         PREFIX "${_base}"
@@ -1312,6 +1327,11 @@ if(TD_TAOS_TOOLS)
             COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
         INSTALL_COMMAND
             COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
+        LOG_DOWNLOAD ON
+        LOG_UPDATE ON
+        LOG_CONFIGURE ON
+        LOG_BUILD ON
+        LOG_INSTALL ON
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
     )
@@ -1319,13 +1339,13 @@ if(TD_TAOS_TOOLS)
 endif()
 
 
-if(NOT ${TD_WINDOWS})        # {
+if(NOT TD_WINDOWS)        # {
     # libxml2
-    if(${TD_LINUX})
+    if(TD_LINUX)
         set(ext_libxml2_static libxml2.a)
-    elseif(${TD_DARWIN})
+    elseif(TD_DARWIN)
         set(ext_libxml2_static libxml2.a)
-    elseif(${TD_WINDOWS})
+    elseif(TD_WINDOWS)
         set(ext_libxml2_static libxml2.lib)
     endif()
     INIT_EXT(ext_libxml2
@@ -1359,11 +1379,11 @@ if(NOT ${TD_WINDOWS})        # {
     add_dependencies(build_externals ext_libxml2)     # this is for github workflow in cache-miss step.
 
     # libs3
-    if(${TD_LINUX})
+    if(TD_LINUX)
         set(ext_libs3_static liblibs3.a)
-    elseif(${TD_DARWIN})
+    elseif(TD_DARWIN)
         set(ext_libs3_static liblibs3.a)
-    elseif(${TD_WINDOWS})
+    elseif(TD_WINDOWS)
         set(ext_libs3_static libs3.lib)
     endif()
     INIT_EXT(ext_libs3
@@ -1402,11 +1422,11 @@ if(NOT ${TD_WINDOWS})        # {
     add_dependencies(build_externals ext_libs3)     # this is for github workflow in cache-miss step.
 
     # azure
-    if(${TD_LINUX})
+    if(TD_LINUX)
         set(ext_azure_static libtd_azure_sdk.a)
-    elseif(${TD_DARWIN})
+    elseif(TD_DARWIN)
         set(ext_azure_static libtd_azure_sdk.a)
-    elseif(${TD_WINDOWS})
+    elseif(TD_WINDOWS)
         set(ext_azure_static td_azure_sdk.lib)
     endif()
     INIT_EXT(ext_azure
@@ -1445,11 +1465,11 @@ if(NOT ${TD_WINDOWS})        # {
     add_dependencies(build_externals ext_azure)     # this is for github workflow in cache-miss step.
 
     # mxml
-    if(${TD_LINUX})
+    if(TD_LINUX)
         set(ext_mxml_static libmxml.a)
-    elseif(${TD_DARWIN})
+    elseif(TD_DARWIN)
         set(ext_mxml_static libmxml.a)
-    elseif(${TD_WINDOWS})
+    elseif(TD_WINDOWS)
         set(ext_mxml_static mxml.lib)
     endif()
     INIT_EXT(ext_mxml
@@ -1514,11 +1534,11 @@ if(NOT ${TD_WINDOWS})        # {
     add_dependencies(build_externals ext_mxml_post)     # this is for github workflow in cache-miss step.
 
     # apr
-    if(${TD_LINUX})
+    if(TD_LINUX)
         set(ext_apr_static libapr-1.a)
-    elseif(${TD_DARWIN})
+    elseif(TD_DARWIN)
         set(ext_apr_static libapr-1.a)
-    elseif(${TD_WINDOWS})
+    elseif(TD_WINDOWS)
         set(ext_apr_static apr-1.lib)
     endif()
     INIT_EXT(ext_apr
@@ -1550,11 +1570,11 @@ if(NOT ${TD_WINDOWS})        # {
     add_dependencies(build_externals ext_apr)
 
     # apr-util
-    if(${TD_LINUX})
+    if(TD_LINUX)
         set(ext_aprutil_static libaprutil-1.a)
-    elseif(${TD_DARWIN})
+    elseif(TD_DARWIN)
         set(ext_aprutil_static libaprutil-1.a)
-    elseif(${TD_WINDOWS})
+    elseif(TD_WINDOWS)
         set(ext_aprutil_static aprutil-1.lib)
     endif()
     INIT_EXT(ext_aprutil
@@ -1587,11 +1607,11 @@ if(NOT ${TD_WINDOWS})        # {
     add_dependencies(build_externals ext_aprutil)
 
     # cos
-    if(${TD_LINUX})
+    if(TD_LINUX)
         set(ext_cos_static libcos-1.a)
-    elseif(${TD_DARWIN})
+    elseif(TD_DARWIN)
         set(ext_cos_static libcos-1.a)
-    elseif(${TD_WINDOWS})
+    elseif(TD_WINDOWS)
         set(ext_cos_static cos-1.lib)
         set(_c_flags_list)
     endif()
@@ -1627,51 +1647,6 @@ if(NOT ${TD_WINDOWS})        # {
     )
     add_dependencies(build_externals ext_cos)
 endif()                      # }
-
-if(TD_WEBSOCKET)
-    message("${Green} use libtaos-ws${ColourReset}")
-    if(${TD_LINUX})
-        set(ext_taosws_dll libtaosws.so)
-        set(ext_taosws_lib_from libtaosws.a)
-        set(ext_taosws_lib_to libtaosws.a)
-        set(ext_taosws_link ${ext_taosws_dll})
-    elseif(${TD_DARWIN})
-        set(ext_taosws_dll libtaosws.dylib)
-        set(ext_taosws_lib_from libtaosws.a)
-        set(ext_taosws_lib_to libtaosws.a)
-        set(ext_taosws_link ${ext_taosws_dll})
-    elseif(${TD_WINDOWS})
-        set(ext_taosws_dll taosws.dll)
-        set(ext_taosws_lib_from taosws.dll.lib)
-        set(ext_taosws_lib_to taosws.lib)
-        set(ext_taosws_link ${ext_taosws_lib_to})
-    endif()
-    INIT_EXT(ext_taosws
-        INC_DIR include
-    )
-    get_from_local_repo_if_exists("https://github.com/taosdata/taos-connector-rust.git")
-    ExternalProject_Add(ext_taosws
-        GIT_REPOSITORY ${_git_url}
-        GIT_TAG ${TAOSWS_GIT_TAG_NAME}
-        GIT_SHALLOW ${TAOSWS_GIT_TAG_SHALLOW}
-        BUILD_IN_SOURCE TRUE
-        PREFIX "${_base}"
-        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
-        CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
-        CONFIGURE_COMMAND
-        COMMAND "${CMAKE_COMMAND}" -E echo "taosws-rs no need cmake to config"
-        BUILD_COMMAND
-        COMMAND "${CMAKE_COMMAND}" -E env "TD_VERSION=${TD_VER_NUMBER}" cargo build --release --locked -p taos-ws-sys --features rustls
-        INSTALL_COMMAND
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different target/release/${ext_taosws_dll} ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${ext_taosws_dll}
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different target/release/${ext_taosws_lib_from} ${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}/${ext_taosws_lib_to}
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different target/release/taosws.h ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/../include/taosws.h
-        EXCLUDE_FROM_ALL TRUE
-        VERBATIM
-    )
-    add_dependencies(build_externals ext_taosws)
-ENDIF()
-
 
 if(TD_LINUX AND TD_ENTERPRISE)        # {
 if(${BUILD_LIBSASL})      # {

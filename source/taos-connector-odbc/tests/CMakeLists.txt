@@ -41,7 +41,7 @@ target_include_directories(test_helper_obj PRIVATE
     ${CMAKE_CURRENT_BINARY_DIR} ${CJSON_INSTALL_PATH}/include)
 
 if (TODBC_WINDOWS)
-    add_subdirectory(cs)
+    # add_subdirectory(cs) # disabled because cs tests are not installed on some windows platforms
 endif ()
 
 add_subdirectory(c)

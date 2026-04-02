@@ -274,7 +274,7 @@ DEP_ext_zlib(tdengine)
 | `TD_ALIGN_EXTERNAL` | BOOL | ON | 外部依赖与主项目构建类型对齐 |
 | `BUILD_CONTRIB` | BOOL | OFF | 从源码构建第三方依赖 |
 | `BUILD_TEST` | BOOL | OFF | 启用单元测试框架 |
-| `JEMALLOC_ENABLED` | BOOL | OFF | 启用jemalloc内存分配器 |
+| `BUILD_JEMALLOC` | BOOL | OFF | 启用jemalloc内存分配器 |
 
 #### 19.0.2 环境变量接口
 

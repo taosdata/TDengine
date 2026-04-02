@@ -12,10 +12,10 @@ target_include_directories(
     PUBLIC "${TD_SOURCE_DIR}/include/os"
 )
 
-if(${TD_LINUX})
+if(TD_LINUX)
     add_test(
         NAME taoscTest
         COMMAND taoscTest
     )
-endif(${TD_LINUX})
+endif()
 
