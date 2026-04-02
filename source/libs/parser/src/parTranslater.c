@@ -21417,6 +21417,18 @@ static int32_t extractShowVariablesResultSchema(int32_t* numOfCols, SSchema** pS
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t extractReloadLastCacheResultSchema(int32_t* numOfCols, SSchema** pSchema) {
+  *numOfCols = RELOAD_LAST_CACHE_RESULT_COLS;
+  *pSchema = taosMemoryCalloc((*numOfCols), sizeof(SSchema));
+  if (NULL == (*pSchema)) {
+    return terrno;
+  }
+  (*pSchema)[0].type  = TSDB_DATA_TYPE_BIGINT;
+  (*pSchema)[0].bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
+  tstrncpy((*pSchema)[0].name, "reloadUid", TSDB_COL_NAME_LEN);
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t extractCompactDbResultSchema(int32_t* numOfCols, SSchema** pSchema) {
   *numOfCols = COMPACT_DB_RESULT_COLS;
   *pSchema = taosMemoryCalloc((*numOfCols), sizeof(SSchema));
@@ -21524,6 +21536,8 @@ int32_t extractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pS
     case QUERY_NODE_ROLLUP_VGROUPS_STMT:
     case QUERY_NODE_TRIM_DATABASE_STMT:
       return extractCompactDbResultSchema(numOfCols, pSchema);
+    case QUERY_NODE_RELOAD_LAST_CACHE_STMT:
+      return extractReloadLastCacheResultSchema(numOfCols, pSchema);
     case QUERY_NODE_SCAN_DATABASE_STMT:
     case QUERY_NODE_SCAN_VGROUPS_STMT:
       return extractScanDbResultSchema(numOfCols, pSchema);
