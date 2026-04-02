@@ -6,5 +6,4 @@ add_subdirectory(shell)
 
 IF(TD_LINUX)
     add_subdirectory(rocks-reader)
-    add_subdirectory(meta-reader)
 ENDIF()
