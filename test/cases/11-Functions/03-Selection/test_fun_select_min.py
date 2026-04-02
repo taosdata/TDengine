@@ -170,9 +170,9 @@ class TestFunMin:
         tdSql.execute(sql)
 
         # max verifacation
-        tdSql.error(f"select min(now()) from {dbname}.stb_1")
-        tdSql.error(f"select min(ts) from {dbname}.stb_1")
-        tdSql.error(f"select min(col7) from {dbname}.stb_1")
+        tdSql.query(f"select min(now()) from {dbname}.stb_1")
+        tdSql.query(f"select min(ts) from {dbname}.stb_1")
+        tdSql.query(f"select min(col7) from {dbname}.stb_1")
         tdSql.error(f"select min(a) from {dbname}.stb_1")
         tdSql.query(f"select min(1) from {dbname}.stb_1")
         tdSql.error(f"select min(count(c1),count(c2)) from {dbname}.stb_1")
@@ -204,9 +204,9 @@ class TestFunMin:
         tdSql.query(f"select min(col9) from {dbname}.stb_1")
         tdSql.checkData(0,0,'涛思数据1')
 
-        tdSql.error(f"select min(now()) from {dbname}.stb_1")
-        tdSql.error(f"select min(ts) from {dbname}.stb_1")
-        tdSql.error(f"select min(col7) from {dbname}.stb_1")
+        tdSql.query(f"select min(now()) from {dbname}.stb_1")
+        tdSql.query(f"select min(ts) from {dbname}.stb_1")
+        tdSql.query(f"select min(col7) from {dbname}.stb_1")
         tdSql.error(f"select min(a) from {dbname}.stb_1")
         tdSql.query(f"select min(1) from {dbname}.stb_1")
         tdSql.error(f"select min(count(c1),count(c2)) from {dbname}.stb_1")
@@ -238,9 +238,9 @@ class TestFunMin:
         tdSql.query(f"select min(col9) from {dbname}.stb")
         tdSql.checkData(0,0,'涛思数据1')
 
-        tdSql.error(f"select min(now()) from {dbname}.stb_1")
-        tdSql.error(f"select min(ts) from {dbname}.stb_1")
-        tdSql.error(f"select min(col7) from {dbname}.ntb")
+        tdSql.query(f"select min(now()) from {dbname}.stb_1")
+        tdSql.query(f"select min(ts) from {dbname}.stb_1")
+        tdSql.query(f"select min(col7) from {dbname}.ntb")
         tdSql.error(f"select min(a) from {dbname}.ntb")
         tdSql.query(f"select min(1) from {dbname}.ntb")
         tdSql.error(f"select min(count(c1),count(c2)) from {dbname}.ntb")

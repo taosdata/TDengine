@@ -148,6 +148,90 @@ TEST(osSemaphoreTests, Performance1_2) {
   (void)tsem2_destroy(&sem);
 }
 
+// Test pthread helper functions
+TEST(osSemaphoreTests, PthreadHelpers) {
+  TdThread thread1, thread2;
+  
+  // Test taosGetSelfPthreadId
+  int64_t selfId = taosGetSelfPthreadId();
+  EXPECT_GT(selfId, 0);
+  
+  // Test taosGetPthreadId
+  thread1 = taosThreadSelf();
+  int64_t threadId = taosGetPthreadId(thread1);
+  EXPECT_GT(threadId, 0);
+  
+  // Test taosResetPthread
+  thread1 = taosThreadSelf();
+  EXPECT_TRUE(taosCheckPthreadValid(thread1));
+  taosResetPthread(&thread1);
+  EXPECT_FALSE(taosCheckPthreadValid(thread1));
+  
+  // Test taosComparePthread
+  thread1 = taosThreadSelf();
+  thread2 = taosThreadSelf();
+  EXPECT_TRUE(taosComparePthread(thread1, thread2));
+  
+  taosResetPthread(&thread2);
+  EXPECT_FALSE(taosComparePthread(thread1, thread2));
+}
+
+// Test taosGetPIdByName
+TEST(osSemaphoreTests, GetPIdByName) {
+  int32_t pid = -1;
+  
+  // Try to get PID of current process by name
+  char appName[256] = {0};
+  int32_t len = 0;
+  int32_t ret = taosGetAppName(appName, &len);
+  EXPECT_EQ(ret, 0);
+  EXPECT_GT(len, 0);
+  
+  // Try to find PID by app name
+  ret = taosGetPIdByName(appName, &pid);
+  // On Linux, this should succeed; on other platforms it returns -1
+  if (ret == 0) {
+    EXPECT_GT(pid, 0);
+  }
+  
+  // Test with non-existent process name
+  ret = taosGetPIdByName("nonexistent_process_12345xyz", &pid);
+  EXPECT_NE(ret, 0);
+}
+
+// Test tsem error handling with invalid semaphore
+TEST(osSemaphoreTests, InvalidSemErrorHandling) {
+  // Test operations on uninitialized semaphore (intentionally commented out as they may crash)
+  // Instead, test valid error cases
+  
+  // Test double destroy is platform-dependent, so we skip it
+  // Just verify that basic operations work correctly
+  tsem_t sem;
+  int32_t result = tsem_init(&sem, 0, 1);
+  EXPECT_EQ(result, 0);
+  
+  result = tsem_destroy(&sem);
+  EXPECT_EQ(result, 0);
+}
+
+// Test tsem2 with multiple threads
+TEST(osSemaphoreTests, Tsem2MultiThreaded) {
+  tsem2_t sem;
+  int32_t result = tsem2_init(&sem, 0, 0);
+  EXPECT_EQ(result, 0);
+  
+  std::thread producer([&sem]() {
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    tsem2_post(&sem);
+  });
+  
+  result = tsem2_timewait(&sem, 5000);
+  EXPECT_EQ(result, 0);
+  
+  producer.join();
+  tsem2_destroy(&sem);
+}
+
 TEST(osSemaphoreTests, Performance2_1) {
   tsem_t    sem;
   const int count = 50000;

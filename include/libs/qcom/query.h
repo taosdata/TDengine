@@ -117,6 +117,8 @@ typedef struct SVCTableMeta {
   int32_t  numOfColRefs;
   int32_t  rversion; // virtual table's column ref's version
   SColRef* colRef;
+  int32_t  numOfTagRefs;
+  SColRef* tagRef;
 } SVCTableMeta;
 #pragma pack(pop)
 
@@ -133,6 +135,8 @@ typedef struct STableMeta {
   int32_t       numOfColRefs;
   int32_t       rversion; // virtual table's column ref's version
   SColRef*      colRef;
+  int32_t       numOfTagRefs;
+  SColRef*      tagRef;
   // END: KEEP THIS PART SAME WITH SVCTableMeta
 
   // if the table is TSDB_CHILD_TABLE, the following information is acquired from the corresponding super table meta
@@ -151,6 +155,7 @@ typedef struct STableMeta {
     };
   };
   int64_t ownerId;
+  int8_t  secureDelete;
   SSchema schema[];
 } STableMeta;
 #pragma pack(pop)
@@ -221,6 +226,7 @@ typedef struct SUseDbOutput {
   uint64_t   dbId;
   SDBVgInfo* dbVgroup;
 } SUseDbOutput;
+typedef SUseDbOutput** SUseDbOutputPPter;
 
 enum { META_TYPE_NULL_TABLE = 1,
        META_TYPE_CTABLE,
@@ -431,7 +437,7 @@ SSchema createSchema(int8_t type, int32_t bytes, col_id_t colId, const char* nam
 void    destroyQueryExecRes(SExecResult* pRes);
 int32_t dataConverToStr(char* str, int64_t capacity, int type, void* buf, int32_t bufSize, int32_t* len);
 void    parseTagDatatoJson(void* p, char** jsonStr, void *charsetCxt);
-int32_t setColRef(SColRef* colRef, col_id_t colId, char* refColName, char* refTableName, char* refDbName);
+int32_t setColRef(SColRef* colRef, col_id_t colId, const char* colName, char* refColName, char* refTableName, char* refDbName);
 int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst);
 void    getColumnTypeFromMeta(STableMeta* pMeta, char* pName, ETableColumnType* pType);
 int32_t cloneDbVgInfo(SDBVgInfo* pSrc, SDBVgInfo** pDst);

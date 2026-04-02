@@ -223,17 +223,9 @@ void taosUninitTimer() {
 }
 
 int64_t taosGetMonotonicMs() {
-#if 0  
-  return getMonotonicUs() / 1000;
-#else
-  return taosGetTimestampMs();
-#endif
+  return taosGetMonoTimestampMs();
 }
 
 const char *taosMonotonicInit() {
-#if 0
-  return monotonicInit();
-#else
-  return NULL;
-#endif
+  return "CLOCK_MONOTONIC";
 }

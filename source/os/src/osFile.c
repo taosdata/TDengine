@@ -206,7 +206,7 @@ TdFilePtr taosCreateFile(const char *path, int32_t tdFileOptions) {
   }
   TdFilePtr fp = taosOpenFile(path, tdFileOptions);
   if (!fp) {
-    if (terrno == TAOS_SYSTEM_ERROR(ENOENT)) {
+    if (errorIsFileNotExist(terrno)) {
       // Try to create directory recursively
       char s[PATH_MAX];
       tstrncpy(s, path, sizeof(s));
@@ -242,6 +242,7 @@ int32_t taosRenameFile(const char *oldName, const char *newName) {
   HANDLE transactionHandle = CreateTransaction(NULL, NULL, 0, 0, 0, INFINITE, NULL);
   if (transactionHandle == INVALID_HANDLE_VALUE) {
     DWORD error = GetLastError();
+    ERRNO = error;
     terrno = TAOS_SYSTEM_WINAPI_ERROR(error);
     return terrno;
   }
@@ -252,11 +253,13 @@ int32_t taosRenameFile(const char *oldName, const char *newName) {
     finished = CommitTransaction(transactionHandle);
     if (!finished) {
       DWORD error = GetLastError();
+      ERRNO = error;
       terrno = TAOS_SYSTEM_WINAPI_ERROR(error);
     }
   } else {
     RollbackTransaction(transactionHandle);
     DWORD error = GetLastError();
+    ERRNO = error;
     terrno = TAOS_SYSTEM_WINAPI_ERROR(error);
     finished = false;
   }
@@ -764,11 +767,11 @@ int64_t taosFSendFile(TdFilePtr pFileOut, TdFilePtr pFileIn, int64_t *offset, in
   return writeLen;
 }
 
-bool lastErrorIsFileNotExist() {
-  DWORD dwError = GetLastError();
-  return dwError == ERROR_FILE_NOT_FOUND;
+bool errorIsFileNotExist(int32_t code) {
+   return code == TAOS_SYSTEM_ERROR(ENOENT) ||
+          code == TAOS_SYSTEM_WINAPI_ERROR(ERROR_FILE_NOT_FOUND) ||
+          code == TAOS_SYSTEM_WINAPI_ERROR(ERROR_PATH_NOT_FOUND);
 }
-
 #else
 int taosOpenFileNotStream(const char *path, int32_t tdFileOptions) {
   if (path == NULL) {
@@ -1150,9 +1153,13 @@ int64_t taosFSendFile(TdFilePtr pFileOut, TdFilePtr pFileIn, int64_t *offset, in
 #endif
 }
 
-bool lastErrorIsFileNotExist() { return terrno == TAOS_SYSTEM_ERROR(ENOENT); }
+bool errorIsFileNotExist(int32_t code) { return code == TAOS_SYSTEM_ERROR(ENOENT); }
 
 #endif  // WINDOWS
+
+bool lastErrorIsFileNotExist() {
+  return errorIsFileNotExist(terrno);
+}
 
 TdFilePtr taosOpenFile(const char *path, int32_t tdFileOptions) {
   if (path == NULL) {
@@ -1592,24 +1599,17 @@ bool taosCheckAccessFile(const char *pathname, int32_t tdFileAccessOptions) {
 
 bool taosCheckExistFile(const char *pathname) { return taosCheckAccessFile(pathname, TD_FILE_ACCESS_EXIST_OK); };
 
-int32_t taosCompressFile(char *srcFileName, char *destFileName) {
-  OS_PARAM_CHECK(srcFileName);
+int32_t taosCompressFile(TdFilePtr pSrcFile, char *destFileName) {
+  OS_PARAM_CHECK(pSrcFile);
   OS_PARAM_CHECK(destFileName);
-  int32_t   compressSize = 163840;
-  int32_t   ret = 0;
-  int32_t   len = 0;
-  gzFile    dstFp = NULL;
-  TdFilePtr pSrcFile = NULL;
+  int32_t compressSize = 163840;
+  int32_t ret = 0;
+  gzFile  dstFp = NULL;
+  int     fd = -1;
 
   char *data = taosMemoryMalloc(compressSize);
   if (NULL == data) {
     return terrno;
-  }
-
-  pSrcFile = taosOpenFile(srcFileName, TD_FILE_READ | TD_FILE_STREAM);
-  if (pSrcFile == NULL) {
-    ret = terrno;
-    goto cmp_end;
   }
 
   int access = O_BINARY | O_WRONLY | O_TRUNC | O_CREAT;
@@ -1618,14 +1618,14 @@ int32_t taosCompressFile(char *srcFileName, char *destFileName) {
 #else
   int32_t pmode = S_IRWXU | S_IRWXG | S_IRWXO;
 #endif
-  int fd = open(destFileName, access, pmode);
+  fd = open(destFileName, access, pmode);
   if (-1 == fd) {
     terrno = TAOS_SYSTEM_ERROR(ERRNO);
     ret = terrno;
     goto cmp_end;
   }
 
-  // Both gzclose() and fclose() will close the associated fd, so they need to have different fds.
+  // Both gzclose() and close() will close the associated fd, so they need to have different fds.
   FileFd gzFd = dup(fd);
   if (-1 == gzFd) {
     terrno = TAOS_SYSTEM_ERROR(ERRNO);
@@ -1640,14 +1640,17 @@ int32_t taosCompressFile(char *srcFileName, char *destFileName) {
     goto cmp_end;
   }
 
-  while (!feof(pSrcFile->fp)) {
-    len = (int32_t)fread(data, 1, compressSize, pSrcFile->fp);
-    if (len > 0) {
-      if (gzwrite(dstFp, data, len) == 0) {
-        terrno = TAOS_SYSTEM_ERROR(ERRNO);
-        ret = terrno;
-        goto cmp_end;
-      }
+  while (1) {
+    int64_t readLen = taosReadFile(pSrcFile, data, compressSize);
+    if (readLen < 0) {
+      ret = terrno;
+      goto cmp_end;
+    }
+    if (readLen == 0) break;
+    if (gzwrite(dstFp, data, (int32_t)readLen) == 0) {
+      terrno = TAOS_SYSTEM_ERROR(ERRNO);
+      ret = terrno;
+      goto cmp_end;
     }
   }
 
@@ -1656,16 +1659,10 @@ cmp_end:
   if (fd >= 0) {
     TAOS_SKIP_ERROR(close(fd));
   }
-  if (pSrcFile) {
-    TAOS_SKIP_ERROR(taosCloseFile(&pSrcFile));
-  }
-
   if (dstFp) {
     TAOS_SKIP_ERROR(gzclose(dstFp));
   }
-
   taosMemoryFree(data);
-
   return ret;
 }
 
@@ -1688,12 +1685,94 @@ int32_t taosLinkFile(char *src, char *dst) {
   return 0;
 }
 
+#ifdef WINDOWS
+// Create an NTFS directory junction (mount point) from linkpath -> target.
+// Junctions do not require elevated privileges or Developer Mode, unlike symlinks.
+static int32_t taosCreateJunction(const char *target, const char *linkpath) {
+  char fullTarget[MAX_PATH] = {0};
+  if (GetFullPathNameA(target, MAX_PATH, fullTarget, NULL) == 0) {
+    return (terrno = TAOS_SYSTEM_WINAPI_ERROR(GetLastError()));
+  }
+  if (!CreateDirectoryA(linkpath, NULL)) {
+    return (terrno = TAOS_SYSTEM_WINAPI_ERROR(GetLastError()));
+  }
+  HANDLE hDir = CreateFileA(linkpath, GENERIC_WRITE, 0, NULL, OPEN_EXISTING,
+                            FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, NULL);
+  if (hDir == INVALID_HANDLE_VALUE) {
+    RemoveDirectoryA(linkpath);
+    return (terrno = TAOS_SYSTEM_WINAPI_ERROR(GetLastError()));
+  }
+  // Build the substitute name: \??\<fullTarget>  (NT path prefix for junctions)
+  WCHAR wTarget[MAX_PATH] = {0};
+  WCHAR wSubst[MAX_PATH + 4] = {0};
+  MultiByteToWideChar(CP_ACP, 0, fullTarget, -1, wTarget, MAX_PATH);
+  wsprintfW(wSubst, L"\\??\\%s", wTarget);
+  int substLen = (int)wcslen(wSubst) * (int)sizeof(WCHAR);
+  int printLen = (int)wcslen(wTarget) * (int)sizeof(WCHAR);
+  // Reparse data buffer layout for IO_REPARSE_TAG_MOUNT_POINT:
+  //   ULONG  ReparseTag
+  //   USHORT ReparseDataLength
+  //   USHORT Reserved
+  //   USHORT SubstituteNameOffset
+  //   USHORT SubstituteNameLength
+  //   USHORT PrintNameOffset
+  //   USHORT PrintNameLength
+  //   WCHAR  PathBuffer[...]  (SubstituteName\0 + PrintName\0)
+  int headerSize = 8;   // ReparseTag(4) + ReparseDataLength(2) + Reserved(2)
+  int fixedSize = 8;    // SubstNameOff(2) + SubstNameLen(2) + PrintNameOff(2) + PrintNameLen(2)
+  int pathBufSize = substLen + (int)sizeof(WCHAR) + printLen + (int)sizeof(WCHAR);
+  int totalSize = headerSize + fixedSize + pathBufSize;
+  char *buf = (char *)taosMemoryCalloc(1, totalSize);
+  if (buf == NULL) {
+    CloseHandle(hDir);
+    RemoveDirectoryA(linkpath);
+    return (terrno = TSDB_CODE_OUT_OF_MEMORY);
+  }
+  *(ULONG *)(buf + 0) = IO_REPARSE_TAG_MOUNT_POINT;       // ReparseTag
+  *(USHORT *)(buf + 4) = (USHORT)(fixedSize + pathBufSize); // ReparseDataLength
+  *(USHORT *)(buf + 6) = 0;                                 // Reserved
+  *(USHORT *)(buf + 8) = 0;                                 // SubstituteNameOffset
+  *(USHORT *)(buf + 10) = (USHORT)substLen;                  // SubstituteNameLength
+  *(USHORT *)(buf + 12) = (USHORT)(substLen + sizeof(WCHAR)); // PrintNameOffset
+  *(USHORT *)(buf + 14) = (USHORT)printLen;                  // PrintNameLength
+  memcpy(buf + headerSize + fixedSize, wSubst, substLen);
+  memcpy(buf + headerSize + fixedSize + substLen + sizeof(WCHAR), wTarget, printLen);
+  DWORD bytesReturned = 0;
+  BOOL ok = DeviceIoControl(hDir, FSCTL_SET_REPARSE_POINT, buf, totalSize, NULL, 0, &bytesReturned, NULL);
+  DWORD jErr = ok ? 0 : GetLastError();
+  taosMemoryFree(buf);
+  CloseHandle(hDir);
+  if (!ok) {
+    RemoveDirectoryA(linkpath);
+    return (terrno = TAOS_SYSTEM_WINAPI_ERROR(jErr));
+  }
+  return 0;
+}
+#endif
+
 int32_t taosSymLink(const char *target, const char *linkpath) {
 #ifdef WINDOWS
   DWORD attributes = GetFileAttributesA(target);
   BOOL  isDir = (attributes != INVALID_FILE_ATTRIBUTES) && (attributes & FILE_ATTRIBUTE_DIRECTORY);
-  if (!CreateSymbolicLinkA(linkpath, target, isDir ? SYMBOLIC_LINK_FLAG_DIRECTORY : 0)) {
-    return (terrno = TAOS_SYSTEM_WINAPI_ERROR(GetLastError()));
+  DWORD flags = isDir ? SYMBOLIC_LINK_FLAG_DIRECTORY : 0;
+  // Try symlink with unprivileged flag first (requires Developer Mode on Win10 1703+)
+  if (!CreateSymbolicLinkA(linkpath, target, flags | 0x2 /*SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE*/)) {
+    DWORD err = GetLastError();
+    if (err == ERROR_INVALID_PARAMETER) {
+      // Flag not supported on older Windows, retry without it
+      if (!CreateSymbolicLinkA(linkpath, target, flags)) {
+        err = GetLastError();
+      } else {
+        err = 0;
+      }
+    }
+    if (err == ERROR_PRIVILEGE_NOT_HELD && isDir) {
+      // Symlink requires elevation or Developer Mode; fall back to directory junction
+      // which does not require special privileges on NTFS.
+      return taosCreateJunction(target, linkpath);
+    } else if (err != 0) {
+      return (terrno = TAOS_SYSTEM_WINAPI_ERROR(err));
+    }
   }
 #else
   if (symlink(target, linkpath) == -1) {

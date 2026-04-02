@@ -8,7 +8,7 @@ import java.sql.Statement;
 public class DruidDemo {
     // ANCHOR: connection_pool
     public static void main(String[] args) throws Exception {
-        String url = "jdbc:TAOS-WS://127.0.0.1:6041/log";
+        String url = "jdbc:TAOS-WS://127.0.0.1:6041/log?varcharAsString=true";
 
         DruidDataSource dataSource = new DruidDataSource();
         // jdbc properties

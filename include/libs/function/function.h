@@ -310,20 +310,50 @@ typedef struct tExprNode {
   int32_t relatedTo;
 } tExprNode;
 
-struct SScalarParam {
-  bool             colAlloced;
-  SColumnInfoData *columnData;
+typedef struct SHashParam {
+  bool             hasHashParam;
+  bool             hasValue;
+  bool             hasNull;
+  bool             hasNotNull;
+  bool             isNegativeOp;
   SHashObj        *pHashFilter;
   SHashObj        *pHashFilterOthers;
   int32_t          filterValueType;
+  STypeMod         filterValueTypeMod;
+} SHashParam;
+
+typedef struct SRemoteParam {
+  bool   hasRemoteParam;
+  bool   hasValue;
+  bool   hasNull;
+  bool   isMinVal;
+} SRemoteParam;
+
+struct SScalarParam {
+  bool             colAlloced;
+  SColumnInfoData *columnData;
+  SHashParam       hashParam;
+  SRemoteParam     remoteParam;
   void            *param;  // other parameter, such as meta handle from vnode, to extract table name/tag value
   int32_t          numOfRows;
   int32_t          numOfQualified;  // number of qualified elements in the final results
   timezone_t       tz;
   void            *charsetCxt;
   SArray          *pFilterArr; // for types that can't filter with hash
-  STypeMod         filterValueTypeMod;
 };
+
+typedef struct SSclCompareCtx {
+  SScalarParam *pLeft;
+  SScalarParam *pLeftVar;
+  SScalarParam *pRight;
+  SScalarParam *pOut;
+  int32_t       startIndex;
+  int32_t       endIndex;
+  __compar_fn_t fp;
+  int32_t       optr;
+  int32_t      *qualifiedNum;
+  bool          isAny;
+} SSclCompareCtx;
 
 static inline void setTzCharset(SScalarParam *param, timezone_t tz, void *charsetCxt) {
   if (param == NULL) return;

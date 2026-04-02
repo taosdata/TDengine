@@ -50,6 +50,7 @@ class TestVTableQuerySameDBStbAgg:
 
         """
         self.run_normal_query("test_vstable_select_test_agg")
+        self.run_normal_query("test_vstable_select_test_agg_group_by")
         self.run_normal_query("test_vstable_select_test_agg_tag_cond")
         self.run_normal_query("test_vstable_select_test_agg_time_cond")
         self.run_normal_query("test_vstable_select_test_agg_partition_expr")

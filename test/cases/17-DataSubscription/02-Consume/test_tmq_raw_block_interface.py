@@ -6,6 +6,7 @@ import socket
 import os
 import platform
 import threading
+import subprocess
 
 from new_test_framework.utils import tdLog, tdSql, tdCom
 
@@ -31,20 +32,22 @@ class TestCase:
         exe_file = 'write_raw_block_test' if platform.system().lower() != 'windows' else 'write_raw_block_test.exe'
         cmdStr = os.path.join(buildPath, 'build', 'bin', exe_file)
         tdLog.info(cmdStr)
-        retCode = os.system(cmdStr)
-        # run program code from system return , 0 is success
-        runCode = retCode & 0xFF
-        # program retur code from main function
-        progCode = retCode >> 8
-
-        tdLog.info(f"{cmdStr} ret={retCode} runCode={runCode} progCode={progCode}")
-
-        if runCode != 0:
-            tdLog.exit(f"run {cmdStr} failed, have system error.")
-            return
-        
-        if progCode != 0:
-            tdLog.exit(f"{cmdStr} found problem, return code = {progCode}.")
+        try:
+            result = subprocess.run(
+                cmdStr,
+                shell=True,
+                timeout=60,  # 防止卡死
+                capture_output=True
+            )
+            retCode = result.returncode
+            tdLog.info(f"{cmdStr} returncode={retCode}")
+            if retCode != 0:
+                tdLog.error(f"stdout: {result.stdout.decode(errors='ignore')}")
+                tdLog.error(f"stderr: {result.stderr.decode(errors='ignore')}")
+                tdLog.exit(f"run {cmdStr} failed, return code = {retCode}.")
+                return
+        except subprocess.TimeoutExpired:
+            tdLog.exit(f"run {cmdStr} timeout, process killed.")
             return
 
         self.checkData()

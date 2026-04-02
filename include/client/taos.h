@@ -234,6 +234,32 @@ DLL_EXPORT TAOS *taos_connect_with(const OPTIONS *options);
  */
 DLL_EXPORT TAOS *taos_connect_with_dsn(const char *dsn);
 DLL_EXPORT TAOS *taos_connect_totp(const char *ip, const char *user, const char *pass, const char* totp, const char *db, uint16_t port);
+
+/**
+ * taos_connect_test
+ * Test connection to TDengine with TOTP authentication.
+ *
+ * Return values:
+ *   0 - Success
+ *   Error codes - Failure. Unrecoverable errors (connection should be closed):
+ *     TSDB_CODE_TSC_INVALID_TOTP_CODE
+ *     TSDB_CODE_TSC_SESS_PER_USER_LIMIT
+ *     TSDB_CODE_TSC_SESS_CONN_TIMEOUT
+ *     TSDB_CODE_TSC_SESS_CONN_IDLE_TIMEOUT
+ *     TSDB_CODE_TSC_SESS_MAX_CONCURRENCY_LIMIT
+ *     TSDB_CODE_TSC_SESS_MAX_CALL_VNODE_LIMIT
+ *     TSDB_CODE_TSC_INVALID_TOKEN
+ *     TSDB_CODE_TSC_INTERNAL_ERROR
+ *   All other error codes are retryable.
+ *
+ * @param ip Server IP address
+ * @param user User name
+ * @param pass Password
+ * @param totp TOTP code
+ * @param db Database name
+ * @param port Server port
+ * @return 0 on success, error code on failure
+ */
 DLL_EXPORT int   taos_connect_test(const char *ip, const char *user, const char *pass, const char* totp, const char *db, uint16_t port);
 DLL_EXPORT TAOS *taos_connect_token(const char *ip, const char *token, const char *db, uint16_t port);
 DLL_EXPORT void  taos_close(TAOS *taos);

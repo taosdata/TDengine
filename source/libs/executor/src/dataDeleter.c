@@ -85,6 +85,7 @@ static int32_t toDataCacheEntry(SDataDeleterHandle* pHandle, const SInputData* p
   tstrncpy(pRes->tableName, pHandle->pDeleter->tableFName, sizeof(pRes->tableName));
   tstrncpy(pRes->tsColName, pHandle->pDeleter->tsColName, sizeof(pRes->tsColName));
   pRes->affectedRows = *(int64_t*)pColRes->pData;
+  pRes->secureDelete = pHandle->pDeleter->secureDelete | pHandle->pParam->secureDelete;
 
   if (pRes->affectedRows) {
     pRes->skey = *(int64_t*)pColSKey->pData;

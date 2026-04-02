@@ -13,7 +13,7 @@ from new_test_framework.utils import (
 from random import randint
 import os
 import subprocess
-
+import platform
 
 class TestStreamParametersCheckDefault:
     currentDir = os.path.dirname(os.path.abspath(__file__))
@@ -70,8 +70,9 @@ class TestStreamParametersCheckDefault:
         tdLog.info(f"check num of mnode stream mgmt threads")
         tdSql.query(f"show dnode 1 variables like 'numOfMnodeStreamMgmtThreads';")
         result = tdSql.getData(0, 2)
-        if self.getCpu() >= 8:
-            if int(result) < self.getCpu() / 4 and int(result) > 5:
+        cpu_num = self.getCpu()
+        if cpu_num >= 8:
+            if int(result) < cpu_num / 4 and int(result) > 5:
                 raise Exception(
                     f"Error: numOfMnodeStreamMgmtThreads is {result}, max 5 threads!"
                 )
@@ -86,8 +87,9 @@ class TestStreamParametersCheckDefault:
         tdLog.info(f"check num of  stream mgmt threads")
         tdSql.query(f"show dnode 1 variables like 'numOfStreamMgmtThreads';")
         result = tdSql.getData(0, 2)
-        if self.getCpu() >= 8:
-            if int(result) < self.getCpu() / 8 and int(result) > 5:
+        cpu_num = self.getCpu()
+        if cpu_num >= 8:
+            if int(result) < cpu_num / 8 and int(result) > 5:
                 raise Exception(
                     f"Error: numOfStreamMgmtThreads is {result}, max 5 threads!"
                 )
@@ -102,10 +104,11 @@ class TestStreamParametersCheckDefault:
         tdLog.info(f"check num of vnode stream reader threads")
         tdSql.query(f"show dnode 1 variables like 'numOfVnodeStreamReaderThreads';")
         result = tdSql.getData(0, 2)
-        if self.getCpu() >= 8:
-            if int(result) < self.getCpu() / 2:
+        cpu_num = self.getCpu()
+        if cpu_num >= 8:
+            if int(result) < cpu_num / 2:
                 raise Exception(
-                    f"Error: numOfVnodeStreamReaderThreads is {result}, expected at least {self.getCpu() /2} threads!"
+                    f"Error: numOfVnodeStreamReaderThreads is {result}, expected at least {cpu_num /2} threads!"
                 )
         else:
             if int(result) < 4:
@@ -118,10 +121,11 @@ class TestStreamParametersCheckDefault:
         tdLog.info(f"check num of  stream trigger threads")
         tdSql.query(f"show dnode 1 variables like 'numOfStreamTriggerThreads';")
         result = tdSql.getData(0, 2)
-        if self.getCpu() >= 8:
-            if int(result) < self.getCpu():
+        cpu_num = self.getCpu()
+        if cpu_num >= 8:
+            if int(result) < cpu_num:
                 raise Exception(
-                    f"Error: numOfStreamTriggerThreads is {result}, expected at least {self.getCpu()} threads!"
+                    f"Error: numOfStreamTriggerThreads is {result}, expected at least {cpu_num} threads!"
                 )
         else:
             if int(result) < 4:
@@ -134,10 +138,11 @@ class TestStreamParametersCheckDefault:
         tdLog.info(f"check num of  stream Runner threads")
         tdSql.query(f"show dnode 1 variables like 'numOfStreamRunnerThreads';")
         result = tdSql.getData(0, 2)
-        if self.getCpu() >= 8:
-            if int(result) < self.getCpu():
+        cpu_num = self.getCpu()
+        if cpu_num >= 8:
+            if int(result) < cpu_num:
                 raise Exception(
-                    f"Error: numOfStreamRunnerThreads is {result}, expected at least {self.getCpu()} threads!"
+                    f"Error: numOfStreamRunnerThreads is {result}, expected at least {cpu_num} threads!"
                 )
         else:
             if int(result) < 4:
@@ -150,9 +155,10 @@ class TestStreamParametersCheckDefault:
         tdLog.info(f"check streamBufferSize")
         tdSql.query(f"show dnode 1 variables like 'streamBufferSize';")
         result = tdSql.getData(0, 2)
-        if int(result) < self.getMemoryMB() * 0.3 - 1:
+        mem_mb = self.getMemoryMB()
+        if int(result) < mem_mb * 0.3 - 1:
             raise Exception(
-                f"Error: streamBufferSize is {result}, expected at least {self.getMemoryMB() * 0.3 - 1} MB!"
+                f"Error: streamBufferSize is {result}, expected at least {mem_mb * 0.3 - 1} MB!"
             )
         tdLog.info(f"streamBufferSize is {result}, test passed!")
 
@@ -177,13 +183,50 @@ class TestStreamParametersCheckDefault:
         tdLog.info(f"streamNotifyFrameSize is {result}, test passed!")
 
     def getCpu(self):
-        cmd = "lscpu | grep -v -i numa | grep 'CPU(s):' | awk -F ':' '{print $2}' | head -n 1"
-        output = subprocess.check_output(cmd, shell=True).decode().strip()
-        tdLog.info(f"cpu num is {output}")
-        return int(output)
+        system = platform.system().lower()
+        try:
+            if system == "windows":
+                # Windows: 使用 os.cpu_count()
+                cpu_count = os.cpu_count()
+                tdLog.info(f"cpu num is {cpu_count}")
+                return cpu_count
+            else:
+                # Linux/macOS: 使用 lscpu 或 os.cpu_count()
+                try:
+                    cmd = "lscpu | grep -v -i numa | grep 'CPU(s):' | awk -F ':' '{print $2}' | head -n 1"
+                    output = subprocess.check_output(cmd, shell=True).decode().strip()
+                    cpu_count = int(output)
+                except Exception:
+                    cpu_count = os.cpu_count()
+                tdLog.info(f"cpu num is {cpu_count}")
+                return cpu_count
+        except Exception as e:
+            tdLog.warning(f"getCpu failed: {e}, fallback to 1")
+            return 1
 
     def getMemoryMB(self):
-        cmd = "unset LD_PRELOAD;free -m | grep Mem | awk '{print $2}'"
-        output = subprocess.check_output(cmd, shell=True).decode().strip()
-        tdLog.info(f"total memory is {output} MB")
-        return int(output)  # 单位：MB
+        system = platform.system().lower()
+        try:
+            if system == "windows":
+                # Windows: 使用 psutil
+                try:
+                    import psutil
+                    mem = psutil.virtual_memory().total // (1024 * 1024)
+                    tdLog.info(f"total memory is {mem} MB")
+                    return mem
+                except ImportError:
+                    tdLog.warning("psutil not installed, fallback to 4096 MB")
+                    return 4096
+            else:
+                # Linux/macOS: 使用 free 命令
+                try:
+                    cmd = "unset LD_PRELOAD;free -m | grep Mem | awk '{print $2}'"
+                    output = subprocess.check_output(cmd, shell=True).decode().strip()
+                    mem = int(output)
+                except Exception:
+                    mem = 4096
+                tdLog.info(f"total memory is {mem} MB")
+                return mem
+        except Exception as e:
+            tdLog.warning(f"getMemoryMB failed: {e}, fallback to 4096 MB")
+            return 4096

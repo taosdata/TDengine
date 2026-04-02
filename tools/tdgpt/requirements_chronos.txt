@@ -1,0 +1,4 @@
+-f https://download.pytorch.org/whl/torch_stable.html
+torch==2.3.1+cpu
+chronos-forecasting
+flask

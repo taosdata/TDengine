@@ -2039,6 +2039,8 @@ TEST(stmt2Case, query) {
     ASSERT_EQ(strncmp((char*)row[0], "tb2", 3), 0);
     ASSERT_EQ(strncmp((char*)row[1], "xyz", 3), 0);
     ASSERT_EQ(strncmp((char*)row[2], "abc", 3), 0);
+
+    taos_stmt2_close(stmt);
   }
 
   do_query(taos, "drop database if exists stmt2_testdb_7");

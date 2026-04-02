@@ -119,6 +119,18 @@ if %Enterprise% == TRUE (
 
 copy %binary_dir%\\build\\bin\\taosd.exe %target_dir% > nul
 copy %binary_dir%\\build\\bin\\taosudf.exe %target_dir% > nul
+
+rem // ── Archive PDB files for crash-dump symbolication ──────────────────────
+rem //   PDBs are NOT shipped to end-users.  They must be stored internally,
+rem //   keyed by version number, so that field crash dumps can be analysed.
+rem //   Layout:  <binary_dir>\symbols\<verNumber>\*.pdb
+set pdb_archive=%binary_dir%\\symbols\\%verNumber%
+if not exist "%pdb_archive%" mkdir "%pdb_archive%"
+for %%f in (%binary_dir%\\build\\bin\\*.pdb) do (
+    copy "%%f" "%pdb_archive%\\" > nul
+)
+echo PDB files archived to: %pdb_archive%
+rem // ─────────────────────────────────────────────────────────────────────────
 if exist %binary_dir%\\build\\bin\\taosadapter.exe (
     copy %binary_dir%\\build\\bin\\taosadapter.exe %target_dir% > nul
 )

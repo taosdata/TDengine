@@ -76,6 +76,8 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_TLCC,
   FUNCTION_TYPE_LAG,
   FUNCTION_TYPE_FILL_FORWARD,
+  FUNCTION_TYPE_EXTERNAL_WINDOW_COLUMN,
+  FUNCTION_TYPE_LEAD,
 
   // math function
   FUNCTION_TYPE_ABS = 1000,
@@ -206,6 +208,8 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_IMPUTATION_ROWTS,
   FUNCTION_TYPE_IMPUTATION_MARK,
   FUNCTION_TYPE_ANOMALY_MARK,
+  FUNCTION_TYPE_TIDLESTART,          // _tidlestart
+  FUNCTION_TYPE_TIDLEEND,            // _tidleend
 
   // internal function
   FUNCTION_TYPE_SELECT_VALUE = 3750,
@@ -217,6 +221,7 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_CACHE_LAST,
   FUNCTION_TYPE_TABLE_COUNT,
   FUNCTION_TYPE_GROUP_CONST_VALUE,
+  FUNCTION_TYPE_HAS_NULL,
 
   // distributed splitting functions
   FUNCTION_TYPE_APERCENTILE_PARTIAL = 4000,
@@ -338,7 +343,7 @@ bool fmIsSystemInfoFunc(int32_t funcId);
 bool fmIsImplicitTsFunc(int32_t funcId);
 bool fmIsClientPseudoColumnFunc(int32_t funcId);
 bool fmIsMultiRowsFunc(int32_t funcId);
-bool fmIsKeepOrderFunc(int32_t funcId);
+bool fmIsKeepOrderFunc(SFunctionNode* pFunc);
 bool fmIsCumulativeFunc(int32_t funcId);
 bool fmIsInterpPseudoColumnFunc(int32_t funcId);
 bool fmIsAnalysisPseudoColumnFunc(int32_t funcId);
@@ -356,6 +361,8 @@ bool fmIsRowTsOriginFunc(int32_t funcId);
 bool fmIsSelectColsFunc(int32_t funcId);
 bool fmIsGroupIdFunc(int32_t funcId);
 bool fmIsPlaceHolderFunc(int32_t funcId);
+bool fmIsHasNullFunc(int32_t funcId);
+bool fmIsPlaceHolderFuncForExternalWin(int32_t funcId);
 
 void    getLastCacheDataType(SDataType* pType, int32_t pkBytes);
 int32_t createFunction(const char* pName, SNodeList* pParameterList, SFunctionNode** pFunc);
@@ -394,6 +401,11 @@ int32_t fmGetFuncId(const char* name);
 bool    fmIsMyStateFunc(int32_t funcId, int32_t stateFuncId);
 bool    fmIsCountLikeFunc(int32_t funcId);
 
+int32_t fmGetTwstartFuncId();
+int32_t fmGetTwendFuncId();
+int32_t fmGetTwdurationFuncId();
+int32_t fmGetExternalWindowColumnFuncId();
+
 // typedef enum SStreamPseudoFuncType {
 //   STREAM_PSEUDO_FUNC_CURRENT_TS = 0,
 //   STREAM_PSEUDO_FUNC_TWSTART = 1,
@@ -417,6 +429,8 @@ void fmGetStreamPesudoFuncValTbname(int32_t funcId, const SStreamRuntimeFuncInfo
 int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes,
                                       const SStreamRuntimeFuncInfo* pStreamRuntimeInfo);
 
+
+bool canCoexistIndefiniteRowsFunc(int32_t funcId1, int32_t funcId2);
 #ifdef __cplusplus
 }
 #endif

@@ -25,13 +25,15 @@ Support all platforms that can run Node.js.
 
 | Node.js Connector Version | Major Changes                                                            | TDengine Version            |
 | ------------------------- | ------------------------------------------------------------------------ | --------------------------- |
+| 3.3.0                     | Supports load balancing and failover | - |
+| 3.2.3                     | 1. Supports token authentication. <br/> 2. Supports reporting connector version information. | - |
 | 3.2.2                     | Fix timezone handling issues on Windows systems. | - |
 | 3.2.1                     | Fix SQL query result sorting issue. | - |
 | 3.2.0                     | Optimize STMT parameter binding to improve write efficiency. | - |
 | 3.1.9                     | Fix timezone handling in WebSocket connections. | - |
 | 3.1.8                     | Fix when the connection pool returns unavailable connections during network anomalies. | - |
 | 3.1.7                     | Fix cloud service TMQ connection parameter issue. | - |
-| 3.1.6                     | 1. Check if the connector supports database version.  <br/> 2. The connector supports adding new subscription parameters. | - |  
+| 3.1.6                     | 1. Check if the connector supports database version. <br/> 2. The connector supports adding new subscription parameters. | - |  
 | 3.1.5                     | Password supports special characters. |  - |
 | 3.1.4                     | Modified the readme.| -                           |
 | 3.1.3                     | Upgraded the es5-ext version to address vulnerabilities in the lower version. | -                      |
@@ -101,16 +103,21 @@ Node.js connector (`@tdengine/websocket`), which connects to a TDengine instance
 ### URL Specification
 
 ```text
-[+<protocol>]://[[<username>:<password>@]<host>:<port>][/<database>][?<p1>=<v1>[&<p2>=<v2>]]
-|------------|---|-----------|-----------|------|------|------------|-----------------------|
-|   protocol |   | username  | password  | host | port |  database  |  params               |
+[+<protocol>]://[<username>:<password>@][<host1>:<port1>[,...<hostN>:<portN>]][/<database>][?<p1>=<v1>[&<p2>=<v2>]]
+|-----------|---|-----------|-----------|------------------------------------|------------|-----------------------|
+|  protocol |   | username  | password  |  addresses                         |  database  |  params               |
 ```
 
-- **protocol**: Use the websocket protocol to establish a connection. For example, `ws://localhost:6041`
-- **username/password**: Username and password for the database.
-- **host/port**: The host_name parameter supports valid domain names or IP addresses. The `@tdengine/websocket` supports both IPv4 and IPv6 formats. For IPv6 addresses, square brackets must be used (e.g., [::1] or [2001:db8:1234:5678::1]) to avoid port number parsing conflicts.
+- **protocol**: Uses the WebSocket protocol to establish the connection. For example, `ws://localhost:6041`.
+- **username/password**: Database username and password.
+- **addresses**: A list of addresses, supporting one or more `host:port` addresses, separated by commas (e.g., `localhost:6041,localhost:6042`). `@tdengine/websocket` supports both IPv4 and IPv6 address formats. For IPv6 addresses, they must be enclosed in square brackets (e.g., `[::1]` or `[2001:db8:1234:5678::1]`) to avoid port number resolution conflicts.
 - **database**: Database name.
-- **params**: Other parameters. For example, token.
+- **params**:
+  - `token`: Used for TDengine TSDB cloud service authentication.
+  - `bearer_token`: Used for TDengine TSDB authentication, with higher priority than username/password.
+  - `retries`: Maximum number of retries when the connection fails, defaults to 5.
+  - `retry_backoff_ms`: The initial wait time (milliseconds) when a connection fails, defaulting to 200. This value increases exponentially with consecutive failures until the maximum wait time is reached.
+  - `retry_backoff_max_ms`: The maximum wait time (milliseconds) when a connection fails, defaulting to 2000.
 
 - Complete DSN example:
 
@@ -120,6 +127,9 @@ Node.js connector (`@tdengine/websocket`), which connects to a TDengine instance
     
   // IPV6:
   ws://root:taosdata@[::1]:6041
+
+  // Multiple addresses (can be used for load balancing and failover scenarios):
+  ws://root:taosdata@localhost:6041,localhost:6042,localhost:6043
 ```
 
 ### WSConfig
@@ -151,7 +161,8 @@ The configurations in WSConfig are as follows:
 - setPwd(pws:string) Set the database password.
 - setDb(db: string) Set the database name.
 - setTimeOut(ms : number) Set the connection timeout in milliseconds.
-- setToken(token: string) Set the taosAdapter authentication token.
+- setToken(token: string) Set the cloud service authentication token.
+- setBearerToken(token: string) Set the TDengine TSDB authentication token, which has higher priority than username and password.
 
 ### Connection Features
 

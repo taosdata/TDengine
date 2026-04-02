@@ -23,12 +23,12 @@ HuffmanTree* createHuffmanTree(int stateNum)
 	
 	huffmanTree->pool = (struct node_t*)malloc(huffmanTree->allNodes*2*sizeof(struct node_t));
 	huffmanTree->qqq = (node*)malloc(huffmanTree->allNodes*2*sizeof(node));
-	huffmanTree->code = (unsigned long**)malloc(huffmanTree->stateNum*sizeof(unsigned long*));
+	huffmanTree->code = (uint64_t**)malloc(huffmanTree->stateNum*sizeof(uint64_t*));
 	huffmanTree->cout = (unsigned char *)malloc(huffmanTree->stateNum*sizeof(unsigned char));
 	
 	memset(huffmanTree->pool, 0, huffmanTree->allNodes*2*sizeof(struct node_t));
 	memset(huffmanTree->qqq, 0, huffmanTree->allNodes*2*sizeof(node));
-    memset(huffmanTree->code, 0, huffmanTree->stateNum*sizeof(unsigned long*));
+    memset(huffmanTree->code, 0, huffmanTree->stateNum*sizeof(uint64_t*));
     memset(huffmanTree->cout, 0, huffmanTree->stateNum*sizeof(unsigned char));
 	huffmanTree->qq = huffmanTree->qqq - 1;
 	huffmanTree->n_nodes = 0;
@@ -119,10 +119,10 @@ node qremove(HuffmanTree* huffmanTree)
  * @out2 should be 0 as well.
  * @index: the index of the byte
  * */
-void build_code(HuffmanTree *huffmanTree, node n, int len, unsigned long out1, unsigned long out2)
+void build_code(HuffmanTree *huffmanTree, node n, int len, uint64_t out1, uint64_t out2)
 {
 	if (n->t) {
-		huffmanTree->code[n->c] = (unsigned long*)malloc(2*sizeof(unsigned long));
+		huffmanTree->code[n->c] = (uint64_t*)malloc(2*sizeof(uint64_t));
 		if(len<=64)
 		{
 			if(len == 0)
@@ -234,14 +234,14 @@ void encode(HuffmanTree *huffmanTree, int *s, size_t length, unsigned char *out,
 			byteSizep = bitSize/8; //it's used to move the pointer p for next data
 			if(byteSize<=8)
 			{
-				longToBytes_bigEndian(p, (huffmanTree->code[state])[0]);
+				int64ToBytes_bigEndian(p, (huffmanTree->code[state])[0]);
 				p += byteSizep;
 			}
 			else //byteSize>8
 			{
-				longToBytes_bigEndian(p, (huffmanTree->code[state])[0]);
+				int64ToBytes_bigEndian(p, (huffmanTree->code[state])[0]);
 				p += 8;
-				longToBytes_bigEndian(p, (huffmanTree->code[state])[1]);
+				int64ToBytes_bigEndian(p, (huffmanTree->code[state])[1]);
 				p += (byteSizep - 8);
 			}
 			*outSize += byteSize;
@@ -254,8 +254,8 @@ void encode(HuffmanTree *huffmanTree, int *s, size_t length, unsigned char *out,
 			{
 				p++;
 				//(*outSize)++;
-				long newCode = (huffmanTree->code[state])[0] << lackBits;
-				longToBytes_bigEndian(p, newCode);
+				uint64_t newCode = (huffmanTree->code[state])[0] << lackBits;
+				int64ToBytes_bigEndian(p, newCode);
 
 				if(bitSize<=64)
 				{
@@ -279,7 +279,7 @@ void encode(HuffmanTree *huffmanTree, int *s, size_t length, unsigned char *out,
 						p++;
 						//(*outSize)++;
 						newCode = (huffmanTree->code[state])[1] << lackBits;
-						longToBytes_bigEndian(p, newCode);
+						int64ToBytes_bigEndian(p, newCode);
 						bitSize -= lackBits;
 						byteSize = bitSize%8==0 ? bitSize/8 : bitSize/8+1;
 						byteSizep = bitSize/8;
@@ -706,9 +706,9 @@ void encode_withTree(HuffmanTree* huffmanTree, int *s, size_t length, unsigned c
 	//printf("treeByteSize = %d\n", treeByteSize);
 
 	*out = (unsigned char*)malloc(length*sizeof(int)+treeByteSize);
-	intToBytes_bigEndian(buffer, nodeCount);
+	int32ToBytes_bigEndian(buffer, nodeCount);
 	memcpy(*out, buffer, 4);
-	intToBytes_bigEndian(buffer, huffmanTree->stateNum/2); //real number of intervals
+	int32ToBytes_bigEndian(buffer, huffmanTree->stateNum/2); //real number of intervals
 	memcpy(*out+4, buffer, 4);
 	memcpy(*out+8, treeBytes, treeByteSize);
 	free(treeBytes);
@@ -724,13 +724,13 @@ void encode_withTree(HuffmanTree* huffmanTree, int *s, size_t length, unsigned c
 void decode_withTree(HuffmanTree* huffmanTree, unsigned char *s, size_t targetLength, int *out)
 {
 	size_t encodeStartIndex;
-	size_t nodeCount = bytesToInt_bigEndian(s);
+	size_t nodeCount = bytesToInt32_bigEndian(s);
 	node root = reconstruct_HuffTree_from_bytes_anyStates(huffmanTree,s+8, nodeCount);
 
 	//sdi: Debug
 /*	build_code(root, 0, 0, 0);
 	int i;
-	unsigned long code_1, code_2;
+	uint64_t code_1, code_2;
 	for (i = 0; i < stateNum; i++)
 		if (code[i])
 		{

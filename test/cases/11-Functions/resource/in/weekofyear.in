@@ -28,7 +28,7 @@ select weekofyear('01-JAN-20')
 select weekofyear('2024-02-29')
 select weekofyear('2024-01-01')
 select weekofyear('2024-12-31')
-select weekofyear('9999-12-31')
+select weekofyear('3000-12-31')
 select weekofyear(name) from ts_4893.meters limit 1
 select weekofyear(ts) from ts_4893.meters limit 1
 select weekofyear(ts), dayofweek(ts) from ts_4893.meters limit 1

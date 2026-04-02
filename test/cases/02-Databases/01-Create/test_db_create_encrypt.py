@@ -1,10 +1,5 @@
-from new_test_framework.utils import tdLog, tdSql, epath, sc, etool, AutoGen, tdDnodes
-import os
-import time
-
-# from frame.server.dnodes import *
-# from frame.server.cluster import *
-
+from new_test_framework.utils import tdLog, tdSql, AutoGen
+import platform
 
 class TestBasic:
     updatecfgDict = {'dDebugFlag':131}
@@ -24,8 +19,16 @@ class TestBasic:
         cls.db = "test1"
         cls.stb = "meters"
         cls.childtable_count = 10
+
+    def supports_encryption_on_current_platform(self):
+        # TAOSK only supports encryption on Linux and enterprise edition
+        return platform.system().lower() != "windows"
     
     def create_encrypt_sm4_db(self):        
+        if not self.supports_encryption_on_current_platform():
+            tdLog.info("Skip encrypted database creation on Windows because "
+                "encryption keys are not initialized there")
+            return
         
         autoGen = AutoGen()
         autoGen.create_db(self.db, 2, 1, "ENCRYPT_ALGORITHM 'SM4-CBC'")
@@ -43,6 +46,10 @@ class TestBasic:
         self.checkInsertCorrect()           
 
     def create_encrypt_aes_db(self):        
+        if not self.supports_encryption_on_current_platform():
+            tdLog.info("Skip encrypted database creation on Windows because "
+                "encryption keys are not initialized there")
+            return
         
         autoGen = AutoGen()
         self.db = "test2"
@@ -67,23 +74,27 @@ class TestBasic:
 
     def check_encrypt_algorithm(self):
         tdSql.query(f"show encrypt_algorithms")
-        tdSql.checkRows(6)
+        if self.supports_encryption_on_current_platform():
+            tdSql.checkRows(6)
+        else:
+            tdSql.checkRows(1)
         tdSql.checkData(0, 0, 1)
         tdSql.checkData(0, 1, "SM4-CBC")
         tdSql.checkData(0, 6, "SM4-CBC:SM4")
-        tdSql.checkData(1, 0, 2)
-        tdSql.checkData(1, 1, "AES-128-CBC")
-        tdSql.checkData(1, 6, "AES-128-CBC")
-        tdSql.checkData(2, 0, 3)
-        tdSql.checkData(2, 1, "SM3")
-        tdSql.checkData(2, 6, "SM3")
-        tdSql.checkData(3, 0, 4)
-        tdSql.checkData(3, 1, "SHA-256")
-        tdSql.checkData(3, 6, "SHA-256")
-        tdSql.checkData(4, 0, 5)
-        tdSql.checkData(4, 1, "SM2")
-        tdSql.checkData(5, 0, 6)
-        tdSql.checkData(5, 1, "RSA")
+        if self.supports_encryption_on_current_platform():
+            tdSql.checkData(1, 0, 2)
+            tdSql.checkData(1, 1, "AES-128-CBC")
+            tdSql.checkData(1, 6, "AES-128-CBC")
+            tdSql.checkData(2, 0, 3)
+            tdSql.checkData(2, 1, "SM3")
+            tdSql.checkData(2, 6, "SM3")
+            tdSql.checkData(3, 0, 4)
+            tdSql.checkData(3, 1, "SHA-256")
+            tdSql.checkData(3, 6, "SHA-256")
+            tdSql.checkData(4, 0, 5)
+            tdSql.checkData(4, 1, "SM2")
+            tdSql.checkData(5, 0, 6)
+            tdSql.checkData(5, 1, "RSA")
 
     def test_db_create_encrypt(self):
         """ Option: encrypt_algorithm
@@ -104,13 +115,10 @@ class TestBasic:
 
         History:
             - 2025-10-17 Alex Duan Migrated from uncatalog/army/db-encrypt/test_basic.py
+            - 2026-03-25 Tony Zhang Updated the test for Windows and enterprise edition
         
         """
         self.check_encrypt_algorithm()
         self.create_encrypt_db_error()
         self.create_encrypt_sm4_db()
         self.create_encrypt_aes_db()
-
-
-
-

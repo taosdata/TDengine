@@ -109,7 +109,7 @@ public class JdbcPassDemo {
  public static void main(String[] args) throws Exception {
   String password = "Ab1!@#$%^&*()-_+=[]{}";
   String encodedPassword = URLEncoder.encode(password, StandardCharsets.UTF_8.toString());
-  String jdbcUrl = "jdbc:TAOS-WS://localhost:6041";
+  String jdbcUrl = "jdbc:TAOS-WS://localhost:6041?varcharAsString=true";
   Properties connProps = new Properties();
   connProps.setProperty(TSDBDriver.PROPERTY_KEY_USER, "user1");
   connProps.setProperty(TSDBDriver.PROPERTY_KEY_PASSWORD, encodedPassword);

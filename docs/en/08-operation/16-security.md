@@ -99,6 +99,8 @@ Additionally, for an audit database:
 
 Audit databases created before version 3.4.0.0 are incompatible with audit features in version 3.4.0.0 and later. In older versions, the `is_audit` parameter was not enforced, so there were no mandatory requirements for `DURATION`, `WAL_LEVEL`, and `ENCRYPT_ALGORITHM`. To enable new audit features for an old audit database, it must be dropped and recreated. As a workaround to access data from a pre-3.4.0.0 audit database in a newer version (without new audit features), you can disable `auditUseToken` by setting it to 0.
 
+In versions 3.4.1.0 and later, audit information can be saved locally rather than sent to taoskeeper. To use this functionality, you need to set the parameter auditSaveInSelf to 1, and the number of vgroups in the audit database created must be limited to one.
+
 ### taosKeeper Configuration
 
 Configure the related parameters for audit logs in the taosKeeper configuration file `keeper.toml`, as shown in the table below

@@ -485,7 +485,12 @@ void resetAllDataBlockScanInfo(SSHashObj* pTableMap, int64_t ts, int32_t step) {
     pInfo->delSkyline = NULL;
     pInfo->lastProcKey.ts = ts;
     // todo check the nextProcKey info
-    pInfo->sttKeyInfo.nextProcKey.ts = ts + step;
+    if ((ts == INT64_MAX && step > 0) || (ts == INT64_MIN && step < 0)) {
+      tsdbError("%s nextProcKey ts overflow, ts:%" PRId64 ", step:%" PRId32,
+                __func__, ts, step);
+    } else {
+      pInfo->sttKeyInfo.nextProcKey.ts = ts + step;
+    }
   }
 }
 

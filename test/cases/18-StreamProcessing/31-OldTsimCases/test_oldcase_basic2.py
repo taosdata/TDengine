@@ -272,6 +272,7 @@ class TestStreamOldCaseBasic2:
             tdSql.error(f"select * from streamtST2;")
             tdSql.error(f"select * from streamt2;")
 
+
         def insert2(self):
             tdSql.execute(f"insert into t1 values(1648791216001, 2, 2, 3, 1.1);")
 
@@ -288,6 +289,7 @@ class TestStreamOldCaseBasic2:
 
             tdSql.error(f"select * from streamtST2;")
             tdSql.error(f"select * from streamt2;")
+
 
     class Sliding1(StreamCheckItem):
         def __init__(self):

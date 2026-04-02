@@ -40,6 +40,7 @@ go run ./connect/cgoexample/main.go
 go run ./connect/restexample/main.go
 go run ./connect/connpool/main.go
 go run ./connect/wsexample/main.go
+go run ./connect/unified/main.go
 
 taos -s "drop database if exists power"
 check_transactions || exit 1
@@ -64,6 +65,11 @@ go run ./stmt/ws/main.go
 taos -s "drop database if exists power"
 check_transactions || exit 1
 reset_cache || exit 1
+go run ./stmt/unified/main.go
+
+taos -s "drop database if exists power"
+check_transactions || exit 1
+reset_cache || exit 1
 go run ./stmt2/native/main.go
 
 taos -s "drop database if exists power"
@@ -76,6 +82,11 @@ taos -s "drop database if exists power"
 check_transactions || exit 1
 reset_cache || exit 1
 go run ./schemaless/ws/main.go
+
+taos -s "drop database if exists power"
+check_transactions || exit 1
+reset_cache || exit 1
+go run ./schemaless/unified/main.go
 
 taos -s "drop topic if exists topic_meters"
 check_transactions || exit 1

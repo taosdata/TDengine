@@ -19,12 +19,15 @@ import VerifyLinux from "../assets/resources/_verify_linux.mdx";
 import VerifyMacOS from "../assets/resources/_verify_macos.mdx";
 import VerifyWindows from "../assets/resources/_verify_windows.mdx";
 import ConnectorType from "../assets/resources/_connector_type.mdx";
+import ConnectionDeprecation from "../assets/resources/_connection_deprecation.mdx";
 
 <ConnectorType />
 
 ## Installing the Client Driver taosc
 
 If you choose a native connection and your application is not running on the same server as TDengine, you need to install the client driver first; otherwise, you can skip this step. To avoid incompatibility between the client driver and the server, please use consistent versions.
+
+**Recommended to use WebSocket connection, no need to install client driver.**
 
 ### Installation Steps
 
@@ -83,7 +86,7 @@ If you are using Maven to manage your project, simply add the following dependen
 <dependency>
   <groupId>com.taosdata.jdbc</groupId>
   <artifactId>taos-jdbcdriver</artifactId>
-  <version>3.8.1</version>
+  <version>3.8.2</version>
 </dependency>
 ```
 
@@ -114,7 +117,7 @@ If you are using Maven to manage your project, simply add the following dependen
     - Install a specific version
 
     ```shell
-    pip3 install taospy==2.8.8
+    pip3 install taospy==2.8.9
     ```
 
     - Install from GitHub
@@ -247,7 +250,7 @@ Edit the project configuration file to add a reference to [TDengine.Connector](h
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="TDengine.Connector" Version="3.1.0" />
+    <PackageReference Include="TDengine.Connector" Version="3.2.0" />
   </ItemGroup>
 
 </Project>
@@ -292,7 +295,7 @@ There are many configuration options for connecting, so before establishing a co
 <TabItem label="Java" value="java">
 
 The parameters for establishing a connection with the Java connector are URL and Properties.  
-The JDBC URL format for TDengine is: `jdbc:[TAOS|TAOS-WS]://[host_name]:[port]/[database_name]?[user={user}|&password={password}|&charset={charset}|&cfgdir={config_dir}|&locale={locale}|&timezone={timezone}]`  
+The JDBC URL format for TDengine is: `jdbc:[TAOS|TAOS-WS]://[host_name]:[port]/[database_name]?[user={user}|&password={password}|&charset={charset}|&cfgdir={config_dir}|&locale={locale}|&timezone={timezone}|&varcharAsString=true]`  
 
 For detailed explanations of URL and Properties parameters and how to use them, see [URL specifications](../../tdengine-reference/client-libraries/java/#url-specification)
 
@@ -331,6 +334,15 @@ When using an IPv6 address (supported in v3.7.1 and above), the address needs to
 root:taosdata@ws([::1]:6041)/testdb
 ```
 
+Starting from `v3.8.0`, the Go connector unifies WebSocket access through `ws/unified`; `taosWS` remains available as the standard interface.
+
+:::note
+
+1. Multi-endpoint failover is supported by both `taosWS` and `ws/unified`, for example: `root:taosdata@ws(localhost:6041,localhost:6042)/testdb`.
+2. `taosWS` is the standard interface and supports the official connection pool; `ws/unified` is the unified interface and does not support the official connection pool.
+
+:::
+
 Supported DSN parameters are as follows:
 
 Native connection:
@@ -346,8 +358,15 @@ WebSocket connection:
 - `readTimeout` the timeout for reading data, default is 5m.
 - `writeTimeout` the timeout for writing data, default is 10s.
 - `timezone` specifies the timezone used for the connection. Both SQL parsing and query results will be converted according to this timezone. Only IANA timezone formats are supported, and special characters need to be encoded. Taking the Shanghai timezone (`Asia/Shanghai`) as an example: `timezone=Asia%2FShanghai`.
+- `token` specifies the token used by cloud services.
 - `bearerToken` the token used for authentication.
 - `totpCode` the TOTP code used for two-factor authentication.
+- `autoReconnect` whether to enable automatic reconnect, default is false (supported since `v3.8.0`).
+- `chanLength` message channel length, default is 1 (supported since `v3.8.0`).
+- `reconnectIntervalMs` reconnect interval in milliseconds, default is 2000 (supported since `v3.8.0`).
+- `reconnectRetryCount` reconnect retry count, default is 3 (supported since `v3.8.0`).
+
+> Note: After reconnect succeeds, the current DB on the connection is lost. Specify DB in DSN and avoid switching DB later.
 
 </TabItem>
 
@@ -396,34 +415,45 @@ Node.js connector uses DSN to create connections, the basic structure of the DSN
 
 ConnectionStringBuilder uses a key-value pair method to set connection parameters, where key is the parameter name and value is the parameter value, separated by a semicolon `;`.
 
-For example:
+Single-address example:
 
 ```csharp
 "protocol=WebSocket;host=127.0.0.1;port=6041;useSSL=false"
 ```
 
+Starting with `TDengine.Connector` `3.2.0`, WebSocket connections also support failover through a comma-separated `host` list. The initial connection automatically tries the configured addresses, while reconnect failover after a disconnect requires `autoReconnect=true`.
+
+```csharp
+"protocol=WebSocket;host=adapter-a:6041,adapter-b:6041;username=root;password=taosdata;autoReconnect=true;reconnectRetryCount=3;reconnectIntervalMs=2000"
+```
+
 Supported parameters are as follows:
 
-- `host`: The address of the TDengine instance.
-- `port`: The port of the TDengine instance.
-- `username`: Username for the connection.
-- `password`: Password for the connection.
-- `protocol`: Connection protocol, options are Native or WebSocket, default is Native.
-- `db`: Database to connect to.
-- `timezone`: Time zone, default is the local time zone.
-- `connTimeout`: Connection timeout, default is 1 minute.
-- `bearerToken`: Token for connecting to TDengine TSDB.
+- Common parameters:
+  - `host`: Native supports a single address only. WebSocket supports a single address or a comma-separated address list in `3.2.0` and later. Single-address formats include `host`, `host:port`, bare IPv6 `2001:db8::1`, `[2001:db8::1]`, and `[2001:db8::1]:6041`. In multi-address WebSocket lists, IPv6 entries must use brackets, for example `host=[::1]:6041,[::1]:6042`.
+  - `port`: Shared fallback port. It is applied only to addresses that do not include an explicit port. For WebSocket, if neither the address nor `port` specifies a port, the default is `6041`, or `443` when `useSSL=true`. Native connections usually use `6030`.
+  - `username`: Username for the connection.
+  - `password`: Password for the connection.
+  - `protocol`: Connection protocol. Supported values are `Native` and `WebSocket`. Default is `Native`.
+  - `db`: Database to connect to.
+  - `timezone`: Time zone used to parse time values in result sets. Default is the local time zone.
+  - `connectionTimezone`: Connection-level time zone setting, supported in `3.1.8` and later. It requires .NET 6+ and IANA time zone format, and cannot be used together with `timezone`.
+  - `bearerToken`: Token used for TDengine TSDB authentication, supported in `3.1.10` and later.
 
-Additional parameters supported for WebSocket connections:
+- WebSocket-only parameters:
+  - `connTimeout`: Connection timeout. Default is 1 minute.
+  - `readTimeout`: Read timeout. Default is 5 minutes.
+  - `writeTimeout`: Send timeout. Default is 10 seconds.
+  - `token`: Token for connecting to TDengine cloud.
+  - `useSSL`: Whether to use an SSL/TLS WebSocket connection. Default is `false`.
+  - `enableCompression`: Whether to enable WebSocket compression. Default is `false`.
+  - `autoReconnect`: Whether to automatically reconnect. Default is `false`. When multiple WebSocket addresses are configured in `3.2.0` and later, this controls runtime failover after the current connection becomes unavailable.
+  - `reconnectRetryCount`: Number of reconnect rounds. Default is `3`.
+  - `reconnectIntervalMs`: Interval between reconnect rounds in milliseconds. Default is `2000`.
 
-- `readTimeout`: Read timeout, default is 5 minutes.
-- `writeTimeout`: Send timeout, default is 10 seconds.
-- `token`: Token for connecting to TDengine cloud.
-- `useSSL`: Whether to use SSL connection, default is false.
-- `enableCompression`: Whether to enable WebSocket compression, default is false.
-- `autoReconnect`: Whether to automatically reconnect, default is false.
-- `reconnectRetryCount`: Number of retries for reconnection, default is 3.
-- `reconnectIntervalMs`: Reconnection interval in milliseconds, default is 2000.
+:::note
+WebSocket failover is available in `3.2.0` and later. The connector uses a **Least Connections** algorithm for address selection, preferring the node with the fewest active connections. Native connections do not support multi-address failover. If `protocol=Native` and `host` contains multiple addresses, opening the connection throws an `ArgumentException`.
+:::
 
 </TabItem>
 
@@ -482,8 +512,16 @@ SQLAlchemy supports configuring multiple server addresses through the `hosts` pa
 
 <TabItem label="Go" value="go">
 
+`taosWS` standard interface example:
+
 ```go
 {{#include docs/examples/go/connect/wsexample/main.go}}
+```
+
+Starting from `v3.8.0`, the Go connector unifies WebSocket access through `ws/unified`. You can create a connection as follows:
+
+```go
+{{#include docs/examples/go/connect/unified/main.go}}
 ```
 
 </TabItem>
@@ -510,6 +548,19 @@ SQLAlchemy supports configuring multiple server addresses through the `hosts` pa
 {{#include docs/examples/csharp/wsConnect/Program.cs:main}}
 ```
 
+Starting with `TDengine.Connector` `3.2.0`, you can enable WebSocket failover by using a comma-separated `host` list. For IPv6 multi-address lists, each entry must be bracketed, for example `host=[::1]:6041,[2001:db8::2]:6041`.
+
+```csharp
+using var client = DbDriver.Open(new ConnectionStringBuilder(
+    "protocol=WebSocket;" +
+    "host=adapter-a:6041,adapter-b:6041;" +
+    "username=root;" +
+    "password=taosdata;" +
+    "autoReconnect=true;" +
+    "reconnectRetryCount=3;" +
+    "reconnectIntervalMs=2000;"));
+```
+
 </TabItem>
 
 <TabItem label="C" value="c">
@@ -519,6 +570,9 @@ SQLAlchemy supports configuring multiple server addresses through the `hosts` pa
 </Tabs>
 
 ### Native Connection
+
+<details>
+<summary><b>Native Connection (Go/C#/Java Deprecated, EOL 2027-01-01)</b></summary>
 
 Below are examples of code for establishing native connections in various languages. It demonstrates how to connect to the TDengine database using a native connection method and set some parameters for the connection. The entire process mainly involves establishing a database connection and handling exceptions.
 
@@ -578,6 +632,8 @@ Not supported
 If the connection fails, in most cases it is due to incorrect FQDN or firewall settings. For detailed troubleshooting methods, please see ["Encountering the error 'Unable to establish connection, what should I do?'"](../../frequently-asked-questions/) in the "Common Questions and Feedback".
 
 :::
+
+</details>
 
 ## Connection Pool
 

@@ -115,6 +115,7 @@ typedef struct SSchResInfo {
   schedulerExecFp  execFp;
   schedulerFetchFp fetchFp;
   void            *cbParam;
+  void            *pRequest;  // Add pointer to request object for phase tracking
 } SSchResInfo;
 
 typedef struct SSchOpEvent {
@@ -326,7 +327,10 @@ typedef struct SSchJob {
   char                *sql;
   SQueryProfileSummary summary;
   int8_t               source;
+  int8_t               secureDelete;
   void                *pWorkerCb;
+  int32_t              execPhase;      // Add phase tracking for query execution
+  int64_t              phaseStartTime; // When current phase started (ms)
 } SSchJob;
 
 typedef struct SSchTaskCtx {
@@ -339,6 +343,24 @@ typedef struct SSchTaskCtx {
 extern SSchedulerMgmt schMgmt;
 
 #define SCH_GET_TASK_CAPACITY(_n) ((_n) > SCH_DEFAULT_TASK_CAPACITY_NUM ? SCH_DEFAULT_TASK_CAPACITY_NUM : (_n))
+
+// Job phase tracking macros
+#define SCH_SET_JOB_PHASE(_job, _phase)                 \
+  do {                                                  \
+    atomic_store_32(&(_job)->execPhase, (_phase));      \
+    atomic_store_64(&(_job)->phaseStartTime, taosGetTimestampMs()); \
+  } while (0)
+
+#define SCH_UPDATE_JOB_PHASE_IF_CHANGED(_job, _newPhase) \
+  do {                                                   \
+    if (atomic_load_32(&(_job)->execPhase) != (_newPhase)) { \
+      atomic_store_32(&(_job)->execPhase, (_newPhase));  \
+      atomic_store_64(&(_job)->phaseStartTime, taosGetTimestampMs()); \
+    }                                                    \
+  } while (0)
+
+#define SCH_GET_JOB_PHASE(_job) atomic_load_32(&(_job)->execPhase)
+#define SCH_GET_JOB_PHASE_START_TIME(_job) atomic_load_64(&(_job)->phaseStartTime)
 
 #define SCH_TASK_TIMEOUT(_task) \
   ((taosGetTimestampUs() - *(int64_t *)taosArrayGet((_task)->profile.execTime, (_task)->execId)) > (_task)->timeoutUsec)
@@ -387,6 +409,7 @@ extern SSchedulerMgmt schMgmt;
 #define SCH_GET_JOB_STATUS_STR(job) jobTaskStatusStr(SCH_GET_JOB_STATUS(job))
 
 #define SCH_JOB_EXPLAIN_CTX(job) ((job)->parent ? ((SSchJob*)(job)->parent)->explainCtx : (job)->explainCtx)
+#define SCH_PARENT_JOB(job) (SCH_IS_PARENT_JOB(job) ? (job) : (SSchJob*)job->parent)
 
 #define SCH_JOB_IN_SYNC_OP(job) ((job)->opStatus.op && (job)->opStatus.syncReq)
 #define SCH_JOB_IN_ASYNC_EXEC_OP(job)                                                                \

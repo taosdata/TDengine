@@ -57,7 +57,7 @@ unsigned int optimize_intervals_double_1D(double *oriData, size_t dataLength, do
 			//pred_value = 2*oriData[i-1] - oriData[i-2];
 			pred_value = oriData[i-1];
 			pred_err = fabs(pred_value - oriData[i]);
-			radiusIndex = (unsigned long)((pred_err/realPrecision+1)/2);
+			radiusIndex = (size_t)((pred_err/realPrecision+1)/2);
 			if(radiusIndex>=confparams_cpr->maxRangeRadius)
 				radiusIndex = confparams_cpr->maxRangeRadius - 1;
 			intervals[radiusIndex]++;
@@ -117,7 +117,7 @@ size_t dataLength, double realPrecision, double valueRangeSize, double medianVal
 	new_DIA(&resiBitArray, DynArrayInitLen);
 
 	unsigned char preDataBytes[8];
-	longToBytes_bigEndian(preDataBytes, 0);
+	int64ToBytes_bigEndian(preDataBytes, 0);
 	
 	int reqBytesLength = reqLength/8;
 	int resiBitsLength = reqLength%8;

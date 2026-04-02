@@ -940,6 +940,8 @@ static int32_t mJoinInitFuncPrimExprCtx(SMJoinPrimExprCtx* pCtx, STargetNode* pT
         offsetFromTz(varDataVal(pTimeZone->datum.p), TSDB_TICK_PER_SECOND(pFunc->node.resType.precision));
   }
 
+  qDebug("%s literal:%s, pCurrTz:%p", __func__, varDataVal(pTimeZone->datum.p), pCurrTz);
+
   pCtx->type = E_PRIM_TIMETRUNCATE;
 
   return TSDB_CODE_SUCCESS;
@@ -1775,11 +1777,6 @@ int32_t mJoinMainProcess(struct SOperatorInfo* pOperator, SSDataBlock** pResBloc
     }
   }
 
-  int64_t st = 0;
-  if (pOperator->cost.openCost == 0) {
-    st = taosGetTimestampUs();
-  }
-
   SSDataBlock* pBlock = NULL;
   while (true) {
     pBlock = (*pJoin->joinFp)(pOperator);
@@ -1804,10 +1801,6 @@ int32_t mJoinMainProcess(struct SOperatorInfo* pOperator, SSDataBlock** pResBloc
       pBlock->info.dataLoad = 1;
       break;
     }
-  }
-
-  if (pOperator->cost.openCost == 0) {
-    pOperator->cost.openCost = (taosGetTimestampUs() - st) / 1000.0;
   }
 
   pJoin->execInfo.resRows += pBlock ? pBlock->info.rows : 0;
@@ -1966,6 +1959,7 @@ int32_t createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDo
     code = terrno;
     goto _return;
   }
+  initOperatorCostInfo(pOperator);
 
   pInfo->pOperator = pOperator;
   MJ_ERR_JRET(mJoinInitDownstreamInfo(pInfo, &pDownstream, &numOfDownstream, &newDownstreams));

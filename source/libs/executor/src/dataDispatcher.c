@@ -54,6 +54,7 @@ typedef struct SDataDispatchHandle {
   uint64_t            flags;
   void*               pCompressBuf;
   int32_t             bufSize;
+  bool                dynamicSchema;
   TdThreadMutex       mutex;
 } SDataDispatchHandle;
 
@@ -116,6 +117,40 @@ static int32_t inputSafetyCheck(SDataDispatchHandle* pHandle, const SInputData* 
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t inputSafetyCheckForDynamicSchema(const SInputData* pInput)  {
+  if(tsSafetyCheckLevel == TSDB_SAFETY_CHECK_LEVELL_NEVER) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (pInput == NULL || pInput->pData == NULL || pInput->pData->info.rows <= 0) {
+    qError("invalid input data");
+    return TSDB_CODE_QRY_INVALID_INPUT;
+  }
+
+  for (int32_t colNum = 0; colNum < taosArrayGetSize(pInput->pData->pDataBlock); colNum++) {
+    SColumnInfoData* pColInfoData = taosArrayGet(pInput->pData->pDataBlock, colNum);
+    if (pColInfoData == NULL) {
+      return -1;
+    }
+    if (pColInfoData->info.bytes < 0) {
+      qError("invalid column bytes, input:%d", pColInfoData->info.bytes);
+      return TSDB_CODE_TSC_INTERNAL_ERROR;
+    }
+    if (!IS_VAR_DATA_TYPE(pColInfoData->info.type) &&
+        TYPE_BYTES[pColInfoData->info.type] != pColInfoData->info.bytes) {
+      qError("invalid column bytes, schema:%d, input:%d", TYPE_BYTES[pColInfoData->info.type],
+             pColInfoData->info.bytes);
+      return TSDB_CODE_TSC_INTERNAL_ERROR;
+    }
+
+    if (IS_INVALID_TYPE(pColInfoData->info.type)) {
+      qError("invalid column type, type:%d", pColInfoData->info.type);
+      return TSDB_CODE_TSC_INTERNAL_ERROR;
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 // clang-format off
 // data format:
 // +----------------+------------------+--------------+--------------+------------------+--------------------------------------------+------------------------------------+-------------+-----------+-------------+-----------+
@@ -128,17 +163,27 @@ static int32_t inputSafetyCheck(SDataDispatchHandle* pHandle, const SInputData* 
 static int32_t toDataCacheEntry(SDataDispatchHandle* pHandle, const SInputData* pInput, SDataDispatchBuf* pBuf) {
   int32_t numOfCols = 0;
   SNode*  pNode;
+  int32_t code = TSDB_CODE_SUCCESS;
 
-  int32_t code = inputSafetyCheck(pHandle, pInput);
-  if (code) {
-    qError("failed to check input data, code:%d", code);
-    return code;
-  }
+  if (pHandle->dynamicSchema) {
+    code = inputSafetyCheckForDynamicSchema(pInput);
+    if (code) {
+      qError("failed to check input data for dynamic schema, code:%d", code);
+      return code;
+    }
+    numOfCols = taosArrayGetSize(pInput->pData->pDataBlock);
+  } else {
+    code = inputSafetyCheck(pHandle, pInput);
+    if (code) {
+      qError("failed to check input data, code:%d", code);
+      return code;
+    }
 
-  FOREACH(pNode, pHandle->pSchema->pSlots) {
-    SSlotDescNode* pSlotDesc = (SSlotDescNode*)pNode;
-    if (pSlotDesc->output) {
-      ++numOfCols;
+    FOREACH(pNode, pHandle->pSchema->pSlots) {
+      SSlotDescNode* pSlotDesc = (SSlotDescNode*)pNode;
+      if (pSlotDesc->output) {
+        ++numOfCols;
+      }
     }
   }
 
@@ -192,7 +237,10 @@ static int32_t toDataCacheEntry(SDataDispatchHandle* pHandle, const SInputData* 
         TAOS_MEMCPY(pEntry->data, pHandle->pCompressBuf, dataLen);
       }
     } else {
-      pEntry->dataLen = blockEncode(pInput->pData, pEntry->data,  pBuf->allocSize, numOfCols);
+      pEntry->dataLen =
+          pHandle->dynamicSchema
+              ? blockEncodeInternal(pInput->pData, pEntry->data,  pBuf->allocSize, numOfCols)
+              : blockEncode(pInput->pData, pEntry->data,  pBuf->allocSize, numOfCols);
       if(pEntry->dataLen < 0) {
         qError("failed to encode data block, code: %d", pEntry->dataLen);
         return terrno;
@@ -219,7 +267,9 @@ static int32_t allocBuf(SDataDispatchHandle* pDispatcher, const SInputData* pInp
     }
   */
 
-  pBuf->allocSize = sizeof(SDataCacheEntry) + blockGetEncodeSize(pInput->pData);
+  pBuf->allocSize = sizeof(SDataCacheEntry) + (pDispatcher->dynamicSchema
+                                                   ? blockGetInternalEncodeSize(pInput->pData)
+                                                   : blockGetEncodeSize(pInput->pData));
 
   pBuf->pData = taosMemoryMalloc(pBuf->allocSize);
   if (pBuf->pData == NULL) {
@@ -447,6 +497,7 @@ int32_t createDataDispatcher(SDataSinkManager* pManager, SDataSinkNode** ppDataS
     goto _return;
   }
 
+  SDataDispatcherNode* pDispatherNode = (SDataDispatcherNode*)pDataSink;
   SDataDispatchHandle* dispatcher = taosMemoryCalloc(1, sizeof(SDataDispatchHandle));
   if (NULL == dispatcher) {
     goto _return;
@@ -462,6 +513,7 @@ int32_t createDataDispatcher(SDataSinkManager* pManager, SDataSinkNode** ppDataS
   dispatcher->sink.fGetFlags = getSinkFlags;
   dispatcher->pManager = pManager;
   pManager = NULL;
+  dispatcher->dynamicSchema = pDispatherNode->dynamicSchema;
   dispatcher->pSchema = pDataSink->pInputDataBlockDesc;
   dispatcher->pSinkNode = pDataSink;
   *ppDataSink = NULL;

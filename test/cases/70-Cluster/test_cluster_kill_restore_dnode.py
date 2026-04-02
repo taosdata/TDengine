@@ -69,8 +69,6 @@ class TestClusterKillRestoreDnode:
         rows = tdSql.query(sql)
 
         if rows > 0:
-            self.basic.stop_dnode(2)
-
             tranId = tdSql.getData(0, 0)
 
             tdLog.info('show transaction %d'%tranId)

@@ -6,7 +6,7 @@ toc_max_heading_level: 4
 
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
-import PkgListV37 from "/components/PkgListV37";
+import PkgList from "/src/components/PkgList";
 
 TDengine TSDB 完整的软件包包括服务端（taosd）、应用驱动（taosc）、用于与第三方系统对接并提供 RESTful 接口的 taosAdapter、命令行程序（TDengine CLI）和一些工具软件。目前 TDinsight 仅在 Linux 系统上安装和运行，后续将支持 Windows、macOS 等系统。TDengine 除了提供多种语言的连接器之外，还通过 [taosAdapter](../../reference/components/taosadapter/) 提供 [RESTful 接口](../../reference/connector/rest-api/)。
 
@@ -38,15 +38,18 @@ TDengine TSDB 完整的软件包包括服务端（taosd）、应用驱动（taos
 :::
 
 <Tabs>
-
 <TabItem label="tar.gz 安装" value="tarinst">
+
 1. 从列表中下载获得 tar.gz 安装包：
-    <PkgListV37 productName="TDengine TSDB-OSS" version="3.4.0.9" platform="Linux-Generic" pkgType="Server"/>
+    <PkgList productName="TDengine TSDB-OSS" platform="Linux-Generic"/>
 2. 进入到安装包所在目录，使用 `tar` 解压安装包；
-    ```bash
-    tar -zxvf tdengine-tsdb-oss-3.4.0.9-linux-x64.tar.gz
+
+    ```bash tsdb
+    tar -zxvf tdengine-tsdb-oss-{{VERSION}}-linux-x64.tar.gz
     ```
+
 3. 进入到安装包所在目录，先解压文件后，进入子目录，执行其中的 install.sh 安装脚本。
+
     ```bash
     sudo ./install.sh
     ```
@@ -54,27 +57,32 @@ TDengine TSDB 完整的软件包包括服务端（taosd）、应用驱动（taos
 :::info
 install.sh 安装脚本在执行过程中，会通过命令行交互界面询问一些配置信息。如果希望采取无交互安装方式，那么可以运行 `./install.sh -e no`。运行 `./install.sh -h` 指令可以查看所有参数的详细说明信息。
 :::
-</TabItem>
 
+</TabItem>
 <TabItem label="deb 安装" value="debinst">
+
 1. 从列表中下载获得 deb 安装包：
-    <PkgListV37 productName="TDengine TSDB-OSS" version="3.4.0.9" platform="Linux-Ubuntu" arch="x64" pkgType="Server"/>
+    <PkgList productName="TDengine TSDB-OSS" platform="Linux-Ubuntu"/>
 2. 进入到安装包所在目录，执行如下的安装命令：
-    ```bash
-    sudo dpkg -i tdengine-tsdb-oss-3.4.0.9-linux-x64.deb
-    ```
-</TabItem>
 
+    ```bash tsdb
+    sudo dpkg -i tdengine-tsdb-oss-{{VERSION}}-linux-x64.deb
+    ```
+
+</TabItem>
 <TabItem label="rpm 安装" value="rpminst">
-1. 从列表中下载获得 rpm 安装包：
-    <PkgListV37 productName="TDengine TSDB-OSS" version="3.4.0.9" platform="Linux-Red Hat" arch="x64" pkgType="Server"/>
-2. 进入到安装包所在目录，执行如下的安装命令：
-    ```bash
-    sudo rpm -ivh tdengine-tsdb-oss-3.4.0.9-linux-x64.rpm
-    ```
-</TabItem>
 
+1. 从列表中下载获得 rpm 安装包：
+    <PkgList productName="TDengine TSDB-OSS" platform="Linux-Red Hat"/>
+2. 进入到安装包所在目录，执行如下的安装命令：
+
+    ```bash tsdb
+    sudo rpm -ivh tdengine-tsdb-oss-{{VERSION}}-linux-x64.rpm
+    ```
+
+</TabItem>
 <TabItem value="apt-get 安装" label="apt-get">
+
 可以使用 `apt-get` 工具从官方仓库安装。
 
 ##### 配置包仓库
@@ -102,11 +110,12 @@ sudo apt-get install tdengine-tsdb
 :::tip
 apt-get 方式只适用于 Debian 或 Ubuntu 系统。
 :::
-</TabItem>
 
+</TabItem>
 <TabItem label="Windows 安装" value="windows">
+
 1. 从列表中下载获得最新 Windows 安装程序：
-    <PkgListV37 productName="TDengine TSDB-OSS Client" version="3.4.0.9" platform="Windows" pkgType="Client"/>
+    <PkgList productName="TDengine TSDB-OSS Client" platform="Windows"/>
 2. 运行可执行程序来安装 TDengine。
 
 :::note
@@ -118,14 +127,15 @@ apt-get 方式只适用于 Debian 或 Ubuntu 系统。
 - Windows 上需要安装 VC 运行时库，可在此下载安装 [VC 运行时库](https://learn.microsoft.com/zh-cn/cpp/windows/latest-supported-vc-redist?view=msvc-170)，如果已经安装此运行库可忽略。
 
 :::
-</TabItem>
 
+</TabItem>
 <TabItem label="macOS 安装" value="macos">
-1. 从列表中下载获得最新 macOS 安装包：
-    <PkgListV37 productName="TDengine TSDB-OSS" version="3.4.0.9" platform="macOS" pkgType="Server"/>
-2. 运行可执行程序来安装 TDengine。如果安装被阻止，可以右键或者按 Ctrl 点击安装包，选择 `打开`。
-</TabItem>
 
+1. 从列表中下载获得最新 macOS 安装包：
+    <PkgList productName="TDengine TSDB-OSS" platform="macOS"/>
+2. 运行可执行程序来安装 TDengine。如果安装被阻止，可以右键或者按 Ctrl 点击安装包，选择 `打开`。
+
+</TabItem>
 </Tabs>
 
 ## 启动
@@ -167,13 +177,11 @@ systemctl status taosd
 :::
 
 </TabItem>
-
 <TabItem label="Windows 系统" value="windows">
 
 安装后，可以在拥有管理员权限的 cmd 窗口执行 `sc start taosd` 或在 `C:\TDengine TSDB` 目录下，运行 `taosd.exe` 来启动 TDengine TSDB 服务进程。如需使用 http/REST 服务，请执行 `sc start taosadapter` 或运行 `taosadapter.exe` 来启动 taosAdapter 服务进程。
 
 </TabItem>
-
 <TabItem label="macOS 系统" value="macos">
 
 安装后，在应用程序目录下，双击 TDengine TSDB 图标来启动程序，也可以运行 `sudo launchctl start` 来启动 TDengine TSDB 服务进程。

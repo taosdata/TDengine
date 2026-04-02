@@ -194,6 +194,7 @@ static FORCE_INLINE void colDataSetDouble(SColumnInfoData* pColumnInfoData, uint
 }
 
 int32_t getJsonValueLen(const char* data);
+int32_t blockDataGetPagedColumnReservedBytes(const SColumnInfoData* pColumnInfoData);
 
 // For the VAR_DATA_TYPE type, new data is inserted strictly according to the position of SVarColAttr.length.
 // If the same row is inserted repeatedly, data holes will result.
@@ -277,7 +278,6 @@ int32_t createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData, SSDataB
 int32_t createOneDataBlockWithColArray(const SSDataBlock* pDataBlock, SArray* pColArray, SSDataBlock** pResBlock);
 int32_t createOneDataBlockWithTwoBlock(const SSDataBlock* pSrcBlock, const SSDataBlock* pTemplateBlock, SArray* pColMap,
                                        SSDataBlock** pResBlock);
-int32_t createSpecialDataBlock(EStreamType type, SSDataBlock** pBlock);
 
 int32_t blockCopyOneRow(const SSDataBlock* pDataBlock, int32_t rowIdx, SSDataBlock** pResBlock);
 int32_t blockDataAppendColInfo(SSDataBlock* pBlock, SColumnInfoData* pColInfoData);

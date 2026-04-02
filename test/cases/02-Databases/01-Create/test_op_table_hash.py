@@ -29,8 +29,8 @@ class TestDatabaseTableHash:
 
         tdSql.execute(f"create database d1 vgroups 2 table_prefix 3 table_suffix 2")
         tdSql.query(f"select * from information_schema.ins_databases")
-        tdSql.checkKeyData("d1", 25, 3)
-        tdSql.checkKeyData("d1", 26, 2)
+        tdSql.checkKeyData("d1", 26, 3)
+        tdSql.checkKeyData("d1", 27, 2)
 
         tdSql.execute(f"use d1;")
         tdSql.execute(f"create table st (ts timestamp, i int) tags (j int);")

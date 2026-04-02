@@ -538,6 +538,16 @@ int64_t atomic_add_fetch_64(int64_t volatile* ptr, int64_t val) {
 #endif
 }
 
+int64_t atomic_add_fetch_64_relax(int64_t volatile* ptr, int64_t val) {
+#ifdef WINDOWS
+  return interlocked_add_fetch_64((int64_t volatile*)(ptr), (int64_t)(val));
+#elif defined(_TD_NINGSI_60)
+  return __sync_add_and_fetch((ptr), (val));
+#else
+  return __atomic_add_fetch((ptr), (val), __ATOMIC_RELAXED);
+#endif
+}
+
 void* atomic_add_fetch_ptr(void* ptr, int64_t val) {
 #ifdef WINDOWS
   return interlocked_add_fetch_ptr((void* volatile*)(ptr), (void*)(val));

@@ -37,7 +37,7 @@ static char* getSyntaxErrFormat(int32_t errCode) {
     case TSDB_CODE_PAR_GET_META_ERROR:
       return "Fail to get table info, error: %s";
     case TSDB_CODE_PAR_AMBIGUOUS_COLUMN:
-      return "Column ambiguously defined: %s";
+      return "Column is ambiguous: %s";
     case TSDB_CODE_PAR_WRONG_VALUE_TYPE:
       return "Invalid value type: %s";
     case TSDB_CODE_PAR_INVALID_VARBINARY:
@@ -306,6 +306,13 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Aggregate functions cannot be used for sorting in non-aggregate queries";
     case TSDB_CODE_PAR_COL_PERMISSION_DENIED:
       return "Permission denied for column: %s";
+    case TSDB_CODE_PAR_NOT_ALLOWED_FILL_MODE:
+      return "FILL NEAR mode is not supported in window query";
+    case TSDB_CODE_PAR_NOT_ALLOWED_FILL_VALUES:
+      return "Fill values can only be used with fill VALUE/VALUE_F "
+             "or PREV/NEXT/NEAR mode with surrounding time";
+    case TSDB_CODE_PAR_EXT_WIN_COL_IN_WHERE:
+      return "WHERE clause cannot reference EXTERNAL_WINDOW column: %s";
     default:
       return "Unknown error";
   }
@@ -635,7 +642,9 @@ static int32_t getInsTagsTableTargetNameFromOp(int32_t acctId, SOperatorNode* pO
   const char* valueStr = NULL;
   int32_t     valueLen = 0;
 
-  if ((0 == strcmp(pCol->colName, "db_name") || 0 == strcmp(pCol->colName, "table_name")) && pVal->placeholderNo != 0) {
+  if (((0 == strcmp(pCol->colName, "db_name") || 0 == strcmp(pCol->colName, "table_name")) ||
+       0 == strcmp(pCol->colName, "virtual_db_name") || 0 == strcmp(pCol->colName, "virtual_table_name")) &&
+      pVal->placeholderNo != 0) {
     if (NULL == pVal->datum.p) {
       qError("getInsTagsTableTargetNameFromOp: placeholderNo=%d but datum.p is NULL, colName=%s, literal=%s",
              pVal->placeholderNo, pCol->colName, pVal->literal ? pVal->literal : "NULL");
@@ -678,6 +687,10 @@ static int32_t getInsTagsTableTargetNameFromOp(int32_t acctId, SOperatorNode* pO
   if (0 == strcmp(pCol->colName, "db_name")) {
     code = tNameSetDbName(pName, acctId, valueStr, valueLen);
   } else if (0 == strcmp(pCol->colName, "table_name")) {
+    code = tNameAddTbName(pName, valueStr, valueLen);
+  } else if (0 == strcmp(pCol->colName, "virtual_db_name")) {
+    code = tNameSetDbName(pName, acctId, valueStr, valueLen);
+  } else if (0 == strcmp(pCol->colName, "virtual_table_name")) {
     code = tNameAddTbName(pName, valueStr, valueLen);
   }
 
@@ -1576,6 +1589,7 @@ STableCfg* tableCfgDup(STableCfg* pCfg) {
   pNew->pSchemas = NULL;
   pNew->pSchemaExt = NULL;
   pNew->pColRefs = NULL;
+  pNew->pTagRefs = NULL;
   if (NULL != pCfg->pComment) {
     pNew->pComment = taosMemoryCalloc(pNew->commentLen + 1, 1);
     if (!pNew->pComment) goto err;
@@ -1618,6 +1632,15 @@ STableCfg* tableCfgDup(STableCfg* pCfg) {
 
   pNew->pColRefs = pColRef;
 
+  SColRef *pTagRef = NULL;
+  if (hasRefCol(pCfg->tableType) && pCfg->pTagRefs && pCfg->numOfTagRefs > 0) {
+    int32_t tagRefSize = pCfg->numOfTagRefs * sizeof(SColRef);
+    pTagRef = taosMemoryMalloc(tagRefSize);
+    if (!pTagRef) goto err;
+    memcpy(pTagRef, pCfg->pTagRefs, tagRefSize);
+  }
+  pNew->pTagRefs = pTagRef;
+
   return pNew;
 err:
   if (pNew->pComment) taosMemoryFreeClear(pNew->pComment);
@@ -1625,6 +1648,8 @@ err:
   if (pNew->pTags) taosMemoryFreeClear(pNew->pTags);
   if (pNew->pSchemas) taosMemoryFreeClear(pNew->pSchemas);
   if (pNew->pSchemaExt) taosMemoryFreeClear(pNew->pSchemaExt);
+  if (pNew->pColRefs) taosMemoryFreeClear(pNew->pColRefs);
+  if (pNew->pTagRefs) taosMemoryFreeClear(pNew->pTagRefs);
   taosMemoryFreeClear(pNew);
   return NULL;
 }
@@ -1749,7 +1774,7 @@ STypeMod calcTypeMod(const SDataType* pType) {
 }
 
 
-int32_t validateScalarSubQuery(SNode* pNode) {
+int32_t validateExprSubQuery(SNode* pNode) {
   int32_t code = TSDB_CODE_SUCCESS;
   
   switch (nodeType(pNode)) {
@@ -1768,52 +1793,74 @@ int32_t validateScalarSubQuery(SNode* pNode) {
       break;
     }
     default:
-      code = TSDB_CODE_PAR_INVALID_SCALAR_SUBQ;
+      code = TSDB_CODE_PAR_INVALID_EXPR_SUBQ;
       break;
   }
 
   return code;
 }
 
-void getScalarSubQueryResType(SNode* pNode, SDataType* pType) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  
+void getExprSubQueryResType(SNode* pNode, SDataType* pType) {
   switch (nodeType(pNode)) {
     case QUERY_NODE_SELECT_STMT: {
       SSelectStmt* pSelect = (SSelectStmt*)pNode;
-      SExprNode* pExpr = (SExprNode*)nodesListGetNode(pSelect->pProjectionList, 0);
+      SExprNode*   pExpr = (SExprNode*)nodesListGetNode(pSelect->pProjectionList, 0);
       memcpy(pType, &pExpr->resType, sizeof(*pType));
       break;
     }
     case QUERY_NODE_SET_OPERATOR: {
       SSetOperator* pSet = (SSetOperator*)pNode;
-      SExprNode* pExpr = (SExprNode*)nodesListGetNode(pSet->pProjectionList, 0);
+      SExprNode*    pExpr = (SExprNode*)nodesListGetNode(pSet->pProjectionList, 0);
       memcpy(pType, &pExpr->resType, sizeof(*pType));
       break;
     }
     default:
       break;
   }
-
-  return;
 }
 
-int32_t updateExprSubQueryType(SNode* pNode, ESubQueryType type) {
+void getExprSubQueryResCols(SNode* pNode, int32_t* cols) {
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_SELECT_STMT: {
+      SSelectStmt* pSelect = (SSelectStmt*)pNode;
+      *cols = LIST_LENGTH(pSelect->pProjectionList);
+      break;
+    }
+    case QUERY_NODE_SET_OPERATOR: {
+      SSetOperator* pSet = (SSetOperator*)pNode;
+      *cols = LIST_LENGTH(pSet->pProjectionList);
+      break;
+    }
+    default:
+      *cols = 0;
+      break;
+  }
+}
+
+int32_t updateExprSubQueryType(SNode* pNode, ESubQueryType* type) {
   int32_t code = TSDB_CODE_SUCCESS;
   
   switch (nodeType(pNode)) {
     case QUERY_NODE_SELECT_STMT: {
       SSelectStmt* pSelect = (SSelectStmt*)pNode;
-      pSelect->subQType = type;
+      if (E_SUB_QUERY_NOT_SET == pSelect->subQType) {
+        pSelect->subQType = E_SUB_QUERY_SCALAR;
+      }
+      *type = pSelect->subQType;
+      parserDebug("update select subQType:%d, pSelect:%p", *type, pSelect);
       break;
     }
     case QUERY_NODE_SET_OPERATOR: {
       SSetOperator* pSet = (SSetOperator*)pNode;
-      pSet->subQType = type;
+      if (E_SUB_QUERY_NOT_SET == pSet->subQType) {
+        pSet->subQType = E_SUB_QUERY_SCALAR;
+      }
+      *type = pSet->subQType;
+      parserDebug("update set subQType:%d, pSet:%p", *type, pSet);
       break;
     }
     default:
-      code = TSDB_CODE_PAR_INVALID_SCALAR_SUBQ;
+      code = TSDB_CODE_PAR_INVALID_EXPR_SUBQ;
       break;
   }
 

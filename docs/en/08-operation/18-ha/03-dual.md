@@ -42,6 +42,7 @@ properties.setProperty(TSDBDriver.PROPERTY_KEY_SLAVE_CLUSTER_PORT, "6041");
 properties.setProperty(TSDBDriver.PROPERTY_KEY_ENABLE_AUTO_RECONNECT, "true");
 properties.setProperty(TSDBDriver.PROPERTY_KEY_RECONNECT_INTERVAL_MS, "2000");
 properties.setProperty(TSDBDriver.PROPERTY_KEY_RECONNECT_RETRY_COUNT, "3");
+properties.setProperty(TSDBDriver.PROPERTY_KEY_VARCHAR_AS_STRING, "true");
 connection = DriverManager.getConnection(url, properties);
 ```
 

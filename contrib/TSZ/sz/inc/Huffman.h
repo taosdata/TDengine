@@ -10,6 +10,8 @@
 #ifndef _Huffman_H
 #define _Huffman_H
 
+#include <stdint.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -32,7 +34,7 @@ typedef struct HuffmanTree {
 	node *qqq, *qq; //the root node of the HuffmanTree is qq[1]
 	int n_nodes; //n_nodes is for compression
 	int qend; 
-	unsigned long **code;
+	uint64_t **code;
 	unsigned char *cout;
 	int n_inode; //n_inode is for decompression
 	int maxBitCount;
@@ -45,7 +47,7 @@ node new_node(HuffmanTree *huffmanTree, size_t freq, unsigned int c, node a, nod
 node new_node2(HuffmanTree *huffmanTree, unsigned int c, unsigned char t);
 void qinsert(HuffmanTree *huffmanTree, node n);
 node qremove(HuffmanTree *huffmanTree);
-void build_code(HuffmanTree *huffmanTree, node n, int len, unsigned long out1, unsigned long out2);
+void build_code(HuffmanTree *huffmanTree, node n, int len, uint64_t out1, uint64_t out2);
 void init(HuffmanTree *huffmanTree, int *s, size_t length);
 void init_static(HuffmanTree *huffmanTree, int *s, size_t length);
 void encode(HuffmanTree *huffmanTree, int *s, size_t length, unsigned char *out, size_t *outSize);

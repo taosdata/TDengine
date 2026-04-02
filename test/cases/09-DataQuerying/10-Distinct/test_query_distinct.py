@@ -298,7 +298,7 @@ class TestDistinct:
 
         tdSql.error(f"select max(c1), distinct t0 from {dbname}.stb1 where t0 > 2")
         tdSql.query(f"select distinct t0, max(c1) from {dbname}.stb1 where t0 > 2")
-        tdSql.error(f"select distinct  t0  from {dbname}.stb1 where t0 in (select t0 from {dbname}.stb1 where t0 > 2)")
+        tdSql.query(f"select distinct  t0  from {dbname}.stb1 where t0 in (select t0 from {dbname}.stb1 where t0 > 2)")
         tdSql.query(f"select distinct  t0, t1  from {dbname}.stb1 where t0 in (1,2,3,4,5)")
         tdSql.checkRows(5)
         tdSql.query(f"select distinct  t1 from (select t0, t1 from {dbname}.stb1 where t0 > 2) ")

@@ -120,7 +120,7 @@ JDBC URL and Kafka Cluster Address Configuration:
 1. The JDBC URL is configured via an environment variable, for example:  
 
    ```shell
-   export TDENGINE_JDBC_URL="jdbc:TAOS-WS://localhost:6041?user=root&password=taosdata"
+   export TDENGINE_JDBC_URL="jdbc:TAOS-WS://localhost:6041?user=root&password=taosdata&varcharAsString=true"
    ```
 
 2. The Kafka cluster address is configured via an environment variable, for example:  
@@ -280,7 +280,7 @@ To execute the example program on a server, follow these steps:
    Edit `~/.bash_profile` or `~/.bashrc` and add the following content for example:
 
    ```shell
-   export TDENGINE_JDBC_URL="jdbc:TAOS-WS://localhost:6041?user=root&password=taosdata"
+   export TDENGINE_JDBC_URL="jdbc:TAOS-WS://localhost:6041?user=root&password=taosdata&varcharAsString=true"
    ```
 
    The above uses the default JDBC URL for a locally deployed TDengine Server. Modify it according to your actual environment.

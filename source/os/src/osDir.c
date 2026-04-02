@@ -94,6 +94,13 @@ typedef struct dirent TdDirEntry;
 
 #define TDDIRMAXLEN 1024
 
+#ifdef WINDOWS
+static bool taosDirEntryIsReparsePoint(TdDirEntryPtr pDirEntry) {
+  if (pDirEntry == NULL) return false;
+  return (pDirEntry->findFileData.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0;
+}
+#endif
+
 void taosRemoveDir(const char *dirname) {
   TdDirPtr pDir = taosOpenDir(dirname);
   if (pDir == NULL) return;
@@ -106,6 +113,11 @@ void taosRemoveDir(const char *dirname) {
     (void)snprintf(filename, sizeof(filename), "%s%s%s", dirname, TD_DIRSEP, taosGetDirEntryName(de));
     if (taosDirEntryIsDir(de)) {
       taosRemoveDir(filename);
+#ifdef WINDOWS
+    } else if (taosDirEntryIsReparsePoint(de)) {
+      // Remove junction/symlink directory without following it
+      TAOS_UNUSED(RemoveDirectoryA(filename));
+#endif
     } else {
       TAOS_UNUSED(taosRemoveFile(filename));
       // printf("file:%s is removed\n", filename);

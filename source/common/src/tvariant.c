@@ -558,6 +558,8 @@ char *taosVariantGet(SVariant *pVar, int32_t type) {
       return (char *)&pVar->f;
     case TSDB_DATA_TYPE_BINARY:
     case TSDB_DATA_TYPE_VARBINARY:
+    case TSDB_DATA_TYPE_BLOB:
+    case TSDB_DATA_TYPE_MEDIUMBLOB:
     case TSDB_DATA_TYPE_JSON:
     case TSDB_DATA_TYPE_GEOMETRY:
       return (char *)pVar->pz;

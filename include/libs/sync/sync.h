@@ -265,6 +265,8 @@ typedef struct SSyncState {
   SyncTerm   term;
   int64_t    roleTimeMs;
   int64_t    startTimeMs;
+  int32_t    snapSeq;
+  int64_t    totalIndex;
 } SSyncState;
 
 typedef struct SSyncMetrics {

@@ -92,6 +92,18 @@ def main():
         'amazon/chronos-bolt-base',  # 205M parameters, based on t5-efficient-base
     ]
 
+    # Extract --port from argv so the port can be driven by configuration
+    _port = 6063
+    _new_argv = [sys.argv[0]]
+    _i = 1
+    while _i < len(sys.argv):
+        if sys.argv[_i] == '--port' and _i + 1 < len(sys.argv):
+            _port = int(sys.argv[_i + 1])
+            _i += 2
+        else:
+            _new_argv.append(sys.argv[_i])
+            _i += 1
+    sys.argv = _new_argv
     num_of_arg = len(sys.argv)
 
     if num_of_arg == 1:
@@ -147,7 +159,7 @@ def main():
 
     app.run(
             host='0.0.0.0',
-            port=6038,
+            port=_port,
             threaded=True,
             debug=False
         )

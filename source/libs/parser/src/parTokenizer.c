@@ -44,7 +44,7 @@ static SKeyword keywordTable[] = {
     {"ANODE",                TK_ANODE},
     {"ANODES",               TK_ANODES},
     {"ANOMALY_WINDOW",       TK_ANOMALY_WINDOW},
-//    {"ANY",                  TK_ANY},
+    {"ANY",                  TK_ANY},
     {"APPS",                 TK_APPS},
     {"AS",                   TK_AS},
     {"ASC",                  TK_ASC},
@@ -65,6 +65,7 @@ static SKeyword keywordTable[] = {
     {"CACHEMODEL",           TK_CACHEMODEL},
     {"CACHESIZE",            TK_CACHESIZE},
     {"CALC_NOTIFY_ONLY",     TK_CALC_NOTIFY_ONLY},
+    {"CACHESHARDBITS",       TK_CACHESHARDBITS},
     {"CASE",                 TK_CASE},
     {"CAST",                 TK_CAST},
     {"CHILD",                TK_CHILD},
@@ -119,6 +120,7 @@ static SKeyword keywordTable[] = {
     {"EXPLAIN",              TK_EXPLAIN},
     {"EVENT_TYPE",           TK_EVENT_TYPE},
     {"EVENT_WINDOW",         TK_EVENT_WINDOW},
+    {"EXTERNAL_WINDOW",      TK_EXTERNAL_WINDOW},
     {"EVERY",                TK_EVERY},
     {"FILE",                 TK_FILE},
     {"FILL",                 TK_FILL},
@@ -257,6 +259,7 @@ static SKeyword keywordTable[] = {
     {"RENAME",               TK_RENAME},
     {"RELOAD",               TK_RELOAD},
     {"RECALCULATE",          TK_RECALCULATE},
+    {"REGEXP_REPLACE",       TK_REGEXP_REPLACE},
     {"REPLACE",              TK_REPLACE},
     {"REPLICAS",             TK_REPLICAS},
     {"REPLICA",              TK_REPLICA},
@@ -294,6 +297,7 @@ static SKeyword keywordTable[] = {
     {"SMALLINT",             TK_SMALLINT},
     {"SNODE",                TK_SNODE},
     {"SNODES",               TK_SNODES},
+    {"SOME",                 TK_SOME},
     {"SORT_FOR_GROUP",       TK_SORT_FOR_GROUP},
     {"SOFFSET",              TK_SOFFSET},
     {"SPLIT",                TK_SPLIT},
@@ -308,6 +312,7 @@ static SKeyword keywordTable[] = {
     {"STREAMS",              TK_STREAMS},
     {"STREAM_OPTIONS",       TK_STREAM_OPTIONS},
     {"STRICT",               TK_STRICT},
+    {"SURROUND",             TK_SURROUND},
     {"STT_TRIGGER",          TK_STT_TRIGGER},
     {"SUBSCRIBE",            TK_SUBSCRIBE},
     {"SUBSCRIPTIONS",        TK_SUBSCRIPTIONS},
@@ -473,11 +478,19 @@ static SKeyword keywordTable[] = {
     {"EXTRA_INFO",           TK_EXTRA_INFO},
     {"TOKENS",               TK_TOKENS},
     {"IS_AUDIT",             TK_IS_AUDIT},
+    {"SECURE_DELETE",        TK_SECURE_DELETE},
     {"VNODE_PER_CALL",       TK_VNODE_PER_CALL},
     {"XNODE",                TK_XNODE},
     {"XNODES",               TK_XNODES},
     {"DRAIN",                TK_DRAIN},
     {"REBALANCE",            TK_REBALANCE},
+    {"VALIDATE",             TK_VALIDATE},
+    {"IDLE_TIMEOUT",         TK_IDLE_TIMEOUT},
+    {"IDLE",                 TK_IDLE},
+    {"RESUME",               TK_RESUME},
+    {"_TIDLESTART",          TK_TIDLESTART},
+    {"_TIDLEEND",            TK_TIDLEEND},
+    {"NODELAY_CREATE_SUBTABLE", TK_NODELAY_CREATE_SUBTABLE},
 };
 // clang-format on
 
@@ -537,7 +550,7 @@ static int32_t tKeywordCode(const char* z, int n) {
  * Return the length of the token that begins at z[0].
  * Store the token type in *type before returning.
  */
-uint32_t tGetToken(const char* z, uint32_t* tokenId, char *dupQuoteChar) {
+uint32_t tGetToken(const char* z, uint32_t* tokenId, char* dupQuoteChar) {
   uint32_t i;
   switch (*z) {
     case ' ':

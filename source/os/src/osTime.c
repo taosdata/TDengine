@@ -619,18 +619,33 @@ int32_t taosGetTimestampSec() { return (int32_t)time(NULL); }
 int32_t taosClockGetTime(int clock_id, struct timespec *pTS) {
   int32_t code = 0;
 #ifdef WINDOWS
-  LARGE_INTEGER t;
-  FILETIME      f;
+  if (clock_id == CLOCK_MONOTONIC) {
+    static LARGE_INTEGER freq;
+    static BOOL freq_init = FALSE;
+    LARGE_INTEGER t;
+    if (!freq_init) {
+        QueryPerformanceFrequency(&freq);
+        freq_init = TRUE;
+    }
+    QueryPerformanceCounter(&t);
+    // 转换为秒和纳秒
+    pTS->tv_sec = (time_t)(t.QuadPart / freq.QuadPart);
+    pTS->tv_nsec = (long)(((t.QuadPart % freq.QuadPart) * 1000000000LL) / freq.QuadPart);
+    return 0;
+  } else {
+    LARGE_INTEGER t;
+    FILETIME      f;
 
-  GetSystemTimeAsFileTime(&f);
-  t.QuadPart = f.dwHighDateTime;
-  t.QuadPart <<= 32;
-  t.QuadPart |= f.dwLowDateTime;
+    GetSystemTimeAsFileTime(&f);
+    t.QuadPart = f.dwHighDateTime;
+    t.QuadPart <<= 32;
+    t.QuadPart |= f.dwLowDateTime;
 
-  t.QuadPart -= TIMEEPOCH;
-  pTS->tv_sec = t.QuadPart / 10000000;
-  pTS->tv_nsec = (t.QuadPart % 10000000) * 100;
-  return (0);
+    t.QuadPart -= TIMEEPOCH;
+    pTS->tv_sec = t.QuadPart / 10000000;
+    pTS->tv_nsec = (t.QuadPart % 10000000) * 100;
+    return (0);
+  }
 #else
   code = clock_gettime(clock_id, pTS);
   return (-1 == code) ? (terrno = TAOS_SYSTEM_ERROR(ERRNO)) : 0;

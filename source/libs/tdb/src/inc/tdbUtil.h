@@ -13,10 +13,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tdbInt.h"
-
 #ifndef _TDB_UTIL_H_
 #define _TDB_UTIL_H_
+
+#include "tdbInt.h"
 
 #ifdef __cplusplus
 extern "C" {

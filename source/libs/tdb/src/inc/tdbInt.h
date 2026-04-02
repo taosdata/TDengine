@@ -43,7 +43,7 @@ typedef u32 SPgno;
 #include "tdbUtil.h"
 
 // p must be u8 *
-#define TDB_GET_U24(p) ((p)[0] * 65536 + *(u16 *)((p) + 1))
+#define TDB_GET_U24(p) ((p)[0] * 65536 + (p)[1] + (p)[2] * 256)
 #define TDB_PUT_U24(p, v)       \
   do {                          \
     int tv = (v);               \
@@ -80,7 +80,7 @@ typedef struct {
 
 #define TDB_FLAG_IS(flags, flag)     ((flags) == (flag))
 #define TDB_FLAG_HAS(flags, flag)    (((flags) & (flag)) != 0)
-#define TDB_FLAG_NO(flags, flag)     ((flags) & (flag) == 0)
+#define TDB_FLAG_NO(flags, flag)     (((flags) & (flag)) == 0)
 #define TDB_FLAG_ADD(flags, flag)    ((flags) | (flag))
 #define TDB_FLAG_REMOVE(flags, flag) ((flags) & (~(flag)))
 

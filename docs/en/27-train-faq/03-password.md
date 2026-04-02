@@ -116,6 +116,7 @@ public class JdbcPassDemo {
   connProps.setProperty(TSDBDriver.PROPERTY_KEY_ENABLE_AUTO_RECONNECT, "true");
   connProps.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
   connProps.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
+  connProps.setProperty(TSDBDriver.PROPERTY_KEY_VARCHAR_AS_STRING, "true");
 
   try (Connection conn = DriverManager.getConnection(jdbcUrl, connProps)) {
    System.out.println("Connected to " + jdbcUrl + " successfully.");

@@ -55,7 +55,7 @@ typedef TdFilePtr tdb_fd_t;
 #define TDB_O_READ   TD_FILE_READ
 #define TDB_O_TRUNC  TD_FILE_TRUNC
 #define TDB_O_APPEND TD_FILE_APPEND
-#define TDB_O_RDWR   (TD_FILE_WRITE) | (TD_FILE_READ)
+#define TDB_O_RDWR   (TD_FILE_WRITE | TD_FILE_READ)
 
 #define tdbOsOpen(PATH, OPTION, MODE) taosOpenFile((PATH), (OPTION))
 #define tdbOsClose(FD)                taosCloseFile(&(FD))

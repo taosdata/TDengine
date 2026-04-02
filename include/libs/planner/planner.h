@@ -31,27 +31,33 @@ extern "C" {
 #define SET_SYS_SCAN_FLAG(_f) (_f) = SYS_SCAN_FLAG
 #define SET_HSYS_SCAN_FLAG(_f) (_f) = HSYS_SCAN_FLAG
 
+typedef struct SPlanStreamContext {
+  bool        isCalc;
+  bool        isTrigger;
+  bool        isVtableCalc;
+  bool        hasForceOutput;
+  bool        hasNotify;
+  bool        hasExtWindow;
+  SArray*     calcScanPlanArray;
+  SNode*      triggerScanSubplan;
+  ENodeType   triggerWinType;
+  SNodeList*  triggerScanList;
+} SPlanStreamContext;
+
 typedef struct SPlanContext {
   uint64_t    queryId;
   int32_t     acctId;
+  int32_t     groupId;
   SEpSet      mgmtEpSet;
   SNode*      pAstRoot;
   bool        topicQuery;
-  bool        streamCalcQuery;
-  bool        streamTriggerQuery;
-  bool        streamForceOutput;
   bool        rSmaQuery;
   bool        showRewrite;
   bool        isView;
   bool        isAudit;
-  bool        withExtWindow;
   bool        hasScan;
+  bool        forceNoMergeDataBlock;
   int32_t     sysScanFlag;
-  int8_t      triggerType;
-  int64_t     watermark;
-  int64_t     deleteMark;
-  int8_t      igExpired;
-  int8_t      igCheckUpdate;
   char*       pMsg;
   int32_t     msgLen;
   const char* pUser;
@@ -69,15 +75,10 @@ typedef struct SPlanContext {
       uint16_t reserved1 : 7;
     };
   };
-  int64_t     allocatorId;
-  int64_t     userId;
-  void*       timezone;
-  int64_t     recalculateInterval;
-  bool        streamVtableCalc;
-  SNode*      streamTriggerScanSubplan;
-  SArray*     streamCalcScanPlanArray;
-  ENodeType   streamTriggerWinType;
-  SNodeList*  streamTriggerScanList;
+  int64_t            allocatorId;
+  int64_t            userId;
+  void*              timezone;
+  SPlanStreamContext streamCxt;
 } SPlanContext;
 
 // Create the physical plan for the query, according to the AST.

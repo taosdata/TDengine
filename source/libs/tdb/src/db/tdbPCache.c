@@ -130,6 +130,9 @@ static int tdbPCacheAlterImpl(SPCache *pCache, int32_t nPage) {
     for (int32_t iPage = pCache->nPages; iPage < nPage; iPage++) {
       int32_t code = tdbPageCreate(pCache->szPage, &aPage[iPage], tdbDefaultMalloc, NULL);
       if (code) {
+        for (int32_t j = pCache->nPages; j < iPage; j++) {
+          tdbPageDestroy(aPage[j], tdbDefaultFree, NULL);
+        }
         tdbOsFree(aPage);
         return code;
       }

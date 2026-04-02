@@ -42,7 +42,8 @@ The method of establishing a connection with the server using the WebSocket inte
 
 :::note
 
-- If you need to use SQLAlchemy with taos-ws-py, you must install taospy version 2.8.5 or higher.
+- For `taos-ws-py` versions 0.6.6 and below, using SQLAlchemy requires `taospy` versions 2.8.5 to 2.8.9.
+- Starting with `taos-ws-py` version 0.6.7, the SQLAlchemy dialect has been migrated to `taos-ws-py`, and using SQLAlchemy no longer depends on `taospy`.
 - For performance-critical applications, it is recommended to adopt the WebSocket connection method for the following reasons:
   - Due to the limitations of Python's Global Interpreter Lock (GIL), multithreading cannot leverage multi-core advantages and essentially executes serially. With native connections, Python-based data conversion and parsing operations are constrained by the GIL, reducing efficiency. In contrast, WebSocket connections release the GIL during I/O operations (e.g., network requests, file I/O), allowing other threads to acquire the lock and execute. This significantly improves throughput in I/O-intensive scenarios.
   - Native connections require extensive data type conversions between C and Python. The WebSocket approach only requires interface-level data conversion, while data processing and parsing are handled by the WebSocket connector (Rust) and taosAdapter (Go). This effectively bypasses Python's performance bottlenecks.
@@ -60,10 +61,11 @@ Supports Python 3.0 and above.
 
 ## Version History
 
-Python Connector historical versions (it is recommended to use the latest version of 'taopsy'):
+Python Connector historical versions (it is recommended to use the latest version of 'taospy'):
 
 |Python Connector Version | Major Changes                                                                           | TDengine Version|
 | --------- | ----------------------------------------------------------------------------------------------------- | ----------------- |
+|2.8.9 | Data subscription supports token authentication | - |
 |2.8.8 | Support TOTP authentication and token authentication | - |
 |2.8.6 | Support for pandas' read_Sql_table, to_Sql, and read_Sql interface calls                                    | - |
 |2.8.5 | Support the SQLAlchemy feature of taos-ws-py                                                                | - |
@@ -89,6 +91,8 @@ WebSocket Connector Historical Versions:
 
 |WebSocket Connector Version | Major Changes                                                                                    | TDengine Version|
 | ----------------------- | -------------------------------------------------------------------------------------------------- | ----------------- |
+|0.6.7 | Migrate the SQLAlchemy dialect to `taos-ws-py`, so that using SQLAlchemy no longer depends on `taospy`. | - |
+|0.6.6 | Data subscription supports token authentication | - |
 |0.6.5 | Support TOTP authentication and token authentication | - |
 |0.6.4 | Support reporting connector version information | - |
 |0.6.3 | Support configuring the response timeout for WebSocket connections (excluding data subscription) | - |
@@ -387,7 +391,8 @@ The interface for binding parameters of the standard Stmt.
   - client.id: Client ID.
   - td.connect.user: Database username.
   - td.connect.pass: Database password.
-  - td.connect.token: Database connection token.
+  - td.connect.token: Cloud service authentication token.
+  - td.connect.bearer_token: Database authentication token, with higher authentication priority than username and password.
   - auto.offset.reset: Determines the consumption position as either the latest data (latest) or including old data (earliest).
   - enable.auto.commit: Whether to allow automatic commit.
   - auto.commit.interval.ms: Automatic commit interval.
@@ -572,7 +577,7 @@ TaosResult object can be iterated over to retrieve queried data.
   - client.id: Client ID.
   - td.connect.user: Database username.
   - td.connect.pass: Database password.
-  - td.connect.token: Database connection token.
+  - td.connect.bearer_token: Database authentication token, with higher authentication priority than username and password.
   - auto.offset.reset: Determines the consumption position as either the latest data (latest) or including old data (earliest).
   - enable.auto.commit: Whether to allow automatic submission.
   - auto.commit.interval.ms: Automatic submission interval.

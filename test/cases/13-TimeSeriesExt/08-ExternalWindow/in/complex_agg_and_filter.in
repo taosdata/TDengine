@@ -1,0 +1,16 @@
+use test;
+
+select cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w) order by ws, c;
+select cast(_wstart as bigint) as ws, min(v) as minv, max(v) as maxv, max(v)-min(v) as span from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w) order by ws, maxv;
+select cast(_wstart as bigint) as ws, avg(v) as avgv, sum(v2) as sv2 from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w) order by ws, sv2;
+select cast(_wstart as bigint) as ws, w.mark, count(*) as c, sum(v) as sv from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w) order by ws, w.mark;
+select cast(_wstart as bigint) as ws, cast(ts as bigint) - cast(_wstart as bigint) as delta, count(*) as c from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w) order by ws, delta;
+select cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv from ext_cx_src where v >= 20 external_window((select ts, endtime, mark from ext_cx_win) w) order by ws;
+select cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win where mark >= 102) w) order by ws, sv;
+select cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv from ext_cx_src where v >= 12 external_window((select ts, endtime, mark from ext_cx_win where mark <= 103) w) order by ws;
+select t1, cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv from ext_cx_src partition by t1 external_window((select ts, endtime, mark from ext_cx_win) w) order by t1, ws;
+select tbname, cast(_wstart as bigint) as ws, count(*) as c, max(v)-min(v) as span from ext_cx_src partition by tbname external_window((select ts, endtime, mark from ext_cx_win) w) order by tbname, ws;
+select t1, cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv from ext_cx_src partition by t1 external_window((select _wstart, _wend, count(*) as wc from ext_cx_win_part partition by t1 interval(10m)) w) order by t1, ws;
+select t1, cast(_wstart as bigint) as ws, w.wc, count(*) as c from ext_cx_src partition by t1 external_window((select _wstart, _wend, count(*) as wc from ext_cx_win_part partition by t1 interval(10m)) w) order by t1, ws;
+select cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w) having count(*) > 1 order by ws, sv;
+select t1, cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv from ext_cx_src partition by t1 external_window((select ts, endtime, mark from ext_cx_win) w) having sum(v) > 20 order by t1, ws;

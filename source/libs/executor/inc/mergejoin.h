@@ -112,7 +112,7 @@ typedef struct SMJoinTableCtx {
   SNode*             primExpr;
   SMJoinPrimExprCtx  primCtx;
 
-  int32_t            blkId;
+  int64_t            blkId;
   SQueryStat         inputStat;
 
   uint64_t           lastInGid;

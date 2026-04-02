@@ -21,6 +21,7 @@
 #include "uv.h"
 #endif
 
+#include "dmRepair.h"
 #include "dmInt.h"
 #include "tfs.h"
 

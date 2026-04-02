@@ -31,9 +31,9 @@ int is_lossless_compressed_data(unsigned char* compressedBytes, size_t cmpSize)
 	return -1; //fast mode (without GZIP or ZSTD)
 }
 
-unsigned long sz_lossless_compress(int losslessCompressor, unsigned char* data, unsigned long dataLength, unsigned char* compressBytes)
+size_t sz_lossless_compress(int losslessCompressor, unsigned char* data, size_t dataLength, unsigned char* compressBytes)
 {
-	unsigned long outSize = 0; 
+	size_t outSize = 0; 
 	int level = 3 ; // fast mode
 	size_t estimatedCompressedSize = 0;
 	switch(losslessCompressor)
@@ -52,9 +52,9 @@ unsigned long sz_lossless_compress(int losslessCompressor, unsigned char* data, 
 	return outSize;
 }
 
-unsigned long sz_lossless_decompress(int losslessCompressor, unsigned char* compressBytes, unsigned long cmpSize, unsigned char** oriData, unsigned long targetOriSize)
+size_t sz_lossless_decompress(int losslessCompressor, unsigned char* compressBytes, size_t cmpSize, unsigned char** oriData, size_t targetOriSize)
 {
-	unsigned long outSize = 0;
+	size_t outSize = 0;
 	switch(losslessCompressor)
 	{
 	case ZSTD_COMPRESSOR:

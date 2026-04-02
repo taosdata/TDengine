@@ -41,7 +41,7 @@ Start the container:
 ```shell
 docker run -d \
   -p 6035:6035 \
-  -p 6036:6036 \
+   -p 6061:6061 \
   tdengine/tdgpt:latest
 ```
 
@@ -68,10 +68,10 @@ docker pull tdengine/tdgpt-full:{{VERSION}}
 Start the container:
 
 ```shell
-docker run -d -p 6035:6035 -p 6036:6036 -p 6037:6037 tdengine/tdgpt-full:latest
+docker run -d -p 6035:6035 -p 6061:6061 -p 6062:6062 tdengine/tdgpt-full:latest
 ```
 
-Note: TDgpt runs on TCP port 6035. The standard image also uses port 6036, and the full image uses port 6037.
+Note: TDgpt runs on TCP port 6035. Port 6061 is used by the TDtsfm model service and port 6062 is used by the Time-MoE model service. In current versions, Chronos, Moirai, TimesFM, and Moment use ports 6063-6066 by default, and 6067-6070 are reserved for additional model services.
 
 TDgpt is a stateless analytics agent and does not persist data. It only saves log files to local disk.
 

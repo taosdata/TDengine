@@ -75,6 +75,8 @@ TEST_F(PlanBasicTest, uniqueFunc) {
 
   run("SELECT ts, UNIQUE(c1) FROM st1 PARTITION BY TBNAME");
 
+  run("SELECT ts, c2, UNIQUE(c1) FROM st1 PARTITION BY TBNAME ORDER BY TBNAME, ts, c2");
+
   run("SELECT TBNAME, UNIQUE(c1) FROM st1 PARTITION BY TBNAME");
 }
 

@@ -17,17 +17,18 @@
 #define _TD_EXECUTOR_H_
 
 #include <stdint.h>
+#include "plannodes.h"
 #include "tarray.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include "query.h"
 #include "storageapi.h"
 #include "tcommon.h"
 #include "tmsgcb.h"
 #include "storageapi.h"
 #include "functionMgt.h"
+#include "plannodes.h"
 
 typedef void* qTaskInfo_t;
 typedef void* DataSinkHandle;
@@ -161,9 +162,10 @@ bool    qTaskIsDone(qTaskInfo_t tinfo);
  */
 int32_t qSetSMAInput(qTaskInfo_t tinfo, const void* pBlocks, size_t numOfBlocks, int32_t type);
 
-int32_t qUpdateTableListForStreamScanner(qTaskInfo_t tinfo, const SArray* tableIdList);
-int32_t qDeleteTableListForStreamScanner(qTaskInfo_t tinfo, const SArray* tableIdList);
-int32_t qAddTableListForStreamScanner(qTaskInfo_t tinfo, const SArray* tableIdList);
+void    qUpdateTableTagCacheForTmq(qTaskInfo_t tinfo, const SArray* tableIdList, SArray* cids, SArray* cidListArray);
+int32_t qUpdateTableListForTmqScanner(qTaskInfo_t tinfo, const SArray* tableIdList);
+int32_t qDeleteTableListForTmqScanner(qTaskInfo_t tinfo, const SArray* tableIdList);
+int32_t qAddTableListForTmqScanner(qTaskInfo_t tinfo, const SArray* tableIdList);
 
 bool qIsDynamicExecTask(qTaskInfo_t tinfo);
 
@@ -182,7 +184,7 @@ void qUpdateOperatorParam(qTaskInfo_t tinfo, void* pParam);
  */
 int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, struct SSubplan* pSubplan,
                         qTaskInfo_t* pTaskInfo, DataSinkHandle* handle, int8_t compressResult, char* sql,
-                        EOPTR_EXEC_MODEL model, SArray* subEndPoints);
+                        EOPTR_EXEC_MODEL model, SArray** subEndPoints, bool enableExplain);
 
 /**
  *
@@ -245,7 +247,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
 
 void qStreamSetOpen(qTaskInfo_t tinfo);
 
-void qStreamSetSourceExcluded(qTaskInfo_t tinfo, int8_t sourceExcluded);
+void qStreamSetParams(qTaskInfo_t tinfo, int8_t sourceExcluded, int32_t minPollRows, int64_t timeout, int8_t enableReplay);
 
 int32_t qStreamExtractOffset(qTaskInfo_t tinfo, STqOffsetVal* pOffset);
 
@@ -262,7 +264,7 @@ int32_t  qStreamOperatorReleaseState(qTaskInfo_t tInfo);
 int32_t  qStreamOperatorReloadState(qTaskInfo_t tInfo);
 int32_t  streamCollectExprsForReplace(qTaskInfo_t tInfo, SArray* pExprs);
 int32_t  streamClearStatesForOperators(qTaskInfo_t tInfo);
-int32_t  streamExecuteTask(qTaskInfo_t tInfo, SSDataBlock** ppBlock, uint64_t* ts, bool* finished);
+int32_t  streamExecuteTask(qTaskInfo_t tInfo, SSDataBlock** ppBlock, bool* finished);
 void     streamDestroyExecTask(qTaskInfo_t tInfo);
 int32_t  qStreamCreateTableListForReader(void* pVnode, uint64_t suid, uint64_t uid, int8_t tableType,
                                          SNodeList* pGroupTags, bool groupSort, SNode* pTagCond, SNode* pTagIndexCond,
@@ -284,7 +286,7 @@ int32_t setVgIdColData(const SSDataBlock* pBlock, SColumnInfoData* pColInfoData,
 int32_t setVgVerColData(const SSDataBlock* pBlock, SColumnInfoData* pColInfoData, int32_t functionId, int64_t vgVer);
 
 
-int32_t streamCalcOutputTbName(SNode *pExpr, char *tbname, SStreamRuntimeFuncInfo *pPartColVals);
+int32_t streamCalcOutputTbName(SNode *pExpr, char *tbname, SStreamRuntimeFuncInfo *pStreamRuntimeFuncInfo);
 
 typedef void (*getMnodeEpset_f)(void *pDnode, SEpSet *pEpset);
 typedef int32_t (*getDnodeId_f)(void *pData);
@@ -323,6 +325,10 @@ int32_t qFilterTableList(void* pVnode, SArray* uidList, SNode* node, void* pTask
 bool    checkCidInTagCondition(SNode* node, SArray* cidList);
 SNode*  getTagCondNodeForStableTmq(void* node);
 SNode*  getTagCondNodeForQueryTmq(void* tinfo);
+
+// Pre-initialize external-window runtime (batch mode) from subquery results so that
+// downstream scan can build table list with baseGId via stream multi-group path.
+int32_t  extWinPreInitFromSubquery(SPhysiNode* pNode, SExecTaskInfo* pTaskInfo);
 
 #ifdef __cplusplus
 }

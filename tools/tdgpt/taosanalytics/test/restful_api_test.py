@@ -248,7 +248,7 @@ class RestfulTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json["rows"], -1)
 
-    def test_ad_error_three_cols(self):
+    def test_ad_multiple_input_cols(self):
         """4. there are three input columns """
         response = self.client.post("/anomaly-detect", json={
             "schema": [
@@ -261,6 +261,27 @@ class RestfulTest(TestCase):
                  1577808005000, 1577808006000, 1577808007000, 1577808008000, 1577808009000],
                 [5, 14, 15, 15, 14, 19, 17, 16, 20, 44],
                 [5, 14, 15, 15, 14, 19, 17, 16, 20, 44]
+            ],
+            "rows": 10,
+            "algo": "iqr"
+        })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["rows"], 2)
+
+    def test_ad_multiple_invalid_cols(self):
+        """4. there are three input columns """
+        response = self.client.post("/anomaly-detect", json={
+            "schema": [
+                ["ts", "TIMESTAMP", 8],
+                ["val", "INT", 4],
+                ["val1", "INT", 4]
+            ],
+            "data": [
+                [1577808000000, 1577808001000, 1577808002000, 1577808003000, 1577808004000,
+                 1577808005000, 1577808006000, 1577808007000, 1577808008000, 1577808009000],
+                [5, 14, 15, 15, 14, 19, 17, 16, 20, 44],
+                [5, 14, 15, 15, 14, 19, 17, 16, 20]
             ],
             "rows": 10,
             "algo": "iqr"

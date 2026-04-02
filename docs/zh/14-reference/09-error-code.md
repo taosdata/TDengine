@@ -115,6 +115,7 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x8000013F | Decimal value parse error               | Decimal 解析错误                                                           | 保留现场和日志，github 上报 issue                                                                                                                           |
 | 0x80000140 | Edition not compatible                  | 社区版/企业版不匹配                                                        | 检查各节点（包括服务端和客户端）是否有社区版和企业版混用的情况，确保都是企业版或都是社区版 |
 | 0x80000141 | Invalid signature                       | 消息签名无效或不正确                                                       | 检查客户端和服务端是否使用了相同的签名算法 |
+| 0x80000142 | External window subquery must return time-ordered rows | EXTERNAL WINDOW 子查询返回的数据未按时间排序 | 确保 EXTERNAL WINDOW 子查询的结果按时间列有序返回，必要时在子查询中添加 ORDER BY ts |
 
 #### tsc
 
@@ -377,6 +378,7 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x8000073C | Memory pool not initialized                                                 | 内存池没有初始化                                                                                             | 确认开关 queryUseMemoryPool 是否打开；如果 queryUseMemoryPool 已经打开，检查服务器是否达到了开启内存池的基本条件：1. 系统的可用内存总量不低于 5G；2. 扣除预留部分后系统的可用内存不低于 4G |
 | 0x8000073D | Alter minReservedMemorySize failed since no enough system available memory  | 更新 minReservedMemorySize 失败                                                                          | 确认当前的系统内存：1. 系统的可用内存总量不低于 5G；2. 扣除预留部分后系统的可用内存不低于 4G                                                                    |
 | 0x8000073E | Duplicate timestamp not allowed in count/event/state window                  | 窗口输入主键列有重复时间戳。对状态窗口、事件窗口、计数窗口做超级表查询时，所有子表数据会按照时间戳进行排序后合并为一条时间线进行计算，因此子表合并后的时间戳可能会出现重复，导致某些计算没有意义而报错。 | 如果需要对超级表查询并且使用这些窗口时，确保子表中不存在重复时间戳数据。                                                                                    |
+| 0x80000741 | VSTB slotId not found for column                                            | 查询执行时未能将源列映射到虚拟表的 slotId                                                                   | 保留现场和日志，github 上报 issue                                                                                                 |
 
 #### grant
 
@@ -572,6 +574,12 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x800026A3 | Option value too small                                                                                 | 选项的值太小                                            | 检查并修正 SQL 语句                    |
 | 0x800026AA | Aggregate functions cannot be used for sorting in non-aggregate queries                                | order by 子句不合法法                                            | 检查并修正 SQL 语句                    |
 | 0x800026AB | TRUE_FOR COUNT must be a non-negative integer not exceeding INT32_MAX                                  | true_for count 的值必须为非负数并且小于 INT32_MAX         | 检查并修正 SQL 语句                    |
+| 0x800026AC | Invalid fill mode | 在 interval 窗口中使用 fill(near) 模式 | 使用 interval 窗口支持的 fill 模式 |
+| 0x800026AD | Invalid fill values | 错误使用 fill values 参数 | 使用正确的 fill 模式与 fill values 参数配合 |
+| 0x800026AE | Invalid surrounding time value | 填写了错误的 surrounding time 值 | 使用正确有效的时间范围和时间单位 |
+| 0x800026AF | Invalid offset unit                                                                                    | offset 子句中使用了无效的时间单位                       | 检查并修正 SQL 语句                    |
+| 0x800026B0 | Invalid offset value                                                                                   | 时间窗口中的 offset 值无效                              | 检查并修正 SQL 语句                    |
+| 0x800026B1 | WHERE clause cannot reference EXTERNAL_WINDOW column                                                   | WHERE 子句中引用了 EXTERNAL_WINDOW 子查询的窗口列       | WHERE 子句不能引用 EXTERNAL_WINDOW 的窗口列，请将过滤条件移到 HAVING 或在 SELECT 列表中处理 |
 | 0x800026FF | Parser internal error                                                                                  | 解析器内部错误                                          | 保留现场和日志，github 上报 issue      |
 | 0x80002700 | Planner internal error                                                                                 | 计划期内部错误                                          | 保留现场和日志，github 上报 issue      |
 | 0x80002701 | Expect ts equal                                                                                        | JOIN 条件校验失败                                       | 保留现场和日志，github 上报 issue      |
@@ -655,7 +663,7 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x80004001 | Consumer mismatch                            | 订阅请求的 vnode 和重新分配的 vnode 不一致，一般存在于有新消费者加入相同消费者组里时 | 内部错误                           |
 | 0x80004002 | Consumer closed                              | 消费者已经不存在了                                                                   | 查看是否已经 close 掉了            |
 | 0x80004017 | Invalid status, please subscribe topic first | 数据订阅状态不对                                                                     | 没有调用 subscribe，直接 poll 数据 |
-| 0x80004100 | Stream task not exist                        | 流计算任务不存在                                                                     | 具体查看 server 端的错误日志       |
+| 0x8000401A | Fetch data timeout                           | 数据订阅拉取数据超时，超时时间通过参数 fetch.max.wait.ms 控制                                                                     | 服务端繁忙可能返回该错误，可继续 poll 数据       |
 
 #### 审计
 
@@ -666,6 +674,7 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x80006105 | Audit database keep2 must be greater than 1825d                           | 参数不正确                              | 检查并修正 SQL 语句               |
 | 0x80006106 | Audit database already exist                                              | 参数不正确                              | 检查并修正 SQL 语句               |
 | 0x80006107 | Audit database is not allowed to change                                   | 参数不正确                              | 检查并修正 SQL 语句               |
+| 0x80006108 | Audit database is not allowed to keep multiple vgroups                    | 参数不正确                              | 检查并修正 SQL 语句               |
 
 #### virtual table
 
@@ -681,6 +690,8 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x80006207 | Virtual super table query not support origin table from different databases | 虚拟超级表不支持子表的数据源来自不同的数据库                         | 确保虚拟超级表的子表的数据源都来自同一个数据库    |
 | 0x80006208 | Virtual super table query find column type mismatch                        | 虚拟超级表查询时发现虚拟子表的列来源和虚拟子表的列类型不匹配                 | 确保原始表和虚拟子表的列类型匹配           |
 | 0x80006209 | Virtual table has too many reference tables                                | 虚拟表的列对应的原始表数量过多                                | 确保虚拟表的列对应的原始表数量不超过 1000    |
+| 0x8000620A | Virtual table query find invalid origin scan                               | 虚拟表查询在主键条件下推时，优化器生成了非法的 origin scan 节点               | 保留 SQL 和 explain 执行计划，联系开发处理     |
+| 0x8000620B | Virtual table query cannot find origin timestamp column                    | 虚拟表查询在下推 ts 条件时，origin scan 的 schema 中找不到所需的时间戳主键列    | 保留 SQL 和 explain plan，然后联系开发处理   |
 
 #### TDgpt
 
@@ -708,6 +719,7 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x80007016 | Stream output table name calc failed  | 输出表名计算失败                         | 检查建流语句中输出表名规则是否正确，是否有 NULL 值存在 |
 | 0x80007017 | Stream vtable calculate need redeploy | 流计算语句中的虚拟表的原始表分布发生变更 | 流会自动处理该错误，无需处理                           |
 | 0x80007018 | Stream info contains invalid JSON format messages | 流计算内部编码兼容性问题 | 保留现场和日志，github 上报         |
+| 0x80004100 | Stream task not exist                 | 流计算任务不存在                    | 具体查看 server 端的错误日志       |
 
 #### xnode
 

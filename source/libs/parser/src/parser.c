@@ -931,6 +931,11 @@ int32_t qStmtParseQuerySql(SParseContext* pCxt, SQuery* pQuery, SMetaData* pMeta
   // Then put the metaData into cache
   if (pMetaData) {
     SCatalogReq catalogReq = {0};
+    // After collectMetaKey/buildCatalogReq, metaCache contains "request/reserved" hashes.
+    // We must clear them before putMetaDataToCache, otherwise the hash ends up mixed
+    // (db-keyed request entries + tb-keyed metadata entries) and destoryParseMetaCache(false)
+    // will not release nested request hashes (leading to LeakSanitizer reports).
+    bool metaCacheIsRequest = true;
     // Collect metadata requirements from query
     code = collectMetaKey(pCxt, pQuery, &metaCache);
     if (TSDB_CODE_SUCCESS == code) {
@@ -938,13 +943,18 @@ int32_t qStmtParseQuerySql(SParseContext* pCxt, SQuery* pQuery, SMetaData* pMeta
       code = buildCatalogReq(&metaCache, &catalogReq);
     }
     if (TSDB_CODE_SUCCESS == code) {
+      // Switch metaCache from request-mode to metadata-mode.
+      destoryParseMetaCache(&metaCache, true);
+      (void)memset(&metaCache, 0, sizeof(metaCache));
+      metaCacheIsRequest = false;
+
       // Put metadata to cache using the catalogReq to match data
       code = putMetaDataToCache(&catalogReq, pMetaData, &metaCache);
     }
     // Clean up catalog request
     destoryCatalogReq(&catalogReq);
     if (TSDB_CODE_SUCCESS != code) {
-      destoryParseMetaCache(&metaCache, false);
+      destoryParseMetaCache(&metaCache, metaCacheIsRequest);
       return code;
     }
   }

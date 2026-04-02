@@ -11,6 +11,14 @@ import RequestId from "./_request_id.mdx";
 
 `taos-jdbcdriver` 是 TDengine TSDB 的官方 Java 语言连接器，Java 开发人员可以通过它开发存取 TDengine TSDB 数据库的应用软件。`taos-jdbcdriver` 实现了 JDBC driver 标准的接口。
 
+:::warning 原生连接和 REST 连接即将废弃
+
+<font color="red">Java 的原生连接和 REST 连接将于 2027-01-01 下线</font>，请迁移到 WebSocket 连接。
+
+详细的迁移指引请参考：[连接方式说明](../#连接方式)
+
+:::
+
 :::info
 TDengine TSDB 的 JDBC 驱动实现尽可能与关系型数据库驱动保持一致，但 TDengine TSDB 与关系对象型数据库的使用场景和技术特征存在差异，所以`taos-jdbcdriver` 与传统的 JDBC driver 也存在一定差异。在使用时需要注意以下几点：
 
@@ -33,6 +41,7 @@ TDengine TSDB 的 JDBC 驱动实现尽可能与关系型数据库驱动保持一
 
 | taos-jdbcdriver 版本 | 主要变化                                                                                                                                                                                                                                                                               | TDengine TSDB 版本 |
 | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------ |
+| 3.8.2                | 数据订阅支持令牌                                                                                                                                                                                                                               | -                  |
 | 3.8.1                | Decimal 和 Blob 类型支持参数绑定写入                                                                                                                                                                                                                               | -                  |
 | 3.8.0                | 1. 负载均衡采用最小连接数算法 <br/> 2. 支持故障节点恢复后的连接数重平衡 <br/> 3. 支持上报连接器类型和版本 <br/> 4. 支持令牌认证方式 <br/> 5. 解决了参数绑定带子表名时纳秒精度问题 <br/> 6. 日志脱敏优化                                                                                                                                                                                                                                      | -                  |
 | 3.7.8                | 解决了 getTables 方法中需要使用转义符的问题。                                                                                                                                                                                                                                          | -                  |
@@ -197,7 +206,30 @@ TDengine TSDB 的 JDBC URL 规范格式为：
 - **仅 WebSocket 连接方式支持多个端点地址**，使用时用英文逗号隔开。多个端点地址在连接时会随机使用，以实现负载均衡。  
 - JDBC URL 中支持设置 Properties 中所有属性，具体请参考下文 **Properties** 章节。  
 
-**原生连接**  
+**WebSocket 连接**  
+使用 JDBC WebSocket 连接，不需要依赖客户端驱动。这是一个示例： `jdbc:TAOS-WS://taosdemo.com:6041,taosdemo2.com:6041/power?user=root&password=taosdata&varcharAsString=true`。与 JDBC 原生连接相比，仅需要：
+
+1. driverClass 指定为“com.taosdata.jdbc.ws.WebSocketDriver”；
+2. jdbcUrl 以“jdbc:TAOS-WS://”开头；
+3. 使用 6041 作为连接端口。
+4. 支持配置多个端点，连接时随机选择实现负载均衡。
+
+对于 WebSocket 连接，url 中的常见配置参数如下（所有参数请参考 Properties 一节）：
+
+- user：登录 TDengine TSDB 用户名，默认值 'root'。
+- password：用户登录密码，默认值 'taosdata'。
+- batchErrorIgnore：true：在执行 Statement 的 executeBatch 时，如果中间有一条 SQL 执行失败，继续执行下面的 SQL 了。false：不再执行失败 SQL 后的任何语句。默认值为：false。
+- httpConnectTimeout：连接超时时间，单位 ms，默认值为 60000。
+- messageWaitTimeout：消息超时时间，单位 ms，默认值为 60000。
+- useSSL：连接中是否使用 SSL。
+- timezone：客户端使用的时区，连接上生效，默认值为系统时区。推荐不设置，使用系统时区性能更好。
+- varcharAsString：将 VARCHAR/BINARY 类型映射为 String，仅在使用 WebSocket 连接时生效。默认值为 false。
+- conmode：BI 模式，仅在 WebSocket 连接时生效，默认 0，可设置为 1。为 1 代表开启 BI 模式，元数据信息不统计子表，主要用在 BI 工具对接场景。
+
+**注意**：部分配置项（比如：locale、charset）在 WebSocket 连接中不生效。WebSocket 连接仅支持 UTF-8 字符集。
+
+**<font color="red">原生连接，已废弃，将于 2027-01-01 下线</font>**
+
 `jdbc:TAOS://taosdemo.com:6030/power?user=root&password=taosdata`，使用了 JDBC 原生连接的 TSDBDriver，建立了到 host 为 taosdemo.com，端口为 6030（TDengine TSDB 的默认端口），数据库名为 power 的连接。这个 URL
 中指定用户名（user）为 root，密码（password）为 taosdata。
 
@@ -223,28 +255,6 @@ JDBC 原生连接的使用请参见[视频教程](https://www.taosdata.com/blog/
 TDengine TSDB 中，只要保证 firstEp 和 secondEp 中一个节点有效，就可以正常建立到集群的连接。
 
 > **注意**：这里的配置文件指的是调用 JDBC Connector 的应用程序所在机器上的配置文件，Linux OS 上默认值 /etc/taos/taos.cfg，Windows OS 上默认值 C://TDengine/cfg/taos.cfg。
-
-**WebSocket 连接**  
-使用 JDBC WebSocket 连接，不需要依赖客户端驱动。这是一个示例： `jdbc:TAOS-WS://taosdemo.com:6041,taosdemo2.com:6041/power?user=root&password=taosdata&varcharAsString=true`。与 JDBC 原生连接相比，仅需要：
-
-1. driverClass 指定为“com.taosdata.jdbc.ws.WebSocketDriver”；
-2. jdbcUrl 以“jdbc:TAOS-WS://”开头；
-3. 使用 6041 作为连接端口。
-4. 支持配置多个端点，连接时随机选择实现负载均衡。
-
-对于 WebSocket 连接，url 中的常见配置参数如下（所有参数请参考 Properties 一节）：
-
-- user：登录 TDengine TSDB 用户名，默认值 'root'。
-- password：用户登录密码，默认值 'taosdata'。
-- batchErrorIgnore：true：在执行 Statement 的 executeBatch 时，如果中间有一条 SQL 执行失败，继续执行下面的 SQL 了。false：不再执行失败 SQL 后的任何语句。默认值为：false。
-- httpConnectTimeout：连接超时时间，单位 ms，默认值为 60000。
-- messageWaitTimeout：消息超时时间，单位 ms，默认值为 60000。
-- useSSL：连接中是否使用 SSL。
-- timezone：客户端使用的时区，连接上生效，默认值为系统时区。推荐不设置，使用系统时区性能更好。
-- varcharAsString：将 VARCHAR/BINARY 类型映射为 String，仅在使用 WebSocket 连接时生效。默认值为 false。
-- connmode：BI 模式，仅在 WebSocket 连接时生效，默认 0，可设置为 1。为 1 代表开启 BI 模式，元数据信息不统计子表，主要用在 BI 工具对接场景。
-
-**注意**：部分配置项（比如：locale、charset）在 WebSocket 连接中不生效。WebSocket 连接仅支持 UTF-8 字符集。
 
 #### Properties
 

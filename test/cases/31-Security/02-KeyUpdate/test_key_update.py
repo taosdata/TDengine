@@ -50,6 +50,9 @@ class TestBasic:
         
         tdLog.info(f"Config: {cfg_path}, Keys: {key_dir}")
 
+        taosk_bin = etool.taoskFile()
+        tdLog.info(f"taosk binary: {taosk_bin}")
+
         # Verify pre-generated keys
         assert os.path.exists(master_file), f"master.bin missing at {master_file}"
         assert os.path.exists(derived_file), f"derived.bin missing at {derived_file}"
@@ -59,14 +62,14 @@ class TestBasic:
         tdLog.info("=" * 80)
         tdLog.info("Test 1: Update SVR_KEY")
         tdLog.info("=" * 80)
-        
+
         initial_mtime = os.path.getmtime(master_file)
         time.sleep(0.1)
-        
-        cmd = ['taosk', '-c', cfg_path, '--update-svrkey', 'newsvr123']
+
+        cmd = [taosk_bin, '-c', cfg_path, '--update-svrkey', 'newsvr123']
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=30, check=True)
         tdLog.info(f"Output: {result.stdout}")
-        
+
         updated_mtime = os.path.getmtime(master_file)
         assert updated_mtime > initial_mtime, f"master.bin not updated: {initial_mtime} -> {updated_mtime}"
         tdLog.info("SVR_KEY updated")
@@ -75,14 +78,14 @@ class TestBasic:
         tdLog.info("=" * 80)
         tdLog.info("Test 2: Update DB_KEY")
         tdLog.info("=" * 80)
-        
+
         initial_derived_mtime = os.path.getmtime(derived_file)
         time.sleep(0.1)
-        
-        cmd = ['taosk', '-c', cfg_path, '--update-dbkey', 'newdb45678']
+
+        cmd = [taosk_bin, '-c', cfg_path, '--update-dbkey', 'newdb45678']
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=30, check=True)
         tdLog.info(f"Output: {result.stdout}")
-        
+
         updated_derived_mtime = os.path.getmtime(derived_file)
         assert updated_derived_mtime > initial_derived_mtime, "derived.bin not regenerated"
         tdLog.info("DB_KEY updated, derived keys regenerated")
@@ -91,12 +94,12 @@ class TestBasic:
         tdLog.info("=" * 80)
         tdLog.info("Test 3: Update both SVR_KEY and DB_KEY")
         tdLog.info("=" * 80)
-        
+
         initial_master = os.path.getmtime(master_file)
         initial_derived = os.path.getmtime(derived_file)
         time.sleep(0.1)
-        
-        cmd = ['taosk', '-c', cfg_path, '--update-svrkey', 'bothsvr123', '--update-dbkey', 'bothdb45678']
+
+        cmd = [taosk_bin, '-c', cfg_path, '--update-svrkey', 'bothsvr123', '--update-dbkey', 'bothdb45678']
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=30, check=True)
         tdLog.info(f"Output: {result.stdout}")
         

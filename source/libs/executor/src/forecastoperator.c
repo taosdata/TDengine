@@ -120,8 +120,8 @@ static int32_t forecastCacheBlock(SForecastSupp* pSupp, SSDataBlock* pBlock, con
     char*   val = colDataGetData(pValCol, j);
     int16_t valType = pValCol->info.type;
 
-    pSupp->minTs = MIN(pSupp->minTs, ts);
-    pSupp->maxTs = MAX(pSupp->maxTs, ts);
+    pSupp->minTs = TMIN(pSupp->minTs, ts);
+    pSupp->maxTs = TMAX(pSupp->maxTs, ts);
     pSupp->numOfRows++;
 
     // write the primary time stamp column data
@@ -277,7 +277,7 @@ static int32_t forecastAnalysis(SForecastSupp* pSupp, SSDataBlock* pBlock, const
   int32_t rows = 0;
   tjsonGetInt32ValueFromDouble(pJson, "rows", rows, code);
   if (rows < 0 && code == 0) {
-    code = parseErrorMsgFromAnalyticServer(pJson, pId);
+    code = parseErrorMsgFromAnalyticServer(pJson, "forecast", pId);
     tjsonDelete(pJson);
     return code;
   }
@@ -1123,7 +1123,7 @@ int32_t createForecastOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNo
     code = terrno;
     goto _error;
   }
-
+  initOperatorCostInfo(pOperator);
   pOperator->pPhyNode = pPhyNode;
 
   const char*             pId = pTaskInfo->id.str;

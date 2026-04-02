@@ -156,7 +156,14 @@ TDengine TSDB 的多级存储功能在使用上还具备以下优点。
 |               接口或组件名称                 |     端口   |   协议    |
 |:-----------------------------------------:|:----------:|:--------:|
 |             原生接口（taosc）               |    6030    |   TCP   |
-|             TDgpt                         |    6035    |   TCP   |
+|             TDgpt 服务接口                 |    6035    |   TCP   |
+|             TDgpt TDtsfm 模型服务          |    6061    |   TCP   |
+|             TDgpt Time-MoE 模型服务        |    6062    |   TCP   |
+|             TDgpt Chronos 模型服务         |    6063    |   TCP   |
+|             TDgpt Moirai 模型服务          |    6064    |   TCP   |
+|             TDgpt TimesFM 模型服务         |    6065    |   TCP   |
+|             TDgpt Moment 模型服务          |    6066    |   TCP   |
+|             TDgpt 预留模型服务端口         | 6067-6070  |   TCP   |
 |              RESTful 接口                  |    6041    |   TCP   |
 |             WebSocket 接口                 |    6041    |   TCP   |
 |              taosKeeper                   |    6043    |   TCP   |

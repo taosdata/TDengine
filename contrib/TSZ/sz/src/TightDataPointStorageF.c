@@ -85,12 +85,12 @@ int new_TightDataPointStorageF_fromFlatBytes(TightDataPointStorageF **this, unsi
 	unsigned char byteBuf[8];
 	for (i = 0; i < 4; i++)
 		byteBuf[i] = flatBytes[index++];
-	int max_quant_intervals = bytesToInt_bigEndian(byteBuf);// 4	
+	int max_quant_intervals = bytesToInt32_bigEndian(byteBuf);// 4	
 	pde_params->maxRangeRadius = max_quant_intervals/2;
     // 6 intervals
 	for (i = 0; i < 4; i++)
 		byteBuf[i] = flatBytes[index++];
-	(*this)->intervals = bytesToInt_bigEndian(byteBuf);// 4	
+	(*this)->intervals = bytesToInt32_bigEndian(byteBuf);// 4	
     // 7 median
 	for (i = 0; i < 4; i++)
 		byteBuf[i] = flatBytes[index++];
@@ -139,7 +139,7 @@ int new_TightDataPointStorageF_fromFlatBytes(TightDataPointStorageF **this, unsi
 	if ((*this)->ifAdtFse == 0) {
 		(*this)->typeArray = &flatBytes[index]; 
 		//retrieve the number of states (i.e., stateNum)
-		(*this)->allNodes = bytesToInt_bigEndian((*this)->typeArray); //the first 4 bytes store the stateNum
+		(*this)->allNodes = bytesToInt32_bigEndian((*this)->typeArray); //the first 4 bytes store the stateNum
 		(*this)->stateNum = ((*this)->allNodes+1)/2;
 		index+=(*this)->typeArray_size;
 	} else {
@@ -251,12 +251,12 @@ void convertTDPStoBytes_float(TightDataPointStorageF* tdps, unsigned char* bytes
 	// 4 element count
 	for(i = 0; i < exe_params->SZ_SIZE_TYPE; i++)//ST: 4 or 8 bytes
 		bytes[k++] = dsLengthBytes[i];	
-	intToBytes_bigEndian(max_quant_intervals_Bytes, confparams_cpr->max_quant_intervals);
+	int32ToBytes_bigEndian(max_quant_intervals_Bytes, confparams_cpr->max_quant_intervals);
 	// 5 max_quant_intervals length
 	for(i = 0;i<4;i++)//4
 		bytes[k++] = max_quant_intervals_Bytes[i];			
 	// 6 intervals
-	intToBytes_bigEndian(intervalsBytes, tdps->intervals);
+	int32ToBytes_bigEndian(intervalsBytes, tdps->intervals);
 	for(i = 0;i<4;i++)//4
 		bytes[k++] = intervalsBytes[i];				
 	// 7 median
@@ -323,9 +323,9 @@ bool convertTDPStoFlatBytes_float(TightDataPointStorageF *tdps, unsigned char* b
 	unsigned char dsLengthBytes[8];
 	
 	if(exe_params->SZ_SIZE_TYPE==4)
-		intToBytes_bigEndian(dsLengthBytes, tdps->dataSeriesLength);//4
+		int32ToBytes_bigEndian(dsLengthBytes, tdps->dataSeriesLength);//4
 	else
-		longToBytes_bigEndian(dsLengthBytes, tdps->dataSeriesLength);//8
+		int64ToBytes_bigEndian(dsLengthBytes, tdps->dataSeriesLength);//8
 		
 	unsigned char sameByte = tdps->allSameData==1?(unsigned char)1:(unsigned char)0; //0000,0001
 	//sameByte = sameByte | (confparams_cpr->szMode << 1);  //0000,0110 (no need because of convertSZParamsToBytes

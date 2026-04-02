@@ -384,9 +384,11 @@ static int32_t tfsRenameAt(STfs *pTfs, SDiskID diskId, const char *orname, const
   (void)snprintf(oaname, TMPNAME_LEN, "%s%s%s", pDisk->path, TD_DIRSEP, orname);
   (void)snprintf(naname, TMPNAME_LEN, "%s%s%s", pDisk->path, TD_DIRSEP, nrname);
 
-  if (taosRenameFile(oaname, naname) != 0 && ERRNO != ENOENT) {
-    int32_t code = TAOS_SYSTEM_ERROR(ERRNO);  // TODO: use return value of taosRenameFile directly
-    fError("%s failed to rename %s to %s since %s", __func__, oaname, naname, tstrerror(code));
+  int32_t code = taosRenameFile(oaname, naname);
+
+  if (code != 0 && ERRNO != ENOENT) {
+    // int32_t code = TAOS_SYSTEM_ERROR(ERRNO);  // TODO: use return value of taosRenameFile directly
+    fError("%s failed to rename %s to %s since %s, ERRNO:0x%x", __func__, oaname, naname, tstrerror(code), ERRNO);
     TAOS_RETURN(code);
   }
 

@@ -1981,7 +1981,9 @@ static int32_t stmtFetchMetadataForQuery(STscStmt2* pStmt, SParseContext* pCxt, 
     }
   }
 
-  destoryParseMetaCache(&metaCache, false);
+  // metaCache currently holds "reserved/request" structures built by collectMetaKey/buildCatalogReq.
+  // It must be destroyed with request=true to release nested table-request hashes.
+  destoryParseMetaCache(&metaCache, true);
   destoryCatalogReq(&catalogReq);
 
   if (TSDB_CODE_SUCCESS != code) {

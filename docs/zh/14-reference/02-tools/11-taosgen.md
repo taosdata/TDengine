@@ -1,4 +1,4 @@
----
+﻿---
 title: taosgen 参考手册
 sidebar_label: taosgen
 toc_max_heading_level: 4
@@ -6,7 +6,7 @@ toc_max_heading_level: 4
 
 taosgen 是时序数据领域产品的性能基准测试工具，支持数据生成、写入性能测试等功能。taosgen 以“作业”为基础单元，作业是由用户定义，用于完成特定任务的一组操作集合。每个作业包含一个或多个步骤，并可通过依赖关系与其他作业连接，形成有向无环图（DAG）式的执行流程，实现灵活高效的任务编排。
 
-taosgen 目前支持 Linux 和 macOS 系统。
+taosgen 目前支持 Windows、Linux 和 macOS 系统。
 
 ## taosBenchmark 与 taosgen 功能对比
 
@@ -169,12 +169,13 @@ taosgen -h 127.0.0.1 -c config.yaml
   - name（字符串）：schema 的名称。
   - from_csv：描述 CSV 文件作为数据源时的相关配置参数。
     - tags：描述 tags 的配置参数。
-      - file_path（字符串）：标签数据 CSV 文件路径。
+      - file_path（字符串）：标签数据 CSV 文件路径。支持单个文件、目录路径（自动识别目录下所有 `.csv` 文件）和 glob 通配符（如 `tags_*.csv`）。多文件按文件名字母升序读取，所有文件须具有相同的列结构。
       - has_header（布尔）：是否包含表头行，默认为 true。
       - tbname_index（整数）：指定表名称所在的列索引（从 0 开始），默认为 -1，表示未生效。
       - exclude_indices（字符串）：如果仅想使用部分标签列时，此参数用于指定剔除的无用标签列的索引（从 0 开始），列索引之间使用英文逗号，分隔，默认值为空，表示不剔除。
     - columns：时序数据列的配置参数。
-      - file_path（字符串）：时序数据 CSV 文件路径。
+      - loading_mode（字符串）：CSV 数据加载模式，可选值为 "preload"（全量加载到内存）和 "streaming"（流式逐行读取），默认为 "preload"。
+      - file_path（字符串）：时序数据 CSV 文件路径。支持单个文件、目录路径（自动识别目录下所有 `.csv` 文件）和 glob 通配符（如 `data_*.csv`）。多文件按文件名字母升序读取并逻辑串联为连续数据流，所有文件须具有相同的列结构。
       - has_header（布尔）：是否包含表头行，默认为 true。
       - repeat_read（布尔）：是否重复读取数据，默认为 false。
       - tbname_index（整数）：指定子表名称所在的列索引（从 0 开始），默认为 -1，表示未生效。

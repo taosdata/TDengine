@@ -65,6 +65,24 @@ enum {
 
 #define TSC_MAX_SUBPLAN_CAPACITY_NUM 1000
 
+// Client request phase tracking macros
+#define CLIENT_SET_REQUEST_PHASE(_req, _phase)                      \
+  do {                                                              \
+    atomic_store_32(&(_req)->execPhase, (_phase));                  \
+    atomic_store_64(&(_req)->phaseStartTime, taosGetTimestampMs()); \
+  } while (0)
+
+#define CLIENT_UPDATE_REQUEST_PHASE_IF_CHANGED(_req, _newPhase)       \
+  do {                                                                \
+    if (atomic_load_32(&(_req)->execPhase) != (_newPhase)) {          \
+      atomic_store_32(&(_req)->execPhase, (_newPhase));               \
+      atomic_store_64(&(_req)->phaseStartTime, taosGetTimestampMs()); \
+    }                                                                 \
+  } while (0)
+
+#define CLIENT_GET_REQUEST_PHASE(_req)            atomic_load_32(&(_req)->execPhase)
+#define CLIENT_GET_REQUEST_PHASE_START_TIME(_req) atomic_load_64(&(_req)->phaseStartTime)
+
 typedef struct SAppInstInfo SAppInstInfo;
 
 typedef struct {
@@ -326,6 +344,9 @@ typedef struct SRequestObj {
   SMetaData            parseMeta;
   char*                effectiveUser;
   int8_t               source;
+  int32_t              execPhase;       // EQueryExecPhase
+  int64_t              phaseStartTime;  // when current phase started, ms
+  int8_t               secureDelete;
 } SRequestObj;
 
 typedef struct SSyncQueryParam {
@@ -366,6 +387,7 @@ static FORCE_INLINE SReqResultInfo* tmqGetCurResInfo(TAOS_RES* res) {
 }
 
 int32_t                             tmqGetNextResInfo(TAOS_RES* res, bool convertUcs4, SReqResultInfo** pResInfo);
+
 static FORCE_INLINE SReqResultInfo* tscGetCurResInfo(TAOS_RES* res) {
   if (TD_RES_QUERY(res)) return &(((SRequestObj*)res)->body.resInfo);
   return tmqGetCurResInfo(res);
@@ -418,10 +440,15 @@ void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet);
 
 int32_t taos_connect_internal(const char* ip, const char* user, const char* pass, const char* totp, const char* db,
                               uint16_t port, int connType, STscObj** pObj);
+                              
+int32_t taos_connect_by_auth(const char* ip, const char* user, const char* auth, const char* totp, const char* db, 
+                              uint16_t port, int connType, STscObj** pObj);
 
 int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtCallback* pStmtCb);
 
 int32_t getPlan(SRequestObj* pRequest, SQuery* pQuery, SQueryPlan** pPlan, SArray* pNodeList);
+int32_t sqlSecurityCheckStringLevel(SRequestObj* pRequest, const char* sql, int32_t sqlLen);
+int32_t sqlSecurityCheckASTLevel(SRequestObj* pRequest, SQuery* pQuery);
 
 int32_t buildRequest(uint64_t connId, const char* sql, int sqlLen, void* param, bool validateSql,
                      SRequestObj** pRequest, int64_t reqid);

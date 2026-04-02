@@ -3,6 +3,7 @@ from taos.tmq import Consumer
 import time
 import socket
 import os
+import platform
 
 TSDB_CODE_NO_SUCH_FILE                        = 0x02
 #define TSDB_CODE_OPS_NOT_SUPPORT               TAOS_DEF_ERROR_CODE(0, 0x0100)
@@ -4289,7 +4290,9 @@ class TestPrivControl:
         print("[Function and Index Privileges]")
         self.do_create_function_privilege()
         self.do_create_index_privilege()
-        self.do_create_tsma_privilege()
+        if platform.system().lower() != 'windows':
+            # windows does not support tsma
+            self.do_create_tsma_privilege()
         self.do_create_rsma_privilege()    
                 
         # View, topic and stream privilege tests (3.4.0.0+)

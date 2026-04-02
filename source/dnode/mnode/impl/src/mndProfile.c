@@ -1271,19 +1271,37 @@ static int32_t packQueriesIntoBlock(SShowObj *pShow, SConnObj *pConn, SSDataBloc
     }
 
     char    subStatus[TSDB_SHOW_SUBQUERY_LEN + VARSTR_HEADER_SIZE] = {0};
-    int64_t reserve = 64;
+    int64_t reserve = 128;
     int32_t strSize = sizeof(subStatus);
     int32_t offset = VARSTR_HEADER_SIZE;
     for (int32_t i = 0; i < pQuery->subPlanNum && offset + reserve < strSize; ++i) {
       if (i) {
         offset += snprintf(subStatus + offset, sizeof(subStatus) - offset, ",");
       }
-      if (offset + reserve < strSize) {
-        SQuerySubDesc *pDesc = taosArrayGet(pQuery->subDesc, i);
-        offset += snprintf(subStatus + offset, sizeof(subStatus) - offset, "%" PRIu64 ":%s", pDesc->tid, pDesc->status);
-      } else {
-        break;
+      if (offset + reserve >= strSize) break;
+
+      SQuerySubDesc *pDesc = taosArrayGet(pQuery->subDesc, i);
+      if (NULL == pDesc) break;
+
+      char startBuf[32] = {0};
+      (void)snprintf(startBuf, sizeof(startBuf), "-");
+      if (pDesc->startTs > 0) {
+        time_t    startSec = (time_t)(pDesc->startTs / 1000000);
+        int32_t   startFrac = (int32_t)(pDesc->startTs % 1000000) / 1000;
+        struct tm startTm;
+        if (taosLocalTime(&startSec, &startTm, NULL, 0, NULL) != NULL) {
+          size_t n = taosStrfTime(startBuf, sizeof(startBuf), "%Y-%m-%d %H:%M:%S", &startTm);
+          if (tsnprintf(startBuf + n, sizeof(startBuf) - n, ".%03d", startFrac) < 0) {
+            mError("failed to format start time for sub query since %s", tstrerror(terrno));
+            code = terrno;
+            taosRUnLockLatch(&pConn->queryLock);
+            return code;
+          }
+        }
       }
+
+      offset += tsnprintf(subStatus + offset, sizeof(subStatus) - offset,
+                          "%" PRIu64 ":%s:%s", pDesc->tid, pDesc->status, startBuf);
     }
     varDataLen(subStatus) = strlen(&subStatus[VARSTR_HEADER_SIZE]);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -1321,6 +1339,25 @@ static int32_t packQueriesIntoBlock(SShowObj *pShow, SConnObj *pConn, SSDataBloc
     code = colDataSetVal(pColInfo, curRowIndex, (const char *)userIp, false);
     if (code != 0) {
       mError("failed to set user ip since %s", tstrerror(code));
+      taosRUnLockLatch(&pConn->queryLock);
+      return code;
+    }
+
+    const char* phaseStr = queryPhaseStr(pQuery->execPhase);
+    char        phaseVarStr[64 + VARSTR_HEADER_SIZE];
+    STR_TO_VARSTR(phaseVarStr, phaseStr);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    code = colDataSetVal(pColInfo, curRowIndex, (const char *)phaseVarStr, false);
+    if (code != 0) {
+      mError("failed to set current phase since %s", tstrerror(code));
+      taosRUnLockLatch(&pConn->queryLock);
+      return code;
+    }
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    code = colDataSetVal(pColInfo, curRowIndex, (const char *)&pQuery->phaseStartTime, false);
+    if (code != 0) {
+      mError("failed to set phase start time since %s", tstrerror(code));
       taosRUnLockLatch(&pConn->queryLock);
       return code;
     }

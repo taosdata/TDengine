@@ -2747,10 +2747,13 @@ int32_t cliSendQuit(SCliThrd* thrd) {
   return 0;
 }
 void cliWalkCb(uv_handle_t* handle, void* arg) {
+  TAOS_UNUSED(arg);
+
   if (!uv_is_closing(handle)) {
-    if (uv_handle_get_type(handle) == UV_TIMER) {
-      // do nothing
-    } else {
+    uv_handle_type type = uv_handle_get_type(handle);
+    if (type == UV_TIMER) {
+      TAOS_UNUSED(uv_timer_stop((uv_timer_t*)handle));
+    } else if (type == UV_TCP || type == UV_NAMED_PIPE || type == UV_TTY) {
       TAOS_UNUSED(uv_read_stop((uv_stream_t*)handle));
     }
     TAOS_UNUSED(uv_close(handle, cliDestroy));

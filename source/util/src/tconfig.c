@@ -1371,7 +1371,7 @@ int32_t cfgLoadFromCfgFile(SConfig *pConfig, const char *filepath) {
   if (pFile == NULL) {
     // success when the file does not exist
     code = terrno;
-    if (ERRNO == ENOENT) {
+    if (errorIsFileNotExist(code)) {
       uInfo("failed to load from cfg file %s since %s, use default parameters", filepath, tstrerror(code));
       TAOS_RETURN(TSDB_CODE_SUCCESS);
     } else {

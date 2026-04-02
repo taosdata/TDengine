@@ -11,7 +11,7 @@ public class HikariDemo {
     public static void main(String[] args) throws Exception {
         HikariConfig config = new HikariConfig();
         // jdbc properties
-        config.setJdbcUrl("jdbc:TAOS://127.0.0.1:6030/log");
+        config.setJdbcUrl("jdbc:TAOS-WS://127.0.0.1:6041/log?varcharAsString=true");
         config.setUsername("root");
         config.setPassword("taosdata");
         // connection pool configurations

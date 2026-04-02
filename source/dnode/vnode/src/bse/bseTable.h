@@ -98,7 +98,7 @@ typedef struct {
 } SBtableMetaReader, SBtableMetaWriter;
 
 typedef struct {
-  int32_t            blkIdx;
+  int64_t            blkIdx;
   int8_t             isOver;
   SBtableMetaReader *pReader;
   SBlockWrapper      pBlockWrapper;

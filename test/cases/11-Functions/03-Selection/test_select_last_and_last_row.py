@@ -953,7 +953,7 @@ class TestFuncLast:
         tdSql.checkData(6, 2, 'nchar.湖北省太原市永川吴路b座 333484')
 
         # TD-23222
-        tdSql.query(f'''select LAST_ROW(q_tinyint) from stable_2 where  q_ts between 1600000000000 and now +1h  and  _c0 <= now +1h and  (q_nchar like 'nchar%' or q_binary = '0'  or q_nchar = 'nchar_' ) and (q_bool = 0 or q_bool = 1  or q_bool is null) interval(15a,9a)''')
+        tdSql.query(f'''select LAST_ROW(q_tinyint) from stable_2 where  q_ts between 1600000000000 and now +1h  and  _c0 <= now +1h and  (q_nchar like 'nchar%' or q_binary = '0'  or q_nchar = 'nchar_') and (q_bool = 0 or q_bool = 1  or q_bool is null) interval(15a,9a)''')
         tdSql.checkRows(100)
 
     def test_last_row_interval(self):
@@ -1007,27 +1007,27 @@ class TestFuncLast:
 
         # 'none'
         tdSql.query("explain select last(c1), last_row(c2) from test_none.tt;")
-        tdSql.checkData(0, 0, "-> Aggregate (functions=2 width=12 input_order=desc )")
+        tdSql.checkData(0, 0, "-> Aggregate (functions=2 width=12 input_order=desc)")
         tdSql.checkData(1, 0, "   -> Table Scan on tt (columns=3 width=20 order=[asc|0 desc|1] mode=ts_order data_load=data)")
 
         # 'both'
         tdSql.query("explain select last(c1), last_row(c2) from test_both.tt;")
-        tdSql.checkData(0, 0, "-> Aggregate (functions=2 width=12 input_order=desc )")
-        tdSql.checkData(1, 0, "   -> Last Row Scan on tt (columns=3 width=20 )")
+        tdSql.checkData(0, 0, "-> Aggregate (functions=2 width=12 input_order=desc)")
+        tdSql.checkData(1, 0, "   -> Last Row Scan on tt (columns=3 width=20)")
 
         # 'last_value'
         tdSql.query("explain select last(c1), last_row(c2) from test_last_value.tt;")
-        tdSql.checkData(1, 0, "   -> Aggregate (functions=1 width=8 input_order=desc )")
+        tdSql.checkData(1, 0, "   -> Aggregate (functions=1 width=8 input_order=desc)")
         tdSql.checkData(3, 0, "         -> Table Scan on tt (columns=2 width=16 order=[asc|0 desc|1] mode=ts_order data_load=data)")
-        tdSql.checkData(4, 0, "   -> Aggregate (functions=1 width=4 input_order=desc )")
-        tdSql.checkData(6, 0, "         -> Last Row Scan on tt (columns=2 width=12 )")
+        tdSql.checkData(4, 0, "   -> Aggregate (functions=1 width=4 input_order=desc)")
+        tdSql.checkData(6, 0, "         -> Last Row Scan on tt (columns=2 width=12)")
 
         # 'last_row'
         tdSql.query("explain select last(c1), last_row(c2) from test_last_row.tt;")
-        tdSql.checkData(1, 0, "   -> Aggregate (functions=1 width=4 input_order=desc )")
+        tdSql.checkData(1, 0, "   -> Aggregate (functions=1 width=4 input_order=desc)")
         tdSql.checkData(3, 0, "         -> Table Scan on tt (columns=2 width=12 order=[asc|0 desc|1] mode=ts_order data_load=data)")
-        tdSql.checkData(4, 0, "   -> Aggregate (functions=1 width=8 input_order=desc )")
-        tdSql.checkData(6, 0, "         -> Last Row Scan on tt (columns=2 width=16 )")
+        tdSql.checkData(4, 0, "   -> Aggregate (functions=1 width=8 input_order=desc)")
+        tdSql.checkData(6, 0, "         -> Last Row Scan on tt (columns=2 width=16)")
 
     def test_last_blob_data_from_cache(self):
         """Last blob data from cache

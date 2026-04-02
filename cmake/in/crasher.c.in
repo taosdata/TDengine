@@ -8,13 +8,20 @@ LONG WINAPI exceptionHandler(LPEXCEPTION_POINTERS exception)
   wchar_t dumperProcessPath[MAX_PATH + 1];
 
   DWORD written = GetModuleFileNameW(NULL, currentProcessPath, sizeof(currentProcessPath) / sizeof(currentProcessPath[0]));
-  for (DWORD i = written - 1; i >= 0; i--)
+  /* Iterate with a signed counter to avoid DWORD underflow when no '\\' is found. */
+  for (int i = (int)written - 1; i >= 0; i--)
   {
     if (currentProcessPath[i] == L'\\')
     {
-      memcpy_s(dumperProcessPath, sizeof(dumperProcessPath), currentProcessPath, i * sizeof(i));
+      /* Use i * sizeof(wchar_t) bytes (not i * sizeof(DWORD)) to copy the
+       * directory portion, then append the dumper executable name. */
+      memcpy_s(dumperProcessPath, sizeof(dumperProcessPath), currentProcessPath,
+               (size_t)i * sizeof(wchar_t));
+      dumperProcessPath[i] = L'\0';
       wchar_t dumperProcessName[] = L"\\dumper.exe";
-      memcpy_s(dumperProcessPath + i, sizeof(dumperProcessPath) - i * sizeof(i), dumperProcessName, sizeof(dumperProcessName));
+      memcpy_s(dumperProcessPath + i,
+               sizeof(dumperProcessPath) - (size_t)i * sizeof(wchar_t),
+               dumperProcessName, sizeof(dumperProcessName));
       break;
     }
   }

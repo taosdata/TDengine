@@ -11,6 +11,7 @@ def do_dtw(input_list1: list, input_list2: list, params):
     dist, path = s.execute()
     return dist, path
 
+
 def do_tlcc(input_list1: list, input_list2: list, params):
     s = loader.get_service("tlcc")
 

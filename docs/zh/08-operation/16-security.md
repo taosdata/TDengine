@@ -92,6 +92,8 @@ database_option: {
 
 在 3.4.0.0 之前版本创建的审计库，与 3.4.0.0 及之后版本的审计库不兼容。3.4.0.0 之前版本的审计库无法开启 is_audit 参数，因此不会对 DURATION、WAL_LEVEL、ENCRYPT_ALGORITHM 做强制要求。对于 3.4.0.0 之前创建的审计库，如需使用新版本的审计能力，建议先 drop 该审计库后再重新创建。如果要在 3.4.0.0 之后的版本中继续使用由 3.4.0.0 之前版本创建的审计库，则需要将 auditUseToken 关闭（设置为 0）。
 
+在 3.4.1.0 之后的版本可以将审计信息保存在自身，而不发送给 taoskeeper，若要使用该功能，需要将参数 auditSaveInSelf 设置为 1，并且在使用该功能时，创建的审计库的 vgroups 的数量只能为 1。
+
 ### taosKeeper 配置
 
 在 taosKeeper 的配置文件 keeper.toml 中配置与审计日志有关的配置参数，如下表所示

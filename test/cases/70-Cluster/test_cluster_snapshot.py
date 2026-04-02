@@ -78,11 +78,16 @@ class TestSnapshot:
         self.trimDb()
         self.checkAggCorrect()
 
+        # after trimDb, one of replica is delayed, this replica can't be forcibly leader, 
+        # balance vgroup leader will randomly choose this replica
+        # so need wait a while
+        time.sleep(10)
+
         # balance vgroups
         self.balanceVGroupLeader()
         
-        if self.waitCompactsZero() is False:
-            tdLog.exit(f"compact not finished")
+        if self.waitCompactsRetentionsZero() is False:
+            tdLog.exit(f"compact or retentions not finished")
             return False
 
         # replica to 1

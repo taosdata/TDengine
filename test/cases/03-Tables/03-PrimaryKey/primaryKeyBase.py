@@ -409,21 +409,36 @@ class PrimaryKeyBase:
     def alter_cachemodel(self,database):
         tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
         i = random.randint(0,5)
-        cachesize = random.randint(1,100)
+        cachesize = 8
+        def _apply_cachemodel_with_fallback(cachemodel, init_size):
+            # Some CI dnodes run with tight memory limits; reduce cachesize progressively on OOM.
+            retry_sizes = []
+            for size in [init_size, 32, 16, 8, 4, 2, 1]:
+                if size <= init_size and size not in retry_sizes:
+                    retry_sizes.append(size)
+            for size in retry_sizes:
+                sql = "alter database %s cachemodel '%s' cachesize %d;" % (database, cachemodel, size)
+                try:
+                    tdSql.query(sql, queryTimes=1)
+                    return
+                except Exception as e:
+                    if "No enough memory in dnode" in str(e):
+                        tdLog.notice("cachemodel %s with cachesize %d failed due to memory limit, retrying with smaller cachesize" % (cachemodel, size))
+                        continue
+                    raise
+            tdLog.exit("alter database %s cachemodel '%s' failed: No enough memory in dnode even with cachesize 1" % (database, cachemodel))
+
         if i ==0:
             tdLog.info("======this case test cachemodel none =========") 
         elif i ==1:
             tdLog.info("======this case test cachemodel last_row =========")
-            sql = "alter database %s cachemodel 'last_row' cachesize %d;"  %(database,cachesize)
-            tdSql.query(sql,queryTimes=1)  
+            _apply_cachemodel_with_fallback("last_row", cachesize)
         elif i ==2:
             tdLog.info("======this case test cachemodel last_value =========")
-            sql = "alter database %s cachemodel 'last_value' cachesize %d;"  %(database,cachesize)
-            tdSql.query(sql,queryTimes=1)
+            _apply_cachemodel_with_fallback("last_value", cachesize)
         else:
             tdLog.info("======this case test cachemodel both =========")
-            sql = "alter database %s cachemodel 'both' cachesize %d;"  %(database,cachesize)
-            tdSql.query(sql,queryTimes=1)
+            _apply_cachemodel_with_fallback("both", cachesize)
 
     def count_pk(self,db,num=1):
         stable_list = ['stable_1','stable_2','stable_3','stable_4','stable_5','stable_6']

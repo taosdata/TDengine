@@ -122,11 +122,10 @@ int32_t getDataBlock(qTaskInfo_t task, const STqHandle* pHandle, int32_t vgId, S
   int32_t code = qExecTask(task, res, &ts);
   if (code != TSDB_CODE_SUCCESS) {
     tqError("consumer:0x%" PRIx64 " vgId:%d, task exec error since %s", pHandle->consumerId, vgId, tstrerror(code));
-    return code;
   }
 
   tqDebug("consumer:0x%" PRIx64 " vgId:%d tmq one task end executed, pDataBlock:%p", pHandle->consumerId, vgId, *res);
-  return 0;
+  return code;
 }
 
 static int32_t tqProcessReplayRsp(STQ* pTq, STqHandle* pHandle, SMqDataRsp* pRsp, const SMqPollReq* pRequest, SSDataBlock* pDataBlock, qTaskInfo_t task){
@@ -204,9 +203,8 @@ int32_t tqScanData(STQ* pTq, STqHandle* pHandle, SMqDataRsp* pRsp, STqOffsetVal*
   code = qStreamPrepareScan(task, pOffset, pHandle->execHandle.subType);
   TSDB_CHECK_CODE(code, lino, END);
 
-  qStreamSetSourceExcluded(task, pRequest->sourceExcluded);
-  int64_t st = taosGetTimestampMs();
-  while (1) {
+  qStreamSetParams(task, pRequest->sourceExcluded, pRequest->minPollRows, pRequest->timeout, pRequest->enableReplay);
+  do {
     SSDataBlock* pDataBlock = NULL;
     code = getDataBlock(task, pHandle, vgId, &pDataBlock);
     TSDB_CHECK_CODE(code, lino, END);
@@ -224,10 +222,7 @@ int32_t tqScanData(STQ* pTq, STqHandle* pHandle, SMqDataRsp* pRsp, STqOffsetVal*
 
     pRsp->blockNum++;
     totalRows += pDataBlock->info.rows;
-    if (totalRows >= pRequest->minPollRows || (taosGetTimestampMs() - st > pRequest->timeout)) {
-      break;
-    }
-  }
+  } while(0);
 
   tqDebug("consumer:0x%" PRIx64 " vgId:%d tmq task executed finished, total blocks:%d, totalRows:%d", pHandle->consumerId, vgId, pRsp->blockNum, totalRows);
   code = qStreamExtractOffset(task, &pRsp->rspOffset);
@@ -247,6 +242,8 @@ int32_t tqScanTaosx(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, SMqBat
   qTaskInfo_t          task = pExec->task;
   code = qStreamPrepareScan(task, pOffset, pHandle->execHandle.subType);
   TSDB_CHECK_CODE(code, lino, END);
+
+  qStreamSetParams(task, pRequest->sourceExcluded, pRequest->minPollRows, pRequest->timeout, false);
 
   int32_t rowCnt = 0;
   int64_t st = taosGetTimestampMs();
@@ -419,7 +416,7 @@ static void preProcessSubmitMsg(STqHandle* pHandle, const SMqPollReq* pRequest, 
     if (cTime != NULL){
       createTime = *cTime;
     } else{
-      createTime = metaGetTableCreateTime(pReader->pVnodeMeta, uid, 1);
+      createTime = metaGetTableCreateTime(pReader->pVnode->pMeta, uid, 1);
       if (createTime != INT64_MAX){
         int32_t code = taosHashPut(pHandle->tableCreateTimeHash, &uid, LONG_BYTES, &createTime, LONG_BYTES);
         if (code != 0){

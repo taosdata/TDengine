@@ -4,7 +4,7 @@ MESSAGE(STATUS "build parser unit test")
 # GoogleTest requires at least C++11
 SET(CMAKE_CXX_STANDARD 11)
 
-if(${TD_LINUX})
+if(TD_LINUX)
     add_executable(commonTest "commonTests.cpp")
     DEP_ext_gtest(commonTest)
     target_link_libraries(commonTest PRIVATE os util common)
@@ -31,6 +31,20 @@ target_include_directories(
 add_test(
     NAME dataformatTest
     COMMAND dataformatTest
+)
+
+# ttimeNaturalUnitsTest.cpp
+add_executable(ttimeNaturalUnitsTest "ttimeNaturalUnitsTest.cpp")
+DEP_ext_gtest(ttimeNaturalUnitsTest)
+target_link_libraries(ttimeNaturalUnitsTest PRIVATE common)
+target_include_directories(
+    ttimeNaturalUnitsTest
+    PUBLIC "${TD_SOURCE_DIR}/include/common"
+    PUBLIC "${TD_SOURCE_DIR}/include/util"
+)
+add_test(
+    NAME ttimeNaturalUnitsTest
+    COMMAND ttimeNaturalUnitsTest
 )
 
 # # cosCpTest.cpp
@@ -63,7 +77,7 @@ add_test(
     # )
 # endif()
 
-if(${TD_LINUX})
+if(TD_LINUX)
     # tmsg test
     add_executable(tmsgTest "")
     DEP_ext_gtest(tmsgTest)

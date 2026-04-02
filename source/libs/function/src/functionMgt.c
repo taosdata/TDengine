@@ -18,6 +18,8 @@
 #include "builtins.h"
 #include "builtinsimpl.h"
 #include "functionMgtInt.h"
+#include "nodes.h"
+#include "querynodes.h"
 #include "taos.h"
 #include "taoserror.h"
 #include "thash.h"
@@ -30,6 +32,14 @@ typedef struct SFuncMgtService {
 static SFuncMgtService gFunMgtService;
 static TdThreadOnce    functionHashTableInit = PTHREAD_ONCE_INIT;
 static int32_t         initFunctionCode = 0;
+
+static void InitSpecialFuncId() {
+  // just to make sure the funcId of these functions are initialized before used.
+  (void)fmGetTwstartFuncId();
+  (void)fmGetTwendFuncId();
+  (void)fmGetTwdurationFuncId();
+  (void)fmGetExternalWindowColumnFuncId();
+}
 
 static void doInitFunctionTable() {
   gFunMgtService.pFuncNameHashTable =
@@ -46,6 +56,7 @@ static void doInitFunctionTable() {
       return;
     }
   }
+  InitSpecialFuncId();
 }
 
 static bool isSpecificClassifyFunc(int32_t funcId, uint64_t classification) {
@@ -93,6 +104,21 @@ EFuncReturnRows fmGetFuncReturnRows(SFunctionNode* pFunc) {
                                                                                      : FUNC_RETURN_ROWS_NORMAL;
 }
 
+bool canCoexistIndefiniteRowsFunc(int32_t funcId1, int32_t funcId2) {
+  if (fmIsUserDefinedFunc(funcId1) || funcId1 < 0 || funcId1 >= funcMgtBuiltinsNum ||
+      fmIsUserDefinedFunc(funcId2) || funcId2 < 0 || funcId2 >= funcMgtBuiltinsNum) {
+    return false;
+  }
+  if (funcId1 == funcId2) {
+    return true;
+  }
+  if ((funcMgtBuiltins[funcId1].type == FUNCTION_TYPE_LAG || funcMgtBuiltins[funcId1].type == FUNCTION_TYPE_LEAD) &&
+      (funcMgtBuiltins[funcId2].type == FUNCTION_TYPE_LAG || funcMgtBuiltins[funcId2].type == FUNCTION_TYPE_LEAD)) {
+    return true;
+  }
+  return false;
+}
+
 bool fmIsBuiltinFunc(const char* pFunc) {
   return NULL != taosHashGet(gFunMgtService.pFuncNameHashTable, pFunc, strlen(pFunc));
 }
@@ -106,7 +132,7 @@ EFunctionType fmGetFuncType(const char* pFunc) {
 }
 
 EFunctionType fmGetFuncTypeFromId(int32_t funcId) {
-  if (funcId < funcMgtBuiltinsNum) {
+  if (funcId >= 0 && funcId < funcMgtBuiltinsNum) {
     return funcMgtBuiltins[funcId].type;
   }
   return FUNCTION_TYPE_UDF;
@@ -232,7 +258,24 @@ bool fmIsClientPseudoColumnFunc(int32_t funcId) { return isSpecificClassifyFunc(
 
 bool fmIsMultiRowsFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_MULTI_ROWS_FUNC); }
 
-bool fmIsKeepOrderFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_KEEP_ORDER_FUNC); }
+static bool fmIsKeepOrderFuncId(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_KEEP_ORDER_FUNC); }
+
+bool fmIsKeepOrderFunc(SFunctionNode* pFunc) {
+  if (pFunc->funcType == FUNCTION_TYPE_TOP || pFunc->funcType == FUNCTION_TYPE_BOTTOM ||
+      pFunc->funcType == FUNCTION_TYPE_SAMPLE) {
+    if (pFunc->pParameterList != NULL && pFunc->pParameterList->length >= 2) {
+      SNode* pParam = nodesListGetNode(pFunc->pParameterList, 1);
+      if (pParam != NULL && nodeType(pParam) == QUERY_NODE_VALUE) {
+        SValueNode* pConst = (SValueNode*)pParam;
+        if (pConst->datum.i == 1) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+  return fmIsKeepOrderFuncId(pFunc->funcId);
+}
 
 bool fmIsCumulativeFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_CUMULATIVE_FUNC); }
 
@@ -309,6 +352,13 @@ bool fmIsGroupKeyFunc(int32_t funcId) {
     return false;
   }
   return FUNCTION_TYPE_GROUP_KEY == funcMgtBuiltins[funcId].type;
+}
+
+bool fmIsHasNullFunc(int32_t funcId) {
+  if (funcId < 0 || funcId >= funcMgtBuiltinsNum) {
+    return false;
+  }
+  return FUNCTION_TYPE_HAS_NULL == funcMgtBuiltins[funcId].type;
 }
 
 bool fmisSelectGroupConstValueFunc(int32_t funcId) {
@@ -396,6 +446,14 @@ bool fmIsSkipScanCheckFunc(int32_t funcId) { return isSpecificClassifyFunc(funcI
 bool fmIsPrimaryKeyFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_PRIMARY_KEY_FUNC); }
 
 bool fmIsPlaceHolderFunc(int32_t funcId) {return isSpecificClassifyFunc(funcId, FUNC_MGT_PLACE_HOLDER_FUNC); }
+
+bool fmIsPlaceHolderFuncForExternalWin(int32_t funcId) {
+  if (funcId < 0 || funcId >= funcMgtBuiltinsNum) {
+    return false;
+  }
+  return (funcMgtBuiltins[funcId].type == FUNCTION_TYPE_WSTART || funcMgtBuiltins[funcId].type == FUNCTION_TYPE_WEND ||
+          funcMgtBuiltins[funcId].type == FUNCTION_TYPE_WDURATION);
+}
 
 void getLastCacheDataType(SDataType* pType, int32_t pkBytes) {
   // TODO: do it later.
@@ -701,6 +759,38 @@ int32_t fmGetFuncId(const char* name) {
   return -1;
 }
 
+int32_t fmGetTwstartFuncId() {
+  static int32_t twstartFuncId = -2;
+  if (twstartFuncId < 0) {
+    twstartFuncId = fmGetFuncId("_twstart");
+  }
+  return twstartFuncId;
+}
+
+int32_t fmGetTwendFuncId() {
+  static int32_t twendFuncId = -2;
+  if (twendFuncId < 0) {
+    twendFuncId = fmGetFuncId("_twend");
+  }
+  return twendFuncId;
+}
+
+int32_t fmGetTwdurationFuncId() {
+  static int32_t twdurationFuncId = -2;
+  if (twdurationFuncId < 0) {
+    twdurationFuncId = fmGetFuncId("_twduration");
+  }
+  return twdurationFuncId;
+}
+
+int32_t fmGetExternalWindowColumnFuncId() {
+  static int32_t externalWindowColumnFuncId = -2;
+  if (externalWindowColumnFuncId < 0) {
+    externalWindowColumnFuncId = fmGetFuncId("_external_window_column");
+  }
+  return externalWindowColumnFuncId;
+}
+
 bool fmIsMyStateFunc(int32_t funcId, int32_t stateFuncId) {
   const SBuiltinFuncDefinition* pFunc = &funcMgtBuiltins[funcId];
   const SBuiltinFuncDefinition* pStateFunc = &funcMgtBuiltins[stateFuncId];
@@ -734,7 +824,26 @@ bool fmIsGroupIdFunc(int32_t funcId) {
   return FUNCTION_TYPE_GROUP_ID == funcMgtBuiltins[funcId].type;
 }
 
+const void* fmGetExternalWindowColumnFuncVal(const SStreamRuntimeFuncInfo* pStreamRuntimeFuncInfo, int32_t index) {
+  SSTriggerCalcParam *pParams = taosArrayGet(pStreamRuntimeFuncInfo->pStreamPesudoFuncVals, pStreamRuntimeFuncInfo->curIdx);
+  if (pParams == NULL || pParams->pExternalWindowData == NULL || index < 0) {
+    return NULL;
+  }
+  return taosArrayGet(pParams->pExternalWindowData, index);
+}
+
 const void* fmGetStreamPesudoFuncVal(int32_t funcId, const SStreamRuntimeFuncInfo* pStreamRuntimeFuncInfo) {
+  switch (funcMgtBuiltins[funcId].type) {
+    case FUNCTION_TYPE_TGRPID:
+      return &pStreamRuntimeFuncInfo->groupId;
+    case FUNCTION_TYPE_PLACEHOLDER_COLUMN:
+      return pStreamRuntimeFuncInfo->pStreamPartColVals;
+    case FUNCTION_TYPE_PLACEHOLDER_TBNAME:
+      return pStreamRuntimeFuncInfo->pStreamPartColVals;
+    default:
+      break;
+  }
+
   SSTriggerCalcParam *pParams = taosArrayGet(pStreamRuntimeFuncInfo->pStreamPesudoFuncVals, pStreamRuntimeFuncInfo->curIdx);
   switch (funcMgtBuiltins[funcId].type) {
     case FUNCTION_TYPE_TPREV_TS:
@@ -763,6 +872,10 @@ const void* fmGetStreamPesudoFuncVal(int32_t funcId, const SStreamRuntimeFuncInf
       return pStreamRuntimeFuncInfo->pStreamPartColVals;
     case FUNCTION_TYPE_PLACEHOLDER_TBNAME:
       return pStreamRuntimeFuncInfo->pStreamPartColVals;
+    case FUNCTION_TYPE_TIDLESTART:
+      return &pParams->idlestart;
+    case FUNCTION_TYPE_TIDLEEND:
+      return &pParams->idleend;
     default:
       break;
   }
@@ -870,6 +983,48 @@ int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, co
         break;
       }
     }
+  } else if(FUNCTION_TYPE_EXTERNAL_WINDOW_COLUMN == t) {
+    if (NULL == pParamNodes || LIST_LENGTH(pParamNodes) < 2) {
+      uError("invalid stream external window column param list %p, len: %d", pParamNodes,
+             pParamNodes ? LIST_LENGTH(pParamNodes) : 0);
+      return TSDB_CODE_INTERNAL_ERROR;
+    }
+
+    SNode* pParamNode = nodesListGetNode(pParamNodes, 1);
+    if (NULL == pParamNode || QUERY_NODE_VALUE != nodeType(pParamNode)) {
+      uError("invalid stream external window column param node %p type %d for func: %d", pParamNode,
+             pParamNode ? nodeType(pParamNode) : -1, funcId);
+      return TSDB_CODE_INTERNAL_ERROR;
+    }
+
+    const SStreamGroupValue* pVal =
+        fmGetExternalWindowColumnFuncVal(pStreamRuntimeInfo, ((SValueNode*)pParamNode)->placeholderNo);
+    if (!pVal) {
+      uError("failed to set stream pseudo func param val, NULL val for funcId: %d", funcId);
+      return TSDB_CODE_INTERNAL_ERROR;
+    }
+    if (pVal->isNull) {
+      ((SValueNode*)pFirstParam)->isNull = true;
+    } else {
+      ((SValueNode*)pFirstParam)->isNull = false;
+      if (IS_VAR_DATA_TYPE(pVal->data.type)) {
+        // pVal->data.pData already includes the VARSTR header from colDataGetData,
+        // so copy it directly as datum.p expects VARSTR format [header][raw data].
+        char* tmp = taosMemoryMalloc(pVal->data.nData);
+        if (tmp == NULL) {
+          return TSDB_CODE_OUT_OF_MEMORY;
+        }
+        taosMemoryFree(((SValueNode*)pFirstParam)->datum.p);
+        ((SValueNode*)pFirstParam)->datum.p = tmp;
+        memcpy(tmp, pVal->data.pData, pVal->data.nData);
+      } else {
+        code = nodesSetValueNodeValue((SValueNode*)pFirstParam, (void*)&pVal->data.val);
+      }
+    }
+    if (code != 0) {
+      uError("failed to set value node value: %s", tstrerror(code));
+      return code;
+    }
   } else if (LIST_LENGTH(pParamNodes) == 1) {
     // twstart, twend
     const void* pVal = fmGetStreamPesudoFuncVal(funcId, pStreamRuntimeInfo);
@@ -889,6 +1044,4 @@ int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, co
   
   return code;
 }
-
-
 

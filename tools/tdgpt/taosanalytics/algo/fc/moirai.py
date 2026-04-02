@@ -6,9 +6,3 @@ from taosanalytics.algo.tsfm import TsfmBaseService
 class _MoiraiService(TsfmBaseService):
     name = 'moirai'
     desc = "Time-Series Foundation Model by SalesForce Inc."
-
-    def __init__(self):
-        super().__init__()
-
-        if  self.service_host is None:
-            self.service_host = 'http://127.0.0.1:6039/ds_predict'

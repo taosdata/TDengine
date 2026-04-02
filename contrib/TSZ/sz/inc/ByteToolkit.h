@@ -15,12 +15,13 @@ extern "C" {
 #endif
 
 #include <stdio.h>
+#include <stdint.h>
 
-int bytesToInt_bigEndian(unsigned char* bytes);
-void intToBytes_bigEndian(unsigned char *b, unsigned int num);
+int bytesToInt32_bigEndian(unsigned char* bytes);
+void int32ToBytes_bigEndian(unsigned char *b, unsigned int num);
 
-long bytesToLong_bigEndian(unsigned char* b);
-void longToBytes_bigEndian(unsigned char *b, long num);
+uint64_t bytesToInt64_bigEndian(unsigned char* b);
+void int64ToBytes_bigEndian(unsigned char *b, uint64_t num);
 
 short getExponent_float(float value);
 short getPrecisionReqLength_float(float precision);
