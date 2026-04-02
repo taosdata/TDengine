@@ -1,0 +1,70 @@
+[
+  {
+    conn: {dsn: "TAOS_ODBC_DSN"},
+    sqls: [
+      "create database if not exists foo",
+      "use foo",
+      "drop table if exists st",
+      "create table st (ts timestamp, age double) tags (name varchar(20))",
+      {
+        sql:"insert into ? using st tags (?) values (?, ?)",
+        executes: [
+          {
+            params: [
+              ["suzhou", "suzhou", {timestamp:1662961548.650}, 20]
+            ]
+          }
+        ]
+      },{
+        sql:"select * from st",
+        rs: [["2022-09-12 13:45:48.650",20,"suzhou"]]
+      },
+      "drop table if exists st",
+      "create table st (ts timestamp, age double) tags (name varchar(20))",
+      {
+        sql:"insert into ? using st tags (?) values (?, ?)",
+        executes: [
+          {
+            params: [
+              ["suzhou", "suzhou", {timestamp:1662961548.650}, 20],
+              ["suzhou", "suzhou", {timestamp:1662961548.651}, 21],
+              ["suzhou", "suzhou", {timestamp:1662961548.652}, 22],
+              ["shanghai", "shanghai", {timestamp:1662961548.750}, 23],
+              ["shanghai", "shanghai", {timestamp:1662961548.751}, 24],
+              ["shanghai", "shanghai", {timestamp:1662961548.752}, 25],
+              ["suzhou", "suzhou", {timestamp:1662961548.850}, 26],
+              ["shanghai", "shanghai", {timestamp:1662961548.950}, 27],
+            ]
+          }
+        ]
+      },{
+        sql:"select * from st",
+        rs: [
+          ["2022-09-12 13:45:48.650",20,"suzhou"],
+          ["2022-09-12 13:45:48.651",21,"suzhou"],
+          ["2022-09-12 13:45:48.652",22,"suzhou"],
+          ["2022-09-12 13:45:48.850",26,"suzhou"],
+          ["2022-09-12 13:45:48.750",23,"shanghai"],
+          ["2022-09-12 13:45:48.751",24,"shanghai"],
+          ["2022-09-12 13:45:48.752",25,"shanghai"],
+          ["2022-09-12 13:45:48.950",27,"shanghai"]
+        ]
+      },{
+        sql: "select * from (select db_name as TABLE_CAT, '' as TABLE_SCHEM, stable_name as TABLE_NAME, 'STABLE' as TABLE_TYPE, table_comment as REMARKS from information_schema.ins_stables union select db_name as TABLE_CAT, '' as TABLE_SCHEM, table_name as TABLE_NAME, 'TABLE' as TABLE_TYPE, table_comment as REMARKS from information_schema.ins_tables)"
+      },{
+        sql: "select * from (select db_name as TABLE_CAT, '' as TABLE_SCHEM, stable_name as TABLE_NAME, 'STABLE' as TABLE_TYPE, table_comment as REMARKS from information_schema.ins_stables union select db_name as TABLE_CAT, '' as TABLE_SCHEM, table_name as TABLE_NAME, 'TABLE' as TABLE_TYPE, table_comment as REMARKS from information_schema.ins_tables) where table_type Like '%'"
+      },{
+        comments:"taosc reading mem at address 0x0",
+        sqlx: "select * from (select db_name as TABLE_CAT, '' as TABLE_SCHEM, stable_name as TABLE_NAME, 'STABLE' as TABLE_TYPE, table_comment as REMARKS from information_schema.ins_stables union select db_name as TABLE_CAT, '' as TABLE_SCHEM, table_name as TABLE_NAME, 'TABLE' as TABLE_TYPE, table_comment as REMARKS from information_schema.ins_tables) where table_type Like ?",
+        executes: [
+          {
+            params: [
+              ["STABLE"]
+            ]
+          }
+        ]
+      }
+    ]
+  }
+]
+

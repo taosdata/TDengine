@@ -1,0 +1,27 @@
+[
+  {
+    "conn": {}
+  },{
+    "conn": { "ip": "$HOST_FOR_TEST" }
+  },{
+    "conn": { "ip": "foo.bar" },
+    "positive": false
+  },{
+    "conn": { "uid": "root" }
+  },{
+    "conn": { "uid": "xroot" },
+    "positive": false
+  },{
+    "conn": { "pwd": "taosdata" }
+  },{
+    "conn": { "pwd": "xtaosdata" },
+    "positive": false
+  },{
+    "conn": { "port": 6030 }
+  },{
+    "conn": { "port": 5030 },
+    "positive": false
+  },{
+  }
+]
+

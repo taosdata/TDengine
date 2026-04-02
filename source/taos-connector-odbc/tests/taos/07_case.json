@@ -1,0 +1,120 @@
+[
+  {
+    "conn": {},
+    "sqls": [
+      "show databases",
+      "drop database if exists foo",
+      "create database foo",
+      "use foo",
+      "create table st (ts timestamp, age int) tags (tss timestamp, tage int)",
+      {
+        "sql": "insert into shanghai using st tags (1665226861289, 100) values (1665226861289, 200)"
+      },{
+        "sql": "insert into ? using st tags (?,?) values (?, ?)",
+        "executes": [
+          {
+            "params": ["suzhou", {"timestamp":1665226961289}, {"int":30}, {"timestamp":1665226961289}, {"int":40}]
+          }
+        ]
+      }
+    ]
+  },{
+    "conn": {},
+    "sqls": [
+      "drop database if exists foo",
+      "create database foo",
+      "use foo",
+      "create table st (ts timestamp, age int) tags (name varchar(20))",
+      {
+        "sql": "insert into shanghai using st tags ('shanghai') values (1665226861289, 200)"
+      },{
+        "sql": "insert into ? using st tags (?) values (?, ?)",
+        "executes": [
+          {
+            "params": ["suzhou", "suzhou", {"timestamp":1665226961289}, {"int":40}]
+          }
+        ]
+      }
+    ]
+  },{
+    "conn": {},
+    "sqls": [
+      "drop database if exists foo",
+      "create database foo",
+      "use foo",
+      "create table st (ts timestamp, age int) tags (name varchar(20))",
+      {
+        "sql": "insert into shanghai using st tags ('shanghai') values (1665226861289, 200)"
+      },{
+        "sql": "insert into ? using st tags (?) values (?, ?)",
+        "executes": [
+          {
+            "params": ["suzhou", "suzhou", {"timestamp":1665226961289}, {"int":40}]
+          },{
+            "params": ["suzhou", "suzhou", {"timestamp":1665226971289}, {"int":50}]
+          }
+        ]
+      }
+    ]
+  },{
+    "conn": {},
+    "sqls": [
+      "drop database if exists foo",
+      "create database foo",
+      "use foo",
+      "create table st (ts timestamp, age int) tags (name varchar(20))",
+      {
+        "sql": "insert into shanghai using st tags ('shanghai') values (1665226861289, 200)"
+      },{
+        "sql": "insert into suzhou using st tags ('suzhou') values (?, ?)",
+        "executes": [
+          {
+            "params": [{"timestamp":1665226971289}, {"int":490}]
+          }
+        ]
+      }
+    ]
+  },{
+    "conn": {},
+    "sqls": [
+      "drop database if exists foo",
+      "create database foo",
+      "use foo",
+      "create table st (ts timestamp, age int) tags (name varchar(20))",
+      "insert into shanghai using st tags ('shanghai') values (1665226861289, 200)",
+      "insert into shanghai using st tags ('shanghai') values (1665226871290, 300)"
+    ]
+  },{
+    "conn": {},
+    "sqls": [
+      "drop database if exists foo",
+      "create database foo",
+      "use foo",
+      "create table st (ts timestamp, age int) tags (name varchar(20))",
+      "insert into shanghai using st tags ('shanghai') values (1665226861289, 200)",
+      "insert into shanghai using st tags ('suzhou') values (1665226871290, 300)"
+    ]
+  },{
+    "conn": {},
+    "sqls": [
+      "drop database if exists foo",
+      "create database foo",
+      "use foo",
+      "create table st (ts timestamp, age int) tags (name varchar(20))",
+      {
+        "sql": "insert into suzhou using st tags ('suzhou') values (1665226861289, 200)"
+      },{
+        "sql": "insert into suzhou values (?, ?)",
+        "executes": [
+          {
+            "params": [{"timestamp":1665226971289}, {"int":40}]
+          }
+        ]
+      },{
+        "sql": "select count(*) from suzhou",
+        "rs": [[2]]
+      }
+    ]
+  }
+]
+

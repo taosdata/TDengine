@@ -1,0 +1,25 @@
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:calloc
+   obj:*
+   obj:*
+   fun:drvgpps
+   fun:drvdriverconnect.constprop.0
+   fun:SQLDriverConnect
+   fun:call_SQLDriverConnect
+}
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Leak
+   match-leak-kinds: indirect
+   fun:malloc
+   fun:strdup
+   obj:*
+   obj:*
+   fun:drvgpps
+   fun:drvdriverconnect.constprop.0
+   fun:SQLDriverConnect
+}
+

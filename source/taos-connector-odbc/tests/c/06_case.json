@@ -1,0 +1,115 @@
+[
+  {
+    conn: {dsn: "TAOS_ODBC_DSN"},
+    sqls: [
+      "drop database if exists foo",
+      "create database if not exists foo",
+      "create table foo.t (ts timestamp, name varchar(20), age int, mark nchar(20))",
+      "insert into foo.t (ts, name, age, mark) values (1662961548651, 'hello', 651, 'world')",
+      {
+        comments:"non-parameterized-statement with param_bound is ambiguous, thus not supported yet",
+        sql:"select age from foo.t",
+        executes: [
+          {
+            params: [
+              [651]
+            ],
+            positive: false
+          }
+        ]
+      },{
+        sql:"select age from foo.t where age = ?",
+        executes: [
+          {
+            params: [
+              [651]
+            ],
+            rs:[[651]]
+          }
+        ]
+      },{
+        comments:"excessive params are ignored",
+        sql:"select age from foo.t where age = ?",
+        executes: [
+          {
+            params: [
+              [651, 345]
+            ],
+            rs:[[651]]
+          }
+        ]
+      },{
+        comments:"taosc currently does not support batch execution for non-insert-statement",
+        sql:"select age from foo.t where age = ?",
+        executes: [
+          {
+            params: [
+              [651],
+              [651]
+            ],
+            positive:false
+          }
+        ]
+      }
+    ]
+  },{
+    conn: {dsn: "TAOS_ODBC_DSN"},
+    sqls: [
+      "drop database if exists foo",
+      "create database if not exists foo",
+      "create table foo.t (ts timestamp, name varchar(20), age int, mark nchar(20))",
+      {
+        comments:"non-parameterized-statement with param_bound is ambiguous, thus not supported yet",
+        sql:"insert into foo.t (ts, name, age, mark) values (now(), 'hello', 651, 'world')",
+        executes: [
+          {
+            params: [
+              [{timestamp:1662961548.652}, 'hello', 652, 'world']
+            ],
+            positive:false
+          }
+        ]
+      },{
+        sql:"insert into foo.t (ts, name, mark) values (?, ?, ?)",
+        executes: [
+          {
+            params: [
+              [{timestamp:1662961548.652}, 'hello', 'world']
+            ]
+          }
+        ]
+      },{
+        comments:"excessive params are ignored",
+        sql:"insert into foo.t (ts, name) values (?, ?)",
+        executes: [
+          {
+            params: [
+              [{timestamp:1662961548.653}, 'hello', 'world'],
+              [{timestamp:1662961548.654}, 'hello', 'world']
+            ]
+          }
+        ]
+      }
+    ]
+  },{
+    conn: {dsn: "TAOS_ODBC_DSN"},
+    sqls: [
+      "drop database if exists foo",
+      "create database if not exists foo",
+      "create table foo.t (ts timestamp, name varchar(20), age int, mark nchar(20))",
+      {
+        comments:"parameterized-statement in batch-statements not supported yet",
+        sql:"insert into foo.t (ts, name, age, mark) values (now(), 'hello', 651, 'world'); select * from foo.t where age = ?",
+        executes: [
+          {
+            params: [
+              [652]
+            ],
+            positive:false
+          }
+        ]
+      }
+    ]
+  }
+]
+

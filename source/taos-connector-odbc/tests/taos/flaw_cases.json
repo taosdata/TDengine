@@ -1,0 +1,299 @@
+[
+  {
+    "comments": "[-2147473918/0x80002602]Invalid column name",
+    "conn": {"dsn": "TAOS_ODBC_DSN"},
+    "sqls": [
+      "drop database if exists foo",
+      "create database if not exists foo",
+      "drop table if exists foo.t",
+      "create table foo.t(ts timestamp,name varchar(20))",
+      {
+        "sql": "select table_name, db_name from (select table_name, db_name from information_schema.ins_tables) t where t.db_name like ?",
+        "executes": [
+          {
+            "params": [
+              ["foo"]
+            ],
+            "rs": [[["t","foo"]]],
+            "positive": true
+          }
+        ]
+      }
+    ]
+  },{
+    "comments": "insert into ? values (?, ?)",
+    "comments": "different subtables using the different supertables, but the same structure",
+    "comments": "better not use this",
+    "comments": "implementation NOTE: once tblname is changed, set-tbname/get-tags-field/get-cols-field all have to be called again to refresh internal data structure",
+    "conn": {},
+    "sqls": [
+      "drop database if exists foo",
+      "create database foo",
+      "use foo",
+      "create table st1 (ts timestamp, age int) tags (name varchar(20))",
+      "create table st2 (ts timestamp, age int) tags (name varchar(20))",
+      {
+        "sql": "insert into suzhou using st1 tags ('suzhou') values (1665226861289, 200)"
+      },{
+        "sql": "insert into shanghai using st2 tags ('shanghai') values (1665226861299, 100)"
+      },{
+        "sql": "insert into ? values (?, ?)",
+        "executes": [
+          {
+            "params": ["shanghai", {"timestamp":1665226971292}, {"int":160}]
+          },{
+            "params": ["suzhou", {"timestamp":1665226961290}, {"int":340}]
+          }
+        ]
+      },{
+        "sql": "select count(*) from suzhou",
+        "rs": [[2]]
+      },{
+        "sql": "select ts, age, name from suzhou",
+        "rs": [[1665226861289,200,"suzhou"],[1665226961290,340,"suzhou"]]
+      },{
+        "sql": "select count(*) from shanghai",
+        "rs": [[2]]
+      },{
+        "sql": "select ts, age, name from shanghai",
+        "rs": [[1665226861299,100,"shanghai"],[1665226971292,160,"shanghai"]]
+      }
+    ]
+  },{
+    "comments": "insert into ? values (?, ?)",
+    "comments": "different subtables using the different supertables, with different structures as well",
+    "comments": "better not use this",
+    "comments": "implementation NOTE: once tblname is changed, set-tbname/get-tags-field/get-cols-field all have to be called again to refresh internal data structure",
+    "conn": {},
+    "sqls": [
+      "drop database if exists foo",
+      "create database foo",
+      "use foo",
+      "create table st1 (ts timestamp, age int) tags (name varchar(20))",
+      "create table st2 (ts timestamp, name varchar(20)) tags (age int)",
+      {
+        "sql": "insert into suzhou using st1 tags ('suzhou') values (1665226861289, 200)"
+      },{
+        "sql": "insert into shanghai using st2 tags (123) values (1665226861299, 'v100')"
+      },{
+        "sql": "insert into ? values (?, ?)",
+        "executes": [
+          {
+            "params": ["shanghai", {"timestamp":1665226971292}, "v200"]
+          },{
+            "params": ["suzhou", {"timestamp":1665226961290}, {"int":789}]
+          }
+        ]
+      },{
+        "sql": "select count(*) from suzhou",
+        "rs": [[2]]
+      },{
+        "sql": "select ts, age, name from suzhou",
+        "rs": [[1665226861289,200,"suzhou"],[1665226961290,789,"suzhou"]]
+      },{
+        "sql": "select count(*) from shanghai",
+        "rs": [[2]]
+      },{
+        "sql": "select ts, name, age from shanghai",
+        "rs": [[1665226861299,"v100",123],[1665226971292,"v200",123]]
+      }
+    ]
+  },{
+    "comments": "insert into ? values (?, ?)",
+    "comments": "different subtables using the same supertable",
+    "comments": "better not use this",
+    "comments": "implementation NOTE: once tblname is changed, set-tbname/get-tags-field/get-cols-field all have to be called again to refresh internal data structure",
+    "conn": {},
+    "sqls": [
+      "drop database if exists foo",
+      "create database foo",
+      "use foo",
+      "create table st (ts timestamp, age int) tags (name varchar(20))",
+      {
+        "sql": "insert into suzhou using st tags ('suzhou') values (1665226861289, 200)"
+      },{
+        "sql": "insert into shanghai using st tags ('shanghai') values (1665226861299, 100)"
+      },{
+        "sql": "insert into ? values (?, ?)",
+        "executes": [
+          {
+            "params": ["shanghai", {"timestamp":1665226971292}, {"int":160}]
+          },{
+            "params": ["suzhou", {"timestamp":1665226961290}, {"int":240}]
+          }
+        ]
+      },{
+        "sql": "select count(*) from suzhou",
+        "rs": [[2]]
+      },{
+        "sql": "select count(*) from shanghai",
+        "rs": [[2]]
+      }
+    ]
+  },{
+    "comments": "insert into ? values (?, ?)",
+    "comments": "in case when it's for normal table, have to ignore failure of `taos_stmt_get_tag_fields`",
+    "comments": "better not use this",
+    "comments": "and will result in memleakage",
+    "git-commit":"d3b61c5261962d188914f7d5f8c241fed9322284",
+    "conn": {},
+    "sqls": [
+      "drop database if exists foo",
+      "create database foo",
+      "use foo",
+      "create table shanghai (ts timestamp, age int)",
+      "create table suzhou (ts timestamp, age int)",
+      {
+        "sql": "insert into suzhou (ts, age) values (1665226861289, 200)"
+      },{
+        "sql": "insert into shanghai (ts, age) values (1665226861299, 100)"
+      },{
+        "sql": "insert into ? values (?, ?)",
+        "executes": [
+          {
+            "params": ["shanghai", {"timestamp":1665226971292}, {"int":160}]
+          },{
+            "params": ["suzhou", {"timestamp":1665226961290}, {"int":240}]
+          }
+        ]
+      },{
+        "sql": "select count(*) from suzhou",
+        "rs": [[2]]
+      },{
+        "sql": "select count(*) from shanghai",
+        "rs": [[2]]
+      }
+    ]
+  },{
+    "comments": "insert into ? using st tags (?) values (?, ?)",
+    "comments": "different subtables with using clause",
+    "comments": "better not use this",
+    "comments": "implementation NOTE: once tblname is changed, set-tbname/get-tags-field/get-cols-field all have to be called again to refresh internal data structure",
+    "conn": {},
+    "sqls": [
+      "drop database if exists foo",
+      "create database foo",
+      "use foo",
+      "create stable st (ts timestamp, age int) tags (name varchar(20))",
+      {
+        "sql": "insert into suzhou using st tags ('suzhou') values (1665226861289, 200)"
+      },{
+        "sql": "insert into shanghai using st tags ('shanghai') values (1665226861299, 100)"
+      },{
+        "sql": "insert into ? using st tags (?) values (?, ?)",
+        "executes": [
+          {
+            "comments": "this is new tag, new subtable will be created with tag-values and col-values",
+            "params": ["foo", "foo", {"timestamp":1665226961295}, {"int":295}]
+          },{
+            "comments": "cause `shanghai` subtable exists, tag value `foo` is left as it is in taosc-implementation",
+            "params": ["shanghai", "foo", {"timestamp":1665226971292}, {"int":160}]
+          },{
+            "comments": "cause `suzhou` subtable exists, tag value `bar` is left as it is in taosc-implementation",
+            "params": ["suzhou", "bar", {"timestamp":1665226961290}, {"int":340}]
+          },{
+            "comments": "this is new tag, although tag `foo` has already been used by subtbl `foo`, new subtable will be created with tag-values and col-values",
+            "params": ["beijin", "foo", {"timestamp":1665226961290}, {"int":340}]
+          }
+        ]
+      },{
+        "sql": "select count(*) from st where name = 'foo'",
+        "rs": [[2]]
+      },{
+        "sql": "select count(*) from beijin",
+        "rs": [[1]]
+      },{
+        "sql": "select count(*) from foo",
+        "rs": [[1]]
+      },{
+        "sql": "select count(*) from suzhou",
+        "rs": [[2]]
+      },{
+        "sql": "select count(*) from shanghai",
+        "rs": [[2]]
+      }
+    ]
+  },{
+    "comments": "insert into ? using st tags (?) values (1665226861289, 100)",
+    "comments": "subtbl-tags as placeholder",
+    "comments": "very much weird, although rarely in practice, taosc API seemly exposes no clue to let application know which part the placeholder belongs to",
+    "comments": "better not use this",
+    "git-commit":"d3b61c5261962d188914f7d5f8c241fed9322284",
+    "conn": {},
+    "sqls": [
+      "drop database if exists foo",
+      "create database foo",
+      "use foo",
+      "create stable st (ts timestamp, age int) tags (name varchar(20))",
+      "insert into suzhou using st tags ('suzhou') values (1665226861288, 1)",
+      {
+        "comments": "this will fail",
+        "sql": "insert into ? using st tags (?) values (1665226861289, 100)",
+        "executes": [
+          {
+            "params": [["suzhou", "suzhou"]],
+            "positive": false
+          }
+        ]
+      },{
+        "sql": "select count(*) from st",
+        "rs": [[1]],
+        "positive": true
+      }
+    ]
+  },{
+    "comments": "like operator",
+    "conn": {},
+    "sqls": [
+      "drop database if exists foo",
+      "create database if not exists foo",
+      "use foo",
+      "create table x (ts timestamp, name varchar(20), mark nchar(20))",
+      "insert into x (ts, name, mark) values (now(), '人a', '人a')",
+      {
+        "sql": "select name, mark from x",
+        "rs": [["人a","人a"]]
+      },{
+        "comments": "this will fail",
+        "sql": "select name, mark from x where name like '_a'",
+        "rs": [["人a","人a"]],
+        "positive": false
+      },{
+        "comments": "this will fail",
+        "sql": "select name, mark from x where mark like '_a'",
+        "rs": [["人a","人a"]],
+        "positive": false
+      }
+    ]
+  },{
+    "conn": {},
+    "sqls": [
+      {
+        "comments": "https://github.com/taosdata/TDengine/issues/17890",
+        "comments": "this would result in SEGFAULT",
+        "xsql": "select db_name as TABLE_CAT, '' as TABLE_SCHEM, table_name as TABLE_NAME, 'TABLE' as TABLE_TYPE, table_comment as REMARKS from information_schema.ins_tables where TABLE_TYPE like ? union select db_name as TABLE_CAT, '' as TABLE_SCHEM, stable_name as TABLE_NAME, 'STABLE' as TABLE_TYPE, table_comment as REMARKS from information_schema.ins_stables where TABLE_TYPE like ?  order by TABLE_TYPE, TABLE_CAT, TABLE_SCHEM, TABLE_NAME",
+        "executes": [
+          {
+            "params": ["TABLE", "TABLE"],
+            "positive": false
+          }
+        ]
+      }
+    ]
+  },{
+    "conn": {},
+    "sqls": [
+      {
+        "comments": "https://github.com/taosdata/TDengine/issues/17890",
+        "comments": "this would result in SEGFAULT",
+        "xsql": "select * from (select db_name as TABLE_CAT, '' as TABLE_SCHEM, stable_name as TABLE_NAME, 'STABLE' as TABLE_TYPE, table_comment as REMARKS from information_schema.ins_stables union select db_name as TABLE_CAT, '' as TABLE_SCHEM, table_name as TABLE_NAME, 'TABLE' as TABLE_TYPE, table_comment as REMARKS from information_schema.ins_tables) where TABLE_TYPE in (?, ?)",
+        "executes": [
+          {
+            "params": ["TABLE", "VIEW"],
+            "positive": false
+          }
+        ]
+      }
+    ]
+  }
+]

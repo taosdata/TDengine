@@ -1,0 +1,9 @@
+#include <stdio.h>
+
+char gitinfo[]      = "git info: ${TODBC_BUILD_GIT}";
+char buildinfo[]    = "build info: ${TODBC_BUILD_TARGET_OSTYPE}-${TODBC_BUILD_TARGET_CPUTYPE}-'${TODBC_BUILD_DATE}'";
+
+void print_build_info(void) {
+    printf("Git Info: %s\n", gitinfo);
+    printf("Build Info: %s\n", buildinfo);
+}
