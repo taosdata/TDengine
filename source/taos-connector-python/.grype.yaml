@@ -1,0 +1,12 @@
+ignore:
+  - vulnerability: GHSA-4p46-pwfr-66x6
+    package:
+      name: ring
+      version: 0.17.8
+      type: rust-crate
+
+  - vulnerability: GHSA-pph8-gcv7-4qj5
+    package:
+      name: pyo3
+      version: 0.17.3
+      type: rust-crate
