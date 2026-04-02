@@ -1,0 +1,65 @@
+name: taosgen Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    uses: ./.github/workflows/build.yml
+    with:
+      build_type: Release
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: read
+
+    steps:
+      - name: Draft Release Notes
+        id: release_notes
+        uses: release-drafter/release-drafter@v6
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download build artifact (linux-x64)
+        uses: actions/download-artifact@v4
+        with:
+          name: taosgen-Linux-x64
+          path: ./artifacts
+
+      - name: Download build artifact (linux-arm64)
+        uses: actions/download-artifact@v4
+        with:
+          name: taosgen-Linux-arm64
+          path: ./artifacts
+
+      - name: Download build artifact (macos-x64)
+        uses: actions/download-artifact@v4
+        with:
+          name: taosgen-macOS-x64
+          path: ./artifacts
+
+      - name: Download build artifact (macos-arm64)
+        uses: actions/download-artifact@v4
+        with:
+          name: taosgen-macOS-arm64
+          path: ./artifacts
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: taosgen ${{ github.ref_name }} Release
+          body: ${{ steps.release_notes.outputs.body }}
+          files: |
+            artifacts/taosgen-*.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

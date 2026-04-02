@@ -1,0 +1,60 @@
+# CSV data import example with timestamp offset
+# Timestamp offset format: ±[value][unit]
+# Units: y (year), M (month, uppercase), d (day), h (hour), m (minute, lowercase), s (second)
+# Examples: +10s, +30m, +2h, +1d, +2M, +1y, +1d3h30m, +1y2M3d
+tdengine:
+  dsn: taos+ws://root:taosdata@127.0.0.1:6041/tsbench
+  drop_if_exists: true
+  props: precision 'us' vgroups 1
+
+schema:
+  name: meters
+  from_csv:
+    tags:
+      file_path: ../conf/ctb-tags.csv
+      tbname_index: 2
+      exclude_indices:
+    columns:
+      loading_mode: preload
+      file_path: ../conf/ctb-data.csv
+      tbname_index : 0
+      timestamp_index: 1
+      timestamp_precision: ms
+      timestamp_offset:
+        offset_type: relative
+        value: +10s
+      repeat_read: false
+  columns:
+    - name: ts
+      type: timestamp
+      precision : us
+    - name: current
+      type: float
+    - name: voltage
+      type: int
+    - name: phase
+      type: float
+  tags:
+    - name: groupid
+      type: int
+    - name: location
+      type: binary(24)
+  generation:
+    interlace: 1
+    rows_per_table: 100
+    rows_per_batch: 10000
+    tables_reuse_data: false
+
+jobs:
+  # TDengine insert job
+  insert-data:
+    steps:
+      - uses: tdengine/create-super-table
+      - uses: tdengine/create-child-table
+        with:
+          batch:
+            size: 1000
+            concurrency: 10
+      - uses: tdengine/insert
+        with:
+          concurrency: 8

@@ -1,0 +1,62 @@
+kafka:
+  bootstrap_servers: localhost:9092
+  topic: tsbench-topic
+
+schema:
+  name: meters
+  tbname:
+    prefix: d
+    count: 10000
+    from: 0
+  columns:
+    - name: ts
+      type: timestamp
+      start: now
+      precision : ms
+      step: 1
+    - name: current
+      type: float
+      min: 0
+      max: 100
+    - name: voltage
+      type: int
+      min: 200
+      max: 240
+    - name: phase
+      type: float
+      expr: _i * math.pi % 180
+  tags:
+    - name: groupid
+      type: int
+      min: 1
+      max: 10
+    - name: location
+      type: binary(24)
+      values:
+        - New York
+        - Los Angeles
+        - Chicago
+        - Houston
+        - Phoenix
+        - Philadelphia
+        - San Antonio
+        - San Diego
+        - Dallas
+        - Austin
+  generation:
+    interlace: 1
+    rows_per_table: 100
+    rows_per_batch: 10000
+    tables_reuse_data: false
+    num_cached_batches: 0
+
+jobs:
+  # Kafka produce job
+  produce-data:
+    steps:
+      - uses: kafka/produce
+        with:
+          concurrency: 10
+          acks: 1
+          records_per_message: 1
+          queue_capacity: 100

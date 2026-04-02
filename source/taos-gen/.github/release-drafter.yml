@@ -1,0 +1,24 @@
+name-template: 'taosgen v$RESOLVED_VERSION Release'
+tag-template: 'v$RESOLVED_VERSION'
+categories:
+  - title: '🚀 Features'
+    labels:
+      - 'feature'
+  - title: '🐛 Bug Fixes'
+    labels:
+      - 'bug'
+  - title: '🧰 Maintenance'
+    labels:
+      - 'chore'
+change-template: '- $TITLE (#$NUMBER) @$AUTHOR'
+template: |
+  ### This release includes:
+
+  $CHANGES
+
+  ## Download
+
+  - [taosgen-v$RESOLVED_VERSION-linux-x64.tar.gz](https://github.com/taosdata/taosgen/releases/download/v$RESOLVED_VERSION/taosgen-v$RESOLVED_VERSION-linux-x64.tar.gz)
+  - [taosgen-v$RESOLVED_VERSION-linux-arm64.tar.gz](https://github.com/taosdata/taosgen/releases/download/v$RESOLVED_VERSION/taosgen-v$RESOLVED_VERSION-linux-arm64.tar.gz)
+  - [taosgen-v$RESOLVED_VERSION-macos-x64.tar.gz](https://github.com/taosdata/taosgen/releases/download/v$RESOLVED_VERSION/taosgen-v$RESOLVED_VERSION-macos-x64.tar.gz)
+  - [taosgen-v$RESOLVED_VERSION-macos-arm64.tar.gz](https://github.com/taosdata/taosgen/releases/download/v$RESOLVED_VERSION/taosgen-v$RESOLVED_VERSION-macos-arm64.tar.gz)

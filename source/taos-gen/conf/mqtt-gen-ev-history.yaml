@@ -1,0 +1,88 @@
+mqtt:
+  uri: tcp://localhost:1883
+  user: root
+  password: taosdata
+
+schema:
+  name: meters
+  tbname:
+    prefix: ev-
+    count: 28
+    from: 1
+  columns:
+    - name: ts
+      type: timestamp
+      start: now - 30d
+      precision : ms
+      step: 60s
+    - name: battery_voltage
+      type: float
+      expr: _last <= 410 and 430 or math.max(410, _last - math.random() * 0.01)
+    - name: battery_current
+      type: float
+      min: 10
+      max: 100
+    - name: cell_max_voltage
+      type: float
+      expr: _last <= 4.05 and 4.2 or math.max(4.05, _last - math.random() * 0.01)
+    - name: cell_min_voltage
+      type: float
+      expr: _last <= 4.02 and 4.15 or math.max(4.02, _last - math.random() * 0.01)
+    - name: battery_max_temperature
+      type: float
+      expr: _last >= 38 and 36 or math.min(38, _last + math.random() * 0.02)
+    - name: battery_min_temperature
+      type: float
+      expr: _last >= 37 and 35 or math.min(37, _last + math.random() * 0.02)
+    - name: soc
+      type: float
+      expr: _last <= 0.8 and 0.95 or math.max(0.8, _last - math.random() * 0.01)
+    - name: environment_temperature
+      type: float
+      expr: (_i == 0) and 32.0 or (31.0 + math.random() * 1.5)
+    - name: drive_motor_power
+      type: float
+      min: 3.5
+      max: 35
+    - name: air_cond_power
+      type: float
+      min: 1
+      max: 3
+    - name: vehicle_speed
+      type: float
+      min: 65
+      max: 70
+    - name: acceletator_pedal_opening
+      type: float
+      min: 0.1
+      max: 0.4
+    - name: location
+      type: varchar(50)
+      expr: ({"北京.朝阳.三元桥街道", "北京.朝阳.国贸街道", "北京.朝阳.望京街道", "北京.朝阳.望京街道", "北京.海淀.万寿路街道", "北京.海淀.西三旗街道", "北京.海淀.中关村街道", "北京.东城.东华门街道", "北京.东城.什刹海街道", "北京.顺义.旺泉街道", "北京.朝阳.三元桥街道", "北京.朝阳.国贸街道", "北京.朝阳.望京街道", "北京.海淀.万寿路街道", "北京.海淀.西三旗街道", "北京.海淀.中关村街道", "北京.东城.东华门街道", "北京.东城.什刹海街道", "北京.顺义.旺泉街道", "北京.朝阳.国贸街道", "北京.朝阳.望京街道", "北京.海淀.西三旗街道", "北京.海淀.西三旗街道", "北京.海淀.中关村街道", "北京.海淀.中关村街道", "北京.东城.东华门街道", "北京.东城.东华门街道", "北京.顺义.旺泉街道"})[tonumber(string.match(_table, "%d+"))]
+    - name: car_brand
+      type: varchar(20)
+      expr: ({"特斯拉", "特斯拉", "比亚迪", "小米", "理想", "小鹏", "小鹏", "蔚来", "理想", "问界", "特斯拉", "比亚迪", "理想", "小鹏", "问界", "小鹏", "小米", "特斯拉", "问界", "蔚来", "比亚迪", "小鹏", "小鹏", "小鹏", "小鹏", "小米", "小米", "问界"})[tonumber(string.match(_table, "%d+"))]
+    - name: battery_pack_capacity
+      type: float
+      expr: ({60.0, 60.0, 60.0, 60.0, 60.0, 60.0, 60.0, 50.0, 50.0, 50.0, 60.0, 50.0, 60.0, 60.0, 60.0, 60.0, 50.0, 50.0, 50.0, 60.0, 60.0, 60.0, 60.0, 60.0, 60.0, 50.0, 50.0, 50.0})[tonumber(string.match(_table, "%d+"))]
+    - name: vin
+      type: varchar(30)
+      expr: ({"5YJSA1E29MF200002", "5YJXCDE23KF300003", "5YJRE1E30RF400004", "5YJSA1D21NF500005", "5YJ3E1EB5KF600006", "XL8U1000012345678", "XL7B2000023456789", "XL9C3000034567890", "XL8D4000045678901", "XL7E5000056789012", "5YJ3E1EA0RF123456", "5YJSA1E28HF234567", "5YJXCDE22GF345678", "XL8U1234567890ABC", "XL7B2345678901DEF", "XL9C3456789012GHI", "LGWEF5A25N1234567", "LGWEF5A28P2345678", "LGWEF5A30R3456789", "LHG1234567890ABC1", "LHG2345678901DEF2", "LHG3456789012GHI3", "BYD1234567890ABC4", "5YJ3E1EB7KF456789", "XL8D4567890123JKL", "LGWEF5A35S4567890", "LHG4567890123JKL4", "BYD4567890123JKL5"})[tonumber(string.match(_table, "%d+"))]
+    - name: plate
+      type: varchar(20)
+      expr: ({"京AD12345", "京AF67890", "京AD98765", "京AF43210", "京AD56789", "京AF01234", "京AD23456", "京AF78901", "京AD34567", "京AF89012", "京AD45678", "京AD67890", "京AD78901", "京AD89012", "京AD90123", "京AD01234", "京AD13579", "京AD24680", "京AD35791", "京AD46802", "京AD57913", "京AF12345", "京AF23456", "京AF56789", "京AF90123", "京AF13579", "京AF24680", "京AF35791"})[tonumber(string.match(_table, "%d+"))]
+  generation:
+    interlace: 0
+    rows_per_table: 43200
+    rows_per_batch: 1000
+    num_cached_batches: 0
+
+jobs:
+  # MQTT publish job
+  publish-data:
+    steps:
+      - uses: mqtt/publish
+        with:
+          concurrency: 28
+          topic: ev/{table}
+          qos: 0

@@ -1,0 +1,73 @@
+tdengine:
+  dsn: taos+ws://root:taosdata@127.0.0.1:6041/tsbench
+  drop_if_exists: true
+  props: precision 'ms' vgroups 4
+
+schema:
+  name: meters
+  tbname:
+    prefix: d
+    count: 100000
+    from: 0
+  columns:
+    - name: ts
+      type: timestamp
+      start: 1700000000000
+      precision : ms
+      step: 1
+    - name: current
+      type: float
+      min: 0
+      max: 100
+    - name: voltage
+      type: int
+      min: 200
+      max: 240
+    - name: phase
+      type: float
+      expr: _i * math.pi % 180
+  tags:
+    - name: groupid
+      type: int
+      min: 1
+      max: 10
+    - name: location
+      type: binary(24)
+      values:
+        - New York
+        - Los Angeles
+        - Chicago
+        - Houston
+        - Phoenix
+        - Philadelphia
+        - San Antonio
+        - San Diego
+        - Dallas
+        - Austin
+  generation:
+    interlace: 1
+    rows_per_table: 100
+    rows_per_batch: 10000
+
+jobs:
+  # TDengine insert job
+  insert-data:
+    steps:
+      - uses: tdengine/create-database
+        with:
+          checkpoint:
+            enabled: true
+            interval_sec: 10
+      - uses: tdengine/create-super-table
+      - uses: tdengine/create-child-table
+        with:
+          batch:
+            size: 1000
+            concurrency: 10
+
+      - uses: tdengine/insert
+        with:
+          concurrency: 8
+          checkpoint:
+            enabled: true
+            interval_sec: 10
