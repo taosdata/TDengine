@@ -4138,6 +4138,29 @@ _err:
   return NULL;
 }
 
+SNode* createShowReloadsStmt(SAstCreateContext* pCxt) {
+  CHECK_PARSER_STATUS(pCxt);
+  SNode* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_SHOW_RELOADS_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  return pStmt;
+_err:
+  nodesDestroyNode(pStmt);
+  return NULL;
+}
+
+SNode* createShowReloadStmt(SAstCreateContext* pCxt, const SToken* pUid) {
+  CHECK_PARSER_STATUS(pCxt);
+  SShowReloadStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_SHOW_RELOAD_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  pStmt->reloadUid = taosStr2Int64(pUid->z, NULL, 10);
+  return (SNode*)pStmt;
+_err:
+  nodesDestroyNode((SNode*)pStmt);
+  return NULL;
+}
+
 SNode* createShowSsMigratesStmt(SAstCreateContext* pCxt, ENodeType type) {
   CHECK_PARSER_STATUS(pCxt);
   SShowSsMigratesStmt* pStmt = NULL;
@@ -7121,6 +7144,32 @@ _err:
   return NULL;
 }
 
+SNode* createReloadLastCacheStmt(SAstCreateContext* pCxt, int8_t cacheType, int8_t scopeType,
+                                  SToken* pDbName, SNode* pRealTable, SToken* pColName) {
+  CHECK_PARSER_STATUS(pCxt);
+  SReloadLastCacheStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_RELOAD_LAST_CACHE_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  pStmt->cacheType = cacheType;
+  pStmt->scopeType = scopeType;
+  if (pDbName) {
+    COPY_STRING_FORM_ID_TOKEN(pStmt->dbName, pDbName);
+  }
+  if (pRealTable) {
+    tstrncpy(pStmt->dbName, ((SRealTableNode*)pRealTable)->table.dbName, TSDB_DB_NAME_LEN);
+    tstrncpy(pStmt->tableName, ((SRealTableNode*)pRealTable)->table.tableName, TSDB_TABLE_NAME_LEN);
+    nodesDestroyNode(pRealTable);
+  }
+  if (pColName) {
+    COPY_STRING_FORM_ID_TOKEN(pStmt->colName, pColName);
+  }
+  return (SNode*)pStmt;
+_err:
+  nodesDestroyNode(pRealTable);
+  nodesDestroyNode((SNode*)pStmt);
+  return NULL;
+}
+
 static int32_t convertUdfLanguageType(SAstCreateContext* pCxt, const SToken* pLanguageToken, int8_t* pLanguage) {
   if (TK_NK_NIL == pLanguageToken->type || 0 == strncasecmp(pLanguageToken->z + 1, "c", pLanguageToken->n - 2)) {
     *pLanguage = TSDB_FUNC_SCRIPT_BIN_LIB;
@@ -7649,6 +7698,18 @@ SNode* createKillStmt(SAstCreateContext* pCxt, ENodeType type, const SToken* pId
   pStmt->targetId = taosStr2Int32(pId->z, NULL, 10);
   return (SNode*)pStmt;
 _err:
+  return NULL;
+}
+
+SNode* createDropReloadStmt(SAstCreateContext* pCxt, const SToken* pUid) {
+  CHECK_PARSER_STATUS(pCxt);
+  SDropReloadStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_DROP_RELOAD_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  pStmt->reloadUid = taosStr2Int64(pUid->z, NULL, 10);
+  return (SNode*)pStmt;
+_err:
+  nodesDestroyNode((SNode*)pStmt);
   return NULL;
 }
 
