@@ -36,11 +36,17 @@ static TdThreadMutex gReloadMutex;
 
 static int32_t mndProcessReloadLastCacheReq(SRpcMsg* pReq);  // forward decl
 
+// No-op handlers: reload/cancel are fire-and-forget; the RSP just needs to be routable.
+static int32_t mndProcessVnodeReloadRsp(SRpcMsg* pReq)   { return TSDB_CODE_SUCCESS; }
+static int32_t mndProcessVnodeCancelRsp(SRpcMsg* pReq)   { return TSDB_CODE_SUCCESS; }
+
 int32_t mndInitReload(SMnode* pMnode) {
   gReloadTasks = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
   if (!gReloadTasks) return TSDB_CODE_OUT_OF_MEMORY;
   taosThreadMutexInit(&gReloadMutex, NULL);
-  mndSetMsgHandle(pMnode, TDMT_MND_RELOAD_LAST_CACHE, mndProcessReloadLastCacheReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_RELOAD_LAST_CACHE,         mndProcessReloadLastCacheReq);
+  mndSetMsgHandle(pMnode, TDMT_VND_RELOAD_LAST_CACHE_RSP,     mndProcessVnodeReloadRsp);
+  mndSetMsgHandle(pMnode, TDMT_VND_CANCEL_LAST_CACHE_RELOAD_RSP, mndProcessVnodeCancelRsp);
   return TSDB_CODE_SUCCESS;
 }
 
