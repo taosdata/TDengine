@@ -1765,9 +1765,6 @@ static int32_t tm2char(const SArray* formats, const struct STm* tm, char* s, int
         break;
       case TSFKW_TZH:{
 #ifdef WINDOWS
-        // getWindowsTimezoneOffset returns an offset in seconds using POSIX
-        // timezone semantics (east-negative). Negate to match tm_gmtoff
-        // semantics (east-positive seconds).
         int32_t gmtoff = -(int32_t)getWindowsTimezoneOffset();
 #elif defined(TD_ASTRA)
         int32_t gmtoff = -timezone;
@@ -2262,9 +2259,6 @@ static int32_t char2ts(const char* s, SArray* formats, int64_t* ts, int32_t prec
   int32_t ret = taosTm2Ts(&tm, ts, precision, tz);
   if (hasTZ) {
 #ifdef WINDOWS
-    // getWindowsTimezoneOffset() returns the system timezone offset in seconds,
-    // using the POSIX 'timezone' convention (east-negative, e.g. East 8 = -28800).
-    // Negate it here to obtain gmtoff in the tm_gmtoff convention (east-positive seconds).
     int32_t gmtoff = -(int32_t)getWindowsTimezoneOffset();
 #elif defined(TD_ASTRA)
     int32_t gmtoff = -timezone;

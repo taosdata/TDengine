@@ -140,8 +140,9 @@ class TestFuncToTimestamp:
 
         # TZ format roundtrip: to_char outputs +HH:MM, to_timestamp parses it back
         tdSql.query("select to_timestamp(to_char(ts, 'yyyy-MM-dd HH24:MI:SS.msTZ'), 'yyyy-MM-dd HH24:MI:SS.msTZ') == ts from meters limit 10")
-        tdSql.checkData(0, 0, 1)
         tdSql.checkRows(10)
+        for i in range(10):
+            tdSql.checkData(i, 0, 1)
 
         self.convert_ts_and_check('2023-OCTober-19 10:10:10AM Thu', 'yyyy-month-dd hh24:mi:ssam dy', '2023-october  -19 10:10:10am thu', '2023-10-19 10:10:10')
 
