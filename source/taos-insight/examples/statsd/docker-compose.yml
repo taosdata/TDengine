@@ -1,0 +1,20 @@
+version: '3.6'
+services:
+  grafana:
+    image: grafana/grafana:8.0.0
+    env_file: ../telegraf/tdengine.env
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_INSTALL_PLUGINS=
+    ports:
+      - '127.0.0.1:3000:3000'
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ../telegraf/grafana/grafana.ini:/etc/grafana/grafana.ini
+      - ../../dist:/var/lib/grafana/plugins/tdengine
+      - ../telegraf/grafana/provisioning/:/etc/grafana/provisioning/
+      - ./dashboards/:/var/lib/grafana/dashboards/
+
+volumes:
+  grafana_data: {}

@@ -1,0 +1,619 @@
+{
+    "__inputs": [
+        {
+            "name": "TDsmeters",
+            "label": "TDengine Datasource-cloud",
+            "description": "Get connect information from  https://cloud.tdengine.com/ website",
+            "type": "datasource",
+            "pluginId": "tdengine-datasource",
+            "pluginName": "TDengine Datasource"
+        }
+    ],
+    "__elements": {
+        "c95de356-6fa2-44aa-a610-9c936e6cf06d": {
+            "name": "lib-one",
+            "uid": "c95de356-6fa2-44aa-a610-9c936e6cf06d",
+            "kind": 1,
+            "model": {
+                "datasource": {
+                    "type": "tdengine-datasource",
+                    "uid": "${TDsmeters}"
+                },
+                "description": "",
+                "fieldConfig": {
+                    "defaults": {
+                        "color": {
+                            "mode": "palette-classic"
+                        },
+                        "custom": {
+                            "axisCenteredZero": false,
+                            "axisColorMode": "text",
+                            "axisLabel": "",
+                            "axisPlacement": "auto",
+                            "barAlignment": 0,
+                            "drawStyle": "line",
+                            "fillOpacity": 4,
+                            "gradientMode": "none",
+                            "hideFrom": {
+                                "legend": false,
+                                "tooltip": false,
+                                "viz": false
+                            },
+                            "insertNulls": false,
+                            "lineInterpolation": "linear",
+                            "lineWidth": 1,
+                            "pointSize": 5,
+                            "scaleDistribution": {
+                                "type": "linear"
+                            },
+                            "showPoints": "auto",
+                            "spanNulls": false,
+                            "stacking": {
+                                "group": "A",
+                                "mode": "none"
+                            },
+                            "thresholdsStyle": {
+                                "mode": "off"
+                            }
+                        },
+                        "mappings": [],
+                        "thresholds": {
+                            "mode": "absolute",
+                            "steps": [
+                                {
+                                    "color": "green",
+                                    "value": null
+                                },
+                                {
+                                    "color": "red",
+                                    "value": 80
+                                }
+                            ]
+                        }
+                    },
+                    "overrides": []
+                },
+                "options": {
+                    "legend": {
+                        "calcs": [],
+                        "displayMode": "list",
+                        "placement": "bottom",
+                        "showLegend": true
+                    },
+                    "tooltip": {
+                        "mode": "single",
+                        "sort": "none"
+                    }
+                },
+                "targets": [
+                    {
+                        "datasource": {
+                            "type": "tdengine-datasource",
+                            "uid": "b52f1ed2-21d7-41e6-9cc1-795fce3f558f"
+                        },
+                        "formatType": "Time series",
+                        "queryType": "SQL",
+                        "refId": "A",
+                        "sql": "select _wstart, max(current),max(voltage),max(phase) from dmeters.d2 where ts>3d interval(10s);"
+                    }
+                ],
+                "title": "Max value with interval(10s)",
+                "type": "timeseries"
+            }
+        }
+    },
+    "__requires": [
+        {
+            "type": "panel",
+            "id": "gauge",
+            "name": "Gauge",
+            "version": ""
+        },
+        {
+            "type": "grafana",
+            "id": "grafana",
+            "name": "Grafana",
+            "version": "10.1.5"
+        },
+        {
+            "type": "panel",
+            "id": "stat",
+            "name": "Stat",
+            "version": ""
+        },
+        {
+            "type": "datasource",
+            "id": "tdengine-datasource",
+            "name": "TDengine Datasource",
+            "version": "3.3.5"
+        },
+        {
+            "type": "panel",
+            "id": "timeseries",
+            "name": "Time series",
+            "version": ""
+        }
+    ],
+    "annotations": {
+        "list": [
+            {
+                "builtIn": 1,
+                "datasource": {
+                    "type": "grafana",
+                    "uid": "-- Grafana --"
+                },
+                "enable": true,
+                "hide": true,
+                "iconColor": "rgba(0, 211, 255, 1)",
+                "name": "Annotations & Alerts",
+                "type": "dashboard"
+            }
+        ]
+    },
+    "description": "TDengine DBMark dmeters database show data",
+    "editable": true,
+    "fiscalYearStartMonth": 0,
+    "gnetId": 19910,
+    "graphTooltip": 0,
+    "id": null,
+    "links": [],
+    "liveNow": false,
+    "panels": [
+        {
+            "collapsed": false,
+            "gridPos": {
+                "h": 1,
+                "w": 24,
+                "x": 0,
+                "y": 0
+            },
+            "id": 11,
+            "panels": [],
+            "title": "1. GLOBAL STATISTIC",
+            "type": "row"
+        },
+        {
+            "datasource": {
+                "type": "tdengine-datasource",
+                "uid": "${TDsmeters}"
+            },
+            "description": "",
+            "fieldConfig": {
+                "defaults": {
+                    "color": {
+                        "mode": "thresholds"
+                    },
+                    "displayName": "Devices Count",
+                    "mappings": [],
+                    "thresholds": {
+                        "mode": "absolute",
+                        "steps": [
+                            {
+                                "color": "green",
+                                "value": null
+                            }
+                        ]
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 5,
+                "w": 5,
+                "x": 0,
+                "y": 1
+            },
+            "id": 13,
+            "options": {
+                "colorMode": "value",
+                "graphMode": "area",
+                "justifyMode": "center",
+                "orientation": "auto",
+                "reduceOptions": {
+                    "calcs": [
+                        "lastNotNull"
+                    ],
+                    "fields": "",
+                    "values": false
+                },
+                "textMode": "auto"
+            },
+            "pluginVersion": "10.1.5",
+            "targets": [
+                {
+                    "datasource": {
+                        "type": "tdengine-datasource",
+                        "uid": "${TDsmeters}"
+                    },
+                    "formatType": "Time series",
+                    "queryType": "SQL",
+                    "refId": "A",
+                    "sql": "select count(*) from information_schema.ins_tables where db_name='dmeters' and stable_name='meters';"
+                }
+            ],
+            "title": "Total 1",
+            "type": "stat"
+        },
+        {
+            "datasource": {
+                "type": "tdengine-datasource",
+                "uid": "${TDsmeters}"
+            },
+            "description": "",
+            "fieldConfig": {
+                "defaults": {
+                    "color": {
+                        "mode": "palette-classic"
+                    },
+                    "displayName": "Data Rows",
+                    "mappings": [],
+                    "thresholds": {
+                        "mode": "absolute",
+                        "steps": [
+                            {
+                                "color": "green",
+                                "value": null
+                            },
+                            {
+                                "color": "purple",
+                                "value": 100000000
+                            },
+                            {
+                                "color": "red",
+                                "value": 10000000000
+                            }
+                        ]
+                    },
+                    "unit": "locale"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 5,
+                "w": 5,
+                "x": 5,
+                "y": 1
+            },
+            "id": 12,
+            "options": {
+                "colorMode": "value",
+                "graphMode": "area",
+                "justifyMode": "center",
+                "orientation": "auto",
+                "reduceOptions": {
+                    "calcs": [
+                        "lastNotNull"
+                    ],
+                    "fields": "",
+                    "values": false
+                },
+                "textMode": "auto"
+            },
+            "pluginVersion": "10.1.5",
+            "targets": [
+                {
+                    "datasource": {
+                        "type": "tdengine-datasource",
+                        "uid": "${TDsmeters}"
+                    },
+                    "formatType": "Time series",
+                    "queryType": "SQL",
+                    "refId": "A",
+                    "sql": "select sum(`count(ts)`) from dmeters.smt1;"
+                }
+            ],
+            "title": "Total 2",
+            "transparent": true,
+            "type": "stat"
+        },
+        {
+            "collapsed": false,
+            "gridPos": {
+                "h": 1,
+                "w": 24,
+                "x": 0,
+                "y": 6
+            },
+            "id": 10,
+            "panels": [],
+            "title": "2. DATA TAKEN BY ONE DEVICE",
+            "type": "row"
+        },
+        {
+            "datasource": {
+                "type": "tdengine-datasource",
+                "uid": "${TDsmeters}"
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "mappings": [],
+                    "thresholds": {
+                        "mode": "percentage",
+                        "steps": [
+                            {
+                                "color": "green",
+                                "value": null
+                            },
+                            {
+                                "color": "orange",
+                                "value": 70
+                            },
+                            {
+                                "color": "red",
+                                "value": 85
+                            }
+                        ]
+                    }
+                },
+                "overrides": [
+                    {
+                        "matcher": {
+                            "id": "byName",
+                            "options": "rows"
+                        },
+                        "properties": [
+                            {
+                                "id": "min"
+                            },
+                            {
+                                "id": "max"
+                            }
+                        ]
+                    }
+                ]
+            },
+            "gridPos": {
+                "h": 8,
+                "w": 13,
+                "x": 0,
+                "y": 7
+            },
+            "id": 9,
+            "options": {
+                "minVizHeight": 75,
+                "minVizWidth": 75,
+                "orientation": "auto",
+                "reduceOptions": {
+                    "calcs": [
+                        "lastNotNull"
+                    ],
+                    "fields": "",
+                    "values": false
+                },
+                "showThresholdLabels": false,
+                "showThresholdMarkers": true
+            },
+            "pluginVersion": "10.1.5",
+            "targets": [
+                {
+                    "datasource": {
+                        "type": "tdengine-datasource",
+                        "uid": "${TDsmeters}"
+                    },
+                    "formatType": "Time series",
+                    "queryType": "SQL",
+                    "refId": "A",
+                    "sql": "select last_row(*) from dmeters.d0;"
+                }
+            ],
+            "title": "Last Value ",
+            "transformations": [],
+            "type": "gauge"
+        },
+        {
+            "datasource": {
+                "type": "tdengine-datasource",
+                "uid": "${TDsmeters}"
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "color": {
+                        "mode": "palette-classic"
+                    },
+                    "custom": {
+                        "axisCenteredZero": false,
+                        "axisColorMode": "text",
+                        "axisLabel": "",
+                        "axisPlacement": "auto",
+                        "barAlignment": 0,
+                        "drawStyle": "line",
+                        "fillOpacity": 6,
+                        "gradientMode": "none",
+                        "hideFrom": {
+                            "legend": false,
+                            "tooltip": false,
+                            "viz": false
+                        },
+                        "insertNulls": false,
+                        "lineInterpolation": "smooth",
+                        "lineWidth": 1,
+                        "pointSize": 5,
+                        "scaleDistribution": {
+                            "type": "linear"
+                        },
+                        "showPoints": "auto",
+                        "spanNulls": false,
+                        "stacking": {
+                            "group": "A",
+                            "mode": "none"
+                        },
+                        "thresholdsStyle": {
+                            "mode": "off"
+                        }
+                    },
+                    "mappings": [],
+                    "thresholds": {
+                        "mode": "absolute",
+                        "steps": [
+                            {
+                                "color": "green",
+                                "value": null
+                            },
+                            {
+                                "color": "red",
+                                "value": 80
+                            }
+                        ]
+                    }
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 7,
+                "w": 13,
+                "x": 0,
+                "y": 15
+            },
+            "id": 5,
+            "options": {
+                "legend": {
+                    "calcs": [],
+                    "displayMode": "list",
+                    "placement": "bottom",
+                    "showLegend": true
+                },
+                "tooltip": {
+                    "mode": "single",
+                    "sort": "asc"
+                }
+            },
+            "targets": [
+                {
+                    "datasource": {
+                        "type": "tdengine-datasource",
+                        "uid": "${TDsmeters}"
+                    },
+                    "formatType": "Time series",
+                    "queryType": "SQL",
+                    "refId": "A",
+                    "sql": "select last_row(*) from dmeters.d0 interval(40s);"
+                }
+            ],
+            "title": "Data taken on one device",
+            "type": "timeseries"
+        },
+        {
+            "gridPos": {
+                "h": 9,
+                "w": 13,
+                "x": 0,
+                "y": 22
+            },
+            "id": 8,
+            "libraryPanel": {
+                "uid": "c95de356-6fa2-44aa-a610-9c936e6cf06d",
+                "name": "lib-one"
+            }
+        },
+        {
+            "datasource": {
+                "type": "tdengine-datasource",
+                "uid": "${TDsmeters}"
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "color": {
+                        "mode": "palette-classic"
+                    },
+                    "custom": {
+                        "axisCenteredZero": false,
+                        "axisColorMode": "text",
+                        "axisLabel": "",
+                        "axisPlacement": "auto",
+                        "barAlignment": 0,
+                        "drawStyle": "line",
+                        "fillOpacity": 0,
+                        "gradientMode": "none",
+                        "hideFrom": {
+                            "legend": false,
+                            "tooltip": false,
+                            "viz": false
+                        },
+                        "insertNulls": false,
+                        "lineInterpolation": "linear",
+                        "lineWidth": 1,
+                        "pointSize": 5,
+                        "scaleDistribution": {
+                            "type": "linear"
+                        },
+                        "showPoints": "auto",
+                        "spanNulls": false,
+                        "stacking": {
+                            "group": "A",
+                            "mode": "none"
+                        },
+                        "thresholdsStyle": {
+                            "mode": "off"
+                        }
+                    },
+                    "mappings": [],
+                    "thresholds": {
+                        "mode": "absolute",
+                        "steps": [
+                            {
+                                "color": "green",
+                                "value": null
+                            },
+                            {
+                                "color": "red",
+                                "value": 80
+                            }
+                        ]
+                    }
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 7,
+                "w": 13,
+                "x": 0,
+                "y": 31
+            },
+            "id": 4,
+            "options": {
+                "legend": {
+                    "calcs": [],
+                    "displayMode": "list",
+                    "placement": "bottom",
+                    "showLegend": true
+                },
+                "tooltip": {
+                    "mode": "single",
+                    "sort": "none"
+                }
+            },
+            "targets": [
+                {
+                    "datasource": {
+                        "type": "tdengine-datasource",
+                        "uid": "${TDsmeters}"
+                    },
+                    "formatType": "Time series",
+                    "queryType": "SQL",
+                    "refId": "A",
+                    "sql": "select _wstart ,avg(current), avg(voltage), avg(phase) from dmeters.d1 where ts> now-3d  interval(30s);"
+                }
+            ],
+            "title": "AVG value with interval(30s)",
+            "type": "timeseries"
+        }
+    ],
+    "refresh": "10s",
+    "schemaVersion": 38,
+    "style": "dark",
+    "tags": [],
+    "templating": {
+        "list": []
+    },
+    "time": {
+        "from": "now-3h",
+        "to": "now"
+    },
+    "timepicker": {},
+    "timezone": "",
+    "title": "TDsmeters",
+    "uid": "c269adc4-ac36-48ee-9d04-661c18267814",
+    "version": 2,
+    "weekStart": ""
+}

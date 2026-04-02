@@ -1,0 +1,45 @@
+name: "Release PR Merged"
+
+on:
+  pull_request:
+    branches:
+    - master
+    types:
+      - closed
+
+jobs:
+  release:
+    if: github.event.pull_request.merged == true && startsWith(github.event.pull_request.title, 'release:')
+    runs-on: ubuntu-20.04
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          ref: master
+          fetch-depth: 0
+
+      - name: Extract version
+        id: extract-version
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          version=$(echo "$PR_TITLE" | grep -o -P '(\d+\.\d+\.\d+)(-\S+)?' | head -n 1)
+          if [ -z "$version" ]; then
+            echo "Error: No version found in PR title"
+            exit 1
+          fi
+          echo $version
+          echo "version=$version" >> $GITHUB_OUTPUT
+      - name: Version bump
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ./scripts/release.sh ${{ steps.extract-version.outputs.version }}
+
+      - name: Push changes
+        uses: ad-m/github-push-action@master
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          branch: ${{ github.ref }}
+          tags: true

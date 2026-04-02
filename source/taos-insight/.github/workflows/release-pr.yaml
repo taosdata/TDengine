@@ -1,0 +1,34 @@
+
+name: "Release PR Check"
+
+on:
+  pull_request:
+    branches:
+    - master
+
+    types:
+      - opened
+      - edited
+      - synchronize
+      - labeled
+      - unlabeled
+jobs:
+  check:
+    name: "PR check if release"
+    if: startsWith(github.event.pull_request.title, 'release:')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: Slashgear/action-check-pr-title@v3.0.0
+        with:
+          regexp: 'release:\s*v?(\d+\.\d+\.\d+)(-\S+)?.*' # Regex the title should match.
+
+      - name: Check version
+        run: |
+          version=$(echo "${{ github.event.pull_request.title }}" | grep -o -P '(\d+\.\d+\.\d+)(-\S+)?')
+          echo Seems you want to release v$version
+          if git show-ref --tags v$version --quiet; then
+            echo "* but the tag already exists"
+            exit 1
+          else 
+            echo "* tag v$version is valid"
+          fi

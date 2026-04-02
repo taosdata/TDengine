@@ -1,0 +1,25 @@
+version: '2'
+
+services:
+  collectd:
+    image: fr3nd/collectd
+    privileged: true
+    network_mode: host
+    volumes:
+      - /proc:/mnt/proc:ro
+      - ./collectd.conf:/etc/collectd/collectd.conf
+  grafana:
+    image: grafana/grafana:8.0.0
+    env_file: tdengine.env
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_INSTALL_PLUGINS=
+    ports:
+      - "3000:3000"
+    volumes:
+      - /var/lib/grafana
+      - ./grafana/grafana.ini:/etc/grafana/grafana.ini
+      - ../../dist:/var/lib/grafana/plugins/tdengine
+      - ./grafana/provisioning/:/etc/grafana/provisioning/
+      - ./grafana/dashboards/:/var/lib/grafana/dashboards/

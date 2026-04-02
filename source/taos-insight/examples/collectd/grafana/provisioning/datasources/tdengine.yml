@@ -1,0 +1,33 @@
+# config file version
+apiVersion: 1
+
+# list of datasources that should be deleted from the database
+deleteDatasources:
+  - name: TDengine
+    orgId: 1
+
+# list of datasources to insert/update depending
+# whats available in the database
+datasources:
+  # <string, required> name of the datasource. Required
+- name: TDengine
+  # <string, required> datasource type. Required
+  type: tdengine-datasource
+  # <string, required> access mode. direct or proxy. Required
+  # <int> org id. will be set to 1 if not specified
+  orgId: 1
+  # <string> url
+  url: $TDENGINE_API
+  # <bool> mark as default datasource. Max one per org
+  isDefault: true
+  # <map> to store sensitive information
+  secureJsonData:
+    # <string> a redundant url configuration. Required.
+    url: $TDENGINE_API
+    # <string> basic authorization token. Required, can be build like
+    #   `printf root:taosdata|base64`
+    basicAuth: "${TDENGINE_BASIC_AUTH}"
+    token: ${TDENGINE_CLOUD_TOKEN}
+  version: 1
+  # <bool> allow users to edit datasources from the UI.
+  editable: true

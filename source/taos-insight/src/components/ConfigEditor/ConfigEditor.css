@@ -1,0 +1,27 @@
+.align-center{
+    align-items: center;
+}
+.switch-wrapper {
+    border: 1px solid #f6f3f3;
+    padding: 5px;
+}
+
+.custom-button {
+    background-color: #d10e5c; /* Button background color */
+    color: white; /* text color */
+    border: none;
+    padding: 8px 16px; /* Inner margin adjustment button size */
+    border-radius: 2px; /* Set a larger fillet radius close to an ellipse */
+    cursor: pointer;
+    transition: background-color 0.3s ease; /* Transition effect makes interaction smoother */
+    font-size: 14px; /* font size */
+    text-transform: uppercase; /* capital letter */
+    letter-spacing: 1px; /* letter-spacing */
+    height: 20px; /* Set button height */
+    width: 10px; /* Set button width */
+}
+.custom-button:hover {
+    background-color: #eb0637; /* Background color when hovering */
+    color: white; /* Text color when hovering */
+}
+
