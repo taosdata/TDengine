@@ -2431,7 +2431,7 @@ static int32_t createWindowLogicNodeByExternal(SLogicPlanContext* pCxt, SExterna
   bool isPartTb = pSelect->pPartitionByList ? keysHasTbname(pSelect->pPartitionByList) : 0;
   if (nodeType(pSelect->pFromTable) == QUERY_NODE_REAL_TABLE) {
     SRealTableNode* pTable = (SRealTableNode*)pSelect->pFromTable;
-    if (pTable->pMeta->tableType == TSDB_NORMAL_TABLE || pTable->pMeta->tableType == TSDB_CHILD_TABLE || isPartTb) {
+    if (pTable->pMeta->tableType == TSDB_NORMAL_TABLE || pTable->pMeta->tableType == TSDB_CHILD_TABLE || isPartTb || pTable->asSingleTable) {
       pWindow->isSingleTable = true;
     } else {
       pWindow->isSingleTable = false;
@@ -2481,7 +2481,8 @@ static int32_t createWindowLogicNodeByStreamExternal(SLogicPlanContext* pCxt, SE
   pWindow->pTspk = NULL;
   if (nodeType(pSelect->pFromTable) == QUERY_NODE_REAL_TABLE) {
     SRealTableNode* pTable = (SRealTableNode*)pSelect->pFromTable;
-    if (pTable->pMeta->tableType == TSDB_NORMAL_TABLE || pTable->pMeta->tableType == TSDB_CHILD_TABLE) {
+    if (pTable->pMeta->tableType == TSDB_NORMAL_TABLE || pTable->pMeta->tableType == TSDB_CHILD_TABLE ||
+        pTable->asSingleTable) {
       pWindow->isSingleTable = true;
     } else {
       pWindow->isSingleTable = false;
