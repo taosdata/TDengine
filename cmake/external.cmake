@@ -1780,28 +1780,28 @@ else()
         "-DCMAKE_MAKE_PROGRAM:FILEPATH=${CMAKE_MAKE_PROGRAM}"
         "-DCMAKE_AR:FILEPATH=${CMAKE_AR}"
     )
-    # Arrow 19.0.1 bug on MSVC: size_statistics.cc uses std::array without
-    # #include <array>.  GCC/Clang pick it up transitively; MSVC does not.
-    # /FI array is the MSVC equivalent of GCC -include array (force-include).
-    # This applies to ALL build types, so use ARROW_CXX_FLAGS (no suffix).
+    # Arrow 19.0.1 bug on MSVC: parquet/size_statistics.cc uses std::array
+    # without #include <array>.  GCC/Clang pick it up transitively via other
+    # standard headers; MSVC does not.
+    # IMPORTANT: ARROW_CXX_FLAGS_* is inside if(NOT MSVC) in Arrow's
+    # SetupCxxFlags.cmake and has NO effect on MSVC builds.  We must set
+    # CMAKE_CXX_FLAGS_* directly, repeating the MSVC platform defaults so
+    # cmake does not lose them:
+    #   Debug defaults:          /Zi /Ob0 /Od /RTC1
+    #   Release defaults:        /O2 /Ob2 /DNDEBUG  (we replace /O2 with /O1)
+    #   RelWithDebInfo defaults: /Zi /O2 /Ob1 /DNDEBUG  (replace /O2 with /O1)
+    # Additional MSVC size-reduction flags:
+    #   /FI array  = force-include <array> (fixes size_statistics.cc)
+    #   /O1        = minimize size (replaces default /O2 in Release builds)
+    #   /Gy        = function-level COMDAT (equivalent of -ffunction-sections)
+    #   /Gw        = data-level COMDAT (equivalent of -fdata-sections)
     list(APPEND ARROW_EXTRA_CMAKE_ARGS
-        "-DARROW_CXX_FLAGS:STRING=/FI array"
-    )
-    # MSVC size-reduction flags for Arrow's bundled static libraries.
-    # /O1  = minimize size (MSVC equivalent of GCC -Os)
-    # /Gy  = function-level linking: each function in its own COMDAT so the
-    #        linker's /OPT:REF can dead-strip unreferenced ones
-    #        (MSVC equivalent of -ffunction-sections + --gc-sections)
-    # /Gw  = global data in separate COMDATs (MSVC equivalent of -fdata-sections)
-    # ARROW_CXX_FLAGS_* appends to – rather than replacing – CMake's defaults,
-    # per Arrow's build documentation.
-    list(APPEND ARROW_EXTRA_CMAKE_ARGS
-        "-DARROW_CXX_FLAGS_RELEASE:STRING=/O1 /Gy /Gw"
-        "-DARROW_C_FLAGS_RELEASE:STRING=/O1 /Gy /Gw"
-        "-DARROW_CXX_FLAGS_RELWITHDEBINFO:STRING=/O1 /Gy /Gw"
-        "-DARROW_C_FLAGS_RELWITHDEBINFO:STRING=/O1 /Gy /Gw"
-        "-DARROW_CXX_FLAGS_DEBUG:STRING=/Gy /Gw"
-        "-DARROW_C_FLAGS_DEBUG:STRING=/Gy /Gw"
+        "-DCMAKE_CXX_FLAGS_DEBUG:STRING=/Zi /Ob0 /Od /RTC1 /FI array /Gy /Gw"
+        "-DCMAKE_CXX_FLAGS_RELEASE:STRING=/O1 /Ob2 /DNDEBUG /FI array /Gy /Gw"
+        "-DCMAKE_CXX_FLAGS_RELWITHDEBINFO:STRING=/Zi /O1 /Ob1 /DNDEBUG /FI array /Gy /Gw"
+        "-DCMAKE_C_FLAGS_DEBUG:STRING=/Zi /Ob0 /Od /RTC1 /Gy /Gw"
+        "-DCMAKE_C_FLAGS_RELEASE:STRING=/O1 /Ob2 /DNDEBUG /Gy /Gw"
+        "-DCMAKE_C_FLAGS_RELWITHDEBINFO:STRING=/Zi /O1 /Ob1 /DNDEBUG /Gy /Gw"
     )
 endif()
 ExternalProject_Add(ext_arrow

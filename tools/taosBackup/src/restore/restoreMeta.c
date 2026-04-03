@@ -1373,7 +1373,10 @@ static int tagBlockCallback(void *userData,
             uint16_t _vl  = *(uint16_t *)(_vd + _off); \
             char    *_val = _vd + _off + sizeof(uint16_t); \
             if (_type == TSDB_DATA_TYPE_NCHAR) { \
-                char _utf8[(_vl) * 4 + 4]; \
+                char *_utf8 = (char *)taosMemoryMalloc((_vl) * 4 + 4); \
+                if (!_utf8) { \
+                    pos_ += snprintf((sql_) + pos_, (maxLen_) - pos_, "NULL"); \
+                } else { \
                 int32_t _ul = taosUcs4ToMbs((TdUcs4 *)_val, (int32_t)_vl, _utf8, NULL); \
                 if (_ul < 0) _ul = 0; \
                 pos_ += snprintf((sql_) + pos_, (maxLen_) - pos_, "'"); \
@@ -1382,6 +1385,8 @@ static int tagBlockCallback(void *userData,
                     else { (sql_)[pos_++] = _utf8[_k]; } \
                 } \
                 pos_ += snprintf((sql_) + pos_, (maxLen_) - pos_, "'"); \
+                taosMemoryFree(_utf8); \
+                } \
             } else if (_type == TSDB_DATA_TYPE_GEOMETRY) { \
                 char _wkt[4096]; \
                 int _wl = bckWkbToWkt((const unsigned char *)_val, (int)_vl, _wkt, (int)sizeof(_wkt)); \
