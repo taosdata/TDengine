@@ -313,7 +313,7 @@ TEST(osSemaphoreTests, Performance4_1) {
   for (int i = 0; i < count; ++i) {
     tsem_t sem;
     (void)tsem_init(&sem, 0, 0);
-    std::thread p([&sem, count]() {
+    std::thread p([&sem]() {
       (void)tsem_post(&sem);
     });
 
@@ -330,7 +330,7 @@ TEST(osSemaphoreTests, Performance4_2) {
   for (int i = 0; i < count; ++i) {
     tsem2_t sem;
     (void)tsem2_init(&sem, 0, 0);
-    std::thread p2([&sem, count]() {
+    std::thread p2([&sem]() {
       (void)tsem2_post(&sem);
     });
 
