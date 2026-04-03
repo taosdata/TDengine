@@ -143,6 +143,16 @@ static int32_t columnNodeCopy(const SColumnNode* pSrc, SColumnNode* pDst) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t tagRefColumnCopy(const STagRefColumn* pSrc, STagRefColumn* pDst) {
+  COPY_SCALAR_FIELD(colId);
+  COPY_SCALAR_FIELD(sourceColId);
+  COPY_CHAR_ARRAY_FIELD(colName);
+  COPY_CHAR_ARRAY_FIELD(sourceColName);
+  COPY_SCALAR_FIELD(bytes);
+  COPY_SCALAR_FIELD(dataType);
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t columnDefNodeCopy(const SColumnDefNode* pSrc, SColumnDefNode* pDst) {
   COPY_CHAR_ARRAY_FIELD(colName);
   COPY_OBJECT_FIELD(dataType, sizeof(SDataType));
@@ -665,6 +675,12 @@ static int32_t logicVirtualScanCopy(const SVirtualScanLogicNode * pSrc, SVirtual
   CLONE_OBJECT_FIELD(pVgroupList, vgroupsInfoClone);
   COPY_SCALAR_FIELD(scanType);
   COPY_OBJECT_FIELD(tableName, sizeof(SName));
+  CLONE_NODE_LIST_FIELD(pTagRefSources);
+  CLONE_NODE_LIST_FIELD(pLocalTags);
+  CLONE_NODE_LIST_FIELD(pRefTagCols);
+  CLONE_NODE_FIELD(pTagFilterCond);
+  COPY_SCALAR_FIELD(hasTagRef);
+  COPY_SCALAR_FIELD(hasLocalTag);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -868,6 +884,18 @@ static int32_t logicForecastFuncCopy(const SForecastFuncLogicNode* pSrc, SForeca
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t logicTagRefSourceCopy(const STagRefSourceLogicNode* pSrc, STagRefSourceLogicNode* pDst) {
+  COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
+  COPY_OBJECT_FIELD(sourceTableName, sizeof(SName));
+  COPY_SCALAR_FIELD(sourceSuid);
+  COPY_SCALAR_FIELD(sourceId);
+  CLONE_NODE_LIST_FIELD(pRefCols);
+  CLONE_OBJECT_FIELD(pVgroupList, vgroupsInfoClone);
+  COPY_SCALAR_FIELD(isUsedInFilter);
+  COPY_SCALAR_FIELD(isUsedInProjection);
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t logicGroupCacheCopy(const SGroupCacheLogicNode* pSrc, SGroupCacheLogicNode* pDst) {
   COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
   COPY_SCALAR_FIELD(grpColsMayBeNull);
@@ -915,6 +943,7 @@ static int32_t logicSubplanCopy(const SLogicSubplan* pSrc, SLogicSubplan* pDst) 
   COPY_SCALAR_FIELD(splitFlag);
   COPY_SCALAR_FIELD(processOneBlock);
   COPY_SCALAR_FIELD(dynTbname);
+  CLONE_OBJECT_FIELD(pVgroupList, vgroupsInfoClone);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -951,6 +980,25 @@ static int32_t physiVirtualTableScanCopy(const SVirtualScanPhysiNode* pSrc, SVir
   CLONE_NODE_FIELD(pSubtable);
   COPY_SCALAR_FIELD(igExpired);
   COPY_SCALAR_FIELD(igCheckUpdate);
+  CLONE_NODE_LIST_FIELD(pTagRefSources);
+  CLONE_NODE_LIST_FIELD(pLocalTags);
+  CLONE_NODE_LIST_FIELD(pRefTagCols);
+  CLONE_NODE_FIELD(pTagFilterCond);
+  COPY_SCALAR_FIELD(hasTagRef);
+  COPY_SCALAR_FIELD(hasLocalTag);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t physiTagRefSourceCopy(const STagRefSourcePhysiNode* pSrc, STagRefSourcePhysiNode* pDst) {
+  COPY_BASE_OBJECT_FIELD(node, physiNodeCopy);
+  COPY_OBJECT_FIELD(sourceTableName, sizeof(SName));
+  COPY_SCALAR_FIELD(sourceSuid);
+  COPY_SCALAR_FIELD(sourceId);
+  CLONE_NODE_LIST_FIELD(pRefCols);
+  CLONE_OBJECT_FIELD(pVgroupList, vgroupsInfoClone);
+  CLONE_NODE_LIST_FIELD(pScanCols);
+  COPY_SCALAR_FIELD(isUsedInFilter);
+  COPY_SCALAR_FIELD(isUsedInProjection);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1215,6 +1263,12 @@ int32_t nodesCloneNode(const SNode* pNode, SNode** ppNode) {
     return TSDB_CODE_SUCCESS;
   }
 
+  if (QUERY_NODE_TAG_REF_COLUMN == nodeType(pNode)) {
+    const STagRefColumn* pTagRef = (const STagRefColumn*)pNode;
+    qDebug("nodes clone tag ref src: type=%d colId=%d sourceColId=%d dataType=%d",
+           nodeType(pNode), pTagRef->colId, pTagRef->sourceColId, pTagRef->dataType);
+  }
+
   SNode* pDst = NULL;
   int32_t code = nodesMakeNode(nodeType(pNode), &pDst);
   if (TSDB_CODE_SUCCESS != code) {
@@ -1224,6 +1278,14 @@ int32_t nodesCloneNode(const SNode* pNode, SNode** ppNode) {
   switch (nodeType(pNode)) {
     case QUERY_NODE_COLUMN:
       code = columnNodeCopy((const SColumnNode*)pNode, (SColumnNode*)pDst);
+      break;
+    case QUERY_NODE_TAG_REF_COLUMN:
+      code = tagRefColumnCopy((const STagRefColumn*)pNode, (STagRefColumn*)pDst);
+      if (TSDB_CODE_SUCCESS == code) {
+        const STagRefColumn* pTagRef = (const STagRefColumn*)pDst;
+        qDebug("nodes clone tag ref dst: type=%d colId=%d sourceColId=%d dataType=%d",
+               nodeType(pDst), pTagRef->colId, pTagRef->sourceColId, pTagRef->dataType);
+      }
       break;
     case QUERY_NODE_COLUMN_DEF:
       code = columnDefNodeCopy((const SColumnDefNode*)pNode, (SColumnDefNode*)pDst);
@@ -1393,6 +1455,9 @@ int32_t nodesCloneNode(const SNode* pNode, SNode** ppNode) {
     case QUERY_NODE_LOGIC_PLAN_GROUP_CACHE:
       code = logicGroupCacheCopy((const SGroupCacheLogicNode*)pNode, (SGroupCacheLogicNode*)pDst);
       break;
+    case QUERY_NODE_LOGIC_PLAN_TAG_REF_SOURCE:
+      code = logicTagRefSourceCopy((const STagRefSourceLogicNode*)pNode, (STagRefSourceLogicNode*)pDst);
+      break;
     case QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL:
       code = logicDynQueryCtrlCopy((const SDynQueryCtrlLogicNode*)pNode, (SDynQueryCtrlLogicNode*)pDst);
       break;
@@ -1423,6 +1488,9 @@ int32_t nodesCloneNode(const SNode* pNode, SNode** ppNode) {
       break;
     case QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN:
       code = physiVirtualTableScanCopy((const SVirtualScanPhysiNode*)pNode, (SVirtualScanPhysiNode*)pDst);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_TAG_REF_SOURCE:
+      code = physiTagRefSourceCopy((const STagRefSourcePhysiNode*)pNode, (STagRefSourcePhysiNode*)pDst);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
       code = physiProjectCopy((const SProjectPhysiNode*)pNode, (SProjectPhysiNode*)pDst);

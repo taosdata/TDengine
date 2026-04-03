@@ -712,7 +712,9 @@ int32_t queryCreateTableMetaFromMsg(STableMetaRsp *msg, bool isStb, STableMeta *
   int32_t metaSize = sizeof(STableMeta) + sizeof(SSchema) * total;
   int32_t schemaExtSize = (withExtSchema(msg->tableType) && msg->pSchemaExt) ? sizeof(SSchemaExt) * msg->numOfColumns : 0;
   int32_t pColRefSize = (hasRefCol(msg->tableType) && msg->pColRefs && !isStb) ? sizeof(SColRef) * msg->numOfColRefs : 0;
-  int32_t pTagRefSize = (hasRefCol(msg->tableType) && msg->pTagRefs && !isStb) ? sizeof(SColRef) * msg->numOfTagRefs : 0;
+  // Virtual super tables also need tagRef so planner can create TagRefSourceLogicNode
+  bool    needTagRef = hasRefCol(msg->tableType) && msg->pTagRefs && (!isStb || msg->virtualStb);
+  int32_t pTagRefSize = needTagRef ? sizeof(SColRef) * msg->numOfTagRefs : 0;
 
   int32_t sz = metaSize + schemaExtSize + pColRefSize + pTagRefSize;
   STableMeta *pTableMeta = taosMemoryCalloc(1, sz);
@@ -766,7 +768,7 @@ int32_t queryCreateTableMetaFromMsg(STableMetaRsp *msg, bool isStb, STableMeta *
     pTableMeta->colRef = NULL;
   }
 
-  if (hasRefCol(msg->tableType) && msg->pTagRefs && !isStb) {
+  if (needTagRef) {
     pTableMeta->tagRef = (SColRef *)((char *)pTableMeta + metaSize + schemaExtSize + pColRefSize);
     memcpy(pTableMeta->tagRef, msg->pTagRefs, pTagRefSize);
     pTableMeta->numOfTagRefs = msg->numOfTagRefs;
@@ -916,7 +918,7 @@ int32_t queryProcessTableMetaRsp(void *output, char *msg, int32_t msgSize) {
     pOut->ctbMeta.uid = metaRsp.tuid;
     pOut->ctbMeta.suid = metaRsp.suid;
 
-    code = queryCreateTableMetaFromMsg(&metaRsp, true, &pOut->tbMeta);
+    code = queryCreateTableMetaFromMsg(&metaRsp, false, &pOut->tbMeta);
   } else if (metaRsp.tableType == TSDB_VIRTUAL_CHILD_TABLE) {
     SET_META_TYPE_BOTH_VTABLE(pOut->metaType);
 
@@ -988,7 +990,7 @@ static int32_t queryProcessTableNameRsp(void *output, char *msg, int32_t msgSize
     pOut->ctbMeta.uid = metaRsp.tuid;
     pOut->ctbMeta.suid = metaRsp.suid;
 
-    code = queryCreateTableMetaExFromMsg(&metaRsp, true, &pOut->tbMeta);
+    code = queryCreateTableMetaExFromMsg(&metaRsp, false, &pOut->tbMeta);
   } else if (metaRsp.tableType == TSDB_VIRTUAL_CHILD_TABLE) {
     SET_META_TYPE_BOTH_VTABLE(pOut->metaType);
 
