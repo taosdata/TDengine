@@ -17,6 +17,8 @@ import sys
 import tarfile
 import tempfile
 import time
+import urllib.parse
+import urllib.request
 import winreg
 import zipfile
 from pathlib import Path
@@ -98,6 +100,7 @@ def load_package_metadata() -> Dict[str, str]:
 PACKAGE_METADATA = load_package_metadata()
 APP_DISPLAY_NAME = PACKAGE_METADATA.get("app_name", "TDengine TDgpt-OSS")
 PRODUCT_FULL_NAME = PACKAGE_METADATA.get("product_full_name", f"{APP_DISPLAY_NAME} - TDengine Analytics Node")
+DEFAULT_RESOURCE_PACKAGE_URL = PACKAGE_METADATA.get("resource_package_url", "").strip()
 
 MODEL_SPECS: Dict[str, Dict[str, object]] = {
     "tdtsfm": {
@@ -178,12 +181,6 @@ VENV_CONFIGS: Dict[str, Dict[str, str]] = {
     "momentfm_venv": {"requirements": "requirements_moment.txt", "description": "MOMENT virtual environment"},
 }
 
-OFFLINE_RUNTIME_ARCHIVE_NAMES = [
-    "python-runtime.tar.gz",
-    "python-runtime.tgz",
-    "python-runtime.tar",
-]
-
 OFFLINE_VENV_ARCHIVE_NAMES: Dict[str, List[str]] = {
     "venv": ["venv-main.tar.gz", "venv-main.tgz", "venv-main.tar", "venv.tar.gz", "venv.tgz", "venv.tar"],
     "moirai_venv": ["venv-moirai.tar.gz", "venv-moirai.tgz", "venv-moirai.tar", "moirai_venv.tar.gz", "moirai_venv.tgz", "moirai_venv.tar"],
@@ -243,36 +240,45 @@ def find_reexec_python(current_python: Path) -> Optional[List[str]]:
     return None
 
 
-def is_replaceable_offline_import_python(current_python: Path) -> bool:
-    replaceable_roots = [VENVS_DIR.resolve(), PACKAGED_PYTHON_DIR.resolve()]
-    for root in replaceable_roots:
-        try:
-            current_python.relative_to(root)
-            return True
-        except ValueError:
-            continue
-    return False
+def is_unsafe_offline_import_python(current_python: Path) -> bool:
+    try:
+        current_python.relative_to(VENVS_DIR.resolve())
+        return True
+    except ValueError:
+        return False
 
 
 def maybe_reexec_for_offline_import(args: argparse.Namespace) -> None:
     if not args.offline:
         return
-    if not (args.offline_package or args.offline_model_package):
+    if not (args.offline_package or args.offline_model_package or args.resource_package_url):
         return
     if os.environ.get("TDGPT_REEXEC_OFFLINE_IMPORT", "") == "1":
         return
 
     current_python = Path(sys.executable).resolve()
-    if not is_replaceable_offline_import_python(current_python):
+    if not is_unsafe_offline_import_python(current_python):
         return
+
+    packaged_python = (PACKAGED_PYTHON_DIR / "python.exe").resolve()
+    if packaged_python.exists() and packaged_python != current_python:
+        print(f"INFO: Re-launching offline import with bundled Python: {packaged_python}")
+        env = os.environ.copy()
+        env["TDGPT_REEXEC_OFFLINE_IMPORT"] = "1"
+        result = subprocess.run(
+            [str(packaged_python), str(Path(__file__).resolve()), *sys.argv[1:]],
+            env=env,
+            check=False,
+        )
+        sys.exit(result.returncode)
 
     reexec_command = find_reexec_python(current_python)
     if not reexec_command:
         print(
-            "ERROR: Offline import needs a Python interpreter outside the current installation tree "
-            "because the installer must replace python/runtime or venvs during import."
+            "ERROR: Offline import needs a Python interpreter outside the current venv tree "
+            "because the installer must replace venvs during import."
         )
-        print("ERROR: Install Python 3.10/3.11/3.12 in PATH and run the installer again.")
+        print("ERROR: Re-run with the bundled runtime or install Python 3.10/3.11/3.12 in PATH.")
         sys.exit(1)
 
     print(f"INFO: Re-launching offline import with external Python: {' '.join(reexec_command)}")
@@ -325,6 +331,7 @@ class WindowsInstaller:
         model_archives: Optional[Dict[str, str]] = None,
         offline_package: str = "",
         offline_model_package: str = "",
+        resource_package_url: str = "",
         model_endpoint: str = "",
         pip_index_url: str = "",
         pip_trusted_host: str = "",
@@ -342,6 +349,7 @@ class WindowsInstaller:
         self.pip_index_url = pip_index_url or os.environ.get("PIP_INDEX_URL", "")
         self.pip_trusted_host = pip_trusted_host or os.environ.get("PIP_TRUSTED_HOST", "")
         self.offline_package = (offline_package or offline_model_package).strip().strip('"')
+        self.resource_package_url = (resource_package_url or DEFAULT_RESOURCE_PACKAGE_URL).strip()
         self.install_tensorflow = install_tensorflow
         self.service_install_success = False
         self.existing_install_requested = existing_install
@@ -364,6 +372,7 @@ class WindowsInstaller:
         self._offline_package_cached_path = ""
         self._archive_member_cache: Dict[str, set[str]] = {}
         self._offline_models_prepared_from_package = False
+        self._downloaded_resource_package: Optional[Path] = None
 
         raw_models = [normalize_model_name(item) for item in (selected_models or [])]
         if self.all_models:
@@ -474,6 +483,46 @@ class WindowsInstaller:
         self._offline_package_root = temp_dir
         self._offline_package_cached_path = resolved
         return temp_dir
+
+    def ensure_resource_package_downloaded(self) -> bool:
+        if self.offline_package:
+            return True
+        if not self.resource_package_url:
+            self.print_error(
+                "No local TDgpt resource package was found, and no resource package URL is configured."
+            )
+            return False
+
+        parsed = urllib.parse.urlparse(self.resource_package_url)
+        file_name = Path(parsed.path).name or "tdengine-tdgpt-resource.tar"
+        target_dir = self.log_dir / "downloads"
+        target_dir.mkdir(parents=True, exist_ok=True)
+        target_path = target_dir / file_name
+        partial_path = target_path.with_name(target_path.name + ".part")
+
+        self.set_progress(18, "Preparing installation environment", f"Downloading TDgpt resource package: {file_name}")
+        self.print_info(f"Downloading TDgpt resource package from {self.resource_package_url}")
+        try:
+            if partial_path.exists():
+                partial_path.unlink()
+            with urllib.request.urlopen(self.resource_package_url, timeout=120) as response, partial_path.open("wb") as fh:
+                shutil.copyfileobj(response, fh)
+            partial_path.replace(target_path)
+        except Exception as exc:
+            try:
+                if partial_path.exists():
+                    partial_path.unlink()
+            except Exception:
+                pass
+            self.print_error(
+                f"No local TDgpt resource package was found, and the configured resource package URL could not be downloaded: {self.resource_package_url}. Error: {exc}"
+            )
+            return False
+
+        self.offline_package = str(target_path)
+        self._downloaded_resource_package = target_path
+        self.print_success(f"Downloaded resource package: {target_path}")
+        return True
 
     @staticmethod
     def compare_versions(left: str, right: str) -> int:
@@ -870,11 +919,10 @@ class WindowsInstaller:
             self.print_warning(f"Failed to inspect offline package {package_path.name}: {exc}")
             return None
 
-        runtime_prefix = self.find_direct_directory_prefix(member_names, ["python/runtime"], ["python.exe"])
         main_venv_prefix = self.find_direct_directory_prefix(member_names, ["venvs/venv"], ["pyvenv.cfg", "Scripts/python.exe"])
-        if runtime_prefix is None or main_venv_prefix is None:
+        if main_venv_prefix is None:
             self.print_info(
-                f"Offline package {package_path.name} does not use the direct runtime/venv layout. "
+                f"Offline package {package_path.name} does not use the direct venv layout. "
                 "Falling back to temporary extraction."
             )
             return None
@@ -896,14 +944,11 @@ class WindowsInstaller:
                 if prefix:
                     model_prefixes[model_name] = prefix
 
-        install_prefixes = [runtime_prefix, *venv_prefixes.values(), *model_prefixes.values()]
+        install_prefixes = [*venv_prefixes.values(), *model_prefixes.values()]
         self.print_info(
             f"Direct offline import will extract selected package content straight into {self.install_dir}."
         )
 
-        if PACKAGED_PYTHON_DIR.exists():
-            if not self.remove_tree_with_retry(PACKAGED_PYTHON_DIR, "Python runtime directory"):
-                return False
         for venv_name in venv_prefixes:
             if not self.remove_tree_with_retry(self.get_venv_path(venv_name), f"{venv_name} directory"):
                 return False
@@ -971,39 +1016,6 @@ class WindowsInstaller:
                 return candidate
         return None
 
-    def import_runtime_payload(self, package_root: Path) -> bool:
-        runtime_dir = self.find_directory_by_candidates(package_root, ["python/runtime", "runtime", "python-runtime"], ["python.exe"])
-        if runtime_dir is None:
-            archive = self.find_archive_by_name(package_root, OFFLINE_RUNTIME_ARCHIVE_NAMES)
-            if archive is None:
-                self.print_error(
-                    "Offline package does not contain python-runtime.tar.gz. "
-                    "Expected one bundled Python runtime archive for offline installation."
-                )
-                return False
-            with tempfile.TemporaryDirectory(prefix="tdgpt-runtime-import-", dir=str(self.install_dir)) as temp_name:
-                temp_dir = Path(temp_name)
-                if not self.extract_archive_to_dir(archive, temp_dir):
-                    return False
-                runtime_dir = self.find_directory_by_candidates(temp_dir, ["python/runtime", "runtime", "python-runtime", "."], ["python.exe"])
-                if runtime_dir is None:
-                    self.print_error(f"Imported runtime archive {archive.name} does not contain python.exe.")
-                    return False
-                return self.deploy_runtime_dir(runtime_dir)
-        return self.deploy_runtime_dir(runtime_dir)
-
-    def deploy_runtime_dir(self, source_dir: Path) -> bool:
-        target_dir = PACKAGED_PYTHON_DIR
-        if target_dir.exists():
-            shutil.rmtree(target_dir, ignore_errors=True)
-        target_dir.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copytree(source_dir, target_dir)
-        runtime_python = self.get_runtime_python()
-        if not runtime_python.exists():
-            self.print_error(f"Imported Python runtime failed validation: {runtime_python} was not created.")
-            return False
-        return True
-
     def import_venv_payload(self, package_root: Path, venv_name: str, required: bool) -> bool:
         required_files = ["pyvenv.cfg", "Scripts/python.exe"]
         source_dir = self.find_directory_by_candidates(
@@ -1054,24 +1066,19 @@ class WindowsInstaller:
         return True
 
     def prepare_external_offline_runtime(self) -> bool:
-        if not self.offline_package:
-            self.print_error(
-                "Offline mode requires one offline package archive that contains python runtime and virtual environments."
-            )
+        if not self.offline_package and not self.ensure_resource_package_downloaded():
             return False
         package_path = Path(self.offline_package)
         if not package_path.exists():
             self.print_error(f"Offline package not found: {package_path}")
             return False
 
-        self.set_progress(20, "Preparing Python environments", f"Importing packaged Python runtime and virtual environments from {package_path.name}")
-        package_timer = self.start_phase_timer(f"Import offline runtime bundle {package_path.name}")
+        self.set_progress(20, "Preparing Python environments", f"Importing packaged virtual environments from {package_path.name}")
+        package_timer = self.start_phase_timer(f"Import offline venv bundle {package_path.name}")
         direct_result = self.try_prepare_direct_offline_import(package_path)
         if direct_result is None:
             temp_dir = self.get_offline_package_root(package_path)
             if temp_dir is None:
-                return False
-            if not self.import_runtime_payload(temp_dir):
                 return False
             if not self.import_venv_payload(temp_dir, "venv", required=True):
                 return False
@@ -1081,7 +1088,7 @@ class WindowsInstaller:
         elif not direct_result:
             return False
 
-        self.python_cmd = str(self.get_runtime_python())
+        self.python_cmd = str(self.get_current_interpreter())
         for venv_name in VENV_CONFIGS:
             config_path = self.get_venv_path(venv_name) / "pyvenv.cfg"
             if not self.get_venv_python(venv_name).exists() or not config_path.exists():
@@ -1094,10 +1101,10 @@ class WindowsInstaller:
             self.print_error("Offline imported main virtual environment validation failed.")
             return False
 
-        self.finish_phase_timer(f"Import offline runtime bundle {package_path.name}", package_timer)
-        self.set_progress(58, "Installing optional TensorFlow support", "Offline package already includes the imported Python environments")
+        self.finish_phase_timer(f"Import offline venv bundle {package_path.name}", package_timer)
+        self.set_progress(58, "Installing optional TensorFlow support", "The imported resource package already includes the required virtual environments")
         self.set_progress(82, "Preparing Python environments", "Imported Python environments are ready")
-        self.print_success("Offline Python runtime and virtual environments were imported successfully.")
+        self.print_success("Offline virtual environments were imported successfully.")
         return True
 
     def add_pip_options(self, command: List[str]) -> List[str]:
@@ -1618,8 +1625,6 @@ class WindowsInstaller:
 
     def install_venvs(self) -> bool:
         if self.offline:
-            if not self.offline_package and self.is_existing_install():
-                return self.prepare_existing_runtime_reuse()
             return self.prepare_external_offline_runtime()
         if not self.prepare_venv("venv", 20, 42):
             return False
@@ -2012,6 +2017,7 @@ except Exception as exc:
             f"Model source: {self.model_source}",
             "Selected models: " + (", ".join(self.selected_models) if self.selected_models else "None"),
             f"Offline package: {self.offline_package or 'None'}",
+            f"Resource package URL: {self.resource_package_url or 'None'}",
             f"Pip index: {self.pip_index_url or 'Default'}",
             f"Pip trusted host: {self.pip_trusted_host or 'Default'}",
             f"Model endpoint: {self.model_endpoint or 'Default Hugging Face'}",
@@ -2139,12 +2145,13 @@ Examples:
   python install.py
   python install.py --skip-tensorflow
   python install.py --model-source online --model moirai --model moment --model-endpoint https://hf-mirror.com
+    python install.py -o --resource-package-url https://downloads.example.com/tdengine-tdgpt-resource-1.0.tar
   python install.py -o --model-source offline --offline-package D:\\tdgpt-offline-bundle.tar.gz
   python install.py -o --existing-install
         """.strip(),
     )
     parser.add_argument("-o", "--offline", action="store_true",
-                        help="Offline installation mode. First install imports python runtime and virtual environments from one external tar archive; upgrade can reuse the current environment.")
+                                                help="Offline/resource-package installation mode. Imports virtual environments and model payloads from one external tar archive; upgrade can also reuse the current environment.")
     parser.add_argument("-a", "--all-models", action="store_true", help="Select all supported models for the chosen model source.")
     parser.add_argument("--model-source", choices=["none", "online", "offline"], default="none",
                         help="Choose how selected models should be prepared.")
@@ -2153,9 +2160,11 @@ Examples:
     parser.add_argument("--model-archive", action="append", dest="model_archives",
                         help="Offline archive mapping in the form <model>=<path>.")
     parser.add_argument("--offline-package",
-                        help="Offline tar archive that can contain python-runtime.tar.gz, venv-*.tar.gz, and model-*.tar.gz.")
+                        help="Offline/resource package tar archive that can contain venv-*.tar.gz and model payloads.")
     parser.add_argument("--offline-model-package",
                         help="Deprecated alias for --offline-package.")
+    parser.add_argument("--resource-package-url",
+                        help="Remote resource package URL used to download a tar before reusing offline import logic.")
     parser.add_argument("--model-endpoint", help="Optional Hugging Face mirror endpoint used for online model downloads.")
     parser.add_argument("--pip-index-url", help="Custom pip index URL used for dependency installation.")
     parser.add_argument("--pip-trusted-host", help="Optional trusted host used together with the pip index URL.")
@@ -2189,6 +2198,7 @@ def main() -> None:
         model_archives=model_archives,
         offline_package=args.offline_package or "",
         offline_model_package=args.offline_model_package or "",
+        resource_package_url=args.resource_package_url or "",
         model_endpoint=args.model_endpoint or "",
         pip_index_url=args.pip_index_url or "",
         pip_trusted_host=args.pip_trusted_host or "",

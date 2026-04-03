@@ -5,12 +5,14 @@ from __future__ import annotations
 
 import argparse
 import copy
+import datetime
 import io
 import os
 import subprocess
 import sys
 import tarfile
 import tempfile
+import time
 from pathlib import Path
 from typing import Iterable, Optional
 
@@ -148,13 +150,16 @@ def remap_seed_member_name(member_name: str) -> str:
 def normalize_prefixes(prefixes: Optional[Iterable[str]]) -> list[str]:
     normalized: list[str] = []
     for item in prefixes or []:
-        prefix = item.strip("/").replace("\\", "/")
-        if not prefix:
+        pattern = item.strip("/").replace("\\", "/")
+        if not pattern:
             continue
-        prefix = prefix + "/"
-        if prefix not in normalized:
-            normalized.append(prefix)
+        if pattern not in normalized:
+            normalized.append(pattern)
     return normalized
+
+
+def matches_pattern(member_name: str, pattern: str) -> bool:
+    return member_name == pattern or member_name.startswith(pattern + "/")
 
 
 def inspect_tar_prefixes(source_tar: Path, watched_prefixes: Iterable[str]) -> set[str]:
@@ -166,9 +171,25 @@ def inspect_tar_prefixes(source_tar: Path, watched_prefixes: Iterable[str]) -> s
             if not member_name:
                 continue
             for prefix in normalized_prefixes:
-                if member_name.startswith(prefix):
-                    found_prefixes.add(prefix)
+                if matches_pattern(member_name, prefix):
+                    found_prefixes.add(prefix + "/")
     return found_prefixes
+
+
+def collect_seed_models(source_tar: Path) -> list[str]:
+    models: set[str] = set()
+    with tarfile.open(source_tar, "r:*") as src:
+        for member in src:
+            member_name = remap_seed_member_name(member.name)
+            if not member_name:
+                continue
+            if not member_name.startswith("model/"):
+                continue
+            remainder = member_name[len("model/"):]
+            model_name, _, _ = remainder.partition("/")
+            if model_name:
+                models.add(model_name)
+    return sorted(models)
 
 
 def copy_tar_members(
@@ -185,9 +206,9 @@ def copy_tar_members(
             member_name = remap_seed_member_name(member.name)
             if not member_name:
                 continue
-            if include_normalized and not any(member_name.startswith(prefix) for prefix in include_normalized):
+            if include_normalized and not any(matches_pattern(member_name, prefix) for prefix in include_normalized):
                 continue
-            if exclude_normalized and any(member_name.startswith(prefix) for prefix in exclude_normalized):
+            if exclude_normalized and any(matches_pattern(member_name, prefix) for prefix in exclude_normalized):
                 continue
             member = copy.copy(member)
             member.name = member_name
@@ -203,18 +224,21 @@ def copy_tar_members(
 
 def create_manifest_lines(
     seed_package: Optional[Path],
-    runtime_dir: Path,
     main_venv_dir: Path,
     extra_venvs: Iterable[Path],
 ) -> str:
     lines = [
         "TDgpt offline assets manifest",
         "",
-        f"runtime={runtime_dir}",
+        "generated_at=" + datetime.datetime.now().astimezone().isoformat(timespec="seconds"),
         f"main_venv={main_venv_dir}",
+        "runtime=provided-by-installer",
     ]
     if seed_package is not None:
         lines.append(f"seed_package={seed_package}")
+        model_list = collect_seed_models(seed_package)
+        if model_list:
+            lines.append("models=" + ",".join(model_list))
     extra_list = list(extra_venvs)
     if extra_list:
         lines.append("extra_venvs=" + ",".join(str(item) for item in extra_list))
@@ -225,7 +249,6 @@ def create_manifest_lines(
 def build_bundle(
     output_file: Path,
     seed_package: Optional[Path],
-    runtime_dir: Path,
     main_venv_dir: Path,
     extra_venvs: list[Path],
 ) -> Path:
@@ -236,7 +259,6 @@ def build_bundle(
     with tarfile.open(output_file, "w") as tar_obj:
         existing_prefixes: set[str] = set()
         seed_handled_prefixes = [
-            "python/runtime",
             "venvs/venv",
             *[f"venvs/{item.name}" for item in extra_venvs],
         ]
@@ -246,14 +268,6 @@ def build_bundle(
                 seed_package,
                 watched_prefixes=seed_handled_prefixes,
             )
-
-        if "python/runtime/" in existing_prefixes:
-            info("Adding Python runtime from seed package")
-            copied = copy_tar_members(seed_package, tar_obj, include_prefixes=["python/runtime"])
-            info(f"Copied {copied} Python runtime members from seed package")
-        else:
-            info(f"Adding Python runtime from {runtime_dir}")
-            add_directory_to_tar(tar_obj, runtime_dir, "python/runtime")
 
         if "venvs/venv/" in existing_prefixes:
             info("Adding main venv from seed package")
@@ -278,15 +292,16 @@ def build_bundle(
             copied = copy_tar_members(
                 seed_package,
                 tar_obj,
-                exclude_prefixes=seed_handled_prefixes,
+                exclude_prefixes=[*seed_handled_prefixes, "python", "offline-assets-manifest.txt"],
             )
             info(f"Copied {copied} members from seed package")
 
-        manifest = create_manifest_lines(seed_package, runtime_dir, main_venv_dir, extra_venvs)
+        manifest = create_manifest_lines(seed_package, main_venv_dir, extra_venvs)
         data = manifest.encode("utf-8")
         info("Adding offline assets manifest")
         manifest_info = tarfile.TarInfo(name="offline-assets-manifest.txt")
         manifest_info.size = len(data)
+        manifest_info.mtime = int(time.time())
         tar_obj.addfile(manifest_info, io.BytesIO(data))
 
     return output_file
@@ -306,10 +321,6 @@ def parse_args() -> argparse.Namespace:
         help="Existing tar/tar.gz package that already contains offline model payloads and optional model venvs.",
     )
     parser.add_argument(
-        "--python-runtime-dir",
-        help="Existing Python runtime directory that contains python.exe. If omitted, uv will download Python.",
-    )
-    parser.add_argument(
         "--main-venv-dir",
         required=True,
         help="Main taosanode virtual environment directory to add as venvs/venv.",
@@ -319,16 +330,6 @@ def parse_args() -> argparse.Namespace:
         action="append",
         default=[],
         help="Additional virtual environment directory to add under venvs/. Repeat as needed.",
-    )
-    parser.add_argument(
-        "--uv-exe",
-        default="",
-        help="Path to uv.exe used when --python-runtime-dir is omitted.",
-    )
-    parser.add_argument(
-        "--python-version",
-        default="3.11",
-        help="Python version used by uv when --python-runtime-dir is omitted.",
     )
     return parser.parse_args()
 
@@ -344,17 +345,7 @@ def main() -> int:
     main_venv_dir = ensure_directory(Path(args.main_venv_dir), "Main venv directory")
     extra_venvs = [ensure_directory(Path(item), "Extra venv directory") for item in args.extra_venv_dir]
 
-    with tempfile.TemporaryDirectory(prefix="tdgpt-offline-assets-") as temp_name:
-        temp_root = Path(temp_name)
-        runtime_dir = prepare_runtime_source(
-            Path(args.python_runtime_dir).resolve() if args.python_runtime_dir else None,
-            args.uv_exe,
-            args.python_version,
-            temp_root,
-        )
-        runtime_dir = ensure_directory(runtime_dir, "Python runtime directory")
-
-        bundle_path = build_bundle(output_file, seed_package, runtime_dir, main_venv_dir, extra_venvs)
+    bundle_path = build_bundle(output_file, seed_package, main_venv_dir, extra_venvs)
 
     ok(f"Offline assets package created: {bundle_path}")
     return 0
