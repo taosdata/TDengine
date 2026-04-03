@@ -696,6 +696,11 @@ static int32_t metaCreateVirtualNormalTable(SMeta *pMeta, int64_t version, SVCre
                       .ntbEntry.ncid = pReq->ntb.schemaRow.pSchema[pReq->ntb.schemaRow.nCols - 1].colId + 1,
                       .ntbEntry.ownerId = pReq->ntb.userId,
                       .colRef = pReq->colRef};
+  // Batch meta txn: shadow-in-B+tree — write with PRE_CREATE status, invisible until COMMIT
+  if (pReq->txnId != 0) {
+    entry.txnId = pReq->txnId;
+    entry.txnStatus = META_TXN_PRE_CREATE;
+  }
 
   code = metaBuildCreateVirtualNormalTableRsp(pMeta, &entry, ppRsp);
   if (code) {
@@ -763,6 +768,11 @@ static int32_t metaCreateVirtualChildTable(SMeta *pMeta, int64_t version, SVCrea
                       .ctbEntry.suid = pReq->ctb.suid,
                       .ctbEntry.pTags = pReq->ctb.pTag,
                       .colRef = pReq->colRef};
+  // Batch meta txn: shadow-in-B+tree — write with PRE_CREATE status, invisible until COMMIT
+  if (pReq->txnId != 0) {
+    entry.txnId = pReq->txnId;
+    entry.txnStatus = META_TXN_PRE_CREATE;
+  }
 
   code = metaBuildCreateVirtualChildTableRsp(pMeta, &entry, ppRsp);
   if (code) {

@@ -470,6 +470,7 @@ static int32_t vnodeTxnUndoShadowEntries(SVnode *pVnode, SVnodeTxnEntry *pEntry)
           dropReq.uid = uid;
           dropReq.suid =
               (pME->type == TSDB_CHILD_TABLE || pME->type == TSDB_VIRTUAL_CHILD_TABLE) ? pME->ctbEntry.suid : 0;
+          dropReq.isVirtual = (pME->type == TSDB_VIRTUAL_NORMAL_TABLE || pME->type == TSDB_VIRTUAL_CHILD_TABLE) ? 1 : 0;
           dropReq.txnId = 0;
           code = metaDropTable2(pVnode->pMeta, -1, &dropReq);
         }
@@ -529,6 +530,9 @@ static int32_t vnodeTxnUndoShadowEntries(SVnode *pVnode, SVnodeTxnEntry *pEntry)
                   dropReq.suid = (pRestored->type == TSDB_CHILD_TABLE || pRestored->type == TSDB_VIRTUAL_CHILD_TABLE)
                                      ? pRestored->ctbEntry.suid
                                      : 0;
+                  dropReq.isVirtual =
+                      (pRestored->type == TSDB_VIRTUAL_NORMAL_TABLE || pRestored->type == TSDB_VIRTUAL_CHILD_TABLE) ? 1
+                                                                                                                    : 0;
                   dropReq.txnId = 0;
                   dropCode = metaDropTable2(pVnode->pMeta, -1, &dropReq);
                 }

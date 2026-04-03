@@ -23326,6 +23326,7 @@ static int32_t buildVirtualTableBatchReq(STranslateContext* pCxt, const SCreateV
   col_id_t      index = 0;
 
   req.type = TD_VIRTUAL_NORMAL_TABLE;
+  req.txnId = pCxt->pParseCxt->txnId;
   req.name = taosStrdup(pStmt->tableName);
   req.ntb.schemaRow.nCols = LIST_LENGTH(pStmt->pCols);
   req.ntb.schemaRow.version = 1;
@@ -23378,12 +23379,13 @@ static col_id_t getTagSchemaIndex(const STableMeta* pTableMeta, const char* pTag
 
 static int32_t buildVirtualSubTableBatchReq(const SCreateVSubTableStmt* pStmt, STableMeta* pStbMeta, SArray* tagName,
                                             uint8_t tagNum, const STag* pTag, const SVgroupInfo* pVgroupInfo,
-                                            SVgroupCreateTableBatch* pBatch, SNodeList* pTagRefNodes) {
+                                            SVgroupCreateTableBatch* pBatch, SNodeList* pTagRefNodes, int64_t txnId) {
   int32_t       code = TSDB_CODE_SUCCESS;
   SVCreateTbReq req = {0};
   SNode*        pCol;
 
   req.type = TD_VIRTUAL_CHILD_TABLE;
+  req.txnId = txnId;
   req.name = taosStrdup(pStmt->tableName);
   req.ttl = 0;
   req.commentLen = -1;
@@ -24610,8 +24612,23 @@ static int32_t buildDropVirtualTableVgroupHashmap(STranslateContext* pCxt, SDrop
   PAR_ERR_JRET(getTableHashVgroup(pCxt, pStmt->dbName, pStmt->tableName, &info));
 
   SVDropTbReq req = {.suid = pTableMeta->suid, .igNotExists = pStmt->ignoreNotExists, .isVirtual = true};
+  req.txnId = pCxt->pParseCxt->txnId;
   req.name = pStmt->tableName;
   PAR_ERR_JRET(addDropTbReqIntoVgroup(pVgroupHashmap, &info, &req));
+
+  // Batch meta txn: remove dropped table from txn cache so it's no longer visible
+  if (TSDB_CODE_SUCCESS == code && pCxt->pParseCxt->txnId != 0 && pCxt->pParseCxt->pTxnTableMeta) {
+    SName dropName = {0};
+    toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &dropName);
+    char fullName[TSDB_TABLE_FNAME_LEN];
+    if (tNameExtractFullName(&dropName, fullName) == 0) {
+      STableMeta** ppCached = (STableMeta**)taosHashGet(pCxt->pParseCxt->pTxnTableMeta, fullName, strlen(fullName));
+      if (ppCached && *ppCached) {
+        taosMemoryFreeClear(*ppCached);
+        taosHashRemove(pCxt->pParseCxt->pTxnTableMeta, fullName, strlen(fullName));
+      }
+    }
+  }
 
 _return:
   taosMemoryFreeClear(pTableMeta);
@@ -26244,10 +26261,11 @@ _return:
 
 static int32_t buildCreateVSubTableDataBlock(const SCreateVSubTableStmt* pStmt, const SVgroupInfo* pInfo,
                                              SArray* pBufArray, STableMeta* pStbMeta, SArray* tagName, uint8_t tagNum,
-                                             const STag* pTag, SNodeList* pTagRefNodes) {
+                                             const STag* pTag, SNodeList* pTagRefNodes, int64_t txnId) {
   SVgroupCreateTableBatch tbatch = {0};
   int32_t                 code = TSDB_CODE_SUCCESS;
-  PAR_ERR_JRET(buildVirtualSubTableBatchReq(pStmt, pStbMeta, tagName, tagNum, pTag, pInfo, &tbatch, pTagRefNodes));
+  PAR_ERR_JRET(
+      buildVirtualSubTableBatchReq(pStmt, pStbMeta, tagName, tagNum, pTag, pInfo, &tbatch, pTagRefNodes, txnId));
   PAR_ERR_JRET(serializeVgroupCreateTableBatch(&tbatch, pBufArray));
 
 _return:
@@ -26505,7 +26523,7 @@ static int32_t rewriteCreateVirtualSubTable(STranslateContext* pCxt, SQuery* pQu
   }
 
   PAR_ERR_JRET(buildCreateVSubTableDataBlock(pStmt, &info, pBufArray, pSuperTableMeta, tagName,
-                                             taosArrayGetSize(tagName), pTag, pTagRefNodes));
+                                             taosArrayGetSize(tagName), pTag, pTagRefNodes, pCxt->pParseCxt->txnId));
   PAR_ERR_JRET(rewriteToVnodeModifyOpStmt(pQuery, pBufArray));
 
   nodesDestroyList(pTagRefNodes);

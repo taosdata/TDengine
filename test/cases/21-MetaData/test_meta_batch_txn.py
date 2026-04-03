@@ -1761,6 +1761,494 @@ class TestBatchMetaTxn:
         tdSql.query("show tables")
         tdSql.checkRows(0)
 
+    # =========================================================================
+    # Helper: setup source tables for virtual table tests
+    # =========================================================================
+    def _setup_vtable_sources(self):
+        """Create source tables needed for virtual table column references."""
+        tdSql.execute("create table src_stb (ts timestamp, v int, c1 float) tags (t1 int)")
+        tdSql.execute("create table src_ct1 using src_stb tags(1)")
+        tdSql.execute("create table src_ct2 using src_stb tags(2)")
+        tdSql.execute("create table src_ntb (ts timestamp, v int, c1 float)")
+
+    # =========================================================================
+    # 65. Virtual Normal Table (VNT) CREATE + COMMIT
+    # =========================================================================
+    def s65_vnt_create_commit(self):
+        self.s0_reset_env()
+        tdLog.info("======== s65_vnt_create_commit")
+        self._setup_vtable_sources()
+
+        tdSql.execute("BEGIN")
+        tdSql.execute("create vtable vnt1 (ts timestamp, v int from txn_db.src_ntb.v)")
+        tdSql.execute("create vtable vnt2 (ts timestamp, v int from txn_db.src_ct1.v)")
+        tdSql.execute("COMMIT")
+
+        tdSql.query("show vtables")
+        tdSql.checkRows(2)
+
+    # =========================================================================
+    # 66. Virtual Normal Table (VNT) CREATE + ROLLBACK
+    # =========================================================================
+    def s66_vnt_create_rollback(self):
+        self.s0_reset_env()
+        tdLog.info("======== s66_vnt_create_rollback")
+        self._setup_vtable_sources()
+
+        tdSql.execute("BEGIN")
+        tdSql.execute("create vtable vnt1 (ts timestamp, v int from txn_db.src_ntb.v)")
+        tdSql.execute("ROLLBACK")
+
+        tdSql.query("show vtables")
+        tdSql.checkRows(0)
+
+    # =========================================================================
+    # 67. Virtual Normal Table (VNT) DROP + COMMIT
+    # =========================================================================
+    def s67_vnt_drop_commit(self):
+        self.s0_reset_env()
+        tdLog.info("======== s67_vnt_drop_commit")
+        self._setup_vtable_sources()
+        tdSql.execute("create vtable vnt1 (ts timestamp, v int from txn_db.src_ntb.v)")
+
+        tdSql.query("show vtables")
+        tdSql.checkRows(1)
+
+        tdSql.execute("BEGIN")
+        tdSql.execute("drop vtable vnt1")
+        tdSql.execute("COMMIT")
+
+        tdSql.query("show vtables")
+        tdSql.checkRows(0)
+
+    # =========================================================================
+    # 68. Virtual Normal Table (VNT) DROP + ROLLBACK
+    # =========================================================================
+    def s68_vnt_drop_rollback(self):
+        self.s0_reset_env()
+        tdLog.info("======== s68_vnt_drop_rollback")
+        self._setup_vtable_sources()
+        tdSql.execute("create vtable vnt1 (ts timestamp, v int from txn_db.src_ntb.v)")
+
+        tdSql.execute("BEGIN")
+        tdSql.execute("drop vtable vnt1")
+        tdSql.execute("ROLLBACK")
+
+        # VNT should still exist after rollback
+        tdSql.query("show vtables")
+        tdSql.checkRows(1)
+
+    # =========================================================================
+    # 69. Virtual Normal Table ALTER (add column) + COMMIT
+    # =========================================================================
+    def s69_vnt_alter_commit(self):
+        self.s0_reset_env()
+        tdLog.info("======== s69_vnt_alter_commit")
+        self._setup_vtable_sources()
+        tdSql.execute("create vtable vnt1 (ts timestamp, v int from txn_db.src_ntb.v)")
+
+        tdSql.execute("BEGIN")
+        tdSql.execute("alter vtable vnt1 add column c1 float")
+        tdSql.execute("COMMIT")
+
+        tdSql.query("describe vnt1")
+        col_names = [tdSql.queryResult[i][0] for i in range(tdSql.queryRows)]
+        assert 'c1' in col_names, "Column c1 not found after ALTER VTABLE + COMMIT"
+
+    # =========================================================================
+    # 70. Virtual Normal Table ALTER (add column) + ROLLBACK
+    # =========================================================================
+    def s70_vnt_alter_rollback(self):
+        self.s0_reset_env()
+        tdLog.info("======== s70_vnt_alter_rollback")
+        self._setup_vtable_sources()
+        tdSql.execute("create vtable vnt1 (ts timestamp, v int from txn_db.src_ntb.v)")
+
+        tdSql.execute("BEGIN")
+        tdSql.execute("alter vtable vnt1 add column c1 float")
+        tdSql.execute("ROLLBACK")
+
+        tdSql.query("describe vnt1")
+        for i in range(tdSql.queryRows):
+            assert tdSql.queryResult[i][0] != 'c1', \
+                "Column c1 should not exist after ROLLBACK"
+
+    # =========================================================================
+    # 71. Virtual STB CREATE + COMMIT
+    # =========================================================================
+    def s71_vstb_create_commit(self):
+        self.s0_reset_env()
+        tdLog.info("======== s71_vstb_create_commit")
+
+        tdSql.execute("BEGIN")
+        tdSql.execute("create table vstb1 (ts timestamp, v int) tags(t1 int) virtual 1")
+        tdSql.execute("COMMIT")
+
+        tdSql.query("show txn_db.stables")
+        tdSql.checkRows(1)
+
+    # =========================================================================
+    # 72. Virtual STB CREATE + ROLLBACK
+    # =========================================================================
+    def s72_vstb_create_rollback(self):
+        self.s0_reset_env()
+        tdLog.info("======== s72_vstb_create_rollback")
+
+        tdSql.execute("BEGIN")
+        tdSql.execute("create table vstb1 (ts timestamp, v int) tags(t1 int) virtual 1")
+        tdSql.execute("ROLLBACK")
+
+        tdSql.query("show txn_db.stables")
+        tdSql.checkRows(0)
+
+    # =========================================================================
+    # 73. Virtual Child Table (VCTB) CREATE + COMMIT
+    # =========================================================================
+    def s73_vctb_create_commit(self):
+        self.s0_reset_env()
+        tdLog.info("======== s73_vctb_create_commit")
+        self._setup_vtable_sources()
+        tdSql.execute("create table vstb1 (ts timestamp, v int) tags(t1 int) virtual 1")
+
+        tdSql.execute("BEGIN")
+        tdSql.execute("create vtable vct1 (v from txn_db.src_ct1.v) using vstb1 tags(1)")
+        tdSql.execute("create vtable vct2 (v from txn_db.src_ct2.v) using vstb1 tags(2)")
+        tdSql.execute("COMMIT")
+
+        tdSql.query("show vtables")
+        tdSql.checkRows(2)
+
+    # =========================================================================
+    # 74. Virtual Child Table (VCTB) CREATE + ROLLBACK
+    # =========================================================================
+    def s74_vctb_create_rollback(self):
+        self.s0_reset_env()
+        tdLog.info("======== s74_vctb_create_rollback")
+        self._setup_vtable_sources()
+        tdSql.execute("create table vstb1 (ts timestamp, v int) tags(t1 int) virtual 1")
+
+        tdSql.execute("BEGIN")
+        tdSql.execute("create vtable vct1 (v from txn_db.src_ct1.v) using vstb1 tags(1)")
+        tdSql.execute("ROLLBACK")
+
+        tdSql.query("show vtables")
+        tdSql.checkRows(0)
+
+    # =========================================================================
+    # 75. Virtual Child Table (VCTB) DROP + COMMIT
+    # =========================================================================
+    def s75_vctb_drop_commit(self):
+        self.s0_reset_env()
+        tdLog.info("======== s75_vctb_drop_commit")
+        self._setup_vtable_sources()
+        tdSql.execute("create table vstb1 (ts timestamp, v int) tags(t1 int) virtual 1")
+        tdSql.execute("create vtable vct1 (v from txn_db.src_ct1.v) using vstb1 tags(1)")
+        tdSql.execute("create vtable vct2 (v from txn_db.src_ct2.v) using vstb1 tags(2)")
+
+        tdSql.query("show vtables")
+        tdSql.checkRows(2)
+
+        tdSql.execute("BEGIN")
+        tdSql.execute("drop vtable vct1")
+        tdSql.execute("COMMIT")
+
+        tdSql.query("show vtables")
+        tdSql.checkRows(1)
+
+    # =========================================================================
+    # 76. Virtual Child Table (VCTB) DROP + ROLLBACK
+    # =========================================================================
+    def s76_vctb_drop_rollback(self):
+        self.s0_reset_env()
+        tdLog.info("======== s76_vctb_drop_rollback")
+        self._setup_vtable_sources()
+        tdSql.execute("create table vstb1 (ts timestamp, v int) tags(t1 int) virtual 1")
+        tdSql.execute("create vtable vct1 (v from txn_db.src_ct1.v) using vstb1 tags(1)")
+
+        tdSql.execute("BEGIN")
+        tdSql.execute("drop vtable vct1")
+        tdSql.execute("ROLLBACK")
+
+        # VCTB should be restored
+        tdSql.query("show vtables")
+        tdSql.checkRows(1)
+
+    # =========================================================================
+    # 77. Mixed virtual DDL (VNT+VCTB CREATE + DROP) + COMMIT
+    # =========================================================================
+    def s77_mixed_virtual_ddl_commit(self):
+        self.s0_reset_env()
+        tdLog.info("======== s77_mixed_virtual_ddl_commit")
+        self._setup_vtable_sources()
+        tdSql.execute("create table vstb1 (ts timestamp, v int) tags(t1 int) virtual 1")
+        # Pre-existing VCTB to drop
+        tdSql.execute("create vtable vct_drop (v from txn_db.src_ct1.v) using vstb1 tags(10)")
+
+        tdSql.query("show vtables")
+        tdSql.checkRows(1)
+
+        tdSql.execute("BEGIN")
+        # Create new VNT
+        tdSql.execute("create vtable vnt_new (ts timestamp, v int from txn_db.src_ntb.v)")
+        # Create new VCTB
+        tdSql.execute("create vtable vct_new (v from txn_db.src_ct2.v) using vstb1 tags(20)")
+        # Drop existing VCTB
+        tdSql.execute("drop vtable vct_drop")
+        tdSql.execute("COMMIT")
+
+        # vnt_new + vct_new should exist, vct_drop should be gone
+        tdSql.query("show vtables")
+        tdSql.checkRows(2)
+
+    # =========================================================================
+    # 78. Mixed virtual DDL + ROLLBACK
+    # =========================================================================
+    def s78_mixed_virtual_ddl_rollback(self):
+        self.s0_reset_env()
+        tdLog.info("======== s78_mixed_virtual_ddl_rollback")
+        self._setup_vtable_sources()
+        tdSql.execute("create table vstb1 (ts timestamp, v int) tags(t1 int) virtual 1")
+        tdSql.execute("create vtable vct_keep (v from txn_db.src_ct1.v) using vstb1 tags(10)")
+
+        tdSql.execute("BEGIN")
+        tdSql.execute("create vtable vnt_new (ts timestamp, v int from txn_db.src_ntb.v)")
+        tdSql.execute("create vtable vct_new (v from txn_db.src_ct2.v) using vstb1 tags(20)")
+        tdSql.execute("drop vtable vct_keep")
+        tdSql.execute("ROLLBACK")
+
+        # After rollback: vnt_new and vct_new gone, vct_keep restored
+        tdSql.query("show vtables")
+        tdSql.checkRows(1)
+
+    # =========================================================================
+    # 79. Virtual STB + VCTB chain: CREATE VSTB→CREATE VCTB→COMMIT
+    # =========================================================================
+    def s79_vstb_vctb_chain_commit(self):
+        self.s0_reset_env()
+        tdLog.info("======== s79_vstb_vctb_chain_commit")
+        self._setup_vtable_sources()
+
+        tdSql.execute("BEGIN")
+        tdSql.execute("create table vstb1 (ts timestamp, v int) tags(t1 int) virtual 1")
+        tdSql.execute("create vtable vct1 (v from txn_db.src_ct1.v) using vstb1 tags(1)")
+        tdSql.execute("create vtable vct2 (v from txn_db.src_ct2.v) using vstb1 tags(2)")
+        tdSql.execute("COMMIT")
+
+        tdSql.query("show txn_db.stables")
+        tdSql.checkRows(2)  # src_stb + vstb1
+        tdSql.query("show vtables")
+        tdSql.checkRows(2)
+
+    # =========================================================================
+    # 80. Virtual STB + VCTB chain: ROLLBACK
+    # =========================================================================
+    def s80_vstb_vctb_chain_rollback(self):
+        self.s0_reset_env()
+        tdLog.info("======== s80_vstb_vctb_chain_rollback")
+        self._setup_vtable_sources()
+
+        tdSql.execute("BEGIN")
+        tdSql.execute("create table vstb1 (ts timestamp, v int) tags(t1 int) virtual 1")
+        tdSql.execute("create vtable vct1 (v from txn_db.src_ct1.v) using vstb1 tags(1)")
+        tdSql.execute("ROLLBACK")
+
+        # VSTB and VCTB should both be gone
+        tdSql.query("show txn_db.stables")
+        tdSql.checkRows(1)  # only src_stb remains
+        tdSql.query("show vtables")
+        tdSql.checkRows(0)
+
+    # =========================================================================
+    # 81. Virtual STB ALTER + COMMIT
+    # =========================================================================
+    def s81_vstb_alter_commit(self):
+        self.s0_reset_env()
+        tdLog.info("======== s81_vstb_alter_commit")
+
+        tdSql.execute("create table vstb1 (ts timestamp, v int) tags(t1 int) virtual 1")
+
+        tdSql.execute("BEGIN")
+        tdSql.execute("alter table vstb1 add column c1 float")
+        tdSql.execute("COMMIT")
+
+        tdSql.query("describe vstb1")
+        col_names = [tdSql.queryResult[i][0] for i in range(tdSql.queryRows)]
+        assert 'c1' in col_names, "Column c1 not found after ALTER VSTB + COMMIT"
+
+    # =========================================================================
+    # 82. Virtual STB ALTER + ROLLBACK
+    # =========================================================================
+    def s82_vstb_alter_rollback(self):
+        self.s0_reset_env()
+        tdLog.info("======== s82_vstb_alter_rollback")
+
+        tdSql.execute("create table vstb1 (ts timestamp, v int) tags(t1 int) virtual 1")
+
+        tdSql.execute("BEGIN")
+        tdSql.execute("alter table vstb1 add column c1 float")
+        tdSql.execute("ROLLBACK")
+
+        tdSql.query("describe vstb1")
+        for i in range(tdSql.queryRows):
+            assert tdSql.queryResult[i][0] != 'c1', \
+                "Column c1 should not exist after ROLLBACK"
+
+    # =========================================================================
+    # 83. Virtual STB DROP + COMMIT
+    # =========================================================================
+    def s83_vstb_drop_commit(self):
+        self.s0_reset_env()
+        tdLog.info("======== s83_vstb_drop_commit")
+        self._setup_vtable_sources()
+        tdSql.execute("create table vstb1 (ts timestamp, v int) tags(t1 int) virtual 1")
+        tdSql.execute("create vtable vct1 (v from txn_db.src_ct1.v) using vstb1 tags(1)")
+
+        tdSql.execute("BEGIN")
+        tdSql.execute("drop table vstb1")
+        tdSql.execute("COMMIT")
+
+        # VSTB and its child VCTBs should be gone
+        tdSql.query("show vtables")
+        tdSql.checkRows(0)
+
+    # =========================================================================
+    # 84. Virtual STB DROP + ROLLBACK
+    # =========================================================================
+    def s84_vstb_drop_rollback(self):
+        self.s0_reset_env()
+        tdLog.info("======== s84_vstb_drop_rollback")
+        self._setup_vtable_sources()
+        tdSql.execute("create table vstb1 (ts timestamp, v int) tags(t1 int) virtual 1")
+        tdSql.execute("create vtable vct1 (v from txn_db.src_ct1.v) using vstb1 tags(1)")
+
+        tdSql.execute("BEGIN")
+        tdSql.execute("drop table vstb1")
+        tdSql.execute("ROLLBACK")
+
+        # VSTB and VCTB should be restored
+        tdSql.query("show vtables")
+        tdSql.checkRows(1)
+
+    # =========================================================================
+    # 85. Virtual STB: CREATE→ALTER→DROP chain + COMMIT
+    # =========================================================================
+    def s85_vstb_create_alter_drop_commit(self):
+        self.s0_reset_env()
+        tdLog.info("======== s85_vstb_create_alter_drop_commit")
+
+        tdSql.execute("BEGIN")
+        tdSql.execute("create table vstb1 (ts timestamp, v int) tags(t1 int) virtual 1")
+        tdSql.execute("alter table vstb1 add column c1 float")
+        tdSql.execute("drop table vstb1")
+        tdSql.execute("COMMIT")
+
+        # Net effect: VSTB created, altered, then dropped → gone
+        tdSql.query("show txn_db.stables")
+        tdSql.checkRows(0)
+
+    # =========================================================================
+    # 86. Virtual STB: CREATE→ALTER→DROP chain + ROLLBACK
+    # =========================================================================
+    def s86_vstb_create_alter_drop_rollback(self):
+        self.s0_reset_env()
+        tdLog.info("======== s86_vstb_create_alter_drop_rollback")
+
+        tdSql.execute("BEGIN")
+        tdSql.execute("create table vstb1 (ts timestamp, v int) tags(t1 int) virtual 1")
+        tdSql.execute("alter table vstb1 add column c1 float")
+        tdSql.execute("drop table vstb1")
+        tdSql.execute("ROLLBACK")
+
+        # ROLLBACK undoes everything → VSTB gone
+        tdSql.query("show txn_db.stables")
+        tdSql.checkRows(0)
+
+    # =========================================================================
+    # 87. VNT: CREATE→ALTER→DROP chain + COMMIT
+    # =========================================================================
+    def s87_vnt_create_alter_drop_commit(self):
+        self.s0_reset_env()
+        tdLog.info("======== s87_vnt_create_alter_drop_commit")
+        self._setup_vtable_sources()
+
+        tdSql.execute("BEGIN")
+        tdSql.execute("create vtable vnt1 (ts timestamp, v int from txn_db.src_ntb.v)")
+        tdSql.execute("alter vtable vnt1 add column c1 float")
+        tdSql.execute("drop vtable vnt1")
+        tdSql.execute("COMMIT")
+
+        tdSql.query("show vtables")
+        tdSql.checkRows(0)
+
+    # =========================================================================
+    # 88. VNT: CREATE→ALTER→DROP chain + ROLLBACK
+    # =========================================================================
+    def s88_vnt_create_alter_drop_rollback(self):
+        self.s0_reset_env()
+        tdLog.info("======== s88_vnt_create_alter_drop_rollback")
+        self._setup_vtable_sources()
+
+        tdSql.execute("BEGIN")
+        tdSql.execute("create vtable vnt1 (ts timestamp, v int from txn_db.src_ntb.v)")
+        tdSql.execute("alter vtable vnt1 add column c1 float")
+        tdSql.execute("drop vtable vnt1")
+        tdSql.execute("ROLLBACK")
+
+        tdSql.query("show vtables")
+        tdSql.checkRows(0)
+
+    # =========================================================================
+    # 89. Mixed virtual + non-virtual DDL in single txn + COMMIT
+    # =========================================================================
+    def s89_mixed_virtual_nonvirtual_commit(self):
+        self.s0_reset_env()
+        tdLog.info("======== s89_mixed_virtual_nonvirtual_commit")
+        self._setup_vtable_sources()
+
+        tdSql.execute("BEGIN")
+        # Non-virtual: create STB + child table + normal table
+        tdSql.execute("create table stb1 (ts timestamp, c0 int) tags(t0 int)")
+        tdSql.execute("create table ct1 using stb1 tags(1)")
+        tdSql.execute("create table ntb1 (ts timestamp, c0 int)")
+        # Virtual: create VSTB + VCTB + VNT
+        tdSql.execute("create table vstb1 (ts timestamp, v int) tags(t1 int) virtual 1")
+        tdSql.execute("create vtable vct1 (v from txn_db.src_ct1.v) using vstb1 tags(1)")
+        tdSql.execute("create vtable vnt1 (ts timestamp, v int from txn_db.src_ntb.v)")
+        tdSql.execute("COMMIT")
+
+        # Verify all exist
+        tdSql.query("show txn_db.stables")
+        tdSql.checkRows(3)  # src_stb + stb1 + vstb1
+        tdSql.query("show tables")
+        tdSql.checkRows(5)  # src_ct1, src_ct2, src_ntb, ct1, ntb1
+        # Actually: src_ct1, src_ct2, src_ntb, ct1, ntb1 = 5 normal/child tables
+        rows = tdSql.queryRows
+        tdSql.query("show vtables")
+        tdSql.checkRows(2)  # vct1 + vnt1
+
+    # =========================================================================
+    # 90. Mixed virtual + non-virtual DDL in single txn + ROLLBACK
+    # =========================================================================
+    def s90_mixed_virtual_nonvirtual_rollback(self):
+        self.s0_reset_env()
+        tdLog.info("======== s90_mixed_virtual_nonvirtual_rollback")
+        self._setup_vtable_sources()
+
+        tdSql.execute("BEGIN")
+        tdSql.execute("create table stb1 (ts timestamp, c0 int) tags(t0 int)")
+        tdSql.execute("create table ct1 using stb1 tags(1)")
+        tdSql.execute("create table ntb1 (ts timestamp, c0 int)")
+        tdSql.execute("create table vstb1 (ts timestamp, v int) tags(t1 int) virtual 1")
+        tdSql.execute("create vtable vct1 (v from txn_db.src_ct1.v) using vstb1 tags(1)")
+        tdSql.execute("create vtable vnt1 (ts timestamp, v int from txn_db.src_ntb.v)")
+        tdSql.execute("ROLLBACK")
+
+        # Only pre-existing src tables should remain
+        tdSql.query("show txn_db.stables")
+        tdSql.checkRows(1)  # only src_stb
+        tdSql.query("show vtables")
+        tdSql.checkRows(0)
+
     def test_meta_batch_txn(self):
         """Batch meta txn: full lifecycle
 
@@ -1828,6 +2316,32 @@ class TestBatchMetaTxn:
         62. STB conflict: non-txn ALTER/DROP blocked by PRE_ALTER
         63. STB + child tables mixed chain + COMMIT
         64. STB + child tables mixed chain + ROLLBACK
+        65. Virtual Normal Table (VNT) CREATE + COMMIT
+        66. VNT CREATE + ROLLBACK
+        67. VNT DROP + COMMIT
+        68. VNT DROP + ROLLBACK
+        69. VNT ALTER (add column) + COMMIT
+        70. VNT ALTER (add column) + ROLLBACK
+        71. Virtual STB CREATE + COMMIT
+        72. Virtual STB CREATE + ROLLBACK
+        73. Virtual Child Table (VCTB) CREATE + COMMIT
+        74. VCTB CREATE + ROLLBACK
+        75. VCTB DROP + COMMIT
+        76. VCTB DROP + ROLLBACK
+        77. Mixed virtual DDL (VNT+VCTB CREATE + DROP) + COMMIT
+        78. Mixed virtual DDL + ROLLBACK
+        79. Virtual STB + VCTB chain: COMMIT
+        80. Virtual STB + VCTB chain: ROLLBACK
+        81. Virtual STB ALTER + COMMIT
+        82. Virtual STB ALTER + ROLLBACK
+        83. Virtual STB DROP + COMMIT
+        84. Virtual STB DROP + ROLLBACK
+        85. Virtual STB: CREATE→ALTER→DROP chain + COMMIT
+        86. Virtual STB: CREATE→ALTER→DROP chain + ROLLBACK
+        87. VNT: CREATE→ALTER→DROP chain + COMMIT
+        88. VNT: CREATE→ALTER→DROP chain + ROLLBACK
+        89. Mixed virtual + non-virtual DDL in single txn + COMMIT
+        90. Mixed virtual + non-virtual DDL in single txn + ROLLBACK
 
 
         Since: v3.3.6.0
@@ -1844,6 +2358,7 @@ class TestBatchMetaTxn:
             - 2026-03-31 Added cross-VNode mixed DDL, conflict detection, timeout auto-rollback tests
             - 2026-03-31 Added compaction protection (META_ONLY) tests
             - 2026-04-01 Added STB chain tests, STB conflict detection, STB+CTB mixed chain tests
+            - 2026-04-03 Added virtual table DDL tests (VNT, VCTB, VSTB lifecycle, chains, mixed)
 
         """
         self.s1_begin_commit_create_tables()
@@ -1910,3 +2425,29 @@ class TestBatchMetaTxn:
         self.s62_stb_conflict_pre_alter()
         self.s63_stb_ctb_mixed_chain_commit()
         self.s64_stb_ctb_mixed_chain_rollback()
+        self.s65_vnt_create_commit()
+        self.s66_vnt_create_rollback()
+        self.s67_vnt_drop_commit()
+        self.s68_vnt_drop_rollback()
+        self.s69_vnt_alter_commit()
+        self.s70_vnt_alter_rollback()
+        self.s71_vstb_create_commit()
+        self.s72_vstb_create_rollback()
+        self.s73_vctb_create_commit()
+        self.s74_vctb_create_rollback()
+        self.s75_vctb_drop_commit()
+        self.s76_vctb_drop_rollback()
+        self.s77_mixed_virtual_ddl_commit()
+        self.s78_mixed_virtual_ddl_rollback()
+        self.s79_vstb_vctb_chain_commit()
+        self.s80_vstb_vctb_chain_rollback()
+        self.s81_vstb_alter_commit()
+        self.s82_vstb_alter_rollback()
+        self.s83_vstb_drop_commit()
+        self.s84_vstb_drop_rollback()
+        self.s85_vstb_create_alter_drop_commit()
+        self.s86_vstb_create_alter_drop_rollback()
+        self.s87_vnt_create_alter_drop_commit()
+        self.s88_vnt_create_alter_drop_rollback()
+        self.s89_mixed_virtual_nonvirtual_commit()
+        self.s90_mixed_virtual_nonvirtual_rollback()

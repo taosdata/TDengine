@@ -89,7 +89,7 @@ static TAOS *connect_db(const char *db) {
   }
   if (db) {
     char sql[256];
-    snprintf(sql, sizeof(sql), "use %s", db);
+    snprintf(sql, sizeof(sql), "use %s", db);tx
     do_query(taos, sql);
   }
   return taos;
