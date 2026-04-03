@@ -982,17 +982,31 @@ _return:
   return code;
 }
 
-static int32_t checkColRefType(const SSchema* vtbSchema, const SSchema* refSchema) {
-  if (vtbSchema->type != refSchema->type) {
+static int32_t checkColRefType(const SSchema* vtbSchema, const SSchemaExt* vtbSchemaExt, const SSchema* refSchema,
+                               const SSchemaExt* refSchemaExt) {
+  SDataType vtbType = {0};
+  SDataType refType = {0};
+  schemaToRefDataType(vtbSchema, NULL != vtbSchemaExt ? vtbSchemaExt->typeMod : 0, &vtbType);
+  schemaToRefDataType(refSchema, NULL != refSchemaExt ? refSchemaExt->typeMod : 0, &refType);
+
+  if (vtbType.type != refType.type) {
     qError("virtual table column:%s type mismatch, virtual table column type:%d, bytes:%d, "
         "ref table column:%s, type:%d, bytes:%d",
-        vtbSchema->name, vtbSchema->type, vtbSchema->bytes, refSchema->name, refSchema->type, refSchema->bytes);
+        vtbSchema->name, vtbType.type, vtbType.bytes, refSchema->name, refType.type, refType.bytes);
     return TSDB_CODE_PAR_INVALID_REF_COLUMN_TYPE;
   }
-  if (!IS_VAR_DATA_TYPE(vtbSchema->type) && vtbSchema->bytes != refSchema->bytes) {
+  if (!IS_VAR_DATA_TYPE(vtbType.type) && vtbType.bytes != refType.bytes) {
     qError("virtual table column:%s bytes mismatch, virtual table column type:%d, bytes:%d, "
         "ref table column:%s, type:%d, bytes:%d",
-        vtbSchema->name, vtbSchema->type, vtbSchema->bytes, refSchema->name, refSchema->type, refSchema->bytes);
+        vtbSchema->name, vtbType.type, vtbType.bytes, refSchema->name, refType.type, refType.bytes);
+    return TSDB_CODE_PAR_INVALID_REF_COLUMN_TYPE;
+  }
+  if (IS_DECIMAL_TYPE(vtbType.type) &&
+      (vtbType.precision != refType.precision || vtbType.scale != refType.scale)) {
+    qError("virtual table column:%s decimal type mismatch, virtual table column type:%d, precision:%u, scale:%u, "
+           "ref table column:%s, type:%d, precision:%u, scale:%u",
+           vtbSchema->name, vtbType.type, vtbType.precision, vtbType.scale, refSchema->name, refType.type,
+           refType.precision, refType.scale);
     return TSDB_CODE_PAR_INVALID_REF_COLUMN_TYPE;
   }
   return TSDB_CODE_SUCCESS;
@@ -1021,15 +1035,25 @@ static int32_t addSubScanNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SVi
 
   SLogicNode **ppRefScan = (SLogicNode **)taosHashGet(refTablesMap, &tableNameKey, strlen(tableNameKey));
   const SSchema* pRefColSchema = &((SRealTableNode*)pRefTable)->pMeta->schema[colIdx];
+  const SSchemaExt* pRefSchemaExt =
+      (((SRealTableNode*)pRefTable)->pMeta->schemaExt && colIdx < ((SRealTableNode*)pRefTable)->pMeta->tableInfo.numOfColumns)
+          ? ((SRealTableNode*)pRefTable)->pMeta->schemaExt + colIdx
+          : NULL;
+  const SSchemaExt* pVtbSchemaExt =
+      (pVirtualTable->pMeta->schemaExt && schemaIndex < pVirtualTable->pMeta->tableInfo.numOfColumns)
+          ? pVirtualTable->pMeta->schemaExt + schemaIndex
+          : NULL;
   if (NULL == ppRefScan) {
     PLAN_ERR_JRET(createRefScanLogicNode(pCxt, pSelect, (SRealTableNode*)pRefTable, &pRefScan));
-    PLAN_ERR_JRET(checkColRefType(&pVirtualTable->pMeta->schema[schemaIndex], pRefColSchema));
+    PLAN_ERR_JRET(checkColRefType(&pVirtualTable->pMeta->schema[schemaIndex], pVtbSchemaExt, pRefColSchema,
+                                  pRefSchemaExt));
     PLAN_ERR_JRET(scanAddCol(pRefScan, pColRef, &pVirtualTable->table, &pVirtualTable->pMeta->schema[schemaIndex], colId, pRefColSchema));
     PLAN_ERR_JRET(taosHashPut(refTablesMap, &tableNameKey, strlen(tableNameKey), &pRefScan, POINTER_BYTES));
     put = true;
   } else {
     pRefScan = *ppRefScan;
-    PLAN_ERR_JRET(checkColRefType(&pVirtualTable->pMeta->schema[schemaIndex], pRefColSchema));
+    PLAN_ERR_JRET(checkColRefType(&pVirtualTable->pMeta->schema[schemaIndex], pVtbSchemaExt, pRefColSchema,
+                                  pRefSchemaExt));
     PLAN_ERR_JRET(scanAddCol(pRefScan, pColRef, &pVirtualTable->table, &pVirtualTable->pMeta->schema[schemaIndex], colId, pRefColSchema));
   }
 
