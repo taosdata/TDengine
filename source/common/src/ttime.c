@@ -920,7 +920,13 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
 #if defined(WINDOWS) && _MSC_VER >= 1900
         int64_t timezone = _timezone;
 #endif
-        news += (int64_t)(timezone * TSDB_TICK_PER_SECOND(precision));
+        // taosGet*TimezoneOffset() returns east-positive (tm_gmtoff) values.
+        // The day/week anchor logic here expects west-positive offsets, so
+        // shift by subtracting the east-positive offset.
+        int64_t tz_offset = 0;
+        int32_t code = 0;
+        tz_offset = taosGetTZOffsetSeconds(pInterval->timezone, &code);
+        news -= (int64_t)(tz_offset * TSDB_TICK_PER_SECOND(precision));
       }
 
       start = news;
@@ -962,8 +968,10 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
         // https://docs.microsoft.com/en-us/cpp/c-runtime-library/daylight-dstbias-timezone-and-tzname?view=vs-2019
         int64_t timezone = _timezone;
 #endif
-
-        start += (int64_t)(timezone * TSDB_TICK_PER_SECOND(precision));
+        int64_t tz_offset = 0;
+        int32_t code = 0;
+        tz_offset = taosGetTZOffsetSeconds(pInterval->timezone, &code);
+        start -= (int64_t)(tz_offset * TSDB_TICK_PER_SECOND(precision));
       }
 
       int64_t end = 0;
