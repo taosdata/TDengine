@@ -2060,7 +2060,7 @@ int32_t tmq_subscribe(tmq_t* tmq, const tmq_list_t* topic_list) {
   int32_t retryCnt = 0;
   while ((code = syncAskEp(tmq)) != 0) {
     if (retryCnt++ > SUBSCRIBE_RETRY_MAX_COUNT || code == TSDB_CODE_MND_CONSUMER_NOT_EXIST) {
-      tqErrorC("consumer:0x%" PRIx64 ", mnd not ready for subscribe, retry more than 2 minutes, code:%s",
+      tqErrorC("consumer:0x%" PRIx64 ", mnd not ready for subscribe, retry more than 2 minutes or code:%s",
                tmq->consumerId, tstrerror(code));
       if (code == TSDB_CODE_MND_CONSUMER_NOT_EXIST) {
         code = 0;
@@ -2776,6 +2776,7 @@ int32_t tmq_unsubscribe(tmq_t* tmq) {
   code = tmq_subscribe(tmq, lst);
   tmq_list_destroy(lst);
   tmqClearUnhandleMsg(tmq);
+  atomic_store_32(&tmq->epoch, 0);
   if(code != 0){
     goto END;
   }

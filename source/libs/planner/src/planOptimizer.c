@@ -504,7 +504,7 @@ static void scanPathOptSetGroupOrderScan(SScanLogicNode* pScan) {
 }
 
 static int32_t scanPathOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
-  if (pCxt->pPlanCxt->streamCalcQuery) {
+  if (inStreamCalcClause(pCxt->pPlanCxt)) {
     // stream calc query does not support scan path optimization
     return TSDB_CODE_SUCCESS;
   }
@@ -797,7 +797,7 @@ static int32_t pdcDealVirtualSuperTableScan(SOptimizeContext* pCxt, SDynQueryCtr
   SNode*  pOtherCond = NULL;
   int32_t code = TSDB_CODE_SUCCESS;
 
-  if (pCxt->pPlanCxt->streamCalcQuery) {
+  if (inStreamCalcClause(pCxt->pPlanCxt)) {
     SVirtualScanLogicNode *pVscan = (SVirtualScanLogicNode*)nodesListGetNode(pScan->node.pChildren, 0);
     if (NULL == pVscan || QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN != nodeType(pVscan)) {
       PLAN_ERR_JRET(generateUsageErrMsg(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, TSDB_CODE_PLAN_INTERNAL_ERROR,
@@ -2614,7 +2614,7 @@ static int32_t pdcDealVirtualTable(SOptimizeContext* pCxt, SVirtualScanLogicNode
     return TSDB_CODE_SUCCESS;
   }
 
-  if (pCxt->pPlanCxt->streamCalcQuery) {
+  if (inStreamCalcClause(pCxt->pPlanCxt)) {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -4175,6 +4175,13 @@ static bool eliminateProjOptMayBeOptimized(SLogicNode* pNode, void* pCtx) {
     }
   }
 
+  if (QUERY_NODE_LOGIC_PLAN_WINDOW == nodeType(nodesListGetNode(pNode->pChildren, 0))) {
+    SWindowLogicNode* pChild = (SWindowLogicNode*)nodesListGetNode(pNode->pChildren, 0);
+    if (pChild->winType == WINDOW_TYPE_EXTERNAL) {
+      return false;
+    }
+  }
+
   if (QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL == nodeType(nodesListGetNode(pNode->pChildren, 0))) {
     SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pNode->pChildren, 0);
     if (LIST_LENGTH(pChild->pTargets) != LIST_LENGTH(pNode->pTargets)) {
@@ -4460,7 +4467,7 @@ _return:
 }
 
 static int32_t eliminateProjOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
-  if (pCxt->pPlanCxt->streamCalcQuery) {
+  if (inStreamCalcClause(pCxt->pPlanCxt)) {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -4766,6 +4773,13 @@ static int32_t rewriteUniqueOptCreateAgg(SIndefRowsFuncLogicNode* pIndef, SLogic
   pAgg->node.precision = pIndef->node.precision;
   pAgg->node.requireDataOrder = DATA_ORDER_LEVEL_IN_BLOCK;  // first function requirement
   pAgg->node.resultDataOrder = DATA_ORDER_LEVEL_NONE;
+
+  if (LIST_LENGTH(pAgg->node.pChildren) == 1 &&
+      QUERY_NODE_LOGIC_PLAN_PARTITION == nodeType(nodesListGetNode(pAgg->node.pChildren, 0))) {
+    SPartitionLogicNode* pPart = (SPartitionLogicNode*)nodesListGetNode(pAgg->node.pChildren, 0);
+    pAgg->isPartTb = keysHasTbname(pPart->pPartitionKeys);
+    pAgg->isGroupTb = pAgg->isPartTb;
+  }
 
   bool   hasSelectPrimaryKey = false;
   SNode* pPrimaryKey = NULL;
@@ -5289,7 +5303,7 @@ static int32_t lastRowScanBuildFuncTypes(SScanLogicNode* pScan, SColumnNode* pCo
 }
 # endif
 static int32_t lastRowScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
-  if (pCxt->pPlanCxt->streamCalcQuery) {
+  if (inStreamCalcClause(pCxt->pPlanCxt)) {
     // stream calc query does not support last/last_row optimization
     return TSDB_CODE_SUCCESS;
   }
@@ -5565,7 +5579,7 @@ static int32_t splitCacheLastFuncOptCreateMergeLogicNode(SMergeLogicNode** pNew,
 }
 
 static int32_t splitCacheLastFuncOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
-  if (pCxt->pPlanCxt->streamCalcQuery) {
+  if (inStreamCalcClause(pCxt->pPlanCxt)) {
     // stream calc query does not support last/last_row optimization
     return TSDB_CODE_SUCCESS;
   }
@@ -7077,7 +7091,7 @@ static int32_t stbJoinOptCreateTableScanNodes(SOptimizeContext* pCxt, SLogicNode
     pScan->pTagIndexCond = NULL;
 
     pScan->node.dynamicOp = true;
-    *(srcScan + i++) = (pScan->pVgroupList->numOfVgroups <= 1 && !pCxt->pPlanCxt->streamCalcQuery);
+    *(srcScan + i++) = (pScan->pVgroupList->numOfVgroups <= 1 && !inStreamCalcClause(pCxt->pPlanCxt));
 
     pScan->scanType = SCAN_TYPE_TABLE;
 
@@ -8963,8 +8977,9 @@ _return:
   return code;
 }
 
+static SNode* findWindowTspkFromScanCols(SNodeList* pScanCols, const SNode* pTspk);
 static int32_t vtableWindowOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
-  if (pCxt->pPlanCxt->streamCalcQuery) {
+  if (inStreamCalcClause(pCxt->pPlanCxt)) {
     // stream calc query does not support scan path optimization
     return TSDB_CODE_SUCCESS;
   }
@@ -8978,6 +8993,7 @@ static int32_t vtableWindowOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogi
   SWindowLogicNode*       pNewWindow = NULL;
   SVirtualScanLogicNode*  pVirtualScan = NULL;
   SNode*                  pStateColScan = NULL;
+  SNode*                  pMatchedTspk = NULL;
   SMergeLogicNode*        pMerge = NULL;
   SHashObj*               pExtWinMap = NULL;
   SDynQueryCtrlLogicNode* pDynWindowNode = NULL;
@@ -8989,9 +9005,11 @@ static int32_t vtableWindowOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogi
 
   PLAN_ERR_JRET(findDepTableScanNode((SColumnNode*)pNewWindow->pStateExpr, pVirtualScan, &pStateColScan));
   pNewWindow->node.pChildren = NULL;
+  pMatchedTspk = findWindowTspkFromScanCols(((SScanLogicNode*)pStateColScan)->pScanCols, pNewWindow->pTspk);
+  QUERY_CHECK_NULL(pMatchedTspk, code, lino, _return, TSDB_CODE_PLAN_INTERNAL_ERROR)
   nodesDestroyNode(pNewWindow->pTspk);
   pNewWindow->pTspk = NULL;
-  PLAN_ERR_JRET(nodesCloneNode(nodesListGetNode(((SScanLogicNode*)pStateColScan)->pScanCols, 0), (SNode**)&pNewWindow->pTspk));
+  PLAN_ERR_JRET(nodesCloneNode(pMatchedTspk, (SNode**)&pNewWindow->pTspk));
   PLAN_ERR_JRET(nodesListMakeAppend(&pNewWindow->node.pChildren, pStateColScan));
   ((SLogicNode*)pStateColScan)->pParent = (SLogicNode*)pNewWindow;
   // pNewWindow --> pStateColScan
@@ -9525,6 +9543,41 @@ _return:
   return code;
 }
 
+static SNode* findWindowTspkFromScanCols(SNodeList* pScanCols, const SNode* pTspk) {
+  if (NULL == pScanCols || NULL == pTspk) {
+    return NULL;
+  }
+
+  SNode* pScanCol = NULL;
+  FOREACH(pScanCol, pScanCols) {
+    if (nodesEqualNode(pScanCol, pTspk)) {
+      return pScanCol;
+    }
+  }
+
+  if (QUERY_NODE_COLUMN == nodeType(pTspk)) {
+    const SColumnNode* pTargetCol = (const SColumnNode*)pTspk;
+    FOREACH(pScanCol, pScanCols) {
+      if (QUERY_NODE_COLUMN != nodeType(pScanCol)) {
+        continue;
+      }
+      SColumnNode* pCol = (SColumnNode*)pScanCol;
+      if (pCol->tableId == pTargetCol->tableId && pCol->colId == pTargetCol->colId) {
+        return pScanCol;
+      }
+    }
+  }
+
+  FOREACH(pScanCol, pScanCols) {
+    if (QUERY_NODE_COLUMN == nodeType(pScanCol) &&
+        (((SColumnNode*)pScanCol)->isPrimTs || ((SColumnNode*)pScanCol)->colId == PRIMARYKEY_TIMESTAMP_COL_ID)) {
+      return pScanCol;
+    }
+  }
+
+  return NULL;
+}
+
 static int32_t rebuildVstbScanTargets(SDynQueryCtrlLogicNode* pDynVstbScan, SLogicNode* pNode);
 static int32_t createPartAggRewriteFuns(const SNodeList* pFuncs, SNodeList** pPartialFuncs,
                                         SNodeList** pMidFuncs, SNodeList** pMergeFuncs);
@@ -9832,7 +9885,7 @@ _return:
 //              \
 //               \> ExternalWindow -> DynQueryCtrl(scan other cols) -> VirtualScan -> TableScan
 static int32_t vstableWindowOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
-  if (pCxt->pPlanCxt->streamCalcQuery) {
+  if (inStreamCalcClause(pCxt->pPlanCxt)) {
     // stream calc query does not support
     return TSDB_CODE_SUCCESS;
   }
@@ -10446,7 +10499,7 @@ _return:
 }
 
 static int32_t vstableAggOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
-  if (pCxt->pPlanCxt->streamCalcQuery) {
+  if (inStreamCalcClause(pCxt->pPlanCxt)) {
     // stream calc query does not support scan path optimization
     return TSDB_CODE_SUCCESS;
   }
@@ -10565,6 +10618,7 @@ static int32_t applyOptimizeRule(SPlanContext* pCxt, SLogicSubplan* pLogicSubpla
       cxt.optimized = false;
       int32_t code = optimizeRuleSet[i].optimizeFunc(&cxt, pLogicSubplan);
       if (TSDB_CODE_SUCCESS != code) {
+        planError("optimize rule [%s] failed, code:%s", optimizeRuleSet[i].pName, tstrerror(code));
         return code;
       }
       if (cxt.optimized) {

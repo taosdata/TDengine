@@ -11,6 +11,14 @@ import RequestId from "../../assets/resources/_request_id.mdx";
 
 `taos-jdbcdriver` is the official Java connector for TDengine, allowing Java developers to develop applications that access the TDengine database. `taos-jdbcdriver` implements the interfaces of the JDBC driver standard.
 
+:::warning Native and REST Connections Being Deprecated
+
+<font color="red">Java's native connection and REST connection are deprecated and will be discontinued on 2027-01-01</font>, please migrate to WebSocket connection.
+
+For detailed migration guide, please refer to: [Connection Methods](../#connection-methods)
+
+:::
+
 :::info
 The JDBC driver implementation for TDengine strives to be consistent with relational database drivers. However, due to differences in use cases and technical features between TDengine and relational object databases, there are some differences between `taos-jdbcdriver` and traditional JDBC drivers. Please note the following when using it:
 
@@ -33,8 +41,9 @@ The JDBC driver implementation for TDengine strives to be consistent with relati
 
 | taos-jdbcdriver Version | Major Changes                                                                                                                                                                                                                                                                                                                                                                                                                              | TDengine Version   |
 | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------ |
-| 3.8.1                   | Decimal and Blob types support writing via parameter binding.                                                                                                                                                                                                                                                                                                                                                            | -                  |
-| 3.8.0                   | 1. Load balancing adopts the least connections algorithm. <br/> 2. Supports connection rebalancing after failure node recovery. <br/> 3. Supports reporting connector type and version. <br/> 4. Supports BearerToken authentication. <br/> 5. Fixed the nanosecond precision issue when parameter binding includes sub-table names. <br/> 6. Log desensitization optimization. <br/>                                                                                                                                                                                                                                                                                                                                                            | -                  |
+| 3.8.2                   | Support for BearerToken-based authentication in data subscriptions.                                                                                                                                                                                                                                                                                                                                                                         | -                  |
+| 3.8.1                   | Decimal and Blob types support writing via parameter binding.                                                                                                                                                                                                                                                                                                                                                                              | -                  |
+| 3.8.0                   | 1. Load balancing adopts the least connections algorithm. <br/> 2. Supports connection rebalancing after failure node recovery. <br/> 3. Supports reporting connector type and version. <br/> 4. Supports BearerToken authentication. <br/> 5. Fixed the nanosecond precision issue when parameter binding includes sub-table names. <br/> 6. Log desensitization optimization. <br/>                                                      | -                  |
 | 3.7.8                   | Fixed the bug that the `getTables` method requires an identifier quote string.                                                                                                                                                                                                                                                                                                                                                             | -                  |
 | 3.7.7                   | 1. Fixed the issue of loading configuration files on the Windows platform. <br/> 2. Fixed the problem of mutual interference between WebSocket connection Statement timeout settings                                                                                                                                                                                                                                                       | -                  |
 | 3.7.6                   | Optimized WebSocket connection load balancing and the `setObject` method for parameter binding.                                                                                                                                                                                                                                                                                                                                            | -                  |
@@ -191,35 +200,11 @@ taos-jdbcdriver implements the JDBC standard Driver interface, providing 2 imple
 #### URL Specification
 
 The JDBC URL format for TDengine is:
-`jdbc:[TAOS|TAOS-WS]://[host1:port1,host2:port2,...,hostN:portN]/[database_name]?[user={user}|&password={password}|&charset={charset}|&cfgdir={config_dir}|&locale={locale}|&timezone={timezone}]`
+`jdbc:[TAOS|TAOS-WS]://[host1:port1,host2:port2,...,hostN:portN]/[database_name]?[user={user}|&password={password}|&charset={charset}|&cfgdir={config_dir}|&locale={locale}|&timezone={timezone}|&varcharAsString=true]`
 
-- The host parameter supports valid domain names or IP addresses. The taos-jdbcdriver supports both IPv4 and IPv6 formats. For IPv6 addresses, square brackets must be used (e.g., `[::1]` or `[2001:db8:1234:5678::1]`) to avoid port number parsing conflicts.  
+- The host parameter supports valid domain names or IP addresses. The taos-jdbcdriver supports both IPv4 and IPv6 formats. For IPv6 addresses, square brackets must be used (e.g., `[::1]` or `[2001:db8:1234:5678::1]`) to avoid port number parsing conflicts.
 - **Only the WebSocket connection method supports multiple endpoint addresses**, which should be separated by commas when used. These multiple endpoint addresses will be randomly used during connection to achieve load balancing.
-- All properties in **Properties** are supported in the JDBC URL. For details, please refer to the **Properties** section below.  
-
-**Native Connection**  
-`jdbc:TAOS://taosdemo.com:6030/power?user=root&password=taosdata`, using the TSDBDriver for native JDBC connection, establishes a connection to the host taosdemo.com, port 6030 (TDengine's default port), and database name power. This URL specifies the username (user) as root and the password (password) as taosdata.
-
-**Note**: For native JDBC connections, taos-jdbcdriver depends on the client driver (libtaos.so on Linux; taos.dll on Windows; libtaos.dylib on macOS).
-
-The supported common configuration parameters for native connection URLs are as follows:
-
-- user: TDengine username, default 'root'.
-- password: User login password, default 'taosdata'.
-- cfgdir: Client configuration file directory path, default `/etc/taos` on Linux OS, `C:/TDengine/cfg` on Windows OS.
-- charset: Character set used by the client, default is the system character set.
-- locale: Client language environment, default is the system current locale.
-- timezone: Client timezone, default is the system current timezone.
-- batchErrorIgnore: true: Continue executing subsequent SQL statements if one fails during the execution of Statement's executeBatch. False: Do not execute any statements after a failed SQL. Default is false.
-
-Using TDengine Client Driver Configuration File to Establish Connection:
-
-When connecting to a TDengine cluster using a native JDBC connection, you can use the TDengine client driver configuration file, specifying parameters such as firstEp and secondEp in the configuration file. In this case, do not specify `host` and `port` in the JDBC URL.
-Configuration such as `jdbc:TAOS://:/power?user=root&password=taosdata`.
-In the TDengine client driver configuration file, specify firstEp and secondEp, and JDBC will use the client's configuration file to establish a connection. If the firstEp node in the cluster fails, JDBC will attempt to connect to the cluster using secondEp.
-In TDengine, as long as one of the nodes in firstEp and secondEp is valid, a connection to the cluster can be established normally.
-
-> **Note**: The configuration file here refers to the configuration file on the machine where the application calling the JDBC Connector is located, with the default value on Linux OS being /etc/taos/taos.cfg, and on Windows OS being C://TDengine/cfg/taos.cfg.
+- All properties in **Properties** are supported in the JDBC URL. For details, please refer to the **Properties** section below.
 
 **WebSocket Connection**  
 Using JDBC WebSocket connection does not depend on the client driver. Here's an example: `jdbc:TAOS-WS://taosdemo.com:6041,taosdemo2.com:6041/power?user=root&password=taosdata&varcharAsString=true`. Compared to native JDBC connections, you only need to:
@@ -242,6 +227,31 @@ For WebSocket connections, the common configuration parameters in the URL are as
 - conmode: BI mode takes effect only when the WebSocket connection is established. The default value is 0, and it can be set to 1. Setting it to 1 means enabling BI mode, where metadata information does not count sub-tables. This is mainly used in scenarios when integration with BI tools.
 
 **Note**: Some configuration items (such as: locale, charset) do not take effect in WebSocket connections. WebSocket connections only support the UTF-8 character set.
+
+**<font color="red">Native Connection, Deprecated, will be discontinued on 2027-01-01</font>**
+
+`jdbc:TAOS://taosdemo.com:6030/power?user=root&password=taosdata`, using the TSDBDriver for native JDBC connection, establishes a connection to the host taosdemo.com, port 6030 (TDengine's default port), and database name power. This URL specifies the username (user) as root and the password (password) as taosdata.
+
+**Note**: For native JDBC connections, taos-jdbcdriver depends on the client driver (libtaos.so on Linux; taos.dll on Windows; libtaos.dylib on macOS).
+
+The supported common configuration parameters for native connection URLs are as follows:
+
+- user: TDengine username, default 'root'.
+- password: User login password, default 'taosdata'.
+- cfgdir: Client configuration file directory path, default `/etc/taos` on Linux OS, `C:/TDengine/cfg` on Windows OS.
+- charset: Character set used by the client, default is the system character set.
+- locale: Client language environment, default is the system current locale.
+- timezone: Client timezone, default is the system current timezone.
+- batchErrorIgnore: true: Continue executing subsequent SQL statements if one fails during the execution of Statement's executeBatch. False: Do not execute any statements after a failed SQL. Default is false.
+
+Using TDengine Client Driver Configuration File to Establish Connection:
+
+When connecting to a TDengine cluster using a native JDBC connection, you can use the TDengine client driver configuration file, specifying parameters such as firstEp and secondEp in the configuration file. In this case, do not specify `host` and `port` in the JDBC URL.
+Configuration such as `jdbc:TAOS://:/power?user=root&password=taosdata`.
+In the TDengine client driver configuration file, specify firstEp and secondEp, and JDBC will use the client's configuration file to establish a connection. If the firstEp node in the cluster fails, JDBC will attempt to connect to the cluster using secondEp.
+In TDengine, as long as one of the nodes in firstEp and secondEp is valid, a connection to the cluster can be established normally.
+
+> **Note**: The configuration file here refers to the configuration file on the machine where the application calling the JDBC Connector is located, with the default value on Linux OS being /etc/taos/taos.cfg, and on Windows OS being C://TDengine/cfg/taos.cfg.
 
 #### Properties
 

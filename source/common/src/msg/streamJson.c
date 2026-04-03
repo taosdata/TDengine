@@ -419,6 +419,7 @@ static const char* jkCreateStreamReqFillHistoryFirst     = "fillHistoryFirst";
 static const char* jkCreateStreamReqCalcNotifyOnly       = "calcNotifyOnly";
 static const char* jkCreateStreamReqLowLatencyCalc       = "lowLatencyCalc";
 static const char* jkCreateStreamReqIgNoDataTrigger      = "igNoDataTrigger";
+static const char* jkCreateStreamReqMultiGroupCalc       = "multiGroupCalc";
 
 static const char* jkCreateStreamReqPNotifyAddrUrls      = "pNotifyAddrUrls";
 static const char* jkCreateStreamReqNotifyEventTypes     = "notifyEventTypes";
@@ -473,6 +474,7 @@ static const char* jkCreateStreamReqForceOutCols         = "forceOutCols";
 
 static const char* jkCreateStreamReqColCids = "colCids";
 static const char* jkCreateStreamReqTagCids = "tagCids";
+static const char* jkCreateStreamReqNodelayCreateSubtable = "nodelayCreateSubtable";
 
 static int32_t scmCreateStreamReqToJsonImpl(const void* pObj, void* pJson) {
   const SCMCreateStreamReq* pReq = (const SCMCreateStreamReq*)pObj;
@@ -532,6 +534,8 @@ static int32_t scmCreateStreamReqToJsonImpl(const void* pObj, void* pJson) {
     pJson, jkCreateStreamReqLowLatencyCalc, pReq->lowLatencyCalc));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(
     pJson, jkCreateStreamReqIgNoDataTrigger, pReq->igNoDataTrigger));
+  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(
+    pJson, jkCreateStreamReqMultiGroupCalc, pReq->enableMultiGroupCalc));
 
   // notify part
   TAOS_CHECK_RETURN(tjsonAddArray(
@@ -707,6 +711,8 @@ static int32_t scmCreateStreamReqToJsonImpl(const void* pObj, void* pJson) {
       pReq->tagCids ? TARRAY_GET_ELEM(pReq->tagCids, 0) : NULL,
       pReq->tagCids ? pReq->tagCids->elemSize : 0,
       pReq->tagCids ? pReq->tagCids->size : 0));
+  TAOS_CHECK_RETURN(
+      tjsonAddIntegerToObject(pJson, jkCreateStreamReqNodelayCreateSubtable, pReq->nodelayCreateSubtable));
 
   return TSDB_CODE_SUCCESS;
 }
@@ -792,6 +798,8 @@ int32_t jsonToSCMCreateStreamReq(const void* pJson, void* pObj) {
     pJson, jkCreateStreamReqLowLatencyCalc, &pReq->lowLatencyCalc));
   TAOS_CHECK_RETURN(tjsonGetTinyIntValue(
     pJson, jkCreateStreamReqIgNoDataTrigger, &pReq->igNoDataTrigger));
+  TAOS_CHECK_RETURN(tjsonGetTinyIntValue(
+    pJson, jkCreateStreamReqMultiGroupCalc, &pReq->enableMultiGroupCalc));
 
   // notify part
   TAOS_CHECK_RETURN(tjsonToTArray(
@@ -929,6 +937,7 @@ int32_t jsonToSCMCreateStreamReq(const void* pJson, void* pObj) {
     jsonToSStreamOutCol, &pReq->forceOutCols, sizeof(SStreamOutCol)));
   TAOS_CHECK_RETURN(tjsonToTArray(pJson, jkCreateStreamReqColCids, jsonToInt16, &pReq->colCids, sizeof(int16_t)));
   TAOS_CHECK_RETURN(tjsonToTArray(pJson, jkCreateStreamReqTagCids, jsonToInt16, &pReq->tagCids, sizeof(int16_t)));
+  (void)tjsonGetTinyIntValue(pJson, jkCreateStreamReqNodelayCreateSubtable, &pReq->nodelayCreateSubtable);
 
   return TSDB_CODE_SUCCESS;
 }

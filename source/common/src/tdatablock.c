@@ -103,6 +103,10 @@ static int32_t getDataLen(int32_t type, const char* pData) {
 
 int32_t calcStrBytesByType(int8_t type, char* data) { return getDataLen(type, data); }
 
+int32_t blockDataGetPagedColumnReservedBytes(const SColumnInfoData* pColumnInfoData) {
+  return pColumnInfoData->info.bytes;
+}
+
 static int32_t checkAllocLen(SColumnInfoData* pColumnInfoData, char** pData, int32_t dataLen){
   SVarColAttr* pAttr = &pColumnInfoData->varmeta;
   char* buf = NULL;
@@ -583,7 +587,9 @@ int32_t colDataAssign(SColumnInfoData* pColumnInfoData, const SColumnInfoData* p
   }
 
   pColumnInfoData->hasNull = pSource->hasNull;
+  int16_t slotId = pColumnInfoData->info.slotId;
   pColumnInfoData->info = pSource->info;
+  pColumnInfoData->info.slotId = slotId;
   return 0;
 }
 
@@ -1238,11 +1244,11 @@ int32_t blockDataFromBuf1(SSDataBlock* pBlock, const char* buf, size_t capacity)
       }
     }
 
-    if (!colDataIsNNull(pCol, 0, pBlock->info.rows)) {
+    if (colLength != 0 && !colDataIsNNull(pCol, 0, pBlock->info.rows)) {
       memcpy(pCol->pData, pStart, colLength);
     }
 
-    pStart += pCol->info.bytes * capacity;
+    pStart += blockDataGetPagedColumnReservedBytes(pCol) * capacity;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -1271,10 +1277,10 @@ size_t blockDataGetRowSize(SSDataBlock* pBlock) {
 size_t blockDataGetSerialMetaSizeImpl(uint32_t numOfCols, bool internal) {
   // | version | total length | total rows | blankFull | total columns | flag seg| block group id | column schema
   // | each column length
-  // internal: |scanFlag |
+  // internal: | scanFlag baseGid |
   return sizeof(int32_t) + sizeof(int32_t) + sizeof(int32_t) + sizeof(bool) + sizeof(int32_t) + sizeof(int32_t) +
          sizeof(uint64_t) + numOfCols * (sizeof(int8_t) + sizeof(int32_t)) + numOfCols * sizeof(int32_t) + 
-         (internal ? (sizeof(uint8_t)) : 0) + (internal ? numOfCols * sizeof(int16_t) : 0);
+         (internal ? (sizeof(uint8_t) + sizeof(uint64_t) + numOfCols * sizeof(int16_t)) : 0);
 }
 
 size_t blockDataGetSerialMetaSizeInternal(uint32_t numOfCols) {
@@ -3382,6 +3388,10 @@ int32_t blockEncodeImpl(const SSDataBlock* pBlock, char* data, size_t dataBuflen
     *scanFlag = pBlock->info.scanFlag;
     data += sizeof(uint8_t);
 
+    uint64_t* baseGid = (uint64_t*)data;
+    *baseGid = pBlock->info.id.baseGId;
+    data += sizeof(uint64_t);
+
     // Slot ids used only for virtual super table scan: each column's slotId here
     // refers to the slot position in virtual super table's datablock.
     for (int32_t i = 0; i < numOfCols; ++i) {
@@ -3549,6 +3559,9 @@ int32_t blockDecodeImpl(SSDataBlock* pBlock, const char* pData, const char** pEn
   if (internal && (pStart - pData) < dataLen) {
     pBlock->info.scanFlag = *(uint8_t*)pStart;
     pStart += sizeof(uint8_t);
+
+    pBlock->info.id.baseGId = *(uint64_t*)pStart;
+    pStart += sizeof(uint64_t);
   }
 
   if (internal && (pStart - pData) < dataLen) {

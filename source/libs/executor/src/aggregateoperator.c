@@ -209,6 +209,10 @@ static bool nextGroupedResult(SOperatorInfo* pOperator) {
   if (pBlock) {
     pAggInfo->pNewGroupBlock = NULL;
     tSimpleHashClear(pAggInfo->aggSup.pResultRowHashTable);
+    qTrace("%s EXEC_GROUP_TRACE agg_resume blockGroupId:%" PRIu64 " currentGroupId:%" PRIu64
+           " blocking:%d groupKeyOptimized:%d rows:%" PRId64,
+           GET_TASKID(pTaskInfo), pBlock->info.id.groupId, pAggInfo->groupId, pOperator->blocking,
+           pAggInfo->groupKeyOptimized, pBlock->info.rows);
     code = setExecutionContext(pOperator, pOperator->exprSupp.numOfExprs, pBlock->info.id.groupId);
     QUERY_CHECK_CODE(code, lino, _end);
     code = setInputDataBlock(pSup, pBlock, order, pBlock->info.scanFlag, true);
@@ -235,6 +239,10 @@ static bool nextGroupedResult(SOperatorInfo* pOperator) {
     }
     pAggInfo->hasValidBlock = true;
     pAggInfo->binfo.pRes->info.scanFlag = pBlock->info.scanFlag;
+    qTrace("%s EXEC_GROUP_TRACE agg_input blockGroupId:%" PRIu64 " currentGroupId:%" PRIu64
+           " blocking:%d groupKeyOptimized:%d rows:%" PRId64,
+           GET_TASKID(pTaskInfo), pBlock->info.id.groupId, pAggInfo->groupId, pOperator->blocking,
+           pAggInfo->groupKeyOptimized, pBlock->info.rows);
 
     printDataBlock(pBlock, __func__, pTaskInfo->id.str, pTaskInfo->id.queryId);
 
@@ -249,6 +257,10 @@ static bool nextGroupedResult(SOperatorInfo* pOperator) {
     }
     // if non-blocking mode and new group arrived, save the block and break
     if (!pOperator->blocking && pAggInfo->groupId != UINT64_MAX && pBlock->info.id.groupId != pAggInfo->groupId) {
+      qTrace("%s EXEC_GROUP_TRACE agg_new_group currentGroupId:%" PRIu64 " nextBlockGroupId:%" PRIu64
+             " rows:%" PRId64 " groupKeyOptimized:%d",
+             GET_TASKID(pTaskInfo), pAggInfo->groupId, pBlock->info.id.groupId, pBlock->info.rows,
+             pAggInfo->groupKeyOptimized);
       pAggInfo->pNewGroupBlock = pBlock;
       break;
     }
@@ -478,6 +490,10 @@ int32_t setExecutionContext(SOperatorInfo* pOperator, int32_t numOfOutput, uint6
   if (pAggInfo->groupId != UINT64_MAX && pAggInfo->groupId == groupId) {
     return code;
   }
+
+  qTrace("%s EXEC_GROUP_TRACE agg_set_context oldGroupId:%" PRIu64 " newGroupId:%" PRIu64
+         " groupKeyOptimized:%d numOutput:%d",
+         GET_TASKID(pOperator->pTaskInfo), pAggInfo->groupId, groupId, pAggInfo->groupKeyOptimized, numOfOutput);
 
   code = doSetTableGroupOutputBuf(pOperator, numOfOutput, groupId);
 
@@ -751,7 +767,36 @@ int32_t applyAggFunctionOnPartialTuples(SExecTaskInfo* taskInfo, SqlFunctionCtx*
       pCtx[k].input.colDataSMAIsSet = false;
     }
 
-    if (fmIsPlaceHolderFunc(pCtx[k].functionId)) {
+    if (pCtx[k].functionId == -1) {
+      SResultRowEntryInfo* pEntryInfo = GET_RES_INFO(&pCtx[k]);
+      SColumnInfoData*     pColInfoData = pCtx[k].input.pData[0];
+      int32_t              rowIndex = offset < numOfTotal ? offset : 0;
+
+      if (pColInfoData != NULL && rowIndex >= 0 && rowIndex < numOfTotal &&
+          !colDataIsNull(pColInfoData, numOfTotal, rowIndex, NULL)) {
+        char* dest = GET_ROWCELL_INTERBUF(pEntryInfo);
+        char* data = colDataGetData(pColInfoData, rowIndex);
+
+        if (pColInfoData->info.type == TSDB_DATA_TYPE_JSON) {
+          int32_t dataLen = getJsonValueLen(data);
+          memcpy(dest, data, dataLen);
+        } else if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
+          if (IS_STR_DATA_BLOB(pColInfoData->info.type)) {
+            blobDataCopy(dest, data);
+          } else {
+            varDataCopy(dest, data);
+          }
+        } else {
+          memcpy(dest, data, pColInfoData->info.bytes);
+        }
+
+        pEntryInfo->isNullRes = 0;
+      } else {
+        pEntryInfo->isNullRes = 1;
+      }
+
+      pEntryInfo->numOfRes = 1;
+    } else if (fmIsPlaceHolderFunc(pCtx[k].functionId)) {
       SResultRowEntryInfo* pEntryInfo = GET_RES_INFO(&pCtx[k]);
       char* p = GET_ROWCELL_INTERBUF(pEntryInfo);
 
