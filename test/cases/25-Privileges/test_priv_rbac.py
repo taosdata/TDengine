@@ -231,6 +231,42 @@ class TestCase:
             tdSql.execute("revoke read,write on d3.* from u_legacy")
             self.do_check_user_privileges("u_legacy", 0)
 
+    def _check_mask_scalar_funcs(self, table, col="c1"):
+        """Verify scalar string functions on a masked column all return '*'."""
+        masked_exprs = [
+            f"upper({col})",
+            f"lower({col})",
+            f"ltrim({col})",
+            f"rtrim({col})",
+            f"substr({col}, 1, 1)",
+            f"concat({col}, 'x')",
+            f"replace({col}, 'a', 'b')",
+            f"repeat({col}, 2)",
+            f"lower(upper({col}))",
+        ]
+        for expr in masked_exprs:
+            tdSql.query(f"select {expr} from {table}")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, '*')
+
+    def _check_mask_agg_funcs(self, table, col="c1"):
+        """Verify aggregate functions that reveal content return '*'."""
+        for func in ["first", "last", "last_row", "mode"]:
+            tdSql.query(f"select {func}({col}) from {table}")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, '*')
+
+    def _check_mask_metadata_funcs(self, table, col="c1"):
+        """Verify metadata functions: length/char_length masked, count not."""
+        for func in ["length", "char_length"]:
+            tdSql.query(f"select {func}({col}) from {table}")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, '*')
+        # count doesn't reveal content — should return real value
+        tdSql.query(f"select count({col}) from {table}")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+
     def do_check_column_mask_privileges(self):
         """Test column-level mask privileges for SELECT (data desensitization).
 
@@ -297,14 +333,13 @@ class TestCase:
 
         # Switch to the restricted user and query
         tdSql.connect("u_mask", self.test_pass)
-        # Wait for privileges to take effect with a small retry loop to avoid flakiness
+        # Wait for privileges to take effect
         max_wait_seconds = 5
         poll_interval_seconds = 0.5
         start_time = time.time()
         last_exception = None
         while True:
             try:
-                # Simple probe query that should succeed once privileges are effective
                 tdSql.query("select 1 from d_mask.ntb_mask limit 1")
                 break
             except Exception as e:
@@ -313,200 +348,104 @@ class TestCase:
                     raise last_exception
                 time.sleep(poll_interval_seconds)
 
-        # --- Normal table: select * should mask c1, c2, c3, c4 ---
+        # ==== Normal table ====
         tdSql.query("select * from d_mask.ntb_mask")
         tdSql.checkRows(1)
-        tdSql.checkData(0, 1, 2)    # c0 (int) is not masked
-        tdSql.checkData(0, 2, '*')  # c1 (varchar masked)
-        tdSql.checkData(0, 3, '*')  # c2 (nchar masked)
-        tdSql.checkData(0, 4, '*')  # c3 (varbinary masked)
-        tdSql.checkData(0, 5, '*')  # c4 (geometry masked)
+        tdSql.checkData(0, 1, 2)    # c0 visible
+        tdSql.checkData(0, 2, '*')  # c1 masked
+        tdSql.checkData(0, 3, '*')  # c2 masked
+        tdSql.checkData(0, 4, '*')  # c3 masked
+        tdSql.checkData(0, 5, '*')  # c4 masked
 
-        # --- Normal table: explicit columns ---
         tdSql.query("select c0, c1, c2, c3, c4 from d_mask.ntb_mask")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 2)
-        tdSql.checkData(0, 1, '*')
-        tdSql.checkData(0, 2, '*')
-        tdSql.checkData(0, 3, '*')
-        tdSql.checkData(0, 4, '*')
+        for i in range(1, 5):
+            tdSql.checkData(0, i, '*')
 
-        # Permission-denied: selecting a column not included in the mask grant should fail
         tdSql.error("select secret_col from d_mask.ntb_mask")
 
-        # ========================================================================
-        # Scalar string functions that REVEAL content => must be masked (return *)
-        # ========================================================================
-        # upper / substr
-        tdSql.query("select upper(c1), substr(c1, 1, 1) from d_mask.ntb_mask")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, '*')
-        tdSql.checkData(0, 1, '*')
-
-        # lower
-        tdSql.query("select lower(c1) from d_mask.ntb_mask")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, '*')
-
-        # ltrim / rtrim
-        tdSql.query("select ltrim(c1), rtrim(c1) from d_mask.ntb_mask")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, '*')
-        tdSql.checkData(0, 1, '*')
-
-        # concat
-        tdSql.query("select concat(c1, 'suffix') from d_mask.ntb_mask")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, '*')
-
-        # concat_ws
+        # concat_ws with two masked cols
         tdSql.query("select concat_ws('-', c1, c2) from d_mask.ntb_mask")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, '*')
 
-        # replace
-        tdSql.query("select replace(c1, 'f', 'F') from d_mask.ntb_mask")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, '*')
-
-        # repeat
-        tdSql.query("select repeat(c1, 2) from d_mask.ntb_mask")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, '*')
-
-        # Nested functions: lower(upper(c1))
-        tdSql.query("select lower(upper(c1)) from d_mask.ntb_mask")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, '*')
-
-        # Functions on masked nchar columns
-        tdSql.query("select upper(c2), lower(c2) from d_mask.ntb_mask")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, '*')
-        tdSql.checkData(0, 1, '*')
-
-        # Mixed: non-masked column (c0) should still be visible alongside masked expression
+        # non-masked col alongside masked expression
         tdSql.query("select c0, upper(c1) from d_mask.ntb_mask")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 2)
         tdSql.checkData(0, 1, '*')
 
-        # Column alias should not bypass mask
+        # alias should not bypass mask
         tdSql.query("select c1 as name from d_mask.ntb_mask")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, '*')
 
-        # ========================================================================
-        # Aggregate functions that REVEAL content => must be masked (return *)
-        # ========================================================================
-        # first / last
-        tdSql.query("select first(c1), last(c1) from d_mask.ntb_mask")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, '*')
-        tdSql.checkData(0, 1, '*')
+        self._check_mask_scalar_funcs("d_mask.ntb_mask", "c1")
+        self._check_mask_scalar_funcs("d_mask.ntb_mask", "c2")
+        self._check_mask_agg_funcs("d_mask.ntb_mask", "c1")
+        self._check_mask_metadata_funcs("d_mask.ntb_mask", "c1")
 
-        # last_row
-        tdSql.query("select last_row(c1) from d_mask.ntb_mask")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, '*')
-
-        # mode
-        tdSql.query("select mode(c1) from d_mask.ntb_mask")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, '*')
-
-        # ========================================================================
-        # Metadata functions that DON'T reveal content => show real value
-        # ========================================================================
-        # count — returns count of non-null rows (doesn't reveal content)
-        tdSql.query("select count(c1) from d_mask.ntb_mask")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 1)
-
-        # ========================================================================
-        # Metadata functions that CAN leak info => must be masked (return *)
-        # ========================================================================
-        # length — could reveal value via different byte lengths
-        tdSql.query("select length(c1) from d_mask.ntb_mask")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, '*')
-
-        # char_length — could reveal value via character count
-        tdSql.query("select char_length(c1) from d_mask.ntb_mask")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, '*')
-
-        # --- Supertable: select * should mask c1, c2, c3, c4, t1, t2, t3, t4 ---
+        # ==== Supertable ====
         tdSql.query("select * from d_mask.stb_mask")
         tdSql.checkRows(1)
-        tdSql.checkData(0, 1, 1)    # c0 (int) visible
-        tdSql.checkData(0, 2, '*')  # c1 masked
-        tdSql.checkData(0, 3, '*')  # c2 masked
-        tdSql.checkData(0, 4, '*')  # c3 masked
-        tdSql.checkData(0, 5, '*')  # c4 masked
-        tdSql.checkData(0, 6, 0)    # t0 (int) visible
-        tdSql.checkData(0, 7, '*')  # t1 masked
-        tdSql.checkData(0, 8, '*')  # t2 masked
-        tdSql.checkData(0, 9, '*')  # t3 masked
-        tdSql.checkData(0, 10, '*') # t4 masked
+        tdSql.checkData(0, 1, 1)    # c0 visible
+        for i in range(2, 6):
+            tdSql.checkData(0, i, '*')  # c1-c4 masked
+        tdSql.checkData(0, 6, 0)    # t0 visible
+        for i in range(7, 11):
+            tdSql.checkData(0, i, '*')  # t1-t4 masked
 
-        # --- Supertable: explicit column list ---
         tdSql.query("select c0, c1, c2, c3, c4 from d_mask.stb_mask")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 1)
-        tdSql.checkData(0, 1, '*')
-        tdSql.checkData(0, 2, '*')
-        tdSql.checkData(0, 3, '*')
-        tdSql.checkData(0, 4, '*')
+        for i in range(1, 5):
+            tdSql.checkData(0, i, '*')
 
-        # --- Masked tag columns show '*' when queried explicitly ---
         tdSql.query("select t1, t2, t3, t4 from d_mask.stb_mask")
         tdSql.checkRows(1)
-        tdSql.checkData(0, 0, '*')
-        tdSql.checkData(0, 1, '*')
-        tdSql.checkData(0, 2, '*')
-        tdSql.checkData(0, 3, '*')
+        for i in range(4):
+            tdSql.checkData(0, i, '*')
 
-        # --- Supertable: functions on masked columns/tags ---
+        # Scalar/aggregate/metadata functions on columns
+        self._check_mask_scalar_funcs("d_mask.stb_mask", "c1")
+        self._check_mask_agg_funcs("d_mask.stb_mask", "c1")
+        self._check_mask_metadata_funcs("d_mask.stb_mask", "c1")
+
+        # Scalar/metadata functions on masked tags
+        self._check_mask_scalar_funcs("d_mask.stb_mask", "t1")
+        self._check_mask_metadata_funcs("d_mask.stb_mask", "t1")
+
+        # Mixed column + tag functions
         tdSql.query("select upper(c1), lower(t1) from d_mask.stb_mask")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, '*')
         tdSql.checkData(0, 1, '*')
 
-        # --- Supertable: metadata functions on masked columns should also be masked ---
-        tdSql.query("select length(c1), char_length(t1) from d_mask.stb_mask")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, '*')
-        tdSql.checkData(0, 1, '*')
-
-        # --- Child table: select * should mask c1, c2, c3, c4 ---
+        # ==== Child table ====
         tdSql.query("select * from d_mask.ctb_mask")
         tdSql.checkRows(1)
         tdSql.checkData(0, 1, 1)    # c0 visible
-        tdSql.checkData(0, 2, '*')  # c1 masked
-        tdSql.checkData(0, 3, '*')  # c2 masked
-        tdSql.checkData(0, 4, '*')  # c3 masked
-        tdSql.checkData(0, 5, '*')  # c4 masked
+        for i in range(2, 6):
+            tdSql.checkData(0, i, '*')  # c1-c4 masked
 
-        # --- Child table: explicit columns with tags ---
         tdSql.query("select c0, c1, c2, c3, c4, t1, t2, t3, t4 from d_mask.ctb_mask")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 1)
-        tdSql.checkData(0, 1, '*')
-        tdSql.checkData(0, 2, '*')
-        tdSql.checkData(0, 3, '*')
-        tdSql.checkData(0, 4, '*')
-        tdSql.checkData(0, 5, '*')
-        tdSql.checkData(0, 6, '*')
-        tdSql.checkData(0, 7, '*')
-        tdSql.checkData(0, 8, '*')
+        for i in range(1, 9):
+            tdSql.checkData(0, i, '*')
 
-        # --- JSON tag masking ---
+        # Scalar/aggregate/metadata functions on child table columns
+        self._check_mask_scalar_funcs("d_mask.ctb_mask", "c1")
+        self._check_mask_agg_funcs("d_mask.ctb_mask", "c1")
+        self._check_mask_metadata_funcs("d_mask.ctb_mask", "c1")
+
+        # ==== JSON tag masking ====
         tdSql.query("select c0, c1, jtag from d_mask.ctb_json")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 3)
-        tdSql.checkData(0, 1, '*')  # c1 masked
-        tdSql.checkData(0, 2, '*')  # jtag (json tag) masked
+        tdSql.checkData(0, 1, '*')
+        tdSql.checkData(0, 2, '*')
 
         # Cleanup
         tdSql.connect("root", "taosdata")
