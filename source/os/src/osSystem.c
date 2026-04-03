@@ -207,10 +207,11 @@ int32_t taosResetTerminalMode() {
   return 0;
 }
 
-// 允许的命令白名单，用于防止命令注入
+// Command allowlist to prevent command injection
 static bool isCommandAllowed(const char* cmd) {
   const char* allowedCmds[] = {"taos", "taosd", "taosdump", "taosBenchmark", "taosAdapter", "taosKeeper", NULL};
-  for (const char** p = allowedCmds; *p != NULL; p++) {
+  const char** p = allowedCmds;
+  while (*p != NULL) {
     size_t cmdLen = strlen(*p);
     if (strncmp(cmd, *p, cmdLen) == 0) {
       char nextChar = cmd[cmdLen];
@@ -218,17 +219,20 @@ static bool isCommandAllowed(const char* cmd) {
         return true;
       }
     }
+    p++;
   }
   return false;
 }
 
-// 移除危险字符，用于防止命令注入
+// Reject dangerous characters to prevent command injection
 static bool sanitizeCommand(const char* cmd) {
   const char* dangerousChars = ";|&`$()<>{}[]!*?~";
-  for (const char* p = dangerousChars; *p; p++) {
+  const char* p = dangerousChars;
+  while (*p) {
     if (strchr(cmd, *p) != NULL) {
       return false;
     }
+    p++;
   }
   return true;
 }
