@@ -10,6 +10,7 @@
 #define MyAppInstallDir "C:\TDengine\taosanode"
 #define MyAppSourceDir "{{SOURCE_DIR}}"
 #define MyAppIco "{{ICON_FILE}}"
+#define DefaultResourcePackageUrl "{{RESOURCE_PACKAGE_URL}}"
 #define MinVCRuntimeMajor 14
 #define MinVCRuntimeMinor 44
 #define MinVCRuntimeBuild 0
@@ -48,6 +49,7 @@ Source: "{#MyAppSourceDir}\lib\*"; DestDir: "{app}\lib"; Flags: ignoreversion re
 Source: "{#MyAppSourceDir}\resource\*"; DestDir: "{app}\resource"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#MyAppSourceDir}\model\*"; DestDir: "{app}\model"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
 Source: "{#MyAppSourceDir}\requirements\*"; DestDir: "{app}\requirements"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#MyAppSourceDir}\python\*"; DestDir: "{app}\python"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#MyAppSourceDir}\bin\*"; DestDir: "{app}\bin"; Flags: ignoreversion
 Source: "{#MyAppSourceDir}\install.bat"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#MyAppSourceDir}\install.py"; DestDir: "{app}"; Flags: ignoreversion
@@ -99,10 +101,13 @@ var
   InstallProgressPage: TOutputProgressWizardPage;
   FinishNotesLabel: TNewStaticText;
   IsOnlineMode: Boolean;
+  UseResourcePackage: Boolean;
+  UseClassicOnlineInstall: Boolean;
   UseCustomPip: Boolean;
   UseCustomModelMirror: Boolean;
   PipIndexUrl: String;
   PipTrustedHost: String;
+  ResourcePackageUrl: String;
   ModelEndpoint: String;
   ModelSource: String;
   InstallTensorFlow: Boolean;
@@ -514,6 +519,23 @@ begin
     LogTdgpt('Ignoring unusable existing main venv python: ' + ExistingPython);
 end;
 
+function HasExistingResourceAssets(TargetDir: string): Boolean;
+begin
+  TargetDir := NormalizeDir(TargetDir);
+  if TargetDir = '' then
+  begin
+    Result := False;
+    exit;
+  end;
+
+  Result :=
+    FileExists(AddBackslash(TargetDir) + 'venvs\venv\Scripts\python.exe') and
+    DirExists(AddBackslash(TargetDir) + 'model\moirai') and
+    DirExists(AddBackslash(TargetDir) + 'venvs\moirai_venv') and
+    DirExists(AddBackslash(TargetDir) + 'model\moment') and
+    DirExists(AddBackslash(TargetDir) + 'venvs\momentfm_venv');
+end;
+
 function ConfirmExistingInstall(TargetDir: string): Boolean;
 var
   MessageText: string;
@@ -747,9 +769,11 @@ begin
   if ModelSource = 'offline' then
   begin
     if Trim(OfflinePackagePage.Values[0]) <> '' then
-      Result := 'Import from one offline tar package'
+      Result := 'Import from one local resource package'
+    else if UseResourcePackage then
+      Result := 'Download and import resource package'
     else
-      Result := 'Reuse existing model files';
+      Result := 'Reuse existing resource files';
     exit;
   end;
   Result := '';
@@ -782,7 +806,7 @@ begin
   end;
   if ModelSource = 'offline' then
   begin
-    Result := 'Offline package';
+    Result := 'TDgpt resource package';
     exit;
   end;
   if ModelSource = 'online' then
@@ -837,9 +861,11 @@ begin
   begin
     if InstallModePage <> nil then
     begin
-      InstallModePage.Values[0] := True;
-      InstallModePage.Values[1] := False;
+      InstallModePage.Values[0] := False;
+      InstallModePage.Values[1] := True;
     end;
+    UseResourcePackage := False;
+    UseClassicOnlineInstall := False;
     IsOnlineMode := False;
     ModelSource := 'none';
     InstallTensorFlow := True;
@@ -859,6 +885,8 @@ begin
     InstallModePage.Values[0] := True;
     InstallModePage.Values[1] := False;
   end;
+  UseResourcePackage := True;
+  UseClassicOnlineInstall := False;
   IsOnlineMode := False;
   ModelSource := 'offline';
   InstallTensorFlow := True;
@@ -895,8 +923,10 @@ begin
     if InstallModePage <> nil then
     begin
       InstallModePage.Values[0] := False;
-      InstallModePage.Values[1] := True;
+      InstallModePage.Values[1] := False;
     end;
+    UseResourcePackage := False;
+    UseClassicOnlineInstall := True;
     IsOnlineMode := True;
     if IsUpgradeInstall() then
     begin
@@ -927,16 +957,30 @@ begin
   end;
 
   if ExpandConstant('{param:OFFLINE|}') <> '' then
+  begin
+    if InstallModePage <> nil then
+    begin
+      InstallModePage.Values[0] := True;
+      InstallModePage.Values[1] := False;
+    end;
+    UseResourcePackage := True;
+    UseClassicOnlineInstall := False;
+    IsOnlineMode := False;
+    ModelSource := 'offline';
     OfflinePackagePage.Values[0] := ExpandConstant('{param:OFFLINE|}');
+  end;
 end;
 
 procedure InitializeWizard();
 begin
   IsOnlineMode := False;
+  UseResourcePackage := True;
+  UseClassicOnlineInstall := False;
   UseCustomPip := False;
   UseCustomModelMirror := False;
   PipIndexUrl := '';
   PipTrustedHost := '';
+  ResourcePackageUrl := ExpandConstant('{#DefaultResourcePackageUrl}');
   ModelEndpoint := '';
   ModelSource := 'none';
   InstallTensorFlow := True;
@@ -951,13 +995,13 @@ begin
 
   InstallModePage := CreateInputOptionPage(
     wpWelcome,
-    'Python Package Mode',
-    'Select how Python dependencies should be installed',
-    'Online mode downloads Python packages during setup. Offline package mode imports one external tar package that contains python runtime, virtual environments, and optional model archives. During upgrade, leaving the offline package blank reuses the existing environment and model files.',
+    'TDgpt Resource Package',
+    'Choose whether to install the TDgpt resource package',
+    'The recommended flow downloads one TDgpt resource package from a configured remote URL and then reuses the validated offline import logic. You can also skip the resource package for now.',
     True,
     False);
-  InstallModePage.Add('Offline package (recommended)');
-  InstallModePage.Add('Online mode');
+  InstallModePage.Add('Download and install the TDgpt resource package (recommended)');
+  InstallModePage.Add('Do not install the TDgpt resource package now');
   InstallModePage.Values[0] := True;
 
   PipSourcePage := CreateInputOptionPage(
@@ -1040,7 +1084,7 @@ begin
     CustomModelMirrorPage.ID,
     'Offline Package Import',
     'Select one offline tar package',
-    'Setup automatically looks for tdengine-tdgpt-offline-assets-<version>-windows-x64.tar in the same directory as the installer. You can keep that default or browse to another tar package. New offline installs require this package. Upgrade installs can leave it blank to reuse the existing environment and model files.');
+    'This page is reserved for command-line compatible offline imports. The interactive installer no longer asks users to browse for a local offline package.');
   OfflinePackagePage.Add('Offline package:', 'Tar archives|*.tar.gz;*.tgz;*.tar|All files|*.*', '.tar.gz');
 
   InstallProgressPage := CreateOutputProgressPage(
@@ -1063,20 +1107,22 @@ begin
 
   // Support /OFFLINE and /ONLINE command-line parameters for silent installation
   ApplyCommandLineModeOverrides();
-
-  TryPopulateDefaultOfflinePackage();
+ 
+    TryPopulateDefaultOfflinePackage();
 end;
 
 function ShouldSkipPage(PageID: Integer): Boolean;
 begin
   Result := False;
-  if (PageID = PipSourcePage.ID) and (not IsOnlineMode) then
+  if (PageID = InstallModePage.ID) and UseClassicOnlineInstall then
     Result := True
-  else if (PageID = CustomPipPage.ID) and ((not IsOnlineMode) or (not UseCustomPip)) then
+  else if (PageID = PipSourcePage.ID) and (not UseClassicOnlineInstall) then
     Result := True
-  else if (PageID = PythonOptionsPage.ID) and (not IsOnlineMode) then
+  else if (PageID = CustomPipPage.ID) and ((not UseClassicOnlineInstall) or (not UseCustomPip)) then
     Result := True
-  else if (PageID = ModelSourcePage.ID) and (not IsOnlineMode) then
+  else if (PageID = PythonOptionsPage.ID) and (not UseClassicOnlineInstall) then
+    Result := True
+  else if (PageID = ModelSourcePage.ID) and (not UseClassicOnlineInstall) then
     Result := True
   else if (PageID = ModelSelectionPage.ID) and (ModelSource <> 'online') then
     Result := True
@@ -1084,13 +1130,14 @@ begin
     Result := True
   else if (PageID = CustomModelMirrorPage.ID) and ((ModelSource <> 'online') or (not UseCustomModelMirror)) then
     Result := True
-  else if (PageID = OfflinePackagePage.ID) and IsOnlineMode and (ModelSource <> 'offline') then
+  else if (PageID = OfflinePackagePage.ID) then
     Result := True;
 end;
 
 function NextButtonClick(CurPageID: Integer): Boolean;
 var
-  PythonVersionText: AnsiString;
+  TargetDir: string;
+  WarningText: string;
 begin
   Result := True;
 
@@ -1122,38 +1169,50 @@ begin
 
   if CurPageID = InstallModePage.ID then
   begin
-    IsOnlineMode := InstallModePage.Values[1];
-    if IsOnlineMode and (not HasExistingMainVenvPython()) and (not CheckPythonPrerequisite(PythonVersionText)) then
+    UseResourcePackage := InstallModePage.Values[0];
+    IsOnlineMode := UseClassicOnlineInstall;
+
+    if UseClassicOnlineInstall then
     begin
-      MsgBox(
-        'Online mode requires Python 3.10, 3.11, or 3.12 in PATH.' + #13#10 + #13#10 +
-        'Please install Python first, or switch to Offline package mode.',
-        mbCriticalError, MB_OK);
-      Result := False;
-      exit;
-    end;
-    if not IsOnlineMode then
-    begin
-      InstallTensorFlow := True;
-      ClearModelSelections();
       if IsUpgradeInstall() then
-        ModelSource := 'none'
+      begin
+        ModelSource := 'none';
+        InstallTensorFlow := False;
+      end
       else
-        ModelSource := 'offline';
-    end
-    else if IsUpgradeInstall() then
-    begin
-      ModelSource := 'none';
-      InstallTensorFlow := False;
+      begin
+        ModelSource := 'online';
+        InstallTensorFlow := True;
+      end;
       if PythonOptionsPage <> nil then
-        PythonOptionsPage.Values[0] := False;
+        PythonOptionsPage.Values[0] := InstallTensorFlow;
     end
     else
     begin
-      ModelSource := 'online';
       InstallTensorFlow := True;
-      if PythonOptionsPage <> nil then
-        PythonOptionsPage.Values[0] := True;
+      ClearModelSelections();
+      if UseResourcePackage then
+        ModelSource := 'offline'
+      else
+        ModelSource := 'none';
+
+      TargetDir := LockedInstallDir;
+      if TargetDir = '' then
+        TargetDir := NormalizeDir(WizardDirValue());
+      if (not UseResourcePackage) and (not HasExistingResourceAssets(TargetDir)) then
+      begin
+        WarningText :=
+          'The TDgpt resource package will not be installed.' + #13#10 + #13#10 +
+          'IDMP features that depend on the time-series foundation model service will not work normally:' + #13#10 +
+          '  - prediction algorithms that depend on the time-series foundation model service' + #13#10 +
+          '  - value imputation' + #13#10 + #13#10 +
+          'Do you want to continue without the TDgpt resource package?';
+        if MsgBox(WarningText, mbConfirmation, MB_YESNO) <> IDYES then
+        begin
+          Result := False;
+          exit;
+        end;
+      end;
     end;
   end;
 
@@ -1264,13 +1323,17 @@ begin
   if IsUpgradeInstall() then
     Result := Result + '--existing-install ';
 
-  if not IsOnlineMode then
-    Result := Result + '-o ';
-  if ((not IsOnlineMode) or (ModelSource = 'offline')) and (Trim(OfflinePackagePage.Values[0]) <> '') then
-    Result := Result + '--offline-package ' + AddQuotes(Trim(OfflinePackagePage.Values[0])) + ' ';
-  if IsOnlineMode and (not InstallTensorFlow) then
+  if UseResourcePackage then
+  begin
+    Result := Result + '-o --model-source offline ';
+    if Trim(OfflinePackagePage.Values[0]) <> '' then
+      Result := Result + '--offline-package ' + AddQuotes(Trim(OfflinePackagePage.Values[0])) + ' '
+    else if Trim(ResourcePackageUrl) <> '' then
+      Result := Result + '--resource-package-url ' + AddQuotes(Trim(ResourcePackageUrl)) + ' ';
+  end;
+  if UseClassicOnlineInstall and (not InstallTensorFlow) then
     Result := Result + '--skip-tensorflow ';
-  if (ModelSource <> 'none') and ((ModelSource <> 'offline') or (Trim(OfflinePackagePage.Values[0]) <> '')) then
+  if UseClassicOnlineInstall and (ModelSource <> 'none') then
   begin
     Result := Result + '--model-source ' + ModelSource + ' ';
     if ModelSource = 'online' then
@@ -1283,13 +1346,13 @@ begin
       if SelectMoment then Result := Result + '--model moment ';
     end;
   end;
-  if IsOnlineMode and (PipIndexUrl <> '') then
+  if UseClassicOnlineInstall and (PipIndexUrl <> '') then
   begin
     Result := Result + '--pip-index-url ' + AddQuotes(PipIndexUrl) + ' ';
     if PipTrustedHost <> '' then
       Result := Result + '--pip-trusted-host ' + AddQuotes(PipTrustedHost) + ' ';
   end;
-  if (ModelSource = 'online') and (ModelEndpoint <> '') then
+  if UseClassicOnlineInstall and (ModelSource = 'online') and (ModelEndpoint <> '') then
     Result := Result + '--model-endpoint ' + AddQuotes(ModelEndpoint) + ' ';
   Result := Trim(Result);
 end;
@@ -1305,18 +1368,17 @@ begin
   else
     S := S + 'Install type:' + NewLine + Space + 'First install' + NewLine;
   S := S + 'Installer package:' + NewLine + Space + GetInstallerPackageSummary() + NewLine;
-  S := S + 'Python package mode:' + NewLine + Space;
-  if IsOnlineMode then
-    S := S + 'Online' + NewLine
+  S := S + 'TDgpt resource package:' + NewLine + Space;
+  if UseResourcePackage then
+    S := S + 'Download and import' + NewLine
+  else if UseClassicOnlineInstall then
+    S := S + 'Classic online installation' + NewLine
   else
-    S := S + 'Offline' + NewLine;
+    S := S + 'Do not install now' + NewLine;
   S := S + 'TensorFlow CPU support:' + NewLine + Space;
-  if not IsOnlineMode then
+  if UseResourcePackage then
   begin
-    if IsUpgradeInstall() then
-      S := S + 'Reuse existing environment or import from offline package' + NewLine
-    else
-      S := S + 'Included in offline package' + NewLine;
+    S := S + 'Included in the imported resource package' + NewLine;
   end
   else if InstallTensorFlow then
     S := S + 'Install' + NewLine
@@ -1325,13 +1387,17 @@ begin
   S := S + 'Model source:' + NewLine + Space + GetModelSourceSummary() + NewLine;
   S := S + 'Model handling:' + NewLine + Space + GetModelSelectionSummary() + NewLine;
   if Trim(OfflinePackagePage.Values[0]) <> '' then
-    S := S + 'Offline package:' + NewLine + Space + Trim(OfflinePackagePage.Values[0]) + NewLine;
-  if (not IsOnlineMode) and (Trim(OfflinePackagePage.Values[0]) = '') and IsUpgradeInstall() then
-    S := S + 'Offline package:' + NewLine + Space + 'Reuse current runtime and model files' + NewLine;
+    S := S + 'Local resource package:' + NewLine + Space + Trim(OfflinePackagePage.Values[0]) + NewLine;
+  if UseResourcePackage and (Trim(OfflinePackagePage.Values[0]) = '') and (Trim(ResourcePackageUrl) <> '') then
+    S := S + 'Resource package URL:' + NewLine + Space + Trim(ResourcePackageUrl) + NewLine;
+  if UseResourcePackage and (Trim(OfflinePackagePage.Values[0]) = '') and IsUpgradeInstall() and (Trim(ResourcePackageUrl) = '') then
+    S := S + 'Resource package:' + NewLine + Space + 'Reuse current resource files' + NewLine;
   if PipIndexUrl <> '' then
     S := S + 'pip source:' + NewLine + Space + PipIndexUrl + NewLine;
   if ModelEndpoint <> '' then
     S := S + 'Model endpoint:' + NewLine + Space + ModelEndpoint + NewLine;
+  if not UseResourcePackage and not UseClassicOnlineInstall then
+    S := S + 'IDMP impact:' + NewLine + Space + 'Prediction algorithms that depend on the time-series foundation model service and value imputation will not work normally.' + NewLine;
   S := S + 'Windows service:' + NewLine + Space + 'Installed automatically' + NewLine;
   Result := S;
 end;
