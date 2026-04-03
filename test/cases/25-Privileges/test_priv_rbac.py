@@ -334,11 +334,108 @@ class TestCase:
         # Permission-denied: selecting a column not included in the mask grant should fail
         tdSql.error("select secret_col from d_mask.ntb_mask")
 
-        # Expression/bypass: using functions on masked-only columns must not reveal original data
+        # ========================================================================
+        # Scalar string functions that REVEAL content => must be masked (return *)
+        # ========================================================================
+        # upper / substr
         tdSql.query("select upper(c1), substr(c1, 1, 1) from d_mask.ntb_mask")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, '*')
         tdSql.checkData(0, 1, '*')
+
+        # lower
+        tdSql.query("select lower(c1) from d_mask.ntb_mask")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, '*')
+
+        # ltrim / rtrim
+        tdSql.query("select ltrim(c1), rtrim(c1) from d_mask.ntb_mask")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, '*')
+        tdSql.checkData(0, 1, '*')
+
+        # concat
+        tdSql.query("select concat(c1, 'suffix') from d_mask.ntb_mask")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, '*')
+
+        # concat_ws
+        tdSql.query("select concat_ws('-', c1, c2) from d_mask.ntb_mask")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, '*')
+
+        # replace
+        tdSql.query("select replace(c1, 'f', 'F') from d_mask.ntb_mask")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, '*')
+
+        # repeat
+        tdSql.query("select repeat(c1, 2) from d_mask.ntb_mask")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, '*')
+
+        # Nested functions: lower(upper(c1))
+        tdSql.query("select lower(upper(c1)) from d_mask.ntb_mask")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, '*')
+
+        # Functions on masked nchar columns
+        tdSql.query("select upper(c2), lower(c2) from d_mask.ntb_mask")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, '*')
+        tdSql.checkData(0, 1, '*')
+
+        # Mixed: non-masked column (c0) should still be visible alongside masked expression
+        tdSql.query("select c0, upper(c1) from d_mask.ntb_mask")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 2)
+        tdSql.checkData(0, 1, '*')
+
+        # Column alias should not bypass mask
+        tdSql.query("select c1 as name from d_mask.ntb_mask")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, '*')
+
+        # ========================================================================
+        # Aggregate functions that REVEAL content => must be masked (return *)
+        # ========================================================================
+        # first / last
+        tdSql.query("select first(c1), last(c1) from d_mask.ntb_mask")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, '*')
+        tdSql.checkData(0, 1, '*')
+
+        # last_row
+        tdSql.query("select last_row(c1) from d_mask.ntb_mask")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, '*')
+
+        # mode
+        tdSql.query("select mode(c1) from d_mask.ntb_mask")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, '*')
+
+        # ========================================================================
+        # Metadata functions that DON'T reveal content => show real value
+        # ========================================================================
+        # count — returns count of non-null rows (doesn't reveal content)
+        tdSql.query("select count(c1) from d_mask.ntb_mask")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+
+        # ========================================================================
+        # Metadata functions that CAN leak info => must be masked (return *)
+        # ========================================================================
+        # length — could reveal value via different byte lengths
+        tdSql.query("select length(c1) from d_mask.ntb_mask")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, '*')
+
+        # char_length — could reveal value via character count
+        tdSql.query("select char_length(c1) from d_mask.ntb_mask")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, '*')
+
         # --- Supertable: select * should mask c1, c2, c3, c4, t1, t2, t3, t4 ---
         tdSql.query("select * from d_mask.stb_mask")
         tdSql.checkRows(1)
@@ -369,6 +466,18 @@ class TestCase:
         tdSql.checkData(0, 1, '*')
         tdSql.checkData(0, 2, '*')
         tdSql.checkData(0, 3, '*')
+
+        # --- Supertable: functions on masked columns/tags ---
+        tdSql.query("select upper(c1), lower(t1) from d_mask.stb_mask")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, '*')
+        tdSql.checkData(0, 1, '*')
+
+        # --- Supertable: metadata functions on masked columns should also be masked ---
+        tdSql.query("select length(c1), char_length(t1) from d_mask.stb_mask")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, '*')
+        tdSql.checkData(0, 1, '*')
 
         # --- Child table: select * should mask c1, c2, c3, c4 ---
         tdSql.query("select * from d_mask.ctb_mask")

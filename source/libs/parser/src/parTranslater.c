@@ -8034,16 +8034,26 @@ static int32_t colIdNameKVComp(const void* pLeft, const void* pRight) {
   return lhs->colId < rhs->colId ? -1 : (lhs->colId == rhs->colId ? 0 : 1);
 }
 
-static void setMaskFlagOnProjCol(SSelectStmt* pSelect, uint64_t tableId, col_id_t colId) {
-  SNode* pNode = NULL;
-  FOREACH(pNode, pSelect->pProjectionList) {
-    if (QUERY_NODE_COLUMN == nodeType(pNode)) {
-      SColumnNode* pCol = (SColumnNode*)pNode;
-      if (pCol->tableId == tableId && pCol->colId == colId) {
-        pCol->hasMask = 1;
-      }
+typedef struct SSetMaskCxt {
+  uint64_t tableId;
+  col_id_t colId;
+} SSetMaskCxt;
+
+static EDealRes setMaskFlagWalker(SNode* pNode, void* pContext) {
+  if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+    SSetMaskCxt* pCxt = (SSetMaskCxt*)pContext;
+    SColumnNode* pCol = (SColumnNode*)pNode;
+    if (pCol->tableId == pCxt->tableId && pCol->colId == pCxt->colId) {
+      pCol->hasMask = 1;
     }
   }
+  return DEAL_RES_CONTINUE;
+}
+
+static void setMaskFlagOnProjCol(SSelectStmt* pSelect, uint64_t tableId, col_id_t colId) {
+  SSetMaskCxt cxt = {.tableId = tableId, .colId = colId};
+  SNode*      pNode = NULL;
+  FOREACH(pNode, pSelect->pProjectionList) { nodesWalkExpr(pNode, setMaskFlagWalker, &cxt); }
 }
 
 static int32_t translateCheckPrivCols(STranslateContext* pCxt, SSelectStmt* pSelect) {
@@ -8245,6 +8255,107 @@ _exit:
   return code;
 }
 
+static EDealRes findMaskedColWalker(SNode* pNode, void* pContext) {
+  if (QUERY_NODE_COLUMN == nodeType(pNode) && ((SColumnNode*)pNode)->hasMask) {
+    *(SColumnNode**)pContext = (SColumnNode*)pNode;
+    return DEAL_RES_END;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static EDealRes clearMaskFlagWalker(SNode* pNode, void* pContext) {
+  if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+    ((SColumnNode*)pNode)->hasMask = 0;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+/* Wrap an arbitrary expression with mask_full(expr, '*').
+ * Unlike createMaskFuncNode (which replaces with mask_full(col, '*')),
+ * this preserves the original expression as the first parameter so that
+ * aggregate functions (first, last, last_row, mode …) remain valid. */
+static int32_t createMaskFuncWrapExpr(STranslateContext* pCxt, SNode* pExpr, SNode** ppFunc) {
+  int32_t        code = TSDB_CODE_SUCCESS;
+  SExprNode*     pExprNode = (SExprNode*)pExpr;
+  uint8_t        type = pExprNode->resType.type;
+  SFunctionNode* pFunc = NULL;
+  SValueNode*    pMaskVal = NULL;
+  SNode*         pExprClone = NULL;
+
+  code = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&pFunc);
+  if (TSDB_CODE_SUCCESS != code) goto _exit;
+
+  tstrncpy(pFunc->functionName, "mask_full", TSDB_FUNC_NAME_LEN);
+  tstrncpy(pFunc->node.aliasName, pExprNode->aliasName, TSDB_COL_NAME_LEN);
+  tstrncpy(pFunc->node.userAlias, pExprNode->userAlias, TSDB_COL_NAME_LEN);
+  pFunc->node.asAlias = pExprNode->asAlias;
+
+  code = nodesCloneNode(pExpr, &pExprClone);
+  if (TSDB_CODE_SUCCESS != code) goto _exit;
+  nodesWalkExpr(pExprClone, clearMaskFlagWalker, NULL);
+
+  code = nodesListMakeStrictAppend(&pFunc->pParameterList, pExprClone);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode(pExprClone);
+    pExprClone = NULL;
+    goto _exit;
+  }
+  pExprClone = NULL;
+
+  code = nodesMakeValueNodeFromString("*", &pMaskVal);
+  if (TSDB_CODE_SUCCESS != code) goto _exit;
+
+  code = nodesListMakeStrictAppend(&pFunc->pParameterList, (SNode*)pMaskVal);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pMaskVal);
+    pMaskVal = NULL;
+    goto _exit;
+  }
+  pMaskVal = NULL;
+
+  code = fmGetFuncInfo(pFunc, pCxt->msgBuf.buf, pCxt->msgBuf.len);
+  if (TSDB_CODE_SUCCESS != code) goto _exit;
+
+  if (type == TSDB_DATA_TYPE_VARBINARY || type == TSDB_DATA_TYPE_GEOMETRY || type == TSDB_DATA_TYPE_JSON) {
+    pFunc->node.resType.type = TSDB_DATA_TYPE_VARCHAR;
+  }
+
+  *ppFunc = (SNode*)pFunc;
+  return TSDB_CODE_SUCCESS;
+
+_exit:
+  if (pFunc) nodesDestroyNode((SNode*)pFunc);
+  return code;
+}
+
+/* Check whether the top-level node of a projection expression is a
+ * count-like aggregate (count, hyperloglog) that does not reveal the
+ * actual column value.  These are safe to keep even for masked columns. */
+static bool isMaskSafeFunc(SNode* pNode) {
+  if (QUERY_NODE_FUNCTION != nodeType(pNode)) return false;
+  SFunctionNode* pFunc = (SFunctionNode*)pNode;
+  return fmIsCountLikeFunc(pFunc->funcId);
+}
+
+/* Create a '*' VARCHAR constant value node to replace an expression
+ * whose result type is non-string (e.g. length(c1) → BIGINT).
+ * mask_full() only accepts string input, so for numeric results we
+ * simply emit the literal '*'. */
+static int32_t createMaskConstStarNode(SNode* pOrigExpr, SNode** ppResult) {
+  int32_t     code = TSDB_CODE_SUCCESS;
+  SValueNode* pVal = NULL;
+
+  code = nodesMakeValueNodeFromString("*", &pVal);
+  if (TSDB_CODE_SUCCESS != code) return code;
+
+  tstrncpy(pVal->node.aliasName, ((SExprNode*)pOrigExpr)->aliasName, TSDB_COL_NAME_LEN);
+  tstrncpy(pVal->node.userAlias, ((SExprNode*)pOrigExpr)->userAlias, TSDB_COL_NAME_LEN);
+  pVal->node.asAlias = ((SExprNode*)pOrigExpr)->asAlias;
+
+  *ppResult = (SNode*)pVal;
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateProcessMaskColFunc(STranslateContext* pCxt, SSelectStmt* pSelect) {
   if (pCxt->pParseCxt->hasMaskCols == 0) {
     return TSDB_CODE_SUCCESS;
@@ -8253,9 +8364,30 @@ static int32_t translateProcessMaskColFunc(STranslateContext* pCxt, SSelectStmt*
   int32_t code = TSDB_CODE_SUCCESS;
   SNode*  pNode = NULL;
   WHERE_EACH(pNode, pSelect->pProjectionList) {
+    SColumnNode* pMaskedCol = NULL;
     if (QUERY_NODE_COLUMN == nodeType(pNode) && ((SColumnNode*)pNode)->hasMask) {
+      pMaskedCol = (SColumnNode*)pNode;
+    } else if (QUERY_NODE_COLUMN != nodeType(pNode)) {
+      nodesWalkExpr(pNode, findMaskedColWalker, &pMaskedCol);
+    }
+    if (NULL != pMaskedCol) {
       SNode* pMaskFunc = NULL;
-      code = createMaskFuncNode(pCxt, (SColumnNode*)pNode, &pMaskFunc);
+      if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+        /* Bare column: replace with mask_full(col, '*') */
+        code = createMaskFuncNode(pCxt, pMaskedCol, &pMaskFunc);
+      } else if (isMaskSafeFunc(pNode)) {
+        /* count-like aggregates (count, hyperloglog) don't reveal
+         * column content — skip masking */
+        WHERE_NEXT;
+        continue;
+      } else if (IS_VAR_DATA_TYPE(((SExprNode*)pNode)->resType.type)) {
+        /* String-result expression: wrap with mask_full(expr, '*') */
+        code = createMaskFuncWrapExpr(pCxt, pNode, &pMaskFunc);
+      } else {
+        /* Non-string result (e.g. length, char_length): replace with
+         * a constant '*' value to prevent information leakage */
+        code = createMaskConstStarNode(pNode, &pMaskFunc);
+      }
       if (TSDB_CODE_SUCCESS != code) {
         return code;
       }
