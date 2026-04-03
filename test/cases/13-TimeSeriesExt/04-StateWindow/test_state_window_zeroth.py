@@ -4,6 +4,82 @@ class TestStateWindowZeroth:
     def setup_class(cls):
         tdLog.info(f"start to execute {__file__}")
 
+    def check_zeroth_state_syntax_errors(self):
+        tdSql.error(
+            "select count(*) from ntb state_window(cint) extend(0) zeroth_state()",
+            expectErrInfo="syntax error near",
+            fullMatched=False,
+            show=True,
+        )
+        tdSql.error(
+            "select count(*) from ntb state_window(cint) extend(0) zeroth_state(NO_ZEROTH,)",
+            expectErrInfo="syntax error near",
+            fullMatched=False,
+            show=True,
+        )
+        tdSql.error(
+            "select count(*) from ntb state_window(cint) extend(0) zeroth_state(NO_ZEROTH NO_ZEROTH)",
+            expectErrInfo="syntax error near",
+            fullMatched=False,
+            show=True,
+        )
+        tdSql.error(
+            "select count(*) from ntb state_window(cint) extend(0) zeroth_state(NO_ZEROTH, NO_ZEROTH)",
+            expectErrInfo="ZEROTH_STATE argument count must match STATE_WINDOW key count",
+            show=True,
+        )
+        tdSql.error(
+            "select count(*) from mtb state_window(s1, s2) extend(0) zeroth_state(NO_ZEROTH)",
+            expectErrInfo="ZEROTH_STATE argument count must match STATE_WINDOW key count",
+            show=True,
+        )
+
+    def check_zeroth_state_all_no_zeroth(self):
+        tdSql.query(
+            "select _wstart, _wend, count(*), s1, s2 from mtb "
+            "state_window(s1, s2) extend(0) order by _wstart",
+            show=True,
+        )
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 2, 2)
+        tdSql.checkData(0, 3, 1)
+        tdSql.checkData(0, 4, True)
+        tdSql.checkData(1, 2, 1)
+        tdSql.checkData(1, 3, 2)
+        tdSql.checkData(1, 4, True)
+        tdSql.checkData(2, 2, 1)
+        tdSql.checkData(2, 3, 2)
+        tdSql.checkData(2, 4, False)
+        tdSql.checkData(3, 2, 1)
+        tdSql.checkData(3, 3, 1)
+        tdSql.checkData(3, 4, False)
+        tdSql.checkData(4, 2, 1)
+        tdSql.checkData(4, 3, 3)
+        tdSql.checkData(4, 4, False)
+
+        tdSql.query(
+            "select _wstart, _wend, count(*), s1, s2 from mtb "
+            "state_window(s1, s2) extend(0) zeroth_state(NO_ZEROTH, NO_ZEROTH) "
+            "order by _wstart",
+            show=True,
+        )
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 2, 2)
+        tdSql.checkData(0, 3, 1)
+        tdSql.checkData(0, 4, True)
+        tdSql.checkData(1, 2, 1)
+        tdSql.checkData(1, 3, 2)
+        tdSql.checkData(1, 4, True)
+        tdSql.checkData(2, 2, 1)
+        tdSql.checkData(2, 3, 2)
+        tdSql.checkData(2, 4, False)
+        tdSql.checkData(3, 2, 1)
+        tdSql.checkData(3, 3, 1)
+        tdSql.checkData(3, 4, False)
+        tdSql.checkData(4, 2, 1)
+        tdSql.checkData(4, 3, 3)
+        tdSql.checkData(4, 4, False)
+
     def prepare_data(self):
         tdStream.createSnode()
         tdSql.execute("create database if not exists test_state_window_zeroth keep 3650", show=True)
@@ -58,6 +134,32 @@ class TestStateWindowZeroth:
         tdSql.error("select _wstart, _wend, count(*) from ntb state_window(cint) extend(0) zeroth_state(1.5)", show=True)
         tdSql.error("select _wstart, _wend, count(*) from ntb state_window(cint) extend(0) zeroth_state(asdf)", show=True)
         tdSql.error("select _wstart, _wend, count(*) from ntb state_window(cbool) extend(0) zeroth_state(null)", show=True)
+
+        tdSql.execute("create table mtb (ts timestamp, s1 int, s2 bool, v int)", show=True)
+        tdSql.execute('''insert into mtb values
+                  ('2025-10-01 10:00:00', 1,  true, 10),
+                  ('2025-10-01 10:00:01', 1,  true, 11),
+                  ('2025-10-01 10:00:02', 2,  true, 12),
+                  ('2025-10-01 10:00:03', 2, false, 13),
+                  ('2025-10-01 10:00:04', 1, false, 14),
+                  ('2025-10-01 10:00:05', 3, false, 15)''', show=True)
+        tdSql.query(
+            "select _wstart, _wend, count(*), s1, s2 from mtb state_window(s1, s2) extend(0) zeroth_state(1, NO_ZEROTH)",
+            show=True,
+        )
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 2, 1)
+        tdSql.checkData(0, 3, 2)
+        tdSql.checkData(0, 4, True)
+        tdSql.checkData(1, 2, 1)
+        tdSql.checkData(1, 3, 2)
+        tdSql.checkData(1, 4, False)
+        tdSql.checkData(2, 2, 1)
+        tdSql.checkData(2, 3, 3)
+        tdSql.checkData(2, 4, False)
+
+        self.check_zeroth_state_syntax_errors()
+        self.check_zeroth_state_all_no_zeroth()
 
         # normal table
         tdSql.query("select _wstart, _wend, count(*) from ntb state_window(cint) extend(0) zeroth_state(0)", show=True)

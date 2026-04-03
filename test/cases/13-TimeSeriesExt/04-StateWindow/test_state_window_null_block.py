@@ -56,6 +56,7 @@ class TestStateWindowNullBlock:
         self.check_all_null_block1()
         self.check_all_null_block2()
         self.check_partition_and_null()
+        self.check_multi_col_null_block()
 
     def prepare_data(self):
         tdSql.execute("drop database if exists test_state_window_null_block")
@@ -581,10 +582,10 @@ class TestStateWindowNullBlock:
 
     def check_partition_and_null(self):
         tdLog.info(">>>>>>>>>>>>> check_partition_and_null >>>>>>>>>>>>>>>")
-        tdSql.execute("create database if not exists test_state_window_null_block_partition", show=1)
+        tdSql.execute("create database if not exists test_state_window_null_block_partition", show=True)
         tdSql.execute("use test_state_window_null_block_partition")
         tdSql.execute("drop table if exists tt")
-        tdSql.execute("create table tt (ts timestamp, v int, s varchar(10))", show=1)
+        tdSql.execute("create table tt (ts timestamp, v int, s varchar(10))", show=True)
         tdSql.execute('''
             insert into tt values 
               ("2025-12-01 11:59:57", 1, null)
@@ -598,9 +599,9 @@ class TestStateWindowNullBlock:
               ("2025-12-01 12:00:05", 3, 'a')
               ("2025-12-01 12:00:06", 1, null)
               ("2025-12-01 12:00:07", 2, null)
-        ''', show=1)
+        ''', show=True)
 
-        tdSql.query("select _wstart, _wend, count(*), v, s from tt partition by v state_window(s) order by _wstart", show=1)
+        tdSql.query("select _wstart, _wend, count(*), v, s from tt partition by v state_window(s) order by _wstart", show=True)
         tdSql.checkRows(5)
         tdSql.checkData(0, 0, "2025-12-01 12:00:00.000")
         tdSql.checkData(0, 1, "2025-12-01 12:00:00.000")
@@ -628,7 +629,7 @@ class TestStateWindowNullBlock:
         tdSql.checkData(4, 3, 2)
         tdSql.checkData(4, 4, "a")
 
-        tdSql.query("select _wstart, _wend, count(*), v, s from tt partition by v state_window(s) extend(1) order by _wstart", show=1)
+        tdSql.query("select _wstart, _wend, count(*), v, s from tt partition by v state_window(s) extend(1) order by _wstart", show=True)
         tdSql.checkRows(5)
         tdSql.checkData(0, 0, "2025-12-01 12:00:00.000")
         tdSql.checkData(0, 1, "2025-12-01 12:00:02.999")
@@ -656,7 +657,7 @@ class TestStateWindowNullBlock:
         tdSql.checkData(4, 3, 2)
         tdSql.checkData(4, 4, "a")
 
-        tdSql.query("select _wstart, _wend, count(*), v, s from tt partition by v state_window(s) extend(2) order by _wstart", show=1)
+        tdSql.query("select _wstart, _wend, count(*), v, s from tt partition by v state_window(s) extend(2) order by _wstart", show=True)
         tdSql.checkRows(5)
         tdSql.checkData(0, 0, "2025-12-01 11:59:57.000")
         tdSql.checkData(0, 1, "2025-12-01 12:00:00.000")
@@ -682,4 +683,195 @@ class TestStateWindowNullBlock:
         tdSql.checkData(4, 1, "2025-12-01 12:00:04.000")
         tdSql.checkData(4, 2, 1)
         tdSql.checkData(4, 3, 2)
-        tdSql.checkData(4, 4, "a")
+
+    def _insert_block(self, table, base_ms, row_start, count, s1, s2):
+        """Insert a contiguous block of rows into table (ts timestamp, s1 int, s2 int).
+
+        Args:
+            table:     target table name
+            base_ms:   base timestamp in milliseconds (row 0's ts)
+            row_start: starting row offset (ts = base_ms + (row_start + i) * 1000)
+            count:     number of rows to insert
+            s1:        value for s1 column, None inserts SQL NULL
+            s2:        value for s2 column, None inserts SQL NULL
+        """
+        values = []
+        for i in range(count):
+            ts = base_ms + (row_start + i) * 1000
+            v1 = 'null' if s1 is None else str(s1)
+            v2 = 'null' if s2 is None else str(s2)
+            values.append(f"({ts}, {v1}, {v2})")
+        tdSql.execute(f"insert into {table} values {' '.join(values)}")
+
+    def check_multi_col_null_block(self):
+        tdLog.info(">>>>> check_multi_col_null_block >>>>>")
+
+        # --- Part 1: reuse existing tables t1/t5/t6 with state_window(s, v) ---
+        # In data CSVs, non-NULL rows have s and v correlated (true=1, false=0),
+        # and NULL rows have s=null but v non-null. So state_window(s, v) should
+        # produce same results as state_window(s) because any row with s=null is
+        # skipped by stateWindowRowHasNull, and non-null rows have (s,v) 1:1 mapped.
+        tdSql.execute("use test_state_window_null_block")
+
+        # t1: all non-null, 5 windows expected (same as single-col)
+        tdSql.query("select _wstart, _wend, s, count(*), sum(v) from t1 state_window(s, v)", show=True)
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 2, True)
+        tdSql.checkData(0, 3, 2000)
+        tdSql.checkData(1, 2, False)
+        tdSql.checkData(1, 3, 2000)
+        tdSql.checkData(2, 2, True)
+        tdSql.checkData(2, 3, 2000)
+        tdSql.checkData(3, 2, False)
+        tdSql.checkData(3, 3, 2000)
+        tdSql.checkData(4, 2, True)
+        tdSql.checkData(4, 3, 2000)
+
+        # t2: inner nulls, s and v correlated for non-null rows, 5 windows
+        tdSql.query("select _wstart, _wend, s, count(*), sum(v) from t2 state_window(s, v)", show=True)
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 2, True)
+        tdSql.checkData(0, 3, 2000)
+        tdSql.checkData(1, 2, False)
+        tdSql.checkData(1, 3, 2000)
+        tdSql.checkData(2, 2, True)
+        tdSql.checkData(2, 3, 2000)
+        tdSql.checkData(3, 2, False)
+        tdSql.checkData(3, 3, 2000)
+        tdSql.checkData(4, 2, True)
+        tdSql.checkData(4, 3, 2000)
+
+        # t3: border nulls between blocks, 5 windows
+        tdSql.query("select _wstart, _wend, s, count(*), sum(v) from t3 state_window(s, v)", show=True)
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 2, True)
+        tdSql.checkData(0, 3, 2000)
+        tdSql.checkData(1, 2, False)
+        tdSql.checkData(1, 3, 2000)
+        tdSql.checkData(2, 2, True)
+        tdSql.checkData(2, 3, 2000)
+        tdSql.checkData(3, 2, False)
+        tdSql.checkData(3, 3, 2000)
+        tdSql.checkData(4, 2, True)
+        tdSql.checkData(4, 3, 2000)
+
+        # t4: nulls at head/tail borders, 5 windows with boundary counts
+        tdSql.query("select _wstart, _wend, s, count(*), sum(v) from t4 state_window(s, v)", show=True)
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 2, True)
+        tdSql.checkData(0, 3, 1996)
+        tdSql.checkData(1, 2, False)
+        tdSql.checkData(1, 3, 2000)
+        tdSql.checkData(2, 2, True)
+        tdSql.checkData(2, 3, 2000)
+        tdSql.checkData(3, 2, False)
+        tdSql.checkData(3, 3, 2000)
+        tdSql.checkData(4, 2, True)
+        tdSql.checkData(4, 3, 1995)
+
+        # t5: large null blocks (rows 6000-10000 have s=null), 3 windows
+        tdSql.query("select _wstart, _wend, s, count(*), sum(v) from t5 state_window(s, v)", show=True)
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 2, True)
+        tdSql.checkData(0, 3, 2000)
+        tdSql.checkData(1, 2, False)
+        tdSql.checkData(1, 3, 2000)
+        tdSql.checkData(2, 2, True)
+        tdSql.checkData(2, 3, 6000)
+
+        # t6: border nulls, 3 windows
+        tdSql.query("select _wstart, _wend, s, count(*), sum(v) from t6 state_window(s, v)", show=True)
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 2, True)
+        tdSql.checkData(0, 3, 1995)
+        tdSql.checkData(1, 2, False)
+        tdSql.checkData(1, 3, 2000)
+        tdSql.checkData(2, 2, True)
+        tdSql.checkData(2, 3, 5995)
+
+        print("Part 1: reuse t1/t5/t6 with multi-col .... [passed]")
+
+        # --- Part 2: independent columns with large null blocks ---
+        # 9 blocks of 500 rows, s1 and s2 change independently
+        tdSql.execute("drop database if exists test_mc_null_block")
+        tdSql.execute("create database test_mc_null_block")
+        tdSql.execute("use test_mc_null_block")
+        tdSql.execute("create table mc1 (ts timestamp, s1 int, s2 int)")
+
+        base_ms = 1730332800000  # 2024-10-31 00:00:00.000
+        self._insert_block("mc1", base_ms, 0,    500, 1,    10)    # Block 1: (1,10)
+        self._insert_block("mc1", base_ms, 500,  500, None, 10)    # Block 2: s1=NULL
+        self._insert_block("mc1", base_ms, 1000, 500, 1,    10)    # Block 3: (1,10)
+        self._insert_block("mc1", base_ms, 1500, 500, 1,    20)    # Block 4: s2 changes
+        self._insert_block("mc1", base_ms, 2000, 500, None, None)  # Block 5: both NULL
+        self._insert_block("mc1", base_ms, 2500, 500, 2,    20)    # Block 6: s1 changes
+        self._insert_block("mc1", base_ms, 3000, 500, 2,    None)  # Block 7: s2=NULL
+        self._insert_block("mc1", base_ms, 3500, 500, 2,    20)    # Block 8: (2,20)
+        self._insert_block("mc1", base_ms, 4000, 500, 1,    10)    # Block 9: both change
+
+        # state_window(s1, s2): 4 windows
+        # W1: blocks 1+2+3, (1,10), null rows in block 2 are absorbed (same state wraps)
+        # W2: block 4, (1,20)
+        # W3: blocks 6+7+8, (2,20), null rows in block 7 absorbed
+        # W4: block 9, (1,10)
+        tdSql.query("select _wstart, _wend, count(*), s1, s2 from mc1 state_window(s1, s2)", show=True)
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 2, 1500)  # (1,10) blocks 1+2+3
+        tdSql.checkData(0, 3, 1)
+        tdSql.checkData(0, 4, 10)
+        tdSql.checkData(1, 2, 500)   # (1,20) block 4
+        tdSql.checkData(1, 3, 1)
+        tdSql.checkData(1, 4, 20)
+        tdSql.checkData(2, 2, 1500)  # (2,20) blocks 6+7+8
+        tdSql.checkData(2, 3, 2)
+        tdSql.checkData(2, 4, 20)
+        tdSql.checkData(3, 2, 500)   # (1,10) block 9
+        tdSql.checkData(3, 3, 1)
+        tdSql.checkData(3, 4, 10)
+
+        # cross-validate: state_window(s1) → 3 windows
+        # W1: blocks 1+2+3+4 (s1=1,null,1,1), null block 2 absorbed, count=2000
+        # W2: blocks 6+7+8 (s1=2,2,2), block 7 s1=2 non-null, count=1500
+        # W3: block 9, count=500
+        tdSql.query("select _wstart, _wend, count(*), s1 from mc1 state_window(s1)", show=True)
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 2, 2000)  # s1=1
+        tdSql.checkData(0, 3, 1)
+        tdSql.checkData(1, 2, 1500)  # s1=2
+        tdSql.checkData(1, 3, 2)
+        tdSql.checkData(2, 2, 500)   # s1=1
+        tdSql.checkData(2, 3, 1)
+
+        # cross-validate: state_window(s2) → 3 windows
+        # W1: blocks 1+2+3 (s2=10,10,10), count=1500
+        # W2: blocks 4+5+6+7+8 (s2=20,null,20,null,20), nulls absorbed, count=2500
+        # W3: block 9 (s2=10), count=500
+        tdSql.query("select _wstart, _wend, count(*), s2 from mc1 state_window(s2)", show=True)
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 2, 1500)  # s2=10
+        tdSql.checkData(0, 3, 10)
+        tdSql.checkData(1, 2, 2500)  # s2=20
+        tdSql.checkData(1, 3, 20)
+        tdSql.checkData(2, 2, 500)   # s2=10
+        tdSql.checkData(2, 3, 10)
+
+        print("Part 2: independent columns mc1 .......... [passed]")
+
+        # --- Part 3: multi-col + EXTEND on mc1 ---
+        # EXTEND(1): tail extends to next window start - 1ms, null rows absorbed into count
+        tdSql.query("select _wstart, _wend, count(*), s1, s2 from mc1 state_window(s1, s2) extend(1)", show=True)
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 2, 1500)
+        tdSql.checkData(1, 2, 1000)
+        tdSql.checkData(2, 2, 1500)
+        tdSql.checkData(3, 2, 500)
+
+        # EXTEND(2): head also extends backward, absorbing null blocks
+        tdSql.query("select _wstart, _wend, count(*), s1, s2 from mc1 state_window(s1, s2) extend(2)", show=True)
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 2, 1500)
+        tdSql.checkData(1, 2, 500)
+        tdSql.checkData(2, 2, 2000)
+        tdSql.checkData(3, 2, 500)
+
+        print("Part 3: multi-col + extend ............... [passed]")

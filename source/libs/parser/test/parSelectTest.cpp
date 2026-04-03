@@ -150,6 +150,8 @@ TEST_F(ParserSelectTest, selectFunc) {
   run("SELECT MAX(c1), c2 FROM t1 STATE_WINDOW(c3) EXTEND(1)");
   run("SELECT MAX(c1), c2 FROM t1 STATE_WINDOW(c3) EXTEND(1) ZEROTH_STATE(0)");
   run("SELECT MAX(c1), c2 FROM t1 STATE_WINDOW(c3) ZEROTH_STATE(NO_ZEROTH)");
+  run("SELECT COUNT(*) FROM t1 STATE_WINDOW(CASE WHEN c1 > 10 THEN 1 ELSE 0 END, c2)");
+  run("SELECT COUNT(*) FROM t1 STATE_WINDOW(c1, CASE WHEN c2 = 'abc' THEN 1 ELSE 0 END)");
 }
 
 TEST_F(ParserSelectTest, IndefiniteRowsFunc) {

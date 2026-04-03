@@ -30,6 +30,9 @@ TEST_F(PlanStateTest, stateExpr) {
   useDb("root", "test");
 
   run("SELECT COUNT(*) FROM t1 STATE_WINDOW(CASE WHEN c1 > 10 THEN 1 ELSE 0 END)");
+  run("SELECT COUNT(*) FROM t1 STATE_WINDOW(CASE WHEN c1 > 10 THEN 1 ELSE 0 END, c2)");
+  run("SELECT COUNT(*) FROM t1 STATE_WINDOW(c1, CASE WHEN c2 = 'abc' THEN 1 ELSE 0 END)");
+  run("SELECT COUNT(*) FROM t1 STATE_WINDOW(CASE WHEN c1 > 10 THEN 1 ELSE 0 END, CASE WHEN c2 = 'abc' THEN 1 ELSE 0 END)");
 }
 
 TEST_F(PlanStateTest, selectFunc) {
