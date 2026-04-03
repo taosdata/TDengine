@@ -78,48 +78,54 @@ log_level = 'DEBUG'
 # draw the query results
 draw_result = False
 
-# moe default service host
-tdtsfm_1 = 'http://127.0.0.1:6036/tdtsfm'
-timemoe_fc = 'http://127.0.0.1:6037/ds_predict'
-
 # Model configuration - defines all available models
 # Required models: tdtsfm, timemoe (must exist, error if missing)
 # Optional models: moirai, chronos, timesfm, moment (skip if not found)
+# Port and endpoint are the single source of truth for service URLs;
+# conf.py auto-derives http://127.0.0.1:<port><endpoint> for each model.
 models = {
     "tdtsfm": {
         "script": "tdtsfm-server.py",
         "default_model": None,
-        "port": 6036,
+        "port": 6061,
+        "endpoint": "/tdtsfm",
+        "algo_name": "tdtsfm_1",
         "required": True,  # Must exist
     },
     "timemoe": {
         "script": "timemoe-server.py",
         "default_model": "Maple728/TimeMoE-200M",
-        "port": 6037,
+        "port": 6062,
+        "endpoint": "/ds_predict",
+        "algo_name": "timemoe-fc",
         "required": True,  # Must exist
     },
     "moirai": {
         "script": "moirai-server.py",
         "default_model": "Salesforce/moirai-moe-1.0-R-small",
-        "port": 6039,
+        "port": 6064,
+        "endpoint": "/ds_predict",
         "required": False,  # Optional
     },
     "chronos": {
         "script": "chronos-server.py",
         "default_model": "amazon/chronos-bolt-base",
-        "port": 6038,
+        "port": 6063,
+        "endpoint": "/ds_predict",
         "required": False,  # Optional
     },
     "timesfm": {
         "script": "timesfm-server.py",
         "default_model": "google/timesfm-2.0-500m-pytorch",
-        "port": 6061,
+        "port": 6065,
+        "endpoint": "/ds_predict",
         "required": False,  # Optional
     },
     "moment": {
         "script": "moment-server.py",
         "default_model": "AutonLab/MOMENT-1-base",
-        "port": 6062,
+        "port": 6066,
+        "endpoint": "/imputation",
         "required": False,  # Optional
     },
 }

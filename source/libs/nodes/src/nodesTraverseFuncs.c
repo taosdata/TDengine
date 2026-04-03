@@ -117,6 +117,11 @@ static EDealRes dispatchExpr(SNode* pNode, ETraversalOrder order, FNodeWalker wa
       }
       break;
     }
+    case QUERY_NODE_EXTERNAL_WINDOW: {
+      SExternalWindowNode* pExternal = (SExternalWindowNode*)pNode;
+      res = walkExpr(pExternal->pCol, order, walker, pContext);
+      break;
+    }
     case QUERY_NODE_INTERVAL_WINDOW: {
       SIntervalWindowNode* pInterval = (SIntervalWindowNode*)pNode;
       res = walkExpr(pInterval->pInterval, order, walker, pContext);
@@ -402,6 +407,14 @@ static EDealRes rewriteExpr(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
       }
       break;
     }
+    case QUERY_NODE_EXTERNAL_WINDOW: {
+      SExternalWindowNode* pExternal = (SExternalWindowNode*)pNode;
+      res = rewriteExpr(&pExternal->pCol, order, rewriter, pContext);
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = rewriteExpr(&pExternal->pFill, order, rewriter, pContext);
+      }
+      break;
+    }
     case QUERY_NODE_INTERVAL_WINDOW: {
       SIntervalWindowNode* pInterval = (SIntervalWindowNode*)pNode;
       res = rewriteExpr(&(pInterval->pInterval), order, rewriter, pContext);
@@ -580,14 +593,16 @@ void nodesWalkSelectStmtImpl(SSelectStmt* pSelect, ESqlClause clause, FNodeWalke
     case SQL_CLAUSE_WHERE:
       nodesWalkExprs(pSelect->pPartitionByList, walker, pContext);
     case SQL_CLAUSE_PARTITION_BY:
+    case SQL_CLAUSE_EXT_WINDOW:
       nodesWalkExpr(pSelect->pWindow, walker, pContext);
       nodesWalkExpr(pSelect->pFill, walker, pContext);
     case SQL_CLAUSE_WINDOW:
       if (NULL != pSelect->pWindow) {
-        if (QUERY_NODE_INTERVAL_WINDOW == nodeType(pSelect->pWindow)) {
+        if (QUERY_NODE_EXTERNAL_WINDOW == nodeType(pSelect->pWindow)) {
+          nodesWalkExpr(((SExternalWindowNode*)pSelect->pWindow)->pSubquery, walker, pContext);
+        } else if (QUERY_NODE_INTERVAL_WINDOW == nodeType(pSelect->pWindow)) {
           nodesWalkExpr(((SIntervalWindowNode*)pSelect->pWindow)->pFill, walker, pContext);
-        }
-        else if (QUERY_NODE_COUNT_WINDOW == nodeType(pSelect->pWindow)) {
+        } else if (QUERY_NODE_COUNT_WINDOW == nodeType(pSelect->pWindow)) {
           nodesWalkExprs(((SCountWindowNode*)pSelect->pWindow)->pColList, walker, pContext);
         }
       }
@@ -625,6 +640,7 @@ void nodesRewriteSelectStmt(SSelectStmt* pSelect, ESqlClause clause, FNodeRewrit
     case SQL_CLAUSE_WHERE:
       nodesRewriteExprs(pSelect->pPartitionByList, rewriter, pContext);
     case SQL_CLAUSE_PARTITION_BY:
+    case SQL_CLAUSE_EXT_WINDOW:
       nodesRewriteExpr(&(pSelect->pWindow), rewriter, pContext);
     case SQL_CLAUSE_WINDOW:
       if (NULL != pSelect->pWindow) {

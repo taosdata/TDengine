@@ -424,15 +424,17 @@ class ResourceManager:
     # Returns a snapshot (dict) to be compared after upgrade.
     # ------------------------------------------------------------------
 
+    # Semantic fields we care about when comparing tag indexes across versions.
+    # Volatile columns (create_time, internal IDs) are intentionally excluded
+    # because their values can differ between old and new server versions while
+    # the index itself is functionally identical.
+    _INDEX_SNAP_FIELDS = {"index_name", "db_name", "table_name", "col_name", "index_type"}
+
     def _show_index_snapshot(self, cursor) -> dict:
         """
         Run ``SHOW INDEXES FROM <stable> FROM <db>`` and return a dict keyed
-        by index name.  Values are raw row tuples (positional) so no column
-        name string is relied upon for cross-version comparisons.
-
-        The column that holds the index name is located via cursor.description
-        (case-insensitive search for "index_name"); position 2 is the fallback
-        per the documented schema: db_name, table_name, index_name, …
+        by index name.  Values are dicts of semantic fields only, resolved via
+        cursor.description so column renames / reorders don't break the check.
         """
         _exec(cursor,
               f"SHOW INDEXES FROM {config.STABLE_NAME} FROM {config.DB_NAME}")
@@ -442,9 +444,14 @@ class ResourceManager:
         except StopIteration:
             name_pos = 2  # documented position fallback
 
+        snap_positions = {
+            col: i for i, col in enumerate(desc)
+            if col in self._INDEX_SNAP_FIELDS
+        }
+
         target = {config.TAG_INDEX_LOCATION}
         return {
-            row[name_pos]: tuple(row)
+            row[name_pos]: {field: str(row[pos]) for field, pos in snap_positions.items()}
             for row in cursor.fetchall()
             if row[name_pos] in target
         }
@@ -480,13 +487,13 @@ class ResourceManager:
     def verify_tag_indexes(self, snapshot: dict) -> tuple:
         """
         Re-query indexes via ``SHOW INDEXES`` after upgrade and compare
-        against *snapshot* (positional row tuples from Phase 2).
+        semantic fields against *snapshot* captured in Phase 2.
 
-        Rows are compared positionally up to the length of the baseline tuple
-        so that harmlessly added trailing columns do not cause false failures.
+        Only the fields in _INDEX_SNAP_FIELDS are compared; volatile metadata
+        such as create_time and internal IDs are ignored.
 
         Returns:
-            (True,  summary_str)  – all indexes present and values unchanged
+            (True,  summary_str)  – all indexes present and fields unchanged
             (False, error_str)    – one or more indexes missing or differ
         """
         if not snapshot:
@@ -498,17 +505,18 @@ class ResourceManager:
             current = self._show_index_snapshot(cursor)
 
             errors = []
-            for name, expected_row in sorted(snapshot.items()):
+            for name, expected in sorted(snapshot.items()):
                 if name not in current:
                     errors.append(f"index '{name}' missing after upgrade")
                     continue
-                got_row = current[name]
-                n = len(expected_row)  # compare only baseline columns
-                if tuple(got_row[:n]) != tuple(expected_row[:n]):
-                    errors.append(
-                        f"index '{name}' values changed: "
-                        f"expected {expected_row[:n]} got {got_row[:n]}"
-                    )
+                got = current[name]
+                for field, exp_val in expected.items():
+                    got_val = got.get(field)
+                    if str(exp_val) != str(got_val):
+                        errors.append(
+                            f"index '{name}' field '{field}' changed: "
+                            f"{exp_val!r} → {got_val!r}"
+                        )
 
             if errors:
                 return False, "; ".join(errors)

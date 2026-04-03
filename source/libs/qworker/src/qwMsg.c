@@ -753,6 +753,8 @@ int32_t qWorkerProcessFetchMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int
 
   QW_SCH_TASK_DLOG("processFetch end, node:%p, code:%x", node, code);
 
+  tDestroySResFetchReq(&req);
+
   return TSDB_CODE_SUCCESS;
 }
 

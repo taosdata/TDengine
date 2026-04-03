@@ -1024,7 +1024,9 @@ static int32_t doTableScanImplNext(SOperatorInfo* pOperator, SSDataBlock** ppRes
     }
 
     if (pBlock->info.id.uid) {
-      pBlock->info.id.groupId = tableListGetTableGroupId(pTableScanInfo->base.pTableListInfo, pBlock->info.id.uid);
+      code = tableListGetTableGroupId(pTableScanInfo->base.pTableListInfo, pBlock->info.id.uid, &pBlock->info.id.groupId,
+                               &pBlock->info.id.baseGId);
+      QUERY_CHECK_CODE(code, lino, _end);
     }
 
     uint32_t status = 0;
@@ -1458,6 +1460,19 @@ static int32_t createVTableScanInfoFromBatchParam(SOperatorInfo* pOperator) {
       for (int32_t j = 0; j < taosArrayGetSize(pInfo->base.matchInfo.pList); j++) {
         SColMatchItem* pItem = taosArrayGet(pInfo->base.matchInfo.pList, j);
         if (pItem->colId == pPair->vtbColId) {
+          if (pItem->dataType.type != pPair->type.type) {
+            qError("column type does not match for vtable colId:%d, org colId:%d, org table name:%s",
+                   pPair->vtbColId, pPair->orgColId, orgTable.me.name);
+            code = TSDB_CODE_VTABLE_COLUMN_TYPE_MISMATCH;
+            goto _return;
+          }
+          if (!IS_VAR_DATA_TYPE(pItem->dataType.type) &&
+              pItem->dataType.bytes != pPair->type.bytes) {
+            qError("column bytes does not match for vtable colId:%d, org colId:%d, org table name:%s",
+                   pPair->vtbColId, pPair->orgColId, orgTable.me.name);
+            code = TSDB_CODE_VTABLE_COLUMN_TYPE_MISMATCH;
+            goto _return;
+          }
           SColIdSlotIdPair colIdSlotIdPair = {.orgColId = pPair->orgColId, .vtbSlotId = pItem->dstSlotId};
           QUERY_CHECK_NULL(taosArrayPush(pBlockColArray, &colIdSlotIdPair), code, lino, _return, terrno);
           qDebug("dynamic vtable scan block col map orgColId:%d, vtbSlotId:%d, %s", colIdSlotIdPair.orgColId,
@@ -1606,6 +1621,10 @@ static int32_t createVTableScanInfoFromBatchParam(SOperatorInfo* pOperator) {
 _return:
   if (code) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    taosArrayDestroy(pColArray);
+    taosArrayDestroy(pBlockColArray);
+    pInfo->lastBlockColArray = NULL;
+    pInfo->lastColArray = NULL;
   }
   pAPI->metaReaderFn.clearReader(&superTable);
   pAPI->metaReaderFn.clearReader(&orgTable);
@@ -1718,13 +1737,13 @@ static int32_t createVTableScanInfoFromParam(SOperatorInfo* pOperator) {
     SColMatchItem* pItem = findMatchItemByColId(pMatchList, pPair->vtbColId);
     if (pItem) {
       if (pItem->dataType.type != pPair->type.type) {
-        qError("column type not match for vtable colId:%d, org colId:%d, org table name:%s", pPair->vtbColId,
+        qError("column type does not match for vtable colId:%d, org colId:%d, org table name:%s", pPair->vtbColId,
                pPair->orgColId, orgTable.me.name);
         code = TSDB_CODE_VTABLE_COLUMN_TYPE_MISMATCH;
         goto _return;
       }
       if (!IS_VAR_DATA_TYPE(pItem->dataType.type) && pItem->dataType.bytes != pPair->type.bytes) {
-        qError("column bytes not match for vtable colId:%d, org colId:%d, org table name:%s", pPair->vtbColId,
+        qError("column bytes does not match for vtable colId:%d, org colId:%d, org table name:%s", pPair->vtbColId,
                pPair->orgColId, orgTable.me.name);
         code = TSDB_CODE_VTABLE_COLUMN_TYPE_MISMATCH;
         goto _return;
@@ -2485,17 +2504,15 @@ static int32_t resetTableScanOperatorState(SOperatorInfo* pOper) {
     qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
     return terrno;
   }
-  SExecTaskInfo*         pTaskInfo = pOper->pTaskInfo;
 
+  SExecTaskInfo*         pTaskInfo = pOper->pTaskInfo;
   STableScanPhysiNode* pTableScanNode = (STableScanPhysiNode*)pTaskInfo->pSubplan->pNode;
-  if (!pTableScanNode->scan.node.dynamicOp) {
-    code = createScanTableListInfo(&pTableScanNode->scan, pTableScanNode->pGroupTags, pTableScanNode->groupSort,
-                                    &pInfo->base.readHandle, pInfo->base.pTableListInfo, 
-                                    pTaskInfo->pSubplan->pTagCond, pTaskInfo->pSubplan->pTagIndexCond, pTaskInfo, NULL);
-    if (code) {
-      qError("%s failed to createScanTableListInfo, code:%s", __func__, tstrerror(code));
-      return code;
-    }
+  code = createScanTableListInfo(&pTableScanNode->scan, pTableScanNode->pGroupTags, pTableScanNode->groupSort,
+                                  &pInfo->base.readHandle, pInfo->base.pTableListInfo, 
+                                  pTaskInfo->pSubplan->pTagCond, pTaskInfo->pSubplan->pTagIndexCond, pTaskInfo, NULL);
+  if (code) {
+    qError("%s failed to createScanTableListInfo, code:%s", __func__, tstrerror(code));
+    return code;
   }
 
   initLimitInfo(pTableScanNode->scan.node.pLimit, pTableScanNode->scan.node.pSlimit, &pInfo->base.limitInfo);
@@ -4098,6 +4115,7 @@ _end:
 static int32_t fetchNextSubTableBlockFromReader(SOperatorInfo* pOperator, STmsSubTableInput* pInput,
                                                 bool* pSubTableHasBlock) {
   int32_t code = 0;
+  int32_t lino = 0;
 
   STableMergeScanInfo*    pInfo = pOperator->info;
   SReadHandle*            pHandle = &pInfo->base.readHandle;
@@ -4109,9 +4127,7 @@ static int32_t fetchNextSubTableBlockFromReader(SOperatorInfo* pOperator, STmsSu
   if (!pInput->bInMemReader) {
     code = pAPI->tsdReader.tsdReaderOpen(pHandle->vnode, &pInput->tblCond, pInput->pKeyInfo, 1, pInput->pReaderBlock,
                                          (void**)&pInput->pReader, GET_TASKID(pTaskInfo), NULL);
-    if (code != 0) {
-      return code;
-    }
+    QUERY_CHECK_CODE(code, lino, _end);
   }
 
   pInfo->base.dataReader = pInput->pReader;
@@ -4122,14 +4138,14 @@ static int32_t fetchNextSubTableBlockFromReader(SOperatorInfo* pOperator, STmsSu
     if (code != 0) {
       pAPI->tsdReader.tsdReaderReleaseDataBlock(pInfo->base.dataReader);
       pInfo->base.dataReader = NULL;
-      return code;
+      QUERY_CHECK_CODE(code, lino, _end);
     }
 
     if (!hasNext || isTaskKilled(pTaskInfo)) {
       if (isTaskKilled(pTaskInfo)) {
         pAPI->tsdReader.tsdReaderReleaseDataBlock(pInfo->base.dataReader);
         pInfo->base.dataReader = NULL;
-        return code;
+        QUERY_CHECK_CODE(code, lino, _end);
       }
 
       *pSubTableHasBlock = false;
@@ -4146,7 +4162,7 @@ static int32_t fetchNextSubTableBlockFromReader(SOperatorInfo* pOperator, STmsSu
     code = loadDataBlock(pOperator, &pInfo->base, pInput->pReaderBlock, &status);
     if (code != 0) {
       pInfo->base.dataReader = NULL;
-      return code;
+      QUERY_CHECK_CODE(code, lino, _end);
     }
 
     if (status == FUNC_DATA_REQUIRED_ALL_FILTEROUT) {
@@ -4162,8 +4178,10 @@ static int32_t fetchNextSubTableBlockFromReader(SOperatorInfo* pOperator, STmsSu
   }
 
   if (*pSubTableHasBlock) {
-    pInput->pReaderBlock->info.id.groupId =
-        tableListGetTableGroupId(pInfo->base.pTableListInfo, pInput->pReaderBlock->info.id.uid);
+    code = tableListGetTableGroupId(pInfo->base.pTableListInfo, pInput->pReaderBlock->info.id.uid,
+                 &pInput->pReaderBlock->info.id.groupId, &pInput->pReaderBlock->info.id.baseGId);
+    QUERY_CHECK_CODE(code, lino, _end);
+    pOperator->resultInfo.totalRows += pInput->pReaderBlock->info.rows;
   }
   if (!pInput->bInMemReader || !*pSubTableHasBlock) {
     pAPI->tsdReader.tsdReaderClose(pInput->pReader);
@@ -4172,6 +4190,11 @@ static int32_t fetchNextSubTableBlockFromReader(SOperatorInfo* pOperator, STmsSu
 
   pInfo->base.dataReader = NULL;
   return TSDB_CODE_SUCCESS;
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 static int32_t setGroupStartEndIndex(STableMergeScanInfo* pInfo) {
@@ -4869,13 +4892,15 @@ static int32_t doGetBlockForTableMergeScan(SOperatorInfo* pOperator, bool* pFini
 }
 
 static int32_t getBlockForTableMergeScan(void* param, SSDataBlock** ppBlock) {
+  int32_t                         code = TSDB_CODE_SUCCESS;
+  int32_t                         lino = 0;
   STableMergeScanSortSourceParam* source = param;
 
   SOperatorInfo*       pOperator = source->pOperator;
   STableMergeScanInfo* pInfo = pOperator->info;
   SExecTaskInfo*       pTaskInfo = pOperator->pTaskInfo;
   SSDataBlock*         pBlock = NULL;
-  int32_t              code = TSDB_CODE_SUCCESS;
+  int64_t              st = taosGetTimestampUs();
 
   while (true) {
     if (pInfo->rtnNextDurationBlocks) {
@@ -4901,9 +4926,7 @@ static int32_t getBlockForTableMergeScan(void* param, SSDataBlock** ppBlock) {
       bool bSkipped = false;
 
       code = doGetBlockForTableMergeScan(pOperator, &bFinished, &bSkipped);
-      if (code != 0) {
-        return code;
-      }
+      QUERY_CHECK_CODE(code, lino, _end);
 
       pBlock = pInfo->pReaderBlock;
       qDebug("%s table merge scan fetch block. finished %d skipped %d next-duration-block %d new-fileset %d",
@@ -4918,7 +4941,7 @@ static int32_t getBlockForTableMergeScan(void* param, SSDataBlock** ppBlock) {
           code = createOneDataBlock(pBlock, true, &pInfo->nextDurationBlocks[pInfo->numNextDurationBlocks]);
           if (code) {
             *ppBlock = NULL;
-            return code;
+            QUERY_CHECK_CODE(code, lino, _end);
           }
 
           ++pInfo->numNextDurationBlocks;
@@ -4944,13 +4967,22 @@ static int32_t getBlockForTableMergeScan(void* param, SSDataBlock** ppBlock) {
       if (bSkipped) continue;
     }
 
-    pBlock->info.id.groupId = tableListGetTableGroupId(pInfo->base.pTableListInfo, pBlock->info.id.uid);
+    code = tableListGetTableGroupId(pInfo->base.pTableListInfo, pBlock->info.id.uid, &pBlock->info.id.groupId,
+                 &pBlock->info.id.baseGId);
+    QUERY_CHECK_CODE(code, lino, _end);
+
+    pOperator->resultInfo.totalRows += pBlock->info.rows;
     *ppBlock = pBlock;
 
     return code;
   }
 
   *ppBlock = NULL;
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    pTaskInfo->code = code;
+  }
   return code;
 }
 
