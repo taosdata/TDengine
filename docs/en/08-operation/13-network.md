@@ -1,6 +1,6 @@
 ---
-sidebar_label: network Configuration
-title: network Configuration
+sidebar_label: Network Configuration
+title: Network Configuration
 toc_max_heading_level: 4
 ---
 
