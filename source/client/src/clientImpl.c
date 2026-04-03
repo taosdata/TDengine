@@ -456,6 +456,10 @@ int32_t execDdlQuery(SRequestObj* pRequest, SQuery* pQuery) {
 
   // int64_t transporterId = 0;
   TSC_ERR_RET(asyncSendMsgToServer(pTscObj->pAppInfo->pTransporter, &pMsgInfo->epSet, NULL, pSendMsg));
+  // pMsgInfo is fully consumed: pMsg was transferred above, epSet was deep-copied by
+  // transCreateReqEpsetFromUserEpset inside asyncSendMsgToServer.  Free the struct now
+  // so it won't become an orphan if nodesDestroyAllocatorSet() runs before doDestroyRequest().
+  taosMemoryFreeClear(pQuery->pCmdMsg);
   TSC_ERR_RET(tsem_wait(&pRequest->body.rspSem));
   return TSDB_CODE_SUCCESS;
 }
@@ -513,6 +517,11 @@ int32_t asyncExecDdlQuery(SRequestObj* pRequest, SQuery* pQuery) {
   SMsgSendInfo* pSendMsg = buildMsgInfoImpl(pRequest);
 
   int32_t code = asyncSendMsgToServer(pAppInfo->pTransporter, &pMsgInfo->epSet, NULL, pSendMsg);
+  // pMsgInfo->pMsg has been transferred to pRequest->body.requestMsg and pMsgInfo->epSet has
+  // been consumed by asyncSendMsgToServer; the SCmdMsgInfo struct itself is no longer needed.
+  // Free it now so that nodesDestroyAllocatorSet() during atexit does not orphan it when the
+  // chunk containing pQuery is released before doDestroyRequest() can be called.
+  taosMemoryFreeClear(pQuery->pCmdMsg);
   if (code) {
     doRequestCallback(pRequest, code);
   }
