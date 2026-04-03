@@ -876,8 +876,6 @@ static int32_t pdcSplitTagCondForVstb(SNode** ppTagCond, SNode** ppSysTagCond, S
 }
 
 static int32_t pdcDealVirtualSuperTableScan(SOptimizeContext* pCxt, SDynQueryCtrlLogicNode* pScan) {
-  planDebug("pdcDealVirtualSuperTableScan ENTER: pConditions=%p, optimizedFlag=0x%x, qType=%d",
-            pScan->node.pConditions, pScan->node.optimizedFlag, pScan->qType);
   if (NULL == pScan->node.pConditions ||
       OPTIMIZE_FLAG_TEST_MASK(pScan->node.optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE)) {
     return TSDB_CODE_SUCCESS;
@@ -956,8 +954,6 @@ static int32_t pdcDealVirtualSuperTableScan(SOptimizeContext* pCxt, SDynQueryCtr
 
   pVscan->node.pConditions = pOtherCond;
   pOtherCond = NULL;
-  planDebug("pdcDealVirtualSuperTableScan: pVscan->pConditions=%p, pSysScan->pTagCond=%p, pSysScan->pTagIndexCond=%p",
-            pVscan->node.pConditions, pSysScan->pTagCond, pSysScan->pTagIndexCond);
 
   OPTIMIZE_FLAG_SET_MASK(pScan->node.optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE);
   pCxt->optimized = true;
@@ -8767,10 +8763,7 @@ static bool eliminateVirtualScanMayBeOptimized(SLogicNode* pNode, void* pCtx) {
   SNode* pChild = nodesListGetNode(pNode->pChildren, 0);
   if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pChild)) {
     int8_t childTableType = ((SScanLogicNode*)pChild)->tableType;
-    planDebug("eliminateVirtualScan check: child tableType=%d (VIRTUAL_CHILD=%d VIRTUAL_NORMAL=%d)",
-              childTableType, TSDB_VIRTUAL_CHILD_TABLE, TSDB_VIRTUAL_NORMAL_TABLE);
     if (TSDB_VIRTUAL_CHILD_TABLE == childTableType || TSDB_VIRTUAL_NORMAL_TABLE == childTableType) {
-      planDebug("eliminateVirtualScan: skip elimination, child is virtual table (type=%d)", childTableType);
       return false;
     }
   }
@@ -9080,19 +9073,6 @@ static bool functionHasTagParam(SFunctionNode* pFunc) {
     if (nodeType(pParam) == QUERY_NODE_COLUMN) {
       SColumnNode* pCol = (SColumnNode*)pParam;
       if (pCol->colType == COLUMN_TYPE_TAG || pCol->colType == COLUMN_TYPE_TBNAME) {
-        return true;
-      }
-    }
-  }
-  return false;
-}
-
-static bool functionHasTagRefParam(SFunctionNode* pFunc) {
-  SNode* pParam = NULL;
-  FOREACH(pParam, pFunc->pParameterList) {
-    if (nodeType(pParam) == QUERY_NODE_COLUMN) {
-      SColumnNode* pCol = (SColumnNode*)pParam;
-      if (pCol->colType == COLUMN_TYPE_TAG && pCol->hasRef) {
         return true;
       }
     }

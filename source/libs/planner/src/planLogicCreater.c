@@ -1981,18 +1981,10 @@ static int32_t createTagRefSourceLogicNode(SLogicPlanContext* pCxt, SSelectStmt*
   if (pRefTable->pVgroupList) {
     PLAN_ERR_JRET(cloneVgroups(&pTagRefSource->pVgroupList, pRefTable->pVgroupList));
   }
-  planError("TagRefSource logic vgroups: source=%s.%s refVgroups=%p num=%d metaVgId=%d",
-            pTagRefSource->sourceTableName.dbname, pTagRefSource->sourceTableName.tname, pRefTable->pVgroupList,
-            pRefTable->pVgroupList ? pRefTable->pVgroupList->numOfVgroups : 0, pRefTable->pMeta ? pRefTable->pMeta->vgId : 0);
-  planError("TagRefSource logic cloned vgroups: source=%s.%s cloned=%p num=%d",
-            pTagRefSource->sourceTableName.dbname, pTagRefSource->sourceTableName.tname, pTagRefSource->pVgroupList,
-            pTagRefSource->pVgroupList ? pTagRefSource->pVgroupList->numOfVgroups : 0);
 
   // Create tag reference column entry
   STagRefColumn* pTagRefCol = NULL;
   PLAN_ERR_JRET(nodesMakeNode(QUERY_NODE_TAG_REF_COLUMN, (SNode**)&pTagRefCol));
-  planDebug("TagRefColumn logic create: expect=%d actual=%d", QUERY_NODE_TAG_REF_COLUMN, nodeType(pTagRefCol));
-  planError("TagRefColumn logic create: expect=%d actual=%d", QUERY_NODE_TAG_REF_COLUMN, nodeType(pTagRefCol));
 
   // Find the schema info for this tag in the source table
   col_id_t sourceColId = 0;
@@ -2008,10 +2000,6 @@ static int32_t createTagRefSourceLogicNode(SLogicPlanContext* pCxt, SSelectStmt*
   tstrncpy(pTagRefCol->sourceColName, pTagRef->refColName, TSDB_COL_NAME_LEN);
   pTagRefCol->bytes = pSourceSchema->bytes;
   pTagRefCol->dataType = pSourceSchema->type;
-  planDebug("TagRefColumn logic populated: actual=%d colId=%d sourceColId=%d dataType=%d",
-            nodeType(pTagRefCol), pTagRefCol->colId, pTagRefCol->sourceColId, pTagRefCol->dataType);
-  planError("TagRefColumn logic populated: actual=%d colId=%d sourceColId=%d dataType=%d",
-            nodeType(pTagRefCol), pTagRefCol->colId, pTagRefCol->sourceColId, pTagRefCol->dataType);
 
   PLAN_ERR_JRET(nodesMakeList(&pTagRefSource->pRefCols));
   PLAN_ERR_JRET(nodesListStrictAppend(pTagRefSource->pRefCols, (SNode*)pTagRefCol));

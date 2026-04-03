@@ -2150,7 +2150,7 @@ static int32_t fetchRemoteTableCfg(SOperatorInfo* pOperator, SDBVgInfo* dbVgInfo
     }
 
     pAPI->metaReaderFn.clearReader(&mr);
-    qDebug("fetchRemoteTableCfg: read local vnode vgId %d for %s.%s, pTags=%p", vgId, dbFName, tbName, pCfgRsp->pTags);
+    qDebug("fetchRemoteTableCfg: read local vnode vgId %d for %s.%s", vgId, dbFName, tbName);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -2203,7 +2203,7 @@ static int32_t fetchRemoteTableCfg(SOperatorInfo* pOperator, SDBVgInfo* dbVgInfo
     return TSDB_CODE_SUCCESS;
   }
 
-  qDebug("fetchRemoteTableCfg: got tags for %s.%s from vgId %d, pTags=%p", dbFName, tbName, vgId, pCfgRsp->pTags);
+  qDebug("fetchRemoteTableCfg: got tags for %s.%s from vgId %d", dbFName, tbName, vgId);
   return TSDB_CODE_SUCCESS;
 
 _return:

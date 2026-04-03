@@ -1865,8 +1865,8 @@ static int32_t sysTagsFetchRemoteCfg(const SSysTableScanInfo* pInfo, int32_t acc
     return TSDB_CODE_SUCCESS;
   }
 
-  qDebug("sysTagsFetchRemoteCfg: got cfg for %s.%s from vgId %d, pTags=%p numOfTags=%d",
-         refDbName, refTableName, vgId, pCfgRsp->pTags, pCfgRsp->numOfTags);
+  qDebug("sysTagsFetchRemoteCfg: got cfg for %s.%s from vgId %d, numOfTags=%d",
+         refDbName, refTableName, vgId, pCfgRsp->numOfTags);
   return TSDB_CODE_SUCCESS;
 }
 

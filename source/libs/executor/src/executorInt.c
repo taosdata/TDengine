@@ -1457,10 +1457,6 @@ void freeResetOperatorParams(struct SOperatorInfo* pOperator, SOperatorParamType
   }
 
   if (*ppParam) {
-    if ((*ppParam)->opType == QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN) {
-      fprintf(stderr, "LEAK_DBG: freeResetOperatorParams vtbparam=%p reUse=%d allFree=%d op=%s\n",
-        (void*)*ppParam, (*ppParam)->reUse, allFree, pOperator->name);
-    }
     if (allFree) (*ppParam)->reUse = false;
 
     // Before freeing VTableScan param (which owns exchange params in pOpParamArray),

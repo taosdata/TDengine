@@ -421,9 +421,6 @@ STableMeta* tableMetaDup(const STableMeta* pTableMeta) {
   size_t      size = sizeof(STableMeta) + numOfFields * sizeof(SSchema);
   STableMeta* p = taosMemoryMalloc(size + schemaExtSize + colRefSize + tagRefSize);
   if (NULL == p) return NULL;
-  qDebug("tableMetaDup: tbType=%d tagRef=%p numOfTagRefs=%d colRef=%p numOfColRefs=%d hasTagRef=%d tagRefSize=%d",
-         pTableMeta->tableType, pTableMeta->tagRef, pTableMeta->numOfTagRefs,
-         pTableMeta->colRef, pTableMeta->numOfColRefs, hasTagRef, (int)tagRefSize);
 
   memcpy(p, pTableMeta, size);
   if (hasSchemaExt) {
