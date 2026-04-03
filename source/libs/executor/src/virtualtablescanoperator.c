@@ -1538,7 +1538,7 @@ int32_t createVirtualTableMergeOperatorInfo(SOperatorInfo** pDownstream, int32_t
                              &pVirtualScanInfo->tagBlockId, &pVirtualScanInfo->useOrgTsCol));
 
   if (!pVirtualScanPhyNode->scan.node.dynamicOp) {
-    VTS_ERR_JRET(makeTSMergeKey(&pMergeKeys, pVirtualScanInfo->tsSlotId >= 0 ? pVirtualScanInfo->tsSlotId : 0));
+    VTS_ERR_JRET(makeTSMergeKey(&pMergeKeys, 0));
     pVirtualScanInfo->pSortInfo = createSortInfo(pMergeKeys);
     TSDB_CHECK_NULL(pVirtualScanInfo->pSortInfo, code, lino, _return, terrno)
   } else {
