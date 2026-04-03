@@ -50,6 +50,8 @@ class TestClusterRestoreVnode:
         """
         self.basic.restore_vnode(4)
 
+        self.basic.restore_vnode_with_vg(4)
+
     # stop
         self.basic.stop()
 

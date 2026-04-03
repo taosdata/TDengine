@@ -44,8 +44,8 @@ class InstallInfo:
         self.install_dir = ""
         self.package_name = ""
         self.product_name = ""
-        self.app_name = "TDgpt-OSS"
-        self.product_full_name = "TDgpt-OSS - TDengine Analytics Node"
+        self.app_name = "TDengine TDgpt-OSS"
+        self.product_full_name = "TDengine TDgpt-OSS - TDengine Analytics Node"
         self.model_dir = ""
         self.all_models = False
         self.iscc_path = ""
@@ -110,16 +110,16 @@ def parse_arguments():
     # Set product metadata
     if args.edition == "enterprise":
         install_info.product_name = "tdengine-tdgpt-enterprise"
-        install_info.app_name = "TDgpt-Enterprise"
+        install_info.app_name = "TDengine TDgpt-Enterprise"
     else:
         install_info.product_name = "tdengine-tdgpt-oss"
-        install_info.app_name = "TDgpt-OSS"
+        install_info.app_name = "TDengine TDgpt-OSS"
     install_info.product_full_name = f"{install_info.app_name} - TDengine Analytics Node"
 
     install_info.source_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     install_info.release_dir = args.output
     install_info.install_dir = os.path.join(install_info.release_dir, "install")
-    install_info.package_name = f"{install_info.product_name}-{args.version}-Windows-x64"
+    install_info.package_name = f"{install_info.product_name}-{args.version}-windows-x64"
     install_info.model_dir = args.model_dir
     install_info.all_models = args.all_models
     install_info.iscc_path = args.iscc_path
@@ -545,15 +545,28 @@ set "PROGRESS_FILE=%TDGPT_PROGRESS_FILE%"
 set "PYTHONUTF8=1"
 set "PYTHONIOENCODING=utf-8"
 set "TDGPT_LOG_REDIRECTED=1"
+set "BOOTSTRAP_DIR="
 set "EXISTING_VENV_PYTHON=%INSTALL_DIR%\\venvs\\venv\\Scripts\\python.exe"
 set "PACKAGED_PYTHON=%INSTALL_DIR%\\python\\runtime\\python.exe"
 set "PYTHON_CMD="
 set "OFFLINE_WITH_PACKAGE=0"
+set "FORCE_PACKAGED_PYTHON=0"
 
 call :append_progress running 1 "Initializing {install_info.app_name} setup" "Preparing installation environment"
 call :detect_offline_import %*
+call :detect_existing_install %*
 
 if "%OFFLINE_WITH_PACKAGE%"=="1" goto :resolve_offline_python
+
+REM Upgrade flows should launch install.py with the packaged runtime first.
+REM The old main venv may be unhealthy, but install.py can still decide whether
+REM that venv is reusable once it is running under a stable interpreter.
+if "%FORCE_PACKAGED_PYTHON%"=="1" (
+    if exist "%PACKAGED_PYTHON%" (
+        call :try_python "%PACKAGED_PYTHON%"
+        if defined PYTHON_CMD goto :run_install
+    )
+)
 
 REM Priority 1: existing venv Python (upgrade scenario)
 if exist "%EXISTING_VENV_PYTHON%" (
@@ -608,13 +621,13 @@ if "%PROGRESS_FILE%"=="" (
 if errorlevel 1 (
     >> "%LOG_FILE%" echo [%date% %time%] Installation failed
     call :ensure_error_progress "Installation failed" "See install.log for details"
-    if exist "%INSTALL_DIR%\\_bootstrap" rd /s /q "%INSTALL_DIR%\\_bootstrap" 2>nul
+    call :cleanup_bootstrap
     exit /b 1
 )
 
 >> "%LOG_FILE%" echo [%date% %time%] Installation completed successfully
 call :append_progress success 100 "Installation complete" "{install_info.app_name} is ready"
-if exist "%INSTALL_DIR%\\_bootstrap" rd /s /q "%INSTALL_DIR%\\_bootstrap" 2>nul
+call :cleanup_bootstrap
 exit /b 0
 
 :append_progress
@@ -644,6 +657,14 @@ if /I "%~1"=="--offline-package" (
 )
 shift
 goto :detect_offline_args
+
+:detect_existing_install
+set "FORCE_PACKAGED_PYTHON=0"
+:detect_existing_install_args
+if "%~1"=="" exit /b 0
+if /I "%~1"=="--existing-install" set "FORCE_PACKAGED_PYTHON=1"
+shift
+goto :detect_existing_install_args
 
 :resolve_python
 python --version >nul 2>&1
@@ -682,7 +703,8 @@ if not exist "%OFFLINE_PKG%" (
     echo WARNING: Offline package not found: %OFFLINE_PKG%
     exit /b 1
 )
-set "BOOTSTRAP_DIR=%INSTALL_DIR%\\_bootstrap"
+call :prepare_bootstrap_dir
+if not defined BOOTSTRAP_DIR exit /b 1
 if exist "%BOOTSTRAP_DIR%" rd /s /q "%BOOTSTRAP_DIR%"
 mkdir "%BOOTSTRAP_DIR%"
 echo Bootstrapping Python from offline package: %OFFLINE_PKG%
@@ -692,8 +714,17 @@ if exist "%BOOTSTRAP_DIR%\\python\\runtime\\python.exe" (
     echo Bootstrap Python runtime extracted successfully.
 ) else (
     echo WARNING: Could not extract bootstrap Python runtime from offline package.
-    rd /s /q "%BOOTSTRAP_DIR%" 2>nul
+    call :cleanup_bootstrap
 )
+exit /b 0
+
+:prepare_bootstrap_dir
+set "BOOTSTRAP_DIR=%TEMP%\\tdgpt-bootstrap-%RANDOM%-%RANDOM%"
+exit /b 0
+
+:cleanup_bootstrap
+if defined BOOTSTRAP_DIR if exist "%BOOTSTRAP_DIR%" rd /s /q "%BOOTSTRAP_DIR%" 2>nul
+set "BOOTSTRAP_DIR="
 exit /b 0
 """)
     logging.info("Created install.bat")

@@ -17,11 +17,11 @@
 
 void *tdbRealloc(void *ptr, size_t size) {
   void *nPtr;
-  if ((ptr) == NULL || ((int *)(ptr))[-1] < (size)) {
-    nPtr = tdbOsRealloc((ptr) ? (char *)(ptr) - sizeof(int) : NULL, (size) + sizeof(int));
+  if ((ptr) == NULL || ((size_t *)(ptr))[-1] < (size)) {
+    nPtr = tdbOsRealloc((ptr) ? (char *)(ptr) - sizeof(size_t) : NULL, (size) + sizeof(size_t));
     if (nPtr) {
-      ((int *)nPtr)[0] = (size);
-      nPtr = (char *)nPtr + sizeof(int);
+      ((size_t *)nPtr)[0] = (size);
+      nPtr = (char *)nPtr + sizeof(size_t);
     }
   } else {
     nPtr = (ptr);
@@ -31,7 +31,7 @@ void *tdbRealloc(void *ptr, size_t size) {
 
 void tdbFree(void *p) {
   if (p) {
-    tdbOsFree((char *)(p) - sizeof(int));
+    tdbOsFree((char *)(p) - sizeof(size_t));
   }
 }
 

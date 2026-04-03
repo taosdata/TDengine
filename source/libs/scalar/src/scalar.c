@@ -1126,6 +1126,11 @@ int32_t sclGetNodeType(SNode *pNode, SScalarCtx *ctx, int32_t *type, STypeMod *p
       *pTypeMod = typeGetTypeModFromColInfo(&res->columnData->info);
       return TSDB_CODE_SUCCESS;
     }
+    case QUERY_NODE_LEFT_VALUE: {
+      *type = ctx->type.opResType;
+      *pTypeMod = 0;
+      return TSDB_CODE_SUCCESS;
+    }
     case QUERY_NODE_REMOTE_VALUE_LIST: {
       SRemoteValueListNode *pRemote = (SRemoteValueListNode *)pNode;
       *type = pRemote->node.resType.type;
@@ -2058,7 +2063,7 @@ void sclGetValueNodeSrcTable(SNode *pNode, char **ppSrcTable, bool *multiTable) 
 EDealRes sclRewriteFunction(SNode **pNode, SScalarCtx *ctx) {
   SFunctionNode *node = (SFunctionNode *)*pNode;
   SNode         *tnode = NULL;
-  if ((!fmIsScalarFunc(node->funcId) && (!ctx->dual)) || fmIsUserDefinedFunc(node->funcId)) {
+  if (!ctx->dual && (!fmIsScalarFunc(node->funcId) || fmIsUserDefinedFunc(node->funcId))) {
     return DEAL_RES_CONTINUE;
   }
 
