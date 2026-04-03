@@ -98,7 +98,7 @@ else()
   DEP_ext_ssl(common)
 endif()
 
-if(BUILD_S3)
+if(BUILD_SHARED_STORAGE)
   add_definitions(-DUSE_SHARED_STORAGE)
 
   if(BUILD_WITH_S3)

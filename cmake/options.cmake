@@ -73,10 +73,7 @@ ELSE()
 ENDIF ()
 
 IF(${BUILD_SHARED_STORAGE})
-  add_definitions(-DUSE_SHARED_STORAGE)
-
   IF(${BUILD_WITH_S3})
-    add_definitions(-DUSE_S3)
     # NOTE: BUILD_WITH_S3 does NOT coexist with BUILD_WITH_COS?
     option(BUILD_WITH_COS "If build with cos" OFF)
   ELSE ()
