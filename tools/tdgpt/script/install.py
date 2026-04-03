@@ -2160,7 +2160,7 @@ Examples:
   python install.py
   python install.py --skip-tensorflow
   python install.py --model-source online --model moirai --model moment --model-endpoint https://hf-mirror.com
-    python install.py -o --resource-package-url https://downloads.example.com/tdengine-tdgpt-resource-1.0.tar
+  python install.py -o --resource-package-url https://downloads.example.com/tdengine-tdgpt-resource-1.0.tar.gz
   python install.py -o --model-source offline --offline-package D:\\tdgpt-offline-bundle.tar.gz
   python install.py -o --existing-install
         """.strip(),
@@ -2179,7 +2179,7 @@ Examples:
     parser.add_argument("--offline-model-package",
                         help="Deprecated alias for --offline-package.")
     parser.add_argument("--resource-package-url",
-                        help="Remote resource package URL used to download a tar before reusing offline import logic.")
+                        help="Remote resource package URL used to download a tar/tar.gz package before reusing offline import logic.")
     parser.add_argument("--model-endpoint", help="Optional Hugging Face mirror endpoint used for online model downloads.")
     parser.add_argument("--pip-index-url", help="Custom pip index URL used for dependency installation.")
     parser.add_argument("--pip-trusted-host", help="Optional trusted host used together with the pip index URL.")
