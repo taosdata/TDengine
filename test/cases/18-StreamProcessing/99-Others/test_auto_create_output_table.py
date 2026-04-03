@@ -75,7 +75,7 @@ class TestStreamAutoCreateOutputTable:
     def check_auto_create_out_ntb(self):
         tdSql.execute(f"use db")
 
-        sql1 ="create stream s10 count_window(1) from tb1 into out_normal as select * from tb1 where c1 > 10000;"
+        sql1 ="create stream s10 count_window(1) from tb1 into out_normal NODELAY_CREATE_SUBTABLE as select * from tb1 where c1 > 10000;"
 
         streams = [
             self.StreamItem(sql1, self.checks10)
