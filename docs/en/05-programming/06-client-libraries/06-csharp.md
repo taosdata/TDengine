@@ -12,7 +12,7 @@ The source code for `TDengine.Connector` is hosted on [GitHub](https://github.co
 
 ## Version support
 
-Please refer to [version support list](/tdengine-reference/client-libraries/#version-support)
+Please refer to [version support list](https://docs.tdengine.com/reference/connector/#version-support)
 
 ## Installation
 
@@ -20,7 +20,7 @@ Please refer to [version support list](/tdengine-reference/client-libraries/#ver
 
 * Install the [.NET SDK](https://dotnet.microsoft.com/download)
 * [Nuget Client](https://docs.microsoft.com/en-us/nuget/install-nuget-client-tools) (optional installation)
-* Install TDengine client driver, please refer to [Install client driver](/tdengine-reference/client-libraries/#install-client-driver) for details
+* Install TDengine client driver, please refer to [Install client driver](https://docs.tdengine.com/reference/connector/#install-client-driver) for details
 
 ### Add `TDengine.Connector` through Nuget
 
