@@ -1313,6 +1313,17 @@ typedef struct {
 } SCompactObj;
 
 typedef struct {
+  int64_t reloadUid;
+  int8_t  cacheType;
+  int8_t  scopeType;
+  char    dbName[TSDB_TABLE_FNAME_LEN];
+  char    tableName[TSDB_TABLE_NAME_LEN];
+  char    colName[TSDB_COL_NAME_LEN];
+  int64_t dbUid;
+  int64_t startTime;
+} SReloadObj;
+
+typedef struct {
   int32_t id;
   char    algorithm_id[TSDB_ENCRYPT_ALGR_NAME_LEN];
   char    name[TSDB_ENCRYPT_ALGR_NAME_LEN];

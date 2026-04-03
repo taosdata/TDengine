@@ -17,16 +17,16 @@
 #define _TD_MND_RELOAD_H_
 
 #include "mndInt.h"
-#include "tmsg.h"
 
-int32_t mndInitReload(SMnode* pMnode);
-void    mndCleanupReload(SMnode* pMnode);
-
-int32_t mndReloadLastCache(SMnode* pMnode, SRpcMsg* pReq, int8_t cacheType, int8_t scopeType,
-                            const char* dbName, const char* tableName, const char* colName,
-                            int64_t* pReloadUid);
-int32_t mndShowReloads(SMnode* pMnode, SRpcMsg* pReq, SRetrieveTableRsp** ppRsp);
-int32_t mndShowReload(SMnode* pMnode, SRpcMsg* pReq, int64_t reloadUid, SRetrieveTableRsp** ppRsp);
-int32_t mndDropReload(SMnode* pMnode, SRpcMsg* pReq, int64_t reloadUid);
-
+#ifdef __cplusplus
+extern "C" {
 #endif
+
+int32_t mndInitReload(SMnode *pMnode);
+void    mndCleanupReload(SMnode *pMnode);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /*_TD_MND_RELOAD_H_*/

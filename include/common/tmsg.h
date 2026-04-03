@@ -200,6 +200,7 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_SSMIGRATE,
   TSDB_MGMT_TABLE_SCAN,
   TSDB_MGMT_TABLE_SCAN_DETAIL,
+  TSDB_MGMT_TABLE_RELOAD,
   TSDB_MGMT_TABLE_RSMA,
   TSDB_MGMT_TABLE_RETENTION,
   TSDB_MGMT_TABLE_RETENTION_DETAIL,
@@ -567,6 +568,8 @@ typedef enum ENodeType {
   QUERY_NODE_SHOW_XNODE_AGENTS_STMT,
   QUERY_NODE_SHOW_XNODE_JOBS_STMT,
   QUERY_NODE_SHOW_VALIDATE_VTABLE_STMT,
+  QUERY_NODE_SHOW_RELOADS_STMT,
+  QUERY_NODE_SHOW_RELOAD_STMT,
 
   // logic plan node
   QUERY_NODE_LOGIC_PLAN_SCAN = 1000,
@@ -682,8 +685,6 @@ typedef enum ENodeType {
   QUERY_NODE_ALTER_XNODE_STMT,                // Alter xnode
   QUERY_NODE_RELOAD_LAST_CACHE_STMT,
   QUERY_NODE_DROP_RELOAD_STMT,
-  QUERY_NODE_SHOW_RELOADS_STMT,
-  QUERY_NODE_SHOW_RELOAD_STMT,
 } ENodeType;
 
 typedef struct {
@@ -2684,6 +2685,13 @@ int32_t tSerializeSMndReloadLastCacheReq(void* buf, int32_t bufLen, SMndReloadLa
 int32_t tDeserializeSMndReloadLastCacheReq(void* buf, int32_t bufLen, SMndReloadLastCacheReq* pReq);
 int32_t tSerializeSMndReloadLastCacheRsp(void* buf, int32_t bufLen, SMndReloadLastCacheRsp* pRsp);
 int32_t tDeserializeSMndReloadLastCacheRsp(void* buf, int32_t bufLen, SMndReloadLastCacheRsp* pRsp);
+
+typedef struct {
+  int64_t reloadUid;
+} SDropReloadReq;
+
+int32_t tSerializeSDropReloadReq(void* buf, int32_t bufLen, SDropReloadReq* pReq);
+int32_t tDeserializeSDropReloadReq(void* buf, int32_t bufLen, SDropReloadReq* pReq);
 
 typedef struct {
   union {
