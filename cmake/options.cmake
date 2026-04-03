@@ -58,6 +58,8 @@ endif()
 
 if(TD_LINUX OR TD_WINDOWS)
   option(BUILD_WITH_ANALYSIS  "If build with analysis"              ON)
+else()
+  option(BUILD_WITH_ANALYSIS  "If build with analysis"              OFF)
 endif()
 
 # NOTE: set option variable in this ways is not a good practice
