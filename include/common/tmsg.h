@@ -2710,7 +2710,11 @@ void    tFreeSRetrieveFuncRsp(SRetrieveFuncRsp* pRsp);
 
 typedef struct {
   int32_t       statusInterval;
-  int64_t       checkTime;                  // 1970-01-01 00:00:00.000
+  /*
+    Unix epoch in ms (conventionally 0).
+    Dnode/mnode must agree; paired with timezone in cluster cfg check.
+  */
+  int64_t       checkTime;
   char          timezone[TD_TIMEZONE_LEN];  // tsTimezone
   char          locale[TD_LOCALE_LEN];      // tsLocale
   char          charset[TD_LOCALE_LEN];     // tsCharset
