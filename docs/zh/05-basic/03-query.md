@@ -537,6 +537,7 @@ FROM table_name
 EXTERNAL_WINDOW (
     (subquery_that_defines_windows) window_alias
 )
+[FILL_CLAUSE]
 [HAVING condition]
 [ORDER BY ...]
 ```
@@ -565,6 +566,10 @@ HAVING COUNT(*) > 0;
 ```
 
 上面的 SQL 中，窗口边界来自独立的 `grid_events` 表，而非从 `meters` 自身数据派生。这正是外部窗口的核心价值：**窗口定义与数据来源解耦**，可以将任意外部事件（告警记录、排班表、维护计划等）的时间范围直接用于聚合分析，无需预先对测量数据做窗口划分。
+
+EXTERNAL_WINDOW 也支持在空窗口上使用 `FILL` 子句。默认情况下，空窗口不会产出结果行；使用 `FILL` 后，可以决定是否保留该窗口以及如何填充聚合列。在 EXTERNAL_WINDOW 查询中，支持的模式为 `NONE`、`NULL`、`NULL_F`、`VALUE`、`VALUE_F`、`PREV`、`NEXT`；暂不支持 `LINEAR`、`NEAR`、`SURROUND`。FILL 产生的填充行会参与 `HAVING` 判断，因此执行顺序是"先填充，再过滤"。关于 FILL 子句的通用语法请参考 [FILL 子句](../14-reference/03-taos-sql/20-select.md#fill-子句)。
+
+#### 约束与限制
 
 关于外部窗口的核心特性（分组对齐、窗口属性列引用规则、嵌套调用等）和约束限制的详细说明，请参考 [TDengine TSDB 特色查询 - 外部窗口](../14-reference/03-taos-sql/24-distinguished.md#外部窗口)。
 
