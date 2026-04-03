@@ -46,6 +46,71 @@ extern void shellStopDaemon();
 static int32_t sentinel = TSC_VAR_NOT_RELEASE;
 static int32_t createParseContext(const SRequestObj *pRequest, SParseContext **pCxt, SSqlCallbackWrapper *pWrapper);
 
+static void drainRefPool(int32_t *pRefPool, const char *poolName) {
+  if (pRefPool == NULL || *pRefPool < 0) {
+    return;
+  }
+
+  int32_t rsetId = *pRefPool;
+  bool    isReqPool = (rsetId == clientReqRefPool);
+  bool    isConnPool = (rsetId == clientConnRefPool);
+
+  if (!isReqPool && !isConnPool) {
+    tscWarn("skip draining unknown ref pool:%s", poolName);
+    taosCloseRef(rsetId);
+    *pRefPool = -1;
+    return;
+  }
+
+  void *pObj = taosIterateRef(rsetId, 0);
+
+  while (pObj != NULL) {
+    int64_t refId = isReqPool ? ((SRequestObj *)pObj)->self : ((STscObj *)pObj)->id;
+
+    if (refId == 0) {
+      tscWarn("skip draining %s with invalid refId", poolName);
+      break;
+    }
+
+    int32_t code = taosRemoveRef(rsetId, refId);
+    if (TSDB_CODE_SUCCESS != code) {
+      tscWarn("failed to remove %s ref:%" PRId64 ", code:%s", poolName, refId, tstrerror(code));
+      code = taosReleaseRef(rsetId, refId);
+      if (code != TSDB_CODE_SUCCESS) {
+        tscWarn("failed to release %s ref:%" PRId64 ", code:%s", poolName, refId, tstrerror(code));
+      }
+      break;
+    }
+
+    pObj = taosIterateRef(rsetId, refId);
+  }
+
+  taosCloseRef(rsetId);
+  *pRefPool = -1;
+}
+
+static void stopAppTransporters(void) {
+  int32_t code = taosThreadMutexLock(&appInfo.mutex);
+  if (TSDB_CODE_SUCCESS != code) {
+    tscError("failed to lock app info, code:%s", tstrerror(TAOS_SYSTEM_ERROR(code)));
+    return;
+  }
+
+  void *pIter = taosHashIterate(appInfo.pInstMap, NULL);
+  while (pIter != NULL) {
+    SAppInstInfo **ppAppInfo = (SAppInstInfo **)pIter;
+    if (ppAppInfo != NULL && *ppAppInfo != NULL) {
+      closeTransporter(*ppAppInfo);
+    }
+    pIter = taosHashIterate(appInfo.pInstMap, pIter);
+  }
+
+  code = taosThreadMutexUnlock(&appInfo.mutex);
+  if (TSDB_CODE_SUCCESS != code) {
+    tscError("failed to unlock app info, code:%s", tstrerror(TAOS_SYSTEM_ERROR(code)));
+  }
+}
+
 int taos_options(TSDB_OPTION option, const void *arg, ...) {
   if (arg == NULL) {
     return TSDB_CODE_INVALID_PARA;
@@ -260,10 +325,16 @@ void taos_cleanup(void) {
   monitorClose();
   tscStopCrashReport();
 
-  hbMgrCleanUp();
+  hbMgrStop();
+  beginAsyncWorkShutdown();
+
+  if (TSDB_CODE_SUCCESS != cleanupTaskQueue()) {
+    tscWarn("failed to cleanup task queue");
+  }
+
+  stopAppTransporters();
 
   catalogDestroy();
-  schedulerDestroy();
 
   fmFuncMgtDestroy();
   qCleanupKeywordsTable();
@@ -273,22 +344,29 @@ void taos_cleanup(void) {
 #endif
   tmqMgmtClose();
 
-  int32_t id = clientReqRefPool;
-  clientReqRefPool = -1;
-  taosCloseRef(id);
+  // Teardown order (crash-verified dependencies):
+  //  hbStop -> shutdownGate -> taskQueue -> appTransporters
+  //    -> drainReqRefs -> drainConnRefs -> scheduler -> appInfo -> rpc -> hbCleanup
+  //
+  // Key constraints:
+  //  - Drain refs explicitly; taosCloseRef() only marks, does not destroy.
+  //  - reqRefs before connRefs: request destroy needs owning STscObj.
+  //  - connRefs before appInfo: destroyTscObj() touches pAppInfo/hb/scheduler.
+  //  - shutdownGate before taskQueue: gate async producers first.
+  //  - appTransporters before rpcCleanup: global rpc != app transporter shutdown.
+  //  - hbStop early, hbCleanup late: hb state needed until conn/app cleanup ends.
 
-  id = clientConnRefPool;
-  clientConnRefPool = -1;
-  taosCloseRef(id);
+  drainRefPool(&clientReqRefPool, "request pool");
+  drainRefPool(&clientConnRefPool, "connection pool");
 
-  nodesDestroyAllocatorSet();
+  schedulerDestroy();
+
   cleanupAppInfo();
   rpcCleanup();
   tscDebug("rpc cleanup");
+  hbMgrCleanUp();
 
-  if (TSDB_CODE_SUCCESS != cleanupTaskQueue()) {
-    tscWarn("failed to cleanup task queue");
-  }
+  nodesDestroyAllocatorSet();
 
   sessMgtDestroy();
 
@@ -1879,6 +1957,10 @@ static int32_t getAllMetaAsync(SSqlCallbackWrapper *pWrapper, catalogCallback fp
                            .requestObjRefId = pWrapper->pParseCtx->requestRid,
                            .mgmtEps = pWrapper->pParseCtx->mgmtEpSet};
 
+  if (!mayCreateAsyncWork()) {
+    return TSDB_CODE_APP_IS_STOPPING;
+  }
+
   pWrapper->pRequest->metric.ctgStart = taosGetTimestampUs();
 
   return catalogAsyncGetAllMeta(pWrapper->pParseCtx->pCatalog, &conn, pWrapper->pCatalogReq, fp, pWrapper,
@@ -2169,6 +2251,12 @@ void taos_fetch_rows_a(TAOS_RES *res, __taos_async_fn_t fp, void *param) {
     return;
   }
 
+  if (!mayCreateAsyncWork()) {
+    CLIENT_UPDATE_REQUEST_PHASE_IF_CHANGED(pRequest, QUERY_PHASE_FETCH_RETURNED);
+    fp(param, res, TSDB_CODE_APP_IS_STOPPING);
+    return;
+  }
+
   SAsyncFetchParam *pParam = taosMemoryCalloc(1, sizeof(SAsyncFetchParam));
   if (!pParam) {
     CLIENT_UPDATE_REQUEST_PHASE_IF_CHANGED(pRequest, QUERY_PHASE_FETCH_RETURNED);
@@ -2420,6 +2508,11 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
       .pTrans = pTscObj->pAppInfo->pTransporter, .requestId = pRequest->requestId, .requestObjRefId = pRequest->self};
 
   conn.mgmtEps = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
+
+  if (!mayCreateAsyncWork()) {
+    code = TSDB_CODE_APP_IS_STOPPING;
+    goto _return;
+  }
 
   code = catalogAsyncGetAllMeta(pCtg, &conn, &catalogReq, syncCatalogFn, pRequest->body.interParam, NULL);
   if (code) {

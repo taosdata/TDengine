@@ -1961,7 +1961,11 @@ static int32_t stmtFetchMetadataForQuery(STscStmt2* pStmt, SParseContext* pCxt, 
     if (tsem_init(&cbParam.sem, 0, 0) != 0) {
       code = TSDB_CODE_CTG_INTERNAL_ERROR;
     } else {
-      code = catalogAsyncGetAllMeta(pCxt->pCatalog, &conn, &catalogReq, stmtCatalogSyncGetAllMetaCb, &cbParam, NULL);
+      if (!mayCreateAsyncWork()) {
+        code = TSDB_CODE_APP_IS_STOPPING;
+      } else {
+        code = catalogAsyncGetAllMeta(pCxt->pCatalog, &conn, &catalogReq, stmtCatalogSyncGetAllMetaCb, &cbParam, NULL);
+      }
       if (TSDB_CODE_SUCCESS == code) {
         code = tsem_wait(&cbParam.sem);
         if (code != TSDB_CODE_SUCCESS) {

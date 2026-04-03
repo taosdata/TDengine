@@ -27,7 +27,15 @@
 typedef struct STaskQueue {
   SQueryAutoQWorkerPool wrokrerPool;
   STaosQueue* pTaskQueue;
+  int8_t      state;
+  int8_t      shutdown;
 } STaskQueue;
+
+enum {
+  TASK_QUEUE_STATE_STOPPED = 0,
+  TASK_QUEUE_STATE_RUNNING = 1,
+  TASK_QUEUE_STATE_STOPPING = 2,
+};
 
 int32_t getAsofJoinReverseOp(EOperatorType op) {
   switch (op) {
@@ -173,6 +181,8 @@ static void processTaskQueue(SQueueInfo *pInfo, SSchedMsg *pSchedMsg) {
 
 int32_t initTaskQueue() {
   memset(&taskQueue, 0, sizeof(taskQueue));
+  atomic_store_8(&taskQueue.shutdown, 0);
+  atomic_store_8(&taskQueue.state, TASK_QUEUE_STATE_STOPPED);
   
   taskQueue.wrokrerPool.name = "taskWorkPool";
   taskQueue.wrokrerPool.min = tsNumOfTaskQueueThreads;
@@ -186,16 +196,45 @@ int32_t initTaskQueue() {
   taskQueue.pTaskQueue = tQueryAutoQWorkerAllocQueue(&taskQueue.wrokrerPool, NULL, (FItem)processTaskQueue);
   if (NULL == taskQueue.pTaskQueue) {
     qError("failed to init task queue");
+    tQueryAutoQWorkerCleanup(&taskQueue.wrokrerPool);
     return -1;
   }
+
+  atomic_store_8(&taskQueue.state, TASK_QUEUE_STATE_RUNNING);
 
   qInfo("task queue is initialized, numOfThreads: %d", tsNumOfTaskQueueThreads);
   return 0;
 }
 
 int32_t cleanupTaskQueue() {
+  atomic_store_8(&taskQueue.state, TASK_QUEUE_STATE_STOPPING);
+  STaosQueue* pTaskQueue = taskQueue.pTaskQueue;
   tQueryAutoQWorkerCleanup(&taskQueue.wrokrerPool);
+  if (pTaskQueue != NULL) {
+    tQueryAutoQWorkerFreeQueue(&taskQueue.wrokrerPool, pTaskQueue);
+  }
+  taskQueue.pTaskQueue = NULL;
+  atomic_store_8(&taskQueue.state, TASK_QUEUE_STATE_STOPPED);
   return 0;
+}
+
+void beginAsyncWorkShutdown(void) { atomic_store_8(&taskQueue.shutdown, 1); }
+
+bool mayCreateAsyncWork(void) { return atomic_load_8(&taskQueue.shutdown) == 0; }
+
+static int32_t enqueueTaskQueueItem(SSchedMsg* pSchedMsg) {
+  if (atomic_load_8(&taskQueue.shutdown) != 0 || atomic_load_8(&taskQueue.state) != TASK_QUEUE_STATE_RUNNING ||
+      taskQueue.pTaskQueue == NULL) {
+    taosFreeQitem(pSchedMsg);
+    return TSDB_CODE_APP_IS_STOPPING;
+  }
+
+  int32_t code = taosWriteQitem(taskQueue.pTaskQueue, pSchedMsg);
+  if (code != TSDB_CODE_SUCCESS) {
+    taosFreeQitem(pSchedMsg);
+  }
+
+  return code;
 }
 
 int32_t taosAsyncExec(__async_exec_fn_t execFn, void* execParam, int32_t* code) {
@@ -207,7 +246,7 @@ int32_t taosAsyncExec(__async_exec_fn_t execFn, void* execParam, int32_t* code) 
   pSchedMsg->thandle = execParam;
   pSchedMsg->msg = code;
 
-  return taosWriteQitem(taskQueue.pTaskQueue, pSchedMsg);
+  return enqueueTaskQueueItem(pSchedMsg);
 }
 
 int32_t taosAsyncWait() {
@@ -235,7 +274,7 @@ int32_t taosStmt2AsyncBind(__async_exec_fn_t bindFn, void* bindParam) {
   pSchedMsg->thandle = bindParam;
   // pSchedMsg->msg = code;
 
-  return taosWriteQitem(taskQueue.pTaskQueue, pSchedMsg);
+  return enqueueTaskQueueItem(pSchedMsg);
 }
 
 void destroySendMsgInfo(SMsgSendInfo* pMsgBody) {

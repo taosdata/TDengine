@@ -385,6 +385,8 @@ typedef struct SQueryStat {
 
 int32_t initTaskQueue();
 int32_t cleanupTaskQueue();
+void    beginAsyncWorkShutdown(void);
+bool    mayCreateAsyncWork(void);
 
 /**
  *
