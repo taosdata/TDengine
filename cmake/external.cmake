@@ -1780,13 +1780,20 @@ else()
         "-DCMAKE_MAKE_PROGRAM:FILEPATH=${CMAKE_MAKE_PROGRAM}"
         "-DCMAKE_AR:FILEPATH=${CMAKE_AR}"
     )
+    # Arrow 19.0.1 bug on MSVC: size_statistics.cc uses std::array without
+    # #include <array>.  GCC/Clang pick it up transitively; MSVC does not.
+    # /FI array is the MSVC equivalent of GCC -include array (force-include).
+    # This applies to ALL build types, so use ARROW_CXX_FLAGS (no suffix).
+    list(APPEND ARROW_EXTRA_CMAKE_ARGS
+        "-DARROW_CXX_FLAGS:STRING=/FI array"
+    )
     # MSVC size-reduction flags for Arrow's bundled static libraries.
     # /O1  = minimize size (MSVC equivalent of GCC -Os)
     # /Gy  = function-level linking: each function in its own COMDAT so the
     #        linker's /OPT:REF can dead-strip unreferenced ones
     #        (MSVC equivalent of -ffunction-sections + --gc-sections)
     # /Gw  = global data in separate COMDATs (MSVC equivalent of -fdata-sections)
-    # ARROW_CXX_FLAGS_* appends to - rather than replacing - CMake's defaults,
+    # ARROW_CXX_FLAGS_* appends to – rather than replacing – CMake's defaults,
     # per Arrow's build documentation.
     list(APPEND ARROW_EXTRA_CMAKE_ARGS
         "-DARROW_CXX_FLAGS_RELEASE:STRING=/O1 /Gy /Gw"

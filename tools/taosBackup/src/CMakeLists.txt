@@ -214,11 +214,15 @@ if(APPLE)
 endif()
 
 # Strip DWARF debug sections after linking to shrink the installed binary.
-# --strip-debug removes .debug_* sections but keeps .symtab / .strtab so that
-# backtraces from core files still resolve to full function names.
+# GNU strip uses --strip-debug; Apple strip uses -S for the same effect.
 if(NOT ${TD_WINDOWS})
+    if(APPLE)
+        set(_strip_flag -S)
+    else()
+        set(_strip_flag --strip-debug)
+    endif()
     add_custom_command(TARGET taosBackup POST_BUILD
-        COMMAND ${CMAKE_STRIP} --strip-debug $<TARGET_FILE:taosBackup>
+        COMMAND ${CMAKE_STRIP} ${_strip_flag} $<TARGET_FILE:taosBackup>
         COMMENT "Stripping debug sections from taosBackup"
     )
 endif()

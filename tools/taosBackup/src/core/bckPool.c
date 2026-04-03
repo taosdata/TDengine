@@ -176,7 +176,7 @@ TAOS* getConnection(int *code) {
                 // Apply exponential back-off and retry instead of giving up
                 // immediately, so transient restarts are handled transparently.
                 logWarn("connect to %s:%d failed (0x%08X): %s — retry in %d ms",
-                        argHost(), argPort(), errCode, errStr, reconnectWaitMs);
+                        argHost() ? argHost() : "(firstEp)", argPort(), errCode, errStr, reconnectWaitMs);
 
                 // Unlock, sleep, re-lock, then retry the outer loop
                 taosThreadMutexUnlock(&g_pool.mutex);

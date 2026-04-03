@@ -20,7 +20,7 @@
 
 static enum ActionType g_action    = ACTION_BACKUP;
 static char  g_outPath[MAX_PATH_LEN]   = "./output";
-static char  g_host[256]           = "localhost";
+static char  g_host[256]           = "";
 static int   g_port                = 6030;
 static char  g_user[128]           = "root";
 static char  g_password[128]       = "taosdata";
@@ -705,7 +705,7 @@ int argDebug() {
 }
 
 char* argHost() {
-    return g_host;
+    return g_host[0] ? g_host : NULL;
 }
 
 int argPort() {

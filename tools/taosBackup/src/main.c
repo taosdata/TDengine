@@ -56,7 +56,7 @@ static void printStartSummary(enum ActionType action) {
     if (argIsDsn()) {
         printf("  DSN          : %s\n", argDsn());
     }
-    printf("  Server       : %s:%d\n", argHost(), argPort());
+    printf("  Server       : %s:%d\n", argHost() ? argHost() : "(firstEp from cfg)", argPort());
     printf("  User         : %s\n", argUser());
     printf("  Output Path  : %s\n", argOutPath());
     {

@@ -85,7 +85,7 @@ int backDatabase(const char *dbName) {
 static char** getAllDatabases(int *count, int *retCode) {
     *count = 0;
     *retCode = TSDB_CODE_SUCCESS;
-    logInfo("Connect to %s:%d ...", argHost(), argPort());
+    logInfo("Connect to %s:%d ...", argHost() ? argHost() : "(firstEp from cfg)", argPort());
     TAOS *conn = getConnection(retCode);
     if (!conn) {
         return NULL;
