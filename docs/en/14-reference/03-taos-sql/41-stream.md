@@ -3,7 +3,6 @@ sidebar_label: Stream Processing
 title: Stream Processing
 description: This article describes the SQL statements and syntax related to stream processing.
 toc_max_heading_level: 4
-slug: /tdengine-reference/sql-manual/manage-streams
 ---
 
 Compared with traditional stream processing, TDengine TSDB’s stream processing extends both functionality and boundaries. Traditionally, stream processing is defined as a real-time computing paradigm focused on low latency, continuity, and event-time-driven processing of unbounded data streams. TDengine TSDB’s stream processing adopts a trigger–compute decoupling strategy, still operating on continuous unbounded data streams, but with the following enhancements:
@@ -840,7 +839,7 @@ Apart from the operations explicitly restricted or specially handled in the tabl
 
 ### Configuration Parameters
 
-Stream processing–related configuration parameters are listed below. For full details, see [taosd](https://docs.tdengine.com/tdengine-reference/components/taosd/).
+Stream processing–related configuration parameters are listed below. For full details, see [taosd](../01-components/01-taosd.md).
 
 - numOfMnodeStreamMgmtThreads: Number of stream management threads on mnodes.
 - numOfStreamMgmtThreads: Number of stream management threads on vnodes/snodes.

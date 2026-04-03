@@ -1,6 +1,5 @@
 ---
 title: Ingesting Data Efficiently
-slug: /developer-guide/ingesting-data-efficiently
 ---
 
 import Tabs from "@theme/Tabs";
@@ -47,7 +46,7 @@ The client application uses the `addBatch` method of the JDBC standard interface
 - `TSDBDriver.PROPERTY_KEY_RECONNECT_INTERVAL_MS`: The retry interval for automatic reconnection, with the unit of milliseconds. The default value is 2000. It only takes effect when `PROPERTY_KEY_ENABLE_AUTO_RECONNECT` is `true`.
 - `TSDBDriver.PROPERTY_KEY_RECONNECT_RETRY_COUNT`: The number of retry attempts for automatic reconnection. The default value is 3. It only takes effect when `PROPERTY_KEY_ENABLE_AUTO_RECONNECT` is `true`.
 
-For other configuration parameters, please refer to [Efficient Writing Configuration](../../tdengine-reference/client-libraries/java/#properties).
+For other configuration parameters, please refer to [Efficient Writing Configuration](../14-reference/05-connector/14-java.md#properties).
 
 ### Instructions for Using JDBC Efficient Writing
 
@@ -367,7 +366,7 @@ First, consider several important performance-related parameters in the database
 3. **cachemodel**: Controls whether to cache the latest data of sub-tables in memory. Enabling this feature affects write performance as it updates each table's `last_row` and each column's `last` value during writing. Reducing the impact by changing the option from `both` to `last_row` or `last_value`.  
 4. **stt_trigger**: Controls the TSDB data flush policy and the number of files triggering background file merging. The default for the enterprise edition is 2, while the open-source edition can only be configured to 1. `stt_trigger = 1` is suitable for scenarios with few tables and high write frequency; `stt_trigger > 1` is better for scenarios with many tables and low write frequency.  
 
-For other parameters, refer to [Database Management](../../tdengine-reference/sql-manual/manage-databases/).  
+For other parameters, refer to [Database Management](../14-reference/03-taos-sql/02-database.md).  
 
 Next, consider performance-related parameters in the `taosd` configuration:  
 
@@ -375,7 +374,7 @@ Next, consider performance-related parameters in the `taosd` configuration:
 2. **numOfCommitThreads**: Number of background flush threads on the server, default 4. More threads do not always mean better performance, as they can cause disk write contention. Servers with multiple disks can consider increasing this parameter to utilize concurrent I/O capabilities.  
 3. **Log Level**: Parameters like `debugFlag` control log output levels. Higher log levels increase output pressure and impact write performance, so the default configuration is recommended.  
 
-For other parameters, refer to [Server Configuration](../../tdengine-reference/components/taosd/).  
+For other parameters, refer to [Server Configuration](../14-reference/01-components/01-taosd.md).  
 
 ## Implementation Principle of Efficient Writing {#implement-principle}  
 
