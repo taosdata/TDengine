@@ -1311,6 +1311,84 @@ static int bckWkbToWkt(const unsigned char *wkb, int wkbLen, char *out, int outL
     return pos;
 }
 
+// Append one tag value (for a single row/column) into sql at *pos.
+static void appendTagVal(char *sql, int *pos, int maxLen,
+                         int8_t type, int row, int c,
+                         void **colDataPtrs, int blockRows,
+                         FieldInfo *fieldInfos) {
+    if (c < 0) {
+        *pos += snprintf(sql + *pos, maxLen - *pos, "NULL");
+        return;
+    }
+    if (IS_VAR_DATA_TYPE(type)) {
+        int32_t *_to = (int32_t *)colDataPtrs[c];
+        int32_t  _off = _to[row];
+        if (_off < 0) {
+            *pos += snprintf(sql + *pos, maxLen - *pos, "NULL");
+        } else {
+            char    *_vd  = (char *)colDataPtrs[c] + blockRows * sizeof(int32_t);
+            uint16_t _vl  = *(uint16_t *)(_vd + _off);
+            char    *_val = _vd + _off + sizeof(uint16_t);
+            if (type == TSDB_DATA_TYPE_NCHAR) {
+                char *_utf8 = (char *)taosMemoryMalloc((_vl) * 4 + 4);
+                if (!_utf8) {
+                    *pos += snprintf(sql + *pos, maxLen - *pos, "NULL");
+                } else {
+                    int32_t _ul = taosUcs4ToMbs((TdUcs4 *)_val, (int32_t)_vl, _utf8, NULL);
+                    if (_ul < 0) _ul = 0;
+                    *pos += snprintf(sql + *pos, maxLen - *pos, "'");
+                    for (int32_t _k = 0; _k < _ul && *pos < maxLen - 4; _k++) {
+                        if (_utf8[_k] == '\'') { sql[(*pos)++] = '\\'; sql[(*pos)++] = '\''; }
+                        else { sql[(*pos)++] = _utf8[_k]; }
+                    }
+                    *pos += snprintf(sql + *pos, maxLen - *pos, "'");
+                    taosMemoryFree(_utf8);
+                }
+            } else if (type == TSDB_DATA_TYPE_GEOMETRY) {
+                char _wkt[4096];
+                int _wl = bckWkbToWkt((const unsigned char *)_val, (int)_vl, _wkt, (int)sizeof(_wkt));
+                if (_wl > 0) *pos += snprintf(sql + *pos, maxLen - *pos, "'%s'", _wkt);
+                else         *pos += snprintf(sql + *pos, maxLen - *pos, "NULL");
+            } else {
+                *pos += snprintf(sql + *pos, maxLen - *pos, "'");
+                for (uint16_t _k = 0; _k < _vl && *pos < maxLen - 4; _k++) {
+                    unsigned char _b = (unsigned char)_val[_k];
+                    if      (_b == '\'') { sql[(*pos)++] = '\\'; sql[(*pos)++] = '\''; }
+                    else if (_b == '\\') { sql[(*pos)++] = '\\'; sql[(*pos)++] = '\\'; }
+                    else                 { sql[(*pos)++] = (char)_b; }
+                }
+                *pos += snprintf(sql + *pos, maxLen - *pos, "'");
+            }
+        }
+    } else {
+        int32_t _bml  = (blockRows + 7) / 8;
+        char   *_bmp  = (char *)colDataPtrs[c];
+        char   *_fd   = (char *)colDataPtrs[c] + _bml;
+        bool    _null = (_bmp[row >> 3] & (1u << (7 - (row & 7)))) != 0;
+        if (_null) {
+            *pos += snprintf(sql + *pos, maxLen - *pos, "NULL");
+        } else {
+            int32_t _bytes = fieldInfos[c].bytes;
+            char   *_v     = _fd + row * _bytes;
+            switch (type) {
+                case TSDB_DATA_TYPE_BOOL:      *pos += snprintf(sql+*pos, maxLen-*pos, "%s", (*(int8_t*)_v)?"true":"false"); break;
+                case TSDB_DATA_TYPE_TINYINT:   *pos += snprintf(sql+*pos, maxLen-*pos, "%d",   *(int8_t *)_v); break;
+                case TSDB_DATA_TYPE_SMALLINT:  *pos += snprintf(sql+*pos, maxLen-*pos, "%d",   *(int16_t*)_v); break;
+                case TSDB_DATA_TYPE_INT:       *pos += snprintf(sql+*pos, maxLen-*pos, "%d",   *(int32_t*)_v); break;
+                case TSDB_DATA_TYPE_BIGINT:    *pos += snprintf(sql+*pos, maxLen-*pos, "%"PRId64, *(int64_t*)_v); break;
+                case TSDB_DATA_TYPE_UTINYINT:  *pos += snprintf(sql+*pos, maxLen-*pos, "%u",   *(uint8_t *)_v); break;
+                case TSDB_DATA_TYPE_USMALLINT: *pos += snprintf(sql+*pos, maxLen-*pos, "%u",   *(uint16_t*)_v); break;
+                case TSDB_DATA_TYPE_UINT:      *pos += snprintf(sql+*pos, maxLen-*pos, "%u",   *(uint32_t*)_v); break;
+                case TSDB_DATA_TYPE_UBIGINT:   *pos += snprintf(sql+*pos, maxLen-*pos, "%"PRIu64, *(uint64_t*)_v); break;
+                case TSDB_DATA_TYPE_FLOAT:     *pos += snprintf(sql+*pos, maxLen-*pos, "%f",   *(float *)_v); break;
+                case TSDB_DATA_TYPE_DOUBLE:    *pos += snprintf(sql+*pos, maxLen-*pos, "%f",   *(double*)_v); break;
+                case TSDB_DATA_TYPE_TIMESTAMP: *pos += snprintf(sql+*pos, maxLen-*pos, "%"PRId64, *(int64_t*)_v); break;
+                default: *pos += snprintf(sql+*pos, maxLen-*pos, "NULL"); break;
+            }
+        }
+    }
+}
+
 //
 // Callback for processing each decompressed tag block
 // Builds "CREATE TABLE IF NOT EXISTS `db`.`childTb` USING `db`.`stb` TAGS(...)" SQL
@@ -1353,84 +1431,6 @@ static int tagBlockCallback(void *userData,
             return code;
         }
     }
-
-    // Helper macro: append one tag value (for a single row/column) into `sql` at `pos`.
-    // Uses the reusable ctx->sqlBuf, so no per-row malloc needed.
-#define APPEND_TAG_VAL(sql_, pos_, maxLen_, type_, row_, c_)  do { \
-    int8_t _type = (type_); \
-    int    _c    = (c_); \
-    if (_c < 0) { \
-        pos_ += snprintf((sql_) + pos_, (maxLen_) - pos_, "NULL"); \
-        break; \
-    } \
-    if (IS_VAR_DATA_TYPE(_type)) { \
-        int32_t *_to = (int32_t *)colDataPtrs[_c]; \
-        int32_t  _off = _to[row_]; \
-        if (_off < 0) { \
-            pos_ += snprintf((sql_) + pos_, (maxLen_) - pos_, "NULL"); \
-        } else { \
-            char    *_vd  = (char *)colDataPtrs[_c] + blockRows * sizeof(int32_t); \
-            uint16_t _vl  = *(uint16_t *)(_vd + _off); \
-            char    *_val = _vd + _off + sizeof(uint16_t); \
-            if (_type == TSDB_DATA_TYPE_NCHAR) { \
-                char *_utf8 = (char *)taosMemoryMalloc((_vl) * 4 + 4); \
-                if (!_utf8) { \
-                    pos_ += snprintf((sql_) + pos_, (maxLen_) - pos_, "NULL"); \
-                } else { \
-                int32_t _ul = taosUcs4ToMbs((TdUcs4 *)_val, (int32_t)_vl, _utf8, NULL); \
-                if (_ul < 0) _ul = 0; \
-                pos_ += snprintf((sql_) + pos_, (maxLen_) - pos_, "'"); \
-                for (int32_t _k = 0; _k < _ul && pos_ < (int)(maxLen_) - 4; _k++) { \
-                    if (_utf8[_k] == '\'') { (sql_)[pos_++] = '\\'; (sql_)[pos_++] = '\''; } \
-                    else { (sql_)[pos_++] = _utf8[_k]; } \
-                } \
-                pos_ += snprintf((sql_) + pos_, (maxLen_) - pos_, "'"); \
-                taosMemoryFree(_utf8); \
-                } \
-            } else if (_type == TSDB_DATA_TYPE_GEOMETRY) { \
-                char _wkt[4096]; \
-                int _wl = bckWkbToWkt((const unsigned char *)_val, (int)_vl, _wkt, (int)sizeof(_wkt)); \
-                if (_wl > 0) pos_ += snprintf((sql_) + pos_, (maxLen_) - pos_, "'%s'", _wkt); \
-                else         pos_ += snprintf((sql_) + pos_, (maxLen_) - pos_, "NULL"); \
-            } else { \
-                pos_ += snprintf((sql_) + pos_, (maxLen_) - pos_, "'"); \
-                for (uint16_t _k = 0; _k < _vl && pos_ < (int)(maxLen_) - 4; _k++) { \
-                    unsigned char _b = (unsigned char)_val[_k]; \
-                    if      (_b == '\'') { (sql_)[pos_++] = '\\'; (sql_)[pos_++] = '\''; } \
-                    else if (_b == '\\') { (sql_)[pos_++] = '\\'; (sql_)[pos_++] = '\\'; } \
-                    else                 { (sql_)[pos_++] = (char)_b; } \
-                } \
-                pos_ += snprintf((sql_) + pos_, (maxLen_) - pos_, "'"); \
-            } \
-        } \
-    } else { \
-        int32_t _bml  = (blockRows + 7) / 8; \
-        char   *_bmp  = (char *)colDataPtrs[_c]; \
-        char   *_fd   = (char *)colDataPtrs[_c] + _bml; \
-        bool    _null = (_bmp[(row_) >> 3] & (1u << (7 - ((row_) & 7)))) != 0; \
-        if (_null) { \
-            pos_ += snprintf((sql_) + pos_, (maxLen_) - pos_, "NULL"); \
-        } else { \
-            int32_t _bytes = fieldInfos[_c].bytes; \
-            char   *_v     = _fd + (row_) * _bytes; \
-            switch (_type) { \
-                case TSDB_DATA_TYPE_BOOL:      pos_ += snprintf((sql_)+pos_,(maxLen_)-pos_, "%s", (*(int8_t*)_v)?"true":"false"); break; \
-                case TSDB_DATA_TYPE_TINYINT:   pos_ += snprintf((sql_)+pos_,(maxLen_)-pos_, "%d",   *(int8_t *)_v); break; \
-                case TSDB_DATA_TYPE_SMALLINT:  pos_ += snprintf((sql_)+pos_,(maxLen_)-pos_, "%d",   *(int16_t*)_v); break; \
-                case TSDB_DATA_TYPE_INT:       pos_ += snprintf((sql_)+pos_,(maxLen_)-pos_, "%d",   *(int32_t*)_v); break; \
-                case TSDB_DATA_TYPE_BIGINT:    pos_ += snprintf((sql_)+pos_,(maxLen_)-pos_, "%"PRId64, *(int64_t*)_v); break; \
-                case TSDB_DATA_TYPE_UTINYINT:  pos_ += snprintf((sql_)+pos_,(maxLen_)-pos_, "%u",   *(uint8_t *)_v); break; \
-                case TSDB_DATA_TYPE_USMALLINT: pos_ += snprintf((sql_)+pos_,(maxLen_)-pos_, "%u",   *(uint16_t*)_v); break; \
-                case TSDB_DATA_TYPE_UINT:      pos_ += snprintf((sql_)+pos_,(maxLen_)-pos_, "%u",   *(uint32_t*)_v); break; \
-                case TSDB_DATA_TYPE_UBIGINT:   pos_ += snprintf((sql_)+pos_,(maxLen_)-pos_, "%"PRIu64, *(uint64_t*)_v); break; \
-                case TSDB_DATA_TYPE_FLOAT:     pos_ += snprintf((sql_)+pos_,(maxLen_)-pos_, "%f",   *(float *)_v); break; \
-                case TSDB_DATA_TYPE_DOUBLE:    pos_ += snprintf((sql_)+pos_,(maxLen_)-pos_, "%f",   *(double*)_v); break; \
-                case TSDB_DATA_TYPE_TIMESTAMP: pos_ += snprintf((sql_)+pos_,(maxLen_)-pos_, "%"PRId64, *(int64_t*)_v); break; \
-                default: pos_ += snprintf((sql_)+pos_,(maxLen_)-pos_, "NULL"); break; \
-            } \
-        } \
-    } \
-} while(0)
 
     // Allocate reusable SQL buffer once (on first call for this ctx)
     if (!ctx->sqlBuf) {
@@ -1487,7 +1487,7 @@ static int tagBlockCallback(void *userData,
                 if (s > 0) pos += snprintf(ctx->sqlBuf + pos, TAG_BATCH_SQL_BYTES - pos, ",");
                 int c = useMapping ? ctx->tagMapping[s] : (s + 1);
                 int8_t type = (c >= 0) ? fieldInfos[c].type : TSDB_DATA_TYPE_NULL;
-                switch (0) { default: APPEND_TAG_VAL(ctx->sqlBuf, pos, TAG_BATCH_SQL_BYTES, type, row, c); }
+                appendTagVal(ctx->sqlBuf, &pos, TAG_BATCH_SQL_BYTES, type, row, c, colDataPtrs, blockRows, fieldInfos);
             }
             pos += snprintf(ctx->sqlBuf + pos, TAG_BATCH_SQL_BYTES - pos, ") ");
 
@@ -1527,7 +1527,7 @@ static int tagBlockCallback(void *userData,
                     if (s > 0) p2 += snprintf(ctx->sqlBuf + p2, TAG_BATCH_SQL_BYTES - p2, ",");
                     int c2 = useMapping ? ctx->tagMapping[s] : (s + 1);
                     int8_t t2 = (c2 >= 0) ? fieldInfos[c2].type : TSDB_DATA_TYPE_NULL;
-                    switch (0) { default: APPEND_TAG_VAL(ctx->sqlBuf, p2, TAG_BATCH_SQL_BYTES, t2, r, c2); }
+                    appendTagVal(ctx->sqlBuf, &p2, TAG_BATCH_SQL_BYTES, t2, r, c2, colDataPtrs, blockRows, fieldInfos);
                 }
                 p2 += snprintf(ctx->sqlBuf + p2, TAG_BATCH_SQL_BYTES - p2, ")");
 
@@ -1545,8 +1545,6 @@ static int tagBlockCallback(void *userData,
             }
         }
     }
-#undef APPEND_TAG_VAL
-
     taosMemoryFree(colDataPtrs);
     taosMemoryFree(colDataLens);
     return TSDB_CODE_SUCCESS;
