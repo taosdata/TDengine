@@ -1126,11 +1126,6 @@ int32_t sclGetNodeType(SNode *pNode, SScalarCtx *ctx, int32_t *type, STypeMod *p
       *pTypeMod = typeGetTypeModFromColInfo(&res->columnData->info);
       return TSDB_CODE_SUCCESS;
     }
-    case QUERY_NODE_LEFT_VALUE: {
-      *type = ctx->type.opResType;
-      *pTypeMod = 0;
-      return TSDB_CODE_SUCCESS;
-    }
     case QUERY_NODE_REMOTE_VALUE_LIST: {
       SRemoteValueListNode *pRemote = (SRemoteValueListNode *)pNode;
       *type = pRemote->node.resType.type;
