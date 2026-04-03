@@ -533,6 +533,7 @@ FROM table_name
 EXTERNAL_WINDOW (
     (subquery_that_defines_windows) window_alias
 )
+[FILL_CLAUSE]
 [HAVING condition]
 [ORDER BY ...]
 ```
@@ -608,6 +609,50 @@ ORDER BY w.groupid, event_start_time;
 - `w.groupid`、`w.location`：窗口属性列，来自子查询中的标签列，用于展示分组信息
 - `HAVING` 条件使用聚合函数 (`COUNT`) 过滤出至少有一条告警的窗口
 - `PARTITION BY` 对齐：内外查询均按 `groupid` 分组，确保每组电表的告警只与该组的异常窗口匹配
+
+#### FILL 子句
+
+EXTERNAL_WINDOW 支持使用 FILL 子句来指定窗口内无匹配数据时的填充策略。当某个窗口在外部表中没有命中任何数据行时，该窗口默认不产出结果行；使用 FILL 子句可以为这类空窗口生成填充行。
+
+支持的 FILL 模式：
+
+| FILL 模式 | 说明 |
+|:---------:|:----:|
+| `NONE` | 默认行为，空窗口不产出结果行 |
+| `NULL` | 空窗口产出一行，聚合列填充为 NULL；查询范围内完全无数据时不产出 |
+| `NULL_F` | 与 `NULL` 类似，但即使查询范围内完全无数据也强制产出空窗口行 |
+| `VALUE` | 空窗口产出一行，聚合列填充为用户指定值；查询范围内完全无数据时不产出 |
+| `VALUE_F` | 与 `VALUE` 类似，但即使查询范围内完全无数据也强制产出空窗口行 |
+| `PREV` | 空窗口使用前一个非空窗口的聚合结果填充；若无前值则为 NULL |
+| `NEXT` | 空窗口使用后一个非空窗口的聚合结果填充；若无后值则为 NULL |
+
+**注意**：EXTERNAL_WINDOW 暂不支持 `LINEAR`、`NEAR`、`SURROUND` 填充模式。
+
+FILL 与 HAVING 的执行顺序为"先填充，再过滤"：FILL 产生的填充行会参与 HAVING 条件判断，满足条件的保留，不满足的被过滤。
+
+关于 FILL 子句的通用语法请参考 [FILL 子句](../14-reference/03-taos-sql/20-select.md#fill-子句)。
+
+示例：
+
+```sql
+SELECT _wstart, avg(voltage) AS avg_vol, count(*) AS cnt
+FROM meters
+EXTERNAL_WINDOW (
+    (SELECT '2022-01-01 00:00:00'::TIMESTAMP,
+            '2022-01-01 00:01:00'::TIMESTAMP
+     UNION ALL
+     SELECT '2022-01-01 00:01:00'::TIMESTAMP,
+            '2022-01-01 00:02:00'::TIMESTAMP
+     UNION ALL
+     SELECT '2022-01-01 00:02:00'::TIMESTAMP,
+            '2022-01-01 00:03:00'::TIMESTAMP
+    ) w
+)
+FILL(VALUE, 0, 0)
+ORDER BY _wstart;
+```
+
+上面的 SQL 定义了 3 个一分钟的外部窗口，对 `meters` 表在每个窗口内计算平均电压和记录数。如果某个窗口内没有数据，则 `avg_vol` 和 `cnt` 均填充为 `0`。
 
 #### 约束与限制
 

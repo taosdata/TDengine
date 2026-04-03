@@ -536,6 +536,7 @@ FROM table_name
 EXTERNAL_WINDOW (
     (subquery_that_defines_windows) window_alias
 )
+[FILL_CLAUSE]
 [HAVING condition]
 [ORDER BY ...]
 ```
@@ -611,6 +612,50 @@ ORDER BY w.groupid, event_start_time;
 - `w.groupid`, `w.location`: window attribute columns from the subquery's tag columns, used to display group information
 - `HAVING` condition uses the aggregate function (`COUNT`) to filter windows with at least one alert
 - `PARTITION BY` alignment: both inner and outer queries group by `groupid`, ensuring that each meter group's alerts only match that group's anomaly windows
+
+#### FILL Clause
+
+EXTERNAL_WINDOW supports using the FILL clause to specify filling strategies when a window has no matching data. By default, windows with no matching data rows from the outer table do not produce result rows; the FILL clause generates filled rows for such empty windows.
+
+Supported FILL modes:
+
+| FILL Mode | Description |
+|:---------:|:----------:|
+| `NONE` | Default behavior; empty windows do not produce result rows |
+| `NULL` | Empty windows produce one row with aggregate columns filled as NULL; no output when there is no data at all within the query range |
+| `NULL_F` | Similar to `NULL`, but forces output of empty window rows even when there is no data at all within the query range |
+| `VALUE` | Empty windows produce one row with aggregate columns filled with user-specified values; no output when there is no data at all within the query range |
+| `VALUE_F` | Similar to `VALUE`, but forces output of empty window rows even when there is no data at all within the query range |
+| `PREV` | Empty windows are filled with the aggregate result from the previous non-empty window; NULL if there is no previous value |
+| `NEXT` | Empty windows are filled with the aggregate result from the next non-empty window; NULL if there is no next value |
+
+**Note**: EXTERNAL_WINDOW does not currently support the `LINEAR`, `NEAR`, or `SURROUND` fill modes.
+
+The execution order of FILL and HAVING is "fill first, then filter": rows produced by FILL participate in HAVING condition evaluation — those that satisfy the condition are kept, and those that do not are filtered out.
+
+For the general FILL clause syntax, refer to [FILL Clause](../14-reference/03-taos-sql/20-select.md#fill-clause).
+
+Example:
+
+```sql
+SELECT _wstart, avg(voltage) AS avg_vol, count(*) AS cnt
+FROM meters
+EXTERNAL_WINDOW (
+    (SELECT '2022-01-01 00:00:00'::TIMESTAMP,
+            '2022-01-01 00:01:00'::TIMESTAMP
+     UNION ALL
+     SELECT '2022-01-01 00:01:00'::TIMESTAMP,
+            '2022-01-01 00:02:00'::TIMESTAMP
+     UNION ALL
+     SELECT '2022-01-01 00:02:00'::TIMESTAMP,
+            '2022-01-01 00:03:00'::TIMESTAMP
+    ) w
+)
+FILL(VALUE, 0, 0)
+ORDER BY _wstart;
+```
+
+The above SQL defines 3 one-minute external windows and calculates the average voltage and record count from the `meters` table within each window. If a window contains no data, both `avg_vol` and `cnt` are filled with `0`.
 
 #### Constraints and Limitations
 
