@@ -1656,8 +1656,7 @@ int32_t extractDataBlockFromFetchRsp(SSDataBlock* pRes, char* pData, SArray* pCo
     blockDataCleanup(pRes);
     code = blockDecodeInternal(pRes, pData, (const char**)pNextStart);
     QUERY_CHECK_CODE(code, lino, _end);
-  }
-  if (pColList == NULL) {  // data from other sources
+  } else if (pColList == NULL) {  // data from other sources
     blockDataCleanup(pRes);
     code = blockDecodeInternal(pRes, pData, (const char**)pNextStart);
     QUERY_CHECK_CODE(code, lino, _end);

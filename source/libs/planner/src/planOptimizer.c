@@ -9087,6 +9087,19 @@ static bool functionHasTagParam(SFunctionNode* pFunc) {
   return false;
 }
 
+static bool functionHasTagRefParam(SFunctionNode* pFunc) {
+  SNode* pParam = NULL;
+  FOREACH(pParam, pFunc->pParameterList) {
+    if (nodeType(pParam) == QUERY_NODE_COLUMN) {
+      SColumnNode* pCol = (SColumnNode*)pParam;
+      if (pCol->colType == COLUMN_TYPE_TAG && pCol->hasRef) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 static bool vtableWindowMayBeOptimized(SLogicNode* pNode, void* pCtx) {
   if (OPTIMIZE_FLAG_TEST_MASK(pNode->optimizedFlag, OPTIMIZE_FLAG_VTB_WINDOW)) {
     return false;
@@ -10343,6 +10356,7 @@ static bool vstableAggShouldBeOptimized(SLogicNode* pNode, void* pCtx) {
     SFunctionNode *pFunc = (SFunctionNode *)pAggFunc;
     if (fmIsSelectValueFunc(pFunc->funcId) || fmisSelectGroupConstValueFunc(pFunc->funcId) ||
         fmIsGroupKeyFunc(pFunc->funcId) ||
+        functionHasTagParam(pFunc) ||
         (fmIsAggFunc(pFunc->funcId) && !fmIsSelectFunc(pFunc->funcId) && functionHasTagOrPkParam(pFunc)) ||
         !fmIsDistExecFunc(pFunc->funcId)) {
       return false;
