@@ -49,7 +49,7 @@ DLL_EXPORT TAOS *taos_connect_dsn_auth(const char *dsn, const char *user, const 
 
 #### 8.2.1 TDengine 仓库
 
-##### 8.2.1.1 未设 WEBSOCKET 选项
+##### 8.2.1.1 未设 BUILD_WEBSOCKET 选项
 
 编译选项：cmake .. -DBUILD_TEST=true
 
@@ -313,7 +313,7 @@ python3 ./test.py -f 2-query/pseudo_column.py
 
 ```
 
-##### 8.2.1.2 设定 WEBSOCKET 选项
+##### 8.2.1.2 设定 BUILD_WEBSOCKET 选项
 
 编译选项：cmake .. -DBUILD_TEST=true -DWEBSOCKET=true
 
@@ -585,13 +585,13 @@ python3 ./test.py -f 2-query/pseudo_column.py
 
 #### 8.2.2 Taos-tools 仓库（未测试）
 
-##### 8.2.2.1 未设 WEBSOCKET 选项
+##### 8.2.2.1 未设 BUILD_WEBSOCKET 选项
 
 ###### 8.2.2.1.1 taosdump
 
 ###### 8.2.2.1.2 taosBenchmark
 
-##### 8.2.2.2 设定 WEBSOCKET 选项
+##### 8.2.2.2 设定 BUILD_WEBSOCKET 选项
 
 ###### 8.2.2.2.1 taosdump
 
@@ -601,7 +601,7 @@ python3 ./test.py -f 2-query/pseudo_column.py
 
 #### 8.3.1 TDengine 仓库
 
-##### 8.3.1.1 未设 WEBSOCKET 选项
+##### 8.3.1.1 未设 BUILD_WEBSOCKET 选项
 
 cmake .. -G "NMake Makefiles" -DBUILD_TEST=0 -DBUILD_TOOLS=0  -DBUILD_CONTRIB=on -DCMAKE_CXX_STANDARD=17
 
@@ -733,17 +733,17 @@ C:\TDengine\driver>dir
   "Error Code Reference" in the TDengine online documentation.
   ```
 
-##### 8.3.1.2 设定 WEBSOCKET 选项（未测试）
+##### 8.3.1.2 设定 BUILD_WEBSOCKET 选项（未测试）
 
 #### 8.3.2 taos-tools 仓库（未测试）
 
-##### 8.3.2.1 未设 WEBSOCKET 选项
+##### 8.3.2.1 未设 BUILD_WEBSOCKET 选项
 
 ###### 8.3.2.1.1 taosdump
 
 ###### 8.3.2.1.2 taosBenchmark
 
-##### 8.3.2.2 设定 WEBSOCKET 选项
+##### 8.3.2.2 设定 BUILD_WEBSOCKET 选项
 
 ###### 8.3.2.2.1 taosdump
 
@@ -753,7 +753,7 @@ C:\TDengine\driver>dir
 
 #### 8.4.1 TDengine 仓库
 
-##### 8.4.1.1 未设 WEBSOCKET 选项
+##### 8.4.1.1 未设 BUILD_WEBSOCKET 选项
 
 编译选项：cmake .. -DBUILD_TEST=true
 
@@ -985,7 +985,7 @@ python3 ./test.py -f 2-query/pseudo_column.py
 
 ```
 
-##### 8.4.1.2 设定 WEBSOCKET 选项
+##### 8.4.1.2 设定 BUILD_WEBSOCKET 选项
 
 编译选项：cmake .. -DBUILD_TEST=true -DWEBSOCKET=true
 
@@ -1242,25 +1242,25 @@ python3 ./test.py -f 2-query/pseudo_column.py
 
 #### 8.4.2 Taos-tools 仓库aos-tools 仓库（未测试）
 
-##### 8.4.2.1 未设 WEBSOCKET 选项
+##### 8.4.2.1 未设 BUILD_WEBSOCKET 选项
 
 ###### 8.4.2.1.1 taosdump
 
 ###### 8.4.2.1.2 taosBenchmark
 
-##### 8.4.2.2 设定 WEBSOCKET 选项
+##### 8.4.2.2 设定 BUILD_WEBSOCKET 选项
 
 ###### 8.4.2.2.1 taosdump
 
 ###### 8.4.2.2.2 taosBenchmark
 
-##### 8.4.2.3 未设 WEBSOCKET 选项
+##### 8.4.2.3 未设 BUILD_WEBSOCKET 选项
 
 ###### 8.4.2.3.1 taosdump
 
 ###### 8.4.2.3.2 taosBenchmark
 
-##### 8.4.2.4 设定 WEBSOCKET 选项
+##### 8.4.2.4 设定 BUILD_WEBSOCKET 选项
 
 ###### 8.4.2.4.1 taosdump
 

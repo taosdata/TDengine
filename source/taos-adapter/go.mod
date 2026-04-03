@@ -1,6 +1,6 @@
 module github.com/taosdata/taosadapter/v3
 
-go 1.24.10
+go 1.24.2
 
 require (
 	collectd.org v0.6.0
