@@ -137,6 +137,21 @@ begin
   Result := 'tdengine-tdgpt-offline-assets-' + ExpandConstant('{#MyAppVersion}') + '-windows-x64';
 end;
 
+function PreferredResourcePackagePattern(): string;
+begin
+  Result := 'tdengine-tdgpt-resource-*.tar';
+end;
+
+function PreferredResourcePackagePatternGz(): string;
+begin
+  Result := 'tdengine-tdgpt-resource-*.tar.gz';
+end;
+
+function PreferredResourcePackagePatternTgz(): string;
+begin
+  Result := 'tdengine-tdgpt-resource-*.tgz';
+end;
+
 function GetConfiguredResourcePackageFileName(): string;
 var
   UrlValue: string;
@@ -193,14 +208,27 @@ begin
   if SearchDir = '' then
     exit;
 
-  BaseName := PreferredOfflineAssetsBaseName();
-  Result := FindOfflinePackageByPattern(SearchDir, BaseName + '.tar');
+  Result := FindOfflinePackageByPattern(SearchDir, 'tdengine-tdgpt-resource.tar');
   if Result <> '' then
     exit;
-  Result := FindOfflinePackageByPattern(SearchDir, BaseName + '.tar.gz');
+
+  Result := FindOfflinePackageByPattern(SearchDir, 'tdengine-tdgpt-resource.tar.gz');
   if Result <> '' then
     exit;
-  Result := FindOfflinePackageByPattern(SearchDir, BaseName + '.tgz');
+
+  Result := FindOfflinePackageByPattern(SearchDir, 'tdengine-tdgpt-resource.tgz');
+  if Result <> '' then
+    exit;
+
+  Result := FindOfflinePackageByPattern(SearchDir, PreferredResourcePackagePattern());
+  if Result <> '' then
+    exit;
+
+  Result := FindOfflinePackageByPattern(SearchDir, PreferredResourcePackagePatternGz());
+  if Result <> '' then
+    exit;
+
+  Result := FindOfflinePackageByPattern(SearchDir, PreferredResourcePackagePatternTgz());
   if Result <> '' then
     exit;
 
@@ -211,6 +239,17 @@ begin
     if Result <> '' then
       exit;
   end;
+
+  BaseName := PreferredOfflineAssetsBaseName();
+  Result := FindOfflinePackageByPattern(SearchDir, BaseName + '.tar');
+  if Result <> '' then
+    exit;
+  Result := FindOfflinePackageByPattern(SearchDir, BaseName + '.tar.gz');
+  if Result <> '' then
+    exit;
+  Result := FindOfflinePackageByPattern(SearchDir, BaseName + '.tgz');
+  if Result <> '' then
+    exit;
 end;
 
 procedure TryPopulateDefaultOfflinePackage();

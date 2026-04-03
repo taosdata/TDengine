@@ -11,6 +11,7 @@ Options:
     -v, --version    : tdgpt version
     -m, --model-dir  : model files dir
     -a, --all-models : pack all models
+    --resource-package-version : resource package version used in the default download URL
 """
 
 import os
@@ -51,13 +52,19 @@ class InstallInfo:
         self.iscc_path = ""
         self.skip_model_check = False
         self.python_runtime_dir = ""
+        self.resource_package_version = ""
         self.resource_package_url = ""
 
 
 tdgpt_version = TDGPTVersion("community", "1.0.0")
 install_info = InstallInfo()
 WINSW_BASENAME = "taosanode-winsw"
-DEFAULT_RESOURCE_PACKAGE_URL = "https://downloads.tdengine.com/tdengine-historian/tdgpt-resource-pkg/tdengine-tdgpt-resource-1.0.tar"
+DEFAULT_RESOURCE_PACKAGE_URL_TEMPLATE = "https://downloads.tdengine.com/tdengine-historian/tdgpt-resource-pkg/tdengine-tdgpt-resource-{version}.tar.gz"
+DEFAULT_RESOURCE_PACKAGE_VERSION = "1.0"
+
+
+def build_default_resource_package_url(version: str) -> str:
+    return DEFAULT_RESOURCE_PACKAGE_URL_TEMPLATE.format(version=version)
 
 
 def check_python_version():
@@ -92,8 +99,10 @@ def parse_arguments():
                         help='Skip model validation (for testing only, NOT for production)')
     parser.add_argument('--python-runtime-dir', type=str, default="",
                         help='Existing Python runtime directory to bundle into install/python/runtime')
-    parser.add_argument('--resource-package-url', type=str, default=DEFAULT_RESOURCE_PACKAGE_URL,
-                        help='Default remote TDgpt resource package URL used by the installer UI')
+    parser.add_argument('--resource-package-version', type=str, default=DEFAULT_RESOURCE_PACKAGE_VERSION,
+                        help='Resource package version used to build the default resource package URL (default: 1.0)')
+    parser.add_argument('--resource-package-url', type=str, default="",
+                        help='Default remote TDgpt resource package URL used by the installer UI; overrides --resource-package-version when provided')
 
     version_pattern = re.compile(r'^[0-9]+\.([0-9]+\.){1,3}[0-9]+$')
     args = parser.parse_args()
@@ -132,7 +141,8 @@ def parse_arguments():
     install_info.iscc_path = args.iscc_path
     install_info.skip_model_check = args.skip_model_check
     install_info.python_runtime_dir = args.python_runtime_dir
-    install_info.resource_package_url = args.resource_package_url.strip()
+    install_info.resource_package_version = args.resource_package_version.strip() or DEFAULT_RESOURCE_PACKAGE_VERSION
+    install_info.resource_package_url = args.resource_package_url.strip() or build_default_resource_package_url(install_info.resource_package_version)
 
     return args
 
@@ -154,6 +164,7 @@ def print_params():
     logging.info(f"Model Directory: {install_info.model_dir}")
     logging.info(f"All Models: {install_info.all_models}")
     logging.info(f"Python Runtime Directory: {install_info.python_runtime_dir or '(auto)'}")
+    logging.info(f"Resource Package Version: {install_info.resource_package_version or '(custom url)'}")
     logging.info(f"Resource Package URL: {install_info.resource_package_url or '(none)'}")
     logging.info("=" * 60)
 
@@ -557,11 +568,30 @@ chcp 65001 >nul
 """ + python_guard + """    exit /b 1
 )
 if "%~1"=="" (
-    echo Usage: stop-model.bat [model_name^|all]
-    exit /b 1
+    echo No model name specified. Defaulting to "all".
+    "%PYTHON_EXE%" "%~dp0taosanode_service.py" model-stop all
+    set "TDGPT_EXIT_CODE=%errorlevel%"
+    echo.
+    echo Model stop requests have been submitted.
+    echo You can verify results with status-model.bat.
+    echo Start command: start-model.bat [model_name^|all]
+    echo Status command: status-model.bat
+    echo Stop command:   stop-model.bat [model_name^|all]
+    echo Press Enter to close this window.
+    pause >nul
+    exit /b %TDGPT_EXIT_CODE%
 )
 "%PYTHON_EXE%" "%~dp0taosanode_service.py" model-stop %*
-exit /b %errorlevel%
+set "TDGPT_EXIT_CODE=%errorlevel%"
+echo.
+echo Model stop requests have been submitted.
+echo You can verify results with status-model.bat.
+echo Start command: start-model.bat [model_name^|all]
+echo Status command: status-model.bat
+echo Stop command:   stop-model.bat [model_name^|all]
+echo Press Enter to close this window.
+pause >nul
+exit /b %TDGPT_EXIT_CODE%
 """)
     logging.info("Created stop-model.bat")
 
