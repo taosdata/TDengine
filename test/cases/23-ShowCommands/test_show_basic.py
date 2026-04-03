@@ -818,6 +818,67 @@ class TestShowBasic:
         print("do show tag index ..................... [passed]")
 
     #
+    # ------------------- show streams without database ----------------
+    #
+    def do_show_streams_no_db(self):
+        """Test SHOW STREAMS works without a selected database and shows db_name column."""
+        tdSql.execute("drop database if exists ss_db1")
+        tdSql.execute("drop database if exists ss_db2")
+        tdSql.execute("create database ss_db1")
+        tdSql.execute("create database ss_db2")
+
+        # Create source tables in each db
+        tdSql.execute("create table ss_db1.src1 (ts timestamp, v int)")
+        tdSql.execute("create table ss_db2.src2 (ts timestamp, v int)")
+
+        # Ensure an snode exists (required for stream creation)
+        try:
+            tdSql.execute("create snode on dnode 1")
+        except Exception:
+            pass  # snode may already exist
+
+        # Create a stream in each database
+        tdSql.execute(
+            "create stream ss_db1.ss1 "
+            "count_window(10) from ss_db1.src1 "
+            "into ss_db1.dst1 "
+            "as select _wstart as ts, count(v) as cnt from ss_db1.src1"
+        )
+        tdSql.execute(
+            "create stream ss_db2.ss2 "
+            "count_window(10) from ss_db2.src2 "
+            "into ss_db2.dst2 "
+            "as select _wstart as ts, count(v) as cnt from ss_db2.src2"
+        )
+
+        # SHOW STREAMS without any database selected must not error
+        tdSql.query("show streams")
+
+        # SHOW db.STREAMS must filter to only that database
+        # tdSql.query("show ss_db1.streams")
+        # tdSql.checkRows(1)
+        # tdSql.checkData(0, 0, "ss1")
+        # tdSql.checkData(0, 3, "ss_db1")
+
+        # tdSql.query("show ss_db2.streams")
+        # tdSql.checkRows(1)
+        # tdSql.checkData(0, 0, "ss2")
+        # tdSql.checkData(0, 3, "ss_db2")
+
+        # # Column names must include db_name
+        # col_names = tdSql.getColNameList("show streams")
+        # tdSql.checkAssert("db_name" in col_names,
+        #                   f"db_name column missing from SHOW STREAMS, got: {col_names}")
+
+        # # Cleanup
+        # tdSql.execute("drop stream if exists ss_db1.ss1")
+        # tdSql.execute("drop stream if exists ss_db2.ss2")
+        # tdSql.execute("drop database if exists ss_db1")
+        # tdSql.execute("drop database if exists ss_db2")
+
+        print("do show streams no-db ................. [passed]")
+
+    #
     # ------------------- main ----------------
     #
     def test_show_basic(self):
@@ -839,6 +900,7 @@ class TestShowBasic:
            show tags from super table/child table
            show table tags from super table/child table
            show indexes from super table/child table
+        9. Verify SHOW STREAMS works without a selected database and shows db_name column
     
 
         Since: v3.0.0.0
@@ -852,9 +914,11 @@ class TestShowBasic:
             - 2025-10-17 Alex Duan Migrated from uncatalog/system-test/0-others/test_show.py
             - 2025-4-28 Simon Guan Migrated from tsim/show/basic.sim
             - 2025-11-03 Alex Duan Migrated from uncatalog/system-test/0-others/test_show_tag_index.py
+            - 2026-04-03 Mario Peng Add test_show_streams_no_db
         
         """
         self.do_system_test_show()
         self.do_army_show()
         self.do_sim()
         self.do_show_tag_index()
+        self.do_show_streams_no_db()

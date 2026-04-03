@@ -82,7 +82,7 @@ typedef struct SSysTableShowAdapter {
   const char* pDbName;
   const char* pTableName;
   int32_t     numOfShowCols;
-  const char* pShowCols[3];
+  const char* pShowCols[4];
 } SSysTableShowAdapter;
 
 typedef struct SCollectJoinCondsContext {
@@ -193,8 +193,8 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
     .showType = QUERY_NODE_SHOW_STREAMS_STMT,
     .pDbName = TSDB_INFORMATION_SCHEMA_DB,
     .pTableName = TSDB_INS_TABLE_STREAMS,
-    .numOfShowCols = 3,
-    .pShowCols = {"stream_name","status","message"}
+    .numOfShowCols = 4,
+    .pShowCols = {"stream_name","status","message","db_name"}
   },
   {
     .showType = QUERY_NODE_SHOW_TABLES_STMT,
@@ -22381,6 +22381,9 @@ static const char* getTbNameColName(ENodeType type) {
     case QUERY_NODE_SHOW_STABLES_STMT:
       colName = "stable_name";
       break;
+    case QUERY_NODE_SHOW_STREAMS_STMT:
+      colName = "stream_name";
+      break;
     case QUERY_NODE_SHOW_INSTANCES_STMT:
       colName = "id";
       break;
@@ -22722,7 +22725,7 @@ static int32_t rewriteShow(STranslateContext* pCxt, SQuery* pQuery) {
 
 static int32_t rewriteShowStreams(STranslateContext* pCxt, SQuery* pQuery) {
   SNode* pDbNode = ((SShowStmt*)pQuery->pRoot)->pDbName;
-  if (nodeType(pDbNode) == QUERY_NODE_VALUE) {
+  if (pDbNode != NULL && nodeType(pDbNode) == QUERY_NODE_VALUE) {
     SArray* pVgs = NULL;
     int32_t code = getDBVgInfo(pCxt, ((SValueNode*)pDbNode)->literal, &pVgs);
     taosArrayDestroy(pVgs);
