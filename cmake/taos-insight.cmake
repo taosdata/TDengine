@@ -37,7 +37,17 @@ find_program(GO_EXECUTABLE go REQUIRED)
 find_program(MAGE_EXECUTABLE mage
   HINTS "$ENV{HOME}/go/bin" "$ENV{GOPATH}/bin"
   REQUIRED)
-find_program(YARN_EXECUTABLE NAMES yarn.cmd yarn REQUIRED)
+# Prefer Unix `yarn` on Linux/macOS; `yarn.cmd` is for Windows only.
+if(NOT CMAKE_HOST_WIN32
+    AND YARN_EXECUTABLE
+    AND YARN_EXECUTABLE MATCHES "\\.cmd$")
+  unset(YARN_EXECUTABLE CACHE)
+endif()
+if(CMAKE_HOST_WIN32)
+  find_program(YARN_EXECUTABLE NAMES yarn.cmd yarn REQUIRED)
+else()
+  find_program(YARN_EXECUTABLE NAMES yarn REQUIRED)
+endif()
 
 # Node.js >= 22 is required by taos-insight; we just check it exists
 find_program(NODE_EXECUTABLE node REQUIRED)
@@ -65,12 +75,16 @@ set(_insight_stamp "${_insight_base_dir}/taos_insight_built")
 set(_insight_yarn_cache "${_insight_base_dir}/yarn-cache")
 set(_insight_gopath "${_insight_base_dir}/gopath")
 set(_insight_gocache "${_insight_base_dir}/gocache")
+set(_insight_gomodcache "${_insight_base_dir}/gomodcache")
+# Mage caches compiled Magefiles under $HOME/.magefile; redirect HOME for that step only.
+set(_insight_mage_home "${_insight_base_dir}/mage-home")
 
 message(STATUS "Insight build config:")
 message(STATUS "  output dir              = ${_insight_output_dir}")
 message(STATUS "  yarn cache dir          = ${_insight_yarn_cache}")
 message(STATUS "  GOPATH                  = ${_insight_gopath}")
 message(STATUS "  GOCACHE                 = ${_insight_gocache}")
+message(STATUS "  GOMODCACHE              = ${_insight_gomodcache}")
 
 # ── Source dependencies for rebuild detection ─────────────────────────────
 file(GLOB_RECURSE _insight_go_sources CONFIGURE_DEPENDS
@@ -94,11 +108,15 @@ add_custom_command(
   COMMAND "${CMAKE_COMMAND}" -E make_directory "${_insight_yarn_cache}"
   COMMAND "${CMAKE_COMMAND}" -E make_directory "${_insight_gopath}"
   COMMAND "${CMAKE_COMMAND}" -E make_directory "${_insight_gocache}"
+  COMMAND "${CMAKE_COMMAND}" -E make_directory "${_insight_gomodcache}"
+  COMMAND "${CMAKE_COMMAND}" -E make_directory "${_insight_mage_home}"
   # Step 1: Build Go backend via mage (produces multi-platform binaries in dist/)
   #         GOFLAGS passes -gcflags to disable optimisation in Debug mode
   COMMAND "${CMAKE_COMMAND}" -E env
+          "HOME=${_insight_mage_home}"
           "GOPATH=${_insight_gopath}"
           "GOCACHE=${_insight_gocache}"
+          "GOMODCACHE=${_insight_gomodcache}"
           "${MAGE_EXECUTABLE}" -v
   # Step 2: Install Node dependencies
   COMMAND "${CMAKE_COMMAND}" -E env

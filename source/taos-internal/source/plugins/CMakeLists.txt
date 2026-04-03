@@ -4,6 +4,7 @@ PROJECT(TDengine)
 # ADD_SUBDIRECTORY(account)
 
 # Add taosk module (now uses community CBC encryption, no OpenSSL required)
+ADD_SUBDIRECTORY(taosk)
 ADD_SUBDIRECTORY(grant)
 # ADD_SUBDIRECTORY(tsdb)
 ADD_SUBDIRECTORY(storage)

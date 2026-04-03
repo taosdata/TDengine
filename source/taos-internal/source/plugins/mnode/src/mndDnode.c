@@ -237,11 +237,13 @@ int32_t mndProcessRestoreDnodeReqImpl(SRpcMsg *pReq) {
     goto _OVER;
   }
 
+#ifdef USE_MOUNT
   if (mndHasMountOnDnode(pMnode, restoreReq.dnodeId)) {
     code = TSDB_CODE_MND_MOUNT_NOT_EMPTY;
     mError("dnode:%d, failed to restore since %s", restoreReq.dnodeId, tstrerror(code));
     goto _OVER;
   }
+#endif
 
   code = mndRestoreDnode(pMnode, pReq, pDnode, restoreReq.restoreType, restoreReq.vgId);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
