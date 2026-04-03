@@ -2598,7 +2598,6 @@ static int32_t createAggPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
   SNodeList* pPrecalcExprs = NULL;
   SNodeList* pGroupKeys = NULL;
   SNodeList* pAggFuncs = NULL;
-  SNodeList* pCondCols = NULL;
   int32_t    code = rewritePrecalcExprs(pCxt, pAggLogicNode->pGroupKeys, &pPrecalcExprs, &pGroupKeys);
   if (TSDB_CODE_SUCCESS == code) {
     code = rewritePrecalcExprs(pCxt, pAggLogicNode->pAggFuncs, &pPrecalcExprs, &pAggFuncs);
@@ -2615,16 +2614,6 @@ static int32_t createAggPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
     code = setListSlotId(pCxt, pChildTupe->dataBlockId, -1, pPrecalcExprs, &pAgg->pExprs);
     if (TSDB_CODE_SUCCESS == code) {
       code = pushdownDataBlockSlots(pCxt, pAgg->pExprs, pChildTupe);
-    }
-  }
-
-  if (TSDB_CODE_SUCCESS == code && NULL != pAggLogicNode->node.pConditions) {
-    code = nodesCollectColumnsFromNode(pAggLogicNode->node.pConditions, NULL, COLLECT_COL_TYPE_ALL, &pCondCols);
-    if (TSDB_CODE_SUCCESS == code && NULL != pCondCols) {
-      code = pushdownDataBlockSlots(pCxt, pCondCols, pChildTupe);
-    }
-    if (TSDB_CODE_SUCCESS == code && NULL != pCondCols) {
-      code = addDataBlockSlots(pCxt, pCondCols, pAgg->node.pOutputDataBlockDesc);
     }
   }
 
@@ -2655,7 +2644,6 @@ static int32_t createAggPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
   nodesDestroyList(pPrecalcExprs);
   nodesDestroyList(pGroupKeys);
   nodesDestroyList(pAggFuncs);
-  nodesDestroyList(pCondCols);
 
   return code;
 }
