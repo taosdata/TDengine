@@ -137,6 +137,37 @@ begin
   Result := 'tdengine-tdgpt-offline-assets-' + ExpandConstant('{#MyAppVersion}') + '-windows-x64';
 end;
 
+function GetConfiguredResourcePackageFileName(): string;
+var
+  UrlValue: string;
+  SlashPos: Integer;
+  QueryPos: Integer;
+  I: Integer;
+begin
+  Result := '';
+  UrlValue := Trim(ExpandConstant('{#DefaultResourcePackageUrl}'));
+  if UrlValue = '' then
+    exit;
+
+  QueryPos := Pos('?', UrlValue);
+  if QueryPos > 0 then
+    UrlValue := Copy(UrlValue, 1, QueryPos - 1);
+
+  SlashPos := 0;
+  for I := Length(UrlValue) downto 1 do
+  begin
+    if UrlValue[I] = '/' then
+    begin
+      SlashPos := I;
+      break;
+    end;
+  end;
+  if SlashPos > 0 then
+    Result := Copy(UrlValue, SlashPos + 1, MaxInt)
+  else
+    Result := UrlValue;
+end;
+
 function FindOfflinePackageByPattern(BaseDir: string; Pattern: string): string;
 var
   FindRec: TFindRec;
@@ -155,6 +186,7 @@ function DetectDefaultOfflinePackage(): string;
 var
   SearchDir: string;
   BaseName: string;
+  ResourcePackageFileName: string;
 begin
   Result := '';
   SearchDir := ExtractFileDir(ExpandConstant('{srcexe}'));
@@ -171,6 +203,14 @@ begin
   Result := FindOfflinePackageByPattern(SearchDir, BaseName + '.tgz');
   if Result <> '' then
     exit;
+
+  ResourcePackageFileName := GetConfiguredResourcePackageFileName();
+  if ResourcePackageFileName <> '' then
+  begin
+    Result := FindOfflinePackageByPattern(SearchDir, ResourcePackageFileName);
+    if Result <> '' then
+      exit;
+  end;
 end;
 
 procedure TryPopulateDefaultOfflinePackage();
@@ -347,6 +387,62 @@ begin
   end;
   OutputText := Trim(OutputText);
   Result := Result and (ResultCode = 0);
+end;
+
+function EscapePowerShellSingleQuoted(Value: string): string;
+begin
+  Result := Value;
+  StringChangeEx(Result, '''', '''''', True);
+end;
+
+function GetInstallTreeProcessSummary(TargetDir: string): string;
+var
+  OutputText: AnsiString;
+  PsExe: string;
+  PsCommand: string;
+  CmdLine: string;
+begin
+  Result := '';
+  TargetDir := RemoveBackslashUnlessRoot(Trim(TargetDir));
+  if TargetDir = '' then
+    exit;
+
+  PsExe := ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe');
+  if not FileExists(PsExe) then
+    exit;
+
+  PsCommand :=
+    '$procs = Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -like ''' +
+    EscapePowerShellSingleQuoted(AddBackslash(TargetDir) + '*') +
+    ''' }; ' +
+    'if ($procs) { ' +
+    '$procs | Select-Object -First 6 @{Name=''Info'';Expression={ $_.Name + '' PID='' + $_.ProcessId + '' EXE='' + $_.ExecutablePath }} | ' +
+    'ForEach-Object { $_.Info } ' +
+    '}';
+  CmdLine := '""' + PsExe + '" -NoProfile -ExecutionPolicy Bypass -Command "' + PsCommand + '""';
+  RunCommandCapture(CmdLine, OutputText);
+  Result := Trim(OutputText);
+end;
+
+function BuildLockedFileMessage(TargetDir: string; LockedPath: string): string;
+var
+  ProcessSummary: string;
+begin
+  Result :=
+    'The existing installation is still locking this file and the upgrade cannot continue:' + #13#10 + #13#10 +
+    LockedPath + #13#10 + #13#10;
+
+  ProcessSummary := GetInstallTreeProcessSummary(TargetDir);
+  if ProcessSummary <> '' then
+  begin
+    LogTdgpt('Install-tree processes still running before upgrade:' + #13#10 + ProcessSummary);
+    Result := Result +
+      'Processes still running under the install directory:' + #13#10 +
+      ProcessSummary + #13#10 + #13#10;
+  end;
+
+  Result := Result +
+    'Close the remaining Taosanode, model, Python, or command prompt processes that are using this installation, then run the installer again.';
 end;
 
 function IsSupportedPythonVersion(OutputText: AnsiString): Boolean;
@@ -571,6 +667,7 @@ begin
     'An existing {#MyAppName} / Taosanode installation was detected in this directory:' + #13#10 + #13#10 +
     TargetDir + #13#10 + #13#10 +
     'Continuing will update packaged files and reuse existing cfg, log, model, and venv directories when possible.' + #13#10 +
+    'Before replacing packaged files, Setup will stop the existing Taosanode service and any running model services under this installation.' + #13#10 +
     'Standard uninstall still keeps the model directory unless it is removed explicitly.' + #13#10 +
     'To use a different directory, uninstall the existing installation first.' + #13#10 + #13#10 +
     'Do you want to continue with this install location?';
@@ -649,6 +746,105 @@ begin
   Result := False;
 end;
 
+function GetExistingServiceManagerPython(TargetDir: string): string;
+var
+  CandidatePath: string;
+  OutputText: AnsiString;
+begin
+  Result := '';
+  TargetDir := RemoveBackslashUnlessRoot(Trim(TargetDir));
+  if TargetDir = '' then
+    exit;
+
+  CandidatePath := AddBackslash(TargetDir) + 'venvs\venv\Scripts\python.exe';
+  if FileExists(CandidatePath) and ReadCommandOutput(CandidatePath, OutputText) then
+  begin
+    Result := CandidatePath;
+    exit;
+  end;
+
+  CandidatePath := AddBackslash(TargetDir) + 'python\runtime\python.exe';
+  if FileExists(CandidatePath) and ReadCommandOutput(CandidatePath, OutputText) then
+    Result := CandidatePath;
+end;
+
+procedure StopExistingModelServices(TargetDir: string);
+var
+  ResultCode: Integer;
+  PythonExe: string;
+  ServiceScript: string;
+begin
+  TargetDir := RemoveBackslashUnlessRoot(Trim(TargetDir));
+  if TargetDir = '' then
+    exit;
+
+  ServiceScript := AddBackslash(TargetDir) + 'bin\taosanode_service.py';
+  if not FileExists(ServiceScript) then
+    exit;
+
+  PythonExe := GetExistingServiceManagerPython(TargetDir);
+  if PythonExe = '' then
+  begin
+    LogTdgpt('StopExistingModelServices skipped because no usable python was found for ' + TargetDir);
+    exit;
+  end;
+
+  LogTdgpt('Stopping existing model services via ' + ServiceScript);
+  Exec(PythonExe, '"' + ServiceScript + '" model-stop all', TargetDir, SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Sleep(1000);
+
+  LogTdgpt('Stopping existing taosanode process via ' + ServiceScript);
+  Exec(PythonExe, '"' + ServiceScript + '" stop', TargetDir, SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Sleep(1000);
+end;
+
+procedure KillProcessByPidFile(PidFilePath: string);
+var
+  ResultCode: Integer;
+  PidText: AnsiString;
+begin
+  if not FileExists(PidFilePath) then
+    exit;
+  if not LoadStringFromFile(PidFilePath, PidText) then
+    exit;
+
+  PidText := Trim(PidText);
+  if PidText = '' then
+    exit;
+
+  LogTdgpt('Issuing taskkill for PID ' + PidText + ' from ' + PidFilePath);
+  Exec(ExpandConstant('{cmd}'), '/C taskkill /F /T /PID ' + PidText + ' >nul 2>&1', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+end;
+
+procedure KillProcessesFromPidDir(PidDir: string);
+var
+  FindRec: TFindRec;
+begin
+  if not DirExists(PidDir) then
+    exit;
+  if not FindFirst(AddBackslash(PidDir) + '*.pid', FindRec) then
+    exit;
+
+  try
+    repeat
+      KillProcessByPidFile(AddBackslash(PidDir) + FindRec.Name);
+    until not FindNext(FindRec);
+  finally
+    FindClose(FindRec);
+  end;
+end;
+
+procedure KillExistingPidTrackedProcesses(TargetDir: string);
+begin
+  TargetDir := RemoveBackslashUnlessRoot(Trim(TargetDir));
+  if TargetDir = '' then
+    exit;
+
+  KillProcessByPidFile(AddBackslash(TargetDir) + 'taosanode.pid');
+  KillProcessesFromPidDir(AddBackslash(TargetDir) + 'data\pids');
+  Sleep(1000);
+end;
+
 procedure StopExistingTaosanodeProcesses(TargetDir: string);
 var
   ResultCode: Integer;
@@ -669,6 +865,9 @@ begin
     else
       LogTdgpt('Taosanode service did not stop cleanly within timeout. Continuing with process cleanup.');
   end;
+
+  StopExistingModelServices(TargetDir);
+  KillExistingPidTrackedProcesses(TargetDir);
 
   WinSWPath := AddBackslash(TargetDir) + 'bin\taosanode-winsw.exe';
   if FileExists(WinSWPath) then
@@ -714,6 +913,8 @@ function PrepareToInstall(var NeedsRestart: Boolean): String;
 var
   TargetDir: string;
   WinSWPath: string;
+  RuntimePythonPath: string;
+  RuntimeDllPath: string;
 begin
   Result := '';
   if LockedInstallDir <> '' then
@@ -733,10 +934,23 @@ begin
   if not WaitForFileUnlock(WinSWPath, 15) then
   begin
     LogTdgpt('PrepareToInstall: file unlock failed for ' + WinSWPath);
-    Result :=
-      'The existing Taosanode Windows service is still locking this file:' + #13#10 + #13#10 +
-      WinSWPath + #13#10 + #13#10 +
-      'Stop the existing service or close the process that is using this file, then run the installer again.';
+    Result := BuildLockedFileMessage(TargetDir, WinSWPath);
+    exit;
+  end;
+
+  RuntimePythonPath := AddBackslash(TargetDir) + 'python\runtime\python.exe';
+  if not WaitForFileUnlock(RuntimePythonPath, 15) then
+  begin
+    LogTdgpt('PrepareToInstall: runtime python is locked: ' + RuntimePythonPath);
+    Result := BuildLockedFileMessage(TargetDir, RuntimePythonPath);
+    exit;
+  end;
+
+  RuntimeDllPath := AddBackslash(TargetDir) + 'python\runtime\python3.dll';
+  if not WaitForFileUnlock(RuntimeDllPath, 15) then
+  begin
+    LogTdgpt('PrepareToInstall: runtime DLL is locked: ' + RuntimeDllPath);
+    Result := BuildLockedFileMessage(TargetDir, RuntimeDllPath);
     exit;
   end;
   LogTdgpt('PrepareToInstall exit successfully');

@@ -373,6 +373,7 @@ class WindowsInstaller:
         self._archive_member_cache: Dict[str, set[str]] = {}
         self._offline_models_prepared_from_package = False
         self._downloaded_resource_package: Optional[Path] = None
+        self.last_stream_output = ""
 
         raw_models = [normalize_model_name(item) for item in (selected_models or [])]
         if self.all_models:
@@ -1134,6 +1135,7 @@ class WindowsInstaller:
                     buffer = ""
                     if not line:
                         continue
+                    self.last_stream_output = line
                     self.write_output(line)
                     self.progress.update(
                         "running",
@@ -1145,6 +1147,7 @@ class WindowsInstaller:
                     buffer += char
         line = buffer.strip()
         if line:
+            self.last_stream_output = line
             self.write_output(line)
             self.progress.update(
                 "running",
@@ -1153,9 +1156,16 @@ class WindowsInstaller:
                 line[:240],
             )
 
+    def build_stream_failure_detail(self, label: str, suffix: str) -> str:
+        detail = f"{label} {suffix}"
+        if self.last_stream_output:
+            detail = f"{detail}. Last output: {self.last_stream_output}"
+        return detail
+
     def run_stream(self, command: List[str], label: str, timeout: int, start_percent: int, end_percent: int, title: str,
                    env: Optional[Dict[str, str]] = None) -> bool:
         self.print_info(label)
+        self.last_stream_output = ""
         merged_env = os.environ.copy()
         merged_env["PYTHONUTF8"] = merged_env.get("PYTHONUTF8", "1")
         merged_env["PYTHONIOENCODING"] = merged_env.get("PYTHONIOENCODING", "utf-8")
@@ -1173,7 +1183,9 @@ class WindowsInstaller:
                 bufsize=1,
             )
         except Exception as exc:
-            self.print_error(f"{label} failed to start: {exc}")
+            detail = f"{label} failed to start: {exc}"
+            self.print_error(detail)
+            self.set_progress(100, "Installation failed", detail[:240], status="error")
             return False
         try:
             assert proc.stdout is not None
@@ -1181,10 +1193,14 @@ class WindowsInstaller:
             proc.wait(timeout=timeout)
         except subprocess.TimeoutExpired:
             proc.kill()
-            self.print_error(f"Timed out while running: {label}")
+            detail = self.build_stream_failure_detail(label, "timed out")
+            self.print_error(detail)
+            self.set_progress(100, "Installation failed", detail[:240], status="error")
             return False
         if proc.returncode != 0:
-            self.print_error(f"{label} failed with exit code {proc.returncode}")
+            detail = self.build_stream_failure_detail(label, f"failed with exit code {proc.returncode}")
+            self.print_error(detail)
+            self.set_progress(100, "Installation failed", detail[:240], status="error")
             return False
         return True
 
@@ -1573,7 +1589,6 @@ class WindowsInstaller:
             self.set_progress(end_percent, title, f"Using existing packages for {venv_name}")
             return True
         python_exe = self.get_venv_python(venv_name)
-        pip_exe = self.get_venv_path(venv_name) / "Scripts" / "pip.exe"
         upgrade_end = start_percent + max(1, (end_percent - start_percent) // 4)
         upgrade = [str(python_exe), "-m", "pip", "install", "--upgrade", "pip", "--progress-bar", "on"]
         self.add_pip_options(upgrade)
@@ -1581,7 +1596,7 @@ class WindowsInstaller:
         if not self.run_stream(upgrade, f"Upgrading pip in {venv_name}", 1800, start_percent, upgrade_end, title):
             return False
         self.finish_phase_timer(f"{venv_name}: upgrade pip", upgrade_timer)
-        install = [str(pip_exe), "install", "-r", str(req_file), "--progress-bar", "on"]
+        install = [str(python_exe), "-m", "pip", "install", "-r", str(req_file), "--progress-bar", "on"]
         self.add_pip_options(install)
         install_timer = self.start_phase_timer(f"{venv_name}: install {req_name}")
         if not self.run_stream(install, f"Installing {req_name} in {venv_name}", 7200, upgrade_end, end_percent, title):
