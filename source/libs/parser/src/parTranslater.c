@@ -8239,11 +8239,8 @@ static int32_t createMaskFuncNode(STranslateContext* pCxt, SColumnNode* pCol, SN
   code = fmGetFuncInfo(pFunc, pCxt->msgBuf.buf, pCxt->msgBuf.len);
   if (TSDB_CODE_SUCCESS != code) goto _exit;
 
-  /* For non-displayable types (VARBINARY, GEOMETRY, JSON), force result to
-   * VARCHAR so the masked '*' value renders as text, not hex/WKB. */
-  if (pCol->node.resType.type == TSDB_DATA_TYPE_VARBINARY ||
-      pCol->node.resType.type == TSDB_DATA_TYPE_GEOMETRY ||
-      pCol->node.resType.type == TSDB_DATA_TYPE_JSON) {
+  /* JSON masked display should render as text '*' rather than JSON boolean. */
+  if (pCol->node.resType.type == TSDB_DATA_TYPE_JSON) {
     pFunc->node.resType.type = TSDB_DATA_TYPE_VARCHAR;
   }
 
@@ -8316,7 +8313,7 @@ static int32_t createMaskFuncWrapExpr(STranslateContext* pCxt, SNode* pExpr, SNo
   code = fmGetFuncInfo(pFunc, pCxt->msgBuf.buf, pCxt->msgBuf.len);
   if (TSDB_CODE_SUCCESS != code) goto _exit;
 
-  if (type == TSDB_DATA_TYPE_VARBINARY || type == TSDB_DATA_TYPE_GEOMETRY || type == TSDB_DATA_TYPE_JSON) {
+  if (type == TSDB_DATA_TYPE_JSON) {
     pFunc->node.resType.type = TSDB_DATA_TYPE_VARCHAR;
   }
 

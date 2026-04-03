@@ -17,7 +17,33 @@ class TestCase:
 
     def do_basic_user_privileges(self):
         """Test basic user privileges(grant/revoke/show user privileges)"""
-        
+        tdSql.connect("root", "taosdata")
+        # Best-effort cleanup for previous interrupted runs.
+        try:
+            tdSql.execute("drop topic if exists topic1", queryTimes=1)
+        except Exception:
+            pass
+        for stmt in [
+            "drop database if exists d1",
+            "drop database if exists d2",
+            "drop database if exists d3",
+            "drop database if exists d_mask",
+            "drop role r1",
+            "drop user u1",
+            "drop user u2",
+            "drop user u_col_2",
+            "drop user u_topic",
+            "drop user u_consumer",
+            "drop user ur1",
+            "drop user u3",
+            "drop user u_legacy",
+            "drop user u_mask",
+        ]:
+            try:
+                tdSql.execute(stmt, queryTimes=1)
+            except Exception:
+                pass
+
         tdSql.execute("drop database if exists d0")
         tdSql.execute("create database d0")
         tdSql.execute("use d0")
@@ -267,6 +293,12 @@ class TestCase:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 1)
 
+    def _check_mask_data(self, row, col):
+        """Accept masked value in either text ('*') or bytes (b'*') form."""
+        actual = tdSql.queryResult[row][col]
+        if actual not in ('*', b'*'):
+            tdLog.exit(f"masked value check failed at row:{row} col:{col}, actual:{actual}")
+
     def do_check_column_mask_privileges(self):
         """Test column-level mask privileges for SELECT (data desensitization).
 
@@ -275,182 +307,197 @@ class TestCase:
         Supported mask types: VARCHAR, NCHAR, VARBINARY, GEOMETRY, JSON (tag only).
         """
         tdSql.connect("root", "taosdata")
-
         tdSql.execute("drop database if exists d_mask")
-        tdSql.execute("create database d_mask")
-        tdSql.execute("use d_mask")
+        try:
+            tdSql.execute("drop user u_mask", queryTimes=1)
+        except Exception:
+            pass
 
-        # Supertable with all maskable column types (except JSON which is tag-only)
-        tdSql.execute(
-            "create table d_mask.stb_mask "
-            "(ts timestamp, c0 int, c1 varchar(20), c2 nchar(20), c3 varbinary(20), c4 geometry(100)) "
-            "tags(t0 int, t1 varchar(20), t2 nchar(20), t3 varbinary(20), t4 geometry(100))"
-        )
-        tdSql.execute(
-            "create table d_mask.ctb_mask using d_mask.stb_mask "
-            "tags(0, 'tag0', 'tag0', '\\x7461673000', 'POINT(1.0 2.0)')"
-        )
-        # Normal table with all maskable column types
-        tdSql.execute(
-            "create table d_mask.ntb_mask "
-            "(ts timestamp, c0 int, c1 varchar(20), c2 nchar(20), c3 varbinary(20), c4 geometry(100))"
-        )
+        try:
+            tdSql.execute("create database d_mask")
+            tdSql.execute("use d_mask")
 
-        # Supertable with JSON tag (JSON must be the only tag)
-        tdSql.execute(
-            "create table d_mask.stb_json "
-            "(ts timestamp, c0 int, c1 varchar(20)) "
-            "tags(jtag json)"
-        )
-        tdSql.execute(
-            "create table d_mask.ctb_json using d_mask.stb_json "
-            "tags('{\"k1\":\"v1\"}')"
-        )
+            # Supertable with all maskable column types (except JSON which is tag-only)
+            tdSql.execute(
+                "create table d_mask.stb_mask "
+                "(ts timestamp, c0 int, c1 varchar(20), c2 nchar(20), c3 varbinary(20), c4 geometry(100)) "
+                "tags(t0 int, t1 varchar(20), t2 nchar(20), t3 varbinary(20), t4 geometry(100))"
+            )
+            tdSql.execute(
+                "create table d_mask.ctb_mask using d_mask.stb_mask "
+                "tags(0, 'tag0', 'tag0', '\\x7461673000', 'POINT(1.0 2.0)')"
+            )
+            # Normal table with all maskable column types
+            tdSql.execute(
+                "create table d_mask.ntb_mask "
+                "(ts timestamp, c0 int, c1 varchar(20), c2 nchar(20), c3 varbinary(20), c4 geometry(100))"
+            )
 
-        tdSql.execute("insert into d_mask.ctb_mask values(now, 1, 'hello', 'world', '\\x68656c6c6f00', 'POINT(1.0 2.0)')")
-        tdSql.execute("insert into d_mask.ntb_mask values(now, 2, 'foo', 'bar', '\\x666f6f00', 'POINT(3.0 4.0)')")
-        tdSql.execute("insert into d_mask.ctb_json values(now, 3, 'jsonrow')")
+            # Supertable with JSON tag (JSON must be the only tag)
+            tdSql.execute(
+                "create table d_mask.stb_json "
+                "(ts timestamp, c0 int, c1 varchar(20)) "
+                "tags(jtag json)"
+            )
+            tdSql.execute(
+                "create table d_mask.ctb_json using d_mask.stb_json "
+                "tags('{\"k1\":\"v1\"}')"
+            )
 
-        tdSql.execute(f"create user u_mask pass '{self.test_pass}'")
-        tdSql.execute("grant use on database d_mask to u_mask")
+            tdSql.execute("insert into d_mask.ctb_mask values(now, 1, 'hello', 'world', '\\x68656c6c6f00', 'POINT(1.0 2.0)')")
+            tdSql.execute("insert into d_mask.ntb_mask values(now, 2, 'foo', 'bar', '\\x666f6f00', 'POINT(3.0 4.0)')")
+            tdSql.execute("insert into d_mask.ctb_json values(now, 3, 'jsonrow')")
 
-        # Grant select with mask on all maskable columns for the supertable
-        tdSql.execute(
-            "grant select(ts, c0, mask(c1), mask(c2), mask(c3), mask(c4), "
-            "t0, mask(t1), mask(t2), mask(t3), mask(t4)) "
-            "on table d_mask.stb_mask to u_mask"
-        )
-        # Grant select with mask on all maskable columns for the normal table
-        tdSql.execute(
-            "grant select(ts, c0, mask(c1), mask(c2), mask(c3), mask(c4)) "
-            "on table d_mask.ntb_mask to u_mask"
-        )
-        # Grant select with mask on JSON tag
-        tdSql.execute(
-            "grant select(ts, c0, mask(c1), mask(jtag)) "
-            "on table d_mask.stb_json to u_mask"
-        )
+            tdSql.execute(f"create user u_mask pass '{self.test_pass}'")
+            tdSql.execute("grant use on database d_mask to u_mask")
 
-        # Switch to the restricted user and query
-        tdSql.connect("u_mask", self.test_pass)
-        # Wait for privileges to take effect
-        max_wait_seconds = 5
-        poll_interval_seconds = 0.5
-        start_time = time.time()
-        last_exception = None
-        while True:
+            # Grant select with mask on all maskable columns for the supertable
+            tdSql.execute(
+                "grant select(ts, c0, mask(c1), mask(c2), mask(c3), mask(c4), "
+                "t0, mask(t1), mask(t2), mask(t3), mask(t4)) "
+                "on table d_mask.stb_mask to u_mask"
+            )
+            # Grant select with mask on all maskable columns for the normal table
+            tdSql.execute(
+                "grant select(ts, c0, mask(c1), mask(c2), mask(c3), mask(c4)) "
+                "on table d_mask.ntb_mask to u_mask"
+            )
+            # Grant select with mask on JSON tag
+            tdSql.execute(
+                "grant select(ts, c0, mask(c1), mask(jtag)) "
+                "on table d_mask.stb_json to u_mask"
+            )
+
+            # Switch to the restricted user and query
+            tdSql.connect("u_mask", self.test_pass)
+            # Wait for privileges to take effect
+            max_wait_seconds = 5
+            poll_interval_seconds = 0.5
+            start_time = time.time()
+            last_exception = None
+            while True:
+                try:
+                    tdSql.query("select 1 from d_mask.ntb_mask limit 1")
+                    break
+                except Exception as e:
+                    last_exception = e
+                    if time.time() - start_time >= max_wait_seconds:
+                        raise last_exception
+                    time.sleep(poll_interval_seconds)
+
+            # ==== Normal table ====
+            tdSql.query("select * from d_mask.ntb_mask")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 1, 2)    # c0 visible
+            self._check_mask_data(0, 2)  # c1 masked
+            self._check_mask_data(0, 3)  # c2 masked
+            self._check_mask_data(0, 4)  # c3 masked
+            self._check_mask_data(0, 5)  # c4 masked
+
+            tdSql.query("select c0, c1, c2, c3, c4 from d_mask.ntb_mask")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 2)
+            for i in range(1, 5):
+                self._check_mask_data(0, i)
+
+            tdSql.error("select secret_col from d_mask.ntb_mask")
+
+            # concat_ws with two masked cols
+            tdSql.query("select concat_ws('-', c1, c2) from d_mask.ntb_mask")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, '*')
+
+            # non-masked col alongside masked expression
+            tdSql.query("select c0, upper(c1) from d_mask.ntb_mask")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 2)
+            tdSql.checkData(0, 1, '*')
+
+            # alias should not bypass mask
+            tdSql.query("select c1 as name from d_mask.ntb_mask")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, '*')
+
+            # Inference-prone expressions should still be masked
+            tdSql.query("select case when c1 = 'foo' then 1 else 0 end from d_mask.ntb_mask")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, '*')
+            tdSql.query("select c1 from d_mask.ntb_mask group by c1")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, '*')
+
+            self._check_mask_scalar_funcs("d_mask.ntb_mask", "c1")
+            self._check_mask_scalar_funcs("d_mask.ntb_mask", "c2")
+            self._check_mask_agg_funcs("d_mask.ntb_mask", "c1")
+            self._check_mask_metadata_funcs("d_mask.ntb_mask", "c1")
+
+            # ==== Supertable ====
+            tdSql.query("select * from d_mask.stb_mask")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 1, 1)    # c0 visible
+            for i in range(2, 6):
+                self._check_mask_data(0, i)  # c1-c4 masked
+            tdSql.checkData(0, 6, 0)    # t0 visible
+            for i in range(7, 11):
+                self._check_mask_data(0, i)  # t1-t4 masked
+
+            tdSql.query("select c0, c1, c2, c3, c4 from d_mask.stb_mask")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 1)
+            for i in range(1, 5):
+                self._check_mask_data(0, i)
+
+            tdSql.query("select t1, t2, t3, t4 from d_mask.stb_mask")
+            tdSql.checkRows(1)
+            for i in range(4):
+                self._check_mask_data(0, i)
+
+            # Scalar/aggregate/metadata functions on columns
+            self._check_mask_scalar_funcs("d_mask.stb_mask", "c1")
+            self._check_mask_agg_funcs("d_mask.stb_mask", "c1")
+            self._check_mask_metadata_funcs("d_mask.stb_mask", "c1")
+
+            # Scalar/metadata functions on masked tags
+            self._check_mask_scalar_funcs("d_mask.stb_mask", "t1")
+            self._check_mask_metadata_funcs("d_mask.stb_mask", "t1")
+
+            # Mixed column + tag functions
+            tdSql.query("select upper(c1), lower(t1) from d_mask.stb_mask")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, '*')
+            tdSql.checkData(0, 1, '*')
+
+            # ==== Child table ====
+            tdSql.query("select * from d_mask.ctb_mask")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 1, 1)    # c0 visible
+            for i in range(2, 6):
+                self._check_mask_data(0, i)  # c1-c4 masked
+
+            tdSql.query("select c0, c1, c2, c3, c4, t1, t2, t3, t4 from d_mask.ctb_mask")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 1)
+            for i in range(1, 9):
+                self._check_mask_data(0, i)
+
+            # Scalar/aggregate/metadata functions on child table columns
+            self._check_mask_scalar_funcs("d_mask.ctb_mask", "c1")
+            self._check_mask_agg_funcs("d_mask.ctb_mask", "c1")
+            self._check_mask_metadata_funcs("d_mask.ctb_mask", "c1")
+
+            # ==== JSON tag masking ====
+            tdSql.query("select c0, c1, jtag from d_mask.ctb_json")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 3)
+            self._check_mask_data(0, 1)
+            self._check_mask_data(0, 2)
+        finally:
+            tdSql.connect("root", "taosdata")
+            tdSql.execute("drop database if exists d_mask")
             try:
-                tdSql.query("select 1 from d_mask.ntb_mask limit 1")
-                break
-            except Exception as e:
-                last_exception = e
-                if time.time() - start_time >= max_wait_seconds:
-                    raise last_exception
-                time.sleep(poll_interval_seconds)
-
-        # ==== Normal table ====
-        tdSql.query("select * from d_mask.ntb_mask")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 1, 2)    # c0 visible
-        tdSql.checkData(0, 2, '*')  # c1 masked
-        tdSql.checkData(0, 3, '*')  # c2 masked
-        tdSql.checkData(0, 4, '*')  # c3 masked
-        tdSql.checkData(0, 5, '*')  # c4 masked
-
-        tdSql.query("select c0, c1, c2, c3, c4 from d_mask.ntb_mask")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 2)
-        for i in range(1, 5):
-            tdSql.checkData(0, i, '*')
-
-        tdSql.error("select secret_col from d_mask.ntb_mask")
-
-        # concat_ws with two masked cols
-        tdSql.query("select concat_ws('-', c1, c2) from d_mask.ntb_mask")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, '*')
-
-        # non-masked col alongside masked expression
-        tdSql.query("select c0, upper(c1) from d_mask.ntb_mask")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 2)
-        tdSql.checkData(0, 1, '*')
-
-        # alias should not bypass mask
-        tdSql.query("select c1 as name from d_mask.ntb_mask")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, '*')
-
-        self._check_mask_scalar_funcs("d_mask.ntb_mask", "c1")
-        self._check_mask_scalar_funcs("d_mask.ntb_mask", "c2")
-        self._check_mask_agg_funcs("d_mask.ntb_mask", "c1")
-        self._check_mask_metadata_funcs("d_mask.ntb_mask", "c1")
-
-        # ==== Supertable ====
-        tdSql.query("select * from d_mask.stb_mask")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 1, 1)    # c0 visible
-        for i in range(2, 6):
-            tdSql.checkData(0, i, '*')  # c1-c4 masked
-        tdSql.checkData(0, 6, 0)    # t0 visible
-        for i in range(7, 11):
-            tdSql.checkData(0, i, '*')  # t1-t4 masked
-
-        tdSql.query("select c0, c1, c2, c3, c4 from d_mask.stb_mask")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 1)
-        for i in range(1, 5):
-            tdSql.checkData(0, i, '*')
-
-        tdSql.query("select t1, t2, t3, t4 from d_mask.stb_mask")
-        tdSql.checkRows(1)
-        for i in range(4):
-            tdSql.checkData(0, i, '*')
-
-        # Scalar/aggregate/metadata functions on columns
-        self._check_mask_scalar_funcs("d_mask.stb_mask", "c1")
-        self._check_mask_agg_funcs("d_mask.stb_mask", "c1")
-        self._check_mask_metadata_funcs("d_mask.stb_mask", "c1")
-
-        # Scalar/metadata functions on masked tags
-        self._check_mask_scalar_funcs("d_mask.stb_mask", "t1")
-        self._check_mask_metadata_funcs("d_mask.stb_mask", "t1")
-
-        # Mixed column + tag functions
-        tdSql.query("select upper(c1), lower(t1) from d_mask.stb_mask")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, '*')
-        tdSql.checkData(0, 1, '*')
-
-        # ==== Child table ====
-        tdSql.query("select * from d_mask.ctb_mask")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 1, 1)    # c0 visible
-        for i in range(2, 6):
-            tdSql.checkData(0, i, '*')  # c1-c4 masked
-
-        tdSql.query("select c0, c1, c2, c3, c4, t1, t2, t3, t4 from d_mask.ctb_mask")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 1)
-        for i in range(1, 9):
-            tdSql.checkData(0, i, '*')
-
-        # Scalar/aggregate/metadata functions on child table columns
-        self._check_mask_scalar_funcs("d_mask.ctb_mask", "c1")
-        self._check_mask_agg_funcs("d_mask.ctb_mask", "c1")
-        self._check_mask_metadata_funcs("d_mask.ctb_mask", "c1")
-
-        # ==== JSON tag masking ====
-        tdSql.query("select c0, c1, jtag from d_mask.ctb_json")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 3)
-        tdSql.checkData(0, 1, '*')
-        tdSql.checkData(0, 2, '*')
-
-        # Cleanup
-        tdSql.connect("root", "taosdata")
-        tdSql.execute("drop database if exists d_mask")
-        tdSql.execute("drop user u_mask")
+                tdSql.execute("drop user u_mask", queryTimes=1)
+            except Exception:
+                pass
 
     #
     # ------------------- main ----------------
