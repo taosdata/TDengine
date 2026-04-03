@@ -30,8 +30,10 @@ taos> select * from test_vtable_ts_pushdown_vtb.ctb_0_vtb where ts >= (select lo
  2020-10-10 10:00:02.000 |          13 |
 
 taos> select * from test_vtable_ts_pushdown_vtb.vstb_0 where ts = (select exact_ts from test_vtable_ts_pushdown_origin.bound_t limit 1) order by ts;
+           ts            |  value_col  |  group_id   |
+======================================================
+ 2020-10-10 10:00:02.000 |          13 |           1 |
 
-DB error: Invalid parameters [0x80000118] 
 taos> select * from test_vtable_ts_pushdown_vtb.ntb_0_vtb where ts >= (select first(lower_ts) from test_vtable_ts_pushdown_origin.bound_filter_t where group_id = 1) and ts < (select last(upper_ts) from test_vtable_ts_pushdown_origin.bound_filter_t where group_id = 1) order by ts;
            ts            |  value_col  |
 ========================================
@@ -47,8 +49,10 @@ taos> select * from test_vtable_ts_pushdown_vtb.ntb_multi_vtb where ts >= (selec
  2020-10-10 10:00:03.000 |           4 |         104 |
 
 taos> select * from test_vtable_ts_pushdown_vtb.vstb_0 where ts = (select first(exact_ts) from test_vtable_ts_pushdown_origin.bound_filter_t where group_id = 1) order by ts;
+           ts            |  value_col  |  group_id   |
+======================================================
+ 2020-10-10 10:00:02.000 |          13 |           1 |
 
-DB error: Invalid parameters [0x80000118] 
 taos> select * from test_vtable_ts_pushdown_vtb.ctb_0_vtb where ts = (select last(exact_ts) from test_vtable_ts_pushdown_origin.bound_filter_t where group_id = 1) order by ts;
            ts            |  value_col  |
 ========================================

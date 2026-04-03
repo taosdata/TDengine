@@ -5129,31 +5129,6 @@ static int32_t ctgLaunchGetVStbRefDbsTaskByReq(SCtgTaskReq* pReq) {
     CTG_ERR_JRET(ctgGetVSubtablesMetaFromVnode(pCtg, pConn, pCtx->pMeta->suid, pVg, &tReq));
   }
 
-  if (NULL == pTask->msgCtxs) {
-    pTask->msgCtxs = taosArrayInit_s(sizeof(SCtgMsgCtx), pCtx->vgNum);
-    if (NULL == pTask->msgCtxs) {
-      ctgError("taosArrayInit_s %d SCtgMsgCtx %d failed", pCtx->vgNum, (int32_t)sizeof(SCtgMsgCtx));
-      CTG_ERR_JRET(terrno);
-    }
-  }
-
-  for (int32_t i = 0; i < pCtx->vgNum; ++i) {
-    SVgroupInfo* pVg = (SVgroupInfo*)taosArrayGet(pCtx->pVgroups, i);
-    SCtgMsgCtx*  pReqMsgCtx = CTG_GET_TASK_MSGCTX(pTask, i);
-    if (NULL == pReqMsgCtx) {
-      ctgError("fail to get the %dth pMsgCtx", i);
-      CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
-    }
-
-    pReqMsgCtx->pBatchs = pMsgCtx->pBatchs;
-
-    SCtgTaskReq tReq = (SCtgTaskReq) {.pTask = pTask,
-                                      .msgIdx = i,
-                                      .autoCreateCtb = 0};
-
-    CTG_ERR_JRET(ctgGetVSubtablesMetaFromVnode(pCtg, pConn, pCtx->pMeta->suid, pVg, &tReq));
-  }
-
   if (dbCache) {
     ctgReleaseVgInfoToCache(pCtg, dbCache);
   }
