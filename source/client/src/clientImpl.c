@@ -444,15 +444,18 @@ int32_t execLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
 }
 
 // Track vgId in txn's participant list (deduplicated)
-static void tscTxnTrackVgId(STscObj* pTscObj, int32_t vgId) {
-  if (pTscObj->txnState != UTXN_STAGE_ACTIVE || pTscObj->pTxnVgList == NULL || vgId <= 0) return;
+static int32_t tscTxnTrackVgId(STscObj* pTscObj, int32_t vgId) {
+  if (pTscObj->txnState != UTXN_STAGE_ACTIVE || pTscObj->pTxnVgList == NULL || vgId <= 0) return TSDB_CODE_SUCCESS;
 
   // Dedup: check if vgId is already tracked
   int32_t sz = (int32_t)taosArrayGetSize(pTscObj->pTxnVgList);
   for (int32_t i = 0; i < sz; ++i) {
-    if (*(int32_t*)taosArrayGet(pTscObj->pTxnVgList, i) == vgId) return;
+    if (*(int32_t*)taosArrayGet(pTscObj->pTxnVgList, i) == vgId) return TSDB_CODE_SUCCESS;
   }
-  taosArrayPush(pTscObj->pTxnVgList, &vgId);
+  if (taosArrayPush(pTscObj->pTxnVgList, &vgId) == NULL) {
+    return terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+  }
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t execDdlQuery(SRequestObj* pRequest, SQuery* pQuery) {
@@ -470,7 +473,8 @@ int32_t execDdlQuery(SRequestObj* pRequest, SQuery* pQuery) {
       pMsgInfo->msgType < TDMT_VND_MSG_MAX && pMsgInfo->pMsg != NULL && pMsgInfo->msgLen >= (int32_t)sizeof(SMsgHead)) {
     SMsgHead* pHead = (SMsgHead*)pMsgInfo->pMsg;
     int32_t   vgId = ntohl(pHead->vgId);
-    tscTxnTrackVgId(pTscObj, vgId);
+    int32_t trackCode = tscTxnTrackVgId(pTscObj, vgId);
+    TSC_ERR_RET(trackCode);
   }
 
   pRequest->body.requestMsg = (SDataBuf){.pData = pMsgInfo->pMsg, .len = pMsgInfo->msgLen, .handle = NULL};
@@ -1162,7 +1166,13 @@ int32_t handleQueryExecRsp(SRequestObj* pRequest) {
           if (ppOld && *ppOld) {
             taosMemoryFree(*ppOld);
           }
-          taosHashPut(pTscObj->pTxnTableMeta, fullName, strlen(fullName), &pTableMeta, sizeof(STableMeta*));
+          int32_t putCode =
+              taosHashPut(pTscObj->pTxnTableMeta, fullName, strlen(fullName), &pTableMeta, sizeof(STableMeta*));
+          if (putCode != 0) {
+            taosMemoryFree(pTableMeta);
+            taosThreadMutexUnlock(&pTscObj->mutex);
+            return putCode;
+          }
           tscDebug("conn:0x%" PRIx64 ", txn:%" PRIu64 " updated table meta cache for %s (ALTER)", pTscObj->id,
                    pTscObj->txnId, fullName);
           taosThreadMutexUnlock(&pTscObj->mutex);
@@ -1254,7 +1264,13 @@ int32_t handleQueryExecRsp(SRequestObj* pRequest) {
               // Key: "db.tablename" (dbFName already has "acctId.db" format)
               char fullName[TSDB_TABLE_FNAME_LEN];
               snprintf(fullName, sizeof(fullName), "%s.%s", pMetaRsp->dbFName, pMetaRsp->tbName);
-              taosHashPut(pTscObj->pTxnTableMeta, fullName, strlen(fullName), &pTableMeta, sizeof(STableMeta*));
+              int32_t putCode =
+                  taosHashPut(pTscObj->pTxnTableMeta, fullName, strlen(fullName), &pTableMeta, sizeof(STableMeta*));
+              if (putCode != 0) {
+                taosMemoryFree(pTableMeta);
+                taosThreadMutexUnlock(&pTscObj->mutex);
+                return putCode;
+              }
               tscDebug("conn:0x%" PRIx64 ", txn:%" PRIu64 " cached table meta for %s", pTscObj->id, pTscObj->txnId,
                        fullName);
             } else {
@@ -1292,7 +1308,13 @@ int32_t handleQueryExecRsp(SRequestObj* pRequest) {
                   taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
             }
             if (pTscObj2->pTxnTableMeta) {
-              taosHashPut(pTscObj2->pTxnTableMeta, fullName2, strlen(fullName2), &pTableMeta2, sizeof(STableMeta*));
+              int32_t putCode = taosHashPut(pTscObj2->pTxnTableMeta, fullName2, strlen(fullName2), &pTableMeta2,
+                                            sizeof(STableMeta*));
+              if (putCode != 0) {
+                taosMemoryFree(pTableMeta2);
+                taosThreadMutexUnlock(&pTscObj2->mutex);
+                return putCode;
+              }
               tscDebug("conn:0x%" PRIx64 ", txn:%" PRIu64 " cached STB meta for %s", pTscObj2->id, pTscObj2->txnId,
                        fullName2);
             } else {

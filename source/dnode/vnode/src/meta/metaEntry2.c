@@ -205,7 +205,11 @@ int32_t metaScanTxnEntries(SMeta *pMeta, SArray **ppResult) {
         .txnStatus = pTxnVal->txnStatus,
         .txnPrevVer = pTxnVal->txnPrevVer,
     };
-    taosArrayPush(pResult, &scanEntry);
+    if (taosArrayPush(pResult, &scanEntry) == NULL) {
+      tdbTbcClose(pCursor);
+      taosArrayDestroy(pResult);
+      return terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+    }
 
     if (tdbTbcMoveToNext(pCursor) < 0) break;
   }

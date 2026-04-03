@@ -167,6 +167,8 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
     if (taosHashPut(appInfo.pInstMapByClusterId, &connectRsp.clusterId, LONG_BYTES, &pTscObj->pAppInfo,
                     POINTER_BYTES) != 0) {
       tscError("failed to put appInfo into appInfo.pInstMapByClusterId");
+      code = terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+      goto End;
     } else {
 #ifdef USE_MONITOR
       MonitorSlowLogData data = {0};
@@ -466,7 +468,14 @@ int32_t processCreateSTableRsp(void* param, SDataBuf* pMsg, int32_t code) {
                   taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
             }
             if (pTscObj->pTxnTableMeta) {
-              taosHashPut(pTscObj->pTxnTableMeta, fullName, strlen(fullName), &pTableMeta, sizeof(STableMeta*));
+              int32_t putCode =
+                  taosHashPut(pTscObj->pTxnTableMeta, fullName, strlen(fullName), &pTableMeta, sizeof(STableMeta*));
+              if (putCode != 0) {
+                taosMemoryFree(pTableMeta);
+                taosThreadMutexUnlock(&pTscObj->mutex);
+                doRequestCallback(pRequest, putCode);
+                return putCode;
+              }
               tscDebug("conn:0x%" PRIx64 ", txn:%" PRIu64 " cached STB meta for %s (CREATE STB)", pTscObj->id,
                        pTscObj->txnId, fullName);
             } else {
@@ -633,7 +642,14 @@ int32_t processAlterTbRsp(void* param, SDataBuf* pMsg, int32_t code) {
             if (ppOld && *ppOld) {
               taosMemoryFree(*ppOld);
             }
-            taosHashPut(pTscObj->pTxnTableMeta, fullName, strlen(fullName), &pTableMeta, sizeof(STableMeta*));
+            int32_t putCode =
+                taosHashPut(pTscObj->pTxnTableMeta, fullName, strlen(fullName), &pTableMeta, sizeof(STableMeta*));
+            if (putCode != 0) {
+              taosMemoryFree(pTableMeta);
+              taosThreadMutexUnlock(&pTscObj->mutex);
+              doRequestCallback(pRequest, putCode);
+              return putCode;
+            }
             tscDebug("conn:0x%" PRIx64 ", txn:%" PRIu64 " updated table meta cache for %s (ALTER)", pTscObj->id,
                      pTscObj->txnId, fullName);
             taosThreadMutexUnlock(&pTscObj->mutex);
@@ -1503,6 +1519,22 @@ static int32_t processBeginTxnRsp(void* param, SDataBuf* pMsg, int32_t code) {
       pTscObj->txnState = UTXN_STAGE_ACTIVE;
       if (pTscObj->pTxnVgList == NULL) {
         pTscObj->pTxnVgList = taosArrayInit(4, sizeof(int32_t));
+        if (pTscObj->pTxnVgList == NULL) {
+          taosThreadMutexUnlock(&pTscObj->mutex);
+          code = terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+          setErrno(pRequest, code);
+          tFreeSMTransReq(&rsp);
+          taosMemoryFree(pMsg->pEpSet);
+          taosMemoryFree(pMsg->pData);
+          if (pRequest->body.queryFp != NULL) {
+            doRequestCallback(pRequest, code);
+          } else {
+            if (tsem_post(&pRequest->body.rspSem) != 0) {
+              tscError("failed to post semaphore");
+            }
+          }
+          return code;
+        }
       }
       taosThreadMutexUnlock(&pTscObj->mutex);
       tscInfo("conn:0x%" PRIx64 ", txn:%" PRIu64 " began (SQL path)", pTscObj->id, pTscObj->txnId);

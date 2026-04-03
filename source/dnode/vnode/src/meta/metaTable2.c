@@ -282,7 +282,14 @@ int32_t metaDropSuperTable(SMeta *pMeta, int64_t verison, SVDropStbReq *pReq) {
         };
         code = metaHandleEntry2(pMeta, &delEntry);
         if (code == 0) {
-          metaTxnIdxDelete(pMeta, pReq->suid);
+          int32_t idxCode = metaTxnIdxDelete(pMeta, pReq->suid);
+          if (idxCode != 0) {
+            metaError("vgId:%d, %s failed to cleanup txn.idx for stb uid:%" PRId64 " txnId:%" PRIu64 " code:0x%x",
+                      TD_VID(pMeta->pVnode), __func__, pReq->suid, pReq->txnId, idxCode);
+            if (!TXN_IS_REPLICATED(pReq->txnId) || idxCode != TSDB_CODE_TXN_NOT_EXIST) {
+              TAOS_RETURN(idxCode);
+            }
+          }
           metaInfo("vgId:%d, stb %s uid %" PRId64 " PRE_CREATE undone (same-txn DROP), txnId:%" PRIu64,
                    TD_VID(pMeta->pVnode), pReq->name, pReq->suid, pReq->txnId);
         } else {
@@ -303,7 +310,14 @@ int32_t metaDropSuperTable(SMeta *pMeta, int64_t verison, SVDropStbReq *pReq) {
       metaError("vgId:%d, %s failed to mark PRE_DROP for stb uid:%" PRId64 " name:%s txnId:%" PRIu64,
                 TD_VID(pMeta->pVnode), __func__, pReq->suid, pReq->name, pReq->txnId);
     } else {
-      metaTxnIdxUpsert(pMeta, pReq->suid, pReq->txnId, META_TXN_PRE_DROP, -1);
+      int32_t idxCode = metaTxnIdxUpsert(pMeta, pReq->suid, pReq->txnId, META_TXN_PRE_DROP, -1);
+      if (idxCode != 0) {
+        metaError("vgId:%d, %s failed to upsert txn.idx for stb uid:%" PRId64 " txnId:%" PRIu64 " code:0x%x",
+                  TD_VID(pMeta->pVnode), __func__, pReq->suid, pReq->txnId, idxCode);
+        if (!TXN_IS_REPLICATED(pReq->txnId) || idxCode != TSDB_CODE_TXN_NOT_EXIST) {
+          TAOS_RETURN(idxCode);
+        }
+      }
       metaInfo("vgId:%d, stb %s uid %" PRId64 " marked PRE_DROP, txnId:%" PRIu64, TD_VID(pMeta->pVnode), pReq->name,
                pReq->suid, pReq->txnId);
     }
@@ -1036,7 +1050,14 @@ int32_t metaDropTable2(SMeta *pMeta, int64_t version, SVDropTbReq *pReq) {
         code = metaHandleEntry2(pMeta, &delEntry);
         if (code == 0) {
           // Also clean up txn.idx entry that was created during the original CREATE
-          metaTxnIdxDelete(pMeta, pReq->uid);
+          int32_t idxCode = metaTxnIdxDelete(pMeta, pReq->uid);
+          if (idxCode != 0) {
+            metaError("vgId:%d, %s failed to cleanup txn.idx for uid:%" PRId64 " txnId:%" PRId64 " code:0x%x",
+                      TD_VID(pMeta->pVnode), __func__, pReq->uid, pReq->txnId, idxCode);
+            if (!TXN_IS_REPLICATED(pReq->txnId) || idxCode != TSDB_CODE_TXN_NOT_EXIST) {
+              TAOS_RETURN(idxCode);
+            }
+          }
           metaInfo("vgId:%d, table %s uid %" PRId64 " PRE_CREATE undone (same-txn DROP), txnId:%" PRId64,
                    TD_VID(pMeta->pVnode), pReq->name, pReq->uid, pReq->txnId);
         } else {
@@ -1058,7 +1079,14 @@ int32_t metaDropTable2(SMeta *pMeta, int64_t version, SVDropTbReq *pReq) {
                 __func__, pReq->uid, pReq->name, pReq->txnId);
     } else {
       // Update txn.idx to reflect PRE_DROP status
-      metaTxnIdxUpsert(pMeta, pReq->uid, pReq->txnId, META_TXN_PRE_DROP, -1);
+      int32_t idxCode = metaTxnIdxUpsert(pMeta, pReq->uid, pReq->txnId, META_TXN_PRE_DROP, -1);
+      if (idxCode != 0) {
+        metaError("vgId:%d, %s failed to upsert txn.idx for uid:%" PRId64 " txnId:%" PRId64 " code:0x%x",
+                  TD_VID(pMeta->pVnode), __func__, pReq->uid, pReq->txnId, idxCode);
+        if (!TXN_IS_REPLICATED(pReq->txnId) || idxCode != TSDB_CODE_TXN_NOT_EXIST) {
+          TAOS_RETURN(idxCode);
+        }
+      }
       metaInfo("vgId:%d, table %s uid %" PRId64 " marked PRE_DROP, txnId:%" PRId64, TD_VID(pMeta->pVnode), pReq->name,
                pReq->uid, pReq->txnId);
     }

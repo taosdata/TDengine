@@ -654,7 +654,12 @@ int32_t mndTxnAddShadowOp(SMnode *pMnode, utxn_id_t txnId, int8_t opType, const 
   op.pReqData = pReqData;  // ownership transferred
   op.reqDataLen = reqDataLen;
 
-  taosArrayPush(pTxn->pShadowOps, &op);
+  if (taosArrayPush(pTxn->pShadowOps, &op) == NULL) {
+    taosWUnLockLatch(&pTxn->lock);
+    mndReleaseTxn(pMnode, pTxn);
+    taosMemoryFreeClear(pReqData);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
   pTxn->lastActiveTime = taosGetTimestampMs();
 
   taosWUnLockLatch(&pTxn->lock);
@@ -909,7 +914,10 @@ static SHashObj *mndCollectTxnVgroupIds(SMnode *pMnode, STxnObj *pTxn) {
   for (int32_t i = 0; i < numVgs; i++) {
     int32_t vgId = *(int32_t *)taosArrayGet(pTxn->pVgList, i);
     int8_t  dummy = 1;
-    taosHashPut(pVgSet, &vgId, sizeof(vgId), &dummy, sizeof(dummy));
+    if (taosHashPut(pVgSet, &vgId, sizeof(vgId), &dummy, sizeof(dummy)) != 0) {
+      taosHashCleanup(pVgSet);
+      return NULL;
+    }
   }
 
   // (2) Add DB VGroups from CREATE_STB shadow ops (undo-log model: STB already distributed to all DB VGroups)
@@ -934,7 +942,12 @@ static SHashObj *mndCollectTxnVgroupIds(SMnode *pMnode, STxnObj *pTxn) {
         }
         int32_t vgId = pVgroup->vgId;
         int8_t  dummy = 1;
-        taosHashPut(pVgSet, &vgId, sizeof(vgId), &dummy, sizeof(dummy));
+        if (taosHashPut(pVgSet, &vgId, sizeof(vgId), &dummy, sizeof(dummy)) != 0) {
+          sdbRelease(pSdb, pVgroup);
+          mndReleaseDb(pMnode, pDb);
+          taosHashCleanup(pVgSet);
+          return NULL;
+        }
         sdbRelease(pSdb, pVgroup);
       }
       mndReleaseDb(pMnode, pDb);
@@ -954,7 +967,11 @@ static SHashObj *mndCollectTxnVgroupIds(SMnode *pMnode, STxnObj *pTxn) {
       if (pIter == NULL) break;
       int32_t vgId = pVgroup->vgId;
       int8_t  dummy = 1;
-      taosHashPut(pVgSet, &vgId, sizeof(vgId), &dummy, sizeof(dummy));
+      if (taosHashPut(pVgSet, &vgId, sizeof(vgId), &dummy, sizeof(dummy)) != 0) {
+        sdbRelease(pSdb, pVgroup);
+        taosHashCleanup(pVgSet);
+        return NULL;
+      }
       sdbRelease(pSdb, pVgroup);
     }
   }
@@ -1080,38 +1097,40 @@ static int32_t mndCommitTxn(SMnode *pMnode, SRpcMsg *pReq, STxnObj *pTxn) {
   // Add redo actions: send COMMIT to each participant VGroup (pVgList + CREATE_STB DB VGroups)
   {
     SHashObj *pVgSet = mndCollectTxnVgroupIds(pMnode, pTxn);
-    if (pVgSet != NULL) {
-      void *pIter = taosHashIterate(pVgSet, NULL);
-      while (pIter != NULL) {
-        int32_t vgId = *(int32_t *)taosHashGetKey(pIter, NULL);
-        int32_t contLen = 0;
-        void   *pCont = mndBuildVTxnCommitReq(pMnode, vgId, pTxn, &contLen);
-        if (pCont == NULL) {
-          taosHashCancelIterate(pVgSet, pIter);
-          taosHashCleanup(pVgSet);
-          TAOS_CHECK_EXIT(terrno ? terrno : TSDB_CODE_OUT_OF_MEMORY);
-        }
-
-        STransAction action = {0};
-        action.mTraceId = pTrans->mTraceId;
-        action.epSet = mndGetVgroupEpsetById(pMnode, vgId);
-        action.pCont = pCont;
-        action.contLen = contLen;
-        action.msgType = TDMT_VND_TXN_COMMIT;
-        action.acceptableCode = TSDB_CODE_SUCCESS;  // idempotent
-        action.groupId = vgId;
-
-        code = mndTransAppendRedoAction(pTrans, &action);
-        if (code != 0) {
-          taosHashCancelIterate(pVgSet, pIter);
-          taosHashCleanup(pVgSet);
-          TAOS_CHECK_EXIT(code);
-        }
-        mInfo("txn:%" PRIu64 ", append commit action for vgId:%d", pTxn->id, vgId);
-        pIter = taosHashIterate(pVgSet, pIter);
-      }
-      taosHashCleanup(pVgSet);
+    if (pVgSet == NULL) {
+      TAOS_CHECK_EXIT(terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY);
     }
+
+    void *pIter = taosHashIterate(pVgSet, NULL);
+    while (pIter != NULL) {
+      int32_t vgId = *(int32_t *)taosHashGetKey(pIter, NULL);
+      int32_t contLen = 0;
+      void   *pCont = mndBuildVTxnCommitReq(pMnode, vgId, pTxn, &contLen);
+      if (pCont == NULL) {
+        taosHashCancelIterate(pVgSet, pIter);
+        taosHashCleanup(pVgSet);
+        TAOS_CHECK_EXIT(terrno ? terrno : TSDB_CODE_OUT_OF_MEMORY);
+      }
+
+      STransAction action = {0};
+      action.mTraceId = pTrans->mTraceId;
+      action.epSet = mndGetVgroupEpsetById(pMnode, vgId);
+      action.pCont = pCont;
+      action.contLen = contLen;
+      action.msgType = TDMT_VND_TXN_COMMIT;
+      action.acceptableCode = TSDB_CODE_SUCCESS;  // idempotent
+      action.groupId = vgId;
+
+      code = mndTransAppendRedoAction(pTrans, &action);
+      if (code != 0) {
+        taosHashCancelIterate(pVgSet, pIter);
+        taosHashCleanup(pVgSet);
+        TAOS_CHECK_EXIT(code);
+      }
+      mInfo("txn:%" PRIu64 ", append commit action for vgId:%d", pTxn->id, vgId);
+      pIter = taosHashIterate(pVgSet, pIter);
+    }
+    taosHashCleanup(pVgSet);
   }
 
   TAOS_CHECK_EXIT(mndTransPrepare(pMnode, pTrans));
@@ -1162,38 +1181,40 @@ static int32_t mndRollbackTxn(SMnode *pMnode, SRpcMsg *pReq, STxnObj *pTxn, int3
   // Add redo actions: send ROLLBACK to each participant VGroup (pVgList + CREATE_STB DB VGroups)
   {
     SHashObj *pVgSet = mndCollectTxnVgroupIds(pMnode, pTxn);
-    if (pVgSet != NULL) {
-      void *pIter = taosHashIterate(pVgSet, NULL);
-      while (pIter != NULL) {
-        int32_t vgId = *(int32_t *)taosHashGetKey(pIter, NULL);
-        int32_t contLen = 0;
-        void   *pCont = mndBuildVTxnRollbackReq(pMnode, vgId, pTxn, reason, &contLen);
-        if (pCont == NULL) {
-          taosHashCancelIterate(pVgSet, pIter);
-          taosHashCleanup(pVgSet);
-          TAOS_CHECK_EXIT(terrno ? terrno : TSDB_CODE_OUT_OF_MEMORY);
-        }
-
-        STransAction action = {0};
-        action.mTraceId = pTrans->mTraceId;
-        action.epSet = mndGetVgroupEpsetById(pMnode, vgId);
-        action.pCont = pCont;
-        action.contLen = contLen;
-        action.msgType = TDMT_VND_TXN_ROLLBACK;
-        action.acceptableCode = TSDB_CODE_SUCCESS;  // idempotent
-        action.groupId = vgId;
-
-        code = mndTransAppendRedoAction(pTrans, &action);
-        if (code != 0) {
-          taosHashCancelIterate(pVgSet, pIter);
-          taosHashCleanup(pVgSet);
-          TAOS_CHECK_EXIT(code);
-        }
-        mInfo("txn:%" PRIu64 ", append rollback action for vgId:%d", pTxn->id, vgId);
-        pIter = taosHashIterate(pVgSet, pIter);
-      }
-      taosHashCleanup(pVgSet);
+    if (pVgSet == NULL) {
+      TAOS_CHECK_EXIT(terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY);
     }
+
+    void *pIter = taosHashIterate(pVgSet, NULL);
+    while (pIter != NULL) {
+      int32_t vgId = *(int32_t *)taosHashGetKey(pIter, NULL);
+      int32_t contLen = 0;
+      void   *pCont = mndBuildVTxnRollbackReq(pMnode, vgId, pTxn, reason, &contLen);
+      if (pCont == NULL) {
+        taosHashCancelIterate(pVgSet, pIter);
+        taosHashCleanup(pVgSet);
+        TAOS_CHECK_EXIT(terrno ? terrno : TSDB_CODE_OUT_OF_MEMORY);
+      }
+
+      STransAction action = {0};
+      action.mTraceId = pTrans->mTraceId;
+      action.epSet = mndGetVgroupEpsetById(pMnode, vgId);
+      action.pCont = pCont;
+      action.contLen = contLen;
+      action.msgType = TDMT_VND_TXN_ROLLBACK;
+      action.acceptableCode = TSDB_CODE_SUCCESS;  // idempotent
+      action.groupId = vgId;
+
+      code = mndTransAppendRedoAction(pTrans, &action);
+      if (code != 0) {
+        taosHashCancelIterate(pVgSet, pIter);
+        taosHashCleanup(pVgSet);
+        TAOS_CHECK_EXIT(code);
+      }
+      mInfo("txn:%" PRIu64 ", append rollback action for vgId:%d", pTxn->id, vgId);
+      pIter = taosHashIterate(pVgSet, pIter);
+    }
+    taosHashCleanup(pVgSet);
   }
 
   // Undo MNode-side shadow ops — CREATE_STB: append DROP to this Trans; DROP/ALTER: discard
@@ -1349,24 +1370,27 @@ static int32_t mndProcessCommitTxnReq(SRpcMsg *pReq) {
   if (txnReq.pVgList != NULL && taosArrayGetSize(txnReq.pVgList) > 0) {
     if (pTxn->pVgList == NULL) {
       pTxn->pVgList = taosArrayInit(taosArrayGetSize(txnReq.pVgList), sizeof(int32_t));
+      if (pTxn->pVgList == NULL) {
+        TAOS_CHECK_EXIT(terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY);
+      }
     }
-    if (pTxn->pVgList != NULL) {
-      int32_t nNew = (int32_t)taosArrayGetSize(txnReq.pVgList);
-      for (int32_t i = 0; i < nNew; ++i) {
-        int32_t vgId = *(int32_t *)taosArrayGet(txnReq.pVgList, i);
-        // Dedup check
-        bool    found = false;
-        int32_t nExist = (int32_t)taosArrayGetSize(pTxn->pVgList);
-        for (int32_t j = 0; j < nExist; ++j) {
-          if (*(int32_t *)taosArrayGet(pTxn->pVgList, j) == vgId) {
-            found = true;
-            break;
-          }
+    int32_t nNew = (int32_t)taosArrayGetSize(txnReq.pVgList);
+    for (int32_t i = 0; i < nNew; ++i) {
+      int32_t vgId = *(int32_t *)taosArrayGet(txnReq.pVgList, i);
+      // Dedup check
+      bool    found = false;
+      int32_t nExist = (int32_t)taosArrayGetSize(pTxn->pVgList);
+      for (int32_t j = 0; j < nExist; ++j) {
+        if (*(int32_t *)taosArrayGet(pTxn->pVgList, j) == vgId) {
+          found = true;
+          break;
         }
-        if (!found) {
-          taosArrayPush(pTxn->pVgList, &vgId);
-          mInfo("txn:%" PRIu64 ", merged client vgId:%d into participant list", pTxn->id, vgId);
+      }
+      if (!found) {
+        if (taosArrayPush(pTxn->pVgList, &vgId) == NULL) {
+          TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
         }
+        mInfo("txn:%" PRIu64 ", merged client vgId:%d into participant list", pTxn->id, vgId);
       }
     }
   }
@@ -1427,21 +1451,24 @@ static int32_t mndProcessRollbackTxnReq(SRpcMsg *pReq) {
   if (txnReq.pVgList != NULL && taosArrayGetSize(txnReq.pVgList) > 0) {
     if (pTxn->pVgList == NULL) {
       pTxn->pVgList = taosArrayInit(taosArrayGetSize(txnReq.pVgList), sizeof(int32_t));
+      if (pTxn->pVgList == NULL) {
+        TAOS_CHECK_EXIT(terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY);
+      }
     }
-    if (pTxn->pVgList != NULL) {
-      int32_t nNew = (int32_t)taosArrayGetSize(txnReq.pVgList);
-      for (int32_t i = 0; i < nNew; ++i) {
-        int32_t vgId = *(int32_t *)taosArrayGet(txnReq.pVgList, i);
-        bool    found = false;
-        int32_t nExist = (int32_t)taosArrayGetSize(pTxn->pVgList);
-        for (int32_t j = 0; j < nExist; ++j) {
-          if (*(int32_t *)taosArrayGet(pTxn->pVgList, j) == vgId) {
-            found = true;
-            break;
-          }
+    int32_t nNew = (int32_t)taosArrayGetSize(txnReq.pVgList);
+    for (int32_t i = 0; i < nNew; ++i) {
+      int32_t vgId = *(int32_t *)taosArrayGet(txnReq.pVgList, i);
+      bool    found = false;
+      int32_t nExist = (int32_t)taosArrayGetSize(pTxn->pVgList);
+      for (int32_t j = 0; j < nExist; ++j) {
+        if (*(int32_t *)taosArrayGet(pTxn->pVgList, j) == vgId) {
+          found = true;
+          break;
         }
-        if (!found) {
-          taosArrayPush(pTxn->pVgList, &vgId);
+      }
+      if (!found) {
+        if (taosArrayPush(pTxn->pVgList, &vgId) == NULL) {
+          TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
         }
       }
     }

@@ -880,6 +880,12 @@ static int32_t getTableCfg(STranslateContext* pCxt, const SName* pName, STableCf
             }
             if (pMeta->tableInfo.numOfColumns > 0) {
               pTmpCfg->pSchemaExt = taosMemoryCalloc(pMeta->tableInfo.numOfColumns, sizeof(SSchemaExt));
+              if (pTmpCfg->pSchemaExt == NULL) {
+                taosMemoryFree(pTmpCfg->pSchemas);
+                taosMemoryFree(pTmpCfg);
+                code = terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+                goto end;
+              }
             }
             *pCfg = pTmpCfg;
             foundInTxnCache = true;
@@ -927,6 +933,12 @@ static int32_t getTableCfg(STranslateContext* pCxt, const SName* pName, STableCf
             }
             if (pMeta->tableInfo.numOfColumns > 0) {
               pTmpCfg->pSchemaExt = taosMemoryCalloc(pMeta->tableInfo.numOfColumns, sizeof(SSchemaExt));
+              if (pTmpCfg->pSchemaExt == NULL) {
+                taosMemoryFree(pTmpCfg->pSchemas);
+                taosMemoryFree(pTmpCfg);
+                code = terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+                goto end;
+              }
             }
             *pCfg = pTmpCfg;
             code = TSDB_CODE_SUCCESS;

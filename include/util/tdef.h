@@ -916,6 +916,20 @@ typedef int64_t utxn_id_t;
 #define TXN_SET_REPLICATED(id) ((id) | TXN_REPLICATED_FLAG)
 #define TXN_CLR_REPLICATED(id) ((id) & ~TXN_REPLICATED_FLAG)
 
+static inline bool txnShouldPropagateError(utxn_id_t txnId, int32_t code, int32_t replicatedIgnoreCode) {
+  if (txnId == 0 || code == 0) {
+    return false;
+  }
+
+  // Source-cluster txn path: any error must be propagated to trigger rollback.
+  if (!TXN_IS_REPLICATED(txnId)) {
+    return true;
+  }
+
+  // Target-cluster replay path: ignore only idempotent "txn not exist" style errors.
+  return code != replicatedIgnoreCode;
+}
+
 #define MIN_RESERVE_MEM_SIZE 1024  // MB
 
 // Decimal

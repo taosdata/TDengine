@@ -1574,10 +1574,24 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, 
         // Use txnStatus from message if set (snapshot replication may carry PRE_DROP/PRE_ALTER),
         // otherwise default to PRE_CREATE for normal WAL/DDL path.
         int8_t effectiveTxnStatus = pCreateReq->txnStatus > 0 ? pCreateReq->txnStatus : META_TXN_PRE_CREATE;
-        metaTxnIdxUpsert(pVnode->pMeta, pCreateReq->uid, pCreateReq->txnId, effectiveTxnStatus, -1);
+        int32_t idxCode = metaTxnIdxUpsert(pVnode->pMeta, pCreateReq->uid, pCreateReq->txnId, effectiveTxnStatus, -1);
+        if (idxCode != 0) {
+          vError("vgId:%d, txn create table %s: metaTxnIdxUpsert failed, code:0x%x", TD_VID(pVnode), tbName, idxCode);
+          if (txnShouldPropagateError(pCreateReq->txnId, idxCode, TSDB_CODE_TXN_NOT_EXIST)) {
+            cRsp.code = idxCode;
+          }
+        }
         // For snapshot PRE_DROP/PRE_ALTER: mark the entry after creation
         if (effectiveTxnStatus != META_TXN_PRE_CREATE) {
-          metaMarkTableTxnStatus(pVnode->pMeta, pCreateReq->uid, pCreateReq->txnId, effectiveTxnStatus, -1);
+          int32_t markCode =
+              metaMarkTableTxnStatus(pVnode->pMeta, pCreateReq->uid, pCreateReq->txnId, effectiveTxnStatus, -1);
+          if (markCode != 0) {
+            vError("vgId:%d, txn create table %s: metaMarkTableTxnStatus failed, code:0x%x", TD_VID(pVnode), tbName,
+                   markCode);
+            if (txnShouldPropagateError(pCreateReq->txnId, markCode, TSDB_CODE_TXN_NOT_EXIST)) {
+              cRsp.code = markCode;
+            }
+          }
         }
         vnodeUpdateMetaRsp(pVnode, cRsp.pMeta);
       }
@@ -1968,10 +1982,25 @@ static int32_t vnodeProcessAlterTbReq(SVnode *pVnode, int64_t ver, void *pReq, i
     } else {
       // Mark the new entry with PRE_ALTER, persist prevVersion for rollback
       if (alterUid != 0) {
-        metaMarkTableTxnStatus(pVnode->pMeta, alterUid, vAlterTbReq.txnId, META_TXN_PRE_ALTER, alterPrevVer);
-        metaTxnIdxUpsert(pVnode->pMeta, alterUid, vAlterTbReq.txnId, META_TXN_PRE_ALTER, alterPrevVer);
+        int32_t markCode =
+            metaMarkTableTxnStatus(pVnode->pMeta, alterUid, vAlterTbReq.txnId, META_TXN_PRE_ALTER, alterPrevVer);
+        if (markCode != 0) {
+          vError("vgId:%d, txn alter table %s: metaMarkTableTxnStatus failed, code:0x%x", TD_VID(pVnode),
+                 vAlterTbReq.tbName, markCode);
+          if (txnShouldPropagateError(vAlterTbReq.txnId, markCode, TSDB_CODE_TXN_NOT_EXIST)) {
+            vAlterTbRsp.code = markCode;
+          }
+        }
+        int32_t idxCode =
+            metaTxnIdxUpsert(pVnode->pMeta, alterUid, vAlterTbReq.txnId, META_TXN_PRE_ALTER, alterPrevVer);
+        if (idxCode != 0) {
+          vError("vgId:%d, txn alter table %s: metaTxnIdxUpsert failed, code:0x%x", TD_VID(pVnode), vAlterTbReq.tbName,
+                 idxCode);
+          if (txnShouldPropagateError(vAlterTbReq.txnId, idxCode, TSDB_CODE_TXN_NOT_EXIST)) {
+            vAlterTbRsp.code = idxCode;
+          }
+        }
       }
-      vAlterTbRsp.code = TSDB_CODE_SUCCESS;
     }
     // Return new schema to client for same-txn visibility (pTxnTableMeta update)
     if (NULL != vMetaRsp.pSchemas) {

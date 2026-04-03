@@ -180,7 +180,9 @@ int32_t vnodeTxnRebuildFromMeta(SVnode *pVnode) {
     // If PRE_ALTER, also reconstruct the ALTER old version record
     if (pScan->txnStatus == META_TXN_PRE_ALTER && pScan->txnPrevVer >= 0) {
       SVnodeAlterRecord rec = {.uid = pScan->uid, .prevVersion = pScan->txnPrevVer};
-      taosArrayPush(pEntry->pAlterPrevVers, &rec);
+      if (taosArrayPush(pEntry->pAlterPrevVers, &rec) == NULL) {
+        vError("vgId:%d, txn rebuild: failed to push alter record for uid:%" PRId64, TD_VID(pVnode), pScan->uid);
+      }
     }
 
     vDebug("vgId:%d, txn rebuild: uid:%" PRId64 " txnId:%" PRId64 " status:%d oldVer:%" PRId64, TD_VID(pVnode),
@@ -212,11 +214,11 @@ static int32_t vnodeCreateTxnEntry(SVnode *pVnode, int64_t txnId, int64_t term) 
   entry.pAlterPrevVers = taosArrayInit(4, sizeof(SVnodeAlterRecord));
   entry.pLockedTables = taosArrayInit(8, sizeof(char *));
 
-  if (entry.pTouchedUids == NULL || entry.pLockedTables == NULL) {
+  if (entry.pTouchedUids == NULL || entry.pAlterPrevVers == NULL || entry.pLockedTables == NULL) {
     taosArrayDestroy(entry.pTouchedUids);
     taosArrayDestroy(entry.pAlterPrevVers);
     taosArrayDestroy(entry.pLockedTables);
-    return terrno;
+    return terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
   }
 
   int32_t code = taosHashPut(pVnode->pTxnHash, &txnId, sizeof(int64_t), &entry, sizeof(SVnodeTxnEntry));
@@ -298,7 +300,9 @@ static void vnodeTxnTrackUid(SVnodeTxnEntry *pEntry, tb_uid_t uid) {
       return;  // already tracked
     }
   }
-  taosArrayPush(pEntry->pTouchedUids, &uid);
+  if (taosArrayPush(pEntry->pTouchedUids, &uid) == NULL) {
+    vError("vnodeTxnTrackUid: failed to push uid:%" PRId64, uid);
+  }
 }
 
 /**
@@ -329,7 +333,9 @@ void vnodeTxnTrackAlter(SVnode *pVnode, int64_t txnId, tb_uid_t uid, int64_t pre
   SVnodeTxnEntry *pEntry = vnodeGetTxnEntry(pVnode, txnId);
   if (pEntry) {
     SVnodeAlterRecord rec = {.uid = uid, .prevVersion = prevVersion};
-    taosArrayPush(pEntry->pAlterPrevVers, &rec);
+    if (taosArrayPush(pEntry->pAlterPrevVers, &rec) == NULL) {
+      vError("vgId:%d, vnodeTxnTrackAlter: failed to push alter record for uid:%" PRId64, TD_VID(pVnode), uid);
+    }
     vnodeTxnTrackUid(pEntry, uid);
     pEntry->lastActive = taosGetTimestampMs();
   }
@@ -388,7 +394,15 @@ static int32_t vnodeTxnPromoteShadowEntries(SVnode *pVnode, SVnodeTxnEntry *pEnt
         // Physically delete: reissue drop with txnId=0
         if (pME->type == TSDB_SUPER_TABLE) {
           // STB: first clear txn status, then physically drop via STB path
-          metaMarkTableTxnStatus(pVnode->pMeta, uid, 0, META_TXN_NORMAL, -1);
+          int32_t markCode = metaMarkTableTxnStatus(pVnode->pMeta, uid, 0, META_TXN_NORMAL, -1);
+          if (markCode != 0) {
+            vError("vgId:%d, commit: failed to clear PRE_DROP status for STB uid %" PRId64 ", code:0x%x",
+                   TD_VID(pVnode), uid, markCode);
+            if (txnShouldPropagateError(pEntry->txnId, markCode, TSDB_CODE_TXN_NOT_EXIST)) {
+              metaFetchEntryFree(&pME);
+              return markCode;
+            }
+          }
           SVDropStbReq stbDropReq = {.name = pME->name, .suid = uid, .txnId = 0};
           code = metaDropSuperTable(pVnode->pMeta, -1, &stbDropReq);
         } else {
@@ -413,8 +427,20 @@ static int32_t vnodeTxnPromoteShadowEntries(SVnode *pVnode, SVnodeTxnEntry *pEnt
         break;
     }
 
+    if (code != 0 && txnShouldPropagateError(pEntry->txnId, code, TSDB_CODE_TXN_NOT_EXIST)) {
+      metaFetchEntryFree(&pME);
+      return code;
+    }
+
     // Remove from txn.idx regardless of status
-    metaTxnIdxDelete(pVnode->pMeta, uid);
+    int32_t idxCode = metaTxnIdxDelete(pVnode->pMeta, uid);
+    if (idxCode != 0) {
+      vError("vgId:%d, commit: failed to delete txn.idx for uid %" PRId64 ", code:0x%x", TD_VID(pVnode), uid, idxCode);
+      if (txnShouldPropagateError(pEntry->txnId, idxCode, TSDB_CODE_TXN_NOT_EXIST)) {
+        metaFetchEntryFree(&pME);
+        return idxCode;
+      }
+    }
 
     metaFetchEntryFree(&pME);
   }
@@ -551,7 +577,11 @@ static int32_t vnodeTxnUndoShadowEntries(SVnode *pVnode, SVnodeTxnEntry *pEntry)
           }
         } else {
           // Fallback: just clear txnStatus on the current entry
-          metaMarkTableTxnStatus(pVnode->pMeta, uid, 0, META_TXN_NORMAL, -1);
+          code = metaMarkTableTxnStatus(pVnode->pMeta, uid, 0, META_TXN_NORMAL, -1);
+          if (code != 0) {
+            vError("vgId:%d, rollback: failed to clear ALTER status for uid %" PRId64 ", code:0x%x", TD_VID(pVnode),
+                   uid, code);
+          }
           vWarn("vgId:%d, rollback: ALTER uid %" PRId64 " old version not found, cleared status", TD_VID(pVnode), uid);
         }
         break;
@@ -562,8 +592,21 @@ static int32_t vnodeTxnUndoShadowEntries(SVnode *pVnode, SVnodeTxnEntry *pEntry)
         break;
     }
 
+    if (code != 0 && txnShouldPropagateError(pEntry->txnId, code, TSDB_CODE_TXN_NOT_EXIST)) {
+      metaFetchEntryFree(&pME);
+      return code;
+    }
+
     // Remove from txn.idx regardless of status
-    metaTxnIdxDelete(pVnode->pMeta, uid);
+    int32_t idxCode = metaTxnIdxDelete(pVnode->pMeta, uid);
+    if (idxCode != 0) {
+      vError("vgId:%d, rollback: failed to delete txn.idx for uid %" PRId64 ", code:0x%x", TD_VID(pVnode), uid,
+             idxCode);
+      if (txnShouldPropagateError(pEntry->txnId, idxCode, TSDB_CODE_TXN_NOT_EXIST)) {
+        metaFetchEntryFree(&pME);
+        return idxCode;
+      }
+    }
 
     metaFetchEntryFree(&pME);
   }
@@ -743,7 +786,12 @@ int32_t vnodeTxnFencing(SVnode *pVnode, int64_t newTerm, int64_t newTxnId) {
     if (pEntry->term > 0 && pEntry->term < newTerm && pEntry->txnId != newTxnId && !TXN_IS_REPLICATED(pEntry->txnId)) {
       vInfo("vgId:%d, fencing: abort txn, txnId:%" PRId64 ", term:%" PRId64 ", newTerm:%" PRId64, TD_VID(pVnode),
             pEntry->txnId, pEntry->term, newTerm);
-      taosArrayPush(toAbort, &pEntry->txnId);
+      if (taosArrayPush(toAbort, &pEntry->txnId) == NULL) {
+        vError("vgId:%d, fencing: failed to push txnId:%" PRId64 " to abort list", TD_VID(pVnode), pEntry->txnId);
+        taosThreadMutexUnlock(&pVnode->txnMutex);
+        taosArrayDestroy(toAbort);
+        return terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+      }
     }
 
     pIter = taosHashIterate(pVnode->pTxnHash, pIter);
@@ -798,7 +846,11 @@ int32_t vnodeCollectIdleTxns(SVnode *pVnode, SArray *pQueries) {
     if (pEntry->stage == VTXN_STAGE_ACTIVE && !TXN_IS_REPLICATED(pEntry->txnId) &&
         (now - pEntry->lastActive > quietThreshold)) {
       STxnActiveQuery q = {.txnId = pEntry->txnId, .vgId = TD_VID(pVnode)};
-      taosArrayPush(pQueries, &q);
+      if (taosArrayPush(pQueries, &q) == NULL) {
+        vError("vgId:%d, failed to push keepalive query for txnId:%" PRId64, TD_VID(pVnode), pEntry->txnId);
+        taosThreadMutexUnlock(&pVnode->txnMutex);
+        return terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+      }
     }
     pIter = taosHashIterate(pVnode->pTxnHash, pIter);
   }
@@ -854,12 +906,21 @@ int32_t vnodeTxnLockTable(SVnode *pVnode, const char *tableName, int64_t txnId) 
   }
 
   // Acquire the lock: add tableName → txnId mapping
-  taosHashPut(pVnode->pTxnTableLock, tableName, nameLen, &txnId, sizeof(int64_t));
+  int32_t putCode = taosHashPut(pVnode->pTxnTableLock, tableName, nameLen, &txnId, sizeof(int64_t));
+  if (putCode != 0) {
+    vError("vgId:%d, failed to put table lock, table:%s, txnId:%" PRId64 ", code:0x%x", TD_VID(pVnode), tableName,
+           txnId, putCode);
+    taosThreadMutexUnlock(&pVnode->txnMutex);
+    return putCode;
+  }
 
   // Record the table name in the txn entry for reverse cleanup
   char *nameCopy = taosStrdup(tableName);
   if (nameCopy != NULL) {
-    taosArrayPush(pEntry->pLockedTables, &nameCopy);
+    if (taosArrayPush(pEntry->pLockedTables, &nameCopy) == NULL) {
+      vError("vgId:%d, failed to track locked table:%s, txnId:%" PRId64, TD_VID(pVnode), tableName, txnId);
+      taosMemoryFree(nameCopy);
+    }
   }
 
   pEntry->lastActive = taosGetTimestampMs();
