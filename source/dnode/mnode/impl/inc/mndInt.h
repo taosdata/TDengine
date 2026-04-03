@@ -126,6 +126,10 @@ typedef struct SMnode {
   bool           restored;
   bool           deploy;
   char          *path;
+  /*
+    Unix epoch in ms (conventionally 0).
+    Dnode/mnode must agree; paired with timezone in cluster cfg check.
+  */
   int64_t        checkTime;
   SyncIndex      applied;
   SSdb          *pSdb;
