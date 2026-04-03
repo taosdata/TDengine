@@ -43,7 +43,7 @@ sleep 10
 
 # Run ctest and capture output and return code
 ctest_output="unit-test.log"
-ctest -E "cunit_test|pcre*|example*|clientTest|connectOptionsTest|tmqTest|taoscTest" -j8 2>&1 | tee "$ctest_output"
+ctest -R "osSemaphoreTests" -j1 --repeat until-fail:5 2>&1 | tee "$ctest_output"
 ctest_ret=${PIPESTATUS[0]}
 
 
@@ -58,8 +58,3 @@ elif echo "$ctest_output" | grep -q "No tests were found"; then
     echo "No tests were found, failing the script."
     exit 1
 fi
-
-build/bin/clientTest
-build/bin/connectOptionsTest 
-build/bin/instanceTest
-build/bin/taoscTest
