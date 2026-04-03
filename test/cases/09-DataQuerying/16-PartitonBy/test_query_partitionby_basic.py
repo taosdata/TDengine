@@ -450,6 +450,7 @@ class TestPartitionByBasic:
     # ------------------- basic ----------------
     # 
     def prepare_datas(self, stb_name , tb_nums , row_nums, dbname="db" ):
+        tdSql.execute(f'drop database if exists {self.dbname}')
         tdSql.execute(f'''create database {self.dbname} MAXROWS 4096 MINROWS 100''')
         tdSql.execute(f'''use {self.dbname}''')
         tdSql.execute(f'''CREATE STABLE {self.dbname}.{self.stable} (`ts` TIMESTAMP, `current` FLOAT, `voltage` INT) TAGS (`groupid` TINYINT, `location` VARCHAR(16))''')
@@ -1026,7 +1027,7 @@ class TestPartitionByBasic:
         tdSql.execute(sql)
         
         sql = f'select `location`, tbname from {self.dbname}.{stableName} where ts < now group by tbname order by tbname;'
-        tdSql.query(sql)
+        tdSql.query(sql, show=True)
         tdSql.checkRows(3)
         tdSql.checkData(0, 0, 100000)
         tdSql.checkData(1, 0, 200000)
