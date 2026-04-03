@@ -49,9 +49,8 @@ class DbConn:
     @classmethod
     def fetchSqlForThread(cls, shortTid : int) -> str : 
 
-        print("=======================")
         if shortTid not in cls.lastSqlFromThreads:
-            raise CrashGenError("No last-attempted-SQL found for thread id: {}".format(shortTid))
+            return "(no SQL recorded for thread {})".format(shortTid)
         return cls.lastSqlFromThreads[shortTid] 
 
     @classmethod
@@ -61,6 +60,8 @@ class DbConn:
         run into a dead-lock situation, we can pick out the deadlocked thread, and use 
         that information to find what what SQL statement is stuck.
         '''
+        if shortTid not in cls.current_time:
+            return 0.0
         return cls.current_time[shortTid] 
 
     @classmethod

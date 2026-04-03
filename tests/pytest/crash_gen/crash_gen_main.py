@@ -2231,8 +2231,8 @@ class TdSuperTable:
 
     def createConsumer(self, dbc, Consumer_nums):
 
-        def generateConsumer(current_topic_list):
-            consumer = Consumer({"group.id": "tg2", "td.connect.user": "root", "td.connect.pass": "taosdata"})
+        def generateConsumer(current_topic_list, group_id):
+            consumer = Consumer({"group.id": group_id, "td.connect.user": "root", "td.connect.pass": "taosdata"})
             topic_list = []
             for topic in current_topic_list:
                 topic_list.append(topic)
@@ -2253,16 +2253,27 @@ class TdSuperTable:
                 pass
             return
 
-        # mulit Consumer
+        # mulit Consumer — each gets a unique group.id to avoid
+        # TMQ rebalance storms when many consumers share one group
         current_topic_list = self.getTopicLists(dbc)
         for i in range(Consumer_nums):
-            consumer_inst = threading.Thread(target=generateConsumer, args=(current_topic_list,))
+            gid = "cg_{}_{}".format(threading.get_ident(), i)
+            consumer_inst = threading.Thread(target=generateConsumer, args=(current_topic_list, gid))
+            consumer_inst.daemon = True  # so it won't block process exit
             self._ConsumerInsts.append(consumer_inst)
 
         for ConsumerInst in self._ConsumerInsts:
             ConsumerInst.start()
+
+        CONSUMER_TIMEOUT = 60  # seconds, safety net for any C-level blocking
         for ConsumerInst in self._ConsumerInsts:
-            ConsumerInst.join()
+            ConsumerInst.join(timeout=CONSUMER_TIMEOUT)
+            if ConsumerInst.is_alive():
+                Logging.warning("Consumer thread {} timed out after {}s, skipping".format(
+                    ConsumerInst.ident, CONSUMER_TIMEOUT))
+
+        # Clear references to timed-out daemon threads
+        self._ConsumerInsts = [t for t in self._ConsumerInsts if not t.is_alive()]
 
     def getTopicLists(self, dbc: DbConn):
         dbc.query("show topics ")
@@ -3098,9 +3109,12 @@ class ThreadStacks:  # stack info for all threads
             lastSqlForThread = DbConn.fetchSqlForThread(shortTid)
             last_sql_commit_time = DbConn.get_save_sql_time(shortTid)
             # time_cost = DbConn.get_time_cost()
-            print("Last SQL statement attempted from thread {}  ({:.4f} sec ago) is: {}".format(shortTid,
-                                                                                                self.current_time - last_sql_commit_time,
-                                                                                                lastSqlForThread))
+            if last_sql_commit_time > 0:
+                print("Last SQL statement attempted from thread {}  ({:.4f} sec ago) is: {}".format(shortTid,
+                                                                                                    self.current_time - last_sql_commit_time,
+                                                                                                    lastSqlForThread))
+            else:
+                print("Thread {} has no recorded SQL (blocked before first query)".format(shortTid))
             stackFrame = 0
             for frame in stack:  # was using: reversed(stack)
                 # print(frame)
@@ -3127,8 +3141,8 @@ class ClientManager:
     def sigIntHandler(self, signalNumber, frame):
         if self._status != Status.STATUS_RUNNING:
             print("Repeated SIGINT received, forced exit...")
-            # return  # do nothing if it's already not running
-            sys.exit(-1)
+            # Use os._exit to avoid Python shutdown deadlock on daemon threads
+            os._exit(1)
         self._status = Status.STATUS_STOPPING  # immediately set our status
 
         print("ClientManager: Terminating program...")
@@ -3223,7 +3237,11 @@ class ClientManager:
         # print("exec stats: {}".format(self.tc.getExecStats()))
         # print("TC failed = {}".format(self.tc.isFailed()))
         if svcMgr:  # gConfig.auto_start_service:
-            svcMgr.stopTaosServices()
+            if self.tc and self.tc.isFailed():
+                Logging.info("Test FAILED — keeping TDengine service alive for investigation.")
+                Logging.info("You can manually stop it later with: kill $(pgrep -x taosd)")
+            else:
+                svcMgr.stopTaosServices()
             svcMgr = None
 
         # Release global variables
@@ -3270,6 +3288,7 @@ class MainExec:
     def __init__(self):
         self._clientMgr = None
         self._svcMgr = None  # type: Optional[ServiceManager]
+        self._inSigInt = False  # guard against recursive SIGINT
 
         signal.signal(signal.SIGTERM, self.sigIntHandler)
         signal.signal(signal.SIGINT, self.sigIntHandler)
@@ -3282,10 +3301,19 @@ class MainExec:
             self._svcMgr.sigUsrHandler(signalNumber, frame)
 
     def sigIntHandler(self, signalNumber, frame):
-        if self._svcMgr:
-            self._svcMgr.sigIntHandler(signalNumber, frame)
-        if self._clientMgr:
-            self._clientMgr.sigIntHandler(signalNumber, frame)
+        if self._inSigInt:
+            # Already handling SIGINT — force immediate exit to avoid
+            # recursive reentry that deadlocks on stdout/threading locks
+            print("\nForced exit due to repeated SIGINT")
+            os._exit(1)
+        self._inSigInt = True
+        try:
+            if self._svcMgr:
+                self._svcMgr.sigIntHandler(signalNumber, frame)
+            if self._clientMgr:
+                self._clientMgr.sigIntHandler(signalNumber, frame)
+        finally:
+            self._inSigInt = False
 
     def runClient(self):
         global gSvcMgr
