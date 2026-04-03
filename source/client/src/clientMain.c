@@ -358,6 +358,7 @@ void taos_set_option(OPTIONS *options, const char *key, const char *value) {
     tscError("taos_set_option overflow, count: %zu, reached capacity: %zu", count, len);
     return;
   }
+  
 
   options->keys[count] = key;
   options->values[count] = value;
