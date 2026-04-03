@@ -23,7 +23,7 @@
 #include "mndTrans.h"
 #include "mndVgroup.h"
 
-int32_t mndRestoreDnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, int8_t restoreType) {
+int32_t mndRestoreDnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, int8_t restoreType, int32_t vgId) {
   int32_t code = -1;
   STrans *pTrans = NULL;
 
@@ -37,7 +37,7 @@ int32_t mndRestoreDnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, int8_t
   mndTransSetGroupParallel(pTrans);
   mndTransSetKillMode(pTrans, TRN_KILL_MODE_INTERUPT);
 
-  mInfo("trans:%d, used to restore dnode:%s", pTrans->id, pDnode->ep);
+  mInfo("trans:%d, used to restore dnode:%s vgId:%d", pTrans->id, pDnode->ep, vgId);
 
   if ((code = mndTrancCheckConflict(pMnode, pTrans)) != 0) goto _OVER;
 
@@ -91,6 +91,10 @@ int32_t mndRestoreDnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, int8_t
       if (pIter == NULL) break;
 
       if (mndVgroupInDnode(pVgroup, pDnode->id)) {
+        if (vgId != 0 && pVgroup->vgId != vgId) {
+          sdbRelease(pSdb, pVgroup);
+          continue;
+        }
         SDbObj *db = mndAcquireDb(pMnode, pVgroup->dbName);
         if (db == NULL) {
           code = TSDB_CODE_MND_RETURN_VALUE_NULL;
@@ -203,7 +207,8 @@ int32_t mndProcessRestoreDnodeReqImpl(SRpcMsg *pReq) {
   }
 
   // mInfo("dnode:%d, start to restore, ep:%s:%d", restoreReq.dnodeId, restoreReq.fqdn, restoreReq.port);
-  mInfo("dnode:%d, start to restore, restore type:%d", restoreReq.dnodeId, restoreReq.restoreType);
+  mInfo("dnode:%d, start to restore, restore type:%d, vgId:%d", restoreReq.dnodeId, restoreReq.restoreType,
+        restoreReq.vgId);
   if ((code = mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_CREATE_DNODE)) != 0) {
     goto _OVER;
   }
@@ -238,7 +243,7 @@ int32_t mndProcessRestoreDnodeReqImpl(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  code = mndRestoreDnode(pMnode, pReq, pDnode, restoreReq.restoreType);
+  code = mndRestoreDnode(pMnode, pReq, pDnode, restoreReq.restoreType, restoreReq.vgId);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
   if (tsAuditLevel >= AUDIT_LEVEL_SYSTEM) {

@@ -1314,9 +1314,11 @@ static int32_t grantCheckMachines(SGrantLogObj *pGrant, SArray **pGrantMachines,
     }
     int32_t num = idx;
     if (nMachines + idx > nDnodeLimit) {
-      if (toRevoked) *toRevoked = true;  // exceeded
-      uWarn("grant check machines, convert to revoked state since number of dnodes:%d,%d exceed the limit:%d",
-            nMachines, idx, nDnodeLimit);
+      if (toRevoked) {
+        *toRevoked = true;  // exceeded
+        uWarn("grant check machines, convert to revoked state since number of dnodes:%d,%d exceed the limit:%d",
+              nMachines, idx, nDnodeLimit);
+      }
       num = nDnodeLimit - nMachines;
     }
     if (num > 0) {
@@ -1334,34 +1336,38 @@ static int32_t grantCheckMachines(SGrantLogObj *pGrant, SArray **pGrantMachines,
     }
   } else if (nMachines == nDnodeLimit) {
     // if dnode machines all exist in cluster, it's ok; otherwise transfer to revoked state
-    while ((pe = tSimpleHashIterate(grantHandle.pMachineHash, pe, &iter)) != NULL) {
-      void *key = tSimpleHashGetKey(pe, NULL);
-      if (!pGrant->pMachines || !taosArraySearch(pGrant->pMachines, key, grantMachineKeyCmprFn, TD_EQ)) {
-        if (toRevoked) *toRevoked = true;  // mismatch
-        uWarn("grant check machines, convert to revoked state since dnode:%d, %s mismatch, limit:%d", *(int32_t *)pe,
-              (char *)key, nDnodeLimit);
-        char *buf = taosMemoryMalloc(nMachines * 50);
-        if (buf) {  // print debug info
-          char *pBuf = buf;
-          for (int32_t i = 0; i < nMachines; ++i) {
-            SGrantMachine *pMachine = TARRAY_GET_ELEM(pGrant->pMachines, i);
-            (void)snprintf(pBuf, 50, "%" PRIi64 ",%d,%s;", (int64_t)pMachine->ts, (int32_t)pMachine->id,
-                           pMachine->machine);
-            pBuf += strlen(pBuf);
+    if (toRevoked) {
+      while ((pe = tSimpleHashIterate(grantHandle.pMachineHash, pe, &iter)) != NULL) {
+        void *key = tSimpleHashGetKey(pe, NULL);
+        if (!pGrant->pMachines || !taosArraySearch(pGrant->pMachines, key, grantMachineKeyCmprFn, TD_EQ)) {
+          *toRevoked = true;  // mismatch
+          uWarn("grant check machines, convert to revoked state since dnode:%d, %s mismatch, limit:%d", *(int32_t *)pe,
+                (char *)key, nDnodeLimit);
+          char *buf = taosMemoryMalloc(nMachines * 50);
+          if (buf) {  // print debug info
+            char *pBuf = buf;
+            for (int32_t i = 0; i < nMachines; ++i) {
+              SGrantMachine *pMachine = TARRAY_GET_ELEM(pGrant->pMachines, i);
+              (void)snprintf(pBuf, 50, "%" PRIi64 ",%d,%s;", (int64_t)pMachine->ts, (int32_t)pMachine->id,
+                             pMachine->machine);
+              pBuf += strlen(pBuf);
+            }
+            if (pBuf != buf) --pBuf;
+            pBuf[0] = 0;
+            uWarn("grant check machines, %s", buf);
+            taosMemoryFree(buf);
           }
-          if (pBuf != buf) --pBuf;
-          pBuf[0] = 0;
-          uWarn("grant check machines, %s", buf);
-          taosMemoryFree(buf);
+          break;
         }
-        break;
       }
     }
   } else {
     // transfer to revoked if exceeded
-    if (toRevoked) *toRevoked = true;
-    uWarn("grant check machines, convert to revoked state since number of dnodes:%d exceed the limit:%d", nMachines,
-          nDnodeLimit);
+    if (toRevoked) {
+      *toRevoked = true;
+      uWarn("grant check machines, convert to revoked state since number of dnodes:%d exceed the limit:%d", nMachines,
+            nDnodeLimit);
+    }
   }
 
   TAOS_RETURN(0);
@@ -1452,7 +1458,13 @@ static int32_t mndProcessGrantHBSyncInfo(SMnode *pMnode, int8_t type) {
     // check machines
 #ifndef GRANTS_CFG
     if (!grantObj.granted || (grantObj.flags & GRANT_ACTIVE_FLG_CHECK_MACHINE)) {
-      if ((code = grantCheckMachines(pGrant, &pGrantMachines, &toRevoked)) != 0) {
+      bool *pToRevoked = &toRevoked;
+#ifdef TD_LAX_MACHINE_CODE_CHK
+      if (grantObj.active[0] == 0) {
+        pToRevoked = NULL;
+      }
+#endif
+      if ((code = grantCheckMachines(pGrant, &pGrantMachines, pToRevoked)) != 0) {
         mndReleaseGrant(pMnode, pGrant, pIter);
         TAOS_CHECK_EXIT(code);
       }

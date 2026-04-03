@@ -41,6 +41,7 @@ SetupIconFile={#MyAppIco}
 Compression=lzma
 CloseApplications=force
 SolidCompression=yes
+ChangesEnvironment=yes
 DisableDirPage=yes
 Uninstallable=yes
 ArchitecturesAllowed=x64
@@ -89,7 +90,7 @@ Name: "component"; Description: "OPC DLL(OPC Data Access Auto Interface)        
 Filename: {sys}\sc.exe; Parameters: "create taosd start= AUTO binPath= ""{app}\\taosd.exe --win_service""" ; Flags: runhidden
 Filename: {sys}\sc.exe; Parameters: "create taosadapter start= AUTO binPath= ""{app}\\taosadapter.exe""" ; Flags: runhidden
 Filename: {sys}\sc.exe; Parameters: "create taoskeeper start= AUTO binPath= ""{app}\\taoskeeper.exe""" ; Flags: runhidden
-Filename: "{cmd}"; Parameters: "/c ""echo monitorFqdn %computername% >> {app}\\cfg\\taos.cfg""" ; Flags: runhidden
+;Filename: "{cmd}"; Parameters: "/c ""echo monitorFqdn %computername% >> {app}\\cfg\\taos.cfg""" ; Flags: runhidden
 Filename: "{app}\\taosx-srv.exe"; Parameters: "install"; Flags: runhidden; Check: FileExists(ExpandConstant('{app}\taosx-srv.exe'))
 Filename: "{app}\\taosx-agent-srv.exe"; Parameters: "install" ; Flags: runhidden; Check: FileExists(ExpandConstant('{app}\taosx-agent-srv.exe'))
 Filename: "{app}\\taos-explorer-srv.exe"; Parameters: "install" ; Flags: runhidden; Check: FileExists(ExpandConstant('{app}\taos-explorer-srv.exe'))
@@ -104,6 +105,53 @@ Root: HKLM; Subkey: "SYSTEM\CurrentControlSet\Control\Session Manager\Environmen
     Check: NeedsAddPath('{#MyAppInstallDir}')
 
 [Code]
+procedure AddMonitorFqdnIfNotExists;
+var
+  FqdnLine, CfgFile, LineStr: string;
+  Lines: TArrayOfString;
+  I: Integer;
+  Found: Boolean;
+begin
+  CfgFile := ExpandConstant('{app}\cfg\taos.cfg');
+  FqdnLine := 'monitorFqdn ' + GetComputerNameString();
+  Found := False;
+  SetArrayLength(Lines, 0); 
+
+  if not FileExists(CfgFile) then
+    exit;
+  if not LoadStringsFromFile(CfgFile, Lines) then
+    exit;
+
+
+  for I := 0 to GetArrayLength(Lines) - 1 do
+  begin
+    LineStr := Trim(Lines[I]);
+    // Skip comment lines
+    if (LineStr = '') or (Copy(LineStr, 1, 1) = '#') then
+      continue;
+    // Ignore leading whitespace and comments, check if line starts with monitorFqdn
+    if Pos('monitorFqdn ', LineStr) = 1 then
+    begin
+      Found := True;
+      Break;
+    end;
+  end;
+
+  if not Found then
+  begin
+    // Ensure the new line is independent
+    if (GetArrayLength(Lines) > 0) and (Trim(Lines[GetArrayLength(Lines)-1]) <> '') then
+      begin
+        SetArrayLength(Lines, GetArrayLength(Lines) + 1);
+        Lines[GetArrayLength(Lines) - 1] := '';
+      end;
+
+    SetArrayLength(Lines, GetArrayLength(Lines) + 1);
+    Lines[GetArrayLength(Lines) - 1] := FqdnLine;
+    SaveStringsToFile(CfgFile, Lines, False);
+  end;
+end;
+
 function NeedsAddPath(Param: string): boolean;
 var
   OrigPath: string;
@@ -120,15 +168,48 @@ begin
   Result := Pos(';' + Param + ';', ';' + OrigPath + ';') = 0;
 end;
 
+function RemovePath(Param: string): Boolean;
+var
+  OrigPath: string;
+  NewPath: string;
+begin
+  Result := True;
+  if not RegQueryStringValue(HKEY_LOCAL_MACHINE,
+    'SYSTEM\CurrentControlSet\Control\Session Manager\Environment',
+    'Path', OrigPath)
+  then begin
+    exit;
+  end;
+
+  NewPath := ';' + OrigPath + ';';
+  while StringChangeEx(NewPath, ';' + Param + ';', ';', True) > 0 do
+  begin
+  end;
+  while StringChangeEx(NewPath, ';;', ';', True) > 0 do
+  begin
+  end;
+
+  if (Length(NewPath) > 0) and (Copy(NewPath, 1, 1) = ';') then
+    Delete(NewPath, 1, 1);
+  if (Length(NewPath) > 0) and (Copy(NewPath, Length(NewPath), 1) = ';') then
+    Delete(NewPath, Length(NewPath), 1);
+
+  if NewPath <> OrigPath then
+    Result := RegWriteExpandStringValue(HKEY_LOCAL_MACHINE,
+      'SYSTEM\CurrentControlSet\Control\Session Manager\Environment',
+      'Path', NewPath);
+end;
+
 
 procedure TaskKill(FileName: String);
 var
   ResultCode: Integer;
+  ServiceName: String;
 begin
   if (FileName = 'taosd.exe') or (FileName = 'taosadapter.exe') or (FileName = 'taos-explorer.exe')  or (FileName = 'taosx.exe')  or (FileName = 'taoskeeper.exe') then
   begin
-    Exec('sc.exe', ' stop ' + FileName, '', SW_HIDE, ewWaitUntilTerminated, ResultCode); 
-    Exec('sc.exe', ' delete ' + FileName, '', SW_HIDE, ewWaitUntilTerminated, ResultCode);  
+    ServiceName := Copy(FileName, 1, Length(FileName) - 4);
+    Exec('sc.exe', ' stop ' + ServiceName, '', SW_HIDE, ewWaitUntilTerminated, ResultCode); 
   end;
 
   Exec('taskkill.exe', '/f /im ' + '"' + FileName + '"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
@@ -157,21 +238,18 @@ end;
 
 function InitializeSetup(): Boolean;
 begin
-  Result :=True
+  Result := True;
   if not IsVC2015x64Installed() then  
   begin
     MsgBox('Please install Visual C++ Redistributable 2015-2022 (x64) version 14.x before install TDengine', mbInformation, MB_OK);
-    Result :=False
+    Result := False;
   end;
 end;
 
 var
-  OutputMsgCheckJava: TOutputMsgMemoWizardPage;
   InputQueryPage: TInputQueryWizardPage;
   OutputMsgCheckPISDK: TOutputMsgMemoWizardPage;
-  JavaVersionString: String;
   PISDKVersionString: string;
-  JavaReady: Boolean;
   OPCInstallFileFlag: Boolean;
   ExplorerAddInput: string;
   CustomFinishedLabel: TLabel;
@@ -252,81 +330,6 @@ begin
       end;
 end;
 
-function CheckJavaVersion(version: string): Boolean;
-var
-  tokens: TStringList;
-  major, minor: Integer;
-begin
-  // Split the version number string into a major version number and a minor version number.
-  tokens := TStringList.Create;
-  try
-    tokens.StrictDelimiter := True;
-    tokens.Delimiter := '.';
-    tokens.DelimitedText := version;
-    if tokens.Count < 2 then
-    begin
-      Result := False; // The version number format is incorrect, return false.
-      Exit;
-    end;
-    major := StrToIntDef(tokens[0], -1);
-    minor := StrToIntDef(tokens[1], -1);
-    if (major > 1) or ((major = 1) and (minor >= 8)) then
-    begin
-      Result := True; // The version number is greater than or equal to 1.8, return True.
-      Exit;
-    end;
-    Result := False; // The version number is less than 1.8, return False.
-  finally
-    tokens.Free;
-  end;
-end;
-
-function GetJavaVersionDesc(): String;
-var
-  ResultCode: Integer;
-  JavaVersion: String;
-  OutputFile: string;
-  OutputText: AnsiString;
-  FileContent: TArrayOfString;
-  StartIndex: Integer;
-  EndIndex:   Integer;
-  i: Integer;
-begin
-  Log('InitializeSetup called');
-  OutputFile := ExpandConstant('{tmp}\java_version.txt');
-  if not ExecAsOriginalUser('cmd.exe', '/c java -version >> "'+ OutputFile + '" 2>&1', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
-  begin
-    JavaVersionString := 'JAVA 1.8+ required.' + #13#10 + 'No Java version found.';
-  end
-  else
-  begin
-    LoadStringsFromFile(OutputFile, FileContent);
-    JavaReady := False;
-    for i := 0 to High(FileContent) do
-    begin
-      OutputText := FileContent[i];
-
-      StartIndex := Pos('"', OutputText);
-      EndIndex := Pos('"', Copy(OutputText, StartIndex+1, Length(OutputText)-StartIndex));
-      JavaVersion := Copy(OutputText, StartIndex+1, EndIndex-1);
-      if CheckJavaVersion(JavaVersion) then
-      begin
-        JavaReady := True; 
-        Break;
-      end;
-    end;
-    if JavaReady = True then
-    begin
-        JavaVersionString := 'JAVA 1.8+ required' + #13#10 + JavaVersion + ' has been installed.' + #13#10 + 'OK.';
-    end
-    else
-    begin
-        JavaVersionString := 'JAVA 1.8+ required' + #13#10 + 'No suitable version found.' + #13#10 + 'Please check it.';
-    end;
-  end;
-  Result := JavaVersionString;
-end;
-
 function ContainsSubstringIgnoreCase(const str, substr: string): Boolean;
   begin
     Result := Pos(AnsiLowerCase(substr), AnsiLowerCase(str)) > 0;
@@ -337,24 +340,46 @@ var
   ResultCode: Integer;
   OutputFile: string;
   OutputText: AnsiString;
-  FileContent: TArrayOfString; 
+  FileContent: TArrayOfString;
+  PIPluginDir: string;
+  PIProbeExe: string;
 begin
   Log('InitializeSetup called');
   OutputFile := ExpandConstant('{tmp}\pisdk_version.txt');
+  PIPluginDir := AddBackslash(WizardDirValue()) + 'plugins\pi';
+  PIProbeExe := PIPluginDir + '\taosx-pi.exe';
 
-  if not ExecAsOriginalUser('cmd.exe', '/c taosx-pi.exe -pv >> "'+ OutputFile + '" 2>&1', ExpandConstant('{app}\plugins\pi'), SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+  if not FileExists(PIProbeExe) then
+  begin
+    Log('PI SDK probe executable not available yet: ' + PIProbeExe);
+    PISDKVersionString := 'WARNING' + #13#10 + 'PI SDK check unavailable before installation.';
+  end
+  else if not ExecAsOriginalUser('cmd.exe', '/c taosx-pi.exe -pv >> "'+ OutputFile + '" 2>&1', PIPluginDir, SW_HIDE, ewWaitUntilTerminated, ResultCode) then
   begin
     PISDKVersionString := 'WARNING' + #13#10 + 'PI SDK not found.';
   end
   else
   begin
-    LoadStringsFromFile(OutputFile, FileContent);
-    OutputText := FileContent[0];
-    if ContainsSubstringIgnoreCase(OutputText, 'not found') then  begin
-      PISDKVersionString := 'WARNING' + #13#10 + 'PI SDK not found.';
+    SetArrayLength(FileContent, 0);
+    if not LoadStringsFromFile(OutputFile, FileContent) then
+    begin
+      Log('Unable to read PI SDK check output file: ' + OutputFile);
+      PISDKVersionString := 'WARNING' + #13#10 + 'Unable to read PI SDK check output.';
+    end
+    else if GetArrayLength(FileContent) = 0 then
+    begin
+      Log('PI SDK check produced no output: ' + OutputFile);
+      PISDKVersionString := 'WARNING' + #13#10 + 'PI SDK check returned no output.';
+    end
+    else
+    begin
+      OutputText := FileContent[0];
+      if ContainsSubstringIgnoreCase(OutputText, 'not found') then  begin
+        PISDKVersionString := 'WARNING' + #13#10 + 'PI SDK not found.';
       end
-    else begin
-      PISDKVersionString := OutputText + #13#10 + 'PI SDK Found' + #13#10 + 'OK';
+      else begin
+        PISDKVersionString := OutputText + #13#10 + 'PI SDK Found' + #13#10 + 'OK';
+      end;
     end
   end;
   Result := PISDKVersionString;
@@ -374,10 +399,10 @@ var
 begin
   AfterID := wpSelectTasks;
   AfterID := wpInstalling;
-  JavaVersionString := GetJavaVersionDesc();
-  OutputMsgCheckJava := CreateOutputMsgMemoPage(AfterID, 'Check Java for influxdb/opentsdb Connector', 'The InfluxDB/OpenTSDB connector depends on the Java environment.'
-  + ' If you use this connector, please make sure to install the required version.', 'Java 1.8+ required', JavaVersionString);
-  AfterID := OutputMsgCheckJava.ID;
+  GetPISDKVersionDesc();
+  OutputMsgCheckPISDK := CreateOutputMsgMemoPage(AfterID, 'Check PI SDK for PI Connector', 'The PI connector depends on the PI SDK.'
+  + ' If you use this connector, please make sure to install it.', 'PI SDK required', PISDKVersionString);
+  AfterID := OutputMsgCheckPISDK.ID;
 
   InputQueryPage := CreateInputQueryPage(AfterID, 'Config Page', '', 'Set publicly accessible IP address or domain name you want expose to.');
   ComputerName := GetComputerNameString();
@@ -447,21 +472,7 @@ begin
 end;
 
 procedure CurPageChanged(CurPageID: Integer);
-var
-  AfterID: Integer;
 begin
-  if CurPageID = OutputMsgCheckJava.ID then
-    begin
-      AfterID := OutputMsgCheckJava.ID;
-      if JavaReady = False then  begin
-        MsgBox(JavaVersionString, mbInformation, MB_OK);
-        end;
-
-      GetPISDKVersionDesc();
-      OutputMsgCheckPISDK := CreateOutputMsgMemoPage(AfterID, 'Check PI SDK for PI Connector', 'The PI connector depends on the PI SDK.'
-      + ' If you use this connector, please make sure to install it.', 'PI SDK required', PISDKVersionString);
-      AfterID := OutputMsgCheckPISDK.ID;
-    end;
   if CurPageID = wpReady then
     begin
       if WizardForm.ComponentsList.Checked[0] then
@@ -483,8 +494,8 @@ begin
   Result := False;
   for I := 1 to ParamCount do
   begin
-    Param := ParamStr(I);
-    if (Param = '/SILENT') or (Param = '-SILENT') or (Param = '/silent') or (Param = '-SILENT')  then
+    Param := Uppercase(ParamStr(I));
+    if (Param = '/SILENT') or (Param = '-SILENT') or (Param = '/VERYSILENT') or (Param = '-VERYSILENT') then
     begin
       Result := True;
       Break;
@@ -543,7 +554,7 @@ begin
           begin            
             DelayDeleteFile(ExpandConstant('{app}\output.txt'), 5);
           end;
-        DeleteDirectoriesIfConfirmed
+        DeleteDirectoriesIfConfirmed;
     end;    
   end;
 end;
@@ -551,7 +562,7 @@ end;
 function DeleteOdbcDsnRegistry: Boolean;
 begin
   RegDeleteKeyIncludingSubkeys(HKCU, 'SOFTWARE\ODBC\ODBC.INI\TAOS_ODBC_DSN');  
-  RegDeleteKeyIncludingSubkeys(HKCU, 'SOFTWARE\ODBC\ODBC.INI\TAOS_ODBC_WS_DSN')
+  RegDeleteKeyIncludingSubkeys(HKCU, 'SOFTWARE\ODBC\ODBC.INI\TAOS_ODBC_WS_DSN');
 
   RegDeleteValue(HKCU, 'SOFTWARE\ODBC\ODBC.INI\ODBC Data Sources', 'TAOS_ODBC_DSN'); 
   RegDeleteValue(HKCU, 'SOFTWARE\ODBC\ODBC.INI\ODBC Data Sources', 'TAOS_ODBC_WS_DSN'); 
@@ -576,11 +587,18 @@ procedure DeinitializeUninstall();
 begin
 	DeleteOdbcDsnRegistry();
 	DeleteOdbcDriverRegistry();
+  RemovePath(ExpandConstant('{#MyAppInstallDir}'));
 end;
 
 function ShouldInstallOPC: Boolean;
 begin
   Result := OPCInstallFileFlag;
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+begin
+  if CurStep = ssPostInstall then
+    AddMonitorFqdnIfNotExists;
 end;
 
 [UninstallDelete]
