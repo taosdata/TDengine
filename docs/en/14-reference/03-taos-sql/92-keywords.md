@@ -334,7 +334,7 @@ The list of keywords is as follows:
 | NE                   | |
 | NEXT                 | |
 | NMATCH               | |
-| NODELAY_CREATE_SUBTABLE | 3.5.0.0+ |
+| NODELAY_CREATE_SUBTABLE | 3.4.1.0+ |
 | NONE                 | |
 | NORMAL               | |
 | NOT                  | |
