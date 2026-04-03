@@ -1,6 +1,5 @@
 ---
 title: SHOW Commands
-slug: /tdengine-reference/sql-manual/show-commands
 ---
 
 SHOW commands can be used to obtain brief system information. To get detailed metadata, system information, and status within the system, use the select statement to query tables in the INFORMATION_SCHEMA database.

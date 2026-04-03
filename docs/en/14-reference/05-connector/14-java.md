@@ -2,7 +2,6 @@
 toc_max_heading_level: 4
 sidebar_label: Java
 title: Java Client Library
-slug: /tdengine-reference/client-libraries/java
 ---
 
 import Tabs from '@theme/Tabs';
@@ -15,7 +14,7 @@ import RequestId from "../../assets/resources/_request_id.mdx";
 
 <font color="red">Java's native connection and REST connection are deprecated and will be discontinued on 2027-01-01</font>, please migrate to WebSocket connection.
 
-For detailed migration guide, please refer to: [Connection Methods](../#connection-methods)
+For detailed migration guide, please refer to: [Connection Methods](index.md#connection-methods)
 
 :::
 
@@ -93,7 +92,7 @@ After an error occurs, the error information and error code can be obtained thro
 {{#include docs/examples/JDBC/JDBCDemo/src/main/java/com/taos/example/JdbcBasicDemo.java:jdbc_exception}}
 ```
 
-For error code information please refer to [Error Codes](../../error-codes/)
+For error code information please refer to [Error Codes](../09-error-code.md)
 
 ## Data Type Mapping
 
@@ -122,7 +121,7 @@ TDengine currently supports timestamp, numeric, character, boolean types, and th
 | DECIMAL           | java.math.BigDecimal | Only supported for columns in WebSocket connections.         |
 
 **Note**: Due to historical reasons, the BINARY type in TDengine is not truly binary data and is no longer recommended. Please use VARBINARY type instead.  
-GEOMETRY type is binary data in little endian byte order, complying with the WKB standard. For more details, please refer to [Data Types](../../sql-manual/data-types/)  
+GEOMETRY type is binary data in little endian byte order, complying with the WKB standard. For more details, please refer to [Data Types](../03-taos-sql/01-datatype.md)  
 For the WKB standard, please refer to [Well-Known Binary (WKB)](https://libgeos.org/specifications/wkb/)  
 For the Java connector, you can use the jts library to conveniently create GEOMETRY type objects, serialize them, and write to TDengine. Here is an example [Geometry Example](https://github.com/taosdata/TDengine/blob/main/docs/examples/JDBC/JDBCDemo/src/main/java/com/taos/example/GeometryDemo.java)  
 
@@ -186,7 +185,7 @@ Please refer to:
 
 **Benefits**: WebSocket connection provides lower latency, better performance, auto-reconnect support, and richer features.
 
-For other issues, please refer to [FAQ](../../../frequently-asked-questions/)
+For other issues, please refer to [FAQ](../../27-train-faq/index.md)
 
 ## API Reference
 
@@ -1412,7 +1411,7 @@ Consumer support property list:
 - TSDBDriver.PROPERTY_KEY_RECONNECT_INTERVAL_MS: Automatic reconnection retry interval, in milliseconds, default value 2000. Only effective when PROPERTY_KEY_ENABLE_AUTO_RECONNECT is true.
 - TSDBDriver.PROPERTY_KEY_RECONNECT_RETRY_COUNT: Automatic reconnection retry count, default value 3, only effective when PROPERTY_KEY_ENABLE_AUTO_RECONNECT is true.
 
-For other parameters, please refer to: [Consumer parameter list](../../../developer-guide/manage-consumers/), note that the default value of auto.offset.reset in message subscription has changed starting from TDengine server version 3.2.0.0.
+For other parameters, please refer to: [Consumer parameter list](../../07-develop/07-tmq.md), note that the default value of auto.offset.reset in message subscription has changed starting from TDengine server version 3.2.0.0.
 
 - `void subscribe(Collection<String> topics) throws SQLException`
   - **Interface Description**: Subscribe to a set of topics.

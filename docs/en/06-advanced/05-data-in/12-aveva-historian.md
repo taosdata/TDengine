@@ -1,6 +1,5 @@
 ---
 title: AVEVA Historian
-slug: /advanced-features/data-connectors/aveva-historian
 ---
 
 import Enterprise from '../../assets/resources/_enterprise.mdx';

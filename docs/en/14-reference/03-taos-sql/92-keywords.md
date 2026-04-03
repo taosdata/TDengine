@@ -1,6 +1,5 @@
 ---
 title: Reserved Keywords
-slug: /tdengine-reference/sql-manual/reserved-keywords
 ---
 
 ## Reserved Keywords
