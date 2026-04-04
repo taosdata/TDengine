@@ -2129,16 +2129,29 @@ static int32_t doVstbSingleDynamicTableScanNext(SOperatorInfo* pOperator, SSData
 
     code = blockSetVstbSlotId(result, pInfo->pBlockColMap);
     QUERY_CHECK_CODE(code, lino, _end);
-    if (pInfo->cachedTagList) {
-      code = setTagValFromTagList(pOperator, result);
-      QUERY_CHECK_CODE(code, lino, _end);
-    }
-    //code = createOneDataBlockWithTwoBlock(result, pInfo->pOrgBlock, pInfo->pBlockColMap, &res);
-    //QUERY_CHECK_CODE(code, lino, _end);
 
-    //pInfo->pResBlock = res;
-    //blockDataDestroy(result);
-    (*ppRes) = result;
+    // For VStableAgg, tag pseudo columns need to be injected into the scan result.
+    // The pOrgBlock has all output columns (data + tag pseudo), while result only has
+    // data columns. When the Agg operator above needs tag values, create a full output
+    // block and fill tag pseudo columns from cachedTagList using positional matching.
+    if (pInfo->cachedTagList && taosArrayGetSize(pInfo->cachedTagList) > 0 &&
+        taosArrayGetSize(pInfo->pOrgBlock->pDataBlock) > taosArrayGetSize(result->pDataBlock)) {
+      code = createOneDataBlockWithTwoBlock(result, pInfo->pOrgBlock, pInfo->pBlockColMap, &res);
+      QUERY_CHECK_CODE(code, lino, _end);
+
+      code = setTagValFromTagList(pOperator, res);
+      QUERY_CHECK_CODE(code, lino, _end);
+
+      pInfo->pResBlock = res;
+      blockDataDestroy(result);
+      (*ppRes) = res;
+    } else {
+      if (pInfo->cachedTagList) {
+        code = setTagValFromTagList(pOperator, result);
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
+      (*ppRes) = result;
+    }
   } else {
     STableKeyInfo *keyInfo = taosArrayGet(pInfo->base.pTableListInfo->pTableList, 0);
     QUERY_CHECK_NULL(keyInfo, code, lino, _end, terrno)
@@ -2171,23 +2184,19 @@ static int32_t setTagValFromTagList(SOperatorInfo* pOperator, SSDataBlock* pRes)
   int32_t                  code = TSDB_CODE_SUCCESS;
   int32_t                  lino = 0;
   STableScanInfo*          pInfo = pOperator->info;
+  int32_t                  index = 0;
   char*                    tagVal = NULL;
 
-  for (int32_t i = 0; i < taosArrayGetSize(pInfo->cachedTagList); ++i) {
-    SColumnInfoData* pTagCol = NULL;
-    STagVal*         pTagVal = taosArrayGet(pInfo->cachedTagList, i);
+  // Positional matching: tag pseudo columns occupy the last N slots in pRes,
+  // where N = cachedTagList size. This matches the layout created by
+  // createOneDataBlockWithTwoBlock from the pOrgBlock template.
+  for (int32_t i = taosArrayGetSize(pRes->pDataBlock) - taosArrayGetSize(pInfo->cachedTagList);
+       i < taosArrayGetSize(pRes->pDataBlock); i++) {
+    SColumnInfoData* pTagCol = taosArrayGet(pRes->pDataBlock, i);
+    STagVal*         pTagVal = taosArrayGet(pInfo->cachedTagList, index);
 
     QUERY_CHECK_NULL(pTagVal, code, lino, _end, terrno);
-    for (int32_t j = 0; j < taosArrayGetSize(pRes->pDataBlock); ++j) {
-      SColumnInfoData* pCol = taosArrayGet(pRes->pDataBlock, j);
-      if (pCol && pCol->info.colId == pTagVal->cid) {
-        pTagCol = pCol;
-        break;
-      }
-    }
-    if (pTagCol == NULL) {
-      continue;
-    }
+    QUERY_CHECK_NULL(pTagCol, code, lino, _end, terrno);
 
     for (int32_t j = 0; j < pRes->info.rows; j++) {
       if (IS_VAR_DATA_TYPE(pTagVal->type)) {
@@ -2212,6 +2221,7 @@ static int32_t setTagValFromTagList(SOperatorInfo* pOperator, SSDataBlock* pRes)
         QUERY_CHECK_CODE(code, lino, _end);
       }
     }
+    index++;
   }
   return code;
 _end:
