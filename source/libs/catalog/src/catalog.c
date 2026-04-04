@@ -235,10 +235,7 @@ int32_t ctgGetTbMeta(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbMetaCtx* ctx
           schemaExtSize = output->tbMeta->tableInfo.numOfColumns * sizeof(SSchemaExt);
         }
         output->tbMeta = taosMemoryRealloc(output->tbMeta, metaSize + schemaExtSize + colRefSize + tagRefSize);
-        if (output->tbMeta == NULL) {
-          taosMemoryFreeClear(output->vctbMeta);
-          CTG_ERR_JRET(terrno);
-        }
+        QUERY_CHECK_NULL(output->tbMeta, code, line, _return, terrno);
         TAOS_MEMCPY(output->tbMeta, output->vctbMeta, sizeof(SVCTableMeta));
         output->tbMeta->colRef = (SColRef *)((char *)output->tbMeta + metaSize + schemaExtSize);
         TAOS_MEMCPY(output->tbMeta->colRef, output->vctbMeta->colRef, colRefSize);

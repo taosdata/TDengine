@@ -5985,6 +5985,7 @@ int32_t tSerializeSRestoreDnodeReq(void *buf, int32_t bufLen, SRestoreDnodeReq *
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->dnodeId));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->restoreType));
   ENCODESQL();
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->vgId));
   tEndEncode(&encoder);
 
 _exit:
@@ -6007,6 +6008,11 @@ int32_t tDeserializeSRestoreDnodeReq(void *buf, int32_t bufLen, SRestoreDnodeReq
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->dnodeId));
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->restoreType));
   DECODESQL();
+  pReq->vgId = 0;
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->vgId));
+  }
+
   tEndDecode(&decoder);
 
 _exit:
@@ -13761,7 +13767,7 @@ void destroySOrgTbInfo(void *info) {
   }
 }
 
-int32_t tSerializeSResFetchReq(void *buf, int32_t bufLen, SResFetchReq *pReq, bool needStreamPesudoFuncVals) {
+int32_t tSerializeSResFetchReq(void *buf, int32_t bufLen, SResFetchReq *pReq, bool needStreamRtInfo, bool needStreamGrpInfo) {
   int32_t code = 0;
   int32_t lino;
   int32_t headLen = sizeof(SMsgHead);
@@ -13790,7 +13796,7 @@ int32_t tSerializeSResFetchReq(void *buf, int32_t bufLen, SResFetchReq *pReq, bo
   if (pReq->pStRtFuncInfo) {
     TAOS_CHECK_EXIT(tEncodeI32(&encoder, 1));
     TAOS_CHECK_EXIT(
-        tSerializeStRtFuncInfo(&encoder, pReq->pStRtFuncInfo, /* pReq->reset && */ needStreamPesudoFuncVals));
+        tSerializeStRtFuncInfo(&encoder, pReq->pStRtFuncInfo, /* pReq->reset && */ needStreamRtInfo, pReq->reset && needStreamGrpInfo));
   } else {
     TAOS_CHECK_EXIT(tEncodeI32(&encoder, 0));
   }
@@ -13857,7 +13863,6 @@ int32_t tDeserializeSResFetchReq(void *buf, int32_t bufLen, SResFetchReq *pReq) 
     TAOS_CHECK_ERRNO(tDecodeI32(&decoder, &hasStRtFuncInfo));
     if (hasStRtFuncInfo > 0) {
       pReq->pStRtFuncInfo = taosMemoryCalloc(1, sizeof(SStreamRuntimeFuncInfo));
-      ;
       if (NULL == pReq->pStRtFuncInfo) {
         TAOS_CHECK_EXIT(terrno);
       }
@@ -15209,6 +15214,7 @@ int tEncodeSVCreateTbRsp(SEncoder *pCoder, const SVCreateTbRsp *pRsp) {
   if (pRsp->pMeta) {
     TAOS_CHECK_RETURN(tEncodeSTableMetaRsp(pCoder, pRsp->pMeta));
   }
+  TAOS_CHECK_RETURN(tEncodeI32(pCoder, pRsp->index));
 
   tEndEncode(pCoder);
   return 0;
@@ -15230,6 +15236,7 @@ int tDecodeSVCreateTbRsp(SDecoder *pCoder, SVCreateTbRsp *pRsp) {
   } else {
     pRsp->pMeta = NULL;
   }
+  TAOS_CHECK_RETURN(tDecodeI32(pCoder, &pRsp->index));
 
   tEndDecode(pCoder);
   return 0;

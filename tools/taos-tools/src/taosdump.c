@@ -2545,6 +2545,12 @@ static void dumpCreateDbClause(
             : "CREATE DATABASE IF NOT EXISTS %s ",
             dbInfo->name);
     if (isDumpProperty) {
+        // vgroups
+        char vgroups[32] = "";
+        if (0 < dbInfo->vgroups) {
+            sprintf(vgroups, "VGROUPS %d", dbInfo->vgroups);
+        }
+
         char strict[STRICT_LEN] = "";
         if (0 == strcmp(dbInfo->strict, "strict")) {
             sprintf(strict, "STRICT %d", 1);
@@ -2607,8 +2613,10 @@ static void dumpCreateDbClause(
         }
 
         pstr += sprintf(pstr,
+                "%s "
                 "%s %s %s %s %s %s "
                 "%s %s PRECISION '%s' %s %s ",
+                vgroups,
                 (g_majorVersionOfClient < 3)?"":strict,
                 (g_majorVersionOfClient < 3)?quorum:"",
                 (g_majorVersionOfClient < 3)?days:duration,

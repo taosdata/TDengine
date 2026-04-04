@@ -14,6 +14,7 @@
  */
 
 #include "executorInt.h"
+#include "executor.h"
 #include "function.h"
 #include "operator.h"
 #include "osTime.h"
@@ -710,6 +711,11 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
 
   for (int32_t i = 0; i < size; ++i) {
     SPhysiNode* pChildNode = (SPhysiNode*)nodesListGetNode(pPhyNode->pChildren, i);
+    // For external window parent, pre-initialize runtime from subquery before building children
+    if (QUERY_NODE_PHYSICAL_PLAN_EXTERNAL_WINDOW == type && i == 0) {
+      // best-effort pre-init; ignore errors here and let later construction handle them
+      (void)extWinPreInitFromSubquery(pPhyNode, pTaskInfo);
+    }
     code = createOperator(pChildNode, pTaskInfo, pHandle, pTagCond, pTagIndexCond, pUser, dbname, &ops[i], model);
     if (ops[i] == NULL || code != 0) {
       for (int32_t j = 0; j < i; ++j) {
@@ -787,9 +793,17 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
     }
     code = createVirtualTableMergeOperatorInfo(ops, size, (SVirtualScanPhysiNode*)pPhyNode, pTaskInfo, pHandle, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_HASH_EXTERNAL == type) {
-    code = createExternalWindowOperator(ops[0], pPhyNode, pTaskInfo, &pOptr);
+    if (pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM) {
+      code = createStreamExternalWindowOperator(ops[0], pPhyNode, pTaskInfo, &pOptr);
+    } else {
+      code = createExternalWindowOperator(ops[0], pPhyNode, pTaskInfo, &pOptr);
+    }
   } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_EXTERNAL == type) {
-    code = createMergeAlignedExternalWindowOperator(ops[0], pPhyNode, pTaskInfo, &pOptr);
+    if (pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM) {
+      code = createStreamMergeAlignedExternalWindowOperator(ops[0], pPhyNode, pTaskInfo, &pOptr);
+    } else {
+      code = createMergeAlignedExternalWindowOperator(ops[0], pPhyNode, pTaskInfo, &pOptr);
+    }
   } else {
     code = TSDB_CODE_INVALID_PARA;
     pTaskInfo->code = code;
@@ -828,6 +842,7 @@ void destroyOperator(SOperatorInfo* pOperator) {
   }
 
   cleanupExprSupp(&pOperator->exprSupp);
+
   if (pOperator->fpSet.closeFn != NULL && pOperator->info != NULL) {
     pOperator->fpSet.closeFn(pOperator->info);
     pOperator->info = NULL;
@@ -1218,8 +1233,8 @@ int32_t resetAggSup(SExprSupp* pExprSupp, SAggSupporter* pSup, SExecTaskInfo* pT
                     SFunctionStateStore* pStore) {
   int32_t    code = 0, lino = 0, num = 0;
   SExprInfo* pExprInfo = NULL;
-  cleanupAggSup(pSup);
   cleanupExprSuppWithoutFilter(pExprSupp);
+  cleanupAggSup(pSup);
   code = createExprInfo(pNodeList, pGroupKeys, &pExprInfo, &num);
   QUERY_CHECK_CODE(code, lino, _error);
   code = initAggSup(pExprSupp, pSup, pExprInfo, num, keyBufSize, pKey, pState, pStore);

@@ -417,6 +417,9 @@ typedef struct SWindowLogicNode {
   SNodeList*            pProjs;        // for external window
   bool                  isSingleTable; // for external window
   bool                  inputHasOrder; // for external window, whether input data is ordered
+  bool                  extWinSplit;
+  bool                  needGroupSort;
+  bool                  calcWithPartition;
   int32_t               orgTableVgId;
   tb_uid_t              orgTableUid;
 
@@ -425,6 +428,8 @@ typedef struct SWindowLogicNode {
   // for anomaly window
   SNodeList*            pAnomalyExpr;
   char                  anomalyOpt[TSDB_ANALYTIC_ALGO_OPTION_LEN];
+
+  SNode*                pSubquery;
 } SWindowLogicNode;
 
 typedef struct SFillLogicNode {
@@ -914,8 +919,12 @@ typedef struct SExternalWindowPhysiNode {
   SNode*           pTimeRange;
   bool             isSingleTable;
   bool             inputHasOrder;
+  bool             extWinSplit;
+  bool             needGroupSort;
+  bool             calcWithPartition;
   int32_t          orgTableVgId; // for vtable window query
   tb_uid_t         orgTableUid;  // for vtable window query
+  SNode*           pSubquery;
 } SExternalWindowPhysiNode;
 
 typedef struct SSortPhysiNode {

@@ -1,0 +1,1033 @@
+diff --git a/source/libs/nodes/src/nodesCloneFuncs.c b/source/libs/nodes/src/nodesCloneFuncs.c
+index 4ab8aace26..6203cf24d4 100644
+--- a/source/libs/nodes/src/nodesCloneFuncs.c
++++ b/source/libs/nodes/src/nodesCloneFuncs.c
+@@ -143,6 +143,16 @@ static int32_t columnNodeCopy(const SColumnNode* pSrc, SColumnNode* pDst) {
+   return TSDB_CODE_SUCCESS;
+ }
+ 
++static int32_t tagRefColumnCopy(const STagRefColumn* pSrc, STagRefColumn* pDst) {
++  COPY_SCALAR_FIELD(colId);
++  COPY_SCALAR_FIELD(sourceColId);
++  COPY_CHAR_ARRAY_FIELD(colName);
++  COPY_CHAR_ARRAY_FIELD(sourceColName);
++  COPY_SCALAR_FIELD(bytes);
++  COPY_SCALAR_FIELD(dataType);
++  return TSDB_CODE_SUCCESS;
++}
++
+ static int32_t columnDefNodeCopy(const SColumnDefNode* pSrc, SColumnDefNode* pDst) {
+   COPY_CHAR_ARRAY_FIELD(colName);
+   COPY_OBJECT_FIELD(dataType, sizeof(SDataType));
+@@ -665,6 +675,12 @@ static int32_t logicVirtualScanCopy(const SVirtualScanLogicNode * pSrc, SVirtual
+   CLONE_OBJECT_FIELD(pVgroupList, vgroupsInfoClone);
+   COPY_SCALAR_FIELD(scanType);
+   COPY_OBJECT_FIELD(tableName, sizeof(SName));
++  CLONE_NODE_LIST_FIELD(pTagRefSources);
++  CLONE_NODE_LIST_FIELD(pLocalTags);
++  CLONE_NODE_LIST_FIELD(pRefTagCols);
++  CLONE_NODE_FIELD(pTagFilterCond);
++  COPY_SCALAR_FIELD(hasTagRef);
++  COPY_SCALAR_FIELD(hasLocalTag);
+   return TSDB_CODE_SUCCESS;
+ }
+ 
+@@ -868,6 +884,18 @@ static int32_t logicForecastFuncCopy(const SForecastFuncLogicNode* pSrc, SForeca
+   return TSDB_CODE_SUCCESS;
+ }
+ 
++static int32_t logicTagRefSourceCopy(const STagRefSourceLogicNode* pSrc, STagRefSourceLogicNode* pDst) {
++  COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
++  COPY_OBJECT_FIELD(sourceTableName, sizeof(SName));
++  COPY_SCALAR_FIELD(sourceSuid);
++  COPY_SCALAR_FIELD(sourceId);
++  CLONE_NODE_LIST_FIELD(pRefCols);
++  CLONE_OBJECT_FIELD(pVgroupList, vgroupsInfoClone);
++  COPY_SCALAR_FIELD(isUsedInFilter);
++  COPY_SCALAR_FIELD(isUsedInProjection);
++  return TSDB_CODE_SUCCESS;
++}
++
+ static int32_t logicGroupCacheCopy(const SGroupCacheLogicNode* pSrc, SGroupCacheLogicNode* pDst) {
+   COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
+   COPY_SCALAR_FIELD(grpColsMayBeNull);
+@@ -915,6 +943,7 @@ static int32_t logicSubplanCopy(const SLogicSubplan* pSrc, SLogicSubplan* pDst)
+   COPY_SCALAR_FIELD(splitFlag);
+   COPY_SCALAR_FIELD(processOneBlock);
+   COPY_SCALAR_FIELD(dynTbname);
++  CLONE_OBJECT_FIELD(pVgroupList, vgroupsInfoClone);
+   return TSDB_CODE_SUCCESS;
+ }
+ 
+@@ -951,6 +980,25 @@ static int32_t physiVirtualTableScanCopy(const SVirtualScanPhysiNode* pSrc, SVir
+   CLONE_NODE_FIELD(pSubtable);
+   COPY_SCALAR_FIELD(igExpired);
+   COPY_SCALAR_FIELD(igCheckUpdate);
++  CLONE_NODE_LIST_FIELD(pTagRefSources);
++  CLONE_NODE_LIST_FIELD(pLocalTags);
++  CLONE_NODE_LIST_FIELD(pRefTagCols);
++  CLONE_NODE_FIELD(pTagFilterCond);
++  COPY_SCALAR_FIELD(hasTagRef);
++  COPY_SCALAR_FIELD(hasLocalTag);
++  return TSDB_CODE_SUCCESS;
++}
++
++static int32_t physiTagRefSourceCopy(const STagRefSourcePhysiNode* pSrc, STagRefSourcePhysiNode* pDst) {
++  COPY_BASE_OBJECT_FIELD(node, physiNodeCopy);
++  COPY_OBJECT_FIELD(sourceTableName, sizeof(SName));
++  COPY_SCALAR_FIELD(sourceSuid);
++  COPY_SCALAR_FIELD(sourceId);
++  CLONE_NODE_LIST_FIELD(pRefCols);
++  CLONE_OBJECT_FIELD(pVgroupList, vgroupsInfoClone);
++  CLONE_NODE_LIST_FIELD(pScanCols);
++  COPY_SCALAR_FIELD(isUsedInFilter);
++  COPY_SCALAR_FIELD(isUsedInProjection);
+   return TSDB_CODE_SUCCESS;
+ }
+ 
+@@ -1215,6 +1263,12 @@ int32_t nodesCloneNode(const SNode* pNode, SNode** ppNode) {
+     return TSDB_CODE_SUCCESS;
+   }
+ 
++  if (QUERY_NODE_TAG_REF_COLUMN == nodeType(pNode)) {
++    const STagRefColumn* pTagRef = (const STagRefColumn*)pNode;
++    qDebug("nodes clone tag ref src: type=%d colId=%d sourceColId=%d dataType=%d",
++           nodeType(pNode), pTagRef->colId, pTagRef->sourceColId, pTagRef->dataType);
++  }
++
+   SNode* pDst = NULL;
+   int32_t code = nodesMakeNode(nodeType(pNode), &pDst);
+   if (TSDB_CODE_SUCCESS != code) {
+@@ -1225,6 +1279,14 @@ int32_t nodesCloneNode(const SNode* pNode, SNode** ppNode) {
+     case QUERY_NODE_COLUMN:
+       code = columnNodeCopy((const SColumnNode*)pNode, (SColumnNode*)pDst);
+       break;
++    case QUERY_NODE_TAG_REF_COLUMN:
++      code = tagRefColumnCopy((const STagRefColumn*)pNode, (STagRefColumn*)pDst);
++      if (TSDB_CODE_SUCCESS == code) {
++        const STagRefColumn* pTagRef = (const STagRefColumn*)pDst;
++        qDebug("nodes clone tag ref dst: type=%d colId=%d sourceColId=%d dataType=%d",
++               nodeType(pDst), pTagRef->colId, pTagRef->sourceColId, pTagRef->dataType);
++      }
++      break;
+     case QUERY_NODE_COLUMN_DEF:
+       code = columnDefNodeCopy((const SColumnDefNode*)pNode, (SColumnDefNode*)pDst);
+       break;
+@@ -1393,6 +1455,9 @@ int32_t nodesCloneNode(const SNode* pNode, SNode** ppNode) {
+     case QUERY_NODE_LOGIC_PLAN_GROUP_CACHE:
+       code = logicGroupCacheCopy((const SGroupCacheLogicNode*)pNode, (SGroupCacheLogicNode*)pDst);
+       break;
++    case QUERY_NODE_LOGIC_PLAN_TAG_REF_SOURCE:
++      code = logicTagRefSourceCopy((const STagRefSourceLogicNode*)pNode, (STagRefSourceLogicNode*)pDst);
++      break;
+     case QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL:
+       code = logicDynQueryCtrlCopy((const SDynQueryCtrlLogicNode*)pNode, (SDynQueryCtrlLogicNode*)pDst);
+       break;
+@@ -1424,6 +1489,9 @@ int32_t nodesCloneNode(const SNode* pNode, SNode** ppNode) {
+     case QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN:
+       code = physiVirtualTableScanCopy((const SVirtualScanPhysiNode*)pNode, (SVirtualScanPhysiNode*)pDst);
+       break;
++    case QUERY_NODE_PHYSICAL_PLAN_TAG_REF_SOURCE:
++      code = physiTagRefSourceCopy((const STagRefSourcePhysiNode*)pNode, (STagRefSourcePhysiNode*)pDst);
++      break;
+     case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
+       code = physiProjectCopy((const SProjectPhysiNode*)pNode, (SProjectPhysiNode*)pDst);
+       break;
+diff --git a/source/libs/nodes/src/nodesCodeFuncs.c b/source/libs/nodes/src/nodesCodeFuncs.c
+index 1212a9b0f4..ca38befd36 100644
+--- a/source/libs/nodes/src/nodesCodeFuncs.c
++++ b/source/libs/nodes/src/nodesCodeFuncs.c
+@@ -28,6 +28,8 @@ static int32_t nodeToJson(const void* pObj, SJson* pJson);
+ static int32_t jsonToNode(const SJson* pJson, void* pObj);
+ static int32_t jsonToNodeObject(const SJson* pJson, const char* pName, SNode** pNode);
+ static int32_t makeNodeByJson(const SJson* pJson, SNode** pNode);
++static int32_t nameToJson(const void* pObj, SJson* pJson);
++static int32_t jsonToName(const SJson* pJson, void* pObj);
+ 
+ const char* nodesNodeName(ENodeType type) {
+   switch (type) {
+@@ -105,6 +107,8 @@ const char* nodesNodeName(ENodeType type) {
+       return "StreamTriggerOptions";
+     case QUERY_NODE_LEFT_VALUE:
+       return "LeftValue";
++    case QUERY_NODE_TAG_REF_COLUMN:
++      return "TagRefColumn";
+     case QUERY_NODE_COLUMN_REF:
+       return "ColumnReference";
+     case QUERY_NODE_WHEN_THEN:
+@@ -495,6 +499,8 @@ const char* nodesNodeName(ENodeType type) {
+       return "LogicDynamicQueryCtrl";
+     case QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN:
+       return "LogicVirtualTableScan";
++    case QUERY_NODE_LOGIC_PLAN_TAG_REF_SOURCE:
++      return "LogicTagRefSource";
+     case QUERY_NODE_LOGIC_SUBPLAN:
+       return "LogicSubplan";
+     case QUERY_NODE_LOGIC_PLAN:
+@@ -573,6 +579,8 @@ const char* nodesNodeName(ENodeType type) {
+       return "PhysiDynamicQueryCtrl";
+     case QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN:
+       return "PhysiVirtualTableScan";
++    case QUERY_NODE_PHYSICAL_PLAN_TAG_REF_SOURCE:
++      return "PhysiTagRefSource";
+     case QUERY_NODE_PHYSICAL_SUBPLAN:
+       return "PhysiSubplan";
+     case QUERY_NODE_PHYSICAL_PLAN:
+@@ -2019,6 +2027,19 @@ static const char* jkVirtualTableScanLogicPlanTableId = "TableId";
+ static const char* jkVirtualTableScanLogicPlanStableId = "StableId";
+ static const char* jkVirtualTableScanLogicPlanScanType = "ScanType";
+ static const char* jkVirtualTableScanLogicPlanscanAllCols = "scanAllCols";
++static const char* jkVirtualTableScanLogicPlanTagRefSources = "TagRefSources";
++static const char* jkVirtualTableScanLogicPlanLocalTags = "LocalTags";
++static const char* jkVirtualTableScanLogicPlanRefTagCols = "RefTagCols";
++static const char* jkVirtualTableScanLogicPlanTagFilterCond = "TagFilterCond";
++static const char* jkVirtualTableScanLogicPlanHasTagRef = "HasTagRef";
++static const char* jkVirtualTableScanLogicPlanHasLocalTag = "HasLocalTag";
++static const char* jkTagRefSourceLogicPlanSourceTableName = "SourceTableName";
++static const char* jkTagRefSourceLogicPlanSourceSuid = "SourceSuid";
++static const char* jkTagRefSourceLogicPlanSourceId = "SourceId";
++static const char* jkTagRefSourceLogicPlanRefCols = "RefCols";
++static const char* jkTagRefSourceLogicPlanVgroups = "Vgroups";
++static const char* jkTagRefSourceLogicPlanUsedInFilter = "UsedInFilter";
++static const char* jkTagRefSourceLogicPlanUsedInProjection = "UsedInProjection";
+ 
+ static int32_t logicVirtualTableScanNodeToJson(const void* pObj, SJson* pJson) {
+   const SVirtualScanLogicNode* pNode = (const SVirtualScanLogicNode*)pObj;
+@@ -2045,6 +2066,24 @@ static int32_t logicVirtualTableScanNodeToJson(const void* pObj, SJson* pJson) {
+   if (TSDB_CODE_SUCCESS == code) {
+     code = tjsonAddIntegerToObject(pJson, jkVirtualTableScanLogicPlanScanType, pNode->scanType);
+   }
++  if (TSDB_CODE_SUCCESS == code) {
++    code = nodeListToJson(pJson, jkVirtualTableScanLogicPlanTagRefSources, pNode->pTagRefSources);
++  }
++  if (TSDB_CODE_SUCCESS == code) {
++    code = nodeListToJson(pJson, jkVirtualTableScanLogicPlanLocalTags, pNode->pLocalTags);
++  }
++  if (TSDB_CODE_SUCCESS == code) {
++    code = nodeListToJson(pJson, jkVirtualTableScanLogicPlanRefTagCols, pNode->pRefTagCols);
++  }
++  if (TSDB_CODE_SUCCESS == code) {
++    code = tjsonAddObject(pJson, jkVirtualTableScanLogicPlanTagFilterCond, nodeToJson, pNode->pTagFilterCond);
++  }
++  if (TSDB_CODE_SUCCESS == code) {
++    code = tjsonAddBoolToObject(pJson, jkVirtualTableScanLogicPlanHasTagRef, pNode->hasTagRef);
++  }
++  if (TSDB_CODE_SUCCESS == code) {
++    code = tjsonAddBoolToObject(pJson, jkVirtualTableScanLogicPlanHasLocalTag, pNode->hasLocalTag);
++  }
+   return code;
+ }
+ 
+@@ -2074,6 +2113,82 @@ static int32_t jsonToLogicVirtualTableScanNode(const SJson* pJson, void* pObj) {
+   if (TSDB_CODE_SUCCESS == code) {
+     tjsonGetNumberValue(pJson, jkVirtualTableScanLogicPlanScanType, pNode->scanType, code);
+   }
++  if (TSDB_CODE_SUCCESS == code) {
++    code = jsonToNodeList(pJson, jkVirtualTableScanLogicPlanTagRefSources, &pNode->pTagRefSources);
++  }
++  if (TSDB_CODE_SUCCESS == code) {
++    code = jsonToNodeList(pJson, jkVirtualTableScanLogicPlanLocalTags, &pNode->pLocalTags);
++  }
++  if (TSDB_CODE_SUCCESS == code) {
++    code = jsonToNodeList(pJson, jkVirtualTableScanLogicPlanRefTagCols, &pNode->pRefTagCols);
++  }
++  if (TSDB_CODE_SUCCESS == code) {
++    code = jsonToNodeObject(pJson, jkVirtualTableScanLogicPlanTagFilterCond, &pNode->pTagFilterCond);
++  }
++  if (TSDB_CODE_SUCCESS == code) {
++    code = tjsonGetBoolValue(pJson, jkVirtualTableScanLogicPlanHasTagRef, &pNode->hasTagRef);
++  }
++  if (TSDB_CODE_SUCCESS == code) {
++    code = tjsonGetBoolValue(pJson, jkVirtualTableScanLogicPlanHasLocalTag, &pNode->hasLocalTag);
++  }
++  return code;
++}
++
++static int32_t logicTagRefSourceNodeToJson(const void* pObj, SJson* pJson) {
++  const STagRefSourceLogicNode* pNode = (const STagRefSourceLogicNode*)pObj;
++
++  int32_t code = logicPlanNodeToJson(pObj, pJson);
++  if (TSDB_CODE_SUCCESS == code) {
++    code = tjsonAddObject(pJson, jkTagRefSourceLogicPlanSourceTableName, nameToJson, &pNode->sourceTableName);
++  }
++  if (TSDB_CODE_SUCCESS == code) {
++    code = tjsonAddIntegerToObject(pJson, jkTagRefSourceLogicPlanSourceSuid, pNode->sourceSuid);
++  }
++  if (TSDB_CODE_SUCCESS == code) {
++    code = tjsonAddIntegerToObject(pJson, jkTagRefSourceLogicPlanSourceId, pNode->sourceId);
++  }
++  if (TSDB_CODE_SUCCESS == code) {
++    code = nodeListToJson(pJson, jkTagRefSourceLogicPlanRefCols, pNode->pRefCols);
++  }
++  if (TSDB_CODE_SUCCESS == code) {
++    code = tjsonAddObject(pJson, jkTagRefSourceLogicPlanVgroups, vgroupsInfoToJson, pNode->pVgroupList);
++  }
++  if (TSDB_CODE_SUCCESS == code) {
++    code = tjsonAddBoolToObject(pJson, jkTagRefSourceLogicPlanUsedInFilter, pNode->isUsedInFilter);
++  }
++  if (TSDB_CODE_SUCCESS == code) {
++    code = tjsonAddBoolToObject(pJson, jkTagRefSourceLogicPlanUsedInProjection, pNode->isUsedInProjection);
++  }
++  return code;
++}
++
++static int32_t jsonToLogicTagRefSourceNode(const SJson* pJson, void* pObj) {
++  STagRefSourceLogicNode* pNode = (STagRefSourceLogicNode*)pObj;
++  int32_t                 objSize = 0;
++  int32_t                 code = jsonToLogicPlanNode(pJson, pObj);
++
++  if (TSDB_CODE_SUCCESS == code) {
++    code = tjsonToObject(pJson, jkTagRefSourceLogicPlanSourceTableName, jsonToName, &pNode->sourceTableName);
++  }
++  if (TSDB_CODE_SUCCESS == code) {
++    code = tjsonGetUBigIntValue(pJson, jkTagRefSourceLogicPlanSourceSuid, &pNode->sourceSuid);
++  }
++  if (TSDB_CODE_SUCCESS == code) {
++    code = tjsonGetIntValue(pJson, jkTagRefSourceLogicPlanSourceId, &pNode->sourceId);
++  }
++  if (TSDB_CODE_SUCCESS == code) {
++    code = jsonToNodeList(pJson, jkTagRefSourceLogicPlanRefCols, &pNode->pRefCols);
++  }
++  if (TSDB_CODE_SUCCESS == code) {
++    code =
++        tjsonMakeObject(pJson, jkTagRefSourceLogicPlanVgroups, jsonToVgroupsInfo, (void**)&pNode->pVgroupList, objSize);
++  }
++  if (TSDB_CODE_SUCCESS == code) {
++    code = tjsonGetBoolValue(pJson, jkTagRefSourceLogicPlanUsedInFilter, &pNode->isUsedInFilter);
++  }
++  if (TSDB_CODE_SUCCESS == code) {
++    code = tjsonGetBoolValue(pJson, jkTagRefSourceLogicPlanUsedInProjection, &pNode->isUsedInProjection);
++  }
+   return code;
+ }
+ 
+@@ -2599,6 +2714,20 @@ static const char* jkVirtualTableScanPhysiPlanTags = "Tags";
+ static const char* jkVirtualTableScanPhysiPlanSubtable = "Subtable";
+ static const char* jkVirtualTableScanPhysiPlanIgExpired = "IgExpired";
+ static const char* jkVirtualTableScanPhysiPlanIgCheckUpdate = "IgCheckUpdate";
++static const char* jkVirtualTableScanPhysiPlanTagRefSources = "TagRefSources";
++static const char* jkVirtualTableScanPhysiPlanLocalTags = "LocalTags";
++static const char* jkVirtualTableScanPhysiPlanRefTagCols = "RefTagCols";
++static const char* jkVirtualTableScanPhysiPlanTagFilterCond = "TagFilterCond";
++static const char* jkVirtualTableScanPhysiPlanHasTagRef = "HasTagRef";
++static const char* jkVirtualTableScanPhysiPlanHasLocalTag = "HasLocalTag";
++static const char* jkTagRefSourcePhysiPlanSourceTableName = "SourceTableName";
++static const char* jkTagRefSourcePhysiPlanSourceSuid = "SourceSuid";
++static const char* jkTagRefSourcePhysiPlanSourceId = "SourceId";
++static const char* jkTagRefSourcePhysiPlanRefCols = "RefCols";
++static const char* jkTagRefSourcePhysiPlanVgroups = "Vgroups";
++static const char* jkTagRefSourcePhysiPlanScanCols = "ScanCols";
++static const char* jkTagRefSourcePhysiPlanUsedInFilter = "UsedInFilter";
++static const char* jkTagRefSourcePhysiPlanUsedInProjection = "UsedInProjection";
+ 
+ static int32_t physiVirtualTableScanNodeToJson(const void* pObj, SJson* pJson) {
+   const SVirtualScanPhysiNode* pNode = (const SVirtualScanPhysiNode*)pObj;
+@@ -2636,6 +2765,24 @@ static int32_t physiVirtualTableScanNodeToJson(const void* pObj, SJson* pJson) {
+   if (TSDB_CODE_SUCCESS == code) {
+     code = tjsonAddIntegerToObject(pJson, jkVirtualTableScanPhysiPlanIgCheckUpdate, pNode->igCheckUpdate);
+   }
++  if (TSDB_CODE_SUCCESS == code) {
++    code = nodeListToJson(pJson, jkVirtualTableScanPhysiPlanTagRefSources, pNode->pTagRefSources);
++  }
++  if (TSDB_CODE_SUCCESS == code) {
++    code = nodeListToJson(pJson, jkVirtualTableScanPhysiPlanLocalTags, pNode->pLocalTags);
++  }
++  if (TSDB_CODE_SUCCESS == code) {
++    code = nodeListToJson(pJson, jkVirtualTableScanPhysiPlanRefTagCols, pNode->pRefTagCols);
++  }
++  if (TSDB_CODE_SUCCESS == code) {
++    code = tjsonAddObject(pJson, jkVirtualTableScanPhysiPlanTagFilterCond, nodeToJson, pNode->pTagFilterCond);
++  }
++  if (TSDB_CODE_SUCCESS == code) {
++    code = tjsonAddBoolToObject(pJson, jkVirtualTableScanPhysiPlanHasTagRef, pNode->hasTagRef);
++  }
++  if (TSDB_CODE_SUCCESS == code) {
++    code = tjsonAddBoolToObject(pJson, jkVirtualTableScanPhysiPlanHasLocalTag, pNode->hasLocalTag);
++  }
+ 
+   return code;
+ }
+@@ -2672,6 +2819,24 @@ static int32_t jsonToPhysiVirtualTableScanNode(const SJson* pJson, void* pObj) {
+   if (TSDB_CODE_SUCCESS == code) {
+     code = tjsonGetTinyIntValue(pJson, jkVirtualTableScanPhysiPlanIgCheckUpdate, &pNode->igCheckUpdate);
+   }
++  if (TSDB_CODE_SUCCESS == code) {
++    code = jsonToNodeList(pJson, jkVirtualTableScanPhysiPlanTagRefSources, &pNode->pTagRefSources);
++  }
++  if (TSDB_CODE_SUCCESS == code) {
++    code = jsonToNodeList(pJson, jkVirtualTableScanPhysiPlanLocalTags, &pNode->pLocalTags);
++  }
++  if (TSDB_CODE_SUCCESS == code) {
++    code = jsonToNodeList(pJson, jkVirtualTableScanPhysiPlanRefTagCols, &pNode->pRefTagCols);
++  }
++  if (TSDB_CODE_SUCCESS == code) {
++    code = jsonToNodeObject(pJson, jkVirtualTableScanPhysiPlanTagFilterCond, &pNode->pTagFilterCond);
++  }
++  if (TSDB_CODE_SUCCESS == code) {
++    code = tjsonGetBoolValue(pJson, jkVirtualTableScanPhysiPlanHasTagRef, &pNode->hasTagRef);
++  }
++  if (TSDB_CODE_SUCCESS == code) {
++    code = tjsonGetBoolValue(pJson, jkVirtualTableScanPhysiPlanHasLocalTag, &pNode->hasLocalTag);
++  }
+ 
+   return code;
+ }
+@@ -2728,6 +2893,70 @@ static int32_t jsonToPhysiSysTableScanNode(const SJson* pJson, void* pObj) {
+   return code;
+ }
+ 
++static int32_t physiTagRefSourceNodeToJson(const void* pObj, SJson* pJson) {
++  const STagRefSourcePhysiNode* pNode = (const STagRefSourcePhysiNode*)pObj;
++
++  int32_t code = physicPlanNodeToJson(pObj, pJson);
++  if (TSDB_CODE_SUCCESS == code) {
++    code = tjsonAddObject(pJson, jkTagRefSourcePhysiPlanSourceTableName, nameToJson, &pNode->sourceTableName);
++  }
++  if (TSDB_CODE_SUCCESS == code) {
++    code = tjsonAddIntegerToObject(pJson, jkTagRefSourcePhysiPlanSourceSuid, pNode->sourceSuid);
++  }
++  if (TSDB_CODE_SUCCESS == code) {
++    code = tjsonAddIntegerToObject(pJson, jkTagRefSourcePhysiPlanSourceId, pNode->sourceId);
++  }
++  if (TSDB_CODE_SUCCESS == code) {
++    code = nodeListToJson(pJson, jkTagRefSourcePhysiPlanRefCols, pNode->pRefCols);
++  }
++  if (TSDB_CODE_SUCCESS == code) {
++    code = tjsonAddObject(pJson, jkTagRefSourcePhysiPlanVgroups, vgroupsInfoToJson, pNode->pVgroupList);
++  }
++  if (TSDB_CODE_SUCCESS == code) {
++    code = nodeListToJson(pJson, jkTagRefSourcePhysiPlanScanCols, pNode->pScanCols);
++  }
++  if (TSDB_CODE_SUCCESS == code) {
++    code = tjsonAddBoolToObject(pJson, jkTagRefSourcePhysiPlanUsedInFilter, pNode->isUsedInFilter);
++  }
++  if (TSDB_CODE_SUCCESS == code) {
++    code = tjsonAddBoolToObject(pJson, jkTagRefSourcePhysiPlanUsedInProjection, pNode->isUsedInProjection);
++  }
++  return code;
++}
++
++static int32_t jsonToPhysiTagRefSourceNode(const SJson* pJson, void* pObj) {
++  STagRefSourcePhysiNode* pNode = (STagRefSourcePhysiNode*)pObj;
++  int32_t                 objSize = 0;
++  int32_t                 code = jsonToPhysicPlanNode(pJson, pObj);
++
++  if (TSDB_CODE_SUCCESS == code) {
++    code = tjsonToObject(pJson, jkTagRefSourcePhysiPlanSourceTableName, jsonToName, &pNode->sourceTableName);
++  }
++  if (TSDB_CODE_SUCCESS == code) {
++    code = tjsonGetUBigIntValue(pJson, jkTagRefSourcePhysiPlanSourceSuid, &pNode->sourceSuid);
++  }
++  if (TSDB_CODE_SUCCESS == code) {
++    code = tjsonGetIntValue(pJson, jkTagRefSourcePhysiPlanSourceId, &pNode->sourceId);
++  }
++  if (TSDB_CODE_SUCCESS == code) {
++    code = jsonToNodeList(pJson, jkTagRefSourcePhysiPlanRefCols, &pNode->pRefCols);
++  }
++  if (TSDB_CODE_SUCCESS == code) {
++    code =
++        tjsonMakeObject(pJson, jkTagRefSourcePhysiPlanVgroups, jsonToVgroupsInfo, (void**)&pNode->pVgroupList, objSize);
++  }
++  if (TSDB_CODE_SUCCESS == code) {
++    code = jsonToNodeList(pJson, jkTagRefSourcePhysiPlanScanCols, &pNode->pScanCols);
++  }
++  if (TSDB_CODE_SUCCESS == code) {
++    code = tjsonGetBoolValue(pJson, jkTagRefSourcePhysiPlanUsedInFilter, &pNode->isUsedInFilter);
++  }
++  if (TSDB_CODE_SUCCESS == code) {
++    code = tjsonGetBoolValue(pJson, jkTagRefSourcePhysiPlanUsedInProjection, &pNode->isUsedInProjection);
++  }
++  return code;
++}
++
+ static const char* jkProjectPhysiPlanProjections = "Projections";
+ static const char* jkProjectPhysiPlanMergeDataBlock = "MergeDataBlock";
+ static const char* jkProjectPhysiPlanIgnoreGroupId = "IgnoreGroupId";
+@@ -7589,6 +7818,58 @@ static int32_t jsonToColumnReference(const SJson* pJson, void* pObj) {
+   return code;
+ }
+ 
++static const char* jkTagRefColumnColId = "ColId";
++static const char* jkTagRefColumnSourceColId = "SourceColId";
++static const char* jkTagRefColumnColName = "ColName";
++static const char* jkTagRefColumnSourceColName = "SourceColName";
++static const char* jkTagRefColumnBytes = "Bytes";
++static const char* jkTagRefColumnDataType = "DataType";
++
++static int32_t tagRefColumnToJson(const void* pObj, SJson* pJson) {
++  const STagRefColumn* pNode = (const STagRefColumn*)pObj;
++
++  int32_t code = tjsonAddIntegerToObject(pJson, jkTagRefColumnColId, pNode->colId);
++  if (TSDB_CODE_SUCCESS == code) {
++    code = tjsonAddIntegerToObject(pJson, jkTagRefColumnSourceColId, pNode->sourceColId);
++  }
++  if (TSDB_CODE_SUCCESS == code) {
++    code = tjsonAddStringToObject(pJson, jkTagRefColumnColName, pNode->colName);
++  }
++  if (TSDB_CODE_SUCCESS == code) {
++    code = tjsonAddStringToObject(pJson, jkTagRefColumnSourceColName, pNode->sourceColName);
++  }
++  if (TSDB_CODE_SUCCESS == code) {
++    code = tjsonAddIntegerToObject(pJson, jkTagRefColumnBytes, pNode->bytes);
++  }
++  if (TSDB_CODE_SUCCESS == code) {
++    code = tjsonAddIntegerToObject(pJson, jkTagRefColumnDataType, pNode->dataType);
++  }
++  return code;
++}
++
++static int32_t jsonToTagRefColumn(const SJson* pJson, void* pObj) {
++  STagRefColumn* pNode = (STagRefColumn*)pObj;
++
++  int32_t code = tjsonGetSmallIntValue(pJson, jkTagRefColumnColId, &pNode->colId);
++  if (TSDB_CODE_SUCCESS == code) {
++    code = tjsonGetSmallIntValue(pJson, jkTagRefColumnSourceColId, &pNode->sourceColId);
++  }
++  if (TSDB_CODE_SUCCESS == code) {
++    code = tjsonGetStringValue1(pJson, jkTagRefColumnColName, pNode->colName, sizeof(pNode->colName));
++  }
++  if (TSDB_CODE_SUCCESS == code) {
++    code =
++        tjsonGetStringValue1(pJson, jkTagRefColumnSourceColName, pNode->sourceColName, sizeof(pNode->sourceColName));
++  }
++  if (TSDB_CODE_SUCCESS == code) {
++    code = tjsonGetIntValue(pJson, jkTagRefColumnBytes, &pNode->bytes);
++  }
++  if (TSDB_CODE_SUCCESS == code) {
++    code = tjsonGetTinyIntValue(pJson, jkTagRefColumnDataType, &pNode->dataType);
++  }
++  return code;
++}
++
+ static const char* jkWhenThenWhen = "When";
+ static const char* jkWhenThenThen = "Then";
+ 
+@@ -10460,6 +10741,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
+       return streamOptionsToJson(pObj, pJson);
+     case QUERY_NODE_LEFT_VALUE:
+       return TSDB_CODE_SUCCESS;  // SLeftValueNode has no fields to serialize.
++    case QUERY_NODE_TAG_REF_COLUMN:
++      return tagRefColumnToJson(pObj, pJson);
+     case QUERY_NODE_COLUMN_REF:
+       return columnReferenceToJson(pObj, pJson);
+     case QUERY_NODE_WHEN_THEN:
+@@ -10753,6 +11036,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
+       return logicJoinNodeToJson(pObj, pJson);
+     case QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN:
+       return logicVirtualTableScanNodeToJson(pObj, pJson);
++    case QUERY_NODE_LOGIC_PLAN_TAG_REF_SOURCE:
++      return logicTagRefSourceNodeToJson(pObj, pJson);
+     case QUERY_NODE_LOGIC_PLAN_AGG:
+       return logicAggNodeToJson(pObj, pJson);
+     case QUERY_NODE_LOGIC_PLAN_PROJECT:
+@@ -10800,6 +11085,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
+       return physiTableScanNodeToJson(pObj, pJson);
+     case QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN:
+       return physiVirtualTableScanNodeToJson(pObj, pJson);
++    case QUERY_NODE_PHYSICAL_PLAN_TAG_REF_SOURCE:
++      return physiTagRefSourceNodeToJson(pObj, pJson);
+     case QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN:
+       return physiSysTableScanNodeToJson(pObj, pJson);
+     case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
+@@ -10958,6 +11245,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
+       return jsonToStreamOptions(pJson, pObj);
+     case QUERY_NODE_LEFT_VALUE:
+       return TSDB_CODE_SUCCESS;  // SLeftValueNode has no fields to deserialize.
++    case QUERY_NODE_TAG_REF_COLUMN:
++      return jsonToTagRefColumn(pJson, pObj);
+     case QUERY_NODE_COLUMN_REF:
+       return jsonToColumnReference(pJson, pObj);
+     case QUERY_NODE_WHEN_THEN:
+@@ -11237,6 +11526,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
+       return jsonToLogicJoinNode(pJson, pObj);
+     case QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN:
+       return jsonToLogicVirtualTableScanNode(pJson, pObj);
++    case QUERY_NODE_LOGIC_PLAN_TAG_REF_SOURCE:
++      return jsonToLogicTagRefSourceNode(pJson, pObj);
+     case QUERY_NODE_LOGIC_PLAN_AGG:
+       return jsonToLogicAggNode(pJson, pObj);
+     case QUERY_NODE_LOGIC_PLAN_PROJECT:
+@@ -11284,6 +11575,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
+       return jsonToPhysiTableScanNode(pJson, pObj);
+     case QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN:
+       return jsonToPhysiVirtualTableScanNode(pJson, pObj);
++    case QUERY_NODE_PHYSICAL_PLAN_TAG_REF_SOURCE:
++      return jsonToPhysiTagRefSourceNode(pJson, pObj);
+     case QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN:
+       return jsonToPhysiSysTableScanNode(pJson, pObj);
+     case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
+diff --git a/source/libs/nodes/src/nodesMsgFuncs.c b/source/libs/nodes/src/nodesMsgFuncs.c
+index 3f8b64f5ff..66295fcb65 100644
+--- a/source/libs/nodes/src/nodesMsgFuncs.c
++++ b/source/libs/nodes/src/nodesMsgFuncs.c
+@@ -244,6 +244,8 @@ static int32_t tlvEncodeObj(STlvEncoder* pEncoder, int16_t type, FToMsg func, co
+     return TSDB_CODE_SUCCESS;
+   }
+ 
++  const SNode* pNode = (const SNode*)pObj;
++
+   if (pEncoder->offset + sizeof(STlv) > pEncoder->allocSize) {
+     pEncoder->allocSize = TMAX(pEncoder->allocSize * 2, pEncoder->allocSize + sizeof(STlv));
+     void* pNewBuf = taosMemoryRealloc(pEncoder->pBuf, pEncoder->allocSize);
+@@ -575,9 +577,15 @@ static int32_t tlvDecodeObjArrayFromTlv(STlv* pTlv, FToObject func, void* pArray
+ static int32_t tlvDecodeDynObjFromTlv(STlv* pTlv, FMakeObject makeFunc, FToObject toFunc, void** pObj) {
+   int32_t code = makeFunc(pTlv->type, (SNode**)pObj);
+   if (NULL == *pObj) {
++    nodesError("tlvDecodeDynObjFromTlv make node failed, type=%d", pTlv->type);
+     return code;
+   }
+-  return tlvDecodeObjFromTlv(pTlv, toFunc, *pObj);
++  code = tlvDecodeObjFromTlv(pTlv, toFunc, *pObj);
++  if (TSDB_CODE_SUCCESS != code) {
++    nodesError("tlvDecodeDynObjFromTlv decode failed, type=%d(%s), code:%x", pTlv->type,
++               nodesNodeName(nodeType(*pObj)), code);
++  }
++  return code;
+ }
+ 
+ static int32_t tlvDecodeDynObj(STlvDecoder* pDecoder, FMakeObject makeFunc, FToObject toFunc, void** pObj) {
+@@ -1905,6 +1913,77 @@ static int32_t msgToSlotDescNode(STlvDecoder* pDecoder, void* pObj) {
+   return code;
+ }
+ 
++enum { TAG_REF_COLUMN_CODE_INLINE_ATTRS = 1 };
++
++static int32_t tagRefColumnInlineToMsg(const void* pObj, STlvEncoder* pEncoder) {
++  const STagRefColumn* pNode = (const STagRefColumn*)pObj;
++
++  int32_t code = tlvEncodeValueI16(pEncoder, pNode->colId);
++  if (TSDB_CODE_SUCCESS == code) {
++    code = tlvEncodeValueI16(pEncoder, pNode->sourceColId);
++  }
++  if (TSDB_CODE_SUCCESS == code) {
++    code = tlvEncodeValueCStr(pEncoder, pNode->colName);
++  }
++  if (TSDB_CODE_SUCCESS == code) {
++    code = tlvEncodeValueCStr(pEncoder, pNode->sourceColName);
++  }
++  if (TSDB_CODE_SUCCESS == code) {
++    code = tlvEncodeValueI32(pEncoder, pNode->bytes);
++  }
++  if (TSDB_CODE_SUCCESS == code) {
++    code = tlvEncodeValueI8(pEncoder, pNode->dataType);
++  }
++
++  return code;
++}
++
++static int32_t tagRefColumnToMsg(const void* pObj, STlvEncoder* pEncoder) {
++  // Only log errors on actual encode failures, not on normal encoding.
++  return tlvEncodeObj(pEncoder, TAG_REF_COLUMN_CODE_INLINE_ATTRS, tagRefColumnInlineToMsg, pObj);
++}
++
++static int32_t msgToTagRefColumnInline(STlvDecoder* pDecoder, void* pObj) {
++  STagRefColumn* pNode = (STagRefColumn*)pObj;
++
++  int32_t code = tlvDecodeValueI16(pDecoder, &pNode->colId);
++  if (TSDB_CODE_SUCCESS == code) {
++    code = tlvDecodeValueI16(pDecoder, &pNode->sourceColId);
++  }
++  if (TSDB_CODE_SUCCESS == code) {
++    code = tlvDecodeValueCStr(pDecoder, pNode->colName);
++  }
++  if (TSDB_CODE_SUCCESS == code) {
++    code = tlvDecodeValueCStr(pDecoder, pNode->sourceColName);
++  }
++  if (TSDB_CODE_SUCCESS == code) {
++    code = tlvDecodeValueI32(pDecoder, &pNode->bytes);
++  }
++  if (TSDB_CODE_SUCCESS == code) {
++    code = tlvDecodeValueI8(pDecoder, &pNode->dataType);
++  }
++
++  return code;
++}
++
++static int32_t msgToTagRefColumn(STlvDecoder* pDecoder, void* pObj) {
++  STagRefColumn* pNode = (STagRefColumn*)pObj;
++
++  int32_t code = TSDB_CODE_SUCCESS;
++  STlv*   pTlv = NULL;
++  tlvForEach(pDecoder, pTlv, code) {
++    switch (pTlv->type) {
++      case TAG_REF_COLUMN_CODE_INLINE_ATTRS:
++        code = tlvDecodeObjFromTlv(pTlv, msgToTagRefColumnInline, pNode);
++        break;
++      default:
++        break;
++    }
++  }
++
++  return code;
++}
++
+ enum { EP_CODE_FQDN = 1, EP_CODE_port };
+ 
+ static int32_t epInlineToMsg(const void* pObj, STlvEncoder* pEncoder) {
+@@ -2451,6 +2530,12 @@ enum {
+   PHY_VIRTUAL_TABLE_SCAN_CODE_SUBTABLE,
+   PHY_VIRTUAL_TABLE_SCAN_CODE_IGNORE_EXPIRED,
+   PHY_VIRTUAL_TABLE_SCAN_CODE_IGNORE_CHECK_UPDATE,
++  PHY_VIRTUAL_TABLE_SCAN_CODE_TAG_REF_SOURCES,
++  PHY_VIRTUAL_TABLE_SCAN_CODE_LOCAL_TAGS,
++  PHY_VIRTUAL_TABLE_SCAN_CODE_REF_TAG_COLS,
++  PHY_VIRTUAL_TABLE_SCAN_CODE_TAG_FILTER_COND,
++  PHY_VIRTUAL_TABLE_SCAN_CODE_HAS_TAG_REF,
++  PHY_VIRTUAL_TABLE_SCAN_CODE_HAS_LOCAL_TAG,
+ };
+ 
+ static int32_t physiVirtualTableScanNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
+@@ -2489,6 +2574,24 @@ static int32_t physiVirtualTableScanNodeToMsg(const void* pObj, STlvEncoder* pEn
+   if (TSDB_CODE_SUCCESS == code) {
+     code = tlvEncodeI8(pEncoder, PHY_VIRTUAL_TABLE_SCAN_CODE_IGNORE_CHECK_UPDATE, pNode->igCheckUpdate);
+   }
++  if (TSDB_CODE_SUCCESS == code) {
++    code = tlvEncodeObj(pEncoder, PHY_VIRTUAL_TABLE_SCAN_CODE_TAG_REF_SOURCES, nodeListToMsg, pNode->pTagRefSources);
++  }
++  if (TSDB_CODE_SUCCESS == code) {
++    code = tlvEncodeObj(pEncoder, PHY_VIRTUAL_TABLE_SCAN_CODE_LOCAL_TAGS, nodeListToMsg, pNode->pLocalTags);
++  }
++  if (TSDB_CODE_SUCCESS == code) {
++    code = tlvEncodeObj(pEncoder, PHY_VIRTUAL_TABLE_SCAN_CODE_REF_TAG_COLS, nodeListToMsg, pNode->pRefTagCols);
++  }
++  if (TSDB_CODE_SUCCESS == code) {
++    code = tlvEncodeObj(pEncoder, PHY_VIRTUAL_TABLE_SCAN_CODE_TAG_FILTER_COND, nodeToMsg, pNode->pTagFilterCond);
++  }
++  if (TSDB_CODE_SUCCESS == code) {
++    code = tlvEncodeBool(pEncoder, PHY_VIRTUAL_TABLE_SCAN_CODE_HAS_TAG_REF, pNode->hasTagRef);
++  }
++  if (TSDB_CODE_SUCCESS == code) {
++    code = tlvEncodeBool(pEncoder, PHY_VIRTUAL_TABLE_SCAN_CODE_HAS_LOCAL_TAG, pNode->hasLocalTag);
++  }
+ 
+   return code;
+ }
+@@ -2527,6 +2630,24 @@ static int32_t msgToPhysiVirtualTableScanNode(STlvDecoder* pDecoder, void* pObj)
+       case PHY_VIRTUAL_TABLE_SCAN_CODE_IGNORE_CHECK_UPDATE:
+         code = tlvDecodeI8(pTlv, &pNode->igCheckUpdate);
+         break;
++      case PHY_VIRTUAL_TABLE_SCAN_CODE_TAG_REF_SOURCES:
++        code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pTagRefSources);
++        break;
++      case PHY_VIRTUAL_TABLE_SCAN_CODE_LOCAL_TAGS:
++        code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pLocalTags);
++        break;
++      case PHY_VIRTUAL_TABLE_SCAN_CODE_REF_TAG_COLS:
++        code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pRefTagCols);
++        break;
++      case PHY_VIRTUAL_TABLE_SCAN_CODE_TAG_FILTER_COND:
++        code = msgToNodeFromTlv(pTlv, (void**)&pNode->pTagFilterCond);
++        break;
++      case PHY_VIRTUAL_TABLE_SCAN_CODE_HAS_TAG_REF:
++        code = tlvDecodeBool(pTlv, &pNode->hasTagRef);
++        break;
++      case PHY_VIRTUAL_TABLE_SCAN_CODE_HAS_LOCAL_TAG:
++        code = tlvDecodeBool(pTlv, &pNode->hasLocalTag);
++        break;
+       default:
+         break;
+     }
+@@ -2572,6 +2693,92 @@ static int32_t msgToPhysiTagScanNode(STlvDecoder* pDecoder, void* pObj) {
+   return code;
+ }
+ 
++enum {
++  PHY_TAG_REF_SOURCE_CODE_NODE = 1,
++  PHY_TAG_REF_SOURCE_CODE_SOURCE_TABLE_NAME,
++  PHY_TAG_REF_SOURCE_CODE_SOURCE_SUID,
++  PHY_TAG_REF_SOURCE_CODE_SOURCE_ID,
++  PHY_TAG_REF_SOURCE_CODE_REF_COLS,
++  PHY_TAG_REF_SOURCE_CODE_SCAN_COLS,
++  PHY_TAG_REF_SOURCE_CODE_USED_IN_FILTER,
++  PHY_TAG_REF_SOURCE_CODE_USED_IN_PROJECTION
++};
++
++static int32_t physiTagRefSourceNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
++  const STagRefSourcePhysiNode* pNode = (const STagRefSourcePhysiNode*)pObj;
++
++  int32_t code = tlvEncodeObj(pEncoder, PHY_TAG_REF_SOURCE_CODE_NODE, physiNodeToMsg, &pNode->node);
++
++  if (TSDB_CODE_SUCCESS == code) {
++    code = tlvEncodeObj(pEncoder, PHY_TAG_REF_SOURCE_CODE_SOURCE_TABLE_NAME, nameToMsg, &pNode->sourceTableName);
++  }
++
++  if (TSDB_CODE_SUCCESS == code) {
++    code = tlvEncodeU64(pEncoder, PHY_TAG_REF_SOURCE_CODE_SOURCE_SUID, pNode->sourceSuid);
++  }
++
++  if (TSDB_CODE_SUCCESS == code) {
++    code = tlvEncodeI32(pEncoder, PHY_TAG_REF_SOURCE_CODE_SOURCE_ID, pNode->sourceId);
++  }
++
++  if (TSDB_CODE_SUCCESS == code) {
++    code = tlvEncodeObj(pEncoder, PHY_TAG_REF_SOURCE_CODE_REF_COLS, nodeListToMsg, pNode->pRefCols);
++  }
++
++  if (TSDB_CODE_SUCCESS == code) {
++    code = tlvEncodeObj(pEncoder, PHY_TAG_REF_SOURCE_CODE_SCAN_COLS, nodeListToMsg, pNode->pScanCols);
++  }
++
++  if (TSDB_CODE_SUCCESS == code) {
++    code = tlvEncodeBool(pEncoder, PHY_TAG_REF_SOURCE_CODE_USED_IN_FILTER, pNode->isUsedInFilter);
++  }
++
++  if (TSDB_CODE_SUCCESS == code) {
++    code = tlvEncodeBool(pEncoder, PHY_TAG_REF_SOURCE_CODE_USED_IN_PROJECTION, pNode->isUsedInProjection);
++  }
++
++  return code;
++}
++
++static int32_t msgToPhysiTagRefSourceNode(STlvDecoder* pDecoder, void* pObj) {
++  STagRefSourcePhysiNode* pNode = (STagRefSourcePhysiNode*)pObj;
++
++  int32_t code = TSDB_CODE_SUCCESS;
++  STlv*   pTlv = NULL;
++  tlvForEach(pDecoder, pTlv, code) {
++    switch (pTlv->type) {
++      case PHY_TAG_REF_SOURCE_CODE_NODE:
++        code = tlvDecodeObjFromTlv(pTlv, msgToPhysiNode, &pNode->node);
++        break;
++      case PHY_TAG_REF_SOURCE_CODE_SOURCE_TABLE_NAME:
++        code = tlvDecodeObjFromTlv(pTlv, msgToName, &pNode->sourceTableName);
++        break;
++      case PHY_TAG_REF_SOURCE_CODE_SOURCE_SUID:
++        code = tlvDecodeU64(pTlv, &pNode->sourceSuid);
++        break;
++      case PHY_TAG_REF_SOURCE_CODE_SOURCE_ID:
++        code = tlvDecodeI32(pTlv, &pNode->sourceId);
++        break;
++      case PHY_TAG_REF_SOURCE_CODE_REF_COLS:
++        code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pRefCols);
++        break;
++      case PHY_TAG_REF_SOURCE_CODE_SCAN_COLS:
++        code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pScanCols);
++        break;
++      case PHY_TAG_REF_SOURCE_CODE_USED_IN_FILTER:
++        code = tlvDecodeBool(pTlv, &pNode->isUsedInFilter);
++        break;
++      case PHY_TAG_REF_SOURCE_CODE_USED_IN_PROJECTION:
++        code = tlvDecodeBool(pTlv, &pNode->isUsedInProjection);
++        break;
++      default:
++        break;
++    }
++  }
++
++  return code;
++}
++
+ enum {
+   PHY_LAST_ROW_SCAN_CODE_SCAN = 1,
+   PHY_LAST_ROW_SCAN_CODE_GROUP_TAGS,
+@@ -5319,6 +5526,9 @@ static int32_t specificNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
+       break;
+     case QUERY_NODE_LEFT_VALUE:
+       break;
++    case QUERY_NODE_TAG_REF_COLUMN:
++      code = tagRefColumnToMsg(pObj, pEncoder);
++      break;
+     case QUERY_NODE_WHEN_THEN:
+       code = whenThenNodeToMsg(pObj, pEncoder);
+       break;
+@@ -5438,6 +5648,9 @@ static int32_t specificNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
+     case QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN:
+       code = physiVirtualTableScanNodeToMsg(pObj, pEncoder);
+       break;
++    case QUERY_NODE_PHYSICAL_PLAN_TAG_REF_SOURCE:
++      code = physiTagRefSourceNodeToMsg(pObj, pEncoder);
++      break;
+     case QUERY_NODE_PHYSICAL_SUBPLAN:
+       code = subplanToMsg(pObj, pEncoder);
+       break;
+@@ -5497,6 +5710,9 @@ static int32_t msgToSpecificNode(STlvDecoder* pDecoder, void* pObj) {
+       code = msgToDownstreamSourceNode(pDecoder, pObj);
+     case QUERY_NODE_LEFT_VALUE:
+       break;
++    case QUERY_NODE_TAG_REF_COLUMN:
++      code = msgToTagRefColumn(pDecoder, pObj);
++      break;
+     case QUERY_NODE_WHEN_THEN:
+       code = msgToWhenThenNode(pDecoder, pObj);
+       break;
+@@ -5616,6 +5832,9 @@ static int32_t msgToSpecificNode(STlvDecoder* pDecoder, void* pObj) {
+     case QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN:
+       code = msgToPhysiVirtualTableScanNode(pDecoder, pObj);
+       break;
++    case QUERY_NODE_PHYSICAL_PLAN_TAG_REF_SOURCE:
++      code = msgToPhysiTagRefSourceNode(pDecoder, pObj);
++      break;
+     case QUERY_NODE_PHYSICAL_SUBPLAN:
+       code = msgToSubplan(pDecoder, pObj);
+       break;
+diff --git a/source/libs/nodes/src/nodesUtilFuncs.c b/source/libs/nodes/src/nodesUtilFuncs.c
+index 21e42793cb..decb6e909e 100644
+--- a/source/libs/nodes/src/nodesUtilFuncs.c
++++ b/source/libs/nodes/src/nodesUtilFuncs.c
+@@ -489,6 +489,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
+     case QUERY_NODE_COLUMN_REF:
+       code = makeNode(type, sizeof(SColumnRefNode), &pNode);
+       break;
++    case QUERY_NODE_TAG_REF_COLUMN:
++      code = makeNode(type, sizeof(STagRefColumn), &pNode);
++      break;
+     case QUERY_NODE_WHEN_THEN:
+       code = makeNode(type, sizeof(SWhenThenNode), &pNode);
+       break;
+@@ -1023,6 +1026,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
+     case QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN:
+       code = makeNode(type, sizeof(SVirtualScanLogicNode), &pNode);
+       break;
++    case QUERY_NODE_LOGIC_PLAN_TAG_REF_SOURCE:
++      code = makeNode(type, sizeof(STagRefSourceLogicNode), &pNode);
++      break;
+     case QUERY_NODE_LOGIC_SUBPLAN:
+       code = makeNode(type, sizeof(SLogicSubplan), &pNode);
+       break;
+@@ -1149,6 +1155,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
+     case QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN:
+       code = makeNode(type, sizeof(SVirtualScanPhysiNode), &pNode);
+       break;
++    case QUERY_NODE_PHYSICAL_PLAN_TAG_REF_SOURCE:
++      code = makeNode(type, sizeof(STagRefSourcePhysiNode), &pNode);
++      break;
+     case QUERY_NODE_PHYSICAL_PLAN_EXTERNAL_WINDOW:
+     case QUERY_NODE_PHYSICAL_PLAN_HASH_EXTERNAL:
+     case QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_EXTERNAL:
+@@ -1585,8 +1594,9 @@ void nodesDestroyNode(SNode* pNode) {
+       nodesDestroyNode(pOptions->pInterval);
+       break;
+     }
+-    case QUERY_NODE_LEFT_VALUE:  // no pointer field
+-    case QUERY_NODE_COLUMN_REF:  // no pointer field
++    case QUERY_NODE_LEFT_VALUE:      // no pointer field
++    case QUERY_NODE_COLUMN_REF:      // no pointer field
++    case QUERY_NODE_TAG_REF_COLUMN:  // no pointer field
+       break;
+     case QUERY_NODE_WHEN_THEN: {
+       SWhenThenNode* pWhenThen = (SWhenThenNode*)pNode;
+@@ -1848,17 +1858,17 @@ void nodesDestroyNode(SNode* pNode) {
+       nodesDestroyNode((SNode*)pStmt->pTokenOptions);
+       break;
+     }
+-    case QUERY_NODE_DROP_USER_STMT:     // no pointer field
+-    case QUERY_NODE_USE_DATABASE_STMT:  // no pointer field
+-    case QUERY_NODE_CREATE_DNODE_STMT:  // no pointer field
+-    case QUERY_NODE_DROP_DNODE_STMT:    // no pointer field
+-    case QUERY_NODE_ALTER_DNODE_STMT:   // no pointer field
++    case QUERY_NODE_DROP_USER_STMT:                // no pointer field
++    case QUERY_NODE_USE_DATABASE_STMT:             // no pointer field
++    case QUERY_NODE_CREATE_DNODE_STMT:             // no pointer field
++    case QUERY_NODE_DROP_DNODE_STMT:               // no pointer field
++    case QUERY_NODE_ALTER_DNODE_STMT:              // no pointer field
+     case QUERY_NODE_ALTER_DNODES_RELOAD_TLS_STMT:  // no pointer field
+-    case QUERY_NODE_CREATE_ANODE_STMT:  // no pointer field
+-    case QUERY_NODE_UPDATE_ANODE_STMT:  // no pointer field
+-    case QUERY_NODE_DROP_ANODE_STMT:    // no pointer field
+-    case QUERY_NODE_DROP_BNODE_STMT:    // no pointer field
+-    case QUERY_NODE_DROP_ENCRYPT_ALGR_STMT:     // no pointer field
++    case QUERY_NODE_CREATE_ANODE_STMT:             // no pointer field
++    case QUERY_NODE_UPDATE_ANODE_STMT:             // no pointer field
++    case QUERY_NODE_DROP_ANODE_STMT:               // no pointer field
++    case QUERY_NODE_DROP_BNODE_STMT:               // no pointer field
++    case QUERY_NODE_DROP_ENCRYPT_ALGR_STMT:        // no pointer field
+       break;
+     case QUERY_NODE_CREATE_BNODE_STMT: {
+       SBnodeOptions* pOptions = ((SCreateBnodeStmt*)pNode)->pOptions;
+@@ -2114,7 +2124,7 @@ void nodesDestroyNode(SNode* pNode) {
+     case QUERY_NODE_KILL_COMPACT_STMT:            // no pointer field
+     case QUERY_NODE_KILL_RETENTION_STMT:          // no pointer field
+     case QUERY_NODE_KILL_SCAN_STMT:
+-    case QUERY_NODE_KILL_SSMIGRATE_STMT:          // no pointer field
++    case QUERY_NODE_KILL_SSMIGRATE_STMT:  // no pointer field
+       break;
+     case QUERY_NODE_SHOW_VALIDATE_VTABLE_STMT:
+       taosMemoryFreeClear(((SShowValidateVirtualTable*)pNode)->pDbCfg);
+@@ -2231,6 +2241,17 @@ void nodesDestroyNode(SNode* pNode) {
+       nodesDestroyList(pLogicNode->pScanCols);
+       nodesDestroyList(pLogicNode->pScanPseudoCols);
+       taosMemoryFreeClear(pLogicNode->pVgroupList);
++      nodesDestroyList(pLogicNode->pTagRefSources);
++      nodesDestroyList(pLogicNode->pLocalTags);
++      nodesDestroyList(pLogicNode->pRefTagCols);
++      nodesDestroyNode(pLogicNode->pTagFilterCond);
++      break;
++    }
++    case QUERY_NODE_LOGIC_PLAN_TAG_REF_SOURCE: {
++      STagRefSourceLogicNode* pLogicNode = (STagRefSourceLogicNode*)pNode;
++      destroyLogicNode((SLogicNode*)pLogicNode);
++      nodesDestroyList(pLogicNode->pRefCols);
++      taosMemoryFreeClear(pLogicNode->pVgroupList);
+       break;
+     }
+     case QUERY_NODE_LOGIC_PLAN_AGG: {
+@@ -2345,10 +2366,8 @@ void nodesDestroyNode(SNode* pNode) {
+     case QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL: {
+       SDynQueryCtrlLogicNode* pLogicNode = (SDynQueryCtrlLogicNode*)pNode;
+       destroyLogicNode((SLogicNode*)pLogicNode);
+-      if (pLogicNode->qType == DYN_QTYPE_VTB_SCAN ||
+-          pLogicNode->qType == DYN_QTYPE_VTB_AGG ||
+-          pLogicNode->qType == DYN_QTYPE_VTB_INTERVAL ||
+-          pLogicNode->qType == DYN_QTYPE_VTB_WINDOW ||
++      if (pLogicNode->qType == DYN_QTYPE_VTB_SCAN || pLogicNode->qType == DYN_QTYPE_VTB_AGG ||
++          pLogicNode->qType == DYN_QTYPE_VTB_INTERVAL || pLogicNode->qType == DYN_QTYPE_VTB_WINDOW ||
+           pLogicNode->qType == DYN_QTYPE_VTB_TS_SCAN) {
+         taosMemoryFreeClear(pLogicNode->vtbScan.pVgroupList);
+         nodesDestroyList(pLogicNode->vtbScan.pOrgVgIds);
+@@ -2378,6 +2397,18 @@ void nodesDestroyNode(SNode* pNode) {
+       nodesDestroyList(pPhyNode->pTargets);
+       nodesDestroyList(pPhyNode->pTags);
+       nodesDestroyNode(pPhyNode->pSubtable);
++      nodesDestroyList(pPhyNode->pTagRefSources);
++      nodesDestroyList(pPhyNode->pLocalTags);
++      nodesDestroyList(pPhyNode->pRefTagCols);
++      nodesDestroyNode(pPhyNode->pTagFilterCond);
++      break;
++    }
++    case QUERY_NODE_PHYSICAL_PLAN_TAG_REF_SOURCE: {
++      STagRefSourcePhysiNode* pPhyNode = (STagRefSourcePhysiNode*)pNode;
++      destroyPhysiNode((SPhysiNode*)pNode);
++      nodesDestroyList(pPhyNode->pRefCols);
++      nodesDestroyList(pPhyNode->pScanCols);
++      taosMemoryFreeClear(pPhyNode->pVgroupList);
+       break;
+     }
+     case QUERY_NODE_PHYSICAL_PLAN_EXTERNAL_WINDOW:
+@@ -2930,7 +2961,6 @@ SNode* nodesListGetNode(SNodeList* pList, int32_t index) {
+   return NULL;
+ }
+ 
+-
+ SListCell* nodesListGetCell(SNodeList* pList, int32_t index) {
+   SNode* node;
+   FOREACH(node, pList) {
+@@ -3074,7 +3104,6 @@ int32_t nodesSetValueNodeValue(SValueNode* pNode, void* value) {
+   return TSDB_CODE_SUCCESS;
+ }
+ 
+-
+ int32_t nodesSetValueNodeValueExt(SValueNode* pNode, void* value, bool* needFree) {
+   *needFree = true;
+ 
+@@ -3154,7 +3183,6 @@ int32_t nodesSetValueNodeValueExt(SValueNode* pNode, void* value, bool* needFree
+   return TSDB_CODE_SUCCESS;
+ }
+ 
+-
+ char* nodesGetStrValueFromNode(SValueNode* pNode) {
+   switch (pNode->node.resType.type) {
+     case TSDB_DATA_TYPE_NULL: {
+@@ -4248,7 +4276,6 @@ void tFreeStreamVtbDbVgInfo(void* param) {
+   tSimpleHashCleanup(*ppHash);
+ }
+ 
+-
+ bool nodesIsScalarSubQuery(SNode* pNode) {
+   switch (nodeType(pNode)) {
+     case QUERY_NODE_SELECT_STMT: {
+@@ -4318,5 +4345,3 @@ SColumnNode* createColumnByExpr(const char* pStmtName, SExprNode* pExpr) {
+   pCol->node.relatedTo = pExpr->relatedTo;
+   return pCol;
+ }
+-
+-

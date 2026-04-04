@@ -171,6 +171,13 @@ typedef struct SSTriggerWalProgress {
   SSDataBlock              *pCalcBlock;
 } SSTriggerWalProgress;
 
+// (gid, pProgress) for nodelay create-table; each gid must be pulled from its owning reader
+typedef struct {
+  int64_t               gid;
+  SSTriggerWalProgress *pProgress;
+  int32_t               attemptCount;  // 1-based, incremented on each NEED_RETRY for logging
+} SSTriggerPendingCreateTableEntry;
+
 typedef enum ESTriggerWalMode {
   STRIGGER_WAL_META_ONLY,
   STRIGGER_WAL_META_WITH_DATA,
@@ -259,6 +266,9 @@ typedef struct SSTriggerRealtimeContext {
   bool    recovering;
   int64_t lastCheckpointTime;
   int64_t lastReportTime;
+
+  // LAST_TS create-table: need groupInfo before send create-table req; pull GROUP_COL_VALUE first
+  SArray *pPendingCreateTableGids;  // SArray<SSTriggerPendingCreateTableEntry>, (gid, pProgress) per reader
 } SSTriggerRealtimeContext;
 
 typedef struct SSTriggerTsdbProgress {
@@ -403,11 +413,13 @@ typedef struct SStreamTriggerTask {
   bool    lowLatencyCalc;
   bool    hasPartitionBy;
   bool    isVirtualTable;
-  bool    isStbPartitionByTag;
+  bool    isSuperTable;
+  bool    stbPartByTbname;
   bool    ignoreNoDataTrigger;
   bool    hasTriggerFilter;
   int8_t  precision;
   int64_t historyStep;
+  bool    multiGroupBatch;
   int64_t placeHolderBitmap;
   SNode  *triggerFilter;
   // trigger options: old version, to be removed
@@ -428,6 +440,7 @@ typedef struct SStreamTriggerTask {
   SArray            *pNotifyAddrUrls;
   int32_t            addOptions;
   bool               notifyHistory;
+  int8_t             nodelayCreateSubtable;  // 1 = sub-tables created at stream create; 0 = create on the fly
 
   // task info
   int32_t leaderSnodeId;
@@ -491,6 +504,8 @@ int32_t stTriggerTaskAcquireRequest(SStreamTriggerTask *pTask, int64_t sessionId
                                     SSTriggerCalcRequest **ppRequest);
 int32_t stTriggerTaskReleaseRequest(SStreamTriggerTask *pTask, SSTriggerCalcRequest **ppRequest);
 int32_t stTriggerTaskGetRunningReq(SStreamTriggerTask *pTask, int64_t sessionId, int64_t *pNumRunningReq);
+int32_t stTriggerTaskCheckCreate(SStreamTriggerTask *pTask, SSTriggerCalcRequest *pRequest, int64_t sessionId,
+                                 int64_t gid);
 
 int32_t stTriggerTaskAddRecalcRequest(SStreamTriggerTask *pTask, SSTriggerRealtimeGroup *pGroup,
                                       STimeWindow *pCalcRange, bool isHistory, bool isUserRecalc, bool isDetermined);
