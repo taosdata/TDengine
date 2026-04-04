@@ -38,9 +38,9 @@ taos> select b.*, a.ts from (select * from test1.sst) as a right join ((select t
            ts            |  unique(f)  |           ts            |
 ==================================================================
  2023-08-07 13:30:57.000 |           1 | NULL                    |
+ 2023-08-07 13:30:58.000 |           2 | NULL                    |
  2023-08-07 13:30:56.000 |           0 | NULL                    |
  2023-08-07 13:30:59.000 |           3 | NULL                    |
- 2023-08-07 13:30:58.000 |           2 | NULL                    |
 
 taos> select b.*, a.ats from (select _rowts ats, first(f) from test1.sst) as a right join (select * from test1.sst order by ts desc) b on timetruncate(cast(1768465717000 as timestamp)+1a, 1s) = timetruncate(b.ts, 1s) and b.ts > a.ats-5a and b.ts < a.ats + 5a
            ts            |           ts2           |      f      |      t      |           ats           |

@@ -46,6 +46,21 @@ static int32_t      doProjectOperation(SOperatorInfo* pOperator, SSDataBlock** p
 static int32_t      doApplyIndefinitFunction(SOperatorInfo* pOperator, SSDataBlock** pResBlock);
 int32_t projectApplyOperator(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* pSrcBlock, int32_t outputSlotId, int32_t* numOfRows, bool createNewColModel, const void* pExtraParams);
 
+static bool hasLagLeadFunc(const SExprSupp* pSup) {
+  if (pSup == NULL || pSup->pCtx == NULL) {
+    return false;
+  }
+
+  for (int32_t i = 0; i < pSup->numOfExprs; ++i) {
+    EFunctionType type = fmGetFuncTypeFromId(pSup->pCtx[i].functionId);
+    if (type == FUNCTION_TYPE_LAG || type == FUNCTION_TYPE_LEAD) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 static void destroyProjectOperatorInfo(void* param) {
   if (NULL == param) {
     return;
@@ -373,14 +388,15 @@ int32_t doProjectOperation(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
       break;
     }
 
-    if (pProjectInfo->mergeDataBlocks) {
-      if (pRes->info.rows > 0) {
-        pFinalRes->info.id.groupId = 0;  // clear groupId
-        pFinalRes->info.version = pRes->info.version;
+      if (pProjectInfo->mergeDataBlocks) {
+        if (pRes->info.rows > 0) {
+          pFinalRes->info.id.groupId = 0;  // clear groupId
+          pFinalRes->info.version = pRes->info.version;
+          // keep baseGId from current upstream block; already set above for this merge round
 
-        // continue merge data, ignore the group id
-        code = blockDataMerge(pFinalRes, pRes);
-        QUERY_CHECK_CODE(code, lino, _end);
+          // continue merge data, ignore the group id
+          code = blockDataMerge(pFinalRes, pRes);
+          QUERY_CHECK_CODE(code, lino, _end);
 
         if (pFinalRes->info.rows + pRes->info.rows <= pOperator->resultInfo.threshold && (pOperator->status != OP_EXEC_DONE)) {
           continue;
@@ -605,6 +621,7 @@ int32_t doApplyIndefinitFunction(SOperatorInfo* pOperator, SSDataBlock** pResBlo
   }
 
   SOperatorInfo* downstream = pOperator->pDownstream[0];
+  bool           noSplitOutput = hasLagLeadFunc(pSup);
 
   while (1) {
     // here we need to handle the existsed group results
@@ -613,6 +630,9 @@ int32_t doApplyIndefinitFunction(SOperatorInfo* pOperator, SSDataBlock** pResBlo
         SqlFunctionCtx* pCtx = &pSup->pCtx[k];
 
         SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+        if (pResInfo->initialized && pCtx->fpSet.cleanup != NULL) {
+          pCtx->fpSet.cleanup(pCtx);
+        }
         pResInfo->initialized = false;
         pCtx->pOutput = NULL;
       }
@@ -621,7 +641,7 @@ int32_t doApplyIndefinitFunction(SOperatorInfo* pOperator, SSDataBlock** pResBlo
       pIndefInfo->pNextGroupRes = NULL;
     }
 
-    if (pInfo->pRes->info.rows < pOperator->resultInfo.threshold) {
+    if (noSplitOutput || pInfo->pRes->info.rows < pOperator->resultInfo.threshold) {
       while (1) {
         // The downstream exec may change the value of the newgroup, so use a local variable instead.
         SSDataBlock* pBlock = getNextBlockFromDownstream(pOperator, 0);
@@ -642,7 +662,7 @@ int32_t doApplyIndefinitFunction(SOperatorInfo* pOperator, SSDataBlock** pResBlo
         }
 
         doHandleDataBlock(pOperator, pBlock, downstream, pTaskInfo);
-        if (pInfo->pRes->info.rows >= pOperator->resultInfo.threshold) {
+        if (!noSplitOutput && pInfo->pRes->info.rows >= pOperator->resultInfo.threshold) {
           break;
         }
       }
@@ -987,7 +1007,8 @@ int32_t projectApplyFunction(SqlFunctionCtx* pCtx, SqlFunctionCtx* pfCtx, SExprI
   TSDB_CHECK_NULL(pResColData, code, lino, _exit, terrno);
 
   if (fmIsPlaceHolderFunc(pfCtx->functionId) && pExtraParams && pfCtx->pExpr->base.pParamList && 1 == pfCtx->pExpr->base.pParamList->length) {
-    TAOS_CHECK_EXIT(scalarAssignPlaceHolderRes(pResColData, pResult->info.rows, pSrcBlock->info.rows, pfCtx->functionId, pExtraParams));
+    SNode* pParamNode = nodesListGetNode(pfCtx->pExpr->base.pParamList, 0);
+    TAOS_CHECK_EXIT(scalarAssignPlaceHolderRes(pResColData, pResult->info.rows, pSrcBlock->info.rows, pfCtx->functionId, pExtraParams, pParamNode));
     *numOfRows = pSrcBlock->info.rows;
 
     return code;
@@ -1130,6 +1151,8 @@ int32_t projectApplyFunctionsWithSelect(SExprInfo* pExpr, SSDataBlock* pResult, 
   pResult->info.dataLoad = 1;
 
   SArray* processByRowFunctionCtx = NULL;
+  SArray* pProcessedFuncIds = NULL;
+  SArray* pGroupedCtxArray = NULL;
   if (pSrcBlock == NULL) {
     for (int32_t k = 0; k < numOfOutput; ++k) {
       int32_t outputSlotId = pExpr[k].base.resSchema.slotId;
@@ -1198,11 +1221,56 @@ int32_t projectApplyFunctionsWithSelect(SExprInfo* pExpr, SSDataBlock* pResult, 
   }
 
   if (processByRowFunctionCtx && taosArrayGetSize(processByRowFunctionCtx) > 0) {
-    SqlFunctionCtx** pfCtx = taosArrayGet(processByRowFunctionCtx, 0);
-    TSDB_CHECK_NULL(pfCtx, code, lino, _exit, terrno);
+    int32_t processByRowSize = taosArrayGetSize(processByRowFunctionCtx);
+    pProcessedFuncIds = taosArrayInit(4, sizeof(int32_t));
+    TSDB_CHECK_NULL(pProcessedFuncIds, code, lino, _exit, terrno);
 
-    TAOS_CHECK_EXIT((*pfCtx)->fpSet.processFuncByRow(processByRowFunctionCtx));
-    numOfRows = (*pfCtx)->resultInfo->numOfRes;
+    for (int32_t i = 0; i < processByRowSize; ++i) {
+      SqlFunctionCtx** ppCurrCtx = taosArrayGet(processByRowFunctionCtx, i);
+      TSDB_CHECK_NULL(ppCurrCtx, code, lino, _exit, terrno);
+      TSDB_CHECK_NULL(*ppCurrCtx, code, lino, _exit, terrno);
+
+      bool    processed = false;
+      int32_t processedNum = taosArrayGetSize(pProcessedFuncIds);
+      for (int32_t j = 0; j < processedNum; ++j) {
+        int32_t* pFuncId = taosArrayGet(pProcessedFuncIds, j);
+        TSDB_CHECK_NULL(pFuncId, code, lino, _exit, terrno);
+        if (*pFuncId == (*ppCurrCtx)->functionId) {
+          processed = true;
+          break;
+        }
+      }
+
+      if (processed) {
+        continue;
+      }
+
+      pGroupedCtxArray = taosArrayInit(2, sizeof(SqlFunctionCtx*));
+      TSDB_CHECK_NULL(pGroupedCtxArray, code, lino, _exit, terrno);
+
+      for (int32_t j = i; j < processByRowSize; ++j) {
+        SqlFunctionCtx** ppTmpCtx = taosArrayGet(processByRowFunctionCtx, j);
+        TSDB_CHECK_NULL(ppTmpCtx, code, lino, _exit, terrno);
+        TSDB_CHECK_NULL(*ppTmpCtx, code, lino, _exit, terrno);
+
+        if ((*ppTmpCtx)->functionId == (*ppCurrCtx)->functionId) {
+          void* px = taosArrayPush(pGroupedCtxArray, ppTmpCtx);
+          TSDB_CHECK_NULL(px, code, lino, _exit, terrno);
+        }
+      }
+
+      TAOS_CHECK_EXIT((*ppCurrCtx)->fpSet.processFuncByRow(pGroupedCtxArray));
+      taosArrayDestroy(pGroupedCtxArray);
+      pGroupedCtxArray = NULL;
+
+      void* px = taosArrayPush(pProcessedFuncIds, &(*ppCurrCtx)->functionId);
+      TSDB_CHECK_NULL(px, code, lino, _exit, terrno);
+
+      numOfRows = (*ppCurrCtx)->resultInfo->numOfRes;
+    }
+
+    taosArrayDestroy(pProcessedFuncIds);
+    pProcessedFuncIds = NULL;
   }
 
   if (!createNewColModel) {
@@ -1210,6 +1278,12 @@ int32_t projectApplyFunctionsWithSelect(SExprInfo* pExpr, SSDataBlock* pResult, 
   }
 
 _exit:
+  if (pGroupedCtxArray) {
+    taosArrayDestroy(pGroupedCtxArray);
+  }
+  if (pProcessedFuncIds) {
+    taosArrayDestroy(pProcessedFuncIds);
+  }
   if (processByRowFunctionCtx) {
     taosArrayDestroy(processByRowFunctionCtx);
   }
