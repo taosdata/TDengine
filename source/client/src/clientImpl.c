@@ -456,10 +456,6 @@ int32_t execDdlQuery(SRequestObj* pRequest, SQuery* pQuery) {
 
   // int64_t transporterId = 0;
   TSC_ERR_RET(asyncSendMsgToServer(pTscObj->pAppInfo->pTransporter, &pMsgInfo->epSet, NULL, pSendMsg));
-  // pMsgInfo is fully consumed: pMsg was transferred above, epSet was deep-copied by
-  // transCreateReqEpsetFromUserEpset inside asyncSendMsgToServer.  Free the struct now
-  // so it won't become an orphan if nodesDestroyAllocatorSet() runs before doDestroyRequest().
-  taosMemoryFreeClear(pQuery->pCmdMsg);
   TSC_ERR_RET(tsem_wait(&pRequest->body.rspSem));
   return TSDB_CODE_SUCCESS;
 }

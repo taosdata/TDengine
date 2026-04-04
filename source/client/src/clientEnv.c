@@ -779,15 +779,6 @@ void destroyRequest(SRequestObj *pRequest) {
 
   taos_stop_query(pRequest);
 
-  if (clientReqRefPool < 0 && pRequest->pQuery) {
-    // Pool already closed during atexit (e.g., signal handler called exit(1) while a
-    // sync taos_query was in-flight). removeRequest will fail with an invalid pool id,
-    // so doDestroyRequest - and its qDestroyQuery call - will never run.
-    // Free pQuery here to prevent pQuery->pCmdMsg (SCmdMsgInfo, 672 bytes) from leaking.
-    qDestroyQuery(pRequest->pQuery);
-    pRequest->pQuery = NULL;
-  }
-
   (void)removeFromMostPrevReq(pRequest);
 }
 
