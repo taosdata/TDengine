@@ -1098,7 +1098,8 @@ static int32_t doSetTagColumnData(SOperatorInfo* pOperator, SVirtualTableScanInf
   int64_t         backupRows = pBlock->info.rows;
 
   pBlock->info.rows = rows;
-  VTS_ERR_RET(doSetLocalTagPseudoColumnData(pOperator, pInfo, pTagBlock, pBlock, pBlock->info.rows));
+  code = doSetLocalTagPseudoColumnData(pOperator, pInfo, pTagBlock, pBlock, pBlock->info.rows);
+  QUERY_CHECK_CODE(code, lino, _return);
   if (pInfo->pTargets != NULL) {
     int32_t dstSlotId = 0;
     SNode*  pNode = NULL;
@@ -1158,7 +1159,8 @@ static int32_t doSetTagColumnData(SOperatorInfo* pOperator, SVirtualTableScanInf
   }
 
   if (pSup->numOfExprs > 0) {
-    VTS_ERR_RET(vtableAddTagPseudoColumnData(pOperator, pSup->pExprInfo, pSup->numOfExprs, pTagBlock, pBlock, rows, pInfo));
+    code = vtableAddTagPseudoColumnData(pOperator, pSup->pExprInfo, pSup->numOfExprs, pTagBlock, pBlock, rows, pInfo);
+    QUERY_CHECK_CODE(code, lino, _return);
   }
 
 _return:

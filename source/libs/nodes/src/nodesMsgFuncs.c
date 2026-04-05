@@ -244,8 +244,6 @@ static int32_t tlvEncodeObj(STlvEncoder* pEncoder, int16_t type, FToMsg func, co
     return TSDB_CODE_SUCCESS;
   }
 
-  const SNode* pNode = (const SNode*)pObj;
-
   if (pEncoder->offset + sizeof(STlv) > pEncoder->allocSize) {
     pEncoder->allocSize = TMAX(pEncoder->allocSize * 2, pEncoder->allocSize + sizeof(STlv));
     void* pNewBuf = taosMemoryRealloc(pEncoder->pBuf, pEncoder->allocSize);

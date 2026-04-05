@@ -93,7 +93,6 @@ static int32_t tagRefSourceScanOneTable(SOperatorInfo* pOperator, SSDataBlock* p
   int32_t                    code = TSDB_CODE_SUCCESS;
   int32_t                    lino = 0;
   STagRefSourceOperatorInfo* pInfo = (STagRefSourceOperatorInfo*)pOperator->info;
-  SExecTaskInfo*             pTaskInfo = pOperator->pTaskInfo;
   SStorageAPI*               pAPI = pInfo->pStorageAPI;
 
   // Get current table from table list
@@ -448,11 +447,6 @@ int32_t createTagRefSourceOperatorInfo(STagRefSourcePhysiNode* pTagRefSourceNode
                                &pInfo->matchInfo);
     QUERY_CHECK_CODE(code, lino, _error);
   }
-
-  // Initialize filter from conditions
-  code = filterInitFromNode((SNode*)pTagRefSourceNode->node.pConditions, &pOperator->exprSupp.pFilterInfo, 0,
-                            pTaskInfo->pStreamRuntimeInfo);
-  QUERY_CHECK_CODE(code, lino, _error);
 
   // Set operator info
   setOperatorInfo(pOperator, "TagRefSourceOperator", QUERY_NODE_PHYSICAL_PLAN_TAG_REF_SOURCE, false, OP_NOT_OPENED,

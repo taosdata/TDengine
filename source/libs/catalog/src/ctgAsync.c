@@ -5248,6 +5248,8 @@ int32_t ctgGetVStbRefDbsCb(SCtgTaskReq* pReq) {
       return TSDB_CODE_SUCCESS;
     }
     default:
+      qError("unexpected sub task type:%d in VStbRefDbs callback", pTask->subRes.type);
+      CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
       break;
   }
 
