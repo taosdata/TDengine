@@ -149,14 +149,7 @@ IF(TD_WINDOWS)
     ELSE()
         MESSAGE("${Green} will build Debug version! ${ColourReset}")
         # NOTE: let cmake to choose default compile options
-        # /MD (dynamic release CRT) is used instead of /MDd (dynamic DEBUG CRT)
-        # because ucrtbased.dll's std::mutex::lock() -> Cnd_wait crashes when
-        # called from pthreads-created worker threads. ucrtbased.dll requires
-        # _getptd() per-thread CRT data that is only initialized for threads
-        # started via _beginthreadex/_beginthread, NOT for pthreads threads.
-        # With /MD (ucrtbase.dll, non-debug), this initialization isn't needed
-        # and the crash does not occur. Debug symbols (/Zi) are still produced.
-        SET(COMMON_FLAGS "/w /D_WIN32 /DWIN32 /Zi /MD")
+        SET(COMMON_FLAGS "/w /D_WIN32 /DWIN32 /Zi /MDd")
     ENDIF()
 
     SET(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /MANIFEST:NO /FORCE:MULTIPLE")

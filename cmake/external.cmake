@@ -1171,9 +1171,9 @@ if (${BUILD_CONTRIB} OR NOT ${TD_LINUX})         # {
         CMAKE_ARGS -DWITH_TOOLS:BOOL=OFF
         CMAKE_ARGS -DROCKSDB_BUILD_SHARED:BOOL=OFF
         CMAKE_ARGS -DROCKSDB_INSTALL_ON_WINDOWS:BOOL=ON
+        # "-DCMAKE_CXX_FLAGS:STRING=-Wno-maybe-uninitialized"
         BUILD_COMMAND
             COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
-                    --parallel $<IF:$<BOOL:${TD_WINDOWS}>,1,4>
         INSTALL_COMMAND
             COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
         EXCLUDE_FROM_ALL TRUE
