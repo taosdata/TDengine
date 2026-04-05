@@ -2835,43 +2835,6 @@ _return:
  *
  * @return TSDB_CODE_SUCCESS on success, otherwise an error code
  */
-static int32_t buildBootstrapSysScanMergeParam(SOperatorInfo* pMergeOp, SOperatorParam** ppRes) {
-  int32_t         code = TSDB_CODE_SUCCESS;
-  int32_t         line = 0;
-  SOperatorParam* pChild = NULL;
-
-  *ppRes = taosMemoryCalloc(1, sizeof(SOperatorParam));
-  QUERY_CHECK_NULL(*ppRes, code, line, _return, terrno);
-
-  (*ppRes)->opType = QUERY_NODE_PHYSICAL_PLAN_MERGE;
-  (*ppRes)->downstreamIdx = 0;
-  (*ppRes)->reUse = false;
-  (*ppRes)->value = taosMemoryCalloc(1, sizeof(SMergeOperatorParam));
-  QUERY_CHECK_NULL((*ppRes)->value, code, line, _return, terrno);
-  ((SMergeOperatorParam*)(*ppRes)->value)->winNum = 1;
-
-  (*ppRes)->pChildren = taosArrayInit(pMergeOp->numOfDownstream, POINTER_BYTES);
-  QUERY_CHECK_NULL((*ppRes)->pChildren, code, line, _return, terrno);
-
-  for (int32_t i = 0; i < pMergeOp->numOfDownstream; ++i) {
-    code = buildBootstrapSysScanExchangeParam(&pChild, pMergeOp->pDownstream[i], i);
-    QUERY_CHECK_CODE(code, line, _return);
-    QUERY_CHECK_NULL(taosArrayPush((*ppRes)->pChildren, &pChild), code, line, _return, terrno);
-    pChild = NULL;
-  }
-
-  return code;
-
-_return:
-  if (pChild != NULL) {
-    freeOperatorParam(pChild, OP_GET_PARAM);
-  }
-  freeOperatorParam(*ppRes, OP_GET_PARAM);
-  *ppRes = NULL;
-  qError("%s failed since %s, line %d", __func__, tstrerror(code), line);
-  return code;
-}
-
 /*
  * Build the first bootstrap get-param for the initial dynamic `ins_vc_cols` read.
  *

@@ -359,19 +359,6 @@ static int32_t tagRefSourceOpen(SOperatorInfo* pOperator) {
 /**
  * Close TagRefSource operator
  */
-static int32_t tagRefSourceClose(SOperatorInfo* pOperator) {
-  if (NULL == pOperator || NULL == pOperator->info) {
-    return TSDB_CODE_SUCCESS;
-  }
-
-  STagRefSourceOperatorInfo* pInfo = (STagRefSourceOperatorInfo*)pOperator->info;
-
-  qDebug("%s: TagRefSource operator closed, sourceSuid:%" PRIu64 ", totalRows:%" PRId64, __func__, pInfo->sourceSuid,
-         pOperator->resultInfo.totalRows);
-
-  return TSDB_CODE_SUCCESS;
-}
-
 /**
  * Create TagRefSource Operator
  *

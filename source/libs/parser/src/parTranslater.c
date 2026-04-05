@@ -6686,31 +6686,6 @@ static int32_t cloneVgroups(SVgroupsInfo** pDst, SVgroupsInfo* pSrc) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t appendUniqueVgroups(SVgroupsInfo* pSrc, SHashObj* pVgHash, SArray* pVgroupList) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  int32_t lino = 0;
-
-  if (NULL == pSrc) {
-    return TSDB_CODE_SUCCESS;
-  }
-
-  for (int32_t i = 0; i < pSrc->numOfVgroups; ++i) {
-    SVgroupInfo* pVg = pSrc->vgroups + i;
-    if (NULL != taosHashGet(pVgHash, &pVg->vgId, sizeof(pVg->vgId))) {
-      continue;
-    }
-
-    code = taosHashPut(pVgHash, &pVg->vgId, sizeof(pVg->vgId), NULL, 0);
-    QUERY_CHECK_CODE(code, lino, _return);
-    QUERY_CHECK_NULL(taosArrayPush(pVgroupList, pVg), code, lino, _return, terrno);
-  }
-
-  return TSDB_CODE_SUCCESS;
-
-_return:
-  return code;
-}
-
 static int32_t makeVtableMetaScanTable(STranslateContext* pCxt, SRealTableNode** pScan) {
   int32_t code = TSDB_CODE_SUCCESS;
   bool    tmpAsync = pCxt->pParseCxt->async;
@@ -24935,84 +24910,6 @@ static int32_t rewriteDropSuperTable(STranslateContext* pCxt, SQuery* pQuery) {
   }
   TAOS_CHECK_RETURN(rewriteDropSuperTablewithOpt(pCxt, pQuery));
   TAOS_RETURN(0);
-}
-
-static int32_t buildUpdateTagValReqImpl2(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta,
-                                         char* colName, SUpdatedTagVal* pReq) {
-  int32_t  code = TSDB_CODE_SUCCESS;
-  int32_t  lino = 0;
-  SSchema* pSchema = getTagSchema(pTableMeta, colName);
-  if (NULL == pSchema) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE, "Invalid tag name: %s", colName);
-  }
-
-  if (pSchema->flags & COL_REF_BY_STM) {
-    return TSDB_CODE_PAR_COL_TAG_REF_BY_STM;
-  }
-
-  pReq->tagName = taosStrdup(colName);
-  if (NULL == pReq->tagName) {
-    TAOS_CHECK_GOTO(terrno, &lino, _err);
-  }
-
-  pReq->pTagArray = taosArrayInit(1, sizeof(STagVal));
-  if (NULL == pReq->pTagArray) {
-    TAOS_CHECK_GOTO(terrno, &lino, _err);
-  }
-  pReq->colId = pSchema->colId;
-  pReq->tagType = pSchema->type;
-
-  STag*       pTag = NULL;
-  SToken      token;
-  char        tokenBuf[TSDB_MAX_TAGS_LEN];
-  const char* tagStr = pStmt->pVal->literal;
-  NEXT_TOKEN_WITH_PREV(tagStr, token);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = checkAndTrimValue(&token, tokenBuf, &pCxt->msgBuf, pSchema->type);
-    if (TSDB_CODE_SUCCESS == code && TK_NK_VARIABLE == token.type) {
-      code = buildSyntaxErrMsg(&pCxt->msgBuf, "not expected tags values", token.z);
-    }
-  }
-
-  if (TSDB_CODE_SUCCESS == code) {
-    code = parseTagValue(&pCxt->msgBuf, &tagStr, pTableMeta->tableInfo.precision, pSchema, &token, NULL,
-                         pReq->pTagArray, &pTag, pCxt->pParseCxt->timezone, pCxt->pParseCxt->charsetCxt);
-    if (pSchema->type == TSDB_DATA_TYPE_JSON && token.type == TK_NULL && code == TSDB_CODE_SUCCESS) {
-      pReq->tagFree = true;
-    }
-  }
-  if (TSDB_CODE_SUCCESS == code && tagStr) {
-    NEXT_VALID_TOKEN(tagStr, token);
-    if (token.n != 0) {
-      code = buildSyntaxErrMsg(&pCxt->msgBuf, "not expected tags values", token.z);
-    }
-  }
-
-  if (TSDB_CODE_SUCCESS == code) {
-    if (pSchema->type == TSDB_DATA_TYPE_JSON) {
-      code = buildSyntaxErrMsg(&pCxt->msgBuf, "not expected tags values ", token.z);
-    } else {
-      STagVal* pTagVal = taosArrayGet(pReq->pTagArray, 0);
-      if (pTagVal) {
-        pReq->isNull = false;
-        if (IS_VAR_DATA_TYPE(pSchema->type)) {
-          pReq->nTagVal = pTagVal->nData;
-          pReq->pTagVal = pTagVal->pData;
-        } else {
-          pReq->nTagVal = pSchema->bytes;
-          pReq->pTagVal = (uint8_t*)&pTagVal->i64;
-        }
-      } else {
-        pReq->isNull = true;
-      }
-    }
-  }
-_err:
-  if (code != 0) {
-    taosArrayDestroy(pReq->pTagArray);
-    taosMemoryFree(pReq->tagName);
-  }
-  return code;
 }
 
 static int32_t buildUpdateTagValReqImpl(STranslateContext* pCxt, const char* tagStr, STableMeta* pTableMeta,

@@ -772,24 +772,6 @@ static int32_t appendPhysiScanColumn(SNodeList** ppList, const SColumnNode* pCol
   return code;
 }
 
-static int32_t appendPhysiScanTarget(SNodeList** ppList, const STargetNode* pTarget) {
-  if (ppList == NULL || pTarget == NULL || pTarget->pExpr == NULL || nodeType(pTarget->pExpr) != QUERY_NODE_COLUMN) {
-    return TSDB_CODE_SUCCESS;
-  }
-
-  SColumnNode* pCol = (SColumnNode*)pTarget->pExpr;
-  if (physiScanHasColumn(*ppList, pCol)) {
-    return TSDB_CODE_SUCCESS;
-  }
-
-  SNode*  pClone = NULL;
-  int32_t code = nodesCloneNode((SNode*)pTarget, &pClone);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = nodesListMakeStrictAppend(ppList, pClone);
-  }
-  return code;
-}
-
 static int32_t appendPhysiLocalTagsFromList(SNodeList* pSrc, SNodeList** ppDst) {
   if (pSrc == NULL || ppDst == NULL) {
     return TSDB_CODE_SUCCESS;

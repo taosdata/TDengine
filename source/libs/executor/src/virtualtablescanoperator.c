@@ -76,10 +76,6 @@ typedef struct {
   SSDataBlock* pBlock;
 } STagRefSavedBlock;
 
-static bool isTagRefTargetColumn(const SColumnNode* pColNode) {
-  return pColNode != NULL && pColNode->colType == COLUMN_TYPE_TAG && '\0' == pColNode->tableAlias[0];
-}
-
 // Classify downstream exchange: tag-ref sources (from pRefTagCols) are NOT sortable,
 // everything else is sortable data.  This mirrors main-branch logic (tag vs data)
 // extended with one extra check for tag-ref exchanges.
