@@ -440,6 +440,40 @@ class WindowsInstaller:
         hours, minutes = divmod(minutes, 60)
         return f"{int(hours)}h {int(minutes)}m {secs:.1f}s"
 
+    @staticmethod
+    def format_size(num_bytes: int) -> str:
+        value = float(max(0, num_bytes))
+        units = ["B", "KB", "MB", "GB", "TB"]
+        for unit in units:
+            if value < 1024.0 or unit == units[-1]:
+                if unit == "B":
+                    return f"{int(value)} {unit}"
+                return f"{value:.1f} {unit}"
+            value /= 1024.0
+        return f"{int(num_bytes)} B"
+
+    def build_download_progress_text(self, downloaded: int, total_size: Optional[int], started_at: float) -> Tuple[str, str]:
+        elapsed = max(time.time() - started_at, 0.001)
+        speed = downloaded / elapsed
+        downloaded_text = self.format_size(downloaded)
+        speed_text = self.format_size(int(speed))
+        if total_size and total_size > 0:
+            total_text = self.format_size(total_size)
+            percent = min(100.0, (downloaded / total_size) * 100.0)
+            remaining = max(total_size - downloaded, 0)
+            if downloaded > 0 and speed > 0:
+                eta_text = self.format_elapsed(remaining / speed)
+            else:
+                eta_text = "estimating..."
+            return (
+                f"Downloading TDgpt resource package ({percent:.1f}%)",
+                f"{downloaded_text} / {total_text}, {speed_text}/s, ETA {eta_text}",
+            )
+        return (
+            "Downloading TDgpt resource package",
+            f"{downloaded_text} downloaded, {speed_text}/s, ETA unavailable",
+        )
+
     def start_phase_timer(self, label: str) -> float:
         self.print_info(f"[TIMER] {label} started")
         return time.time()
@@ -501,13 +535,67 @@ class WindowsInstaller:
         target_path = target_dir / file_name
         partial_path = target_path.with_name(target_path.name + ".part")
 
-        self.set_progress(18, "Preparing installation environment", f"Downloading TDgpt resource package: {file_name}")
+        self.set_progress(18, "Downloading TDgpt resource package", f"Connecting to server for {file_name}")
         self.print_info(f"Downloading TDgpt resource package from {self.resource_package_url}")
         try:
             if partial_path.exists():
                 partial_path.unlink()
-            with urllib.request.urlopen(self.resource_package_url, timeout=120) as response, partial_path.open("wb") as fh:
-                shutil.copyfileobj(response, fh)
+            request = urllib.request.Request(self.resource_package_url, headers={"User-Agent": "TDgptInstaller/1.0"})
+            with urllib.request.urlopen(request, timeout=120) as response, partial_path.open("wb") as fh:
+                total_size_text = response.headers.get("Content-Length", "").strip()
+                total_size = int(total_size_text) if total_size_text.isdigit() else None
+                started_at = time.time()
+                downloaded = 0
+                last_update_at = 0.0
+                last_flush_at = 0.0
+                chunk_size = 4 * 1024 * 1024
+
+                if total_size:
+                    self.print_info(f"Remote TDgpt resource package size: {self.format_size(total_size)}")
+                progress_title, progress_detail = self.build_download_progress_text(0, total_size, started_at)
+                self.set_progress(
+                    18,
+                    progress_title,
+                    progress_detail,
+                )
+
+                while True:
+                    chunk = response.read(chunk_size)
+                    if not chunk:
+                        break
+                    fh.write(chunk)
+                    downloaded += len(chunk)
+
+                    now = time.time()
+                    if now - last_flush_at >= 1.0:
+                        fh.flush()
+                        last_flush_at = now
+                    if now - last_update_at >= 1.0:
+                        progress_title, progress_detail = self.build_download_progress_text(
+                            downloaded, total_size, started_at
+                        )
+                        self.set_progress(
+                            18,
+                            progress_title,
+                            progress_detail,
+                        )
+                        last_update_at = now
+
+                fh.flush()
+                progress_title, progress_detail = self.build_download_progress_text(downloaded, total_size, started_at)
+                self.set_progress(
+                    18,
+                    progress_title,
+                    progress_detail,
+                )
+
+                if downloaded <= 0:
+                    raise RuntimeError(f"Downloaded resource package is empty: {file_name}")
+                if total_size is not None and downloaded != total_size:
+                    raise RuntimeError(
+                        "Downloaded resource package is incomplete: "
+                        f"expected {self.format_size(total_size)}, got {self.format_size(downloaded)}"
+                    )
             partial_path.replace(target_path)
         except Exception as exc:
             try:
