@@ -1474,6 +1474,12 @@ static int tagBlockCallback(void *userData,
             char *varData = (char *)colDataPtrs[0] + blockRows * sizeof(int32_t);
             uint16_t varLen = *(uint16_t *)(varData + offset);
             if (varLen >= TSDB_TABLE_NAME_LEN) varLen = TSDB_TABLE_NAME_LEN - 1;
+            if (varLen == 0) {
+                logWarn("tbname is empty at row %d, skip", row);
+                ctx->failedCnt++;
+                row++;
+                continue;
+            }
             char tbName[TSDB_TABLE_NAME_LEN] = {0};
             memcpy(tbName, varData + offset + sizeof(uint16_t), varLen);
             tbName[varLen] = '\0';
@@ -1516,6 +1522,11 @@ static int tagBlockCallback(void *userData,
                 char *vd2  = (char *)colDataPtrs[0] + blockRows * sizeof(int32_t);
                 uint16_t vl2 = *(uint16_t *)(vd2 + off2[r]);
                 if (vl2 >= TSDB_TABLE_NAME_LEN) vl2 = TSDB_TABLE_NAME_LEN - 1;
+                if (vl2 == 0) {
+                    logWarn("tbname is empty at row %d in fallback, skip", r);
+                    ctx->failedCnt++;
+                    continue;
+                }
                 char tb2[TSDB_TABLE_NAME_LEN] = {0};
                 memcpy(tb2, vd2 + off2[r] + sizeof(uint16_t), vl2);
                 tb2[vl2] = '\0';
