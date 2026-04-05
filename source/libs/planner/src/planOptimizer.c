@@ -804,8 +804,9 @@ static int32_t pdcDealScan(SOptimizeContext* pCxt, SScanLogicNode* pScan) {
 }
 
 // Check if a condition involves any tag column (COLUMN_TYPE_TAG).
-// For VSTBs, the super table meta does NOT carry per-tag ref info,
-// so any tag column condition must stay on VirtualScan (could be ref-tag).
+// Used when the virtual super table has tag refs — since we cannot determine
+// at the super table level which specific tag columns have refs, any tag
+// column condition must conservatively stay on VirtualScan.
 // Pure tbname conditions use FUNCTION_TYPE_TBNAME with no tag columns.
 static bool pdcCondHasTagColumn(SNode* pCond) {
   SNodeList* pCondCols = NULL;
@@ -831,11 +832,21 @@ static bool pdcCondHasTagColumn(SNode* pCond) {
 }
 
 // Split a tag condition into SystemScan-safe part and VirtualScan-only part.
-// For VSTBs, super table meta has no per-tag ref info, so any condition with
-// COLUMN_TYPE_TAG columns must stay on VirtualScan. Only pure tbname conditions
-// (which use FUNCTION_TYPE_TBNAME, no tag columns) are safe for SystemScan.
-static int32_t pdcSplitTagCondForVstb(SNode** ppTagCond, SNode** ppSysTagCond, SNode** ppRefTagCond) {
+// When hasTagRef is true, we cannot determine at the super table level which
+// specific tags have refs, so any condition with COLUMN_TYPE_TAG columns must
+// conservatively stay on VirtualScan. Only pure tbname conditions (which use
+// FUNCTION_TYPE_TBNAME, no tag columns) are safe for SystemScan.
+// When hasTagRef is false, all tag conditions can be safely pushed to SystemScan
+// because all tag values exist in vnode meta (no ref-tag resolution needed).
+static int32_t pdcSplitTagCondForVstb(SNode** ppTagCond, SNode** ppSysTagCond, SNode** ppRefTagCond, bool hasTagRef) {
   if (NULL == ppTagCond || NULL == *ppTagCond) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // No tag refs at all — all tag conditions can go to SystemScan
+  if (!hasTagRef) {
+    *ppSysTagCond = *ppTagCond;
+    *ppTagCond = NULL;
     return TSDB_CODE_SUCCESS;
   }
 
@@ -929,14 +940,15 @@ static int32_t pdcDealVirtualSuperTableScan(SOptimizeContext* pCxt, SDynQueryCtr
   // For virtual super tables, ref-tag values store NULL in vnode meta,
   // so ref-tag predicates cannot be pushed to SystemScan's tag filter.
   // However, tbname and local-tag predicates CAN be pushed to SystemScan
-  // (they have real values). Split tag conditions accordingly.
+  // (they have real values). Use hasTagRef from VirtualScan to decide:
+  // if no tag refs exist, all tag conditions are safe for SystemScan.
   SNode* pSysTagCond = NULL;
   SNode* pRefTagCond = NULL;
   SNode* pSysTagIdxCond = NULL;
   SNode* pRefTagIdxCond = NULL;
 
-  PLAN_ERR_JRET(pdcSplitTagCondForVstb(&pTagCond, &pSysTagCond, &pRefTagCond));
-  PLAN_ERR_JRET(pdcSplitTagCondForVstb(&pTagIndexCond, &pSysTagIdxCond, &pRefTagIdxCond));
+  PLAN_ERR_JRET(pdcSplitTagCondForVstb(&pTagCond, &pSysTagCond, &pRefTagCond, pVscan->hasTagRef));
+  PLAN_ERR_JRET(pdcSplitTagCondForVstb(&pTagIndexCond, &pSysTagIdxCond, &pRefTagIdxCond, pVscan->hasTagRef));
 
   // Ref-tag conditions (or conditions we can't verify) stay on VirtualScan
   if (pRefTagCond) {
@@ -10381,13 +10393,19 @@ static bool vstableAggShouldBeOptimized(SLogicNode* pNode, void* pCtx) {
       return false;
     }
 
-    // VStableAgg restructures the plan, destroying VirtualScan.  If VirtualScan
-    // carries tag-filter conditions (WHERE on tags), the filter would be lost.
-    // Fall back to the unoptimized path so VirtualScan can apply the filter.
+    // VStableAgg restructures the plan, destroying VirtualScan.  If the virtual
+    // super table has tag refs (hasTagRef), VirtualScan may carry ref-tag conditions
+    // that cannot be evaluated elsewhere (ref-tag values are NULL in vnode meta).
+    // Only skip VStableAgg when hasTagRef is true AND VirtualScan has conditions.
+    // When hasTagRef is false, all tag conditions have been pushed to SystemScan
+    // by pdcSplitTagCondForVstb, so VStableAgg is safe.
     if (pDynCtrl && LIST_LENGTH(pDynCtrl->node.pChildren) >= 1) {
       SLogicNode* pFirst = (SLogicNode*)nodesListGetNode(pDynCtrl->node.pChildren, 0);
-      if (QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN == nodeType(pFirst) && pFirst->pConditions) {
-        return false;
+      if (QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN == nodeType(pFirst)) {
+        SVirtualScanLogicNode* pVscan = (SVirtualScanLogicNode*)pFirst;
+        if (pVscan->hasTagRef && pFirst->pConditions) {
+          return false;
+        }
       }
     }
   } else {
