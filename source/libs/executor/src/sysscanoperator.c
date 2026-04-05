@@ -5604,8 +5604,11 @@ static int32_t resetSysTableScanOperState(SOperatorInfo* pOper) {
       return terrno;
     }
 
+    bool savedDynamicOp = pScanPhyNode->scan.node.dynamicOp;
+    pScanPhyNode->scan.node.dynamicOp = false;
     int32_t code = createScanTableListInfo((SScanPhysiNode*)pScanPhyNode, NULL, false, &pInfo->readHandle,
                                            pInfo->pSubTableListInfo, NULL, NULL, pTaskInfo, NULL);
+    pScanPhyNode->scan.node.dynamicOp = savedDynamicOp;
     if (code != TSDB_CODE_SUCCESS) {
       pTaskInfo->code = code;
       tableListDestroy(pInfo->pSubTableListInfo);

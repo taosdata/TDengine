@@ -501,8 +501,14 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
           return terrno;
         }
 
+        // Temporarily clear dynamicOp so createScanTableListInfo populates the table list.
+        // The systable scan for ins_vc_cols needs the full child table list even when the
+        // operator itself is dynamic (virtualChildTableNeedCollect depends on it).
+        bool savedDynamicOp = pSysScanPhyNode->scan.node.dynamicOp;
+        pSysScanPhyNode->scan.node.dynamicOp = false;
         code = createScanTableListInfo((SScanPhysiNode*)pSysScanPhyNode, NULL, false, pHandle, pTableListInfo, pTagCond,
                                        pTagIndexCond, pTaskInfo, NULL);
+        pSysScanPhyNode->scan.node.dynamicOp = savedDynamicOp;
         if (code != TSDB_CODE_SUCCESS) {
           pTaskInfo->code = code;
           tableListDestroy(pTableListInfo);

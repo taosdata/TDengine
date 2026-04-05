@@ -2880,6 +2880,75 @@ _return:
  *
  * @return TSDB_CODE_SUCCESS on success, otherwise an error code
  */
+static int32_t buildBootstrapSysScanOperatorParam(SOperatorInfo* pTargetOp, SOperatorParam** ppRes) {
+  int32_t                     code = TSDB_CODE_SUCCESS;
+  int32_t                     line = 0;
+  SOperatorParam*             pParam = NULL;
+  SSysTableScanOperatorParam* pSysScan = NULL;
+
+  *ppRes = NULL;
+
+  if (pTargetOp->operatorType == QUERY_NODE_PHYSICAL_PLAN_EXCHANGE) {
+    return buildBootstrapSysScanExchangeParam(ppRes, pTargetOp, 0);
+  }
+
+  pParam = taosMemoryCalloc(1, sizeof(SOperatorParam));
+  QUERY_CHECK_NULL(pParam, code, line, _return, terrno);
+  pSysScan = taosMemoryCalloc(1, sizeof(SSysTableScanOperatorParam));
+  QUERY_CHECK_NULL(pSysScan, code, line, _return, terrno);
+
+  pParam->opType = QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN;
+  pParam->downstreamIdx = 0;
+  pParam->value = pSysScan;
+  pParam->pChildren = NULL;
+  pParam->reUse = false;
+
+  *ppRes = pParam;
+  return code;
+
+_return:
+  taosMemoryFree(pSysScan);
+  taosMemoryFree(pParam);
+  qError("%s failed since %s, line %d", __func__, tstrerror(code), line);
+  return code;
+}
+
+/*
+ * Fetch one `ins_vc_cols` block and bootstrap the first dynamic systable read with an empty get-param.
+ *
+ * @param pTargetOp     systable scan operator used to read `ins_vc_cols`
+ * @param pBootstrapped whether the initial bootstrap fetch has been issued
+ * @param ppBlock       output block pointer
+ *
+ * @return TSDB_CODE_SUCCESS on success, otherwise an error code
+ */
+static int32_t dynFetchInitialSysScanBlock(SOperatorInfo* pTargetOp, bool* pBootstrapped, SSDataBlock** ppBlock) {
+  int32_t         code = TSDB_CODE_SUCCESS;
+  int32_t         line = 0;
+  SOperatorParam* pParam = NULL;
+
+  if (!(*pBootstrapped)) {
+    code = buildBootstrapSysScanOperatorParam(pTargetOp, &pParam);
+    QUERY_CHECK_CODE(code, line, _return);
+    code = pTargetOp->fpSet.getNextExtFn(pTargetOp, pParam, ppBlock);
+    QUERY_CHECK_CODE(code, line, _return);
+    pParam = NULL;
+    *pBootstrapped = true;
+    return code;
+  }
+
+  code = pTargetOp->fpSet.getNextFn(pTargetOp, ppBlock);
+  QUERY_CHECK_CODE(code, line, _return);
+  return code;
+
+_return:
+  freeOperatorParam(pParam, OP_GET_PARAM);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed since %s, line %d", __func__, tstrerror(code), line);
+  }
+  return code;
+}
+
 /*
  * Cache one final resolved column reference.
  *
@@ -4138,6 +4207,7 @@ int32_t buildVirtualSuperTableScanChildTableMap(SOperatorInfo* pOperator) {
   SExecTaskInfo*             pTaskInfo = pOperator->pTaskInfo;
   SArray*                    pColRefArray = NULL;
   SOperatorInfo*             pSystableScanOp = NULL;
+  bool                       sysScanBootstrapped = false;
 
   taosHashClear(pVtbScan->resolvedColRefMap);
   pVtbScan->childTableMap = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
@@ -4157,7 +4227,7 @@ int32_t buildVirtualSuperTableScanChildTableMap(SOperatorInfo* pOperator) {
 
   while (true) {
     SSDataBlock *pChildInfo = NULL;
-    code = pSystableScanOp->fpSet.getNextFn(pSystableScanOp, &pChildInfo);
+    code = dynFetchInitialSysScanBlock(pSystableScanOp, &sysScanBootstrapped, &pChildInfo);
     QUERY_CHECK_CODE(code, line, _return);
     if (pChildInfo == NULL) {
       break;
@@ -4260,6 +4330,7 @@ int32_t buildVirtualNormalChildTableScanChildTableMap(SOperatorInfo* pOperator) 
   SExecTaskInfo*             pTaskInfo = pOperator->pTaskInfo;
   SOperatorInfo*             pSystableScanOp = pOperator->pDownstream[1];
   int32_t                    rversion = 0;
+  bool                       sysScanBootstrapped = false;
 
   taosHashClear(pVtbScan->resolvedColRefMap);
   pInfo->vtbScan.colRefInfo = taosArrayInit(1, sizeof(SColRefInfo));
@@ -4267,7 +4338,7 @@ int32_t buildVirtualNormalChildTableScanChildTableMap(SOperatorInfo* pOperator) 
 
   while (true) {
     SSDataBlock *pTableInfo = NULL;
-    code = pSystableScanOp->fpSet.getNextFn(pSystableScanOp, &pTableInfo);
+    code = dynFetchInitialSysScanBlock(pSystableScanOp, &sysScanBootstrapped, &pTableInfo);
     QUERY_CHECK_CODE(code, line, _return);
     if (pTableInfo == NULL) {
       break;
