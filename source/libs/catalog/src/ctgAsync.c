@@ -4900,7 +4900,6 @@ int32_t ctgLaunchGetTSMATask(SCtgTask* pTask) {
     }
 
     SCtgTaskReq tReq = ctgMakeTaskReq(pTask, 0);
-    CTG_ERR_RET(ctgInitTaskMsgCtxBatchs(&tReq, pMsgCtx));
     if (NULL == taosArrayPush(pCtx->pResList, &(SMetaRes){0})) {
       ctgError("taosArrayPush SMetaRes failed, code:%x", terrno);
       CTG_ERR_RET(terrno);
@@ -4929,7 +4928,7 @@ int32_t ctgLaunchGetTSMATask(SCtgTask* pTask) {
     if (!exists) {
       SCtgTaskReq tReq = ctgMakeTaskReq(pTask, 0);
       SCtgMsgCtx* pMsgCtx = CTG_GET_TASK_MSGCTX(pTask, 0);
-      CTG_ERR_RET(ctgInitTaskMsgCtxBatchs(&tReq, pMsgCtx));
+      if (!pMsgCtx->pBatchs) pMsgCtx->pBatchs = pTask->pJob->pBatchs;
       CTG_RET(ctgGetTbMetaFromMnodeImpl(pCtg, pConn, pTsma->targetDbFName, pTsma->targetTb, NULL, &tReq));
     } else {
       CTG_ERR_RET(ctgHandleTaskEnd(pTask, 0));
