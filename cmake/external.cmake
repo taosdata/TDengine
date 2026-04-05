@@ -1171,9 +1171,9 @@ if (${BUILD_CONTRIB} OR NOT ${TD_LINUX})         # {
         CMAKE_ARGS -DWITH_TOOLS:BOOL=OFF
         CMAKE_ARGS -DROCKSDB_BUILD_SHARED:BOOL=OFF
         CMAKE_ARGS -DROCKSDB_INSTALL_ON_WINDOWS:BOOL=ON
-        # "-DCMAKE_CXX_FLAGS:STRING=-Wno-maybe-uninitialized"
         BUILD_COMMAND
             COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
+                    --parallel $<IF:$<BOOL:${TD_WINDOWS}>,1,4>
         INSTALL_COMMAND
             COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
         EXCLUDE_FROM_ALL TRUE
@@ -1795,10 +1795,15 @@ else()
     #   /O1        = minimize size (replaces default /O2 in Release builds)
     #   /Gy        = function-level COMDAT (equivalent of -ffunction-sections)
     #   /Gw        = data-level COMDAT (equivalent of -fdata-sections)
+    # Arrow's bundled Thrift (TSocketPool.cpp) calls std::random_shuffle which
+    # was removed in C++17.  Force-include a compat header that re-implements
+    # it so the build succeeds.  Arrow propagates CMAKE_CXX_FLAGS_* to thrift_ep
+    # via EP_COMMON_CMAKE_ARGS, so the flag reaches the Thrift sub-build.
+    set(_arrow_rs_compat "${TD_SUPPORT_DIR}/in/msvc_random_shuffle_compat.h")
     list(APPEND ARROW_EXTRA_CMAKE_ARGS
-        "-DCMAKE_CXX_FLAGS_DEBUG:STRING=/Zi /Ob0 /Od /RTC1 /FI array /Gy /Gw"
-        "-DCMAKE_CXX_FLAGS_RELEASE:STRING=/O1 /Ob2 /DNDEBUG /FI array /Gy /Gw"
-        "-DCMAKE_CXX_FLAGS_RELWITHDEBINFO:STRING=/Zi /O1 /Ob1 /DNDEBUG /FI array /Gy /Gw"
+        "-DCMAKE_CXX_FLAGS_DEBUG:STRING=/Zi /Ob0 /Od /RTC1 /FI array /FI ${_arrow_rs_compat} /Gy /Gw"
+        "-DCMAKE_CXX_FLAGS_RELEASE:STRING=/O1 /Ob2 /DNDEBUG /FI array /FI ${_arrow_rs_compat} /Gy /Gw"
+        "-DCMAKE_CXX_FLAGS_RELWITHDEBINFO:STRING=/Zi /O1 /Ob1 /DNDEBUG /FI array /FI ${_arrow_rs_compat} /Gy /Gw"
         "-DCMAKE_C_FLAGS_DEBUG:STRING=/Zi /Ob0 /Od /RTC1 /Gy /Gw"
         "-DCMAKE_C_FLAGS_RELEASE:STRING=/O1 /Ob2 /DNDEBUG /Gy /Gw"
         "-DCMAKE_C_FLAGS_RELWITHDEBINFO:STRING=/Zi /O1 /Ob1 /DNDEBUG /Gy /Gw"
