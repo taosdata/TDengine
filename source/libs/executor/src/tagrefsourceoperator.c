@@ -457,6 +457,7 @@ int32_t createTagRefSourceOperatorInfo(STagRefSourcePhysiNode* pTagRefSourceNode
 
 _error:
   if (pInfo != NULL) {
+    pInfo->pTableListInfo = NULL;  // caller owns pTableListInfo on error
     destroyTagRefSourceOperatorInfo(pInfo);
   }
   if (pOperator != NULL) {

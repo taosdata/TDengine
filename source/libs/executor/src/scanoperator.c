@@ -2205,8 +2205,13 @@ static int32_t setTagValFromTagList(SOperatorInfo* pOperator, SSDataBlock* pRes)
   // Positional matching: tag pseudo columns occupy the last N slots in pRes,
   // where N = cachedTagList size. This matches the layout created by
   // createOneDataBlockWithTwoBlock from the pOrgBlock template.
-  for (int32_t i = taosArrayGetSize(pRes->pDataBlock) - taosArrayGetSize(pInfo->cachedTagList);
-       i < taosArrayGetSize(pRes->pDataBlock); i++) {
+  int32_t totalCols = taosArrayGetSize(pRes->pDataBlock);
+  int32_t tagCols = taosArrayGetSize(pInfo->cachedTagList);
+  if (totalCols < tagCols) {
+    qError("%s: pDataBlock cols %d < cachedTagList %d", __func__, totalCols, tagCols);
+    return TSDB_CODE_INVALID_PARA;
+  }
+  for (int32_t i = totalCols - tagCols; i < totalCols; i++) {
     SColumnInfoData* pTagCol = taosArrayGet(pRes->pDataBlock, i);
     STagVal*         pTagVal = taosArrayGet(pInfo->cachedTagList, index);
 
