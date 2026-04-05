@@ -1296,11 +1296,6 @@ int32_t nodesCloneNode(const SNode* pNode, SNode** ppNode) {
       break;
     case QUERY_NODE_TAG_REF_COLUMN:
       code = tagRefColumnCopy((const STagRefColumn*)pNode, (STagRefColumn*)pDst);
-      if (TSDB_CODE_SUCCESS == code) {
-        const STagRefColumn* pTagRef = (const STagRefColumn*)pDst;
-        qDebug("nodes clone tag ref dst: type=%d colId=%d sourceColId=%d dataType=%d",
-               nodeType(pDst), pTagRef->colId, pTagRef->sourceColId, pTagRef->dataType);
-      }
       break;
     case QUERY_NODE_COLUMN_DEF:
       code = columnDefNodeCopy((const SColumnDefNode*)pNode, (SColumnDefNode*)pDst);

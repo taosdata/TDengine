@@ -148,19 +148,8 @@ static int32_t tagRefSourceScanOneTable(SOperatorInfo* pOperator, SSDataBlock* p
       // Set the value in the result block
       code = colDataSetVal(pColInfo, rowIndex, data, isNull);
       if (code != TSDB_CODE_SUCCESS) {
-        qDebug("%s: failed to set col value, slotIndex:%d, row:%d, code:%s", __func__, slotIndex, rowIndex,
+        qWarn("%s: failed to set col value, slotIndex:%d, row:%d, code:%s", __func__, slotIndex, rowIndex,
                tstrerror(code));
-      } else {
-        if (pColInfo->info.type == TSDB_DATA_TYPE_INT) {
-          qDebug("tagref source fill: tag=%s sourceColId=%d slot=%d isNull=%d value=%d", pRefCol->colName,
-                 pRefCol->sourceColId, slotIndex, isNull, isNull ? 0 : *(int32_t*)data);
-        } else if (pColInfo->info.type == TSDB_DATA_TYPE_BOOL) {
-          qDebug("tagref source fill: tag=%s sourceColId=%d slot=%d isNull=%d value=%d", pRefCol->colName,
-                 pRefCol->sourceColId, slotIndex, isNull, isNull ? 0 : (int32_t)(*(bool*)data));
-        } else {
-          qDebug("tagref source fill: tag=%s sourceColId=%d slot=%d isNull=%d type=%d", pRefCol->colName,
-                 pRefCol->sourceColId, slotIndex, isNull, pColInfo->info.type);
-        }
       }
 
       // Free allocated data for var types

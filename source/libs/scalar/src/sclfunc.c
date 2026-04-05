@@ -4796,12 +4796,12 @@ int32_t qPseudoTagFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam 
     return TSDB_CODE_QRY_INVALID_INPUT;
   }
 
-  int32_t code = colDataSetNItems(pOutput->columnData, 0, p, numOfRows, numOfRows, true);
+  int32_t code = colDataSetNItems(pOutput->columnData, pOutput->numOfRows, p, numOfRows, 1, true);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
 
-  pOutput->numOfRows = numOfRows;
+  pOutput->numOfRows += numOfRows;
   return TSDB_CODE_SUCCESS;
 }
 

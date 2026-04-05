@@ -715,20 +715,16 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
       bool isNullVal = (data == NULL) || (pColInfoData->info.type == TSDB_DATA_TYPE_JSON && tTagIsJsonNull(data));
       if (isNullVal) {
         colDataSetNNULL(pColInfoData, 0, pBlock->info.rows);
-      } else {
+      } else if (pColInfoData->info.type != TSDB_DATA_TYPE_JSON) {
+        code = colDataSetNItems(pColInfoData, 0, data, pBlock->info.rows, 1, false);
+        if (IS_VAR_DATA_TYPE(((const STagVal*)p)->type)) {
+          taosMemoryFree(data);
+        }
+        QUERY_CHECK_CODE(code, lino, _end);
+      } else {  // JSON: per-row set
         for (int32_t i = 0; i < pBlock->info.rows; ++i) {
           code = colDataSetVal(pColInfoData, i, data, false);
           QUERY_CHECK_CODE(code, lino, _end);
-        }
-        if (pColInfoData->info.type != TSDB_DATA_TYPE_JSON && IS_VAR_DATA_TYPE(((const STagVal*)p)->type)) {
-          char* tmp = taosMemoryCalloc(1, varDataLen(data) + 1);
-          if (tmp != NULL) {
-            memcpy(tmp, varDataVal(data), varDataLen(data));
-            qDebug("get tag value:%s, cid:%d, table name:%s, uid%" PRId64, tmp, tagVal.cid, val.pName,
-                   pBlock->info.id.uid);
-            taosMemoryFree(tmp);
-          }
-          taosMemoryFree(data);
         }
       }
     }
@@ -2223,14 +2219,15 @@ static int32_t setTagValFromTagList(SOperatorInfo* pOperator, SSDataBlock* pRes)
           colDataSetNULL(pTagCol, j);
           continue;
         }
-        tagVal = taosMemoryMalloc(pTagVal->nData + VARSTR_HEADER_SIZE + 1);
-        QUERY_CHECK_NULL(tagVal, code, lino, _end, terrno);
-
-        varDataSetLen(tagVal, pTagVal->nData);
-        memcpy(tagVal + VARSTR_HEADER_SIZE, pTagVal->pData, pTagVal->nData);
+        // Build VARSTR once, then set for all rows
+        if (tagVal == NULL) {
+          tagVal = taosMemoryMalloc(pTagVal->nData + VARSTR_HEADER_SIZE + 1);
+          QUERY_CHECK_NULL(tagVal, code, lino, _end, terrno);
+          varDataSetLen(tagVal, pTagVal->nData);
+          memcpy(tagVal + VARSTR_HEADER_SIZE, pTagVal->pData, pTagVal->nData);
+        }
         code = colDataSetVal(pTagCol, j, tagVal, false);
         QUERY_CHECK_CODE(code, lino, _end);
-        taosMemoryFreeClear(tagVal);
       } else {
         if (pTagVal->nData == -1) {
           colDataSetNULL(pTagCol, j);
@@ -2240,6 +2237,7 @@ static int32_t setTagValFromTagList(SOperatorInfo* pOperator, SSDataBlock* pRes)
         QUERY_CHECK_CODE(code, lino, _end);
       }
     }
+    taosMemoryFreeClear(tagVal);
     index++;
   }
   return code;
