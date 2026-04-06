@@ -224,14 +224,16 @@ def copy_tar_members(
 
 def create_manifest_lines(
     seed_package: Optional[Path],
-    main_venv_dir: Path,
+    main_venv_dir: Optional[Path],
     extra_venvs: Iterable[Path],
+    bundle_kind: str,
 ) -> str:
     lines = [
         "TDgpt offline assets manifest",
         "",
         "generated_at=" + datetime.datetime.now().astimezone().isoformat(timespec="seconds"),
-        f"main_venv={main_venv_dir}",
+        f"bundle_kind={bundle_kind}",
+        f"main_venv={main_venv_dir or ''}",
         "runtime=provided-by-installer",
     ]
     if seed_package is not None:
@@ -246,57 +248,77 @@ def create_manifest_lines(
     return "\n".join(lines)
 
 
+def resolve_tar_write_mode(output_file: Path) -> str:
+    suffixes = "".join(output_file.suffixes).lower()
+    if suffixes.endswith(".tar.gz") or suffixes.endswith(".tgz"):
+        return "w:gz"
+    return "w"
+
+
 def build_bundle(
     output_file: Path,
     seed_package: Optional[Path],
-    main_venv_dir: Path,
+    main_venv_dir: Optional[Path],
     extra_venvs: list[Path],
+    bundle_kind: str,
 ) -> Path:
     output_file.parent.mkdir(parents=True, exist_ok=True)
     if output_file.exists():
         output_file.unlink()
 
-    with tarfile.open(output_file, "w") as tar_obj:
+    if bundle_kind in {"venv", "combined"} and main_venv_dir is None:
+        raise fail("--main-venv-dir is required when --bundle-kind is venv or combined")
+
+    with tarfile.open(output_file, resolve_tar_write_mode(output_file)) as tar_obj:
         existing_prefixes: set[str] = set()
-        seed_handled_prefixes = [
-            "venvs/venv",
-            *[f"venvs/{item.name}" for item in extra_venvs],
-        ]
-        if seed_package is not None:
+        seed_handled_prefixes: list[str] = []
+        if bundle_kind in {"venv", "combined"}:
+            seed_handled_prefixes.append("venvs/venv")
+        if bundle_kind in {"model", "combined"}:
+            seed_handled_prefixes.extend(f"venvs/{item.name}" for item in extra_venvs)
+
+        if seed_package is not None and seed_handled_prefixes:
             info(f"Inspecting seed package prefixes: {seed_package}")
             existing_prefixes = inspect_tar_prefixes(
                 seed_package,
                 watched_prefixes=seed_handled_prefixes,
             )
 
-        if "venvs/venv/" in existing_prefixes:
-            info("Adding main venv from seed package")
-            copied = copy_tar_members(seed_package, tar_obj, include_prefixes=["venvs/venv"])
-            info(f"Copied {copied} main venv members from seed package")
-        else:
-            info(f"Adding main venv from {main_venv_dir}")
-            add_directory_to_tar(tar_obj, main_venv_dir, "venvs/venv")
+        if bundle_kind in {"venv", "combined"}:
+            if "venvs/venv/" in existing_prefixes:
+                info("Adding main venv from seed package")
+                copied = copy_tar_members(seed_package, tar_obj, include_prefixes=["venvs/venv"])
+                info(f"Copied {copied} main venv members from seed package")
+            else:
+                info(f"Adding main venv from {main_venv_dir}")
+                add_directory_to_tar(tar_obj, main_venv_dir, "venvs/venv")
 
-        for extra_venv in extra_venvs:
-            prefix = f"venvs/{extra_venv.name}/"
-            if prefix in existing_prefixes:
-                info(f"Adding extra venv from seed package: {prefix[:-1]}")
-                copied = copy_tar_members(seed_package, tar_obj, include_prefixes=[prefix[:-1]])
-                info(f"Copied {copied} members for {prefix[:-1]} from seed package")
-                continue
-            info(f"Adding extra venv from {extra_venv}")
-            add_directory_to_tar(tar_obj, extra_venv, f"venvs/{extra_venv.name}")
+        if bundle_kind in {"model", "combined"}:
+            for extra_venv in extra_venvs:
+                prefix = f"venvs/{extra_venv.name}/"
+                if prefix in existing_prefixes:
+                    info(f"Adding extra venv from seed package: {prefix[:-1]}")
+                    copied = copy_tar_members(seed_package, tar_obj, include_prefixes=[prefix[:-1]])
+                    info(f"Copied {copied} members for {prefix[:-1]} from seed package")
+                    continue
+                info(f"Adding extra venv from {extra_venv}")
+                add_directory_to_tar(tar_obj, extra_venv, f"venvs/{extra_venv.name}")
 
-        if seed_package is not None:
+        if seed_package is not None and bundle_kind in {"model", "combined"}:
+            exclude_prefixes = ["python", "offline-assets-manifest.txt"]
+            if bundle_kind == "combined":
+                exclude_prefixes.extend(seed_handled_prefixes)
+            else:
+                exclude_prefixes.extend(["venvs/venv", *seed_handled_prefixes])
             info(f"Streaming seed package model payloads after runtime and venvs: {seed_package}")
             copied = copy_tar_members(
                 seed_package,
                 tar_obj,
-                exclude_prefixes=[*seed_handled_prefixes, "python", "offline-assets-manifest.txt"],
+                exclude_prefixes=exclude_prefixes,
             )
             info(f"Copied {copied} members from seed package")
 
-        manifest = create_manifest_lines(seed_package, main_venv_dir, extra_venvs)
+        manifest = create_manifest_lines(seed_package, main_venv_dir, extra_venvs, bundle_kind)
         data = manifest.encode("utf-8")
         info("Adding offline assets manifest")
         manifest_info = tarfile.TarInfo(name="offline-assets-manifest.txt")
@@ -312,6 +334,12 @@ def parse_args() -> argparse.Namespace:
         description="Build TDgpt Windows offline asset bundles."
     )
     parser.add_argument(
+        "--bundle-kind",
+        choices=["venv", "model", "combined"],
+        default="combined",
+        help="Bundle type: venv = only venvs/venv, model = model payloads and optional model venvs, combined = legacy combined bundle.",
+    )
+    parser.add_argument(
         "--output-file",
         required=True,
         help="Output tar path, for example D:\\tdgpt-pkg-test\\deliverables\\full-package\\tdengine-tdgpt-offline-assets-3.4.1.0.0325-windows-x64.tar",
@@ -322,7 +350,6 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--main-venv-dir",
-        required=True,
         help="Main taosanode virtual environment directory to add as venvs/venv.",
     )
     parser.add_argument(
@@ -342,10 +369,12 @@ def main() -> int:
     if seed_package is not None and not seed_package.exists():
         raise FileNotFoundError(f"Seed package not found: {seed_package}")
 
-    main_venv_dir = ensure_directory(Path(args.main_venv_dir), "Main venv directory")
+    main_venv_dir = None
+    if args.main_venv_dir:
+        main_venv_dir = ensure_directory(Path(args.main_venv_dir), "Main venv directory")
     extra_venvs = [ensure_directory(Path(item), "Extra venv directory") for item in args.extra_venv_dir]
 
-    bundle_path = build_bundle(output_file, seed_package, main_venv_dir, extra_venvs)
+    bundle_path = build_bundle(output_file, seed_package, main_venv_dir, extra_venvs, args.bundle_kind)
 
     ok(f"Offline assets package created: {bundle_path}")
     return 0

@@ -59,7 +59,7 @@ class InstallInfo:
 tdgpt_version = TDGPTVersion("community", "1.0.0")
 install_info = InstallInfo()
 WINSW_BASENAME = "taosanode-winsw"
-DEFAULT_RESOURCE_PACKAGE_URL_TEMPLATE = "https://downloads.tdengine.com/tdengine-historian/tdgpt-resource-pkg/tdengine-tdgpt-resource-{version}.tar.gz"
+DEFAULT_RESOURCE_PACKAGE_URL_TEMPLATE = "https://downloads.tdengine.com/tdengine-historian/tdgpt-resource-pkg/tdengine-tdgpt-model-resource-{version}.tar.gz"
 DEFAULT_RESOURCE_PACKAGE_VERSION = "1.0"
 
 

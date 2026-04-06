@@ -100,7 +100,7 @@ def load_package_metadata() -> Dict[str, str]:
 PACKAGE_METADATA = load_package_metadata()
 APP_DISPLAY_NAME = PACKAGE_METADATA.get("app_name", "TDengine TDgpt-OSS")
 PRODUCT_FULL_NAME = PACKAGE_METADATA.get("product_full_name", f"{APP_DISPLAY_NAME} - TDengine Analytics Node")
-DEFAULT_RESOURCE_PACKAGE_URL = PACKAGE_METADATA.get("resource_package_url", "").strip()
+DEFAULT_MODEL_RESOURCE_PACKAGE_URL = PACKAGE_METADATA.get("resource_package_url", "").strip()
 
 MODEL_SPECS: Dict[str, Dict[str, object]] = {
     "tdtsfm": {
@@ -348,8 +348,9 @@ class WindowsInstaller:
         self.model_endpoint = model_endpoint.strip()
         self.pip_index_url = pip_index_url or os.environ.get("PIP_INDEX_URL", "")
         self.pip_trusted_host = pip_trusted_host or os.environ.get("PIP_TRUSTED_HOST", "")
-        self.offline_package = (offline_package or offline_model_package).strip().strip('"')
-        self.resource_package_url = (resource_package_url or DEFAULT_RESOURCE_PACKAGE_URL).strip()
+        self.offline_package = (offline_package or "").strip().strip('"')
+        self.offline_model_package = (offline_model_package or "").strip().strip('"')
+        self.resource_package_url = (resource_package_url or DEFAULT_MODEL_RESOURCE_PACKAGE_URL).strip()
         self.install_tensorflow = install_tensorflow
         self.service_install_success = False
         self.existing_install_requested = existing_install
@@ -466,11 +467,11 @@ class WindowsInstaller:
             else:
                 eta_text = "estimating..."
             return (
-                f"Downloading TDgpt resource package ({percent:.1f}%)",
+                f"Downloading TDgpt model resource package ({percent:.1f}%)",
                 f"{downloaded_text} / {total_text}, {speed_text}/s, ETA {eta_text}",
             )
         return (
-            "Downloading TDgpt resource package",
+            "Downloading TDgpt model resource package",
             f"{downloaded_text} downloaded, {speed_text}/s, ETA unavailable",
         )
 
@@ -519,24 +520,24 @@ class WindowsInstaller:
         self._offline_package_cached_path = resolved
         return temp_dir
 
-    def ensure_resource_package_downloaded(self) -> bool:
-        if self.offline_package:
+    def ensure_model_resource_package_downloaded(self) -> bool:
+        if self.offline_model_package:
             return True
         if not self.resource_package_url:
             self.print_error(
-                "No local TDgpt resource package was found, and no resource package URL is configured."
+                "No local TDgpt model resource package was found, and no model resource package URL is configured."
             )
             return False
 
         parsed = urllib.parse.urlparse(self.resource_package_url)
-        file_name = Path(parsed.path).name or "tdengine-tdgpt-resource.tar"
+        file_name = Path(parsed.path).name or "tdengine-tdgpt-model-resource.tar"
         target_dir = self.log_dir / "downloads"
         target_dir.mkdir(parents=True, exist_ok=True)
         target_path = target_dir / file_name
         partial_path = target_path.with_name(target_path.name + ".part")
 
-        self.set_progress(18, "Downloading TDgpt resource package", f"Connecting to server for {file_name}")
-        self.print_info(f"Downloading TDgpt resource package from {self.resource_package_url}")
+        self.set_progress(18, "Downloading TDgpt model resource package", f"Connecting to server for {file_name}")
+        self.print_info(f"Downloading TDgpt model resource package from {self.resource_package_url}")
         try:
             if partial_path.exists():
                 partial_path.unlink()
@@ -551,7 +552,7 @@ class WindowsInstaller:
                 chunk_size = 4 * 1024 * 1024
 
                 if total_size:
-                    self.print_info(f"Remote TDgpt resource package size: {self.format_size(total_size)}")
+                    self.print_info(f"Remote TDgpt model resource package size: {self.format_size(total_size)}")
                 progress_title, progress_detail = self.build_download_progress_text(0, total_size, started_at)
                 self.set_progress(
                     18,
@@ -590,10 +591,10 @@ class WindowsInstaller:
                 )
 
                 if downloaded <= 0:
-                    raise RuntimeError(f"Downloaded resource package is empty: {file_name}")
+                    raise RuntimeError(f"Downloaded model resource package is empty: {file_name}")
                 if total_size is not None and downloaded != total_size:
                     raise RuntimeError(
-                        "Downloaded resource package is incomplete: "
+                        "Downloaded model resource package is incomplete: "
                         f"expected {self.format_size(total_size)}, got {self.format_size(downloaded)}"
                     )
             partial_path.replace(target_path)
@@ -604,13 +605,13 @@ class WindowsInstaller:
             except Exception:
                 pass
             self.print_error(
-                f"No local TDgpt resource package was found, and the configured resource package URL could not be downloaded: {self.resource_package_url}. Error: {exc}"
+                f"No local TDgpt model resource package was found, and the configured model resource package URL could not be downloaded: {self.resource_package_url}. Error: {exc}"
             )
             return False
 
-        self.offline_package = str(target_path)
+        self.offline_model_package = str(target_path)
         self._downloaded_resource_package = target_path
-        self.print_success(f"Downloaded resource package: {target_path}")
+        self.print_success(f"Downloaded model resource package: {target_path}")
         return True
 
     @staticmethod
@@ -1155,7 +1156,12 @@ class WindowsInstaller:
         return True
 
     def prepare_external_offline_runtime(self) -> bool:
-        if not self.offline_package and not self.ensure_resource_package_downloaded():
+        if not self.offline_package:
+            if self.is_existing_install():
+                return self.prepare_existing_runtime_reuse()
+            self.print_error(
+                "No local TDgpt main venv offline package was provided for first-time offline installation."
+            )
             return False
         package_path = Path(self.offline_package)
         if not package_path.exists():
@@ -1191,7 +1197,7 @@ class WindowsInstaller:
             return False
 
         self.finish_phase_timer(f"Import offline venv bundle {package_path.name}", package_timer)
-        self.set_progress(58, "Installing optional TensorFlow support", "The imported resource package already includes the required virtual environments")
+        self.set_progress(58, "Preparing Python environments", "The imported TDgpt venv package already includes the required virtual environments")
         self.set_progress(82, "Preparing Python environments", "Imported Python environments are ready")
         self.print_success("Offline virtual environments were imported successfully.")
         return True
@@ -1934,14 +1940,36 @@ class WindowsInstaller:
                 f"Offline model package {package_path.name} does not contain any recognized model payloads."
             )
             return False
+
+        imported_model_venvs: Set[str] = set()
+        for model_name in imported_models:
+            venv_name = str(MODEL_SPECS[model_name].get("venv") or "").strip()
+            if not venv_name or venv_name == "venv" or venv_name in imported_model_venvs:
+                continue
+            venv_target = self.get_venv_path(venv_name)
+            existed_before = venv_target.exists()
+            if not self.import_venv_payload(temp_dir, venv_name, required=False):
+                return False
+            if venv_target.exists() and not existed_before:
+                self.print_success(f"Offline model venv imported from package: {venv_name}")
+            imported_model_venvs.add(venv_name)
+
         self.finish_phase_timer(f"Import offline model package {package_path.name}", package_timer)
         return True
 
     def import_offline_models(self) -> bool:
         archives = self.resolve_offline_archives()
-        offline_package = Path(self.offline_package) if self.offline_package else None
+        offline_package = Path(self.offline_model_package) if self.offline_model_package else None
         if offline_package and not offline_package.exists():
             raise FileNotFoundError(f"Offline model package not found: {offline_package}")
+
+        if offline_package is None and self.resource_package_url:
+            if not self.ensure_model_resource_package_downloaded():
+                return False
+            offline_package = Path(self.offline_model_package) if self.offline_model_package else None
+
+        if offline_package is None and self.offline_package:
+            offline_package = Path(self.offline_package)
 
         if not archives and not offline_package:
             self.set_progress(84, "Importing offline model archives", "No packaged offline model archives were found")
@@ -2119,8 +2147,9 @@ except Exception as exc:
             f"TensorFlow support: {'Installed' if self.install_tensorflow else 'Skipped'}",
             f"Model source: {self.model_source}",
             "Selected models: " + (", ".join(self.selected_models) if self.selected_models else "None"),
-            f"Offline package: {self.offline_package or 'None'}",
-            f"Resource package URL: {self.resource_package_url or 'None'}",
+            f"Main venv package: {self.offline_package or 'None'}",
+            f"Model resource package: {self.offline_model_package or 'None'}",
+            f"Model resource package URL: {self.resource_package_url or 'None'}",
             f"Pip index: {self.pip_index_url or 'Default'}",
             f"Pip trusted host: {self.pip_trusted_host or 'Default'}",
             f"Model endpoint: {self.model_endpoint or 'Default Hugging Face'}",
@@ -2248,8 +2277,9 @@ Examples:
   python install.py
   python install.py --skip-tensorflow
   python install.py --model-source online --model moirai --model moment --model-endpoint https://hf-mirror.com
-  python install.py -o --resource-package-url https://downloads.example.com/tdengine-tdgpt-resource-1.0.tar.gz
-  python install.py -o --model-source offline --offline-package D:\\tdgpt-offline-bundle.tar.gz
+    python install.py -o --offline-package D:\tdengine-tdgpt-venv-offline-1.0.tar.gz
+    python install.py -o --model-source offline --offline-model-package D:\tdengine-tdgpt-model-resource-1.0.tar.gz
+    python install.py -o --offline-package D:\tdengine-tdgpt-venv-offline-1.0.tar.gz --model-source offline --resource-package-url https://downloads.example.com/tdengine-tdgpt-model-resource-1.0.tar.gz
   python install.py -o --existing-install
         """.strip(),
     )
@@ -2263,11 +2293,11 @@ Examples:
     parser.add_argument("--model-archive", action="append", dest="model_archives",
                         help="Offline archive mapping in the form <model>=<path>.")
     parser.add_argument("--offline-package",
-                        help="Offline/resource package tar archive that can contain venv-*.tar.gz and model payloads.")
+                        help="TDgpt main venv offline package tar archive. Legacy combined packages are still accepted.")
     parser.add_argument("--offline-model-package",
-                        help="Deprecated alias for --offline-package.")
+                        help="Optional TDgpt model resource package tar archive.")
     parser.add_argument("--resource-package-url",
-                        help="Remote resource package URL used to download a tar/tar.gz package before reusing offline import logic.")
+                        help="Remote TDgpt model resource package URL used when --model-source offline is selected and no local model package is provided.")
     parser.add_argument("--model-endpoint", help="Optional Hugging Face mirror endpoint used for online model downloads.")
     parser.add_argument("--pip-index-url", help="Custom pip index URL used for dependency installation.")
     parser.add_argument("--pip-trusted-host", help="Optional trusted host used together with the pip index URL.")

@@ -137,19 +137,34 @@ begin
   Result := 'tdengine-tdgpt-offline-assets-' + ExpandConstant('{#MyAppVersion}') + '-windows-x64';
 end;
 
+function PreferredMainVenvPackagePattern(): string;
+begin
+  Result := 'tdengine-tdgpt-venv-offline-*.tar';
+end;
+
+function PreferredMainVenvPackagePatternGz(): string;
+begin
+  Result := 'tdengine-tdgpt-venv-offline-*.tar.gz';
+end;
+
+function PreferredMainVenvPackagePatternTgz(): string;
+begin
+  Result := 'tdengine-tdgpt-venv-offline-*.tgz';
+end;
+
 function PreferredResourcePackagePattern(): string;
 begin
-  Result := 'tdengine-tdgpt-resource-*.tar';
+  Result := 'tdengine-tdgpt-model-resource-*.tar';
 end;
 
 function PreferredResourcePackagePatternGz(): string;
 begin
-  Result := 'tdengine-tdgpt-resource-*.tar.gz';
+  Result := 'tdengine-tdgpt-model-resource-*.tar.gz';
 end;
 
 function PreferredResourcePackagePatternTgz(): string;
 begin
-  Result := 'tdengine-tdgpt-resource-*.tgz';
+  Result := 'tdengine-tdgpt-model-resource-*.tgz';
 end;
 
 function GetConfiguredResourcePackageFileName(): string;
@@ -201,11 +216,68 @@ function DetectDefaultOfflinePackage(): string;
 var
   SearchDir: string;
   BaseName: string;
+begin
+  Result := '';
+  SearchDir := ExtractFileDir(ExpandConstant('{srcexe}'));
+  if SearchDir = '' then
+    exit;
+
+  Result := FindOfflinePackageByPattern(SearchDir, 'tdengine-tdgpt-venv-offline.tar');
+  if Result <> '' then
+    exit;
+
+  Result := FindOfflinePackageByPattern(SearchDir, 'tdengine-tdgpt-venv-offline.tar.gz');
+  if Result <> '' then
+    exit;
+
+  Result := FindOfflinePackageByPattern(SearchDir, 'tdengine-tdgpt-venv-offline.tgz');
+  if Result <> '' then
+    exit;
+
+  Result := FindOfflinePackageByPattern(SearchDir, PreferredMainVenvPackagePattern());
+  if Result <> '' then
+    exit;
+
+  Result := FindOfflinePackageByPattern(SearchDir, PreferredMainVenvPackagePatternGz());
+  if Result <> '' then
+    exit;
+
+  Result := FindOfflinePackageByPattern(SearchDir, PreferredMainVenvPackagePatternTgz());
+  if Result <> '' then
+    exit;
+
+  BaseName := PreferredOfflineAssetsBaseName();
+  Result := FindOfflinePackageByPattern(SearchDir, BaseName + '.tar');
+  if Result <> '' then
+    exit;
+  Result := FindOfflinePackageByPattern(SearchDir, BaseName + '.tar.gz');
+  if Result <> '' then
+    exit;
+  Result := FindOfflinePackageByPattern(SearchDir, BaseName + '.tgz');
+  if Result <> '' then
+    exit;
+end;
+
+function DetectDefaultModelResourcePackage(): string;
+var
+  SearchDir: string;
   ResourcePackageFileName: string;
 begin
   Result := '';
   SearchDir := ExtractFileDir(ExpandConstant('{srcexe}'));
   if SearchDir = '' then
+    exit;
+
+  Result := FindOfflinePackageByPattern(SearchDir, 'tdengine-tdgpt-model-resource.tar');
+  if Result <> '' then
+    exit;
+
+  Result := FindOfflinePackageByPattern(SearchDir, 'tdengine-tdgpt-model-resource.tar.gz');
+  if Result <> '' then
+    exit;
+
+  Result := FindOfflinePackageByPattern(SearchDir, 'tdengine-tdgpt-model-resource.tgz');
+  if Result <> '' then
     exit;
 
   Result := FindOfflinePackageByPattern(SearchDir, 'tdengine-tdgpt-resource.tar');
@@ -234,22 +306,7 @@ begin
 
   ResourcePackageFileName := GetConfiguredResourcePackageFileName();
   if ResourcePackageFileName <> '' then
-  begin
     Result := FindOfflinePackageByPattern(SearchDir, ResourcePackageFileName);
-    if Result <> '' then
-      exit;
-  end;
-
-  BaseName := PreferredOfflineAssetsBaseName();
-  Result := FindOfflinePackageByPattern(SearchDir, BaseName + '.tar');
-  if Result <> '' then
-    exit;
-  Result := FindOfflinePackageByPattern(SearchDir, BaseName + '.tar.gz');
-  if Result <> '' then
-    exit;
-  Result := FindOfflinePackageByPattern(SearchDir, BaseName + '.tgz');
-  if Result <> '' then
-    exit;
 end;
 
 procedure TryPopulateDefaultOfflinePackage();
@@ -1021,12 +1078,12 @@ begin
   end;
   if ModelSource = 'offline' then
   begin
-    if Trim(OfflinePackagePage.Values[0]) <> '' then
-      Result := 'Import from one local resource package'
+    if DetectDefaultModelResourcePackage() <> '' then
+      Result := 'Import from one local TDgpt model resource package'
     else if UseResourcePackage then
-      Result := 'Download and import resource package'
+      Result := 'Download and import TDgpt model resource package'
     else
-      Result := 'Reuse existing resource files';
+      Result := 'Reuse existing model resource files';
     exit;
   end;
   Result := '';
@@ -1059,7 +1116,7 @@ begin
   end;
   if ModelSource = 'offline' then
   begin
-    Result := 'TDgpt resource package';
+    Result := 'TDgpt model resource package';
     exit;
   end;
   if ModelSource = 'online' then
@@ -1248,13 +1305,13 @@ begin
 
   InstallModePage := CreateInputOptionPage(
     wpWelcome,
-    'TDgpt Resource Package',
-    'Choose whether to install the TDgpt resource package',
-    'The recommended flow downloads one TDgpt resource package from a configured remote URL and then reuses the validated offline import logic. You can also skip the resource package for now.',
+    'TDgpt Model Resource Package',
+    'Choose whether to install the TDgpt model resource package',
+    'The main TDgpt venv package is imported by default. You can additionally install the optional TDgpt model resource package now, either from a local archive or by downloading it from a configured URL.',
     True,
     False);
-  InstallModePage.Add('Download and install the TDgpt resource package (recommended)');
-  InstallModePage.Add('Do not install the TDgpt resource package now');
+  InstallModePage.Add('Install the TDgpt model resource package now');
+  InstallModePage.Add('Do not install the TDgpt model resource package now');
   InstallModePage.Values[0] := True;
 
   PipSourcePage := CreateInputOptionPage(
@@ -1425,6 +1482,18 @@ begin
     UseResourcePackage := InstallModePage.Values[0];
     IsOnlineMode := UseClassicOnlineInstall;
 
+    if (Trim(OfflinePackagePage.Values[0]) = '') and (not IsUpgradeInstall()) then
+    begin
+      MsgBox(
+        'The required TDgpt main venv offline package was not found next to the installer.' + #13#10 + #13#10 +
+        'Please place tdengine-tdgpt-venv-offline-*.tar.gz in the same directory as Setup and try again.',
+        mbError,
+        MB_OK
+      );
+      Result := False;
+      exit;
+    end;
+
     if UseClassicOnlineInstall then
     begin
       if IsUpgradeInstall() then
@@ -1455,11 +1524,11 @@ begin
       if (not UseResourcePackage) and (not HasExistingResourceAssets(TargetDir)) then
       begin
         WarningText :=
-          'The TDgpt resource package will not be installed.' + #13#10 + #13#10 +
+          'The TDgpt model resource package will not be installed.' + #13#10 + #13#10 +
           'IDMP features that depend on the time-series foundation model service will not work normally:' + #13#10 +
           '  - prediction algorithms that depend on the time-series foundation model service' + #13#10 +
           '  - value imputation' + #13#10 + #13#10 +
-          'Do you want to continue without the TDgpt resource package?';
+          'Do you want to continue without the TDgpt model resource package?';
         if MsgBox(WarningText, mbConfirmation, MB_YESNO) <> IDYES then
         begin
           Result := False;
@@ -1571,18 +1640,29 @@ begin
 end;
 
 function GetInstallFlags(Param: String): String;
+var
+  LocalModelPackage: String;
 begin
   Result := '';
+  if Trim(OfflinePackagePage.Values[0]) <> '' then
+    Result := Result + '-o --offline-package ' + AddQuotes(Trim(OfflinePackagePage.Values[0])) + ' '
+  else if IsUpgradeInstall() then
+    Result := Result + '-o ';
   if IsUpgradeInstall() then
     Result := Result + '--existing-install ';
 
   if UseResourcePackage then
   begin
-    Result := Result + '-o --model-source offline ';
-    if Trim(OfflinePackagePage.Values[0]) <> '' then
-      Result := Result + '--offline-package ' + AddQuotes(Trim(OfflinePackagePage.Values[0])) + ' '
+    Result := Result + '--model-source offline ';
+    LocalModelPackage := DetectDefaultModelResourcePackage();
+    if Trim(LocalModelPackage) <> '' then
+      Result := Result + '--offline-model-package ' + AddQuotes(Trim(LocalModelPackage)) + ' '
     else if Trim(ResourcePackageUrl) <> '' then
       Result := Result + '--resource-package-url ' + AddQuotes(Trim(ResourcePackageUrl)) + ' ';
+  end
+  else
+  begin
+    Result := Result + '--model-source none ';
   end;
   if UseClassicOnlineInstall and (not InstallTensorFlow) then
     Result := Result + '--skip-tensorflow ';
@@ -1614,37 +1694,35 @@ function UpdateReadyMemo(Space, NewLine, MemoUserInfoInfo, MemoDirInfo, MemoType
   MemoComponentsInfo, MemoGroupInfo, MemoTasksInfo: String): String;
 var
   S: String;
+  LocalModelPackage: String;
 begin
+  LocalModelPackage := DetectDefaultModelResourcePackage();
   S := MemoDirInfo + NewLine + NewLine;
   if IsUpgradeInstall() then
     S := S + 'Install type:' + NewLine + Space + 'Upgrade (reuse existing venv/model by default)' + NewLine
   else
     S := S + 'Install type:' + NewLine + Space + 'First install' + NewLine;
   S := S + 'Installer package:' + NewLine + Space + GetInstallerPackageSummary() + NewLine;
-  S := S + 'TDgpt resource package:' + NewLine + Space;
+  S := S + 'TDgpt main venv package:' + NewLine + Space;
+  if Trim(OfflinePackagePage.Values[0]) <> '' then
+    S := S + Trim(OfflinePackagePage.Values[0]) + NewLine
+  else if IsUpgradeInstall() then
+    S := S + 'Reuse existing main venv' + NewLine
+  else
+    S := S + 'Not found' + NewLine;
+  S := S + 'TDgpt model resource package:' + NewLine + Space;
   if UseResourcePackage then
-    S := S + 'Download and import' + NewLine
-  else if UseClassicOnlineInstall then
-    S := S + 'Classic online installation' + NewLine
+    S := S + 'Install now' + NewLine
   else
     S := S + 'Do not install now' + NewLine;
-  S := S + 'TensorFlow CPU support:' + NewLine + Space;
-  if UseResourcePackage then
-  begin
-    S := S + 'Included in the imported resource package' + NewLine;
-  end
-  else if InstallTensorFlow then
-    S := S + 'Install' + NewLine
-  else
-    S := S + 'Skip' + NewLine;
   S := S + 'Model source:' + NewLine + Space + GetModelSourceSummary() + NewLine;
   S := S + 'Model handling:' + NewLine + Space + GetModelSelectionSummary() + NewLine;
-  if Trim(OfflinePackagePage.Values[0]) <> '' then
-    S := S + 'Local resource package:' + NewLine + Space + Trim(OfflinePackagePage.Values[0]) + NewLine;
-  if UseResourcePackage and (Trim(OfflinePackagePage.Values[0]) = '') and (Trim(ResourcePackageUrl) <> '') then
-    S := S + 'Resource package URL:' + NewLine + Space + Trim(ResourcePackageUrl) + NewLine;
-  if UseResourcePackage and (Trim(OfflinePackagePage.Values[0]) = '') and IsUpgradeInstall() and (Trim(ResourcePackageUrl) = '') then
-    S := S + 'Resource package:' + NewLine + Space + 'Reuse current resource files' + NewLine;
+  if UseResourcePackage and (Trim(LocalModelPackage) <> '') then
+    S := S + 'Local model resource package:' + NewLine + Space + Trim(LocalModelPackage) + NewLine;
+  if UseResourcePackage and (Trim(LocalModelPackage) = '') and (Trim(ResourcePackageUrl) <> '') then
+    S := S + 'Model resource package URL:' + NewLine + Space + Trim(ResourcePackageUrl) + NewLine;
+  if UseResourcePackage and (Trim(LocalModelPackage) = '') and IsUpgradeInstall() and (Trim(ResourcePackageUrl) = '') then
+    S := S + 'Model resource package:' + NewLine + Space + 'Reuse current resource files' + NewLine;
   if PipIndexUrl <> '' then
     S := S + 'pip source:' + NewLine + Space + PipIndexUrl + NewLine;
   if ModelEndpoint <> '' then
