@@ -6,15 +6,36 @@ toc_max_heading_level: 4
 
 taosBackup 是为 TDengine TSDB 提供的高性能数据备份与恢复工具。备份数据采用高效的列式存储格式，支持全量备份、按库备份、按表备份、按时间范围备份及仅备份元数据等多种场景，并提供断点续传能力，适用于各类数据保护和迁移需求。
 
-taosBackup 是原 taosdump 的升级版本，由于存储完全不兼容，为了避免混淆而进行了更名。
+## 与 taosdump 的关系
+
+taosBackup 是原 taosdump 的升级版本，由于存储格式完全不兼容，为了避免混淆而进行了更名。taosdump 在完成过渡期后安装包中将不再提供。
+
+taosBackup 在性能及备份数据大小方面较 taosdump 有极大提升。
+
+## 性能比较
+
+| 工具           | 备份  | 恢复  |
+| ------------  | ----  | ---- |
+| taosdump(基准) | 1x    | 1x  |
+| taosBackup    | 5x    | 3x |
+
+## 备份数据大小
+
+| 工具           | 占比   |
+| ------------- | ------ |
+| taosdump(基准) | 100%   |
+| taosBackup    | 42%    |
+
+## 参数及功能
+taosBackup 支持绝大全部 taosdump 的命令行参数（个别参数除外）。功能上新增了断点续传、导出 Parquet 格式、仅恢复指定数据库、优化多表低频场景的备份/恢复性能等。
 
 ## 工具获取
 
-taosBackup 是 TDengine TSDB 服务器及客户端安装包中默认安装组件，安装后即可使用，参考 [TDengine TSDB 安装](../../../get-started/)
+taosBackup 在 TDengine TSDB v3.4.1.1 及之后版本的服务器或客户端安装包中均提供，安装请参考 [TDengine TSDB 安装](../../../get-started/)
 
 ## 运行
 
-taosBackup 需在命令行终端中运行，运行时必须带参数，指明是备份操作（`-o`）或恢复操作（`-i`）。
+taosBackup 支持 Windows/MacOS/Linux 平台，在命令行终端中运行，运行时必须带参数，指明备份操作（`-o`）或恢复操作（`-i`）。
 
 :::tip
 在运行 taosBackup 之前要确保目标 TDengine TSDB 集群已经正确运行。
@@ -42,6 +63,13 @@ taosBackup -h my-server -i /root/backup/
 
 以上命令表示将 `/root/backup/` 目录下的备份数据恢复到主机名为 `my-server` 的 TDengine 服务中。
 
+```bash
+taosBackup -h my-server -D test -i /root/backup/
+```
+
+以上命令表示将 `/root/backup/` 目录下的备份数据恢复到主机名为 `my-server` 的 TDengine 服务中，并仅恢复 `test` 数据库的数据。
+
+
 ## 命令行参数
 
 ```bash
@@ -55,6 +83,7 @@ Usage: taosBackup [OPTION...] dbname [tbname ...] -o outpath
 | --------- | ------- |
 | `-h, --host=HOST` | 要连接的 TDengine 服务端 FQDN 或 IP，默认值为 localhost |
 | `-P, --port=PORT` | 要连接的 TDengine 服务端端口号，默认值为 6030 |
+| `-c, --config-dir=CONFIG_DIR` | 指定 taos.cfg 配置文件所在目录，不指定使用默认路径 |
 | `-u, --user=USER` | 连接用户名，默认值为 root |
 | `-p, --password=PASSWORD` | 连接密码，默认值为 taosdata |
 | `-o, --outpath=OUTPATH` | 备份输出目录路径，默认值为 ./output |
@@ -122,7 +151,7 @@ taosBackup -h my-server -D test -s -o /root/backup/
 
 仅备份 `test` 数据库的表结构和标签信息，不备份时序数据，适用于快速迁移表结构。
 
-#### 使用 Parquet 格式备份
+#### 备份为 Parquet 格式
 
 ```bash
 taosBackup -h my-server -D test -F parquet -o /root/backup/
@@ -131,7 +160,7 @@ taosBackup -h my-server -D test -F parquet -o /root/backup/
 将 `test` 数据库以 Parquet 格式导出，便于与大数据生态（如 Spark、Hive、DuckDB）对接。
 
 #### 断点续传备份
-
+断点续传功能默认不开启，需要通过 `-C` 参数显式指定。当备份过程中因故中断时，再次运行相同命令并加上 `-C` 参数，taosBackup 会自动跳过已成功完成的数据库/超级表/子表，继续备份未完成的部分。
 ```bash
 # 第一次备份（因故中断）
 taosBackup -h my-server -D test -o /root/backup/

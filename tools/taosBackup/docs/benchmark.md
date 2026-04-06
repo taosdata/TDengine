@@ -28,14 +28,14 @@
 | taosBackup | binary  | T8 | **28 s**       | 31.8  | 9.1  | 509 MB | 3,623,000 |
 | taosBackup | parquet | T1 | **4 min 12 s** | 202.1 | 12.8 | 548 MB | 397,000 |
 | taosBackup | parquet | T8 | **51 s**       | 212.4 | 12.6 | 548 MB | 1,967,000 |
-| taosdump   | SQL     | T1 | **9 min 51 s** | 342.5 | 33.3 | 1.2 GB | 169,000 |
-| taosdump   | SQL     | T8 | **1 min 28 s** | 371.6 | 32.1 | 1.2 GB | 1,134,000 |
+| taosdump   | avro    | T1 | **9 min 51 s** | 342.5 | 33.3 | 1.2 GB | 169,000 |
+| taosdump   | avro    | T8 | **1 min 28 s** | 371.6 | 32.1 | 1.2 GB | 1,134,000 |
 
 ### 2.2 文件体积
 
 | 工具 | 格式 | 文件大小 | 占比 |
 |------|------|---------|------|
-| taosdump   | SQL     | 1.2 GB | 100%（基准） |
+| taosdump   | avro     | 1.2 GB | 100%（基准） |
 | taosBackup | binary  | 509 MB | 42% |
 | taosBackup | parquet | 548 MB | 46% |
 
