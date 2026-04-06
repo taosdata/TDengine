@@ -55,6 +55,7 @@ enum class ColumnTypeTag {
 };
 
 using ColumnType = std::variant<
+    std::monostate,       // null
     bool,                 // bool
     int8_t,               // tinyint
     uint8_t,              // tinyint unsigned

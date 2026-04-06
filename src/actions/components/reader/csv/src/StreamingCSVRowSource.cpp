@@ -1,5 +1,5 @@
 #include "StreamingCSVRowSource.hpp"
-#include "StringUtils.hpp"
+#include "CsvNullUtils.hpp"
 #include <cctz/civil_time.h>
 #include <cctz/time_zone.h>
 #include <chrono>
@@ -165,8 +165,13 @@ RowData StreamingCSVRowSource::convert_row(const CSVRow& raw_row) {
         if (instance_idx >= instances_.size()) break;
 
         const auto& instance = instances_[instance_idx];
-        row.columns.push_back(
-            TypeConverter::convert_to_type(raw_row[col_idx], instance.config().type_tag));
+        ColumnTypeTag type_tag = instance.config().type_tag;
+        if ((ColumnTypeTraits::is_numeric(type_tag) || type_tag == ColumnTypeTag::BOOL)
+            && CsvNullUtils::is_null_text(raw_row[col_idx])) {
+            row.columns.push_back(std::monostate{});
+        } else {
+            row.columns.push_back(TypeConverter::convert_to_type(raw_row[col_idx], type_tag));
+        }
         instance_idx++;
     }
 

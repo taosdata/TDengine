@@ -46,10 +46,14 @@ void MemoryPool::TableBase::fill_row(size_t row_index, const RowData& row) {
         const auto& handler = (*col_handlers_ptr)[col_idx];
 
         // Handle NULL value
-        // if (std::holds_alternative<std::monostate>(col_value)) {
-        //     col_block.is_nulls[used_rows] = 1;
-        //     continue;
-        // }
+        if (std::holds_alternative<std::monostate>(col_value)) {
+            col.is_nulls[row_index] = 1;
+            if (!col.is_fixed) {
+                col.lengths[row_index] = 0;
+                col.var_offsets[row_index] = col.current_offset;
+            }
+            continue;
+        }
 
         col.is_nulls[row_index] = 0;
 
@@ -193,10 +197,10 @@ void MemoryPool::TableBlock::add_rows(const std::vector<RowData>& rows) {
                 const auto& col_value = rows[i].columns[col_idx];
 
                 // Handle NULL value
-                // if (std::holds_alternative<std::monostate>(col_value)) {
-                //     col_block.is_nulls[start_index + i] = 1;
-                //     continue;
-                // }
+                if (std::holds_alternative<std::monostate>(col_value)) {
+                    col_block.is_nulls[start_index + i] = 1;
+                    continue;
+                }
 
                 col_block.is_nulls[start_index + i] = 0;
 
@@ -208,14 +212,14 @@ void MemoryPool::TableBlock::add_rows(const std::vector<RowData>& rows) {
         } else {
             // Batch copy data
             for (size_t i = 0; i < rows.size(); ++i) {
-                if (col_block.is_nulls[start_index + i]) continue;
-
                 const auto& col_value = rows[i].columns[col_idx];
 
-                // if (std::holds_alternative<std::monostate>(col_value)) {
-                //     col_block.is_nulls[start_index + i] = 1;
-                //     continue;
-                // }
+                if (std::holds_alternative<std::monostate>(col_value)) {
+                    col_block.is_nulls[start_index + i] = 1;
+                    col_block.lengths[start_index + i] = 0;
+                    col_block.var_offsets[start_index + i] = col_block.current_offset;
+                    continue;
+                }
 
                 col_block.is_nulls[start_index + i] = 0;
 
@@ -254,7 +258,7 @@ ColumnType MemoryPool::TableBlock::get_cell_impl(size_t row_index, size_t col_in
     const auto& handler = handlers[col_index];
 
     if (col.is_nulls[row_index]) {
-        throw std::runtime_error("NULL value not supported");
+        return std::monostate{};
     }
 
     if (col.is_fixed) {
@@ -525,7 +529,8 @@ void MemoryPool::TagsManager::init_table_tags(TableBlock::Tags& tags,
         // 设置 is_nulls
         tag.is_nulls = common_meta_ptr;
         common_meta_ptr += sizeof(char);
-        tag.is_nulls[0] = 0;
+        const bool is_null = std::holds_alternative<std::monostate>(tag_value);
+        tag.is_nulls[0] = is_null ? 1 : 0;
 
         // 初始化 binding
         bind.buffer_type = config.get_taos_type();
@@ -547,7 +552,10 @@ void MemoryPool::TagsManager::init_table_tags(TableBlock::Tags& tags,
             var_data_ptr += config.cap.value();
 
             // 写入数据
-            size_t data_len = handler.to_var(tag_value, tag.var_data, tag.max_length);
+            size_t data_len = 0;
+            if (!is_null) {
+                data_len = handler.to_var(tag_value, tag.var_data, tag.max_length);
+            }
             tag.lengths[0] = static_cast<int32_t>(data_len);
             tag.var_offsets[0] = 0;
 
@@ -563,7 +571,9 @@ void MemoryPool::TagsManager::init_table_tags(TableBlock::Tags& tags,
             tag.fixed_data = fixed_ptr;
 
             // 写入数据
-            handler.to_fixed(tag_value, tag.fixed_data, tag.element_size);
+            if (!is_null) {
+                handler.to_fixed(tag_value, tag.fixed_data, tag.element_size);
+            }
 
             // 设置 binding
             bind.buffer = tag.fixed_data;
