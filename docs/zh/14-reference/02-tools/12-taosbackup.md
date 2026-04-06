@@ -4,7 +4,9 @@ sidebar_label: taosBackup
 toc_max_heading_level: 4
 ---
 
-taosBackup 是为 TDengine TSDB 提供的高性能数据备份与恢复工具。备份数据采用高效的列式二进制格式（默认）或 Apache Parquet 格式存储，支持全量备份、按库备份、按表备份、按时间范围备份及仅备份元数据等多种场景，并提供断点续传能力，适用于各类数据保护和迁移需求。
+taosBackup 是为 TDengine TSDB 提供的高性能数据备份与恢复工具。备份数据采用高效的列式存储格式，支持全量备份、按库备份、按表备份、按时间范围备份及仅备份元数据等多种场景，并提供断点续传能力，适用于各类数据保护和迁移需求。
+
+taosBackup 是原 taosdump 的升级版本，由于存储完全不兼容，为了避免混淆而进行了更名。
 
 ## 工具获取
 
@@ -42,7 +44,7 @@ taosBackup -h my-server -i /root/backup/
 
 ## 命令行参数
 
-```
+```bash
 Usage: taosBackup [OPTION...] dbname [tbname ...] -o outpath
   or:  taosBackup [OPTION...] -o outpath
   or:  taosBackup [OPTION...] -i inpath
@@ -141,8 +143,10 @@ taosBackup -h my-server -D test -o /root/backup/ -C
 taosBackup 每次运行都会在输出目录中自动写入检查点文件。使用 `-C` 参数重新运行时，会读取检查点文件并跳过已成功完成的项目，从中断位置继续执行。
 
 :::tip
+
 - `-o` 参数指定的目录下如果已存在备份文件，taosBackup 在未开启断点续传模式时会直接覆盖同名文件，建议使用空目录进行全量备份。
 - 如果备份数据量很大，建议配合 `-S`/`-E` 参数分段备份，或使用 `-C` 断点续传。
+
 :::
 
 ### 恢复数据
@@ -195,7 +199,7 @@ taosBackup -i /root/backup/ -X "https://cloud-host?token=<TOKEN>"
 
 备份输出目录下，每个数据库对应一个子目录，目录内包含以下内容：
 
-```
+```bash
 {outpath}/
 └── {dbname}/
     ├── db.sql             # 建库 SQL
@@ -219,7 +223,7 @@ taosBackup -i /root/backup/ -X "https://cloud-host?token=<TOKEN>"
 
 备份/恢复开始时，taosBackup 会打印当前运行参数摘要，示例如下：
 
-```
+```bash
 ===========================================================================
   taosBackup - BACKUP
 ===========================================================================
@@ -241,7 +245,7 @@ taosBackup -i /root/backup/ -X "https://cloud-host?token=<TOKEN>"
 
 运行过程中，taosBackup 会持续输出进度信息，显示当前处理的数据库、超级表、已完成子表数及预计剩余时间：
 
-```
+```bash
 [DB 1/2: test] [STB 3/10: meters] [CTB 1500/5000 (30.0%)] elapsed: 12s, eta: 28s
 ```
 
@@ -249,7 +253,7 @@ taosBackup -i /root/backup/ -X "https://cloud-host?token=<TOKEN>"
 
 备份/恢复完成后，打印最终统计摘要：
 
-```
+```bash
 ===========================================================================
   Result       : SUCCESS
 ---------------------------------------------------------------------------
@@ -263,6 +267,7 @@ taosBackup -i /root/backup/ -X "https://cloud-host?token=<TOKEN>"
 ```
 
 各字段含义：
+
 - **Databases**：处理的数据库总数及成功/失败数量。
 - **Super Tables**：处理的超级表数量。
 - **Child Tables**：已导出/恢复数据的子表数量。
