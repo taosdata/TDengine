@@ -8,7 +8,7 @@ taosBackup 是为 TDengine TSDB 提供的高性能数据备份与恢复工具。
 
 ## 与 taosdump 的关系
 
-taosBackup 是原 taosdump 的升级版本，由于存储格式完全不兼容，为了避免混淆而进行了更名。taosdump 在完成过渡期后安装包中将不再提供。
+taosBackup 是原 taosdump 的全新升级版本，由于存储格式完全不兼容，故进行了更名。taosdump 在完成过渡期后安装包中将不再提供。
 
 taosBackup 在性能及备份数据大小方面较 taosdump 有极大提升。
 
@@ -21,12 +21,13 @@ taosBackup 在性能及备份数据大小方面较 taosdump 有极大提升。
 
 ## 备份数据大小
 
-| 工具           | 占比   |
-| ------------- | ------ |
-| taosdump(基准) | 100%   |
-| taosBackup    | 42%    |
+| 工具           |  存储格式 | 占比   |
+| ------------- | ------ | ---- |
+| taosdump(基准) | 行存   | 100% |
+| taosBackup    | 列存   | 42% |
 
 ## 参数及功能
+
 taosBackup 支持绝大全部 taosdump 的命令行参数（个别参数除外）。功能上新增了断点续传、导出 Parquet 格式、仅恢复指定数据库、优化多表低频场景的备份/恢复性能等。
 
 ## 工具获取
@@ -68,7 +69,6 @@ taosBackup -h my-server -D test -i /root/backup/
 ```
 
 以上命令表示将 `/root/backup/` 目录下的备份数据恢复到主机名为 `my-server` 的 TDengine 服务中，并仅恢复 `test` 数据库的数据。
-
 
 ## 命令行参数
 
@@ -160,7 +160,9 @@ taosBackup -h my-server -D test -F parquet -o /root/backup/
 将 `test` 数据库以 Parquet 格式导出，便于与大数据生态（如 Spark、Hive、DuckDB）对接。
 
 #### 断点续传备份
+
 断点续传功能默认不开启，需要通过 `-C` 参数显式指定。当备份过程中因故中断时，再次运行相同命令并加上 `-C` 参数，taosBackup 会自动跳过已成功完成的数据库/超级表/子表，继续备份未完成的部分。
+
 ```bash
 # 第一次备份（因故中断）
 taosBackup -h my-server -D test -o /root/backup/

@@ -74,9 +74,9 @@ This command restores the backup data under `/root/backup/` to the TDengine serv
 
 ```bash
 Usage: taosBackup [OPTION...] dbname [tbname ...] -o outpath
-	or:  taosBackup [OPTION...] -o outpath
-	or:  taosBackup [OPTION...] -i inpath
-	or:  taosBackup [OPTION...] --databases db1,db2,...
+  or:  taosBackup [OPTION...] -o outpath
+  or:  taosBackup [OPTION...] -i inpath
+  or:  taosBackup [OPTION...] --databases db1,db2,...
 ```
 
 | Command-Line Parameter | Description |
@@ -232,18 +232,18 @@ Under the backup output directory, each database has its own subdirectory contai
 
 ```text
 {outpath}/
-	{dbname}/
-		db.sql
-		tags/
-			{stbname}.sql
-			{stbname}_data{N}.{ext}
-		data/
-			{stbname}/
-				{stbname}_data{N}.{ext}
-		_ntb/
-			{tbname}.sql
-			{tbname}/
-				{tbname}_data{N}.{ext}
+  {dbname}/
+    db.sql
+    tags/
+      {stbname}.sql
+      {stbname}_data{N}.{ext}
+    data/
+      {stbname}/
+        {stbname}_data{N}.{ext}
+    _ntb/
+      {tbname}.sql
+      {tbname}/
+        {tbname}_data{N}.{ext}
 ```
 
 Where:
@@ -265,19 +265,19 @@ At the start of backup or restore, taosBackup prints a summary of the current ru
 
 ```bash
 ===========================================================================
-	taosBackup - BACKUP
+  taosBackup - BACKUP
 ===========================================================================
-	Connect Mode : Native
-	Server       : my-server:6030
-	User         : root
-	Output Path  : /root/backup/
-	Databases    : test
-	Data Threads : 8
-	Tag Threads  : 2
-	Format       : binary
-	Schema Only  : no
-	Time Range   : ALL
-	Check Point  : no
+  Connect Mode : Native
+  Server       : my-server:6030
+  User         : root
+  Output Path  : /root/backup/
+  Databases    : test
+  Data Threads : 8
+  Tag Threads  : 2
+  Format       : binary
+  Schema Only  : no
+  Time Range   : ALL
+  Check Point  : no
 ===========================================================================
 ```
 
@@ -295,14 +295,14 @@ After backup or restore completes, taosBackup prints the final statistics summar
 
 ```bash
 ===========================================================================
-	Result       : SUCCESS
+  Result       : SUCCESS
 ---------------------------------------------------------------------------
-	Databases    : total=1, success=1, failed=0
-	Super Tables : 10
-	Child Tables : 5000 (data exported)
-	Normal Tables: 2
-	Total Rows   : 50000000
-	Elapsed      : 45.23 s
+  Databases    : total=1, success=1, failed=0
+  Super Tables : 10
+  Child Tables : 5000 (data exported)
+  Normal Tables: 2
+  Total Rows   : 50000000
+  Elapsed      : 45.23 s
 ===========================================================================
 ```
 
