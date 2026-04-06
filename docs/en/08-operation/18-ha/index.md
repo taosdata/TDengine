@@ -3,13 +3,15 @@ sidebar_label: High Availability
 title: High Availability
 ---
 
-TDengine TSDB is a distributed time-series database with built-in high availability (HA). By default, it uses a standard three-replica architecture based on the RAFT protocol. To better fit different deployment scenarios, TDengine also offers a two-replica RAFT-based option, as well as an active-active solution using WAL data synchronization for users who prefer a traditional primary-standby setup.
+TDengine TSDB is a distributed time-series database with built-in high availability (HA). High availability prevents service interruption and data loss in the event that a TDengine node becomes unavailable.
+
+By default, TDengine uses a standard three-replica architecture based on the Raft algorithm. To adapt to different deployment scenarios, TDengine also offers a dual-replica Raft-based option, as well as an active-active solution using WAL data synchronization for users who prefer a traditional primary-standby setup.
 
 - Three-replica architecture: Stores three copies of each dataset, delivering the highest level of availability at the highest cost.
 - Dual-replica with arbitrator: Stores two copies of each dataset, but requires at least three nodes in the cluster. This reduces storage costs compared to three replicas while still ensuring strong consistency and high availability.
 - Active-active: Runs with just two nodes. This setup provides good availability but only guarantees eventual consistency.
 
-The key differences between these three approaches are outlined below:
+The key differences between these three approaches are outlined in the following table.
 
 | # | Three-Replica | Dual-Replica | Active-Active |
 |:--|:----------|:----------|:--------|

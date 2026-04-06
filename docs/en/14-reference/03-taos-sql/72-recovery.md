@@ -1,7 +1,6 @@
 ---
 title: Troubleshooting
 description: How to terminate problematic connections, queries, and transactions to restore the system to normal
-slug: /tdengine-reference/sql-manual/troubleshooting
 ---
 
 In a complex application scenario, connections and query tasks may enter an erroneous state or take too long to finish, necessitating methods to terminate these connections or tasks.

@@ -1,7 +1,6 @@
 ---
 sidebar_label: Release History
 title: TDengine Release History and Download Links
-slug: /release-history/
 ---
 
 import Release from "/src/components/Release";

@@ -3,7 +3,6 @@ sidebar_label: Stream Processing
 title: Stream Processing
 description: This article describes the SQL statements and syntax related to stream processing.
 toc_max_heading_level: 4
-slug: /tdengine-reference/sql-manual/manage-streams
 ---
 
 Compared with traditional stream processing, TDengine TSDB’s stream processing extends both functionality and boundaries. Traditionally, stream processing is defined as a real-time computing paradigm focused on low latency, continuity, and event-time-driven processing of unbounded data streams. TDengine TSDB’s stream processing adopts a trigger–compute decoupling strategy, still operating on continuous unbounded data streams, but with the following enhancements:
@@ -314,7 +313,7 @@ Details are as follows:
   - If trigger grouping is used, this table will be a supertable.
   - If no trigger grouping is used, this table will be a regular table.
   - If the trigger only sends notifications without computation, or if computation results are only sent as notifications without being stored, this option does not need to be specified.
-- `[NODELAY_CREATE_SUBTABLE]`: Optional. Specifies that the calculation output subtables for each group are created immediately when the stream is created. By default, output subtables are created only when the first calculated data is written. If this option is added, subtables are created asynchronously after the stream is created. If not all subtables are created successfully, the stream status remains `Idle`; if creation succeeds, the status changes to `Running`. For regular tables and supertables as output tables, they are created automatically when the stream is created by default, and no configuration is needed.
+- `[NODELAY_CREATE_SUBTABLE]`: Optional. Specifies that the calculation output subtables/normal-table for each group are created immediately when the stream is created. By default, output subtables/normal-table are created only when the first calculated data is written. If this option is added, subtables are created asynchronously after the stream is created. If not all subtables are created successfully, the stream status remains `Idle`; if creation succeeds, the status changes to `Running`. For regular tables and supertables as output tables, they are created automatically when the stream is created by default, and no configuration is needed.
 - `[OUTPUT_SUBTABLE(tbname_expr)]`: Optional. Specifies the name of the calculation output table (subtable) for each trigger group. This cannot be specified if there is no trigger grouping. If not specified, a unique output table (subtable) name will be automatically generated for each group. tbname_expr can be any output string expression, and may include trigger group partition columns (from [PARTITION BY col1[, ...]]). The output length must not exceed the maximum table name length; if it does, it will be truncated. If you do not want different groups to output to the same subtable, you must ensure each group's output table name is unique.
 - `[(column_name1, column_name2 [COMPOSITE KEY][, ...])]`: Optional. Specifies the column names for each column in the output table. If not specified, each column name will be the same as the corresponding column name in the calculation result. You can use [COMPOSITE KEY] to indicate that the second column is a primary key column, forming a composite primary key together with the first column.
 - `[TAGS (tag_definition [, ...])]`: Optional. Specifies the list of tag column definitions and values for the output supertable. This can only be specified if trigger grouping is present. If not specified, the tag column definitions and values are derived from all grouping columns, and in this case, grouping columns cannot have duplicate names. When grouping by subtable, the default generated tag column name is tag_tbname, with the type VARCHAR(270). The tag_definition parameters are as follows:
@@ -840,7 +839,7 @@ Apart from the operations explicitly restricted or specially handled in the tabl
 
 ### Configuration Parameters
 
-Stream processing–related configuration parameters are listed below. For full details, see [taosd](https://docs.tdengine.com/tdengine-reference/components/taosd/).
+Stream processing–related configuration parameters are listed below. For full details, see [taosd](../01-components/01-taosd.md).
 
 - numOfMnodeStreamMgmtThreads: Number of stream management threads on mnodes.
 - numOfStreamMgmtThreads: Number of stream management threads on vnodes/snodes.

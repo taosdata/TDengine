@@ -1,6 +1,5 @@
 ---
 title: MQTT
-slug: /advanced-features/data-connectors/mqtt
 ---
 
 import Enterprise from '../../assets/resources/_enterprise.mdx';

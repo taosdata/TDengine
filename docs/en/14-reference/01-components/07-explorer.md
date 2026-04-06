@@ -1,7 +1,6 @@
 ---
 title: taosExplorer Reference
 sidebar_label: taosExplorer
-slug: /tdengine-reference/components/taosexplorer
 ---
 
 taosExplorer is a web service that provides users with a visual management interaction tool for TDengine instances. Although it is not open source, it is provided for free with the open source version installation package. This section mainly discusses its installation and deployment. All its features are based on a simple and easy-to-use graphical interface, which you can try directly. If needed, you can also refer to the related content in the advanced features and operation and maintenance guide. To ensure the best experience when accessing taosExplorer, please use Chrome version 79 or above, or Edge version 79 or above.
