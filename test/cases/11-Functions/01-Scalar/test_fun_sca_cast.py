@@ -104,6 +104,66 @@ class TestFunCast:
 
         tdSql.query(f"select 1n-now();")
         tdSql.query(f"select 1n+now();")
+
+    def do_cast_to_json_unknown_error_regression(self):
+        tdSql.execute("drop database if exists tdsqlsmith_shared;")
+        tdSql.execute("create database if not exists tdsqlsmith_shared;")
+        tdSql.execute("use tdsqlsmith_shared;")
+
+        tdSql.execute(
+            "create table if not exists t1(ts timestamp, id int, v int, c1 int, c2 int, u1 int unsigned, bi bigint, ubi bigint unsigned, f float, d double, si smallint, usi smallint unsigned, ti tinyint, uti tinyint unsigned, ok bool, a binary(32), b varchar(64), n nchar(32), vb varbinary(64), geo geometry(100), de decimal(18,6));"
+        )
+        tdSql.execute(
+            "create table if not exists t2(ts timestamp, id int, v int, c1 int, c2 int, u1 int unsigned, bi bigint, ubi bigint unsigned, f float, d double, si smallint, usi smallint unsigned, ti tinyint, uti tinyint unsigned, ok bool, a binary(32), b varchar(64), n nchar(32), vb varbinary(64), geo geometry(100), de decimal(18,6));"
+        )
+        tdSql.execute(
+            "create table if not exists t3(ts timestamp, id int, v int, c1 int, c2 int, u1 int unsigned, bi bigint, ubi bigint unsigned, f float, d double, si smallint, usi smallint unsigned, ti tinyint, uti tinyint unsigned, ok bool, a binary(32), b varchar(64), n nchar(32), vb varbinary(64), geo geometry(100), de decimal(18,6));"
+        )
+
+        tdSql.execute(
+            "insert into t1 values(now,1,10,1,2,11,111111111,222222222,1.25,2.5,12,34,7,9,true,'alpha','beta','gamma','\\x010203','POINT(1 2)',123.456789);"
+        )
+        tdSql.execute(
+            "insert into t2 values(now,2,20,3,4,21,211111111,322222222,3.5,4.75,-12,44,-7,19,false,'left','right','delta','\\x0A0B0C','POINT(2 3)',223.000001);"
+        )
+        tdSql.execute(
+            "insert into t3 values(now,3,30,5,6,31,311111111,422222222,5.75,6.125,22,54,17,29,true,'foo','bar','omega','\\x112233','POINT(3 4)',323.5);"
+        )
+
+        sql_list = [
+            "select ok, b from t2 order by cast(ok not between ok and true as json) desc nulls first limit 32 offset 36;",
+            "select /*+ no_batch_scan() */ -ubi from t3 as x order by cast(u1 as json) asc nulls last, (case when vb then today() else cast(ubi as binary(16)) end) | (-usi) desc nulls last limit 36 offset 18;",
+            "select ti, a from t3 where si > 1.1 order by cast(si as json) desc nulls last, c1 asc nulls last limit 38;",
+            "select si, si from t3 where si > 19 order by cast(c1 as json) desc nulls last limit 7;",
+            "select vb, usi from t3 order by case upper(b) when cast(ok as json) then trim(a from a) else (ok not between false and ok) or (a in ('s_678', 's_775', 's_296')) end asc nulls last limit 15 offset 41;",
+            "select usi, si from t2 where f > 1.42 order by cast(si / v as json) desc nulls last, -f asc nulls last;",
+            "select ti, usi as y, sum(ubi), count(*) from t1 where isnull(ts) and ((c1 % 28) between ok and cast('s_489' as json)) group by ti, usi having count(*) > 47;",
+            "select de, si, usi from t2 order by +(22 + ceil(ubi)) desc nulls last, cast(geo as json) asc nulls last limit 27 offset 41;",
+            "select c2, ok, d from t2 order by cast(case today() when ok then today() else ok end as json) desc nulls last, case when n in (false, 35, '{\"k\":1}') then +14 else usi + ceil(abs(3)) end desc nulls last limit 11 offset 35;",
+            "select de, b, de from t3 order by (pow(id, d) - if(cast(id as json), id, a)) / uti asc nulls last limit 12;",
+            "select v from t1 as c where not (cast(ok as json) is not null) order by rand(ceil(si)) asc nulls last limit 42 offset 45;",
+            "select ti, n as b, max(bi) from t1 where cast(+43 as json) group by ti, n having max(c2) is not null limit 28 offset 3;",
+            "select if((+bi) / uti, case when null then ifnull(bi, c2) else v end, isnull(database())) from t2 as z where cast(ti as json);",
+            "select abs(uti), *, * from t1 order by substring(a, 1, 47) asc nulls last, cast(u1 as json) desc nulls last;",
+            "select de, bi from t3 order by cast(-c1 as json) asc nulls first, bi desc nulls last limit 34 offset 25;",
+            "select c2, ubi from t2 where usi > 25 order by cast(-f as json) asc nulls last;",
+            "select n, n, ti from t3 where si > 14 order by cast(ok as json) desc nulls last, true asc nulls last limit 25 offset 10;",
+            "select /*+ hash_join() */ cast(ubi as json) from t2 order by today() asc nulls last, +ubi asc nulls last limit 3;",
+            "select b from t3 where ubi > 6.39 order by cast(b as json) desc nulls last, usi % de asc nulls last limit 21 offset 8;",
+            "select id from t3 order by cast(de as json) desc nulls last, c2 asc nulls last;",
+            "select u1, v, d from t3 order by cast('s_860' as json) desc nulls last limit 16 offset 45;",
+            "select *, * from t1 order by id / (case cast(c1 as json) when id then d else f end) desc nulls last, -abs(round(id)) desc nulls last limit 25;",
+            "select +bi as a from t3 order by cast(ti as json) desc nulls last;",
+        ]
+
+        for idx, sql in enumerate(sql_list, start=1):
+            err_info = tdSql.error(sql)
+            if "Unknown error 65535" in err_info:
+                tdLog.exit(
+                    f"json cast regression failed at SQL #{idx}, still got unknown 65535, sql: {sql}, err: {err_info}"
+                )
+
+        print("do cast-to-json unknown-error regression .... [passed]")
     
     #
     # ----------------------- system-test -------------------
@@ -1501,13 +1561,14 @@ class TestFunCast:
         Jira: None
 
         History:
+            - 2026-04-03 wpan Add CAST(... AS JSON) sqlsmith regression, assert no Unknown error 65535
             - 2025-10-20 Alex Duan Migrated from uncatalog/army/query/function/test_cast.py
             - 2025-09-23 Alex Duan Migrated from uncatalog/system-test/2-query/test_cast.py
             - 2025-08-23 Simon Guan Migrated function cast_const from tsim/scalar/scalar.sim
-        
-        """        
+
+        """
         self.do_cast_const()
+        self.do_cast_to_json_unknown_error_regression()
         self.do_army_cast()
         self.do_system_test_cast()
         self.do_cast_to_json_invalid()
-        
