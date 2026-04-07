@@ -5984,6 +5984,7 @@ int32_t tSerializeSRestoreDnodeReq(void *buf, int32_t bufLen, SRestoreDnodeReq *
   TAOS_CHECK_EXIT(tStartEncode(&encoder));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->dnodeId));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->restoreType));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->vgroupId));
   ENCODESQL();
   tEndEncode(&encoder);
 
@@ -6006,6 +6007,9 @@ int32_t tDeserializeSRestoreDnodeReq(void *buf, int32_t bufLen, SRestoreDnodeReq
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->dnodeId));
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->restoreType));
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->vgroupId));
+  }
   DECODESQL();
   tEndDecode(&decoder);
 

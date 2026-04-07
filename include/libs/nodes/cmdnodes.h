@@ -994,6 +994,7 @@ typedef struct SDropComponentNodeStmt {
 typedef struct SRestoreComponentNodeStmt {
   ENodeType type;
   int32_t   dnodeId;
+  int32_t   vgroupId;  // 0 = restore all vgroups on dnode; >0 = restore specific vgroup
 } SRestoreComponentNodeStmt;
 
 typedef struct SCreateTopicStmt {

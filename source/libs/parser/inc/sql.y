@@ -856,6 +856,7 @@ cmd ::= RESTORE MNODE ON DNODE NK_INTEGER(A).                                   
 
 /************************************************ restore vnode ***************************************************/
 cmd ::= RESTORE VNODE ON DNODE NK_INTEGER(A).                                     { pCxt->pRootNode = createRestoreComponentNodeStmt(pCxt, QUERY_NODE_RESTORE_VNODE_STMT, &A); }
+cmd ::= RESTORE VNODE ON DNODE NK_INTEGER(A) ON VGROUP NK_INTEGER(B).             { pCxt->pRootNode = createRestoreVnodeOnVgroupStmt(pCxt, &A, &B); }
 
 /************************************************ create/drop/use database ********************************************/
 cmd ::= CREATE DATABASE not_exists_opt(A) db_name(B) db_options(C).               { pCxt->pRootNode = createCreateDatabaseStmt(pCxt, A, &B, C); }

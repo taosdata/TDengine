@@ -200,6 +200,41 @@ TEST_F(ParserExplainToSyncdbTest, restoreDnode) {
 
 // todo reset query cache
 
+TEST_F(ParserExplainToSyncdbTest, restoreVnodeOnVgroup) {
+  useDb("root", "test");
+
+  SRestoreDnodeReq expect = {0};
+
+  auto clearReq = [&]() { memset(&expect, 0, sizeof(SRestoreDnodeReq)); };
+
+  auto setReq = [&](int32_t dnodeId, int32_t vgroupId) {
+    expect.dnodeId = dnodeId;
+    expect.restoreType = RESTORE_TYPE__VNODE;
+    expect.vgroupId = vgroupId;
+  };
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_RESTORE_VNODE_STMT);
+    ASSERT_EQ(pQuery->pCmdMsg->msgType, TDMT_MND_RESTORE_DNODE);
+    SRestoreDnodeReq req = {0};
+    ASSERT_EQ(tDeserializeSRestoreDnodeReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(req.dnodeId, expect.dnodeId);
+    ASSERT_EQ(req.restoreType, expect.restoreType);
+    ASSERT_EQ(req.vgroupId, expect.vgroupId);
+    tFreeSRestoreDnodeReq(&req);
+  });
+
+  // Two-argument form: explicit vgroupId
+  setReq(2, 42);
+  run("RESTORE VNODE ON DNODE 2 ON VGROUP 42");
+  clearReq();
+
+  // Verify with different IDs
+  setReq(3, 7);
+  run("RESTORE VNODE ON DNODE 3 ON VGROUP 7");
+  clearReq();
+}
+
 TEST_F(ParserExplainToSyncdbTest, revoke) {
   useDb("root", "test");
 

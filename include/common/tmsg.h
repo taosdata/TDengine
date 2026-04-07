@@ -3605,6 +3605,7 @@ enum {
 typedef struct {
   int32_t dnodeId;
   int8_t  restoreType;
+  int32_t vgroupId;  // 0 = restore all; >0 = restore specific vgroup
   int32_t sqlLen;
   char*   sql;
 } SRestoreDnodeReq;

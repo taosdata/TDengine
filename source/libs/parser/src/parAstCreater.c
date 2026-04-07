@@ -6940,6 +6940,18 @@ _err:
   return NULL;
 }
 
+SNode* createRestoreVnodeOnVgroupStmt(SAstCreateContext* pCxt, const SToken* pDnodeId, const SToken* pVgroupId) {
+  CHECK_PARSER_STATUS(pCxt);
+  SRestoreComponentNodeStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_RESTORE_VNODE_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  pStmt->dnodeId = taosStr2Int32(pDnodeId->z, NULL, 10);
+  pStmt->vgroupId = taosStr2Int32(pVgroupId->z, NULL, 10);
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+}
+
 SNode* createCreateTopicStmtUseQuery(SAstCreateContext* pCxt, bool ignoreExists, SToken* pTopicName, SNode* pQuery, bool reload) {
   CHECK_PARSER_STATUS(pCxt);
   CHECK_NAME(checkTopicName(pCxt, pTopicName));
