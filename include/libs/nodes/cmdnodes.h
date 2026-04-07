@@ -994,6 +994,7 @@ typedef struct SDropComponentNodeStmt {
 typedef struct SRestoreComponentNodeStmt {
   ENodeType type;
   int32_t   dnodeId;
+  int32_t   vgId;
 } SRestoreComponentNodeStmt;
 
 typedef struct SCreateTopicStmt {
@@ -1095,6 +1096,7 @@ typedef struct SCreateStreamStmt {
   SNode*     pSubtable;
   SNodeList* pTags;  // SStreamTagDefNode
   SNodeList* pCols;  // SColumnDefNode
+  int8_t     nodelayCreateSubtable;  // 1 = create sub-tables at stream create; 0 = default
 } SCreateStreamStmt;
 
 typedef struct SDropStreamStmt {

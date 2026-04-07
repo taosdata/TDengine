@@ -194,6 +194,7 @@ extern int64_t tsDndUpTime;
 // dnode misc
 extern uint32_t tsEncryptionKeyChksum;
 extern int8_t   tsEncryptionKeyStat;
+extern int8_t   tsFlexDeploy;
 extern uint32_t tsGrant;
 
 // taosk encryption keys (multi-layer encryption)

@@ -1215,6 +1215,10 @@ static int32_t translatePlaceHolderPseudoColumn(SFunctionNode* pFunc, char* pErr
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateExternalWindowColumnFunc(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateTimePseudoColumn(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   // pseudo column do not need to check parameters
 
@@ -1556,6 +1560,74 @@ static EFuncReturnRows diffEstReturnRows(SFunctionNode* pFunc) {
   return 1 < ((SValueNode*)nodesListGetNode(pFunc->pParameterList, 1))->datum.i ? FUNC_RETURN_ROWS_INDEFINITE
                                                                                 : FUNC_RETURN_ROWS_N_MINUS_1;
 }
+
+static int32_t validateLagLeadDefaultType(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
+  if (numOfParams < 3) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SDataType* pInputType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0));
+  SDataType* pDefaultType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 2));
+  if (pInputType == NULL || pDefaultType == NULL) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  if (IS_NULL_TYPE(pDefaultType->type)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (IS_TIMESTAMP_TYPE(pInputType->type)) {
+    bool tsCompatible = IS_TIMESTAMP_TYPE(pDefaultType->type) || IS_INTEGER_TYPE(pDefaultType->type) ||
+                        IS_STR_DATA_TYPE(pDefaultType->type);
+    if (!tsCompatible) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (pInputType->type == TSDB_DATA_TYPE_GEOMETRY) {
+    bool geomCompatible = (pDefaultType->type == TSDB_DATA_TYPE_GEOMETRY) || IS_STR_DATA_TYPE(pDefaultType->type);
+    if (!geomCompatible) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+    return TSDB_CODE_SUCCESS;
+  }
+
+  bool compatible = (pDefaultType->type == pInputType->type);
+  if (!compatible) {
+    if ((IS_SIGNED_NUMERIC_TYPE(pInputType->type) || IS_UNSIGNED_NUMERIC_TYPE(pInputType->type)) &&
+        (IS_SIGNED_NUMERIC_TYPE(pDefaultType->type) || IS_UNSIGNED_NUMERIC_TYPE(pDefaultType->type))) {
+      compatible = true;
+    } else if (IS_DECIMAL_TYPE(pInputType->type) && IS_NUMERIC_TYPE(pDefaultType->type)) {
+      compatible = true;
+    }
+  }
+
+  if (!compatible) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateLag(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  FUNC_ERR_RET(validateParam(pFunc, pErrBuf, len));
+  FUNC_ERR_RET(validateLagLeadDefaultType(pFunc, pErrBuf, len));
+  pFunc->node.resType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType;
+  return TSDB_CODE_SUCCESS;
+}
+
+static EFuncReturnRows lagEstReturnRows(SFunctionNode* pFunc) { return FUNC_RETURN_ROWS_NORMAL; }
+
+static int32_t translateLead(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  FUNC_ERR_RET(validateParam(pFunc, pErrBuf, len));
+  FUNC_ERR_RET(validateLagLeadDefaultType(pFunc, pErrBuf, len));
+  pFunc->node.resType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType;
+  return TSDB_CODE_SUCCESS;
+}
+
+static EFuncReturnRows leadEstReturnRows(SFunctionNode* pFunc) { return FUNC_RETURN_ROWS_NORMAL; }
 
 static EFuncReturnRows fillforwardEstReturnRows(SFunctionNode* pFunc) { return FUNC_RETURN_ROWS_N; }
 
@@ -7267,6 +7339,86 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .finalizeFunc = NULL
   },
   {
+    .name = "lag",
+    .type = FUNCTION_TYPE_LAG,
+    .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC | FUNC_MGT_PROCESS_BY_ROW |
+                      FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_CUMULATIVE_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_PRIMARY_KEY_FUNC,
+    .parameters = {.minParamNum = 2,
+                   .maxParamNum = 3,
+                   .paramInfoPattern = 1,
+                   .inputParaInfo[0][0] = {.isLastParam = false,
+                                           .startParam = 1,
+                                           .endParam = 1,
+                                           .validDataType = FUNC_PARAM_SUPPORT_ALL_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .inputParaInfo[0][1] = {.isLastParam = false,
+                                           .startParam = 2,
+                                           .endParam = 2,
+                                           .validDataType = FUNC_PARAM_SUPPORT_INTEGER_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_VALUE_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_HAS_RANGE,
+                                           .range = {.iMinVal = 1, .iMaxVal = INT64_MAX}},
+                   .inputParaInfo[0][2] = {.isLastParam = true,
+                                           .startParam = 3,
+                                           .endParam = 3,
+                                           .validDataType = FUNC_PARAM_SUPPORT_ALL_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_VALUE_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_ALL_TYPE}},
+    .translateFunc = translateLag,
+    .getEnvFunc   = getLagFuncEnv,
+    .initFunc     = lagFunctionSetup,
+    .processFunc  = lagFunction,
+    .finalizeFunc = functionFinalize,
+    .cleanupFunc  = lagLeadFunctionCleanupExt,
+    .estimateReturnRowsFunc = lagEstReturnRows,
+    .processFuncByRow  = lagFunctionByRow,
+  },
+  {
+    .name = "lead",
+    .type = FUNCTION_TYPE_LEAD,
+    .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC | FUNC_MGT_PROCESS_BY_ROW |
+                      FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_CUMULATIVE_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_PRIMARY_KEY_FUNC,
+    .parameters = {.minParamNum = 2,
+                   .maxParamNum = 3,
+                   .paramInfoPattern = 1,
+                   .inputParaInfo[0][0] = {.isLastParam = false,
+                                           .startParam = 1,
+                                           .endParam = 1,
+                                           .validDataType = FUNC_PARAM_SUPPORT_ALL_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .inputParaInfo[0][1] = {.isLastParam = false,
+                                           .startParam = 2,
+                                           .endParam = 2,
+                                           .validDataType = FUNC_PARAM_SUPPORT_INTEGER_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_VALUE_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_HAS_RANGE,
+                                           .range = {.iMinVal = 1, .iMaxVal = INT64_MAX}},
+                   .inputParaInfo[0][2] = {.isLastParam = true,
+                                           .startParam = 3,
+                                           .endParam = 3,
+                                           .validDataType = FUNC_PARAM_SUPPORT_ALL_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_VALUE_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_ALL_TYPE}},
+    .translateFunc = translateLead,
+    .getEnvFunc   = getLeadFuncEnv,
+    .initFunc     = leadFunctionSetup,
+    .processFunc  = leadFunction,
+    .finalizeFunc = functionFinalize,
+    .cleanupFunc  = lagLeadFunctionCleanupExt,
+    .estimateReturnRowsFunc = leadEstReturnRows,
+    .processFuncByRow  = leadFunctionByRow,
+  },
+  {
     .name = "fill_forward",
     .type = FUNCTION_TYPE_FILL_FORWARD,
     .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC | FUNC_MGT_PROCESS_BY_ROW |
@@ -7303,6 +7455,20 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .pPartialFunc = "_has_null",
     .pMergeFunc   = "max",
   },  
+  {
+    .name = "_external_window_column",
+    .type = FUNCTION_TYPE_EXTERNAL_WINDOW_COLUMN,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_PLACE_HOLDER_FUNC | FUNC_MGT_SKIP_SCAN_CHECK_FUNC,
+    .parameters = {.minParamNum = 2,
+                   .maxParamNum = 2,
+                   .paramInfoPattern = 0,
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_ALL_TYPE},},
+    .translateFunc = translateExternalWindowColumnFunc,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = streamPseudoScalarFunction,
+    .finalizeFunc = NULL,
+  },
   {
     .name = "sleep",
     .type = FUNCTION_TYPE_SLEEP,

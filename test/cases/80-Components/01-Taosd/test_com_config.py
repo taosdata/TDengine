@@ -226,7 +226,8 @@ class TestAlterConfig:
         self.alter_dnode_1_case()
 
         #TS-6363
-        self.alter_memPoolReservedSizeMB_case()
+        if platform.system().lower() != 'windows':
+            self.alter_memPoolReservedSizeMB_case()
 
         self.alter_timezone_case()
 

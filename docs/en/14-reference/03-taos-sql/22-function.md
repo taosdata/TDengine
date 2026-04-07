@@ -2769,6 +2769,52 @@ LAST_ROW(expr)
 - When used with supertables, if there are multiple rows with the same timestamp and it is the largest, one will be randomly returned, and it is not guaranteed that the same row will be selected in multiple runs.
 - Similar to the LAST function, for tables with composite primary keys, if there are multiple records with the maximum timestamp, only the data with the largest corresponding composite primary key is returned.
 
+### LAG
+
+```sql
+LAG(expr, offset[, default_val])
+```
+
+**Function Description**: Returns the value of `expr` from the row that is `offset` rows before the current row.
+
+**Return Data Type**: Same as the data type of `expr`.
+
+**Applicable Data Types**: All data types.
+
+**Applicable to**: Tables and supertables.
+
+**Usage Instructions**:
+
+- `offset` must be an integer greater than 0.
+- `default_val` is optional. It is returned when the target row does not exist; if omitted, `NULL` is returned.
+- `default_val` must be type-compatible with `expr`.
+- `LAG` is evaluated on the row order of the input result set; you can use `ORDER BY` to change the evaluation order.
+- It can be used together with `_rowts`, `tbname`, tag columns, and also in subqueries and `PARTITION BY` scenarios.
+- Window queries are not supported, such as `INTERVAL`, `SESSION`, and `STATE_WINDOW`.
+
+### LEAD
+
+```sql
+LEAD(expr, offset[, default_val])
+```
+
+**Function Description**: Returns the value of `expr` from the row that is `offset` rows after the current row.
+
+**Return Data Type**: Same as the data type of `expr`.
+
+**Applicable Data Types**: All data types.
+
+**Applicable to**: Tables and supertables.
+
+**Usage Instructions**:
+
+- `offset` must be an integer greater than 0.
+- `default_val` is optional. It is returned when the target row does not exist; if omitted, `NULL` is returned.
+- `default_val` must be type-compatible with `expr`.
+- `LEAD` is evaluated on the row order of the input result set; you can use `ORDER BY` to change the evaluation order.
+- It can be used together with `_rowts`, `tbname`, tag columns, and also in subqueries and `PARTITION BY` scenarios.
+- Window queries are not supported, such as `INTERVAL`, `SESSION`, and `STATE_WINDOW`.
+
 ### MAX
 
 ```sql
