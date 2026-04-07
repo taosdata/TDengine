@@ -1097,18 +1097,21 @@ int32_t schLaunchRemoteTask(SSchJob *pJob, SSchTask *pTask) {
   if (NULL == pTask->msg) {  // TODO add more detailed reason for failure
     SCH_LOCK(SCH_WRITE, &pTask->planLock);
     code = qSubPlanToMsg(plan, &pTask->msg, &pTask->msgLen);
+    if (TSDB_CODE_SUCCESS == code && tsQueryPlannerTrace) {
+      char   *msg = NULL;
+      int32_t msgLen = 0;
+      code = qSubPlanToString(plan, &msg, &msgLen);
+      if (TSDB_CODE_SUCCESS == code) {
+        SCH_TASK_DLOGL("physical plan len:%d, %s", msgLen, msg);
+        taosMemoryFree(msg);
+      }
+    }
     SCH_UNLOCK(SCH_WRITE, &pTask->planLock);
 
     if (TSDB_CODE_SUCCESS != code) {
       SCH_TASK_ELOG("failed to create physical plan, code:%s, msg:%p, len:%d", tstrerror(code), pTask->msg,
                     pTask->msgLen);
       SCH_ERR_RET(code);
-    } else if (tsQueryPlannerTrace) {
-      char   *msg = NULL;
-      int32_t msgLen = 0;
-      SCH_ERR_RET(qSubPlanToString(plan, &msg, &msgLen));
-      SCH_TASK_DLOGL("physical plan len:%d, %s", msgLen, msg);
-      taosMemoryFree(msg);
     }
   }
 
