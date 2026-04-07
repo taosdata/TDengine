@@ -678,8 +678,8 @@ int32_t vnodeCollectIdleTxns(SVnode* pVnode, SArray* pQueries);
 
 // Shadow-in-B+tree: ensure txn entry exists (lazy create), track ALTER old versions
 int32_t vnodeTxnEnsureEntry(SVnode* pVnode, int64_t txnId);
-void    vnodeTxnTrackTable(SVnode* pVnode, int64_t txnId, tb_uid_t uid);
-void    vnodeTxnTrackAlter(SVnode* pVnode, int64_t txnId, tb_uid_t uid, int64_t prevVersion);
+int32_t vnodeTxnTrackTable(SVnode* pVnode, int64_t txnId, tb_uid_t uid);
+int32_t vnodeTxnTrackAlter(SVnode* pVnode, int64_t txnId, tb_uid_t uid, int64_t prevVersion);
 
 // Conflict detection: incomingOp values for vnodeTxnCheckConflict
 #define TXN_CONFLICT_OP_CREATE 1

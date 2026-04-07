@@ -1049,7 +1049,12 @@ int taos_txn_begin(TAOS *taos) {
     pTscObj->txnState = UTXN_STAGE_ACTIVE;
     // Initialize the VGroup tracking list
     pTscObj->pTxnVgList = taosArrayInit(4, sizeof(int32_t));
-    tscInfo("conn:0x%" PRIx64 ", txn:%" PRIu64 " began", pTscObj->id, pTscObj->txnId);
+    if (pTscObj->pTxnVgList == NULL) {
+      tscError("conn:0x%" PRIx64 ", txn:%" PRIu64 " failed to init VGroup list", pTscObj->id, pTscObj->txnId);
+      code = terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+    } else {
+      tscInfo("conn:0x%" PRIx64 ", txn:%" PRIu64 " began", pTscObj->id, pTscObj->txnId);
+    }
   } else {
     if (code == TSDB_CODE_SUCCESS) code = rpcRsp.code;
     tscError("conn:0x%" PRIx64 ", begin txn failed since %s", pTscObj->id, tstrerror(code));
@@ -1060,7 +1065,7 @@ int taos_txn_begin(TAOS *taos) {
   releaseTscObj(connId);
   return code;
 #else
-  return 0;
+  return TSDB_CODE_OPS_NOT_SUPPORT;
 #endif
 }
 
@@ -1094,7 +1099,7 @@ int taos_txn_commit(TAOS *taos) {
   taos_free_result(res);
   return code;
 #else
-  return 0;
+  return TSDB_CODE_OPS_NOT_SUPPORT;
 #endif
 }
 
@@ -1128,7 +1133,7 @@ int taos_txn_rollback(TAOS *taos) {
   taos_free_result(res);
   return code;
 #else
-  return 0;
+  return TSDB_CODE_OPS_NOT_SUPPORT;
 #endif
 }
 

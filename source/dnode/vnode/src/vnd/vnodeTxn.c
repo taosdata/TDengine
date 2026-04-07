@@ -127,7 +127,7 @@ void vnodeTxnCleanup(SVnode *pVnode) {
 // Forward declarations for static helpers used by vnodeTxnRebuildFromMeta
 static SVnodeTxnEntry *vnodeGetTxnEntry(SVnode *pVnode, int64_t txnId);
 static int32_t         vnodeCreateTxnEntry(SVnode *pVnode, int64_t txnId, int64_t term);
-static void            vnodeTxnTrackUid(SVnodeTxnEntry *pEntry, tb_uid_t uid);
+static int32_t         vnodeTxnTrackUid(SVnodeTxnEntry *pEntry, tb_uid_t uid);
 
 /**
  * After VNode restart or snapshot recovery, the B+ tree may contain entries
@@ -175,7 +175,7 @@ int32_t vnodeTxnRebuildFromMeta(SVnode *pVnode) {
     }
 
     // Track this UID
-    vnodeTxnTrackUid(pEntry, pScan->uid);
+    (void)vnodeTxnTrackUid(pEntry, pScan->uid);
 
     // If PRE_ALTER, also reconstruct the ALTER old version record
     if (pScan->txnStatus == META_TXN_PRE_ALTER && pScan->txnPrevVer >= 0) {
@@ -292,33 +292,37 @@ int32_t vnodeTxnEnsureEntry(SVnode *pVnode, int64_t txnId) {
  * Record a UID touched by this txn (for COMMIT/ROLLBACK iteration).
  * Deduplication: only adds if not already present.
  */
-static void vnodeTxnTrackUid(SVnodeTxnEntry *pEntry, tb_uid_t uid) {
-  if (pEntry->pTouchedUids == NULL) return;
+static int32_t vnodeTxnTrackUid(SVnodeTxnEntry *pEntry, tb_uid_t uid) {
+  if (pEntry->pTouchedUids == NULL) return TSDB_CODE_SUCCESS;
   int32_t sz = taosArrayGetSize(pEntry->pTouchedUids);
   for (int32_t i = 0; i < sz; i++) {
     if (*(tb_uid_t *)taosArrayGet(pEntry->pTouchedUids, i) == uid) {
-      return;  // already tracked
+      return TSDB_CODE_SUCCESS;  // already tracked
     }
   }
   if (taosArrayPush(pEntry->pTouchedUids, &uid) == NULL) {
     vError("vnodeTxnTrackUid: failed to push uid:%" PRId64, uid);
+    return terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
   }
+  return TSDB_CODE_SUCCESS;
 }
 
 /**
  * Track a table UID as modified by this txn. Called after DDL writes to meta.
  * Used to enumerate all shadow entries during COMMIT/ROLLBACK.
  */
-void vnodeTxnTrackTable(SVnode *pVnode, int64_t txnId, tb_uid_t uid) {
-  if (pVnode->pTxnHash == NULL || txnId == 0) return;
+int32_t vnodeTxnTrackTable(SVnode *pVnode, int64_t txnId, tb_uid_t uid) {
+  if (pVnode->pTxnHash == NULL || txnId == 0) return TSDB_CODE_SUCCESS;
 
+  int32_t code = TSDB_CODE_SUCCESS;
   taosThreadMutexLock(&pVnode->txnMutex);
   SVnodeTxnEntry *pEntry = vnodeGetTxnEntry(pVnode, txnId);
   if (pEntry) {
-    vnodeTxnTrackUid(pEntry, uid);
+    code = vnodeTxnTrackUid(pEntry, uid);
     pEntry->lastActive = taosGetTimestampMs();
   }
   taosThreadMutexUnlock(&pVnode->txnMutex);
+  return code;
 }
 
 /**
@@ -326,20 +330,25 @@ void vnodeTxnTrackTable(SVnode *pVnode, int64_t txnId, tb_uid_t uid) {
  * On ROLLBACK of PRE_ALTER, we need to delete the new-version entry and
  * restore pUidIdx to point at the old version.
  */
-void vnodeTxnTrackAlter(SVnode *pVnode, int64_t txnId, tb_uid_t uid, int64_t prevVersion) {
-  if (pVnode->pTxnHash == NULL || txnId == 0) return;
+int32_t vnodeTxnTrackAlter(SVnode *pVnode, int64_t txnId, tb_uid_t uid, int64_t prevVersion) {
+  if (pVnode->pTxnHash == NULL || txnId == 0) return TSDB_CODE_SUCCESS;
 
+  int32_t code = TSDB_CODE_SUCCESS;
   taosThreadMutexLock(&pVnode->txnMutex);
   SVnodeTxnEntry *pEntry = vnodeGetTxnEntry(pVnode, txnId);
   if (pEntry) {
     SVnodeAlterRecord rec = {.uid = uid, .prevVersion = prevVersion};
     if (taosArrayPush(pEntry->pAlterPrevVers, &rec) == NULL) {
       vError("vgId:%d, vnodeTxnTrackAlter: failed to push alter record for uid:%" PRId64, TD_VID(pVnode), uid);
+      code = terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
     }
-    vnodeTxnTrackUid(pEntry, uid);
+    if (code == TSDB_CODE_SUCCESS) {
+      code = vnodeTxnTrackUid(pEntry, uid);
+    }
     pEntry->lastActive = taosGetTimestampMs();
   }
   taosThreadMutexUnlock(&pVnode->txnMutex);
+  return code;
 }
 
 // ============================================================================

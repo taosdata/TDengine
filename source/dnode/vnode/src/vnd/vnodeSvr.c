@@ -1464,7 +1464,13 @@ static int32_t vnodeProcessCreateStbReq(SVnode *pVnode, int64_t ver, void *pReq,
 
   // batch-meta-txn: track STB in VNode txn entry for COMMIT/ROLLBACK
   if (req.txnId != 0) {
-    vnodeTxnTrackTable(pVnode, req.txnId, req.suid);
+    code = vnodeTxnTrackTable(pVnode, req.txnId, req.suid);
+    if (code != 0) {
+      vError("vgId:%d, stb:%s uid:%" PRId64 " vnodeTxnTrackTable failed, code:0x%x", TD_VID(pVnode), req.name, req.suid,
+             code);
+      pRsp->code = code;
+      goto _err;
+    }
     vInfo("vgId:%d, stb:%s uid:%" PRId64 " tracked in txn %" PRIu64, TD_VID(pVnode), req.name, req.suid, req.txnId);
   }
 
@@ -1570,7 +1576,12 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, 
               pCreateReq->txnId, terrno);
       } else {
         cRsp.code = TSDB_CODE_SUCCESS;
-        vnodeTxnTrackTable(pVnode, pCreateReq->txnId, pCreateReq->uid);
+        int32_t trackCode = vnodeTxnTrackTable(pVnode, pCreateReq->txnId, pCreateReq->uid);
+        if (trackCode != 0) {
+          vError("vgId:%d, txn create table %s: vnodeTxnTrackTable failed, code:0x%x", TD_VID(pVnode), tbName,
+                 trackCode);
+          cRsp.code = trackCode;
+        }
         // Use txnStatus from message if set (snapshot replication may carry PRE_DROP/PRE_ALTER),
         // otherwise default to PRE_CREATE for normal WAL/DDL path.
         int8_t effectiveTxnStatus = pCreateReq->txnStatus > 0 ? pCreateReq->txnStatus : META_TXN_PRE_CREATE;
@@ -1739,7 +1750,10 @@ static int32_t vnodeProcessAlterStbReq(SVnode *pVnode, int64_t ver, void *pReq, 
     {
       SMetaEntry *pOldEntry = NULL;
       if (metaFetchEntryByName(pVnode->pMeta, req.name, &pOldEntry) == 0 && pOldEntry != NULL) {
-        vnodeTxnTrackAlter(pVnode, req.txnId, pOldEntry->uid, pOldEntry->version);
+        int32_t trackCode = vnodeTxnTrackAlter(pVnode, req.txnId, pOldEntry->uid, pOldEntry->version);
+        if (trackCode != 0) {
+          vError("vgId:%d, stb:%s ALTER vnodeTxnTrackAlter failed, code:0x%x", TD_VID(pVnode), req.name, trackCode);
+        }
         metaFetchEntryFree(&pOldEntry);
       }
     }
@@ -1749,9 +1763,15 @@ static int32_t vnodeProcessAlterStbReq(SVnode *pVnode, int64_t ver, void *pReq, 
     if (code) {
       pRsp->code = code;
     } else {
-      vnodeTxnTrackTable(pVnode, req.txnId, req.suid);
-      vInfo("vgId:%d, stb:%s uid:%" PRId64 " ALTER tracked in txn %" PRIu64, TD_VID(pVnode), req.name, req.suid,
-            req.txnId);
+      code = vnodeTxnTrackTable(pVnode, req.txnId, req.suid);
+      if (code != 0) {
+        vError("vgId:%d, stb:%s uid:%" PRId64 " ALTER vnodeTxnTrackTable failed, code:0x%x", TD_VID(pVnode), req.name,
+               req.suid, code);
+        pRsp->code = code;
+      } else {
+        vInfo("vgId:%d, stb:%s uid:%" PRId64 " ALTER tracked in txn %" PRIu64, TD_VID(pVnode), req.name, req.suid,
+              req.txnId);
+      }
     }
     tDecoderClear(&dc);
     return 0;
@@ -1820,9 +1840,15 @@ static int32_t vnodeProcessDropStbReq(SVnode *pVnode, int64_t ver, void *pReq, i
     if (metaDropSuperTable(pVnode->pMeta, ver, &req) < 0) {
       rcode = terrno;
     } else {
-      vnodeTxnTrackTable(pVnode, req.txnId, req.suid);
-      vInfo("vgId:%d, stb:%s uid:%" PRId64 " DROP tracked in txn %" PRIu64, TD_VID(pVnode), req.name, req.suid,
-            req.txnId);
+      int32_t trackCode = vnodeTxnTrackTable(pVnode, req.txnId, req.suid);
+      if (trackCode != 0) {
+        vError("vgId:%d, stb:%s uid:%" PRId64 " DROP vnodeTxnTrackTable failed, code:0x%x", TD_VID(pVnode), req.name,
+               req.suid, trackCode);
+        rcode = trackCode;
+      } else {
+        vInfo("vgId:%d, stb:%s uid:%" PRId64 " DROP tracked in txn %" PRIu64, TD_VID(pVnode), req.name, req.suid,
+              req.txnId);
+      }
     }
     goto _exit;
   }
@@ -1971,7 +1997,11 @@ static int32_t vnodeProcessAlterTbReq(SVnode *pVnode, int64_t ver, void *pReq, i
       if (metaFetchEntryByName(pVnode->pMeta, vAlterTbReq.tbName, &pOldEntry) == 0 && pOldEntry != NULL) {
         alterUid = pOldEntry->uid;
         alterPrevVer = pOldEntry->version;
-        vnodeTxnTrackAlter(pVnode, vAlterTbReq.txnId, alterUid, alterPrevVer);
+        int32_t trackCode = vnodeTxnTrackAlter(pVnode, vAlterTbReq.txnId, alterUid, alterPrevVer);
+        if (trackCode != 0) {
+          vError("vgId:%d, txn alter table %s: vnodeTxnTrackAlter failed, code:0x%x", TD_VID(pVnode),
+                 vAlterTbReq.tbName, trackCode);
+        }
         metaFetchEntryFree(&pOldEntry);
       }
     }
@@ -2122,7 +2152,12 @@ static int32_t vnodeProcessDropTbReq(SVnode *pVnode, int64_t ver, void *pReq, in
       } else {
         dropTbRsp.code = TSDB_CODE_SUCCESS;
         // Track uid for COMMIT/ROLLBACK iteration (harmless if already tracked; dedup in vnodeTxnTrackUid)
-        vnodeTxnTrackTable(pVnode, pDropTbReq->txnId, pDropTbReq->uid);
+        int32_t trackCode = vnodeTxnTrackTable(pVnode, pDropTbReq->txnId, pDropTbReq->uid);
+        if (trackCode != 0) {
+          vError("vgId:%d, txn drop table %s: vnodeTxnTrackTable failed, code:0x%x", TD_VID(pVnode), pDropTbReq->name,
+                 trackCode);
+          dropTbRsp.code = trackCode;
+        }
       }
       if (taosArrayPush(rsp.pArray, &dropTbRsp) == NULL) {
         terrno = TSDB_CODE_OUT_OF_MEMORY;

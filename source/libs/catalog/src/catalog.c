@@ -485,7 +485,7 @@ int32_t ctgGetTbCfg(SCatalog* pCtg, SRequestConnInfo* pConn, SName* pTableName, 
 
   // batch meta txn: if table type lookup fails (PRE_CREATE invisible), assume non-super-table
   // and go directly to VNode — super tables are on MNode, never part of batch meta txn
-  if (TSDB_CODE_SUCCESS != code && pConn->txnId > 0) {
+  if (pConn->txnId > 0 && (code == TSDB_CODE_PAR_TABLE_NOT_EXIST || code == TSDB_CODE_TDB_TABLE_NOT_EXIST)) {
     tbType = 0;
     code = TSDB_CODE_SUCCESS;
   }

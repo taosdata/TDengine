@@ -295,8 +295,11 @@ static int32_t mndTransDecodeGroupRedoAction(SHashObj *redoGroupActions, STransA
     if (array != NULL) {
       if (taosHashPut(redoGroupActions, &pAction->groupId, sizeof(int32_t), &array, sizeof(SArray *)) < 0) {
         mInfo("failed put action into redo group actions");
+        taosArrayDestroy(array);
         return TSDB_CODE_INTERNAL_ERROR;
       }
+    } else {
+      return terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
     }
     redoAction = taosHashGet(redoGroupActions, &pAction->groupId, sizeof(int32_t));
   }
@@ -2907,32 +2910,32 @@ static int32_t mndRetrieveTxns(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
 
     cols = 0;
 
-    SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     COL_DATA_SET_VAL_GOTO((const char *)&pObj->id, false, pObj, &lino, _exit);
 
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols);
     COL_DATA_SET_VAL_GOTO((const char *)&pObj->createTime, false, pObj, &lino, _exit);
 
+    pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols);
     STR_WITH_MAXSIZE_TO_VARSTR(buf, mndTxnStr(pObj->stage), pShow->pMeta->pSchemas[cols].bytes);
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     COL_DATA_SET_VAL_GOTO((const char *)buf, false, pObj, &lino, _exit);
 
+    pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols);
     STR_WITH_MAXSIZE_TO_VARSTR(buf, pObj->createUser, pShow->pMeta->pSchemas[cols].bytes);
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     COL_DATA_SET_VAL_GOTO((const char *)buf, false, pObj, &lino, _exit);
 
     COL_DATA_SET_EMPTY_VARCHAR(pBuf, 3);
 
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols);
     COL_DATA_SET_VAL_GOTO((const char *)NULL, true, pObj, &lino, _exit);
 
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols);
     COL_DATA_SET_VAL_GOTO((const char *)NULL, true, pObj, &lino, _exit);
 
     COL_DATA_SET_EMPTY_VARCHAR(pBuf, 1);
 
+    pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols);
     STR_WITH_MAXSIZE_TO_VARSTR(buf, "batch", pShow->pMeta->pSchemas[cols].bytes);
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     COL_DATA_SET_VAL_GOTO((const char *)buf, false, pObj, &lino, _exit);
 
     numOfRows++;
@@ -2968,7 +2971,8 @@ static int32_t mndRetrieveTrans(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     cols = 0;
 
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)&pTrans->id, false), pTrans, &lino, _OVER);
+    int64_t          transId = (int64_t)pTrans->id;
+    RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)&transId, false), pTrans, &lino, _OVER);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)&pTrans->createdTime, false), pTrans, &lino,
@@ -3034,10 +3038,12 @@ static int32_t mndRetrieveTrans(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
 
     mndTransLogAction(pTrans);
 
-    if ((pColInfo = taosArrayGet(pBlock->pDataBlock, cols++))) {
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+    if (pColInfo) {
       STR_WITH_MAXSIZE_TO_VARSTR(buf, "internal", pShow->pMeta->pSchemas[cols].bytes);
       RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)buf, false), pTrans, &lino, _OVER);
     }
+    cols++;
 
     numOfRows++;
     sdbRelease(pSdb, pTrans);

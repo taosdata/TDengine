@@ -873,12 +873,17 @@ static int32_t mndSetCreateTxnUndoLogs(SMnode *pMnode, STrans *pTrans, STxnObj *
 }
 
 static int32_t mndSetCreateTxnPrepareActions(SMnode *pMnode, STrans *pTrans, STxnObj *pTxn) {
-  SSdbRaw *pDbRaw = mndTxnActionEncode(pTxn);
-  if (pDbRaw == NULL) return -1;
+  int32_t  code = 0;
+  SSdbRaw *pPrepareRaw = mndTxnActionEncode(pTxn);
+  if (pPrepareRaw == NULL) {
+    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+    if (terrno != 0) code = terrno;
+    TAOS_RETURN(code);
+  }
 
-  if (mndTransAppendPrepareLog(pTrans, pDbRaw) != 0) return -1;
-  if (sdbSetRawStatus(pDbRaw, SDB_STATUS_CREATING) != 0) return -1;
-  return 0;
+  TAOS_CHECK_RETURN(mndTransAppendPrepareLog(pTrans, pPrepareRaw));
+  TAOS_CHECK_RETURN(sdbSetRawStatus(pPrepareRaw, SDB_STATUS_CREATING));
+  TAOS_RETURN(code);
 }
 static int32_t mndSetCreateTxnCommitLogs(SMnode *pMnode, STrans *pTrans, STxnObj *pTxn) {
   int32_t  code = 0;

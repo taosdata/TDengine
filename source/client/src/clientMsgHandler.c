@@ -452,7 +452,9 @@ int32_t processCreateSTableRsp(void* param, SDataBuf* pMsg, int32_t code) {
         // cross-session pollution. Only populate per-connection pTxnTableMeta.
         STscObj* pTscObj = pRequest->pTscObj;
         if (pTscObj->txnId == 0) {
-          ret = handleCreateTbExecRes(pRes->res, pCatalog);
+          if (ret == TSDB_CODE_SUCCESS) {
+            ret = handleCreateTbExecRes(pRes->res, pCatalog);
+          }
         }
 #ifdef TD_ENTERPRISE
         if (pTscObj->txnId > 0) {
@@ -577,7 +579,49 @@ int32_t processAlterStbRsp(void* param, SDataBuf* pMsg, int32_t code) {
       SCatalog* pCatalog = NULL;
       int32_t   ret = catalogGetHandle(pRequest->pTscObj->pAppInfo->clusterId, &pCatalog);
       if (pRes->res != NULL) {
-        ret = handleAlterTbExecRes(pRes->res, pCatalog);
+        // Batch meta txn: skip global catalog cache update during txn to prevent
+        // cross-session pollution. Only populate per-connection pTxnTableMeta.
+        STscObj* pTscObj = pRequest->pTscObj;
+        if (pTscObj->txnId == 0) {
+          if (ret == TSDB_CODE_SUCCESS) {
+            ret = handleAlterTbExecRes(pRes->res, pCatalog);
+          }
+        }
+#ifdef TD_ENTERPRISE
+        if (pTscObj->txnId > 0) {
+          STableMetaRsp* pMetaRsp = (STableMetaRsp*)pRes->res;
+          STableMeta*    pTableMeta = NULL;
+          bool           isStb = (pMetaRsp->tableType == TSDB_SUPER_TABLE);
+          if (queryCreateTableMetaFromMsg(pMetaRsp, isStb, &pTableMeta) == 0 && pTableMeta != NULL) {
+            char fullName[TSDB_TABLE_FNAME_LEN];
+            snprintf(fullName, sizeof(fullName), "%s.%s", pMetaRsp->dbFName, pMetaRsp->tbName);
+            taosThreadMutexLock(&pTscObj->mutex);
+            if (pTscObj->pTxnTableMeta == NULL) {
+              pTscObj->pTxnTableMeta =
+                  taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+            }
+            if (pTscObj->pTxnTableMeta) {
+              STableMeta** ppOld = (STableMeta**)taosHashGet(pTscObj->pTxnTableMeta, fullName, strlen(fullName));
+              if (ppOld && *ppOld) {
+                taosMemoryFree(*ppOld);
+              }
+              int32_t putCode =
+                  taosHashPut(pTscObj->pTxnTableMeta, fullName, strlen(fullName), &pTableMeta, sizeof(STableMeta*));
+              if (putCode != 0) {
+                taosMemoryFree(pTableMeta);
+                taosThreadMutexUnlock(&pTscObj->mutex);
+                doRequestCallback(pRequest, putCode);
+                return putCode;
+              }
+              tscDebug("conn:0x%" PRIx64 ", txn:%" PRIu64 " updated STB meta cache for %s (ALTER STB)", pTscObj->id,
+                       pTscObj->txnId, fullName);
+            } else {
+              taosMemoryFree(pTableMeta);
+            }
+            taosThreadMutexUnlock(&pTscObj->mutex);
+          }
+        }
+#endif
       }
 
       if (ret != TSDB_CODE_SUCCESS) {
@@ -625,12 +669,17 @@ int32_t processAlterTbRsp(void* param, SDataBuf* pMsg, int32_t code) {
       SCatalog* pCatalog = NULL;
       int32_t   ret = catalogGetHandle(pRequest->pTscObj->pAppInfo->clusterId, &pCatalog);
       if (pRes->res != NULL) {
-        ret = handleAlterTbExecRes(pRes->res, pCatalog);
+        // Batch meta txn: skip global catalog cache update during txn
+        STscObj* pTscObj = pRequest->pTscObj;
+        if (pTscObj->txnId == 0) {
+          if (ret == TSDB_CODE_SUCCESS) {
+            ret = handleAlterTbExecRes(pRes->res, pCatalog);
+          }
+        }
 
         // Update pTxnTableMeta if within a transaction
 #ifdef TD_ENTERPRISE
-        STscObj* pTscObj = pRequest->pTscObj;
-        if (pTscObj->txnId > 0 && pTscObj->pTxnTableMeta != NULL) {
+        if (pTscObj->txnId > 0) {
           STableMetaRsp* pMetaRsp = (STableMetaRsp*)pRes->res;
           STableMeta*    pTableMeta = NULL;
           bool           isStb = (pMetaRsp->tableType == TSDB_SUPER_TABLE);
@@ -638,20 +687,28 @@ int32_t processAlterTbRsp(void* param, SDataBuf* pMsg, int32_t code) {
             char fullName[TSDB_TABLE_FNAME_LEN];
             snprintf(fullName, sizeof(fullName), "%s.%s", pMetaRsp->dbFName, pMetaRsp->tbName);
             taosThreadMutexLock(&pTscObj->mutex);
-            STableMeta** ppOld = (STableMeta**)taosHashGet(pTscObj->pTxnTableMeta, fullName, strlen(fullName));
-            if (ppOld && *ppOld) {
-              taosMemoryFree(*ppOld);
+            if (pTscObj->pTxnTableMeta == NULL) {
+              pTscObj->pTxnTableMeta =
+                  taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
             }
-            int32_t putCode =
-                taosHashPut(pTscObj->pTxnTableMeta, fullName, strlen(fullName), &pTableMeta, sizeof(STableMeta*));
-            if (putCode != 0) {
+            if (pTscObj->pTxnTableMeta) {
+              STableMeta** ppOld = (STableMeta**)taosHashGet(pTscObj->pTxnTableMeta, fullName, strlen(fullName));
+              if (ppOld && *ppOld) {
+                taosMemoryFree(*ppOld);
+              }
+              int32_t putCode =
+                  taosHashPut(pTscObj->pTxnTableMeta, fullName, strlen(fullName), &pTableMeta, sizeof(STableMeta*));
+              if (putCode != 0) {
+                taosMemoryFree(pTableMeta);
+                taosThreadMutexUnlock(&pTscObj->mutex);
+                doRequestCallback(pRequest, putCode);
+                return putCode;
+              }
+              tscDebug("conn:0x%" PRIx64 ", txn:%" PRIu64 " updated table meta cache for %s (ALTER)", pTscObj->id,
+                       pTscObj->txnId, fullName);
+            } else {
               taosMemoryFree(pTableMeta);
-              taosThreadMutexUnlock(&pTscObj->mutex);
-              doRequestCallback(pRequest, putCode);
-              return putCode;
             }
-            tscDebug("conn:0x%" PRIx64 ", txn:%" PRIu64 " updated table meta cache for %s (ALTER)", pTscObj->id,
-                     pTscObj->txnId, fullName);
             taosThreadMutexUnlock(&pTscObj->mutex);
           }
         }
