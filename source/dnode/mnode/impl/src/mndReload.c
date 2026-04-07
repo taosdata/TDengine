@@ -33,11 +33,20 @@ static int32_t   mndReloadActionInsert(SSdb *pSdb, SReloadObj *pReload);
 static int32_t   mndReloadActionDelete(SSdb *pSdb, SReloadObj *pReload);
 static int32_t   mndReloadActionUpdate(SSdb *pSdb, SReloadObj *pOld, SReloadObj *pNew);
 
+static int32_t   mndRetrieveReloadDetail(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
+static SSdbRaw  *mndReloadDetailActionEncode(SReloadDetailObj *pDetail);
+static SSdbRow  *mndReloadDetailActionDecode(SSdbRaw *pRaw);
+static int32_t   mndReloadDetailActionInsert(SSdb *pSdb, SReloadDetailObj *pDetail);
+static int32_t   mndReloadDetailActionDelete(SSdb *pSdb, SReloadDetailObj *pDetail);
+static int32_t   mndReloadDetailActionUpdate(SSdb *pSdb, SReloadDetailObj *pOld, SReloadDetailObj *pNew);
+static int32_t   mndAddReloadDetailToTran(SMnode *pMnode, STrans *pTrans, SReloadObj *pReload, SVgObj *pVgroup);
+
 int32_t mndInitReload(SMnode *pMnode) {
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_RELOAD, mndRetrieveReload);
-  mndSetMsgHandle(pMnode, TDMT_MND_RELOAD_LAST_CACHE,          mndProcessReloadLastCacheReq);
-  mndSetMsgHandle(pMnode, TDMT_MND_DROP_RELOAD,                mndProcessDropReloadReq);
-  mndSetMsgHandle(pMnode, TDMT_VND_RELOAD_LAST_CACHE_RSP,      mndTransProcessRsp);
+  mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_RELOAD_DETAIL, mndRetrieveReloadDetail);
+  mndSetMsgHandle(pMnode, TDMT_MND_RELOAD_LAST_CACHE,            mndProcessReloadLastCacheReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_DROP_RELOAD,                  mndProcessDropReloadReq);
+  mndSetMsgHandle(pMnode, TDMT_VND_RELOAD_LAST_CACHE_RSP,        mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_VND_CANCEL_LAST_CACHE_RELOAD_RSP, mndTransProcessRsp);
 
   SSdbTable table = {
@@ -50,7 +59,20 @@ int32_t mndInitReload(SMnode *pMnode) {
       .deleteFp = (SdbDeleteFp)mndReloadActionDelete,
   };
 
-  return sdbSetTable(pMnode->pSdb, table);
+  int32_t code = sdbSetTable(pMnode->pSdb, table);
+  if (code != 0) return code;
+
+  SSdbTable detailTable = {
+      .sdbType  = SDB_RELOAD_DETAIL,
+      .keyType  = SDB_KEY_INT32,
+      .encodeFp = (SdbEncodeFp)mndReloadDetailActionEncode,
+      .decodeFp = (SdbDecodeFp)mndReloadDetailActionDecode,
+      .insertFp = (SdbInsertFp)mndReloadDetailActionInsert,
+      .updateFp = (SdbUpdateFp)mndReloadDetailActionUpdate,
+      .deleteFp = (SdbDeleteFp)mndReloadDetailActionDelete,
+  };
+
+  return sdbSetTable(pMnode->pSdb, detailTable);
 }
 
 void mndCleanupReload(SMnode *pMnode) { mDebug("mnd reload cleanup"); }
@@ -341,6 +363,11 @@ static int32_t mndAddReloadToTran(SMnode *pMnode, STrans *pTrans, SReloadObj *pR
         sdbCancelFetch(pSdb, pIter);
         TAOS_RETURN(code);
       }
+      if ((code = mndAddReloadDetailToTran(pMnode, pTrans, pReload, pVgroup)) != 0) {
+        sdbRelease(pSdb, pVgroup);
+        sdbCancelFetch(pSdb, pIter);
+        TAOS_RETURN(code);
+      }
     }
     sdbRelease(pSdb, pVgroup);
   }
@@ -418,6 +445,298 @@ _OVER:
 }
 
 
+// -------------------------------------------------------------------------
+// SReloadDetailObj — per-vgroup detail rows for SHOW RELOAD <uid>
+// -------------------------------------------------------------------------
+
+#define MND_RELOAD_DETAIL_VER_NUMBER 1
+
+static const char *mndReloadStatusStr(int8_t status) {
+  switch (status) {
+    case RELOAD_STATUS_PENDING:   return "pending";
+    case RELOAD_STATUS_RUNNING:   return "running";
+    case RELOAD_STATUS_DONE:      return "done";
+    case RELOAD_STATUS_FAILED:    return "failed";
+    case RELOAD_STATUS_CANCELLED: return "cancelled";
+    default:                      return "unknown";
+  }
+}
+
+static int32_t tSerializeSReloadDetailObj(void *buf, int32_t bufLen, const SReloadDetailObj *pObj) {
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  int32_t  tlen;
+  tEncoderInit(&encoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pObj->detailId));
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pObj->reloadUid));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pObj->vgId));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pObj->dnodeId));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder,  pObj->status));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pObj->totalTables));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pObj->finishedTables));
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pObj->startTimeMs));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pObj->errMsg));
+  tEndEncode(&encoder);
+
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+static int32_t tDeserializeSReloadDetailObj(void *buf, int32_t bufLen, SReloadDetailObj *pObj) {
+  int32_t  code = 0;
+  int32_t  lino;
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pObj->detailId));
+  TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pObj->reloadUid));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pObj->vgId));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pObj->dnodeId));
+  TAOS_CHECK_EXIT(tDecodeI8(&decoder,  &pObj->status));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pObj->totalTables));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pObj->finishedTables));
+  TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pObj->startTimeMs));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pObj->errMsg));
+  tEndDecode(&decoder);
+
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
+
+static SSdbRaw *mndReloadDetailActionEncode(SReloadDetailObj *pDetail) {
+  int32_t  code = 0;
+  int32_t  lino = 0;
+  void    *buf = NULL;
+  SSdbRaw *pRaw = NULL;
+  terrno = TSDB_CODE_SUCCESS;
+
+  int32_t tlen = tSerializeSReloadDetailObj(NULL, 0, pDetail);
+  if (tlen < 0) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto OVER;
+  }
+
+  int32_t size = sizeof(int32_t) + tlen;
+  pRaw = sdbAllocRaw(SDB_RELOAD_DETAIL, MND_RELOAD_DETAIL_VER_NUMBER, size);
+  if (pRaw == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto OVER;
+  }
+
+  buf = taosMemoryMalloc(tlen);
+  if (buf == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto OVER;
+  }
+
+  tlen = tSerializeSReloadDetailObj(buf, tlen, pDetail);
+  if (tlen < 0) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto OVER;
+  }
+
+  int32_t dataPos = 0;
+  SDB_SET_INT32(pRaw, dataPos, tlen, OVER);
+  SDB_SET_BINARY(pRaw, dataPos, buf, tlen, OVER);
+  SDB_SET_DATALEN(pRaw, dataPos, OVER);
+
+OVER:
+  taosMemoryFreeClear(buf);
+  if (terrno != TSDB_CODE_SUCCESS) {
+    mError("reload detail:%d, failed to encode to raw:%p since %s", pDetail->detailId, pRaw, terrstr());
+    sdbFreeRaw(pRaw);
+    return NULL;
+  }
+
+  mTrace("reload detail:%d, encode to raw:%p, row:%p", pDetail->detailId, pRaw, pDetail);
+  return pRaw;
+}
+
+static SSdbRow *mndReloadDetailActionDecode(SSdbRaw *pRaw) {
+  int32_t           code = 0;
+  int32_t           lino = 0;
+  SSdbRow          *pRow = NULL;
+  SReloadDetailObj *pDetail = NULL;
+  void             *buf = NULL;
+  terrno = TSDB_CODE_SUCCESS;
+
+  int8_t sver = 0;
+  if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto OVER;
+
+  if (sver != MND_RELOAD_DETAIL_VER_NUMBER) {
+    terrno = TSDB_CODE_SDB_INVALID_DATA_VER;
+    mError("reload detail: read invalid ver, data ver:%d, curr ver:%d", sver, MND_RELOAD_DETAIL_VER_NUMBER);
+    goto OVER;
+  }
+
+  pRow = sdbAllocRow(sizeof(SReloadDetailObj));
+  if (pRow == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto OVER;
+  }
+
+  pDetail = sdbGetRowObj(pRow);
+  if (pDetail == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto OVER;
+  }
+
+  int32_t tlen;
+  int32_t dataPos = 0;
+  SDB_GET_INT32(pRaw, dataPos, &tlen, OVER);
+  buf = taosMemoryMalloc(tlen + 1);
+  if (buf == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto OVER;
+  }
+  SDB_GET_BINARY(pRaw, dataPos, buf, tlen, OVER);
+
+  if ((terrno = tDeserializeSReloadDetailObj(buf, tlen, pDetail)) < 0) goto OVER;
+
+OVER:
+  taosMemoryFreeClear(buf);
+  if (terrno != TSDB_CODE_SUCCESS) {
+    mError("reload detail:%d, failed to decode from raw:%p since %s",
+           pDetail ? pDetail->detailId : -1, pRaw, terrstr());
+    taosMemoryFreeClear(pRow);
+    return NULL;
+  }
+
+  mTrace("reload detail:%d, decode from raw:%p, row:%p", pDetail->detailId, pRaw, pDetail);
+  return pRow;
+}
+
+static int32_t mndReloadDetailActionInsert(SSdb *pSdb, SReloadDetailObj *pDetail) {
+  mTrace("reload detail:%d, perform insert action", pDetail->detailId);
+  return 0;
+}
+
+static int32_t mndReloadDetailActionDelete(SSdb *pSdb, SReloadDetailObj *pDetail) {
+  mTrace("reload detail:%d, perform delete action", pDetail->detailId);
+  return 0;
+}
+
+static int32_t mndReloadDetailActionUpdate(SSdb *pSdb, SReloadDetailObj *pOld, SReloadDetailObj *pNew) {
+  mTrace("reload detail:%d, perform update action, old row:%p new row:%p", pOld->detailId, pOld, pNew);
+  pOld->status         = pNew->status;
+  pOld->totalTables    = pNew->totalTables;
+  pOld->finishedTables = pNew->finishedTables;
+  tstrncpy(pOld->errMsg, pNew->errMsg, sizeof(pOld->errMsg));
+  return 0;
+}
+
+static int32_t mndAddReloadDetailToTran(SMnode *pMnode, STrans *pTrans, SReloadObj *pReload, SVgObj *pVgroup) {
+  int32_t          code = 0;
+  SReloadDetailObj detail = {0};
+
+  detail.detailId       = tGenIdPI32();
+  detail.reloadUid      = pReload->reloadUid;
+  detail.vgId           = pVgroup->vgId;
+  detail.dnodeId        = pVgroup->vnodeGid[0].dnodeId;
+  detail.status         = RELOAD_STATUS_RUNNING;
+  detail.totalTables    = -1;
+  detail.finishedTables = -1;
+  detail.startTimeMs    = taosGetTimestampMs();
+  detail.errMsg[0]      = '\0';
+
+  mInfo("reload:%" PRId64 ", add detail to trans for vgId:%d, detailId:%d",
+        pReload->reloadUid, pVgroup->vgId, detail.detailId);
+
+  SSdbRaw *pRaw = mndReloadDetailActionEncode(&detail);
+  if (pRaw == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    if (terrno != 0) code = terrno;
+    TAOS_RETURN(code);
+  }
+  if ((code = mndTransAppendCommitlog(pTrans, pRaw)) != 0) {
+    sdbFreeRaw(pRaw);
+    TAOS_RETURN(code);
+  }
+  TAOS_RETURN(sdbSetRawStatus(pRaw, SDB_STATUS_READY));
+}
+
+static int32_t mndRetrieveReloadDetail(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
+  SMnode           *pMnode = pReq->info.node;
+  SSdb             *pSdb = pMnode->pSdb;
+  int32_t           numOfRows = 0;
+  SReloadDetailObj *pDetail = NULL;
+  int32_t           code = 0;
+  int32_t           lino = 0;
+
+  while (numOfRows < rows) {
+    pShow->pIter = sdbFetch(pSdb, SDB_RELOAD_DETAIL, pShow->pIter, (void **)&pDetail);
+    if (pShow->pIter == NULL) break;
+
+    SColumnInfoData *pColInfo;
+    char             tmpBuf[256 + VARSTR_HEADER_SIZE] = {0};
+    int32_t          cols = 0;
+
+    // reload_uid
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)&pDetail->reloadUid, false),
+                        pDetail, &lino, _OVER);
+
+    // vgroup_id
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)&pDetail->vgId, false),
+                        pDetail, &lino, _OVER);
+
+    // status (string)
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    memset(tmpBuf, 0, sizeof(tmpBuf));
+    tstrncpy(varDataVal(tmpBuf), mndReloadStatusStr(pDetail->status), sizeof(tmpBuf) - VARSTR_HEADER_SIZE);
+    varDataSetLen(tmpBuf, strlen(varDataVal(tmpBuf)));
+    RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false),
+                        pDetail, &lino, _OVER);
+
+    // total_tables
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)&pDetail->totalTables, false),
+                        pDetail, &lino, _OVER);
+
+    // finished_tables
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)&pDetail->finishedTables, false),
+                        pDetail, &lino, _OVER);
+
+    // elapsed_ms (computed from startTimeMs)
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    int64_t elapsedMs = taosGetTimestampMs() - pDetail->startTimeMs;
+    RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)&elapsedMs, false),
+                        pDetail, &lino, _OVER);
+
+    // error_msg
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    memset(tmpBuf, 0, sizeof(tmpBuf));
+    tstrncpy(varDataVal(tmpBuf), pDetail->errMsg, sizeof(tmpBuf) - VARSTR_HEADER_SIZE);
+    varDataSetLen(tmpBuf, strlen(varDataVal(tmpBuf)));
+    RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false),
+                        pDetail, &lino, _OVER);
+
+    numOfRows++;
+    sdbRelease(pSdb, pDetail);
+  }
+
+_OVER:
+  if (code != 0) {
+    mError("failed to retrieve reload detail at line %d since %s", lino, tstrerror(code));
+    TAOS_RETURN(code);
+  }
+  pShow->numOfRows += numOfRows;
+  return numOfRows;
+}
+
 static void *mndBuildCancelReloadReq(SVgObj *pVgroup, int32_t *pContLen, int64_t reloadUid) {
   SVCancelLastCacheReloadReq req = {.reloadUid = reloadUid};
 
@@ -478,7 +797,37 @@ static int32_t mndDropReload(SMnode *pMnode, SRpcMsg *pReq, SReloadObj *pReload)
     TAOS_RETURN(code);
   }
 
-  SSdb   *pSdb = pMnode->pSdb;
+  // Drop all detail rows for this reload
+  SSdb             *pSdb = pMnode->pSdb;
+  void             *pDetailIter = NULL;
+  SReloadDetailObj *pDetail = NULL;
+  while ((pDetailIter = sdbFetch(pSdb, SDB_RELOAD_DETAIL, pDetailIter, (void **)&pDetail)) != NULL) {
+    if (pDetail->reloadUid == pReload->reloadUid) {
+      SSdbRaw *pDetailRaw = mndReloadDetailActionEncode(pDetail);
+      if (pDetailRaw == NULL) {
+        sdbRelease(pSdb, pDetail);
+        sdbCancelFetch(pSdb, pDetailIter);
+        mndTransDrop(pTrans);
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        if (terrno != 0) code = terrno;
+        TAOS_RETURN(code);
+      }
+      if ((code = mndTransAppendCommitlog(pTrans, pDetailRaw)) != 0) {
+        sdbRelease(pSdb, pDetail);
+        sdbCancelFetch(pSdb, pDetailIter);
+        mndTransDrop(pTrans);
+        TAOS_RETURN(code);
+      }
+      if ((code = sdbSetRawStatus(pDetailRaw, SDB_STATUS_DROPPED)) != 0) {
+        sdbRelease(pSdb, pDetail);
+        sdbCancelFetch(pSdb, pDetailIter);
+        mndTransDrop(pTrans);
+        TAOS_RETURN(code);
+      }
+    }
+    sdbRelease(pSdb, pDetail);
+  }
+
   void   *pIter = NULL;
   SVgObj *pVgroup = NULL;
   while ((pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup)) != NULL) {
