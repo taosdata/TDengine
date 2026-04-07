@@ -1577,6 +1577,8 @@ static int32_t processBeginTxnRsp(void* param, SDataBuf* pMsg, int32_t code) {
       if (pTscObj->pTxnVgList == NULL) {
         pTscObj->pTxnVgList = taosArrayInit(4, sizeof(int32_t));
         if (pTscObj->pTxnVgList == NULL) {
+          pTscObj->txnState = 0;
+          pTscObj->txnId = 0;
           taosThreadMutexUnlock(&pTscObj->mutex);
           code = terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
           setErrno(pRequest, code);

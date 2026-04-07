@@ -1052,6 +1052,8 @@ int taos_txn_begin(TAOS *taos) {
     if (pTscObj->pTxnVgList == NULL) {
       tscError("conn:0x%" PRIx64 ", txn:%" PRIu64 " failed to init VGroup list", pTscObj->id, pTscObj->txnId);
       code = terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+      pTscObj->txnState = 0;
+      pTscObj->txnId = 0;
     } else {
       tscInfo("conn:0x%" PRIx64 ", txn:%" PRIu64 " began", pTscObj->id, pTscObj->txnId);
     }

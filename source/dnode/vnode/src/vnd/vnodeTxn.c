@@ -168,20 +168,31 @@ int32_t vnodeTxnRebuildFromMeta(SVnode *pVnode) {
       code = vnodeCreateTxnEntry(pVnode, pScan->txnId, 0 /* term unknown after restart */);
       if (code != 0) {
         vError("vgId:%d, txn rebuild: failed to create entry for txnId:%" PRId64, TD_VID(pVnode), pScan->txnId);
-        continue;
+        break;
       }
       pEntry = vnodeGetTxnEntry(pVnode, pScan->txnId);
-      if (pEntry == NULL) continue;
+      if (pEntry == NULL) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        vError("vgId:%d, txn rebuild: entry missing after create for txnId:%" PRId64, TD_VID(pVnode), pScan->txnId);
+        break;
+      }
     }
 
     // Track this UID
-    (void)vnodeTxnTrackUid(pEntry, pScan->uid);
+    code = vnodeTxnTrackUid(pEntry, pScan->uid);
+    if (code != 0) {
+      vError("vgId:%d, txn rebuild: failed to track uid:%" PRId64 ", txnId:%" PRId64 ", code:0x%x", TD_VID(pVnode),
+             pScan->uid, pScan->txnId, code);
+      break;
+    }
 
     // If PRE_ALTER, also reconstruct the ALTER old version record
     if (pScan->txnStatus == META_TXN_PRE_ALTER && pScan->txnPrevVer >= 0) {
       SVnodeAlterRecord rec = {.uid = pScan->uid, .prevVersion = pScan->txnPrevVer};
       if (taosArrayPush(pEntry->pAlterPrevVers, &rec) == NULL) {
         vError("vgId:%d, txn rebuild: failed to push alter record for uid:%" PRId64, TD_VID(pVnode), pScan->uid);
+        code = terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+        break;
       }
     }
 
@@ -190,6 +201,10 @@ int32_t vnodeTxnRebuildFromMeta(SVnode *pVnode) {
   }
 
   taosArrayDestroy(pScanResult);
+
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
 
   // Log summary
   int32_t numTxns = taosHashGetSize(pVnode->pTxnHash);
@@ -576,6 +591,7 @@ static int32_t vnodeTxnUndoShadowEntries(SVnode *pVnode, SVnodeTxnEntry *pEntry)
                 } else {
                   vError("vgId:%d, rollback: chained delete PRE_CREATE uid %" PRId64 " failed, code:0x%x",
                          TD_VID(pVnode), uid, dropCode);
+                  code = dropCode;
                 }
               }
               metaFetchEntryFree(&pRestored);
@@ -820,9 +836,15 @@ int32_t vnodeTxnFencing(SVnode *pVnode, int64_t newTerm, int64_t newTxnId) {
       taosThreadMutexUnlock(&pVnode->txnMutex);
 
       // Undo shadow entries in B+ tree before removing
-      vnodeTxnUndoShadowEntries(pVnode, pEntry);
+      int32_t undoCode = vnodeTxnUndoShadowEntries(pVnode, pEntry);
 
       taosThreadMutexLock(&pVnode->txnMutex);
+      if (undoCode != 0 && txnShouldPropagateError(txnId, undoCode, TSDB_CODE_TXN_NOT_EXIST)) {
+        vError("vgId:%d, fencing: failed to abort txnId:%" PRId64 ", code:0x%x", TD_VID(pVnode), txnId, undoCode);
+        taosThreadMutexUnlock(&pVnode->txnMutex);
+        taosArrayDestroy(toAbort);
+        return undoCode;
+      }
       vnodeRemoveTxnEntry(pVnode, txnId);
     }
   }
