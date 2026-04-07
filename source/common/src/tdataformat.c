@@ -5096,7 +5096,7 @@ _exit:
 int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, SSHashObj *parsedCols, bool infoSorted,
                            const STSchema *pTSchema, const SSchemaExt *pSchemaExt, SArray *rowArray, bool *pOrdered,
                            bool *pDupTs) {
-  if (infos == NULL || numOfInfos <= 0 || numOfInfos > pTSchema->numOfCols || pTSchema == NULL || rowArray == NULL) {
+  if (infos == NULL || numOfInfos <= 0 || pTSchema == NULL || numOfInfos > pTSchema->numOfCols || rowArray == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
   int8_t hasBlob = schemaHasBlob(pTSchema);
@@ -5140,6 +5140,7 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, SSHashObj *par
   SRowKey rowKey, lastRowKey;
   for (int32_t iRow = 0; iRow < numOfRows; iRow++) {
     taosArrayClear(colValArray);
+    numOfFixedValue = 0;
 
     for (int32_t iInfo = 0; iInfo < numOfInfos; iInfo++) {
       if (parsedCols) {
@@ -5175,10 +5176,10 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, SSHashObj *par
             int32_t   length = infos[iInfo].bind->length[iRow];
             uint8_t **data = &((uint8_t **)TARRAY_DATA(bufArray))[iInfo - numOfFixedValue];
             value.nData = length;
-            if (value.nData > (TSDB_MAX_BLOB_LEN - BLOBSTR_HEADER_SIZE)) {
+            if (value.nData + (uint32_t)(BLOBSTR_HEADER_SIZE) > TSDB_MAX_BLOB_LEN) {
               code = TSDB_CODE_PAR_VALUE_TOO_LONG;
-              uError("stmt2 bind col:%d, row:%d length:%d  greater than type maximum lenght: %d", iInfo, iRow,
-                     value.nData + (uint32_t)(BLOBSTR_HEADER_SIZE), infos[iInfo].bytes);
+              uError("stmt2 bind col:%d, row:%d length:%d  greater than blob maximum length: %d", iInfo, iRow,
+                     value.nData + (uint32_t)(BLOBSTR_HEADER_SIZE), TSDB_MAX_BLOB_LEN);
               goto _exit;
             }
             value.pData = *data;
@@ -5187,10 +5188,10 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, SSHashObj *par
             int32_t   length = infos[iInfo].bind->length[iRow];
             uint8_t **data = &((uint8_t **)TARRAY_DATA(bufArray))[iInfo - numOfFixedValue];
             value.nData = length;
-            if (value.nData > infos[iInfo].bytes - VARSTR_HEADER_SIZE) {
+            if (value.nData + VARSTR_HEADER_SIZE > infos[iInfo].bytes) {
               code = TSDB_CODE_PAR_VALUE_TOO_LONG;
-              uError("stmt2 bind col:%d, row:%d length:%d  greater than type maximum lenght: %d", iInfo, iRow,
-                     value.nData + (uint32_t)(BLOBSTR_HEADER_SIZE), infos[iInfo].bytes);
+              uError("stmt2 bind col:%d, row:%d length:%d  greater than type maximum length: %d", iInfo, iRow,
+                     value.nData + (uint32_t)(VARSTR_HEADER_SIZE), infos[iInfo].bytes);
               goto _exit;
             }
             value.pData = *data;
@@ -5200,7 +5201,7 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, SSHashObj *par
         } else {
           if (infos[iInfo].type == TSDB_DATA_TYPE_DECIMAL) {
             if (!pSchemaExt) {
-              uError("stmt2 decimal64 type without ext schema info, cannot parse decimal values");
+              uError("stmt2 decimal128 type without ext schema info, cannot parse decimal values");
               code = TSDB_CODE_DECIMAL_PARSE_ERROR;
               goto _exit;
             }
@@ -5222,7 +5223,7 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, SSHashObj *par
 
           } else if (infos[iInfo].type == TSDB_DATA_TYPE_DECIMAL64) {
             if (!pSchemaExt) {
-              uError("stmt2 decimal128 type without ext schema info, cannot parse decimal values");
+              uError("stmt2 decimal64 type without ext schema info, cannot parse decimal values");
               code = TSDB_CODE_DECIMAL_PARSE_ERROR;
               goto _exit;
             }
@@ -5329,7 +5330,7 @@ _exit:
 int32_t tRowBuildFromBind2WithBlob(SBindInfo2 *infos, int32_t numOfInfos, SSHashObj *parsedCols, bool infoSorted,
                                    const STSchema *pTSchema, const SSchemaExt *pSchemaExt, SArray *rowArray,
                                    bool *pOrdered, bool *pDupTs, SBlobSet *pBlobSet) {
-  if (infos == NULL || numOfInfos <= 0 || numOfInfos > pTSchema->numOfCols || pTSchema == NULL || rowArray == NULL) {
+  if (infos == NULL || numOfInfos <= 0 || pTSchema == NULL || numOfInfos > pTSchema->numOfCols || rowArray == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
   int8_t hasBlob = schemaHasBlob(pTSchema);
@@ -5373,6 +5374,7 @@ int32_t tRowBuildFromBind2WithBlob(SBindInfo2 *infos, int32_t numOfInfos, SSHash
   SRowKey rowKey, lastRowKey;
   for (int32_t iRow = 0; iRow < numOfRows; iRow++) {
     taosArrayClear(colValArray);
+    numOfFixedValue = 0;
 
     for (int32_t iInfo = 0; iInfo < numOfInfos; iInfo++) {
       if (parsedCols) {
@@ -5408,10 +5410,10 @@ int32_t tRowBuildFromBind2WithBlob(SBindInfo2 *infos, int32_t numOfInfos, SSHash
             int32_t   length = infos[iInfo].bind->length[iRow];
             uint8_t **data = &((uint8_t **)TARRAY_DATA(bufArray))[iInfo - numOfFixedValue];
             value.nData = length;
-            if (value.nData > (TSDB_MAX_BLOB_LEN - BLOBSTR_HEADER_SIZE)) {
+            if (value.nData + (uint32_t)(BLOBSTR_HEADER_SIZE) > TSDB_MAX_BLOB_LEN) {
               code = TSDB_CODE_PAR_VALUE_TOO_LONG;
-              uError("stmt2 bind col:%d, row:%d length:%d  greater than type maximum lenght: %d", iInfo, iRow,
-                     value.nData + (uint32_t)(BLOBSTR_HEADER_SIZE), infos[iInfo].bytes);
+              uError("stmt2 bind col:%d, row:%d length:%d  greater than blob maximum length: %d", iInfo, iRow,
+                     value.nData + (uint32_t)(BLOBSTR_HEADER_SIZE), TSDB_MAX_BLOB_LEN);
               goto _exit;
             }
             value.pData = *data;
@@ -5420,10 +5422,10 @@ int32_t tRowBuildFromBind2WithBlob(SBindInfo2 *infos, int32_t numOfInfos, SSHash
             int32_t   length = infos[iInfo].bind->length[iRow];
             uint8_t **data = &((uint8_t **)TARRAY_DATA(bufArray))[iInfo - numOfFixedValue];
             value.nData = length;
-            if (value.nData > infos[iInfo].bytes - VARSTR_HEADER_SIZE) {
+            if (value.nData + VARSTR_HEADER_SIZE > infos[iInfo].bytes) {
               code = TSDB_CODE_PAR_VALUE_TOO_LONG;
-              uError("stmt2 bind col:%d, row:%d length:%d  greater than type maximum lenght: %d", iInfo, iRow,
-                     value.nData + (uint32_t)(BLOBSTR_HEADER_SIZE), infos[iInfo].bytes);
+              uError("stmt2 bind col:%d, row:%d length:%d  greater than type maximum length: %d", iInfo, iRow,
+                     value.nData + (uint32_t)(VARSTR_HEADER_SIZE), infos[iInfo].bytes);
               goto _exit;
             }
             value.pData = *data;
@@ -5432,7 +5434,7 @@ int32_t tRowBuildFromBind2WithBlob(SBindInfo2 *infos, int32_t numOfInfos, SSHash
         } else {
           if (infos[iInfo].type == TSDB_DATA_TYPE_DECIMAL) {
             if (!pSchemaExt) {
-              uError("stmt2 decimal64 type without ext schema info, cannot parse decimal values");
+              uError("stmt2 decimal128 type without ext schema info, cannot parse decimal values");
               code = TSDB_CODE_DECIMAL_PARSE_ERROR;
               goto _exit;
             }
@@ -5451,7 +5453,7 @@ int32_t tRowBuildFromBind2WithBlob(SBindInfo2 *infos, int32_t numOfInfos, SSHash
 
           } else if (infos[iInfo].type == TSDB_DATA_TYPE_DECIMAL64) {
             if (!pSchemaExt) {
-              uError("stmt2 decimal128 type without ext schema info, cannot parse decimal values");
+              uError("stmt2 decimal64 type without ext schema info, cannot parse decimal values");
               code = TSDB_CODE_DECIMAL_PARSE_ERROR;
               goto _exit;
             }
