@@ -178,10 +178,10 @@ Displays information about all supertables in the current database. You can use 
 ## SHOW STREAMS
 
 ```sql
-SHOW [db_name.]STREAMS;
+SHOW [db_name.]STREAMS [LIKE 'pattern']∂∂∂;
 ```
 
-Displays information about all stream computations in the current database.
+Displays information about all stream computations in the current database. You can use LIKE for fuzzy matching of stream names.
 
 ## SHOW SUBSCRIPTIONS
 

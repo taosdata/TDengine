@@ -189,10 +189,10 @@ SHOW [db_name.]STABLES [LIKE 'pattern'];
 ## SHOW STREAMS
 
 ```sql
-SHOW [db_name.]STREAMS;
+SHOW [db_name.]STREAMS [LIKE 'pattern'];
 ```
 
-显示当前数据库下的所有流计算的信息。
+显示当前数据库下的所有流计算的信息。可以使用 LIKE 对流名进行模糊匹配。
 
 ## SHOW SUBSCRIPTIONS
 

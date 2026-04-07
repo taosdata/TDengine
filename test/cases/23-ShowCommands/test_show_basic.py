@@ -839,43 +839,57 @@ class TestShowBasic:
 
         # Create a stream in each database
         tdSql.execute(
-            "create stream ss_db1.ss1 "
-            "count_window(10) from ss_db1.src1 "
-            "into ss_db1.dst1 "
-            "as select _wstart as ts, count(v) as cnt from ss_db1.src1"
+            "create stream ss_db1.ss1 INTERVAL(1s) SLIDING(1s) from ss_db1.src1 into ss_db1.dst1 as select _tlocaltime as ts, count(v) as cnt from ss_db1.src1"
         )
         tdSql.execute(
-            "create stream ss_db2.ss2 "
-            "count_window(10) from ss_db2.src2 "
-            "into ss_db2.dst2 "
-            "as select _wstart as ts, count(v) as cnt from ss_db2.src2"
+            "create stream ss_db2.ss2 INTERVAL(1s) SLIDING(1s) from ss_db2.src2 into ss_db2.dst2 as select _tlocaltime as ts, count(v) as cnt from ss_db2.src2"
+        )
+        tdSql.execute(
+            "create stream ss_db1.stm3 count_window(1) from ss_db1.src1 into ss_db1.dst1 as select _tlocaltime as ts, count(v) as cnt from ss_db1.src1"
+        )
+        tdSql.execute(
+            "create stream ss_db2.stm4 count_window(1) from ss_db2.src2 into ss_db2.dst2 as select _tlocaltime as ts, count(v) as cnt from ss_db2.src2"
         )
 
-        # SHOW STREAMS without any database selected must not error
         tdSql.query("show streams")
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 0, "stm4")
+        tdSql.checkData(0, 3, "ss_db2")
+        tdSql.checkData(1, 0, "stm3")
+        tdSql.checkData(1, 3, "ss_db1")
+        tdSql.checkData(2, 0, "ss2")
+        tdSql.checkData(2, 3, "ss_db2")
+        tdSql.checkData(3, 0, "ss1")
+        tdSql.checkData(3, 3, "ss_db1")
 
-        # SHOW db.STREAMS must filter to only that database
-        # tdSql.query("show ss_db1.streams")
-        # tdSql.checkRows(1)
-        # tdSql.checkData(0, 0, "ss1")
-        # tdSql.checkData(0, 3, "ss_db1")
+        tdSql.query("show streams like 'ss%'")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, "ss2")
+        tdSql.checkData(0, 3, "ss_db2")
+        tdSql.checkData(1, 0, "ss1")
+        tdSql.checkData(1, 3, "ss_db1")
 
-        # tdSql.query("show ss_db2.streams")
-        # tdSql.checkRows(1)
-        # tdSql.checkData(0, 0, "ss2")
-        # tdSql.checkData(0, 3, "ss_db2")
+        tdSql.query("show streams like 'stm%'")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, "stm4")
+        tdSql.checkData(0, 3, "ss_db2")
+        tdSql.checkData(1, 0, "stm3")
+        tdSql.checkData(1, 3, "ss_db1")
 
-        # # Column names must include db_name
-        # col_names = tdSql.getColNameList("show streams")
-        # tdSql.checkAssert("db_name" in col_names,
-        #                   f"db_name column missing from SHOW STREAMS, got: {col_names}")
 
-        # # Cleanup
-        # tdSql.execute("drop stream if exists ss_db1.ss1")
-        # tdSql.execute("drop stream if exists ss_db2.ss2")
-        # tdSql.execute("drop database if exists ss_db1")
-        # tdSql.execute("drop database if exists ss_db2")
+        tdSql.query("show ss_db1.streams")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, "stm3")
+        tdSql.checkData(0, 3, "ss_db1")
+        tdSql.checkData(1, 0, "ss1")
+        tdSql.checkData(1, 3, "ss_db1")
 
+        tdSql.query("show ss_db2.streams")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, "stm4")
+        tdSql.checkData(0, 3, "ss_db2")
+        tdSql.checkData(1, 0, "ss2")
+        tdSql.checkData(1, 3, "ss_db2")
         print("do show streams no-db ................. [passed]")
 
     #
