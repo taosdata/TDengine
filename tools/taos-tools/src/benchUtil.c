@@ -257,7 +257,7 @@ int32_t replaceChildTblName(char *inSql, char *outSql, int tblIndex) {
             g_queryInfo.superQueryInfo.childTblName[tblIndex]);
 
     TOOLS_STRNCPY(outSql, inSql, pos - inSql + 1);
-    (void)snprintf(outSql + (pos - inSql), TSDB_MAX_ALLOWED_SQL_LEN - 1,
+    (void)snprintf(outSql + (pos - inSql), TOOLS_MAX_ALLOWED_SQL_LEN - (pos - inSql),
              "%s%s", subTblName, pos + strlen(mark));
     return 0;
 }
