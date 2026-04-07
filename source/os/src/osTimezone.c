@@ -903,19 +903,8 @@ void truncateTimezoneString(char *tz) {
  */
 int32_t taosGetTZOffsetSeconds(timezone_t tz, int32_t *code) {
 #ifdef WINDOWS
-  if (tz != NULL) {
-    // offset_seconds in WindowsTimezoneObj uses east-negative (POSIX timezone) convention.
-    // Negate to return east-positive (tm_gmtoff convention).
-    WindowsTimezoneObj *tz_obj = (WindowsTimezoneObj *)tz;
-    taosThreadMutexLock(&tz_obj->mutex);
-    int32_t offset = -(int32_t)tz_obj->offset_seconds;
-    taosThreadMutexUnlock(&tz_obj->mutex);
-    if (code != NULL) *code = TSDB_CODE_SUCCESS;
-    return offset;
-  }
-  // tz == NULL: fall through to global default
   if (code != NULL) *code = TSDB_CODE_SUCCESS;
-  return -(int32_t)getWindowsTimezoneOffset();
+  return -(int32_t)_timezone;
 #elif defined(TD_ASTRA)
   if (code != NULL) *code = TSDB_CODE_SUCCESS;
   return -(int32_t)timezone;
