@@ -1343,6 +1343,21 @@ typedef struct {
 
 typedef SCompactObj       SRetentionObj;        // reuse compact obj for retention
 typedef SCompactDetailObj SRetentionDetailObj;  // reuse compact detail obj for retention
+
+typedef struct {
+  int32_t detailId;   // index within the reload task (0-based per vgroup)
+  int64_t reloadUid;
+  int32_t vgId;
+  int32_t dnodeId;
+  int8_t  status;     // EReloadStatus
+  int32_t totalTables;
+  int32_t finishedTables;
+  int64_t startTimeMs;
+  int32_t newTotalTables;
+  int32_t newFinishedTables;
+  int8_t  newStatus;
+  char    errMsg[256];
+} SReloadDetailObj;
 typedef struct {
   int32_t nodeId;    // dnode id of the leader vnode
   int32_t vgId;

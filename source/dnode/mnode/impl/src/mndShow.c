@@ -155,6 +155,8 @@ static int32_t convertToRetrieveType(char *name, int32_t len) {
     type = TSDB_MGMT_TABLE_SCAN;
   } else if (strncasecmp(name, TSDB_INS_TABLE_RELOADS, len) == 0) {
     type = TSDB_MGMT_TABLE_RELOAD;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_RELOAD_DETAILS, len) == 0) {
+    type = TSDB_MGMT_TABLE_RELOAD_DETAIL;
   } else if (strncasecmp(name, TSDB_INS_TABLE_COMPACT_DETAILS, len) == 0) {
     type = TSDB_MGMT_TABLE_COMPACT_DETAIL;
   } else if (strncasecmp(name, TSDB_INS_TABLE_SCAN_DETAILS, len) == 0) {

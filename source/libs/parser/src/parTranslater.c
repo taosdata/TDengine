@@ -542,7 +542,7 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
   },
   { .showType = QUERY_NODE_SHOW_RELOAD_STMT,
     .pDbName = TSDB_INFORMATION_SCHEMA_DB,
-    .pTableName = TSDB_INS_TABLE_RELOADS,
+    .pTableName = TSDB_INS_TABLE_RELOAD_DETAILS,
     .numOfShowCols = 1,
     .pShowCols = {"*"}
   },
