@@ -73,7 +73,7 @@ class TestExternal:
         self.large_block_and_time_condition_regression()
         self.vtable_external_window_regression()
         self.stmt_external_window_regression()
-        self.fill_external_window_negative()
+        self.fill_external_window_regression()
         self.scenario_regression()
 
     def mock_test_external_window_single_block(self):
@@ -1269,8 +1269,8 @@ class TestExternal:
             fullMatched=False,
         )
 
-    def fill_external_window_negative(self):
-        """Test external_window FILL support matrix."""
+    def fill_external_window_regression(self):
+        """Test external_window FILL support matrix and negative cases."""
         tdLog.info("=============== external window: fill regression")
         tdSql.execute(f"use {self.dbName}")
 
