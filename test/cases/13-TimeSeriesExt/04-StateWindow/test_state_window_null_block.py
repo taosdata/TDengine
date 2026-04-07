@@ -683,6 +683,7 @@ class TestStateWindowNullBlock:
         tdSql.checkData(4, 1, "2025-12-01 12:00:04.000")
         tdSql.checkData(4, 2, 1)
         tdSql.checkData(4, 3, 2)
+        tdSql.checkData(4, 4, "a")
 
     def _insert_block(self, table, base_ms, row_start, count, s1, s2):
         """Insert a contiguous block of rows into table (ts timestamp, s1 int, s2 int).

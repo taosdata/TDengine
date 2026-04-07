@@ -99,11 +99,9 @@ static int32_t stateTriggerToJson(const void* pObj, SJson* pJson) {
     pJson, jkStateTriggerSlotIds, int16ToJson, pTrigger->pSlotIds));
   if (pTrigger->pSlotIds != NULL && taosArrayGetSize(pTrigger->pSlotIds) == 1) {
     int16_t* pSlotId = taosArrayGet(pTrigger->pSlotIds, 0);
-    if (pSlotId == NULL) {
-      return TSDB_CODE_INVALID_PARA;
+    if (pSlotId != NULL) {
+      TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, jkStateTriggerSlotId, *pSlotId));
     }
-    TAOS_CHECK_RETURN(tjsonAddIntegerToObject(
-      pJson, jkStateTriggerSlotId, *pSlotId));
   }
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(
     pJson, jkStateTriggerExtend, pTrigger->extend));

@@ -639,18 +639,27 @@ int32_t tEncodeSStreamTriggerDeployMsg(SEncoder* pEncoder, const SStreamTriggerD
         Old format v1:  I16(slotId) + I16(extend) + ...
         The sentinel I16(-1) is used by the decoder to distinguish v1 vs v2,
         since a valid slotId in v1 is always >= 0.
+        For backward compatibility with older decoders, preserve the v1 layout
+        when exactly one slotId is present, and use the new v2 layout when there
+        are 0 or more than 1 slotIds.
       */
-      TAOS_CHECK_EXIT(tEncodeI16(pEncoder, (int16_t)-1));  // sentinel for v2 format
-      int32_t slotNum = pMsg->trigger.stateWin.pSlotIds == NULL ? 0 : taosArrayGetSize(pMsg->trigger.stateWin.pSlotIds);
-      TAOS_CHECK_EXIT(tEncodeI32(pEncoder, slotNum));
-      for (int32_t i = 0; i < slotNum; ++i) {
-        TAOS_CHECK_EXIT(tEncodeI16(pEncoder, *(int16_t*)taosArrayGet(pMsg->trigger.stateWin.pSlotIds, i)));
+      int32_t slotNum = pMsg->trigger.stateWin.pSlotIds == NULL ?
+        0 : taosArrayGetSize(pMsg->trigger.stateWin.pSlotIds);
+      if (slotNum == 1) {
+        int16_t slot_id = *(int16_t*)taosArrayGet(pMsg->trigger.stateWin.pSlotIds, 0);
+        TAOS_CHECK_EXIT(tEncodeI16(pEncoder, slot_id));
+      } else {
+        TAOS_CHECK_EXIT(tEncodeI16(pEncoder, (int16_t)-1));  // sentinel for v2 format
+        TAOS_CHECK_EXIT(tEncodeI32(pEncoder, slotNum));
+        for (int32_t i = 0; i < slotNum; ++i) {
+          TAOS_CHECK_EXIT(tEncodeI16(pEncoder, *(int16_t*)taosArrayGet(pMsg->trigger.stateWin.pSlotIds, i)));
+        }
       }
       TAOS_CHECK_EXIT(tEncodeI16(pEncoder, pMsg->trigger.stateWin.extend));
       TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pMsg->trigger.stateWin.trueForType));
       TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pMsg->trigger.stateWin.trueForCount));
       TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pMsg->trigger.stateWin.trueForDuration));
-      int32_t stateWindowZerothLen = 
+      int32_t stateWindowZerothLen =
           pMsg->trigger.stateWin.zeroth == NULL ? 0 : (int32_t)strlen((char*)pMsg->trigger.stateWin.zeroth) + 1;
       TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, pMsg->trigger.stateWin.zeroth, stateWindowZerothLen));
       int32_t stateWindowExprLen =
@@ -1236,6 +1245,9 @@ int32_t tDecodeSStreamTriggerDeployMsg(SDecoder* pDecoder, SStreamTriggerDeployM
         the single slotId as int16
         v2 format: support multiple columns state trigger, so first decode an
         int16 as sentinel(-1), then decode the slotIds as array
+        For backward compatibility with older decoders, preserve the v1 layout
+        when exactly one slotId is present, and use the new v2 layout when there
+        are 0 or more than 1 slotIds.
       */
       int16_t firstI16 = 0;
       TAOS_CHECK_EXIT(tDecodeI16(pDecoder, &firstI16));
