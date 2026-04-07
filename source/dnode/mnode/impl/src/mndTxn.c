@@ -829,6 +829,7 @@ static int32_t mndTxnUndoShadowOps(SMnode *pMnode, STrans *pTrans, STxnObj *pTxn
         int32_t code = mndAppendDropStbToTrans(pMnode, pTrans, pOp->name);
         if (code != 0) {
           mError("txn:%" PRIu64 ", failed to append DROP STB for stb=%s: %s", pTxn->id, pOp->name, tstrerror(code));
+          return code;
         }
         break;
       }
@@ -1223,7 +1224,7 @@ static int32_t mndRollbackTxn(SMnode *pMnode, SRpcMsg *pReq, STxnObj *pTxn, int3
   }
 
   // Undo MNode-side shadow ops — CREATE_STB: append DROP to this Trans; DROP/ALTER: discard
-  mndTxnUndoShadowOps(pMnode, pTrans, pTxn);
+  TAOS_CHECK_EXIT(mndTxnUndoShadowOps(pMnode, pTrans, pTxn));
 
   TAOS_CHECK_EXIT(mndTransPrepare(pMnode, pTrans));
 

@@ -1435,7 +1435,20 @@ static int32_t vnodeProcessCreateStbReq(SVnode *pVnode, int64_t ver, void *pReq,
 
   // batch-meta-txn: lock/conflict check BEFORE meta operation
   if (req.txnId != 0) {
-    vnodeTxnEnsureEntry(pVnode, req.txnId);
+    int32_t ensureCode = vnodeTxnEnsureEntry(pVnode, req.txnId);
+    if (ensureCode != 0) {
+      pRsp->code = ensureCode;
+      goto _err;
+    }
+
+    // pre-track table for ROLLBACK cleanup
+    int32_t trackCode = vnodeTxnTrackTable(pVnode, req.txnId, req.suid);
+    if (trackCode != 0) {
+      vError("vgId:%d, stb:%s uid:%" PRId64 " vnodeTxnTrackTable failed, code:0x%x", TD_VID(pVnode), req.name, req.suid,
+             trackCode);
+      pRsp->code = trackCode;
+      goto _err;
+    }
 
     // Acquire table-level lock to detect cross-txn conflicts
     {
@@ -1462,16 +1475,10 @@ static int32_t vnodeProcessCreateStbReq(SVnode *pVnode, int64_t ver, void *pReq,
     goto _err;
   }
 
-  // batch-meta-txn: track STB in VNode txn entry for COMMIT/ROLLBACK
+  // batch-meta-txn: STB is already tracked
   if (req.txnId != 0) {
-    code = vnodeTxnTrackTable(pVnode, req.txnId, req.suid);
-    if (code != 0) {
-      vError("vgId:%d, stb:%s uid:%" PRId64 " vnodeTxnTrackTable failed, code:0x%x", TD_VID(pVnode), req.name, req.suid,
-             code);
-      pRsp->code = code;
-      goto _err;
-    }
-    vInfo("vgId:%d, stb:%s uid:%" PRId64 " tracked in txn %" PRIu64, TD_VID(pVnode), req.name, req.suid, req.txnId);
+    vInfo("vgId:%d, stb:%s uid:%" PRId64 " created and tracked in txn %" PRIu64, TD_VID(pVnode), req.name, req.suid,
+          req.txnId);
   }
 
   tDecoderClear(&coder);
@@ -1555,7 +1562,27 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, 
     // COMMIT clears txnId/txnStatus → visible. ROLLBACK deletes entry.
     if (pCreateReq->txnId != 0) {
       // Register txn entry in VNode (for tracking, table locking, etc.)
-      vnodeTxnEnsureEntry(pVnode, pCreateReq->txnId);
+      int32_t ensureCode = vnodeTxnEnsureEntry(pVnode, pCreateReq->txnId);
+      if (ensureCode != 0) {
+        cRsp.code = ensureCode;
+        if (taosArrayPush(rsp.pArray, &cRsp) == NULL) {
+          terrno = TSDB_CODE_OUT_OF_MEMORY;
+          rcode = -1;
+          goto _exit;
+        }
+        continue;
+      }
+
+      int32_t trackCode = vnodeTxnTrackTable(pVnode, pCreateReq->txnId, pCreateReq->uid);
+      if (trackCode != 0) {
+        cRsp.code = trackCode;
+        if (taosArrayPush(rsp.pArray, &cRsp) == NULL) {
+          terrno = TSDB_CODE_OUT_OF_MEMORY;
+          rcode = -1;
+          goto _exit;
+        }
+        continue;
+      }
 
       // Acquire table-level lock to detect cross-txn conflicts
       int32_t lockCode = vnodeTxnLockTable(pVnode, tbName, pCreateReq->txnId);
@@ -1576,12 +1603,6 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, 
               pCreateReq->txnId, terrno);
       } else {
         cRsp.code = TSDB_CODE_SUCCESS;
-        int32_t trackCode = vnodeTxnTrackTable(pVnode, pCreateReq->txnId, pCreateReq->uid);
-        if (trackCode != 0) {
-          vError("vgId:%d, txn create table %s: vnodeTxnTrackTable failed, code:0x%x", TD_VID(pVnode), tbName,
-                 trackCode);
-          cRsp.code = trackCode;
-        }
         // Use txnStatus from message if set (snapshot replication may carry PRE_DROP/PRE_ALTER),
         // otherwise default to PRE_CREATE for normal WAL/DDL path.
         int8_t effectiveTxnStatus = pCreateReq->txnStatus > 0 ? pCreateReq->txnStatus : META_TXN_PRE_CREATE;
@@ -1823,7 +1844,17 @@ static int32_t vnodeProcessDropStbReq(SVnode *pVnode, int64_t ver, void *pReq, i
 
   // batch-meta-txn: transactional DROP STB
   if (req.txnId != 0) {
-    vnodeTxnEnsureEntry(pVnode, req.txnId);
+    int32_t ensureCode = vnodeTxnEnsureEntry(pVnode, req.txnId);
+    if (ensureCode != 0) {
+      rcode = ensureCode;
+      goto _exit;
+    }
+
+    int32_t trackCode = vnodeTxnTrackTable(pVnode, req.txnId, req.suid);
+    if (trackCode != 0) {
+      rcode = trackCode;
+      goto _exit;
+    }
 
     // Acquire table-level lock to detect cross-txn conflicts
     {
@@ -1840,15 +1871,8 @@ static int32_t vnodeProcessDropStbReq(SVnode *pVnode, int64_t ver, void *pReq, i
     if (metaDropSuperTable(pVnode->pMeta, ver, &req) < 0) {
       rcode = terrno;
     } else {
-      int32_t trackCode = vnodeTxnTrackTable(pVnode, req.txnId, req.suid);
-      if (trackCode != 0) {
-        vError("vgId:%d, stb:%s uid:%" PRId64 " DROP vnodeTxnTrackTable failed, code:0x%x", TD_VID(pVnode), req.name,
-               req.suid, trackCode);
-        rcode = trackCode;
-      } else {
-        vInfo("vgId:%d, stb:%s uid:%" PRId64 " DROP tracked in txn %" PRIu64, TD_VID(pVnode), req.name, req.suid,
-              req.txnId);
-      }
+      vInfo("vgId:%d, stb:%s uid:%" PRId64 " DROP tracked in txn %" PRIu64, TD_VID(pVnode), req.name, req.suid,
+            req.txnId);
     }
     goto _exit;
   }
@@ -1975,7 +1999,12 @@ static int32_t vnodeProcessAlterTbReq(SVnode *pVnode, int64_t ver, void *pReq, i
   // The ALTER creates a new version of the entry. On COMMIT, clear status → visible.
   // On ROLLBACK, restore old version.
   if (vAlterTbReq.txnId != 0) {
-    vnodeTxnEnsureEntry(pVnode, vAlterTbReq.txnId);
+    int32_t ensureCode = vnodeTxnEnsureEntry(pVnode, vAlterTbReq.txnId);
+    if (ensureCode != 0) {
+      vAlterTbRsp.code = ensureCode;
+      tDecoderClear(&dc);
+      goto _exit;
+    }
 
     // Acquire table-level lock to detect cross-txn conflicts
     {
@@ -1998,11 +2027,14 @@ static int32_t vnodeProcessAlterTbReq(SVnode *pVnode, int64_t ver, void *pReq, i
         alterUid = pOldEntry->uid;
         alterPrevVer = pOldEntry->version;
         int32_t trackCode = vnodeTxnTrackAlter(pVnode, vAlterTbReq.txnId, alterUid, alterPrevVer);
+        metaFetchEntryFree(&pOldEntry);
         if (trackCode != 0) {
           vError("vgId:%d, txn alter table %s: vnodeTxnTrackAlter failed, code:0x%x", TD_VID(pVnode),
                  vAlterTbReq.tbName, trackCode);
+          vAlterTbRsp.code = trackCode;
+          tDecoderClear(&dc);
+          goto _exit;
         }
-        metaFetchEntryFree(&pOldEntry);
       }
     }
 
@@ -2123,7 +2155,27 @@ static int32_t vnodeProcessDropTbReq(SVnode *pVnode, int64_t ver, void *pReq, in
     // The table remains visible (snapshot isolation) but INSERT fails.
     // COMMIT physically deletes. ROLLBACK clears back to NORMAL.
     if (pDropTbReq->txnId != 0) {
-      vnodeTxnEnsureEntry(pVnode, pDropTbReq->txnId);
+      int32_t ensureCode = vnodeTxnEnsureEntry(pVnode, pDropTbReq->txnId);
+      if (ensureCode != 0) {
+        dropTbRsp.code = ensureCode;
+        if (taosArrayPush(rsp.pArray, &dropTbRsp) == NULL) {
+          terrno = TSDB_CODE_OUT_OF_MEMORY;
+          pRsp->code = terrno;
+          goto _exit;
+        }
+        continue;
+      }
+
+      int32_t trackCode = vnodeTxnTrackTable(pVnode, pDropTbReq->txnId, pDropTbReq->uid);
+      if (trackCode != 0) {
+        dropTbRsp.code = trackCode;
+        if (taosArrayPush(rsp.pArray, &dropTbRsp) == NULL) {
+          terrno = TSDB_CODE_OUT_OF_MEMORY;
+          pRsp->code = terrno;
+          goto _exit;
+        }
+        continue;
+      }
 
       // Acquire table-level lock to detect cross-txn conflicts
       {
@@ -2151,13 +2203,6 @@ static int32_t vnodeProcessDropTbReq(SVnode *pVnode, int64_t ver, void *pReq, in
               pDropTbReq->txnId, terrno);
       } else {
         dropTbRsp.code = TSDB_CODE_SUCCESS;
-        // Track uid for COMMIT/ROLLBACK iteration (harmless if already tracked; dedup in vnodeTxnTrackUid)
-        int32_t trackCode = vnodeTxnTrackTable(pVnode, pDropTbReq->txnId, pDropTbReq->uid);
-        if (trackCode != 0) {
-          vError("vgId:%d, txn drop table %s: vnodeTxnTrackTable failed, code:0x%x", TD_VID(pVnode), pDropTbReq->name,
-                 trackCode);
-          dropTbRsp.code = trackCode;
-        }
       }
       if (taosArrayPush(rsp.pArray, &dropTbRsp) == NULL) {
         terrno = TSDB_CODE_OUT_OF_MEMORY;

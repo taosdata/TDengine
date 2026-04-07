@@ -925,11 +925,18 @@ int32_t vnodeTxnLockTable(SVnode *pVnode, const char *tableName, int64_t txnId) 
 
   // Record the table name in the txn entry for reverse cleanup
   char *nameCopy = taosStrdup(tableName);
-  if (nameCopy != NULL) {
-    if (taosArrayPush(pEntry->pLockedTables, &nameCopy) == NULL) {
-      vError("vgId:%d, failed to track locked table:%s, txnId:%" PRId64, TD_VID(pVnode), tableName, txnId);
-      taosMemoryFree(nameCopy);
-    }
+  if (nameCopy == NULL) {
+    vError("vgId:%d, failed to allocate locked table name:%s, txnId:%" PRId64, TD_VID(pVnode), tableName, txnId);
+    taosHashRemove(pVnode->pTxnTableLock, tableName, nameLen);
+    taosThreadMutexUnlock(&pVnode->txnMutex);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  if (taosArrayPush(pEntry->pLockedTables, &nameCopy) == NULL) {
+    vError("vgId:%d, failed to track locked table:%s, txnId:%" PRId64, TD_VID(pVnode), tableName, txnId);
+    taosMemoryFree(nameCopy);
+    taosHashRemove(pVnode->pTxnTableLock, tableName, nameLen);
+    taosThreadMutexUnlock(&pVnode->txnMutex);
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   pEntry->lastActive = taosGetTimestampMs();
