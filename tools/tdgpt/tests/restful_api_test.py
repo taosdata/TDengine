@@ -5,7 +5,7 @@ import math
 import sys, os.path
 import numpy as np
 
-sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../../")
+sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/..")
 
 from flask_testing import TestCase
 from taosanalytics.app import app

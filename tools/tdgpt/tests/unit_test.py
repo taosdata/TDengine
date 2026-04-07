@@ -8,7 +8,7 @@ import tempfile
 import types
 from unittest import mock
 
-sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../../")
+sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/..")
 
 from taosanalytics.algo.imputation import check_freq_param
 from taosanalytics.service_registry import loader, ServiceRegistry
@@ -187,7 +187,7 @@ class ServiceTest(unittest.TestCase):
         """ test dynamic load service by name """
         import os
 
-        config_path = os.path.join(tempfile.TemporaryDirectory().name, "arima_model_config.json0")
+        config_path = os.path.join(tempfile.gettempdir(), "arima_model_config.json0")
         conf_file_content = """
         {
           "algo": "arima",
@@ -213,7 +213,7 @@ class ServiceTest(unittest.TestCase):
         """ test dynamic load service with valid config file """
         import os
 
-        config_path = os.path.join(tempfile.TemporaryDirectory().name, "arima_model_config.json")
+        config_path = os.path.join(tempfile.gettempdir(), "arima_model_config.json")
         service_name = "arima_model_config"
         conf_file_content = """
         {

@@ -4,7 +4,7 @@
 import unittest, sys, os.path
 import pandas as pd
 
-sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../../")
+sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/..")
 
 from taosanalytics.algo.anomaly import draw_anomaly_results
 from taosanalytics.service_registry import loader
