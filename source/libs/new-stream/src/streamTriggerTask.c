@@ -146,6 +146,15 @@ static FORCE_INLINE bool stIsMultiStateWindowTask(const SStreamTriggerTask *pTas
   return stGetStateKeyCount(pTask->pStateSlotIds, pTask->pStateExprs) > 1;
 }
 
+static FORCE_INLINE int32_t stCountExprKeys(const SArray *pSlotIds) {
+  if (pSlotIds == NULL) return 0;
+  int32_t count = 0;
+  for (int32_t i = 0; i < taosArrayGetSize((SArray *)pSlotIds); ++i) {
+    if (*(int16_t *)taosArrayGet((SArray *)pSlotIds, i) == -1) count++;
+  }
+  return count;
+}
+
 static FORCE_INLINE bool stIsMultiHistStateWindowTask(const SStreamTriggerTask *pTask) {
   return stGetStateKeyCount(pTask->pHistStateSlotIds, pTask->histStateExprs) > 1;
 }
@@ -342,12 +351,12 @@ static int32_t stCompareStateValuesWithRow(const SArray *pStateVals, const SArra
 }
 
 /*
-  NOTE: ppStateCols stores pointers into pDataBlock->pDataBlock or
-  pExprStateCol. The caller must keep pDataBlock and pExprStateCol alive while
-  ppStateCols is in use.
+  NOTE: ppStateCols stores pointers into pDataBlock->pDataBlock or dynamically
+  allocated SColumnInfoData in ppExprStateCols. The caller must keep pDataBlock
+  alive and free ppExprStateCols (via stDestroyExprStateCols) after use.
 */
 static int32_t stBuildRealtimeStateCols(SSTriggerRealtimeContext *pContext, SSDataBlock *pDataBlock, SArray **ppStateCols,
-                                        SColumnInfoData *pExprStateCol) {
+                                        SArray **ppExprStateCols) {
   int32_t             code = TSDB_CODE_SUCCESS;
   int32_t             lino = 0;
   SStreamTriggerTask *pTask = pContext->pTask;
@@ -355,20 +364,27 @@ static int32_t stBuildRealtimeStateCols(SSTriggerRealtimeContext *pContext, SSDa
 
   *ppStateCols = taosArrayInit(stateKeyCount, POINTER_BYTES);
   QUERY_CHECK_NULL(*ppStateCols, code, lino, _end, terrno);
-
-  if (!stIsMultiStateWindowTask(pTask) && pTask->stateSlotId == -1) {
-    code = stRealtimeContextCalcExpr(pContext, pDataBlock, pTask->pStateExpr, pExprStateCol);
-    QUERY_CHECK_CODE(code, lino, _end);
-    QUERY_CHECK_NULL(taosArrayPush(*ppStateCols, &pExprStateCol), code, lino, _end, terrno);
-    goto _end;
-  }
+  *ppExprStateCols = NULL;
 
   for (int32_t i = 0; i < stateKeyCount; ++i) {
     int16_t slotId = *(int16_t *)taosArrayGet(pTask->pStateSlotIds, i);
-    QUERY_CHECK_CONDITION(slotId >= 0, code, lino, _end, TSDB_CODE_INVALID_PARA);
-    SColumnInfoData *pCol = taosArrayGet(pDataBlock->pDataBlock, slotId);
-    QUERY_CHECK_NULL(pCol, code, lino, _end, terrno);
-    QUERY_CHECK_NULL(taosArrayPush(*ppStateCols, &pCol), code, lino, _end, terrno);
+    if (slotId >= 0) {
+      SColumnInfoData *pCol = taosArrayGet(pDataBlock->pDataBlock, slotId);
+      QUERY_CHECK_NULL(pCol, code, lino, _end, terrno);
+      QUERY_CHECK_NULL(taosArrayPush(*ppStateCols, &pCol), code, lino, _end, terrno);
+    } else {
+      SNode *pExpr = nodesListGetNode(pTask->pStateExprs, i);
+      SColumnInfoData *pExprCol = taosMemoryCalloc(1, sizeof(SColumnInfoData));
+      QUERY_CHECK_NULL(pExprCol, code, lino, _end, terrno);
+      if (*ppExprStateCols == NULL) {
+        *ppExprStateCols = taosArrayInit(1, POINTER_BYTES);
+        QUERY_CHECK_NULL(*ppExprStateCols, code, lino, _end, terrno);
+      }
+      QUERY_CHECK_NULL(taosArrayPush(*ppExprStateCols, &pExprCol), code, lino, _end, terrno);
+      code = stRealtimeContextCalcExpr(pContext, pDataBlock, pExpr, pExprCol);
+      QUERY_CHECK_CODE(code, lino, _end);
+      QUERY_CHECK_NULL(taosArrayPush(*ppStateCols, &pExprCol), code, lino, _end, terrno);
+    }
   }
 
 _end:
@@ -379,10 +395,23 @@ _end:
   return code;
 }
 
-// NOTE: ppStateCols stores pointers into pDataBlock->pDataBlock or pExprStateCol.
-// The caller must keep pDataBlock and pExprStateCol alive while ppStateCols is in use.
+static void stDestroyExprStateCols(SArray *pExprStateCols) {
+  if (pExprStateCols == NULL) return;
+  for (int32_t i = 0; i < taosArrayGetSize(pExprStateCols); ++i) {
+    SColumnInfoData *pCol = *(SColumnInfoData **)taosArrayGet(pExprStateCols, i);
+    if (pCol != NULL) {
+      colDataDestroy(pCol);
+      taosMemoryFree(pCol);
+    }
+  }
+  taosArrayDestroy(pExprStateCols);
+}
+
+// NOTE: ppStateCols stores pointers into pDataBlock->pDataBlock or dynamically
+// allocated SColumnInfoData in ppExprStateCols. The caller must keep pDataBlock
+// alive and free ppExprStateCols (via stDestroyExprStateCols) after use.
 static int32_t stBuildHistoryStateCols(SSTriggerHistoryContext *pContext, SSDataBlock *pDataBlock, SArray **ppStateCols,
-                                       SColumnInfoData *pExprStateCol) {
+                                       SArray **ppExprStateCols) {
   int32_t             code = TSDB_CODE_SUCCESS;
   int32_t             lino = 0;
   SStreamTriggerTask *pTask = pContext->pTask;
@@ -390,20 +419,27 @@ static int32_t stBuildHistoryStateCols(SSTriggerHistoryContext *pContext, SSData
 
   *ppStateCols = taosArrayInit(stateKeyCount, POINTER_BYTES);
   QUERY_CHECK_NULL(*ppStateCols, code, lino, _end, terrno);
-
-  if (!stIsMultiHistStateWindowTask(pTask) && pTask->histStateSlotId == -1) {
-    code = stHistoryContextCalcExpr(pContext, pDataBlock, pTask->histStateExpr, pExprStateCol);
-    QUERY_CHECK_CODE(code, lino, _end);
-    QUERY_CHECK_NULL(taosArrayPush(*ppStateCols, &pExprStateCol), code, lino, _end, terrno);
-    goto _end;
-  }
+  *ppExprStateCols = NULL;
 
   for (int32_t i = 0; i < stateKeyCount; ++i) {
     int16_t slotId = *(int16_t *)taosArrayGet(pTask->pHistStateSlotIds, i);
-    QUERY_CHECK_CONDITION(slotId >= 0, code, lino, _end, TSDB_CODE_INVALID_PARA);
-    SColumnInfoData *pCol = taosArrayGet(pDataBlock->pDataBlock, slotId);
-    QUERY_CHECK_NULL(pCol, code, lino, _end, terrno);
-    QUERY_CHECK_NULL(taosArrayPush(*ppStateCols, &pCol), code, lino, _end, terrno);
+    if (slotId >= 0) {
+      SColumnInfoData *pCol = taosArrayGet(pDataBlock->pDataBlock, slotId);
+      QUERY_CHECK_NULL(pCol, code, lino, _end, terrno);
+      QUERY_CHECK_NULL(taosArrayPush(*ppStateCols, &pCol), code, lino, _end, terrno);
+    } else {
+      SNode *pExpr = nodesListGetNode(pTask->histStateExprs, i);
+      SColumnInfoData *pExprCol = taosMemoryCalloc(1, sizeof(SColumnInfoData));
+      QUERY_CHECK_NULL(pExprCol, code, lino, _end, terrno);
+      if (*ppExprStateCols == NULL) {
+        *ppExprStateCols = taosArrayInit(1, POINTER_BYTES);
+        QUERY_CHECK_NULL(*ppExprStateCols, code, lino, _end, terrno);
+      }
+      QUERY_CHECK_NULL(taosArrayPush(*ppExprStateCols, &pExprCol), code, lino, _end, terrno);
+      code = stHistoryContextCalcExpr(pContext, pDataBlock, pExpr, pExprCol);
+      QUERY_CHECK_CODE(code, lino, _end);
+      QUERY_CHECK_NULL(taosArrayPush(*ppStateCols, &pExprCol), code, lino, _end, terrno);
+    }
   }
 
 _end:
@@ -3990,9 +4026,8 @@ static int32_t stRealtimeContextInit(SSTriggerRealtimeContext *pContext, SStream
     int32_t verColBias = 0;
     if (pTask->triggerType == STREAM_TRIGGER_EVENT) {
       verColBias = 2;
-    } else if (pTask->triggerType == STREAM_TRIGGER_STATE && !stIsMultiStateWindowTask(pTask) &&
-               pTask->stateSlotId == -1) {
-      verColBias = 1;
+    } else if (pTask->triggerType == STREAM_TRIGGER_STATE) {
+      verColBias = stCountExprKeys(pTask->pStateSlotIds);
     }
     code = stNewTimestampSorterInit(pContext->pSorter, pTask, verColBias);
     QUERY_CHECK_CODE(code, lino, _end);
@@ -6709,18 +6744,31 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
           QUERY_CHECK_CODE(code, lino, _end);
           code = stRealtimeContextCalcExpr(pContext, pProgress->pTrigBlock, pTask->pEndCond, pEndCol);
           QUERY_CHECK_CODE(code, lino, _end);
-        } else if (pTask->triggerType == STREAM_TRIGGER_STATE && !stIsMultiStateWindowTask(pTask) &&
-                   pTask->stateSlotId == -1) {
-          SColumnInfoData *pStateCol = NULL;
-          if (firstDataBlock) {
-            SColumnInfoData stateCol = {0};
-            void           *px = taosArrayPush(pProgress->pTrigBlock->pDataBlock, &stateCol);
-            QUERY_CHECK_NULL(px, code, lino, _end, terrno);
+        } else if (pTask->triggerType == STREAM_TRIGGER_STATE) {
+          int32_t exprKeyCount = stCountExprKeys(pTask->pStateSlotIds);
+          if (exprKeyCount > 0) {
+            int32_t stateKeyCount = stGetStateKeyCount(pTask->pStateSlotIds, pTask->pStateExprs);
+            if (firstDataBlock) {
+              for (int32_t k = 0; k < exprKeyCount; ++k) {
+                SColumnInfoData stateCol = {0};
+                void           *px = taosArrayPush(pProgress->pTrigBlock->pDataBlock, &stateCol);
+                QUERY_CHECK_NULL(px, code, lino, _end, terrno);
+              }
+            }
+            int32_t baseIdx = taosArrayGetSize(pProgress->pTrigBlock->pDataBlock) - exprKeyCount;
+            int32_t exprIdx = 0;
+            for (int32_t k = 0; k < stateKeyCount; ++k) {
+              int16_t slotId = *(int16_t *)taosArrayGet(pTask->pStateSlotIds, k);
+              if (slotId == -1) {
+                SNode           *pExpr = nodesListGetNode(pTask->pStateExprs, k);
+                SColumnInfoData *pStateCol = taosArrayGet(pProgress->pTrigBlock->pDataBlock, baseIdx + exprIdx);
+                QUERY_CHECK_NULL(pStateCol, code, lino, _end, terrno);
+                code = stRealtimeContextCalcExpr(pContext, pProgress->pTrigBlock, pExpr, pStateCol);
+                QUERY_CHECK_CODE(code, lino, _end);
+                exprIdx++;
+              }
+            }
           }
-          pStateCol = taosArrayGetLast(pProgress->pTrigBlock->pDataBlock);
-          QUERY_CHECK_NULL(pStateCol, code, lino, _end, terrno);
-          code = stRealtimeContextCalcExpr(pContext, pProgress->pTrigBlock, pTask->pStateExpr, pStateCol);
-          QUERY_CHECK_CODE(code, lino, _end);
         }
       }
 
@@ -10014,9 +10062,9 @@ static int32_t stRealtimeGroupDoStateCheck(SSTriggerRealtimeGroup *pGroup) {
     QUERY_CHECK_NULL(pTsCol, code, lino, _end, terrno);
     int64_t          *pTsData = (int64_t *)pTsCol->pData;
     SArray           *pStateCols = NULL;
-    SColumnInfoData   exprStateCol = {0};
+    SArray           *pExprStateCols = NULL;
 
-    code = stBuildRealtimeStateCols(pContext, pDataBlock, &pStateCols, &exprStateCol);
+    code = stBuildRealtimeStateCols(pContext, pDataBlock, &pStateCols, &pExprStateCols);
     QUERY_CHECK_CODE(code, lino, _end);
     if (!stIsMultiStateWindowTask(pTask)) {
       SColumnInfoData *pStateCol = *(SColumnInfoData **)taosArrayGet(pStateCols, 0);
@@ -10174,7 +10222,7 @@ static int32_t stRealtimeGroupDoStateCheck(SSTriggerRealtimeGroup *pGroup) {
 
 _end_block:
     taosArrayDestroy(pStateCols);
-    colDataDestroy(&exprStateCol);
+    stDestroyExprStateCols(pExprStateCols);
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
@@ -12314,9 +12362,9 @@ static int32_t stHistoryGroupDoStateCheck(SSTriggerHistoryGroup *pGroup) {
     QUERY_CHECK_NULL(pTsCol, code, lino, _end, terrno);
     int64_t          *pTsData = (int64_t *)pTsCol->pData;
     SArray           *pStateCols = NULL;
-    SColumnInfoData   exprStateCol = {0};
+    SArray           *pExprStateCols = NULL;
 
-    code = stBuildHistoryStateCols(pContext, pDataBlock, &pStateCols, &exprStateCol);
+    code = stBuildHistoryStateCols(pContext, pDataBlock, &pStateCols, &pExprStateCols);
     QUERY_CHECK_CODE(code, lino, _end);
     if (!stIsMultiHistStateWindowTask(pTask)) {
       SColumnInfoData *pStateCol = *(SColumnInfoData **)taosArrayGet(pStateCols, 0);
@@ -12471,7 +12519,7 @@ static int32_t stHistoryGroupDoStateCheck(SSTriggerHistoryGroup *pGroup) {
 
 _end_block:
     taosArrayDestroy(pStateCols);
-    colDataDestroy(&exprStateCol);
+    stDestroyExprStateCols(pExprStateCols);
     QUERY_CHECK_CODE(code, lino, _end);
   }
 

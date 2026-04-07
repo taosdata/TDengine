@@ -88,6 +88,11 @@ typedef struct SSessionTrigger {
   int64_t sessionVal;
 } SSessionTrigger;
 
+// Sentinel value in deploy msg binary encoding to distinguish v2 (multi-slot)
+// from v1 (single-slot) state window format. Must not collide with any valid
+// slotId value; -1 is reserved for expression keys, so we use -2.
+#define STATE_WIN_SLOT_SENTINEL_V2  ((int16_t)-2)
+
 typedef struct SStateWinTrigger {
   SArray* pSlotIds;  // SArray<int16_t>
   int16_t extend;

@@ -20,7 +20,7 @@ class TestStateWindowMultiCol:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_state_window_multi_col(self):
-        """Multi-column state window tests (basic query, NULL, EXTEND, ZEROTH, error, backward compat)
+        """Multi-column state window tests (basic query, NULL, EXTEND, ZEROTH, error, expr, stream)
 
         1. Q-1~Q-5: multi-col basic queries with different type combos, aggregations, pseudo columns
         2. Q-9~Q-10: multi-col with partition by tbname, GROUP_KEY rewrite
@@ -28,6 +28,8 @@ class TestStateWindowMultiCol:
         4. E-1~E-3: multi-col + EXTEND(0/1/2)
         5. Z-1: multi-col ZEROTH_STATE with all cols specified
         6. ERR-6: single-col backward compatibility
+        7. EX-1~EX-3: multi-col with expression keys (expr+col, dual-expr, col+expr)
+        8. S-4: stream trigger with expression keys (expr+col, col+expr, dual-expr)
 
         Catalog:
             - TimeSeriesExt:StateWindow
@@ -40,6 +42,7 @@ class TestStateWindowMultiCol:
 
         History:
             - 2026-04-02 Auto-generated from test plan
+            - 2026-04-07 Add expression key tests for multi-col state window
 
         """
         self.do_prepare_data()
@@ -54,9 +57,11 @@ class TestStateWindowMultiCol:
         self.do_multi_col_zeroth()
         self.do_single_col_backward_compat()
         self.do_error_inputs()
+        self.do_multi_col_expr_query()
         self.do_stream_compute_multi_col()
         self.do_stream_trigger_multi_col()
         self.do_stream_trigger_multi_col_zeroth()
+        self.do_stream_trigger_multi_col_expr()
 
     # --- util ---
 
@@ -408,6 +413,71 @@ class TestStateWindowMultiCol:
 
         print("ERR-1~ERR-2: error inputs ............ [passed]")
 
+    def do_multi_col_expr_query(self):
+        # EX-1: expression + column mix: STATE_WINDOW(CASE WHEN c_int > 1 THEN 1 ELSE 0 END, c_bool)
+        # ntb1 data with expr(c_int>1 → 1 else 0):
+        # Row 0: (0, T), Row 1: (0, T), Row 2: (0, F), Row 3: (1, F),
+        # Row 4: (1, F), Row 5: (1, T), Row 6: (0, T), Row 7: (0, T),
+        # Row 8: (0, T), Row 9: (0, T)
+        # Windows: (0,T)x2 | (0,F)x1 | (1,F)x2 | (1,T)x1 | (0,T)x4
+        tdSql.query(
+            "select _wstart, _wend, count(*), "
+            "case when c_int > 1 then 1 else 0 end as e1, c_bool "
+            "from ntb1 state_window(case when c_int > 1 then 1 else 0 end, c_bool)",
+            show=True,
+        )
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 2, 2)  # (0, true) rows 0-1
+        tdSql.checkData(0, 3, 0)
+        tdSql.checkData(0, 4, True)
+        tdSql.checkData(1, 2, 1)  # (0, false) row 2
+        tdSql.checkData(1, 3, 0)
+        tdSql.checkData(1, 4, False)
+        tdSql.checkData(2, 2, 2)  # (1, false) rows 3-4
+        tdSql.checkData(2, 3, 1)
+        tdSql.checkData(2, 4, False)
+        tdSql.checkData(3, 2, 1)  # (1, true) row 5
+        tdSql.checkData(3, 3, 1)
+        tdSql.checkData(3, 4, True)
+        tdSql.checkData(4, 2, 4)  # (0, true) rows 6-9
+        tdSql.checkData(4, 3, 0)
+        tdSql.checkData(4, 4, True)
+
+        # EX-2: two expressions: STATE_WINDOW(c_int > 1, c_bool::int)
+        # same grouping as EX-1 since bool→int maps true→1 false→0
+        tdSql.query(
+            "select _wstart, _wend, count(*) "
+            "from ntb1 state_window(case when c_int > 1 then 1 else 0 end, "
+            "case when c_bool then 1 else 0 end)",
+            show=True,
+        )
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 2, 2)
+        tdSql.checkData(1, 2, 1)
+        tdSql.checkData(2, 2, 2)
+        tdSql.checkData(3, 2, 1)
+        tdSql.checkData(4, 2, 4)
+
+        # EX-3: column + expression (reversed order, expr at position 1)
+        # STATE_WINDOW(c_bool, CASE WHEN c_int > 1 THEN 1 ELSE 0 END)
+        # Row 0: (T, 0), Row 1: (T, 0), Row 2: (F, 0), Row 3: (F, 1),
+        # Row 4: (F, 1), Row 5: (T, 1), Row 6: (T, 0), Row 7: (T, 0),
+        # Row 8: (T, 0), Row 9: (T, 0)
+        # Windows: (T,0)x2 | (F,0)x1 | (F,1)x2 | (T,1)x1 | (T,0)x4
+        tdSql.query(
+            "select _wstart, _wend, count(*) "
+            "from ntb1 state_window(c_bool, case when c_int > 1 then 1 else 0 end)",
+            show=True,
+        )
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 2, 2)
+        tdSql.checkData(1, 2, 1)
+        tdSql.checkData(2, 2, 2)
+        tdSql.checkData(3, 2, 1)
+        tdSql.checkData(4, 2, 4)
+
+        print("EX-1~EX-3: multi-col expr query ...... [passed]")
+
     def do_stream_compute_multi_col(self):
         # S-1: stream compute with multi-col state_window (count_window trigger + inner state_window)
         tdSql.execute("use test_sw_mc")
@@ -562,3 +632,102 @@ class TestStateWindowMultiCol:
         stream.checkResults()
 
         print("S-3: stream trigger multi-col zeroth . [passed]")
+
+    def do_stream_trigger_multi_col_expr(self):
+        # S-4: stream trigger with expression + column mix in state_window
+        # This specifically tests the fix for multi-key expr slotId == -1 path
+        tdSql.execute("use test_sw_mc")
+
+        tdSql.execute("create table if not exists ntb_ste (ts timestamp, c1 int, c2 bool, v double)")
+
+        # expr + column: state_window(CASE WHEN c1 > 1 THEN 1 ELSE 0 END, c2)
+        streams: list[StreamItem] = []
+        stream = StreamItem(
+            id=4,
+            stream='''create stream smc_expr0
+                        state_window(case when c1 > 1 then 1 else 0 end, c2)
+                        extend(0) from ntb_ste
+                        stream_options(fill_history) into res_smc_expr0 as
+                        select _twstart wstart, _twduration wdur, _twend wend,
+                        count(*) cnt, sum(v) sum_v
+                        from ntb_ste where ts >= _twstart and ts <= _twend''',
+            res_query='''select wstart, wdur, wend, cnt, sum_v from res_smc_expr0
+                        where wstart <= "2025-10-05 10:00:09.000"''',
+            exp_query='''select _wstart wstart, _wduration wdur, _wend wend, cnt, sum_v from (
+                        select _wstart, _wduration, _wend, count(*) cnt, sum(v) sum_v
+                        from ntb_ste
+                        state_window(case when c1 > 1 then 1 else 0 end, c2)
+                        ) t where _wstart <= "2025-10-05 10:00:09.000"''',
+        )
+        streams.append(stream)
+
+        # column + expr (reversed order)
+        stream = StreamItem(
+            id=5,
+            stream='''create stream smc_expr1
+                        state_window(c2, case when c1 > 1 then 1 else 0 end)
+                        extend(0) from ntb_ste
+                        stream_options(fill_history) into res_smc_expr1 as
+                        select _twstart wstart, _twduration wdur, _twend wend,
+                        count(*) cnt, sum(v) sum_v
+                        from ntb_ste where ts >= _twstart and ts <= _twend''',
+            res_query='''select wstart, wdur, wend, cnt, sum_v from res_smc_expr1
+                        where wstart <= "2025-10-05 10:00:09.000"''',
+            exp_query='''select _wstart wstart, _wduration wdur, _wend wend, cnt, sum_v from (
+                        select _wstart, _wduration, _wend, count(*) cnt, sum(v) sum_v
+                        from ntb_ste
+                        state_window(c2, case when c1 > 1 then 1 else 0 end)
+                        ) t where _wstart <= "2025-10-05 10:00:09.000"''',
+        )
+        streams.append(stream)
+
+        # two expressions
+        stream = StreamItem(
+            id=6,
+            stream='''create stream smc_expr2
+                        state_window(case when c1 > 1 then 1 else 0 end,
+                                     case when c2 then 1 else 0 end)
+                        extend(0) from ntb_ste
+                        stream_options(fill_history) into res_smc_expr2 as
+                        select _twstart wstart, _twduration wdur, _twend wend,
+                        count(*) cnt, sum(v) sum_v
+                        from ntb_ste where ts >= _twstart and ts <= _twend''',
+            res_query='''select wstart, wdur, wend, cnt, sum_v from res_smc_expr2
+                        where wstart <= "2025-10-05 10:00:09.000"''',
+            exp_query='''select _wstart wstart, _wduration wdur, _wend wend, cnt, sum_v from (
+                        select _wstart, _wduration, _wend, count(*) cnt, sum(v) sum_v
+                        from ntb_ste
+                        state_window(case when c1 > 1 then 1 else 0 end,
+                                     case when c2 then 1 else 0 end)
+                        ) t where _wstart <= "2025-10-05 10:00:09.000"''',
+        )
+        streams.append(stream)
+
+        for s in streams:
+            s.createStream()
+        tdStream.checkStreamStatus('''smc_expr0''')
+        tdStream.checkStreamStatus('''smc_expr1''')
+        tdStream.checkStreamStatus('''smc_expr2''')
+
+        # Insert data with patterns that exercise expression-based state grouping:
+        # c1: 1,1,1,2,2,2,1,1,1,1  → expr(c1>1): 0,0,0,1,1,1,0,0,0,0
+        # c2: T,T,F,F,F,T,T,T,T,T
+        # (expr,c2): (0,T)(0,T)(0,F)(1,F)(1,F)(1,T)(0,T)(0,T)(0,T)(0,T)
+        # Windows: (0,T)x2 | (0,F)x1 | (1,F)x2 | (1,T)x1 | (0,T)x4
+        tdSql.execute("insert into ntb_ste values('2025-10-05 10:00:00', 1, true,  10.0)")
+        tdSql.execute("insert into ntb_ste values('2025-10-05 10:00:01', 1, true,  20.0)")
+        tdSql.execute("insert into ntb_ste values('2025-10-05 10:00:02', 1, false, 30.0)")
+        tdSql.execute("insert into ntb_ste values('2025-10-05 10:00:03', 2, false, 40.0)")
+        tdSql.execute("insert into ntb_ste values('2025-10-05 10:00:04', 2, false, 50.0)")
+        tdSql.execute("insert into ntb_ste values('2025-10-05 10:00:05', 2, true,  60.0)")
+        tdSql.execute("insert into ntb_ste values('2025-10-05 10:00:06', 1, true,  70.0)")
+        tdSql.execute("insert into ntb_ste values('2025-10-05 10:00:07', 1, true,  80.0)")
+        tdSql.execute("insert into ntb_ste values('2025-10-05 10:00:08', 1, true,  90.0)")
+        tdSql.execute("insert into ntb_ste values('2025-10-05 10:00:09', 1, true, 100.0)")
+        # sentinel row to close the last window
+        tdSql.execute("insert into ntb_ste values('2025-10-06 10:00:00', 9, false, 999.0)")
+
+        for s in streams:
+            s.checkResults()
+
+        print("S-4: stream trigger multi-col expr ... [passed]")
