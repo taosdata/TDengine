@@ -361,8 +361,12 @@ int32_t doProjectOperation(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
       code = blockDataEnsureCapacity(pInfo->pRes, pInfo->pRes->info.rows + pBlock->info.rows);
       QUERY_CHECK_CODE(code, lino, _end);
 
+      gTaskScalarExtra.pTaskInfo    = pOperator->pTaskInfo;
+      gTaskScalarExtra.isTaskKilled = isTaskKilled;
       code = projectApplyFunctions(pSup->pExprInfo, pInfo->pRes, pBlock, pSup->pCtx, pSup->numOfExprs,
                                    pProjectInfo->pPseudoColInfo, GET_STM_RTINFO(pOperator->pTaskInfo));
+      gTaskScalarExtra.pTaskInfo    = NULL;
+      gTaskScalarExtra.isTaskKilled = NULL;
       QUERY_CHECK_CODE(code, lino, _end);
 
       status = doIngroupLimitOffset(pLimitInfo, pBlock->info.id.groupId, pInfo->pRes, pOperator);
@@ -802,7 +806,11 @@ int32_t doGenerateSourceData(SOperatorInfo* pOperator) {
         SScalarParam dest = {.columnData = &idata};
         gTaskScalarExtra.pStreamInfo = GET_STM_RTINFO(pOperator->pTaskInfo);
         gTaskScalarExtra.pStreamRange = NULL;
+        gTaskScalarExtra.pTaskInfo    = pOperator->pTaskInfo;
+        gTaskScalarExtra.isTaskKilled = isTaskKilled;
         code = scalarCalculate((SNode*)pExpr[k].pExpr->_function.pFunctNode, pBlockList, &dest, &gTaskScalarExtra);
+        gTaskScalarExtra.pTaskInfo    = NULL;
+        gTaskScalarExtra.isTaskKilled = NULL;
         if (code != TSDB_CODE_SUCCESS) {
           taosArrayDestroy(pBlockList);
           return code;

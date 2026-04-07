@@ -367,6 +367,8 @@ bool fmIsDBUsageFunc(int32_t funcId) {
 
 bool fmIsProcessByRowFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_PROCESS_BY_ROW); }
 
+bool fmIsVolatileFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_VOLATILE_FUNC); }
+
 bool fmIsIgnoreNullFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_IGNORE_NULL_FUNC); }
 
 void fmFuncMgtDestroy() {

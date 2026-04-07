@@ -24,14 +24,17 @@ extern "C" {
 #include "querynodes.h"
 
 typedef int32_t (*sclFetchFromRemote)(void*, int32_t, SNode*);
+typedef bool    (*sclIsTaskKilled)(void*);
 
 typedef struct SFilterInfo SFilterInfo;
 
 typedef struct SScalarExtraInfo {
-  void*   pStreamInfo;
-  void*   pStreamRange;
-  void*   pSubJobCtx;
+  void*              pStreamInfo;
+  void*              pStreamRange;
+  void*              pSubJobCtx;
   sclFetchFromRemote fp;
+  void*              pTaskInfo;    // opaque task handle for kill check
+  sclIsTaskKilled    isTaskKilled; // points to executor's isTaskKilled()
 } SScalarExtraInfo;
 
 int32_t scalarGetOperatorResultType(SOperatorNode *pOp);

@@ -4496,7 +4496,17 @@ int32_t sleepFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOut
   if (sleepSec < 0) {
     result = 1;
   } else if (sleepSec > 0) {
-    taosMsleep((int32_t)(sleepSec * 1000));
+    int64_t totalMs = (int64_t)(sleepSec * 1000);
+    int64_t elapsed = 0;
+    while (elapsed < totalMs) {
+      if (gTaskScalarExtra.isTaskKilled && gTaskScalarExtra.isTaskKilled(gTaskScalarExtra.pTaskInfo)) {
+        result = 1;
+        break;
+      }
+      int32_t chunk = (int32_t)TMIN(100LL, totalMs - elapsed);
+      taosMsleep(chunk);
+      elapsed += chunk;
+    }
   }
   colDataSetInt32(pOutput->columnData, 0, &result);
   pOutput->numOfRows = 1;

@@ -353,6 +353,7 @@ bool fmIsConstantResFunc(SFunctionNode* pFunc);
 bool fmIsSkipScanCheckFunc(int32_t funcId);
 bool fmIsPrimaryKeyFunc(int32_t funcId);
 bool fmIsProcessByRowFunc(int32_t funcId);
+bool fmIsVolatileFunc(int32_t funcId);
 bool fmisSelectGroupConstValueFunc(int32_t funcId);
 bool fmIsElapsedFunc(int32_t funcId);
 bool fmIsDBUsageFunc(int32_t funcId);

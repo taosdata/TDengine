@@ -12,6 +12,9 @@
 # -*- coding: utf-8 -*-
 
 import time
+import threading
+
+import taos
 
 from new_test_framework.utils import tdLog, tdSql
 
@@ -261,3 +264,93 @@ class TestSleep:
         tdSql.query("SELECT SLEEP(0) = 0")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 1)
+
+    def test_sleep_killed(self):
+        """Fun: sleep() interrupted by KILL QUERY returns 1
+
+        1. SELECT SLEEP(30) constant — runs server-side (not folded, VOLATILE_FUNC)
+        2. SELECT SLEEP(v) FROM t   — column ref, runs server-side
+        Both should appear in SHOW QUERIES and return 1 when killed.
+
+        Catalog:
+            - Functions:System
+
+        Since: v3.4.0.9
+
+        Labels: common
+
+        Jira: None
+
+        History:
+            - 2026-4-7 Created
+
+        """
+        kill_db = "test_sleep_kill"
+        tdSql.execute(f"DROP DATABASE IF EXISTS {kill_db}")
+        tdSql.execute(f"CREATE DATABASE {kill_db}")
+        tdSql.execute(f"USE {kill_db}")
+        tdSql.execute("CREATE STABLE st (ts TIMESTAMP, v INT) TAGS (t INT)")
+        tdSql.execute("CREATE TABLE t1 USING st TAGS(1)")
+        tdSql.execute("INSERT INTO t1 VALUES(NOW, 30)")
+
+        for sql, marker in [
+            ("SELECT SLEEP(30)", "sleep(30)"),
+            (f"SELECT SLEEP(v) FROM {kill_db}.t1", "sleep(v)"),
+        ]:
+            result_holder = {}
+            error_holder = {}
+
+            def run_sleep(s=sql):
+                try:
+                    conn = taos.connect(config=self.cfg_path)
+                    cursor = conn.cursor()
+                    cursor.execute(s)
+                    rows = cursor.fetchall()
+                    result_holder["value"] = rows[0][0] if rows else None
+                    cursor.close()
+                    conn.close()
+                except Exception as e:
+                    error_holder["err"] = str(e)
+
+            t = threading.Thread(target=run_sleep)
+            t.start()
+
+            # wait for the query to appear in SHOW QUERIES (up to 5s)
+            query_id = None
+            for _ in range(50):
+                time.sleep(0.1)
+                tdSql.query("SHOW QUERIES")
+                for i in range(tdSql.queryRows):
+                    if marker in str(tdSql.getData(i, 13)).lower():
+                        query_id = tdSql.getData(i, 0)
+                        break
+                if query_id:
+                    break
+
+            if query_id is None:
+                t.join(timeout=5)
+                tdSql.execute(f"DROP DATABASE IF EXISTS {kill_db}")
+                tdLog.exit(f"{marker} did not appear in SHOW QUERIES within 5s")
+
+            tdLog.info(f"killing query id {query_id} for: {marker}")
+            tdSql.execute(f"KILL QUERY '{query_id}'")
+
+            t.join(timeout=6)
+            if t.is_alive():
+                tdSql.execute(f"DROP DATABASE IF EXISTS {kill_db}")
+                tdLog.exit(f"{marker} was not killed within 6s after KILL QUERY")
+
+            if "err" in error_holder:
+                if "killed" in error_holder["err"].lower() or "cancel" in error_holder["err"].lower():
+                    tdLog.info(f"{marker} killed via exception: {error_holder['err']}, passed")
+                    continue
+                tdSql.execute(f"DROP DATABASE IF EXISTS {kill_db}")
+                tdLog.exit(f"{marker} thread raised unexpected error: {error_holder['err']}")
+
+            if result_holder.get("value") != 1:
+                tdSql.execute(f"DROP DATABASE IF EXISTS {kill_db}")
+                tdLog.exit(f"{marker} killed query returned {result_holder.get('value')}, expected 1")
+
+            tdLog.info(f"{marker} killed, returned {result_holder['value']}, passed")
+
+        tdSql.execute(f"DROP DATABASE IF EXISTS {kill_db}")

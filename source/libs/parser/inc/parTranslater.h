@@ -46,6 +46,7 @@ typedef struct STranslateContext {
   bool             isCorrelatedSubQ;
   bool             hasNonLocalSubQ;
   bool             hasLocalSubQ;
+  bool             hasVolatileFunc;  // projection contains a volatile function (e.g. SLEEP)
   bool             stableQuery;
   bool             showRewrite;
   bool             withOpt;
