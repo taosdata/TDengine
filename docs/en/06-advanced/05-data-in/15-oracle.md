@@ -1,6 +1,5 @@
 ---
 title: Oracle Database
-slug: /advanced-features/data-connectors/oracle-database
 ---
 
 import Enterprise from '../../assets/resources/_enterprise.mdx';

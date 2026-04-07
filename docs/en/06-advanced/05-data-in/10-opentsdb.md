@@ -1,6 +1,5 @@
 ---
 title: OpenTSDB
-slug: /advanced-features/data-connectors/opentsdb
 ---
 
 import Enterprise from '../../assets/resources/_enterprise.mdx';

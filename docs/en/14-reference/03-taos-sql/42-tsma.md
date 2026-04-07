@@ -1,7 +1,6 @@
 ---
 sidebar_label: TSMAs
 title: Time-Range Small Materialized Aggregates (TSMAs)
-slug: /tdengine-reference/sql-manual/manage-tsmas
 ---
 
 In scenarios with large amounts of data, it is often necessary to query summary results for a certain period. As historical data increases or the time range expands, query time will also increase accordingly. By using materialized aggregation, the calculation results can be stored in advance, allowing subsequent queries to directly read the aggregated results without scanning the original data, such as the SMA (Small Materialized Aggregates) information within the current block.
