@@ -8,8 +8,10 @@ from taosanalytics.log import AppLogger
 from taosanalytics.service_registry import loader
 
 
+MODEL_NAME_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$")
+
+
 def _is_valid_model_name(model_name):
-    MODEL_NAME_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$")
     # Allow a conservative filename subset and block traversal-like names.
     return isinstance(model_name, str) and model_name not in {".", ".."} and bool(MODEL_NAME_PATTERN.fullmatch(model_name))
 
