@@ -149,11 +149,10 @@ def do_handle_undeploy_model(request):
 
     try:
         if Path(str(full_path)).exists():
-            os.remove(full_path)
-            AppLogger.info("Model %s configuration file is removed successfully", model_name)
-
             loader.unregister_dynamic_service(model_name)
 
+            os.remove(full_path)
+            AppLogger.info("Model %s configuration file is removed successfully", model_name)
             return {
                 'status': 'success',
                 'message': f"Model {model_name} undeployed successfully"
