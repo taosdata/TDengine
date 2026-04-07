@@ -971,8 +971,7 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
     }
     bool         finished = false;
     SSDataBlock* pBlock = NULL;
-    uint64_t     ts = 0;
-    STREAM_CHECK_RET_GOTO(streamExecuteTask(pExec->pExecutor, &pBlock, &ts, &finished));
+    STREAM_CHECK_RET_GOTO(streamExecuteTask(pExec->pExecutor, &pBlock, &finished));
     printDataBlock(pBlock, __func__, "streamExecuteTask block", pTask->task.streamId);
     if (pTask->topTask) {
       if (pExec->runtimeInfo.funcInfo.withExternalWindow) {

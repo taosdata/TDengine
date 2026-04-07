@@ -133,7 +133,7 @@ def main():
     parser.add_argument(
         '--port',
         type=int,
-        default=6061,
+        default=6065,
         help='Port the server listens on (default: 6061).',
     )
 

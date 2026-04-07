@@ -1049,7 +1049,10 @@ class Test_IDMP_Meters:
     #
     def verify_stream8(self):
         # check
-        tdSql.error("select * from test.result_stream8")
+        tdSql.query(f'select * from information_schema.ins_tables where db_name="test" and table_name="result_stream8";')
+        res_tbl_num = tdSql.getRows()
+        if res_tbl_num != 0:
+                tdLog.exit(f"stream8 fail to exit[res_tbl_num: {res_tbl_num}]")
         print("verify stream8 ................................. successfully.")
 
         # stop stream

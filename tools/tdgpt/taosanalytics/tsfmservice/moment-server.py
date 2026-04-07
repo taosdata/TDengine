@@ -380,7 +380,7 @@ def main():
     parser.add_argument(
         '--port',
         type=int,
-        default=6062,
+        default=6066,
         help='Port the server listens on (default: 6062).',
     )
 

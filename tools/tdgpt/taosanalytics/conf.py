@@ -200,3 +200,17 @@ class Configure:
             conf_vars.pop('bind')
 
         self._conf.update(conf_vars)
+
+        # Auto-derive model service URLs from models configuration.
+        # This makes models[x]["port"] + models[x]["endpoint"] the single
+        # source of truth; no need to maintain separate URL constants.
+        models = self._conf.get('models')
+        if models:
+            for model_name, model_cfg in models.items():
+                port = model_cfg.get('port')
+                endpoint = model_cfg.get('endpoint', '/ds_predict')
+                if port:
+                    # Use algo_name as config key if specified (for SQL-visible names
+                    # like tdtsfm_1, timemoe-fc), otherwise use the model key.
+                    conf_key = model_cfg.get('algo_name', model_name)
+                    self._conf[conf_key] = f'http://127.0.0.1:{port}{endpoint}'

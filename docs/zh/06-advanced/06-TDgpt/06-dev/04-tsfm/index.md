@@ -66,7 +66,7 @@ def time_moe():
 ```Python
     app.run(
             host='0.0.0.0',
-            port=6037,
+            port=6062,
             threaded=True,  
             debug=False     
         )
@@ -98,7 +98,7 @@ export HF_ENDPOINT=https://hf-mirror.com
 
 ```text
 Running on all addresses (0.0.0.0)
-Running on http://127.0.0.1:6037
+Running on http://127.0.0.1:6062
 ```
 
 # 检查服务状态
@@ -106,7 +106,7 @@ Running on http://127.0.0.1:6037
 使用 Shell 命令可以验证服务是否正常
 
 ```bash
-curl 127.0.0.1:6037/ds_predict
+curl 127.0.0.1:6062/ds_predict
 ```
 
 如果看到如下返回信息表明服务正常，自此部署 Time-MoE 完成。
@@ -140,7 +140,7 @@ class _TimeMOEService(TsfmBaseService):
 
         # 如果  taosanode.ini 配置文件中没有设置服务 URL 地址，这里使用默认地址
         if  self.service_host is None:
-            self.service_host = 'http://127.0.0.1:6037/timemoe'
+            self.service_host = 'http://127.0.0.1:6062/timemoe'
 
     def execute(self):
         # 检查是否支持历史协变量分析，如果不支持，触发异常。time-moe 不支持历史协变量分析，因此触发异常
@@ -161,7 +161,7 @@ TDgpt 已经内置 Time-MoE 模型的支持，能够使用 Time-MoE 的能力进
 
 ```ini
 [tsfm-service]
-timemoe-fc = http://127.0.0.1:6037/ds_predict
+timemoe-fc = http://127.0.0.1:6062/ds_predict
 ```
 
 添加服务的地址。此时的 `key` 是模型的名称，此时即为 `timemoe-fc`，`value` 是 Time-MoE 本地服务的地址：`http://127.0.0.1:5001/ds_predict`。
@@ -229,7 +229,7 @@ pip install flask
 def main():
     app.run(
         host='0.0.0.0',
-        port=6038,
+        port=6063,
         threaded=True,
         debug=False
     )
@@ -300,7 +300,7 @@ nohup python moment-server.py > service_output.out 2>&1 &
 
 ### 启动脚本
 
-`start-model.sh` 脚本用于启动指定或全部的时序基础模型服务。该脚本会根据用户指定的模型名称，加载对应的`Python`虚拟环境，并启动相应的模型服务脚本。
+`start-model.sh` 脚本用于启动指定或全部的时序基础模型服务。当前脚本本身只保留 Linux 入口命令，内部会统一委托 `taosanode_service.py` 读取 `taosanode.config.py`，再根据模型名称选择对应的 `Python` 虚拟环境并启动模型服务。入口脚本本身固定使用安装目录下主 `venv` 的 Python，不再回退到系统 `PATH`。
 
 使用`root` 安装完成后，您可以在 `<tdgpt根目录>/bin/` 目录下找到该脚本，我们会同步创建软链接为 `/usr/bin/start-model`，方便全局使用。
 
@@ -317,7 +317,7 @@ nohup python moment-server.py > service_output.out 2>&1 &
 **选项说明**：
 
 ```bash
-  -c 配置文件    指定配置文件（默认：/etc/taos/taosanode.ini）
+  -c 配置文件    指定配置文件（默认：`<install_dir>/cfg/taosanode.config.py`，找不到时回退 `/etc/taos/taosanode.config.py`）
   -h, --help     显示本帮助信息
 ```
 
@@ -325,11 +325,11 @@ nohup python moment-server.py > service_output.out 2>&1 &
 
 1. 在后台启动全部的模型服务：`/usr/bin/start-model all`
 2. 单独启动某个模型服务，例如：`/usr/bin/start-model timesfm`
-3. 支持通过 `-c` 参数指定自定义配置文件，未指定时默认使用`/etc/taos/taosanode.ini` 作为配置文件，例如：`/usr/bin/start-model -c /path/to/custom_taosanode.ini`
+3. 支持通过 `-c` 参数指定自定义配置文件，未指定时默认优先使用 `<install_dir>/cfg/taosanode.config.py`，找不到时回退 `/etc/taos/taosanode.config.py`，例如：`/usr/bin/start-model -c /path/to/custom_taosanode.config.py`
 
 ### 停止脚本
 
-`stop-model.sh`用于一键停止指定或全部时序基础模型服务。脚本会自动查找并终止对应模型的`Python`进程，使用方式与启动脚本一致，便于批量运维。
+`stop-model.sh`用于一键停止指定或全部时序基础模型服务。当前脚本同样保留为 Linux 入口命令，内部统一委托 `taosanode_service.py` 执行停止逻辑，使用方式与启动脚本一致，便于批量运维。
 
 **使用示例说明**：
 
