@@ -883,8 +883,10 @@ SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
 
   pMnode->checkTime = (int64_t)taosGetLocalTimezoneOffset(&code);
   if (code != 0) {
+    TAOS_UNUSED(taosThreadRwlockDestroy(&pMnode->lock));
     taosMemoryFree(pMnode);
-    mError("failed to get local timezone offset, since %s", tstrerror(code));
+    mError("failed to open mnode in step 3, get local timezone offset, "
+           "since %s", tstrerror(code));
     terrno = code;
     return NULL;
   }
