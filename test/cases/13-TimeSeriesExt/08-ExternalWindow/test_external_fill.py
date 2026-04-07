@@ -79,7 +79,7 @@ class TestExternalFill:
         tdSql.checkData(0, 1, 2)
         tdSql.checkData(0, 2, 22)
         tdSql.checkData(1, 0, self.t0 + 600000)
-        tdSql.checkData(1, 1, 0)
+        tdSql.checkData(1, 1, None)
         tdSql.checkData(1, 2, None)
         tdSql.checkData(2, 0, self.t0 + 1200000)
         tdSql.checkData(2, 1, 1)
@@ -98,7 +98,7 @@ class TestExternalFill:
         tdSql.checkRows(4)
         for row in range(4):
             tdSql.checkData(row, 0, self.t0 + row * 600000)
-            tdSql.checkData(row, 1, 0)
+            tdSql.checkData(row, 1, None)
             tdSql.checkData(row, 2, None)
 
     def _check_fill_value_basic(self):

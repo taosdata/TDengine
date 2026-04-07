@@ -2544,19 +2544,6 @@ static int32_t extWinAppendAggFilledRow(SOperatorInfo* pOperator, SExternalWindo
       }
     }
 
-    if (pExtW->hasCountFunc) {
-      for (int32_t j = 0; j < numOfExprs; ++j) {
-        if (fmIsCountLikeFunc(pCtx[j].functionId)) {
-          int32_t slotId = pExprInfo[j].base.resSchema.slotId;
-          SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, slotId);
-          if (pColInfo != NULL) {
-            int64_t zero = 0;
-            TAOS_CHECK_EXIT(colDataSetVal(pColInfo, pBlock->info.rows, (const char*)&zero, false));
-          }
-        }
-      }
-    }
-
     if (pExtW->fillMode == FILL_MODE_VALUE || pExtW->fillMode == FILL_MODE_VALUE_F) {
       TAOS_CHECK_EXIT(extWinApplyValueFill(pExtW, pBlock, pBlock->info.rows, 1));
     }
@@ -2677,22 +2664,6 @@ static int32_t extWinAppendAggFilledRow(SOperatorInfo* pOperator, SExternalWindo
   int32_t startRow = pBlock->info.rows;
   updateTimeWindowInfo(&pExtW->twAggSup.timeWindowData, &pTmpRow->win, 0);
   TAOS_CHECK_EXIT(copyResultrowToDataBlock(pExprInfo, numOfExprs, pTmpRow, pCtx, pBlock, rowEntryOffset, pTaskInfo));
-
-  // For empty windows (no real source data), normalize count-like functions to 0
-  if (pTmpRow->nOrigRows == 0 && pExtW->hasCountFunc) {
-    for (int32_t j = 0; j < numOfExprs; ++j) {
-      if (fmIsCountLikeFunc(pCtx[j].functionId)) {
-        int32_t slotId = pExprInfo[j].base.resSchema.slotId;
-        SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, slotId);
-        if (pColInfo != NULL) {
-          int64_t zero = 0;
-          for (int32_t row = 0; row < pTmpRow->numOfRows; ++row) {
-            TAOS_CHECK_EXIT(colDataSetVal(pColInfo, startRow + row, (const char*)&zero, false));
-          }
-        }
-      }
-    }
-  }
 
   if (pExtW->fillMode == FILL_MODE_VALUE || pExtW->fillMode == FILL_MODE_VALUE_F) {
     TAOS_CHECK_EXIT(extWinApplyValueFill(pExtW, pBlock, startRow, pTmpRow->numOfRows));
@@ -3476,7 +3447,7 @@ static int32_t extWinAggOutputSingleCGrpRes(SOperatorInfo* pOperator, SExternalW
         continue;
       }
 
-      SResultRow* pFillRow = pRow;
+      SResultRow* pFillRow = NULL;
       if (pExtW->fillMode == FILL_MODE_PREV) {
         pFillRow = extWinFindAdjacentFillRow(pExtW, pCCtx, pCCtx->outWinIdx, false);
       } else if (pExtW->fillMode == FILL_MODE_NEXT) {
