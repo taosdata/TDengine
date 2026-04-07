@@ -2146,6 +2146,10 @@ int32_t tDeserializeSVStbRefDbsReq(void* buf, int32_t bufLen, SVStbRefDbsReq* pR
 typedef struct {
   int32_t vgId;
   SArray* pDbs;  // SArray<char* (db name)>
+  // Resolved col-ref info synthesized in catalog for local planner/parser consumption only.
+  // Not serialized in vnode wire format.
+  int32_t      numOfColRefs;
+  SRefColInfo* pColRefCols;  // Array[numOfColRefs]
   // Tag ref info synthesized from first child (local only, not serialized in vnode wire format)
   int32_t      numOfTagRefs;
   SRefColInfo* pTagRefCols;  // Array[numOfTagRefs]

@@ -31,8 +31,6 @@
 #include "tdataformat.h"
 #include "dynqueryctrl.h"
 
-#define DYN_VTB_REF_MAX_DEPTH 32
-
 typedef struct SDynResolvedColRef {
   char    dbName[TSDB_DB_NAME_LEN];
   char    tbName[TSDB_TABLE_NAME_LEN];
@@ -3155,7 +3153,7 @@ static int32_t dynBuildResolvedColRefsFromEdgeMap(SOperatorInfo* pOperator, SHas
     QUERY_CHECK_NULL(pRootRef, code, line, _return, terrno);
     currentRef = pRootRef->colRef;
 
-    for (int32_t depth = 0; depth < DYN_VTB_REF_MAX_DEPTH; ++depth) {
+    for (int32_t depth = 0; depth < TSDB_MAX_VTABLE_REF_DEPTH; ++depth) {
       SDynRefKey* pNextRef = (SDynRefKey*)taosHashGet(pEdgeMap, currentRef, strlen(currentRef));
       int32_t     vgId = 0;
 
@@ -3287,7 +3285,7 @@ static int32_t dynResolvePendingColRefsBySysScan(SOperatorInfo* pOperator, SOper
   QUERY_CHECK_NULL(pEdgeMap, code, line, _return, terrno);
 
   for (int32_t depth = 0; taosHashGetSize(pPendingMap) > 0; ++depth) {
-    if (depth >= DYN_VTB_REF_MAX_DEPTH) {
+    if (depth >= TSDB_MAX_VTABLE_REF_DEPTH) {
       code = TSDB_CODE_VTABLE_REF_DEPTH_EXCEEDED;
       QUERY_CHECK_CODE(code, line, _return);
     }

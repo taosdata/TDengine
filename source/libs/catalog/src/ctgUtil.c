@@ -1119,6 +1119,8 @@ void ctgFreeTaskCtx(SCtgTask* pTask) {
       }
       taosHashCleanup(taskCtx->pFinalDbs);
       taskCtx->pFinalDbs = NULL;
+      taosMemoryFreeClear(taskCtx->pColRefCols);
+      taskCtx->numOfColRefs = 0;
       taosMemoryFreeClear(taskCtx->pTagRefCols);
       taskCtx->numOfTagRefs = 0;
       if (taskCtx->pResList) {

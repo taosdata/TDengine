@@ -817,6 +817,36 @@ static int32_t getTargetMeta(STranslateContext* pCxt, const SName* pName, STable
   if (TSDB_CODE_SUCCESS == code) {
     code = getTargetMetaImpl(pParCxt, pCxt->pMetaCache, pName, pMeta, couldBeView);
   }
+  if (TSDB_CODE_SUCCESS == code && NULL != pMeta && NULL != *pMeta && (*pMeta)->virtualStb &&
+      ((*pMeta)->tableType == TSDB_VIRTUAL_CHILD_TABLE || (*pMeta)->tableType == TSDB_VIRTUAL_NORMAL_TABLE) &&
+      (*pMeta)->numOfColRefs > 0 && (*pMeta)->colRef) {
+    SArray* pVStbRefs = NULL;
+    code = getVStbRefDbsFromCache(pCxt->pMetaCache, pName, &pVStbRefs);
+    if (TSDB_CODE_SUCCESS == code && pVStbRefs && taosArrayGetSize(pVStbRefs) > 0) {
+      SVStbRefDbsRsp* pRsp = taosArrayGet(pVStbRefs, 0);
+      if (pRsp && pRsp->numOfColRefs > 0 && pRsp->pColRefCols) {
+        for (int32_t i = 0; i < pRsp->numOfColRefs; ++i) {
+          SRefColInfo* pResolved = &pRsp->pColRefCols[i];
+          if ('\0' == pResolved->refDbName[0] || '\0' == pResolved->refTableName[0] ||
+              '\0' == pResolved->refColName[0]) {
+            continue;
+          }
+
+          for (int32_t j = 0; j < (*pMeta)->numOfColRefs; ++j) {
+            if (!(*pMeta)->colRef[j].hasRef || (*pMeta)->colRef[j].id != pResolved->colId) {
+              continue;
+            }
+
+            tstrncpy((*pMeta)->colRef[j].refDbName, pResolved->refDbName, sizeof((*pMeta)->colRef[j].refDbName));
+            tstrncpy((*pMeta)->colRef[j].refTableName, pResolved->refTableName,
+                     sizeof((*pMeta)->colRef[j].refTableName));
+            tstrncpy((*pMeta)->colRef[j].refColName, pResolved->refColName, sizeof((*pMeta)->colRef[j].refColName));
+            break;
+          }
+        }
+      }
+    }
+  }
   if (TSDB_CODE_SUCCESS != code && TSDB_CODE_PAR_TABLE_NOT_EXIST != code) {
     parserError("QID:0x%" PRIx64 ", catalogGetTableMeta error, code:%s, dbName:%s, tbName:%s",
                 pCxt->pParseCxt->requestId, tstrerror(code), pName->dbname, pName->tname);
@@ -869,6 +899,36 @@ static int32_t refreshGetTableMeta(STranslateContext* pCxt, const char* pDbName,
                              .mgmtEps = pParCxt->mgmtEpSet};
 
     code = catalogRefreshGetTableMeta(pParCxt->pCatalog, &conn, &name, pMeta, false);
+  }
+  if (TSDB_CODE_SUCCESS == code && NULL != pMeta && NULL != *pMeta && (*pMeta)->virtualStb &&
+      ((*pMeta)->tableType == TSDB_VIRTUAL_CHILD_TABLE || (*pMeta)->tableType == TSDB_VIRTUAL_NORMAL_TABLE) &&
+      (*pMeta)->numOfColRefs > 0 && (*pMeta)->colRef) {
+    SArray* pVStbRefs = NULL;
+    code = getVStbRefDbsFromCache(pCxt->pMetaCache, &name, &pVStbRefs);
+    if (TSDB_CODE_SUCCESS == code && pVStbRefs && taosArrayGetSize(pVStbRefs) > 0) {
+      SVStbRefDbsRsp* pRsp = taosArrayGet(pVStbRefs, 0);
+      if (pRsp && pRsp->numOfColRefs > 0 && pRsp->pColRefCols) {
+        for (int32_t i = 0; i < pRsp->numOfColRefs; ++i) {
+          SRefColInfo* pResolved = &pRsp->pColRefCols[i];
+          if ('\0' == pResolved->refDbName[0] || '\0' == pResolved->refTableName[0] ||
+              '\0' == pResolved->refColName[0]) {
+            continue;
+          }
+
+          for (int32_t j = 0; j < (*pMeta)->numOfColRefs; ++j) {
+            if (!(*pMeta)->colRef[j].hasRef || (*pMeta)->colRef[j].id != pResolved->colId) {
+              continue;
+            }
+
+            tstrncpy((*pMeta)->colRef[j].refDbName, pResolved->refDbName, sizeof((*pMeta)->colRef[j].refDbName));
+            tstrncpy((*pMeta)->colRef[j].refTableName, pResolved->refTableName,
+                     sizeof((*pMeta)->colRef[j].refTableName));
+            tstrncpy((*pMeta)->colRef[j].refColName, pResolved->refColName, sizeof((*pMeta)->colRef[j].refColName));
+            break;
+          }
+        }
+      }
+    }
   }
   if (TSDB_CODE_SUCCESS != code) {
     parserError("QID:0x%" PRIx64 ", catalogRefreshGetTableMeta error, code:%s, dbName:%s, tbName:%s",
@@ -6901,6 +6961,44 @@ _return:
   return code;
 }
 
+static int32_t patchVirtualTableResolvedColRefs(STranslateContext* pCxt, const SName* pName, STableMeta* pMeta) {
+  if (NULL == pMeta || !hasRefCol(pMeta->tableType) || NULL == pMeta->colRef || pMeta->numOfColRefs <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SArray* pVStbRefs = NULL;
+  int32_t code = getVStbRefDbsFromCache(pCxt->pMetaCache, pName, &pVStbRefs);
+  if (TSDB_CODE_SUCCESS != code || NULL == pVStbRefs || taosArrayGetSize(pVStbRefs) <= 0) {
+    return code;
+  }
+
+  SVStbRefDbsRsp* pRsp = taosArrayGet(pVStbRefs, 0);
+  if (NULL == pRsp || pRsp->numOfColRefs <= 0 || NULL == pRsp->pColRefCols) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  for (int32_t i = 0; i < pRsp->numOfColRefs; ++i) {
+    SRefColInfo* pResolved = &pRsp->pColRefCols[i];
+
+    if ('\0' == pResolved->refDbName[0] || '\0' == pResolved->refTableName[0] || '\0' == pResolved->refColName[0]) {
+      continue;
+    }
+
+    for (int32_t j = 0; j < pMeta->numOfColRefs; ++j) {
+      if (!pMeta->colRef[j].hasRef || pMeta->colRef[j].id != pResolved->colId) {
+        continue;
+      }
+
+      tstrncpy(pMeta->colRef[j].refDbName, pResolved->refDbName, sizeof(pMeta->colRef[j].refDbName));
+      tstrncpy(pMeta->colRef[j].refTableName, pResolved->refTableName, sizeof(pMeta->colRef[j].refTableName));
+      tstrncpy(pMeta->colRef[j].refColName, pResolved->refColName, sizeof(pMeta->colRef[j].refColName));
+      break;
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateVirtualNormalChildTable(STranslateContext* pCxt, SNode** pTable, SName* pName,
                                                 SVirtualTableNode* pVTable) {
   int32_t         code = TSDB_CODE_SUCCESS;
@@ -6912,6 +7010,8 @@ static int32_t translateVirtualNormalChildTable(STranslateContext* pCxt, SNode**
 
   TSWAP(pVTable->pMeta, pRealTable->pMeta);
   TSWAP(pVTable->pVgroupList, pRealTable->pVgroupList);
+
+  PAR_ERR_JRET(patchVirtualTableResolvedColRefs(pCxt, pName, pMeta));
 
   pTableNameHash = taosHashInit(pMeta->numOfColRefs + pMeta->numOfTagRefs,
                                 taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
@@ -25002,7 +25102,7 @@ static int32_t checkColRef(STranslateContext* pCxt, const char* colName, const c
   const SSchema* pRefCol = NULL;
   int32_t        code = TSDB_CODE_SUCCESS;
 
-  PAR_ERR_JRET(getTableMeta(pCxt, pRefDbName, pRefTableName, &pRefTableMeta));
+  PAR_ERR_JRET(refreshGetTableMeta(pCxt, pRefDbName, pRefTableName, &pRefTableMeta));
 
   if (pRefTableMeta->tableInfo.precision != precision) {
     PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN_TYPE,

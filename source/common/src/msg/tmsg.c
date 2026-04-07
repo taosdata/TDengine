@@ -7854,6 +7854,8 @@ void tDestroySVStbRefDbsRsp(void *rsp) {
   SVStbRefDbsRsp *pRsp = (SVStbRefDbsRsp *)rsp;
 
   taosArrayDestroyP(pRsp->pDbs, NULL);
+  taosMemoryFreeClear(pRsp->pColRefCols);
+  pRsp->numOfColRefs = 0;
   taosMemoryFreeClear(pRsp->pTagRefCols);
   pRsp->numOfTagRefs = 0;
 }

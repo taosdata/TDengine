@@ -1162,6 +1162,183 @@ static int32_t findTagRefIndexByName(SColRef* pTagRef, SVirtualTableNode* pVirtu
   return -1;
 }
 
+static int32_t findColRefIndexByName(SColRef* pColRef, SVirtualTableNode* pVirtualTable, const char* colName) {
+  if (colName == NULL || colName[0] == '\0') {
+    return -1;
+  }
+
+  for (int32_t i = 0; i < pVirtualTable->pMeta->numOfColRefs; ++i) {
+    if (!pColRef[i].hasRef) {
+      continue;
+    }
+    if ((pColRef[i].colName[0] != '\0' && 0 == strcasecmp(pColRef[i].colName, colName)) ||
+        (pColRef[i].refColName[0] != '\0' && 0 == strcasecmp(pColRef[i].refColName, colName))) {
+      return i;
+    }
+  }
+
+  return -1;
+}
+
+typedef struct {
+  SVirtualTableNode* pVirtualTable;
+} SSyncVTableColRefCxt;
+
+static bool isSameVirtualTableCol(SVirtualTableNode* pVirtualTable, SColumnNode* pCol) {
+  if (NULL == pVirtualTable || NULL == pCol) {
+    return false;
+  }
+
+  if (pCol->tableId == pVirtualTable->pMeta->uid) {
+    return true;
+  }
+
+  return 0 == strcmp(pCol->dbName, pVirtualTable->table.dbName) &&
+         0 == strcmp(pCol->tableName, pVirtualTable->table.tableName);
+}
+
+static EDealRes syncVirtualTableColRefImpl(SNode* pNode, void* pContext) {
+  if (QUERY_NODE_COLUMN != nodeType(pNode)) {
+    return DEAL_RES_CONTINUE;
+  }
+
+  SSyncVTableColRefCxt* pCxt = (SSyncVTableColRefCxt*)pContext;
+  SColumnNode*          pCol = (SColumnNode*)pNode;
+  SColRef*              pRef = NULL;
+
+  if (!isSameVirtualTableCol(pCxt->pVirtualTable, pCol)) {
+    return DEAL_RES_CONTINUE;
+  }
+
+  int32_t colRefIndex = findColRefIndex(pCxt->pVirtualTable->pMeta->colRef, pCxt->pVirtualTable, pCol->colId);
+  if (colRefIndex < 0) {
+    colRefIndex = findColRefIndexByName(pCxt->pVirtualTable->pMeta->colRef, pCxt->pVirtualTable, pCol->colName);
+  }
+  if (colRefIndex >= 0) {
+    pRef = &pCxt->pVirtualTable->pMeta->colRef[colRefIndex];
+  } else {
+    int32_t tagRefIndex = findTagRefIndex(pCxt->pVirtualTable->pMeta->tagRef, pCxt->pVirtualTable, pCol->colId);
+    if (tagRefIndex < 0) {
+      tagRefIndex = findTagRefIndexByName(pCxt->pVirtualTable->pMeta->tagRef, pCxt->pVirtualTable, pCol->colName);
+    }
+    if (tagRefIndex >= 0) {
+      pRef = &pCxt->pVirtualTable->pMeta->tagRef[tagRefIndex];
+    }
+  }
+
+  if (NULL != pRef && pRef->hasRef) {
+    pCol->hasRef = true;
+    tstrncpy(pCol->refDbName, pRef->refDbName, sizeof(pCol->refDbName));
+    tstrncpy(pCol->refTableName, pRef->refTableName, sizeof(pCol->refTableName));
+    tstrncpy(pCol->refColName, pRef->refColName, sizeof(pCol->refColName));
+  } else {
+    pCol->hasRef = false;
+    pCol->refDbName[0] = '\0';
+    pCol->refTableName[0] = '\0';
+    pCol->refColName[0] = '\0';
+  }
+
+  return DEAL_RES_CONTINUE;
+}
+
+static int32_t syncVirtualTableColRefs(SNodeList* pExprs, SVirtualTableNode* pVirtualTable) {
+  if (NULL == pExprs) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SSyncVTableColRefCxt cxt = {.pVirtualTable = pVirtualTable};
+  nodesWalkExprs(pExprs, syncVirtualTableColRefImpl, &cxt);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t syncVirtualTablePrimaryTsRef(SVirtualTableNode* pVirtualTable) {
+  if (NULL == pVirtualTable || NULL == pVirtualTable->pMeta || NULL == pVirtualTable->pMeta->schema ||
+      NULL == pVirtualTable->pMeta->colRef || pVirtualTable->pMeta->numOfColRefs <= 0 ||
+      LIST_LENGTH(pVirtualTable->refTables) != 1) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SRealTableNode* pRefTable = (SRealTableNode*)nodesListGetNode(pVirtualTable->refTables, 0);
+  if (NULL == pRefTable || NULL == pRefTable->pMeta || NULL == pRefTable->pMeta->schema) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SColRef* pTsRef = &pVirtualTable->pMeta->colRef[0];
+  pTsRef->hasRef = true;
+  pTsRef->id = pVirtualTable->pMeta->schema[0].colId;
+  tstrncpy(pTsRef->refDbName, pRefTable->table.dbName, sizeof(pTsRef->refDbName));
+  tstrncpy(pTsRef->refTableName, pRefTable->table.tableName, sizeof(pTsRef->refTableName));
+  tstrncpy(pTsRef->refColName, pRefTable->pMeta->schema[0].name, sizeof(pTsRef->refColName));
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t rewriteFlatVirtualChildScanCols(SScanLogicNode* pRefScan, SVirtualTableNode* pVirtualTable) {
+  if (NULL == pRefScan || NULL == pVirtualTable || NULL == pVirtualTable->pMeta) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  SNode* pNode = NULL;
+  FOREACH(pNode, pRefScan->pScanCols) {
+    if (QUERY_NODE_COLUMN != nodeType(pNode)) {
+      continue;
+    }
+
+    SColumnNode*   pCol = (SColumnNode*)pNode;
+    const SSchema* pVtbSchema = NULL;
+    char           refDbName[TSDB_DB_NAME_LEN] = {0};
+    char           refTableName[TSDB_TABLE_NAME_LEN] = {0};
+    char           refColName[TSDB_COL_NAME_LEN] = {0};
+
+    tstrncpy(refDbName, pCol->dbName, sizeof(refDbName));
+    tstrncpy(refTableName, pCol->tableName, sizeof(refTableName));
+    tstrncpy(refColName, pCol->colName, sizeof(refColName));
+
+    if (pCol->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
+      pVtbSchema = &pVirtualTable->pMeta->schema[0];
+    } else {
+      for (int32_t i = 0; i < pVirtualTable->pMeta->numOfColRefs; ++i) {
+        SColRef* pColRef = &pVirtualTable->pMeta->colRef[i];
+        if (!pColRef->hasRef) {
+          continue;
+        }
+        if (0 != strcmp(pColRef->refDbName, pCol->dbName) || 0 != strcmp(pColRef->refTableName, pCol->tableName) ||
+            0 != strcmp(pColRef->refColName, pCol->colName)) {
+          continue;
+        }
+
+        int32_t schemaIndex =
+            findSchemaIndex(pVirtualTable->pMeta->schema, pVirtualTable->pMeta->tableInfo.numOfColumns, pColRef->id);
+        if (schemaIndex < 0) {
+          return TSDB_CODE_NOT_FOUND;
+        }
+        pVtbSchema = &pVirtualTable->pMeta->schema[schemaIndex];
+        break;
+      }
+    }
+
+    if (NULL == pVtbSchema) {
+      return TSDB_CODE_NOT_FOUND;
+    }
+
+    tstrncpy(pCol->tableAlias, pVirtualTable->table.tableAlias, sizeof(pCol->tableAlias));
+    tstrncpy(pCol->dbName, pVirtualTable->table.dbName, sizeof(pCol->dbName));
+    tstrncpy(pCol->tableName, pVirtualTable->table.tableName, sizeof(pCol->tableName));
+    tstrncpy(pCol->colName, pVtbSchema->name, sizeof(pCol->colName));
+    pCol->tableId = pVirtualTable->pMeta->uid;
+    pCol->tableType = pVirtualTable->pMeta->tableType;
+    pCol->node.resType.type = pVtbSchema->type;
+    pCol->node.resType.bytes = pVtbSchema->bytes;
+    pCol->hasRef = true;
+    pCol->hasDep = false;
+    pCol->isPrimTs = (pCol->colId == PRIMARYKEY_TIMESTAMP_COL_ID);
+    tstrncpy(pCol->refDbName, refDbName, sizeof(pCol->refDbName));
+    tstrncpy(pCol->refTableName, refTableName, sizeof(pCol->refTableName));
+    tstrncpy(pCol->refColName, refColName, sizeof(pCol->refColName));
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t findSchemaIndex(const SSchema* pSchema, int32_t numOfColumns, col_id_t colId) {
   for (int32_t i = 0; i < numOfColumns; i++) {
     if (pSchema[i].colId == colId) {
@@ -2433,6 +2610,10 @@ static int32_t createVirtualNormalChildTableLogicNode(SLogicPlanContext* pCxt, S
     PLAN_ERR_JRET(taosHashPut(pRefTableNodeMap, tableNameKey, strlen(tableNameKey), &pRefNode, POINTER_BYTES));
   }
 
+  PLAN_ERR_JRET(syncVirtualTablePrimaryTsRef(pVirtualTable));
+  PLAN_ERR_JRET(syncVirtualTableColRefs(pVtableScan->pScanCols, pVirtualTable));
+  PLAN_ERR_JRET(syncVirtualTableColRefs(pVtableScan->pScanPseudoCols, pVirtualTable));
+
   // ====================================================================
   // TagRef Processing for Virtual Child Table
   // ====================================================================
@@ -2682,10 +2863,14 @@ static int32_t createVirtualNormalChildTableLogicNode(SLogicPlanContext* pCxt, S
 
   // Iterate the table map, build scan logic node for each origin table and add these node to vtable scan's child list.
   void* pIter = NULL;
+  SScanLogicNode* pOnlyRefScan = NULL;
   while ((pIter = taosHashIterate(pRefTablesMap, pIter))) {
     SScanLogicNode **pRefScanNode = (SScanLogicNode**)pIter;
     PLAN_ERR_JRET(createColumnByRewriteExprs((*pRefScanNode)->pScanCols, &(*pRefScanNode)->node.pTargets));
     PLAN_ERR_JRET(createColumnByRewriteExprs((*pRefScanNode)->pScanPseudoCols, &(*pRefScanNode)->node.pTargets));
+    if (taosHashGetSize(pRefTablesMap) == 1) {
+      pOnlyRefScan = *pRefScanNode;
+    }
     PLAN_ERR_JRET(nodesListStrictAppend(pVtableScan->node.pChildren, (SNode*)(*pRefScanNode)));
   }
 
@@ -2697,6 +2882,23 @@ static int32_t createVirtualNormalChildTableLogicNode(SLogicPlanContext* pCxt, S
   PLAN_ERR_JRET(createColumnByRewriteExprs(pVtableScan->pScanCols, &pVtableScan->node.pTargets));
   PLAN_ERR_JRET(createColumnByRewriteExprs(pVtableScan->pScanPseudoCols, &pVtableScan->node.pTargets));
   PLAN_ERR_JRET(createColumnByRewriteExprs(pVtableScan->pRefTagCols, &pVtableScan->node.pTargets));
+  if (NULL != pOnlyRefScan && 1 == LIST_LENGTH(pVtableScan->node.pChildren) &&
+      (NULL == pVtableScan->pScanPseudoCols || LIST_LENGTH(pVtableScan->pScanPseudoCols) == 0) &&
+      (NULL == pVtableScan->pRefTagCols || LIST_LENGTH(pVtableScan->pRefTagCols) == 0)) {
+    nodesDestroyList(pOnlyRefScan->node.pTargets);
+    pOnlyRefScan->node.pTargets = NULL;
+    PLAN_ERR_JRET(rewriteFlatVirtualChildScanCols(pOnlyRefScan, pVirtualTable));
+    PLAN_ERR_JRET(createColumnByRewriteExprs(pOnlyRefScan->pScanCols, &pOnlyRefScan->node.pTargets));
+    nodesClearList(pVtableScan->node.pChildren);
+    pVtableScan->node.pChildren = NULL;
+    taosHashCleanup(pRefTablesMap);
+    taosHashCleanup(pRefTableNodeMap);
+    freeTagClassifyResult(&tagResult);
+    nodesDestroyNode((SNode*)pVtableScan);
+    *pLogicNode = (SLogicNode*)pOnlyRefScan;
+    return code;
+  }
+
   *pLogicNode = (SLogicNode*)pVtableScan;
   taosHashCleanup(pRefTablesMap);
   taosHashCleanup(pRefTableNodeMap);
