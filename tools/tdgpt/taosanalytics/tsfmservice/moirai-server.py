@@ -311,7 +311,7 @@ def main():
         '--port',
         type=int,
         default=6064,
-        help='Port the server listens on (default: 6039).',
+        help='Port the server listens on (default: 6064).',
     )
 
     args = parser.parse_args()

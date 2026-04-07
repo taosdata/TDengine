@@ -2,6 +2,7 @@ import json
 from abc import ABC, abstractmethod
 
 import pandas as pd
+from typing import Optional
 from prophet import Prophet
 from statsmodels.tsa.arima.model import ARIMA
 
@@ -71,7 +72,7 @@ class BaseModelForecaster(ABC):
         """Return the fitted model ready for inference."""
 
     @abstractmethod
-    def _predict(self, model):
+    def _predict(self, model) -> Optional[pd.DataFrame]:
         """Run algorithm-specific prediction and return the forecast payload."""
 
     @abstractmethod

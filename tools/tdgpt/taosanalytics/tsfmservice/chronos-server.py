@@ -131,8 +131,8 @@ def main():
     parser.add_argument(
         '--port',
         type=int,
-        default=6063
-        help='Port the server listens on (default: 6038).',
+        default=6063,
+        help='Port the server listens on (default: 6063).',
     )
 
     args = parser.parse_args()

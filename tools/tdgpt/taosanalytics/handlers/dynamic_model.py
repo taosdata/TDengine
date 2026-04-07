@@ -117,7 +117,8 @@ def do_handle_dynamic_model(request):
 def do_handle_undeploy_model(request):
     """undeploy model from production environment, e.g. release model from memory, etc."""
     AppLogger.debug("recv undeploy request, ip:%s", request.remote_addr)
-    model_dir = Configure.get_instance().get_model_directory()
+    
+    model_dir = Configure.get_instance().get_dynamic_model_directory()
     payload = request.get_json(silent=True) or {}
     if not payload:
         AppLogger.error("undeploy request missing JSON payload, ip:%s", request.remote_addr)
