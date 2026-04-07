@@ -346,22 +346,22 @@ void tmq_conf_destroy(tmq_conf_t* conf) {
 }
 
 void tmq_Rlock(tmq_t* tmq){
-  tqInfoC("tmq_Rlock: %p %" PRIx64 ", tmq: %p", tmq, tmq->consumerId, tmq);
+  tqInfoC("tmq_Rlock: %p %" PRIx64 ", tmq lock: %p", tmq, tmq->consumerId, &tmq->lock);
   taosRLockLatch(&tmq->lock);
 }
 
 void tmq_RUnlock(tmq_t* tmq){
-  tqInfoC("tmq_Unlock: %p %" PRIx64 ", tmq: %p", tmq, tmq->consumerId, tmq);
+  tqInfoC("tmq_Unlock: %p %" PRIx64 ", tmq lock: %p", tmq, tmq->consumerId, &tmq->lock);
   taosRUnLockLatch(&tmq->lock);
 }
 
 void tmq_Wlock(tmq_t* tmq){
-  tqInfoC("tmq_Wlock: %p %" PRIx64 ", tmq: %p", tmq, tmq->consumerId, tmq);
+  tqInfoC("tmq_Wlock: %p %" PRIx64 ", tmq lock: %p", tmq, tmq->consumerId, &tmq->lock);
   taosWLockLatch(&tmq->lock);
 }
 
 void tmq_WUnlock(tmq_t* tmq){
-  tqInfoC("tmq_WUnlock: %p %" PRIx64 ", tmq: %p", tmq, tmq->consumerId, tmq);
+  tqInfoC("tmq_WUnlock: %p %" PRIx64 ", tmq lock: %p", tmq, tmq->consumerId, &tmq->lock);
   taosWUnLockLatch(&tmq->lock);
 }
 
