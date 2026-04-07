@@ -127,8 +127,11 @@ typedef struct SMnode {
   bool           deploy;
   char          *path;
   /*
-    Unix epoch in ms (conventionally 0).
-    Dnode/mnode must agree; paired with timezone in cluster cfg check.
+    Local timezone UTC offset in seconds (east-positive, e.g. +28800 for
+    Asia/Shanghai).  Derived from taosGetLocalTimezoneOffset() at startup.
+    Paired with the timezone string in mndCheckClusterCfgPara: a mismatch
+    is reported only when both the timezone string AND this offset differ,
+    so aliases for the same zone (e.g. "CST" vs "Asia/Shanghai") pass.
   */
   int64_t        checkTime;
   SyncIndex      applied;

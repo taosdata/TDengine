@@ -881,7 +881,8 @@ SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
     return NULL;
   }
 
-  pMnode->checkTime = 0;
+  int32_t tzCode = 0;
+  pMnode->checkTime = (int64_t)taosGetLocalTimezoneOffset(&tzCode);
 
   mInfo("vgId:1, mnode set options to syncMgmt, dnodeId:%d, numOfTotalReplicas:%d", pOption->selfIndex,
         pOption->numOfTotalReplicas);

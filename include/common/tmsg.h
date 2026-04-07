@@ -2711,8 +2711,11 @@ void    tFreeSRetrieveFuncRsp(SRetrieveFuncRsp* pRsp);
 typedef struct {
   int32_t       statusInterval;
   /*
-    Unix epoch in ms (conventionally 0).
-    Dnode/mnode must agree; paired with timezone in cluster cfg check.
+    Local timezone UTC offset in seconds (east-positive, e.g. +28800 for
+    Asia/Shanghai).  Derived from taosGetLocalTimezoneOffset() on each
+    status report.  Paired with the timezone string in
+    mndCheckClusterCfgPara: a mismatch is reported only when both the
+    timezone string AND this offset differ.
   */
   int64_t       checkTime;
   char          timezone[TD_TIMEZONE_LEN];  // tsTimezone
