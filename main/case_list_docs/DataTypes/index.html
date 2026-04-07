@@ -605,6 +605,17 @@
   
 
       
+        
+  
+    <li class="md-nav__item">
+      <a href="#01-DataTypes.test_null_column.TestNullColumn.test_null_varchar_limit" class="md-nav__link">
+        NULL: varchar column with LIMIT triggers blockDataKeepFirstNRows all-NULL path 
+      </a>
+      
+    </li>
+  
+
+      
     </ul>
   
 </nav>
@@ -4328,6 +4339,17 @@
   
 
       
+        
+  
+    <li class="md-nav__item">
+      <a href="#01-DataTypes.test_null_column.TestNullColumn.test_null_varchar_limit" class="md-nav__link">
+        NULL: varchar column with LIMIT triggers blockDataKeepFirstNRows all-NULL path 
+      </a>
+      
+    </li>
+  
+
+      
     </ul>
   
 </nav>
@@ -5067,6 +5089,37 @@
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create table</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Insert data with NULL</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Query data</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/01-DataTypes/test_null_column.py" target="_blank">
+                      cases/01-DataTypes/test_null_column.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="01-DataTypes.test_null_column.TestNullColumn.test_null_varchar_limit" class="doc doc-heading">
+
+<a href="#01-DataTypes.test_null_column.TestNullColumn.test_null_varchar_limit" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>NULL: varchar column with LIMIT triggers blockDataKeepFirstNRows all-NULL path</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">When the first N rows of a variable-length column are all NULL and a</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">LIMIT N query is executed, blockDataKeepFirstNRows must set</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">varmeta.length to 0 instead of keeping the stale value.</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
