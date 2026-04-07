@@ -657,6 +657,7 @@ int32_t vnodeProcessTxnCommitReq(SVnode *pVnode, int64_t ver, void *pReq, int32_
       return TSDB_CODE_VND_TXN_STALE_TERM;
     } else if (code != TSDB_CODE_SUCCESS) {
       vError("vgId:%d, fencing error on commit, txnId:%" PRId64 ", code:0x%x", TD_VID(pVnode), req.txnId, code);
+      return code;
     }
   }
 
@@ -719,6 +720,7 @@ int32_t vnodeProcessTxnRollbackReq(SVnode *pVnode, int64_t ver, void *pReq, int3
       return TSDB_CODE_VND_TXN_STALE_TERM;
     } else if (code != TSDB_CODE_SUCCESS) {
       vError("vgId:%d, fencing error on rollback, txnId:%" PRId64 ", code:0x%x", TD_VID(pVnode), req.txnId, code);
+      return code;
     }
   }
 
@@ -740,7 +742,10 @@ int32_t vnodeProcessTxnRollbackReq(SVnode *pVnode, int64_t ver, void *pReq, int3
   taosThreadMutexUnlock(&pVnode->txnMutex);
 
   // Undo shadow entries in B+ tree (delete PRE_CREATE, restore PRE_DROP/ALTER)
-  vnodeTxnUndoShadowEntries(pVnode, pEntry);
+  code = vnodeTxnUndoShadowEntries(pVnode, pEntry);
+  if (code != 0) {
+    vError("vgId:%d, failed to undo shadow entries, txnId:%" PRId64 ", code:0x%x", TD_VID(pVnode), req.txnId, code);
+  }
 
   // Cleanup entry
   taosThreadMutexLock(&pVnode->txnMutex);

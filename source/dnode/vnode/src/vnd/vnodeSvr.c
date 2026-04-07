@@ -1753,7 +1753,12 @@ static int32_t vnodeProcessAlterStbReq(SVnode *pVnode, int64_t ver, void *pReq, 
 
   // batch-meta-txn: full transactional ALTER STB support
   if (req.txnId != 0) {
-    vnodeTxnEnsureEntry(pVnode, req.txnId);
+    int32_t ensureCode = vnodeTxnEnsureEntry(pVnode, req.txnId);
+    if (ensureCode != 0) {
+      pRsp->code = ensureCode;
+      tDecoderClear(&dc);
+      return ensureCode;
+    }
 
     // Acquire table-level lock to detect cross-txn conflicts
     {
@@ -1763,7 +1768,7 @@ static int32_t vnodeProcessAlterStbReq(SVnode *pVnode, int64_t ver, void *pReq, 
       if (lockCode != TSDB_CODE_SUCCESS) {
         pRsp->code = lockCode;
         tDecoderClear(&dc);
-        return code;
+        return lockCode;
       }
     }
 
@@ -1772,10 +1777,13 @@ static int32_t vnodeProcessAlterStbReq(SVnode *pVnode, int64_t ver, void *pReq, 
       SMetaEntry *pOldEntry = NULL;
       if (metaFetchEntryByName(pVnode->pMeta, req.name, &pOldEntry) == 0 && pOldEntry != NULL) {
         int32_t trackCode = vnodeTxnTrackAlter(pVnode, req.txnId, pOldEntry->uid, pOldEntry->version);
+        metaFetchEntryFree(&pOldEntry);
         if (trackCode != 0) {
           vError("vgId:%d, stb:%s ALTER vnodeTxnTrackAlter failed, code:0x%x", TD_VID(pVnode), req.name, trackCode);
+          pRsp->code = trackCode;
+          tDecoderClear(&dc);
+          return trackCode;
         }
-        metaFetchEntryFree(&pOldEntry);
       }
     }
 
@@ -1795,7 +1803,7 @@ static int32_t vnodeProcessAlterStbReq(SVnode *pVnode, int64_t ver, void *pReq, 
       }
     }
     tDecoderClear(&dc);
-    return 0;
+    return code;
   }
 
   // Non-txn path: check for conflict with active txn shadow
