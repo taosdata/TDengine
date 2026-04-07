@@ -881,6 +881,7 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
     return ts;
   }
 
+  int32_t code = 0;
   int64_t start = ts;
   int32_t precision = pInterval->precision;
 
@@ -924,8 +925,13 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
         // The day/week anchor logic here expects west-positive offsets, so
         // shift by subtracting the east-positive offset.
         int64_t tz_offset = 0;
-        int32_t code = 0;
         tz_offset = taosGetTZOffsetSeconds(pInterval->timezone, &code);
+        if (code != TSDB_CODE_SUCCESS) {
+          uError("%s failed to get timezone offset at line %d, code:%d",
+                 __func__, __LINE__, code);
+          return ts;
+        }
+
         news -= (int64_t)(tz_offset * TSDB_TICK_PER_SECOND(precision));
       }
 
@@ -969,8 +975,12 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
         int64_t timezone = _timezone;
 #endif
         int64_t tz_offset = 0;
-        int32_t code = 0;
         tz_offset = taosGetTZOffsetSeconds(pInterval->timezone, &code);
+        if (code != TSDB_CODE_SUCCESS) {
+          uError("%s failed to get timezone offset at line %d, code:%d",
+                 __func__, __LINE__, code);
+          return ts;
+        }
         start -= (int64_t)(tz_offset * TSDB_TICK_PER_SECOND(precision));
       }
 

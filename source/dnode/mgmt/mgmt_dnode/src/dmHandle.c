@@ -196,7 +196,6 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
 
   req.clusterCfg.statusInterval = tsStatusInterval;
   req.clusterCfg.statusIntervalMs = tsStatusIntervalMs;
-  req.clusterCfg.checkTime = 0;
   req.clusterCfg.ttlChangeOnWrite = tsTtlChangeOnWrite;
   req.clusterCfg.enableWhiteList = tsEnableWhiteList ? 1 : 0;
   req.clusterCfg.encryptionKeyStat = tsEncryptionKeyStat;
@@ -206,8 +205,8 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   req.clusterCfg.monitorParas.tsSlowLogScope = tsSlowLogScope;
   req.clusterCfg.monitorParas.tsSlowLogMaxLen = tsSlowLogMaxLen;
   req.clusterCfg.monitorParas.tsSlowLogThreshold = tsSlowLogThreshold;
+  req.clusterCfg.checkTime = taosGetLocalTimezoneOffset();
   tstrncpy(req.clusterCfg.monitorParas.tsSlowLogExceptDb, tsSlowLogExceptDb, TSDB_DB_NAME_LEN);
-  req.clusterCfg.checkTime = 0;
   memcpy(req.clusterCfg.timezone, tsTimezoneStr, TD_TIMEZONE_LEN);
   memcpy(req.clusterCfg.locale, tsLocale, TD_LOCALE_LEN);
   memcpy(req.clusterCfg.charset, tsCharset, TD_LOCALE_LEN);
