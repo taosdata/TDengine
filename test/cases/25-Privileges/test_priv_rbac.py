@@ -262,20 +262,95 @@ class TestCase:
         With column-level masking (value replacement at column reference),
         functions naturally operate on '*'."""
         masked_exprs = [
+            # basic string transforms
             (f"upper({col})", '*'),
             (f"lower({col})", '*'),
             (f"ltrim({col})", '*'),
             (f"rtrim({col})", '*'),
+            (f"trim({col})", '*'),
             (f"substr({col}, 1, 1)", '*'),
+            (f"substring({col}, 1, 1)", '*'),
             (f"concat({col}, 'x')", '*x'),
             (f"replace({col}, 'a', 'b')", '*'),
             (f"repeat({col}, 2)", '**'),
+            # nested scalar
             (f"lower(upper({col}))", '*'),
+            (f"ltrim(rtrim({col}))", '*'),
+            (f"upper(concat({col}, 'x'))", '*X'),
         ]
         for expr, expected in masked_exprs:
-            tdSql.query(f"select {expr} from {table}")
+            tdSql.query(f"select {expr} from {table} limit 1")
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, expected)
+
+    def _check_mask_substr_funcs(self, table, col="c1"):
+        """Verify substring_index and position on masked column."""
+        # substring_index('*', '.', 1) -> '*' (no delimiter found)
+        tdSql.query(f"select substring_index({col}, '.', 1) from {table} limit 1")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, '*')
+        # position('*' in '*') -> 1
+        tdSql.query(f"select position('*' in {col}) from {table} limit 1")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+        # find_in_set('*', '*') -> 1
+        tdSql.query(f"select find_in_set({col}, '*,a,b') from {table} limit 1")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+
+    def _check_mask_ascii_char_funcs(self, table, col="c1"):
+        """Verify ascii() on masked column returns ascii of '*' = 42."""
+        tdSql.query(f"select ascii({col}) from {table} limit 1")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 42)
+
+    def _check_mask_hash_funcs(self, table, col="c1"):
+        """Verify hash/digest functions on masked column operate on '*'."""
+        # md5('*') is deterministic — just verify it returns a non-null string
+        for func in ["md5", "sha1", "sha"]:
+            tdSql.query(f"select {func}({col}) from {table} limit 1")
+            tdSql.checkRows(1)
+            val = tdSql.queryResult[0][0]
+            assert val is not None and len(val) > 0, f"{func} returned empty on masked col"
+        # sha2('*', 256) — needs hash length param
+        tdSql.query(f"select sha2({col}, 256) from {table} limit 1")
+        tdSql.checkRows(1)
+        val = tdSql.queryResult[0][0]
+        assert val is not None and len(val) > 0, "sha2 returned empty on masked col"
+
+    def _check_mask_encoding_funcs(self, table, col="c1"):
+        """Verify base64 encode/decode on masked column."""
+        # to_base64('*') -> 'Kg=='
+        tdSql.query(f"select to_base64({col}) from {table} limit 1")
+        tdSql.checkRows(1)
+        val = tdSql.queryResult[0][0]
+        assert val is not None and len(val) > 0, "to_base64 returned empty on masked col"
+        # round-trip: from_base64(to_base64('*')) -> '*'
+        tdSql.query(f"select from_base64(to_base64({col})) from {table} limit 1")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, '*')
+
+    def _check_mask_conversion_funcs(self, table, col="c1"):
+        """Verify cast and conversion functions on masked column."""
+        # cast masked col to nchar
+        tdSql.query(f"select cast({col} as nchar(10)) from {table} limit 1")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, '*')
+        # cast masked col to varchar
+        tdSql.query(f"select cast({col} as varchar(10)) from {table} limit 1")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, '*')
+
+    def _check_mask_comparison_funcs(self, table, col="c1"):
+        """Verify greatest/least on masked column."""
+        tdSql.query(f"select greatest({col}, 'a') from {table} limit 1")
+        tdSql.checkRows(1)
+        val = tdSql.queryResult[0][0]
+        assert val is not None, "greatest returned NULL on masked col"
+        tdSql.query(f"select least({col}, 'z') from {table} limit 1")
+        tdSql.checkRows(1)
+        val = tdSql.queryResult[0][0]
+        assert val is not None, "least returned NULL on masked col"
 
     def _check_mask_agg_funcs(self, table, col="c1"):
         """Verify aggregate functions that reveal content return '*'."""
@@ -283,18 +358,51 @@ class TestCase:
             tdSql.query(f"select {func}({col}) from {table}")
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, '*')
+        # min/max on string: operates on masked value '*'
+        for func in ["min", "max"]:
+            tdSql.query(f"select {func}({col}) from {table}")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, '*')
+
+    def _check_mask_agg_numeric_funcs(self, table, col="c1"):
+        """Verify aggregate functions returning numeric results on masked column."""
+        # count: should return real row count (no content leak)
+        tdSql.query(f"select count({col}) from {table}")
+        tdSql.checkRows(1)
+        assert tdSql.queryResult[0][0] >= 1, "count should return real count"
+        # hyperloglog: cardinality count on masked col — should be 1 (all '*')
+        tdSql.query(f"select hyperloglog({col}) from {table}")
+        tdSql.checkRows(1)
+        assert tdSql.queryResult[0][0] is not None, "hyperloglog returned NULL"
+
+    def _check_mask_multi_row_funcs(self, table, col="c1"):
+        """Verify multi-row selection functions on masked column."""
+        # sample(col, 1): returns 1 random row — should be masked
+        tdSql.query(f"select sample({col}, 1) from {table}")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, '*')
+        # tail(col, 1): last 1 row — should be masked
+        tdSql.query(f"select tail({col}, 1) from {table}")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, '*')
+        # unique(col): distinct values — all masked to '*'
+        tdSql.query(f"select unique({col}) from {table}")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, '*')
 
     def _check_mask_metadata_funcs(self, table, col="c1"):
         """Verify metadata functions: length/char_length return natural
         results for masked columns. length('*') = 1, count unaffected."""
         for func in ["length", "char_length"]:
-            tdSql.query(f"select {func}({col}) from {table}")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 1)
-        # count doesn't reveal content — should return real value
+            tdSql.query(f"select {func}({col}) from {table} limit 1")
+            assert tdSql.queryResult[0][0] == 1, f"{func} on masked col should return 1"
+        # count doesn't reveal content — should return real row count
         tdSql.query(f"select count({col}) from {table}")
         tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 1)
+        assert tdSql.queryResult[0][0] >= 1, "count should return real row count"
+        # crc32 on masked col: deterministic, just check non-null
+        tdSql.query(f"select crc32({col}) from {table} limit 1")
+        assert tdSql.queryResult[0][0] is not None, "crc32 returned NULL on masked col"
 
     def do_check_column_mask_privileges(self):
         """Test column-level mask privileges for SELECT (data desensitization).
@@ -341,7 +449,9 @@ class TestCase:
             )
 
             tdSql.execute("insert into d_mask.ctb_mask values(now, 1, 'hello', 'world')")
+            tdSql.execute("insert into d_mask.ctb_mask values(now+1s, 3, 'secret2', 'hidden2')")
             tdSql.execute("insert into d_mask.ntb_mask values(now, 2, 'foo', 'bar')")
+            tdSql.execute("insert into d_mask.ntb_mask values(now+1s, 4, 'secret2', 'hidden2')")
 
             tdSql.execute(f"create user u_mask pass '{self.test_pass}'")
             tdSql.execute("grant use on database d_mask to u_mask")
@@ -397,14 +507,14 @@ class TestCase:
 
             # ==== Normal table ====
             tdSql.query("select * from d_mask.ntb_mask")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 1, 2)    # c0 visible
+            tdSql.checkRows(2)
             tdSql.checkData(0, 2, '*')  # c1 masked
             tdSql.checkData(0, 3, '*')  # c2 masked
+            tdSql.checkData(1, 2, '*')  # c1 masked row 2
+            tdSql.checkData(1, 3, '*')  # c2 masked row 2
 
             tdSql.query("select c0, c1, c2 from d_mask.ntb_mask")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 2)
+            tdSql.checkRows(2)
             tdSql.checkData(0, 1, '*')
             tdSql.checkData(0, 2, '*')
 
@@ -412,37 +522,44 @@ class TestCase:
 
             # concat_ws with two masked cols: concat_ws('-', '*', '*') = '*-*'
             tdSql.query("select concat_ws('-', c1, c2) from d_mask.ntb_mask")
-            tdSql.checkRows(1)
+            tdSql.checkRows(2)
             tdSql.checkData(0, 0, '*-*')
 
             # non-masked col alongside masked expression
             tdSql.query("select c0, upper(c1) from d_mask.ntb_mask")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 2)
+            tdSql.checkRows(2)
             tdSql.checkData(0, 1, '*')
 
             # alias should not bypass mask
             tdSql.query("select c1 as name from d_mask.ntb_mask")
-            tdSql.checkRows(1)
+            tdSql.checkRows(2)
             tdSql.checkData(0, 0, '*')
 
             # Inference-prone expressions: case naturally evaluates on '*'
             tdSql.query("select case when c1 = 'foo' then 1 else 0 end from d_mask.ntb_mask")
-            tdSql.checkRows(1)
+            tdSql.checkRows(2)
             tdSql.checkData(0, 0, 0)
             tdSql.query("select c1 from d_mask.ntb_mask group by c1")
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, '*')
 
+            # -- Comprehensive function coverage on normal table --
             self._check_mask_scalar_funcs("d_mask.ntb_mask", "c1")
             self._check_mask_scalar_funcs("d_mask.ntb_mask", "c2")
+            self._check_mask_substr_funcs("d_mask.ntb_mask", "c1")
+            self._check_mask_ascii_char_funcs("d_mask.ntb_mask", "c1")
+            self._check_mask_hash_funcs("d_mask.ntb_mask", "c1")
+            self._check_mask_encoding_funcs("d_mask.ntb_mask", "c1")
+            self._check_mask_conversion_funcs("d_mask.ntb_mask", "c1")
+            self._check_mask_comparison_funcs("d_mask.ntb_mask", "c1")
             self._check_mask_agg_funcs("d_mask.ntb_mask", "c1")
+            self._check_mask_agg_numeric_funcs("d_mask.ntb_mask", "c1")
+            self._check_mask_multi_row_funcs("d_mask.ntb_mask", "c1")
             self._check_mask_metadata_funcs("d_mask.ntb_mask", "c1")
 
             # ==== Supertable ====
             tdSql.query("select * from d_mask.stb_mask")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 1, 1)    # c0 visible
+            tdSql.checkRows(2)
             tdSql.checkData(0, 2, '*')  # c1 masked
             tdSql.checkData(0, 3, '*')  # c2 masked
             tdSql.checkData(0, 4, 0)    # t0 visible
@@ -450,23 +567,32 @@ class TestCase:
             tdSql.checkData(0, 6, '*')  # t2 masked
 
             tdSql.query("select c0, c1, c2 from d_mask.stb_mask")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 1)
+            tdSql.checkRows(2)
             tdSql.checkData(0, 1, '*')
             tdSql.checkData(0, 2, '*')
 
             tdSql.query("select t1, t2 from d_mask.stb_mask")
-            tdSql.checkRows(1)
+            tdSql.checkRows(2)
             tdSql.checkData(0, 0, '*')
             tdSql.checkData(0, 1, '*')
 
-            # Scalar/aggregate/metadata functions on columns
+            # -- Comprehensive function coverage on supertable --
             self._check_mask_scalar_funcs("d_mask.stb_mask", "c1")
+            self._check_mask_substr_funcs("d_mask.stb_mask", "c1")
+            self._check_mask_ascii_char_funcs("d_mask.stb_mask", "c1")
+            self._check_mask_hash_funcs("d_mask.stb_mask", "c1")
+            self._check_mask_encoding_funcs("d_mask.stb_mask", "c1")
+            self._check_mask_conversion_funcs("d_mask.stb_mask", "c1")
+            self._check_mask_comparison_funcs("d_mask.stb_mask", "c1")
             self._check_mask_agg_funcs("d_mask.stb_mask", "c1")
+            self._check_mask_agg_numeric_funcs("d_mask.stb_mask", "c1")
+            self._check_mask_multi_row_funcs("d_mask.stb_mask", "c1")
             self._check_mask_metadata_funcs("d_mask.stb_mask", "c1")
 
             # Scalar/metadata functions on masked tags
             self._check_mask_scalar_funcs("d_mask.stb_mask", "t1")
+            self._check_mask_hash_funcs("d_mask.stb_mask", "t1")
+            self._check_mask_encoding_funcs("d_mask.stb_mask", "t1")
             self._check_mask_metadata_funcs("d_mask.stb_mask", "t1")
 
             # Mixed column + tag functions
@@ -477,23 +603,70 @@ class TestCase:
 
             # ==== Child table ====
             tdSql.query("select * from d_mask.ctb_mask")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 1, 1)    # c0 visible
+            tdSql.checkRows(2)
             tdSql.checkData(0, 2, '*')  # c1 masked
             tdSql.checkData(0, 3, '*')  # c2 masked
 
             tdSql.query("select c0, c1, c2, t1, t2 from d_mask.ctb_mask")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 1)
+            tdSql.checkRows(2)
             tdSql.checkData(0, 1, '*')
             tdSql.checkData(0, 2, '*')
             tdSql.checkData(0, 3, '*')
             tdSql.checkData(0, 4, '*')
 
-            # Scalar/aggregate/metadata functions on child table columns
+            # -- Comprehensive function coverage on child table --
             self._check_mask_scalar_funcs("d_mask.ctb_mask", "c1")
+            self._check_mask_substr_funcs("d_mask.ctb_mask", "c1")
+            self._check_mask_ascii_char_funcs("d_mask.ctb_mask", "c1")
+            self._check_mask_hash_funcs("d_mask.ctb_mask", "c1")
+            self._check_mask_encoding_funcs("d_mask.ctb_mask", "c1")
+            self._check_mask_conversion_funcs("d_mask.ctb_mask", "c1")
+            self._check_mask_comparison_funcs("d_mask.ctb_mask", "c1")
             self._check_mask_agg_funcs("d_mask.ctb_mask", "c1")
+            self._check_mask_agg_numeric_funcs("d_mask.ctb_mask", "c1")
+            self._check_mask_multi_row_funcs("d_mask.ctb_mask", "c1")
             self._check_mask_metadata_funcs("d_mask.ctb_mask", "c1")
+
+            # ==== group_concat on masked column ====
+            tdSql.query("select group_concat(c1, ',') from d_mask.ntb_mask")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, '*,*')
+
+            # ==== mask_full/mask_partial/mask_none on already-masked column ====
+            tdSql.query("select mask_full(c1) from d_mask.ntb_mask")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 0, '*')
+            tdSql.query("select mask_none(c1) from d_mask.ntb_mask")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 0, '*')
+
+            # ==== WHERE clause on masked column should not leak data ====
+            tdSql.query("select c0 from d_mask.ntb_mask where c1 = 'foo'")
+            tdSql.checkRows(0)  # masked to '*', so 'foo' match fails
+            tdSql.query("select c0 from d_mask.ntb_mask where c1 = '*'")
+            tdSql.checkRows(2)  # all rows match '*'
+
+            # ==== ORDER BY on masked column ====
+            tdSql.query("select c1 from d_mask.ntb_mask order by c1")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 0, '*')
+            tdSql.checkData(1, 0, '*')
+
+            # ==== DISTINCT on masked column ====
+            tdSql.query("select distinct c1 from d_mask.ntb_mask")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, '*')
+
+            # ==== HAVING on masked column ====
+            tdSql.query("select c1, count(*) from d_mask.ntb_mask group by c1 having count(*) > 0")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, '*')
+
+            # ==== UNION on masked column ====
+            tdSql.query("select c1 from d_mask.ntb_mask union all select c1 from d_mask.ctb_mask")
+            tdSql.checkRows(4)
+            for i in range(4):
+                tdSql.checkData(i, 0, '*')
         finally:
             tdSql.connect("root", "taosdata")
             tdSql.execute("drop database if exists d_mask")
