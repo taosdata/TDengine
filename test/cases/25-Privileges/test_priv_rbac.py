@@ -302,8 +302,7 @@ class TestCase:
         When a column has `mask(col)` in the SELECT grant, querying that
         column should return '*' instead of the actual value.
         Supported mask types: VARCHAR, NCHAR.
-        Uses value-replacement at column-reference level (Oracle Data Redaction
-        approach) so that functions naturally operate on the masked value '*'.
+        Uses value-replacement at column-reference level so that functions naturally operate on the masked value '*'.
         """
         tdSql.connect("root", "taosdata")
         tdSql.execute("drop database if exists d_mask")
@@ -388,7 +387,7 @@ class TestCase:
             last_exception = None
             while True:
                 try:
-                    tdSql.query("select 1 from d_mask.ntb_mask limit 1")
+                    tdSql.query("select ts,c0,c1,c2 from d_mask.ntb_mask limit 1")
                     break
                 except Exception as e:
                     last_exception = e
