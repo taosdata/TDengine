@@ -635,12 +635,13 @@ GRANT SELECT, INSERT, DELETE ON power.meters WITH ts >= '2024-01-01' AND ts < '2
 
 #### 列权限
 
-列权限用于限制用户只能访问表中的特定列，只支持在 `SELECT` 或 `INSERT` 权限中指定列。
+列权限用于限制用户只能访问表中的特定列，只支持在 `SELECT` 或 `INSERT` 权限中指定列。对于 `SELECT` 权限，还支持使用 `mask(col)` 对敏感列进行数据脱敏，查询时返回 `'*'` 代替真实值。
 
 **语法：**
 
 ```sql
 GRANT SELECT (col1, col2, ...) ON table_name TO user_name;
+GRANT SELECT (col1, mask(col2), ...) ON table_name TO user_name;
 GRANT INSERT (col1, col2, ...) ON table_name TO user_name;
 REVOKE SELECT,INSERT ON table_name FROM user_name;
 REVOKE ALL ON table_name FROM user_name;
@@ -652,6 +653,8 @@ REVOKE ALL ON table_name FROM user_name;
 - 只能指定超级表或普通表，不能指定子表
 - 同一表相同类型的操作只能设置一条规则
 - 可配合行权限一起使用
+- `mask()` 仅支持 VARCHAR 和 NCHAR 类型的列，其他类型（如 INT、VARBINARY、GEOMETRY、JSON）暂不支持脱敏
+- 脱敏在列引用级别生效，函数自然作用于脱敏后的值（例如 `length(mask_col)` 返回 `1`，`concat(mask_col, 'x')` 返回 `'*x'`）
 
 **示例 - 按列分权限：**
 
@@ -664,6 +667,16 @@ GRANT INSERT (ts, temperature) ON power.meters TO writer;
 
 -- 用户 limited_user 只能查看设备 ID 和状态列
 GRANT SELECT (device_id, status) ON power.meters TO limited_user;
+```
+
+**示例 - 列级数据脱敏：**
+
+```sql
+-- 用户可以查看时间戳和设备 ID，但姓名和地址列被脱敏为 '*'
+GRANT SELECT (ts, device_id, mask(name), mask(address)) ON power.meters TO analyst;
+
+-- 结合行权限和列脱敏
+GRANT SELECT (ts, mask(phone), mask(email)) ON power.users WITH region='cn' TO support;
 ```
 
 **示例 - 结合行权限和列权限：**

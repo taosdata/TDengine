@@ -636,12 +636,13 @@ GRANT SELECT, INSERT, DELETE ON power.meters WITH ts >= '2024-01-01' AND ts < '2
 
 #### Column Permissions
 
-Column permissions are used to restrict users to only access specific columns in tables. Only supported in `SELECT` or `INSERT` permissions.
+Column permissions are used to restrict users to only access specific columns in tables. Only supported in `SELECT` or `INSERT` permissions. For `SELECT` permissions, `mask(col)` can be used to mask sensitive columns, returning `'*'` instead of the real value.
 
 **Syntax:**
 
 ```sql
 GRANT SELECT (col1, col2, ...) ON table_name TO user_name;
+GRANT SELECT (col1, mask(col2), ...) ON table_name TO user_name;
 GRANT INSERT (col1, col2, ...) ON table_name TO user_name;
 REVOKE SELECT,INSERT ON table_name FROM user_name;
 REVOKE ALL ON table_name FROM user_name;
@@ -653,6 +654,8 @@ REVOKE ALL ON table_name FROM user_name;
 - Can only specify supertables or regular tables, not subtables
 - Only one rule per table per operation
 - Can be used together with row permissions
+- `mask()` only supports VARCHAR and NCHAR columns. Other types (e.g. INT, VARBINARY, GEOMETRY, JSON) are not supported for masking currently
+- Masking takes effect at the column-reference level. Functions naturally operate on the masked value (e.g. `length(masked_col)` returns `1`, `concat(masked_col, 'x')` returns `'*x'`)
 
 **Example - Permission by Column:**
 
@@ -665,6 +668,16 @@ GRANT INSERT (ts, temperature) ON power.meters TO writer;
 
 -- User limited_user can only see device_id and status columns
 GRANT SELECT (device_id, status) ON power.meters TO limited_user;
+```
+
+**Example - Column-Level Data Masking:**
+
+```sql
+-- User can see ts and device_id, but name and address are masked as '*'
+GRANT SELECT (ts, device_id, mask(name), mask(address)) ON power.meters TO analyst;
+
+-- Combine row permissions with column masking
+GRANT SELECT (ts, mask(phone), mask(email)) ON power.users WITH region='cn' TO support;
 ```
 
 **Example - Combining Row and Column Permissions:**
