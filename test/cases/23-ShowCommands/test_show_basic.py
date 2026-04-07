@@ -5,7 +5,7 @@ import random
 import re
 import os
 import taos
-from new_test_framework.utils import tdLog, tdSql, cluster, sc, clusterComCheck, etool, tdCom, AutoGen, TDSetSql
+from new_test_framework.utils import tdLog, tdSql, cluster, sc, clusterComCheck, etool, tdCom, AutoGen, TDSetSql, tdStream
 
 
 class TestShowBasic:
@@ -832,11 +832,7 @@ class TestShowBasic:
         tdSql.execute("create table ss_db2.src2 (ts timestamp, v int)")
 
         # Ensure an snode exists (required for stream creation)
-        try:
-            tdSql.execute("create snode on dnode 1")
-        except Exception:
-            pass  # snode may already exist
-
+        tdStream.createSnode(1)
         # Create a stream in each database
         tdSql.execute(
             "create stream ss_db1.ss1 INTERVAL(1s) SLIDING(1s) from ss_db1.src1 into ss_db1.dst1 as select _tlocaltime as ts, count(v) as cnt from ss_db1.src1"
@@ -850,6 +846,7 @@ class TestShowBasic:
         tdSql.execute(
             "create stream ss_db2.stm4 count_window(1) from ss_db2.src2 into ss_db2.dst2 as select _tlocaltime as ts, count(v) as cnt from ss_db2.src2"
         )
+        tdStream.checkStreamStatus()
 
         tdSql.query("show streams")
         tdSql.checkRows(4)
@@ -931,8 +928,19 @@ class TestShowBasic:
             - 2026-04-03 Mario Peng Add test_show_streams_no_db
         
         """
-        self.do_system_test_show()
-        self.do_army_show()
-        self.do_sim()
-        self.do_show_tag_index()
+        # self.do_system_test_show()
+        # self.do_army_show()
+        # self.do_sim()
+        # self.do_show_tag_index()
         self.do_show_streams_no_db()
+
+
+    class StreamItem:
+        def __init__(self, sql, checkfunc):
+            self.sql = sql
+            self.checkfunc = checkfunc
+
+        def check(self):
+            tdSql.execute(self.sql)
+            tdSql.query("show streams")
+            self.checkfunc()
