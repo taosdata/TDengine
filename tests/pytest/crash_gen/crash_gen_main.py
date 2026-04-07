@@ -1837,175 +1837,255 @@ class TaskCreateStream(StateTransitionTask):
 
     def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
         Logging.info("[OPS] *** TaskCreateStream._executeInternal() called ***")
-        
-        dbname = self._db.getName()
-        Logging.debug("[OPS] Database name: {}".format(dbname))
 
-        sub_stream_name = dbname + '_sub_stream'
-        sub_stream_tb_name = 'stream_tb_sub'
-        super_stream_name = dbname + '_super_stream'
-        super_stream_tb_name = 'stream_tb_super'
+        dbname = self._db.getName()
         if not self._db.exists(wt.getDbConn()):
             Logging.debug("Skipping task, no DB yet")
             return
 
         sTable = self._db.getFixedSuperTable()  # type: TdSuperTable
-        # wt.execSql("use db")    # should always be in place
         stbname = sTable.getName()
         sub_tables = sTable.getRegTables(wt.getDbConn())
-        aggExpr = Dice.choice([
-            'count(*)', 'avg(speed)', 'sum(speed)', 'stddev(speed)', 'min(speed)', 'max(speed)', 'first(speed)',
-            'last(speed)',
-            'apercentile(speed, 10)', 'last_row(*)', 'twa(speed)'])
 
-        # Create snode first, as it's required for stream creation
+        # ---- Create snode first (required for stream processing) ----
         try:
-            # Check if snode already exists on dnode 1
-            snode_check_sql = "show snodes"
-            self.queryWtSql(wt, snode_check_sql)
+            self.queryWtSql(wt, "show snodes")
             snodes = wt.getQueryResult()
-            
-            # Check if snode exists on dnode 1
-            snode_exists = False
-            if snodes:
-                for snode in snodes:
-                    if len(snode) > 0 and snode[1] == 1:  # dnode id is typically the second column
-                        snode_exists = True
-                        break
-            
+            snode_exists = any(len(row) > 1 and row[1] == 1 for row in (snodes or []))
             if not snode_exists:
-                # Create snode on dnode 1
-                create_snode_sql = "create snode on dnode 1"
-                self.execWtSql(wt, create_snode_sql)
-                Logging.debug("[OPS] snode created on dnode 1 at {}".format(time.time()))
-            else:
-                Logging.debug("[OPS] snode already exists on dnode 1")
-                
+                self.execWtSql(wt, "create snode on dnode 1")
+                Logging.debug("[OPS] snode created on dnode 1")
         except taos.error.ProgrammingError as err:
             errno = Helper.convertErrno(err.errno)
-            # Ignore some acceptable errors related to snode creation
-            if errno in [0x0369, 0x0333, 0x032C]:  # snode already exists or is being created
-                Logging.debug("[OPS] snode creation skipped: errno=0x{:X}, msg={}".format(errno, err))
-            else:
+            if errno not in [0x0369, 0x0333, 0x032C]:
                 Logging.warning("[OPS] snode creation failed: errno=0x{:X}, msg={}".format(errno, err))
-                # Continue with stream creation anyway, as snode might exist but not be visible
 
-        stream_sql = ''  # set default value
+        # ---- Introspect the actual (dynamic) schema at runtime ----
+        columns = sTable._getColumns(wt.getDbConn())   # {name: type}
 
-        # Choose modern stream window types following TDengine 3.0+ syntax
-        window_types = [
-            'SESSION(ts, {}s)'.format(Dice.choice([10, 15, 30, 60])),
-            'PERIOD({}s)'.format(Dice.choice([10, 20, 30, 44])),
-            'PERIOD({}s, {}s)'.format(Dice.choice([20, 30, 44]), Dice.choice([5, 10, 15])),
-            'INTERVAL({}s) SLIDING({}s)'.format(Dice.choice([10, 20, 30]), Dice.choice([5, 10, 15])),
-            'INTERVAL({}h) SLIDING({}s, {}s)'.format(Dice.choice([1, 2, 3]), Dice.choice([10, 20, 30]), Dice.choice([5, 10, 15])),
-            'EVENT_WINDOW(START WITH speed > {} END WITH speed < {})'.format(Dice.choice([10, 20, 30]), Dice.choice([5, 10, 15])),
-            'STATE_WINDOW(color)',
-            'STATE_WINDOW(speed) TRUE_FOR({}s)'.format(Dice.choice([10, 20, 30])),
-        ]
-        
-        window_type = Dice.choice(window_types)
-        Logging.debug("[OPS] Selected window type: {}".format(window_type))
-        
-        # Choose modern stream options following TDengine best practices
-        options_list = []
-        if Dice.throw(3) == 0:  # 1/3 chance to add options
-            option_choices = [
-                'MAX_DELAY({}s)'.format(Dice.choice([5, 10, 15, 18])),
-                'WATERMARK({}h)'.format(Dice.choice([1, 2, 20])),
-                'EXPIRED_TIME({}h)'.format(Dice.choice([1, 2, 16])),
-                'CALC_NOTIFY_ONLY',
-                'event_type(WINDOW_CLOSE)',
-            ]
-            # Select 1-2 options to avoid conflicts
-            num_options = Dice.choice([1, 2])
-            if num_options == 1:
-                options_list = [Dice.choice(option_choices)]
-            else:
-                # Ensure we don't select conflicting options
-                selected = []
-                for _ in range(2):
-                    option = Dice.choice(option_choices)
-                    if option not in selected:
-                        selected.append(option)
-                options_list = selected[:2]  # Take at most 2 options
-        
-        options_str = 'OPTIONS({})'.format(', '.join(options_list)) if options_list else ''
-        Logging.debug("[OPS] Options string: '{}'".format(options_str))
-        
-        # Choose partition clause
-        partition_clause = 'partition by tbname' if Dice.throw(2) == 0 else ''
-        Logging.debug("[OPS] Partition clause: '{}'".format(partition_clause))
-        
-        # Choose diverse columns for select clause
-        select_columns = [aggExpr]
-        
-        # Add common aggregation functions
-        agg_funcs = ['avg(speed)', 'max(speed)', 'min(speed)', 'sum(speed)', 'count(*)']
-        select_columns.append(Dice.choice(agg_funcs))
-        
-        # Sometimes add timestamp columns for different window types
-        if Dice.throw(2) == 0:  # 50% chance to add timestamp
-            if 'EVENT_WINDOW' in window_type or 'STATE_WINDOW' in window_type:
-                select_columns.insert(0, '_twend as ts')
-            elif 'SESSION' in window_type or 'PERIOD' in window_type:
-                select_columns.insert(0, '_twstart as ts')
-            else:  # INTERVAL window
-                if Dice.throw(2) == 0:
-                    select_columns.insert(0, '_twstart as ts')
-                else:
-                    select_columns.insert(0, '_twend as ts')
-        
-        # Sometimes add partition column
-        if 'partition by tbname' in partition_clause and Dice.throw(3) == 0:
-            select_columns.append('tbname')
-        
-        select_clause = 'select {}'.format(', '.join(select_columns))
-        Logging.debug("[OPS] Select clause: '{}'".format(select_clause))
+        ts_col      = None
+        numeric_cols = []
+        string_cols  = []
+        for col_name, col_type in columns.items():
+            ct = col_type.upper()
+            if 'TIMESTAMP' in ct:
+                ts_col = col_name
+            elif any(t in ct for t in ['INT', 'FLOAT', 'DOUBLE', 'SMALLINT', 'TINYINT', 'BOOL', 'DECIMAL']):
+                numeric_cols.append(col_name)
+            elif any(t in ct for t in ['BINARY', 'VARCHAR', 'NCHAR', 'CHAR']):
+                string_cols.append(col_name)
 
-        # Generate where clause randomly  
-        where_clause = ''
-        if Dice.throw(3) == 0:  # 1/3 chance to add where clause
-            where_conditions = [
-                'speed > 0',
-                'speed between 10 and 100', 
-                'color is not null',
-                'ts >= now() - 1h'
-            ]
-            where_clause = 'where {}'.format(Dice.choice(where_conditions))
-        Logging.debug("[OPS] Where clause: '{}'".format(where_clause))
-        
-        # Debug table information
-        Logging.debug("[OPS] Database name: {}".format(dbname))
-        Logging.debug("[OPS] Super table name: {}".format(stbname))
-        Logging.debug("[OPS] Sub tables: {}".format(sub_tables))
+        if not ts_col:
+            Logging.warning("[OPS] No TIMESTAMP column found in schema, skipping stream creation")
+            return
 
-        if sub_tables:
-            sub_tbname = sub_tables[0]
-            Logging.debug("[OPS] Using sub table: {}".format(sub_tbname))
-            # create stream with modern syntax from sub_table
-            # Format: create stream <stream_name> <window_type> from <source_table> [partition by] [options] into <target_table> as <select_clause> from <source_table> [where_clause]
-            stream_sql = 'create stream {} {} from {}.{} {} {} into {}.{} as {} from {}.{} {}'. \
-                format(sub_stream_name, window_type, dbname, sub_tbname, partition_clause, options_str, 
-                       dbname, sub_stream_tb_name, select_clause, dbname, sub_tbname, where_clause).strip()
+        num_col = Dice.choice(numeric_cols) if numeric_cols else None
+        str_col = Dice.choice(string_cols)  if string_cols  else None
+
+        Logging.debug("[OPS] schema ts={} numeric={} string={}".format(ts_col, numeric_cols, string_cols))
+
+        # ---- Source table selection ----
+        use_stb = (not sub_tables) or (Dice.throw(2) == 0)
+        if use_stb:
+            src_full    = '{}.{}'.format(dbname, stbname)
+            stream_name = dbname + '_super_stream'
+            out_tbname  = 'stream_tb_super'
         else:
-            Logging.debug("[OPS] Using super table: {}".format(stbname))
-            # create stream with modern syntax from super table  
-            # Format: create stream <stream_name> <window_type> from <source_table> [partition by] [options] into <target_table> as <select_clause> from <source_table> [where_clause]
-            stream_sql = 'create stream {} {} from {}.{} {} {} into {}.{} as {} from {}.{} {}'. \
-                format(super_stream_name, window_type, dbname, stbname, partition_clause, options_str,
-                       dbname, super_stream_tb_name, select_clause, dbname, stbname, where_clause).strip()
-        
-        # Clean up the SQL by removing extra spaces
+            src_full    = '{}.{}'.format(dbname, sub_tables[0])
+            stream_name = dbname + '_sub_stream'
+            out_tbname  = 'stream_tb_sub'
+        out_full = '{}.{}'.format(dbname, out_tbname)
+
+        # PARTITION BY tbname only meaningful for super tables
+        with_partition = use_stb and (Dice.throw(2) == 0)
+        partition_clause = 'PARTITION BY tbname' if with_partition else ''
+
+        # ---- Pick trigger type ----
+        # Limit to numeric-dependent triggers only when num_col exists
+        # 0=COUNT_WINDOW(num)  1=INTERVAL+SLIDING  2=INTERVAL-only
+        # 3=SESSION  4=STATE_WINDOW(str)  5=STATE_WINDOW(num)+TRUE_FOR
+        # 6=EVENT_WINDOW(num)  7=PERIOD
+        if num_col:
+            trigger_kind = Dice.throw(8)
+        else:
+            # No numeric column: skip COUNT_WINDOW(num), STATE_WINDOW(num), EVENT_WINDOW(num)
+            trigger_kind = Dice.choice([1, 2, 3, 7] + ([4] if str_col else []))
+
+        stream_sql = ''
+
+        if trigger_kind == 0 and num_col:
+            # COUNT_WINDOW — must sort by a numeric column; AS subquery uses %%trows
+            cnt  = Dice.choice([3, 4, 5, 8, 10])
+            slid = Dice.choice([1, 2, 3])
+            agg  = 'first({ts}), _twrownum, avg({nc}), count(*)'.format(ts=ts_col, nc=num_col)
+            if with_partition:
+                osubt = "OUTPUT_SUBTABLE(CONCAT('res_', tbname))" if Dice.throw(2) == 0 else ''
+                stream_sql = (
+                    'CREATE STREAM IF NOT EXISTS {sn} '
+                    'COUNT_WINDOW({cnt}, {slid}, {nc}) '
+                    'FROM {src} {part} '
+                    'INTO {out} {osubt} '
+                    'AS SELECT {agg} FROM %%trows'
+                ).format(sn=stream_name, cnt=cnt, slid=slid, nc=num_col,
+                         src=src_full, part=partition_clause,
+                         out=out_full, osubt=osubt, agg=agg)
+            else:
+                stream_sql = (
+                    'CREATE STREAM IF NOT EXISTS {sn} '
+                    'COUNT_WINDOW({cnt}, {slid}, {nc}) '
+                    'FROM {src} '
+                    'INTO {out} '
+                    'AS SELECT {agg} FROM %%trows'
+                ).format(sn=stream_name, cnt=cnt, slid=slid, nc=num_col,
+                         src=src_full, out=out_full, agg=agg)
+
+        elif trigger_kind == 1:
+            # INTERVAL + SLIDING — AS subquery uses %%tbname with window filter
+            iv_s   = Dice.choice([10, 20, 30, 60])
+            slid_s = Dice.choice([5, 10, 15])
+            opts = []
+            history_opt = Dice.choice(['FILL_HISTORY', 'FILL_HISTORY_FIRST', None, None])
+            if history_opt:
+                opts.append(history_opt)
+            if Dice.throw(3) == 0:
+                opts.append('MAX_DELAY({}s)'.format(Dice.choice([10, 20, 30])))
+            if Dice.throw(4) == 0:
+                opts.append('WATERMARK({}s)'.format(Dice.choice([10, 20, 30])))
+            options_clause = 'STREAM_OPTIONS({})'.format(' | '.join(opts)) if opts else ''
+            if num_col:
+                agg = '_twstart, avg({nc}), count(*)'.format(nc=num_col)
+            else:
+                agg = '_twstart, count(*)'
+            stream_sql = (
+                'CREATE STREAM IF NOT EXISTS {sn} '
+                'INTERVAL({iv}s) SLIDING({sv}s) '
+                'FROM {src} {part} '
+                '{opts} '
+                'INTO {out} '
+                'AS SELECT {agg} FROM %%tbname WHERE {ts} >= _twstart AND {ts} <= _twend'
+            ).format(sn=stream_name, iv=iv_s, sv=slid_s,
+                     src=src_full, part=partition_clause, opts=options_clause,
+                     out=out_full, agg=agg, ts=ts_col)
+
+        elif trigger_kind == 2:
+            # INTERVAL only (no SLIDING)
+            iv_s = Dice.choice([30, 60, 120])
+            opts = []
+            if Dice.throw(3) == 0:
+                opts.append('LOW_LATENCY_CALC')
+            if Dice.throw(3) == 0:
+                opts.append(Dice.choice(['FILL_HISTORY', 'FILL_HISTORY_FIRST']))
+            options_clause = 'STREAM_OPTIONS({})'.format(' | '.join(opts)) if opts else ''
+            if num_col:
+                agg = '_twstart, avg({nc}), max({nc}), min({nc})'.format(nc=num_col)
+            else:
+                agg = '_twstart, count(*)'
+            stream_sql = (
+                'CREATE STREAM IF NOT EXISTS {sn} '
+                'INTERVAL({iv}s) '
+                'FROM {src} {part} '
+                '{opts} '
+                'INTO {out} '
+                'AS SELECT {agg} FROM %%tbname WHERE {ts} >= _twstart AND {ts} <= _twend'
+            ).format(sn=stream_name, iv=iv_s,
+                     src=src_full, part=partition_clause, opts=options_clause,
+                     out=out_full, agg=agg, ts=ts_col)
+
+        elif trigger_kind == 3:
+            # SESSION — AS subquery uses %%trows
+            gap_s = Dice.choice([10, 15, 30, 60])
+            if num_col:
+                agg = '_twstart, count(*), avg({nc})'.format(nc=num_col)
+            else:
+                agg = '_twstart, count(*)'
+            stream_sql = (
+                'CREATE STREAM IF NOT EXISTS {sn} '
+                'SESSION({ts}, {gap}s) '
+                'FROM {src} '
+                'INTO {out} '
+                'AS SELECT {agg} FROM %%trows'
+            ).format(sn=stream_name, ts=ts_col, gap=gap_s,
+                     src=src_full, out=out_full, agg=agg)
+
+        elif trigger_kind == 4 and str_col:
+            # STATE_WINDOW(string_col) — AS subquery uses %%trows
+            agg = '_twstart, count(*), first({sc})'.format(sc=str_col)
+            stream_sql = (
+                'CREATE STREAM IF NOT EXISTS {sn} '
+                'STATE_WINDOW({sc}) '
+                'FROM {src} {part} '
+                'STREAM_OPTIONS(IGNORE_DISORDER) '
+                'INTO {out} '
+                'AS SELECT {agg} FROM %%trows'
+            ).format(sn=stream_name, sc=str_col,
+                     src=src_full, part=partition_clause, out=out_full, agg=agg)
+
+        elif trigger_kind == 5 and num_col:
+            # STATE_WINDOW(numeric_col) + optional TRUE_FOR
+            tf_clause = 'TRUE_FOR({}s)'.format(Dice.choice([10, 20, 30])) if Dice.throw(2) == 0 else ''
+            agg = '_twstart, count(*), avg({nc})'.format(nc=num_col)
+            stream_sql = (
+                'CREATE STREAM IF NOT EXISTS {sn} '
+                'STATE_WINDOW({nc}) {tf} '
+                'FROM {src} {part} '
+                'STREAM_OPTIONS(IGNORE_DISORDER) '
+                'INTO {out} '
+                'AS SELECT {agg} FROM %%trows'
+            ).format(sn=stream_name, nc=num_col, tf=tf_clause,
+                     src=src_full, part=partition_clause, out=out_full, agg=agg)
+
+        elif trigger_kind == 6 and num_col:
+            # EVENT_WINDOW — AS subquery uses %%trows
+            # Use small literal thresholds; actual data range doesn't matter for syntax
+            hi = Dice.choice([20, 30, 50, 80])
+            lo = Dice.choice([1, 3, 5, 8])
+            tf_clause = 'TRUE_FOR({}s)'.format(Dice.choice([10, 20, 30])) if Dice.throw(2) == 0 else ''
+            agg = '_twstart, avg({nc}), count(*)'.format(nc=num_col)
+            stream_sql = (
+                'CREATE STREAM IF NOT EXISTS {sn} '
+                'EVENT_WINDOW(START WITH {nc} > {hi} END WITH {nc} < {lo}) {tf} '
+                'FROM {src} {part} '
+                'STREAM_OPTIONS(IGNORE_DISORDER) '
+                'INTO {out} '
+                'AS SELECT {agg} FROM %%trows'
+            ).format(sn=stream_name, nc=num_col, hi=hi, lo=lo, tf=tf_clause,
+                     src=src_full, part=partition_clause, out=out_full, agg=agg)
+
+        else:
+            # PERIOD — no FROM in trigger clause; AS subquery queries actual source table
+            period_s = Dice.choice([10, 20, 30, 60])
+            offset_clause = (
+                'PERIOD({ps}s, {off}s)'.format(ps=period_s, off=Dice.choice([0, 5, 10]))
+                if Dice.throw(2) == 0 else 'PERIOD({}s)'.format(period_s)
+            )
+            if num_col:
+                agg = 'CAST(_tlocaltime/1000000 AS TIMESTAMP), count(*), avg({nc})'.format(nc=num_col)
+            else:
+                agg = 'CAST(_tlocaltime/1000000 AS TIMESTAMP), count(*)'
+            stream_sql = (
+                'CREATE STREAM IF NOT EXISTS {sn} '
+                '{offset} '
+                'INTO {out} '
+                'AS SELECT {agg} FROM {src}'
+            ).format(sn=stream_name, offset=offset_clause,
+                     out=out_full, agg=agg, src=src_full)
+
+        if not stream_sql:
+            Logging.debug("[OPS] trigger_kind={} skipped (missing required column), retrying as PERIOD".format(trigger_kind))
+            period_s = Dice.choice([10, 20, 30, 60])
+            agg = 'CAST(_tlocaltime/1000000 AS TIMESTAMP), count(*)'
+            stream_sql = (
+                'CREATE STREAM IF NOT EXISTS {} PERIOD({}s) INTO {} AS SELECT {} FROM {}'
+            ).format(stream_name, period_s, out_full, agg, src_full)
+
+        # Collapse redundant whitespace left by empty optional clauses
         stream_sql = ' '.join(stream_sql.split())
-        
+
         Logging.info("[OPS] *** GENERATED STREAM SQL: {}".format(stream_sql))
-        
-        # Also print to stdout for immediate visibility
         print("[STREAM_SQL] {}".format(stream_sql))
-        
+
         self.execWtSql(wt, stream_sql)
-        Logging.debug("[OPS] stream is creating at {}".format(time.time()))
+        Logging.debug("[OPS] stream SQL submitted at {}".format(time.time()))
 
 
 class TaskCreateTopic(StateTransitionTask):
@@ -2180,7 +2260,6 @@ class TaskDropStreamTables(StateTransitionTask):
             return
 
         sTable = self._db.getFixedSuperTable()  # type: TdSuperTable
-        wt.execSql("use db")  # should always be in place
         # tblName = sTable.getName()
         if sTable.hasStreamTables(wt.getDbConn()):
             sTable.dropStreamTables(wt.getDbConn())  # drop stream tables
@@ -2578,15 +2657,17 @@ class TdSuperTable:
 
     def dropStreams(self, dbc: DbConn):
         dbc.query("show {}.streams".format(self._dbName))
-        Streams = dbc.getQueryResult()
-        for Stream in Streams:
-            if Stream[0].startswith(self._dbName):
-                # Include database name when dropping stream to ensure proper targeting
-                stream_name = Stream[0]
-                if '.' not in stream_name:  # if stream name doesn't include database prefix
-                    stream_name = "{}.{}".format(self._dbName, stream_name)
-                dbc.execute('drop stream {}'.format(stream_name))
-                Logging.debug("[OPS] Dropped stream: {} at {}".format(stream_name, time.time()))
+        streams = dbc.getQueryResult()
+        for row in (streams or []):
+            stream_name = row[0]
+            if stream_name.startswith(self._dbName):
+                try:
+                    dbc.execute('DROP STREAM IF EXISTS {}'.format(stream_name))
+                    Logging.debug("[OPS] Dropped stream: {} at {}".format(stream_name, time.time()))
+                except taos.error.ProgrammingError as err:
+                    errno = Helper.convertErrno(err.errno)
+                    Logging.debug("[OPS] drop stream {} skipped: errno=0x{:X} msg={}".format(
+                        stream_name, errno, err))
 
         return not dbc.query("show {}.streams".format(self._dbName)) > 0
 
