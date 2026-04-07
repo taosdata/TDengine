@@ -2495,9 +2495,9 @@ static void colDataKeepFirstNRows(SColumnInfoData* pColInfoData, size_t n, size_
           }
         }
       }
-      if (newLen <= -1) {
+      if (newLen < 0) {
         // All kept rows are NULL — no valid var data belongs to them.
-        uDebug("colDataKeepFirstNRows: all kept rows are NULL, newLen:%d old:%d, reset length to 0",
+        uDebug("colDataKeepFirstNRows: all kept rows are NULL, newLen:%d old:%u, reset length to 0",
                newLen, pColInfoData->varmeta.length);
         pColInfoData->varmeta.length = 0;
       } else {
