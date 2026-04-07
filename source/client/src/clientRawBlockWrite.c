@@ -1018,6 +1018,8 @@ static bool taosTxnIsAlreadyCompleted(utxn_id_t txnId) {
   return taosHashGet(pMnodeTxnCompletedHash, &txnId, sizeof(txnId)) != NULL;
 }
 
+static void taosTxnMarkCompleted(utxn_id_t txnId);
+
 static int32_t taosTxnEnsureMnodeBegin(TAOS* taos, utxn_id_t txnId) {
   if (txnId == 0 || !TXN_IS_REPLICATED(txnId)) return 0;
 
@@ -1035,6 +1037,14 @@ static int32_t taosTxnEnsureMnodeBegin(TAOS* taos, utxn_id_t txnId) {
   if (code == 0 && pMnodeTxnBegunHash != NULL) {
     int8_t val = 1;
     taosHashPut(pMnodeTxnBegunHash, &txnId, sizeof(txnId), &val, sizeof(val));
+  }
+  if (code != 0) {
+    // Replicated txn BEGIN failed — likely the txn was already committed before
+    // a taosX process restart (completed hash lost). Treat as already completed
+    // so callers strip txnId and execute non-transactionally.
+    uWarn("taosTxnEnsureMnodeBegin: replicated txnId:%" PRIu64 " BEGIN failed: %s, marking as completed", txnId,
+          tstrerror(code));
+    taosTxnMarkCompleted(txnId);
   }
   return code;
 }
@@ -1140,9 +1150,9 @@ static int32_t taosCreateStb(TAOS* taos, void* meta, uint32_t metaLen) {
   if (pReq.txnId != 0 && TXN_IS_REPLICATED(pReq.txnId)) {
     int32_t beginCode = taosTxnEnsureMnodeBegin(taos, pReq.txnId);
     if (beginCode != 0) {
-      uError(LOG_ID_TAG " auto-BEGIN for txnId:%" PRIu64 " failed: %s", LOG_ID_VALUE, pReq.txnId, tstrerror(beginCode));
-      code = beginCode;
-      goto end;
+      uWarn(LOG_ID_TAG " auto-BEGIN for txnId:%" PRIu64 " failed: %s, executing non-transactionally", LOG_ID_VALUE,
+            pReq.txnId, tstrerror(beginCode));
+      pReq.txnId = 0;
     }
   }
 
@@ -1260,9 +1270,9 @@ static int32_t taosDropStb(TAOS* taos, void* meta, uint32_t metaLen) {
   if (pReq.txnId != 0 && TXN_IS_REPLICATED(pReq.txnId)) {
     int32_t beginCode = taosTxnEnsureMnodeBegin(taos, pReq.txnId);
     if (beginCode != 0) {
-      uError(LOG_ID_TAG " auto-BEGIN for txnId:%" PRIu64 " failed: %s", LOG_ID_VALUE, pReq.txnId, tstrerror(beginCode));
-      code = beginCode;
-      goto end;
+      uWarn(LOG_ID_TAG " auto-BEGIN for txnId:%" PRIu64 " failed: %s, executing non-transactionally", LOG_ID_VALUE,
+            pReq.txnId, tstrerror(beginCode));
+      pReq.txnId = 0;
     }
   }
 
@@ -1506,8 +1516,10 @@ static int32_t taosCreateTable(TAOS* taos, void* meta, uint32_t metaLen) {
       // §35: ensure mnode txn exists for all DDL (not just STB)
       int32_t mcode = taosTxnEnsureMnodeBegin(taos, pCreateReq->txnId);
       if (mcode != 0) {
-        code = mcode;
-        goto end;
+        uWarn(LOG_ID_TAG " auto-BEGIN for txnId:%" PRIu64 " failed: %s, executing non-transactionally", LOG_ID_VALUE,
+              pCreateReq->txnId, tstrerror(mcode));
+        pCreateReq->txnId = 0;
+        conn.txnId = 0;
       }
     }
 
@@ -1728,8 +1740,10 @@ static int32_t taosDropTable(TAOS* taos, void* meta, uint32_t metaLen) {
       // §35: ensure mnode txn exists for all DDL (not just STB)
       int32_t mcode = taosTxnEnsureMnodeBegin(taos, pDropReq->txnId);
       if (mcode != 0) {
-        code = mcode;
-        goto end;
+        uWarn(LOG_ID_TAG " auto-BEGIN for txnId:%" PRIu64 " failed: %s, executing non-transactionally", LOG_ID_VALUE,
+              pDropReq->txnId, tstrerror(mcode));
+        pDropReq->txnId = 0;
+        conn.txnId = 0;
       }
     }
     //    pDropReq->suid = processSuid(pDropReq->suid, pRequest->pDb);
@@ -1874,8 +1888,9 @@ static int32_t taosAlterTable(TAOS* taos, void* meta, uint32_t metaLen) {
   if (req.txnId != 0) {
     int32_t mcode = taosTxnEnsureMnodeBegin(taos, req.txnId);
     if (mcode != 0) {
-      code = mcode;
-      goto end;
+      uWarn(LOG_ID_TAG " auto-BEGIN for txnId:%" PRIu64 " failed: %s, executing non-transactionally",
+            LOG_ID_VALUE, req.txnId, tstrerror(mcode));
+      req.txnId = 0;
     }
   }
 

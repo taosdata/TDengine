@@ -21399,6 +21399,14 @@ static int32_t translateTransStmt(STranslateContext* pCxt, int32_t msgType) {
   req.msgType = msgType;
   req.txnId = pCxt->pParseCxt->txnId;
 
+  // Client-side transaction state validation (avoids unnecessary MNode RPC)
+  if (msgType == TDMT_MND_BEGIN_TXN && req.txnId != 0) {
+    return TSDB_CODE_TXN_ALREADY_IN_PROGRESS;
+  }
+  if ((msgType == TDMT_MND_COMMIT_TXN || msgType == TDMT_MND_ROLLBACK_TXN) && req.txnId == 0) {
+    return TSDB_CODE_TXN_NOT_IN_PROGRESS;
+  }
+
   // For COMMIT/ROLLBACK, include the client-tracked VGroup list
   if (msgType == TDMT_MND_COMMIT_TXN || msgType == TDMT_MND_ROLLBACK_TXN) {
     req.pVgList = pCxt->pParseCxt->pTxnVgList;  // borrowed ref, no ownership transfer

@@ -3528,6 +3528,134 @@ _OVER:
   TAOS_RETURN(code);
 }
 
+/**
+ * Apply ALTER STB shadow ops to rebuild a table meta response.
+ * Clones the SStbObj from SDB, applies each ALTER op in sequence,
+ * then rebuilds the metaRsp from the modified clone.
+ *
+ * @param pMnode    MNode
+ * @param pAlterOps SArray of SMndShadowOp (ALTER ops only, in order)
+ * @param pDb       Database object
+ * @param pBaseStb  Base SStbObj from SDB
+ * @param tbName    Table name (short name for response)
+ * @param pRsp      Output metaRsp (existing content will be freed and rebuilt)
+ * @param refByStm  Whether referenced by statement
+ */
+static int32_t mndApplyTxnAlterOpsToSchema(SMnode *pMnode, SArray *pAlterOps, SDbObj *pDb, SStbObj *pBaseStb,
+                                           const char *tbName, STableMetaRsp *pRsp, bool refByStm) {
+  int32_t code = 0;
+  int32_t numOps = taosArrayGetSize(pAlterOps);
+
+  // Deep clone the base SStbObj
+  SStbObj current = {0};
+  taosRLockLatch(&pBaseStb->lock);
+  memcpy(&current, pBaseStb, sizeof(SStbObj));
+  current.pColumns = NULL;
+  current.pTags = NULL;
+  current.pFuncs = NULL;
+  current.pCmpr = NULL;
+  current.pExtSchemas = NULL;
+  current.lock = 0;
+  taosRUnLockLatch(&pBaseStb->lock);
+
+  // Allocate initial column/tag/cmpr arrays via mndAllocStbSchemas
+  // (copies pBaseStb's columns/tags/cmpr to current)
+  code = mndAllocStbSchemas(pBaseStb, &current);
+  if (code != 0) goto _DONE;
+
+  for (int32_t i = 0; i < numOps; i++) {
+    SMndShadowOp *pOp = (SMndShadowOp *)taosArrayGet(pAlterOps, i);
+
+    SMAlterStbReq alterReq = {0};
+    if (tDeserializeSMAlterStbReq(pOp->pReqData, pOp->reqDataLen, &alterReq) != 0) {
+      code = TSDB_CODE_INVALID_MSG;
+      tFreeSMAltertbReq(&alterReq);
+      goto _DONE;
+    }
+
+    SStbObj next = {0};
+    memcpy(&next, &current, sizeof(SStbObj));
+    next.pColumns = NULL;
+    next.pTags = NULL;
+    next.pFuncs = NULL;
+    next.pCmpr = NULL;
+    next.pExtSchemas = NULL;
+    next.lock = 0;
+    next.updateTime = taosGetTimestampMs();
+
+    SField *pField0 = NULL;
+    switch (alterReq.alterType) {
+      case TSDB_ALTER_TABLE_ADD_TAG:
+        code = mndAddSuperTableTag(&current, &next, alterReq.pFields, alterReq.numOfFields);
+        break;
+      case TSDB_ALTER_TABLE_DROP_TAG:
+        pField0 = taosArrayGet(alterReq.pFields, 0);
+        code = mndDropSuperTableTag(pMnode, &current, &next, pField0->name);
+        break;
+      case TSDB_ALTER_TABLE_UPDATE_TAG_NAME:
+        code = mndAlterStbTagName(pMnode, &current, &next, alterReq.pFields);
+        break;
+      case TSDB_ALTER_TABLE_UPDATE_TAG_BYTES:
+        pField0 = taosArrayGet(alterReq.pFields, 0);
+        code = mndAlterStbTagBytes(pMnode, &current, &next, pField0);
+        break;
+      case TSDB_ALTER_TABLE_ADD_COLUMN:
+        code = mndAddSuperTableColumn(&current, &next, &alterReq, alterReq.numOfFields, 0);
+        break;
+      case TSDB_ALTER_TABLE_DROP_COLUMN:
+        pField0 = taosArrayGet(alterReq.pFields, 0);
+        code = mndDropSuperTableColumn(pMnode, &current, &next, pField0->name);
+        break;
+      case TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES:
+        pField0 = taosArrayGet(alterReq.pFields, 0);
+        code = mndAlterStbColumnBytes(pMnode, &current, &next, pField0);
+        break;
+      case TSDB_ALTER_TABLE_UPDATE_OPTIONS:
+        code = mndUpdateTableOptions(&current, &next, alterReq.comment, alterReq.commentLen, alterReq.ttl,
+                                     alterReq.keep, alterReq.secureDelete);
+        break;
+      case TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS:
+        code = mndUpdateSuperTableColumnCompress(pMnode, &current, &next, alterReq.pFields, alterReq.numOfFields);
+        break;
+      case TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COMPRESS_OPTION:
+        code = mndAddSuperTableColumn(&current, &next, &alterReq, alterReq.numOfFields, 1);
+        break;
+      default:
+        code = TSDB_CODE_OPS_NOT_SUPPORT;
+        break;
+    }
+
+    tFreeSMAltertbReq(&alterReq);
+
+    if (code != 0) {
+      taosMemoryFreeClear(next.pColumns);
+      taosMemoryFreeClear(next.pTags);
+      taosMemoryFreeClear(next.pCmpr);
+      taosMemoryFreeClear(next.pExtSchemas);
+      goto _DONE;
+    }
+
+    // Move to next iteration: free current arrays, adopt next's
+    taosMemoryFreeClear(current.pColumns);
+    taosMemoryFreeClear(current.pTags);
+    taosMemoryFreeClear(current.pCmpr);
+    taosMemoryFreeClear(current.pExtSchemas);
+    current = next;
+  }
+
+  // Rebuild metaRsp from the modified clone
+  tFreeSTableMetaRsp(pRsp);
+  memset(pRsp, 0, sizeof(STableMetaRsp));
+  code = mndBuildStbSchemaImp(pMnode, pDb, &current, tbName, pRsp, refByStm);
+
+_DONE:
+  taosMemoryFreeClear(current.pColumns);
+  taosMemoryFreeClear(current.pTags);
+  taosMemoryFreeClear(current.pCmpr);
+  taosMemoryFreeClear(current.pExtSchemas);
+  return code;
+}
+
 static int32_t mndProcessTableMetaReq(SRpcMsg *pReq) {
   SMnode       *pMnode = pReq->info.node;
   int32_t       code = -1;
@@ -3564,6 +3692,31 @@ static int32_t mndProcessTableMetaReq(SRpcMsg *pReq) {
       if (pStb) mndReleaseStb(pMnode, pStb);
     }
     TAOS_CHECK_GOTO(mndBuildStbSchema(pMnode, infoReq.dbFName, infoReq.tbName, &metaRsp, true), NULL, _OVER);
+
+    // Same-txn ALTER visibility: overlay ALTER shadow ops from the active txn
+    if (infoReq.txnId != 0) {
+      SArray *pAlterOps = NULL;
+      char    stbFName[TSDB_TABLE_FNAME_LEN] = {0};
+      snprintf(stbFName, sizeof(stbFName), "%s.%s", infoReq.dbFName, infoReq.tbName);
+      int32_t txnCode = mndTxnGetAlterOpsForStb(pMnode, (utxn_id_t)infoReq.txnId, stbFName, &pAlterOps);
+      if (txnCode == 0 && pAlterOps != NULL && taosArrayGetSize(pAlterOps) > 0) {
+        SDbObj  *pDb = mndAcquireDb(pMnode, infoReq.dbFName);
+        SStbObj *pStb = mndAcquireStb(pMnode, stbFName);
+        if (pDb != NULL && pStb != NULL) {
+          int32_t rc = mndApplyTxnAlterOpsToSchema(pMnode, pAlterOps, pDb, pStb, infoReq.tbName, &metaRsp, true);
+          if (rc != 0) {
+            mWarn("stb:%s, failed to overlay ALTER shadow ops for txn %" PRId64 ": %s", stbFName, infoReq.txnId,
+                  tstrerror(rc));
+          } else {
+            mInfo("stb:%s, overlaid %d ALTER shadow ops for same-txn visibility (txn %" PRId64 ")", stbFName,
+                  (int32_t)taosArrayGetSize(pAlterOps), infoReq.txnId);
+          }
+        }
+        if (pStb) mndReleaseStb(pMnode, pStb);
+        if (pDb) mndReleaseDb(pMnode, pDb);
+      }
+      taosArrayDestroy(pAlterOps);
+    }
   }
 
   int32_t rspLen = tSerializeSTableMetaRsp(NULL, 0, &metaRsp);

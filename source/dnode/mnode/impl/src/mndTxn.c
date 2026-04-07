@@ -671,6 +671,53 @@ int32_t mndTxnAddShadowOp(SMnode *pMnode, utxn_id_t txnId, int8_t opType, const 
 }
 
 /**
+ * Get ALTER STB shadow ops for a specific STB in a given txn.
+ * Returns an SArray of SMndShadowOp* (pointers into the txn's pShadowOps).
+ * Caller must destroy the SArray but NOT free the SMndShadowOp contents.
+ * Returns NULL ppOps if no ALTER ops found (not an error).
+ */
+int32_t mndTxnGetAlterOpsForStb(SMnode *pMnode, utxn_id_t txnId, const char *stbFName, SArray **ppOps) {
+  *ppOps = NULL;
+  if (txnId == 0 || stbFName == NULL) return TSDB_CODE_SUCCESS;
+
+  STxnObj *pTxn = mndAcquireTxn(pMnode, txnId);
+  if (pTxn == NULL) return TSDB_CODE_SUCCESS;  // txn not found, not an error for this use
+
+  taosRLockLatch(&pTxn->lock);
+
+  if (pTxn->pShadowOps == NULL || taosArrayGetSize(pTxn->pShadowOps) == 0) {
+    taosRUnLockLatch(&pTxn->lock);
+    mndReleaseTxn(pMnode, pTxn);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t numOps = taosArrayGetSize(pTxn->pShadowOps);
+  SArray *pResult = NULL;
+
+  for (int32_t i = 0; i < numOps; i++) {
+    SMndShadowOp *pOp = (SMndShadowOp *)taosArrayGet(pTxn->pShadowOps, i);
+    if (pOp->opType == MND_SHADOW_OP_ALTER_STB && strcmp(pOp->name, stbFName) == 0) {
+      if (pResult == NULL) {
+        pResult = taosArrayInit(4, sizeof(SMndShadowOp));
+        if (pResult == NULL) {
+          taosRUnLockLatch(&pTxn->lock);
+          mndReleaseTxn(pMnode, pTxn);
+          return terrno;
+        }
+      }
+      // Copy the op struct (shallow copy - pReqData is NOT owned by the copy)
+      taosArrayPush(pResult, pOp);
+    }
+  }
+
+  taosRUnLockLatch(&pTxn->lock);
+  mndReleaseTxn(pMnode, pTxn);
+
+  *ppOps = pResult;
+  return TSDB_CODE_SUCCESS;
+}
+
+/**
  * Get the active user txn ID for the requesting connection.
  * Currently checks if the RPC message carries a txnId in its extended info.
  * Returns txnId > 0 if within a batch txn, 0 otherwise.

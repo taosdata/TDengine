@@ -118,11 +118,14 @@ int metaReaderGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid) {
   }
 
   // batch meta txn: PRE_ALTER entries — redirect to old version for snapshot isolation
+  // Same-txn readers see the new (altered) version directly
   if (pReader->me.txnStatus == META_TXN_PRE_ALTER && pReader->me.txnPrevVer > 0) {
-    int64_t prevVer = pReader->me.txnPrevVer;
-    tDecoderClear(&pReader->coder);
-    code = metaGetTableEntryByVersion(pReader, prevVer, uid);
-    if (code) return code;
+    if (pReader->txnId == 0 || pReader->txnId != pReader->me.txnId) {
+      int64_t prevVer = pReader->me.txnPrevVer;
+      tDecoderClear(&pReader->coder);
+      code = metaGetTableEntryByVersion(pReader, prevVer, uid);
+      if (code) return code;
+    }
   }
 
   return 0;
@@ -206,11 +209,14 @@ int metaReaderGetTableEntryByVersionUid(SMetaReader *pReader, int64_t version, t
   }
 
   // batch meta txn: PRE_ALTER entries — redirect to old version for snapshot isolation
+  // Same-txn readers see the new (altered) version directly
   if (pReader->me.txnStatus == META_TXN_PRE_ALTER && pReader->me.txnPrevVer > 0) {
-    int64_t prevVer = pReader->me.txnPrevVer;
-    tDecoderClear(&pReader->coder);
-    code = metaGetTableEntryByVersion(pReader, prevVer, uid);
-    if (code) return code;
+    if (pReader->txnId == 0 || pReader->txnId != pReader->me.txnId) {
+      int64_t prevVer = pReader->me.txnPrevVer;
+      tDecoderClear(&pReader->coder);
+      code = metaGetTableEntryByVersion(pReader, prevVer, uid);
+      if (code) return code;
+    }
   }
 
   return 0;
@@ -236,11 +242,14 @@ int metaReaderGetTableEntryByUidCache(SMetaReader *pReader, tb_uid_t uid) {
   }
 
   // batch meta txn: PRE_ALTER entries — redirect to old version for snapshot isolation
+  // Same-txn readers see the new (altered) version directly
   if (pReader->me.txnStatus == META_TXN_PRE_ALTER && pReader->me.txnPrevVer > 0) {
-    int64_t prevVer = pReader->me.txnPrevVer;
-    tDecoderClear(&pReader->coder);
-    code = metaGetTableEntryByVersion(pReader, prevVer, uid);
-    if (code) return code;
+    if (pReader->txnId == 0 || pReader->txnId != pReader->me.txnId) {
+      int64_t prevVer = pReader->me.txnPrevVer;
+      tDecoderClear(&pReader->coder);
+      code = metaGetTableEntryByVersion(pReader, prevVer, uid);
+      if (code) return code;
+    }
   }
 
   return 0;

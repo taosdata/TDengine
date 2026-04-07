@@ -19,6 +19,7 @@
 #include "tencode.h"
 #include "tglobal.h"
 #include "tmsg.h"
+#include "tsimplehash.h"
 #include "vnd.h"
 #include "vnode.h"
 #include "vnodeInt.h"
@@ -44,21 +45,15 @@
 //   - Child table:  created under a super table, shares its schema, stored in VNode
 //   - Normal table: stored in VNode with its own dedicated schema
 
-// ALTER version tracking — for ROLLBACK, we need to restore the old version pointer.
-typedef struct SVnodeAlterRecord {
-  tb_uid_t uid;
-  int64_t  prevVersion;
-} SVnodeAlterRecord;
-
 typedef struct SVnodeTxnEntry {
-  int64_t txnId;       // Transaction ID
-  int64_t term;        // Raft term when registered
-  int64_t startTime;   // Transaction start time
-  int64_t lastActive;  // Last active time
-  int8_t  stage;       // EVtxnStage
-  SArray *pTouchedUids;       // Array of tb_uid_t — all UIDs modified by this txn
-  SArray *pAlterPrevVers;  // Array of SVnodeAlterRecord — for ALTER rollback
-  SArray *pLockedTables;  // Array of char* (table names locked by this txn)
+  int64_t    txnId;           // Transaction ID
+  int64_t    term;            // Raft term when registered
+  int64_t    startTime;       // Transaction start time
+  int64_t    lastActive;      // Last active time
+  int8_t     stage;           // EVtxnStage
+  SSHashObj *pTouchedUids;    // SSHashObj: key=tb_uid_t, value=int8_t(dummy) — O(1) dedup
+  SSHashObj *pAlterPrevVers;  // SSHashObj: key=tb_uid_t, value=int64_t(prevVersion) — O(1) lookup
+  SArray    *pLockedTables;   // Array of char* (table names locked by this txn)
 } SVnodeTxnEntry;
 
 // Initialize vnode transaction manager
@@ -96,8 +91,8 @@ void vnodeTxnCleanup(SVnode *pVnode) {
     void *pIter = taosHashIterate(pVnode->pTxnHash, NULL);
     while (pIter) {
       SVnodeTxnEntry *pEntry = (SVnodeTxnEntry *)pIter;
-      taosArrayDestroy(pEntry->pTouchedUids);
-      taosArrayDestroy(pEntry->pAlterPrevVers);
+      tSimpleHashCleanup(pEntry->pTouchedUids);
+      tSimpleHashCleanup(pEntry->pAlterPrevVers);
       if (pEntry->pLockedTables) {
         int32_t sz = taosArrayGetSize(pEntry->pLockedTables);
         for (int32_t i = 0; i < sz; i++) {
@@ -188,10 +183,11 @@ int32_t vnodeTxnRebuildFromMeta(SVnode *pVnode) {
 
     // If PRE_ALTER, also reconstruct the ALTER old version record
     if (pScan->txnStatus == META_TXN_PRE_ALTER && pScan->txnPrevVer >= 0) {
-      SVnodeAlterRecord rec = {.uid = pScan->uid, .prevVersion = pScan->txnPrevVer};
-      if (taosArrayPush(pEntry->pAlterPrevVers, &rec) == NULL) {
-        vError("vgId:%d, txn rebuild: failed to push alter record for uid:%" PRId64, TD_VID(pVnode), pScan->uid);
-        code = terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+      int32_t putCode =
+          tSimpleHashPut(pEntry->pAlterPrevVers, &pScan->uid, sizeof(tb_uid_t), &pScan->txnPrevVer, sizeof(int64_t));
+      if (putCode != 0) {
+        vError("vgId:%d, txn rebuild: failed to put alter record for uid:%" PRId64, TD_VID(pVnode), pScan->uid);
+        code = putCode;
         break;
       }
     }
@@ -225,21 +221,21 @@ static int32_t vnodeCreateTxnEntry(SVnode *pVnode, int64_t txnId, int64_t term) 
   entry.startTime = taosGetTimestampMs();
   entry.lastActive = entry.startTime;
   entry.stage = VTXN_STAGE_ACTIVE;
-  entry.pTouchedUids = taosArrayInit(8, sizeof(tb_uid_t));
-  entry.pAlterPrevVers = taosArrayInit(4, sizeof(SVnodeAlterRecord));
+  entry.pTouchedUids = tSimpleHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  entry.pAlterPrevVers = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
   entry.pLockedTables = taosArrayInit(8, sizeof(char *));
 
   if (entry.pTouchedUids == NULL || entry.pAlterPrevVers == NULL || entry.pLockedTables == NULL) {
-    taosArrayDestroy(entry.pTouchedUids);
-    taosArrayDestroy(entry.pAlterPrevVers);
+    tSimpleHashCleanup(entry.pTouchedUids);
+    tSimpleHashCleanup(entry.pAlterPrevVers);
     taosArrayDestroy(entry.pLockedTables);
     return terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
   }
 
   int32_t code = taosHashPut(pVnode->pTxnHash, &txnId, sizeof(int64_t), &entry, sizeof(SVnodeTxnEntry));
   if (code != 0) {
-    taosArrayDestroy(entry.pTouchedUids);
-    taosArrayDestroy(entry.pAlterPrevVers);
+    tSimpleHashCleanup(entry.pTouchedUids);
+    tSimpleHashCleanup(entry.pAlterPrevVers);
     taosArrayDestroy(entry.pLockedTables);
     return code;
   }
@@ -267,8 +263,8 @@ static void vnodeRemoveTxnEntry(SVnode *pVnode, int64_t txnId) {
   SVnodeTxnEntry *pEntry = vnodeGetTxnEntry(pVnode, txnId);
   if (pEntry) {
     vnodeReleaseTxnTableLocks(pVnode, pEntry);
-    taosArrayDestroy(pEntry->pTouchedUids);
-    taosArrayDestroy(pEntry->pAlterPrevVers);
+    tSimpleHashCleanup(pEntry->pTouchedUids);
+    tSimpleHashCleanup(pEntry->pAlterPrevVers);
     taosHashRemove(pVnode->pTxnHash, &txnId, sizeof(int64_t));
   }
 }
@@ -305,19 +301,18 @@ int32_t vnodeTxnEnsureEntry(SVnode *pVnode, int64_t txnId) {
 
 /**
  * Record a UID touched by this txn (for COMMIT/ROLLBACK iteration).
- * Deduplication: only adds if not already present.
+ * SSHashObj provides O(1) dedup (vs O(n) linear scan with SArray).
  */
 static int32_t vnodeTxnTrackUid(SVnodeTxnEntry *pEntry, tb_uid_t uid) {
   if (pEntry->pTouchedUids == NULL) return TSDB_CODE_SUCCESS;
-  int32_t sz = taosArrayGetSize(pEntry->pTouchedUids);
-  for (int32_t i = 0; i < sz; i++) {
-    if (*(tb_uid_t *)taosArrayGet(pEntry->pTouchedUids, i) == uid) {
-      return TSDB_CODE_SUCCESS;  // already tracked
-    }
+  if (tSimpleHashGet(pEntry->pTouchedUids, &uid, sizeof(tb_uid_t)) != NULL) {
+    return TSDB_CODE_SUCCESS;  // already tracked
   }
-  if (taosArrayPush(pEntry->pTouchedUids, &uid) == NULL) {
-    vError("vnodeTxnTrackUid: failed to push uid:%" PRId64, uid);
-    return terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+  int8_t  dummy = 1;
+  int32_t code = tSimpleHashPut(pEntry->pTouchedUids, &uid, sizeof(tb_uid_t), &dummy, sizeof(dummy));
+  if (code != 0) {
+    vError("vnodeTxnTrackUid: failed to put uid:%" PRId64, uid);
+    return code;
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -352,10 +347,9 @@ int32_t vnodeTxnTrackAlter(SVnode *pVnode, int64_t txnId, tb_uid_t uid, int64_t 
   taosThreadMutexLock(&pVnode->txnMutex);
   SVnodeTxnEntry *pEntry = vnodeGetTxnEntry(pVnode, txnId);
   if (pEntry) {
-    SVnodeAlterRecord rec = {.uid = uid, .prevVersion = prevVersion};
-    if (taosArrayPush(pEntry->pAlterPrevVers, &rec) == NULL) {
-      vError("vgId:%d, vnodeTxnTrackAlter: failed to push alter record for uid:%" PRId64, TD_VID(pVnode), uid);
-      code = terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+    code = tSimpleHashPut(pEntry->pAlterPrevVers, &uid, sizeof(tb_uid_t), &prevVersion, sizeof(int64_t));
+    if (code != 0) {
+      vError("vgId:%d, vnodeTxnTrackAlter: failed to put alter record for uid:%" PRId64, TD_VID(pVnode), uid);
     }
     if (code == TSDB_CODE_SUCCESS) {
       code = vnodeTxnTrackUid(pEntry, uid);
@@ -382,23 +376,28 @@ int32_t vnodeTxnTrackAlter(SVnode *pVnode, int64_t txnId, tb_uid_t uid, int64_t 
 static int32_t vnodeTxnPromoteShadowEntries(SVnode *pVnode, SVnodeTxnEntry *pEntry) {
   if (pEntry->pTouchedUids == NULL) return TSDB_CODE_SUCCESS;
 
-  int32_t numUids = taosArrayGetSize(pEntry->pTouchedUids);
+  int32_t numUids = tSimpleHashGetSize(pEntry->pTouchedUids);
   vInfo("vgId:%d, promoting %d shadow entries for txn %" PRId64, TD_VID(pVnode), numUids, pEntry->txnId);
 
-  for (int32_t i = 0; i < numUids; i++) {
-    tb_uid_t uid = *(tb_uid_t *)taosArrayGet(pEntry->pTouchedUids, i);
+  int32_t iter = 0;
+  void   *pData = tSimpleHashIterate(pEntry->pTouchedUids, NULL, &iter);
+  while (pData != NULL) {
+    size_t   keyLen = 0;
+    tb_uid_t uid = *(tb_uid_t *)tSimpleHashGetKey(pData, &keyLen);
 
     // Fetch the current entry from B+ tree
     SMetaEntry *pME = NULL;
     int32_t     code = metaFetchEntryByUid(pVnode->pMeta, uid, &pME);
     if (code != 0 || pME == NULL) {
       vWarn("vgId:%d, commit: uid %" PRId64 " not found in B+ tree, skip", TD_VID(pVnode), uid);
+      pData = tSimpleHashIterate(pEntry->pTouchedUids, pData, &iter);
       continue;
     }
 
     if (pME->txnId != pEntry->txnId) {
       // Entry doesn't belong to this txn (maybe already committed/cleaned)
       metaFetchEntryFree(&pME);
+      pData = tSimpleHashIterate(pEntry->pTouchedUids, pData, &iter);
       continue;
     }
 
@@ -467,6 +466,7 @@ static int32_t vnodeTxnPromoteShadowEntries(SVnode *pVnode, SVnodeTxnEntry *pEnt
     }
 
     metaFetchEntryFree(&pME);
+    pData = tSimpleHashIterate(pEntry->pTouchedUids, pData, &iter);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -488,22 +488,27 @@ static int32_t vnodeTxnPromoteShadowEntries(SVnode *pVnode, SVnodeTxnEntry *pEnt
 static int32_t vnodeTxnUndoShadowEntries(SVnode *pVnode, SVnodeTxnEntry *pEntry) {
   if (pEntry->pTouchedUids == NULL) return TSDB_CODE_SUCCESS;
 
-  int32_t numUids = taosArrayGetSize(pEntry->pTouchedUids);
+  int32_t numUids = tSimpleHashGetSize(pEntry->pTouchedUids);
   vInfo("vgId:%d, undoing %d shadow entries for txn %" PRId64, TD_VID(pVnode), numUids, pEntry->txnId);
 
-  for (int32_t i = 0; i < numUids; i++) {
-    tb_uid_t uid = *(tb_uid_t *)taosArrayGet(pEntry->pTouchedUids, i);
+  int32_t iter = 0;
+  void   *pData = tSimpleHashIterate(pEntry->pTouchedUids, NULL, &iter);
+  while (pData != NULL) {
+    size_t   keyLen = 0;
+    tb_uid_t uid = *(tb_uid_t *)tSimpleHashGetKey(pData, &keyLen);
 
     // Fetch the current entry from B+ tree
     SMetaEntry *pME = NULL;
     int32_t     code = metaFetchEntryByUid(pVnode->pMeta, uid, &pME);
     if (code != 0 || pME == NULL) {
       vWarn("vgId:%d, rollback: uid %" PRId64 " not found in B+ tree, skip", TD_VID(pVnode), uid);
+      pData = tSimpleHashIterate(pEntry->pTouchedUids, pData, &iter);
       continue;
     }
 
     if (pME->txnId != pEntry->txnId) {
       metaFetchEntryFree(&pME);
+      pData = tSimpleHashIterate(pEntry->pTouchedUids, pData, &iter);
       continue;
     }
 
@@ -546,16 +551,12 @@ static int32_t vnodeTxnUndoShadowEntries(SVnode *pVnode, SVnodeTxnEntry *pEntry)
       case META_TXN_PRE_ALTER: {
         // ALTER created a new version — need to delete it and restore old version.
         // Primary source: txnPrevVer persisted in B+ tree entry (survives snapshot).
-        // Fallback: in-memory pAlterPrevVers (only available if WAL was replayed).
+        // Fallback: in-memory pAlterPrevVers hash (O(1) lookup by uid).
         int64_t prevVersion = pME->txnPrevVer;
         if (prevVersion < 0 && pEntry->pAlterPrevVers) {
-          int32_t nAlter = taosArrayGetSize(pEntry->pAlterPrevVers);
-          for (int32_t j = nAlter - 1; j >= 0; j--) {
-            SVnodeAlterRecord *pRec = (SVnodeAlterRecord *)taosArrayGet(pEntry->pAlterPrevVers, j);
-            if (pRec->uid == uid) {
-              prevVersion = pRec->prevVersion;
-              break;
-            }
+          int64_t *pPrevVer = (int64_t *)tSimpleHashGet(pEntry->pAlterPrevVers, &uid, sizeof(tb_uid_t));
+          if (pPrevVer != NULL) {
+            prevVersion = *pPrevVer;
           }
         }
 
@@ -634,6 +635,7 @@ static int32_t vnodeTxnUndoShadowEntries(SVnode *pVnode, SVnodeTxnEntry *pEntry)
     }
 
     metaFetchEntryFree(&pME);
+    pData = tSimpleHashIterate(pEntry->pTouchedUids, pData, &iter);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -892,6 +894,61 @@ int32_t vnodeCollectIdleTxns(SVnode *pVnode, SArray *pQueries) {
   }
 
   taosThreadMutexUnlock(&pVnode->txnMutex);
+  return TSDB_CODE_SUCCESS;
+}
+
+/**
+ * Scan for orphan transactions that have exceeded the hard timeout.
+ * This catches transactions received via snapshot replication whose
+ * COMMIT/ROLLBACK messages were lost (e.g. taosX disconnection).
+ *
+ * Called periodically alongside vnodeCollectIdleTxns.
+ * Orphan transactions are rolled back to prevent permanent intermediate state.
+ */
+int32_t vnodeTxnTimeoutScan(SVnode *pVnode) {
+  if (pVnode->pTxnHash == NULL) return TSDB_CODE_SUCCESS;
+
+  int64_t now = taosGetTimestampMs();
+  int64_t hardTimeout = (int64_t)tsMetaTxnTimeout * 1000;
+
+  SArray *toRollback = taosArrayInit(4, sizeof(int64_t));
+  if (toRollback == NULL) return terrno;
+
+  taosThreadMutexLock(&pVnode->txnMutex);
+
+  void *pIter = taosHashIterate(pVnode->pTxnHash, NULL);
+  while (pIter) {
+    SVnodeTxnEntry *pEntry = (SVnodeTxnEntry *)pIter;
+    if (pEntry->stage == VTXN_STAGE_ACTIVE && (now - pEntry->startTime > hardTimeout)) {
+      vWarn("vgId:%d, txn %" PRId64 " exceeded hard timeout (%" PRId64 "ms), scheduling rollback", TD_VID(pVnode),
+            pEntry->txnId, now - pEntry->startTime);
+      taosArrayPush(toRollback, &pEntry->txnId);
+    }
+    pIter = taosHashIterate(pVnode->pTxnHash, pIter);
+  }
+
+  int32_t numRollback = taosArrayGetSize(toRollback);
+  for (int32_t i = 0; i < numRollback; i++) {
+    int64_t         txnId = *(int64_t *)taosArrayGet(toRollback, i);
+    SVnodeTxnEntry *pEntry = vnodeGetTxnEntry(pVnode, txnId);
+    if (pEntry) {
+      pEntry->stage = VTXN_STAGE_FINISHING;
+      taosThreadMutexUnlock(&pVnode->txnMutex);
+
+      int32_t undoCode = vnodeTxnUndoShadowEntries(pVnode, pEntry);
+      if (undoCode != 0) {
+        vError("vgId:%d, timeout rollback failed for txn %" PRId64 ": %s", TD_VID(pVnode), txnId, tstrerror(undoCode));
+      }
+
+      taosThreadMutexLock(&pVnode->txnMutex);
+      vnodeRemoveTxnEntry(pVnode, txnId);
+      vInfo("vgId:%d, orphan txn %" PRId64 " rolled back by timeout", TD_VID(pVnode), txnId);
+    }
+  }
+
+  taosThreadMutexUnlock(&pVnode->txnMutex);
+  taosArrayDestroy(toRollback);
+
   return TSDB_CODE_SUCCESS;
 }
 

@@ -108,6 +108,11 @@ utxn_id_t mndTxnGetActiveTxnId(SMnode* pMnode, SRpcMsg* pReq);
 // Returns TSDB_CODE_TXN_RESOURCE_BUSY if conflict found, 0 otherwise.
 int32_t mndTxnCheckStbConflict(SMnode* pMnode, const char* stbName, utxn_id_t callerTxnId);
 
+// Get ALTER STB shadow ops for a specific STB in a given txn.
+// Returns 0 on success; *ppOps is an SArray of SMndShadowOp (caller destroys SArray, not contents).
+// *ppOps is NULL if no ALTER ops found.
+int32_t mndTxnGetAlterOpsForStb(SMnode* pMnode, utxn_id_t txnId, const char* stbFName, SArray** ppOps);
+
 #ifdef __cplusplus
 }
 #endif

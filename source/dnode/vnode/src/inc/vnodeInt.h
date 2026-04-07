@@ -675,6 +675,7 @@ int32_t vnodeProcessTxnCommitReq(SVnode* pVnode, int64_t ver, void* pReq, int32_
 int32_t vnodeProcessTxnRollbackReq(SVnode* pVnode, int64_t ver, void* pReq, int32_t len, SRpcMsg* pRsp);
 int32_t vnodeTxnFencing(SVnode* pVnode, int64_t newTerm, int64_t newTxnId);
 int32_t vnodeCollectIdleTxns(SVnode* pVnode, SArray* pQueries);
+int32_t vnodeTxnTimeoutScan(SVnode* pVnode);
 
 // Shadow-in-B+tree: ensure txn entry exists (lazy create), track ALTER old versions
 int32_t vnodeTxnEnsureEntry(SVnode* pVnode, int64_t txnId);

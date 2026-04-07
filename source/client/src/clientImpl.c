@@ -1681,11 +1681,6 @@ void launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQuery, void
       break;
     case QUERY_EXEC_MODE_RPC:
       if (!pRequest->validateOnly) {
-        // Client-side guard: block duplicate BEGIN before sending to mnode
-        if (pQuery->pCmdMsg != NULL && pQuery->pCmdMsg->msgType == TDMT_MND_BEGIN_TXN && pRequest->pTscObj->txnId > 0) {
-          code = TSDB_CODE_TXN_ALREADY_IN_PROGRESS;
-          break;
-        }
         code = execDdlQuery(pRequest, pQuery);
       }
       break;
@@ -1911,11 +1906,6 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultM
       asyncExecLocalCmd(pRequest, pQuery);
       break;
     case QUERY_EXEC_MODE_RPC:
-      // Client-side guard: block duplicate BEGIN before sending to mnode
-      if (pQuery->pCmdMsg != NULL && pQuery->pCmdMsg->msgType == TDMT_MND_BEGIN_TXN && pRequest->pTscObj->txnId > 0) {
-        doRequestCallback(pRequest, TSDB_CODE_TXN_ALREADY_IN_PROGRESS);
-        break;
-      }
       code = asyncExecDdlQuery(pRequest, pQuery);
       break;
     case QUERY_EXEC_MODE_SCHEDULE: {
@@ -3489,50 +3479,6 @@ void syncQueryFn(void* param, void* res, int32_t code) {
   }
 }
 
-// Pre-parse guard for BEGIN/COMMIT/ROLLBACK: validates transaction state before entering the parser.
-// Returns true if the command was handled (success or error), false if normal flow should continue.
-static bool handleTransactionControlCmd(SRequestObj* pRequest) {
-  const char* sql = pRequest->sqlstr;
-  STscObj*    pTscObj = pRequest->pTscObj;
-
-  // Skip leading whitespace
-  while (*sql == ' ' || *sql == '\t' || *sql == '\r' || *sql == '\n') sql++;
-
-  size_t len = strlen(sql);
-  // Strip trailing whitespace and semicolons
-  while (len > 0 && (sql[len - 1] == ' ' || sql[len - 1] == ';' || sql[len - 1] == '\t' ||
-                      sql[len - 1] == '\r' || sql[len - 1] == '\n'))
-    len--;
-
-  bool isBegin = (len == 5 && strncasecmp(sql, "begin", 5) == 0) ||
-                 (len == 17 && strncasecmp(sql, "begin transaction", 17) == 0);
-  bool isCommit = (len == 6 && strncasecmp(sql, "commit", 6) == 0);
-  bool isRollback = (len == 8 && strncasecmp(sql, "rollback", 8) == 0);
-
-  if (!isBegin && !isCommit && !isRollback) {
-    return false;  // not a transaction control cmd
-  }
-
-  int32_t code = TSDB_CODE_SUCCESS;
-  if (isBegin && pTscObj->txnId != 0) {
-    code = TSDB_CODE_TXN_ALREADY_IN_PROGRESS;
-  } else if ((isCommit || isRollback) && pTscObj->txnId == 0) {
-    code = TSDB_CODE_TXN_NOT_IN_PROGRESS;
-  }
-
-  if (code != TSDB_CODE_SUCCESS) {
-    terrno = code;
-    pRequest->code = code;
-    tscError("req:0x%" PRIx64 ", transaction guard rejected %s, code:%s, txnId:%" PRId64,
-             pRequest->self, isBegin ? "BEGIN" : (isCommit ? "COMMIT" : "ROLLBACK"),
-             tstrerror(code), (int64_t)pTscObj->txnId);
-    doRequestCallback(pRequest, code);
-    return true;  // handled (with error)
-  }
-
-  return false;  // let normal flow proceed
-}
-
 void taosAsyncQueryImpl(uint64_t connId, const char* sql, __taos_async_fn_t fp, void* param, bool validateOnly,
                         int8_t source) {
   if (sql == NULL || NULL == fp) {
@@ -3571,9 +3517,6 @@ void taosAsyncQueryImpl(uint64_t connId, const char* sql, __taos_async_fn_t fp, 
 
   pRequest->source = source;
   pRequest->body.queryFp = fp;
-  if (handleTransactionControlCmd(pRequest)) {
-    return;  // transaction guard handled (error returned via callback)
-  }
   doAsyncQuery(pRequest, false);
 }
 
@@ -3615,9 +3558,6 @@ void taosAsyncQueryImplWithReqid(uint64_t connId, const char* sql, __taos_async_
   }
 
   pRequest->body.queryFp = fp;
-  if (handleTransactionControlCmd(pRequest)) {
-    return;  // transaction guard handled (error returned via callback)
-  }
   doAsyncQuery(pRequest, false);
 }
 

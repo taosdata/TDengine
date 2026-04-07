@@ -2872,7 +2872,9 @@ static int32_t vnodeHandleDataWrite(SVnode *pVnode, int64_t version, SSubmitReq2
     }
 
     // batch meta txn: block INSERT only on PRE_CREATE (invisible tables)
-    // PRE_DROP tables allow INSERT — snapshot isolation: table still visible until COMMIT
+    // PRE_DROP tables allow INSERT — snapshot isolation: table still visible until COMMIT.
+    // If the txn commits (DROP finalized), this INSERT data is deleted with the table.
+    // If the txn rolls back, the table and INSERT data are both preserved.
     {
       void   *pTxnVal = NULL;
       int32_t txnValLen = 0;
