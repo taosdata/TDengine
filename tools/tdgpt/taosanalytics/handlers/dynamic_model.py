@@ -63,7 +63,8 @@ def do_handle_dynamic_model(request):
 
     AppLogger.debug("deploy model with name %s, config:%s", raw_model_name, model_config)
 
-    model_dir = Configure.get_instance().get_model_directory()
+    model_dir = Configure.get_instance().get_dynamic_model_directory()
+    os.makedirs(model_dir, exist_ok=True)
     full_path = str(os.path.join(model_dir, model_file_name))
 
     # check for valid model name, e.g. check if model file exists, etc.
