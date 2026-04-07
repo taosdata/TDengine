@@ -331,12 +331,41 @@ class TestCase:
                 "create table d_mask.ntb_mask "
                 "(ts timestamp, c0 int, c1 varchar(20), c2 nchar(20))"
             )
+            tdSql.execute(
+                "create table d_mask.ntb_mask_unsupported "
+                "(ts timestamp, c0 int, c1 varbinary(20), c2 geometry(100))"
+            )
+            tdSql.execute(
+                "create table d_mask.stb_json "
+                "(ts timestamp, c0 int, c1 varchar(20)) "
+                "tags(jtag json)"
+            )
 
             tdSql.execute("insert into d_mask.ctb_mask values(now, 1, 'hello', 'world')")
             tdSql.execute("insert into d_mask.ntb_mask values(now, 2, 'foo', 'bar')")
 
             tdSql.execute(f"create user u_mask pass '{self.test_pass}'")
             tdSql.execute("grant use on database d_mask to u_mask")
+
+            # mask(col) must reject unsupported data types
+            tdSql.error(
+                "grant select(ts, c0, mask(c1)) "
+                "on table d_mask.ntb_mask_unsupported to u_mask",
+                expectErrInfo="Not support mask for data type",
+                fullMatched=False,
+            )
+            tdSql.error(
+                "grant select(ts, c0, mask(c2)) "
+                "on table d_mask.ntb_mask_unsupported to u_mask",
+                expectErrInfo="Not support mask for data type",
+                fullMatched=False,
+            )
+            tdSql.error(
+                "grant select(ts, c0, mask(jtag)) "
+                "on table d_mask.stb_json to u_mask",
+                expectErrInfo="Not support mask for data type",
+                fullMatched=False,
+            )
 
             # Grant select with mask on VARCHAR/NCHAR columns for the supertable
             tdSql.execute(

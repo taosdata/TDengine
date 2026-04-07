@@ -19418,8 +19418,8 @@ static int32_t fillPrivSetRowCols(STranslateContext* pCxt, SArray** ppReqCols, S
     SColNameFlag colNameFlag = {.colId = pColNode->colId};
     if (pColNode->hasMask) {
       uint8_t colType = pColNode->node.resType.type;
-      if (!(colType == TSDB_DATA_TYPE_BINARY || colType == TSDB_DATA_TYPE_VARBINARY ||
-            colType == TSDB_DATA_TYPE_NCHAR || colType == TSDB_DATA_TYPE_JSON || colType == TSDB_DATA_TYPE_GEOMETRY)) {
+      /* Only VARCHAR/NCHAR are supported for mask(col) currently. */
+      if (!(colType == TSDB_DATA_TYPE_VARCHAR || colType == TSDB_DATA_TYPE_NCHAR)) {
         return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
                                        "Not support mask for data type:%" PRIu8, colType);
       }
