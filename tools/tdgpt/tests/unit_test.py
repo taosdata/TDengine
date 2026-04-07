@@ -247,7 +247,7 @@ class ServiceTest(unittest.TestCase):
         """dynamic register should fail when 'algo' field is missing"""
         import os
 
-        config_path = "/tmp/arima_model_missing_algo.json"
+        config_path = os.path.join(tempfile.gettempdir(), "arima_model_missing_algo.json")
         conf_file_content = """
         {
           "best_params": {
@@ -272,7 +272,7 @@ class ServiceTest(unittest.TestCase):
         """dynamic register should fail for unsupported algorithm names"""
         import os
 
-        config_path = "/tmp/arima_model_bad_algo.json"
+        config_path = os.path.join(tempfile.gettempdir(), "arima_model_bad_algo.json")
         conf_file_content = """
         {
           "algo": "lstm",
@@ -296,7 +296,7 @@ class ServiceTest(unittest.TestCase):
         """dynamic register should fail when config file content is invalid"""
         import os
 
-        config_path = "/tmp/arima_model_invalid_json.json"
+        config_path = os.path.join(tempfile.gettempdir(), "arima_model_invalid_json.json")
         with open(config_path, "w", encoding="utf-8") as handle:
             handle.write('{"algo": "arima"')
 
@@ -311,7 +311,7 @@ class ServiceTest(unittest.TestCase):
         """dynamic register should fail when model name already exists"""
         import os
 
-        config_path = "/tmp/arima_model_duplicate.json"
+        config_path = os.path.join(tempfile.gettempdir(), "arima_model_duplicate.json")
         service_name = "arima_model_duplicate"
         conf_file_content = """
         {
@@ -343,7 +343,7 @@ class ServiceTest(unittest.TestCase):
     def _register_dynamic_service_for_algo(self, algo_name):
         import os
 
-        config_path = f"/tmp/{algo_name}_model_config.json"
+        config_path = os.path.join(tempfile.gettempdir(), f"{algo_name}_model_config.json")
         service_name = f"{algo_name}_model_config"
         conf_file_content = f"""
         {{
