@@ -68,7 +68,7 @@ typedef int (*BlockCallback)(void *userData,
 
 
 // ---------------- interface ----------------
-int resultToFileTaos(TAOS_RES *res, const char *fileName, char *writeBuf, int32_t writeBufCap, int64_t *outRows);
+int resultToFileTaos(TAOS_RES *res, const char *fileName, char *writeBuf, int32_t writeBufCap, int64_t *outRows, volatile int64_t *progressCtr);
 
 // open a .dat file for reading, returns header info
 TaosFile* openTaosFileForRead(const char *fileName, int *code);

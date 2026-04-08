@@ -96,7 +96,7 @@ int backChildTableData(DataThread* thread, const char *childTableName) {
     char tmpFile[MAX_PATH_LEN];
     snprintf(tmpFile, sizeof(tmpFile), "%s.tmp", pathFile);
     int64_t rows = 0;
-    code = queryWriteBinaryEx(thread->conn, sql, format, tmpFile, thread->writeBuf, thread->writeBufCap, &rows);
+    code = queryWriteBinaryEx(thread->conn, sql, format, tmpFile, thread->writeBuf, thread->writeBufCap, &rows, NULL);
     if (code == TSDB_CODE_SUCCESS) {
         if (rows == 0) {
             // No data (empty table or no rows in time range): discard the tmp
@@ -505,7 +505,7 @@ static int backNormalOneTable(DataThread* thread, const char *tableName) {
     char tmpFile[MAX_PATH_LEN];
     snprintf(tmpFile, sizeof(tmpFile), "%s.tmp", pathFile);
     int64_t rows = 0;
-    code = queryWriteBinary(thread->conn, sql, format, tmpFile, &rows);
+    code = queryWriteBinary(thread->conn, sql, format, tmpFile, &rows, NULL);
     if (code == TSDB_CODE_SUCCESS) {
         if (rows == 0) {
             // No data in time range: discard tmp file, nothing to back up.

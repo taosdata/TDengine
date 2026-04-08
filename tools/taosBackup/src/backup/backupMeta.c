@@ -176,7 +176,7 @@ static void* backTagThread(void *arg) {
         return NULL;
     }
 
-    code = queryWriteBinary(thread->conn, sql, format, fileName, NULL);
+    code = queryWriteBinary(thread->conn, sql, format, fileName, NULL, &g_progress.ctbDoneCur);
     if (code != TSDB_CODE_SUCCESS) {
         logError("query write binary failed. sql=%s, format=%d file=%s", sql, format, fileName);
     }
@@ -312,9 +312,6 @@ int backChildTableTags(DBInfo *dbInfo, StbInfo *stbInfo) {
         }
     }
 
-    // mark all CTBs as done for progress display (backup writes them in bulk)
-    atomic_store_64(&g_progress.ctbDoneCur, (int64_t)totalChildTables);
-
     // free
     freePtr(threads);
     return code;
@@ -372,7 +369,7 @@ static int backVstbChildTags(DBInfo *dbInfo, StbInfo *stbInfo) {
     TAOS *conn = getConnection(&code);
     if (!conn) return code;
 
-    code = queryWriteBinary(conn, sql, format, vttagFile, NULL);
+    code = queryWriteBinary(conn, sql, format, vttagFile, NULL, NULL);
     releaseConnection(conn);
 
     if (code != TSDB_CODE_SUCCESS) {

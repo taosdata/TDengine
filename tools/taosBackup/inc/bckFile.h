@@ -25,10 +25,12 @@ int queryWriteTxt(const char *sql, int32_t col, const char *pathFile);
 
 // query result write to file with columnar storage
 // outRows: if not NULL, receives the number of rows written
-int queryWriteBinary(TAOS* conn, const char *sql, StorageFormat format, const char *pathFile, int64_t *outRows);
+// progressCtr: if non-NULL, atomically incremented by row-count as blocks are fetched
+int queryWriteBinary(TAOS* conn, const char *sql, StorageFormat format, const char *pathFile,
+                     int64_t *outRows, volatile int64_t *progressCtr);
 
 // query result write to file with caller-provided write buffer (thread-level reuse)
 int queryWriteBinaryEx(TAOS* conn, const char *sql, StorageFormat format, const char *pathFile,
-                       char *writeBuf, int32_t writeBufCap, int64_t *outRows);
+                       char *writeBuf, int32_t writeBufCap, int64_t *outRows, volatile int64_t *progressCtr);
 
 #endif  // INC_BCKFILE_H_
