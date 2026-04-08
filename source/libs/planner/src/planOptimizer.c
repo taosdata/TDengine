@@ -9025,7 +9025,8 @@ static bool vtableWindowMayBeOptimized(SLogicNode* pNode, void* pCtx) {
   if (pWindow->winType != WINDOW_TYPE_STATE) {
     return false;
   }
-  if (nodeType(pWindow->pStateExpr) != QUERY_NODE_COLUMN) {
+  if (pWindow->pStateExprs == NULL || LIST_LENGTH(pWindow->pStateExprs) != 1 ||
+      nodeType(nodesListGetNode(pWindow->pStateExprs, 0)) != QUERY_NODE_COLUMN) {
     return false;
   }
 
@@ -9240,7 +9241,8 @@ static int32_t vtableWindowOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogi
   pVirtualScan = (SVirtualScanLogicNode*)nodesListGetNode(pNewWindow->node.pChildren, 0);
   QUERY_CHECK_NULL(pVirtualScan, code, lino, _return, terrno)
 
-  PLAN_ERR_JRET(findDepTableScanNode((SColumnNode*)pNewWindow->pStateExpr, pVirtualScan, &pStateColScan));
+  PLAN_ERR_JRET(findDepTableScanNode((SColumnNode*)nodesListGetNode(pNewWindow->pStateExprs, 0), pVirtualScan,
+                                     &pStateColScan));
   pNewWindow->node.pChildren = NULL;
   pMatchedTspk = findWindowTspkFromScanCols(((SScanLogicNode*)pStateColScan)->pScanCols, pNewWindow->pTspk);
   QUERY_CHECK_NULL(pMatchedTspk, code, lino, _return, TSDB_CODE_PLAN_INTERNAL_ERROR)
@@ -9374,7 +9376,8 @@ static bool vstableWindowMayBeOptimized(SLogicNode* pNode, void* pCtx) {
       break;
     }
     case WINDOW_TYPE_STATE: {
-      if (nodeType(pWindow->pStateExpr) != QUERY_NODE_COLUMN) {
+      if (pWindow->pStateExprs == NULL || LIST_LENGTH(pWindow->pStateExprs) != 1 ||
+          nodeType(nodesListGetNode(pWindow->pStateExprs, 0)) != QUERY_NODE_COLUMN) {
         return false;
       }
       // fall through
@@ -10039,11 +10042,18 @@ static int32_t vstableWindowOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* 
       break;
     }
     case WINDOW_TYPE_STATE: {
+      // NOTE: multi-column state window is filtered out by vstableWindowMayBeOptimized,
+      // so pStateExprs is guaranteed to have exactly 1 element here.
+      if (pNewWindow->pStateExprs == NULL || LIST_LENGTH(pNewWindow->pStateExprs) != 1) {
+        code = TSDB_CODE_PLAN_INTERNAL_ERROR;
+        goto _return;
+      }
       // only keep col needed by window, remove other cols from pWinScan
-      removeUselessTargetFromNode((SLogicNode*)pWinScan, (SColumnNode*)pNewWindow->pStateExpr);
+      removeUselessTargetFromNode((SLogicNode*)pWinScan, (SColumnNode*)nodesListGetNode(pNewWindow->pStateExprs, 0));
       // also remove these targets from virtual scan node and table scan node
-      removeUselessTargetFromNode((SLogicNode*)pVirtualScanNode, (SColumnNode*)pNewWindow->pStateExpr);
-      removeUselessTargetFromNode((SLogicNode*)pScanNode, (SColumnNode*)pNewWindow->pStateExpr);
+      removeUselessTargetFromNode((SLogicNode*)pVirtualScanNode,
+                                  (SColumnNode*)nodesListGetNode(pNewWindow->pStateExprs, 0));
+      removeUselessTargetFromNode((SLogicNode*)pScanNode, (SColumnNode*)nodesListGetNode(pNewWindow->pStateExprs, 0));
       pSysScan->node.pParent = (SLogicNode*)pWinScan;
       pVirtualScanNode->node.pParent = (SLogicNode*)pWinScan;
       pScanNode->node.pParent = (SLogicNode*)pVirtualScanNode;
