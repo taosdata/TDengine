@@ -315,13 +315,13 @@ class TestSleep:
             t = threading.Thread(target=run_sleep)
             t.start()
 
-            # wait for the query to appear in SHOW QUERIES (up to 5s)
+            # wait for the query to appear in performance_schema.perf_queries (up to 5s)
             query_id = None
             for _ in range(50):
                 time.sleep(0.1)
-                tdSql.query("SHOW QUERIES")
+                tdSql.query("SELECT kill_id, sql FROM performance_schema.perf_queries")
                 for i in range(tdSql.queryRows):
-                    if marker in str(tdSql.getData(i, 13)).lower():
+                    if marker in str(tdSql.getData(i, 1)).lower():
                         query_id = tdSql.getData(i, 0)
                         break
                 if query_id:
