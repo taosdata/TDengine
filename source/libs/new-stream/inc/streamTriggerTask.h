@@ -79,6 +79,7 @@ typedef struct SSTriggerRealtimeGroup {
   union {
     struct {  // for state window trigger
       SValue  stateVal;
+      SArray *pStateVals;  // SArray<SValue>, only used for multi-column state window
       int64_t pendingNullStart;
       int32_t numPendingNull;
     };
@@ -122,6 +123,7 @@ typedef struct SSTriggerHistoryGroup {
     STimeWindow nextWindow;  // for sliding/period trigger
     struct {                 // for state window trigger
       SValue  stateVal;
+      SArray *pStateVals;  // SArray<SValue>, only used for multi-column state window
       int64_t pendingNullStart;
       int32_t numPendingNull;
     };
@@ -385,11 +387,14 @@ typedef struct SStreamTriggerTask {
       int64_t windowSliding;
     };
     struct {  // for state window
-      int64_t      stateSlotId;
+      int64_t      stateSlotId;   // compatibility fast path for single-column state window
+      SArray      *pStateSlotIds;  // SArray<int16_t>
       int64_t      stateExtend;
-      SNode       *pStateZeroth;
+      SNode       *pStateZeroth;  // compatibility fast path for single-column zeroth
+      SNodeList   *pStateZeroths;
       STrueForInfo stateTrueForInfo;
-      SNode       *pStateExpr;
+      SNode       *pStateExpr;  // compatibility fast path for single-column expr
+      SNodeList   *pStateExprs;
     };
     struct {  // for event window
       SNode       *pStartCond;
@@ -429,8 +434,10 @@ typedef struct SStreamTriggerTask {
   int32_t    histTrigPkIndex;
   int32_t    histCalcPkIndex;
   int64_t    histStateSlotId;
+  SArray     *pHistStateSlotIds;  // SArray<int16_t>
   SNode     *histTriggerFilter;
   SNode     *histStateExpr;
+  SNodeList *histStateExprs;
   SNode     *histStartCond;
   SNode     *histEndCond;
   SNodeList *histStartCondCols;
