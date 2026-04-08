@@ -881,16 +881,6 @@ SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
     return NULL;
   }
 
-  pMnode->checkTime = (int64_t)taosGetLocalTimezoneOffset(&code);
-  if (code != 0) {
-    TAOS_UNUSED(taosThreadRwlockDestroy(&pMnode->lock));
-    taosMemoryFree(pMnode);
-    mError("failed to open mnode in step 3, get local timezone offset, "
-           "since %s", tstrerror(code));
-    terrno = code;
-    return NULL;
-  }
-
   mInfo("vgId:1, mnode set options to syncMgmt, dnodeId:%d, numOfTotalReplicas:%d", pOption->selfIndex,
         pOption->numOfTotalReplicas);
   mndSetOptions(pMnode, pOption);
