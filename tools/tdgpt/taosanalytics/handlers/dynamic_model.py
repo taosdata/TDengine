@@ -8,8 +8,10 @@ from taosanalytics.log import AppLogger
 from taosanalytics.service_registry import loader
 
 
+MODEL_NAME_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$")
+
+
 def _is_valid_model_name(model_name):
-    MODEL_NAME_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$")
     # Allow a conservative filename subset and block traversal-like names.
     return isinstance(model_name, str) and model_name not in {".", ".."} and bool(MODEL_NAME_PATTERN.fullmatch(model_name))
 
@@ -63,7 +65,8 @@ def do_handle_dynamic_model(request):
 
     AppLogger.debug("deploy model with name %s, config:%s", raw_model_name, model_config)
 
-    model_dir = Configure.get_instance().get_model_directory()
+    model_dir = Configure.get_instance().get_dynamic_model_directory()
+    os.makedirs(model_dir, exist_ok=True)
     full_path = str(os.path.join(model_dir, model_file_name))
 
     # check for valid model name, e.g. check if model file exists, etc.
@@ -148,6 +151,8 @@ def do_handle_undeploy_model(request):
         loader.unregister_dynamic_service(model_name)
 
         if Path(str(full_path)).exists():
+            loader.unregister_dynamic_service(model_name)
+
             os.remove(full_path)
         else:
             AppLogger.warning("Model configuration file for model %s not found during undeploy, maybe already removed", model_name)

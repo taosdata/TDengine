@@ -10,7 +10,7 @@ Commands:
     start               Start taosanode main service
     stop                Stop taosanode main service
     status              Show service status
-    model-start [name]  Start model service help='Port the server listens on (default: 6064).(name: tdtsfm, timemoe, moirai, chronos, timesfm, moment, all)
+    model-start [name]  Start model service (name: tdtsfm, timemoe, moirai, chronos, timesfm, moment, all)
     model-stop [name]   Stop model service
     model-status        Show model service status
     install             Install as system service (Windows: winsw, Linux: systemd)
