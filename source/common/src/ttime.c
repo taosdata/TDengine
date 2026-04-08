@@ -997,7 +997,14 @@ int64_t taosTimeGetIntervalEnd(int64_t intervalStart, const SInterval* pInterval
   On conversion failure the original `ticks` value is returned unchanged.
  */
 static int64_t truncateToLocalMidnight(int64_t ticks, int32_t precision, timezone_t tz) {
-  time_t    t_sec = (time_t)(ticks / TSDB_TICK_PER_SECOND(precision));
+  int64_t   factor = TSDB_TICK_PER_SECOND(precision);
+  int64_t   t_sec_ticks = ticks / factor;
+  // C integer division truncates toward zero, so negative sub-second ticks need
+  // an extra step to keep the calendar lookup anchored to the preceding second.
+  if (ticks < 0 && ticks % factor != 0) {
+    t_sec_ticks -= 1;
+  }
+  time_t    t_sec = (time_t)t_sec_ticks;
   struct tm tm_local;
   if (taosLocalTime(&t_sec, &tm_local, NULL, 0, tz) == NULL) {
     return ticks;
@@ -1005,11 +1012,14 @@ static int64_t truncateToLocalMidnight(int64_t ticks, int32_t precision, timezon
   tm_local.tm_sec = 0;
   tm_local.tm_min = 0;
   tm_local.tm_hour = 0;
+  // Let mktime resolve DST for the target midnight instead of reusing the
+  // DST state from the original timestamp.
+  tm_local.tm_isdst = -1;
   time_t midnight = taosMktime(&tm_local, tz);
   if (midnight == (time_t)-1) {
     return ticks;
   }
-  return (int64_t)midnight * TSDB_TICK_PER_SECOND(precision);
+  return (int64_t)midnight * factor;
 }
 
 int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
