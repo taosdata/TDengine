@@ -2700,6 +2700,12 @@ END:
   return code;
 }
 
+static int64_t getElapsedTime(int64_t startTime){
+  int64_t currentTime = taosGetTimestampMs();
+  int64_t elapsedTime = currentTime - startTime;
+  return elapsedTime;
+}
+
 TAOS_RES* tmq_consumer_poll(tmq_t* tmq, int64_t timeout) {
   int32_t lino = 0;
   int32_t code = 0;
@@ -2729,8 +2735,7 @@ TAOS_RES* tmq_consumer_poll(tmq_t* tmq, int64_t timeout) {
     TSDB_CHECK_CODE(code, lino, END);
 
     if (timeout >= 0) {
-      int64_t currentTime = taosGetTimestampMs();
-      int64_t elapsedTime = currentTime - startTime;
+      int64_t elapsedTime = getElapsedTime(startTime);
       (void)tsem2_timewait(&tmq->rspSem, (timeout - elapsedTime));
       TSDB_CHECK_CONDITION(elapsedTime < timeout && elapsedTime >= 0, code, lino, END, 0);
     } else {
