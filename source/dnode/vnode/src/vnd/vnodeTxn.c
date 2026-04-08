@@ -922,7 +922,14 @@ int32_t vnodeTxnTimeoutScan(SVnode *pVnode) {
     if (pEntry->stage == VTXN_STAGE_ACTIVE && (now - pEntry->startTime > hardTimeout)) {
       vWarn("vgId:%d, txn %" PRId64 " exceeded hard timeout (%" PRId64 "ms), scheduling rollback", TD_VID(pVnode),
             pEntry->txnId, now - pEntry->startTime);
-      taosArrayPush(toRollback, &pEntry->txnId);
+      if (taosArrayPush(toRollback, &pEntry->txnId) == NULL) {
+        vError("vgId:%d, timeout scan: failed to push txnId:%" PRId64 " to rollback list", TD_VID(pVnode),
+               pEntry->txnId);
+        taosHashCancelIterate(pVnode->pTxnHash, pIter);
+        taosThreadMutexUnlock(&pVnode->txnMutex);
+        taosArrayDestroy(toRollback);
+        return terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+      }
     }
     pIter = taosHashIterate(pVnode->pTxnHash, pIter);
   }

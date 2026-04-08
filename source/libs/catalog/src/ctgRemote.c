@@ -1504,7 +1504,8 @@ int32_t ctgGetTbMetaFromVnode(SCatalog* pCtg, SRequestConnInfo* pConn, const SNa
     SRequestConnInfo vConn = {.pTrans = pConn->pTrans,
                               .requestId = pConn->requestId,
                               .requestObjRefId = pConn->requestObjRefId,
-                              .mgmtEps = vgroupInfo->epSet};
+                              .mgmtEps = vgroupInfo->epSet,
+                              .txnId = pConn->txnId};
 
     CTG_ERR_RET(ctgUpdateMsgCtx(CTG_GET_TASK_MSGCTX(pTask, tReq->msgIdx), reqType, pOut, tbFName));
 
@@ -1591,7 +1592,8 @@ int32_t ctgGetTableCfgFromVnode(SCatalog* pCtg, SRequestConnInfo* pConn, const S
     SRequestConnInfo vConn = {.pTrans = pConn->pTrans,
                               .requestId = pConn->requestId,
                               .requestObjRefId = pConn->requestObjRefId,
-                              .mgmtEps = vgroupInfo->epSet};
+                              .mgmtEps = vgroupInfo->epSet,
+                              .txnId = pConn->txnId};
 #if CTG_BATCH_FETCH
     SCtgTaskReq tReq;
     tReq.pTask = pTask;

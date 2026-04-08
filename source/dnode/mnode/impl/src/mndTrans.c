@@ -2904,9 +2904,14 @@ static int32_t mndRetrieveTxns(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
   char     buf[128] = {0};
   char    *pBuf = &buf[0];
 
+  // Use a local iterator instead of pShow->pIter to avoid cross-SDB-type
+  // contamination — mndRetrieveTrans() already occupies pShow->pIter for SDB_TRANS.
+  // TXN entries are typically few, so full iteration without paging is acceptable.
+  void *pTxnIter = NULL;
+
   while (numOfRows < rows) {
-    pShow->pIter = sdbFetch(pSdb, SDB_TXN, pShow->pIter, (void **)&pObj);
-    if (pShow->pIter == NULL) break;
+    pTxnIter = sdbFetch(pSdb, SDB_TXN, pTxnIter, (void **)&pObj);
+    if (pTxnIter == NULL) break;
 
     cols = 0;
 
@@ -2943,9 +2948,9 @@ static int32_t mndRetrieveTxns(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
   }
 
 _exit:
-  if(pShow->pIter) {
-    sdbCancelFetch(pSdb, pShow->pIter);
-    pShow->pIter = NULL;
+  if(pTxnIter) {
+    sdbCancelFetch(pSdb, pTxnIter);
+    pTxnIter = NULL;
   }
   if (code != 0) {
     mError("failed to retrieve txns at line:%d, since %s", lino, tstrerror(code));

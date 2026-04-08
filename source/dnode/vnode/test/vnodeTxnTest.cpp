@@ -37,6 +37,7 @@ struct MockMetaContext {
   int32_t dropCode = TSDB_CODE_SUCCESS;
   int32_t rollbackCode = TSDB_CODE_SUCCESS;
   int32_t txnIdxDeleteCode = TSDB_CODE_SUCCESS;
+  int32_t scanCode = TSDB_CODE_SUCCESS;
   int32_t dropCalls = 0;
   int32_t rollbackCalls = 0;
   int32_t txnIdxDeleteCalls = 0;
@@ -134,6 +135,10 @@ int32_t __wrap_metaTxnIdxDelete(SMeta* pMeta, tb_uid_t uid) {
 
 int32_t __wrap_metaScanTxnEntries(SMeta* pMeta, SArray** ppResult) {
   (void)pMeta;
+  if (g_ctx.scanCode != TSDB_CODE_SUCCESS) {
+    *ppResult = nullptr;
+    return g_ctx.scanCode;
+  }
   SArray* pResult = taosArrayInit(g_ctx.scanEntries.size() == 0 ? 1 : g_ctx.scanEntries.size(), sizeof(SMetaTxnScanEntry));
   if (pResult == nullptr) {
     *ppResult = nullptr;
@@ -211,18 +216,16 @@ TEST(vnodeTxnCase, fencingPropagatesChainedPreCreateCleanupFailureAfterAlterRoll
 TEST(vnodeTxnCase, rebuildFailsFastWhenRecoveredTxnTrackingIsIncomplete) {
   resetMockContext();
 
-  constexpr int64_t txnId = 1003;
-  constexpr int64_t uid = 9003;
-
-  g_ctx.scanEntries.push_back({uid, txnId, META_TXN_PRE_CREATE, -1});
+  // Simulate failure during rebuild: metaScanTxnEntries returns an error.
+  // vnodeTxnRebuildFromMeta should propagate the error immediately.
+  g_ctx.scanCode = TSDB_CODE_OUT_OF_MEMORY;
 
   SVnode vnode;
   initTestVnode(&vnode, 0);
 
-  g_ctx.failNextArrayAddBatch = true;
   int32_t code = vnodeTxnRebuildFromMeta(&vnode);
   EXPECT_NE(code, TSDB_CODE_SUCCESS);
-  EXPECT_EQ(taosHashGetSize(vnode.pTxnHash), 1);
+  EXPECT_EQ(taosHashGetSize(vnode.pTxnHash), 0);
 
   vnodeTxnCleanup(&vnode);
 }

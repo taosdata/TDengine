@@ -3507,12 +3507,21 @@ end:
 }
 
 void writeRawCleanup(void) {
-  taosHashCleanup(pMnodeTxnBegunHash);
+  // Set initedFlag to FAIL first so that any concurrent writeRawInit() / writeRawImpl()
+  // callers will see FAIL and bail out immediately, preventing use-after-free on the
+  // hash tables being cleaned up below.
+  atomic_store_8(&initedFlag, WRITE_RAW_INIT_FAIL);
+
+  SHashObj* h1 = pMnodeTxnBegunHash;
+  SHashObj* h2 = pMnodeTxnCompletedHash;
+  SHashObj* h3 = writeRawCache;
   pMnodeTxnBegunHash = NULL;
-  taosHashCleanup(pMnodeTxnCompletedHash);
   pMnodeTxnCompletedHash = NULL;
-  taosHashCleanup(writeRawCache);
   writeRawCache = NULL;
+
+  taosHashCleanup(h1);
+  taosHashCleanup(h2);
+  taosHashCleanup(h3);
   atomic_store_8(&initFlag, 0);
   atomic_store_8(&initedFlag, WRITE_RAW_INIT_START);
 }

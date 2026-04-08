@@ -41,10 +41,12 @@ TARGET_LINK_LIBRARIES(
          vnodeTxnTest
          PUBLIC os util common vnode mgmt_mnode vnode mgmt_mnode
 )
+IF(NOT TD_WINDOWS)
 SET_TARGET_PROPERTIES(
          vnodeTxnTest PROPERTIES
          LINK_FLAGS "-Wl,--wrap=metaFetchEntryByUid -Wl,--wrap=metaFetchEntryFree -Wl,--wrap=metaDropTable2 -Wl,--wrap=metaRollbackAlterTable -Wl,--wrap=metaTxnIdxDelete -Wl,--wrap=metaScanTxnEntries -Wl,--wrap=taosArrayAddBatch"
 )
+ENDIF()
 
 TARGET_INCLUDE_DIRECTORIES(
          bseTest
