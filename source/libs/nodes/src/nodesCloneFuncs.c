@@ -276,12 +276,13 @@ static int32_t tableNodeCopy(const STableNode* pSrc, STableNode* pDst) {
 }
 
 static STableMeta* tableMetaClone(const STableMeta* pSrc) {
-  int32_t     len = TABLE_META_SIZE(pSrc);
+  int32_t     len = TABLE_META_FULL_SIZE(pSrc);
   STableMeta* pDst = taosMemoryMalloc(len);
   if (NULL == pDst) {
     return NULL;
   }
   memcpy(pDst, pSrc, len);
+  tableMetaResetPointers(pDst);
   return pDst;
 }
 

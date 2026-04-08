@@ -50,7 +50,7 @@ The services provided by TDgpt are described as follows:
 
 ## Custom Algorithms
 
-TDgpt is an extensible platform to which you can add your own algorithms and models using the process described in [Algorithm Developer's Guide](../dev/). After adding an algorithm, you can access it through SQL statements just like the built-in algorithms. It is not necessary to make updates to your applications.
+TDgpt is an extensible platform to which you can add your own algorithms and models using the process described in [Algorithm Developer's Guide](09-dev/index.md). After adding an algorithm, you can access it through SQL statements just like the built-in algorithms. It is not necessary to make updates to your applications.
 
 Custom algorithms must be developed in Python. The anode adds algorithms dynamically. When the anode is started, it scans specified directories for files that meet its requirements and adds those files to the platform. To add an algorithm to your TDgpt, perform the following steps:
 

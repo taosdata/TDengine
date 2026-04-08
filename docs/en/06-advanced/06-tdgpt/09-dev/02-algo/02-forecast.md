@@ -88,7 +88,7 @@ SELECT  _flow, _fhigh, _frowts, FORECAST(col_name, "algo=myfc")
 FROM foo;
 ```
 
-If you have never started the anode, see [Operations & Maintenance](../../../management/) to add the anode to your TDengine cluster.
+If you have never started the anode, see [Operations & Maintenance](../../03-management.md) to add the anode to your TDengine cluster.
 
 ### Unit Testing
 

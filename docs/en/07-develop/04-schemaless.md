@@ -1,7 +1,6 @@
 ---
 title: Ingesting Data in Schemaless Mode
 sidebar_label: Schemaless Ingestion
-slug: /developer-guide/schemaless-ingestion
 ---
 
 import Tabs from "@theme/Tabs";

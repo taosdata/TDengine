@@ -1,6 +1,5 @@
 ---
 title: Views
-slug: /tdengine-reference/sql-manual/manage-views
 ---
 
 Starting from TDengine 3.2.1.0, TDengine Enterprise Edition [^1] provides the functionality of views, which simplifies operations and enhances sharing capabilities among users.

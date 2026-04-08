@@ -1,16 +1,15 @@
 ---
 title: Managing Consumers
-slug: /developer-guide/manage-consumers
 ---
 
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
 
-TDengine provides data subscription and consumption interfaces similar to those of message queue products. In many scenarios, by adopting TDengine's time-series big data platform, there is no need to integrate additional message queue products, thus simplifying application design and reducing maintenance costs. This chapter introduces the related APIs and usage methods for data subscription with various language connectors. For basic information on data subscription, please refer to [Data Subscription](../../advanced/subscription/)
+TDengine provides data subscription and consumption interfaces similar to those of message queue products. In many scenarios, by adopting TDengine's time-series big data platform, there is no need to integrate additional message queue products, thus simplifying application design and reducing maintenance costs. This chapter introduces the related APIs and usage methods for data subscription with various language connectors. For basic information on data subscription, please refer to [Data Subscription](../06-advanced/01-subscription/index.md)
 
 ## Creating Topics
 
-Please use TDengine CLI or refer to the [Execute SQL](../running-sql-statements/) section to execute the SQL for creating topics: `CREATE TOPIC IF NOT EXISTS topic_meters AS SELECT ts, current, voltage, phase, groupid, location FROM meters`
+Please use TDengine CLI or refer to the [Execute SQL](02-sql.md) section to execute the SQL for creating topics: `CREATE TOPIC IF NOT EXISTS topic_meters AS SELECT ts, current, voltage, phase, groupid, location FROM meters`
 
 The above SQL will create a subscription named topic_meters. Each record in the messages obtained using this subscription is composed of the columns selected by this query statement `SELECT ts, current, voltage, phase, groupid, location FROM meters`.
 
@@ -58,7 +57,7 @@ There are many parameters for creating consumers, which flexibly support various
 Below are the connection parameters for connectors in various languages:
 <Tabs defaultValue="java" groupId="lang">
 <TabItem value="java" label="Java">
-The parameters for creating a consumer with the Java connector are Properties. For a list of parameters you can set, please refer to [Consumer Parameters](../../tdengine-reference/client-libraries/java/)  
+The parameters for creating a consumer with the Java connector are Properties. For a list of parameters you can set, please refer to [Consumer Parameters](../14-reference/05-connector/14-java.md)  
 For other parameters, refer to the common basic configuration items mentioned above.
 
 </TabItem>
@@ -83,7 +82,7 @@ See the table above for other parameters.
 
 </TabItem>
 <TabItem label="Rust" value="rust">
-The parameters for creating a consumer with the Rust connector are DSN. For a list of parameters you can set, please refer to [DSN](../../tdengine-reference/client-libraries/rust/#dsn)  
+The parameters for creating a consumer with the Rust connector are DSN. For a list of parameters you can set, please refer to [DSN](../14-reference/05-connector/26-rust.md#dsn)  
 For other parameters, refer to the common basic configuration items mentioned above.
 
 </TabItem>

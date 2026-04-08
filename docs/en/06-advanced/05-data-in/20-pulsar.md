@@ -1,7 +1,6 @@
 ---
 title: Apache Pulsar
 sidebar_label: Pulsar
-slug: /advanced-features/data-connectors/Pulsar
 ---
 
 import Enterprise from '../../assets/resources/_enterprise.mdx';

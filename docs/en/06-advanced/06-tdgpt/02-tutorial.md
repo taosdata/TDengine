@@ -5,7 +5,7 @@ sidebar_label: Installation
 
 import PkgList from "/src/components/PkgList";
 
-Before installing TDgpt, review the [system requirements](../system-requirements/) and ensure that your container or machine meets the minimum specifications.
+Before installing TDgpt, review the [system requirements](11-system-requirements.md) and ensure that your container or machine meets the minimum specifications.
 
 This section describes how to use TDgpt in Docker.
 

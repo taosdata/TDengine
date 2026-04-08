@@ -34,8 +34,8 @@ This document assumes readers have basic database knowledge but do not require a
 > **Note**: JMeter 5.6.3 supports Java 8 and above.
 
 - TDengine JDBC Driver: [Download latest dist package from Maven Repository](https://mvnrepository.com/artifact/com.taosdata.jdbc/taos-jdbcdriver)
-- TDengine Server: [Official Installation Docs](https://docs.tdengine.com/)
-- taosgen Tool (built into TDengine, for test data generation): [taosgen User Guide](https://docs.tdengine.com/tdengine-reference/tools/taosgen/)
+- TDengine Server: [Official Installation Docs](../../04-get-started/index.md)
+- taosgen Tool (built into TDengine, for test data generation): [taosgen User Guide](../../14-reference/02-tools/11-taosgen.md)
 
 > **Verified Environment for This Document**:
 >
@@ -102,7 +102,7 @@ Verify these system settings before performance testing to avoid bottlenecks:
 | Swappiness value         | 1–10 (server)     | `sysctl vm.swappiness`           |
 
 > **Note**: See your OS official docs for system tuning.
-> For TDengine server config, refer to [taosd Configuration](https://docs.tdengine.com/tdengine-reference/components/taosd/).
+> For TDengine server config, refer to [taosd Configuration](../../14-reference/01-components/01-taosd.md).
 
 ---
 
@@ -449,7 +449,7 @@ Open `baseline_report/index.html`.
 | Test (single)         | `jdbc:TAOS-WS://localhost:6041/test?timezone=Asia/Shanghai` |
 | Production (3 nodes)  | `jdbc:TAOS-WS://td1:6041,td2:6041,td3:6041/prod_db?timezone=Asia/Shanghai` |
 
-> See [TDengine JDBC Docs](https://docs.tdengine.com/tdengine-reference/client-libraries/java/#properties) for more options.
+> See [TDengine JDBC Docs](../../14-reference/05-connector/14-java.md#properties) for more options.
 
 ---
 
@@ -1116,5 +1116,4 @@ Fix:
 - [JMeter CLI Mode Docs](https://jmeter.apache.org/usermanual/get-started.html#non_gui)
 - [JMeter JDBC Config](https://jmeter.apache.org/usermanual/component_reference.html#JDBC_Connection_Configuration)
 - [TDengine JDBC Driver](https://mvnrepository.com/artifact/com.taosdata.jdbc/taos-jdbcdriver)
-- [TDengine Official Docs](https://docs.tdengine.com/)
-- [taosgen Guide](https://docs.tdengine.com/tdengine-reference/tools/taosgen/)
+- [taosgen Guide](../../14-reference/02-tools/11-taosgen.md)
