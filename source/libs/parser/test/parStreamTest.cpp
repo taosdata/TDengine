@@ -27,8 +27,9 @@ TEST_F(ParserDdlTest, stateWindowKeywordSyntax) {
   run("create stream stream_streamdb.s_keyword_extend state_window(c1) extend(1) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2");
   run("create stream stream_streamdb.s_keyword_zeroth state_window(c1) extend(0) zeroth_state(0) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2");
   run("create stream stream_streamdb.s_keyword_no_zeroth state_window(c1) zeroth_state(no_zeroth) true_for(1s) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2");
-  // state_window(c1, 1) is now valid: the grammar treats "c1, 1" as a multi-expression state window list
-  run("create stream stream_streamdb.s_keyword_mix state_window(c1, 1) extend(1) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2");
+  run("create stream stream_streamdb.s_legacy_extend state_window(c1, 1) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2");
+  run("create stream stream_streamdb.s_legacy_zeroth state_window(c1, 1, 0) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2");
+  run("create stream stream_streamdb.s_keyword_mix state_window(c1, 1) extend(1) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2", TSDB_CODE_PAR_INVALID_STATE_WIN_COL);
 }
 
 /*
@@ -410,7 +411,12 @@ void setCreateStreamTriggerState(SCMCreateStreamReq *expect, int16_t slotId, int
   expect->trigger.stateWin.pSlotIds = taosArrayInit(1, sizeof(int16_t));
   ASSERT_NE(expect->trigger.stateWin.pSlotIds, nullptr);
   ASSERT_NE(taosArrayPush(expect->trigger.stateWin.pSlotIds, &slotId), nullptr);
+  expect->trigger.stateWin.extend = 0;
   expect->trigger.stateWin.trueForDuration = trueForDuration;
+}
+
+void setCreateStreamTriggerStateExtend(SCMCreateStreamReq *expect, int16_t extend) {
+  expect->trigger.stateWin.extend = extend;
 }
 
 void setCreateStreamTriggerStateMulti(SCMCreateStreamReq *expect, const int16_t *slotIds, int32_t numSlots, int64_t trueForDuration) {
@@ -419,6 +425,7 @@ void setCreateStreamTriggerStateMulti(SCMCreateStreamReq *expect, const int16_t 
   for (int32_t i = 0; i < numSlots; ++i) {
     ASSERT_NE(taosArrayPush(expect->trigger.stateWin.pSlotIds, &slotIds[i]), nullptr);
   }
+  expect->trigger.stateWin.extend = 0;
   expect->trigger.stateWin.trueForDuration = trueForDuration;
 }
 
@@ -682,6 +689,7 @@ void checkCreateStreamReq(SCMCreateStreamReq *expect, SCMCreateStreamReq *req) {
       break;
     }
     case WINDOW_TYPE_STATE: {
+      ASSERT_EQ(req->trigger.stateWin.extend, expect->trigger.stateWin.extend);
       ASSERT_EQ(req->trigger.stateWin.trueForDuration, expect->trigger.stateWin.trueForDuration);
       ASSERT_EQ(taosArrayGetSize(req->trigger.stateWin.pSlotIds), taosArrayGetSize(expect->trigger.stateWin.pSlotIds));
       for (int32_t i = 0; i < taosArrayGetSize(expect->trigger.stateWin.pSlotIds); i++) {
@@ -1067,6 +1075,16 @@ TEST_F(ParserStreamTest, TestTriggerType) {
   setCreateStreamTriggerCols(&expect, "[{\"NodeType\":\"1\",\"Name\":\"Column\",\"Column\":{\"DataType\":{\"Type\":\"4\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"4\"},\"AliasName\":\"c1\",\"UserAlias\":\"c1\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"TableId\":\"49\",\"TableType\":\"3\",\"ColId\":\"2\",\"ProjId\":\"0\",\"ColType\":\"1\",\"DbName\":\"stream_triggerdb\",\"TableName\":\"stream_t1\",\"TableAlias\":\"stream_t1\",\"ColName\":\"c1\",\"DataBlockId\":\"0\",\"SlotId\":\"0\",\"TableHasPk\":false,\"IsPk\":false,\"NumOfPKs\":\"0\",\"HasDep\":false,\"HasRef\":false,\"RefDb\":\"\",\"RefTable\":\"\",\"RefCol\":\"\",\"IsPrimTs\":false}},{\"NodeType\":\"1\",\"Name\":\"Column\",\"Column\":{\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"AliasName\":\"ts\",\"UserAlias\":\"ts\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"TableId\":\"49\",\"TableType\":\"3\",\"ColId\":\"1\",\"ProjId\":\"0\",\"ColType\":\"1\",\"DbName\":\"stream_triggerdb\",\"TableName\":\"stream_t1\",\"TableAlias\":\"stream_t1\",\"ColName\":\"ts\",\"DataBlockId\":\"0\",\"SlotId\":\"1\",\"TableHasPk\":false,\"IsPk\":false,\"NumOfPKs\":\"0\",\"HasDep\":false,\"HasRef\":false,\"RefDb\":\"\",\"RefTable\":\"\",\"RefCol\":\"\",\"IsPrimTs\":true}}]");
   setCreateStreamSql(&expect, "create stream stream_streamdb.s1 state_window(c1) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _tlocaltime, avg(c1) from stream_querydb.stream_t2");
   run("create stream stream_streamdb.s1 state_window(c1) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _tlocaltime, avg(c1) from stream_querydb.stream_t2");
+
+  setCreateStreamTriggerState(&expect, 0, 0);
+  setCreateStreamTriggerStateExtend(&expect, 1);
+  setCreateStreamSql(&expect, "create stream stream_streamdb.s1 state_window(c1, 1) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _tlocaltime, avg(c1) from stream_querydb.stream_t2");
+  run("create stream stream_streamdb.s1 state_window(c1, 1) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _tlocaltime, avg(c1) from stream_querydb.stream_t2");
+
+  setCreateStreamTriggerState(&expect, 0, 0);
+  setCreateStreamTriggerStateExtend(&expect, 1);
+  setCreateStreamSql(&expect, "create stream stream_streamdb.s1 state_window(c1) extend(1) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _tlocaltime, avg(c1) from stream_querydb.stream_t2");
+  run("create stream stream_streamdb.s1 state_window(c1) extend(1) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _tlocaltime, avg(c1) from stream_querydb.stream_t2");
 
   setCreateStreamTriggerState(&expect, 0, 0);
   setCreateStreamTriggerScanPlan(&expect, "{\"NodeType\":\"1137\",\"Name\":\"PhysiSubplan\",\"PhysiSubplan\":{\"Id\":{\"QueryId\":\"0\"},\"SubplanType\":\"3\",\"MsgType\":\"769\",\"DbFName\":\"0.stream_triggerdb\",\"User\":\"\",\"RootNode\":{\"NodeType\":\"1101\",\"Name\":\"PhysiTableScan\",\"PhysiTableScan\":{\"OutputDataBlockDesc\":{\"NodeType\":\"19\",\"Name\":\"DataBlockDesc\",\"DataBlockDesc\":{\"TotalRowSize\":\"300\",\"OutputRowSize\":\"300\",\"Slots\":[{\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{\"SlotId\":\"0\",\"DataType\":{\"Type\":\"8\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"20\"},\"Reserve\":false,\"Output\":true,\"Name\":\"1887832667250888763\",\"Tag\":false}},{\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{\"SlotId\":\"1\",\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"Reserve\":false,\"Output\":true,\"Name\":\"6954351318876756469\",\"Tag\":false}},{\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{\"SlotId\":\"2\",\"DataType\":{\"Type\":\"8\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"272\"},\"Reserve\":false,\"Output\":true,\"Name\":\"expr_3\",\"Tag\":false}}],\"Precision\":\"0\"}},\"InputOrder\":\"0\",\"OutputOrder\":\"1\",\"DynamicOp\":false,\"ForceCreateNonBlockingOptr\":false,\"ScanCols\":[{\"NodeType\":\"18\",\"Name\":\"Target\",\"Target\":{\"SlotId\":\"1\",\"Expr\":{\"NodeType\":\"1\",\"Name\":\"Column\",\"Column\":{\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"AliasName\":\"expr_2\",\"UserAlias\":\"ts\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"TableId\":\"49\",\"TableType\":\"3\",\"ColId\":\"1\",\"ProjId\":\"0\",\"ColType\":\"1\",\"DbName\":\"stream_triggerdb\",\"TableName\":\"stream_t1\",\"TableAlias\":\"stream_t1\",\"ColName\":\"ts\",\"SlotId\":\"0\",\"TableHasPk\":false,\"IsPk\":false,\"NumOfPKs\":\"0\",\"HasDep\":false,\"HasRef\":false,\"RefDb\":\"\",\"RefTable\":\"\",\"RefCol\":\"\",\"IsPrimTs\":true}}}},{\"NodeType\":\"18\",\"Name\":\"Target\",\"Target\":{\"SlotId\":\"0\",\"Expr\":{\"NodeType\":\"1\",\"Name\":\"Column\",\"Column\":{\"DataType\":{\"Type\":\"8\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"20\"},\"AliasName\":\"expr_1\",\"UserAlias\":\"c2\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"TableId\":\"49\",\"TableType\":\"3\",\"ColId\":\"3\",\"ProjId\":\"0\",\"ColType\":\"1\",\"DbName\":\"stream_triggerdb\",\"TableName\":\"stream_t1\",\"TableAlias\":\"stream_t1\",\"ColName\":\"c2\",\"SlotId\":\"0\",\"TableHasPk\":false,\"IsPk\":false,\"NumOfPKs\":\"0\",\"HasDep\":false,\"HasRef\":false,\"RefDb\":\"\",\"RefTable\":\"\",\"RefCol\":\"\",\"IsPrimTs\":false}}}}],\"ScanPseudoCols\":[{\"NodeType\":\"18\",\"Name\":\"Target\",\"Target\":{\"SlotId\":\"2\",\"Expr\":{\"NodeType\":\"5\",\"Name\":\"Function\",\"Function\":{\"DataType\":{\"Type\":\"8\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"272\"},\"AliasName\":\"expr_3\",\"UserAlias\":\"tbname\",\"HasNull\":false,\"RelatedTo\":\"0\",\"BindExprID\":\"0\",\"Name\":\"tbname\",\"Id\":\"85\",\"Type\":\"3501\",\"UdfBufSize\":\"0\",\"HasPk\":false,\"PkBytes\":\"0\",\"IsMergeFunc\":false,\"MergeFuncOf\":\"0\",\"TrimType\":\"0\",\"SrcFuncInputDataType\":{\"Type\":\"0\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"0\"}}}}}],\"TableId\":\"49\",\"STableId\":\"0\",\"TableType\":\"3\",\"TableName\":{\"NameType\":\"2\",\"AcctId\":\"0\",\"DbName\":\"stream_triggerdb\",\"TableName\":\"stream_t1\"},\"GroupOrderScan\":false,\"VirtualStableScan\":false,\"ScanCount\":\"1\",\"ReverseScanCount\":\"0\",\"StartKey\":\"-9223372036854775808\",\"EndKey\":\"9223372036854775807\",\"Ratio\":1,\"DataRequired\":\"1\",\"Interval\":\"0\",\"Offset\":\"0\",\"Sliding\":\"0\",\"IntervalUnit\":\"0\",\"SlidingUnit\":\"0\",\"TriggerType\":\"0\",\"Watermark\":\"0\",\"IgnoreExpired\":\"0\",\"GroupSort\":false,\"AssignBlockUid\":false,\"IgnoreUpdate\":\"0\",\"FilesetDelimited\":false,\"NeedCountEmptyTable\":false,\"ParaTablesSort\":false,\"SmallDataTsSort\":false}},\"DataSink\":{\"NodeType\":\"1133\",\"Name\":\"PhysiDispatch\",\"PhysiDispatch\":{\"InputDataBlockDesc\":{\"NodeType\":\"19\",\"Name\":\"DataBlockDesc\",\"DataBlockDesc\":{\"TotalRowSize\":\"300\",\"OutputRowSize\":\"300\",\"Slots\":[{\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{\"SlotId\":\"0\",\"DataType\":{\"Type\":\"8\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"20\"},\"Reserve\":false,\"Output\":true,\"Name\":\"\",\"Tag\":false}},{\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{\"SlotId\":\"1\",\"DataType\":{\"Type\":\"9\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"8\"},\"Reserve\":false,\"Output\":true,\"Name\":\"\",\"Tag\":false}},{\"NodeType\":\"20\",\"Name\":\"SlotDesc\",\"SlotDesc\":{\"SlotId\":\"2\",\"DataType\":{\"Type\":\"8\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"272\"},\"Reserve\":false,\"Output\":true,\"Name\":\"\",\"Tag\":false}}],\"Precision\":\"0\"}}}},\"ShowRewrite\":false,\"IsView\":false,\"IsAudit\":false,\"RowThreshold\":\"4096\",\"DyRowThreshold\":false,\"DynTbname\":false,\"ProcessOneBlock\":false}}");
@@ -1719,6 +1737,10 @@ TEST_F(ParserStreamTest, TestErrorTriggerWindow) {
 
   // invalid true for less than 0
   run("create stream stream_streamdb.s1 state_window(c1) true_for(-1) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2", TSDB_CODE_PAR_SYNTAX_ERROR, PARSER_STAGE_PARSE);
+
+  // invalid mixed and ambiguous positional syntax
+  run("create stream stream_streamdb.s1 state_window(c1, c2, 1) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2", TSDB_CODE_PAR_INVALID_STATE_WIN_COL);
+  run("create stream stream_streamdb.s1 state_window(case when c1 > 0 then 1 else 0 end, 1) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2", TSDB_CODE_PAR_INVALID_STATE_WIN_COL);
 
   // invalid true for unit
   run("create stream stream_streamdb.s1 state_window(c1) true_for(1y) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2", TSDB_CODE_PAR_TRUE_FOR_UNIT);

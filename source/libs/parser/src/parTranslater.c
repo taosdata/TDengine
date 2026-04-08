@@ -9370,6 +9370,119 @@ static SNode* getStateWindowExpr(const SStateWindowNode* pStateWin, int32_t inde
   return (pStateWin == NULL || pStateWin->pExprList == NULL) ? NULL : nodesListGetNode(pStateWin->pExprList, index);
 }
 
+static bool isStateWindowLiteralValue(const SNode* pNode) {
+  return pNode != NULL && QUERY_NODE_VALUE == nodeType(pNode);
+}
+
+static bool isLegacyStateWindowExtend(const SNode* pNode) {
+  return isStateWindowLiteralValue(pNode) && !((SValueNode*)pNode)->isNull &&
+         IS_INTEGER_TYPE(((SExprNode*)pNode)->resType.type);
+}
+
+static bool isLegacyStateWindowZeroth(const SNode* pNode) {
+  return isStateWindowLiteralValue(pNode);
+}
+
+static int32_t rebuildLegacyStateWindow(STranslateContext* pCxt, SStateWindowNode* pStateWin, bool hasZeroth) {
+  int32_t    code = TSDB_CODE_SUCCESS;
+  SNodeList* pExprList = NULL;
+  SNodeList* pZerothList = NULL;
+  SNode*     pExpr = NULL;
+  SNode*     pExtend = NULL;
+  SNode*     pZeroth = NULL;
+
+  code = nodesCloneNode(getStateWindowExpr(pStateWin, 0), &pExpr);
+  if (TSDB_CODE_SUCCESS != code) {
+    goto _exit;
+  }
+  code = nodesMakeList(&pExprList);
+  if (TSDB_CODE_SUCCESS != code) {
+    goto _exit;
+  }
+  code = nodesListAppend(pExprList, pExpr);
+  if (TSDB_CODE_SUCCESS != code) {
+    goto _exit;
+  }
+  pExpr = NULL;
+
+  code = nodesCloneNode(getStateWindowExpr(pStateWin, 1), &pExtend);
+  if (TSDB_CODE_SUCCESS != code) {
+    goto _exit;
+  }
+
+  if (hasZeroth) {
+    code = nodesCloneNode(getStateWindowExpr(pStateWin, 2), &pZeroth);
+    if (TSDB_CODE_SUCCESS != code) {
+      goto _exit;
+    }
+    code = nodesMakeList(&pZerothList);
+    if (TSDB_CODE_SUCCESS != code) {
+      goto _exit;
+    }
+    code = nodesListAppend(pZerothList, pZeroth);
+    if (TSDB_CODE_SUCCESS != code) {
+      goto _exit;
+    }
+    pZeroth = NULL;
+  }
+
+  nodesDestroyList(pStateWin->pExprList);
+  nodesDestroyNode(pStateWin->pExtend);
+  nodesDestroyList(pStateWin->pZerothList);
+  pStateWin->pExprList = pExprList;
+  pStateWin->pExtend = pExtend;
+  pStateWin->pZerothList = pZerothList;
+  return TSDB_CODE_SUCCESS;
+
+_exit:
+  nodesDestroyList(pExprList);
+  nodesDestroyNode(pExpr);
+  nodesDestroyNode(pExtend);
+  nodesDestroyList(pZerothList);
+  nodesDestroyNode(pZeroth);
+  return code;
+}
+
+static int32_t normalizeLegacyStateWindow(STranslateContext* pCxt, SStateWindowNode* pStateWin) {
+  int32_t exprCount = LIST_LENGTH(pStateWin->pExprList);
+  if (exprCount < 2) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SNode* pFirst = getStateWindowExpr(pStateWin, 0);
+  SNode* pSecond = getStateWindowExpr(pStateWin, 1);
+  if (QUERY_NODE_COLUMN != nodeType(pFirst) || !isLegacyStateWindowExtend(pSecond)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  bool hasZeroth = (3 == exprCount && isLegacyStateWindowZeroth(getStateWindowExpr(pStateWin, 2)));
+  if (exprCount > 3 || (3 == exprCount && !hasZeroth)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STATE_WIN_COL,
+                                   "STATE_WINDOW positional syntax only supports STATE_WINDOW(column[, extend[, zeroth]])");
+  }
+  if (NULL != pStateWin->pExtend || NULL != pStateWin->pZerothList) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STATE_WIN_COL,
+                                   "STATE_WINDOW positional syntax cannot be mixed with EXTEND() or ZEROTH_STATE()");
+  }
+
+  return rebuildLegacyStateWindow(pCxt, pStateWin, hasZeroth);
+}
+
+static int32_t checkStateWindowKeyAmbiguity(STranslateContext* pCxt, const SStateWindowNode* pStateWin) {
+  if (!isMultiColumnStateWindow(pStateWin)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  for (int32_t index = 1; index < LIST_LENGTH(pStateWin->pExprList); ++index) {
+    if (isStateWindowLiteralValue(getStateWindowExpr(pStateWin, index))) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STATE_WIN_COL,
+                                     "Multi-key STATE_WINDOW does not allow positional literal arguments; use EXTEND()/ZEROTH_STATE() for options");
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t checkStateExprList(STranslateContext* pCxt, SStateWindowNode* pStateWin) {
   if (pStateWin->pExprList == NULL || LIST_LENGTH(pStateWin->pExprList) == 0) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STATE_WIN_TYPE,
@@ -9470,6 +9583,8 @@ static int32_t checkAndConvertZerothValue(STranslateContext* pCxt, SStateWindowN
 }
 
 static int32_t checkStateWindow(STranslateContext* pCxt, SStateWindowNode* pStateWin) {
+  PAR_ERR_RET(normalizeLegacyStateWindow(pCxt, pStateWin));
+  PAR_ERR_RET(checkStateWindowKeyAmbiguity(pCxt, pStateWin));
   PAR_ERR_RET(checkStateExprList(pCxt, pStateWin));
   PAR_ERR_RET(checkStateExtend(pCxt, pStateWin->pExtend));
   PAR_ERR_RET(checkTrueForLimit(pCxt, pStateWin->pTrueForLimit));
