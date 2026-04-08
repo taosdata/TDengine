@@ -1417,12 +1417,18 @@ static void mergeAlignExtWinDo(SOperatorInfo* pOperator) {
 
     pRes->info.scanFlag = pBlock->info.scanFlag;
     pRes->info.id.groupId = pBlock->info.id.baseGId;  // only keep TGroup ID
-    
+
+    if (pExtW->scalarSupp.pExprInfo != NULL) {
+      SExprSupp* pScalarSup = &pExtW->scalarSupp;
+      code = projectApplyFunctions(pScalarSup->pExprInfo, pBlock, pBlock, pScalarSup->pCtx, pScalarSup->numOfExprs,
+                                   NULL, GET_STM_RTINFO(pOperator->pTaskInfo));
+      QUERY_CHECK_CODE(code, lino, _exit);
+    }
+
     code = setInputDataBlock(pSup, pBlock, pExtW->binfo.inputTsOrder, pBlock->info.scanFlag, true);
     QUERY_CHECK_CODE(code, lino, _exit);
 
     printDataBlock(pBlock, __func__, "externalwindowAlign", pTaskInfo->id.queryId);
-    qDebug("ext windowpExtWAlign->scalarMode:%d", pExtW->mode);
 
     if (EEXT_MODE_SCALAR == pExtW->mode) {
       TAOS_CHECK_EXIT(mergeAlignExtWinProjectDo(pOperator, &pExtW->binfo.resultRowInfo, pBlock, pRes));
@@ -1584,6 +1590,15 @@ int32_t createMergeAlignedExternalWindowOperator(SOperatorInfo* pDownstream, SPh
     code = initAggSup(pSup, &pExtW->aggSup, pExprInfo, num, keyBufSize, pTaskInfo->id.str, NULL,
                       &pTaskInfo->storageAPI.functionStore);
     QUERY_CHECK_CODE(code, lino, _error);
+
+    if (pPhynode->window.pExprs) {
+      int32_t    numOfScalar = 0;
+      SExprInfo* pScalarExprInfo = NULL;
+      code = createExprInfo(pPhynode->window.pExprs, NULL, &pScalarExprInfo, &numOfScalar);
+      QUERY_CHECK_CODE(code, lino, _error);
+      code = initExprSupp(&pExtW->scalarSupp, pScalarExprInfo, numOfScalar, &pTaskInfo->storageAPI.functionStore);
+      QUERY_CHECK_CODE(code, lino, _error);
+    }
   }
 
   code = filterInitFromNode((SNode*)pNode->pConditions, &pOperator->exprSupp.pFilterInfo, 0,

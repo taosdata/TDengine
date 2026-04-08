@@ -1582,6 +1582,10 @@ int32_t gconcatFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultI
 
 static int32_t gconcatHelper(const char* input, char* output, bool hasNchar, int32_t type, VarDataLenT* dataLen,
                              void* charsetCxt) {
+  if (input == NULL) {
+    *dataLen = 0;
+    return TSDB_CODE_SUCCESS;
+  }
   if (hasNchar && type == TSDB_DATA_TYPE_VARCHAR) {
     TdUcs4* newBuf = taosMemoryCalloc((varDataLen(input) + 1) * TSDB_NCHAR_SIZE, 1);
     if (NULL == newBuf) {
@@ -1644,6 +1648,8 @@ int32_t gconcatFunction(SqlFunctionCtx* pCtx) {
     }
     */
   }
+
+  hasNchar = pRes->nchar;
 
   // computing based on the true data block
   char*            buf = pRes->result;
