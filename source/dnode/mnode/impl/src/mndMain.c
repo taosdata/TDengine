@@ -813,8 +813,6 @@ SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
     return NULL;
   }
 
-  pMnode->checkTime = taosGetLocalTimezoneOffset();
-
   mInfo("vgId:1, mnode set options to syncMgmt, dnodeId:%d, numOfTotalReplicas:%d", pOption->selfIndex,
         pOption->numOfTotalReplicas);
   mndSetOptions(pMnode, pOption);
