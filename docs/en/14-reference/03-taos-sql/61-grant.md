@@ -655,7 +655,15 @@ REVOKE ALL ON table_name FROM user_name;
 - Only one rule per table per operation
 - Can be used together with row permissions
 - `mask()` only supports VARCHAR and NCHAR columns. Other types (e.g. INT, VARBINARY, GEOMETRY, JSON) are not supported for masking currently
-- Masking takes effect at the column-reference level. Functions naturally operate on the masked value (e.g. `length(masked_col)` returns `1`, `concat(masked_col, 'x')` returns `'*x'`)
+- **Masking scope**: `mask()` implements display-level Dynamic Data Masking (DDM). The masking rewrite applies **only to the SELECT projection list** (i.e. the final output). Column references in `WHERE`, `GROUP BY`, `HAVING`, `ORDER BY`, and `CASE WHEN` clauses are **not rewritten** and continue to operate on original values. For example:
+  - `SELECT length(masked_col)` returns `1` (in the projection, `masked_col` is replaced with `'*'`)
+  - `WHERE masked_col = 'hello'` still matches rows whose original value is `'hello'`
+  - `GROUP BY masked_col` groups by the original cardinality; every group displays as `'*'` in the output
+- **Design rationale**: Display-level masking preserves the semantic correctness of aggregate queries and analytics — operations such as `COUNT`, `GROUP BY`, and `DISTINCT` produce statistically meaningful results based on actual data, rather than collapsing all masked values into a single group. Full-pipeline masking (rewriting all clauses uniformly) would cause `GROUP BY` to merge all distinct values into one group and `COUNT(DISTINCT)` to always return 1, breaking aggregate semantics and rendering analytical queries unusable
+- **Anti-probing recommendations**: Display-level masking does not prevent users from probing original values through conditional clauses like `WHERE masked_col = 'xxx'`. To mitigate such side-channel inference attacks, consider the following measures:
+  - Use column-level permission control to withhold direct query access to sensitive columns entirely (i.e. do not include the column in the GRANT list), eliminating the access path at its root
+  - Use row-level permissions (`WITH` clause) to restrict the accessible data scope, reducing the probing surface
+  - Enable audit logging to monitor high-frequency conditional queries against masked columns
 
 **Example - Permission by Column:**
 

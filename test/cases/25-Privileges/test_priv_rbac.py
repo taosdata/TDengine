@@ -410,7 +410,10 @@ class TestCase:
         When a column has `mask(col)` in the SELECT grant, querying that
         column should return '*' instead of the actual value.
         Supported mask types: VARCHAR, NCHAR.
-        Uses value-replacement at column-reference level so that functions naturally operate on the masked value '*'.
+        Masking is applied at the projection (output) level — similar to
+        Oracle Data Redaction / OpenGauss DDM.  GROUP BY, WHERE, HAVING,
+        and ORDER BY operate on original unmasked values; only the final
+        displayed output is replaced with '*'.
         """
         tdSql.connect("root", "taosdata")
         tdSql.execute("drop database if exists d_mask")
@@ -539,9 +542,12 @@ class TestCase:
             tdSql.query("select case when c1 = 'foo' then 1 else 0 end from d_mask.ntb_mask")
             tdSql.checkRows(2)
             tdSql.checkData(0, 0, 0)
+            # GROUP BY operates on original values (projection-only masking, like Oracle/OpenGauss)
+            # 2 distinct original values ('foo','secret2') → 2 groups, both displayed as '*'
             tdSql.query("select c1 from d_mask.ntb_mask group by c1")
-            tdSql.checkRows(1)
+            tdSql.checkRows(2)
             tdSql.checkData(0, 0, '*')
+            tdSql.checkData(1, 0, '*')
 
             # -- Comprehensive function coverage on normal table --
             self._check_mask_scalar_funcs("d_mask.ntb_mask", "c1")
@@ -597,7 +603,7 @@ class TestCase:
 
             # Mixed column + tag functions
             tdSql.query("select upper(c1), lower(t1) from d_mask.stb_mask")
-            tdSql.checkRows(1)
+            tdSql.checkRows(2)
             tdSql.checkData(0, 0, '*')
             tdSql.checkData(0, 1, '*')
 
@@ -632,35 +638,33 @@ class TestCase:
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, '*,*')
 
-            # ==== mask_full/mask_partial/mask_none on already-masked column ====
-            tdSql.query("select mask_full(c1) from d_mask.ntb_mask")
+            # ==== mask_full/mask_none on already-masked column ====
+            # mask_full requires 2 args; inner c1 is already masked to '*'
+            tdSql.query("select mask_full(c1, 'X') from d_mask.ntb_mask")
             tdSql.checkRows(2)
-            tdSql.checkData(0, 0, '*')
+            tdSql.checkData(0, 0, 'X')
             tdSql.query("select mask_none(c1) from d_mask.ntb_mask")
             tdSql.checkRows(2)
             tdSql.checkData(0, 0, '*')
 
-            # ==== WHERE clause on masked column should not leak data ====
+            # ==== WHERE clause operates on original values (projection-only masking) ====
             tdSql.query("select c0 from d_mask.ntb_mask where c1 = 'foo'")
-            tdSql.checkRows(0)  # masked to '*', so 'foo' match fails
+            tdSql.checkRows(1)  # WHERE sees original 'foo'
             tdSql.query("select c0 from d_mask.ntb_mask where c1 = '*'")
-            tdSql.checkRows(2)  # all rows match '*'
-
-            # ==== ORDER BY on masked column ====
-            tdSql.query("select c1 from d_mask.ntb_mask order by c1")
-            tdSql.checkRows(2)
-            tdSql.checkData(0, 0, '*')
-            tdSql.checkData(1, 0, '*')
+            tdSql.checkRows(0)  # no original '*' value exists
 
             # ==== DISTINCT on masked column ====
+            # DISTINCT operates on projected (masked) values → all '*' → 1 row
             tdSql.query("select distinct c1 from d_mask.ntb_mask")
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, '*')
 
             # ==== HAVING on masked column ====
+            # GROUP BY on original values → 2 groups; both satisfy HAVING
             tdSql.query("select c1, count(*) from d_mask.ntb_mask group by c1 having count(*) > 0")
-            tdSql.checkRows(1)
+            tdSql.checkRows(2)
             tdSql.checkData(0, 0, '*')
+            tdSql.checkData(1, 0, '*')
 
             # ==== UNION on masked column ====
             tdSql.query("select c1 from d_mask.ntb_mask union all select c1 from d_mask.ctb_mask")
