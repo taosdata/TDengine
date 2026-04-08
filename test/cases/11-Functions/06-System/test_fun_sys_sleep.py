@@ -302,7 +302,7 @@ class TestSleep:
 
             def run_sleep(s=sql):
                 try:
-                    conn = taos.connect(config=self.cfg_path)
+                    conn = taos.connect()
                     cursor = conn.cursor()
                     cursor.execute(s)
                     rows = cursor.fetchall()

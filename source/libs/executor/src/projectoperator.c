@@ -334,6 +334,7 @@ int32_t doProjectOperation(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
     return code;
   }
 
+  gTaskScalarExtra.sleepExecuted = false;
   while (1) {
     while (1) {
       blockDataCleanup(pRes);

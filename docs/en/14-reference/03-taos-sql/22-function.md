@@ -3249,13 +3249,13 @@ SELECT CURRENT_USER();
 SELECT SLEEP(seconds);
 ```
 
-**Description**: Pauses execution for the specified number of seconds. Returns 0 on success, 1 if the argument is negative or if the query is killed while sleeping. The function sleeps once per query, not per row. A KILL QUERY command will interrupt the sleep within ~100ms and cause it to return 1.
+**Description**: Pauses execution for the specified number of seconds. Sleeps once per query regardless of how many rows the query returns. A KILL QUERY command will interrupt the sleep within ~100ms.
 
 **Parameters**:
 
-- `seconds`: DOUBLE - Number of seconds to sleep (supports fractional values like 0.5); negative values skip the sleep and return 1
+- `seconds`: DOUBLE - Number of seconds to sleep (supports fractional values like 0.5); negative values skip the sleep and return 1; NULL returns NULL
 
-**Return value**: INT - Returns 0 on success, 1 for negative arguments or when interrupted by KILL QUERY
+**Return value**: INT - Returns 0 on success, 1 for negative arguments or when interrupted by KILL QUERY, NULL if the argument is NULL
 
 **Examples**:
 
@@ -3266,7 +3266,13 @@ SELECT SLEEP(2);
 -- Sleep for 500 milliseconds
 SELECT SLEEP(0.5);
 
--- Use in query (sleeps once, not per row)
+-- Negative argument returns 1 immediately
+SELECT SLEEP(-1);
+
+-- NULL argument returns NULL
+SELECT SLEEP(NULL);
+
+-- Used with a table scan: sleeps once for the whole query, not per row
 SELECT SLEEP(1), col1 FROM table1;
 ```
 

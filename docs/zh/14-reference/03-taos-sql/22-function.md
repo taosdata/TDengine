@@ -3326,13 +3326,13 @@ SELECT SERVER_STATUS();
 SELECT SLEEP(seconds);
 ```
 
-**说明**：暂停执行指定的秒数。成功时返回 0，参数为负数或被 KILL QUERY 中断时返回 1。该函数每次查询只休眠一次，不会对每一行都休眠。执行 KILL QUERY 可在约 100ms 内中断休眠。
+**说明**：暂停执行指定的秒数。无论查询返回多少行，每次查询只休眠一次。执行 KILL QUERY 可在约 100ms 内中断休眠。
 
 **参数**：
 
-- `seconds`：DOUBLE - 休眠的秒数（支持小数，如 0.5）
+- `seconds`：DOUBLE - 休眠的秒数（支持小数，如 0.5）；负数跳过休眠并返回 1；NULL 返回 NULL
 
-**返回值**：INT - 成功返回 0，参数为负数或被 KILL QUERY 中断时返回 1
+**返回值**：INT - 成功返回 0，参数为负数或被 KILL QUERY 中断时返回 1，参数为 NULL 时返回 NULL
 
 **示例**：
 
@@ -3343,7 +3343,13 @@ SELECT SLEEP(2);
 -- 休眠 500 毫秒
 SELECT SLEEP(0.5);
 
--- 在查询中使用（只休眠一次，不是每行都休眠）
+-- 负数参数立即返回 1
+SELECT SLEEP(-1);
+
+-- NULL 参数返回 NULL
+SELECT SLEEP(NULL);
+
+-- 与表查询结合使用：对整个查询只休眠一次，不是每行都休眠
 SELECT SLEEP(1), col1 FROM table1;
 ```
 
