@@ -3225,7 +3225,9 @@ class ClientManager:
 
         # Prepare Tde Instance
         global gContainer
-        tInst = gContainer.defTdeInstance = TdeInstance()  # "subdir to hold the instance"
+        # Support per-instance subdir via env var (for Docker multi-instance)
+        subdir = os.environ.get('CRASH_GEN_SUBDIR', 'test')
+        tInst = gContainer.defTdeInstance = TdeInstance(subdir=subdir)
 
         cfg = Config.getConfig()
         dbManager = DbManager(cfg.connector_type, tInst.getDbTarget())  # Regular function
