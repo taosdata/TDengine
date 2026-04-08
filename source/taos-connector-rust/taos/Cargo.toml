@@ -103,3 +103,4 @@ ws-rustls-aws-lc-crypto-provider = [
     "taos-ws/rustls-aws-lc-crypto-provider",
 ]
 deflate = ["ws", "taos-ws/deflate"]
+test-new-feat = []

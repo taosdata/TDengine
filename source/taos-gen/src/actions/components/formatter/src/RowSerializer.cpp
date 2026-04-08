@@ -33,7 +33,9 @@ nlohmann::ordered_json RowSerializer::to_json(
 
             std::visit([&](const auto& value) {
                 using T = std::decay_t<decltype(value)>;
-                if constexpr (std::is_same_v<T, Decimal>) {
+                if constexpr (std::is_same_v<T, std::monostate>) {
+                    json_data[inst.name()] = nullptr;
+                } else if constexpr (std::is_same_v<T, Decimal>) {
                     json_data[inst.name()] = value.value;
                 } else if constexpr (std::is_same_v<T, JsonValue>) {
                     json_data[inst.name()] = value.raw_json;
@@ -106,7 +108,9 @@ void RowSerializer::to_json_inplace(
 
             std::visit([&](const auto& value) {
                 using T = std::decay_t<decltype(value)>;
-                if constexpr (std::is_same_v<T, Decimal>) {
+                if constexpr (std::is_same_v<T, std::monostate>) {
+                    out[inst.name()] = nullptr;
+                } else if constexpr (std::is_same_v<T, Decimal>) {
                     out[inst.name()] = value.value;
                 } else if constexpr (std::is_same_v<T, JsonValue>) {
                     out[inst.name()] = value.raw_json;
@@ -171,7 +175,9 @@ static inline void append_escape_field_string(fmt::memory_buffer& out, std::stri
 static inline std::string to_utf8_for_text_like(const ColumnType& cell) {
     return std::visit([&](const auto& value) -> std::string {
         using T = std::decay_t<decltype(value)>;
-        if constexpr (std::is_same_v<T, std::string>) {
+        if constexpr (std::is_same_v<T, std::monostate>) {
+            return "";
+        } else if constexpr (std::is_same_v<T, std::string>) {
             return value;
         } else if constexpr (std::is_same_v<T, std::u16string>) {
             return StringUtils::u16string_to_utf8(value);

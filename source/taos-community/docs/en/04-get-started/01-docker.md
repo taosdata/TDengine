@@ -2,19 +2,18 @@
 sidebar_label: Deploy in Docker
 title: Get Started with TDengine TSDB Using Docker
 description: Quickly experience TDengine's efficient insertion and querying using Docker
-slug: /get-started/deploy-in-docker
 ---
 
 import Getstarted from "./_get_started.mdx";
 
 You can install TDengine TSDB in a Docker container and perform some basic tests to verify its performance.
 
-To install TDengine TSDB on your local machine instead of in a container, see [Get Started with TDengine TSDB Using an Installation Package](../deploy-from-package/).
+To install TDengine TSDB on your local machine instead of in a container, see [Get Started with TDengine TSDB Using an Installation Package](03-package.md).
 
 ## Before You Begin
 
 - Install Docker. For more information, see the [Docker website](https://www.docker.com/).
-- Ensure that the network ports required by TDengine TSDB are not currently in use. For more information, see [Network Port Requirements](../../operations-and-maintenance/system-requirements/#network-port-requirements).
+- Ensure that the network ports required by TDengine TSDB are not currently in use. For more information, see [Network Port Requirements](../08-operation/02-planning.md#network-port-requirements).
 
 ## Procedure
 

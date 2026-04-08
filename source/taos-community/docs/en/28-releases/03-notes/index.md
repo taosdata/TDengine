@@ -1,6 +1,5 @@
 ---
 title: Release Notes
-slug: /release-history/release-notes
 ---
 
 import DocCardList from '@theme/DocCardList';

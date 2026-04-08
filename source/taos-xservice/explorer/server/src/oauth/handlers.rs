@@ -31,9 +31,10 @@ const OAUTH_STATE_COOKIE: &str = "oauth_state";
 const OAUTH_NONCE_COOKIE: &str = "oauth_nonce";
 const OAUTH_VERIFIER_COOKIE: &str = "oauth_verifier";
 const ENCRYPT_KEY: &str = "encrypt_key";
-const SESSION_ID_COOKIE: &str = "session_id";
 const COOKIE_MAX_AGE: Duration = Duration::from_secs(600); // 10 minutes
 const NON_USER_AGENT: &str = "non-user-agent";
+
+pub const SESSION_ID_COOKIE: &str = "session_id";
 
 #[derive(Serialize)]
 pub struct OAuthStatusResponse {
@@ -707,7 +708,6 @@ pub async fn oauth_me(
                 .path("/")
                 .http_only(true)
                 .same_site(SameSite::Lax)
-                .max_age(actix_web::cookie::time::Duration::seconds(3600))
                 .finish();
             HttpResponse::Ok()
                 .cookie(cookie_encrypt_key)

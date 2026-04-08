@@ -1,10 +1,10 @@
 #include "TagsCSVReader.hpp"
+#include "CsvNullUtils.hpp"
 #include "FilePathResolver.hpp"
 #include "TypeConverter.hpp"
 #include <stdexcept>
 #include <algorithm>
 #include <sstream>
-#include <cctype>
 #include <charconv>
 #include <cmath>
 #include <locale>
@@ -100,7 +100,12 @@ std::vector<ColumnTypeVector> TagsCSVReader::generate() const {
 
             // Process each valid column
             for (const auto& [col_idx, type] : column_type_map_) {
-                tag_row.push_back(convert_to_type(row[col_idx], type));
+                if ((ColumnTypeTraits::is_numeric(type) || type == ColumnTypeTag::BOOL)
+                    && CsvNullUtils::is_null_text(row[col_idx])) {
+                    tag_row.push_back(std::monostate{});
+                } else {
+                    tag_row.push_back(convert_to_type(row[col_idx], type));
+                }
             }
 
             tags.push_back(std::move(tag_row));

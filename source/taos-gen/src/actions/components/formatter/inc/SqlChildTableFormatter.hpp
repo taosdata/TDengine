@@ -30,7 +30,9 @@ public:
             }
             std::visit([&result](const auto& value) {
                 using T = std::decay_t<decltype(value)>;
-                if constexpr (std::is_same_v<T, std::string>) {
+                if constexpr (std::is_same_v<T, std::monostate>) {
+                    result += "NULL";
+                } else if constexpr (std::is_same_v<T, std::string>) {
                     result += "'";
                     result += escape_single_quotes(value);
                     result += "'";

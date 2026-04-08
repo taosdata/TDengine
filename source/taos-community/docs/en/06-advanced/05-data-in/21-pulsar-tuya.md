@@ -1,7 +1,6 @@
 ---
 title: Pulsar Tuya
 sidebar_label: Pulsar-Tuya
-slug: /advanced-features/data-connectors/Pulsar-Tuya
 ---
 
 import Enterprise from '../../assets/resources/_enterprise.mdx';

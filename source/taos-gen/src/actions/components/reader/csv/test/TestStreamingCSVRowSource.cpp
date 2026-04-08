@@ -822,6 +822,86 @@ void test_custom_delimiter() {
     std::cout << "test_custom_delimiter passed\n";
 }
 
+void test_numeric_null_literals_in_streaming_row() {
+    const std::string filename = "streaming_null_literals.csv";
+    create_test_file(filename,
+        "ts,name,age,score\n"
+        "1000,Alice,,98.5\n"
+        "2000,Bob,NULL,97.0\n"
+        "3000,Carol,NA,96.0\n");
+
+    ColumnConfigVector col_configs = {
+        {"name", "varchar(20)"},
+        {"age", "int"},
+        {"score", "double"}
+    };
+    auto instances = ColumnConfigInstanceFactory::create(col_configs);
+
+    TimestampStrategy ts;
+    ts.strategy_type = "csv";
+    ts.csv.enabled = true;
+    ts.csv.timestamp_index = 0;
+    ts.csv.timestamp_precision = "ms";
+
+    StreamingCSVRowSource source(
+        {filename}, /*has_header=*/true, /*delimiter=*/',',
+        instances, ts, "ms", "ms", /*repeat_read=*/false);
+
+    auto r1 = source.next();
+    auto r2 = source.next();
+    auto r3 = source.next();
+
+    assert(r1.has_value() && r2.has_value() && r3.has_value());
+    assert(std::holds_alternative<std::monostate>(r1->columns[1]));
+    assert(std::holds_alternative<std::monostate>(r2->columns[1]));
+    assert(std::holds_alternative<std::monostate>(r3->columns[1]));
+
+    assert(std::get<std::string>(r1->columns[0]) == "Alice");
+    assert(std::abs(std::get<double>(r1->columns[2]) - 98.5) < 0.001);
+
+    remove_test_file(filename);
+    std::cout << "test_numeric_null_literals_in_streaming_row passed\n";
+}
+
+void test_bool_null_literals_in_streaming_row() {
+    const std::string filename = "streaming_bool_null_literals.csv";
+    create_test_file(filename,
+        "ts,name,enabled\n"
+        "1000,Alice,\n"
+        "2000,Bob,NULL\n"
+        "3000,Carol,NA\n");
+
+    ColumnConfigVector col_configs = {
+        {"name", "varchar(20)"},
+        {"enabled", "bool"}
+    };
+    auto instances = ColumnConfigInstanceFactory::create(col_configs);
+
+    TimestampStrategy ts;
+    ts.strategy_type = "csv";
+    ts.csv.enabled = true;
+    ts.csv.timestamp_index = 0;
+    ts.csv.timestamp_precision = "ms";
+
+    StreamingCSVRowSource source(
+        {filename}, /*has_header=*/true, /*delimiter=*/',',
+        instances, ts, "ms", "ms", /*repeat_read=*/false);
+
+    auto r1 = source.next();
+    auto r2 = source.next();
+    auto r3 = source.next();
+
+    assert(r1.has_value() && r2.has_value() && r3.has_value());
+    assert(std::holds_alternative<std::monostate>(r1->columns[1]));
+    assert(std::holds_alternative<std::monostate>(r2->columns[1]));
+    assert(std::holds_alternative<std::monostate>(r3->columns[1]));
+
+    assert(std::get<std::string>(r1->columns[0]) == "Alice");
+
+    remove_test_file(filename);
+    std::cout << "test_bool_null_literals_in_streaming_row passed\n";
+}
+
 void test_csv_row_too_few_columns_throws() {
     const std::string filename = "streaming_row_too_few.csv";
     create_test_file(filename,
@@ -917,6 +997,8 @@ int main() {
     test_csv_without_header();
     test_various_column_types();
     test_custom_delimiter();
+    test_numeric_null_literals_in_streaming_row();
+    test_bool_null_literals_in_streaming_row();
     test_csv_row_too_few_columns_throws();
     test_csv_row_too_many_columns_throws();
 

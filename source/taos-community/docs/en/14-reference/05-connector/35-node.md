@@ -2,7 +2,6 @@
 toc_max_heading_level: 4
 sidebar_label: Node.js
 title: Node.js Client Library
-slug: /tdengine-reference/client-libraries/node
 ---
 
 import Tabs from "@theme/Tabs";
@@ -43,7 +42,7 @@ Support all platforms that can run Node.js.
 
 ## Exception Handling
 
-For error code information please refer to [Error Codes](../../error-codes/)
+For error code information please refer to [Error Codes](../09-error-code.md)
 
 ## Data Type Mapping
 

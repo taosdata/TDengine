@@ -1,7 +1,6 @@
 ---
 sidebar_label: Data Querying
 title: Data Querying
-slug: /basic-features/data-querying
 ---
 
 Compared to many other time-series and real-time databases, a unique advantage of TDengine since its first release is its support for standard SQL queries. This feature significantly reduces the learning curve for users. This chapter will use the data model of smart meters as an example to demonstrate how to use SQL queries in TDengine to handle time-series data. For further details and features of SQL syntax, it is recommended to refer to the official TDengine documentation. By studying this chapter, you will be able to master TDengine's SQL querying techniques and efficiently operate and analyze time-series data.

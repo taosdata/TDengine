@@ -1,6 +1,5 @@
 ---
 title: Data Subscription
-slug: /tdengine-reference/sql-manual/manage-topics-and-consumer-groups
 ---
 
 Starting from TDengine 3.0.0.0, significant optimizations and enhancements have been made to the message queue to simplify user solutions.
@@ -119,4 +118,4 @@ Displays the allocation relationship and consumption information between consume
 
 ## MQTT Data Subscription
 
-You can subscribe to data directly via an MQTT client. For details, refer to [MQTT Data Subscription](../../../advanced-features/data-subscription/mqtt-data-sub/).
+You can subscribe to data directly via an MQTT client. For details, refer to [MQTT Data Subscription](../../06-advanced/01-subscription/03-mqtt.md).

@@ -1,6 +1,5 @@
 ---
 title: Fault Tolerance and Disaster Recovery
-slug: /operations-and-maintenance/fault-tolerance-and-disaster-recovery
 ---
 
 To prevent data loss and accidental deletion, TDengine provides comprehensive data backup, recovery, fault tolerance, and real-time data synchronization across different locations to ensure the security of data storage. This section briefly explains fault tolerance and disaster recovery in TDengine.

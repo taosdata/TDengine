@@ -335,7 +335,7 @@ description: TDengine TSDB 保留关键字的详细列表
 | NE                   | |
 | NEXT                 | |
 | NMATCH               | |
-| NODELAY_CREATE_SUBTABLE | 3.5.0.0+ |
+| NODELAY_CREATE_SUBTABLE | 3.4.1.0+ |
 | NONE                 | |
 | NORMAL               | |
 | NOT                  | |
