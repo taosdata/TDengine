@@ -41,9 +41,6 @@
 #include "clientSession.h"
 #include "cus_name.h"
 
-#define TSC_VAR_NOT_RELEASE 1
-#define TSC_VAR_RELEASED    0
-
 #define ENV_JSON_FALSE_CHECK(c)                     \
   do {                                              \
     if (!c) {                                       \
@@ -322,8 +319,11 @@ void closeTransporter(SAppInstInfo *pAppInfo) {
     return;
   }
 
-  tscDebug("free transporter:%p in app inst %p", pAppInfo->pTransporter, pAppInfo);
-  rpcClose(pAppInfo->pTransporter);
+  void *pTransporter = pAppInfo->pTransporter;
+  pAppInfo->pTransporter = NULL;
+
+  tscDebug("free transporter:%p in app inst %p", pTransporter, pAppInfo);
+  rpcClose(pTransporter);
 }
 
 static bool clientRpcRfp(int32_t code, tmsg_t msgType) {

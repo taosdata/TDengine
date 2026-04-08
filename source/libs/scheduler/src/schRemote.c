@@ -524,9 +524,11 @@ int32_t schHandleDropCallback(void *param, SDataBuf *pMsg, int32_t code) {
   qDebug("QID:0x%" PRIx64 ", SID:0x%" PRIx64 ", CID:0x%" PRIx64 ", TID:0x%" PRIx64 " SJID:%d drop task rsp received, code:0x%x", 
          pParam->queryId, pParam->seriesId, pParam->clientId, pParam->taskId, pParam->subJobId, code);
   // called if drop task rsp received code
-  (void)rpcReleaseHandle(pMsg->handle, TAOS_CONN_CLIENT, 0); // ignore error
+  void *handle = pMsg->handle;
+  (void)rpcReleaseHandle(handle, TAOS_CONN_CLIENT, 0); // ignore error
+  pMsg->handle = NULL;
 
-  if (pMsg->handle == NULL) {
+  if (handle == NULL) {
     qError("sch handle is NULL, may be already released and mem lea");
   }
   if (pMsg) {
@@ -551,6 +553,7 @@ int32_t schHandleNotifyCallback(void *param, SDataBuf *pMsg, int32_t code) {
 int32_t schHandleLinkBrokenCallback(void *param, SDataBuf *pMsg, int32_t code) {
   SSchCallbackParamHeader *head = (SSchCallbackParamHeader *)param;
   (void)rpcReleaseHandle(pMsg->handle, TAOS_CONN_CLIENT, 0); // ignore error
+  pMsg->handle = NULL;
 
   qDebug("handle %p is broken", pMsg->handle);
 
@@ -581,6 +584,7 @@ int32_t schHandleHbCallback(void *param, SDataBuf *pMsg, int32_t code) {
   if (code) {
     qError("hb rsp error:%s", tstrerror(code));
     (void)rpcReleaseHandle(pMsg->handle, TAOS_CONN_CLIENT, 0); // ignore error
+    pMsg->handle = NULL;
     SCH_ERR_JRET(code);
   }
 

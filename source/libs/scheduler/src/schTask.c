@@ -1262,6 +1262,10 @@ _return:
 }
 
 int32_t schAsyncLaunchTaskImpl(SSchJob *pJob, SSchTask *pTask) {
+  if (!mayCreateAsyncWork()) {
+    SCH_ERR_RET(TSDB_CODE_APP_IS_STOPPING);
+  }
+
   SSchTaskCtx *param = taosMemoryCalloc(1, sizeof(SSchTaskCtx));
   if (NULL == param) {
     SCH_ERR_RET(terrno);
