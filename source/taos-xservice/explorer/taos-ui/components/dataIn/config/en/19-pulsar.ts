@@ -168,7 +168,7 @@ export default {
           label: 'is use SSL',
           field: 'custom_is_ssl',
           description: 'is use SSL connection？\n',
-          defaultValue: true,
+          defaultValue: false,
           required: true,
           hint: {
             type: 'bool'

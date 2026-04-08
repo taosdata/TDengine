@@ -34,6 +34,10 @@ check-file = false
 extend-glob = ["*.min.js"]
 check-file = false
 
+[type.lcov]
+extend-glob = ["*.lcov"]
+check-file = false
+
 [files]
 extend-exclude = [
   "taosx-ipc/tests/**",

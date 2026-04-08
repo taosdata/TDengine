@@ -19,7 +19,6 @@ export function sendSQLReq(sqlStr: string, composeData = false, alert = true) {
     const xor = new TimeBasedXor(300); // 5 分钟有效期
     requestData = xor.encrypt(sqlStr);
     headers['X-Enable-Xor'] = 'true';
-    console.log('[XOR] SQL encrypted for transmission');
   } catch (error) {
     console.error('[XOR] Encryption failed, fallback to plain text:', error);
     // 加密失败时回退到明文传输
