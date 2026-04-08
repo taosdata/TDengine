@@ -192,7 +192,11 @@ LONG WINAPI FlCrashDump(PEXCEPTION_POINTERS ep) {
         MiniDumpWithProcessThreadData           |  /* all thread stacks + locals  */
         MiniDumpWithHandleData                  |  /* open handles                */
         MiniDumpWithUnloadedModules             |  /* recently unloaded DLLs      */
-        MiniDumpWithIndirectlyReferencedMemory);   /* memory pointed-to by locals */
+        MiniDumpWithIndirectlyReferencedMemory  |  /* memory pointed-to by locals */
+        MiniDumpWithThreadInfo                  |  /* thread times, start addr    */
+        MiniDumpWithFullMemoryInfo              |  /* all VMAs (flags/state)      */
+        MiniDumpWithPrivateReadWriteMemory      |  /* private RW pages (heap etc) */
+        0);  /* | MiniDumpScanMemory — follow ptrs; enable if needed, watch size */
 
     (*mdwd)(GetCurrentProcess(), GetCurrentProcessId(), dmpFile,
             dumpType, &mei, NULL, NULL);
