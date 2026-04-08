@@ -49,6 +49,7 @@ window_clause: {
     SESSION(ts_col, tol_val)
   | STATE_WINDOW(expr[, extend[, zeroth_state]]) [TRUE_FOR(true_for_expr)]
   | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [fill_clause]
+  | EXTERNAL_WINDOW ((subquery) window_alias) [fill_clause]
   | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition [TRUE_FOR(true_for_expr)]
   | COUNT_WINDOW(count_val[, sliding_val][, col_name ...])
   | EXTERNAL_WINDOW ((subquery) window_alias)
@@ -340,6 +341,7 @@ FROM table_name
 EXTERNAL_WINDOW (
     (subquery_that_defines_windows) window_alias
 )
+[FILL(fill_mode_and_val)]
 [HAVING condition]
 [ORDER BY ...]
 ```

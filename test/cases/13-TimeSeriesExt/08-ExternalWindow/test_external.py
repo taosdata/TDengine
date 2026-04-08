@@ -1277,48 +1277,48 @@ class TestExternal:
         tdSql.query(
             "select cast(_wstart as bigint) as ws, count(*) as c "
             "from ext_cx_src "
-            "external_window((select ts, endtime, mark from ext_cx_win) w "
-            "fill(none))",
+            "external_window((select ts, endtime, mark from ext_cx_win) w) "
+            "fill(none)",
         )
         tdSql.checkRows(4)
 
         tdSql.query(
             "select cast(_wstart as bigint) as ws, count(*) as c "
             "from ext_cx_src "
-            "external_window((select ts, endtime, mark from ext_cx_win) w "
-            "fill(null))",
+            "external_window((select ts, endtime, mark from ext_cx_win) w) "
+            "fill(null)",
         )
         tdSql.checkRows(4)
 
         tdSql.query(
             "select cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv "
             "from ext_cx_src "
-            "external_window((select ts, endtime, mark from ext_cx_win) w "
-            "fill(value, 0, 0))",
+            "external_window((select ts, endtime, mark from ext_cx_win) w) "
+            "fill(value, 0, 0)",
         )
         tdSql.checkRows(4)
 
         tdSql.query(
             "select cast(_wstart as bigint) as ws, count(*) as c "
             "from ext_cx_src "
-            "external_window((select ts, endtime, mark from ext_cx_win) w "
-            "fill(prev))",
+            "external_window((select ts, endtime, mark from ext_cx_win) w) "
+            "fill(prev)",
         )
         tdSql.checkRows(4)
 
         tdSql.query(
             "select cast(_wstart as bigint) as ws, count(*) as c "
             "from ext_cx_src "
-            "external_window((select ts, endtime, mark from ext_cx_win) w "
-            "fill(next))",
+            "external_window((select ts, endtime, mark from ext_cx_win) w) "
+            "fill(next)",
         )
         tdSql.checkRows(4)
 
         tdSql.query(
             "select t1, cast(_wstart as bigint) as ws, count(*) as c "
             "from ext_cx_src partition by t1 "
-            "external_window((select ts, endtime, mark from ext_cx_win) w "
-            "fill(null))",
+            "external_window((select ts, endtime, mark from ext_cx_win) w) "
+            "fill(null)",
         )
         tdSql.checkRows(8)
 
@@ -1326,8 +1326,8 @@ class TestExternal:
         tdSql.error(
             "select cast(_wstart as bigint) as ws, count(*) as c "
             "from ext_cx_src "
-            "external_window((select ts, endtime, mark from ext_cx_win) w "
-            "fill(linear))",
+            "external_window((select ts, endtime, mark from ext_cx_win) w) "
+            "fill(linear)",
             expectedErrno=0x800026AC,
             expectErrInfo="LINEAR/NEAR fill is not supported with external window",
             fullMatched=False,
@@ -1337,8 +1337,8 @@ class TestExternal:
         tdSql.error(
             "select cast(_wstart as bigint) as ws, count(*) as c "
             "from ext_cx_src "
-            "external_window((select ts, endtime, mark from ext_cx_win) w "
-            "fill(near))",
+            "external_window((select ts, endtime, mark from ext_cx_win) w) "
+            "fill(near)",
             expectedErrno=0x800026AC,
         )
 
@@ -1346,8 +1346,8 @@ class TestExternal:
         tdSql.error(
             "select cast(_wstart as bigint) as ws, count(*) as c "
             "from ext_cx_src "
-            "external_window((select ts, endtime, mark from ext_cx_win) w "
-            "fill(prev) surround(1m))",
+            "external_window((select ts, endtime, mark from ext_cx_win) w) "
+            "fill(prev) surround(1m)",
             expectedErrno=0x800026AE,
         )
 
@@ -1355,8 +1355,8 @@ class TestExternal:
         tdSql.error(
             "select cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv "
             "from ext_cx_src "
-            "external_window((select ts, endtime, mark from ext_cx_win) w "
-            "fill(value, 0, 0, 0))",
+            "external_window((select ts, endtime, mark from ext_cx_win) w) "
+            "fill(value, 0, 0, 0)",
             expectedErrno=0x80002605,
             expectErrInfo="Too many fill values specified",
             fullMatched=False,
@@ -1366,8 +1366,8 @@ class TestExternal:
         tdSql.error(
             "select cast(_wstart as bigint) as ws, ts "
             "from ext_cx_src "
-            "external_window((select ts, endtime, mark from ext_cx_win) w "
-            "fill(null))",
+            "external_window((select ts, endtime, mark from ext_cx_win) w) "
+            "fill(null)",
             expectedErrno=0x80002657,
             expectErrInfo="Fill only supports aggregate query with external window",
             fullMatched=False,
@@ -2767,14 +2767,14 @@ class TestExternal:
         tdSql.checkData(3, 0, ft0 + 120000)
         tdSql.checkData(5, 0, ft0 + 600000)
 
-        # FILL error: FILL not allowed with external_window
+        # FILL error:  Fill only supports aggregate query with external window
         tdSql.error(
             "select cast(_wstart as bigint) as ws, w.event, w.val, cast(ts as bigint), val "
             "from alarm1 "
             "where event = 6 "
             "external_window("
-            "(select ts, ts + 60s, event, val from fault1 where event = 1) w "
-            "fill(none))",
+            "(select ts, ts + 60s, event, val from fault1 where event = 1) w) "
+            "fill(none)",
             expectedErrno=0x80002657,
         )
 

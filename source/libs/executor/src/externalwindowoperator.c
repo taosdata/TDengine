@@ -2378,6 +2378,10 @@ static bool extWinShouldEmitAllWindows(SExternalWindowOperator* pExtW, SExtWinCa
   }
 }
 
+static FORCE_INLINE bool extWinUsesValueFillMode(EFillMode fillMode) {
+  return fillMode == FILL_MODE_VALUE || fillMode == FILL_MODE_VALUE_F;
+}
+
 static SResultRow* extWinFindAdjacentFillRow(SExternalWindowOperator* pExtW, SExtWinCalcGrpCtx* pCCtx, int32_t winIdx,
                                              bool next) {
   int32_t start = next ? (winIdx + 1) : (winIdx - 1);
@@ -2439,6 +2443,7 @@ static int32_t extWinAppendAggFilledRow(SOperatorInfo* pOperator, SExternalWindo
                                         SExtWinCalcGrpCtx* pCCtx, SExtWinTimeWindow* pWin, SResultRow* pSrcRow) {
   int32_t         code = TSDB_CODE_SUCCESS;
   int32_t         lino = 0;
+  char*           pTmpBuf = NULL;
   SSDataBlock*    pBlock = pExtW->binfo.pRes;
   SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
   SExprInfo*      pExprInfo = pOperator->exprSupp.pExprInfo;
@@ -2555,7 +2560,7 @@ static int32_t extWinAppendAggFilledRow(SOperatorInfo* pOperator, SExternalWindo
       }
     }
 
-    if (pExtW->fillMode == FILL_MODE_VALUE || pExtW->fillMode == FILL_MODE_VALUE_F) {
+    if (extWinUsesValueFillMode(pExtW->fillMode)) {
       TAOS_CHECK_EXIT(extWinApplyValueFill(pExtW, pBlock, pBlock->info.rows, 1));
     }
 
@@ -2564,7 +2569,7 @@ static int32_t extWinAppendAggFilledRow(SOperatorInfo* pOperator, SExternalWindo
     return code;
   }
 
-  char* pTmpBuf = taosMemoryMalloc(pExtW->aggSup.resultRowSize);
+  pTmpBuf = taosMemoryMalloc(pExtW->aggSup.resultRowSize);
   TSDB_CHECK_NULL(pTmpBuf, code, lino, _exit, terrno);
 
   memcpy(pTmpBuf, pSrcRow, pExtW->aggSup.resultRowSize);
@@ -2676,7 +2681,7 @@ static int32_t extWinAppendAggFilledRow(SOperatorInfo* pOperator, SExternalWindo
   updateTimeWindowInfo(&pExtW->twAggSup.timeWindowData, &pTmpRow->win, 0);
   TAOS_CHECK_EXIT(copyResultrowToDataBlock(pExprInfo, numOfExprs, pTmpRow, pCtx, pBlock, rowEntryOffset, pTaskInfo));
 
-  if (pExtW->fillMode == FILL_MODE_VALUE || pExtW->fillMode == FILL_MODE_VALUE_F) {
+  if (extWinUsesValueFillMode(pExtW->fillMode)) {
     TAOS_CHECK_EXIT(extWinApplyValueFill(pExtW, pBlock, startRow, pTmpRow->numOfRows));
   }
 

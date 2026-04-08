@@ -2887,9 +2887,6 @@ typedef struct SCollectFillExprsCtx {
   SNodeList* pAggFuncCols;
 } SCollectFillExprsCtx;
 
-static int32_t collectFillExprs(SSelectStmt* pSelect, SNodeList** pFillExprs, SNodeList** pNotFillExprs,
-                                SNodeList** pPossibleFillNullCols);
-
 typedef struct SWalkFillSubExprCtx {
   bool                  hasFillCol;
   bool                  hasPseudoWinCol;

@@ -53,7 +53,7 @@ class TestExternalFill:
         tdSql.query(
             "select cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv "
             "from ext_fill_src_1 "
-            "external_window((select ts, endtime, mark from ext_fill_win) w fill(none)) "
+            "external_window((select ts, endtime, mark from ext_fill_win) w) fill(none) "
             "order by ws"
         )
         tdSql.checkRows(3)
@@ -71,7 +71,7 @@ class TestExternalFill:
         tdSql.query(
             "select cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv "
             "from ext_fill_src_1 "
-            "external_window((select ts, endtime, mark from ext_fill_win) w fill(null)) "
+            "external_window((select ts, endtime, mark from ext_fill_win) w) fill(null) "
             "order by ws"
         )
         tdSql.checkRows(4)
@@ -92,7 +92,7 @@ class TestExternalFill:
         tdSql.query(
             "select cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv "
             "from ext_fill_src_empty "
-            "external_window((select ts, endtime, mark from ext_fill_win) w fill(null_f)) "
+            "external_window((select ts, endtime, mark from ext_fill_win) w) fill(null_f) "
             "order by ws"
         )
         tdSql.checkRows(4)
@@ -105,7 +105,7 @@ class TestExternalFill:
         tdSql.query(
             "select cast(_wstart as bigint) as ws, sum(v) as sv "
             "from ext_fill_src_1 "
-            "external_window((select ts, endtime, mark from ext_fill_win) w fill(value, 999)) "
+            "external_window((select ts, endtime, mark from ext_fill_win) w) fill(value, 999) "
             "order by ws"
         )
         tdSql.checkRows(4)
@@ -122,7 +122,7 @@ class TestExternalFill:
         tdSql.query(
             "select cast(_wstart as bigint) as ws, sum(v) as sv "
             "from ext_fill_src_empty "
-            "external_window((select ts, endtime, mark from ext_fill_win) w fill(value_f, 999)) "
+            "external_window((select ts, endtime, mark from ext_fill_win) w) fill(value_f, 999) "
             "order by ws"
         )
         tdSql.checkRows(4)
@@ -135,7 +135,7 @@ class TestExternalFill:
         tdSql.query(
             "select cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv "
             "from ext_fill_src_1 "
-            "external_window((select ts, endtime, mark from ext_fill_win) w fill(value, 888, 999)) "
+            "external_window((select ts, endtime, mark from ext_fill_win) w) fill(value, 888, 999) "
             "order by ws"
         )
         tdSql.checkRows(4)
@@ -157,7 +157,7 @@ class TestExternalFill:
         tdSql.query(
             "select cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv "
             "from ext_fill_src_empty "
-            "external_window((select ts, endtime, mark from ext_fill_win) w fill(value_f, 888, 999)) "
+            "external_window((select ts, endtime, mark from ext_fill_win) w) fill(value_f, 888, 999) "
             "order by ws"
         )
         tdSql.checkRows(4)
@@ -170,7 +170,7 @@ class TestExternalFill:
         tdSql.query(
             "select cast(_wstart as bigint) as ws, sum(v) as sv "
             "from ext_fill_src_1 "
-            "external_window((select ts, endtime, mark from ext_fill_win) w fill(prev)) "
+            "external_window((select ts, endtime, mark from ext_fill_win) w) fill(prev) "
             "order by ws"
         )
         tdSql.checkRows(4)
@@ -187,7 +187,7 @@ class TestExternalFill:
         tdSql.query(
             "select cast(_wstart as bigint) as ws, sum(v) as sv "
             "from ext_fill_src_1 "
-            "external_window((select ts, endtime, mark from ext_fill_win) w fill(next)) "
+            "external_window((select ts, endtime, mark from ext_fill_win) w) fill(next) "
             "order by ws"
         )
         tdSql.checkRows(4)
@@ -204,7 +204,7 @@ class TestExternalFill:
         tdSql.query(
             "select cast(_wstart as bigint) as ws, sum(v) as sv "
             "from ext_fill_src_empty "
-            "external_window((select ts, endtime, mark from ext_fill_win) w fill(prev)) "
+            "external_window((select ts, endtime, mark from ext_fill_win) w) fill(prev) "
             "order by ws"
         )
         tdSql.checkRows(0)
@@ -212,7 +212,7 @@ class TestExternalFill:
         tdSql.query(
             "select cast(_wstart as bigint) as ws, sum(v) as sv "
             "from ext_fill_src_empty "
-            "external_window((select ts, endtime, mark from ext_fill_win) w fill(next)) "
+            "external_window((select ts, endtime, mark from ext_fill_win) w) fill(next) "
             "order by ws"
         )
         tdSql.checkRows(0)
@@ -221,7 +221,7 @@ class TestExternalFill:
         tdSql.query(
             "select t1, cast(_wstart as bigint) as ws, sum(v) as sv "
             "from ext_fill_src partition by t1 "
-            "external_window((select ts, endtime, mark from ext_fill_win) w fill(prev)) "
+            "external_window((select ts, endtime, mark from ext_fill_win) w) fill(prev) "
             "order by t1, ws"
         )
         tdSql.checkRows(8)
@@ -258,7 +258,7 @@ class TestExternalFill:
         tdSql.query(
             "select cast(_wstart as bigint) as ws, w.mark, sum(v) as sv "
             "from ext_fill_src_1 "
-            "external_window((select ts, endtime, mark from ext_fill_win) w fill(null)) "
+            "external_window((select ts, endtime, mark from ext_fill_win) w) fill(null) "
             "order by ws"
         )
         tdSql.checkRows(4)
@@ -271,7 +271,7 @@ class TestExternalFill:
         tdSql.query(
             "select cast(_wstart as bigint) as ws, w.mark, sum(v) as sv "
             "from ext_fill_src_1 "
-            "external_window((select ts, endtime, mark from ext_fill_win) w fill(value, 999)) "
+            "external_window((select ts, endtime, mark from ext_fill_win) w) fill(value, 999) "
             "order by ws"
         )
         tdSql.checkRows(4)
@@ -284,7 +284,7 @@ class TestExternalFill:
         tdSql.query(
             "select cast(_wstart as bigint) as ws, w.mark, sum(v) as sv "
             "from ext_fill_src_1 "
-            "external_window((select ts, endtime, mark from ext_fill_win) w fill(prev)) "
+            "external_window((select ts, endtime, mark from ext_fill_win) w) fill(prev) "
             "order by ws"
         )
         tdSql.checkRows(4)
@@ -297,7 +297,7 @@ class TestExternalFill:
         tdSql.query(
             "select cast(_wstart as bigint) as ws, w.mark, sum(v) as sv "
             "from ext_fill_src_1 "
-            "external_window((select ts, endtime, mark from ext_fill_win) w fill(none)) "
+            "external_window((select ts, endtime, mark from ext_fill_win) w) fill(none) "
             "order by ws"
         )
         tdSql.checkRows(3)
@@ -309,7 +309,7 @@ class TestExternalFill:
         tdSql.query(
             "select cast(_wstart as bigint) as ws, w.mark, sum(v) as sv "
             "from ext_fill_src_empty "
-            "external_window((select ts, endtime, mark from ext_fill_win) w fill(null_f)) "
+            "external_window((select ts, endtime, mark from ext_fill_win) w) fill(null_f) "
             "order by ws"
         )
         tdSql.checkRows(4)
@@ -322,7 +322,7 @@ class TestExternalFill:
         tdSql.query(
             "select cast(_wstart as bigint) as ws, w.mark, sum(v) as sv "
             "from ext_fill_src_empty "
-            "external_window((select ts, endtime, mark from ext_fill_win) w fill(value_f, 999)) "
+            "external_window((select ts, endtime, mark from ext_fill_win) w) fill(value_f, 999) "
             "order by ws"
         )
         tdSql.checkRows(4)
@@ -335,7 +335,7 @@ class TestExternalFill:
         tdSql.query(
             "select t1, cast(_wstart as bigint) as ws, w.mark, sum(v) as sv "
             "from ext_fill_src partition by t1 "
-            "external_window((select ts, endtime, mark from ext_fill_win) w fill(prev)) "
+            "external_window((select ts, endtime, mark from ext_fill_win) w) fill(prev) "
             "order by t1, ws"
         )
         tdSql.checkRows(8)
@@ -354,31 +354,31 @@ class TestExternalFill:
         tdSql.error(
             "select cast(_wstart as bigint) as ws, sum(v) as sv "
             "from ext_fill_src_1 "
-            "external_window((select ts, endtime, mark from ext_fill_win) w fill(linear))"
+            "external_window((select ts, endtime, mark from ext_fill_win) w) fill(linear)"
         )
 
         tdSql.error(
             "select cast(_wstart as bigint) as ws, sum(v) as sv "
             "from ext_fill_src_1 "
-            "external_window((select ts, endtime, mark from ext_fill_win) w fill(near))"
+            "external_window((select ts, endtime, mark from ext_fill_win) w) fill(near)"
         )
 
         tdSql.error(
             "select cast(_wstart as bigint) as ws, sum(v) as sv "
             "from ext_fill_src_1 "
-            "external_window((select ts, endtime, mark from ext_fill_win) w fill(prev) surround(10m))"
+            "external_window((select ts, endtime, mark from ext_fill_win) w) fill(prev) surround(10m)"
         )
 
         tdSql.error(
             "select cast(_wstart as bigint) as ws, sum(v) as sv "
             "from ext_fill_src_1 "
-            "external_window((select ts, endtime, mark from ext_fill_win) w fill(value, 1, 2))"
+            "external_window((select ts, endtime, mark from ext_fill_win) w) fill(value, 1, 2)"
         )
 
         tdSql.error(
             "select cast(_wstart as bigint) as ws, cast(ts as bigint) as ts64 "
             "from ext_fill_src_1 "
-            "external_window((select ts, endtime, mark from ext_fill_win) w fill(null))"
+            "external_window((select ts, endtime, mark from ext_fill_win) w) fill(null)"
         )
 
     def _prepare_external_fill_having_order_data(self):
@@ -418,7 +418,7 @@ class TestExternalFill:
         tdSql.query(
             "select cast(_wstart as bigint) as ws, sum(v) as sv "
             "from src_1 "
-            "external_window((select ts, endtime, mark from win) w fill(prev)) "
+            "external_window((select ts, endtime, mark from win) w) fill(prev) "
             "having(sum(v) is not null) order by ws"
         )
         tdSql.checkRows(4)
@@ -434,7 +434,7 @@ class TestExternalFill:
         tdSql.query(
             "select cast(_wstart as bigint) as ws, sum(v) as sv "
             "from src_1 "
-            "external_window((select ts, endtime, mark from win) w fill(prev)) "
+            "external_window((select ts, endtime, mark from win) w) fill(prev) "
             "having(sum(v) > 100) order by ws"
         )
         tdSql.checkRows(0)
@@ -442,7 +442,7 @@ class TestExternalFill:
         tdSql.query(
             "select cast(_wstart as bigint) as ws, sum(v) as sv "
             "from src_1 "
-            "external_window((select ts, endtime, mark from win) w fill(prev)) "
+            "external_window((select ts, endtime, mark from win) w) fill(prev) "
             "having(sum(v) > 20) order by ws"
         )
         tdSql.checkRows(2)
@@ -454,7 +454,7 @@ class TestExternalFill:
         tdSql.query(
             "select cast(_wstart as bigint) as ws, sum(v) as sv "
             "from src_1 "
-            "external_window((select ts, endtime, mark from win) w fill(value, 777)) "
+            "external_window((select ts, endtime, mark from win) w) fill(value, 777) "
             "having(sum(v) >= 100) order by ws"
         )
         tdSql.checkRows(3)
@@ -468,7 +468,7 @@ class TestExternalFill:
         tdSql.query(
             "select cast(_wstart as bigint) as ws, sum(v) as sv "
             "from src_1 "
-            "external_window((select ts, endtime, mark from win) w fill(value, 777)) "
+            "external_window((select ts, endtime, mark from win) w) fill(value, 777) "
             "having(sum(v) = 777) order by ws"
         )
         tdSql.checkRows(3)
@@ -482,7 +482,7 @@ class TestExternalFill:
         tdSql.query(
             "select cast(_wstart as bigint) as ws, sum(v) as sv "
             "from src_1 "
-            "external_window((select ts, endtime, mark from win) w fill(value, 777)) "
+            "external_window((select ts, endtime, mark from win) w) fill(value, 777) "
             "having(sum(v) != 777) order by ws"
         )
         tdSql.checkRows(2)
@@ -494,7 +494,7 @@ class TestExternalFill:
         tdSql.query(
             "select cast(_wstart as bigint) as ws, sum(v) as sv "
             "from src_1 "
-            "external_window((select ts, endtime, mark from win) w fill(value, 777)) "
+            "external_window((select ts, endtime, mark from win) w) fill(value, 777) "
             "having(sum(v) <= 777) order by ws"
         )
         tdSql.checkRows(5)
@@ -502,7 +502,7 @@ class TestExternalFill:
         tdSql.query(
             "select cast(_wstart as bigint) as ws, sum(v) as sv "
             "from src_1 "
-            "external_window((select ts, endtime, mark from win) w fill(null)) "
+            "external_window((select ts, endtime, mark from win) w) fill(null) "
             "having(sum(v) is not null) order by ws"
         )
         tdSql.checkRows(2)
@@ -514,7 +514,7 @@ class TestExternalFill:
         tdSql.query(
             "select t1, cast(_wstart as bigint) as ws, sum(v) as sv "
             "from src partition by t1 "
-            "external_window((select ts, endtime, mark from win) w fill(prev)) "
+            "external_window((select ts, endtime, mark from win) w) fill(prev) "
             "having(sum(v) > 20) order by t1, ws"
         )
         tdSql.checkRows(3)
@@ -531,7 +531,7 @@ class TestExternalFill:
         tdSql.query(
             "select t1, cast(_wstart as bigint) as ws, sum(v) as sv "
             "from src partition by t1 "
-            "external_window((select ts, endtime, mark from win) w fill(value, 777)) "
+            "external_window((select ts, endtime, mark from win) w) fill(value, 777) "
             "having(sum(v) = 777) order by t1, ws"
         )
         tdSql.checkRows(6)
@@ -562,7 +562,7 @@ class TestExternalFill:
         tdSql.query(
             "select cast(_wstart as bigint) as ws, sum(v) as sv "
             "from src_1 "
-            "external_window((select ts, endtime, mark from win) w fill(value, 777)) "
+            "external_window((select ts, endtime, mark from win) w) fill(value, 777) "
             "order by ws"
         )
         tdSql.checkRows(5)
@@ -581,7 +581,7 @@ class TestExternalFill:
         tdSql.query(
             "select cast(_wstart as bigint) as ws, sum(v) as sv "
             "from src_1 "
-            "external_window((select ts, endtime, mark from win) w fill(null)) "
+            "external_window((select ts, endtime, mark from win) w) fill(null) "
             "order by ws"
         )
         tdSql.checkRows(5)
@@ -604,7 +604,7 @@ class TestExternalFill:
         tdSql.query(
             "select cast(_wstart as bigint) as ws, sum(v) as sv "
             "from src_empty "
-            "external_window((select ts, endtime, mark from win) w fill(value_f, 777)) "
+            "external_window((select ts, endtime, mark from win) w) fill(value_f, 777) "
             "order by ws"
         )
         tdSql.checkRows(5)
@@ -616,7 +616,7 @@ class TestExternalFill:
         tdSql.query(
             "select cast(_wstart as bigint) as ws, sum(v) as sv "
             "from src_empty "
-            "external_window((select ts, endtime, mark from win) w fill(null_f)) "
+            "external_window((select ts, endtime, mark from win) w) fill(null_f) "
             "order by ws"
         )
         tdSql.checkRows(5)
@@ -631,7 +631,7 @@ class TestExternalFill:
         tdSql.query(
             "select t1, cast(_wstart as bigint) as ws, sum(v) as sv "
             "from src partition by t1 "
-            "external_window((select ts, endtime, mark from win) w fill(value, 777)) "
+            "external_window((select ts, endtime, mark from win) w) fill(value, 777) "
             "order by t1, ws"
         )
         tdSql.checkRows(10)
@@ -676,7 +676,7 @@ class TestExternalFill:
         tdSql.query(
             "select cast(_wstart as bigint) as ws, w.mark, sum(v) as sv "
             "from src_1 "
-            "external_window((select ts, endtime, mark from win) w fill(value, 777)) "
+            "external_window((select ts, endtime, mark from win) w) fill(value, 777) "
             "order by ws"
         )
         tdSql.checkRows(5)
@@ -688,7 +688,7 @@ class TestExternalFill:
         tdSql.query(
             "select cast(_wstart as bigint) as ws, w.mark, sum(v) as sv "
             "from src_1 "
-            "external_window((select ts, endtime, mark from win) w fill(value, 777)) "
+            "external_window((select ts, endtime, mark from win) w) fill(value, 777) "
             "having(sum(v) = 777) order by ws"
         )
         tdSql.checkRows(3)
@@ -703,7 +703,7 @@ class TestExternalFill:
         tdSql.query(
             "select cast(_wstart as bigint) as ws, w.mark, sum(v) as sv "
             "from src_1 "
-            "external_window((select ts, endtime, mark from win) w fill(prev)) "
+            "external_window((select ts, endtime, mark from win) w) fill(prev) "
             "having(sum(v) is not null) order by ws"
         )
         tdSql.checkRows(4)
@@ -720,7 +720,7 @@ class TestExternalFill:
         tdSql.query(
             "select cast(_wstart as bigint) as ws, w.mark, sum(v) as sv "
             "from src_empty "
-            "external_window((select ts, endtime, mark from win) w fill(null_f)) "
+            "external_window((select ts, endtime, mark from win) w) fill(null_f) "
             "order by ws"
         )
         tdSql.checkRows(5)
@@ -732,7 +732,7 @@ class TestExternalFill:
         tdSql.query(
             "select cast(_wstart as bigint) as ws, w.mark, sum(v) as sv "
             "from src_empty "
-            "external_window((select ts, endtime, mark from win) w fill(value_f, 777)) "
+            "external_window((select ts, endtime, mark from win) w) fill(value_f, 777) "
             "order by ws"
         )
         tdSql.checkRows(5)
@@ -744,7 +744,7 @@ class TestExternalFill:
         tdSql.query(
             "select cast(_wstart as bigint) as ws, w.mark, sum(v) as sv "
             "from src partition by t1 "
-            "external_window((select ts, endtime, mark from win) w fill(value, 777)) "
+            "external_window((select ts, endtime, mark from win) w) fill(value, 777) "
             "order by ws, sv"
         )
         tdSql.checkRows(10)
@@ -2020,8 +2020,8 @@ class TestExternalFill:
         tdSql.query(
             "select count(*) as c, sum(v) as s "
             "from src_t1 "
-            "external_window((select ts, endtime, mark from win) w "
-            "fill(value, 888, 999)) "
+            "external_window((select ts, endtime, mark from win) w) "
+            "fill(value, 888, 999) "
             "having(avg(v) is not null or avg(v) is null) "
             "order by _wstart"
         )
@@ -2040,8 +2040,8 @@ class TestExternalFill:
         tdSql.query(
             "select count(*) as c, sum(v) as s "
             "from src_t1 "
-            "external_window((select ts, endtime, mark from win) w "
-            "fill(value, 888, 999)) "
+            "external_window((select ts, endtime, mark from win) w) "
+            "fill(value, 888, 999) "
             "order by avg(v)"
         )
         tdSql.checkRows(3)
@@ -2059,8 +2059,8 @@ class TestExternalFill:
         tdSql.query(
             "select count(*) as c, sum(v) as s "
             "from src_t1 "
-            "external_window((select ts, endtime, mark from win) w "
-            "fill(value_f, 888, 999)) "
+            "external_window((select ts, endtime, mark from win) w) "
+            "fill(value_f, 888, 999) "
             "having(avg(v) is not null or avg(v) is null) "
             "order by _wstart"
         )
@@ -2143,7 +2143,7 @@ class TestExternalFill:
         tdSql.query(
             "select cast(_wstart as bigint) as ws, w.mark, sum(v) as sv "
             "from src_1 "
-            "external_window((select ts, endtime, mark from win) w fill(value, 999)) "
+            "external_window((select ts, endtime, mark from win) w) fill(value, 999) "
             "order by ws"
         )
         tdSql.checkRows(6)
@@ -2155,7 +2155,7 @@ class TestExternalFill:
         tdSql.query(
             "select cast(_wstart as bigint) as ws, w.mark, sum(v) as sv "
             "from src_1 "
-            "external_window((select ts, endtime, mark from win) w fill(prev)) "
+            "external_window((select ts, endtime, mark from win) w) fill(prev) "
             "order by ws"
         )
         tdSql.checkRows(6)
@@ -2167,7 +2167,7 @@ class TestExternalFill:
         tdSql.query(
             "select cast(_wstart as bigint) as ws, w.mark, sum(v) as sv "
             "from src_1 "
-            "external_window((select ts, endtime, mark from win) w fill(next)) "
+            "external_window((select ts, endtime, mark from win) w) fill(next) "
             "order by ws"
         )
         tdSql.checkRows(6)
@@ -2179,7 +2179,7 @@ class TestExternalFill:
         tdSql.query(
             "select cast(_wstart as bigint) as ws, w.mark, sum(v) as sv "
             "from src_1 "
-            "external_window((select ts, endtime, mark from win) w fill(null)) "
+            "external_window((select ts, endtime, mark from win) w) fill(null) "
             "order by ws"
         )
         tdSql.checkRows(6)
@@ -2191,7 +2191,7 @@ class TestExternalFill:
         tdSql.query(
             "select cast(_wstart as bigint) as ws, w.mark, sum(v) as sv "
             "from src_1 "
-            "external_window((select ts, endtime, mark from win) w fill(none)) "
+            "external_window((select ts, endtime, mark from win) w) fill(none) "
             "order by ws"
         )
         tdSql.checkRows(3)
@@ -2203,7 +2203,7 @@ class TestExternalFill:
         tdSql.query(
             "select t1, cast(_wstart as bigint) as ws, w.mark, sum(v) as sv "
             "from src partition by t1 "
-            "external_window((select ts, endtime, mark from win) w fill(none)) "
+            "external_window((select ts, endtime, mark from win) w) fill(none) "
             "order by t1, ws"
         )
         tdSql.checkRows(4)
@@ -2219,7 +2219,7 @@ class TestExternalFill:
         tdSql.query(
             "select cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv "
             "from src_1 "
-            "external_window((select ts, endtime, mark from win) w fill(value, 111, 222)) "
+            "external_window((select ts, endtime, mark from win) w) fill(value, 111, 222) "
             "order by ws"
         )
         tdSql.checkRows(6)
@@ -2247,7 +2247,7 @@ class TestExternalFill:
         tdSql.query(
             "select cast(_wstart as bigint) as ws, sum(v) as sv "
             "from src_1 "
-            "external_window((select ts, endtime, mark from win) w fill(prev)) "
+            "external_window((select ts, endtime, mark from win) w) fill(prev) "
             "order by ws"
         )
         tdSql.checkRows(6)
@@ -2269,7 +2269,7 @@ class TestExternalFill:
         tdSql.query(
             "select cast(_wstart as bigint) as ws, sum(v) as sv "
             "from src_1 "
-            "external_window((select ts, endtime, mark from win) w fill(next)) "
+            "external_window((select ts, endtime, mark from win) w) fill(next) "
             "order by ws"
         )
         tdSql.checkRows(6)
@@ -2291,7 +2291,7 @@ class TestExternalFill:
         tdSql.query(
             "select t1, cast(_wstart as bigint) as ws, sum(v) as sv "
             "from src partition by t1 "
-            "external_window((select ts, endtime, mark from win) w fill(next)) "
+            "external_window((select ts, endtime, mark from win) w) fill(next) "
             "order by t1, ws"
         )
         tdSql.checkRows(12)
@@ -2319,7 +2319,7 @@ class TestExternalFill:
         tdSql.query(
             "select cast(_wstart as bigint) as ws, sum(v) as sv "
             "from src_1 "
-            "external_window((select ts, endtime, mark from win) w fill(null)) "
+            "external_window((select ts, endtime, mark from win) w) fill(null) "
             "order by ws"
         )
         tdSql.checkRows(6)
@@ -2331,7 +2331,7 @@ class TestExternalFill:
         tdSql.query(
             "select t1, cast(_wstart as bigint) as ws, sum(v) as sv "
             "from src partition by t1 "
-            "external_window((select ts, endtime, mark from win) w fill(none)) "
+            "external_window((select ts, endtime, mark from win) w) fill(none) "
             "order by t1, ws"
         )
         # t1=1: 3 non-empty windows (0, 2, 5)
@@ -2421,7 +2421,7 @@ class TestExternalFill:
         tdSql.query(
             "select t1, cast(_wstart as bigint) as ws, sum(v) as sv "
             "from src partition by t1 "
-            "external_window((select ts, endtime, mark from win) w fill(value, 555)) "
+            "external_window((select ts, endtime, mark from win) w) fill(value, 555) "
             "order by t1, ws"
         )
         tdSql.checkRows(10)
@@ -2451,7 +2451,7 @@ class TestExternalFill:
         tdSql.query(
             "select t1, cast(_wstart as bigint) as ws, sum(v) as sv "
             "from src partition by t1 "
-            "external_window((select ts, endtime, mark from win) w fill(null)) "
+            "external_window((select ts, endtime, mark from win) w) fill(null) "
             "order by t1, ws"
         )
         tdSql.checkRows(10)
@@ -2488,7 +2488,7 @@ class TestExternalFill:
         tdSql.query(
             "select cast(_wstart as bigint) as ws, cast(_wend as bigint) as we, sum(v) as sv "
             "from src_late "
-            "external_window((select ts, endtime, mark from win) w fill(value, 0)) "
+            "external_window((select ts, endtime, mark from win) w) fill(value, 0) "
             "order by ws"
         )
         tdSql.checkRows(5)
@@ -2505,7 +2505,7 @@ class TestExternalFill:
         tdSql.query(
             "select cast(_wstart as bigint) as ws, cast(_wend as bigint) as we, sum(v) as sv "
             "from src_late "
-            "external_window((select ts, endtime, mark from win) w fill(prev)) "
+            "external_window((select ts, endtime, mark from win) w) fill(prev) "
             "order by ws"
         )
         tdSql.checkRows(5)
@@ -2524,7 +2524,7 @@ class TestExternalFill:
         tdSql.query(
             "select cast(_wstart as bigint) as ws, sum(v) as sv "
             "from src_first "
-            "external_window((select ts, endtime, mark from win) w fill(next)) "
+            "external_window((select ts, endtime, mark from win) w) fill(next) "
             "order by ws"
         )
         tdSql.checkRows(5)
@@ -2541,7 +2541,7 @@ class TestExternalFill:
         tdSql.query(
             "select cast(_wstart as bigint) as ws, sum(v) as sv "
             "from src_late "
-            "external_window((select ts, endtime, mark from win) w fill(prev)) "
+            "external_window((select ts, endtime, mark from win) w) fill(prev) "
             "order by ws"
         )
         tdSql.checkRows(5)
@@ -2588,7 +2588,7 @@ class TestExternalFill:
         tdSql.query(
             f"select t1, w.mark, cast(_wstart as bigint) as ws, sum(v) as sv "
             f"from src partition by t1 "
-            f"external_window((select ts, endtime, mark from win) w fill(value, 888)) "
+            f"external_window((select ts, endtime, mark from win) w) fill(value, 888) "
             f"order by t1, ws"
         )
         tdSql.checkRows(8)
@@ -2626,7 +2626,7 @@ class TestExternalFill:
         tdSql.query(
             f"select t1, cast(_wstart as bigint) as ws, sum(v) as sv "
             f"from src partition by t1 "
-            f"external_window((select ts, endtime, mark from win) w fill(null)) "
+            f"external_window((select ts, endtime, mark from win) w) fill(null) "
             f"order by t1, ws"
         )
         tdSql.checkRows(8)
@@ -2647,7 +2647,7 @@ class TestExternalFill:
         tdSql.query(
             f"select cast(_wstart as bigint) as ws, sum(v) as sv "
             f"from src_a "
-            f"external_window((select ts, endtime, mark from win) w fill(prev)) "
+            f"external_window((select ts, endtime, mark from win) w) fill(prev) "
             f"order by ws"
         )
         tdSql.checkRows(4)
