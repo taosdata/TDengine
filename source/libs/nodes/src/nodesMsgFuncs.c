@@ -4118,7 +4118,7 @@ static int32_t physiStateWindowNodeToMsg(const void* pObj, STlvEncoder* pEncoder
 
   int32_t code = tlvEncodeObj(pEncoder, PHY_STATE_CODE_WINDOW, physiWindowNodeToMsg, &pNode->window);
   if (TSDB_CODE_SUCCESS == code) {
-    code = tlvEncodeObj(pEncoder, PHY_STATE_CODE_KEY, nodeToMsg, pNode->pStateKey);
+    code = tlvEncodeObj(pEncoder, PHY_STATE_CODE_KEY, nodeListToMsg, pNode->pStateKeys);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeI32(pEncoder, PHY_STATE_CODE_TRUE_FOR_TYPE, pNode->trueForType);
@@ -4147,7 +4147,7 @@ static int32_t msgToPhysiStateWindowNode(STlvDecoder* pDecoder, void* pObj) {
         code = tlvDecodeObjFromTlv(pTlv, msgToPhysiWindowNode, &pNode->window);
         break;
       case PHY_STATE_CODE_KEY:
-        code = msgToNodeFromTlv(pTlv, (void**)&pNode->pStateKey);
+        code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pStateKeys);
         break;
       case PHY_STATE_CODE_TRUE_FOR_TYPE:
         code = tlvDecodeI32(pTlv, (int32_t*)&pNode->trueForType);

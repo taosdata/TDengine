@@ -1089,6 +1089,48 @@ _return:
   return code;
 }
 
+static bool stateWindowRowHasNull(SStateWindowOperatorInfo* pInfo, SSDataBlock* pBlock, int32_t rowIndex) {
+  int32_t keyNum = taosArrayGetSize(pInfo->stateCols);
+  for (int32_t i = 0; i < keyNum; ++i) {
+    SColumn* pStateCol = taosArrayGet(pInfo->stateCols, i);
+    SColumnInfoData* pStateColInfoData = taosArrayGet(pBlock->pDataBlock, pStateCol->slotId);
+    struct SColumnDataAgg* pAgg =
+        (pBlock->pBlockAgg != NULL) ? &pBlock->pBlockAgg[pStateCol->slotId] : NULL;
+    if (pStateColInfoData == NULL || colDataIsNull(pStateColInfoData, pBlock->info.rows, rowIndex, pAgg)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static int32_t assignStateWindowKeys(SStateWindowOperatorInfo* pInfo, SSDataBlock* pBlock, int32_t rowIndex) {
+  int32_t keyNum = taosArrayGetSize(pInfo->stateCols);
+  for (int32_t i = 0; i < keyNum; ++i) {
+    SColumn* pStateCol = taosArrayGet(pInfo->stateCols, i);
+    SStateKeys* pKey = taosArrayGet(pInfo->stateKeys, i);
+    SColumnInfoData* pStateColInfoData = taosArrayGet(pBlock->pDataBlock, pStateCol->slotId);
+    if (pStateColInfoData == NULL || pStateColInfoData->pData == NULL) {
+      return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    }
+    assignVal(pKey->pData, colDataGetData(pStateColInfoData, rowIndex), pStateColInfoData->info.bytes, pKey->type);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static bool compareStateWindowKeys(SStateWindowOperatorInfo* pInfo, SSDataBlock* pBlock, int32_t rowIndex) {
+  int32_t keyNum = taosArrayGetSize(pInfo->stateCols);
+  for (int32_t i = 0; i < keyNum; ++i) {
+    SColumn* pStateCol = taosArrayGet(pInfo->stateCols, i);
+    SStateKeys* pKey = taosArrayGet(pInfo->stateKeys, i);
+    SColumnInfoData* pStateColInfoData = taosArrayGet(pBlock->pDataBlock, pStateCol->slotId);
+    if (pStateColInfoData == NULL || pStateColInfoData->pData == NULL ||
+        !compareVal(colDataGetData(pStateColInfoData, rowIndex), pKey)) {
+      return false;
+    }
+  }
+  return true;
+}
+
 // process a data block for state window aggregation
 // scan from startIndex to endIndex
 // numPartialCalcRows returns the number of rows that have been
@@ -1100,16 +1142,8 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator,
                                  int32_t* numPartialCalcRows) {
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
   SExprSupp*     pExprSup = &pOperator->exprSupp;
-
-  SColumnInfoData* pStateColInfoData = 
-    taosArrayGet(pBlock->pDataBlock, pInfo->stateCol.slotId);
-  if (!pStateColInfoData) {
-    pTaskInfo->code = terrno;
-    T_LONG_JMP(pTaskInfo->env, terrno);
-  }
   uint64_t gid = pBlock->info.id.groupId;
   int32_t numOfOutput = pOperator->exprSupp.numOfExprs;
-  int32_t bytes = pStateColInfoData->info.bytes;
 
   SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock,
                                                pInfo->tsSlotId);
@@ -1119,9 +1153,6 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator,
   }
   TSKEY* tsList = (TSKEY*)pColInfoData->pData;
 
-  struct SColumnDataAgg* pAgg = (pBlock->pBlockAgg != NULL) ?
-                                &pBlock->pBlockAgg[pInfo->stateCol.slotId] :
-                                NULL;
   EStateWinExtendOption  extendOption = pInfo->extendOption;
   SWindowRowsSup*        pRowSup = &pInfo->winSup;
 
@@ -1162,23 +1193,22 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator,
         }
       }
     }
-    if (colDataIsNull(pStateColInfoData, pBlock->info.rows, j, pAgg)) {
+    if (stateWindowRowHasNull(pInfo, pBlock, j)) {
       doKeepStateWindowNullInfo(pRowSup, tsList[j]);
       continue;
     }
-    if (pStateColInfoData->pData == NULL) {
-      pTaskInfo->code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
-      T_LONG_JMP(pTaskInfo->env, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
-    }
-    char* val = colDataGetData(pStateColInfoData, j);
 
     if (!pInfo->hasKey) {
-      assignVal(pInfo->stateKey.pData, val, bytes, pInfo->stateKey.type);
+      int32_t code = assignStateWindowKeys(pInfo, pBlock, j);
+      if (TSDB_CODE_SUCCESS != code) {
+        pTaskInfo->code = code;
+        T_LONG_JMP(pTaskInfo->env, code);
+      }
       pInfo->hasKey = true;
       doKeepNewStateWindowStartInfo(
         pRowSup, tsList, j, gid, &extendOption, false);
       doKeepTuple(pRowSup, tsList[j], j, gid);
-    } else if (!compareVal(val, &pInfo->stateKey)) {
+    } else if (!compareStateWindowKeys(pInfo, pBlock, j)) {
       doKeepCurStateWindowEndInfo(pRowSup, tsList, j, &extendOption, true);
       int32_t code = processClosedStateWindow(pInfo, pRowSup, pTaskInfo,
                                               pExprSup, numOfOutput);
@@ -1190,7 +1220,11 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator,
       doKeepNewStateWindowStartInfo(pRowSup, tsList, j, gid,
                                     &extendOption, true);
       doKeepTuple(pRowSup, tsList[j], j, gid);
-      assignVal(pInfo->stateKey.pData, val, bytes, pInfo->stateKey.type);
+      code = assignStateWindowKeys(pInfo, pBlock, j);
+      if (TSDB_CODE_SUCCESS != code) {
+        pTaskInfo->code = code;
+        T_LONG_JMP(pTaskInfo->env, code);
+      }
     } else {
       doKeepTuple(pRowSup, tsList[j], j, gid);
     }
@@ -1428,7 +1462,15 @@ static void destroyStateWindowOperatorInfo(void* param) {
   }
   SStateWindowOperatorInfo* pInfo = (SStateWindowOperatorInfo*)param;
   cleanupBasicInfo(&pInfo->binfo);
-  taosMemoryFreeClear(pInfo->stateKey.pData);
+  if (pInfo->stateKeys != NULL) {
+    int32_t keyNum = taosArrayGetSize(pInfo->stateKeys);
+    for (int32_t i = 0; i < keyNum; ++i) {
+      SStateKeys* pKey = taosArrayGet(pInfo->stateKeys, i);
+      taosMemoryFreeClear(pKey->pData);
+    }
+  }
+  taosArrayDestroy(pInfo->stateKeys);
+  taosArrayDestroy(pInfo->stateCols);
   if (pInfo->pOperator) {
     cleanupResultInfo(pInfo->pOperator->pTaskInfo, &pInfo->pOperator->exprSupp, &pInfo->groupResInfo, &pInfo->aggSup,
                       pInfo->cleanGroupResInfo);
@@ -1957,7 +1999,11 @@ static int32_t resetStatewindowOperState(SOperatorInfo* pOper) {
   pInfo->hasKey = false;
   pInfo->winSup.lastTs = INT64_MIN;
   cleanupGroupResInfo(&pInfo->groupResInfo);
-  memset(pInfo->stateKey.pData, 0, pInfo->stateKey.bytes);
+  int32_t keyNum = taosArrayGetSize(pInfo->stateKeys);
+  for (int32_t i = 0; i < keyNum; ++i) {
+    SStateKeys* pKey = taosArrayGet(pInfo->stateKeys, i);
+    memset(pKey->pData, 0, pKey->bytes);
+  }
   return code;
 }
 
@@ -1980,7 +2026,6 @@ int32_t createStatewindowOperatorInfo(SOperatorInfo* downstream, SStateWindowPhy
   pOperator->exprSupp.hasWindowOrGroup = true;
   pOperator->exprSupp.hasWindow = true;
   int32_t      tsSlotId = ((SColumnNode*)pStateNode->window.pTspk)->slotId;
-  SColumnNode* pColNode = (SColumnNode*)(pStateNode->pStateKey);
 
   if (pStateNode->window.pExprs != NULL) {
     int32_t    numOfScalarExpr = 0;
@@ -1994,12 +2039,21 @@ int32_t createStatewindowOperatorInfo(SOperatorInfo* downstream, SStateWindowPhy
     }
   }
 
-  pInfo->stateCol = extractColumnFromColumnNode(pColNode);
-  pInfo->stateKey.type = pInfo->stateCol.type;
-  pInfo->stateKey.bytes = pInfo->stateCol.bytes;
-  pInfo->stateKey.pData = taosMemoryCalloc(1, pInfo->stateCol.bytes);
-  if (pInfo->stateKey.pData == NULL) {
+  int32_t keyNum = LIST_LENGTH(pStateNode->pStateKeys);
+  pInfo->stateCols = taosArrayInit(keyNum, sizeof(SColumn));
+  pInfo->stateKeys = taosArrayInit(keyNum, sizeof(SStateKeys));
+  if (pInfo->stateCols == NULL || pInfo->stateKeys == NULL) {
     goto _error;
+  }
+  for (int32_t i = 0; i < keyNum; ++i) {
+    SColumnNode* pColNode = (SColumnNode*)nodesListGetNode(pStateNode->pStateKeys, i);
+    SColumn      stateCol = extractColumnFromColumnNode(pColNode);
+    SStateKeys   stateKey = {.type = stateCol.type, .bytes = stateCol.bytes, .pData = taosMemoryCalloc(1, stateCol.bytes)};
+    if (stateKey.pData == NULL || taosArrayPush(pInfo->stateCols, &stateCol) == NULL ||
+        taosArrayPush(pInfo->stateKeys, &stateKey) == NULL) {
+      taosMemoryFreeClear(stateKey.pData);
+      goto _error;
+    }
   }
   pInfo->binfo.inputTsOrder = pStateNode->window.node.inputTsOrder;
   pInfo->binfo.outputTsOrder = pStateNode->window.node.outputTsOrder;

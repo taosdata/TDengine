@@ -1576,9 +1576,21 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
     }
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE: {
       SStateWindowPhysiNode *pStateNode = (SStateWindowPhysiNode *)pNode;
+      char                  stateKeyDesc[TSDB_COL_NAME_LEN * 4] = {0};
+      if (pStateNode->pStateKeys != NULL && LIST_LENGTH(pStateNode->pStateKeys) > 0) {
+        SNode *pKey = NULL;
+        FOREACH(pKey, pStateNode->pStateKeys) {
+          const char *pName = nodesGetNameFromColumnNode(pKey);
+          if (stateKeyDesc[0] != '\0') {
+            tstrncpy(stateKeyDesc + strlen(stateKeyDesc), ",", sizeof(stateKeyDesc) - strlen(stateKeyDesc));
+          }
+          tstrncpy(stateKeyDesc + strlen(stateKeyDesc), pName, sizeof(stateKeyDesc) - strlen(stateKeyDesc));
+        }
+      } else {
+        tstrncpy(stateKeyDesc, "<unknown>", sizeof(stateKeyDesc));
+      }
 
-      EXPLAIN_ROW_NEW(level, EXPLAIN_STATE_WINDOW_FORMAT,
-                      nodesGetNameFromColumnNode(pStateNode->pStateKey));
+      EXPLAIN_ROW_NEW(level, EXPLAIN_STATE_WINDOW_FORMAT, stateKeyDesc);
       EXPLAIN_ROW_APPEND(EXPLAIN_LEFT_PARENTHESIS_FORMAT);
       if (pResNode->pExecInfo) {
         QRY_ERR_RET(qExplainBufAppendExecInfo(pResNode->pExecInfo, tbuf, &tlen, &filterEfficiency));
@@ -2901,4 +2913,3 @@ int32_t qExecExplainEnd(SExplainCtx *pCtx, SRetrieveTableRsp **pRsp) {
 SExplainPlanCtx* qExplainGetCurrPlan(SExplainCtx *pCtx, int32_t subJobId) {
   return EXPLAIN_GET_CUR_PLAN_CTX(pCtx, subJobId);
 }
-

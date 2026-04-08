@@ -624,9 +624,9 @@ typedef struct SStateWindowOperatorInfo {
   SExprSupp             scalarSup;
   SGroupResInfo         groupResInfo;
   SWindowRowsSup        winSup;
-  SColumn               stateCol;
+  SArray*               stateCols;  // SArray<SColumn>
   bool                  hasKey;    // has key means the state window has started
-  SStateKeys            stateKey;
+  SArray*               stateKeys;  // SArray<SStateKeys>
   int32_t               tsSlotId;  // primary timestamp column slot id
   STimeWindowAggSupp    twAggSup;
   struct SOperatorInfo* pOperator;
