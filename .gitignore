@@ -31,6 +31,12 @@ venv/
 # Node.js
 node_modules/
 
+# AI Extensions
+.cursor/
+.cursor
+.claude/
+.claude
+
 # Java
 target/
 *.class

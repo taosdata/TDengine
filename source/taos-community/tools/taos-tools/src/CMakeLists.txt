@@ -38,14 +38,14 @@ ENDIF ()
 #
 # collect --version information
 #
-MESSAGE("collect --version show info:")
+MESSAGE(STATUS "collect --version show info:")
 # version
-IF (DEFINED TD_VER_NUMBER)
-    ADD_DEFINITIONS(-DTD_VER_NUMBER="${TD_VER_NUMBER}")
-    MESSAGE(STATUS "version:${TD_VER_NUMBER}")
-ELSE ()
+IF (DEFINED BUILD_VER_NUMBER)
+    ADD_DEFINITIONS(-DTD_VER_NUMBER="${BUILD_VER_NUMBER}")
+    MESSAGE(STATUS "version:${BUILD_VER_NUMBER}")
+ELSE ()    
     # abort build
-    MESSAGE(FATAL_ERROR "build taos-tools not found TD_VER_NUMBER define.")
+    MESSAGE(FATAL_ERROR "build taos-tools not found BUILD_VER_NUMBER define.")
 ENDIF ()
 
 # commit id
@@ -72,20 +72,20 @@ ELSE()
 ENDIF (GIT_FOUND)
 
 # build info
-SET(BUILD_INFO "${TD_VER_OSTYPE}-${TD_VER_CPUTYPE} ${TD_VER_DATE}")
+SET(BUILD_INFO "${BUILD_VER_OSTYPE}-${BUILD_VER_CPUTYPE} ${BUILD_VER_DATE}")
 ADD_DEFINITIONS(-DBUILD_INFO="${BUILD_INFO}")
 MESSAGE(STATUS "build:${BUILD_INFO}")
 MESSAGE("")
 
-MESSAGE("Current system is: ${CMAKE_SYSTEM_NAME}")
+MESSAGE(STATUS "Current system is: ${CMAKE_SYSTEM_NAME}")
 
-IF (CUS_NAME OR CUS_PROMPT OR CUS_EMAIL)
+IF (BUILD_CUS_NAME OR BUILD_CUS_PROMPT OR BUILD_CUS_EMAIL)
     ADD_DEFINITIONS(-I${CMAKE_CURRENT_SOURCE_DIR}/../../../../community/include/util)
-ENDIF (CUS_NAME OR CUS_PROMPT OR CUS_EMAIL)
+ENDIF (BUILD_CUS_NAME OR BUILD_CUS_PROMPT OR BUILD_CUS_EMAIL)
 
-IF (${CMAKE_SYSTEM_NAME} MATCHES "Linux")
+IF (CMAKE_SYSTEM_NAME MATCHES "Linux")
   ADD_DEFINITIONS(-DLINUX)
-ELSEIF (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+ELSEIF (CMAKE_SYSTEM_NAME MATCHES "Darwin")
   ADD_DEFINITIONS(-DDARWIN)
 ELSE ()
   ADD_DEFINITIONS(-DWINDOWS)
@@ -107,7 +107,7 @@ DEP_ext_jansson(taosdump)
 DEP_ext_snappy(taosdump)
 DEP_ext_xz(taosdump)
 
-IF (${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+IF (CMAKE_SYSTEM_NAME MATCHES "Windows")
   DEP_ext_iconv(taosdump)
   DEP_ext_msvcregex(taosdump)
   DEP_ext_pthread(taosdump)
@@ -129,10 +129,17 @@ if(NOT WIN32)
   target_link_libraries(taosBenchmark PRIVATE m)
 endif()
 
-if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+if(CMAKE_SYSTEM_NAME MATCHES "Darwin")
   check_include_file("argp.h" _have_argp "-I${BREW_PREFIX}/include")
   if(NOT _have_argp)
     message(FATAL_ERROR "please run:brew install argp-standalone")
+  endif()
+  # Suppress ld64 duplicate static library noise caused by transitive links.
+  include(CheckLinkerFlag)
+  check_linker_flag(C "-Wl,-no_warn_duplicate_libraries" _have_no_warn_dup_libs)
+  if(_have_no_warn_dup_libs)
+    target_link_options(taosdump PRIVATE -Wl,-no_warn_duplicate_libraries)
+    target_link_options(taosBenchmark PRIVATE -Wl,-no_warn_duplicate_libraries)
   endif()
   # brew install argp-standalone
   target_include_directories(taosBenchmark PRIVATE ${BREW_PREFIX}/include)

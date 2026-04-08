@@ -1,39 +1,4 @@
-cmake_minimum_required(VERSION 3.16)
+PROJECT(TDengine)
 
-project(
-  TDengine
-  VERSION 3.0
-  DESCRIPTION "An open-source big data platform designed and optimized for the Internet of Things(IOT)"
-)
-
-set(TD_ENTERPRISE_DIR ${PROJECT_SOURCE_DIR}/enterprise)
-set(TD_COMMUNITY_DIR ${PROJECT_SOURCE_DIR}/community)
-set(TD_SOURCE_DIR ${TD_COMMUNITY_DIR})
-set(TD_SUPPORT_DIR ${TD_SOURCE_DIR}/cmake)
-set(TD_CONTRIB_DIR ${TD_SOURCE_DIR}/contrib)
-
-message(STATUS "Enterprise directory: " ${TD_ENTERPRISE_DIR})
-message(STATUS "Community directory: " ${TD_COMMUNITY_DIR})
-message(STATUS "Source directory: " ${TD_SOURCE_DIR})
-message(STATUS "Support directory: " ${TD_SUPPORT_DIR})
-message(STATUS "Contrib directory: " ${TD_CONTRIB_DIR})
-
-add_subdirectory(enterprise/contrib)
-
-include(community/cmake/preinclude.cmake)
-include(community/cmake/platform.cmake)
-include(enterprise/cmake/enterprise_options.cmake)
-include(enterprise/cmake/enterprise_defines.cmake)
-include(community/cmake/options.cmake)
-include(community/cmake/check_env.cmake)
-include(community/cmake/define.cmake)
-include(community/cmake/version.cmake)
-include(community/cmake/external.cmake)
-
-if(${BUILD_TEST})
-  include(CTest)
-  enable_testing()
-endif(${BUILD_TEST})
-
-add_subdirectory(community)
-add_subdirectory(enterprise)
+ADD_SUBDIRECTORY(src)
+ADD_SUBDIRECTORY(tests)
