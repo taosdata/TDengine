@@ -610,6 +610,7 @@ int backDatabaseMeta(DBInfo *dbInfo) {
         atomic_store_64(&g_progress.ctbDoneAll, 0);
         g_progress.phase          = PROGRESS_PHASE_META;
     }
+    int stbEffectiveIdx = 0;
     for (int i = 0; stbNames != NULL && stbNames[i] != NULL; i++) {
         if (g_interrupted) {
             code = TSDB_CODE_BCK_USER_CANCEL;
@@ -641,7 +642,9 @@ int backDatabaseMeta(DBInfo *dbInfo) {
             if (!include) continue;  /* skip this super table */
         }
         // Update META phase progress for this STB
-        g_progress.stbIndex = atomic_add_fetch_64(&g_stats.stbTotal, 1);
+        stbEffectiveIdx++;
+        atomic_add_fetch_64(&g_stats.stbTotal, 1);
+        g_progress.stbIndex = stbEffectiveIdx;
         snprintf(g_progress.stbName, sizeof(g_progress.stbName), "%s", stbNames[i]);
         g_progress.ctbTotalCur = 0;
         atomic_store_64(&g_progress.ctbDoneCur, 0);

@@ -252,7 +252,7 @@ CompressBlock* compressBlock(void*      block,
     // check need compress or not
     //
     if(compressBlock->dataLen > reader.oriHeader->actualLen) {
-        logWarn("compressed block (%d bytes) >= original (%d bytes), skipping compression",
+        logDebug("compressed block (%d bytes) >= original (%d bytes), skipping compression",
                  compressBlock->dataLen, reader.oriHeader->actualLen);
         // not compress, use original block
         compressBlock->flag = BLOCK_FLAG_NOT_COMPRESS;
