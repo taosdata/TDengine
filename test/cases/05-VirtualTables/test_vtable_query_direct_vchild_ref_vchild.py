@@ -21,8 +21,8 @@ MAX_DEPTH_CHAIN_LEN = MAX_VTABLE_REF_DEPTH + 1
 class TestVTableQueryDirectVChildRefVChild:
 
     @staticmethod
-    def _create_vchild_chain(prefix, chain_len, tag_base):
-        prev_table = "src_ctb"
+    def _create_vchild_chain(prefix, chain_len, source_table, tag_base, region):
+        prev_table = source_table
         prev_col_v1 = "v1"
         prev_col_v2 = "v2"
         leaf_table = None
@@ -33,7 +33,7 @@ class TestVTableQueryDirectVChildRefVChild:
                 f"create vtable {leaf_table} ("
                 f"ref_v1 from {prev_table}.{prev_col_v1}, "
                 f"ref_v2 from {prev_table}.{prev_col_v2}"
-                f") using vstb tags ({tag_base + idx - 1});"
+                f") using vstb tags ({tag_base + idx - 1}, '{region}');"
             )
             prev_table = leaf_table
             prev_col_v1 = "ref_v1"
@@ -48,18 +48,25 @@ class TestVTableQueryDirectVChildRefVChild:
         tdSql.execute(f"create database {DB_NAME};")
         tdSql.execute(f"use {DB_NAME};")
 
-        tdSql.execute("create stable src_stb(ts timestamp, v1 int, v2 int) tags (gid int);")
-        tdSql.execute("create table src_ctb using src_stb tags (1);")
+        tdSql.execute("create stable src_stb(ts timestamp, v1 int, v2 int) tags (gid int, region nchar(16));")
+        tdSql.execute("create table src_ctb using src_stb tags (1, 'alpha');")
+        tdSql.execute("create table src_ctb_beta using src_stb tags (2, 'beta');")
 
         tdSql.execute("insert into src_ctb values "
                       "(1700000000000, 10, 100) "
                       "(1700000001000, 20, 200) "
                       "(1700000002000, 30, 300);")
+        tdSql.execute("insert into src_ctb_beta values "
+                      "(1700000000000, 15, 150) "
+                      "(1700000001000, 25, 250) "
+                      "(1700000002000, 35, 350);")
 
-        tdSql.execute("create stable vstb(ts timestamp, ref_v1 int, ref_v2 int) tags (gid int) virtual 1;")
+        tdSql.execute("create stable vstb(ts timestamp, ref_v1 int, ref_v2 int) "
+                      "tags (gid int, region nchar(16)) virtual 1;")
 
-        cls.simple_chain_leaf = cls._create_vchild_chain("vctb_simple", 2, 11)
-        cls.max_depth_leaf = cls._create_vchild_chain("vctb_depth", MAX_DEPTH_CHAIN_LEN, 100)
+        cls.simple_chain_leaf = cls._create_vchild_chain("vctb_simple", 2, "src_ctb", 11, "simple")
+        cls.tagged_chain_leaf = cls._create_vchild_chain("vctb_tagged", 2, "src_ctb_beta", 21, "beta")
+        cls.max_depth_leaf = cls._create_vchild_chain("vctb_depth", MAX_DEPTH_CHAIN_LEN, "src_ctb", 100, "depth")
 
     def test_query_direct_virtual_child_reference(self):
         """Query: direct virtual child reference another virtual child
@@ -116,3 +123,62 @@ class TestVTableQueryDirectVChildRefVChild:
         tdSql.checkData(0, 0, 2)
         tdSql.checkData(0, 1, 50)
         tdSql.checkData(0, 2, 300)
+
+    def test_query_direct_virtual_child_tag_condition(self):
+        tdSql.execute(f"use {DB_NAME};")
+
+        tdSql.query(
+            f"select gid, region, ref_v1, ref_v2 "
+            f"from {self.tagged_chain_leaf} "
+            f"where gid = 22 and region = 'beta' and ref_v1 >= 25 "
+            f"order by ts;"
+        )
+        tdSql.checkRows(2)
+        expected = [(22, "beta", 25, 250), (22, "beta", 35, 350)]
+        for row_idx, (gid, region, v1, v2) in enumerate(expected):
+            tdSql.checkData(row_idx, 0, gid)
+            tdSql.checkData(row_idx, 1, region)
+            tdSql.checkData(row_idx, 2, v1)
+            tdSql.checkData(row_idx, 3, v2)
+
+    def test_query_direct_virtual_child_stb_tag_aggregate(self):
+        tdSql.execute(f"use {DB_NAME};")
+
+        tdSql.query(
+            "select count(*), sum(ref_v1), max(ref_v2) "
+            "from vstb where gid = 22 and region = 'beta';"
+        )
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 3)
+        tdSql.checkData(0, 1, 75)
+        tdSql.checkData(0, 2, 350)
+
+    def test_query_direct_virtual_child_combined_tag_and_data_condition(self):
+        tdSql.execute(f"use {DB_NAME};")
+
+        tdSql.query(
+            f"select gid, region, ref_v1, ref_v2 "
+            f"from {self.tagged_chain_leaf} "
+            f"where gid = 22 and region = 'beta' and ref_v2 >= 250 "
+            f"order by ts;"
+        )
+        tdSql.checkRows(2)
+        expected = [(22, "beta", 25, 250), (22, "beta", 35, 350)]
+        for row_idx, (gid, region, v1, v2) in enumerate(expected):
+            tdSql.checkData(row_idx, 0, gid)
+            tdSql.checkData(row_idx, 1, region)
+            tdSql.checkData(row_idx, 2, v1)
+            tdSql.checkData(row_idx, 3, v2)
+
+    def test_query_direct_virtual_child_stb_combined_filter_aggregate(self):
+        tdSql.execute(f"use {DB_NAME};")
+
+        tdSql.query(
+            "select count(*), sum(ref_v1), min(ref_v2), max(ref_v2) "
+            "from vstb where gid = 22 and region = 'beta' and ref_v1 >= 25;"
+        )
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 2)
+        tdSql.checkData(0, 1, 60)
+        tdSql.checkData(0, 2, 250)
+        tdSql.checkData(0, 3, 350)

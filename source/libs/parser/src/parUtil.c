@@ -1272,7 +1272,8 @@ int32_t getTableNameFromCache(SParseMetaCache* pMetaCache, const SName* pName, c
     int32_t schemaExtSize =
         (withExtSchema(pMeta->tableType) && pMeta->schemaExt) ? sizeof(SSchemaExt) * pMeta->tableInfo.numOfColumns : 0;
     int32_t colRefSize = (hasRefCol(pMeta->tableType) && pMeta->colRef) ? sizeof(SColRef) * pMeta->numOfColRefs : 0;
-    const char* pTableName = (const char*)pMeta + metaSize + schemaExtSize + colRefSize;
+    int32_t tagRefSize = (hasRefCol(pMeta->tableType) && pMeta->tagRef) ? sizeof(SColRef) * pMeta->numOfTagRefs : 0;
+    const char* pTableName = (const char*)pMeta + metaSize + schemaExtSize + colRefSize + tagRefSize;
     tstrncpy(pTbName, pTableName, TSDB_TABLE_NAME_LEN);
   }
 
@@ -1877,5 +1878,4 @@ int32_t updateExprSubQueryType(SNode* pNode, ESubQueryType* type) {
 
   return code;
 }
-
 

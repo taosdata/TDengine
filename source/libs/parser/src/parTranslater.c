@@ -758,8 +758,10 @@ static int32_t rewriteDropTableWithMetaCache(STranslateContext* pCxt) {
         sizeof(STableMeta) + sizeof(SSchema) * (pMeta->tableInfo.numOfColumns + pMeta->tableInfo.numOfTags);
     int32_t schemaExtSize =
         (withExtSchema(pMeta->tableType) && pMeta->schemaExt) ? sizeof(SSchemaExt) * pMeta->tableInfo.numOfColumns : 0;
-    int32_t     colRefSize = (hasRefCol(pMeta->tableType) && pMeta->colRef) ? sizeof(SColRef) * pMeta->numOfColRefs : 0;
-    const char* pTbName = (const char*)pMeta + metaSize + schemaExtSize + colRefSize;
+    int32_t colRefSize = (hasRefCol(pMeta->tableType) && pMeta->colRef) ? sizeof(SColRef) * pMeta->numOfColRefs : 0;
+    int32_t tagRefSize =
+        (hasRefCol(pMeta->tableType) && pMeta->tagRef) ? sizeof(SColRef) * pMeta->numOfTagRefs : 0;
+    const char* pTbName = (const char*)pMeta + metaSize + schemaExtSize + colRefSize + tagRefSize;
     SName       name = {0};
 
     toName(pParCxt->acctId, dbName, pTbName, &name);

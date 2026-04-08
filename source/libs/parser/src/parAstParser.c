@@ -613,6 +613,9 @@ static int32_t collectMetaKeyFromDropVtable(SCollectMetaKeyCxt* pCxt, SDropVirtu
   } else {
     code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, pCxt->pMetaCache);
     if (TSDB_CODE_SUCCESS == code) {
+      code = reserveVStbRefDbsInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, pCxt->pMetaCache);
+    }
+    if (TSDB_CODE_SUCCESS == code) {
       code = reserveTableVgroupInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, pCxt->pMetaCache);
     }
     if (TSDB_CODE_SUCCESS == code) {
@@ -876,6 +879,9 @@ static int32_t collectMetaKeyFromDescribe(SCollectMetaKeyCxt* pCxt, SDescribeStm
 #endif
   if (TSDB_CODE_SUCCESS == code) {
     code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, pCxt->pMetaCache);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = reserveVStbRefDbsInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, pCxt->pMetaCache);
   }
   return code;
 }
@@ -1175,6 +1181,10 @@ static int32_t collectMetaKeyFromShowTags(SCollectMetaKeyCxt* pCxt, SShowStmt* p
   if (TSDB_CODE_SUCCESS == code) {
     code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, ((SValueNode*)pStmt->pDbName)->literal,
                                    ((SValueNode*)pStmt->pTbName)->literal, pCxt->pMetaCache);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = reserveVStbRefDbsInCache(pCxt->pParseCxt->acctId, ((SValueNode*)pStmt->pDbName)->literal,
+                                    ((SValueNode*)pStmt->pTbName)->literal, pCxt->pMetaCache);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = reserveDbVgInfoInCache(pCxt->pParseCxt->acctId, ((SValueNode*)pStmt->pDbName)->literal, pCxt->pMetaCache);
@@ -1568,6 +1578,9 @@ static int32_t collectMetaKeyFromShowValidateVtable(SCollectMetaKeyCxt* pCxt, SS
                                  TSDB_INS_TABLE_VIRTUAL_TABLES_REFERENCING, pCxt->pMetaCache);
   if (TSDB_CODE_SUCCESS == code && pStmt->tableName[0] != 0) {
     code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, pCxt->pMetaCache);
+  }
+  if (TSDB_CODE_SUCCESS == code && pStmt->tableName[0] != 0) {
+    code = reserveVStbRefDbsInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, pCxt->pMetaCache);
   }
 
   if (TSDB_CODE_SUCCESS == code) {

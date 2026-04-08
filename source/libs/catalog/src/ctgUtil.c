@@ -1803,14 +1803,18 @@ int32_t ctgCloneMetaOutput(STableMetaOutput* output, STableMetaOutput** pOutput)
     int32_t metaSize = CTG_META_SIZE(output->tbMeta);
     int32_t schemaExtSize = 0;
     int32_t colRefSize = 0;
+    int32_t tagRefSize = 0;
     if (withExtSchema(output->tbMeta->tableType) && (*pOutput)->tbMeta->schemaExt) {
       schemaExtSize = output->tbMeta->tableInfo.numOfColumns * sizeof(SSchemaExt);
     }
     if (hasRefCol(output->tbMeta->tableType) && (*pOutput)->tbMeta->colRef) {
-      colRefSize = output->tbMeta->tableInfo.numOfColumns * sizeof(SColRef);
+      colRefSize = output->tbMeta->numOfColRefs * sizeof(SColRef);
+    }
+    if (hasRefCol(output->tbMeta->tableType) && (*pOutput)->tbMeta->tagRef && output->tbMeta->numOfTagRefs > 0) {
+      tagRefSize = output->tbMeta->numOfTagRefs * sizeof(SColRef);
     }
 
-    (*pOutput)->tbMeta = taosMemoryMalloc(metaSize + schemaExtSize + colRefSize);
+    (*pOutput)->tbMeta = taosMemoryMalloc(metaSize + schemaExtSize + colRefSize + tagRefSize);
     qTrace("tbmeta cloned, size:%d, p:%p", metaSize, (*pOutput)->tbMeta);
 
     if (NULL == (*pOutput)->tbMeta) {
@@ -1831,6 +1835,12 @@ int32_t ctgCloneMetaOutput(STableMetaOutput* output, STableMetaOutput** pOutput)
       TAOS_MEMCPY((*pOutput)->tbMeta->colRef, output->tbMeta->colRef, colRefSize);
     } else {
       (*pOutput)->tbMeta->colRef = NULL;
+    }
+    if (hasRefCol(output->tbMeta->tableType) && (*pOutput)->tbMeta->tagRef && output->tbMeta->numOfTagRefs > 0) {
+      (*pOutput)->tbMeta->tagRef = (SColRef*)((char*)(*pOutput)->tbMeta + metaSize + schemaExtSize + colRefSize);
+      TAOS_MEMCPY((*pOutput)->tbMeta->tagRef, output->tbMeta->tagRef, tagRefSize);
+    } else {
+      (*pOutput)->tbMeta->tagRef = NULL;
     }
   }
 
