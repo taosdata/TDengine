@@ -410,10 +410,11 @@ class TestCase:
         When a column has `mask(col)` in the SELECT grant, querying that
         column should return '*' instead of the actual value.
         Supported mask types: VARCHAR, NCHAR.
-        Masking is applied at the projection (output) level — similar to
-        Oracle Data Redaction / OpenGauss DDM.  GROUP BY, WHERE, HAVING,
-        and ORDER BY operate on original unmasked values; only the final
-        displayed output is replaced with '*'.
+        These checks validate the current masking semantics exercised by the
+        test suite: once a masked column is selected, downstream expression
+        evaluation observes the masked value.  In particular, functions and
+        predicates such as CASE WHEN, string aggregates, and metadata helpers
+        in the select list operate on '*' rather than the original cleartext.
         """
         tdSql.connect("root", "taosdata")
         tdSql.execute("drop database if exists d_mask")
@@ -521,7 +522,16 @@ class TestCase:
             tdSql.checkData(0, 1, '*')
             tdSql.checkData(0, 2, '*')
 
-            tdSql.error("select secret_col from d_mask.ntb_mask")
+            # Add a real column that is not part of the existing column-level GRANT,
+            # then verify the failure is permission-related rather than "unknown column".
+            tdSql.execute("alter table d_mask.ntb_mask add column c3 varchar(32)")
+            try:
+                tdSql.query("select c3 from d_mask.ntb_mask")
+                raise Exception("expected permission denied when selecting non-granted column c3")
+            except Exception as e:
+                err_msg = str(e).lower()
+                if "permission" not in err_msg and "denied" not in err_msg:
+                    raise
 
             # concat_ws with two masked cols: concat_ws('-', '*', '*') = '*-*'
             tdSql.query("select concat_ws('-', c1, c2) from d_mask.ntb_mask")

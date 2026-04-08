@@ -654,12 +654,14 @@ REVOKE ALL ON table_name FROM user_name;
 - 同一表相同类型的操作只能设置一条规则
 - 可配合行权限一起使用
 - `mask()` 仅支持 VARCHAR 和 NCHAR 类型的列，其他类型（如 INT、VARBINARY、GEOMETRY、JSON）暂不支持脱敏
-- **脱敏作用域**：`mask()` 采用展示层动态脱敏（Display-Level Dynamic Data Masking）策略。脱敏改写仅作用于 SELECT 投影列表（即最终输出结果），`WHERE`、`GROUP BY`、`HAVING`、`ORDER BY`、`CASE WHEN` 等子句中的列引用 **不做脱敏改写**，仍以原始值参与计算。例如：
+- **脱敏作用域**：`mask()` 采用展示层动态脱敏（Display-Level Dynamic Data Masking）策略。当前实现是对 `SELECT` 投影列表中的列引用进行改写；因此，凡是出现在投影列表中的表达式（如函数调用、`CASE WHEN`、`DISTINCT`、聚合参数等）只要引用了被脱敏列，都会基于脱敏后的表达式计算。相对地，`WHERE`、`GROUP BY`、`HAVING`、`ORDER BY` 等非投影子句中的列引用 **不做脱敏改写**，仍以原始值参与计算。例如：
   - `SELECT length(masked_col)` 返回 `1`（投影中 `masked_col` 被替换为 `'*'`）
+  - `SELECT CASE WHEN masked_col IS NULL THEN 0 ELSE length(masked_col) END` 中，若 `masked_col` 出现在投影表达式内，也会按脱敏后的值参与计算
   - `WHERE masked_col = 'hello'` 仍可匹配到原始值为 `'hello'` 的行
-  - `GROUP BY masked_col` 按原始值的基数分组，输出中每组均显示为 `'*'`
-- **设计考量**：展示层脱敏保证了聚合查询和分析的语义正确性——`COUNT`、`GROUP BY` 等操作基于真实数据产生统计结果，不会因脱敏导致业务分析失真。若改为全链路脱敏（即对所有子句统一改写），则 `GROUP BY` 会将所有不同值归为一组、`COUNT(DISTINCT)` 恒为 1，破坏聚合语义，不适用于数据分析场景
-- **防数据探测建议**：展示层脱敏无法阻止用户通过 `WHERE masked_col = 'xxx'` 等条件子句试探原始值。若需防范此类旁路推断攻击，建议采取以下措施：
+  - `GROUP BY masked_col` 按原始值的基数分组，输出中若直接投影该列，每组仍显示为 `'*'`
+  - `SELECT DISTINCT masked_col` 或 `COUNT(DISTINCT masked_col)` 会基于脱敏后的投影表达式计算，结果可能收敛
+- **设计考量**：展示层脱敏的目标是在尽量不影响筛选、分组、排序等分析语义的前提下隐藏结果展示中的敏感值。因此，`WHERE`、`GROUP BY`、`HAVING`、`ORDER BY` 仍基于真实数据执行；但投影列表内若直接引用脱敏列，相关表达式、`DISTINCT` 以及 `COUNT(DISTINCT)` 等结果会受到脱敏改写影响。若改为全链路脱敏（即对所有子句统一改写），则过滤、分组、排序等语义也会整体改变，更不适用于数据分析场景
+- **防数据探测建议**：由于非投影子句仍基于原始值执行，展示层脱敏无法阻止用户通过 `WHERE masked_col = 'xxx'` 等条件子句试探原始值。若需防范此类旁路推断攻击，建议采取以下措施：
   - 结合列权限控制，不授予用户对敏感列的直接查询权限（即不将该列列入 GRANT 列表），从根本上阻断访问路径
   - 使用行权限（`WITH` 子句）限定可访问的数据范围，缩小探测面
   - 启用审计日志，监控对脱敏列的高频条件查询行为
