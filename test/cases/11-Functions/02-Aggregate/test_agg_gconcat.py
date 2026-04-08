@@ -54,19 +54,36 @@ class TestFuncGconcat:
         tdSql.query(f"SELECT _wstart as ws, AVG(test_value) as avg_test_value, GROUP_CONCAT(CAST(test_value AS VARCHAR) , ',') FROM s_ptr_data PARTITION BY lotId, subLotId, headNum, siteNum, jobName, testTxt, testNum count_window(100) ;")
         tdSql.checkRows(0)
 
+    def test_group_concat_regression(self):
+        """Agg-basic: group_concat regression
 
-    def test_separator_merge_aligned(self):
-        """group_concat separator must be present between rows from different child tables
-        when using merge-aligned operators (supertable + interval / external_window).
-        Regression for TD-xxxxx: separator was silently dropped at the merge level because
-        scalar expression evaluation (projectApplyFunctions) was missing in the merge-aligned path.
+        GROUP_CONCAT extended regression: separator in merge-aligned operators,
+        NULL handling, multi-column, nchar/varchar mix, separator variants,
+        partition grouping, and edge cases.
 
-        Since: v3.0.0.0
+        Catalog:
+            - Function:Aggregate
+
+        Since: v3.4.1
 
         Labels: common,ci
 
         Jira: None
+
+        History:
+            - 2026-4-8 xsRen
+
         """
+        self._separator_merge_aligned()
+        self._null_handling()
+        self._multi_column()
+        self._nchar_varchar_mix()
+        self._separator_variants()
+        self._group_by()
+        self._edge_cases()
+        tdStream.dropAllStreamsAndDbs()
+
+    def _separator_merge_aligned(self):
         db = "db_gc_merge"
         tdSql.execute(f"drop database if exists {db}")
         tdSql.execute(f"create database {db}")
@@ -135,24 +152,7 @@ class TestFuncGconcat:
         tdSql.execute(f"create database {db}")
         tdSql.execute(f"use {db}")
 
-    def test_null_handling(self):
-        """Agg-basic: group_concat
-
-        Test GROUP_CONCAT NULL handling: all-NULL rows yield N-1 separators (regression baseline); mixed-NULL has a known garbage-bytes issue and is not asserted.
-
-        Catalog:
-            - Function:Aggregate
-
-        Since: v3.4.1
-
-        Labels: common,ci
-
-        Jira: None
-        
-        History:
-            - 20256-4-8 xsRen
-
-        """
+    def _null_handling(self):
         self._prepare_db("db_gc_null")
         t0 = 1700400000000
 
@@ -219,15 +219,7 @@ class TestFuncGconcat:
 
         tdLog.info("test_null_handling passed")
 
-    def test_multi_column(self):
-        """group_concat with 2 data columns concatenates them within each row.
-
-        Since: v3.0.0.0
-
-        Labels: common,ci
-
-        Jira: None
-        """
+    def _multi_column(self):
         self._prepare_db("db_gc_mcol")
 
         tdSql.execute("create table t_mc (ts timestamp, a varchar(10), b varchar(10))")
@@ -251,15 +243,7 @@ class TestFuncGconcat:
 
         tdLog.info("test_multi_column passed")
 
-    def test_nchar_varchar_mix(self):
-        """When NCHAR and VARCHAR columns are mixed, result is promoted to NCHAR.
-
-        Since: v3.0.0.0
-
-        Labels: common,ci
-
-        Jira: None
-        """
+    def _nchar_varchar_mix(self):
         self._prepare_db("db_gc_mix")
 
         tdSql.execute("create table t_mix (ts timestamp, vc varchar(20), nc nchar(20))")
@@ -290,15 +274,7 @@ class TestFuncGconcat:
 
         tdLog.info("test_nchar_varchar_mix passed")
 
-    def test_separator_variants(self):
-        """Test different separator strings: multi-char, special chars, empty.
-
-        Since: v3.0.0.0
-
-        Labels: common,ci
-
-        Jira: None
-        """
+    def _separator_variants(self):
         self._prepare_db("db_gc_sep")
 
         tdSql.execute("create table t_sep (ts timestamp, v varchar(20))")
@@ -342,15 +318,7 @@ class TestFuncGconcat:
 
         tdLog.info("test_separator_variants passed")
 
-    def test_group_by(self):
-        """group_concat with PARTITION BY produces separate results per partition.
-
-        Since: v3.0.0.0
-
-        Labels: common,ci
-
-        Jira: None
-        """
+    def _group_by(self):
         self._prepare_db("db_gc_grp")
 
         tdSql.execute("create table t_grp (ts timestamp, grp int, v varchar(20))")
@@ -389,15 +357,7 @@ class TestFuncGconcat:
 
         tdLog.info("test_group_by passed")
 
-    def test_edge_cases(self):
-        """Edge cases: empty table, single row, session window.
-
-        Since: v3.0.0.0
-
-        Labels: common,ci
-
-        Jira: None
-        """
+    def _edge_cases(self):
         self._prepare_db("db_gc_edge")
         t0 = 1700400000000
 
