@@ -2277,6 +2277,81 @@ static int32_t ctgInitTaskMsgCtxBatchs(SCtgTaskReq* pReq, SCtgMsgCtx* pMsgCtx) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t ctgCloneTaskParentIds(SCtgTask* pTask, SArray** ppParentIds) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  bool    locked = false;
+
+  if (NULL == pTask || NULL == ppParentIds) {
+    CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
+  }
+
+  *ppParentIds = NULL;
+
+  CTG_LOCK(CTG_WRITE, &pTask->lock);
+  locked = true;
+  if (NULL != pTask->pParents) {
+    *ppParentIds = taosArrayDup(pTask->pParents, NULL);
+    if (NULL == *ppParentIds) {
+      code = terrno;
+      goto _return;
+    }
+  }
+
+_return:
+
+  if (locked) {
+    CTG_UNLOCK(CTG_WRITE, &pTask->lock);
+  }
+
+  CTG_RET(code);
+}
+
+static int32_t ctgCallParentSubCb(SCtgJob* pJob, SCtgTaskReq* pReq, int32_t parentTaskId, int32_t* pRet) {
+  int32_t    code = TSDB_CODE_SUCCESS;
+  SCtgTask*  pParent = NULL;
+  SCtgMsgCtx* pParentMsgCtx = NULL;
+  SHashObj*  pPrevParentBatchs = NULL;
+
+  if (NULL == pJob || NULL == pReq || NULL == pRet) {
+    CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
+  }
+
+  pParent = ctgGetTask(pJob, parentTaskId);
+  if (NULL == pParent) {
+    qError("fail to get parent task:%d before sub cb", parentTaskId);
+    CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
+  }
+
+  pReq->pTask = pParent;
+  pParentMsgCtx = ctgGetTaskLinkMsgCtx(pParent);
+  if (NULL == pParentMsgCtx) {
+    qError("fail to get parent task:%d link SCtgMsgCtx before sub cb", parentTaskId);
+    CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
+  }
+
+  pPrevParentBatchs = pParentMsgCtx->pBatchs;
+  pParentMsgCtx->pBatchs = pReq->pBatchs;
+
+  *pRet = pParent->subRes.fp(pReq);
+
+  pParent = ctgGetTask(pJob, parentTaskId);
+  if (NULL == pParent) {
+    qError("fail to get parent task:%d after sub cb", parentTaskId);
+    CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
+  }
+
+  pReq->pTask = pParent;
+  pParentMsgCtx = ctgGetTaskLinkMsgCtx(pParent);
+  if (NULL == pParentMsgCtx) {
+    qError("fail to get parent task:%d link SCtgMsgCtx after sub cb", parentTaskId);
+    CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
+  }
+
+  pParentMsgCtx->pBatchs = pPrevParentBatchs;
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t ctgCallSubCb(SCtgTaskReq* pReq) {
   int32_t   code = 0;
   SCtgTask* pTask = pReq ? pReq->pTask : NULL;
@@ -2288,15 +2363,7 @@ int32_t ctgCallSubCb(SCtgTaskReq* pReq) {
   int32_t  taskId = pTask->taskId;
   SArray*  pParentIds = NULL;
 
-  CTG_LOCK(CTG_WRITE, &pTask->lock);
-  if (pTask->pParents) {
-    pParentIds = taosArrayDup(pTask->pParents, NULL);
-    if (NULL == pParentIds) {
-      CTG_UNLOCK(CTG_WRITE, &pTask->lock);
-      CTG_ERR_RET(terrno);
-    }
-  }
-  CTG_UNLOCK(CTG_WRITE, &pTask->lock);
+  CTG_ERR_JRET(ctgCloneTaskParentIds(pTask, &pParentIds));
 
   int32_t parentNum = pParentIds ? taosArrayGetSize(pParentIds) : 0;
   for (int32_t i = 0; i < parentNum; ++i) {
@@ -2326,29 +2393,12 @@ int32_t ctgCallSubCb(SCtgTaskReq* pReq) {
       }
     }
 
-    SCtgTaskReq parentReq = {.pTask = pParent, .msgIdx = -1, .pBatchs = ctgGetReqBatchs(pReq)};
-    SCtgMsgCtx* pParentMsgCtx = ctgGetTaskLinkMsgCtx(pParent);
-    if (NULL == pParentMsgCtx) {
-      qError("fail to get parent link SCtgMsgCtx");
-      CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
-    }
+    SCtgTaskReq parentReq = ctgMakeTaskReq(pParent, -1);
+    parentReq.pBatchs = ctgGetReqBatchs(pReq);
 
-    SHashObj* pPrevParentBatchs = pParentMsgCtx->pBatchs;
-    pParentMsgCtx->pBatchs = parentReq.pBatchs;
-
+    int32_t ret = TSDB_CODE_SUCCESS;
     // all parents' cb should be called even if one fails
-    int32_t ret = pParent->subRes.fp(&parentReq);
-    pParent = ctgGetTask(pJob, *pParentTaskId);
-    if (NULL == pParent) {
-      qError("fail to get parent task:%d after sub cb", *pParentTaskId);
-      CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
-    }
-    pParentMsgCtx = ctgGetTaskLinkMsgCtx(pParent);
-    if (NULL == pParentMsgCtx) {
-      qError("fail to get parent link SCtgMsgCtx after sub cb");
-      CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
-    }
-    pParentMsgCtx->pBatchs = pPrevParentBatchs;
+    CTG_ERR_JRET(ctgCallParentSubCb(pJob, &parentReq, *pParentTaskId, &ret));
     if (ret) {
       code = ret;
       qDebug("QID:0x%" PRIx64 ", job:0x%" PRIx64
@@ -5656,12 +5706,22 @@ _return:
 
   CTG_UNLOCK(CTG_WRITE, &pSub->lock);
   if (TSDB_CODE_SUCCESS == code && callCb) {
-    code = pTask->subRes.fp(pReq);
+    int32_t ret = pTask->subRes.fp(pReq);
+    if (TSDB_CODE_SUCCESS != ret) {
+      code = ret;
+    }
+
     pReq->pTask = ctgGetTask(pJob, taskId);
     if (NULL == pReq->pTask) {
       qError("fail to get parent task:%d after direct sub cb", taskId);
-      CTG_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
+      if (TSDB_CODE_SUCCESS == code) {
+        CTG_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
+      }
+
+      CTG_RET(code);
     }
+
+    CTG_ERR_RET(code);
   }
 
   CTG_RET(code);
