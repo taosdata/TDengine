@@ -1202,6 +1202,7 @@ int32_t  taosGetErrSize();
 #define TSDB_CODE_MND_TXN_IN_DROPPING            TAOS_DEF_ERROR_CODE(0, 0x3305)  // transaction is being dropped
 #define TSDB_CODE_TXN_SEQ_NOT_EXIST              TAOS_DEF_ERROR_CODE(0, 0x3306)  // txn sequence not found
 #define TSDB_CODE_MND_TXN_INVALID_STAGE          TAOS_DEF_ERROR_CODE(0, 0x3307)  // invalid transaction stage
+#define TSDB_CODE_MND_TXN_FULL                   TAOS_DEF_ERROR_CODE(0, 0x3308)  // too many active transactions
 #define TSDB_CODE_MND_TXN_IDLE_TIMEOUT           TAOS_DEF_ERROR_CODE(0, 0x3309)  // transaction idle timeout
 #define TSDB_CODE_MND_TXN_ERROR                  TAOS_DEF_ERROR_CODE(0, 0x330A)  // general transaction error
 #define TSDB_CODE_MND_TXN_SEQ_IN_CREATING        TAOS_DEF_ERROR_CODE(0, 0x330B)  // txn sequence is being created

@@ -1011,6 +1011,60 @@ static int32_t tscSendTxnCtrlMsg(STscObj *pTscObj, int32_t msgType, SRpcMsg *pRs
   return rpcSendRecv(pTrans, &epSet, &rpcMsg, pRsp);
 }
 
+static void tscBestEffortRollbackOrphanTxn(STscObj *pTscObj, utxn_id_t txnId, const char *source) {
+  if (pTscObj == NULL || pTscObj->pAppInfo == NULL || pTscObj->pAppInfo->pTransporter == NULL || txnId == 0) {
+    return;
+  }
+
+  SMTransReq req = {0};
+  req.msgType = TDMT_MND_ROLLBACK_TXN;
+  req.txnId = txnId;
+  req.connId = pTscObj->id;
+  req.pVgList = NULL;
+
+  int32_t contLen = tSerializeSMTransReq(NULL, 0, &req);
+  if (contLen <= 0) {
+    tscWarn("conn:0x%" PRIx64 ", txn:%" PRIu64 " best-effort rollback skipped in %s, serialize size failed",
+            pTscObj->id, txnId, source);
+    return;
+  }
+
+  void *pCont = rpcMallocCont(contLen);
+  if (pCont == NULL) {
+    tscWarn("conn:0x%" PRIx64 ", txn:%" PRIu64 " best-effort rollback skipped in %s, alloc failed", pTscObj->id, txnId,
+            source);
+    return;
+  }
+
+  if (tSerializeSMTransReq(pCont, contLen, &req) <= 0) {
+    rpcFreeCont(pCont);
+    tscWarn("conn:0x%" PRIx64 ", txn:%" PRIu64 " best-effort rollback skipped in %s, serialize failed", pTscObj->id,
+            txnId, source);
+    return;
+  }
+
+  SEpSet  epSet = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
+  SRpcMsg rpcMsg = {.pCont = pCont,
+                    .contLen = contLen,
+                    .msgType = TDMT_MND_ROLLBACK_TXN,
+                    .info.ahandle = 0,
+                    .info.notFreeAhandle = 1};
+  SRpcMsg rpcRsp = {0};
+
+  int32_t code = rpcSendRecv(pTscObj->pAppInfo->pTransporter, &epSet, &rpcMsg, &rpcRsp);
+  if (code == TSDB_CODE_SUCCESS && rpcRsp.code != TSDB_CODE_SUCCESS) {
+    code = rpcRsp.code;
+  }
+  if (code != TSDB_CODE_SUCCESS) {
+    tscWarn("conn:0x%" PRIx64 ", txn:%" PRIu64 " best-effort rollback in %s failed, code:0x%x", pTscObj->id, txnId,
+            source, code);
+  } else {
+    tscInfo("conn:0x%" PRIx64 ", txn:%" PRIu64 " best-effort rollback in %s succeeded", pTscObj->id, txnId, source);
+  }
+
+  rpcFreeCont(rpcRsp.pCont);
+}
+
 /**
  * @brief send sync message to mnode to begin txn, and get allocated txnId
  */
@@ -1029,6 +1083,7 @@ int taos_txn_begin(TAOS *taos) {
   }
 
   taosThreadMutexLock(&pTscObj->mutex);
+  utxn_id_t orphanTxnId = 0;
   if (pTscObj->txnId > 0) {
     taosThreadMutexUnlock(&pTscObj->mutex);
     releaseTscObj(connId);
@@ -1051,6 +1106,7 @@ int taos_txn_begin(TAOS *taos) {
     pTscObj->pTxnVgList = taosArrayInit(4, sizeof(int32_t));
     if (pTscObj->pTxnVgList == NULL) {
       tscError("conn:0x%" PRIx64 ", txn:%" PRIu64 " failed to init VGroup list", pTscObj->id, pTscObj->txnId);
+      orphanTxnId = pTscObj->txnId;
       code = terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
       pTscObj->txnState = 0;
       pTscObj->txnId = 0;
@@ -1064,6 +1120,9 @@ int taos_txn_begin(TAOS *taos) {
   rpcFreeCont(rpcRsp.pCont);
 
   taosThreadMutexUnlock(&pTscObj->mutex);
+  if (orphanTxnId != 0) {
+    tscBestEffortRollbackOrphanTxn(pTscObj, orphanTxnId, "taos_txn_begin");
+  }
   releaseTscObj(connId);
   return code;
 #else

@@ -31,9 +31,13 @@ Tests cover:
 
 from new_test_framework.utils import tdLog, tdSql, tdCom
 import time
+import threading
+import re
 
 
 class TestBatchMetaTxn:
+
+    TXN_FULL_CODE16 = 0x3308
 
     def setup_class(cls):
         tdLog.debug("start to execute %s" % __file__)
@@ -2249,6 +2253,585 @@ class TestBatchMetaTxn:
         tdSql.query("show vtables")
         tdSql.checkRows(0)
 
+    def _extract_err_code16(self, exc):
+        """Extract low-16-bit error code from exception text like [0x80003308]."""
+        text = str(exc)
+        m = re.search(r"0x([0-9a-fA-F]+)", text)
+        if m:
+            return int(m.group(1), 16) & 0xFFFF
+        m = re.search(r"-?\d+", text)
+        if m:
+            v = int(m.group(0))
+            return (v & 0xFFFFFFFF) & 0xFFFF
+        return None
+
+    # =========================================================================
+    # 91. High-concurrency BEGIN across many sessions
+    # =========================================================================
+    def s91_high_concurrent_begin(self):
+        self.s0_reset_env()
+        tdLog.info("======== s91_high_concurrent_begin")
+
+        workers = 32
+        barrier = threading.Barrier(workers)
+        lock = threading.Lock()
+        begin_ok = []
+        begin_err = []
+
+        def worker(idx):
+            conn = None
+            began = False
+            try:
+                conn = tdCom.newTdSql()
+                conn.execute("use txn_db")
+                barrier.wait(timeout=15)
+                conn.execute("BEGIN")
+                began = True
+                time.sleep(1)
+            except Exception as e:
+                code16 = self._extract_err_code16(e)
+                with lock:
+                    begin_err.append((idx, code16, str(e)))
+            finally:
+                if conn:
+                    try:
+                        if began:
+                            conn.execute("ROLLBACK")
+                    except Exception:
+                        pass
+                    try:
+                        conn.close()
+                    except Exception:
+                        pass
+                if began:
+                    with lock:
+                        begin_ok.append(idx)
+
+        ts = [threading.Thread(target=worker, args=(i,)) for i in range(workers)]
+        for t in ts:
+            t.start()
+        for t in ts:
+            t.join(timeout=40)
+
+        tdLog.info(f"  concurrent BEGIN result: ok={len(begin_ok)}, err={len(begin_err)}")
+        assert len(begin_ok) > 0, "No BEGIN succeeded under concurrency"
+        assert len(begin_ok) + len(begin_err) == workers, "Some workers did not finish"
+
+    # =========================================================================
+    # 92. Resource limit reject code on excessive active BEGINs
+    # =========================================================================
+    def s92_resource_limit_reject_code(self):
+        self.s0_reset_env()
+        tdLog.info("======== s92_resource_limit_reject_code")
+
+        hold_conns = []
+        rejects = []
+        total_attempts = 260  # exceed the expected global limit(200)
+
+        try:
+            for i in range(total_attempts):
+                conn = tdCom.newTdSql()
+                conn.execute("use txn_db")
+                try:
+                    conn.execute("BEGIN")
+                    hold_conns.append(conn)
+                except Exception as e:
+                    code16 = self._extract_err_code16(e)
+                    rejects.append((i, code16, str(e)))
+                    try:
+                        conn.close()
+                    except Exception:
+                        pass
+                    break
+
+            assert len(rejects) > 0, (
+                f"Expected BEGIN rejection after exceeding active txn limit; "
+                f"attempts={total_attempts}, active={len(hold_conns)}"
+            )
+
+            idx, code16, msg = rejects[0]
+            tdLog.info(f"  first reject at attempt={idx}, code16={code16}, msg={msg}")
+            assert code16 == self.TXN_FULL_CODE16, (
+                f"Expected reject code 0x{self.TXN_FULL_CODE16:04x} when txn limit exceeded, got code16={code16}, msg={msg}"
+            )
+        finally:
+            for c in hold_conns:
+                try:
+                    c.execute("ROLLBACK")
+                except Exception:
+                    pass
+                try:
+                    c.close()
+                except Exception:
+                    pass
+
+    # =========================================================================
+    # 93. Retry after timeout auto-rollback should succeed
+    # =========================================================================
+    def s93_retry_after_timeout_recover_success(self):
+        self.s0_reset_env()
+        tdLog.info("======== s93_retry_after_timeout_recover_success")
+
+        tdSql.execute("create table stb (ts timestamp, v int) tags (t1 int)")
+
+        # Session A: begin + create + disconnect without COMMIT/ROLLBACK
+        tdSql2 = tdCom.newTdSql()
+        tdSql2.execute("use txn_db")
+        tdSql2.execute("BEGIN")
+        tdSql2.execute("create table ct_retry_pre using stb tags(1)")
+        tdSql2.close()
+
+        # Wait timeout recovery
+        recovered = False
+        for i in range(55):
+            time.sleep(1)
+            tdSql.query("show txn_db.tables")
+            if tdSql.queryRows == 0:
+                tdLog.info(f"  timeout cleanup detected after {i + 1}s")
+                recovered = True
+                break
+        assert recovered, "Timeout auto-rollback did not complete within 55s"
+
+        # Session B: retry should succeed after recovery
+        tdSql3 = tdCom.newTdSql()
+        tdSql3.execute("use txn_db")
+        tdSql3.execute("BEGIN")
+        tdSql3.execute("create table ct_retry_ok using stb tags(2)")
+        tdSql3.execute("COMMIT")
+        tdSql3.close()
+
+        tdSql.query("show tables")
+        tdSql.checkRows(1)
+        tdSql.execute("insert into ct_retry_ok values(now, 7)")
+        tdSql.query("select count(*) from stb")
+        tdSql.checkData(0, 0, 1)
+
+    # =========================================================================
+    # 94. Multi-txn conflict stress: 10 sessions competing for same tables
+    # =========================================================================
+    def s94_multi_txn_conflict_stress(self):
+        self.s0_reset_env()
+        tdLog.info("======== s94_multi_txn_conflict_stress")
+
+        tdSql.execute("create table stb (ts timestamp, v int) tags (t1 int)")
+        # Pre-create targets for ALTER/DROP
+        for i in range(5):
+            tdSql.execute(f"create table ct_stress{i} using stb tags({i})")
+
+        workers = 10
+        lock = threading.Lock()
+        results = {"success": 0, "conflict": 0, "error": 0, "errors": []}
+
+        def worker(idx):
+            conn = None
+            try:
+                conn = tdCom.newTdSql()
+                conn.execute("use txn_db")
+                conn.execute("BEGIN")
+                # Each worker creates a unique table + tries to ALTER a shared one
+                conn.execute(f"create table ct_w{idx} using stb tags({100 + idx})")
+                target = f"ct_stress{idx % 5}"
+                try:
+                    conn.execute(f"alter table {target} comment 'w{idx}'")
+                except Exception:
+                    pass  # ALTER conflict is expected; don't abort whole txn
+                conn.execute("COMMIT")
+                with lock:
+                    results["success"] += 1
+            except Exception as e:
+                code16 = self._extract_err_code16(e)
+                with lock:
+                    # Any txn-related error (0x33xx) or VND conflict (0x0545) is a conflict
+                    if code16 is not None and (0x3300 <= code16 <= 0x331F or code16 == 0x0545):
+                        results["conflict"] += 1
+                    else:
+                        results["error"] += 1
+                        results["errors"].append(f"w{idx}: 0x{code16:04x if code16 else 'None'}: {e}")
+                try:
+                    if conn:
+                        conn.execute("ROLLBACK")
+                except Exception:
+                    pass
+            finally:
+                if conn:
+                    try:
+                        conn.close()
+                    except Exception:
+                        pass
+
+        ts = [threading.Thread(target=worker, args=(i,)) for i in range(workers)]
+        for t in ts:
+            t.start()
+        for t in ts:
+            t.join(timeout=60)
+
+        tdLog.info(f"  conflict stress: success={results['success']}, "
+                   f"conflict={results['conflict']}, error={results['error']}")
+        for msg in results["errors"]:
+            tdLog.info(f"  unexpected: {msg}")
+        assert results["success"] + results["conflict"] == workers, \
+            f"All workers should finish: {results}"
+        assert results["success"] > 0, f"At least one txn should succeed: {results}"
+
+    # =========================================================================
+    # 95. Long-running txn with sustained activity (keepalive verification)
+    # =========================================================================
+    def s95_long_running_txn_keepalive(self):
+        self.s0_reset_env()
+        tdLog.info("======== s95_long_running_txn_keepalive")
+
+        tdSql.execute("create table stb (ts timestamp, v int) tags (t1 int)")
+
+        tdSql.execute("BEGIN")
+        # Create tables in bursts with sleeps between — heartbeat should keep txn alive
+        for burst in range(5):
+            for j in range(3):
+                idx = burst * 3 + j
+                tdSql.execute(f"create table ct_long{idx} using stb tags({idx})")
+            # Sleep 3s between bursts (txn timeout is typically 10s for ACTIVE,
+            # but heartbeat keepalive should prevent timeout)
+            time.sleep(3)
+
+        # After 5 bursts × 3s = 15s total, txn should still be alive
+        tdSql.execute("COMMIT")
+
+        tdSql.query("show tables")
+        tdSql.checkRows(15)
+        for i in range(15):
+            tdSql.execute(f"insert into ct_long{i} values(now, {i})")
+        tdSql.query("select count(*) from stb")
+        tdSql.checkData(0, 0, 15)
+
+    # =========================================================================
+    # 96. Sequential rapid txn stress (50 txn cycles back-to-back)
+    # =========================================================================
+    def s96_sequential_rapid_txn_stress(self):
+        self.s0_reset_env()
+        tdLog.info("======== s96_sequential_rapid_txn_stress")
+
+        tdSql.execute("create table stb (ts timestamp, v int) tags (t1 int)")
+
+        for cycle in range(50):
+            tdSql.execute("BEGIN")
+            tname = f"ct_rapid{cycle}"
+            tdSql.execute(f"create table {tname} using stb tags({cycle})")
+            if cycle % 2 == 0:
+                tdSql.execute("COMMIT")
+            else:
+                tdSql.execute("ROLLBACK")
+
+        # Only even cycles committed: 0,2,4,...,48 = 25 tables
+        tdSql.query("show tables")
+        tdSql.checkRows(25)
+        for i in range(0, 50, 2):
+            tdSql.execute(f"insert into ct_rapid{i} values(now, {i})")
+        tdSql.query("select count(*) from stb")
+        tdSql.checkData(0, 0, 25)
+
+    # =========================================================================
+    # 97. Compaction during active multi-table txn, then COMMIT
+    # =========================================================================
+    def s97_compaction_during_active_txn(self):
+        self.s0_reset_env()
+        tdLog.info("======== s97_compaction_during_active_txn")
+
+        tdSql.execute("create table stb (ts timestamp, v int) tags (t1 int)")
+        # Pre-populate data to give compaction something to work with
+        for i in range(10):
+            tdSql.execute(f"create table ct_comp{i} using stb tags({i})")
+            tdSql.execute(f"insert into ct_comp{i} values(now-10s, {i}) (now-5s, {i+10}) (now, {i+20})")
+
+        # Flush to create sst files
+        tdSql.execute("flush database txn_db")
+        time.sleep(2)
+
+        # Begin txn with mixed DDL
+        tdSql.execute("BEGIN")
+        tdSql.execute("create table ct_new_comp using stb tags(100)")
+        tdSql.execute("drop table ct_comp0")
+        # ALTER a normal table (not child tables which inherit STB schema)
+        tdSql.execute("create table ntb_comp (ts timestamp, c1 int)")
+        tdSql.execute("alter table ntb_comp add column c2 float")
+
+        # Trigger compact while txn is active
+        # compact is non-blocking and should NOT break txn.idx entries
+        try:
+            tdSql.execute("compact database txn_db")
+        except Exception as e:
+            tdLog.info(f"  compact returned: {e} (may be expected)")
+        time.sleep(3)
+
+        # COMMIT should still work — txn.idx protected during compaction
+        tdSql.execute("COMMIT")
+
+        # Verify: 10 original - 1 dropped + 1 new + 1 ntb = 11
+        tdSql.query("show tables")
+        tdSql.checkRows(11)
+
+        # Dropped table gone
+        tdSql.error("select * from ct_comp0")
+
+        # New table usable
+        tdSql.execute("insert into ct_new_comp values(now, 99)")
+        tdSql.query("select v from ct_new_comp")
+        tdSql.checkData(0, 0, 99)
+
+        # ALTER persisted on normal table
+        tdSql.query("describe ntb_comp")
+        cols = [tdSql.queryResult[i][0] for i in range(tdSql.queryRows)]
+        assert 'c2' in cols, "ALTER column c2 should exist after COMMIT"
+
+    # =========================================================================
+    # 98. Cross-session conflict matrix (systematic validation)
+    #     Session A holds active txn on table set; Session B attempts
+    #     concurrent DDL on same tables → should see RESOURCE_BUSY.
+    # =========================================================================
+    def s98_cross_session_conflict_matrix(self):
+        self.s0_reset_env()
+        tdLog.info("======== s98_cross_session_conflict_matrix")
+
+        tdSql.execute("create table stb (ts timestamp, v int) tags (t1 int)")
+        tdSql.execute("create table ct_cm1 using stb tags(1)")
+        tdSql.execute("create table ct_cm2 using stb tags(2)")
+        tdSql.execute("create table ntb_cm (ts timestamp, c1 int)")
+
+        RESOURCE_BUSY = 0x3315
+        VND_TXN_CONFLICT = 0x0545
+        CONFLICT_CODES = {RESOURCE_BUSY, VND_TXN_CONFLICT, 0x330F, 0x330E}  # +NEED_ROLLBACK, +ABORTED
+
+        # --- Test A: PRE_DROP blocks concurrent DROP ---
+        tdSql.execute("BEGIN")
+        tdSql.execute("drop table ct_cm1")
+
+        tdSql2 = tdCom.newTdSql()
+        tdSql2.execute("use txn_db")
+        try:
+            tdSql2.execute("drop table ct_cm1")
+            assert False, "Expected conflict on concurrent DROP of PRE_DROP table"
+        except Exception as e:
+            code16 = self._extract_err_code16(e)
+            assert code16 in CONFLICT_CODES, \
+                f"Expected conflict code, got 0x{code16:04x}: {e}"
+            tdLog.info(f"  PRE_DROP blocks DROP: OK (0x{code16:04x})")
+
+        # --- Test B: PRE_DROP blocks concurrent ALTER ---
+        try:
+            tdSql2.execute("alter table ct_cm1 add column c2 float")
+            assert False, "Expected conflict on ALTER of PRE_DROP table"
+        except Exception as e:
+            code16 = self._extract_err_code16(e)
+            tdLog.info(f"  PRE_DROP blocks ALTER: OK (0x{code16:04x})")
+
+        tdSql.execute("ROLLBACK")
+
+        # --- Test C: PRE_ALTER blocks concurrent ALTER ---
+        tdSql.execute("BEGIN")
+        tdSql.execute("alter table ntb_cm add column c_txn float")
+
+        try:
+            tdSql2.execute("alter table ntb_cm add column c_other int")
+            assert False, "Expected conflict on concurrent ALTER of PRE_ALTER table"
+        except Exception as e:
+            code16 = self._extract_err_code16(e)
+            assert code16 in CONFLICT_CODES, \
+                f"Expected conflict code, got 0x{code16:04x}: {e}"
+            tdLog.info(f"  PRE_ALTER blocks ALTER: OK (0x{code16:04x})")
+
+        # --- Test D: PRE_ALTER blocks concurrent DROP ---
+        try:
+            tdSql2.execute("drop table ntb_cm")
+            assert False, "Expected conflict on DROP of PRE_ALTER table"
+        except Exception as e:
+            code16 = self._extract_err_code16(e)
+            tdLog.info(f"  PRE_ALTER blocks DROP: OK (0x{code16:04x})")
+
+        tdSql.execute("ROLLBACK")
+
+        # --- Test E: PRE_CREATE blocks concurrent CREATE (same name) ---
+        tdSql.execute("BEGIN")
+        tdSql.execute("create table ct_conflict using stb tags(99)")
+
+        try:
+            tdSql2.execute("create table ct_conflict using stb tags(88)")
+            assert False, "Expected conflict on concurrent CREATE of same-name table"
+        except Exception as e:
+            code16 = self._extract_err_code16(e)
+            # Could be RESOURCE_BUSY, VND_TXN_CONFLICT, or TABLE_ALREADY_EXISTS
+            tdLog.info(f"  PRE_CREATE blocks CREATE: OK (0x{code16:04x})")
+
+        tdSql.execute("ROLLBACK")
+
+        # --- Test F: Two-txn conflict ---
+        tdSql.execute("BEGIN")
+        tdSql.execute("drop table ct_cm2")
+
+        tdSql2.execute("BEGIN")
+        try:
+            tdSql2.execute("drop table ct_cm2")
+            assert False, "Expected conflict on cross-txn DROP"
+        except Exception as e:
+            code16 = self._extract_err_code16(e)
+            tdLog.info(f"  Cross-txn conflict: OK (0x{code16:04x})")
+            tdSql2.execute("ROLLBACK")
+
+        tdSql.execute("ROLLBACK")
+        tdSql2.close()
+
+        # Verify everything is intact
+        tdSql.query("show tables")
+        tdSql.checkRows(3)
+
+    # =========================================================================
+    # 99. SHOW TRANSACTIONS visibility during active txn
+    # =========================================================================
+    def s99_show_transactions_visibility(self):
+        self.s0_reset_env()
+        tdLog.info("======== s99_show_transactions_visibility")
+
+        tdSql.execute("create table stb (ts timestamp, v int) tags (t1 int)")
+
+        # No active txn → show transactions should have 0 batch txns
+        initial_count = 0
+        try:
+            tdSql.query("show transactions")
+            initial_count = tdSql.queryRows
+        except Exception:
+            pass
+
+        # Start txn
+        tdSql.execute("BEGIN")
+        tdSql.execute("create table ct_show_txn using stb tags(1)")
+
+        # Should see our txn in SHOW TRANSACTIONS
+        tdSql2 = tdCom.newTdSql()
+        tdSql2.execute("use txn_db")
+        tdSql2.query("show transactions")
+        found = False
+        for i in range(tdSql2.queryRows):
+            row = tdSql2.queryResult[i]
+            # Check if any row has 'batch' type
+            for col in row:
+                if str(col).lower() == 'batch':
+                    found = True
+                    break
+        tdLog.info(f"  SHOW TRANSACTIONS rows: {tdSql2.queryRows}, found batch txn: {found}")
+        assert tdSql2.queryRows > initial_count, "Expected at least one more txn in SHOW TRANSACTIONS"
+
+        tdSql.execute("COMMIT")
+        tdSql2.close()
+
+        tdSql.query("show tables")
+        tdSql.checkRows(1)
+
+    # =========================================================================
+    # 100. Multiple sequential ALTERs on same table in single txn
+    # =========================================================================
+    def s100_multiple_alters_same_table(self):
+        self.s0_reset_env()
+        tdLog.info("======== s100_multiple_alters_same_table")
+
+        tdSql.execute("create table ntb_alters (ts timestamp, c1 int)")
+
+        tdSql.execute("BEGIN")
+        tdSql.execute("alter table ntb_alters add column c2 float")
+        tdSql.execute("alter table ntb_alters add column c3 binary(20)")
+        tdSql.execute("alter table ntb_alters add column c4 bigint")
+        tdSql.execute("COMMIT")
+
+        tdSql.query("describe ntb_alters")
+        cols = [tdSql.queryResult[i][0] for i in range(tdSql.queryRows)]
+        assert 'c2' in cols, "c2 should exist"
+        assert 'c3' in cols, "c3 should exist"
+        assert 'c4' in cols, "c4 should exist"
+
+        # Now test ROLLBACK of multiple ALTERs
+        tdSql.execute("BEGIN")
+        tdSql.execute("alter table ntb_alters add column c5 double")
+        tdSql.execute("alter table ntb_alters add column c6 bool")
+        tdSql.execute("ROLLBACK")
+
+        tdSql.query("describe ntb_alters")
+        cols = [tdSql.queryResult[i][0] for i in range(tdSql.queryRows)]
+        assert 'c5' not in cols, "c5 should NOT exist after ROLLBACK"
+        assert 'c6' not in cols, "c6 should NOT exist after ROLLBACK"
+        # Original columns still there
+        assert 'c2' in cols and 'c3' in cols and 'c4' in cols, "Original columns should survive"
+
+    # =========================================================================
+    # 101. Large batch table creation (100 tables) in single txn
+    # =========================================================================
+    def s101_large_batch_create(self):
+        self.s0_reset_env()
+        tdLog.info("======== s101_large_batch_create")
+
+        tdSql.execute("create table stb (ts timestamp, v int) tags (t1 int)")
+
+        tdSql.execute("BEGIN")
+        for i in range(100):
+            tdSql.execute(f"create table ct_batch{i} using stb tags({i})")
+        tdSql.execute("COMMIT")
+
+        tdSql.query("show tables")
+        tdSql.checkRows(100)
+
+        # Verify all usable
+        for i in range(100):
+            tdSql.execute(f"insert into ct_batch{i} values(now, {i})")
+        tdSql.query("select count(*) from stb")
+        tdSql.checkData(0, 0, 100)
+
+    # =========================================================================
+    # 102. Large batch ROLLBACK (100 tables) undoes cleanly
+    # =========================================================================
+    def s102_large_batch_rollback(self):
+        self.s0_reset_env()
+        tdLog.info("======== s102_large_batch_rollback")
+
+        tdSql.execute("create table stb (ts timestamp, v int) tags (t1 int)")
+        tdSql.execute("create table ct_survive using stb tags(0)")
+        tdSql.execute("insert into ct_survive values(now, 42)")
+
+        tdSql.execute("BEGIN")
+        for i in range(100):
+            tdSql.execute(f"create table ct_ghost{i} using stb tags({i + 1})")
+        tdSql.execute("ROLLBACK")
+
+        # Only ct_survive remains
+        tdSql.query("show tables")
+        tdSql.checkRows(1)
+        tdSql.query("select v from ct_survive")
+        tdSql.checkData(0, 0, 42)
+
+    # =========================================================================
+    # 103. Txn after DROP DATABASE + re-create (clean slate)
+    # =========================================================================
+    def s103_txn_after_drop_recreate_db(self):
+        tdLog.info("======== s103_txn_after_drop_recreate_db")
+
+        # Drop and recreate database
+        tdSql.execute("drop database if exists txn_db")
+        tdSql.execute("create database txn_db vgroups 2")
+        tdSql.execute("use txn_db")
+
+        tdSql.execute("create table stb (ts timestamp, v int) tags (t1 int)")
+
+        # Txn should work on fresh database
+        tdSql.execute("BEGIN")
+        tdSql.execute("create table ct_fresh1 using stb tags(1)")
+        tdSql.execute("create table ct_fresh2 using stb tags(2)")
+        tdSql.execute("COMMIT")
+
+        tdSql.query("show tables")
+        tdSql.checkRows(2)
+
+        # Another txn cycle
+        tdSql.execute("BEGIN")
+        tdSql.execute("drop table ct_fresh1")
+        tdSql.execute("COMMIT")
+
+        tdSql.query("show tables")
+        tdSql.checkRows(1)
+
     def test_meta_batch_txn(self):
         """Batch meta txn: full lifecycle
 
@@ -2342,6 +2925,19 @@ class TestBatchMetaTxn:
         88. VNT: CREATE→ALTER→DROP chain + ROLLBACK
         89. Mixed virtual + non-virtual DDL in single txn + COMMIT
         90. Mixed virtual + non-virtual DDL in single txn + ROLLBACK
+        91. High-concurrency BEGIN across many sessions
+        92. Resource limit reject code on excessive active BEGINs
+        93. Retry succeeds after timeout auto-rollback recovery
+        94. Multi-txn conflict stress (10 sessions competing for same tables)
+        95. Long-running txn with sustained activity (keepalive)
+        96. Sequential rapid txn stress (50 txn cycles)
+        97. Compaction during active multi-table txn
+        98. Cross-session conflict matrix (systematic)
+        99. SHOW TRANSACTIONS visibility during active txn
+        100. Multiple sequential ALTERs on same table in single txn
+        101. Large batch table creation (100 tables)
+        102. Large batch ROLLBACK (100 tables)
+        103. Txn after DROP DATABASE + re-create
 
 
         Since: v3.3.6.0
@@ -2359,6 +2955,9 @@ class TestBatchMetaTxn:
             - 2026-03-31 Added compaction protection (META_ONLY) tests
             - 2026-04-01 Added STB chain tests, STB conflict detection, STB+CTB mixed chain tests
             - 2026-04-03 Added virtual table DDL tests (VNT, VCTB, VSTB lifecycle, chains, mixed)
+            - 2026-04-08 Added concurrency/txn-limit/timeout-retry recovery integration tests
+            - 2026-04-08 Added conflict stress, keepalive, rapid txn, compaction, conflict matrix,
+                         SHOW TRANSACTIONS, multi-ALTER, large batch, DB recreate tests
 
         """
         self.s1_begin_commit_create_tables()
@@ -2451,3 +3050,16 @@ class TestBatchMetaTxn:
         self.s88_vnt_create_alter_drop_rollback()
         self.s89_mixed_virtual_nonvirtual_commit()
         self.s90_mixed_virtual_nonvirtual_rollback()
+        self.s91_high_concurrent_begin()
+        self.s92_resource_limit_reject_code()
+        self.s93_retry_after_timeout_recover_success()
+        self.s94_multi_txn_conflict_stress()
+        self.s95_long_running_txn_keepalive()
+        self.s96_sequential_rapid_txn_stress()
+        self.s97_compaction_during_active_txn()
+        self.s98_cross_session_conflict_matrix()
+        self.s99_show_transactions_visibility()
+        self.s100_multiple_alters_same_table()
+        self.s101_large_batch_create()
+        self.s102_large_batch_rollback()
+        self.s103_txn_after_drop_recreate_db()

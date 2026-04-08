@@ -892,6 +892,281 @@ class TestBatchMetaTxnCluster:
         tdSql.execute(f"drop database {db}")
         tdLog.info("s54 PASSED")
 
+    # =========================================================================
+    # s55: VNode crash after COMMIT written to WAL → restart → WAL replay
+    #   Verifies that if a VNode leader crashes after COMMIT redo log is
+    #   written but before all applies complete, the WAL replay on restart
+    #   correctly finalizes the COMMIT (promotes shadow entries).
+    # =========================================================================
+    def s55_vnode_crash_wal_replay_commit(self):
+        self._reset_env()
+        tdLog.info("======== s55_vnode_crash_wal_replay_commit")
+
+        tdSql.execute("create table stb (ts timestamp, v int) tags (t1 int)")
+
+        # Create tables in txn and COMMIT
+        tdSql.execute("BEGIN")
+        for i in range(5):
+            tdSql.execute(f"create table ct_wal{i} using stb tags({i})")
+        tdSql.execute("create table ntb_wal (ts timestamp, c1 int)")
+        tdSql.execute("COMMIT")
+
+        # Insert data to verify tables are usable
+        for i in range(5):
+            tdSql.execute(f"insert into ct_wal{i} values(now, {i})")
+        tdSql.execute("insert into ntb_wal values(now, 99)")
+
+        # Kill all dnodes immediately (simulating crash)
+        tdLog.info("Simulating crash: force-stopping all dnodes")
+        sc.dnodeForceStopAll()
+        time.sleep(3)
+
+        # Restart all dnodes (WAL replay should recover)
+        tdLog.info("Restarting all dnodes for WAL replay")
+        sc.dnodeStartAll()
+        clusterComCheck.checkDnodes(3, timeout=30)
+
+        # Verify all tables exist after WAL replay
+        tdSql.execute("use txn_cdb")
+        tdSql.query("show tables")
+        tdSql.checkRows(6)  # 5 ct + 1 ntb
+
+        # Verify data survived
+        for i in range(5):
+            tdSql.query(f"select v from ct_wal{i}")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, i)
+        tdSql.query("select c1 from ntb_wal")
+        tdSql.checkData(0, 0, 99)
+
+        # Verify new txn works after recovery
+        tdSql.execute("BEGIN")
+        tdSql.execute("create table ct_post_wal using stb tags(100)")
+        tdSql.execute("COMMIT")
+        tdSql.query("show tables")
+        tdSql.checkRows(7)
+
+    # =========================================================================
+    # s56: MNode leader kill during active txn → BEGIN on new leader → retry
+    #   Tests that when the MNode leader dies during an active transaction,
+    #   a new client can successfully BEGIN on the new MNode leader.
+    # =========================================================================
+    def s56_mnode_election_retry_begin(self):
+        self._reset_env()
+        tdLog.info("======== s56_mnode_election_retry_begin")
+
+        tdSql.execute("create table stb (ts timestamp, v int) tags (t1 int)")
+
+        # Session A starts a txn on current leader
+        tdSql2 = tdCom.newTdSql()
+        tdSql2.execute("use txn_cdb")
+        tdSql2.execute("BEGIN")
+        tdSql2.execute("create table ct_sessA using stb tags(1)")
+
+        # Kill MNode leader
+        leader_id = self._get_mnode_leader_dnode_id()
+        tdLog.info(f"Killing MNode leader dnode {leader_id}")
+        sc.dnodeForceStop(leader_id)
+        clusterComCheck.check3mnodeoff(leader_id)
+
+        # Session B on the new MNode leader → BEGIN should work
+        tdSql3 = tdCom.newTdSql()
+        tdSql3.execute("use txn_cdb")
+        tdSql3.execute("BEGIN")
+        tdSql3.execute("create table ct_sessB using stb tags(2)")
+        tdSql3.execute("COMMIT")
+        tdSql3.close()
+
+        # Restart killed dnode
+        sc.dnodeStart(leader_id)
+        time.sleep(5)
+        clusterComCheck.checkDnodes(3)
+
+        # Session A txn — try to commit (may or may not work depending on
+        # whether the STxnObj is still in SDB on new leader)
+        try:
+            tdSql2.execute("COMMIT")
+            tdLog.info("  Session A COMMIT succeeded after leader change")
+        except Exception as e:
+            tdLog.info(f"  Session A COMMIT failed (expected): {e}")
+            try:
+                tdSql2.execute("ROLLBACK")
+            except Exception:
+                pass
+        tdSql2.close()
+
+        # Session B's table should exist
+        tdSql.query("show tables")
+        ct_sessB_exists = False
+        for i in range(tdSql.queryRows):
+            if tdSql.queryResult[i][0] == 'ct_sessb':
+                ct_sessB_exists = True
+        assert ct_sessB_exists, "ct_sessB should exist after COMMIT on new leader"
+
+    # =========================================================================
+    # s57: Full cluster restart after DROP txn ROLLBACK → tables restored
+    #   Verifies WAL replay correctly handles ROLLBACK undo (restoring
+    #   PRE_DROP entries back to NORMAL).
+    # =========================================================================
+    def s57_cluster_restart_after_rollback(self):
+        self._reset_env()
+        tdLog.info("======== s57_cluster_restart_after_rollback")
+
+        tdSql.execute("create table stb (ts timestamp, v int) tags (t1 int)")
+        for i in range(5):
+            tdSql.execute(f"create table ct_orig{i} using stb tags({i})")
+            tdSql.execute(f"insert into ct_orig{i} values(now, {i * 10})")
+
+        # Drop tables in txn then ROLLBACK
+        tdSql.execute("BEGIN")
+        tdSql.execute("drop table ct_orig0")
+        tdSql.execute("drop table ct_orig1")
+        tdSql.execute("create table ct_new using stb tags(99)")
+        tdSql.execute("ROLLBACK")
+
+        # Verify rollback worked
+        tdSql.query("show tables")
+        tdSql.checkRows(5)  # all original tables restored
+
+        # Crash and restart
+        tdLog.info("Force-stopping all dnodes for crash simulation")
+        sc.dnodeForceStopAll()
+        time.sleep(3)
+        sc.dnodeStartAll()
+        clusterComCheck.checkDnodes(3, timeout=30)
+
+        # Verify tables survived restart
+        tdSql.execute("use txn_cdb")
+        tdSql.query("show tables")
+        tdSql.checkRows(5)
+
+        # Verify data integrity
+        for i in range(5):
+            tdSql.query(f"select v from ct_orig{i}")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, i * 10)
+
+        # Verify new txn works after crash+recovery
+        tdSql.execute("BEGIN")
+        tdSql.execute("create table ct_after_crash using stb tags(200)")
+        tdSql.execute("COMMIT")
+        tdSql.query("show tables")
+        tdSql.checkRows(6)
+
+    # =========================================================================
+    # s58: Concurrent txns on different VNodes + VNode leader switch
+    #   Two sessions operating on tables in different VGroups simultaneously.
+    #   Kill one VNode leader, verify both txns can complete.
+    # =========================================================================
+    def s58_concurrent_txn_different_vgroups(self):
+        db = "txn_cvg"
+        tdSql.execute(f"drop database if exists {db}")
+        tdSql.execute(f"create database {db} vgroups 3 replica 3")
+        tdSql.execute(f"use {db}")
+        tdLog.info("======== s58_concurrent_txn_different_vgroups")
+
+        tdSql.execute("create table stb (ts timestamp, v int) tags (t1 int)")
+
+        # Pre-create tables that hash to different vgroups
+        for i in range(9):
+            tdSql.execute(f"create table ct_cvg{i} using stb tags({i})")
+            tdSql.execute(f"insert into ct_cvg{i} values(now, {i})")
+
+        # Session A: txn on some tables
+        tdSql2 = tdCom.newTdSql()
+        tdSql2.execute(f"use {db}")
+        tdSql2.execute("BEGIN")
+        tdSql2.execute("create table ct_newA using stb tags(100)")
+        tdSql2.execute("drop table ct_cvg0")
+
+        # Session B: txn on different tables
+        tdSql3 = tdCom.newTdSql()
+        tdSql3.execute(f"use {db}")
+        tdSql3.execute("BEGIN")
+        tdSql3.execute("create table ct_newB using stb tags(200)")
+        tdSql3.execute("drop table ct_cvg8")
+
+        # Kill one VNode leader
+        tdSql.query(f"show {db}.vgroups")
+        vgId = tdSql.queryResult[0][0]
+        leader_dnode = self._get_vgroup_leader_dnode(db, vgId)
+        tdLog.info(f"Killing VNode leader dnode {leader_dnode} for vgroup {vgId}")
+        sc.dnodeForceStop(leader_dnode)
+        time.sleep(5)
+
+        # Wait for new VNode leader
+        new_leader = self._get_vgroup_leader_dnode(db, vgId, timeout=30)
+        assert new_leader is not None, "No new VNode leader elected"
+        tdLog.info(f"New leader: dnode {new_leader}")
+
+        # Restart killed dnode
+        sc.dnodeStart(leader_dnode)
+        time.sleep(5)
+        clusterComCheck.checkDnodes(3)
+
+        # Both sessions COMMIT
+        tdSql2.execute("COMMIT")
+        tdSql3.execute("COMMIT")
+        tdSql2.close()
+        tdSql3.close()
+
+        # Verify: 9 orig - 2 dropped + 2 new = 9
+        tdSql.query("show tables")
+        tdSql.checkRows(9)
+
+        # Dropped tables gone
+        tdSql.error(f"select * from ct_cvg0")
+        tdSql.error(f"select * from ct_cvg8")
+
+        # New tables writable
+        tdSql.execute("insert into ct_newA values(now, 1)")
+        tdSql.execute("insert into ct_newB values(now, 2)")
+
+        # Cleanup
+        tdSql.execute(f"drop database {db}")
+
+    # =========================================================================
+    # s59: Multiple sequential txns with cluster restart between them
+    #   Verifies that txn infrastructure reinitializes correctly after
+    #   each cluster restart.
+    # =========================================================================
+    def s59_sequential_txns_with_restarts(self):
+        self._reset_env()
+        tdLog.info("======== s59_sequential_txns_with_restarts")
+
+        tdSql.execute("create table stb (ts timestamp, v int) tags (t1 int)")
+
+        for round_num in range(3):
+            tdLog.info(f"  Round {round_num + 1}/3")
+
+            # Txn cycle
+            tdSql.execute("BEGIN")
+            tdSql.execute(f"create table ct_r{round_num} using stb tags({round_num})")
+            tdSql.execute("COMMIT")
+
+            expected = round_num + 1
+            tdSql.query("show tables")
+            tdSql.checkRows(expected)
+
+            # Cluster restart
+            sc.dnodeStopAll()
+            time.sleep(2)
+            sc.dnodeStartAll()
+            clusterComCheck.checkDnodes(3, timeout=30)
+            tdSql.execute("use txn_cdb")
+
+            # Verify data survived restart
+            tdSql.query("show tables")
+            tdSql.checkRows(expected)
+
+        # Final verification
+        tdSql.query("show tables")
+        tdSql.checkRows(3)
+        for i in range(3):
+            tdSql.execute(f"insert into ct_r{i} values(now, {i})")
+        tdSql.query("select count(*) from stb")
+        tdSql.checkData(0, 0, 3)
+
     def test_meta_batch_txn_cluster(self):
         """Batch meta txn: cluster-mode tests
 
@@ -910,6 +1185,11 @@ class TestBatchMetaTxnCluster:
         52. Snapshot sync: follower restart + WAL advance -> COMMIT
         53. Snapshot sync: active txn + follower restart -> COMMIT
         54. Snapshot sync: active txn + follower restart -> ROLLBACK
+        55. VNode crash after COMMIT WAL write -> restart -> WAL replay
+        56. MNode leader kill -> BEGIN on new leader -> retry
+        57. Full cluster restart after DROP txn ROLLBACK -> tables restored
+        58. Concurrent txns on different VGroups + VNode leader switch
+        59. Multiple sequential txns with cluster restarts between them
 
 
         Since: v3.3.6.0
@@ -923,6 +1203,8 @@ class TestBatchMetaTxnCluster:
             - 2026-03-31 Added fencing (VNode leader switch) tests
             - 2026-03-31 Added cross-VNode multi-dnode tests (s49-s51)
             - 2026-04-02 Added snapshot sync tests (s52-s54)
+            - 2026-04-08 Added VNode crash WAL replay, MNode election, cluster
+                         restart after rollback, concurrent VGroup tests (s55-s59)
 
         """
         self.s40_mnode_leader_switch_commit()
@@ -940,3 +1222,8 @@ class TestBatchMetaTxnCluster:
         self.s52_snapshot_sync_commit()
         self.s53_snapshot_active_txn_commit()
         self.s54_snapshot_active_txn_rollback()
+        self.s55_vnode_crash_wal_replay_commit()
+        self.s56_mnode_election_retry_begin()
+        self.s57_cluster_restart_after_rollback()
+        self.s58_concurrent_txn_different_vgroups()
+        self.s59_sequential_txns_with_restarts()

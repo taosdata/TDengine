@@ -157,10 +157,16 @@ int32_t metaTxnIdxUpsert(SMeta *pMeta, tb_uid_t uid, int64_t txnId, int8_t txnSt
 
 int32_t metaTxnIdxDelete(SMeta *pMeta, tb_uid_t uid) {
   int32_t code = tdbTbDelete(pMeta->pTxnIdx, &uid, sizeof(uid), pMeta->txn);
-  if (code != 0 && code != TSDB_CODE_NOT_FOUND) {
-    metaError("vgId:%d, metaTxnIdxDelete failed, uid:%" PRId64 " code:0x%x", TD_VID(pMeta->pVnode), uid, code);
+  if (code == TSDB_CODE_NOT_FOUND) {
+    return TSDB_CODE_SUCCESS;
   }
-  return TSDB_CODE_SUCCESS;  // tolerate missing entries
+
+  if (code != 0) {
+    metaError("vgId:%d, metaTxnIdxDelete failed, uid:%" PRId64 " code:0x%x", TD_VID(pMeta->pVnode), uid, code);
+    return code;
+  }
+
+  return TSDB_CODE_SUCCESS;
 }
 
 /**

@@ -33,6 +33,7 @@
 
 #define MND_TXN_VER_NUMBER   1
 #define MND_TXN_RESERVE_SIZE 64
+#define MND_TXN_MAX_ACTIVE   200
 
 static SSdbRaw *mndTxnActionEncode(STxnObj *pTxn);
 static SSdbRow *mndTxnActionDecode(SSdbRaw *pRaw);
@@ -1339,6 +1340,16 @@ static int32_t mndProcessBeginTxnReq(SRpcMsg *pReq) {
   int64_t    tss = taosGetTimestampMs();
 
   TAOS_CHECK_EXIT(tDeserializeSMTransReq(pReq->pCont, pReq->contLen, &txnReq));
+
+  // Admission control: reject when active transaction count exceeds limit
+  if (txnReq.txnId == 0) {
+    int32_t activeCnt = sdbGetSize(pMnode->pSdb, SDB_TXN);
+    if (activeCnt >= MND_TXN_MAX_ACTIVE) {
+      mError("txn: too many active transactions (%d >= %d), reject BEGIN", activeCnt, MND_TXN_MAX_ACTIVE);
+      code = TSDB_CODE_MND_TXN_FULL;
+      goto _exit;
+    }
+  }
 
   if (txnReq.txnId != 0) {
     if (TXN_IS_REPLICATED(txnReq.txnId)) {
