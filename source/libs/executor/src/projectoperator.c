@@ -30,6 +30,7 @@ typedef struct SProjectOperatorInfo {
   SSDataBlock*   pFinalRes;
   bool           inputIgnoreGroup;
   bool           outputIgnoreGroup;
+  bool           sleepDone;  // true once SLEEP has fired for this query instance
 } SProjectOperatorInfo;
 
 typedef struct SIndefOperatorInfo {
@@ -159,6 +160,7 @@ int32_t createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhysiNode* 
   pInfo->binfo.outputTsOrder = pProjPhyNode->node.outputTsOrder;
   pInfo->inputIgnoreGroup = pProjPhyNode->inputIgnoreGroup;
   pInfo->outputIgnoreGroup = pProjPhyNode->ignoreGroupId;
+  pInfo->sleepDone = false;
 
   if (pTaskInfo->execModel == OPTR_EXEC_MODEL_QUEUE) {
     pInfo->mergeDataBlocks = false;
@@ -334,7 +336,6 @@ int32_t doProjectOperation(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
     return code;
   }
 
-  gTaskScalarExtra.sleepExecuted = false;
   while (1) {
     while (1) {
       blockDataCleanup(pRes);
@@ -377,10 +378,12 @@ int32_t doProjectOperation(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
       code = blockDataEnsureCapacity(pInfo->pRes, pInfo->pRes->info.rows + pBlock->info.rows);
       QUERY_CHECK_CODE(code, lino, _end);
 
+      gTaskScalarExtra.sleepExecuted = pProjectInfo->sleepDone;
       gTaskScalarExtra.pTaskInfo    = pOperator->pTaskInfo;
       gTaskScalarExtra.isTaskKilled = isTaskKilled;
       code = projectApplyFunctions(pSup->pExprInfo, pInfo->pRes, pBlock, pSup->pCtx, pSup->numOfExprs,
                                    pProjectInfo->pPseudoColInfo, GET_STM_RTINFO(pOperator->pTaskInfo));
+      pProjectInfo->sleepDone       = gTaskScalarExtra.sleepExecuted;
       gTaskScalarExtra.pTaskInfo    = NULL;
       gTaskScalarExtra.isTaskKilled = NULL;
       QUERY_CHECK_CODE(code, lino, _end);

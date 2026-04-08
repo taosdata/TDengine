@@ -2056,7 +2056,7 @@ void sclGetValueNodeSrcTable(SNode *pNode, char **ppSrcTable, bool *multiTable) 
 EDealRes sclRewriteFunction(SNode **pNode, SScalarCtx *ctx) {
   SFunctionNode *node = (SFunctionNode *)*pNode;
   SNode         *tnode = NULL;
-  if (!ctx->dual && (!fmIsScalarFunc(node->funcId) || fmIsUserDefinedFunc(node->funcId)) ||
+  if ((!ctx->dual && (!fmIsScalarFunc(node->funcId) || fmIsUserDefinedFunc(node->funcId))) ||
       fmIsVolatileFunc(node->funcId)) {
     return DEAL_RES_CONTINUE;
   }
