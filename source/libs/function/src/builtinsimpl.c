@@ -1583,7 +1583,6 @@ int32_t gconcatFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultI
 static int32_t gconcatHelper(const char* input, char* output, bool hasNchar, int32_t type, VarDataLenT* dataLen,
                              void* charsetCxt) {
   if (input == NULL) {
-    *dataLen = 0;
     return TSDB_CODE_SUCCESS;
   }
   if (hasNchar && type == TSDB_DATA_TYPE_VARCHAR) {
