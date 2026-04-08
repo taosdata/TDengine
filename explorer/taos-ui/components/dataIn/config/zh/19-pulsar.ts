@@ -55,8 +55,8 @@ export default {
               value: 'mTLS'
             },
             {
-              label: 'Custom-Authentication',
-              value: 'Custom-Authentication'
+              label: 'Custom Authentication',
+              value: 'Custom Authentication'
             }
           ],
           meta: {
@@ -147,7 +147,7 @@ export default {
           templateUrl: '',
           displayDependsOn: ['auth/auth_mechanism'],
           displayDependsOnValues: {
-            auth_mechanism: ['Custom']
+            auth_mechanism: ['Custom Authentication']
           }
         },
         {
@@ -162,14 +162,14 @@ export default {
           templateUrl: '',
           displayDependsOn: ['auth/auth_mechanism'],
           displayDependsOnValues: {
-            auth_mechanism: ['Custom']
+            auth_mechanism: ['Custom Authentication']
           }
         },
         {
           label: '是否使用ssl',
           field: 'custom_is_ssl',
           description: '是否使用 SSL 加密连接？\n',
-          defaultValue: true,
+          defaultValue: false,
           required: true,
           hint: {
             type: 'bool'
@@ -177,7 +177,7 @@ export default {
           type: 'switch',
           displayDependsOn: ['auth/auth_mechanism'],
           displayDependsOnValues: {
-            auth_mechanism: ['Custom']
+            auth_mechanism: ['Custom Authentication']
           }
         }
       ]
