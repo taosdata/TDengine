@@ -54,6 +54,11 @@ typedef struct SVnodeTxnEntry {
   SSHashObj *pTouchedUids;    // SSHashObj: key=tb_uid_t, value=int8_t(dummy) — O(1) dedup
   SSHashObj *pAlterPrevVers;  // SSHashObj: key=tb_uid_t, value=int64_t(prevVersion) — O(1) lookup
   SArray    *pLockedTables;   // Array of char* (table names locked by this txn)
+  // Lazy vacuum fields (populated at finalization, consumed by vacuum)
+  int8_t    finalStatus;    // ETxnFinalStatus: TXN_FINAL_COMMITTED / TXN_FINAL_ROLLEDBACK
+  tb_uid_t *pVacuumUids;    // Array of UIDs to vacuum (converted from pTouchedUids)
+  int32_t   numVacuumUids;  // Total UIDs in vacuum array
+  int32_t   vacuumIdx;      // Next UID index to process
 } SVnodeTxnEntry;
 
 // Initialize vnode transaction manager
@@ -72,7 +77,20 @@ int32_t vnodeTxnInit(SVnode *pVnode) {
     return terrno;
   }
 
+  // Thread-safe cache for finalized txn status (read by query threads, written by apply thread)
+  pVnode->pFinalizedTxns = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
+  if (pVnode->pFinalizedTxns == NULL) {
+    vError("vgId:%d, failed to init finalized txns hash", TD_VID(pVnode));
+    taosHashCleanup(pVnode->pTxnTableLock);
+    pVnode->pTxnTableLock = NULL;
+    taosHashCleanup(pVnode->pTxnHash);
+    pVnode->pTxnHash = NULL;
+    return terrno;
+  }
+
   if (taosThreadMutexInit(&pVnode->txnMutex, NULL) != 0) {
+    taosHashCleanup(pVnode->pFinalizedTxns);
+    pVnode->pFinalizedTxns = NULL;
     taosHashCleanup(pVnode->pTxnTableLock);
     pVnode->pTxnTableLock = NULL;
     taosHashCleanup(pVnode->pTxnHash);
@@ -100,6 +118,7 @@ void vnodeTxnCleanup(SVnode *pVnode) {
         }
         taosArrayDestroy(pEntry->pLockedTables);
       }
+      taosMemoryFreeClear(pEntry->pVacuumUids);
       pIter = taosHashIterate(pVnode->pTxnHash, pIter);
     }
     taosHashCleanup(pVnode->pTxnHash);
@@ -109,6 +128,11 @@ void vnodeTxnCleanup(SVnode *pVnode) {
   if (pVnode->pTxnTableLock) {
     taosHashCleanup(pVnode->pTxnTableLock);
     pVnode->pTxnTableLock = NULL;
+  }
+
+  if (pVnode->pFinalizedTxns) {
+    taosHashCleanup(pVnode->pFinalizedTxns);
+    pVnode->pFinalizedTxns = NULL;
   }
 
   taosThreadMutexDestroy(&pVnode->txnMutex);
@@ -123,6 +147,7 @@ void vnodeTxnCleanup(SVnode *pVnode) {
 static SVnodeTxnEntry *vnodeGetTxnEntry(SVnode *pVnode, int64_t txnId);
 static int32_t         vnodeCreateTxnEntry(SVnode *pVnode, int64_t txnId, int64_t term);
 static int32_t         vnodeTxnTrackUid(SVnodeTxnEntry *pEntry, tb_uid_t uid);
+static int32_t         vnodeTxnPrepareVacuumArray(SVnodeTxnEntry *pEntry);
 
 /**
  * After VNode restart or snapshot recovery, the B+ tree may contain entries
@@ -202,9 +227,68 @@ int32_t vnodeTxnRebuildFromMeta(SVnode *pVnode) {
     return code;
   }
 
-  // Log summary
+  // Log summary of active txns
   int32_t numTxns = taosHashGetSize(pVnode->pTxnHash);
-  vInfo("vgId:%d, txn rebuild complete: %d unique txns, %d total entries", TD_VID(pVnode), numTxns, numEntries);
+  vInfo("vgId:%d, txn rebuild phase 1: %d unique txns, %d total entries from txn.idx", TD_VID(pVnode), numTxns,
+        numEntries);
+
+  // === Phase 2: Rebuild finalized txn cache from txn_final.idx ===
+  // After a crash, some txns may have been finalized (COMMITTED/ROLLEDBACK) but
+  // not fully vacuumed. Scan txn_final.idx and restore the in-memory cache so
+  // visibility filters and vacuum can resume.
+  SArray *pFinalResult = NULL;
+  code = metaScanTxnFinalEntries(pVnode->pMeta, &pFinalResult);
+  if (code != 0) {
+    vError("vgId:%d, failed to scan txn_final.idx, code:0x%x", TD_VID(pVnode), code);
+    return code;
+  }
+
+  int32_t numFinal = taosArrayGetSize(pFinalResult);
+  int32_t numResumed = 0;
+  int32_t numStale = 0;
+
+  for (int32_t i = 0; i < numFinal; i++) {
+    // Each entry is { int64_t txnId; STxnFinalVal val; }
+    const void         *pElem = taosArrayGet(pFinalResult, i);
+    int64_t             txnId = *(int64_t *)pElem;
+    const STxnFinalVal *pFinalVal = (const STxnFinalVal *)((const char *)pElem + sizeof(int64_t));
+
+    // Always populate the in-memory cache so visibility filters work immediately
+    taosHashPut(pVnode->pFinalizedTxns, &txnId, sizeof(int64_t), &pFinalVal->finalStatus, sizeof(int8_t));
+
+    // Check if there are corresponding txn.idx entries (UIDs still needing vacuum)
+    SVnodeTxnEntry *pEntry = vnodeGetTxnEntry(pVnode, txnId);
+    if (pEntry != NULL) {
+      // This txn has un-vacuumed UIDs — prepare for vacuum resumption
+      pEntry->finalStatus = pFinalVal->finalStatus;
+      pEntry->stage = VTXN_STAGE_FINISHING;
+      int32_t vacCode = vnodeTxnPrepareVacuumArray(pEntry);
+      if (vacCode != 0) {
+        vError("vgId:%d, txn rebuild: failed to prepare vacuum for txnId:%" PRId64, TD_VID(pVnode), txnId);
+      } else {
+        numResumed++;
+        vInfo("vgId:%d, txn rebuild: resume vacuum for txnId:%" PRId64 " status:%d numUids:%d", TD_VID(pVnode), txnId,
+              pFinalVal->finalStatus, pEntry->numVacuumUids);
+      }
+    } else {
+      // No txn.idx entries remain — vacuum was complete, but txn_final.idx entry is stale.
+      // Clean it up (delete from persistent idx; cache entry is harmless and will be ignored).
+      metaTxnFinalIdxDelete(pVnode->pMeta, txnId);
+      taosHashRemove(pVnode->pFinalizedTxns, &txnId, sizeof(int64_t));
+      numStale++;
+      vDebug("vgId:%d, txn rebuild: removed stale txn_final.idx entry for txnId:%" PRId64, TD_VID(pVnode), txnId);
+    }
+  }
+
+  taosArrayDestroy(pFinalResult);
+
+  if (numFinal > 0) {
+    vInfo("vgId:%d, txn rebuild phase 2: %d finalized txns (%d resumed vacuum, %d stale removed)", TD_VID(pVnode),
+          numFinal, numResumed, numStale);
+  }
+
+  vInfo("vgId:%d, txn rebuild complete: %d active txns, %d pending vacuum", TD_VID(pVnode),
+        taosHashGetSize(pVnode->pTxnHash), taosHashGetSize(pVnode->pFinalizedTxns));
   return TSDB_CODE_SUCCESS;
 }
 
@@ -265,6 +349,7 @@ static void vnodeRemoveTxnEntry(SVnode *pVnode, int64_t txnId) {
     vnodeReleaseTxnTableLocks(pVnode, pEntry);
     tSimpleHashCleanup(pEntry->pTouchedUids);
     tSimpleHashCleanup(pEntry->pAlterPrevVers);
+    taosMemoryFreeClear(pEntry->pVacuumUids);
     taosHashRemove(pVnode->pTxnHash, &txnId, sizeof(int64_t));
   }
 }
@@ -658,6 +743,278 @@ static int32_t vnodeTxnUndoShadowEntries(SVnode *pVnode, SVnodeTxnEntry *pEntry)
 }
 
 // ============================================================================
+// Lazy COMMIT/ROLLBACK: Finalize txn in O(1), vacuum later
+// ============================================================================
+
+/**
+ * Prepare vacuum array: convert pTouchedUids hash to a flat UID array
+ * for incremental batch processing by the vacuum.
+ */
+static int32_t vnodeTxnPrepareVacuumArray(SVnodeTxnEntry *pEntry) {
+  if (pEntry->pTouchedUids == NULL) {
+    pEntry->pVacuumUids = NULL;
+    pEntry->numVacuumUids = 0;
+    pEntry->vacuumIdx = 0;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t numUids = tSimpleHashGetSize(pEntry->pTouchedUids);
+  if (numUids == 0) {
+    pEntry->pVacuumUids = NULL;
+    pEntry->numVacuumUids = 0;
+    pEntry->vacuumIdx = 0;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  pEntry->pVacuumUids = taosMemoryMalloc(numUids * sizeof(tb_uid_t));
+  if (pEntry->pVacuumUids == NULL) {
+    return terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  int32_t idx = 0;
+  int32_t iter = 0;
+  void   *pData = tSimpleHashIterate(pEntry->pTouchedUids, NULL, &iter);
+  while (pData != NULL) {
+    size_t keyLen = 0;
+    pEntry->pVacuumUids[idx++] = *(tb_uid_t *)tSimpleHashGetKey(pData, &keyLen);
+    pData = tSimpleHashIterate(pEntry->pTouchedUids, pData, &iter);
+  }
+
+  pEntry->numVacuumUids = idx;
+  pEntry->vacuumIdx = 0;
+  return TSDB_CODE_SUCCESS;
+}
+
+/**
+ * Finalize a txn lazily: write O(1) record to txn_final.idx + in-memory cache,
+ * convert pTouchedUids to vacuum array. Does NOT modify the B+ tree shadow entries.
+ * The actual cleanup is done incrementally by vnodeTxnVacuumBatch().
+ */
+static int32_t vnodeTxnFinalizeLazy(SVnode *pVnode, SVnodeTxnEntry *pEntry, int8_t finalStatus) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  // 1. Write finalization record to persistent txn_final.idx (O(1))
+  STxnFinalVal finalVal = {.finalStatus = finalStatus, .timestamp = taosGetTimestampMs()};
+  code = metaTxnFinalIdxUpsert(pVnode->pMeta, pEntry->txnId, &finalVal);
+  if (code != 0) {
+    vError("vgId:%d, failed to write txn_final.idx for txnId:%" PRId64 ", code:0x%x", TD_VID(pVnode), pEntry->txnId,
+           code);
+    return code;
+  }
+
+  // 2. Update in-memory cache (thread-safe, visible to query threads immediately)
+  taosHashPut(pVnode->pFinalizedTxns, &pEntry->txnId, sizeof(int64_t), &finalStatus, sizeof(int8_t));
+
+  // 3. Prepare vacuum array for deferred cleanup
+  code = vnodeTxnPrepareVacuumArray(pEntry);
+  if (code != 0) {
+    vError("vgId:%d, failed to prepare vacuum array for txnId:%" PRId64 ", code:0x%x", TD_VID(pVnode), pEntry->txnId,
+           code);
+    return code;
+  }
+
+  // 4. Mark entry as finalized (keep in pTxnHash for vacuum, release table locks)
+  pEntry->finalStatus = finalStatus;
+  pEntry->stage = VTXN_STAGE_FINISHING;
+
+  // Release table locks immediately (other txns can now operate on these tables)
+  vnodeReleaseTxnTableLocks(pVnode, pEntry);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+/**
+ * Vacuum one batch of UIDs for a single finalized txn.
+ * Returns number of UIDs processed. 0 means vacuum complete for this txn.
+ */
+static int32_t vnodeTxnVacuumOneTxn(SVnode *pVnode, SVnodeTxnEntry *pEntry, int32_t maxOps) {
+  int32_t processed = 0;
+
+  while (pEntry->vacuumIdx < pEntry->numVacuumUids && processed < maxOps) {
+    tb_uid_t uid = pEntry->pVacuumUids[pEntry->vacuumIdx];
+
+    SMetaEntry *pME = NULL;
+    int32_t     code = metaFetchEntryByUid(pVnode->pMeta, uid, &pME);
+    if (code != 0 || pME == NULL) {
+      vWarn("vgId:%d, vacuum: uid %" PRId64 " not found in B+ tree, skip", TD_VID(pVnode), uid);
+      pEntry->vacuumIdx++;
+      processed++;
+      continue;
+    }
+
+    if (pME->txnId != pEntry->txnId) {
+      metaFetchEntryFree(&pME);
+      pEntry->vacuumIdx++;
+      processed++;
+      continue;
+    }
+
+    if (pEntry->finalStatus == TXN_FINAL_COMMITTED) {
+      // === COMMIT vacuum: same logic as vnodeTxnPromoteShadowEntries ===
+      switch (pME->txnStatus) {
+        case META_TXN_PRE_CREATE:
+        case META_TXN_PRE_ALTER:
+          code = metaMarkTableTxnStatus(pVnode->pMeta, uid, 0, META_TXN_NORMAL, -1);
+          if (code == 0) {
+            vDebug("vgId:%d, vacuum-commit: promoted uid %" PRId64 " (status %d → NORMAL)", TD_VID(pVnode), uid,
+                   pME->txnStatus);
+          }
+          break;
+        case META_TXN_PRE_DROP: {
+          if (pME->type == TSDB_SUPER_TABLE) {
+            int32_t markCode = metaMarkTableTxnStatus(pVnode->pMeta, uid, 0, META_TXN_NORMAL, -1);
+            if (markCode == 0) {
+              SVDropStbReq stbDropReq = {.name = pME->name, .suid = uid, .txnId = 0};
+              code = metaDropSuperTable(pVnode->pMeta, -1, &stbDropReq);
+            }
+          } else {
+            SVDropTbReq dropReq = {0};
+            dropReq.name = pME->name;
+            dropReq.uid = uid;
+            dropReq.suid =
+                (pME->type == TSDB_CHILD_TABLE || pME->type == TSDB_VIRTUAL_CHILD_TABLE) ? pME->ctbEntry.suid : 0;
+            dropReq.txnId = 0;
+            dropReq.isVirtual = (pME->type == TSDB_VIRTUAL_CHILD_TABLE || pME->type == TSDB_VIRTUAL_NORMAL_TABLE);
+            code = metaDropTable2(pVnode->pMeta, -1, &dropReq);
+          }
+          break;
+        }
+        default:
+          break;
+      }
+    } else {
+      // === ROLLBACK vacuum: same logic as vnodeTxnUndoShadowEntries ===
+      switch (pME->txnStatus) {
+        case META_TXN_PRE_CREATE: {
+          SVDropTbReq dropReq = {0};
+          dropReq.name = pME->name;
+          dropReq.uid = uid;
+          dropReq.suid =
+              (pME->type == TSDB_CHILD_TABLE || pME->type == TSDB_VIRTUAL_CHILD_TABLE) ? pME->ctbEntry.suid : 0;
+          dropReq.txnId = 0;
+          dropReq.isVirtual = (pME->type == TSDB_VIRTUAL_CHILD_TABLE || pME->type == TSDB_VIRTUAL_NORMAL_TABLE);
+          if (pME->type == TSDB_SUPER_TABLE) {
+            int32_t markCode = metaMarkTableTxnStatus(pVnode->pMeta, uid, 0, META_TXN_NORMAL, -1);
+            if (markCode == 0) {
+              SVDropStbReq stbDropReq = {.name = pME->name, .suid = uid, .txnId = 0};
+              code = metaDropSuperTable(pVnode->pMeta, -1, &stbDropReq);
+            }
+          } else {
+            code = metaDropTable2(pVnode->pMeta, -1, &dropReq);
+          }
+          // Handle chained undo (CREATE→ALTER in same txn)
+          if (pEntry->pAlterPrevVers) {
+            int64_t *pChainedPrevVer = (int64_t *)tSimpleHashGet(pEntry->pAlterPrevVers, &uid, sizeof(tb_uid_t));
+            if (pChainedPrevVer != NULL && *pChainedPrevVer >= 0) {
+              vDebug("vgId:%d, vacuum-rollback: chained CREATE→ALTER undo for uid %" PRId64, TD_VID(pVnode), uid);
+            }
+          }
+          break;
+        }
+        case META_TXN_PRE_DROP:
+          code = metaMarkTableTxnStatus(pVnode->pMeta, uid, 0, META_TXN_NORMAL, -1);
+          break;
+        case META_TXN_PRE_ALTER: {
+          int64_t *pPrevVer = (int64_t *)tSimpleHashGet(pEntry->pAlterPrevVers, &uid, sizeof(tb_uid_t));
+          int64_t  prevVer = (pPrevVer != NULL) ? *pPrevVer : -1;
+          if (prevVer >= 0) {
+            code = metaRollbackAlterTable(pVnode->pMeta, uid, prevVer);
+          } else {
+            code = metaMarkTableTxnStatus(pVnode->pMeta, uid, 0, META_TXN_NORMAL, -1);
+          }
+          break;
+        }
+        default:
+          break;
+      }
+    }
+
+    // Remove from txn.idx
+    metaTxnIdxDelete(pVnode->pMeta, uid);
+
+    metaFetchEntryFree(&pME);
+    pEntry->vacuumIdx++;
+    processed++;
+  }
+
+  return processed;
+}
+
+/**
+ * Process one batch of vacuum work across all finalized txns.
+ * Called from the VNode write path after each message to incrementally clean up.
+ * Returns total UIDs processed in this batch.
+ */
+int32_t vnodeTxnVacuumBatch(SVnode *pVnode, int32_t maxOps) {
+  if (pVnode->pTxnHash == NULL || pVnode->pFinalizedTxns == NULL) return 0;
+  if (taosHashGetSize(pVnode->pFinalizedTxns) == 0) return 0;
+
+  int32_t totalProcessed = 0;
+  SArray *pCompletedTxns = NULL;  // Array of int64_t txnIds to remove after iteration
+
+  taosThreadMutexLock(&pVnode->txnMutex);
+
+  void *pIter = taosHashIterate(pVnode->pTxnHash, NULL);
+  while (pIter != NULL && totalProcessed < maxOps) {
+    SVnodeTxnEntry *pEntry = (SVnodeTxnEntry *)pIter;
+
+    if (pEntry->finalStatus == TXN_FINAL_NONE) {
+      pIter = taosHashIterate(pVnode->pTxnHash, pIter);
+      continue;
+    }
+
+    // Process a batch for this txn
+    taosThreadMutexUnlock(&pVnode->txnMutex);
+    int32_t processed = vnodeTxnVacuumOneTxn(pVnode, pEntry, maxOps - totalProcessed);
+    taosThreadMutexLock(&pVnode->txnMutex);
+
+    totalProcessed += processed;
+
+    // Check if this txn is fully vacuumed
+    if (pEntry->vacuumIdx >= pEntry->numVacuumUids) {
+      if (pCompletedTxns == NULL) {
+        pCompletedTxns = taosArrayInit(4, sizeof(int64_t));
+      }
+      if (pCompletedTxns) {
+        taosArrayPush(pCompletedTxns, &pEntry->txnId);
+      }
+    }
+
+    pIter = taosHashIterate(pVnode->pTxnHash, pIter);
+  }
+
+  taosThreadMutexUnlock(&pVnode->txnMutex);
+
+  // Remove fully-vacuumed txns (outside iteration)
+  if (pCompletedTxns) {
+    int32_t numCompleted = taosArrayGetSize(pCompletedTxns);
+    for (int32_t i = 0; i < numCompleted; i++) {
+      int64_t txnId = *(int64_t *)taosArrayGet(pCompletedTxns, i);
+
+      // Remove from txn_final.idx
+      metaTxnFinalIdxDelete(pVnode->pMeta, txnId);
+
+      // Remove from in-memory cache
+      taosHashRemove(pVnode->pFinalizedTxns, &txnId, sizeof(int64_t));
+
+      // Remove SVnodeTxnEntry
+      taosThreadMutexLock(&pVnode->txnMutex);
+      vnodeRemoveTxnEntry(pVnode, txnId);
+      taosThreadMutexUnlock(&pVnode->txnMutex);
+
+      vInfo("vgId:%d, vacuum complete for txnId:%" PRId64, TD_VID(pVnode), txnId);
+    }
+    taosArrayDestroy(pCompletedTxns);
+  }
+
+  if (totalProcessed > 0) {
+    vDebug("vgId:%d, vacuum batch: processed %d UIDs", TD_VID(pVnode), totalProcessed);
+  }
+
+  return totalProcessed;
+}
+
+// ============================================================================
 // VNode Transaction Message Handlers
 // ============================================================================
 
@@ -710,20 +1067,24 @@ int32_t vnodeProcessTxnCommitReq(SVnode *pVnode, int64_t ver, void *pReq, int32_
     pEntry->term = req.term;
   }
   pEntry->stage = VTXN_STAGE_FINISHING;
+
+  // Lazy finalization: write O(1) record to txn_final.idx, defer B+ tree cleanup to vacuum
+  code = vnodeTxnFinalizeLazy(pVnode, pEntry, TXN_FINAL_COMMITTED);
   taosThreadMutexUnlock(&pVnode->txnMutex);
 
-  // Promote shadow entries in B+ tree (clear txnId or physically delete)
-  code = vnodeTxnPromoteShadowEntries(pVnode, pEntry);
   if (code != 0) {
-    vError("vgId:%d, failed to promote shadow entries, txnId:%" PRId64 ", code:0x%x", TD_VID(pVnode), req.txnId, code);
+    vError("vgId:%d, failed to finalize commit for txnId:%" PRId64 ", code:0x%x", TD_VID(pVnode), req.txnId, code);
+    return code;
   }
 
-  // Cleanup entry
-  taosThreadMutexLock(&pVnode->txnMutex);
-  vnodeRemoveTxnEntry(pVnode, req.txnId);
-  taosThreadMutexUnlock(&pVnode->txnMutex);
+  vInfo("vgId:%d, txn commit finalized (lazy), txnId:%" PRId64 ", numUids:%d", TD_VID(pVnode), req.txnId,
+        pEntry->numVacuumUids);
 
-  vInfo("vgId:%d, txn committed, txnId:%" PRId64, TD_VID(pVnode), req.txnId);
+  // Trigger immediate vacuum for small txns (< batch size) to avoid unnecessary delay
+  if (pEntry->numVacuumUids <= TSDB_TXN_VACUUM_BATCH_SIZE) {
+    vnodeTxnVacuumBatch(pVnode, TSDB_TXN_VACUUM_BATCH_SIZE);
+  }
+
   return code;
 }
 
@@ -773,20 +1134,24 @@ int32_t vnodeProcessTxnRollbackReq(SVnode *pVnode, int64_t ver, void *pReq, int3
     pEntry->term = req.term;
   }
   pEntry->stage = VTXN_STAGE_FINISHING;
+
+  // Lazy finalization: write O(1) record to txn_final.idx, defer B+ tree cleanup to vacuum
+  code = vnodeTxnFinalizeLazy(pVnode, pEntry, TXN_FINAL_ROLLEDBACK);
   taosThreadMutexUnlock(&pVnode->txnMutex);
 
-  // Undo shadow entries in B+ tree (delete PRE_CREATE, restore PRE_DROP/ALTER)
-  code = vnodeTxnUndoShadowEntries(pVnode, pEntry);
   if (code != 0) {
-    vError("vgId:%d, failed to undo shadow entries, txnId:%" PRId64 ", code:0x%x", TD_VID(pVnode), req.txnId, code);
+    vError("vgId:%d, failed to finalize rollback for txnId:%" PRId64 ", code:0x%x", TD_VID(pVnode), req.txnId, code);
+    return code;
   }
 
-  // Cleanup entry
-  taosThreadMutexLock(&pVnode->txnMutex);
-  vnodeRemoveTxnEntry(pVnode, req.txnId);
-  taosThreadMutexUnlock(&pVnode->txnMutex);
+  vInfo("vgId:%d, txn rollback finalized (lazy), txnId:%" PRId64 ", numUids:%d", TD_VID(pVnode), req.txnId,
+        pEntry->numVacuumUids);
 
-  vInfo("vgId:%d, txn rolled back, txnId:%" PRId64, TD_VID(pVnode), req.txnId);
+  // Trigger immediate vacuum for small txns (< batch size) to avoid unnecessary delay
+  if (pEntry->numVacuumUids <= TSDB_TXN_VACUUM_BATCH_SIZE) {
+    vnodeTxnVacuumBatch(pVnode, TSDB_TXN_VACUUM_BATCH_SIZE);
+  }
+
   return code;
 }
 
@@ -1113,6 +1478,20 @@ int32_t vnodeTxnCheckConflict(SVnode *pVnode, const char *tableName, int8_t inco
 
   int32_t ret = TSDB_CODE_SUCCESS;
   if (pME->txnId != 0) {
+    // Check if the owning txn is finalized → no conflict (vacuum will clean up)
+    int8_t finalStatus = metaGetTxnFinalStatus(pVnode->pMeta, pME->txnId);
+    if (finalStatus == TXN_FINAL_COMMITTED || finalStatus == TXN_FINAL_ROLLEDBACK) {
+      // For COMMITTED PRE_CREATE: table exists, CREATE should fail (TABLE_ALREADY_EXIST)
+      // For ROLLEDBACK PRE_CREATE: table doesn't exist, CREATE should succeed (no conflict)
+      // For COMMITTED PRE_DROP: table is gone, handled elsewhere
+      // For ROLLEDBACK PRE_DROP: table restored, no conflict with new ops
+      if (finalStatus == TXN_FINAL_COMMITTED && pME->txnStatus == META_TXN_PRE_CREATE && incomingOp == 1) {
+        ret = TSDB_CODE_TDB_TABLE_ALREADY_EXIST;
+      }
+      metaFetchEntryFree(&pME);
+      return ret;
+    }
+
     switch (pME->txnStatus) {
       case META_TXN_PRE_CREATE:
         if (incomingOp == 1) {  // CREATE vs PRE_CREATE
@@ -1171,8 +1550,15 @@ int32_t vnodeTxnCheckDeleteConflict(SVnode *pVnode, tb_uid_t uid) {
 
   int32_t ret = TSDB_CODE_SUCCESS;
   if (pME->txnId != 0 && pME->txnStatus == META_TXN_PRE_DROP) {
-    ret = TSDB_CODE_VND_TXN_CONFLICT;
-    vWarn("vgId:%d, DELETE conflict: uid=%" PRId64 " is in PRE_DROP, txnId:%" PRId64, TD_VID(pVnode), uid, pME->txnId);
+    // Check if finalized → no conflict
+    int8_t finalStatus = metaGetTxnFinalStatus(pVnode->pMeta, pME->txnId);
+    if (finalStatus == TXN_FINAL_NONE) {
+      ret = TSDB_CODE_VND_TXN_CONFLICT;
+      vWarn("vgId:%d, DELETE conflict: uid=%" PRId64 " is in PRE_DROP, txnId:%" PRId64, TD_VID(pVnode), uid,
+            pME->txnId);
+    }
+    // COMMITTED PRE_DROP: table is logically gone → DELETE on non-existent is harmless
+    // ROLLEDBACK PRE_DROP: table is restored → DELETE is allowed
   }
 
   metaFetchEntryFree(&pME);

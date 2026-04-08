@@ -388,12 +388,21 @@ static int32_t metaCheckCreateChildTableReq(SMeta *pMeta, int64_t version, SVCre
 
     // Batch meta txn: if existing entry is a PRE_CREATE shadow from another txn,
     // return TXN_CONFLICT instead of TABLE_ALREADY_EXIST
+    // Also: if the owning txn is ROLLEDBACK, treat entry as non-existent (allow CREATE)
     {
       SMetaEntry *pExist = NULL;
       if (metaFetchEntryByUid(pMeta, pReq->uid, &pExist) == 0 && pExist != NULL) {
-        if (pExist->txnId != 0 && pExist->txnStatus == META_TXN_PRE_CREATE && pExist->txnId != pReq->txnId) {
-          metaFetchEntryFree(&pExist);
-          return TSDB_CODE_VND_TXN_CONFLICT;
+        if (pExist->txnId != 0 && pExist->txnStatus == META_TXN_PRE_CREATE) {
+          int8_t finalStatus = metaGetTxnFinalStatus(pMeta, pExist->txnId);
+          if (finalStatus == TXN_FINAL_ROLLEDBACK) {
+            // Rolled-back PRE_CREATE: treat as non-existent (vacuum will clean up)
+            metaFetchEntryFree(&pExist);
+            goto _check_stb;
+          }
+          if (pExist->txnId != pReq->txnId) {
+            metaFetchEntryFree(&pExist);
+            return TSDB_CODE_VND_TXN_CONFLICT;
+          }
         }
         metaFetchEntryFree(&pExist);
       }
@@ -402,6 +411,7 @@ static int32_t metaCheckCreateChildTableReq(SMeta *pMeta, int64_t version, SVCre
     return TSDB_CODE_TDB_TABLE_ALREADY_EXIST;
   }
 
+_check_stb:
   // check super table existence
   SMetaEntry *pStbEntry = NULL;
   code = metaFetchEntryByName(pMeta, pReq->ctb.stbName, &pStbEntry);
@@ -558,12 +568,20 @@ static int32_t metaCheckCreateNormalTableReq(SMeta *pMeta, int64_t version, SVCr
 
     // Batch meta txn: if existing entry is a PRE_CREATE shadow from another txn,
     // return TXN_CONFLICT instead of TABLE_ALREADY_EXIST
+    // Also: if the owning txn is ROLLEDBACK, treat entry as non-existent (allow CREATE)
     {
       SMetaEntry *pExist = NULL;
       if (metaFetchEntryByUid(pMeta, pReq->uid, &pExist) == 0 && pExist != NULL) {
-        if (pExist->txnId != 0 && pExist->txnStatus == META_TXN_PRE_CREATE && pExist->txnId != pReq->txnId) {
-          metaFetchEntryFree(&pExist);
-          return TSDB_CODE_VND_TXN_CONFLICT;
+        if (pExist->txnId != 0 && pExist->txnStatus == META_TXN_PRE_CREATE) {
+          int8_t finalStatus = metaGetTxnFinalStatus(pMeta, pExist->txnId);
+          if (finalStatus == TXN_FINAL_ROLLEDBACK) {
+            metaFetchEntryFree(&pExist);
+            goto _grant;
+          }
+          if (pExist->txnId != pReq->txnId) {
+            metaFetchEntryFree(&pExist);
+            return TSDB_CODE_VND_TXN_CONFLICT;
+          }
         }
         metaFetchEntryFree(&pExist);
       }
@@ -572,6 +590,7 @@ static int32_t metaCheckCreateNormalTableReq(SMeta *pMeta, int64_t version, SVCr
     return TSDB_CODE_TDB_TABLE_ALREADY_EXIST;
   }
 
+_grant:
   // grant check
   code = grantCheck(TSDB_GRANT_TIMESERIES);
   if (code) {

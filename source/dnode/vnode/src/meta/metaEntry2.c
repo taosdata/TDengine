@@ -225,6 +225,113 @@ int32_t metaScanTxnEntries(SMeta *pMeta, SArray **ppResult) {
   return TSDB_CODE_SUCCESS;
 }
 
+// ============================================================================
+// txn_final.idx — lazy COMMIT/ROLLBACK finalization records
+// Key: txnId (int64_t).  Value: STxnFinalVal {finalStatus, timestamp}.
+// Written once per COMMIT/ROLLBACK (O(1)), background vacuum clears after cleanup.
+// ============================================================================
+
+int32_t metaTxnFinalIdxUpsert(SMeta *pMeta, int64_t txnId, const STxnFinalVal *pVal) {
+  int32_t code = tdbTbUpsert(pMeta->pTxnFinalIdx, &txnId, sizeof(txnId), pVal, sizeof(STxnFinalVal), pMeta->txn);
+  if (code != 0) {
+    metaError("vgId:%d, metaTxnFinalIdxUpsert failed, txnId:%" PRId64 " finalStatus:%d code:0x%x",
+              TD_VID(pMeta->pVnode), txnId, pVal->finalStatus, code);
+  }
+  return code;
+}
+
+int32_t metaTxnFinalIdxDelete(SMeta *pMeta, int64_t txnId) {
+  int32_t code = tdbTbDelete(pMeta->pTxnFinalIdx, &txnId, sizeof(txnId), pMeta->txn);
+  if (code == TSDB_CODE_NOT_FOUND) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (code != 0) {
+    metaError("vgId:%d, metaTxnFinalIdxDelete failed, txnId:%" PRId64 " code:0x%x", TD_VID(pMeta->pVnode), txnId, code);
+  }
+  return code;
+}
+
+int32_t metaTxnFinalIdxGet(SMeta *pMeta, int64_t txnId, STxnFinalVal *pVal) {
+  void   *pData = NULL;
+  int32_t nData = 0;
+  int32_t code = tdbTbGet(pMeta->pTxnFinalIdx, &txnId, sizeof(txnId), &pData, &nData);
+  if (code != 0) {
+    return code;
+  }
+  if (nData == sizeof(STxnFinalVal)) {
+    *pVal = *(STxnFinalVal *)pData;
+  } else {
+    code = TSDB_CODE_INTERNAL_ERROR;
+  }
+  tdbFree(pData);
+  return code;
+}
+
+int32_t metaScanTxnFinalEntries(SMeta *pMeta, SArray **ppResult) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  TBC    *pCursor = NULL;
+
+  SArray *pResult = taosArrayInit(4, sizeof(STxnFinalVal) + sizeof(int64_t));
+  if (pResult == NULL) return terrno;
+
+  code = tdbTbcOpen(pMeta->pTxnFinalIdx, &pCursor, NULL);
+  if (code != 0) {
+    taosArrayDestroy(pResult);
+    return code;
+  }
+
+  code = tdbTbcMoveToFirst(pCursor);
+  if (code != 0) {
+    tdbTbcClose(pCursor);
+    taosArrayDestroy(pResult);
+    return code;
+  }
+
+  for (;;) {
+    const void *pKey = NULL;
+    int         kLen = 0;
+    const void *pVal = NULL;
+    int         vLen = 0;
+
+    if (tdbTbcGet(pCursor, &pKey, &kLen, &pVal, &vLen) < 0) break;
+
+    int64_t             txnId = *(int64_t *)pKey;
+    const STxnFinalVal *pFinalVal = (const STxnFinalVal *)pVal;
+
+    // Pack txnId + STxnFinalVal together: first 8 bytes = txnId, next 9 bytes = STxnFinalVal
+    struct {
+      int64_t      txnId;
+      STxnFinalVal val;
+    } entry = {.txnId = txnId, .val = *pFinalVal};
+
+    if (taosArrayPush(pResult, &entry) == NULL) {
+      tdbTbcClose(pCursor);
+      taosArrayDestroy(pResult);
+      return terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+    }
+
+    if (tdbTbcMoveToNext(pCursor) < 0) break;
+  }
+
+  tdbTbcClose(pCursor);
+  *ppResult = pResult;
+  return TSDB_CODE_SUCCESS;
+}
+
+/**
+ * Check if a txn is finalized (O(1) hash lookup in pVnode->pFinalizedTxns).
+ * Returns TXN_FINAL_NONE (0) if not finalized (txn in progress).
+ * Returns TXN_FINAL_COMMITTED (1) or TXN_FINAL_ROLLEDBACK (2) if finalized.
+ * Thread-safe: pFinalizedTxns uses HASH_ENTRY_LOCK.
+ */
+int8_t metaGetTxnFinalStatus(SMeta *pMeta, int64_t txnId) {
+  if (txnId == 0 || pMeta->pVnode == NULL) return TXN_FINAL_NONE;
+  SVnode *pVnode = pMeta->pVnode;
+  if (pVnode->pFinalizedTxns == NULL) return TXN_FINAL_NONE;
+  int8_t *pStatus = (int8_t *)taosHashGet(pVnode->pFinalizedTxns, &txnId, sizeof(txnId));
+  return pStatus ? *pStatus : TXN_FINAL_NONE;
+}
+
 // Entry Table
 static int32_t metaEntryTableUpsert(SMeta *pMeta, const SMetaHandleParam *pParam, EMetaTableOp op) {
   const SMetaEntry *pEntry = pParam->pEntry;

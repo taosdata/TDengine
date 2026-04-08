@@ -918,6 +918,15 @@ typedef int64_t utxn_id_t;
 
 #define TSDB_META_TXN_MAX_DDL_OPS_PER_VG 50000  // Max DDL ops tracked on a single VNode per txn
 #define TSDB_META_TXN_MAX_LIFETIME_SEC   86400  // Absolute max txn lifetime in seconds (24 hours)
+#define TSDB_TXN_VACUUM_BATCH_SIZE       500    // Max UIDs processed per vacuum cycle
+
+// ETxnFinalStatus: VNode 侧事务终态（写入 txn_final.idx 持久化）。
+// COMMIT/ROLLBACK 仅写一条 O(1) 终态记录，后台 vacuum 延迟清理 B+ tree 影子数据。
+typedef enum {
+  TXN_FINAL_NONE = 0,        // 未终结（事务进行中）
+  TXN_FINAL_COMMITTED = 1,   // 已提交，待 vacuum 清理（影子数据需转正）
+  TXN_FINAL_ROLLEDBACK = 2,  // 已回滚，待 vacuum 清理（影子数据需撤销）
+} ETxnFinalStatus;
 
 static inline bool txnShouldPropagateError(utxn_id_t txnId, int32_t code, int32_t replicatedIgnoreCode) {
   if (txnId == 0 || code == 0) {

@@ -555,10 +555,11 @@ struct SVnode {
   SStreamNotifyHandleMap* pNotifyHandleMap;
 
   // Batch Metadata Transaction
-  SHashObj*     pTxnHash;     // key: int64_t txnId, value: SVnodeTxnEntry
+  SHashObj*     pTxnHash;       // key: int64_t txnId, value: SVnodeTxnEntry
   SHashObj*     pTxnTableLock;  // key: tableName (char*), value: int64_t txnId
+  SHashObj*     pFinalizedTxns;  // key: int64_t txnId, value: int8_t (ETxnFinalStatus) — thread-safe cache
   TdThreadMutex txnMutex;       // protects pTxnHash and pTxnTableLock
-  int64_t       maxSeenTerm;  // max Raft term seen (for fencing)
+  int64_t       maxSeenTerm;    // max Raft term seen (for fencing)
 };
 
 #define TD_VID(PVNODE) ((PVNODE)->config.vgId)
@@ -715,8 +716,26 @@ int32_t metaScanTxnEntries(SMeta* pMeta, SArray** ppResult);
 int32_t metaTxnIdxUpsert(SMeta* pMeta, tb_uid_t uid, int64_t txnId, int8_t txnStatus, int64_t txnPrevVer);
 int32_t metaTxnIdxDelete(SMeta* pMeta, tb_uid_t uid);
 
+// metaEntry2.c — txn_final.idx CRUD (lazy COMMIT/ROLLBACK finalization record)
+#pragma pack(push, 1)
+typedef struct {
+  int8_t  finalStatus;  // ETxnFinalStatus: TXN_FINAL_COMMITTED or TXN_FINAL_ROLLEDBACK
+  int64_t timestamp;    // When finalized (ms)
+} STxnFinalVal;
+#pragma pack(pop)
+int32_t metaTxnFinalIdxUpsert(SMeta* pMeta, int64_t txnId, const STxnFinalVal* pVal);
+int32_t metaTxnFinalIdxDelete(SMeta* pMeta, int64_t txnId);
+int32_t metaTxnFinalIdxGet(SMeta* pMeta, int64_t txnId, STxnFinalVal* pVal);
+int32_t metaScanTxnFinalEntries(SMeta* pMeta, SArray** ppResult);
+
+// metaEntry2.c — visibility helper: check if txn is finalized (O(1) hash lookup)
+int8_t metaGetTxnFinalStatus(SMeta* pMeta, int64_t txnId);
+
 // vnodeTxn.c — rebuild in-memory txn state from B+ tree (called at VNode startup)
 int32_t vnodeTxnRebuildFromMeta(SVnode* pVnode);
+
+// vnodeTxn.c — lazy vacuum: process finalized txn entries in batches
+int32_t vnodeTxnVacuumBatch(SVnode* pVnode, int32_t maxOps);
 
 #ifdef __cplusplus
 }

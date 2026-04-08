@@ -107,6 +107,9 @@ struct SMeta {
   // batch meta txn: track pending txn entries for O(k) startup rebuild
   TTB* pTxnIdx;
 
+  // batch meta txn: lazy COMMIT/ROLLBACK — txn finalization record for O(1) finalize
+  TTB* pTxnFinalIdx;
+
   SMetaCache* pCache;
 };
 

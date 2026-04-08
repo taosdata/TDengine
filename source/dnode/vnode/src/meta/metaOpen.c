@@ -249,6 +249,11 @@ int32_t metaOpenImpl(SVnode *pVnode, SMeta **ppMeta, const char *metaDir, int8_t
   code = tdbTbOpen("txn.idx", sizeof(tb_uid_t), sizeof(STxnIdxVal), uidIdxKeyCmpr, pMeta->pEnv, &pMeta->pTxnIdx, 0);
   TSDB_CHECK_CODE(code, lino, _exit);
 
+  // open pTxnFinalIdx — lazy COMMIT/ROLLBACK finalization records (key=txnId, value=STxnFinalVal)
+  code = tdbTbOpen("txn_final.idx", sizeof(int64_t), sizeof(STxnFinalVal), uidIdxKeyCmpr, pMeta->pEnv,
+                   &pMeta->pTxnFinalIdx, 0);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
   code = metaCacheOpen(pMeta);
   TSDB_CHECK_CODE(code, lino, _exit);
 
@@ -827,6 +832,7 @@ static void metaCleanup(SMeta **ppMeta) {
     if (pMeta->pIdx) metaCloseIdx(pMeta);
 #endif
     if (pMeta->pTxnIdx) tdbTbClose(pMeta->pTxnIdx);
+    if (pMeta->pTxnFinalIdx) tdbTbClose(pMeta->pTxnFinalIdx);
     if (pMeta->pStreamDb) tdbTbClose(pMeta->pStreamDb);
     if (pMeta->pNcolIdx) tdbTbClose(pMeta->pNcolIdx);
     if (pMeta->pBtimeIdx) tdbTbClose(pMeta->pBtimeIdx);
