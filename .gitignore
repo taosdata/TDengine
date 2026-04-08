@@ -36,6 +36,8 @@ node_modules/
 .cursor
 .claude/
 .claude
+.github/skills/
+mcp.json
 
 # Java
 target/
