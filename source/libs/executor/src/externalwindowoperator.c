@@ -1520,6 +1520,12 @@ static int32_t resetMergeAlignedExtWinOperator(SOperatorInfo* pOperator) {
   pExtW->outWinIdx = 0;
   pExtW->lastTGrpId = 0;
   pExtW->lastCGrpId = 0;
+  // ownTGrpCtx==true: this operator owns the allocation; free before reset.
+  // ownTGrpCtx==false: borrowed pointer into pGroupCalcInfos; must not free.
+  if (pExtW->ownTGrpCtx && pExtW->pTGrpCtx) {
+    extWinDestroyTGrpCtx(pExtW->pTGrpCtx);
+    taosMemoryFree(pExtW->pTGrpCtx);
+  }
   pExtW->pTGrpCtx = NULL;
   pExtW->ownTGrpCtx = false;
 
@@ -1752,6 +1758,12 @@ static int32_t resetExternalWindowOperator(SOperatorInfo* pOperator) {
   pExtW->outWinIdx = 0;
   pExtW->lastTGrpId = 0;
   pExtW->lastCGrpId = 0;
+  // ownTGrpCtx==true: this operator owns the allocation; free before reset.
+  // ownTGrpCtx==false: borrowed pointer into pGroupCalcInfos; must not free.
+  if (pExtW->ownTGrpCtx && pExtW->pTGrpCtx) {
+    extWinDestroyTGrpCtx(pExtW->pTGrpCtx);
+    taosMemoryFree(pExtW->pTGrpCtx);
+  }
   pExtW->pTGrpCtx = NULL;
   pExtW->ownTGrpCtx = false;
   pExtW->isDynWindow = false;
@@ -3562,6 +3574,11 @@ static int32_t extWinAggOutputMulNoOrderTGrpsRes(SOperatorInfo* pOperator, SExte
         pExtW->lastCGrpId = 0;
 
         if (pExtW->calcWithPartition) {
+          // Same ownership rule as in extWinPrepareForOutput (see comment there).
+          if (pExtW->pTGrpCtx->pCCtx && pExtW->pTGrpCtx->pCGCtxs == NULL) {
+            extWinDestroyCGrpCtx(pExtW->pTGrpCtx->pCCtx);
+            taosMemoryFree(pExtW->pTGrpCtx->pCCtx);
+          }
           pExtW->pTGrpCtx->pCCtx = NULL;
           TAOS_CHECK_EXIT(extWinAggOutputMulNoOrderCGrpsRes(pOperator, pExtW));
         } else {
@@ -3946,6 +3963,14 @@ static void extWinPrepareForOutput(SOperatorInfo* pOperator, SExternalWindowOper
   }
 
   if ((!pStream->isMultiGroupCalc) && pExtW->calcWithPartition && pExtW->pTGrpCtx) {
+    // pCGCtxs==NULL: pCCtx is a standalone taosMemoryCalloc allocation owned
+    //   by pTGrpCtx; free it before clearing or extWinDestroyTGrpCtx will miss it.
+    // pCGCtxs!=NULL: pCCtx is a raw pointer into hash-table inline storage;
+    //   must not be freed here — tSimpleHashCleanup releases it.
+    if (pExtW->pTGrpCtx->pCCtx && pExtW->pTGrpCtx->pCGCtxs == NULL) {
+      extWinDestroyCGrpCtx(pExtW->pTGrpCtx->pCCtx);
+      taosMemoryFree(pExtW->pTGrpCtx->pCCtx);
+    }
     pExtW->pTGrpCtx->pCCtx = NULL;
   }
 }
