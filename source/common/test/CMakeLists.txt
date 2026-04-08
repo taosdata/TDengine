@@ -4,7 +4,7 @@ MESSAGE(STATUS "build parser unit test")
 # GoogleTest requires at least C++11
 SET(CMAKE_CXX_STANDARD 11)
 
-if(${TD_LINUX})
+if(TD_LINUX)
     add_executable(commonTest "commonTests.cpp")
     DEP_ext_gtest(commonTest)
     target_link_libraries(commonTest PRIVATE os util common)
@@ -77,7 +77,7 @@ add_test(
     # )
 # endif()
 
-if(${TD_LINUX})
+if(TD_LINUX)
     # tmsg test
     add_executable(tmsgTest "")
     DEP_ext_gtest(tmsgTest)

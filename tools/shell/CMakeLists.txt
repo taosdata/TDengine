@@ -2,7 +2,7 @@ aux_source_directory(src SHELL_SRC)
 
 add_executable(shell ${SHELL_SRC} ../src/pub.c)
 
-IF(TD_LINUX_64 AND JEMALLOC_ENABLED)
+IF(TD_LINUX_64 AND BUILD_JEMALLOC)
     ADD_DEFINITIONS(-DTD_JEMALLOC_ENABLED -I${CMAKE_BINARY_DIR}/build/include -L${CMAKE_BINARY_DIR}/build/lib -Wl,-rpath,${CMAKE_BINARY_DIR}/build/lib -ljemalloc)
     SET(LINK_JEMALLOC "-L${CMAKE_BINARY_DIR}/build/lib -ljemalloc")
     ADD_DEPENDENCIES(shell jemalloc)
@@ -67,21 +67,21 @@ IF(TD_LINUX)
     target_link_libraries(shell_ut PRIVATE os common transport geometry util)
 
     # unit test
-    IF(${BUILD_TEST})
+    IF(BUILD_TEST)
         ADD_SUBDIRECTORY(test)
-    ENDIF(${BUILD_TEST})
+    ENDIF()
 ENDIF()
 
 #
 # collect --version information
 #
-MESSAGE("collect --version show info:")
+MESSAGE(STATUS "collect --version show info:")
 # version
-IF (DEFINED TD_VER_NUMBER)
+IF (DEFINED BUILD_VER_NUMBER)
     # TODO: global compile flags???
-    ADD_DEFINITIONS(-DTD_VER_NUMBER="${TD_VER_NUMBER}")
-    MESSAGE(STATUS "taos version:${TD_VER_NUMBER}")
+    ADD_DEFINITIONS(-DTD_VER_NUMBER="${BUILD_VER_NUMBER}")
+    MESSAGE(STATUS "taos version:${BUILD_VER_NUMBER}")
 ELSE ()
     # abort build
-    MESSAGE(FATAL_ERROR "build taos not found TD_VER_NUMBER define.")
+    MESSAGE(FATAL_ERROR "build taos not found BUILD_VER_NUMBER define.")
 ENDIF ()
