@@ -145,22 +145,18 @@ def do_handle_undeploy_model(request):
     full_path = os.path.join(model_dir, model_file_name)
 
     try:
+        loader.unregister_dynamic_service(model_name)
+
         if Path(str(full_path)).exists():
             os.remove(full_path)
-            AppLogger.info("Model %s configuration file is removed successfully", model_name)
-
-            loader.unregister_dynamic_service(model_name)
-
-            return {
-                'status': 'success',
-                'message': f"Model {model_name} undeployed successfully"
-            }, 200
         else:
-            AppLogger.error("Model %s not found for undeploy", model_name)
-            return {
-                'status': 'error',
-                'error': f"Model {model_name} not found"
-            }, 404
+            AppLogger.warning("Model configuration file for model %s not found during undeploy, maybe already removed", model_name)
+        
+        AppLogger.info("Model %s configuration file is removed successfully", model_name)
+        return {
+            'status': 'success',
+            'message': f"Model {model_name} undeployed successfully"
+        }, 200
     except Exception as e:
         AppLogger.error("Error undeploying model %s: %s", model_name, str(e))
         return {

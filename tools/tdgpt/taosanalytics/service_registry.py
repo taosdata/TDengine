@@ -60,8 +60,7 @@ class DynamicForecastService(AbstractForecastService):
                 AppLogger.error(msg)
                 raise RuntimeError(msg) from e
 
-            forecaster = ArimaModelForecaster(self.config_file_path, df, self.rows)
-
+            forecaster = ArimaModelForecaster(self.config_file_path, df, self.rows, alpha=1 - self.conf)
             result = forecaster.forecast()
 
             if (result is None or
@@ -226,7 +225,7 @@ class ServiceRegistry:
 
                 ServiceRegistry._register_service(self.services, model_name, serv)
                 AppLogger.info("register dynamic model:'%s' from %s, total:%d", model_name, config_file,
-                               len(self.services))
+                                len(self.services))
             else:
                 msg = f"unsupported algorithm '{algo_name}' in dynamic model configuration file: {config_file}"
                 raise ValueError(msg)

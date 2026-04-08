@@ -12,12 +12,12 @@ from taosanalytics.log import AppLogger
 class BaseModelForecaster(ABC):
     """
     dynamic loader for time series forecasting models based on config files.
-     - Reads model configuration from a JSON file
-     - Validates that the config describes the expected algorithm
-     - Validates that the input dataset has required columns (ts, y)
-     - Builds the model using algorithm-specific logic
-     - Provides a unified forecast() method to get predictions
-     - Designed for extensibility: new algorithms can be supported by subclassing and implementing the abstract
+        - Reads model configuration from a JSON file
+        - Validates that the config describes the expected algorithm
+        - Validates that the input dataset has required columns (ts, y)
+        - Builds the model using algorithm-specific logic
+        - Provides a unified forecast() method to get predictions
+        - Designed for extensibility: new algorithms can be supported by subclassing and implementing the abstract
     """
     target_algo: str = ""
     required_columns = {"ts", "y"}
@@ -29,6 +29,7 @@ class BaseModelForecaster(ABC):
         self.kwargs = kwargs
         self.model_info: dict | None = None
         self._model = None
+        self.alpha = kwargs.get("alpha", 0.05)  # default confidence level for prediction intervals
 
     def build(self):
         self.model_info = self._load_config()
@@ -85,20 +86,20 @@ class ArimaModelForecaster(BaseModelForecaster):
     """
     arima model reconstructor based on config file. The config file should like this:
     {
-      "algo": "arima",
-      "best_params": {
-        "p": 3,
-        "d": 0,
-        "q": 2,
-        "P": 2,
-        "D": 1,
-        "Q": 2
-      },
-      "freq": "MS",
-      "model_path": "/usr/local/taos/tdmodel/model/trn_dbf7c3931f5b49fb8ed28034a76b3008.pkl",
-      "target_metric": "RMSE",
-      "dataset_id": "ds_0100564fe1224580801727ffe2309ddd",
-      "seasonal_order_s": 12
+        "algo": "arima",
+        "best_params": {
+            "p": 3,
+            "d": 0,
+            "q": 2,
+            "P": 2,
+            "D": 1,
+            "Q": 2
+        },
+        "freq": "MS",
+        "model_path": "/usr/local/taos/tdmodel/model/trn_dbf7c3931f5b49fb8ed28034a76b3008.pkl",
+        "target_metric": "RMSE",
+        "dataset_id": "ds_0100564fe1224580801727ffe2309ddd",
+        "seasonal_order_s": 12
     }
     """
     target_algo = "ARIMA"
@@ -133,7 +134,7 @@ class ArimaModelForecaster(BaseModelForecaster):
 
     def _predict(self, model):
         forecast_vals = model.get_forecast(steps=self.horizon)
-        df_res = forecast_vals.summary_frame(alpha=0.05)  # 95% 置信区间
+        df_res = forecast_vals.summary_frame(alpha=self.alpha)  # 95% 置信区间
 
         return pd.DataFrame(
             {
@@ -156,9 +157,9 @@ class ProphetModelForecaster(BaseModelForecaster):
     """
     Prophet model reconstructor based on config file. The config file should contain:
     {
-      "algo": "PROPHET",
-      "best_params": {  "changepoint_prior_scale": 0.01, "seasonality_mode": "multiplicative" },
-      "freq": "D"
+        "algo": "PROPHET",
+        "best_params": {  "changepoint_prior_scale": 0.01, "seasonality_mode": "multiplicative" },
+        "freq": "D"
     }
     """
     target_algo = "PROPHET"

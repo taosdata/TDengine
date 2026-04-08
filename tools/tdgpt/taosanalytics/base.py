@@ -131,7 +131,7 @@ class AbstractForecastService(AbstractAnalyticsService, ABC):
         self.dynamic_real = []
 
     def set_input_data(self, input_list: list, input_ts_list: list = None, past_dynamic_real_list: list = None,
-                       dynamic_real_list: list = None):
+                        dynamic_real_list: list = None):
         """ set the input data """
         if past_dynamic_real_list is not None:
             self.past_dynamic_real = past_dynamic_real_list
