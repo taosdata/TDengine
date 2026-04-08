@@ -31,6 +31,29 @@ void StringUtils::trim(std::string& str) {
     }).base(), str.end());
 }
 
+std::string_view StringUtils::trim_view(std::string_view sv) {
+    while (!sv.empty() && std::isspace(static_cast<unsigned char>(sv.front()))) {
+        sv.remove_prefix(1);
+    }
+    while (!sv.empty() && std::isspace(static_cast<unsigned char>(sv.back()))) {
+        sv.remove_suffix(1);
+    }
+    return sv;
+}
+
+bool StringUtils::iequals_ascii(std::string_view input, std::string_view expected_lower) {
+    if (input.size() != expected_lower.size()) {
+        return false;
+    }
+    for (size_t i = 0; i < input.size(); ++i) {
+        unsigned char ch = static_cast<unsigned char>(input[i]);
+        if (static_cast<char>(std::tolower(ch)) != expected_lower[i]) {
+            return false;
+        }
+    }
+    return true;
+}
+
 void StringUtils::remove_all_spaces(std::string& str) {
     str.erase(std::remove_if(str.begin(), str.end(),
         [](unsigned char ch) { return std::isspace(ch); }),

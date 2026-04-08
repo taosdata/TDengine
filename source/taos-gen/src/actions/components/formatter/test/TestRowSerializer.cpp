@@ -250,6 +250,50 @@ void test_serialization_with_tags() {
     std::cout << "test_serialization_with_tags passed." << std::endl;
 }
 
+void test_json_serialization_with_null_values() {
+    ColumnConfigInstanceVector col_instances;
+    ColumnConfigInstanceVector tag_instances;
+
+    col_instances.emplace_back(ColumnConfig{"temp", "FLOAT"});
+    col_instances.emplace_back(ColumnConfig{"humidity", "INT"});
+
+    tag_instances.emplace_back(ColumnConfig{"region", "VARCHAR(10)"});
+    tag_instances.emplace_back(ColumnConfig{"group_id", "INT"});
+
+    MultiBatch batch;
+    std::vector<RowData> rows;
+    rows.push_back({1609459200000, {25.5f, std::monostate{}}});
+    batch.table_batches.emplace_back("weather_null", std::move(rows));
+    batch.update_metadata();
+
+    MemoryPool pool(1, 1, 1, col_instances, tag_instances);
+    auto* block = pool.convert_to_memory_block(std::move(batch));
+
+    std::vector<ColumnType> tag_values = {std::string("us-west"), std::monostate{}};
+    block->tables[0].tags_ptr = pool.register_table_tags("weather_null", tag_values);
+
+    const auto& tb = block->tables[0];
+
+    nlohmann::ordered_json result = RowSerializer::to_json(col_instances, tag_instances, tb, 0, "tbname");
+    assert(result["tbname"] == "weather_null");
+    assert(result["ts"] == 1609459200000);
+    assert(result["temp"] == 25.5f);
+    assert(result["humidity"].is_null());
+    assert(result["region"] == "us-west");
+    assert(result["group_id"].is_null());
+
+    nlohmann::ordered_json result_inplace;
+    RowSerializer::to_json_inplace(col_instances, tag_instances, tb, 0, "tbname", result_inplace);
+    assert(result_inplace["tbname"] == "weather_null");
+    assert(result_inplace["ts"] == 1609459200000);
+    assert(result_inplace["temp"] == 25.5f);
+    assert(result_inplace["humidity"].is_null());
+    assert(result_inplace["region"] == "us-west");
+    assert(result_inplace["group_id"].is_null());
+
+    std::cout << "test_json_serialization_with_null_values passed." << std::endl;
+}
+
 void test_influx_inplace_multiple_types_and_bool() {
     ColumnConfigInstanceVector col_instances;
     ColumnConfigInstanceVector tag_instances;
@@ -319,6 +363,7 @@ int main() {
     test_boolean_type();
     test_out_of_range_exception();
     test_serialization_with_tags();
+    test_json_serialization_with_null_values();
     test_influx_inplace_multiple_types_and_bool();
     test_influx_inplace_escaping();
 

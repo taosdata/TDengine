@@ -100,12 +100,31 @@ void test_format_escape_single_quote_u16string() {
     std::cout << "test_format_escape_single_quote_u16string passed!" << std::endl;
 }
 
+void test_format_null_tag_literal() {
+    DataFormat format;
+    format.format_type = "sql";
+
+    CreateChildTableConfig config;
+    config.tdengine.database = "test_db";
+    config.schema.name = "test_super_table";
+
+    std::string table_name = "child_table_null";
+    RowType tags = {std::monostate{}, std::string("111")};
+
+    SqlChildTableFormatter formatter(format);
+    std::string result = formatter.format(config, table_name, tags);
+
+    assert(result == "CREATE TABLE IF NOT EXISTS `test_db`.`child_table_null` USING `test_db`.`test_super_table` TAGS (NULL, '111')");
+    std::cout << "test_format_null_tag_literal passed!" << std::endl;
+}
+
 int main() {
     test_format_create_child_table_single();
     test_format_create_child_table_multiple();
     test_format_create_child_table_empty_tags();
     test_format_escape_single_quote_string();
     test_format_escape_single_quote_u16string();
+    test_format_null_tag_literal();
     std::cout << "All tests passed!" << std::endl;
     return 0;
 }

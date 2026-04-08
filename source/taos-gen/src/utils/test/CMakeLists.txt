@@ -77,3 +77,13 @@ target_link_libraries(TestConcurrentQueue
     utils
 )
 add_test(NAME TestConcurrentQueue COMMAND TestConcurrentQueue)
+
+# Test StringUtils
+add_executable(TestStringUtils
+  TestStringUtils.cpp
+)
+target_link_libraries(TestStringUtils
+  PRIVATE
+    utils
+)
+add_test(NAME TestStringUtils COMMAND TestStringUtils)
