@@ -1,6 +1,5 @@
 ---
 title: Time-Series Extensions
-slug: /tdengine-reference/sql-manual/time-series-extensions
 ---
 
 TDengine, in addition to supporting standard SQL, also offers a series of specialized query syntaxes tailored for time-series business scenarios, which greatly facilitate the development of applications in time-series contexts.

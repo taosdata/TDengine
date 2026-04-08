@@ -9,10 +9,10 @@ TDengine® TSDB is a time-series database purpose-built for Industry 4.0 and Ind
 This website contains the user documentation for TDengine TSDB:
 
 - If you are new to time-series data, you can get a quick understanding of the field from ["What Is a Time-Series Database?"](https://tdengine.com/what-is-a-time-series-database/) and [other articles](https://tdengine.com/time-series-database/) on our official website.
-- If you would like to install TDengine and experience its features for yourself, see the [Get Started](get-started/) section for instructions.
-- System architects are advised to review the [Basic Features](basic-features/) and [Advanced Features](advanced-features/) sections to decide whether TDengine's capabilities can meet their needs, as well as [Inside TDengine](inside-tdengine/) for a more in-depth look at TDengine's design.
-- Software developers can consult the [Developer's Guide](developer-guide/) for information about creating applications that interoperate with TDengine and writing user-defined functions that run within TDengine.
-- Database administrators will find valuable information in [Operations and Maintenance](operations-and-maintenance/) and [TDengine Reference](tdengine-reference/) to assist in managing, maintaining, and monitoring their TDengine deployments.
+- If you would like to install TDengine and experience its features for yourself, see the [Get Started](04-get-started/index.md) section for instructions.
+- System architects are advised to review the [Basic Features](05-basic/index.md) and [Advanced Features](06-advanced/index.md) sections to decide whether TDengine's capabilities can meet their needs, as well as [Inside TDengine](26-tdinternal/index.md) for a more in-depth look at TDengine's design.
+- Software developers can consult the [Developer's Guide](07-develop/index.md) for information about creating applications that interoperate with TDengine and writing user-defined functions that run within TDengine.
+- Database administrators will find valuable information in [Operations and Maintenance](08-operation/index.md) and [TDengine Reference](14-reference/index.md) to assist in managing, maintaining, and monitoring their TDengine deployments.
 
 TDengine TSDB, including this documentation, is an open-source project, and we welcome contributions from the community. If you find any errors or unclear descriptions, click **Edit this page** at the bottom of the page to submit your corrections. To view the source code, visit our [GitHub repository](https://github.com/taosdata/tdengine).
 

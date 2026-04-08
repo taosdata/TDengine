@@ -1,6 +1,5 @@
 ---
 title: Data Types
-slug: /tdengine-reference/sql-manual/data-types
 ---
 
 ## Timestamp

@@ -1,6 +1,5 @@
 ---
 title: Manage Nodes
-slug: /tdengine-reference/sql-manual/manage-nodes
 ---
 
 The physical entities that make up a TDengine cluster are dnodes (short for data nodes), which are processes running on top of the operating system. Within a dnode, vnodes (virtual nodes) can be established for storing time-series data. In a multi-node cluster environment, when the replica of a database is 3, each vgroup in that database consists of 3 vnodes; when the replica is 1, each vgroup consists of 1 vnode. To configure a database with multiple replicas, there must be at least 3 dnodes in the cluster. In a dnode, an mnode (management node) can also be created, with a maximum of three mnodes in a single cluster. In TDengine 3.0.0.0, to support separation of storage and computation, a new logical node called qnode (query node) was introduced, which can either coexist with a vnode in the same dnode or be completely separated on different dnodes.
@@ -45,7 +44,7 @@ ALTER ALL DNODES dnode_option
 
 For configuration parameters that support dynamic modification, you can use the ALTER DNODE or ALTER ALL DNODES syntax to modify the values of configuration parameters in a dnode. Starting from version 3.3.4.0, the modified configuration parameters will be automatically persisted and will remain effective even after the database service is restarted.
 
-To check whether a configuration parameter supports dynamic modification, please refer to the following page: [taosd Reference](/tdengine-reference/components/taosd/)
+To check whether a configuration parameter supports dynamic modification, please refer to the following page: [taosd Reference](../01-components/01-taosd.md)
 
 The value is the parameter's value and needs to be in character format. For example, to change the log output level of dnode 1 to debug:
 
@@ -156,7 +155,7 @@ ALTER LOCAL local_option
 
 You can use the above syntax to modify the client's configuration parameters, and there is no need to restart the client. The changes take effect immediately.
 
-To check whether a configuration parameter supports dynamic modification, please refer to the following page:[taosc Reference](/tdengine-reference/components/taosc/)
+To check whether a configuration parameter supports dynamic modification, please refer to the following page:[taosc Reference](../01-components/02-taosc.md)
 
 ## View Client Configuration
 

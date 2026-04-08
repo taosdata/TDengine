@@ -1,7 +1,6 @@
 ---
 title: "TDengine Configuration Parameter Scope Comparison"
 sidebar_label: "Configuration Parameter Scope"
-slug: /tdengine-reference/components/configuration-scope
 ---
 
 This document compares the configuration parameters of taosd (server-side) and taosc (client-side) in TDengine TSDB, clearly identifying the scope of each parameter.

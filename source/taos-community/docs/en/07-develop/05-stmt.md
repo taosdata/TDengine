@@ -1,7 +1,6 @@
 ---
 title: Ingesting Data in Parameter Binding Mode
 sidebar_label: Parameter Binding
-slug: /developer-guide/parameter-binding
 ---
 
 import Tabs from "@theme/Tabs";

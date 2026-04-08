@@ -1,6 +1,5 @@
 ---
 title: MongoDB
-slug: /advanced-features/data-connectors/mongodb
 ---
 
 import Enterprise from '../../assets/resources/_enterprise.mdx';

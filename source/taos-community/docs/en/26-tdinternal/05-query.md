@@ -1,9 +1,8 @@
 ---
 title: Query Engine
-slug: /inside-tdengine/query-engine
 ---
 
-TDengine, as a high-performance time-series big data platform, has its querying and computing capabilities as one of the core components. The platform offers a rich set of query processing features, including not only regular aggregation queries but also advanced functions such as time-series data window queries and statistical aggregations. These query and computation tasks require close cooperation between taosc, vnode, qnode, and mnode. In a complex supertable aggregation query scenario, multiple vnodes and qnodes may need to share the responsibilities of querying and computing. For definitions and introductions of vnode, qnode, mnode, please refer to [System Architecture](../architecture/)
+TDengine, as a high-performance time-series big data platform, has its querying and computing capabilities as one of the core components. The platform offers a rich set of query processing features, including not only regular aggregation queries but also advanced functions such as time-series data window queries and statistical aggregations. These query and computation tasks require close cooperation between taosc, vnode, qnode, and mnode. In a complex supertable aggregation query scenario, multiple vnodes and qnodes may need to share the responsibilities of querying and computing. For definitions and introductions of vnode, qnode, mnode, please refer to [System Architecture](01-arch.md)
 
 ## Roles of Each Module in Query Computation
 

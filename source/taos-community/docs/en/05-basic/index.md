@@ -1,6 +1,5 @@
 ---
 title: Basic Features
-slug: /basic-features
 ---
 
 import DocCardList from '@theme/DocCardList';

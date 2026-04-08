@@ -1,6 +1,5 @@
 ---
 title: Get Started
-slug: /get-started
 ---
 
 import DocCardList from '@theme/DocCardList';
