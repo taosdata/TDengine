@@ -151,8 +151,6 @@ def do_handle_undeploy_model(request):
         loader.unregister_dynamic_service(model_name)
 
         if Path(str(full_path)).exists():
-            loader.unregister_dynamic_service(model_name)
-
             os.remove(full_path)
         else:
             AppLogger.warning("Model configuration file for model %s not found during undeploy, maybe already removed", model_name)

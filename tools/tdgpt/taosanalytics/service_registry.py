@@ -204,7 +204,6 @@ class ServiceRegistry:
                 raise ValueError(msg) from e
 
         if not isinstance(config, dict):
-            # valid config format, continue to parse the algorithm definition and register the service.
             raise ValueError(f"invalid config format in file: {config_file}, expected a JSON object")
 
         if 'algo' in config:

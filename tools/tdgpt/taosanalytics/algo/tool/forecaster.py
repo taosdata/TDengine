@@ -187,3 +187,8 @@ class ProphetModelForecaster(BaseModelForecaster):
         forecast = model.predict(future_df)
 
         return forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']]
+
+    def get_param(self) -> dict:
+        best_params = self.model_info.get('best_params') or {}
+        best_params['freq'] = self.model_info.get('freq', 'D')
+        return best_params
