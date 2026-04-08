@@ -885,6 +885,32 @@ int64_t taosTimeGetIntervalEnd(int64_t intervalStart, const SInterval* pInterval
          1;
 }
 
+/*
+  truncateToLocalMidnight - snap a timestamp (in ticks) to the preceding local
+  midnight.
+ 
+  Converts `ticks` to local time in the given timezone, zeros out hour/min/sec,
+  then converts back. This correctly resolves DST for the *target* instant,
+  avoiding the old bug where a fixed "current" offset was used.
+ 
+  On conversion failure the original `ticks` value is returned unchanged.
+ */
+static int64_t truncateToLocalMidnight(int64_t ticks, int32_t precision, timezone_t tz) {
+  time_t    t_sec = (time_t)(ticks / TSDB_TICK_PER_SECOND(precision));
+  struct tm tm_local;
+  if (taosLocalTime(&t_sec, &tm_local, NULL, 0, tz) == NULL) {
+    return ticks;
+  }
+  tm_local.tm_sec = 0;
+  tm_local.tm_min = 0;
+  tm_local.tm_hour = 0;
+  time_t midnight = taosMktime(&tm_local, tz);
+  if (midnight == (time_t)-1) {
+    return ticks;
+  }
+  return (int64_t)midnight * TSDB_TICK_PER_SECOND(precision);
+}
+
 int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
   if (ts <= INT64_MIN || ts >= INT64_MAX) {
     return ts;
@@ -930,21 +956,7 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
     if (IS_CALENDAR_TIME_DURATION(pInterval->intervalUnit)) {
       int64_t news = (ts / pInterval->sliding) * pInterval->sliding;
       if (pInterval->slidingUnit == 'd' || pInterval->slidingUnit == 'w') {
-#if defined(WINDOWS) && _MSC_VER >= 1900
-        int64_t timezone = _timezone;
-#endif
-        // taosGet*TimezoneOffset() returns east-positive (tm_gmtoff) values.
-        // The day/week anchor logic here expects west-positive offsets, so
-        // shift by subtracting the east-positive offset.
-        int64_t tz_offset = 0;
-        tz_offset = taosGetTZOffsetSeconds(pInterval->timezone, &code);
-        if (code != TSDB_CODE_SUCCESS) {
-          uError("%s failed to get timezone offset at line %d, code:%d",
-                 __func__, __LINE__, code);
-          return ts;
-        }
-
-        news -= (int64_t)(tz_offset * TSDB_TICK_PER_SECOND(precision));
+        news = truncateToLocalMidnight(news, precision, pInterval->timezone);
       }
 
       start = news;
@@ -976,24 +988,7 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
       start = (delta / pInterval->sliding + factor) * pInterval->sliding;
 
       if (pInterval->intervalUnit == 'd' || pInterval->intervalUnit == 'w') {
-        /*
-         * here we revised the start time of day according to the local time zone,
-         * but in case of DST, the start time of one day need to be dynamically decided.
-         */
-        // todo refactor to extract function that is available for Linux/Windows/Mac platform
-#if defined(WINDOWS) && _MSC_VER >= 1900
-        // see
-        // https://docs.microsoft.com/en-us/cpp/c-runtime-library/daylight-dstbias-timezone-and-tzname?view=vs-2019
-        int64_t timezone = _timezone;
-#endif
-        int64_t tz_offset = 0;
-        tz_offset = taosGetTZOffsetSeconds(pInterval->timezone, &code);
-        if (code != TSDB_CODE_SUCCESS) {
-          uError("%s failed to get timezone offset at line %d, code:%d",
-                 __func__, __LINE__, code);
-          return ts;
-        }
-        start -= (int64_t)(tz_offset * TSDB_TICK_PER_SECOND(precision));
+        start = truncateToLocalMidnight(start, precision, pInterval->timezone);
       }
 
       int64_t end = 0;
