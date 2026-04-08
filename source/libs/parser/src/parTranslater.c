@@ -8204,6 +8204,9 @@ static int32_t createMaskFuncNode(STranslateContext* pCxt, SColumnNode* pCol, SN
   tstrncpy(pFunc->node.aliasName, pCol->node.aliasName, TSDB_COL_NAME_LEN);
   tstrncpy(pFunc->node.userAlias, pCol->node.userAlias, TSDB_COL_NAME_LEN);
   pFunc->node.asAlias = pCol->node.asAlias;
+  pFunc->node.projIdx = pCol->node.projIdx;
+  pFunc->node.relatedTo = pCol->node.relatedTo;
+  pFunc->node.bindExprID = pCol->node.bindExprID;
 
   /* Clone the column node to use as the first parameter */
   code = nodesCloneNode((SNode*)pCol, &pColClone);
