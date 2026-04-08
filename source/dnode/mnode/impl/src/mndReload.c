@@ -13,9 +13,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "mndReload.h"
 #include "mndDb.h"
+#include "mndReload.h"
 #include "mndShow.h"
+#include "mndStb.h"
 #include "mndTrans.h"
 #include "mndVgroup.h"
 #include "tmsgcb.h"
@@ -95,6 +96,9 @@ static int32_t tSerializeSReloadObj(void *buf, int32_t bufLen, const SReloadObj 
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pObj->colName));
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pObj->dbUid));
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pObj->startTime));
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pObj->suid));
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pObj->uid));
+  TAOS_CHECK_EXIT(tEncodeI16(&encoder, pObj->cid));
   tEndEncode(&encoder);
 
 _exit:
@@ -122,6 +126,9 @@ static int32_t tDeserializeSReloadObj(void *buf, int32_t bufLen, SReloadObj *pOb
   TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pObj->colName));
   TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pObj->dbUid));
   TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pObj->startTime));
+  TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pObj->suid));
+  TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pObj->uid));
+  TAOS_CHECK_EXIT(tDecodeI16(&decoder, &pObj->cid));
   tEndDecode(&decoder);
 
 _exit:
@@ -263,17 +270,19 @@ static void mndReleaseReload(SMnode *pMnode, SReloadObj *pReload) {
   sdbRelease(pSdb, pReload);
 }
 
-
-static void *mndBuildReloadLastCacheReq(SMnode *pMnode, SVgObj *pVgroup, int32_t *pContLen,
-                                         int64_t reloadUid, int8_t cacheType) {
+static void *mndBuildReloadLastCacheReq(SMnode *pMnode, SVgObj *pVgroup, int32_t *pContLen, const SReloadObj *pReload) {
   SVReloadLastCacheReq req = {
-      .reloadUid = reloadUid,
-      .dbUid     = pVgroup->dbUid,
-      .suid      = 0,
-      .uid       = 0,
-      .cid       = -1,
-      .cacheType = cacheType,
+      .reloadUid = pReload->reloadUid,
+      .dbUid = pVgroup->dbUid,
+      .suid = pReload->suid,
+      .uid = pReload->uid,
+      .cid = pReload->cid,
+      .cacheType = pReload->cacheType,
   };
+  // For TABLE scope, pass the table name so the vnode can resolve uid
+  if (pReload->scopeType == 2) {
+    tstrncpy(req.tableName, pReload->tableName, sizeof(req.tableName));
+  }
 
   int32_t contLen = tSerializeSVReloadLastCacheReq(NULL, 0, &req);
   if (contLen < 0) {
@@ -302,14 +311,13 @@ static void *mndBuildReloadLastCacheReq(SMnode *pMnode, SVgObj *pVgroup, int32_t
   return pReq;
 }
 
-static int32_t mndAddReloadVgroupAction(SMnode *pMnode, STrans *pTrans, SVgObj *pVgroup,
-                                         int64_t reloadUid, int8_t cacheType) {
+static int32_t mndAddReloadVgroupAction(SMnode *pMnode, STrans *pTrans, SVgObj *pVgroup, const SReloadObj *pReload) {
   int32_t      code = 0;
   STransAction action = {0};
   action.epSet = mndGetVgroupEpset(pMnode, pVgroup);
 
   int32_t contLen = 0;
-  void   *pReq = mndBuildReloadLastCacheReq(pMnode, pVgroup, &contLen, reloadUid, cacheType);
+  void   *pReq = mndBuildReloadLastCacheReq(pMnode, pVgroup, &contLen, pReload);
   if (pReq == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     if (terrno != 0) code = terrno;
@@ -320,7 +328,8 @@ static int32_t mndAddReloadVgroupAction(SMnode *pMnode, STrans *pTrans, SVgObj *
   action.contLen = contLen;
   action.msgType = TDMT_VND_RELOAD_LAST_CACHE;
 
-  mTrace("trans:%d, add reload-last-cache action for vgId:%d", pTrans->id, pVgroup->vgId);
+  mTrace("trans:%d, add reload-last-cache action for vgId:%d, suid:%" PRId64 " uid:%" PRId64 " cid:%d", pTrans->id,
+         pVgroup->vgId, pReload->suid, pReload->uid, pReload->cid);
 
   if ((code = mndTransAppendRedoAction(pTrans, &action)) != 0) {
     taosMemoryFree(pReq);
@@ -358,7 +367,7 @@ static int32_t mndAddReloadToTran(SMnode *pMnode, STrans *pTrans, SReloadObj *pR
   SVgObj *pVgroup = NULL;
   while ((pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup)) != NULL) {
     if (pVgroup->dbUid == pDb->uid) {
-      if ((code = mndAddReloadVgroupAction(pMnode, pTrans, pVgroup, pReload->reloadUid, pReload->cacheType)) != 0) {
+      if ((code = mndAddReloadVgroupAction(pMnode, pTrans, pVgroup, pReload)) != 0) {
         sdbRelease(pSdb, pVgroup);
         sdbCancelFetch(pSdb, pIter);
         TAOS_RETURN(code);
@@ -904,13 +913,15 @@ static int32_t mndProcessReloadLastCacheReq(SRpcMsg *pReq) {
   SMndReloadLastCacheReq req = {0};
   SDbObj                *pDb = NULL;
   STrans                *pTrans = NULL;
+  SStbObj               *pStb = NULL;
 
   if ((code = tDeserializeSMndReloadLastCacheReq(pReq->pCont, pReq->contLen, &req)) != 0) {
     mError("failed to deserialize SMndReloadLastCacheReq, code:%s", tstrerror(code));
     TAOS_RETURN(code);
   }
 
-  mInfo("db:%s, start to reload last cache, cacheType:%d scopeType:%d", req.dbName, req.cacheType, req.scopeType);
+  mInfo("db:%s, start to reload last cache, cacheType:%d scopeType:%d table:%s col:%s", req.dbName, req.cacheType,
+        req.scopeType, req.tableName, req.colName);
 
   pDb = mndAcquireDb(pMnode, req.dbName);
   if (pDb == NULL) {
@@ -935,8 +946,41 @@ static int32_t mndProcessReloadLastCacheReq(SRpcMsg *pReq) {
 
   reloadObj.cacheType = req.cacheType;
   reloadObj.scopeType = req.scopeType;
+  reloadObj.suid = 0;
+  reloadObj.uid = 0;
+  reloadObj.cid = -1;
   tstrncpy(reloadObj.tableName, req.tableName, sizeof(reloadObj.tableName));
   tstrncpy(reloadObj.colName,   req.colName,   sizeof(reloadObj.colName));
+
+  if (req.scopeType == 1) {
+    // STABLE scope: resolve suid and optionally cid from the mnode SDB
+    char stbFName[TSDB_TABLE_FNAME_LEN];
+    (void)snprintf(stbFName, sizeof(stbFName), "%s.%s", req.dbName, req.tableName);
+    pStb = mndAcquireStb(pMnode, stbFName);
+    if (pStb == NULL) {
+      mError("trans:%d, stable %s not found", pTrans->id, stbFName);
+      code = TSDB_CODE_MND_STB_NOT_EXIST;
+      if (terrno != 0) code = terrno;
+      goto _OVER;
+    }
+    reloadObj.suid = pStb->uid;
+    if (req.colName[0] != '\0') {
+      for (int32_t i = 0; i < pStb->numOfColumns; i++) {
+        if (strcmp(pStb->pColumns[i].name, req.colName) == 0) {
+          reloadObj.cid = pStb->pColumns[i].colId;
+          break;
+        }
+      }
+      if (reloadObj.cid == -1) {
+        mError("trans:%d, column %s not found in stable %s", pTrans->id, req.colName, stbFName);
+        code = TSDB_CODE_MND_INVALID_STB_OPTION;
+        goto _OVER;
+      }
+    }
+    mInfo("trans:%d, stable %s resolved: suid:%" PRId64 " cid:%d", pTrans->id, stbFName, reloadObj.suid, reloadObj.cid);
+  }
+  // TABLE scope: uid is on the vnode, tableName is forwarded in SVReloadLastCacheReq
+  // for vnode-side resolution; cid cannot be resolved here without catalog access
 
   TAOS_CHECK_GOTO(mndAddReloadToTran(pMnode, pTrans, &reloadObj, pDb, &rsp), &lino, _OVER);
 
@@ -969,6 +1013,7 @@ _OVER:
     mError("db:%s, failed to reload last cache since %s", req.dbName, tstrerror(code));
   }
 
+  mndReleaseStb(pMnode, pStb);
   mndReleaseDb(pMnode, pDb);
   mndTransDrop(pTrans);
   TAOS_RETURN(code);

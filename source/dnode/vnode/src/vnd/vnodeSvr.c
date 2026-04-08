@@ -3878,7 +3878,7 @@ static void *vnodeReloadLastCacheBg(void *arg) {
 
   // Fetch the status pointer stored in the hash so callers querying status
   // see live updates written by tsdbReloadLastCache.
-  SHashObj              *pHash = vnodeGetReloadStatusHash();
+  SHashObj                *pHash = vnodeGetReloadStatusHash();
   SVLastCacheReloadStatus *pStatus = NULL;
   if (pHash) {
     taosThreadMutexLock(&gVnodeReloadMutex);
@@ -3888,7 +3888,50 @@ static void *vnodeReloadLastCacheBg(void *arg) {
   }
 
   if (pStatus) {
-    int32_t code = tsdbReloadLastCache(pVnode->pTsdb, NULL, NULL, pArg->req.cacheType, pStatus);
+    int32_t  code = TSDB_CODE_SUCCESS;
+    SArray  *pUids = NULL;
+    tb_uid_t suid = (tb_uid_t)pArg->req.suid;
+    tb_uid_t uid  = (tb_uid_t)pArg->req.uid;
+
+    if (suid == 0 && uid == 0 && pArg->req.tableName[0] == '\0') {
+      // DATABASE scope: reload all tables in this vgroup
+      code = tsdbReloadLastCache(pVnode->pTsdb, NULL, NULL, pArg->req.cacheType, pStatus);
+    } else if (suid != 0 && uid == 0) {
+      // STABLE scope: enumerate all child tables under the given stable
+      pUids = taosArrayInit(64, sizeof(tb_uid_t));
+      if (!pUids) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        goto _done;
+      }
+      SMCtbCursor *pCur = metaOpenCtbCursor(pVnode, suid, 1);
+      if (pCur) {
+        while (1) {
+          tb_uid_t ctbUid = metaCtbCursorNext(pCur);
+          if (ctbUid == 0) break;
+          (void)taosArrayPush(pUids, &ctbUid);
+        }
+        metaCloseCtbCursor(pCur);
+      }
+      code = tsdbReloadLastCache(pVnode->pTsdb, pUids, NULL, pArg->req.cacheType, pStatus);
+    } else {
+      // TABLE scope: single table
+      if (uid == 0 && pArg->req.tableName[0] != '\0') {
+        uid = metaGetTableEntryUidByName(pVnode->pMeta, pArg->req.tableName);
+      }
+      if (uid != 0) {
+        pUids = taosArrayInit(1, sizeof(tb_uid_t));
+        if (!pUids) {
+          code = TSDB_CODE_OUT_OF_MEMORY;
+          goto _done;
+        }
+        (void)taosArrayPush(pUids, &uid);
+        code = tsdbReloadLastCache(pVnode->pTsdb, pUids, NULL, pArg->req.cacheType, pStatus);
+      }
+      // else: table not found in this vgroup — nothing to reload
+    }
+
+  _done:
+    taosArrayDestroy(pUids);
     if (pStatus->cancelRequested) {
       pStatus->status = RELOAD_STATUS_CANCELLED;
     } else if (code != TSDB_CODE_SUCCESS) {
@@ -3916,8 +3959,9 @@ static int32_t vnodeProcessReloadLastCacheMsg(SVnode *pVnode, int64_t ver, void 
     return TSDB_CODE_INVALID_MSG;
   }
 
-  vInfo("vgId:%d, reload-last-cache reloadUid:%" PRId64 " cacheType:%d", TD_VID(pVnode), req.reloadUid,
-        (int32_t)req.cacheType);
+  vInfo("vgId:%d, reload-last-cache reloadUid:%" PRId64 " cacheType:%d suid:%" PRId64 " uid:%" PRId64 " tableName:%s",
+        TD_VID(pVnode), req.reloadUid, (int32_t)req.cacheType, req.suid, req.uid,
+        req.tableName[0] ? req.tableName : "(none)");
 
   // Allocate and initialise status record
   SVLastCacheReloadStatus *pStatus = taosMemoryCalloc(1, sizeof(SVLastCacheReloadStatus));

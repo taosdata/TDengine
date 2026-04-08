@@ -200,8 +200,6 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_SSMIGRATE,
   TSDB_MGMT_TABLE_SCAN,
   TSDB_MGMT_TABLE_SCAN_DETAIL,
-  TSDB_MGMT_TABLE_RELOAD,
-  TSDB_MGMT_TABLE_RELOAD_DETAIL,
   TSDB_MGMT_TABLE_RSMA,
   TSDB_MGMT_TABLE_RETENTION,
   TSDB_MGMT_TABLE_RETENTION_DETAIL,
@@ -218,6 +216,8 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_XNODE_JOBS,
   TSDB_MGMT_TABLE_XNODE_FULL,
   TSDB_MGMT_TABLE_VIRTUAL_TABLES_REFERENCING,
+  TSDB_MGMT_TABLE_RELOAD,
+  TSDB_MGMT_TABLE_RELOAD_DETAIL,
   TSDB_MGMT_TABLE_MAX,
 } EShowType;
 
@@ -2630,12 +2630,13 @@ typedef enum EReloadStatus {
 } EReloadStatus;
 
 typedef struct SVReloadLastCacheReq {
-  int64_t  reloadUid;   // task UID assigned by mnode
+  int64_t  reloadUid;  // task UID assigned by mnode
   int64_t  dbUid;
-  tb_uid_t suid;        // 0 = not specified
-  tb_uid_t uid;         // 0 = not specified
-  int16_t  cid;         // -1 = all columns
-  int8_t   cacheType;   // 0=LAST, 1=LAST_ROW, 2=BOTH
+  tb_uid_t suid;                            // 0 = not scoped by stable
+  tb_uid_t uid;                             // 0 = not set (use tableName for lookup)
+  int16_t  cid;                             // -1 = all columns
+  int8_t   cacheType;                       // 0=LAST, 1=LAST_ROW, 2=BOTH
+  char     tableName[TSDB_TABLE_NAME_LEN];  // TABLE scope: vnode resolves to uid
 } SVReloadLastCacheReq;
 
 typedef struct SVLastCacheReloadStatus {

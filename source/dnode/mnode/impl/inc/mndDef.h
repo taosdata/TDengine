@@ -1321,6 +1321,10 @@ typedef struct {
   char    colName[TSDB_COL_NAME_LEN];
   int64_t dbUid;
   int64_t startTime;
+  // resolved from tableName/colName at create time
+  int64_t suid;   // stable uid (STABLE scope); 0 = not scoped by stable
+  int64_t uid;    // child table uid (TABLE scope); 0 = unknown, pass tableName to vnode
+  int16_t cid;    // column id (-1 = all columns)
 } SReloadObj;
 
 typedef struct {

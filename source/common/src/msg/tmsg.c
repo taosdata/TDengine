@@ -18980,6 +18980,7 @@ int32_t tSerializeSVReloadLastCacheReq(void* buf, int32_t bufLen, SVReloadLastCa
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->uid));
   TAOS_CHECK_EXIT(tEncodeI16(&encoder, pReq->cid));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->cacheType));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->tableName));
   tEndEncode(&encoder);
 _exit:
   if (code) {
@@ -19003,6 +19004,7 @@ int32_t tDeserializeSVReloadLastCacheReq(void* buf, int32_t bufLen, SVReloadLast
   TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->uid));
   TAOS_CHECK_EXIT(tDecodeI16(&decoder, &pReq->cid));
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->cacheType));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->tableName));
   tEndDecode(&decoder);
 _exit:
   tDecoderClear(&decoder);
