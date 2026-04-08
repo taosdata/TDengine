@@ -135,6 +135,26 @@ static void mndTxnTimeoutScanImpl(SMnode *pMnode) {
       continue;
     }
 
+    // §43 Absolute lifetime limit: rollback if total lifetime exceeds max regardless of activity
+    int64_t lifetime = now - pTxn->createTime;
+    if (pTxn->stage == UTXN_STAGE_ACTIVE && lifetime > (int64_t)TSDB_META_TXN_MAX_LIFETIME_SEC * 1000) {
+      mWarn("txn:%" PRIu64 ", stage=%s, lifetime=%" PRId64 "ms > max=%" PRId64
+            "ms, triggering ROLLBACK due to exceeded lifetime",
+            pTxn->id, mndUtxnStageStr(pTxn->stage), lifetime, (int64_t)TSDB_META_TXN_MAX_LIFETIME_SEC * 1000);
+
+      SRpcMsg synReq = {0};
+      synReq.info.node = pMnode;
+
+      int32_t code = mndRollbackTxn(pMnode, &synReq, pTxn, TSDB_CODE_TXN_EXCEEDED_LIFETIME);
+      if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
+        mError("txn:%" PRIu64 ", lifetime rollback failed: %s", pTxn->id, tstrerror(code));
+      } else {
+        mInfo("txn:%" PRIu64 ", lifetime rollback initiated", pTxn->id);
+      }
+      sdbRelease(pSdb, pTxn);
+      continue;
+    }
+
     if (pTxn->stage == UTXN_STAGE_ACTIVE && elapsed > timeout) {
       mWarn("txn:%" PRIu64 ", stage=%s, elapsed=%" PRId64 "ms > timeout=%" PRId64 "ms, triggering ROLLBACK", pTxn->id,
             mndUtxnStageStr(pTxn->stage), elapsed, timeout);

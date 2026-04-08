@@ -1049,6 +1049,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TXN_PREPARED_ALTER,             "Table is being alte
 TAOS_DEFINE_ERROR(TSDB_CODE_TXN_PREPARED_DROP,              "Table is being dropped in a transaction")
 TAOS_DEFINE_ERROR(TSDB_CODE_TXN_DELETE_ON_DROPPING,         "Cannot DELETE on a table being dropped")
 TAOS_DEFINE_ERROR(TSDB_CODE_TXN_INVALID_OPERATION,           "Only table DDL (CREATE/DROP/ALTER TABLE) allowed in transaction")
+TAOS_DEFINE_ERROR(TSDB_CODE_TXN_TOO_MANY_DDL_OPS,           "Transaction DDL operation count exceeds per-VNode limit")
+TAOS_DEFINE_ERROR(TSDB_CODE_TXN_EXCEEDED_LIFETIME,          "Transaction exceeded maximum lifetime")
 
 //tmq
 TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_INVALID_MSG,                "Invalid message")

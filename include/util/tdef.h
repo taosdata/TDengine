@@ -916,6 +916,9 @@ typedef int64_t utxn_id_t;
 #define TXN_SET_REPLICATED(id) ((id) | TXN_REPLICATED_FLAG)
 #define TXN_CLR_REPLICATED(id) ((id) & ~TXN_REPLICATED_FLAG)
 
+#define TSDB_META_TXN_MAX_DDL_OPS_PER_VG 50000  // Max DDL ops tracked on a single VNode per txn
+#define TSDB_META_TXN_MAX_LIFETIME_SEC   86400  // Absolute max txn lifetime in seconds (24 hours)
+
 static inline bool txnShouldPropagateError(utxn_id_t txnId, int32_t code, int32_t replicatedIgnoreCode) {
   if (txnId == 0 || code == 0) {
     return false;

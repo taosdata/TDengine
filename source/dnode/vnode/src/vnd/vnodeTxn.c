@@ -328,7 +328,15 @@ int32_t vnodeTxnTrackTable(SVnode *pVnode, int64_t txnId, tb_uid_t uid) {
   taosThreadMutexLock(&pVnode->txnMutex);
   SVnodeTxnEntry *pEntry = vnodeGetTxnEntry(pVnode, txnId);
   if (pEntry) {
-    code = vnodeTxnTrackUid(pEntry, uid);
+    // DDL count limit per VNode (skip for replicated txns — taosX WAL replay)
+    if (!TXN_IS_REPLICATED(txnId) && pEntry->pTouchedUids &&
+        tSimpleHashGetSize(pEntry->pTouchedUids) >= TSDB_META_TXN_MAX_DDL_OPS_PER_VG) {
+      vError("vgId:%d, txnId:%" PRId64 " DDL op count %d >= limit %d, reject",
+             TD_VID(pVnode), txnId, tSimpleHashGetSize(pEntry->pTouchedUids), TSDB_META_TXN_MAX_DDL_OPS_PER_VG);
+      code = TSDB_CODE_TXN_TOO_MANY_DDL_OPS;
+    } else {
+      code = vnodeTxnTrackUid(pEntry, uid);
+    }
     pEntry->lastActive = taosGetTimestampMs();
   }
   taosThreadMutexUnlock(&pVnode->txnMutex);
@@ -347,12 +355,20 @@ int32_t vnodeTxnTrackAlter(SVnode *pVnode, int64_t txnId, tb_uid_t uid, int64_t 
   taosThreadMutexLock(&pVnode->txnMutex);
   SVnodeTxnEntry *pEntry = vnodeGetTxnEntry(pVnode, txnId);
   if (pEntry) {
-    code = tSimpleHashPut(pEntry->pAlterPrevVers, &uid, sizeof(tb_uid_t), &prevVersion, sizeof(int64_t));
-    if (code != 0) {
-      vError("vgId:%d, vnodeTxnTrackAlter: failed to put alter record for uid:%" PRId64, TD_VID(pVnode), uid);
-    }
-    if (code == TSDB_CODE_SUCCESS) {
-      code = vnodeTxnTrackUid(pEntry, uid);
+    // DDL count limit per VNode (skip for replicated txns — taosX WAL replay)
+    if (!TXN_IS_REPLICATED(txnId) && pEntry->pTouchedUids &&
+        tSimpleHashGetSize(pEntry->pTouchedUids) >= TSDB_META_TXN_MAX_DDL_OPS_PER_VG) {
+      vError("vgId:%d, txnId:%" PRId64 " DDL op count %d >= limit %d, reject ALTER",
+             TD_VID(pVnode), txnId, tSimpleHashGetSize(pEntry->pTouchedUids), TSDB_META_TXN_MAX_DDL_OPS_PER_VG);
+      code = TSDB_CODE_TXN_TOO_MANY_DDL_OPS;
+    } else {
+      code = tSimpleHashPut(pEntry->pAlterPrevVers, &uid, sizeof(tb_uid_t), &prevVersion, sizeof(int64_t));
+      if (code != 0) {
+        vError("vgId:%d, vnodeTxnTrackAlter: failed to put alter record for uid:%" PRId64, TD_VID(pVnode), uid);
+      }
+      if (code == TSDB_CODE_SUCCESS) {
+        code = vnodeTxnTrackUid(pEntry, uid);
+      }
     }
     pEntry->lastActive = taosGetTimestampMs();
   }
