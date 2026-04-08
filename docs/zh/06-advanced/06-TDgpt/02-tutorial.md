@@ -4,7 +4,7 @@ sidebar_label: "安装部署"
 description: 使用 docker、云服务、安装包体验 TDgpt
 ---
 
-import PkgListV37 from "/components/PkgListV37";
+import PkgList from "/src/components/PkgList";
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
@@ -33,8 +33,8 @@ docker pull tdengine/tdgpt:latest
 
 或者特定版本的容器镜像：
 
-```shell
-docker pull tdengine/tdgpt:3.4.0.9
+```shell tdgpt
+docker pull tdengine/tdgpt:{{VERSION}}
 ```
 
 执行下面的命令启动容器：
@@ -42,7 +42,7 @@ docker pull tdengine/tdgpt:3.4.0.9
 ```shell
 docker run -d \
   -p 6035:6035 \
-  -p 6036:6036 \
+  -p 6061:6061 \
   tdengine/tdgpt:3.4.0.9
 ```
 
@@ -62,8 +62,8 @@ docker pull tdengine/tdgpt-full:latest
 
 或者指定版本的容器镜像：
 
-```shell
-docker pull tdengine/tdgpt-full:3.4.0.9
+```shell tdgpt
+docker pull tdengine/tdgpt-full:{{VERSION}}
 ```
 
 执行下面的命令启动容器：
@@ -72,12 +72,12 @@ docker pull tdengine/tdgpt-full:3.4.0.9
 docker run -d \
   --name tdgpt \
   -p 6035:6035 \
-  -p 6036:6036 \
-  -p 6037:6037 \
+  -p 6061:6061 \
+  -p 6062:6062 \
   tdengine/tdgpt-full:3.4.0.9
 ```
 
-**注意**：TDgpt 服务端使用 6035 TCP 端口。6036 和 6037 端口分别是时序基础模型 TDtsfm 的服务端口和 Time-MoE 的服务端口；
+**注意**：TDgpt 服务端使用 6035 TCP 端口。6061 和 6062 端口分别是时序基础模型 TDtsfm 的服务端口和 Time-MoE 的服务端口；从当前版本开始，Chronos、Moirai、TimesFM、Moment 等模型服务默认使用 6063-6066 端口，6067-6070 为预留模型服务端口。
 
 确定该容器已经启动并且在正常运行。
 
@@ -151,22 +151,22 @@ sudo apt install build-essential
 
 1. 从列表中下载获得 tar.gz 安装包
 
-   <PkgListV37 productName="TDengine TDgpt-OSS" version="3.4.0.9" platform="Linux-Generic" pkgType="Server"/>
+   <PkgList productName="TDengine TDgpt-OSS" platform="Linux-Generic" />
 
    安装包中包含两个时序基础模型：涛思时序基础模型（TDtsfm v1.0）和 Time-MoE 时序基础模型。两个基础时序模型启动时候需要一定的内存空间，请确保安装机器至少有 16GiB 可用内存。
   
 2. 进入到安装包所在目录，使用 tar 解压安装包；
 
-```bash
-tar -zxvf tdengine-tdgpt-oss-3.4.0.9-linux-x64.tar.gz
+```bash tdgpt
+tar -zxvf tdengine-tdgpt-oss-{{VERSION}}-linux-x64.tar.gz
 ```
 
 ### 执行安装脚本
 
 解压安装包后，进入目录执行其中的 `install.sh` 脚本进行安装。
 
-```bash
-cd tdengine-tdgpt-oss-3.4.0.9
+```bash tdgpt
+cd tdengine-tdgpt-oss-{{VERSION}}
 ./install.sh
 ```
 

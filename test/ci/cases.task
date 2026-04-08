@@ -227,6 +227,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_schema_is_old.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_show_tag.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_show_create.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_decimal.py
 #,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_tag_ref.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_nchar_length.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_validate_referencing.py
@@ -301,6 +302,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/02-Filter/test_filter_sma.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/02-Filter/test_filter_tag.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/02-Filter/test_filter_timestamp.py
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/02-Filter/test_scalar_invalid_type.py
 ## 03-GroupBy
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/03-GroupBy/test_query_groupby_alwaysreturn.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/03-GroupBy/test_query_groupby_basic.py
@@ -512,6 +514,9 @@
 ## 08-Window
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/08-Window/test_fun_win_fill_forward.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/08-Window/test_fun_win_keep_order.py
+
+## 09-NoFrom
+,,y,.,./ci/pytest.sh pytest cases/11-Functions/09-NoFrom/test_fun_no_from_all.py
 
 # 12-UDFs
 #,,y,.,./ci/pytest.sh pytest cases/12-UDFs/test_udf_c.py

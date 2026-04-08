@@ -741,6 +741,9 @@ static const char* jkRefColColId = "ColId";
 static const char* jkRefColDbName = "DbName";
 static const char* jkRefColTableName = "TableName";
 static const char* jkRefColColName = "ColName";
+static const char* jkSchemaExtColId = "ColId";
+static const char* jkSchemaExtCompress = "Compress";
+static const char* jkSchemaExtTypeMod = "TypeMod";
 
 static int32_t refColToJson(const void* pObj, SJson* pJson) {
   const SColRef* pCol = (const SColRef*)pObj;
@@ -782,12 +785,41 @@ static int32_t jsonToRefCol(const SJson* pJson, void* pObj) {
   return code;
 }
 
+static int32_t schemaExtToJson(const void* pObj, SJson* pJson) {
+  const SSchemaExt* pSchemaExt = (const SSchemaExt*)pObj;
+
+  int32_t code = tjsonAddIntegerToObject(pJson, jkSchemaExtColId, pSchemaExt->colId);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkSchemaExtCompress, pSchemaExt->compress);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkSchemaExtTypeMod, pSchemaExt->typeMod);
+  }
+
+  return code;
+}
+
+static int32_t jsonToSchemaExt(const SJson* pJson, void* pObj) {
+  SSchemaExt* pSchemaExt = (SSchemaExt*)pObj;
+
+  int32_t code = tjsonGetSmallIntValue(pJson, jkSchemaExtColId, &pSchemaExt->colId);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetUIntValue(pJson, jkSchemaExtCompress, &pSchemaExt->compress);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetIntValue(pJson, jkSchemaExtTypeMod, &pSchemaExt->typeMod);
+  }
+
+  return code;
+}
+
 static const char* jkTableMetaVgId = "VgId";
 static const char* jkTableMetaTableType = "TableType";
 static const char* jkTableMetaUid = "Uid";
 static const char* jkTableMetaSuid = "Suid";
 static const char* jkTableMetaColRefNum = "ColRefNum";
 static const char* jkTableMetaRefCols = "RefCols";
+static const char* jkTableMetaSchemaExts = "SchemaExts";
 static const char* jkTableMetaSversion = "Sversion";
 static const char* jkTableMetaTversion = "Tversion";
 static const char* jkTableMetaRversion = "Rversion";
@@ -813,6 +845,10 @@ static int32_t tableMetaToJson(const void* pObj, SJson* pJson) {
   if (TSDB_CODE_SUCCESS == code && pNode->numOfColRefs > 0 && pNode->colRef) {
     code = tjsonAddArray(pJson, jkTableMetaRefCols, refColToJson, pNode->colRef, sizeof(SColRef), pNode->numOfColRefs);
   }
+  if (TSDB_CODE_SUCCESS == code && pNode->schemaExt) {
+    code = tjsonAddArray(pJson, jkTableMetaSchemaExts, schemaExtToJson, pNode->schemaExt, sizeof(SSchemaExt),
+                         pNode->tableInfo.numOfColumns);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkTableMetaSversion, pNode->sversion);
   }
@@ -835,6 +871,10 @@ static int32_t tableMetaToJson(const void* pObj, SJson* pJson) {
 
 static int32_t jsonToTableMeta(const SJson* pJson, void* pObj) {
   STableMeta* pNode = (STableMeta*)pObj;
+  SJson*      pJsonSchemaExt = tjsonGetObjectItem(pJson, jkTableMetaSchemaExts);
+  SJson*      pJsonRefCols = tjsonGetObjectItem(pJson, jkTableMetaRefCols);
+  int32_t     schemaExtNum = (NULL == pJsonSchemaExt) ? 0 : tjsonGetArraySize(pJsonSchemaExt);
+  int32_t     colRefNum = (NULL == pJsonRefCols) ? 0 : tjsonGetArraySize(pJsonRefCols);
 
   int32_t code;
   tjsonGetNumberValue(pJson, jkTableMetaVgId, pNode->vgId, code);
@@ -865,10 +905,22 @@ static int32_t jsonToTableMeta(const SJson* pJson, void* pObj) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonToArray(pJson, jkTableMetaColSchemas, jsonToSchema, pNode->schema, sizeof(SSchema));
   }
-  if (TSDB_CODE_SUCCESS == code && pNode->numOfColRefs > 0) {
-    pNode->colRef = (SColRef*)((char*)(pNode + 1) + TABLE_TOTAL_COL_NUM(pNode) * sizeof(SSchema));
-    code = tjsonToArray(pJson, jkTableMetaRefCols, jsonToRefCol, pNode->colRef, sizeof(SColRef));
+  if (TSDB_CODE_SUCCESS == code) {
+    pNode->schemaExt = schemaExtNum > 0 ? (SSchemaExt *)((char *)pNode + TABLE_META_BASE_SIZE(pNode)) : NULL;
+    if (NULL != pNode->schemaExt) {
+      code = tjsonToArray(pJson, jkTableMetaSchemaExts, jsonToSchemaExt, pNode->schemaExt, sizeof(SSchemaExt));
+    }
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    pNode->colRef = colRefNum > 0
+                        ? (SColRef *)((char *)pNode + TABLE_META_BASE_SIZE(pNode) + TABLE_META_SCHEMA_EXT_SIZE(pNode))
+                        : NULL;
+    if (NULL != pNode->colRef) {
+      code = tjsonToArray(pJson, jkTableMetaRefCols, jsonToRefCol, pNode->colRef, sizeof(SColRef));
+    }
+  }
+  pNode->tagRef = NULL;
+  pNode->numOfTagRefs = 0;
 
   return code;
 }
@@ -6240,7 +6292,7 @@ static int32_t realTableNodeToJson(const void* pObj, SJson* pJson) {
 
   int32_t code = tableNodeToJson(pObj, pJson);
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddIntegerToObject(pJson, jkRealTableMetaSize, TABLE_META_SIZE(pNode->pMeta));
+    code = tjsonAddIntegerToObject(pJson, jkRealTableMetaSize, TABLE_META_FULL_SIZE(pNode->pMeta));
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkRealTableMeta, tableMetaToJson, pNode->pMeta);
@@ -6370,7 +6422,7 @@ static int32_t virtualTableNodeToJson(const void* pObj, SJson* pJson) {
 
   int32_t code = tableNodeToJson(pObj, pJson);
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddIntegerToObject(pJson, jkVirtualTableMetaSize, TABLE_META_SIZE(pNode->pMeta));
+    code = tjsonAddIntegerToObject(pJson, jkVirtualTableMetaSize, TABLE_META_FULL_SIZE(pNode->pMeta));
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkVirtuaTableMeta, tableMetaToJson, pNode->pMeta);
@@ -6423,7 +6475,7 @@ static int32_t placeHolderTableNodeToJson(const void* pObj, SJson* pJson) {
 
   int32_t code = tableNodeToJson(pObj, pJson);
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddIntegerToObject(pJson, jkPlaceHolderTableMetaSize, TABLE_META_SIZE(pNode->pMeta));
+    code = tjsonAddIntegerToObject(pJson, jkPlaceHolderTableMetaSize, TABLE_META_FULL_SIZE(pNode->pMeta));
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkPlaceHolderTableMeta, tableMetaToJson, pNode->pMeta);
@@ -9298,15 +9350,31 @@ static int32_t jsonToDropDnodeStmt(const SJson* pJson, void* pObj) {
 }
 
 static const char* jkRestoreComponentNodeStmtDnodeId = "DnodeId";
+static const char* jkRestoreComponentNodeStmtVgId = "VgId";
 
 static int32_t restoreComponentNodeStmtToJson(const void* pObj, SJson* pJson) {
   const SRestoreComponentNodeStmt* pNode = (const SRestoreComponentNodeStmt*)pObj;
-  return tjsonAddIntegerToObject(pJson, jkRestoreComponentNodeStmtDnodeId, pNode->dnodeId);
+
+  int32_t code = tjsonAddIntegerToObject(pJson, jkRestoreComponentNodeStmtDnodeId, pNode->dnodeId);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkRestoreComponentNodeStmtVgId, pNode->vgId);
+  }
+  return code;
 }
 
 static int32_t jsonToRestoreComponentNodeStmt(const SJson* pJson, void* pObj) {
   SRestoreComponentNodeStmt* pNode = (SRestoreComponentNodeStmt*)pObj;
-  return tjsonGetIntValue(pJson, jkRestoreComponentNodeStmtDnodeId, &pNode->dnodeId);
+
+  // vgId is an optional extension, default to 0 if not present in JSON
+  pNode->vgId = 0;
+  int32_t code = tjsonGetIntValue(pJson, jkRestoreComponentNodeStmtDnodeId, &pNode->dnodeId);
+  if (TSDB_CODE_SUCCESS == code) {
+    const SJson* pVgIdJson = tjsonGetObjectItem(pJson, jkRestoreComponentNodeStmtVgId);
+    if (pVgIdJson != NULL) {
+      code = tjsonGetIntValue(pJson, jkRestoreComponentNodeStmtVgId, &pNode->vgId);
+    }
+  }
+  return code;
 }
 
 static int32_t jsonToRestoreDnodeStmt(const SJson* pJson, void* pObj) {

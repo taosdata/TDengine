@@ -5985,6 +5985,7 @@ int32_t tSerializeSRestoreDnodeReq(void *buf, int32_t bufLen, SRestoreDnodeReq *
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->dnodeId));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->restoreType));
   ENCODESQL();
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->vgId));
   tEndEncode(&encoder);
 
 _exit:
@@ -6007,6 +6008,11 @@ int32_t tDeserializeSRestoreDnodeReq(void *buf, int32_t bufLen, SRestoreDnodeReq
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->dnodeId));
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->restoreType));
   DECODESQL();
+  pReq->vgId = 0;
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->vgId));
+  }
+
   tEndDecode(&decoder);
 
 _exit:
@@ -15469,7 +15475,9 @@ int32_t tEncodeSVAlterTbReq(SEncoder *pEncoder, const SVAlterTbReq *pReq) {
   }
   TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pReq->ctimeMs));
   TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pReq->source));
-  if (pReq->action == TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COMPRESS_OPTION || pReq->action == TSDB_ALTER_TABLE_ADD_COLUMN) {
+  if (pReq->action == TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COMPRESS_OPTION ||
+      pReq->action == TSDB_ALTER_TABLE_ADD_COLUMN ||
+      pReq->action == TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COLUMN_REF) {
     TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pReq->typeMod));
   }
 
@@ -15782,7 +15790,9 @@ int32_t tDecodeSVAlterTbReq(SDecoder *pDecoder, SVAlterTbReq *pReq) {
   if (!tDecodeIsEnd(pDecoder)) {
     TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pReq->source));
   }
-  if (pReq->action == TSDB_ALTER_TABLE_ADD_COLUMN || pReq->action == TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COMPRESS_OPTION) {
+  if (pReq->action == TSDB_ALTER_TABLE_ADD_COLUMN ||
+      pReq->action == TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COMPRESS_OPTION ||
+      pReq->action == TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COLUMN_REF) {
     if (!tDecodeIsEnd(pDecoder)) {
       TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pReq->typeMod));
     }

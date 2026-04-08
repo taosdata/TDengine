@@ -25,7 +25,7 @@ TDengine TSDB 3.3.7.0 及以上版本请访问[下载中心](https://taosdata.co
 
 TDengine TSDB 3.x 各版本安装包下载链接如下：
 
-import Release from "/components/ReleaseV3";
+import Release from "/src/components/Release";
 
 ## 3.3.6.13
 

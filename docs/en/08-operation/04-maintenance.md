@@ -1,13 +1,12 @@
 ---
 title: Maintaining Your Cluster
-slug: /operations-and-maintenance/maintain-your-cluster
 ---
 
 This section introduces advanced cluster maintenance methods provided in TDengine Enterprise, which can make the TDengine cluster run more robustly and efficiently over the long term.
 
 ## Node Management
 
-For how to manage cluster nodes, please refer to [Node Management](../../tdengine-reference/sql-manual/manage-nodes/)
+For how to manage cluster nodes, please refer to [Node Management](../14-reference/03-taos-sql/70-node.md)
 
 ## Data Reorganization
 
@@ -90,6 +89,7 @@ If the data on a data node (dnode) in the cluster is completely lost or damaged,
 restore dnode <dnode_id>; # Restore mnode, all vnodes, and qnode on dnode
 restore mnode on dnode <dnode_id>; # Restore mnode on dnode
 restore vnode on dnode <dnode_id>; # Restore all vnodes on dnode
+restore vnode on dnode <dnode_id> on vgroup <vgroup_id>; # Restore one vnode on dnode
 restore qnode on dnode <dnode_id>; # Restore qnode on dnode
 ```
 
@@ -132,7 +132,7 @@ Current limitations:
 - `wal` repair targets currently do not support `strategy`.
 - The default TSDB strategy `drop_invalid_only` only handles missing-file style damage; size-mismatch recovery requires an explicit deep strategy such as `head_only_rebuild` or `full_rebuild`.
 
-For the complete CLI grammar, supported keys, default strategies, and more examples, see [taosd Reference](../../tdengine-reference/components/taosd/).
+For the complete CLI grammar, supported keys, default strategies, and more examples, see [taosd Reference](../14-reference/01-components/01-taosd.md).
 
 ## Splitting Virtual Groups
 

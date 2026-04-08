@@ -208,7 +208,7 @@ def create_manifest_lines(
     extra_venvs: Iterable[Path],
 ) -> str:
     lines = [
-        "TDgpt offline bundle manifest",
+        "TDgpt offline assets manifest",
         "",
         f"runtime={runtime_dir}",
         f"main_venv={main_venv_dir}",
@@ -284,7 +284,7 @@ def build_bundle(
 
         manifest = create_manifest_lines(seed_package, runtime_dir, main_venv_dir, extra_venvs)
         data = manifest.encode("utf-8")
-        info("Adding bundle manifest")
+        info("Adding offline assets manifest")
         manifest_info = tarfile.TarInfo(name="offline-assets-manifest.txt")
         manifest_info.size = len(data)
         tar_obj.addfile(manifest_info, io.BytesIO(data))
@@ -299,7 +299,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output-file",
         required=True,
-        help="Output tar path, for example D:\\tdgpt-pkg-test\\deliverables\\full-package\\tdgpt-offline-full-bundle-win-x64.tar",
+        help="Output tar path, for example D:\\tdgpt-pkg-test\\deliverables\\full-package\\tdengine-tdgpt-offline-assets-3.4.1.0.0325-windows-x64.tar",
     )
     parser.add_argument(
         "--seed-package",
@@ -356,7 +356,7 @@ def main() -> int:
 
         bundle_path = build_bundle(output_file, seed_package, runtime_dir, main_venv_dir, extra_venvs)
 
-    ok(f"Offline bundle created: {bundle_path}")
+    ok(f"Offline assets package created: {bundle_path}")
     return 0
 
 

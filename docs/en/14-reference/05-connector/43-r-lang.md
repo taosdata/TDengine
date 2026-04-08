@@ -1,7 +1,6 @@
 ---
 sidebar_label: R
 title: R Client Library
-slug: /tdengine-reference/client-libraries/r-lang
 ---
 
 import Tabs from '@theme/Tabs';
