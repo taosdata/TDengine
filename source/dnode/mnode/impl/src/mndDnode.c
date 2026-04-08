@@ -468,6 +468,22 @@ int32_t mndGetDnodeData(SMnode *pMnode, SArray *pDnodeInfo) {
     return err;                                                                                          \
   }
 
+/*
+ * Get the mnode's current local UTC offset for timezone alias checks.
+ */
+static int32_t mndGetCurrentTimezoneCheckTime(int64_t *pCheckTime) {
+  int32_t code = 0;
+  int64_t checkTime = (int64_t)taosGetLocalTimezoneOffset(&code);
+  if (code != 0) {
+    mError("failed to get current local timezone offset since %s", tstrerror(code));
+    terrno = code;
+    return code;
+  }
+
+  *pCheckTime = checkTime;
+  return 0;
+}
+
 static int32_t mndCheckClusterCfgPara(SMnode *pMnode, SDnodeObj *pDnode, const SClusterCfg *pCfg) {
   CHECK_MONITOR_PARA(tsEnableMonitor, DND_REASON_STATUS_MONITOR_SWITCH_NOT_MATCH);
   CHECK_MONITOR_PARA(tsMonitorInterval, DND_REASON_STATUS_MONITOR_INTERVAL_NOT_MATCH);
@@ -491,11 +507,18 @@ static int32_t mndCheckClusterCfgPara(SMnode *pMnode, SDnodeObj *pDnode, const S
   }
   */
 
-  if ((0 != taosStrcasecmp(pCfg->timezone, tsTimezoneStr)) && (pMnode->checkTime != pCfg->checkTime)) {
-    mError("dnode:%d, timezone:%s checkTime:%" PRId64 " inconsistent with cluster %s %" PRId64, pDnode->id,
-           pCfg->timezone, pCfg->checkTime, tsTimezoneStr, pMnode->checkTime);
-    terrno = TSDB_CODE_DNODE_INVALID_TIMEZONE;
-    return DND_REASON_TIME_ZONE_NOT_MATCH;
+  if (0 != taosStrcasecmp(pCfg->timezone, tsTimezoneStr)) {
+    int64_t currentCheckTime = 0;
+    if (mndGetCurrentTimezoneCheckTime(&currentCheckTime) != 0) {
+      return DND_REASON_TIME_ZONE_NOT_MATCH;
+    }
+
+    if (currentCheckTime != pCfg->checkTime) {
+      mError("dnode:%d, timezone:%s checkTime:%" PRId64 " inconsistent with cluster %s %" PRId64, pDnode->id,
+             pCfg->timezone, pCfg->checkTime, tsTimezoneStr, currentCheckTime);
+      terrno = TSDB_CODE_DNODE_INVALID_TIMEZONE;
+      return DND_REASON_TIME_ZONE_NOT_MATCH;
+    }
   }
 
   if (0 != taosStrcasecmp(pCfg->locale, tsLocale)) {
