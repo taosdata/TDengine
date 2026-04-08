@@ -3780,7 +3780,7 @@ mod tests {
 
             let errstr = tmq_err2str(code);
             let errstr = CStr::from_ptr(errstr).to_str().unwrap();
-            assert!(errstr.contains("init tscObj with token failed"));
+            assert!(errstr.contains("Invalid token"));
 
             tmq_conf_destroy(conf);
             tmq_list_destroy(list);

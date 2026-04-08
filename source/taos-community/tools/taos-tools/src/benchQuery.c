@@ -290,7 +290,7 @@ static void *specQueryThread(void *sarg) {
 
 // super table query thread
 static void *stbQueryThread(void *sarg) {
-    char *sqlstr = benchCalloc(1, TSDB_MAX_ALLOWED_SQL_LEN, false);
+    char *sqlstr = benchCalloc(1, TOOLS_MAX_ALLOWED_SQL_LEN, false);
     qThreadInfo *pThreadInfo = (qThreadInfo *)sarg;
 #ifdef LINUX
     prctl(PR_SET_NAME, "stbQueryThread");
@@ -332,7 +332,7 @@ static void *stbQueryThread(void *sarg) {
 
             // for each sql
             for (int j = 0; j < g_queryInfo.superQueryInfo.sqlCount; j++) {
-                memset(sqlstr, 0, TSDB_MAX_ALLOWED_SQL_LEN);
+                memset(sqlstr, 0, TOOLS_MAX_ALLOWED_SQL_LEN);
                 // use cancel
                 if(g_arguments->terminate) {
                     infoPrint("%s\n", "user cancel , so exit testing.");

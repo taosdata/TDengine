@@ -1,6 +1,5 @@
 ---
 title: Advanced Security Options
-slug: /operations-and-maintenance/advanced-security-options
 ---
 
 import Enterprise from '../assets/resources/_enterprise.mdx';

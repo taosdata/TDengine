@@ -1,19 +1,17 @@
 #include "ColumnsCSVReader.hpp"
+#include "CsvNullUtils.hpp"
 #include "FilePathResolver.hpp"
 #include "LogUtils.hpp"
-#include "StringUtils.hpp"
 #include "TypeConverter.hpp"
 #include "TimestampUtils.hpp"
 #include <stdexcept>
 #include <algorithm>
 #include <sstream>
-#include <cctype>
 #include <charconv>
 #include <cmath>
 #include <locale>
 #include <memory>
 #include <string>
-#include <string_view>
 #include <iomanip>
 #include <unordered_map>
 #include <cctz/civil_time.h>
@@ -233,7 +231,13 @@ std::unordered_map<std::string, TableData> ColumnsCSVReader::generate() const {
                     if (instances_) {
                         // Use provided column types
                         const ColumnConfigInstance& instance = (*instances_)[index];
-                        data_row.push_back(convert_to_type(row[col_idx], instance.config().type_tag));
+                        ColumnTypeTag type_tag = instance.config().type_tag;
+                        if ((ColumnTypeTraits::is_numeric(type_tag) || type_tag == ColumnTypeTag::BOOL)
+                            && CsvNullUtils::is_null_text(row[col_idx])) {
+                            data_row.push_back(std::monostate{});
+                        } else {
+                            data_row.push_back(convert_to_type(row[col_idx], type_tag));
+                        }
                         index++;
                     } else {
                         // Default as string

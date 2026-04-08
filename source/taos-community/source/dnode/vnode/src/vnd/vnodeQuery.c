@@ -35,7 +35,7 @@ void vnodeQueryClose(SVnode *pVnode) { qWorkerDestroy((void **)&pVnode->pQuery);
 
 int32_t fillTableColCmpr(SMetaReader *reader, SSchemaExt *pExt, int32_t numOfCol) {
   int8_t tblType = reader->me.type;
-  if (withExtSchema(tblType)) {
+  if (withColCompress(tblType)) {
     SColCmprWrapper *p = &(reader->me.colCmpr);
     if (numOfCol != p->nCols) {
       vError("fillTableColCmpr table type:%d, col num:%d, col cmpr num:%d mismatch", tblType, numOfCol, p->nCols);
@@ -236,13 +236,17 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
     (void)memcpy(metaRsp.pSchemas + schema.nCols, schemaTag.pSchema, sizeof(SSchema) * schemaTag.nCols);
   }
   if (metaRsp.pSchemaExt) {
-    SMetaReader *pReader = mer1.me.type == TSDB_CHILD_TABLE ? &mer2 : &mer1;
+    SMetaReader *pReader =
+        (mer1.me.type == TSDB_CHILD_TABLE || mer1.me.type == TSDB_VIRTUAL_CHILD_TABLE) ? &mer2 : &mer1;
     code = fillTableColCmpr(pReader, metaRsp.pSchemaExt, metaRsp.numOfColumns);
     if (code < 0) {
       goto _exit;
     }
-    for (int32_t i = 0; i < metaRsp.numOfColumns && pReader->me.pExtSchemas; i++) {
-      metaRsp.pSchemaExt[i].typeMod = pReader->me.pExtSchemas[i].typeMod;
+    for (int32_t i = 0; i < metaRsp.numOfColumns; i++) {
+      metaRsp.pSchemaExt[i].colId = schema.pSchema[i].colId;
+      if (pReader->me.pExtSchemas) {
+        metaRsp.pSchemaExt[i].typeMod = pReader->me.pExtSchemas[i].typeMod;
+      }
     }
   } else {
     code = TSDB_CODE_OUT_OF_MEMORY;
@@ -435,7 +439,7 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   cfgRsp.numOfColumns = schema.nCols;
   cfgRsp.virtualStb = false; // vnode don't have super table, so it's always false
   cfgRsp.pSchemas = (SSchema *)taosMemoryMalloc(sizeof(SSchema) * (cfgRsp.numOfColumns + cfgRsp.numOfTags));
-  cfgRsp.pSchemaExt = (SSchemaExt *)taosMemoryMalloc(cfgRsp.numOfColumns * sizeof(SSchemaExt));
+  cfgRsp.pSchemaExt = (SSchemaExt *)taosMemoryCalloc(cfgRsp.numOfColumns, sizeof(SSchemaExt));
   cfgRsp.pColRefs = (SColRef *)taosMemoryMalloc(sizeof(SColRef) * cfgRsp.numOfColumns);
   cfgRsp.numOfTagRefs = 0;
   cfgRsp.pTagRefs = NULL;
@@ -449,20 +453,21 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
     (void)memcpy(cfgRsp.pSchemas + schema.nCols, schemaTag.pSchema, sizeof(SSchema) * schemaTag.nCols);
   }
 
-  SMetaReader     *pReader = (mer1.me.type == TSDB_CHILD_TABLE || mer1.me.type == TSDB_VIRTUAL_CHILD_TABLE) ? &mer2 : &mer1;
-  SColCmprWrapper *pColCmpr = &pReader->me.colCmpr;
-  SColRefWrapper  *pColRef = &mer1.me.colRef;
+  SMetaReader    *pReader = (mer1.me.type == TSDB_CHILD_TABLE || mer1.me.type == TSDB_VIRTUAL_CHILD_TABLE) ? &mer2 : &mer1;
+  SColRefWrapper *pColRef = &mer1.me.colRef;
 
   if (withExtSchema(cfgRsp.tableType)) {
+    code = fillTableColCmpr(pReader, cfgRsp.pSchemaExt, cfgRsp.numOfColumns);
+    if (code < 0) {
+      goto _exit;
+    }
+
     for (int32_t i = 0; i < cfgRsp.numOfColumns; i++) {
-      SColCmpr   *pCmpr = &pColCmpr->pColCmpr[i];
       SSchemaExt *pSchExt = cfgRsp.pSchemaExt + i;
-      pSchExt->colId = pCmpr->id;
-      pSchExt->compress = pCmpr->alg;
-      if (pReader->me.pExtSchemas)
+      pSchExt->colId = schema.pSchema[i].colId;
+      if (pReader->me.pExtSchemas) {
         pSchExt->typeMod = pReader->me.pExtSchemas[i].typeMod;
-      else
-        pSchExt->typeMod = 0;
+      }
     }
   }
 

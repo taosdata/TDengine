@@ -117,12 +117,80 @@ void test_generate_tags_default_tag_types() {
     std::cout << "test_generate_tags_default_tag_types passed\n";
 }
 
+void test_generate_tags_numeric_null_literals() {
+    TagsCSV config;
+    config.file_path = "tags_null_literals.csv";
+    config.has_header = true;
+
+    std::ofstream test_file("tags_null_literals.csv");
+    test_file << "id,region,score\n";
+    test_file << "NA,North,100\n";
+    test_file << "NULL,South,90\n";
+    test_file << ",West,80\n";
+    test_file.close();
+
+    ColumnConfigVector tag_configs = {
+        {"id", "int"},
+        {"region", "varchar(20)"},
+        {"score", "int"}
+    };
+    auto instances = ColumnConfigInstanceFactory::create(tag_configs);
+
+    TagsCSVReader tags_csv(config, instances);
+    auto tags = tags_csv.generate();
+
+    assert(tags.size() == 3 && "Expected 3 rows of tags");
+    assert(std::holds_alternative<std::monostate>(tags[0][0]));
+    assert(std::holds_alternative<std::monostate>(tags[1][0]));
+    assert(std::holds_alternative<std::monostate>(tags[2][0]));
+
+    assert(std::get<std::string>(tags[0][1]) == "North");
+    assert(std::get<int32_t>(tags[0][2]) == 100);
+
+    std::remove("tags_null_literals.csv");
+    std::cout << "test_generate_tags_numeric_null_literals passed\n";
+}
+
+void test_generate_tags_bool_null_literals() {
+    TagsCSV config;
+    config.file_path = "tags_bool_null_literals.csv";
+    config.has_header = true;
+
+    std::ofstream test_file("tags_bool_null_literals.csv");
+    test_file << "enabled,region\n";
+    test_file << ",North\n";
+    test_file << "NULL,South\n";
+    test_file << "NA,West\n";
+    test_file.close();
+
+    ColumnConfigVector tag_configs = {
+        {"enabled", "bool"},
+        {"region", "varchar(20)"}
+    };
+    auto instances = ColumnConfigInstanceFactory::create(tag_configs);
+
+    TagsCSVReader tags_csv(config, instances);
+    auto tags = tags_csv.generate();
+
+    assert(tags.size() == 3 && "Expected 3 rows of tags");
+    assert(std::holds_alternative<std::monostate>(tags[0][0]));
+    assert(std::holds_alternative<std::monostate>(tags[1][0]));
+    assert(std::holds_alternative<std::monostate>(tags[2][0]));
+
+    assert(std::get<std::string>(tags[0][1]) == "North");
+
+    std::remove("tags_bool_null_literals.csv");
+    std::cout << "test_generate_tags_bool_null_literals passed\n";
+}
+
 int main() {
     test_validate_config_empty_file_path();
     test_validate_config_mismatched_tag_types();
     test_generate_tags_valid_csv();
     test_generate_tags_excluded_columns();
     test_generate_tags_default_tag_types();
+    test_generate_tags_numeric_null_literals();
+    test_generate_tags_bool_null_literals();
 
     std::cout << "All tests passed!\n";
     return 0;

@@ -2,7 +2,6 @@
 toc_max_heading_level: 4
 sidebar_label: C/C++
 title: C/C++ Client Library
-slug: /tdengine-reference/client-libraries/cpp
 ---
 
 C/C++ developers can use the TDengine client driver (i.e., C/C++ connector) to develop their own applications to connect to the TDengine cluster to complete data storage, query, and other functions. The API of the TDengine client driver is similar to the C API of MySQL. When using the application, it is necessary to include the TDengine header file, which lists the function prototypes of the provided API; the application must also link to the corresponding dynamic library on the platform.
@@ -62,7 +61,7 @@ TAOS *taos = taos_connect(ip, user, password, database, port);
 
 ## Supported Platforms
 
-TDengine client driver supports multiple platforms. For a list of supported platforms, please refer to: [Supported Platforms List](../#supported-platforms)
+TDengine client driver supports multiple platforms. For a list of supported platforms, please refer to: [Supported Platforms List](index.md#supported-platforms)
 
 ## Version Description
 
@@ -78,7 +77,7 @@ The version number of the TDengine client driver strictly corresponds to the ver
 
 ## Error Codes
 
-Please refer to: [Error Codes](../../error-codes/).
+Please refer to: [Error Codes](../09-error-code.md).
 
 ## Example Program
 
@@ -695,7 +694,7 @@ The specific functions related to the interface are as follows (you can also ref
 
 ### Schemaless Insert
 
-In addition to using SQL or parameter binding APIs to insert data, you can also use a Schemaless method for insertion. Schemaless allows you to insert data without having to pre-create the structure of supertables/subtables. The TDengine system will automatically create and maintain the required table structure based on the data content written. For more details on how to use Schemaless, see the [Schemaless Insert](../../../developer-guide/schemaless-ingestion/) section. Here, we introduce the accompanying C/C++ API.
+In addition to using SQL or parameter binding APIs to insert data, you can also use a Schemaless method for insertion. Schemaless allows you to insert data without having to pre-create the structure of supertables/subtables. The TDengine system will automatically create and maintain the required table structure based on the data content written. For more details on how to use Schemaless, see the [Schemaless Insert](../../07-develop/04-schemaless.md) section. Here, we introduce the accompanying C/C++ API.
 
 - `TAOS_RES* taos_schemaless_insert(TAOS* taos, const char* lines[], int numLines, int protocol, int precision)`
 

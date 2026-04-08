@@ -1,6 +1,5 @@
 ---
 title: Inside TDengine
-slug: /inside-tdengine
 ---
 
 import DocCardList from '@theme/DocCardList';
