@@ -3282,17 +3282,11 @@ int64_t queryDbForDumpOutCountNative(
 
     TAOS_ROW row = taos_fetch_row(res);
     if (NULL == row) {
-        if (0 == taos_errno(res)) {
-            count = 0;
-            debugPrint("%s fetch row null, count: %" PRId64 "\n",
-                    command, count);
-        } else {
-            count = -1;
-            errorPrint("%s() LN%d, failed run %s to fetch row, taos: %p, "
-                    "code: 0x%08x, reason: %s\n",
-                    __func__, __LINE__,
-                    command, taos, code, taos_errstr(res));
-        }
+        count = -1;
+        errorPrint("%s() LN%d, failed run %s to fetch row, taos: %p, "
+                "code: 0x%08x, reason: %s\n",
+                __func__, __LINE__,
+                command, taos, code, taos_errstr(res));
     } else {
         count = *(int64_t*)row[TSDB_SHOW_TABLES_NAME_INDEX];
         debugPrint("%s fetch row successfully, count: %" PRId64 "\n",
@@ -3710,6 +3704,7 @@ static int64_t writeResultToAvro(
                 errorPrint("%s() LN%d, avro_value_get_by_name(tbname) "
                         "failed dbName=%s tbName=%s\n",
                         __func__, __LINE__, dbName, tbName);
+                hasError = true;
                 avro_value_decref(&record);
                 break;
             }
@@ -3717,16 +3712,31 @@ static int64_t writeResultToAvro(
             avro_value_set_string(&branch, outName);
         }
 
+        bool rowHasError = false;
+
         // loop col for row
         for (int32_t col = 0; col < numFields; col++) {
-            processValueToAvro(col,
+            if (0 != processValueToAvro(col,
                     record,
                     avro_value, branch,
                     fields[col].name,
                     fields[col].type,
                     fields[col].bytes,
                     row[col],
-                    lengths[col]);
+                    lengths[col])) {
+                errorPrint("%s() LN%d, failed to process field before avro write. "
+                        "dbName=%s tbName=%s col=%d field=%s\n",
+                        __func__, __LINE__, dbName, tbName, col, fields[col].name);
+                hasError = true;
+                rowHasError = true;
+                break;
+            }
+        }
+
+        if (rowHasError) {
+            failed++;
+            avro_value_decref(&record);
+            continue;
         }
 
         if (0 != avro_file_writer_append_value(db, &record)) {
@@ -3734,7 +3744,8 @@ static int64_t writeResultToAvro(
                     "Unable to write record to file. Message: %s dbName=%s tbName=%s\n",
                     __func__, __LINE__,
                     avro_strerror(), dbName, tbName);
-            failed--;
+            failed++;
+            hasError = true;
         } else {
             success++;
         }
