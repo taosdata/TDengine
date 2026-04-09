@@ -177,7 +177,7 @@ static void* backTagThread(void *arg) {
     }
 
     code = queryWriteBinary(thread->conn, sql, format, fileName, NULL, &g_progress.ctbDoneCur);
-    if (code != TSDB_CODE_SUCCESS) {
+    if (code != TSDB_CODE_SUCCESS && !g_interrupted) {
         logError("query write binary failed. sql=%s, format=%d file=%s", sql, format, fileName);
     }
     thread->code = code;
@@ -372,7 +372,7 @@ static int backVstbChildTags(DBInfo *dbInfo, StbInfo *stbInfo) {
     code = queryWriteBinary(conn, sql, format, vttagFile, NULL, NULL);
     releaseConnection(conn);
 
-    if (code != TSDB_CODE_SUCCESS) {
+    if (code != TSDB_CODE_SUCCESS && !g_interrupted) {
         logError("backup vtable tags failed(%d): %s.%s", code, dbName, stbName);
     }
     return code;

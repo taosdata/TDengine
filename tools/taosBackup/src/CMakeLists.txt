@@ -87,6 +87,10 @@ ENDIF ()
 # The three static archives produced are:
 #   libparquet.a  libarrow.a  libarrow_bundled_dependencies.a
 
+# AVRO compatibility module
+ADD_SUBDIRECTORY(${CMAKE_CURRENT_SOURCE_DIR}/../compatible
+                 ${CMAKE_CURRENT_BINARY_DIR}/compatible)
+
 # include
 INCLUDE_DIRECTORIES(${CMAKE_BINARY_DIR}/build/include)
 INCLUDE_DIRECTORIES(../inc)
@@ -194,6 +198,11 @@ endif()
 
 # link taos
 TARGET_LINK_LIBRARIES(taosBackup PRIVATE taos)
+
+# link AVRO compatibility module
+TARGET_LINK_LIBRARIES(taosBackup PRIVATE compatAvro)
+target_include_directories(taosBackup PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../compatible)
+target_compile_definitions(taosBackup PRIVATE COMPAT_AVRO_ENABLED)
 
 if(TD_WINDOWS)
     # Windows: link standard system libraries needed by TDengine client

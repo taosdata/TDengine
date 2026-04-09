@@ -14,6 +14,10 @@
 #include "restoreData.h"
 #include "bckProgress.h"
 
+#ifdef COMPAT_AVRO_ENABLED
+#include "compatAvro.h"
+#endif
+
 //
 // -------------------------------------- UTIL -----------------------------------------
 //
@@ -29,6 +33,20 @@
 //
 static int restoreDatabase(const char *dbName) {
     int code = TSDB_CODE_FAILED;
+
+#ifdef COMPAT_AVRO_ENABLED
+    // Check if this is a taosdump AVRO backup directory
+    char avroDbPath[MAX_PATH_LEN];
+    snprintf(avroDbPath, sizeof(avroDbPath), "%s/%s", argOutPath(), dbName);
+    if (isAvroBackupDir(avroDbPath)) {
+        logInfo("detected taosdump AVRO format for db: %s", dbName);
+        code = restoreAvroDatabase(avroDbPath);
+        if (code != 0) {
+            logError("AVRO restore failed for db: %s, code: 0x%08X", dbName, code);
+        }
+        return code;
+    }
+#endif
 
     // meta: create db, create stb, create child tables with tags
     code = restoreDatabaseMeta(dbName);
@@ -78,10 +96,19 @@ static char** scanBackupDatabases(int *count) {
         char *entryName = taosGetDirEntryName(entry);
         if (entryName[0] == '.') continue;
 
-        // check if it's a directory containing db.sql
+        // check if it's a directory containing db.sql (taosBackup) or dbs.sql (taosdump AVRO)
         char dbSqlPath[MAX_PATH_LEN];
         snprintf(dbSqlPath, sizeof(dbSqlPath), "%s/%s/db.sql", outPath, entryName);
-        if (!taosCheckExistFile(dbSqlPath)) continue;
+        bool hasDbSql = taosCheckExistFile(dbSqlPath);
+
+#ifdef COMPAT_AVRO_ENABLED
+        if (!hasDbSql) {
+            snprintf(dbSqlPath, sizeof(dbSqlPath), "%s/%s/dbs.sql", outPath, entryName);
+            hasDbSql = taosCheckExistFile(dbSqlPath);
+        }
+#endif
+
+        if (!hasDbSql) continue;
 
         if (*count >= capacity) {
             capacity *= 2;
@@ -104,6 +131,16 @@ static char** scanBackupDatabases(int *count) {
 
 int restoreMain() {
     int code = TSDB_CODE_FAILED;
+
+#ifdef COMPAT_AVRO_ENABLED
+    // Check if outpath itself is a taosdump AVRO directory (single-db export)
+    char *outPath0 = argOutPath();
+    if (isAvroBackupDir(outPath0)) {
+        logInfo("detected taosdump AVRO format at top-level: %s", outPath0);
+        code = restoreAvroDatabase(outPath0);
+        return code;
+    }
+#endif
 
     // get backup databases to restore
     char **backDB = argBackDB();
