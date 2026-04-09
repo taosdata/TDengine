@@ -1004,13 +1004,14 @@ int32_t mndProcessDnodeCompactProgressRsp(SRpcMsg *pReq) {
 
   if (pReq->code != 0) {
     mError("received dnode compact progress rsp with error: %s", tstrerror(pReq->code));
-    TAOS_RETURN(pReq->code);
+    code = pReq->code;
+    goto _exit;
   }
 
   code = tDeserializeSDnodeQueryCompactProgressRsp(pReq->pCont, pReq->contLen, &rsp);
   if (code != 0) {
     mError("failed to deserialize dnode-query-compact-progress-rsp, code:%s", tstrerror(code));
-    TAOS_RETURN(code);
+    goto _exit;
   }
 
   mDebug("compact progress rsp from dnode:%d, numOfVnodes:%d", rsp.dnodeId, rsp.numOfVnodes);
@@ -1048,6 +1049,7 @@ int32_t mndProcessDnodeCompactProgressRsp(SRpcMsg *pReq) {
     }
   }
 
+_exit:
   tFreeSDnodeQueryCompactProgressRsp(&rsp);
   TAOS_RETURN(code);
 }

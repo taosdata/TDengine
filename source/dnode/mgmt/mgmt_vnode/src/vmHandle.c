@@ -1043,7 +1043,10 @@ int32_t vmProcessDnodeQueryCompactProgressReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) 
 
   for (int32_t i = 0; i < numOfVnodes; i++) {
     SVnodeObj *pVnode = ppVnodes[i];
-    if (pVnode == NULL || pVnode->failed || pVnode->pImpl == NULL) {
+    if (pVnode == NULL) {
+      continue;
+    }
+    if (pVnode->failed || pVnode->pImpl == NULL) {
       vmReleaseVnode(pMgmt, pVnode);
       continue;
     }
