@@ -18,6 +18,15 @@
 #include "vmInt.h"
 
 extern taos_counter_t *tsInsertCounter;
+// Provided by enterprise plugin (vnodeCompact.c); returns 0 and fills pRsp on success.
+// Community stub declared here so community build links without the symbol.
+__attribute__((weak)) int32_t vmCollectDnodeCompactProgress(SVnodeMgmt *pMgmt, int32_t compactId,
+                                                             SDnodeQueryCompactProgressRsp *pRsp) {
+  pRsp->dnodeId     = pMgmt->pData->dnodeId;
+  pRsp->numOfVnodes = 0;
+  pRsp->vnodeProgress = NULL;
+  return 0;
+}
 
 void vmGetVnodeLoads(SVnodeMgmt *pMgmt, SMonVloadInfo *pInfo, bool isReset) {
   pInfo->pVloads = taosArrayInit(pMgmt->state.totalVnodes, sizeof(SVnodeLoad));
@@ -1007,6 +1016,59 @@ _OVER:
   return terrno;
 }
 
+int32_t vmProcessDnodeQueryCompactProgressReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  int32_t                       code = 0;
+  SDnodeQueryCompactProgressReq req = {0};
+  void                         *pRsp = NULL;
+
+  code = tDeserializeSDnodeQueryCompactProgressReq(pMsg->pCont, pMsg->contLen, &req);
+  if (code != 0) {
+    dError("dnode:%d, failed to deserialize dnode-query-compact-progress req, code:%s",
+           pMgmt->pData->dnodeId, tstrerror(code));
+    goto _exit;
+  }
+
+  dDebug("dnode:%d, receive dnode-query-compact-progress req, compactId:%d", pMgmt->pData->dnodeId, req.compactId);
+
+  SDnodeQueryCompactProgressRsp rsp = {0};
+  code = vmCollectDnodeCompactProgress(pMgmt, req.compactId, &rsp);
+  if (code != 0) {
+    dError("dnode:%d, failed to collect compact progress, code:%s", pMgmt->pData->dnodeId, tstrerror(code));
+    goto _exit;
+  }
+
+  dInfo("dnode:%d, send dnode-query-compact-progress rsp, numOfVnodes:%d", rsp.dnodeId, rsp.numOfVnodes);
+
+  int32_t rspLen = tSerializeSDnodeQueryCompactProgressRsp(NULL, 0, &rsp);
+  if (rspLen < 0) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    tFreeSDnodeQueryCompactProgressRsp(&rsp);
+    goto _exit;
+  }
+
+  pRsp = rpcMallocCont(rspLen);
+  if (pRsp == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    tFreeSDnodeQueryCompactProgressRsp(&rsp);
+    goto _exit;
+  }
+
+  if (tSerializeSDnodeQueryCompactProgressRsp(pRsp, rspLen, &rsp) < 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    rpcFreeCont(pRsp);
+    pRsp = NULL;
+    tFreeSDnodeQueryCompactProgressRsp(&rsp);
+    goto _exit;
+  }
+
+  tFreeSDnodeQueryCompactProgressRsp(&rsp);
+  pMsg->info.rsp    = pRsp;
+  pMsg->info.rspLen = rspLen;
+
+_exit:
+  return code;
+}
+
 SArray *vmGetMsgHandles() {
   int32_t code = -1;
   SArray *pArray = taosArrayInit(32, sizeof(SMgmtHandle));
@@ -1133,6 +1195,7 @@ SArray *vmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_VND_ARB_HEARTBEAT, vmPutMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_ARB_CHECK_SYNC, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_SYNC_SET_ASSIGNED_LEADER, vmPutMsgToSyncQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_DND_QUERY_COMPACT_PROGRESS, vmPutMsgToMgmtQueue, 0) == NULL) goto _OVER;
 
   code = 0;
 
