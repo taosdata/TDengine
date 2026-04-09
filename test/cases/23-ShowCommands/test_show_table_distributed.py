@@ -173,6 +173,118 @@ class TestShowTableDistributed:
         print("do show table distributed ............. [passed]")
 
     #
+    # --------- ins_table_fixed_distributed tests ----------
+    #
+    def do_fixed_distributed(self):
+        tdLog.info("========== start ins_table_fixed_distributed tests")
+        db = "fixed_dist_db"
+        tdSql.execute(f"drop database if exists {db}")
+        tdSql.execute(f"create database {db} vgroups 4")
+        tdSql.execute(f"use {db}")
+
+        # create supertable, child tables, and a normal table
+        tdSql.execute(f"create table st (ts timestamp, v int) tags (t int)")
+        for i in range(4):
+            tdSql.execute(f"create table ct_{i} using st tags({i})")
+        tdSql.execute(f"create table nt (ts timestamp, v int)")
+
+        # insert data
+        rows = 5000
+        for i in range(4):
+            sql = f"insert into ct_{i} values "
+            for j in range(rows):
+                sql += f"(now+{j+1}s, {j})"
+            tdSql.execute(sql)
+        sql = f"insert into nt values "
+        for j in range(rows):
+            sql += f"(now+{j+1}s, {j})"
+        tdSql.execute(sql)
+
+        tdSql.execute(f"flush database {db}")
+        time.sleep(1)
+        tdSql.execute(f"compact database {db}")
+        time.sleep(3)
+
+        # --- 1. basic query on supertable ---
+        tdLog.info("fixed_dist step1: query supertable")
+        tdSql.query(f"select * from information_schema.ins_table_fixed_distributed "
+                     f"where db_name='{db}' and table_name='st'")
+        tdSql.checkCols(23)
+        tdSql.checkNotEqual(tdSql.getRows(), 0)
+        # db_name and table_name should match
+        for i in range(tdSql.getRows()):
+            tdSql.checkData(i, 0, db)
+            tdSql.checkData(i, 1, "st")
+
+        # --- 2. query on normal table ---
+        tdLog.info("fixed_dist step2: query normal table")
+        tdSql.query(f"select * from information_schema.ins_table_fixed_distributed "
+                     f"where db_name='{db}' and table_name='nt'")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, db)
+        tdSql.checkData(0, 1, "nt")
+        assert tdSql.queryResult[0][2] > 0, f"expected total_blocks > 0, got {tdSql.queryResult[0][2]}"
+        assert tdSql.queryResult[0][6] == rows, f"expected block_rows={rows}, got {tdSql.queryResult[0][6]}"
+        assert tdSql.queryResult[0][14] == 1, f"expected total_vgroups=1, got {tdSql.queryResult[0][14]}"
+
+        # --- 3. query on child table ---
+        tdLog.info("fixed_dist step3: query child table")
+        tdSql.query(f"select * from information_schema.ins_table_fixed_distributed "
+                     f"where db_name='{db}' and table_name='ct_0'")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, db)
+        tdSql.checkData(0, 1, "ct_0")
+        assert tdSql.queryResult[0][6] == rows, f"expected block_rows={rows}, got {tdSql.queryResult[0][6]}"
+
+        # --- 4. aggregation across vgroups for supertable ---
+        tdLog.info("fixed_dist step4: supertable aggregation")
+        tdSql.query(f"select * from information_schema.ins_table_fixed_distributed "
+                     f"where db_name='{db}' and table_name='st'")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, db)
+        tdSql.checkData(0, 1, "st")
+        assert tdSql.queryResult[0][6] == rows * 4, f"expected block_rows={rows * 4}, got {tdSql.queryResult[0][6]}"
+
+        # --- 5. error: missing table_name ---
+        tdLog.info("fixed_dist step5: error without table_name")
+        tdSql.error(f"select * from information_schema.ins_table_fixed_distributed "
+                     f"where db_name='{db}'")
+
+        # --- 6. error: missing db_name ---
+        tdLog.info("fixed_dist step6: error without db_name")
+        tdSql.error(f"select * from information_schema.ins_table_fixed_distributed "
+                     f"where table_name='st'")
+
+        # --- 7. error: no WHERE at all ---
+        tdLog.info("fixed_dist step7: error without WHERE")
+        tdSql.error(f"select * from information_schema.ins_table_fixed_distributed")
+
+        # --- 8. error: OR condition ---
+        tdLog.info("fixed_dist step8: error with OR condition")
+        tdSql.error(f"select * from information_schema.ins_table_fixed_distributed "
+                     f"where db_name='{db}' or table_name='st'")
+
+        # --- 9. non-existent table returns empty ---
+        tdLog.info("fixed_dist step9: non-existent table")
+        tdSql.query(f"select * from information_schema.ins_table_fixed_distributed "
+                     f"where db_name='{db}' and table_name='no_such_table'")
+        tdSql.checkRows(0)
+
+        # --- 10. histogram buckets sum to total_blocks ---
+        tdLog.info("fixed_dist step10: histogram consistency")
+        tdSql.query(f"select * from information_schema.ins_table_fixed_distributed "
+                     f"where db_name='{db}' and table_name='nt'")
+        row = tdSql.queryResult[0]
+        total_blocks = row[2]
+        hist_sum = sum(row[15:23])  # block_dist_64 .. block_dist_other
+        assert hist_sum == total_blocks, \
+            f"histogram sum ({hist_sum}) != total_blocks ({total_blocks})"
+
+        # --- cleanup ---
+        tdSql.execute(f"drop database {db}")
+        print("do fixed distributed .................. [passed]")
+
+    #
     # ------------------- main ----------------
     #
     def test_show_table_distributed(self):
@@ -188,6 +300,9 @@ class TestShowTableDistributed:
         8. Confirms accurate row counts in various scenarios
         9. Validates functionality across different cluster configurations
         10. Assesses performance impact of show table distributed command
+        11. Tests ins_table_fixed_distributed for supertable, child table, normal table
+        12. Verifies mandatory WHERE db_name AND table_name conditions
+        13. Checks histogram bucket consistency with total_blocks
 
 
         Catalog:
@@ -203,7 +318,9 @@ class TestShowTableDistributed:
             - 2025-7-23 Ethan liu adds test for show table distributed
             - 2025-4-28 Simon Guan Migrated from tsim/compute/block_dist.sim
             - 2025-11-03 Alex Duan Migrated from uncatalog/system-test/0-others/test_show_table_distributed.py
+            - 2026-04-08 Bomin Zhang Added ins_table_fixed_distributed tests
 
         """
         self.do_sim_show_table_distributed()
         self.do_show_table_distributed()
+        self.do_fixed_distributed()
