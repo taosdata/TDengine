@@ -346,22 +346,22 @@ void tmq_conf_destroy(tmq_conf_t* conf) {
   }
 }
 
-void tmqRlock(tmq_t* tmq){
+static void tmqRlock(tmq_t* tmq){
   tqTraceC("tmqRlock: %p %" PRIx64 ", tmq lock: %p", tmq, tmq->consumerId, &tmq->lock);
   taosRLockLatch(&tmq->lock);
 }
 
-void tmqRUnlock(tmq_t* tmq){
+static void tmqRUnlock(tmq_t* tmq){
   tqTraceC("tmqRUnlock: %p %" PRIx64 ", tmq lock: %p", tmq, tmq->consumerId, &tmq->lock);
   taosRUnLockLatch(&tmq->lock);
 }
 
-void tmqWlock(tmq_t* tmq){
+static void tmqWlock(tmq_t* tmq){
   tqTraceC("tmqWlock: %p %" PRIx64 ", tmq lock: %p", tmq, tmq->consumerId, &tmq->lock);
   taosWLockLatch(&tmq->lock);
 }
 
-void tmqWUnlock(tmq_t* tmq){
+static void tmqWUnlock(tmq_t* tmq){
   tqTraceC("tmqWUnlock: %p %" PRIx64 ", tmq lock: %p", tmq, tmq->consumerId, &tmq->lock);
   taosWUnLockLatch(&tmq->lock);
 }
@@ -2737,7 +2737,9 @@ TAOS_RES* tmq_consumer_poll(tmq_t* tmq, int64_t timeout) {
     if (timeout >= 0) {
       int64_t elapsedTime = getElapsedTime(startTime);
       TSDB_CHECK_CONDITION(elapsedTime < timeout && elapsedTime >= 0, code, lino, END, 0);
-      (void)tsem2_timewait(&tmq->rspSem, EMPTY_BLOCK_POLL_IDLE_DURATION);
+      int64_t remaining = timeout - elapsedTime;  
+      int64_t waitMs = (remaining < EMPTY_BLOCK_POLL_IDLE_DURATION) ? remaining : EMPTY_BLOCK_POLL_IDLE_DURATION;  
+      (void)tsem2_timewait(&tmq->rspSem, waitMs);  
     } else {
       (void)tsem2_timewait(&tmq->rspSem, 1000);
     }
