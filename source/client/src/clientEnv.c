@@ -776,8 +776,8 @@ void doDestroyRequest(void *p) {
 
 void destroyRequest(SRequestObj *pRequest) {
   if (pRequest == NULL) return;
-  taos_stop_query(pRequest);
 
+  taos_stop_query(pRequest);
   (void)removeFromMostPrevReq(pRequest);
 }
 
