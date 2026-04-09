@@ -822,6 +822,8 @@ class TestShowBasic:
     #
     def do_show_streams_no_db(self):
         """Test SHOW STREAMS works without a selected database and shows db_name column."""
+        tdLog.info("do_show_streams_no_db ..................... [start]")
+
         tdSql.execute("drop database if exists ss_db1")
         tdSql.execute("drop database if exists ss_db2")
         tdSql.execute("create database ss_db1")
@@ -848,46 +850,40 @@ class TestShowBasic:
         )
         tdStream.checkStreamStatus()
 
+        # (stream_name, db_name); compare order-independently — same idea as tdSql.checkEqual(sorted(...), sorted(...)) in e.g. test_write_sml_opentsdb_json.py
+        tdLog.info("check show streams")
         tdSql.query("show streams")
-        tdSql.checkRows(4)
-        tdSql.checkData(0, 0, "stm4")
-        tdSql.checkData(0, 3, "ss_db2")
-        tdSql.checkData(1, 0, "stm3")
-        tdSql.checkData(1, 3, "ss_db1")
-        tdSql.checkData(2, 0, "ss2")
-        tdSql.checkData(2, 3, "ss_db2")
-        tdSql.checkData(3, 0, "ss1")
-        tdSql.checkData(3, 3, "ss_db1")
+        exp_all = [
+            ("stm4", "ss_db2"),
+            ("stm3", "ss_db1"),
+            ("ss2", "ss_db2"),
+            ("ss1", "ss_db1"),
+        ]
+        got = [(tdSql.getData(i, 0), tdSql.getData(i, 3)) for i in range(tdSql.getRows())]
+        tdSql.checkEqual(sorted(got), sorted(exp_all))
 
+        tdLog.info("check show streams like 'ss%'")
         tdSql.query("show streams like 'ss%'")
-        tdSql.checkRows(2)
-        tdSql.checkData(0, 0, "ss2")
-        tdSql.checkData(0, 3, "ss_db2")
-        tdSql.checkData(1, 0, "ss1")
-        tdSql.checkData(1, 3, "ss_db1")
+        exp_ss = [("ss2", "ss_db2"), ("ss1", "ss_db1")]
+        got = [(tdSql.getData(i, 0), tdSql.getData(i, 3)) for i in range(tdSql.getRows())]
+        tdSql.checkEqual(sorted(got), sorted(exp_ss))
 
         tdSql.query("show streams like 'stm%'")
-        tdSql.checkRows(2)
-        tdSql.checkData(0, 0, "stm4")
-        tdSql.checkData(0, 3, "ss_db2")
-        tdSql.checkData(1, 0, "stm3")
-        tdSql.checkData(1, 3, "ss_db1")
+        exp_stm = [("stm4", "ss_db2"), ("stm3", "ss_db1")]
+        got = [(tdSql.getData(i, 0), tdSql.getData(i, 3)) for i in range(tdSql.getRows())]
+        tdSql.checkEqual(sorted(got), sorted(exp_stm))
 
-
+        tdLog.info("check show streams db.streams")
         tdSql.query("show ss_db1.streams")
-        tdSql.checkRows(2)
-        tdSql.checkData(0, 0, "stm3")
-        tdSql.checkData(0, 3, "ss_db1")
-        tdSql.checkData(1, 0, "ss1")
-        tdSql.checkData(1, 3, "ss_db1")
+        exp_db1 = [("stm3", "ss_db1"), ("ss1", "ss_db1")]
+        got = [(tdSql.getData(i, 0), tdSql.getData(i, 3)) for i in range(tdSql.getRows())]
+        tdSql.checkEqual(sorted(got), sorted(exp_db1))
 
         tdSql.query("show ss_db2.streams")
-        tdSql.checkRows(2)
-        tdSql.checkData(0, 0, "stm4")
-        tdSql.checkData(0, 3, "ss_db2")
-        tdSql.checkData(1, 0, "ss2")
-        tdSql.checkData(1, 3, "ss_db2")
-        print("do show streams no-db ................. [passed]")
+        exp_db2 = [("stm4", "ss_db2"), ("ss2", "ss_db2")]
+        got = [(tdSql.getData(i, 0), tdSql.getData(i, 3)) for i in range(tdSql.getRows())]
+        tdSql.checkEqual(sorted(got), sorted(exp_db2))
+        tdLog.info("do_show_streams_no_db ..................... [passed]")
 
     #
     # ------------------- main ----------------
@@ -928,19 +924,8 @@ class TestShowBasic:
             - 2026-04-03 Mario Peng Add test_show_streams_no_db
         
         """
-        # self.do_system_test_show()
-        # self.do_army_show()
-        # self.do_sim()
-        # self.do_show_tag_index()
+        self.do_system_test_show()
+        self.do_army_show()
+        self.do_sim()
+        self.do_show_tag_index()
         self.do_show_streams_no_db()
-
-
-    class StreamItem:
-        def __init__(self, sql, checkfunc):
-            self.sql = sql
-            self.checkfunc = checkfunc
-
-        def check(self):
-            tdSql.execute(self.sql)
-            tdSql.query("show streams")
-            self.checkfunc()
