@@ -5815,7 +5815,8 @@ static bool sysTableFromVnode(const char* pTable) {
   return ((0 == strcmp(pTable, TSDB_INS_TABLE_TABLES)) || (0 == strcmp(pTable, TSDB_INS_TABLE_TAGS)) ||
           (0 == strcmp(pTable, TSDB_INS_TABLE_COLS)) || 0 == strcmp(pTable, TSDB_INS_TABLE_VC_COLS) ||
           0 == strcmp(pTable, TSDB_INS_DISK_USAGE) || (0 == strcmp(pTable, TSDB_INS_TABLE_FILESETS)) ||
-          (0 == strcmp(pTable, TSDB_INS_TABLE_VIRTUAL_TABLES_REFERENCING)));
+          (0 == strcmp(pTable, TSDB_INS_TABLE_VIRTUAL_TABLES_REFERENCING)) ||
+          (0 == strcmp(pTable, TSDB_INS_TABLE_TABLE_FIXED_DISTRIBUTED)));
 }
 
 static bool sysTableFromDnode(const char* pTable) { return 0 == strcmp(pTable, TSDB_INS_TABLE_DNODE_VARIABLES); }
@@ -5861,7 +5862,8 @@ static int32_t getVnodeSysTableVgroupListImpl(STranslateContext* pCxt, SName* pT
   return code;
 }
 
-static int32_t getVnodeSysTableVgroupList(STranslateContext* pCxt, SName* pName, SArray** pVgs, bool* pHasUserDbCond) {
+static int32_t getVnodeSysTableVgroupList(STranslateContext* pCxt, SName* pName, SArray** pVgs, bool* pHasUserDbCond,
+                                          const char* pTableName) {
   if (!isSelectStmt(pCxt->pCurrStmt)) {
     return TSDB_CODE_SUCCESS;
   }
@@ -5869,6 +5871,20 @@ static int32_t getVnodeSysTableVgroupList(STranslateContext* pCxt, SName* pName,
   SName        targetName = {0};
   int32_t      code = getVnodeSysTableTargetName(pCxt->pParseCxt->acctId, pSelect->pWhere, &targetName);
   if (TSDB_CODE_SUCCESS == code) {
+    // ins_table_fixed_distributed: route to all vgroups for supertable, single vgroup for child/normal
+    if (0 == strcmp(pTableName, TSDB_INS_TABLE_TABLE_FIXED_DISTRIBUTED) &&
+        targetName.type != 0 && targetName.type != TSDB_DB_NAME_T &&
+        targetName.tname[0] != '\0') {
+      STableMeta* pTargetMeta = NULL;
+      int32_t metaCode = getTableMeta(pCxt, targetName.dbname, targetName.tname, &pTargetMeta);
+      if (TSDB_CODE_SUCCESS == metaCode && pTargetMeta != NULL &&
+          (pTargetMeta->tableType == TSDB_SUPER_TABLE)) {
+        // supertable: need all vgroups in the DB
+        targetName.type = TSDB_DB_NAME_T;
+        targetName.tname[0] = '\0';
+      }
+      taosMemoryFreeClear(pTargetMeta);
+    }
     code = getVnodeSysTableVgroupListImpl(pCxt, &targetName, pName, pVgs);
   }
   *pHasUserDbCond = (0 != targetName.type && taosArrayGetSize(*pVgs) > 0);
@@ -5878,7 +5894,7 @@ static int32_t getVnodeSysTableVgroupList(STranslateContext* pCxt, SName* pName,
 static int32_t setVnodeSysTableVgroupList(STranslateContext* pCxt, SName* pName, SRealTableNode* pRealTable) {
   bool    hasUserDbCond = false;
   SArray* pVgs = NULL;
-  int32_t code = getVnodeSysTableVgroupList(pCxt, pName, &pVgs, &hasUserDbCond);
+  int32_t code = getVnodeSysTableVgroupList(pCxt, pName, &pVgs, &hasUserDbCond, pRealTable->table.tableName);
 
   if (TSDB_CODE_SUCCESS == code && 0 == strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_TAGS) &&
       isSelectStmt(pCxt->pCurrStmt) && 0 == taosArrayGetSize(pVgs)) {
@@ -5890,7 +5906,8 @@ static int32_t setVnodeSysTableVgroupList(STranslateContext* pCxt, SName* pName,
        0 == strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_COLS) ||
        (0 == strcmp(pRealTable->table.tableName, TSDB_INS_DISK_USAGE) && !hasUserDbCond) ||
        0 == strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_FILESETS) ||
-       0 == strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_VIRTUAL_TABLES_REFERENCING))) {
+       0 == strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_VIRTUAL_TABLES_REFERENCING) ||
+       (0 == strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_TABLE_FIXED_DISTRIBUTED) && !hasUserDbCond))) {
     code = addMnodeToVgroupList(&pCxt->pParseCxt->mgmtEpSet, &pVgs);
   }
 
@@ -6094,7 +6111,8 @@ static bool isSingleTable(SRealTableNode* pRealTable) {
            0 != strcmp(pRealTable->table.tableName, TSDB_INS_DISK_USAGE) &&
            0 != strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_FILESETS) &&
            0 != strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_VC_COLS) &&
-           0 != strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_VIRTUAL_TABLES_REFERENCING);
+           0 != strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_VIRTUAL_TABLES_REFERENCING) &&
+           0 != strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_TABLE_FIXED_DISTRIBUTED);
   }
   return (TSDB_CHILD_TABLE == tableType || TSDB_NORMAL_TABLE == tableType || TSDB_VIRTUAL_CHILD_TABLE == tableType ||
           TSDB_VIRTUAL_NORMAL_TABLE == tableType);
@@ -11159,6 +11177,306 @@ _end:
   return code;
 }
 
+// ---------------------------------------------------------------------------
+// ins_table_fixed_distributed: helpers for auto-aggregation rewrite
+// ---------------------------------------------------------------------------
+
+static bool isFixedDistTable(SSelectStmt* pSelect) {
+  if (NULL == pSelect->pFromTable || QUERY_NODE_REAL_TABLE != nodeType(pSelect->pFromTable)) {
+    return false;
+  }
+  return 0 == strcmp(((SRealTableNode*)pSelect->pFromTable)->table.tableName,
+                     TSDB_INS_TABLE_TABLE_FIXED_DISTRIBUTED);
+}
+
+// Validate that WHERE contains both db_name = '...' AND table_name = '...'
+static int32_t validateFixedDistConditions(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  if (!isFixedDistTable(pSelect)) {
+    return TSDB_CODE_SUCCESS;
+  }
+  SName targetName = {0};
+  int32_t code = getVnodeSysTableTargetName(pCxt->pParseCxt->acctId, pSelect->pWhere, &targetName);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+  if ('\0' == targetName.dbname[0] || '\0' == targetName.tname[0]) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                   "ins_table_fixed_distributed requires WHERE db_name='...' AND table_name='...'");
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+// Helper: create a SColumnNode referencing a column by name
+static int32_t createFixedDistColNode(const char* colName, SNode** ppNode) {
+  SColumnNode* pCol = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
+  if (TSDB_CODE_SUCCESS != code) return code;
+  tstrncpy(pCol->colName, colName, sizeof(pCol->colName));
+  tstrncpy(pCol->node.aliasName, colName, sizeof(pCol->node.aliasName));
+  tstrncpy(pCol->node.userAlias, colName, sizeof(pCol->node.userAlias));
+  *ppNode = (SNode*)pCol;
+  return TSDB_CODE_SUCCESS;
+}
+
+// Helper: create SFunctionNode(funcName, colName) AS alias
+static int32_t createFixedDistAggFunc(const char* funcName, const char* colName, const char* alias, SNode** ppNode) {
+  SFunctionNode* pFunc = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&pFunc);
+  if (TSDB_CODE_SUCCESS != code) return code;
+  tstrncpy(pFunc->functionName, funcName, sizeof(pFunc->functionName));
+  tstrncpy(pFunc->node.aliasName, alias, sizeof(pFunc->node.aliasName));
+  tstrncpy(pFunc->node.userAlias, alias, sizeof(pFunc->node.userAlias));
+  SNode* pColRef = NULL;
+  code = createFixedDistColNode(colName, &pColRef);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodesListMakeStrictAppend(&pFunc->pParameterList, pColRef);
+  }
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pFunc);
+    return code;
+  }
+  *ppNode = (SNode*)pFunc;
+  return TSDB_CODE_SUCCESS;
+}
+
+// Helper: create (pLeft OP pRight) AS alias
+static int32_t createFixedDistArithExpr(EOperatorType opType, SNode* pLeft, SNode* pRight, const char* alias,
+                                        SNode** ppNode) {
+  SOperatorNode* pOper = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_OPERATOR, (SNode**)&pOper);
+  if (TSDB_CODE_SUCCESS != code) return code;
+  pOper->opType = opType;
+  pOper->pLeft = pLeft;
+  pOper->pRight = pRight;
+  tstrncpy(pOper->node.aliasName, alias, sizeof(pOper->node.aliasName));
+  tstrncpy(pOper->node.userAlias, alias, sizeof(pOper->node.userAlias));
+  *ppNode = (SNode*)pOper;
+  return TSDB_CODE_SUCCESS;
+}
+
+// Helper: create a double literal value node
+static int32_t createFixedDistDoubleValue(double val, SNode** ppNode) {
+  SValueNode* pVal = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&pVal);
+  if (TSDB_CODE_SUCCESS != code) return code;
+  pVal->literal = taosMemoryCalloc(1, 32);
+  if (NULL == pVal->literal) {
+    nodesDestroyNode((SNode*)pVal);
+    return terrno;
+  }
+  snprintf(pVal->literal, 32, "%.1f", val);
+  pVal->node.resType.type = TSDB_DATA_TYPE_DOUBLE;
+  pVal->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes;
+  *ppNode = (SNode*)pVal;
+  return TSDB_CODE_SUCCESS;
+}
+
+// Helper: create a SGroupingSetNode wrapping a column reference
+static int32_t createFixedDistGroupingSet(const char* colName, SNode** ppNode) {
+  SGroupingSetNode* pGrpSet = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_GROUPING_SET, (SNode**)&pGrpSet);
+  if (TSDB_CODE_SUCCESS != code) return code;
+  pGrpSet->groupingSetType = GP_TYPE_NORMAL;
+  SNode* pCol = NULL;
+  code = createFixedDistColNode(colName, &pCol);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodesListMakeStrictAppend(&pGrpSet->pParameterList, pCol);
+  }
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pGrpSet);
+    return code;
+  }
+  *ppNode = (SNode*)pGrpSet;
+  return TSDB_CODE_SUCCESS;
+}
+
+/*
+ * Auto-aggregation rewrite for ins_table_fixed_distributed.
+ *
+ * Rewrites   SELECT * FROM ins_table_fixed_distributed WHERE ...
+ * into the equivalent of:
+ *   SELECT db_name, table_name,
+ *          SUM(total_blocks)  AS total_blocks,
+ *          SUM(total_size)    AS total_size,
+ *          SUM(total_size)/SUM(total_blocks)                            AS average_size,
+ *          SUM(total_size)*100.0/(MAX(row_size)*SUM(block_rows))        AS compression_ratio,
+ *          SUM(block_rows)    AS block_rows,
+ *          MIN(min_rows)      AS min_rows,
+ *          MAX(max_rows)      AS max_rows,
+ *          SUM(block_rows)/SUM(total_blocks)                            AS avg_rows,
+ *          SUM(in_mem_rows)   AS in_mem_rows,
+ *          SUM(stt_rows)      AS stt_rows,
+ *          SUM(total_tables)  AS total_tables,
+ *          SUM(total_filesets) AS total_filesets,
+ *          SUM(total_vgroups) AS total_vgroups,
+ *          SUM(block_dist_64) .. SUM(block_dist_other)
+ *   FROM ins_table_fixed_distributed
+ *   WHERE ...
+ *   GROUP BY db_name, table_name
+ *
+ * Skipped when the user already provided their own GROUP BY.
+ */
+static int32_t rewriteTableFixedDistQuery(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  if (!isFixedDistTable(pSelect) || NULL != pSelect->pGroupByList) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t    code = TSDB_CODE_SUCCESS;
+  SNodeList* pNewProjection = NULL;
+  SNode*     pNode = NULL;
+
+  // ---------- GROUP BY keys (bare column refs) ----------
+#define ADD_COL(name)                                                       \
+  do {                                                                      \
+    code = createFixedDistColNode(name, &pNode);                            \
+    if (TSDB_CODE_SUCCESS == code)                                          \
+      code = nodesListMakeStrictAppend(&pNewProjection, pNode);             \
+    pNode = NULL;                                                           \
+  } while (0)
+
+  // ---------- aggregate columns ----------
+#define ADD_SUM(col)                                                        \
+  do {                                                                      \
+    code = createFixedDistAggFunc("sum", col, col, &pNode);                 \
+    if (TSDB_CODE_SUCCESS == code)                                          \
+      code = nodesListMakeStrictAppend(&pNewProjection, pNode);             \
+    pNode = NULL;                                                           \
+  } while (0)
+
+#define ADD_AGG(func, col)                                                  \
+  do {                                                                      \
+    code = createFixedDistAggFunc(func, col, col, &pNode);                  \
+    if (TSDB_CODE_SUCCESS == code)                                          \
+      code = nodesListMakeStrictAppend(&pNewProjection, pNode);             \
+    pNode = NULL;                                                           \
+  } while (0)
+
+  if (TSDB_CODE_SUCCESS == code) ADD_COL("db_name");
+  if (TSDB_CODE_SUCCESS == code) ADD_COL("table_name");
+  if (TSDB_CODE_SUCCESS == code) ADD_SUM("total_blocks");
+  if (TSDB_CODE_SUCCESS == code) ADD_SUM("total_size");
+
+  // average_size = SUM(total_size) / SUM(total_blocks)
+  if (TSDB_CODE_SUCCESS == code) {
+    SNode* pSumSize = NULL;
+    SNode* pSumBlocks = NULL;
+    code = createFixedDistAggFunc("sum", "total_size", "total_size", &pSumSize);
+    if (TSDB_CODE_SUCCESS == code)
+      code = createFixedDistAggFunc("sum", "total_blocks", "total_blocks", &pSumBlocks);
+    if (TSDB_CODE_SUCCESS == code)
+      code = createFixedDistArithExpr(OP_TYPE_DIV, pSumSize, pSumBlocks, "average_size", &pNode);
+    if (TSDB_CODE_SUCCESS == code)
+      code = nodesListMakeStrictAppend(&pNewProjection, pNode);
+    if (TSDB_CODE_SUCCESS != code) {
+      nodesDestroyNode(pSumSize);
+      nodesDestroyNode(pSumBlocks);
+    }
+    pNode = NULL;
+  }
+
+  // compression_ratio = SUM(total_size) * 100.0 / (MAX(row_size) * SUM(block_rows))
+  if (TSDB_CODE_SUCCESS == code) {
+    SNode *pSumSize = NULL, *pMaxRowSz = NULL, *pSumRows = NULL;
+    SNode *pHundred = NULL, *pNumer = NULL, *pDenom = NULL;
+    code = createFixedDistAggFunc("sum", "total_size", "total_size", &pSumSize);
+    if (TSDB_CODE_SUCCESS == code) code = createFixedDistDoubleValue(100.0, &pHundred);
+    if (TSDB_CODE_SUCCESS == code)
+      code = createFixedDistArithExpr(OP_TYPE_MULTI, pSumSize, pHundred, "", &pNumer);
+    if (TSDB_CODE_SUCCESS == code) {
+      pSumSize = NULL;
+      pHundred = NULL;
+    }
+    if (TSDB_CODE_SUCCESS == code) code = createFixedDistAggFunc("max", "row_size", "row_size", &pMaxRowSz);
+    if (TSDB_CODE_SUCCESS == code) code = createFixedDistAggFunc("sum", "block_rows", "block_rows", &pSumRows);
+    if (TSDB_CODE_SUCCESS == code)
+      code = createFixedDistArithExpr(OP_TYPE_MULTI, pMaxRowSz, pSumRows, "", &pDenom);
+    if (TSDB_CODE_SUCCESS == code) {
+      pMaxRowSz = NULL;
+      pSumRows = NULL;
+    }
+    if (TSDB_CODE_SUCCESS == code)
+      code = createFixedDistArithExpr(OP_TYPE_DIV, pNumer, pDenom, "compression_ratio", &pNode);
+    if (TSDB_CODE_SUCCESS == code)
+      code = nodesListMakeStrictAppend(&pNewProjection, pNode);
+    if (TSDB_CODE_SUCCESS != code) {
+      nodesDestroyNode(pSumSize);
+      nodesDestroyNode(pHundred);
+      nodesDestroyNode(pNumer);
+      nodesDestroyNode(pMaxRowSz);
+      nodesDestroyNode(pSumRows);
+      nodesDestroyNode(pDenom);
+    }
+    pNode = NULL;
+  }
+
+  if (TSDB_CODE_SUCCESS == code) ADD_SUM("block_rows");
+  if (TSDB_CODE_SUCCESS == code) ADD_AGG("min", "min_rows");
+  if (TSDB_CODE_SUCCESS == code) ADD_AGG("max", "max_rows");
+
+  // avg_rows = SUM(block_rows) / SUM(total_blocks)
+  if (TSDB_CODE_SUCCESS == code) {
+    SNode *pSumRows2 = NULL, *pSumBlks2 = NULL;
+    code = createFixedDistAggFunc("sum", "block_rows", "block_rows", &pSumRows2);
+    if (TSDB_CODE_SUCCESS == code)
+      code = createFixedDistAggFunc("sum", "total_blocks", "total_blocks", &pSumBlks2);
+    if (TSDB_CODE_SUCCESS == code)
+      code = createFixedDistArithExpr(OP_TYPE_DIV, pSumRows2, pSumBlks2, "avg_rows", &pNode);
+    if (TSDB_CODE_SUCCESS == code)
+      code = nodesListMakeStrictAppend(&pNewProjection, pNode);
+    if (TSDB_CODE_SUCCESS != code) {
+      nodesDestroyNode(pSumRows2);
+      nodesDestroyNode(pSumBlks2);
+    }
+    pNode = NULL;
+  }
+
+  if (TSDB_CODE_SUCCESS == code) ADD_SUM("in_mem_rows");
+  if (TSDB_CODE_SUCCESS == code) ADD_SUM("stt_rows");
+  if (TSDB_CODE_SUCCESS == code) ADD_SUM("total_tables");
+  if (TSDB_CODE_SUCCESS == code) ADD_SUM("total_filesets");
+  if (TSDB_CODE_SUCCESS == code) ADD_SUM("total_vgroups");
+
+  // histogram buckets
+  if (TSDB_CODE_SUCCESS == code) ADD_SUM("block_dist_64");
+  if (TSDB_CODE_SUCCESS == code) ADD_SUM("block_dist_128");
+  if (TSDB_CODE_SUCCESS == code) ADD_SUM("block_dist_256");
+  if (TSDB_CODE_SUCCESS == code) ADD_SUM("block_dist_512");
+  if (TSDB_CODE_SUCCESS == code) ADD_SUM("block_dist_1024");
+  if (TSDB_CODE_SUCCESS == code) ADD_SUM("block_dist_2048");
+  if (TSDB_CODE_SUCCESS == code) ADD_SUM("block_dist_4096");
+  if (TSDB_CODE_SUCCESS == code) ADD_SUM("block_dist_other");
+
+#undef ADD_COL
+#undef ADD_SUM
+#undef ADD_AGG
+
+  // ---------- GROUP BY db_name, table_name ----------
+  if (TSDB_CODE_SUCCESS == code) {
+    SNode* pGrp1 = NULL;
+    SNode* pGrp2 = NULL;
+    code = createFixedDistGroupingSet("db_name", &pGrp1);
+    if (TSDB_CODE_SUCCESS == code) code = createFixedDistGroupingSet("table_name", &pGrp2);
+    if (TSDB_CODE_SUCCESS == code)
+      code = nodesListMakeStrictAppend(&pSelect->pGroupByList, pGrp1);
+    if (TSDB_CODE_SUCCESS == code)
+      code = nodesListMakeStrictAppend(&pSelect->pGroupByList, pGrp2);
+    if (TSDB_CODE_SUCCESS != code) {
+      nodesDestroyNode(pGrp1);
+      nodesDestroyNode(pGrp2);
+    }
+  }
+
+  // ---------- commit ----------
+  if (TSDB_CODE_SUCCESS == code) {
+    nodesDestroyList(pSelect->pProjectionList);
+    pSelect->pProjectionList = pNewProjection;
+  } else {
+    nodesDestroyList(pNewProjection);
+  }
+
+  return code;
+}
+
 static int32_t translateSelectFrom(STranslateContext* pCxt, SSelectStmt* pSelect) {
   pCxt->pCurrStmt = (SNode*)pSelect;
   pCxt->dual = false;
@@ -11166,6 +11484,13 @@ static int32_t translateSelectFrom(STranslateContext* pCxt, SSelectStmt* pSelect
   if (TSDB_CODE_SUCCESS == code) {
     pSelect->precision = ((STableNode*)pSelect->pFromTable)->precision;
     code = translateWhere(pCxt, pSelect);
+  }
+  // ins_table_fixed_distributed: mandatory filter + auto-aggregation rewrite
+  if (TSDB_CODE_SUCCESS == code) {
+    code = validateFixedDistConditions(pCxt, pSelect);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = rewriteTableFixedDistQuery(pCxt, pSelect);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = setJoinTimeLineResMode(pCxt);
