@@ -5,7 +5,9 @@ import random
 import re
 import os
 import taos
+import taosrest
 from new_test_framework.utils import tdLog, tdSql, cluster, sc, clusterComCheck, etool, tdCom, AutoGen, TDSetSql, tdStream
+from new_test_framework.utils.server.dnodes import tdDnodes
 
 
 class TestShowBasic:
@@ -817,6 +819,13 @@ class TestShowBasic:
 
         print("do show tag index ..................... [passed]")
 
+    def _assert_show_streams_name_db_rows(self, expected_pairs, require_nonzero=False):
+        """Last query must be SHOW STREAMS (or equivalent); compare (stream_name, db_name) on cols 0 and 3, order-independent."""
+        if require_nonzero:
+            tdSql.checkAssert(tdSql.getRows() > 0)
+        got = [(tdSql.getData(i, 0), tdSql.getData(i, 3)) for i in range(tdSql.getRows())]
+        tdSql.checkEqual(sorted(got), sorted(expected_pairs))
+
     #
     # ------------------- show streams without database ----------------
     #
@@ -824,66 +833,85 @@ class TestShowBasic:
         """Test SHOW STREAMS works without a selected database and shows db_name column."""
         tdLog.info("do_show_streams_no_db ..................... [start]")
 
-        tdSql.execute("drop database if exists ss_db1")
-        tdSql.execute("drop database if exists ss_db2")
-        tdSql.execute("create database ss_db1")
-        tdSql.execute("create database ss_db2")
+        # New taos client session (same deploy as conftest get_taos_conn) so current DB is not inherited
+        # from prior steps (e.g. use db). Restore cls.conn cursor in finally for teardown.
+        _saved_conn = self.conn
+        try:
+            tdSql.close()
+        except Exception:
+            pass
+        if getattr(self, "restful", False):
+            _conn = taosrest.connect(url=f"http://{self.host}:6041", timezone="utc")
+        else:
+            _conn = taos.connect(host=self.host, config=tdDnodes.sim.cfgPath)
+        tdSql.init(_conn.cursor(), False)
+        try:
+            tdSql.execute("drop database if exists ss_db1")
+            tdSql.execute("drop database if exists ss_db2")
+            tdSql.execute("create database ss_db1")
+            tdSql.execute("create database ss_db2")
 
-        # Create source tables in each db
-        tdSql.execute("create table ss_db1.src1 (ts timestamp, v int)")
-        tdSql.execute("create table ss_db2.src2 (ts timestamp, v int)")
+            # Create source tables in each db
+            tdSql.execute("create table ss_db1.src1 (ts timestamp, v int)")
+            tdSql.execute("create table ss_db2.src2 (ts timestamp, v int)")
 
-        # Ensure an snode exists (required for stream creation)
-        tdStream.createSnode(1)
-        # Create a stream in each database
-        tdSql.execute(
-            "create stream ss_db1.ss1 INTERVAL(1s) SLIDING(1s) from ss_db1.src1 into ss_db1.dst1 as select _tlocaltime as ts, count(v) as cnt from ss_db1.src1"
-        )
-        tdSql.execute(
-            "create stream ss_db2.ss2 INTERVAL(1s) SLIDING(1s) from ss_db2.src2 into ss_db2.dst2 as select _tlocaltime as ts, count(v) as cnt from ss_db2.src2"
-        )
-        tdSql.execute(
-            "create stream ss_db1.stm3 count_window(1) from ss_db1.src1 into ss_db1.dst1 as select _tlocaltime as ts, count(v) as cnt from ss_db1.src1"
-        )
-        tdSql.execute(
-            "create stream ss_db2.stm4 count_window(1) from ss_db2.src2 into ss_db2.dst2 as select _tlocaltime as ts, count(v) as cnt from ss_db2.src2"
-        )
-        tdStream.checkStreamStatus()
+            # Ensure an snode exists (required for stream creation)
+            tdStream.createSnode(1)
+            # Create a stream in each database
+            tdSql.execute(
+                "create stream ss_db1.ss1 INTERVAL(1s) SLIDING(1s) from ss_db1.src1 into ss_db1.dst1 as select _tlocaltime as ts, count(v) as cnt from ss_db1.src1"
+            )
+            tdSql.execute(
+                "create stream ss_db2.ss2 INTERVAL(1s) SLIDING(1s) from ss_db2.src2 into ss_db2.dst2 as select _tlocaltime as ts, count(v) as cnt from ss_db2.src2"
+            )
+            tdSql.execute(
+                "create stream ss_db1.stm3 count_window(1) from ss_db1.src1 into ss_db1.dst1 as select _tlocaltime as ts, count(v) as cnt from ss_db1.src1"
+            )
+            tdSql.execute(
+                "create stream ss_db2.stm4 count_window(1) from ss_db2.src2 into ss_db2.dst2 as select _tlocaltime as ts, count(v) as cnt from ss_db2.src2"
+            )
+            tdStream.checkStreamStatus()
 
-        # (stream_name, db_name); compare order-independently — same idea as tdSql.checkEqual(sorted(...), sorted(...)) in e.g. test_write_sml_opentsdb_json.py
-        tdLog.info("check show streams")
-        tdSql.query("show streams")
-        exp_all = [
-            ("stm4", "ss_db2"),
-            ("stm3", "ss_db1"),
-            ("ss2", "ss_db2"),
-            ("ss1", "ss_db1"),
-        ]
-        got = [(tdSql.getData(i, 0), tdSql.getData(i, 3)) for i in range(tdSql.getRows())]
-        tdSql.checkEqual(sorted(got), sorted(exp_all))
+            # (stream_name, db_name); order-independent — same idea as tdSql.checkEqual(sorted(...), sorted(...)) in e.g. test_write_sml_opentsdb_json.py
+            tdLog.info("check show streams")
+            tdSql.query("show streams")
+            exp_all = [
+                ("stm4", "ss_db2"),
+                ("stm3", "ss_db1"),
+                ("ss2", "ss_db2"),
+                ("ss1", "ss_db1"),
+            ]
+            self._assert_show_streams_name_db_rows(exp_all, require_nonzero=True)
 
-        tdLog.info("check show streams like 'ss%'")
-        tdSql.query("show streams like 'ss%'")
-        exp_ss = [("ss2", "ss_db2"), ("ss1", "ss_db1")]
-        got = [(tdSql.getData(i, 0), tdSql.getData(i, 3)) for i in range(tdSql.getRows())]
-        tdSql.checkEqual(sorted(got), sorted(exp_ss))
+            tdLog.info("check show streams like 'ss%'")
+            tdSql.query("show streams like 'ss%'")
+            exp_ss = [("ss2", "ss_db2"), ("ss1", "ss_db1")]
+            self._assert_show_streams_name_db_rows(exp_ss)
 
-        tdSql.query("show streams like 'stm%'")
-        exp_stm = [("stm4", "ss_db2"), ("stm3", "ss_db1")]
-        got = [(tdSql.getData(i, 0), tdSql.getData(i, 3)) for i in range(tdSql.getRows())]
-        tdSql.checkEqual(sorted(got), sorted(exp_stm))
+            tdLog.info("check show streams like 'stm%'")
+            tdSql.query("show streams like 'stm%'")
+            exp_stm = [("stm4", "ss_db2"), ("stm3", "ss_db1")]
+            self._assert_show_streams_name_db_rows(exp_stm)
 
-        tdLog.info("check show streams db.streams")
-        tdSql.query("show ss_db1.streams")
-        exp_db1 = [("stm3", "ss_db1"), ("ss1", "ss_db1")]
-        got = [(tdSql.getData(i, 0), tdSql.getData(i, 3)) for i in range(tdSql.getRows())]
-        tdSql.checkEqual(sorted(got), sorted(exp_db1))
+            tdLog.info("check show streams db.streams")
+            tdSql.query("show ss_db1.streams")
+            exp_db1 = [("stm3", "ss_db1"), ("ss1", "ss_db1")]
+            self._assert_show_streams_name_db_rows(exp_db1)
 
-        tdSql.query("show ss_db2.streams")
-        exp_db2 = [("stm4", "ss_db2"), ("ss2", "ss_db2")]
-        got = [(tdSql.getData(i, 0), tdSql.getData(i, 3)) for i in range(tdSql.getRows())]
-        tdSql.checkEqual(sorted(got), sorted(exp_db2))
-        tdLog.info("do_show_streams_no_db ..................... [passed]")
+            tdSql.query("show ss_db2.streams")
+            exp_db2 = [("stm4", "ss_db2"), ("ss2", "ss_db2")]
+            self._assert_show_streams_name_db_rows(exp_db2)
+            tdLog.info("do_show_streams_no_db ..................... [passed]")
+        finally:
+            try:
+                tdSql.close()
+            except Exception:
+                pass
+            try:
+                _conn.close()
+            except Exception:
+                pass
+            tdSql.init(_saved_conn.cursor(), False)
 
     #
     # ------------------- main ----------------
