@@ -97,6 +97,82 @@ char* qExplainGetTimerangeTargetStr(int32_t target) {
   return targetName[target];
 }
 
+/*
+ * Build comma-separated STATE_WINDOW key names with graceful truncation.
+ * The output always remains NUL-terminated and ends with "..." when truncated.
+ */
+static void qExplainBuildStateKeyDesc(const SNodeList* pStateKeys, char* pDesc, int32_t descSize) {
+  if (NULL == pDesc || descSize <= 0) {
+    return;
+  }
+
+  pDesc[0] = '\0';
+  if (NULL == pStateKeys || LIST_LENGTH(pStateKeys) <= 0) {
+    tstrncpy(pDesc, "<unknown>", descSize);
+    return;
+  }
+
+  size_t used = 0;
+  bool   truncated = false;
+  SNode* pKey = NULL;
+  FOREACH(pKey, pStateKeys) {
+    const char* pName = nodesGetNameFromColumnNode(pKey);
+    if (NULL == pName || '\0' == pName[0]) {
+      pName = "<unknown>";
+    }
+
+    bool   needSep = (used > 0);
+    size_t sepLen = needSep ? 1 : 0;
+    size_t nameLen = strlen(pName);
+    size_t remain = (size_t)descSize - used;
+
+    if (remain <= 1) {
+      truncated = true;
+      break;
+    }
+
+    if (sepLen + nameLen < remain) {
+      if (needSep) {
+        pDesc[used++] = ',';
+      }
+      (void)memcpy(pDesc + used, pName, nameLen);
+      used += nameLen;
+      pDesc[used] = '\0';
+      continue;
+    }
+
+    if (needSep && remain > 1) {
+      pDesc[used++] = ',';
+      remain = (size_t)descSize - used;
+    }
+
+    if (remain <= 1) {
+      truncated = true;
+      break;
+    }
+
+    if (remain > 4) {
+      size_t copyLen = remain - 4;
+      (void)memcpy(pDesc + used, pName, copyLen);
+      used += copyLen;
+      (void)memcpy(pDesc + used, "...", 3);
+      used += 3;
+    } else {
+      size_t dots = remain - 1;
+      (void)memset(pDesc + used, '.', dots);
+      used += dots;
+    }
+
+    pDesc[used] = '\0';
+    truncated = true;
+    break;
+  }
+
+  if ('\0' == pDesc[0]) {
+    tstrncpy(pDesc, truncated ? "..." : "<unknown>", descSize);
+  }
+}
+
 static bool qExplainRspMatchVgIds(const SExplainRsp* pRsp, const SArray* pVgIds) {
   if (NULL == pRsp || NULL == pVgIds || pRsp->numOfPlans <= 0 ||
       NULL == pRsp->subplanInfo) {
@@ -1576,19 +1652,13 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
     }
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE: {
       SStateWindowPhysiNode *pStateNode = (SStateWindowPhysiNode *)pNode;
-      char                  stateKeyDesc[TSDB_COL_NAME_LEN * 4] = {0};
-      if (pStateNode->pStateKeys != NULL && LIST_LENGTH(pStateNode->pStateKeys) > 0) {
-        SNode *pKey = NULL;
-        FOREACH(pKey, pStateNode->pStateKeys) {
-          const char *pName = nodesGetNameFromColumnNode(pKey);
-          if (stateKeyDesc[0] != '\0') {
-            tstrncpy(stateKeyDesc + strlen(stateKeyDesc), ",", sizeof(stateKeyDesc) - strlen(stateKeyDesc));
-          }
-          tstrncpy(stateKeyDesc + strlen(stateKeyDesc), pName, sizeof(stateKeyDesc) - strlen(stateKeyDesc));
-        }
-      } else {
-        tstrncpy(stateKeyDesc, "<unknown>", sizeof(stateKeyDesc));
+      char                  stateKeyDesc[TSDB_EXPLAIN_RESULT_ROW_SIZE] = {0};
+      /* Reserve trailing space for row suffix such as function count / width / exec info. */
+      int32_t stateKeyDescCap = (int32_t)sizeof(stateKeyDesc) - EXPLAIN_STATE_KEY_DESC_RESERVED_SIZE;
+      if (stateKeyDescCap <= 0) {
+        stateKeyDescCap = (int32_t)sizeof(stateKeyDesc);
       }
+      qExplainBuildStateKeyDesc(pStateNode->pStateKeys, stateKeyDesc, stateKeyDescCap);
 
       EXPLAIN_ROW_NEW(level, EXPLAIN_STATE_WINDOW_FORMAT, stateKeyDesc);
       EXPLAIN_ROW_APPEND(EXPLAIN_LEFT_PARENTHESIS_FORMAT);
