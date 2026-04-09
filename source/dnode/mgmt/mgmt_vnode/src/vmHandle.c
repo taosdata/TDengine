@@ -18,15 +18,10 @@
 #include "vmInt.h"
 
 extern taos_counter_t *tsInsertCounter;
-// Provided by enterprise plugin (vnodeCompact.c); returns 0 and fills pRsp on success.
-// Community stub declared here so community build links without the symbol.
-__attribute__((weak)) int32_t vmCollectDnodeCompactProgress(SVnodeMgmt *pMgmt, int32_t compactId,
-                                                             SDnodeQueryCompactProgressRsp *pRsp) {
-  pRsp->dnodeId     = pMgmt->pData->dnodeId;
-  pRsp->numOfVnodes = 0;
-  pRsp->vnodeProgress = NULL;
-  return 0;
-}
+#ifdef TD_ENTERPRISE
+// Implemented in enterprise/src/plugins/vnode/src/vnodeCompact.c
+extern int32_t vnodeGetCompactProgress(SVnode *pVnode, int32_t compactId, SQueryCompactProgressRsp *pRsp);
+#endif
 
 void vmGetVnodeLoads(SVnodeMgmt *pMgmt, SMonVloadInfo *pInfo, bool isReset) {
   pInfo->pVloads = taosArrayInit(pMgmt->state.totalVnodes, sizeof(SVnodeLoad));
@@ -1020,6 +1015,8 @@ int32_t vmProcessDnodeQueryCompactProgressReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) 
   int32_t                       code = 0;
   SDnodeQueryCompactProgressReq req = {0};
   void                         *pRsp = NULL;
+  SVnodeObj                   **ppVnodes = NULL;
+  int32_t                       numOfVnodes = 0;
 
   code = tDeserializeSDnodeQueryCompactProgressReq(pMsg->pCont, pMsg->contLen, &req);
   if (code != 0) {
@@ -1030,26 +1027,57 @@ int32_t vmProcessDnodeQueryCompactProgressReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) 
 
   dDebug("dnode:%d, receive dnode-query-compact-progress req, compactId:%d", pMgmt->pData->dnodeId, req.compactId);
 
-  SDnodeQueryCompactProgressRsp rsp = {0};
-  code = vmCollectDnodeCompactProgress(pMgmt, req.compactId, &rsp);
-  if (code != 0) {
-    dError("dnode:%d, failed to collect compact progress, code:%s", pMgmt->pData->dnodeId, tstrerror(code));
+  // collect compact progress from all running vnodes
+  SArray *pProgressArray = taosArrayInit(16, sizeof(SQueryCompactProgressRsp));
+  if (pProgressArray == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
   }
+
+  code = vmGetVnodeListFromHash(pMgmt, &numOfVnodes, &ppVnodes);
+  if (code != 0) {
+    dError("dnode:%d, failed to get vnode list, code:%s", pMgmt->pData->dnodeId, tstrerror(code));
+    taosArrayDestroy(pProgressArray);
+    goto _exit;
+  }
+
+  for (int32_t i = 0; i < numOfVnodes; i++) {
+    SVnodeObj *pVnode = ppVnodes[i];
+    if (pVnode == NULL || pVnode->failed || pVnode->pImpl == NULL) {
+      vmReleaseVnode(pMgmt, pVnode);
+      continue;
+    }
+#ifdef TD_ENTERPRISE
+    SQueryCompactProgressRsp vnodeRsp = {0};
+    vnodeRsp.dnodeId = pMgmt->pData->dnodeId;
+    if (vnodeGetCompactProgress(pVnode->pImpl, req.compactId, &vnodeRsp) == 0 && vnodeRsp.compactId != 0) {
+      if (taosArrayPush(pProgressArray, &vnodeRsp) == NULL) {
+        dError("dnode:%d, vgId:%d, failed to push compact progress", pMgmt->pData->dnodeId, pVnode->vgId);
+      }
+    }
+#endif
+    vmReleaseVnode(pMgmt, pVnode);
+  }
+  taosMemoryFree(ppVnodes);
+
+  SDnodeQueryCompactProgressRsp rsp = {0};
+  rsp.dnodeId       = pMgmt->pData->dnodeId;
+  rsp.numOfVnodes   = (int32_t)taosArrayGetSize(pProgressArray);
+  rsp.vnodeProgress = (rsp.numOfVnodes > 0) ? (SQueryCompactProgressRsp *)taosArrayGet(pProgressArray, 0) : NULL;
 
   dInfo("dnode:%d, send dnode-query-compact-progress rsp, numOfVnodes:%d", rsp.dnodeId, rsp.numOfVnodes);
 
   int32_t rspLen = tSerializeSDnodeQueryCompactProgressRsp(NULL, 0, &rsp);
   if (rspLen < 0) {
     code = TSDB_CODE_OUT_OF_MEMORY;
-    tFreeSDnodeQueryCompactProgressRsp(&rsp);
+    taosArrayDestroy(pProgressArray);
     goto _exit;
   }
 
   pRsp = rpcMallocCont(rspLen);
   if (pRsp == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
-    tFreeSDnodeQueryCompactProgressRsp(&rsp);
+    taosArrayDestroy(pProgressArray);
     goto _exit;
   }
 
@@ -1057,11 +1085,11 @@ int32_t vmProcessDnodeQueryCompactProgressReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) 
     code = TSDB_CODE_INVALID_MSG;
     rpcFreeCont(pRsp);
     pRsp = NULL;
-    tFreeSDnodeQueryCompactProgressRsp(&rsp);
+    taosArrayDestroy(pProgressArray);
     goto _exit;
   }
 
-  tFreeSDnodeQueryCompactProgressRsp(&rsp);
+  taosArrayDestroy(pProgressArray);
   pMsg->info.rsp    = pRsp;
   pMsg->info.rspLen = rspLen;
 
