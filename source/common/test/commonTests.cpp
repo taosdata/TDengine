@@ -1117,11 +1117,12 @@ TEST(testCase, function_taosTimeTruncate) {
  *   - A winter timestamp should align to midnight EST  = 05:00 UTC
  *   - A summer timestamp should align to midnight EDT  = 04:00 UTC
  *
- * BUG: taosTimeTruncate internally calls taosGetTZOffsetSeconds() which
- *      returns the offset for "now" (the current wall-clock time), not the
- *      offset for the target timestamp. So if "now" is summer, a winter
- *      timestamp gets the EDT offset, making the day boundary 04:00 UTC
- *      instead of the correct 05:00 UTC — off by 1 hour.
+ * Historical BUG being tested: taosTimeTruncate internally calls
+ * taosGetTZOffsetSeconds() which returns the offset for "now" (the
+ * current wall-clock time), not the offset for the target timestamp.
+ * So if "now" is summer, a winter timestamp gets the EDT offset,
+ * making the day boundary 04:00 UTC instead of the correct
+ * 05:00 UTC — off by 1 hour.
  */
 #ifndef WINDOWS
 // RAII guard to restore global timezone even if test assertions fail mid-way.
