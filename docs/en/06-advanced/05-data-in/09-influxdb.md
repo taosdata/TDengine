@@ -1,6 +1,5 @@
 ---
 title: InfluxDB
-slug: /advanced-features/data-connectors/influxdb
 ---
 
 import Enterprise from '../../assets/resources/_enterprise.mdx';

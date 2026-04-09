@@ -1,6 +1,5 @@
 ---
 title: CSV File
-slug: /advanced-features/data-connectors/csv-file
 ---
 
 import Enterprise from '../../assets/resources/_enterprise.mdx';

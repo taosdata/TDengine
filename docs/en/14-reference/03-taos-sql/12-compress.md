@@ -1,6 +1,5 @@
 ---
 title: Data Compression
-slug: /tdengine-reference/sql-manual/manage-data-compression
 ---
 
 Starting from version 3.3.0.0, TDengine provides more advanced compression features, allowing users to configure whether to compress each column at the time of table creation, as well as the compression algorithm and compression level used.

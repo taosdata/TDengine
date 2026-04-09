@@ -142,8 +142,8 @@ select _frowts, forecast(val, past_co_val, future_co_val, "algo=moirai,rows=4, d
 
 ## Built-In Forecasting Algorithms
 
-- [ARIMA](./arima/)
-- [HoltWinters](./holtwinters/)
+- [ARIMA](02-arima.md)
+- [HoltWinters](03-holtwinters.md)
 - Complex exponential smoothing (CES)
 - Theta
 - Prophet
