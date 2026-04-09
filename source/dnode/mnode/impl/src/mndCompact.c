@@ -33,6 +33,7 @@ int32_t mndInitCompact(SMnode *pMnode) {
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_COMPACT, mndRetrieveCompact);
   mndSetMsgHandle(pMnode, TDMT_MND_KILL_COMPACT, mndProcessKillCompactReq);
   mndSetMsgHandle(pMnode, TDMT_VND_QUERY_COMPACT_PROGRESS_RSP, mndProcessQueryCompactRsp);
+  mndSetMsgHandle(pMnode, TDMT_DND_QUERY_COMPACT_PROGRESS_RSP, mndProcessDnodeCompactProgressRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_COMPACT_TIMER, mndProcessCompactTimer);
   mndSetMsgHandle(pMnode, TDMT_VND_KILL_COMPACT_RSP, mndTransProcessRsp);
 
@@ -600,71 +601,56 @@ int32_t mndProcessQueryCompactRsp(SRpcMsg *pReq) {
 
 // timer
 void mndCompactSendProgressReq(SMnode *pMnode, SCompactObj *pCompact) {
+  SSdb *pSdb = pMnode->pSdb;
   void *pIter = NULL;
 
+  mDebug("compact:%d, broadcast progress query to all dnodes", pCompact->compactId);
+
   while (1) {
-    SCompactDetailObj *pDetail = NULL;
-    pIter = sdbFetch(pMnode->pSdb, SDB_COMPACT_DETAIL, pIter, (void **)&pDetail);
+    SDnodeObj *pDnode = NULL;
+    pIter = sdbFetch(pSdb, SDB_DNODE, pIter, (void **)&pDnode);
     if (pIter == NULL) break;
 
-    if (pDetail->compactId == pCompact->compactId) {
-      SEpSet epSet = {0};
+    SDnodeQueryCompactProgressReq req = {.compactId = pCompact->compactId};
 
-      SDnodeObj *pDnode = mndAcquireDnode(pMnode, pDetail->dnodeId);
-      if (pDnode == NULL) break;
-      if (addEpIntoEpSet(&epSet, pDnode->fqdn, pDnode->port) != 0) {
-        sdbRelease(pMnode->pSdb, pDetail);
-        continue;
-      }
-      mndReleaseDnode(pMnode, pDnode);
+    int32_t contLen = tSerializeSDnodeQueryCompactProgressReq(NULL, 0, &req);
+    if (contLen < 0) {
+      sdbRelease(pSdb, pDnode);
+      continue;
+    }
+    contLen += sizeof(SMsgHead);
 
-      SQueryCompactProgressReq req;
-      req.compactId = pDetail->compactId;
-      req.vgId = pDetail->vgId;
-      req.dnodeId = pDetail->dnodeId;
+    SMsgHead *pHead = rpcMallocCont(contLen);
+    if (pHead == NULL) {
+      sdbRelease(pSdb, pDnode);
+      continue;
+    }
+    pHead->contLen = htonl(contLen);
+    pHead->vgId    = htonl(0);
 
-      int32_t contLen = tSerializeSQueryCompactProgressReq(NULL, 0, &req);
-      if (contLen < 0) {
-        sdbRelease(pMnode->pSdb, pDetail);
-        continue;
-      }
-
-      contLen += sizeof(SMsgHead);
-
-      SMsgHead *pHead = rpcMallocCont(contLen);
-      if (pHead == NULL) {
-        sdbRelease(pMnode->pSdb, pDetail);
-        continue;
-      }
-
-      pHead->contLen = htonl(contLen);
-      pHead->vgId = htonl(pDetail->vgId);
-
-      if (tSerializeSQueryCompactProgressReq((char *)pHead + sizeof(SMsgHead), contLen - sizeof(SMsgHead), &req) <= 0) {
-        sdbRelease(pMnode->pSdb, pDetail);
-        continue;
-      }
-
-      SRpcMsg rpcMsg = {.msgType = TDMT_VND_QUERY_COMPACT_PROGRESS, .contLen = contLen};
-
-      rpcMsg.pCont = pHead;
-
-      char    detail[1024] = {0};
-      int32_t len = tsnprintf(detail, sizeof(detail), "msgType:%s numOfEps:%d inUse:%d",
-                              TMSG_INFO(TDMT_VND_QUERY_COMPACT_PROGRESS), epSet.numOfEps, epSet.inUse);
-      for (int32_t i = 0; i < epSet.numOfEps; ++i) {
-        len += tsnprintf(detail + len, sizeof(detail) - len, " ep:%d-%s:%u", i, epSet.eps[i].fqdn, epSet.eps[i].port);
-      }
-
-      mDebug("compact:%d, send update progress msg to %s", pDetail->compactId, detail);
-
-      if (tmsgSendReq(&epSet, &rpcMsg) < 0) {
-        sdbRelease(pMnode->pSdb, pDetail);
-        continue;
-      }
+    if (tSerializeSDnodeQueryCompactProgressReq((char *)pHead + sizeof(SMsgHead),
+                                                contLen - sizeof(SMsgHead), &req) < 0) {
+      rpcFreeCont(pHead);
+      sdbRelease(pSdb, pDnode);
+      continue;
     }
 
-    sdbRelease(pMnode->pSdb, pDetail);
+    SEpSet  epSet = mndGetDnodeEpset(pDnode);
+    SRpcMsg rpcMsg = {.msgType = TDMT_DND_QUERY_COMPACT_PROGRESS, .pCont = pHead, .contLen = contLen};
+
+    char    detail[256] = {0};
+    int32_t len = tsnprintf(detail, sizeof(detail), "msgType:%s numOfEps:%d inUse:%d",
+                            TMSG_INFO(TDMT_DND_QUERY_COMPACT_PROGRESS), epSet.numOfEps, epSet.inUse);
+    for (int32_t i = 0; i < epSet.numOfEps; ++i) {
+      len += tsnprintf(detail + len, sizeof(detail) - len, " ep:%d-%s:%u", i, epSet.eps[i].fqdn, epSet.eps[i].port);
+    }
+    mDebug("compact:%d, send progress query to dnode:%d %s", pCompact->compactId, pDnode->id, detail);
+
+    if (tmsgSendReq(&epSet, &rpcMsg) < 0) {
+      mError("compact:%d, failed to send progress query to dnode:%d", pCompact->compactId, pDnode->id);
+    }
+
+    sdbRelease(pSdb, pDnode);
   }
 }
 
@@ -1010,4 +996,58 @@ static int32_t mndProcessCompactTimer(SRpcMsg *pReq) {
   TAOS_UNUSED(mndCompactDispatch(pReq));
 #endif
   return 0;
+}
+
+int32_t mndProcessDnodeCompactProgressRsp(SRpcMsg *pReq) {
+  int32_t                       code = 0;
+  SDnodeQueryCompactProgressRsp rsp = {0};
+
+  if (pReq->code != 0) {
+    mError("received dnode compact progress rsp with error: %s", tstrerror(pReq->code));
+    TAOS_RETURN(pReq->code);
+  }
+
+  code = tDeserializeSDnodeQueryCompactProgressRsp(pReq->pCont, pReq->contLen, &rsp);
+  if (code != 0) {
+    mError("failed to deserialize dnode-query-compact-progress-rsp, code:%s", tstrerror(code));
+    TAOS_RETURN(code);
+  }
+
+  mDebug("compact progress rsp from dnode:%d, numOfVnodes:%d", rsp.dnodeId, rsp.numOfVnodes);
+
+  SMnode *pMnode = pReq->info.node;
+
+  // batch update all vnodes for this dnode in memory (no SDB write, safe in read thread)
+  for (int32_t i = 0; i < rsp.numOfVnodes; i++) {
+    SQueryCompactProgressRsp *pVnodeRsp = &rsp.vnodeProgress[i];
+
+    mDebug("compact:%d, update progress from dnode:%d vgId:%d, "
+           "numberFileset:%d, finished:%d, progress:%d, remainingTime:%" PRId64,
+           pVnodeRsp->compactId, pVnodeRsp->dnodeId, pVnodeRsp->vgId,
+           pVnodeRsp->numberFileset, pVnodeRsp->finished, pVnodeRsp->progress, pVnodeRsp->remainingTime);
+
+    void *pIter = NULL;
+    while (1) {
+      SCompactDetailObj *pDetail = NULL;
+      pIter = sdbFetch(pMnode->pSdb, SDB_COMPACT_DETAIL, pIter, (void **)&pDetail);
+      if (pIter == NULL) break;
+
+      if (pDetail->compactId == pVnodeRsp->compactId && pDetail->vgId == pVnodeRsp->vgId &&
+          pDetail->dnodeId == pVnodeRsp->dnodeId) {
+        pDetail->newNumberFileset = pVnodeRsp->numberFileset;
+        pDetail->newFinished      = pVnodeRsp->finished;
+        pDetail->progress         = pVnodeRsp->progress;
+        pDetail->remainingTime    = pVnodeRsp->remainingTime;
+
+        sdbCancelFetch(pMnode->pSdb, pIter);
+        sdbRelease(pMnode->pSdb, pDetail);
+        break;
+      }
+
+      sdbRelease(pMnode->pSdb, pDetail);
+    }
+  }
+
+  tFreeSDnodeQueryCompactProgressRsp(&rsp);
+  TAOS_RETURN(code);
 }
