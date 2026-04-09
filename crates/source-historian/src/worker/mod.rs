@@ -794,6 +794,9 @@ mod tests {
 
     #[test]
     fn test_break_point() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        unsafe { std::env::set_var("TAOSX_DATA_DIR", tmp.path()) };
+
         let task_id = 99999;
         let break_point = get_break_point(Some((task_id, -1)));
         if break_point.is_none() {
@@ -806,6 +809,8 @@ mod tests {
 
             breakpoints::breakpoints_remove(task_id, -1, "mig-1").unwrap();
         }
+
+        breakpoints::breakpoints_clear(task_id, -1).unwrap();
     }
 
     #[test]

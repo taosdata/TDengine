@@ -217,8 +217,9 @@ mod tests {
         Ok(client)
     }
 
-    async fn cleanup_table(to_dsn: &str, table: &str) -> anyhow::Result<()> {
-        let taos_conn = TaosConn::create(to_dsn, 3)
+    async fn cleanup_table(table: &str) -> anyhow::Result<()> {
+        let host_target_dsn = env_var("HOST_TARGET_DSN")?;
+        let taos_conn = TaosConn::create(&host_target_dsn, 3)
             .await
             .with_context(|| format!("create taos conn for cleanup of table {}", table))?;
         let sql = format!("DROP STABLE IF EXISTS {}", table);
@@ -249,7 +250,7 @@ mod tests {
         let mqtt_port = env_var("MQTT_PORT")?
             .parse::<u16>()
             .context("invalid INTEGRATION_TEST_MQTT_PORT")?;
-        let to_dsn = env_var("MQTT_TASK_TO_DSN")?;
+        let container_target_dsn = env_var("CONTAINER_TARGET_DSN")?;
 
         let client = build_api_client_from_env()?;
 
@@ -284,7 +285,7 @@ mod tests {
         let new_task = NewTask {
             name: task_name.clone(),
             from,
-            to: to_dsn.clone(),
+            to: container_target_dsn.clone(),
             parser: Some(parser_json),
             via,
             labels: Some(vec!["type::datain".to_string()]),
@@ -348,7 +349,7 @@ mod tests {
             anyhow::bail!("task {} should have been deleted but still exists", task_id);
         }
 
-        cleanup_table(&to_dsn, &stable_name)
+        cleanup_table(&stable_name)
             .await
             .context("cleanup mqtt_meters after test_mqtt_task_with_fake_data")?;
 
@@ -376,7 +377,7 @@ mod tests {
         let mqtt_port = env_var("MQTT_PORT")?
             .parse::<u16>()
             .context("invalid INTEGRATION_TEST_MQTT_PORT")?;
-        let to_dsn = env_var("MQTT_TASK_TO_DSN")?;
+        let container_target_dsn = env_var("CONTAINER_TARGET_DSN")?;
 
         let client = build_api_client_from_env()?;
 
@@ -415,7 +416,7 @@ mod tests {
         let new_task = NewTask {
             name: task_name.clone(),
             from,
-            to: to_dsn.clone(),
+            to: container_target_dsn.clone(),
             parser: Some(parser_json),
             via,
             labels: Some(vec!["type::datain".to_string()]),
@@ -489,7 +490,7 @@ mod tests {
             );
         }
 
-        cleanup_table(&to_dsn, &stable_name)
+        cleanup_table(&stable_name)
             .await
             .context("cleanup mqtt_meters after test_mqtt_task_with_multiple_topics")?;
 
@@ -516,7 +517,7 @@ mod tests {
         let mqtt_port = env_var("MQTT_PORT")?
             .parse::<u16>()
             .context("invalid INTEGRATION_TEST_MQTT_PORT")?;
-        let to_dsn = env_var("MQTT_TASK_TO_DSN")?;
+        let container_target_dsn = env_var("CONTAINER_TARGET_DSN")?;
 
         let client = build_api_client_from_env()?;
 
@@ -534,7 +535,7 @@ mod tests {
         let body = ApiCheckValidParamClient {
             from: Some(from.clone()),
             from_json: None,
-            to: to_dsn.clone(),
+            to: container_target_dsn.clone(),
             via,
         };
 
@@ -545,7 +546,7 @@ mod tests {
 
         tracing::info!("mqtt validate datasource result: {}", result);
 
-        cleanup_table(&to_dsn, "mqtt_meters")
+        cleanup_table("mqtt_meters")
             .await
             .context("cleanup mqtt_meters after test_mqtt_validate_datasource")?;
 
@@ -574,7 +575,7 @@ mod tests {
             .context("invalid INTEGRATION_TEST_MQTT_AUTH_PORT")?;
         let mqtt_username = env_var("MQTT_USERNAME")?;
         let mqtt_password = env_var("MQTT_PASSWORD")?;
-        let to_dsn = env_var("MQTT_TASK_TO_DSN")?;
+        let container_target_dsn = env_var("CONTAINER_TARGET_DSN")?;
 
         let client = build_api_client_from_env()?;
 
@@ -592,7 +593,7 @@ mod tests {
         let body = ApiCheckValidParamClient {
             from: Some(from.clone()),
             from_json: None,
-            to: to_dsn.clone(),
+            to: container_target_dsn.clone(),
             via,
         };
 
@@ -603,7 +604,7 @@ mod tests {
 
         tracing::info!("auth mqtt validate datasource result: {}", result);
 
-        cleanup_table(&to_dsn, "mqtt_meters")
+        cleanup_table("mqtt_meters")
             .await
             .context("cleanup mqtt_meters after test_mqtt_validate_datasource_with_auth")?;
 
@@ -633,7 +634,7 @@ mod tests {
             .context("invalid INTEGRATION_TEST_MQTT_TLS_PORT")?;
         let mqtt_username = env_var("MQTT_USERNAME")?;
         let mqtt_password = env_var("MQTT_PASSWORD")?;
-        let to_dsn = env_var("MQTT_TASK_TO_DSN")?;
+        let container_target_dsn = env_var("CONTAINER_TARGET_DSN")?;
 
         let client = build_api_client_from_env()?;
 
@@ -681,7 +682,7 @@ mod tests {
         let body = ApiCheckValidParamClient {
             from: Some(from.clone()),
             from_json: None,
-            to: to_dsn.clone(),
+            to: container_target_dsn.clone(),
             via,
         };
 
@@ -692,7 +693,7 @@ mod tests {
 
         tracing::info!("tls mqtt validate datasource result: {}", result);
 
-        cleanup_table(&to_dsn, "mqtt_meters")
+        cleanup_table("mqtt_meters")
             .await
             .context("cleanup mqtt_meters after test_mqtt_validate_datasource_with_tls_cert")?;
 
@@ -723,7 +724,7 @@ mod tests {
             .context("invalid INTEGRATION_TEST_MQTT_AUTH_PORT")?;
         let mqtt_username = env_var("MQTT_USERNAME")?;
         let mqtt_password = env_var("MQTT_PASSWORD")?;
-        let to_dsn = env_var("MQTT_TASK_TO_DSN")?;
+        let container_target_dsn = env_var("CONTAINER_TARGET_DSN")?;
 
         let client = build_api_client_from_env()?;
 
@@ -759,7 +760,7 @@ mod tests {
         let new_task = NewTask {
             name: task_name.clone(),
             from,
-            to: to_dsn.clone(),
+            to: container_target_dsn.clone(),
             parser: Some(parser_json),
             via,
             labels: Some(vec!["type::datain".to_string()]),
@@ -826,7 +827,7 @@ mod tests {
             );
         }
 
-        cleanup_table(&to_dsn, &stable_name)
+        cleanup_table(&stable_name)
             .await
             .context("cleanup mqtt_meters after test_mqtt_task_with_auth")?;
 
@@ -857,7 +858,7 @@ mod tests {
             .context("invalid INTEGRATION_TEST_MQTT_TLS_PORT")?;
         let mqtt_username = env_var("MQTT_USERNAME")?;
         let mqtt_password = env_var("MQTT_PASSWORD")?;
-        let to_dsn = env_var("MQTT_TASK_TO_DSN")?;
+        let container_target_dsn = env_var("CONTAINER_TARGET_DSN")?;
 
         let client = build_api_client_from_env()?;
 
@@ -918,7 +919,7 @@ mod tests {
         let new_task = NewTask {
             name: task_name.clone(),
             from,
-            to: to_dsn.clone(),
+            to: container_target_dsn.clone(),
             parser: Some(parser_json),
             via,
             labels: Some(vec!["type::datain".to_string()]),
@@ -988,7 +989,7 @@ mod tests {
             );
         }
 
-        cleanup_table(&to_dsn, &stable_name)
+        cleanup_table(&stable_name)
             .await
             .context("cleanup mqtt_meters after test_mqtt_task_with_tls_cert")?;
 

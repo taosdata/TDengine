@@ -8,11 +8,14 @@ use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::Arc;
 use taos::*;
+use taoslog::QidManager;
+use taoslog::utils::{QidMetadataGetter, Span};
 use tracing::instrument;
 use uuid::Uuid;
 
 use crate::Args;
 use crate::oauth::middleware::{AuthType, TsdbCredential};
+use crate::qid::Qid;
 use crate::utils::aes::{aes_decrypt_base64, aes_encrypt_base64};
 use crate::utils::cbc::derive_key_from_user_agent;
 
@@ -31,6 +34,47 @@ fn strip_session_id_prefix(session_id: &str) -> &str {
     session_id
         .strip_prefix(SESSION_ID_PREFIX)
         .unwrap_or(session_id)
+}
+
+fn format_session_expired_log_message(qid: u64) -> String {
+    format!(
+        "OAU QID:{} Session has expired and will be deleted.",
+        Qid::from(qid).display()
+    )
+}
+
+fn parse_database_error_code(code: &str) -> Option<i32> {
+    code.parse::<i32>().ok().or_else(|| {
+        code.strip_prefix("0x")
+            .and_then(|hex| i32::from_str_radix(hex, 16).ok())
+    })
+}
+
+fn describe_session_renewal_error(err: &anyhow::Error) -> (i32, String) {
+    for cause in err.chain() {
+        if let Some(sqlx_err) = cause.downcast_ref::<sqlx::Error>() {
+            if let Some(db_err) = sqlx_err.as_database_error() {
+                let errno = db_err
+                    .code()
+                    .as_deref()
+                    .and_then(parse_database_error_code)
+                    .unwrap_or(0);
+                return (errno, db_err.message().to_string());
+            }
+            return (0, sqlx_err.to_string());
+        }
+    }
+
+    (0, err.root_cause().to_string())
+}
+
+fn format_session_ttl_renewal_failed_log_message(qid: u64, errno: i32, errstr: &str) -> String {
+    format!(
+        "OAU QID:{} Session TTL renewal failed, errno: {}({}).",
+        Qid::from(qid).display(),
+        errno,
+        errstr
+    )
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
@@ -512,9 +556,9 @@ mod tests {
 
     #[test]
     fn test_session_renewal_derives_correct_ttl() {
-        // A default OAuth session created "now".
+        // An 8-hour OAuth session created "now".
         let created = Utc::now();
-        let ttl_secs: i64 = DEFAULT_SESSION_TTL_SECS;
+        let ttl_secs: i64 = 28800;
         let details = make_session_details(created, created + chrono::Duration::seconds(ttl_secs));
         let derived = (details.expires_at - details.last_active).num_seconds();
         assert_eq!(derived, ttl_secs);
@@ -533,7 +577,7 @@ mod tests {
     #[test]
     fn test_renewal_not_triggered_before_interval() {
         let created = Utc::now();
-        let ttl_secs: i64 = DEFAULT_SESSION_TTL_SECS;
+        let ttl_secs: i64 = 28800;
         let details = make_session_details(created, created + chrono::Duration::seconds(ttl_secs));
         // Simulate a request 4 minutes after creation → should NOT renew.
         let now = created + chrono::Duration::seconds(240);
@@ -578,7 +622,7 @@ mod tests {
     #[test]
     fn test_renewal_triggered_at_interval() {
         let created = Utc::now();
-        let ttl_secs: i64 = DEFAULT_SESSION_TTL_SECS;
+        let ttl_secs: i64 = 28800;
         let details = make_session_details(created, created + chrono::Duration::seconds(ttl_secs));
         // Simulate a request exactly 5 minutes after creation → should renew.
         let now = created + chrono::Duration::seconds(SESSION_RENEWAL_INTERVAL_SECS);
@@ -607,18 +651,18 @@ mod tests {
 
     #[test]
     fn test_legacy_rows_healed_by_migration() {
-        // After the data migration (last_active = login_at), a legacy 1h session
-        // that was 30m old gets its TTL derivation corrected.
-        let login = Utc::now() - chrono::Duration::seconds(1800); // created 30m ago
+        // After the data migration (last_active = login_at), a legacy 8h session
+        // that was 4h old gets its TTL derivation corrected.
+        let login = Utc::now() - chrono::Duration::seconds(14400); // created 4h ago
         let details = make_session_details(
-            login, // last_active reset to login_at by migration
-            login + chrono::Duration::seconds(DEFAULT_SESSION_TTL_SECS), // original expires_at
+            login,                                    // last_active reset to login_at by migration
+            login + chrono::Duration::seconds(28800), // original expires_at
         );
 
         let derived_ttl = (details.expires_at - details.last_active).num_seconds();
         assert_eq!(
-            derived_ttl, DEFAULT_SESSION_TTL_SECS,
-            "migration should restore the original 1h TTL"
+            derived_ttl, 28800,
+            "migration should restore the original 8h TTL"
         );
     }
 
@@ -637,17 +681,17 @@ mod tests {
 
     #[test]
     fn test_renewal_preserves_ttl_after_simulated_renewal() {
-        // Simulate a default session that was renewed once.
-        let ttl_secs: i64 = DEFAULT_SESSION_TTL_SECS;
+        // Simulate an 8h session that was renewed once.
+        let ttl_secs: i64 = 28800;
         let original_creation = Utc::now() - chrono::Duration::seconds(600);
-        // After first renewal at +5 min: last_active = +5min, expires_at = +5min + ttl
+        // After first renewal at +5 min: last_active = +5min, expires_at = +5min + 8h
         let renewed_at = original_creation + chrono::Duration::seconds(300);
         let details =
             make_session_details(renewed_at, renewed_at + chrono::Duration::seconds(ttl_secs));
         let derived = (details.expires_at - details.last_active).num_seconds();
         assert_eq!(
             derived, ttl_secs,
-            "TTL must remain constant after renewal, not grow"
+            "TTL must remain 8h after renewal, not grow"
         );
     }
 
@@ -772,101 +816,29 @@ mod tests {
         assert!(result.is_none(), "expired session must return None");
     }
 
-    // ── verify_session_with_renewal ────────────────────────────────────────
-
-    #[tokio::test]
-    async fn test_verify_session_with_renewal_returns_false_before_interval() {
-        let mgr = make_session_manager().await;
-        let sid = create_test_session(&mgr, DEFAULT_SESSION_TTL_SECS).await;
-
-        // Immediately after creation: renewal interval has not elapsed.
-        let (sess, renewed) = mgr.verify_session_with_renewal(&sid).await.unwrap();
-        assert!(sess.is_some(), "session should exist");
-        assert!(!renewed, "should not renew when interval has not elapsed");
-    }
-
-    #[tokio::test]
-    async fn test_verify_session_with_renewal_returns_true_after_interval() {
-        let mgr = make_session_manager().await;
-        let ttl: i64 = DEFAULT_SESSION_TTL_SECS;
-        let sid = create_test_session(&mgr, ttl).await;
-
-        let sess = mgr
-            .verify_session(&sid)
-            .await
-            .unwrap()
-            .expect("session must exist");
-
-        // Simulate time passing beyond the renewal interval by winding back
-        // last_active and expires_at together (preserves the derived TTL invariant).
-        let shift = chrono::Duration::seconds(SESSION_RENEWAL_INTERVAL_SECS + 1);
-        let new_last_active = sess.details.last_active - shift;
-        let new_expires_at = sess.details.expires_at - shift;
-        sqlx::query(
-            "UPDATE oauth_sessions SET last_active = ?, expires_at = ? WHERE session_id = ?",
-        )
-        .bind(new_last_active)
-        .bind(new_expires_at)
-        .bind(&sid)
-        .execute(&mgr.pool)
-        .await
-        .unwrap();
-
-        let (sess2, renewed) = mgr.verify_session_with_renewal(&sid).await.unwrap();
-        assert!(sess2.is_some(), "session should still be valid");
-        assert!(renewed, "should report renewal when interval has elapsed");
-
-        // The returned session's expires_at must have been extended.
-        let extended = sess2.unwrap().details.expires_at;
-        assert!(
-            extended > new_expires_at,
-            "expires_at must increase after renewal"
+    #[test]
+    fn test_format_session_expired_log_message_omits_session_id() {
+        assert_eq!(
+            format_session_expired_log_message(0x2a),
+            "OAU QID:0x2a Session has expired and will be deleted."
         );
     }
 
-    #[tokio::test]
-    async fn test_verify_session_with_renewal_expired_returns_none_false() {
-        let mgr = make_session_manager().await;
-        let sid = create_test_session(&mgr, 1).await; // 1-second TTL
+    #[test]
+    fn test_describe_session_renewal_error_uses_errno_zero_for_generic_errors() {
+        let err = anyhow!("renew failed");
 
-        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-
-        let (sess, renewed) = mgr.verify_session_with_renewal(&sid).await.unwrap();
-        assert!(sess.is_none(), "expired session must be None");
-        assert!(!renewed, "expired session must not report renewal");
+        assert_eq!(
+            describe_session_renewal_error(&err),
+            (0, "renew failed".to_string())
+        );
     }
 
-    #[tokio::test]
-    async fn test_verify_session_with_renewal_skips_permanent_session() {
-        let mgr = make_session_manager().await;
-        // i64::MAX TTL → capped internally to ~100 years; above MAX_RENEWABLE_TTL_SECS.
-        let sid = create_test_session(&mgr, i64::MAX).await;
-
-        let sess = mgr
-            .verify_session(&sid)
-            .await
-            .unwrap()
-            .expect("session must exist");
-
-        // Wind back both timestamps so since_last_renewal > interval.
-        let shift = chrono::Duration::seconds(SESSION_RENEWAL_INTERVAL_SECS + 60);
-        let new_last_active = sess.details.last_active - shift;
-        let new_expires_at = sess.details.expires_at - shift;
-        sqlx::query(
-            "UPDATE oauth_sessions SET last_active = ?, expires_at = ? WHERE session_id = ?",
-        )
-        .bind(new_last_active)
-        .bind(new_expires_at)
-        .bind(&sid)
-        .execute(&mgr.pool)
-        .await
-        .unwrap();
-
-        let (sess2, renewed) = mgr.verify_session_with_renewal(&sid).await.unwrap();
-        assert!(sess2.is_some(), "permanent session must still be valid");
-        assert!(
-            !renewed,
-            "permanent session (TTL > MAX_RENEWABLE_TTL_SECS) must not be renewed"
+    #[test]
+    fn test_format_session_ttl_renewal_failed_log_message_uses_errno_and_errstr() {
+        assert_eq!(
+            format_session_ttl_renewal_failed_log_message(0x2a, 0, "renew failed"),
+            "OAU QID:0x2a Session TTL renewal failed, errno: 0(renew failed)."
         );
     }
 }
@@ -1499,51 +1471,34 @@ impl SessionManager {
     /// `MAX_RENEWABLE_TTL_SECS` and are intentionally excluded from renewal.
     #[instrument(skip(self), fields(session_id = session_id))]
     pub async fn verify_session(&self, session_id: &str) -> Result<Option<OAuthSession>> {
-        self.verify_session_inner(session_id).await.map(|(s, _)| s)
-    }
-
-    /// Like [`verify_session`] but also returns whether the session TTL was
-    /// renewed during this call.  Used by `session_renewal_middleware` to
-    /// decide whether to refresh the browser-side `session_id` cookie.
-    pub async fn verify_session_with_renewal(
-        &self,
-        session_id: &str,
-    ) -> Result<(Option<OAuthSession>, bool)> {
-        self.verify_session_inner(session_id).await
-    }
-
-    async fn verify_session_inner(&self, session_id: &str) -> Result<(Option<OAuthSession>, bool)> {
         let mut session = self.get_session(session_id).await?;
-        let mut renewed = false;
 
         if let Some(ref mut sess) = session {
             let now = chrono::Utc::now();
+            let qid = Span.get_qid::<Qid>().unwrap_or_else(Qid::init);
 
             if sess.details.expires_at < now {
-                tracing::debug!(session_id, "Session has expired and will be deleted.");
+                tracing::debug!(
+                    session.id = session_id,
+                    "{}",
+                    format_session_expired_log_message(qid.get())
+                );
                 let _ = self.delete_session(session_id).await;
-                return Ok((None, false));
+                return Ok(None);
             }
 
             let derived_ttl = (sess.details.expires_at - sess.details.last_active).num_seconds();
-            let since_last_renewal = (now - sess.details.last_active).num_seconds();
 
             // Skip renewal when the derived TTL is outside the renewable range:
             //  • too small  → legacy row with stale last_active, or intentionally
             //                  short-lived token; let it expire at its original time.
             //  • too large  → permanent / very-long-lived session; no need to renew.
             if (SESSION_RENEWAL_INTERVAL_SECS..=MAX_RENEWABLE_TTL_SECS).contains(&derived_ttl) {
+                let since_last_renewal = (now - sess.details.last_active).num_seconds();
                 if since_last_renewal >= SESSION_RENEWAL_INTERVAL_SECS {
                     let new_expires_at = now
                         + chrono::Duration::try_seconds(derived_ttl)
                             .unwrap_or(chrono::Duration::MAX);
-                    tracing::info!(
-                        session_id,
-                        derived_ttl_secs = derived_ttl,
-                        since_last_renewal_secs = since_last_renewal,
-                        new_expires_at = %new_expires_at,
-                        "Session TTL has been renewed successfully."
-                    );
                     match self
                         .update_last_active_and_renew(session_id, now, new_expires_at)
                         .await
@@ -1551,35 +1506,25 @@ impl SessionManager {
                         Ok(()) => {
                             sess.details.last_active = now;
                             sess.details.expires_at = new_expires_at;
-                            renewed = true;
                         }
                         Err(e) => {
+                            let (errno, errstr) = describe_session_renewal_error(&e);
                             tracing::warn!(
-                                session_id,
-                                error = %e,
-                                "Failed to update session TTL in the database during renewal."
+                                session.id = session_id,
+                                "{}",
+                                format_session_ttl_renewal_failed_log_message(
+                                    qid.get(),
+                                    errno,
+                                    errstr.as_str()
+                                )
                             );
                         }
                     }
-                } else {
-                    tracing::trace!(
-                        session_id,
-                        derived_ttl_secs = derived_ttl,
-                        since_last_renewal_secs = since_last_renewal,
-                        next_renewal_in_secs = SESSION_RENEWAL_INTERVAL_SECS - since_last_renewal,
-                        "Session renewal skipped because renewal interval has not elapsed"
-                    );
                 }
-            } else {
-                tracing::trace!(
-                    session_id,
-                    derived_ttl_secs = derived_ttl,
-                    "Session renewal was skipped because its TTL is outside the renewable range."
-                );
             }
         }
 
-        Ok((session, renewed))
+        Ok(session)
     }
 
     /// Update last_active timestamp and renew session expiration.
@@ -1608,9 +1553,9 @@ impl SessionManager {
         .context("Failed to update session last_active and expires_at")?;
 
         tracing::debug!(
-            session_id,
-            new_expires_at = %new_expires_at,
-            "session TTL renewed"
+            session.id = session_id,
+            session.expires_at = %new_expires_at,
+            "Session expiration was renewed."
         );
 
         Ok(())

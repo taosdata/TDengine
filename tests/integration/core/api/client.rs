@@ -8,6 +8,7 @@ use reqwest::{
     header::{HeaderMap, HeaderValue, AUTHORIZATION, CONTENT_TYPE},
     Client,
 };
+use serde::{de::DeserializeOwned, Serialize};
 use taosx_utils::backoff::RetryBackoff;
 use url::Url;
 
@@ -72,6 +73,129 @@ pub struct ApiClient {
     pub client: Client,
 }
 
+impl ApiClient {
+    /// Extract error message from a failed HTTP response
+    async fn handle_error_response<T>(response: reqwest::Response, operation: &str) -> Result<T> {
+        let status = response.status();
+        let message = response
+            .text()
+            .await
+            .context(format!("Failed to get {} response text", operation))?;
+        bail!("Failed to {}: {}, message: {}", operation, status, message);
+    }
+
+    fn build_endpoint_with_query<K, V, I>(&self, path: &str, pairs: I) -> Result<Url>
+    where
+        K: AsRef<str>,
+        V: AsRef<str>,
+        I: IntoIterator<Item = (K, V)>,
+    {
+        let mut endpoint = self.url.join(path)?;
+        {
+            let mut query = endpoint.query_pairs_mut();
+            for (key, value) in pairs {
+                query.append_pair(key.as_ref(), value.as_ref());
+            }
+        }
+        Ok(endpoint)
+    }
+
+    async fn get_json_from_endpoint<T: DeserializeOwned>(
+        &self,
+        endpoint: Url,
+        operation: &str,
+    ) -> Result<T> {
+        let response = self.client.get(endpoint).send().await?;
+
+        if response.status().is_success() {
+            Ok(response.json().await?)
+        } else {
+            Self::handle_error_response(response, operation).await
+        }
+    }
+
+    /// GET request that returns JSON deserialized to type T
+    async fn get_json<T: DeserializeOwned>(&self, path: &str, operation: &str) -> Result<T> {
+        self.get_json_from_endpoint(self.url.join(path)?, operation)
+            .await
+    }
+
+    /// GET request that returns Option<T> (404 → None)
+    async fn get_json_optional<T: DeserializeOwned>(
+        &self,
+        path: &str,
+        operation: &str,
+    ) -> Result<Option<T>> {
+        let endpoint = self.url.join(path)?;
+        let response = self.client.get(endpoint).send().await?;
+
+        if response.status().is_success() {
+            Ok(Some(response.json().await?))
+        } else if response.status().as_u16() == 404 {
+            Ok(None)
+        } else {
+            Self::handle_error_response(response, operation).await
+        }
+    }
+
+    /// POST request with JSON body, returns JSON response
+    async fn post_json<T: Serialize, R: DeserializeOwned>(
+        &self,
+        path: &str,
+        body: &T,
+        operation: &str,
+    ) -> Result<R> {
+        let endpoint = self.url.join(path)?;
+        let response = self.client.post(endpoint).json(body).send().await?;
+
+        if response.status().is_success() {
+            Ok(response.json().await?)
+        } else {
+            Self::handle_error_response(response, operation).await
+        }
+    }
+
+    /// POST request with JSON body, no response expected
+    async fn post_json_no_response<T: Serialize>(
+        &self,
+        path: &str,
+        body: &T,
+        operation: &str,
+    ) -> Result<()> {
+        let endpoint = self.url.join(path)?;
+        let response = self.client.post(endpoint).json(body).send().await?;
+
+        if response.status().is_success() {
+            Ok(())
+        } else {
+            Self::handle_error_response(response, operation).await
+        }
+    }
+
+    /// GET request that returns bytes
+    async fn get_bytes_from_endpoint(&self, endpoint: Url, operation: &str) -> Result<Vec<u8>> {
+        let response = self.client.get(endpoint).send().await?;
+
+        if response.status().is_success() {
+            Ok(response.bytes().await?.to_vec())
+        } else {
+            Self::handle_error_response(response, operation).await
+        }
+    }
+
+    /// GET request that returns response text
+    async fn get_text(&self, path: &str, operation: &str) -> Result<String> {
+        let endpoint = self.url.join(path)?;
+        let response = self.client.get(endpoint).send().await?;
+
+        if response.status().is_success() {
+            Ok(response.text().await?)
+        } else {
+            Self::handle_error_response(response, operation).await
+        }
+    }
+}
+
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
 pub struct ApiCheckValidParamClient {
     pub from: Option<String>,
@@ -87,60 +211,26 @@ impl ApiClient {
     }
 
     pub async fn health(&self) -> Result<HealthResponse> {
-        let endpoint = self.url.join("health")?;
-        let response = self.client.get(endpoint).send().await?;
-        if response.status().is_success() {
-            let health = response.text().await?;
-            Ok(health)
-        } else {
-            bail!("Health check failed: {}", response.status());
-        }
+        self.get_text("health", "check health").await
     }
 
     pub async fn swagger(&self) -> Result<String> {
-        let endpoint = self.url.join("api-doc/openapi.json")?;
-        let response = self.client.get(endpoint).send().await?;
-        if response.status().is_success() {
-            let swagger_json = response.text().await?;
-            Ok(swagger_json)
-        } else {
-            bail!("Failed to fetch swagger: {}", response.status());
-        }
+        self.get_text("api-doc/openapi.json", "fetch swagger").await
     }
 
     pub async fn list_tasks(&self) -> Result<Vec<Task>> {
-        let endpoint = self.url.join("tasks")?;
-        let response = self.client.get(endpoint).send().await?;
-        if response.status().is_success() {
-            let list_response: TaskListResponse = response.json().await?;
-            Ok(list_response.0)
-        } else {
-            bail!("Failed to list tasks: {}", response.status());
-        }
+        let list_response: TaskListResponse = self.get_json("tasks", "list tasks").await?;
+        Ok(list_response.0)
     }
 
     pub async fn get_task(&self, tid: u32) -> Result<Option<Task>> {
-        let endpoint = self.url.join(&format!("tasks/{}", tid))?;
-        let response = self.client.get(endpoint).send().await?;
-        if response.status().is_success() {
-            let task = response.json().await?;
-            Ok(Some(task))
-        } else if response.status().as_u16() == 404 {
-            Ok(None)
-        } else {
-            bail!("Failed to get task: {}", response.status());
-        }
+        self.get_json_optional(&format!("tasks/{}", tid), "get task")
+            .await
     }
 
     pub async fn get_task_metrics(&self, task_id: u32) -> Result<serde_json::Value> {
-        let endpoint = self.url.join(&format!("tasks/{}/metrics", task_id))?;
-        let response = self.client.get(endpoint).send().await?;
-        if response.status().is_success() {
-            let value: serde_json::Value = response.json().await?;
-            Ok(value)
-        } else {
-            bail!("Failed to get task metrics: {}", response.status());
-        }
+        self.get_json(&format!("tasks/{}/metrics", task_id), "get task metrics")
+            .await
     }
 
     /// 从 task metrics 的 JSON 中解析 `current.written_rows`，返回 `Option<u64>`。
@@ -332,7 +422,12 @@ impl ApiClient {
         } else if response.status().as_u16() == 404 {
             bail!("Task {} not found", tid);
         } else {
-            bail!("Failed to update task: {}", response.text().await?);
+            let status = response.status();
+            let message = response
+                .text()
+                .await
+                .context("Failed to get update task response text")?;
+            bail!("Failed to update task: {status}, message: {message}");
         }
     }
 
@@ -344,7 +439,12 @@ impl ApiClient {
         } else if response.status().as_u16() == 404 {
             bail!("Task {} not found", tid);
         } else {
-            bail!("Failed to delete task: {}", response.status());
+            let status = response.status();
+            let message = response
+                .text()
+                .await
+                .context("Failed to get delete task response text")?;
+            bail!("Failed to delete task: {status}, message: {message}");
         }
     }
 
@@ -356,7 +456,12 @@ impl ApiClient {
         } else if response.status().as_u16() == 404 {
             bail!("Task {} not found", tid);
         } else {
-            bail!("Failed to start task: {}", response.status());
+            let status = response.status();
+            let message = response
+                .text()
+                .await
+                .context("Failed to get start task response text")?;
+            bail!("Failed to start task: {status}, message: {message}");
         }
     }
 
@@ -368,87 +473,50 @@ impl ApiClient {
         } else if response.status().as_u16() == 404 {
             bail!("Task {} not found", tid);
         } else {
-            bail!("Failed to stop task: {}", response.status());
+            let status = response.status();
+            let message = response
+                .text()
+                .await
+                .context("Failed to get stop task response text")?;
+            bail!("Failed to stop task: {status}, message: {message}");
         }
     }
 
     pub async fn get_task_count(&self) -> Result<u32> {
-        let endpoint = self.url.join("tasks/count")?;
-        let response = self.client.get(endpoint).send().await?;
-        if response.status().is_success() {
-            let count: serde_json::Value = response.json().await?;
-            Ok(count.as_u64().unwrap_or(0) as u32)
-        } else {
-            bail!("Failed to get task count: {}", response.status());
-        }
+        let count: serde_json::Value = self.get_json("tasks/count", "get task count").await?;
+        Ok(count.as_u64().unwrap_or(0) as u32)
     }
 
     pub async fn batch_start_tasks(&self, ids: Vec<u32>) -> Result<()> {
-        let endpoint = self.url.join("tasks/start")?;
         let body = TaskBatchReq { ids };
-        let response = self.client.post(endpoint).json(&body).send().await?;
-        if response.status().is_success() {
-            Ok(())
-        } else {
-            bail!("Failed to batch start tasks: {}", response.status());
-        }
+        self.post_json_no_response("tasks/start", &body, "batch start tasks")
+            .await
     }
 
     pub async fn batch_stop_tasks(&self, ids: Vec<u32>) -> Result<()> {
-        let endpoint = self.url.join("tasks/stop")?;
         let body = TaskBatchReq { ids };
-        let response = self.client.post(endpoint).json(&body).send().await?;
-        if response.status().is_success() {
-            Ok(())
-        } else {
-            bail!("Failed to batch stop tasks: {}", response.status());
-        }
+        self.post_json_no_response("tasks/stop", &body, "batch stop tasks")
+            .await
     }
 
     pub async fn batch_delete_tasks(&self, ids: Vec<u32>) -> Result<()> {
-        let endpoint = self.url.join("tasks/delete")?;
         let body = TaskBatchReq { ids };
-        let response = self.client.post(endpoint).json(&body).send().await?;
-        if response.status().is_success() {
-            Ok(())
-        } else {
-            bail!("Failed to batch delete tasks: {}", response.status());
-        }
+        self.post_json_no_response("tasks/delete", &body, "batch delete tasks")
+            .await
     }
 
     pub async fn profile(&self) -> Result<ProfileResponse> {
-        let endpoint = self.url.join("profile")?;
-        let response = self.client.get(endpoint).send().await?;
-        if response.status().is_success() {
-            let profile: ProfileResponse = response.json().await?;
-            Ok(profile)
-        } else {
-            bail!("Failed to get profile: {}", response.status());
-        }
+        self.get_json("profile", "get profile").await
     }
 
     pub async fn metrics(&self) -> Result<String> {
-        let endpoint = self.url.join("metrics")?;
-        let response = self.client.get(endpoint).send().await?;
-        if response.status().is_success() {
-            let metrics = response.text().await?;
-            Ok(metrics)
-        } else {
-            bail!("Failed to get metrics: {}", response.status());
-        }
+        self.get_text("metrics", "get metrics").await
     }
 
     pub async fn metrics_description(&self, lang: &str) -> Result<serde_json::Value> {
-        let endpoint = self
-            .url
-            .join(&format!("metrics/description?lang={}", lang))?;
-        let response = self.client.get(endpoint).send().await?;
-        if response.status().is_success() {
-            let desc: serde_json::Value = response.json().await?;
-            Ok(desc)
-        } else {
-            bail!("Failed to get metrics description: {}", response.status());
-        }
+        let endpoint = self.build_endpoint_with_query("metrics/description", [("lang", lang)])?;
+        self.get_json_from_endpoint(endpoint, "get metrics description")
+            .await
     }
 
     pub async fn list_data_sources(&self, lang: Option<&str>) -> Result<serde_json::Value> {
@@ -460,7 +528,12 @@ impl ApiClient {
         if response.status().is_success() {
             Ok(response.json().await?)
         } else {
-            bail!("Failed to list data sources: {}", response.status());
+            let status = response.status();
+            let message = response
+                .text()
+                .await
+                .context("Failed to get list data sources response text")?;
+            bail!("Failed to list data sources: {status}, message: {message}");
         }
     }
 
@@ -479,7 +552,12 @@ impl ApiClient {
         } else if response.status().as_u16() == 404 {
             bail!("Data source {} not found", name);
         } else {
-            bail!("Failed to get data source: {}", response.status());
+            let status = response.status();
+            let message = response
+                .text()
+                .await
+                .context("Failed to get data source response text")?;
+            bail!("Failed to get data source: {status}, message: {message}");
         }
     }
 
@@ -487,46 +565,26 @@ impl ApiClient {
         &self,
         body: &ApiCheckValidParamClient,
     ) -> Result<serde_json::Value> {
-        let endpoint = self.url.join("ds/in/validate")?;
-        let response = self.client.post(endpoint).json(&body).send().await?;
-        if response.status().is_success() {
-            Ok(response.json().await?)
-        } else {
-            bail!("Failed to validate data source: {}", response.status());
-        }
+        self.post_json("ds/in/validate", body, "validate data source")
+            .await
     }
 
     pub async fn validate_data_source_sink(
         &self,
         query: &DsnAgentQueryV2,
     ) -> Result<serde_json::Value> {
-        let endpoint = self.url.join("ds/in/validate")?;
-        let response = self.client.post(endpoint).json(query).send().await?;
-        if response.status().is_success() {
-            Ok(response.json().await?)
-        } else {
-            bail!("Failed to validate sink data source: {}", response.status());
-        }
+        self.post_json("ds/in/validate", query, "validate sink data source")
+            .await
     }
 
     pub async fn collect_data_sources(&self, req: &DataSourcesReq) -> Result<serde_json::Value> {
-        let endpoint = self.url.join("ds/in/sets")?;
-        let response = self.client.post(endpoint).json(req).send().await?;
-        if response.status().is_success() {
-            Ok(response.json().await?)
-        } else {
-            bail!("Failed to collect data sources: {}", response.status());
-        }
+        self.post_json("ds/in/sets", req, "collect data sources")
+            .await
     }
 
     pub async fn get_sample_data(&self, query: &DsnAgentQuery) -> Result<serde_json::Value> {
-        let endpoint = self.url.join("ds/in/sample")?;
-        let response = self.client.post(endpoint).json(query).send().await?;
-        if response.status().is_success() {
-            Ok(response.json().await?)
-        } else {
-            bail!("Failed to get sample data: {}", response.status());
-        }
+        self.post_json("ds/in/sample", query, "get sample data")
+            .await
     }
 
     pub async fn get_sample_data_by_dsn(
@@ -546,7 +604,12 @@ impl ApiClient {
         if response.status().is_success() {
             Ok(response.json().await?)
         } else {
-            bail!("Failed to get sample by dsn: {}", response.status());
+            let status = response.status();
+            let message = response
+                .text()
+                .await
+                .context("Failed to get sample by dsn response text")?;
+            bail!("Failed to get sample by dsn: {status}, message: {message}");
         }
     }
 
@@ -562,7 +625,12 @@ impl ApiClient {
         if response.status().is_success() {
             Ok(response.json().await?)
         } else {
-            bail!("Failed to upload files: {}", response.status());
+            let status = response.status();
+            let message = response
+                .text()
+                .await
+                .context("Failed to get upload files response text")?;
+            bail!("Failed to upload files: {status}, message: {message}");
         }
     }
 
@@ -591,16 +659,9 @@ impl ApiClient {
     }
 
     pub async fn download_file(&self, file_path: &str) -> Result<Vec<u8>> {
-        let mut endpoint = self.url.join("download")?;
-        endpoint
-            .query_pairs_mut()
-            .append_pair("file_path", file_path);
-        let response = self.client.get(endpoint).send().await?;
-        if response.status().is_success() {
-            Ok(response.bytes().await?.to_vec())
-        } else {
-            bail!("Failed to download file: {}", response.status());
-        }
+        let endpoint = self.build_endpoint_with_query("download", [("file_path", file_path)])?;
+        self.get_bytes_from_endpoint(endpoint, "download file")
+            .await
     }
 
     pub async fn check_file_exists(&self, file_path: &str) -> Result<bool> {
@@ -613,7 +674,12 @@ impl ApiClient {
             let val: serde_json::Value = response.json().await?;
             Ok(val.get("exists").and_then(|v| v.as_bool()).unwrap_or(false))
         } else {
-            bail!("Failed to check file: {}", response.status());
+            let status = response.status();
+            let message = response
+                .text()
+                .await
+                .context("Failed to get check file response text")?;
+            bail!("Failed to check file: {status}, message: {message}");
         }
     }
 
@@ -621,39 +687,31 @@ impl ApiClient {
         &self,
         params: &DownloadAllPointsParams,
     ) -> Result<TaskTicket> {
-        let endpoint = self.url.join("ds/in/point/file/download/task")?;
-        let response = self.client.post(endpoint).json(params).send().await?;
-        if response.status().is_success() {
-            Ok(response.json().await?)
-        } else {
-            bail!("Failed to start point download task: {}", response.status());
-        }
+        self.post_json(
+            "ds/in/point/file/download/task",
+            params,
+            "start point download task",
+        )
+        .await
     }
 
     pub async fn point_task_ready(&self, ticket: &str) -> Result<TaskTicket> {
-        let mut endpoint = self.url.join("ds/in/point/file/are/you/ready")?;
-        endpoint.query_pairs_mut().append_pair("ticket", ticket);
-        let response = self.client.get(endpoint).send().await?;
-        if response.status().is_success() {
-            Ok(response.json().await?)
-        } else {
-            bail!("Failed to check point task: {}", response.status());
-        }
+        let endpoint =
+            self.build_endpoint_with_query("ds/in/point/file/are/you/ready", [("ticket", ticket)])?;
+        self.get_json_from_endpoint(endpoint, "check point task")
+            .await
     }
 
     pub async fn download_point_file(&self, ticket: &str, remain: bool) -> Result<Vec<u8>> {
-        let mut endpoint = self.url.join("ds/in/point/file/async")?;
-        {
-            let mut pairs = endpoint.query_pairs_mut();
-            pairs.append_pair("ticket", ticket);
-            pairs.append_pair("remain", &remain.to_string());
-        }
-        let response = self.client.get(endpoint).send().await?;
-        if response.status().is_success() {
-            Ok(response.bytes().await?.to_vec())
-        } else {
-            bail!("Failed to download point file: {}", response.status());
-        }
+        let endpoint = self.build_endpoint_with_query(
+            "ds/in/point/file/async",
+            [
+                ("ticket", ticket.to_string()),
+                ("remain", remain.to_string()),
+            ],
+        )?;
+        self.get_bytes_from_endpoint(endpoint, "download point file")
+            .await
     }
 
     pub async fn point_data_page(
@@ -662,23 +720,16 @@ impl ApiClient {
         page: Option<usize>,
         page_size: Option<usize>,
     ) -> Result<serde_json::Value> {
-        let mut endpoint = self.url.join("ds/in/point/data/page")?;
-        {
-            let mut pairs = endpoint.query_pairs_mut();
-            pairs.append_pair("ticket", ticket);
-            if let Some(p) = page {
-                pairs.append_pair("page", &p.to_string());
-            }
-            if let Some(ps) = page_size {
-                pairs.append_pair("page_size", &ps.to_string());
-            }
+        let mut query = vec![("ticket", ticket.to_string())];
+        if let Some(p) = page {
+            query.push(("page", p.to_string()));
         }
-        let response = self.client.get(endpoint).send().await?;
-        if response.status().is_success() {
-            Ok(response.json().await?)
-        } else {
-            bail!("Failed to get point page: {}", response.status());
+        if let Some(ps) = page_size {
+            query.push(("page_size", ps.to_string()));
         }
+        let endpoint = self.build_endpoint_with_query("ds/in/point/data/page", query)?;
+        self.get_json_from_endpoint(endpoint, "get point data page")
+            .await
     }
 
     pub async fn download_point_template(
@@ -686,20 +737,13 @@ impl ApiClient {
         driver: &str,
         lang: Option<&str>,
     ) -> Result<Vec<u8>> {
-        let mut endpoint = self.url.join("ds/in/point/file/template")?;
-        {
-            let mut pairs = endpoint.query_pairs_mut();
-            pairs.append_pair("driver", driver);
-            if let Some(lang) = lang {
-                pairs.append_pair("lang", lang);
-            }
+        let mut query = vec![("driver", driver.to_string())];
+        if let Some(lang) = lang {
+            query.push(("lang", lang.to_string()));
         }
-        let response = self.client.get(endpoint).send().await?;
-        if response.status().is_success() {
-            Ok(response.bytes().await?.to_vec())
-        } else {
-            bail!("Failed to download point template: {}", response.status());
-        }
+        let endpoint = self.build_endpoint_with_query("ds/in/point/file/template", query)?;
+        self.get_bytes_from_endpoint(endpoint, "download point template")
+            .await
     }
 
     pub async fn create_agent(
@@ -709,34 +753,22 @@ impl ApiClient {
         cluster_id: &str,
         user: &str,
     ) -> Result<AgentWithToken> {
-        let endpoint = self.url.join("agents")?;
         let body = AgentProps {
             name: name.to_string(),
             dsn: dsn.to_string(),
             cluster_id: cluster_id.to_string(),
             user_id: Some(user.to_string()),
         };
-        let response = self.client.post(endpoint).json(&body).send().await?;
-        if response.status().is_success() {
-            let agent: AgentWithToken = response.json().await?;
-            Ok(agent)
-        } else {
-            bail!("Failed to create agent: {}", response.status());
-        }
+        self.post_json("agents", &body, "create agent").await
     }
 
     pub async fn list_agents(&self, cluster_id: Option<&str>) -> Result<Vec<Agent>> {
-        let mut endpoint = self.url.join("agents")?;
-        if let Some(cid) = cluster_id {
-            endpoint.set_query(Some(&format!("cluster_id={}", cid)));
-        }
-        let response = self.client.get(endpoint).send().await?;
-        if response.status().is_success() {
-            let agents: Vec<Agent> = response.json().await?;
-            Ok(agents)
+        let endpoint = if let Some(cid) = cluster_id {
+            self.build_endpoint_with_query("agents", [("cluster_id", cid)])?
         } else {
-            bail!("Failed to list agents: {}", response.status());
-        }
+            self.url.join("agents")?
+        };
+        self.get_json_from_endpoint(endpoint, "list agents").await
     }
 
     pub async fn get_agent_by_name(&self, name: &str) -> Result<Agent> {
@@ -751,15 +783,10 @@ impl ApiClient {
     }
 
     pub async fn get_agent(&self, agent_id: i64) -> Result<Agent> {
-        let endpoint = self.url.join(&format!("agents/{}", agent_id))?;
-        let response = self.client.get(endpoint).send().await?;
-        if response.status().is_success() {
-            let agent: Agent = response.json().await?;
-            Ok(agent)
-        } else if response.status().as_u16() == 404 {
-            bail!("Agent {} not found", agent_id);
-        } else {
-            bail!("Failed to get agent: {}", response.status());
+        let path = format!("agents/{}", agent_id);
+        match self.get_json_optional(&path, "get agent").await? {
+            Some(agent) => Ok(agent),
+            None => bail!("Agent {} not found", agent_id),
         }
     }
 
@@ -773,7 +800,12 @@ impl ApiClient {
             let agent: AgentWithToken = response.json().await?;
             Ok(agent)
         } else {
-            bail!("Failed to update agent: {}", response.status());
+            let status = response.status();
+            let message = response
+                .text()
+                .await
+                .context("Failed to get update agent response text")?;
+            bail!("Failed to update agent: {status}, message: {message}");
         }
     }
 
@@ -785,13 +817,107 @@ impl ApiClient {
         } else if response.status().as_u16() == 404 {
             bail!("Agent {} not found", agent_id);
         } else {
-            bail!("Failed to delete agent: {}", response.status());
+            let status = response.status();
+            let message = response
+                .text()
+                .await
+                .context("Failed to get delete agent response text")?;
+            bail!("Failed to delete agent: {status}, message: {message}");
         }
     }
 
     pub async fn data_source_is_valid(&self, dsn: &str) -> Result<bool> {
-        let endpoint = self.url.join(&format!("datasources/valid?dsn={}", dsn))?;
+        let endpoint = self.build_endpoint_with_query("datasources/valid", [("dsn", dsn)])?;
         let response = self.client.get(endpoint).send().await?;
         Ok(response.status().is_success())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::{Read, Write};
+    use std::net::TcpListener;
+    use std::sync::mpsc;
+    use std::thread;
+    use std::time::Duration;
+
+    fn spawn_single_response_server(content_type: &str, body: &'static str) -> String {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+        let content_type = content_type.to_string();
+
+        thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut buf = [0u8; 2048];
+            let _ = stream.read(&mut buf);
+            let response = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                body.len()
+            );
+            stream.write_all(response.as_bytes()).unwrap();
+        });
+
+        format!("http://{addr}/")
+    }
+
+    fn spawn_recording_server(
+        content_type: &str,
+        body: &'static str,
+    ) -> (String, mpsc::Receiver<String>) {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+        let content_type = content_type.to_string();
+        let (tx, rx) = mpsc::channel();
+
+        thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut buf = [0u8; 2048];
+            let size = stream.read(&mut buf).unwrap();
+            tx.send(String::from_utf8_lossy(&buf[..size]).to_string())
+                .unwrap();
+            let response = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                body.len()
+            );
+            stream.write_all(response.as_bytes()).unwrap();
+        });
+
+        (format!("http://{addr}/"), rx)
+    }
+
+    #[tokio::test]
+    async fn test_health_accepts_plain_text_response() {
+        let server = spawn_single_response_server("text/plain", "ok");
+        let client = ApiClient::builder(server.as_str()).build().unwrap();
+
+        let health = client.health().await.unwrap();
+
+        assert_eq!(health, "ok");
+    }
+
+    #[tokio::test]
+    async fn test_swagger_returns_raw_json_text() {
+        let server = spawn_single_response_server("application/json", "{\"openapi\":\"3.1.0\"}");
+        let client = ApiClient::builder(server.as_str()).build().unwrap();
+
+        let swagger = client.swagger().await.unwrap();
+
+        assert_eq!(swagger, "{\"openapi\":\"3.1.0\"}");
+    }
+
+    #[tokio::test]
+    async fn test_download_file_encodes_query_parameter() {
+        let (server, request_rx) = spawn_recording_server("application/octet-stream", "payload");
+        let client = ApiClient::builder(server.as_str()).build().unwrap();
+
+        let payload = client.download_file("dir/a&b?.txt").await.unwrap();
+        let request = request_rx.recv_timeout(Duration::from_secs(1)).unwrap();
+
+        assert_eq!(payload, b"payload");
+        assert!(
+            request.starts_with("GET /download?file_path=dir%2Fa%26b%3F.txt HTTP/1.1"),
+            "unexpected request line: {request}"
+        );
     }
 }

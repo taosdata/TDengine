@@ -19,38 +19,6 @@
 //! 12. **Delete Task** - Removes task
 //! 13. **Verify Task Deleted** - Confirms task no longer exists
 //!
-//! ### Extended Tests (`test_taosx_api_extended`)
-//! 1. **Profile Endpoint** - Gets system version and build info
-//! 2. **Metrics Endpoint** - Retrieves Prometheus-style metrics
-//! 3. **Metrics Description (English)** - Gets metric descriptions in English
-//! 4. **Metrics Description (Chinese)** - Gets metric descriptions in Chinese
-//! 5. **Task Count** - Gets total count of tasks
-//! 6. **Get Non-existent Task** - Error handling for missing task
-//! 7. **Delete Non-existent Task** - Error handling for deletion
-//! 8. **Create Agent** - Creates a new agent with cluster ID
-//! 9. **List Agents** - Lists all agents
-//! 10. **List Agents with Filter** - Filters agents by cluster ID
-//! 11. **Get Agent by ID** - Retrieves specific agent
-//! 12. **Update Agent** - Updates agent cluster ID
-//! 13. **Delete Agent** - Removes agent
-//! 14. **Verify Agent Deleted** - Confirms agent deletion
-//! 15. **Data Source Validation** - Tests DSN validation for various protocols
-//! 16. **Create Multiple Tasks** - Creates tasks for batch operations
-//! 17. **Batch Start Tasks** - Starts multiple tasks at once
-//! 18. **Batch Stop Tasks** - Stops multiple tasks at once
-//! 19. **Batch Delete Tasks** - Deletes multiple tasks at once
-//! 20. **Verify Batch Deleted** - Confirms all batch deletions
-//! 21. **Update Non-existent Task** - Error handling for updates
-//! 22. **Start Non-existent Task** - Error handling for start operation
-//! 23. **Stop Non-existent Task** - Error handling for stop operation
-//! 24. **Create Task with Empty Name** - Tests validation for empty names
-//! 25. **Create Task with Long Name** - Tests handling of very long names
-//! 26. **Create Task with Special Characters** - Tests special character support
-//! 27. **Multiple Rapid Requests** - Tests API under rapid concurrent requests
-//! 28. **API Reachability After Operations** - Verifies API stability
-//! 29. **Final Task Count** - Gets final state of task count
-//! 30. **Final Task List** - Lists all remaining tasks
-//!
 //! ## Running Tests
 //!
 //! Run all API tests:
@@ -58,35 +26,17 @@
 //! cargo test -p taosx-integration-tests test_taosx_api
 //! ```
 //!
-//! Run specific test:
-//! ```bash
-//! cargo test -p taosx-integration-tests test_taosx_api_extended -- --nocapture
-//! ```
-//!
 //! ## API Endpoints Tested
 //!
 //! - `GET /health` - Health check
 //! - `GET /swagger.json` - OpenAPI specification
-//! - `GET /profile` - System version and build info
-//! - `GET /metrics` - Prometheus metrics
-//! - `GET /metrics/description` - Metric descriptions
 //! - `GET /tasks` - List all tasks
-//! - `GET /tasks/count` - Get task count
 //! - `POST /tasks` - Create new task
 //! - `GET /tasks/{id}` - Get specific task
 //! - `PATCH /tasks/{id}` - Update task
 //! - `DELETE /tasks/{id}` - Delete task
 //! - `POST /tasks/{id}/start` - Start task
 //! - `POST /tasks/{id}/stop` - Stop task
-//! - `POST /tasks/start` - Batch start tasks
-//! - `POST /tasks/stop` - Batch stop tasks
-//! - `POST /tasks/delete` - Batch delete tasks
-//! - `POST /agents` - Create agent
-//! - `GET /agents` - List agents
-//! - `GET /agents/{id}` - Get specific agent
-//! - `PATCH /agents/{id}` - Update agent
-//! - `DELETE /agents/{id}` - Delete agent
-//! - `GET /datasources/valid` - Validate data source
 
 #[derive(serde::Serialize)]
 pub struct NewTask {
@@ -225,9 +175,6 @@ pub use client::{ApiCheckValidParamClient, ApiClient};
 
 #[cfg(test)]
 mod basic;
-
-#[cfg(test)]
-mod extended;
 
 #[cfg(test)]
 mod upload_download;

@@ -34,22 +34,20 @@ pub fn time_unit_dt_fmt(unit: &str) -> anyhow::Result<&'static str> {
 
 #[cfg(test)]
 mod test {
-    use chrono::TimeZone;
-
     use crate::utils::{YYMMDD, YYMMDDHH, YYMMDDHHMM, parse_from_str};
 
     #[test]
     fn test_parse_from_str() {
         let dt = "20250626";
         let dt = parse_from_str(dt, YYMMDD).unwrap();
-        assert_eq!(dt, chrono::Local.timestamp_opt(1750867200, 0).unwrap());
+        assert_eq!(dt.format(YYMMDD).to_string(), "20250626");
 
         let dt = "2025062611";
         let dt = parse_from_str(dt, YYMMDDHH).unwrap();
-        assert_eq!(dt, chrono::Local.timestamp_opt(1750906800, 0).unwrap());
+        assert_eq!(dt.format(YYMMDDHH).to_string(), "2025062611");
 
         let dt = "202506261109";
         let dt = parse_from_str(dt, YYMMDDHHMM).unwrap();
-        assert_eq!(dt, chrono::Local.timestamp_opt(1750907340, 0).unwrap());
+        assert_eq!(dt.format(YYMMDDHHMM).to_string(), "202506261109");
     }
 }

@@ -774,6 +774,68 @@ end
 command = "cargo"
 args = ["build", "-p", "xnoded", "--profile", "${BUILD_PROFILE}"]
 
+# ============================================================================
+# Coverage-Instrumented Build Tasks
+# ============================================================================
+
+[tasks.taosx-with-coverage]
+description = "Build taosx with llvm-cov instrumentation"
+dependencies = ["install-llvm-cov", "install-protoc"]
+script = """
+#!/usr/bin/env bash
+eval "$(cargo llvm-cov show-env --export-prefix)"
+cargo build -p taosx --profile ${BUILD_PROFILE}
+"""
+
+[tasks.taosx-agent-with-coverage]
+description = "Build taosx-agent with llvm-cov instrumentation"
+dependencies = ["install-llvm-cov", "install-protoc"]
+script = """
+#!/usr/bin/env bash
+eval "$(cargo llvm-cov show-env --export-prefix)"
+cargo build -p taosx-agent --profile ${BUILD_PROFILE}
+"""
+
+[tasks.explorer-with-coverage]
+description = "Build taos-explorer with llvm-cov instrumentation"
+dependencies = ["install-llvm-cov", "explorer-ui"]
+script = """
+#!/usr/bin/env bash
+eval "$(cargo llvm-cov show-env --export-prefix)"
+cargo build -p taos-explorer --profile ${BUILD_PROFILE}
+"""
+
+[tasks.xnoded-with-coverage]
+description = "Build xnoded with llvm-cov instrumentation"
+dependencies = ["install-llvm-cov"]
+script = """
+#!/usr/bin/env bash
+eval "$(cargo llvm-cov show-env --export-prefix)"
+cargo build -p xnoded --profile ${BUILD_PROFILE}
+"""
+
+[tasks.generate-coverage-report]
+description = "Generate coverage reports from profraw files"
+dependencies = ["install-llvm-cov"]
+script = """
+set -e
+
+# Merge all profraw files from the coverage directory
+# Note: Requires instrumented binaries to be present in target/debug/ (BUILD_PROFILE=dev)
+cd ${COVERAGE_OUTPUT_DIR}
+mapfile -t profraw_files < <(find . -maxdepth 1 -name 'coverage-*.profraw' -print | sort)
+if [ "${#profraw_files[@]}" -eq 0 ]; then
+  echo "No profraw files found in ${COVERAGE_OUTPUT_DIR}"
+  exit 1
+fi
+llvm-profdata merge -sparse "${profraw_files[@]}" -o merged.profdata
+
+# Generate reports using the merged profdata
+cd -
+cargo llvm-cov report --html --output-dir ${COVERAGE_OUTPUT_DIR}/html --profdata-path ${COVERAGE_OUTPUT_DIR}/merged.profdata
+cargo llvm-cov report --lcov --output-path ${COVERAGE_OUTPUT_DIR}/llvm-cov-merged.lcov --profdata-path ${COVERAGE_OUTPUT_DIR}/merged.profdata
+"""
+
 [tasks.deploy-xnoded]
 dependencies = ["clean-xnoded", "xnoded"]
 script_runner = "@duckscript"
@@ -1228,22 +1290,6 @@ args = [
   "--no-fail-fast",
 ]
 
-[tasks.test-integration]
-dependencies = ["install-llvm-cov", "install-nextest"]
-command = "cargo"
-args = [
-  "llvm-cov",
-  "--lcov",
-  "--output-path",
-  "target/llvm-cov-integration.lcov",
-  "nextest",
-  "-p",
-  "taosx-integration-tests",
-  "--features",
-  "test-all-datasources",
-  "--no-fail-fast",
-]
-
 [tasks.test-ci]
 command = "cargo"
 args = [
@@ -1258,26 +1304,103 @@ args = [
   "ci",
 ]
 
+[tasks.test-integration]
+description = "Run tests without llvm-cov instrumentation for CI (connects to instrumented services in container)"
+dependencies = ["install-nextest"]
+command = "cargo"
+args = [
+  "nextest",
+  "run",
+  "--no-fail-fast",
+  "-p",
+  "taosx-integration-tests",
+  "--features",
+  "test-all-datasources",
+  "--profile",
+  "ci",
+]
+
 [tasks.test]
 dependencies = [
   "test-without-explorer",
   "test-explorer",
-  "test-integration",
   "install-lcov",
 ]
 script = """
-# merge coverage data
+# merge coverage data from local tests only
+# Note: Integration tests run separately in CI with instrumented container services
 lcov --add-tracefile target/llvm-cov-taosx.lcov --add-tracefile target/llvm-cov-explorer.lcov --output-file target/llvm-cov-merged.lcov
-# covert absolute path to relative path
+# convert absolute path to relative path
 sed -i 's#SF:.*taosx/#SF:#' target/llvm-cov-merged.lcov
 
 # 1. remove third-party crates: tokio-cron-scheduler, rust-sasl
 # 2. remove windows only data sources including PI and KingHistorian
 # 3. remove compatibility layer
-lcov --remove target/llvm-cov-merged.lcov -o target/llvm-cov-filter.lcov 'crates/tokio-cron-scheduler/*' 'crates/rust-sasl/*' 'src/privileges/*' 'crates/sink*' 'crates/source-king*' 'taosx-core/src/plugins/sink/*' 'crates/source-pulsar/*' 'crates/source-mssql/*' 'crates/source-postgres/*' 'taosx-agent/*'
+lcov --remove target/llvm-cov-merged.lcov -o target/llvm-cov-filter.lcov \
+  --ignore-errors unused \
+  'crates/tokio-cron-scheduler/*' 'crates/rust-sasl/*' 'src/privileges/*' 'crates/sink*' 'crates/source-king*' 'taosx-core/src/plugins/sink/*' 'crates/source-pulsar/*' 'crates/source-mssql/*' 'crates/source-postgres/*' 'taosx-agent/*'
 
 # make output clean
 mv target/llvm-cov-filter.lcov target/llvm-cov-merged.lcov
+"""
+
+[tasks.merge-all-coverage]
+description = "Merge all coverage files including integration tests (for CI)"
+dependencies = ["install-lcov"]
+script = """
+set -e
+
+# Merge coverage data from local unit tests and integration tests
+# This task is designed to run in CI after both local_test and test_integration jobs complete
+
+COVERAGE_DIR=${COVERAGE_OUTPUT_DIR:-target}
+
+# Check which coverage files exist
+LCOV_FILES=()
+if [ -f "$COVERAGE_DIR/llvm-cov-taosx.lcov" ]; then
+  LCOV_FILES+=(--add-tracefile "$COVERAGE_DIR/llvm-cov-taosx.lcov")
+  echo "Found: llvm-cov-taosx.lcov"
+fi
+
+if [ -f "$COVERAGE_DIR/llvm-cov-explorer.lcov" ]; then
+  LCOV_FILES+=(--add-tracefile "$COVERAGE_DIR/llvm-cov-explorer.lcov")
+  echo "Found: llvm-cov-explorer.lcov"
+fi
+
+if [ -f "$COVERAGE_DIR/llvm-cov-integration.lcov" ]; then
+  LCOV_FILES+=(--add-tracefile "$COVERAGE_DIR/llvm-cov-integration.lcov")
+  echo "Found: llvm-cov-integration.lcov"
+fi
+
+if [ "${#LCOV_FILES[@]}" -eq 0 ]; then
+  echo "Error: No coverage files found in $COVERAGE_DIR"
+  exit 1
+fi
+
+# Merge all available coverage files
+lcov "${LCOV_FILES[@]}" --output-file $COVERAGE_DIR/llvm-cov-merged.lcov
+
+# Convert absolute path to relative path
+sed -i 's#SF:.*taosx/#SF:#' $COVERAGE_DIR/llvm-cov-merged.lcov
+
+# Remove third-party crates and platform-specific code
+lcov --remove $COVERAGE_DIR/llvm-cov-merged.lcov -o $COVERAGE_DIR/llvm-cov-filter.lcov \
+  --ignore-errors unused \
+  'crates/tokio-cron-scheduler/*' \
+  'crates/rust-sasl/*' \
+  'src/privileges/*' \
+  'crates/sink*' \
+  'crates/source-king*' \
+  'taosx-core/src/plugins/sink/*' \
+  'crates/source-pulsar/*' \
+  'crates/source-mssql/*' \
+  'crates/source-postgres/*' \
+  'taosx-agent/*'
+
+# Make output clean
+mv $COVERAGE_DIR/llvm-cov-filter.lcov $COVERAGE_DIR/llvm-cov-merged.lcov
+
+echo "Coverage merge complete: $COVERAGE_DIR/llvm-cov-merged.lcov"
 """
 
 [tasks.install-locally]

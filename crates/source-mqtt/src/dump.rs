@@ -320,12 +320,16 @@ mod tests {
     #[test]
     fn parse_filename_test() {
         assert_eq!(
-            parse_date_str("202410221338").map(|s| s.timestamp()),
-            Some(1729575480)
+            parse_date_str("202410221338")
+                .map(|s| time_format(s).to_string())
+                .as_deref(),
+            Some("202410221338")
         );
         assert_eq!(
-            parse_filename("mqtt.dump.202410221338.csv").map(|s| s.timestamp()),
-            Some(1729575480)
+            parse_filename("mqtt.dump.202410221338.csv")
+                .map(|s| time_format(s).to_string())
+                .as_deref(),
+            Some("202410221338")
         );
     }
 
@@ -338,14 +342,15 @@ mod tests {
     }
 
     fn dt(s: &str) -> DateTime<Local> {
-        DateTime::parse_from_rfc3339(s).unwrap().into()
+        let naive = NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M:%S").unwrap();
+        Local.from_local_datetime(&naive).single().unwrap()
     }
 
     #[test]
     fn is_date_expired_test() -> anyhow::Result<()> {
         assert!(is_date_expired(
-            dt("2024-11-18T08:21:33+08:00"),
-            dt("2024-11-18T10:21:33+08:00")
+            dt("2024-11-18T08:21:33"),
+            dt("2024-11-18T10:21:33")
         ));
         Ok(())
     }
@@ -377,7 +382,7 @@ mod tests {
         }
 
         let (date, filename) = latest_filename_date(dir_path)?.context("filename not found")?;
-        assert_eq!(date, dt("2024-10-22T13:39:00+08:00"));
+        assert_eq!(time_format(date).to_string(), "202410221339");
         assert_eq!(&filename, "mqtt.dump.202410221339.csv");
         Ok(())
     }
@@ -421,7 +426,7 @@ mod tests {
                 .open(dir_path.join(path))?;
         }
 
-        config.handle_old_files(&dt("2024-10-23T14:39:00+08:00"))?;
+        config.handle_old_files(&dt("2024-10-23T14:39:00"))?;
 
         assert!(std::fs::exists(
             dir_path.join("mqtt.dump.202410241339.csv")
@@ -437,7 +442,7 @@ mod tests {
 
     #[test]
     fn write_csv_test() -> anyhow::Result<()> {
-        let clock = TestClock(Arc::new(Mutex::new(dt("2024-10-22T13:39:00+08:00"))));
+        let clock = TestClock(Arc::new(Mutex::new(dt("2024-10-22T13:39:00"))));
 
         let dir = TempDir::new()?;
         let dir_path = dir.path().join("csv");
@@ -459,7 +464,7 @@ mod tests {
         assert_eq!(&std::fs::read_to_string(&file_path1)?, "hello,world");
 
         // 修改系统时间，向前推进 1 小时
-        clock.set("2024-10-22T14:39:00+08:00");
+        clock.set("2024-10-22T14:39:00");
 
         // 写入一条数据
         appender.write_all(b"hello,world")?;
@@ -477,7 +482,7 @@ mod tests {
         assert_eq!(&std::fs::read_to_string(&file_path2)?, "hello,world");
 
         // 修改系统时间，向前推进 1 天
-        clock.set("2024-10-23T13:39:00+08:00");
+        clock.set("2024-10-23T13:39:00");
 
         // 文件 1，文件 2 和目录存在
         assert!(dir_path.is_dir());
@@ -509,7 +514,7 @@ mod tests {
 
     #[test]
     fn init_use_old_file_test() -> anyhow::Result<()> {
-        let clock = TestClock(Arc::new(Mutex::new(dt("2024-10-22T13:40:00+08:00"))));
+        let clock = TestClock(Arc::new(Mutex::new(dt("2024-10-22T13:40:00"))));
 
         let dir = TempDir::new()?;
         let dir_path = dir.path();

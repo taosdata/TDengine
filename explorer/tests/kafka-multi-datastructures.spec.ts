@@ -10,6 +10,8 @@
  */
 
 import * as path from 'path';
+import * as os from 'os';
+import * as fs from 'fs/promises';
 import { fileURLToPath } from 'url';
 import { test, expect } from './_utils/test';
 import {
@@ -21,12 +23,15 @@ import {
 } from './_utils/datain';
 import { stopTaskBestEffort, deleteTaskBestEffort } from './_utils/cleanup';
 import { runSqlBatch } from './_utils/explorerSql';
+import { rewriteKafkaImportContent } from './_utils/importTaskFile';
 
 // Resource file that contains a pre-configured Kafka task with two rule blocks.
 const IMPORT_FILE = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   'resources/datain-kafka-multi-datastructures.json'
 );
+
+let preparedImportFilePromise: Promise<string> | undefined;
 
 // Task name embedded in the resource file.
 const IMPORTED_TASK_NAME = 'kafka';
@@ -51,12 +56,31 @@ const SAMPLE_PAYLOAD = [SAMPLE_ROBOT_MSG, SAMPLE_CONDITIONER_MSG].join('\n');
 
 /** Upload the multi-data-structures JSON export and wait for the import dialog. */
 async function openImportDialog(page: import('playwright/test').Page) {
+  const importFile = await getImportFileForCurrentEnv();
   const fileInput = page.locator('.inline-upload input[type="file"]');
-  await fileInput.setInputFiles(IMPORT_FILE);
+  await fileInput.setInputFiles(importFile);
 
   const dialog = page.locator('.el-dialog:visible').filter({ hasText: /import task/i });
   await expect(dialog).toBeVisible({ timeout: 15_000 });
   return dialog;
+}
+
+async function getImportFileForCurrentEnv() {
+  preparedImportFilePromise ??= (async () => {
+    const ciBroker = process.env.INTEGRATION_TEST_KAFKA_BROKER;
+    if (!ciBroker) {
+      return IMPORT_FILE;
+    }
+
+    const rewritten = rewriteKafkaImportContent(await fs.readFile(IMPORT_FILE, 'utf8'), ciBroker);
+    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'kafka-import-'));
+    const importFile = path.join(tempDir, path.basename(IMPORT_FILE));
+
+    await fs.writeFile(importFile, rewritten, 'utf8');
+    return importFile;
+  })();
+
+  return preparedImportFilePromise;
 }
 
 /** Navigate to DataIn > add, choose Kafka, fill the sample-data textarea and wait for rule blocks. */

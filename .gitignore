@@ -48,6 +48,7 @@ Dockerfile.*
 compose.yaml
 scripts/
 !.github/scripts/
+!.github/scripts/**
 issues
 output.txt
 *.log

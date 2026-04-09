@@ -68,10 +68,7 @@ use tracing_subscriber::{
 use sql::need_limit;
 
 use crate::{
-    oauth::{
-        SessionManager,
-        middleware::{TsdbCredential, session_renewal_middleware},
-    },
+    oauth::{SessionManager, middleware::TsdbCredential},
     security::SecurityConfig,
     utils::xor::TimeBasedXor,
     x_api::{
@@ -138,7 +135,7 @@ async fn get_connection(dsn: &Dsn) -> anyhow::Result<Object<Manager<TaosBuilder>
     let pool_error = |err: PoolError<_>| -> anyhow::Error {
         match err {
             PoolError::Backend(inner_err) => {
-                anyhow::Error::new(inner_err).context("failed to get connection from pool")
+                anyhow::anyhow!("failed to get {dsn} connection from pool: {inner_err:#}")
             }
             PoolError::Timeout(timeout_type) => anyhow::anyhow!(
                 "Timeout {timeout_type:?} when connect to taosadapter, please check configuration item 'cluster' in explorer.toml"
@@ -434,10 +431,6 @@ async fn main() -> anyhow::Result<()> {
             .wrap(TracingLogger::<TaosRootSpanBuilder<Qid>>::new())
             .wrap(cors)
             .wrap(Compress::default())
-            .wrap(actix_web::middleware::from_fn(session_renewal_middleware))
-            .wrap(actix_web::middleware::from_fn(
-                token_query_session_middleware,
-            ))
             .app_data(web::Data::new(http_client.clone()))
             .app_data(app_args.clone())
             .app_data(web::Data::new(favorites.clone()))
@@ -1431,12 +1424,12 @@ async fn login(
                     ok.token.replace(session_id.to_string());
 
                     // Create a HttpOnly, Secure session cookie for session_id
-                    let session_cookie =
-                        Cookie::build(oauth::handlers::SESSION_ID_COOKIE, session_id)
-                            .path("/")
-                            .http_only(true)
-                            .same_site(awc::cookie::SameSite::Lax)
-                            .finish();
+                    let session_cookie = Cookie::build("session_id", session_id)
+                        .path("/")
+                        .http_only(true)
+                        .same_site(awc::cookie::SameSite::Lax)
+                        .max_age(actix_web::cookie::time::Duration::seconds(BASIC_AUTH_TTL))
+                        .finish();
 
                     resp.append_header(("X-Explorer-Version", build::PKG_VERSION))
                         .cookie(session_cookie);
@@ -1542,12 +1535,12 @@ async fn login_with_token(
                     let session_id = session.session_id();
                     tracing::info!("Created token login session for user: {}", current_user);
 
-                    let session_cookie =
-                        Cookie::build(oauth::handlers::SESSION_ID_COOKIE, session_id)
-                            .path("/")
-                            .http_only(true)
-                            .same_site(awc::cookie::SameSite::Lax)
-                            .finish();
+                    let session_cookie = Cookie::build("session_id", session_id)
+                        .path("/")
+                        .http_only(true)
+                        .same_site(awc::cookie::SameSite::Lax)
+                        .max_age(actix_web::cookie::time::Duration::seconds(3600))
+                        .finish();
 
                     HttpResponse::Ok()
                         .append_header(("X-Explorer-Version", build::PKG_VERSION))
@@ -2163,61 +2156,6 @@ async fn x_api_doc(
 #[derive(RustEmbed)]
 #[folder = "../dist/"]
 struct StaticAssets;
-
-/// Middleware: when a request carries `?token=xt-…`, set it as the `session_id`
-/// cookie and redirect to the same URL with the `token` param stripped.
-/// This prevents the token from lingering in browser history, Referer headers,
-/// or access logs.
-async fn token_query_session_middleware(
-    req: ServiceRequest,
-    next: actix_web::middleware::Next<impl actix_web::body::MessageBody + 'static>,
-) -> Result<ServiceResponse<impl actix_web::body::MessageBody>, actix_web::Error> {
-    // Fast path: skip if no query string present.
-    let qs = req.query_string();
-    if qs.is_empty() {
-        return next.call(req).await.map(|res| res.map_into_left_body());
-    }
-
-    // Parse query parameters with proper percent-decoding.
-    let params: Vec<(String, String)> = url::form_urlencoded::parse(qs.as_bytes())
-        .into_owned()
-        .collect();
-
-    let token = params
-        .iter()
-        .find(|(k, _)| k == "token")
-        .map(|(_, v)| v.clone())
-        .filter(|v| v.starts_with("xt-"));
-
-    if let Some(token) = token {
-        let session_cookie = Cookie::build("session_id", token)
-            .path("/")
-            .http_only(true)
-            .same_site(awc::cookie::SameSite::Lax)
-            .finish();
-
-        // Reconstruct the query string without the `token` parameter,
-        // using the same encoder to preserve correct percent-encoding.
-        let remaining: String = url::form_urlencoded::Serializer::new(String::new())
-            .extend_pairs(params.iter().filter(|(k, _)| k != "token"))
-            .finish();
-
-        let path = req.uri().path();
-        let location = if remaining.is_empty() {
-            path.to_string()
-        } else {
-            format!("{path}?{remaining}")
-        };
-
-        let res = HttpResponse::Found()
-            .cookie(session_cookie)
-            .append_header(("Location", location))
-            .finish();
-        return Ok(req.into_response(res).map_into_right_body());
-    }
-
-    next.call(req).await.map(|res| res.map_into_left_body())
-}
 
 /// Serve static assets with a prefix.
 ///
@@ -3353,145 +3291,5 @@ mod tests {
         assert_eq!(args.monitor_fqdn, Some("fake3".to_string()));
         assert_eq!(args.monitor_port, 6043);
         assert_eq!(args.monitor_interval, 10);
-    }
-
-    // ── token_query_session_middleware ─────────────────────────────────────
-
-    #[tokio::test]
-    async fn test_token_query_middleware_redirects_and_sets_cookie() {
-        use actix_web::{App, web};
-        let app = actix_web::test::init_service(
-            App::new()
-                .wrap(actix_web::middleware::from_fn(
-                    token_query_session_middleware,
-                ))
-                .route(
-                    "/",
-                    web::get().to(|| async { HttpResponse::Ok().body("ok") }),
-                ),
-        )
-        .await;
-
-        let req = actix_web::test::TestRequest::get()
-            .uri("/?token=xt-abc123")
-            .to_request();
-        let resp = actix_web::test::call_service(&app, req).await;
-
-        // Must redirect.
-        assert_eq!(resp.status(), actix_web::http::StatusCode::FOUND);
-
-        // Location must not contain the token param.
-        let location = resp.headers().get("Location").unwrap().to_str().unwrap();
-        assert_eq!(location, "/", "token must be stripped from redirect URL");
-
-        // session_id cookie must carry the token value.
-        let cookie_header = resp
-            .headers()
-            .get("Set-Cookie")
-            .expect("Set-Cookie header must be present")
-            .to_str()
-            .unwrap();
-        assert!(
-            cookie_header.contains("session_id=xt-abc123"),
-            "session_id cookie must contain the token"
-        );
-    }
-
-    #[tokio::test]
-    async fn test_token_query_middleware_preserves_other_params() {
-        use actix_web::{App, web};
-        let app = actix_web::test::init_service(
-            App::new()
-                .wrap(actix_web::middleware::from_fn(
-                    token_query_session_middleware,
-                ))
-                .route(
-                    "/",
-                    web::get().to(|| async { HttpResponse::Ok().body("ok") }),
-                ),
-        )
-        .await;
-
-        let req = actix_web::test::TestRequest::get()
-            .uri("/?token=xt-mytoken&foo=bar&baz=1")
-            .to_request();
-        let resp = actix_web::test::call_service(&app, req).await;
-
-        assert_eq!(resp.status(), actix_web::http::StatusCode::FOUND);
-        let location = resp.headers().get("Location").unwrap().to_str().unwrap();
-        assert!(
-            !location.contains("token="),
-            "token must not appear in Location"
-        );
-        assert!(location.contains("foo=bar"), "other params must be kept");
-        assert!(location.contains("baz=1"), "other params must be kept");
-    }
-
-    #[tokio::test]
-    async fn test_token_query_middleware_ignores_non_xt_token() {
-        use actix_web::{App, web};
-        let app = actix_web::test::init_service(
-            App::new()
-                .wrap(actix_web::middleware::from_fn(
-                    token_query_session_middleware,
-                ))
-                .route(
-                    "/",
-                    web::get().to(|| async { HttpResponse::Ok().body("ok") }),
-                ),
-        )
-        .await;
-
-        let req = actix_web::test::TestRequest::get()
-            .uri("/?token=plain-token")
-            .to_request();
-        let resp = actix_web::test::call_service(&app, req).await;
-
-        // No redirect — token does not start with "xt-".
-        assert_eq!(resp.status(), actix_web::http::StatusCode::OK);
-    }
-
-    #[tokio::test]
-    async fn test_token_query_middleware_passes_through_without_token() {
-        use actix_web::{App, web};
-        let app = actix_web::test::init_service(
-            App::new()
-                .wrap(actix_web::middleware::from_fn(
-                    token_query_session_middleware,
-                ))
-                .route(
-                    "/",
-                    web::get().to(|| async { HttpResponse::Ok().body("ok") }),
-                ),
-        )
-        .await;
-
-        let req = actix_web::test::TestRequest::get()
-            .uri("/?foo=bar")
-            .to_request();
-        let resp = actix_web::test::call_service(&app, req).await;
-
-        assert_eq!(resp.status(), actix_web::http::StatusCode::OK);
-    }
-
-    #[tokio::test]
-    async fn test_token_query_middleware_passes_through_empty_qs() {
-        use actix_web::{App, web};
-        let app = actix_web::test::init_service(
-            App::new()
-                .wrap(actix_web::middleware::from_fn(
-                    token_query_session_middleware,
-                ))
-                .route(
-                    "/",
-                    web::get().to(|| async { HttpResponse::Ok().body("ok") }),
-                ),
-        )
-        .await;
-
-        let req = actix_web::test::TestRequest::get().uri("/").to_request();
-        let resp = actix_web::test::call_service(&app, req).await;
-
-        assert_eq!(resp.status(), actix_web::http::StatusCode::OK);
     }
 }

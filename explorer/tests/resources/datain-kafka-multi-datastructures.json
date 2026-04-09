@@ -8,9 +8,9 @@
       "from": {
         "type": "kafka",
         "data": {
-          "host": "localhost",
+          "host": "broker.example.invalid",
           "port": 9092,
-          "endpoint": "localhost:9092",
+          "endpoint": "broker.example.invalid:9092",
           "batch_size": "1000",
           "busy_threshold": "100%",
           "char_encoding": "UTF_8",

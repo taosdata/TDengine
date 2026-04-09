@@ -332,9 +332,15 @@ mod tests {
             Some(begin),
             Some(end),
         );
+        let expected_begin: DateTime<Local> = begin.into();
+        let expected_end: DateTime<Local> = end.into();
         assert_eq!(
             sql,
-            "select top 10 * from Runtime.dbo.History where wwRetrievalMode = 'full' and TagName not like 'Sys%' and DateTime >= '2024-01-01T11:11:11.111+08:00' and DateTime < '2024-01-01T22:22:22.222+08:00'"
+            format!(
+                "select top 10 * from Runtime.dbo.History where wwRetrievalMode = 'full' and TagName not like 'Sys%' and DateTime >= '{}' and DateTime < '{}'",
+                expected_begin.to_rfc3339(),
+                expected_end.to_rfc3339()
+            )
         );
     }
 }

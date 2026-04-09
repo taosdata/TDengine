@@ -9224,6 +9224,7 @@ dependencies = [
  "taos",
  "taosx-core",
  "taosx-ipc",
+ "tempfile",
  "tiberius",
  "tokio",
  "tokio-util",

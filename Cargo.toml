@@ -466,6 +466,11 @@ disable-enterprise-connector-validation = [
 
 tokio-tracing = ["tokio/tracing", "console-subscriber"]
 
+[profile.dev]
+incremental = true      # Enable incremental compilation
+codegen-units = 256     # Maximize parallel codegen for faster builds
+debug = 2               # Keep full debug info for dev builds and coverage workflows
+
 [profile.sani]
 inherits = "release"
 debug = 2
